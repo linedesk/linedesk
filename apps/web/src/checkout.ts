@@ -14,9 +14,21 @@ export function readCheckoutSession(search: string = window.location.search): st
   return id && /^cs_[A-Za-z0-9_]{1,250}$/.test(id) ? id : null
 }
 
-/** Starts Checkout for the bill (the trial, or the plan after a refused trial) and goes there. */
-export async function goToCheckout() {
-  const { url } = await callAction<CheckoutStartData>('billing.startCheckout')
+/**
+ * The partner in the return address (`&partner=<id>`): Checkout was for that white-label partner's bill (Partner ›
+ * Billing), so the confirmation names it and the app goes back to the partner area. Else null.
+ */
+export function readCheckoutPartner(search: string = window.location.search): string | null {
+  const id = new URLSearchParams(search).get('partner')
+  return id && /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : null
+}
+
+/**
+ * Starts Checkout for the bill (the trial, or the plan after a refused trial) and goes there. `partnerId`: the
+ * partner's bill (its owner) instead of the workspace's.
+ */
+export async function goToCheckout(partnerId?: string | null) {
+  const { url } = await callAction<CheckoutStartData>('billing.startCheckout', partnerId ? { partnerId } : {})
   window.location.assign(url)
 }
 
@@ -32,10 +44,10 @@ const confirming = new Map<string, Promise<ConfirmOutcome>>()
  * Confirms the finished Checkout; a session that is not this bill's answers `not_found`, like an unknown one. Asked
  * once per session id; a failure is not kept, so a later try asks again.
  */
-export function confirmCheckout(sessionId: string): Promise<ConfirmOutcome> {
+export function confirmCheckout(sessionId: string, partnerId?: string | null): Promise<ConfirmOutcome> {
   const asked = confirming.get(sessionId)
   if (asked) return asked
-  const answer = askConfirm(sessionId).then(outcome => {
+  const answer = askConfirm(sessionId, partnerId ?? null).then(outcome => {
     if (outcome.status === 'failed') confirming.delete(sessionId)
     return outcome
   })
@@ -43,9 +55,12 @@ export function confirmCheckout(sessionId: string): Promise<ConfirmOutcome> {
   return answer
 }
 
-async function askConfirm(sessionId: string): Promise<ConfirmOutcome> {
+async function askConfirm(sessionId: string, partnerId: string | null): Promise<ConfirmOutcome> {
   try {
-    return await callAction<CheckoutConfirmData>('billing.confirmCheckout', { sessionId })
+    return await callAction<CheckoutConfirmData>('billing.confirmCheckout', {
+      sessionId,
+      ...(partnerId ? { partnerId } : {}),
+    })
   } catch (error) {
     return { status: (error as { code?: string }).code === 'not_found' ? 'not_found' : 'failed' }
   }

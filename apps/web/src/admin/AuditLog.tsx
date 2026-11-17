@@ -270,6 +270,12 @@ export function auditLabel(
       return t('admin.audit.partnerJoined')
     case 'workspace.createForClient':
       return t('admin.audit.clientWorkspaceCreated', name)
+    case 'workspace.inviteClientOwner':
+      return t('admin.audit.clientOwnerInvited', who)
+    case 'partner.releaseClient':
+      return t('admin.audit.clientReleased')
+    case 'workspace.removePartner':
+      return t('admin.audit.partnerRemoved')
     case 'workspace.create':
       return t('admin.audit.workspaceCreated', { ...name, ...who })
     case 'voiceCloning.set':

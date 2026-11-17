@@ -7,6 +7,9 @@ import { readAction } from './settings-api.ts'
 export const OVERVIEW = 'billing.overview'
 export const STATE = 'billing.state'
 export const WORKSPACE_USAGE = 'billing.workspaceUsage'
-export const loadOverview = () => readAction<BillingOverviewData>('billing.overview')
-export const loadState = () => readAction<BillingStateData>('billing.state')
+/** `partnerId`: a white-label partner's bill (its owner, Partner › Billing) instead of the workspace's. */
+export const loadOverview = (partnerId?: string | null) =>
+  readAction<BillingOverviewData>('billing.overview', partnerId ? { partnerId } : {})
+export const loadState = (partnerId?: string | null) =>
+  readAction<BillingStateData>('billing.state', partnerId ? { partnerId } : {})
 export const loadWorkspaceUsage = () => readAction<BillingWorkspaceUsageData>('billing.workspaceUsage')

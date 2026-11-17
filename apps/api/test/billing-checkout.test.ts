@@ -17,7 +17,10 @@ import {
   commands,
   instance_settings,
   ledger_entries,
+  member,
   organization,
+  partner_members,
+  partners,
   phone_numbers,
   session,
   stripe_events,
@@ -1685,5 +1688,128 @@ describe('the catalog sync and Checkout (security review of #1040)', () => {
       body: { error: sayIn(CHECKOUT_TOO_OFTEN) },
     })
     expect(checkoutsMade()).toHaveLength(made)
+  })
+})
+
+describe('the partner bill (white-label S2, docs/white-label.md)', () => {
+  /** A partner sign-up waiting for Checkout: its owner (no workspace), the partner, the partner bill. */
+  async function pendingPartner() {
+    const { owner } = await createWorkspace('Owner Home')
+    const partnerId = rid('ptn')
+    const [bill] = await db
+      .insert(billing_accounts)
+      .values({ id: rid('bill'), kind: 'partner', owner_user_id: owner.userId, status: 'pending_payment' })
+      .returning()
+    await db
+      .insert(partners)
+      .values({ id: partnerId, name: 'Cascade IT', billing_account_id: bill!.id, created_by: owner.userId })
+    await db.insert(partner_members).values({ partner_id: partnerId, user_id: owner.userId, role: 'owner' })
+    return { owner, partnerId, bill: bill! }
+  }
+
+  test('Checkout sells the partner base fee alone; the first client workspace adds its seat to the subscription', async () => {
+    const { owner, partnerId, bill } = await pendingPartner()
+    const res = await act(owner, 'billing.startCheckout', { partnerId })
+    expect(res.status).toBe(200)
+    const made = Object.fromEntries(checkoutsMade().at(-1)!.body)
+    expect(made).toMatchObject({
+      client_reference_id: bill.id,
+      'line_items[0][price]': 'price_partner_monthly',
+      'line_items[0][quantity]': '1',
+      success_url: `http://localhost:5173/billing/return?session_id={CHECKOUT_SESSION_ID}&partner=${partnerId}`,
+      cancel_url: 'http://localhost:5173/#partner',
+    })
+    expect(made['line_items[1][price]']).toBeUndefined()
+    // Stripe made the subscription with the base fee; the owner confirms for the partner.
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const sub = subscription((await billRow(bill.id)).stripe_customer_id!)
+    const item = (sub.items as { data: Json[] }).data[0]!
+    item.price = { ...(item.price as Json), id: 'price_partner_monthly', lookup_key: 'partner_monthly' }
+    complete(sessionId, sub)
+    expect(await act(owner, 'billing.confirmCheckout', { sessionId })).toMatchObject({ status: 409 })
+    expect(await act(owner, 'billing.confirmCheckout', { sessionId, partnerId })).toMatchObject({
+      status: 200,
+      body: { data: { status: 'trialing' } },
+    })
+    expect(await billRow(bill.id)).toMatchObject({ status: 'trialing', stripe_subscription_id: sub.id })
+    stripe.requests.length = 0
+    const client = await act(owner, 'workspace.createForClient', { partnerId, name: 'First Client' })
+    expect(client).toMatchObject({ status: 200, body: { data: { billId: bill.id } } })
+    await vi.waitFor(() =>
+      expect(stripe.requests.filter(r => r.method === 'POST' && r.path === `/v1/subscriptions/${sub.id}`)).toHaveLength(
+        1,
+      ),
+    )
+    const update = stripe.requests.find(r => r.method === 'POST' && r.path === `/v1/subscriptions/${sub.id}`)!
+    expect(Object.fromEntries(update.body)).toMatchObject({
+      // The install's seat price as the catalog has it (an earlier test may have changed the price).
+      'items[0][price]': expect.stringMatching(/^price_ws_monthly/),
+      'items[0][quantity]': '1',
+      proration_behavior: 'create_prorations',
+    })
+    expect(update.idempotencyKey).toBe(`seats_client_${client.body.data.workspace.id}_${bill.id}_1`)
+  })
+
+  test("a released client leaves its extra calls behind; the partner bill's extra-calls item drops (review of #1109, M-2)", async () => {
+    const { owner, partnerId, bill } = await pendingPartner()
+    expect((await act(owner, 'billing.startCheckout', { partnerId })).status).toBe(200)
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const sub = subscription((await billRow(bill.id)).stripe_customer_id!)
+    const items = (sub.items as { data: Json[] }).data
+    items[0]!.price = { ...(items[0]!.price as Json), id: 'price_partner_monthly', lookup_key: 'partner_monthly' }
+    complete(sessionId, sub)
+    expect((await act(owner, 'billing.confirmCheckout', { sessionId, partnerId })).status).toBe(200)
+    const made = await act(owner, 'workspace.createForClient', { partnerId, name: 'Leaving Client' })
+    expect(made.status).toBe(200)
+    const ws: string = made.body.data.workspace.id
+    // The client's own owner, and 5 extra calls the partner bought for it (the item on the partner's subscription).
+    const clientOwner = await addMember(ws, 'member')
+    await db.update(member).set({ role: 'owner' }).where(eq(member.userId, clientOwner.userId))
+    await db.update(organization).set({ extraCalls: 5 }).where(eq(organization.id, ws))
+    items.push({
+      id: 'si_xc_release',
+      object: 'subscription_item',
+      quantity: 5,
+      price: { id: 'price_xc', object: 'price', lookup_key: 'extra_calls_monthly', recurring: { interval: 'month' } },
+    })
+    // The extra-calls price as the catalog sync stored it.
+    const [catalog] = await db.select().from(instance_settings).where(eq(instance_settings.key, BILLING_CATALOG_KEY))
+    const stored = JSON.parse(catalog!.value)
+    stored.prices.extra_calls_monthly ??= 'price_xc'
+    await db
+      .update(instance_settings)
+      .set({ value: JSON.stringify(stored) })
+      .where(eq(instance_settings.key, BILLING_CATALOG_KEY))
+    stripe.requests.length = 0
+    const res = await act(owner, 'partner.releaseClient', { partnerId, workspaceId: ws, confirmName: 'Leaving Client' })
+    expect(res.status).toBe(200)
+    const [left] = await db.select().from(organization).where(eq(organization.id, ws))
+    expect(left).toMatchObject({ extraCalls: 0, billingState: 'pending_payment' })
+    expect(left!.billingAccountId).not.toBe(bill.id)
+    // After the commit: the partner's extra-calls item goes to 0, never charged.
+    await vi.waitFor(() =>
+      expect(
+        stripe.requests.filter(
+          r =>
+            r.method === 'POST' &&
+            r.path === `/v1/subscriptions/${sub.id}` &&
+            r.body.get('items[0][id]') === 'si_xc_release',
+        ),
+      ).toHaveLength(1),
+    )
+    const update = stripe.requests.find(r => r.body.get('items[0][id]') === 'si_xc_release')!
+    expect(Object.fromEntries(update.body)).toMatchObject({ 'items[0][quantity]': '0', proration_behavior: 'none' })
+  })
+
+  test("another partner's owner, or a partner admin, never starts or confirms Checkout for the partner bill", async () => {
+    const { partnerId } = await pendingPartner()
+    const other = await pendingPartner()
+    const admin = await createWorkspace('Admin Home')
+    await db.insert(partner_members).values({ partner_id: partnerId, user_id: admin.owner.userId, role: 'admin' })
+    for (const who of [other.owner, admin.owner]) {
+      expect((await act(who, 'billing.startCheckout', { partnerId })).status).toBe(403)
+      expect((await act(who, 'billing.confirmCheckout', { partnerId, sessionId: 'cs_test_x' })).status).toBe(403)
+    }
+    expect(checkoutsMade()).toEqual([])
   })
 })

@@ -19,7 +19,20 @@ export type TeamRole = (typeof teamRoles)[number]
 export const INVITATION_DAYS = 7
 
 /** `avatarUrl`: the profile picture (user-avatar.ts), null without one (absent in a list an older version cached). */
-export type TeamMember = { memberId: string; userId: string; name: string; email: string; role: 'owner' | 'admin' | 'member'; joinedAt: string; avatarUrl?: string | null }
+export type TeamMember = {
+  memberId: string
+  userId: string
+  name: string
+  email: string
+  role: 'owner' | 'admin' | 'member'
+  joinedAt: string
+  avatarUrl?: string | null
+  /**
+   * In the workspace through its white-label partner's team (docs/white-label.md): the partner's company name. The
+   * Team page shows a "Partner" badge; only the partner changes or removes these memberships.
+   */
+  partner?: string | null
+}
 /** `invitedById`: the sender's user id (the remove dialog counts the invitations a removal cancels). */
 export type TeamInvitation = {
   invitationId: string
@@ -31,7 +44,14 @@ export type TeamInvitation = {
   expired: boolean
 }
 /** What `team.list` returns in `data`. `canManage`: whether the caller may invite, change roles and remove. */
-export type TeamData = { members: TeamMember[]; invitations: TeamInvitation[]; canManage: boolean; me: string }
+export type TeamData = {
+  members: TeamMember[]
+  invitations: TeamInvitation[]
+  canManage: boolean
+  me: string
+  /** The workspace's white-label partner (docs/white-label.md), also while its team is suspended; null without one. */
+  partner: string | null
+}
 
 /** What `GET /v1/invitations/<id>` tells the invitation page before anyone signs in. */
 export type InvitationPreview =
@@ -40,7 +60,8 @@ export type InvitationPreview =
 
 export const teamList = defineAction({
   name: 'team.list',
-  description: 'List the members of the workspace (name, email, role, joined) and the invitations that were not accepted yet.',
+  description:
+    'List the members of the workspace (name, email, role, joined) and the invitations that were not accepted yet.',
   input: z.object({}),
   permission: 'team:read',
   readOnly: true,
@@ -48,7 +69,8 @@ export const teamList = defineAction({
 
 export const teamInvite = defineAction({
   name: 'team.invite',
-  description: 'Invite someone by email to join the workspace as admin or member. Sends the invitation email; the link works for seven days.',
+  description:
+    'Invite someone by email to join the workspace as admin or member. Sends the invitation email; the link works for seven days.',
   input: z.object({ email: z.string().trim().toLowerCase().pipe(z.email()), role: z.enum(assignableRoles) }),
   permission: 'team:write',
   sensitive: ['invitationId'],
@@ -97,7 +119,7 @@ export const teamTransferOwnership = defineAction({
 export const teamLeave = defineAction({
   name: 'team.leave',
   description:
-    'Leave the current workspace; you lose access at once. The owner cannot leave: they hand the workspace over first. When it is your only workspace, deleteAccount must say whether your account goes too (true deletes it, never a server admin\'s, and needs a sign-in within the last 10 minutes; false keeps it); without it the leave is refused.',
+    "Leave the current workspace; you lose access at once. The owner cannot leave: they hand the workspace over first. When it is your only workspace, deleteAccount must say whether your account goes too (true deletes it, never a server admin's, and needs a sign-in within the last 10 minutes; false keeps it); without it the leave is refused.",
   input: z.object({ deleteAccount: z.boolean().optional() }).strict(),
   permission: 'team:read',
 })
@@ -107,7 +129,7 @@ export type TeamLeaveData = { nextWorkspaceId: string | null; accountDeleted: bo
 export const teamRemoveMember = defineAction({
   name: 'team.removeMember',
   description:
-    'Remove a member from the workspace; they lose access at once, and the pending invitations they sent to it are canceled. Never the owner. Their account stays (without a workspace they wait for an invitation). Only the workspace\'s owner may set deleteAccount, with a sign-in within the last 10 minutes: when it was their only workspace their account is deleted too (never a server admin\'s) and they are emailed.',
+    "Remove a member from the workspace; they lose access at once, and the pending invitations they sent to it are canceled. Never the owner. Their account stays (without a workspace they wait for an invitation). Only the workspace's owner may set deleteAccount, with a sign-in within the last 10 minutes: when it was their only workspace their account is deleted too (never a server admin's) and they are emailed.",
   input: z.object({ memberId: z.string().min(1), deleteAccount: z.boolean().optional() }).strict(),
   permission: 'team:write',
 })

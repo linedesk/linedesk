@@ -948,6 +948,37 @@ describe('stripe refunds and seats (Server admin › Billing, PR 13)', () => {
     expect(Object.fromEntries(calls.at(-1)!.body)).toMatchObject({ proration_behavior: 'none' })
   })
 
+  test('seats: a partner subscription without a seat item gets one with the seat price; none without a price', async () => {
+    const baseOnly = {
+      id: 'sub_2',
+      object: 'subscription',
+      items: list([
+        { id: 'si_base', object: 'subscription_item', quantity: 1, price: { lookup_key: 'partner_monthly' } },
+      ]),
+    }
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/subscriptions/sub_2': () => [200, baseOnly],
+      'POST /v1/subscriptions/sub_2': () => [200, baseOnly],
+    })
+    const stripe = await stripeWith(doFetch)
+    const input = {
+      subscriptionId: 'sub_2',
+      quantity: 1,
+      prorationBehavior: 'create_prorations' as const,
+      idempotencyKey: 'seats_k',
+    }
+    expect(await stripe.setSeatQuantity(input)).toBe('no_seat_item')
+    expect(await stripe.setSeatQuantity({ ...input, quantity: 0, seatPrice: 'price_ws' })).toBe('no_seat_item')
+    expect(calls).toHaveLength(2)
+    expect(await stripe.setSeatQuantity({ ...input, seatPrice: 'price_ws' })).toBe('updated')
+    expect(Object.fromEntries(calls[3]!.body)).toMatchObject({
+      'items[0][price]': 'price_ws',
+      'items[0][quantity]': '1',
+      proration_behavior: 'create_prorations',
+    })
+    expect(calls[3]!.key).toBe('seats_k')
+  })
+
   test('none refuses them without a network call', async () => {
     await expect(noneBillingProvider.refundInvoice(refund)).rejects.toThrow('billing is off')
     await expect(

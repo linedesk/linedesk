@@ -14,7 +14,7 @@ const BILLING_HASH = '#workspace/billing'
 
 export function BillingBanner() {
   const t = useT()
-  const state = useQuery(STATE, loadState)
+  const state = useQuery(STATE, () => loadState())
   const banner = billingBanner(state.data?.bill ?? null)
   if (!banner) return null
   return (

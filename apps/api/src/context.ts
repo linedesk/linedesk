@@ -8,7 +8,15 @@ import {
   type Permission,
   type Role,
 } from '@linedesk/actions'
-import { member, organization, partner_invitations, partner_members, passkey, user } from '@linedesk/db'
+import {
+  billing_accounts,
+  member,
+  organization,
+  partner_invitations,
+  partner_members,
+  passkey,
+  user,
+} from '@linedesk/db'
 import type { UiLocale } from '@linedesk/i18n'
 import { localeForUser } from '@linedesk/i18n/server'
 import { and, asc, eq, gt, isNull } from 'drizzle-orm'
@@ -236,7 +244,11 @@ export async function resolveCaller(
   // On a white-label partner's team (docs/white-label.md): the partner area, also before any client workspace exists;
   // or invited to one, so a new account can open the invitation link and join. Only signed in as themselves: never
   // while impersonated, never with a key. Each partner action checks the caller is on that partner's team.
-  if (!impersonation && (await partnerCaller(account.id, account.email))) extraPermissions.push('partner')
+  // A partner's owner also owns the partner bill: billing:manage in a client workspace on that bill, where they are an
+  // admin (below), never account-wide (security review of #1109, M-1). Partner › Billing names the partner instead
+  // (`partnerId`, run-action.ts), where partnerBillOf is the gate.
+  const partnerAccess = impersonation ? null : await partnerCaller(account.id, account.email)
+  if (partnerAccess) extraPermissions.push('partner')
   const extra = {
     sessionId: session.session.id,
     locale: localeForUser(account, headers.get('accept-language')),
@@ -260,17 +272,42 @@ export async function resolveCaller(
     own,
     extra,
   )
+  if (actor && partnerAccess === 'owner' && (await ownsPartnerBillOf(actor)))
+    actor.permissions = [...actor.permissions, 'billing:manage']
   return actor ? { actor } : { missing: 'no_workspace' }
 }
 
-/** On a partner team, or holding an open invitation to one for their address. */
-async function partnerCaller(userId: string, email: string): Promise<boolean> {
-  const [onTeam] = await db
-    .select({ id: partner_members.partner_id })
+/**
+ * Whether the actor's workspace is a client workspace on a partner bill they own, and not disabled: there a partner's
+ * owner manages the bill (billing:manage) though they are only an admin. Nowhere else (security review of #1109, M-1).
+ */
+async function ownsPartnerBillOf(actor: Actor): Promise<boolean> {
+  if (!actor.workspaceId || actor.workspaceDisabled || actor.permissions.includes('billing:manage')) return false
+  const [row] = await db
+    .select({ id: billing_accounts.id })
+    .from(organization)
+    .innerJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
+    .where(
+      and(
+        eq(organization.id, actor.workspaceId),
+        eq(billing_accounts.kind, 'partner'),
+        eq(billing_accounts.owner_user_id, actor.actorId),
+      ),
+    )
+  return !!row
+}
+
+/**
+ * On a partner team (`owner` when they own any partner, else `member`), or holding an open invitation to one for their
+ * address (`invited`); null otherwise.
+ */
+async function partnerCaller(userId: string, email: string): Promise<'owner' | 'member' | 'invited' | null> {
+  const teams = await db
+    .select({ role: partner_members.role })
     .from(partner_members)
     .where(eq(partner_members.user_id, userId))
-    .limit(1)
-  if (onTeam) return true
+  if (teams.some(t => t.role === 'owner')) return 'owner'
+  if (teams.length) return 'member'
   const [invited] = await db
     .select({ id: partner_invitations.id })
     .from(partner_invitations)
@@ -283,7 +320,7 @@ async function partnerCaller(userId: string, email: string): Promise<boolean> {
       ),
     )
     .limit(1)
-  return !!invited
+  return invited ? 'invited' : null
 }
 
 /**

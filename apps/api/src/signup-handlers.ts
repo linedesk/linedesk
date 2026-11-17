@@ -12,6 +12,7 @@ import {
   organization,
   partner_invitations,
   partner_members,
+  partners,
   SIGNUP_COUNTRIES,
   session,
   signup_attempts,
@@ -26,6 +27,7 @@ import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { queueBillingAlert } from './jobs.ts'
 import { addToWorkspace } from './memberships.ts'
+import { refusePartner } from './partner-refusals.ts'
 import { emailHash, SIGNUP_CODE_WINDOW_MS, selfServeState, signupRules } from './self-serve.ts'
 import { insertWorkspace } from './workspace-creation-handlers.ts'
 import { deleteAccounts, deleteWorkspace } from './workspace-delete.ts'
@@ -55,20 +57,43 @@ type SignUpInput = {
   name: string
   businessName: string
   country: string
-  plan: 'cloud'
+  plan: 'cloud' | 'partner'
   interval: 'year' | 'month'
   timeZone?: string
 }
 
-/** The account's sign-up waiting for Checkout, if any (one per account). */
-async function waitingSignUp(tx: Tx, userId: string) {
+/**
+ * The account's sign-up waiting for Checkout, if any (one per account): a cloud bill with its workspace, or a partner
+ * bill with its partner (no workspace yet). A bill a workspace moved to when it left its partner (partners.ts
+ * detachClient) waits for its owner's card too, and is answered the same way.
+ */
+async function waitingSignUp(tx: Tx, userId: string): Promise<Omit<AccountSignUpData, 'existing'> | null> {
   const [row] = await tx
-    .select({ bill: billing_accounts, workspace: { id: organization.id, name: organization.name } })
+    .select({
+      billId: billing_accounts.id,
+      workspaceId: organization.id,
+      workspaceName: organization.name,
+      partnerId: partners.id,
+      partnerName: partners.name,
+    })
     .from(billing_accounts)
-    .innerJoin(organization, eq(organization.billingAccountId, billing_accounts.id))
-    .where(and(eq(billing_accounts.owner_user_id, userId), eq(billing_accounts.status, 'pending_payment')))
+    .leftJoin(organization, eq(organization.billingAccountId, billing_accounts.id))
+    .leftJoin(partners, eq(partners.billing_account_id, billing_accounts.id))
+    .where(
+      and(
+        eq(billing_accounts.owner_user_id, userId),
+        eq(billing_accounts.status, 'pending_payment'),
+        sql`(${organization.id} is not null or ${partners.id} is not null)`,
+      ),
+    )
+    .orderBy(billing_accounts.created_at)
     .limit(1)
-  return row ?? null
+  if (!row) return null
+  return {
+    billId: row.billId,
+    workspace: row.workspaceId ? { id: row.workspaceId, name: row.workspaceName ?? '' } : null,
+    partner: row.partnerId ? { id: row.partnerId, name: row.partnerName ?? '' } : null,
+  }
 }
 
 const signUp: Handler = async (ctx, input: SignUpInput) => {
@@ -81,10 +106,11 @@ const signUp: Handler = async (ctx, input: SignUpInput) => {
   // One sign-up waiting for Checkout per account: asked again (a second tab, a reload), it is answered.
   const waiting = await waitingSignUp(tx, me.id)
   if (waiting) {
-    const data: AccountSignUpData = { billId: waiting.bill.id, workspace: waiting.workspace, existing: true }
-    return { rows: {}, data: { ...data, subject: { email: me.email, workspaceId: waiting.workspace.id } } }
+    const data: AccountSignUpData = { ...waiting, existing: true }
+    return { rows: {}, data: { ...data, subject: { email: me.email, workspaceId: waiting.workspace?.id ?? null } } }
   }
   if (!(SIGNUP_COUNTRIES as readonly string[]).includes(input.country)) throw new Reject(COUNTRY_NOT_YET)
+  if (input.plan === 'partner') return partnerSignUp(ctx, me, input)
   const billId = crypto.randomUUID()
   await tx.insert(billing_accounts).values({
     id: billId,
@@ -107,9 +133,55 @@ const signUp: Handler = async (ctx, input: SignUpInput) => {
   if (input.name !== me.name) await tx.update(user).set({ name: input.name }).where(eq(user.id, me.id))
   await addToWorkspace(tx, me, org, 'owner', now)
   await tx.update(session).set({ activeOrganizationId: org.id }).where(eq(session.id, actor.sessionId!))
-  const data: AccountSignUpData = { billId, workspace: { id: org.id, name: org.name }, existing: false }
+  const data: AccountSignUpData = { billId, workspace: { id: org.id, name: org.name }, partner: null, existing: false }
   // The audit log files the entry under the new workspace, with its owner.
   return { rows: {}, data: { ...data, subject: { email: me.email, workspaceId: org.id } } }
+}
+
+/**
+ * Plan `partner` (docs/white-label.md, S2): the partner (pending a server admin's approval, which gates its brand) with
+ * the caller as its owner, and the partner bill waiting for Checkout. No workspace: its client workspaces are made in
+ * the partner area once the bill runs, each a seat on the bill. One partner per owner.
+ */
+async function partnerSignUp(
+  ctx: Parameters<Handler>[0],
+  me: typeof user.$inferSelect,
+  input: SignUpInput,
+): Promise<{ rows: Record<string, never>; data: AccountSignUpData & { subject: unknown } }> {
+  const { tx, now } = ctx
+  const [owning] = await tx
+    .select({ id: partner_members.partner_id })
+    .from(partner_members)
+    .where(and(eq(partner_members.user_id, me.id), eq(partner_members.role, 'owner')))
+  if (owning) throw refusePartner('already_partner')
+  const billId = crypto.randomUUID()
+  await tx.insert(billing_accounts).values({
+    id: billId,
+    kind: 'partner',
+    owner_user_id: me.id,
+    status: 'pending_payment',
+    interval: input.interval,
+    created_at: now,
+    updated_at: now,
+  })
+  const partnerId = `ptn_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
+  await tx.insert(partners).values({
+    id: partnerId,
+    name: input.businessName,
+    billing_account_id: billId,
+    created_by: me.id,
+    created_at: now,
+    updated_at: now,
+  })
+  await tx.insert(partner_members).values({ partner_id: partnerId, user_id: me.id, role: 'owner', created_at: now })
+  if (input.name !== me.name) await tx.update(user).set({ name: input.name }).where(eq(user.id, me.id))
+  const data: AccountSignUpData = {
+    billId,
+    workspace: null,
+    partner: { id: partnerId, name: input.businessName },
+    existing: false,
+  }
+  return { rows: {}, data: { ...data, subject: { email: me.email, workspaceId: null } } }
 }
 
 // Opening and closing sign-up (`signup.setSelfServe`, `signup.getSelfServe`) are Server admin › Billing's actions
@@ -221,13 +293,18 @@ async function sweepBill(tx: Tx, billId: string, before: string, now: string) {
     .where(eq(ledger_entries.billing_account_id, billId))
     .limit(1)
   if (entry) return null
-  if (bill.stripe_customer_id && !(await stripeSideGone(tx, billId, bill.stripe_customer_id))) return null
   const workspaces = await tx
-    .select({ id: organization.id, name: organization.name })
+    .select({ id: organization.id, name: organization.name, createdAt: organization.createdAt })
     .from(organization)
     .where(eq(organization.billingAccountId, billId))
+  // A workspace older than its bill moved there (it left its partner, partners.ts detachClient): not a sign-up that
+  // never finished, but a business with its calls and contacts. It waits for its owner's card and is never swept.
+  if (workspaces.some(w => w.createdAt.getTime() < Date.parse(bill.created_at))) return null
+  if (bill.stripe_customer_id && !(await stripeSideGone(tx, billId, bill.stripe_customer_id))) return null
   // The owner is spared by deleteWorkspace and decided on below, so a member elsewhere keeps their account.
   for (const w of workspaces) await deleteWorkspace(tx, { workspaceId: w.id, name: w.name }, now, bill.owner_user_id)
+  // A partner sign-up that never finished: the partner goes with its bill (its team and invitations with it).
+  await tx.delete(partners).where(eq(partners.billing_account_id, billId))
   await tx.delete(billing_balances).where(eq(billing_balances.billing_account_id, billId))
   await tx.delete(billing_accounts).where(eq(billing_accounts.id, billId))
   const accounts = (await deleteIdleAccount(tx, bill.owner_user_id)) ? 1 : 0

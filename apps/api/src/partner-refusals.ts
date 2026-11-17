@@ -24,15 +24,35 @@ const REFUSALS: Record<PartnerCode, string> = {
   send_failed: 'could not send the invitation email; try again in a moment',
   invite_limit: 'too many invitations in the last hour; try again later',
   client_needs_bill:
-    'billing is on: client workspaces need the partner bill, which comes with the partner sign-up (LIN-453)',
+    'billing is on: client workspaces need the partner bill, which comes with the partner sign-up (?plan=partner); this partner has none',
   partner_managed:
     "this membership comes from the workspace's partner: the partner changes it on its team (docs/white-label.md)",
   partner_suspended: 'this partner is suspended',
   partner_pending: 'client workspaces can be made once a server admin approved the partner',
   client_limit:
     'this partner has as many client workspaces as this server allows; ask a server admin to raise the limit',
+  client_not_found: 'no client workspace of this partner with this id',
+  client_has_owner: 'this client workspace has an owner already',
+  owner_on_team: "someone on the partner team cannot be a client's owner: invite the client's own person",
+  client_no_owner: 'the client has no owner yet: invite its owner first, then hand the workspace over',
+  bill_not_started: 'add a card for the partner plan first (Partner › Billing)',
+  bill_inactive: 'the partner bill is not running: pay the open invoice or start the plan again',
+  trial_client_limit: 'the free trial has as many client workspaces as it allows; start the paid plan for more',
+  calls_running: 'calls are running in this workspace: try again once they ended',
+  confirm_mismatch: "type the workspace's name exactly to confirm",
+  no_partner: 'this workspace has no partner',
+  already_partner: 'this account owns a partner already: open the partner area',
+  client_owner: "the owner of one of this partner's client workspaces cannot join its team",
 }
 export const refusePartner = (code: PartnerCode) => new Reject(REFUSALS[code], code)
+
+/** A partner bill is the partner owner's (docs/white-label.md): it changes hands only with the partner. */
+// i18n-ignore: API error bodies for logs, API clients and Server admin; the web app words its own refusals
+export const PARTNER_BILL_STAYS = "a partner bill belongs to the partner's owner and is not handed over"
+/** A client workspace stays on its partner's bill, and a partner bill pays only for its clients. */
+// i18n-ignore: API error bodies for logs, API clients and Server admin; the web app words its own refusals
+export const CLIENT_STAYS_ON_PARTNER_BILL =
+  "client workspaces are always on their partner's bill, and a partner bill pays only for its clients: the partner releases a client, or its owner removes the partner"
 
 /** What a caller who may not do it hears (403). */
 // i18n-ignore: API error bodies for logs and API clients; the web app words a 403 itself

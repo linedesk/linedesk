@@ -445,6 +445,11 @@ export type SeatQuantityInput = {
   quantity: number
   prorationBehavior: 'always_invoice' | 'create_prorations' | 'none'
   idempotencyKey: string
+  /**
+   * The seat price to add when the subscription has no seat item yet (a partner bill starts with its base fee alone,
+   * since Checkout takes no item of quantity 0): with it, a missing seat item is added with `quantity`.
+   */
+  seatPrice?: string
 }
 
 /**

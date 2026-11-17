@@ -83,6 +83,7 @@ import {
   storedSignupRules,
   turnstileKeys,
 } from './self-serve.ts'
+import { CLIENT_STAYS_ON_PARTNER_BILL, PARTNER_BILL_STAYS } from './partner-refusals.ts'
 import { STRIPE_EVENT_ATTEMPTS } from './stripe-events.ts'
 import { billPayerChanged, lockForPayerChange } from './usage-levels.ts'
 
@@ -837,10 +838,19 @@ async function moveWorkspace(
 ) {
   refuseMoneyChange(actor)
   const [seen] = await tx
-    .select({ id: organization.id, bill: organization.billingAccountId })
+    .select({ id: organization.id, bill: organization.billingAccountId, partnerId: organization.partnerId })
     .from(organization)
     .where(eq(organization.id, input.workspaceId))
   if (!seen) throw new Reject('no workspace with this id')
+  // A client workspace is always on its partner's bill, and a partner bill pays only for its own clients
+  // (docs/white-label.md): those change with the partner (workspace.createForClient, partner.releaseClient,
+  // workspace.removePartner), never by a move here.
+  if (seen.partnerId) throw new Reject(CLIENT_STAYS_ON_PARTNER_BILL)
+  const [target] = await tx
+    .select({ kind: billing_accounts.kind })
+    .from(billing_accounts)
+    .where(eq(billing_accounts.id, input.toBillingAccountId))
+  if (target?.kind === 'partner') throw new Reject(CLIENT_STAYS_ON_PARTNER_BILL)
   if (!seen.bill) throw new Reject('This workspace is on no bill; moving is between bills.')
   if (seen.bill === input.toBillingAccountId) throw new Reject('The workspace is on this bill already.')
   // Before the balance locks: the version locks a new payer's reset may need (LIN-438, lockForPayerChange).
@@ -1023,6 +1033,7 @@ export const billingAdminHandlers: Record<string, Handler> = {
     await lockForPayerChange(tx, await workspacesOnBill(tx, input.billingAccountId))
     await lockBalance(tx, input.billingAccountId)
     const bill = await billOrReject(tx, input.billingAccountId)
+    if (bill.kind === 'partner') throw new Reject(PARTNER_BILL_STAYS)
     if (bill.owner_user_id === input.userId) throw new Reject('This user owns the bill already.')
     const [isMember] = await tx
       .select({ id: member.id })

@@ -24,6 +24,8 @@ import {
   instance_settings,
   member,
   organization,
+  partner_members,
+  partners,
   signup_attempts,
   user,
 } from '@linedesk/db'
@@ -170,6 +172,8 @@ describe('closed unless switched on and billing is in effect', () => {
       countries: ['US', 'CA', 'PR'],
       // The sign-up page shows the price and the trial (billing tour, G3), from the rules, not written into the page.
       plan: { monthlyCents: 1100, yearlyCents: 10_800, trialDays: 14 },
+      // The partner plan (docs/white-label.md): its base fee, and the client workspaces its trial takes.
+      partnerPlan: { monthlyCents: 1900, yearlyCents: 16_800, trialDays: 14, trialClients: 2 },
     })
   })
 
@@ -279,9 +283,39 @@ describe('account.signUp', () => {
     expect(await db.select().from(billing_accounts).where(eq(billing_accounts.owner_user_id, account!.id))).toEqual([])
   })
 
-  test('the partner plan is postponed (LIN-322): refused as input', async () => {
-    const { made } = await signUpThroughPage(address('partner'), { ...DETAILS, plan: 'partner' })
-    expect(made.status).toBe(422)
+  test('plan partner: the partner waiting for approval, its owner, the partner bill waiting for Checkout, no workspace', async () => {
+    const PARTNER = { ...DETAILS, businessName: 'Cascade IT Partners', plan: 'partner', interval: 'month' }
+    const { email, who, made } = await signUpThroughPage(address('partner'), PARTNER)
+    expect(made).toMatchObject({ status: 200, body: { ok: true, data: { workspace: null, existing: false } } })
+    const { billId, partner } = made.body.data
+    const account = await accountOf(email)
+    expect((await db.select().from(billing_accounts).where(eq(billing_accounts.id, billId)))[0]).toMatchObject({
+      kind: 'partner',
+      status: 'pending_payment',
+      interval: 'month',
+      owner_user_id: account!.id,
+    })
+    expect((await db.select().from(partners).where(eq(partners.id, partner.id)))[0]).toMatchObject({
+      name: 'Cascade IT Partners',
+      status: 'pending',
+      billing_account_id: billId,
+      created_by: account!.id,
+    })
+    expect(await db.select().from(partner_members).where(eq(partner_members.partner_id, partner.id))).toMatchObject([
+      { user_id: account!.id, role: 'owner' },
+    ])
+    expect(await db.select().from(member).where(eq(member.userId, account!.id))).toEqual([])
+    // The app opens the partner area: /v1/me lists the partner.
+    expect((await request(who, 'GET', '/v1/me')).body.partners).toMatchObject([{ id: partner.id, role: 'owner' }])
+    // Asked again: the one waiting sign-up, not a second partner.
+    const again = await request(who, 'POST', '/v1/signup', { ...PARTNER, businessName: 'Second Agency' })
+    expect(again.body).toMatchObject({ ok: true, data: { billId, partner: { id: partner.id }, existing: true } })
+    // Once that bill runs, a second partner for the same owner is refused.
+    await db.update(billing_accounts).set({ status: 'trialing' }).where(eq(billing_accounts.id, billId))
+    expect(await request(who, 'POST', '/v1/signup', PARTNER)).toMatchObject({
+      status: 409,
+      body: { code: 'already_partner' },
+    })
   })
 
   test('only a signed-in person: no session, and an API key, are 401', async () => {
@@ -526,6 +560,20 @@ describe('while pending_payment', () => {
 })
 
 describe('the daily sign-up sweep', () => {
+  test('a partner sign-up without Checkout goes after 7 days: the partner, its bill and the account', async () => {
+    const { email, made } = await signUpThroughPage(address('partner'), { ...DETAILS, plan: 'partner' })
+    const { billId, partner } = made.body.data
+    const account = await accountOf(email)
+    await db
+      .update(billing_accounts)
+      .set({ created_at: new Date(Date.now() - 8 * DAY).toISOString() })
+      .where(eq(billing_accounts.id, billId))
+    expect((await sweepSignUps(db)).bills).toBeGreaterThanOrEqual(1)
+    expect(await db.select().from(partners).where(eq(partners.id, partner.id))).toEqual([])
+    expect(await db.select().from(billing_accounts).where(eq(billing_accounts.id, billId))).toEqual([])
+    expect(await db.select().from(user).where(eq(user.id, account!.id))).toEqual([])
+  })
+
   test('deletes a sign-up without Checkout after 7 days: its workspace, bill and account', async () => {
     const { email, made } = await signUpThroughPage()
     const { billId, workspace } = made.body.data

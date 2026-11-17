@@ -252,6 +252,19 @@ export function runnableBy(def: ActionDef, actor: Actor): boolean {
   return true
 }
 
+/**
+ * A billing action for a white-label partner's bill (`partnerId`, Partner › Billing): someone on a partner team may ask,
+ * whatever workspace they are in or none; the handler lets only that partner's owner through (partnerBillOf). The
+ * partner's owner holds billing:manage nowhere else but in the client workspaces on their bill (context.ts; security
+ * review of #1109, M-1).
+ */
+function partnerBillCall(def: ActionDef, actor: Actor, rawInput: unknown): boolean {
+  if (def.permission !== 'billing:manage' || !actor.permissions.includes('partner')) return false
+  const partnerId = (rawInput as { partnerId?: unknown } | null)?.partnerId
+  const shape = (def.input as { shape?: Record<string, unknown> }).shape
+  return typeof partnerId === 'string' && !!shape && 'partnerId' in shape
+}
+
 export async function runAction(
   name: string,
   rawInput: unknown,
@@ -266,7 +279,7 @@ export async function runAction(
   const allowed =
     actor.role === 'agent' && def.agent
       ? actor.permissions.includes('agent')
-      : actor.permissions.includes(def.permission)
+      : actor.permissions.includes(def.permission) || partnerBillCall(def, actor, rawInput)
   if (!allowed) return forbidden(`missing permission ${def.permission}`)
   // A workspace owner's setup key (agent-setup.ts): its own workspace only, never the server's or another workspace's,
   // whatever the actor says otherwise; outside one, only ending its own link.

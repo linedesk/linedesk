@@ -34,7 +34,7 @@ import { SignInLink, takeSignInLinkToken } from './SignInLink.tsx'
 import { Signup } from './Signup.tsx'
 import { PendingPayment } from './PendingPayment.tsx'
 import { CheckoutReturn } from './CheckoutReturn.tsx'
-import { isCheckoutReturnPath } from './checkout.ts'
+import { isCheckoutReturnPath, readCheckoutPartner } from './checkout.ts'
 import { isSignupPath } from './signup.ts'
 import { isInstanceAdmin, passkeySupported, type Me } from './auth.ts'
 import { setProviderAudience } from './providerAudience.ts'
@@ -323,8 +323,10 @@ export function App() {
     !pendingPayment &&
     (session.state === 'signedOut' || session.state === 'needsWorkspace' || session.state === 'ready')
   ) {
-    const leaveSignup = async () => {
-      window.history.replaceState(null, '', '/')
+    // A partner sign-up goes on to the partner area, where its Checkout starts (Partner › Billing).
+    const leaveSignup = async (partner: boolean) => {
+      window.history.replaceState(null, '', partner ? '/#partner' : '/')
+      if (partner) window.dispatchEvent(new HashChangeEvent('hashchange'))
       setSignupPage(false)
       await refresh()
     }
@@ -362,6 +364,23 @@ export function App() {
   const myPartner = sessionMe?.partners?.[0]
   if (partnerHash && myPartner && session.state === 'ready')
     return <PartnerArea partner={myPartner} onExit={() => (window.location.hash = '')} />
+  // Back from Stripe Checkout (docs/billing.md §3.2 step 4): confirmed here, then the app opens as the bill now is. A
+  // partner bill's Checkout (`&partner=`) comes back to someone who may be in no workspace yet, and on to #partner.
+  if (checkoutReturn && (session.state === 'ready' || (session.state === 'needsWorkspace' && readCheckoutPartner()))) {
+    const leaveReturn = async (toBilling: boolean, partner: boolean) => {
+      // Minutes bought from Workspace settings › Billing: back there, where the new balance shows.
+      window.history.replaceState(
+        null,
+        '',
+        partner ? (toBilling ? '/#partner/billing' : '/#partner') : toBilling ? '/#workspace/billing' : '/',
+      )
+      // replaceState fires no hashchange: the partner area follows the hash, so it is told.
+      if (partner) window.dispatchEvent(new HashChangeEvent('hashchange'))
+      setCheckoutReturn(false)
+      await refresh()
+    }
+    return <CheckoutReturn onDone={leaveReturn} />
+  }
   if (session.state === 'needsWorkspace') {
     return (
       <ImpersonationFrame impersonation={session.impersonation}>
@@ -373,16 +392,6 @@ export function App() {
         />
       </ImpersonationFrame>
     )
-  }
-  // Back from Stripe Checkout (docs/billing.md §3.2 step 4): confirmed here, then the app opens as the bill now is.
-  if (checkoutReturn && session.state === 'ready') {
-    const leaveReturn = async (toBilling: boolean) => {
-      // Minutes bought from Workspace settings › Billing: back there, where the new balance shows.
-      window.history.replaceState(null, '', toBilling ? '/#workspace/billing' : '/')
-      setCheckoutReturn(false)
-      await refresh()
-    }
-    return <CheckoutReturn onDone={leaveReturn} />
   }
   // A sign-up waiting for Checkout (docs/billing.md §3.2): nothing else opens until the trial is set up.
   if (pendingPayment) return <PendingPayment me={session.me} onDone={refresh} />

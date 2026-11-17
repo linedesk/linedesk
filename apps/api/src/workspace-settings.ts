@@ -16,6 +16,7 @@ import {
 import type { Closure } from '@linedesk/db/types'
 import { availability_exceptions, availability_rules, organization, type Tx, workspace_settings } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
+import type { Actor } from './context.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { derivedDaysOf, syncDerivedDays } from './public-holidays.ts'
 import { activeProvider } from './provider-settings.ts'
@@ -40,6 +41,16 @@ export const recordingOn = async (tx: Tx, env: Record<string, string | undefined
 
 /** Used until a workspace has stored its own time zone (same default as onboarding). */
 const DEFAULT_TIME_ZONE = 'America/New_York'
+
+/**
+ * Who switches Allow Premium or Allow Ultra (security review of #1109, M-1): never in a disabled workspace (read only);
+ * on, only the bill's owner (or the workspace's owner where there is no bill); off, the workspace's owner or the bill's
+ * owner. Anyone else holding billing:manage here gets 403.
+ */
+async function refuseAllowSwitch(tx: Tx, actor: Actor, on: boolean) {
+  if (actor.workspaceDisabled) throw Reject.t('server.api.workspaceDisabled')
+  if (on || actor.role !== 'owner') await refuseUnlessBillOwner(tx, actor)
+}
 
 export const workspaceSettingsHandlers: Record<string, Handler> = {
   'workspace.getSettings': async ({ tx, actor }) => {
@@ -90,7 +101,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
   'workspace.setAllowPremium': async ({ tx, actor }, input: { on: boolean }) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     refuseBillingActor(actor)
-    if (input.on) await refuseUnlessBillOwner(tx, actor)
+    await refuseAllowSwitch(tx, actor, input.on)
     if (!input.on) await lockAssistantVersionsOf(tx, actor.workspaceId)
     await tx
       .insert(workspace_settings)
@@ -110,7 +121,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
   'workspace.setAllowUltra': async ({ tx, actor }, input: { on: boolean }) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     refuseBillingActor(actor)
-    if (input.on) await refuseUnlessBillOwner(tx, actor)
+    await refuseAllowSwitch(tx, actor, input.on)
     if (!input.on) await lockAssistantVersionsOf(tx, actor.workspaceId)
     await tx
       .insert(workspace_settings)

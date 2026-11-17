@@ -5,14 +5,17 @@ import { z } from 'zod'
 import { defineAction } from './define.ts'
 import { workspaceName } from './settings.ts'
 
-/** The plans a sign-up can start. The partner plan is postponed (LIN-322): only `cloud` is taken. */
-export const SIGNUP_PLANS = ['cloud'] as const
+/**
+ * The plans a sign-up can start: `cloud` (a bill with the business's workspace), or `partner` (a white-label partner
+ * with its partner bill and no workspace yet: its clients come later, docs/white-label.md).
+ */
+export const SIGNUP_PLANS = ['cloud', 'partner'] as const
 export const SIGNUP_INTERVALS = ['year', 'month'] as const
 
 export const accountSignUp = defineAction({
   name: 'account.signUp',
   description:
-    "Start a plan on this server for your business: makes your bill and your workspace (you are its owner), waiting for a card at Checkout. Your name, the business's name and its country (US, CA or PR). One waiting sign-up per account: asked again, it answers the one there is.",
+    "Start a plan on this server for your business: makes your bill and your workspace (you are its owner), waiting for a card at Checkout. With plan `partner`: a white-label partner account instead (you are its owner, pending a server admin's approval) with the partner bill and no workspace yet. Your name, the business's name and its country (US, CA or PR). One waiting sign-up per account: asked again, it answers the one there is.",
   input: z.object({
     name: z.string().trim().min(1).max(80),
     businessName: workspaceName,
@@ -31,7 +34,10 @@ export const accountSignUp = defineAction({
 /** What `account.signUp` made (or found: one waiting sign-up per account). */
 export type AccountSignUpData = {
   billId: string
-  workspace: { id: string; name: string }
+  /** The business's workspace (plan `cloud`); null for a partner, whose client workspaces come later. */
+  workspace: { id: string; name: string } | null
+  /** The partner made (plan `partner`), else null. */
+  partner: { id: string; name: string } | null
   /** True when the account already had a sign-up waiting for Checkout, which is answered instead of a new one. */
   existing: boolean
 }

@@ -21,7 +21,7 @@ import type {
 import { TOPUP_CENTS } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
 import { useFormat, useT } from '@linedesk/i18n/react'
-import { useState } from 'react'
+import { createContext, useContext, useMemo, useState } from 'react'
 import { PASSKEY_STEP_UP_REQUIRED, StepUpRequired, withPasskeyStepUp } from '../admin/PasskeyStepUp.tsx'
 import { auth } from '../auth.ts'
 import { refreshQuery, setQueryData, useQuery } from '../cachedQuery.ts'
@@ -85,21 +85,53 @@ async function write<T>(name: string, input: object = {}, options: { idempotency
   }
 }
 
-/** After a change: the page reads the bill again (balance, recharges, the state). */
-const reloadBill = () => Promise.all([refreshQuery(OVERVIEW), refreshQuery(STATE)])
+/**
+ * Whose bill the page shows: the workspace's (null), or a white-label partner's (Partner › Billing, its id): every
+ * billing read and write then names the partner (`partnerId`), and the cached answers are kept apart from the
+ * workspace's.
+ */
+const BillPartner = createContext<string | null>(null)
 
-/** `owner`: may manage billing (`billing:manage`, the workspace's owner); everyone else gets the usage view alone. */
-type Props = { toast: (text: string) => void; owner?: boolean }
+/** The page's reads and writes for the bill it shows. */
+function useBillCalls() {
+  const partnerId = useContext(BillPartner)
+  return useMemo(() => {
+    const target = partnerId ? { partnerId } : {}
+    const overview = partnerId ? `${OVERVIEW}.${partnerId}` : OVERVIEW
+    const state = partnerId ? `${STATE}.${partnerId}` : STATE
+    return {
+      overview,
+      state,
+      loadOverview: () => loadOverview(partnerId),
+      loadState: () => loadState(partnerId),
+      write: <T,>(name: string, input: object = {}, options: { idempotencyKey?: string } = {}) =>
+        write<T>(name, { ...input, ...target }, options),
+      /** After a change: the page reads the bill again (balance, recharges, the state). */
+      reload: () => Promise.all([refreshQuery(overview), refreshQuery(state)]),
+    }
+  }, [partnerId])
+}
 
-export function Billing({ toast, owner = true }: Props) {
+/**
+ * `owner`: may manage billing (`billing:manage`, the workspace's owner); everyone else gets the usage view alone.
+ * `partnerId`: the partner bill instead of the workspace's (its owner, in Partner › Billing).
+ */
+type Props = { toast: (text: string) => void; owner?: boolean; partnerId?: string }
+
+export function Billing({ toast, owner = true, partnerId }: Props) {
   if (!owner) return <NotPaying />
-  return <OwnerBilling toast={toast} />
+  return (
+    <BillPartner.Provider value={partnerId ?? null}>
+      <OwnerBilling toast={toast} />
+    </BillPartner.Provider>
+  )
 }
 
 function OwnerBilling({ toast }: { toast: (text: string) => void }) {
   const t = useT()
-  const overview = useQuery(OVERVIEW, loadOverview)
-  const state = useQuery(STATE, loadState)
+  const calls = useBillCalls()
+  const overview = useQuery(calls.overview, calls.loadOverview)
+  const state = useQuery(calls.state, calls.loadState)
   const data = overview.data
   return (
     <Loading
@@ -137,7 +169,9 @@ function NotPaying() {
   return (
     <>
       <Section id="billing-none" title={t('settings.workspace.nav.billing.label')}>
-        <span className="help">{t('settings.billing.notOwner')}</span>
+        <span className="help">
+          {usage?.minutesOnly ? t('settings.billing.partnerPays') : t('settings.billing.notOwner')}
+        </span>
       </Section>
       <Loading
         what={t('settings.billing.loading')}
@@ -159,7 +193,7 @@ function NotPaying() {
                 : undefined
             }
           >
-            <UsageRows rows={usage.row ? [usage.row] : []} />
+            <UsageRows rows={usage.row ? [usage.row] : []} minutesOnly={usage.minutesOnly} />
           </Section>
         )}
       </Loading>
@@ -202,6 +236,7 @@ function PlanCard({
   toast: (text: string) => void
 }) {
   const t = useT()
+  const calls = useBillCalls()
   const format = useFormat()
   const [cancelOpen, setCancelOpen] = useState(false)
   const [resuming, setResuming] = useState(false)
@@ -221,8 +256,8 @@ function PlanCard({
   async function resume() {
     setResuming(true)
     try {
-      const done = await write<CancelData>('billing.resume')
-      setQueryData<BillingOverviewData | undefined>(OVERVIEW, d =>
+      const done = await calls.write<CancelData>('billing.resume')
+      setQueryData<BillingOverviewData | undefined>(calls.overview, d =>
         d?.bill ? { ...d, bill: { ...d.bill, cancelAtPeriodEnd: done.cancelAtPeriodEnd } } : d,
       )
       toast(t('settings.billing.plan.resumed'))
@@ -230,7 +265,7 @@ function PlanCard({
       toast(errorMessage(err))
     } finally {
       setResuming(false)
-      void reloadBill()
+      void calls.reload()
     }
   }
 
@@ -321,6 +356,7 @@ export function CancelDialog({
   toast: (text: string) => void
 }) {
   const t = useT()
+  const calls = useBillCalls()
   const format = useFormat()
   const supportEmail = useLegalLinks()?.supportEmail ?? null
   const end = bill.status === 'trialing' ? bill.trialEndsAt : bill.currentPeriodEnd
@@ -350,14 +386,14 @@ export function CancelDialog({
       }}
       run={async () => {
         try {
-          const done = await write<CancelData>('billing.cancel')
-          setQueryData<BillingOverviewData | undefined>(OVERVIEW, d =>
+          const done = await calls.write<CancelData>('billing.cancel')
+          setQueryData<BillingOverviewData | undefined>(calls.overview, d =>
             d?.bill ? { ...d, bill: { ...d.bill, cancelAtPeriodEnd: done.cancelAtPeriodEnd } } : d,
           )
         } catch (err) {
           throw new Error(errorMessage(err))
         }
-        void reloadBill()
+        void calls.reload()
         toast(t('settings.billing.cancel.done'))
         onClose()
       }}
@@ -459,6 +495,7 @@ function CallsDialog({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [signIn, setSignIn] = useState(false)
+  const calls = useBillCalls()
   const more = change.to > change.from
   const count = included + change.to
 
@@ -472,12 +509,12 @@ function CallsDialog({
       const done = await withPasskeyStepUp(async () => {
         // The passkey dialog signs in again (a new session): the retry makes this workspace the session's again.
         if (attempt++ > 0 && workspaceId) await auth.organization.setActive({ organizationId: workspaceId })
-        return write<ExtraCallsData>('billing.setExtraCalls', {
+        return calls.write<ExtraCallsData>('billing.setExtraCalls', {
           workspaceId: change.workspaceId,
           extraCalls: change.to,
         })
       }, t('settings.billing.calls.stepUpWhat'))
-      setQueryData<BillingOverviewData | undefined>(OVERVIEW, d =>
+      setQueryData<BillingOverviewData | undefined>(calls.overview, d =>
         d?.bill
           ? {
               ...d,
@@ -494,7 +531,7 @@ function CallsDialog({
           : d,
       )
       toast(t('settings.billing.calls.saved', { count: done.limit }))
-      void reloadBill()
+      void calls.reload()
       onClose()
     } catch (err) {
       if ((err as { code?: string }).code === 'SIGN_IN_AGAIN') setSignIn(true)
@@ -573,6 +610,7 @@ function openBlankTab(): Window | null {
 
 function BalanceCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: string) => void }) {
   const t = useT()
+  const calls = useBillCalls()
   const format = useFormat()
   const [buying, setBuying] = useState(false)
   const [retrying, setRetrying] = useState(false)
@@ -586,7 +624,7 @@ function BalanceCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text:
     // here (security review of #1007, L-3). Blocked anyway: this tab goes to the page instead.
     const tab = failure?.needsAction ? openBlankTab() : null
     try {
-      const done = await write<RetryRechargeData>('billing.retryRecharge')
+      const done = await calls.write<RetryRechargeData>('billing.retryRecharge')
       if (done.kind === 'confirm') {
         if (tab) {
           tab.location.href = done.url
@@ -602,7 +640,7 @@ function BalanceCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text:
       toast(errorMessage(err))
     } finally {
       setRetrying(false)
-      void reloadBill()
+      void calls.reload()
     }
   }
 
@@ -686,6 +724,7 @@ function TopUpDialog({
   toast: (text: string) => void
 }) {
   const t = useT()
+  const calls = useBillCalls()
   const format = useFormat()
   const [picked, setPicked] = useState<number | 'other'>(TOP_UP_CHOICES[1])
   const [other, setOther] = useState('')
@@ -716,7 +755,7 @@ function TopUpDialog({
               if (attempt++ > 0 && workspaceId) await auth.organization.setActive({ organizationId: workspaceId })
               const idempotencyKey = keys.keyFor(`${cents}:${card.id}`)
               try {
-                const answer = await write<TopUpData>('billing.startTopUp', input, { idempotencyKey })
+                const answer = await calls.write<TopUpData>('billing.startTopUp', input, { idempotencyKey })
                 keys.settle()
                 return answer
               } catch (err) {
@@ -724,7 +763,7 @@ function TopUpDialog({
                 throw err
               }
             }, t('settings.billing.topUp.stepUpWhat'))
-          : await write<TopUpData>('billing.startTopUp', input)
+          : await calls.write<TopUpData>('billing.startTopUp', input)
       if (done.kind === 'confirm') {
         // Which card is charged, before anything is: the owner confirms it with the next press.
         setCard(done.card)
@@ -743,7 +782,7 @@ function TopUpDialog({
           ? t('settings.billing.topUp.paid', { amount })
           : t('settings.billing.topUp.processing', { amount }),
       )
-      await reloadBill()
+      await calls.reload()
       onClose()
     } catch (err) {
       toast(errorMessage(err))
@@ -854,6 +893,7 @@ function savedCardLabel(card: { brand: string | null; last4: string | null }, t:
 
 function AutoRechargeCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: string) => void }) {
   const t = useT()
+  const calls = useBillCalls()
   const format = useFormat()
   const [capOpen, setCapOpen] = useState(false)
   const money = (cents: number) => format.currency(centsToDollars(cents), 'USD', { maximumFractionDigits: 0 })
@@ -865,19 +905,19 @@ function AutoRechargeCard({ bill, toast }: { bill: BillingOverviewBill; toast: (
   async function save(next: AutoRechargeData | Omit<AutoRechargeData, 'recharging'>) {
     const before = bill.autoRecharge
     const input = { on: next.on, thresholdCents: next.thresholdCents, amountCents: next.amountCents }
-    setQueryData<BillingOverviewData | undefined>(OVERVIEW, d =>
+    setQueryData<BillingOverviewData | undefined>(calls.overview, d =>
       d?.bill ? { ...d, bill: { ...d.bill, autoRecharge: input } } : d,
     )
     try {
-      const done = await write<AutoRechargeData>('billing.setAutoRecharge', input)
+      const done = await calls.write<AutoRechargeData>('billing.setAutoRecharge', input)
       toast(done.recharging ? t('settings.billing.auto.savedRecharging') : t('settings.billing.auto.saved'))
     } catch (err) {
-      setQueryData<BillingOverviewData | undefined>(OVERVIEW, d =>
+      setQueryData<BillingOverviewData | undefined>(calls.overview, d =>
         d?.bill ? { ...d, bill: { ...d.bill, autoRecharge: before } } : d,
       )
       toast(errorMessage(err))
     } finally {
-      void reloadBill()
+      void calls.reload()
     }
   }
 
@@ -966,6 +1006,7 @@ function CapDialog({
   toast: (text: string) => void
 }) {
   const t = useT()
+  const calls = useBillCalls()
   const format = useFormat()
   const [text, setText] = useState(String(centsToDollars(bill.cap.baseCents)))
   const [busy, setBusy] = useState(false)
@@ -986,10 +1027,10 @@ function CapDialog({
       const done = await withPasskeyStepUp(async () => {
         // The passkey dialog signs in again (a new session): the retry makes this workspace the session's again.
         if (attempt++ > 0 && workspaceId) await auth.organization.setActive({ organizationId: workspaceId })
-        return write<RechargeCapData>('billing.setRechargeCap', { baseCents: cents })
+        return calls.write<RechargeCapData>('billing.setRechargeCap', { baseCents: cents })
       }, t('settings.billing.cap.stepUpWhat'))
       toast(t('settings.billing.cap.saved', { cap: money(done.effectiveCents) }))
-      void reloadBill()
+      void calls.reload()
       onClose()
     } catch (err) {
       if ((err as { code?: string }).code === 'SIGN_IN_AGAIN') setSignIn(true)
@@ -1098,7 +1139,8 @@ function UsageCard({ bill }: { bill: BillingOverviewBill }) {
 }
 
 /** The usage lines, one per workspace: the included minutes used, the paid minutes per level and what they cost. */
-function UsageRows({ rows }: { rows: BillingUsageRow[] }) {
+/** `minutesOnly`: no amounts (a client workspace on its partner's bill, whose partner sets what it charges). */
+function UsageRows({ rows, minutesOnly = false }: { rows: BillingUsageRow[]; minutesOnly?: boolean }) {
   const t = useT()
   const format = useFormat()
   return (
@@ -1123,7 +1165,7 @@ function UsageRows({ rows }: { rows: BillingUsageRow[] }) {
                   t('settings.billing.usage.included', { used: line.includedUsedMinutes, of: line.includedMinutes }),
                   parts.length ? format.list(parts) : t('settings.billing.usage.noCalls'),
                 ].join(' · ')}
-                aside={format.currency(microsToDollars(line.costMicros), 'USD')}
+                aside={minutesOnly ? undefined : format.currency(microsToDollars(line.costMicros), 'USD')}
               />
             )
           })}
@@ -1137,13 +1179,14 @@ function UsageRows({ rows }: { rows: BillingUsageRow[] }) {
 
 function InvoicesCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: string) => void }) {
   const t = useT()
+  const calls = useBillCalls()
   const format = useFormat()
   const [opening, setOpening] = useState(false)
 
   async function portal() {
     setOpening(true)
     try {
-      const { url } = await write<PortalData>('billing.openPortal')
+      const { url } = await calls.write<PortalData>('billing.openPortal')
       window.location.assign(url)
     } catch (err) {
       toast(errorMessage(err))

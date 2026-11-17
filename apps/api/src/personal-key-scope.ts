@@ -87,6 +87,10 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['partnerInvitation.view', BROWSER],
   ['partnerInvitation.accept', BROWSER],
   ['workspace.createForClient', BROWSER],
+  ['workspace.inviteClientOwner', BROWSER],
+  ['partner.releaseClient', BROWSER],
+  // Moves what the workspace pays to its owner: only the owner, signed in (partners.ts).
+  ['workspace.removePartner', BROWSER],
 ])
 
 /** Why a personal key may not run `name`, or null when it may (if its maker may). */

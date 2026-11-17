@@ -1,5 +1,6 @@
-// Self-serve sign-up on Linedesk Cloud (`/signup?plan=cloud&interval=year|month`, docs/billing.md §3.2): email, then
-// the code, then the person's name, the business's name and its country. The API decides everything (open or not,
+// Self-serve sign-up on Linedesk Cloud (`/signup?plan=cloud|partner&interval=year|month`, docs/billing.md §3.2): email,
+// then the code, then the person's name, the business's name and its country. Plan `partner` (docs/white-label.md):
+// a white-label partner account with its partner bill, no workspace; the app opens the partner area next. The API decides everything (open or not,
 // the address, the bot check, the limits, the countries); this page only asks and says what came back. Only the plan
 // and the interval travel in the address, never personal data.
 import { useT } from '@linedesk/i18n/react'
@@ -27,9 +28,15 @@ type Step = 'email' | 'code' | 'details'
 
 /**
  * `signedIn`: someone is signed in already (an account the sign-up page made earlier, or an existing one): straight
- * to the details. `onDone`: the bill and workspace are made; the app loads it (Checkout comes next).
+ * to the details. `onDone`: the bill and workspace (or the partner) are made; the app loads it (Checkout comes next).
  */
-export function Signup({ signedIn, onDone }: { signedIn: boolean; onDone: () => void | Promise<void> }) {
+export function Signup({
+  signedIn,
+  onDone,
+}: {
+  signedIn: boolean
+  onDone: (partner: boolean) => void | Promise<void>
+}) {
   const t = useT()
   const [params] = useState(readSignupParams)
   const [config, setConfig] = useState<SignupConfig | 'unreachable' | null>(null)
@@ -40,8 +47,9 @@ export function Signup({ signedIn, onDone }: { signedIn: boolean; onDone: () => 
     void loadSignupConfig().then(setConfig)
   }, [])
 
-  // The partner plan is postponed (LIN-322): the same "not yet" as a country we do not serve.
-  if (params.plan !== 'cloud') return <NotYet />
+  // Another plan than these: the same "not yet" as a country we do not serve.
+  if (params.plan !== 'cloud' && params.plan !== 'partner') return <NotYet />
+  const partner = params.plan === 'partner'
   if (config === null)
     return (
       <AuthPage>
@@ -55,11 +63,14 @@ export function Signup({ signedIn, onDone }: { signedIn: boolean; onDone: () => 
       </AuthPage>
     )
   if (!config.open) return <Closed />
+  const line = partner
+    ? config.partnerPlan && signupPlanLine(config.partnerPlan, params.interval, true)
+    : config.plan && signupPlanLine(config.plan, params.interval)
   if (step === 'email')
     return (
       <EmailStep
         config={config}
-        interval={params.interval}
+        line={line || null}
         onSent={address => {
           setEmail(address)
           setStep('code')
@@ -68,7 +79,9 @@ export function Signup({ signedIn, onDone }: { signedIn: boolean; onDone: () => 
     )
   if (step === 'code')
     return <CodeStep email={email} config={config} onDone={() => setStep('details')} onBack={() => setStep('email')} />
-  return <DetailsStep interval={params.interval} plan={config.plan} onDone={onDone} />
+  return (
+    <DetailsStep interval={params.interval} partner={partner} line={line || null} onDone={() => onDone(partner)} />
+  )
 }
 
 function Closed() {
@@ -158,11 +171,12 @@ function useTurnstile(siteKey: string | null) {
 
 function EmailStep({
   config,
-  interval,
+  line,
   onSent,
 }: {
   config: SignupConfig
-  interval: 'year' | 'month'
+  /** The plan picked in the address, in words. */
+  line: string | null
   onSent: (email: string) => void
 }) {
   const t = useT()
@@ -191,7 +205,7 @@ function EmailStep({
     <AuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>{t('auth.signup.title')}</h1>
-        {config.plan && <p className="auth-hint">{signupPlanLine(config.plan, interval)}</p>}
+        {line && <p className="auth-hint">{line}</p>}
         <p>{t('auth.signup.intro')}</p>
         <div className="auth-form">
           <input
@@ -324,11 +338,14 @@ function CodeStep({
 
 function DetailsStep({
   interval,
-  plan,
+  partner,
+  line,
   onDone,
 }: {
   interval: 'year' | 'month'
-  plan: SignupConfig['plan']
+  /** Plan `partner`: the partner's company, not a business that answers calls. */
+  partner: boolean
+  line: string | null
   onDone: () => void | Promise<void>
 }) {
   const t = useT()
@@ -354,33 +371,35 @@ function DetailsStep({
       name: name.trim(),
       businessName: business.trim(),
       country,
-      plan: 'cloud',
+      plan: partner ? 'partner' : 'cloud',
       interval,
       timeZone: browserPlace().timeZone ?? undefined,
     })
     if (answer.ok) return onDone()
     setBusy(false)
     setError(
-      answer.notYet
-        ? t('auth.signup.notYetText')
-        : answer.closed
-          ? t('auth.signup.closedText')
-          : t('auth.signup.failed'),
+      answer.partnerOwned
+        ? t('auth.signup.partnerOwned')
+        : answer.notYet
+          ? t('auth.signup.notYetText')
+          : answer.closed
+            ? t('auth.signup.closedText')
+            : t('auth.signup.failed'),
     )
   }
 
   return (
     <AuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
-        <h1>{t('auth.signup.detailsTitle')}</h1>
-        <p>{t('auth.signup.detailsText')}</p>
-        {plan && <p className="auth-hint">{signupPlanLine(plan, interval)}</p>}
+        <h1>{partner ? t('auth.signup.partnerDetailsTitle') : t('auth.signup.detailsTitle')}</h1>
+        <p>{partner ? t('auth.signup.partnerDetailsText') : t('auth.signup.detailsText')}</p>
+        {line && <p className="auth-hint">{line}</p>}
         <label>
           {t('auth.signup.yourName')}
           <input value={name} onChange={e => setName(e.target.value)} autoComplete="name" autoFocus disabled={busy} />
         </label>
         <label>
-          {t('shell.newWorkspace.name')}
+          {partner ? t('auth.signup.partnerName') : t('shell.newWorkspace.name')}
           <input
             value={business}
             onChange={e => setBusiness(e.target.value)}

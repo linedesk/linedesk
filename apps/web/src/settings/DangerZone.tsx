@@ -104,9 +104,12 @@ export function DangerZone({ workspaceName, isInstanceAdmin }: Props) {
       </Section>
     )
   const role = data.members.find(m => m.userId === data.me)?.role
+  // The workspace's white-label partner (docs/white-label.md), also while its team is suspended and has no memberships.
+  const partner = data.partner
   return (
     <>
       <LeaveWorkspace data={data} isInstanceAdmin={isInstanceAdmin} />
+      {role === 'owner' && partner && <RemovePartner workspaceName={workspaceName} partner={partner} />}
       {role === 'owner' && <DeleteWorkspace workspaceName={workspaceName} />}
       {role === 'admin' && (
         <Section id="ws-delete" title={t('settings.danger.delete.action')}>
@@ -229,5 +232,48 @@ function DeleteDialog({ workspaceId, onClose }: { workspaceId: string; onClose: 
         )
       }}
     </DangerConfirmDialog>
+  )
+}
+
+/**
+ * The owner removes the workspace's white-label partner (`workspace.removePartner`): the partner team leaves at once,
+ * and where billing is on the workspace moves to a bill of the owner's that waits for their card (calls are answered
+ * again once it is added). The workspace's name is typed to confirm. Afterwards the app loads again: the workspace
+ * now waits for Checkout like a new sign-up.
+ */
+function RemovePartner({ workspaceName, partner }: { workspaceName: string; partner: string }) {
+  const t = useT()
+  const [asking, setAsking] = useState(false)
+  return (
+    <Section id="ws-partner" title={t('settings.danger.partner.title')}>
+      <div className="team-leave">
+        <Button variant="danger-outline" onClick={() => setAsking(true)}>
+          {t('settings.danger.partner.action')}
+        </Button>
+        <span className="help">{t('settings.danger.partner.help', { partner })}</span>
+      </div>
+      {asking && (
+        <DangerConfirmDialog
+          confirm={{
+            text: t('settings.danger.partner.text', { partner }),
+            after: t('settings.danger.partner.after'),
+            list: [
+              t('settings.danger.partner.team', { partner }),
+              t('settings.danger.partner.bill'),
+              t('settings.danger.partner.data'),
+            ],
+            action: t('settings.danger.partner.confirm'),
+            busyAction: t('settings.danger.partner.busy'),
+            typed: workspaceName,
+            variant: 'danger',
+          }}
+          run={async () => {
+            await post('workspace.removePartner', { confirmName: workspaceName })
+            window.location.reload()
+          }}
+          onClose={() => setAsking(false)}
+        />
+      )}
+    </Section>
   )
 }

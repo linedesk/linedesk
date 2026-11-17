@@ -595,11 +595,17 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
         const seat = sub.items.data.find(item =>
           (item.price.lookup_key ?? item.price.metadata?.linedesk ?? '').startsWith(SEAT_LOOKUP_PREFIX),
         )
-        if (!seat) return 'no_seat_item'
-        if (seat.quantity === input.quantity) return 'unchanged'
+        // No seat item: added only with a seat price and seats to add (a partner bill's first client workspace).
+        if (!seat && (!input.seatPrice || input.quantity === 0)) return 'no_seat_item'
+        if (seat?.quantity === input.quantity) return 'unchanged'
         await stripe.subscriptions.update(
           input.subscriptionId,
-          { items: [{ id: seat.id, quantity: input.quantity }], proration_behavior: input.prorationBehavior },
+          {
+            items: [
+              seat ? { id: seat.id, quantity: input.quantity } : { price: input.seatPrice, quantity: input.quantity },
+            ],
+            proration_behavior: input.prorationBehavior,
+          },
           { idempotencyKey: input.idempotencyKey },
         )
         return 'updated'

@@ -30,6 +30,8 @@ import type { db } from './db.ts'
 import { Forbidden, type Handler, type HandlerCtx, Reject } from './handler-context.ts'
 import { lockBalance } from './ledger.ts'
 import { ownerStepUpNeeded } from './owner-step-up.ts'
+import { partnerBillOf } from './partner-billing.ts'
+import { PARTNER_BILL_STAYS } from './partner-refusals.ts'
 import { decryptSecret, encryptSecret } from './secrets.ts'
 import { billPayerChanged, lockForPayerChange, refuseBillingActor } from './usage-levels.ts'
 
@@ -71,6 +73,9 @@ async function ownBill(tx: Reader, actor: Actor) {
  */
 export async function refuseUnlessBillOwner(tx: Tx, actor: Actor) {
   if (!actor.workspaceId) return
+  // A white-label partner's owner holds billing:manage for its partner bill also where they are only an admin
+  // (context.ts): in a workspace without a bill that is no one's to decide but the workspace's owner, as before.
+  const notOwner = actor.role !== 'owner'
   // Locked (shared) until the switch is saved (LIN-438): a move to another bill or a new bill owner waits for it and
   // then switches it off again, or it waits for them and sees the new owner. The bill first, then the workspace: the
   // order of every bill status change (bill, then its workspaces' rows), so the two never deadlock. Two statements,
@@ -94,18 +99,28 @@ export async function refuseUnlessBillOwner(tx: Tx, actor: Actor) {
     .for('share')
   // Moved to another bill meanwhile (a move waits on neither lock taken before it): refused, the owner tries again.
   if ((workspace?.bill ?? null) !== (seen?.bill ?? null)) throw new Forbidden(NOT_BILL_OWNER)
-  if (!workspace?.bill) return
+  if (!workspace?.bill) {
+    if (notOwner) throw new Forbidden(NOT_BILL_OWNER)
+    return
+  }
   // A bill id without its bill is refused, never read as "no bill".
   if (!bill || bill.owner !== actor.actorId) throw new Forbidden(NOT_BILL_OWNER)
 }
 
 /** `billing.state`: the banner's data, for the bill owner only. */
-async function billingState({
-  tx,
-  actor,
-  now,
-}: HandlerCtx): Promise<{ rows: Record<string, never>; data: BillingStateData }> {
-  const bill = await billOfWorkspace(tx, actor.workspaceId)
+async function billingState(
+  { tx, actor, now }: HandlerCtx,
+  input: { partnerId?: string } = {},
+): Promise<{ rows: Record<string, never>; data: BillingStateData }> {
+  // A partner's bill (Partner › Billing): its owner only (partnerBillOf refuses anyone else).
+  const bill = input.partnerId
+    ? ((
+        await tx
+          .select()
+          .from(billing_accounts)
+          .where(eq(billing_accounts.id, await partnerBillOf(tx, actor, input.partnerId)))
+      )[0] ?? null)
+    : await billOfWorkspace(tx, actor.workspaceId)
   if (!bill || bill.owner_user_id !== actor.actorId) return { rows: {}, data: { bill: null } }
   // Through the number's workspace and the bill it is on now, never the row's bill: a workspace moved to another bill
   // takes its numbers with it (security review of #879, L3).
@@ -239,6 +254,8 @@ async function transferBill(tx: Tx, billId: string, userId: string, by: string, 
   await lockBalance(tx, billId)
   const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, billId)).for('update')
   if (!bill) throw new Reject('bill not found')
+  // A partner bill belongs to the partner's owner (docs/white-label.md): it changes hands only with the partner.
+  if (bill.kind === 'partner') throw new Reject(PARTNER_BILL_STAYS)
   if (bill.owner_user_id === userId) throw new Reject('this person owns the bill already')
   const [membership] = await tx
     .select({ id: member.id })
@@ -304,7 +321,8 @@ export async function billOnWorkspaceHandOver(
   now: string,
 ) {
   const bill = await billOfWorkspace(tx, workspaceId)
-  if (!bill || bill.owner_user_id !== fromUserId) return null
+  // A partner bill stays the partner owner's whoever owns a client workspace on it (docs/white-label.md).
+  if (!bill || bill.kind === 'partner' || bill.owner_user_id !== fromUserId) return null
   const refuseSeveral = async () => {
     const [workspaces] = await tx
       .select({ n: count() })

@@ -3,20 +3,27 @@
 // card (it had one, or it is prepaid): its subscription was canceled, nothing was charged, and the plan can start now.
 import { useFormat, useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
-import { type ConfirmOutcome, confirmCheckout, goToCheckout, readCheckoutSession } from './checkout.ts'
+import { type ConfirmOutcome, confirmCheckout, goToCheckout, readCheckoutPartner, readCheckoutSession } from './checkout.ts'
 import { AuthError } from './ui/AuthError.tsx'
 import { AuthPage, cx, Spinner } from './ui/kit.tsx'
 
 /**
  * `onDone`: leaves the page; the app reads the workspace again (no longer waiting for Checkout). `toBilling`: minutes
- * were bought from Settings › Billing, so the app goes back there.
+ * were bought from Settings › Billing, so the app goes back there. `partner`: the Checkout was a partner bill's, so
+ * the app goes back to the partner area.
  */
-export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean) => void | Promise<void> }) {
+export function CheckoutReturn({
+  onDone,
+}: {
+  onDone: (toBilling: boolean, partner: boolean) => void | Promise<void>
+}) {
   const t = useT()
   const format = useFormat()
   const [outcome, setOutcome] = useState<ConfirmOutcome | null>(null)
   const [busy, setBusy] = useState(false)
   const [startFailed, setStartFailed] = useState(false)
+  // Checkout for a white-label partner's bill (Partner › Billing): confirmed for that partner.
+  const [partnerId] = useState(readCheckoutPartner)
 
   useEffect(() => {
     const session = readCheckoutSession()
@@ -24,18 +31,18 @@ export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean) => voi
       setOutcome({ status: 'not_found' })
       return
     }
-    void confirmCheckout(session).then(setOutcome)
-  }, [])
+    void confirmCheckout(session, partnerId).then(setOutcome)
+  }, [partnerId])
 
   const leave = async () => {
     setBusy(true)
-    await onDone(outcome?.status === 'topup')
+    await onDone(outcome?.status === 'topup', !!partnerId)
   }
   const startPlan = async () => {
     setBusy(true)
     setStartFailed(false)
     try {
-      await goToCheckout()
+      await goToCheckout(partnerId)
     } catch {
       setStartFailed(true)
       setBusy(false)
@@ -71,11 +78,15 @@ export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean) => voi
     </AuthPage>
   )
 
-  if (outcome.status === 'trialing') return done(t('auth.checkout.trialTitle'), t('auth.checkout.trialText'))
+  if (outcome.status === 'trialing')
+    return done(
+      t('auth.checkout.trialTitle'),
+      partnerId ? t('auth.checkout.partnerTrialText') : t('auth.checkout.trialText'),
+    )
   if (outcome.status === 'active')
     return done(
       t('auth.checkout.planTitle'),
-      t('auth.checkout.planText'),
+      partnerId ? t('auth.checkout.partnerPlanText') : t('auth.checkout.planText'),
       outcome.heldForReview ? t('auth.checkout.heldForReview') : undefined,
     )
   if (outcome.status === 'topup')

@@ -4,6 +4,7 @@
 // key, a personal key, a setup link or an impersonation, for the overview (its invoice links) as for the writes.
 import { EXTRA_CALLS_STEP, RECHARGE_CAP_SELF_SERVE_MAX_CENTS, RECHARGE_LIMITS } from '@linedesk/db/types'
 import { z } from 'zod'
+import { billTarget } from './billing-checkout.ts'
 import { defineAction } from './define.ts'
 
 /** Recharge attempts a bill may have in 24 hours when the owner presses Retry (docs/billing.md §3.4). */
@@ -14,7 +15,7 @@ export const billingOverview = defineAction({
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
     "The workspace's bill as its owner sees it under Settings › Billing: the plan, the balance, auto-recharge and the monthly cap, this period's usage per workspace and level, a failed recharge, and the latest invoices. Only the bill owner, signed in to the app as themselves (never an impersonation, an API key, a personal key or a setup link); `bill` is null for anyone else and while billing is off.",
-  input: z.object({}),
+  input: z.object(billTarget),
   permission: 'billing:manage',
   readOnly: true,
 })
@@ -112,6 +113,11 @@ export type BillingWorkspaceUsageData = {
   usage: {
     period: { startsAt: string; endsAt: string; kind: 'trial' | 'month' } | null
     row: BillingUsageRow | null
+    /**
+     * Minutes only, no amounts (every `micros` is 0): the workspace is on a white-label partner's bill, and its partner
+     * sets what it charges the client (docs/white-label.md).
+     */
+    minutesOnly: boolean
   } | null
 }
 
@@ -138,6 +144,7 @@ export type BillingCalls = {
 /** Auto-recharge as the owner sets it (docs/billing.md §2.2, §4.3): the amount lifts the balance clear of the threshold. */
 const autoRechargeInput = z
   .object({
+    ...billTarget,
     on: z.boolean(),
     thresholdCents: z.number().int().min(RECHARGE_LIMITS.thresholdCents.min).max(RECHARGE_LIMITS.thresholdCents.max),
     amountCents: z.number().int().min(RECHARGE_LIMITS.amountCents.min).max(RECHARGE_LIMITS.amountCents.max),
@@ -165,6 +172,7 @@ export const billingSetRechargeCap = defineAction({
     "Set the base of the bill's monthly recharge cap (each further workspace adds $25). Raising it needs the owner to confirm it is them (a recent sign-in, the passkey when they have one), and the cap in effect stays at most $1,000; above that an instance admin raises it. Only the bill owner.",
   input: z.object({
     baseCents: z.number().int().min(RECHARGE_LIMITS.amountCents.min).max(RECHARGE_CAP_SELF_SERVE_MAX_CENTS),
+    ...billTarget,
   }),
   permission: 'billing:manage',
 })
@@ -179,6 +187,7 @@ export const billingSetExtraCalls = defineAction({
   input: z.object({
     workspaceId: z.string().min(1),
     extraCalls: z.number().int().min(0).max(1000).multipleOf(EXTRA_CALLS_STEP),
+    ...billTarget,
   }),
   permission: 'billing:manage',
 })
@@ -190,7 +199,7 @@ export const billingOpenPortal = defineAction({
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
     "Open the bill's Stripe customer portal: the card, the billing address and tax id, and every invoice and receipt. Answers the portal link, valid for a short time. Only the bill owner.",
-  input: z.object({}),
+  input: z.object(billTarget),
   permission: 'billing:manage',
   // The portal link signs the owner in to their Stripe customer: in the answer only, never in the command log.
   secretResult: ['url'],
@@ -203,7 +212,7 @@ export const billingRetryRecharge = defineAction({
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
     'Try a failed automatic recharge again (at most 3 attempts in 24 hours). When the bank wants the payment confirmed, answers the invoice page to confirm it on instead. Only the bill owner.',
-  input: z.object({}),
+  input: z.object(billTarget),
   permission: 'billing:manage',
   secretResult: ['url'],
 })

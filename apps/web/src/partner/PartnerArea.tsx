@@ -1,16 +1,22 @@
 // The partner area (`#partner`, docs/white-label.md): a white-label partner's team sees its client workspaces, creates
-// new ones and (the owner) manages the team. It needs no workspace: a new partner has no clients yet. Every member of
-// the team is an admin of every client workspace; opening one switches to it like the workspace menu does.
-import type { MyPartner, PartnerData } from '@linedesk/actions'
+// new ones and (the owner) manages the team and the partner bill. It needs no workspace: a new partner has no clients
+// yet. Every member of the team is an admin of every client workspace; opening one switches to it like the workspace
+// menu does. Where billing is on, client workspaces are seats on the partner bill, which must run first (S2).
+import type { MyPartner, PartnerClient, PartnerData } from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
+import { goToCheckout } from '../checkout.ts'
 import { signOutAndForget } from '../localData.ts'
+import { Billing } from '../settings/Billing.tsx'
 import { callAction } from '../settings/settings-api.ts'
+import { Toast } from '../shell/Toast.tsx'
+import { useToast } from '../shell/useToast.ts'
+import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { refreshWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { tabWorkspace } from '../tabWorkspace.ts'
-import { Card, FormField, Input } from '../ui/form.tsx'
+import { Card, Dialog, FormField, Input } from '../ui/form.tsx'
 import { Badge, Button, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, useSection } from '../ui/SettingsLayout.tsx'
@@ -18,7 +24,19 @@ import { day } from '../admin/parts.tsx'
 import { loadPartner, PARTNER_QUERY, partnerErrorText } from './partner-api.ts'
 import '../admin/admin.css'
 
-type Section = 'clients' | 'team'
+type Section = 'clients' | 'team' | 'billing'
+
+/** Bill states in which client workspaces can be added (the plan runs: trial, paid, or comped). */
+const RUNNING: readonly string[] = ['trialing', 'active', 'past_due', 'comped']
+
+/**
+ * Whether client workspaces are closed: a suspended partner; with a partner bill, until it runs (approval then gates
+ * only the brand, S4); without one (no billing on this server), until a server admin approved the partner.
+ */
+export function clientsFrozen(data: Pick<PartnerData, 'bill'> & { partner: { status: string } }) {
+  if (data.partner.status === 'suspended') return true
+  return data.bill ? !RUNNING.includes(data.bill.status) : data.partner.status !== 'approved'
+}
 
 type Props = {
   partner: MyPartner
@@ -32,14 +50,18 @@ type Props = {
 
 export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: Props) {
   const t = useT()
-  const sections: PageSection<Section>[] = [
-    { id: 'clients', label: t('team.partner.clients.title') },
-    { id: 'team', label: t('team.partner.team.title') },
-  ]
-  const current = useSection('partner', sections)
+  const toaster = useToast()
   const query = useQuery(PARTNER_QUERY(partner.id), () => loadPartner(partner.id))
   const data = query.data
   const status = data?.partner.status ?? partner.status
+  // Partner › Billing: the partner bill's own page, for its owner (the partner's owner).
+  const billMine = !!data?.bill?.mine
+  const sections: PageSection<Section>[] = [
+    { id: 'clients', label: t('team.partner.clients.title') },
+    { id: 'team', label: t('team.partner.team.title') },
+    ...(billMine ? [{ id: 'billing' as const, label: t('team.partner.billing.title') }] : []),
+  ]
+  const current = useSection('partner', sections)
   // Esc goes back to the inbox, as from Server admin (not while typing in a field).
   useEffect(() => {
     if (!onExit) return
@@ -79,8 +101,11 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
           sections={sections}
           current={current}
         >
-          {status === 'pending' && <Note tone="info">{t('team.partner.pending')}</Note>}
+          {status === 'pending' && (
+            <Note tone="info">{data?.bill ? t('team.partner.pendingBilled') : t('team.partner.pending')}</Note>
+          )}
           {status === 'suspended' && <Note tone="danger">{t('team.partner.suspended')}</Note>}
+          {data?.bill && status !== 'suspended' && <BillNote data={data} />}
           <Loading
             what={t('team.partner.page')}
             loading={!data}
@@ -89,16 +114,56 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
             skeleton={<SkeletonRows rows={3} columns={2} />}
           >
             {data &&
-              (current === 'clients' ? (
-                <Clients data={data} frozen={status !== 'approved'} onFirstWorkspace={onFirstWorkspace} />
-              ) : (
+              (current === 'billing' && billMine ? (
+                <Billing toast={text => toaster.show(text)} partnerId={data.partner.id} />
+              ) : current === 'team' ? (
                 <Team data={data} frozen={status === 'suspended'} />
+              ) : (
+                <Clients data={data} frozen={clientsFrozen(data)} onFirstWorkspace={onFirstWorkspace} />
               ))}
           </Loading>
         </SettingsLayout>
       </div>
+      {toaster.toast && <Toast toast={toaster.toast} onUndo={() => {}} />}
     </div>
   )
+}
+
+/**
+ * The partner bill in one line above the sections: waiting for a card (its owner adds one here and the free trial
+ * starts), in the free trial (how many client workspaces it takes), or not running.
+ */
+function BillNote({ data }: { data: PartnerData }) {
+  const t = useT()
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const bill = data.bill!
+  if (bill.status === 'pending_payment') {
+    if (!bill.mine) return <Note tone="info">{t('team.partner.bill.waitsForOwner')}</Note>
+    const start = async () => {
+      setBusy(true)
+      setFailed(false)
+      try {
+        await goToCheckout(data.partner.id)
+      } catch {
+        setFailed(true)
+        setBusy(false)
+      }
+    }
+    return (
+      <Note tone="info">
+        {t('team.partner.bill.addCard')}{' '}
+        <Button size="sm" variant="primary" busy={busy} onClick={() => void start()}>
+          {t('auth.checkout.addCard')}
+        </Button>
+        {failed && <span className="help"> {t('auth.checkout.startFailed')}</span>}
+      </Note>
+    )
+  }
+  if (bill.status === 'trialing')
+    return <Note tone="info">{t('team.partner.bill.trial', { count: bill.trialClientLimit })}</Note>
+  if (!RUNNING.includes(bill.status)) return <Note tone="danger">{t('team.partner.bill.inactive')}</Note>
+  return null
 }
 
 function StatusBadge({ status }: { status: PartnerData['partner']['status'] }) {
@@ -121,11 +186,15 @@ function Clients({
   onFirstWorkspace?: () => void
 }) {
   const t = useT()
+  const owner = data.role === 'owner'
   const [name, setName] = useState('')
+  const [ownerEmail, setOwnerEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [opening, setOpening] = useState<string | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const [created, setCreated] = useState<string | null>(null)
+  const [inviting, setInviting] = useState<PartnerClient | null>(null)
+  const [releasing, setReleasing] = useState<PartnerClient | null>(null)
 
   async function create(e: FormEvent) {
     e.preventDefault()
@@ -133,19 +202,30 @@ function Clients({
     setBusy(true)
     setProblem(null)
     try {
+      const email = ownerEmail.trim()
       const res = await callAction<{ workspace: { id: string; name: string } }>('workspace.createForClient', {
         partnerId: data.partner.id,
         name: name.trim(),
+        ...(owner && email ? { ownerEmail: email } : {}),
       })
       setCreated(res.workspace.name)
       setName('')
+      setOwnerEmail('')
       // This page opened in no workspace; the server now puts the session in the new one and refuses requests from a
       // page that names none (clientOutdated in the API). So the session loads again first, and the partner area
       // stays open with it.
       if (!tabWorkspace() && onFirstWorkspace) {
         setQueryData(PARTNER_QUERY(data.partner.id), {
           ...data,
-          clients: [...data.clients, { ...res.workspace, createdAt: new Date().toISOString() }],
+          clients: [
+            ...data.clients,
+            {
+              ...res.workspace,
+              createdAt: new Date().toISOString(),
+              owner: owner && email ? { invited: email } : null,
+              otherMembers: [],
+            },
+          ],
         })
         window.location.hash = '#partner'
         onFirstWorkspace()
@@ -180,7 +260,24 @@ function Clients({
               onChange={e => setName(e.target.value)}
             />
           </FormField>
-          <Button type="submit" variant="primary" busy={busy} disabled={frozen || !name.trim()}>
+          {owner && (
+            <FormField
+              id="partner-client-owner"
+              label={t('team.partner.clients.ownerEmail')}
+              description={t('team.partner.clients.ownerEmailHelp')}
+            >
+              <Input
+                id="partner-client-owner"
+                type="email"
+                value={ownerEmail}
+                disabled={frozen}
+                autoComplete="off"
+                onChange={e => setOwnerEmail(e.target.value)}
+              />
+            </FormField>
+          )}
+          {/* While a card is missing, Add a card above is the one primary action. */}
+          <Button type="submit" variant={frozen ? undefined : 'primary'} busy={busy} disabled={frozen || !name.trim()}>
             {t('team.partner.clients.create')}
           </Button>
           {created && <p className="help">{t('team.partner.clients.created', { name: created })}</p>}
@@ -194,6 +291,7 @@ function Clients({
             <thead>
               <tr>
                 <th scope="col">{t('team.partner.clients.name')}</th>
+                <th scope="col">{t('team.partner.clients.owner')}</th>
                 <th scope="col">{t('team.partner.clients.since')}</th>
                 <th scope="col" aria-label={t('team.partner.clients.open')} />
               </tr>
@@ -201,9 +299,47 @@ function Clients({
             <tbody>
               {data.clients.map(c => (
                 <tr key={c.id}>
-                  <th scope="row">{c.name}</th>
+                  <th scope="row">
+                    {c.name}
+                    {c.otherMembers.length > 0 && (
+                      <span className="adm-sub">
+                        {t('team.partner.clients.others', {
+                          people: c.otherMembers.map(m => memberLine(t, m)).join(' · '),
+                        })}
+                      </span>
+                    )}
+                  </th>
+                  <td>
+                    {c.owner === null
+                      ? t('team.partner.clients.noOwner')
+                      : 'invited' in c.owner
+                        ? t('team.partner.clients.ownerInvited', { email: c.owner.invited })
+                        : c.owner.name || c.owner.email}
+                  </td>
                   <td>{day(c.createdAt)}</td>
                   <td className="adm-num">
+                    {owner && c.owner === null && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={frozen || !!opening}
+                        title={t('team.partner.clients.inviteOwnerTip', { name: c.name })}
+                        onClick={() => setInviting(c)}
+                      >
+                        {t('team.partner.clients.inviteOwner')}
+                      </Button>
+                    )}
+                    {owner && c.owner && !('invited' in c.owner) && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={data.partner.status === 'suspended' || !!opening}
+                        title={t('team.partner.clients.releaseTip', { name: c.name })}
+                        onClick={() => setReleasing(c)}
+                      >
+                        {t('team.partner.clients.release')}
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       busy={opening === c.id}
@@ -220,7 +356,113 @@ function Clients({
           </table>
         )}
       </Card>
+      {inviting && (
+        <InviteOwnerDialog partnerId={data.partner.id} client={inviting} onClose={() => setInviting(null)} />
+      )}
+      {releasing && (
+        <ReleaseDialog partnerId={data.partner.id} client={releasing} onClose={() => setReleasing(null)} />
+      )}
     </>
+  )
+}
+
+/** "Dana Ruiz (admin, invited by Mike Brennan)": someone in a client workspace who is not on the partner team. */
+function memberLine(t: ReturnType<typeof useT>, m: PartnerClient['otherMembers'][number]) {
+  const who = m.name || m.email
+  return m.invitedBy
+    ? t('team.partner.clients.memberInvitedBy', { name: who, role: m.role, by: m.invitedBy })
+    : t('team.partner.clients.member', { name: who, role: m.role })
+}
+
+/** Invites the client's own owner by email (the partner's owner; never someone on the partner team). */
+function InviteOwnerDialog({
+  partnerId,
+  client,
+  onClose,
+}: {
+  partnerId: string
+  client: PartnerClient
+  onClose: () => void
+}) {
+  const t = useT()
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+  async function send() {
+    if (!email.trim() || busy) return
+    setBusy(true)
+    setProblem(null)
+    try {
+      await callAction('workspace.inviteClientOwner', { partnerId, workspaceId: client.id, email: email.trim() })
+      await reloadPartner(partnerId)
+      onClose()
+    } catch (err) {
+      setProblem(partnerErrorText(err))
+      setBusy(false)
+    }
+  }
+  return (
+    <Dialog
+      title={t('team.partner.clients.inviteOwnerTitle', { name: client.name })}
+      description={t('team.partner.clients.ownerEmailHelp')}
+      size="sm"
+      onClose={busy ? () => {} : onClose}
+      onSubmit={e => {
+        e.preventDefault()
+        void send()
+      }}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            {t('common.action.cancel')}
+          </Button>
+          <Button type="submit" variant="primary" busy={busy} disabled={!email.trim()}>
+            {t('team.partner.team.invite')}
+          </Button>
+        </>
+      }
+    >
+      <FormField id="partner-owner-email" label={t('team.partner.team.email')} error={problem}>
+        <Input
+          id="partner-owner-email"
+          type="email"
+          value={email}
+          autoComplete="off"
+          onChange={e => setEmail(e.target.value)}
+        />
+      </FormField>
+    </Dialog>
+  )
+}
+
+/**
+ * Hands a client workspace over to its owner (`partner.releaseClient`): the team leaves it, and where billing is on
+ * it moves to a bill of the client's own that waits for their card. The workspace's name is typed to confirm.
+ */
+function ReleaseDialog({ partnerId, client, onClose }: { partnerId: string; client: PartnerClient; onClose: () => void }) {
+  const t = useT()
+  return (
+    <DangerConfirmDialog
+      confirm={{
+        text: t('team.partner.release.text', { name: client.name }),
+        after: t('team.partner.release.after'),
+        list: [t('team.partner.release.team'), t('team.partner.release.bill'), t('team.partner.release.data')],
+        action: t('team.partner.release.confirm'),
+        busyAction: t('team.partner.release.busy'),
+        typed: client.name,
+        variant: 'danger',
+      }}
+      run={async () => {
+        try {
+          await callAction('partner.releaseClient', { partnerId, workspaceId: client.id, confirmName: client.name })
+        } catch (err) {
+          throw new Error(partnerErrorText(err))
+        }
+        await Promise.all([reloadPartner(partnerId), refreshWorkspaces()])
+        onClose()
+      }}
+      onClose={onClose}
+    />
   )
 }
 

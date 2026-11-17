@@ -16,6 +16,7 @@ import { Forbidden, type HandlerCtx, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { queueWorkspaceDeletedEmails } from './jobs.ts'
 import { ownerStepUpNeeded, ownerStepUpRefusal } from './owner-step-up.ts'
+import { seatsFollowDelete } from './partner-billing.ts'
 import { deleteWorkspace, membersOnlyHere } from './workspace-delete.ts'
 
 export const ONLY_OWNER = 'Only an owner can delete this workspace.'
@@ -71,7 +72,7 @@ export async function deletePreview({ tx, actor }: HandlerCtx) {
 }
 
 export async function deleteOwn(
-  { tx, actor, now, telephony }: HandlerCtx,
+  { tx, actor, now, telephony, onCommit }: HandlerCtx,
   input: { name: string; keepOwnAccount?: boolean; keepAccounts?: boolean },
 ) {
   const workspaceId = await ownedWorkspace(tx, actor)
@@ -95,6 +96,7 @@ export async function deleteOwn(
     .innerJoin(user, eq(user.id, member.userId))
     .where(and(eq(member.organizationId, workspaceId), ne(member.userId, actor.actorId)))
 
+  await seatsFollowDelete(tx, onCommit, workspaceId)
   const result = await deleteWorkspace(
     tx,
     { workspaceId, name: input.name, keepAccounts: input.keepAccounts },

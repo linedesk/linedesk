@@ -274,6 +274,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'workspace.deleteOwn',
     'workspace.deletePreview',
     'team.transferOwnership',
+    // Removing the workspace's white-label partner (docs/white-label.md): the owner takes over what it pays.
+    'workspace.removePartner',
     // What the workspace pays (billing:manage): Allow Premium voices and models, Allow Ultra on Linedesk Cloud.
     'workspace.setAllowPremium',
     'workspace.setAllowUltra',
@@ -322,6 +324,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'partnerMember.revokeInvite',
     'partnerMember.remove',
     'workspace.createForClient',
+    'workspace.inviteClientOwner',
+    'partner.releaseClient',
   ],
 }
 
@@ -381,6 +385,7 @@ describe('workspace rights', () => {
       'team.transferOwnership',
       'workspace.deleteOwn',
       'workspace.deletePreview',
+      'workspace.removePartner',
       'workspace.setAllowPremium',
       'workspace.setAllowUltra',
     ])

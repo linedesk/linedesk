@@ -143,6 +143,11 @@ function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; ru
         <>
           {name}
           {m.userId === data.me && <Badge>{t('team.member.you')}</Badge>}
+          {m.partner && (
+            <Badge tone="outline" title={t('team.member.partnerTip', { partner: m.partner })}>
+              {t('team.member.partner')}
+            </Badge>
+          )}
         </>
       }
       sub={t('team.member.sub', { email: m.email, joined: joinedLabel(m.joinedAt) })}

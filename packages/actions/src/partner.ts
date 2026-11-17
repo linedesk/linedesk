@@ -32,6 +32,18 @@ export const PARTNER_CODES = [
   'partner_suspended',
   'partner_pending',
   'client_limit',
+  'client_not_found',
+  'client_has_owner',
+  'owner_on_team',
+  'client_no_owner',
+  'bill_not_started',
+  'bill_inactive',
+  'trial_client_limit',
+  'calls_running',
+  'confirm_mismatch',
+  'no_partner',
+  'already_partner',
+  'client_owner',
 ] as const
 export type PartnerCode = (typeof PARTNER_CODES)[number]
 
@@ -118,10 +130,11 @@ export const workspaceCreateForClient = defineAction({
   name: 'workspace.createForClient',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
-    'Create a workspace for a client of the partner. Every member of the partner team becomes an admin of it. Its owner is invited later. Where billing is on, client workspaces need the partner bill (coming with the partner sign-up).',
+    "Create a workspace for a client of the partner. Every member of the partner team becomes an admin of it. With ownerEmail (the partner's owner only), the client's owner is invited at once (else later with workspace.inviteClientOwner). Where billing is on, the workspace goes on the partner bill and adds a seat to its plan; in the free trial at most the trial's number of client workspaces.",
   input: z.object({
     partnerId,
     name: workspaceName,
+    ownerEmail: email.optional(),
     country: z
       .string()
       .trim()
@@ -131,6 +144,36 @@ export const workspaceCreateForClient = defineAction({
     timeZone: z.string().max(64).optional(),
   }),
   permission: 'partner',
+})
+
+export const workspaceInviteClientOwner = defineAction({
+  name: 'workspace.inviteClientOwner',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Invite the owner of a client workspace of the partner, by email: the client's own person, never someone on the partner team. Refused while the workspace has an owner. The partner's owner only (the client's owner can remove the partner).",
+  input: z.object({ partnerId, workspaceId: z.string().min(1).max(64), email }),
+  permission: 'partner',
+})
+
+/** The workspace's name typed again: what removing or releasing a partner asks for. */
+const confirmName = z.string().trim().min(1).max(200)
+
+export const partnerReleaseClient = defineAction({
+  name: 'partner.releaseClient',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Hand a client workspace over to the client: the partner team leaves it at once (their API keys there are revoked), and where billing is on it moves off the partner bill to a bill of the client's owner, which needs their card before calls are answered again. Only once the client has its owner. Type the workspace's name to confirm. The partner's owner only.",
+  input: z.object({ partnerId, workspaceId: z.string().min(1).max(64), confirmName }),
+  permission: 'partner',
+})
+
+export const workspaceRemovePartner = defineAction({
+  name: 'workspace.removePartner',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Remove this workspace's white-label partner: every member of the partner team leaves it at once (their API keys here are revoked), and where billing is on the workspace moves off the partner's bill to a bill of yours, which needs your card before calls are answered again. Type the workspace's name to confirm. The workspace's owner only.",
+  input: z.object({ confirmName }),
+  permission: 'workspace:own',
 })
 
 // --- Server admin › Partners -------------------------------------------------------------------------------------
@@ -202,7 +245,37 @@ export type PartnerInvitationRow = {
   expiresAt: string
   expired: boolean
 }
-export type PartnerClient = { id: string; name: string; createdAt: string }
+/**
+ * Someone in a client workspace who is not there through the partner team, with who invited them when known (security
+ * review of #1100, N-1): the partner owner sees who else reads the client's calls.
+ */
+export type PartnerClientMember = {
+  name: string
+  email: string
+  role: 'owner' | 'admin' | 'member'
+  invitedBy: string | null
+}
+export type PartnerClient = {
+  id: string
+  name: string
+  createdAt: string
+  /** The client's own owner: joined, invited (`invited`: the address), or none yet. */
+  owner: { name: string; email: string } | { invited: string } | null
+  /** The partner owner only: every member who is not on the partner team (N-1); empty for the admins. */
+  otherMembers: PartnerClientMember[]
+}
+
+/**
+ * The partner bill as the partner area shows it (the bill's own page is Partner › Billing, `billing.overview` with the
+ * partnerId): null where billing is off or the partner has no bill (made by a server admin on an install without it).
+ */
+export type PartnerBillSummary = {
+  status: 'pending_payment' | 'trialing' | 'active' | 'past_due' | 'suspended' | 'canceled' | 'comped'
+  /** The most client workspaces in the free trial (the install's sign-up rules). */
+  trialClientLimit: number
+  /** Whether the person asking owns the bill (the partner's owner): they open its page. */
+  mine: boolean
+}
 
 /** `partner.get`. Invitations only for the owner (the admins see the team, not who is invited). */
 export type PartnerData = {
@@ -211,6 +284,7 @@ export type PartnerData = {
   members: PartnerTeamMember[]
   invitations: PartnerInvitationRow[]
   clients: PartnerClient[]
+  bill: PartnerBillSummary | null
 }
 
 /** `partnerInvitation.view`. `state`: whether the link can be accepted by the signed-in person. */

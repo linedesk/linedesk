@@ -293,7 +293,23 @@ app.get('/v1/signup/config', async c => {
   const plan = rules
     ? { monthlyCents: rules.workspaceMonthlyCents, yearlyCents: rules.workspaceYearlyCents, trialDays: rules.trialDays }
     : null
-  return c.json({ ok: true, open: state.open, turnstileSiteKey: siteKey, countries: SIGNUP_COUNTRIES, plan })
+  // The partner plan (`?plan=partner`, docs/white-label.md): its base fee, plus a workspace's price per client.
+  const partnerPlan = rules
+    ? {
+        monthlyCents: rules.partnerMonthlyCents,
+        yearlyCents: rules.partnerYearlyCents,
+        trialDays: rules.trialDays,
+        trialClients: state.rules.trialWorkspacesPartner,
+      }
+    : null
+  return c.json({
+    ok: true,
+    open: state.open,
+    turnstileSiteKey: siteKey,
+    countries: SIGNUP_COUNTRIES,
+    plan,
+    partnerPlan,
+  })
 })
 
 // Public: an email code for the sign-up page. Every check (open, the address, its domain, Turnstile, the limits) runs

@@ -786,7 +786,8 @@ describe('billing.workspaceUsage', () => {
       levels: { standard: { seconds: 600, micros: 500_000 } },
     })
     // Nothing of the bill itself: no balance, plan or invoices.
-    expect(Object.keys(data.usage).sort()).toEqual(['period', 'row'])
+    expect(Object.keys(data.usage).sort()).toEqual(['minutesOnly', 'period', 'row'])
+    expect(data.usage.minutesOnly).toBe(false)
   })
 
   test('no key reads it, like the overview (review of #1098, L-2); an impersonating admin may, read-only', async () => {

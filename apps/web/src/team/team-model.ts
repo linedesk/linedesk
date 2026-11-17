@@ -33,7 +33,8 @@ export const isOwner = (data: TeamData) => data.members.some(m => m.userId === d
  * refuses the rest too. Nobody removes themselves from here (Leave workspace does).
  */
 export function canEditRole(data: TeamData, m: TeamMember) {
-  return data.canManage && m.role !== 'owner' && m.userId !== data.me
+  // A partner team's membership changes only with that team (docs/white-label.md; the API says partner_managed).
+  return data.canManage && m.role !== 'owner' && m.userId !== data.me && !m.partner
 }
 /** The roles the role menu offers for a teammate: Owner only to the owner (it hands the workspace over). */
 export const rolesFor = (data: TeamData) => (isOwner(data) ? teamRoles : assignableRoles)
@@ -44,7 +45,8 @@ export const rolesFor = (data: TeamData) => (isOwner(data) ? teamRoles : assigna
 export const teamAsShown = (data: TeamData | null, supportAccess: boolean): TeamData | null =>
   data && supportAccess ? { ...data, canManage: false } : data
 
-export const canRemove = (data: TeamData, m: TeamMember) => data.canManage && m.role !== 'owner' && m.userId !== data.me
+export const canRemove = (data: TeamData, m: TeamMember) =>
+  data.canManage && m.role !== 'owner' && m.userId !== data.me && !m.partner
 
 export function isOnTeam(data: TeamData, email: string) {
   const address = email.trim().toLowerCase()

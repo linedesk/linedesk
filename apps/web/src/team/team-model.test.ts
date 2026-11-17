@@ -27,7 +27,7 @@ const member = (userId: string, role: TeamMember['role'], email = `${userId}@x.c
 const data = (canManage: boolean, me = 'mike'): TeamData => ({
   members: [member('mike', 'owner'), member('sarah', 'admin'), member('jo', 'member')],
   invitations: [{ invitationId: 'i1', email: 'new@x.co', role: 'member', invitedBy: 'Mike', invitedById: 'mike', expiresAt: '2026-11-17T10:00:00Z', expired: false }],
-  canManage, me,
+  canManage, me, partner: null,
 })
 
 describe('team model', () => {

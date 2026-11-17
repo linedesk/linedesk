@@ -27,6 +27,7 @@ import {
   billing_recharges,
   card_fingerprints,
   organization,
+  partners,
   rechargeCapCents,
   phone_numbers,
   STRIPE_TAX_CODE,
@@ -63,6 +64,7 @@ import { type MessageKey, msg } from '@linedesk/i18n'
 import { lockBalance, periodAt, periodForMoney, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 import { ownerStepUpNeeded } from './owner-step-up.ts'
+import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { signupRules } from './self-serve.ts'
 import { refuseBillingActor } from './usage-levels.ts'
@@ -153,33 +155,56 @@ type Bill = typeof billing_accounts.$inferSelect
 
 // ---- Whose bill ----------------------------------------------------------------------------------------------
 
-/** The bill of the actor's workspace, owned by the actor; billing must be in effect. Locked when asked. */
-export async function ownBill(tx: Tx, actor: Actor, { lock = false } = {}): Promise<Bill> {
+/**
+ * The bill of the actor's workspace, owned by the actor; billing must be in effect. Locked when asked. With
+ * `partnerId`: the bill of that white-label partner instead, managed from the partner area (also with no workspace),
+ * only by the partner's owner who owns the bill (partnerBillOf, docs/white-label.md).
+ */
+export async function ownBill(
+  tx: Tx,
+  actor: Actor,
+  { lock = false, partnerId }: { lock?: boolean; partnerId?: string | undefined } = {},
+): Promise<Bill> {
   refuseBillingActor(actor)
+  // Whose partner bill first: anyone else gets the same 403 whatever the install's billing.
+  const partnerBill = partnerId ? await partnerBillOf(tx, actor, partnerId) : null
   if ((await billingState(tx)).inEffect !== 'stripe') throw new Reject(BILLING_OFF)
+  const billId = partnerBill ?? (await workspaceBillId(tx, actor))
+  if (lock) await lockBalance(tx, billId)
+  const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, billId))
+  if (!bill) throw Reject.t('server.api.checkout.noBill')
+  if (bill.owner_user_id !== actor.actorId) throw new Forbidden(NOT_THE_OWNER)
+  return bill
+}
+
+/** The bill of the actor's workspace (its id). */
+async function workspaceBillId(tx: Tx, actor: Actor): Promise<string> {
   if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
   const [org] = await tx
     .select({ bill: organization.billingAccountId })
     .from(organization)
     .where(eq(organization.id, actor.workspaceId))
   if (!org?.bill) throw Reject.t('server.api.checkout.noBill')
-  if (lock) await lockBalance(tx, org.bill)
-  const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, org.bill))
-  if (!bill) throw Reject.t('server.api.checkout.noBill')
-  if (bill.owner_user_id !== actor.actorId) throw new Forbidden(NOT_THE_OWNER)
-  return bill
+  return org.bill
 }
 
-/** The plan's Stripe prices for a bill (docs/billing.md §2.1): a seat per workspace, at the bill's interval. */
+/**
+ * The plan's Stripe prices for a bill (docs/billing.md §2.1): a seat per workspace, at the bill's interval. A partner
+ * bill: the partner base fee (quantity 1), and a seat per client workspace once it has any (Checkout takes no item of
+ * quantity 0; the first client adds the seat item, partner-billing.ts).
+ */
 async function planItems(tx: Tx, bill: Bill) {
-  // The partner plan is not open yet (LIN-322): its sign-up says "not yet", and Checkout refuses it too.
-  if (bill.kind !== 'cloud') throw Reject.t('server.api.checkout.partnerNotYet')
   const [row] = await tx
     .select({ n: sql<number>`count(*)::int` })
     .from(organization)
     .where(eq(organization.billingAccountId, bill.id))
-  const lookupKey = bill.interval === 'year' ? 'ws_yearly' : 'ws_monthly'
-  return [{ lookupKey, quantity: Math.max(1, row?.n ?? 1) }]
+  const seats = row?.n ?? 0
+  const seat = bill.interval === 'year' ? 'ws_yearly' : 'ws_monthly'
+  if (bill.kind === 'partner') {
+    const base = bill.interval === 'year' ? 'partner_yearly' : 'partner_monthly'
+    return [{ lookupKey: base, quantity: 1 }, ...(seats ? [{ lookupKey: seat, quantity: seats }] : [])]
+  }
+  return [{ lookupKey: seat, quantity: Math.max(1, seats || 1) }]
 }
 
 /**
@@ -230,13 +255,20 @@ async function customerOf(provider: BillingProvider, bill: Bill) {
     .from(organization)
     .where(eq(organization.billingAccountId, bill.id))
     .limit(1)
+  // A partner bill is the partner's company (its clients' names are not the customer).
+  const [partner] =
+    bill.kind === 'partner'
+      ? await db.select({ name: partners.name }).from(partners).where(eq(partners.billing_account_id, bill.id))
+      : []
   return provider
-    .createCustomer({ billId: bill.id, email: owner.email, name: org?.name ?? owner.name })
+    .createCustomer({ billId: bill.id, email: owner.email, name: partner?.name ?? org?.name ?? owner.name })
     .catch(setupFailed)
 }
 
-const returnUrl = () => `${WEB_ORIGIN}/billing/return?session_id={CHECKOUT_SESSION_ID}`
-const cancelUrl = () => `${WEB_ORIGIN}/`
+/** Where Checkout returns to; a partner bill's return names the partner, so the page confirms that bill. */
+const returnUrl = (partnerId?: string) =>
+  `${WEB_ORIGIN}/billing/return?session_id={CHECKOUT_SESSION_ID}${partnerId ? `&partner=${encodeURIComponent(partnerId)}` : ''}`
+const cancelUrl = (partnerId?: string) => (partnerId ? `${WEB_ORIGIN}/#partner` : `${WEB_ORIGIN}/`)
 
 // ---- Starting Checkout ---------------------------------------------------------------------------------------
 
@@ -247,8 +279,8 @@ type Started = { url: string; sessionId: string; customerId: string; billId: str
  * `billing.startCheckout` (§3.2 step 3): the plan with a 14-day trial, or without one after a refused trial. Stripe is
  * asked before the transaction (the customer, the configuration, the session); the transaction stores the customer.
  */
-const prepareStartCheckout: Preparer = async ({ actor, now }) => {
-  const bill = await db.transaction(tx => ownBill(tx, actor))
+const prepareStartCheckout: Preparer = async ({ actor, now }, input: { partnerId?: string }) => {
+  const bill = await db.transaction(tx => ownBill(tx, actor, { partnerId: input.partnerId }))
   if (bill.status !== 'pending_payment') throw Reject.t('server.api.checkout.alreadyFinished')
   refuseCheckoutFlood(bill.id)
   const items = await db.transaction(tx => planItems(tx, bill))
@@ -283,8 +315,8 @@ const prepareStartCheckout: Preparer = async ({ actor, now }) => {
         ),
       }),
       branding: checkoutBranding(),
-      successUrl: returnUrl(),
-      cancelUrl: cancelUrl(),
+      successUrl: returnUrl(input.partnerId),
+      cancelUrl: cancelUrl(input.partnerId),
       // A double click within a second makes one session; a later start makes a new one (the open one was expired).
       idempotencyKey: `${bill.id}:checkout:${trial ? 'trial' : 'plan'}:${now.slice(0, 19)}`,
       expiresAt: checkoutExpiresAt(),
@@ -555,8 +587,8 @@ async function creditTopUp(tx: Tx, bill: Bill, session: CheckoutSession, now: st
 }
 
 /** Fetch-before-act: the session as Stripe has it now, outside the transaction. */
-const prepareConfirm: Preparer = async ({ actor }, input: { sessionId: string }) => {
-  const bill = await db.transaction(tx => ownBill(tx, actor))
+const prepareConfirm: Preparer = async ({ actor }, input: { sessionId: string; partnerId?: string }) => {
+  const bill = await db.transaction(tx => ownBill(tx, actor, { partnerId: input.partnerId }))
   const provider = await billingProvider(db)
   const session = await provider.checkoutSession(input.sessionId)
   if (!session) throw new NotFound(NO_SUCH_CHECKOUT)
@@ -728,9 +760,9 @@ async function purchaseOutcome(
 
 const prepareTopUp: Preparer = async (
   { actor, now, commandId },
-  input: { amountCents: number; savedCard?: boolean; confirmCard?: string },
+  input: { amountCents: number; savedCard?: boolean; confirmCard?: string; partnerId?: string },
 ) => {
-  const bill = await db.transaction(tx => ownBill(tx, actor))
+  const bill = await db.transaction(tx => ownBill(tx, actor, { partnerId: input.partnerId }))
   if (!BUYS_MINUTES.includes(bill.status)) throw Reject.t('server.api.checkout.minutesAfterStart')
   if (!bill.stripe_customer_id) throw Reject.t('server.api.checkout.noCustomer')
   refuseCheckoutFlood(bill.id)
@@ -765,9 +797,9 @@ const prepareTopUp: Preparer = async (
         taxed: rules.automaticTax,
       }),
       branding: checkoutBranding(),
-      successUrl: returnUrl(),
-      // Bought from Settings › Billing: going back from Checkout lands there again.
-      cancelUrl: appLink(WEB_ORIGIN, actor.workspaceId!, BILLING_PATH),
+      successUrl: returnUrl(input.partnerId),
+      // Bought from Settings › Billing (or Partner › Billing): going back from Checkout lands there again.
+      cancelUrl: input.partnerId ? PARTNER_BILLING_URL() : appLink(WEB_ORIGIN, actor.workspaceId!, BILLING_PATH),
       idempotencyKey: `${bill.id}:topup:${input.amountCents}:${now.slice(0, 19)}`,
       expiresAt: checkoutExpiresAt(),
     })
@@ -785,8 +817,8 @@ const CANCELS: readonly Bill['status'][] = ['trialing', 'active', 'past_due', 's
 /** `billing.cancel` and `billing.resume` (§3.2 step 10): the subscription is asked first, the bill mirrors it. */
 const prepareCancel =
   (resume: boolean): Preparer =>
-  async ({ actor }) => {
-    const bill = await db.transaction(tx => ownBill(tx, actor))
+  async ({ actor }, input: { partnerId?: string }) => {
+    const bill = await db.transaction(tx => ownBill(tx, actor, { partnerId: input.partnerId }))
     if (!bill.stripe_subscription_id || !CANCELS.includes(bill.status))
       throw Reject.t('server.api.checkout.noRunningPlan')
     const provider = await billingProvider(db)
@@ -797,9 +829,9 @@ const prepareCancel =
     return { billId: bill.id, cancelAtPeriodEnd: sub.cancelAtPeriodEnd, endsAt: sub.trialEnd ?? sub.currentPeriodEnd }
   }
 
-const applyCancel: Handler = async ({ tx, actor, now, prepared }) => {
+const applyCancel: Handler = async ({ tx, actor, now, prepared }, input: { partnerId?: string }) => {
   const done = prepared as { billId: string; cancelAtPeriodEnd: boolean; endsAt: string | null }
-  const bill = await ownBill(tx, actor, { lock: true })
+  const bill = await ownBill(tx, actor, { lock: true, partnerId: input.partnerId })
   if (bill.id !== done.billId) throw new Reject('the bill changed; try again')
   await tx
     .update(billing_accounts)
@@ -817,24 +849,24 @@ export const checkoutPreparers: Record<string, Preparer> = {
 }
 
 export const checkoutHandlers: Record<string, Handler> = {
-  'billing.startCheckout': async ({ tx, actor, now, prepared }) => {
+  'billing.startCheckout': async ({ tx, actor, now, prepared }, input: { partnerId?: string }) => {
     const started = prepared as Started
-    const bill = await ownBill(tx, actor, { lock: true })
+    const bill = await ownBill(tx, actor, { lock: true, partnerId: input.partnerId })
     if (bill.id !== started.billId) throw new Reject('the bill changed; try again')
     await storeCustomer(tx, started, now)
     // The URL is a bearer link: in the answer only, never in the command log (the action marks it secret).
     return { rows: {}, data: { url: started.url } }
   },
-  'billing.confirmCheckout': async ({ tx, actor, now, prepared }) => {
+  'billing.confirmCheckout': async ({ tx, actor, now, prepared }, input: { partnerId?: string }) => {
     const { billId, session } = prepared as { billId: string; session: CheckoutSession }
-    const bill = await ownBill(tx, actor)
+    const bill = await ownBill(tx, actor, { partnerId: input.partnerId })
     if (bill.id !== billId) throw new NotFound(NO_SUCH_CHECKOUT)
     const provider = await billingProvider(tx)
     return { rows: {}, data: await confirmSession(tx, billId, session, provider, now) }
   },
-  'billing.startTopUp': async ({ tx, actor, prepared }) => {
+  'billing.startTopUp': async ({ tx, actor, prepared }, input: { partnerId?: string }) => {
     const done = prepared as { billId: string; answer: TopUpAnswer }
-    const bill = await ownBill(tx, actor)
+    const bill = await ownBill(tx, actor, { partnerId: input.partnerId })
     // Money that moved is never answered with an error (a retry would be a second purchase; review of #1102, L-1).
     const charged = done.answer.kind === 'paid' || done.answer.kind === 'pending'
     if (bill.id !== done.billId && !charged) throw new Reject('the bill changed; try again')

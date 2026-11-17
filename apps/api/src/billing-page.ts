@@ -51,6 +51,7 @@ import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { syncBillingCatalog } from './billing-catalog.ts'
 import { BUYS_MINUTES, ownBill, setupFailed } from './billing-checkout.ts'
+import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
 import { afterDebit } from './call-billing.ts'
@@ -345,20 +346,25 @@ export function forgetSeatPrices() {
   seatPrices.clear()
 }
 
-async function overview({
-  tx,
-  actor,
-  now,
-}: HandlerCtx): Promise<{ rows: Record<string, never>; data: BillingOverviewData }> {
+async function overview(
+  { tx, actor, now }: HandlerCtx,
+  input: { partnerId?: string } = {},
+): Promise<{ rows: Record<string, never>; data: BillingOverviewData }> {
   refuseBillingActor(actor)
+  // A partner's bill (Partner › Billing): only its owner, who owns the bill, reads it (partnerBillOf refuses others,
+  // also where billing is off).
+  const partnerBill = input.partnerId ? await partnerBillOf(tx as Tx, actor, input.partnerId) : null
   const billingOn = (await billingState(tx as Tx)).inEffect === 'stripe'
   const none = { rows: {}, data: { billingOn, bill: null } }
-  if (!billingOn || !actor.workspaceId) return none
-  const [found] = await tx
-    .select({ bill: billing_accounts })
-    .from(organization)
-    .innerJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
-    .where(eq(organization.id, actor.workspaceId))
+  if (!billingOn) return none
+  if (!partnerBill && !actor.workspaceId) return none
+  const [found] = partnerBill
+    ? await tx.select({ bill: billing_accounts }).from(billing_accounts).where(eq(billing_accounts.id, partnerBill))
+    : await tx
+        .select({ bill: billing_accounts })
+        .from(organization)
+        .innerJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
+        .where(eq(organization.id, actor.workspaceId!))
   const bill = found?.bill
   if (!bill || bill.owner_user_id !== actor.actorId) return none
 
@@ -500,13 +506,13 @@ async function workspaceUsage({
   const none = { rows: {}, data: { usage: null } }
   if (!actor.workspaceId || (await billingState(tx as Tx)).inEffect !== 'stripe') return none
   const [found] = await tx
-    .select({ billId: organization.billingAccountId, name: organization.name })
+    .select({ billId: organization.billingAccountId, name: organization.name, partnerId: organization.partnerId })
     .from(organization)
     .where(eq(organization.id, actor.workspaceId))
   if (!found?.billId) return none
   const rules = await billingRules(tx as Tx)
   const period = await periodAt(tx as Tx, found.billId, now)
-  if (!period) return { rows: {}, data: { usage: { period: null, row: null } } }
+  if (!period) return { rows: {}, data: { usage: { period: null, row: null, minutesOnly: !!found.partnerId } } }
   const [row] = await periodUsage(
     tx,
     found.billId,
@@ -515,12 +521,16 @@ async function workspaceUsage({
     rules.includedStandardSeconds,
     actor.workspaceId,
   )
+  // On a white-label partner's bill the client's people see minutes, never our prices: the partner sets what it
+  // charges them (docs/white-label.md). The partner's owner reads the amounts on the bill's own page.
+  const minutesOnly = !!found.partnerId
   return {
     rows: {},
     data: {
       usage: {
         period: { startsAt: period.starts_at, endsAt: period.ends_at, kind: period.kind },
-        row: row ?? null,
+        row: row && minutesOnly ? withoutAmounts(row) : (row ?? null),
+        minutesOnly,
       },
     },
   }
@@ -595,9 +605,9 @@ async function extraCallsPrice(tx: Tx, interval: 'month' | 'year') {
  */
 async function setExtraCalls(
   { tx, actor, now, onCommit }: HandlerCtx,
-  input: { workspaceId: string; extraCalls: number },
+  input: { workspaceId: string; extraCalls: number; partnerId?: string | undefined },
 ): Promise<{ rows: Record<string, never>; data: ExtraCallsData }> {
-  const owned = await ownBill(tx, actor)
+  const owned = await ownBill(tx, actor, { partnerId: input.partnerId })
   await lockExtraCalls(tx, owned.id)
   const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, owned.id))
   if (!bill || !CHANGES_RECHARGE.includes(bill.status)) throw refuse('notRunning')
@@ -667,11 +677,19 @@ async function setExtraCalls(
   return { rows: {}, data: done }
 }
 
+/** A usage row with its minutes and no amounts. */
+const withoutAmounts = (row: BillingUsageRow): BillingUsageRow => ({
+  ...row,
+  levels: Object.fromEntries(
+    Object.entries(row.levels).map(([level, part]) => [level, { seconds: part.seconds, micros: 0 }]),
+  ),
+})
+
 // ---- Auto-recharge and the cap ---------------------------------------------------------------------------------
 
 /** The bill locked for a change of auto-recharge or the cap: the owner's, with a running plan. */
-async function billToChange(tx: Tx, actor: Actor) {
-  const bill = await ownBill(tx, actor, { lock: true })
+async function billToChange(tx: Tx, actor: Actor, partnerId: string | undefined) {
+  const bill = await ownBill(tx, actor, { lock: true, partnerId })
   if (!CHANGES_RECHARGE.includes(bill.status)) throw refuse('notRunning')
   return bill
 }
@@ -685,9 +703,9 @@ async function rechargeNow(tx: Tx, billId: string, now: string) {
 
 async function setAutoRecharge(
   { tx, actor, now }: HandlerCtx,
-  input: { on: boolean; thresholdCents: number; amountCents: number },
+  { partnerId, ...input }: { on: boolean; thresholdCents: number; amountCents: number; partnerId?: string },
 ): Promise<{ rows: Record<string, never>; data: AutoRechargeData }> {
-  const bill = await billToChange(tx, actor)
+  const bill = await billToChange(tx, actor, partnerId)
   await tx
     .update(billing_accounts)
     .set({
@@ -703,9 +721,9 @@ async function setAutoRecharge(
 
 async function setRechargeCap(
   { tx, actor, now }: HandlerCtx,
-  input: { baseCents: number },
+  input: { baseCents: number; partnerId?: string },
 ): Promise<{ rows: Record<string, never>; data: RechargeCapData }> {
-  const bill = await billToChange(tx, actor)
+  const bill = await billToChange(tx, actor, input.partnerId)
   const rules = await billingRules(tx)
   const workspaces = (await workspacesOf(tx, bill.id)).length
   const raising = input.baseCents > bill.recharge_cap_base_cents
@@ -742,19 +760,18 @@ async function setRechargeCap(
 /** Settings › Billing of this workspace: where the portal's "back" goes. */
 const billingPage = (workspaceId: string) => appLink(WEB_ORIGIN, workspaceId, BILLING_PATH)
 
-const preparePortal: Preparer = async ({ actor }) => {
-  const bill = await db.transaction(tx => ownBill(tx, actor))
+const preparePortal: Preparer = async ({ actor }, input: { partnerId?: string }) => {
+  const bill = await db.transaction(tx => ownBill(tx, actor, { partnerId: input.partnerId }))
   if (!bill.stripe_customer_id) throw refuse('noCustomer')
   const provider = await billingProvider(db)
-  const url = await provider
-    .portalSession({ customerId: bill.stripe_customer_id, returnUrl: billingPage(actor.workspaceId!) })
-    .catch(setupFailed)
+  const back = input.partnerId ? PARTNER_BILLING_URL() : billingPage(actor.workspaceId!)
+  const url = await provider.portalSession({ customerId: bill.stripe_customer_id, returnUrl: back }).catch(setupFailed)
   return { billId: bill.id, url }
 }
 
-const openPortal: Handler = async ({ tx, actor, prepared }) => {
+const openPortal: Handler = async ({ tx, actor, prepared }, input: { partnerId?: string }) => {
   const done = prepared as { billId: string; url: string }
-  const bill = await ownBill(tx, actor)
+  const bill = await ownBill(tx, actor, { partnerId: input.partnerId })
   if (bill.id !== done.billId) throw new Reject('the bill changed; try again')
   return { rows: {}, data: { url: done.url } satisfies PortalData }
 }
@@ -769,8 +786,8 @@ type PreparedRetry = { billId: string; confirm: { rechargeId: string; url: strin
 
 const notRetrying = () => refuse('notRunning')
 
-const prepareRetry: Preparer = async ({ actor }): Promise<PreparedRetry> => {
-  const bill = await db.transaction(tx => ownBill(tx, actor))
+const prepareRetry: Preparer = async ({ actor }, input: { partnerId?: string }): Promise<PreparedRetry> => {
+  const bill = await db.transaction(tx => ownBill(tx, actor, { partnerId: input.partnerId }))
   if (!bill.recharge_failed_at) return { billId: bill.id, confirm: null }
   // Before Stripe is asked for a payment page: never pushed for a bill that is held or canceled (L-1).
   if (!retriesRecharge(bill)) throw notRetrying()
@@ -783,14 +800,12 @@ const prepareRetry: Preparer = async ({ actor }): Promise<PreparedRetry> => {
   return { billId: bill.id, confirm: { rechargeId: failed.id, url } }
 }
 
-async function retryRecharge({
-  tx,
-  actor,
-  now,
-  prepared,
-}: HandlerCtx): Promise<{ rows: Record<string, never>; data: RetryRechargeData }> {
+async function retryRecharge(
+  { tx, actor, now, prepared }: HandlerCtx,
+  input: { partnerId?: string },
+): Promise<{ rows: Record<string, never>; data: RetryRechargeData }> {
   const done = prepared as PreparedRetry
-  const bill = await ownBill(tx, actor, { lock: true })
+  const bill = await ownBill(tx, actor, { lock: true, partnerId: input.partnerId })
   if (bill.id !== done.billId) throw new Reject('the bill changed; try again')
   if (!bill.recharge_failed_at) throw refuse('noFailure')
   // Read again under the bill's lock: the status, and for a payment page that its attempt is still the one waiting.

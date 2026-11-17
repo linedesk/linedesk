@@ -12,13 +12,20 @@ import {
   PARTNER_CLIENT_LIMIT_DEFAULT,
   PARTNER_CLIENT_LIMIT_MAX,
   type MyPartner,
+  type PartnerBillSummary,
+  type PartnerClient,
+  type PartnerClientMember,
   type PartnerData,
   type PartnerInvitationView,
   type PartnerRole,
   type PartnerStatus,
 } from '@linedesk/actions'
 import {
+  billing_accounts,
+  call_reservations,
+  calls,
   instance_settings,
+  invitation,
   member,
   organization,
   PARTNER_INVITATION_DAYS,
@@ -29,18 +36,23 @@ import {
   user,
 } from '@linedesk/db'
 import { getT } from '@linedesk/i18n/server'
-import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm'
-import { billingSwitchOn } from './billing-settings.ts'
+import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { localeForUserId } from './email-locale.ts'
 import { emailSafeName, partnerInvitationEmail } from './emails/templates.ts'
 import { Forbidden, type Handler, type HandlerCtx } from './handler-context.ts'
-import { forgetMember } from './memberships.ts'
+import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
+import { lockExtraCalls } from './extra-calls.ts'
+import { lockBalance } from './ledger.ts'
+import { forgetMember, inviteToWorkspace } from './memberships.ts'
+import { billForNewClient, mirroredState, seatsFollow } from './partner-billing.ts'
 import { NOT_ON_PARTNER_TEAM, PARTNER_OWNER_ONLY, PARTNER_SUSPENDED, refusePartner } from './partner-refusals.ts'
+import { signupRules } from './self-serve.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { cancelSentInvitations } from './team.ts'
+import { billPayerChanged, lockForPayerChange } from './usage-levels.ts'
 import { insertWorkspace } from './workspace-creation-handlers.ts'
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
@@ -201,6 +213,34 @@ async function openInvitationTo(tx: Tx, partnerId: string, email: string, now: s
   return row ?? null
 }
 
+/**
+ * Whether the address owns one of the partner's client workspaces, or holds an open owner invitation to one: such a
+ * person never joins the partner team (the client's owner is the client's own person; security review of #1109, L-3).
+ */
+async function ownsClientByEmail(tx: Tx, partnerId: string, email: string) {
+  const address = email.toLowerCase()
+  const [owner] = await tx
+    .select({ id: member.id })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .innerJoin(user, eq(user.id, member.userId))
+    .where(and(eq(organization.partnerId, partnerId), eq(member.role, 'owner'), sql`lower(${user.email}) = ${address}`))
+  if (owner) return true
+  const [invited] = await tx
+    .select({ id: invitation.id })
+    .from(invitation)
+    .innerJoin(organization, eq(organization.id, invitation.organizationId))
+    .where(
+      and(
+        eq(organization.partnerId, partnerId),
+        eq(invitation.role, 'owner'),
+        eq(invitation.status, 'pending'),
+        sql`lower(${invitation.email}) = ${address}`,
+      ),
+    )
+  return !!invited
+}
+
 async function onTeamByEmail(tx: Tx, partnerId: string, email: string) {
   const [row] = await tx
     .select({ id: partner_members.user_id })
@@ -276,7 +316,13 @@ async function me(tx: Tx, actor: Actor) {
   return account
 }
 
-async function partnerData(tx: Tx, partner: PartnerRow, role: PartnerRole, now: string): Promise<PartnerData> {
+async function partnerData(
+  tx: Tx,
+  partner: PartnerRow,
+  role: PartnerRole,
+  now: string,
+  actorId: string,
+): Promise<PartnerData> {
   const members = await tx
     .select({
       userId: user.id,
@@ -309,6 +355,11 @@ async function partnerData(tx: Tx, partner: PartnerRow, role: PartnerRole, now: 
     .from(organization)
     .where(eq(organization.partnerId, partner.id))
     .orderBy(asc(organization.name))
+  const people = await clientPeople(
+    tx,
+    clients.map(c => c.id),
+    role === 'owner',
+  )
   return {
     partner: { id: partner.id, name: partner.name, status: partner.status as PartnerStatus },
     role,
@@ -320,29 +371,108 @@ async function partnerData(tx: Tx, partner: PartnerRow, role: PartnerRole, now: 
       expiresAt: i.expires_at,
       expired: Date.parse(i.expires_at) <= Date.parse(now),
     })),
-    clients: clients.map(c => ({ id: c.id, name: c.name, createdAt: c.createdAt.toISOString() })),
+    clients: clients.map(c => ({
+      id: c.id,
+      name: c.name,
+      createdAt: c.createdAt.toISOString(),
+      owner: people.owners.get(c.id) ?? null,
+      otherMembers: people.others.get(c.id) ?? [],
+    })),
+    bill: await billSummary(tx, partner, actorId),
+  }
+}
+
+/**
+ * Per client workspace: its own owner (joined, or invited), and for the partner owner every member who is not there
+ * through the partner team, with who invited them (security review of #1100, N-1): who else reads the client's calls.
+ */
+async function clientPeople(tx: Tx, clientIds: string[], withOthers: boolean) {
+  const owners = new Map<string, PartnerClient['owner']>()
+  const others = new Map<string, PartnerClientMember[]>()
+  if (!clientIds.length) return { owners, others }
+  const rows = await tx
+    .select({
+      workspaceId: member.organizationId,
+      name: user.name,
+      email: user.email,
+      role: member.role,
+      invitedBy: sql<string | null>`(
+        select coalesce(nullif(sender.name, ''), sender.email) from ${invitation}
+        join "user" sender on sender.id = ${invitation.inviterId}
+        where ${invitation.organizationId} = ${member.organizationId}
+          and lower(${invitation.email}) = lower(${user.email})
+          and ${invitation.status} = 'accepted'
+        order by ${invitation.createdAt} desc limit 1
+      )`,
+    })
+    .from(member)
+    .innerJoin(user, eq(user.id, member.userId))
+    .where(and(inArray(member.organizationId, clientIds), isNull(member.partnerId)))
+    .orderBy(asc(member.createdAt))
+  for (const r of rows) {
+    if (r.role === 'owner') owners.set(r.workspaceId, { name: r.name, email: r.email })
+    if (!withOthers) continue
+    const role = r.role === 'owner' || r.role === 'admin' ? r.role : 'member'
+    others.set(r.workspaceId, [
+      ...(others.get(r.workspaceId) ?? []),
+      { name: r.name, email: r.email, role, invitedBy: r.invitedBy },
+    ])
+  }
+  const invited = await tx
+    .select({ workspaceId: invitation.organizationId, email: invitation.email })
+    .from(invitation)
+    .where(
+      and(
+        inArray(invitation.organizationId, clientIds),
+        eq(invitation.role, 'owner'),
+        eq(invitation.status, 'pending'),
+        gt(invitation.expiresAt, new Date()),
+      ),
+    )
+  for (const i of invited) if (!owners.has(i.workspaceId)) owners.set(i.workspaceId, { invited: i.email })
+  return { owners, others }
+}
+
+/** The partner bill as the partner area shows it; null for a partner without one (billing off, or made by hand). */
+async function billSummary(tx: Tx, partner: PartnerRow, actorId: string): Promise<PartnerBillSummary | null> {
+  if (!partner.billing_account_id) return null
+  const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, partner.billing_account_id))
+  if (!bill) return null
+  return {
+    status: bill.status,
+    trialClientLimit: (await signupRules(tx)).trialWorkspacesPartner,
+    mine: bill.owner_user_id === actorId,
   }
 }
 
 /** Partner actions file their audit entry under no workspace, with whom the change was about. */
 const subject = (email: string | null) => ({ email, workspaceId: null })
 
-type CreateForClientInput = { partnerId: string; name: string; country?: string; timeZone?: string }
+type CreateForClientInput = {
+  partnerId: string
+  name: string
+  country?: string
+  timeZone?: string
+  ownerEmail?: string
+}
 
 async function createForClient(ctx: HandlerCtx, input: CreateForClientInput) {
   const { tx, actor, now } = ctx
-  const { partner } = await partnerFor(tx, actor, input.partnerId, { write: true })
-  // Seam for S2 (LIN-453): where billing is on, a client workspace goes on the partner bill and adds a seat to its
-  // subscription. Until then it is refused there, so no client workspace runs unbilled on a billed install.
-  if (partner.billing_account_id || (await billingSwitchOn(tx))) throw refusePartner('client_needs_bill')
-  // Client workspaces only once a server admin approved the partner, and at most the install's ceiling of them
-  // (security review of #1100, L-2).
-  if (partner.status === 'pending') throw refusePartner('partner_pending')
-  const [{ count } = { count: 0 }] = await tx
-    .select({ count: sql<number>`count(*)::int` })
-    .from(organization)
-    .where(eq(organization.partnerId, partner.id))
-  if (count >= (await partnerClientLimit(tx))) throw refusePartner('client_limit')
+  const { partner } = await partnerFor(tx, actor, input.partnerId, { write: true, owner: !!input.ownerEmail })
+  // Where billing is on, a client workspace goes on the partner bill and adds a seat to its subscription (S2): the
+  // bill must run, and in its free trial it takes at most the trial's client workspaces. The bill is the gate there,
+  // so a partner waiting for a server admin's approval can try it with its clients (approval gates its brand, S4).
+  const bill = await billForNewClient(tx, partner)
+  if (!bill) {
+    // No billing (self-host, dev): client workspaces only once a server admin approved the partner, and at most the
+    // install's ceiling of them (security review of #1100, L-2).
+    if (partner.status === 'pending') throw refusePartner('partner_pending')
+    const [{ count } = { count: 0 }] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(organization)
+      .where(eq(organization.partnerId, partner.id))
+    if (count >= (await partnerClientLimit(tx))) throw refusePartner('client_limit')
+  }
   const org = await insertWorkspace(
     ctx,
     {
@@ -352,19 +482,134 @@ async function createForClient(ctx: HandlerCtx, input: CreateForClientInput) {
     },
     true,
   )
-  await tx.update(organization).set({ partnerId: partner.id }).where(eq(organization.id, org.id))
+  await tx
+    .update(organization)
+    .set({
+      partnerId: partner.id,
+      ...(bill ? { billingAccountId: bill.id, billingState: mirroredState(bill.status) } : {}),
+    })
+    .where(eq(organization.id, org.id))
   await syncPartnerMemberships(tx, partner.id, now)
+  if (input.ownerEmail) await inviteOwner(ctx, partner.id, org, input.ownerEmail)
+  if (bill) seatsFollow(ctx.onCommit, bill.id, true, `client_${org.id}`)
   return {
     rows: {},
     // The audit log files the entry under the new workspace.
-    data: { workspace: { id: org.id, name: org.name }, subject: { email: null, workspaceId: org.id } },
+    data: {
+      workspace: { id: org.id, name: org.name },
+      billId: bill?.id ?? null,
+      ownerInvited: input.ownerEmail ?? null,
+      subject: { email: input.ownerEmail ?? null, workspaceId: org.id },
+    },
+  }
+}
+
+/**
+ * Only the partner's owner invites a client's owner (createForClient with ownerEmail, workspace.inviteClientOwner): the
+ * client's owner can remove the partner and take the workspace, so a partner admin must not hand that to an account of
+ * their own. The client's own owner, invited by email to the workspace as its owner (the workspace invitation, so a new address
+ * gets its account with an email code, signup-gate.ts). Never someone on the partner team: a partner admin is never
+ * a client's owner (docs/white-label.md), else the partner could keep the workspace after the client removed it.
+ */
+async function inviteOwner(ctx: HandlerCtx, partnerId: string, workspace: { id: string; name: string }, email: string) {
+  const { tx, actor, now } = ctx
+  if (await onTeamByEmail(tx, partnerId, email)) throw refusePartner('owner_on_team')
+  const [owner] = await tx
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.organizationId, workspace.id), eq(member.role, 'owner')))
+  if (owner) throw refusePartner('client_has_owner')
+  await inviteToWorkspace(tx, actor, email, workspace, 'owner', now)
+}
+
+/** A client workspace of the partner, or the refusal `client_not_found` (another partner's, or none). */
+async function clientOf(tx: Tx, partnerId: string, workspaceId: string) {
+  const [org] = await tx
+    .select({ id: organization.id, name: organization.name, partnerId: organization.partnerId })
+    .from(organization)
+    .where(eq(organization.id, workspaceId))
+  if (!org || org.partnerId !== partnerId) throw refusePartner('client_not_found')
+  return org
+}
+
+/** The workspace's name typed again, as the confirmation of removing or releasing a partner. */
+function refuseUnconfirmed(name: string, typed: string) {
+  if (name.trim().toLowerCase() !== typed.trim().toLowerCase()) throw refusePartner('confirm_mismatch')
+}
+
+/**
+ * A client workspace leaves its partner (`workspace.removePartner` by its owner, `partner.releaseClient` by the
+ * partner's owner; docs/white-label.md): the partner team leaves it at once (memberships removed with their API keys
+ * and setup links, the invitations they sent there canceled), and where it was on the partner bill it moves to a new
+ * bill of the client's owner waiting for Checkout (`pending_payment`): calls are answered again once they add a card.
+ * Allow Premium and Allow Ultra go off (someone else pays now, LIN-438), and the partner's seats drop after the
+ * commit. Refused while calls run there (their usage posts to the bill they started on). The caller holds the partner
+ * row's lock. Lock order: the partner row, the assistants' version locks, the partner bill's balance, the workspace.
+ */
+async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: string) {
+  const { tx, actor, now } = ctx
+  const [seen] = await tx
+    .select({ bill: organization.billingAccountId })
+    .from(organization)
+    .where(eq(organization.id, workspaceId))
+  if (seen?.bill) {
+    await lockForPayerChange(tx, [workspaceId])
+    await lockBalance(tx, seen.bill)
+    // The extra calls leave with the workspace: no extra-calls change on the bill meanwhile (setExtraCalls takes it).
+    await lockExtraCalls(tx, seen.bill)
+  }
+  const [org] = await tx.select().from(organization).where(eq(organization.id, workspaceId)).for('update')
+  if (!org || org.partnerId !== partnerId) throw refusePartner('client_not_found')
+  if ((org.billingAccountId ?? null) !== (seen?.bill ?? null)) throw refusePartner('client_not_found')
+  const [owner] = await tx
+    .select({ userId: member.userId })
+    .from(member)
+    .where(and(eq(member.organizationId, org.id), eq(member.role, 'owner')))
+  if (!owner) throw refusePartner('client_no_owner')
+  let billId: string | null = null
+  if (org.billingAccountId) {
+    const [running] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(call_reservations)
+      .innerJoin(calls, eq(calls.id, call_reservations.call_id))
+      .where(eq(calls.workspace_id, org.id))
+    if ((running?.n ?? 0) > 0) throw refusePartner('calls_running')
+    const [from] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, org.billingAccountId))
+    billId = crypto.randomUUID()
+    await tx.insert(billing_accounts).values({
+      id: billId,
+      kind: 'cloud',
+      owner_user_id: owner.userId,
+      status: 'pending_payment',
+      interval: from?.interval ?? 'month',
+      created_at: now,
+      updated_at: now,
+    })
+    // Extra calls are bought on a paid plan: the new bill has no subscription yet, so the workspace leaves them behind,
+    // as a Server admin move does (security review of #1109, M-2); the partner bill's item drops after the commit.
+    await tx
+      .update(organization)
+      .set({ billingAccountId: billId, billingState: 'pending_payment', extraCalls: 0 })
+      .where(eq(organization.id, org.id))
+    await billPayerChanged(tx, [org.id], actor.actorId)
+    seatsFollow(ctx.onCommit, org.billingAccountId, false, `release_${org.id}`, {
+      extraCalls: org.extraCalls > 0 && !!from?.stripe_subscription_id,
+    })
+  }
+  await tx.update(organization).set({ partnerId: null }).where(eq(organization.id, org.id))
+  const sync = await syncPartnerMemberships(tx, partnerId, now)
+  return {
+    workspace: { id: org.id, name: org.name },
+    billId,
+    removedMemberships: sync.removed,
+    invitationsCanceled: sync.invitationsCanceled,
   }
 }
 
 export const partnerHandlers: Record<string, Handler> = {
   'partner.get': async ({ tx, actor, now }, input: { partnerId: string }) => {
     const { partner, role } = await partnerFor(tx, actor, input.partnerId)
-    return { rows: {}, data: await partnerData(tx, partner, role, now) }
+    return { rows: {}, data: await partnerData(tx, partner, role, now, actor.actorId) }
   },
 
   'partner.update': async ({ tx, actor, now }, input: { partnerId: string; name: string }) => {
@@ -377,6 +622,7 @@ export const partnerHandlers: Record<string, Handler> = {
     const { partner } = await partnerFor(tx, actor, input.partnerId, { write: true, owner: true })
     if (await onTeamByEmail(tx, partner.id, input.email)) throw refusePartner('already_member')
     if (await openInvitationTo(tx, partner.id, input.email, now)) throw refusePartner('already_invited')
+    if (await ownsClientByEmail(tx, partner.id, input.email)) throw refusePartner('client_owner')
     const invitationId = await invite(tx, partner, input.email, 'admin', actor.actorId, now)
     return { rows: {}, data: { invitationId, subject: subject(input.email) } }
   },
@@ -457,6 +703,7 @@ export const partnerHandlers: Record<string, Handler> = {
       .from(partner_members)
       .where(and(eq(partner_members.partner_id, partner.id), eq(partner_members.user_id, account.id)))
     if (already) throw refusePartner('already_member')
+    if (await ownsClientByEmail(tx, partner.id, account.email)) throw refusePartner('client_owner')
     if (inv.role === 'owner') {
       const [owner] = await tx
         .select({ id: partner_members.user_id })
@@ -476,6 +723,53 @@ export const partnerHandlers: Record<string, Handler> = {
   },
 
   'workspace.createForClient': createForClient,
+
+  'workspace.inviteClientOwner': async (ctx, input: { partnerId: string; workspaceId: string; email: string }) => {
+    const { partner } = await partnerFor(ctx.tx, ctx.actor, input.partnerId, { write: true, owner: true })
+    const org = await clientOf(ctx.tx, partner.id, input.workspaceId)
+    await inviteOwner(ctx, partner.id, org, input.email)
+    return { rows: {}, data: { workspace: org, subject: { email: input.email, workspaceId: org.id } } }
+  },
+
+  'partner.releaseClient': async (ctx, input: { partnerId: string; workspaceId: string; confirmName: string }) => {
+    const { partner } = await partnerFor(ctx.tx, ctx.actor, input.partnerId, { write: true, owner: true })
+    const org = await clientOf(ctx.tx, partner.id, input.workspaceId)
+    refuseUnconfirmed(org.name, input.confirmName)
+    const done = await detachClient(ctx, partner.id, org.id)
+    return {
+      rows: {},
+      data: { partner: { id: partner.id, name: partner.name }, ...done, subject: { email: null, workspaceId: org.id } },
+    }
+  },
+
+  /**
+   * The client's owner removes its partner (permission workspace:own: the workspace's one owner, in their workspace).
+   * Not while impersonated (not on the impersonation allow-list either) and with no key (workspace keys and setup
+   * links never carry workspace:own, a personal key is refused in personal-key-scope.ts): it moves what the workspace
+   * pays to the owner.
+   */
+  'workspace.removePartner': async (ctx, input: { confirmName: string }) => {
+    const { tx, actor } = ctx
+    if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
+    if (!actor.workspaceId) throw refusePartner('no_partner')
+    const [seen] = await tx
+      .select({ name: organization.name, partnerId: organization.partnerId })
+      .from(organization)
+      .where(eq(organization.id, actor.workspaceId))
+    if (!seen?.partnerId) throw refusePartner('no_partner')
+    refuseUnconfirmed(seen.name, input.confirmName)
+    // The partner row first, as every partner change takes it (a team change or a suspension waits).
+    const partner = await lockedPartner(tx, seen.partnerId)
+    const done = await detachClient(ctx, partner.id, actor.workspaceId)
+    return {
+      rows: {},
+      data: {
+        partner: { id: partner.id, name: partner.name },
+        ...done,
+        subject: { email: null, workspaceId: done.workspace.id },
+      },
+    }
+  },
 
   // --- Server admin › Partners --------------------------------------------------------------------------------
 

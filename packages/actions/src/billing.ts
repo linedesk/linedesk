@@ -2,6 +2,7 @@
 // Server admin › Providers › Billing and an instance admin turned it on here. Off by default, so a self-hosted install
 // never bills anyone, even with keys stored.
 import { z } from 'zod'
+import { billTarget } from './billing-checkout.ts'
 import { defineAction } from './define.ts'
 
 export const billingEnabledGet = defineAction({
@@ -96,7 +97,7 @@ export const billingState = defineAction({
   name: 'billing.state',
   description:
     "The workspace's bill as its owner sees it in the banner: status (active, past_due, suspended, canceled, …), why it is suspended, when it is suspended or canceled if the plan fee stays unpaid, when the numbers are released and until when the data can be exported after a cancellation, the extra numbers whose month is unpaid, whether a failed recharge waits for the owner to confirm the payment, and a low balance that no recharge will lift. Only the bill owner; null for anyone else.",
-  input: z.object({}),
+  input: z.object(billTarget),
   permission: 'billing:manage',
   readOnly: true,
 })

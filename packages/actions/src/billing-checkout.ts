@@ -3,6 +3,13 @@
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
+/**
+ * Which bill a billing action is about: the workspace's (no `partnerId`), or a white-label partner's bill, managed by the
+ * partner's owner from the partner area, also with no workspace (docs/white-label.md). The API checks the caller owns
+ * that partner and its bill.
+ */
+export const billTarget = { partnerId: z.string().min(1).max(64).optional() }
+
 /** "Buy minutes": the amounts allowed at a time, in cents before tax (docs/billing.md §2.2). */
 export const TOPUP_CENTS = { min: 500, max: 50_000 } as const
 
@@ -10,7 +17,7 @@ export const billingStartCheckout = defineAction({
   name: 'billing.startCheckout',
   description:
     "Start Checkout for this workspace's bill: the plan with a 14-day free trial (or without one when this card had a trial). Answers the Checkout link to open.",
-  input: z.object({}),
+  input: z.object(billTarget),
   permission: 'billing:manage',
   // The Checkout link pays this bill: in the answer only, never in the command log.
   secretResult: ['url'],
@@ -22,7 +29,7 @@ export const billingConfirmCheckout = defineAction({
   name: 'billing.confirmCheckout',
   description:
     'Confirm a finished Checkout of this bill when its owner comes back from it: starts the trial (or the plan), or credits minutes bought.',
-  input: z.object({ sessionId: z.string().regex(/^cs_[A-Za-z0-9_]{1,250}$/) }),
+  input: z.object({ sessionId: z.string().regex(/^cs_[A-Za-z0-9_]{1,250}$/), ...billTarget }),
   permission: 'billing:manage',
 })
 /** `data` of `billing.confirmCheckout`. */
@@ -43,6 +50,7 @@ export const billingStartTopUp = defineAction({
       .string()
       .regex(/^(pm|card|src)_[A-Za-z0-9]{1,250}$/)
       .optional(),
+    ...billTarget,
   }),
   permission: 'billing:manage',
   secretResult: ['url'],
@@ -61,14 +69,14 @@ export const billingCancel = defineAction({
   name: 'billing.cancel',
   description:
     'Cancel the plan at the end of the trial or the paid period: nothing more is charged, the workspace keeps working until then.',
-  input: z.object({}),
+  input: z.object(billTarget),
   permission: 'billing:manage',
 })
 
 export const billingResume = defineAction({
   name: 'billing.resume',
   description: 'Undo a cancellation before the trial or the paid period ends: the plan renews as before.',
-  input: z.object({}),
+  input: z.object(billTarget),
   permission: 'billing:manage',
 })
 /** `data` of `billing.cancel` and `billing.resume`. */

@@ -332,6 +332,9 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'partnerMember.remove': 'partners',
   'partnerInvitation.accept': 'partners',
   'workspace.createForClient': 'partners',
+  'workspace.inviteClientOwner': 'partners',
+  'partner.releaseClient': 'partners',
+  'workspace.removePartner': 'partners',
 }
 
 /**

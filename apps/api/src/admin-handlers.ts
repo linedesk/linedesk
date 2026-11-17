@@ -58,6 +58,7 @@ import {
   setActiveProvider,
   setProviderKeys,
 } from './provider-settings.ts'
+import { seatsFollowDelete } from './partner-billing.ts'
 import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import {
   billingOffWithKeys,
@@ -547,16 +548,19 @@ export const adminHandlers: Record<string, Handler> = {
 
   'workspace.disable': ({ tx, now }, input) => setWorkspaceDisabled(tx, input.workspaceId, new Date(now)),
   'workspace.enable': ({ tx }, input) => setWorkspaceDisabled(tx, input.workspaceId, null),
-  'workspace.delete': async ({ tx, now, actor, telephony }, input) => ({
-    rows: {},
-    data: await deleteWorkspaceAndTell(
-      tx,
-      { workspaceId: input.workspaceId, name: input.name, keepAccounts: input.keepAccounts === true },
-      now,
-      actor.actorId,
-      telephony,
-    ),
-  }),
+  'workspace.delete': async ({ tx, now, actor, telephony, onCommit }, input) => {
+    await seatsFollowDelete(tx, onCommit, input.workspaceId)
+    return {
+      rows: {},
+      data: await deleteWorkspaceAndTell(
+        tx,
+        { workspaceId: input.workspaceId, name: input.name, keepAccounts: input.keepAccounts === true },
+        now,
+        actor.actorId,
+        telephony,
+      ),
+    }
+  },
   'workspace.setSpendingCap': ({ tx, now }, input) => setSpendingCap(tx, input.workspaceId, input.capUsd, now),
 
   'instanceAdmin.grant': async ({ tx, actor }, input) => {

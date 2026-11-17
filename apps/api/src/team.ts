@@ -4,7 +4,16 @@
 // handlers are the only write path and the rules below always apply.
 import { randomBytes } from 'node:crypto'
 import { avatarUrlOf, INVITATION_DAYS, type TeamData, type TeamInvitation, type TeamMember } from '@linedesk/actions'
-import { invitation, member, organization, type Tx, user, user_avatars, workspace_settings } from '@linedesk/db'
+import {
+  invitation,
+  member,
+  organization,
+  partners,
+  type Tx,
+  user,
+  user_avatars,
+  workspace_settings,
+} from '@linedesk/db'
 import { getT } from '@linedesk/i18n/server'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
@@ -304,10 +313,12 @@ async function listTeam(tx: Tx, actor: Actor): Promise<TeamData> {
         role: member.role,
         joinedAt: member.createdAt,
         avatarVersion: user_avatars.version,
+        partner: partners.name,
       })
       .from(member)
       .innerJoin(user, eq(user.id, member.userId))
       .leftJoin(user_avatars, eq(user_avatars.user_id, user.id))
+      .leftJoin(partners, eq(partners.id, member.partnerId))
       .where(eq(member.organizationId, workspaceId))
       .orderBy(asc(member.createdAt))
   ).map(({ avatarVersion, ...m }) => ({
@@ -317,8 +328,16 @@ async function listTeam(tx: Tx, actor: Actor): Promise<TeamData> {
     avatarUrl: avatarUrlOf(m.userId, avatarVersion),
   }))
   const canManage = actor.permissions.includes('team:write')
+  // Its partner from the workspace, not from the memberships: a suspended partner has none here (security review of
+  // #1109, L-5), and the owner can still remove it.
+  const [client] = await tx
+    .select({ partner: partners.name })
+    .from(organization)
+    .innerJoin(partners, eq(partners.id, organization.partnerId))
+    .where(eq(organization.id, workspaceId))
+  const partner = client?.partner ?? null
   // Invitees' addresses are for those who invite: a member sees the team, not who is invited.
-  if (!canManage) return { members, invitations: [], canManage, me: actor.actorId }
+  if (!canManage) return { members, invitations: [], canManage, me: actor.actorId, partner }
   const inviter = alias(user, 'inviter')
   const now = Date.now()
   const invitations: TeamInvitation[] = (
@@ -341,7 +360,7 @@ async function listTeam(tx: Tx, actor: Actor): Promise<TeamData> {
     expiresAt: i.expiresAt.toISOString(),
     expired: i.expiresAt.getTime() < now,
   }))
-  return { members, invitations, canManage, me: actor.actorId }
+  return { members, invitations, canManage, me: actor.actorId, partner }
 }
 
 export const teamHandlers: Record<string, Handler> = {
