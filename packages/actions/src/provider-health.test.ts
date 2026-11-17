@@ -18,6 +18,14 @@ describe('providerFailureReason: one vocabulary for the API and the voice agent'
     [{ status: 402 }, 'quota'],
     [{ status: 429, text: '{"error":{"code":"rate_limit_exceeded"}}' }, 'network'],
     [{ status: 401, text: '{"detail":{"status":"missing_permissions"}}' }, 'permission'],
+    // ElevenLabs' detail message, as voice-provider.ts keeps it ("listing voices failed (401): …")
+    [
+      {
+        status: 401,
+        text: 'listing voices failed (401): The API key you used is missing the permission voices_read to execute this operation.',
+      },
+      'permission',
+    ],
     [{ status: 401 }, 'auth'],
     [{ status: 403, text: 'Invalid API key' }, 'auth'],
     [{ status: 403, text: 'Forbidden' }, 'permission'],

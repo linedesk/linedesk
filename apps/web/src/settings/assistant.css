@@ -364,6 +364,16 @@ a.as-chip:hover {
   gap: 10px;
   margin-top: 10px;
 }
+.vp-problem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+}
+.vp-problem .help {
+  flex: 1 1 260px;
+  margin: 0;
+}
 .vp-tools {
   display: flex;
   flex-wrap: wrap;

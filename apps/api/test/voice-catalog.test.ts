@@ -9,8 +9,8 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
-import { CATALOG_TTL_MS, catalogCache } from '../src/voice-catalog.ts'
-import { cartesiaVoice, elevenLabsVoice, type VoiceProvider } from '../src/voice-provider.ts'
+import { CATALOG_TTL_MS, catalogCache, catalogFailure } from '../src/voice-catalog.ts'
+import { cartesiaVoice, elevenLabsVoice, type VoiceProvider, VoiceProviderError } from '../src/voice-provider.ts'
 import { hostedSample, previewBudget, previewCache, servePreview } from '../src/voices.ts'
 import { act, createWorkspace } from './helpers.ts'
 
@@ -178,6 +178,28 @@ test('a provider list is read once and reused for a few minutes; a failure is re
   fail = false
   await cache.voicesOf(adapter, 'k')
   expect(reads).toBe(4)
+})
+
+test("a list that could not be read is a reason, never the provider's text; a cached failure keeps its status", async () => {
+  const missing = new VoiceProviderError(
+    'listing voices failed (401): The API key you used is missing the permission voices_read to execute this operation.',
+    401,
+  )
+  expect(catalogFailure(missing)).toBe('permission')
+  expect(catalogFailure(new VoiceProviderError('listing voices failed (401): Invalid API key', 401))).toBe('auth')
+  expect(catalogFailure(new VoiceProviderError('listing voices failed (429): Too many requests', 429))).toBe('network')
+  expect(catalogFailure(new TypeError('fetch failed'))).toBe('network')
+  expect(catalogFailure(new Error('The operation timed out'))).toBe('timeout')
+
+  const cache = catalogCache(() => 0)
+  const adapter = {
+    name: 'elevenlabs',
+    listVoices: async () => {
+      throw missing
+    },
+  } as unknown as VoiceProvider
+  await expect(cache.voicesOf(adapter, 'k')).rejects.toBe(missing)
+  await expect(cache.voicesOf(adapter, 'k')).rejects.toBe(missing) // from the cache: still a 401
 })
 
 test("the catalog lists the providers' voices and the workspace's own clones, never another workspace's or a clone made elsewhere", async () => {

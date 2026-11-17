@@ -8,6 +8,9 @@
 import {
   CLONE_CONSENT_TEXT,
   type CatalogProvider,
+  type ProviderFailureReason,
+  providerFailureReasons,
+  providerFailureText,
   providerSpec,
   REALTIME_DEFAULT_VOICE,
   REALTIME_VOICE_PROVIDER,
@@ -17,6 +20,8 @@ import {
 } from '@linedesk/actions'
 import { T, useFormat, useT } from '@linedesk/i18n/react'
 import { adminLink, appLink } from '../ui/AppLink.tsx'
+import { i18n } from '../i18n/index.tsx'
+import { providerAudience } from '../providerAudience.ts'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
@@ -300,7 +305,7 @@ type MoreProps = {
   others: readonly string[]
   assistantName: string
   error: string | null
-  onRetry: () => void
+  onRetry: () => unknown
   selected: string
   onPick: (voice: PickerVoice) => void
   disabled: boolean
@@ -362,6 +367,15 @@ export function MoreVoices({
           </div>
         }
       />
+    )
+  const failed = catalog.providers.filter(p => p.error)
+  // No voice to show because a provider's list could not be read: one problem with Try again, not "No voices yet".
+  if (!voices.length && failed.length)
+    return (
+      <div className="vp-more-body">
+        <CatalogProblem failed={failed} onRetry={onRetry} />
+        <ProviderHints providers={catalog.providers} />
+      </div>
     )
   const filters = [
     {
@@ -460,35 +474,71 @@ export function MoreVoices({
           })}
         </Button>
       )}
+      {failed.length > 0 && <CatalogProblem failed={failed} onRetry={onRetry} inline />}
       <ProviderHints providers={catalog.providers} />
     </div>
   )
 }
 
-/** A line per provider whose voices are missing: no key, or the list could not be read. */
-function ProviderHints({ providers }: { providers: readonly CatalogProvider[] }) {
+/** The reason a provider's list could not be read; an older API sent English text, which is never shown. */
+const failureOf = (p: CatalogProvider): ProviderFailureReason =>
+  (providerFailureReasons as readonly (string | null)[]).includes(p.error)
+    ? (p.error as ProviderFailureReason)
+    : 'unknown'
+
+/**
+ * Providers whose voice list could not be read: what went wrong and the next step, worded for the reader (an instance
+ * admin is pointed to Server admin › Providers, anyone else to whoever runs the server), with Try again. `inline` under
+ * a list that still has other providers' voices; otherwise it stands in for the list.
+ */
+function CatalogProblem({
+  failed,
+  onRetry,
+  inline = false,
+}: {
+  failed: readonly CatalogProvider[]
+  onRetry: () => unknown
+  inline?: boolean
+}) {
   const t = useT()
+  const [retrying, setRetrying] = useState(false)
+  const audience = providerAudience()
+  const retry = async () => {
+    setRetrying(true)
+    try {
+      await onRetry()
+    } finally {
+      setRetrying(false)
+    }
+  }
+  const reasons = failed.map(p => providerFailureText(failureOf(p), p.label, audience, i18n()))
+  // Under other providers' voices it is a quiet line; standing in for the list it is announced.
+  return (
+    <div className="vp-problem" role={inline ? 'status' : 'alert'}>
+      <p className="help">{reasons.join(' ')}</p>
+      <Button size="sm" variant={inline ? 'ghost' : undefined} onClick={() => void retry()} disabled={retrying}>
+        {t('common.action.tryAgain')}
+      </Button>
+    </div>
+  )
+}
+
+/** Server admins only: the providers without a key, whose voices would show here once they have one. */
+function ProviderHints({ providers }: { providers: readonly CatalogProvider[] }) {
   const format = useFormat()
   const missing = providers.filter(p => !p.configured).map(p => p.label)
-  const failed = providers.filter(p => p.error)
+  if (providerAudience() !== 'admin' || !missing.length) return null
   return (
-    <>
-      {failed.map(p => (
-        <FormMessage key={p.provider}>{p.error}</FormMessage>
-      ))}
-      {missing.length > 0 && (
-        <p className="help">
-          <T
-            k="settings.voice.providersMissing"
-            values={{
-              providers: format.list(missing),
-              count: missing.length,
-              link: adminLink('#admin/providers/answering'),
-            }}
-          />
-        </p>
-      )}
-    </>
+    <p className="help">
+      <T
+        k="settings.voice.providersMissing"
+        values={{
+          providers: format.list(missing),
+          count: missing.length,
+          link: adminLink('#admin/providers/answering'),
+        }}
+      />
+    </p>
   )
 }
 
@@ -822,7 +872,7 @@ export function VoiceSettings({
             others={otherLanguages}
             assistantName={assistantName}
             error={catalogError}
-            onRetry={() => void reloadCatalog()}
+            onRetry={reloadCatalog}
             selected={current}
             onPick={pick}
             disabled={!canEdit}

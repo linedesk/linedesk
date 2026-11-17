@@ -1496,7 +1496,7 @@
   "voice.preview.signedOut": "You were signed out. Sign in again to hear samples.",
   "voice.preview.tooMany": "Too many new samples this hour. Try again later.",
   "voice.preview.unknownVoice": "The voice provider does not know this voice.",
-  "voice.providersMissing": "{providers} voices show here once {count, plural, one {it has} other {they have}} a key (<link>Server admin › Providers</link>).",
+  "voice.providersMissing": "{providers} voices appear here once {count, plural, one {{providers} has a key} other {each of them has a key}} in <link>Server admin › Providers</link>.",
   "voice.realtime.help": "Applies from the next call. The realtime model speaks in one of its own voices; play a sample to hear how it sounds on the phone.",
   "voice.realtime.moreTip": "Every voice of the realtime model, with search",
   "voice.realtime.recommended": "Recommended by OpenAI for the best quality",

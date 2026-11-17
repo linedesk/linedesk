@@ -8,20 +8,28 @@ import { createHash } from 'node:crypto'
 import {
   type CatalogProvider,
   type CatalogVoice,
+  type ProviderFailureReason,
   type ProviderName,
+  providerFailureReason,
   providerSpec,
   providersIn,
   type VoiceCatalogData,
 } from '@linedesk/actions'
 import { type Tx, voice_clones } from '@linedesk/db'
 import { activeProvider, setUpProviders } from './provider-settings.ts'
-import { createVoiceProvider, type ProviderVoice, type VoiceList, type VoiceProvider } from './voice-provider.ts'
+import {
+  createVoiceProvider,
+  type ProviderVoice,
+  type VoiceList,
+  type VoiceProvider,
+  VoiceProviderError,
+} from './voice-provider.ts'
 
 /** How long a provider's list is reused; a failure is retried sooner. */
 export const CATALOG_TTL_MS = 5 * 60 * 1000
 const FAILURE_TTL_MS = 30 * 1000
 
-type Listed = { at: number; list?: VoiceList; error?: string; pending?: Promise<VoiceList> }
+type Listed = { at: number; list?: VoiceList; error?: unknown; pending?: Promise<VoiceList> }
 
 /** The lists per provider and key (a new key reads again). Per API process. */
 export function catalogCache(now = Date.now) {
@@ -32,7 +40,7 @@ export function catalogCache(now = Date.now) {
       const hit = lists.get(key)
       if (hit?.pending) return hit.pending
       if (hit?.list && now() - hit.at < CATALOG_TTL_MS) return hit.list
-      if (hit?.error && now() - hit.at < FAILURE_TTL_MS) throw new Error(hit.error)
+      if (hit?.error && now() - hit.at < FAILURE_TTL_MS) throw hit.error
       const pending = adapter.listVoices()
       lists.set(key, { at: now(), pending })
       try {
@@ -40,9 +48,10 @@ export function catalogCache(now = Date.now) {
         lists.set(key, { at: now(), list })
         return list
       } catch (e) {
-        const error = e instanceof Error ? e.message : String(e)
+        // The error itself, so a retry within FAILURE_TTL_MS still knows the provider's status (catalogFailure).
+        const error = e ?? new Error('listing voices failed')
         lists.set(key, { at: now(), error })
-        throw new Error(error)
+        throw error
       }
     },
   }
@@ -99,15 +108,22 @@ export async function voiceCatalog(tx: Tx, workspaceId: string, options: Catalog
       }
       providers.push({ ...state, configured: true, error: null, ...(freePlan ? { freePlan } : {}) })
     } catch (e) {
-      providers.push({
-        ...state,
-        configured: true,
-        error: `${label}: the voice list could not be read. Try again in a minute.`,
-      })
+      providers.push({ ...state, configured: true, error: catalogFailure(e) })
       console.warn(`voice catalog: ${provider}: ${e instanceof Error ? e.message : e}`)
     }
   }
   return { providers, voices }
+}
+
+/**
+ * Why a provider's list could not be read, as a reason the browser words in the reader's language (and for an admin or
+ * a member: provider-health.ts); never the provider's own text, which stays in the API log.
+ */
+export function catalogFailure(e: unknown): ProviderFailureReason {
+  if (e instanceof VoiceProviderError) return providerFailureReason({ status: e.status, text: e.message })
+  const reason = providerFailureReason({ text: e instanceof Error ? e.message : String(e) })
+  // No answer at all (DNS, connection refused, fetch failed): not reachable.
+  return reason === 'unknown' ? 'network' : reason
 }
 
 /** The catalog as the browser gets it: no preview URLs (samples go through the API). */

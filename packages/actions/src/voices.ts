@@ -3,6 +3,7 @@
 // turned cloning on. Previews are served by GET /v1/voices/preview/<voiceId> and generated once per voice.
 import { z } from 'zod'
 import { defineAction } from './define.ts'
+import type { ProviderFailureReason } from './provider-health.ts'
 import type { PipelinesSetUp } from './settings.ts'
 import type { UsageLevelOptions } from './usage-level.ts'
 
@@ -218,7 +219,8 @@ export type CatalogProvider = {
   label: string
   active: boolean
   configured: boolean
-  error: string | null
+  /** Why the list could not be read (the web app words it per reader); null when it was read or there is no key. */
+  error: ProviderFailureReason | null
   /**
    * The provider's plan offers no native voices for languages besides English (ElevenLabs' free plan cannot use
    * Voice Library voices). Missing when the plan is paid, unknown, or does not matter for the provider.

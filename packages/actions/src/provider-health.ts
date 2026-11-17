@@ -65,7 +65,7 @@ export function providerFailureReason({
   if (status === 402 || QUOTA.test(text)) return 'quota'
   if (
     (status === 401 || status === 403) &&
-    /missing_permissions|insufficient[_ ]scope|insufficient permissions/i.test(text)
+    /missing_permissions|missing the permission|insufficient[_ ]scope|insufficient permissions/i.test(text)
   )
     return 'permission'
   if (status === 401) return 'auth'
