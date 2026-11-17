@@ -22,7 +22,7 @@
   "copy.copy": "Copiar",
   "copy.copyThis": "Copiar {text}",
   "copy.selectIt": "Selecciónalo",
-  "dangerConfirm.typeToConfirm": "Escribe {text} para confirmar",
+  "dangerConfirm.typeToConfirm": "Escribe “<b>{text}</b>” para confirmar",
   "dateInput.placeholder": "Elige un día",
   "help.learnMore": "Más información en la documentación",
   "help.more": "Más información",

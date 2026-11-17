@@ -6,6 +6,7 @@ import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'rea
 import { stepUpRefusalText } from '../admin/PasskeyStepUp.tsx'
 import { errorText } from '../admin/notify.ts'
 import { rejectionReason } from '../shell/rejections.ts'
+import { ConfirmByName } from './ConfirmByName.tsx'
 import { Checkbox } from './controls.tsx'
 import { Dialog, FormField, Input } from './form.tsx'
 import { Button, Note } from './kit.tsx'
@@ -22,7 +23,7 @@ export type DangerConfirmation = {
   dismiss?: string
   /** The button's words while it runs ("Deleting…"). */
   busyAction?: string
-  /** The heaviest actions: the button unlocks once this is typed. */
+  /** The heaviest actions: the button unlocks once this is typed (ConfirmByName shows it with a Copy button). */
   typed?: string
   variant?: 'primary' | 'danger' | 'danger-outline'
   /** A checkbox under the list, off by default; `run` gets whether it is ticked. */
@@ -167,17 +168,15 @@ export function DangerConfirmDialog({ confirm, run, onClose, children, blocked =
         </FormField>
       )}
       {confirm.typed && (
-        // A label says what to type: a placeholder alone would read as already filled in.
-        <FormField id="danger-confirm-typed" label={t('common.dangerConfirm.typeToConfirm', { text: confirm.typed })}>
-          <Input
-            id="danger-confirm-typed"
-            value={typed}
-            autoComplete="off"
-            spellCheck={false}
-            disabled={busy}
-            onChange={e => setTyped(e.target.value)}
-          />
-        </FormField>
+        // A label says what to type, the name in quotes with a Copy button next to it: a placeholder alone would read
+        // as already filled in, and a long name is hard to type.
+        <ConfirmByName
+          id="danger-confirm-typed"
+          name={confirm.typed}
+          value={typed}
+          onChange={setTyped}
+          disabled={busy}
+        />
       )}
       {error && <Note tone="danger">{error}</Note>}
     </Dialog>

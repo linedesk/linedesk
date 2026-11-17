@@ -674,3 +674,23 @@
     display: inline;
   }
 }
+
+/* Type the name to confirm (ConfirmByName.tsx): the quoted name stands out in the label, Copy right next to it. */
+.confirm-name .k-field-label {
+  align-items: flex-start;
+}
+.confirm-name .k-field-label label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.confirm-name-value {
+  font-weight: 600;
+}
+.confirm-name-copy {
+  flex: none;
+  margin-top: -5px;
+  color: var(--ink-muted);
+}
+.confirm-name-copy:hover {
+  color: var(--ink);
+}
