@@ -324,6 +324,12 @@ describe('the brand in the app', () => {
     // Only the versions it has: an address made up for another version is never served (security review #1111, L-4).
     expect((await appRequest(`/v1/branding/partners/${a.id}/logo.png?v=made-up`)).status).toBe(404)
     expect((await appRequest(`/v1/branding/partners/${a.id}/logo.png`)).status).toBe(404)
+    // A 404 is never kept by a cache in front: the logo approved a moment later is served (security review #1111, C-1).
+    for (const missing of [`${b.id}/logo.png?v=1`, `${a.id}/logo.png?v=made-up`, `nobody/logo.png`]) {
+      const res = await appRequest(`/v1/branding/partners/${missing}`)
+      expect(res.status).toBe(404)
+      expect(res.headers.get('cache-control')).toBe('no-store')
+    }
   })
 })
 

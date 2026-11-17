@@ -189,11 +189,14 @@ app.get('/v1/branding/logo.png', async c => {
 // partner's team and the instance admins, never cached.
 app.get('/v1/branding/partners/:partnerId/logo.png', async c => {
   const found = await partnerLogoFor(c.req.param('partnerId'), c.req.query('v'), async () =>
-    c.req.header('cookie')
-      ? ((await auth.api.getSession({ headers: c.req.raw.headers }))?.user.id ?? null)
-      : null,
+    c.req.header('cookie') ? ((await auth.api.getSession({ headers: c.req.raw.headers }))?.user.id ?? null) : null,
   )
-  if (!found) return c.json({ ok: false, error: 'no logo' }, 404)
+  if (!found) {
+    // Never kept by a cache in front (a CDN caches a 404 on a .png for minutes): a draft probed anonymously, or a logo
+    // approved a moment ago, is answered by this server again (security review of #1111, C-1).
+    c.header('cache-control', 'no-store')
+    return c.json({ ok: false, error: 'no logo' }, 404)
+  }
   c.header('content-type', 'image/png')
   c.header('x-content-type-options', 'nosniff')
   c.header('content-security-policy', "default-src 'none'")

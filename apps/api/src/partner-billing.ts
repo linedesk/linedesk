@@ -12,7 +12,7 @@ import { pricesForCheckout } from './billing-catalog.ts'
 import { billingProvider, billingSwitchOn } from './billing-settings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
-import { seatsSyncAlert } from './emails/alerts.ts'
+import { extraCallsSyncAlert, seatsSyncAlert } from './emails/alerts.ts'
 import { syncExtraCallsItem } from './extra-calls.ts'
 import { WEB_ORIGIN } from './emails/templates.ts'
 import { Forbidden, Reject, type Said } from './handler-context.ts'
@@ -125,21 +125,57 @@ async function extraCallsFollow(billId: string, key: string) {
 export type SeatSyncJob = { billId: string; key: string; extraCalls: boolean }
 
 /**
+ * How long one try of a seat sync job may take, each step (the seats, then the extra-calls item): together well below
+ * the job's expiry (PARTNER_SEAT_SYNC_EXPIRE_SECONDS in jobs.ts), so a hanging Stripe call or lock wait ends in the
+ * catch below, with its alert, never in a silent expiry (security review of #1115, L-2). Each Stripe request has its
+ * own client timeout too (STRIPE_TIMEOUT_MS, 8 s).
+ */
+export const SEAT_SYNC_STEP_MS = 100_000
+
+/** `work`, or a rejection once `ms` passed; the timer never keeps the process up. */
+export function withDeadline<T>(work: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<never>((_, reject) => {
+    // i18n-ignore: an error for the server log and the job runner, never shown to anyone
+    timer = setTimeout(() => reject(new Error(`${what}: no answer after ${ms} ms`)), ms)
+    timer.unref?.()
+  })
+  return Promise.race([work, late]).finally(() => clearTimeout(timer))
+}
+
+/**
  * One try of a seat sync job. A failure throws, so the job runner tries again later, except on the `last` try: then
  * the instance admins get an email (security review of #1109, L-1) and the job ends. The extra-calls item follows once
- * the seats are set, or on the last try whatever happened to them.
+ * the seats are set, or on the last try whatever happened to them. A job that still ends failed (it expired, the
+ * worker stopped) goes to the dead-letter queue, whose worker sends the same email (seatSyncFailed).
  */
-export async function runSeatSync(job: SeatSyncJob, { last, provider }: { last: boolean; provider?: BillingProvider }) {
+export async function runSeatSync(
+  job: SeatSyncJob,
+  { last, provider, stepMs = SEAT_SYNC_STEP_MS }: { last: boolean; provider?: BillingProvider; stepMs?: number },
+) {
   try {
-    await syncSeats(job.billId, job.key, provider)
+    await withDeadline(syncSeats(job.billId, job.key, provider), stepMs, 'partner seats')
   } catch (error) {
     if (!last) throw error
-    console.error(`ALERT billing seats: partner bill ${job.billId} not updated after ${job.key}`, error)
-    await alertInstanceAdmins(seatsSyncAlert(job.billId)).catch(e =>
-      console.error('billing: the seats alert could not be sent:', e),
-    )
+    await seatSyncFailed(job, error).catch(e => console.error('billing: the seats alert could not be sent:', e))
   }
-  if (job.extraCalls) await extraCallsFollow(job.billId, job.key)
+  if (!job.extraCalls) return
+  const extra = withDeadline(extraCallsFollow(job.billId, job.key), stepMs, 'partner extra calls')
+  if (!last) return extra
+  // The last try ends here, with one email that says what failed (security review of #1116, L-2): syncExtraCallsItem
+  // emails the admins about a Stripe failure itself; what reaches this catch (no provider, the deadline) did not.
+  await extra.catch(async e => {
+    console.error(`ALERT billing extra calls: partner bill ${job.billId} not updated after ${job.key}`, e)
+    await alertInstanceAdmins(extraCallsSyncAlert(job.billId)).catch(err =>
+      console.error('billing: the extra-calls alert could not be sent:', err),
+    )
+  })
+}
+
+/** The bill's seats did not follow: logged and emailed to the instance admins; throws when no email could go out. */
+export async function seatSyncFailed(job: SeatSyncJob, error?: unknown) {
+  console.error(`ALERT billing seats: partner bill ${job.billId} not updated after ${job.key}`, error ?? '')
+  await alertInstanceAdmins(seatsSyncAlert(job.billId))
 }
 
 /** The seat items' lookup keys start with it (`ws_monthly`, `ws_yearly`; SEAT_LOOKUP_PREFIX in the Stripe adapter). */

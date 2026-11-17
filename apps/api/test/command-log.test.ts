@@ -54,7 +54,7 @@ describe('what is written', () => {
     expect(first.body.rows.contacts[0].note).toBe('Gate code 4411')
     const row = await logged(key)
     expect(row.result).toEqual({ ok: true, rowIds: { contacts: [ws.contact.id] } })
-    const replay = await act(ws.owner, 'contact.update', { contactId: ws.contact.id, note: 'ignored' }, key)
+    const replay = await act(ws.owner, 'contact.update', { contactId: ws.contact.id, note: 'Gate code 4411' }, key)
     expect(replay.body.rows.contacts[0]).toMatchObject({ id: ws.contact.id, note: 'Gate code 4411' })
   })
 
@@ -102,20 +102,30 @@ describe('deleting purges', () => {
       { contactId: own.contact.id, note: 'Spare key under the mat', name: 'Dana Ruiz' },
       key,
     )
+    expect((await logged(key)).input_hash).toMatch(/^[0-9a-f]{64}$/)
     expect((await act(own.owner, 'contact.delete', { contactId: own.contact.id })).status).toBe(200)
     const row = await logged(key)
     expect(row.input).toEqual({ contactId: own.contact.id, note: OMITTED, name: OMITTED })
+    // No hash of what was erased stays either (security review of #1116, L-1).
+    expect(row.input_hash).toBeNull()
     expect(text(row)).not.toMatch(/Spare key|Dana/)
   })
 
   test('a merge keeps only the two ids; an older merge stored in clear is purged when either contact is deleted', async () => {
     const own = await createWorkspace('Command Log Merge')
     const other = async () =>
-      (await db.insert(contacts).values({ id: `ct_${crypto.randomUUID()}`, workspace_id: own.id, phone: randomNumber() }).returning())[0]!
+      (
+        await db
+          .insert(contacts)
+          .values({ id: `ct_${crypto.randomUUID()}`, workspace_id: own.id, phone: randomNumber() })
+          .returning()
+      )[0]!
     const merged = await other()
     const key = crypto.randomUUID()
     const details = { name: 'Dana Ruiz', email: 'dana@example.com', address: '12 Elm Street', note: 'Gate code 4411' }
-    expect((await act(own.owner, 'contact.merge', { keepId: own.contact.id, mergeId: merged.id, ...details }, key)).status).toBe(200)
+    expect(
+      (await act(own.owner, 'contact.merge', { keepId: own.contact.id, mergeId: merged.id, ...details }, key)).status,
+    ).toBe(200)
     const row = await logged(key)
     expect(row.input).toMatchObject({ keepId: own.contact.id, mergeId: merged.id, name: OMITTED, address: OMITTED })
     expect(text(row)).not.toMatch(/Dana|Elm|4411/)
@@ -128,7 +138,14 @@ describe('deleting purges', () => {
       [older[0]!, { keepId: keep.id, mergeId: own.contact.id, ...details }],
       [older[1]!, { keepId: own.contact.id, mergeId: gone.id, ...details }],
     ] as const)
-      await db.insert(commands).values({ id, workspace_id: own.id, actor_id: own.owner.userId, action: 'contact.merge', input, result: { ok: true } })
+      await db.insert(commands).values({
+        id,
+        workspace_id: own.id,
+        actor_id: own.owner.userId,
+        action: 'contact.merge',
+        input,
+        result: { ok: true },
+      })
     expect((await act(own.owner, 'contact.delete', { contactId: own.contact.id })).status).toBe(200)
     for (const id of older) {
       const purged = await logged(id)
@@ -147,6 +164,7 @@ test(`after ${COMMAND_INPUT_RETENTION_DAYS} days only ids stay, except for the a
       action: 'contact.update',
       created_at: old,
       input: { contactId: 'ct_1', note: 'Gate code 4411' },
+      input_hash: 'a'.repeat(64),
       result: { ok: true, data: { contactId: 'ct_1', label: 'Dana' } },
     },
     {
@@ -167,7 +185,12 @@ test(`after ${COMMAND_INPUT_RETENTION_DAYS} days only ids stay, except for the a
         ok: true,
         rowIds: { assistants: ['as_1'] },
         data: {
-          transferChanges: { added: [{ id: 'oncall', name: 'Mike', number: '…0199' }], changed: [], removed: [], reordered: false },
+          transferChanges: {
+            added: [{ id: 'oncall', name: 'Mike', number: '…0199' }],
+            changed: [],
+            removed: [],
+            reordered: false,
+          },
         },
       },
     },
@@ -220,6 +243,8 @@ test(`after ${COMMAND_INPUT_RETENTION_DAYS} days only ids stay, except for the a
     actor_id: ws.owner.userId,
   })
   expect(after.get(rows[0]!.id)!.pruned_at).not.toBeNull()
+  // The input's hash goes with it (security review of #1116, L-1).
+  expect(after.get(rows[0]!.id)!.input_hash).toBeNull()
   expect(after.get(rows[1]!.id)).toMatchObject({ input: rows[1]!.input, result: rows[1]!.result, pruned_at: null })
   expect(after.get(rows[2]!.id)).toEqual(
     expect.objectContaining({

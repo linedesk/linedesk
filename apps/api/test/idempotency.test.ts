@@ -37,16 +37,23 @@ test('call.start replayed creates one call and one contact', async () => {
   // The call token is shown once: the log, and so a replay, keeps it redacted.
   expect(first.body.data.callToken).toMatch(/^ldcall_/)
   expect(replay.body.rows).toEqual(first.body.rows)
-  expect(replay.body.data).toMatchObject({ callId: first.body.data.callId, workspaceId: ws.id, contact: '[omitted]', isNewContact: true, callToken: '[redacted]' })
+  expect(replay.body.data).toMatchObject({
+    callId: first.body.data.callId,
+    workspaceId: ws.id,
+    contact: '[omitted]',
+    isNewContact: true,
+    callToken: '[redacted]',
+  })
   expect(await db.select().from(calls).where(eq(calls.from_number, from))).toHaveLength(1)
   expect(await db.select().from(contacts).where(eq(contacts.phone, from))).toHaveLength(1)
 })
 
-test('the same key with different input returns the first result and does not apply the second input', async () => {
+test('the same key with different input is refused with 409 and does not apply the second input', async () => {
   const key = crypto.randomUUID()
-  const first = await act(ws.owner, 'contact.update', { contactId: ws.contact.id, note: 'first note' }, key)
+  await act(ws.owner, 'contact.update', { contactId: ws.contact.id, note: 'first note' }, key)
   const second = await act(ws.owner, 'contact.update', { contactId: ws.contact.id, note: 'second note' }, key)
-  expect(second).toEqual(first)
+  // As Stripe does: a reused key is a mistake of the caller, not a retry (security review of #1115, L-1).
+  expect(second).toMatchObject({ status: 409, body: { error: 'idempotency key was used with different input' } })
   expect((await getContact(ws.contact.id))?.note).toBe('first note')
   expect(await recorded(key)).toMatchObject([{ input: { contactId: ws.contact.id, note: 'first note' } }])
 })

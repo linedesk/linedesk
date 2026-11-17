@@ -102,6 +102,8 @@ const keptTransferChangesSql = sql`case when ${commands.action} in (${sql.join(
 export const pruneSet = (now: Date, { keepTransferChanges = false } = {}) => ({
   input: idsOnlySql(sql`${commands.input}`),
   result: keepTransferChanges ? keptTransferChangesSql : prunedResultSql,
+  // A hash of the input is a trace of it too: it goes with the rest (security review of #1116, L-1).
+  input_hash: null,
   pruned_at: now.toISOString(),
 })
 

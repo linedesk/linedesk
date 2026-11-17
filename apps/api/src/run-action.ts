@@ -28,6 +28,7 @@ import {
   type ActionRejection,
   type ActionResult,
 } from '@linedesk/actions'
+import { createHmac, hkdfSync } from 'node:crypto'
 import { commands } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import type { z } from 'zod'
@@ -327,14 +328,19 @@ export async function runAction(
   if (personalKeyStepUp) return { status: 403, body: personalKeyStepUpRefusal(personalKeyStepUp) }
   if (def.readOnly) return runReadOnly(def, parsed.data, actor)
 
+  const inputHash = commandInputHash(def, parsed.data)
   const [seen] = await db.select().from(commands).where(eq(commands.id, commandId))
   if (seen) {
     // A command id belongs to the workspace and action that used it first; nobody else gets its result. One sent in
-    // no workspace is its sender's alone: a partner's first client puts them in a workspace, and their retry of it
-    // gets that client back, never a second one (security review of #1113, L-3).
-    const sameSender = seen.workspace_id === null && seen.actor_id === actor.actorId
-    if ((seen.workspace_id !== actor.workspaceId && !sameSender) || seen.action !== name)
-      return rejection(409, 'idempotency key was used for another command')
+    // no workspace is its sender's alone, from wherever they send it again: a partner's first client puts them in a
+    // workspace, and their retry of it gets that client back, never a second one (security review of #1113, L-3), while
+    // nobody else gets it, also not someone in no workspace either (security review of #1115, L-1).
+    const owned = seen.workspace_id === null ? seen.actor_id === actor.actorId : seen.workspace_id === actor.workspaceId
+    if (!owned || seen.action !== name) return rejection(409, 'idempotency key was used for another command')
+    // The same key with other input is a mistake of the caller, not a retry (rows from before the hash: as before).
+    if (seen.input_hash && seen.input_hash !== inputHash)
+      // i18n-ignore: the API error body for API clients; the web app keeps one key per input (purchaseKeys)
+      return rejection(409, 'idempotency key was used with different input')
     // Rows are read again by id (command-log.ts).
     const body = (await replayedResult(db, seen.workspace_id, seen.result)) as RunResult['body']
     return { status: body.ok ? 200 : statusOf(body), body }
@@ -353,6 +359,7 @@ export async function runAction(
     personal_key_id: actor.personalKeyId ?? null,
     action: name,
     input: storedInput(def, redactInput(def, parsed.data)) as object,
+    input_hash: inputHash,
   }
   // What handlers did outside the database (a bought phone number) is undone whenever the
   // transaction does not commit: the handler threw, the command could not be logged, or the commit failed.
@@ -389,4 +396,45 @@ export async function runAction(
     const body = rejectionBody(e, undone, wordsOf(actor))
     return { status: statusOf(body), body }
   }
+}
+
+/** JSON with object keys sorted at every level: the same input gives the same text, whatever order it was sent in. */
+export function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`
+  }
+  return JSON.stringify(value) ?? 'null'
+}
+
+let hashKey: { secret: string; key: Buffer } | null = null
+
+/**
+ * The key of commands.input_hash: derived from BETTER_AUTH_SECRET (HKDF, its own label), kept in memory only, never
+ * logged or stored. A table read alone (a backup, a replica) cannot test guesses against a hash (security review of
+ * #1116, M-1). Null without the secret: then no hash is kept, and a reused key replays as before.
+ */
+function inputHashKey(env: NodeJS.ProcessEnv = process.env): Buffer | null {
+  const secret = env.BETTER_AUTH_SECRET
+  if (!secret) return null
+  if (hashKey?.secret !== secret)
+    hashKey = { secret, key: Buffer.from(hkdfSync('sha256', secret, '', 'linedesk command input hash v1', 32)) }
+  return hashKey.key
+}
+
+/**
+ * A command's input hash (commands.input_hash): an HMAC of the parsed input with its sensitive fields redacted, as the
+ * log keeps them, so no secret (a port-out PIN, a CalDAV password) goes into it in any form; the same key with another
+ * secret only replays the first result (security review of #1116, M-1).
+ */
+export function commandInputHash(def: Pick<ActionDef, 'sensitive'>, input: unknown, env?: NodeJS.ProcessEnv) {
+  const key = inputHashKey(env)
+  return key
+    ? createHmac('sha256', key)
+        .update(canonicalJson(redactInput(def, input)))
+        .digest('hex')
+    : null
 }

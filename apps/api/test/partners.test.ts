@@ -30,8 +30,11 @@ import { type Email, emailSender } from '../src/email.ts'
 import type { BillingProvider, SeatQuantityInput } from '@linedesk/billing'
 import { lockExtraCalls } from '../src/extra-calls.ts'
 import { postEntry } from '../src/ledger.ts'
-import { PARTNER_SEAT_SYNC, setJobQueue } from '../src/jobs.ts'
-import { runSeatSync, seatProration, syncSeats } from '../src/partner-billing.ts'
+import { createHash } from 'node:crypto'
+import { PgBoss } from 'pg-boss'
+import { createSeatSyncQueues, PARTNER_SEAT_SYNC, PARTNER_SEAT_SYNC_FAILED, setJobQueue } from '../src/jobs.ts'
+import { runSeatSync, seatProration, seatSyncFailed, syncSeats } from '../src/partner-billing.ts'
+import { canonicalJson } from '../src/run-action.ts'
 import { mayCreateUser } from '../src/signup-gate.ts'
 import {
   act,
@@ -1455,6 +1458,49 @@ describe('Partner › Clients (S3)', () => {
     const other = await addPartnerAdmin(p)
     expect(await act(other, 'workspace.createForClient', input, key)).toMatchObject({ status: 409 })
   })
+
+  test('a key reused with other input, or by someone else in no workspace, is refused; rows from before as before (#1115, L-1)', async () => {
+    const p = await billedPartner('Keyed Partner', 'active', true)
+    const q = await billedPartner('Other Keyed Partner', 'active', true)
+    const key = `create_${rid('k')}`
+    const first = await act(p.owner, 'workspace.createForClient', { partnerId: p.id, name: 'Keyed Client' }, key)
+    expect(first).toMatchObject({ status: 200 })
+    const [row] = await db.select().from(commands).where(eq(commands.id, key))
+    expect(row?.input_hash).toMatch(/^[0-9a-f]{64}$/)
+    // Keyed with the server's secret: the table alone cannot test a guess (security review of #1116, M-1).
+    const plain = createHash('sha256')
+      .update(canonicalJson({ partnerId: p.id, name: 'Keyed Client', removeMemberIds: [] }))
+      .digest('hex')
+    expect(row?.input_hash).not.toBe(plain)
+    expect(row?.input_hash).not.toBe(
+      createHash('sha256')
+        .update(canonicalJson({ partnerId: p.id, name: 'Keyed Client' }))
+        .digest('hex'),
+    )
+    // Another partner's owner, also in no workspace: never the first result, whatever they send with it.
+    expect(
+      await act(q.owner, 'workspace.createForClient', { partnerId: p.id, name: 'Keyed Client' }, key),
+    ).toMatchObject({ status: 409, body: { error: 'idempotency key was used for another command' } })
+    expect(
+      await act(q.owner, 'workspace.createForClient', { partnerId: q.id, name: 'Keyed Client' }, key),
+    ).toMatchObject({ status: 409 })
+    // The sender with other input: a mistake, not a retry, and nothing is made.
+    expect(
+      await act(p.owner, 'workspace.createForClient', { partnerId: p.id, name: 'Another Client' }, key),
+    ).toMatchObject({ status: 409, body: { error: 'idempotency key was used with different input' } })
+    // The same input in another key order is the same input.
+    const again = await act(p.owner, 'workspace.createForClient', { name: 'Keyed Client', partnerId: p.id }, key)
+    expect(again.body.data.workspace.id).toBe(first.body.data.workspace.id)
+    const made = await db.select({ id: organization.id }).from(organization).where(eq(organization.partnerId, p.id))
+    expect(made).toHaveLength(1)
+    // A command logged before the hash keeps the old answer: the first result.
+    await db.update(commands).set({ input_hash: null }).where(eq(commands.id, key))
+    const old = await act(p.owner, 'workspace.createForClient', { partnerId: p.id, name: 'Another Client' }, key)
+    expect(old.body.data.workspace.id).toBe(first.body.data.workspace.id)
+    expect(canonicalJson({ b: [1, { d: 1, c: undefined, a: 'x' }], a: null })).toBe(
+      '{"a":null,"b":[1,{"a":"x","d":1}]}',
+    )
+  })
 })
 
 describe('partner seats follow what Stripe has (review of #1109, L-1)', () => {
@@ -1587,5 +1633,99 @@ describe('partner seats follow what Stripe has (review of #1109, L-1)', () => {
     expect(queued.filter(j => j.name === PARTNER_SEAT_SYNC)).toEqual([
       { name: PARTNER_SEAT_SYNC, data: { billId: p.billId, key: `client_${ws}`, extraCalls: false } },
     ])
+  })
+
+  test('a Stripe call that hangs ends the try in time; on the last try the admins get an email (#1115, L-2)', async () => {
+    const p = await billedPartner('Hanging Seats', 'active', true)
+    await createClient(p, 'Hanging Client')
+    await db
+      .update(billing_accounts)
+      .set({ stripe_subscription_id: rid('sub') })
+      .where(eq(billing_accounts.id, p.billId))
+    const hanging = new Proxy({} as BillingProvider, {
+      get: (_, name) => (name === 'then' ? undefined : () => new Promise(() => {})),
+    })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, admin.userId))
+    try {
+      const job = { billId: p.billId, key: 'create_hang', extraCalls: false }
+      await expect(runSeatSync(job, { last: false, provider: hanging, stepMs: 50 })).rejects.toThrow('no answer')
+      const before = sent.length
+      await runSeatSync(job, { last: true, provider: hanging, stepMs: 50 })
+      const to = await emailOf(admin)
+      await vi.waitFor(() => expect(sent.slice(before).find(e => e.to === to)?.subject).toContain('Partner seats on'))
+    } finally {
+      await db.update(user).set({ instanceAdmin: false }).where(eq(user.id, admin.userId))
+      error.mockRestore()
+    }
+  })
+
+  test('on the last try a failed extra-calls step ends the job with one email about the extra calls, none about seats (#1116, L-2)', async () => {
+    const p = await billedPartner('Extra Hang', 'active', true)
+    await createClient(p, 'Extra Client')
+    await db
+      .update(billing_accounts)
+      .set({ stripe_subscription_id: rid('sub') })
+      .where(eq(billing_accounts.id, p.billId))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, admin.userId))
+    try {
+      // The seats follow; the extra-calls step never answers (its Stripe stand-in hangs in billingProvider's place).
+      const stripe = fakeSeats(0)
+      const job = { billId: p.billId, key: 'release_extra', extraCalls: true }
+      const settings = await import('../src/billing-settings.ts')
+      const hang = vi.spyOn(settings, 'billingProvider').mockImplementation(() => new Promise(() => {}))
+      try {
+        await expect(runSeatSync(job, { last: false, provider: stripe.provider, stepMs: 50 })).rejects.toThrow(
+          'no answer',
+        )
+        const before = sent.length
+        await runSeatSync(job, { last: true, provider: stripe.provider, stepMs: 50 })
+        const to = await emailOf(admin)
+        await vi.waitFor(() => expect(sent.slice(before).filter(e => e.to === to)).toHaveLength(1))
+        const mine = sent.slice(before).filter(e => e.to === to)
+        expect(mine[0]?.subject).toContain('Extra calls on')
+        expect(mine.some(e => e.subject.includes('Partner seats on'))).toBe(false)
+      } finally {
+        hang.mockRestore()
+      }
+      expect(stripe.asked).toHaveLength(1)
+    } finally {
+      await db.update(user).set({ instanceAdmin: false }).where(eq(user.id, admin.userId))
+      error.mockRestore()
+    }
+  })
+
+  test('a seat sync job that ends failed for any reason goes to the dead-letter queue, which emails the admins (#1115, L-2)', async () => {
+    const boss = new PgBoss({
+      connectionString: process.env.DATABASE_URL!,
+      schema: `pgboss_seats_${rid('t').slice(2, 12).toLowerCase()}`,
+      supervise: false,
+      schedule: false,
+    })
+    boss.on('error', () => {})
+    await boss.start()
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, admin.userId))
+    try {
+      // No tries left: as the last try that expired or whose worker stopped, which pg-boss marks failed.
+      await createSeatSyncQueues(boss, 0)
+      const job = { billId: rid('bill'), key: 'create_dead', extraCalls: false }
+      const id = await boss.send(PARTNER_SEAT_SYNC, job)
+      const [taken] = await boss.fetch(PARTNER_SEAT_SYNC)
+      expect(taken?.id).toBe(id)
+      await boss.fail(PARTNER_SEAT_SYNC, id!, { message: 'expired' })
+      const [dead] = await boss.fetch<typeof job>(PARTNER_SEAT_SYNC_FAILED)
+      expect(dead?.data).toEqual(job)
+      // What its worker does: the admins' email.
+      const before = sent.length
+      await seatSyncFailed(dead!.data)
+      const to = await emailOf(admin)
+      await vi.waitFor(() => expect(sent.slice(before).find(e => e.to === to)?.subject).toContain('Partner seats on'))
+    } finally {
+      await db.update(user).set({ instanceAdmin: false }).where(eq(user.id, admin.userId))
+      error.mockRestore()
+      await boss.stop({ graceful: false, timeout: 1000 })
+    }
   })
 })

@@ -1,4 +1,5 @@
 import { actions, DESTRUCTIVE_ACTIONS, providerNames, rolePermissions } from '@linedesk/actions'
+import { createHash } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Actor } from './context.ts'
 
@@ -36,7 +37,7 @@ vi.mock('./handlers.ts', () => {
   }
 })
 
-const { runAction } = await import('./run-action.ts')
+const { canonicalJson, commandInputHash, runAction } = await import('./run-action.ts')
 const { Forbidden, NotFound, Reject } = await import('./handlers.ts')
 
 const member: Actor = { actorId: 'user_1', role: 'member', workspaceId: 'ws_1', permissions: rolePermissions.member }
@@ -85,7 +86,10 @@ describe('runAction: read-only actions', () => {
 
   it('turns a missing row into 404 with its code', async () => {
     fake.runHandler.mockRejectedValue(new NotFound('no such checkout'))
-    expect(await findSlots()).toEqual({ status: 404, body: { ok: false, error: 'no such checkout', code: 'not_found' } })
+    expect(await findSlots()).toEqual({
+      status: 404,
+      body: { ok: false, error: 'no such checkout', code: 'not_found' },
+    })
   })
 
   it('lets unexpected errors through', async () => {
@@ -162,14 +166,18 @@ describe('runAction: destructive actions refuse unknown fields from everyone (se
   })
 
   it('names every unknown field; an unknown field with another problem says both', async () => {
-    expect(await runAction('team.removeMember', { memberId: 'mem_1', keepAccount: true, reason: 'x' }, everything)).toEqual({
+    expect(
+      await runAction('team.removeMember', { memberId: 'mem_1', keepAccount: true, reason: 'x' }, everything),
+    ).toEqual({
       status: 422,
       body: { ok: false, error: 'This action does not take the fields keepAccount, reason.', code: 'UNKNOWN_FIELDS' },
     })
     const both = await runAction('team.removeMember', { keepAccount: true }, everything)
     expect(both.status).toBe(422)
     expect(both.body).not.toHaveProperty('code')
-    expect(both.body).toMatchObject({ error: expect.stringContaining('This action does not take the field keepAccount.') })
+    expect(both.body).toMatchObject({
+      error: expect.stringContaining('This action does not take the field keepAccount.'),
+    })
   })
 
   it('other actions still drop an unknown field from a browser session', async () => {
@@ -214,5 +222,31 @@ describe('runAction: writing actions', () => {
       },
     ]
     expect((await markDone()).status).toBe(409)
+  })
+})
+
+describe('commandInputHash (security review of #1116, M-1)', () => {
+  const env = { BETTER_AUTH_SECRET: 'unit-test-secret-unit-test-secret' }
+  const def = { sensitive: ['pin'] }
+  const input = { phoneNumberId: 'pn_1', pin: '1234' }
+  const sha256 = (text: string) => createHash('sha256').update(text).digest('hex')
+
+  it('is keyed: never the plain SHA-256 of the input, redacted or not, and another secret gives another hash', () => {
+    const hash = commandInputHash(def, input, env)!
+    expect(hash).toMatch(/^[0-9a-f]{64}$/)
+    expect(hash).not.toBe(sha256(canonicalJson(input)))
+    expect(hash).not.toBe(sha256(canonicalJson({ ...input, pin: '[redacted]' })))
+    expect(commandInputHash(def, input, { BETTER_AUTH_SECRET: 'another-secret-another-secret-00' })).not.toBe(hash)
+  })
+
+  it('a sensitive field never changes it; any other field does', () => {
+    const hash = commandInputHash(def, input, env)
+    expect(commandInputHash(def, { ...input, pin: '9999' }, env)).toBe(hash)
+    expect(commandInputHash(def, { ...input, phoneNumberId: 'pn_2' }, env)).not.toBe(hash)
+    expect(commandInputHash(def, { pin: '1234', phoneNumberId: 'pn_1' }, env)).toBe(hash)
+  })
+
+  it('is none without the server secret: a reused key replays as before', () => {
+    expect(commandInputHash(def, input, {})).toBeNull()
   })
 })

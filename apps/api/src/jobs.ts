@@ -30,7 +30,7 @@ import {
 } from './provider-health-check.ts'
 import { syncDerivedDays, workspacesWithDerivedDays } from './public-holidays.ts'
 import { recordingStoreCache } from './recording-store.ts'
-import { runSeatSync, type SeatSyncJob } from './partner-billing.ts'
+import { runSeatSync, type SeatSyncJob, seatSyncFailed } from './partner-billing.ts'
 import { sendUsageLimitAlert, type UsageLimitAlert } from './usage-limit.ts'
 import { deleteClonedVoice } from './voices.ts'
 import { sendDueSetupEmails } from './setup-emails.ts'
@@ -147,6 +147,13 @@ export const USAGE_LIMIT_ALERT = 'usage.limitAlert'
 export const PARTNER_SEAT_SYNC = 'partner.seatSync'
 /** Tries after the first: about 30 s, 1, 2, 4 and 8 minutes later (backoff), then the admins are emailed. */
 export const PARTNER_SEAT_SYNC_RETRIES = 5
+/** A try that runs longer counts as failed (pg-boss expiry); runSeatSync's own deadlines end it well before. */
+export const PARTNER_SEAT_SYNC_EXPIRE_SECONDS = 300
+/**
+ * The dead-letter queue of PARTNER_SEAT_SYNC: a seat sync that ended failed for any reason (its last try expired, the
+ * worker stopped) lands here, and the instance admins are emailed (security review of #1115, L-2).
+ */
+export const PARTNER_SEAT_SYNC_FAILED = 'partner.seatSyncFailed'
 /** Every 15 minutes: the setup emails due to new workspaces (setup-emails.ts), when the install sends them. */
 /** The email to a member that their workspace was deleted by its owner (workspace.deleteOwn). */
 export const WORKSPACE_DELETED_EMAIL = 'workspace.deletedEmail'
@@ -207,6 +214,7 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.work<SeatSyncJob>(PARTNER_SEAT_SYNC, async ([job]) =>
     runSeatSync(job!.data, { last: job!.retryCount >= PARTNER_SEAT_SYNC_RETRIES }),
   )
+  await instance.work<SeatSyncJob>(PARTNER_SEAT_SYNC_FAILED, async ([job]) => seatSyncFailed(job!.data))
   await instance.work<WorkspaceDeletedJob>(WORKSPACE_DELETED_EMAIL, async ([job]) => {
     const { to, brand, ...content } = job!.data
     // The account may be gone with the workspace: then English.
@@ -432,12 +440,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(CALL_ASSIGNED, { retryLimit: 2, retryDelay: 30, retryBackoff: true })
   await instance.createQueue(SPENDING_CAP_ALERT, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(USAGE_LIMIT_ALERT, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
-  await instance.createQueue(PARTNER_SEAT_SYNC, {
-    retryLimit: PARTNER_SEAT_SYNC_RETRIES,
-    retryDelay: 30,
-    retryBackoff: true,
-    expireInSeconds: 300,
-  })
+  await createSeatSyncQueues(instance)
   await instance.createQueue(WORKSPACE_DELETED_EMAIL, { retryLimit: 6, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(BOOKING_CONFIRM, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(CALL_EVALUATE, { retryLimit: 2, retryDelay: 120, retryBackoff: true })
@@ -541,6 +544,24 @@ export async function queueBillingAlert(tx: Tx, alert: BillingAlertJob) {
 /** Queues a spending-cap email in the caller's transaction. Without a queue (tests) nothing is sent. */
 export async function queueSpendingCapAlert(tx: Tx, alert: SpendingAlert) {
   await boss?.send(SPENDING_CAP_ALERT, alert, { db: fromDrizzle(tx, sql) })
+}
+
+/**
+ * The seat sync queue and its dead-letter queue (security review of #1115, L-2). `retries` only for tests (backoff
+ * over minutes otherwise).
+ */
+export async function createSeatSyncQueues(instance: PgBoss, retries = PARTNER_SEAT_SYNC_RETRIES) {
+  await instance.createQueue(PARTNER_SEAT_SYNC_FAILED, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
+  const seatSync = {
+    retryLimit: retries,
+    retryDelay: 30,
+    retryBackoff: true,
+    expireInSeconds: PARTNER_SEAT_SYNC_EXPIRE_SECONDS,
+    deadLetter: PARTNER_SEAT_SYNC_FAILED,
+  }
+  await instance.createQueue(PARTNER_SEAT_SYNC, seatSync)
+  // An install that made the queue before it had a dead-letter queue gets it too (createQueue keeps what exists).
+  await instance.updateQueue(PARTNER_SEAT_SYNC, seatSync)
 }
 
 /**

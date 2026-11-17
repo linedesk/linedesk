@@ -1053,6 +1053,12 @@ export const commands = pgTable(
     actor_id: text('actor_id').notNull(),
     action: text('action').notNull(),
     input: jsonb('input').notNull(),
+    /**
+     * HMAC-SHA256 (key derived from the server secret) of the parsed input with its sensitive fields redacted, as
+     * canonical JSON: a reused idempotency key with other input is refused, never answered with the first result
+     * (security reviews of #1115, L-1, and #1116, M-1). Null on rows from before, and once the row is pruned.
+     */
+    input_hash: text('input_hash'),
     result: jsonb('result').notNull(),
     rejected: boolean('rejected').notNull().default(false),
     /** The instance admin who did this while signed in as `actor_id` (impersonation); null otherwise. */
