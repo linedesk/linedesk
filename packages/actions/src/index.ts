@@ -294,6 +294,7 @@ const all = [
   billingAdmin.billingAdminBill,
   billingAdmin.billingAdminEvents,
   billingAdmin.billingAdminReview,
+  billingAdmin.billingAdminSummary,
   billingAdmin.billingRulesGet,
   billingAdmin.billingAdminTaxAddressMissing,
   billingAdmin.signupGetSelfServe,

@@ -2,8 +2,11 @@ import { expect, test } from 'vitest'
 import {
   adminHash,
   adminSections,
+  billingTab,
+  isListPlace,
   nextSection,
   parseAdminHash,
+  placeUp,
   providersTarget,
   sectionIndexOfKey,
   sectionKey,
@@ -66,4 +69,17 @@ test('digits 1 to 9, then 0, open the first ten sections in order; Billing, the 
   expect(adminSections[10]!.id).toBe('billing')
   expect(sectionKey(10)).toBeUndefined()
   expect(parseAdminHash('#admin/billing/bill_1')).toEqual({ section: 'billing', id: 'bill_1' })
+})
+
+test('Billing sections have their own address; anything else under Billing is a bill', () => {
+  expect(billingTab(null)).toBe('overview')
+  expect(billingTab('rules')).toBe('rules')
+  expect(billingTab('bill_1')).toBeNull()
+  expect(isListPlace({ section: 'billing', id: 'events' })).toBe(true)
+  expect(isListPlace({ section: 'billing', id: 'bill_1' })).toBe(false)
+  // Esc and the crumb go one step up: a bill to the bills, a section to Billing, Billing nowhere.
+  expect(placeUp({ section: 'billing', id: 'bill_1' })).toEqual({ section: 'billing', id: 'bills' })
+  expect(placeUp({ section: 'billing', id: 'rules' })).toEqual({ section: 'billing', id: null })
+  expect(placeUp({ section: 'billing', id: null })).toBeNull()
+  expect(placeUp({ section: 'workspaces', id: 'ws1' })).toEqual({ section: 'workspaces', id: null })
 })

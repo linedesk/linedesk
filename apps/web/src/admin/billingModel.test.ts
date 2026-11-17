@@ -3,7 +3,17 @@ import { expect, test } from 'vitest'
 import type { AdminBillRow } from '@linedesk/actions'
 import { BILLING_DEFAULTS, SIGNUP_DEFAULTS } from '@linedesk/db/types'
 import {
+  ago,
+  billFilterOfHash,
+  billsHref,
+  customFields,
   domainList,
+  eventFilterOfHash,
+  eventsHref,
+  RULE_GROUPS,
+  ruleUnit,
+  SIGNUP_COUNT_FIELDS,
+  SIGNUP_GROUPS,
   filterBills,
   parseCount,
   parseDollars,
@@ -212,4 +222,58 @@ test('the sign-up limits: defaults go back as null, changes as values, numbers o
   // The order of the risk levels is no change.
   expect(signupDirty({ ...form, reviewRiskLevels: ['highest', 'elevated'] }, form)).toBe(false)
   expect(domainList(' a.example ,, b.example\n')).toEqual(['a.example', 'b.example'])
+})
+
+test('the rules and sign-up groups hold every field exactly once', () => {
+  const ruleFields = RULE_GROUPS.flatMap(g => g.fields as readonly string[])
+  expect(ruleFields.toSorted()).toEqual(RULE_FIELDS.map(([field]) => field).toSorted())
+  const signupFields = SIGNUP_GROUPS.flatMap(g => g.fields as readonly string[])
+  expect(signupFields.toSorted()).toEqual([...SIGNUP_COUNT_FIELDS].toSorted())
+})
+
+test('units go inside the field: dollars, dollars per minute for a level price, none for a factor', () => {
+  expect(ruleUnit('workspaceMonthlyCents')).toBe('usd')
+  expect(ruleUnit('trialDays')).toBe('days')
+  expect(ruleUnit('levels.premium.price')).toBe('usdPerMinute')
+  expect(ruleUnit('levels.premium.factor')).toBe('times')
+})
+
+test('an empty field takes the default, in the rules and in the sign-up limits', () => {
+  const form = rulesForm(BILLING_DEFAULTS)
+  // A level's factor keeps its own meaning: empty is none, so it is left as it is.
+  const kept = (key: string) => key === 'automaticTax' || key.endsWith('.factor')
+  const emptied = Object.fromEntries(Object.keys(form).map(key => [key, kept(key) ? form[key]! : '']))
+  expect(rulesFromForm(emptied, BILLING_DEFAULTS)).toEqual({ rules: RESETS, problems: [] })
+  const signup = signupForm(SIGNUP_DEFAULTS)
+  const empty = { ...signup, counts: Object.fromEntries(SIGNUP_COUNT_FIELDS.map(f => [f, ''])) as typeof signup.counts }
+  const parsed = signupFromForm(empty, SIGNUP_DEFAULTS)
+  expect(parsed.problems).toEqual([])
+  for (const field of SIGNUP_COUNT_FIELDS) expect('rules' in parsed && parsed.rules[field]).toBeNull()
+})
+
+test("the install's own values are the filled fields that differ from the default", () => {
+  const defaults = rulesForm(BILLING_DEFAULTS)
+  const form = { ...defaults, trialDays: '21', workspaceMonthlyCents: '', automaticTax: 'on' }
+  expect(customFields(form, defaults)).toEqual(['trialDays'])
+  // An emptied factor is a value of its own (the level uses none of the included minutes).
+  expect(customFields({ ...defaults, 'levels.standard.factor': '' }, defaults)).toEqual(['levels.standard.factor'])
+})
+
+test('filters live in the address, so a link or a reload keeps them', () => {
+  expect(billFilterOfHash('#admin/billing/bills?status=past_due')).toBe('past_due')
+  expect(billFilterOfHash('#admin/billing/bills?status=nonsense')).toBe('all')
+  expect(billFilterOfHash('#admin/billing/bills')).toBe('all')
+  expect(billsHref('held')).toBe('#admin/billing/bills?status=held')
+  expect(billsHref('all')).toBe('#admin/billing/bills')
+  expect(eventFilterOfHash('#admin/billing/events?filter=failed')).toBe('failed')
+  expect(eventFilterOfHash('#admin/billing/events?filter=x')).toBe('all')
+  expect(eventsHref('all')).toBe('#admin/billing/events')
+})
+
+test('times read as how long ago, in the largest unit that fits', () => {
+  const now = Date.parse('2026-11-17T12:00:00.000Z')
+  expect(ago('2026-11-17T11:59:50.000Z', now)).toBe('now')
+  expect(ago('2026-11-17T11:55:00.000Z', now)).toBe('5 minutes ago')
+  expect(ago('2026-11-16T12:00:00.000Z', now)).toBe('yesterday')
+  expect(ago('2026-11-14T12:00:00.000Z', now)).toBe('3 days ago')
 })

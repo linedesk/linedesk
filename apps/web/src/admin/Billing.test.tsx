@@ -107,8 +107,8 @@ const selfServe = (over: Partial<SelfServeData>): SelfServeData => ({
   termsMissing: [],
   ...over,
 })
-const renderList = () =>
-  renderToStaticMarkup(<Billing id={null} onOpen={() => {}} notify={() => {}} keysRef={{ current: null }} />)
+const renderList = (tab: string | null = 'signup') =>
+  renderToStaticMarkup(<Billing id={tab} onOpen={() => {}} notify={() => {}} keysRef={{ current: null }} />)
 
 test('sign-up switched on without Turnstile keys says plainly that it is closed, and why', () => {
   data['admin.billing.selfServe'] = selfServe({
@@ -119,7 +119,7 @@ test('sign-up switched on without Turnstile keys says plainly that it is closed,
   const html = renderList()
   expect(html).toContain('Closed')
   expect(html).toContain('Sign-up is switched on but closed: the bot check (Cloudflare Turnstile) has no keys.')
-  expect(html).toContain('href="#admin/providers"')
+  expect(html).toContain('href="#admin/providers/turnstile"')
   expect(html).toContain('Turnstile has no keys yet')
   // Adding the keys is the fix; the page never points to switching the bot check off.
   expect(html).not.toContain('turn the bot check off')
@@ -155,10 +155,37 @@ test('open sign-up says so, and its limits are editable with plain labels', () =
   expect(html).toContain('Hold for review at Radar risk')
 })
 
-test('the bills list filters by status', () => {
+test('the bills list filters by status with counted chips and colour badges', () => {
   data['admin.billing.bills'] = [{ ...bill, status: 'trialing' }]
-  const html = renderList()
-  expect(html).toContain('Show bills')
+  const html = renderList('bills')
+  expect(html).toContain('aria-pressed="true"')
+  expect(html).toContain('k-badge-info')
+  // Only statuses that have bills get a chip, each with its count.
+  expect(html).toContain('Trial<span class="n">1</span>')
+  expect(html).not.toContain('Past due<span')
+})
+
+test('the status header names each fact and links to where it is fixed', () => {
+  data['admin.billing.summary'] = {
+    billing: { stripeConnected: false },
+    selfServe: { on: false, open: false, closedBecause: null, termsMissing: [] },
+    bills: { pending_payment: 0, trialing: 1, active: 3, past_due: 1, suspended: 1, canceled: 0, comped: 0 },
+    held: 1,
+    newTrials: 1,
+    events: { waiting: 1, failed: 1, unhandled: 1 },
+    automaticTax: false,
+  }
+  const html = renderList(null)
+  expect(html).toContain('Not connected')
+  expect(html).toContain('href="#admin/providers')
+  expect(html).toContain('1 held')
+  expect(html).toContain('href="#admin/billing/review"')
+  expect(html).toContain('2 owe money')
+  expect(html).toContain('href="#admin/billing/bills?status=')
+  expect(html).toContain('2 need a look')
+  expect(html).toContain('href="#admin/billing/events')
+  // The tabs carry counts of what needs attention.
+  expect(html).toContain('aria-current="page"')
 })
 
 test('turning Stripe Tax on: the count of customers without an address shows once asked, "counting" meanwhile (review #1105, N-1)', async () => {

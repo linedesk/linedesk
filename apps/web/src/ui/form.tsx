@@ -108,15 +108,21 @@ export function FormMessage({ children }: { children: ReactNode }) {
 
 type InputProps = Omit<ComponentProps<'input'>, 'size'> & {
   invalid?: boolean
+  /** Sits inside the frame at the left (a currency sign). */
+  start?: ReactNode
   end?: ReactNode
   /** The control height (--control-h, --control-h-sm), the same scale as Select and Button: one size per row. */
   size?: 'sm' | 'md'
 }
 
-/** A text input in the kit's frame. `end` sits inside the frame at the right (a unit, a button). */
-export function Input({ invalid, end, size = 'md', className, ...rest }: InputProps) {
+/**
+ * A text input in the kit's frame. `start` sits inside the frame at the left (a currency sign), `end` at the right (a
+ * unit, a button).
+ */
+export function Input({ invalid, start, end, size = 'md', className, ...rest }: InputProps) {
   return (
     <span className={cx('k-input', size === 'sm' && 'k-input-sm', invalid && 'k-input-invalid', className)}>
+      {start}
       <input aria-invalid={invalid || undefined} {...rest} />
       {end}
     </span>

@@ -4,6 +4,7 @@
 // with their passkey (no setup link, API key, personal key or impersonation), carries a reason for the audit log, and the ones that
 // ask Stripe carry a request id, the idempotency key of every Stripe request it makes.
 import type { BillingRules, SignupRules } from '@linedesk/db/types'
+import type { BillingEnabledData } from './billing.ts'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
@@ -46,6 +47,16 @@ export const billingAdminEvents = defineAction({
     /** The `next` of the previous page: events received before it. */
     before: z.iso.datetime({ offset: true }).optional(),
   }),
+  permission: 'instance:admin',
+  readOnly: true,
+})
+
+export const billingAdminSummary = defineAction({
+  name: 'billing.adminSummary',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    'Server admin › Billing at a glance, in one read: whether billing through Stripe is on and in which mode, whether self-serve sign-up is open (and why not), how many bills are in each status or held for review, how many trials started in the last 7 days, the Stripe events that wait, failed or are not handled, and whether Stripe Tax is on. Instance admins only.',
+  input: z.object({}),
   permission: 'instance:admin',
   readOnly: true,
 })
@@ -326,6 +337,21 @@ export type AdminReviewRow = {
   heldForReviewAt: string | null
   /** Stripe Radar's risk level of the trial's card check; null before the check. */
   cardRiskLevel: string | null
+}
+
+/** billing.adminSummary: the facts the top of Server admin › Billing shows, counted on the server. */
+export type AdminBillingSummary = {
+  billing: BillingEnabledData
+  selfServe: Pick<SelfServeData, 'on' | 'open' | 'closedBecause' | 'termsMissing'>
+  /** Bills per status (every status, 0 when none). */
+  bills: Record<AdminBillStatus, number>
+  /** Bills held for review. */
+  held: number
+  /** Trials (or sign-ups waiting for Checkout) started in the last 7 days and not held: the review list's second part. */
+  newTrials: number
+  /** The Stripe events not processed, by state (as `billing.adminEvents` filters them). */
+  events: { waiting: number; failed: number; unhandled: number }
+  automaticTax: boolean
 }
 
 export type BillingRulesData = {

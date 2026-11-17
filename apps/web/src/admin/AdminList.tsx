@@ -32,7 +32,7 @@ type Props<T> = {
   label?: string
   onOpen: (row: T) => void
   keysRef: { current: ListKeys | null }
-  empty: string
+  empty: ReactNode
   /** Quick actions at the right end of a row (shown on hover, focus or the cursor). */
   rowActions?: (row: T) => ReactNode
   /** Controls under the search, such as a filter (Users: "No workspace"). */

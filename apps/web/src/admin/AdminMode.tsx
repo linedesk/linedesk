@@ -30,7 +30,9 @@ import { useAdminData } from './useAdminData.ts'
 import { StatusCard } from './StatusCard.tsx'
 import {
   adminSections,
+  isListPlace,
   nextSection,
+  placeUp,
   sectionIndexOfKey,
   sectionKey,
   tabSwitchesSection,
@@ -158,8 +160,10 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       if ((e.key === 'Enter' || e.key === ' ') && (tag === 'BUTTON' || tag === 'A')) return
       const section = /^\d$/.test(e.key) ? adminSections[sectionIndexOfKey(e.key)] : undefined
       let handled = true
-      if (e.key === 'Escape') place.id ? go({ section: place.section, id: null }) : onExit()
-      else if (section) go({ section: section.id, id: null })
+      if (e.key === 'Escape') {
+        const up = placeUp(place)
+        up ? go(up) : onExit()
+      } else if (section) go({ section: section.id, id: null })
       // Tab moves between sections only from the page itself, as it moves between views in the inbox; on a
       // button, link or menu it walks focus as everywhere else (Q11).
       else if (e.key === 'Tab') {
@@ -170,7 +174,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       else if (e.key === 'z') void undo()
       // M and ? would open the inbox's menu and help, / its search: here / searches the list.
       else if (e.key === 'm' || e.key === '?') handled = true
-      else handled = (!place.id && (listKeys.current?.(e.key) ?? false)) || e.key === '/'
+      else handled = (isListPlace(place) && (listKeys.current?.(e.key) ?? false)) || e.key === '/'
       if (handled) swallow(e)
     }
     window.addEventListener('keydown', onKey, true)
@@ -312,7 +316,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
                 <button
                   type="button"
                   className="adm-crumb"
-                  onClick={() => go({ section: place.section, id: null })}
+                  onClick={() => go(placeUp(place) ?? { section: place.section, id: null })}
                   title={t('common.withKey', {
                     label: t('admin.frame.backTo', { section: t(meta.label) }),
                     key: 'esc',

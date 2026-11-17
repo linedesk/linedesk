@@ -187,6 +187,7 @@ describe('access', () => {
       'billing.adminEvents',
       'billing.adminReview',
       'billing.adminSetStatus',
+      'billing.adminSummary',
       'billing.adminTaxAddressMissing',
       'billing.credit',
       'billing.moveWorkspace',
@@ -2384,6 +2385,7 @@ describe('impersonation', () => {
       'billing.adminBills',
       'billing.adminEvents',
       'billing.adminReview',
+      'billing.adminSummary',
       'billing.adminTaxAddressMissing',
       // The bill owner's banner data (PR 11), so support sees what the owner sees; port-out PINs stay refused.
       'billing.state',

@@ -17,6 +17,7 @@
 // billable seconds at $0).
 import type {
   AdminBillDetail,
+  AdminBillingSummary,
   AdminBillRow,
   AdminLedgerEntry,
   AdminRefundable,
@@ -468,6 +469,57 @@ async function reviewList(tx: Tx): Promise<{ held: AdminReviewRow[]; newTrials: 
   return {
     held: rows.filter(r => r.bill.held_for_review_at).map(toRow),
     newTrials: rows.filter(r => !r.bill.held_for_review_at).map(toRow),
+  }
+}
+
+/**
+ * The top of Server admin › Billing in one read (billing.adminSummary): counts, not rows, so the page shows its status
+ * line without loading every list. The same rules as the lists: held and new trials as `reviewList`, event states as
+ * `eventState`.
+ */
+async function summary(tx: Tx): Promise<AdminBillingSummary> {
+  const since = new Date(Date.now() - REVIEW_TRIAL_DAYS * 86_400_000).toISOString()
+  const statusRows = await tx
+    .select({
+      status: billing_accounts.status,
+      n: sql<number>`count(*)::int`,
+      held: sql<number>`count(${billing_accounts.held_for_review_at})::int`,
+      newTrials: sql<number>`(count(*) filter (where ${billing_accounts.held_for_review_at} is null and ${billing_accounts.created_at} > ${since} and ${billing_accounts.status} in ('pending_payment', 'trialing')))::int`,
+    })
+    .from(billing_accounts)
+    .groupBy(billing_accounts.status)
+  const [events] = await tx
+    .select({
+      unhandled: sql<number>`(count(*) filter (where ${stripe_events.last_error} like 'unhandled%'))::int`,
+      failed: sql<number>`(count(*) filter (where (${stripe_events.last_error} is null or ${stripe_events.last_error} not like 'unhandled%') and ${stripe_events.attempts} >= ${STRIPE_EVENT_ATTEMPTS}))::int`,
+      waiting: sql<number>`(count(*) filter (where (${stripe_events.last_error} is null or ${stripe_events.last_error} not like 'unhandled%') and ${stripe_events.attempts} < ${STRIPE_EVENT_ATTEMPTS}))::int`,
+    })
+    .from(stripe_events)
+    .where(isNull(stripe_events.processed_at))
+  const state = await selfServeState(tx)
+  const bills: AdminBillingSummary['bills'] = {
+    pending_payment: 0,
+    trialing: 0,
+    active: 0,
+    past_due: 0,
+    suspended: 0,
+    canceled: 0,
+    comped: 0,
+  }
+  for (const row of statusRows) bills[row.status] = row.n
+  return {
+    billing: await billingState(tx),
+    selfServe: {
+      on: state.on,
+      open: state.open,
+      closedBecause: state.closedBecause,
+      termsMissing: [...legalTerms().missing],
+    },
+    bills,
+    held: statusRows.reduce((sum, row) => sum + row.held, 0),
+    newTrials: statusRows.reduce((sum, row) => sum + row.newTrials, 0),
+    events: { waiting: events?.waiting ?? 0, failed: events?.failed ?? 0, unhandled: events?.unhandled ?? 0 },
+    automaticTax: (await rulesData(tx)).effective.automaticTax,
   }
 }
 
@@ -968,6 +1020,7 @@ export const billingAdminHandlers: Record<string, Handler> = {
     data: await events(tx, input.filter ?? 'all', input.before),
   }),
   'billing.adminReview': async ({ tx }) => ({ rows: {}, data: await reviewList(tx) }),
+  'billing.adminSummary': async ({ tx }) => ({ rows: {}, data: await summary(tx) }),
   'billingRules.get': async ({ tx }) => ({ rows: {}, data: await rulesData(tx) }),
   // What turning Stripe Tax on would mean for paying customers (review #1105, M-1), asked by the confirm dialog only.
   // Through the pool, never the caller's connection: Stripe is asked with no transaction open (N-1).

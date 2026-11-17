@@ -309,6 +309,7 @@ describe('who may', () => {
     const reads = [
       'billing.adminBills',
       'billing.adminReview',
+      'billing.adminSummary',
       'billingRules.get',
       'billing.adminTaxAddressMissing',
       'signup.getSelfServe',
@@ -1483,6 +1484,49 @@ describe('Stripe events', () => {
     expect((await act(operator, 'billing.reprocessEvent', { eventId: failed.id, reason })).status).toBe(200)
     expect(await states('all')).toMatchObject({ [failed.id]: 'waiting' })
     expect((await lastCommand('billing.reprocessEvent'))?.input).toMatchObject({ eventId: failed.id, reason })
+  })
+})
+
+describe('the summary', () => {
+  test('counts bills by status, holds, new trials and open events as the lists do, in one read', async () => {
+    const read = async () => (await act(operator, 'billing.adminSummary', {})).body.data
+    const before = await read()
+    expect(before.billing).toMatchObject({ on: false, inEffect: 'none' })
+    expect(before.selfServe).toMatchObject({ on: false, open: false, closedBecause: 'switched_off' })
+    expect(before.automaticTax).toBe(BILLING_DEFAULTS.automaticTax)
+    await billWith({ status: 'past_due' })
+    await billWith({ status: 'trialing' })
+    await billWith({ status: 'trialing', held_for_review_at: new Date().toISOString() })
+    await billWith({ status: 'trialing', created_at: new Date(Date.now() - 30 * day).toISOString() })
+    const at = new Date().toISOString()
+    const event = (over: Partial<typeof stripe_events.$inferInsert>) => ({
+      id: rid('evt'),
+      type: 'invoice.paid',
+      livemode: false,
+      created: at,
+      received_at: at,
+      payload: { data: { object: { id: rid('in'), object: 'invoice', customer: null } } },
+      ...over,
+    })
+    await db
+      .insert(stripe_events)
+      .values([
+        event({ processed_at: at }),
+        event({ attempts: 1 }),
+        event({ attempts: STRIPE_EVENT_ATTEMPTS, last_error: 'Stripe is down' }),
+        event({ attempts: STRIPE_EVENT_ATTEMPTS, last_error: UNHANDLED_TYPE }),
+      ])
+    const after = await read()
+    expect(after.bills.past_due - before.bills.past_due).toBe(1)
+    expect(after.bills.trialing - before.bills.trialing).toBe(3)
+    expect(after.held - before.held).toBe(1)
+    // The review list's second part: started in the last 7 days and not held.
+    expect(after.newTrials - before.newTrials).toBe(1)
+    expect({
+      waiting: after.events.waiting - before.events.waiting,
+      failed: after.events.failed - before.events.failed,
+      unhandled: after.events.unhandled - before.events.unhandled,
+    }).toEqual({ waiting: 1, failed: 1, unhandled: 1 })
   })
 })
 

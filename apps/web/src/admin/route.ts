@@ -94,6 +94,33 @@ export function useAdminPlace() {
   return { place, go }
 }
 
+/**
+ * Server admin › Billing's sections: `#admin/billing` is its overview, `#admin/billing/<tab>` one section, anything else
+ * after `billing/` a bill (`#admin/billing/<bill id>`).
+ */
+export const BILLING_TABS = ['overview', 'bills', 'review', 'events', 'signup', 'rules'] as const
+export type BillingTab = (typeof BILLING_TABS)[number]
+
+/** The section of Billing that `#admin/billing/<id>` shows; null when `id` is a bill. */
+export function billingTab(id: string | null): BillingTab | null {
+  if (!id) return 'overview'
+  return id !== 'overview' && (BILLING_TABS as readonly string[]).includes(id) ? (id as BillingTab) : null
+}
+
+/** The place's own list or section page, when it shows one: a list that the list keys (J, K, Enter, /) move in. */
+export const isListPlace = (place: AdminPlace) =>
+  !place.id || (place.section === 'billing' && billingTab(place.id) !== null)
+
+/**
+ * One step up from a place (Esc and the crumb): a bill to Billing's list of bills, a Billing section to its overview,
+ * any other detail to its list; null on a section's own page.
+ */
+export function placeUp(place: AdminPlace): AdminPlace | null {
+  if (!place.id) return null
+  if (place.section === 'billing' && billingTab(place.id) === null) return { section: 'billing', id: 'bills' }
+  return { section: place.section, id: null }
+}
+
 /** What `#admin/providers/<id>` points at: a group to scroll to, or a provider whose dialog opens. */
 export function providersTarget(id: string | null): { group: ProviderGroupId } | { provider: ProviderName } | null {
   if (!id) return null

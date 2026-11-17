@@ -2,8 +2,13 @@
 // invoices; what waits for review; the Stripe event inbox; who may sign up on their own; and the install's billing
 // rules. Every write asks why (kept in the audit log) and runs through runAdmin, so the server's passkey step-up asks
 // for the admin's passkey first; the ones that reach Stripe send one request id per dialog (its idempotency key).
+//
+// The page: a status line on top (billing on and its mode, sign-up open or why not, what needs the admin), then one
+// section at a time, each with its own address (`#admin/billing/<tab>`, route.ts), so only the section on screen loads
+// its rows. The status line is one read (billing.adminSummary), kept between visits.
 import type {
   AdminBillDetail,
+  AdminBillingSummary,
   AdminBillRow,
   AdminBillStatus,
   AdminReviewRow,
@@ -12,6 +17,7 @@ import type {
   BillingRulesData,
   RadarRiskLevel,
   SelfServeData,
+  StatusState,
   TaxAddressMissingData,
 } from '@linedesk/actions'
 import { PLAN_PRICE_FLOOR, RADAR_RISK_LEVELS } from '@linedesk/actions'
@@ -21,40 +27,57 @@ import { T, useT } from '@linedesk/i18n/react'
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { refreshQuery, setQueryData, useQuery } from '../cachedQuery.ts'
 import { fmt } from '../i18n/format.ts'
-import { AppLink } from '../ui/AppLink.tsx'
+import { AppLink, appLink, LinkButton } from '../ui/AppLink.tsx'
 import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
-import { Card, Dialog, FormField, FormMessage, Input, Textarea } from '../ui/form.tsx'
-import { Badge, Button, Note } from '../ui/kit.tsx'
+import { Card, Dialog, FormField, FormMessage, HelpTip, Input, onSaveKey, SaveBar, Textarea } from '../ui/form.tsx'
+import { Badge, Button, cx, Note } from '../ui/kit.tsx'
 import { Loading, Skeleton, SkeletonRows } from '../ui/LoadStates.tsx'
+import { StatusMark } from '../ui/StatusMark.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
 import { ActionBar, type AdminAction } from './actions.tsx'
 import { runAdmin } from './api.ts'
 import {
+  ago,
+  BILL_FILTERS,
   type BillFilter,
+  billFilterOfHash,
+  billsHref,
   changedFields,
+  customFields,
+  defaultText,
+  eventFilterOfHash,
+  eventsHref,
+  blankIsNone,
+  exactTime,
+  type FieldUnit,
   filterBills,
   newRequestId,
   parseCount,
   parseDollars,
   planFloorText,
-  RULE_FIELDS,
-  TAX_FIELD,
+  RULE_GROUPS,
   type RuleField,
+  type RuleGroupId,
   type RulesForm,
   rateOfMicros,
   reasonProblem,
+  ruleUnit,
   rulesForm,
   rulesFromForm,
-  SIGNUP_COUNT_FIELDS,
+  SIGNUP_GROUPS,
   type SignupForm,
+  signupChanges,
   signupDirty,
   signupForm,
   signupFromForm,
+  TAX_FIELD,
   usdOfCents,
   usdOfMicros,
+  usdSymbol,
 } from './billingModel.ts'
 import { errorText, type Notify } from './notify.ts'
 import { day, EMPTY, when } from './parts.tsx'
+import { BILLING_TABS, type BillingTab, billingTab } from './route.ts'
 import { Fact } from './WorkspacesPage.tsx'
 
 type Translate = ReturnType<typeof useT>
@@ -62,6 +85,7 @@ type Translate = ReturnType<typeof useT>
 const BILLS = 'admin.billing.bills'
 const REVIEW = 'admin.billing.review'
 const RULES = 'admin.billing.rules'
+const SUMMARY = 'admin.billing.summary'
 const TAX_ADDRESS = 'admin.billing.taxAddressMissing'
 const SELF_SERVE = 'admin.billing.selfServe'
 const billKey = (id: string) => `admin.billing.bill.${id}`
@@ -72,6 +96,7 @@ const loadBill = (id: string) => async () =>
   (await runAdmin('billing.adminBill', { billingAccountId: id })) as unknown as AdminBillDetail
 const loadReview = async () =>
   (await runAdmin('billing.adminReview', {})) as unknown as { held: AdminReviewRow[]; newTrials: AdminReviewRow[] }
+const loadSummary = async () => (await runAdmin('billing.adminSummary', {})) as unknown as AdminBillingSummary
 const loadRules = async () => (await runAdmin('billingRules.get', {})) as unknown as BillingRulesData
 const loadTaxAddress = async () =>
   ((await runAdmin('billing.adminTaxAddressMissing', {})) as unknown as TaxAddressMissingData).taxAddressMissing
@@ -80,9 +105,16 @@ type EventsPage = { events: AdminStripeEvent[]; next: string | null }
 const loadEvents = (filter: BillingEventFilter, before?: string) => async () =>
   (await runAdmin('billing.adminEvents', { filter, ...(before ? { before } : {}) })) as unknown as EventsPage
 
-/** After a write: the bill, the list and the review read again, so the page shows what was just done. */
+/**
+ * The status line, the rules and the sign-up settings hold no customer's data: kept in this browser between visits
+ * (per member, forgotten on sign-out), so the page shows them at once and reads them again in the background. Bills
+ * and events, which name customers, stay in memory only.
+ */
+const KEPT = { persist: true } as const
+
+/** After a write: the bill, the list, the review and the status line read again, so the page shows what was just done. */
 async function refreshBill(id: string) {
-  await Promise.all([refreshQuery(billKey(id)), refreshQuery(BILLS), refreshQuery(REVIEW)])
+  await Promise.all([refreshQuery(billKey(id)), refreshQuery(BILLS), refreshQuery(REVIEW), refreshQuery(SUMMARY)])
 }
 
 const STATUS: Record<AdminBillStatus, MessageKey> = {
@@ -95,10 +127,20 @@ const STATUS: Record<AdminBillStatus, MessageKey> = {
   comped: msg('admin.bills.status.comped'),
 }
 
+/** A bill's status as a badge: red where money is owed or calls are stopped, ink when it pays, blue-grey in the trial. */
+const STATUS_TONE: Record<AdminBillStatus, 'neutral' | 'ok' | 'danger' | 'info' | 'outline'> = {
+  pending_payment: 'outline',
+  trialing: 'info',
+  active: 'ok',
+  past_due: 'danger',
+  suspended: 'danger',
+  canceled: 'neutral',
+  comped: 'neutral',
+}
+
 function StatusBadge({ status }: { status: AdminBillStatus }) {
   const t = useT()
-  const tone = status === 'suspended' || status === 'past_due' ? 'danger' : status === 'active' ? 'ok' : 'neutral'
-  return <Badge tone={tone}>{t(STATUS[status])}</Badge>
+  return <Badge tone={STATUS_TONE[status]}>{t(STATUS[status])}</Badge>
 }
 
 const RISK: Record<RadarRiskLevel, MessageKey> = {
@@ -118,20 +160,31 @@ function RiskBadge({ level }: { level: string | null }) {
   return <Badge tone={tone}>{key ? t(key) : level}</Badge>
 }
 
+/** A moment as "3 hours ago", the exact time on hover and for screen readers' `dateTime`. */
+function Ago({ iso }: { iso: string }) {
+  return (
+    <time dateTime={iso} title={exactTime(iso)}>
+      {ago(iso)}
+    </time>
+  )
+}
+
 const ownerText = (t: Translate, owner: { email: string | null; name: string | null }) =>
   owner.email ?? owner.name ?? t('admin.bills.noOwner')
 
 /** The title of `#admin/billing/<id>`: whose bill it is, from the bill or the list, whichever is here first. */
 export function useBillTitle(id: string | null): string | null {
   const t = useT()
-  const bill = useQuery(id ? billKey(id) : null, loadBill(id ?? '')).data
-  const bills = useQuery(id ? BILLS : null, loadBills).data
-  if (!id) return null
-  const owner = bill?.owner ?? bills?.find(b => b.id === id)?.owner
+  const billId = billingTab(id) === null ? id : null
+  const bill = useQuery(billId ? billKey(billId) : null, loadBill(billId ?? '')).data
+  const bills = useQuery(billId ? BILLS : null, loadBills).data
+  if (!billId) return null
+  const owner = bill?.owner ?? bills?.find(b => b.id === billId)?.owner
   return owner ? t('admin.bills.detail.title', { owner: ownerText(t, owner) }) : t('admin.bills.detail.untitled')
 }
 
 type Props = {
+  /** A section of the page (route.ts `BILLING_TABS`) or a bill's id. */
   id: string | null
   onOpen: (id: string) => void
   notify: Notify
@@ -139,16 +192,252 @@ type Props = {
 }
 
 export function Billing({ id, onOpen, notify, keysRef }: Props) {
-  if (id) return <BillDetail id={id} notify={notify} />
+  const tab = billingTab(id)
+  if (!tab) return <BillDetail id={id!} notify={notify} />
   return (
     <>
-      <BillsList onOpen={onOpen} keysRef={keysRef} />
-      <ReviewCard onOpen={onOpen} notify={notify} />
-      <EventsCard notify={notify} />
-      <SelfServeCard notify={notify} />
-      <SignupRulesCard notify={notify} />
-      <RulesCard notify={notify} />
+      <BillingStatus />
+      <BillingTabs current={tab} />
+      {tab === 'overview' && <OverviewSection />}
+      {tab === 'bills' && <BillsList onOpen={onOpen} keysRef={keysRef} />}
+      {tab === 'review' && <ReviewCard onOpen={onOpen} notify={notify} />}
+      {tab === 'events' && <EventsCard notify={notify} />}
+      {tab === 'signup' && (
+        <>
+          <SelfServeCard notify={notify} />
+          <SignupRulesCard notify={notify} />
+        </>
+      )}
+      {tab === 'rules' && <RulesCard notify={notify} />}
     </>
+  )
+}
+
+// ---- The status line ----
+
+/** One fact of the status line: its mark and word, a muted line under it, and the place that fixes it. */
+type StatusFact = { id: string; label: string; state: StatusState; value: string; line: string | null; href: string }
+
+/** Whether billing through Stripe runs, in which mode, or what stops it. */
+function billingFact(t: Translate, s: AdminBillingSummary): StatusFact {
+  const b = s.billing
+  const base = { id: 'billing', label: t('admin.bills.summary.billing'), href: '#admin/providers/billing' }
+  if (!b.connected)
+    return {
+      ...base,
+      state: 'missing',
+      value: t('admin.bills.summary.notConnected'),
+      line: t('admin.bills.summary.connect'),
+    }
+  if (b.mode === 'live' && !b.liveAllowed)
+    return {
+      ...base,
+      state: 'failing',
+      value: t('admin.bills.summary.liveRefused'),
+      line: t('admin.billing.liveRefused'),
+    }
+  if (!b.guardsOk)
+    return { ...base, state: 'failing', value: t('admin.bills.summary.paused'), line: t('admin.billing.guardsMissing') }
+  const mode = t(b.mode === 'live' ? 'admin.bills.summary.live' : 'admin.bills.summary.test')
+  if (!b.on)
+    return {
+      ...base,
+      state: 'off',
+      value: t('admin.bills.summary.off'),
+      line: t('admin.bills.summary.turnOn', { mode }),
+    }
+  return {
+    ...base,
+    state: b.mode === 'live' ? 'works' : 'partly',
+    value: t('admin.bills.summary.on', { mode }),
+    line: t(s.automaticTax ? 'admin.bills.summary.taxOn' : 'admin.bills.summary.taxOff'),
+  }
+}
+
+const CLOSED_BECAUSE: Record<NonNullable<AdminBillingSummary['selfServe']['closedBecause']>, MessageKey> = {
+  switched_off: msg('admin.bills.summary.signup.switchedOff'),
+  billing_not_in_effect: msg('admin.bills.summary.signup.billing'),
+  terms_missing: msg('admin.bills.summary.signup.terms'),
+  bot_check_missing: msg('admin.bills.summary.signup.botCheck'),
+}
+
+/** Self-serve sign-up: open, or closed and why (switched on but closed is a problem; switched off is a choice). */
+function signupFact(t: Translate, s: AdminBillingSummary): StatusFact {
+  const { on, open, closedBecause } = s.selfServe
+  return {
+    id: 'signup',
+    label: t('admin.bills.selfServe.title'),
+    state: open ? 'works' : on ? 'failing' : 'off',
+    value: t(open ? 'admin.bills.selfServe.state.open' : 'admin.bills.selfServe.state.closed'),
+    line: closedBecause ? t(CLOSED_BECAUSE[closedBecause]) : t('admin.bills.selfServe.openNow'),
+    href: '#admin/billing/signup',
+  }
+}
+
+/** What the admin has to decide: bills held for review, and how many trials are new. */
+function reviewFact(t: Translate, s: AdminBillingSummary): StatusFact {
+  return {
+    id: 'review',
+    label: t('admin.bills.review.title'),
+    state: s.held ? 'partly' : 'works',
+    value: s.held ? t('admin.bills.summary.held', { count: s.held }) : t('admin.bills.summary.nothingHeld'),
+    line: t('admin.bills.summary.newTrials', { count: s.newTrials }),
+    href: '#admin/billing/review',
+  }
+}
+
+/** Bills that owe money or are stopped. */
+function billsFact(t: Translate, s: AdminBillingSummary): StatusFact {
+  const owing = s.bills.past_due + s.bills.suspended
+  const total = Object.values(s.bills).reduce((sum, n) => sum + n, 0)
+  return {
+    id: 'bills',
+    label: t('admin.bills.what'),
+    state: owing ? 'partly' : 'works',
+    value: owing
+      ? t('admin.bills.summary.owing', { count: owing })
+      : t('admin.bills.summary.billCount', { count: total }),
+    line: owing
+      ? t('admin.bills.summary.owingLine', { pastDue: s.bills.past_due, suspended: s.bills.suspended })
+      : null,
+    href: owing ? billsHref(s.bills.past_due ? 'past_due' : 'suspended') : billsHref('all'),
+  }
+}
+
+/** Stripe events that did not go through. */
+function eventsFact(t: Translate, s: AdminBillingSummary): StatusFact {
+  const stuck = s.events.failed + s.events.unhandled
+  return {
+    id: 'events',
+    label: t('admin.bills.events.title'),
+    state: s.events.failed ? 'failing' : stuck ? 'partly' : 'works',
+    value: stuck ? t('admin.bills.summary.eventsStuck', { count: stuck }) : t('admin.bills.summary.eventsOk'),
+    line: s.events.waiting ? t('admin.bills.summary.eventsWaiting', { count: s.events.waiting }) : null,
+    href: eventsHref(s.events.failed ? 'failed' : s.events.unhandled ? 'unhandled' : 'all'),
+  }
+}
+
+const facts = (t: Translate, s: AdminBillingSummary) => [
+  billingFact(t, s),
+  signupFact(t, s),
+  reviewFact(t, s),
+  billsFact(t, s),
+  eventsFact(t, s),
+]
+
+const useSummary = () => useQuery(SUMMARY, loadSummary, KEPT)
+
+/** The top of the page: five facts, each a link to where it is changed or looked at. */
+function BillingStatus() {
+  const t = useT()
+  const query = useSummary()
+  const data = query.data
+  return (
+    <section className="k-card adm-billstatus" aria-label={t('admin.bills.summary.label')}>
+      <Loading
+        what={t('admin.bills.summary.label')}
+        loading={!data}
+        error={query.error}
+        onRetry={() => void query.reload()}
+        className="adm-billstatus-grid"
+        skeleton={[0, 1, 2, 3, 4].map(i => (
+          <div key={i} className="adm-billfact">
+            <Skeleton shape="text" width={70} />
+            <Skeleton shape="text" width={110} />
+          </div>
+        ))}
+      >
+        {data &&
+          facts(t, data).map(f => (
+            <a
+              key={f.id}
+              className="adm-billfact"
+              href={f.href}
+              title={t('admin.bills.summary.openTip', { part: f.label })}
+            >
+              <span className="adm-billfact-label">
+                <StatusMark state={f.state} label={f.value} />
+                {f.label}
+              </span>
+              <span className="adm-billfact-value">{f.value}</span>
+              {f.line && <span className="adm-billfact-line">{f.line}</span>}
+            </a>
+          ))}
+      </Loading>
+    </section>
+  )
+}
+
+const TAB_LABELS: Record<BillingTab, MessageKey> = {
+  overview: msg('admin.bills.tab.overview'),
+  bills: msg('admin.bills.tab.bills'),
+  review: msg('admin.bills.tab.review'),
+  events: msg('admin.bills.tab.events'),
+  signup: msg('admin.bills.tab.signup'),
+  rules: msg('admin.bills.tab.rules'),
+}
+
+const tabHref = (tab: BillingTab) => (tab === 'overview' ? '#admin/billing' : `#admin/billing/${tab}`)
+
+/** The page's sections, as links: each has its own address, so Back, reload and a shared link land on it. */
+function BillingTabs({ current }: { current: BillingTab }) {
+  const t = useT()
+  const summary = useSummary().data
+  // A number only where something waits for the admin.
+  const counts: Partial<Record<BillingTab, number>> = summary
+    ? { review: summary.held, events: summary.events.failed + summary.events.unhandled }
+    : {}
+  return (
+    <nav className="adm-billtabs" aria-label={t('admin.bills.tab.label')}>
+      <div className="ib-tabs">
+        {BILLING_TABS.map(tab => (
+          <a key={tab} href={tabHref(tab)} className="ib-tab" aria-current={tab === current ? 'page' : undefined}>
+            {t(TAB_LABELS[tab])}
+            {counts[tab] ? <span className="n">{fmt().number(counts[tab])}</span> : null}
+          </a>
+        ))}
+      </div>
+    </nav>
+  )
+}
+
+// ---- Overview ----
+
+/**
+ * The overview below the status line: the bills by status, each a link to them; a calm line when every fact above
+ * works.
+ */
+function OverviewSection() {
+  const t = useT()
+  const query = useSummary()
+  const data = query.data
+  const calm = !!data && facts(t, data).every(f => f.state === 'works' || f.state === 'off')
+  return (
+    <Card
+      title={t('admin.bills.overview.byStatus')}
+      description={t('admin.bills.overview.byStatusText')}
+      className="adm-detail"
+    >
+      <Loading
+        what={t('admin.bills.overview.byStatus')}
+        loading={!data}
+        error={query.error}
+        onRetry={() => void query.reload()}
+        skeleton={<SkeletonRows rows={1} columns={4} />}
+      >
+        {data && (
+          <div className="adm-statuscounts">
+            {(Object.keys(STATUS) as AdminBillStatus[]).map(status => (
+              <a key={status} className="adm-statuscount" href={billsHref(status)}>
+                <b>{fmt().number(data.bills[status])}</b>
+                <StatusBadge status={status} />
+              </a>
+            ))}
+          </div>
+        )}
+        {calm && <p className="adm-notice">{t('admin.bills.overview.calm')}</p>}
+      </Loading>
+    </Card>
   )
 }
 
@@ -195,38 +484,35 @@ const billColumns = (t: Translate): Column<AdminBillRow>[] => [
     firstDir: 'desc',
     wide: true,
     sort: b => Date.parse(b.createdAt),
-    render: b => day(b.createdAt),
+    render: b => <Ago iso={b.createdAt} />,
   },
 ]
 
-const BILL_FILTERS: BillFilter[] = [
-  'all',
-  'held',
-  'pending_payment',
-  'trialing',
-  'active',
-  'past_due',
-  'suspended',
-  'comped',
-  'canceled',
-]
+const filterLabel = (t: Translate, value: BillFilter) =>
+  value === 'all' ? t('admin.bills.filter.all') : value === 'held' ? t('admin.bills.filter.held') : t(STATUS[value])
+
+/** The filter a link asked for (`#admin/billing/bills?status=…`), followed when the address changes. */
+function useHashFilter<F extends string>(parse: (hash: string) => F, href: (filter: F) => string) {
+  const [filter, setFilter] = useState(() => parse(typeof window === 'undefined' ? '' : window.location.hash))
+  useEffect(() => {
+    const onHash = () => setFilter(parse(window.location.hash))
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [parse])
+  /** A new filter replaces the address (no history entry per click), so a reload or a shared link keeps it. */
+  const choose = (next: F) => {
+    setFilter(next)
+    window.history.replaceState(window.history.state, '', href(next))
+  }
+  return [filter, choose] as const
+}
 
 function BillsList({ onOpen, keysRef }: { onOpen: (id: string) => void; keysRef: { current: ListKeys | null } }) {
   const t = useT()
   const query = useQuery(BILLS, loadBills)
   const columns = useMemo(() => billColumns(t), [t])
-  const [filter, setFilter] = useState<BillFilter>('all')
+  const [filter, setFilter] = useHashFilter(billFilterOfHash, billsHref)
   const shown = useMemo(() => filterBills(query.data ?? [], filter), [query.data, filter])
-  const filters: SelectOption<BillFilter>[] = BILL_FILTERS.map(value => ({
-    value,
-    label:
-      value === 'all'
-        ? t('admin.bills.filter.all')
-        : value === 'held'
-          ? t('admin.bills.filter.held')
-          : t(STATUS[value]),
-    description: query.data ? fmt().number(filterBills(query.data, value).length) : undefined,
-  }))
   if (!query.data)
     return (
       <div className="adm-card adm-listcard">
@@ -239,18 +525,26 @@ function BillsList({ onOpen, keysRef }: { onOpen: (id: string) => void; keysRef:
         />
       </div>
     )
+  const bills = query.data
+  // Every filter that has bills, and the one chosen even when it has none.
+  const chips = BILL_FILTERS.filter(value => value === 'all' || value === filter || filterBills(bills, value).length)
   return (
     <AdminList
       rows={shown}
       tools={
-        <div className="adm-list-tools">
-          <Select
-            value={filter}
-            options={filters}
-            onChange={setFilter}
-            label={t('admin.bills.filter.label')}
-            size="sm"
-          />
+        <div className="adm-chips" role="group" aria-label={t('admin.bills.filter.label')}>
+          {chips.map(value => (
+            <button
+              key={value}
+              type="button"
+              className="adm-chip"
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
+            >
+              {filterLabel(t, value)}
+              <span className="n">{fmt().number(filterBills(bills, value).length)}</span>
+            </button>
+          ))}
         </div>
       }
       rowId={b => b.id}
@@ -263,7 +557,18 @@ function BillsList({ onOpen, keysRef }: { onOpen: (id: string) => void; keysRef:
       label={t('admin.bills.what')}
       onOpen={b => onOpen(b.id)}
       keysRef={keysRef}
-      empty={filter === 'all' ? t('admin.bills.empty') : t('admin.bills.filter.empty')}
+      empty={
+        filter === 'all' ? (
+          <>
+            {t('admin.bills.empty')} <T k="admin.bills.emptyHint" values={{ link: appLink('#admin/billing/signup') }} />
+          </>
+        ) : (
+          <>
+            {t('admin.bills.filter.empty')}{' '}
+            <LinkButton onClick={() => setFilter('all')}>{t('admin.bills.filter.showAll')}</LinkButton>
+          </>
+        )
+      }
     />
   )
 }
@@ -279,6 +584,7 @@ function ReviewCard({ onOpen, notify }: { onOpen: (id: string) => void; notify: 
     <Card
       title={t('admin.bills.review.title')}
       description={t('admin.bills.review.description')}
+      help={t('admin.bills.review.radarHelp')}
       className="adm-detail"
     >
       <Loading
@@ -322,7 +628,7 @@ function ReviewCard({ onOpen, notify }: { onOpen: (id: string) => void; notify: 
                       <RiskBadge level={row.cardRiskLevel} />
                     </td>
                     <td data-label={t('admin.bills.review.column.since')}>
-                      {when(row.heldForReviewAt ?? row.createdAt)}
+                      <Ago iso={row.heldForReviewAt ?? row.createdAt} />
                     </td>
                     <td>
                       {row.heldForReviewAt ? (
@@ -350,9 +656,10 @@ function ReviewCard({ onOpen, notify }: { onOpen: (id: string) => void; notify: 
             </table>
           </div>
         ) : (
-          <p className="adm-notice">{t('admin.bills.review.empty')}</p>
+          <p className="adm-notice">
+            {t('admin.bills.review.empty')} {t('admin.bills.review.emptyHint')}
+          </p>
         )}
-        {rows.length > 0 && <p className="adm-notice">{t('admin.bills.review.radarHelp')}</p>}
       </Loading>
       {deciding && (
         <ReasonDialog
@@ -392,6 +699,12 @@ const EVENT_STATE: Record<AdminStripeEvent['state'], MessageKey> = {
   failed: msg('admin.bills.events.state.failed'),
   unhandled: msg('admin.bills.events.state.unhandled'),
 }
+const EVENT_TONE: Record<AdminStripeEvent['state'], 'neutral' | 'ok' | 'danger' | 'outline'> = {
+  processed: 'ok',
+  waiting: 'neutral',
+  failed: 'danger',
+  unhandled: 'outline',
+}
 const FILTERS: Record<BillingEventFilter, MessageKey> = {
   all: msg('admin.bills.events.filter.all'),
   waiting: msg('admin.bills.events.filter.waiting'),
@@ -401,7 +714,7 @@ const FILTERS: Record<BillingEventFilter, MessageKey> = {
 
 function EventsCard({ notify }: { notify: Notify }) {
   const t = useT()
-  const [filter, setFilter] = useState<BillingEventFilter>('all')
+  const [filter, setFilter] = useHashFilter(eventFilterOfHash, eventsHref)
   const query = useQuery(eventsKey(filter), loadEvents(filter))
   const [older, setOlder] = useState<EventsPage | null>(null)
   const [reprocessing, setReprocessing] = useState<AdminStripeEvent | null>(null)
@@ -425,14 +738,15 @@ function EventsCard({ notify }: { notify: Notify }) {
   async function reprocess(event: AdminStripeEvent, reason: string) {
     await runAdmin('billing.reprocessEvent', { eventId: event.id, reason })
     setOlder(null)
-    await refreshQuery(eventsKey(filter))
+    await Promise.all([refreshQuery(eventsKey(filter)), refreshQuery(SUMMARY)])
     return t('admin.bills.events.queued', { type: event.type })
   }
 
   return (
     <Card
       title={t('admin.bills.events.title')}
-      description={t('admin.bills.events.description')}
+      description={t('admin.bills.events.descriptionShort')}
+      help={t('admin.bills.events.description')}
       actions={
         <Select
           value={filter}
@@ -457,7 +771,7 @@ function EventsCard({ notify }: { notify: Notify }) {
       >
         {events.length ? (
           <div className="adm-scroll">
-            <table className="adm-table adm-stack">
+            <table className="adm-table adm-stack adm-events">
               <thead>
                 <tr>
                   <th scope="col">{t('admin.bills.events.column.event')}</th>
@@ -490,11 +804,11 @@ function EventsCard({ notify }: { notify: Notify }) {
                       {e.lastError && e.state !== 'processed' && <span className="adm-sub">{e.lastError}</span>}
                     </th>
                     <td data-label={t('admin.bills.events.column.state')}>
-                      <Badge tone={e.state === 'failed' ? 'danger' : e.state === 'processed' ? 'ok' : 'neutral'}>
-                        {t(EVENT_STATE[e.state])}
-                      </Badge>
+                      <Badge tone={EVENT_TONE[e.state]}>{t(EVENT_STATE[e.state])}</Badge>
                     </td>
-                    <td data-label={t('admin.bills.events.column.received')}>{when(e.receivedAt)}</td>
+                    <td data-label={t('admin.bills.events.column.received')}>
+                      <Ago iso={e.receivedAt} />
+                    </td>
                     <td className="adm-num" data-label={t('admin.bills.events.column.attempts')}>
                       {fmt().number(e.attempts)}
                     </td>
@@ -515,8 +829,15 @@ function EventsCard({ notify }: { notify: Notify }) {
               </tbody>
             </table>
           </div>
+        ) : filter === 'all' ? (
+          <p className="adm-notice">
+            <T k="admin.bills.events.emptyHow" values={{ link: appLink('#admin/providers/billing') }} />
+          </p>
         ) : (
-          <p className="adm-notice">{t('admin.bills.events.empty')}</p>
+          <p className="adm-notice">
+            {t('admin.bills.events.empty')}{' '}
+            <LinkButton onClick={() => setFilter('all')}>{t('admin.bills.events.showAll')}</LinkButton>
+          </p>
         )}
         {next && (
           <div>
@@ -548,10 +869,10 @@ function EventsCard({ notify }: { notify: Notify }) {
  */
 function SelfServeCard({ notify }: { notify: Notify }) {
   const t = useT()
-  const query = useQuery(SELF_SERVE, loadSelfServe)
+  const query = useQuery(SELF_SERVE, loadSelfServe, KEPT)
   const [asking, setAsking] = useState<boolean | null>(null)
   const data = query.data
-  const link = { link: (chunks: ReactNode[]) => <AppLink to="#admin/providers">{chunks}</AppLink> }
+  const link = { link: appLink('#admin/providers/billing') }
   return (
     <Card
       title={t('admin.bills.selfServe.title')}
@@ -593,7 +914,7 @@ function SelfServeCard({ notify }: { notify: Notify }) {
       </div>
       {data?.on && data.closedBecause === 'bot_check_missing' && (
         <Note tone="danger">
-          <T k="admin.bills.selfServe.closed.botCheck" values={link} />
+          <T k="admin.bills.selfServe.closed.botCheck" values={{ link: appLink('#admin/providers/turnstile') }} />
         </Note>
       )}
       {data?.on && data.closedBecause === 'billing_not_in_effect' && (
@@ -615,7 +936,8 @@ function SelfServeCard({ notify }: { notify: Notify }) {
           submit={t(asking ? 'admin.bills.selfServe.on' : 'admin.bills.selfServe.off')}
           run={async reason => {
             const saved = (await runAdmin('signup.setSelfServe', { on: asking, reason })) as unknown as SelfServeData
-            setQueryData<SelfServeData | undefined>(SELF_SERVE, saved)
+            setQueryData<SelfServeData | undefined>(SELF_SERVE, saved, KEPT)
+            await refreshQuery(SUMMARY)
             return t(saved.on ? 'admin.bills.selfServe.turnedOn' : 'admin.bills.selfServe.turnedOff')
           }}
           notify={notify}
@@ -623,6 +945,76 @@ function SelfServeCard({ notify }: { notify: Notify }) {
         />
       )}
     </Card>
+  )
+}
+
+// ---- One number field of the rules and limits editors ----
+
+const UNIT_END: Partial<Record<FieldUnit, MessageKey>> = {
+  usdPerMinute: msg('admin.bills.unit.perMinute'),
+  minutes: msg('admin.bills.unit.minutes'),
+  days: msg('admin.bills.unit.days'),
+  seconds: msg('admin.bills.unit.seconds'),
+  calls: msg('admin.bills.unit.calls'),
+}
+
+type NumberFieldProps = {
+  id: string
+  label: string
+  /** The detail behind the (?): what the field does, and the server's limit for it. */
+  help: string
+  value: string
+  /** The field's default, as the form holds it ("11"), and as the page says it ("$11.00"). */
+  fallback: string
+  fallbackText: string
+  unit: FieldUnit | null
+  error: string | null
+  /** Empty is a value of its own (none), not the default: no default as the placeholder. */
+  blankIsNone?: boolean
+  onChange: (value: string) => void
+}
+
+/**
+ * A number with its unit inside the field and its default as the placeholder: an empty field takes the default. A
+ * value of its own shows the default and a Reset beside the label, so the install's own values stand out.
+ */
+function NumberField(props: NumberFieldProps) {
+  const { id, label, help, value, fallback, fallbackText, unit, error, blankIsNone: blankNone, onChange } = props
+  const t = useT()
+  const own = (value.trim() !== '' || !!blankNone) && value.trim() !== fallback.trim()
+  const end = unit && UNIT_END[unit]
+  const money = unit === 'usd' || unit === 'usdPerMinute'
+  return (
+    <FormField
+      id={id}
+      label={label}
+      help={help}
+      error={error}
+      className={cx(own && 'adm-own')}
+      aside={
+        own ? (
+          <span className="adm-default">
+            {t('admin.bills.rules.default', { value: fallbackText || EMPTY })}
+            {' · '}
+            <LinkButton title={t('admin.bills.rules.resetTip')} onClick={() => onChange(fallback)}>
+              {t('admin.bills.rules.reset')}
+            </LinkButton>
+          </span>
+        ) : null
+      }
+    >
+      <Input
+        id={id}
+        inputMode="decimal"
+        size="sm"
+        value={value}
+        placeholder={blankNone ? undefined : fallback}
+        invalid={!!error}
+        start={money ? <span className="adm-unit">{usdSymbol()}</span> : undefined}
+        end={end ? <span className="adm-unit">{t(end)}</span> : undefined}
+        onChange={e => onChange(e.target.value)}
+      />
+    </FormField>
   )
 }
 
@@ -666,11 +1058,15 @@ const SIGNUP_LABELS: Record<SignupCountRule, [MessageKey, MessageKey]> = {
     msg('admin.bills.signupRules.field.trialNumbersPerWorkspace.help'),
   ],
 }
+const SIGNUP_GROUP_TITLES: Record<(typeof SIGNUP_GROUPS)[number]['id'], [MessageKey, MessageKey]> = {
+  codes: [msg('admin.bills.signupRules.group.codes'), msg('admin.bills.signupRules.group.codes.text')],
+  trial: [msg('admin.bills.signupRules.group.trial'), msg('admin.bills.signupRules.group.trial.text')],
+}
 
-/** The install's sign-up limits (`signup.rules`): until now only the database could change them. */
+/** The install's sign-up limits (`signup.rules`), in groups, saved together from one bar. */
 function SignupRulesCard({ notify }: { notify: Notify }) {
   const t = useT()
-  const query = useQuery(SELF_SERVE, loadSelfServe)
+  const query = useQuery(SELF_SERVE, loadSelfServe, KEPT)
   const data = query.data
   const saved = useMemo(() => (data ? signupForm(data.rules) : null), [data])
   const [form, setForm] = useState<SignupForm | null>(saved)
@@ -702,106 +1098,119 @@ function SignupRulesCard({ notify }: { notify: Notify }) {
             : f.reviewRiskLevels.filter(l => l !== level),
         },
     )
+  const loading = (
+    <Loading
+      what={t('admin.bills.signupRules.title')}
+      loading
+      error={query.error}
+      onRetry={() => void query.reload()}
+      skeleton={<SkeletonRows rows={4} columns={2} />}
+    />
+  )
+  if (!data || !form)
+    return (
+      <Card title={t('admin.bills.signupRules.title')} className="adm-detail">
+        {loading}
+      </Card>
+    )
   return (
-    <Card
-      title={t('admin.bills.signupRules.title')}
-      description={t('admin.bills.signupRules.description')}
-      className="adm-detail"
-    >
-      <Loading
-        what={t('admin.bills.signupRules.title')}
-        loading={!data || !form}
-        error={query.error}
-        onRetry={() => void query.reload()}
-        skeleton={<SkeletonRows rows={4} columns={2} />}
+    <form onSubmit={save} onKeyDown={e => onSaveKey(e, dirty)} className="adm-rules">
+      <Card
+        title={t('admin.bills.signupRules.title')}
+        description={t('admin.bills.signupRules.descriptionShort')}
+        help={t('admin.bills.signupRules.description')}
+        className="adm-detail"
       >
-        {data && form && (
-          <form onSubmit={save} className="adm-rules">
-            {data.problems.length > 0 && (
-              <Note tone="warning">{t('admin.bills.signupRules.ignored', { fields: data.problems.join(', ') })}</Note>
-            )}
-            <div className="swrow">
-              <div>
-                <b>{t('admin.bills.signupRules.turnstile')}</b>
-                <span className="help">
-                  {t('admin.bills.signupRules.turnstile.help')}
-                  {form.turnstile && !data.turnstileReady && <> {t('admin.bills.signupRules.turnstile.missingKeys')}</>}
-                </span>
-              </div>
-              <Switch
-                on={form.turnstile}
-                onChange={on => setForm(f => f && { ...f, turnstile: on })}
-                label={t('admin.bills.signupRules.turnstile')}
-              />
-            </div>
-            {!form.turnstile && <Note tone="warning">{t('admin.bills.signupRules.turnstile.offWarning')}</Note>}
-            {SIGNUP_COUNT_FIELDS.map(field => {
-              const [min, max] = SIGNUP_RULE_RANGES[field]
-              const [label, help] = SIGNUP_LABELS[field]
-              const id = `adm-signup-${field}`
-              return (
-                <FormField
-                  key={field}
-                  id={id}
-                  label={t(label)}
-                  aside={t('admin.bills.rules.default', { value: String(data.defaults[field]) })}
-                  description={t(help)}
-                  error={problems.includes(field) ? t('admin.bills.signupRules.notInRange', { min, max }) : null}
-                >
-                  <Input
-                    id={id}
-                    inputMode="numeric"
-                    size="sm"
-                    value={form.counts[field]}
-                    invalid={problems.includes(field)}
-                    onChange={e => setCount(field, e.target.value)}
-                  />
-                </FormField>
-              )
-            })}
-            <FormField
-              id="adm-signup-domains"
-              label={t('admin.bills.signupRules.blockedDomains')}
-              description={t('admin.bills.signupRules.blockedDomains.help')}
-            >
-              <Textarea
-                id="adm-signup-domains"
-                rows={3}
-                value={form.blockedDomains}
-                placeholder={t('admin.bills.signupRules.blockedDomains.placeholder')}
-                onChange={e => setForm(f => f && { ...f, blockedDomains: e.target.value })}
-              />
-            </FormField>
-            <fieldset className="adm-checks">
-              <legend>{t('admin.bills.signupRules.reviewRiskLevels')}</legend>
-              <p className="k-field-desc">{t('admin.bills.signupRules.reviewRiskLevels.help')}</p>
-              {RADAR_RISK_LEVELS.filter(level => level !== 'normal').map(level => (
-                <Checkbox
-                  key={level}
-                  checked={form.reviewRiskLevels.includes(level)}
-                  onChange={on => toggleLevel(level, on)}
-                >
-                  {t(RISK[level])}
-                </Checkbox>
-              ))}
-            </fieldset>
-            <div className="adm-actbar">
-              <Button type="submit" variant="primary" disabled={!dirty}>
-                {t('admin.bills.signupRules.save')}
-              </Button>
-              <Button
-                disabled={!dirty}
-                onClick={() => {
-                  setProblems([])
-                  if (saved) setForm(saved)
-                }}
-              >
-                {t('common.action.cancel')}
-              </Button>
-            </div>
-          </form>
+        {data.problems.length > 0 && (
+          <Note tone="warning">{t('admin.bills.signupRules.ignored', { fields: data.problems.join(', ') })}</Note>
         )}
-      </Loading>
+        <div className="swrow adm-swrow-first">
+          <div>
+            <b>
+              {t('admin.bills.signupRules.turnstile')}
+              <HelpTip text={t('admin.bills.signupRules.turnstile.help')} />
+            </b>
+            {form.turnstile && !data.turnstileReady && (
+              <span className="help">{t('admin.bills.signupRules.turnstile.missingKeys')}</span>
+            )}
+          </div>
+          <Switch
+            on={form.turnstile}
+            onChange={on => setForm(f => f && { ...f, turnstile: on })}
+            label={t('admin.bills.signupRules.turnstile')}
+          />
+        </div>
+        {!form.turnstile && <Note tone="warning">{t('admin.bills.signupRules.turnstile.offWarning')}</Note>}
+        <FormField
+          id="adm-signup-domains"
+          label={t('admin.bills.signupRules.blockedDomains')}
+          help={t('admin.bills.signupRules.blockedDomains.help')}
+        >
+          <Textarea
+            id="adm-signup-domains"
+            rows={2}
+            value={form.blockedDomains}
+            placeholder={t('admin.bills.signupRules.blockedDomains.placeholder')}
+            onChange={e => setForm(f => f && { ...f, blockedDomains: e.target.value })}
+          />
+        </FormField>
+      </Card>
+      {SIGNUP_GROUPS.map(group => {
+        const [title, text] = SIGNUP_GROUP_TITLES[group.id]
+        return (
+          <Card key={group.id} title={t(title)} description={t(text)} className="adm-detail">
+            <div className="adm-rules-grid">
+              {group.fields.map(field => {
+                const [min, max] = SIGNUP_RULE_RANGES[field]
+                const [label, help] = SIGNUP_LABELS[field]
+                const fallback = String(data.defaults[field])
+                return (
+                  <NumberField
+                    key={field}
+                    id={`adm-signup-${field}`}
+                    label={t(label)}
+                    help={`${t(help)} ${t('admin.bills.signupRules.range', { min, max })}`}
+                    value={form.counts[field]}
+                    fallback={fallback}
+                    fallbackText={fmt().number(data.defaults[field])}
+                    unit={field === 'pendingDays' ? 'days' : null}
+                    error={problems.includes(field) ? t('admin.bills.signupRules.notInRange', { min, max }) : null}
+                    onChange={value => setCount(field, value)}
+                  />
+                )
+              })}
+            </div>
+          </Card>
+        )
+      })}
+      <Card
+        title={t('admin.bills.signupRules.reviewRiskLevels')}
+        description={t('admin.bills.signupRules.reviewRiskLevels.short')}
+        help={t('admin.bills.signupRules.reviewRiskLevels.help')}
+        className="adm-detail"
+      >
+        <fieldset className="adm-checks adm-checks-row">
+          <legend className="sr-only">{t('admin.bills.signupRules.reviewRiskLevels')}</legend>
+          {RADAR_RISK_LEVELS.filter(level => level !== 'normal').map(level => (
+            <Checkbox
+              key={level}
+              checked={form.reviewRiskLevels.includes(level)}
+              onChange={on => toggleLevel(level, on)}
+            >
+              {t(RISK[level])}
+            </Checkbox>
+          ))}
+        </fieldset>
+      </Card>
+      <SaveBar
+        dirty={dirty}
+        onCancel={() => {
+          setProblems([])
+          if (saved) setForm(saved)
+        }}
+        label={t('admin.bills.signupRules.save')}
+        note={t('admin.bills.rules.unsaved', { count: saved ? signupChanges(form, saved) : 0 })}
+      />
       {asking && (
         <ReasonDialog
           title={t('admin.bills.signupRules.confirmTitle')}
@@ -812,20 +1221,21 @@ function SignupRulesCard({ notify }: { notify: Notify }) {
           submit={t('admin.bills.signupRules.save')}
           run={async reason => {
             const next = (await runAdmin('signup.setRules', { rules: asking, reason })) as unknown as SelfServeData
-            setQueryData<SelfServeData | undefined>(SELF_SERVE, next)
+            setQueryData<SelfServeData | undefined>(SELF_SERVE, next, KEPT)
+            await refreshQuery(SUMMARY)
             return t('admin.bills.signupRules.saved')
           }}
           notify={notify}
           onClose={() => setAsking(null)}
         />
       )}
-    </Card>
+    </form>
   )
 }
 
 // ---- Billing rules ----
 
-/** Each rule's plain label and the line under it that says what it does. */
+/** Each rule's plain label and its detail behind the (?). */
 const RULE_LABELS: Record<RuleField, [MessageKey, MessageKey]> = {
   workspaceMonthlyCents: [
     msg('admin.bills.rules.field.workspaceMonthlyCents'),
@@ -886,17 +1296,14 @@ const RULE_LABELS: Record<RuleField, [MessageKey, MessageKey]> = {
     msg('admin.bills.rules.field.rechargeCapPerWorkspaceCents.help'),
   ],
 }
-/** A rule's help, then the server's limit for it when there is one. */
-const joined = (help: string, limit?: string): ReactNode =>
-  limit ? (
-    <>
-      {help}
-      <br />
-      {limit}
-    </>
-  ) : (
-    help
-  )
+
+const GROUP_TITLES: Record<RuleGroupId, [MessageKey, MessageKey]> = {
+  plans: [msg('admin.bills.rules.group.plans'), msg('admin.bills.rules.group.plans.text')],
+  minutes: [msg('admin.bills.rules.group.minutes'), msg('admin.bills.rules.group.minutes.text')],
+  trial: [msg('admin.bills.rules.group.trial'), msg('admin.bills.rules.group.trial.text')],
+  concurrency: [msg('admin.bills.rules.group.concurrency'), msg('admin.bills.rules.group.concurrency.text')],
+  limits: [msg('admin.bills.rules.group.limits'), msg('admin.bills.rules.group.limits.text')],
+}
 
 const LEVEL_NAMES: Record<string, MessageKey> = {
   standard: msg('admin.bills.rules.levelName.standard'),
@@ -906,7 +1313,7 @@ const LEVEL_NAMES: Record<string, MessageKey> = {
 
 function RulesCard({ notify }: { notify: Notify }) {
   const t = useT()
-  const query = useQuery(RULES, loadRules)
+  const query = useQuery(RULES, loadRules, KEPT)
   const data = query.data
   const saved = useMemo(() => (data ? rulesForm(data.effective) : null), [data])
   const defaults = useMemo(() => (data ? rulesForm(data.defaults) : null), [data])
@@ -916,7 +1323,8 @@ function RulesCard({ notify }: { notify: Notify }) {
   useEffect(() => {
     if (saved) setForm(saved)
   }, [saved])
-  const dirty = !!saved && changedFields(form, saved).length > 0
+  const changes = saved ? changedFields(form, saved).length : 0
+  const dirty = changes > 0
   // Asked of Stripe only while the confirm dialog turns tax on, never with the rules (security review of #1105, N-1).
   const turningTaxOn = !!asking && !!saved && saved[TAX_FIELD] !== 'on' && form[TAX_FIELD] === 'on'
   const taxAddress = useQuery(turningTaxOn ? TAX_ADDRESS : null, loadTaxAddress)
@@ -928,87 +1336,112 @@ function RulesCard({ notify }: { notify: Notify }) {
     setProblems(parsed.problems)
     if ('rules' in parsed) setAsking(parsed.rules)
   }
-  const field = (key: string, label: string, aside?: ReactNode, defaultText?: string) => (
-    <FormField
+  if (!data || !defaults)
+    return (
+      <Card title={t('admin.bills.rules.title')} className="adm-detail">
+        <Loading
+          what={t('admin.bills.rules.title')}
+          loading
+          error={query.error}
+          onRetry={() => void query.reload()}
+          skeleton={<SkeletonRows rows={4} columns={2} />}
+        />
+      </Card>
+    )
+  const own = customFields(form, defaults).length
+  const field = (key: string, label: string, help: string, fallbackText?: string) => (
+    <NumberField
       key={key}
       id={`adm-rule-${key}`}
       label={label}
-      aside={defaults && t('admin.bills.rules.default', { value: defaultText ?? (defaults[key] || EMPTY) })}
-      description={aside}
+      help={help}
+      value={form[key] ?? ''}
+      fallback={defaults[key] ?? ''}
+      fallbackText={fallbackText ?? defaultText(key, defaults[key] ?? '')}
+      unit={ruleUnit(key)}
+      blankIsNone={blankIsNone(key)}
       error={problems.includes(key) ? t('admin.bills.rules.notANumber') : null}
-    >
-      <Input
-        id={`adm-rule-${key}`}
-        inputMode="decimal"
-        size="sm"
-        value={form[key] ?? ''}
-        invalid={problems.includes(key)}
-        onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-      />
-    </FormField>
+      onChange={value => setForm(f => ({ ...f, [key]: value }))}
+    />
   )
+  const ruleField = (key: RuleField) => {
+    const floor = planFloorText(key, data.minPlanCents)
+    return field(key, t(RULE_LABELS[key][0]), floor ? `${t(RULE_LABELS[key][1])} ${floor}` : t(RULE_LABELS[key][1]))
+  }
+  const minPrice =
+    data.minMicrosPerMinute > 0
+      ? ` ${t('admin.bills.rules.minPrice', { amount: rateOfMicros(data.minMicrosPerMinute) })}`
+      : ''
   return (
-    <Card title={t('admin.bills.rules.title')} description={t('admin.bills.rules.description')} className="adm-detail">
-      <Loading
-        what={t('admin.bills.rules.title')}
-        loading={!data}
-        error={query.error}
-        onRetry={() => void query.reload()}
-        skeleton={<SkeletonRows rows={4} columns={2} />}
-      >
-        {data && (
-          <form onSubmit={save} className="adm-rules">
-            {data.problems.length > 0 && (
-              <Note tone="warning">{t('admin.bills.rules.ignored', { fields: data.problems.join(', ') })}</Note>
-            )}
-            <div className="swrow">
-              <div>
-                <b>{t('admin.bills.rules.automaticTax')}</b>
-                <span className="help">{t('admin.bills.rules.automaticTax.help')}</span>
+    <form onSubmit={save} onKeyDown={e => onSaveKey(e, dirty)} className="adm-rules">
+      <p className="adm-lede">
+        {t('admin.bills.rules.lede', { count: own })}
+        <HelpTip text={t('admin.bills.rules.description')} />
+      </p>
+      {data.problems.length > 0 && (
+        <Note tone="warning">{t('admin.bills.rules.ignored', { fields: data.problems.join(', ') })}</Note>
+      )}
+      {RULE_GROUPS.map(group => {
+        const [title, text] = GROUP_TITLES[group.id]
+        return (
+          <Card
+            key={group.id}
+            id={`adm-rules-${group.id}`}
+            title={t(title)}
+            description={t(text)}
+            className="adm-detail"
+          >
+            {group.id === 'minutes' && (
+              <div className="adm-rules-levels">
+                {Object.entries(data.defaults.levels).map(([level, fallback]) => {
+                  const name = LEVEL_NAMES[level] ? t(LEVEL_NAMES[level]) : level
+                  return (
+                    <div key={level} className="adm-rules-grid">
+                      {field(
+                        `levels.${level}.price`,
+                        t('admin.bills.rules.levelPrice', { level: name }),
+                        `${t('admin.bills.rules.levelPrice.help', { level: name })}${minPrice}`,
+                        rateOfMicros(fallback.microsPerMinute),
+                      )}
+                      {field(
+                        `levels.${level}.factor`,
+                        t('admin.bills.rules.levelFactor', { level: name }),
+                        t('admin.bills.rules.levelFactor.help', { level: name }),
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-              <Switch
-                on={form[TAX_FIELD] === 'on'}
-                onChange={on => setForm(f => ({ ...f, [TAX_FIELD]: on ? 'on' : 'off' }))}
-                label={t('admin.bills.rules.automaticTax')}
-              />
-            </div>
-            {Object.entries(data.defaults.levels).map(([level, fallback]) => {
-              const name = LEVEL_NAMES[level] ? t(LEVEL_NAMES[level]) : level
-              return (
-                <div key={level} className="adm-rules-row">
-                  {field(
-                    `levels.${level}.price`,
-                    t('admin.bills.rules.levelPrice', { level: name }),
-                    joined(
-                      t('admin.bills.rules.levelPrice.help', { level: name }),
-                      data.minMicrosPerMinute > 0
-                        ? t('admin.bills.rules.minPrice', { amount: rateOfMicros(data.minMicrosPerMinute) })
-                        : undefined,
-                    ),
-                    rateOfMicros(fallback.microsPerMinute),
-                  )}
-                  {field(
-                    `levels.${level}.factor`,
-                    t('admin.bills.rules.levelFactor', { level: name }),
-                    t('admin.bills.rules.levelFactor.help', { level: name }),
-                  )}
-                </div>
-              )
-            })}
-            {RULE_FIELDS.map(([key]) =>
-              field(key, t(RULE_LABELS[key][0]), joined(t(RULE_LABELS[key][1]), planFloorText(key, data.minPlanCents))),
             )}
-            <div className="adm-actbar">
-              <Button type="submit" variant="primary" disabled={!dirty}>
-                {t('admin.bills.rules.save')}
-              </Button>
-              <Button disabled={!dirty} onClick={() => saved && setForm(saved)}>
-                {t('common.action.cancel')}
-              </Button>
-            </div>
-          </form>
-        )}
-      </Loading>
+            <div className="adm-rules-grid">{group.fields.map(key => ruleField(key))}</div>
+          </Card>
+        )
+      })}
+      <Card id="adm-rules-tax" title={t('admin.bills.rules.group.tax')} className="adm-detail">
+        <div className="swrow adm-swrow-first">
+          <div>
+            <b>
+              {t('admin.bills.rules.automaticTax')}
+              <HelpTip text={t('admin.bills.rules.automaticTax.help')} />
+            </b>
+            <span className="help">{t('admin.bills.rules.automaticTax.short')}</span>
+          </div>
+          <Switch
+            on={form[TAX_FIELD] === 'on'}
+            onChange={on => setForm(f => ({ ...f, [TAX_FIELD]: on ? 'on' : 'off' }))}
+            label={t('admin.bills.rules.automaticTax')}
+          />
+        </div>
+      </Card>
+      <SaveBar
+        dirty={dirty}
+        onCancel={() => {
+          setProblems([])
+          if (saved) setForm(saved)
+        }}
+        label={t('admin.bills.rules.save')}
+        note={t('admin.bills.rules.unsaved', { count: changes })}
+      />
       {asking && (
         <ReasonDialog
           title={t('admin.bills.rules.confirmTitle')}
@@ -1019,7 +1452,8 @@ function RulesCard({ notify }: { notify: Notify }) {
               if ((err as { code?: string }).code !== PLAN_PRICE_FLOOR) throw err
               throw new Error(t('admin.bills.rules.planFloor', { amount: usdOfCents(data?.minPlanCents ?? 0) }))
             })) as unknown as BillingRulesData
-            setQueryData<BillingRulesData | undefined>(RULES, next)
+            setQueryData<BillingRulesData | undefined>(RULES, next, KEPT)
+            await refreshQuery(SUMMARY)
             return t('admin.bills.rules.saved')
           }}
           notify={notify}
@@ -1029,7 +1463,7 @@ function RulesCard({ notify }: { notify: Notify }) {
           {taxChange(form, saved, taxAddress.error ? null : taxAddress.data, t)}
         </ReasonDialog>
       )}
-    </Card>
+    </form>
   )
 }
 
