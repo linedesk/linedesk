@@ -317,6 +317,7 @@ const all = [
   billingPage.billingSetRechargeCap,
   billingPage.billingOpenPortal,
   billingPage.billingRetryRecharge,
+  billingPage.billingWorkspaceUsage,
   admin.impersonationEmailsGet,
   admin.impersonationEmailsSet,
   workspaceCreation.workspaceCreate,

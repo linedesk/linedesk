@@ -151,7 +151,7 @@ describe('closed unless switched on and billing is in effect', () => {
   test('switched off: the page says closed, no code goes out, no account is made', async () => {
     await setting(SELF_SERVE_KEY, null)
     const config = await request(anonymous, 'GET', '/v1/signup/config')
-    expect(config.body).toMatchObject({ ok: true, open: false, turnstileSiteKey: null })
+    expect(config.body).toMatchObject({ ok: true, open: false, turnstileSiteKey: null, plan: null })
     const email = address('closed')
     const asked = await askCode(email)
     expect(asked).toMatchObject({ status: 404, body: { ok: false, code: 'closed' }, code: null })
@@ -164,10 +164,12 @@ describe('closed unless switched on and billing is in effect', () => {
     expect(await askCode(address('nobilling'))).toMatchObject({ status: 404, code: null })
   })
 
-  test('open: the config says so and names the sign-up countries', async () => {
+  test("open: the config says so and names the sign-up countries and the plan at the install's prices", async () => {
     expect((await request(anonymous, 'GET', '/v1/signup/config')).body).toMatchObject({
       open: true,
       countries: ['US', 'CA', 'PR'],
+      // The sign-up page shows the price and the trial (billing tour, G3), from the rules, not written into the page.
+      plan: { monthlyCents: 1100, yearlyCents: 10_800, trialDays: 14 },
     })
   })
 

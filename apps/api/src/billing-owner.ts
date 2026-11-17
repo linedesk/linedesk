@@ -125,6 +125,7 @@ async function billingState({
         ...lifecycleDates(bill),
         canceledAt: bill.status === 'canceled' ? bill.canceled_at : null,
         rechargeFailed: !!bill.recharge_failed_at,
+        heldForReview: !!bill.held_for_review_at,
         ...(await balanceFlags(tx, bill, now)),
         unpaidNumbers: unpaid.map(n => ({
           e164: n.e164,

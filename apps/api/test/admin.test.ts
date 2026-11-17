@@ -2372,6 +2372,9 @@ describe('impersonation', () => {
       'billing.adminReview',
       // The bill owner's banner data (PR 11), so support sees what the owner sees; port-out PINs stay refused.
       'billing.state',
+      // A workspace admin's usage of this workspace (billing tour G3): read-only figures support may see too; no
+      // payment control and no invoice link (security review of #1098).
+      'billing.workspaceUsage',
       'billingEnabled.get',
       'billingRules.get',
       'calendar.findSlots',

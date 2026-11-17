@@ -74,6 +74,9 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['billing.setRechargeCap', OWNER_IN_APP],
   ['billing.openPortal', OWNER_IN_APP],
   ['billing.retryRecharge', OWNER_IN_APP],
+  // A workspace admin's usage view (billing tour G3, security review of #1098, L-2): billing stays in the app, like the
+  // owner's overview; no key reads billing figures (workspace keys and setup links are refused by the handler).
+  ['billing.workspaceUsage', BROWSER],
 ])
 
 /** Why a personal key may not run `name`, or null when it may (if its maker may). */

@@ -6,6 +6,7 @@ import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import type { Me } from './auth.ts'
 import { goToCheckout } from './checkout.ts'
+import { planWords } from './signup.ts'
 import { signOutAndForget } from './localData.ts'
 import { AuthError } from './ui/AuthError.tsx'
 import { AuthPage, cx, Spinner } from './ui/kit.tsx'
@@ -33,6 +34,11 @@ export function PendingPayment({ me, onDone }: { me: Me; onDone: () => void | Pr
             ? t('auth.pendingPayment.trialText', { days: me.workspace.trialDays })
             : t('auth.pendingPayment.trialTextNoDays')}
         </p>
+        {me.workspace?.plan && (
+          <p className="auth-hint">
+            {t('auth.pendingPayment.plan', { plan: planWords(me.workspace.plan.interval, me.workspace.plan.cents) })}
+          </p>
+        )}
         {failed && <AuthError message={t('auth.checkout.startFailed')} />}
         <button
           type="button"

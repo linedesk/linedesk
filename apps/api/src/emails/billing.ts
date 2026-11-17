@@ -4,7 +4,8 @@
 import { getT } from '@linedesk/i18n/server'
 import { brandName } from '../branding.ts'
 import { type Block, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
-import { type EmailLocale, WEB_ORIGIN } from './templates.ts'
+import { BILLING_PATH } from './billing-lifecycle.ts'
+import { appLink, type EmailLocale, WEB_ORIGIN } from './templates.ts'
 
 export type BillingOwnerEmail =
   /** `invoiceUrl`: the invoice's own page, where the owner confirms the payment (3DS); null when it was voided. */
@@ -15,9 +16,16 @@ export type BillingOwnerEmail =
     | { kind: 'low_balance'; balanceMicros: number }
     /**
      * The trial ends in three days (§3.2 step 8): the plan's charge then, its date, the first recharge with it (null
-     * when auto-recharge is off) and how to cancel.
+     * when auto-recharge is off) and how to cancel. `workspaceId`: the bill's oldest workspace, whose Settings ›
+     * Billing the button opens (cancel is there); null: no button.
      */
-    | { kind: 'trial_will_end'; planCents: number; trialEnd: string; rechargeCents: number | null }
+    | {
+        kind: 'trial_will_end'
+        planCents: number
+        trialEnd: string
+        rechargeCents: number | null
+        workspaceId: string | null
+      }
   ) & {
     /** How far below zero calls go on (the install's rules). */
     bufferMicros: number
@@ -98,6 +106,13 @@ function trialWillEndEmail(
     },
     { kind: 'text', text: t('email.billing.trialWillEnd.cancel', values) },
   ]
+  // The cancel link: Settings › Billing, where the plan is canceled in two clicks (the portal has no cancel).
+  if (email.workspaceId)
+    blocks.push({
+      kind: 'button',
+      label: t('email.billing.trialWillEnd.button'),
+      url: appLink(origin, email.workspaceId, BILLING_PATH),
+    })
   return renderEmail({
     locale: lang,
     subject,

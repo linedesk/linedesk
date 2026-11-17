@@ -3,12 +3,24 @@
 // primary), past due and suspended in plain words, cancel and resume, and the page for someone who does not pay.
 import type { BillingOverviewBill, BillingOverviewData, BillingStateBill } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { expect, test, vi } from 'vitest'
+import { expect, onTestFinished, test, vi } from 'vitest'
 
-const queries = vi.hoisted(() => ({ overview: undefined as unknown, state: undefined as unknown }))
+const queries = vi.hoisted(() => ({
+  overview: undefined as unknown,
+  state: undefined as unknown,
+  usage: undefined as unknown,
+  links: { supportEmail: 'support@linedesk.test', terms: null, privacy: null } as unknown,
+}))
 vi.mock('../cachedQuery.ts', () => ({
   useQuery: (key: string) => ({
-    data: key === 'billing.overview' ? queries.overview : queries.state,
+    data:
+      key === 'billing.overview'
+        ? queries.overview
+        : key === 'billing.workspaceUsage'
+          ? queries.usage
+          : key === 'auth-methods'
+            ? { links: queries.links }
+            : queries.state,
     error: null,
     reload: async () => {},
   }),
@@ -17,7 +29,7 @@ vi.mock('../cachedQuery.ts', () => ({
 }))
 vi.mock('./settings-api.ts', () => ({ readAction: vi.fn(), callAction: vi.fn() }))
 
-const { Billing } = await import('./Billing.tsx')
+const { Billing, CancelDialog } = await import('./Billing.tsx')
 
 const DAY = 86_400_000
 const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => ({
@@ -33,6 +45,9 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
   autoRecharge: { on: true, thresholdCents: 500, amountCents: 2000 },
   cap: { baseCents: 5000, effectiveCents: 5000, usedThisMonthCents: 2000, ownerMaxBaseCents: 100_000 },
   rechargeFailure: null,
+  rechargePending: null,
+  heldForReview: false,
+  extraNumberCents: 300,
   canBuyMinutes: true,
   hasPortal: true,
   period: {
@@ -72,6 +87,7 @@ const state = (over: Partial<BillingStateBill> = {}): BillingStateBill => ({
   numbersReleaseAt: null,
   dataUntil: null,
   rechargeFailed: false,
+  heldForReview: false,
   rechargeNeedsAction: false,
   lowBalance: null,
   unpaidNumbers: [],
@@ -166,4 +182,89 @@ test('someone who does not pay for the workspace, or billing off: nothing about 
   const off = render({ billingOn: false, bill: null })
   expect(off).toContain('Billing is off on this server.')
   expect(off).not.toContain('Buy minutes')
+})
+
+test('a bill held for review: "Under review", what it means and whom to write, never "Active"', () => {
+  const html = render({ billingOn: true, bill: bill({ heldForReview: true }) })
+  expect(html).toContain('Under review')
+  expect(html).not.toContain('>Active<')
+  expect(html).toContain('We are checking your card')
+  expect(html).toContain('you cannot get a phone number')
+  expect(html).toContain('support@linedesk.test')
+})
+
+test('a comped bill: free of charge, no price, no balance to top up and no auto-recharge', () => {
+  const html = render({
+    billingOn: true,
+    bill: bill({ status: 'comped', balanceMicros: 0, availableMicros: 0, extraNumberCents: 0, invoices: [] }),
+  })
+  expect(html).toContain('Free of charge · 1 workspace')
+  expect(html).not.toContain('$11.00')
+  expect(html).not.toContain('Recharge automatically')
+  expect(html).not.toContain('Buy minutes')
+  expect(html).not.toContain('Extra numbers are')
+  expect(html).toContain('Usage this period')
+})
+
+test('the price of an extra number, and a recharge on its way', () => {
+  const html = render({ billingOn: true, bill: bill({ rechargePending: { amountCents: 2000 } }) })
+  expect(html).toContain('Extra numbers are $3 a month each, paid from your balance.')
+  expect(html).toContain('A recharge of $20.00 is being charged to your card.')
+})
+
+test('a workspace admin: the usage of this workspace, read-only, and no payment controls', () => {
+  queries.usage = {
+    usage: {
+      period: bill().period,
+      row: { ...bill().usage[0]!, name: 'Brightwater Plumbing & Heating' },
+    },
+  }
+  const html = renderToStaticMarkup(<Billing toast={() => {}} owner={false} />)
+  expect(html).toContain('handled by the person who pays for it')
+  expect(html).toContain('Usage this period')
+  expect(html).toContain('20 of 50 included minutes used')
+  expect(html).not.toContain('Buy minutes')
+  expect(html).not.toContain('Cancel plan')
+  expect(html).not.toContain('Card and invoices')
+  expect(primaries(html)).toBe(0)
+})
+
+test('the cancel dialog: the yearly refund within 14 days and the balance refund, and whom to ask', () => {
+  // The dialog remembers the focused element (no DOM here): rendered in place, without a portal.
+  vi.stubGlobal('document', { activeElement: null })
+  onTestFinished(() => {
+    vi.unstubAllGlobals()
+  })
+  const recent = renderToStaticMarkup(
+    <CancelDialog
+      bill={bill({
+        interval: 'year',
+        invoices: [
+          { ...bill().invoices[0]!, totalCents: 10_800, createdAt: new Date(Date.now() - 3 * DAY).toISOString() },
+        ],
+      })}
+      onClose={() => {}}
+      toast={() => {}}
+    />,
+  )
+  expect(recent).toContain('you can get a full refund if you ask by')
+  expect(recent).toContain('Your unused balance of $12.34 is refunded if you ask')
+  expect(recent).toContain('To ask for a refund, write to support@linedesk.test.')
+  const late = renderToStaticMarkup(
+    <CancelDialog
+      bill={bill({
+        interval: 'year',
+        availableMicros: 0,
+        balanceMicros: 0,
+        invoices: [{ ...bill().invoices[0]!, createdAt: new Date(Date.now() - 40 * DAY).toISOString() }],
+      })}
+      onClose={() => {}}
+      toast={() => {}}
+    />,
+  )
+  expect(late).toContain('The rest of the year is not refunded.')
+  expect(late).not.toContain('write to')
+  const monthly = renderToStaticMarkup(<CancelDialog bill={bill()} onClose={() => {}} toast={() => {}} />)
+  expect(monthly).not.toContain('refunded if you ask by')
+  expect(monthly).toContain('Your unused balance of $12.34')
 })

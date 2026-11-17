@@ -7,8 +7,11 @@ import {
   canResume,
   daysLeft,
   dollarsToCents,
+  paysCharges,
   refusalKey,
+  statusBadge,
   usageLine,
+  yearlyRefundLine,
 } from './billingModel.ts'
 
 test('typed dollars: whole amounts in range only', () => {
@@ -68,6 +71,9 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
   autoRecharge: { on: true, thresholdCents: 500, amountCents: 2000 },
   cap: { baseCents: 5000, effectiveCents: 5000, usedThisMonthCents: 0, ownerMaxBaseCents: 100_000 },
   rechargeFailure: null,
+  rechargePending: null,
+  heldForReview: false,
+  extraNumberCents: 300,
   canBuyMinutes: true,
   hasPortal: true,
   period: null,
@@ -85,6 +91,7 @@ const state = (over: Partial<BillingStateBill> = {}): BillingStateBill => ({
   numbersReleaseAt: null,
   dataUntil: null,
   rechargeFailed: false,
+  heldForReview: false,
   rechargeNeedsAction: false,
   lowBalance: null,
   unpaidNumbers: [],
@@ -129,4 +136,51 @@ test('cancel and Keep my plan: in the trial, paid, past due and suspended (the p
     expect(canCancel(bill({ status })), status).toBe(false)
     expect(canResume(bill({ status, cancelAtPeriodEnd: true })), status).toBe(false)
   }
+})
+
+test('a bill held for review says so instead of "Active", in the badge and the banner', () => {
+  expect(statusBadge('active').key).toBe('settings.billing.status.active')
+  expect(statusBadge('active', true).key).toBe('settings.billing.status.held')
+  expect(statusBadge('trialing', true).key).toBe('settings.billing.status.held')
+  // A held bill that is suspended or canceled says that instead.
+  expect(statusBadge('suspended', true).key).toBe('settings.billing.status.suspended')
+  expect(billingBanner(state({ heldForReview: true }))).toEqual({
+    key: 'settings.billing.banner.held',
+    tone: 'warning',
+  })
+  expect(billingBanner(state({ heldForReview: true, status: 'past_due' }))?.key).toBe('settings.billing.banner.pastDue')
+})
+
+test('a comped bill pays nothing', () => {
+  expect(paysCharges(bill({ status: 'comped' }))).toBe(false)
+  expect(paysCharges(bill())).toBe(true)
+})
+
+test('cancel: a yearly plan paid in the last 14 days is refunded on request until the 14th day, later not at all', () => {
+  const now = Date.parse('2026-11-16T12:00:00Z')
+  const fmt = (iso: string) => iso.slice(0, 10)
+  const paidOn = (createdAt: string) =>
+    bill({
+      interval: 'year',
+      invoices: [
+        { id: 'in_1', kind: 'subscription', number: null, status: 'paid', totalCents: 10_800, createdAt, url: null },
+        {
+          id: 'in_2',
+          kind: 'recharge',
+          number: null,
+          status: 'paid',
+          totalCents: 2000,
+          createdAt: '2026-11-15T00:00:00Z',
+          url: null,
+        },
+      ],
+    })
+  expect(yearlyRefundLine(paidOn('2026-11-10T00:00:00Z'), fmt, now)).toEqual({
+    key: 'settings.billing.cancel.yearlyRefund',
+    values: { date: '2026-11-24' },
+  })
+  expect(yearlyRefundLine(paidOn('2026-10-01T00:00:00Z'), fmt, now)?.key).toBe('settings.billing.cancel.yearlyNoRefund')
+  // Monthly plans and the trial (nothing was charged) say nothing about it.
+  expect(yearlyRefundLine(bill({ interval: 'month' }), fmt, now)).toBeNull()
+  expect(yearlyRefundLine(bill({ interval: 'year', status: 'trialing' }), fmt, now)).toBeNull()
 })

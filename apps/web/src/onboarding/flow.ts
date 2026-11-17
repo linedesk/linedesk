@@ -436,6 +436,26 @@ export function priceNote(provider: string | null, country: string | null = null
 }
 
 /**
+ * The price line under the area code on a workspace that is on a bill (Linedesk Cloud) and buys on the install's
+ * carrier account (docs/billing.md §2, §3.2 step 6): the first number of the workspace is included in the plan, each
+ * further one costs `extraNumberCents` a month from the balance. Null where the carrier's list price applies instead
+ * (off billing, a comped bill, the workspace's own carrier account: the caller passes null; development mode).
+ * `numbersBought`: the workspace's numbers bought on the install's carrier account.
+ */
+export function billedNumberNote(
+  extraNumberCents: number | null,
+  provider: string | null,
+  numbersBought: number,
+): string | null {
+  if (extraNumberCents === null || provider === 'dev') return null
+  const { t, format } = i18n()
+  if (numbersBought < 1) return t('onboarding.flow.price.included')
+  return t('onboarding.flow.price.extra', {
+    price: format.currency(extraNumberCents / 100, 'USD', { minimumFractionDigits: extraNumberCents % 100 ? 2 : 0 }),
+  })
+}
+
+/**
  * The question before buying. In development mode nothing is bought or billed; the note under the field says so once
  * (priceNote), so the question doesn't repeat it.
  */

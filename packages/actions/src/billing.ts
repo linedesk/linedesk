@@ -112,6 +112,8 @@ export type BillingStateBill = {
   numbersReleaseAt: string | null
   dataUntil: string | null
   rechargeFailed: boolean
+  /** Held for review (Radar flagged the card): no number can be bought until an instance admin approves it. */
+  heldForReview: boolean
   /** The failed recharge waits for the owner to confirm the payment on its invoice page (3D Secure). */
   rechargeNeedsAction: boolean
   /**

@@ -43,7 +43,7 @@ import { emailSender } from '../src/email.ts'
 import { setJobQueue } from '../src/jobs.ts'
 import { checkLedgerGuards } from '../src/ledger-guards.ts'
 import { processStripeEventJob } from '../src/stripe-events.ts'
-import { act, addMember, type Caller, createWorkspace, type User } from './helpers.ts'
+import { act, addMember, type Caller, createWorkspace, request, type User } from './helpers.ts'
 // After the app (helpers.ts loads it): the sweep's module reaches the handler registry.
 const { sweepSignUps } = await import('../src/signup-handlers.ts')
 
@@ -1073,7 +1073,7 @@ describe('security review of #961', () => {
 
 describe('the trial ends (customer.subscription.trial_will_end, invoice.created)', () => {
   test('three days before: one alert per trial, an email with the charge, the date and how to cancel', async () => {
-    const { bill, sub } = await trialWith(rid('fp'))
+    const { bill, sub, ws } = await trialWith(rid('fp'))
     const customer = sub.customer as string
     const object = { id: sub.id, object: 'subscription', customer }
     expect(await processEvent('customer.subscription.trial_will_end', object)).toMatchObject({ detail: 'emailed' })
@@ -1092,6 +1092,8 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
     expect(mail.text).toContain('$11.00')
     expect(mail.text).toContain('adds $20.00')
     expect(mail.text).toContain('Cancel in Settings › Billing')
+    // The cancel link: the bill's workspace's Settings › Billing.
+    expect(mail.html).toContain(`#workspace/billing?ws=${encodeURIComponent(ws.id)}`)
   })
 
   test('the conversion invoice gets the first recharge as an invoice item, once', async () => {
@@ -1202,6 +1204,12 @@ describe("the install's own prices, trial and name (docs/billing.md §7b)", () =
       200,
     )
     const { owner } = await pendingSignUp()
+    // The page waiting for a card says the price and the trial Checkout will use (billing tour, G3).
+    expect((await request(owner, 'GET', '/v1/me')).body.workspace).toMatchObject({
+      trialDays: 7,
+      plan: { interval: 'month', cents: 900 },
+      extraNumberCents: 300,
+    })
     const made = Object.fromEntries((await startCheckout(owner)).body)
     expect(made).toMatchObject({
       'subscription_data[trial_period_days]': '7',

@@ -216,6 +216,8 @@
   "flow.price.carrier": "About {price} a month plus call minutes, billed by {carrier}.",
   "flow.price.carrierUnknown": "A monthly fee plus call minutes, billed by {carrier}.",
   "flow.price.dev": "Development mode: nothing is bought, the number is not real.",
+  "flow.price.extra": "Each extra number is {price} a month, paid from your balance.",
+  "flow.price.included": "Your first number is included in your plan.",
   "flow.price.unknown": "A monthly fee plus call minutes, billed by your carrier.",
   "flow.problem.confirmCost": "Confirm the monthly cost first.",
   "flow.problem.enterNumber": "Enter the number with its area code, like +1 503 555 0100.",

@@ -3,12 +3,14 @@
 // (Stripe Checkout), a failed recharge with Retry, auto-recharge and the monthly cap (raising it confirms it is them),
 // this period's usage per workspace and level, the latest invoices with Stripe's pages, the Stripe portal for the card
 // and every invoice, and cancel in two clicks (US click-to-cancel). Shown only while the workspace is on a bill
-// (`me.workspace.billingState`); anyone but the bill owner reads that someone else pays.
+// (`me.workspace.billingState`). Anyone else with the section (the workspace's owners and admins) reads that someone
+// else pays and sees this workspace's usage, read-only (`billing.workspaceUsage`, docs/billing.md §8).
 import type {
   AutoRechargeData,
   BillingOverviewBill,
   BillingOverviewData,
   BillingStateData,
+  BillingUsageRow,
   CancelData,
   CheckoutStartData,
   PortalData,
@@ -41,6 +43,7 @@ import {
   changesRecharge,
   dollarsToCents,
   microsToDollars,
+  paysCharges,
   planLine,
   refusalKey,
   stateNote,
@@ -48,10 +51,12 @@ import {
   THRESHOLD_CHOICES,
   TOP_UP_CHOICES,
   usageLine,
+  yearlyRefundLine,
 } from './billingModel.ts'
 import { Section, SwitchRow } from './fields.tsx'
-import { loadOverview, loadState, OVERVIEW, STATE } from './billingQueries.ts'
+import { loadOverview, loadState, loadWorkspaceUsage, OVERVIEW, STATE, WORKSPACE_USAGE } from './billingQueries.ts'
 import { callAction } from './settings-api.ts'
+import { useLegalLinks } from '../shell/WorkspaceMenu.tsx'
 import './billing.css'
 
 /** The page's text for a refusal: by its code when the page has one, else the server's sentence. */
@@ -76,9 +81,15 @@ async function write<T>(name: string, input: object = {}): Promise<T> {
 /** After a change: the page reads the bill again (balance, recharges, the state). */
 const reloadBill = () => Promise.all([refreshQuery(OVERVIEW), refreshQuery(STATE)])
 
-type Props = { toast: (text: string) => void }
+/** `owner`: may manage billing (`billing:manage`, the workspace's owner); everyone else gets the usage view alone. */
+type Props = { toast: (text: string) => void; owner?: boolean }
 
-export function Billing({ toast }: Props) {
+export function Billing({ toast, owner = true }: Props) {
+  if (!owner) return <NotPaying />
+  return <OwnerBilling toast={toast} />
+}
+
+function OwnerBilling({ toast }: { toast: (text: string) => void }) {
   const t = useT()
   const overview = useQuery(OVERVIEW, loadOverview)
   const state = useQuery(STATE, loadState)
@@ -92,13 +103,60 @@ export function Billing({ toast }: Props) {
       skeleton={<Skeleton shape="card" />}
     >
       {data && !data.bill ? (
-        <Section id="billing-none" title={t('settings.workspace.nav.billing.label')}>
-          <span className="help">{data.billingOn ? t('settings.billing.notOwner') : t('settings.billing.off')}</span>
-        </Section>
+        data.billingOn ? (
+          <NotPaying />
+        ) : (
+          <Section id="billing-none" title={t('settings.workspace.nav.billing.label')}>
+            <span className="help">{t('settings.billing.off')}</span>
+          </Section>
+        )
       ) : (
         data?.bill && <BillingPage bill={data.bill} state={state.data?.bill ?? null} toast={toast} />
       )}
     </Loading>
+  )
+}
+
+/**
+ * For the workspace's owners and admins who do not pay (docs/billing.md §8: workspace admins see usage only): who
+ * handles billing, and this workspace's usage this period. No plan, balance, invoices or payment controls.
+ */
+function NotPaying() {
+  const t = useT()
+  const format = useFormat()
+  const read = useQuery(WORKSPACE_USAGE, loadWorkspaceUsage)
+  const usage = read.data?.usage
+  const period = usage?.period
+  return (
+    <>
+      <Section id="billing-none" title={t('settings.workspace.nav.billing.label')}>
+        <span className="help">{t('settings.billing.notOwner')}</span>
+      </Section>
+      <Loading
+        what={t('settings.billing.loading')}
+        loading={read.data === undefined}
+        error={read.error}
+        onRetry={() => void read.reload()}
+        skeleton={<Skeleton shape="card" />}
+      >
+        {usage && (
+          <Section
+            id="billing-usage"
+            title={t('settings.billing.usage.title')}
+            description={
+              period
+                ? t('settings.billing.usage.period', {
+                    from: format.date(new Date(period.startsAt)),
+                    to: format.date(new Date(period.endsAt)),
+                  })
+                : undefined
+            }
+          >
+            <UsageRows rows={usage.row ? [usage.row] : []} />
+          </Section>
+        )}
+      </Loading>
+    </>
   )
 }
 
@@ -111,11 +169,13 @@ function BillingPage({
   state: BillingStateData['bill']
   toast: (text: string) => void
 }) {
+  // A comped bill pays nothing: no balance to top up (unless one is left from before) and no auto-recharge.
+  const pays = paysCharges(bill)
   return (
     <>
       <PlanCard bill={bill} state={state} toast={toast} />
-      <BalanceCard bill={bill} toast={toast} />
-      <AutoRechargeCard bill={bill} toast={toast} />
+      {(pays || bill.balanceMicros !== 0) && <BalanceCard bill={bill} toast={toast} />}
+      {pays && <AutoRechargeCard bill={bill} toast={toast} />}
       <UsageCard bill={bill} />
       <InvoicesCard bill={bill} toast={toast} />
     </>
@@ -137,15 +197,18 @@ function PlanCard({
   const format = useFormat()
   const [cancelOpen, setCancelOpen] = useState(false)
   const [resuming, setResuming] = useState(false)
+  const supportEmail = useLegalLinks()?.supportEmail ?? null
   const date = (iso: string) => format.date(new Date(iso))
-  const badge = statusBadge(bill.status)
+  const badge = statusBadge(bill.status, bill.heldForReview)
   const line = planLine(bill)
   const note = stateNote(state, date)
   const price = format.currency(centsToDollars(bill.seatCents), 'USD')
-  const plan =
-    bill.interval === 'year'
+  const plan = !paysCharges(bill)
+    ? t('settings.billing.plan.comped', { count: bill.workspaces })
+    : bill.interval === 'year'
       ? t('settings.billing.plan.yearly', { price, count: bill.workspaces })
       : t('settings.billing.plan.monthly', { price, count: bill.workspaces })
+  const held = bill.heldForReview && (bill.status === 'active' || bill.status === 'trialing')
 
   async function resume() {
     setResuming(true)
@@ -183,7 +246,23 @@ function PlanCard({
           </span>
         )}
         {bill.status === 'trialing' && <span className="help">{t('settings.billing.plan.trialNote')}</span>}
+        {bill.extraNumberCents > 0 && (
+          <span className="help">
+            {t('settings.billing.plan.numbers', {
+              price: format.currency(centsToDollars(bill.extraNumberCents), 'USD', {
+                minimumFractionDigits: bill.extraNumberCents % 100 ? 2 : 0,
+              }),
+            })}
+          </span>
+        )}
       </div>
+      {held && (
+        <Note tone="warning" title={t('settings.billing.held.title')}>
+          {supportEmail
+            ? t('settings.billing.held.text', { email: supportEmail })
+            : t('settings.billing.held.textNoEmail')}
+        </Note>
+      )}
       {note && (
         <Note tone={note.tone} title={t(note.title)}>
           {t(note.text, note.values)}
@@ -222,7 +301,7 @@ function PlanCard({
 }
 
 /** Cancel (US click-to-cancel): the button above, then this one confirm. What happens is said in plain words. */
-function CancelDialog({
+export function CancelDialog({
   bill,
   onClose,
   toast,
@@ -233,8 +312,14 @@ function CancelDialog({
 }) {
   const t = useT()
   const format = useFormat()
+  const supportEmail = useLegalLinks()?.supportEmail ?? null
   const end = bill.status === 'trialing' ? bill.trialEndsAt : bill.currentPeriodEnd
   const endText = end ? format.date(new Date(end)) : null
+  // What is refunded on request (the terms' "Refunds", docs/billing.md §4.5): a yearly plan paid in the last 14 days,
+  // and the unused balance. Both are asked for, never automatic.
+  const refund = yearlyRefundLine(bill, iso => format.date(new Date(iso)))
+  const balance = bill.availableMicros > 0 ? format.currency(microsToDollars(bill.availableMicros), 'USD') : null
+  const ask = supportEmail ? t('settings.billing.cancel.ask', { email: supportEmail }) : null
   return (
     <DangerConfirmDialog
       confirm={{
@@ -242,6 +327,9 @@ function CancelDialog({
         after: t('settings.billing.cancel.after'),
         list: [
           t('settings.billing.cancel.noCharge'),
+          ...(refund ? [t(refund.key, refund.values)] : []),
+          ...(balance ? [t('settings.billing.cancel.balance', { amount: balance })] : []),
+          ...(ask && (refund?.key === 'settings.billing.cancel.yearlyRefund' || balance) ? [ask] : []),
           t('settings.billing.cancel.numbers'),
           t('settings.billing.cancel.data'),
         ],
@@ -326,6 +414,13 @@ function BalanceCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text:
           <span className="help">{t('settings.billing.balance.reserved', { amount: money(reserved) })}</span>
         )}
       </div>
+      {bill.rechargePending && !failure && (
+        <Note tone="info">
+          {t('settings.billing.balance.recharging', {
+            amount: format.currency(centsToDollars(bill.rechargePending.amountCents), 'USD'),
+          })}
+        </Note>
+      )}
       {failure && (
         <Note
           tone="danger"
@@ -349,7 +444,7 @@ function BalanceCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text:
               : t('settings.billing.retry.declinedAutoOff')}
         </Note>
       )}
-      {bill.canBuyMinutes && (
+      {bill.canBuyMinutes && paysCharges(bill) && (
         <div className="billing-actions">
           <Button
             // One primary button per screen: Retry takes it while a recharge failed.
@@ -700,11 +795,22 @@ function UsageCard({ bill }: { bill: BillingOverviewBill }) {
           : undefined
       }
     >
-      {bill.usage.length === 0 ? (
+      <UsageRows rows={bill.usage} />
+    </Section>
+  )
+}
+
+/** The usage lines, one per workspace: the included minutes used, the paid minutes per level and what they cost. */
+function UsageRows({ rows }: { rows: BillingUsageRow[] }) {
+  const t = useT()
+  const format = useFormat()
+  return (
+    <>
+      {rows.length === 0 ? (
         <ListEmpty>{t('settings.billing.usage.empty')}</ListEmpty>
       ) : (
         <List label={t('settings.billing.usage.title')}>
-          {bill.usage.map(row => {
+          {rows.map(row => {
             const line = usageLine(row)
             const parts = [
               line.standard && t('settings.billing.usage.standard', { count: line.standard }),
@@ -726,7 +832,7 @@ function UsageCard({ bill }: { bill: BillingOverviewBill }) {
           })}
         </List>
       )}
-    </Section>
+    </>
   )
 }
 

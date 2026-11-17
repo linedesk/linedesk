@@ -22,8 +22,13 @@ export type PageProps = {
   /** Owners and admins: "Change with an AI agent" on top of the workspace's and the assistant's settings. */
   agentChange: boolean
   isInstanceAdmin: boolean
-  /** The workspace is on a bill and this person manages billing (Workspace settings › Billing, Linedesk Cloud). */
-  billing: boolean
+  /**
+   * Workspace settings › Billing (Linedesk Cloud): `owner` for the person who manages the bill, `usage` for the
+   * workspace's admins (this workspace's usage, read-only), null off billing and for members.
+   */
+  billing: 'owner' | 'usage' | null
+  /** On a bill: what each number beyond the included one costs a month (from the balance); null otherwise. */
+  extraNumberCents: number | null
   userId: string
   menu: ReactNode
   openCall: (call: Call) => void
@@ -50,9 +55,12 @@ export const pages = {
     ownHeader: true,
     render: p => <Contacts menu={p.menu} toast={p.toast} openCall={p.openCall} runUndoable={p.runUndoable} />,
   },
-  insights: { get title() {
+  insights: {
+    get title() {
       return i18n().t('shell.page.insights')
-    }, render: p => <Insights canEdit={p.canEditSettings} toast={p.toast} /> },
+    },
+    render: p => <Insights canEdit={p.canEditSettings} toast={p.toast} />,
+  },
   assistant: {
     get title() {
       return i18n().t('shell.page.assistant')
@@ -92,6 +100,7 @@ export const pages = {
         phoneSetup={p.phoneSetup}
         isInstanceAdmin={p.isInstanceAdmin}
         billing={p.billing}
+        extraNumberCents={p.extraNumberCents}
         workspaceName={p.workspaceName}
         onRenamed={p.onRenamed}
         toast={p.toast}
@@ -107,9 +116,12 @@ export const pages = {
   },
   // Shown in the navigation and ⌘K to instance admins only; the API refuses everyone else.
   // Instance admins get admin mode instead (Workspace.tsx); anyone else who opens #admin sees this.
-  admin: { get title() {
+  admin: {
+    get title() {
       return i18n().t('shell.page.admin')
-    }, render: () => <AdminNotice /> },
+    },
+    render: () => <AdminNotice />,
+  },
 } satisfies Record<string, Page>
 
 export type PageRoute = keyof typeof pages

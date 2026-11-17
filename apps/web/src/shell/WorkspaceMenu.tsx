@@ -80,7 +80,7 @@ export function YouRowSkeleton({ lines, reserved }: { lines: 1 | 2; reserved: bo
 
 /** This install's terms, privacy and support links: the last known ones at once, none that are not set. */
 export const loadAuthMethods = () => fetchAuthMethods({ attempts: 1 })
-function useLegalLinks(): LegalLinks | null {
+export function useLegalLinks(): LegalLinks | null {
   return useQuery('auth-methods', loadAuthMethods, { persist: true }).data?.links ?? null
 }
 
@@ -218,7 +218,11 @@ export function WorkspaceMenu({
           <div
             className="ws-account"
             role="group"
-            aria-label={who ? t('shell.workspaceMenu.signedInAs', { who: userName && email ? `${who}, ${email}` : who }) : t('shell.workspaceMenu.yourAccount')}
+            aria-label={
+              who
+                ? t('shell.workspaceMenu.signedInAs', { who: userName && email ? `${who}, ${email}` : who })
+                : t('shell.workspaceMenu.yourAccount')
+            }
           >
             {youRow.phase === 'reserve' || youRow.phase === 'skeleton' ? (
               <YouRowSkeleton lines={youLines} reserved={youRow.phase === 'reserve'} />
@@ -238,7 +242,9 @@ export function WorkspaceMenu({
             {items.includes('help') && links?.supportEmail && (
               <LinkItem label={t('common.legal.help')} icon="mail" href={`mailto:${links.supportEmail}`} />
             )}
-            {items.includes('terms') && links?.terms && <LinkItem label={t('common.legal.terms')} icon="globe" href={links.terms} />}
+            {items.includes('terms') && links?.terms && (
+              <LinkItem label={t('common.legal.terms')} icon="globe" href={links.terms} />
+            )}
             {items.includes('privacy') && links?.privacy && (
               <LinkItem label={t('common.legal.privacy')} icon="globe" href={links.privacy} />
             )}

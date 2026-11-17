@@ -62,7 +62,8 @@ export type Me = {
   /** `iconUrl`: the workspace icon (Workspace settings › General); null or absent: the initial shows. */
   /**
    * `billingState`: on a bill, `pending_payment` until Checkout, then `active` or `suspended`; null or absent off
-   * billing. `trialDays`: while `pending_payment`, the install's free trial length.
+   * billing. `trialDays` and `plan`: while `pending_payment`, the install's free trial length and the plan's price at
+   * the chosen interval. `extraNumberCents`: on a bill, what each extra number costs a month (null: free or no bill).
    */
   workspace: {
     id: string
@@ -71,6 +72,8 @@ export type Me = {
     iconUrl?: string | null
     billingState?: 'pending_payment' | 'active' | 'suspended' | null
     trialDays?: number | null
+    plan?: { interval: 'month' | 'year'; cents: number } | null
+    extraNumberCents?: number | null
   } | null
   /** Every workspace this member belongs to, by name (absent in what an older version remembered). */
   workspaces?: { id: string; name: string; disabled?: boolean; iconUrl?: string | null }[]

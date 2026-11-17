@@ -61,6 +61,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'records.list',
   ],
   admin: [
+    // Workspace settings › Billing for owners and admins: this workspace's usage only, read-only (docs/billing.md §8).
+    'billing.workspaceUsage',
     'agentSetup.createWorkspaceKey',
     'agentSetup.revokeWorkspace',
     'call.export',

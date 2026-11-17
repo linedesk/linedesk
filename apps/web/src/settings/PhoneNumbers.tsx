@@ -12,6 +12,7 @@ import { forwardingUnverified, type GuidePickedBy } from '../onboarding/forwardi
 import {
   areaCodeIn,
   areaCodeOf,
+  billedNumberNote,
   buyQuestion,
   buyingCountry,
   buyUnavailableText,
@@ -59,13 +60,15 @@ type Props = {
   canEdit: boolean
   status: PhoneSetupStatus | null
   isInstanceAdmin: boolean
+  /** On a bill: what each number beyond the included one costs a month (from the balance); null otherwise. */
+  extraNumberCents?: number | null
 }
 
 /** The assistant that answers a number: its own, else the workspace's first. */
 const answeredBy = (number: PhoneNumber, assistants: Assistant[]) =>
   assistants.find(a => a.id === number.assistant_id) ?? assistants[0]
 
-export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }: Props) {
+export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, extraNumberCents = null }: Props) {
   const t = useT()
   // A workspace with its own carrier account can add numbers there, whatever the install has; the
   // session's status may be from before the carrier was changed here.
@@ -199,6 +202,8 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin }:
         <Dialog title={t('settings.phone.addTitle')} size="md" onClose={() => setAdding(false)}>
           <ConnectNumber
             status={status}
+            // The workspace's own carrier account is not billed by us: its numbers cost what that carrier charges.
+            extraNumberCents={carrier && carrier.carrier !== 'default' ? null : extraNumberCents}
             onDone={added => {
               setAdding(false)
               // A number the business phone forwards to: its forwarding codes are the next thing to do.
@@ -551,10 +556,13 @@ const connectOptions: readonly PhoneOption[] = ['forward', 'new']
 
 function ConnectNumber({
   status,
+  extraNumberCents = null,
   onDone,
   onCancel,
 }: {
   status: PhoneSetupStatus | null
+  /** On a bill and the install's carrier account: the extra number's monthly price, said instead of the carrier's. */
+  extraNumberCents?: number | null
   /** The number just connected, once its row has arrived. */
   onDone: (added: PhoneNumber) => void
   onCancel?: () => void
@@ -701,7 +709,13 @@ function ConnectNumber({
                 ? t('settings.phone.connect.areaCodeFor', { name })
                 : t('settings.phone.connect.areaCode')
             }
-            help={priceNote(status?.provider ?? null, priceCountry(areaCode, country))}
+            help={
+              billedNumberNote(
+                extraNumberCents,
+                status?.provider ?? null,
+                numbers.filter(n => n.purchased && n.carrier_account === 'install').length,
+              ) ?? priceNote(status?.provider ?? null, priceCountry(areaCode, country))
+            }
           >
             <AreaCodeInput
               id="st-pn-area"

@@ -18,6 +18,7 @@ import type {
   BillingOverviewBill,
   BillingOverviewData,
   BillingUsageRow,
+  BillingWorkspaceUsageData,
   PortalData,
   RechargeCapData,
   RetryRechargeData,
@@ -48,7 +49,7 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { appLink, WEB_ORIGIN } from './emails/templates.ts'
 import { BILLING_PATH } from './emails/billing-lifecycle.ts'
-import { type Handler, type HandlerCtx, type Preparer, Reject } from './handler-context.ts'
+import { Forbidden, type Handler, type HandlerCtx, type Preparer, Reject } from './handler-context.ts'
 import { decideRecharge, periodAt } from './ledger.ts'
 import { ownerStepUpNeeded } from './owner-step-up.ts'
 import { refuseBillingActor } from './usage-levels.ts'
@@ -130,6 +131,17 @@ async function usedThisMonthCents(tx: Reader, billId: string, now: string) {
   return row?.cents ?? 0
 }
 
+/** The bill's newest recharge charged to the card and not paid yet, or null (the page's "recharge on its way" note). */
+async function pendingRecharge(tx: Reader, billId: string) {
+  const [row] = await tx
+    .select({ amountCents: billing_recharges.amount_cents })
+    .from(billing_recharges)
+    .where(and(eq(billing_recharges.billing_account_id, billId), eq(billing_recharges.status, 'pending')))
+    .orderBy(desc(billing_recharges.created_at))
+    .limit(1)
+  return row ?? null
+}
+
 /** Recharge attempts of the bill in the last 24 hours (the Retry limit counts every attempt). */
 async function attemptsLastDay(tx: Reader, billId: string, now: string) {
   const [row] = await tx
@@ -185,13 +197,17 @@ export async function balanceFlags(tx: Reader, bill: Bill, now: string) {
 const ownerMaxBase = (workspaces: number, perWorkspaceCents: number) =>
   Math.max(0, RECHARGE_CAP_SELF_SERVE_MAX_CENTS - perWorkspaceCents * Math.max(0, workspaces - 1))
 
-/** This period's usage per workspace of the bill and level, from the bill's own ledger and counters. */
+/**
+ * This period's usage per workspace of the bill and level, from the bill's own ledger and counters. `only`: one
+ * workspace's rows alone (billing.workspaceUsage), never the others'.
+ */
 async function periodUsage(
   tx: Reader,
   billId: string,
   periodId: string,
   workspaces: { id: string; name: string }[],
   allowanceSeconds: number,
+  only?: string,
 ): Promise<BillingUsageRow[]> {
   const entries = await tx
     .select({
@@ -206,13 +222,20 @@ async function periodUsage(
         eq(ledger_entries.billing_account_id, billId),
         eq(ledger_entries.period_id, periodId),
         eq(ledger_entries.kind, 'usage'),
+        only ? eq(ledger_entries.workspace_id, only) : undefined,
       ),
     )
     .groupBy(ledger_entries.workspace_id, ledger_entries.price_basis)
   const counters = await tx
     .select({ workspaceId: usage_counters.workspace_id, used: usage_counters.included_seconds_used })
     .from(usage_counters)
-    .where(and(eq(usage_counters.billing_account_id, billId), eq(usage_counters.period_id, periodId)))
+    .where(
+      and(
+        eq(usage_counters.billing_account_id, billId),
+        eq(usage_counters.period_id, periodId),
+        only ? eq(usage_counters.workspace_id, only) : undefined,
+      ),
+    )
   const rows = new Map<string, BillingUsageRow>()
   const row = (workspaceId: string) => {
     let found = rows.get(workspaceId)
@@ -345,6 +368,10 @@ async function overview({
           retriesLeft: Math.max(0, RECHARGE_RETRIES_PER_DAY - (await attemptsLastDay(tx, bill.id, now))),
         }
       : null,
+    rechargePending: await pendingRecharge(tx, bill.id),
+    heldForReview: !!bill.held_for_review_at,
+    // A comped bill pays nothing for its numbers either (docs/billing.md §2).
+    extraNumberCents: bill.status === 'comped' ? 0 : rules.extraNumberCents,
     canBuyMinutes: !!bill.stripe_customer_id && BUYS_MINUTES.includes(bill.status),
     hasPortal: !!bill.stripe_customer_id,
     period: period ? { startsAt: period.starts_at, endsAt: period.ends_at, kind: period.kind } : null,
@@ -362,6 +389,89 @@ async function overview({
     ),
   }
   return { rows: {}, data: { billingOn, bill: data } }
+}
+
+// ---- What /v1/me tells the app about the workspace's bill ------------------------------------------------------
+
+/**
+ * The few bill facts every member's app needs (/v1/me), read only for a workspace on a bill while billing runs through
+ * Stripe: while `pending_payment`, the trial's length and the plan's price at the bill's interval (the install's rules,
+ * the price the Checkout will charge); and what an extra number costs a month (null on a comped bill: free).
+ */
+export type WorkspaceBillFacts = {
+  trialDays: number | null
+  plan: { interval: 'month' | 'year'; cents: number } | null
+  extraNumberCents: number | null
+}
+
+export async function workspaceBillFacts(workspaceId: string): Promise<WorkspaceBillFacts> {
+  const none: WorkspaceBillFacts = { trialDays: null, plan: null, extraNumberCents: null }
+  return db.transaction(async tx => {
+    if ((await billingState(tx)).inEffect !== 'stripe') return none
+    const [found] = await tx
+      .select({ status: billing_accounts.status, interval: billing_accounts.interval, kind: billing_accounts.kind })
+      .from(organization)
+      .innerJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
+      .where(eq(organization.id, workspaceId))
+    if (!found) return none
+    const rules = await billingRules(tx)
+    const pending = found.status === 'pending_payment'
+    const price = pending
+      ? planPrice(`${found.kind === 'partner' ? 'partner' : 'ws'}_${found.interval}ly`, rules)
+      : null
+    return {
+      trialDays: pending ? rules.trialDays : null,
+      plan: price ? { interval: found.interval, cents: price.cents } : null,
+      extraNumberCents: found.status === 'comped' ? null : rules.extraNumberCents,
+    }
+  })
+}
+
+// ---- billing.workspaceUsage ------------------------------------------------------------------------------------
+
+/**
+ * Workspace settings › Billing for the workspace's owners and admins who do not own the bill (docs/billing.md §8:
+ * workspace admins see usage only): this workspace's row of the current period, read through the bill the workspace
+ * is on. Never another workspace of the bill, the balance, the plan or an invoice link.
+ */
+async function workspaceUsage({
+  tx,
+  actor,
+  now,
+}: HandlerCtx): Promise<{ rows: Record<string, never>; data: BillingWorkspaceUsageData }> {
+  // The same key policy as the owner's overview (security review of #1098, L-2): billing figures stay in the app, so
+  // no workspace API key, personal key or setup link reads them. An impersonating instance admin may (support sees
+  // what the admin sees; read-only, and the overview's bearer invoice links are not here).
+  if (actor.apiKeyId || actor.personalKeyId || actor.setupKeyId)
+    // i18n-ignore: the API error body for API clients; the web app never sends a key
+    throw new Forbidden('billing usage is read in the app, signed in as yourself')
+  const none = { rows: {}, data: { usage: null } }
+  if (!actor.workspaceId || (await billingState(tx as Tx)).inEffect !== 'stripe') return none
+  const [found] = await tx
+    .select({ billId: organization.billingAccountId, name: organization.name })
+    .from(organization)
+    .where(eq(organization.id, actor.workspaceId))
+  if (!found?.billId) return none
+  const rules = await billingRules(tx as Tx)
+  const period = await periodAt(tx as Tx, found.billId, now)
+  if (!period) return { rows: {}, data: { usage: { period: null, row: null } } }
+  const [row] = await periodUsage(
+    tx,
+    found.billId,
+    period.id,
+    [{ id: actor.workspaceId, name: found.name }],
+    rules.includedStandardSeconds,
+    actor.workspaceId,
+  )
+  return {
+    rows: {},
+    data: {
+      usage: {
+        period: { startsAt: period.starts_at, endsAt: period.ends_at, kind: period.kind },
+        row: row ?? null,
+      },
+    },
+  }
 }
 
 // ---- Auto-recharge and the cap ---------------------------------------------------------------------------------
@@ -527,4 +637,5 @@ export const billingPageHandlers: Record<string, Handler> = {
   'billing.setRechargeCap': setRechargeCap,
   'billing.openPortal': openPortal,
   'billing.retryRecharge': retryRecharge,
+  'billing.workspaceUsage': workspaceUsage,
 }

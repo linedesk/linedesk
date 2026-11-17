@@ -7,6 +7,7 @@ import {
   areaCodeIn,
   areaCodeOf,
   assistantChanges,
+  billedNumberNote,
   doneState,
   rejectionStep,
   urgentCasesFrom,
@@ -599,4 +600,13 @@ test('"no number available in area code" becomes the sentence that offers the ne
     false,
   )
   expect(isNoneFreeText(null)).toBe(false)
+})
+
+test('on a bill, the price line says the first number is included and what each extra one costs', () => {
+  expect(billedNumberNote(300, 'telnyx', 0)).toBe('Your first number is included in your plan.')
+  expect(billedNumberNote(300, 'telnyx', 1)).toBe('Each extra number is $3 a month, paid from your balance.')
+  expect(billedNumberNote(350, 'telnyx', 2)).toBe('Each extra number is $3.50 a month, paid from your balance.')
+  // Off billing, a comped bill or the workspace's own carrier (null), and development mode: the carrier's line.
+  expect(billedNumberNote(null, 'telnyx', 1)).toBeNull()
+  expect(billedNumberNote(300, 'dev', 1)).toBeNull()
 })

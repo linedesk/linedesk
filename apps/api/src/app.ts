@@ -47,6 +47,7 @@ import { setsUpByHand } from './install-setup.ts'
 import { authMethods, currentAuthMethods } from './auth-methods.ts'
 import { browserErrorReporting, errorReportingEnabled, type ReportedUser, reportError } from './error-reporting.ts'
 import { billingRules } from './billing-rules.ts'
+import { workspaceBillFacts } from './billing-page.ts'
 import { currentBranding, manifestFor, readLogo } from './branding.ts'
 import { profileChangedBy } from './team-member-edit.ts'
 import { avatarVersionOf, readAvatarFor } from './user-avatar.ts'
@@ -286,7 +287,12 @@ app.get('/v1/signup/config', async c => {
   const siteKey =
     state.open && state.rules.turnstile ? ((await db.transaction(tx => turnstileKeys(tx)))?.siteKey ?? null) : null
   c.header('cache-control', 'no-store')
-  return c.json({ ok: true, open: state.open, turnstileSiteKey: siteKey, countries: SIGNUP_COUNTRIES })
+  // The plan the page signs up for, at the install's prices (Server admin › Billing): public, like a pricing page.
+  const rules = state.open ? await billingRules(db) : null
+  const plan = rules
+    ? { monthlyCents: rules.workspaceMonthlyCents, yearlyCents: rules.workspaceYearlyCents, trialDays: rules.trialDays }
+    : null
+  return c.json({ ok: true, open: state.open, turnstileSiteKey: siteKey, countries: SIGNUP_COUNTRIES, plan })
 })
 
 // Public: an email code for the sign-up page. Every check (open, the address, its domain, Turnstile, the limits) runs
@@ -480,7 +486,7 @@ app.get('/v1/me', async c => {
     starPrompt,
     setupByHand,
     locale,
-    trialDays,
+    billFacts,
   ] = await Promise.all([
     avatarVersionOf(db, actor.actorId),
     profileChangedBy(db, actor.actorId, actor.workspaceId),
@@ -496,8 +502,9 @@ app.get('/v1/me', async c => {
     starPromptFor(actor),
     setupByHandFor(actor),
     localeOf(actor),
-    // A sign-up waiting for Checkout is told the install's trial length (Server admin › Billing).
-    workspace?.billingState === 'pending_payment' ? billingRules(db).then(r => r.trialDays) : null,
+    // On a bill: a sign-up waiting for Checkout is told the install's trial length and the plan's price (Server
+    // admin › Billing); everyone what an extra number costs a month.
+    workspace?.billingState ? workspaceBillFacts(workspace.id) : null,
   ])
   return c.json({
     actorId: actor.actorId,
@@ -515,8 +522,13 @@ app.get('/v1/me', async c => {
           iconUrl: iconUrlOf(workspace.id, workspace.iconVersion),
           // On a bill: `pending_payment` until Checkout, then `active` or `suspended`; null off billing.
           billingState: workspace.billingState ?? null,
-          // While `pending_payment`: the free trial's length in days, as the install set it; else null.
-          trialDays,
+          // While `pending_payment`: the free trial's length in days and the plan's price at the bill's interval, as
+          // the install set them; else null.
+          trialDays: billFacts?.trialDays ?? null,
+          plan: billFacts?.plan ?? null,
+          // On a bill: what each number beyond the included one costs a month (from the balance); null off billing
+          // and on a comped bill.
+          extraNumberCents: billFacts?.extraNumberCents ?? null,
         }
       : null,
     // Every workspace this member belongs to, for the switcher in the profile menu: known at boot, never fetched when it opens.

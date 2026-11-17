@@ -217,6 +217,7 @@
   "billing.suspended.subject": "Your {brand} plan is unpaid: calls are no longer answered",
   "billing.suspended.text": "We could not collect your plan fee. Until it is paid, your assistant no longer answers: callers hear that someone will call them back, and each call is in your inbox as missed.",
   "billing.suspended.urgent": "Plan not paid",
+  "billing.trialWillEnd.button": "Open Settings › Billing",
   "billing.trialWillEnd.cancel": "Not for you? Cancel in Settings › Billing before {date} and you pay nothing.",
   "billing.trialWillEnd.noRecharge": "Auto-recharge is off: calls are paid from your balance, so buy minutes before the trial ends to keep the assistant answering.",
   "billing.trialWillEnd.recharge": "Auto-recharge is on, so the same invoice also adds {recharge} to your prepaid call balance.",

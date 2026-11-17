@@ -65,10 +65,13 @@ type Props = {
   phoneSetup: PhoneSetupStatus | null
   isInstanceAdmin: boolean
   /**
-   * The workspace is on a bill (Linedesk Cloud, `me.workspace.billingState`) and this person may manage billing
-   * (`billing:manage`, the owner): the Billing section. Off billing it is not there at all.
+   * The workspace is on a bill (Linedesk Cloud, `me.workspace.billingState`): the Billing section, the whole page for
+   * the person who may manage billing (`owner`, `billing:manage`), this workspace's usage alone for admins (`usage`).
+   * Off billing and for members it is not there at all.
    */
-  billing?: boolean
+  billing?: 'owner' | 'usage' | null
+  /** On a bill: what each extra number costs a month, said where a number is added; null otherwise. */
+  extraNumberCents?: number | null
   workspaceName: string
   /** After a rename here: the menu and the workspace switcher show the new name at once (App, renamedWorkspace). */
   onRenamed: (name: string) => void
@@ -81,7 +84,8 @@ export function WorkspaceSettings({
   agentChange = false,
   phoneSetup,
   isInstanceAdmin,
-  billing = false,
+  billing = null,
+  extraNumberCents = null,
   workspaceName,
   onRenamed,
   toast,
@@ -89,7 +93,7 @@ export function WorkspaceSettings({
   const t = useT()
   const team = useTeam().data
   const role = team?.members.find(m => m.userId === team.me)?.role
-  const sections = useSections(canEdit, billing)
+  const sections = useSections(canEdit, !!billing)
   // What the role offers, also during support access (the section itself then says it is read-only).
   const danger = t(dangerDescription(canManageKeys, role))
   const shown = useMemo(
@@ -118,11 +122,16 @@ export function WorkspaceSettings({
         )}
         {current === 'team' && <TeamSection toast={toast} />}
         {current === 'phone' && (
-          <PhoneNumbers canEdit={canEdit} status={phoneSetup} isInstanceAdmin={isInstanceAdmin} />
+          <PhoneNumbers
+            canEdit={canEdit}
+            status={phoneSetup}
+            isInstanceAdmin={isInstanceAdmin}
+            extraNumberCents={extraNumberCents}
+          />
         )}
         {current === 'recordings' && <Recordings canEdit={canEdit} toast={toast} />}
         {current === 'export' && <ExportCalls canEdit={canEdit} toast={toast} />}
-        {current === 'billing' && <Billing toast={toast} />}
+        {current === 'billing' && <Billing toast={toast} owner={billing === 'owner'} />}
         {current === 'danger' && <DangerZone workspaceName={workspaceName} isInstanceAdmin={isInstanceAdmin} />}
       </SettingsLayout>
     </div>

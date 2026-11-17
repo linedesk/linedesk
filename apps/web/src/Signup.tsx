@@ -17,6 +17,7 @@ import {
   type SignupConfig,
   signUpBusiness,
   SIGNUP_COUNTRIES,
+  signupPlanLine,
 } from './signup.ts'
 import { AuthError } from './ui/AuthError.tsx'
 import { AuthPage, cx, Spinner } from './ui/kit.tsx'
@@ -58,6 +59,7 @@ export function Signup({ signedIn, onDone }: { signedIn: boolean; onDone: () => 
     return (
       <EmailStep
         config={config}
+        interval={params.interval}
         onSent={address => {
           setEmail(address)
           setStep('code')
@@ -66,7 +68,7 @@ export function Signup({ signedIn, onDone }: { signedIn: boolean; onDone: () => 
     )
   if (step === 'code')
     return <CodeStep email={email} config={config} onDone={() => setStep('details')} onBack={() => setStep('email')} />
-  return <DetailsStep interval={params.interval} onDone={onDone} />
+  return <DetailsStep interval={params.interval} plan={config.plan} onDone={onDone} />
 }
 
 function Closed() {
@@ -154,7 +156,15 @@ function useTurnstile(siteKey: string | null) {
   return { box, token, failed, reset: () => reset.current() }
 }
 
-function EmailStep({ config, onSent }: { config: SignupConfig; onSent: (email: string) => void }) {
+function EmailStep({
+  config,
+  interval,
+  onSent,
+}: {
+  config: SignupConfig
+  interval: 'year' | 'month'
+  onSent: (email: string) => void
+}) {
   const t = useT()
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -181,6 +191,7 @@ function EmailStep({ config, onSent }: { config: SignupConfig; onSent: (email: s
     <AuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>{t('auth.signup.title')}</h1>
+        {config.plan && <p className="auth-hint">{signupPlanLine(config.plan, interval)}</p>}
         <p>{t('auth.signup.intro')}</p>
         <div className="auth-form">
           <input
@@ -311,7 +322,15 @@ function CodeStep({
   )
 }
 
-function DetailsStep({ interval, onDone }: { interval: 'year' | 'month'; onDone: () => void | Promise<void> }) {
+function DetailsStep({
+  interval,
+  plan,
+  onDone,
+}: {
+  interval: 'year' | 'month'
+  plan: SignupConfig['plan']
+  onDone: () => void | Promise<void>
+}) {
   const t = useT()
   const [name, setName] = useState('')
   const [business, setBusiness] = useState('')
@@ -355,6 +374,7 @@ function DetailsStep({ interval, onDone }: { interval: 'year' | 'month'; onDone:
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>{t('auth.signup.detailsTitle')}</h1>
         <p>{t('auth.signup.detailsText')}</p>
+        {plan && <p className="auth-hint">{signupPlanLine(plan, interval)}</p>}
         <label>
           {t('auth.signup.yourName')}
           <input value={name} onChange={e => setName(e.target.value)} autoComplete="name" autoFocus disabled={busy} />

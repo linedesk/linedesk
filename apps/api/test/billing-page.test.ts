@@ -690,3 +690,106 @@ describe('billing.state: the banner flags (review of #1007, I-4)', () => {
     expect(await stateOf(confirm.owner)).toMatchObject({ rechargeFailed: true, rechargeNeedsAction: true })
   })
 })
+
+describe('what the customer reads about the bill (billing tour, G3)', () => {
+  test('a recharge on its way, a bill held for review, and the price of an extra number', async () => {
+    const b = await billed()
+    expect((await overview(b.owner)).bill).toMatchObject({
+      rechargePending: null,
+      heldForReview: false,
+      extraNumberCents: 300,
+    })
+    await db.insert(billing_recharges).values({ id: rid('rc'), billing_account_id: b.billId, amount_cents: 3000 })
+    await db
+      .update(billing_accounts)
+      .set({ held_for_review_at: at(Date.now()) })
+      .where(eq(billing_accounts.id, b.billId))
+    expect((await overview(b.owner)).bill).toMatchObject({
+      rechargePending: { amountCents: 3000 },
+      heldForReview: true,
+    })
+    const state = await act(b.owner, 'billing.state', {})
+    expect(state.body.data.bill.heldForReview).toBe(true)
+  })
+
+  test('a comped bill: its numbers are free', async () => {
+    const b = await billed({ status: 'comped' })
+    expect((await overview(b.owner)).bill.extraNumberCents).toBe(0)
+  })
+})
+
+describe('billing.workspaceUsage', () => {
+  const read = async (who: Caller) => {
+    const res = await act(who, 'billing.workspaceUsage', {})
+    expect(res.status).toBe(200)
+    return res.body.data
+  }
+
+  test("a workspace admin reads this workspace's usage only, never another workspace's on the same bill", async () => {
+    const b = await billed()
+    const other = await createWorkspace('Brightwater North')
+    await db.update(organization).set({ billingAccountId: b.billId }).where(eq(organization.id, other.id))
+    await usage(b, b.ws.id, 'standard', 600, 50)
+    await usage(b, other.id, 'premium', 300, 50)
+    await db.insert(usage_counters).values([
+      { billing_account_id: b.billId, period_id: b.periodId, workspace_id: b.ws.id, included_seconds_used: 600 },
+      { billing_account_id: b.billId, period_id: b.periodId, workspace_id: other.id, included_seconds_used: 900 },
+    ])
+    const admin = await addMember(b.ws.id, 'admin')
+    const data = await read({ headers: { ...admin.headers, 'x-workspace-id': b.ws.id } })
+    expect(data.usage.period).toMatchObject({ kind: 'month' })
+    expect(data.usage.row).toEqual({
+      workspaceId: b.ws.id,
+      name: 'Brightwater Plumbing & Heating',
+      allowanceUsedSeconds: 600,
+      allowanceSeconds: 3000,
+      levels: { standard: { seconds: 600, micros: 500_000 } },
+    })
+    // Nothing of the bill itself: no balance, plan or invoices.
+    expect(Object.keys(data.usage).sort()).toEqual(['period', 'row'])
+  })
+
+  test('no key reads it, like the overview (review of #1098, L-2); an impersonating admin may, read-only', async () => {
+    const b = await billed()
+    const admin: Actor = {
+      actorId: rid('user'),
+      role: 'admin',
+      workspaceId: b.ws.id,
+      permissions: ['settings:write'],
+    }
+    for (const extra of [
+      { apiKeyId: 'key_x' },
+      { personalKeyId: 'pk_x' },
+      { setupKeyId: 'sk_x', setupWorkspaceId: b.ws.id, setupWorkspaceRole: 'admin' as const },
+    ]) {
+      const res = await runAction('billing.workspaceUsage', {}, { ...admin, ...extra })
+      expect(res.status, Object.keys(extra)[0]).toBe(403)
+    }
+    // The handler refuses on its own too, whatever the guard in front of it lets through.
+    for (const extra of [{ apiKeyId: 'key_x' }, { setupKeyId: 'sk_x' }, { personalKeyId: 'pk_x' }])
+      await expect(
+        db.transaction(tx =>
+          billingPageHandlers['billing.workspaceUsage']!(
+            { tx, actor: { ...admin, ...extra }, now: new Date().toISOString() } as unknown as HandlerCtx,
+            {},
+          ),
+        ),
+      ).rejects.toThrow(/in the app/)
+    const impersonation = { by: rid('user'), sessionId: 'sess', expiresAt: new Date(Date.now() + 60_000) }
+    const res = await runAction('billing.workspaceUsage', {}, { ...admin, impersonation })
+    expect(res.status).toBe(200)
+  })
+
+  test('members are refused; off billing, or a workspace on no bill, there is no usage to show', async () => {
+    const b = await billed()
+    const memberCaller = await addMember(b.ws.id, 'member')
+    expect(
+      (await act({ headers: { ...memberCaller.headers, 'x-workspace-id': b.ws.id } }, 'billing.workspaceUsage', {}))
+        .status,
+    ).toBe(403)
+    const unbilled = await createWorkspace('Brightwater South')
+    expect(await read(unbilled.owner)).toEqual({ usage: null })
+    cloud.on = false
+    expect(await read(b.owner)).toEqual({ usage: null })
+  })
+})

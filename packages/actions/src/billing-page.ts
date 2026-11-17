@@ -65,12 +65,41 @@ export type BillingOverviewBill = {
    * invoice's page (3D Secure) instead of trying the card again. `retriesLeft`: Retry presses left in 24 hours.
    */
   rechargeFailure: { at: string; code: string | null; needsAction: boolean; retriesLeft: number } | null
+  /**
+   * A recharge charged to the card and not paid yet (its amount, before tax): the balance goes up once it is paid.
+   * Null when none is pending.
+   */
+  rechargePending: { amountCents: number } | null
+  /**
+   * The bill is held for review (Radar flagged the card): no number can be bought until an instance admin approves
+   * it (docs/billing.md §3.2 step 5).
+   */
+  heldForReview: boolean
+  /** The monthly price of each extra number (paid from the balance), the install's rules; 0 on a comped bill. */
+  extraNumberCents: number
   /** Buy minutes and the Stripe portal are open (a Stripe customer, in the trial or paid). */
   canBuyMinutes: boolean
   hasPortal: boolean
   period: { startsAt: string; endsAt: string; kind: 'trial' | 'month' } | null
   usage: BillingUsageRow[]
   invoices: BillingInvoiceRow[]
+}
+
+export const billingWorkspaceUsage = defineAction({
+  name: 'billing.workspaceUsage',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "This workspace's call usage in the bill's current period, read-only, for the workspace's owners and admins (docs/billing.md §8: workspace admins see usage only): the included minutes used and the paid minutes per level with their cost. Never other workspaces of the bill, the balance, the plan or invoices. `usage` is null while billing is off or the workspace is not on a bill.",
+  input: z.object({}),
+  permission: 'settings:write',
+  readOnly: true,
+})
+/** `data` of `billing.workspaceUsage`. */
+export type BillingWorkspaceUsageData = {
+  usage: {
+    period: { startsAt: string; endsAt: string; kind: 'trial' | 'month' } | null
+    row: BillingUsageRow | null
+  } | null
 }
 
 /** Auto-recharge as the owner sets it (docs/billing.md §2.2, §4.3): the amount lifts the balance clear of the threshold. */

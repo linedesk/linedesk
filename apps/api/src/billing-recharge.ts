@@ -20,7 +20,7 @@ import {
   type Tx,
   user,
 } from '@linedesk/db'
-import { and, eq, gte, inArray, lt } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, lt } from 'drizzle-orm'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { billingRules, rechargeLine } from './billing-rules.ts'
 import { brandName } from './branding.ts'
@@ -350,6 +350,7 @@ export async function sendBillingAlert(
       planCents: charged ?? price.cents * Math.max(1, workspaces),
       trialEnd: job.ref,
       rechargeCents: bill.bill.auto_recharge ? bill.bill.recharge_amount_cents : null,
+      workspaceId: await oldestWorkspace(db, job.bill),
     }
   } else {
     // What calls can still use (the balance less what running calls hold): the figure the alert fired on (N3).
@@ -410,6 +411,17 @@ async function rechargedInMonth(db: Db, billId: string, month: string) {
       ),
     )
   return rows.reduce((sum, r) => sum + r.amount, 0)
+}
+
+/** The bill's oldest workspace (the button of the trial email opens its Settings › Billing), or null. */
+async function oldestWorkspace(db: Db, billId: string) {
+  const [row] = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.billingAccountId, billId))
+    .orderBy(asc(organization.createdAt))
+    .limit(1)
+  return row?.id ?? null
 }
 
 async function workspacesOf(db: Db, billId: string) {

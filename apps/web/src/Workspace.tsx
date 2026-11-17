@@ -175,6 +175,13 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   const canCreateWorkspace = mayCreateWorkspace(me)
   // On a bill (Linedesk Cloud) and allowed to manage it: Workspace settings › Billing and the billing line above pages.
   const billingOwner = !!me.workspace?.billingState && me.permissions.includes('billing:manage')
+  // Workspace settings › Billing: the bill owner's page, or this workspace's usage alone for its admins (docs/billing.md
+  // §8, workspace admins see usage only).
+  const billingView = billingOwner
+    ? ('owner' as const)
+    : me.workspace?.billingState && me.permissions.includes('settings:write')
+      ? ('usage' as const)
+      : null
   const [newWorkspace, setNewWorkspace] = useState(false)
   // Members without a passkey: a quiet card asks for one (passkey-ask.ts), not at the same time as the star prompt.
   const [passkeyCardClosed, setPasskeyCardClosed] = useState(false)
@@ -541,7 +548,13 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         onSignOut={() => void signOut()}
         onClose={() => setNavOpen(false)}
       />
-      <button type="button" className="scrim" aria-label={t('shell.nav.closeMenu')} tabIndex={-1} onClick={() => setNavOpen(false)} />
+      <button
+        type="button"
+        className="scrim"
+        aria-label={t('shell.nav.closeMenu')}
+        tabIndex={-1}
+        onClick={() => setNavOpen(false)}
+      />
       <main className="main">
         {nav.route !== 'workspace' && !goLiveVisible && <SetupBanner canEdit={canManageKeys} />}
         {nav.route !== 'workspace' && billingOwner && <BillingBanner />}
@@ -571,7 +584,8 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
                 canManageKeys,
                 agentChange: mayChangeWithAgent(me),
                 isInstanceAdmin: instanceAdmin,
-                billing: billingOwner,
+                billing: billingView,
+                extraNumberCents: me.workspace?.extraNumberCents ?? null,
                 userId: me.actorId,
                 menu,
                 openCall: open,
@@ -688,12 +702,16 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
       />
       {tourOpen && !page && <Tour onClose={closeTour} canAssign={canAssign} />}
       {askForPasskey && !(tourOpen || !!page || !!openCall || overlay !== null || newWorkspace) && (
-        <PasskeyCard account={me.actorId} needsEnrolmentCode={Boolean(me.passkeyEnrolment)} onAdded={() => {
+        <PasskeyCard
+          account={me.actorId}
+          needsEnrolmentCode={Boolean(me.passkeyEnrolment)}
+          onAdded={() => {
             toaster.show(t('account.passkey.added'))
             setPasskeyCardClosed(true)
             return onSessionStale()
           }}
-          onClose={() => setPasskeyCardClosed(true)} />
+          onClose={() => setPasskeyCardClosed(true)}
+        />
       )}
       <StarPrompt
         prompt={me.starPrompt ?? null}

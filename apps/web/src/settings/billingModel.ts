@@ -23,11 +23,19 @@ export function daysLeft(iso: string, now = Date.now()): number {
   return Math.max(0, Math.ceil((Date.parse(iso) - now) / 86_400_000))
 }
 
-/** The status badge's words and tone. */
-export function statusBadge(status: BillingOverviewBill['status']): {
+/**
+ * The status badge's words and tone. A bill held for review says so, not "Active": no number can be bought until the
+ * review is done (docs/billing.md §3.2 step 5).
+ */
+export function statusBadge(
+  status: BillingOverviewBill['status'],
+  heldForReview = false,
+): {
   key: MessageKey
   tone: 'neutral' | 'ok' | 'info' | 'danger'
 } {
+  if (heldForReview && (status === 'active' || status === 'trialing'))
+    return { key: msg('settings.billing.status.held'), tone: 'info' }
   switch (status) {
     case 'trialing':
       return { key: msg('settings.billing.status.trialing'), tone: 'info' }
@@ -125,6 +133,37 @@ export function stateNote(state: BillingStateBill | null, fmtDate: (iso: string)
   return null
 }
 
+/** Whether the bill pays anything: a comped bill has no plan fee, no balance to recharge and free numbers. */
+export const paysCharges = (bill: Pick<BillingOverviewBill, 'status'>) => bill.status !== 'comped'
+
+/** How long after a payment a yearly plan is refunded in full on request (the terms, docs/billing.md §3.2 step 10). */
+export const YEARLY_REFUND_DAYS = 14
+
+/**
+ * The cancel dialog's line about the plan fee already paid (the terms' "Refunds"; docs/billing.md §4.5): a yearly plan
+ * paid in the last 14 days is refunded in full on request, until when; later, the rest of the year is not refunded.
+ * Nothing for a monthly plan or in the trial (nothing was charged).
+ */
+export type RefundLine = { key: MessageKey; values: Record<string, string> } | null
+
+export function yearlyRefundLine(
+  bill: Pick<BillingOverviewBill, 'status' | 'interval' | 'invoices'>,
+  fmtDate: (iso: string) => string,
+  now = Date.now(),
+): RefundLine {
+  if (bill.interval !== 'year' || bill.status === 'trialing') return null
+  const paid = bill.invoices
+    .filter(i => i.kind === 'subscription' && i.status === 'paid' && i.totalCents > 0)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0]
+  const until = paid ? Date.parse(paid.createdAt) + YEARLY_REFUND_DAYS * 86_400_000 : 0
+  if (paid && until > now)
+    return {
+      key: msg('settings.billing.cancel.yearlyRefund'),
+      values: { date: fmtDate(new Date(until).toISOString()) },
+    }
+  return { key: msg('settings.billing.cancel.yearlyNoRefund'), values: {} }
+}
+
 /** One workspace's usage line: billed minutes per level (rounded up) and what they cost, in micro-dollars. */
 export function usageLine(row: BillingUsageRow) {
   const minutes = (seconds: number | undefined) => Math.ceil((seconds ?? 0) / 60)
@@ -171,8 +210,9 @@ export const amountFits = (thresholdCents: number, amountCents: number) => amoun
 
 /**
  * The one-line banner above every page for the bill owner (docs/billing.md §3.4, §4.3, §11 PR 9), from `billing.state`
- * alone (a cheap read; review of #1007, I-4): the most pressing thing about the bill, or null. Paused calls first, then a canceled plan, a failed payment, a failed recharge, an
- * unpaid number, the monthly cap reached, a low balance with auto-recharge off. It leads to Settings › Billing.
+ * alone (a cheap read; review of #1007, I-4): the most pressing thing about the bill, or null. Paused calls first,
+ * then a canceled plan, a failed payment, a card held for review, a failed recharge, an unpaid number, the monthly cap
+ * reached, a low balance with auto-recharge off. It leads to Settings › Billing.
  */
 export type BillingBanner = { key: MessageKey; tone: 'warning' | 'danger' }
 
@@ -181,6 +221,9 @@ export function billingBanner(state: BillingStateBill | null): BillingBanner | n
   if (state.status === 'suspended') return { key: msg('settings.billing.banner.suspended'), tone: 'danger' }
   if (state.status === 'canceled') return { key: msg('settings.billing.banner.canceled'), tone: 'danger' }
   if (state.status === 'past_due') return { key: msg('settings.billing.banner.pastDue'), tone: 'danger' }
+  // Held for review: no number until it is done (docs/billing.md §3.2 step 5).
+  if (state.heldForReview && (state.status === 'active' || state.status === 'trialing'))
+    return { key: msg('settings.billing.banner.held'), tone: 'warning' }
   if (state.rechargeFailed)
     return state.rechargeNeedsAction
       ? { key: msg('settings.billing.banner.rechargeConfirm'), tone: 'danger' }
