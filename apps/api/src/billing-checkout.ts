@@ -1227,6 +1227,8 @@ export const NUMBER_HELD_FOR_REVIEW: Said = { key: msg('server.api.checkout.numb
 export const TRIAL_NUMBER_LIMIT: Said = { key: msg('server.api.checkout.number.trialLimit') }
 export const NUMBER_BILL_INACTIVE: Said = { key: msg('server.api.checkout.number.billInactive') }
 export const NUMBER_OWNER_ONLY: Said = { key: msg('server.api.checkout.number.ownerOnly') }
+/** An extra number debits the bill each month: a person decides it in the app, as themselves (LIN-439). */
+export const NUMBER_EXTRA_IN_APP: Said = { key: msg('server.api.checkout.number.extraInApp') }
 
 /**
  * Why a workspace on a bill may not buy a number now, or null (docs/billing.md §3.2 step 6): runs before the install's
@@ -1257,14 +1259,20 @@ export async function billingNumberRefusal(tx: Tx, actor: Actor, workspaceId: st
       ),
     )
   const numbers = held?.n ?? 0
+  // Never through a key or a setup link (docs/billing.md §8): a setup link keeps the actorId of the bill owner who made
+  // it. Nor while an admin is signed in as someone else (LIN-439). The first number may (onboarding buys it).
+  const inApp = !(actor.apiKeyId || actor.personalKeyId || actor.setupKeyId || actor.impersonation)
   if (bill.status === 'trialing') {
     const rules = await signupRules(tx)
-    return numbers >= rules.trialNumbersPerWorkspace ? TRIAL_NUMBER_LIMIT : null
+    if (numbers >= rules.trialNumbersPerWorkspace) return TRIAL_NUMBER_LIMIT
+    // A second trial number becomes an extra number once the plan starts.
+    return numbers >= 1 && !inApp ? NUMBER_EXTRA_IN_APP : null
   }
   // After the trial a number past the included one debits the bill each month (PR 10): only someone who manages the
   // bill (M3; its owner, or an owner or admin of its only workspace: managesBill), and only with balance for its first
   // month.
   if (numbers < 1) return null
+  if (!inApp) return NUMBER_EXTRA_IN_APP
   if (!(await managesBill(tx, actor, bill))) return NUMBER_OWNER_ONLY
   const rules = await billingRules(tx)
   const balance = await lockBalance(tx, bill.id)

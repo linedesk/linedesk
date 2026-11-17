@@ -33,8 +33,10 @@ import {
 import { and, eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { BILLING_CATALOG_KEY } from '../src/billing-catalog.ts'
+import { SIGNUP_RULES_KEY } from '../src/self-serve.ts'
 import {
   billingNumberRefusal,
+  NUMBER_EXTRA_IN_APP,
   CHECKOUT_STARTS_PER_MINUTE,
   CHECKOUT_TOO_OFTEN,
   CHECKOUT_UNAVAILABLE,
@@ -732,6 +734,37 @@ describe('numbers on a billed workspace (docs/billing.md §3.2 step 6)', () => {
         billingNumberRefusal(tx, { actorId: operator.userId, permissions: ['instance:admin'] } as never, ws.id),
       ),
     ).toBeNull()
+  })
+
+  test('an extra number: never through a key, a setup link or an impersonation, even of the bill owner (LIN-439)', async () => {
+    const { ws, bill } = await trialWith(rid('fp'))
+    await db.update(billing_accounts).set({ status: 'active' }).where(eq(billing_accounts.id, bill.id))
+    await db
+      .update(phone_numbers)
+      .set({ purchased: true, carrier_account: 'install' })
+      .where(eq(phone_numbers.workspace_id, ws.id))
+    const owner = { actorId: ws.owner.userId, permissions: ['settings:write'], role: 'owner', workspaceId: ws.id }
+    const refusal = (actor: object) => db.transaction(tx => billingNumberRefusal(tx, actor as never, ws.id))
+    // The owner in the app passes this check (and stops at the balance).
+    expect(await refusal(owner)).not.toBe(NUMBER_EXTRA_IN_APP)
+    const impersonation = { adminId: operator.userId, sessionId: 'sess_x', endsAt: new Date().toISOString() }
+    for (const extra of [{ setupKeyId: 'sk_x' }, { apiKeyId: 'key_x' }, { personalKeyId: 'pk_x' }, { impersonation }])
+      expect(await refusal({ ...owner, ...extra }), Object.keys(extra)[0]).toBe(NUMBER_EXTRA_IN_APP)
+    // In a trial that allows more than one number, the second is refused the same way (it is paid once the plan starts).
+    await db.update(billing_accounts).set({ status: 'trialing' }).where(eq(billing_accounts.id, bill.id))
+    const key = eq(instance_settings.key, SIGNUP_RULES_KEY)
+    const [before] = await db.select().from(instance_settings).where(key)
+    await db
+      .insert(instance_settings)
+      .values({ key: SIGNUP_RULES_KEY, value: JSON.stringify({ trialNumbersPerWorkspace: 2 }) })
+      .onConflictDoUpdate({ target: instance_settings.key, set: { value: JSON.stringify({ trialNumbersPerWorkspace: 2 }) } })
+    try {
+      expect(await refusal(owner)).toBeNull()
+      expect(await refusal({ ...owner, setupKeyId: 'sk_x' })).toBe(NUMBER_EXTRA_IN_APP)
+    } finally {
+      if (before) await db.update(instance_settings).set({ value: before.value }).where(key)
+      else await db.delete(instance_settings).where(key)
+    }
   })
 
   test('phoneNumber.setup refuses a purchase before Checkout is confirmed', async () => {

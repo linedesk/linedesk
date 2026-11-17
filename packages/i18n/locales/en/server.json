@@ -23,6 +23,7 @@
   "api.checkout.notWaiting": "This bill is not waiting for Checkout.",
   "api.checkout.number.billInactive": "Your plan is not active. Pay the open invoice to get numbers again.",
   "api.checkout.number.extraCost": "An extra number costs {amount} a month from your balance. Buy minutes first.",
+  "api.checkout.number.extraInApp": "A number that costs extra can only be added in the app, signed in as yourself: not with an API key, a setup link, or while signed in as someone else.",
   "api.checkout.number.heldForReview": "Getting a number is on hold while we check your card. We will email you; this usually takes less than a day.",
   "api.checkout.number.needsCheckout": "Finish Checkout first: then you can get your number.",
   "api.checkout.number.ownerOnly": "Only the owner of this bill, or an owner or admin of the one workspace it pays for, can add a number that costs extra.",
