@@ -222,6 +222,115 @@ test('suspended for a missed payment, and past due: what happens and by when', (
   expect(pastDue).toContain('Calls are still answered.')
 })
 
+const invoice = (id: string, over: Partial<BillingOverviewBill['invoices'][number]> = {}) => ({
+  id,
+  kind: 'subscription' as const,
+  number: `LD-${id}`,
+  status: 'open' as const,
+  totalCents: 1100,
+  taxCents: 0,
+  createdAt: new Date(Date.now() - DAY).toISOString(),
+  url: `https://invoice.stripe.com/i/acct_1/${id}`,
+  ...over,
+})
+const paused = state({ status: 'suspended', suspendedReason: 'payment', cancelsAt: null })
+/** The plan card alone (the warning), cut off before the next card: the Invoices card has its own Pay links. */
+const planCard = (html: string) => html.slice(html.indexOf('id="billing-plan"'), html.indexOf('</section>'))
+const payLinks = (html: string) => planCard(html).match(/<a class="k-btn[^"]*" href="[^"]*"[^>]*>[^<]*<\/a>/g) ?? []
+
+test('calls paused for a missed payment: a pay link per open invoice in the warning, to Stripe in a new tab', () => {
+  const html = render(
+    {
+      billingOn: true,
+      bill: bill({
+        status: 'suspended',
+        invoices: [invoice('in_a'), invoice('in_b', { totalCents: 2050, kind: 'recharge' })],
+      }),
+    },
+    paused,
+  )
+  const links = payLinks(html)
+  expect(links).toEqual([
+    '<a class="k-btn k-btn-sm k-btn-primary" href="https://invoice.stripe.com/i/acct_1/in_a" target="_blank" rel="noopener noreferrer">Pay $11.00 invoice</a>',
+    '<a class="k-btn k-btn-sm k-btn-secondary" href="https://invoice.stripe.com/i/acct_1/in_b" target="_blank" rel="noopener noreferrer">Pay $20.50 invoice</a>',
+  ])
+  expect(planCard(html)).toContain('Calls are paused')
+  expect(planCard(html)).not.toContain('See all open invoices')
+  // One primary button on the page: the first pay link.
+  expect(primaries(html)).toBe(1)
+})
+
+test('past due: the open invoice to pay in the warning, and Buy minutes no longer the primary button', () => {
+  const html = render(
+    {
+      billingOn: true,
+      bill: bill({
+        status: 'past_due',
+        invoices: [invoice('in_a', { url: 'https://pay.stripe.com/invoice/acct_1/in_a' })],
+      }),
+    },
+    state({ status: 'past_due', suspendsAt: new Date(Date.now() + 3 * DAY).toISOString() }),
+  )
+  expect(payLinks(html)).toHaveLength(1)
+  expect(payLinks(html)[0]).toContain('href="https://pay.stripe.com/invoice/acct_1/in_a"')
+  expect(primaries(html)).toBe(1)
+  const buy = html.match(/<button[^>]*class="([^"]*)"[^>]*>(?:(?!<\/button>).)*Buy minutes/)
+  expect(buy?.[1]).toBe('k-btn k-btn-secondary k-btn-md')
+})
+
+test('no pay links for paid, voided or draft invoices, for one without a page, or for a page not on Stripe', () => {
+  const html = render(
+    {
+      billingOn: true,
+      bill: bill({
+        status: 'suspended',
+        invoices: [
+          invoice('in_paid', { status: 'paid' }),
+          invoice('in_void', { status: 'void' }),
+          invoice('in_draft', { status: 'draft' }),
+          invoice('in_nopage', { url: null }),
+          invoice('in_http', { url: 'http://invoice.stripe.com/i/acct_1/in_http' }),
+          invoice('in_other', { url: 'https://invoice.stripe.com.evil.test/i/in_other' }),
+          invoice('in_js', { url: 'javascript:alert(1)' }),
+        ],
+      }),
+    },
+    paused,
+  )
+  expect(planCard(html)).toContain('Calls are paused')
+  expect(payLinks(html)).toEqual([])
+  expect(planCard(html)).not.toContain('evil.test')
+  expect(planCard(html)).not.toContain('javascript:')
+})
+
+test('more than two open invoices: the first two to pay, and See all open invoices', () => {
+  const html = render(
+    {
+      billingOn: true,
+      bill: bill({ status: 'suspended', invoices: [invoice('in_a'), invoice('in_b'), invoice('in_c')] }),
+    },
+    paused,
+  )
+  const links = payLinks(html)
+  expect(links).toHaveLength(2)
+  expect(links[0]).toContain('in_a')
+  expect(links[1]).toContain('in_b')
+  expect(planCard(html)).not.toContain('in_c')
+  expect(planCard(html)).toContain('See all open invoices')
+})
+
+test('no pay links in a running plan, nor for someone who does not pay for the workspace', () => {
+  const running = render({ billingOn: true, bill: bill({ invoices: [invoice('in_a')] }) })
+  expect(payLinks(running)).toEqual([])
+  expect(running).not.toContain('Pay $11.00 invoice')
+  queries.overview = { billingOn: true, bill: bill({ status: 'suspended', invoices: [invoice('in_a')] }) }
+  queries.state = { bill: paused }
+  queries.usage = { usage: null }
+  const notOwner = renderToStaticMarkup(<Billing toast={() => {}} owner={false} />)
+  expect(notOwner).not.toContain('Pay $11.00 invoice')
+  expect(notOwner).not.toContain('invoice.stripe.com')
+})
+
 test('canceled at the period end: the end date and Keep my plan instead of Cancel plan', () => {
   const html = render({ billingOn: true, bill: bill({ cancelAtPeriodEnd: true }) })
   expect(html).toContain('You canceled.')

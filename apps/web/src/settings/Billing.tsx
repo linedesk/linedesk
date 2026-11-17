@@ -7,6 +7,7 @@
 // else pays and sees this workspace's usage, read-only (`billing.workspaceUsage`, docs/billing.md §8).
 import type {
   AutoRechargeData,
+  BillingInvoiceRow,
   BillingOverviewBill,
   BillingOverviewData,
   BillingStateData,
@@ -28,7 +29,7 @@ import { refreshQuery, setQueryData, useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
 import { signInAgain } from '../localData.ts'
 import { tabWorkspace } from '../tabWorkspace.ts'
-import { ExternalLink } from '../ui/AppLink.tsx'
+import { ExternalLink, LinkButton } from '../ui/AppLink.tsx'
 import { Select } from '../ui/controls.tsx'
 import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { Dialog, FormField, Input } from '../ui/form.tsx'
@@ -212,11 +213,12 @@ function BillingPage({
 }) {
   // A comped bill pays nothing: no balance to top up (unless one is left from before) and no auto-recharge.
   const pays = paysCharges(bill)
+  const toPay = invoicesToPay(state, bill.invoices)
   return (
     <>
-      <PlanCard bill={bill} state={state} toast={toast} />
+      <PlanCard bill={bill} state={state} toPay={toPay} toast={toast} />
       {pays && <CallsCard bill={bill} toast={toast} />}
-      {(pays || bill.balanceMicros !== 0) && <BalanceCard bill={bill} toast={toast} />}
+      {(pays || bill.balanceMicros !== 0) && <BalanceCard bill={bill} payFirst={toPay.length > 0} toast={toast} />}
       {pays && <AutoRechargeCard bill={bill} toast={toast} />}
       <UsageCard bill={bill} />
       <InvoicesCard bill={bill} toast={toast} />
@@ -225,6 +227,53 @@ function BillingPage({
 }
 
 // ---- The plan --------------------------------------------------------------------------------------------------
+
+/**
+ * Stripe's hosted invoice pages, the only addresses a pay link in the plan's warning opens. The invoices come from the
+ * overview (Stripe's `hosted_invoice_url`, as in the Invoices card); anything else is not linked from the warning.
+ */
+const STRIPE_INVOICE_PAGES = ['https://invoice.stripe.com/', 'https://pay.stripe.com/']
+const isStripeInvoicePage = (url: string | null): url is string =>
+  !!url && STRIPE_INVOICE_PAGES.some(prefix => url.startsWith(prefix))
+
+/** How many pay links the warning shows; with more open invoices, a link to the Invoices card follows. */
+const PAY_LINKS_SHOWN = 2
+
+/**
+ * The invoices the owner pays from the warning while payment is needed (past due, or calls paused): the open ones with
+ * a Stripe page, in the overview's order. None in any other state. After paying on Stripe's page, the owner comes back
+ * to this tab, and the window's focus reads the bill again (cachedQuery), so the warning goes once Stripe says paid.
+ */
+function invoicesToPay(state: BillingStateData['bill'], invoices: BillingInvoiceRow[]): BillingInvoiceRow[] {
+  if (state?.status !== 'past_due' && state?.status !== 'suspended') return []
+  return invoices.filter(inv => inv.status === 'open' && isStripeInvoicePage(inv.url))
+}
+
+/** The warning's pay links: one per open invoice (the first two), then "See all open invoices" when there are more. */
+function PayLinks({ invoices, primary }: { invoices: BillingInvoiceRow[]; primary: boolean }) {
+  const t = useT()
+  const format = useFormat()
+  const showAll = () => document.getElementById('billing-invoices')?.scrollIntoView({ behavior: 'smooth' })
+  return (
+    <span className="billing-actions billing-pay">
+      {invoices.slice(0, PAY_LINKS_SHOWN).map((inv, i) => (
+        <a
+          key={inv.id}
+          // One primary button per screen: the first pay link, unless a failed recharge's Retry has it.
+          className={`k-btn k-btn-sm ${primary && i === 0 ? 'k-btn-primary' : 'k-btn-secondary'}`}
+          href={inv.url ?? undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {t('settings.billing.state.payInvoice', { amount: format.currency(centsToDollars(inv.totalCents), 'USD') })}
+        </a>
+      ))}
+      {invoices.length > PAY_LINKS_SHOWN && (
+        <LinkButton onClick={showAll}>{t('settings.billing.state.allInvoices')}</LinkButton>
+      )}
+    </span>
+  )
+}
 
 /**
  * Whether the address asks for the cancel dialog (`#workspace/billing?cancel=1&ws=…`, the trial emails' "Cancel my
@@ -247,10 +296,12 @@ export function takeCancelRequest(): boolean {
 function PlanCard({
   bill,
   state,
+  toPay,
   toast,
 }: {
   bill: BillingOverviewBill
   state: BillingStateData['bill']
+  toPay: BillingInvoiceRow[]
   toast: (text: string) => void
 }) {
   const t = useT()
@@ -330,6 +381,7 @@ function PlanCard({
       {note && (
         <Note tone={note.tone} title={t(note.title)}>
           {t(note.text, note.values)}
+          {toPay.length > 0 && <PayLinks invoices={toPay} primary={!bill.rechargeFailure} />}
         </Note>
       )}
       {state && state.unpaidNumbers.length > 0 && (
@@ -627,7 +679,16 @@ function openBlankTab(): Window | null {
   return tab
 }
 
-function BalanceCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: string) => void }) {
+/** `payFirst`: the plan's warning shows pay links, so paying the open invoice is the primary button, not Buy minutes. */
+function BalanceCard({
+  bill,
+  payFirst,
+  toast,
+}: {
+  bill: BillingOverviewBill
+  payFirst: boolean
+  toast: (text: string) => void
+}) {
   const t = useT()
   const calls = useBillCalls()
   const format = useFormat()
@@ -712,8 +773,8 @@ function BalanceCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text:
       {bill.canBuyMinutes && paysCharges(bill) && (
         <div className="billing-actions">
           <Button
-            // One primary button per screen: Retry takes it while a recharge failed.
-            variant={failure ? 'secondary' : 'primary'}
+            // One primary button per screen: Retry takes it while a recharge failed, a pay link while one is shown.
+            variant={failure || payFirst ? 'secondary' : 'primary'}
             icon="plus"
             title={t('settings.billing.topUp.buttonTip')}
             onClick={() => setBuying(true)}
