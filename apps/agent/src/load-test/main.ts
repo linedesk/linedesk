@@ -141,9 +141,32 @@ async function startCallerWorker(project: string, idleProcesses: number, memory:
   )
   for (const deadline = Date.now() + 120_000; Date.now() < deadline; await sleep(2000)) {
     const logs = await docker('logs', CALLER_CONTAINER).catch(() => '')
-    if (logs.includes('registered worker')) return
+    if (logs.includes('registered worker')) return waitForCallerWarm()
   }
   throw new Error(`the caller worker in ${CALLER_CONTAINER} did not register with LiveKit within 2 minutes`)
+}
+
+/** Below this CPU (docker stats, 100 = one core) the caller worker counts as idle. */
+const CALLER_IDLE_CPU = 25
+/** Readings in a row below CALLER_IDLE_CPU before the first level starts. */
+const CALLER_IDLE_READINGS = 3
+const CALLER_WARM_TIMEOUT_MS = 180_000
+
+/**
+ * Waits until the caller worker has loaded its warm processes (one per call of the biggest level): the SDK loads them
+ * in parallel, and a call placed while they load finds the callers' CPU taken, so the caller never speaks and the
+ * business looks slow. Goes on after CALLER_WARM_TIMEOUT_MS with a warning.
+ */
+async function waitForCallerWarm() {
+  let quiet = 0
+  for (const deadline = Date.now() + CALLER_WARM_TIMEOUT_MS; Date.now() < deadline; await sleep(1000)) {
+    const cpu = Number.parseFloat(await docker('stats', '--no-stream', '--format', '{{.CPUPerc}}', CALLER_CONTAINER))
+    quiet = Number.isFinite(cpu) && cpu < CALLER_IDLE_CPU ? quiet + 1 : 0
+    if (quiet >= CALLER_IDLE_READINGS) return
+  }
+  console.warn(
+    `The caller worker was still busy after ${CALLER_WARM_TIMEOUT_MS / 1000} s; its CPU may slow the first level.`,
+  )
 }
 
 /** The caller worker's log, kept before its container goes: a call nobody spoke in is told apart there from a business fault. */
