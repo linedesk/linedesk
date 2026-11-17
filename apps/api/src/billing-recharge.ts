@@ -19,6 +19,7 @@ import {
   RECHARGE_LIMITS,
   type RECHARGE_TAX,
   rechargeCapCents,
+  rechargesIn,
   type Tx,
   user,
 } from '@linedesk/db'
@@ -33,7 +34,7 @@ import { billingUnusableAlert, cappedCallAlert, signupCapAlert, signupKeptAlert 
 import { billingOwnerEmail } from './emails/billing.ts'
 import { rechargeSetupAlert } from './emails/billing-alerts.ts'
 import { queueBillingAlert } from './jobs.ts'
-import { extraNumbersOnBill, lockBalance } from './ledger.ts'
+import { extraNumbersOnBill, lockBalance, trialSecondsUsed } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 import { signupRules } from './self-serve.ts'
 
@@ -81,7 +82,7 @@ export async function chargeRecharge(
           ? (BUYS_MINUTES as readonly string[]).includes(bill.status)
             ? null
             : 'bill_inactive'
-          : !['active', 'past_due'].includes(bill.status) || !bill.auto_recharge
+          : !rechargesIn(bill.status, bill.trial_recharge_at !== null) || !bill.auto_recharge
             ? 'bill_inactive'
             : null
   if (reason) {
@@ -384,6 +385,11 @@ export type BillingAlertJob =
   | { kind: 'trial_started'; bill: string; ref: string }
   /** "One step left" to a sign-up that has not started its trial (billing-checkout.ts sendActivationNudges). */
   | { kind: 'activation_nudge'; bill: string; ref: string }
+  /**
+   * The trial prompt (docs/billing.md §3.2 step 7; call-billing.ts trialMinutesAlert): most of the trial's minutes
+   * used, or used up with calls on the trial grace. `ref`: the trial's period.
+   */
+  | { kind: 'trial_minutes_low' | 'trial_minutes_used'; bill: string; ref: string }
 
 /**
  * Sends one billing email. The facts are read when it is sent (the cap, the balance, the amount); an owner without an
@@ -429,6 +435,8 @@ export async function sendBillingAlert(
     .where(eq(billing_accounts.id, job.bill))
   if (!bill?.email) return { sent: 'nobody' as const }
   if (job.kind === 'activation_nudge') return sendActivationNudge(db, sender, bill.bill, bill.email)
+  if (job.kind === 'trial_minutes_low' || job.kind === 'trial_minutes_used')
+    return sendTrialMinutes(db, sender, job, bill.bill, bill.email, options.provider)
   const rules = await billingRules(db)
   const base = { bufferMicros: rules.balanceBufferMicros }
   let content: Parameters<typeof billingOwnerEmail>[0]
@@ -523,6 +531,61 @@ async function sendActivationNudge(
   )
   await sender.send({ to: email, ...content })
   return { sent: 'owner' as const }
+}
+
+/**
+ * The trial prompt's email, read when it is sent: nothing once the owner pressed "Keep calls answered", the trial
+ * ended or auto-recharge was turned off. Names the minutes used, the purchase and the saved card it would charge
+ * (brand and last four, read from the billing provider; "your saved card" when it cannot be read), the automatic
+ * top-up below the threshold, and until when the plan stays free.
+ */
+async function sendTrialMinutes(
+  db: Db,
+  sender: EmailSender,
+  job: { kind: 'trial_minutes_low' | 'trial_minutes_used'; ref: string },
+  bill: typeof billing_accounts.$inferSelect,
+  email: string,
+  override?: BillingProvider,
+) {
+  if (bill.status !== 'trialing' || !bill.auto_recharge || bill.trial_recharge_at) return { sent: 'nobody' as const }
+  const rules = await billingRules(db)
+  const used = await trialSecondsUsed(db, bill.id, job.ref)
+  const locale = await localeForEmail(db, email)
+  const content = billingOwnerEmail(
+    {
+      kind: job.kind,
+      bufferMicros: rules.balanceBufferMicros,
+      usedMinutes: Math.min(Math.floor(used / 60), Math.floor(rules.includedStandardSeconds / 60)),
+      includedMinutes: Math.floor(rules.includedStandardSeconds / 60),
+      amountCents: bill.recharge_amount_cents,
+      thresholdCents: bill.recharge_threshold_cents,
+      card: await savedCard(db, bill, override),
+      freeUntil: bill.trial_ends_at,
+      standardMicrosPerMinute: rules.levels.standard.microsPerMinute,
+      workspaceId: await oldestWorkspace(db, bill.id),
+    },
+    undefined,
+    locale,
+  )
+  await sender.send({ to: email, ...content })
+  return { sent: 'owner' as const }
+}
+
+/** The card a recharge of the bill charges (brand and last four), or null when it cannot be read. */
+export async function savedCard(
+  db: Db | Tx,
+  bill: Pick<typeof billing_accounts.$inferSelect, 'id' | 'stripe_customer_id' | 'stripe_subscription_id'>,
+  override?: BillingProvider,
+) {
+  if (!bill.stripe_customer_id) return null
+  try {
+    const provider = override ?? (await billingProvider(db as Tx))
+    const card = await provider.rechargeCard(bill.stripe_customer_id, bill.stripe_subscription_id)
+    return card ? { id: card.id, brand: card.brand ?? null, last4: card.last4 ?? null } : null
+  } catch (error) {
+    console.error(`billing: the saved card of bill ${bill.id} could not be read:`, error)
+    return null
+  }
 }
 
 /**

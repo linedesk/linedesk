@@ -221,6 +221,42 @@ export type ActivationDisclosure = {
 }
 
 /**
+ * What "Keep calls answered" showed in the trial when the owner pressed it (`terms_acceptances.disclosure`, source
+ * `trial_recharge`; docs/billing.md §3.2 step 7): the minutes used of the trial's included ones, the purchase now
+ * (`amountCents` on `card`, brand and last four), that auto-recharge then runs in the trial too (the threshold and the
+ * monthly cap), until when the plan stays free, and the price of a Standard minute (micros). `rechargeId`: the purchase.
+ */
+export type TrialRechargeDisclosure = {
+  kind: 'trial_recharge'
+  usedMinutes: number
+  includedMinutes: number
+  amountCents: number
+  card: { brand: string | null; last4: string | null }
+  thresholdCents: number
+  capCents: number
+  freeUntil: string | null
+  standardMicrosPerMinute: number
+  rechargeId: string
+}
+
+/**
+ * The trial prompt (docs/billing.md §3.2 step 7): at this share of the included minutes the owner of a trial with
+ * auto-recharge on is asked once (banner and email) to "Keep calls answered".
+ */
+export const TRIAL_PROMPT_SHARE = 0.8
+
+/**
+ * The trial grace: in the trial, once the balance (less what running calls hold) is gone, new calls are still
+ * answered until the bill is this many Standard minutes below zero (docs/billing.md §4.4). Then the refused-call
+ * answer as before.
+ */
+export const TRIAL_GRACE_STANDARD_MINUTES = 10
+
+/** The trial grace in micros: `TRIAL_GRACE_STANDARD_MINUTES` at the install's Standard price. */
+export const trialGraceMicros = (rules: BillingRules = BILLING_DEFAULTS) =>
+  TRIAL_GRACE_STANDARD_MINUTES * rules.levels.standard.microsPerMinute
+
+/**
  * What the activation step shows (/v1/me while the trial waits): the disclosure the owner agrees to, and what the plan
  * includes (the included minutes per workspace and period, the Standard price of a minute after them, in micros).
  */
@@ -452,13 +488,15 @@ export type GateBill = {
   concurrencyCap?: number | null
 }
 export type GateReason = 'billing_inactive' | 'too_many_calls' | 'no_balance'
-export type GateAnswer = { allow: true } | { allow: false; reason: GateReason }
+/** `grace`: allowed only by the trial grace (the balance did not cover the call). */
+export type GateAnswer = { allow: true; grace?: true } | { allow: false; reason: GateReason }
 
 /**
  * "Can this call start?" (docs/billing.md §4.4): the bill is in service, below its concurrency cap (an instance admin's
  * cap, else the rules' cap, in the trial at most `trialConcurrentCalls`), and the balance
- * less every running call's reservation and this one's stays at or above −buffer (0 in the trial). A comped bill
- * pays nothing, so only the cap applies.
+ * less every running call's reservation and this one's stays at or above −buffer (0 in the trial). In the trial a
+ * call the balance does not cover still starts while the bill (less what running calls hold) is above −the trial grace
+ * (`trialGraceMicros`): `grace` says so. A comped bill pays nothing, so only the cap applies.
  */
 export function callGate(bill: GateBill, needMicros: number, rules: BillingRules = BILLING_DEFAULTS): GateAnswer {
   if (!['trialing', 'active', 'past_due', 'comped'].includes(bill.status))
@@ -469,8 +507,10 @@ export function callGate(bill: GateBill, needMicros: number, rules: BillingRules
     return { allow: false, reason: 'too_many_calls' }
   if (bill.status === 'comped') return { allow: true }
   const buffer = trialing ? 0 : rules.balanceBufferMicros
-  if (bill.balanceMicros - bill.reservedMicros - needMicros < -buffer) return { allow: false, reason: 'no_balance' }
-  return { allow: true }
+  const available = bill.balanceMicros - bill.reservedMicros
+  if (available - needMicros >= -buffer) return { allow: true }
+  if (trialing && available > -trialGraceMicros(rules)) return { allow: true, grace: true }
+  return { allow: false, reason: 'no_balance' }
 }
 
 export type RechargeBill = {
@@ -485,11 +525,20 @@ export type RechargeBill = {
   pending: boolean
   /** The last recharge failed and waits for a new card or the owner's Retry. */
   failedWaiting: boolean
+  /** The owner pressed "Keep calls answered" in the trial: auto-recharge runs in the trial too. */
+  trialRecharge?: boolean
   availableMicros: number
   /** Pending, failed-but-payable and paid recharges created this UTC calendar month. */
   usedThisMonthCents: number
 }
 export type RechargeAnswer = { kind: 'none' } | { kind: 'recharge'; amountCents: number } | { kind: 'cap_reached' }
+
+/**
+ * Whether a bill in this status is recharged automatically: paid (also past due), or in the trial once the owner
+ * pressed "Keep calls answered" (`trialRecharge`, docs/billing.md §3.2 step 7).
+ */
+export const rechargesIn = (status: string, trialRecharge: boolean) =>
+  status === 'active' || status === 'past_due' || (status === 'trialing' && trialRecharge)
 
 /** The monthly recharge cap with the extra numbers: each adds its price, so number months never use up the cap meant for calls. */
 export const rechargeCapWithNumbers = (bill: RechargeBill, rules: BillingRules = BILLING_DEFAULTS) =>
@@ -497,11 +546,12 @@ export const rechargeCapWithNumbers = (bill: RechargeBill, rules: BillingRules =
 
 /**
  * The recharge decision (docs/billing.md §4.3): below the threshold, recharge the amount, cut to what the monthly cap
- * leaves; under the $20 minimum the cap is reached. Never in the trial (no off-session charge before conversion),
- * never with one pending or a failure waiting for the owner.
+ * leaves; under the $20 minimum the cap is reached. Not in the trial (no off-session charge before conversion) unless
+ * the owner pressed "Keep calls answered" there (`trialRecharge`); never with one pending or a failure waiting for
+ * the owner.
  */
 export function rechargeDecision(bill: RechargeBill, rules: BillingRules = BILLING_DEFAULTS): RechargeAnswer {
-  if (!bill.autoRecharge || !['active', 'past_due'].includes(bill.status)) return { kind: 'none' }
+  if (!bill.autoRecharge || !rechargesIn(bill.status, bill.trialRecharge ?? false)) return { kind: 'none' }
   if (bill.pending || bill.failedWaiting) return { kind: 'none' }
   if (bill.availableMicros >= bill.thresholdCents * 10_000) return { kind: 'none' }
   const amountCents = Math.min(bill.amountCents, rechargeCapWithNumbers(bill, rules) - bill.usedThisMonthCents)

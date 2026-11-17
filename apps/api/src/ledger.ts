@@ -134,6 +134,15 @@ export async function extraNumbersOnBill(tx: Tx, billId: string): Promise<number
   return rows.reduce((sum, r) => sum + Math.max(0, r.n - 1), 0)
 }
 
+/** The most included Standard seconds a workspace of the bill used in the period (the trial prompt's figure). */
+export async function trialSecondsUsed(tx: Pick<Tx, 'select'>, billId: string, periodId: string) {
+  const [row] = await tx
+    .select({ used: sql<number>`coalesce(max(${usage_counters.included_seconds_used}), 0)::int` })
+    .from(usage_counters)
+    .where(and(eq(usage_counters.billing_account_id, billId), eq(usage_counters.period_id, periodId)))
+  return row?.used ?? 0
+}
+
 export type NewEntry = Omit<typeof ledger_entries.$inferInsert, 'id' | 'created_at'>
 
 /**
@@ -270,7 +279,13 @@ export async function reserveCall(tx: Tx, input: ReserveInput): Promise<ReserveA
     limit_seconds: input.limitSeconds,
     included_reserved_seconds: heldSeconds,
   })
-  return { allow: true, reservedMicros, heldSeconds, recharge: await decideRecharge(tx, input.billId, input.now) }
+  return {
+    allow: true,
+    ...(answer.grace ? { grace: true as const } : {}),
+    reservedMicros,
+    heldSeconds,
+    recharge: await decideRecharge(tx, input.billId, input.now),
+  }
 }
 
 export type PostOutcome =
@@ -416,6 +431,7 @@ export async function decideRecharge(tx: Tx, billId: string, now: string): Promi
       extraNumbers: await extraNumbersOnBill(tx, billId),
       pending: attempts.some(a => a.status === 'pending'),
       failedWaiting: bill.recharge_failed_at !== null,
+      trialRecharge: bill.trial_recharge_at !== null,
       availableMicros: balance.balance_micros - balance.reserved_micros,
       usedThisMonthCents: thisMonth.reduce((sum, a) => sum + a.amount, 0),
     },

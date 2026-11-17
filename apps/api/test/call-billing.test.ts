@@ -116,11 +116,17 @@ async function billed(
     allowanceUsed = false,
     autoRecharge = true,
     ws,
+    periodKind = 'month',
+    usedSeconds,
   }: {
     creditMicros?: number
     allowanceUsed?: boolean
     autoRecharge?: boolean
     ws?: Workspace
+    /** The period around now: a month, or the trial's. */
+    periodKind?: 'month' | 'trial'
+    /** As if earlier calls used this many included seconds (`allowanceUsed`: all 3000). */
+    usedSeconds?: number
   } = {},
 ): Promise<Billed> {
   const workspace = ws ?? (await createWorkspace('Brightwater Plumbing & Heating'))
@@ -139,7 +145,7 @@ async function billed(
     billing_account_id: billId,
     starts_at: new Date(Date.now() - 10 * DAY).toISOString(),
     ends_at: new Date(Date.now() + 10 * DAY).toISOString(),
-    kind: 'month',
+    kind: periodKind,
   })
   await db
     .update(organization)
@@ -147,7 +153,8 @@ async function billed(
     .where(eq(organization.id, workspace.id))
   if (creditMicros) await credit(billId, periodId, creditMicros)
   // As if earlier calls used it: their entry and the counter, so the nightly check adds up.
-  if (allowanceUsed)
+  const used = allowanceUsed ? 3000 : usedSeconds
+  if (used)
     await db.transaction(async tx => {
       await postEntry(tx, {
         billing_account_id: billId,
@@ -155,8 +162,8 @@ async function billed(
         period_id: periodId,
         kind: 'usage',
         amount_micros: 0,
-        seconds: 3000,
-        included_seconds: 3000,
+        seconds: used,
+        included_seconds: used,
         billable_seconds: 0,
         price_basis: 'standard',
         source_type: 'call',
@@ -166,7 +173,7 @@ async function billed(
         billing_account_id: billId,
         period_id: periodId,
         workspace_id: workspace.id,
-        included_seconds_used: 3000,
+        included_seconds_used: used,
       })
     })
   return { ws: workspace, billId, periodId }
@@ -268,7 +275,8 @@ describe('the gate in call.start', () => {
   })
 
   test('no balance after the allowance: refused with the reason, filed as missed with a callback, pushed', async () => {
-    const b = await billed('trialing', { allowanceUsed: true })
+    // In the trial, past its grace (10 Standard minutes below zero): the refused-call answer as before.
+    const b = await billed('trialing', { allowanceUsed: true, creditMicros: -500_000 })
     const started = await start(b.ws)
     expect(started).toMatchObject({ blocked: true, refused: 'no_balance', overCap: false, busy: false })
     expect(await reservationOf(started.callId)).toBeUndefined()
@@ -858,5 +866,140 @@ describe('the usage limit a partner sets for a client', () => {
       .where(eq(organization.id, other.id))
     await used({ ...b, ws: other }, 40_000_000)
     expect(await start(b.ws)).toMatchObject({ blocked: false, refused: null })
+  })
+})
+
+describe('the trial prompt, its grace and the trial recharge (docs/billing.md §3.2 step 7)', () => {
+  /** A trial bill whose workspace used `usedSeconds` of its 3000 included seconds. */
+  const trial = (o: Parameters<typeof billed>[1] = {}) => billed('trialing', { periodKind: 'trial', ...o })
+  const alerts = (billId: string) =>
+    db.select().from(billing_alerts).where(eq(billing_alerts.billing_account_id, billId))
+  /** A call answered and finished `seconds` later. */
+  async function call(b: Billed, seconds: number) {
+    const started = await start(b.ws)
+    expect(started).toMatchObject({ blocked: false, refused: null })
+    await startedAgo(started.callId, seconds)
+    expect((await finish(b.ws, started.callId)).status).toBe(200)
+    return started.callId
+  }
+
+  test('at 40 of the 50 trial minutes the owner is emailed once; not before, not again', async () => {
+    const b = await trial({ usedSeconds: 2300 })
+    await call(b, 60) // 2360 s: below 40 minutes
+    expect(jobs('billing.alert')).toEqual([])
+    await call(b, 60) // 2420 s: past 40 minutes
+    const ref = b.periodId
+    expect(jobs('billing.alert')).toEqual([{ kind: 'trial_minutes_low', bill: b.billId, ref }])
+    await call(b, 60)
+    expect(jobs('billing.alert')).toHaveLength(1)
+    expect(await alerts(b.billId)).toMatchObject([{ kind: 'trial_minutes_low', ref }])
+  })
+
+  test('no prompt once the owner turned on the trial recharge, with auto-recharge off, or after the trial', async () => {
+    const tapped = await trial({ usedSeconds: 2390 })
+    await db
+      .update(billing_accounts)
+      .set({ trial_recharge_at: new Date().toISOString() })
+      .where(eq(billing_accounts.id, tapped.billId))
+    await call(tapped, 60)
+    const off = await trial({ usedSeconds: 2390, autoRecharge: false })
+    await call(off, 60)
+    const paid = await billed('active', { usedSeconds: 2390 })
+    await call(paid, 60)
+    expect(jobs('billing.alert').filter(j => String(j.kind).startsWith('trial_minutes'))).toEqual([])
+  })
+
+  test('minutes used up and no balance: new calls are answered on the 10-minute grace, the owner emailed once', async () => {
+    const b = await trial({ allowanceUsed: true })
+    const first = await start(b.ws)
+    expect(first).toMatchObject({ blocked: false, refused: null })
+    // It holds its limit (20 Standard minutes, $1): a second call at once would go past the grace and is refused.
+    expect(await reservationOf(first.callId)).toMatchObject({
+      reserved_micros: 1_000_000,
+      included_reserved_seconds: 0,
+    })
+    expect(await start(b.ws)).toMatchObject({ blocked: true, refused: 'no_balance' })
+    expect(jobs('billing.alert')).toEqual([{ kind: 'trial_minutes_used', bill: b.billId, ref: b.periodId }])
+    // 4 minutes billed: 20¢ of the 50¢ grace used; the next call starts on the grace too, no second email.
+    await startedAgo(first.callId, 240)
+    await finish(b.ws, first.callId)
+    expect(await balanceOf(b.billId)).toMatchObject({ balance_micros: -200_000, reserved_micros: 0 })
+    const second = await start(b.ws)
+    expect(second).toMatchObject({ blocked: false })
+    await startedAgo(second.callId, 360)
+    await finish(b.ws, second.callId)
+    // 10 minutes past the allowance: the grace is used, new callers get the fixed line and a missed call.
+    expect(await balanceOf(b.billId)).toMatchObject({ balance_micros: -500_000 })
+    expect(await start(b.ws)).toMatchObject({ blocked: true, refused: 'no_balance' })
+    expect(jobs('billing.alert').filter(j => j.kind === 'trial_minutes_used')).toHaveLength(1)
+    // The used-up email also counts as the 40-minute one: that never follows.
+    expect((await alerts(b.billId)).map(a => a.kind).sort()).toEqual(['trial_minutes_low', 'trial_minutes_used'])
+    expect(jobs('billing.alert').filter(j => j.kind === 'trial_minutes_low')).toEqual([])
+  })
+
+  test('after the grace is used, paid bills keep their $5 buffer as before', async () => {
+    const b = await billed('active', { allowanceUsed: true, creditMicros: -500_000 })
+    expect(await start(b.ws)).toMatchObject({ blocked: false, refused: null })
+  })
+
+  test('auto-recharge fires in the trial once the owner turned on the trial recharge, never before', async () => {
+    const before = await trial({ allowanceUsed: true, creditMicros: 3_000_000 })
+    await start(before.ws)
+    expect(jobs('billing.recharge')).toEqual([])
+    const after = await trial({ allowanceUsed: true, creditMicros: 3_000_000 })
+    await db
+      .update(billing_accounts)
+      .set({ trial_recharge_at: new Date().toISOString() })
+      .where(eq(billing_accounts.id, after.billId))
+    await start(after.ws)
+    const [attempt] = await db
+      .select()
+      .from(billing_recharges)
+      .where(eq(billing_recharges.billing_account_id, after.billId))
+    expect(attempt).toMatchObject({ status: 'pending', amount_cents: 2500, manual: false })
+    expect(jobs('billing.recharge')).toEqual([{ rechargeId: attempt!.id }])
+  })
+
+  test('the emails: minutes, the purchase with its card, the top-up and the free plan; nothing once tapped', async () => {
+    const b = await trial({ usedSeconds: 2460 })
+    await db
+      .update(billing_accounts)
+      .set({ trial_ends_at: '2026-12-01T12:00:00.000Z' })
+      .where(eq(billing_accounts.id, b.billId))
+    const sent: { subject: string; text: string; html: string }[] = []
+    const sender = {
+      kind: 'smtp',
+      send: async (e: (typeof sent)[number]) => void sent.push(e),
+    } as unknown as EmailSender
+    const provider = {
+      name: 'stripe',
+      rechargeCard: async () => ({ id: 'pm_1', brand: 'visa', last4: '4242' }),
+    } as never
+    await sendBillingAlert(db, sender, { kind: 'trial_minutes_low', bill: b.billId, ref: b.periodId }, { provider })
+    expect(sent[0]!.subject).toBe('You used 41 of your 50 trial minutes')
+    expect(sent[0]!.text).toContain('Keep every call answered: add $25 with Visa ending in 4242.')
+    expect(sent[0]!.text).toContain('We top up automatically below $5.')
+    expect(sent[0]!.text).toContain('Plan stays free until December 1, 2026; minutes 5¢.')
+    expect(sent[0]!.html).toContain('Keep calls answered')
+    await sendBillingAlert(db, sender, { kind: 'trial_minutes_used', bill: b.billId, ref: b.periodId }, { provider })
+    expect(sent[1]!.subject).toBe('Your 50 trial minutes are used up')
+    expect(sent[1]!.text).toContain('Calls are still answered for a short time.')
+    // The card could not be read: "your saved card".
+    const broken = { name: 'stripe', rechargeCard: async () => Promise.reject(new Error('down')) } as never
+    await sendBillingAlert(
+      db,
+      sender,
+      { kind: 'trial_minutes_low', bill: b.billId, ref: b.periodId },
+      { provider: broken },
+    )
+    expect(sent[2]!.text).toContain('add $25 with your saved card.')
+    await db
+      .update(billing_accounts)
+      .set({ trial_recharge_at: new Date().toISOString() })
+      .where(eq(billing_accounts.id, b.billId))
+    expect(
+      await sendBillingAlert(db, sender, { kind: 'trial_minutes_low', bill: b.billId, ref: b.periodId }, { provider }),
+    ).toEqual({ sent: 'nobody' })
+    expect(sent).toHaveLength(3)
   })
 })

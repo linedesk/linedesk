@@ -23,6 +23,7 @@ import {
 import {
   type ActivationDisclosure,
   type ActivationFacts,
+  type TrialRechargeDisclosure,
   type BillingRules,
   billing_accounts,
   billing_alerts,
@@ -67,7 +68,7 @@ import {
   wordsOf,
 } from './handler-context.ts'
 import { type MessageKey, msg } from '@linedesk/i18n'
-import { lockBalance, periodAt, periodForMoney, postEntry } from './ledger.ts'
+import { lockBalance, periodAt, periodForMoney, postEntry, trialSecondsUsed } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 import { ownerStepUpNeeded } from './owner-step-up.ts'
 import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
@@ -790,7 +791,52 @@ async function requireOwnerStepUp(actor: Actor) {
     throw new Reject('Sign in again to pay with the saved card.', SIGN_IN_AGAIN)
 }
 
-type SavedCardStep = TopUpAnswer | { kind: 'fallback'; reason: SavedCardFallback }
+/** A purchase's step; `card` on a charge: the card charged (brand and last four), for the trial recharge's consent. */
+type SavedCardStep =
+  | Exclude<TopUpAnswer, { kind: 'paid' | 'pending' }>
+  | (Extract<TopUpAnswer, { kind: 'paid' | 'pending' }> & { card?: ShownCard })
+  | { kind: 'fallback'; reason: SavedCardFallback }
+type ShownCard = { brand: string | null; last4: string | null }
+
+/** The card a retried purchase charged (its first answer was lost): read again, or unknown. */
+async function chargedCard(provider: BillingProvider, bill: Bill): Promise<ShownCard | undefined> {
+  const { savedCard } = await import('./billing-recharge.ts')
+  return (await savedCard(db, bill, provider)) ?? undefined
+}
+
+/** The answer without the card (the client was shown it already). */
+const strip = ({ card: _card, ...answer }: Extract<SavedCardStep, { kind: 'paid' | 'pending' }>): TopUpAnswer => answer
+
+/**
+ * What "Keep calls answered" showed and the owner agreed to (docs/billing.md §3.2 step 7), for the consent record:
+ * the minutes used of the trial's included ones, the purchase and its card, the automatic top-up after it (threshold,
+ * monthly cap) and until when the plan stays free. Read again after the charge, from the bill and the install's rules.
+ */
+async function trialRechargeConsent(
+  bill: Bill,
+  card: ShownCard | undefined,
+  ids: { commandId: string; now: string },
+): Promise<TrialRechargeDisclosure> {
+  const rules = await billingRules(db)
+  const [workspaces] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(organization)
+    .where(eq(organization.billingAccountId, bill.id))
+  const period = await db.transaction(tx => periodAt(tx, bill.id, ids.now))
+  const used = period ? await trialSecondsUsed(db, bill.id, period.id) : 0
+  return {
+    kind: 'trial_recharge',
+    usedMinutes: Math.floor(used / 60),
+    includedMinutes: Math.floor(rules.includedStandardSeconds / 60),
+    amountCents: bill.recharge_amount_cents,
+    card: card ?? { brand: null, last4: null },
+    thresholdCents: bill.recharge_threshold_cents,
+    capCents: rechargeCapCents(bill.recharge_cap_base_cents, workspaces?.n ?? 1, rules),
+    freeUntil: bill.trial_ends_at,
+    standardMicrosPerMinute: rules.levels.standard.microsPerMinute,
+    rechargeId: purchaseIdOf(bill.id, ids.commandId),
+  }
+}
 
 /**
  * "Buy minutes" with the saved card (docs/billing.md §2.2), in two steps. Without `confirmCard` it only answers which
@@ -837,7 +883,10 @@ async function buyWithSavedCard(
   })
   // One payment at a time per bill (an automatic recharge or another purchase is running).
   if (!attempt) throw Reject.t('server.api.checkout.paymentRunning')
-  return purchaseOutcome(provider, bill, attempt)
+  const step = await purchaseOutcome(provider, bill, attempt)
+  return step.kind === 'paid' || step.kind === 'pending'
+    ? { ...step, card: { brand: card.brand ?? null, last4: card.last4 ?? null } }
+    : step
 }
 
 /** Charges a Buy minutes attempt (again: every step has the attempt's idempotency key) and says what came of it. */
@@ -888,7 +937,13 @@ async function purchaseOutcome(
 
 const prepareTopUp: Preparer = async (
   { actor, now, commandId },
-  input: { amountCents: number; savedCard?: boolean; confirmCard?: string; partnerId?: string },
+  input: {
+    amountCents: number
+    savedCard?: boolean
+    confirmCard?: string
+    trialRecharge?: boolean
+    partnerId?: string
+  },
 ) => {
   const bill = await db.transaction(tx => ownBill(tx, actor, { partnerId: input.partnerId }))
   if (!BUYS_MINUTES.includes(bill.status)) throw Reject.t('server.api.checkout.minutesAfterStart')
@@ -900,11 +955,31 @@ const prepareTopUp: Preparer = async (
       min: reader => reader.format.currency(TOPUP_LIMITS.minCents / 100, 'USD'),
       max: reader => reader.format.currency(TOPUP_LIMITS.maxCents / 100, 'USD'),
     })
+  // "Keep calls answered" in the trial (docs/billing.md §3.2 step 7): the bill's recharge amount on the saved card, while
+  // the trial runs with auto-recharge on; the terms in effect are recorded with it, so they must be there before a charge.
+  if (input.trialRecharge) {
+    const { terms } = legalTerms()
+    if (!terms) throw new Reject(CHECKOUT_UNAVAILABLE)
+    if (
+      !input.savedCard ||
+      bill.status !== 'trialing' ||
+      !bill.auto_recharge ||
+      bill.trial_recharge_at !== null ||
+      input.amountCents !== bill.recharge_amount_cents
+    )
+      throw Reject.t('server.api.checkout.trialRechargeChanged')
+  }
   const provider = await billingProvider(db)
   let fallback: SavedCardFallback | undefined
   if (input.savedCard) {
     const step = await buyWithSavedCard(provider, actor, bill, input, { commandId, now })
-    if (step.kind !== 'fallback') return { billId: bill.id, answer: step }
+    if (step.kind !== 'fallback') {
+      const consent =
+        input.trialRecharge && (step.kind === 'paid' || step.kind === 'pending')
+          ? await trialRechargeConsent(bill, step.card ?? (await chargedCard(provider, bill)), { commandId, now })
+          : null
+      return { billId: bill.id, answer: step.kind === 'paid' || step.kind === 'pending' ? strip(step) : step, consent }
+    }
     fallback = step.reason
   }
   // A purchase still running (no answer from Stripe yet) is not paid for a second time in Checkout (review L-2).
@@ -1004,14 +1079,34 @@ export const checkoutHandlers: Record<string, Handler> = {
     const provider = await billingProvider(tx)
     return { rows: {}, data: await confirmSession(tx, billId, session, provider, now) }
   },
-  'billing.startTopUp': async ({ tx, actor, prepared }, input: { partnerId?: string }) => {
-    const done = prepared as { billId: string; answer: TopUpAnswer }
+  'billing.startTopUp': async ({ tx, actor, now, prepared }, input: { partnerId?: string }) => {
+    const done = prepared as { billId: string; answer: TopUpAnswer; consent?: TrialRechargeDisclosure | null }
     const bill = await ownBill(tx, actor, { partnerId: input.partnerId })
     // Money that moved is never answered with an error (a retry would be a second purchase; review of #1102, L-1).
     const charged = done.answer.kind === 'paid' || done.answer.kind === 'pending'
     if (bill.id !== done.billId && !charged) throw new Reject('the bill changed; try again')
     if (bill.id !== done.billId)
       console.error(`billing: Buy minutes for bill ${done.billId} answered while the owner's bill is now ${bill.id}`)
+    // "Keep calls answered" charged: from now on auto-recharge runs in the trial too, and the consent is kept (the
+    // terms in effect, the session's IP and browser, what the banner showed). Once: a retry finds the flag set.
+    if (done.consent && bill.id === done.billId) {
+      const [turnedOn] = await tx
+        .update(billing_accounts)
+        .set({ trial_recharge_at: now, updated_at: now })
+        .where(and(eq(billing_accounts.id, bill.id), isNull(billing_accounts.trial_recharge_at)))
+        .returning({ id: billing_accounts.id })
+      const { terms } = legalTerms()
+      if (turnedOn && terms && actor.sessionId)
+        await recordAcceptance(tx, {
+          userId: actor.actorId,
+          billId: bill.id,
+          sessionId: actor.sessionId,
+          terms,
+          disclosure: done.consent,
+          now,
+          source: 'trial_recharge',
+        })
+    }
     return { rows: {}, data: done.answer }
   },
   'billing.cancel': applyCancel,

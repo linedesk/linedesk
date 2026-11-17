@@ -23,6 +23,7 @@ import {
   organization,
   PAID_LEVELS,
   type PaidLevel,
+  TRIAL_PROMPT_SHARE,
   type Tx,
 } from '@linedesk/db'
 import type { Assistant } from '@linedesk/db/types'
@@ -30,7 +31,14 @@ import { and, desc, eq, gt, isNotNull, sql } from 'drizzle-orm'
 import { billingRules } from './billing-rules.ts'
 import { billingState } from './billing-settings.ts'
 import { queueBillingAlert, queueRecharge } from './jobs.ts'
-import { type PostOutcome, type RechargeOutcome, postCallUsage, reserveCall } from './ledger.ts'
+import {
+  type PostOutcome,
+  periodAt,
+  type RechargeOutcome,
+  postCallUsage,
+  reserveCall,
+  trialSecondsUsed,
+} from './ledger.ts'
 import { outboundLimits } from './outbound-policy.ts'
 import { queueUsageLimitAlerts } from './usage-limit.ts'
 
@@ -136,6 +144,8 @@ export async function gateCall(
         now: input.now,
       })
       await afterDebit(sp, input.billId, answer.recharge ?? { kind: 'none' }, input.now)
+      // Answered on the trial grace: the trial's minutes are used up, and the owner hears it once.
+      if (answer.allow && answer.grace) await trialMinutesAlert(sp, input.billId, 'trial_minutes_used', input.now)
       return answer.allow ? { allow: true as const } : { allow: false as const, reason: answer.reason }
     })
   } catch (error) {
@@ -164,6 +174,7 @@ export async function postFinishedCall(tx: Tx, callId: string, now: string): Pro
       const outcome = await postCallUsage(sp, callId, now)
       if (outcome.kind !== 'posted') return outcome
       await afterDebit(sp, outcome.billId, outcome.recharge, now)
+      if (outcome.posted) await trialMinutesAlert(sp, outcome.billId, 'trial_minutes_low', now)
       // This call's cost may take a white-label client to 80 % or 100 % of its usage limit (usage-limit.ts).
       if (outcome.posted && outcome.entry.workspace_id) await queueUsageLimitAlerts(sp, outcome.entry.workspace_id, now)
       const { rating } = outcome
@@ -259,4 +270,34 @@ async function lowBalanceAlert(tx: Tx, billId: string) {
     .onConflictDoNothing()
     .returning()
   if (added.length) await queueBillingAlert(tx, { kind: 'low_balance', bill: billId, ref })
+}
+
+/**
+ * The trial prompt (docs/billing.md §3.2 step 7), once per trial each: `trial_minutes_low` when a workspace of a trial
+ * bill used `TRIAL_PROMPT_SHARE` of its included minutes, `trial_minutes_used` when a call was answered only on the
+ * trial grace after they were all used. Only while the owner has not pressed "Keep calls answered" and auto-recharge is on (the email offers
+ * it). The used-up email also marks the low one as sent, so it never follows later. The ref is the trial's period.
+ */
+export async function trialMinutesAlert(
+  tx: Tx,
+  billId: string,
+  kind: 'trial_minutes_low' | 'trial_minutes_used',
+  now: string,
+) {
+  const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, billId))
+  if (bill?.status !== 'trialing' || !bill.auto_recharge || bill.trial_recharge_at) return
+  const period = await periodAt(tx, billId, now)
+  if (period?.kind !== 'trial') return
+  // Low: the share of the minutes used. Used up: all of them (a call near the end of the minutes may start on the
+  // grace too, for the part of its limit they no longer cover; that is not "used up" yet).
+  const used = await trialSecondsUsed(tx, billId, period.id)
+  const included = (await billingRules(tx)).includedStandardSeconds
+  if (used < (kind === 'trial_minutes_low' ? TRIAL_PROMPT_SHARE * included : included)) return
+  const kinds = kind === 'trial_minutes_used' ? ['trial_minutes_used', 'trial_minutes_low'] : [kind]
+  const added = await tx
+    .insert(billing_alerts)
+    .values(kinds.map(k => ({ billing_account_id: billId, kind: k as typeof kind, ref: period.id })))
+    .onConflictDoNothing()
+    .returning()
+  if (added.some(a => a.kind === kind)) await queueBillingAlert(tx, { kind, bill: billId, ref: period.id })
 }

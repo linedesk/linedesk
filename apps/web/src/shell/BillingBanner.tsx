@@ -3,16 +3,32 @@
 // One line, the most pressing first (billingBanner), leading to Workspace settings › Billing. It reads `billing.state`
 // only (a few rows, cached with the page's: settings/billingQueries.ts), never the page's overview. Only for the bill
 // owner while the workspace is on a bill; nothing otherwise.
-import { useT } from '@linedesk/i18n/react'
-import { useQuery } from '../cachedQuery.ts'
-import { billingBanner } from '../settings/billingModel.ts'
-import { loadState, STATE } from '../settings/billingQueries.ts'
+//
+// In the trial, once most of its minutes are used (docs/billing.md §3.2 step 7), the line offers one button instead:
+// "Keep calls answered" buys the auto-recharge amount with the saved card it names (Buy minutes' path: the owner
+// confirms it is them first) and turns auto-recharge on for the rest of the trial. Its tooltip has the full terms.
+import type { TopUpData, TrialMinutesPrompt } from '@linedesk/actions'
+import { useFormat, useT } from '@linedesk/i18n/react'
+import { useState } from 'react'
+import { PASSKEY_STEP_UP_REQUIRED, StepUpRequired, withPasskeyStepUp } from '../admin/PasskeyStepUp.tsx'
+import { auth } from '../auth.ts'
+import { refreshQuery, useQuery } from '../cachedQuery.ts'
+import {
+  billingBanner,
+  centsToDollars,
+  purchaseKeys,
+  refusalKey,
+  trialRechargeInput,
+} from '../settings/billingModel.ts'
+import { loadState, OVERVIEW, STATE } from '../settings/billingQueries.ts'
+import { callAction } from '../settings/settings-api.ts'
+import { tabWorkspace } from '../tabWorkspace.ts'
 import { AppLink } from '../ui/AppLink.tsx'
-import { cx, Icon } from '../ui/kit.tsx'
+import { Button, cx, Icon } from '../ui/kit.tsx'
 
 const BILLING_HASH = '#workspace/billing'
 
-export function BillingBanner() {
+export function BillingBanner({ toast }: { toast: (text: string) => void }) {
   const t = useT()
   const state = useQuery(STATE, () => loadState())
   const banner = billingBanner(state.data?.bill ?? null)
@@ -20,13 +36,142 @@ export function BillingBanner() {
   return (
     <div className={cx('setup-bar', `is-${banner.tone}`)} role="status">
       <Icon name={banner.tone === 'danger' ? 'alert' : 'warning'} size={15} />
-      <span>
-        <b>{t(banner.key)}</b>
-        {' · '}
-        <AppLink to={BILLING_HASH} title={t('settings.billing.banner.openTip')}>
-          {t('settings.billing.banner.open')}
-        </AppLink>
-      </span>
+      {banner.trial ? (
+        <TrialPrompt prompt={banner.trial} lineKey={banner.key} toast={toast} />
+      ) : (
+        <span>
+          <b>{t(banner.key)}</b>
+          {' · '}
+          <AppLink to={BILLING_HASH} title={t('settings.billing.banner.openTip')}>
+            {t('settings.billing.banner.open')}
+          </AppLink>
+        </span>
+      )}
     </div>
+  )
+}
+
+type Card = NonNullable<TrialMinutesPrompt['card']>
+
+/** "Visa ending in 4242", or "your saved card" when the card could not be read. */
+function cardName(card: Pick<Card, 'brand' | 'last4'> | null, t: ReturnType<typeof useT>) {
+  if (!card?.brand || !card.last4) return t('settings.billing.topUp.cardUnknown')
+  return t('settings.billing.topUp.card', {
+    brand: card.brand.charAt(0).toUpperCase() + card.brand.slice(1),
+    last4: card.last4,
+  })
+}
+
+/** The purchase's write; a passkey step-up refusal becomes StepUpRequired, so withPasskeyStepUp can ask for it. */
+async function buy(input: object, idempotencyKey: string): Promise<TopUpData> {
+  try {
+    return await callAction<TopUpData>('billing.startTopUp', input, { idempotencyKey })
+  } catch (err) {
+    if ((err as { code?: string }).code === PASSKEY_STEP_UP_REQUIRED)
+      throw Object.assign(new StepUpRequired((err as Error).message, 'confirm'), {
+        status: (err as { status?: number }).status,
+      })
+    throw err
+  }
+}
+
+/**
+ * The trial prompt's line and its one button. The card shown is the card charged: when the server reads another card
+ * than the one on screen (or none was readable), the line names it and nothing is charged until the next press.
+ */
+function TrialPrompt({
+  prompt,
+  lineKey,
+  toast,
+}: {
+  prompt: TrialMinutesPrompt
+  lineKey: Parameters<ReturnType<typeof useT>>[0]
+  toast: (text: string) => void
+}) {
+  const t = useT()
+  const format = useFormat()
+  const [card, setCard] = useState<Card | null>(prompt.card)
+  const [busy, setBusy] = useState(false)
+  // The charge's command id, kept across presses while its outcome is unknown (never charged twice).
+  const [keys] = useState(() => purchaseKeys())
+  // Whole dollars without cents ("$25"): one short line.
+  const usd = (cents: number) =>
+    format.currency(
+      centsToDollars(cents),
+      'USD',
+      cents % 100 === 0 ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {},
+    )
+  const values = {
+    used: prompt.usedMinutes,
+    included: prompt.includedMinutes,
+    amount: usd(prompt.amountCents),
+    card: cardName(card, t),
+    threshold: usd(prompt.thresholdCents),
+    cap: usd(prompt.capCents),
+    date: prompt.freeUntil ? format.date(new Date(prompt.freeUntil), { dateStyle: 'long' }) : '',
+    rate: format.centRate(prompt.standardMicrosPerMinute / 1_000_000, 'USD'),
+  }
+
+  async function keep() {
+    setBusy(true)
+    const workspaceId = tabWorkspace()
+    let attempt = 0
+    const input = trialRechargeInput(prompt, card)
+    try {
+      const done = await withPasskeyStepUp(async () => {
+        // The passkey dialog signs in again (a new session): the retry makes this workspace the session's again.
+        if (attempt++ > 0 && workspaceId) await auth.organization.setActive({ organizationId: workspaceId })
+        const idempotencyKey = keys.keyFor(`${prompt.amountCents}:${card?.id ?? ''}`)
+        try {
+          const answer = await buy(input, idempotencyKey)
+          keys.settle()
+          return answer
+        } catch (err) {
+          keys.settle(err)
+          throw err
+        }
+      }, t('settings.billing.topUp.stepUpWhat'))
+      if (done.kind === 'confirm') {
+        // Another card than the line named (or none was known): named now, charged on the next press.
+        setCard(done.card)
+        setBusy(false)
+        return
+      }
+      if (done.kind === 'checkout') {
+        if (done.fallback === 'declined') toast(t('settings.billing.topUp.declinedToCheckout'))
+        if (done.fallback === 'daily_limit') toast(t('settings.billing.topUp.dailyLimitToCheckout'))
+        window.location.assign(done.url)
+        return
+      }
+      const amount = usd(done.amountCents)
+      toast(
+        done.kind === 'paid' && done.credited
+          ? t('settings.billing.topUp.paid', { amount })
+          : t('settings.billing.topUp.processing', { amount }),
+      )
+      // The trial recharge is on now: the line goes, and the billing page shows the new balance.
+      await Promise.all([refreshQuery(STATE), refreshQuery(OVERVIEW)])
+    } catch (err) {
+      const key = refusalKey((err as { code?: string }).code)
+      toast(key ? t(key) : err instanceof Error && err.message ? err.message : t('settings.billing.error.generic'))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <span>
+        <b>{t(lineKey, values)}</b>
+      </span>
+      <Button
+        size="sm"
+        variant="primary"
+        busy={busy}
+        title={t('settings.billing.banner.keepAnsweredTip', values)}
+        onClick={() => void keep()}
+      >
+        {t('settings.billing.banner.keepAnswered')}
+      </Button>
+    </>
   )
 }

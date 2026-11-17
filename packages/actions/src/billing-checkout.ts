@@ -49,7 +49,7 @@ export type CheckoutConfirmData =
 export const billingStartTopUp = defineAction({
   name: 'billing.startTopUp',
   description:
-    'Buy call minutes for the balance: $5 to $500 at a time. With savedCard it first answers which card on file would be charged; called again with that card as confirmCard (after the owner confirmed it is them), the card is charged at once, at most $500 in 24 hours. Without a card, over that limit, when the bank asks to confirm, or on a decline, it answers a Checkout link instead.',
+    'Buy call minutes for the balance: $5 to $500 at a time. With savedCard it first answers which card on file would be charged; called again with that card as confirmCard (after the owner confirmed it is them), the card is charged at once, at most $500 in 24 hours. Without a card, over that limit, when the bank asks to confirm, or on a decline, it answers a Checkout link instead. With trialRecharge (in the free trial: "Keep calls answered"), the amount is the auto-recharge amount of the bill, charged to the saved card; once charged, auto-recharge runs in the trial too, and the consent of the owner is recorded.',
   input: z.object({
     amountCents: z.number().int().min(TOPUP_CENTS.min).max(TOPUP_CENTS.max),
     savedCard: z.boolean().optional(),
@@ -58,6 +58,11 @@ export const billingStartTopUp = defineAction({
       .string()
       .regex(/^(pm|card|src)_[A-Za-z0-9]{1,250}$/)
       .optional(),
+    /**
+     * "Keep calls answered" in the trial (docs/billing.md §3.2 step 7): with `savedCard`, `amountCents` must be the
+     * bill's auto-recharge amount; charged, the bill's trial recharge is on (auto-recharge in the trial too).
+     */
+    trialRecharge: z.boolean().optional(),
     ...billTarget,
   }),
   permission: 'billing:manage',

@@ -1,7 +1,13 @@
 // Settings › Billing (Billing.tsx): what the page decides from the bill, without React, so it can be tested. Money
 // arrives in cents (prices, recharges) or micro-dollars (the balance, usage); the page shows dollars through
 // useFormat().currency.
-import type { BillingCalls, BillingOverviewBill, BillingStateBill, BillingUsageRow } from '@linedesk/actions'
+import type {
+  BillingCalls,
+  BillingOverviewBill,
+  BillingStateBill,
+  BillingUsageRow,
+  TrialMinutesPrompt,
+} from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 
 export const centsToDollars = (cents: number) => cents / 100
@@ -280,10 +286,23 @@ export const amountFits = (thresholdCents: number, amountCents: number) => amoun
 /**
  * The one-line banner above every page for the bill owner (docs/billing.md §3.4, §4.3, §11 PR 9), from `billing.state`
  * alone (a cheap read; review of #1007, I-4): the most pressing thing about the bill, or null. Paused calls first,
- * then a canceled plan, a failed payment, a card held for review, a failed recharge, an unpaid number, the monthly cap
- * reached, a low balance with auto-recharge off. It leads to Settings › Billing.
+ * then a canceled plan, a failed payment, a card held for review, a failed recharge, an unpaid number, the trial
+ * prompt (with its own button), the monthly cap reached, a low balance with auto-recharge off. It leads to Settings ›
+ * Billing.
  */
-export type BillingBanner = { key: MessageKey; tone: 'warning' | 'danger' }
+export type BillingBanner = {
+  key: MessageKey
+  tone: 'warning' | 'danger'
+  /** The trial prompt (docs/billing.md §3.2 step 7): the banner has "Keep calls answered" instead of the link. */
+  trial?: TrialMinutesPrompt
+}
+
+/** The trial prompt's line by its stage: minutes nearly used, used up (calls on the grace), the grace used too. */
+const TRIAL_KEYS = {
+  low: msg('settings.billing.banner.trialLow'),
+  grace: msg('settings.billing.banner.trialGrace'),
+  paused: msg('settings.billing.banner.trialPaused'),
+} as const
 
 export function billingBanner(state: BillingStateBill | null): BillingBanner | null {
   if (!state) return null
@@ -298,9 +317,30 @@ export function billingBanner(state: BillingStateBill | null): BillingBanner | n
       ? { key: msg('settings.billing.banner.rechargeConfirm'), tone: 'danger' }
       : { key: msg('settings.billing.banner.rechargeFailed'), tone: 'danger' }
   if (state.unpaidNumbers.length) return { key: msg('settings.billing.banner.unpaidNumber'), tone: 'warning' }
+  // In the trial, most of its minutes used: one tap keeps every call answered (a purchase, then auto-recharge).
+  if (state.trialMinutes)
+    return {
+      key: TRIAL_KEYS[state.trialMinutes.stage],
+      tone: state.trialMinutes.stage === 'paused' ? 'danger' : 'warning',
+      trial: state.trialMinutes,
+    }
   // Below the threshold with auto-recharge off, or the cap leaves less than one recharge: nothing lifts the balance.
   if (state.lowBalance === 'auto_recharge_off')
     return { key: msg('settings.billing.banner.lowBalance'), tone: 'warning' }
   if (state.lowBalance === 'cap_reached') return { key: msg('settings.billing.banner.capReached'), tone: 'warning' }
   return null
+}
+
+/**
+ * What "Keep calls answered" sends (`billing.startTopUp`, docs/billing.md §3.2 step 7): the bill's recharge amount on
+ * the saved card, as the trial recharge, naming the card the banner showed (none known: the server names it first and
+ * charges nothing).
+ */
+export function trialRechargeInput(prompt: Pick<TrialMinutesPrompt, 'amountCents'>, card: { id: string } | null) {
+  return {
+    amountCents: prompt.amountCents,
+    savedCard: true,
+    trialRecharge: true,
+    ...(card ? { confirmCard: card.id } : {}),
+  }
 }

@@ -2,7 +2,13 @@
 // the trial or the plan at the onboarding's last step (A9; docs/billing.md §3.1). The links are the install's own (TERMS_URL, PRIVACY_URL, also shown under sign-in); the versions (TERMS_VERSION, PRIVACY_VERSION) name
 // the text behind each link, so a record says which text was accepted, not just which address. Self-serve sign-up
 // stays closed while any of the four is missing (self-serve.ts `selfServeState`): no contract without its terms.
-import { type ActivationDisclosure, session, terms_acceptances, type Tx } from '@linedesk/db'
+import {
+  type ActivationDisclosure,
+  session,
+  terms_acceptances,
+  type TrialRechargeDisclosure,
+  type Tx,
+} from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { readLegalLinks } from './auth-methods.ts'
 
@@ -57,7 +63,8 @@ export function legalTerms(env: Env = process.env): { terms: LegalTerms | null; 
 /**
  * Records that this person accepted these terms and this privacy policy now (A9), with the IP address and browser of
  * the session that accepted (Better Auth keeps them on the session; null when it has none). `source`: the sign-up
- * page (`signup`) or the activation step before Checkout (`activation`, with what it showed next to its button).
+ * page (`signup`), the activation step before Checkout (`activation`, with what it showed next to its button), or
+ * "Keep calls answered" in the trial (`trial_recharge`, with what the banner showed; docs/billing.md §3.2 step 7).
  */
 export async function recordAcceptance(
   tx: Tx,
@@ -67,8 +74,8 @@ export async function recordAcceptance(
     sessionId: string
     terms: LegalTerms
     now: string
-    source: 'signup' | 'activation'
-    disclosure?: ActivationDisclosure
+    source: 'signup' | 'activation' | 'trial_recharge'
+    disclosure?: ActivationDisclosure | TrialRechargeDisclosure
   },
 ) {
   const [from] = await tx

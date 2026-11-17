@@ -19,16 +19,30 @@ import type {
   BillingPortOutData,
   BillingRecordPortOutData,
   BillingStateData,
+  TrialMinutesPrompt,
 } from '@linedesk/actions'
-import { billing_accounts, billing_numbers, member, organization, phone_numbers, type Tx, user } from '@linedesk/db'
+import {
+  billing_accounts,
+  billing_balances,
+  billing_numbers,
+  member,
+  organization,
+  phone_numbers,
+  rechargeCapCents,
+  TRIAL_PROMPT_SHARE,
+  trialGraceMicros,
+  type Tx,
+  user,
+} from '@linedesk/db'
 import { and, count, eq, inArray, isNotNull } from 'drizzle-orm'
 import { lifecycleDates } from './billing-lifecycle.ts'
 import { balanceFlags } from './billing-page.ts'
 import { queueLifecycleEmail, UNPAID_RELEASE_DAYS } from './billing-periods.ts'
 import type { Actor } from './context.ts'
-import type { db } from './db.ts'
+import { db } from './db.ts'
 import { Forbidden, type Handler, type HandlerCtx, Reject } from './handler-context.ts'
-import { lockBalance } from './ledger.ts'
+import { billingRules } from './billing-rules.ts'
+import { lockBalance, periodAt, trialSecondsUsed } from './ledger.ts'
 import { ownerStepUpNeeded } from './owner-step-up.ts'
 import { partnerBillOf } from './partner-billing.ts'
 import { PARTNER_BILL_STAYS } from './partner-refusals.ts'
@@ -146,9 +160,59 @@ async function billingState(
           e164: n.e164,
           releaseAt: new Date(Date.parse(n.since!) + UNPAID_RELEASE_DAYS * DAY_MS).toISOString(),
         })),
+        trialMinutes: await trialMinutesPrompt(tx, bill, now),
       },
     },
   }
+}
+
+/** How long the card a trial prompt names is kept per bill: the banner's state is read often, Stripe once in a while. */
+const CARD_TTL_MS = 5 * 60_000
+const cards = new Map<string, { card: TrialMinutesPrompt['card']; at: number }>()
+
+/**
+ * The trial prompt of `billing.state` (docs/billing.md §3.2 step 7): offered to a trial bill with auto-recharge on,
+ * without the trial recharge yet, once a workspace used `TRIAL_PROMPT_SHARE` of its included minutes in the trial.
+ * The stage from the minutes and the balance: `low`, then `grace` (used up and no balance: calls on the trial grace),
+ * then `paused` (the grace used). The card is the one a recharge charges, read from the billing provider.
+ */
+async function trialMinutesPrompt(tx: Tx, bill: Bill, now: string): Promise<TrialMinutesPrompt | null> {
+  if (bill.status !== 'trialing' || !bill.auto_recharge || bill.trial_recharge_at) return null
+  const period = await periodAt(tx, bill.id, now)
+  if (period?.kind !== 'trial') return null
+  const rules = await billingRules(tx)
+  const used = await trialSecondsUsed(tx, bill.id, period.id)
+  if (used < TRIAL_PROMPT_SHARE * rules.includedStandardSeconds) return null
+  const [balance] = await tx.select().from(billing_balances).where(eq(billing_balances.billing_account_id, bill.id))
+  const available = Number(balance?.balance_micros ?? 0) - Number(balance?.reserved_micros ?? 0)
+  const stage =
+    available <= -trialGraceMicros(rules)
+      ? 'paused'
+      : used >= rules.includedStandardSeconds && available <= 0
+        ? 'grace'
+        : 'low'
+  return {
+    stage,
+    usedMinutes: Math.min(Math.floor(used / 60), Math.floor(rules.includedStandardSeconds / 60)),
+    includedMinutes: Math.floor(rules.includedStandardSeconds / 60),
+    amountCents: bill.recharge_amount_cents,
+    thresholdCents: bill.recharge_threshold_cents,
+    capCents: rechargeCapCents(bill.recharge_cap_base_cents, (await workspacesOnBill(tx, bill.id)).length, rules),
+    freeUntil: bill.trial_ends_at,
+    standardMicrosPerMinute: rules.levels.standard.microsPerMinute,
+    card: await cardOf(bill, Date.parse(now)),
+  }
+}
+
+/** The card of the trial prompt, read at most once per CARD_TTL_MS per bill (null: not readable now). */
+async function cardOf(bill: Bill, now: number): Promise<TrialMinutesPrompt['card']> {
+  const hit = cards.get(bill.id)
+  if (hit && now - hit.at < CARD_TTL_MS) return hit.card
+  const { savedCard } = await import('./billing-recharge.ts')
+  const card = await savedCard(db, bill)
+  if (cards.size > 10_000) cards.clear()
+  if (card) cards.set(bill.id, { card, at: now })
+  return card
 }
 
 /** The numbers of a bill's workspaces bought on Linedesk's carrier account: the ones Linedesk can port out. */

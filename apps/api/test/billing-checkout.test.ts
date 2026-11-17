@@ -7,12 +7,14 @@
 // recharge on the conversion invoice). Stripe is a fake behind the real provider. Instance-wide (Stripe keys, the
 // billing switch): its own database.
 import {
+  type ActivationDisclosure,
   billing_accounts,
   billing_alerts,
   CARD_FINGERPRINT_RETENTION_MONTHS,
   billing_balances,
   billing_periods,
   billing_recharges,
+  calls,
   card_fingerprints,
   commands,
   instance_settings,
@@ -44,15 +46,16 @@ import {
   sendTrialReminders,
   TRIAL_NUMBER_LIMIT,
 } from '../src/billing-checkout.ts'
-import { sendBillingAlert } from '../src/billing-recharge.ts'
+import { chargeRecharge, sendBillingAlert } from '../src/billing-recharge.ts'
 import { setBillingFetch } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
 import { sayIn } from '../src/handler-context.ts'
 import { emailSender } from '../src/email.ts'
 import { setJobQueue } from '../src/jobs.ts'
 import { checkLedgerGuards } from '../src/ledger-guards.ts'
+import { postEntry } from '../src/ledger.ts'
 import { processStripeEventJob } from '../src/stripe-events.ts'
-import { act, addMember, type Caller, createWorkspace, request, type User } from './helpers.ts'
+import { act, addMember, agent, type Caller, createWorkspace, randomNumber, request, type User } from './helpers.ts'
 // After the app (helpers.ts loads it): the sweep's module reaches the handler registry.
 const { sweepSignUps } = await import('../src/signup-handlers.ts')
 
@@ -2005,7 +2008,7 @@ describe('the activation step accepts the terms before Checkout (A9, docs/billin
       privacy_version: TERMS.PRIVACY_VERSION,
       disclosure: { planCents: 1100, interval: 'month', trialDays: 14, reminderDays: [7, 1] },
     })
-    const firstCharge = Date.parse(row!.disclosure!.firstChargeAt!)
+    const firstCharge = Date.parse((row!.disclosure as ActivationDisclosure).firstChargeAt!)
     expect(Math.abs(firstCharge - (Date.now() + 14 * 86_400_000))).toBeLessThan(60_000)
     // Checkout promises the reminders too, where the card is entered.
     const made = checkoutsMade().at(-1)!
@@ -2024,5 +2027,213 @@ describe('the activation step accepts the terms before Checkout (A9, docs/billin
       expect(res).toMatchObject({ status: 409, body: { ok: false, code: 'terms_changed' } })
     }
     expect(checkoutsMade()).toHaveLength(0)
+  })
+})
+
+describe('"Keep calls answered" in the trial (docs/billing.md §3.2 step 7)', () => {
+  const queued: { name: string; data: Record<string, unknown> }[] = []
+  // Placeholder values, never sent anywhere: the three stages count as set up, so calls are Standard.
+  const STAGES = {
+    STT_PROVIDER: 'deepgram',
+    DEEPGRAM_API_KEY: 'placeholder',
+    LLM_PROVIDER: 'openai',
+    OPENAI_API_KEY: 'placeholder',
+    TTS_PROVIDER: 'elevenlabs',
+    ELEVENLABS_API_KEY: 'placeholder',
+  }
+  beforeEach(() => {
+    queued.length = 0
+    for (const [name, value] of Object.entries(STAGES)) vi.stubEnv(name, value)
+    setJobQueue({
+      send: async (name: string, data: Record<string, unknown>) => {
+        queued.push({ name, data })
+        return 'job'
+      },
+      insert: async () => [],
+    } as never)
+  })
+  afterEach(() => setJobQueue(null))
+  const jobs = (name: string) => queued.filter(j => j.name === name && j.data.kind !== 'trial_started').map(j => j.data)
+  const balance = async (billId: string) =>
+    (await db.select().from(billing_balances).where(eq(billing_balances.billing_account_id, billId)))[0]!
+  const consents = (billId: string) =>
+    db
+      .select()
+      .from(terms_acceptances)
+      .where(and(eq(terms_acceptances.billing_account_id, billId), eq(terms_acceptances.source, 'trial_recharge')))
+
+  /** A running trial whose workspace used `seconds` of its included minutes (as earlier calls did). */
+  async function trialUsed(seconds: number) {
+    const t = await trialWith(rid('fp'))
+    // The trial started a day ago, so the calls below (started in the past) fall in it.
+    const [period] = await db
+      .update(billing_periods)
+      .set({ starts_at: new Date(Date.now() - 86_400_000).toISOString() })
+      .where(eq(billing_periods.billing_account_id, t.bill.id))
+      .returning()
+    expect(period!.kind).toBe('trial')
+    await db.transaction(async tx => {
+      await postEntry(tx, {
+        billing_account_id: t.bill.id,
+        workspace_id: t.ws.id,
+        period_id: period!.id,
+        kind: 'usage',
+        amount_micros: 0,
+        seconds,
+        included_seconds: seconds,
+        billable_seconds: 0,
+        price_basis: 'standard',
+        source_type: 'call',
+        source_id: t.ws.call.id,
+      })
+      await tx
+        .insert(usage_counters)
+        .values({
+          billing_account_id: t.bill.id,
+          period_id: period!.id,
+          workspace_id: t.ws.id,
+          included_seconds_used: seconds,
+        })
+        .onConflictDoUpdate({
+          target: [usage_counters.billing_account_id, usage_counters.period_id, usage_counters.workspace_id],
+          set: { included_seconds_used: seconds },
+        })
+    })
+    return { ...t, period: period! }
+  }
+  /** A phone call to the workspace's number, answered and ended `seconds` later; its usage posted. */
+  async function phoneCall(ws: { id: string; number: string }, seconds: number) {
+    const started = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data
+    expect(started).toMatchObject({ blocked: false, refused: null })
+    await db
+      .update(calls)
+      .set({ started_at: new Date(Date.now() - seconds * 1000).toISOString() })
+      .where(eq(calls.id, started.callId))
+    const done = await act(agent(ws.id), 'call.finish', { callId: started.callId, summary: 'Leak', outcome: 'message' })
+    expect(done.status).toBe(200)
+  }
+  const state = async (owner: Caller) => (await act(owner, 'billing.state', {})).body.data.bill
+  const tap = (owner: Caller, card: string, amountCents = 2500) =>
+    act(owner, 'billing.startTopUp', { amountCents, savedCard: true, confirmCard: card, trialRecharge: true })
+
+  test("the banner's facts: offered at 40 of 50 minutes with the card a recharge charges, until it is pressed", async () => {
+    const t = await trialUsed(2300)
+    expect((await state(t.owner)).trialMinutes).toBeNull()
+    await phoneCall(t.ws, 120)
+    expect(jobs('billing.alert')).toEqual([{ kind: 'trial_minutes_low', bill: t.bill.id, ref: t.period.id }])
+    const prompt = (await state(t.owner)).trialMinutes
+    expect(prompt).toMatchObject({
+      stage: 'low',
+      usedMinutes: 40,
+      includedMinutes: 50,
+      amountCents: 2500,
+      thresholdCents: 500,
+      capCents: 5000,
+      standardMicrosPerMinute: 50_000,
+      card: { brand: 'visa', last4: '4242' },
+    })
+    expect(prompt.freeUntil).toBe((await billRow(t.bill.id)).trial_ends_at)
+  })
+
+  test('the tap: $25 on the saved card, the trial recharge on, the consent kept with what was shown; once', async () => {
+    const t = await trialUsed(2500)
+    const card = (await state(t.owner)).trialMinutes.card.id
+    const res = await tap(t.owner, card)
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ kind: 'paid', amountCents: 2500, credited: true })
+    expect((await balance(t.bill.id)).balance_micros).toBe(25_000_000)
+    expect((await billRow(t.bill.id)).trial_recharge_at).not.toBeNull()
+    const [consent, ...more] = await consents(t.bill.id)
+    expect(more).toEqual([])
+    const [attempt] = await db
+      .select()
+      .from(billing_recharges)
+      .where(eq(billing_recharges.billing_account_id, t.bill.id))
+    expect(attempt).toMatchObject({ manual: true, amount_cents: 2500, status: 'paid' })
+    expect(consent).toMatchObject({
+      user_id: t.ws.owner.userId,
+      terms_version: TERMS.TERMS_VERSION,
+      privacy_version: TERMS.PRIVACY_VERSION,
+      disclosure: {
+        kind: 'trial_recharge',
+        usedMinutes: 41,
+        includedMinutes: 50,
+        amountCents: 2500,
+        card: { brand: 'visa', last4: '4242' },
+        thresholdCents: 500,
+        capCents: 5000,
+        freeUntil: (await billRow(t.bill.id)).trial_ends_at,
+        standardMicrosPerMinute: 50_000,
+        rechargeId: attempt!.id,
+      },
+    })
+    // The banner is gone, and a second tap is refused before anything is charged.
+    expect((await state(t.owner)).trialMinutes).toBeNull()
+    const again = await tap(t.owner, card)
+    expect(again.status).toBe(409)
+    expect(
+      await db.select().from(billing_recharges).where(eq(billing_recharges.billing_account_id, t.bill.id)),
+    ).toHaveLength(1)
+  })
+
+  test('only the bill owner, after confirming it is them; only in the trial, for the amount shown', async () => {
+    const t = await trialUsed(2500)
+    const card = (await state(t.owner)).trialMinutes.card.id
+    const admin = await addMember(t.ws.id, 'admin')
+    expect((await tap({ headers: { ...admin.headers, 'x-workspace-id': t.ws.id } }, card)).status).toBe(403)
+    expect((await tap(t.owner, card, 3000)).status).toBe(409)
+    await db
+      .update(session)
+      .set({ createdAt: new Date(Date.now() - 11 * 60_000) })
+      .where(eq(session.userId, t.ws.owner.userId))
+    const stale = await tap(t.owner, card)
+    expect(stale.body).toMatchObject({ code: 'SIGN_IN_AGAIN' })
+    expect(
+      await db.select().from(billing_recharges).where(eq(billing_recharges.billing_account_id, t.bill.id)),
+    ).toEqual([])
+    expect((await billRow(t.bill.id)).trial_recharge_at).toBeNull()
+    expect(await consents(t.bill.id)).toEqual([])
+    // A paid plan buys minutes as before, never "Keep calls answered".
+    await db.update(billing_accounts).set({ status: 'active' }).where(eq(billing_accounts.id, t.bill.id))
+    expect((await tap(t.owner, card)).status).toBe(409)
+  })
+
+  test('a declined card goes on to Checkout: no trial recharge, no consent', async () => {
+    const t = await trialUsed(2500)
+    const card = (await state(t.owner)).trialMinutes.card.id
+    stripe.payOutcome = 'declined'
+    const res = await tap(t.owner, card)
+    expect(res.body.data).toMatchObject({ kind: 'checkout', fallback: 'declined' })
+    expect((await billRow(t.bill.id)).trial_recharge_at).toBeNull()
+    expect(await consents(t.bill.id)).toEqual([])
+  })
+
+  test('scenario: trial → 40 minutes → tap → recharge → 50 minutes → auto-recharge in the trial', async () => {
+    const t = await trialUsed(2350)
+    await phoneCall(t.ws, 120) // 41 minutes: the prompt
+    expect(jobs('billing.alert')).toMatchObject([{ kind: 'trial_minutes_low' }])
+    const card = (await state(t.owner)).trialMinutes.card.id
+    expect((await tap(t.owner, card)).body.data).toMatchObject({ kind: 'paid', credited: true })
+    expect((await balance(t.bill.id)).balance_micros).toBe(25_000_000)
+    // Past the 50 included minutes, every call is paid from the balance; below $5 the card is recharged.
+    let recharge: string | undefined
+    for (let i = 0; i < 30 && !recharge; i++) {
+      await phoneCall(t.ws, 1200)
+      recharge = jobs('billing.recharge')[0]?.rechargeId as string | undefined
+    }
+    expect(recharge).toBeDefined()
+    const left = await balance(t.bill.id)
+    expect(left.balance_micros - left.reserved_micros).toBeLessThan(5_000_000)
+    expect(jobs('billing.alert').filter(j => j.kind === 'trial_minutes_used')).toEqual([])
+    expect(await chargeRecharge(db, recharge!)).toMatchObject({ outcome: 'paid' })
+    const [attempt] = await db.select().from(billing_recharges).where(eq(billing_recharges.id, recharge!))
+    expect(attempt).toMatchObject({ manual: false, amount_cents: 2500 })
+    await processEvent('invoice.paid', {
+      id: attempt!.stripe_invoice_id!,
+      object: 'invoice',
+      customer: (await billRow(t.bill.id)).stripe_customer_id,
+    })
+    expect((await balance(t.bill.id)).balance_micros).toBe(left.balance_micros + 25_000_000)
+    expect(await billRow(t.bill.id)).toMatchObject({ status: 'trialing' })
   })
 })

@@ -35,6 +35,7 @@ import {
   USAGE_LEVELS,
   type ActionItem,
   type ActivationDisclosure,
+  type TrialRechargeDisclosure,
   type AssistantLanguages,
   type AssistantVoice,
   type BookingField,
@@ -1924,6 +1925,10 @@ const ALERT_KINDS = [
   'numbers_released',
   // The one "one step left" email to a sign-up that has not started its trial yet (docs/billing.md §3.2 step 2).
   'activation_nudge',
+  // The trial's included minutes nearly used (TRIAL_PROMPT_SHARE) and used up with calls on the trial grace
+  // (docs/billing.md §3.2 step 7): one email each per trial, until the owner turns on the trial recharge.
+  'trial_minutes_low',
+  'trial_minutes_used',
 ] as const
 const RECHARGE_STATUSES = ['pending', 'paid', 'failed', 'canceled'] as const
 
@@ -1977,6 +1982,12 @@ export const billing_accounts = pgTable(
     recharge_amount_cents: integer('recharge_amount_cents').notNull().default(RECHARGE_DEFAULTS.amountCents),
     /** The owner's monthly recharge cap base ($50 default); the cap in effect adds $25 per further workspace. */
     recharge_cap_base_cents: integer('recharge_cap_base_cents').notNull().default(RECHARGE_CAP_BASE_CENTS),
+    /**
+     * When the owner pressed "Keep calls answered" in the trial (docs/billing.md §3.2 step 7): a purchase with the saved
+     * card, and from then on auto-recharge runs in the trial too (consent in `terms_acceptances`, source
+     * `trial_recharge`). Null: auto-recharge waits for the trial's end, as Checkout said.
+     */
+    trial_recharge_at: ts('trial_recharge_at'),
     /** The last auto-recharge failed (card declined, needs action); cleared by the next successful one. */
     recharge_failed_at: ts('recharge_failed_at'),
     held_for_review_at: ts('held_for_review_at'),
@@ -2416,26 +2427,32 @@ export const signup_attempts = pgTable(
  * account, like the bill. A sign-up that never finished Checkout loses its rows with its bill in the daily sign-up
  * sweep.
  */
+/**
+ * Where terms were accepted: the sign-up page, the activation step before Checkout, and "Keep calls answered" in the
+ * trial (the trial recharge: auto-recharge before the trial ends, docs/billing.md §3.2 step 7).
+ */
+const TERMS_SOURCES = ['signup', 'activation', 'trial_recharge'] as const
+
 export const terms_acceptances = pgTable(
   'terms_acceptances',
   {
     id: id(),
     user_id: text('user_id').notNull(),
     billing_account_id: text('billing_account_id'),
-    source: text('source', { enum: ['signup', 'activation'] }).notNull(),
+    source: text('source', { enum: TERMS_SOURCES }).notNull(),
     terms_url: text('terms_url').notNull(),
     terms_version: text('terms_version').notNull(),
     privacy_url: text('privacy_url').notNull(),
     privacy_version: text('privacy_version').notNull(),
     ip_address: text('ip_address'),
     user_agent: text('user_agent'),
-    disclosure: jsonb('disclosure').$type<ActivationDisclosure>(),
+    disclosure: jsonb('disclosure').$type<ActivationDisclosure | TrialRechargeDisclosure>(),
     accepted_at: ts('accepted_at').notNull().defaultNow(),
   },
   t => [
     index('terms_acceptances_user').on(t.user_id, t.accepted_at),
     index('terms_acceptances_bill').on(t.billing_account_id),
-    check('terms_acceptances_source', sql`${t.source} in ('signup', 'activation')`),
+    check('terms_acceptances_source', oneOf(t.source, TERMS_SOURCES)),
   ],
 )
 

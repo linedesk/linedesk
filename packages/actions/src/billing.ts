@@ -123,6 +123,27 @@ export type BillingStateBill = {
    */
   lowBalance: 'auto_recharge_off' | 'cap_reached' | null
   unpaidNumbers: { e164: string; releaseAt: string }[]
+  /** "Keep calls answered" in the trial (docs/billing.md §3.2 step 7); null when it is not offered. */
+  trialMinutes: TrialMinutesPrompt | null
+}
+
+/**
+ * The trial prompt: a trial bill with auto-recharge on whose owner has not pressed "Keep calls answered", once a
+ * workspace used `TRIAL_PROMPT_SHARE` of its included minutes. `stage`: `low` (minutes left, or a balance that still
+ * covers calls), `grace` (minutes used up: new calls answered on the trial grace for a short time), `paused` (the grace
+ * is used: new callers hear that the business calls back). The purchase (`amountCents` on `card`, null when it could
+ * not be read), the automatic top-up after it (below `thresholdCents`, at most `capCents` a month), and the trial's end.
+ */
+export type TrialMinutesPrompt = {
+  stage: 'low' | 'grace' | 'paused'
+  usedMinutes: number
+  includedMinutes: number
+  amountCents: number
+  thresholdCents: number
+  capCents: number
+  freeUntil: string | null
+  standardMicrosPerMinute: number
+  card: { id: string; brand: string | null; last4: string | null } | null
 }
 
 /**

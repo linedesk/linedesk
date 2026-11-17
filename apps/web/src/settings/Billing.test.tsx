@@ -103,6 +103,7 @@ const state = (over: Partial<BillingStateBill> = {}): BillingStateBill => ({
   rechargeNeedsAction: false,
   lowBalance: null,
   unpaidNumbers: [],
+  trialMinutes: null,
   ...over,
 })
 const render = (overview: BillingOverviewData, s: BillingStateBill | null = state()) => {

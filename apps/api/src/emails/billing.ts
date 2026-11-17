@@ -36,10 +36,30 @@ export type BillingOwnerEmail =
         trialDays: number | null
         deleteOn: string
       }
+    /**
+     * The trial prompt (§3.2 step 7): most of the trial's included minutes used (`trial_minutes_low`), or all of them
+     * with calls answered on the trial grace (`trial_minutes_used`). The purchase "Keep calls answered" makes
+     * (`amountCents` on `card`; null: the card could not be read), the automatic top-up below `thresholdCents`, the
+     * trial's end (`freeUntil`) and the Standard price of a minute. `workspaceId`: the button's workspace.
+     */
+    | (TrialMinutesFacts & { kind: 'trial_minutes_low' })
+    | (TrialMinutesFacts & { kind: 'trial_minutes_used' })
   ) & {
     /** How far below zero calls go on (the install's rules). */
     bufferMicros: number
   }
+
+/** What the trial prompt's emails say (`BillingOwnerEmail`, `trial_minutes_low` and `trial_minutes_used`). */
+type TrialMinutesFacts = {
+  usedMinutes: number
+  includedMinutes: number
+  amountCents: number
+  thresholdCents: number
+  card: { brand: string | null; last4: string | null } | null
+  freeUntil: string | null
+  standardMicrosPerMinute: number
+  workspaceId: string | null
+}
 
 /** What both trial emails say about the trial's end. */
 type TrialFacts = {
@@ -53,6 +73,8 @@ type TrialFacts = {
 export function billingOwnerEmail(email: BillingOwnerEmail, origin = WEB_ORIGIN, locale?: EmailLocale): RenderedEmail {
   if (email.kind === 'trial_will_end' || email.kind === 'trial_started') return trialEmail(email, origin, locale)
   if (email.kind === 'activation_nudge') return activationNudgeEmail(email, origin, locale)
+  if (email.kind === 'trial_minutes_low' || email.kind === 'trial_minutes_used')
+    return trialMinutesEmail(email, origin, locale)
   return balanceEmail(email, origin, locale)
 }
 
@@ -60,7 +82,10 @@ export function billingOwnerEmail(email: BillingOwnerEmail, origin = WEB_ORIGIN,
 export const CANCEL_PATH = `${BILLING_PATH}?cancel=1`
 
 function balanceEmail(
-  email: Exclude<BillingOwnerEmail, { kind: 'trial_will_end' | 'trial_started' | 'activation_nudge' }>,
+  email: Exclude<
+    BillingOwnerEmail,
+    { kind: 'trial_will_end' | 'trial_started' | 'activation_nudge' | 'trial_minutes_low' | 'trial_minutes_used' }
+  >,
   origin: string,
   locale?: EmailLocale,
 ): RenderedEmail {
@@ -226,6 +251,67 @@ function activationNudgeEmail(
     heading: subject,
     blocks,
     reason: t('email.billing.activationNudge.reason', { site: siteHost(origin) }),
+    origin,
+  })
+}
+
+/**
+ * The trial prompt (§3.2 step 7), short: the minutes used (or used up, calls answered for a short time), the one
+ * purchase that keeps every call answered with the saved card and the automatic top-up after it, until when the plan
+ * stays free and what a minute costs. The button opens the app's inbox, where the banner has "Keep calls answered".
+ */
+function trialMinutesEmail(
+  email: Extract<BillingOwnerEmail, { kind: 'trial_minutes_low' | 'trial_minutes_used' }>,
+  origin: string,
+  locale?: EmailLocale,
+): RenderedEmail {
+  const { t, format, locale: lang } = getT(locale)
+  // Whole dollars without cents ("$25"), as the prompt says it.
+  const usd = (cents: number) =>
+    format.currency(cents / 100, 'USD', cents % 100 === 0 ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {})
+  const card =
+    email.card?.brand && email.card.last4
+      ? t('email.billing.trialMinutes.card', {
+          brand: email.card.brand.charAt(0).toUpperCase() + email.card.brand.slice(1),
+          last4: email.card.last4,
+        })
+      : t('email.billing.trialMinutes.cardUnknown')
+  const values = {
+    used: email.usedMinutes,
+    included: email.includedMinutes,
+    amount: usd(email.amountCents),
+    card,
+    threshold: usd(email.thresholdCents),
+    date: email.freeUntil ? format.dateTime(new Date(email.freeUntil), { dateStyle: 'long', timeZone: 'UTC' }) : '',
+    rate: format.centRate(email.standardMicrosPerMinute / 1_000_000, 'USD'),
+  }
+  const usedUp = email.kind === 'trial_minutes_used'
+  const subject = usedUp
+    ? t('email.billing.trialMinutesUsed.subject', values)
+    : t('email.billing.trialMinutesLow.subject', values)
+  const lead = usedUp
+    ? t('email.billing.trialMinutesUsed.text', values)
+    : t('email.billing.trialMinutesLow.text', values)
+  const blocks: Block[] = [
+    { kind: 'text', text: lead },
+    { kind: 'text', text: t('email.billing.trialMinutes.keep', values) },
+    ...(values.date ? [{ kind: 'text' as const, text: t('email.billing.trialMinutes.free', values) }] : []),
+  ]
+  if (email.workspaceId)
+    blocks.push({
+      kind: 'button',
+      label: t('email.billing.trialMinutes.button'),
+      // The app's inbox, under the banner that has the button (the banner is not shown in the settings).
+      url: appLink(origin, email.workspaceId, 'calls'),
+    })
+  return renderEmail({
+    locale: lang,
+    subject,
+    preheader: lead,
+    eyebrow: t('email.billing.eyebrow'),
+    heading: subject,
+    blocks,
+    reason: t('email.billing.reason', { site: siteHost(origin) }),
     origin,
   })
 }

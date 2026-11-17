@@ -19,6 +19,7 @@ import {
   rateCall,
   rechargeCapCents,
   rechargeDecision,
+  trialGraceMicros,
   usageMicros,
   workspaceCallLimit,
 } from '@linedesk/db'
@@ -301,14 +302,30 @@ describe('the call gate', () => {
     expect(planPrice('extra_calls_yearly', rules)?.cents).toBe(1800)
   })
 
-  test('the balance may go to −$5 after the trial, to 0 in it', () => {
+  test('the balance may go to −$5 after the trial, to 0 in it, then the trial grace of 10 Standard minutes', () => {
     expect(callGate(bill, BALANCE_BUFFER_MICROS)).toEqual({ allow: true })
     expect(callGate(bill, BALANCE_BUFFER_MICROS + 1)).toEqual({ allow: false, reason: 'no_balance' })
     expect(callGate({ ...bill, balanceMicros: 2_000_000, reservedMicros: 1_000_000 }, 1_000_000)).toEqual({
       allow: true,
     })
-    expect(callGate({ ...bill, status: 'trialing' }, 1)).toEqual({ allow: false, reason: 'no_balance' })
     expect(callGate({ ...bill, status: 'trialing' }, 0)).toEqual({ allow: true })
+    // In the trial a call the balance does not cover starts on the grace while the bill is above −50¢ (10 × 5¢).
+    expect(trialGraceMicros()).toBe(500_000)
+    expect(callGate({ ...bill, status: 'trialing' }, 1)).toEqual({ allow: true, grace: true })
+    expect(callGate({ ...bill, status: 'trialing', balanceMicros: -499_999 }, 1_000_000)).toEqual({
+      allow: true,
+      grace: true,
+    })
+    expect(callGate({ ...bill, status: 'trialing', balanceMicros: -500_000 }, 0)).toEqual({
+      allow: false,
+      reason: 'no_balance',
+    })
+    expect(callGate({ ...bill, status: 'trialing', reservedMicros: 500_000 }, 1)).toEqual({
+      allow: false,
+      reason: 'no_balance',
+    })
+    // After the trial the $5 buffer, never the grace.
+    expect(callGate({ ...bill, balanceMicros: -4_999_999 }, 1_000_000)).toEqual({ allow: false, reason: 'no_balance' })
   })
 
   test('a comped bill checks only the cap', () => {
@@ -339,9 +356,20 @@ describe('the recharge decision', () => {
 
   test('never in the trial, off, with one pending or a failure waiting', () => {
     expect(rechargeDecision({ ...bill, status: 'trialing' })).toEqual({ kind: 'none' })
+    expect(rechargeDecision({ ...bill, status: 'trialing', trialRecharge: false })).toEqual({ kind: 'none' })
     expect(rechargeDecision({ ...bill, autoRecharge: false })).toEqual({ kind: 'none' })
     expect(rechargeDecision({ ...bill, pending: true })).toEqual({ kind: 'none' })
     expect(rechargeDecision({ ...bill, failedWaiting: true })).toEqual({ kind: 'none' })
+  })
+
+  test('in the trial once the owner pressed "Keep calls answered" (the trial recharge), with the same rules', () => {
+    const tapped = { ...bill, status: 'trialing', trialRecharge: true }
+    expect(rechargeDecision(tapped)).toEqual({ kind: 'recharge', amountCents: 2000 })
+    expect(rechargeDecision({ ...tapped, availableMicros: 5_000_000 })).toEqual({ kind: 'none' })
+    expect(rechargeDecision({ ...tapped, autoRecharge: false })).toEqual({ kind: 'none' })
+    expect(rechargeDecision({ ...tapped, pending: true })).toEqual({ kind: 'none' })
+    expect(rechargeDecision({ ...tapped, usedThisMonthCents: 3001 })).toEqual({ kind: 'cap_reached' })
+    expect(rechargeDecision({ ...bill, status: 'canceled', trialRecharge: true })).toEqual({ kind: 'none' })
   })
 
   test('the monthly cap cuts the amount, below $20 it is reached; each extra number adds $3', () => {

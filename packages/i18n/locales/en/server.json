@@ -42,6 +42,7 @@
   "api.checkout.tooOften": "Too many Checkouts started. Wait a minute, then try again.",
   "api.checkout.topupRange": "Buy between {min} and {max} at a time.",
   "api.checkout.trialNoEnd": "This trial has no end date.",
+  "api.checkout.trialRechargeChanged": "Your trial or auto-recharge changed since this page loaded. Reload it and try again.",
   "api.checkout.unavailable": "Checkout is not available right now. The server admins were told; try again later.",
   "api.confirmEmailForTransfer": "Confirm your email first: this version puts calls through to a number",
   "api.eraseLiveCall": "a live call cannot be deleted permanently: wait until it has ended",

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { BillingOverviewBill, BillingStateBill } from '@linedesk/actions'
+import type { BillingOverviewBill, BillingStateBill, TrialMinutesPrompt } from '@linedesk/actions'
 import {
   amountFits,
   billingBanner,
@@ -14,6 +14,7 @@ import {
   purchaseKeys,
   refusalKey,
   statusBadge,
+  trialRechargeInput,
   usageLine,
   yearlyRefundLine,
 } from './billingModel.ts'
@@ -110,6 +111,7 @@ const state = (over: Partial<BillingStateBill> = {}): BillingStateBill => ({
   rechargeNeedsAction: false,
   lowBalance: null,
   unpaidNumbers: [],
+  trialMinutes: null,
   ...over,
 })
 
@@ -257,4 +259,56 @@ test('Buy minutes keeps one command id per purchase while its outcome is unknown
   expect(outcomeUnknown({ status: 403 })).toBe(false)
   expect(outcomeUnknown({ status: 502 })).toBe(true)
   expect(outcomeUnknown(new Error('no status'))).toBe(true)
+})
+
+const prompt = (over: Partial<TrialMinutesPrompt> = {}): TrialMinutesPrompt => ({
+  stage: 'low',
+  usedMinutes: 40,
+  includedMinutes: 50,
+  amountCents: 2500,
+  thresholdCents: 500,
+  capCents: 5000,
+  freeUntil: '2026-12-01T12:00:00.000Z',
+  standardMicrosPerMinute: 50_000,
+  card: { id: 'pm_1', brand: 'visa', last4: '4242' },
+  ...over,
+})
+
+test('banner: the trial prompt by its stage, with its own button; paused calls are red', () => {
+  expect(billingBanner(state({ status: 'trialing', trialMinutes: prompt() }))).toEqual({
+    key: 'settings.billing.banner.trialLow',
+    tone: 'warning',
+    trial: prompt(),
+  })
+  expect(billingBanner(state({ status: 'trialing', trialMinutes: prompt({ stage: 'grace' }) }))).toMatchObject({
+    key: 'settings.billing.banner.trialGrace',
+    tone: 'warning',
+  })
+  expect(billingBanner(state({ status: 'trialing', trialMinutes: prompt({ stage: 'paused' }) }))).toMatchObject({
+    key: 'settings.billing.banner.trialPaused',
+    tone: 'danger',
+  })
+  // A card held for review or a failed recharge says more; without the prompt, nothing.
+  expect(billingBanner(state({ status: 'trialing', heldForReview: true, trialMinutes: prompt() }))?.key).toBe(
+    'settings.billing.banner.held',
+  )
+  expect(billingBanner(state({ status: 'trialing', rechargeFailed: true, trialMinutes: prompt() }))?.trial).toBe(
+    undefined,
+  )
+  expect(billingBanner(state({ status: 'trialing' }))).toBeNull()
+})
+
+test('"Keep calls answered" sends the recharge amount on the card shown, as the trial recharge', () => {
+  expect(trialRechargeInput(prompt(), { id: 'pm_1' })).toEqual({
+    amountCents: 2500,
+    savedCard: true,
+    trialRecharge: true,
+    confirmCard: 'pm_1',
+  })
+  // No card known: the first press only names it.
+  expect(trialRechargeInput(prompt({ amountCents: 3000 }), null)).toEqual({
+    amountCents: 3000,
+    savedCard: true,
+    trialRecharge: true,
+  })
 })

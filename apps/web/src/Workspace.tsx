@@ -575,7 +575,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
       />
       <main className="main">
         {nav.route !== 'workspace' && !goLiveVisible && <SetupBanner canEdit={canManageKeys} />}
-        {nav.route !== 'workspace' && billingOwner && <BillingBanner />}
+        {nav.route !== 'workspace' && billingOwner && <BillingBanner toast={toaster.show} />}
         {!page && !openCall && <SampleCallsBar canEdit={canEditSettings} canAssign={canAssign} toast={toaster.show} />}
         {page ? (
           <>
