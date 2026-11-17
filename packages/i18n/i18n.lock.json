@@ -5865,6 +5865,11 @@
       "out": "9ad0222026b807a0c420626244417dd5334a6b61e3c855782a76a83dabc69778",
       "src": "713682d8d3cb621cac47ed4b1a31e5fb719bf5d55db92b909477112b4715a29f"
     },
+    "admin.provider.blurb.jobber": {
+      "by": "ai",
+      "out": "1a938087f58070f64aeec4112265c5992c39fc8d598be79bdebced4921b0d636",
+      "src": "f4849dcdeb8689732f7046b00d943e2f8b7b078905eb0fc061611ed4975cd830"
+    },
     "admin.provider.blurb.mailgun": {
       "by": "ai",
       "out": "1c445cd602e37c3c789d44a21a84edcf509830d8728fab86b82531a4764cbc20",
@@ -6080,6 +6085,16 @@
       "out": "6831b9beb4491b42660037b66a130168baa614ea8f0a96b0b46ce24ca8b6549b",
       "src": "9e80ed4a35b33472ce3fac26f858b8a957616c88f5316c9848693ef6661157f8"
     },
+    "admin.provider.field.clientId": {
+      "by": "ai",
+      "out": "2fb2cd9295fab1a7f3b7f0cbdd9f5bc002683cb99e9eb4295f613a2b05c9f201",
+      "src": "8726db013948f0703807f17d23ca6c9903dc27f5d70c5a453604bb465c50864a"
+    },
+    "admin.provider.field.clientSecret": {
+      "by": "ai",
+      "out": "606421696ac0c151ceddd0b7e84defd1e1746222a6c156e6cde32391ff7001f7",
+      "src": "4aded5faf15623c5c91eb87d39dbe4366fc73e1affb46dfbfcc1865e7704f157"
+    },
     "admin.provider.group.answering.label": {
       "by": "ai",
       "out": "dc4d458b7e424c00601ff66b0d46d4d1124f4bfce1cf3806268ac5e060f3c7f0",
@@ -6189,6 +6204,31 @@
       "by": "ai",
       "out": "0335460cf9e8cb1b4779dd0307f624db1c372a15287dd29623ba0abb53eba871",
       "src": "f2c21dccdabe84aa25b51b483d44797b9c5e82190f519b8b03f945a4154076de"
+    },
+    "admin.provider.guide.jobber.cost": {
+      "by": "ai",
+      "out": "380772e26f09de77e7dfe818834c227a4d8e08ecf6f84be4af1180fc791d8699",
+      "src": "cf3676c28b2acd2c1a4b995e804a33feda59eafd7ee5bb05efb26a49250d3f69"
+    },
+    "admin.provider.guide.jobber.step1": {
+      "by": "ai",
+      "out": "a5ebd569fedfe2750410dd2498ec1d6f498ea650028f3998e18b28cf76900506",
+      "src": "ee77e769840333fc44639c7cf829df9ee44b935a88c350b78802268ed4ad468c"
+    },
+    "admin.provider.guide.jobber.step2": {
+      "by": "ai",
+      "out": "46a626569d495f4c77f4d7d6e0a1f249744a77a4d72f51eafa98f4f0216db8f0",
+      "src": "6e02ed9f0397dec5455ff9a38f5a23fcedc51476f6f1c1f6cc790e14ff45fbe9"
+    },
+    "admin.provider.guide.jobber.step3": {
+      "by": "ai",
+      "out": "a0ba09249c328ea9643f7d28607a0c86b8b855b04b3d95961ae337a8f5cb4ec0",
+      "src": "4ab9d46a14ec2e27a88a552f32b157a6210beb175713eace93705bd664163620"
+    },
+    "admin.provider.help.jobber": {
+      "by": "ai",
+      "out": "f0f3d84865660ff1f4cc02c8c56db0fb0d3d077928020d1a74acc01a6849aa71",
+      "src": "9f90ad876e568dab9ffa5e06f8d50819b2114310304e7525062e26b05843bd92"
     },
     "admin.provider.keyAccepted": {
       "by": "ai",
@@ -20575,6 +20615,76 @@
       "out": "990b65536402529787afa4cbfdfe296b761ad7895739ea885553a0bcf0728123",
       "src": "096df112aea30d33ac1caec151f337a2115b0bd53d216aecdf4c25e0df8bde11"
     },
+    "settings.integrations.app.jobber.disconnectConfirmTip": {
+      "by": "ai",
+      "out": "cacc2eb1450daea80af6c4a8b06fe830aa994a7a90cf418a1f3afff7ecb66f94",
+      "src": "f43d3b747d5fd7639227bd0af27d88a02a8d033b9b8c1fff24e107e02f250672"
+    },
+    "settings.integrations.app.jobber.help": {
+      "by": "ai",
+      "out": "d858236a25fdc1076e76e6219d15f5baf1eea017956626c7359a685979005c70",
+      "src": "ad4681e7d76dfdaf86ca85cc65e4d298e47e8863c7d9cc141fe34c3784cf0efa"
+    },
+    "settings.integrations.app.jobber.notConnected": {
+      "by": "ai",
+      "out": "def540e9ff317d2e8369d8dd1ec8e5a5b6b9bed8e3ce0456f1f63aa4576fe103",
+      "src": "323ba316180040fea79c103793c7f6246229f9ceabdbfe0281b03db1c126c3ad"
+    },
+    "settings.integrations.app.jobber.pushError.noCallerId": {
+      "by": "ai",
+      "out": "5ca9171f38bf42e1b980296584295e29a397991fd29038542b7c21a0555b641e",
+      "src": "13199c0a374b0384da6dafa12dd33ff610ce791c2df5af3a19e468d99e501b73"
+    },
+    "settings.integrations.app.jobber.pushError.noContact": {
+      "by": "ai",
+      "out": "dbe2cc884e8c8709b99a413c08bcf61b5d495a5cffad9f4ee45facfef045f361",
+      "src": "1abb912c96a6df091cd871849ae1d4345afbccd228eea25168d8e6a557aa4da6"
+    },
+    "settings.integrations.app.jobber.pushError.notFound": {
+      "by": "ai",
+      "out": "f020bec61bf6e1bf7b6c636b6e995fb8734ba04947e1e0312af5dff07a71c539",
+      "src": "29311fd208c2e1ba5fe7990a7c4190a181058e28f4db508f6c6d9dffe76db224"
+    },
+    "settings.integrations.app.jobber.scope": {
+      "by": "ai",
+      "out": "231494e38c04c809b6a9f5954494e0fdd6b57d9f560f24c4892417493d75a7bd",
+      "src": "e2463bff7b82dde5bea36d6ff41e87472f1fdb9cc463a294be2e3581bba19585"
+    },
+    "settings.integrations.app.jobber.settings.createContacts": {
+      "by": "ai",
+      "out": "f8a5e1fd03ea1d7d3b9598b7fb51198d9ab9e3283cae6bcf3ac8ee2b3628f79f",
+      "src": "ec326278c45422d21fb6c7516f6ff92223a1338d465d3713c98a793134ed3c72"
+    },
+    "settings.integrations.app.jobber.settings.createContactsHelp": {
+      "by": "ai",
+      "out": "db394b4c4e07dc7b835771262b46975ae08a6f355858a0872247ac4f3f1d8eec",
+      "src": "dd9da6802a1155c6011dc7a47a738e23981e8adb51f98c8299da226dc3924226"
+    },
+    "settings.integrations.app.jobber.settings.fillFields": {
+      "by": "ai",
+      "out": "5fe7e27ba924f337e397a7e70519576ef4dc686aaa1a460ee2ba24e9c0365e00",
+      "src": "43e4c626ef22e1d4f993b74d7b7001377a890896fc5c6eb80dfe86e824ba2beb"
+    },
+    "settings.integrations.app.jobber.settings.fillFieldsHelp": {
+      "by": "ai",
+      "out": "1e275d80082efacac8d63300524d4597f07b1282fc5f75d078425aa1b18e259f",
+      "src": "690c9218a1ac173aa29295cf5e3a8018d5c907e0ac02944fdaf3c8ed80b6d0f7"
+    },
+    "settings.integrations.app.jobber.settings.fillFieldsTip": {
+      "by": "ai",
+      "out": "07fafdddf088b3389980313571b3091c70daef5e78177d39fca877368550093d",
+      "src": "bc9cd3326954c3c8c6589d89916760a9f84b0d8fc41db9b06484924eeb01df53"
+    },
+    "settings.integrations.app.jobber.settings.logCalls": {
+      "by": "ai",
+      "out": "b6ecc8b3d2c4c64183e5718f377d627511fada647efdcdd3566b90baf27cc35d",
+      "src": "a847f5d5577d3ddc59b4c442e7abd1eb52bf7219949daf44b40afe2bd585fa7f"
+    },
+    "settings.integrations.app.jobber.settings.logCallsHelp": {
+      "by": "ai",
+      "out": "181a22c972106a8ebeeffa971d931d54b75e9ae3d60b939750f29b2737052d12",
+      "src": "bb2a2316954f5d70a9ae55240d722ecc73a0694914c90b974b0e0204e38c4a3d"
+    },
     "settings.integrations.app.lastSent": {
       "by": "ai",
       "out": "181c5a0045387142400060a76afe0ca4106d61bd938fb33cf9a58abe8130b95c",
@@ -20912,8 +21022,8 @@
     },
     "settings.integrations.card.jobber.line": {
       "by": "ai",
-      "out": "51879f64acc6a1b7f7f0152e30fa1baeeb8e0b53dd2b924abea3abf66db76594",
-      "src": "e14d4cea1cb37abde01ecfb0ab5661b5bfc704fad204e5c64b314ec2c88c59f5"
+      "out": "2c57f9a82d70ce0de3455b1b0b5c491719d26c1dba36102c17cca59100e9063c",
+      "src": "405bc13c56f29e20d1b2165e0140320c19cfb2f9804008d3bc1d96e9c36f723c"
     },
     "settings.integrations.card.jobber.name": {
       "by": "ai",
@@ -31972,6 +32082,11 @@
       "out": "aee2e8a89461f0e14aaa618fd8a0bafacd8e55c625cd5c5f245a46985c340af8",
       "src": "713682d8d3cb621cac47ed4b1a31e5fb719bf5d55db92b909477112b4715a29f"
     },
+    "admin.provider.blurb.jobber": {
+      "by": "ai",
+      "out": "1499d075d66a0cb85c9cae85a1093260c1bdb31163e8b580a0681f453b94f639",
+      "src": "f4849dcdeb8689732f7046b00d943e2f8b7b078905eb0fc061611ed4975cd830"
+    },
     "admin.provider.blurb.mailgun": {
       "by": "ai",
       "out": "73fbc28589f7e21bb6029f1ab40e6d7f550894cb5199e962bff3eb02ecf98a9d",
@@ -32187,6 +32302,16 @@
       "out": "4586a33843b834cab2b1afd9a71f6b2dad82952c963ba06d6a273f1437139f07",
       "src": "9e80ed4a35b33472ce3fac26f858b8a957616c88f5316c9848693ef6661157f8"
     },
+    "admin.provider.field.clientId": {
+      "by": "ai",
+      "out": "781c49a115c08d1ae589518bf4cfdb4b4162059482a1baa9a36b46123924460b",
+      "src": "8726db013948f0703807f17d23ca6c9903dc27f5d70c5a453604bb465c50864a"
+    },
+    "admin.provider.field.clientSecret": {
+      "by": "ai",
+      "out": "09de4bf23d4fec0f31f25d87c1a8d06c081a72339d404c1ba09ae015e929457d",
+      "src": "4aded5faf15623c5c91eb87d39dbe4366fc73e1affb46dfbfcc1865e7704f157"
+    },
     "admin.provider.group.answering.label": {
       "by": "ai",
       "out": "750f7e6a3661cd7dba16ca74e4a4e9e5619cc95b0a7089324548deeb681f4d7e",
@@ -32296,6 +32421,31 @@
       "by": "ai",
       "out": "eab68fa3323485f04da1dc465dbde09811f103d92b02c769a0dcef4dbbd1595f",
       "src": "f2c21dccdabe84aa25b51b483d44797b9c5e82190f519b8b03f945a4154076de"
+    },
+    "admin.provider.guide.jobber.cost": {
+      "by": "ai",
+      "out": "5ae2e2f450050dad30207cc59289eb8864e6dc2e23f10060e394964b85fc0e3c",
+      "src": "cf3676c28b2acd2c1a4b995e804a33feda59eafd7ee5bb05efb26a49250d3f69"
+    },
+    "admin.provider.guide.jobber.step1": {
+      "by": "ai",
+      "out": "77a723572d394495ac6b9fbb6e85926b402746923e1d4fc0fc56c00052eac055",
+      "src": "ee77e769840333fc44639c7cf829df9ee44b935a88c350b78802268ed4ad468c"
+    },
+    "admin.provider.guide.jobber.step2": {
+      "by": "ai",
+      "out": "9afc4c899969f70c9a281e362e114b4318790514f1edecd021156e5b72a8b984",
+      "src": "6e02ed9f0397dec5455ff9a38f5a23fcedc51476f6f1c1f6cc790e14ff45fbe9"
+    },
+    "admin.provider.guide.jobber.step3": {
+      "by": "ai",
+      "out": "096fab880da388c26cd2312eddcf8e3c0b4843e6eded54c90d974314eba82b63",
+      "src": "4ab9d46a14ec2e27a88a552f32b157a6210beb175713eace93705bd664163620"
+    },
+    "admin.provider.help.jobber": {
+      "by": "ai",
+      "out": "9397c0d550b81327f4dce2608e0840d22815122e7dbb74003b0b63845a71da61",
+      "src": "9f90ad876e568dab9ffa5e06f8d50819b2114310304e7525062e26b05843bd92"
     },
     "admin.provider.keyAccepted": {
       "by": "ai",
@@ -46682,6 +46832,76 @@
       "out": "ec780fa07656b3a2a4b93c0e7667d02ed396fd401cf74d4968c0382e6b117b5e",
       "src": "096df112aea30d33ac1caec151f337a2115b0bd53d216aecdf4c25e0df8bde11"
     },
+    "settings.integrations.app.jobber.disconnectConfirmTip": {
+      "by": "ai",
+      "out": "71ec502d269c44e255b6d4edad014ec97c5e1f1e97ebf3d7119649c13099d91a",
+      "src": "f43d3b747d5fd7639227bd0af27d88a02a8d033b9b8c1fff24e107e02f250672"
+    },
+    "settings.integrations.app.jobber.help": {
+      "by": "ai",
+      "out": "d87bb74a9ade889e218e312a8916f8e3a201854011b8dbffba4f01145d3abb3b",
+      "src": "ad4681e7d76dfdaf86ca85cc65e4d298e47e8863c7d9cc141fe34c3784cf0efa"
+    },
+    "settings.integrations.app.jobber.notConnected": {
+      "by": "ai",
+      "out": "772dcd00105ae2d330b6ca53a88f299008077255e9cc80d69cd06235e0ee8eed",
+      "src": "323ba316180040fea79c103793c7f6246229f9ceabdbfe0281b03db1c126c3ad"
+    },
+    "settings.integrations.app.jobber.pushError.noCallerId": {
+      "by": "ai",
+      "out": "582fe350e40a5d55953683981cd320cee07c7368bd09d6c0869dc77808f20104",
+      "src": "13199c0a374b0384da6dafa12dd33ff610ce791c2df5af3a19e468d99e501b73"
+    },
+    "settings.integrations.app.jobber.pushError.noContact": {
+      "by": "ai",
+      "out": "12a336dcdfd65b43b2bb7ae8234be7fd77fa02de50378b80ab1addc5a7555312",
+      "src": "1abb912c96a6df091cd871849ae1d4345afbccd228eea25168d8e6a557aa4da6"
+    },
+    "settings.integrations.app.jobber.pushError.notFound": {
+      "by": "ai",
+      "out": "5f1264b0794e685986bd8d17b5b532c739147b7cb8969cf89970dd6889722316",
+      "src": "29311fd208c2e1ba5fe7990a7c4190a181058e28f4db508f6c6d9dffe76db224"
+    },
+    "settings.integrations.app.jobber.scope": {
+      "by": "ai",
+      "out": "522fbbd6706ac8e5863d9697619935f40b405c053dc23a06290046182230ea2f",
+      "src": "e2463bff7b82dde5bea36d6ff41e87472f1fdb9cc463a294be2e3581bba19585"
+    },
+    "settings.integrations.app.jobber.settings.createContacts": {
+      "by": "ai",
+      "out": "756839eebe458d94d140d447c8d83ac6ac1441c8e17def9d6c7eec46cfaa4aa1",
+      "src": "ec326278c45422d21fb6c7516f6ff92223a1338d465d3713c98a793134ed3c72"
+    },
+    "settings.integrations.app.jobber.settings.createContactsHelp": {
+      "by": "ai",
+      "out": "4210a081e8a31d72b5760ed6033e42684e52c02620a3af7bca470f0df22c428a",
+      "src": "dd9da6802a1155c6011dc7a47a738e23981e8adb51f98c8299da226dc3924226"
+    },
+    "settings.integrations.app.jobber.settings.fillFields": {
+      "by": "ai",
+      "out": "c29bf424a0e16b3319f98eebc969a3d41aea173eb7239ff0fbbfdc9c40977644",
+      "src": "43e4c626ef22e1d4f993b74d7b7001377a890896fc5c6eb80dfe86e824ba2beb"
+    },
+    "settings.integrations.app.jobber.settings.fillFieldsHelp": {
+      "by": "ai",
+      "out": "4ee3906ad06c532c445c7bab9ed0de9bc7f808692e9f00d51890c3193474207e",
+      "src": "690c9218a1ac173aa29295cf5e3a8018d5c907e0ac02944fdaf3c8ed80b6d0f7"
+    },
+    "settings.integrations.app.jobber.settings.fillFieldsTip": {
+      "by": "ai",
+      "out": "246375e1994aca99d4dbdec74db9a0ebf183c60ab1e70c2ae41a1840beddee4d",
+      "src": "bc9cd3326954c3c8c6589d89916760a9f84b0d8fc41db9b06484924eeb01df53"
+    },
+    "settings.integrations.app.jobber.settings.logCalls": {
+      "by": "ai",
+      "out": "cf6306e3ca24f435e61fd76f42c566c48897c343b27f7c1ca520706e38a938e1",
+      "src": "a847f5d5577d3ddc59b4c442e7abd1eb52bf7219949daf44b40afe2bd585fa7f"
+    },
+    "settings.integrations.app.jobber.settings.logCallsHelp": {
+      "by": "ai",
+      "out": "7b1e466c6eace89a4ace838a47d08aba7fad67acec97030d9b80fb14c4575356",
+      "src": "bb2a2316954f5d70a9ae55240d722ecc73a0694914c90b974b0e0204e38c4a3d"
+    },
     "settings.integrations.app.lastSent": {
       "by": "ai",
       "out": "77c9fcc9cd75a4a39e8d3e36a5a1258639dc42b72481032807f44759dc993554",
@@ -47019,8 +47239,8 @@
     },
     "settings.integrations.card.jobber.line": {
       "by": "ai",
-      "out": "5398aa8bd05c70b52fc0d4cc7caa7eefbd49d286453d4a23e141b293e5a9da79",
-      "src": "e14d4cea1cb37abde01ecfb0ab5661b5bfc704fad204e5c64b314ec2c88c59f5"
+      "out": "01abd751878f3efd4a8897e419c34aef79aee6e23b8c06090f5035ebac254137",
+      "src": "405bc13c56f29e20d1b2165e0140320c19cfb2f9804008d3bc1d96e9c36f723c"
     },
     "settings.integrations.card.jobber.name": {
       "by": "ai",
@@ -58079,6 +58299,11 @@
       "out": "86116eadf0c9b7490c7f28d0a6e3e20e56a105884cad1eadcd0bd5c21257b859",
       "src": "713682d8d3cb621cac47ed4b1a31e5fb719bf5d55db92b909477112b4715a29f"
     },
+    "admin.provider.blurb.jobber": {
+      "by": "ai",
+      "out": "6577cc942a5f74d4add365e751164bba3cc3cab4a611fd2bb7ffca1ad6904358",
+      "src": "f4849dcdeb8689732f7046b00d943e2f8b7b078905eb0fc061611ed4975cd830"
+    },
     "admin.provider.blurb.mailgun": {
       "by": "ai",
       "out": "e5e877d51cfdacb9d9c7ca0001b737c75beff5e8419516d70b6efb12a55e2d63",
@@ -58294,6 +58519,16 @@
       "out": "295237ab1b65e4b6fd39af05badf96485f655be83cb30bb5ef0030ea07bc6fff",
       "src": "9e80ed4a35b33472ce3fac26f858b8a957616c88f5316c9848693ef6661157f8"
     },
+    "admin.provider.field.clientId": {
+      "by": "ai",
+      "out": "798716c7f964904afa04afdb19df97af3894fbcdd4908fea39e4a61cfedbdec9",
+      "src": "8726db013948f0703807f17d23ca6c9903dc27f5d70c5a453604bb465c50864a"
+    },
+    "admin.provider.field.clientSecret": {
+      "by": "ai",
+      "out": "89112dddbb646ba2bb171ecdb97a36a337e887e7c3415d542248b2c340b115e0",
+      "src": "4aded5faf15623c5c91eb87d39dbe4366fc73e1affb46dfbfcc1865e7704f157"
+    },
     "admin.provider.group.answering.label": {
       "by": "ai",
       "out": "9367aa51e67ab09f047e143eb0fed32d57897f56c8cb9c4d59937fc15ea0c2dc",
@@ -58403,6 +58638,31 @@
       "by": "ai",
       "out": "4c00d6cb804196c73832cf2a2fc51476877170e21426e3284bc5e22746c2ebb1",
       "src": "f2c21dccdabe84aa25b51b483d44797b9c5e82190f519b8b03f945a4154076de"
+    },
+    "admin.provider.guide.jobber.cost": {
+      "by": "ai",
+      "out": "f21f85579eb3758d4cbb3186254c14212d6ad8e212dc0917f10818ca68367476",
+      "src": "cf3676c28b2acd2c1a4b995e804a33feda59eafd7ee5bb05efb26a49250d3f69"
+    },
+    "admin.provider.guide.jobber.step1": {
+      "by": "ai",
+      "out": "ff766131b569bfb19e88d28396d74399e4040649fec6c283343daa634d672786",
+      "src": "ee77e769840333fc44639c7cf829df9ee44b935a88c350b78802268ed4ad468c"
+    },
+    "admin.provider.guide.jobber.step2": {
+      "by": "ai",
+      "out": "e7fcdfcbaad3cf628ad0212debc0ea8bbf1f876519370d2134f6281471d842af",
+      "src": "6e02ed9f0397dec5455ff9a38f5a23fcedc51476f6f1c1f6cc790e14ff45fbe9"
+    },
+    "admin.provider.guide.jobber.step3": {
+      "by": "ai",
+      "out": "0c45c75b540076023b76bedc9454588d0e57eb539c85103100d302be91f02e91",
+      "src": "4ab9d46a14ec2e27a88a552f32b157a6210beb175713eace93705bd664163620"
+    },
+    "admin.provider.help.jobber": {
+      "by": "ai",
+      "out": "45f0cc3ee2d5c42f14cb28b0c70531d90453509f0dd70547ba032a236fac43b4",
+      "src": "9f90ad876e568dab9ffa5e06f8d50819b2114310304e7525062e26b05843bd92"
     },
     "admin.provider.keyAccepted": {
       "by": "ai",
@@ -72789,6 +73049,76 @@
       "out": "02eb423770010cf20faa53cb11113f33dad0303d944f1acee7fb1113fb0bc1ae",
       "src": "096df112aea30d33ac1caec151f337a2115b0bd53d216aecdf4c25e0df8bde11"
     },
+    "settings.integrations.app.jobber.disconnectConfirmTip": {
+      "by": "ai",
+      "out": "d8236a1da4aa349b516e752da41c5e22218ffae5cc37195698f1da09096ed6ad",
+      "src": "f43d3b747d5fd7639227bd0af27d88a02a8d033b9b8c1fff24e107e02f250672"
+    },
+    "settings.integrations.app.jobber.help": {
+      "by": "ai",
+      "out": "ccfcb6adeb0c86b105fea59daa4c351131886ffaf06eba6798ea81269207b342",
+      "src": "ad4681e7d76dfdaf86ca85cc65e4d298e47e8863c7d9cc141fe34c3784cf0efa"
+    },
+    "settings.integrations.app.jobber.notConnected": {
+      "by": "ai",
+      "out": "bca626ad1561eeeec61ab00a944ed92475dd9adbfc216d3066c137bd0e277c37",
+      "src": "323ba316180040fea79c103793c7f6246229f9ceabdbfe0281b03db1c126c3ad"
+    },
+    "settings.integrations.app.jobber.pushError.noCallerId": {
+      "by": "ai",
+      "out": "8b54b0ffed253f60be395ee9a3d1cc84248ab52620dca7e0691c7136d8a9b35c",
+      "src": "13199c0a374b0384da6dafa12dd33ff610ce791c2df5af3a19e468d99e501b73"
+    },
+    "settings.integrations.app.jobber.pushError.noContact": {
+      "by": "ai",
+      "out": "44a68dff01a09eee4f3b4610909a8c0031f4b8bba5792b827b2c3a8ae98cef76",
+      "src": "1abb912c96a6df091cd871849ae1d4345afbccd228eea25168d8e6a557aa4da6"
+    },
+    "settings.integrations.app.jobber.pushError.notFound": {
+      "by": "ai",
+      "out": "177cdd15f1b915a4f6bb7a627bf81803cb057f016ca8319aa87a73d6e6d17db3",
+      "src": "29311fd208c2e1ba5fe7990a7c4190a181058e28f4db508f6c6d9dffe76db224"
+    },
+    "settings.integrations.app.jobber.scope": {
+      "by": "ai",
+      "out": "2cb502fc3586159a74f78b71ef11412fc45ca77dcb4ac221a7a0117a931e21f4",
+      "src": "e2463bff7b82dde5bea36d6ff41e87472f1fdb9cc463a294be2e3581bba19585"
+    },
+    "settings.integrations.app.jobber.settings.createContacts": {
+      "by": "ai",
+      "out": "bb95d39aecfec4c62ea1dd12fbc8c62e21f67d3ed107d1534f99ce0ca81e5f54",
+      "src": "ec326278c45422d21fb6c7516f6ff92223a1338d465d3713c98a793134ed3c72"
+    },
+    "settings.integrations.app.jobber.settings.createContactsHelp": {
+      "by": "ai",
+      "out": "33c8c84ed6f602d8d2e7d556ccbb7045f79bd40ad88c8685f325e489c6589ab7",
+      "src": "dd9da6802a1155c6011dc7a47a738e23981e8adb51f98c8299da226dc3924226"
+    },
+    "settings.integrations.app.jobber.settings.fillFields": {
+      "by": "ai",
+      "out": "19c3e46e4431024c32f35e1ef85f5130aa504aaa1affd32605cc567294dd4078",
+      "src": "43e4c626ef22e1d4f993b74d7b7001377a890896fc5c6eb80dfe86e824ba2beb"
+    },
+    "settings.integrations.app.jobber.settings.fillFieldsHelp": {
+      "by": "ai",
+      "out": "9dde32f40273a078dc4ef1574b8b804770d9ab6ebf546d06fc511900c63533ec",
+      "src": "690c9218a1ac173aa29295cf5e3a8018d5c907e0ac02944fdaf3c8ed80b6d0f7"
+    },
+    "settings.integrations.app.jobber.settings.fillFieldsTip": {
+      "by": "ai",
+      "out": "2b26230e7799ba5392e6d2a43920864485c53366eecee18db57ae54519d72824",
+      "src": "bc9cd3326954c3c8c6589d89916760a9f84b0d8fc41db9b06484924eeb01df53"
+    },
+    "settings.integrations.app.jobber.settings.logCalls": {
+      "by": "ai",
+      "out": "d1bdc5d8d653106b251763a7442664ecd0ce80f8683c17e63fe7d0ec8d2d6e8b",
+      "src": "a847f5d5577d3ddc59b4c442e7abd1eb52bf7219949daf44b40afe2bd585fa7f"
+    },
+    "settings.integrations.app.jobber.settings.logCallsHelp": {
+      "by": "ai",
+      "out": "0ba9a684d651bfd2cd1b4ba4a92e1b0a37b45ef736640ecf659022a56ad383eb",
+      "src": "bb2a2316954f5d70a9ae55240d722ecc73a0694914c90b974b0e0204e38c4a3d"
+    },
     "settings.integrations.app.lastSent": {
       "by": "ai",
       "out": "b9ad66dffe4b2f871c4a54e0f9bd52877e9dcc149c370b92c99757fdb150f098",
@@ -73126,8 +73456,8 @@
     },
     "settings.integrations.card.jobber.line": {
       "by": "ai",
-      "out": "44b4195b069bd4e4ff5960d4456eafccb6553a1bf1ea229aa3b232ee303778b6",
-      "src": "e14d4cea1cb37abde01ecfb0ab5661b5bfc704fad204e5c64b314ec2c88c59f5"
+      "out": "a849cdd224d8d5f9febec40dd0cbb5a95d217822951326bee01de88fbafd151d",
+      "src": "405bc13c56f29e20d1b2165e0140320c19cfb2f9804008d3bc1d96e9c36f723c"
     },
     "settings.integrations.card.jobber.name": {
       "by": "ai",
@@ -84186,6 +84516,11 @@
       "out": "05505c4f23963ddc6dd424e8d474fe152a865227f9c10dc54202b26d61b8bc9e",
       "src": "713682d8d3cb621cac47ed4b1a31e5fb719bf5d55db92b909477112b4715a29f"
     },
+    "admin.provider.blurb.jobber": {
+      "by": "ai",
+      "out": "fdb3d6c5bbcb372af7a7e32a4bd359e4bd3d25fce7713732d4f5a8fca98e456e",
+      "src": "f4849dcdeb8689732f7046b00d943e2f8b7b078905eb0fc061611ed4975cd830"
+    },
     "admin.provider.blurb.mailgun": {
       "by": "ai",
       "out": "dd302ad01e93642d3067a55befbfc2b125d4acbdef6684de30e0adf8a737568c",
@@ -84401,6 +84736,16 @@
       "out": "3e0683497f9be7faa0f5219d98f2c3004feb2518cd4a7a567f39db11091edfe7",
       "src": "9e80ed4a35b33472ce3fac26f858b8a957616c88f5316c9848693ef6661157f8"
     },
+    "admin.provider.field.clientId": {
+      "by": "ai",
+      "out": "ba93b4310ea087c9f8696dd35114611cdd14a4befe0597dcd44c5c65b0b062cf",
+      "src": "8726db013948f0703807f17d23ca6c9903dc27f5d70c5a453604bb465c50864a"
+    },
+    "admin.provider.field.clientSecret": {
+      "by": "ai",
+      "out": "87ac60e5f7ec87e38e97d42d200a76e6fb57b14e6a33ad3ea52fac149a120919",
+      "src": "4aded5faf15623c5c91eb87d39dbe4366fc73e1affb46dfbfcc1865e7704f157"
+    },
     "admin.provider.group.answering.label": {
       "by": "ai",
       "out": "c4500a80f967328a1d0b326fd536a62fde8dc7ddb4c0db05aa332edb15041c1a",
@@ -84510,6 +84855,31 @@
       "by": "ai",
       "out": "1000c9b1ee70e6a3c6d3b89c2e26e0758e0c47806e48d4eea380b957d4811598",
       "src": "f2c21dccdabe84aa25b51b483d44797b9c5e82190f519b8b03f945a4154076de"
+    },
+    "admin.provider.guide.jobber.cost": {
+      "by": "ai",
+      "out": "6ba3ca49ac3f16b7cfb39b7eebc2fb1cbfb4c737442a9d81c86e3a6c6e3d7ffe",
+      "src": "cf3676c28b2acd2c1a4b995e804a33feda59eafd7ee5bb05efb26a49250d3f69"
+    },
+    "admin.provider.guide.jobber.step1": {
+      "by": "ai",
+      "out": "18011a914343057ae4c789737946ccc78cd40d40f8b3f2ca7ffcc607716e0e96",
+      "src": "ee77e769840333fc44639c7cf829df9ee44b935a88c350b78802268ed4ad468c"
+    },
+    "admin.provider.guide.jobber.step2": {
+      "by": "ai",
+      "out": "d96581456a5de78ce6ca6f2c16489ff8db470595d60559758bb50e8189a10e89",
+      "src": "6e02ed9f0397dec5455ff9a38f5a23fcedc51476f6f1c1f6cc790e14ff45fbe9"
+    },
+    "admin.provider.guide.jobber.step3": {
+      "by": "ai",
+      "out": "0c5a570bdf19afc39238f0fd6df2ce1357eecb2fb73a5f39d45f5cf81053d8cf",
+      "src": "4ab9d46a14ec2e27a88a552f32b157a6210beb175713eace93705bd664163620"
+    },
+    "admin.provider.help.jobber": {
+      "by": "ai",
+      "out": "bbdb20c985497fa819474abfabe81e721597a41f3e49edd0287b3e50acf56169",
+      "src": "9f90ad876e568dab9ffa5e06f8d50819b2114310304e7525062e26b05843bd92"
     },
     "admin.provider.keyAccepted": {
       "by": "ai",
@@ -98896,6 +99266,76 @@
       "out": "7f29641d39e4150839c27ca030caeb450c63e25bbe4b13ce8ac14b4c0003a20d",
       "src": "096df112aea30d33ac1caec151f337a2115b0bd53d216aecdf4c25e0df8bde11"
     },
+    "settings.integrations.app.jobber.disconnectConfirmTip": {
+      "by": "ai",
+      "out": "497961a83982cf5925604835d45127530715927d54635c578292d7d87fa0cdce",
+      "src": "f43d3b747d5fd7639227bd0af27d88a02a8d033b9b8c1fff24e107e02f250672"
+    },
+    "settings.integrations.app.jobber.help": {
+      "by": "ai",
+      "out": "37b3d29fb4692c5e4d0fd6f70b77e6f0e19cccbd8a70153eb3124bc9ee32d7d5",
+      "src": "ad4681e7d76dfdaf86ca85cc65e4d298e47e8863c7d9cc141fe34c3784cf0efa"
+    },
+    "settings.integrations.app.jobber.notConnected": {
+      "by": "ai",
+      "out": "2937d652a01ab3317a56fbb559776935cdbad648b0f3d194463911c2b2fe3e29",
+      "src": "323ba316180040fea79c103793c7f6246229f9ceabdbfe0281b03db1c126c3ad"
+    },
+    "settings.integrations.app.jobber.pushError.noCallerId": {
+      "by": "ai",
+      "out": "ca1671eb0531ad5508af2c8ac4a8a760700f701f01a8dfe8b3768459456c41b5",
+      "src": "13199c0a374b0384da6dafa12dd33ff610ce791c2df5af3a19e468d99e501b73"
+    },
+    "settings.integrations.app.jobber.pushError.noContact": {
+      "by": "ai",
+      "out": "5d35426da2e31ca44c300d36fa96c7615e4a902efa8a8adbdd81076d83e5c210",
+      "src": "1abb912c96a6df091cd871849ae1d4345afbccd228eea25168d8e6a557aa4da6"
+    },
+    "settings.integrations.app.jobber.pushError.notFound": {
+      "by": "ai",
+      "out": "8924c155e04afdb072ee1a7c063ad22772f73db0e1dd8471f886b4c924e8f65d",
+      "src": "29311fd208c2e1ba5fe7990a7c4190a181058e28f4db508f6c6d9dffe76db224"
+    },
+    "settings.integrations.app.jobber.scope": {
+      "by": "ai",
+      "out": "7051b1bbc2f9710b341be73733a17270678a14cea0e34ee8e9b0a51352f2d5a2",
+      "src": "e2463bff7b82dde5bea36d6ff41e87472f1fdb9cc463a294be2e3581bba19585"
+    },
+    "settings.integrations.app.jobber.settings.createContacts": {
+      "by": "ai",
+      "out": "e06fd8d13b7b47eb350d108be4412a6195689ffcb35cedefcef8dad6298c6043",
+      "src": "ec326278c45422d21fb6c7516f6ff92223a1338d465d3713c98a793134ed3c72"
+    },
+    "settings.integrations.app.jobber.settings.createContactsHelp": {
+      "by": "ai",
+      "out": "73bf3f3e3980364c5c2ec5f3b63a87e4918d8b44a7c6da35b7c2253163e496f6",
+      "src": "dd9da6802a1155c6011dc7a47a738e23981e8adb51f98c8299da226dc3924226"
+    },
+    "settings.integrations.app.jobber.settings.fillFields": {
+      "by": "ai",
+      "out": "2452ba8e030fac7e7db94b6ab5e9dc7088e505267b6bbb63c2fa2000432b9df6",
+      "src": "43e4c626ef22e1d4f993b74d7b7001377a890896fc5c6eb80dfe86e824ba2beb"
+    },
+    "settings.integrations.app.jobber.settings.fillFieldsHelp": {
+      "by": "ai",
+      "out": "4ba2312eee81b3bcac101e8e35798825973af150284800f822ad9cdff4c8cc98",
+      "src": "690c9218a1ac173aa29295cf5e3a8018d5c907e0ac02944fdaf3c8ed80b6d0f7"
+    },
+    "settings.integrations.app.jobber.settings.fillFieldsTip": {
+      "by": "ai",
+      "out": "3597527a08686de2b79d0dc07cf2f9982a3aac019529859e7d6f65f9eff4230b",
+      "src": "bc9cd3326954c3c8c6589d89916760a9f84b0d8fc41db9b06484924eeb01df53"
+    },
+    "settings.integrations.app.jobber.settings.logCalls": {
+      "by": "ai",
+      "out": "cddb7937817f92fdd75082e64a8bd3b5a920f196b5e4c9b314e7167aa22ad2ea",
+      "src": "a847f5d5577d3ddc59b4c442e7abd1eb52bf7219949daf44b40afe2bd585fa7f"
+    },
+    "settings.integrations.app.jobber.settings.logCallsHelp": {
+      "by": "ai",
+      "out": "cb41fc0ddf091099e383f1a03339000b344314c39c7336e4d863d3e6651a481c",
+      "src": "bb2a2316954f5d70a9ae55240d722ecc73a0694914c90b974b0e0204e38c4a3d"
+    },
     "settings.integrations.app.lastSent": {
       "by": "ai",
       "out": "cd27d49185f57ed58764c8fe69cc8e5bcaf49fd647632ffa7ffe1938a1b56006",
@@ -99233,8 +99673,8 @@
     },
     "settings.integrations.card.jobber.line": {
       "by": "ai",
-      "out": "b70adc34ce04176e0afda9da9a69f2206598a73bc977cfc980e497d6e1924295",
-      "src": "e14d4cea1cb37abde01ecfb0ab5661b5bfc704fad204e5c64b314ec2c88c59f5"
+      "out": "a8e3d915411cb41162c71f1036d0ecda9b53f9fcd232c8afeb4f94b655c548e4",
+      "src": "405bc13c56f29e20d1b2165e0140320c19cfb2f9804008d3bc1d96e9c36f723c"
     },
     "settings.integrations.card.jobber.name": {
       "by": "ai",
@@ -110293,6 +110733,11 @@
       "out": "ddeb5bc8af77135eea5eae45574f7bedd7c1e454fd8199d38731f4a8c6c874ca",
       "src": "713682d8d3cb621cac47ed4b1a31e5fb719bf5d55db92b909477112b4715a29f"
     },
+    "admin.provider.blurb.jobber": {
+      "by": "ai",
+      "out": "34a995a1d6a1b638cc9666627bf8afc600f5abae605e922a6c5505dd12ec32ed",
+      "src": "f4849dcdeb8689732f7046b00d943e2f8b7b078905eb0fc061611ed4975cd830"
+    },
     "admin.provider.blurb.mailgun": {
       "by": "ai",
       "out": "e83f3b70ea16bb4b31143de748bfc072879c45c129d11b4899774d5daf605c28",
@@ -110508,6 +110953,16 @@
       "out": "c201e846e6c44a508f3e18a0ebe2a4c63fd3e38cbfba53e632b3d030d90eaff8",
       "src": "9e80ed4a35b33472ce3fac26f858b8a957616c88f5316c9848693ef6661157f8"
     },
+    "admin.provider.field.clientId": {
+      "by": "ai",
+      "out": "90da7b515726396a8953e60d244ae41aef66586ce024189fcd8e7459c729f893",
+      "src": "8726db013948f0703807f17d23ca6c9903dc27f5d70c5a453604bb465c50864a"
+    },
+    "admin.provider.field.clientSecret": {
+      "by": "ai",
+      "out": "1f600243d255b4a27eec809856633ee0696287f86a4f49738b8cdb6fdbe05167",
+      "src": "4aded5faf15623c5c91eb87d39dbe4366fc73e1affb46dfbfcc1865e7704f157"
+    },
     "admin.provider.group.answering.label": {
       "by": "ai",
       "out": "bf41c17b3b72c504d1c1e106aa3fe7e0bba2325340b3fd9257cca19c19e99be7",
@@ -110617,6 +111072,31 @@
       "by": "ai",
       "out": "8f72893859e4538eb3a09fe4373636fce7f9199eaff7ee56edfe8e2ff19b9ba3",
       "src": "f2c21dccdabe84aa25b51b483d44797b9c5e82190f519b8b03f945a4154076de"
+    },
+    "admin.provider.guide.jobber.cost": {
+      "by": "ai",
+      "out": "fd1726591599412b3d0436be38188807f10f77223d5582c1858986f5a9563863",
+      "src": "cf3676c28b2acd2c1a4b995e804a33feda59eafd7ee5bb05efb26a49250d3f69"
+    },
+    "admin.provider.guide.jobber.step1": {
+      "by": "ai",
+      "out": "ed8e84bf40fd28cc047b157955ebbe1f424e77f7154fde39adeb0e713113e956",
+      "src": "ee77e769840333fc44639c7cf829df9ee44b935a88c350b78802268ed4ad468c"
+    },
+    "admin.provider.guide.jobber.step2": {
+      "by": "ai",
+      "out": "da441a74222d3ee385840bda5fef657ec7858605d266baeb43b4b4b873b16c6f",
+      "src": "6e02ed9f0397dec5455ff9a38f5a23fcedc51476f6f1c1f6cc790e14ff45fbe9"
+    },
+    "admin.provider.guide.jobber.step3": {
+      "by": "ai",
+      "out": "b844dd3b5540176209f4a02af2d4949c276f69bb4dab0f0b80b80134e1b52382",
+      "src": "4ab9d46a14ec2e27a88a552f32b157a6210beb175713eace93705bd664163620"
+    },
+    "admin.provider.help.jobber": {
+      "by": "ai",
+      "out": "71af8f9d5fe7b6b3a0c36f57b34d4255aba1c406617b8e3389a2c86797446caa",
+      "src": "9f90ad876e568dab9ffa5e06f8d50819b2114310304e7525062e26b05843bd92"
     },
     "admin.provider.keyAccepted": {
       "by": "ai",
@@ -125003,6 +125483,76 @@
       "out": "416ccbc9c4a456451667810921543e3ea661b298b46fbd8d5d1511becac99852",
       "src": "096df112aea30d33ac1caec151f337a2115b0bd53d216aecdf4c25e0df8bde11"
     },
+    "settings.integrations.app.jobber.disconnectConfirmTip": {
+      "by": "ai",
+      "out": "3d047ed88b0bf3dec362860f608f0dbe898d8cee3b2e6284291d5c6584a59f1b",
+      "src": "f43d3b747d5fd7639227bd0af27d88a02a8d033b9b8c1fff24e107e02f250672"
+    },
+    "settings.integrations.app.jobber.help": {
+      "by": "ai",
+      "out": "2b3437c0eda95e7566abff13455efb9221df9ae520bb215a80e9342a62917c92",
+      "src": "ad4681e7d76dfdaf86ca85cc65e4d298e47e8863c7d9cc141fe34c3784cf0efa"
+    },
+    "settings.integrations.app.jobber.notConnected": {
+      "by": "ai",
+      "out": "e3f8b476437f2b80033c8826d5e8ef22b2bce446686920b0c96b5371c4cbc330",
+      "src": "323ba316180040fea79c103793c7f6246229f9ceabdbfe0281b03db1c126c3ad"
+    },
+    "settings.integrations.app.jobber.pushError.noCallerId": {
+      "by": "ai",
+      "out": "6326eb1384eead8db979382b5c605e8c6fbfaeda0bceccc364dcc0d4b854b927",
+      "src": "13199c0a374b0384da6dafa12dd33ff610ce791c2df5af3a19e468d99e501b73"
+    },
+    "settings.integrations.app.jobber.pushError.noContact": {
+      "by": "ai",
+      "out": "ecbbb90908a13686e05a90a04d91bdf0b5a86b06124935e449e5c1328a81501b",
+      "src": "1abb912c96a6df091cd871849ae1d4345afbccd228eea25168d8e6a557aa4da6"
+    },
+    "settings.integrations.app.jobber.pushError.notFound": {
+      "by": "ai",
+      "out": "13c39c060154cceed3b0e60198d647cb82e30095c99af038b96ef71654d97bff",
+      "src": "29311fd208c2e1ba5fe7990a7c4190a181058e28f4db508f6c6d9dffe76db224"
+    },
+    "settings.integrations.app.jobber.scope": {
+      "by": "ai",
+      "out": "d6dd53a38bce96b87c9a5f17912ae03823045e5bae5e47f74b31a60057a5b37a",
+      "src": "e2463bff7b82dde5bea36d6ff41e87472f1fdb9cc463a294be2e3581bba19585"
+    },
+    "settings.integrations.app.jobber.settings.createContacts": {
+      "by": "ai",
+      "out": "adcbbccc075540a3eb6dd3a93b655672a169cdcb8fd44e986f2b807e8216ba06",
+      "src": "ec326278c45422d21fb6c7516f6ff92223a1338d465d3713c98a793134ed3c72"
+    },
+    "settings.integrations.app.jobber.settings.createContactsHelp": {
+      "by": "ai",
+      "out": "2ff2d75c8e935d54b8da751caa0b9341a7443aa70f90a69756046b61e8038b38",
+      "src": "dd9da6802a1155c6011dc7a47a738e23981e8adb51f98c8299da226dc3924226"
+    },
+    "settings.integrations.app.jobber.settings.fillFields": {
+      "by": "ai",
+      "out": "a5c37423a0a0c3555a3d33e8ffcfef44c316af1537b5319b527953d2cb2492d8",
+      "src": "43e4c626ef22e1d4f993b74d7b7001377a890896fc5c6eb80dfe86e824ba2beb"
+    },
+    "settings.integrations.app.jobber.settings.fillFieldsHelp": {
+      "by": "ai",
+      "out": "221d15b6bc22bd3aa73980cdd9677b56f34f4740439e2a165842131f7c80c3d1",
+      "src": "690c9218a1ac173aa29295cf5e3a8018d5c907e0ac02944fdaf3c8ed80b6d0f7"
+    },
+    "settings.integrations.app.jobber.settings.fillFieldsTip": {
+      "by": "ai",
+      "out": "387ee87e69481052279e3edce50ba33664b847755273a6db722ff1860c9e1bab",
+      "src": "bc9cd3326954c3c8c6589d89916760a9f84b0d8fc41db9b06484924eeb01df53"
+    },
+    "settings.integrations.app.jobber.settings.logCalls": {
+      "by": "ai",
+      "out": "9a7e89a61ee5493df73f2202ec7cb83f6b2d2fa010b7f61039591711a139649f",
+      "src": "a847f5d5577d3ddc59b4c442e7abd1eb52bf7219949daf44b40afe2bd585fa7f"
+    },
+    "settings.integrations.app.jobber.settings.logCallsHelp": {
+      "by": "ai",
+      "out": "16a4bcb6630132ea8d7944a4edc484f20468287ab2453fc91f46fcdfa6489139",
+      "src": "bb2a2316954f5d70a9ae55240d722ecc73a0694914c90b974b0e0204e38c4a3d"
+    },
     "settings.integrations.app.lastSent": {
       "by": "ai",
       "out": "a25b04f8a5a2ca444bdea145345d0def7cbd88f08ff6109bf90b8dc1b6d083bd",
@@ -125340,8 +125890,8 @@
     },
     "settings.integrations.card.jobber.line": {
       "by": "ai",
-      "out": "c0ff4bcada945fc345d3d2a75566814b3c25c9472366c22484e9a309f039c62e",
-      "src": "e14d4cea1cb37abde01ecfb0ab5661b5bfc704fad204e5c64b314ec2c88c59f5"
+      "out": "29fc2bd654c335ae121f9bce81b12a2afac57f8bb5152b6faef5244b69a0a157",
+      "src": "405bc13c56f29e20d1b2165e0140320c19cfb2f9804008d3bc1d96e9c36f723c"
     },
     "settings.integrations.card.jobber.name": {
       "by": "ai",
