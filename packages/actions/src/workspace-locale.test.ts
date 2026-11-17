@@ -130,9 +130,18 @@ describe('resolveWorkspaceLanguage', () => {
   })
 
   test('Canada and Puerto Rico are worked out from their numbers: Puerto Rico is not the US', () => {
-    expect(workspaceCountryOf({ assistantNumbers: ['+17875550100'] })).toEqual({ country: 'PR', source: 'assistant_number' })
-    expect(workspaceCountryOf({ assistantNumbers: ['+19395550100'] })).toEqual({ country: 'PR', source: 'assistant_number' })
-    expect(workspaceCountryOf({ assistantNumbers: ['+14165550100'] })).toEqual({ country: 'CA', source: 'assistant_number' })
+    expect(workspaceCountryOf({ assistantNumbers: ['+17875550100'] })).toEqual({
+      country: 'PR',
+      source: 'assistant_number',
+    })
+    expect(workspaceCountryOf({ assistantNumbers: ['+19395550100'] })).toEqual({
+      country: 'PR',
+      source: 'assistant_number',
+    })
+    expect(workspaceCountryOf({ assistantNumbers: ['+14165550100'] })).toEqual({
+      country: 'CA',
+      source: 'assistant_number',
+    })
     expect(currencyOfCountry('CA')).toBe('CAD')
   })
 
@@ -186,9 +195,13 @@ test('the label of the automatic country says where it came from', () => {
 })
 
 test('the label of a hinted country says where the hint came from', () => {
-  expect(automaticCountryLabel('DE', 'sign_up_location')).toBe('Automatic (Germany, from where the workspace was created)')
+  expect(automaticCountryLabel('DE', 'sign_up_location')).toBe(
+    'Automatic (Germany, from where the workspace was created)',
+  )
   expect(automaticCountryLabel('ES', 'time_zone')).toBe('Automatic (Spain, from the time zone it was created in)')
-  expect(automaticCountryLabel('AT', 'browser_language')).toBe('Automatic (Austria, from the browser language it was created in)')
+  expect(automaticCountryLabel('AT', 'browser_language')).toBe(
+    'Automatic (Austria, from the browser language it was created in)',
+  )
 })
 
 test('the phone field starts with the country set first', () => {
@@ -265,7 +278,15 @@ describe('phone numbers from spoken digits', () => {
 describe('the emergency number of the workspace country', () => {
   test('911 in North America, 112 in the EU, 999 in the UK, 000 in Australia, the local number elsewhere', () => {
     expect(['US', 'CA', 'MX', 'FR', 'IE', 'CH', 'GB', 'AU', 'NZ'].map(emergencyNumberOf)).toEqual([
-      '911', '911', '911', '112', '112', '112', '999', '000', '111',
+      '911',
+      '911',
+      '911',
+      '112',
+      '112',
+      '112',
+      '999',
+      '000',
+      '111',
     ])
     expect(emergencyNumberOf('JP')).toBe('110 for the police or 119 for fire and an ambulance')
     expect(emergencyNumberOf('KR')).toBe('112 for the police or 119 for fire and an ambulance')
@@ -276,7 +297,7 @@ describe('the emergency number of the workspace country', () => {
 
   test('the emergency rule is the same in every country and names no number', () => {
     expect(EMERGENCY_RULE).toBe(
-      "A problem that can't wait, even serious damage to property, is urgent: it is for the team, not for the emergency services. Only if a person may be in danger right now (someone hurt or at risk, a fire, a break-in happening, a gas smell), tell the caller to contact the emergency services now, and keep helping them if they stay on the call.",
+      "A problem that can't wait, even serious damage to property, is urgent: it is for the team, so do not mention the emergency services. Only if the caller says a person is in danger right now (someone hurt, a fire, a break-in happening, a gas smell), tell them to contact the emergency services now, and keep helping them if they stay on the call.",
     )
     expect(callRules()).toContain(EMERGENCY_RULE)
     expect(callRules()).not.toMatch(/911|hang up/)
@@ -285,7 +306,9 @@ describe('the emergency number of the workspace country', () => {
 
 describe('countryNamed', () => {
   test('a set country, a number, the business phone or holidays name it; a hint or the US fallback do not', () => {
-    for (const source of ['explicit', 'assistant_number', 'business_phone', 'holidays'] as const) expect(countryNamed(source)).toBe(true)
-    for (const source of ['sign_up_location', 'time_zone', 'browser_language', 'default'] as const) expect(countryNamed(source)).toBe(false)
+    for (const source of ['explicit', 'assistant_number', 'business_phone', 'holidays'] as const)
+      expect(countryNamed(source)).toBe(true)
+    for (const source of ['sign_up_location', 'time_zone', 'browser_language', 'default'] as const)
+      expect(countryNamed(source)).toBe(false)
   })
 })

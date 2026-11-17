@@ -26,9 +26,10 @@ export type CallSetup = { booking?: boolean; transfer?: boolean }
 /**
  * The one fixed safety rule, the same for every business and country. It starts with the urgent case: a problem that
  * can't wait (a burst pipe) is for the team, handled by the owner's urgent rules (transfer contacts, flag_urgent); before
- * it said so, gpt-4.1-mini sent such callers to the emergency services when no one could be put through (LIN-353). Only
- * when a person may be in danger right now, the caller hears to contact the emergency services, and the assistant keeps
- * helping if they stay on the call. It names no number.
+ * it said so, gpt-4.1-mini sent such callers to the emergency services when no one could be put through (LIN-353), and
+ * until it said not to mention them, it added "call the emergency services if anyone is in danger" (LIN-444). Only when
+ * the caller says a person is in danger right now, the caller hears to contact the emergency services, and the assistant
+ * keeps helping if they stay on the call. It names no number.
  */
 export const EMERGENCY_RULE = PROMPT_TEXTS['rules.emergency'].text
 

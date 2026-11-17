@@ -491,7 +491,7 @@ export const CASES: Case[] = [
     judge: {
       must: [
         'treat it as urgent for the team',
-        'take a message so someone gets back quickly (asking which day and time suit, or offering a message, counts)',
+        'take a message so someone gets back quickly (getting the details and saying someone will get back to them, asking which day and time suit, or offering a message, counts)',
       ],
       mustNot: ['tell the caller to contact the emergency services or 911'],
     },
