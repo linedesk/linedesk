@@ -222,6 +222,8 @@ const BRIEFING_QUIET_MS = 2000
 const NEXT_LINE_MS = 8000
 /** Speech at least this long after the yes is the briefing again ("Connecting you now." is about a second). */
 const BRIEFING_MIN_MS = 2500
+/** How long the on-call person waits for "Connecting you now." after pressing 1 again. */
+const CONNECTING_MS = 4000
 /** Time for the bridge to be up after "Connecting you now." before the greeting, so the caller hears all of it. */
 const BRIDGE_SETTLE_MS = 2000
 
@@ -234,15 +236,20 @@ const within = <T>(done: Promise<T>, ms: number) => Promise.race([done, sleep(ms
  * then `hangUp`. No answer: stays silent.
  *
  * A pause in the briefing (a slow voice on a busy server) can pass for its end: the yes then comes too early and
- * does not count, and the briefing goes on or is said again. Then the person answers once more. The next line is
- * never waited for longer than NEXT_LINE_MS: "Connecting you now." may have played while they were still speaking.
+ * does not count, and the briefing goes on or is said again. Then the person answers once more (after a short rest
+ * of the briefing, with key 1 only). The next line is never waited for longer than NEXT_LINE_MS: "Connecting you
+ * now." may have played while they were still speaking.
  */
 export async function actOnCall(
   room: Room,
   source: AudioSource,
   answer: SimulatedAnswer,
   [accept, greeting]: GreetingAudio[],
-  { hangUp, pressOne = false, log = () => {} }: { hangUp: () => Promise<void>; pressOne?: boolean; log?: (message: string) => void },
+  {
+    hangUp,
+    pressOne = false,
+    log = () => {},
+  }: { hangUp: () => Promise<void>; pressOne?: boolean; log?: (message: string) => void },
 ) {
   if (answer === 'no-answer') return
   const start = Date.now()
@@ -262,7 +269,17 @@ export async function actOnCall(
     log(`said yes${pressOne ? ' and pressed 1' : ''} (${at()})`)
     const spokeMs = await within(untilTheyStopTalking(heard), NEXT_LINE_MS)
     log(`next line: ${spokeMs === null ? 'none' : `${spokeMs} ms`} (${at()})`)
-    if (spokeMs === null || spokeMs < BRIEFING_MIN_MS) break // "Connecting you now.", or it played while they spoke
+    if (spokeMs === null) break // "Connecting you now." played while they spoke
+    if (spokeMs < BRIEFING_MIN_MS) {
+      // "Connecting you now.", or the end of a briefing that ran on after the yes: key 1 again (ignored once the call is
+      // put through), then "Connecting you now." if that key was the one that counted.
+      if (pressOne) {
+        await room.localParticipant!.publishDtmf(1, '1')
+        const thenMs = await within(untilTheyStopTalking(heard), CONNECTING_MS)
+        log(`pressed 1 again, then: ${thenMs === null ? 'none' : `${thenMs} ms`} (${at()})`)
+      }
+      break
+    }
   }
   await sleep(BRIDGE_SETTLE_MS)
   await speak(source, greeting!)
