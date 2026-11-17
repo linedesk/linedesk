@@ -328,7 +328,7 @@ describe('business.import', () => {
       services: ['Drain cleaning', 'Water heaters'],
       about: 'We are a family plumbing company in Portland.',
       useCases: ['When a caller asks about water heaters, offer a free estimate.'],
-      greeting: `Thanks for calling Brightwater Plumbing & Heating. This is ${before!.name}. How can I help?`,
+      greeting: `Thanks for calling Brightwater Plumbing & Heating. This is ${before!.name}, the AI assistant. How can I help?`,
       notes: [],
       failures: [],
     })
