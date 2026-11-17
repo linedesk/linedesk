@@ -238,21 +238,28 @@ export async function queueRemovedEmail(
  * 2026-11-15, LIN-264 review F1). Kept or deleted account alike: otherwise their invitations would stay valid, and after
  * a delete pass to the owner and look like the owner's own. Invitations in other workspaces are not touched here (a
  * delete passes them to those owners, workspace-delete.ts). Runs before the account delete. Returns how many.
+ * `workspaceId` null: in every workspace (user.disable, LIN-441: a disabled admin's invitations would let them back in
+ * with a second address).
  */
-export async function cancelSentInvitations(tx: Tx, workspaceId: string, senderId: string): Promise<number> {
+export async function cancelSentInvitations(tx: Tx, workspaceId: string | null, senderId: string): Promise<number> {
   const canceled = await tx
     .update(invitation)
     .set({ status: 'canceled' })
     .where(
       and(
-        eq(invitation.organizationId, workspaceId),
+        workspaceId === null ? undefined : eq(invitation.organizationId, workspaceId),
         eq(invitation.inviterId, senderId),
         eq(invitation.status, 'pending'),
       ),
     )
-    .returning({ email: invitation.email })
+    .returning({ email: invitation.email, workspaceId: invitation.organizationId })
   for (const invite of canceled)
-    await insertAuthEvent(tx, { event: 'invitation_withdrawn', userId: senderId, method: invite.email, workspaceId })
+    await insertAuthEvent(tx, {
+      event: 'invitation_withdrawn',
+      userId: senderId,
+      method: invite.email,
+      workspaceId: invite.workspaceId,
+    })
   return canceled.length
 }
 

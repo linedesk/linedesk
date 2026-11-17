@@ -36,6 +36,8 @@ import {
   settingsChangedAlert,
 } from './emails/alerts.ts'
 import { forgetAdminDevices } from './admin-devices.ts'
+import { cancelSentInvitations } from './team.ts'
+import { cancelPartnerInvitationsFrom } from './partners.ts'
 import { removeAuthenticator } from './authenticator.ts'
 import { mayReceiveEnrolmentCode } from './admin-step-up.ts'
 import type { Actor } from './context.ts'
@@ -541,6 +543,10 @@ export const adminHandlers: Record<string, Handler> = {
     await revokeSetupKeysOf(tx, account.id, 'account_disabled')
     await forgetAdminDevices(tx, account.id)
     await dropUserPush(tx, account.id)
+    // And the invitations they sent, to workspaces and partner teams: accepted with a second address, one would bring
+    // them back (LIN-441).
+    await cancelSentInvitations(tx, null, account.id)
+    await cancelPartnerInvitationsFrom(tx, account.id, now)
     return { rows: {}, data: { userId: account.id, disabled_at: now, subject: accountSubject(account) } }
   },
 

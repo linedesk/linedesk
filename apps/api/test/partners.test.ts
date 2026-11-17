@@ -276,6 +276,18 @@ describe('the partner and its team', () => {
       body: { code: 'invitation_invalid' },
     })
   })
+
+  test('disabling an account cancels the partner team invitations it sent (LIN-441)', async () => {
+    const p = await makePartner('Disabled Inviter Partner')
+    const email = newEmail()
+    expect((await act(p.owner, 'partnerMember.invite', { partnerId: p.id, email })).status).toBe(200)
+    expect((await asServerAdmin(admin, () => act(admin, 'user.disable', { userId: p.owner.userId }))).status).toBe(200)
+    const [inv] = await db.select().from(partner_invitations).where(eq(partner_invitations.email, email))
+    expect(inv!.canceled_at).not.toBeNull()
+    const invitee = await signUp(email)
+    await verify(invitee)
+    expect((await act(invitee, 'partnerInvitation.accept', { token: tokenFor(email)! })).status).not.toBe(200)
+  })
 })
 
 describe('tenancy: nothing of another partner', () => {

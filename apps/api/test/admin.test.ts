@@ -1106,6 +1106,55 @@ describe('users', () => {
     expect((await signIn(ws.owner)).status).toBe(200)
   })
 
+  test('disabling an admin cancels the invitations they sent, in every workspace, one audit line each (LIN-441)', async () => {
+    const first = await createWorkspace('Disabled Inviter One')
+    const second = await createWorkspace('Disabled Inviter Two')
+    const sender = await addMember(first.id, 'admin')
+    await auth.api.addMember({ body: { userId: sender.userId, organizationId: second.id, role: 'admin' } })
+    const sent = await act(sender, 'team.invite', {
+      email: `second-self-${randomBytes(4).toString('hex')}@example.com`,
+      role: 'admin',
+    })
+    expect(sent).toMatchObject({ status: 200, body: { ok: true } })
+    // One sent earlier in the other workspace (the session's active workspace is the first).
+    const elsewhere = `inv_${randomBytes(6).toString('hex')}`
+    await db.insert(invitation).values({
+      id: elsewhere,
+      organizationId: second.id,
+      email: `other-${randomBytes(4).toString('hex')}@example.com`,
+      role: 'admin',
+      status: 'pending',
+      expiresAt: new Date(Date.now() + 86_400_000),
+      inviterId: sender.userId,
+    })
+    const ids = [sent.body.data.invitationId as string, elsewhere]
+    const ownersId = (
+      await act(first.owner, 'team.invite', {
+        email: `kept-${randomBytes(4).toString('hex')}@example.com`,
+        role: 'member',
+      })
+    ).body.data.invitationId as string
+
+    expect((await act(operator, 'user.disable', { userId: sender.userId })).status).toBe(200)
+    const rows = await db
+      .select()
+      .from(invitation)
+      .where(inArray(invitation.id, [...ids, ownersId]))
+    expect(Object.fromEntries(rows.map(r => [r.id, r.status]))).toEqual({
+      [ids[0]!]: 'canceled',
+      [ids[1]!]: 'canceled',
+      [ownersId]: 'pending',
+    })
+    for (const id of ids)
+      expect((await request(anonymous, 'GET', `/v1/invitations/${encodeURIComponent(id)}`)).body).toEqual({
+        status: 'gone',
+      })
+    const withdrawn = (await db.select().from(auth_events).where(eq(auth_events.user_id, sender.userId))).filter(
+      e => e.event === 'invitation_withdrawn',
+    )
+    expect(withdrawn.map(e => e.workspace_id).sort()).toEqual([first.id, second.id].sort())
+  })
+
   test('every sign-in method is blocked for a disabled user: the session hook refuses it', async () => {
     // Password, email link and provider sign-ins all create a session through this hook.
     const ws = await createWorkspace('Hook Workspace')
