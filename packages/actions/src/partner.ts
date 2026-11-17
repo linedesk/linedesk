@@ -44,6 +44,8 @@ export const PARTNER_CODES = [
   'no_partner',
   'already_partner',
   'client_owner',
+  'client_not_billed',
+  'member_not_invited',
 ] as const
 export type PartnerCode = (typeof PARTNER_CODES)[number]
 
@@ -157,13 +159,18 @@ export const workspaceInviteClientOwner = defineAction({
 
 /** The workspace's name typed again: what removing or releasing a partner asks for. */
 const confirmName = z.string().trim().min(1).max(200)
+/**
+ * Of the people the partner's team invited into the workspace (`PartnerClient.invitedByTeam`, `TeamMember.invitedByPartner`),
+ * the member ids that leave with the team; none by default (security review of #1113, M-1). Each must be one of them.
+ */
+const removeMemberIds = z.array(z.string().min(1).max(64)).max(200).default([])
 
 export const partnerReleaseClient = defineAction({
   name: 'partner.releaseClient',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
-    "Hand a client workspace over to the client: the partner team leaves it at once (their API keys there are revoked), and where billing is on it moves off the partner bill to a bill of the client's owner, which needs their card before calls are answered again. Only once the client has its owner. Type the workspace's name to confirm. The partner's owner only.",
-  input: z.object({ partnerId, workspaceId: z.string().min(1).max(64), confirmName }),
+    "Hand a client workspace over to the client: the partner team leaves it at once (their API keys there are revoked), and where billing is on it moves off the partner bill to a bill of the client's owner, which needs their card before calls are answered again. Only once the client has its owner. People your team invited into the workspace stay unless named in removeMemberIds. Type the workspace's name to confirm. The partner's owner only.",
+  input: z.object({ partnerId, workspaceId: z.string().min(1).max(64), confirmName, removeMemberIds }),
   permission: 'partner',
 })
 
@@ -171,9 +178,53 @@ export const workspaceRemovePartner = defineAction({
   name: 'workspace.removePartner',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
-    "Remove this workspace's white-label partner: every member of the partner team leaves it at once (their API keys here are revoked), and where billing is on the workspace moves off the partner's bill to a bill of yours, which needs your card before calls are answered again. Type the workspace's name to confirm. The workspace's owner only.",
-  input: z.object({ confirmName }),
+    "Remove this workspace's white-label partner: every member of the partner team leaves it at once (their API keys here are revoked), and where billing is on the workspace moves off the partner's bill to a bill of yours, which needs your card before calls are answered again. People the partner's team invited here stay unless named in removeMemberIds. Type the workspace's name to confirm. The workspace's owner only.",
+  input: z.object({ confirmName, removeMemberIds }),
   permission: 'workspace:own',
+})
+
+// --- Partner › Clients (slice S3) ---------------------------------------------------------------------------------
+
+/** The most a client's monthly usage limit can be, in USD: a typo should not lift it to nothing. */
+export const CLIENT_USAGE_LIMIT_MAX_USD = 100_000
+/** The least: one dollar (organization_usage_limit in the database). */
+export const CLIENT_USAGE_LIMIT_MIN_USD = 1
+
+export const partnerListClients = defineAction({
+  name: 'partner.listClients',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "The partner's client workspaces with how each is doing this billing period: owner, number, forwarding, last real call, calls, minutes and cost (from the bill's ledger), the share of its monthly usage limit, Allow Premium and Ultra, and its problems. Problems first. Never call content. Refused for a partner you are not on the team of.",
+  input: z.object({ partnerId }),
+  permission: 'partner',
+  readOnly: true,
+})
+
+export const partnerSetClientUsageLimit = defineAction({
+  name: 'partner.setClientUsageLimit',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Set a client workspace's monthly usage limit in USD on the partner bill (null: no limit). At 80 % and 100 % the partner team gets an email; at the limit new calls are not answered (the caller hears the business will call back, the call is filed as missed) until the next billing period. Running calls are never cut. Only for a client on the partner bill. The partner's owner sets any value; an admin of the team may only lower it or set one where there is none.",
+  input: z.object({
+    partnerId,
+    workspaceId: z.string().min(1).max(64),
+    limitUsd: z.number().min(CLIENT_USAGE_LIMIT_MIN_USD).max(CLIENT_USAGE_LIMIT_MAX_USD).nullable(),
+  }),
+  permission: 'partner',
+})
+
+export const partnerSetClientAllow = defineAction({
+  name: 'partner.setClientAllow',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Allow Premium voices and models, or Ultra (a realtime model), in a client workspace on the partner bill. Off moves the client's assistants back to Standard (or off Ultra) with a new version. The partner's owner only; the client's owner cannot switch these.",
+  input: z.object({
+    partnerId,
+    workspaceId: z.string().min(1).max(64),
+    level: z.enum(['premium', 'ultra']),
+    on: z.boolean(),
+  }),
+  permission: 'partner',
 })
 
 // --- Server admin › Partners -------------------------------------------------------------------------------------
@@ -263,7 +314,15 @@ export type PartnerClient = {
   owner: { name: string; email: string } | { invited: string } | null
   /** The partner owner only: every member who is not on the partner team (N-1); empty for the admins. */
   otherMembers: PartnerClientMember[]
+  /**
+   * The partner owner only: who of them the partner team invited. The hand-over lists them to pick who leaves with
+   * the team, none by default (security reviews of #1109, L-4, and #1113, M-1); empty for the admins.
+   */
+  invitedByTeam: PartnerInvitedMember[]
 }
+
+/** Someone the partner team invited into a client workspace (`partner-invited.ts` in the API). */
+export type PartnerInvitedMember = { memberId: string; name: string; email: string }
 
 /**
  * The partner bill as the partner area shows it (the bill's own page is Partner › Billing, `billing.overview` with the
@@ -312,3 +371,55 @@ export type AdminPartner = {
 
 /** `partner.adminList`: the partners, and how many client workspaces each may make while billing is off. */
 export type AdminPartnerList = { partners: AdminPartner[]; clientLimit: number }
+
+/**
+ * What can be wrong with a client workspace (Partner › Clients), worst first: the bill does not run, the workspace is
+ * disabled, the usage limit is reached or near, no number yet, the forwarding check failed or never ran, a provider
+ * failed on one of its calls in the last 7 days.
+ */
+export const CLIENT_PROBLEMS = [
+  'bill_inactive',
+  'disabled',
+  'limit_reached',
+  'limit_near',
+  'no_number',
+  'forwarding_failed',
+  'forwarding_unverified',
+  'provider_errors',
+] as const
+export type ClientProblem = (typeof CLIENT_PROBLEMS)[number]
+
+/** One row of Partner › Clients (`partner.listClients`): aggregates only, never call content. */
+export type PartnerClientRow = {
+  id: string
+  name: string
+  /** The client's own owner: joined (`accepted`), invited, or none yet. */
+  owner: { state: 'accepted'; name: string; email: string } | { state: 'invited'; email: string } | null
+  /** The first of its numbers (E.164), and how many it has. */
+  number: string | null
+  numbers: number
+  /** Whether calls reach the number: forwarding checked and working, not needed (a new or ported number), or not yet. */
+  forwarding: 'verified' | 'not_needed' | 'unverified' | null
+  /** The last call from a real caller (not a test, sample, spam or the owner's own phone). */
+  lastRealCallAt: string | null
+  /** Real callers' calls this period. */
+  calls: number
+  /** Seconds billed this period, from the ledger's usage entries. */
+  seconds: number
+  /** What the client used this period from the partner bill, in US cents (the ledger's usage, numbers and adjustments). Null where billing is off. */
+  costCents: number | null
+  /** The monthly usage limit in US cents (null: none), and the cost as a share of it (0..100+, null without a limit). */
+  limitCents: number | null
+  limitPercent: number | null
+  allowPremium: boolean
+  allowUltra: boolean
+  /** On the partner bill: the limit and the Allow switches apply only there. */
+  billed: boolean
+  problems: ClientProblem[]
+}
+
+/** `partner.listClients`. `period`: the partner bill's current period, else the UTC month (billing off). */
+export type PartnerClientList = {
+  period: { startsAt: string; endsAt: string } | null
+  clients: PartnerClientRow[]
+}

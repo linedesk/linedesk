@@ -460,14 +460,29 @@ export type WorkspaceBillFacts = {
   trialDays: number | null
   plan: { interval: 'month' | 'year'; cents: number } | null
   extraNumberCents: number | null
+  /**
+   * A white-label client on its partner's bill: its people see no prices (docs/white-label.md; review of #1109, L-2),
+   * so the plan and the extra number's price are null, and the app says no price instead of the carrier's.
+   */
+  partnerManaged: boolean
 }
 
 export async function workspaceBillFacts(workspaceId: string): Promise<WorkspaceBillFacts> {
-  const none: WorkspaceBillFacts = { trialDays: null, plan: null, extraNumberCents: null }
+  const none: WorkspaceBillFacts = { trialDays: null, plan: null, extraNumberCents: null, partnerManaged: false }
   return db.transaction(async tx => {
+    // A white-label client: its partner bills it, so the workspace shows none of our prices, billing in effect or not.
+    const [client] = await tx
+      .select({ partnerId: organization.partnerId })
+      .from(organization)
+      .where(eq(organization.id, workspaceId))
+    if (client?.partnerId) return { ...none, partnerManaged: true }
     if ((await billingState(tx)).inEffect !== 'stripe') return none
     const [found] = await tx
-      .select({ status: billing_accounts.status, interval: billing_accounts.interval, kind: billing_accounts.kind })
+      .select({
+        status: billing_accounts.status,
+        interval: billing_accounts.interval,
+        kind: billing_accounts.kind,
+      })
       .from(organization)
       .innerJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
       .where(eq(organization.id, workspaceId))
@@ -481,6 +496,7 @@ export async function workspaceBillFacts(workspaceId: string): Promise<Workspace
       trialDays: pending ? rules.trialDays : null,
       plan: price ? { interval: found.interval, cents: price.cents } : null,
       extraNumberCents: found.status === 'comped' ? null : rules.extraNumberCents,
+      partnerManaged: false,
     }
   })
 }

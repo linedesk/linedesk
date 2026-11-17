@@ -1,6 +1,6 @@
 // The partner area's link to the API (docs/white-label.md): partner actions run directly (callAction), not through
 // the outbox, since partner rows are not synced to the browser. A refusal with a partner code is worded here.
-import { type MyPartner, PARTNER_CODES, type PartnerData } from '@linedesk/actions'
+import { type MyPartner, PARTNER_CODES, type PartnerClientList, type PartnerData } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
 import { fetchQuery, useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
@@ -27,6 +27,10 @@ export const refreshMyPartners = () => fetchQuery(PARTNERS_QUERY, loadMyPartners
 
 export const PARTNER_QUERY = (partnerId: string) => `partner.${partnerId}`
 export const loadPartner = (partnerId: string) => callAction<PartnerData>('partner.get', { partnerId })
+
+/** Partner › Clients' rows: how each client is doing this period (partner.listClients). */
+export const PARTNER_CLIENTS_QUERY = (partnerId: string) => `partner.${partnerId}.clients`
+export const loadClients = (partnerId: string) => callAction<PartnerClientList>('partner.listClients', { partnerId })
 
 /** A refusal the page words itself (PARTNER_CODES), a 403 as "not allowed", else the server's own text. */
 // i18n-dynamic: team.partner.error.*

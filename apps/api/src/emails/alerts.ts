@@ -454,6 +454,20 @@ export const extraCallsSyncAlert =
     }
   }
 
+/** A partner bill's seats could not be set in Stripe after a client workspace changed, even after retries. */
+export const seatsSyncAlert =
+  (bill: string): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.seatsSync.subject', { brand: brandName() }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.seatsSync.text', { bill }) },
+        { kind: 'text', text: t('email.adminAlert.seatsSync.fix') },
+      ],
+    }
+  }
+
 /** Every passkey of an account was removed (user.resetPasskeys). */
 export const passkeysResetAlert =
   (actor: AlertActor, email: string, removed: number, isAdmin: boolean): AdminAlertText =>
@@ -529,6 +543,55 @@ export function spendingCapEmail(
       { kind: 'text', tone: 'muted', text: t('email.spendingCap.change', values) },
     ],
     reason: t('email.spendingCap.reason', { workspace: name, site: siteHost(origin) }),
+    origin,
+  })
+}
+
+// ---------------------------------------------------------------- a white-label client's usage limit
+
+export type UsageLimitEmail = {
+  /** Email-safe (emailSafeName); null: the workspace has no usable name. */
+  workspace: string | null
+  /** 80 or 100 (usage-limit.ts USAGE_LIMIT_ALERT_LEVELS). */
+  level: number
+  limitUsd: number
+  usedUsd: number
+}
+
+/**
+ * A client workspace used 80 % of the monthly usage limit its partner set, or reached it (usage-limit.ts): to the
+ * partner's team, who set the limit and see the amounts (the client's own people see minutes only).
+ */
+export function usageLimitEmail(
+  { workspace, level, limitUsd, usedUsd }: UsageLimitEmail,
+  origin = WEB_ORIGIN,
+  locale?: EmailLocale,
+): RenderedEmail {
+  const { t, format, locale: lang } = getT(locale)
+  const name = workspace ?? t('email.usageLimit.fallbackWorkspace')
+  const values = {
+    workspace: name,
+    limit: format.currency(limitUsd, 'USD'),
+    used: format.currency(usedUsd, 'USD'),
+    percent: format.number(level / 100, { style: 'percent' }),
+  }
+  const reached = level >= 100
+  const subject = reached ? t('email.usageLimit.reachedSubject', values) : t('email.usageLimit.levelSubject', values)
+  const text = reached ? t('email.usageLimit.reachedText', values) : t('email.usageLimit.levelText', values)
+  return renderEmail({
+    locale: lang,
+    subject,
+    preheader: text,
+    eyebrow: t('email.usageLimit.eyebrow'),
+    ...(reached ? { urgent: t('email.usageLimit.urgent') } : {}),
+    heading: subject,
+    blocks: [
+      { kind: 'text', text },
+      { kind: 'text', text: reached ? t('email.usageLimit.reachedEffect') : t('email.usageLimit.levelEffect') },
+      { kind: 'text', tone: 'muted', text: t('email.usageLimit.change') },
+      { kind: 'button', label: t('email.usageLimit.button'), url: `${origin}/#partner/clients` },
+    ],
+    reason: t('email.usageLimit.reason', { workspace: name, site: siteHost(origin) }),
     origin,
   })
 }

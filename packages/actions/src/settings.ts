@@ -557,6 +557,11 @@ export type WorkspaceSettingsData = {
   usageLevels: boolean
   /** The install's price of a call minute per level, in US cents (Server admin › Billing); absent from an older server. */
   usageCentsPerMinute?: { standard: number; premium: number; ultra: number }
+  /**
+   * A white-label client (docs/white-label.md): its people see minutes, never Linedesk's prices, so
+   * `usageCentsPerMinute` is absent; and its partner's owner switches Allow Premium and Allow Ultra, not its own owner.
+   */
+  partnerManaged?: boolean
 }
 
 /**

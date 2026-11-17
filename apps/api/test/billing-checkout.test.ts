@@ -1747,7 +1747,8 @@ describe('the partner bill (white-label S2, docs/white-label.md)', () => {
       'items[0][quantity]': '1',
       proration_behavior: 'create_prorations',
     })
-    expect(update.idempotencyKey).toBe(`seats_client_${client.body.data.workspace.id}_${bill.id}_1`)
+    // From the seats the subscription had (none) to the count: the same change asks Stripe the same thing (L-1).
+    expect(update.idempotencyKey).toBe(`seats_client_${client.body.data.workspace.id}_${bill.id}_0_1`)
   })
 
   test("a released client leaves its extra calls behind; the partner bill's extra-calls item drops (review of #1109, M-2)", async () => {

@@ -597,7 +597,9 @@ function ConnectNumber({
   // A refusal while this waits is shown here, not also as a toast.
   const { rejection, clearRejection } = useClaimedRejection('phoneNumber.setup', sentAt !== null)
   // The business's number forwards as chosen for pick-up (Settings › Hours); until loaded, the calls it misses.
-  const forwarding = pickupNumberMode(firstPickup(useWorkspaceSettings().data ?? null))
+  const settings = useWorkspaceSettings().data ?? null
+  const forwarding = pickupNumberMode(firstPickup(settings))
+  const partnerManaged = settings?.partnerManaged === true
   const buying = option !== 'existing'
   const dev = status?.provider === 'dev'
 
@@ -710,11 +712,14 @@ function ConnectNumber({
                 : t('settings.phone.connect.areaCode')
             }
             help={
-              billedNumberNote(
-                extraNumberCents,
-                status?.provider ?? null,
-                numbers.filter(n => n.purchased && n.carrier_account === 'install').length,
-              ) ?? priceNote(status?.provider ?? null, priceCountry(areaCode, country))
+              // A white-label client's people see no prices (docs/white-label.md): its partner pays for the number.
+              partnerManaged
+                ? undefined
+                : (billedNumberNote(
+                    extraNumberCents,
+                    status?.provider ?? null,
+                    numbers.filter(n => n.purchased && n.carrier_account === 'install').length,
+                  ) ?? priceNote(status?.provider ?? null, priceCountry(areaCode, country)))
             }
           >
             <AreaCodeInput

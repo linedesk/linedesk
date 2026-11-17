@@ -261,6 +261,11 @@ export type UsageLevelOptions = {
   premiumCentsPerMinute: number
   standardCentsPerMinute: number
   ultraCentsPerMinute: number
+  /**
+   * A white-label client (docs/white-label.md): the editor shows levels without prices (the three prices are 0), and
+   * only the partner's owner allows Premium and Ultra.
+   */
+  partnerManaged?: boolean
   /** The realtime models an assistant can answer with (Ultra), when a realtime model is set up; else empty. */
   realtimeModels: LevelChoice[]
   /** What "Default" stands for among them: the install's realtime model with its level; null without one. */

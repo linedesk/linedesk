@@ -34,6 +34,7 @@ import {
   REMOVE_SIGN_IN_AGAIN,
   removeNeedsFreshSignIn,
 } from './owner-step-up.ts'
+import { invitedByPartnerTeam } from './partner-invited.ts'
 import { revokeMemberSetupKeys, revokeWorkspaceSetupKeys } from './passkey-enrolment.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
@@ -336,6 +337,15 @@ async function listTeam(tx: Tx, actor: Actor): Promise<TeamData> {
     .innerJoin(partners, eq(partners.id, organization.partnerId))
     .where(eq(organization.id, workspaceId))
   const partner = client?.partner ?? null
+  // Who the partner's team let in (security review of #1109, L-4): they leave with the partner.
+  if (partner) {
+    const [org] = await tx
+      .select({ partnerId: organization.partnerId })
+      .from(organization)
+      .where(eq(organization.id, workspaceId))
+    const invited = new Set((await invitedByPartnerTeam(tx, workspaceId, org!.partnerId!)).map(m => m.userId))
+    for (const m of members) if (invited.has(m.userId)) m.invitedByPartner = true
+  }
   // Invitees' addresses are for those who invite: a member sees the team, not who is invited.
   if (!canManage) return { members, invitations: [], canManage, me: actor.actorId, partner }
   const inviter = alias(user, 'inviter')

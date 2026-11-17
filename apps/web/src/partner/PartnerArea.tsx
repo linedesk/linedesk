@@ -2,7 +2,7 @@
 // new ones and (the owner) manages the team and the partner bill. It needs no workspace: a new partner has no clients
 // yet. Every member of the team is an admin of every client workspace; opening one switches to it like the workspace
 // menu does. Where billing is on, client workspaces are seats on the partner bill, which must run first (S2).
-import type { MyPartner, PartnerClient, PartnerData } from '@linedesk/actions'
+import type { MyPartner, PartnerClient, PartnerClientRow, PartnerData } from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
@@ -21,7 +21,10 @@ import { Badge, Button, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, useSection } from '../ui/SettingsLayout.tsx'
 import { day } from '../admin/parts.tsx'
-import { loadPartner, PARTNER_QUERY, partnerErrorText } from './partner-api.ts'
+import { ClientSettingsDialog } from './ClientSettingsDialog.tsx'
+import { ClientTable } from './ClientTable.tsx'
+import { InvitedPicker } from './InvitedPicker.tsx'
+import { loadClients, loadPartner, PARTNER_CLIENTS_QUERY, PARTNER_QUERY, partnerErrorText } from './partner-api.ts'
 import '../admin/admin.css'
 
 type Section = 'clients' | 'team' | 'billing'
@@ -119,7 +122,12 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
               ) : current === 'team' ? (
                 <Team data={data} frozen={status === 'suspended'} />
               ) : (
-                <Clients data={data} frozen={clientsFrozen(data)} onFirstWorkspace={onFirstWorkspace} />
+                <Clients
+                  data={data}
+                  frozen={clientsFrozen(data)}
+                  onFirstWorkspace={onFirstWorkspace}
+                  toast={text => toaster.show(text)}
+                />
               ))}
           </Loading>
         </SettingsLayout>
@@ -174,16 +182,24 @@ function StatusBadge({ status }: { status: PartnerData['partner']['status'] }) {
 }
 
 /** After a change: the partner as the server has it now, and the person's workspace list (a new client). */
-const reloadPartner = async (id: string) => setQueryData(PARTNER_QUERY(id), await loadPartner(id))
+const reloadPartner = async (id: string) => {
+  const [partner, clients] = await Promise.all([loadPartner(id), loadClients(id)])
+  setQueryData(PARTNER_QUERY(id), partner)
+  setQueryData(PARTNER_CLIENTS_QUERY(id), clients)
+}
+/** After a change to one client's limit or switches: the client list as the server has it now. */
+const reloadClients = async (id: string) => setQueryData(PARTNER_CLIENTS_QUERY(id), await loadClients(id))
 
 function Clients({
   data,
   frozen,
   onFirstWorkspace,
+  toast,
 }: {
   data: PartnerData
   frozen: boolean
   onFirstWorkspace?: () => void
+  toast: (text: string) => void
 }) {
   const t = useT()
   const owner = data.role === 'owner'
@@ -195,6 +211,7 @@ function Clients({
   const [created, setCreated] = useState<string | null>(null)
   const [inviting, setInviting] = useState<PartnerClient | null>(null)
   const [releasing, setReleasing] = useState<PartnerClient | null>(null)
+  const [settings, setSettings] = useState<PartnerClientRow | null>(null)
 
   async function create(e: FormEvent) {
     e.preventDefault()
@@ -224,6 +241,7 @@ function Clients({
               createdAt: new Date().toISOString(),
               owner: owner && email ? { invited: email } : null,
               otherMembers: [],
+              invitedByTeam: [],
             },
           ],
         })
@@ -283,95 +301,33 @@ function Clients({
           {created && <p className="help">{t('team.partner.clients.created', { name: created })}</p>}
         </form>
       </Card>
-      <Card title={t('team.partner.clients.title')} description={t('team.partner.clients.listDescription')}>
-        {data.clients.length === 0 ? (
-          <p className="adm-notice">{t('team.partner.clients.empty')}</p>
-        ) : (
-          <table className="adm-table">
-            <thead>
-              <tr>
-                <th scope="col">{t('team.partner.clients.name')}</th>
-                <th scope="col">{t('team.partner.clients.owner')}</th>
-                <th scope="col">{t('team.partner.clients.since')}</th>
-                <th scope="col" aria-label={t('team.partner.clients.open')} />
-              </tr>
-            </thead>
-            <tbody>
-              {data.clients.map(c => (
-                <tr key={c.id}>
-                  <th scope="row">
-                    {c.name}
-                    {c.otherMembers.length > 0 && (
-                      <span className="adm-sub">
-                        {t('team.partner.clients.others', {
-                          people: c.otherMembers.map(m => memberLine(t, m)).join(' · '),
-                        })}
-                      </span>
-                    )}
-                  </th>
-                  <td>
-                    {c.owner === null
-                      ? t('team.partner.clients.noOwner')
-                      : 'invited' in c.owner
-                        ? t('team.partner.clients.ownerInvited', { email: c.owner.invited })
-                        : c.owner.name || c.owner.email}
-                  </td>
-                  <td>{day(c.createdAt)}</td>
-                  <td className="adm-num">
-                    {owner && c.owner === null && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={frozen || !!opening}
-                        title={t('team.partner.clients.inviteOwnerTip', { name: c.name })}
-                        onClick={() => setInviting(c)}
-                      >
-                        {t('team.partner.clients.inviteOwner')}
-                      </Button>
-                    )}
-                    {owner && c.owner && !('invited' in c.owner) && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={data.partner.status === 'suspended' || !!opening}
-                        title={t('team.partner.clients.releaseTip', { name: c.name })}
-                        onClick={() => setReleasing(c)}
-                      >
-                        {t('team.partner.clients.release')}
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      busy={opening === c.id}
-                      disabled={frozen || !!opening}
-                      title={t('team.partner.clients.openTip', { name: c.name })}
-                      onClick={() => open(c.id)}
-                    >
-                      {t('team.partner.clients.open')}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+      <ClientTable
+        data={data}
+        frozen={frozen}
+        opening={opening}
+        onOpen={open}
+        onInvite={setInviting}
+        onRelease={setReleasing}
+        onSettings={setSettings}
+      />
       {inviting && (
         <InviteOwnerDialog partnerId={data.partner.id} client={inviting} onClose={() => setInviting(null)} />
       )}
-      {releasing && (
-        <ReleaseDialog partnerId={data.partner.id} client={releasing} onClose={() => setReleasing(null)} />
+      {releasing && <ReleaseDialog partnerId={data.partner.id} client={releasing} onClose={() => setReleasing(null)} />}
+      {settings && (
+        <ClientSettingsDialog
+          partnerId={data.partner.id}
+          client={settings}
+          owner={owner}
+          onClose={() => setSettings(null)}
+          onSaved={async message => {
+            await reloadClients(data.partner.id)
+            toast(message)
+          }}
+        />
       )}
     </>
   )
-}
-
-/** "Dana Ruiz (admin, invited by Mike Brennan)": someone in a client workspace who is not on the partner team. */
-function memberLine(t: ReturnType<typeof useT>, m: PartnerClient['otherMembers'][number]) {
-  const who = m.name || m.email
-  return m.invitedBy
-    ? t('team.partner.clients.memberInvitedBy', { name: who, role: m.role, by: m.invitedBy })
-    : t('team.partner.clients.member', { name: who, role: m.role })
 }
 
 /** Invites the client's own owner by email (the partner's owner; never someone on the partner team). */
@@ -439,14 +395,29 @@ function InviteOwnerDialog({
  * Hands a client workspace over to its owner (`partner.releaseClient`): the team leaves it, and where billing is on
  * it moves to a bill of the client's own that waits for their card. The workspace's name is typed to confirm.
  */
-function ReleaseDialog({ partnerId, client, onClose }: { partnerId: string; client: PartnerClient; onClose: () => void }) {
+function ReleaseDialog({
+  partnerId,
+  client,
+  onClose,
+}: {
+  partnerId: string
+  client: PartnerClient
+  onClose: () => void
+}) {
   const t = useT()
+  // Nobody the team invited leaves unless picked here (security review of #1113, M-1).
+  const [removing, setRemoving] = useState<Set<string>>(new Set())
   return (
     <DangerConfirmDialog
       confirm={{
         text: t('team.partner.release.text', { name: client.name }),
         after: t('team.partner.release.after'),
-        list: [t('team.partner.release.team'), t('team.partner.release.bill'), t('team.partner.release.data')],
+        list: [
+          t('team.partner.release.team'),
+          ...(client.invitedByTeam.length ? [t('team.partner.release.invitedStay')] : []),
+          t('team.partner.release.bill'),
+          t('team.partner.release.data'),
+        ],
         action: t('team.partner.release.confirm'),
         busyAction: t('team.partner.release.busy'),
         typed: client.name,
@@ -454,7 +425,12 @@ function ReleaseDialog({ partnerId, client, onClose }: { partnerId: string; clie
       }}
       run={async () => {
         try {
-          await callAction('partner.releaseClient', { partnerId, workspaceId: client.id, confirmName: client.name })
+          await callAction('partner.releaseClient', {
+            partnerId,
+            workspaceId: client.id,
+            confirmName: client.name,
+            removeMemberIds: [...removing],
+          })
         } catch (err) {
           throw new Error(partnerErrorText(err))
         }
@@ -462,7 +438,14 @@ function ReleaseDialog({ partnerId, client, onClose }: { partnerId: string; clie
         onClose()
       }}
       onClose={onClose}
-    />
+    >
+      <InvitedPicker
+        people={client.invitedByTeam}
+        legend={t('team.partner.release.invitedPick')}
+        selected={removing}
+        onChange={setRemoving}
+      />
+    </DangerConfirmDialog>
   )
 }
 

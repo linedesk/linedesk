@@ -34,6 +34,15 @@
 .adm-table .adm-num {
   font-variant-numeric: tabular-nums;
 }
+.adm-table .adm-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.adm-table tbody th .adm-badges .k-badge {
+  margin-left: 0;
+}
 .adm-table th:last-child,
 .adm-table td:last-child {
   padding-right: 0;

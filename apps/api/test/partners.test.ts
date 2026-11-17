@@ -5,6 +5,8 @@
 import {
   api_keys,
   billing_accounts,
+  billing_balances,
+  billing_periods,
   commands,
   instance_settings,
   invitation,
@@ -13,14 +15,22 @@ import {
   partner_invitations,
   partner_members,
   partners,
+  phone_numbers,
   session,
+  usage_limit_alerts,
   user,
+  workspace_settings,
 } from '@linedesk/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
+import { listAudit } from '../src/audit.ts'
 import { BILLING_ENABLED_KEY } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
 import { type Email, emailSender } from '../src/email.ts'
+import type { BillingProvider, SeatQuantityInput } from '@linedesk/billing'
+import { lockExtraCalls } from '../src/extra-calls.ts'
+import { postEntry } from '../src/ledger.ts'
+import { seatProration, syncSeats, syncSeatsRetrying } from '../src/partner-billing.ts'
 import { mayCreateUser } from '../src/signup-gate.ts'
 import {
   act,
@@ -37,6 +47,17 @@ import {
 } from './helpers.ts'
 
 const ORIGIN = 'http://localhost:5173'
+
+/** Price ids a test pretends the catalog sync stored; null reads the real stored ones. */
+const catalog = vi.hoisted(() => ({ prices: null as Record<string, string> | null }))
+vi.mock('../src/billing-catalog.ts', async original => {
+  const real = await original<typeof import('../src/billing-catalog.ts')>()
+  return {
+    ...real,
+    pricesForCheckout: async (provider: Parameters<typeof real.pricesForCheckout>[0]) =>
+      catalog.prices ?? real.pricesForCheckout(provider),
+  }
+})
 
 const sent: Email[] = []
 // The test env prints email to the log (EMAIL_TO_LOG); collect what would be sent instead.
@@ -1002,5 +1023,461 @@ describe('the partner bill (S2)', () => {
     const team = (await act(clientOwner, 'team.list', {})).body.data
     expect(team.members.some((m: { partner?: string | null }) => m.partner)).toBe(false)
     expect(team.partner).toBe('Suspended Later')
+  })
+})
+
+// ---- Slice S3 (LIN-454): Partner › Clients, the monthly usage limit, Allow Premium and Ultra; review of #1109 ----
+
+const DAY_MS = 86_400_000
+const rid = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
+
+/** The partner bill's period around now. */
+async function periodOf(billId: string) {
+  const id = rid('bp')
+  await db.insert(billing_periods).values({
+    id,
+    billing_account_id: billId,
+    starts_at: new Date(Date.now() - 10 * DAY_MS).toISOString(),
+    ends_at: new Date(Date.now() + 20 * DAY_MS).toISOString(),
+    kind: 'month',
+  })
+  return id
+}
+
+/** A ledger entry for one client, as a call (`usage`) or an extra number (`number`) would post it. */
+const post = (
+  billId: string,
+  periodId: string,
+  workspaceId: string,
+  kind: 'usage' | 'number',
+  micros: number,
+  seconds = 0,
+) =>
+  db.transaction(tx =>
+    postEntry(tx, {
+      billing_account_id: billId,
+      workspace_id: workspaceId,
+      period_id: periodId,
+      kind,
+      amount_micros: -micros,
+      ...(kind === 'usage'
+        ? { seconds, included_seconds: 0, billable_seconds: seconds, price_basis: 'standard' as const }
+        : {}),
+      source_type: kind === 'usage' ? 'call' : 'phone_number',
+      source_id: kind === 'number' ? `${rid('pn')}:${periodId}` : rid('src'),
+    }),
+  )
+
+/** Someone a member of the workspace invited as `role`, joined. */
+async function invitedBy(inviter: User, workspaceId: string, role: 'admin' | 'member' = 'member') {
+  const { who, email } = await personElsewhere('Invited Home')
+  expect(await act(await inWorkspace(inviter, workspaceId), 'team.invite', { email, role })).toMatchObject({
+    status: 200,
+  })
+  const [sent] = await db
+    .select()
+    .from(invitation)
+    .where(and(eq(invitation.organizationId, workspaceId), eq(invitation.email, email)))
+  expect(await act(who, 'invitation.accept', { invitationId: sent!.id })).toMatchObject({ status: 200 })
+  return who
+}
+
+describe('Partner › Clients (S3)', () => {
+  beforeAll(async () => {
+    await db
+      .insert(instance_settings)
+      .values({ key: BILLING_ENABLED_KEY, value: 'on' })
+      .onConflictDoUpdate({ target: instance_settings.key, set: { value: 'on' } })
+  })
+  afterAll(async () => {
+    await db.delete(instance_settings).where(eq(instance_settings.key, BILLING_ENABLED_KEY))
+  })
+
+  test('the list: only its own clients, problems first, minutes and cost as the ledger has them, never call content', async () => {
+    const p = await billedPartner('Listing Partner', 'active', true)
+    const periodId = await periodOf(p.billId)
+    const quiet = await createClient(p, 'Alpha Quiet')
+    const busy = await createClient(p, 'Zeta Busy')
+    await db.insert(phone_numbers).values({
+      id: rid('pn'),
+      workspace_id: quiet,
+      e164: '+15035550111',
+      provider: 'dev',
+      mode: 'new',
+      created_at: new Date().toISOString(),
+    })
+    await db
+      .insert(phone_numbers)
+      .values({ id: rid('pn'), workspace_id: busy, e164: '+15035550112', provider: 'dev', mode: 'new' })
+    await post(p.billId, periodId, busy, 'usage', 6_000_000, 610)
+    await post(p.billId, periodId, busy, 'usage', 1_500_000, 125)
+    await post(p.billId, periodId, busy, 'number', 2_000_000)
+    // Another workspace's use on another bill never counts.
+    await post(p.billId, periodId, clientB, 'usage', 9_000_000, 900)
+    await db.update(organization).set({ usageLimitCents: 1000 }).where(eq(organization.id, busy))
+
+    const res = await act(p.owner, 'partner.listClients', { partnerId: p.id })
+    expect(res.status).toBe(200)
+    const { period, clients } = res.body.data
+    expect(period).toMatchObject({ startsAt: expect.any(String), endsAt: expect.any(String) })
+    expect(clients.map((c: { name: string }) => c.name)).toEqual(['Zeta Busy', 'Alpha Quiet'])
+    const [first, second] = clients
+    expect(first).toEqual({
+      id: busy,
+      name: 'Zeta Busy',
+      owner: null,
+      number: '+15035550112',
+      numbers: 1,
+      forwarding: 'not_needed',
+      lastRealCallAt: null,
+      calls: 0,
+      seconds: 735,
+      costCents: 950,
+      limitCents: 1000,
+      limitPercent: 95,
+      allowPremium: false,
+      allowUltra: false,
+      billed: true,
+      problems: ['limit_near'],
+    })
+    expect(second).toMatchObject({ id: quiet, seconds: 0, costCents: 0, limitCents: null, problems: [] })
+    // Over the limit it is the first problem; a client without a number has one too.
+    await post(p.billId, periodId, busy, 'usage', 600_000, 60)
+    const empty = await createClient(p, 'Beta Empty')
+    const after = (await act(p.owner, 'partner.listClients', { partnerId: p.id })).body.data.clients
+    expect(after.map((c: { id: string; problems: string[] }) => [c.id, c.problems])).toEqual([
+      [busy, ['limit_reached']],
+      [empty, ['no_number']],
+      [quiet, []],
+    ])
+    // An admin of the team reads it too.
+    const padmin = await addPartnerAdmin(p)
+    expect((await act(padmin, 'partner.listClients', { partnerId: p.id })).status).toBe(200)
+  })
+
+  test('the list is refused to another partner, a client member, its owner, and an API key', async () => {
+    const p = await billedPartner('Private List', 'active', true)
+    const c = await createClient(p, 'Hidden Client')
+    const owner = await giveOwner(p, c)
+    expect((await act(b.owner, 'partner.listClients', { partnerId: p.id })).status).toBe(403)
+    expect((await act(adminA, 'partner.listClients', { partnerId: p.id })).status).toBe(403)
+    expect((await act(await inWorkspace(owner, c), 'partner.listClients', { partnerId: p.id })).status).toBe(403)
+    const key = await act(await inWorkspace(p.owner, c), 'apiKey.create', { name: 'Client key', role: 'admin' })
+    const bearer = { headers: { authorization: `Bearer ${key.body.data.key}` } }
+    expect((await act(bearer, 'partner.listClients', { partnerId: p.id })).status).toBe(403)
+  })
+
+  test('the team sets a usage limit on a billed client; never another partner, never a client off the bill', async () => {
+    const p = await billedPartner('Limit Setter', 'active', true)
+    const periodId = await periodOf(p.billId)
+    const c = await createClient(p, 'Limited Client')
+    const padmin = await addPartnerAdmin(p)
+    const set = (who: User, limitUsd: number | null, workspaceId = c, partnerId = p.id) =>
+      act(who, 'partner.setClientUsageLimit', { partnerId, workspaceId, limitUsd })
+    // An admin sets one where there is none and lowers it; raising or removing it is the owner's (#1113, L-1).
+    expect(await set(padmin, 25)).toMatchObject({ status: 200 })
+    expect(await orgRow(c)).toMatchObject({ usageLimitCents: 2500 })
+    expect(await set(padmin, 12.5)).toMatchObject({ status: 200 })
+    expect(await orgRow(c)).toMatchObject({ usageLimitCents: 1250 })
+    expect((await set(padmin, 20)).status).toBe(403)
+    expect((await set(padmin, null)).status).toBe(403)
+    expect(await orgRow(c)).toMatchObject({ usageLimitCents: 1250 })
+    expect(await set(p.owner, 20)).toMatchObject({ status: 200 })
+    expect(await set(padmin, 12.5)).toMatchObject({ status: 200 })
+    expect((await set(b.owner, 5)).status).toBe(403)
+    expect((await set(p.owner, 5, clientB)).body).toMatchObject({ code: 'client_not_found' })
+    expect((await set(p.owner, 0.5)).status).toBe(422)
+    // A client of a partner without a partner bill has nothing to measure on.
+    expect(await set(a.owner, 5, clientA, a.id)).toMatchObject({ status: 409, body: { code: 'client_not_billed' } })
+    // A limit below what was used this period marks the 80 % and 100 % emails for it at once (sent by a job).
+    await post(p.billId, periodId, c, 'usage', 9_000_000, 600)
+    expect(await set(padmin, 10)).toMatchObject({ status: 200 })
+    const marks = async () =>
+      (await db.select().from(usage_limit_alerts).where(eq(usage_limit_alerts.workspace_id, c)))
+        .map(m => m.level)
+        .sort()
+    expect(await marks()).toEqual([80])
+    const sentAt = (await db.select().from(usage_limit_alerts).where(eq(usage_limit_alerts.workspace_id, c)))[0]!
+      .created_at
+    // Saving it again, or changing it, never sends an email of this period twice (#1113, I-3).
+    expect(await set(p.owner, 10)).toMatchObject({ status: 200 })
+    expect(await set(p.owner, 50)).toMatchObject({ status: 200 })
+    expect(await set(p.owner, 10)).toMatchObject({ status: 200 })
+    const again = await db.select().from(usage_limit_alerts).where(eq(usage_limit_alerts.workspace_id, c))
+    expect(again.map(m => [m.level, m.created_at])).toEqual([[80, sentAt]])
+    expect(await set(p.owner, null)).toMatchObject({ status: 200 })
+    expect(await orgRow(c)).toMatchObject({ usageLimitCents: null })
+  })
+
+  test("only the partner's owner switches Allow Premium and Ultra in a client; the client's owner and the team cannot (LIN-440)", async () => {
+    const p = await billedPartner('Level Partner', 'active', true)
+    const c = await createClient(p, 'Level Client')
+    const owner = await inWorkspace(await giveOwner(p, c), c)
+    const padmin = await addPartnerAdmin(p)
+    const allow = (who: User, level: 'premium' | 'ultra', on: boolean) =>
+      act(who, 'partner.setClientAllow', { partnerId: p.id, workspaceId: c, level, on })
+    expect((await allow(padmin, 'premium', true)).status).toBe(403)
+    expect((await allow(b.owner, 'premium', true)).status).toBe(403)
+    expect(await allow(p.owner, 'premium', true)).toMatchObject({ status: 200 })
+    expect(await allow(p.owner, 'ultra', true)).toMatchObject({ status: 200 })
+    const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, c))
+    expect(row).toMatchObject({ allow_premium: true, allow_ultra: true })
+    // In the client workspace itself only the partner's owner switches them, never the client's owner.
+    expect((await act(owner, 'workspace.setAllowPremium', { on: false })).status).toBe(403)
+    expect((await act(owner, 'workspace.setAllowUltra', { on: false })).status).toBe(403)
+    expect((await act(await inWorkspace(padmin, c), 'workspace.setAllowPremium', { on: false })).status).toBe(403)
+    expect((await act(await inWorkspace(p.owner, c), 'workspace.setAllowUltra', { on: false })).status).toBe(200)
+    // The client's people see no prices: the partner bills them its own way (L-2).
+    const settings = (await act(owner, 'workspace.getSettings', {})).body.data
+    expect(settings.partnerManaged).toBe(true)
+    expect(settings).not.toHaveProperty('usageCentsPerMinute')
+    const me = (await request(owner, 'GET', '/v1/me')).body
+    expect(me.workspace).toMatchObject({ partnerManaged: true })
+    const options = await act(owner, 'voice.options', {})
+    expect(options.body.data.levels).toMatchObject({ partnerManaged: true })
+  })
+
+  test("people the team invited into a client stay on release unless picked; owners, former owners and the client's own never offered (#1113, M-1)", async () => {
+    const p = await billedPartner('Inviting Partner', 'active', true)
+    const c = await createClient(p, 'Invited Client')
+    // The client's first owner, invited by the partner's owner, later hands ownership to a colleague they invited.
+    const first = await inWorkspace(await giveOwner(p, c), c)
+    const colleague = await invitedBy(first, c)
+    expect(
+      await act(first, 'team.transferOwnership', { memberId: (await partnerMembership(c, colleague.userId))!.id }),
+    ).toMatchObject({ status: 200 })
+    expect(await partnerMembership(c, first.userId)).toMatchObject({ role: 'admin' })
+    const padmin = await addPartnerAdmin(p)
+    const staff = await invitedBy(padmin, c)
+    const helper = await invitedBy(p.owner, c)
+    const memberId = async (u: User) => (await partnerMembership(c, u.userId))!.id
+    // Only the people the team invited are offered: never the former owner, the owner, or whom the owner invited.
+    const listed = (await act(p.owner, 'partner.get', { partnerId: p.id })).body.data.clients.find(
+      (x: { id: string }) => x.id === c,
+    )
+    expect(listed.invitedByTeam.map((m: { memberId: string }) => m.memberId).sort()).toEqual(
+      [await memberId(staff), await memberId(helper)].sort(),
+    )
+    const team = (await act(await inWorkspace(colleague, c), 'team.list', {})).body.data.members
+    const flagged = team
+      .filter((m: { invitedByPartner?: boolean }) => m.invitedByPartner)
+      .map((m: { userId: string }) => m.userId)
+    expect(flagged.sort()).toEqual([staff.userId, helper.userId].sort())
+    const release = (removeMemberIds?: string[]) =>
+      act(p.owner, 'partner.releaseClient', {
+        partnerId: p.id,
+        workspaceId: c,
+        confirmName: 'Invited Client',
+        ...(removeMemberIds ? { removeMemberIds } : {}),
+      })
+    // Ids that are not someone the team invited are refused, and nothing changes.
+    for (const id of [await memberId(first), await memberId(colleague), 'mem_nobody'])
+      expect(await release([id])).toMatchObject({ status: 409, body: { code: 'member_not_invited' } })
+    expect(await orgRow(c)).toMatchObject({ partnerId: p.id })
+    // Only the one picked leaves; the audit entry names the address.
+    const done = await release([await memberId(staff)])
+    expect(done).toMatchObject({
+      status: 200,
+      body: { data: { removedInvited: 1, removedPeople: [await emailOf(staff)] } },
+    })
+    expect(await partnerMembership(c, staff.userId)).toBeUndefined()
+    for (const u of [helper, first]) expect(await partnerMembership(c, u.userId)).toBeTruthy()
+    expect(await partnerMembership(c, colleague.userId)).toMatchObject({ role: 'owner' })
+    const { entries } = await listAudit(db, { kind: 'partners', workspaceId: c, limit: 50 })
+    const entry = entries.find(e => e.what === 'partner.releaseClient' && !e.refused)
+    expect(entry?.removedPeople).toEqual([await emailOf(staff)])
+  })
+
+  test('by default a release or a partner removal takes nobody the team invited (#1113, M-1)', async () => {
+    const p = await billedPartner('Default Keeper', 'active', true)
+    const c = await createClient(p, 'Kept People')
+    const owner = await inWorkspace(await giveOwner(p, c), c)
+    const staff = await invitedBy(p.owner, c)
+    expect(
+      await act(p.owner, 'partner.releaseClient', { partnerId: p.id, workspaceId: c, confirmName: 'Kept People' }),
+    ).toMatchObject({ status: 200, body: { data: { removedInvited: 0, removedPeople: [] } } })
+    expect(await partnerMembership(c, staff.userId)).toMatchObject({ role: 'member' })
+    // Removing a partner: the same, and the owner's pick is the only one that leaves.
+    const q = await billedPartner('Removed Inviter', 'active', true)
+    const d = await createClient(q, 'Freed Client')
+    const owner2 = await inWorkspace(await giveOwner(q, d), d)
+    const one = await invitedBy(q.owner, d)
+    const two = await invitedBy(q.owner, d)
+    // Someone the team invited who held the ownership for a while is a former owner: never removed this way.
+    const oneId = (await partnerMembership(d, one.userId))!.id
+    expect(await act(owner2, 'team.transferOwnership', { memberId: oneId })).toMatchObject({ status: 200 })
+    const ownerId = (await partnerMembership(d, owner2.userId))!.id
+    expect(await act(await inWorkspace(one, d), 'team.transferOwnership', { memberId: ownerId })).toMatchObject({
+      status: 200,
+    })
+    expect(
+      await act(owner2, 'workspace.removePartner', { confirmName: 'Freed Client', removeMemberIds: [oneId] }),
+    ).toMatchObject({ status: 409, body: { code: 'member_not_invited' } })
+    const removed = await act(owner2, 'workspace.removePartner', {
+      confirmName: 'Freed Client',
+      removeMemberIds: [(await partnerMembership(d, two.userId))!.id],
+    })
+    expect(removed).toMatchObject({
+      status: 200,
+      body: { data: { removedInvited: 1, removedPeople: [await emailOf(two)] } },
+    })
+    expect(await partnerMembership(d, one.userId)).toBeTruthy()
+    expect(await partnerMembership(d, two.userId)).toBeUndefined()
+    expect(owner).toBeTruthy()
+  })
+
+  test('a release waiting on the extra-calls lock holds no lock on the balance (review of #1109, L-6)', async () => {
+    const p = await billedPartner('Lock Order', 'active', true)
+    const c = await createClient(p, 'Locked Client')
+    await giveOwner(p, c)
+    await db.insert(billing_balances).values({ billing_account_id: p.billId }).onConflictDoNothing()
+    let letGo!: () => void
+    let held!: () => void
+    const isHeld = new Promise<void>(resolve => {
+      held = resolve
+    })
+    const holder = db.transaction(async tx => {
+      await lockExtraCalls(tx, p.billId)
+      held()
+      await new Promise<void>(resolve => {
+        letGo = resolve
+      })
+    })
+    await isHeld
+    const release = act(p.owner, 'partner.releaseClient', {
+      partnerId: p.id,
+      workspaceId: c,
+      confirmName: 'Locked Client',
+    })
+    // The release is now waiting for the extra-calls lock (its first lock).
+    await vi.waitFor(
+      async () => {
+        const waiting = await db.execute(
+          `select count(*)::int as n from pg_locks where locktype = 'advisory' and not granted`,
+        )
+        expect((waiting.rows[0] as { n: number }).n).toBeGreaterThan(0)
+      },
+      { timeout: 5000 },
+    )
+    // Meanwhile the balance is free: a call's gate on the partner bill is not held up behind the release.
+    await db.transaction(async tx => {
+      await tx.select().from(billing_balances).where(eq(billing_balances.billing_account_id, p.billId)).for('update', {
+        noWait: true,
+      })
+    })
+    letGo()
+    await holder
+    expect(await release).toMatchObject({ status: 200 })
+  })
+})
+
+describe('partner seats follow what Stripe has (review of #1109, L-1)', () => {
+  /** A Stripe stand-in: the subscription's seat item at `seats`, and every seat change asked of it. */
+  function fakeSeats(seats: number, fails = 0) {
+    const asked: SeatQuantityInput[] = []
+    const state = { seats, fails }
+    const provider = new Proxy({} as BillingProvider, {
+      get: (_, name) => {
+        if (name === 'subscription')
+          return async (id: string) => ({
+            id,
+            customerId: 'cus_x',
+            status: 'active',
+            currentPeriodStart: null,
+            currentPeriodEnd: null,
+            billingCycleAnchor: null,
+            interval: 'month',
+            cancelAtPeriodEnd: false,
+            trialEnd: null,
+            defaultPaymentMethod: null,
+            items: [
+              { lookupKey: 'ws_monthly', quantity: state.seats },
+              { lookupKey: 'extra_calls_monthly', quantity: 3 },
+            ],
+          })
+        if (name === 'setSeatQuantity')
+          return async (input: SeatQuantityInput) => {
+            if (state.fails > 0) {
+              state.fails--
+              throw new Error('Stripe is down')
+            }
+            asked.push(input)
+            state.seats = input.quantity
+          }
+        if (name === 'then') return undefined
+        return () => {
+          throw new Error(`not used: ${String(name)}`)
+        }
+      },
+    })
+    return { provider, asked, state }
+  }
+
+  beforeAll(() => {
+    catalog.prices = { ws_monthly: 'price_ws_month', ws_yearly: 'price_ws_year' }
+  })
+  afterAll(() => {
+    catalog.prices = null
+  })
+
+  test('a raise is prorated and a drop is not, by the seats Stripe has, not by the event that started the sync', () => {
+    expect(seatProration(2, 3, 'month')).toBe('create_prorations')
+    expect(seatProration(2, 3, 'year')).toBe('always_invoice')
+    expect(seatProration(3, 2, 'month')).toBe('none')
+    expect(seatProration(3, 3, 'month')).toBe('none')
+  })
+
+  test('a sync after a missed raise prorates it, even when its own event was a drop; equal counts ask nothing', async () => {
+    const p = await billedPartner('Seat Partner', 'active', true)
+    await createClient(p, 'Seat One')
+    await createClient(p, 'Seat Two')
+    await createClient(p, 'Seat Three')
+    await db
+      .update(billing_accounts)
+      .set({ stripe_subscription_id: rid('sub') })
+      .where(eq(billing_accounts.id, p.billId))
+    // Stripe still has one seat: two raises were missed. This sync comes from a release (a drop) and still charges.
+    const stripe = fakeSeats(1)
+    await syncSeats(p.billId, 'release_ws_x', stripe.provider)
+    expect(stripe.asked).toEqual([
+      {
+        subscriptionId: expect.any(String),
+        quantity: 3,
+        prorationBehavior: 'create_prorations',
+        idempotencyKey: `seats_release_ws_x_${p.billId}_1_3`,
+        seatPrice: 'price_ws_month',
+      },
+    ])
+    await syncSeats(p.billId, 'create_ws_y', stripe.provider)
+    expect(stripe.asked).toHaveLength(1)
+    // More seats in Stripe than clients: lowered, never refunded.
+    stripe.state.seats = 5
+    await syncSeats(p.billId, 'delete_ws_z', stripe.provider)
+    expect(stripe.asked[1]).toMatchObject({ quantity: 3, prorationBehavior: 'none' })
+  })
+
+  test('a failed sync is tried again, and after the last try the instance admins get an email', async () => {
+    const p = await billedPartner('Flaky Seats', 'active', true)
+    await createClient(p, 'Flaky Client')
+    await db
+      .update(billing_accounts)
+      .set({ stripe_subscription_id: rid('sub') })
+      .where(eq(billing_accounts.id, p.billId))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, admin.userId))
+    try {
+      const once = fakeSeats(0, 1)
+      expect(await syncSeatsRetrying(p.billId, 'create_a', { provider: once.provider, waits: [0, 1] })).toBe(true)
+      expect(once.asked).toHaveLength(1)
+      const before = sent.length
+      const down = fakeSeats(0, 5)
+      expect(await syncSeatsRetrying(p.billId, 'create_b', { provider: down.provider, waits: [0, 1, 1] })).toBe(false)
+      expect(down.asked).toEqual([])
+      const to = await emailOf(admin)
+      await vi.waitFor(() => expect(sent.slice(before).find(e => e.to === to)?.subject).toContain('Partner seats on'))
+    } finally {
+      await db.update(user).set({ instanceAdmin: false }).where(eq(user.id, admin.userId))
+      error.mockRestore()
+    }
   })
 })

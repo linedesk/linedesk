@@ -3,13 +3,16 @@
 // Its subscription has the partner base fee and one seat per client workspace; every client workspace is on it, and
 // all their usage comes from its one balance. Here: which partner bill a caller may manage, whether a new client
 // workspace may go on it, and the seats that follow the client workspaces in Stripe after a change committed.
+import type { BillingProvider } from '@linedesk/billing'
 import { billing_accounts, organization, partner_members, partners, type Tx } from '@linedesk/db'
 import { msg } from '@linedesk/i18n'
 import { and, eq, sql } from 'drizzle-orm'
+import { alertInstanceAdmins } from './admin-alerts.ts'
 import { pricesForCheckout } from './billing-catalog.ts'
 import { billingProvider, billingSwitchOn } from './billing-settings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
+import { seatsSyncAlert } from './emails/alerts.ts'
 import { syncExtraCallsItem } from './extra-calls.ts'
 import { WEB_ORIGIN } from './emails/templates.ts'
 import { Forbidden, Reject, type Said } from './handler-context.ts'
@@ -90,25 +93,22 @@ export function mirroredState(status: Bill['status']): 'pending_payment' | 'acti
 
 /**
  * Seats follow the client workspaces (docs/billing.md §2.1), after the change committed (`onCommit`), so Stripe never
- * charges for a client that was not made: the subscription's seat quantity is set to the workspaces on the bill now.
- * A new client raises it (yearly: paid now; monthly: on the next invoice), a client leaving lowers it with no refund.
- * The first client adds the seat item (a partner plan starts with its base fee alone). A failure is logged and the
- * nightly reconciliation reports the bill's seats (`quantity`) until the next change sets them.
+ * charges for a client that was not made: the subscription's seat quantity is set to the workspaces on the bill now
+ * (syncSeats). A raise is prorated (yearly: paid now; monthly: on the next invoice), a drop is not refunded, decided by
+ * the change Stripe sees, not by the event that started the sync. A failure is tried again a few times and then emailed
+ * to the instance admins; the nightly reconciliation reports the bill's seats (`quantity`) until the next change.
  * `extraCalls`: a client leaving had extra calls at the same time, so the bill's extra-calls item drops to the sum left
  * too (no refund; security review of #1109, M-2).
  */
 export function seatsFollow(
   onCommit: ((work: () => Promise<void>) => void) | undefined,
   billId: string,
-  grows: boolean,
   key: string,
   { extraCalls = false }: { extraCalls?: boolean } = {},
 ) {
   if (!onCommit) throw new Error('partner seats change after the commit: no onCommit given')
   onCommit(async () => {
-    await syncSeats(billId, grows, key).catch(e =>
-      console.error(`ALERT billing seats: partner bill ${billId} not updated after ${key}`, e),
-    )
+    await syncSeatsRetrying(billId, key)
     if (extraCalls) await extraCallsFollow(billId, key)
   })
 }
@@ -118,19 +118,76 @@ async function extraCallsFollow(billId: string, key: string) {
   await syncExtraCallsItem(await billingProvider(db), billId, { charge: false, key: `extra_calls_${key}` })
 }
 
-async function syncSeats(billId: string, grows: boolean, key: string) {
-  const [bill] = await db.select().from(billing_accounts).where(eq(billing_accounts.id, billId))
-  if (!bill?.stripe_subscription_id) return
-  const provider = await billingProvider(db)
-  const quantity = await workspacesOnBillCount(db, bill.id)
-  const prices = await pricesForCheckout(provider)
-  const seatPrice = prices[bill.interval === 'year' ? 'ws_yearly' : 'ws_monthly']
-  await provider.setSeatQuantity({
-    subscriptionId: bill.stripe_subscription_id,
-    quantity,
-    prorationBehavior: !grows ? 'none' : bill.interval === 'year' ? 'always_invoice' : 'create_prorations',
-    idempotencyKey: `seats_${key}_${bill.id}_${quantity}`,
-    ...(seatPrice ? { seatPrice } : {}),
+/** The waits before each try of a seat sync: at once, then twice more a little later (a Stripe blip passes). */
+export const SEAT_SYNC_WAITS_MS = [0, 2_000, 10_000]
+
+/**
+ * syncSeats, tried again after SEAT_SYNC_WAITS_MS when it fails; after the last failure the instance admins get an
+ * email (security review of #1109, L-1), as for the extra-calls item. Returns whether the seats were set.
+ */
+export async function syncSeatsRetrying(
+  billId: string,
+  key: string,
+  { provider, waits = SEAT_SYNC_WAITS_MS }: { provider?: BillingProvider; waits?: readonly number[] } = {},
+): Promise<boolean> {
+  let failure: unknown = null
+  for (const wait of waits) {
+    if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait))
+    try {
+      await syncSeats(billId, key, provider)
+      return true
+    } catch (error) {
+      failure = error
+    }
+  }
+  console.error(`ALERT billing seats: partner bill ${billId} not updated after ${key}`, failure)
+  await alertInstanceAdmins(seatsSyncAlert(billId)).catch(e =>
+    console.error('billing: the seats alert could not be sent:', e),
+  )
+  return false
+}
+
+/** The seat items' lookup keys start with it (`ws_monthly`, `ws_yearly`; SEAT_LOOKUP_PREFIX in the Stripe adapter). */
+const SEAT_LOOKUP_PREFIX = 'ws_'
+
+/** How the change from `current` seats to `quantity` is prorated: a raise is charged, a drop is not refunded. */
+export const seatProration = (current: number, quantity: number, interval: Bill['interval']) =>
+  quantity <= current
+    ? ('none' as const)
+    : interval === 'year'
+      ? ('always_invoice' as const)
+      : ('create_prorations' as const)
+
+/**
+ * Sets the subscription's seats to the workspaces on the bill now. One sync per bill at a time (an advisory lock held
+ * while Stripe is asked, never the balance lock), and the proration follows what actually changes in Stripe: the seats
+ * the subscription has now against the count (security review of #1109, L-1). So a sync that missed a raise before, or
+ * two syncs that overlap, never add a seat without its proration.
+ */
+export async function syncSeats(billId: string, key: string, provider?: BillingProvider) {
+  await db.transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`seats:${billId}`}))`)
+    const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, billId))
+    if (!bill?.stripe_subscription_id) return
+    const stripe = provider ?? (await billingProvider(db))
+    const quantity = await workspacesOnBillCount(tx, bill.id)
+    const subscription = await stripe.subscription(bill.stripe_subscription_id)
+    // i18n-ignore: a log line and the admins' alert reason, never shown to a customer
+    if (!subscription) throw new Error(`subscription ${bill.stripe_subscription_id} not found`)
+    const current = subscription.items
+      .filter(item => item.lookupKey?.startsWith(SEAT_LOOKUP_PREFIX))
+      .reduce((sum, item) => sum + item.quantity, 0)
+    if (current === quantity) return
+    const prices = await pricesForCheckout(stripe)
+    const seatPrice = prices[bill.interval === 'year' ? 'ws_yearly' : 'ws_monthly']
+    await stripe.setSeatQuantity({
+      subscriptionId: bill.stripe_subscription_id,
+      quantity,
+      prorationBehavior: seatProration(current, quantity, bill.interval),
+      // The same change asks Stripe the same thing: a retry of it is idempotent, a later change is a new request.
+      idempotencyKey: `seats_${key}_${bill.id}_${current}_${quantity}`,
+      ...(seatPrice ? { seatPrice } : {}),
+    })
   })
 }
 
@@ -157,7 +214,7 @@ export async function seatsFollowDelete(
   if (!row) return
   const key = `delete_${workspaceId}`
   const extraCalls = row.extraCalls > 0 && !!row.subscription
-  if (row.kind === 'partner') seatsFollow(onCommit, row.bill, false, key, { extraCalls })
+  if (row.kind === 'partner') seatsFollow(onCommit, row.bill, key, { extraCalls })
   else if (extraCalls) {
     if (!onCommit) throw new Error('extra calls change after the commit: no onCommit given')
     onCommit(() => extraCallsFollow(row.bill, key))

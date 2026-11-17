@@ -35,7 +35,9 @@ export function UltraSettings({ pipeline, realtimeModel, onPipeline, onRealtimeM
           { value: 'three_stage', label: t('settings.voice.ultra.stages') },
           {
             value: 'realtime',
-            label: t('settings.voice.ultra.realtime', { price }),
+            label: levels.partnerManaged
+              ? t('settings.voice.ultra.realtimePlain')
+              : t('settings.voice.ultra.realtime', { price }),
             ...(levels.realtimeAllowed ? {} : { description: t('settings.voice.ultra.realtimeOff'), disabled: true }),
           },
         ]}
@@ -51,14 +53,20 @@ export function UltraSettings({ pipeline, realtimeModel, onPipeline, onRealtimeM
             options={levelOptions(levels.realtimeModels, levels.defaultRealtimeModel, levels, realtimeModel)}
             onChange={onRealtimeModel}
           />
-          <p className="help" role="status">
-            {t('settings.voice.ultra.note', { price })}
-          </p>
+          {!levels.partnerManaged && (
+            <p className="help" role="status">
+              {t('settings.voice.ultra.note', { price })}
+            </p>
+          )}
         </>
       )}
       {ultraLocked(levels) && (
         <p className="help">
-          <T k="settings.voice.ultra.allowHint" values={{ link: appLink(ALLOW_PREMIUM_LINK) }} />
+          {levels.partnerManaged ? (
+            t('settings.voice.ultra.allowHintPartner')
+          ) : (
+            <T k="settings.voice.ultra.allowHint" values={{ link: appLink(ALLOW_PREMIUM_LINK) }} />
+          )}
         </p>
       )}
     </Section>

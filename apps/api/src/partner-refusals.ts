@@ -1,7 +1,7 @@
 // How partner actions say no (partners.ts), apart from it so team.ts and memberships.ts can refuse a partner's
 // membership without importing the partner handlers.
 import type { PartnerCode } from '@linedesk/actions'
-import { member, type Tx } from '@linedesk/db'
+import { member, partner_members, type Tx } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { Reject } from './handler-context.ts'
 
@@ -43,6 +43,10 @@ const REFUSALS: Record<PartnerCode, string> = {
   no_partner: 'this workspace has no partner',
   already_partner: 'this account owns a partner already: open the partner area',
   client_owner: "the owner of one of this partner's client workspaces cannot join its team",
+  client_not_billed:
+    'this client workspace is not on the partner bill: a usage limit and Allow Premium or Ultra apply only there',
+  member_not_invited:
+    "one of the people to remove is not someone the partner's team invited into this workspace, or is or was its owner",
 }
 export const refusePartner = (code: PartnerCode) => new Reject(REFUSALS[code], code)
 
@@ -59,6 +63,10 @@ export const CLIENT_STAYS_ON_PARTNER_BILL =
 export const NOT_ON_PARTNER_TEAM = 'you are not on the team of this partner'
 // i18n-ignore: API error bodies for logs and API clients; the web app words a 403 itself
 export const PARTNER_OWNER_ONLY = "only the partner's owner can do this"
+/** A client's usage limit raised or removed (security review of #1113, L-1). */
+// i18n-ignore: API error bodies for logs and API clients; the web app words a 403 itself
+export const LIMIT_OWNER_ONLY =
+  "only the partner's owner can raise or remove a client's usage limit; an admin may lower it or set one"
 // i18n-ignore: API error bodies for logs and API clients; the web app words a 403 itself
 export const PARTNER_SUSPENDED = 'this partner is suspended: nothing can be changed until it is approved again'
 
@@ -83,4 +91,17 @@ export async function refuseAdminFromPartner(tx: Tx, workspaceId: string, actorI
     .from(member)
     .where(and(eq(member.organizationId, workspaceId), eq(member.userId, actorId)))
   if (mine?.partnerId) throw Reject.t('server.api.partner.noAdminFromPartner', undefined, 'partner_admin_grant')
+}
+
+/** Allow Premium or Ultra in a white-label client: its partner's owner decides, never the client's own people (LIN-440). */
+// i18n-ignore: API error bodies for logs and API clients; the web app words a 403 itself
+export const PARTNER_DECIDES_LEVELS = "the partner's owner decides Allow Premium and Allow Ultra for this workspace"
+
+/** Whether the person is the owner of the partner `partnerId`. */
+export async function isPartnerOwner(tx: Pick<Tx, 'select'>, partnerId: string, userId: string) {
+  const [row] = await tx
+    .select({ role: partner_members.role })
+    .from(partner_members)
+    .where(and(eq(partner_members.partner_id, partnerId), eq(partner_members.user_id, userId)))
+  return row?.role === 'owner'
 }

@@ -483,6 +483,7 @@ app.get('/v1/me', async c => {
           name: organization.name,
           disabledAt: organization.disabledAt,
           billingState: organization.billingState,
+          partnerId: organization.partnerId,
           iconVersion: workspace_icons.version,
         })
         .from(organization)
@@ -522,7 +523,7 @@ app.get('/v1/me', async c => {
     localeOf(actor),
     // On a bill: a sign-up waiting for Checkout is told the install's trial length and the plan's price (Server
     // admin › Billing); everyone what an extra number costs a month.
-    workspace?.billingState ? workspaceBillFacts(workspace.id) : null,
+    workspace?.billingState || workspace?.partnerId ? workspaceBillFacts(workspace.id) : null,
     // Only with the `partner` permission (a session of a partner team member, never while impersonated).
     actor.permissions.includes('partner') ? partnersOf(actor.actorId) : [],
   ])
@@ -549,6 +550,8 @@ app.get('/v1/me', async c => {
           // On a bill: what each number beyond the included one costs a month (from the balance); null off billing
           // and on a comped bill.
           extraNumberCents: billFacts?.extraNumberCents ?? null,
+          // A white-label client on its partner's bill: no prices anywhere in the workspace (docs/white-label.md).
+          partnerManaged: billFacts?.partnerManaged ?? false,
         }
       : null,
     // Every workspace this member belongs to, for the switcher in the profile menu: known at boot, never fetched when it opens.

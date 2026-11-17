@@ -198,6 +198,7 @@ import { contactMergeHandlers } from './contact-merge.ts'
 import { keepsRecordings } from './recording-retention.ts'
 import { callExportHandlers } from './call-export.ts'
 import { integrationHandlers, queueCallStarted, queueLookup } from './integrations.ts'
+import { queueUsageLimitAlerts, type UsageLimit, usageLimit } from './usage-limit.ts'
 import { askWebhook, clearCallPayloads, duringCallLookups, lookUpCaller, webhookHandlers } from './webhooks.ts'
 import { refusePendingPayment } from './self-serve.ts'
 import { selfServeHandlers } from './signup-handlers.ts'
@@ -538,10 +539,15 @@ async function openCall(
   // working, a voice or model the plan does not allow): the same fixed line as over the spending cap, filed as missed
   // with "Call back" and the reason (docs/billing.md §4.4). The API refuses these itself, never relying on the agent.
   let refused: CallRefusal | null = null
+  // A white-label client's monthly usage limit its partner set (usage-limit.ts), read once for the check and the email.
+  const limit: UsageLimit | null = bill ? await usageLimit(tx, workspace_id, now) : null
   if (bill && !bill.usable) refused = 'billing_error'
   else if (bill && forCall?.level === 'not_allowed') refused = 'level_not_allowed'
   // An extra number whose month could not be paid answers with the fixed line until it is paid (docs/billing.md §4.2).
   else if (bill && (await numberUnpaid(tx, workspace_id, to))) refused = 'number_unpaid'
+  // A white-label client at the monthly usage limit its partner set (usage-limit.ts): the same fixed line, filed as
+  // missed. Checked only here, when a call starts: a running call is never cut.
+  else if (bill && limit?.reached) refused = 'usage_limit'
   else if (bill) {
     const gate = await gateCall(tx, {
       callId: id,
@@ -569,6 +575,8 @@ async function openCall(
   if (busy || overCap || refused) await queueCallPush(tx, id, 'finished')
   // The cap may have been lowered below this month's spend since the last call: the 100 % email goes out now then.
   if (overCap) await queueSpendingAlerts(tx, workspace_id, now, cap)
+  // Likewise a usage limit lowered below this period's use: the partner team's 100 % email goes out now then.
+  if (refused === 'usage_limit') await queueUsageLimitAlerts(tx, workspace_id, now, limit)
   const businessHours = await businessHoursFor(tx, workspace_id, now)
   // Caller ID is cheap to fake: unless the carrier vouched for the number (or the owner turned the check off), the
   // caller is handled like one from an unknown number (no booking changes, no history, no name or note). The contact

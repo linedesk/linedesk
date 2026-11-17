@@ -1174,6 +1174,19 @@ export const spending_cap_alerts = pgTable(
   t => [primaryKey({ columns: [t.workspace_id, t.month, t.level] })],
 )
 
+// Usage-limit emails already sent (apps/api/src/usage-limit.ts): one row per workspace, billing period and level (80
+// or 100 percent), so each goes out once a period. Not synced to browsers.
+export const usage_limit_alerts = pgTable(
+  'usage_limit_alerts',
+  {
+    workspace_id: text('workspace_id').notNull(),
+    period_id: text('period_id').notNull(),
+    level: integer('level').notNull(),
+    created_at: createdAt(),
+  },
+  t => [primaryKey({ columns: [t.workspace_id, t.period_id, t.level] })],
+)
+
 // The audit log's sign-in side (docs/architecture.md §12, Audit log): sign-ins with their method, sign-in
 // methods added or removed, invitations accepted. Actions are in `commands`. Never deleted, and no
 // foreign keys, so an entry outlives the user or workspace it names. Not synced to browsers.

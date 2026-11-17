@@ -3,7 +3,12 @@
 // sign-in: the passkey when the owner has one (PasskeyStepUpHost, mounted in Workspace.tsx), else a sign-in in the
 // last 10 minutes ("Sign in again" comes back here and opens the dialog again). Afterwards the tab moves on like
 // after leaving: into the next workspace, the no-workspace page, or the sign-in page when the account went too.
-import type { OwnerStepUp, WorkspaceDeleteOwnData, WorkspaceDeletePreviewData } from '@linedesk/actions'
+import type {
+  OwnerStepUp,
+  PartnerInvitedMember,
+  WorkspaceDeleteOwnData,
+  WorkspaceDeletePreviewData,
+} from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { StepUpRequired, stepUpOf, withPasskeyStepUp } from '../admin/PasskeyStepUp.tsx'
@@ -14,6 +19,7 @@ import { signInAgain, signOutAndForget } from '../localData.ts'
 import { markDeleted } from '../session.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { tabWorkspace, workspaceHeaders } from '../tabWorkspace.ts'
+import { InvitedPicker } from '../partner/InvitedPicker.tsx'
 import { LeaveWorkspace } from '../team/TeamPage.tsx'
 import { useTeam } from '../team/team-api.ts'
 import { useSupportAccess } from '../supportAccess.ts'
@@ -109,7 +115,15 @@ export function DangerZone({ workspaceName, isInstanceAdmin }: Props) {
   return (
     <>
       <LeaveWorkspace data={data} isInstanceAdmin={isInstanceAdmin} />
-      {role === 'owner' && partner && <RemovePartner workspaceName={workspaceName} partner={partner} />}
+      {role === 'owner' && partner && (
+        <RemovePartner
+          workspaceName={workspaceName}
+          partner={partner}
+          invited={data.members
+            .filter(m => m.invitedByPartner)
+            .map(m => ({ memberId: m.memberId, name: m.name, email: m.email }))}
+        />
+      )}
       {role === 'owner' && <DeleteWorkspace workspaceName={workspaceName} />}
       {role === 'admin' && (
         <Section id="ws-delete" title={t('settings.danger.delete.action')}>
@@ -241,9 +255,19 @@ function DeleteDialog({ workspaceId, onClose }: { workspaceId: string; onClose: 
  * again once it is added). The workspace's name is typed to confirm. Afterwards the app loads again: the workspace
  * now waits for Checkout like a new sign-up.
  */
-function RemovePartner({ workspaceName, partner }: { workspaceName: string; partner: string }) {
+function RemovePartner({
+  workspaceName,
+  partner,
+  invited,
+}: {
+  workspaceName: string
+  partner: string
+  /** People the partner's team invited here: the owner picks who leaves too, none at first (review of #1113, M-1). */
+  invited: PartnerInvitedMember[]
+}) {
   const t = useT()
   const [asking, setAsking] = useState(false)
+  const [removing, setRemoving] = useState<Set<string>>(new Set())
   return (
     <Section id="ws-partner" title={t('settings.danger.partner.title')}>
       <div className="team-leave">
@@ -259,6 +283,7 @@ function RemovePartner({ workspaceName, partner }: { workspaceName: string; part
             after: t('settings.danger.partner.after'),
             list: [
               t('settings.danger.partner.team', { partner }),
+              ...(invited.length ? [t('settings.danger.partner.invitedStay', { partner })] : []),
               t('settings.danger.partner.bill'),
               t('settings.danger.partner.data'),
             ],
@@ -268,11 +293,21 @@ function RemovePartner({ workspaceName, partner }: { workspaceName: string; part
             variant: 'danger',
           }}
           run={async () => {
-            await post('workspace.removePartner', { confirmName: workspaceName })
+            await post('workspace.removePartner', { confirmName: workspaceName, removeMemberIds: [...removing] })
             window.location.reload()
           }}
-          onClose={() => setAsking(false)}
-        />
+          onClose={() => {
+            setAsking(false)
+            setRemoving(new Set())
+          }}
+        >
+          <InvitedPicker
+            people={invited}
+            legend={t('settings.danger.partner.invitedPick', { partner })}
+            selected={removing}
+            onChange={setRemoving}
+          />
+        </DangerConfirmDialog>
       )}
     </Section>
   )

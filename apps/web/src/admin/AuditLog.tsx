@@ -89,6 +89,7 @@ export function auditLabel(
     | 'emailRoutingChanges'
     | 'apiKeyName'
     | 'ruleChanges'
+    | 'removedPeople'
   >,
 ): string {
   const input = (e.input ?? {}) as Record<string, unknown>
@@ -273,9 +274,22 @@ export function auditLabel(
     case 'workspace.inviteClientOwner':
       return t('admin.audit.clientOwnerInvited', who)
     case 'partner.releaseClient':
-      return t('admin.audit.clientReleased')
+      return e.removedPeople?.length
+        ? t('admin.audit.clientReleasedRemoving', { people: fmt().list(e.removedPeople) })
+        : t('admin.audit.clientReleased')
+    case 'partner.setClientUsageLimit':
+      return input.limitUsd == null
+        ? t('admin.audit.clientUsageLimitRemoved')
+        : t('admin.audit.clientUsageLimitSet', { amount: usd(input.limitUsd) })
+    case 'partner.setClientAllow':
+      return t('admin.audit.clientAllowSet', {
+        level: input.level === 'ultra' ? 'ultra' : 'premium',
+        on: input.on === true ? 'yes' : 'no',
+      })
     case 'workspace.removePartner':
-      return t('admin.audit.partnerRemoved')
+      return e.removedPeople?.length
+        ? t('admin.audit.partnerRemovedRemoving', { people: fmt().list(e.removedPeople) })
+        : t('admin.audit.partnerRemoved')
     case 'workspace.create':
       return t('admin.audit.workspaceCreated', { ...name, ...who })
     case 'voiceCloning.set':

@@ -38,7 +38,7 @@ export function LevelSettings({ voice, llmModel, onVoiceModel, onModel }: Props)
     <Section
       id="as-level"
       title={t('settings.voice.level.title')}
-      description={levels.billed ? t('settings.voice.level.help', prices) : undefined}
+      description={levels.billed && !levels.partnerManaged ? t('settings.voice.level.help', prices) : undefined}
     >
       {voiceChoices.length > 0 && (
         <SelectRow
@@ -60,7 +60,7 @@ export function LevelSettings({ voice, llmModel, onVoiceModel, onModel }: Props)
           onChange={onModel}
         />
       )}
-      {levels.billed && level && (
+      {levels.billed && !levels.partnerManaged && level && (
         <p className="help" role="status">
           {level === 'premium'
             ? t('settings.voice.level.premiumNote', prices)
@@ -69,7 +69,11 @@ export function LevelSettings({ voice, llmModel, onVoiceModel, onModel }: Props)
       )}
       {premiumLocked(levels) && (
         <p className="help">
-          <T k="settings.voice.level.allowHint" values={{ link: appLink(ALLOW_PREMIUM_LINK) }} />
+          {levels.partnerManaged ? (
+            t('settings.voice.level.allowHintPartner')
+          ) : (
+            <T k="settings.voice.level.allowHint" values={{ link: appLink(ALLOW_PREMIUM_LINK) }} />
+          )}
         </p>
       )}
     </Section>

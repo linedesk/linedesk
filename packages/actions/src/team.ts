@@ -32,6 +32,11 @@ export type TeamMember = {
    * Team page shows a "Partner" badge; only the partner changes or removes these memberships.
    */
   partner?: string | null
+  /**
+   * Invited into this workspace by someone on its white-label partner's team (security review of #1109, L-4): they
+   * leave with the partner when it is removed or hands the workspace over.
+   */
+  invitedByPartner?: boolean
 }
 /** `invitedById`: the sender's user id (the remove dialog counts the invitations a removal cancels). */
 export type TeamInvitation = {

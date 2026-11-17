@@ -17,7 +17,8 @@ import type { Closure } from '@linedesk/db/types'
 import { availability_exceptions, availability_rules, organization, type Tx, workspace_settings } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
-import { type Handler, Reject } from './handler-context.ts'
+import { Forbidden, type Handler, Reject } from './handler-context.ts'
+import { isPartnerOwner, PARTNER_DECIDES_LEVELS } from './partner-refusals.ts'
 import { derivedDaysOf, syncDerivedDays } from './public-holidays.ts'
 import { activeProvider } from './provider-settings.ts'
 import { lockAssistantVersionsOf } from './assistant-versions.ts'
@@ -45,11 +46,52 @@ const DEFAULT_TIME_ZONE = 'America/New_York'
 /**
  * Who switches Allow Premium or Allow Ultra (security review of #1109, M-1): never in a disabled workspace (read only);
  * on, only the bill's owner (or the workspace's owner where there is no bill); off, the workspace's owner or the bill's
- * owner. Anyone else holding billing:manage here gets 403.
+ * owner. In a white-label client (docs/white-label.md, LIN-440) its partner's owner decides, both ways, and the client's
+ * own owner never does: the partner pays and sets what its client may use. Anyone else holding billing:manage here
+ * gets 403.
  */
 async function refuseAllowSwitch(tx: Tx, actor: Actor, on: boolean) {
   if (actor.workspaceDisabled) throw Reject.t('server.api.workspaceDisabled')
+  const [org] = actor.workspaceId
+    ? await tx
+        .select({ partnerId: organization.partnerId, bill: organization.billingAccountId })
+        .from(organization)
+        .where(eq(organization.id, actor.workspaceId))
+    : []
+  if (org?.partnerId) {
+    if (!(await isPartnerOwner(tx, org.partnerId, actor.actorId))) throw new Forbidden(PARTNER_DECIDES_LEVELS)
+    // On the partner bill, its owner is the partner's owner: checked (and the bill locked) as for every bill.
+    if (org.bill) await refuseUnlessBillOwner(tx, actor)
+    return
+  }
   if (on || actor.role !== 'owner') await refuseUnlessBillOwner(tx, actor)
+}
+
+/**
+ * Switches Allow Premium or Allow Ultra in a workspace once the caller was allowed to (refuseAllowSwitch, or the
+ * partner's owner from Partner › Clients). Off moves the workspace's assistants on a Premium voice or model back to
+ * the install's defaults (Premium), or those answering with a realtime model back to the three stages (Ultra), in the
+ * same transaction, each with a new version by `actorId`. Locks in the order every save takes them: the version locks
+ * of all the workspace's assistants (by id), then the settings row, then the assistant rows. A save running at the
+ * same time finishes before or starts after, and the move sees it or it sees the move; never a deadlock.
+ */
+export async function switchAllowLevel(
+  tx: Tx,
+  workspaceId: string,
+  actorId: string,
+  level: 'premium' | 'ultra',
+  on: boolean,
+) {
+  if (!on) await lockAssistantVersionsOf(tx, workspaceId)
+  const set = level === 'premium' ? { allow_premium: on } : { allow_ultra: on }
+  await tx
+    .insert(workspace_settings)
+    .values({ workspace_id: workspaceId, timezone: DEFAULT_TIME_ZONE, ...set })
+    .onConflictDoUpdate({ target: workspace_settings.workspace_id, set })
+  if (on) return []
+  return level === 'premium'
+    ? await assistantsBackToStandard(tx, workspaceId, actorId)
+    : await assistantsOffUltra(tx, workspaceId, actorId)
 }
 
 export const workspaceSettingsHandlers: Record<string, Handler> = {
@@ -64,6 +106,11 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       .from(availability_rules)
       .where(eq(availability_rules.workspace_id, actor.workspaceId))
     const locale = await workspaceLocale(tx, actor.workspaceId, row ?? null)
+    const [org] = await tx
+      .select({ partnerId: organization.partnerId })
+      .from(organization)
+      .where(eq(organization.id, actor.workspaceId))
+    const partnerManaged = !!org?.partnerId
     const data: WorkspaceSettingsData = {
       recordingRetentionDays: row ? row.recording_retention_days : DEFAULT_RECORDING_RETENTION_DAYS,
       businessHoursOn: row?.business_hours_on ?? false,
@@ -85,49 +132,36 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       allowPremium: row?.allow_premium ?? false,
       allowUltra: row?.allow_ultra ?? false,
       usageLevels: await usageLevelsBilled(tx),
-      usageCentsPerMinute: await levelCentsPerMinute(tx),
+      // A white-label client's people see minutes, never our prices (docs/white-label.md; review of #1109, L-2).
+      ...(partnerManaged ? { partnerManaged } : { usageCentsPerMinute: await levelCentsPerMinute(tx) }),
     }
     return { rows: {}, data }
   },
 
   /**
    * Allow Premium (Linedesk Cloud): the owner only, as themselves in the app (refuseBillingActor), and when the workspace
-   * is on a bill, only its bill's owner switches it on (refuseUnlessBillOwner; off costs less, so the workspace owner may); audited. Off moves the workspace's assistants on a
-   * Premium voice or model back to the install's defaults, in the same transaction, each with a new version by the owner.
-   * Locks in the order every save takes them: the version locks of all the workspace's assistants (by id), then the
-   * settings row, then the assistant rows. A save running at the same time finishes before or starts after, and the
-   * move sees it or it sees the move; never a deadlock.
+   * is on a bill, only its bill's owner switches it on (off costs less, so the workspace owner may); in a white-label
+   * client only its partner's owner (refuseAllowSwitch); audited. Off moves Premium assistants back (switchAllowLevel).
    */
   'workspace.setAllowPremium': async ({ tx, actor }, input: { on: boolean }) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     refuseBillingActor(actor)
     await refuseAllowSwitch(tx, actor, input.on)
-    if (!input.on) await lockAssistantVersionsOf(tx, actor.workspaceId)
-    await tx
-      .insert(workspace_settings)
-      .values({ workspace_id: actor.workspaceId, timezone: DEFAULT_TIME_ZONE, allow_premium: input.on })
-      .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { allow_premium: input.on } })
-    const moved = input.on ? [] : await assistantsBackToStandard(tx, actor.workspaceId, actor.actorId)
+    const moved = await switchAllowLevel(tx, actor.workspaceId, actor.actorId, 'premium', input.on)
     const data: AllowPremiumData = { on: input.on, movedToStandard: moved.map(a => a.id) }
     return { rows: moved.length ? { assistants: moved } : {}, data }
   },
 
   /**
-   * Allow Ultra (Linedesk Cloud): like Allow Premium, the owner only, as themselves in the app, and the bill's owner when
-   * there is a bill switches it on; audited. Off moves the workspace's assistants that answer with a realtime model back to the three
-   * stages, each with a version by the owner. Takes the locks in the same order as Allow Premium (version locks by id,
-   * settings row, assistant rows).
+   * Allow Ultra (Linedesk Cloud): like Allow Premium, the owner only, as themselves in the app, the bill's owner when
+   * there is a bill switches it on, and in a white-label client only its partner's owner; audited. Off moves the
+   * workspace's assistants that answer with a realtime model back to the three stages (switchAllowLevel).
    */
   'workspace.setAllowUltra': async ({ tx, actor }, input: { on: boolean }) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
     refuseBillingActor(actor)
     await refuseAllowSwitch(tx, actor, input.on)
-    if (!input.on) await lockAssistantVersionsOf(tx, actor.workspaceId)
-    await tx
-      .insert(workspace_settings)
-      .values({ workspace_id: actor.workspaceId, timezone: DEFAULT_TIME_ZONE, allow_ultra: input.on })
-      .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { allow_ultra: input.on } })
-    const moved = input.on ? [] : await assistantsOffUltra(tx, actor.workspaceId, actor.actorId)
+    const moved = await switchAllowLevel(tx, actor.workspaceId, actor.actorId, 'ultra', input.on)
     const data: AllowUltraData = { on: input.on, movedOffUltra: moved.map(a => a.id) }
     return { rows: moved.length ? { assistants: moved } : {}, data }
   },

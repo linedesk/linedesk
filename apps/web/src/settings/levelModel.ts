@@ -1,7 +1,14 @@
 // The voice model and language model an assistant picks, with their level on Linedesk Cloud (voice.options `levels`,
 // packages/actions/src/usage-level.ts): Standard, or Premium at a higher price a minute. Without billing (self-hosted)
 // every choice is there, without labels. Premium choices the workspace may not use are shown, not pickable.
-import { type LevelChoice, type PipelinesSetUp, pipelineFor, type UsageLevelOptions, type UsageTier, type VoicePipeline } from '@linedesk/actions'
+import {
+  type LevelChoice,
+  type PipelinesSetUp,
+  pipelineFor,
+  type UsageLevelOptions,
+  type UsageTier,
+  type VoicePipeline,
+} from '@linedesk/actions'
 import type { SelectOption } from '../ui/controls.tsx'
 import { i18n } from '../i18n/index.tsx'
 
@@ -15,7 +22,15 @@ export const pricePerMinute = (cents: number) => i18n().format.rate(cents / 100,
 export function levelTag(level: UsageTier | null, levels: UsageLevelOptions): string | undefined {
   if (!levels.billed || !level) return undefined
   const t = i18n().t
-  if (level === 'ultra') return t('settings.voice.ultra.realtime', { price: pricePerMinute(levels.ultraCentsPerMinute) })
+  // A white-label client's people see levels without prices (docs/white-label.md).
+  if (levels.partnerManaged)
+    return level === 'ultra'
+      ? t('settings.voice.ultra.realtimePlain')
+      : level === 'premium'
+        ? t('settings.voice.level.premiumTagPlain')
+        : t('settings.voice.level.standardTag')
+  if (level === 'ultra')
+    return t('settings.voice.ultra.realtime', { price: pricePerMinute(levels.ultraCentsPerMinute) })
   return level === 'premium'
     ? t('settings.voice.level.premiumTag', { price: pricePerMinute(levels.premiumCentsPerMinute) })
     : t('settings.voice.level.standardTag')
@@ -30,7 +45,9 @@ function choiceOption(c: LevelChoice, levels: UsageLevelOptions): SelectOption<s
       ? levelTag(c.level, levels)
       : c.level === 'ultra'
         ? t('settings.voice.ultra.realtimeOff')
-        : t('settings.voice.level.premiumOff', { price: pricePerMinute(levels.premiumCentsPerMinute) }),
+        : levels.partnerManaged
+          ? t('settings.voice.level.premiumOffPlain')
+          : t('settings.voice.level.premiumOff', { price: pricePerMinute(levels.premiumCentsPerMinute) }),
     ...(c.allowed ? {} : { disabled: true }),
   }
 }

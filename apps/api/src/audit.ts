@@ -334,6 +334,8 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'workspace.createForClient': 'partners',
   'workspace.inviteClientOwner': 'partners',
   'partner.releaseClient': 'partners',
+  'partner.setClientUsageLimit': 'partners',
+  'partner.setClientAllow': 'partners',
   'workspace.removePartner': 'partners',
 }
 
@@ -554,6 +556,11 @@ export type AuditEntry = {
   ruleChanges?: SignupRuleChange[]
   /** apiKey.revoke: the revoked key's name (its input has only the id). */
   apiKeyName?: string
+  /**
+   * partner.releaseClient, workspace.removePartner: the addresses of the people the partner's team invited who left
+   * with it (security review of #1113, M-1).
+   */
+  removedPeople?: string[]
   refused: boolean
   ipAddress: string | null
 }
@@ -618,6 +625,8 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
         c.result->'data'->'emailRoutingChanges' as email_routing_changes, ${emailRoutingChangeSql} as routing_change,
         c.result->'data'->'usageLevelChange' as usage_level_change, ${usageLevelChangeSql} as level_change,
         case when c.action = 'signup.setRules' then c.result->'data'->'ruleChanges' end as rule_changes,
+        case when c.action in ('partner.releaseClient', 'workspace.removePartner')
+          then c.result->'data'->'removedPeople' end as removed_people,
         case when c.action = 'apiKey.revoke' then (select k.name from api_keys k
           where k.id = c.input->>'apiKeyId' and k.workspace_id = c.workspace_id) end as api_key_name,
         c.rejected as refused, null::text as ip_address, 'command' as source
@@ -631,6 +640,7 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
         (select s.email from "user" s where s.id = e.subject_id) as subject_email, null::jsonb as transfer_changes, false as transfer_change,
         null::jsonb as email_routing_changes, false as routing_change,
         null::jsonb as usage_level_change, false as level_change, null::jsonb as rule_changes,
+        null::jsonb as removed_people,
         null::text as api_key_name, false as refused, e.ip_address, 'auth' as source
         from auth_events e where e.event in (${sql.join(
           kindEvents.map(e => sql`${e}`),
@@ -706,6 +716,9 @@ export async function listAudit(tx: Db, f: AuditFilter): Promise<{ entries: Audi
         : {}),
       ...(Array.isArray(r.rule_changes) ? { ruleChanges: r.rule_changes as SignupRuleChange[] } : {}),
       ...(r.api_key_name ? { apiKeyName: String(r.api_key_name) } : {}),
+      ...(Array.isArray(r.removed_people) && r.removed_people.length
+        ? { removedPeople: (r.removed_people as unknown[]).map(String) }
+        : {}),
       refused: Boolean(r.refused),
       ipAddress: r.ip_address,
     }),

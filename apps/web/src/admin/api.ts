@@ -526,6 +526,8 @@ export type AuditEntry = {
   emailRoutingChanges?: { added: string[]; removed: string[] }
   /** apiKey.revoke: the revoked key's name. */
   apiKeyName?: string
+  /** partner.releaseClient, workspace.removePartner: who the partner's team invited and the person chose to remove. */
+  removedPeople?: string[]
   /** signup.setRules: each sign-up limit it changed, with the value before and after. */
   ruleChanges?: { field: string; from: unknown; to: unknown }[]
   refused: boolean

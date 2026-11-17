@@ -80,6 +80,7 @@ describe('calendar.findSlots', () => {
       'outboundCountries.get',
       'partner.adminList',
       'partner.get',
+      'partner.listClients',
       'partnerInvitation.view',
       'personalKey.list',
       'phoneNumber.forwardingCheck',

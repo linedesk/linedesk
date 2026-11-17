@@ -2424,6 +2424,8 @@ describe('impersonation', () => {
       'partner.adminList',
       // Read-only and `partner`, which an impersonation never has (context.ts): the partner area stays the partner's.
       'partner.get',
+      // Read-only and `partner`, which an impersonation never has (context.ts): aggregates of the partner's clients.
+      'partner.listClients',
       // Read-only and account:own, which an impersonation never has.
       'partnerInvitation.view',
       // Read-only and account:own, which an impersonation never has; the handler refuses an impersonation as well.

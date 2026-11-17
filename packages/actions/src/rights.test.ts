@@ -327,6 +327,9 @@ const expectedRights: Record<Right, readonly string[]> = {
     'workspace.createForClient',
     'workspace.inviteClientOwner',
     'partner.releaseClient',
+    'partner.listClients',
+    'partner.setClientUsageLimit',
+    'partner.setClientAllow',
   ],
 }
 

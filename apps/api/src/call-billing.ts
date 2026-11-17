@@ -32,13 +32,15 @@ import { billingState } from './billing-settings.ts'
 import { queueBillingAlert, queueRecharge } from './jobs.ts'
 import { type PostOutcome, type RechargeOutcome, postCallUsage, reserveCall } from './ledger.ts'
 import { outboundLimits } from './outbound-policy.ts'
+import { queueUsageLimitAlerts } from './usage-limit.ts'
 
 /**
  * Why billing did not let a call start: the gate's own reasons, a failure while checking or billing switched on but
  * not working (`billing_error`, always a refusal), a voice or model the plan does not allow (`level_not_allowed`), or
- * an extra number whose month is unpaid (`number_unpaid`, billing-periods.ts).
+ * an extra number whose month is unpaid (`number_unpaid`, billing-periods.ts), or a white-label client at the monthly
+ * usage limit its partner set (`usage_limit`, usage-limit.ts).
  */
-export type CallRefusal = GateReason | 'billing_error' | 'level_not_allowed' | 'number_unpaid'
+export type CallRefusal = GateReason | 'billing_error' | 'level_not_allowed' | 'number_unpaid' | 'usage_limit'
 
 /** The bill a phone call is billed to; `usable` false while billing is switched on but cannot run (refuse the call). */
 export type CallBill = { billId: string; usable: boolean }
@@ -162,6 +164,8 @@ export async function postFinishedCall(tx: Tx, callId: string, now: string): Pro
       const outcome = await postCallUsage(sp, callId, now)
       if (outcome.kind !== 'posted') return outcome
       await afterDebit(sp, outcome.billId, outcome.recharge, now)
+      // This call's cost may take a white-label client to 80 % or 100 % of its usage limit (usage-limit.ts).
+      if (outcome.posted && outcome.entry.workspace_id) await queueUsageLimitAlerts(sp, outcome.entry.workspace_id, now)
       const { rating } = outcome
       if (outcome.posted && rating.cappedFromSeconds !== null && rating.priceMicros > 0)
         await queueBillingAlert(sp, {

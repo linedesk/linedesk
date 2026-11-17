@@ -2,8 +2,9 @@
 // the estimated cost of its calls this UTC month, with the same rates as Server admin › Overview (costEstimate). Once
 // it is reached, new phone calls are not answered by the assistant: the agent says one fixed line (the business will
 // call back) and the call is filed as missed with "Call back" (handlers.ts openCall); test calls are refused.
-// Owners and instance admins get an email at 80 % and at 100 %, once each per month.
-import { calls, member, organization, spending_cap_alerts, type Tx, user } from '@linedesk/db'
+// Owners (of a white-label client: its partner's owner) and instance admins get an email at 80 % and at 100 %, once
+// each per month.
+import { calls, member, organization, partner_members, spending_cap_alerts, type Tx, user } from '@linedesk/db'
 import { and, eq, gte, isNull, notInArray, sql } from 'drizzle-orm'
 import { costEstimate } from './admin-overview.ts'
 import { WEB_ORIGIN } from './auth.ts'
@@ -34,7 +35,13 @@ export async function monthlySpend(tx: Tx, workspaceId: string, now: string): Pr
       phone: sql<number>`coalesce(sum(${calls.duration_sec}) filter (where ${calls.source} = 'phone'), 0)::int`,
     })
     .from(calls)
-    .where(and(eq(calls.workspace_id, workspaceId), notInArray(calls.source, ['sample', 'simulated', 'test']), gte(calls.started_at, monthStart(now))))
+    .where(
+      and(
+        eq(calls.workspace_id, workspaceId),
+        notInArray(calls.source, ['sample', 'simulated', 'test']),
+        gte(calls.started_at, monthStart(now)),
+      ),
+    )
   return (await costEstimate(tx))({ all: row?.all ?? 0, phone: row?.phone ?? 0 })
 }
 
@@ -42,7 +49,10 @@ export type SpendingCap = { capUsd: number; spentUsd: number; reached: boolean }
 
 /** The workspace's cap and this month's spend against it; null when it has no cap. */
 export async function spendingCap(tx: Tx, workspaceId: string, now: string): Promise<SpendingCap | null> {
-  const [workspace] = await tx.select({ cents: organization.spendingCapCents }).from(organization).where(eq(organization.id, workspaceId))
+  const [workspace] = await tx
+    .select({ cents: organization.spendingCapCents })
+    .from(organization)
+    .where(eq(organization.id, workspaceId))
   if (workspace?.cents == null) return null
   const spentUsd = await monthlySpend(tx, workspaceId, now)
   return { capUsd: workspace.cents / 100, spentUsd, reached: Math.round(spentUsd * 100) >= workspace.cents }
@@ -59,7 +69,11 @@ export async function queueSpendingAlerts(tx: Tx, workspaceId: string, now: stri
   const month = monthOf(now)
   for (const level of SPENDING_ALERT_LEVELS) {
     if (percent < level) continue
-    const added = await tx.insert(spending_cap_alerts).values({ workspace_id: workspaceId, month, level }).onConflictDoNothing().returning()
+    const added = await tx
+      .insert(spending_cap_alerts)
+      .values({ workspace_id: workspaceId, month, level })
+      .onConflictDoNothing()
+      .returning()
     if (added.length) await queueSpendingCapAlert(tx, { workspaceId, month, level })
   }
 }
@@ -72,21 +86,48 @@ export function spendingAlertEmail(
   to: string,
   locale?: EmailLocale,
 ): Email {
-  return { to, ...spendingCapEmail({ workspace, level, capUsd: cap.capUsd, spentUsd: cap.spentUsd }, WEB_ORIGIN, locale) }
+  return {
+    to,
+    ...spendingCapEmail({ workspace, level, capUsd: cap.capUsd, spentUsd: cap.spentUsd }, WEB_ORIGIN, locale),
+  }
 }
 
 /** Sends one alert to the workspace's owners and the instance admins, each address once. Run by a job. */
-export async function sendSpendingAlert(tx: Tx, sender: EmailSender, { workspaceId, month, level }: SpendingAlert, now = new Date().toISOString()) {
-  const [workspace] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, workspaceId))
+export async function sendSpendingAlert(
+  tx: Tx,
+  sender: EmailSender,
+  { workspaceId, month, level }: SpendingAlert,
+  now = new Date().toISOString(),
+) {
+  const [workspace] = await tx
+    .select({ name: organization.name, partnerId: organization.partnerId })
+    .from(organization)
+    .where(eq(organization.id, workspaceId))
   const cap = workspace ? await spendingCap(tx, workspaceId, now) : null
   // The workspace is gone, its cap was removed, or the month is over since: nothing to say any more.
   if (!workspace || !cap || monthOf(now) !== month) return { sent: 0, failed: 0 }
-  const owners = await tx
-    .select({ email: user.email })
-    .from(member)
-    .innerJoin(user, eq(user.id, member.userId))
-    .where(and(eq(member.organizationId, workspaceId), eq(member.role, 'owner'), isNull(user.disabledAt)))
-  const addresses = [...new Set([...owners.map(o => o.email), ...(await instanceAdminEmails())].map(a => a.toLowerCase()))]
+  // A white-label client's people see minutes, never dollar amounts (docs/white-label.md; review of #1109, L-2): its
+  // partner's owner, who pays for it, gets the email instead of the client's owner.
+  const owners = workspace.partnerId
+    ? await tx
+        .select({ email: user.email })
+        .from(partner_members)
+        .innerJoin(user, eq(user.id, partner_members.user_id))
+        .where(
+          and(
+            eq(partner_members.partner_id, workspace.partnerId),
+            eq(partner_members.role, 'owner'),
+            isNull(user.disabledAt),
+          ),
+        )
+    : await tx
+        .select({ email: user.email })
+        .from(member)
+        .innerJoin(user, eq(user.id, member.userId))
+        .where(and(eq(member.organizationId, workspaceId), eq(member.role, 'owner'), isNull(user.disabledAt)))
+  const addresses = [
+    ...new Set([...owners.map(o => o.email), ...(await instanceAdminEmails())].map(a => a.toLowerCase())),
+  ]
   let sent = 0
   let failed = 0
   for (const to of addresses) {

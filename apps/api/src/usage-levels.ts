@@ -30,7 +30,7 @@ import {
   voiceModelsOf,
   type VoicePipeline,
 } from '@linedesk/actions'
-import { assistants, type PaidLevel, type Tx, workspace_settings } from '@linedesk/db'
+import { assistants, organization, type PaidLevel, type Tx, workspace_settings } from '@linedesk/db'
 import type { Assistant } from '@linedesk/db/types'
 import { and, eq, inArray, or } from 'drizzle-orm'
 import { lockAssistantVersionsOf, recordVersion } from './assistant-versions.ts'
@@ -575,9 +575,16 @@ export async function levelOptions(tx: Tx, workspaceId: string): Promise<UsageLe
   const defaultModelId = llmProvider ? installLanguageModel(llmProvider, llm?.config.model?.value, billed) : null
   const realtime = await activeProvider(tx, 'realtime').catch(() => null)
   const defaultRealtimeId = realtime ? installRealtimeModel(realtime.config.model?.value) : null
-  const cents = await levelCentsPerMinute(tx)
+  // A white-label client's people see levels without our prices (docs/white-label.md; review of #1109, L-2).
+  const [org] = await tx
+    .select({ partnerId: organization.partnerId })
+    .from(organization)
+    .where(eq(organization.id, workspaceId))
+  const partnerManaged = !!org?.partnerId
+  const cents = partnerManaged ? { standard: 0, premium: 0, ultra: 0 } : await levelCentsPerMinute(tx)
   return {
     ...flags,
+    ...(partnerManaged ? { partnerManaged } : {}),
     realtimeAllowed: levelAllowed('ultra', flags),
     standardCentsPerMinute: cents.standard,
     premiumCentsPerMinute: cents.premium,

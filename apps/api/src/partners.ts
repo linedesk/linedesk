@@ -9,12 +9,17 @@
 import { createHash, randomBytes } from 'node:crypto'
 import {
   type AdminPartner,
+  CLIENT_PROBLEMS,
+  type ClientProblem,
   PARTNER_CLIENT_LIMIT_DEFAULT,
   PARTNER_CLIENT_LIMIT_MAX,
   type MyPartner,
   type PartnerBillSummary,
   type PartnerClient,
+  type PartnerClientList,
   type PartnerClientMember,
+  type PartnerClientRow,
+  type PartnerInvitedMember,
   type PartnerData,
   type PartnerInvitationView,
   type PartnerRole,
@@ -24,6 +29,7 @@ import {
   billing_accounts,
   call_reservations,
   calls,
+  forwarding_checks,
   instance_settings,
   invitation,
   member,
@@ -32,28 +38,40 @@ import {
   partner_invitations,
   partner_members,
   partners,
+  phone_numbers,
+  provider_failures,
   type Tx,
   user,
+  workspace_settings,
 } from '@linedesk/db'
 import { getT } from '@linedesk/i18n/server'
-import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { localeForUserId } from './email-locale.ts'
 import { emailSafeName, partnerInvitationEmail } from './emails/templates.ts'
-import { Forbidden, type Handler, type HandlerCtx } from './handler-context.ts'
+import { Forbidden, type Handler, type HandlerCtx, Reject } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { lockExtraCalls } from './extra-calls.ts'
-import { lockBalance } from './ledger.ts'
+import { lockBalance, periodAt } from './ledger.ts'
 import { forgetMember, inviteToWorkspace } from './memberships.ts'
 import { billForNewClient, mirroredState, seatsFollow } from './partner-billing.ts'
-import { NOT_ON_PARTNER_TEAM, PARTNER_OWNER_ONLY, PARTNER_SUSPENDED, refusePartner } from './partner-refusals.ts'
+import { invitedByPartnerTeam } from './partner-invited.ts'
+import {
+  LIMIT_OWNER_ONLY,
+  NOT_ON_PARTNER_TEAM,
+  PARTNER_OWNER_ONLY,
+  PARTNER_SUSPENDED,
+  refusePartner,
+} from './partner-refusals.ts'
 import { signupRules } from './self-serve.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { cancelSentInvitations } from './team.ts'
 import { billPayerChanged, lockForPayerChange } from './usage-levels.ts'
+import { clientPeriodUsage, limitPercent, queueUsageLimitAlerts, resetUsageLimitAlerts } from './usage-limit.ts'
 import { insertWorkspace } from './workspace-creation-handlers.ts'
+import { switchAllowLevel } from './workspace-settings.ts'
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
 const DAY_MS = 86_400_000
@@ -360,6 +378,18 @@ async function partnerData(
     clients.map(c => c.id),
     role === 'owner',
   )
+  // Who the team invited into each client, for the owner's hand-over confirmation (security review of #1109, L-4).
+  const invitedByTeam = new Map<string, PartnerInvitedMember[]>()
+  if (role === 'owner')
+    for (const c of clients)
+      invitedByTeam.set(
+        c.id,
+        (await invitedByPartnerTeam(tx, c.id, partner.id)).map(m => ({
+          memberId: m.memberId,
+          name: m.name,
+          email: m.email,
+        })),
+      )
   return {
     partner: { id: partner.id, name: partner.name, status: partner.status as PartnerStatus },
     role,
@@ -377,6 +407,7 @@ async function partnerData(
       createdAt: c.createdAt.toISOString(),
       owner: people.owners.get(c.id) ?? null,
       otherMembers: people.others.get(c.id) ?? [],
+      invitedByTeam: invitedByTeam.get(c.id) ?? [],
     })),
     bill: await billSummary(tx, partner, actorId),
   }
@@ -491,7 +522,7 @@ async function createForClient(ctx: HandlerCtx, input: CreateForClientInput) {
     .where(eq(organization.id, org.id))
   await syncPartnerMemberships(tx, partner.id, now)
   if (input.ownerEmail) await inviteOwner(ctx, partner.id, org, input.ownerEmail)
-  if (bill) seatsFollow(ctx.onCommit, bill.id, true, `client_${org.id}`)
+  if (bill) seatsFollow(ctx.onCommit, bill.id, `client_${org.id}`)
   return {
     rows: {},
     // The audit log files the entry under the new workspace.
@@ -543,20 +574,24 @@ function refuseUnconfirmed(name: string, typed: string) {
  * and setup links, the invitations they sent there canceled), and where it was on the partner bill it moves to a new
  * bill of the client's owner waiting for Checkout (`pending_payment`): calls are answered again once they add a card.
  * Allow Premium and Allow Ultra go off (someone else pays now, LIN-438), and the partner's seats drop after the
- * commit. Refused while calls run there (their usage posts to the bill they started on). The caller holds the partner
- * row's lock. Lock order: the partner row, the assistants' version locks, the partner bill's balance, the workspace.
+ * commit. Refused while calls run there (their usage posts to the bill they started on). The people the partner's team
+ * invited there leave too (security review of #1109, L-4; both confirmations name them first), and the partner's usage
+ * limit for the client ends. The caller holds the partner row's lock. Lock order: the partner row, the bill's
+ * extra-calls lock, the assistants' version locks, the partner bill's balance, the workspace.
  */
-async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: string) {
+async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: string, removeMemberIds: string[]) {
   const { tx, actor, now } = ctx
   const [seen] = await tx
     .select({ bill: organization.billingAccountId })
     .from(organization)
     .where(eq(organization.id, workspaceId))
   if (seen?.bill) {
+    // The extra calls leave with the workspace: no extra-calls change on the bill meanwhile (setExtraCalls takes it).
+    // Taken first (security review of #1109, L-6): a setExtraCalls asking Stripe under this lock then holds up only
+    // this release, never with the partner bill's balance locked, which the call gate of every client waits on.
+    await lockExtraCalls(tx, seen.bill)
     await lockForPayerChange(tx, [workspaceId])
     await lockBalance(tx, seen.bill)
-    // The extra calls leave with the workspace: no extra-calls change on the bill meanwhile (setExtraCalls takes it).
-    await lockExtraCalls(tx, seen.bill)
   }
   const [org] = await tx.select().from(organization).where(eq(organization.id, workspaceId)).for('update')
   if (!org || org.partnerId !== partnerId) throw refusePartner('client_not_found')
@@ -566,6 +601,13 @@ async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: str
     .from(member)
     .where(and(eq(member.organizationId, org.id), eq(member.role, 'owner')))
   if (!owner) throw refusePartner('client_no_owner')
+  // Who of the people the team invited leaves too: only those the person named, each checked (review of #1113, M-1).
+  const invitable = await invitedByPartnerTeam(tx, org.id, partnerId)
+  const leaving = [...new Set(removeMemberIds)].map(id => {
+    const found = invitable.find(m => m.memberId === id)
+    if (!found) throw refusePartner('member_not_invited')
+    return found
+  })
   let billId: string | null = null
   if (org.billingAccountId) {
     const [running] = await tx
@@ -592,18 +634,177 @@ async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: str
       .set({ billingAccountId: billId, billingState: 'pending_payment', extraCalls: 0 })
       .where(eq(organization.id, org.id))
     await billPayerChanged(tx, [org.id], actor.actorId)
-    seatsFollow(ctx.onCommit, org.billingAccountId, false, `release_${org.id}`, {
+    seatsFollow(ctx.onCommit, org.billingAccountId, `release_${org.id}`, {
       extraCalls: org.extraCalls > 0 && !!from?.stripe_subscription_id,
     })
   }
-  await tx.update(organization).set({ partnerId: null }).where(eq(organization.id, org.id))
+  // The people the team let in that the person chose leave with it, with what the workspace keeps of a member (L-4).
+  let invitedCanceled = 0
+  for (const m of leaving) {
+    await tx.delete(member).where(eq(member.id, m.memberId))
+    await forgetMember(tx, org.id, m.userId, now)
+    invitedCanceled += await cancelSentInvitations(tx, org.id, m.userId)
+  }
+  await tx.update(organization).set({ partnerId: null, usageLimitCents: null }).where(eq(organization.id, org.id))
+  await resetUsageLimitAlerts(tx, org.id)
   const sync = await syncPartnerMemberships(tx, partnerId, now)
   return {
     workspace: { id: org.id, name: org.name },
     billId,
     removedMemberships: sync.removed,
-    invitationsCanceled: sync.invitationsCanceled,
+    removedInvited: leaving.length,
+    // Each address, for the audit log (review of #1113, M-1).
+    removedPeople: leaving.map(m => m.email),
+    invitationsCanceled: sync.invitationsCanceled + invitedCanceled,
   }
+}
+
+/** Forwarding check results that say calls do not reach the number (forwarding-check.ts). */
+const FORWARDING_FAILED = ['rang_through', 'answered', 'busy', 'unreachable', 'forwards_elsewhere', 'no_assistant']
+/** How far back a provider failure on one of a client's calls shows as a problem. */
+const PROVIDER_ERROR_DAYS = 7
+
+/**
+ * Partner › Clients (LIN-454; design §8, "cross-tenant reads"): one row per client workspace of this partner, with
+ * aggregates only (counts, seconds, amounts, dates), never call content. The period is the partner bill's current one,
+ * and minutes and cost come from its ledger (usage-limit.ts clientPeriodUsage, the same sum the usage limit measures);
+ * off billing (no partner bill) the UTC month, without cost. Rows with problems first, the worst first, then by name.
+ */
+async function listClients(tx: Tx, partner: PartnerRow, now: string): Promise<PartnerClientList> {
+  const clients = await tx
+    .select({
+      id: organization.id,
+      name: organization.name,
+      disabledAt: organization.disabledAt,
+      bill: organization.billingAccountId,
+      billingState: organization.billingState,
+      limitCents: organization.usageLimitCents,
+    })
+    .from(organization)
+    .where(eq(organization.partnerId, partner.id))
+  const period = partner.billing_account_id ? await periodAt(tx, partner.billing_account_id, now) : null
+  const month = new Date(now)
+  const range = period
+    ? { startsAt: period.starts_at, endsAt: period.ends_at }
+    : partner.billing_account_id
+      ? null
+      : {
+          startsAt: new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), 1)).toISOString(),
+          endsAt: new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 1)).toISOString(),
+        }
+  const ids = clients.map(c => c.id)
+  if (!ids.length) return { period: range, clients: [] }
+  const { owners } = await clientPeople(tx, ids, false)
+  const numbers = await tx
+    .select({
+      workspaceId: phone_numbers.workspace_id,
+      e164: phone_numbers.e164,
+      mode: phone_numbers.mode,
+      verifiedAt: phone_numbers.verified_at,
+    })
+    .from(phone_numbers)
+    .where(inArray(phone_numbers.workspace_id, ids))
+    .orderBy(asc(phone_numbers.created_at))
+  const checks = await tx
+    .selectDistinctOn([forwarding_checks.workspace_id], {
+      workspaceId: forwarding_checks.workspace_id,
+      status: forwarding_checks.status,
+    })
+    .from(forwarding_checks)
+    .where(and(inArray(forwarding_checks.workspace_id, ids), eq(forwarding_checks.simulated, false)))
+    .orderBy(forwarding_checks.workspace_id, desc(forwarding_checks.started_at))
+  // A real caller's call (isRealCall): a phone call coming in, not from the owner's own number, not spam.
+  const real = sql`${calls.source} = 'phone' and ${calls.direction} = 'in' and not ${calls.from_own_number} and coalesce(${calls.outcome}, '') <> 'spam'`
+  const callStats = await tx
+    .select({
+      workspaceId: calls.workspace_id,
+      last: sql<string | null>`max(${calls.started_at}) filter (where ${real})`,
+      count: range
+        ? sql<number>`(count(*) filter (where ${real} and ${calls.started_at} >= ${range.startsAt} and ${calls.started_at} < ${range.endsAt}))::int`
+        : sql<number>`0`,
+    })
+    .from(calls)
+    .where(inArray(calls.workspace_id, ids))
+    .groupBy(calls.workspace_id)
+  const levels = await tx
+    .select({
+      workspaceId: workspace_settings.workspace_id,
+      premium: workspace_settings.allow_premium,
+      ultra: workspace_settings.allow_ultra,
+    })
+    .from(workspace_settings)
+    .where(inArray(workspace_settings.workspace_id, ids))
+  const since = new Date(Date.parse(now) - PROVIDER_ERROR_DAYS * DAY_MS).toISOString()
+  const failing = new Set(
+    (
+      await tx
+        .select({ workspaceId: provider_failures.workspace_id })
+        .from(provider_failures)
+        .where(and(inArray(provider_failures.workspace_id, ids), gte(provider_failures.last_at, since)))
+    ).map(r => r.workspaceId),
+  )
+  const billed = clients.filter(c => !!c.bill && c.bill === partner.billing_account_id).map(c => c.id)
+  const usage =
+    period && partner.billing_account_id
+      ? await clientPeriodUsage(tx, partner.billing_account_id, period.id, billed)
+      : new Map<string, { seconds: number; costMicros: number }>()
+  const rows = clients.map((c): PartnerClientRow => {
+    const own = numbers.filter(n => n.workspaceId === c.id)
+    const check = checks.find(k => k.workspaceId === c.id)?.status ?? null
+    const forwarding: PartnerClientRow['forwarding'] = !own.length
+      ? null
+      : own.some(n => n.verifiedAt)
+        ? 'verified'
+        : own.some(n => n.mode === 'new' || n.mode === 'ported')
+          ? 'not_needed'
+          : 'unverified'
+    const stats = callStats.find(k => k.workspaceId === c.id)
+    const level = levels.find(l => l.workspaceId === c.id)
+    const onBill = billed.includes(c.id)
+    const used = usage.get(c.id)
+    const costMicros = onBill && period ? (used?.costMicros ?? 0) : null
+    const percent =
+      c.limitCents !== null && costMicros !== null
+        ? Math.floor(limitPercent({ limitCents: c.limitCents, usedMicros: costMicros }))
+        : null
+    const problems: ClientProblem[] = []
+    if (onBill && c.billingState !== 'active') problems.push('bill_inactive')
+    if (c.disabledAt) problems.push('disabled')
+    if (percent !== null && percent >= 100) problems.push('limit_reached')
+    else if (percent !== null && percent >= 80) problems.push('limit_near')
+    if (!own.length) problems.push('no_number')
+    else if (forwarding === 'unverified')
+      problems.push(check && FORWARDING_FAILED.includes(check) ? 'forwarding_failed' : 'forwarding_unverified')
+    if (failing.has(c.id)) problems.push('provider_errors')
+    const owner = owners.get(c.id) ?? null
+    return {
+      id: c.id,
+      name: c.name,
+      owner:
+        owner === null
+          ? null
+          : 'invited' in owner
+            ? { state: 'invited', email: owner.invited }
+            : { state: 'accepted', name: owner.name, email: owner.email },
+      number: own[0]?.e164 ?? null,
+      numbers: own.length,
+      forwarding,
+      lastRealCallAt: stats?.last ? new Date(stats.last).toISOString() : null,
+      calls: stats?.count ?? 0,
+      seconds: onBill ? (used?.seconds ?? 0) : 0,
+      costCents: costMicros === null ? null : Math.round(costMicros / 10_000),
+      limitCents: c.limitCents,
+      limitPercent: percent,
+      allowPremium: level?.premium ?? false,
+      allowUltra: level?.ultra ?? false,
+      billed: onBill,
+      problems,
+    }
+  })
+  const worst = (r: PartnerClientRow) =>
+    r.problems.length ? Math.min(...r.problems.map(p => CLIENT_PROBLEMS.indexOf(p))) : CLIENT_PROBLEMS.length
+  rows.sort((x, y) => worst(x) - worst(y) || x.name.localeCompare(y.name))
+  return { period: range, clients: rows }
 }
 
 export const partnerHandlers: Record<string, Handler> = {
@@ -731,11 +932,14 @@ export const partnerHandlers: Record<string, Handler> = {
     return { rows: {}, data: { workspace: org, subject: { email: input.email, workspaceId: org.id } } }
   },
 
-  'partner.releaseClient': async (ctx, input: { partnerId: string; workspaceId: string; confirmName: string }) => {
+  'partner.releaseClient': async (
+    ctx,
+    input: { partnerId: string; workspaceId: string; confirmName: string; removeMemberIds?: string[] },
+  ) => {
     const { partner } = await partnerFor(ctx.tx, ctx.actor, input.partnerId, { write: true, owner: true })
     const org = await clientOf(ctx.tx, partner.id, input.workspaceId)
     refuseUnconfirmed(org.name, input.confirmName)
-    const done = await detachClient(ctx, partner.id, org.id)
+    const done = await detachClient(ctx, partner.id, org.id, input.removeMemberIds ?? [])
     return {
       rows: {},
       data: { partner: { id: partner.id, name: partner.name }, ...done, subject: { email: null, workspaceId: org.id } },
@@ -748,7 +952,7 @@ export const partnerHandlers: Record<string, Handler> = {
    * links never carry workspace:own, a personal key is refused in personal-key-scope.ts): it moves what the workspace
    * pays to the owner.
    */
-  'workspace.removePartner': async (ctx, input: { confirmName: string }) => {
+  'workspace.removePartner': async (ctx, input: { confirmName: string; removeMemberIds?: string[] }) => {
     const { tx, actor } = ctx
     if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
     if (!actor.workspaceId) throw refusePartner('no_partner')
@@ -760,13 +964,85 @@ export const partnerHandlers: Record<string, Handler> = {
     refuseUnconfirmed(seen.name, input.confirmName)
     // The partner row first, as every partner change takes it (a team change or a suspension waits).
     const partner = await lockedPartner(tx, seen.partnerId)
-    const done = await detachClient(ctx, partner.id, actor.workspaceId)
+    const done = await detachClient(ctx, partner.id, actor.workspaceId, input.removeMemberIds ?? [])
     return {
       rows: {},
       data: {
         partner: { id: partner.id, name: partner.name },
         ...done,
         subject: { email: null, workspaceId: done.workspace.id },
+      },
+    }
+  },
+
+  // --- Partner › Clients (S3) --------------------------------------------------------------------------------
+
+  'partner.listClients': async ({ tx, actor, now }, input: { partnerId: string }) => {
+    const { partner } = await partnerFor(tx, actor, input.partnerId)
+    return { rows: {}, data: await listClients(tx, partner, now) }
+  },
+
+  /**
+   * The partner team sets a client's monthly usage limit (LIN-454): only for a client on the partner bill, measured on
+   * its ledger. Raising it or taking it away is the partner's owner's, who pays; an admin of the team may only lower
+   * it or set one where there is none (security review of #1113, L-1). Each 80 % and 100 % email goes out once a
+   * period whatever the limit is changed to (review of #1113, I-3); one the new limit reaches goes out at once.
+   */
+  'partner.setClientUsageLimit': async (
+    { tx, actor, now },
+    input: { partnerId: string; workspaceId: string; limitUsd: number | null },
+  ) => {
+    const { partner, role } = await partnerFor(tx, actor, input.partnerId, { write: true })
+    await clientOf(tx, partner.id, input.workspaceId)
+    const [org] = await tx.select().from(organization).where(eq(organization.id, input.workspaceId)).for('update')
+    if (!org || org.partnerId !== partner.id) throw refusePartner('client_not_found')
+    if (!org.billingAccountId || org.billingAccountId !== partner.billing_account_id)
+      throw refusePartner('client_not_billed')
+    const cents = input.limitUsd === null ? null : Math.round(input.limitUsd * 100)
+    const was = org.usageLimitCents
+    const loosens = was !== null && (cents === null || cents > was)
+    if (loosens && role !== 'owner') throw new Forbidden(LIMIT_OWNER_ONLY)
+    if (cents !== was) {
+      await tx.update(organization).set({ usageLimitCents: cents }).where(eq(organization.id, org.id))
+      await queueUsageLimitAlerts(tx, org.id, now)
+    }
+    return {
+      rows: {},
+      data: {
+        workspace: { id: org.id, name: org.name },
+        limitCents: cents,
+        subject: { email: null, workspaceId: org.id },
+      },
+    }
+  },
+
+  'partner.setClientAllow': async (
+    { tx, actor, now },
+    input: { partnerId: string; workspaceId: string; level: 'premium' | 'ultra'; on: boolean },
+  ) => {
+    const { partner } = await partnerFor(tx, actor, input.partnerId, { write: true, owner: true })
+    const seen = await clientOf(tx, partner.id, input.workspaceId)
+    if (!partner.billing_account_id) throw refusePartner('client_not_billed')
+    const [bill] = await tx
+      .select({ owner: billing_accounts.owner_user_id })
+      .from(billing_accounts)
+      .where(eq(billing_accounts.id, partner.billing_account_id))
+      .for('share')
+    const [org] = await tx.select().from(organization).where(eq(organization.id, seen.id)).for('share')
+    if (!org || org.partnerId !== partner.id) throw refusePartner('client_not_found')
+    if (org.billingAccountId !== partner.billing_account_id) throw refusePartner('client_not_billed')
+    if (bill?.owner !== actor.actorId) throw new Forbidden(PARTNER_OWNER_ONLY)
+    if (org.disabledAt) throw Reject.t('server.api.workspaceDisabled')
+    const moved = await switchAllowLevel(tx, org.id, actor.actorId, input.level, input.on)
+    return {
+      rows: {},
+      data: {
+        workspace: { id: org.id, name: org.name },
+        level: input.level,
+        on: input.on,
+        moved: moved.map(a => a.id),
+        at: now,
+        subject: { email: null, workspaceId: org.id },
       },
     }
   },

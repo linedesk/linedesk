@@ -128,6 +128,10 @@ export const organization = pgTable(
     // Not Better Auth's: the white-label partner that runs this workspace for its client (partners.id,
     // docs/white-label.md); null: no partner. Its foreign key is in migration 0131 (partners lives in schema.ts).
     partnerId: text("partner_id"),
+    // Not Better Auth's: a white-label client's monthly usage limit in US cents, set by its partner's team
+    // (partner.setClientUsageLimit, apps/api/src/usage-limit.ts), measured on the ledger of the bill's current period;
+    // null: no limit.
+    usageLimitCents: integer("usage_limit_cents"),
   },
   (table) => [
     uniqueIndex("organization_slug_uidx").on(table.slug),
@@ -138,6 +142,10 @@ export const organization = pgTable(
       sql`${table.billingState} is null or ${table.billingState} in ('pending_payment', 'active', 'suspended')`,
     ),
     check("organization_extra_calls", sql`${table.extraCalls} between 0 and 1000 and ${table.extraCalls} % 5 = 0`),
+    check(
+      "organization_usage_limit",
+      sql`${table.usageLimitCents} is null or ${table.usageLimitCents} between 100 and 10000000`,
+    ),
   ],
 );
 

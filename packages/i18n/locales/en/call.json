@@ -12,6 +12,7 @@
   "autoSummary.missed.billing.no_balance": "Nobody answered this call: the prepaid balance is used up. Call the caller back.",
   "autoSummary.missed.billing.number_unpaid": "Nobody answered this call: this month of the number it came in on is not paid. Call the caller back.",
   "autoSummary.missed.billing.too_many_calls": "Nobody answered this call: the bill had as many calls in progress as it allows at once. Call the caller back.",
+  "autoSummary.missed.billing.usage_limit": "Nobody answered this call: the workspace reached its monthly usage limit. Call the caller back.",
   "autoSummary.missed.busy": "Nobody answered this call: {count} other calls were in progress. Call the caller back.",
   "autoSummary.missed.callBack": "Call back",
   "autoSummary.missed.notReady": "Nobody answered this call: the assistant was not taking calls yet. Call the caller back.",

@@ -304,15 +304,18 @@ function AllowPremium({
     <SwitchRow
       title={t('settings.general.premium.label')}
       description={
-        !isOwner
-          ? t('settings.general.premium.ownerOnly', prices)
-          : canEdit
-            ? t('settings.general.premium.help', prices)
-            : readOnly
+        // A white-label client: its partner decides, and its people see no prices (docs/white-label.md).
+        settings.partnerManaged
+          ? t('settings.general.premium.partner')
+          : !isOwner
+            ? t('settings.general.premium.ownerOnly', prices)
+            : canEdit
+              ? t('settings.general.premium.help', prices)
+              : readOnly
       }
       on={settings.allowPremium}
       onChange={on => void change(on)}
-      disabled={!isOwner || !canEdit || busy}
+      disabled={settings.partnerManaged || !isOwner || !canEdit || busy}
     />
   )
 }
@@ -362,15 +365,18 @@ function AllowUltra({
     <SwitchRow
       title={t('settings.general.ultra.label')}
       description={
-        !isOwner
-          ? t('settings.general.ultra.ownerOnly', prices)
-          : canEdit
-            ? t('settings.general.ultra.help', prices)
-            : readOnly
+        // A white-label client: its partner decides, and its people see no prices (docs/white-label.md).
+        settings.partnerManaged
+          ? t('settings.general.ultra.partner')
+          : !isOwner
+            ? t('settings.general.ultra.ownerOnly', prices)
+            : canEdit
+              ? t('settings.general.ultra.help', prices)
+              : readOnly
       }
       on={settings.allowUltra}
       onChange={on => void change(on)}
-      disabled={!isOwner || !canEdit || busy}
+      disabled={settings.partnerManaged || !isOwner || !canEdit || busy}
     />
   )
 }

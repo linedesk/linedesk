@@ -780,3 +780,83 @@ describe('the nightly check', () => {
     expect(alerts).toEqual(['The billing check on Linedesk could not run'])
   })
 })
+
+// ---- A white-label client's monthly usage limit (LIN-454, src/usage-limit.ts) ----
+
+describe('the usage limit a partner sets for a client', () => {
+  /** `micros` used by `b`'s workspace this period (a usage entry as if from an earlier call). */
+  const used = (b: Billed, micros: number) =>
+    db.transaction(tx =>
+      postEntry(tx, {
+        billing_account_id: b.billId,
+        workspace_id: b.ws.id,
+        period_id: b.periodId,
+        kind: 'usage',
+        amount_micros: -micros,
+        seconds: 600,
+        included_seconds: 0,
+        billable_seconds: 600,
+        price_basis: 'standard',
+        source_type: 'call',
+        source_id: rid('call'),
+      }),
+    )
+  const setLimit = (b: Billed, cents: number | null) =>
+    db.update(organization).set({ usageLimitCents: cents }).where(eq(organization.id, b.ws.id))
+
+  test('at the limit a new call is refused with the fixed line, filed as missed with a callback, and the 100 % email queued', async () => {
+    const b = await billed('active', { creditMicros: 50_000_000 })
+    await setLimit(b, 1000)
+    await used(b, 10_000_000)
+    const started = await start(b.ws)
+    expect(started).toMatchObject({ blocked: true, refused: 'usage_limit', overCap: false, busy: false })
+    expect(await reservationOf(started.callId)).toBeUndefined()
+    expect(await getCall(started.callId)).toMatchObject({
+      status: 'completed',
+      duration_sec: 0,
+      title: 'Missed call',
+      summary: 'Nobody answered this call: the workspace reached its monthly usage limit. Call the caller back.',
+      action_items: [{ text: 'Call back' }],
+    })
+    expect(jobs('call.push')).toContainEqual({ callId: started.callId, kind: 'finished' })
+    expect(jobs('usage.limitAlert')).toEqual([
+      { workspaceId: b.ws.id, periodId: b.periodId, level: 80 },
+      { workspaceId: b.ws.id, periodId: b.periodId, level: 100 },
+    ])
+    // Each email once a period: the next refused call queues none.
+    queued = []
+    expect(await start(b.ws)).toMatchObject({ refused: 'usage_limit' })
+    expect(jobs('usage.limitAlert')).toEqual([])
+  })
+
+  test('below the limit calls are answered; a call running when the limit is passed is never cut, its cost queues the email', async () => {
+    const b = await billed('active', { creditMicros: 50_000_000 })
+    await setLimit(b, 1000)
+    await used(b, 7_000_000)
+    const running = await start(b.ws)
+    expect(running).toMatchObject({ blocked: false, refused: null })
+    expect(jobs('usage.limitAlert')).toEqual([])
+    // Another call meanwhile passes the limit; the running one finishes and is posted as usual.
+    await used(b, 3_500_000)
+    expect((await finish(b.ws, running.callId)).status).toBe(200)
+    expect(await usageOf(running.callId)).toHaveLength(1)
+    expect(jobs('usage.limitAlert').map(j => j.level)).toEqual([80, 100])
+    expect(await start(b.ws)).toMatchObject({ blocked: true, refused: 'usage_limit' })
+  })
+
+  test('without a limit, or with a higher one, nothing changes; only this workspace counts against it', async () => {
+    const b = await billed('active', { creditMicros: 100_000_000 })
+    await used(b, 20_000_000)
+    expect(await start(b.ws)).toMatchObject({ blocked: false, refused: null })
+    await setLimit(b, 5000)
+    expect(await start(b.ws)).toMatchObject({ blocked: false, refused: null })
+    // Another workspace on the same bill uses a lot: not this workspace's use.
+    const other = await createWorkspace('Rival Plumbing')
+    await db
+      .update(organization)
+      .set({ billingAccountId: b.billId, billingState: 'active' })
+      .where(eq(organization.id, other.id))
+    await used({ ...b, ws: other }, 40_000_000)
+    expect(await start(b.ws)).toMatchObject({ blocked: false, refused: null })
+  })
+})

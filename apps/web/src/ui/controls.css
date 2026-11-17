@@ -329,3 +329,16 @@
   font-size: 11.5px;
   color: var(--ink-muted);
 }
+
+/* A short list of checkboxes under a question (partner/InvitedPicker.tsx). */
+.k-check-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+}
+.k-check-list > legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
