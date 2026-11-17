@@ -63,6 +63,7 @@ import {
   withoutResets,
 } from './billing-rules.ts'
 import { syncCatalogAfterCommit } from './billing-catalog.ts'
+import { customersWithoutTaxAddress, syncSubscriptionTaxAfterCommit } from './billing-tax.ts'
 import { workspacesOnBill } from './billing-owner.ts'
 import { billingProvider, billingState, refuseMoneyChange } from './billing-settings.ts'
 import type { Actor } from './context.ts'
@@ -955,7 +956,12 @@ export const billingAdminHandlers: Record<string, Handler> = {
     data: await events(tx, input.filter ?? 'all', input.before),
   }),
   'billing.adminReview': async ({ tx }) => ({ rows: {}, data: await reviewList(tx) }),
-  'billingRules.get': async ({ tx }) => ({ rows: {}, data: await rulesData(tx) }),
+  'billingRules.get': async ({ tx }) => {
+    const data = await rulesData(tx)
+    // Asked of Stripe only while tax is off: what turning it on would mean for paying customers (review #1105, M-1).
+    if (data.effective.automaticTax) return { rows: {}, data }
+    return { rows: {}, data: { ...data, taxAddressMissing: await customersWithoutTaxAddress(tx) } }
+  },
   'signup.getSelfServe': async ({ tx }) => ({ rows: {}, data: await selfServe(tx) }),
 
   'billing.credit': async ({ tx, actor, now }, input: CreditInput) => {
@@ -1085,6 +1091,9 @@ export const billingAdminHandlers: Record<string, Handler> = {
     )
     // Changed plan prices reach Stripe now, not at a customer's Checkout (security review of #1040, M-1).
     if (changed.some(k => PLAN_RULE_FIELDS.has(k))) syncCatalogAfterCommit(onCommit)
+    // The Stripe Tax switch reaches running subscriptions too, not only new Checkouts (security review of #1105, M-1).
+    if (mergeBillingRules(before).rules.automaticTax !== effective.automaticTax)
+      syncSubscriptionTaxAfterCommit(db, onCommit)
     return { rows: {}, data: { ...(await rulesData(tx)), changed } }
   },
 

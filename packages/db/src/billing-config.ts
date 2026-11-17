@@ -57,8 +57,12 @@ export const RECHARGE_CAP_BASE_CENTS = 5000
 export const RECHARGE_CAP_PER_WORKSPACE_CENTS = 2500
 /** The highest recharge cap an owner sets alone (with the step-up); above it only an instance admin. */
 export const RECHARGE_CAP_SELF_SERVE_MAX_CENTS = 100_000
-/** Auto-recharge: when the balance falls below the threshold, the saved card is charged the amount. */
-export const RECHARGE_DEFAULTS = { thresholdCents: 500, amountCents: 2000 } as const
+/**
+ * Auto-recharge: when the balance falls below the threshold, the saved card is charged the amount. $25, not the $20
+ * minimum: fewer charges a year, so fewer transactions toward the US states' 200-transaction sales tax thresholds
+ * (LIN-459).
+ */
+export const RECHARGE_DEFAULTS = { thresholdCents: 500, amountCents: 2500 } as const
 /** The owner's range for the threshold and the amount; $20 is also the smallest top-up. */
 export const RECHARGE_LIMITS = {
   thresholdCents: { min: 500, max: 10_000 },
@@ -126,6 +130,13 @@ export type BillingRules = {
   extraNumberCents: number
   /** What each workspace after the first adds to the monthly recharge cap. */
   rechargeCapPerWorkspaceCents: number
+  /**
+   * Stripe Tax (docs/billing.md §5.2): automatic tax on every Checkout, subscription and invoice the app makes, with a
+   * required billing address and tax ID collection at Checkout. On by default, as before the switch existed (security
+   * review of #1105, M-1); a self-hoster without Stripe Tax set up in their Stripe account turns it off. A change reaches
+   * running subscriptions too (billing-tax.ts).
+   */
+  automaticTax: boolean
 }
 
 /** Linedesk Cloud's rules, and the defaults of every install. */
@@ -147,6 +158,7 @@ export const BILLING_DEFAULTS: BillingRules = {
   callLimitGraceSeconds: 60,
   extraNumberCents: 300,
   rechargeCapPerWorkspaceCents: RECHARGE_CAP_PER_WORKSPACE_CENTS,
+  automaticTax: true,
 }
 
 /**

@@ -7,6 +7,7 @@ import { billing_accounts, billing_alerts, billing_recharges, instance_settings,
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { chargeRecharge, rechargeGaveUp, rechargeSetupAlertKey, sendBillingAlert } from '../src/billing-recharge.ts'
+import { BILLING_RULES_KEY } from '../src/billing-rules.ts'
 import { db } from '../src/db.ts'
 import type { Email, EmailSender } from '../src/email.ts'
 import { setJobQueue } from '../src/jobs.ts'
@@ -25,6 +26,12 @@ beforeEach(() => {
   } as never)
 })
 afterEach(() => setJobQueue(null))
+
+/** Whether the fake's customers have an address Stripe Tax can use (`customerTaxReady`). */
+const fakeTax = { ready: true }
+beforeEach(() => {
+  fakeTax.ready = true
+})
 
 /** A fake billing provider: answers `charge` and records every request. */
 function fakeProvider(charge: (input: RechargeInvoiceInput) => Awaited<ReturnType<BillingProvider['chargeRecharge']>>) {
@@ -81,6 +88,10 @@ function fakeProvider(charge: (input: RechargeInvoiceInput) => Awaited<ReturnTyp
     catalogWriteAccess: async () => ({ products: null, prices: null }),
     portalWriteAccess: async () => null,
     checkoutTermsReady: async () => null,
+    taxSetup: async () => null,
+    customerTaxReady: async () => fakeTax.ready,
+    customersWithoutTaxAddress: async () => 0,
+    syncSubscriptionTax: async () => 'unchanged',
     syncPortal: async () => ({ configuration: 'bpc_test', changed: false }),
     expireOpenCheckouts: async () => {
       throw new Error('not used')
@@ -143,14 +154,89 @@ describe('the recharge job', () => {
           description: 'Linedesk balance recharge',
           invoiceId: null,
           subscriptionId: null,
+          // Stripe Tax on by default (a self-hoster turns it off): tax on top, the item carries our code.
+          tax: { automatic: true, code: 'txcd_10103001' },
         },
       ],
     })
-    expect(await attemptOf(r.attempt.id)).toMatchObject({ status: 'pending', stripe_invoice_id: 'in_paid' })
+    expect(await attemptOf(r.attempt.id)).toMatchObject({ status: 'pending', stripe_invoice_id: 'in_paid', tax: 'on' })
     expect(await db.select().from(ledger_entries).where(eq(ledger_entries.billing_account_id, r.billId))).toEqual([])
     // A retry charges the invoice it already made, never a new one.
     await chargeRecharge(db, r.attempt.id, { provider })
     expect((calls[1]!.args[0] as RechargeInvoiceInput).invoiceId).toBe('in_paid')
+  })
+
+  test('the tax is decided at the first try and kept: a retry after the switch changed sends the same invoice (review #1105, L-1)', async () => {
+    const r = await pendingRecharge()
+    let tries = 0
+    const { provider, calls } = fakeProvider(() => {
+      if (++tries === 1) throw new Error('network')
+      return { status: 'paid', invoiceId: rid('in') }
+    })
+    await expect(chargeRecharge(db, r.attempt.id, { provider })).rejects.toThrow('network')
+    expect((await attemptOf(r.attempt.id)).tax).toBe('on')
+    await db
+      .insert(instance_settings)
+      .values({ key: BILLING_RULES_KEY, value: JSON.stringify({ automaticTax: false }) })
+      .onConflictDoUpdate({ target: instance_settings.key, set: { value: JSON.stringify({ automaticTax: false }) } })
+    try {
+      await chargeRecharge(db, r.attempt.id, { provider })
+      expect(calls.map(c => (c.args[0] as RechargeInvoiceInput).tax.automatic)).toEqual([true, true])
+      // A new attempt follows the switch as it is now.
+      const next = await pendingRecharge()
+      await chargeRecharge(db, next.attempt.id, { provider })
+      expect((calls[2]!.args[0] as RechargeInvoiceInput).tax.automatic).toBe(false)
+      expect((await attemptOf(next.attempt.id)).tax).toBe('off')
+    } finally {
+      await db.delete(instance_settings).where(eq(instance_settings.key, BILLING_RULES_KEY))
+    }
+  })
+
+  test('tax on, but the customer has no address: charged without tax rather than refused, never a stop (review #1105, M-1)', async () => {
+    fakeTax.ready = false
+    const r = await pendingRecharge()
+    const { provider, calls } = fakeProvider(() => ({ status: 'paid', invoiceId: rid('in') }))
+    expect(await chargeRecharge(db, r.attempt.id, { provider })).toMatchObject({ outcome: 'paid' })
+    expect((calls[0]!.args[0] as RechargeInvoiceInput).tax).toEqual({ automatic: false, code: 'txcd_10103001' })
+    expect(await attemptOf(r.attempt.id)).toMatchObject({ tax: 'no_address' })
+    expect((await billOf(r.billId)).recharge_failed_at).toBeNull()
+  })
+
+  test('Stripe refuses the invoice itself (a 400 at create): the owner path once, nothing to stop (review #1105, L-3)', async () => {
+    const r = await pendingRecharge()
+    const { provider, calls } = fakeProvider(() => ({
+      status: 'failed',
+      invoiceId: null,
+      failureCode: 'stripe_customer_tax_location_invalid',
+    }))
+    const now = '2026-11-16T12:00:00.000Z'
+    expect(await chargeRecharge(db, r.attempt.id, { provider, now: () => now })).toEqual({
+      outcome: 'failed',
+      invoiceId: null,
+    })
+    expect(calls.map(c => c.method)).toEqual(['chargeRecharge'])
+    expect(await attemptOf(r.attempt.id)).toMatchObject({
+      status: 'canceled',
+      failure_code: 'stripe_customer_tax_location_invalid',
+      stripe_invoice_id: null,
+    })
+    // The bill waits for the owner (no new attempt per call), and the owner is emailed once, keyed by the attempt.
+    expect(Date.parse((await billOf(r.billId)).recharge_failed_at!)).toBe(Date.parse(now))
+    expect(await db.select().from(billing_alerts).where(eq(billing_alerts.billing_account_id, r.billId))).toMatchObject(
+      [{ kind: 'recharge_failed', ref: r.attempt.id }],
+    )
+    expect(queued).toEqual([
+      {
+        name: 'billing.alert',
+        data: {
+          kind: 'recharge_failed',
+          bill: r.billId,
+          ref: r.attempt.id,
+          rechargeId: r.attempt.id,
+          needsOwner: false,
+        },
+      },
+    ])
   })
 
   test('the bill’s subscription goes with the charge, so the card Checkout saved on it is charged (billing review B1)', async () => {

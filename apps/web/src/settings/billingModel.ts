@@ -274,7 +274,7 @@ export function purchaseKeys(newKey: () => string = () => crypto.randomUUID()) {
 
 /** Threshold and amount choices of auto-recharge (cents), within the server's limits and its $5 gap. */
 export const THRESHOLD_CHOICES = [500, 1000, 2000, 5000, 10_000] as const
-export const AMOUNT_CHOICES = [2000, 3000, 5000, 10_000, 20_000, 50_000] as const
+export const AMOUNT_CHOICES = [2000, 2500, 3000, 5000, 10_000, 20_000, 50_000] as const
 export const amountFits = (thresholdCents: number, amountCents: number) => amountCents >= thresholdCents + 500
 
 /**

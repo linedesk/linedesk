@@ -23,7 +23,7 @@ import {
   workspaceCallLimit,
 } from '@linedesk/db'
 import { describe, expect, test } from 'vitest'
-import { isLinedeskPlan, mergeBillingRules } from '../src/billing-rules.ts'
+import { checkBillingRules, invoiceTax, isLinedeskPlan, mergeBillingRules, planCatalog } from '../src/billing-rules.ts'
 
 /** A small seeded generator, so a failing property shows the same case on every run. */
 function random(seed: number) {
@@ -402,6 +402,18 @@ describe("an install's own rules (docs/billing.md §7a)", () => {
     expect(problems.sort()).toEqual(['balanceBufferMicros', 'levels.gold', 'levels.ultra', 'surprise'])
     expect(mergeBillingRules('nonsense')).toEqual({ rules: BILLING_DEFAULTS, problems: ['not an object'] })
     expect(mergeBillingRules(undefined)).toEqual({ rules: BILLING_DEFAULTS, problems: [] })
+  })
+
+  test('Stripe Tax is on by default; an install turns it off, and Checkout and its own invoices follow (LIN-459)', () => {
+    expect(BILLING_DEFAULTS.automaticTax).toBe(true)
+    expect(planCatalog(BILLING_DEFAULTS, 'Front Desk')).toMatchObject({ automaticTax: true, taxCode: 'txcd_10103001' })
+    const { rules, problems } = mergeBillingRules({ automaticTax: false })
+    expect(problems).toEqual([])
+    expect(planCatalog(rules, 'Front Desk').automaticTax).toBe(false)
+    expect(invoiceTax(rules)).toEqual({ automatic: false, code: 'txcd_10103001' })
+    expect(mergeBillingRules({ automaticTax: 'yes' }).problems).toEqual(['automaticTax'])
+    expect(checkBillingRules({ automaticTax: 1 }).problems).toEqual(['automaticTax'])
+    expect(checkBillingRules({ automaticTax: true }).problems).toEqual([])
   })
 
   test('the math follows the rules: prices, the allowance, the buffer and the concurrency cap', () => {

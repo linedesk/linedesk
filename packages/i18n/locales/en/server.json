@@ -34,6 +34,7 @@
   "api.checkout.planGone": "Stripe no longer has this plan. Ask the server admins.",
   "api.checkout.text.plan": "Your plan starts today. Whenever your call balance falls below {threshold}, this card is charged {recharge} to recharge it, at most {cap} a month. You can change or turn this off in Settings › Billing.",
   "api.checkout.text.planNoRecharge": "Your plan starts today. Auto-recharge is off: you buy call minutes yourself in Settings › Billing.",
+  "api.checkout.text.taxNote": "Amounts are before tax; tax is added where it applies.",
   "api.checkout.text.topup": "Prepaid call minutes for your {brand} balance.",
   "api.checkout.text.trial": "Your {days}-day free trial starts today. Cancel before it ends and you pay nothing. When the trial ends, your plan renews and this card is charged {recharge} for your call balance. After that, whenever the balance falls below {threshold}, it is charged {recharge} again, at most {cap} a month. You can change or turn this off in Settings › Billing.",
   "api.checkout.text.trialNoRecharge": "Your {days}-day free trial starts today. Cancel before it ends and you pay nothing. After the trial your plan renews. Auto-recharge is off: you buy call minutes yourself in Settings › Billing.",

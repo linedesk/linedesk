@@ -20,6 +20,7 @@ import {
 /** Every field at its default: sent as null, so the server resets it (it merges over the stored rules). */
 const RESETS = {
   ...Object.fromEntries(RULE_FIELDS.map(([field]) => [field, null])),
+  automaticTax: null,
   levels: Object.fromEntries(Object.keys(BILLING_DEFAULTS.levels).map(name => [name, null])),
 }
 
@@ -60,6 +61,17 @@ test('the rules form round-trips the defaults to every field reset, nothing stor
   expect(form['levels.ultra.factor']).toBe('')
   expect(form.balanceBufferMicros).toBe('5')
   expect(form.extraNumberCents).toBe('3')
+  expect(rulesFromForm(form, BILLING_DEFAULTS)).toEqual({ rules: RESETS, problems: [] })
+})
+
+test('the Stripe Tax switch: on by default; off is stored as false, back at the default it is reset (LIN-459)', () => {
+  const form = rulesForm(BILLING_DEFAULTS)
+  expect(form.automaticTax).toBe('on')
+  expect(rulesFromForm({ ...form, automaticTax: 'off' }, BILLING_DEFAULTS)).toEqual({
+    rules: { ...RESETS, automaticTax: false },
+    problems: [],
+  })
+  expect(rulesForm({ ...BILLING_DEFAULTS, automaticTax: false }).automaticTax).toBe('off')
   expect(rulesFromForm(form, BILLING_DEFAULTS)).toEqual({ rules: RESETS, problems: [] })
 })
 

@@ -25,7 +25,10 @@ type Price = {
  * restricted key with read only on Products and Prices (every write to them is a 403).
  */
 function fakeAccount({ readOnly = false } = {}) {
-  const products = new Map<string, { id: string; object: 'product'; name: string; active: boolean }>()
+  const products = new Map<
+    string,
+    { id: string; object: 'product'; name: string; active: boolean; tax_code: string | null }
+  >()
   const prices: Price[] = []
   const calls: { route: string; body: URLSearchParams; key: string | null }[] = []
   const replays = new Map<string, string>()
@@ -57,7 +60,13 @@ function fakeAccount({ readOnly = false } = {}) {
         : reply(404, { error: { type: 'invalid_request_error', code: 'resource_missing' } })
     }
     if (kind === 'products' && !id && method === 'POST') {
-      const made = { id: body.get('id')!, object: 'product' as const, name: body.get('name')!, active: true }
+      const made = {
+        id: body.get('id')!,
+        object: 'product' as const,
+        name: body.get('name')!,
+        active: true,
+        tax_code: body.get('tax_code'),
+      }
       products.set(made.id, made)
       return answer(200, made)
     }
@@ -65,6 +74,7 @@ function fakeAccount({ readOnly = false } = {}) {
       const found = products.get(id)!
       if (body.has('name')) found.name = body.get('name')!
       if (body.has('active')) found.active = body.get('active') === 'true'
+      if (body.has('tax_code')) found.tax_code = body.get('tax_code')
       return reply(200, found)
     }
     if (kind === 'prices' && method === 'GET') {
@@ -110,6 +120,7 @@ const catalog = (brand: string, monthly: number) => ({
     { lookupKey: 'ws_yearly', product: 'workspace', cents: 10_800, interval: 'year' as const },
   ],
   taxCode: 'txcd_10103001',
+  automaticTax: true,
   currency: 'usd' as const,
 })
 
@@ -172,6 +183,21 @@ describe('the install catalog in its own Stripe account', () => {
     expect(replace.body.get('transfer_lookup_key')).toBe('true')
     // The unchanged yearly price is kept.
     expect(next.get('ws_yearly')).toBe(first.get('ws_yearly'))
+  })
+
+  test('a product without our tax code (made by hand, or by an older sync) gets it; a second run writes nothing', async () => {
+    const account = fakeAccount()
+    await ensureCatalog(account.stripe, catalog('Front Desk', 900))
+    account.products.get('linedesk_workspace')!.tax_code = 'txcd_10000000'
+    const before = account.writes().length
+    await ensureCatalog(account.stripe, catalog('Front Desk', 900))
+    const fixed = account.writes().slice(before)
+    expect(fixed.map(c => c.route)).toEqual(['POST /v1/products/linedesk_workspace'])
+    expect(fixed[0]!.body.get('tax_code')).toBe('txcd_10103001')
+    expect(account.products.get('linedesk_workspace')!.tax_code).toBe('txcd_10103001')
+    const after = account.writes().length
+    await ensureCatalog(account.stripe, catalog('Front Desk', 900))
+    expect(account.writes()).toHaveLength(after)
   })
 
   test('A → B → A makes a new price for A that takes the lookup key back, not a replay of the first A (L-2)', async () => {

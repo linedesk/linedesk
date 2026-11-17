@@ -330,6 +330,12 @@ export type BillingRulesData = {
   minMicrosPerMinute: number
   /** The lowest monthly plan fee for the rules in effect (BILLING_MIN_PLAN_CENTS); a yearly fee is at least 12 times it. */
   minPlanCents: number
+  /**
+   * While Stripe Tax is off: how many paying customers have no address Stripe can tax, shown before the admin turns it
+   * on (their recharges are then charged without tax until they add one). Null: not known (billing off, Stripe not
+   * answering). Left out while tax is on, and in billingRules.set's answer.
+   */
+  taxAddressMissing?: number | null
 }
 
 /** billingRules.set's refusal code when a plan fee is below the floor or a yearly fee above 12 monthly ones. */

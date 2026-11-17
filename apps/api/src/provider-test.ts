@@ -569,6 +569,7 @@ export async function testStripe(
   values: Values,
   doFetch: typeof fetch,
   env: Record<string, string | undefined>,
+  { automaticTax }: { automaticTax?: boolean } = {},
 ): Promise<Tested> {
   const secretKey = values.secret_key!
   const mode = stripeKeyMode(secretKey)
@@ -606,6 +607,21 @@ export async function testStripe(
     // The catalog sync keeps the customer portal to the design (no cancel): it needs write on its configuration.
     if ((await provider.portalWriteAccess()) === false)
       return warning('permission', said('admin.provider.test.stripePortalWrite', { line }))
+    // With the install's Stripe Tax on (Server admin › Billing), every Checkout and invoice asks Stripe to compute tax.
+    // Read only: the head office and the registrations are the admin's to set in the Dashboard, never the app's.
+    if (automaticTax) {
+      const tax = await provider.taxSetup()
+      if (tax && tax.status !== 'active')
+        return warning(
+          'config',
+          said('admin.provider.test.stripeTaxPending', {
+            line,
+            missing: tax.missingFields.join(', ') || tax.status,
+          }),
+        )
+      if (tax && tax.registrations === 0)
+        return warning('config', said('admin.provider.test.stripeTaxNoRegistrations', { line }))
+    }
     return ok(
       said(
         mode === 'live'
@@ -902,7 +918,7 @@ export async function testProvider(
   config: ProviderConfig,
   doFetch: typeof fetch = fetch,
   env: Record<string, string | undefined> = process.env,
-  options: { free?: boolean } = {},
+  options: { free?: boolean; automaticTax?: boolean } = {},
 ): Promise<ProviderTestData> {
   return testAnswer(await testProviderSaid(provider, config, doFetch, env, options))
 }
@@ -913,7 +929,7 @@ export async function testProviderSaid(
   config: ProviderConfig,
   doFetch: typeof fetch = fetch,
   env: Record<string, string | undefined> = process.env,
-  { free = false }: { free?: boolean } = {},
+  { free = false, automaticTax }: { free?: boolean; automaticTax?: boolean } = {},
 ): Promise<Tested> {
   const { label, fields } = providerSpec(provider)
   const values: Values = Object.fromEntries(
@@ -937,7 +953,7 @@ export async function testProviderSaid(
     return (await resendDomain(values, doFetch).catch(() => null)) ?? login
   }
   if (isOAuthApp(provider)) return testOAuthApp(provider, values, doFetch)
-  if (provider === 'stripe') return testStripe(values, doFetch, env)
+  if (provider === 'stripe') return testStripe(values, doFetch, env, { automaticTax })
 
   // Whatever comes back, a key must not travel on: drop every secret value that appears in the text.
   const scrub = (text: string) =>

@@ -39,6 +39,11 @@ export type RechargeInvoiceInput = {
    * before the charge (see `rechargeCard`).
    */
   subscriptionId?: string | null
+  /**
+   * Automatic tax on the invoice (the install's switch) and the tax code of its item. The balance is credited with the
+   * item's pre-tax amount only; the tax is the tax authority's, never balance.
+   */
+  tax: InvoiceTax
 }
 
 /**
@@ -63,7 +68,8 @@ export type RechargeCard = {
  */
 export type RechargeCharge =
   | { status: 'paid' | 'open'; invoiceId: string }
-  | { status: 'failed'; invoiceId: string; failureCode: string }
+  // invoiceId null: Stripe refused the invoice itself (a 400 at create), so there is none to stop (review #1105, L-3).
+  | { status: 'failed'; invoiceId: string | null; failureCode: string }
 
 /**
  * A Checkout Session to start (docs/billing.md §3.2 step 3, §2.2 top-ups). `trial`: the plan with the free trial (a
@@ -116,9 +122,34 @@ export type CheckoutInput = {
 export type PlanCatalog = {
   products: Record<string, string>
   prices: readonly { lookupKey: string; product: string; cents: number; interval: 'month' | 'year' }[]
+  /** The Stripe Tax code of every product (`txcd_10103001`, SaaS business use); set on each product by the sync. */
   taxCode: string
+  /**
+   * The install's Stripe Tax switch (`BillingRules.automaticTax`, docs/billing.md §5.2). On: Checkout computes tax
+   * (`automatic_tax`), needs the full billing address and collects tax IDs, and the subscription it makes keeps
+   * automatic tax for its invoices. Off: no tax is computed and the address is asked only when the card needs it.
+   */
+  automaticTax: boolean
   currency: 'usd'
 }
+
+/** How an invoice the app makes itself is taxed (a recharge, Buy minutes with the saved card, a trial's first recharge). */
+export type InvoiceTax = { automatic: boolean; code: string }
+
+/**
+ * Whether Stripe Tax can compute tax on the account (the provider test; read only, nothing is changed). `status`:
+ * Stripe's (`active`, or `pending` while required settings such as the head office address are missing, named in
+ * `missingFields`). `registrations`: how many tax registrations are active now; with none, Stripe Tax computes $0
+ * everywhere and only monitors thresholds.
+ */
+export type TaxSetup = { status: string; missingFields: string[]; registrations: number }
+
+/**
+ * What `syncSubscriptionTax` did with one subscription: `updated` (automatic tax set to the switch), `unchanged` (it was
+ * already), `no_address` (tax on, but its customer has no address Stripe can tax: left untaxed until one is added, so
+ * its next invoice does not fail), `gone` (no such subscription, or ended).
+ */
+export type SubscriptionTaxSync = 'updated' | 'unchanged' | 'no_address' | 'gone'
 
 /** A started Checkout Session: where the owner pays. The URL is a bearer link, never stored. */
 export type CheckoutStarted = { id: string; url: string }
@@ -179,6 +210,8 @@ export type InvoiceItemInput = {
   description: string
   /** The `billing_recharges.id`: the idempotency key and the item's `metadata.billing_recharge_id`. */
   rechargeId: string
+  /** The item's tax code; whether tax is computed is the subscription's own `automatic_tax` (set by its Checkout). */
+  taxCode: string
 }
 
 /** A webhook event whose signature was checked (or one listed from the API by the nightly reconciliation), cut to what
@@ -491,6 +524,21 @@ export type BillingProvider = {
    * `successUrl`: the install's own address (the session needs one; nobody can reach it, it is expired at once).
    */
   checkoutTermsReady(successUrl: string): Promise<boolean | null>
+  /**
+   * Stripe Tax on the account (`TaxSetup`): its settings and active registrations, read only. `null`: not known (a key
+   * without the permission, no answer). The provider test warns from it; account settings are never written here.
+   */
+  taxSetup(): Promise<TaxSetup | null>
+  /**
+   * Whether Stripe Tax can tax this customer: false only when Stripe says it does not know where the customer is
+   * (`tax.automatic_tax = unrecognized_location`, no billing address). A recharge for such a customer is charged without
+   * tax instead of failing (security review of #1105, M-1).
+   */
+  customerTaxReady(customerId: string): Promise<boolean>
+  /** How many of these customers Stripe Tax cannot tax (see `customerTaxReady`), for the admin before turning tax on. */
+  customersWithoutTaxAddress(customerIds: string[]): Promise<number>
+  /** Sets automatic tax on one running subscription to the install's switch (idempotent; see `SubscriptionTaxSync`). */
+  syncSubscriptionTax(subscriptionId: string, enabled: boolean): Promise<SubscriptionTaxSync>
   /**
    * Makes the customer portal configuration (`PORTAL_METADATA`) match the design (`PortalDesign`): made when missing,
    * its features and links set when they differ (a cancel switched on in the Dashboard is switched off again). Run

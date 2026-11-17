@@ -157,6 +157,7 @@ const recharge = {
   amountCents: 2000,
   rechargeId: 'rc_abc',
   description: 'Linedesk balance recharge',
+  tax: { automatic: true, code: 'txcd_10103001' },
 }
 const stripeWith = (doFetch: typeof fetch) =>
   loadBillingProvider({ secretKey: TEST_KEY, webhookSecret: 'whsec_abc' }, doFetch)
@@ -165,6 +166,7 @@ const CATALOG = {
   products: { workspace: 'Front Desk workspace', balance_topup: 'Prepaid minutes' },
   prices: [{ lookupKey: 'ws_yearly', product: 'workspace', cents: 10_800, interval: 'year' as const }],
   taxCode: 'txcd_10103001',
+  automaticTax: true,
   currency: 'usd' as const,
 }
 /** Stripe already has the catalog: the products by our ids and a fitting price per lookup key. */
@@ -172,7 +174,7 @@ const catalogRoutes = (): Record<string, (body: URLSearchParams) => [number, unk
   ...Object.fromEntries(
     Object.entries(CATALOG.products).map(([key, name]) => [
       `GET /v1/products/linedesk_${key}`,
-      () => [200, { id: `linedesk_${key}`, object: 'product', name, active: true }],
+      () => [200, { id: `linedesk_${key}`, object: 'product', name, active: true, tax_code: CATALOG.taxCode }],
     ]),
   ),
   'GET /v1/prices': () => [
@@ -281,9 +283,30 @@ describe('stripe recharges', () => {
       amount: '2000',
       currency: 'usd',
       tax_behavior: 'exclusive',
+      tax_code: 'txcd_10103001',
     })
     expect(Object.fromEntries(calls[1]!.body)).toEqual({ description: 'Linedesk balance recharge' })
     expect(Object.fromEntries(calls[3]!.body)).toEqual({ description: 'Linedesk balance recharge' })
+  })
+
+  test('with the install’s Stripe Tax off, the recharge invoice computes no tax; the item keeps the tax code', async () => {
+    const { doFetch, calls } = stripeRoutes({
+      'POST /v1/invoices': () => [200, invoice('draft', 0)],
+      'POST /v1/invoices/in_1Rc': () => [200, invoice('draft', 0)],
+      'POST /v1/invoiceitems': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoiceitems/ii_1': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoices/in_1Rc/finalize': () => [200, invoice('open')],
+      'GET /v1/customers/cus_1': () => [200, customer(card('pm_own'))],
+      'POST /v1/invoices/in_1Rc/pay': () => [200, invoice('paid')],
+    })
+    const untaxed = { ...recharge, tax: { automatic: false, code: 'txcd_10103001' } }
+    expect(await (await stripeWith(doFetch)).chargeRecharge(untaxed)).toEqual({ status: 'paid', invoiceId: 'in_1Rc' })
+    expect(Object.fromEntries(calls.find(c => c.route === 'POST /v1/invoices')!.body)).toMatchObject({
+      'automatic_tax[enabled]': 'false',
+    })
+    expect(Object.fromEntries(calls.find(c => c.route === 'POST /v1/invoiceitems')!.body)).toMatchObject({
+      tax_code: 'txcd_10103001',
+    })
   })
 
   test('a retry after the product was renamed sends the same idempotent requests; only the texts change (L-5)', async () => {
@@ -406,6 +429,38 @@ describe('stripe recharges', () => {
     expect(await stripe.findRechargeInvoice('rc_abc')).toBe('in_1Rc')
     await expect(stripe.findRechargeInvoice("rc_x' OR '1")).rejects.toThrow('not a recharge id')
     expect(await stripe.rechargeInvoicePage('in_1Rc')).toBe('https://invoice.stripe.com/i/acct_1/test_x')
+  })
+
+  test('Stripe refuses the invoice or its item (a 400 before finalize): a failed recharge too, never a quiet retry (review #1105, L-3)', async () => {
+    const taxError = {
+      error: { type: 'invalid_request_error', code: 'customer_tax_location_invalid', message: 'No tax location.' },
+    }
+    const atCreate = stripeRoutes({ 'POST /v1/invoices': () => [400, taxError] })
+    expect(await (await stripeWith(atCreate.doFetch)).chargeRecharge(recharge)).toEqual({
+      status: 'failed',
+      invoiceId: null,
+      failureCode: 'stripe_customer_tax_location_invalid',
+    })
+    // At the item: the draft is handed back, so the failed-recharge path deletes it.
+    const atItem = stripeRoutes({
+      'POST /v1/invoices': () => [200, invoice('draft', 0)],
+      'POST /v1/invoices/in_1Rc': () => [200, invoice('draft', 0)],
+      'POST /v1/invoiceitems': () => [400, taxError],
+    })
+    expect(await (await stripeWith(atItem.doFetch)).chargeRecharge(recharge)).toEqual({
+      status: 'failed',
+      invoiceId: 'in_1Rc',
+      failureCode: 'stripe_customer_tax_location_invalid',
+    })
+    expect(atItem.calls.some(c => c.route.endsWith('/finalize'))).toBe(false)
+    // A reused key with other parameters: an earlier try made the invoice, so the job retries and finds it.
+    const reused = stripeRoutes({
+      'POST /v1/invoices': () => [
+        400,
+        { error: { type: 'idempotency_error', message: 'Keys for idempotent requests.' } },
+      ],
+    })
+    await expect((await stripeWith(reused.doFetch)).chargeRecharge(recharge)).rejects.toThrow()
   })
 
   test('a request Stripe refuses for good (a 4xx that is no card error, conflict or rate limit) fails the recharge (review L3)', async () => {
@@ -998,6 +1053,44 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
     expect(calls.map(c => c.route)).toEqual(['POST /v1/checkout/sessions'])
   })
 
+  test('with the install’s Stripe Tax off: no automatic tax and no tax IDs; Stripe asks for the address only if needed', async () => {
+    for (const kind of ['plan', 'topup'] as const) {
+      const { doFetch, calls } = stripeRoutes({
+        ...catalogRoutes(),
+        'POST /v1/checkout/sessions': () => [200, session],
+      })
+      await (await stripeWith(doFetch)).startCheckout({
+        ...base,
+        catalog: { ...CATALOG, automaticTax: false },
+        kind,
+        ...(kind === 'plan' ? { items: [{ lookupKey: 'ws_yearly', quantity: 1 }] } : { amountCents: 2500 }),
+      })
+      const body = Object.fromEntries(calls.find(c => c.route === 'POST /v1/checkout/sessions')!.body)
+      expect(body).toMatchObject({
+        'automatic_tax[enabled]': 'false',
+        billing_address_collection: 'auto',
+        'tax_id_collection[enabled]': 'false',
+        'customer_update[address]': 'auto',
+      })
+    }
+  })
+
+  test('a top-up with Stripe Tax on: tax on top of the exclusive amount, address required, tax IDs', async () => {
+    const { doFetch, calls } = stripeRoutes({ ...catalogRoutes(), 'POST /v1/checkout/sessions': () => [200, session] })
+    await (await stripeWith(doFetch)).startCheckout({ ...base, kind: 'topup', amountCents: 2500 })
+    const body = Object.fromEntries(calls.find(c => c.route === 'POST /v1/checkout/sessions')!.body)
+    expect(body).toMatchObject({
+      mode: 'payment',
+      'line_items[0][price_data][unit_amount]': '2500',
+      'line_items[0][price_data][tax_behavior]': 'exclusive',
+      'line_items[0][price_data][product]': 'linedesk_balance_topup',
+      'automatic_tax[enabled]': 'true',
+      billing_address_collection: 'required',
+      'tax_id_collection[enabled]': 'true',
+      'invoice_creation[enabled]': 'true',
+    })
+  })
+
   test('the install’s name and color at the top of Checkout (branding_settings); the stated text; no logo', async () => {
     const { doFetch, calls } = stripeRoutes({ ...catalogRoutes(), 'POST /v1/checkout/sessions': () => [200, session] })
     await (await stripeWith(doFetch)).startCheckout({
@@ -1450,6 +1543,98 @@ describe('stripe customer portal (Settings › Billing, docs/billing.md §2.4)',
     })
     const error = await (await stripeWith(denied.doFetch)).syncPortal(design).catch(e => e)
     expect(error).toBeInstanceOf(BillingSetupError)
+  })
+
+  test('a customer Stripe Tax cannot locate is told apart, counted among ours, and kept untaxed on its subscription (review #1105, M-1)', async () => {
+    const located = (id: string, status: string) => ({ id, object: 'customer', tax: { automatic_tax: status } })
+    const sub = (enabled: boolean, customer: object, status = 'active') => ({
+      id: 'sub_1',
+      object: 'subscription',
+      status,
+      customer,
+      automatic_tax: { enabled },
+    })
+    const ready = stripeRoutes({
+      'GET /v1/customers/cus_1': () => [200, located('cus_1', 'supported')],
+      'GET /v1/customers/cus_2': () => [200, located('cus_2', 'unrecognized_location')],
+    })
+    const provider = await stripeWith(ready.doFetch)
+    expect(await provider.customerTaxReady('cus_1')).toBe(true)
+    expect(await provider.customerTaxReady('cus_2')).toBe(false)
+    expect(Object.fromEntries(ready.calls[0]!.url.searchParams)).toMatchObject({ 'expand[0]': 'tax' })
+    const listed = stripeRoutes({
+      'GET /v1/customers': () => [
+        200,
+        {
+          object: 'list',
+          has_more: false,
+          data: [
+            located('cus_1', 'unrecognized_location'),
+            located('cus_2', 'supported'),
+            located('cus_other', 'unrecognized_location'),
+          ],
+        },
+      ],
+    })
+    expect(await (await stripeWith(listed.doFetch)).customersWithoutTaxAddress(['cus_1', 'cus_2'])).toBe(1)
+
+    const updates: URLSearchParams[] = []
+    const subscription = (found: object) =>
+      stripeRoutes({
+        'GET /v1/subscriptions/sub_1': () => [200, found],
+        'POST /v1/subscriptions/sub_1': (body: URLSearchParams) => {
+          updates.push(body)
+          return [200, found]
+        },
+      })
+    const sync = async (found: object, enabled: boolean) =>
+      (await stripeWith(subscription(found).doFetch)).syncSubscriptionTax('sub_1', enabled)
+    expect(await sync(sub(false, located('cus_1', 'supported')), true)).toBe('updated')
+    expect(Object.fromEntries(updates[0]!)).toEqual({ 'automatic_tax[enabled]': 'true', proration_behavior: 'none' })
+    expect(await sync(sub(true, located('cus_1', 'supported')), true)).toBe('unchanged')
+    expect(await sync(sub(false, located('cus_1', 'unrecognized_location')), true)).toBe('no_address')
+    expect(await sync(sub(true, located('cus_1', 'unrecognized_location')), false)).toBe('updated')
+    expect(await sync(sub(true, located('cus_1', 'supported'), 'canceled'), false)).toBe('gone')
+    expect(updates).toHaveLength(2)
+  })
+
+  test('taxSetup reads the Stripe Tax settings and active registrations, writes nothing; a refusal is not known', async () => {
+    const pending = stripeRoutes({
+      'GET /v1/tax/settings': () => [
+        200,
+        {
+          object: 'tax.settings',
+          status: 'pending',
+          status_details: { pending: { missing_fields: ['head_office'] } },
+          defaults: { tax_code: 'txcd_10103001', tax_behavior: 'exclusive' },
+          head_office: null,
+        },
+      ],
+      'GET /v1/tax/registrations': () => [200, { object: 'list', has_more: false, data: [] }],
+    })
+    expect(await (await stripeWith(pending.doFetch)).taxSetup()).toEqual({
+      status: 'pending',
+      missingFields: ['head_office'],
+      registrations: 0,
+    })
+    expect(pending.calls.every(c => c.route.startsWith('GET '))).toBe(true)
+    expect(Object.fromEntries(pending.calls[1]!.url.searchParams)).toMatchObject({ status: 'active' })
+    const active = stripeRoutes({
+      'GET /v1/tax/settings': () => [200, { object: 'tax.settings', status: 'active', status_details: { active: {} } }],
+      'GET /v1/tax/registrations': () => [
+        200,
+        { object: 'list', has_more: false, data: [{ id: 'taxreg_1', object: 'tax.registration', country: 'DE' }] },
+      ],
+    })
+    expect(await (await stripeWith(active.doFetch)).taxSetup()).toEqual({
+      status: 'active',
+      missingFields: [],
+      registrations: 1,
+    })
+    const denied = stripeRoutes({
+      'GET /v1/tax/settings': () => [403, { error: { type: 'invalid_request_error', message: 'restricted key' } }],
+    })
+    expect(await (await stripeWith(denied.doFetch)).taxSetup()).toBeNull()
   })
 
   test('the provider test’s checks: terms URL (a setup session made and expired) and portal write access', async () => {

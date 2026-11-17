@@ -43,6 +43,7 @@ const FIELDS = {
   callLimitGraceSeconds: count(0, 3600),
   extraNumberCents: count(0, 100_000),
   rechargeCapPerWorkspaceCents: count(0, 1_000_000),
+  automaticTax: z.boolean(),
 } satisfies Partial<Record<keyof BillingRules, z.ZodType>>
 
 /** `stored` over the defaults, field by field; `problems` names what was ignored. */
@@ -217,8 +218,12 @@ export const planCatalog = (rules: BillingRules, brand: string): PlanCatalog => 
   products: planProducts(brand),
   prices: planPrices(rules),
   taxCode: STRIPE_TAX_CODE,
+  automaticTax: rules.automaticTax,
   currency: 'usd',
 })
+
+/** How the app's own invoices are taxed (recharges, Buy minutes with the saved card): the install's switch and code. */
+export const invoiceTax = (rules: BillingRules) => ({ automatic: rules.automaticTax, code: STRIPE_TAX_CODE })
 
 /**
  * The text on a recharge invoice's line, with the install's product name ("Front Desk balance recharge"). Stripe shows

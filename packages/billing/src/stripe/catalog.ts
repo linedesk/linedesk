@@ -22,7 +22,10 @@ const isStripe404 = (error: unknown) => error instanceof Stripe.errors.StripeErr
 const idOf = (value: string | { id: string } | null | undefined) =>
   typeof value === 'string' ? value : (value?.id ?? null)
 
-/** One product of ours: found, made when missing; renamed (or reactivated) only when `rename`. */
+/**
+ * One product of ours: found, made when missing (with the tax code); renamed, reactivated or given the tax code only
+ * when `rename` (the catalog sync, never a customer's Checkout).
+ */
 export async function ensureProduct(
   stripe: Stripe,
   key: string,
@@ -43,8 +46,8 @@ export async function ensureProduct(
         if (error instanceof Stripe.errors.StripeError && error.code === 'resource_already_exists') return null
         throw error
       })
-  } else if (rename && (found.name !== name || !found.active)) {
-    await stripe.products.update(id, { name, active: true })
+  } else if (rename && (found.name !== name || !found.active || idOf(found.tax_code) !== taxCode)) {
+    await stripe.products.update(id, { name, active: true, tax_code: taxCode })
   }
 }
 

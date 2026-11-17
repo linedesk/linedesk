@@ -254,6 +254,8 @@ function PlanCard({
           </span>
         )}
         {bill.status === 'trialing' && <span className="help">{t('settings.billing.plan.trialNote')}</span>}
+        {bill.taxed && <span className="help">{t('settings.billing.plan.taxNote')}</span>}
+        {bill.taxAddressMissing && <span className="help">{t('settings.billing.plan.taxAddressMissing')}</span>}
         {bill.extraNumberCents > 0 && (
           <span className="help">
             {t('settings.billing.plan.numbers', {
@@ -643,9 +645,11 @@ function BalanceCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text:
         >
           {failure.needsAction
             ? t('settings.billing.retry.needsAction')
-            : bill.autoRecharge.on
-              ? t('settings.billing.retry.declined', { count: failure.retriesLeft })
-              : t('settings.billing.retry.declinedAutoOff')}
+            : failure.code === TAX_ADDRESS_MISSING
+              ? t('settings.billing.retry.noTaxAddress')
+              : bill.autoRecharge.on
+                ? t('settings.billing.retry.declined', { count: failure.retriesLeft })
+                : t('settings.billing.retry.declinedAutoOff')}
         </Note>
       )}
       {bill.canBuyMinutes && paysCharges(bill) && (
@@ -661,7 +665,7 @@ function BalanceCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text:
           </Button>
         </div>
       )}
-      {buying && <TopUpDialog onClose={() => setBuying(false)} toast={toast} />}
+      {buying && <TopUpDialog taxed={bill.taxed} onClose={() => setBuying(false)} toast={toast} />}
     </Section>
   )
 }
@@ -672,7 +676,15 @@ function BalanceCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text:
  * sign-in, as for raising the cap). Without a saved card, over the daily limit, or when the bank wants a confirmation,
  * the server answers a Stripe Checkout instead. "Use another card" goes to Checkout directly.
  */
-function TopUpDialog({ onClose, toast }: { onClose: () => void; toast: (text: string) => void }) {
+function TopUpDialog({
+  taxed,
+  onClose,
+  toast,
+}: {
+  taxed: boolean
+  onClose: () => void
+  toast: (text: string) => void
+}) {
   const t = useT()
   const format = useFormat()
   const [picked, setPicked] = useState<number | 'other'>(TOP_UP_CHOICES[1])
@@ -766,11 +778,13 @@ function TopUpDialog({ onClose, toast }: { onClose: () => void; toast: (text: st
             {!cents
               ? t('settings.billing.topUp.payNoAmount')
               : card
-                ? t('settings.billing.topUp.charge', {
+                ? t(taxed ? 'settings.billing.topUp.chargeTaxed' : 'settings.billing.topUp.charge', {
                     amount: format.currency(centsToDollars(cents), 'USD'),
                     card: cardName,
                   })
-                : t('settings.billing.topUp.pay', { amount: format.currency(centsToDollars(cents), 'USD') })}
+                : t(taxed ? 'settings.billing.topUp.payTaxed' : 'settings.billing.topUp.pay', {
+                    amount: format.currency(centsToDollars(cents), 'USD'),
+                  })}
           </Button>
         </>
       }
@@ -816,9 +830,16 @@ function TopUpDialog({ onClose, toast }: { onClose: () => void; toast: (text: st
         </FormField>
       )}
       {card && <Note>{t('settings.billing.topUp.cardNote', { card: cardName })}</Note>}
+      {taxed && <p className="help">{t('settings.billing.topUp.taxNote')}</p>}
     </Dialog>
   )
 }
+
+/**
+ * Stripe Tax could not place the customer (no billing address, or one it cannot read): the recharge invoice was not
+ * charged at all. Not a card decline: the owner adds the address in the Stripe portal, then tries again.
+ */
+const TAX_ADDRESS_MISSING = 'stripe_customer_tax_location_invalid'
 
 /** "Visa ending in 4242" for the saved card Buy minutes would charge (Stripe's brand code, capitalized). */
 function savedCardLabel(card: { brand: string | null; last4: string | null }, t: ReturnType<typeof useT>) {
@@ -866,7 +887,7 @@ function AutoRechargeCard({ bill, toast }: { bill: BillingOverviewBill; toast: (
         title={t('settings.billing.auto.switch')}
         description={
           auto.on
-            ? t('settings.billing.auto.onText', {
+            ? t(bill.taxed ? 'settings.billing.auto.onTextTaxed' : 'settings.billing.auto.onText', {
                 threshold: money(auto.thresholdCents),
                 amount: money(auto.amountCents),
               })
@@ -914,7 +935,7 @@ function AutoRechargeCard({ bill, toast }: { bill: BillingOverviewBill; toast: (
         <div>
           <b>{t('settings.billing.cap.title')}</b>
           <span className="help">
-            {t('settings.billing.cap.text', {
+            {t(bill.taxed ? 'settings.billing.cap.textTaxed' : 'settings.billing.cap.text', {
               cap: money(bill.cap.effectiveCents),
               used: money(bill.cap.usedThisMonthCents),
             })}
@@ -985,7 +1006,9 @@ function CapDialog({
   return (
     <Dialog
       title={t('settings.billing.cap.dialogTitle')}
-      description={t('settings.billing.cap.dialogText', { max: money(bill.cap.ownerMaxBaseCents + extra) })}
+      description={t(bill.taxed ? 'settings.billing.cap.dialogTextTaxed' : 'settings.billing.cap.dialogText', {
+        max: money(bill.cap.ownerMaxBaseCents + extra),
+      })}
       size="sm"
       onClose={busy ? () => {} : onClose}
       onSubmit={e => {
@@ -1150,7 +1173,15 @@ function InvoicesCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text
               key={inv.id}
               // i18n-dynamic: settings.billing.invoices.kind.* settings.billing.invoices.status.*
               title={t(`settings.billing.invoices.kind.${inv.kind}` as MessageKey)}
-              sub={[format.date(new Date(inv.createdAt)), inv.number].filter(Boolean).join(' · ')}
+              sub={[
+                format.date(new Date(inv.createdAt)),
+                inv.number,
+                // Tax as its own line: the total above includes it; the balance never got it.
+                inv.taxCents > 0 &&
+                  t('settings.billing.invoices.tax', { amount: format.currency(centsToDollars(inv.taxCents), 'USD') }),
+              ]
+                .filter(Boolean)
+                .join(' · ')}
               aside={
                 <>
                   {format.currency(centsToDollars(inv.totalCents), 'USD')}{' '}

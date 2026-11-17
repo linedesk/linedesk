@@ -239,6 +239,10 @@ function fakeStripe(invoices: Map<string, BillingInvoice>, blockers: string[] = 
     catalogWriteAccess: async () => ({ products: null, prices: null }),
     portalWriteAccess: async () => null,
     checkoutTermsReady: async () => null,
+    taxSetup: async () => null,
+    customerTaxReady: async () => true,
+    customersWithoutTaxAddress: async () => 0,
+    syncSubscriptionTax: async () => 'unchanged',
     syncPortal: async () => ({ configuration: 'bpc_test', changed: false }),
     expireOpenCheckouts: async () => {
       throw new Error('not used')

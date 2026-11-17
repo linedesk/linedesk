@@ -275,7 +275,7 @@ describe('billing.overview', () => {
       cancelAtPeriodEnd: false,
       balanceMicros: (2500 - 80) * 10_000,
       availableMicros: (2500 - 80) * 10_000,
-      autoRecharge: { on: true, thresholdCents: 500, amountCents: 2000 },
+      autoRecharge: { on: true, thresholdCents: 500, amountCents: 2500 },
       cap: { baseCents: 5000, effectiveCents: 5000, usedThisMonthCents: 0, ownerMaxBaseCents: 100_000 },
       rechargeFailure: null,
       canBuyMinutes: true,

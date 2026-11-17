@@ -66,6 +66,7 @@ import {
   refuseMoneyKeysChange,
   refuseStripeKeysWhileOn,
 } from './billing-settings.ts'
+import { billingRules } from './billing-rules.ts'
 import { missingFields, testAnswer, testProvider, testProviderSaid } from './provider-test.ts'
 import { recentTest, rememberTest } from './setup-checklist.ts'
 import { s3EndpointProblem } from './s3-endpoint.ts'
@@ -402,7 +403,11 @@ export const adminHandlers: Record<string, Handler> = {
     // The same keys tested a moment ago (the overview tests on open, a double click): the last result, no request.
     const recent = await recentTest(tx, input.provider, config)
     if (recent) return { rows: {}, data: recent }
-    const tested = await testProviderSaid(input.provider, config, fetch, process.env, { free: input.free ?? false })
+    const tested = await testProviderSaid(input.provider, config, fetch, process.env, {
+      free: input.free ?? false,
+      // Stripe: whether the install's Stripe Tax is on, so the test checks the account's tax setup (LIN-459).
+      ...(input.provider === 'stripe' ? { automaticTax: (await billingRules(tx)).automaticTax } : {}),
+    })
     // Stored, recorded and alerted in English; the admin who asked reads it in their language.
     const result = testAnswer(tested)
     await rememberTest(tx, input.provider, config, result)

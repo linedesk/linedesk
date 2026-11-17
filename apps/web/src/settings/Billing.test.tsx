@@ -59,6 +59,8 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
   extraNumberCents: 300,
   canBuyMinutes: true,
   hasPortal: true,
+  taxed: false,
+  taxAddressMissing: false,
   period: {
     startsAt: new Date(Date.now() - 10 * DAY).toISOString(),
     endsAt: new Date(Date.now() + 20 * DAY).toISOString(),
@@ -80,6 +82,7 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
       number: 'LD-0001',
       status: 'paid',
       totalCents: 1100,
+      taxCents: 0,
       createdAt: new Date(Date.now() - 10 * DAY).toISOString(),
       url: 'https://invoice.stripe.test/i/1',
     },
@@ -122,6 +125,45 @@ test('a running plan: price, renewal, balance, usage, invoices, Buy minutes as t
   expect(html).toContain('Cancel plan')
   expect(html).toContain('Card and invoices')
   expect(primaries(html)).toBe(1)
+})
+
+test('with Stripe Tax on: prices are before tax, auto-recharge says tax is added, an invoice shows its tax (LIN-459)', () => {
+  const taxed = render({
+    billingOn: true,
+    bill: bill({
+      taxed: true,
+      invoices: [{ ...bill().invoices[0]!, totalCents: 1188, taxCents: 88 }],
+    }),
+  })
+  expect(taxed).toContain('Prices are before tax. Tax is added where it applies, based on your billing address.')
+  expect(taxed).toContain('your card is charged $20 plus tax where it applies. Your balance gets $20.')
+  expect(taxed).toContain('$11.88')
+  expect(taxed).toContain('incl. $0.88 tax')
+  // The monthly cap is counted before tax (security review of #1105, L-2).
+  expect(taxed).toContain('a calendar month, plus tax where it applies')
+  expect(taxed).not.toContain('Add your billing address')
+  const noAddress = render({ billingOn: true, bill: bill({ taxed: true, taxAddressMissing: true }) })
+  expect(noAddress).toContain('Until then, recharges are charged without tax.')
+  const untaxed = render({ billingOn: true, bill: bill() })
+  expect(untaxed).not.toContain('Prices are before tax')
+  expect(untaxed).not.toContain('plus tax')
+  expect(untaxed).not.toContain('tax</')
+})
+
+test('a recharge refused for a missing billing address says so, not "declined" (LIN-459)', () => {
+  const html = render({
+    billingOn: true,
+    bill: bill({
+      rechargeFailure: {
+        at: new Date().toISOString(),
+        code: 'stripe_customer_tax_location_invalid',
+        needsAction: false,
+        retriesLeft: 2,
+      },
+    }),
+  })
+  expect(html).toContain('Your card was not charged: tax needs your billing address.')
+  expect(html).not.toContain('Your card was declined')
 })
 
 test('the trial: its end and the days left, said in plain words', () => {

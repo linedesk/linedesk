@@ -215,6 +215,60 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
         })
       return true
     },
+    async taxSetup() {
+      // Reads only (GET /v1/tax/settings, GET /v1/tax/registrations): the head office and registrations are set by a
+      // person in the Dashboard (docs/runbook.md, "Stripe account setup"), never by the app.
+      try {
+        const settings = await stripe.tax.settings.retrieve()
+        let registrations = 0
+        for await (const _ of stripe.tax.registrations.list({ status: 'active', limit: 100 })) registrations++
+        return {
+          status: settings.status,
+          missingFields: settings.status_details?.pending?.missing_fields ?? [],
+          registrations,
+        }
+      } catch {
+        // A restricted key without the Tax permission, a network failure: not known, never a reason to fail the test.
+        return null
+      }
+    },
+    async customerTaxReady(customerId) {
+      const customer = await stripe.customers.retrieve(customerId, { expand: ['tax'] })
+      if ('deleted' in customer && customer.deleted) return false
+      return !untaxable(customer as Stripe.Customer)
+    },
+    async customersWithoutTaxAddress(customerIds) {
+      const wanted = new Set(customerIds)
+      let count = 0
+      if (!wanted.size) return 0
+      for await (const customer of stripe.customers.list({ limit: 100, expand: ['data.tax'] }))
+        if (wanted.has(customer.id) && untaxable(customer)) count++
+      return count
+    },
+    async syncSubscriptionTax(subscriptionId, enabled) {
+      let sub: Stripe.Subscription
+      try {
+        sub = await stripe.subscriptions.retrieve(subscriptionId, { expand: ['customer.tax'] })
+      } catch (error) {
+        if (missing(error)) return 'gone'
+        throw error
+      }
+      if (sub.status === 'canceled' || sub.status === 'incomplete_expired') return 'gone'
+      if ((sub.automatic_tax?.enabled ?? false) === enabled) return 'unchanged'
+      // Turning tax on for a customer without an address would make its next invoice fail to finalize: it stays off
+      // until the customer adds one, and a later run (the nightly reconciliation) sets it.
+      const customer = sub.customer
+      if (
+        enabled &&
+        typeof customer !== 'string' &&
+        !('deleted' in customer && customer.deleted) &&
+        untaxable(customer)
+      )
+        return 'no_address'
+      // Only the tax flag: no proration, nothing charged now; the next invoice is computed with or without tax.
+      await stripe.subscriptions.update(subscriptionId, { automatic_tax: { enabled }, proration_behavior: 'none' })
+      return 'updated'
+    },
     async syncPortal(design) {
       const wanted = { headline: design.headline, termsUrl: design.termsUrl, privacyUrl: design.privacyUrl }
       try {
@@ -324,6 +378,7 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
           amount: input.amountCents,
           currency: 'usd',
           tax_behavior: 'exclusive',
+          tax_code: input.taxCode,
           metadata: { [RECHARGE_METADATA]: input.rechargeId },
         },
         { idempotencyKey: `${input.rechargeId}:item` },
@@ -745,9 +800,25 @@ function refusedSetup(error: unknown): BillingSetupError | null {
 }
 
 /**
+ * Checkout's tax fields (docs/billing.md §5.2). With the install's Stripe Tax on: automatic tax (a subscription made by
+ * the session keeps it for all its invoices: renewals, seat changes, the trial's first invoice), the full billing
+ * address required, and tax IDs collected ("I'm purchasing as a business"); the address and tax ID are saved on the
+ * customer (`customer_update`), so the app's own invoices (recharges) are taxed at the same address. Off: no tax, and
+ * Stripe asks for the address only when the card needs it.
+ */
+export function checkoutTax(automaticTax: boolean) {
+  return {
+    automatic_tax: { enabled: automaticTax },
+    billing_address_collection: automaticTax ? ('required' as const) : ('auto' as const),
+    customer_update: { address: 'auto' as const, name: 'auto' as const },
+    tax_id_collection: { enabled: automaticTax },
+  }
+}
+
+/**
  * A Checkout Session (docs/billing.md §3.2 step 3, §2.2): the card-only configuration and never
- * `payment_method_types` (§2.4), automatic tax on our exclusive prices, a required billing address, tax ids, the
- * terms for a plan. A plan saves its card on the subscription; no `setup_future_usage` in subscription mode.
+ * `payment_method_types` (§2.4), our exclusive prices with the install's tax fields (`checkoutTax`), the terms for a
+ * plan. A plan saves its card on the subscription; no `setup_future_usage` in subscription mode.
  */
 async function startCheckout(stripe: Stripe, input: CheckoutInput) {
   const metadata = { [BILL_METADATA]: input.billId, [CHECKOUT_METADATA]: input.kind }
@@ -757,10 +828,7 @@ async function startCheckout(stripe: Stripe, input: CheckoutInput) {
     payment_method_configuration: input.paymentMethodConfiguration,
     success_url: input.successUrl,
     cancel_url: input.cancelUrl,
-    automatic_tax: { enabled: true },
-    billing_address_collection: 'required' as const,
-    customer_update: { address: 'auto' as const, name: 'auto' as const },
-    tax_id_collection: { enabled: true },
+    ...checkoutTax(input.catalog.automaticTax),
     custom_text: {
       submit: { message: input.submitText.slice(0, CUSTOM_TEXT_MAX) },
     },
@@ -954,6 +1022,17 @@ function refusedForGood(error: unknown): string | null {
   return e.statusCode === 400 ? `stripe_${e.code ?? e.statusCode}` : null
 }
 
+/** Stripe refused a reused idempotency key with other parameters: the earlier request did happen. */
+function idempotencyRefusal(error: unknown): boolean {
+  const e = error as { type?: string; rawType?: string }
+  return e.type === 'StripeIdempotencyError' || e.rawType === 'idempotency_error'
+}
+
+/** Stripe Tax does not know where this customer is (no billing address): it cannot tax them. */
+function untaxable(customer: Stripe.Customer): boolean {
+  return customer.tax?.automatic_tax === 'unrecognized_location'
+}
+
 /** A refusal caused by our keys or account (revoked key, missing permission, an object gone): for the admins. */
 function setupError(error: unknown): BillingSetupError | null {
   const e = error as { statusCode?: number; code?: string }
@@ -1033,27 +1112,38 @@ async function describeItem(stripe: Stripe, item: Stripe.InvoiceItem, descriptio
 }
 
 /**
- * A recharge (docs/billing.md §2.2): one invoice per attempt, `charge_automatically` with automatic tax, holding only
+ * A recharge (docs/billing.md §2.2): one invoice per attempt, `charge_automatically` with the install's automatic tax
+ * (the item carries our tax code; tax is computed at the customer's saved address and added on top), holding only
  * its own item (`pending_invoice_items_behavior=exclude`), then finalized and paid with the saved card. Every request
  * carries an idempotency key made from the attempt id, so a retried job never makes a second invoice or charge.
  */
 async function chargeRecharge(stripe: Stripe, input: RechargeInvoiceInput): Promise<RechargeCharge> {
   const key = (step: string) => ({ idempotencyKey: `${input.rechargeId}:${step}` })
   const metadata = { [RECHARGE_METADATA]: input.rechargeId }
-  let invoice = input.invoiceId
-    ? await stripe.invoices.retrieve(input.invoiceId)
-    : await stripe.invoices.create(
+  let invoice: Stripe.Invoice
+  if (input.invoiceId) invoice = await stripe.invoices.retrieve(input.invoiceId)
+  else
+    try {
+      invoice = await stripe.invoices.create(
         {
           customer: input.customerId,
           collection_method: 'charge_automatically',
           auto_advance: true,
-          automatic_tax: { enabled: true },
+          automatic_tax: { enabled: input.tax.automatic },
           pending_invoice_items_behavior: 'exclude',
           currency: 'usd',
           metadata,
         },
         key('invoice'),
       )
+    } catch (error) {
+      // A 400 here (a tax location Stripe refuses, a customer it cannot invoice) is an answer, like at finalize: the
+      // owner's failed-recharge path, not a retried job that ends quietly (security review of #1105, L-3). Not an
+      // idempotency refusal: an invoice was made by an earlier try, and the retry finds it (findRechargeInvoice).
+      const failureCode = idempotencyRefusal(error) ? null : refusedForGood(error)
+      if (!failureCode) throw setupError(error) ?? error
+      return { status: 'failed', invoiceId: null, failureCode }
+    }
   if (invoice.metadata?.[RECHARGE_METADATA] !== input.rechargeId)
     throw new Error(`invoice ${invoice.id} is not the one of recharge ${input.rechargeId}`)
   if (invoice.status === 'draft') {
@@ -1063,17 +1153,26 @@ async function chargeRecharge(stripe: Stripe, input: RechargeInvoiceInput): Prom
     if (invoice.description !== input.description)
       await stripe.invoices.update(invoice.id!, { description: input.description })
     if (!invoice.total) {
-      const item = await stripe.invoiceItems.create(
-        {
-          customer: input.customerId,
-          invoice: invoice.id,
-          amount: input.amountCents,
-          currency: 'usd',
-          tax_behavior: 'exclusive',
-          metadata,
-        },
-        key('item'),
-      )
+      let item: Stripe.InvoiceItem
+      try {
+        item = await stripe.invoiceItems.create(
+          {
+            customer: input.customerId,
+            invoice: invoice.id,
+            amount: input.amountCents,
+            currency: 'usd',
+            tax_behavior: 'exclusive',
+            tax_code: input.tax.code,
+            metadata,
+          },
+          key('item'),
+        )
+      } catch (error) {
+        // As at create: the draft is handed back as failed, and the failed-recharge path deletes it (L-3).
+        const failureCode = refusedForGood(error)
+        if (!failureCode) throw setupError(error) ?? error
+        return { status: 'failed', invoiceId: invoice.id!, failureCode }
+      }
       await describeItem(stripe, item, input.description)
     }
     try {

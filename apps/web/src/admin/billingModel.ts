@@ -87,8 +87,14 @@ export const RULE_FIELDS = [
 ] as const satisfies readonly (readonly [Exclude<keyof BillingRules, 'levels'>, Unit])[]
 export type RuleField = (typeof RULE_FIELDS)[number][0]
 
-/** The form's text per field: `levels.<level>.price` in dollars a minute, `levels.<level>.factor`, the rest by unit. */
+/**
+ * The form's text per field: `levels.<level>.price` in dollars a minute, `levels.<level>.factor`, `automaticTax`
+ * as `on` or `off` (a switch), the rest by unit.
+ */
 export type RulesForm = Record<string, string>
+
+/** The Stripe Tax switch in the rules form (`BillingRules.automaticTax`). */
+export const TAX_FIELD = 'automaticTax'
 
 const DIVISOR: Record<Unit, number> = { seconds: 1, minutes: 60, count: 1, cents: 100, micros: 1_000_000 }
 const shown = (value: number, unit: Unit) => String(value / DIVISOR[unit])
@@ -97,6 +103,7 @@ const shown = (value: number, unit: Unit) => String(value / DIVISOR[unit])
 export function rulesForm(rules: BillingRules): RulesForm {
   const form: RulesForm = {}
   for (const [field, unit] of RULE_FIELDS) form[field] = shown(rules[field], unit)
+  form[TAX_FIELD] = rules.automaticTax ? 'on' : 'off'
   for (const [name, level] of Object.entries(rules.levels)) {
     form[`levels.${name}.price`] = String(level.microsPerMinute / 1_000_000)
     form[`levels.${name}.factor`] = level.allowanceFactor === null ? '' : String(level.allowanceFactor)
@@ -138,6 +145,8 @@ export function rulesFromForm(
     if (value === null) problems.push(field)
     else rules[field] = value !== defaults[field] ? value : null
   }
+  const taxOn = form[TAX_FIELD] === 'on'
+  rules[TAX_FIELD] = taxOn !== defaults.automaticTax ? taxOn : null
   const levels: Record<string, { microsPerMinute: number; allowanceFactor: number | null } | null> = {}
   for (const [name, fallback] of Object.entries(defaults.levels)) {
     const price = stored(form[`levels.${name}.price`] ?? '', 'micros')

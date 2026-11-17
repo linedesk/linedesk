@@ -25,6 +25,7 @@ export type {
   CheckoutStarted,
   CustomerPurchases,
   InvoiceItemInput,
+  InvoiceTax,
   KeyMode,
   PlanCatalog,
   PortalDesign,
@@ -37,6 +38,8 @@ export type {
   ExtraCallsQuantityInput,
   SeatQuantityInput,
   StripeKeys,
+  SubscriptionTaxSync,
+  TaxSetup,
   WebhookRefusal,
 } from './provider.ts'
 export {

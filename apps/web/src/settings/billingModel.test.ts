@@ -89,6 +89,8 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
   extraNumberCents: 300,
   canBuyMinutes: true,
   hasPortal: true,
+  taxed: false,
+  taxAddressMissing: false,
   period: null,
   usage: [],
   invoices: [],
@@ -176,13 +178,23 @@ test('cancel: a yearly plan paid in the last 14 days is refunded on request unti
     bill({
       interval: 'year',
       invoices: [
-        { id: 'in_1', kind: 'subscription', number: null, status: 'paid', totalCents: 10_800, createdAt, url: null },
+        {
+          id: 'in_1',
+          kind: 'subscription',
+          number: null,
+          status: 'paid',
+          totalCents: 10_800,
+          taxCents: 0,
+          createdAt,
+          url: null,
+        },
         {
           id: 'in_2',
           kind: 'recharge',
           number: null,
           status: 'paid',
           totalCents: 2000,
+          taxCents: 0,
           createdAt: '2026-11-15T00:00:00Z',
           url: null,
         },

@@ -46,7 +46,7 @@ import {
   usage_counters,
   workspaceCallLimit,
 } from '@linedesk/db'
-import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { syncBillingCatalog } from './billing-catalog.ts'
@@ -192,6 +192,17 @@ async function attemptsLastDay(tx: Reader, billId: string, now: string) {
 }
 
 /** The bill's latest recharge attempt that failed, with its code; `needsAction`: kept open for 3D Secure. */
+/** How the bill's last recharge attempt that got as far as Stripe was taxed (`billing_recharges.tax`). */
+async function lastAttemptTax(tx: Reader, billId: string) {
+  const [row] = await tx
+    .select({ tax: billing_recharges.tax })
+    .from(billing_recharges)
+    .where(and(eq(billing_recharges.billing_account_id, billId), isNotNull(billing_recharges.tax)))
+    .orderBy(desc(billing_recharges.created_at))
+    .limit(1)
+  return row?.tax ?? null
+}
+
 async function lastFailedAttempt(tx: Reader, billId: string) {
   const [row] = await tx
     .select()
@@ -409,6 +420,10 @@ async function overview({
     extraNumberCents: bill.status === 'comped' ? 0 : rules.extraNumberCents,
     canBuyMinutes: !!bill.stripe_customer_id && BUYS_MINUTES.includes(bill.status),
     hasPortal: !!bill.stripe_customer_id,
+    // Stripe Tax on (Server admin › Billing): what the page states is before tax, and tax is added on top.
+    taxed: rules.automaticTax && bill.status !== 'comped',
+    taxAddressMissing:
+      rules.automaticTax && bill.status !== 'comped' && (await lastAttemptTax(tx, bill.id)) === 'no_address',
     period: period ? { startsAt: period.starts_at, endsAt: period.ends_at, kind: period.kind } : null,
     calls: callsOf(bill, workspaces, rules, now),
     usage: period ? await periodUsage(tx, bill.id, period.id, workspaces, rules.includedStandardSeconds) : [],
@@ -419,6 +434,7 @@ async function overview({
         number: i.number,
         status: i.status,
         totalCents: i.total_cents,
+        taxCents: i.tax_cents,
         createdAt: i.created_at,
         url: i.hosted_invoice_url,
       }),

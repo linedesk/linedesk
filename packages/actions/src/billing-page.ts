@@ -39,7 +39,9 @@ export type BillingInvoiceRow = {
   kind: 'subscription' | 'recharge' | 'topup'
   number: string | null
   status: 'draft' | 'open' | 'paid' | 'uncollectible' | 'void'
+  /** What the invoice came to, tax included, and the tax in it (0 where none applied). */
   totalCents: number
+  taxCents: number
   createdAt: string
   url: string | null
 }
@@ -80,6 +82,16 @@ export type BillingOverviewBill = {
   /** Buy minutes and the Stripe portal are open (a Stripe customer, in the trial or paid). */
   canBuyMinutes: boolean
   hasPortal: boolean
+  /**
+   * The install computes tax (Stripe Tax on, `BillingRules.automaticTax`): plan prices, recharges and minutes bought
+   * are before tax, and tax is added where it applies. The balance always gets the amount before tax.
+   */
+  taxed: boolean
+  /**
+   * Tax is on, but the last recharge was charged without it: Stripe has no address for the customer (security review
+   * of #1105, M-1). The page asks the owner to add one in the Stripe portal.
+   */
+  taxAddressMissing: boolean
   period: { startsAt: string; endsAt: string; kind: 'trial' | 'month' } | null
   calls: BillingCalls
   usage: BillingUsageRow[]

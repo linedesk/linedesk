@@ -29,6 +29,7 @@ import {
   organization,
   rechargeCapCents,
   phone_numbers,
+  STRIPE_TAX_CODE,
   type Tx,
   usage_counters,
   user,
@@ -87,8 +88,16 @@ export type CheckoutRecharge = { on: boolean; amountCents: number; thresholdCent
 export function checkoutText(
   kind: 'trial' | 'plan' | 'topup',
   reader: Reader,
-  { brand, trialDays, recharge }: { brand: string; trialDays: number; recharge?: CheckoutRecharge },
+  {
+    brand,
+    trialDays,
+    recharge,
+    taxed = false,
+  }: { brand: string; trialDays: number; recharge?: CheckoutRecharge; taxed?: boolean },
 ): string {
+  // With Stripe Tax on, the amounts named here (the recharges charged later, off-session) are before tax.
+  if (taxed)
+    return `${checkoutText(kind, reader, { brand, trialDays, recharge })} ${reader.t('server.api.checkout.text.taxNote')}`
   if (kind === 'topup') return reader.t('server.api.checkout.text.topup', { brand: plainName(brand) })
   const money = (cents: number) =>
     reader.format.currency(cents / 100, 'USD', { maximumFractionDigits: cents % 100 ? 2 : 0 })
@@ -267,6 +276,7 @@ const prepareStartCheckout: Preparer = async ({ actor, now }) => {
       submitText: checkoutText(trial ? 'trial' : 'plan', wordsOf(actor), {
         brand: brandName(),
         trialDays: rules.trialDays,
+        taxed: rules.automaticTax,
         recharge: await checkoutRecharge(
           bill,
           items.reduce((n, i) => n + i.quantity, 0),
@@ -749,7 +759,11 @@ const prepareTopUp: Preparer = async (
       paymentMethodConfiguration: configuration,
       catalog: planCatalog(rules, brandName()),
       amountCents: input.amountCents,
-      submitText: checkoutText('topup', wordsOf(actor), { brand: brandName(), trialDays: rules.trialDays }),
+      submitText: checkoutText('topup', wordsOf(actor), {
+        brand: brandName(),
+        trialDays: rules.trialDays,
+        taxed: rules.automaticTax,
+      }),
       branding: checkoutBranding(),
       successUrl: returnUrl(),
       // Bought from Settings › Billing: going back from Checkout lands there again.
@@ -1016,6 +1030,7 @@ export async function firstRecharge(invoiceId: string, customerId: string | null
     amountCents: recharge.amount_cents,
     description: rechargeLine(brandName()),
     rechargeId: recharge.id,
+    taxCode: STRIPE_TAX_CODE,
   })
   return skip('recharge_added')
 }

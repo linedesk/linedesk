@@ -2218,6 +2218,9 @@ export const call_reservations = pgTable(
  * is the Stripe idempotency key and the ledger entry's `source_id`; the monthly cap counts pending and paid rows by
  * `created_at` (UTC calendar month). A pending row older than 24 hours is checked against Stripe by the nightly job.
  */
+/** How an attempt is taxed (`billing_recharges.tax`). */
+export const RECHARGE_TAX = ['on', 'off', 'no_address'] as const
+
 export const billing_recharges = pgTable(
   'billing_recharges',
   {
@@ -2236,6 +2239,13 @@ export const billing_recharges = pgTable(
      * it in the app. Charged and credited like a recharge, but never counted in the monthly cap of automatic ones.
      */
     manual: boolean('manual').notNull().default(false),
+    /**
+     * Stripe Tax for this attempt (LIN-459), decided once at its first charge try and kept for every retry, so a retry
+     * after the install's switch changed sends the same invoice request (security review of #1105, L-1): `on` (taxed),
+     * `off` (the switch was off), `no_address` (the switch was on, the customer had no address Stripe can tax: charged
+     * without tax, the owner is asked for the address). Null until the first try.
+     */
+    tax: text('tax', { enum: RECHARGE_TAX }),
     created_at: createdAt(),
     resolved_at: ts('resolved_at'),
   },
@@ -2248,6 +2258,7 @@ export const billing_recharges = pgTable(
       sql`${t.amount_cents} between (case when ${t.manual} then ${sql.raw(String(TOPUP_LIMITS_CENTS.min))} else ${sql.raw(String(RECHARGE_LIMITS.amountCents.min))} end) and ${sql.raw(String(RECHARGE_LIMITS.amountCents.max))}`,
     ),
     check('billing_recharges_resolved', sql`(${t.status} = 'pending') = (${t.resolved_at} is null)`),
+    check('billing_recharges_tax', sql`${t.tax} is null or ${oneOf(t.tax, RECHARGE_TAX)}`),
   ],
 )
 

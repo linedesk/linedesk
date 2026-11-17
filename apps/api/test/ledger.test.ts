@@ -328,14 +328,14 @@ describe('the recharge decision', () => {
     const b = await billFor('active', 4_000_000)
     expect(await db.transaction(tx => decideRecharge(tx, b.bill.id, NOW))).toMatchObject({
       kind: 'recharge',
-      amountCents: 2000,
+      amountCents: 2500,
     })
     expect(await db.transaction(tx => decideRecharge(tx, b.bill.id, NOW))).toEqual({ kind: 'none' })
     const attempts = await db
       .select()
       .from(billing_recharges)
       .where(eq(billing_recharges.billing_account_id, b.bill.id))
-    expect(attempts).toMatchObject([{ status: 'pending', amount_cents: 2000 }])
+    expect(attempts).toMatchObject([{ status: 'pending', amount_cents: 2500 }])
   })
 
   test('pending, failed and paid attempts this month count in the cap; its alert is made once', async () => {

@@ -37,6 +37,7 @@ import {
   parseDollars,
   planFloorText,
   RULE_FIELDS,
+  TAX_FIELD,
   type RuleField,
   type RulesForm,
   rateOfMicros,
@@ -946,6 +947,17 @@ function RulesCard({ notify }: { notify: Notify }) {
             {data.problems.length > 0 && (
               <Note tone="warning">{t('admin.bills.rules.ignored', { fields: data.problems.join(', ') })}</Note>
             )}
+            <div className="swrow">
+              <div>
+                <b>{t('admin.bills.rules.automaticTax')}</b>
+                <span className="help">{t('admin.bills.rules.automaticTax.help')}</span>
+              </div>
+              <Switch
+                on={form[TAX_FIELD] === 'on'}
+                onChange={on => setForm(f => ({ ...f, [TAX_FIELD]: on ? 'on' : 'off' }))}
+                label={t('admin.bills.rules.automaticTax')}
+              />
+            </div>
             {Object.entries(data.defaults.levels).map(([level, fallback]) => {
               const name = LEVEL_NAMES[level] ? t(LEVEL_NAMES[level]) : level
               return (
@@ -998,9 +1010,24 @@ function RulesCard({ notify }: { notify: Notify }) {
           }}
           notify={notify}
           onClose={() => setAsking(null)}
-        />
+        >
+          {/* The switch reaches running subscriptions: what that means, before the admin confirms (review #1105, M-1). */}
+          {taxChange(form, saved, data?.taxAddressMissing ?? null, t)}
+        </ReasonDialog>
       )}
     </Card>
+  )
+}
+
+/** The confirm dialog's note when the Stripe Tax switch changes; null when it does not. */
+function taxChange(form: RulesForm, saved: RulesForm | null, missing: number | null, t: ReturnType<typeof useT>) {
+  if (!saved || form[TAX_FIELD] === saved[TAX_FIELD]) return null
+  if (form[TAX_FIELD] !== 'on') return <Note>{t('admin.bills.rules.automaticTax.offConfirm')}</Note>
+  return (
+    <Note>
+      {t('admin.bills.rules.automaticTax.onConfirm')}
+      {missing !== null && <> {t('admin.bills.rules.automaticTax.onConfirmMissing', { count: missing })}</>}
+    </Note>
   )
 }
 

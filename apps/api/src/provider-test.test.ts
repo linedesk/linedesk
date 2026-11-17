@@ -607,6 +607,47 @@ describe('billing: Stripe', () => {
     })
   })
 
+  test('with the install’s Stripe Tax on, a tax setup that is not active or has no registration is a warning (LIN-459)', async () => {
+    const routes = (settings: unknown, registrations: unknown[]) =>
+      provider({
+        'GET api.stripe.com/v1/account': [200, account],
+        'POST /v1/products/': [...missing],
+        'POST /v1/prices/': [...missing],
+        'POST /v1/checkout/sessions': [200, { id: 'cs_test_terms', object: 'checkout.session' }],
+        'POST /v1/billing_portal/configurations/': [...missing],
+        'GET api.stripe.com/v1/tax/settings': [200, settings],
+        'GET api.stripe.com/v1/tax/registrations': [200, { object: 'list', has_more: false, data: registrations }],
+      })
+    const pending = { status: 'pending', status_details: { pending: { missing_fields: ['head_office'] } } }
+    const active = { status: 'active', status_details: { active: {} } }
+    const noHeadOffice = routes(pending, [])
+    expect(
+      await testProvider('stripe', keys(TEST_KEY), noHeadOffice.doFetch, {}, { automaticTax: true }),
+    ).toMatchObject({
+      ok: true,
+      status: 'warning',
+      reason: 'config',
+      message: expect.stringMatching(/Stripe Tax is not set up on the account \(missing: head_office\)/),
+    })
+    // Read only: the tax settings and registrations are fetched, nothing is written to them.
+    expect(noHeadOffice.calls.filter(c => c.includes('/v1/tax/'))).toEqual([
+      'GET https://api.stripe.com/v1/tax/settings',
+      'GET https://api.stripe.com/v1/tax/registrations?status=active&limit=100',
+    ])
+    const unregistered = routes(active, [])
+    expect(
+      (await testProvider('stripe', keys(TEST_KEY), unregistered.doFetch, {}, { automaticTax: true })).message,
+    ).toMatch(/Stripe Tax has no active tax registration/)
+    const ready = routes(active, [{ id: 'taxreg_1', object: 'tax.registration', country: 'DE' }])
+    expect(await testProvider('stripe', keys(TEST_KEY), ready.doFetch, {}, { automaticTax: true })).toMatchObject({
+      status: 'ok',
+    })
+    // Stripe Tax off on the install: the account's tax setup is not asked about.
+    const off = routes(pending, [])
+    expect(await testProvider('stripe', keys(TEST_KEY), off.doFetch, {})).toMatchObject({ status: 'ok' })
+    expect(off.calls.some(c => c.includes('/v1/tax/'))).toBe(false)
+  })
+
   test('a key that may not write the customer portal is a warning (billing tour G1)', async () => {
     const fake = provider({
       'GET api.stripe.com/v1/account': [200, account],

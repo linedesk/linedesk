@@ -16,13 +16,14 @@ import {
   organization,
   planPrice,
   RECHARGE_LIMITS,
+  type RECHARGE_TAX,
   rechargeCapCents,
   type Tx,
   user,
 } from '@linedesk/db'
-import { and, asc, eq, gte, inArray, lt } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, lt, sql } from 'drizzle-orm'
 import { alertInstanceAdmins } from './admin-alerts.ts'
-import { billingRules, rechargeLine, topUpLine } from './billing-rules.ts'
+import { billingRules, invoiceTax, rechargeLine, topUpLine } from './billing-rules.ts'
 import { brandName } from './branding.ts'
 import { billingProvider } from './billing-settings.ts'
 import type { EmailSender } from './email.ts'
@@ -34,6 +35,8 @@ import { queueBillingAlert } from './jobs.ts'
 import { extraNumbersOnBill, lockBalance } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 
+type RechargeTax = (typeof RECHARGE_TAX)[number]
+
 /** Stripe idempotency keys last 24 hours: an attempt older than this looks for its invoice before making one. */
 const IDEMPOTENCY_KEY_MS = 23 * 60 * 60_000
 
@@ -44,7 +47,7 @@ const BUYS_MINUTES = ['trialing', 'active', 'past_due'] as const
 export type RechargeRun =
   | { outcome: 'not_pending' }
   | { outcome: 'canceled'; reason: 'billing_off' | 'no_customer' | 'bill_inactive' }
-  | { outcome: RechargeCharge['status']; invoiceId: string }
+  | { outcome: RechargeCharge['status']; invoiceId: string | null }
 
 /**
  * Charges one pending recharge attempt. `provider` replaces the provider in effect (tests). Billing off, no Stripe
@@ -99,13 +102,46 @@ export async function chargeRecharge(
     ...(attempt.manual ? { onSession: true } : {}),
     // Checkout saved the card on the subscription: the adapter makes it the customer's default when there is none (B1).
     subscriptionId: bill.stripe_subscription_id,
+    // Stripe Tax as decided for this attempt: tax is added on top; the balance gets the pre-tax amount only (§2.2).
+    tax: { ...invoiceTax(await billingRules(db)), automatic: (await attemptTax(db, provider, attempt, bill)) === 'on' },
   })
   if (charge.status !== 'failed') {
     await settle(db, rechargeId, { stripe_invoice_id: charge.invoiceId }, now())
     return { outcome: charge.status, invoiceId: charge.invoiceId }
   }
+  if (!charge.invoiceId)
+    console.error(`billing: recharge ${rechargeId}: Stripe refused its invoice (${charge.failureCode})`)
   await rechargeFailed(db, provider, rechargeId, charge.invoiceId, charge.failureCode, now())
   return { outcome: 'failed', invoiceId: charge.invoiceId }
+}
+
+/**
+ * How this attempt is taxed (`billing_recharges.tax`), decided at its first try and kept for every retry (security
+ * review of #1105, L-1): the same invoice request each time, whatever the switch says by then. With the switch on, a
+ * customer Stripe cannot tax (no billing address) is charged without tax (`no_address`) rather than refused: turning tax
+ * on never stops a bill's calls (M-1). The billing page asks the owner for the address.
+ */
+async function attemptTax(
+  db: Db,
+  provider: BillingProvider,
+  attempt: typeof billing_recharges.$inferSelect,
+  bill: typeof billing_accounts.$inferSelect,
+): Promise<RechargeTax> {
+  if (attempt.tax) return attempt.tax
+  const decided: RechargeTax = !(await billingRules(db)).automaticTax
+    ? 'off'
+    : (await provider.customerTaxReady(bill.stripe_customer_id!))
+      ? 'on'
+      : 'no_address'
+  // Only while still undecided: a concurrent run of the same attempt (pg-boss retries one job at a time) keeps its own.
+  const [row] = await db
+    .update(billing_recharges)
+    .set({ tax: sql`coalesce(${billing_recharges.tax}, ${decided})` })
+    .where(eq(billing_recharges.id, attempt.id))
+    .returning({ tax: billing_recharges.tax })
+  if (row?.tax === 'no_address')
+    console.warn(`billing: recharge ${attempt.id} of bill ${bill.id} charged without tax: the customer has no address`)
+  return row?.tax ?? decided
 }
 
 /**
@@ -119,24 +155,27 @@ export async function rechargeFailed(
   db: Db,
   provider: BillingProvider,
   rechargeId: string,
-  invoiceId: string,
+  invoiceId: string | null,
   failureCode: string,
   now: string,
 ) {
+  const invoiceSet = invoiceId ? { stripe_invoice_id: invoiceId } : {}
   const [attempt] = await db.select().from(billing_recharges).where(eq(billing_recharges.id, rechargeId))
   // "Buy minutes" with the saved card: the owner is in the app and goes on to Checkout. The invoice is voided, the
   // attempt canceled; no waiting for a new card, no email, nothing that would stop auto-recharge.
   if (attempt?.manual) {
-    await provider.stopRechargeInvoice(invoiceId, { void: true })
-    await settle(db, rechargeId, { status: 'canceled', failure_code: failureCode, stripe_invoice_id: invoiceId }, now)
+    if (invoiceId) await provider.stopRechargeInvoice(invoiceId, { void: true })
+    await settle(db, rechargeId, { status: 'canceled', failure_code: failureCode, ...invoiceSet }, now)
     return
   }
-  const needsOwner = failureCode === 'authentication_required'
-  await provider.stopRechargeInvoice(invoiceId, { void: !needsOwner })
+  const needsOwner = failureCode === 'authentication_required' && !!invoiceId
+  if (invoiceId) await provider.stopRechargeInvoice(invoiceId, { void: !needsOwner })
+  // Without an invoice (Stripe refused it at create, L-3) the alert is keyed by the attempt: one email per attempt.
+  const ref = invoiceId ?? rechargeId
   await settle(
     db,
     rechargeId,
-    { status: needsOwner ? 'failed' : 'canceled', failure_code: failureCode, stripe_invoice_id: invoiceId },
+    { status: needsOwner ? 'failed' : 'canceled', failure_code: failureCode, ...invoiceSet },
     now,
     async (tx, billId) => {
       await tx
@@ -145,11 +184,11 @@ export async function rechargeFailed(
         .where(eq(billing_accounts.id, billId))
       const added = await tx
         .insert(billing_alerts)
-        .values({ billing_account_id: billId, kind: 'recharge_failed', ref: invoiceId })
+        .values({ billing_account_id: billId, kind: 'recharge_failed', ref })
         .onConflictDoNothing()
         .returning()
       if (added.length)
-        await queueBillingAlert(tx, { kind: 'recharge_failed', bill: billId, ref: invoiceId, rechargeId, needsOwner })
+        await queueBillingAlert(tx, { kind: 'recharge_failed', bill: billId, ref, rechargeId, needsOwner })
     },
   )
 }

@@ -387,7 +387,7 @@ describe('the gate in call.start', () => {
       .select()
       .from(billing_recharges)
       .where(eq(billing_recharges.billing_account_id, b.billId))
-    expect(attempt).toMatchObject({ status: 'pending', amount_cents: 2000 })
+    expect(attempt).toMatchObject({ status: 'pending', amount_cents: 2500 })
     expect(jobs('billing.recharge')).toEqual([{ rechargeId: attempt!.id }])
   })
 })

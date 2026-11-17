@@ -365,7 +365,7 @@ describe('extra numbers', () => {
       .select()
       .from(billing_recharges)
       .where(and(eq(billing_recharges.billing_account_id, b.billId), eq(billing_recharges.status, 'pending')))
-    expect(pending).toMatchObject({ amount_cents: 2000 })
+    expect(pending).toMatchObject({ amount_cents: 2500 })
     expect(queued.some(j => j.name === 'billing.recharge' && j.data.rechargeId === pending!.id)).toBe(true)
     expect(await stateOf(extra.id)).toBeUndefined()
     // The recharge is paid (as invoice.paid does it): the next run posts the month.
@@ -604,7 +604,7 @@ describe('the yearly renewal reminder', () => {
           kind: 'renewal_reminder',
           renewsAt: expect.any(String),
           lines: [{ item: 'seats', quantity: 2, unitCents: 10_800 }],
-          autoRecharge: { thresholdCents: 500, amountCents: 2000 },
+          autoRecharge: { thresholdCents: 500, amountCents: 2500 },
         },
       },
     ])

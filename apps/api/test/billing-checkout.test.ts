@@ -448,6 +448,22 @@ beforeEach(() => {
 afterAll(() => setBillingFetch(null))
 
 describe('billing.startCheckout (docs/billing.md §3.2 step 3)', () => {
+  test('with Stripe Tax off, Checkout has no automatic tax, no required address and no tax ID', async () => {
+    const reason = 'no stripe tax'
+    expect((await act(operator, 'billingRules.set', { rules: { automaticTax: false }, reason })).status).toBe(200)
+    try {
+      const { owner } = await pendingSignUp()
+      const params = Object.fromEntries((await startCheckout(owner)).body)
+      expect(params).toMatchObject({
+        'automatic_tax[enabled]': 'false',
+        billing_address_collection: 'auto',
+        'tax_id_collection[enabled]': 'false',
+      })
+    } finally {
+      await act(operator, 'billingRules.set', { rules: { automaticTax: null }, reason })
+    }
+  })
+
   test('the owner gets a Checkout with the trial, the card-only configuration and never payment_method_types', async () => {
     const { bill, owner } = await pendingSignUp()
     const made = await startCheckout(owner)
@@ -464,7 +480,11 @@ describe('billing.startCheckout (docs/billing.md §3.2 step 3)', () => {
       'subscription_data[trial_settings][end_behavior][missing_payment_method]': 'cancel',
       'line_items[0][price]': 'price_ws_monthly',
       'line_items[0][quantity]': '1',
+      // Stripe Tax is on by default (docs/billing.md §5.2): the address is required, a business gives its tax ID.
       'automatic_tax[enabled]': 'true',
+      billing_address_collection: 'required',
+      'customer_update[address]': 'auto',
+      'tax_id_collection[enabled]': 'true',
       'consent_collection[terms_of_service]': 'required',
       success_url: 'http://localhost:5173/billing/return?session_id={CHECKOUT_SESSION_ID}',
     })
@@ -1353,7 +1373,7 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
     const mail = mails.at(-1)!
     expect(mail.subject).toMatch(/trial ends on/)
     expect(mail.text).toContain('$11.00')
-    expect(mail.text).toContain('adds $20.00')
+    expect(mail.text).toContain('adds $25.00')
     expect(mail.text).toContain('Cancel in Settings › Billing')
     // The cancel link: the bill's workspace's Settings › Billing.
     expect(mail.html).toContain(`#workspace/billing?ws=${encodeURIComponent(ws.id)}`)
@@ -1387,11 +1407,11 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
       .select()
       .from(billing_recharges)
       .where(eq(billing_recharges.billing_account_id, bill.id))
-    expect(recharge).toMatchObject({ status: 'pending', stripe_invoice_id: invoiceId, amount_cents: 2000 })
+    expect(recharge).toMatchObject({ status: 'pending', stripe_invoice_id: invoiceId, amount_cents: 2500 })
     const item = stripe.requests.find(r => r.method === 'POST' && r.path === '/v1/invoiceitems')!
     expect(Object.fromEntries(item.body)).toMatchObject({
       invoice: invoiceId,
-      amount: '2000',
+      amount: '2500',
       currency: 'usd',
       'metadata[billing_recharge_id]': recharge!.id,
     })
@@ -1499,7 +1519,7 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
         .from(billing_recharges)
         .where(eq(billing_recharges.billing_account_id, bill.id))
       expect(recharges).toMatchObject([
-        { status: 'pending', amount_cents: 2000, manual: false, stripe_invoice_id: null },
+        { status: 'pending', amount_cents: 2500, manual: false, stripe_invoice_id: null },
       ])
       expect(queued.filter(j => j.data.rechargeId === recharges[0]!.id)).toHaveLength(1)
       await processEvent('invoice.paid', { id: invoiceId, object: 'invoice', customer: sub.customer })
@@ -1563,7 +1583,10 @@ describe("the install's own prices, trial and name (docs/billing.md §7b)", () =
     const res = await act(owner, 'billing.startTopUp', { amountCents: 2500 })
     expect(res.status).toBe(200)
     const topup = stripe.requests.filter(r => r.method === 'POST' && r.path === '/v1/checkout/sessions').at(-1)!
-    expect(topup.body.get('custom_text[submit][message]')).toBe('Prepaid call minutes for your Front Desk balance.')
+    // Stripe Tax is on by default: the amount is before tax, and Checkout says so.
+    expect(topup.body.get('custom_text[submit][message]')).toBe(
+      'Prepaid call minutes for your Front Desk balance. Amounts are before tax; tax is added where it applies.',
+    )
     expect(topup.body.get('line_items[0][price_data][product]')).toBe('linedesk_balance_topup')
     for (const rules of [
       { workspaceMonthlyCents: 10 },

@@ -33,6 +33,7 @@ import { billingProvider, billingState } from './billing-settings.ts'
 import { db } from './db.ts'
 import { billingReconcileAlert, type ReconcileFinding } from './emails/billing-alerts.ts'
 import { extraCallsOnBill, lockBalance } from './ledger.ts'
+import { syncSubscriptionTax } from './billing-tax.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 import {
   failRechargeInvoice,
@@ -223,11 +224,17 @@ export async function reconcileBilling(now = new Date(), options: { eventLimit?:
   ]
   const failed = await failedEvents()
   if (failed) findings.push({ kind: 'failed_events', count: failed })
+  // The Stripe Tax switch on running subscriptions: catches a sync that failed after the change, and subscriptions
+  // left untaxed for a missing address once the customer added one (billing-tax.ts; security review of #1105, M-1).
+  const taxSync = await syncSubscriptionTax(db, { provider }).catch(error => {
+    console.error('billing reconciliation: subscription tax sync failed:', error)
+    return null
+  })
   if (findings.length) {
     console.error(`billing reconciliation: ${findings.length} findings (${JSON.stringify(findings)})`)
     await alertInstanceAdmins(billingReconcileAlert(findings))
   }
-  return { findings, pruned, settled }
+  return { findings, pruned, settled, taxSync }
 }
 
 export async function createReconcileQueue(instance: PgBoss) {
