@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS "calls_deleted" ON "calls" USING btree ("deleted_at") WHERE "calls"."deleted_at" is not null;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "contacts_deleted" ON "contacts" USING btree ("deleted_at") WHERE "contacts"."deleted_at" is not null;

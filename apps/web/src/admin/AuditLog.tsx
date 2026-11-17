@@ -201,6 +201,10 @@ export function auditLabel(
       return input.url ? t('admin.audit.webhookChangedTo', hostOf(input.url)) : t('admin.audit.webhookChanged')
     case 'workspace.delete':
       return t('admin.audit.workspaceDeleted', name)
+    case 'workspace.purge':
+      return t('admin.audit.workspacePurged', name)
+    case 'data.purgeDeleted':
+      return t('admin.audit.deletedPurged', { calls: Number(input.calls ?? 0), contacts: Number(input.contacts ?? 0) })
     case 'user.resetPasskeys':
       return t('admin.audit.passkeysReset')
     case 'user.issuePasskeyEnrolment':
@@ -412,6 +416,7 @@ const plainLabels: Record<string, MessageKey> = {
   'call.assign': msg('admin.audit.call.assign'),
   'call.delete': msg('admin.audit.call.delete'),
   'call.restore': msg('admin.audit.call.restore'),
+  'call.erase': msg('admin.audit.call.erase'),
   'call.markSpam': msg('admin.audit.call.markSpam'),
   'call.markNotSpam': msg('admin.audit.call.markNotSpam'),
   'call.setActionItems': msg('admin.audit.call.setActionItems'),

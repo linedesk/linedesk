@@ -30,7 +30,32 @@ export const callClearReminder = callPatch('call.clearReminder', 'Remove the rem
   reminder_at: null,
   reminder_label: null,
 }))
-export const callDelete = callPatch('call.delete', 'Delete a call.', now => ({ deleted_at: now }), true)
+const callDeleteInput = callId.extend({
+  permanent: z
+    .boolean()
+    .optional()
+    .describe(
+      'Erase the call now (recording, transcript, evaluation), instead of after 30 days. Owners and admins only; it cannot be undone.',
+    ),
+})
+/**
+ * A deleted call can be restored for 30 days, then the daily purge erases it (apps/api/src/data-purge.ts). With
+ * `permanent` it is erased at once, the same way; that takes `call:erase` (owners and admins), checked by the handler,
+ * since a member deletes calls too (Janik, 2026-11-17).
+ */
+export const callDelete = defineAction({
+  name: 'call.delete',
+  description: 'Delete a call. It can be restored for 30 days, then it is erased for good.',
+  input: callDeleteInput,
+  permission: 'call:write',
+  public: true,
+  destructive: true,
+  patch: {
+    table: 'calls',
+    id: i => i.callId,
+    set: (_i, now) => ({ deleted_at: now }),
+  } satisfies PatchSpec<z.infer<typeof callDeleteInput>, 'calls'>,
+})
 export const callRestore = callPatch('call.restore', 'Restore a deleted call.', () => ({ deleted_at: null }))
 /**
  * Destructive: it takes the call out of the inbox and its outcome is lost (call.markNotSpam makes it a

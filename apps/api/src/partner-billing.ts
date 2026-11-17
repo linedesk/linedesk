@@ -225,7 +225,8 @@ export async function syncSeats(billId: string, key: string, provider?: BillingP
 /**
  * A workspace about to be deleted: when it is a client on its partner's bill, that bill's seats drop after the commit
  * (no refund). On any bill with a subscription, its extra calls at the same time leave the bill's extra-calls item too
- * (security review of #1109, M-2). Called before the delete, while the workspace still names its bill.
+ * (security review of #1109, M-2). Called before the delete, while the workspace still names its bill. Nothing on a
+ * canceled bill.
  */
 export async function seatsFollowDelete(
   tx: Tx,
@@ -237,12 +238,15 @@ export async function seatsFollowDelete(
       bill: billing_accounts.id,
       kind: billing_accounts.kind,
       subscription: billing_accounts.stripe_subscription_id,
+      status: billing_accounts.status,
       extraCalls: organization.extraCalls,
     })
     .from(organization)
     .innerJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
     .where(eq(organization.id, workspaceId))
-  if (!row) return
+  // A canceled bill's subscription ended in Stripe (billing-lifecycle.ts markCanceled): nothing left to lower there, and
+  // Stripe refuses changes to it (the 90-day delete of data-purge.ts deletes only workspaces of canceled bills).
+  if (!row || row.status === 'canceled') return
   const key = `delete_${workspaceId}`
   const extraCalls = row.extraCalls > 0 && !!row.subscription
   if (row.kind === 'partner') await seatsFollow(tx, onCommit, row.bill, key, { extraCalls })

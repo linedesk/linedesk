@@ -1,6 +1,6 @@
 import type { Call } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
-import { assignChange, type Change, clearReminderChange, deleteChange, doneChange, isNoOp, notDoneChange, preview, remindChange, unreadChange } from './changes.ts'
+import { assignChange, type Change, clearReminderChange, deleteChange, doneChange, eraseChange, isNoOp, notDoneChange, preview, remindChange, unreadChange } from './changes.ts'
 
 const call = (over: Partial<Call> = {}) => ({
   id: 'c1', status: 'completed', inbox_state: 'open', unread: true, reminder_at: null, reminder_label: null, deleted_at: null, ...over,
@@ -50,5 +50,24 @@ describe('assigning', () => {
     expect(change.label).toBe('Assigned to Sam.')
     expect(change.inverse).toEqual([['call.assign', { callId: theirs.id, userId: 'u2', notify: false }]])
     expect(assignChange(theirs, null, '').label).toBe('Unassigned.')
+  })
+})
+
+describe('deleting (A7: restorable for 30 days, or permanently now)', () => {
+  it('says the call can be restored for 30 days, and undo restores it', () => {
+    const change = deleteChange(call())
+    expect(change.label).toBe('Deleted. You can restore it for 30 days.')
+    expect(change.final).toBeUndefined()
+    expect(change.inverse).toEqual([['call.restore', { callId: 'c1' }]])
+  })
+  it('deletes permanently with the flag, says so without "restore", and has no undo', () => {
+    const change = eraseChange(call())
+    expect(change.steps).toEqual([['call.delete', { callId: 'c1', permanent: true }]])
+    expect(change.label).toBe('Deleted permanently.')
+    expect(change.label).not.toMatch(/restore/i)
+    expect(change.inverse).toEqual([])
+    expect(change.final).toBe(true)
+    // It leaves the inbox at once, like a delete.
+    expect(preview(call(), change.steps).deleted_at).toBeTruthy()
   })
 })

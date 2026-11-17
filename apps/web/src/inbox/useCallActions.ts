@@ -12,6 +12,7 @@ import {
   clearReminderChange,
   deleteChange,
   doneChange,
+  eraseChange,
   isNoOp,
   notDoneChange,
   preview,
@@ -87,7 +88,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     }
   }
 
-  function act(call: Call, { steps, inverse, label, key, onLive }: Change) {
+  function act(call: Call, { steps, inverse, label, key, onLive, final }: Change) {
     if (call.status === 'live' && !onLive) return toaster.show(liveNote())
     if (isNoOp(call, steps)) return // nothing to send, nothing to undo
     const after = preview(call, steps)
@@ -100,6 +101,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
       setCursor(next)
       if (wasOpen) showCall(next)
     }
+    if (final) return toaster.show(label)
     undoStack.current = [...undoStack.current, { steps: inverse, callId: call.id, tab, wasOpen, cancelWrite }].slice(
       -UNDO_DEPTH,
     )
@@ -131,6 +133,7 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
       setCursor(next)
       if (openId && leaving.has(openId)) showCall(next) // done from the call view: on to the next call
     }
+    if (changes.every(x => x.change.final)) return toaster.show(label(changes.length))
     const openLeft = !!openId && leaving.has(openId)
     const inverse = changes.flatMap(x => x.change.inverse)
     undoStack.current = [
@@ -196,6 +199,8 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
     clearReminder: (call: Call) =>
       tabOf(call) === 'reminders' ? act(call, clearReminderChange(call)) : toaster.show(i18n().t('inbox.toast.noReminder')),
     remove: (call: Call) => act(call, deleteChange(call)),
+    /** Delete permanently now (owners and admins, call:erase): no undo. */
+    erase: (call: Call) => act(call, eraseChange(call)),
     /** Assign to a member (null: nobody); `who` names them in the toast. */
     assign: (call: Call, userId: string | null, who: string) =>
       act(call, assignChange(call, userId, userId === me ? i18n().t('inbox.change.you') : who)),
@@ -240,6 +245,8 @@ export function useCallActions({ list, tab, searching, openId, setTab, setCursor
           n => i18n().t('inbox.many.reminderCleared', { count: n }),
         ),
       remove: (list: Call[]) => actMany(list, deleteChange, n => i18n().t('inbox.many.deleted', { count: n })),
+      erase: (list: Call[]) =>
+        actMany(list, eraseChange, n => i18n().t('inbox.many.deletedPermanently', { count: n })),
       assign: (list: Call[], userId: string | null, who: string) =>
         actMany(
           list,

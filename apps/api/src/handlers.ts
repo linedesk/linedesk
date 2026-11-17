@@ -75,6 +75,7 @@ import { brandingHandlers, brandName } from './branding.ts'
 import { issueCallToken } from './agent-token.ts'
 import { startS3Recording } from './recording-egress.ts'
 import { purgeCommandsAbout } from './command-log.ts'
+import { eraseCallNow } from './data-purge.ts'
 import { emailRoutingChangesIn, transferChanges } from './audit.ts'
 import { agentSetupHandlers } from './agent-setup.ts'
 import { installSetupHandlers } from './install-setup.ts'
@@ -1218,7 +1219,10 @@ const handlers: Record<string, Handler> = {
   ...callExportHandlers,
 
   // The patch, and the webhook payloads and command log entries that carry the call are cleared (they hold the caller's details).
+  // `permanent`: erased now instead of after 30 days (data-purge.ts eraseCallNow), owners and admins only (call:erase).
   'call.delete': async (ctx, input) => {
+    if (input.permanent && !ctx.actor.permissions.includes('call:erase'))
+      throw Forbidden.t('server.api.eraseNeedsAdmin')
     const result = await runPatch(ctx, actions.get('call.delete')!, input)
     await clearCallPayloads(ctx.tx, ctx.actor.workspaceId!, input.callId)
     await purgeCommandsAbout(ctx.tx, ctx.actor.workspaceId!, 'callId', input.callId)
@@ -1226,7 +1230,9 @@ const handlers: Record<string, Handler> = {
     await ctx.tx
       .delete(call_evaluations)
       .where(and(eq(call_evaluations.call_id, input.callId), eq(call_evaluations.workspace_id, ctx.actor.workspaceId!)))
-    return result
+    if (!input.permanent) return result
+    await eraseCallNow(ctx.tx, ctx.actor.workspaceId!, input.callId, ctx.actor.actorId)
+    return { rows: {} }
   },
 
   // The patch, and the command log keeps only ids of what was done to the contact (command-log.ts).

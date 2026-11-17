@@ -123,6 +123,12 @@ export const STUCK_RECHARGE_CHECK = 'billing.stuckRecharges'
 const STUCK_RECHARGE_CHECK_CRON = '27 * * * *'
 /** One billing email: to the bill owner (a failed recharge, the cap, a low balance), or a capped call to the admins. */
 export const BILLING_ALERT = 'billing.alert'
+/** Daily: calls and contacts deleted more than 30 days ago are erased with their recordings (data-purge.ts, A7). */
+export const DATA_PURGE_DELETED = 'data.purgeDeleted'
+const DATA_PURGE_DELETED_CRON = '27 3 * * *'
+/** Daily: workspaces of a bill canceled 90 or more days ago are deleted (data-purge.ts, A8). */
+export const DATA_PURGE_CANCELED = 'data.purgeCanceled'
+const DATA_PURGE_CANCELED_CRON = '17 4 * * *'
 /** Daily: sign-ups that never finished Checkout, after `pendingDays` (self-serve.ts, docs/billing.md §3.1). */
 export const SIGNUP_SWEEP = 'signup.sweep'
 const SIGNUP_SWEEP_CRON = '7 4 * * *'
@@ -319,6 +325,26 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.schedule(STUCK_RECHARGE_CHECK, STUCK_RECHARGE_CHECK_CRON)
   await instance.work(STUCK_RECHARGE_CHECK, async () => runStuckRechargeCheck())
   await instance.work<BillingAlertJob>(BILLING_ALERT, async ([job]) => sendBillingAlert(db, emailSender, job!.data))
+  await instance.schedule(DATA_PURGE_DELETED, DATA_PURGE_DELETED_CRON)
+  await instance.work(DATA_PURGE_DELETED, async () => {
+    const { purgeDeleted, purgeDryRun, runPurge } = await import('./data-purge.ts')
+    return runPurge(
+      DATA_PURGE_DELETED,
+      () => purgeDeleted(db, recordingStoreCache(db, env), { dryRun: purgeDryRun(env) }),
+      r =>
+        `${r.calls.length} calls, ${r.contacts.length} contacts, ${r.recordings} recordings, ${r.failed.length} failed`,
+    )
+  })
+  await instance.schedule(DATA_PURGE_CANCELED, DATA_PURGE_CANCELED_CRON)
+  // Loaded when it runs, like the sign-up sweep: it deletes through workspace-delete.ts.
+  await instance.work(DATA_PURGE_CANCELED, async () => {
+    const { purgeCanceled, purgeDryRun, runPurge } = await import('./data-purge.ts')
+    return runPurge(
+      DATA_PURGE_CANCELED,
+      () => purgeCanceled(db, { dryRun: purgeDryRun(env) }),
+      r => `billing ${r.billing}, ${r.workspaces.length} workspaces, ${r.accounts} accounts, ${r.failed.length} failed`,
+    )
+  })
   await instance.schedule(SIGNUP_SWEEP, SIGNUP_SWEEP_CRON)
   // Loaded when it runs: signup-handlers.ts pulls in the handler registry, which must not load while jobs.ts does.
   await instance.work(SIGNUP_SWEEP, async () => (await import('./signup-handlers.ts')).sweepSignUps(db))
@@ -467,6 +493,8 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(BILLING_ALERT, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   // One run at a time, never retried: the next day's run is the retry.
   await instance.createQueue(SIGNUP_SWEEP, { retryLimit: 0, expireInSeconds: 1800 })
+  await instance.createQueue(DATA_PURGE_DELETED, { retryLimit: 0, expireInSeconds: 1800 })
+  await instance.createQueue(DATA_PURGE_CANCELED, { retryLimit: 0, expireInSeconds: 1800 })
   await createStripeEventQueues(instance)
   await createReconcileQueue(instance)
   await createBillingPeriodQueues(instance)

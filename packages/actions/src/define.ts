@@ -20,6 +20,10 @@ import type { z } from 'zod'
  */
 /** `call:export`: every call of a date range at once (call.export), owners and admins only. */
 /**
+ * `call:erase`: a deleted call erased at once instead of after 30 days (call.delete with `permanent`), owners and admins
+ * only: it cannot be undone. Not an action's permission; the call.delete handler checks it.
+ */
+/**
  * `billing:manage`: what the bill owner decides because it changes what the workspace pays (Allow Premium; later the
  * plan, recharges and the cap, docs/billing.md). The workspace owner only; never an API key, a setup link or an
  * impersonation (the handlers refuse those too: refuseBillingActor in apps/api).
@@ -47,6 +51,7 @@ export type Permission =
   | 'call:read'
   | 'call:write'
   | 'call:export'
+  | 'call:erase'
   | 'contact:write'
   | 'settings:write'
   | 'calendar:read'
@@ -72,6 +77,7 @@ export const rolePermissions: Record<Role, readonly Permission[]> = {
     'call:read',
     'call:write',
     'call:export',
+    'call:erase',
     'contact:write',
     'settings:write',
     'calendar:read',
@@ -86,6 +92,7 @@ export const rolePermissions: Record<Role, readonly Permission[]> = {
     'call:read',
     'call:write',
     'call:export',
+    'call:erase',
     'contact:write',
     'settings:write',
     'calendar:read',

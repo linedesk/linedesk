@@ -14,6 +14,8 @@
   "command.clearReminder": "Clear reminder",
   "command.clearSelection": "Clear selection",
   "command.deleteCall": "Delete call",
+  "command.deleteChoose": "Delete…",
+  "command.deleteChooseHint": "Restorable for 30 days, or permanently now.",
   "command.goTo": "Go to",
   "command.goToAccountSettings": "Go to Account settings",
   "command.goToAssignedToMe": "Go to Assigned to me",

@@ -226,7 +226,11 @@ export const contacts = pgTable(
     created_at: createdAt(),
     version: version(),
   },
-  t => [index('contacts_ws_phone').on(t.workspace_id, t.phone)],
+  t => [
+    index('contacts_ws_phone').on(t.workspace_id, t.phone),
+    // The daily purge (apps/api/src/data-purge.ts) finds deleted contacts past 30 days.
+    index('contacts_deleted').on(t.deleted_at).where(sql`${t.deleted_at} is not null`),
+  ],
 )
 
 export const calls = pgTable(
@@ -331,7 +335,11 @@ export const calls = pgTable(
     deleted_at: ts('deleted_at'),
     version: version(),
   },
-  t => [index('calls_ws_started').on(t.workspace_id, t.started_at)],
+  t => [
+    index('calls_ws_started').on(t.workspace_id, t.started_at),
+    // The daily purge (apps/api/src/data-purge.ts) finds deleted calls past 30 days.
+    index('calls_deleted').on(t.deleted_at).where(sql`${t.deleted_at} is not null`),
+  ],
 )
 
 export const transcript_segments = pgTable(

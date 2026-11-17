@@ -130,3 +130,24 @@ describe('New workspace', () => {
     expect(open).toHaveBeenCalled()
   })
 })
+
+describe('Delete… (A7: delete permanently now)', () => {
+  const target = { id: 'c1', status: 'completed', inbox_state: 'open', unread: false, outcome: null } as unknown as Call
+  const labels = (c: CommandContext) => commandGroups(c).flatMap(g => g.items).map(i => i.label)
+
+  it('is offered to owners and admins (confirmDelete set), next to Delete call', () => {
+    const confirmDelete = vi.fn()
+    const c = { ...context(), target, confirmDelete }
+    expect(labels(c)).toContain('Delete call')
+    const choose = find(c, 'Delete…')
+    expect(choose.hint).toBe('Restorable for 30 days, or permanently now.')
+    choose.run()
+    expect(confirmDelete).toHaveBeenCalledWith(target)
+  })
+
+  it('is not offered to members (no confirmDelete): they delete, restorable for 30 days', () => {
+    const c = { ...context(), target }
+    expect(labels(c)).toContain('Delete call')
+    expect(labels(c)).not.toContain('Delete…')
+  })
+})

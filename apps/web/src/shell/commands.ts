@@ -17,6 +17,8 @@ export type CommandContext = {
   clearReminder: (call: Call) => void
   toggleUnread: (call: Call) => void
   remove: (call: Call) => void
+  /** Owners and admins (call:erase): Delete… asks whether to delete permanently now. */
+  confirmDelete?: (call: Call) => void
   toggleSpam: (call: Call) => void
   toggleBlock: (call: Call) => void
   /** Flag the call as urgent, or take the flag off (normal). */
@@ -134,6 +136,17 @@ function callCommands(call: Call, c: CommandContext): Command[] {
       shortcut: ['#'],
       run: () => c.remove(call),
     },
+    ...(c.confirmDelete
+      ? [
+          {
+            label: t('shell.command.deleteChoose'),
+            hint: t('shell.command.deleteChooseHint'),
+            keywords: 'remove trash erase permanently forever',
+            icon: 'trash',
+            run: () => c.confirmDelete!(call),
+          } satisfies Command,
+        ]
+      : []),
     ...urgentCommands(call, c),
   ]
 }

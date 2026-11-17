@@ -89,6 +89,8 @@ const INSTANCE_WIDE_FILES = [
   'test/rotate-secrets-key.test.ts',
   // Makes server admins and switches billing on (white-label partners, LIN-452).
   'test/partners.test.ts',
+  // The daily purges look at every workspace: deleted calls and canceled bills of other files must not be there.
+  'test/data-purge.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

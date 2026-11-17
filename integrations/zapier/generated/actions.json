@@ -177,7 +177,7 @@
     "kind": "create",
     "label": "Delete Call",
     "noun": "Call",
-    "description": "Delete a call.",
+    "description": "Delete a call. It can be restored for 30 days, then it is erased for good.",
     "permission": "call:write",
     "destructive": true,
     "fields": [
@@ -188,6 +188,13 @@
         "required": true,
         "helpText": "The Call ID, e.g. from the Call Finished trigger.",
         "dynamic": "calls"
+      },
+      {
+        "key": "permanent",
+        "label": "Permanent",
+        "type": "boolean",
+        "required": false,
+        "helpText": "Erase the call now (recording, transcript, evaluation), instead of after 30 days. Owners and admins only; it cannot be undone."
       }
     ]
   },

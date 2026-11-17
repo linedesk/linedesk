@@ -67,7 +67,8 @@ import type { SelectVia } from './ui/CommandMenu.tsx'
 import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
 import { useBrand } from './brand.ts'
 import { setProviderAudience } from './providerAudience.ts'
-import { cx } from './ui/kit.tsx'
+import { DangerConfirmDialog } from './ui/DangerConfirmDialog.tsx'
+import { cx, Note } from './ui/kit.tsx'
 import { useMediaQuery } from './ui/useMediaQuery.ts'
 import { useT } from '@linedesk/i18n/react'
 
@@ -141,6 +142,8 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   // The checklist's first step is connecting the number: while it is on screen, the banner saying so stays away.
   const goLiveVisible = useGoLiveVisible()
   const [overlay, setOverlay] = useState<Overlay>(null)
+  /** Delete… (owners and admins): the calls it deletes, while its dialog asks whether permanently now. */
+  const [deleteFor, setDeleteFor] = useState<{ calls: Call[]; bulk: boolean } | null>(null)
   const [navOpen, setNavOpen] = useState(false)
   // On very wide windows the menu stays open beside the content instead of sliding over it.
   const navDocked = useMediaQuery(NAV_DOCKED_QUERY)
@@ -237,6 +240,20 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
     if (!bulk && !actions.isTriageable(call)) return
     remindFor.current = { calls, source: toaster.currentSource() }
     setOverlay('remind')
+  }
+  /** Owners and admins may delete calls permanently now (call:erase); members delete them (restorable for 30 days). */
+  const canErase = me.permissions.includes('call:erase')
+  function confirmDelete(call: Call) {
+    if (!bulk && !actions.isTriageable(call)) return
+    setDeleteFor({ calls: bulk ? selection.calls.flatMap(view.groupOf) : view.groupOf(call), bulk })
+  }
+  function deleteChosen(permanent: boolean) {
+    const pending = deleteFor
+    setDeleteFor(null)
+    if (!pending?.calls.length) return
+    if (pending.calls.length > 1 || pending.bulk) (permanent ? actions.many.erase : actions.many.remove)(pending.calls)
+    else (permanent ? actions.erase : actions.remove)(pending.calls[0]!)
+    if (pending.bulk) selection.clear()
   }
   function pickReminder(option: ReminderOption) {
     setOverlay(null)
@@ -440,6 +457,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         callId: call.id,
         urgency: urgent ? 'urgent' : 'normal',
       }),
+    confirmDelete: canErase ? confirmDelete : undefined,
     me: me.actorId,
     assign: canAssign
       ? {
@@ -718,6 +736,19 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         quiet={askForPasskey || tourOpen || !!page || !!openCall || overlay !== null || newWorkspace}
       />
       {newWorkspace && <NewWorkspaceDialog onClose={() => setNewWorkspace(false)} />}
+      {deleteFor && (
+        <DangerConfirmDialog
+          confirm={{
+            action: t('inbox.deleteDialog.title', { count: deleteFor.calls.length }),
+            text: t('inbox.deleteDialog.text', { count: deleteFor.calls.length }),
+            option: t('inbox.deleteDialog.permanent'),
+          }}
+          run={async permanent => deleteChosen(permanent)}
+          onClose={() => setDeleteFor(null)}
+        >
+          {(permanent: boolean) => permanent && <Note tone="danger">{t('inbox.deleteDialog.permanentNote')}</Note>}
+        </DangerConfirmDialog>
+      )}
       {toaster.toast && <Toast toast={toaster.toast} onUndo={actions.undo} />}
       {/* Last, so the passkey a delete asks for (Workspace settings › Danger zone) opens over its dialog. */}
       <PasskeyStepUpHost />

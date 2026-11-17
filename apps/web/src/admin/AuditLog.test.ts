@@ -143,7 +143,7 @@ describe('audit labels', () => {
 const AUDITED_ACTION_NAMES = [
   'provider.setKeys', 'provider.clearKeys', 'provider.setActive', 'provider.connectOneKey', 'carrier.set',
   'carrier.provisionTransferTrunk', 'voiceCloning.set', 'voicePipelinePolicy.set', 'systemPrompt.setPart', 'systemPrompt.resetPart', 'afterCallTranscript.set', 'setupEmails.set', 'user.invite',
-  'user.disable', 'user.enable', 'workspace.disable', 'workspace.enable', 'workspace.delete', 'workspace.setSpendingCap',
+  'user.disable', 'user.enable', 'workspace.disable', 'workspace.enable', 'workspace.delete', 'workspace.purge', 'data.purgeDeleted', 'call.erase', 'workspace.setSpendingCap',
   'instanceAdmin.grant', 'instanceAdmin.revoke', 'user.resetPasskeys', 'user.issuePasskeyEnrolment', 'branding.set',
   'user.impersonate', 'impersonation.stop', 'impersonationEmails.set', 'team.invite', 'team.resendInvite', 'team.revokeInvite', 'team.setRole',
   'team.transferOwnership', 'team.removeMember', 'team.leave', 'team.updateMemberProfile', 'team.setMemberAvatar',
@@ -207,6 +207,13 @@ describe('every audited action reads as words', () => {
     expect(label('workspace.deleteOwn', { name: 'Brightwater Plumbing & Heating' })).toBe(
       'Owner deleted the workspace “Brightwater Plumbing & Heating”',
     )
+    expect(label('workspace.purge', { name: 'Brightwater Plumbing & Heating' })).toBe(
+      'Deleted the workspace “Brightwater Plumbing & Heating” 90 days after its plan was canceled',
+    )
+    expect(label('data.purgeDeleted', { calls: 3, contacts: 1 })).toBe(
+      'Erased 3 deleted calls and 1 deleted contact 30 days after they were deleted',
+    )
+    expect(label('call.erase', { calls: 1, recordings: 1 })).toBe('Deleted a call permanently')
     expect(label('agentSetup.createKey')).toBe('Created an AI agent setup link')
     expect(label('calendar.connectFinish', { provider: 'google', state: '[redacted]' })).toBe(
       'Connected a Google calendar',

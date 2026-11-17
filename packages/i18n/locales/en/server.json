@@ -42,6 +42,8 @@
   "api.checkout.trialNoEnd": "This trial has no end date.",
   "api.checkout.unavailable": "Checkout is not available right now. The server admins were told; try again later.",
   "api.confirmEmailForTransfer": "Confirm your email first: this version puts calls through to a number",
+  "api.eraseLiveCall": "a live call cannot be deleted permanently: wait until it has ended",
+  "api.eraseNeedsAdmin": "only owners and admins can delete calls permanently",
   "api.forwardingCheck.alreadyRunning": "A check is already running. Wait for its result.",
   "api.forwardingCheck.answeredFirst": "The call was answered before it was forwarded.",
   "api.forwardingCheck.checkNumber": "That is the number Linedesk checks from. Enter the number your callers dial today.",

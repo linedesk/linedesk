@@ -242,6 +242,12 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'workspace.disable': 'admin',
   'workspace.enable': 'admin',
   'workspace.delete': 'admin',
+  // The daily data purges (data-purge.ts), written by the jobs themselves (`retention:system`): calls and contacts
+  // erased 30 days after they were deleted, and a workspace deleted 90 days after its bill was canceled.
+  'data.purgeDeleted': 'admin',
+  'workspace.purge': 'admin',
+  // A call erased at once by an owner or admin (call.delete with `permanent`, data-purge.ts eraseCallNow).
+  'call.erase': 'team',
   'workspace.setSpendingCap': 'admin',
   // Where every workspace's transfers may call through the install's carrier account (before: `data.previous`).
   'outboundCountries.set': 'admin',

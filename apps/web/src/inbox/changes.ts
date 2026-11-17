@@ -6,8 +6,11 @@ import type { ReminderOption } from './remind.ts'
 import { i18n } from '../i18n/index.tsx'
 
 export type Step = [action: string, input: Record<string, unknown>]
-/** `onLive`: the change is fine while the call is still going (assigning it). */
-export type Change = { steps: Step[]; inverse: Step[]; label: string; key: string; onLive?: true }
+/**
+ * `onLive`: the change is fine while the call is still going (assigning it). `final`: it cannot be undone (a call
+ * deleted permanently): no Undo in the toast, nothing on the undo stack.
+ */
+export type Change = { steps: Step[]; inverse: Step[]; label: string; key: string; onLive?: true; final?: true }
 
 const id = (call: Call) => ({ callId: call.id })
 
@@ -142,4 +145,13 @@ export const deleteChange = (call: Call): Change => ({
   inverse: [['call.restore', id(call)]],
   label: i18n().t('inbox.change.deleted'),
   key: '#',
+})
+
+/** Deleted permanently now (owners and admins): erased at once instead of after 30 days, so no undo. */
+export const eraseChange = (call: Call): Change => ({
+  steps: [['call.delete', { ...id(call), permanent: true }]],
+  inverse: [],
+  label: i18n().t('inbox.change.deletedPermanently'),
+  key: '',
+  final: true,
 })

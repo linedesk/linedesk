@@ -518,6 +518,21 @@ export const seatsSyncAlert =
     }
   }
 
+/** A run of a daily data purge (data-purge.ts) could not delete everything due: the next day's run tries again. */
+export const dataPurgeFailedAlert =
+  (job: string, failed: string[]): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.dataPurgeFailed.subject', { brand: emailBrandName(), count: failed.length }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.dataPurgeFailed.text', { job }) },
+        { kind: 'list', title: t('email.adminAlert.dataPurgeFailed.items'), items: failed },
+        { kind: 'text', tone: 'muted', text: t('email.adminAlert.dataPurgeFailed.next') },
+      ],
+    }
+  }
+
 /** Every passkey of an account was removed (user.resetPasskeys). */
 export const passkeysResetAlert =
   (actor: AlertActor, email: string, removed: number, isAdmin: boolean): AdminAlertText =>
