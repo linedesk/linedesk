@@ -11,14 +11,35 @@ test('chatJson asks the configured API for a JSON object and returns the message
   const [url, init] = fakeFetch.mock.calls[0]!
   expect(url).toBe('https://openrouter.ai/api/v1/chat/completions')
   expect((init!.headers as Record<string, string>).authorization).toBe('Bearer sk-or-test')
-  expect(JSON.parse(String(init!.body))).toMatchObject({ model: 'openai/gpt-4.1-mini', response_format: { type: 'json_object' }, max_tokens: SUMMARY_MAX_TOKENS })
+  expect(JSON.parse(String(init!.body))).toMatchObject({ model: 'openai/gpt-4.1-mini', response_format: { type: 'json_object' }, max_tokens: SUMMARY_MAX_TOKENS, provider: { data_collection: 'deny', zdr: true } })
 
+  // OpenAI's own API would refuse OpenRouter's `provider` field.
   const direct = { ...openrouter, baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini' }
   await chatJson(direct, fakeFetch)('s', 'u')
   expect(fakeFetch.mock.calls[1]![0]).toBe('https://api.openai.com/v1/chat/completions')
+  expect(JSON.parse(String(fakeFetch.mock.calls[1]![1]!.body))).not.toHaveProperty('provider')
 
   const failing: typeof fetch = async () => Response.json({ error: { message: 'No auth credentials found' } }, { status: 401 })
   await expect(chatJson(openrouter, failing)('s', 'u')).rejects.toThrow('summary request failed (401): No auth credentials found')
+})
+
+// OpenRouter's answer when no endpoint of the model keeps to the routing (data policy or zero data retention).
+const noEndpoint: typeof fetch = async () =>
+  Response.json({ error: { message: 'No endpoints found matching your data policy (Zero data retention). Configure: https://openrouter.ai/settings/privacy', code: 404 } }, { status: 404 })
+
+test('chatJson names the model OpenRouter has no private endpoint for, in the error and the log', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  await expect(chatJson(openrouter, noEndpoint)('s', 'u')).rejects.toThrow(
+    'summary request failed (404): OpenRouter has no endpoint for the model openai/gpt-4.1-mini with zero data retention and no training on the data.',
+  )
+  expect(error.mock.calls[0]![0]).toContain('turn off Zero data retention only under Server admin › Providers › OpenRouter')
+  error.mockClear()
+  // With zero data retention turned off only training is excluded: the request and the text say so.
+  const fakeFetch = vi.fn<typeof fetch>(noEndpoint)
+  await expect(chatJson({ ...openrouter, zeroDataRetention: false }, fakeFetch)('s', 'u')).rejects.toThrow('that does not train on the data')
+  expect(JSON.parse(String(fakeFetch.mock.calls[0]![1]!.body)).provider).toEqual({ data_collection: 'deny' })
+  expect(error).toHaveBeenCalledTimes(1)
+  error.mockRestore()
 })
 
 test('chatJson gives up when the request takes longer than the timeout', async () => {
@@ -41,25 +62,32 @@ test('warmUpLlm sends the system prompt for a one-token answer and never throws'
   await warmUpLlm(openrouter, 'You are Maya.', fakeFetch)
   const [url, init] = fakeFetch.mock.calls[0]!
   expect(url).toBe('https://openrouter.ai/api/v1/chat/completions')
-  expect(JSON.parse(String(init!.body))).toMatchObject({ model: 'openai/gpt-4.1-mini', max_tokens: 1, messages: [{ role: 'system', content: 'You are Maya.' }, { role: 'user' }] })
+  expect(JSON.parse(String(init!.body))).toMatchObject({ model: 'openai/gpt-4.1-mini', max_tokens: 1, provider: { data_collection: 'deny', zdr: true }, messages: [{ role: 'system', content: 'You are Maya.' }, { role: 'user' }] })
 
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   await expect(warmUpLlm(openrouter, 's', async () => { throw new TypeError('fetch failed') })).resolves.toBeUndefined()
   await warmUpLlm(openrouter, 's', async () => new Response('busy', { status: 429 }))
   expect(warn.mock.calls.map(c => c[0])).toEqual(['LLM warm-up failed: fetch failed', 'LLM warm-up answered 429'])
+  // At the start of every call: a model OpenRouter has no private endpoint for is logged as an error, by name.
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  await warmUpLlm({ ...openrouter, model: 'some/model' }, 's', noEndpoint)
+  expect(error.mock.calls.map(c => c[0])).toEqual([expect.stringContaining('OpenRouter has no endpoint for the model some/model with zero data retention')])
+  error.mockRestore()
   warn.mockRestore()
 })
 
 test('the summary uses the summary model, with OpenRouter fallbacks as `models`', async () => {
   const fakeFetch = vi.fn<typeof fetch>(async () => Response.json({ choices: [{ message: { content: '{}' } }] }))
   const llm: AgentConfig['llm'] = {
-    provider: 'openrouter', ...openrouter, model: 'live/fast', fallbacks: ['live/backup'], summaryModel: 'sum/strong', summaryFallbacks: ['sum/backup'],
+    provider: 'openrouter', ...openrouter, model: 'live/fast', fallbacks: ['live/backup'], summaryModel: 'sum/strong', summaryFallbacks: ['sum/backup'], zeroDataRetention: false,
   }
   const config = { llm } as AgentConfig
   vi.stubGlobal('fetch', fakeFetch)
   await summaryLlm(config)('s', 'u')
   vi.unstubAllGlobals()
-  expect(JSON.parse(String(fakeFetch.mock.calls[0]![1]!.body))).toMatchObject({ model: 'sum/strong', models: ['sum/strong', 'sum/backup'] })
+  // The instance admin's zero data retention switch reaches the summary too (off here: no training only).
+  expect(JSON.parse(String(fakeFetch.mock.calls[0]![1]!.body))).toMatchObject({ model: 'sum/strong', models: ['sum/strong', 'sum/backup'], provider: { data_collection: 'deny' } })
+  expect(JSON.parse(String(fakeFetch.mock.calls[0]![1]!.body)).provider).not.toHaveProperty('zdr')
   await chatJson({ ...openrouter, fallbacks: [] }, fakeFetch)('s', 'u')
   expect(JSON.parse(String(fakeFetch.mock.calls[1]![1]!.body))).not.toHaveProperty('models')
 })
@@ -180,10 +208,13 @@ test('ElevenLabs Scribe and OpenAI transcription detect the end of a turn, like 
 
 // Seen on the test server: with little OpenRouter credit left, every reply without a cap failed with 402 ("You requested
 // up to 65536 tokens, but can only afford 16174"), the caller heard nothing after the greeting.
-test('every conversation request is capped, with OpenRouter fallbacks as `models`', () => {
+test('every conversation request is capped, with OpenRouter fallbacks as `models` and only providers that do not train', () => {
   const openrouter = 'https://openrouter.ai/api/v1'
-  expect(replyRequestFields('live/fast', [], openrouter)).toEqual({ max_tokens: REPLY_MAX_TOKENS })
-  expect(replyRequestFields('live/fast', ['live/backup'], openrouter)).toEqual({ max_tokens: REPLY_MAX_TOKENS, models: ['live/fast', 'live/backup'] })
+  const noTraining = { provider: { data_collection: 'deny', zdr: true } }
+  expect(replyRequestFields('live/fast', [], openrouter)).toEqual({ max_tokens: REPLY_MAX_TOKENS, ...noTraining })
+  expect(replyRequestFields('live/fast', ['live/backup'], openrouter)).toEqual({ max_tokens: REPLY_MAX_TOKENS, models: ['live/fast', 'live/backup'], ...noTraining })
+  // Zero data retention turned off by the instance admin: providers that train stay excluded.
+  expect(replyRequestFields('live/fast', [], openrouter, false)).toEqual({ max_tokens: REPLY_MAX_TOKENS, provider: { data_collection: 'deny' } })
   // OpenAI's own API: gpt-5 models refuse max_tokens.
   expect(replyRequestFields('gpt-5.4', [], 'https://api.openai.com/v1')).toEqual({ max_completion_tokens: REPLY_MAX_TOKENS })
 })

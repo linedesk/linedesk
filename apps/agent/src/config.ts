@@ -17,6 +17,7 @@ import {
   realtimeVoiceFor,
   VOICE_PIPELINE_LABELS,
   type VoicePipeline,
+  zeroDataRetentionOn,
 } from '@linedesk/actions'
 import { z } from 'zod'
 import { recordingSettings, resolveRecording, type RecordingConfig } from './recording.ts'
@@ -36,6 +37,11 @@ export interface AgentConfig {
     fallbacks: string[]
     summaryModel: string
     summaryFallbacks: string[]
+    /**
+     * OpenRouter only: route to zero-data-retention endpoints (noTrainingFields). On unless the instance admin turned
+     * it off; providers that train are excluded either way.
+     */
+    zeroDataRetention: boolean
   }
   /**
    * `voiceId` is the default voice; an assistant can bring its own, also of another provider in
@@ -105,6 +111,7 @@ const entry = z
     api_key: z.string().nullish(),
     model: z.string().nullish(),
     summary_model: z.string().nullish(),
+    zero_data_retention: z.string().nullish(),
     voice_id: z.string().nullish(),
     voice: z.string().nullish(),
   })
@@ -182,6 +189,7 @@ export const stageEnvVars = [
     'SUMMARY_MODEL',
     'TTS_VOICE_ID',
     'LLM_BASE_URL',
+    'OPENROUTER_ZERO_DATA_RETENTION',
     ...Object.values(realtimeEnv),
   ]),
 ]
@@ -214,6 +222,7 @@ function fromEnv(key: StageKey, env: Env): NonNullable<Entry> {
     api_key: keyVar ? env[keyVar] : undefined,
     model: env[modelEnv[key]],
     summary_model: key === 'llm' ? env.SUMMARY_MODEL : undefined,
+    zero_data_retention: key === 'llm' ? env.OPENROUTER_ZERO_DATA_RETENTION : undefined,
     voice_id: key === 'tts' ? env.TTS_VOICE_ID : undefined,
   }
 }
@@ -269,6 +278,7 @@ export function resolveAgentConfig(settings: ProviderSettings | null, env: Env =
       fallbacks: withFallbacks ? fallbacks : [],
       summaryModel: summaryModel!,
       summaryFallbacks: withFallbacks ? summaryFallbacks : [],
+      zeroDataRetention: zeroDataRetentionOn(llm.zero_data_retention),
     },
     tts: {
       provider: tts.provider as TtsConfig['provider'],

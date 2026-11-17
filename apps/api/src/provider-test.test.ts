@@ -166,11 +166,52 @@ describe('language models', () => {
       .map(r => JSON.parse(String(r.init.body)).model)
     // The defaults use Gemini 3.5 Flash-Lite for both.
     expect(models).toEqual(['google/gemini-3.5-flash-lite'])
+    // Routed as the calls are: only providers that don't train, and zero data retention (on by default).
+    const bodies = fake.requests
+      .filter(r => r.url.endsWith('/chat/completions'))
+      .map(r => JSON.parse(String(r.init.body)))
+    expect(bodies[0].provider).toEqual({ data_collection: 'deny', zdr: true })
     const other = provider({ 'GET /api/v1/credits': [200, { data: { total_credits: 20, total_usage: 1 } }] })
     await testProvider('openrouter', config({ api_key: KEY, summary_model: 'openai/gpt-5.4-mini' }), other.doFetch)
     expect(
       other.requests.filter(r => r.url.endsWith('/chat/completions')).map(r => JSON.parse(String(r.init.body)).model),
     ).toEqual(['google/gemini-3.5-flash-lite', 'openai/gpt-5.4-mini'])
+  })
+
+  test('OpenRouter: a model with no endpoint under the privacy routing fails by name, with the fix', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const refusal = {
+      error: {
+        message:
+          'No endpoints found matching your data policy (Zero data retention). Configure: https://openrouter.ai/settings/privacy',
+        code: 404,
+      },
+    }
+    const fake = provider({
+      'GET /api/v1/credits': [200, { data: { total_credits: 20, total_usage: 1 } }],
+      'POST /chat/completions': [404, refusal],
+    })
+    const result = await testProvider('openrouter', config({ api_key: KEY, model: 'some/model' }), fake.doFetch)
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'not_found',
+      message: expect.stringContaining('OpenRouter has no endpoint for the model some/model with zero data retention'),
+    })
+    expect(error).toHaveBeenCalledWith(result.message)
+    // Turned off by the instance admin: only providers that train are excluded, and the text says so.
+    const off = provider({
+      'GET /api/v1/credits': [200, { data: { total_credits: 20, total_usage: 1 } }],
+      'POST /chat/completions': [404, refusal],
+    })
+    const without = await testProvider(
+      'openrouter',
+      config({ api_key: KEY, model: 'some/model', zero_data_retention: 'false' }),
+      off.doFetch,
+    )
+    expect(without.message).toContain('the model some/model that does not train on the data')
+    const body = JSON.parse(String(off.requests.find(r => r.url.endsWith('/chat/completions'))!.init.body))
+    expect(body.provider).toEqual({ data_collection: 'deny' })
+    error.mockRestore()
   })
 
   test('OpenAI: insufficient_quota (HTTP 429) is a used-up quota, not a rate limit', async () => {

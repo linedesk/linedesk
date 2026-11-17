@@ -4,7 +4,7 @@
 // voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
 // Or, when an admin picked one, a realtime model alone: it hears the caller and answers in its own voice.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
-import { DEFAULT_VOICE_MODELS, voiceModelFor, anyModeLanguages, fluxRecognizes, type HearingModel, type Language, mainLanguageOf, otherLanguagesOf, providerLanguageCode, type SpeakingVoice, spokenLanguages, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
+import { DEFAULT_VOICE_MODELS, noPrivateEndpointText, noTrainingFields, voiceModelFor, anyModeLanguages, fluxRecognizes, type HearingModel, type Language, mainLanguageOf, otherLanguagesOf, providerLanguageCode, type SpeakingVoice, spokenLanguages, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
 import { tts as ttsTypes, type voice } from '@livekit/agents'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
 import * as deepgram from '@livekit/agents-plugin-deepgram'
@@ -151,7 +151,8 @@ export function deepgramChoice(model: string, languages: CallLanguages = ENGLISH
 /**
  * Speech recognition for a call (deepgramChoice for Deepgram). ElevenLabs Scribe and OpenAI transcription stream and
  * detect the end of a turn on their side. With other languages allowed they detect the language of each turn
- * (reported with the transcript); else they are told the one.
+ * (reported with the transcript); else they are told the one. Deepgram gets `mip_opt_out` on every stream, as the
+ * after-call transcriber does: it then keeps no call audio for its Model Improvement Program (training).
  */
 export function createStt({ provider, apiKey, model }: AgentConfig['stt'], languages: CallLanguages = ENGLISH_CALL) {
   const multi = !englishOnly(languages)
@@ -161,9 +162,9 @@ export function createStt({ provider, apiKey, model }: AgentConfig['stt'], langu
   const choice = deepgramChoice(model, languages)
   const { languageHint } = choice
   // Deepgram's Flux models speak a different protocol than Nova.
-  if (choice.protocol === 'flux') return new deepgram.STTv2({ apiKey, model: choice.model, eagerEotThreshold: EAGER_END_OF_TURN, ...(languageHint ? { languageHint } : {}) })
-  if (!choice.language) return new deepgram.STT({ apiKey, model: choice.model })
-  return new deepgram.STT({ apiKey, model: choice.model, language: choice.language, languageHint, endpointing: choice.endpointing })
+  if (choice.protocol === 'flux') return new deepgram.STTv2({ apiKey, model: choice.model, eagerEotThreshold: EAGER_END_OF_TURN, mipOptOut: true, ...(languageHint ? { languageHint } : {}) })
+  if (!choice.language) return new deepgram.STT({ apiKey, model: choice.model, mipOptOut: true })
+  return new deepgram.STT({ apiKey, model: choice.model, language: choice.language, languageHint, endpointing: choice.endpointing, mipOptOut: true })
 }
 
 /** The model the voice provider is asked for (each gets its default, DEFAULT_VOICE_MODELS, when none is configured). */
@@ -267,13 +268,17 @@ const modelsField = (model: string, fallbacks: string[]) => (fallbacks.length ? 
 export const tokenCap = (baseUrl: string, n: number) =>
   /^https:\/\/api\.openai\.com\//.test(baseUrl) ? { max_completion_tokens: n } : { max_tokens: n }
 
-/** What every conversation request carries on top of the plugin's own fields: the reply cap, and OpenRouter fallbacks. */
-export const replyRequestFields = (model: string, fallbacks: string[], baseUrl: string) => ({ ...tokenCap(baseUrl, REPLY_MAX_TOKENS), ...modelsField(model, fallbacks) })
+/**
+ * What every conversation request carries on top of the plugin's own fields: the reply cap, OpenRouter fallbacks, and
+ * OpenRouter's rule to route only to providers that don't train on the call, and with zero data retention unless the
+ * instance admin turned that off (noTrainingFields).
+ */
+export const replyRequestFields = (model: string, fallbacks: string[], baseUrl: string, zeroDataRetention = true) => ({ ...tokenCap(baseUrl, REPLY_MAX_TOKENS), ...modelsField(model, fallbacks), ...noTrainingFields(baseUrl, zeroDataRetention) })
 
 /** The conversation LLM: every request carries replyRequestFields. */
-function createLlm({ apiKey, baseUrl, model, fallbacks }: AgentConfig['llm']) {
+function createLlm({ apiKey, baseUrl, model, fallbacks, zeroDataRetention }: AgentConfig['llm']) {
   const options = { apiKey, baseURL: baseUrl, model }
-  const extra = replyRequestFields(model, fallbacks, baseUrl)
+  const extra = replyRequestFields(model, fallbacks, baseUrl, zeroDataRetention)
   return new (class extends openai.LLM {
     override chat(args: Parameters<openai.LLM['chat']>[0]) {
       return super.chat({ ...args, extraKwargs: { ...args.extraKwargs, ...extra } })
@@ -504,23 +509,34 @@ export function transferSpeechOf(config: CallConfig, assistant: LineAssistant, t
   }
 }
 
-/** Where one chat request goes. */
-export type ChatModel = { apiKey: string; baseUrl: string; model: string; fallbacks?: string[] }
+/** Where one chat request goes; `zeroDataRetention` (OpenRouter, default on): see noTrainingFields. */
+export type ChatModel = { apiKey: string; baseUrl: string; model: string; fallbacks?: string[]; zeroDataRetention?: boolean }
+
+/**
+ * The error text of a failed chat request: OpenRouter's "no endpoint" under our privacy routing gets the clear text that
+ * names the model and the fix (noPrivateEndpointText), logged as an error; else the provider's own message.
+ */
+function chatFailure({ baseUrl, model, zeroDataRetention = true }: ChatModel, status: number, message: string): string {
+  const clear = noPrivateEndpointText(status, message, baseUrl, model, zeroDataRetention)
+  if (clear) console.error(clear)
+  return clear ?? message
+}
 
 /** CompleteJson backed by an OpenAI-compatible chat completions API. Gives up after `timeoutMs`. */
-export function chatJson({ apiKey, baseUrl, model, fallbacks = [] }: ChatModel, doFetch: typeof fetch = fetch, timeoutMs = SUMMARY_TIMEOUT_MS): CompleteJson {
+export function chatJson(chat: ChatModel, doFetch: typeof fetch = fetch, timeoutMs = SUMMARY_TIMEOUT_MS): CompleteJson {
+  const { apiKey, baseUrl, model, fallbacks = [], zeroDataRetention = true } = chat
   return async (system, user) => {
     const res = await doFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model, ...modelsField(model, fallbacks), response_format: { type: 'json_object' }, ...tokenCap(baseUrl, SUMMARY_MAX_TOKENS),
+        model, ...modelsField(model, fallbacks), ...noTrainingFields(baseUrl, zeroDataRetention), response_format: { type: 'json_object' }, ...tokenCap(baseUrl, SUMMARY_MAX_TOKENS),
         messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
       }),
       signal: AbortSignal.timeout(timeoutMs),
     })
     const body = (await res.json().catch(() => null)) as { choices?: { message?: { content?: string } }[]; error?: { message?: string } } | null
-    if (!res.ok) throw new Error(`summary request failed (${res.status}): ${body?.error?.message ?? res.statusText}`)
+    if (!res.ok) throw new Error(`summary request failed (${res.status}): ${chatFailure(chat, res.status, body?.error?.message ?? res.statusText)}`)
     const content = body?.choices?.[0]?.message?.content
     if (!content) throw new Error('summary response was empty')
     return content
@@ -534,7 +550,7 @@ export function chatJson({ apiKey, baseUrl, model, fallbacks = [] }: ChatModel, 
 export function summaryLlm(config: CallConfig): CompleteJson {
   if (isRealtime(config)) return chatJson({ apiKey: config.realtime.apiKey, baseUrl: llmDefaults.openai.baseUrl, model: config.realtime.summaryModel })
   const { llm } = config
-  return chatJson({ apiKey: llm.apiKey, baseUrl: llm.baseUrl, model: llm.summaryModel, fallbacks: llm.summaryFallbacks })
+  return chatJson({ apiKey: llm.apiKey, baseUrl: llm.baseUrl, model: llm.summaryModel, fallbacks: llm.summaryFallbacks, zeroDataRetention: llm.zeroDataRetention })
 }
 
 /**
@@ -542,16 +558,21 @@ export function summaryLlm(config: CallConfig): CompleteJson {
  * reply finds an open connection (same process, same fetch pool) and, where the provider caches prompts,
  * a cached prompt. Failures only cost the warm-up: they are logged and otherwise ignored.
  */
-export async function warmUpLlm({ apiKey, baseUrl, model }: ChatModel, instructions: string, doFetch: typeof fetch = fetch) {
+export async function warmUpLlm(chat: ChatModel, instructions: string, doFetch: typeof fetch = fetch) {
+  const { apiKey, baseUrl, model, zeroDataRetention = true } = chat
   try {
     const res = await doFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, ...tokenCap(baseUrl, 1), messages: [{ role: 'system', content: instructions }, { role: 'user', content: 'Hello?' }] }),
+      body: JSON.stringify({ model, ...tokenCap(baseUrl, 1), ...noTrainingFields(baseUrl, zeroDataRetention), messages: [{ role: 'system', content: instructions }, { role: 'user', content: 'Hello?' }] }),
       signal: AbortSignal.timeout(WARM_UP_TIMEOUT_MS),
     })
-    await res.body?.cancel()
-    if (!res.ok) console.warn(`LLM warm-up answered ${res.status}`)
+    // The same model and routing as the call's first reply: a model OpenRouter has no private endpoint for is named here.
+    if (res.ok) await res.body?.cancel()
+    else {
+      chatFailure(chat, res.status, await res.text().catch(() => ''))
+      console.warn(`LLM warm-up answered ${res.status}`)
+    }
   } catch (e) {
     console.warn(`LLM warm-up failed: ${e instanceof Error ? e.message : String(e)}`)
   }

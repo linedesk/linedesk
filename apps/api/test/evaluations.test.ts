@@ -2,10 +2,11 @@
 // model, stored per call, read by owners and admins only.
 import { assistants, call_evaluations, calls, knowledge_questions, transcript_segments } from '@linedesk/db'
 import { eq, sql } from 'drizzle-orm'
-import { afterEach, beforeAll, describe, expect, test } from 'vitest'
+import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import {
   chatJson,
+  chatProblem,
   EVALUATIONS_PER_HOUR,
   evaluateCall,
   evaluationModel,
@@ -25,6 +26,7 @@ beforeAll(async () => {
 afterEach(() => {
   setJobQueue(null)
   delete process.env.OPENROUTER_API_KEY
+  delete process.env.OPENROUTER_ZERO_DATA_RETENTION
 })
 
 /** A finished call with a short conversation. */
@@ -194,7 +196,7 @@ describe('evaluating', () => {
   test('uses the configured language model, its first live model, at its endpoint', async () => {
     expect(await evaluationModel(db)).toBeNull()
     process.env.OPENROUTER_API_KEY = 'or-test-key'
-    const requests: { url: string; body: { model: string; max_tokens: number } }[] = []
+    const requests: { url: string; body: { model: string; max_tokens: number; provider?: unknown } }[] = []
     const fakeFetch = (async (url: string, init: RequestInit) => {
       requests.push({ url, body: JSON.parse(String(init.body)) })
       return new Response(JSON.stringify({ choices: [{ message: { content: '{"score": 4, "issues": []}' } }] }))
@@ -204,8 +206,38 @@ describe('evaluating', () => {
     expect(await model!.complete('system', 'user')).toBe('{"score": 4, "issues": []}')
     expect(requests[0]).toMatchObject({
       url: 'https://openrouter.ai/api/v1/chat/completions',
-      body: { model: 'google/gemini-3.5-flash-lite', max_tokens: 400 },
+      // OpenRouter routes it only to providers that don't train on it: the request holds the transcript.
+      body: {
+        model: 'google/gemini-3.5-flash-lite',
+        max_tokens: 400,
+        provider: { data_collection: 'deny', zdr: true },
+      },
     })
+  })
+
+  test('the OpenRouter zero data retention switch reaches the request; a model without such an endpoint is named', async () => {
+    process.env.OPENROUTER_API_KEY = 'or-test-key'
+    process.env.OPENROUTER_ZERO_DATA_RETENTION = 'false'
+    const bodies: { provider?: unknown }[] = []
+    const refusing = (async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)))
+      return new Response(
+        '{"error":{"message":"No endpoints found matching your data policy (Paid model training). Configure: https://openrouter.ai/settings/privacy","code":404}}',
+        { status: 404 },
+      )
+    }) as unknown as typeof fetch
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const model = await evaluationModel(db, refusing)
+    const failure = await model!.complete('system', 'user').catch((e: unknown) => e)
+    // Turned off: only providers that train are excluded.
+    expect(bodies[0]!.provider).toEqual({ data_collection: 'deny' })
+    expect(chatProblem('openrouter', model!.model, failure)).toEqual({
+      reason: 'not_found',
+      message:
+        'OpenRouter has no endpoint for the model google/gemini-3.5-flash-lite that does not train on the data. Pick another model under Server admin › Providers › OpenRouter.',
+    })
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('google/gemini-3.5-flash-lite'))
+    error.mockRestore()
   })
 
   test('a failed request names its status, never the key', async () => {

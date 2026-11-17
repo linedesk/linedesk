@@ -11,10 +11,13 @@ import {
   providerSpec,
   llmEndpoints,
   NEEDS_REVIEW_MAX_SCORE,
+  noPrivateEndpointText,
+  noTrainingFields,
   PRICE_RULE,
   QUESTION_MAX,
   type QuestionGroup,
   QUESTIONS_WINDOW_DAYS,
+  zeroDataRetentionOn,
 } from '@linedesk/actions'
 import { assistants, call_evaluations, calls, knowledge_questions, type Tx, transcript_segments } from '@linedesk/db'
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
@@ -45,16 +48,23 @@ const evaluationBudget = createFailureLimiter({ max: EVALUATIONS_PER_HOUR, windo
 /** Whether the workspace may ask for another evaluation now (call.evaluate tells the member when not). */
 export const evaluationsLeft = (workspaceId: string) => !evaluationBudget.blocked(workspaceId)
 
-/** How long an answer may be (tokens) and how long to wait for it. */
-export type ChatOptions = { maxTokens?: number; timeoutMs?: number }
+/**
+ * How long an answer may be (tokens) and how long to wait for it; `zeroDataRetention` (OpenRouter, default on): only
+ * endpoints that keep nothing (noTrainingFields).
+ */
+export type ChatOptions = { maxTokens?: number; timeoutMs?: number; zeroDataRetention?: boolean }
 
-/** One chat request that must answer JSON. Errors name the status, never the key. */
+/**
+ * One chat request that must answer JSON. Errors name the status, never the key. To OpenRouter it carries the rule to
+ * route only to providers that don't train on it, with zero data retention unless turned off (noTrainingFields): the
+ * request holds call transcripts. A model OpenRouter has no such endpoint for is logged as an error, by name.
+ */
 export function chatJson(
   apiKey: string,
   baseUrl: string,
   model: string,
   doFetch: typeof fetch = fetch,
-  { maxTokens = 400, timeoutMs = TIMEOUT_MS }: ChatOptions = {},
+  { maxTokens = 400, timeoutMs = TIMEOUT_MS, zeroDataRetention = true }: ChatOptions = {},
 ): CompleteJson {
   return async (system, user) => {
     const res = await doFetch(`${baseUrl}/chat/completions`, {
@@ -62,6 +72,7 @@ export function chatJson(
       headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model,
+        ...noTrainingFields(baseUrl, zeroDataRetention),
         response_format: { type: 'json_object' },
         // OpenAI's own API wants max_completion_tokens (its gpt-5 models refuse max_tokens).
         ...(/^https:\/\/api\.openai\.com\//.test(baseUrl) ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens }),
@@ -73,7 +84,11 @@ export function chatJson(
       signal: AbortSignal.timeout(timeoutMs),
     })
     const text = await res.text().catch(() => '')
-    if (!res.ok) throw new ChatRequestError(res.status, text)
+    if (!res.ok) {
+      const privacy = noPrivateEndpointText(res.status, text, baseUrl, model, zeroDataRetention)
+      if (privacy) console.error(privacy)
+      throw new ChatRequestError(res.status, text, undefined, privacy)
+    }
     const body = parseJson(text) as { choices?: { message?: { content?: string } }[] } | null
     const content = body?.choices?.[0]?.message?.content
     if (!content) throw new ChatRequestError(res.status, '', 'evaluation response was empty')
@@ -93,16 +108,20 @@ const parseJson = (text: string): unknown => {
 export class ChatRequestError extends Error {
   readonly status: number
   readonly body: string
-  constructor(status: number, body: string, message = `evaluation request failed (${status})`) {
+  /** OpenRouter had no endpoint for the model under our privacy routing: the text that names it (noPrivateEndpointText). */
+  readonly privacy: string | null
+  constructor(status: number, body: string, message = `evaluation request failed (${status})`, privacy: string | null = null) {
     super(message)
     this.status = status
     this.body = body
+    this.privacy = privacy
   }
 }
 
 /** What a failed chat request means for the provider (provider-failures.ts). */
 export function chatProblem(provider: ProviderName, model: string, e: unknown): ProviderProblem {
   if (!(e instanceof ChatRequestError)) return problemOfError(provider, e, `the model ${model}`)
+  if (e.privacy) return { reason: 'not_found', message: e.privacy }
   if (e.status >= 200 && e.status < 300)
     return {
       reason: 'unknown',
@@ -140,8 +159,13 @@ export async function evaluationModel(
   if (!active || !endpoint || !apiKey) return null
   // The model field is a list, "model, fallback, ..."; the first is the one used.
   const model = active.config.model?.value?.split(',')[0]?.trim() || endpoint.model
+  const zeroDataRetention = zeroDataRetentionOn(active.config.zero_data_retention?.value)
   return {
-    complete: tracked(active.provider, model, chatJson(apiKey, endpoint.baseUrl, model, doFetch, options)),
+    complete: tracked(
+      active.provider,
+      model,
+      chatJson(apiKey, endpoint.baseUrl, model, doFetch, { ...options, zeroDataRetention }),
+    ),
     model,
   }
 }

@@ -67,6 +67,7 @@ async function installModel(): Promise<ModelConfig & { provider: string }> {
       apiKey: config.llm.apiKey,
       model: config.llm.model,
       fallbacks: config.llm.fallbacks,
+      zeroDataRetention: config.llm.zeroDataRetention,
     }
   } finally {
     await pool.end()

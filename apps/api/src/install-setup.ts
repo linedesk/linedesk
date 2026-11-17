@@ -14,10 +14,13 @@ import {
   legacyInstallSteps,
   type LlmProvider,
   llmEndpoints,
+  noPrivateEndpointText,
+  noTrainingFields,
   type ProviderName,
   providerSpec,
   type TryOutData,
   type TryOutKind,
+  zeroDataRetentionOn,
 } from '@linedesk/actions'
 import { instance_settings, type Tx, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
@@ -27,7 +30,7 @@ import { localeForUserId } from './email-locale.ts'
 import { installTestEmail, TEST_EMAIL_MINUTES } from './emails/alerts.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { followEmailSettings, restartState } from './instance-env.ts'
-import { problemOfError, problemOfResponse } from './provider-errors.ts'
+import { problemOfError, problemOfResponse, problemOfStatus } from './provider-errors.ts'
 import { activeProvider, type ProviderConfig, telephonyProvider } from './provider-settings.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { rememberTest } from './setup-checklist.ts'
@@ -156,12 +159,15 @@ async function tryLlm(tx: Tx): Promise<Tried> {
   if (!endpoint) return failed(labelOf(provider), `${labelOf(provider)} can't be tested here.`)
   const model = realtime ? v.summary_model || 'gpt-4.1-mini' : v.model?.split(',')[0]?.trim() || endpoint.models[0]
   const limit = provider === 'openai' || realtime ? { max_completion_tokens: 80 } : { max_tokens: 80 }
+  const zeroDataRetention = zeroDataRetentionOn(v.zero_data_retention)
   const start = performance.now()
   const res = await send(`${endpoint.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: { authorization: `Bearer ${v.api_key}`, 'content-type': 'application/json' },
+    // Routed as the calls are (noTrainingFields): a model OpenRouter has no private endpoint for fails here, by name.
     body: JSON.stringify({
       model,
+      ...noTrainingFields(endpoint.baseUrl, zeroDataRetention),
       messages: [
         {
           role: 'system',
@@ -174,7 +180,12 @@ async function tryLlm(tx: Tx): Promise<Tried> {
     }),
   })
   const took = seconds(start)
-  if (!res.ok) return failed(labelOf(provider), (await problemOfResponse(provider, res, `the model ${model}`)).message)
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    const privacy = noPrivateEndpointText(res.status, text, endpoint.baseUrl, model, zeroDataRetention)
+    if (privacy) console.error(privacy)
+    return failed(labelOf(provider), privacy ?? problemOfStatus(provider, res.status, text, `the model ${model}`).message)
+  }
   const body = (await res.json()) as { choices?: { message?: { content?: string } }[] }
   const reply = body.choices?.[0]?.message?.content?.trim()
   if (!reply) return failed(labelOf(provider), `${model} returned an empty answer.`)
@@ -196,7 +207,7 @@ async function transcribe(provider: ProviderName, v: Record<string, string>, cli
   const file = () => new Blob([new Uint8Array(clip)], { type: 'audio/mpeg' })
   if (provider === 'deepgram')
     return send(
-      `https://api.deepgram.com/v1/listen?model=${encodeURIComponent(v.model || 'nova-3')}&smart_format=true`,
+      `https://api.deepgram.com/v1/listen?model=${encodeURIComponent(v.model || 'nova-3')}&smart_format=true&mip_opt_out=true`,
       {
         method: 'POST',
         headers: { authorization: `Token ${v.api_key}`, 'content-type': 'audio/mpeg' },

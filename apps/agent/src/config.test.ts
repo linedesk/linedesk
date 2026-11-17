@@ -13,7 +13,7 @@ test('without LLM_PROVIDER the language model is OpenAI, with its default model'
   const env = { DEEPGRAM_API_KEY: 'dg', OPENAI_API_KEY: 'oa', ELEVENLABS_API_KEY: 'el' }
   expect((await configFromEnv(env)).llm).toEqual({
     provider: 'openai', apiKey: 'oa', baseUrl: 'https://api.openai.com/v1',
-    model: 'gpt-4.1-mini', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [],
+    model: 'gpt-4.1-mini', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [], zeroDataRetention: true,
   })
   const { OPENAI_API_KEY: _, ...withoutOpenAi } = env
   expect(() => resolveAgentConfig(null, withoutOpenAi)).toThrow('language model: no API key for openai')
@@ -26,6 +26,7 @@ test('env defaults: Deepgram, OpenRouter with a fast live model and a stronger s
       provider: 'openrouter', apiKey: 'or', baseUrl: 'https://openrouter.ai/api/v1',
       model: 'google/gemini-3.5-flash-lite', fallbacks: ['openai/gpt-4.1-mini'],
       summaryModel: 'google/gemini-3.5-flash-lite', summaryFallbacks: ['openai/gpt-5.4-mini'],
+      zeroDataRetention: true,
     },
     tts: { provider: 'elevenlabs', apiKey: 'el', model: undefined, voiceId: undefined, others: [] },
     recording: { store: 'off' },
@@ -38,7 +39,7 @@ test('every stage can be changed by env', async () => {
     LLM_PROVIDER: 'openai', TTS_PROVIDER: 'cartesia', STT_MODEL: 'nova-3', LLM_MODEL: 'gpt-5.4', TTS_MODEL: 'sonic-3', TTS_VOICE_ID: 'voice_1',
   })
   expect(config.stt.model).toBe('nova-3')
-  expect(config.llm).toEqual({ provider: 'openai', apiKey: 'oa', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [] })
+  expect(config.llm).toEqual({ provider: 'openai', apiKey: 'oa', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [], zeroDataRetention: true })
   expect(config.tts).toEqual({ provider: 'cartesia', apiKey: 'ca', model: 'sonic-3', voiceId: 'voice_1', others: [], openAiBackup: { apiKey: 'oa', voice: 'marin' } })
   expect((await configFromEnv({ ...keys, LLM_BASE_URL: 'https://llm.internal/v1/', LLM_MODEL: 'local' })).llm).toMatchObject({ baseUrl: 'https://llm.internal/v1', model: 'local' })
 })
@@ -46,7 +47,7 @@ test('every stage can be changed by env', async () => {
 test('settings stored in Linedesk win over the environment, stage by stage', () => {
   expect(resolveAgentConfig(stored, keys)).toEqual({
     stt: { provider: 'deepgram', apiKey: 'dg-app', model: 'flux-general-en' },
-    llm: { provider: 'openai', apiKey: 'oa-app', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [] },
+    llm: { provider: 'openai', apiKey: 'oa-app', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [], zeroDataRetention: true },
     // The OpenAI language model's key also makes the backup voice.
     tts: { provider: 'elevenlabs', apiKey: 'el-app', model: undefined, voiceId: 'voice_app', others: [], openAiBackup: { apiKey: 'oa-app', voice: 'marin' } },
     recording: { store: 'off' },
@@ -170,6 +171,19 @@ test('models are lists: "model, fallback, ..." for live turns and the summary, b
   expect(app.llm).toMatchObject({ model: 'x/one', fallbacks: [], summaryModel: 'y/two', summaryFallbacks: ['z/three'] })
   // OpenAI's API takes no fallback list: only the first model is used.
   expect((await configFromEnv({ ...keys, OPENAI_API_KEY: 'oa', LLM_PROVIDER: 'openai', LLM_MODEL: 'gpt-a, gpt-b' })).llm).toMatchObject({ model: 'gpt-a', fallbacks: [] })
+})
+
+test('OpenRouter asks for zero data retention unless the instance admin turned it off, stored or by env', async () => {
+  expect((await configFromEnv(keys)).llm.zeroDataRetention).toBe(true)
+  expect((await configFromEnv({ ...keys, OPENROUTER_ZERO_DATA_RETENTION: 'false' })).llm.zeroDataRetention).toBe(false)
+  const app = (value: string | null) =>
+    resolveAgentConfig({ ...stored, llm: { provider: 'openrouter', api_key: 'or-app', zero_data_retention: value } }, keys).llm.zeroDataRetention
+  expect(app(null)).toBe(true)
+  expect(app('true')).toBe(true)
+  expect(app('false')).toBe(false)
+  // The stored setting wins over the environment, as every other field.
+  expect(resolveAgentConfig({ ...stored, llm: { provider: 'openrouter', api_key: 'or-app', zero_data_retention: 'true' } }, { ...keys, OPENROUTER_ZERO_DATA_RETENTION: 'false' }).llm.zeroDataRetention).toBe(true)
+  expect(stageEnvVars).toContain('OPENROUTER_ZERO_DATA_RETENTION')
 })
 
 test('recording storage comes with the provider settings; without it (an older API, or null) the environment decides', () => {
@@ -323,7 +337,7 @@ test('every language-model provider answers on its own OpenAI-compatible API wit
   const env = { ...keys, LLM_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'an' }
   expect(resolveAgentConfig(null, env).llm).toEqual({
     provider: 'anthropic', apiKey: 'an', baseUrl: 'https://api.anthropic.com/v1',
-    model: 'claude-haiku-5-5', fallbacks: [], summaryModel: 'claude-sonnet-5-5', summaryFallbacks: [],
+    model: 'claude-haiku-5-5', fallbacks: [], summaryModel: 'claude-sonnet-5-5', summaryFallbacks: [], zeroDataRetention: true,
   })
   const gemini = resolveAgentConfig({ ...stored, llm: { provider: 'gemini', api_key: 'ge', model: 'gemini-2.5-flash, gemini-2.5-pro' } }, {}).llm
   expect(gemini).toMatchObject({ baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash', fallbacks: [] })

@@ -461,6 +461,8 @@ describe('provider keys', () => {
       api_key: 'or-made-up-0123456789',
       model: 'vendor/model-1',
       summary_model: null,
+      // Not set: the agent asks OpenRouter for zero data retention (on unless "false").
+      zero_data_retention: null,
     })
     // Both set up: the first one, OpenAI.
     await act(operator, 'provider.setKeys', { provider: 'openai', values: { api_key: SECRET } })
@@ -724,6 +726,7 @@ describe('provider keys', () => {
       api_key: 'or-made-up-0123456789',
       model: 'vendor/made-up',
       summary_model: null,
+      zero_data_retention: null,
     })
     // A named provider without keys gives the agent nothing rather than another provider.
     process.env.TTS_PROVIDER = 'cartesia'

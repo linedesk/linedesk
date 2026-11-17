@@ -6,6 +6,8 @@
 import {
   type LlmProvider,
   llmEndpoints,
+  noPrivateEndpointText,
+  noTrainingFields,
   OAUTH_CLIENT_REJECTED,
   type ProviderFailureReason,
   type ProviderName,
@@ -14,13 +16,14 @@ import {
   providerFieldLabel,
   providerSpec,
   type RecordingStoreName,
+  zeroDataRetentionOn,
 } from '@linedesk/actions'
 import { msg } from '@linedesk/i18n'
 import { JOBBER_API, JOBBER_CLIENT_REFUSED } from '@linedesk/connectors'
 import { LIVE_KEYS_REFUSED, liveKeysAllowed, loadBillingProvider, stripeKeyMode } from '@linedesk/billing'
 import { smtpCheck } from './email.ts'
 import { isMailService, type MailService, smtpOf } from './email-services.ts'
-import { type ProviderProblem, problemOfError, problemOfResponse } from './provider-errors.ts'
+import { type ProviderProblem, problemOfError, problemOfResponse, problemOfStatus } from './provider-errors.ts'
 import type { ProviderConfig } from './provider-settings.ts'
 import { type Reader, type Said, said, sayIn } from './handler-context.ts'
 import {
@@ -286,8 +289,19 @@ const assemblyai: Check = async (values, http) => {
 /** The first model of a "model, fallback" list, else the provider's default. */
 const firstModel = (value: string | undefined, fallback: string) => value?.split(',')[0]?.trim() || fallback
 
-/** A chat request of a few tokens: the key, the model and the account's quota in one. */
-async function tinyCompletion(provider: ProviderName, http: Http, baseUrl: string, apiKey: string, model: string) {
+/**
+ * A chat request of a few tokens: the key, the model and the account's quota in one. Routed as the calls are
+ * (noTrainingFields, `zeroDataRetention` from the OpenRouter switch), so a model OpenRouter has no private endpoint
+ * for fails here, by name (noPrivateEndpointText), and not first on a call.
+ */
+async function tinyCompletion(
+  provider: ProviderName,
+  http: Http,
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  zeroDataRetention = true,
+): Promise<ProviderProblem | null> {
   // The free check: the key reads the model list (Anthropic with its own headers), no tokens.
   if (http.free) {
     const headers: Record<string, string> =
@@ -302,9 +316,20 @@ async function tinyCompletion(provider: ProviderName, http: Http, baseUrl: strin
   const res = await http.send(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ model, messages: [{ role: 'user', content: 'Say OK.' }], ...limit }),
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: 'Say OK.' }],
+      ...limit,
+      ...noTrainingFields(baseUrl, zeroDataRetention),
+    }),
   })
-  return res.ok ? null : await problemOfResponse(provider, res, `the model ${model}`)
+  if (res.ok) return null
+  const body = await res.text().catch(() => '')
+  const privacy = noPrivateEndpointText(res.status, body, baseUrl, model, zeroDataRetention)
+  if (privacy) console.error(privacy)
+  return privacy
+    ? { reason: 'not_found', message: privacy }
+    : problemOfStatus(provider, res.status, body, `the model ${model}`)
 }
 
 /** The live and the summary model each answer a few tokens. */
@@ -319,7 +344,14 @@ const llm =
       ]),
     ]
     for (const model of models) {
-      const problem = await tinyCompletion(provider, http, endpoint.baseUrl, values.api_key!, model)
+      const problem = await tinyCompletion(
+        provider,
+        http,
+        endpoint.baseUrl,
+        values.api_key!,
+        model,
+        zeroDataRetentionOn(values.zero_data_retention),
+      )
       if (problem) return failed(problem)
     }
     return ok()

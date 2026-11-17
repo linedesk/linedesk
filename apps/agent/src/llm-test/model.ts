@@ -2,6 +2,7 @@
 // LLM is (LiveKit's OpenAI plugin with replyRequestFields: parallel tool calls, the reply cap, OpenRouter fallbacks).
 // Counts tokens per model for the cost line of the report. Keys never leave this module (no logging).
 import { defaultReasoningEffort } from '@livekit/agents-plugin-openai'
+import { noTrainingFields } from '@linedesk/actions'
 import { replyRequestFields } from '../pipeline.ts'
 import type { OpenAiTool } from './tools.ts'
 
@@ -13,7 +14,14 @@ export type ChatMessage =
 
 export type ToolCall = { id: string; type: 'function'; function: { name: string; arguments: string } }
 
-export type ModelConfig = { baseUrl: string; apiKey: string; model: string; fallbacks?: string[] }
+/** `zeroDataRetention` (OpenRouter, default on): as on calls, noTrainingFields. */
+export type ModelConfig = {
+  baseUrl: string
+  apiKey: string
+  model: string
+  fallbacks?: string[]
+  zeroDataRetention?: boolean
+}
 
 type Usage = {
   prompt_tokens?: number
@@ -124,7 +132,7 @@ export function createModel(config: ModelConfig, usage: UsageTotals) {
         messages,
         ...(tools.length ? { tools, parallel_tool_calls: true, ...(toolsOff ? { tool_choice: 'none' } : {}) } : {}),
         ...(effort ? { reasoning_effort: effort } : {}),
-        ...replyRequestFields(config.model, config.fallbacks ?? [], config.baseUrl),
+        ...replyRequestFields(config.model, config.fallbacks ?? [], config.baseUrl, config.zeroDataRetention),
       })
       // The whole reply, not the first token: the suite does not stream (a call does).
       totals(config.model).replyMs.push(Math.round(performance.now() - started))
@@ -140,6 +148,7 @@ export function createModel(config: ModelConfig, usage: UsageTotals) {
         messages,
         ...(json ? { response_format: { type: 'json_object' } } : {}),
         ...(temperature !== undefined ? { temperature } : {}),
+        ...noTrainingFields(config.baseUrl, config.zeroDataRetention),
       })
       return message.content ?? ''
     },

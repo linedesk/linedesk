@@ -99,12 +99,17 @@ export type ProviderPreset = { label: string; values: Record<string, string>; he
 export type ProviderGuide = { url: string | null; steps: readonly string[]; cost: string }
 /** A guide whose words are keys in admin.json (the newer providers): providerGuide renders it for the reader. */
 type ProviderGuideKeys = { url: string | null; stepKeys: readonly MessageKey[]; costKey: MessageKey }
+/**
+ * `privacyKey` (a key in admin.json): the step that keeps the provider from training on calls where only the account
+ * can say so (a dashboard setting, or a paid plan). providerGuide puts it before the last step (pasting the key).
+ */
+type GuideSource = (ProviderGuide | ProviderGuideKeys) & { privacyKey?: MessageKey }
 /** `help` (or `helpKey`, a key in admin.json) is shown on the provider's card. */
 type ProviderSpec = {
   label: string
   category: ProviderCategory
   fields: Record<string, ProviderField>
-  guide: ProviderGuide | ProviderGuideKeys
+  guide: GuideSource
   help?: string
   helpKey?: MessageKey
   presets?: readonly ProviderPreset[]
@@ -149,6 +154,7 @@ const guides = {
     cost: 'About $0.008 per call minute; new accounts start with free credit.',
   },
   elevenlabs_stt: {
+    privacyKey: msg('admin.provider.guide.privacy.elevenlabs'),
     url: 'https://elevenlabs.io/app/developers/api-keys',
     steps: [
       'Sign up at elevenlabs.io.',
@@ -178,6 +184,7 @@ const guides = {
     cost: 'About $0.0043 per call minute with Nova-3 for recorded audio.',
   },
   assemblyai: {
+    privacyKey: msg('admin.provider.guide.privacy.assemblyai'),
     url: 'https://www.assemblyai.com/dashboard/api-keys',
     steps: [
       'Sign up at assemblyai.com and add a payment method.',
@@ -187,6 +194,7 @@ const guides = {
     cost: 'About $0.0025 to $0.0035 per call minute with Universal, speaker labels included.',
   },
   elevenlabs_transcript: {
+    privacyKey: msg('admin.provider.guide.privacy.elevenlabs'),
     url: 'https://elevenlabs.io/app/developers/api-keys',
     steps: [
       'Sign up at elevenlabs.io.',
@@ -196,6 +204,7 @@ const guides = {
     cost: 'Billed per hour of audio on your ElevenLabs plan.',
   },
   openrouter: {
+    privacyKey: msg('admin.provider.guide.privacy.openrouter'),
     url: 'https://openrouter.ai/settings/keys',
     steps: [
       'Sign up at openrouter.ai and buy a little credit (Settings → Credits).',
@@ -219,6 +228,7 @@ const guides = {
     cost: 'Billed per token at Anthropic’s list prices.',
   },
   gemini: {
+    privacyKey: msg('admin.provider.guide.privacy.gemini'),
     url: 'https://aistudio.google.com/apikey',
     steps: [
       'Sign in at aistudio.google.com with a Google account.',
@@ -233,6 +243,7 @@ const guides = {
     cost: 'A free tier with rate limits, then billed per token.',
   },
   mistral: {
+    privacyKey: msg('admin.provider.guide.privacy.mistral'),
     url: 'https://console.mistral.ai/api-keys',
     steps: [
       'Sign up at console.mistral.ai and choose a plan (Billing).',
@@ -242,6 +253,7 @@ const guides = {
     cost: 'Billed per token at Mistral’s list prices.',
   },
   elevenlabs: {
+    privacyKey: msg('admin.provider.guide.privacy.elevenlabs'),
     url: 'https://elevenlabs.io/app/developers/api-keys',
     steps: [
       'Sign up at elevenlabs.io.',
@@ -452,7 +464,7 @@ const guides = {
     ],
     cost: 'Free.',
   },
-} as const satisfies Record<string, ProviderGuide | ProviderGuideKeys>
+} as const satisfies Record<string, GuideSource>
 
 /**
  * The provider we suggest per category: a quiet "Recommended" tag on Server admin › Providers, and the guide the setup MCP
@@ -550,6 +562,51 @@ export const llmEndpoints = {
   },
 } as const satisfies Record<string, { baseUrl: string; models: readonly string[]; summaryModels: readonly string[] }>
 export type LlmProvider = keyof typeof llmEndpoints
+
+/**
+ * OpenRouter's provider routing for call data (https://openrouter.ai/docs/guides/routing/provider-selection):
+ * `data_collection: 'deny'` sends a request only to providers that don't train on it, and `zdr: true` only to
+ * endpoints with zero data retention (https://openrouter.ai/docs/guides/features/zdr: no storage after the answer,
+ * so no training either). ZDR is on unless the instance admin turned it off (the OpenRouter provider's
+ * `zero_data_retention` switch); no training is always on. A model no endpoint serves this way answers 404.
+ */
+export const openRouterPrivacy = (zeroDataRetention: boolean) =>
+  ({
+    provider: zeroDataRetention ? { data_collection: 'deny', zdr: true } : { data_collection: 'deny' },
+  }) as const
+/** Whether a chat completions base URL is OpenRouter's; other APIs would refuse OpenRouter's `provider` field. */
+export const isOpenRouterUrl = (baseUrl: string) => /^https:\/\/openrouter\.ai\//.test(baseUrl)
+/**
+ * What every request to a language model carries so no provider trains on call data or keeps it: OpenRouter's routing
+ * rule (openRouterPrivacy); nothing for the other APIs (they don't train on API data, or not on paid keys).
+ */
+export const noTrainingFields = (baseUrl: string, zeroDataRetention = true) =>
+  isOpenRouterUrl(baseUrl) ? openRouterPrivacy(zeroDataRetention) : {}
+/** The OpenRouter `zero_data_retention` switch's stored value: on unless it says "false" (empty: the default, on). */
+export const zeroDataRetentionOn = (value: string | null | undefined) => value?.trim() !== 'false'
+/**
+ * The clear error when OpenRouter has no endpoint for a model under openRouterPrivacy (a 404 "No endpoints found
+ * ..."), naming the model and the fix, in the reader's words (English for logs); null for any other answer. Logged by
+ * the agent and the API, shown by the provider test.
+ */
+export function noPrivateEndpointText(
+  status: number,
+  body: string,
+  baseUrl: string,
+  model: string,
+  zeroDataRetention: boolean,
+  words: Words = english,
+): string | null {
+  // "No endpoints found matching your data policy (...)": not other 404s (an unknown model, unsupported parameters).
+  const refused = /no endpoints? (found|available)\b.*\b(data|retention|zdr|privacy|polic)/i.test(body)
+  if (!isOpenRouterUrl(baseUrl) || status !== 404 || !refused) return null
+  return words.t(
+    zeroDataRetention
+      ? msg('admin.provider.openrouter.noZdrEndpoint')
+      : msg('admin.provider.openrouter.noPrivateEndpoint'),
+    { model },
+  )
+}
 
 /** A language-model provider's fields: its key, the live model and the summary model (hints: its defaults). */
 const llmFields = (keyEnv: string, provider: Exclude<LlmProvider, 'openrouter'>): Record<string, ProviderField> => ({
@@ -674,7 +731,16 @@ export const providers = {
         optional: true,
         hint: 'google/gemini-3.5-flash-lite, openai/gpt-5.4-mini',
       },
+      // On unless "false" (zeroDataRetentionOn): every request then asks for endpoints that keep nothing.
+      zero_data_retention: {
+        labelKey: msg('admin.provider.field.zeroDataRetention'),
+        env: 'OPENROUTER_ZERO_DATA_RETENTION',
+        secret: false,
+        optional: true,
+        switch: true,
+      },
     },
+    helpKey: msg('admin.provider.help.openrouter'),
   },
   anthropic: {
     label: 'Anthropic',
@@ -1056,8 +1122,12 @@ export const providerSpec = (name: ProviderName): ProviderSpec => providers[name
 /** A provider's key guide in the reader's words (English for the setup MCP and the CLI). */
 export function providerGuide(name: ProviderName, words: Words = english): ProviderGuide {
   const guide = providerSpec(name).guide
-  if (!('stepKeys' in guide)) return guide
-  return { url: guide.url, steps: guide.stepKeys.map(key => words.t(key)), cost: words.t(guide.costKey) }
+  const { url, steps, cost } =
+    'stepKeys' in guide
+      ? { url: guide.url, steps: guide.stepKeys.map(key => words.t(key)), cost: words.t(guide.costKey) }
+      : guide
+  if (!guide.privacyKey) return { url, steps, cost }
+  return { url, steps: [...steps.slice(0, -1), words.t(guide.privacyKey), ...steps.slice(-1)], cost }
 }
 /** The text on a provider's card, in the reader's words; null when it has none. */
 export function providerHelp(name: ProviderName, words: Words = english): string | null {
