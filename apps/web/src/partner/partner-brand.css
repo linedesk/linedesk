@@ -86,3 +86,8 @@
   font-size: 12px;
   color: var(--ink-muted);
 }
+/* The fields keep the settings forms' rhythm: a gap between a field and the next label. */
+.pb-fields {
+  display: grid;
+  gap: 16px;
+}

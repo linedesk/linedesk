@@ -468,6 +468,10 @@
   box-shadow: var(--shadow-2);
   overflow: hidden;
 }
+/* Focused itself only when it has no field to start in: no ring around the whole box. */
+.k-dialog:focus {
+  outline: none;
+}
 .k-dialog-sm {
   max-width: 400px;
 }

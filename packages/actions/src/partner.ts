@@ -367,6 +367,8 @@ export type AdminPartner = {
   members: number
   clients: number
   billingAccountId: string | null
+  /** The partner bill's status (Server admin › Partners shows it); null without a bill. */
+  billStatus: PartnerBillSummary['status'] | null
 }
 
 /** `partner.adminList`: the partners, and how many client workspaces each may make while billing is off. */

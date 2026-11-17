@@ -138,8 +138,8 @@ export function Spinner() {
 }
 
 type BadgeProps = {
-  /** `ok`: a working state (Connected), in ink; `danger` only for errors. */
-  tone?: 'neutral' | 'ok' | 'danger' | 'info' | 'outline'
+  /** `ok`: a working state (Connected), in ink; `warning` for what needs a look soon (amber); `danger` only for errors. */
+  tone?: 'neutral' | 'ok' | 'warning' | 'danger' | 'info' | 'outline'
   dot?: boolean
   /** Tooltip. */
   title?: string

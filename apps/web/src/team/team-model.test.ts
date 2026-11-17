@@ -9,6 +9,7 @@ import {
   isEmail,
   isMe,
   isOnTeam,
+  membersInOrder,
   joinedLabel,
   needsSignInAgain,
   PROFILE_HASH,
@@ -170,3 +171,19 @@ describe('the team during support access', () => {
     expect(teamAsShown(null, true)).toBeNull()
   })
 })
+
+describe('people here through the partner', () => {
+  const viaPartner = (userId: string): TeamMember => ({ ...member(userId, 'admin'), partner: 'Northside IT' })
+
+  it("are never edited from the client: their account is the partner's person", () => {
+    const d: TeamData = { ...data(true), members: [member('mike', 'owner'), viaPartner('priya'), member('jo', 'member')] }
+    expect(d.members.map(m => canEditMember(d, m))).toEqual([false, false, true])
+  })
+
+  it("come after the workspace's own people, its owner first, each group in the server's order", () => {
+    const list = [viaPartner('priya'), member('jo', 'member'), member('mike', 'owner'), viaPartner('marcus'), member('sarah', 'admin')]
+    expect(membersInOrder(list).map(m => m.userId)).toEqual(['mike', 'jo', 'sarah', 'priya', 'marcus'])
+    expect(list[0]?.userId).toBe('priya')
+  })
+})
+

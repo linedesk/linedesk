@@ -679,6 +679,17 @@ body,
   display: flex;
   gap: 2px;
 }
+/* Team, a member's role: one width for the menu and the plain text, so the rows' right edges line up. */
+.team-role {
+  display: inline-flex;
+  width: 96px;
+}
+.team-role > .k-select {
+  width: 100%;
+}
+.team-role > .st-role {
+  padding: 0 11px;
+}
 /* Team, invite: email, role and Invite in one row, all at the one control height; stacked on a phone. */
 .team-invite {
   display: grid;

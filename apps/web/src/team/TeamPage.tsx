@@ -40,6 +40,7 @@ import {
   isOnTeam,
   isOwner,
   joinedLabel,
+  membersInOrder,
   sentInvitations,
   PROFILE_HASH,
   roleLabel,
@@ -145,7 +146,7 @@ function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; ru
           {m.userId === data.me && <Badge>{t('team.member.you')}</Badge>}
           {m.partner && (
             <Badge tone="outline" title={t('team.member.partnerTip', { partner: m.partner })}>
-              {t('team.member.partner')}
+              {m.partner}
             </Badge>
           )}
         </>
@@ -170,16 +171,18 @@ function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; ru
               {t('team.member.edit')}
             </Button>
           )}
-          {canEditRole(data, m) ? (
-            <RoleSelect
-              value={m.role}
-              label={t('team.member.roleFor', { name })}
-              roles={rolesFor(data)}
-              onChange={role => (role === 'owner' ? setOwning(true) : void setRole(role))}
-            />
-          ) : (
-            <span className="help st-role">{roleLabel(m.role)}</span>
-          )}
+          <span className="team-role">
+            {canEditRole(data, m) ? (
+              <RoleSelect
+                value={m.role}
+                label={t('team.member.roleFor', { name })}
+                roles={rolesFor(data)}
+                onChange={role => (role === 'owner' ? setOwning(true) : void setRole(role))}
+              />
+            ) : (
+              <span className="help st-role">{roleLabel(m.role)}</span>
+            )}
+          </span>
           {canRemove(data, m) ? (
             <Button
               size="sm"
@@ -379,6 +382,16 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
   const workspaces = useWorkspaces()
   const me = data.members.find(m => m.userId === data.me)
   if (!me) return null
+  // Here through the workspace's partner: the membership comes and goes with the partner's team, never on its own
+  // (the API refuses it, partner_managed), so there is no Leave to offer.
+  if (me.partner)
+    return (
+      <Section id="team-leave" title={t('team.leave.title')}>
+        <span className="help">
+          <T k="team.leave.viaPartner" values={{ partner: me.partner, link: appLink('#partner') }} />
+        </span>
+      </Section>
+    )
   // The one owner hands the workspace over before leaving it (or deletes it).
   const lastOwner = me.role === 'owner'
   const lastWorkspace = !isInstanceAdmin && workspaces !== null && workspaces.length <= 1
@@ -495,7 +508,7 @@ export function TeamSection({ toast }: { toast: (text: string) => void }) {
         >
           {data && (
             <List label={t('team.members.title')}>
-              {data.members.map(m => (
+              {membersInOrder(data.members).map(m => (
                 <MemberRow key={m.memberId} data={data} m={m} run={run} onEdit={() => setEditing(m)} />
               ))}
             </List>

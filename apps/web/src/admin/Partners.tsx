@@ -2,6 +2,7 @@
 // client workspaces. A server admin creates a partner (its owner is invited by email), approves it, and suspends it:
 // a suspended partner's team leaves every client workspace at once until it is approved again.
 import { type AdminPartnerList, PARTNER_CLIENT_LIMIT_MAX } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'
@@ -18,6 +19,17 @@ import { day, EMPTY } from './parts.tsx'
 const PARTNERS = 'admin.partners'
 const load = async () => (await runAdmin('partner.adminList', {})) as AdminPartnerList
 type AdminPartner = AdminPartnerList['partners'][number]
+
+/** The partner bill's status, in the words of Server admin › Billing. */
+const BILL_STATUS: Record<NonNullable<AdminPartner['billStatus']>, MessageKey> = {
+  pending_payment: msg('admin.bills.status.pendingPayment'),
+  trialing: msg('admin.bills.status.trialing'),
+  active: msg('admin.bills.status.active'),
+  past_due: msg('admin.bills.status.pastDue'),
+  suspended: msg('admin.bills.status.suspended'),
+  canceled: msg('admin.bills.status.canceled'),
+  comped: msg('admin.bills.status.comped'),
+}
 
 export function Partners({ notify }: { notify: Notify }) {
   const t = useT()
@@ -86,6 +98,98 @@ export function Partners({ notify }: { notify: Notify }) {
 
   return (
     <>
+      <Card>
+        <Loading
+          what={t('admin.sections.partners.label')}
+          loading={!query.data && !supportAccess}
+          error={query.error}
+          onRetry={() => void query.reload()}
+          skeleton={<SkeletonRows rows={3} columns={5} className="adm-sk-rows" />}
+        >
+          {query.data && query.data.partners.length === 0 ? (
+            <p className="adm-notice">{t('admin.partners.empty')}</p>
+          ) : (
+            <div className="adm-scroll">
+              <table className="adm-table adm-stack">
+                <thead>
+                  <tr>
+                    <th scope="col">{t('admin.partners.name')}</th>
+                    <th scope="col">{t('admin.partners.owner')}</th>
+                    <th scope="col">{t('admin.partners.bill')}</th>
+                    <th scope="col">{t('admin.partners.clients')}</th>
+                    <th scope="col" aria-label={t('admin.partners.actions')} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {(query.data?.partners ?? []).map(p => (
+                    <tr key={p.id}>
+                      <th scope="row">
+                        <span className="adm-partner-name">
+                          {p.name}
+                          {p.status === 'approved' ? (
+                            <Badge tone="ok">{t('admin.partners.statusApproved')}</Badge>
+                          ) : p.status === 'suspended' ? (
+                            <Badge tone="danger">{t('admin.partners.statusSuspended')}</Badge>
+                          ) : (
+                            <Badge tone="outline">{t('admin.partners.statusPending')}</Badge>
+                          )}
+                        </span>
+                        <span className="adm-sub">
+                          {t('admin.partners.since', { day: day(p.createdAt), count: p.members })}
+                        </span>
+                      </th>
+                      <td data-label={t('admin.partners.owner')}>
+                        {p.owner ? (
+                          <>
+                            {p.owner.name || p.owner.email}
+                            <span className="adm-sub">{p.owner.email}</span>
+                          </>
+                        ) : p.ownerInvitation ? (
+                          <>
+                            {p.ownerInvitation.email}
+                            <span className="adm-sub">{t('admin.partners.ownerInvited')}</span>
+                          </>
+                        ) : (
+                          EMPTY
+                        )}
+                      </td>
+                      <td data-label={t('admin.partners.bill')}>
+                        {p.billStatus ? t(BILL_STATUS[p.billStatus]) : t('admin.partners.noBill')}
+                      </td>
+                      <td data-label={t('admin.partners.clients')}>{p.clients}</td>
+                      <td className="adm-num">
+                        {p.status === 'approved' ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            busy={busy === p.id}
+                            disabled={supportAccess || !!busy}
+                            title={t('admin.partners.suspendTip', { name: p.name })}
+                            onClick={() => void change(p, 'partner.suspend')}
+                          >
+                            {t('admin.partners.suspend')}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            busy={busy === p.id}
+                            disabled={supportAccess || !!busy}
+                            title={t('admin.partners.approveTip', { name: p.name })}
+                            onClick={() => void change(p, 'partner.approve')}
+                          >
+                            {p.status === 'suspended' ? t('admin.partners.reinstate') : t('admin.partners.approve')}
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Loading>
+      </Card>
       <Card title={t('admin.partners.newTitle')} description={t('admin.partners.newDescription')}>
         <form className="adm-form" onSubmit={e => void create(e)}>
           <FormField id="adm-partner-name" label={t('admin.partners.name')}>
@@ -110,101 +214,6 @@ export function Partners({ notify }: { notify: Notify }) {
           </Button>
         </form>
       </Card>
-      <div className="adm-card adm-listcard">
-        <Loading
-          what={t('admin.sections.partners.label')}
-          loading={!query.data && !supportAccess}
-          error={query.error}
-          onRetry={() => void query.reload()}
-          skeleton={<SkeletonRows rows={3} columns={5} className="adm-sk-rows" />}
-        >
-          {query.data && query.data.partners.length === 0 ? (
-            <p className="adm-notice">{t('admin.partners.empty')}</p>
-          ) : (
-            <div className="adm-scroll">
-              <table className="adm-table adm-stack">
-                <thead>
-                  <tr>
-                    <th scope="col">{t('admin.partners.name')}</th>
-                    <th scope="col">{t('admin.partners.status')}</th>
-                    <th scope="col">{t('admin.partners.owner')}</th>
-                    <th scope="col" className="adm-num">
-                      {t('admin.partners.team')}
-                    </th>
-                    <th scope="col" className="adm-num">
-                      {t('admin.partners.clients')}
-                    </th>
-                    <th scope="col">{t('admin.partners.createdAt')}</th>
-                    <th scope="col" aria-label={t('admin.partners.actions')} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {(query.data?.partners ?? []).map(p => (
-                    <tr key={p.id}>
-                      <th scope="row">{p.name}</th>
-                      <td data-label={t('admin.partners.status')}>
-                        {p.status === 'approved' ? (
-                          <Badge tone="ok">{t('admin.partners.statusApproved')}</Badge>
-                        ) : p.status === 'suspended' ? (
-                          <Badge tone="danger">{t('admin.partners.statusSuspended')}</Badge>
-                        ) : (
-                          <Badge tone="outline">{t('admin.partners.statusPending')}</Badge>
-                        )}
-                      </td>
-                      <td data-label={t('admin.partners.owner')}>
-                        {p.owner ? (
-                          <>
-                            {p.owner.name || p.owner.email}
-                            <span className="adm-sub">{p.owner.email}</span>
-                          </>
-                        ) : p.ownerInvitation ? (
-                          <>
-                            {p.ownerInvitation.email}
-                            <span className="adm-sub">{t('admin.partners.ownerInvited')}</span>
-                          </>
-                        ) : (
-                          EMPTY
-                        )}
-                      </td>
-                      <td className="adm-num" data-label={t('admin.partners.team')}>
-                        {p.members}
-                      </td>
-                      <td className="adm-num" data-label={t('admin.partners.clients')}>
-                        {p.clients}
-                      </td>
-                      <td data-label={t('admin.partners.createdAt')}>{day(p.createdAt)}</td>
-                      <td className="adm-num">
-                        {p.status === 'approved' ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            busy={busy === p.id}
-                            disabled={supportAccess || !!busy}
-                            title={t('admin.partners.suspendTip', { name: p.name })}
-                            onClick={() => void change(p, 'partner.suspend')}
-                          >
-                            {t('admin.partners.suspend')}
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            busy={busy === p.id}
-                            disabled={supportAccess || !!busy}
-                            title={t('admin.partners.approveTip', { name: p.name })}
-                            onClick={() => void change(p, 'partner.approve')}
-                          >
-                            {p.status === 'suspended' ? t('admin.partners.reinstate') : t('admin.partners.approve')}
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Loading>
-      </div>
       <Card title={t('admin.partners.limitTitle')} description={t('admin.partners.limitDescription')}>
         <form className="adm-form" onSubmit={e => void saveLimit(e)}>
           <FormField id="adm-partner-limit" label={t('admin.partners.limit')} error={limitProblem}>

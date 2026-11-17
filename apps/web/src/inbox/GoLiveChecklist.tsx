@@ -189,13 +189,18 @@ function useItems(
       firstRealCall,
       // No calendar provider on this install: no row (unless one is connected anyway). Waited for like push.
       calendarConnected: calendarConnected || calendarProviders?.length ? calendarConnected : null,
-      // Push not set up on this install: no row. (The checklist waits until these settings have loaded.)
-      pushOn: push?.publicKey ? push.devices.length > 0 : null,
+      // Push not set up on this install: no row. (The checklist waits until these settings have loaded.) Nor for
+      // someone here through the workspace's white-label partner: calls on their own phone are not this client's step.
+      pushOn: push?.publicKey && !viaPartner(team) ? push.devices.length > 0 : null,
       teamInvited: Boolean(team && teamInvited(team)),
     },
     assistant,
   )
 }
+
+/** Whether the signed-in person is in this workspace through its white-label partner's team. */
+const viaPartner = (team: ReturnType<typeof useTeam>['data']) =>
+  !!team?.members.find(m => m.userId === team.me)?.partner
 
 const DAY_MS = 86_400_000
 const PICKER_WIDTH = 240

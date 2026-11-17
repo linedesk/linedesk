@@ -167,14 +167,17 @@ export function DangerConfirmDialog({ confirm, run, onClose, children, blocked =
         </FormField>
       )}
       {confirm.typed && (
-        <Input
-          value={typed}
-          placeholder={confirm.typed}
-          aria-label={t('common.dangerConfirm.typeToConfirm', { text: confirm.typed })}
-          autoComplete="off"
-          disabled={busy}
-          onChange={e => setTyped(e.target.value)}
-        />
+        // A label says what to type: a placeholder alone would read as already filled in.
+        <FormField id="danger-confirm-typed" label={t('common.dangerConfirm.typeToConfirm', { text: confirm.typed })}>
+          <Input
+            id="danger-confirm-typed"
+            value={typed}
+            autoComplete="off"
+            spellCheck={false}
+            disabled={busy}
+            onChange={e => setTyped(e.target.value)}
+          />
+        </FormField>
       )}
       {error && <Note tone="danger">{error}</Note>}
     </Dialog>

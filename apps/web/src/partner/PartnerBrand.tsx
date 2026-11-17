@@ -5,19 +5,22 @@
 import {
   DEFAULT_PRODUCT_NAME,
   PARTNER_BRAND_CODES,
+  type PartnerBrand as PartnerBrandVersion,
   type PartnerBrandData,
   type PartnerBrandInput,
   readableOn,
 } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
-import { useT } from '@linedesk/i18n/react'
+import { useFormat, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useRef, useState } from 'react'
 import { ColorField, logoAsPng, nameProblem, parsedColor } from '../admin/Branding.tsx'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { callAction } from '../settings/settings-api.ts'
+import { Select } from '../ui/controls.tsx'
 import { Card, FormField, FormMessage, Input, onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Button, LogoMark, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
+import { changedFields, FIELD_KEY } from './brandChanges.ts'
 import { partnerErrorText } from './partner-api.ts'
 import './partner-brand.css'
 
@@ -106,21 +109,24 @@ export function PartnerBrand({ partnerId, partnerName }: { partnerId: string; pa
   )
 }
 
-/** Whether emails carry the brand yet, and what is missing. */
 /**
  * Where the brand stands: a server admin reviews every change of name, logo, support email or links before clients and
- * their emails get it (security review of #1111, M-2); then emails also wait for approval and the first invoice.
+ * their emails get it (security review of #1111, M-2), and the note names what waits; then emails also wait for
+ * approval and the first invoice.
  */
-function EmailsNote({ data }: { data: PartnerBrandData }) {
+function ReviewNote({ data }: { data: PartnerBrandData }) {
   const t = useT()
+  const format = useFormat()
   if (!data.brand) return null
   if (data.review.state === 'none') return <Note tone="info">{t('team.partner.brand.reviewNone')}</Note>
-  if (data.review.state === 'pending')
+  if (data.review.state === 'pending') {
+    const fields = changedFields(data.brand, data.review.approved).map(f => t(FIELD_KEY[f]))
     return (
-      <Note tone="info">
+      <Note tone="info" title={t('team.partner.brand.reviewWaiting', { fields: format.list(fields) })}>
         {t('team.partner.brand.reviewPending', { name: data.review.approved?.name ?? data.brand.name })}
       </Note>
     )
+  }
   if (data.emails.active) return <Note tone="info">{t('team.partner.brand.emailsActive')}</Note>
   return (
     <Note tone="info">
@@ -154,6 +160,18 @@ function BrandForm({
   const dirty = !data.brand || JSON.stringify(draft) !== JSON.stringify(saved)
   const readOnly = !data.canEdit
   const logo = draft.logo === undefined ? (data.brand?.logoUrl ?? null) : draft.logo
+  // A change of name, logo, support email or links goes to a server admin first: the button says so.
+  const forReview =
+    changedFields(
+      {
+        name: draft.name.trim(),
+        logoUrl: logo,
+        supportEmail: orNull(draft.supportEmail)?.toLowerCase() ?? null,
+        termsUrl: orNull(draft.termsUrl),
+        privacyUrl: orNull(draft.privacyUrl),
+      },
+      data.review.approved,
+    ).length > 0
 
   async function save(e: FormEvent) {
     e.preventDefault()
@@ -171,7 +189,8 @@ function BrandForm({
 
   return (
     <form className="pb-form" onSubmit={save} onKeyDown={e => onSaveKey(e, dirty && !invalid && !saving && !readOnly)}>
-      <EmailsNote data={data} />
+      {readOnly && <Note tone="neutral">{t('team.partner.brand.ownerOnly')}</Note>}
+      <ReviewNote data={data} />
       <Card
         title={t('team.partner.brand.title')}
         description={t('team.partner.brand.description')}
@@ -187,7 +206,12 @@ function BrandForm({
               onChange={e => update({ name: e.target.value })}
             />
           </FormField>
-          <LogoField logo={logo} hasSaved={!!data.brand?.logoUrl} onChange={next => update({ logo: next })} />
+          <LogoField
+            logo={logo}
+            hasSaved={!!data.brand?.logoUrl}
+            readOnly={readOnly}
+            onChange={next => update({ logo: next })}
+          />
           <ColorField text={draft.color} onChange={color => update({ color })} />
           <FormField
             id="pb-support"
@@ -232,11 +256,19 @@ function BrandForm({
             />
           </FormField>
         </fieldset>
-        {readOnly && <p className="pb-muted">{t('team.partner.brand.ownerOnly')}</p>}
       </Card>
-      <Previews draft={draft} logo={logo} />
+      <Previews draft={draft} logo={logo} approved={data.review.state === 'pending' ? data.review.approved : null} />
       {problem && <FormMessage>{problem}</FormMessage>}
-      {!readOnly && <SaveBar dirty={dirty} saving={saving} disabled={invalid} onCancel={() => setDraft(saved)} />}
+      {!readOnly && (
+        <SaveBar
+          dirty={dirty}
+          saving={saving}
+          disabled={invalid}
+          label={forReview ? t('team.partner.brand.sendForReview') : undefined}
+          note={forReview ? t('team.partner.brand.sendForReviewNote') : undefined}
+          onCancel={() => setDraft(saved)}
+        />
+      )}
     </form>
   )
 }
@@ -244,10 +276,13 @@ function BrandForm({
 function LogoField({
   logo,
   hasSaved,
+  readOnly,
   onChange,
 }: {
   logo: string | null
   hasSaved: boolean
+  /** The team's view: the logo without Upload and Remove. */
+  readOnly: boolean
   onChange: (logo: string | null | undefined) => void
 }) {
   const t = useT()
@@ -267,7 +302,7 @@ function LogoField({
     <FormField
       id="pb-logo"
       label={t('admin.branding.logo')}
-      description={t('team.partner.brand.logoHelp')}
+      description={readOnly ? undefined : t('team.partner.brand.logoHelp')}
       error={problem}
     >
       <div className="adm-brand-logo">
@@ -285,10 +320,12 @@ function LogoField({
             e.target.value = ''
           }}
         />
-        <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()}>
-          {logo ? t('admin.branding.replace') : t('admin.branding.upload')}
-        </Button>
-        {logo && (
+        {!readOnly && (
+          <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()}>
+            {logo ? t('admin.branding.replace') : t('admin.branding.upload')}
+          </Button>
+        )}
+        {logo && !readOnly && (
           <Button size="sm" variant="ghost" onClick={() => onChange(hasSaved ? null : undefined)}>
             {t('admin.branding.remove')}
           </Button>
@@ -298,9 +335,34 @@ function LogoField({
   )
 }
 
-/** The sign-in page and a call email as the partner's clients see them, with the draft. */
-function Previews({ draft, logo }: { draft: Draft; logo: string | null }) {
+/**
+ * The sign-in page and a call email as the partner's clients see them: with the change, or (while a change waits for
+ * review) as they see it now, the approved version.
+ */
+function Previews({
+  draft: change,
+  logo: changeLogo,
+  approved,
+}: {
+  draft: Draft
+  logo: string | null
+  /** The approved version while a change waits for review: the previews can show it instead. */
+  approved: PartnerBrandVersion | null
+}) {
   const t = useT()
+  const [mode, setMode] = useState<'change' | 'now'>('change')
+  const now = mode === 'now' && approved
+  const draft: Draft = now
+    ? {
+        name: approved.name,
+        color: approved.color ?? '',
+        logo: undefined,
+        supportEmail: approved.supportEmail ?? '',
+        termsUrl: approved.termsUrl ?? '',
+        privacyUrl: approved.privacyUrl ?? '',
+      }
+    : change
+  const logo = now ? approved.logoUrl : changeLogo
   const name = draft.name.trim() || DEFAULT_PRODUCT_NAME
   const color = parsedColor(draft.color) ?? DEFAULT_COLOR
   const button = { background: color, color: readableOn(color) }
@@ -315,7 +377,25 @@ function Previews({ draft, logo }: { draft: Draft; logo: string | null }) {
     draft.privacyUrl.trim() && t('common.legal.privacy'),
   ].filter(Boolean)
   return (
-    <Card title={t('admin.branding.preview')} description={t('team.partner.brand.previewNote')}>
+    <Card
+      title={t('admin.branding.preview')}
+      help={t('team.partner.brand.previewNote')}
+      actions={
+        approved && (
+          <Select
+            size="sm"
+            align="end"
+            value={mode}
+            label={t('team.partner.brand.previewWhich')}
+            onChange={setMode}
+            options={[
+              { value: 'change', label: t('team.partner.brand.previewChange') },
+              { value: 'now', label: t('team.partner.brand.previewNow') },
+            ]}
+          />
+        )
+      }
+    >
       <div className="pb-previews">
         <section className="pb-preview" aria-label={t('team.partner.brand.previewSignIn')}>
           <p className="pb-preview-label">{t('team.partner.brand.previewSignIn')}</p>

@@ -75,7 +75,18 @@ export function invitationStatus(invite: TeamInvitation, now = Date.now()) {
  * owner only when they are an owner too. The API checks the same.
  */
 export const canEditMember = (data: TeamData, m: TeamMember) =>
-  data.canManage && m.userId !== data.me && (m.role !== 'owner' || isOwner(data))
+  // Someone here through the workspace's partner keeps their own name, picture and notifications: their account is the
+  // partner's person in every client workspace, and the partner manages their access (docs/white-label.md).
+  data.canManage && m.userId !== data.me && (m.role !== 'owner' || isOwner(data)) && !m.partner
+
+/**
+ * The members as the Team page lists them: the workspace's own people first, its owner at the top, then the people here
+ * through its white-label partner; otherwise in the server's order.
+ */
+export const membersInOrder = (members: readonly TeamMember[]) => {
+  const rank = (m: TeamMember) => (m.partner ? 2 : m.role === 'owner' ? 0 : 1)
+  return [...members].sort((a, b) => rank(a) - rank(b))
+}
 
 /** "Last changed by Ana Admin on Nov 14": on a member's own page, when someone else made the last change. */
 export function changedByLabel(c: ChangedBy, now = new Date()) {

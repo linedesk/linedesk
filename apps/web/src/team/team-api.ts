@@ -1,6 +1,14 @@
 // Team actions run online against the API: members and invitations are not in the local store,
 // and a role change or removal must not look done before the server has accepted it.
-import type { AssignableRole, InvitationPreview, MemberEditData, TeamData, TeamLeaveData } from '@linedesk/actions'
+import {
+  type AssignableRole,
+  type InvitationPreview,
+  type MemberEditData,
+  PARTNER_CODES,
+  type TeamData,
+  type TeamLeaveData,
+} from '@linedesk/actions'
+import type { MessageKey } from '@linedesk/i18n'
 import { fetchQuery, refreshQuery, useQuery } from '../cachedQuery.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 import { i18n } from '../i18n/index.tsx'
@@ -16,8 +24,20 @@ async function runTeamAction<T = unknown>(name: string, input: object): Promise<
   })
   const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; code?: string; data?: T } | null
   // The code goes with the error: the leave dialog offers "Sign in again" on SIGN_IN_AGAIN.
-  if (!res.ok || !body?.ok) throw Object.assign(new Error(body?.error ?? i18n().t('errors.generic')), { code: body?.code })
+  if (!res.ok || !body?.ok) throw Object.assign(new Error(teamErrorText(body)), { code: body?.code })
   return body.data as T
+}
+
+/**
+ * What a refused team action says: a partner's refusal (a membership that comes from the workspace's partner,
+ * `partner_managed`) in the person's language from its code, never the API's English; else the API's answer.
+ */
+// i18n-dynamic: team.partner.error.*
+export function teamErrorText(body: { error?: string; code?: string } | null): string {
+  const { t } = i18n()
+  const code = body?.code
+  if (code && (PARTNER_CODES as readonly string[]).includes(code)) return t(`team.partner.error.${code}` as MessageKey)
+  return body?.error ?? t('errors.generic')
 }
 
 export const teamApi = {

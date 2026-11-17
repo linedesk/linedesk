@@ -7,7 +7,8 @@ import { useState } from 'react'
 import { SwitchRow } from '../settings/fields.tsx'
 import { callAction } from '../settings/settings-api.ts'
 import { Dialog, FormField, Input } from '../ui/form.tsx'
-import { Button, Note } from '../ui/kit.tsx'
+import { Button, cx, Note } from '../ui/kit.tsx'
+import { barWidth, usageTone } from './clientModel.ts'
 import { partnerErrorText } from './partner-api.ts'
 
 type Props = {
@@ -86,10 +87,11 @@ export function ClientSettingsDialog({ partnerId, client, owner, onClose, onSave
         </>
       }
     >
+      <Used client={client} limitCents={invalid ? client.limitCents : cents} />
       <FormField
         id="partner-client-limit"
         label={t('team.partner.clients.limit.label')}
-        description={owner ? t('team.partner.clients.limit.help') : t('team.partner.clients.limit.helpAdmin')}
+        help={owner ? t('team.partner.clients.limit.help') : t('team.partner.clients.limit.helpAdmin')}
         error={
           ownerOnly
             ? t('team.partner.clients.limit.ownerOnly')
@@ -104,6 +106,7 @@ export function ClientSettingsDialog({ partnerId, client, owner, onClose, onSave
         <Input
           id="partner-client-limit"
           inputMode="decimal"
+          start="$"
           value={limit}
           autoComplete="off"
           placeholder={t('team.partner.clients.noLimit')}
@@ -131,5 +134,46 @@ export function ClientSettingsDialog({ partnerId, client, owner, onClose, onSave
         </Note>
       )}
     </Dialog>
+  )
+}
+
+/**
+ * What the client used this period from the partner bill, against the limit as typed (the saved one while the field
+ * is not an amount): the partner sees "$21.17 of $25" before changing it.
+ */
+function Used({ client, limitCents }: { client: PartnerClientRow; limitCents: number | null }) {
+  const t = useT()
+  const format = useFormat()
+  if (client.costCents === null) return null
+  const percent = limitCents ? Math.round((client.costCents / limitCents) * 100) : null
+  const tone = usageTone(percent)
+  return (
+    <div className="pc-used">
+      <div className="pc-used-line">
+        <span>{t('team.partner.clients.used')}</span>
+        <span>
+          <b>{format.currency(client.costCents / 100, 'USD')}</b>
+          {limitCents !== null && (
+            <span className="pc-of">
+              {' '}
+              {t('team.partner.clients.limitOf', {
+                amount: format.currency(limitCents / 100, 'USD', { maximumFractionDigits: 2 }),
+              })}
+            </span>
+          )}
+        </span>
+      </div>
+      {percent !== null && (
+        <span
+          className={cx('pc-bar', tone && `is-${tone}`)}
+          role="img"
+          aria-label={t('team.partner.clients.limitShare', {
+            share: format.number(percent / 100, { style: 'percent', maximumFractionDigits: 0 }),
+          })}
+        >
+          <span style={{ width: `${barWidth(percent)}%` }} />
+        </span>
+      )}
+    </div>
   )
 }

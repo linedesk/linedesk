@@ -363,7 +363,13 @@ describe('tenancy: nothing of another partner', () => {
       expect(await act(a.owner, name, input), name).toMatchObject({ status: 403 })
     const listed = await asServerAdmin(admin, () => act(admin, 'partner.adminList', {}))
     const row = listed.body.data.partners.find((p: { id: string }) => p.id === a.id)
-    expect(row).toMatchObject({ status: 'approved', members: 2, clients: 1, owner: { userId: a.owner.userId } })
+    expect(row).toMatchObject({
+      status: 'approved',
+      members: 2,
+      clients: 1,
+      owner: { userId: a.owner.userId },
+      billStatus: null,
+    })
   })
 
   test('an invitation link is accepted only by the address it was sent to, confirmed', async () => {
@@ -767,6 +773,17 @@ describe('the partner bill (S2)', () => {
       status: 200,
     })
     expect((await act(admin, 'partner.get', { partnerId: p.id })).body.data.bill).toMatchObject({ mine: false })
+  })
+
+  test('Server admin › Partners shows each partner bill\'s status', async () => {
+    const p = await billedPartner('Listed Bill Partner', 'trialing')
+    const listed = async () =>
+      (await asServerAdmin(admin, () => act(admin, 'partner.adminList', {}))).body.data.partners.find(
+        (row: { id: string }) => row.id === p.id,
+      )
+    expect(await listed()).toMatchObject({ billingAccountId: p.billId, billStatus: 'trialing' })
+    await setBill(p.billId, 'past_due')
+    expect(await listed()).toMatchObject({ billStatus: 'past_due' })
   })
 
   test('no client workspace before Checkout, nor on a bill that does not run', async () => {

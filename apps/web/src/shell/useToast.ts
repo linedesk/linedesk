@@ -11,6 +11,10 @@ export type Source = 'key' | 'menu-key' | 'mouse'
 const shortcutTip = (label: string | undefined, key: string) =>
   label ? i18n().t('shell.shortcutTip.withLabel', { label, key }) : i18n().t('shell.shortcutTip.alone', { key })
 
+/** A touch screen without a mouse (a phone): no "Next time, press M", there is usually no keyboard to press it on. */
+const touchOnly = () =>
+  typeof window !== 'undefined' && !!window.matchMedia?.('(hover: none) and (pointer: coarse)').matches
+
 const PLAIN_MS = 2600
 const UNDO_MS = 5000
 
@@ -40,13 +44,14 @@ export function useToast() {
   }, [])
 
   const withTip = useCallback(
-    (label: string, key: string) => (source.current === 'mouse' ? shortcutTip(label, key) : label),
+    (label: string, key: string) => (source.current === 'mouse' && !touchOnly() ? shortcutTip(label, key) : label),
     [],
   )
 
   // A click on a control with a shortcut that produced no toast of its own still gets the tip.
   useEffect(() => {
     function onHint(e: Event) {
+      if (touchOnly()) return
       const { label, keys } = (e as CustomEvent<ShortcutHint>).detail
       setTimeout(() => {
         if (Date.now() - lastShownAt.current > 80)

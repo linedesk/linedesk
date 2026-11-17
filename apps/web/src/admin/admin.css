@@ -1826,3 +1826,22 @@ a.adm-billfact:focus-visible {
   font-size: 13px;
   color: var(--ink-muted);
 }
+
+/* The short forms of Server admin › Partners and the partner area: a gap between a field and the next label, the
+   button at the start under the last field, never stretched. */
+.adm-form {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.adm-form > .k-btn,
+.adm-form > .adm-actbar {
+  justify-self: start;
+}
+/* Server admin › Partners: the partner's name with its status. */
+.adm-partner-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}

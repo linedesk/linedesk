@@ -4,35 +4,51 @@
 // menu does. Where billing is on, client workspaces are seats on the partner bill, which must run first (S2).
 import type { MyPartner, PartnerClient, PartnerClientRow, PartnerData } from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { day } from '../admin/parts.tsx'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { goToCheckout } from '../checkout.ts'
+import { useCountryHint } from '../countryHint.ts'
 import { signOutAndForget } from '../localData.ts'
 import { Billing } from '../settings/Billing.tsx'
 import { purchaseKeys } from '../settings/billingModel.ts'
+import { CountrySelect } from '../settings/CountrySelect.tsx'
 import { callAction } from '../settings/settings-api.ts'
+import { TimeZonePicker } from '../settings/TimeZonePicker.tsx'
+import { browserTimeZone } from '../settings/timeZones.ts'
+import { switchToWorkspace } from '../shell/invitations.ts'
 import { Toast } from '../shell/Toast.tsx'
 import { useToast } from '../shell/useToast.ts'
-import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { refreshWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
-import { switchToWorkspace } from '../shell/invitations.ts'
 import { tabWorkspace } from '../tabWorkspace.ts'
+import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { Card, Dialog, FormField, Input } from '../ui/form.tsx'
-import { Badge, Button, Note } from '../ui/kit.tsx'
+import { Avatar, Badge, Button, Note } from '../ui/kit.tsx'
+import { List, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
-import { type PageSection, SettingsLayout, useSection } from '../ui/SettingsLayout.tsx'
-import { day } from '../admin/parts.tsx'
+import { type PageSection, SettingsLayout, sectionParts, useSection } from '../ui/SettingsLayout.tsx'
 import { ClientSettingsDialog } from './ClientSettingsDialog.tsx'
-import { ClientTable } from './ClientTable.tsx'
+import { ClientList } from './ClientTable.tsx'
 import { InvitedPicker } from './InvitedPicker.tsx'
 import { loadClients, loadPartner, PARTNER_CLIENTS_QUERY, PARTNER_QUERY, partnerErrorText } from './partner-api.ts'
 import '../admin/admin.css'
+import './partner-area.css'
 import { PartnerBrand } from './PartnerBrand.tsx'
 
 type Section = 'clients' | 'team' | 'brand' | 'billing'
 
 /** Bill states in which client workspaces can be added (the plan runs: trial, paid, or comped). */
 const RUNNING: readonly string[] = ['trialing', 'active', 'past_due', 'comped']
+
+/** The partner area's sections; Billing only for the partner bill's owner. */
+export function partnerSections(t: ReturnType<typeof useT>, billing: boolean): PageSection<Section>[] {
+  return [
+    { id: 'clients', label: t('team.partner.clients.title') },
+    { id: 'team', label: t('team.partner.team.title') },
+    { id: 'brand', label: t('team.partner.brand.title') },
+    ...(billing ? [{ id: 'billing' as const, label: t('team.partner.billing.title') }] : []),
+  ]
+}
 
 /**
  * Whether client workspaces are closed: a suspended partner; with a partner bill, until it runs (approval then gates
@@ -59,21 +75,25 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
   const query = useQuery(PARTNER_QUERY(partner.id), () => loadPartner(partner.id))
   const data = query.data
   const status = data?.partner.status ?? partner.status
-  // Partner › Billing: the partner bill's own page, for its owner (the partner's owner).
+  // Partner › Billing: the partner bill's own page, for its owner (the partner's owner). Until the partner has loaded,
+  // a link straight to it (`#partner/billing`) keeps its section, so the page does not fall back to Clients.
   const billMine = !!data?.bill?.mine
-  const sections: PageSection<Section>[] = [
-    { id: 'clients', label: t('team.partner.clients.title') },
-    { id: 'team', label: t('team.partner.team.title') },
-    { id: 'brand', label: t('team.partner.brand.title') },
-    ...(billMine ? [{ id: 'billing' as const, label: t('team.partner.billing.title') }] : []),
-  ]
+  const [linkedToBilling] = useState(() => sectionParts('partner', window.location.hash).section === 'billing')
+  const sections = useMemo(
+    () => partnerSections(t, billMine || (!data && linkedToBilling)),
+    [t, billMine, data, linkedToBilling],
+  )
   const current = useSection('partner', sections)
-  // Esc goes back to the inbox, as from Server admin (not while typing in a field).
+  // Esc goes back to the inbox, as from Server admin (not while typing in a field, and not when it closes a dialog or
+  // a menu: that Esc only closes it).
   useEffect(() => {
     if (!onExit) return
     const onKey = (e: KeyboardEvent) => {
       const el = document.activeElement
-      if (e.key === 'Escape' && !(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) onExit()
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return
+      if (el?.closest('[role="dialog"], [role="menu"]') || document.querySelector('[aria-modal="true"]')) return
+      onExit()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -125,7 +145,7 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
               ) : current === 'brand' ? (
                 <PartnerBrand partnerId={data.partner.id} partnerName={data.partner.name} />
               ) : current === 'team' ? (
-                <Team data={data} frozen={status === 'suspended'} />
+                <Team data={data} frozen={status === 'suspended'} toast={text => toaster.show(text)} />
               ) : (
                 <Clients
                   data={data}
@@ -208,21 +228,127 @@ function Clients({
 }) {
   const t = useT()
   const owner = data.role === 'owner'
-  const [name, setName] = useState('')
-  const [ownerEmail, setOwnerEmail] = useState('')
-  const [busy, setBusy] = useState(false)
+  const [creating, setCreating] = useState(false)
   const [opening, setOpening] = useState<string | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
-  const [created, setCreated] = useState<string | null>(null)
   const [inviting, setInviting] = useState<PartnerClient | null>(null)
   const [releasing, setReleasing] = useState<PartnerClient | null>(null)
   const [settings, setSettings] = useState<PartnerClientRow | null>(null)
+
+  /** Opens a client workspace like the workspace menu does; `hash`: the page in it (the inbox by default). */
+  function open(id: string, hash?: string) {
+    setOpening(id)
+    setProblem(null)
+    switchToWorkspace(id, hash).catch(err => {
+      setOpening(null)
+      setProblem(partnerErrorText(err))
+    })
+  }
+
+  return (
+    <>
+      <Card
+        title={t('team.partner.clients.title')}
+        actions={
+          <Button
+            size="sm"
+            variant={frozen ? 'secondary' : 'primary'}
+            icon="plus"
+            disabled={frozen}
+            title={t('team.partner.clients.newTip')}
+            onClick={() => setCreating(true)}
+          >
+            {t('team.partner.clients.new')}
+          </Button>
+        }
+      >
+        {problem && (
+          <Note tone="danger" role="alert">
+            {problem}
+          </Note>
+        )}
+        <ClientList
+          data={data}
+          frozen={frozen}
+          opening={opening}
+          onOpen={open}
+          onInvite={setInviting}
+          onRelease={setReleasing}
+          onSettings={setSettings}
+        />
+      </Card>
+      {creating && (
+        <NewClientDialog
+          data={data}
+          onFirstWorkspace={onFirstWorkspace}
+          onOpen={(id, hash) => open(id, hash)}
+          onInvite={client => {
+            setCreating(false)
+            setInviting(client)
+          }}
+          onClose={() => setCreating(false)}
+        />
+      )}
+      {inviting && (
+        <InviteOwnerDialog
+          partnerId={data.partner.id}
+          client={inviting}
+          onClose={() => setInviting(null)}
+          onSent={email => toast(t('team.partner.clients.ownerInviteSent', { email, name: inviting.name }))}
+        />
+      )}
+      {releasing && <ReleaseDialog partnerId={data.partner.id} client={releasing} onClose={() => setReleasing(null)} />}
+      {settings && (
+        <ClientSettingsDialog
+          partnerId={data.partner.id}
+          client={settings}
+          owner={owner}
+          onClose={() => setSettings(null)}
+          onSaved={async message => {
+            await reloadClients(data.partner.id)
+            toast(message)
+          }}
+        />
+      )}
+    </>
+  )
+}
+
+/**
+ * New client: the business's name and, for the partner's owner, its owner's email; then the next step for the new
+ * workspace (open it to get its number, or invite its owner) in the same dialog. Country and time zone start as this
+ * browser's, as for a workspace of one's own.
+ */
+function NewClientDialog({
+  data,
+  onFirstWorkspace,
+  onOpen,
+  onInvite,
+  onClose,
+}: {
+  data: PartnerData
+  onFirstWorkspace?: () => void
+  onOpen: (id: string, hash?: string) => void
+  onInvite: (client: PartnerClient) => void
+  onClose: () => void
+}) {
+  const t = useT()
+  const owner = data.role === 'owner'
+  // Where the business is: this browser's country and time zone until picked, as for a workspace of one's own.
+  const hint = useCountryHint()
+  const [picked, setPicked] = useState<string | null>(null)
+  const country = picked ?? hint?.country ?? ''
+  const [timeZone, setTimeZone] = useState(() => browserTimeZone() ?? '')
+  const [name, setName] = useState('')
+  const [ownerEmail, setOwnerEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+  const [made, setMade] = useState<{ id: string; name: string; ownerInvited: string | null } | null>(null)
   // One key per client asked for: a retry after no answer (a timeout, a dropped connection) gets the client made the
   // first time back, never a second one (security review of #1113, L-3).
   const [keys] = useState(() => purchaseKeys())
 
-  async function create(e: FormEvent) {
-    e.preventDefault()
+  async function create() {
     if (!name.trim() || busy) return
     setBusy(true)
     setProblem(null)
@@ -232,14 +358,13 @@ function Clients({
         partnerId: data.partner.id,
         name: name.trim(),
         ...(owner && email ? { ownerEmail: email } : {}),
+        ...(country ? { country } : {}),
+        ...(timeZone ? { timeZone } : {}),
       }
       const res = await callAction<{ workspace: { id: string; name: string } }>('workspace.createForClient', input, {
         idempotencyKey: keys.keyFor(JSON.stringify(input)),
       })
       keys.settle()
-      setCreated(res.workspace.name)
-      setName('')
-      setOwnerEmail('')
       // This page opened in no workspace; the server now puts the session in the new one and refuses requests from a
       // page that names none (clientOutdated in the API). So the session loads again first, and the partner area
       // stays open with it.
@@ -262,6 +387,7 @@ function Clients({
         return
       }
       await Promise.all([reloadPartner(data.partner.id), refreshWorkspaces()])
+      setMade({ ...res.workspace, ownerInvited: owner && email ? email : null })
     } catch (err) {
       keys.settle(err)
       setProblem(partnerErrorText(err))
@@ -270,76 +396,95 @@ function Clients({
     }
   }
 
-  function open(id: string) {
-    setOpening(id)
-    switchToWorkspace(id).catch(err => {
-      setOpening(null)
-      setProblem(partnerErrorText(err))
-    })
+  if (made) {
+    const client = data.clients.find(c => c.id === made.id) ?? {
+      id: made.id,
+      name: made.name,
+      createdAt: new Date().toISOString(),
+      owner: null,
+      otherMembers: [],
+      invitedByTeam: [],
+    }
+    return (
+      <Dialog
+        // A dialog of its own (not the form's, updated): it takes the focus as it opens, so Esc closes it.
+        key="made"
+        title={t('team.partner.clients.madeTitle', { name: made.name })}
+        description={
+          made.ownerInvited
+            ? t('team.partner.clients.madeInvited', { email: made.ownerInvited })
+            : t('team.partner.clients.madeNext')
+        }
+        size="sm"
+        onClose={onClose}
+        footer={
+          <>
+            {owner && !made.ownerInvited ? (
+              <Button variant="ghost" onClick={() => onInvite(client)}>
+                {t('team.partner.clients.inviteOwner')}
+              </Button>
+            ) : (
+              <Button variant="ghost" onClick={onClose}>
+                {t('common.action.close')}
+              </Button>
+            )}
+            <Button variant="primary" onClick={() => onOpen(made.id, '#workspace/phone')}>
+              {t('team.partner.clients.setUpNumber')}
+            </Button>
+          </>
+        }
+      />
+    )
   }
 
   return (
-    <>
-      <Card title={t('team.partner.clients.newTitle')} description={t('team.partner.clients.newDescription')}>
-        <form className="adm-form" onSubmit={e => void create(e)}>
-          <FormField id="partner-client-name" label={t('team.partner.clients.name')} error={problem}>
-            <Input
-              id="partner-client-name"
-              value={name}
-              maxLength={80}
-              disabled={frozen}
-              onChange={e => setName(e.target.value)}
-            />
-          </FormField>
-          {owner && (
-            <FormField
-              id="partner-client-owner"
-              label={t('team.partner.clients.ownerEmail')}
-              description={t('team.partner.clients.ownerEmailHelp')}
-            >
-              <Input
-                id="partner-client-owner"
-                type="email"
-                value={ownerEmail}
-                disabled={frozen}
-                autoComplete="off"
-                onChange={e => setOwnerEmail(e.target.value)}
-              />
-            </FormField>
-          )}
-          {/* While a card is missing, Add a card above is the one primary action. */}
-          <Button type="submit" variant={frozen ? undefined : 'primary'} busy={busy} disabled={frozen || !name.trim()}>
+    <Dialog
+      title={t('team.partner.clients.newTitle')}
+      description={t('team.partner.clients.newDescription')}
+      size="sm"
+      onClose={busy ? () => {} : onClose}
+      onSubmit={e => {
+        e.preventDefault()
+        void create()
+      }}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            {t('common.action.cancel')}
+          </Button>
+          <Button type="submit" variant="primary" busy={busy} disabled={!name.trim()}>
             {t('team.partner.clients.create')}
           </Button>
-          {created && <p className="help">{t('team.partner.clients.created', { name: created })}</p>}
-        </form>
-      </Card>
-      <ClientTable
-        data={data}
-        frozen={frozen}
-        opening={opening}
-        onOpen={open}
-        onInvite={setInviting}
-        onRelease={setReleasing}
-        onSettings={setSettings}
-      />
-      {inviting && (
-        <InviteOwnerDialog partnerId={data.partner.id} client={inviting} onClose={() => setInviting(null)} />
+        </>
+      }
+    >
+      <FormField id="partner-client-name" label={t('team.partner.clients.name')} error={problem}>
+        <Input id="partner-client-name" value={name} maxLength={80} onChange={e => setName(e.target.value)} />
+      </FormField>
+      <div className="pc-place">
+        <FormField id="partner-client-country" label={t('settings.general.country.label')}>
+          <CountrySelect id="partner-client-country" value={country} onChange={setPicked} disabled={busy} />
+        </FormField>
+        <FormField id="partner-client-zone" label={t('team.partner.clients.timeZone')}>
+          <TimeZonePicker id="partner-client-zone" value={timeZone} onChange={setTimeZone} disabled={busy} />
+        </FormField>
+      </div>
+      {owner && (
+        <FormField
+          id="partner-client-owner"
+          label={t('team.partner.clients.ownerEmail')}
+          help={t('team.partner.clients.ownerEmailHelp')}
+        >
+          <Input
+            id="partner-client-owner"
+            type="email"
+            value={ownerEmail}
+            autoComplete="off"
+            onChange={e => setOwnerEmail(e.target.value)}
+          />
+        </FormField>
       )}
-      {releasing && <ReleaseDialog partnerId={data.partner.id} client={releasing} onClose={() => setReleasing(null)} />}
-      {settings && (
-        <ClientSettingsDialog
-          partnerId={data.partner.id}
-          client={settings}
-          owner={owner}
-          onClose={() => setSettings(null)}
-          onSaved={async message => {
-            await reloadClients(data.partner.id)
-            toast(message)
-          }}
-        />
-      )}
-    </>
+    </Dialog>
   )
 }
 
@@ -348,10 +493,12 @@ function InviteOwnerDialog({
   partnerId,
   client,
   onClose,
+  onSent,
 }: {
   partnerId: string
   client: PartnerClient
   onClose: () => void
+  onSent: (email: string) => void
 }) {
   const t = useT()
   const [email, setEmail] = useState('')
@@ -364,6 +511,7 @@ function InviteOwnerDialog({
     try {
       await callAction('workspace.inviteClientOwner', { partnerId, workspaceId: client.id, email: email.trim() })
       await reloadPartner(partnerId)
+      onSent(email.trim())
       onClose()
     } catch (err) {
       setProblem(partnerErrorText(err))
@@ -462,26 +610,30 @@ function ReleaseDialog({
   )
 }
 
-function Team({ data, frozen }: { data: PartnerData; frozen: boolean }) {
+/**
+ * Partner › Team: the people who manage the client workspaces, as a list like Workspace settings › Team, and for the
+ * owner the open invitations and an Invite line at the end. Results are toasts; a refused invitation is said under
+ * the address.
+ */
+function Team({ data, frozen, toast }: { data: PartnerData; frozen: boolean; toast: (text: string) => void }) {
   const t = useT()
   const owner = data.role === 'owner'
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
-  const [done, setDone] = useState<string | null>(null)
   const partnerId = data.partner.id
 
   async function run(key: string, name: string, input: object, message: string) {
     setBusy(key)
     setProblem(null)
-    setDone(null)
     try {
       await callAction(name, { partnerId, ...input })
-      setDone(message)
       await reloadPartner(partnerId)
+      toast(message)
       return true
     } catch (err) {
-      setProblem(partnerErrorText(err))
+      if (key === 'invite') setProblem(partnerErrorText(err))
+      else toast(partnerErrorText(err))
       return false
     } finally {
       setBusy(null)
@@ -504,113 +656,102 @@ function Team({ data, frozen }: { data: PartnerData; frozen: boolean }) {
   }
 
   return (
-    <>
-      {owner && (
-        <Card title={t('team.partner.team.inviteTitle')} description={t('team.partner.team.inviteDescription')}>
-          <form className="adm-form" onSubmit={e => void invite(e)}>
-            <FormField id="partner-invite-email" label={t('team.partner.team.email')}>
-              <Input
-                id="partner-invite-email"
-                type="email"
-                value={email}
-                disabled={frozen}
-                autoComplete="off"
-                onChange={e => setEmail(e.target.value)}
+    <Card title={t('team.partner.team.title')} description={t('team.partner.team.description')}>
+      <List label={t('team.partner.team.title')}>
+        {data.members.map(m => (
+          <ListRow
+            key={m.userId}
+            lead={<Avatar name={m.name || m.email} size={24} />}
+            title={m.name || m.email}
+            sub={m.email}
+            aside={m.role === 'owner' ? t('team.partner.role.owner') : t('team.partner.role.admin')}
+            actions={
+              owner &&
+              (m.role !== 'owner' ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon="trash"
+                  busy={busy === m.userId}
+                  disabled={frozen || !!busy}
+                  aria-label={t('team.partner.team.removeTip', { name: m.name || m.email })}
+                  title={t('team.partner.team.removeTip', { name: m.name || m.email })}
+                  onClick={() =>
+                    void run(
+                      m.userId,
+                      'partnerMember.remove',
+                      { userId: m.userId },
+                      t('team.partner.team.removed', { name: m.name || m.email }),
+                    )
+                  }
+                />
+              ) : (
+                <span className="pt-rm-space" />
+              ))
+            }
+          />
+        ))}
+        {data.invitations.map(i => (
+          <ListRow
+            key={i.id}
+            lead={<Avatar name={i.email} size={24} />}
+            title={
+              <>
+                <span className="k-row-text">{i.email}</span>
+                <Badge>{i.expired ? t('team.invitation.expired') : t('team.invitation.invited')}</Badge>
+              </>
+            }
+            sub={
+              i.expired
+                ? t('team.partner.team.inviteExpired')
+                : t('team.partner.team.invitedUntil', { day: day(i.expiresAt) })
+            }
+            aside={i.role === 'owner' ? t('team.partner.role.owner') : t('team.partner.role.admin')}
+            actions={
+              <Button
+                size="sm"
+                variant="ghost"
+                icon="trash"
+                busy={busy === i.id}
+                disabled={frozen || !!busy}
+                aria-label={t('team.partner.team.withdrawTip', { email: i.email })}
+                title={t('team.partner.team.withdrawTip', { email: i.email })}
+                onClick={() =>
+                  void run(
+                    i.id,
+                    'partnerMember.revokeInvite',
+                    { invitationId: i.id },
+                    t('team.partner.team.withdrawn', { email: i.email }),
+                  )
+                }
               />
-            </FormField>
-            <Button type="submit" variant="primary" busy={busy === 'invite'} disabled={frozen || !email.trim()}>
-              {t('team.partner.team.invite')}
-            </Button>
-          </form>
-        </Card>
+            }
+          />
+        ))}
+      </List>
+      {owner && (
+        <form className="pt-invite" onSubmit={e => void invite(e)}>
+          <FormField
+            id="partner-invite-email"
+            label={t('team.partner.team.inviteTitle')}
+            help={t('team.partner.team.inviteDescription')}
+            error={problem}
+          >
+            <Input
+              id="partner-invite-email"
+              type="email"
+              value={email}
+              placeholder={t('team.invite.placeholder')}
+              disabled={frozen}
+              autoComplete="off"
+              onChange={e => setEmail(e.target.value)}
+            />
+          </FormField>
+          <Button type="submit" variant="primary" busy={busy === 'invite'} disabled={frozen || !email.trim()}>
+            {t('team.partner.team.invite')}
+          </Button>
+        </form>
       )}
-      {problem && (
-        <Note tone="danger" role="alert">
-          {problem}
-        </Note>
-      )}
-      {done && (
-        <Note tone="success" role="status">
-          {done}
-        </Note>
-      )}
-      <Card title={t('team.partner.team.title')} description={t('team.partner.team.description')}>
-        <table className="adm-table">
-          <thead>
-            <tr>
-              <th scope="col">{t('team.partner.team.name')}</th>
-              <th scope="col">{t('team.partner.team.role')}</th>
-              {owner && <th scope="col" aria-label={t('team.partner.team.remove')} />}
-            </tr>
-          </thead>
-          <tbody>
-            {data.members.map(m => (
-              <tr key={m.userId}>
-                <th scope="row">
-                  {m.name || m.email}
-                  <span className="adm-sub">{m.email}</span>
-                </th>
-                <td>{m.role === 'owner' ? t('team.partner.role.owner') : t('team.partner.role.admin')}</td>
-                {owner && (
-                  <td className="adm-num">
-                    {m.role !== 'owner' && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        busy={busy === m.userId}
-                        disabled={frozen || !!busy}
-                        title={t('team.partner.team.removeTip', { name: m.name || m.email })}
-                        onClick={() =>
-                          void run(
-                            m.userId,
-                            'partnerMember.remove',
-                            { userId: m.userId },
-                            t('team.partner.team.removed', { name: m.name || m.email }),
-                          )
-                        }
-                      >
-                        {t('team.partner.team.remove')}
-                      </Button>
-                    )}
-                  </td>
-                )}
-              </tr>
-            ))}
-            {data.invitations.map(i => (
-              <tr key={i.id}>
-                <th scope="row">
-                  {i.email}
-                  <span className="adm-sub">
-                    {i.expired
-                      ? t('team.partner.team.inviteExpired')
-                      : t('team.partner.team.invitedUntil', { day: day(i.expiresAt) })}
-                  </span>
-                </th>
-                <td>{i.role === 'owner' ? t('team.partner.role.owner') : t('team.partner.role.admin')}</td>
-                <td className="adm-num">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    busy={busy === i.id}
-                    disabled={frozen || !!busy}
-                    title={t('team.partner.team.withdrawTip', { email: i.email })}
-                    onClick={() =>
-                      void run(
-                        i.id,
-                        'partnerMember.revokeInvite',
-                        { invitationId: i.id },
-                        t('team.partner.team.withdrawn', { email: i.email }),
-                      )
-                    }
-                  >
-                    {t('team.partner.team.withdraw')}
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
-    </>
+    </Card>
   )
 }

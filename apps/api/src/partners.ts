@@ -1102,6 +1102,13 @@ export const partnerHandlers: Record<string, Handler> = {
           gt(partner_invitations.expires_at, now),
         ),
       )
+    const billIds = rows.map(p => p.billing_account_id).filter((id): id is string => !!id)
+    const bills = billIds.length
+      ? await tx
+          .select({ id: billing_accounts.id, status: billing_accounts.status })
+          .from(billing_accounts)
+          .where(inArray(billing_accounts.id, billIds))
+      : []
     const list: AdminPartner[] = rows.map(p => {
       const owner = team.find(m => m.partnerId === p.id && m.role === 'owner')
       const invite = ownerInvites.find(i => i.partner_id === p.id)
@@ -1116,6 +1123,7 @@ export const partnerHandlers: Record<string, Handler> = {
         members: team.filter(m => m.partnerId === p.id).length,
         clients: clients.find(c => c.partnerId === p.id)?.count ?? 0,
         billingAccountId: p.billing_account_id,
+        billStatus: bills.find(b => b.id === p.billing_account_id)?.status ?? null,
       }
     })
     return { rows: {}, data: { partners: list, clientLimit: await partnerClientLimit(tx) } }

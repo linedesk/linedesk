@@ -371,10 +371,11 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
     const at = document.activeElement
     if (at && box.current?.querySelector('.k-dialog-body')?.contains(at)) return
     const body = box.current?.querySelector('.k-dialog-body')
-    ;(
+    const first =
       body?.querySelector<HTMLElement>(':is(input, textarea):not(:disabled)') ??
       body?.querySelector<HTMLElement>('.k-btn-primary:not(:disabled)')
-    )?.focus()
+    // Nothing to start in (a dialog of words and buttons): the dialog itself, so Esc and Tab still work inside it.
+    ;(first ?? (at && box.current?.contains(at) ? null : box.current))?.focus()
   }, [])
   function onKey(e: KeyboardEvent) {
     // ⌘S and ⌘↵ belong to this dialog (its form, or nothing): never to a page form the dialog opened from.
@@ -403,6 +404,7 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
         className={cx('k-dialog', `k-dialog-${size}`)}
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         onKeyDown={onKey}

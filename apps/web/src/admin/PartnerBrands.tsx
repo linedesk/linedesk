@@ -12,9 +12,10 @@ import type { MessageKey } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'
+import { changedFields, type ReviewedField } from '../partner/brandChanges.ts'
 import { useSupportAccess } from '../supportAccess.ts'
 import { Card, Dialog, FormField, FormMessage, Textarea } from '../ui/form.tsx'
-import { Badge, Button } from '../ui/kit.tsx'
+import { Badge, Button, cx } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { runAdmin } from './api.ts'
 import { reasonProblem } from './billingModel.ts'
@@ -63,7 +64,11 @@ export function PartnerBrands({ notify }: { notify: Notify }) {
                 </div>
                 <div className="apb-versions">
                   {brand.state !== 'approved' && (
-                    <Version title={t('admin.partners.brands.draft')} brand={brand.draft} />
+                    <Version
+                      title={t('admin.partners.brands.draft')}
+                      brand={brand.draft}
+                      changed={new Set(changedFields(brand.draft, brand.approved))}
+                    />
                   )}
                   <Version title={t('admin.partners.brands.approved')} brand={brand.approved} at={brand.approvedAt} />
                 </div>
@@ -71,6 +76,7 @@ export function PartnerBrands({ notify }: { notify: Notify }) {
                   {brand.state !== 'approved' && (
                     <Button
                       size="sm"
+                      variant="primary"
                       disabled={supportAccess}
                       title={t('admin.partners.brands.approveTip', { name: brand.partner })}
                       onClick={() => setAsking({ brand, action: 'approve' })}
@@ -116,9 +122,26 @@ function StateBadge({ brand }: { brand: PartnerBrandReview }) {
   return <Badge tone="outline">{t('admin.partners.brands.stateNone')}</Badge>
 }
 
-/** One version of a brand: what a person checks for a borrowed name, logo, address or link. */
-function Version({ title, brand, at }: { title: string; brand: PartnerBrand | null; at?: string | null }) {
+/**
+ * One version of a brand: what a person checks for a borrowed name, logo, address or link. `changed`: on the version
+ * that waits for review, the fields that differ from what clients see now, marked so the reviewer sees the change.
+ */
+function Version({
+  title,
+  brand,
+  at,
+  changed,
+}: {
+  title: string
+  brand: PartnerBrand | null
+  at?: string | null
+  changed?: ReadonlySet<ReviewedField>
+}) {
   const t = useT()
+  const mark = (field: ReviewedField, className?: string) =>
+    cx(className, changed?.has(field) && 'is-changed') || undefined
+  const tag = (field: ReviewedField) =>
+    changed?.has(field) ? <span className="apb-tag">{t('admin.partners.brands.changed')}</span> : null
   return (
     <div className="apb-version">
       <p className="apb-version-title">
@@ -130,16 +153,26 @@ function Version({ title, brand, at }: { title: string; brand: PartnerBrand | nu
       ) : (
         <dl className="apb-facts">
           <dt>{t('admin.branding.name')}</dt>
-          <dd className="apb-name">
+          <dd className={mark(changed?.has('logo') ? 'logo' : 'name', 'apb-name')}>
             {brand.logoUrl && <img className="apb-logo" src={brand.logoUrl} alt="" />}
             {brand.name}
+            {tag('name') ?? tag('logo')}
           </dd>
           <dt>{t('team.partner.brand.supportEmail')}</dt>
-          <dd>{brand.supportEmail ?? EMPTY}</dd>
+          <dd className={mark('supportEmail')}>
+            {brand.supportEmail ?? EMPTY}
+            {tag('supportEmail')}
+          </dd>
           <dt>{t('team.partner.brand.termsUrl')}</dt>
-          <dd className="apb-link">{brand.termsUrl ?? EMPTY}</dd>
+          <dd className={mark('termsUrl', 'apb-link')}>
+            {brand.termsUrl ?? EMPTY}
+            {tag('termsUrl')}
+          </dd>
           <dt>{t('team.partner.brand.privacyUrl')}</dt>
-          <dd className="apb-link">{brand.privacyUrl ?? EMPTY}</dd>
+          <dd className={mark('privacyUrl', 'apb-link')}>
+            {brand.privacyUrl ?? EMPTY}
+            {tag('privacyUrl')}
+          </dd>
         </dl>
       )}
     </div>

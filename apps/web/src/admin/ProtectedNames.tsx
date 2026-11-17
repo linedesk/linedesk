@@ -75,7 +75,7 @@ export function ProtectedNames({ notify }: { notify: Notify }) {
             description={query.data?.builtIn ? t('admin.partners.protected.builtIn') : undefined}
             error={problem}
           >
-            <Textarea id="adm-protected-names" rows={8} value={shown} onChange={e => setText(e.target.value)} />
+            <Textarea id="adm-protected-names" rows={5} value={shown} onChange={e => setText(e.target.value)} />
           </FormField>
           <div className="adm-actbar">
             <Button type="submit" busy={busy} disabled={supportAccess || !dirty}>
