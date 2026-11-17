@@ -107,6 +107,7 @@ export const webhookCreate = defineAction({
   }),
   permission: 'settings:write',
   sensitive: ['secret'],
+  loggedHostOnly: ['url'],
 })
 
 export const webhookUpdate = defineAction({
@@ -121,6 +122,7 @@ export const webhookUpdate = defineAction({
     enabled: z.boolean().optional(),
   }),
   permission: 'settings:write',
+  loggedHostOnly: ['url'],
   patch: {
     table: 'webhook_endpoints',
     id: i => i.endpointId,

@@ -140,10 +140,15 @@ export async function recordAuthEndpoint(ctx: AfterCtx) {
   })
 }
 
-/** A webhook URL's host only: its path or query can carry the receiver's bearer token. */
+/**
+ * A webhook URL's host only: its path or query can carry the receiver's bearer token. A bare host (what the command
+ * log keeps since LIN-403) stays as it is.
+ */
 export function urlHost(url: unknown): string {
+  const text = String(url)
+  if (/^([a-z0-9.-]+|\[[0-9a-f:.]+\])(:\d+)?$/i.test(text)) return text.toLowerCase()
   try {
-    return new URL(String(url)).host || 'a URL'
+    return new URL(text).host || 'a URL'
   } catch {
     return 'a URL'
   }
@@ -151,7 +156,7 @@ export function urlHost(url: unknown): string {
 
 /**
  * What the audit log shows of an action's input. The command log keeps it as sent (secrets already
- * redacted); here a webhook URL becomes its host and an invitation id, which opens the invitation's
+ * redacted; a webhook URL as its host since LIN-403, older commands as sent); here a webhook URL becomes its host and an invitation id, which opens the invitation's
  * page, keeps only its first characters.
  */
 export function maskAuditInput(input: unknown): unknown {

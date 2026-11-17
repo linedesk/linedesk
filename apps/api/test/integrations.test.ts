@@ -201,6 +201,23 @@ describe('subscribing', () => {
     expect(JSON.stringify(logged)).not.toContain('hook-must-not-be-logged')
   })
 
+  test('the command log keeps only the host of a webhook URL (LIN-403)', async () => {
+    const hook = `whe_${crypto.randomUUID().slice(0, 12)}`
+    const url = `${base}/in/abc?token=create-token-must-not-be-logged`
+    const created = await act(ws.owner, 'webhook.create', { endpointId: hook, assistantId: ws.assistant.id, url, hooks: ['call_end'], secret: newWebhookSecret() })
+    expect(created.status, JSON.stringify(created.body)).toBe(200)
+    const updated = await act(ws.owner, 'webhook.update', { endpointId: hook, url: `${base}/in/def?token=update-token-must-not-be-logged` })
+    expect(updated.status, JSON.stringify(updated.body)).toBe(200)
+    // The endpoint itself keeps the full URL.
+    expect((await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.id, hook)))[0]!.url).toContain('update-token')
+    const logged = (await db.select().from(commands).where(eq(commands.workspace_id, ws.id))).filter(
+      c => (c.action === 'webhook.create' || c.action === 'webhook.update') && (c.input as { endpointId?: string }).endpointId === hook,
+    )
+    expect(logged).toHaveLength(2)
+    for (const row of logged) expect(row.input).toMatchObject({ url: new URL(base).host })
+    expect(JSON.stringify(logged)).not.toContain('must-not-be-logged')
+  })
+
   test('never an MCP tool: an assistant reading caller text must not send calls anywhere', () => {
     const actor = {
       permissions: ['call:read', 'call:write', 'contact:write'],

@@ -102,6 +102,11 @@ test('the audit log shows a webhook URL as its host and only the start of an inv
     url: 'hooks.example.com',
     events: [],
   })
+  // What the command log keeps since LIN-403: the host alone stays as it is.
+  expect(maskAuditInput({ url: 'hooks.example.com:8443' })).toEqual({ url: 'hooks.example.com:8443' })
+  expect(maskAuditInput({ url: '[::1]:8443' })).toEqual({ url: '[::1]:8443' })
+  expect(maskAuditInput({ url: 'evil.example.com/path?token=1' })).toEqual({ url: 'a URL' })
+  expect(maskAuditInput({ url: 'not a url' })).toEqual({ url: 'a URL' })
   expect(maskAuditInput({ invitationId: 'inv_0123456789abcdef' })).toEqual({ invitationId: 'inv_01…' })
   expect(maskAuditInput(null)).toBeNull()
   expect(maskAuditInput({ userId: 'u1' })).toEqual({ userId: 'u1' })

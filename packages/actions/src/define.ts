@@ -145,6 +145,11 @@ export interface ActionDef<S extends z.ZodType = z.ZodType, T extends TableName 
    */
   sensitive?: readonly string[]
   /**
+   * Top-level URL fields of which the command log keeps only the host (a webhook URL's path or query can carry the
+   * receiver's token, and audited commands are kept for good). The action itself gets the full URL.
+   */
+  loggedHostOnly?: readonly string[]
+  /**
    * `ids`: the command log keeps only the ids of the input and of the result's data, never the rest
    * (transcript lines, messages, caller names, numbers and addresses): the voice agent's per-call
    * actions, bookings, contact imports and merges. apps/api/src/command-log.ts.

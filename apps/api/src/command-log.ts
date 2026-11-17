@@ -11,7 +11,7 @@ import { type ActionDef, type ActionResult, REDACTED, redactInput } from '@lined
 import { commands, syncedTables, type Tx } from '@linedesk/db'
 import type { TableName } from '@linedesk/db/types'
 import { and, eq, inArray, isNull, lt, notInArray, or, sql, type SQL } from 'drizzle-orm'
-import { AUDITED_ACTIONS, TRANSFER_CHANGE_ACTIONS } from './audit.ts'
+import { AUDITED_ACTIONS, TRANSFER_CHANGE_ACTIONS, urlHost } from './audit.ts'
 
 export const OMITTED = '[omitted]'
 /** Decision 2026-11-11: inputs and results 90 days, then ids only; when, who and what action stay. */
@@ -55,9 +55,17 @@ export function storedResult(
   return { ...rest, rowIds, ...(kept ? { data: kept as Record<string, unknown> } : {}) }
 }
 
-/** The input as the log keeps it: with `logged: 'ids'` only its ids. Secrets are redacted before this (redactInput). */
-export const storedInput = (def: Pick<ActionDef, 'logged'>, input: unknown) =>
-  def.logged === 'ids' ? idsOnly(input) : input
+/**
+ * The input as the log keeps it: with `logged: 'ids'` only its ids; `loggedHostOnly` URLs as their host (LIN-403).
+ * Secrets are redacted before this (redactInput).
+ */
+export function storedInput(def: Pick<ActionDef, 'logged' | 'loggedHostOnly'>, input: unknown) {
+  if (def.logged === 'ids') return idsOnly(input)
+  if (!def.loggedHostOnly?.length || !input || typeof input !== 'object' || Array.isArray(input)) return input
+  const kept: Record<string, unknown> = { ...(input as Record<string, unknown>) }
+  for (const field of def.loggedHostOnly) if (typeof kept[field] === 'string') kept[field] = urlHost(kept[field])
+  return kept
+}
 
 /** A replayed command's result: the rows it returned, read again by id (as they are now), in the command's workspace. */
 export async function replayedResult(tx: Tx, workspaceId: string | null, stored: unknown): Promise<unknown> {
