@@ -1802,7 +1802,8 @@ export const user_avatars = pgTable('user_avatars', {
 })
 
 // Sign-in attempts per account across every IP (apps/api/src/sign-in-limits.ts): code emails asked for (`code_request`)
-// and wrong codes (`code_failure`), counted per clock hour. Only for addresses of existing accounts, so the number of
+// and wrong codes (`code_failure`; those sent from a browser that signed in to the account before also as
+// `known_browser_failure`, LIN-442), counted per clock hour. Only for addresses of existing accounts, so the number of
 // rows stays bounded, and in the database, so a restart, a second API process or a flood of other addresses does not
 // reset them. Rows older than a day go when the account counts its next one. Not synced to browsers.
 export const sign_in_counters = pgTable(
@@ -1811,7 +1812,7 @@ export const sign_in_counters = pgTable(
     user_id: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    kind: text('kind', { enum: ['code_request', 'code_failure'] }).notNull(),
+    kind: text('kind', { enum: ['code_request', 'code_failure', 'known_browser_failure'] }).notNull(),
     hour: ts('hour').notNull(),
     count: integer('count').notNull().default(0),
   },

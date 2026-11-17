@@ -20,6 +20,7 @@ vi.hoisted(() => {
 
 const { db } = await import('../src/db.ts')
 const { appRequest, createWorkspace, randomIp, FROM, signUp } = await import('./helpers.ts')
+const { verifyKnownBrowser } = await import('../src/known-browser.ts')
 
 const ORIGIN = 'http://localhost:5173'
 const WORK_TENANT = '6f2c1d4e-0b7a-4a55-9c0e-2a4d5b8e1f30'
@@ -102,7 +103,14 @@ async function signInWith(provider: Provider, who: Identity) {
   vi.unstubAllGlobals()
   const location = back.headers.get('location') ?? ''
   const signedIn = back.headers.getSetCookie().some(c => c.includes('session_token=') && !c.includes('Max-Age=0'))
-  return { signedIn, location, error: new URL(location || ORIGIN).searchParams.get('error') }
+  // The known-browser cookie (known-browser.ts, LIN-442): the callback answers with a redirect, still a sign-in.
+  const knownBrowser =
+    back.headers
+      .getSetCookie()
+      .find(c => /^(__Host-)?known_browser=/.test(c))
+      ?.split(';')[0]
+      ?.split('=')[1] ?? null
+  return { signedIn, location, knownBrowser, error: new URL(location || ORIGIN).searchParams.get('error') }
 }
 
 const userByEmail = async (email: string) => (await db.select().from(user).where(eq(user.email, email)))[0]
@@ -245,6 +253,20 @@ describe('an unverified password account', () => {
     expect(await providerAccount(squatter.userId, 'credential')).toBeUndefined()
     const sessions = await db.select().from(session).where(eq(session.userId, squatter.userId))
     expect(sessions).toHaveLength(1) // only the Google sign-in's own session
+  })
+})
+
+describe('the known-browser cookie (LIN-442)', () => {
+  test('a provider sign-in (a redirect) sets it for the account; a refused one (also a redirect) does not', async () => {
+    const who = await signUp(address('known-provider'))
+    await db.update(user).set({ emailVerified: true }).where(eq(user.id, who.userId))
+    const [row] = await db.select().from(user).where(eq(user.id, who.userId))
+    const signedIn = await signInWith('google', { email: row!.email, verified: true })
+    expect(signedIn.signedIn).toBe(true)
+    expect(verifyKnownBrowser(signedIn.knownBrowser)?.userId).toBe(who.userId)
+    const refused = await signInWith('google', { email: row!.email, verified: false })
+    expect(refused.signedIn).toBe(false)
+    expect(refused.knownBrowser).toBeNull()
   })
 })
 

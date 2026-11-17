@@ -15,6 +15,7 @@ import { emailSender } from './email.ts'
 import { confirmationCodeEmail as confirmationCodeTemplate, signInCodeEmail } from './emails/templates.ts'
 import { refuseExistingMember } from './invitations.ts'
 import { countSignInFailures, limitSignIns } from './sign-in-limits.ts'
+import { rememberKnownBrowser } from './known-browser.ts'
 import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
 import {
@@ -128,7 +129,8 @@ const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
   return guardEmailChange(ctx)
 })
 
-// After: wrong codes and passwords count towards their limits (sign-in-limits.ts); the audit log
+// After: wrong codes and passwords count towards their limits (sign-in-limits.ts), a browser that got a session is
+// remembered as known for that account (known-browser.ts); the audit log
 // records the auth endpoints that change how someone signs in (audit.ts), a name the person changed themselves
 // clears "Last changed by" on their profile (user-avatar.ts), and the account is
 // emailed when a passkey is added or removed (passkeys.ts). A password reset ends the account's
@@ -139,6 +141,7 @@ const afterAuthEndpoints = createAuthMiddleware(async ctx => {
   // First: once an address changed, the other sessions end and the old address is told, whatever follows.
   await finishEmailChange(ctx)
   await countSignInFailures(ctx)
+  rememberKnownBrowser(ctx)
   await recordAuthEndpoint(ctx)
   await clearProfileChangeAfterOwnUpdate(ctx)
   await notifyPasskeyChange(ctx)
