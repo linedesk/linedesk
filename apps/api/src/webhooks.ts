@@ -359,7 +359,7 @@ export async function callEndPayload(tx: Tx, workspaceId: string, callId: string
     id: bookings.id, start_at: bookings.start_at, end_at: bookings.end_at, status: bookings.status, title: bookings.title,
     calendar_name: bookings.calendar_name, appointment_type_id: bookings.appointment_type_id,
   }).from(bookings).where(and(eq(bookings.call_id, call.id), eq(bookings.workspace_id, workspaceId))).orderBy(asc(bookings.start_at))
-  const recording = call.recording_key ? recordingLink(call.id, apiBase(env), now) : null
+  const recording = call.recording_key ? recordingLink(call.id, call.workspace_id, apiBase(env), now) : null
   const assistantName = assistant?.name ?? null
   return {
     hook: 'call_end', call_id: call.id, workspace_id: call.workspace_id, assistant_id: call.assistant_id, assistant_name: assistantName,

@@ -1,5 +1,6 @@
 // GET /v1/calls/:id/recording: the audio of a call, for members of the call's workspace (and its API
-// keys), or for anyone with a signed link (recordingLink: the after-call webhook's, valid RECORDING_LINK_DAYS).
+// keys), or for anyone with a signed link (recordingLink: the after-call webhook's, valid RECORDING_LINK_DAYS,
+// bound to the call's workspace and refused while that workspace is disabled).
 // A file store is streamed from here, with Range support so players can seek; an S3 store gets
 // a redirect to a short-lived signed link. The store is the one the call's recording went to
 // (calls.recording_store), resolved on each request: settings changed in the admin area apply at once.
@@ -7,7 +8,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { Readable } from 'node:stream'
 import { isRecordingKey, RECORDING_LINK_DAYS, recordingFormats, recordingKey } from '@linedesk/actions'
-import { calls } from '@linedesk/db'
+import { calls, organization } from '@linedesk/db'
 import { and, eq, isNull, type SQL } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -68,35 +69,49 @@ export async function serveRecording(actor: Actor, callId: string, rangeHeader: 
 // --- Signed links ------------------------------------------------------------------------------
 
 const LINK_PURPOSE = 'recording-link'
-const linkText = (callId: string, expires: number) => `${callId}.${expires}`
+// The workspace is in the signed text: a link only opens a call of the workspace it was made for.
+const linkText = (workspaceId: string, callId: string, expires: number) => JSON.stringify([workspaceId, callId, expires])
 
 /** A link that opens the call's audio without signing in until `expires_at`; `base` is where the API is reached. */
-export function recordingLink(callId: string, base: string, now = new Date()): { url: string; expires_at: string } {
+export function recordingLink(callId: string, workspaceId: string, base: string, now = new Date()): { url: string; expires_at: string } {
   const expires = Math.floor(now.getTime() / 1000) + RECORDING_LINK_DAYS * 86_400
   const url = new URL(`/v1/calls/${encodeURIComponent(callId)}/recording`, base)
   url.searchParams.set('expires', String(expires))
-  url.searchParams.set('signature', signWithSecretsKey(LINK_PURPOSE, linkText(callId, expires)))
+  url.searchParams.set('signature', signWithSecretsKey(LINK_PURPOSE, linkText(workspaceId, callId, expires)))
   return { url: url.toString(), expires_at: new Date(expires * 1000).toISOString() }
 }
+
+const notValid = () => error(403, 'this recording link is not valid')
 
 /** Whether a request carries a signed-link query; then it needs no sign-in, the signature decides. */
 export const isSignedRecordingRequest = (path: string, query: { signature?: string }) =>
   /^\/v1\/calls\/[^/]+\/recording$/.test(path) && query.signature !== undefined
 
-/** Serves the audio for a signed link: refused once it has expired or when the signature is not the API's own. */
+/**
+ * Serves the audio for a signed link: refused once it has expired, when the signature is not the API's own
+ * for this call and its workspace, or when that workspace is disabled. An unknown call is refused like a bad
+ * signature; a deleted call answers "no recording" only after the signature checked out.
+ */
 export async function serveSignedRecording(callId: string, expires: string | undefined, signature: string | undefined, rangeHeader: string | undefined, now = Date.now()) {
   const until = Number(expires)
-  if (!Number.isInteger(until) || !signature || !/^[0-9a-f]{64}$/.test(signature)) return error(403, 'this recording link is not valid')
+  if (!Number.isInteger(until) || !signature || !/^[0-9a-f]{64}$/.test(signature)) return notValid()
   if (until * 1000 < now) return error(403, 'this recording link has expired; fetch the recording with an API key')
+  const [call] = await db
+    .select({ workspace_id: calls.workspace_id, disabledAt: organization.disabledAt })
+    .from(calls)
+    .innerJoin(organization, eq(organization.id, calls.workspace_id))
+    .where(eq(calls.id, callId))
+  if (!call) return notValid()
   let expected: string
   try {
-    expected = signWithSecretsKey(LINK_PURPOSE, linkText(callId, until))
+    expected = signWithSecretsKey(LINK_PURPOSE, linkText(call.workspace_id, callId, until))
   } catch (e) {
-    if (e instanceof SecretsKeyError) return error(403, 'this recording link is not valid')
+    if (e instanceof SecretsKeyError) return notValid()
     throw e
   }
-  if (!timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) return error(403, 'this recording link is not valid')
-  return serveCallRecording(eq(calls.id, callId), rangeHeader)
+  if (!timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) return notValid()
+  if (call.disabledAt) return error(403, 'this recording link is not valid: the workspace is disabled')
+  return serveCallRecording(and(eq(calls.id, callId), eq(calls.workspace_id, call.workspace_id)), rangeHeader)
 }
 
 async function serveCallRecording(which: SQL | undefined, rangeHeader: string | undefined): Promise<Response> {

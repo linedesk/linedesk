@@ -6,12 +6,13 @@ import { createHmac } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { CALL_START_TIMEOUT_MS, DURING_CALL_MAX_PER_CALL, DURING_CALL_TIMEOUT_MS, newWebhookSecret, recordingKey, rolePermissions } from '@linedesk/actions'
-import { assistants, bookings, calls, commands, contacts, type Tx, webhook_deliveries, webhook_endpoints, webhook_secrets } from '@linedesk/db'
+import { assistants, bookings, calls, commands, contacts, organization, type Tx, webhook_deliveries, webhook_endpoints, webhook_secrets } from '@linedesk/db'
 import type { WebhookHook, WebhookLookup } from '@linedesk/db/types'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
+import { recordingLink } from '../src/recording-route.ts'
 import {
   attemptDelivery, clearOldPayloads, isPrivateAddress, LINK_LOCAL, lanLookup, publicLookup, SIGNATURE_HEADER, sendWebhook, urlProblem, WEBHOOK_ATTEMPTS, WEBHOOK_ENDPOINTS_PER_WORKSPACE,
   WEBHOOK_DISABLE_AFTER, WEBHOOK_PAYLOAD_DAYS, WEBHOOK_TESTS_PER_MINUTE, webhookHandlers,
@@ -524,6 +525,35 @@ describe('after the call', () => {
     expect((await request(anonymous, 'GET', path.replace(`/calls/${callId}/`, `/calls/${ws.call.id}/`))).status).toBe(403)
     expect((await request(anonymous, 'GET', path.replace(/expires=\d+/, 'expires=1000'))).status).toBe(403)
     expect((await request(anonymous, 'GET', `/v1/calls/${callId}/recording`)).status).toBe(401)
+  })
+
+  test('a recording link is bound to the workspace of the call, and refused while that workspace is disabled', async () => {
+    const callId = await newCall({ finish: true })
+    await db.update(calls).set({ recording_key: recordingKey(ws.id, callId, 'ogg') }).where(eq(calls.id, callId))
+    const pathOf = (workspaceId: string, now = new Date()) => {
+      const link = new URL(recordingLink(callId, workspaceId, 'http://api.test', now).url)
+      return `${link.pathname}${link.search}`
+    }
+    // Its own workspace: past the sign-in (no file in this test's store, so "no recording").
+    expect(await request(anonymous, 'GET', pathOf(ws.id))).toMatchObject({ status: 404, body: { error: 'no recording for this call' } })
+    // Signed for another workspace: the same call id does not open.
+    expect(await request(anonymous, 'GET', pathOf(other.id))).toMatchObject({ status: 403, body: { error: 'this recording link is not valid' } })
+    // Expired: still refused.
+    const old = pathOf(ws.id, new Date(Date.now() - 8 * 86_400_000))
+    expect(await request(anonymous, 'GET', old)).toMatchObject({ status: 403, body: { error: 'this recording link has expired; fetch the recording with an API key' } })
+    // An unknown call: refused like a bad signature.
+    expect((await request(anonymous, 'GET', pathOf(ws.id).replace(`/calls/${callId}/`, '/calls/call_missing/'))).status).toBe(403)
+    // The workspace disabled: refused; enabled again: opens again.
+    await db.update(organization).set({ disabledAt: new Date() }).where(eq(organization.id, ws.id))
+    try {
+      expect(await request(anonymous, 'GET', pathOf(ws.id))).toMatchObject({ status: 403, body: { error: 'this recording link is not valid: the workspace is disabled' } })
+    } finally {
+      await db.update(organization).set({ disabledAt: null }).where(eq(organization.id, ws.id))
+    }
+    expect((await request(anonymous, 'GET', pathOf(ws.id))).status).toBe(404)
+    // A deleted call: "no recording", never the audio.
+    await db.update(calls).set({ deleted_at: new Date().toISOString() }).where(eq(calls.id, callId))
+    expect(await request(anonymous, 'GET', pathOf(ws.id))).toMatchObject({ status: 404, body: { error: 'no recording for this call' } })
   })
 
   test('test calls, assistants without the webhook, a webhook without the hook and switched-off webhooks get nothing', async () => {

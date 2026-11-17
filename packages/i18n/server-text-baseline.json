@@ -80,7 +80,7 @@
   "apps/api/src/public-holidays.ts": 5,
   "apps/api/src/push.ts": 5,
   "apps/api/src/recording-egress.ts": 3,
-  "apps/api/src/recording-route.ts": 5,
+  "apps/api/src/recording-route.ts": 3,
   "apps/api/src/recording-store.ts": 10,
   "apps/api/src/records.ts": 1,
   "apps/api/src/rotate-secrets-key.ts": 1,
