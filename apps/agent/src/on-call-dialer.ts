@@ -222,6 +222,8 @@ const BRIEFING_QUIET_MS = 2000
 const NEXT_LINE_MS = 8000
 /** Speech at least this long after the yes is the briefing again ("Connecting you now." is about a second). */
 const BRIEFING_MIN_MS = 2500
+/** With `pressOne`: the on-call person presses 1 this often until they hang up. */
+const KEY_REPEAT_MS = 2000
 /** How long the on-call person waits for "Connecting you now." after pressing 1 again. */
 const CONNECTING_MS = 4000
 /** Time for the bridge to be up after "Connecting you now." before the greeting, so the caller hears all of it. */
@@ -263,6 +265,26 @@ export async function actOnCall(
     await room.localParticipant!.publishDtmf(2, '2')
     return
   }
+  // Key 1 every KEY_REPEAT_MS until they hang up: a pause in the briefing still passes for its end on a busy phone
+  // line (LIN-263), keys before the question do not count, and the bridge does not pass keys on to the caller.
+  const repeat = pressOne
+    ? setInterval(() => void room.localParticipant!.publishDtmf(1, '1').catch(() => {}), KEY_REPEAT_MS)
+    : undefined
+  try {
+    await answerAndGreet(room, source, heard, [accept!, greeting!], { pressOne, log, at })
+  } finally {
+    clearInterval(repeat)
+  }
+  await hangUp()
+}
+
+async function answerAndGreet(
+  room: Room,
+  source: AudioSource,
+  heard: AsyncIterator<AudioFrame>,
+  [accept, greeting]: GreetingAudio[],
+  { pressOne, log, at }: { pressOne: boolean; log: (message: string) => void; at: () => string },
+) {
   for (let answers = 0; answers < 2; answers++) {
     await speak(source, accept!)
     if (pressOne) await room.localParticipant!.publishDtmf(1, '1')
@@ -284,5 +306,4 @@ export async function actOnCall(
   await sleep(BRIDGE_SETTLE_MS)
   await speak(source, greeting!)
   await sleep(1500)
-  await hangUp()
 }
