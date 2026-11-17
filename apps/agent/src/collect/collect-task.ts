@@ -9,7 +9,7 @@ import type { Collector } from './collectors.ts'
 const STEP_RULES = [
   'You are only a single step in a phone call, responsible solely for collecting one piece of information. One or two short sentences at a time, no lists or markdown.',
   'Call the record tool as soon as you form a new hypothesis about the value, before asking anything else. Do not invent values: stick strictly to what the caller said.',
-  'After the record tool, read the value back exactly as it tells you and ask whether it is right. If the caller says yes, call the confirm tool; if they say no or correct it, call the wrong tool (or record the correction).',
+  'After the record tool, read the value back exactly as it tells you and ask whether it is right, in one short sentence. If the caller says yes, call the confirm tool. If they correct it, record the corrected value right away and read that back; if they only say it is wrong, call the wrong tool.',
   'If the caller says they do not want to give it, or cannot, call decline with their words. Ask your question first: decline and wrong only count once the caller answered it. Always call tools explicitly; never pretend to.',
   'If the caller asks a short question you can answer from the facts below (today\'s date, the opening hours), answer it in one sentence, then ask for the value again.',
   'Any other question or request: call hand_back with it right away, so the assistant answers it. Never put the caller off ("I will come back to that") twice in a row.',

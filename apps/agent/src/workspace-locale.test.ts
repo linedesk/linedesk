@@ -28,7 +28,9 @@ describe('phone numbers in the workspace country', () => {
       problem: 'That is not a valid US number (area code or exchange). Ask again.',
     })
     expect(toE164('0151 2345 6789', 'US').ok).toBe(false)
-    expect(phoneCollector('callback number', 'US').readBack('+15035550142')).toBe('5 0 3, 5 5 5, 0 1 4 2')
+    expect(phoneCollector('callback number', 'US').readBack('+15035550142')).toBe(
+      'five zero three, five five five, zero one four two',
+    )
     expect(phoneCollector('callback number', 'US').instructions).toBe(phoneCollector().instructions)
     expect(readBackPhone('+442079460958', 'US')).toBe('plus 4 4 2 0 7 9 4 6 0 9 5 8')
   })

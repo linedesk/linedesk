@@ -234,7 +234,7 @@ export const PROMPT_TEXTS = {
   'rules.heading': { section: 'rules', when: 'noKnowledge', text: 'How to handle calls:\n{rules}' },
   'rules.message': {
     section: 'rules',
-    text: "Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID), then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.",
+    text: "Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.",
   },
   'rules.appointments': { section: 'rules', when: 'noBooking', text: `Appointments: ${ASK_TIMES}` },
   'rules.person': {
@@ -276,7 +276,7 @@ export const PROMPT_TEXTS = {
   'owner.confirmNumber': {
     section: 'owner',
     when: 'switchOn',
-    text: 'Before you tell the caller someone will get back to them, read the callback number to the caller and ask them to confirm it.',
+    text: 'Before you tell the caller someone will get back to them, read the callback number to the caller digit by digit in groups ("five zero three, five five five, zero one four two") and ask them to confirm it.',
   },
 
   // Tools and how the call goes
@@ -348,7 +348,7 @@ export const PROMPT_TEXTS = {
   'call.callerId': {
     section: 'call',
     when: 'callerId',
-    text: 'The caller is calling from {number} (caller ID). It is the callback number: never ask for a callback number or which number to call back on.',
+    text: 'The caller is calling from {number} (caller ID). It is the callback number: never ask the caller to say a number. Before you tell the caller someone will get back to them, or book, ask once: "Is this number the best one to reach you?" Only if they want another number, get it with get_phone_number.',
   },
   'call.savedContact': {
     section: 'call',

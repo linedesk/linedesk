@@ -1,6 +1,7 @@
 // The number the owner calls back on. With caller ID it is the number the caller is calling from: the owner has it with
-// the call, and the assistant has no phone step at all (on realtime calls it asked for a number although caller ID was
-// known, and saved the one the caller made up, LIN-99). Without caller ID it counts once get_phone_number confirmed it.
+// the call, and the assistant only asks whether it is the best one to reach them; the phone step is only for another
+// number the caller wants (on realtime calls it asked for a number although caller ID was known, and saved the one the
+// caller made up, LIN-99; LIN-386). Without caller ID it counts once get_phone_number confirmed it.
 import { isE164 } from '@linedesk/actions'
 import { toE164 } from './collect/collectors.ts'
 

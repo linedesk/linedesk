@@ -1,8 +1,17 @@
 // A step's decline and wrong_* need the caller's answer to the step's own question (B4: a step declined 2.4 s after
 // it started, with no caller line in between, and the assistant went on without a callback number).
 import { expect, test } from 'vitest'
-import { phoneStep } from './collect-tools.ts'
-import { ASK_FIRST, Collection, describeOutcome, handBackFirst, MAX_ATTEMPTS, noCallerIdRule, TEST_CALL_NO_NUMBER } from './collection.ts'
+import type { CallLog } from '../call-log.ts'
+import { collectTools, PHONE_TOOL, PHONE_TOOL_WITH_CALLER_ID, phoneStep } from './collect-tools.ts'
+import {
+  ASK_FIRST,
+  Collection,
+  describeOutcome,
+  handBackFirst,
+  MAX_ATTEMPTS,
+  noCallerIdRule,
+  TEST_CALL_NO_NUMBER,
+} from './collection.ts'
 import { emailCollector, nameCollector, nameCollectorFor, phoneCollector } from './collectors.ts'
 
 test('decline before any caller turn in the step is refused: "Ask the caller first."', () => {
@@ -60,6 +69,17 @@ test('a number step without caller ID knows the number the caller is calling fro
   expect(phoneStep({ callerId: null, country: 'DE' }, 'work number').label).toBe('work number')
 })
 
+// LIN-386: with caller ID the assistant asks whether that number is the best one; another number the caller wants is
+// read back and confirmed by the phone step, never taken as heard. Asking for a number is still not its use (LIN-99).
+test('with caller ID the phone step is only for another number the caller wants', () => {
+  const tools = (callerId: string | null) => collectTools({ log: {} as CallLog, today: () => '2026-11-17', callerId })
+  expect(tools('+15035550142').get_phone_number.description).toBe(PHONE_TOOL_WITH_CALLER_ID)
+  expect(PHONE_TOOL_WITH_CALLER_ID).toMatch(
+    /^Only when the caller wants to be reached on a different number.*Never to ask for a number otherwise\.$/,
+  )
+  expect(tools(null).get_phone_number.description).toBe(PHONE_TOOL)
+})
+
 test('a declined callback number on a test call: noted as test call, no caller ID, and not asked for again', () => {
   const step = new Collection(phoneCollector())
   step.heardCaller()
@@ -92,20 +112,26 @@ test('on realtime (turns not counted) the step counts as heard once its question
 
 test('a step in another language reads the name back without English words (LIN-323: "last name spelled" in a German call)', () => {
   const english = new Collection(nameCollector)
-  expect(english.record({ first_name: 'Dana', last_name: 'Ruiz', last_name_spelled: 'R U I Z' }).say).toBe(
+  expect(english.record({ first_name: 'Dana', last_name: 'Reese', last_name_spelled: 'R U I Z' }).say).toBe(
     'Heard name: Dana Ruiz. Read it back to the caller exactly like this: "Dana Ruiz, last name spelled R, U, I, Z", and ask if it is right. Do not call confirm_name until the caller said yes.',
   )
   const german = new Collection(nameCollector)
   german.englishOnly = false
-  const said = german.record({ first_name: 'Jürgen', last_name: 'Haselbach', last_name_spelled: 'H A S E L B A C H' }).say
+  const said = german.record({ first_name: 'Jürgen', last_name: 'Haselberg', last_name_spelled: 'H A S E L B A C H' }).say
   expect(said).toBe(
     'Heard name: Jürgen Haselbach. Read it back to the caller in the language you are speaking, in that language\'s words: the name "Jürgen Haselbach", then the last name letter by letter, "H, A, S, E, L, B, A, C, H", and ask if it is right. Do not call confirm_name until the caller said yes.',
   )
   expect(said).not.toMatch(/last name spelled/)
-  // Collectors without a version for other languages read back as before.
+  // The number: digits in groups, in the language spoken (LIN-386: the English read-back is in English words).
   const phone = new Collection(phoneCollector())
   phone.englishOnly = false
-  expect(phone.record({ phone_number: '5035550142' }).say).toMatch(/exactly like this: "5 0 3, 5 5 5, 0 1 4 2"/)
+  expect(phone.record({ phone_number: '5035550142' }).say).toMatch(
+    /in the language you are speaking, digit by digit in these groups: "5 0 3, 5 5 5, 0 1 4 2"/,
+  )
+  // Collectors without a version for other languages read back as before.
+  const email = new Collection(emailCollector)
+  email.englishOnly = false
+  expect(email.record({ email: 'd.r@gmail.com' }).say).toMatch(/exactly like this: "D, dot, R, at, gmail dot com"/)
 })
 
 test('Japanese, Chinese, Korean and Hindi names are taken as heard, never spelled; other languages spell', () => {

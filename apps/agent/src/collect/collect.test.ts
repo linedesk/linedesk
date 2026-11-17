@@ -5,6 +5,7 @@ import { askedAgainAfterPutOff, putsOff } from './collect-task.ts'
 import { Collection, describeOutcome, handBackFirst, MAX_ATTEMPTS, outcomeEvent } from './collection.ts'
 import {
   addressCollector,
+  digitsInWords,
   emailCollector,
   isWholePhoneNumber,
   nameCollector,
@@ -60,7 +61,28 @@ describe('collectors', () => {
     expect(toE164('+44 20 7946 0958')).toEqual({ ok: true, value: '+442079460958' })
     expect(toE164('555 0142').ok).toBe(false)
     expect(toE164('103 555 0142').ok).toBe(false) // area codes start with 2–9
-    expect(phoneCollector().readBack('+15035550142')).toBe('5 0 3, 5 5 5, 0 1 4 2')
+  })
+
+  it('phone numbers are read back in groups, digit by digit in words (LIN-386)', () => {
+    expect(phoneCollector().readBack('+15555551234')).toBe('five five five, five five five, one two three four')
+    expect(phoneCollector().readBack('+15035550142')).toBe('five zero three, five five five, zero one four two')
+    expect(phoneCollector().readBack('+442079460958')).toBe(
+      'plus four four two zero seven nine four six zero nine five eight',
+    )
+    expect(phoneCollector('callback number', 'DE').readBack('+4915123456789')).toBe(
+      'zero one five one two, three four five, six seven eight nine',
+    )
+    expect(phoneCollector('callback number', 'DE').readBack('+15035550142')).toBe(
+      'plus one, five zero three, five five five, zero one four two',
+    )
+    // In another language: the digits in groups, said in that language's words.
+    expect(phoneCollector().readBackInLanguage!('+15035550142')).toBe(
+      'Read the number back to the caller in the language you are speaking, digit by digit in these groups: "5 0 3, 5 5 5, 0 1 4 2", and ask if it is right.',
+    )
+    expect(digitsInWords('+ 4 4, 2 0')).toBe('plus four four, two zero')
+    // A correction of one part keeps the rest.
+    for (const country of ['US', 'DE'])
+      expect(phoneCollector('callback number', country).instructions).toMatch(/corrects only part of the number/)
   })
 
   it('names need the last name spelled, and the spelling wins', () => {
@@ -68,10 +90,39 @@ describe('collectors', () => {
     expect(asked.ok).toBe(false)
     if (!asked.ok) expect(asked.problem).toMatch(/spell the last name/)
     const spelled = nameCollector.parse({ first_name: 'dana', last_name: 'Reese', last_name_spelled: 'R U I Z' })
-    expect(spelled).toEqual({ ok: true, value: { first: 'Dana', last: 'Ruiz' } })
+    expect(spelled).toEqual({ ok: true, value: { first: 'Dana', last: 'Ruiz', checkSpelling: true } })
     if (spelled.ok) expect(nameCollector.readBack(spelled.value)).toBe('Dana Ruiz, last name spelled R, U, I, Z')
     expect(nameCollector.parse({ first_name: '12345', last_name: 'x', last_name_spelled: 'a b' }).ok).toBe(false)
     expect(nameCollector.parse({ first_name: 'null', last_name: 'Ruiz' }).ok).toBe(false)
+  })
+
+  it('the name is spelled back only when the spelling differs from the name as heard (LIN-386)', () => {
+    const read = (args: { first_name: string; last_name: string; last_name_spelled: string }) => {
+      const parsed = nameCollector.parse(args)
+      if (!parsed.ok) throw new Error(parsed.problem)
+      return nameCollector.readBack(parsed.value)
+    }
+    // Heard as spelled: the caller just spelled it, so the name alone.
+    expect(read({ first_name: 'Dana', last_name: 'Ruiz', last_name_spelled: 'R U I Z' })).toBe('Dana Ruiz')
+    expect(read({ first_name: 'Sean', last_name: "O'Brien", last_name_spelled: 'O apostrophe B R I E N' })).toBe(
+      "Sean O'Brien",
+    )
+    // Heard differently, or not heard at all: unsure, so spelled back.
+    expect(read({ first_name: 'Sean', last_name: 'Smith', last_name_spelled: 'S M Y T H E' })).toBe(
+      'Sean Smythe, last name spelled S, M, Y, T, H, E',
+    )
+    expect(read({ first_name: 'Dana', last_name: '', last_name_spelled: 'R U I Z' })).toBe(
+      'Dana Ruiz, last name spelled R, U, I, Z',
+    )
+    const sure = nameCollector.parse({
+      first_name: 'Jürgen',
+      last_name: 'Haselbach',
+      last_name_spelled: 'H A S E L B A C H',
+    })
+    if (sure.ok)
+      expect(nameCollector.readBackInLanguage!(sure.value)).toBe(
+        'Read the name "Jürgen Haselbach" back to the caller in the language you are speaking, and ask if it is right.',
+      )
   })
 
   it('emails are checked and spelled back', () => {
@@ -118,7 +169,7 @@ describe('a collection step', () => {
     const step = new Collection(phoneCollector())
     expect(step.confirm().say).toMatch(/Nothing to confirm/)
     const heard = step.record({ phone_number: 'five oh three five five five oh one four two' })
-    expect(heard.say).toContain('"5 0 3, 5 5 5, 0 1 4 2"')
+    expect(heard.say).toContain('"five zero three, five five five, zero one four two"')
     const done = step.confirm()
     expect(done.outcome).toEqual({ status: 'confirmed', label: 'callback number', value: '+15035550142' })
     expect(describeOutcome(done.outcome!)).toMatch(/confirmed the callback number: \+15035550142/)

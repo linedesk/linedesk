@@ -96,8 +96,21 @@ export function readBackPhone(e164: string, country = 'US'): string {
     .join(', ')
 }
 
+const DIGIT_NAMES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
+
+/**
+ * A read-back in English words, digit by digit, the groups kept ("5 0 3, 5 5 5" → "five zero three, five five five"):
+ * the step says it exactly, so no model or voice reads "503" as "five hundred three" (LIN-386).
+ */
+export const digitsInWords = (readBack: string) =>
+  readBack.replace(/\+\s*/g, 'plus ').replace(/\d/g, d => DIGIT_NAMES[Number(d)]!)
+
+/** What every phone step adds: a correction of one part keeps the rest (LIN-386). */
+const PHONE_CORRECTION =
+  'If the caller corrects only part of the number ("no, it ends in 0 1 2 4"), record the whole number with that part changed.'
+
 const US_PHONE_INSTRUCTIONS = (what: string) =>
-  `You collect the caller's ${what}. Callers say numbers as words ("five oh three"), in groups, or "area code …". Pass what they said; the tool checks it. If it is unclear after a try, ask for the area code first, then the rest. Never read it back as one block: read it in groups.`
+  `You collect the caller's ${what}. Callers say numbers as words ("five oh three"), in groups, or "area code …". Pass what they said; the tool checks it. If it is unclear after a try, ask for the area code first, then the rest. Never read it back as one block: read it in groups. ${PHONE_CORRECTION}`
 
 export function phoneCollector(what = 'callback number', country = 'US'): Collector<{ phone_number: string }, string> {
   const home = !isNorthAmerican(country) && isPhoneCountry(country)
@@ -108,9 +121,11 @@ export function phoneCollector(what = 'callback number', country = 'US'): Collec
     parameters: z.object({ phone_number: z.string().describe('The number as the caller said or typed it, digits or words.') }),
     parse: ({ phone_number }) => toE164(phone_number, country),
     display: e164 => e164,
-    readBack: e164 => readBackPhone(e164, country),
+    readBack: e164 => digitsInWords(readBackPhone(e164, country)),
+    readBackInLanguage: e164 =>
+      `Read the number back to the caller in the language you are speaking, digit by digit in these groups: "${readBackPhone(e164, country)}", and ask if it is right.`,
     instructions: home
-      ? `You collect the caller's ${what}. The owner is in ${phoneCountryName(country)}: callers give numbers the way they are written there${example ? `, like ${example}` : ''}, with the leading 0, or a number from another country with + or 00 and its country code. Callers say digits as words in their language, in groups, or with "double". Pass the digits as numerals (0-9), with a leading + when they gave a country code; the tool checks it. If it is unclear after a try, ask for the area code first, then the rest. Never read it back as one block: read it in groups.`
+      ? `You collect the caller's ${what}. The owner is in ${phoneCountryName(country)}: callers give numbers the way they are written there${example ? `, like ${example}` : ''}, with the leading 0, or a number from another country with + or 00 and its country code. Callers say digits as words in their language, in groups, or with "double". Pass the digits as numerals (0-9), with a leading + when they gave a country code; the tool checks it. If it is unclear after a try, ask for the area code first, then the rest. Never read it back as one block: read it in groups. ${PHONE_CORRECTION}`
       : US_PHONE_INSTRUCTIONS(what),
     ask: `Ask for the ${what}.`,
   }
@@ -118,11 +133,18 @@ export function phoneCollector(what = 'callback number', country = 'US'): Collec
 
 // ---------- name, last name spelled ----------
 
-export type FullName = { first: string; last: string }
+/** `checkSpelling`: the spelling differs from the last name as heard, so the read-back spells it (LIN-386). */
+export type FullName = { first: string; last: string; checkSpelling?: true }
 const hasLetters = (s: string) => /\p{L}/u.test(s)
 const clean = (s: string | null | undefined) => {
   const v = s?.trim().replace(/^["']|["']$/g, '')
   return v && !/^(null|none|n\/a|unknown)$/i.test(v) ? v : ''
+}
+
+/** Whether two spellings have the same letters, case, spaces, dashes and apostrophes aside ("O'Brien", "obrien"). */
+const sameLetters = (a: string, b: string) => {
+  const letters = (s: string) => s.toLocaleLowerCase().replace(/[^\p{L}]/gu, '')
+  return letters(a) !== '' && letters(a) === letters(b)
 }
 
 export const nameCollector: Collector<{ first_name: string; last_name: string; last_name_spelled?: string | null }, FullName> = {
@@ -144,12 +166,17 @@ export const nameCollector: Collector<{ first_name: string; last_name: string; l
     if (!said && !spelled) return problem('The last name is missing. Ask for it.')
     if (!hasLetters(first) || (!spelled && !hasLetters(said))) return problem('That does not sound like a name. Ask again.')
     if (!spelled) return problem(`Got "${capitalizeName(first)} ${capitalizeName(said)}". Now ask the caller to spell the last name, letter by letter.`)
-    return ok({ first: capitalizeName(first), last: capitalizeName(spelled) })
+    const name = { first: capitalizeName(first), last: capitalizeName(spelled) }
+    return ok(sameLetters(said, spelled) ? name : { ...name, checkSpelling: true })
   },
   display: n => `${n.first} ${n.last}`,
-  readBack: n => `${n.first} ${n.last}, last name spelled ${readLetters(n.last)}`,
+  // The caller just spelled it: the letters are read back only when they differ from the name as heard (LIN-386).
+  readBack: n =>
+    n.checkSpelling ? `${n.first} ${n.last}, last name spelled ${readLetters(n.last)}` : `${n.first} ${n.last}`,
   readBackInLanguage: n =>
-    `Read it back to the caller in the language you are speaking, in that language's words: the name "${n.first} ${n.last}", then the last name letter by letter, "${readLetters(n.last)}", and ask if it is right.`,
+    n.checkSpelling
+      ? `Read it back to the caller in the language you are speaking, in that language's words: the name "${n.first} ${n.last}", then the last name letter by letter, "${readLetters(n.last)}", and ask if it is right.`
+      : `Read the name "${n.first} ${n.last}" back to the caller in the language you are speaking, and ask if it is right.`,
   instructions:
     'You collect the caller\'s first and last name. Then ask them to spell the last name. Callers spell letter by letter ("R U I Z"), with the phonetic alphabet ("Romeo Uniform India Zulu") or "R as in Robert"; pass the spelling as they said it in last_name_spelled. Names may have dashes or apostrophes (Mary-Jane, O\'Brien). Only a name the caller said about themselves counts: the assistant\'s own name from the greeting, the owner\'s or a staff member\'s name is never the caller\'s; if you only have their last name, ask for the first name.',
   ask: 'Ask for their first and last name (if they already said it, ask them to spell the last name).',

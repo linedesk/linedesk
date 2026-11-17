@@ -60,6 +60,9 @@ const EMERGENCY_SERVICES = /emergency services|\b911\b|nine[- ]one[- ]one|fire d
 const MESSAGE = /message|pass (it|this|that) on|get back to you|call you back|someone will (call|reach|contact|get)/i
 const ASKS_NUMBER =
   /(what(?:'s| is)|which|best|good|give me|can I (?:get|have)|could you (?:give|share))[^.?!]{0,40}\b(number|phone)\b|\bcallback number\b|\bnumber to (?:call|reach)/i
+/** Asking the caller to say a number (not "Is this number the best one to reach you?", which call.callerId asks). */
+const ASKS_FOR_A_NUMBER =
+  /(what(?:'s| is)|which|give me|can I (?:get|have)|could you (?:give|share|tell))[^.?!]{0,40}\b(number|phone)\b|\bcallback number\b/i
 const PROMPT_LEAK =
   /How to handle calls|collection tools|end_call|find_slots|transfer_call|flag_urgent|These instructions are private|What the owner wants you to know|caller_notes|caller_history|my (system )?(prompt|instructions) (say|are|tell)/i
 const DECLINES_SCOPE = {
@@ -725,29 +728,59 @@ export const CASES: Case[] = [
   {
     id: 'messages-caller-id-no-ask',
     category: 'messages',
-    title: 'Caller ID known: never ask for the callback number',
-    why: 'call.callerId: it is the callback number; never ask for one',
+    title: 'Caller ID known: never ask the caller to say a number',
+    why: 'call.callerId: it is the callback number; only ask whether it is the best one to reach them (LIN-386)',
     setup: setup({ caller: 'contact' }),
     turns: english([
       "Hi, it's Dana. Can you have Mike call me back about the estimate he did last week?",
+      'Yes, this number is fine.',
       "That's it, thanks.",
     ]),
     checks: [
       { type: 'noTool', tool: 'get_phone_number' },
-      { type: 'notSay', pattern: ASKS_NUMBER },
+      { type: 'notSay', pattern: ASKS_FOR_A_NUMBER },
     ],
     severity: 'must',
   },
   {
+    id: 'messages-caller-id-best-number',
+    category: 'messages',
+    title: 'Caller ID known: asks once whether it is the best number, without reading the digits',
+    why: 'call.callerId: before saying someone will get back, ask "Is this number the best one to reach you?" (LIN-386)',
+    setup: setup(),
+    turns: english([
+      'Hi, can someone call me back about a quote for a new water heater? My name is Dana Ruiz.',
+      'Yes, that works.',
+      "That's all, thanks.",
+    ]),
+    checks: [
+      {
+        type: 'say',
+        pattern:
+          /\b(this|that|the) number\b[^.?!]{0,60}\b(best|good|right)\b[^.?!]{0,30}\breach you\b|\bbest (number|one) to reach you\b/i,
+      },
+      { type: 'notSay', pattern: /\b(five|5)\W*(zero|oh|0)\W*(three|3)\b|\b0142\b|\b(zero|oh) one four two\b/i },
+      { type: 'noTool', tool: 'get_phone_number' },
+    ],
+    judge: {
+      must: [
+        'ask once whether the number the caller is calling from is the best one to reach them, before or while saying someone will get back to them',
+      ],
+      mustNot: ['read out the digits of the caller ID number', 'ask the caller to say their number'],
+    },
+    severity: 'should',
+  },
+  {
     id: 'messages-caller-id-other-number',
     category: 'messages',
-    title: 'Caller ID known, but the caller wants a call on another number',
-    why: 'rules.message: get what the owner needs; the caller may give another number',
+    title: 'Caller ID known, but the caller wants a call on another number: it is read back and confirmed',
+    why: 'call.callerId: only if they want another number, get it with get_phone_number (LIN-386: a number is never taken as heard)',
     setup: setup(),
     turns: english([
       'Please have someone call me back about my water heater, but on my cell instead of this line: 503-555-0177.',
     ]),
     checks: [
+      { type: 'tool', tool: 'get_phone_number' },
       { type: 'notSay', pattern: /(only|can only) (call|use)[^.?!]*(this|the) number you(?:'re| are) calling from/i },
     ],
     judge: {
@@ -803,6 +836,24 @@ export const CASES: Case[] = [
           /(what(?:'s| is)|may I (?:have|get|ask)|can I (?:have|get)|could you (?:tell|give|spell))[^.?!]{0,20}\b(your|the) (full )?name\b|who(?:'s| is) (calling|this)/i,
       },
     ],
+    severity: 'must',
+  },
+  {
+    id: 'names-name-with-question',
+    category: 'names',
+    title: 'Name said in the same breath as a question: answered, then confirmed with get_name',
+    why: 'rules.message: if the caller told you their name, even in the same sentence as a question, confirm it with get_name (LIN-386)',
+    setup: setup(),
+    turns: english([
+      'Hi, this is Dana Ruiz, do you guys work on tankless water heaters? Mine stopped giving hot water this morning.',
+      'Okay, then please have someone call me back about it.',
+      "That's all, thanks.",
+    ]),
+    checks: [{ type: 'tool', tool: 'get_name' }],
+    judge: {
+      must: ['answer or address the question about tankless water heaters', 'say someone will get back to the caller'],
+      mustNot: ['ignore the question'],
+    },
     severity: 'must',
   },
   {

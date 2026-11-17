@@ -149,24 +149,26 @@ export function phoneStep(ctx: Pick<CollectContext, 'callerId' | 'testCall' | 'c
   return { ...collector, instructions: `${collector.instructions}\n${noCallerIdRule(ctx.testCall === true)}` }
 }
 
+export const PHONE_TOOL = 'Get a phone number from the caller and confirm it.'
+/** With caller ID: never to ask for the number the caller is calling from (LIN-99), only for another one. */
+export const PHONE_TOOL_WITH_CALLER_ID =
+  'Only when the caller wants to be reached on a different number than the one they are calling from: get that number and confirm it. Never to ask for a number otherwise.'
+
 export function collectTools(ctx: CollectContext) {
   return {
     get_name: llm.tool({
       description: "Get the caller's first and last name.",
       execute: async (_args, opts) => runStep(ctx, opts, nameCollectorFor(ctx.language?.())),
     }),
-    // With caller ID that number is the callback number: no phone step at all (call.callerId).
-    ...(ctx.callerId
-      ? {}
-      : {
-          get_phone_number: llm.tool({
-            description: 'Get a phone number from the caller and confirm it.',
-            parameters: z.object({
-              what: z.string().nullish().describe('What the number is for, in English, e.g. "callback number". Default: callback number.'),
-            }),
-            execute: async ({ what }, opts) => runStep(ctx, opts, phoneStep(ctx, what?.trim() || 'callback number')),
-          }),
-        }),
+    // With caller ID that number is the callback number (call.callerId): the step is only for another number the
+    // caller wants to be called on, read back and confirmed like any other (LIN-386).
+    get_phone_number: llm.tool({
+      description: ctx.callerId ? PHONE_TOOL_WITH_CALLER_ID : PHONE_TOOL,
+      parameters: z.object({
+        what: z.string().nullish().describe('What the number is for, in English, e.g. "callback number". Default: callback number.'),
+      }),
+      execute: async ({ what }, opts) => runStep(ctx, opts, phoneStep(ctx, what?.trim() || 'callback number')),
+    }),
     get_address: llm.tool({
       description: 'Get a street address from the caller.',
       execute: async (_args, opts) => runStep(ctx, opts, addressCollector),

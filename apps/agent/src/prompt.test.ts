@@ -408,11 +408,11 @@ test('listed appointments switch the booking-change rules; the API check stays (
 test('caller ID: a known number is in the prompt and not asked for, a saved name is not asked for, an unknown number is', () => {
   const known = { name: null, note: null, phone: '+15035550142' }
   expect(callerIdInstructions(known)).toContain('The caller is calling from +1 503 555 0142 (caller ID).')
-  expect(callerIdInstructions(known)).toMatch(
-    /It is the callback number: never ask for a callback number or which number to call back on/,
+  expect(callerIdInstructions(known)).toMatch(/It is the callback number: never ask the caller to say a number\./)
+  // LIN-386: one short question instead of reading the digits; another number goes through the phone step.
+  expect(callerIdInstructions(known)).toContain(
+    'Before you tell the caller someone will get back to them, or book, ask once: "Is this number the best one to reach you?" Only if they want another number, get it with get_phone_number.',
   )
-  // The get_phone_number tool is not given with caller ID, so the prompt never names it.
-  expect(callerIdInstructions(known)).not.toMatch(/get_phone_number/)
   expect(callerIdInstructions(known)).not.toMatch(/saved contact|can be faked/)
   expect(callerIdInstructions({ ...known, name: 'Linda Park' })).toMatch(
     /^The caller is "Linda Park" \(a saved contact\)\..*do not ask for the caller's name/,

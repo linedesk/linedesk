@@ -1,6 +1,7 @@
 // The LLM test suite's own tests (LIN-391), without a model: the deterministic checks, the case catalogue, and the
 // tools built from the real definitions.
 import { describe, expect, it } from 'vitest'
+import { PHONE_TOOL, PHONE_TOOL_WITH_CALLER_ID } from '../collect/collect-tools.ts'
 import { CASES, CATEGORIES, neededPasses } from './cases.ts'
 import { globalProblems, languageOf, runCheck, sentencesOf } from './checks.ts'
 import type { CallEvent, Transcript } from './conversation.ts'
@@ -149,11 +150,11 @@ describe('tools', () => {
         'find_slots',
         'flag_urgent',
         'get_name',
+        'get_phone_number',
         'lookup_job_status',
         'transfer_call',
       ]),
     )
-    expect(names).not.toContain('get_phone_number')
     for (const t of schemas) {
       expect(t.function.description, t.function.name).toBeTruthy()
       expect(t.function.parameters.type).toBe('object')
@@ -161,9 +162,9 @@ describe('tools', () => {
     }
   })
 
-  it('gives get_phone_number only without caller ID', () => {
-    expect(Object.keys(buildTools(setup({ caller: 'withheld' })).tools)).toContain('get_phone_number')
-    expect(Object.keys(buildTools(setup()).tools)).not.toContain('get_phone_number')
+  it('gives get_phone_number with caller ID only for another number (LIN-386)', () => {
+    expect(buildTools(setup({ caller: 'withheld' })).tools.get_phone_number?.description).toBe(PHONE_TOOL)
+    expect(buildTools(setup()).tools.get_phone_number?.description).toBe(PHONE_TOOL_WITH_CALLER_ID)
   })
 
   it('reads arguments with the tool schema', () => {
