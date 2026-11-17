@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
+import { authSecretProblem } from './auth-secret.ts'
 
 const envExample = readFileSync(new URL('../../../.env.example', import.meta.url), 'utf8')
 const activeValue = (name: string) => envExample.match(new RegExp(`^${name}=(.*)$`, 'm'))?.[1]
@@ -24,14 +25,27 @@ describe('.env.example', () => {
 describe('scripts/setup.sh', () => {
   const setup = fileURLToPath(new URL('../../../scripts/setup.sh', import.meta.url))
   const value = (env: string, name: string) => env.match(new RegExp(`^${name}=(.*)$`, 'm'))?.[1]
-  const secrets = ['BETTER_AUTH_SECRET', 'SECRETS_KEY', 'ELECTRIC_SECRET', 'AGENT_API_TOKEN', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'POSTGRES_PASSWORD']
+  const secrets = [
+    'BETTER_AUTH_SECRET',
+    'SECRETS_KEY',
+    'ELECTRIC_SECRET',
+    'AGENT_API_TOKEN',
+    'LIVEKIT_API_KEY',
+    'LIVEKIT_API_SECRET',
+    'POSTGRES_PASSWORD',
+  ]
   const inRepo = (fn: (repo: string, run: (...args: string[]) => ReturnType<typeof spawnSync>) => void) => {
     const repo = mkdtempSync(join(tmpdir(), 'linedesk-setup-'))
     try {
       mkdirSync(join(repo, 'scripts'))
       copyFileSync(setup, join(repo, 'scripts/setup.sh'))
       writeFileSync(join(repo, '.env.example'), envExample)
-      fn(repo, (...args) => spawnSync('sh', [join(repo, 'scripts/setup.sh'), ...args], { env: { PATH: process.env.PATH }, encoding: 'utf8' }))
+      fn(repo, (...args) =>
+        spawnSync('sh', [join(repo, 'scripts/setup.sh'), ...args], {
+          env: { PATH: process.env.PATH },
+          encoding: 'utf8',
+        }),
+      )
     } finally {
       rmSync(repo, { recursive: true, force: true })
     }
@@ -46,7 +60,9 @@ describe('scripts/setup.sh', () => {
       // docker/api-entrypoint.sh refuses a shorter one.
       expect(value(env, 'BETTER_AUTH_SECRET')!.length).toBeGreaterThanOrEqual(32)
       expect(value(env, 'PUBLIC_URL')).toBe('https://desk.example.com')
-      expect(value(env, 'DATABASE_URL')).toBe(`postgres://linedesk:${value(env, 'POSTGRES_PASSWORD')}@localhost:5433/linedesk`)
+      expect(value(env, 'DATABASE_URL')).toBe(
+        `postgres://linedesk:${value(env, 'POSTGRES_PASSWORD')}@localhost:5433/linedesk`,
+      )
       expect(run().status).toBe(0)
       expect(readFileSync(join(repo, '.env'), 'utf8')).toBe(env)
     })
@@ -125,7 +141,7 @@ describe('scripts/tunnel.sh', () => {
 describe('docker/api-entrypoint.sh', () => {
   const entrypoint = fileURLToPath(new URL('../../../docker/api-entrypoint.sh', import.meta.url))
   // Run in an empty directory: a run that passes every check stops at the migration (no packages there), nothing starts.
-  const run = (secret: string) => {
+  const run = (secret: string, more: Record<string, string> = {}) => {
     const dir = mkdtempSync(join(tmpdir(), 'linedesk-entrypoint-'))
     try {
       return spawnSync('sh', [entrypoint], {
@@ -135,6 +151,7 @@ describe('docker/api-entrypoint.sh', () => {
           BETTER_AUTH_SECRET: secret,
           DATABASE_URL: 'postgres://linedesk:a-password-of-this-install@db:5432/linedesk',
           ELECTRIC_SECRET: 'an-electric-secret-of-this-install',
+          ...more,
         },
         encoding: 'utf8',
       })
@@ -157,8 +174,50 @@ describe('docker/api-entrypoint.sh', () => {
     expect(result.stderr).toMatch(/BETTER_AUTH_SECRET is shorter than 32 characters/)
   })
 
+  test('refuses BETTER_AUTH_SECRETS (Better Auth would use it instead, unchecked)', () => {
+    const result = run('a'.repeat(32), { BETTER_AUTH_SECRETS: '1:short' })
+    expect(result.status).toBe(1)
+    expect(result.stderr).toMatch(/BETTER_AUTH_SECRETS is set/)
+  })
+
   test('goes on with a secret of 32 characters or more', () => {
-    for (const secret of ['a'.repeat(32), 'q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1c='])
-      expect(run(secret).stderr).not.toMatch(/BETTER_AUTH_SECRET/)
+    for (const secret of ['a'.repeat(32), 'q1w2e3r4t5y6u7i8o9p0a1s2d3f4g5h6j7k8l9z0x1c=']) {
+      const result = run(secret)
+      expect(result.stderr).not.toMatch(/BETTER_AUTH_SECRET/)
+      // Past every check: it stops only at the migration, which is not in the empty directory.
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toMatch(/packages\/db\/src\/migrate\.ts/)
+    }
+  })
+})
+
+describe('authSecretProblem (the API checks the secret where a start skips the entrypoint)', () => {
+  const secret = 'example-auth-secret-0123456789-abcdefghij'
+  const production = { production: true }
+
+  test('in production: refuses an empty secret, the placeholder and a short one', () => {
+    expect(authSecretProblem({}, production)).toMatch(/BETTER_AUTH_SECRET is not set/)
+    expect(authSecretProblem({ BETTER_AUTH_SECRET: 'change-me-to-a-long-random-string' }, production)).toMatch(
+      /is not set/,
+    )
+    expect(authSecretProblem({ BETTER_AUTH_SECRET: 'a'.repeat(31) }, production)).toMatch(/shorter than 32 characters/)
+  })
+
+  test('refuses BETTER_AUTH_SECRETS, also outside production', () => {
+    for (const options of [production, {}])
+      expect(authSecretProblem({ BETTER_AUTH_SECRET: secret, BETTER_AUTH_SECRETS: `1:${secret}` }, options)).toMatch(
+        /BETTER_AUTH_SECRETS is set/,
+      )
+  })
+
+  test('outside production: refuses only a missing secret', () => {
+    expect(authSecretProblem({})).toMatch(/BETTER_AUTH_SECRET is not set/)
+    expect(authSecretProblem({ BETTER_AUTH_SECRET: 'change-me-to-a-long-random-string' })).toBeNull()
+    expect(authSecretProblem({ BETTER_AUTH_SECRET: 'short' })).toBeNull()
+  })
+
+  test('accepts a secret of 32 characters or more', () => {
+    expect(authSecretProblem({ BETTER_AUTH_SECRET: 'a'.repeat(32) }, production)).toBeNull()
+    expect(authSecretProblem({ BETTER_AUTH_SECRET: secret }, production)).toBeNull()
   })
 })

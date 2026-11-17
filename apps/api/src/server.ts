@@ -1,11 +1,22 @@
 import { serve } from '@hono/node-server'
 import { initErrorReporting } from './error-reporting.ts'
 import { agentTokenProblem } from '@linedesk/actions'
+import { authSecretProblem } from './auth-secret.ts'
 import { db } from './db.ts'
 import { emailProviderInUse, loadInstanceEnv, watchInstanceEnv } from './instance-env.ts'
 
 // Sentry, when SENTRY_DSN is set (error-reporting.ts). Before the rest of the startup; the static imports above run first.
 initErrorReporting('api')
+
+// docker/api-entrypoint.sh checks the sign-in secret too; a start without it must not run with a weak one (tests set
+// their own).
+const authSecretRefused =
+  process.env.NODE_ENV !== 'test' &&
+  authSecretProblem(process.env, { production: process.env.NODE_ENV === 'production' })
+if (authSecretRefused) {
+  console.error(authSecretRefused)
+  process.exit(1)
+}
 
 // Sign-in providers and SMTP stored in the admin area, before the modules that read them load (instance-env.ts).
 await loadInstanceEnv(db).catch(error => console.error('could not load the sign-in and email settings:', error))
@@ -15,14 +26,18 @@ const { refreshBranding, watchBranding } = await import('./branding.ts')
 await refreshBranding(db).catch(error => console.error('could not load the branding:', error))
 watchBranding(db)
 // A fresh install: the setup code for the first admin goes to the log (setup.ts).
-await (await import('./setup.ts')).issueSetupCode(db).catch(error => console.error('could not make a setup code:', error))
+await (await import('./setup.ts'))
+  .issueSetupCode(db)
+  .catch(error => console.error('could not make a setup code:', error))
 const { passkeysOffWarning, secondFactorOffWarning } = await import('./admin-second-factor.ts')
 // Instance admins without a passkey: Server admin needs one, so each gets an enrolment code in the log (admin-passkey-codes.ts).
 await (await import('./admin-passkey-codes.ts'))
   .printMissingAdminEnrolments()
   .catch(error => console.error('could not issue passkey enrolment codes:', error))
 // The billing ledger's triggers (ledger-guards.ts): billing refuses to run without them.
-await (await import('./ledger-guards.ts')).checkLedgerGuards(db).catch(error => console.error('could not check the ledger guards:', error))
+await (await import('./ledger-guards.ts'))
+  .checkLedgerGuards(db)
+  .catch(error => console.error('could not check the ledger guards:', error))
 // Linedesk Cloud: an ALERT for a default voice or language model of the install (the environment's too) that is not
 // Standard; calls use the provider's Standard one instead (usage-levels.ts).
 await (await import('./usage-levels.ts'))
@@ -38,7 +53,8 @@ const { startStaleCallSweep } = await import('./stale-calls.ts')
 
 // A short or placeholder agent token could be guessed: refuse to start (docker/api-entrypoint.sh turns the placeholders off first).
 const agentToken = process.env.AGENT_API_TOKEN
-const agentTokenRefused = agentToken && agentTokenProblem(agentToken, { production: process.env.NODE_ENV === 'production' })
+const agentTokenRefused =
+  agentToken && agentTokenProblem(agentToken, { production: process.env.NODE_ENV === 'production' })
 if (agentTokenRefused) {
   console.error(agentTokenRefused)
   process.exit(1)

@@ -2,6 +2,11 @@
 # Start the API container: check secrets, apply migrations, serve.
 set -e
 
+# Better Auth would prefer the versioned secrets over BETTER_AUTH_SECRET, unchecked (apps/api/src/auth-secret.ts).
+if [ -n "$BETTER_AUTH_SECRETS" ]; then
+  echo "BETTER_AUTH_SECRETS is set. Linedesk uses only BETTER_AUTH_SECRET: remove BETTER_AUTH_SECRETS from .env." >&2
+  exit 1
+fi
 case "$BETTER_AUTH_SECRET" in
   "" | change-me*)
     echo "BETTER_AUTH_SECRET is not set. Put a long random string in .env, e.g. the output of: openssl rand -base64 32" >&2
