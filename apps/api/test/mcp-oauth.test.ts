@@ -302,6 +302,17 @@ describe('the flow', () => {
     expect(row).toMatchObject({ name: 'Claude', revoked_at: null })
   })
 
+  test('an OAuth key gets the small tool set: reads, public actions and assistant settings; no api_get, no billing', async () => {
+    const { key } = await connect(ws.owner)
+    const names = (await mcp(key)).body.result.tools.map((t: { name: string }) => t.name) as string[]
+    expect(names).toEqual(expect.arrayContaining(['calls_list', 'calls_get', 'contacts_search', 'workspaces_list']))
+    expect(names).toEqual(
+      expect.arrayContaining(['call_markDone', 'contact_update', 'appointment_book', 'assistant_update']),
+    )
+    expect(names).not.toContain('api_get')
+    expect(names.filter(n => /^(billing|partner|team|apiKey|personalKey|membership|workspace)_/.test(n))).toEqual([])
+  })
+
   test('the token endpoint takes JSON too, and a loopback redirect on another port', async () => {
     const flow = await newFlow('http://127.0.0.1:3334/callback', 'Claude Code')
     const onAnotherPort = { ...flow, redirectUri: 'http://127.0.0.1:51234/callback' }

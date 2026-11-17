@@ -78,6 +78,8 @@ export interface Actor {
    * workspaces, but no session (nothing that needs a fresh sign-in, a passkey or a browser).
    */
   personalKeyId?: string
+  /** That personal key was issued to an MCP client by OAuth sign-in (oauth.ts): the smaller tool set (mcp.ts). */
+  oauthKey?: true
   /** The voice agent with a call token (agent-token.ts): only this call, in `workspaceId`. */
   callId?: string
   /**

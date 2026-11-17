@@ -78,6 +78,7 @@ export async function actorForPersonalKey(
     : []
   const actor = await personActor(account.id, requested, extraPermissions, [], {
     personalKeyId: row.id,
+    ...(row.oauth_client_id ? { oauthKey: true as const } : {}),
     ...(adminConfirmed ? { passkeyConfirmed: true as const } : {}),
     ...(admin && !adminOpen ? { adminSecondFactor: 'confirm' as const } : {}),
     ...(mustConfirmEmail(account.emailVerified) ? { emailUnverified: true as const } : {}),

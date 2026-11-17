@@ -371,18 +371,31 @@ export const NOT_OVER_MCP_FOR_PERSONAL_KEYS: ReadonlySet<string> = new Set([
  * only with an admin key: an assistant that reads caller text is the client most easily steered,
  * so a member key's assistant cannot be talked into them. Over REST they follow the role as before.
  */
-export const offeredOverMcp = (def: ActionDef, actor: Actor) =>
-  actor.personalKeyId
-    ? // A personal key is its maker (decision 2026-11-16): every action they may run, destructive ones marked so the
-      // client asks first. Their workspace roles still decide (runnableBy), as in the app.
-      !NOT_OVER_MCP.has(def.name) && !NOT_OVER_MCP_FOR_PERSONAL_KEYS.has(def.name) && runnableBy(def, actor)
-    : Boolean(def.public) &&
-      !NOT_OVER_MCP.has(def.name) &&
-      actor.permissions.includes(def.permission) &&
-      (!def.destructive || actor.role === 'admin')
+/**
+ * What a key issued by OAuth sign-in (an MCP client from a connector directory: ChatGPT, Claude) offers besides the
+ * public actions: the assistant's settings. Directory reviews ask for a small, named tool set, so such a key gets the
+ * read tools, the public actions (calls, contacts, appointments, free slots, members) and these, nothing else and no
+ * api_get (Tim, 2026-11-17, LIN-469). A personal key made in the app keeps every action its maker may run.
+ */
+export const OAUTH_EXTRA_ACTIONS: ReadonlySet<string> = new Set(['assistant.update'])
 
-/** Personal keys: the workspaces their maker belongs to, and the app's other reads (key-reads.ts). */
-function registerPersonalReads(server: McpServer, personal: PersonalKeyTools) {
+export const offeredOverMcp = (def: ActionDef, actor: Actor) =>
+  actor.oauthKey
+    ? (Boolean(def.public) || OAUTH_EXTRA_ACTIONS.has(def.name)) &&
+      !NOT_OVER_MCP.has(def.name) &&
+      !NOT_OVER_MCP_FOR_PERSONAL_KEYS.has(def.name) &&
+      runnableBy(def, actor)
+    : actor.personalKeyId
+      ? // A personal key is its maker (decision 2026-11-16): every action they may run, destructive ones marked so the
+        // client asks first. Their workspace roles still decide (runnableBy), as in the app.
+        !NOT_OVER_MCP.has(def.name) && !NOT_OVER_MCP_FOR_PERSONAL_KEYS.has(def.name) && runnableBy(def, actor)
+      : Boolean(def.public) &&
+        !NOT_OVER_MCP.has(def.name) &&
+        actor.permissions.includes(def.permission) &&
+        (!def.destructive || actor.role === 'admin')
+
+/** Personal keys: the workspaces their maker belongs to, and (not for an OAuth key) the app's other reads (key-reads.ts). */
+function registerPersonalReads(server: McpServer, personal: PersonalKeyTools, withApiGet: boolean) {
   const json = async (path: string, workspaceId?: string) => {
     const res = await personal.get(path, workspaceId)
     const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
@@ -400,6 +413,7 @@ function registerPersonalReads(server: McpServer, personal: PersonalKeyTools) {
     },
     async () => guard('workspaces_list', () => json('/v1/me/workspaces')),
   )
+  if (!withApiGet) return
   server.registerTool(
     'api_get',
     {
@@ -428,7 +442,7 @@ function registerPersonalReads(server: McpServer, personal: PersonalKeyTools) {
 export function mcpServerFor(actor: Actor, personal?: PersonalKeyTools) {
   const server = new McpServer({ name: 'linedesk', version: '1' }, { instructions: SERVER_INSTRUCTIONS })
   registerReads(server, actor, personal)
-  if (personal) registerPersonalReads(server, personal)
+  if (personal) registerPersonalReads(server, personal, !actor.oauthKey)
   for (const def of actions.values()) if (offeredOverMcp(def, actor)) registerAction(server, def, actor, personal)
   return server
 }
