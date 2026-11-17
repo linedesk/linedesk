@@ -46,6 +46,8 @@ const INSTANCE_WIDE_FILES = [
   'test/app-slack.test.ts',
   // A refused Jobber client secret is recorded as the Jobber provider failing (provider_failures).
   'test/app-jobber.test.ts',
+  // Stores the Jobber client secret that signs the webhook (provider_settings).
+  'test/app-jobber-webhook.test.ts',
   'test/setup-mcp.test.ts',
   'test/setup-mcp-workspace.test.ts',
   'test/workspace-limit-retired.test.ts',

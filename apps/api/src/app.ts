@@ -78,6 +78,7 @@ import { registerSignInLinkRoutes } from './sign-in-link-routes.ts'
 import { AUTHENTICATOR_ROUTE_ACTIONS, hasAuthenticator } from './authenticator.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { previewInvitation } from './invitations.ts'
+import { registerJobberWebhookRoute } from './jobber-webhook.ts'
 import { ADMIN_CHECK_FIRST, mayCreateWorkspace, WORKSPACE_CREATION_CLOSED } from './workspace-creation.ts'
 import { businessSetupFor, onboardingFor, phoneSetupFor } from './onboarding.ts'
 import { firstUse } from './sample-calls.ts'
@@ -138,6 +139,8 @@ app.use('/v1/*', refuseCrossSite(TRUSTED_ORIGINS))
 
 // Public: Stripe's webhook, checked by its signature, 404 while billing is off (stripe-webhook.ts).
 registerStripeWebhookRoute(app)
+// Public: Jobber's webhook (APP_DISCONNECT), checked by its signature, 404 while Jobber is not set up (jobber-webhook.ts).
+registerJobberWebhookRoute(app)
 
 // Public: the sign-in screen asks which methods this install offers, and whether it still needs its first admin.
 app.get('/v1/auth-methods', async c =>

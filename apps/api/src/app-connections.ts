@@ -34,7 +34,7 @@ import {
   crm_links,
   type Tx,
 } from '@linedesk/db'
-import { and, eq, lt, sql } from 'drizzle-orm'
+import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Forbidden, Reject } from './handler-context.ts'
 import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
@@ -153,8 +153,7 @@ function tokenValues(connection: Pick<AppConnection, 'id' | 'provider'>, tokens:
     refresh_token_encrypted: encryptSecret(refreshToken, appSlot(connection, 'refresh')),
     // An app that names no expiry: refreshed after HubSpot's 30 minutes anyway; one that gives no refresh token
     // (Slack) has a token that does not run out.
-    expires_at:
-      tokens.expiresAt ?? (tokens.refreshToken ? new Date(Date.now() + 30 * 60_000).toISOString() : NEVER),
+    expires_at: tokens.expiresAt ?? (tokens.refreshToken ? new Date(Date.now() + 30 * 60_000).toISOString() : NEVER),
     scope: tokens.scope,
     updated_at: new Date().toISOString(),
   }
@@ -269,6 +268,54 @@ async function connectionOf(tx: Tx, workspaceId: string, app: AppId) {
   return connection
 }
 
+/**
+ * The app removed Linedesk from an account itself (Jobber's APP_DISCONNECT webhook): every connection of any
+ * workspace to that account goes, with its tokens, links and pushes (foreign key cascade). Nothing is withdrawn at the
+ * app: the grant is gone there already. The same locks as app.disconnect, in the same order (each account, then each
+ * connection). `accountIds` are the forms the app may name one account by; none matching is no change (a repeated
+ * delivery). With `grantedBefore`, a connection whose grant was stored at or after it stays: it was granted after the
+ * event (connected again after a disconnect, or a late or replayed delivery). Returns the ids of the deleted
+ * connections.
+ */
+export async function dropAppAccount(
+  tx: Tx,
+  app: AppId,
+  accountIds: readonly string[],
+  grantedBefore: string | null = null,
+): Promise<string[]> {
+  if (!accountIds.length) return []
+  const matching = () =>
+    tx
+      .select({ id: app_connections.id, account_id: app_connections.account_id })
+      .from(app_connections)
+      .where(and(eq(app_connections.provider, app), inArray(app_connections.account_id, [...accountIds])))
+  const found = await matching()
+  if (!found.length) return []
+  // Sorted, so two deliveries naming the same account take the locks in the same order.
+  for (const account of [...new Set(found.map(row => row.account_id))].sort()) await lockAccount(tx, app, account)
+  // Read again under the account locks: a connect or disconnect that held them may have changed the rows.
+  const locked = (await matching()).map(row => row.id).sort()
+  for (const id of locked) await lockConnection(tx, id)
+  if (!locked.length) return []
+  // Under the connection locks the rows are read once more by the delete itself: a connection that moved to another
+  // account while this waited (a connect again holds only the new account's lock), or got a newer grant, stays.
+  const newerGrant = grantedBefore
+    ? sql`exists (select 1 from ${app_credentials} where ${app_credentials.connection_id} = ${app_connections.id} and ${app_credentials.updated_at} >= ${grantedBefore})`
+    : undefined
+  const deleted = await tx
+    .delete(app_connections)
+    .where(
+      and(
+        eq(app_connections.provider, app),
+        inArray(app_connections.id, locked),
+        inArray(app_connections.account_id, [...accountIds]),
+        newerGrant ? sql`not ${newerGrant}` : undefined,
+      ),
+    )
+    .returning({ id: app_connections.id })
+  return deleted.map(row => row.id)
+}
+
 export const appConnectionHandlers: Record<string, Handler> = {
   'app.connectStart': async ({ tx, actor, now, ...ctx }, input: { app: AppId }) => {
     const workspace_id = workspaceOf(actor)
@@ -323,9 +370,7 @@ export const appConnectionHandlers: Record<string, Handler> = {
     // A grant one per account that another connection already uses is that connection's too: never withdrawn here.
     if (oauth.grantPerAccount && tokens.account) await lockAccount(tx, input.app, tokens.account.id)
     const shared =
-      oauth.grantPerAccount && tokens.account
-        ? await accountShared(tx, input.app, tokens.account.id, null)
-        : false
+      oauth.grantPerAccount && tokens.account ? await accountShared(tx, input.app, tokens.account.id, null) : false
     // Whatever goes wrong from here, the grant just made is withdrawn again. A grant one per account whose account
     // is not known yet (the account read failed) stays: withdrawing it could cut another workspace on that account.
     if (grant && !shared && (tokens.account || !oauth.grantPerAccount))
@@ -355,7 +400,8 @@ export const appConnectionHandlers: Record<string, Handler> = {
           .from(app_credentials)
           .where(eq(app_credentials.connection_id, existing.id))
         const oldGrant = old ? decryptSecret(old.refresh, appSlot(existing, 'refresh')) : null
-        const oldShared = oauth.grantPerAccount && (await accountShared(tx, input.app, existing.account_id, existing.id))
+        const oldShared =
+          oauth.grantPerAccount && (await accountShared(tx, input.app, existing.account_id, existing.id))
         if (oldGrant && !oldShared) onCommit?.(async () => void (await oauth.revoke(oldGrant).catch(() => false)))
       }
       ;[connection] = (await tx
