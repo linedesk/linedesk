@@ -18,6 +18,8 @@ export type DangerConfirmation = {
   after?: string
   /** The confirming button. */
   action: string
+  /** The button that closes without doing it; "Cancel" when not given (a cancel flow says "Keep my plan"). */
+  dismiss?: string
   /** The button's words while it runs ("Deleting…"). */
   busyAction?: string
   /** The heaviest actions: the button unlocks once this is typed. */
@@ -110,7 +112,7 @@ export function DangerConfirmDialog({ confirm, run, onClose, children, blocked =
       footer={
         <>
           <Button ref={cancelButton} variant="ghost" onClick={onClose} disabled={busy}>
-            {t('common.action.cancel')}
+            {confirm.dismiss ?? t('common.action.cancel')}
           </Button>
           {confirm.alternative && (
             <Button

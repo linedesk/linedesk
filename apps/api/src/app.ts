@@ -46,6 +46,7 @@ import { mcpCors, registerOAuthRoutes } from './oauth.ts'
 import { setsUpByHand } from './install-setup.ts'
 import { authMethods, currentAuthMethods } from './auth-methods.ts'
 import { browserErrorReporting, errorReportingEnabled, type ReportedUser, reportError } from './error-reporting.ts'
+import { billingRules } from './billing-rules.ts'
 import { currentBranding, manifestFor, readLogo } from './branding.ts'
 import { profileChangedBy } from './team-member-edit.ts'
 import { avatarVersionOf, readAvatarFor } from './user-avatar.ts'
@@ -278,7 +279,7 @@ app.post('/v1/workspaces', async c => {
 /** The hostnames the sign-up page's Turnstile token may have been solved on: the app's own origins. */
 const SIGNUP_HOSTNAMES = TRUSTED_ORIGINS.map(origin => new URL(origin).hostname.toLowerCase())
 
-// Self-serve sign-up on Linedesk Cloud (self-serve.ts, docs/billing.md §3.1). Public: whether it is open and the
+// Self-serve sign-up on an install that bills its workspaces (self-serve.ts, docs/billing.md §3.1). Public: whether it is open and the
 // Turnstile site key for the page. Nothing else (no counts, no reason it is closed).
 app.get('/v1/signup/config', async c => {
   const state = await db.transaction(tx => selfServeState(tx))
@@ -479,6 +480,7 @@ app.get('/v1/me', async c => {
     starPrompt,
     setupByHand,
     locale,
+    trialDays,
   ] = await Promise.all([
     avatarVersionOf(db, actor.actorId),
     profileChangedBy(db, actor.actorId, actor.workspaceId),
@@ -494,6 +496,8 @@ app.get('/v1/me', async c => {
     starPromptFor(actor),
     setupByHandFor(actor),
     localeOf(actor),
+    // A sign-up waiting for Checkout is told the install's trial length (Server admin › Billing).
+    workspace?.billingState === 'pending_payment' ? billingRules(db).then(r => r.trialDays) : null,
   ])
   return c.json({
     actorId: actor.actorId,
@@ -509,8 +513,10 @@ app.get('/v1/me', async c => {
           name: workspace.name,
           disabled: Boolean(workspace.disabledAt),
           iconUrl: iconUrlOf(workspace.id, workspace.iconVersion),
-          // On a bill (Linedesk Cloud): `pending_payment` until Checkout, then `active` or `suspended`; null off billing.
+          // On a bill: `pending_payment` until Checkout, then `active` or `suspended`; null off billing.
           billingState: workspace.billingState ?? null,
+          // While `pending_payment`: the free trial's length in days, as the install set it; else null.
+          trialDays,
         }
       : null,
     // Every workspace this member belongs to, for the switcher in the profile menu: known at boot, never fetched when it opens.

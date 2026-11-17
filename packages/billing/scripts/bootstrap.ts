@@ -1,7 +1,12 @@
 /**
  * `pnpm --filter @linedesk/billing bootstrap --sandbox --webhook-url <url>` (docs/billing.md §9, runbook "Stripe
- * account setup"): creates or updates the Stripe objects billing expects (products, plan prices, tax default, portal,
- * "Linedesk Checkout", webhook endpoint). Idempotent; `--dry-run` only lists the changes.
+ * account setup"): creates or updates the Stripe objects billing expects that the install's own key does not make
+ * (tax default, portal, "Linedesk Checkout", webhook endpoint). The products and plan prices are not made here: the
+ * app makes them from Server admin › Billing before a Checkout (packages/billing/src/stripe/catalog.ts), so a run
+ * never undoes an admin's prices. Idempotent; `--dry-run` only lists the changes.
+ *
+ * - The portal's terms and privacy links are the install's own: `--terms-url` and `--privacy-url`, else TERMS_URL and
+ *   PRIVACY_URL from the environment (the same variables the install reads); without them the script stops.
  *
  * - The key comes from the environment (`STRIPE_SECRET_KEY`), never from an argument (every user of the machine can
  *   read process arguments). It is a key that may write products, prices, the portal and webhook endpoints, not the
@@ -19,7 +24,7 @@ import { closeSync, lstatSync, openSync, writeFileSync, writeSync } from 'node:f
 import { isAbsolute, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { PLAN_PRICES, PLAN_PRODUCTS, STRIPE_TAX_CODE } from '@linedesk/db/types'
+import { STRIPE_TAX_CODE } from '@linedesk/db/types'
 import { BootstrapRefused, bootstrapStripe } from '../src/stripe/bootstrap.ts'
 
 const { values } = parseArgs({
@@ -28,7 +33,6 @@ const { values } = parseArgs({
     live: { type: 'boolean' },
     'i-know': { type: 'boolean' },
     'webhook-url': { type: 'string' },
-    'site-url': { type: 'string', default: 'https://linedesk.ai' },
     'terms-url': { type: 'string' },
     'privacy-url': { type: 'string' },
     'return-url': { type: 'string' },
@@ -53,7 +57,6 @@ if (!key) fail('set STRIPE_SECRET_KEY in the environment (never as an argument)'
 const webhookUrl = values['webhook-url']
 if (!webhookUrl || !/^https:\/\/[^/]+\/v1\/billing\/stripe\/webhook$/.test(webhookUrl))
   fail('--webhook-url https://<host>/v1/billing/stripe/webhook is required')
-const site = values['site-url']!.replace(/\/$/, '')
 
 /** The package folder: default output files land here, where .gitignore covers them, wherever the script runs from. */
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
@@ -95,16 +98,22 @@ try {
   if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
 }
 
+const termsUrl = values['terms-url'] ?? process.env.TERMS_URL?.trim()
+const privacyUrl = values['privacy-url'] ?? process.env.PRIVACY_URL?.trim()
+if (!termsUrl || !privacyUrl)
+  fail('give --terms-url and --privacy-url (or TERMS_URL and PRIVACY_URL): the portal links to your own terms')
+
 try {
   const result = await bootstrapStripe(
     key,
-    { products: PLAN_PRODUCTS, prices: PLAN_PRICES, taxCode: STRIPE_TAX_CODE },
+    // The app makes the products and plan prices from the install's settings (catalog.ts), not this script.
+    { products: {}, prices: [], taxCode: STRIPE_TAX_CODE },
     {
       mode,
       allowLive: !!values.live && !!values['i-know'],
       webhookUrl,
-      termsUrl: values['terms-url'] ?? `${site}/terms`,
-      privacyUrl: values['privacy-url'] ?? `${site}/privacy`,
+      termsUrl,
+      privacyUrl,
       returnUrl: values['return-url'],
       recreateWebhook: !!values['recreate-webhook'],
       deleteOldWebhooks: !!values['delete-old-webhooks'],

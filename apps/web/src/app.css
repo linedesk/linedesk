@@ -1110,6 +1110,15 @@ a.k-btn {
 .setup-bar > span {
   flex: 1 1 240px;
 }
+/* The bill owner's billing line (shell/BillingBanner.tsx): red when calls are at stake, amber otherwise. */
+.setup-bar.is-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.setup-bar.is-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
 
 /* The inbox body: the calls and, while there is one, the go-live checklist (inbox/GoLiveChecklist.tsx). */
 .ib-body {

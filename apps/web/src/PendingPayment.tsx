@@ -1,5 +1,5 @@
 // A sign-up waiting for Checkout (docs/billing.md §3.2): the workspace is `pending_payment` until a card is added and
-// the 14-day trial starts. Nothing else of the app opens before (no number, no test call, no setup link: the API
+// the free trial (its length set per install, Server admin › Billing) starts. Nothing else of the app opens before (no number, no test call, no setup link: the API
 // refuses those too, apps/api/src/self-serve.ts). "Add a card" goes to Stripe Checkout; it comes back to
 // /billing/return (CheckoutReturn.tsx).
 import { useT } from '@linedesk/i18n/react'
@@ -28,7 +28,11 @@ export function PendingPayment({ me, onDone }: { me: Me; onDone: () => void | Pr
     <AuthPage>
       <div className="auth-card">
         <h1>{t('auth.pendingPayment.title', { workspace: me.workspace?.name ?? '' })}</h1>
-        <p>{t('auth.pendingPayment.text')}</p>
+        <p>
+          {me.workspace?.trialDays
+            ? t('auth.pendingPayment.trialText', { days: me.workspace.trialDays })
+            : t('auth.pendingPayment.trialTextNoDays')}
+        </p>
         {failed && <AuthError message={t('auth.checkout.startFailed')} />}
         <button
           type="button"

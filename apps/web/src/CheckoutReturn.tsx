@@ -7,8 +7,11 @@ import { type ConfirmOutcome, confirmCheckout, goToCheckout, readCheckoutSession
 import { AuthError } from './ui/AuthError.tsx'
 import { AuthPage, cx, Spinner } from './ui/kit.tsx'
 
-/** `onDone`: leaves the page; the app reads the workspace again (no longer waiting for Checkout). */
-export function CheckoutReturn({ onDone }: { onDone: () => void | Promise<void> }) {
+/**
+ * `onDone`: leaves the page; the app reads the workspace again (no longer waiting for Checkout). `toBilling`: minutes
+ * were bought from Settings › Billing, so the app goes back there.
+ */
+export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean) => void | Promise<void> }) {
   const t = useT()
   const format = useFormat()
   const [outcome, setOutcome] = useState<ConfirmOutcome | null>(null)
@@ -26,7 +29,7 @@ export function CheckoutReturn({ onDone }: { onDone: () => void | Promise<void> 
 
   const leave = async () => {
     setBusy(true)
-    await onDone()
+    await onDone(outcome?.status === 'topup')
   }
   const startPlan = async () => {
     setBusy(true)

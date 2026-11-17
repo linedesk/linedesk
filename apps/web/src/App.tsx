@@ -355,8 +355,9 @@ export function App() {
   }
   // Back from Stripe Checkout (docs/billing.md §3.2 step 4): confirmed here, then the app opens as the bill now is.
   if (checkoutReturn && session.state === 'ready') {
-    const leaveReturn = async () => {
-      window.history.replaceState(null, '', '/')
+    const leaveReturn = async (toBilling: boolean) => {
+      // Minutes bought from Workspace settings › Billing: back there, where the new balance shows.
+      window.history.replaceState(null, '', toBilling ? '/#workspace/billing' : '/')
       setCheckoutReturn(false)
       await refresh()
     }

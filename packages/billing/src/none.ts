@@ -13,6 +13,8 @@ export const noneBillingProvider: BillingProvider = {
   checkoutPaymentMethodConfiguration: async () => null,
   createCustomer: off,
   startCheckout: off,
+  syncCatalog: off,
+  catalogWriteAccess: async () => ({ products: null, prices: null }),
   checkoutSession: async () => null,
   expireOpenCheckouts: off,
   customerPurchases: off,
@@ -23,6 +25,7 @@ export const noneBillingProvider: BillingProvider = {
   findRechargeInvoice: off,
   stopRechargeInvoice: off,
   rechargeInvoicePage: off,
+  portalSession: off,
   webhookEvent() {
     throw new WebhookRefused('signature')
   },

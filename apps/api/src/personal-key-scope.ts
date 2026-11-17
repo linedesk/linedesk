@@ -67,6 +67,12 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['billing.startTopUp', OWNER_IN_APP],
   ['billing.cancel', OWNER_IN_APP],
   ['billing.resume', OWNER_IN_APP],
+  // Settings › Billing (PR 9): the overview holds invoice links (bearer links), the rest changes what is charged.
+  ['billing.overview', OWNER_IN_APP],
+  ['billing.setAutoRecharge', OWNER_IN_APP],
+  ['billing.setRechargeCap', OWNER_IN_APP],
+  ['billing.openPortal', OWNER_IN_APP],
+  ['billing.retryRecharge', OWNER_IN_APP],
 ])
 
 /** Why a personal key may not run `name`, or null when it may (if its maker may). */

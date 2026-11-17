@@ -945,7 +945,7 @@
   "provider.group.apps.label": "連携アプリ",
   "provider.group.apps.why": "ビジネスが「連携」で接続するアプリ（HubSpotなど）です。終了した通話はすべて、そこで発信者のレコードに記録されます。アプリごとに、ここで専用のOAuthアプリが必要です。",
   "provider.group.billing.label": "請求",
-  "provider.group.billing.why": "Linedesk Cloud専用：Stripeによる請求、トライアル、通話時間の管理と、登録ページのボットチェックです。Stripeを接続して請求を有効にするまではオフです。セルフホスト環境では誰にも請求しません。",
+  "provider.group.billing.why": "このサーバーのワークスペースを自分のStripeアカウントで請求します：プラン、トライアル、通話時間に加え、登録ページのボットチェックも含みます。Stripeを接続して請求を有効にするまでオフです。",
   "provider.group.business.label": "ビジネス検索",
   "provider.group.business.why": "オンボーディングで名前と市区町村からビジネスを探し、詳細を入力します。",
   "provider.group.calendar.label": "カレンダー",

@@ -984,8 +984,8 @@ export const providers = {
     fields: { api_key: apiKey('GOOGLE_PLACES_API_KEY') },
     help: 'An API key with the Places API (New) enabled, restricted to it. Onboarding uses it to find a business by name and city and prefill its address, phone, hours and website. Google bills each search as Text Search Pro and each picked listing as Place Details Enterprise (the hours and the website are in that tier). BUSINESS_LOOKUP_DAILY_CAP limits the requests per day.',
   },
-  // Billing (Linedesk Cloud only, docs/billing.md): bills, trials and usage through Stripe. Without keys, or while
-  // billing is off (billingEnabled.set), nothing is billed: every self-hosted install.
+  // Billing (docs/billing.md §7b): the install bills its own workspaces through its own Stripe account, at the prices
+  // set in Server admin › Billing. Without keys, or while billing is off (billingEnabled.set), nothing is billed.
   stripe: {
     label: 'Stripe',
     category: 'billing',
@@ -1003,7 +1003,7 @@ export const providers = {
         hint: 'whsec_… (only while rotating)',
       },
     },
-    help: 'A restricted key (rk_…) with only the permissions billing needs, or a secret key (sk_…), and the signing secret of the webhook endpoint. Test keys charge nothing; live keys are refused on a dev install. Billing starts only once it is turned on below.',
+    help: 'A restricted key (rk_…) with only the permissions billing needs, or a secret key (sk_…), and the signing secret of the webhook endpoint. Test keys charge nothing; live keys are refused on a dev install. Billing starts only once it is turned on below; the prices are set in Server admin › Billing.',
   },
   // Connected apps (docs/crm-sync.md): a business connects its own account by consent page, and finished calls go there.
   hubspot: {
@@ -1036,7 +1036,7 @@ export const providers = {
     },
     helpKey: msg('admin.provider.help.jobber'),
   },
-  // Self-serve sign-up's bot check (Linedesk Cloud, docs/billing.md §3.1): the sign-up page shows the Turnstile widget,
+  // Self-serve sign-up's bot check (docs/billing.md §3.1): the sign-up page shows the Turnstile widget,
   // and the server checks its answer with the secret before a sign-up code goes out.
   turnstile: {
     label: 'Cloudflare Turnstile',
@@ -1046,7 +1046,7 @@ export const providers = {
       site_key: { label: 'Site key', env: 'TURNSTILE_SITE_KEY', secret: false, hint: '0x4AAAA…' },
       secret_key: { label: 'Secret key', env: 'TURNSTILE_SECRET_KEY', secret: true, hint: '0x4AAAA…' },
     },
-    help: 'The bot check on the self-serve sign-up page (Linedesk Cloud). While self-serve sign-up needs it and it is not set up, sign-up stays closed.',
+    help: 'The bot check on the self-serve sign-up page. While self-serve sign-up needs it and it is not set up, sign-up stays closed.',
   },
 } as const satisfies Record<string, ProviderSpec>
 
@@ -1111,9 +1111,13 @@ export const providerSetKeys = defineAction({
       if (provider === 'stripe' && values.secret_key !== undefined && !STRIPE_SECRET_KEY.test(values.secret_key))
         ctx.addIssue({
           code: 'custom',
-          message: 'the secret key is a Stripe secret key (sk_test_…, sk_live_…) or restricted key (rk_test_…, rk_live_…)',
+          message:
+            'the secret key is a Stripe secret key (sk_test_…, sk_live_…) or restricted key (rk_test_…, rk_live_…)',
         })
-      const signingSecrets = { webhook_secret: 'the webhook signing secret', webhook_secret_previous: 'the previous webhook signing secret' }
+      const signingSecrets = {
+        webhook_secret: 'the webhook signing secret',
+        webhook_secret_previous: 'the previous webhook signing secret',
+      }
       for (const [field, name] of Object.entries(signingSecrets))
         if (provider === 'stripe' && values[field] !== undefined && !/^whsec_[A-Za-z0-9]+$/.test(values[field]))
           ctx.addIssue({ code: 'custom', message: `${name} starts with whsec_` })
@@ -1244,11 +1248,13 @@ export const workspaceEnable = adminAction(
 export const workspaceDelete = adminAction(
   'workspace.delete',
   "Delete a workspace with all its data: calls, contacts, bookings, settings, members and invitations, recordings and phone numbers. Members who belong to no other workspace lose their accounts too, unless keepAccounts is true; members of other workspaces and instance admins keep theirs. Type the workspace's name to confirm.",
-  z.object({
-    workspaceId: z.string().min(1),
-    name: z.string().trim().min(1).max(200),
-    keepAccounts: z.boolean().optional(),
-  }).strict(),
+  z
+    .object({
+      workspaceId: z.string().min(1),
+      name: z.string().trim().min(1).max(200),
+      keepAccounts: z.boolean().optional(),
+    })
+    .strict(),
 )
 /** What `workspace.delete` did. Phone numbers: what happened at the carrier to each. */
 export type WorkspaceDeleteData = {

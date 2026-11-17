@@ -1,0 +1,44 @@
+/* Workspace settings › Billing (Billing.tsx). */
+.billing-plan,
+.billing-balance {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.billing-amount {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.billing-amount.is-negative {
+  color: var(--danger);
+}
+.billing-line {
+  display: block;
+}
+.billing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.billing-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.billing-choices {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.billing-choices .is-picked {
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+@media (max-width: 560px) {
+  .billing-row,
+  .billing-choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -17,8 +17,24 @@ const hexColor = z
   .regex(/^#[0-9a-fA-F]{6}$/, 'Use a color like #1c1917.')
   .transform(value => value.toLowerCase())
 
+/**
+ * Characters a product name never has: control characters (newlines, tabs, escapes), line and paragraph separators,
+ * and the bidi overrides that reorder text. The name goes into emails, the app and the Stripe products and invoice
+ * lines (security review of #1040, I-2).
+ */
+export const NAME_CONTROL_CHARACTERS = /[\p{Cc}\u2028\u2029\u202A-\u202E\u2066-\u2069]/u
+
 export const brandingInput = z.object({
-  name: z.string().trim().min(1, 'Give the product a name.').max(40, 'At most 40 characters.'),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Give the product a name.')
+    .max(40, 'At most 40 characters.')
+    .refine(
+      name => !NAME_CONTROL_CHARACTERS.test(name),
+      // i18n-ignore: the API's validation message for API clients; the web app checks first (admin.branding.nameCharacters)
+      'Use letters, digits, spaces and punctuation only.',
+    ),
   /** Buttons and other primary actions. Null: the default (near-black). */
   color: hexColor.nullable(),
   /** A PNG as a data URL; null removes the logo; left out keeps the current one. */

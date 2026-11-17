@@ -1,8 +1,8 @@
 // What the bill owner sees and decides about the bill's life (docs/billing.md §3.4, §8; PR 11), and the ownership
 // rules the rest of the app keeps:
 //
-// - `billing.state`: the banner's data (status, why suspended, the dunning and cancellation dates, unpaid numbers),
-//   for the bill owner only; anyone else gets null.
+// - `billing.state`: the banner's data (status, why suspended, the dunning and cancellation dates, unpaid numbers, a
+//   recharge to confirm, a low balance nothing lifts), for the bill owner only; anyone else gets null.
 // - `billing.portOutInfo`: the port-out PIN of each number bought through Linedesk, made on first view and stored
 //   encrypted (SECRETS_KEY); the bill owner only, in the app (no impersonation, API key or setup link), with the owner
 //   step-up; never kept in the command log. `billing.recordPortOut` (instance admin) checks a request's PIN and emails
@@ -23,6 +23,7 @@ import type {
 import { billing_accounts, billing_numbers, member, organization, phone_numbers, type Tx, user } from '@linedesk/db'
 import { and, count, eq, inArray, isNotNull } from 'drizzle-orm'
 import { lifecycleDates } from './billing-lifecycle.ts'
+import { balanceFlags } from './billing-page.ts'
 import { queueLifecycleEmail, UNPAID_RELEASE_DAYS } from './billing-periods.ts'
 import type { Actor } from './context.ts'
 import type { db } from './db.ts'
@@ -102,6 +103,7 @@ export async function refuseUnlessBillOwner(tx: Tx, actor: Actor) {
 async function billingState({
   tx,
   actor,
+  now,
 }: HandlerCtx): Promise<{ rows: Record<string, never>; data: BillingStateData }> {
   const bill = await billOfWorkspace(tx, actor.workspaceId)
   if (!bill || bill.owner_user_id !== actor.actorId) return { rows: {}, data: { bill: null } }
@@ -123,6 +125,7 @@ async function billingState({
         ...lifecycleDates(bill),
         canceledAt: bill.status === 'canceled' ? bill.canceled_at : null,
         rechargeFailed: !!bill.recharge_failed_at,
+        ...(await balanceFlags(tx, bill, now)),
         unpaidNumbers: unpaid.map(n => ({
           e164: n.e164,
           releaseAt: new Date(Date.parse(n.since!) + UNPAID_RELEASE_DAYS * DAY_MS).toISOString(),

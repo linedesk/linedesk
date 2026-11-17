@@ -25,6 +25,7 @@ export type {
   CustomerPurchases,
   InvoiceItemInput,
   KeyMode,
+  PlanCatalog,
   RechargeCard,
   RechargeCharge,
   RechargeInvoiceInput,

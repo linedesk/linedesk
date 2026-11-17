@@ -277,6 +277,12 @@ const expectedRights: Record<Right, readonly string[]> = {
     'billing.state',
     'billing.portOutInfo',
     'billing.handOver',
+    // Settings › Billing (PR 9): the bill owner's page.
+    'billing.overview',
+    'billing.setAutoRecharge',
+    'billing.setRechargeCap',
+    'billing.openPortal',
+    'billing.retryRecharge',
   ],
   impersonation: ['impersonation.stop'],
   // The Stripe webhook's processor: the API's billing jobs only (docs/billing.md §8).
@@ -338,8 +344,13 @@ describe('workspace rights', () => {
       'billing.cancel',
       'billing.confirmCheckout',
       'billing.handOver',
+      'billing.openPortal',
+      'billing.overview',
       'billing.portOutInfo',
       'billing.resume',
+      'billing.retryRecharge',
+      'billing.setAutoRecharge',
+      'billing.setRechargeCap',
       'billing.startCheckout',
       'billing.startTopUp',
       'billing.state',
@@ -357,6 +368,11 @@ describe('workspace rights', () => {
       'billing.startTopUp',
       'billing.cancel',
       'billing.resume',
+      'billing.overview',
+      'billing.setAutoRecharge',
+      'billing.setRechargeCap',
+      'billing.openPortal',
+      'billing.retryRecharge',
     ])
       expect(actions.get(name)!.permission, name).toBe('billing:manage')
   })

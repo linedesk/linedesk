@@ -21,6 +21,7 @@ import {
 import { instance_settings, provider_settings, type Tx, user } from '@linedesk/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import { alertInstanceAdmins } from './admin-alerts.ts'
+import { syncCatalogAfterCommit } from './billing-catalog.ts'
 import { mayReceiveEnrolmentCode } from './admin-step-up.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -202,7 +203,7 @@ async function writeSetting(tx: Tx, key: string, value: string, actor: Actor, no
     .onConflictDoUpdate({ target: instance_settings.key, set: { value, updated_at: now, updated_by: actor.actorId } })
 }
 
-async function boundAccount(tx: Tx): Promise<Binding | null> {
+export async function boundAccount(tx: Pick<Tx, 'select'>): Promise<Binding | null> {
   const [row] = await tx.select().from(instance_settings).where(eq(instance_settings.key, BILLING_ACCOUNT_KEY))
   try {
     return row ? (JSON.parse(row.value) as Binding) : null
@@ -274,6 +275,8 @@ export const billingSettingsHandlers: Record<string, Handler> = {
     await writeSetting(tx, BILLING_ENABLED_KEY, input.on ? 'on' : 'off', actor, now)
     onCommit?.(async () => forgetWebhookBillingProvider())
     if (input.on !== state.on) alertSwitch(onCommit, actor, input.on, binding)
+    // The products and plan prices in this account, before the first Checkout needs them (review of #1040, M-1).
+    if (input.on) syncCatalogAfterCommit(onCommit)
     return { rows: {}, data: await billingState(tx) }
   },
 }

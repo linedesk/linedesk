@@ -12,6 +12,7 @@ import * as billing from './billing.ts'
 import * as billingAdmin from './billing-admin.ts'
 import * as signup from './signup.ts'
 import * as billingCheckout from './billing-checkout.ts'
+import * as billingPage from './billing-page.ts'
 import * as branding from './branding.ts'
 import * as business from './business.ts'
 import * as calendar from './calendar.ts'
@@ -67,6 +68,7 @@ export * from './billing.ts'
 export * from './billing-admin.ts'
 export * from './signup.ts'
 export * from './billing-checkout.ts'
+export * from './billing-page.ts'
 export * from './branding.ts'
 export * from './business.ts'
 export * from './calendar.ts'
@@ -307,6 +309,11 @@ const all = [
   billingCheckout.billingStartTopUp,
   billingCheckout.billingCancel,
   billingCheckout.billingResume,
+  billingPage.billingOverview,
+  billingPage.billingSetAutoRecharge,
+  billingPage.billingSetRechargeCap,
+  billingPage.billingOpenPortal,
+  billingPage.billingRetryRecharge,
   admin.impersonationEmailsGet,
   admin.impersonationEmailsSet,
   workspaceCreation.workspaceCreate,

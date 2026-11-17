@@ -32,6 +32,7 @@ import { NewWorkspaceDialog } from './shell/NewWorkspace.tsx'
 import { mayCreateWorkspace } from './NoWorkspace.tsx'
 import { Overlays, type Picker } from './shell/Overlays.tsx'
 import { rejectionText } from './shell/rejections.ts'
+import { BillingBanner } from './shell/BillingBanner.tsx'
 import { SetupBanner } from './shell/SetupBanner.tsx'
 import { Tour } from './shell/Tour.tsx'
 import { finishTour, tourStartsNow } from './shell/tour.ts'
@@ -172,6 +173,8 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   const canOpenAdmin = instanceAdmin
   // The same rule as the screen without a workspace: only server admins create workspaces.
   const canCreateWorkspace = mayCreateWorkspace(me)
+  // On a bill (Linedesk Cloud) and allowed to manage it: Workspace settings › Billing and the billing line above pages.
+  const billingOwner = !!me.workspace?.billingState && me.permissions.includes('billing:manage')
   const [newWorkspace, setNewWorkspace] = useState(false)
   // Members without a passkey: a quiet card asks for one (passkey-ask.ts), not at the same time as the star prompt.
   const [passkeyCardClosed, setPasskeyCardClosed] = useState(false)
@@ -541,6 +544,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
       <button type="button" className="scrim" aria-label={t('shell.nav.closeMenu')} tabIndex={-1} onClick={() => setNavOpen(false)} />
       <main className="main">
         {nav.route !== 'workspace' && !goLiveVisible && <SetupBanner canEdit={canManageKeys} />}
+        {nav.route !== 'workspace' && billingOwner && <BillingBanner />}
         {!page && !openCall && <SampleCallsBar canEdit={canEditSettings} canAssign={canAssign} toast={toaster.show} />}
         {page ? (
           <>
@@ -567,6 +571,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
                 canManageKeys,
                 agentChange: mayChangeWithAgent(me),
                 isInstanceAdmin: instanceAdmin,
+                billing: billingOwner,
                 userId: me.actorId,
                 menu,
                 openCall: open,

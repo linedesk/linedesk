@@ -24,7 +24,6 @@ import {
   billing_invoices,
   billing_recharges,
   organization,
-  PLAN_PRICES,
   stripe_events,
   type Tx,
 } from '@linedesk/db'
@@ -32,6 +31,7 @@ import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { fromDrizzle, type PgBoss } from 'pg-boss'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { rechargeFailed } from './billing-recharge.ts'
+import { isLinedeskPlan } from './billing-rules.ts'
 import { billingProvider, billingState, refuseMoneyChange } from './billing-settings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -85,6 +85,8 @@ const CHECKOUT_EVENTS = [
 /** Cancellations, disputes, fraud warnings and refunds (billing-lifecycle.ts, PR 11). By the job too (they ask Stripe). */
 const LIFECYCLE_EVENTS = [
   'customer.subscription.deleted',
+  // Cancel at the period end set or undone outside the app (security review of #1007, M-2).
+  'customer.subscription.updated',
   'charge.dispute.created',
   'charge.dispute.closed',
   'radar.early_fraud_warning.created',
@@ -343,9 +345,6 @@ async function creditRecharge(tx: Tx, bill: Bill, recharge: Recharge, line: Bill
   return { recharge: recharge.id, micros: line.amountCents * 10_000, posted }
 }
 
-/** The lookup keys of our plan prices: a subscription of only these is a Linedesk plan. */
-const PLAN_LOOKUP_KEYS: ReadonlySet<string> = new Set(PLAN_PRICES.map(p => p.lookupKey))
-
 /** Stripe statuses of a subscription that is running (paid, in its trial, or being retried). */
 const LIVE_SUBSCRIPTION: readonly string[] = ['active', 'trialing', 'past_due']
 /** Bill statuses that take a subscription they do not have yet (never a canceled or comped one). */
@@ -356,7 +355,7 @@ const LINKABLE: readonly Bill['status'][] = ['pending_payment', 'trialing', 'act
  * `invoice.paid` for Checkout's first invoice before the owner is back in the app. Marking that event processed with no
  * effect left the bill inactive for good. The subscription is linked here instead, from the objects fetched just now,
  * only when it is the bill's own customer's (the customer id we stored, on both the invoice and the subscription) and
- * a Linedesk plan (every item one of our plan prices), and only onto a bill that has none: a bill never changes its
+ * a Linedesk plan (every item one of our plan prices, on our plan products; `isLinedeskPlan`), and only onto a bill that has none: a bill never changes its
  * subscription here. Idempotent: a second delivery finds it linked and is applied as the bill's own.
  */
 async function linkSubscription(
@@ -371,8 +370,7 @@ async function linkSubscription(
   if (!bill.stripe_customer_id || invoice.customerId !== bill.stripe_customer_id) return null
   if (subscription.customerId !== bill.stripe_customer_id || !LIVE_SUBSCRIPTION.includes(subscription.status))
     return null
-  if (!subscription.items.length || !subscription.items.every(i => i.lookupKey && PLAN_LOOKUP_KEYS.has(i.lookupKey)))
-    return null
+  if (!isLinedeskPlan(subscription)) return null
   // A bill whose trial was refused (card used before, prepaid) never links a trial subscription: only the owner's next
   // Checkout, the plan without a trial, may be linked (security review of #961, G4).
   if (bill.trial_refused && subscription.status === 'trialing') return null

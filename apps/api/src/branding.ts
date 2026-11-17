@@ -9,6 +9,7 @@ import { type Branding, type BrandingInput, DEFAULT_PRODUCT_NAME, LOGO_MAX_BYTES
 import { type Db, instance_settings, type Tx } from '@linedesk/db'
 import { eq, inArray } from 'drizzle-orm'
 import { refreshStarCount, starCount, starCountEnabled } from './github-stars.ts'
+import { syncCatalogAfterCommit } from './billing-catalog.ts'
 import { type Handler, Reject } from './handler-context.ts'
 
 const SETTINGS_KEY = 'branding'
@@ -132,7 +133,7 @@ async function writeLogo(tx: Tx, logo: string | null | undefined, previous: stri
 }
 
 export const brandingHandlers: Record<string, Handler> = {
-  'branding.set': async ({ tx, actor, now }, input: BrandingInput) => {
+  'branding.set': async ({ tx, actor, now, onCommit }, input: BrandingInput) => {
     const previous = await readStored(tx)
     const logoVersion = await writeLogo(tx, input.logo, previous.logoVersion, now, actor.actorId)
     const next: Stored = {
@@ -144,6 +145,8 @@ export const brandingHandlers: Record<string, Handler> = {
     }
     await upsert(tx, SETTINGS_KEY, JSON.stringify(next), now, actor.actorId)
     current = next
+    // The name is on the Stripe products: renamed there now, not at a customer's Checkout (review of #1040, M-1).
+    if (next.name !== previous.name) syncCatalogAfterCommit(onCommit)
     return { rows: {}, data: toBranding(next) satisfies Branding }
   },
 }

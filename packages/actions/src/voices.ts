@@ -172,14 +172,14 @@ export type VoiceOptionsData = {
    * else all of them. Missing from an older API: `languages`.
    */
   anyLanguages?: string[]
-  /** The voice models and language models an assistant can pick, with their level on Linedesk Cloud (usage-level.ts). */
+  /** The voice models and language models an assistant can pick, with their level on a server that bills usage (usage-level.ts). */
   levels: UsageLevelOptions
 }
 
 export const voiceOptions = defineAction({
   name: 'voice.options',
   description:
-    "The voices an assistant can use with the text-to-speech provider in effect: curated voices, the workspace's cloned voices, and whether it can clone one. `levels`: the voice models (per voice provider) and language models (of the server's provider) an assistant can pick with assistant.update (`voice.model`, `llm_model`), each with its level on Linedesk Cloud (standard $0.05, premium $0.10 a minute) and whether this workspace may pick it (`allowed`: Premium needs the owner's Allow Premium); `billed` false: no levels on this server.",
+    "The voices an assistant can use with the text-to-speech provider in effect: curated voices, the workspace's cloned voices, and whether it can clone one. `levels`: the voice models (per voice provider) and language models (of the server's provider) an assistant can pick with assistant.update (`voice.model`, `llm_model`), each with its level on a server that bills usage (standard or premium, at the server's prices) and whether this workspace may pick it (`allowed`: Premium needs the owner's Allow Premium); `billed` false: no levels on this server.",
   input: z.object({}),
   permission: 'call:read',
   readOnly: true,

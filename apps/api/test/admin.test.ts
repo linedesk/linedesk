@@ -4613,6 +4613,20 @@ describe('branding', () => {
     expect((await act(operator, 'branding.set', { ...input, name: ' ' })).status).toBe(422)
     expect((await request(anonymous, 'GET', '/v1/branding')).body.name).toBe('Linedesk')
   })
+
+  test('a name with control characters, separators or bidi overrides is refused (review of #1040, I-2)', async () => {
+    for (const name of ['Front\nDesk', 'Front\tDesk', 'Front\u0000Desk', 'Front Desk', 'Desk‮knal', 'A⁦B'])
+      expect(
+        (await act(operator, 'branding.set', { ...input, logo: undefined, name })).status,
+        JSON.stringify(name),
+      ).toBe(422)
+    expect((await request(anonymous, 'GET', '/v1/branding')).body.name).toBe('Linedesk')
+    // Letters of any language, digits, spaces and punctuation are fine.
+    expect((await act(operator, 'branding.set', { ...input, logo: undefined, name: 'Büro & Co. — 受付' })).status).toBe(
+      200,
+    )
+    await act(operator, 'branding.set', { ...input, logo: null, name: 'Linedesk' })
+  })
 })
 
 describe('setup code', () => {

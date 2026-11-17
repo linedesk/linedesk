@@ -279,10 +279,8 @@ function AllowPremium({
   const settings = useWorkspaceSettings().data
   const [busy, setBusy] = useState(false)
   if (!settings?.usageLevels) return null
-  const prices = {
-    standard: pricePerMinute(USAGE_CENTS_PER_MINUTE.standard),
-    premium: pricePerMinute(USAGE_CENTS_PER_MINUTE.premium),
-  }
+  const cents = settings.usageCentsPerMinute ?? USAGE_CENTS_PER_MINUTE
+  const prices = { standard: pricePerMinute(cents.standard), premium: pricePerMinute(cents.premium) }
 
   async function change(on: boolean) {
     setBusy(true)
@@ -339,10 +337,8 @@ function AllowUltra({
   const settings = useWorkspaceSettings().data
   const [busy, setBusy] = useState(false)
   if (!settings?.usageLevels) return null
-  const prices = {
-    standard: pricePerMinute(USAGE_CENTS_PER_MINUTE.standard),
-    ultra: pricePerMinute(USAGE_CENTS_PER_MINUTE.ultra),
-  }
+  const cents = settings.usageCentsPerMinute ?? USAGE_CENTS_PER_MINUTE
+  const prices = { standard: pricePerMinute(cents.standard), ultra: pricePerMinute(cents.ultra) }
 
   async function change(on: boolean) {
     setBusy(true)

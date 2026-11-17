@@ -945,7 +945,7 @@
   "provider.group.apps.label": "Apps conectadas",
   "provider.group.apps.why": "Apps que un negocio conecta en Integraciones, como HubSpot: cada llamada terminada se guarda allí en el registro de quien llama. Cada app necesita aquí su propia app de OAuth.",
   "provider.group.billing.label": "Facturación",
-  "provider.group.billing.why": "Solo Linedesk Cloud: facturas, pruebas y minutos de llamada a través de Stripe, y la verificación anti-bots de la página de registro. Desactivado hasta conectar Stripe y activar la facturación; una instalación autoalojada no le cobra a nadie.",
+  "provider.group.billing.why": "Cobra a los espacios de trabajo de este servidor con tu propia cuenta de Stripe: planes, pruebas y minutos de llamada, además de la verificación anti-bots de la página de registro. Desactivado hasta conectar Stripe y activar la facturación.",
   "provider.group.business.label": "Búsqueda de negocios",
   "provider.group.business.why": "Encuentra un negocio por nombre y ciudad durante la configuración inicial y completa sus datos.",
   "provider.group.calendar.label": "Calendario",

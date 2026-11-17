@@ -1,5 +1,6 @@
 // Workspace settings: everything about the workspace that is not the assistant, one section at a time
-// (#workspace/<section>): its name, the team, phone numbers, recordings, the call export and leaving it.
+// (#workspace/<section>): its name, the team, phone numbers, recordings, the call export, billing (Linedesk Cloud: the
+// owner, while the workspace is on a bill) and leaving it.
 // Reached by G S (G T opens Team), the menu and ⌘K. Your own notifications are in Account; business hours and
 // webhooks in the assistant's settings; API keys and Zapier in Integrations (old #settings, #team and
 // #workspace/developers links are rewritten, shell/useRoute.ts).
@@ -11,35 +12,36 @@ import type { PhoneSetupStatus } from '../auth.ts'
 import { TeamSection } from '../team/TeamPage.tsx'
 import { useTeam } from '../team/team-api.ts'
 import { type PageSection, SettingsLayout, useSection } from '../ui/SettingsLayout.tsx'
+import { Billing } from './Billing.tsx'
 import { DangerZone } from './DangerZone.tsx'
 import { ExportCalls } from './ExportCalls.tsx'
 import { PhoneNumbers } from './PhoneNumbers.tsx'
 import { Recordings } from './Recordings.tsx'
 import { WorkspaceGeneral } from './WorkspaceGeneral.tsx'
 
-type SectionId = 'general' | 'team' | 'phone' | 'recordings' | 'export' | 'danger'
-const SECTION_IDS: readonly SectionId[] = ['general', 'team', 'phone', 'recordings', 'export', 'danger']
+type SectionId = 'general' | 'team' | 'phone' | 'recordings' | 'export' | 'billing' | 'danger'
+const SECTION_IDS: readonly SectionId[] = ['general', 'team', 'phone', 'recordings', 'export', 'billing', 'danger']
 
 /**
  * Which sections this person sees. Members can't export calls (call:export): that section is not shown, and during
- * support access the export is refused too.
+ * support access the export is refused too. Billing only on a billed workspace, for its owner (`billing`).
  */
-export function shownSectionIds(canEdit: boolean): SectionId[] {
-  return SECTION_IDS.filter(id => id !== 'export' || canEdit)
+export function shownSectionIds(canEdit: boolean, billing = false): SectionId[] {
+  return SECTION_IDS.filter(id => (id !== 'export' || canEdit) && (id !== 'billing' || billing))
 }
 
 /** The page's sections in the active language (shownSectionIds). */
-function useSections(canEdit: boolean): readonly PageSection<SectionId>[] {
+function useSections(canEdit: boolean, billing: boolean): readonly PageSection<SectionId>[] {
   const t = useT()
   return useMemo(
     () =>
-      shownSectionIds(canEdit).map(id => ({
+      shownSectionIds(canEdit, billing).map(id => ({
         id,
         // i18n-dynamic: settings.workspace.nav.*
         label: t(`settings.workspace.nav.${id}.label` as MessageKey),
         description: t(`settings.workspace.nav.${id}.description` as MessageKey),
       })),
-    [t, canEdit],
+    [t, canEdit, billing],
   )
 }
 
@@ -62,6 +64,11 @@ type Props = {
   agentChange?: boolean
   phoneSetup: PhoneSetupStatus | null
   isInstanceAdmin: boolean
+  /**
+   * The workspace is on a bill (Linedesk Cloud, `me.workspace.billingState`) and this person may manage billing
+   * (`billing:manage`, the owner): the Billing section. Off billing it is not there at all.
+   */
+  billing?: boolean
   workspaceName: string
   /** After a rename here: the menu and the workspace switcher show the new name at once (App, renamedWorkspace). */
   onRenamed: (name: string) => void
@@ -74,6 +81,7 @@ export function WorkspaceSettings({
   agentChange = false,
   phoneSetup,
   isInstanceAdmin,
+  billing = false,
   workspaceName,
   onRenamed,
   toast,
@@ -81,7 +89,7 @@ export function WorkspaceSettings({
   const t = useT()
   const team = useTeam().data
   const role = team?.members.find(m => m.userId === team.me)?.role
-  const sections = useSections(canEdit)
+  const sections = useSections(canEdit, billing)
   // What the role offers, also during support access (the section itself then says it is read-only).
   const danger = t(dangerDescription(canManageKeys, role))
   const shown = useMemo(
@@ -114,6 +122,7 @@ export function WorkspaceSettings({
         )}
         {current === 'recordings' && <Recordings canEdit={canEdit} toast={toast} />}
         {current === 'export' && <ExportCalls canEdit={canEdit} toast={toast} />}
+        {current === 'billing' && <Billing toast={toast} />}
         {current === 'danger' && <DangerZone workspaceName={workspaceName} isInstanceAdmin={isInstanceAdmin} />}
       </SettingsLayout>
     </div>

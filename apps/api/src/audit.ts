@@ -215,6 +215,11 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'billing.startTopUp': 'account',
   'billing.cancel': 'account',
   'billing.resume': 'account',
+  // Settings › Billing (docs/billing.md §8, PR 9): auto-recharge, the cap, the portal and Retry; the overview is a read.
+  'billing.setAutoRecharge': 'account',
+  'billing.setRechargeCap': 'account',
+  'billing.openPortal': 'account',
+  'billing.retryRecharge': 'account',
   // Bill ownership and port-outs (docs/billing.md §3.4, §8; PR 11). Reads that reveal a secret are audited too.
   'billing.recordPortOut': 'admin',
   'billing.handOver': 'team',

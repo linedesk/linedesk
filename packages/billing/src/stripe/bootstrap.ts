@@ -9,7 +9,7 @@
 // or makes are returned (the script writes them to a file, not into the code).
 import Stripe from 'stripe'
 import { stripeKeyMode } from '../keys.ts'
-import { CHECKOUT_PMC_NAME, type KeyMode, WEBHOOK_EVENTS } from '../provider.ts'
+import { CHECKOUT_PMC_NAME, type KeyMode, PORTAL_METADATA, WEBHOOK_EVENTS } from '../provider.ts'
 import { findCheckoutConfiguration, STRIPE_API_VERSION, STRIPE_TIMEOUT_MS } from './index.ts'
 
 export { CHECKOUT_PMC_NAME } from '../provider.ts'
@@ -62,9 +62,8 @@ export type BootstrapResult = {
   webhookSecret: string | null
 }
 
-export const PORTAL_METADATA = { linedesk: 'portal' } as const
+export { PORTAL_METADATA } from '../provider.ts'
 export const WEBHOOK_METADATA = { linedesk: 'billing' } as const
-const CANCEL_REASONS = ['too_expensive', 'missing_features', 'switched_service', 'unused', 'other'] as const
 const CUSTOMER_UPDATES = ['email', 'address', 'name', 'tax_id'] as const
 
 export class BootstrapRefused extends Error {}
@@ -256,7 +255,11 @@ async function checkoutPaymentMethods(stripe: Stripe, write: Write) {
   return found.id
 }
 
-/** The customer portal (docs/billing.md §2.4): invoices, cards, customer details, cancel at period end; no plan changes. */
+/**
+ * The customer portal (docs/billing.md §2.4): invoices, cards and customer details; no plan changes and no cancel.
+ * Cancel and "Keep my plan" happen in the app only (`billing.cancel`, `billing.resume`), so the plan state the app shows
+ * is the one it set (security review of #1007, M-2); `customer.subscription.updated` mirrors any change made elsewhere.
+ */
 async function portal(stripe: Stripe, options: BootstrapOptions, write: Write) {
   const params = {
     business_profile: { privacy_policy_url: options.privacyUrl, terms_of_service_url: options.termsUrl },
@@ -266,12 +269,7 @@ async function portal(stripe: Stripe, options: BootstrapOptions, write: Write) {
       customer_update: { enabled: true, allowed_updates: [...CUSTOMER_UPDATES] },
       invoice_history: { enabled: true },
       payment_method_update: { enabled: true },
-      subscription_cancel: {
-        enabled: true,
-        mode: 'at_period_end' as const,
-        proration_behavior: 'none' as const,
-        cancellation_reason: { enabled: true, options: [...CANCEL_REASONS] },
-      },
+      subscription_cancel: { enabled: false },
       subscription_update: { enabled: false },
     },
     metadata: { ...PORTAL_METADATA },
@@ -293,11 +291,7 @@ async function portal(stripe: Stripe, options: BootstrapOptions, write: Write) {
     sameSet(f.customer_update.allowed_updates, CUSTOMER_UPDATES) &&
     f.invoice_history.enabled &&
     f.payment_method_update.enabled &&
-    f.subscription_cancel.enabled &&
-    f.subscription_cancel.mode === 'at_period_end' &&
-    f.subscription_cancel.proration_behavior === 'none' &&
-    f.subscription_cancel.cancellation_reason.enabled &&
-    sameSet(f.subscription_cancel.cancellation_reason.options, CANCEL_REASONS) &&
+    !f.subscription_cancel.enabled &&
     !f.subscription_update.enabled
   if (!fits)
     await write('update the customer portal configuration', () =>

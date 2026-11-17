@@ -12,7 +12,9 @@ import type {
   InvoiceRefundInput,
   SeatQuantityInput,
 } from '@linedesk/billing'
+import { PLAN_PRICE_FLOOR } from '@linedesk/actions'
 import {
+  BILLING_DEFAULTS,
   assistant_versions,
   billing_accounts,
   billing_balances,
@@ -174,6 +176,8 @@ function fakeStripe(invoices: Map<string, BillingInvoice>, blockers: string[] = 
     findRechargeInvoice: async () => null,
     stopRechargeInvoice: async (invoiceId, options) => void stopped.push({ invoiceId, void: options.void }),
     rechargeInvoicePage: async () => null,
+    // Settings › Billing's portal (PR 9) is not used here.
+    portalSession: () => Promise.reject(new Error('not used')),
     webhookEvent: () => {
       throw new Error('not used')
     },
@@ -214,6 +218,10 @@ function fakeStripe(invoices: Map<string, BillingInvoice>, blockers: string[] = 
     startCheckout: async () => {
       throw new Error('not used')
     },
+    syncCatalog: async () => {
+      throw new Error('not used')
+    },
+    catalogWriteAccess: async () => ({ products: null, prices: null }),
     expireOpenCheckouts: async () => {
       throw new Error('not used')
     },
@@ -1330,7 +1338,8 @@ describe('Stripe events', () => {
     const done = event({ processed_at: at })
     const failed = event({ attempts: STRIPE_EVENT_ATTEMPTS, last_error: 'Stripe is down' })
     const later = event({
-      type: 'customer.subscription.updated',
+      // A type no release acts on (customer.subscription.updated is handled since #1007).
+      type: 'customer.subscription.created',
       attempts: STRIPE_EVENT_ATTEMPTS,
       last_error: UNHANDLED_TYPE,
     })
@@ -1392,6 +1401,66 @@ describe('the billing rules editor', () => {
     expect(refused.status).toBe(409)
     expect(JSON.stringify(refused.body)).toMatch(/levels.standard.microsPerMinute/)
     expect((await act(operator, 'billingRules.get', {})).body.data.minMicrosPerMinute).toBe(10_000)
+  })
+  test('a save merges over the stored rules: a field left out keeps its value, null resets it (review of #1040, I-6)', async () => {
+    const set = (rules: Record<string, unknown>) => act(operator, 'billingRules.set', { rules, reason })
+    expect(
+      (
+        await set({
+          workspaceMonthlyCents: 1300,
+          levels: { ultra: { microsPerMinute: 250_000, allowanceFactor: null } },
+        })
+      ).status,
+    ).toBe(200)
+    // An older admin tab, an MCP or API client that sends only some fields: the plan price stays.
+    const partial = await set({ trialDays: 7 })
+    expect(partial.status).toBe(200)
+    expect(partial.body.data.changed).toEqual(['trialDays'])
+    expect(await billingRules(db)).toMatchObject({
+      workspaceMonthlyCents: 1300,
+      trialDays: 7,
+      levels: { ultra: { microsPerMinute: 250_000 } },
+    })
+    // null: back to the default, for a field and for one level.
+    expect((await set({ workspaceMonthlyCents: null, trialDays: null, levels: { ultra: null } })).status).toBe(200)
+    const back = await billingRules(db)
+    expect(back.workspaceMonthlyCents).toBe(BILLING_DEFAULTS.workspaceMonthlyCents)
+    expect(back.trialDays).toBe(BILLING_DEFAULTS.trialDays)
+    expect(back.levels.ultra).toEqual(BILLING_DEFAULTS.levels.ultra)
+    const stored = JSON.parse(
+      (await db.select().from(instance_settings).where(eq(instance_settings.key, BILLING_RULES_KEY)))[0]!.value,
+    )
+    expect(stored).not.toHaveProperty('workspaceMonthlyCents')
+    expect(stored.levels ?? {}).not.toHaveProperty('ultra')
+  })
+
+  test('plan prices have a floor (a seat covers its included minutes) and yearly is at most 12 monthly (review of #1040, L-6)', async () => {
+    const set = (rules: Record<string, unknown>) => act(operator, 'billingRules.set', { rules, reason })
+    // The defaults where the floor comes from: 50 included minutes at 5¢ = $2.50 a month.
+    expect((await set({ includedStandardSeconds: null, levels: { standard: null, premium: null } })).status).toBe(200)
+    expect((await act(operator, 'billingRules.get', {})).body.data).toMatchObject({ minPlanCents: 250 })
+    const tooLow = await set({ workspaceMonthlyCents: 249 })
+    expect(tooLow).toMatchObject({ status: 409, body: { code: PLAN_PRICE_FLOOR } })
+    expect(JSON.stringify(tooLow.body)).toMatch(/\$2\.50 a month.*workspaceMonthlyCents/)
+    expect((await set({ workspaceMonthlyCents: 250, workspaceYearlyCents: 3000 })).status).toBe(200)
+    expect((await set({ workspaceYearlyCents: 2999 })).status).toBe(409)
+    // Yearly at most 12 monthly fees.
+    const yearly = await set({ partnerYearlyCents: 12 * BILLING_DEFAULTS.partnerMonthlyCents + 1 })
+    expect(yearly.status).toBe(409)
+    expect(JSON.stringify(yearly.body)).toMatch(/partnerYearlyCents/)
+    // Raising the included minutes raises the floor: a save that would leave a fee under it is refused.
+    expect((await set({ includedStandardSeconds: 60 * 60 })).status).toBe(409)
+    // The server's own floor (Linedesk Cloud).
+    process.env.BILLING_MIN_PLAN_CENTS = '900'
+    try {
+      expect((await set({ workspaceMonthlyCents: 899, workspaceYearlyCents: 10_800 })).status).toBe(409)
+      expect((await set({ workspaceMonthlyCents: 900, workspaceYearlyCents: 10_800 })).status).toBe(200)
+    } finally {
+      delete process.env.BILLING_MIN_PLAN_CENTS
+    }
+    // Nothing refused was stored.
+    expect(await billingRules(db)).toMatchObject({ workspaceMonthlyCents: 900, workspaceYearlyCents: 10_800 })
+    expect((await set({ workspaceMonthlyCents: null, workspaceYearlyCents: null })).status).toBe(200)
   })
 })
 

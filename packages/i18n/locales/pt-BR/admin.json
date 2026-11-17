@@ -945,7 +945,7 @@
   "provider.group.apps.label": "Apps conectados",
   "provider.group.apps.why": "Apps que uma empresa conecta em Integrações, como o HubSpot: cada chamada encerrada vai para o registro de quem ligou. Cada app precisa do próprio app OAuth aqui.",
   "provider.group.billing.label": "Cobrança",
-  "provider.group.billing.why": "Só no Linedesk Cloud: faturas, testes e minutos de chamada pelo Stripe, e a verificação contra bots na página de cadastro. Desativado até o Stripe ser conectado e a cobrança ser ativada; uma instalação própria não cobra ninguém.",
+  "provider.group.billing.why": "Cobre os espaços de trabalho deste servidor com sua própria conta Stripe: planos, testes e minutos de chamada, além da verificação contra bots na página de cadastro. Desativado até o Stripe ser conectado e a cobrança ser ativada.",
   "provider.group.business.label": "Busca de empresas",
   "provider.group.business.why": "Encontra uma empresa pelo nome e pela cidade na configuração inicial e preenche os dados dela.",
   "provider.group.calendar.label": "Agenda",

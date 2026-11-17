@@ -6122,8 +6122,8 @@
     },
     "admin.provider.group.billing.why": {
       "by": "ai",
-      "out": "579720aea9d7135f1b6b8eb483353deb8cacb56a898f33223a685ed9c919e906",
-      "src": "c1f449f978266649ae8b5e571580029c439c56ec41e2726abf9a9f721608cb82"
+      "out": "1d5b62a255b168e1160f2f443ad793281c1db4f9e0c20526f9961a4133aac9e7",
+      "src": "28f16adf5b615c5cc9d864d03972a37bb4051d1f2855cfa893bb721e31fd4d4d"
     },
     "admin.provider.group.business.label": {
       "by": "ai",
@@ -8724,11 +8724,6 @@
       "by": "ai",
       "out": "8da8d1368609a826a7f48e0c9123c2e98878ebf3905a4d93f5fbeb5a3a2bd50a",
       "src": "0d5d3051fc2d6e5379e885886af648f956020784fbafaa737cf11e617cf81fc1"
-    },
-    "auth.pendingPayment.text": {
-      "by": "ai",
-      "out": "ed77c4f2943b57976d57ea77e85a4f9880f5ef76cb4bcf9cef8e59bb15bd2352",
-      "src": "5622c0ab7d85e1a679aef343ee32feaeaa585966156d8f584904a14b629b4045"
     },
     "auth.pendingPayment.title": {
       "by": "ai",
@@ -32309,8 +32304,8 @@
     },
     "admin.provider.group.billing.why": {
       "by": "ai",
-      "out": "2f7d7061d3989796b001eb38c7b99c3a33d3f83473ae219e79a416932b278796",
-      "src": "c1f449f978266649ae8b5e571580029c439c56ec41e2726abf9a9f721608cb82"
+      "out": "0e7ac67b28634932cf5ed11da81d2ed0b757bdae6448d7cfdd786863b63ce0ed",
+      "src": "28f16adf5b615c5cc9d864d03972a37bb4051d1f2855cfa893bb721e31fd4d4d"
     },
     "admin.provider.group.business.label": {
       "by": "ai",
@@ -34911,11 +34906,6 @@
       "by": "ai",
       "out": "1eee2fc166aab054ea043626ca5d531d4a4856473871599738b8d9d72086e1bf",
       "src": "0d5d3051fc2d6e5379e885886af648f956020784fbafaa737cf11e617cf81fc1"
-    },
-    "auth.pendingPayment.text": {
-      "by": "ai",
-      "out": "f6cd91b7f7758700e465a755bfbdfe4aa9af994f7f306730cce8714ca0f8b9ef",
-      "src": "5622c0ab7d85e1a679aef343ee32feaeaa585966156d8f584904a14b629b4045"
     },
     "auth.pendingPayment.title": {
       "by": "ai",
@@ -58496,8 +58486,8 @@
     },
     "admin.provider.group.billing.why": {
       "by": "ai",
-      "out": "9694470635cb72599b34a7a25757c8b77a21ea745affa90f7616a38882c11eef",
-      "src": "c1f449f978266649ae8b5e571580029c439c56ec41e2726abf9a9f721608cb82"
+      "out": "1d17dd5f2fac203ea88de2a7a35f0af50ecb300a0854071089338d0dadbe0720",
+      "src": "28f16adf5b615c5cc9d864d03972a37bb4051d1f2855cfa893bb721e31fd4d4d"
     },
     "admin.provider.group.business.label": {
       "by": "ai",
@@ -61098,11 +61088,6 @@
       "by": "ai",
       "out": "64f7e3091bd71a2a431d01364f1ed9301709a9de439fcf95767af8721f7bb3da",
       "src": "0d5d3051fc2d6e5379e885886af648f956020784fbafaa737cf11e617cf81fc1"
-    },
-    "auth.pendingPayment.text": {
-      "by": "ai",
-      "out": "990e5161ae6f4d0f8aae53c9b4cdc3ee8beecca4190c1b09d9c8f5e7c65280f7",
-      "src": "5622c0ab7d85e1a679aef343ee32feaeaa585966156d8f584904a14b629b4045"
     },
     "auth.pendingPayment.title": {
       "by": "ai",
@@ -84683,8 +84668,8 @@
     },
     "admin.provider.group.billing.why": {
       "by": "ai",
-      "out": "fca7128fc7ea71d75c93d868457677b147dbdbbe26902b067d5cc901fbdbafa8",
-      "src": "c1f449f978266649ae8b5e571580029c439c56ec41e2726abf9a9f721608cb82"
+      "out": "e9441eb72c67aac44433c16e4d4dc4a26f727e0a9204d5e083582c222b51f7d0",
+      "src": "28f16adf5b615c5cc9d864d03972a37bb4051d1f2855cfa893bb721e31fd4d4d"
     },
     "admin.provider.group.business.label": {
       "by": "ai",
@@ -87285,11 +87270,6 @@
       "by": "ai",
       "out": "e2cccd92a5e7fcd1ecdfd8f0cb71cf090656835469d1d406a43379f899a9f57a",
       "src": "0d5d3051fc2d6e5379e885886af648f956020784fbafaa737cf11e617cf81fc1"
-    },
-    "auth.pendingPayment.text": {
-      "by": "ai",
-      "out": "80c00267f3f7fb781ea878ebf1b5edb87195cd98d28c6ff9bdbfdac8ae177d1e",
-      "src": "5622c0ab7d85e1a679aef343ee32feaeaa585966156d8f584904a14b629b4045"
     },
     "auth.pendingPayment.title": {
       "by": "ai",
@@ -110870,8 +110850,8 @@
     },
     "admin.provider.group.billing.why": {
       "by": "ai",
-      "out": "b10c7457ca98506e17c871aa2ad5533f9762d7e452d92fc6430add04c4f72e6b",
-      "src": "c1f449f978266649ae8b5e571580029c439c56ec41e2726abf9a9f721608cb82"
+      "out": "e1683069d3d75f9f206f297950051d7aa2344a3db6433af3aa6f75e3c9a4cb1d",
+      "src": "28f16adf5b615c5cc9d864d03972a37bb4051d1f2855cfa893bb721e31fd4d4d"
     },
     "admin.provider.group.business.label": {
       "by": "ai",
@@ -113472,11 +113452,6 @@
       "by": "ai",
       "out": "71107b6b45cfecf5bf3a021d0037cf20636b8165382848e172bf7ce925aa1a86",
       "src": "0d5d3051fc2d6e5379e885886af648f956020784fbafaa737cf11e617cf81fc1"
-    },
-    "auth.pendingPayment.text": {
-      "by": "ai",
-      "out": "0e68b888db72d5df474c1fb9c14621f769304809ebf4cb15afb67b26292185e4",
-      "src": "5622c0ab7d85e1a679aef343ee32feaeaa585966156d8f584904a14b629b4045"
     },
     "auth.pendingPayment.title": {
       "by": "ai",

@@ -22,6 +22,8 @@ export type PageProps = {
   /** Owners and admins: "Change with an AI agent" on top of the workspace's and the assistant's settings. */
   agentChange: boolean
   isInstanceAdmin: boolean
+  /** The workspace is on a bill and this person manages billing (Workspace settings › Billing, Linedesk Cloud). */
+  billing: boolean
   userId: string
   menu: ReactNode
   openCall: (call: Call) => void
@@ -89,6 +91,7 @@ export const pages = {
         agentChange={p.agentChange}
         phoneSetup={p.phoneSetup}
         isInstanceAdmin={p.isInstanceAdmin}
+        billing={p.billing}
         workspaceName={p.workspaceName}
         onRenamed={p.onRenamed}
         toast={p.toast}

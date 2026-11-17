@@ -12,27 +12,30 @@ import type {
   BillingRulesData,
   SelfServeData,
 } from '@linedesk/actions'
+import { PLAN_PRICE_FLOOR } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { refreshQuery, setQueryData, useQuery } from '../cachedQuery.ts'
 import { fmt } from '../i18n/format.ts'
 import { AppLink } from '../ui/AppLink.tsx'
-import { type SelectOption, Select, Switch } from '../ui/controls.tsx'
+import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Card, Dialog, FormField, FormMessage, Input, Textarea } from '../ui/form.tsx'
 import { Badge, Button, Note } from '../ui/kit.tsx'
 import { Loading, Skeleton, SkeletonRows } from '../ui/LoadStates.tsx'
-import { ActionBar, type AdminAction } from './actions.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
+import { ActionBar, type AdminAction } from './actions.tsx'
 import { runAdmin } from './api.ts'
 import {
   changedFields,
   newRequestId,
   parseCount,
   parseDollars,
+  planFloorText,
   RULE_FIELDS,
   type RuleField,
   type RulesForm,
+  rateOfMicros,
   reasonProblem,
   rulesForm,
   rulesFromForm,
@@ -522,6 +525,11 @@ function SelfServeCard({ notify }: { notify: Notify }) {
 // ---- Billing rules ----
 
 const RULE_LABELS: Record<RuleField, MessageKey> = {
+  workspaceMonthlyCents: msg('admin.bills.rules.field.workspaceMonthlyCents'),
+  workspaceYearlyCents: msg('admin.bills.rules.field.workspaceYearlyCents'),
+  partnerMonthlyCents: msg('admin.bills.rules.field.partnerMonthlyCents'),
+  partnerYearlyCents: msg('admin.bills.rules.field.partnerYearlyCents'),
+  trialDays: msg('admin.bills.rules.field.trialDays'),
   includedStandardSeconds: msg('admin.bills.rules.field.includedStandardSeconds'),
   balanceBufferMicros: msg('admin.bills.rules.field.balanceBufferMicros'),
   trialConcurrentCalls: msg('admin.bills.rules.field.trialConcurrentCalls'),
@@ -554,12 +562,12 @@ function RulesCard({ notify }: { notify: Notify }) {
     setProblems(parsed.problems)
     if ('rules' in parsed) setAsking(parsed.rules)
   }
-  const field = (key: string, label: string, aside?: string) => (
+  const field = (key: string, label: string, aside?: string, defaultText?: string) => (
     <FormField
       key={key}
       id={`adm-rule-${key}`}
       label={label}
-      aside={defaults && t('admin.bills.rules.default', { value: defaults[key] || EMPTY })}
+      aside={defaults && t('admin.bills.rules.default', { value: defaultText ?? (defaults[key] || EMPTY) })}
       description={aside}
       error={problems.includes(key) ? t('admin.bills.rules.notANumber') : null}
     >
@@ -587,19 +595,20 @@ function RulesCard({ notify }: { notify: Notify }) {
             {data.problems.length > 0 && (
               <Note tone="warning">{t('admin.bills.rules.ignored', { fields: data.problems.join(', ') })}</Note>
             )}
-            {Object.keys(data.defaults.levels).map(level => (
+            {Object.entries(data.defaults.levels).map(([level, fallback]) => (
               <div key={level} className="adm-rules-row">
                 {field(
                   `levels.${level}.price`,
                   t('admin.bills.rules.levelPrice', { level }),
                   data.minMicrosPerMinute > 0
-                    ? t('admin.bills.rules.minPrice', { amount: usdOfMicros(data.minMicrosPerMinute) })
+                    ? t('admin.bills.rules.minPrice', { amount: rateOfMicros(data.minMicrosPerMinute) })
                     : undefined,
+                  rateOfMicros(fallback.microsPerMinute),
                 )}
                 {field(`levels.${level}.factor`, t('admin.bills.rules.levelFactor', { level }))}
               </div>
             ))}
-            {RULE_FIELDS.map(([key]) => field(key, t(RULE_LABELS[key])))}
+            {RULE_FIELDS.map(([key]) => field(key, t(RULE_LABELS[key]), planFloorText(key, data.minPlanCents)))}
             <div className="adm-actbar">
               <Button type="submit" variant="primary" disabled={!dirty}>
                 {t('admin.bills.rules.save')}
@@ -617,7 +626,10 @@ function RulesCard({ notify }: { notify: Notify }) {
           description={t('admin.bills.rules.confirmText')}
           submit={t('admin.bills.rules.save')}
           run={async reason => {
-            const next = (await runAdmin('billingRules.set', { rules: asking, reason })) as unknown as BillingRulesData
+            const next = (await runAdmin('billingRules.set', { rules: asking, reason }).catch(err => {
+              if ((err as { code?: string }).code !== PLAN_PRICE_FLOOR) throw err
+              throw new Error(t('admin.bills.rules.planFloor', { amount: usdOfCents(data?.minPlanCents ?? 0) }))
+            })) as unknown as BillingRulesData
             setQueryData<BillingRulesData | undefined>(RULES, next)
             return t('admin.bills.rules.saved')
           }}

@@ -3,7 +3,7 @@ import { pseudoMessages } from '@linedesk/i18n/pseudo'
 import { createI18n, I18nProvider } from '@linedesk/i18n/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, test } from 'vitest'
-import { SupportCard } from './Branding.tsx'
+import { nameProblem, SupportCard } from './Branding.tsx'
 
 const noop = () => {}
 
@@ -37,5 +37,15 @@ describe('Support Linedesk in another language', () => {
     expect(html).not.toContain('Ask members for a GitHub star')
     expect(html).not.toContain('Optional. Both help')
     expect(html.match(/⟦/g)?.length).toBeGreaterThanOrEqual(4)
+  })
+})
+
+describe('the product name (security review of #1040, I-2)', () => {
+  test('empty, or with control characters, line separators or bidi overrides: a problem the form shows', () => {
+    expect(nameProblem('  ')).toBe('admin.branding.nameRequired')
+    for (const name of ['Bright\nwater', 'Bright\twater', 'Bright water', 'Bright‮water', 'Bright⁦water'])
+      expect(nameProblem(name)).toBe('admin.branding.nameCharacters')
+    expect(nameProblem('Brightwater Plumbing & Heating')).toBeNull()
+    expect(nameProblem('Café Ünïcode – Ölwerk')).toBeNull()
   })
 })

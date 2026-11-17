@@ -203,8 +203,8 @@ function fakeStripe() {
           ...(features.subscription_cancel as Obj),
           enabled: features.subscription_cancel!.enabled === 'true',
           cancellation_reason: {
-            enabled: (features.subscription_cancel!.cancellation_reason as Obj).enabled === 'true',
-            options: (features.subscription_cancel!.cancellation_reason as Obj).options,
+            enabled: (features.subscription_cancel!.cancellation_reason as Obj | undefined)?.enabled === 'true',
+            options: (features.subscription_cancel!.cancellation_reason as Obj | undefined)?.options ?? [],
           },
         },
         subscription_update: { enabled: features.subscription_update!.enabled === 'true' },
@@ -287,7 +287,8 @@ describe('bootstrap', () => {
       default_return_url: options.returnUrl,
       features: {
         subscription_update: { enabled: false },
-        subscription_cancel: { enabled: true, mode: 'at_period_end', proration_behavior: 'none' },
+        // Cancel and "Keep my plan" only in the app (security review of #1007, M-2).
+        subscription_cancel: { enabled: false },
       },
     })
 
@@ -391,6 +392,21 @@ describe('bootstrap', () => {
     const again = await run({ returnUrl: undefined })
     expect(again.changes).toEqual([])
     expect([...stripe.state.portals.values()][0]).toMatchObject({ default_return_url: options.returnUrl })
+  })
+
+  test('a portal that still lets the customer cancel is switched to no cancel (security review of #1007, M-2)', async () => {
+    await run()
+    const portal = [...stripe.state.portals.values()][0]!
+    ;(portal.features as Record<string, Obj>).subscription_cancel = {
+      enabled: true,
+      mode: 'at_period_end',
+      proration_behavior: 'none',
+      cancellation_reason: { enabled: true, options: ['other'] },
+    }
+    const again = await run()
+    expect(again.changes).toEqual(['update the customer portal configuration'])
+    expect(portal).toMatchObject({ features: { subscription_cancel: { enabled: false } } })
+    expect((await run()).changes).toEqual([])
   })
 
   test('an endpoint in the right version with other events is updated, keeping its secret', async () => {

@@ -14,7 +14,7 @@ import {
   type Db,
   instance_settings,
   organization,
-  PLAN_PRICES,
+  planPrice,
   RECHARGE_LIMITS,
   rechargeCapCents,
   type Tx,
@@ -22,7 +22,8 @@ import {
 } from '@linedesk/db'
 import { and, eq, gte, inArray, lt } from 'drizzle-orm'
 import { alertInstanceAdmins } from './admin-alerts.ts'
-import { billingRules } from './billing-rules.ts'
+import { billingRules, rechargeLine } from './billing-rules.ts'
+import { brandName } from './branding.ts'
 import { billingProvider } from './billing-settings.ts'
 import type { EmailSender } from './email.ts'
 import { localeForEmail } from './email-locale.ts'
@@ -41,10 +42,6 @@ export type RechargeRun =
   | { outcome: 'not_pending' }
   | { outcome: 'canceled'; reason: 'billing_off' | 'no_customer' | 'bill_inactive' }
   | { outcome: RechargeCharge['status']; invoiceId: string }
-
-/** The text on the recharge invoice's line; Stripe shows it to the customer (not translated, like the invoice). */
-// i18n-ignore: the Stripe invoice line, in the Stripe account's invoice language
-const RECHARGE_LINE = 'Linedesk balance recharge'
 
 /**
  * Charges one pending recharge attempt. `provider` replaces the provider in effect (tests). Billing off, no Stripe
@@ -88,7 +85,7 @@ export async function chargeRecharge(
     customerId: bill.stripe_customer_id!,
     amountCents: attempt.amount_cents,
     rechargeId,
-    description: RECHARGE_LINE,
+    description: rechargeLine(brandName()),
     invoiceId,
     // Checkout saved the card on the subscription: the adapter makes it the customer's default when there is none (B1).
     subscriptionId: bill.stripe_subscription_id,
@@ -345,11 +342,12 @@ export async function sendBillingAlert(
   } else if (job.kind === 'trial_will_end') {
     // The plan's charge at the end of the trial: a seat per workspace at the bill's interval (before tax).
     const workspaces = await workspacesOf(db, job.bill)
-    const price = PLAN_PRICES.find(p => p.lookupKey === (bill.bill.interval === 'year' ? 'ws_yearly' : 'ws_monthly'))!
+    const price = planPrice(bill.bill.interval === 'year' ? 'ws_yearly' : 'ws_monthly', rules)!
+    const charged = await subscriptionCents(db, bill.bill.stripe_subscription_id, options.provider)
     content = {
       ...base,
       kind: 'trial_will_end',
-      planCents: price.cents * Math.max(1, workspaces),
+      planCents: charged ?? price.cents * Math.max(1, workspaces),
       trialEnd: job.ref,
       rechargeCents: bill.bill.auto_recharge ? bill.bill.recharge_amount_cents : null,
     }
@@ -360,6 +358,23 @@ export async function sendBillingAlert(
   const locale = await localeForEmail(db, bill.email)
   await sender.send({ to: bill.email, ...billingOwnerEmail(content, undefined, locale) })
   return { sent: 'owner' as const }
+}
+
+/**
+ * What the subscription charges next, before tax: its items' own prices, which may be older than the install's
+ * prices now (a changed price applies to new Checkouts only, docs/billing.md §7b). Null when it cannot be read.
+ */
+async function subscriptionCents(db: Db, subscriptionId: string | null, override?: BillingProvider) {
+  if (!subscriptionId) return null
+  try {
+    const provider = override ?? (await db.transaction(tx => billingProvider(tx)))
+    const sub = await provider.subscription(subscriptionId)
+    if (!sub?.items.length || sub.items.some(i => i.unitAmountCents == null)) return null
+    return sub.items.reduce((sum, i) => sum + (i.unitAmountCents ?? 0) * i.quantity, 0)
+  } catch (error) {
+    console.error(`billing: subscription ${subscriptionId} could not be read for the trial's end:`, error)
+    return null
+  }
 }
 
 /**

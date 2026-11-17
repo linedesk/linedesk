@@ -44,6 +44,8 @@ function fakeProvider(charge: (input: RechargeInvoiceInput) => Awaited<ReturnTyp
       calls.push({ method: 'stopRechargeInvoice', args: [id, options] })
     },
     rechargeInvoicePage: async id => `https://invoice.stripe.com/i/${id}`,
+    // Settings › Billing's portal (PR 9) is not used here.
+    portalSession: () => Promise.reject(new Error('not used')),
     rechargeCard: async () => null,
     checkoutPaymentMethodConfiguration: async () => null,
     // The lifecycle side (PR 10/11) is not used here.
@@ -72,6 +74,10 @@ function fakeProvider(charge: (input: RechargeInvoiceInput) => Awaited<ReturnTyp
     startCheckout: async () => {
       throw new Error('not used')
     },
+    syncCatalog: async () => {
+      throw new Error('not used')
+    },
+    catalogWriteAccess: async () => ({ products: null, prices: null }),
     expireOpenCheckouts: async () => {
       throw new Error('not used')
     },

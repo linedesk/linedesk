@@ -9,8 +9,10 @@ import {
   DEFAULT_PRODUCT_NAME,
   LOGO_MAX_BYTES,
   LOGO_SIZE,
+  NAME_CONTROL_CHARACTERS,
   readableOn,
 } from '@linedesk/actions'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useRef, useState } from 'react'
 import { setBrand, useBrand } from '../brand.ts'
@@ -294,6 +296,13 @@ function Preview({ draft, saved }: { draft: Draft; saved: Branding }) {
   )
 }
 
+/** What is wrong with a product name, or null: the server refuses the same (brandingInput). */
+export function nameProblem(name: string): MessageKey | null {
+  if (!name.trim()) return msg('admin.branding.nameRequired')
+  if (NAME_CONTROL_CHARACTERS.test(name)) return msg('admin.branding.nameCharacters')
+  return null
+}
+
 export function BrandingSettings() {
   const t = useT()
   const saved = useBrand()
@@ -302,7 +311,8 @@ export function BrandingSettings() {
   const [problem, setProblem] = useState<string | null>(null)
   const [askingToKeep, setAskingToKeep] = useState(false)
   const dirty = isDirty(draft, saved)
-  const nameError = draft.name.trim() ? null : t('admin.branding.nameRequired')
+  const nameKey = nameProblem(draft.name)
+  const nameError = nameKey && t(nameKey)
   const invalid = Boolean(nameError) || parsedColor(draft.color) === undefined
   const update = (patch: Partial<Draft>) => setDraft(d => ({ ...d, ...patch }))
 

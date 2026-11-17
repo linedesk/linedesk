@@ -206,7 +206,13 @@ async function body<T>(res: Response): Promise<T> {
   }
   const stepUp = stepUpOf(json)
   if (stepUp) throw new StepUpRequired(json?.error ?? i18n().t('admin.api.confirmPasskey'), stepUp)
-  if (!res.ok || !json) throw new Error(json?.error ?? i18n().t('admin.api.serverAnswered', { status: res.status }))
+  if (!res.ok || !json) {
+    // The refusal's code goes along, so a page can show its own text for it (billingRules.set's PLAN_PRICE_FLOOR).
+    const code = typeof json?.code === 'string' ? json.code : undefined
+    throw Object.assign(new Error(json?.error ?? i18n().t('admin.api.serverAnswered', { status: res.status })), {
+      code,
+    })
+  }
   return json
 }
 

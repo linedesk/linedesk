@@ -1,6 +1,6 @@
-// The billing provider (docs/billing.md §7): what the rest of Linedesk asks of a payment service. Every self-hosted
-// install runs `none`; Linedesk Cloud runs `stripe` once an instance admin connected Stripe under Server admin ›
-// Providers › Billing and turned billing on. The vendor SDK lives only in its adapter (`./stripe/`), loaded lazily.
+// The billing provider (docs/billing.md §7): what the rest of Linedesk asks of a payment service. An install runs
+// `none` by default; it runs `stripe` once an instance admin connected the install's own Stripe account under Server
+// admin › Providers › Billing and turned billing on (Linedesk Cloud is one such install). The vendor SDK lives only in its adapter (`./stripe/`), loaded lazily.
 
 /** Test keys charge nothing; live keys charge real cards. Read from the key itself, never from a setting. */
 export type KeyMode = 'test' | 'live'
@@ -23,7 +23,7 @@ export type RechargeInvoiceInput = {
   amountCents: number
   /** The `billing_recharges.id`: the idempotency key of every request and the invoice's `metadata.billing_recharge_id`. */
   rechargeId: string
-  /** The invoice item's text ("Linedesk balance recharge"); the customer sees it on the invoice. */
+  /** The invoice item's text ("<product name> balance recharge"); the customer sees it on the invoice. */
   description: string
   /** The invoice an earlier try made, when it is known: it is charged instead of a new one. */
   invoiceId?: string | null
@@ -63,6 +63,16 @@ export type CheckoutInput = {
   billId: string
   customerId: string
   paymentMethodConfiguration: string
+  /**
+   * What the install sells (`PlanCatalog`): its currency, and for `topup` the top-up product, made when missing (never
+   * renamed). The plan prices are never made or changed here (security review of #1040, M-1): see `prices`.
+   */
+  catalog: PlanCatalog
+  /**
+   * `trial`, `plan`: the price ids by lookup key, as the last catalog sync stored them (`syncCatalog`). A lookup key of
+   * `items` missing here is our setup (`BillingSetupError('stripe_catalog_not_synced')`), never a write at Checkout.
+   */
+  prices?: Readonly<Record<string, string>>
   /** The plan's prices by lookup key and their quantity (`trial`, `plan`). */
   items?: { lookupKey: string; quantity: number }[]
   trialDays?: number
@@ -76,6 +86,20 @@ export type CheckoutInput = {
   idempotencyKey: string
   /** When the session expires (unix seconds; Stripe allows 30 minutes to 24 hours from now). */
   expiresAt: number
+}
+
+/**
+ * What an install sells, from its own settings (docs/billing.md §2.1, §7b): products by our key (the Stripe product
+ * id is `linedesk_<key>`, never shown to a customer) with their names on invoices, and the plan prices by lookup key.
+ * The adapter makes what is missing in the connected account and finds the rest, idempotently: a product whose name
+ * changed is renamed; a plan amount that changed is a new price that takes the lookup key over, while running
+ * subscriptions keep the price they were started on (it keeps `metadata.linedesk` = its lookup key). USD only.
+ */
+export type PlanCatalog = {
+  products: Record<string, string>
+  prices: readonly { lookupKey: string; product: string; cents: number; interval: 'month' | 'year' }[]
+  taxCode: string
+  currency: 'usd'
 }
 
 /** A started Checkout Session: where the owner pays. The URL is a bearer link, never stored. */
@@ -224,7 +248,8 @@ export type BillingSubscription = {
   trialEnd: string | null
   defaultPaymentMethod: string | null
   /** `unitAmountCents`: the item's price per unit before tax (the renewal reminder names it); null when Stripe has none. */
-  items: { lookupKey: string | null; quantity: number; unitAmountCents?: number | null }[]
+  /** `productId`: the Stripe product of the item's price (`linedesk_workspace`, …); only ours make a Linedesk plan. */
+  items: { lookupKey: string | null; quantity: number; unitAmountCents?: number | null; productId?: string | null }[]
 }
 
 /**
@@ -316,6 +341,9 @@ export const WEBHOOK_EVENTS = [
   'setup_intent.succeeded',
 ] as const
 
+/** The metadata that marks the customer portal configuration the bootstrap makes (docs/billing.md §2.4). */
+export const PORTAL_METADATA = { linedesk: 'portal' } as const
+
 /** The name of the card-only payment method configuration the bootstrap makes and Checkout uses (docs/billing.md §2.4). */
 export const CHECKOUT_PMC_NAME = 'Linedesk Checkout'
 
@@ -386,6 +414,18 @@ export type BillingProvider = {
   createCustomer(input: { billId: string; email: string; name: string }): Promise<string>
   /** Starts a Checkout Session (see `CheckoutInput`). A refusal for our setup throws `BillingSetupError`. */
   startCheckout(input: CheckoutInput): Promise<CheckoutStarted>
+  /**
+   * Makes the account sell what the catalog says (products named, plan prices at their amounts; docs/billing.md §7b)
+   * and answers the plan price ids by lookup key. Run when an instance admin saves prices or the product name, never
+   * on a customer's Checkout. A key that may not write Products or Prices, or a lookup key held by another product,
+   * throws `BillingSetupError`.
+   */
+  syncCatalog(catalog: PlanCatalog): Promise<Record<string, string>>
+  /**
+   * Whether the key may write Products and Prices, which the catalog sync needs (the provider test; nothing is
+   * written). `null`: not known (no answer).
+   */
+  catalogWriteAccess(): Promise<{ products: boolean | null; prices: boolean | null }>
   /** The session as it is now, with its subscription, card and charge; null when the service does not know it. */
   checkoutSession(id: string): Promise<CheckoutSession | null>
   /**
@@ -422,6 +462,12 @@ export type BillingProvider = {
   stopRechargeInvoice(invoiceId: string, options: { void: boolean }): Promise<void>
   /** The invoice's own page, where the customer pays it or confirms the payment (a bearer link: never stored). */
   rechargeInvoicePage(invoiceId: string): Promise<string | null>
+  /**
+   * A customer portal session (docs/billing.md §2.4): the card, the billing details, invoices and receipts. Always the
+   * portal configuration the bootstrap made (found by its metadata, never an id in the code); without it no session
+   * starts and `BillingSetupError('portal_configuration_missing')` is thrown. The URL is a bearer link: never stored.
+   */
+  portalSession(input: { customerId: string; returnUrl: string }): Promise<string>
   /**
    * Checks a webhook's `Stripe-Signature` over the raw body with the signing secret and, during a rotation, the
    * previous one, within the tolerance; refuses an event of the other mode than the key. Throws `WebhookRefused`.

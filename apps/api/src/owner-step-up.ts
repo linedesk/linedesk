@@ -17,7 +17,9 @@ import { isInstanceAdmin } from './instance-admin.ts'
 /** The actions that need it. */
 export const OWNER_STEP_UP_ACTIONS: ReadonlySet<string> = new Set(['workspace.deleteOwn'])
 
-const RECENT_HOURS = RECENT_SIGN_IN_MS / 3_600_000
+// Read when checked, not at import: account.ts reaches this file again through auth.ts (an import cycle), so
+// RECENT_SIGN_IN_MS may not be set yet while this module loads (billing.setRechargeCap saw NaN hours).
+const recentHours = () => RECENT_SIGN_IN_MS / 3_600_000
 
 /**
  * What this owner still has to do before deleting, or null. No session (an API key, the agent) or an impersonation:
@@ -42,10 +44,10 @@ export async function ownerStepUpNeeded(
   const [key] = await tx.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, actor.actorId)).limit(1)
   if (key && adminSecondFactorRequired())
     // A passkey sign-in, not a code from the authenticator app (phishable; LIN-275 security review).
-    return signedInWithin(own.passkeyVerifiedAt, RECENT_HOURS, now) && own.secondFactorMethod !== 'authenticator'
+    return signedInWithin(own.passkeyVerifiedAt, recentHours(), now) && own.secondFactorMethod !== 'authenticator'
       ? null
       : 'passkey'
-  return signedInWithin(own.createdAt, RECENT_HOURS, now) ? null : 'signIn'
+  return signedInWithin(own.createdAt, recentHours(), now) ? null : 'signIn'
 }
 
 /** The words and code of the refusal for each step-up; the web app reacts to the code. */
@@ -181,14 +183,14 @@ export async function personalKeyStepUpNeeded(
   if (!own || own.impersonatedBy) return signIn
   const [key] = await tx.select({ id: passkey.id }).from(passkey).where(eq(passkey.userId, actor.actorId)).limit(1)
   if (key && adminSecondFactorRequired()) {
-    if (signedInWithin(own.passkeyVerifiedAt, RECENT_HOURS, now)) return null
+    if (signedInWithin(own.passkeyVerifiedAt, recentHours(), now)) return null
     // Only instance admins can check a code from the app (account.authenticatorCheck, by the account, not the
     // session: before its passkey confirmation an admin's session has no instance:admin).
     const [account] = await tx.select().from(user).where(eq(user.id, actor.actorId))
     const app = !!account && isInstanceAdmin(account) && (await hasAuthenticator(tx, actor.actorId))
     return { stepUp: 'passkey', authenticator: app }
   }
-  return signedInWithin(own.createdAt, RECENT_HOURS, now) ? null : signIn
+  return signedInWithin(own.createdAt, recentHours(), now) ? null : signIn
 }
 
 /** The refusal run-action answers before the key is made: Settings › Personal API keys acts on the code. */

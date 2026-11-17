@@ -1,4 +1,4 @@
-// Self-serve sign-up on Linedesk Cloud (docs/billing.md §3.1, §3.2): open only while the billing provider in effect is
+// Self-serve sign-up on an install that bills its workspaces (docs/billing.md §3.1, §3.2): open only while the billing provider in effect is
 // Stripe and an instance admin turned `signup.selfServe` on. A person proves their address with an email code on the
 // sign-up page, then `account.signUp` makes their bill and their workspace, waiting for Checkout (`pending_payment`).
 import { z } from 'zod'
@@ -12,7 +12,7 @@ export const SIGNUP_INTERVALS = ['year', 'month'] as const
 export const accountSignUp = defineAction({
   name: 'account.signUp',
   description:
-    "Start Linedesk Cloud for your business: makes your bill and your workspace (you are its owner), waiting for a card at Checkout. Your name, the business's name and its country (US, CA or PR). One waiting sign-up per account: asked again, it answers the one there is.",
+    "Start a plan on this server for your business: makes your bill and your workspace (you are its owner), waiting for a card at Checkout. Your name, the business's name and its country (US, CA or PR). One waiting sign-up per account: asked again, it answers the one there is.",
   input: z.object({
     name: z.string().trim().min(1).max(80),
     businessName: workspaceName,

@@ -63,6 +63,7 @@ import { setupEmailHandlers } from './setup-emails.ts'
 import { billingSettingsHandlers } from './billing-settings.ts'
 import { billingAdminHandlers } from './billing-admin.ts'
 import { billingOwnerHandlers } from './billing-owner.ts'
+import { billingPageHandlers, billingPagePreparers } from './billing-page.ts'
 import { stripeEventHandlers, stripeEventPreparers } from './stripe-events.ts'
 import { providerHealthHandlers, recordProviderFailure } from './provider-failures.ts'
 import { brandingHandlers, brandName } from './branding.ts'
@@ -939,6 +940,7 @@ export const preparers: Record<string, Preparer> = {
   ...authenticatorPreparers,
   ...stripeEventPreparers,
   ...checkoutPreparers,
+  ...billingPagePreparers,
 }
 
 /**
@@ -1140,6 +1142,7 @@ const handlers: Record<string, Handler> = {
   ...billingOwnerHandlers,
   ...selfServeHandlers,
   ...checkoutHandlers,
+  ...billingPageHandlers,
   ...starHandlers,
   ...pushHandlers,
   ...calendarConnectionHandlers,

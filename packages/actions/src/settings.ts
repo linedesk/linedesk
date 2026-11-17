@@ -241,7 +241,7 @@ export const VOICE_PIPELINE_LABELS: Record<VoicePipeline, string> = {
 /** What each pipeline does, in words for someone who has never heard of either. */
 export const VOICE_PIPELINE_DESCRIPTIONS: Record<VoicePipeline, string> = {
   realtime:
-    "One AI model hears the caller and speaks its reply itself, in the voice of the model you pick. The fastest, most natural conversation.",
+    'One AI model hears the caller and speaks its reply itself, in the voice of the model you pick. The fastest, most natural conversation.',
   three_stage:
     "The caller's words are written out, a language model writes the reply, and the voice you pick reads it out. A moment slower, with every voice of your voice providers.",
 }
@@ -374,7 +374,7 @@ const BUSINESS_WEBSITE_PROBLEM = 'Enter a website address, like yourbusiness.com
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    "Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business, how fast it talks (`talking_speed_pct`: 80-120 percent of the voice's own pace, 100: its own pace), what it asks when the line is quiet (`silence_reminder`, null: the default) and says before hanging up (`silence_closing`), the longest it stays on a call (`max_call_minutes`). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a landline or mobile in E.164 in a country the workspace may call, see outbound.countries; null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `languages`: `main` (the language it greets and speaks in; missing: the workspace language, English for a workspace in the US or a country whose language calls cannot be answered in) and `mode`: `english` (the main language only, the default; the name is from before the main language could be picked), `allowed` (the main language plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in the main language. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic). `voice_pipeline`: how calls are answered, `realtime` (a realtime model, in its own voice) or `three_stage` (speech to text, language model and the assistant's voice); null: the install default; when the chosen one is not set up, the other answers. `realtime_voice`: the voice while the realtime model answers its calls, one of the realtime voices (REALTIME_VOICE_IDS: marin and cedar, which OpenAI recommends, alloy, ash, ballad, coral, echo, sage, shimmer, verse); '' (the default): the server's default voice. `voice` is the voice of the three stages; each keeps its own. `voice.model` picks the voice model (eleven_flash_v2_5, eleven_multilingual_v2, eleven_v3, sonic-3.6; missing: the server's) and `llm_model` the language model (as the server's language-model provider names it, e.g. gpt-5.4-mini; null: the server's default). On Linedesk Cloud each is Standard ($0.05 a minute) or Premium ($0.10; a call is Premium when its voice or model is): Premium needs the owner's Allow Premium (workspace.setAllowPremium), and an option in neither list needs the workspace's own provider keys; voice.options lists them with their level. `realtime_model` picks the realtime model (gpt-realtime, gpt-realtime-2; null: the server's) for when `voice_pipeline` is realtime; on Linedesk Cloud a realtime call is Ultra ($0.20 a minute) and needs the owner's Allow Ultra (workspace.setAllowUltra). `email_routing`: who gets the email about each finished call, in plain language with people mentioned as <@user:USER_ID> or <@email:ADDRESS> (emailRouting.get); a language model picks the recipients among them after each call; null or '': every member with call emails on. `email_assign`: members (user ids) a routed call is also assigned to: the first of them, in the instruction's order, who gets the email, while nobody has the call.",
+    "Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business, how fast it talks (`talking_speed_pct`: 80-120 percent of the voice's own pace, 100: its own pace), what it asks when the line is quiet (`silence_reminder`, null: the default) and says before hanging up (`silence_closing`), the longest it stays on a call (`max_call_minutes`). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a landline or mobile in E.164 in a country the workspace may call, see outbound.countries; null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `languages`: `main` (the language it greets and speaks in; missing: the workspace language, English for a workspace in the US or a country whose language calls cannot be answered in) and `mode`: `english` (the main language only, the default; the name is from before the main language could be picked), `allowed` (the main language plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in the main language. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never, when_asked, at_start, at_start_consent: says it and asks whether that is okay); it never claims to be human. `communication_style`: the tone (standard, professional, casual, formal, empathetic). `voice_pipeline`: how calls are answered, `realtime` (a realtime model, in its own voice) or `three_stage` (speech to text, language model and the assistant's voice); null: the install default; when the chosen one is not set up, the other answers. `realtime_voice`: the voice while the realtime model answers its calls, one of the realtime voices (REALTIME_VOICE_IDS: marin and cedar, which OpenAI recommends, alloy, ash, ballad, coral, echo, sage, shimmer, verse); '' (the default): the server's default voice. `voice` is the voice of the three stages; each keeps its own. `voice.model` picks the voice model (eleven_flash_v2_5, eleven_multilingual_v2, eleven_v3, sonic-3.6; missing: the server's) and `llm_model` the language model (as the server's language-model provider names it, e.g. gpt-5.4-mini; null: the server's default). On a server that bills usage each is Standard or Premium (a call is Premium when its voice or model is; the prices are the server's): Premium needs the owner's Allow Premium (workspace.setAllowPremium), and an option in neither list needs the workspace's own provider keys; voice.options lists them with their level. `realtime_model` picks the realtime model (gpt-realtime, gpt-realtime-2; null: the server's) for when `voice_pipeline` is realtime; on a server that bills usage a realtime call is Ultra and needs the owner's Allow Ultra (workspace.setAllowUltra). `email_routing`: who gets the email about each finished call, in plain language with people mentioned as <@user:USER_ID> or <@email:ADDRESS> (emailRouting.get); a language model picks the recipients among them after each call; null or '': every member with call emails on. `email_assign`: members (user ids) a routed call is also assigned to: the first of them, in the instruction's order, who gets the email, while nobody has the call.",
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().trim().min(1).max(60).optional(),
@@ -549,12 +549,14 @@ export type WorkspaceSettingsData = {
   countrySource?: WorkspaceCountrySource
   /** The workspace language: the main language of the country in use (resolveWorkspaceLanguage; may be one calls are not answered in). */
   resolvedLanguage?: string
-  /** Linedesk Cloud: the owner allows Premium voices and models (workspace.setAllowPremium). */
+  /** On a server that bills usage: the owner allows Premium voices and models (workspace.setAllowPremium). */
   allowPremium: boolean
-  /** Linedesk Cloud: the owner allows Ultra, calls answered by a realtime model (workspace.setAllowUltra). */
+  /** On a server that bills usage: the owner allows Ultra, calls answered by a realtime model (workspace.setAllowUltra). */
   allowUltra: boolean
-  /** This install bills usage (Linedesk Cloud): voices and models have a level, and Allow Premium applies. */
+  /** This install bills usage: voices and models have a level, and Allow Premium applies. */
   usageLevels: boolean
+  /** The install's price of a call minute per level, in US cents (Server admin › Billing); absent from an older server. */
+  usageCentsPerMinute?: { standard: number; premium: number; ultra: number }
 }
 
 /**
@@ -744,14 +746,14 @@ export const workspaceUpdateSettings = defineAction({
 })
 
 /**
- * Linedesk Cloud: the owner allows Premium voices and models for the workspace's assistants ($0.10 a minute instead
- * of $0.05). Turning it off moves every assistant on a Premium voice or model back to the server's defaults. Owner
- * only, in the app (never an API key, a setup link or an impersonation); audited.
+ * On a server that bills usage: the owner allows Premium voices and models for the workspace's assistants (10¢ a minute instead of
+ * 5¢). Turning it off moves every assistant on a Premium voice or model back to the server's defaults. Owner only, in
+ * the app (never an API key, a setup link or an impersonation); audited.
  */
 export const workspaceSetAllowPremium = defineAction({
   name: 'workspace.setAllowPremium',
   description:
-    "Allow Premium voices and models (Linedesk Cloud: $0.10 a minute instead of $0.05) for this workspace's assistants, or not. Off (the default): assistants pick Standard ones only, and turning it off moves assistants on Premium back to the server's default voice model and language model. Only the owner.",
+    "Allow Premium voices and models (on a server that bills usage: the Premium price a minute instead of the Standard one) for this workspace's assistants, or not. Off (the default): assistants pick Standard ones only, and turning it off moves assistants on Premium back to the server's default voice model and language model. Only the owner.",
   input: z.object({ on: z.boolean() }),
   permission: 'billing:manage',
 })
@@ -761,7 +763,7 @@ export type AllowPremiumData = { on: boolean; movedToStandard: string[] }
 export const workspaceSetAllowUltra = defineAction({
   name: 'workspace.setAllowUltra',
   description:
-    "Allow Ultra (Linedesk Cloud: $0.20 a minute; calls answered by a realtime model in its natural voice) for this workspace's assistants, or not. Off (the default): no assistant answers with a realtime model, and turning it off moves assistants on Ultra back to the three stages and the server's realtime model. Only the owner.",
+    "Allow Ultra (on a server that bills usage: the Ultra price a minute; calls answered by a realtime model in its natural voice) for this workspace's assistants, or not. Off (the default): no assistant answers with a realtime model, and turning it off moves assistants on Ultra back to the three stages and the server's realtime model. Only the owner.",
   input: z.object({ on: z.boolean() }),
   permission: 'billing:manage',
 })
@@ -851,24 +853,29 @@ export const workspaceDeleteOwn = defineAction({
   name: 'workspace.deleteOwn',
   description:
     "Delete this workspace with all its data: calls, contacts, bookings, settings, members and invitations, recordings and phone numbers. Only an owner, signed in within the last 10 minutes (with their passkey when they have one). `name` is the workspace's name, typed to confirm. Every other member is emailed; members who belong to no other workspace lose their accounts, the owner too, unless keepAccounts is true (every account stays; they wait for an invitation) or keepOwnAccount is true (only the owner's stays).",
-  input: z.object({
-    name: z.string().trim().min(1).max(200),
-    keepOwnAccount: z.boolean().optional(),
-    keepAccounts: z.boolean().optional(),
-  }).strict(),
+  input: z
+    .object({
+      name: z.string().trim().min(1).max(200),
+      keepOwnAccount: z.boolean().optional(),
+      keepAccounts: z.boolean().optional(),
+    })
+    .strict(),
   permission: 'workspace:own',
 })
 /**
  * What `workspace.deleteOwn` did, and the workspace the owner continues in (null: none is left).
  * `ownAccountDeleted`: the owner's account went with it; their session is gone.
  */
-export type WorkspaceDeleteOwnData = WorkspaceDeleteData & { nextWorkspaceId: string | null; ownAccountDeleted: boolean }
+export type WorkspaceDeleteOwnData = WorkspaceDeleteData & {
+  nextWorkspaceId: string | null
+  ownAccountDeleted: boolean
+}
 
 /** What deleting this workspace would take with it, for the owner's confirmation dialog. Owners only. */
 export const workspaceDeletePreview = defineAction({
   name: 'workspace.deletePreview',
   description:
-    "What deleting this workspace would delete: calls, contacts, phone numbers, other members and the accounts that go with it. The owner only.",
+    'What deleting this workspace would delete: calls, contacts, phone numbers, other members and the accounts that go with it. The owner only.',
   input: z.object({}),
   permission: 'workspace:own',
   readOnly: true,
@@ -960,11 +967,13 @@ export const phoneNumberRelease = defineAction({
   name: 'phoneNumber.release',
   description:
     'Disconnect a phone number from the workspace: the assistant stops answering it. A number bought through Linedesk is also released at the carrier (its monthly cost stops, and the number may go to someone else); a number that was attached from the carrier account stays there. `confirm` must repeat the number.',
-  input: z.object({
-    phoneNumberId: z.string().min(1),
-    /** The number as the person typed it to confirm; compared by digits with the stored number. */
-    confirm: z.string().min(1).max(40),
-  }).strict(),
+  input: z
+    .object({
+      phoneNumberId: z.string().min(1),
+      /** The number as the person typed it to confirm; compared by digits with the stored number. */
+      confirm: z.string().min(1).max(40),
+    })
+    .strict(),
   permission: 'settings:write',
 })
 

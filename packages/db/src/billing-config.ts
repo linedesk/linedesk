@@ -1,18 +1,19 @@
-// Billing prices and rules (Linedesk Cloud; docs/billing.md §4 and §7a, decisions 14 to 16), in one module: every
+// Billing prices and rules (docs/billing.md §4 and §7a, decisions 14 to 16), in one module: every
 // price, allowance, cap and abuse limit billing uses is here, and nowhere else in the code. Amounts in US cents unless
 // the name says micros (1 USD = 1,000,000).
 //
 // Two kinds of values:
 // - `BILLING_DEFAULTS` (a `BillingRules`): prices, the included allowance and the abuse limits. An install can
-//   change them (instance setting `billing.rules`, apps/api/src/billing-rules.ts), so a self-hosted partner billing
-//   its own clients sets its own; the defaults are Linedesk Cloud's.
+//   change them (instance setting `billing.rules`, apps/api/src/billing-rules.ts, Server admin › Billing): every
+//   install that bills its workspaces sets its own; the defaults are Linedesk Cloud's.
 // - The recharge constants below: database CHECKs on `billing_accounts` use them, so they change only by migration.
 // Stripe price and account ids are never in the code: they live in the Stripe account and the provider settings.
 
 /**
- * The plan fees as Stripe prices (docs/billing.md §2.1), created and kept up to date by the bootstrap script
- * (`pnpm --filter @linedesk/billing bootstrap`), found by `lookupKey`. USD, per unit, tax-exclusive. There are no
- * founding prices (dropped 2026-11-16, docs/billing.md §2.1b).
+ * The plan fees as Stripe prices (docs/billing.md §2.1), found by `lookupKey`. USD, per unit, tax-exclusive. `cents`
+ * here are the defaults: the amounts in effect are the install's rules (`planPrices`, Server admin › Billing), and
+ * the app makes the matching prices in the install's own Stripe account before a Checkout (`PlanCatalog`). There are
+ * no founding prices (dropped 2026-11-16, docs/billing.md §2.1b).
  * Usage and extra numbers are never Stripe prices: they are paid from the balance (`BILLING_DEFAULTS`).
  */
 export const PLAN_PRICES = [
@@ -24,15 +25,16 @@ export const PLAN_PRICES = [
 export type PlanProduct = 'workspace' | 'partner' | 'balance_recharge' | 'balance_topup'
 export type PlanPrice = { lookupKey: string; product: PlanProduct; cents: number; interval: 'month' | 'year' }
 /**
- * The Stripe products (their names show on invoices and receipts). The balance products have no fixed price: a
- * recharge invoice item and a top-up Checkout line give the amount (`price_data` with the product).
+ * The Stripe products by their names on invoices and receipts, with the install's product name (Server admin ›
+ * Branding) in front of the plan products. English, like every text this install sends to Stripe. The balance
+ * products have no fixed price: a recharge invoice item and a top-up Checkout line give the amount.
  */
-export const PLAN_PRODUCTS: Record<PlanProduct, string> = {
-  workspace: 'Linedesk workspace',
-  partner: 'Linedesk Partner',
+export const planProducts = (brand: string): Record<PlanProduct, string> => ({
+  workspace: `${brand} workspace`,
+  partner: `${brand} Partner`,
   balance_recharge: 'Balance recharge',
   balance_topup: 'Prepaid minutes',
-}
+})
 /** Stripe Tax code of every product and the account default: SaaS, business use (docs/billing.md §5.2). */
 export const STRIPE_TAX_CODE = 'txcd_10103001'
 
@@ -76,6 +78,14 @@ export type UsageLevel = PaidLevel | 'own_keys'
 
 /** What an install may set (docs/billing.md §7a): prices, the included allowance and the abuse limits. */
 export type BillingRules = {
+  /** The plan fee per workspace (a seat) a month and a year, in cents before tax. */
+  workspaceMonthlyCents: number
+  workspaceYearlyCents: number
+  /** The partner plan's base fee a month and a year, in cents before tax. */
+  partnerMonthlyCents: number
+  partnerYearlyCents: number
+  /** The free trial's length in days (Checkout's `trial_period_days`). */
+  trialDays: number
   levels: Record<PaidLevel, LevelPrice>
   /** The included allowance per workspace and period, in Standard seconds. */
   includedStandardSeconds: number
@@ -98,6 +108,11 @@ export type BillingRules = {
 
 /** Linedesk Cloud's rules, and the defaults of every install. */
 export const BILLING_DEFAULTS: BillingRules = {
+  workspaceMonthlyCents: 1100,
+  workspaceYearlyCents: 10_800,
+  partnerMonthlyCents: 1900,
+  partnerYearlyCents: 16_800,
+  trialDays: 14,
   levels: LEVEL_PRICES,
   includedStandardSeconds: 3000,
   balanceBufferMicros: BALANCE_BUFFER_MICROS,
@@ -164,6 +179,25 @@ export const SIGNUP_DEFAULTS: SignupRules = {
 /** The countries a business can sign up from (decision 12): US, Canada, Puerto Rico. */
 export const SIGNUP_COUNTRIES = ['US', 'CA', 'PR'] as const
 export type SignupCountry = (typeof SIGNUP_COUNTRIES)[number]
+
+/** Which rule holds each plan price's amount. */
+const PLAN_PRICE_RULE = {
+  ws_monthly: 'workspaceMonthlyCents',
+  ws_yearly: 'workspaceYearlyCents',
+  partner_monthly: 'partnerMonthlyCents',
+  partner_yearly: 'partnerYearlyCents',
+} as const satisfies Record<(typeof PLAN_PRICES)[number]['lookupKey'], keyof BillingRules>
+
+/**
+ * The plan prices in effect on this install: `PLAN_PRICES` with the amounts of the install's rules. A changed amount
+ * applies to new Checkouts; a running subscription keeps the Stripe price it was started on (docs/billing.md §7b).
+ */
+export const planPrices = (rules: BillingRules = BILLING_DEFAULTS): PlanPrice[] =>
+  PLAN_PRICES.map(p => ({ ...p, cents: rules[PLAN_PRICE_RULE[p.lookupKey]] }))
+
+/** The price in effect for a lookup key (`ws_monthly`, …), or null for one that is not a plan price. */
+export const planPrice = (lookupKey: string, rules: BillingRules = BILLING_DEFAULTS): PlanPrice | null =>
+  planPrices(rules).find(p => p.lookupKey === lookupKey) ?? null
 
 /** The default included allowance: 50 Standard minutes, in Standard seconds. */
 export const INCLUDED_STANDARD_SECONDS = BILLING_DEFAULTS.includedStandardSeconds

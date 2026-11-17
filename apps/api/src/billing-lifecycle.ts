@@ -14,6 +14,7 @@
 //   and lifts the suspension when nothing else holds it. `radar.early_fraud_warning.created` suspends (reason
 //   `fraud_warning`). The instance admins are emailed each time.
 // - `customer.subscription.deleted` (canceled in the Dashboard, or by our day-30 job): the bill is `canceled`.
+// - `customer.subscription.updated`: `cancel_at_period_end` mirrored from the subscription fetched now (review of #1007).
 //
 // Runs only while billing is in effect. Every write is under the bill's lock order (ledger.ts: the balance row first).
 import type { BillingChargeSource, BillingDispute, BillingProvider, BillingSubscription } from '@linedesk/billing'
@@ -800,6 +801,37 @@ async function subscriptionDeleted(provider: BillingProvider, objectId: string, 
 }
 
 /**
+ * `customer.subscription.updated`: the bill mirrors whether its own subscription is set to cancel at the period end
+ * (security review of #1007, M-2). Cancel and "Keep my plan" happen in the app (the portal has no cancel), but Stripe's
+ * Dashboard, and the portal's "Renew" on a subscription set to cancel, change it behind the app: the page must never
+ * say "nothing more is charged" while Stripe renews. Fetched now, never the event's copy; a canceled bill is left alone.
+ */
+async function subscriptionUpdated(provider: BillingProvider, objectId: string, now: string): Promise<EventOutcome> {
+  const [bill] = await db.select().from(billing_accounts).where(eq(billing_accounts.stripe_subscription_id, objectId))
+  if (!bill) return { outcome: 'unknown' }
+  const subscription = await provider.subscription(objectId)
+  if (!subscription || subscription.status === 'canceled' || subscription.status === 'incomplete_expired')
+    return { outcome: 'applied', bill: bill.id }
+  const changed = await db.transaction(async tx => {
+    const current = await lockBill(tx, bill.id)
+    if (!current || current.status === 'canceled' || current.stripe_subscription_id !== objectId) return false
+    if (current.cancel_at_period_end === subscription.cancelAtPeriodEnd) return false
+    await tx
+      .update(billing_accounts)
+      .set({ cancel_at_period_end: subscription.cancelAtPeriodEnd, updated_at: now })
+      .where(eq(billing_accounts.id, current.id))
+    return true
+  })
+  return changed
+    ? {
+        outcome: 'lifecycle',
+        bill: bill.id,
+        change: subscription.cancelAtPeriodEnd ? 'cancel_at_period_end' : 'renews',
+      }
+    : { outcome: 'applied', bill: bill.id }
+}
+
+/**
  * One lifecycle event, from its job (stripe-events.ts): the object is fetched from Stripe first and the bill found
  * through ids we stored. `unknown`: no bill has it (the caller retries a young event).
  */
@@ -810,6 +842,8 @@ export async function lifecycleEvent(event: StoredEvent, objectId: string | null
   switch (event.type) {
     case 'customer.subscription.deleted':
       return subscriptionDeleted(provider, objectId, now)
+    case 'customer.subscription.updated':
+      return subscriptionUpdated(provider, objectId, now)
     case 'charge.dispute.created':
       return disputeCreated(provider, objectId, now)
     case 'charge.dispute.closed':

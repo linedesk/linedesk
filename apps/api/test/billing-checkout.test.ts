@@ -14,6 +14,7 @@ import {
   billing_periods,
   billing_recharges,
   card_fingerprints,
+  instance_settings,
   ledger_entries,
   organization,
   phone_numbers,
@@ -23,11 +24,15 @@ import {
 } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import { BILLING_CATALOG_KEY } from '../src/billing-catalog.ts'
 import {
   billingNumberRefusal,
+  CHECKOUT_STARTS_PER_MINUTE,
+  CHECKOUT_TOO_OFTEN,
   CHECKOUT_UNAVAILABLE,
   NUMBER_HELD_FOR_REVIEW,
   NUMBER_NEEDS_CHECKOUT,
+  resetCheckoutLimit,
   TRIAL_NUMBER_LIMIT,
 } from '../src/billing-checkout.ts'
 import { sendBillingAlert } from '../src/billing-recharge.ts'
@@ -62,6 +67,11 @@ const stripe = {
   configuration: 'pmc_own' as string | number | null,
   /** The customers deleted (the sign-up sweep, G2). */
   deletedCustomers: [] as string[],
+  /** The install's catalog as the app made it in the account (products by id, prices in order). */
+  products: new Map<string, Json>(),
+  prices: [] as Json[],
+  /** false: the key may only read Products and Prices (every write to them is a 403, review of #1040 M-1). */
+  catalogWritable: true,
   /** Every request: method, path and the form body. */
   requests: [] as { method: string; path: string; body: URLSearchParams; idempotencyKey: string | null }[],
 }
@@ -102,15 +112,48 @@ const fakeStripe: typeof fetch = async (input, init) => {
     stripe.deletedCustomers.push(id)
     return reply(200, { id, object: 'customer', deleted: true })
   }
-  if (kind === 'prices') {
+  if ((kind === 'products' || kind === 'prices') && method === 'POST' && !stripe.catalogWritable)
+    return reply(403, {
+      error: { type: 'invalid_request_error', code: 'secret_key_required', message: 'restricted key lacks write' },
+    })
+  if (kind === 'products' && id && method === 'GET')
+    return stripe.products.get(id) ? reply(200, stripe.products.get(id)) : notFound()
+  if (kind === 'products' && method === 'POST') {
+    const productId = id ?? body.get('id')!
+    const product = { ...(stripe.products.get(productId) ?? { id: productId, object: 'product', active: true }) }
+    if (body.has('name')) product.name = body.get('name')
+    stripe.products.set(productId, product)
+    return reply(200, product)
+  }
+  if (kind === 'prices' && method === 'GET') {
     const keys = [...url.searchParams.entries()].filter(([k]) => k.startsWith('lookup_keys')).map(([, v]) => v)
     return reply(
       200,
       list(
-        keys.map(k => ({ id: `price_${k}`, object: 'price', lookup_key: k, active: true })),
+        stripe.prices.filter(p => keys.includes(p.lookup_key as string)),
         url.pathname,
       ),
     )
+  }
+  if (kind === 'prices' && method === 'POST') {
+    const lookupKey = body.get('lookup_key')!
+    for (const p of stripe.prices) if (p.lookup_key === lookupKey) p.lookup_key = null
+    // The first price of a lookup key is `price_<key>`; a later one (a changed amount) names its amount too.
+    const first = !stripe.prices.some(p => p.id === `price_${lookupKey}`)
+    const price = {
+      id: first ? `price_${lookupKey}` : `price_${lookupKey}_${body.get('unit_amount')}`,
+      object: 'price',
+      active: true,
+      lookup_key: lookupKey,
+      unit_amount: Number(body.get('unit_amount')),
+      currency: body.get('currency'),
+      tax_behavior: body.get('tax_behavior'),
+      product: body.get('product'),
+      recurring: { interval: body.get('recurring[interval]'), interval_count: 1, usage_type: 'licensed' },
+      metadata: { linedesk: lookupKey },
+    }
+    stripe.prices.push(price)
+    return reply(200, price)
   }
   if (kind === 'checkout' && id === 'sessions' && !sub && method === 'POST') {
     const session = {
@@ -206,6 +249,7 @@ function subscription(customer: string, over: { status?: string; card?: Json; in
           price: {
             id: 'price_ws',
             object: 'price',
+            product: 'linedesk_workspace',
             lookup_key: over.interval === 'year' ? 'ws_yearly' : 'ws_monthly',
             recurring: { interval: over.interval ?? 'month' },
           },
@@ -300,6 +344,8 @@ beforeEach(() => {
   mails.length = 0
   stripe.requests.length = 0
   stripe.configuration = 'pmc_own'
+  stripe.catalogWritable = true
+  resetCheckoutLimit()
 })
 afterAll(() => setBillingFetch(null))
 
@@ -570,6 +616,21 @@ describe('billing.cancel and billing.resume (docs/billing.md §3.2 step 10)', ()
 
   test('a bill without a running plan cannot cancel', async () => {
     const { owner } = await pendingSignUp()
+    expect((await act(owner, 'billing.cancel', {})).status).toBe(409)
+  })
+
+  test('a suspended plan can be canceled in the app, the one place to cancel (security review of #1007, L-5)', async () => {
+    const { bill, sub, owner } = await trialWith(rid('fp'))
+    await db
+      .update(billing_accounts)
+      .set({ status: 'suspended', suspend_reason: 'payment' })
+      .where(eq(billing_accounts.id, bill.id))
+    expect((await act(owner, 'billing.cancel', {})).body.data).toMatchObject({ cancelAtPeriodEnd: true })
+    const update = stripe.requests.find(r => r.method === 'POST' && r.path === `/v1/subscriptions/${sub.id}`)
+    expect(update?.body.get('cancel_at_period_end')).toBe('true')
+    expect(await billRow(bill.id)).toMatchObject({ status: 'suspended', cancel_at_period_end: true })
+    // Canceled for good: nothing to cancel any more.
+    await db.update(billing_accounts).set({ status: 'canceled' }).where(eq(billing_accounts.id, bill.id))
     expect((await act(owner, 'billing.cancel', {})).status).toBe(409)
   })
 })
@@ -1119,5 +1180,152 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
     const object = { id: invoiceId, object: 'invoice', customer: sub.customer }
     expect(await processEvent('invoice.created', object)).toMatchObject({ detail: 'no_recharge' })
     expect(stripe.requests.filter(r => r.path === '/v1/invoiceitems')).toEqual([])
+  })
+})
+
+// Last in the file: it moves the plan price's lookup key in the fake account to a new price.
+describe("the install's own prices, trial and name (docs/billing.md §7b)", () => {
+  const reason = 'our own prices'
+  afterAll(async () => {
+    await act(operator, 'billingRules.set', { rules: { workspaceMonthlyCents: null, trialDays: null }, reason })
+    await act(operator, 'branding.set', { name: 'Linedesk', color: null, starPrompt: true })
+  })
+
+  test('Checkout sells what Server admin › Billing set, named after the install, in its own Stripe account', async () => {
+    const rules = await act(operator, 'billingRules.set', {
+      rules: { workspaceMonthlyCents: 900, trialDays: 7 },
+      reason,
+    })
+    expect(rules.status).toBe(200)
+    expect(rules.body.data.effective).toMatchObject({ workspaceMonthlyCents: 900, trialDays: 7 })
+    expect((await act(operator, 'branding.set', { name: 'Front Desk', color: null, starPrompt: true })).status).toBe(
+      200,
+    )
+    const { owner } = await pendingSignUp()
+    const made = Object.fromEntries((await startCheckout(owner)).body)
+    expect(made).toMatchObject({
+      'subscription_data[trial_period_days]': '7',
+      'line_items[0][price]': 'price_ws_monthly_900',
+    })
+    expect(made['custom_text[submit][message]']).toMatch(/^Your 7-day free trial starts today\./)
+    // The price was made in the account with the lookup key taken over; the seat product carries the install's name.
+    const price = stripe.requests.find(r => r.method === 'POST' && r.path === '/v1/prices')!
+    expect(Object.fromEntries(price.body)).toMatchObject({
+      unit_amount: '900',
+      currency: 'usd',
+      lookup_key: 'ws_monthly',
+      transfer_lookup_key: 'true',
+      product: 'linedesk_workspace',
+      'metadata[linedesk]': 'ws_monthly',
+    })
+    expect(stripe.products.get('linedesk_workspace')).toMatchObject({ name: 'Front Desk workspace' })
+    // The old price stays for the subscriptions on it, still known as a seat by its metadata.
+    expect(stripe.prices.find(p => p.id === 'price_ws_monthly')).toMatchObject({ active: true, lookup_key: null })
+  })
+
+  test('Buy minutes names the install too; out-of-range prices and trials are refused whole', async () => {
+    const { owner } = await trialWith(`fp_own_${Date.now()}`)
+    const res = await act(owner, 'billing.startTopUp', { amountCents: 2500 })
+    expect(res.status).toBe(200)
+    const topup = stripe.requests.filter(r => r.method === 'POST' && r.path === '/v1/checkout/sessions').at(-1)!
+    expect(topup.body.get('custom_text[submit][message]')).toBe('Prepaid call minutes for your Front Desk balance.')
+    expect(topup.body.get('line_items[0][price_data][product]')).toBe('linedesk_balance_topup')
+    for (const rules of [
+      { workspaceMonthlyCents: 10 },
+      { trialDays: 0 },
+      { trialDays: 91 },
+      { partnerYearlyCents: 'x' },
+    ])
+      expect((await act(operator, 'billingRules.set', { rules, reason })).status, JSON.stringify(rules)).toBe(409)
+    expect((await act(operator, 'billingRules.get', {})).body.data.effective).toMatchObject({
+      workspaceMonthlyCents: 900,
+      trialDays: 7,
+    })
+  })
+})
+
+// After the install's own prices: the catalog is synced on an admin's save, never at a customer's Checkout.
+describe('the catalog sync and Checkout (security review of #1040)', () => {
+  const reason = 'catalog sync review'
+  const syncAlerts = () => mails.filter(m => /Stripe products and prices on .* could not be updated/.test(m.subject))
+  const pricesWritten = () =>
+    stripe.requests.filter(r => r.method === 'POST' && /^\/v1\/(prices|products)/.test(r.path))
+  afterAll(async () => {
+    stripe.catalogWritable = true
+    await act(operator, 'billingRules.set', { rules: { workspaceMonthlyCents: null }, reason })
+  })
+
+  test('turning billing on synced the catalog: Checkout sells the stored price ids and writes nothing in Stripe (M-1)', async () => {
+    const [row] = await db.select().from(instance_settings).where(eq(instance_settings.key, BILLING_CATALOG_KEY))
+    expect(JSON.parse(row!.value)).toMatchObject({
+      account: 'acct_1Brightwater:test',
+      prices: { ws_monthly: expect.any(String) },
+    })
+    const { owner } = await pendingSignUp()
+    stripe.requests.length = 0
+    await startCheckout(owner)
+    expect(pricesWritten()).toEqual([])
+    expect(stripe.requests.some(r => r.path.startsWith('/v1/prices') || r.path.startsWith('/v1/products'))).toBe(false)
+  })
+
+  test('a key that may not write Products and Prices: the save stands, the admins hear at once, Checkout and Buy minutes go on (M-1)', async () => {
+    const { owner } = await trialWith(`fp_sync_${Date.now()}`)
+    const before = JSON.parse(
+      (await db.select().from(instance_settings).where(eq(instance_settings.key, BILLING_CATALOG_KEY)))[0]!.value,
+    )
+    stripe.catalogWritable = false
+    const saved = await act(operator, 'billingRules.set', { rules: { workspaceMonthlyCents: 1300 }, reason })
+    expect(saved.status).toBe(200)
+    await vi.waitFor(() => expect(syncAlerts()).toHaveLength(1))
+    expect(syncAlerts()[0]!.text).toMatch(/keep selling the prices of the last update that worked/)
+    // The last sync that worked is kept.
+    const after = JSON.parse(
+      (await db.select().from(instance_settings).where(eq(instance_settings.key, BILLING_CATALOG_KEY)))[0]!.value,
+    )
+    expect(after.prices).toEqual(before.prices)
+    // A new sign-up gets the last synced price; Buy minutes needs only its own product.
+    const signUp = await pendingSignUp()
+    stripe.requests.length = 0
+    const made = await startCheckout(signUp.owner)
+    expect(made.body.get('line_items[0][price]')).toBe(before.prices.ws_monthly)
+    expect((await act(owner, 'billing.startTopUp', { amountCents: 2500 })).status).toBe(200)
+    expect(pricesWritten()).toEqual([])
+  })
+
+  test('never synced for this account and Stripe refuses: no Checkout, the admins are told; once it can, Checkout syncs (M-1)', async () => {
+    await db.delete(instance_settings).where(eq(instance_settings.key, BILLING_CATALOG_KEY))
+    stripe.catalogWritable = false
+    const { owner } = await pendingSignUp()
+    const refused = await act(owner, 'billing.startCheckout', {})
+    expect(refused).toMatchObject({ status: 409, body: { error: sayIn(CHECKOUT_UNAVAILABLE) } })
+    await vi.waitFor(() => expect(mails.some(m => /Checkout on .* could not start/.test(m.subject))).toBe(true))
+    expect(syncAlerts()[0]!.text).toMatch(/nobody can start a trial or a plan/)
+    stripe.catalogWritable = true
+    const made = await startCheckout(owner)
+    expect(made.body.get('line_items[0][price]')).toBe('price_ws_monthly_1300')
+  })
+
+  test('a Checkout whose subscription is on another product is not a Linedesk plan, whatever its lookup key (L-1)', async () => {
+    const { bill, owner } = await pendingSignUp()
+    await startCheckout(owner)
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const sub = subscription((await billRow(bill.id)).stripe_customer_id!)
+    const items = (sub.items as { data: { price: Json }[] }).data
+    items[0]!.price.product = 'prod_OtherIntegration'
+    complete(sessionId, sub)
+    const res = await act(owner, 'billing.confirmCheckout', { sessionId })
+    expect(res.status).toBe(409)
+    expect(await billRow(bill.id)).toMatchObject({ status: 'pending_payment', stripe_subscription_id: null })
+  })
+
+  test('at most a few Checkout starts a minute per bill (L-3)', async () => {
+    const { owner } = await pendingSignUp()
+    for (let i = 0; i < CHECKOUT_STARTS_PER_MINUTE; i++) await startCheckout(owner)
+    const made = checkoutsMade().length
+    expect(await act(owner, 'billing.startCheckout', {})).toMatchObject({
+      status: 409,
+      body: { error: sayIn(CHECKOUT_TOO_OFTEN) },
+    })
+    expect(checkoutsMade()).toHaveLength(made)
   })
 })

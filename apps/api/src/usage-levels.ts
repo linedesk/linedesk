@@ -20,7 +20,6 @@ import {
   realtimeModelFor,
   realtimeModelLevel,
   type SpeakingVoice,
-  USAGE_CENTS_PER_MINUTE,
   type UsageLevel,
   type UsageLevelInput,
   type UsageLevelOptions,
@@ -35,6 +34,7 @@ import { assistants, type PaidLevel, type Tx, workspace_settings } from '@linede
 import type { Assistant } from '@linedesk/db/types'
 import { and, eq, inArray, or } from 'drizzle-orm'
 import { lockAssistantVersionsOf, recordVersion } from './assistant-versions.ts'
+import { billingRules } from './billing-rules.ts'
 import { billingState } from './billing-settings.ts'
 import { brandName } from './branding.ts'
 import type { Actor } from './context.ts'
@@ -542,6 +542,16 @@ export function refuseBillingActor(actor: Actor) {
     throw new Forbidden('only the owner, signed in to the app, can change this')
 }
 
+/** The install's price of a call minute per level, in US cents (Server admin › Billing; the defaults otherwise). */
+export async function levelCentsPerMinute(tx: Pick<Tx, 'select'>) {
+  const { levels } = await billingRules(tx)
+  return {
+    standard: levels.standard.microsPerMinute / 10_000,
+    premium: levels.premium.microsPerMinute / 10_000,
+    ultra: levels.ultra.microsPerMinute / 10_000,
+  }
+}
+
 /** What the assistant editor shows of levels (voice.options `levels`). */
 export async function levelOptions(tx: Tx, workspaceId: string): Promise<UsageLevelOptions> {
   const billed = await usageLevelsBilled(tx)
@@ -565,12 +575,13 @@ export async function levelOptions(tx: Tx, workspaceId: string): Promise<UsageLe
   const defaultModelId = llmProvider ? installLanguageModel(llmProvider, llm?.config.model?.value, billed) : null
   const realtime = await activeProvider(tx, 'realtime').catch(() => null)
   const defaultRealtimeId = realtime ? installRealtimeModel(realtime.config.model?.value) : null
+  const cents = await levelCentsPerMinute(tx)
   return {
     ...flags,
     realtimeAllowed: levelAllowed('ultra', flags),
-    standardCentsPerMinute: USAGE_CENTS_PER_MINUTE.standard,
-    premiumCentsPerMinute: USAGE_CENTS_PER_MINUTE.premium,
-    ultraCentsPerMinute: USAGE_CENTS_PER_MINUTE.ultra,
+    standardCentsPerMinute: cents.standard,
+    premiumCentsPerMinute: cents.premium,
+    ultraCentsPerMinute: cents.ultra,
     realtimeModels: realtime ? REALTIME_MODEL_LEVELS.map(m => choice(m.model, m.name, m.level)) : [],
     defaultRealtimeModel: defaultRealtimeId
       ? { id: defaultRealtimeId, level: realtimeModelLevel(defaultRealtimeId) }

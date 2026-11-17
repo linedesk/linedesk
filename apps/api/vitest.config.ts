@@ -79,6 +79,8 @@ const INSTANCE_WIDE_FILES = [
   'test/call-billing.test.ts',
   // Server admin › Billing: instance admins, the billing rules and self-serve settings, Stripe keys (PR 13).
   'test/billing-admin.test.ts',
+  // The billing switch (Settings › Billing, PR 9).
+  'test/billing-page.test.ts',
   // Opens self-serve sign-up and sets its rules and the Turnstile keys (instance_settings, provider_settings).
   'test/self-serve.test.ts',
   // Re-encrypts every stored secret of the install (rolled back, but it reads them all).

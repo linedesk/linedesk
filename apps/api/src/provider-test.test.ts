@@ -530,16 +530,50 @@ describe('billing: Stripe', () => {
   const keys = (secret_key: string) => config({ secret_key, webhook_secret: 'whsec_MadeUp0123' })
   const account = { id: 'acct_1Made', object: 'account', country: 'US', default_currency: 'usd' }
 
-  test('reads the account once: mode, country and currency, never the key', async () => {
-    const fake = provider({ 'GET api.stripe.com/v1/account': [200, account] })
+  const missing = [404, { error: { type: 'invalid_request_error', code: 'resource_missing' } }] as const
+  const noWrite = [403, { error: { type: 'invalid_request_error', message: 'restricted key lacks write' } }] as const
+
+  test('reads the account once: mode, country and currency, never the key; probes the catalog writes', async () => {
+    const fake = provider({
+      'GET api.stripe.com/v1/account': [200, account],
+      'POST /v1/products/': [...missing],
+      'POST /v1/prices/': [...missing],
+    })
     const result = await testProvider('stripe', keys(TEST_KEY), fake.doFetch, {})
     expect(result).toEqual({
       ok: true,
       status: 'ok',
       message: 'Connected, test mode (US, USD), account acct_1Made: nothing is charged',
     })
-    expect(fake.calls).toEqual(['GET https://api.stripe.com/v1/account'])
+    // Empty updates of ids no object has: a 404 with the permission, a 403 without; nothing is ever written.
+    expect(fake.calls).toEqual([
+      'GET https://api.stripe.com/v1/account',
+      'POST https://api.stripe.com/v1/products/linedesk_permission_probe',
+      'POST https://api.stripe.com/v1/prices/price_linedesk_permission_probe',
+    ])
     expect(JSON.stringify(result)).not.toContain(TEST_KEY)
+  })
+
+  test('a key that may not write Products or Prices is a warning naming them (review of #1040, M-1)', async () => {
+    const fake = provider({
+      'GET api.stripe.com/v1/account': [200, account],
+      'POST /v1/products/': [...noWrite],
+      'POST /v1/prices/': [...missing],
+    })
+    expect(await testProvider('stripe', keys(TEST_KEY), fake.doFetch, {})).toMatchObject({
+      ok: true,
+      status: 'warning',
+      reason: 'permission',
+      message: expect.stringMatching(/account acct_1Made, but the key cannot write Products\. .*"Write" on Products/),
+    })
+    const neither = provider({
+      'GET api.stripe.com/v1/account': [200, account],
+      'POST /v1/products/': [...noWrite],
+      'POST /v1/prices/': [...noWrite],
+    })
+    expect((await testProvider('stripe', keys(TEST_KEY), neither.doFetch, {})).message).toMatch(
+      /cannot write Products and Prices\./,
+    )
   })
 
   test('a live key says real cards are charged', async () => {

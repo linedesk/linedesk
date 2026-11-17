@@ -945,7 +945,7 @@
   "provider.group.apps.label": "Verbundene Apps",
   "provider.group.apps.why": "Apps, die ein Unternehmen unter Integrationen verbindet, etwa HubSpot: Jeder beendete Anruf landet dort beim Datensatz des Anrufers. Jede App braucht hier ihre eigene OAuth-App.",
   "provider.group.billing.label": "Abrechnung",
-  "provider.group.billing.why": "Nur Linedesk Cloud: Rechnungen, Testphasen und Anrufminuten über Stripe sowie die Bot-Prüfung auf der Registrierungsseite. Aus, bis Stripe verbunden und die Abrechnung eingeschaltet ist; eine selbst gehostete Installation stellt niemandem etwas in Rechnung.",
+  "provider.group.billing.why": "Rechne die Workspaces auf diesem Server mit deinem eigenen Stripe-Konto ab: Pläne, Testphasen und Anrufminuten, dazu die Bot-Prüfung auf der Registrierungsseite. Aus, bis Stripe verbunden und die Abrechnung eingeschaltet ist.",
   "provider.group.business.label": "Unternehmenssuche",
   "provider.group.business.why": "Findet ein Unternehmen beim Onboarding über Name und Stadt und füllt seine Angaben aus.",
   "provider.group.calendar.label": "Kalender",

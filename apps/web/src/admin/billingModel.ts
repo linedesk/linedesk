@@ -9,6 +9,8 @@ export const MAX_ACTION_CENTS = 10_000_000
 
 export const usdOfCents = (cents: number) => formatUsd(cents / 100)
 export const usdOfMicros = (micros: number) => formatUsd(micros / 1_000_000)
+/** A price a minute (in micros): 2 to 4 decimals, so a sub-cent price never rounds ($0.05, $0.0085). */
+export const rateOfMicros = (micros: number) => i18n().format.rate(micros / 1_000_000, 'USD')
 
 /**
  * A dollar amount typed by the admin ("20", "$1,250.50", "-5" where `negative` allows it) in whole cents. Empty, zero,
@@ -61,6 +63,11 @@ export const reasonProblem = (reason: string): string | null =>
 type Unit = 'seconds' | 'count' | 'cents' | 'micros'
 /** The rule fields the editor shows besides the levels, with the unit each is stored in. */
 export const RULE_FIELDS = [
+  ['workspaceMonthlyCents', 'cents'],
+  ['workspaceYearlyCents', 'cents'],
+  ['partnerMonthlyCents', 'cents'],
+  ['partnerYearlyCents', 'cents'],
+  ['trialDays', 'count'],
   ['includedStandardSeconds', 'seconds'],
   ['balanceBufferMicros', 'micros'],
   ['trialConcurrentCalls', 'count'],
@@ -98,10 +105,21 @@ const stored = (text: string, unit: Unit): number | null => {
   return Number.isInteger(Math.round(out * 1e6) / 1e6) ? Math.round(out) : null
 }
 
+/** Under a plan fee in the rules editor: the server's floor (a yearly fee: 12 times it, and at most 12 monthly fees). */
+export function planFloorText(field: string, minPlanCents: number): string | undefined {
+  const { t } = i18n()
+  if (field === 'workspaceMonthlyCents' || field === 'partnerMonthlyCents')
+    return t('admin.bills.rules.minPrice', { amount: usdOfCents(minPlanCents) })
+  if (field === 'workspaceYearlyCents' || field === 'partnerYearlyCents')
+    return t('admin.bills.rules.minYearly', { amount: usdOfCents(12 * minPlanCents) })
+  return undefined
+}
+
 /**
- * The rules to store from the form: only what differs from the defaults, so a field left at its default follows a
- * later change of the default. A changed level is stored whole. `problems`: the fields that are not a number in their
- * unit (the server checks the ranges and the minimum price).
+ * The rules to store from the form: what differs from the defaults, and null for a field at its default, so it follows
+ * a later change of the default (the server merges over the stored rules, and null resets a field). Every field is
+ * sent. A changed level is stored whole. `problems`: the fields that are not a number in their unit (the server checks
+ * the ranges and the minimum prices).
  */
 export function rulesFromForm(
   form: RulesForm,
@@ -112,9 +130,9 @@ export function rulesFromForm(
   for (const [field, unit] of RULE_FIELDS) {
     const value = stored(form[field] ?? '', unit)
     if (value === null) problems.push(field)
-    else if (value !== defaults[field]) rules[field] = value
+    else rules[field] = value !== defaults[field] ? value : null
   }
-  const levels: Record<string, { microsPerMinute: number; allowanceFactor: number | null }> = {}
+  const levels: Record<string, { microsPerMinute: number; allowanceFactor: number | null } | null> = {}
   for (const [name, fallback] of Object.entries(defaults.levels)) {
     const price = stored(form[`levels.${name}.price`] ?? '', 'micros')
     const factorText = (form[`levels.${name}.factor`] ?? '').trim()
@@ -122,8 +140,10 @@ export function rulesFromForm(
     if (price === null) problems.push(`levels.${name}.price`)
     if (factorText && factor === null) problems.push(`levels.${name}.factor`)
     if (price === null || (factorText && factor === null)) continue
-    if (price !== fallback.microsPerMinute || factor !== fallback.allowanceFactor)
-      levels[name] = { microsPerMinute: price, allowanceFactor: factor }
+    levels[name] =
+      price !== fallback.microsPerMinute || factor !== fallback.allowanceFactor
+        ? { microsPerMinute: price, allowanceFactor: factor }
+        : null
   }
   if (Object.keys(levels).length) rules.levels = levels
   return problems.length ? { problems } : { rules, problems: [] }

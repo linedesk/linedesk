@@ -1,4 +1,4 @@
-// Billing for Linedesk Cloud (docs/billing.md). The instance switch: billing runs only when Stripe is connected under
+// Billing of an install's workspaces through its own Stripe account (docs/billing.md). The instance switch: billing runs only when Stripe is connected under
 // Server admin › Providers › Billing and an instance admin turned it on here. Off by default, so a self-hosted install
 // never bills anyone, even with keys stored.
 import { z } from 'zod'
@@ -95,7 +95,7 @@ export type BillingEnabledData = {
 export const billingState = defineAction({
   name: 'billing.state',
   description:
-    "The workspace's bill as its owner sees it in the banner: status (active, past_due, suspended, canceled, …), why it is suspended, when it is suspended or canceled if the plan fee stays unpaid, when the numbers are released and until when the data can be exported after a cancellation, and the extra numbers whose month is unpaid. Only the bill owner; null for anyone else.",
+    "The workspace's bill as its owner sees it in the banner: status (active, past_due, suspended, canceled, …), why it is suspended, when it is suspended or canceled if the plan fee stays unpaid, when the numbers are released and until when the data can be exported after a cancellation, the extra numbers whose month is unpaid, whether a failed recharge waits for the owner to confirm the payment, and a low balance that no recharge will lift. Only the bill owner; null for anyone else.",
   input: z.object({}),
   permission: 'billing:manage',
   readOnly: true,
@@ -112,6 +112,13 @@ export type BillingStateBill = {
   numbersReleaseAt: string | null
   dataUntil: string | null
   rechargeFailed: boolean
+  /** The failed recharge waits for the owner to confirm the payment on its invoice page (3D Secure). */
+  rechargeNeedsAction: boolean
+  /**
+   * In the trial or paid, the balance is below the auto-recharge threshold and nothing lifts it: auto-recharge is off
+   * (`auto_recharge_off`), or this month's cap leaves less than one recharge (`cap_reached`). Null otherwise.
+   */
+  lowBalance: 'auto_recharge_off' | 'cap_reached' | null
   unpaidNumbers: { e164: string; releaseAt: string }[]
 }
 

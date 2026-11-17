@@ -70,7 +70,7 @@ export const billingRulesGet = defineAction({
 
 export const signupGetSelfServe = defineAction({
   name: 'signup.getSelfServe',
-  description: 'Whether anyone may sign up and start a trial on their own (Linedesk Cloud; needs billing in effect).',
+  description: 'Whether anyone may sign up and start a trial on their own (needs billing in effect).',
   input: z.object({}),
   permission: 'instance:admin',
   readOnly: true,
@@ -170,7 +170,7 @@ export const billingReviewHold = defineAction({
 export const billingRulesSet = defineAction({
   name: 'billingRules.set',
   description:
-    "Set the install's billing rules (docs/billing.md §7a). Every field is checked; anything out of range refuses the whole change. Fields left out keep the defaults. Every instance admin is emailed.",
+    "Set the install's billing rules (docs/billing.md §7a). Every field is checked; anything out of range refuses the whole change. Merged over the stored rules: a field left out keeps its value, a field set to null goes back to its default (a level too, inside levels). Plan prices have a floor (the server's BILLING_MIN_PLAN_CENTS, else the included minutes at the Standard price; yearly 12 times it) and a yearly price is at most 12 monthly ones. Every instance admin is emailed.",
   input: z.object({ rules: z.record(z.string(), z.unknown()), reason }),
   permission: 'instance:admin',
 })
@@ -312,6 +312,11 @@ export type BillingRulesData = {
   problems: string[]
   /** The lowest price per minute this server allows for a level (BILLING_MIN_MICROS_PER_MINUTE); 0 without one. */
   minMicrosPerMinute: number
+  /** The lowest monthly plan fee for the rules in effect (BILLING_MIN_PLAN_CENTS); a yearly fee is at least 12 times it. */
+  minPlanCents: number
 }
+
+/** billingRules.set's refusal code when a plan fee is below the floor or a yearly fee above 12 monthly ones. */
+export const PLAN_PRICE_FLOOR = 'plan_price_floor'
 
 export type SelfServeData = { on: boolean; billingInEffect: boolean }

@@ -1,4 +1,4 @@
-// Trial Checkout on Linedesk Cloud (docs/billing.md §3.2, §2.2; billing PR 8). Only the owner of the bill runs these,
+// Trial Checkout on an install that bills its workspaces (docs/billing.md §3.2, §2.2; billing PR 8). Only the owner of the bill runs these,
 // signed in to the app (no API key, no impersonation): they start payments and change what the bill pays.
 import { z } from 'zod'
 import { defineAction } from './define.ts'

@@ -1,4 +1,4 @@
-// Trial Checkout on Linedesk Cloud (docs/billing.md §3.2, §2.2, §2.4; billing PR 8): the owner of a bill waiting in
+// Trial Checkout on an install that bills its workspaces (docs/billing.md §3.2, §2.2, §2.4; billing PR 8): the owner of a bill waiting in
 // `pending_payment` starts a Stripe Checkout (`billing.startCheckout`), comes back to /billing/return and the app
 // confirms it (`billing.confirmCheckout`). Also "Buy minutes" (`billing.startTopUp`), cancel and resume.
 //
@@ -27,7 +27,6 @@ import {
   billing_recharges,
   card_fingerprints,
   organization,
-  PLAN_PRICES,
   phone_numbers,
   type Tx,
   usage_counters,
@@ -35,12 +34,15 @@ import {
 } from '@linedesk/db'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { alertInstanceAdmins } from './admin-alerts.ts'
-import { billingRules } from './billing-rules.ts'
+import { pricesForCheckout } from './billing-catalog.ts'
+import { billingRules, isLinedeskPlan, planCatalog, rechargeLine } from './billing-rules.ts'
+import { brandName } from './branding.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { checkoutExtraAlert, checkoutRefusedAlert, checkoutSetupAlert } from './emails/billing-alerts.ts'
-import { WEB_ORIGIN } from './emails/templates.ts'
+import { BILLING_PATH } from './emails/billing-lifecycle.ts'
+import { appLink, WEB_ORIGIN } from './emails/templates.ts'
 import { queueBillingAlert } from './jobs.ts'
 import {
   Forbidden,
@@ -55,11 +57,10 @@ import {
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { lockBalance, periodAt, periodForMoney, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
+import { createRateLimiter } from './rate-limit.ts'
 import { signupRules } from './self-serve.ts'
 import { refuseBillingActor } from './usage-levels.ts'
 
-/** The free trial's length (docs/billing.md §3.2 step 3). */
-export const TRIAL_DAYS = 14
 /**
  * How long a Checkout Session can be completed (Stripe allows 30 minutes to 24 hours): well under a day, so the sign-up
  * sweep never deletes a bill while one of its sessions is still open (security review of #961, G1 and G2).
@@ -69,10 +70,19 @@ const checkoutExpiresAt = () => Math.floor(Date.now() / 1000) + CHECKOUT_EXPIRES
 /** "Buy minutes": the amounts the server allows, in cents before tax (docs/billing.md §2.2, L5). */
 export const TOPUP_LIMITS = { minCents: 500, maxCents: 50_000 } as const
 
-/** What Checkout shows above its button, as Stripe shows it: in the language of the owner who starts it. */
-export function checkoutText(kind: 'trial' | 'plan' | 'topup', reader: Reader): string {
-  if (kind === 'trial') return reader.t('server.api.checkout.text.trial', { days: TRIAL_DAYS })
-  return kind === 'plan' ? reader.t('server.api.checkout.text.plan') : reader.t('server.api.checkout.text.topup')
+/**
+ * What Checkout shows above its button, as Stripe shows it: in the language of the owner who starts it, with the
+ * install's product name and trial length (Server admin › Branding and › Billing).
+ */
+export function checkoutText(
+  kind: 'trial' | 'plan' | 'topup',
+  reader: Reader,
+  { brand, trialDays }: { brand: string; trialDays: number },
+): string {
+  if (kind === 'trial') return reader.t('server.api.checkout.text.trial', { days: trialDays })
+  return kind === 'plan'
+    ? reader.t('server.api.checkout.text.plan')
+    : reader.t('server.api.checkout.text.topup', { brand })
 }
 
 export const BILLING_OFF: Said = { key: msg('server.api.checkout.billingOff') }
@@ -86,7 +96,7 @@ type Bill = typeof billing_accounts.$inferSelect
 // ---- Whose bill ----------------------------------------------------------------------------------------------
 
 /** The bill of the actor's workspace, owned by the actor; billing must be in effect. Locked when asked. */
-async function ownBill(tx: Tx, actor: Actor, { lock = false } = {}): Promise<Bill> {
+export async function ownBill(tx: Tx, actor: Actor, { lock = false } = {}): Promise<Bill> {
   refuseBillingActor(actor)
   if ((await billingState(tx)).inEffect !== 'stripe') throw new Reject(BILLING_OFF)
   if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
@@ -114,13 +124,24 @@ async function planItems(tx: Tx, bill: Bill) {
   return [{ lookupKey, quantity: Math.max(1, row?.n ?? 1) }]
 }
 
-/** Every plan lookup key a Linedesk subscription may have (the public prices). */
-const PLAN_KEYS: ReadonlySet<string> = new Set(PLAN_PRICES.map(p => p.lookupKey))
-const isLinedeskPlan = (sub: BillingSubscription) =>
-  sub.items.length > 0 && sub.items.every(i => !!i.lookupKey && PLAN_KEYS.has(i.lookupKey))
+/**
+ * How many Checkouts (a trial, a plan, Buy minutes) one bill may start a minute (security review of #1040, L-3): every
+ * start asks Stripe several times, and the account's rate limit is shared with the webhook, recharges and refunds.
+ * Per API process, like the other in-memory limits.
+ */
+export const CHECKOUT_STARTS_PER_MINUTE = 6
+export const CHECKOUT_TOO_OFTEN: Said = { key: msg('server.api.checkout.tooOften') }
+let allowCheckoutStart = createRateLimiter({ max: CHECKOUT_STARTS_PER_MINUTE, windowMs: 60_000 })
+function refuseCheckoutFlood(billId: string) {
+  if (!allowCheckoutStart(billId)) throw new Reject(CHECKOUT_TOO_OFTEN)
+}
+/** Forgets every bill's starts (tests). */
+export function resetCheckoutLimit() {
+  allowCheckoutStart = createRateLimiter({ max: CHECKOUT_STARTS_PER_MINUTE, windowMs: 60_000 })
+}
 
 /** Our setup failed (a key, a price, the configuration): the admins hear of it, the owner gets a plain answer. */
-async function setupFailed(error: unknown): Promise<never> {
+export async function setupFailed(error: unknown): Promise<never> {
   if (error instanceof BillingSetupError) {
     console.error(`billing: Checkout could not start: ${error.code}`)
     await alertInstanceAdmins(checkoutSetupAlert(error.code)).catch(e =>
@@ -171,6 +192,7 @@ type Started = { url: string; sessionId: string; customerId: string; billId: str
 const prepareStartCheckout: Preparer = async ({ actor, now }) => {
   const bill = await db.transaction(tx => ownBill(tx, actor))
   if (bill.status !== 'pending_payment') throw Reject.t('server.api.checkout.alreadyFinished')
+  refuseCheckoutFlood(bill.id)
   const items = await db.transaction(tx => planItems(tx, bill))
   const provider = await billingProvider(db)
   const configuration = await cardOnlyConfiguration(provider)
@@ -179,15 +201,24 @@ const prepareStartCheckout: Preparer = async ({ actor, now }) => {
   // the session before it, so two can never both be completed. One completed meanwhile is caught by confirmSession.
   if (bill.stripe_customer_id) await provider.expireOpenCheckouts(customerId).catch(setupFailed)
   const trial = !bill.trial_refused
+  // The install's prices, trial and name (Server admin › Billing and › Branding): what this Checkout sells. The price
+  // ids are the ones the last catalog sync stored; nothing in Stripe is made or changed here (review of #1040, M-1).
+  const rules = await billingRules(db)
+  const prices = await pricesForCheckout(provider).catch(setupFailed)
   const started = await provider
     .startCheckout({
       kind: trial ? 'trial' : 'plan',
       billId: bill.id,
       customerId,
       paymentMethodConfiguration: configuration,
+      catalog: planCatalog(rules, brandName()),
+      prices,
       items,
-      ...(trial ? { trialDays: TRIAL_DAYS } : {}),
-      submitText: checkoutText(trial ? 'trial' : 'plan', wordsOf(actor)),
+      ...(trial ? { trialDays: rules.trialDays } : {}),
+      submitText: checkoutText(trial ? 'trial' : 'plan', wordsOf(actor), {
+        brand: brandName(),
+        trialDays: rules.trialDays,
+      }),
       successUrl: returnUrl(),
       cancelUrl: cancelUrl(),
       // A double click within a second makes one session; a later start makes a new one (the open one was expired).
@@ -469,12 +500,13 @@ const prepareConfirm: Preparer = async ({ actor }, input: { sessionId: string })
 // ---- Top-up, cancel, resume ----------------------------------------------------------------------------------
 
 /** Bills that may buy minutes: in their trial or paid (also past due, so calls can go on). */
-const BUYS_MINUTES: readonly Bill['status'][] = ['trialing', 'active', 'past_due']
+export const BUYS_MINUTES: readonly Bill['status'][] = ['trialing', 'active', 'past_due']
 
 const prepareTopUp: Preparer = async ({ actor, now }, input: { amountCents: number }) => {
   const bill = await db.transaction(tx => ownBill(tx, actor))
   if (!BUYS_MINUTES.includes(bill.status)) throw Reject.t('server.api.checkout.minutesAfterStart')
   if (!bill.stripe_customer_id) throw Reject.t('server.api.checkout.noCustomer')
+  refuseCheckoutFlood(bill.id)
   // Built on the server only (L5): the amount is checked here, and Stripe gets our product and this amount.
   if (input.amountCents < TOPUP_LIMITS.minCents || input.amountCents > TOPUP_LIMITS.maxCents)
     throw Reject.t('server.api.checkout.topupRange', {
@@ -483,16 +515,19 @@ const prepareTopUp: Preparer = async ({ actor, now }, input: { amountCents: numb
     })
   const provider = await billingProvider(db)
   const configuration = await cardOnlyConfiguration(provider)
+  const rules = await billingRules(db)
   const started = await provider
     .startCheckout({
       kind: 'topup',
       billId: bill.id,
       customerId: bill.stripe_customer_id,
       paymentMethodConfiguration: configuration,
+      catalog: planCatalog(rules, brandName()),
       amountCents: input.amountCents,
-      submitText: checkoutText('topup', wordsOf(actor)),
+      submitText: checkoutText('topup', wordsOf(actor), { brand: brandName(), trialDays: rules.trialDays }),
       successUrl: returnUrl(),
-      cancelUrl: cancelUrl(),
+      // Bought from Settings › Billing: going back from Checkout lands there again.
+      cancelUrl: appLink(WEB_ORIGIN, actor.workspaceId!, BILLING_PATH),
       idempotencyKey: `${bill.id}:topup:${input.amountCents}:${now.slice(0, 19)}`,
       expiresAt: checkoutExpiresAt(),
     })
@@ -500,12 +535,18 @@ const prepareTopUp: Preparer = async ({ actor, now }, input: { amountCents: numb
   return { url: started.url, sessionId: started.id }
 }
 
+/**
+ * Bill statuses in which the owner cancels or resumes in the app. Suspended too (security review of #1007, L-5): the
+ * portal has no cancel, so the app is the one place to cancel, also while calls are paused.
+ */
+const CANCELS: readonly Bill['status'][] = ['trialing', 'active', 'past_due', 'suspended']
+
 /** `billing.cancel` and `billing.resume` (§3.2 step 10): the subscription is asked first, the bill mirrors it. */
 const prepareCancel =
   (resume: boolean): Preparer =>
   async ({ actor }) => {
     const bill = await db.transaction(tx => ownBill(tx, actor))
-    if (!bill.stripe_subscription_id || !['trialing', 'active', 'past_due'].includes(bill.status))
+    if (!bill.stripe_subscription_id || !CANCELS.includes(bill.status))
       throw Reject.t('server.api.checkout.noRunningPlan')
     const provider = await billingProvider(db)
     const sub = resume
@@ -693,9 +734,6 @@ export async function trialWillEnd(subscriptionId: string, customerId: string | 
   } satisfies CheckoutEventOutcome
 }
 
-/** What the recharge added to the conversion invoice says on the invoice. */
-export const FIRST_RECHARGE_TEXT = 'Linedesk balance recharge'
-
 /**
  * `invoice.created` (§3.2 step 9): the trial's conversion invoice, still a draft, gets the first recharge as an
  * invoice item (the bill's recharge amount), unless auto-recharge is off. The attempt row (with the invoice id) is
@@ -743,7 +781,7 @@ export async function firstRecharge(invoiceId: string, customerId: string | null
     customerId: bill.stripe_customer_id!,
     invoiceId,
     amountCents: recharge.amount_cents,
-    description: FIRST_RECHARGE_TEXT,
+    description: rechargeLine(brandName()),
     rechargeId: recharge.id,
   })
   return skip('recharge_added')

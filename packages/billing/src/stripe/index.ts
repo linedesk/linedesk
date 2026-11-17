@@ -2,6 +2,7 @@
 // install without Stripe never loads it.
 import Stripe from 'stripe'
 import { stripeKeyMode } from '../keys.ts'
+import { catalogWriteAccess, ensureCatalog, ensureProduct, productId } from './catalog.ts'
 import {
   type BillingChargeSource,
   type BillingEvent,
@@ -15,6 +16,7 @@ import {
   type CheckoutInput,
   type CheckoutSession,
   type CustomerPurchases,
+  PORTAL_METADATA,
   type RechargeCard,
   type RechargeCharge,
   type RechargeInvoiceInput,
@@ -143,6 +145,15 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
         // A 400 here is our setup too (a price, the tax settings, the terms URL): never the owner's card.
         throw setupError(error) ?? refusedSetup(error) ?? error
       }),
+    syncCatalog: catalog =>
+      ensureCatalog(stripe, catalog).then(
+        prices => Object.fromEntries(prices),
+        error => {
+          if (error instanceof BillingSetupError) throw error
+          throw setupError(error) ?? refusedSetup(error) ?? error
+        },
+      ),
+    catalogWriteAccess: () => catalogWriteAccess(stripe),
     checkoutSession: id => checkoutSession(stripe, id),
     async expireOpenCheckouts(customerId) {
       let expired = 0
@@ -218,18 +229,18 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
       return subscriptionOf(await stripe.subscriptions.update(id, { cancel_at_period_end: false }))
     },
     async addInvoiceItem(input) {
-      await stripe.invoiceItems.create(
+      const item = await stripe.invoiceItems.create(
         {
           customer: input.customerId,
           invoice: input.invoiceId,
           amount: input.amountCents,
           currency: 'usd',
-          description: input.description,
           tax_behavior: 'exclusive',
           metadata: { [RECHARGE_METADATA]: input.rechargeId },
         },
         { idempotencyKey: `${input.rechargeId}:item` },
       )
+      await describeItem(stripe, item, input.description)
     },
     async findRechargeInvoice(rechargeId) {
       // The recharge id is ours (letters, digits and _), so it is safe inside the search query.
@@ -258,6 +269,21 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
     },
     async rechargeInvoicePage(invoiceId) {
       return (await stripe.invoices.retrieve(invoiceId)).hosted_invoice_url ?? null
+    },
+    async portalSession({ customerId, returnUrl }) {
+      try {
+        const configuration = await findPortalConfiguration(stripe)
+        if (!configuration) throw new BillingSetupError('portal_configuration_missing')
+        const session = await stripe.billingPortal.sessions.create({
+          customer: customerId,
+          configuration,
+          return_url: returnUrl,
+        })
+        return session.url
+      } catch (error) {
+        if (error instanceof BillingSetupError) throw error
+        throw setupError(error) ?? refusedSetup(error) ?? error
+      }
     },
 
     webhookEvent(rawBody, signature) {
@@ -517,6 +543,7 @@ function subscriptionOf(sub: Stripe.Subscription): BillingSubscription {
       lookupKey: item.price.lookup_key ?? item.price.metadata?.linedesk ?? null,
       quantity: item.quantity ?? 0,
       unitAmountCents: item.price.unit_amount ?? null,
+      productId: idOf(item.price.product),
     })),
   }
 }
@@ -525,8 +552,8 @@ function subscriptionOf(sub: Stripe.Subscription): BillingSubscription {
 export const BILL_METADATA = 'billing_account_id'
 /** The metadata that says which Checkout a session is (`trial`, `plan`, `topup`). */
 export const CHECKOUT_METADATA = 'linedesk_checkout'
-/** The product of "Buy minutes" (our own id, made by the bootstrap script). */
-export const TOPUP_PRODUCT = 'linedesk_balance_topup'
+/** The product of "Buy minutes" (our own id; made by the catalog sync, or by a top-up when missing, catalog.ts). */
+export const TOPUP_PRODUCT = productId('balance_topup')
 
 /**
  * The payment method configuration "Linedesk Checkout", read over every page (an account with more than 100
@@ -541,18 +568,17 @@ export async function findCheckoutConfiguration(
   return null
 }
 
+/** The customer portal configuration the bootstrap made (its metadata), read over every page; null: none active. */
+async function findPortalConfiguration(stripe: Stripe): Promise<string | null> {
+  for await (const config of stripe.billingPortal.configurations.list({ limit: 100 }))
+    if (config.active && config.metadata?.linedesk === PORTAL_METADATA.linedesk) return config.id
+  return null
+}
+
 /** A 400 when a Checkout is made: the account is not set up for it (a price, tax, the terms URL). For the admins. */
 function refusedSetup(error: unknown): BillingSetupError | null {
   const e = error as { statusCode?: number; code?: string }
   return e.statusCode === 400 ? new BillingSetupError(`stripe_${e.code ?? 400}`) : null
-}
-
-/** The active prices of these lookup keys; a key without one is our setup (the bootstrap did not run). */
-async function pricesByLookupKey(stripe: Stripe, lookupKeys: string[]) {
-  const found = await stripe.prices.list({ lookup_keys: lookupKeys, active: true, limit: 100 })
-  const byKey = new Map(found.data.map(p => [p.lookup_key, p.id]))
-  for (const key of lookupKeys) if (!byKey.has(key)) throw new BillingSetupError(`stripe_price_missing:${key}`)
-  return byKey
 }
 
 /**
@@ -579,6 +605,10 @@ async function startCheckout(stripe: Stripe, input: CheckoutInput) {
   let session: Stripe.Checkout.Session
   if (input.kind === 'topup') {
     if (!input.amountCents) throw new Error('a top-up needs its amount')
+    // Only its own product, never the plan prices (security review of #1040, M-1): found (a read), made only when
+    // missing; its name is not the install's, so it is never renamed here.
+    const topup = input.catalog.products.balance_topup
+    if (topup) await ensureProduct(stripe, 'balance_topup', topup, input.catalog.taxCode, { rename: false })
     session = await stripe.checkout.sessions.create(
       {
         ...common,
@@ -586,7 +616,7 @@ async function startCheckout(stripe: Stripe, input: CheckoutInput) {
         line_items: [
           {
             price_data: {
-              currency: 'usd',
+              currency: input.catalog.currency,
               product: TOPUP_PRODUCT,
               unit_amount: input.amountCents,
               tax_behavior: 'exclusive',
@@ -602,15 +632,14 @@ async function startCheckout(stripe: Stripe, input: CheckoutInput) {
   } else {
     const items = input.items ?? []
     if (!items.length) throw new Error('a plan needs its items')
-    const prices = await pricesByLookupKey(
-      stripe,
-      items.map(i => i.lookupKey),
-    )
+    // The price ids the last catalog sync stored (an admin's save); Checkout never makes or changes prices.
+    const prices = input.prices ?? {}
+    for (const i of items) if (!prices[i.lookupKey]) throw new BillingSetupError('stripe_catalog_not_synced')
     session = await stripe.checkout.sessions.create(
       {
         ...common,
         mode: 'subscription',
-        line_items: items.map(i => ({ price: prices.get(i.lookupKey)!, quantity: i.quantity })),
+        line_items: items.map(i => ({ price: prices[i.lookupKey]!, quantity: i.quantity })),
         payment_method_collection: 'always',
         consent_collection: { terms_of_service: 'required' },
         subscription_data: {
@@ -801,6 +830,11 @@ async function rechargeCard(
   return { id: idOf(card)!, createdAt: typeof card === 'string' ? null : iso(card.created), on: 'subscription' }
 }
 
+/** The text of a recharge's invoice item, set apart from its idempotent create (review of #1040, L-5). */
+async function describeItem(stripe: Stripe, item: Stripe.InvoiceItem, description: string) {
+  if (item.description !== description) await stripe.invoiceItems.update(item.id, { description })
+}
+
 /**
  * A recharge (docs/billing.md §2.2): one invoice per attempt, `charge_automatically` with automatic tax, holding only
  * its own item (`pending_invoice_items_behavior=exclude`), then finalized and paid with the saved card. Every request
@@ -819,7 +853,6 @@ async function chargeRecharge(stripe: Stripe, input: RechargeInvoiceInput): Prom
           automatic_tax: { enabled: true },
           pending_invoice_items_behavior: 'exclude',
           currency: 'usd',
-          description: input.description,
           metadata,
         },
         key('invoice'),
@@ -827,19 +860,25 @@ async function chargeRecharge(stripe: Stripe, input: RechargeInvoiceInput): Prom
   if (invoice.metadata?.[RECHARGE_METADATA] !== input.rechargeId)
     throw new Error(`invoice ${invoice.id} is not the one of recharge ${input.rechargeId}`)
   if (invoice.status === 'draft') {
-    if (!invoice.total)
-      await stripe.invoiceItems.create(
+    // The texts carry the install's name, which an admin may change between two tries of one attempt: they are set
+    // by plain updates, never in a request with an idempotency key, so a retry after a rename is not refused as an
+    // `idempotency_error` (security review of #1040, L-5).
+    if (invoice.description !== input.description)
+      await stripe.invoices.update(invoice.id!, { description: input.description })
+    if (!invoice.total) {
+      const item = await stripe.invoiceItems.create(
         {
           customer: input.customerId,
           invoice: invoice.id,
           amount: input.amountCents,
           currency: 'usd',
-          description: input.description,
           tax_behavior: 'exclusive',
           metadata,
         },
         key('item'),
       )
+      await describeItem(stripe, item, input.description)
+    }
     try {
       invoice = await stripe.invoices.finalizeInvoice(invoice.id!, { auto_advance: true }, key('finalize'))
     } catch (error) {

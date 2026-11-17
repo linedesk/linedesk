@@ -157,6 +157,27 @@ export const checkoutSetupAlert =
     }
   }
 
+/**
+ * The products and plan prices could not be made or updated in Stripe after an admin saved the prices or the product
+ * name (security review of #1040, M-1): what Checkout does meanwhile, and what to fix.
+ */
+export const catalogSyncAlert =
+  (o: { code: string; synced: boolean }): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.catalogSync.subject', { brand: brandName() }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.catalogSync.text', { code: o.code }) },
+        {
+          kind: 'text',
+          text: t(o.synced ? 'email.adminAlert.catalogSync.lastSynced' : 'email.adminAlert.catalogSync.neverSynced'),
+        },
+        { kind: 'text', text: t('email.adminAlert.catalogSync.check') },
+      ],
+    }
+  }
+
 /** A second Checkout completed after the bill's own (security review of #961, G1): its subscription was canceled. */
 export const checkoutExtraAlert =
   (o: { bill: string; session: string; subscription: string; paid: boolean }): AdminAlertText =>

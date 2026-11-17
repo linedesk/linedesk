@@ -15,6 +15,7 @@ import {
   providerSpec,
   type RecordingStoreName,
 } from '@linedesk/actions'
+import { msg } from '@linedesk/i18n'
 import { JOBBER_API, JOBBER_CLIENT_REFUSED } from '@linedesk/connectors'
 import { LIVE_KEYS_REFUSED, liveKeysAllowed, loadBillingProvider, stripeKeyMode } from '@linedesk/billing'
 import { smtpCheck } from './email.ts'
@@ -539,6 +540,13 @@ const checks: Record<HttpProvider, Check> = {
 // It names the mode, country and default currency; live keys are refused unless the server allows them
 // (BILLING_LIVE_KEYS=1, production only; packages/billing/src/keys.ts).
 
+/** What a Stripe key may not write, for the provider test's warning (security review of #1040, M-1). */
+const STRIPE_WRITE_DENIED = {
+  products: msg('admin.provider.test.stripeDenied.products'),
+  prices: msg('admin.provider.test.stripeDenied.prices'),
+  both: msg('admin.provider.test.stripeDenied.both'),
+} as const
+
 /** What a failed Stripe request means. Stripe's own text is not passed on (it can quote part of the key). */
 function stripeProblem(e: unknown): SaidProblem {
   const status = typeof e === 'object' && e && 'statusCode' in e ? Number(e.statusCode) : undefined
@@ -570,6 +578,24 @@ export async function testStripe(
     const account = await provider.account()
     if (!account) return error('config', said('server.api.providerTest.notSetUp'))
     const where = [account.country, account.defaultCurrency?.toUpperCase()].filter(Boolean).join(', ') || 'none'
+    // The catalog sync writes Products and Prices (security review of #1040, M-1): probed without writing anything.
+    const access = await provider.catalogWriteAccess()
+    const denied =
+      access.products === false
+        ? access.prices === false
+          ? 'both'
+          : 'products'
+        : access.prices === false
+          ? 'prices'
+          : null
+    if (denied)
+      return warning(
+        'permission',
+        said('admin.provider.test.stripeCatalogWrite', {
+          line: reader => reader.t('server.api.providerTest.stripe.connected', { mode, where, account: account.id }),
+          denied: reader => reader.t(STRIPE_WRITE_DENIED[denied]),
+        }),
+      )
     return ok(
       said(
         mode === 'live'

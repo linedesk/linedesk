@@ -26,6 +26,7 @@ import type {
   BillingRulesData,
   SelfServeData,
 } from '@linedesk/actions'
+import { PLAN_PRICE_FLOOR } from '@linedesk/actions'
 import type { BillingInvoice, BillingProvider, InvoiceRefund } from '@linedesk/billing'
 import {
   BILLING_DEFAULTS,
@@ -53,8 +54,14 @@ import {
   billingRules,
   checkBillingRules,
   mergeBillingRules,
+  mergeStoredRules,
   minMicrosPerMinute,
+  minPlanCents,
+  PLAN_RULE_FIELDS,
+  planPriceProblems,
+  withoutResets,
 } from './billing-rules.ts'
+import { syncCatalogAfterCommit } from './billing-catalog.ts'
 import { workspacesOnBill } from './billing-owner.ts'
 import { billingProvider, billingState, refuseMoneyChange } from './billing-settings.ts'
 import type { Actor } from './context.ts'
@@ -453,6 +460,7 @@ async function rulesData(tx: Tx): Promise<BillingRulesData> {
     defaults: BILLING_DEFAULTS,
     problems,
     minMicrosPerMinute: minMicrosPerMinute(),
+    minPlanCents: minPlanCents(rules),
   }
 }
 
@@ -998,17 +1006,30 @@ export const billingAdminHandlers: Record<string, Handler> = {
     input: { rules: Record<string, unknown>; reason: string },
   ) => {
     refuseMoneyChange(actor)
-    const checked = checkBillingRules(input.rules)
+    const checked = checkBillingRules(withoutResets(input.rules))
     if (checked.problems.length)
       throw new Reject(`These rules are out of range or unknown: ${checked.problems.join(', ')}. Nothing was changed.`)
+    // Merged over the stored row (I-6): a field left out keeps its value, null resets it to the default.
     const before = (await rulesData(tx)).stored ?? {}
-    await writeSetting(tx, BILLING_RULES_KEY, JSON.stringify(input.rules), actor, now)
-    const keys = [...new Set([...Object.keys(before), ...Object.keys(input.rules)])].sort()
-    const changed = keys.filter(k => JSON.stringify(before[k]) !== JSON.stringify(input.rules[k]))
-    const fields = Object.keys(input.rules).length ? changed : []
+    const next = mergeStoredRules(before, input.rules)
+    // The plan fees as they would be in effect: a floor, and yearly at most 12 monthly fees (L-6).
+    const effective = mergeBillingRules(next).rules
+    const planProblems = planPriceProblems(effective)
+    if (planProblems.length)
+      throw new Reject(
+        // i18n-ignore: the API error body for logs and API clients; the web app shows admin.bills.rules.planFloor by its code
+        `These plan prices are below the server's minimum ($${(minPlanCents(effective) / 100).toFixed(2)} a month, 12 times that a year) or a yearly price is more than 12 monthly ones: ${planProblems.join(', ')}. Nothing was changed.`,
+        PLAN_PRICE_FLOOR,
+      )
+    await writeSetting(tx, BILLING_RULES_KEY, JSON.stringify(next), actor, now)
+    const keys = [...new Set([...Object.keys(before), ...Object.keys(next)])].sort()
+    const changed = keys.filter(k => JSON.stringify(before[k]) !== JSON.stringify(next[k]))
+    const fields = Object.keys(next).length ? changed : []
     onCommit?.(async () =>
       alertInstanceAdmins(billingRulesAlert({ actor: await alertActor(actor), fields, reason: input.reason })),
     )
+    // Changed plan prices reach Stripe now, not at a customer's Checkout (security review of #1040, M-1).
+    if (changed.some(k => PLAN_RULE_FIELDS.has(k))) syncCatalogAfterCommit(onCommit)
     return { rows: {}, data: { ...(await rulesData(tx)), changed } }
   },
 

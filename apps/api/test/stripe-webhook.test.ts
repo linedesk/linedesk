@@ -808,7 +808,11 @@ describe('invoice.paid for a plan', () => {
 })
 
 /** A subscription as Stripe returns it: one item per lookup key, a month from now. */
-function planSubscription(id: string, customer: string, over: { status?: string; lookupKeys?: string[] } = {}): Json {
+function planSubscription(
+  id: string,
+  customer: string,
+  over: { status?: string; lookupKeys?: string[]; product?: string } = {},
+): Json {
   return {
     id,
     object: 'subscription',
@@ -824,7 +828,13 @@ function planSubscription(id: string, customer: string, over: { status?: string;
         quantity: 1,
         current_period_start: nowSec(),
         current_period_end: nowSec() + 30 * 86_400,
-        price: { id: rid('price'), object: 'price', lookup_key: lookupKey, recurring: { interval: 'month' } },
+        price: {
+          id: rid('price'),
+          object: 'price',
+          product: over.product ?? 'linedesk_workspace',
+          lookup_key: lookupKey,
+          recurring: { interval: 'month' },
+        },
       })),
       '/v1/subscription_items',
     ),
@@ -833,7 +843,9 @@ function planSubscription(id: string, customer: string, over: { status?: string;
 
 describe('invoice.paid of Checkout’s first invoice, before the bill has its subscription (billing review B4)', () => {
   /** A bill as Checkout leaves it: the customer stored, the subscription not yet; its first plan invoice paid. */
-  async function paidBeforeLinked(sub: { status?: string; lookupKeys?: string[]; customer?: string } = {}) {
+  async function paidBeforeLinked(
+    sub: { status?: string; lookupKeys?: string[]; customer?: string; product?: string } = {},
+  ) {
     const { bill, ws } = await billWith({ status: 'trialing' })
     await db.update(organization).set({ billingState: 'pending_payment' }).where(eq(organization.id, ws.id))
     const subscriptionId = rid('sub')
@@ -918,6 +930,12 @@ describe('invoice.paid of Checkout’s first invoice, before the bill has its su
     const ended = await paidBeforeLinked({ status: 'canceled' })
     expect(await deliverAndProcess(ended.evt)).not.toHaveProperty('linked')
     expect(await billRow(ended.bill.id)).toMatchObject({ stripe_subscription_id: null })
+  })
+
+  test('a plan lookup key on another product (a Stripe account shared with another integration) is never linked (review of #1040, L-1)', async () => {
+    const shared = await paidBeforeLinked({ product: 'prod_OtherIntegration' })
+    expect(await deliverAndProcess(shared.evt)).not.toHaveProperty('linked')
+    expect(await billRow(shared.bill.id)).toMatchObject({ status: 'trialing', stripe_subscription_id: null })
   })
 
   test('a bill that has a subscription keeps it: another subscription’s invoice changes nothing', async () => {
@@ -1902,6 +1920,42 @@ describe('disputes, fraud warnings and cancellations (docs/billing.md §3.4, M4;
     expect(await balanceOf(bill.id)).toBe(0)
     const [row] = await db.select().from(billing_disputes).where(eq(billing_disputes.id, disputeId))
     expect(row!.adjustment_entry_id).not.toBeNull()
+  })
+
+  test('cancel at the period end set or undone outside the app is mirrored from the subscription fetched now (review of #1007, M-2)', async () => {
+    const subscriptionId = rid('sub')
+    const { bill } = await billWith({ stripe_subscription_id: subscriptionId })
+    const updated = () =>
+      event('customer.subscription.updated', {
+        id: subscriptionId,
+        object: 'subscription',
+        customer: bill.stripe_customer_id,
+      })
+    // Set to cancel in Stripe's Dashboard: the page no longer says it renews.
+    stripe.subscriptions.set(subscriptionId, {
+      ...subscription(subscriptionId, bill.stripe_customer_id!, 'active'),
+      cancel_at_period_end: true,
+    })
+    expect(await deliverAndProcess(updated())).toEqual({
+      outcome: 'lifecycle',
+      bill: bill.id,
+      change: 'cancel_at_period_end',
+    })
+    expect((await billNow(bill.id)).cancel_at_period_end).toBe(true)
+    // Renewed again outside the app: the page must not say "nothing more is charged".
+    stripe.subscriptions.set(subscriptionId, subscription(subscriptionId, bill.stripe_customer_id!, 'active'))
+    expect(await deliverAndProcess(updated())).toEqual({ outcome: 'lifecycle', bill: bill.id, change: 'renews' })
+    expect((await billNow(bill.id)).cancel_at_period_end).toBe(false)
+    // Nothing changed: applied, nothing written.
+    expect(await deliverAndProcess(updated())).toEqual({ outcome: 'applied', bill: bill.id })
+    // A canceled bill is left alone.
+    await db.update(billing_accounts).set({ status: 'canceled' }).where(eq(billing_accounts.id, bill.id))
+    stripe.subscriptions.set(subscriptionId, {
+      ...subscription(subscriptionId, bill.stripe_customer_id!, 'active'),
+      cancel_at_period_end: true,
+    })
+    expect(await deliverAndProcess(updated())).toEqual({ outcome: 'applied', bill: bill.id })
+    expect((await billNow(bill.id)).cancel_at_period_end).toBe(false)
   })
 
   test('a subscription deleted in Stripe cancels the bill, once, with the release date for the owner', async () => {

@@ -160,6 +160,40 @@ const recharge = {
 }
 const stripeWith = (doFetch: typeof fetch) =>
   loadBillingProvider({ secretKey: TEST_KEY, webhookSecret: 'whsec_abc' }, doFetch)
+/** An install's catalog (docs/billing.md §7b): its product names and plan prices, made in Stripe before a Checkout. */
+const CATALOG = {
+  products: { workspace: 'Front Desk workspace', balance_topup: 'Prepaid minutes' },
+  prices: [{ lookupKey: 'ws_yearly', product: 'workspace', cents: 10_800, interval: 'year' as const }],
+  taxCode: 'txcd_10103001',
+  currency: 'usd' as const,
+}
+/** Stripe already has the catalog: the products by our ids and a fitting price per lookup key. */
+const catalogRoutes = (): Record<string, (body: URLSearchParams) => [number, unknown]> => ({
+  ...Object.fromEntries(
+    Object.entries(CATALOG.products).map(([key, name]) => [
+      `GET /v1/products/linedesk_${key}`,
+      () => [200, { id: `linedesk_${key}`, object: 'product', name, active: true }],
+    ]),
+  ),
+  'GET /v1/prices': () => [
+    200,
+    {
+      object: 'list',
+      has_more: false,
+      data: CATALOG.prices.map(p => ({
+        id: `price_${p.lookupKey}`,
+        object: 'price',
+        active: true,
+        lookup_key: p.lookupKey,
+        unit_amount: p.cents,
+        currency: 'usd',
+        tax_behavior: 'exclusive',
+        product: `linedesk_${p.product}`,
+        recurring: { interval: p.interval, interval_count: 1, usage_type: 'licensed' },
+      })),
+    },
+  ],
+})
 /** A card as Stripe expands it (`created` in Unix seconds). */
 const card = (id: string, created = 1_800_000_000) => ({ id, object: 'payment_method', type: 'card', created })
 /** A customer as GET /v1/customers/:id answers it, with its invoice default (expanded) or none. */
@@ -183,7 +217,9 @@ describe('stripe recharges', () => {
   test('one invoice with one item, automatic tax, finalized and paid, each request with its own idempotency key', async () => {
     const { doFetch, calls } = stripeRoutes({
       'POST /v1/invoices': () => [200, invoice('draft', 0)],
+      'POST /v1/invoices/in_1Rc': () => [200, invoice('draft', 0)],
       'POST /v1/invoiceitems': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoiceitems/ii_1': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
       'POST /v1/invoices/in_1Rc/finalize': () => [200, invoice('open')],
       'GET /v1/customers/cus_1': () => [200, customer(card('pm_own'))],
       'POST /v1/invoices/in_1Rc/pay': () => [200, invoice('paid')],
@@ -191,7 +227,10 @@ describe('stripe recharges', () => {
     expect(await (await stripeWith(doFetch)).chargeRecharge(recharge)).toEqual({ status: 'paid', invoiceId: 'in_1Rc' })
     expect(calls.map(c => [c.route, c.key])).toEqual([
       ['POST /v1/invoices', 'rc_abc:invoice'],
+      // The texts with the install's name: plain updates, outside every idempotent request (review of #1040, L-5).
+      ['POST /v1/invoices/in_1Rc', null],
       ['POST /v1/invoiceitems', 'rc_abc:item'],
+      ['POST /v1/invoiceitems/ii_1', null],
       ['POST /v1/invoices/in_1Rc/finalize', 'rc_abc:finalize'],
       // The customer already has an invoice default: charged to it, nothing changed on the customer.
       ['GET /v1/customers/cus_1', null],
@@ -206,12 +245,45 @@ describe('stripe recharges', () => {
       currency: 'usd',
       'metadata[billing_recharge_id]': 'rc_abc',
     })
-    expect(Object.fromEntries(calls[1]!.body)).toMatchObject({
+    expect(Object.fromEntries(calls[2]!.body)).toMatchObject({
       invoice: 'in_1Rc',
       amount: '2000',
       currency: 'usd',
       tax_behavior: 'exclusive',
     })
+    expect(Object.fromEntries(calls[1]!.body)).toEqual({ description: 'Linedesk balance recharge' })
+    expect(Object.fromEntries(calls[3]!.body)).toEqual({ description: 'Linedesk balance recharge' })
+  })
+
+  test('a retry after the product was renamed sends the same idempotent requests; only the texts change (L-5)', async () => {
+    // Like Stripe: a key seen before with other parameters is an idempotency_error.
+    const seen = new Map<string, string>()
+    const { doFetch, calls } = stripeRoutes({
+      'POST /v1/invoices': () => [200, invoice('draft', 0)],
+      'POST /v1/invoices/in_1Rc': () => [200, invoice('draft', 0)],
+      'POST /v1/invoiceitems': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoiceitems/ii_1': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoices/in_1Rc/finalize': () => [500, { error: { type: 'api_error', message: 'Try again.' } }],
+    })
+    const stripe = await stripeWith(doFetch)
+    await expect(stripe.chargeRecharge(recharge)).rejects.toMatchObject({ statusCode: 500 })
+    await expect(
+      stripe.chargeRecharge({ ...recharge, description: 'Front Desk balance recharge' }),
+    ).rejects.toMatchObject({
+      statusCode: 500,
+    })
+    for (const c of calls.filter(c => c.key)) {
+      const body = c.body.toString()
+      if (seen.has(c.key!)) expect(body, c.key!).toBe(seen.get(c.key!))
+      seen.set(c.key!, body)
+      expect(body).not.toMatch(/description/)
+    }
+    expect(
+      calls
+        .filter(c => c.route === 'POST /v1/invoiceitems/ii_1')
+        .at(-1)!
+        .body.get('description'),
+    ).toBe('Front Desk balance recharge')
   })
 
   test('a known invoice is charged again, never made a second time; one of another recharge is refused', async () => {
@@ -308,7 +380,9 @@ describe('stripe recharges', () => {
   test('a request Stripe refuses for good (a 4xx that is no card error, conflict or rate limit) fails the recharge (review L3)', async () => {
     const noTax = stripeRoutes({
       'POST /v1/invoices': () => [200, invoice('draft', 0)],
+      'POST /v1/invoices/in_1Rc': () => [200, invoice('draft', 0)],
       'POST /v1/invoiceitems': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+      'POST /v1/invoiceitems/ii_1': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
       'POST /v1/invoices/in_1Rc/finalize': () => [
         400,
         {
@@ -382,6 +456,7 @@ describe('stripe recharges', () => {
       const { doFetch } = stripeRoutes({
         'POST /v1/invoices': () => (route === 'POST /v1/invoices' ? [status, error] : [200, invoice('draft', 0)]),
         'POST /v1/invoiceitems': () => [200, { id: 'ii_1', object: 'invoiceitem' }],
+        'POST /v1/invoices/in_1Rc': () => [200, invoice('draft', 2000)],
         'GET /v1/invoices/in_1Rc': () => [200, invoice(route.endsWith('finalize') ? 'draft' : 'open', 2000)],
         [route]: () => [status, error],
       })
@@ -752,6 +827,9 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
     billId: 'bill_1',
     customerId: 'cus_1',
     paymentMethodConfiguration: 'pmc_own',
+    catalog: CATALOG,
+    // What the last catalog sync stored (an admin's save): Checkout uses these ids and never makes prices.
+    prices: { ws_yearly: 'price_ws_yearly' },
     submitText: 'Cancel before day 14 and you pay nothing.',
     successUrl: 'https://app.example.com/billing/return?session_id={CHECKOUT_SESSION_ID}',
     cancelUrl: 'https://app.example.com/',
@@ -761,10 +839,7 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
 
   test('a trial: the card-only configuration, never payment_method_types or setup_future_usage; tax, address, terms', async () => {
     const { doFetch, calls } = stripeRoutes({
-      'GET /v1/prices': () => [
-        200,
-        { object: 'list', has_more: false, data: [{ id: 'price_ws_y', object: 'price', lookup_key: 'ws_yearly' }] },
-      ],
+      ...catalogRoutes(),
       'POST /v1/checkout/sessions': () => [200, session],
     })
     const started = await (await stripeWith(doFetch)).startCheckout({
@@ -783,7 +858,7 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
       client_reference_id: 'bill_1',
       payment_method_configuration: 'pmc_own',
       payment_method_collection: 'always',
-      'line_items[0][price]': 'price_ws_y',
+      'line_items[0][price]': 'price_ws_yearly',
       'line_items[0][quantity]': '1',
       'subscription_data[trial_period_days]': '14',
       'subscription_data[trial_settings][end_behavior][missing_payment_method]': 'cancel',
@@ -798,6 +873,8 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
     })
     expect(Object.keys(body).some(k => k.startsWith('payment_method_types'))).toBe(false)
     expect(Object.keys(body).some(k => k.includes('setup_future_usage'))).toBe(false)
+    // The synced price ids only: no product or price is read or written at Checkout (review of #1040, M-1).
+    expect(calls.map(c => c.route)).toEqual(['POST /v1/checkout/sessions'])
   })
 
   test("expireOpenCheckouts expires the customer's open sessions; one completed meanwhile (400) is skipped", async () => {
@@ -880,9 +957,11 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
   })
 
   test('a top-up: a payment built on the server with our product and the pre-tax amount', async () => {
-    const { doFetch, calls } = stripeRoutes({ 'POST /v1/checkout/sessions': () => [200, session] })
+    const { doFetch, calls } = stripeRoutes({ ...catalogRoutes(), 'POST /v1/checkout/sessions': () => [200, session] })
     await (await stripeWith(doFetch)).startCheckout({ ...base, kind: 'topup', amountCents: 2000 })
-    const body = Object.fromEntries(calls[0]!.body)
+    // The catalog was found as it is: nothing in Stripe was made or changed.
+    expect(calls.filter(c => c.route.startsWith('POST') && !c.route.includes('checkout'))).toEqual([])
+    const body = Object.fromEntries(calls.find(c => c.route === 'POST /v1/checkout/sessions')!.body)
     expect(body).toMatchObject({
       mode: 'payment',
       payment_method_configuration: 'pmc_own',
@@ -894,13 +973,67 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
     expect(Object.keys(body).some(k => k.startsWith('payment_method_types'))).toBe(false)
   })
 
-  test('a plan price the bootstrap did not make, or a 400, is our setup', async () => {
-    const noPrice = stripeRoutes({ 'GET /v1/prices': () => [200, { object: 'list', has_more: false, data: [] }] })
-    const error = await (await stripeWith(noPrice.doFetch))
-      .startCheckout({ ...base, kind: 'plan', items: [{ lookupKey: 'ws_monthly', quantity: 1 }] })
+  test('a top-up with a key that may only read Products and Prices: only its own product is read, Checkout starts (M-1)', async () => {
+    const readOnly = { error: { type: 'invalid_request_error', code: 'secret_key_required', message: 'restricted' } }
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/products/linedesk_balance_topup': () => [
+        200,
+        { id: 'linedesk_balance_topup', object: 'product', name: 'Old name', active: true },
+      ],
+      'POST /v1/products/linedesk_balance_topup': () => [403, readOnly],
+      'POST /v1/prices': () => [403, readOnly],
+      'POST /v1/checkout/sessions': () => [200, session],
+    })
+    const started = await (await stripeWith(doFetch)).startCheckout({
+      ...base,
+      prices: undefined,
+      kind: 'topup',
+      amountCents: 2000,
+    })
+    expect(started.id).toBe('cs_test_1')
+    expect(calls.map(c => c.route)).toEqual(['GET /v1/products/linedesk_balance_topup', 'POST /v1/checkout/sessions'])
+    // Missing in the account: made once, by our id.
+    const fresh = stripeRoutes({
+      'POST /v1/products': () => [200, { id: 'linedesk_balance_topup', object: 'product' }],
+      'POST /v1/checkout/sessions': () => [200, session],
+    })
+    await (await stripeWith(fresh.doFetch)).startCheckout({ ...base, kind: 'topup', amountCents: 2000 })
+    expect(fresh.calls.map(c => [c.route, c.key])).toEqual([
+      ['GET /v1/products/linedesk_balance_topup', null],
+      ['POST /v1/products', 'catalog:product:linedesk_balance_topup'],
+      ['POST /v1/checkout/sessions', 'bill_1:checkout:1'],
+    ])
+  })
+
+  test('syncCatalog answers the price ids; a key that may not write Products or Prices is our setup (M-1)', async () => {
+    const synced = stripeRoutes(catalogRoutes())
+    expect(await (await stripeWith(synced.doFetch)).syncCatalog(CATALOG)).toEqual({ ws_yearly: 'price_ws_yearly' })
+    const noPrice = stripeRoutes({
+      ...catalogRoutes(),
+      'GET /v1/prices': () => [200, { object: 'list', has_more: false, data: [] }],
+      'POST /v1/prices': () => [403, { error: { type: 'invalid_request_error', message: 'restricted key' } }],
+    })
+    const error = await (await stripeWith(noPrice.doFetch)).syncCatalog(CATALOG).catch(e => e)
+    expect(error).toBeInstanceOf(BillingSetupError)
+    expect(error.code).toBe('stripe_403')
+  })
+
+  test('a plan never synced, a lookup key outside the synced prices, or a 400, is our setup', async () => {
+    const never = stripeRoutes({ 'POST /v1/checkout/sessions': () => [200, session] })
+    const error = await (await stripeWith(never.doFetch))
+      .startCheckout({ ...base, prices: undefined, kind: 'plan', items: [{ lookupKey: 'ws_yearly', quantity: 1 }] })
       .catch(e => e)
     expect(error).toBeInstanceOf(BillingSetupError)
+    expect(error.code).toBe('stripe_catalog_not_synced')
+    expect(never.calls).toEqual([])
+    const unknown = stripeRoutes({ ...catalogRoutes(), 'POST /v1/checkout/sessions': () => [200, session] })
+    const notSold = await (await stripeWith(unknown.doFetch))
+      .startCheckout({ ...base, kind: 'plan', items: [{ lookupKey: 'ws_monthly', quantity: 1 }] })
+      .catch(e => e)
+    expect(notSold).toBeInstanceOf(BillingSetupError)
+    expect(unknown.calls.some(c => c.route === 'POST /v1/checkout/sessions')).toBe(false)
     const refused = stripeRoutes({
+      ...catalogRoutes(),
       'POST /v1/checkout/sessions': () => [
         400,
         { error: { type: 'invalid_request_error', code: 'parameter_invalid' } },
@@ -1042,6 +1175,73 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
       'billing is off',
     )
     expect(await noneBillingProvider.checkoutSession('cs_test_1')).toBeNull()
+  })
+})
+
+describe('stripe customer portal (Settings › Billing, docs/billing.md §2.4)', () => {
+  const configs = (data: unknown[]) => ({
+    object: 'list',
+    data,
+    has_more: false,
+    url: '/v1/billing_portal/configurations',
+  })
+  const config = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    object: 'billing_portal.configuration',
+    active: true,
+    metadata: { linedesk: 'portal' },
+    ...extra,
+  })
+
+  test('a session uses the configuration the bootstrap made (found by its metadata) and returns to the page', async () => {
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/billing_portal/configurations': () => [
+        200,
+        configs([config('bpc_other', { metadata: {} }), config('bpc_off', { active: false }), config('bpc_own')]),
+      ],
+      'POST /v1/billing_portal/sessions': () => [
+        200,
+        { id: 'bps_1', object: 'billing_portal.session', url: 'https://billing.stripe.com/p/session/test_1' },
+      ],
+    })
+    const url = await (await stripeWith(doFetch)).portalSession({
+      customerId: 'cus_1',
+      returnUrl: 'https://app.linedesk.test/#workspace/billing?ws=ws_1',
+    })
+    expect(url).toBe('https://billing.stripe.com/p/session/test_1')
+    const made = calls.find(c => c.route === 'POST /v1/billing_portal/sessions')!
+    expect(Object.fromEntries(made.body)).toEqual({
+      customer: 'cus_1',
+      configuration: 'bpc_own',
+      return_url: 'https://app.linedesk.test/#workspace/billing?ws=ws_1',
+    })
+  })
+
+  test('no configuration (the bootstrap did not run) or a key that may not make sessions: our setup, no session', async () => {
+    const none = stripeRoutes({ 'GET /v1/billing_portal/configurations': () => [200, configs([])] })
+    const missing = await (await stripeWith(none.doFetch))
+      .portalSession({ customerId: 'cus_1', returnUrl: 'https://app.linedesk.test/' })
+      .catch(e => e)
+    expect(missing).toBeInstanceOf(BillingSetupError)
+    expect(missing.code).toBe('portal_configuration_missing')
+    expect(none.calls.some(c => c.route === 'POST /v1/billing_portal/sessions')).toBe(false)
+    const refused = stripeRoutes({
+      'GET /v1/billing_portal/configurations': () => [200, configs([config('bpc_own')])],
+      'POST /v1/billing_portal/sessions': () => [
+        403,
+        { error: { type: 'invalid_request_error', code: 'secret_key_required', message: 'restricted key' } },
+      ],
+    })
+    const error = await (await stripeWith(refused.doFetch))
+      .portalSession({ customerId: 'cus_1', returnUrl: 'https://app.linedesk.test/' })
+      .catch(e => e)
+    expect(error).toBeInstanceOf(BillingSetupError)
+  })
+
+  test('none opens no portal', async () => {
+    await expect(noneBillingProvider.portalSession({ customerId: 'cus_1', returnUrl: 'x' })).rejects.toThrow(
+      'billing is off',
+    )
   })
 })
 

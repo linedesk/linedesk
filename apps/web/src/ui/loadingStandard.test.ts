@@ -64,6 +64,7 @@ const NO_SKELETON_NEEDED: Record<string, string> = {
   'call/EvaluationCard.tsx': 'shown only when the call has an evaluation, or for a test call',
   'onboarding/InstanceSetup.tsx': 'the notice shows only when a part of the server is missing or failing',
   'settings/CarrierNumberInput.tsx': 'the input works at once; the carrier numbers only add suggestions',
+  'shell/BillingBanner.tsx': 'the billing line shows only when something about the bill needs the owner',
   'shell/WorkspaceSwitcher.tsx': 'shown only with more than one workspace or an invitation',
 }
 

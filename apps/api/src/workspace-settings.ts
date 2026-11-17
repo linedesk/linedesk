@@ -21,7 +21,13 @@ import { derivedDaysOf, syncDerivedDays } from './public-holidays.ts'
 import { activeProvider } from './provider-settings.ts'
 import { lockAssistantVersionsOf } from './assistant-versions.ts'
 import { refuseUnlessBillOwner } from './billing-owner.ts'
-import { assistantsBackToStandard, assistantsOffUltra, refuseBillingActor, usageLevelsBilled } from './usage-levels.ts'
+import {
+  assistantsBackToStandard,
+  assistantsOffUltra,
+  levelCentsPerMinute,
+  refuseBillingActor,
+  usageLevelsBilled,
+} from './usage-levels.ts'
 import { deleteOwn, deletePreview } from './workspace-delete-own.ts'
 import { workspaceLocale } from './workspace-locale.ts'
 
@@ -68,6 +74,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       allowPremium: row?.allow_premium ?? false,
       allowUltra: row?.allow_ultra ?? false,
       usageLevels: await usageLevelsBilled(tx),
+      usageCentsPerMinute: await levelCentsPerMinute(tx),
     }
     return { rows: {}, data }
   },
