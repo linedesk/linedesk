@@ -331,6 +331,7 @@ const all = [
   partner.partnerApprove,
   partner.partnerSuspend,
   partner.partnerSetClientLimit,
+  partner.partnerAdminMoveClient,
   partner.partnerListClients,
   partner.partnerSetClientUsageLimit,
   partner.partnerSetClientAllow,

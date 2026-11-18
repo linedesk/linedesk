@@ -2,7 +2,7 @@
 // a row of buttons, the list as quick icon buttons on each row (and a ⋯ menu on phones and touch screens).
 // Actions that change access ask once in a dialog; the rest run at once.
 import { useT } from '@linedesk/i18n/react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { fmt } from '../i18n/format.ts'
 import { i18n } from '../i18n/index.tsx'
@@ -14,6 +14,7 @@ import type { IconName } from '../ui/icons.ts'
 import { Button, Icon } from '../ui/kit.tsx'
 import { MenuButton, type MenuItem } from '../ui/list.tsx'
 import { type AdminUser, type AdminWorkspace, runAdmin } from './api.ts'
+import { ClientPartnerDialog } from './ClientPartner.tsx'
 import { errorText, type Notify } from './notify.ts'
 
 type Confirmation = DangerConfirmation
@@ -42,6 +43,8 @@ export type AdminAction = {
   danger?: boolean
   /** Why it cannot run now: the detail page shows the button disabled with this next to it. */
   disabledReason?: string
+  /** A dialog of its own instead of the confirmation (it runs the action itself; `run` is not called). */
+  dialog?: (close: () => void, notify: Notify) => ReactNode
 }
 
 const userLabel = (u: AdminUser) => u.name || u.email
@@ -394,7 +397,17 @@ export function workspaceActions(
           done: t('admin.actions.workspace.disable.done', { name: w.name }),
         },
       ]
-  return [...toggle, remove]
+  const partner: AdminAction = {
+    id: 'partner',
+    label: t('admin.clientPartner.open'),
+    icon: 'move',
+    tip: w.partner_name
+      ? t('admin.clientPartner.tipWith', { partner: w.partner_name })
+      : t('admin.clientPartner.tipWithout'),
+    run: async () => {},
+    dialog: (close, notify) => <ClientPartnerDialog workspace={w} onClose={close} notify={notify} reload={reload} />,
+  }
+  return [...toggle, partner, remove]
 }
 
 const doneText = (action: AdminAction, made: unknown) =>
@@ -437,7 +450,7 @@ function ConfirmDialog({ action, onClose, notify }: { action: AdminAction; onClo
 export function useActionRunner(notify: Notify) {
   const [pending, setPending] = useState<AdminAction | null>(null)
   async function pick(action: AdminAction) {
-    if (action.confirm) return setPending(action)
+    if (action.confirm || action.dialog) return setPending(action)
     try {
       const made = await action.run()
       if (action.done) notify(doneText(action, made))
@@ -445,7 +458,14 @@ export function useActionRunner(notify: Notify) {
       notify(errorText(err))
     }
   }
-  const dialog = pending && <ConfirmDialog action={pending} notify={notify} onClose={() => setPending(null)} />
+  const close = () => setPending(null)
+  const dialog =
+    pending &&
+    (pending.dialog ? (
+      pending.dialog(close, notify)
+    ) : (
+      <ConfirmDialog action={pending} notify={notify} onClose={close} />
+    ))
   return { pick: (action: AdminAction) => void pick(action), dialog }
 }
 

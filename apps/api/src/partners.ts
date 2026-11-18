@@ -70,6 +70,7 @@ import {
 import { createRateLimiter } from './rate-limit.ts'
 import { cancelSentInvitations, lockActiveSender, lockedOwner } from './team.ts'
 import { billPayerChanged, lockForPayerChange } from './usage-levels.ts'
+import { refuseMoneyChange } from './billing-settings.ts'
 import { clientPeriodUsage, limitPercent, queueUsageLimitAlerts, resetUsageLimitAlerts } from './usage-limit.ts'
 import { insertWorkspace } from './workspace-creation-handlers.ts'
 import { deleteWorkspace } from './workspace-delete.ts'
@@ -489,6 +490,19 @@ type CreateForClientInput = {
   ownerEmail?: string
 }
 
+/**
+ * No billing (self-host, dev): client workspaces only once a server admin approved the partner, and at most the
+ * install's ceiling of them (security review of #1100, L-2). The caller holds the partner row's lock.
+ */
+async function refuseOverCeiling(tx: Tx, partner: PartnerRow) {
+  if (partner.status === 'pending') throw refusePartner('partner_pending')
+  const [{ count } = { count: 0 }] = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(organization)
+    .where(eq(organization.partnerId, partner.id))
+  if (count >= (await partnerClientLimit(tx))) throw refusePartner('client_limit')
+}
+
 async function createForClient(ctx: HandlerCtx, input: CreateForClientInput) {
   const { tx, actor, now } = ctx
   const { partner } = await partnerFor(tx, actor, input.partnerId, { write: true, owner: !!input.ownerEmail })
@@ -496,16 +510,7 @@ async function createForClient(ctx: HandlerCtx, input: CreateForClientInput) {
   // bill must run, and in its free trial it takes at most the trial's client workspaces. The bill is the gate there,
   // so a partner waiting for a server admin's approval can try it with its clients (approval gates its brand, S4).
   const bill = await billForNewClient(tx, partner)
-  if (!bill) {
-    // No billing (self-host, dev): client workspaces only once a server admin approved the partner, and at most the
-    // install's ceiling of them (security review of #1100, L-2).
-    if (partner.status === 'pending') throw refusePartner('partner_pending')
-    const [{ count } = { count: 0 }] = await tx
-      .select({ count: sql<number>`count(*)::int` })
-      .from(organization)
-      .where(eq(organization.partnerId, partner.id))
-    if (count >= (await partnerClientLimit(tx))) throw refusePartner('client_limit')
-  }
+  if (!bill) await refuseOverCeiling(tx, partner)
   const org = await insertWorkspace(
     ctx,
     {
@@ -667,6 +672,130 @@ async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: str
     removedPeople: leaving.map(m => m.email),
     invitationsCanceled: sync.invitationsCanceled + invitedCanceled,
   }
+}
+
+/** A bill that dunning, a dispute or an admin holds: a workspace on it changes partner once it is paid or resumed. */
+const HELD_BILL: readonly (typeof billing_accounts.$inferSelect)['status'][] = ['past_due', 'suspended']
+
+type AdminMoveInput = { workspaceId: string; toPartnerId: string | null; confirmName: string; reason: string }
+
+/**
+ * Server admin moves a workspace to another partner, adds one to a partner, or takes it from its partner
+ * (`partner.adminMoveClient`, LIN-530). The owner, data, numbers and calls stay; who has access follows the partner
+ * (syncPartnerMemberships: the old team leaves with its API keys and setup links and the invitations it sent, the new
+ * team becomes admin). Where a bill is involved the workspace changes bills, so only an instance admin signed in with
+ * their passkey (refuseMoneyChange, as `billing.moveWorkspace`): onto the new partner's bill, with the gates a new
+ * client has there (billForNewClient), its seat added and the old bill's dropped after the commit (seatsFollow,
+ * docs/billing.md §6), Allow Premium and Ultra off when someone else pays, its extra calls and usage limit left
+ * behind. Taken from its partner it goes the way a release goes (detachClient: a new bill of its owner waiting for
+ * their card). Refused for a bill that is past due or suspended, while calls run, and never while impersonating.
+ * Lock order: the partner rows (id order), the owner row, the old bill's extra-calls lock, the assistants' version
+ * locks, the balances (id order), the workspace.
+ */
+async function adminMoveClient(ctx: HandlerCtx, input: AdminMoveInput) {
+  const { tx, actor, now } = ctx
+  if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
+  const [seen] = await tx
+    .select({
+      id: organization.id,
+      name: organization.name,
+      partnerId: organization.partnerId,
+      bill: organization.billingAccountId,
+    })
+    .from(organization)
+    .where(eq(organization.id, input.workspaceId))
+  if (!seen) throw refusePartner('client_not_found')
+  refuseUnconfirmed(seen.name, input.confirmName)
+  const fromId = seen.partnerId ?? null
+  const toId = input.toPartnerId
+  if (fromId === toId) throw refusePartner(toId ? 'same_partner' : 'no_partner')
+  const locked = new Map<string, PartnerRow>()
+  for (const id of [fromId, toId].filter((id): id is string => !!id).sort()) locked.set(id, await lockedPartner(tx, id))
+  const from = fromId ? locked.get(fromId)! : null
+  const to = toId ? locked.get(toId)! : null
+  if (seen.bill || to?.billing_account_id) refuseMoneyChange(actor)
+  const named = (p: PartnerRow | null) => (p ? { id: p.id, name: p.name } : null)
+  const subjectOf = { email: null, workspaceId: seen.id }
+  if (!to) {
+    await refuseHeldBill(tx, seen.bill)
+    const done = await detachClient(ctx, fromId!, seen.id, [])
+    return { ...done, from: named(from), to: null, addedMemberships: 0, subject: subjectOf }
+  }
+  if (to.status === 'suspended') throw refusePartner('partner_suspended')
+  // A partner admin is never a client's owner (docs/white-label.md): the owner of this one is not on the new team.
+  const owner = await lockedOwner(tx, seen.id)
+  if (owner && (await onTeam(tx, to.id, owner.userId))) throw refusePartner('owner_on_team')
+  if (seen.bill) await lockExtraCalls(tx, seen.bill)
+  await lockForPayerChange(tx, [seen.id])
+  for (const id of [seen.bill, to.billing_account_id].filter((id): id is string => !!id).sort())
+    await lockBalance(tx, id)
+  const bill = await billForNewClient(tx, to)
+  if (!bill) await refuseOverCeiling(tx, to)
+  const [org] = await tx.select().from(organization).where(eq(organization.id, seen.id)).for('update')
+  if (!org || (org.partnerId ?? null) !== fromId || (org.billingAccountId ?? null) !== (seen.bill ?? null))
+    throw refusePartner('client_not_found')
+  const [old] = org.billingAccountId
+    ? await tx.select().from(billing_accounts).where(eq(billing_accounts.id, org.billingAccountId))
+    : []
+  if (old && HELD_BILL.includes(old.status)) throw refusePartner('client_bill_inactive')
+  const [running] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(call_reservations)
+    .innerJoin(calls, eq(calls.id, call_reservations.call_id))
+    .where(eq(calls.workspace_id, org.id))
+  if ((running?.n ?? 0) > 0) throw refusePartner('calls_running')
+  const moves = !!bill && bill.id !== org.billingAccountId
+  await tx
+    .update(organization)
+    .set({
+      partnerId: to.id,
+      usageLimitCents: null,
+      // Extra calls are bought on a bill's plan: they stay behind, as on a release (the old item drops below).
+      ...(moves ? { billingAccountId: bill.id, billingState: mirroredState(bill.status), extraCalls: 0 } : {}),
+    })
+    .where(eq(organization.id, org.id))
+  await resetUsageLimitAlerts(tx, org.id)
+  if (moves) {
+    // Someone else pays from now on: Allow Premium and Allow Ultra were the old payer's choice (LIN-438).
+    if (old?.owner_user_id !== bill.owner_user_id) await billPayerChanged(tx, [org.id], actor.actorId)
+    // A canceled bill's subscription ended in Stripe: nothing to lower there (seatsFollowDelete).
+    if (old && old.status !== 'canceled')
+      await seatsFollow(tx, ctx.onCommit, old.id, `out_${org.id}_${now}`, {
+        extraCalls: org.extraCalls > 0 && !!old.stripe_subscription_id,
+      })
+    await seatsFollow(tx, ctx.onCommit, bill.id, `in_${org.id}_${now}`)
+  }
+  const left = from ? await syncPartnerMemberships(tx, from.id, now) : { removed: 0, invitationsCanceled: 0 }
+  const joined = await syncPartnerMemberships(tx, to.id, now)
+  return {
+    workspace: { id: org.id, name: org.name },
+    from: named(from),
+    to: named(to),
+    billId: moves ? bill.id : (org.billingAccountId ?? null),
+    removedMemberships: left.removed,
+    addedMemberships: joined.added,
+    invitationsCanceled: left.invitationsCanceled,
+    subject: subjectOf,
+  }
+}
+
+/** Whether the person is on the partner's team. */
+async function onTeam(tx: Tx, partnerId: string, userId: string) {
+  const [row] = await tx
+    .select({ id: partner_members.user_id })
+    .from(partner_members)
+    .where(and(eq(partner_members.partner_id, partnerId), eq(partner_members.user_id, userId)))
+  return !!row
+}
+
+/** A workspace on a bill that is past due or suspended keeps its partner until the bill runs again. */
+async function refuseHeldBill(tx: Tx, billId: string | null) {
+  if (!billId) return
+  const [bill] = await tx
+    .select({ status: billing_accounts.status })
+    .from(billing_accounts)
+    .where(eq(billing_accounts.id, billId))
+  if (bill && HELD_BILL.includes(bill.status)) throw refusePartner('client_bill_inactive')
 }
 
 /** Forwarding check results that say calls do not reach the number (forwarding-check.ts). */
@@ -1211,6 +1340,11 @@ export const partnerHandlers: Record<string, Handler> = {
       data: { partner: { id: partner.id, name: partner.name }, addedMemberships: sync.added, subject: subject(null) },
     }
   },
+
+  'partner.adminMoveClient': async (ctx, input: AdminMoveInput) => ({
+    rows: {},
+    data: await adminMoveClient(ctx, input),
+  }),
 
   'partner.setClientLimit': async ({ tx, actor, now }, input: { limit: number }) => {
     const value = String(input.limit)

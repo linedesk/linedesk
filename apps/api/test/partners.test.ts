@@ -1843,3 +1843,205 @@ describe('partner seats follow what Stripe has (review of #1109, L-1)', () => {
     }
   })
 })
+
+// ---- Server admin moves a workspace between partners, adds it to one, or takes it from its partner (LIN-530) ----
+
+describe('Server admin › Workspaces: a workspace changes partner (LIN-530)', () => {
+  beforeAll(async () => {
+    await db
+      .insert(instance_settings)
+      .values({ key: BILLING_ENABLED_KEY, value: 'on' })
+      .onConflictDoUpdate({ target: instance_settings.key, set: { value: 'on' } })
+  })
+  afterAll(async () => {
+    await db.delete(instance_settings).where(eq(instance_settings.key, BILLING_ENABLED_KEY))
+  })
+
+  const moveAs = (who: User, workspaceId: string, toPartnerId: string | null, confirmName: string) =>
+    act(who, 'partner.adminMoveClient', { workspaceId, toPartnerId, confirmName, reason: 'support request' })
+  const move = (workspaceId: string, toPartnerId: string | null, confirmName: string) =>
+    asServerAdmin(admin, () => moveAs(admin, workspaceId, toPartnerId, confirmName))
+  /** Runs `work` with a job queue that keeps what is queued; returns the seat syncs among it. */
+  async function seatJobs(work: () => Promise<unknown>) {
+    const queued: { name: string; data: { billId: string; extraCalls: boolean } }[] = []
+    setJobQueue({ send: async (name: string, data: never) => void queued.push({ name, data }) } as never)
+    try {
+      await work()
+    } finally {
+      setJobQueue(null)
+    }
+    return queued.filter(j => j.name === PARTNER_SEAT_SYNC).map(j => j.data)
+  }
+  const workspaceData = async (workspaceId: string) => ({
+    numbers: (await db.select().from(phone_numbers).where(eq(phone_numbers.workspace_id, workspaceId))).map(
+      n => n.e164,
+    ),
+  })
+
+  test('a move: the old team leaves, the new team is admin, the seat moves bills, owner and data stay', async () => {
+    const from = await billedPartner('Old Agency', 'active', true)
+    const to = await billedPartner('New Agency', 'active', true)
+    const c = await createClient(from, 'Moving Dental')
+    const owner = await giveOwner(from, c)
+    const oldAdmin = await addPartnerAdmin(from)
+    const newAdmin = await addPartnerAdmin(to)
+    await db.insert(phone_numbers).values({ id: rid('pn'), workspace_id: c, e164: '+15550101234', provider: 'dev' })
+    await db.update(organization).set({ usageLimitCents: 5000 }).where(eq(organization.id, c))
+    const before = await workspaceData(c)
+    const key = await act(await inWorkspace(oldAdmin, c), 'apiKey.create', { name: 'Old key', role: 'member' })
+    let res: Awaited<ReturnType<typeof move>> | undefined
+    const jobs = await seatJobs(async () => (res = await move(c, to.id, 'moving dental')))
+    expect(res).toMatchObject({
+      status: 200,
+      body: {
+        data: {
+          from: { id: from.id, name: 'Old Agency' },
+          to: { id: to.id, name: 'New Agency' },
+          billId: to.billId,
+          removedMemberships: 2,
+          addedMemberships: 2,
+        },
+      },
+    })
+    expect(jobs.map(j => j.billId).sort()).toEqual([from.billId, to.billId].sort())
+    expect(await orgRow(c)).toMatchObject({
+      partnerId: to.id,
+      billingAccountId: to.billId,
+      billingState: 'active',
+      usageLimitCents: null,
+    })
+    expect(await partnerMembership(c, oldAdmin.userId)).toBeUndefined()
+    expect(await partnerMembership(c, from.owner.userId)).toBeUndefined()
+    expect(await partnerMembership(c, newAdmin.userId)).toMatchObject({ role: 'admin', partnerId: to.id })
+    expect(await partnerMembership(c, to.owner.userId)).toMatchObject({ role: 'admin', partnerId: to.id })
+    expect(await partnerMembership(c, owner.userId)).toMatchObject({ role: 'owner', partnerId: null })
+    expect(await workspaceData(c)).toEqual(before)
+    const [row] = await db.select().from(api_keys).where(eq(api_keys.id, key.body.data.apiKeyId))
+    expect(row!.revoked_at).toBeTruthy()
+    expect((await act(from.owner, 'partner.listClients', { partnerId: from.id })).body.data.clients).toEqual([])
+    expect(
+      (await act(to.owner, 'partner.listClients', { partnerId: to.id })).body.data.clients.map(
+        (r: { id: string }) => r.id,
+      ),
+    ).toEqual([c])
+    const audit = await asServerAdmin(admin, () => request(admin, 'GET', '/v1/admin/audit?kind=partners'))
+    const entries = audit.body.entries ?? audit.body.data?.entries ?? []
+    expect(entries.some((e: { what: string }) => e.what === 'partner.adminMoveClient')).toBe(true)
+  })
+
+  test('adding a workspace: it leaves its own bill for the partner bill, and Allow Premium goes off', async () => {
+    const to = await billedPartner('Adding Agency', 'active', true)
+    const plain = await createWorkspace('Plain Roofing')
+    const [own] = await db
+      .insert(billing_accounts)
+      .values({ id: crypto.randomUUID(), kind: 'cloud', owner_user_id: plain.owner.userId, status: 'active' })
+      .returning()
+    await db.update(organization).set({ billingAccountId: own!.id, extraCalls: 5 }).where(eq(organization.id, plain.id))
+    await db
+      .update(workspace_settings)
+      .set({ allow_premium: true })
+      .where(eq(workspace_settings.workspace_id, plain.id))
+    const before = await workspaceData(plain.id)
+    let res: Awaited<ReturnType<typeof move>> | undefined
+    const jobs = await seatJobs(async () => (res = await move(plain.id, to.id, 'Plain Roofing')))
+    expect(res).toMatchObject({ status: 200, body: { data: { from: null, to: { id: to.id }, billId: to.billId } } })
+    expect(jobs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ billId: own!.id, extraCalls: false }),
+        expect.objectContaining({ billId: to.billId }),
+      ]),
+    )
+    expect(await orgRow(plain.id)).toMatchObject({ partnerId: to.id, billingAccountId: to.billId, extraCalls: 0 })
+    const [settings] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, plain.id))
+    expect(settings).toMatchObject({ allow_premium: false })
+    expect(await partnerMembership(plain.id, plain.owner.userId)).toMatchObject({ role: 'owner', partnerId: null })
+    expect(await partnerMembership(plain.id, to.owner.userId)).toMatchObject({ role: 'admin', partnerId: to.id })
+    expect(await workspaceData(plain.id)).toEqual(before)
+  })
+
+  test('taking a workspace from its partner: a new bill of its owner waiting for their card, the seat leaves', async () => {
+    const from = await billedPartner('Letting Go Agency', 'active', true)
+    const c = await createClient(from, 'Solo Clinic')
+    expect(await move(c, null, 'Solo Clinic')).toMatchObject({ status: 409, body: { code: 'client_no_owner' } })
+    const owner = await giveOwner(from, c)
+    let res: Awaited<ReturnType<typeof move>> | undefined
+    const jobs = await seatJobs(async () => (res = await move(c, null, 'Solo Clinic')))
+    expect(res).toMatchObject({
+      status: 200,
+      body: { data: { from: { id: from.id }, to: null, removedMemberships: 1 } },
+    })
+    expect(jobs.map(j => j.billId)).toEqual([from.billId])
+    const org = await orgRow(c)
+    expect(org).toMatchObject({ partnerId: null, billingState: 'pending_payment' })
+    const [bill] = await db.select().from(billing_accounts).where(eq(billing_accounts.id, org.billingAccountId!))
+    expect(bill).toMatchObject({ kind: 'cloud', status: 'pending_payment', owner_user_id: owner.userId })
+    expect(await partnerMembership(c, from.owner.userId)).toBeUndefined()
+    expect(await move(c, null, 'Solo Clinic')).toMatchObject({ status: 409, body: { code: 'no_partner' } })
+  })
+
+  test('refusals: the name, the same partner, a held bill, a partner that cannot take it, its owner on the new team', async () => {
+    const from = await billedPartner('Refusing Agency', 'active', true)
+    const to = await billedPartner('Target Agency', 'active', true)
+    const c = await createClient(from, 'Careful Client')
+    expect(await move(c, to.id, 'Other Name')).toMatchObject({ status: 409, body: { code: 'confirm_mismatch' } })
+    expect(await move(c, from.id, 'Careful Client')).toMatchObject({ status: 409, body: { code: 'same_partner' } })
+    expect(await move(c, 'ptn_nobody', 'Careful Client')).toMatchObject({ status: 404, body: { code: 'not_found' } })
+    for (const status of ['past_due', 'suspended'] as const) {
+      await setBill(from.billId, status)
+      expect(await move(c, to.id, 'Careful Client')).toMatchObject({
+        status: 409,
+        body: { code: 'client_bill_inactive' },
+      })
+    }
+    await setBill(from.billId, 'active')
+    await setBill(to.billId, 'pending_payment')
+    expect(await move(c, to.id, 'Careful Client')).toMatchObject({ status: 409, body: { code: 'bill_not_started' } })
+    await setBill(to.billId, 'suspended')
+    expect(await move(c, to.id, 'Careful Client')).toMatchObject({ status: 409, body: { code: 'bill_inactive' } })
+    await setBill(to.billId, 'active')
+    await asServerAdmin(admin, () => act(admin, 'partner.suspend', { partnerId: to.id }))
+    expect(await move(c, to.id, 'Careful Client')).toMatchObject({ status: 409, body: { code: 'partner_suspended' } })
+    await asServerAdmin(admin, () => act(admin, 'partner.approve', { partnerId: to.id }))
+    // The owner of the client is on the new partner's team: a partner admin is never a client's owner.
+    const owner = await giveOwner(from, c)
+    await db.insert(partner_members).values({ partner_id: to.id, user_id: owner.userId, role: 'admin' })
+    expect(await move(c, to.id, 'Careful Client')).toMatchObject({ status: 409, body: { code: 'owner_on_team' } })
+    await db
+      .delete(partner_members)
+      .where(and(eq(partner_members.partner_id, to.id), eq(partner_members.user_id, owner.userId)))
+    // Nothing changed by any of these.
+    expect(await orgRow(c)).toMatchObject({ partnerId: from.id, billingAccountId: from.billId })
+    // Only instance admins, and only as themselves.
+    expect((await moveAs(from.owner, c, to.id, 'Careful Client')).status).toBe(403)
+    expect((await moveAs(to.owner, c, to.id, 'Careful Client')).status).toBe(403)
+    expect(await move(c, to.id, 'Careful Client')).toMatchObject({ status: 200 })
+  })
+})
+
+describe('Server admin › Workspaces: without billing, a partner takes at most the clients allowed (LIN-530)', () => {
+  test('the ceiling and a pending partner refuse an added workspace; nothing about bills', async () => {
+    const pending = await makePartner('Pending Taker', false)
+    const plain = await createWorkspace('Unbilled Shop')
+    const add = (partnerId: string) =>
+      asServerAdmin(admin, () =>
+        act(admin, 'partner.adminMoveClient', {
+          workspaceId: plain.id,
+          toPartnerId: partnerId,
+          confirmName: 'Unbilled Shop',
+          reason: 'support request',
+        }),
+      )
+    expect(await add(pending.id)).toMatchObject({ status: 409, body: { code: 'partner_pending' } })
+    const full = await makePartner('Full Taker')
+    await createClient(full, 'Only Client')
+    await asServerAdmin(admin, () => act(admin, 'partner.setClientLimit', { limit: 1 }))
+    try {
+      expect(await add(full.id)).toMatchObject({ status: 409, body: { code: 'client_limit' } })
+      await asServerAdmin(admin, () => act(admin, 'partner.setClientLimit', { limit: 25 }))
+      expect(await add(full.id)).toMatchObject({ status: 200, body: { data: { billId: null } } })
+      expect(await orgRow(plain.id)).toMatchObject({ partnerId: full.id, billingAccountId: null })
+    } finally {
+      await db.delete(instance_settings).where(eq(instance_settings.key, 'partners.client_limit'))
+    }
+  })
+})

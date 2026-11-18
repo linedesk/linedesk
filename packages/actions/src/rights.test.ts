@@ -294,6 +294,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'partner.approve',
     'partner.suspend',
     'partner.setClientLimit',
+    'partner.adminMoveClient',
     // Server admin › Partners › Protected names (docs/white-label.md, S4).
     'partnerBrand.protectedNames',
     'partnerBrand.setProtectedNames',

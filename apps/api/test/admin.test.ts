@@ -220,6 +220,7 @@ describe('access', () => {
       'outboundCountries.get',
       'outboundCountries.set',
       'partner.adminList',
+      'partner.adminMoveClient',
       'partner.approve',
       'partner.create',
       'partner.setClientLimit',

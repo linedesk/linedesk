@@ -46,6 +46,9 @@ const REFUSALS: Record<PartnerCode, string> = {
     'this client workspace is not on the partner bill: a usage limit and Allow Premium or Ultra apply only there',
   member_not_invited:
     "one of the people to remove is not someone the partner's team invited into this workspace, or is or was its owner",
+  same_partner: 'the workspace is with this partner already',
+  client_bill_inactive:
+    "the workspace's bill is past due or suspended: it changes partner once the bill is paid or resumed",
 }
 export const refusePartner = (code: PartnerCode) => new Reject(REFUSALS[code], code)
 

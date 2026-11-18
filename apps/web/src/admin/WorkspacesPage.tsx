@@ -174,6 +174,9 @@ export function WorkspaceDetail({
           <Fact label={t('admin.workspaces.fact.answeredMonth')}>{formatMinutes(w.minutes_this_month)}</Fact>
           <Fact label={t('admin.workspaces.fact.costMonth')}>{formatUsd(w.cost_this_month)}</Fact>
           <Fact label={t('admin.workspaces.fact.lastCall')}>{when(w.last_call_at)}</Fact>
+          <Fact label={t('admin.workspaces.fact.partner')}>
+            {w.partner_name ?? t('admin.workspaces.fact.noPartner')}
+          </Fact>
           <Fact label={t('admin.workspaces.fact.created')}>{day(w.created_at)}</Fact>
         </dl>
       </Card>

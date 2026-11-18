@@ -45,6 +45,8 @@ export const PARTNER_CODES = [
   'client_owner',
   'client_not_billed',
   'member_not_invited',
+  'same_partner',
+  'client_bill_inactive',
 ] as const
 export type PartnerCode = (typeof PARTNER_CODES)[number]
 
@@ -271,6 +273,20 @@ export const partnerSuspend = defineAction({
   description:
     'Suspend a partner: its team leaves every client workspace at once and can change nothing until it is approved again. Instance admins only.',
   input: z.object({ partnerId }),
+  permission: 'instance:admin',
+})
+
+export const partnerAdminMoveClient = defineAction({
+  name: 'partner.adminMoveClient',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Move a workspace to another partner, add a workspace to a partner, or take it from its partner (toPartnerId null). The old partner's team leaves it at once and the new partner's team becomes an admin of it; the owner, data, numbers and calls stay. Where billing is on, the workspace goes on the new partner's bill (its seat moves, prorated as docs/billing.md §6) or, taken from its partner, on a new bill of its owner that waits for their card; that needs an instance admin signed in with their passkey. Refused while calls run, for a bill that is past due or suspended, for a partner that is suspended or cannot take more clients, and for a workspace without an owner taken from its partner. Type the workspace's name to confirm. Instance admins only.",
+  input: z.object({
+    workspaceId: z.string().min(1).max(64),
+    toPartnerId: partnerId.nullable(),
+    confirmName,
+    reason: z.string().trim().min(3).max(500),
+  }),
   permission: 'instance:admin',
 })
 

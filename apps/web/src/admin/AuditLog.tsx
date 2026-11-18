@@ -283,6 +283,8 @@ export function auditLabel(
       return t('admin.audit.partnerSuspended')
     case 'partner.update':
       return t('admin.audit.partnerRenamed', name)
+    case 'partner.adminMoveClient':
+      return input.toPartnerId == null ? t('admin.audit.clientPartnerRemoved') : t('admin.audit.clientPartnerMoved')
     case 'partner.setClientLimit':
       return t('admin.audit.partnerClientLimit', { count: Number(input.limit) })
     case 'partnerMember.invite':

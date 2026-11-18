@@ -339,6 +339,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'partner.approve': 'partners',
   'partner.suspend': 'partners',
   'partner.setClientLimit': 'partners',
+  'partner.adminMoveClient': 'partners',
   'partner.update': 'partners',
   'partnerMember.invite': 'partners',
   'partnerMember.revokeInvite': 'partners',

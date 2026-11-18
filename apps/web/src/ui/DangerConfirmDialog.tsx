@@ -68,9 +68,11 @@ type Props = {
   blocked?: boolean
   /** Refusals the caller explains in `children` (the dialog then adds no error note of its own). */
   explains?: (err: unknown) => boolean
+  /** A choice in `children` the confirmation depends on: when it changes, an earlier failure's note goes. */
+  choice?: string | null
 }
 
-export function DangerConfirmDialog({ confirm, run, onClose, children, blocked = false, explains }: Props) {
+export function DangerConfirmDialog({ confirm, run, onClose, children, blocked = false, explains, choice }: Props) {
   const t = useT()
   const [typed, setTyped] = useState('')
   const [option, setOption] = useState(false)
@@ -87,6 +89,8 @@ export function DangerConfirmDialog({ confirm, run, onClose, children, blocked =
     const confirmTarget = confirmButton.current
     ;(confirmTarget && !confirmTarget.disabled ? confirmTarget : cancelButton.current)?.focus()
   }, [failures])
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the choice changes, to clear its old failure
+  useEffect(() => setError(null), [choice])
   const reasonGiven = !confirm.reason || reason.trim().length >= confirm.reason.min
   const unlocked = !blocked && typedMatches(typed, confirm.typed) && reasonGiven
   async function submit(e: FormEvent, work: (option: boolean, reason: string) => Promise<unknown> = run) {

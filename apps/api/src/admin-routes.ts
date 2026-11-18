@@ -56,6 +56,7 @@ const listWorkspaces = (tx: Tx) =>
     tx,
     sql`
   select o.id, o.name, ${utc('o.created_at')} as created_at, ${utc('o.disabled_at')} as disabled_at, o.spending_cap_cents,
+    o.partner_id, (select p.name from partners p where p.id = o.partner_id) as partner_name,
     (select count(*)::int from member m where m.organization_id = o.id) as members,
     (select count(*)::int from member m join "user" u on u.id = m.user_id where m.organization_id = o.id
       and not u.instance_admin and not exists (select 1 from member other where other.user_id = m.user_id

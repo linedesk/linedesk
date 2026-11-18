@@ -51,6 +51,9 @@ export type AdminWorkspace = {
   cost_this_month: number
   /** null: no monthly spending cap. */
   spending_cap_usd: number | null
+  /** Its white-label partner (absent from an older API); null: none. */
+  partner_id?: string | null
+  partner_name?: string | null
 }
 
 export type AdminUser = {
@@ -381,6 +384,7 @@ export type AdminInputs = {
   'partner.approve': { partnerId: string }
   'partner.suspend': { partnerId: string }
   'partner.setClientLimit': { limit: number }
+  'partner.adminMoveClient': { workspaceId: string; toPartnerId: string | null; confirmName: string; reason: string }
   'partnerBrand.protectedNames': Record<string, never>
   'partnerBrand.setProtectedNames': { names: string[] | null }
   'partnerBrand.reviews': Record<string, never>
@@ -442,6 +446,7 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, MessageKey>> = {
   'partner.approve': msg('admin.stepUp.what.partner'),
   'partner.suspend': msg('admin.stepUp.what.partner'),
   'partner.setClientLimit': msg('admin.stepUp.what.partnerLimit'),
+  'partner.adminMoveClient': msg('admin.stepUp.what.clientPartner'),
   'partnerBrand.setProtectedNames': msg('admin.stepUp.what.protectedNames'),
   'partnerBrand.approve': msg('admin.stepUp.what.partnerBrand'),
   'partnerBrand.reset': msg('admin.stepUp.what.partnerBrand'),
