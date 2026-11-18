@@ -18,13 +18,13 @@ import { useCountryHint } from '../countryHint.ts'
 import { Billing } from '../settings/Billing.tsx'
 import { useUsd } from '../onboarding/ExtraCalls.tsx'
 import { PARTNER_AGENT_HASH, PARTNER_SETUP_HASH, rememberPartnerByHand } from '../onboarding/setup-choice.ts'
+import { SetupTopBar } from '../onboarding/SetupTopBar.tsx'
 import { purchaseKeys } from '../settings/billingModel.ts'
 import { CountrySelect } from '../settings/CountrySelect.tsx'
 import { callAction } from '../settings/settings-api.ts'
 import { TimeZonePicker } from '../settings/TimeZonePicker.tsx'
 import { browserTimeZone } from '../settings/timeZones.ts'
 import { AskName } from '../shell/AskName.tsx'
-import { SetupAccountMenu } from '../shell/SetupAccountMenu.tsx'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { Toast } from '../shell/Toast.tsx'
 import { useToast } from '../shell/useToast.ts'
@@ -32,7 +32,7 @@ import { refreshWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
 import { tabWorkspace } from '../tabWorkspace.ts'
 import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { Card, Dialog, FormField, Input } from '../ui/form.tsx'
-import { Avatar, Badge, BrandMark, Button, Icon, Note } from '../ui/kit.tsx'
+import { Avatar, Badge, Button, Icon, Note } from '../ui/kit.tsx'
 import { List, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, sectionParts, useSection } from '../ui/SettingsLayout.tsx'
@@ -161,43 +161,39 @@ function PartnerConsole({ partner, onExit, onFirstWorkspace }: Props) {
   }, [onExit])
   return (
     <div className="adm-mode k-install-brand">
-      {/* The top bar of the setup screens (onboarding/Frame.tsx): the mark, whose area this is, the AI agent and the
-          account menu (another workspace or partner, sign out); Back to the inbox where there is one. */}
-      <div className="pagebar pa-bar">
-        {onExit ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="left"
-            aria-label={t('team.partner.back')}
-            title={t('common.withKey', { label: t('team.partner.back'), key: 'esc' })}
-            onClick={onExit}
-          />
-        ) : null}
-        <BrandMark install />
-        <b className="pa-name">{data?.partner.name ?? partner.name}</b>
-        <span className="pa-kind">{t('team.partner.page')}</span>
-        <span className="pa-grow" />
-        {partner.role === 'owner' && status !== 'suspended' && (
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="spark"
-            className="pa-agent"
-            aria-label={t('team.partner.agent')}
-            title={t('team.partner.agentTitle')}
-            onClick={() => {
-              rememberPartnerByHand(partner.id, false)
-              window.location.hash = PARTNER_AGENT_HASH
-            }}
-          >
-            {t('team.partner.agent')}
-          </Button>
-        )}
-        <SetupAccountMenu away />
-      </div>
+      {/* The setup pages' top bar (SetupTopBar): Linedesk, never a white-label brand (brand.ts), and what this page is;
+          the AI agent, the way back to the inbox where there is one (Esc too) and the account menu (another workspace or
+          partner, sign out). The partner's own name is the context line over the sections. */}
+      <SetupTopBar
+        label={t('team.partner.page')}
+        agentPath={
+          partner.role === 'owner' && status !== 'suspended'
+            ? () => {
+                rememberPartnerByHand(partner.id, false)
+                window.location.hash = PARTNER_AGENT_HASH
+              }
+            : undefined
+        }
+        exit={
+          onExit
+            ? {
+                kind: 'close',
+                onExit,
+                title: t('common.withKey', { label: t('team.partner.back'), key: 'esc' }),
+              }
+            : null
+        }
+        brand="install"
+        away
+      />
       <div className="page">
-        <SettingsLayout page="partner" title={data?.partner.name ?? partner.name} sections={sections} current={current}>
+        <SettingsLayout
+          page="partner"
+          title={t('team.partner.page')}
+          context={<span className="sl-context-text">{data?.partner.name ?? partner.name}</span>}
+          sections={sections}
+          current={current}
+        >
           {/* Only what stops the partner shows above every section; approval never does where billing is on (it only
               gates the brand in emails: said in Brand), and activating is the Clients section's own card. */}
           {status === 'suspended' && <Note tone="danger">{t('team.partner.suspended')}</Note>}

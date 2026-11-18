@@ -1,11 +1,11 @@
 // A partner owner's guided setup and the partner area's first run (PartnerSetup.tsx, PartnerArea.tsx; 2026-11-18): the
 // steps and where they open, White-label Cloud's real price, and the three states a new partner goes through: drafts
-// before payment, waiting for approval (never a blocker: one quiet line in Brand) and approved.
+// before payment, waiting for approval (never a blocker: one info note in Brand) and approved.
 import { type PartnerBrandData, type PartnerData, UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test } from 'vitest'
 import { Clients } from './PartnerArea.tsx'
-import { BrandForm } from './PartnerBrand.tsx'
+import { BrandForm, ReviewNote } from './PartnerBrand.tsx'
 import { partnerChargeCents, partnerSetupStart, partnerSetupSteps } from './PartnerSetup.tsx'
 
 const price = { interval: 'year' as const, planCents: 1400, seatCents: 900 }
@@ -90,7 +90,7 @@ test('before payment, drafts: New client still works; at the cap it says why it 
   expect(full).toContain(`Activate White-label Cloud to add more than ${UNPAID_PARTNER_CLIENTS} client workspaces`)
 })
 
-test('waiting for approval blocks nothing where billing is on: no note in Clients, one quiet line in Brand', () => {
+test('waiting for approval blocks nothing where billing is on: no note in Clients, one info note in Brand', () => {
   const pending = clientsHtml(partnerData({ status: 'pending', bill: 'active', clients: 1 }))
   expect(pending).not.toContain('approv')
   expect(pending).not.toContain('disabled=""')
@@ -106,4 +106,37 @@ test('approved and paid: no Activate card, no approval line', () => {
 test('without billing, approval is what client workspaces wait for: said next to New client', () => {
   const html = clientsHtml(partnerData({ status: 'pending', bill: null }), true)
   expect(html).toContain('client workspaces follow once it is approved')
+})
+
+const BRAND = {
+  name: 'Northwind Voice',
+  color: null,
+  logoUrl: null,
+  supportEmail: null,
+  termsUrl: null,
+  privacyUrl: null,
+}
+const reviewHtml = (state: PartnerBrandData['review']['state'], approved: boolean) =>
+  renderToStaticMarkup(
+    <ReviewNote
+      data={{
+        brand: BRAND,
+        review: { state, approved: state === 'none' ? null : BRAND, approvedAt: null },
+        emails: { active: false, approved, paid: false },
+        canEdit: true,
+      }}
+    />,
+  )
+
+test('Brand says where the brand stands in one note, never a second line about approval', () => {
+  // Not reviewed yet: the review note already says clients see this server's name; the approval line would repeat it.
+  const unreviewed = reviewHtml('none', false)
+  expect(unreviewed.match(/role="note"/g)?.length).toBe(1)
+  expect(unreviewed).toContain('A server admin reviews your brand')
+  expect(unreviewed).not.toContain(APPROVAL)
+  // Reviewed, the partner not approved yet: the approval is the one thing left, as the info note.
+  const reviewed = reviewHtml('approved', false)
+  expect(reviewed.match(/role="note"/g)?.length).toBe(1)
+  expect(reviewed).toContain(APPROVAL)
+  expect(reviewed).toContain('k-note-info')
 })

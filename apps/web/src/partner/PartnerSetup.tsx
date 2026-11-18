@@ -3,28 +3,30 @@
 // clients see, with a live preview. 2) The first client: its business name makes a client workspace (a free draft until
 // White-label Cloud runs), then the owner picks how to set it up, with the AI agent or by hand. 3) Activate White-label
 // Cloud: the real price (the partner bill's) and Stripe Checkout, or set the client up first and activate later.
-// Approval never stops anything here: it only gates the brand in emails, said quietly on the brand step.
+// Approval never stops anything here: it only gates the brand in emails, said quietly on the brand step. The top bar
+// and the footer are the setup pages' own (SetupTopBar, SetupFoot), as in the Cloud onboarding.
 import type { MyPartner, PartnerBrandData, PartnerClient, PartnerData } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { ColorField, nameProblem, parsedColor } from '../admin/Branding.tsx'
-import { installBrandName } from '../brand.ts'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { goToCheckout } from '../checkout.ts'
 import { useCountryHint } from '../countryHint.ts'
 import { useUsd } from '../onboarding/ExtraCalls.tsx'
-import { Foot, useStepKeys } from '../onboarding/Frame.tsx'
+import { useStepKeys } from '../onboarding/Frame.tsx'
+import { SetupFoot } from '../onboarding/SetupFoot.tsx'
+import { SetupTopBar } from '../onboarding/SetupTopBar.tsx'
 import { PARTNER_AGENT_HASH, PARTNER_SETUP_HASH, rememberPartnerByHand } from '../onboarding/setup-choice.ts'
 import { purchaseKeys } from '../settings/billingModel.ts'
 import { callAction } from '../settings/settings-api.ts'
 import { browserTimeZone } from '../settings/timeZones.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
-import { SetupAccountMenu } from '../shell/SetupAccountMenu.tsx'
 import { refreshWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
 import { tabWorkspace } from '../tabWorkspace.ts'
 import { FormField, FormMessage, Input } from '../ui/form.tsx'
-import { BrandMark, Button, Icon } from '../ui/kit.tsx'
+import { RadioCard } from '../ui/controls.tsx'
+import { Icon, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { unpaidPartner } from './PartnerArea.tsx'
 import {
@@ -118,19 +120,6 @@ export function PartnerSetup({
       ? partnerSetupStart(hash, steps, { brand: !!brand.data.brand, clients: data.clients.length })
       : 'agency'
   const index = steps.indexOf(step)
-  // The bar: the steps before this one are done, and this one counts half once its part is saved.
-  const done = index + (step === 'client' && data?.clients.length ? 0.5 : 0)
-  const progress = Math.round((done / steps.length) * 100)
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape' || !e.shiftKey || e.isComposing) return
-      e.preventDefault()
-      finishLater()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
 
   // i18n-dynamic: team.partner.setup.step.*
   const label = t(`team.partner.setup.step.${step}` as MessageKey)
@@ -141,35 +130,14 @@ export function PartnerSetup({
       role="main"
       aria-label={t('team.partner.setup.title', { partner: partner.name })}
     >
-      <div className="ob-top">
-        <BrandMark install />
-        <b>{installBrandName()}</b>
-        <span className="ob-count">
-          {t('onboarding.frame.stepCount', { step: index + 1, total: steps.length, label })}
-        </span>
-        <span className="ob-count-short" aria-hidden="true">
-          {t('onboarding.frame.stepShort', { step: index + 1, total: steps.length })}
-        </span>
-        <Button
-          size="sm"
-          variant="ghost"
-          icon="spark"
-          className="ob-agent"
-          onClick={() => withAgent(partner.id)}
-          aria-label={t('onboarding.frame.agent')}
-          title={t('team.partner.setup.agentTitle')}
-        >
-          {t('onboarding.frame.agent')}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={finishLater} title={t('team.partner.setup.finishLaterTitle')}>
-          {t('onboarding.frame.finishLater')}
-        </Button>
-        <SetupAccountMenu away />
-      </div>
-      <div className="ob-bar">
-        <span style={{ width: `${progress}%` }} />
-      </div>
-      <div className={step === 'agency' ? 'ob-main ps-wide' : 'ob-main'}>
+      <SetupTopBar
+        step={{ n: index + 1, m: steps.length, name: label }}
+        agentPath={() => withAgent(partner.id)}
+        exit={{ kind: 'finish-later', onExit: finishLater, title: t('team.partner.setup.finishLaterTitle') }}
+        brand="install"
+        away
+      />
+      <div className="ob-main">
         {!data || !brand.data ? (
           <Loading
             what={t('team.partner.page')}
@@ -255,7 +223,7 @@ function AgencyStep({
         <h1>{t('team.partner.setup.agency.title')}</h1>
         <p className="ob-lede">{t('team.partner.setup.agency.lede')}</p>
         <div className="ps-brand">
-          <fieldset className="pb-fields ps-fields" disabled={!brand.canEdit || busy}>
+          <fieldset className="pb-fields" disabled={!brand.canEdit || busy}>
             <FormField id="ps-name" label={t('admin.branding.name')} error={nameKey && t(nameKey)}>
               <Input
                 id="ps-name"
@@ -282,7 +250,7 @@ function AgencyStep({
         {data.partner.status === 'pending' && <p className="ob2-note">{t('team.partner.approvalPending')}</p>}
         {problem && <FormMessage>{problem}</FormMessage>}
       </div>
-      <Foot onContinue={() => void next()} canContinue={!invalid} busy={busy} />
+      <SetupFoot onContinue={() => void next()} canContinue={!invalid} busy={busy} />
     </>
   )
 }
@@ -396,7 +364,7 @@ function NewClientStep({
           />
         </FormField>
       </div>
-      <Foot
+      <SetupFoot
         onBack={onBack}
         onContinue={() => void create()}
         canContinue={!!name.trim()}
@@ -454,30 +422,26 @@ function ClientWayStep({
   return (
     <>
       <div className="ob-body">
-        <p className="ps-made">
-          <Icon name="check" size={14} />
+        <h1>{t('team.partner.setup.way.title')}</h1>
+        <Note tone="success">
           {t(unpaid ? 'team.partner.setup.way.madeDraft' : 'team.partner.setup.way.made', { client: client.name })}
-        </p>
-        <h1>{t('team.partner.setup.way.title', { client: client.name })}</h1>
+        </Note>
         <p className="ob-lede">{t('team.partner.setup.way.lede')}</p>
-        <div
-          className="k-radios ob-choices"
-          role="radiogroup"
-          aria-label={t('team.partner.setup.way.title', { client: client.name })}
-        >
+        <div className="k-radios ob-choices" role="radiogroup" aria-label={t('team.partner.setup.way.title')}>
           {choices.map(c => (
-            <label key={c.id} className={way === c.id ? 'ob-choice on' : 'ob-choice'}>
-              <input type="radio" name="ps-way" checked={way === c.id} onChange={() => onWay(c.id)} />
-              <div>
-                <b>{c.title}</b>
-                <span>{c.text}</span>
-              </div>
-            </label>
+            <RadioCard
+              key={c.id}
+              name="ps-way"
+              checked={way === c.id}
+              onPick={() => onWay(c.id)}
+              title={c.title}
+              description={c.text}
+            />
           ))}
         </div>
         {problem && <FormMessage>{problem}</FormMessage>}
       </div>
-      <Foot
+      <SetupFoot
         onBack={onBack}
         onContinue={() => void next()}
         canContinue
@@ -581,7 +545,7 @@ function ActivateStep({
         </div>
         {problem && <FormMessage>{problem}</FormMessage>}
       </div>
-      <Foot
+      <SetupFoot
         onBack={onBack}
         onContinue={() => void activate()}
         canContinue

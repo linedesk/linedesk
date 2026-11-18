@@ -1,7 +1,7 @@
 // Every screen a signed-in person can reach while setting up or joining (2026-11-18) offers the account menu in its top
 // bar (SetupAccountMenu): another workspace or partner area, and Sign out. The screens have no app navigation, so
 // without it someone could be stuck on one. They get it one of three ways: the setup pages' one top bar
-// (SetupTopBar.tsx: the onboarding's frame, the install walkthrough, the agent setup pages), the menu itself, or the
+// (SetupTopBar.tsx: the onboarding's frame, the install walkthrough, the agent setup pages, a partner's setup and area), the menu itself, or the
 // sign-in card page with it in its corner once signed in (SignedInAuthPage.tsx). A new screen in the list below, or one built on the bare AuthPage, fails here.
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
@@ -25,8 +25,8 @@ const SETUP_SCREENS: Record<string, string> = {
   'onboarding/InstallSetup.tsx': '<SetupTopBar',
   'onboarding/AdminStart.tsx': '<SignedInAuthPage',
   // A white-label partner: the guided setup by hand (#partner/setup) and the partner area (#partner).
-  'partner/PartnerSetup.tsx': '<SetupAccountMenu',
-  'partner/PartnerArea.tsx': '<SetupAccountMenu',
+  'partner/PartnerSetup.tsx': '<SetupTopBar',
+  'partner/PartnerArea.tsx': '<SetupTopBar',
   // Joining: a team invitation, a partner team invitation, no workspace yet, a new workspace.
   'team/AcceptInvite.tsx': '<SignedInAuthPage',
   'partner/PartnerInvite.tsx': '<SignedInAuthPage',

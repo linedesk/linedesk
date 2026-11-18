@@ -110,14 +110,15 @@ export function PartnerBrand({ partnerId, partnerName }: { partnerId: string; pa
 }
 
 /**
- * Where the brand stands: a server admin reviews every change of name, logo, support email or links before clients and
- * their emails get it (security review of #1111, M-2), and the note names what waits; then emails also wait for
- * approval and the first invoice.
+ * Where the brand stands, in one note (one message per fact): a server admin reviews every change of name, logo,
+ * support email or links before clients and their emails get it (security review of #1111, M-2), and the note names
+ * what waits; then emails also wait for the partner's approval and the first invoice. While the review note shows,
+ * it already says clients don't see the brand yet: the approval line would only repeat it.
  */
-function ReviewNote({ data }: { data: PartnerBrandData }) {
+export function ReviewNote({ data }: { data: PartnerBrandData }) {
   const t = useT()
   const format = useFormat()
-  if (!data.brand) return null
+  if (!data.brand) return data.emails.approved ? null : <Note tone="info">{t('team.partner.approvalPending')}</Note>
   if (data.review.state === 'none') return <Note tone="info">{t('team.partner.brand.reviewNone')}</Note>
   if (data.review.state === 'pending') {
     const fields = changedFields(data.brand, data.review.approved).map(f => t(FIELD_KEY[f]))
@@ -128,8 +129,7 @@ function ReviewNote({ data }: { data: PartnerBrandData }) {
     )
   }
   if (data.emails.active) return <Note tone="info">{t('team.partner.brand.emailsActive')}</Note>
-  // Waiting for approval is said quietly above the form (ApprovalLine), never as a note.
-  if (!data.emails.approved) return null
+  if (!data.emails.approved) return <Note tone="info">{t('team.partner.approvalPending')}</Note>
   return <Note tone="info">{t('team.partner.brand.emailsAfterPayment')}</Note>
 }
 
@@ -188,8 +188,6 @@ export function BrandForm({
   return (
     <form className="pb-form" onSubmit={save} onKeyDown={e => onSaveKey(e, dirty && !invalid && !saving && !readOnly)}>
       {readOnly && <Note tone="neutral">{t('team.partner.brand.ownerOnly')}</Note>}
-      {/* Approval only gates the brand in emails (and, once available, the own domain): one quiet line, here only. */}
-      {!data.emails.approved && <p className="pb-muted">{t('team.partner.approvalPending')}</p>}
       <ReviewNote data={data} />
       <Card
         title={t('team.partner.brand.title')}

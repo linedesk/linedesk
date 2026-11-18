@@ -393,7 +393,12 @@ export function AgentSetup({
           change
             ? { kind: 'close', onExit: () => onManual(false), title: t('onboarding.agentSetup.change.backTitle') }
             : onLater
-              ? { kind: 'finish-later', onExit: onLater }
+              ? {
+                  kind: 'finish-later',
+                  onExit: onLater,
+                  // A partner's setup waits in the partner area, not in a go-live checklist.
+                  title: partnerId ? t('team.partner.setup.finishLaterTitle') : undefined,
+                }
               : null
         }
         brand={scope === 'partner' ? 'install' : 'app'}

@@ -2,10 +2,14 @@
 // here first. An AI agent sets up the partner (company, brand, team) and its client workspaces with a setup link for
 // this partner only (agentSetup.createPartnerKey); the owner adds client workspaces (a seat on the bill), numbers,
 // call forwarding and test calls on the page's rows. "Set up by hand instead" opens the guided setup (#partner/setup,
-// PartnerSetup.tsx) and is remembered.
+// PartnerSetup.tsx) and is remembered. "Finish later" goes to the partner area, as from the guided setup.
 import type { MyPartner } from '@linedesk/actions'
 import { AgentSetup } from '../onboarding/AgentSetup.tsx'
 import { PARTNER_SETUP_HASH, rememberPartnerByHand } from '../onboarding/setup-choice.ts'
+
+const toPartnerArea = () => {
+  window.location.hash = '#partner'
+}
 
 export function PartnerAgentSetup({
   partner,
@@ -28,9 +32,8 @@ export function PartnerAgentSetup({
         rememberPartnerByHand(partner.id, true)
         window.location.hash = PARTNER_SETUP_HASH
       }}
-      onDone={() => {
-        window.location.hash = '#partner'
-      }}
+      onDone={toPartnerArea}
+      onLater={toPartnerArea}
     />
   )
 }

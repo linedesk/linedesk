@@ -75,10 +75,13 @@ test('the agent setup for a partner shows Linedesk, with the account menu', () =
   expect(markup).toContain('ob-me')
 })
 
-test('the partner area shows Linedesk next to the partner’s name', () => {
+test('the partner area shows Linedesk in its top bar, the partner’s name in the context line', () => {
   const markup = html('#partner', <PartnerArea partner={partner} onExit={() => {}} />)
   expectLinedesk(markup)
-  expect(markup).toContain('Northwind Digital')
+  expect(markup).toContain('<b>Linedesk</b>')
+  expect(markup).not.toContain('<b>Northwind Digital</b>')
+  expect(markup).toMatch(/class="sl-context-text">Northwind Digital</)
+  expect(markup).toContain('ob-me')
 })
 
 test('the partner team invitation page shows Linedesk', () => {
