@@ -24,6 +24,7 @@ import { HelpTip } from '../ui/form.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { type AdminData, keyUsersOf, loadInstallSetup, runAdmin } from './api.ts'
 import { isConfigured, selectsOnConnect } from './model.ts'
+import { CallQualityCard } from './CallQuality.tsx'
 import { errorText, type Notify } from './notify.ts'
 import { clearOpenRouterReturn, type OpenRouterReturn, peekOpenRouterReturn } from './openrouterAuth.ts'
 import { ProviderDialog } from './ProviderDialog.tsx'
@@ -266,6 +267,7 @@ export function Providers({ data, status, id, onClearId, notify, reload, headAct
         ) : (
           <AgentFirst lead={t('admin.providers.allSetLead')} complete />
         ))}
+      {status.status && <CallQualityCard notify={notify} />}
       {status.status &&
         groups.map(g => (
           <ProviderGroup
@@ -279,7 +281,6 @@ export function Providers({ data, status, id, onClearId, notify, reload, headAct
               await reload()
               notify(t('admin.providers.oneKeyDone'))
             }}
-            onPipelinePolicy={reload}
             folds={folds}
           />
         ))}

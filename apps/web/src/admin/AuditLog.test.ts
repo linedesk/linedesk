@@ -164,7 +164,7 @@ const AUDITED_ACTION_NAMES = [
   'carrier.set',
   'carrier.provisionTransferTrunk',
   'voiceCloning.set',
-  'voicePipelinePolicy.set',
+  'callQuality.set',
   'systemPrompt.setPart',
   'systemPrompt.resetPart',
   'afterCallTranscript.set',

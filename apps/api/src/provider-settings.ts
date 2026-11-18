@@ -8,6 +8,7 @@ import {
   categoryNames,
   moneyCategories,
   type Language,
+  levelVoiceModel,
   providerFieldLabel,
   providerNames,
   providerSpec,
@@ -16,12 +17,11 @@ import {
   type ProviderCategory,
   type ProviderName,
   spokenLanguages,
-  VOICE_PIPELINE_POLICIES,
-  type VoicePipelinePolicy,
 } from '@linedesk/actions'
 import { instance_settings, provider_settings, type Tx, user } from '@linedesk/db'
 import { telephonyProviderFromEnv, type TelephonyProvider } from '@linedesk/telephony'
 import { and, eq, inArray, isNull, like } from 'drizzle-orm'
+import { callQualitySettings } from './call-quality.ts'
 import { serverEnv } from './instance-env.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey } from './secrets.ts'
 
@@ -276,12 +276,17 @@ const entryOf = (provider: ProviderName, config: ProviderConfig, withSecrets = t
 })
 
 /**
- * The languages calls can be answered in on this install: those a voice provider set up speaks with its model
- * (spokenLanguages; none set up: Flux's languages). Never throws.
+ * The languages calls can be answered in on this install: those a voice provider set up speaks with the server's
+ * Standard voice model for it (Server admin › Providers › Call quality; spokenLanguages; none set up: Flux's
+ * languages). An assistant on another level or with its own voice model is checked against that (assistantVoiceOf).
+ * Never throws.
  */
 export async function installLanguages(tx: Tx, env: Env = serverEnv()): Promise<Language[]> {
   const voices = await setUpProviders(tx, 'tts', env).catch(() => [])
-  return spokenLanguages(voices.map(v => ({ provider: v.provider, model: v.config.model?.value ?? null })))
+  const standard = (await callQualitySettings(tx).catch(() => null))?.models.standard.voice
+  return spokenLanguages(
+    voices.map(v => ({ provider: v.provider, model: levelVoiceModel(v.provider, 'standard', standard?.[v.provider]) })),
+  )
 }
 
 /**
@@ -291,7 +296,8 @@ export async function installLanguages(tx: Tx, env: Env = serverEnv()): Promise<
 export async function installLanguageOptions(tx: Tx, env: Env = serverEnv()) {
   const languages = pickableLanguages(await installLanguages(tx, env))
   const stt = await activeProvider(tx, 'stt', env).catch(() => null)
-  const hearing = stt && { provider: stt.provider, model: stt.config.model?.value ?? null }
+  // The provider's default speech model (decisions.md 2026-11-18: no model field).
+  const hearing = stt && { provider: stt.provider, model: null }
   return { languages, anyLanguages: anyModeLanguages(languages, hearing) }
 }
 
@@ -307,24 +313,6 @@ export async function pipelinesSetUp(tx: Tx, env: Env = serverEnv()): Promise<Pi
   let three_stage = true
   for (const category of voiceCategories) three_stage &&= await set(category)
   return { realtime: await set('realtime'), three_stage }
-}
-
-const PIPELINE_POLICY_KEY = 'voice_pipeline.policy'
-
-/**
- * Who decides how calls are answered (Server admin › Providers): `choice` (each assistant, the default) or one for all.
- */
-export async function voicePipelinePolicy(tx: Tx): Promise<VoicePipelinePolicy> {
-  const [row] = await tx.select().from(instance_settings).where(eq(instance_settings.key, PIPELINE_POLICY_KEY))
-  const value = row?.value as VoicePipelinePolicy | undefined
-  return value && VOICE_PIPELINE_POLICIES.includes(value) ? value : 'choice'
-}
-
-export async function setVoicePipelinePolicy(tx: Tx, policy: VoicePipelinePolicy, actorId: string, now: string) {
-  await tx
-    .insert(instance_settings)
-    .values({ key: PIPELINE_POLICY_KEY, value: policy, updated_at: now, updated_by: actorId })
-    .onConflictDoUpdate({ target: instance_settings.key, set: { value: policy, updated_at: now, updated_by: actorId } })
 }
 
 /**

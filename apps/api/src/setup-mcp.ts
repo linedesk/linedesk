@@ -727,8 +727,8 @@ export const past = (current: string | null | undefined, step: (typeof onboardin
   current === 'done' ||
   onboardingSteps.indexOf(current as (typeof onboardingSteps)[number]) > onboardingSteps.indexOf(step)
 
-/** With the realtime model the assistant picks one of the model's voices (`realtime_voice`); '' is the server's default. */
-const REALTIME_VOICE_NOTE = `Voice: one of the realtime model's voices, per assistant (assistant_update realtime_voice: ${REALTIME_VOICE_IDS.join(', ')}; empty for the server's default)`
+/** With the realtime model the assistant picks one of the model's voices (`realtime_voice`); '' is marin, the default. */
+const REALTIME_VOICE_NOTE = `Voice: one of the realtime model's voices, per assistant (assistant_update realtime_voice: ${REALTIME_VOICE_IDS.join(', ')}; empty for marin, the default)`
 const assistantStepLabel = (realtime: boolean) =>
   realtime ? 'The assistant: name and greeting' : 'The assistant: name, greeting, voice'
 

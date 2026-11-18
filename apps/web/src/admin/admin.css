@@ -1414,15 +1414,6 @@
   }
 }
 
-/* Answering with both ways set up: which one answers calls (PipelinePolicy.tsx), above the two lists. */
-.adm-pipeline-policy {
-  margin: 8px 0 4px;
-}
-.adm-pipeline-policy > .selrow {
-  padding-top: 0;
-  border-top: 0;
-}
-
 /* Server admin › Providers › After-call transcription: the upload line above its providers (AfterCallTranscript.tsx). */
 .adm-after-call {
   margin: 12px 0 4px;
@@ -1880,4 +1871,43 @@ a.adm-billfact:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+
+/* Server admin › Providers › Call quality (CallQuality.tsx): the levels, the default level and the default models. */
+.adm-cq {
+  margin-bottom: 16px;
+}
+.adm-cq-always {
+  flex: none;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.adm-cq-models {
+  margin-top: 4px;
+}
+.adm-cq-foot {
+  margin: 0;
+}
+.adm-cq-group {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.adm-cq-group > .selrow {
+  padding-top: 0;
+  border-top: 0;
+}
+.adm-cq-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.adm-cq > .k-card-head + .swrow,
+.adm-cq > .k-card-head + * > .swrow:first-child {
+  padding-top: 0;
+  border-top: 0;
 }

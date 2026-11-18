@@ -6,6 +6,7 @@ import { isRecordingPrefix } from './calls.ts'
 import { defineAction } from './define.ts'
 import { type MembershipRole, membershipRoles } from './membership.ts'
 import type { ProviderCheckStatus, ProviderFailureReason } from './provider-health.ts'
+import { SUMMARY_MODEL_DEFAULTS } from './usage-level.ts'
 import { english, type Words } from './words.ts'
 
 export type ProviderCategory =
@@ -120,8 +121,8 @@ const openAiSteps = (rest: string) => [
   'API keys → Create new secret key. Copy the key.',
   rest,
 ]
-const llmPaste = 'Paste it here. Empty model fields use the defaults.'
-const voicePaste = 'Paste it here. Leave the voice empty for the default; each assistant can pick its own.'
+const llmPaste = 'Paste it here. The models come from Call quality on the Providers page.'
+const voicePaste = 'Paste it here. Each assistant picks its own voice.'
 
 /** Every provider's guide (ProviderGuide, or ProviderGuideKeys for the newer ones), keyed like `providers` below. */
 const guides = {
@@ -535,10 +536,10 @@ const checkNumber = (env: string): ProviderField => ({
 })
 const FORWARDING_CHECK_HELP =
   'Forwarding checks call a business from the forwarding check number, a number in this account that no workspace uses (a few cents a check). Empty: the first such number in the account.'
-const model = (env: string): ProviderField => ({ label: 'Model', env, secret: false, optional: true })
 /**
  * Where each language-model provider answers (OpenAI-compatible chat completions) and its default models: `models`
- * for live turns (first one first, then fallbacks), `summaryModels` for the summary and other background work.
+ * for live turns (first one first, then fallbacks; a call uses its level's model first), `summaryModels` for the summary
+ * and other background work (SUMMARY_MODEL_DEFAULTS, usage-level.ts, next to the level defaults).
  * Live turns need the fastest first token (Gemini Flash-Lite about 0.6 s from the server on 2.5, gpt-5.4-mini about
  * 1.05 s); the summary is not latency-critical. Every default is a Standard model (usage-level.ts). Gemini 2.5 Flash
  * and Flash-Lite are deprecated (2.5 Flash routes to 3.5 Flash-Lite from 2026-12-01), so Gemini defaults to 3.5
@@ -548,28 +549,28 @@ export const llmEndpoints = {
   openrouter: {
     baseUrl: 'https://openrouter.ai/api/v1',
     models: ['google/gemini-3.5-flash-lite', 'openai/gpt-4.1-mini'],
-    summaryModels: ['google/gemini-3.5-flash-lite', 'openai/gpt-5.4-mini'],
+    summaryModels: SUMMARY_MODEL_DEFAULTS.openrouter,
   },
-  openai: { baseUrl: 'https://api.openai.com/v1', models: ['gpt-4.1-mini'], summaryModels: ['gpt-4.1-mini'] },
+  openai: { baseUrl: 'https://api.openai.com/v1', models: ['gpt-4.1-mini'], summaryModels: SUMMARY_MODEL_DEFAULTS.openai },
   anthropic: {
     baseUrl: 'https://api.anthropic.com/v1',
     models: ['claude-haiku-5-5'],
-    summaryModels: ['claude-sonnet-5-5'],
+    summaryModels: SUMMARY_MODEL_DEFAULTS.anthropic,
   },
   gemini: {
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     models: ['gemini-3.5-flash-lite'],
-    summaryModels: ['gemini-3.5-flash-lite'],
+    summaryModels: SUMMARY_MODEL_DEFAULTS.gemini,
   },
   groq: {
     baseUrl: 'https://api.groq.com/openai/v1',
     models: ['llama-3.3-70b-versatile'],
-    summaryModels: ['llama-3.3-70b-versatile'],
+    summaryModels: SUMMARY_MODEL_DEFAULTS.groq,
   },
   mistral: {
     baseUrl: 'https://api.mistral.ai/v1',
     models: ['mistral-small-latest'],
-    summaryModels: ['mistral-medium-latest'],
+    summaryModels: SUMMARY_MODEL_DEFAULTS.mistral,
   },
 } as const satisfies Record<string, { baseUrl: string; models: readonly string[]; summaryModels: readonly string[] }>
 export type LlmProvider = keyof typeof llmEndpoints
@@ -619,18 +620,11 @@ export function noPrivateEndpointText(
   )
 }
 
-/** A language-model provider's fields: its key, the live model and the summary model (hints: its defaults). */
-const llmFields = (keyEnv: string, provider: Exclude<LlmProvider, 'openrouter'>): Record<string, ProviderField> => ({
-  api_key: apiKey(keyEnv),
-  model: { ...model('LLM_MODEL'), hint: llmEndpoints[provider].models.join(', ') },
-  summary_model: {
-    label: 'Summary model',
-    env: 'SUMMARY_MODEL',
-    secret: false,
-    optional: true,
-    hint: llmEndpoints[provider].summaryModels.join(', '),
-  },
-})
+/**
+ * A language-model provider's fields: its key only (decisions.md 2026-11-18). The live model is per call quality level
+ * (Server admin › Providers › Call quality), the summary model the provider's default (llmEndpoints).
+ */
+const llmFields = (keyEnv: string): Record<string, ProviderField> => ({ api_key: apiKey(keyEnv) })
 
 /** Every mail service's sender. Empty: the service's default (Gmail: its address), else "Linedesk <no-reply@localhost>". */
 const emailFrom: ProviderField = {
@@ -640,10 +634,6 @@ const emailFrom: ProviderField = {
   optional: true,
   hint: 'no-reply@example.com, or Name <no-reply@example.com>',
 }
-const voiceFields = {
-  model: model('TTS_MODEL'),
-  voice_id: { label: 'Default voice', env: 'TTS_VOICE_ID', secret: false, optional: true },
-} as const
 
 /**
  * The providers an instance admin can set up. To add one: an entry here, and how to test its
@@ -677,7 +667,7 @@ export const providers = {
     label: 'Deepgram',
     category: 'stt',
     guide: guides.deepgram,
-    fields: { api_key: apiKey('DEEPGRAM_API_KEY'), model: model('STT_MODEL') },
+    fields: { api_key: apiKey('DEEPGRAM_API_KEY') },
   },
   // Streaming speech recognition with the provider's own end-of-turn detection. Own key variables: a key for the voice
   // or the language model in the environment must not switch speech recognition over.
@@ -685,19 +675,19 @@ export const providers = {
     label: 'ElevenLabs Scribe',
     category: 'stt',
     guide: guides.elevenlabs_stt,
-    fields: { api_key: apiKey('ELEVENLABS_STT_API_KEY'), model: { ...model('STT_MODEL'), hint: 'scribe_v2_realtime' } },
+    fields: { api_key: apiKey('ELEVENLABS_STT_API_KEY') },
   },
   openai_stt: {
     label: 'OpenAI transcription',
     category: 'stt',
     guide: guides.openai_stt,
-    fields: { api_key: apiKey('OPENAI_STT_API_KEY'), model: { ...model('STT_MODEL'), hint: 'gpt-4o-mini-transcribe' } },
+    fields: { api_key: apiKey('OPENAI_STT_API_KEY') },
   },
   assemblyai_stt: {
     label: 'AssemblyAI',
     category: 'stt',
     guide: guides.assemblyai_stt,
-    fields: { api_key: apiKey('ASSEMBLYAI_STT_API_KEY'), model: { ...model('STT_MODEL'), hint: 'universal-3-6-pro' } },
+    fields: { api_key: apiKey('ASSEMBLYAI_STT_API_KEY') },
   },
   // After-call transcription: the recording is uploaded after the call and the caller's lines are corrected. Never
   // picked on its own: only an instance admin's choice turns it on (no first-set-up fallback, like recording storage).
@@ -730,24 +720,13 @@ export const providers = {
     help: 'Each call’s recording file is uploaded to ElevenLabs after the call. Scribe v2, with speaker labels and times.',
   },
   // The default language model comes first: a category without a pick uses the first provider that is set up.
-  openai: { label: 'OpenAI', category: 'llm', guide: guides.openai, fields: llmFields('OPENAI_API_KEY', 'openai') },
+  openai: { label: 'OpenAI', category: 'llm', guide: guides.openai, fields: llmFields('OPENAI_API_KEY') },
   openrouter: {
     label: 'OpenRouter',
     category: 'llm',
     guide: guides.openrouter,
     fields: {
       api_key: apiKey('OPENROUTER_API_KEY'),
-      model: {
-        ...model('LLM_MODEL'),
-        hint: 'google/gemini-3.5-flash-lite, openai/gpt-4.1-mini (fallbacks after a comma)',
-      },
-      summary_model: {
-        label: 'Summary model',
-        env: 'SUMMARY_MODEL',
-        secret: false,
-        optional: true,
-        hint: 'google/gemini-3.5-flash-lite, openai/gpt-5.4-mini',
-      },
       // On unless "false" (zeroDataRetentionOn): every request then asks for endpoints that keep nothing.
       zero_data_retention: {
         labelKey: msg('admin.provider.field.zeroDataRetention'),
@@ -763,32 +742,32 @@ export const providers = {
     label: 'Anthropic',
     category: 'llm',
     guide: guides.anthropic,
-    fields: llmFields('ANTHROPIC_API_KEY', 'anthropic'),
+    fields: llmFields('ANTHROPIC_API_KEY'),
   },
   gemini: {
     label: 'Google Gemini',
     category: 'llm',
     guide: guides.gemini,
-    fields: llmFields('GEMINI_API_KEY', 'gemini'),
+    fields: llmFields('GEMINI_API_KEY'),
   },
-  groq: { label: 'Groq', category: 'llm', guide: guides.groq, fields: llmFields('GROQ_API_KEY', 'groq') },
+  groq: { label: 'Groq', category: 'llm', guide: guides.groq, fields: llmFields('GROQ_API_KEY') },
   mistral: {
     label: 'Mistral',
     category: 'llm',
     guide: guides.mistral,
-    fields: llmFields('MISTRAL_API_KEY', 'mistral'),
+    fields: llmFields('MISTRAL_API_KEY'),
   },
   elevenlabs: {
     label: 'ElevenLabs',
     category: 'tts',
     guide: guides.elevenlabs,
-    fields: { api_key: apiKey('ELEVENLABS_API_KEY'), ...voiceFields },
+    fields: { api_key: apiKey('ELEVENLABS_API_KEY') },
   },
   cartesia: {
     label: 'Cartesia',
     category: 'tts',
     guide: guides.cartesia,
-    fields: { api_key: apiKey('CARTESIA_API_KEY'), ...voiceFields },
+    fields: { api_key: apiKey('CARTESIA_API_KEY') },
   },
   // A speech-to-speech model: hears the caller and answers in its own voice. Once connected it is the default for
   // assistants (each can pick the three stages above instead: `voice_pipeline`). The summary after the call goes to
@@ -800,22 +779,6 @@ export const providers = {
     guide: guides.openai_realtime,
     fields: {
       api_key: apiKey('OPENAI_REALTIME_API_KEY'),
-      model: { ...model('REALTIME_MODEL'), hint: 'gpt-realtime' },
-      // The default voice: assistants that pick none speak with it (Settings › Assistant › Voice picks per assistant).
-      voice: {
-        label: 'Default voice',
-        env: 'REALTIME_VOICE',
-        secret: false,
-        optional: true,
-        hint: 'marin; each assistant can pick its own',
-      },
-      summary_model: {
-        label: 'Summary model',
-        env: 'REALTIME_SUMMARY_MODEL',
-        secret: false,
-        optional: true,
-        hint: 'gpt-4.1-mini',
-      },
     },
     help: 'Once connected, it answers calls with one speech-to-speech model in its own voice, instead of speech to text, language model and voice; disconnect it to go back. Warm transfer and the cached greeting are not available then; each assistant picks one of the model’s voices.',
   },

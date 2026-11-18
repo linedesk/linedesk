@@ -50,12 +50,12 @@ test('chatJson gives up when the request takes longer than the timeout', async (
   await expect(chatJson(openrouter, hanging, 20)('s', 'u')).rejects.toThrow(/timeout|aborted/i)
 })
 
-test('the voice of the assistant is used only for the provider it was chosen for', () => {
-  const eleven = { provider: 'elevenlabs' as const, apiKey: 'k', voiceId: 'default_voice' }
+test("the voice of the assistant is used only for the provider it was chosen for; else the provider's default voice", () => {
+  const eleven = { provider: 'elevenlabs' as const, apiKey: 'k' }
   expect(voiceFor(eleven, { provider: 'elevenlabs', voice_id: 'maya' })).toBe('maya')
-  expect(voiceFor(eleven, { provider: 'cartesia', voice_id: 'sonic_voice' })).toBe('default_voice')
-  expect(voiceFor(eleven, { provider: 'elevenlabs', voice_id: '' })).toBe('default_voice')
-  expect(voiceFor({ provider: 'elevenlabs', apiKey: 'k' }, null)).toBe('cgSgspJ2msm6clMCkdW9') // Jessica, the default voice
+  expect(voiceFor(eleven, { provider: 'cartesia', voice_id: 'sonic_voice' })).toBe('cgSgspJ2msm6clMCkdW9') // Jessica, the default voice
+  expect(voiceFor(eleven, { provider: 'elevenlabs', voice_id: '' })).toBe('cgSgspJ2msm6clMCkdW9')
+  expect(voiceFor(eleven, null)).toBe('cgSgspJ2msm6clMCkdW9')
 })
 
 test('warmUpLlm sends the system prompt for a one-token answer and never throws', async () => {
@@ -161,8 +161,8 @@ test('a realtime call puts calls through with OpenAI speech and transcription on
 test('on the three stages a transfer speaks and hears with them, as before', () => {
   const stages = {
     stt: { provider: 'deepgram', apiKey: 'dg', model: 'flux-general-en' },
-    tts: { provider: 'elevenlabs', apiKey: 'el', voiceId: 'default_voice' },
-  } as AgentConfig
+    tts: { provider: 'elevenlabs', apiKey: 'el' },
+  } as unknown as AgentConfig
   const speech = transferSpeechOf(stages, { voice: { provider: 'elevenlabs', voice_id: 'own' } }, 'test_caller_voice')
   expect(speech.consult.stt).toBe(stages.stt)
   expect(speech.line.key).toMatchObject({ provider: 'elevenlabs', voiceId: 'own' })
@@ -189,11 +189,30 @@ test('a fixed line is given to the realtime model word for word', () => {
 })
 
 test('an assistant with a voice of another provider that has a key gets that provider', () => {
-  const tts = { provider: 'elevenlabs' as const, apiKey: 'k', voiceId: 'default_voice', others: [{ provider: 'cartesia' as const, apiKey: 'ck', model: 'sonic-2' }] }
-  expect(ttsFor(tts, { provider: 'cartesia', voice_id: 'sonic_voice' })).toEqual({ provider: 'cartesia', apiKey: 'ck', model: 'sonic-2', voiceId: 'sonic_voice' })
-  expect(ttsFor({ ...tts, others: [] }, { provider: 'cartesia', voice_id: 'sonic_voice' })).toMatchObject({ provider: 'elevenlabs', voiceId: 'default_voice' })
-  expect(ttsFor(tts, { provider: 'cartesia', voice_id: '' })).toMatchObject({ provider: 'elevenlabs', voiceId: 'default_voice' })
-  expect(greetingVoice({ tts } as never, { assistant: { voice: { provider: 'cartesia', voice_id: 'sonic_voice' } } })).toEqual({ provider: 'cartesia', model: 'sonic-2', voiceId: 'sonic_voice', speed: 100 })
+  const tts = {
+    provider: 'elevenlabs' as const,
+    apiKey: 'k',
+    others: [{ provider: 'cartesia' as const, apiKey: 'ck' }],
+  }
+  expect(ttsFor(tts, { provider: 'cartesia', voice_id: 'sonic_voice', model: 'sonic-3.6' })).toEqual({
+    provider: 'cartesia',
+    apiKey: 'ck',
+    model: 'sonic-3.6',
+    voiceId: 'sonic_voice',
+  })
+  expect(ttsFor({ ...tts, others: [] }, { provider: 'cartesia', voice_id: 'sonic_voice' })).toMatchObject({
+    provider: 'elevenlabs',
+    voiceId: 'cgSgspJ2msm6clMCkdW9',
+  })
+  expect(ttsFor(tts, { provider: 'cartesia', voice_id: '' })).toMatchObject({
+    provider: 'elevenlabs',
+    voiceId: 'cgSgspJ2msm6clMCkdW9',
+  })
+  expect(
+    greetingVoice({ tts } as never, {
+      assistant: { voice: { provider: 'cartesia', voice_id: 'sonic_voice', model: 'sonic-3.6' } },
+    }),
+  ).toEqual({ provider: 'cartesia', model: 'sonic-3.6', voiceId: 'sonic_voice', speed: 100 })
   // The talking speed is part of the cached greeting's voice.
   expect(greetingVoice({ tts } as never, { assistant: { voice: { provider: 'cartesia', voice_id: 'sonic_voice' }, talking_speed_pct: 93 } })).toMatchObject({ speed: 93 })
   // An assistant row of an older API has only the old speed.

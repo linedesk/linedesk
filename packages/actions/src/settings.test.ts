@@ -22,9 +22,7 @@ import {
   workspaceUpdateSettings,
   confirmsNumber,
   phoneNumberRelease,
-  pipelineChoiceUnder,
   pipelineFor,
-  pipelinesAllowed,
   talkingSpeedLabel,
   talkingSpeedPctOf,
 } from './settings.ts'
@@ -438,26 +436,6 @@ describe('workspace.deleteOwn and workspace.deletePreview', () => {
     // The same as with the empty list it had: redactInput leaves the input alone either way.
     expect(redactInput(workspaceDeleteOwn, input)).toBe(input)
     expect(redactInput({ sensitive: [] }, input)).toBe(input)
-  })
-})
-
-describe('the instance policy for how calls are answered', () => {
-  const both = { realtime: true, three_stage: true }
-  it("leaves the assistant's choice and both pipelines while workspaces choose", () => {
-    expect(pipelineChoiceUnder('choice', 'three_stage')).toBe('three_stage')
-    expect(pipelineChoiceUnder('choice', undefined)).toBeNull()
-    expect(pipelinesAllowed(both, 'choice')).toEqual(both)
-  })
-  it("puts the admin's pick over the assistant's choice", () => {
-    expect(pipelineChoiceUnder('realtime', 'three_stage')).toBe('realtime')
-    expect(pipelineChoiceUnder('three_stage', null)).toBe('three_stage')
-    expect(pipelinesAllowed(both, 'three_stage')).toEqual({ realtime: false, three_stage: true })
-    expect(pipelinesAllowed(both, 'realtime')).toEqual({ realtime: true, three_stage: false })
-  })
-  it('leaves what is set up when the pick is not: a call never goes unanswered over the policy', () => {
-    const onlyStages = { realtime: false, three_stage: true }
-    expect(pipelinesAllowed(onlyStages, 'realtime')).toEqual(onlyStages)
-    expect(pipelineFor(pipelineChoiceUnder('realtime', null), onlyStages)).toBe('three_stage')
   })
 })
 

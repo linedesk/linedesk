@@ -12,21 +12,16 @@ import {
   type CallQualityLevelOption,
   type CallQualityOptions,
   type CallParts,
-  DEFAULT_VOICE_MODELS,
   languageModelLevel,
-  languageModelsOf,
   levelLanguageModelsOf,
   levelRealtimeModelsOf,
   levelVoiceModelsOf,
-  llmEndpoints,
-  type LlmProvider,
   partFits,
   realtimeModelLevel,
   type SpeakingVoice,
   type UsageLevel,
   usageLevel,
   voiceModelLevel,
-  voiceModelsOf,
   type VoicePipeline,
 } from '@linedesk/actions'
 import { organization, type PaidLevel, type Tx, workspace_settings } from '@linedesk/db'
@@ -35,7 +30,6 @@ import { and, eq, or } from 'drizzle-orm'
 import { lockAssistantVersionsOf } from './assistant-versions.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingState } from './billing-settings.ts'
-import { brandName } from './branding.ts'
 import {
   callQualitySettings,
   enabledLevels,
@@ -63,118 +57,6 @@ export async function workspaceOwnKeys(_tx: Tx, _workspaceId: string): Promise<b
 
 /** An ALERT line in the API's log: something on Linedesk Cloud runs on what it may not, and was moved to Standard. */
 export const alert = (line: string) => console.error(`ALERT usage level: ${line}`)
-const alerted = new Set<string>()
-/** The same ALERT once per process (the install's defaults are read for every call). */
-const alertOnce = (line: string) => {
-  if (alerted.has(line)) return
-  alerted.add(line)
-  alert(line)
-}
-
-/**
- * The install's voice model for a voice provider (TTS_MODEL, Server admin › Providers; else the provider's default).
- * On Linedesk Cloud only a Standard one (provider-settings refuses saving another): one set elsewhere (the
- * environment) is replaced by the provider's Standard default, with an ALERT.
- */
-export function installVoiceModel(provider: string, configured: string | null | undefined, billed: boolean) {
-  const id = configured?.trim() || DEFAULT_VOICE_MODELS[provider] || ''
-  if (!billed || voiceModelLevel(provider, id) === 'standard') return id
-  const standard = standardVoiceModelOf(provider)
-  alertOnce(
-    `the install's voice model "${id}" (${provider}) is not Standard: calls use ${standard ? `"${standard}"` : 'none (not answered)'}`,
-  )
-  return standard ?? id
-}
-
-/**
- * The install's language model (the first of LLM_MODEL's list, else the provider's); on Linedesk Cloud only a Standard
- * one. A fallback after it that is not Standard is named in an ALERT too: the agent drops it on a Standard call
- * (standardFallbacks, apps/agent/src/config.ts).
- */
-export function installLanguageModel(provider: LlmProvider, configured: string | null | undefined, billed: boolean) {
-  const id = firstModel(configured, provider)
-  if (billed)
-    for (const fallback of modelsOf(configured, provider)
-      .slice(1)
-      .filter(m => languageModelLevel(provider, m) !== 'standard'))
-      alertOnce(
-        `the install's fallback language model "${fallback}" (${provider}) is not Standard: Standard calls never use it`,
-      )
-  if (!billed || languageModelLevel(provider, id) === 'standard') return id
-  const standard = standardLanguageModelOf(provider)
-  alertOnce(
-    `the install's language model "${id}" (${provider}) is not Standard: calls use ${standard ? `"${standard}"` : 'none (not answered)'}`,
-  )
-  return standard ?? id
-}
-
-/** The provider's default voice model when it is Standard, else its first Standard one; null: it has none. */
-export const standardVoiceModelOf = (provider: string): string | null => {
-  const preferred = DEFAULT_VOICE_MODELS[provider]
-  if (preferred && voiceModelLevel(provider, preferred) === 'standard') return preferred
-  return voiceModelsOf(provider).find(m => m.level === 'standard')?.model ?? null
-}
-/** The provider's default language model when it is Standard, else its first Standard one; null: it has none. */
-export const standardLanguageModelOf = (provider: LlmProvider): string | null => {
-  const preferred = llmEndpoints[provider].models[0]
-  if (preferred && languageModelLevel(provider, preferred) === 'standard') return preferred
-  return languageModelsOf(provider).find(m => m.level === 'standard')?.id ?? null
-}
-
-/**
- * On Linedesk Cloud, refuses making a voice or language model the install's default when it is not Standard (Server
- * admin › Providers: its model field, or picking the provider). Nothing on an install that does not bill usage.
- */
-export async function refuseNonStandardDefault(tx: Tx, provider: string, model: string | null | undefined) {
-  if (!(await usageLevelsBilled(tx))) return
-  if (provider in llmEndpoints) {
-    // Every model of the "model, fallback, ..." list: a fallback answers turns too (OpenRouter sends the list).
-    const id = modelsOf(model, provider as LlmProvider).find(m => languageModelLevel(provider, m) !== 'standard')
-    if (id)
-      throw new Reject(
-        `${id} is not a Standard language model: on ${brandName()} Cloud the server's default must be one (${
-          languageModelsOf(provider)
-            .filter(m => m.level === 'standard')
-            .map(m => m.id)
-            .join(', ') || 'this provider has none'
-        })`,
-      )
-    return
-  }
-  if (voiceModelsOf(provider).length || DEFAULT_VOICE_MODELS[provider]) {
-    const id = model?.trim() || DEFAULT_VOICE_MODELS[provider] || ''
-    if (voiceModelLevel(provider, id) !== 'standard')
-      throw new Reject(
-        `${id || 'No model'} is not a Standard voice model: on ${brandName()} Cloud the server's default must be one (${
-          voiceModelsOf(provider)
-            .filter(m => m.level === 'standard')
-            .map(m => m.model)
-            .join(', ') || 'this provider has none'
-        })`,
-      )
-  }
-}
-
-/** At start: an ALERT for each default of the install (the environment included) that is not Standard on Cloud. */
-export async function alertNonStandardDefaults(tx: Tx) {
-  const billed = await usageLevelsBilled(tx)
-  if (!billed) return
-  for (const voice of await setUpProviders(tx, 'tts').catch(() => []))
-    installVoiceModel(voice.provider, voice.config.model?.value, billed)
-  const llm = await activeProvider(tx, 'llm').catch(() => null)
-  if (llm) installLanguageModel(llm.provider as LlmProvider, llm.config.model?.value, billed)
-}
-
-/** The models of a "model, fallback, ..." list, or the provider's default alone. */
-const modelsOf = (list: string | null | undefined, provider: LlmProvider) => {
-  const models = (list ?? '')
-    .split(',')
-    .map(m => m.trim())
-    .filter(Boolean)
-  return models.length ? models : [llmEndpoints[provider].models[0]!]
-}
-/** The first model of a "model, fallback" list, or the provider's default. */
-const firstModel = (list: string | null | undefined, provider: LlmProvider) => modelsOf(list, provider)[0]!
 
 /** What answers a call: the voice and the language model (a realtime model passes itself for both), and the pipeline. */
 type Choices = CallParts & { pipeline: VoicePipeline }

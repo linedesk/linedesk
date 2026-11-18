@@ -32,7 +32,6 @@ import { OneKey } from './OneKey.tsx'
 import { AfterCallTranscript } from './AfterCallTranscript.tsx'
 import { BillingSwitch } from './BillingSwitch.tsx'
 import { CalendarTools } from './CalendarTools.tsx'
-import { PipelinePolicy } from './PipelinePolicy.tsx'
 import { ProviderError } from './ProviderError.tsx'
 import { Logo, providerMeta } from './ProviderLogo.tsx'
 import {
@@ -43,13 +42,19 @@ import {
   listsOfGroup,
   visibleProviders,
   wayAfterKey,
-  wayOfCategory, pinnedOfList } from './providerList.ts'
+  wayOfCategory,
+  pinnedOfList,
+} from './providerList.ts'
 import { groupAttention, groupHelp, groupNote, groupProblem, rowStatus } from './providerStatus.ts'
 import { i18n } from '../i18n/index.tsx'
 
 /** "Works", "Failing: Key rejected", "Partly works: voice missing", in red only when it fails. */
 export function StatusWords({ status }: { status: { state: StatusState; detail: string | null } }) {
-  return <span className={cx('adm-status', status.state === 'failing' && 'adm-status-bad')}>{statusText(status, i18n())}</span>
+  return (
+    <span className={cx('adm-status', status.state === 'failing' && 'adm-status-bad')}>
+      {statusText(status, i18n())}
+    </span>
+  )
 }
 
 /** The two ways Answering works, as two tabs over its lists. */
@@ -106,10 +111,6 @@ export function AnsweringWayTabs({ selected, marks, onSelect }: WayTabsProps) {
 /** Which lists are open ("Show more"), when the page holds it for every group ("Show all providers"). */
 export type ListFolds = { isOpen: (key: string) => boolean; setOpen: (key: string, open: boolean) => void }
 
-/** A realtime model and all three parts are connected: there is a choice of which one answers. */
-const bothWaysSetUp = (data: AdminData) =>
-  (['realtime', 'stt', 'llm', 'tts'] as const).every(c => !!data.activeProviders[c]?.provider)
-
 /** A group's section on the page: `#admin/providers/<group>` scrolls here. */
 export const groupAnchor = (id: GroupStatus['id']) => `adm-group-${id}`
 
@@ -121,28 +122,13 @@ type Props = {
   onOpen: (provider: ProviderName) => void
   /** One key stored for Answering. */
   onOneKey: () => Promise<void>
-  /**
-   * Answering with both ways set up: who decides which one answers (PipelinePolicy); the status is read again after a
-   * change. Left out in the install walkthrough.
-   */
-  onPipelinePolicy?: () => Promise<void>
   /** In the install walkthrough: no heading of its own (the step has it). */
   embedded?: boolean
   /** Server admin › Providers: the page holds which lists are open. Left out: each list keeps its own. */
   folds?: ListFolds
 }
 
-export function ProviderGroup({
-  group,
-  data,
-  lines,
-  health,
-  onOpen,
-  onOneKey,
-  onPipelinePolicy,
-  embedded,
-  folds,
-}: Props) {
+export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, embedded, folds }: Props) {
   const t = useT()
   // Answering shows one of its two ways at a time (tabs); the other groups all their lists.
   const [pickedWay, setPickedWay] = useState<VoicePipeline | null>(null)
@@ -175,9 +161,6 @@ export function ProviderGroup({
           {note}
           {detail && <HelpTip text={detail} />}
         </p>
-      )}
-      {group.id === 'answering' && onPipelinePolicy && bothWaysSetUp(data) && (
-        <PipelinePolicy onChanged={onPipelinePolicy} />
       )}
       {group.id === 'answering' && group.state === 'missing' && (
         <div className="adm-onekey-card">
@@ -356,9 +339,11 @@ function CallAudio({ group, health }: { group: GroupStatus; health: AdminHealth 
         <details className="adm-guide" open={group.state === 'missing'}>
           <summary>{t('admin.providers.callAudio.howTo')}</summary>
           <ol className="adm-guide-steps">
-            {callAudioGuide.stepKeys.map(key => callAudioStep(key, i18n())).map(step => (
-              <li key={step}>{step}</li>
-            ))}
+            {callAudioGuide.stepKeys
+              .map(key => callAudioStep(key, i18n()))
+              .map(step => (
+                <li key={step}>{step}</li>
+              ))}
           </ol>
           <p className="help">
             <a href={callAudioGuide.url} target="_blank" rel="noreferrer">

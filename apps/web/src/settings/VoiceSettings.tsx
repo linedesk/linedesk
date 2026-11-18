@@ -974,7 +974,7 @@ const realtimeCatalog = (voices: readonly PickerVoice[]): VoiceCatalogData => ({
 /**
  * Settings › Assistant › Voice while the realtime model answers the assistant's calls: the model's own voices
  * (realtimeVoices in @linedesk/actions) with the same rows, samples and More voices as the voice providers' picker.
- * Suggested: the default voice (the server's, Server admin › Providers) and the voices OpenAI recommends; More voices:
+ * Suggested: the default voice (marin, REALTIME_DEFAULT_VOICE) and the voices OpenAI recommends; More voices:
  * all of them. The pick is part of the page's draft (Save) and applies from the next call.
  */
 export function RealtimeVoiceSettings({

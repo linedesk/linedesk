@@ -252,8 +252,6 @@ describe('access', () => {
       'user.resetPasskeys',
       'voiceCloning.get',
       'voiceCloning.set',
-      'voicePipelinePolicy.get',
-      'voicePipelinePolicy.set',
       'workspace.create',
       'workspace.delete',
       'workspace.disable',
@@ -407,13 +405,17 @@ describe('provider keys', () => {
     })
 
     process.env.OPENAI_API_KEY = 'env-openai-key-0123456789'
-    process.env.LLM_MODEL = 'model-from-env'
     expect(await fieldOf('openai', 'api_key')).toMatchObject({ source: 'env', last4: null, value: null })
-    expect(await fieldOf('openai', 'model')).toMatchObject({ source: 'env', value: 'model-from-env' })
+    // A provider holds only its key (decisions.md 2026-11-18): no model, voice or summary model field.
+    expect(
+      (await providers()).providers
+        .find((p: { provider: string }) => p.provider === 'openai')
+        .fields.map((f: { field: string }) => f.field),
+    ).toEqual(['api_key'])
     expect(JSON.stringify(await providers())).not.toContain('env-openai-key')
     expect((await config()).body).toEqual({
       stt: null,
-      llm: { provider: 'openai', api_key: 'env-openai-key-0123456789', model: 'model-from-env', summary_model: null },
+      llm: { provider: 'openai', api_key: 'env-openai-key-0123456789' },
       tts: null,
       realtime: null,
       tts_providers: [],
@@ -422,12 +424,7 @@ describe('provider keys', () => {
 
     await act(operator, 'provider.setKeys', { provider: 'openai', values: { api_key: SECRET } })
     expect(await fieldOf('openai', 'api_key')).toMatchObject({ source: 'app', last4: 'abcd' })
-    expect((await config()).body.llm).toEqual({
-      provider: 'openai',
-      api_key: SECRET,
-      model: 'model-from-env',
-      summary_model: null,
-    })
+    expect((await config()).body.llm).toEqual({ provider: 'openai', api_key: SECRET })
 
     expect((await act(operator, 'provider.clearKeys', { provider: 'openai' })).status).toBe(200)
     expect(await fieldOf('openai', 'api_key')).toMatchObject({ source: 'env' })
@@ -456,14 +453,12 @@ describe('provider keys', () => {
     // Only OpenRouter is set up: it is used although OpenAI, the default, comes first in the registry.
     await act(operator, 'provider.setKeys', {
       provider: 'openrouter',
-      values: { api_key: 'or-made-up-0123456789', model: 'vendor/model-1' },
+      values: { api_key: 'or-made-up-0123456789' },
     })
     expect((await active()).llm).toEqual({ provider: 'openrouter', chosen: false })
     expect((await config()).llm).toEqual({
       provider: 'openrouter',
       api_key: 'or-made-up-0123456789',
-      model: 'vendor/model-1',
-      summary_model: null,
       // Not set: the agent asks OpenRouter for zero data retention (on unless "false").
       zero_data_retention: null,
     })
@@ -480,12 +475,12 @@ describe('provider keys', () => {
     await act(operator, 'provider.clearKeys', { provider: 'openai' })
     await act(operator, 'provider.setKeys', { provider: 'openai_realtime', values: { api_key: realtimeKey } })
     await act(operator, 'provider.setActive', { category: 'llm', provider: 'openai' })
-    expect((await config()).llm).toEqual({ provider: 'openai', api_key: realtimeKey, model: null, summary_model: null })
+    expect((await config()).llm).toEqual({ provider: 'openai', api_key: realtimeKey })
     // Disconnecting the realtime model ends that use too; OpenAI gets its own key back for the rest of this test.
     await act(operator, 'provider.clearKeys', { provider: 'openai_realtime' })
     expect((await config()).llm).toBeNull()
     await act(operator, 'provider.setKeys', { provider: 'openai', values: { api_key: SECRET } })
-    expect((await config()).llm).toEqual({ provider: 'openai', api_key: SECRET, model: null, summary_model: null })
+    expect((await config()).llm).toEqual({ provider: 'openai', api_key: SECRET })
 
     // A picked provider that is not set up gives the agent nothing, instead of silently using another one.
     await act(operator, 'provider.setActive', { category: 'tts', provider: 'elevenlabs' })
@@ -500,8 +495,6 @@ describe('provider keys', () => {
     expect((await config()).tts).toEqual({
       provider: 'cartesia',
       api_key: 'cartesia-made-up-0123456789',
-      model: null,
-      voice_id: null,
     })
     expect((await act(operator, 'provider.setActive', { category: 'tts', provider: 'deepgram' })).status).toBe(422)
   })
@@ -517,15 +510,12 @@ describe('provider keys', () => {
 
     await act(operator, 'provider.setKeys', {
       provider: 'openai_realtime',
-      values: { api_key: SECRET, voice: 'cedar' },
+      values: { api_key: SECRET },
     })
     expect((await providers()).active.realtime).toEqual({ provider: 'openai_realtime', chosen: false })
     expect((await config()).realtime).toEqual({
       provider: 'openai_realtime',
       api_key: SECRET,
-      model: null,
-      voice: 'cedar',
-      summary_model: null,
     })
     expect((await config()).llm).toMatchObject({ provider: 'openai' })
     expect(await realtimeFlag()).toBe(true)
@@ -722,13 +712,10 @@ describe('provider keys', () => {
     await act(operator, 'provider.setKeys', { provider: 'openai', values: { api_key: SECRET } })
     expect((await providers()).active.llm).toEqual({ provider: 'openai', chosen: false })
     process.env.LLM_PROVIDER = 'openrouter'
-    process.env.LLM_MODEL = 'vendor/made-up'
     expect((await providers()).active.llm).toEqual({ provider: 'openrouter', chosen: false })
     expect((await request(agent(), 'GET', AGENT_ROUTE)).body.llm).toEqual({
       provider: 'openrouter',
       api_key: 'or-made-up-0123456789',
-      model: 'vendor/made-up',
-      summary_model: null,
       zero_data_retention: null,
     })
     // A named provider without keys gives the agent nothing rather than another provider.
@@ -2555,7 +2542,6 @@ describe('impersonation', () => {
       'voice.catalog',
       'voice.options',
       'voiceCloning.get',
-      'voicePipelinePolicy.get',
       'webhook.deliveries',
       'workspace.getSettings',
     ])
@@ -5251,22 +5237,6 @@ describe('workspace.delete', () => {
       [n('0105')]: 'left',
     })
     expect(await db.select().from(phone_numbers).where(eq(phone_numbers.workspace_id, ws.id))).toEqual([])
-  })
-})
-
-// The older pipeline policy, until Server admin › Call quality replaces its card (call quality 3/5); calls follow the
-// assistant's call quality (usage-levels.test.ts).
-describe('the older pipeline policy: only instance admins read or change it', () => {
-  const setPolicy = (policy: string) => act(operator, 'voicePipelinePolicy.set', { policy })
-
-  afterAll(() => db.delete(instance_settings).where(eq(instance_settings.key, 'voice_pipeline.policy')))
-
-  test('each assistant chooses by default; only instance admins read or change it', async () => {
-    await db.delete(instance_settings).where(eq(instance_settings.key, 'voice_pipeline.policy'))
-    expect((await act(operator, 'voicePipelinePolicy.get', {})).body.data).toEqual({ policy: 'choice' })
-    const ws = await createWorkspace('Pipeline Choice Plumbing')
-    expect((await act(ws.owner, 'voicePipelinePolicy.set', { policy: 'realtime' })).status).toBe(403)
-    expect((await setPolicy('sometimes')).status).toBe(422)
   })
 })
 

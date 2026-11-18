@@ -4,7 +4,7 @@ import { assistants } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
-import { act, createWorkspace } from './helpers.ts'
+import { act, asServerAdmin, createWorkspace, signUp } from './helpers.ts'
 
 afterEach(() => vi.unstubAllEnvs())
 
@@ -13,10 +13,9 @@ const noVoice = () => {
     'ELEVENLABS_API_KEY',
     'CARTESIA_API_KEY',
     'TTS_PROVIDER',
-    'TTS_MODEL',
     'DEEPGRAM_API_KEY',
     'STT_PROVIDER',
-    'STT_MODEL',
+    'ELEVENLABS_STT_API_KEY',
   ])
     vi.stubEnv(name, '')
 }
@@ -33,14 +32,25 @@ test('with ElevenLabs set up, Polish and Swedish can be picked and are offered',
   expect(saved?.languages).toEqual(languages)
 })
 
-test('a language no voice provider set up speaks is not offered and cannot be saved', async () => {
+/**
+ * The assistant on Premium with Eleven Multilingual v2, which has Polish but no Vietnamese or Hungarian. A language
+ * model is set up too: the three stages then decide the voice model the calls use.
+ */
+async function onMultilingualV2(ws: Awaited<ReturnType<typeof createWorkspace>>) {
+  vi.stubEnv('OPENAI_API_KEY', 'sk-test-made-up')
+  const [row] = await db.select().from(assistants).where(eq(assistants.id, ws.assistant.id))
+  const voice = { ...row!.voice, model: 'eleven_multilingual_v2' }
+  const set = await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, call_quality: 'premium', voice })
+  expect(set.status).toBe(200)
+}
+
+test("a language the assistant's voice model does not speak cannot be saved", async () => {
   noVoice()
-  vi.stubEnv('CARTESIA_API_KEY', 'ct-test')
-  vi.stubEnv('TTS_MODEL', 'sonic-2') // Sonic 2 has Polish but no Vietnamese or Hungarian
+  vi.stubEnv('ELEVENLABS_API_KEY', 'el-test')
   const ws = await createWorkspace('Brightwater Plumbing & Heating')
-  const offered = (await act(ws.owner, 'voice.options', {})).body.data.languages
-  expect(offered).toContain('pl')
-  expect(offered).not.toContain('vi')
+  // The install's languages follow the Standard voice model (Flash v2.5): Vietnamese is offered.
+  expect((await act(ws.owner, 'voice.options', {})).body.data.languages).toContain('vi')
+  await onMultilingualV2(ws)
   const refused = await act(ws.owner, 'assistant.update', {
     assistantId: ws.assistant.id,
     languages: { main: 'en', mode: 'allowed', allowed: ['pl', 'vi', 'hu'] },
@@ -99,24 +109,37 @@ test('without a voice provider (a realtime model only) the languages are Flux’
   ).toBe(409)
 })
 
-test('languages the assistant already has stay saveable after the voice provider changed; new ones are checked', async () => {
+test("languages the assistant already has stay saveable after its level's voice model changed; new ones are checked", async () => {
   noVoice()
   vi.stubEnv('ELEVENLABS_API_KEY', 'el-test')
+  vi.stubEnv('OPENAI_API_KEY', 'sk-test-made-up')
   const ws = await createWorkspace('Brightwater Plumbing & Heating')
   const update = (allowed: string[]) =>
     act(ws.owner, 'assistant.update', {
       assistantId: ws.assistant.id,
       languages: { main: 'en', mode: 'allowed', allowed },
     })
-  expect((await update(['vi'])).status).toBe(200)
-  vi.stubEnv('ELEVENLABS_API_KEY', '')
-  vi.stubEnv('CARTESIA_API_KEY', 'ct-test')
-  vi.stubEnv('TTS_MODEL', 'sonic-2')
-  expect((await update(['vi'])).status).toBe(200)
-  expect((await update(['vi', 'hu'])).status).toBe(409)
+  const premiumVoice = (model: string) =>
+    asServerAdmin(operator, () =>
+      act(operator, 'callQuality.set', { models: { premium: { voice: { elevenlabs: model } } } }),
+    )
+  const operator = await signUp()
+  expect((await premiumVoice('eleven_v3')).status).toBe(200)
+  try {
+    expect(
+      (await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, call_quality: 'premium' })).status,
+    ).toBe(200)
+    expect((await update(['vi'])).status).toBe(200)
+    // The server admin makes Multilingual v2 Premium's voice model: Vietnamese stays, Hungarian is refused.
+    expect((await premiumVoice('eleven_multilingual_v2')).status).toBe(200)
+    expect((await update(['vi'])).status).toBe(200)
+    expect((await update(['vi', 'hu'])).status).toBe(409)
+  } finally {
+    await premiumVoice('eleven_multilingual_v2')
+  }
 })
 
-test('"any language" covers Flux\'s 10 when the speech recognition is a Flux model, every offered one on Nova', async () => {
+test('"any language" covers Flux\'s 10 on Deepgram (its default model, Flux), every offered one on another speech recognition', async () => {
   noVoice()
   vi.stubEnv('ELEVENLABS_API_KEY', 'el-test')
   vi.stubEnv('DEEPGRAM_API_KEY', 'dg-test')
@@ -124,16 +147,20 @@ test('"any language" covers Flux\'s 10 when the speech recognition is a Flux mod
   const flux = (await act(ws.owner, 'voice.options', {})).body.data
   expect(flux.languages).toContain('pl')
   expect(flux.anyLanguages).toEqual(['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja'])
+  // No model setting picks Nova any more (decisions.md 2026-11-18): the variable is not read.
   vi.stubEnv('STT_MODEL', 'nova-3')
-  const nova = (await act(ws.owner, 'voice.options', {})).body.data
-  expect(nova.anyLanguages).toEqual(nova.languages)
+  expect((await act(ws.owner, 'voice.options', {})).body.data.anyLanguages).toEqual(flux.anyLanguages)
+  vi.stubEnv('STT_PROVIDER', 'elevenlabs_stt')
+  vi.stubEnv('ELEVENLABS_STT_API_KEY', 'es-test')
+  const scribe = (await act(ws.owner, 'voice.options', {})).body.data
+  expect(scribe.anyLanguages).toEqual(scribe.languages)
 })
 
 test('a hidden language (its test calls failed) is not offered and is refused as a new choice; one already saved stays', async () => {
   noVoice()
   vi.stubEnv('ELEVENLABS_API_KEY', 'el-test')
-  vi.stubEnv('DEEPGRAM_API_KEY', 'dg-test')
-  vi.stubEnv('STT_MODEL', 'nova-3')
+  vi.stubEnv('STT_PROVIDER', 'elevenlabs_stt')
+  vi.stubEnv('ELEVENLABS_STT_API_KEY', 'es-test')
   const ws = await createWorkspace('Brightwater Plumbing & Heating')
   const options = (await act(ws.owner, 'voice.options', {})).body.data
   for (const list of [options.languages, options.anyLanguages]) {

@@ -38,11 +38,6 @@ await (await import('./admin-passkey-codes.ts'))
 await (await import('./ledger-guards.ts'))
   .checkLedgerGuards(db)
   .catch(error => console.error('could not check the ledger guards:', error))
-// Linedesk Cloud: an ALERT for a default voice or language model of the install (the environment's too) that is not
-// Standard; calls use the provider's Standard one instead (usage-levels.ts).
-await (await import('./usage-levels.ts'))
-  .alertNonStandardDefaults(db)
-  .catch(error => console.error('could not check the default models against the usage levels:', error))
 // White-label partners' own addresses (request-host.ts, S5): loaded now and every 30 s.
 const { watchHosts } = await import('./request-host.ts')
 watchHosts()

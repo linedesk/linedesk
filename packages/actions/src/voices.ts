@@ -58,7 +58,7 @@ export const curatedVoices: Record<string, readonly CuratedVoice[]> = {
 }
 
 /**
- * The voice each provider speaks with when neither the assistant nor the install (TTS_VOICE_ID) sets one:
+ * The voice each provider speaks with when the assistant sets none (decisions.md 2026-11-18: no install default voice):
  * Jessica on ElevenLabs; on Cartesia the LiveKit plugin's own default (`TTSDefaultVoiceId`, keep in sync).
  */
 export const providerDefaultVoices: Record<string, string> = {
@@ -145,7 +145,7 @@ export type VoiceOptionsData = {
   realtime?: boolean
   /**
    * Which pipelines this workspace's calls can be answered with: those set up, narrowed to the one the instance admin
-   * picked for every workspace (pipelinesAllowed). With both, the assistant picks one (`voice_pipeline`). Missing
+   * picked for every workspace. Missing
    * from an older API.
    */
   pipelines?: PipelinesSetUp

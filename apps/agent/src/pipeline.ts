@@ -40,8 +40,9 @@ const EAGER_END_OF_TURN = 0.5
 
 /**
  * The voice provider and voice a call uses: the assistant's own voice with its provider when that one
- * is set up (the one in use or another with a key), else the configured default voice (or the provider's).
- * The model: the assistant's own voice model when it is one of that provider's (voiceModelFor), else the configured one.
+ * is set up (the one in use or another with a key), else the provider's default voice (providerDefaultVoices).
+ * The model: the assistant's own voice model when it is one of that provider's (voiceModelFor; call.start sends the
+ * level's), else the provider's default.
  */
 export function ttsFor(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null): TtsConfig & { voiceId?: string } {
   const own = assistantVoice?.voice_id
@@ -49,7 +50,12 @@ export function ttsFor(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice 
   if (own && assistantVoice.provider === tts.provider) return { provider: tts.provider, apiKey: tts.apiKey, model: modelOf(tts), voiceId: own }
   const other = own ? tts.others?.find(o => o.provider === assistantVoice.provider) : undefined
   if (other) return { ...other, model: modelOf(other), voiceId: own }
-  return { provider: tts.provider, apiKey: tts.apiKey, model: modelOf(tts), voiceId: tts.voiceId ?? providerDefaultVoices[tts.provider] }
+  return {
+    provider: tts.provider,
+    apiKey: tts.apiKey,
+    model: modelOf(tts),
+    voiceId: providerDefaultVoices[tts.provider],
+  }
 }
 
 /** The voice id a call uses (see ttsFor). */
@@ -196,7 +202,7 @@ export function createStt({ provider, apiKey, model }: AgentConfig['stt'], langu
   return new deepgram.STT({ apiKey, model: choice.model, language: choice.language, languageHint, endpointing: choice.endpointing, mipOptOut: true })
 }
 
-/** The model the voice provider is asked for (each gets its default, DEFAULT_VOICE_MODELS, when none is configured). */
+/** The model the voice provider is asked for (each gets its default, DEFAULT_VOICE_MODELS, when the call names none). */
 export const ttsModelOf = (tts: TtsConfig) => tts.model || DEFAULT_VOICE_MODELS[tts.provider]
 
 /** `language`: what the voice speaks at first (Cartesia reads every text as English unless told); English is the providers' default. */

@@ -202,7 +202,6 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'carrier.provisionTransferTrunk': 'keys',
   // Install-wide switches a server admin sets for every workspace.
   'voiceCloning.set': 'admin',
-  'voicePipelinePolicy.set': 'admin',
   'callQuality.set': 'admin',
   // The wording of the assistant's system prompt for every workspace (LIN-346).
   'systemPrompt.setPart': 'admin',

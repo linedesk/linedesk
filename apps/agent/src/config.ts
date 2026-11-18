@@ -1,27 +1,30 @@
-// Which speech and language providers the agent uses, and with which models and keys.
+// Which speech and language providers the agent uses, and with which keys.
 // Source: the provider settings an admin stored in Linedesk (GET /v1/agent/provider-config),
-// stage by stage; for a stage that is not set up there, the agent's own environment.
+// stage by stage; for a stage that is not set up there, the agent's own environment. A provider holds only its key
+// (decisions.md 2026-11-18): the models come from the call's level (call.start names them on the assistant), else
+// the provider's defaults here; the voice from the assistant, else the provider's default voice.
 // A call is answered either by the three stages (AgentConfig) or by a realtime model (RealtimeCallConfig, which also
 // holds the stages when both are set up): `CallConfig` is either; configForAssistant picks the assistant's one.
 // `createConfigLoader()` builds the cached loader the worker uses (`loadAgentConfig` in worker.ts).
 import {
   type CallQuality,
+  type LlmProvider,
   languageModelFor,
   languageModelLevel,
-  type UsageLevel,
-  type LlmProvider,
   llmEndpoints,
   type PipelinesSetUp,
   pipelineFor,
   REALTIME_DEFAULT_VOICE,
   realtimeModelFor,
   realtimeVoiceFor,
+  SUMMARY_MODEL_DEFAULTS,
+  type UsageLevel,
   VOICE_PIPELINE_LABELS,
   type VoicePipeline,
   zeroDataRetentionOn,
 } from '@linedesk/actions'
 import { z } from 'zod'
-import { recordingSettings, resolveRecording, type RecordingConfig } from './recording.ts'
+import { type RecordingConfig, recordingSettings, resolveRecording } from './recording.ts'
 
 export interface AgentConfig {
   stt: { provider: SttProvider; apiKey: string; model: string }
@@ -45,10 +48,10 @@ export interface AgentConfig {
     zeroDataRetention: boolean
   }
   /**
-   * `voiceId` is the default voice; an assistant can bring its own, also of another provider in
-   * `others` (every other voice provider set up with a key).
+   * The voice provider in use; an assistant brings its own voice, also of another provider in `others` (every other
+   * voice provider set up with a key). Without one: the provider's default voice (providerDefaultVoices).
    */
-  tts: TtsConfig & { voiceId?: string; others?: TtsConfig[]; openAiBackup?: OpenAiVoiceBackup }
+  tts: TtsConfig & { others?: TtsConfig[]; openAiBackup?: OpenAiVoiceBackup }
   /** Where calls are recorded (holds the S3 secret: never log it). Not a stage: `off` does not stop calls. */
   recording: RecordingConfig
 }
@@ -81,13 +84,13 @@ export const stagesOf = (config: CallConfig): AgentConfig | null => (isRealtime(
 /**
  * gpt-realtime, not gpt-realtime-mini: mini turned weekdays into the wrong date (Wednesday into Thursday the 19th), also
  * with every date written out in the prompt; gpt-realtime got them right, ~0.3 s slower and ~4.5x the cost per minute
- * (LIN-92 follow-up, staging comparison 2026-11-13). REALTIME_MODEL or the model field in Server admin › Providers
- * picks another.
+ * (LIN-92 follow-up, staging comparison 2026-11-13). The Ultra level's realtime model (Server admin › Providers › Call
+ * quality) picks another for a call; the voice is the assistant's.
  */
 export const realtimeDefaults = {
   model: 'gpt-realtime',
   voice: REALTIME_DEFAULT_VOICE,
-  summaryModel: 'gpt-4.1-mini',
+  summaryModel: SUMMARY_MODEL_DEFAULTS.openai_realtime[0],
 } as const
 
 type Env = Record<string, string | undefined>
@@ -110,11 +113,7 @@ const entry = z
   .object({
     provider: z.string(),
     api_key: z.string().nullish(),
-    model: z.string().nullish(),
-    summary_model: z.string().nullish(),
     zero_data_retention: z.string().nullish(),
-    voice_id: z.string().nullish(),
-    voice: z.string().nullish(),
   })
   .nullable()
 // `recording` is missing from an API older than the agent: the environment applies then.
@@ -175,21 +174,12 @@ const stages = {
 >
 type StageKey = keyof typeof stages
 
-const modelEnv = { stt: 'STT_MODEL', llm: 'LLM_MODEL', tts: 'TTS_MODEL' } as const
 /** The realtime model from the environment: its key switches it on (not OPENAI_API_KEY, which the language model may use). */
-const realtimeEnv = {
-  apiKey: 'OPENAI_REALTIME_API_KEY',
-  model: 'REALTIME_MODEL',
-  voice: 'REALTIME_VOICE',
-  summaryModel: 'REALTIME_SUMMARY_MODEL',
-} as const
+const realtimeEnv = { apiKey: 'OPENAI_REALTIME_API_KEY' } as const
 /** Every variable the speech, model, voice and realtime stages read; docker-compose.yml passes each to the agent container. */
 export const stageEnvVars = [
   ...new Set([
     ...Object.values(stages).flatMap(spec => [spec.providerEnv, ...Object.values(spec.providers)]),
-    ...Object.values(modelEnv),
-    'SUMMARY_MODEL',
-    'TTS_VOICE_ID',
     'LLM_BASE_URL',
     'OPENROUTER_ZERO_DATA_RETENTION',
     ...Object.values(realtimeEnv),
@@ -198,21 +188,12 @@ export const stageEnvVars = [
 /** Each language-model provider's API and default models (lists, first one first: "primary, fallback, ..."). */
 export const llmDefaults = llmEndpoints
 
-/** The speech model when none is set: Deepgram's English Flux, ElevenLabs', OpenAI's and AssemblyAI's streaming models. */
+/** The speech model: Deepgram's English Flux, ElevenLabs', OpenAI's and AssemblyAI's streaming models. */
 const sttDefaultModels: Record<SttProvider, string> = {
   deepgram: 'flux-general-en',
   elevenlabs_stt: 'scribe_v2_realtime',
   openai_stt: 'gpt-4o-mini-transcribe',
   assemblyai_stt: 'universal-3-6-pro',
-}
-
-/** "a, b , c" → ['a', 'b', 'c']; an empty or missing value is the default list. */
-export function modelList(value: string | null | undefined, fallback: readonly string[]): string[] {
-  const models = (value ?? '')
-    .split(',')
-    .map(m => m.trim())
-    .filter(Boolean)
-  return models.length ? models : [...fallback]
 }
 
 /** One stage from the environment, in the API's shape; the provider is named even when its key is missing. */
@@ -223,10 +204,7 @@ function fromEnv(key: StageKey, env: Env): NonNullable<Entry> {
   return {
     provider,
     api_key: keyVar ? env[keyVar] : undefined,
-    model: env[modelEnv[key]],
-    summary_model: key === 'llm' ? env.SUMMARY_MODEL : undefined,
     zero_data_retention: key === 'llm' ? env.OPENROUTER_ZERO_DATA_RETENTION : undefined,
-    voice_id: key === 'tts' ? env.TTS_VOICE_ID : undefined,
   }
 }
 
@@ -262,15 +240,15 @@ export function resolveAgentConfig(settings: ProviderSettings | null, env: Env =
   const { stt, llm, tts } = picked
   const llmProvider = llm.provider as keyof typeof llmDefaults
   const defaults = llmDefaults[llmProvider]
-  const [model, ...fallbacks] = modelList(llm.model, defaults.models)
-  const [summaryModel, ...summaryFallbacks] = modelList(llm.summary_model, defaults.summaryModels)
+  const [model, ...fallbacks] = defaults.models
+  const [summaryModel, ...summaryFallbacks] = defaults.summaryModels
   // Only OpenRouter takes a fallback list (`models`); another API would reject it.
   const withFallbacks = llmProvider === 'openrouter'
   return {
     stt: {
       provider: stt.provider as SttProvider,
       apiKey: stt.api_key!,
-      model: stt.model || sttDefaultModels[stt.provider as SttProvider],
+      model: sttDefaultModels[stt.provider as SttProvider],
     },
     llm: {
       provider: llmProvider,
@@ -286,11 +264,9 @@ export function resolveAgentConfig(settings: ProviderSettings | null, env: Env =
     tts: {
       provider: tts.provider as TtsConfig['provider'],
       apiKey: tts.api_key!,
-      model: tts.model || undefined,
-      voiceId: tts.voice_id || undefined,
       others: (settings?.tts_providers ?? [])
         .filter(p => p.provider !== tts.provider && p.api_key && p.provider in stages.tts.providers)
-        .map(p => ({ provider: p.provider as TtsConfig['provider'], apiKey: p.api_key!, model: p.model || undefined })),
+        .map(p => ({ provider: p.provider as TtsConfig['provider'], apiKey: p.api_key! })),
       ...withOpenAiBackup(openAiVoiceBackup(settings, env)),
     },
     recording: resolveRecording(settings?.recording, env),
@@ -302,7 +278,7 @@ const withOpenAiBackup = (backup: OpenAiVoiceBackup | null) => (backup ? { openA
 /**
  * The backup voice when the voice provider fails during a call (quota used up, refused key, outage): OpenAI's speech
  * model with an OpenAI key that is set up anyway (the realtime model's first, then OpenAI transcription or language
- * model, then OPENAI_API_KEY), in the realtime voice when one is picked. null: no OpenAI key anywhere.
+ * model, then OPENAI_API_KEY), in the default realtime voice. null: no OpenAI key anywhere.
  */
 export function openAiVoiceBackup(settings: ProviderSettings | null, env: Env = process.env): OpenAiVoiceBackup | null {
   const realtime = settings?.realtime?.provider === 'openai_realtime' ? settings.realtime : null
@@ -313,7 +289,7 @@ export function openAiVoiceBackup(settings: ProviderSettings | null, env: Env = 
     (settings?.llm?.provider === 'openai' ? settings.llm.api_key : null) ||
     env.OPENAI_API_KEY
   if (!apiKey) return null
-  return { apiKey, voice: realtime?.voice || env[realtimeEnv.voice] || realtimeDefaults.voice }
+  return { apiKey, voice: realtimeDefaults.voice }
 }
 
 /** The realtime model connected in Linedesk, else one with OPENAI_REALTIME_API_KEY; null: the three stages answer calls. */
@@ -321,13 +297,7 @@ function pickedRealtime(settings: ProviderSettings | null, env: Env): NonNullabl
   if (settings?.realtime) return settings.realtime
   const apiKey = env[realtimeEnv.apiKey]
   if (!apiKey) return null
-  return {
-    provider: 'openai_realtime',
-    api_key: apiKey,
-    model: env[realtimeEnv.model],
-    voice: env[realtimeEnv.voice],
-    summary_model: env[realtimeEnv.summaryModel],
-  }
+  return { provider: 'openai_realtime', api_key: apiKey }
 }
 
 /** The three stages, or null when one of them is not set up. */
@@ -370,9 +340,9 @@ export function resolveCallConfig(settings: ProviderSettings | null, env: Env = 
     realtime: {
       provider: 'openai_realtime',
       apiKey: picked.api_key!,
-      model: picked.model || realtimeDefaults.model,
-      voice: picked.voice || realtimeDefaults.voice,
-      summaryModel: picked.summary_model || realtimeDefaults.summaryModel,
+      model: realtimeDefaults.model,
+      voice: realtimeDefaults.voice,
+      summaryModel: realtimeDefaults.summaryModel,
     },
     recording: resolveRecording(settings?.recording, env),
     stages,

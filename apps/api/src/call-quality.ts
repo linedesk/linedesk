@@ -71,10 +71,7 @@ export const realtimeSetUp = async (tx: Tx) => (await activeProvider(tx, 'realti
  * Which levels can be picked and answer calls: Standard always, Premium while the server admin has it on, Ultra while
  * it is on and a realtime model is connected.
  */
-export async function enabledLevels(
-  tx: Tx,
-  settings?: CallQualitySettings,
-): Promise<Record<CallQuality, boolean>> {
+export async function enabledLevels(tx: Tx, settings?: CallQualitySettings): Promise<Record<CallQuality, boolean>> {
   const s = settings ?? (await callQualitySettings(tx))
   return { standard: true, premium: s.premium, ultra: s.ultra && (await realtimeSetUp(tx)) }
 }
@@ -84,9 +81,6 @@ export async function newAssistantLevel(tx: Tx): Promise<CallQuality> {
   const settings = await callQualitySettings(tx)
   return (await enabledLevels(tx, settings))[settings.default] ? settings.default : 'standard'
 }
-
-/** The realtime model the install named before call quality (REALTIME_MODEL, the realtime provider's model field). */
-const installRealtimeModel = (configured: string | null | undefined) => configured?.trim() || null
 
 /**
  * What "Default" stands for on each level, for the providers set up: the language model of the install's language-model
@@ -117,9 +111,7 @@ export async function levelDefaultModels(tx: Tx, settings: CallQualitySettings, 
     standard: threeStage('standard'),
     premium: threeStage('premium'),
     ultra: {
-      realtime: realtime
-        ? levelRealtimeModel(settings.models.ultra.realtime, installRealtimeModel(realtime.config.model?.value))
-        : null,
+      realtime: realtime ? levelRealtimeModel(settings.models.ultra.realtime) : null,
     },
   }
 }
@@ -176,11 +168,7 @@ export async function moveBackToLevel(tx: Tx, assistantIds: string[], level: Cal
   const where = and(inArray(assistants.id, assistantIds), eq(assistants.call_quality, 'standard'))
   const found = await tx.select({ workspace_id: assistants.workspace_id }).from(assistants).where(where)
   for (const ws of [...new Set(found.map(r => r.workspace_id))].sort()) await lockAssistantVersionsOf(tx, ws)
-  const rows = await tx
-    .update(assistants)
-    .set({ call_quality: level })
-    .where(where)
-    .returning()
+  const rows = await tx.update(assistants).set({ call_quality: level }).where(where).returning()
   for (const row of rows) await recordVersion(tx, row.workspace_id, row.id, { by })
   return rows
 }

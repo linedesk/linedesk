@@ -4,26 +4,29 @@
 // available numbers listed without buying. Each tries the provider calls use, never returns or logs a key, and records
 // its result for the setup checklist (rememberTest), so "Works" means the same in both places.
 import { createHash, randomInt } from 'node:crypto'
-import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import {
   buyableAreaCode,
   type InstallProgress,
   type InstallStep,
   installSteps,
-  legacyInstallSteps,
   type LlmProvider,
+  legacyInstallSteps,
+  levelLanguageModel,
   llmEndpoints,
   noPrivateEndpointText,
   noTrainingFields,
   type ProviderName,
   providerSpec,
+  SUMMARY_MODEL_DEFAULTS,
   type TryOutData,
   type TryOutKind,
   zeroDataRetentionOn,
 } from '@linedesk/actions'
 import { instance_settings, type Tx, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
+import { callQualitySettings } from './call-quality.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { localeForUserId } from './email-locale.ts'
@@ -158,7 +161,12 @@ async function tryLlm(tx: Tx): Promise<Tried> {
   // With one OpenAI key, calls are answered by the realtime model; its summary model shows the key and quota work.
   const endpoint = realtime ? llmEndpoints.openai : llmEndpoints[provider as LlmProvider]
   if (!endpoint) return failed(labelOf(provider), `${labelOf(provider)} can't be tested here.`)
-  const model = realtime ? v.summary_model || 'gpt-4.1-mini' : v.model?.split(',')[0]?.trim() || endpoint.models[0]
+  // The language model of the level new assistants start on (Standard's when that is Ultra), as calls use it.
+  const settings = await callQualitySettings(tx).catch(() => null)
+  const level = settings?.default === 'premium' ? 'premium' : 'standard'
+  const model = realtime
+    ? SUMMARY_MODEL_DEFAULTS.openai_realtime[0]
+    : (levelLanguageModel(provider as LlmProvider, level, settings?.models[level].llm) ?? endpoint.models[0]!)
   const limit = provider === 'openai' || realtime ? { max_completion_tokens: 80 } : { max_tokens: 80 }
   const zeroDataRetention = zeroDataRetentionOn(v.zero_data_retention)
   const start = performance.now()

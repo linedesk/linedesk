@@ -10,6 +10,7 @@ import {
   type BillingEventFilter,
   type BrandingInput,
   type CalendarTool,
+  type CallQuality,
   type CalendarToolMode,
   type CountryHint,
   type InstallSetupState,
@@ -25,7 +26,6 @@ import {
   type StoredTest,
   type TranscriptProviderName,
   type TryOutKind,
-  type VoicePipelinePolicy,
   type PromptTextKey,
   providers as providerRegistry,
 } from '@linedesk/actions'
@@ -275,7 +275,7 @@ export async function reloadAdminData(): Promise<void> {
   ])
 }
 
-type AdminInputs = {
+export type AdminInputs = {
   'provider.setKeys': { provider: ProviderName; values: Record<string, string> }
   'provider.clearKeys': { provider: ProviderName }
   'provider.setActive': { category: ProviderCategory; provider: ProviderName | null }
@@ -301,8 +301,18 @@ type AdminInputs = {
   'outboundCountries.set': { countries: string[]; confirmHighRisk?: string[] }
   'voiceCloning.get': Record<string, never>
   'voiceCloning.set': { on: boolean }
-  'voicePipelinePolicy.get': Record<string, never>
-  'voicePipelinePolicy.set': { policy: VoicePipelinePolicy }
+  'callQuality.get': Record<string, never>
+  'callQuality.set': {
+    premium?: boolean
+    ultra?: boolean
+    default?: CallQuality
+    models?: {
+      standard?: { llm?: string | null; voice?: Record<string, string | null> }
+      premium?: { llm?: string | null; voice?: Record<string, string | null> }
+      ultra?: { realtime?: string | null }
+    }
+    restore?: { level: 'premium' | 'ultra'; assistantIds: string[] }
+  }
   'systemPrompt.get': Record<string, never>
   'systemPrompt.setPart': { key: PromptTextKey; text: string }
   'systemPrompt.resetPart': { key: PromptTextKey }

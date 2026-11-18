@@ -104,7 +104,6 @@ describe('calendar.findSlots', () => {
       'voice.catalog',
       'voice.options',
       'voiceCloning.get',
-      'voicePipelinePolicy.get',
       'webhook.deliveries',
       'webhook.test',
       'workspace.deletePreview',

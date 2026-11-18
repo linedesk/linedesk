@@ -66,7 +66,11 @@ async function spokenWords(text: string, language: 'en' | 'ja') {
     })
   })
 
-  const voice = createTts({ provider: 'elevenlabs', apiKey: 'test-key', voiceId: 'voice' }, null, language)
+  const voice = createTts(
+    { provider: 'elevenlabs', apiKey: 'test-key' },
+    { provider: 'elevenlabs', voice_id: 'voice' },
+    language,
+  )
   if (!(voice instanceof VoiceWithBackup)) throw new Error('the call voice is a VoiceWithBackup')
   const own = voice.ttsInstances[0]!
   expect(own).toBeInstanceOf(elevenlabs.TTS)

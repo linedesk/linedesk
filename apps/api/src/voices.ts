@@ -20,7 +20,6 @@ import {
   languageCodes,
   providerDefaultVoices,
   providerFailureText,
-  pipelinesAllowed,
   providerSpec,
   type ProviderName,
   providersIn,
@@ -29,8 +28,6 @@ import {
   type VoiceCloneData,
   type VoiceCloningData,
   type VoiceOptionsData,
-  type VoicePipelinePolicy,
-  type VoicePipelinePolicyData,
   voiceId as voiceIdSchema,
   CALL_QUALITIES,
   CALL_QUALITY_LABELS,
@@ -41,6 +38,7 @@ import {
   languageModelLevel,
   levelLanguageModelsOf,
   levelRealtimeModelsOf,
+  levelVoiceModel,
   levelVoiceModelsOf,
   partFits,
   realtimeModelLevel,
@@ -61,8 +59,6 @@ import {
   installLanguageOptions,
   pipelinesSetUp,
   resolveProvider,
-  setVoicePipelinePolicy,
-  voicePipelinePolicy,
 } from './provider-settings.ts'
 import { type CatalogEntry, catalogData, catalogVoice, voiceCatalog } from './voice-catalog.ts'
 import { callQualityOptions, levelCentsPerMinute, usageLevelsBilled } from './usage-levels.ts'
@@ -134,19 +130,33 @@ export async function cloningOn(tx: Tx): Promise<boolean> {
   return row?.value === 'on'
 }
 
+/**
+ * The voice model previews speak with (Hear the voice, voice samples): the default voice model of the level new
+ * assistants start on (Server admin › Providers › Call quality; Standard's when that is Ultra), else the provider's own.
+ */
+export async function previewVoiceModel(tx: Tx, provider: string): Promise<string | undefined> {
+  const settings = await callQualitySettings(tx).catch(() => null)
+  const level = settings?.default === 'premium' ? 'premium' : 'standard'
+  return levelVoiceModel(provider, level, settings?.models[level].voice?.[provider]) ?? undefined
+}
+
 /** The text-to-speech provider in effect with its key, or null when none is set up. */
 export async function voiceProviderInUse(tx: Tx, doFetch: typeof fetch = fetch): Promise<VoiceProvider | null> {
   const active = await activeProvider(tx, 'tts')
   const apiKey = active?.config.api_key?.value
   if (!active || !apiKey) return null
-  return createVoiceProvider(active.provider, { api_key: apiKey, model: active.config.model?.value }, doFetch)
+  return createVoiceProvider(
+    active.provider,
+    { api_key: apiKey, model: await previewVoiceModel(tx, active.provider) },
+    doFetch,
+  )
 }
 
-/** The voice the install's default stands for, for the provider in effect: its voice id setting, else the provider's own default. */
+/** The voice the install's default stands for: the provider in effect's own default voice (decisions.md 2026-11-18). */
 export async function installDefaultVoice(tx: Tx): Promise<{ provider: string; voiceId: string } | null> {
   const active = await activeProvider(tx, 'tts').catch(() => null)
   if (!active) return null
-  const voiceId = active.config.voice_id?.value?.trim() || providerDefaultVoices[active.provider]
+  const voiceId = providerDefaultVoices[active.provider]
   return voiceId ? { provider: active.provider, voiceId } : null
 }
 
@@ -158,18 +168,17 @@ async function voiceProviderNamed(tx: Tx, name: string, doFetch: typeof fetch = 
   if (!(providersIn('tts') as string[]).includes(name) && name !== REALTIME_VOICE_PROVIDER) return null
   const config = await resolveProvider(tx, name as ProviderName).catch(() => null)
   const apiKey = config?.api_key?.value
-  return apiKey
-    ? createVoiceProvider(name as ProviderName, { api_key: apiKey, model: config?.model?.value }, doFetch)
-    : null
+  if (!apiKey) return null
+  return createVoiceProvider(name as ProviderName, { api_key: apiKey, model: await previewVoiceModel(tx, name) }, doFetch)
 }
 
 /**
- * The realtime voice an assistant that picks none speaks with: the server's default voice (Server admin › Providers ›
- * OpenAI Realtime, or REALTIME_VOICE), else REALTIME_DEFAULT_VOICE. null while no realtime model is set up.
+ * The realtime voice an assistant that picks none speaks with: REALTIME_DEFAULT_VOICE (decisions.md 2026-11-18: no
+ * server default voice). null while no realtime model is set up.
  */
 export async function realtimeDefaultVoice(tx: Tx): Promise<string | null> {
   const active = await activeProvider(tx, 'realtime').catch(() => null)
-  return active ? realtimeVoiceFor(null, active.config.voice?.value) : null
+  return active ? realtimeVoiceFor(null, null) : null
 }
 
 /** The workspace's clones at this provider. */
@@ -339,8 +348,8 @@ export const voiceHandlers: Record<string, Handler> = {
     const provider = active?.provider ?? null
     const clones = provider ? await clonesOf(tx, actor.workspaceId, provider) : []
     const fallback = await installDefaultVoice(tx)
-    // Only what this workspace may use: the one the instance admin picked for all, or both to choose from.
-    const pipelines = pipelinesAllowed(await pipelinesSetUp(tx), await voicePipelinePolicy(tx))
+    // What is set up: the level decides which one answers an assistant's calls.
+    const pipelines = await pipelinesSetUp(tx)
     const realtimeDefault = pipelines.realtime ? await realtimeDefaultVoice(tx) : null
     const data: VoiceOptionsData = {
       provider,
@@ -437,16 +446,6 @@ export const voiceHandlers: Record<string, Handler> = {
       await moveBackToLevel(tx, input.restore.assistantIds, input.restore.level, actor.actorId)
     }
     return { rows: {}, data: { ...(await callQualityAdminData(tx)), moved } }
-  },
-
-  'voicePipelinePolicy.get': async ({ tx }) => ({
-    rows: {},
-    data: { policy: await voicePipelinePolicy(tx) } satisfies VoicePipelinePolicyData,
-  }),
-
-  'voicePipelinePolicy.set': async ({ tx, actor, now }, input: { policy: VoicePipelinePolicy }) => {
-    await setVoicePipelinePolicy(tx, input.policy, actor.actorId, now)
-    return { rows: {}, data: { policy: input.policy } satisfies VoicePipelinePolicyData }
   },
 }
 

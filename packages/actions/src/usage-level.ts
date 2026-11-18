@@ -265,6 +265,24 @@ export const CALL_QUALITY_DEFAULTS = {
   ultra: { realtime: string }
 }
 
+/**
+ * The after-call summary's model per language-model provider (first one first, then its fallbacks; decisions.md
+ * 2026-11-18): not a setting, and the same at every level. `openai_realtime`: the chat model a realtime model's key
+ * sums up with. Next to the level defaults above, so a change is one small PR here.
+ */
+export const SUMMARY_MODEL_DEFAULTS = {
+  openrouter: ['google/gemini-3.5-flash-lite', 'openai/gpt-5.4-mini'],
+  openai: ['gpt-4.1-mini'],
+  anthropic: ['claude-sonnet-5-5'],
+  gemini: ['gemini-3.5-flash-lite'],
+  groq: ['llama-3.3-70b-versatile'],
+  mistral: ['mistral-medium-latest'],
+  openai_realtime: ['gpt-4.1-mini'],
+} as const satisfies Record<
+  'openrouter' | 'openai' | 'anthropic' | 'gemini' | 'groq' | 'mistral' | 'openai_realtime',
+  readonly [string, ...string[]]
+>
+
 /** A fresh install's settings: Premium and Ultra on (Ultra needs a realtime model to be picked), new assistants on Standard. */
 export const CALL_QUALITY_INSTALL_DEFAULT: CallQualitySettings = {
   premium: true,

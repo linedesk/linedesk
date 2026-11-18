@@ -4,9 +4,9 @@ import { AgentConfigError, configForAssistant, pipelineOfAssistant, configFromEn
 // OpenRouter named: the tests below were written for it; the default (OpenAI) has its own test.
 const keys = { DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
 const stored: ProviderSettings = {
-  stt: { provider: 'deepgram', api_key: 'dg-app', model: null },
-  llm: { provider: 'openai', api_key: 'oa-app', model: 'gpt-5.4' },
-  tts: { provider: 'elevenlabs', api_key: 'el-app', model: null, voice_id: 'voice_app' },
+  stt: { provider: 'deepgram', api_key: 'dg-app' },
+  llm: { provider: 'openai', api_key: 'oa-app' },
+  tts: { provider: 'elevenlabs', api_key: 'el-app' },
 }
 
 test('without LLM_PROVIDER the language model is OpenAI, with its default model', async () => {
@@ -28,28 +28,64 @@ test('env defaults: Deepgram, OpenRouter with a fast live model and a stronger s
       summaryModel: 'google/gemini-3.5-flash-lite', summaryFallbacks: ['openai/gpt-5.4-mini'],
       zeroDataRetention: true,
     },
-    tts: { provider: 'elevenlabs', apiKey: 'el', model: undefined, voiceId: undefined, others: [] },
+    tts: { provider: 'elevenlabs', apiKey: 'el', others: [] },
     recording: { store: 'off' },
   })
 })
 
-test('every stage can be changed by env', async () => {
+test("every stage's provider can be changed by env; the models are the providers' defaults (decisions.md 2026-11-18)", async () => {
   const config = await configFromEnv({
-    ...keys, OPENAI_API_KEY: 'oa', CARTESIA_API_KEY: 'ca',
-    LLM_PROVIDER: 'openai', TTS_PROVIDER: 'cartesia', STT_MODEL: 'nova-3', LLM_MODEL: 'gpt-5.4', TTS_MODEL: 'sonic-3', TTS_VOICE_ID: 'voice_1',
+    ...keys,
+    OPENAI_API_KEY: 'oa',
+    CARTESIA_API_KEY: 'ca',
+    LLM_PROVIDER: 'openai',
+    TTS_PROVIDER: 'cartesia',
+    // Gone since 2026-11-18: the level decides the models, the assistant the voice.
+    STT_MODEL: 'nova-3',
+    LLM_MODEL: 'gpt-5.4',
+    TTS_MODEL: 'sonic-3',
+    TTS_VOICE_ID: 'voice_1',
+    SUMMARY_MODEL: 'gpt-5.4',
   })
-  expect(config.stt.model).toBe('nova-3')
-  expect(config.llm).toEqual({ provider: 'openai', apiKey: 'oa', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [], zeroDataRetention: true })
-  expect(config.tts).toEqual({ provider: 'cartesia', apiKey: 'ca', model: 'sonic-3', voiceId: 'voice_1', others: [], openAiBackup: { apiKey: 'oa', voice: 'marin' } })
-  expect((await configFromEnv({ ...keys, LLM_BASE_URL: 'https://llm.internal/v1/', LLM_MODEL: 'local' })).llm).toMatchObject({ baseUrl: 'https://llm.internal/v1', model: 'local' })
+  expect(config.stt.model).toBe('flux-general-en')
+  expect(config.llm).toEqual({
+    provider: 'openai',
+    apiKey: 'oa',
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-4.1-mini',
+    fallbacks: [],
+    summaryModel: 'gpt-4.1-mini',
+    summaryFallbacks: [],
+    zeroDataRetention: true,
+  })
+  expect(config.tts).toEqual({
+    provider: 'cartesia',
+    apiKey: 'ca',
+    others: [],
+    openAiBackup: { apiKey: 'oa', voice: 'marin' },
+  })
+  expect((await configFromEnv({ ...keys, LLM_BASE_URL: 'https://llm.internal/v1/' })).llm).toMatchObject({
+    baseUrl: 'https://llm.internal/v1',
+  })
+  for (const name of ['STT_MODEL', 'LLM_MODEL', 'TTS_MODEL', 'TTS_VOICE_ID', 'SUMMARY_MODEL'])
+    expect(stageEnvVars).not.toContain(name)
 })
 
 test('settings stored in Linedesk win over the environment, stage by stage', () => {
   expect(resolveAgentConfig(stored, keys)).toEqual({
     stt: { provider: 'deepgram', apiKey: 'dg-app', model: 'flux-general-en' },
-    llm: { provider: 'openai', apiKey: 'oa-app', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.4', fallbacks: [], summaryModel: 'gpt-4.1-mini', summaryFallbacks: [], zeroDataRetention: true },
+    llm: {
+      provider: 'openai',
+      apiKey: 'oa-app',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4.1-mini',
+      fallbacks: [],
+      summaryModel: 'gpt-4.1-mini',
+      summaryFallbacks: [],
+      zeroDataRetention: true,
+    },
     // The OpenAI language model's key also makes the backup voice.
-    tts: { provider: 'elevenlabs', apiKey: 'el-app', model: undefined, voiceId: 'voice_app', others: [], openAiBackup: { apiKey: 'oa-app', voice: 'marin' } },
+    tts: { provider: 'elevenlabs', apiKey: 'el-app', others: [], openAiBackup: { apiKey: 'oa-app', voice: 'marin' } },
     recording: { store: 'off' },
   })
   // A stage that is not set up in Linedesk comes from the environment.
@@ -131,7 +167,7 @@ test('a stage that becomes set up in Linedesk is used from the next fetch on, wi
   await expect(load()).rejects.toBeInstanceOf(AgentConfigError)
   settings = stored
   clock = 1000
-  expect(stagesOf(await load())!.tts.voiceId).toBe('voice_app')
+  expect(stagesOf(await load())!.tts.apiKey).toBe('el-app')
 })
 
 test('LLM_BASE_URL only applies to an LLM configured in env: a stored key goes to its provider only', () => {
@@ -164,13 +200,13 @@ test('a different failure is logged again, the same one is not', async () => {
   ])
 })
 
-test('models are lists: "model, fallback, ..." for live turns and the summary, by env or stored', async () => {
-  const env = await configFromEnv({ ...keys, LLM_MODEL: ' a/fast , b/backup ', SUMMARY_MODEL: 'c/strong' })
-  expect(env.llm).toMatchObject({ model: 'a/fast', fallbacks: ['b/backup'], summaryModel: 'c/strong', summaryFallbacks: [] })
-  const app = resolveAgentConfig({ ...stored, llm: { provider: 'openrouter', api_key: 'or-app', model: 'x/one', summary_model: 'y/two, z/three' } }, keys)
-  expect(app.llm).toMatchObject({ model: 'x/one', fallbacks: [], summaryModel: 'y/two', summaryFallbacks: ['z/three'] })
-  // OpenAI's API takes no fallback list: only the first model is used.
-  expect((await configFromEnv({ ...keys, OPENAI_API_KEY: 'oa', LLM_PROVIDER: 'openai', LLM_MODEL: 'gpt-a, gpt-b' })).llm).toMatchObject({ model: 'gpt-a', fallbacks: [] })
+test("OpenRouter's default models are lists: the first answers, the rest are its fallbacks", () => {
+  const app = resolveAgentConfig({ ...stored, llm: { provider: 'openrouter', api_key: 'or-app' } }, keys)
+  expect(app.llm).toMatchObject({
+    model: 'google/gemini-3.5-flash-lite',
+    fallbacks: ['openai/gpt-4.1-mini'],
+    summaryFallbacks: ['openai/gpt-5.4-mini'],
+  })
 })
 
 test('OpenRouter asks for zero data retention unless the instance admin turned it off, stored or by env', async () => {
@@ -196,16 +232,19 @@ test('recording storage comes with the provider settings; without it (an older A
 })
 
 test('every other voice provider with a key comes along, so an assistant can use a voice of it', () => {
-  const config = resolveAgentConfig({
-    ...stored,
-    tts_providers: [
-      { provider: 'elevenlabs', api_key: 'el-app', model: null },
-      { provider: 'cartesia', api_key: 'ca-app', model: 'sonic-2' },
-      { provider: 'unknown', api_key: 'x' },
-      { provider: 'cartesia', api_key: null },
-    ],
-  }, {})
-  expect(config.tts.others).toEqual([{ provider: 'cartesia', apiKey: 'ca-app', model: 'sonic-2' }])
+  const config = resolveAgentConfig(
+    {
+      ...stored,
+      tts_providers: [
+        { provider: 'elevenlabs', api_key: 'el-app' },
+        { provider: 'cartesia', api_key: 'ca-app' },
+        { provider: 'unknown', api_key: 'x' },
+        { provider: 'cartesia', api_key: null },
+      ],
+    },
+    {},
+  )
+  expect(config.tts.others).toEqual([{ provider: 'cartesia', apiKey: 'ca-app' }])
   expect(parseProviderSettings({ stt: null, llm: null, tts: null }).tts_providers).toBeUndefined() // an older API
 })
 
@@ -222,9 +261,12 @@ test('a realtime model connected in Linedesk answers calls, with its defaults, a
 })
 
 test('a realtime model does not need the three stages', () => {
-  const config = resolveCallConfig({ stt: null, llm: null, tts: null, realtime: { provider: 'openai_realtime', api_key: 'rt', model: 'gpt-realtime', voice: 'cedar', summary_model: 'gpt-5.4-mini' } }, {})
+  const config = resolveCallConfig(
+    { stt: null, llm: null, tts: null, realtime: { provider: 'openai_realtime', api_key: 'rt' } },
+    {},
+  )
   if (!isRealtime(config)) throw new Error('expected a realtime config')
-  expect(config.realtime).toMatchObject({ model: 'gpt-realtime', voice: 'cedar', summaryModel: 'gpt-5.4-mini' })
+  expect(config.realtime).toMatchObject({ model: 'gpt-realtime', voice: 'marin', summaryModel: 'gpt-4.1-mini' })
   expect(stagesOf(config)).toBeNull()
 })
 
@@ -249,36 +291,36 @@ describe("withAssistantRealtimeModel: the assistant's own realtime model (Ultra)
 })
 
 describe("withAssistantRealtimeVoice: the assistant's own realtime voice", () => {
-  const serverVoice = resolveCallConfig({ ...stored, realtime: { provider: 'openai_realtime', api_key: 'rt', voice: 'cedar' } }, {})
-  const noServerVoice = resolveCallConfig({ ...stored, realtime: { provider: 'openai_realtime', api_key: 'rt' } }, {})
-  const voiceOf = (config: ReturnType<typeof resolveCallConfig>) => (isRealtime(config) ? config.realtime.voice : null)
+  const config = resolveCallConfig({ ...stored, realtime: { provider: 'openai_realtime', api_key: 'rt' } }, {})
+  const voiceOf = (c: ReturnType<typeof resolveCallConfig>) => (isRealtime(c) ? c.realtime.voice : null)
 
   test('a realtime call speaks with the voice the assistant picked', () => {
-    expect(voiceOf(withAssistantRealtimeVoice(serverVoice, 'ash'))).toBe('ash')
-    expect(voiceOf(withAssistantRealtimeVoice(noServerVoice, 'verse'))).toBe('verse')
+    expect(voiceOf(withAssistantRealtimeVoice(config, 'ash'))).toBe('ash')
+    expect(voiceOf(withAssistantRealtimeVoice(config, 'verse'))).toBe('verse')
   })
 
-  test("without a pick of its own (or an older API without the column) it is the server's default voice, else marin", () => {
-    expect(voiceOf(withAssistantRealtimeVoice(serverVoice, ''))).toBe('cedar')
-    expect(voiceOf(withAssistantRealtimeVoice(serverVoice, undefined))).toBe('cedar')
-    expect(voiceOf(withAssistantRealtimeVoice(noServerVoice, null))).toBe('marin')
-  })
-
-  test('a voice that is not a realtime voice (a three-stage voice id, a removed one) falls back to the default', () => {
-    expect(voiceOf(withAssistantRealtimeVoice(serverVoice, 'cgSgspJ2msm6clMCkdW9'))).toBe('cedar')
-    expect(voiceOf(withAssistantRealtimeVoice(serverVoice, 'nova'))).toBe('cedar')
+  test('without a pick of its own, or with one that is not a realtime voice, it is marin', () => {
+    expect(voiceOf(withAssistantRealtimeVoice(config, ''))).toBe('marin')
+    expect(voiceOf(withAssistantRealtimeVoice(config, null))).toBe('marin')
+    expect(voiceOf(withAssistantRealtimeVoice(config, 'cgSgspJ2msm6clMCkdW9'))).toBe('marin')
+    expect(voiceOf(withAssistantRealtimeVoice(config, 'nova'))).toBe('marin')
   })
 
   test('the three stages are left as they are: they speak with assistants.voice', () => {
-    const stages = configForAssistant(serverVoice, 'three_stage', () => {})
+    const stages = configForAssistant(config, 'three_stage', () => {})
     expect(withAssistantRealtimeVoice(stages, 'ash')).toBe(stages)
   })
 })
 
 test('OPENAI_REALTIME_API_KEY switches the realtime model on from the environment', () => {
-  const config = resolveCallConfig(null, { OPENAI_REALTIME_API_KEY: 'oa', REALTIME_VOICE: 'cedar' })
+  const config = resolveCallConfig(null, {
+    OPENAI_REALTIME_API_KEY: 'oa',
+    REALTIME_VOICE: 'cedar',
+    REALTIME_MODEL: 'gpt-realtime-2',
+  })
   if (!isRealtime(config)) throw new Error('expected a realtime config')
-  expect(config.realtime).toMatchObject({ apiKey: 'oa', voice: 'cedar', model: 'gpt-realtime' })
+  // The model and voice variables are gone (decisions.md 2026-11-18): the level and the assistant decide.
+  expect(config.realtime).toMatchObject({ apiKey: 'oa', voice: 'marin', model: 'gpt-realtime' })
 })
 
 test('a realtime model without a key names the realtime model as not set up, never a value', () => {
@@ -329,20 +371,32 @@ describe('configForAssistant: the pipeline an assistant chose', () => {
 })
 
 test('the realtime variables are passed to the agent container', () => {
-  for (const name of ['OPENAI_REALTIME_API_KEY', 'REALTIME_MODEL', 'REALTIME_VOICE', 'REALTIME_SUMMARY_MODEL']) expect(stageEnvVars).toContain(name)
+  expect(stageEnvVars).toContain('OPENAI_REALTIME_API_KEY')
+  for (const name of ['REALTIME_MODEL', 'REALTIME_VOICE', 'REALTIME_SUMMARY_MODEL'])
+    expect(stageEnvVars).not.toContain(name)
   expect(new Set(stageEnvVars).size).toBe(stageEnvVars.length)
 })
 
 test('every language-model provider answers on its own OpenAI-compatible API with its default models', () => {
   const env = { ...keys, LLM_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'an' }
   expect(resolveAgentConfig(null, env).llm).toEqual({
-    provider: 'anthropic', apiKey: 'an', baseUrl: 'https://api.anthropic.com/v1',
-    model: 'claude-haiku-5-5', fallbacks: [], summaryModel: 'claude-sonnet-5-5', summaryFallbacks: [], zeroDataRetention: true,
+    provider: 'anthropic',
+    apiKey: 'an',
+    baseUrl: 'https://api.anthropic.com/v1',
+    model: 'claude-haiku-5-5',
+    fallbacks: [],
+    summaryModel: 'claude-sonnet-5-5',
+    summaryFallbacks: [],
+    zeroDataRetention: true,
   })
-  const gemini = resolveAgentConfig({ ...stored, llm: { provider: 'gemini', api_key: 'ge', model: 'gemini-2.5-flash, gemini-2.5-pro' } }, {}).llm
-  expect(gemini).toMatchObject({ baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash', fallbacks: [] })
-  expect(resolveAgentConfig(null, { ...keys, LLM_PROVIDER: 'groq', GROQ_API_KEY: 'gq' }).llm.baseUrl).toBe('https://api.groq.com/openai/v1')
-  expect(resolveAgentConfig(null, { ...keys, LLM_PROVIDER: 'mistral', MISTRAL_API_KEY: 'mi' }).llm.model).toBe('mistral-small-latest')
+  const gemini = resolveAgentConfig({ ...stored, llm: { provider: 'gemini', api_key: 'ge' } }, {}).llm
+  expect(gemini).toMatchObject({ baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', fallbacks: [] })
+  expect(resolveAgentConfig(null, { ...keys, LLM_PROVIDER: 'groq', GROQ_API_KEY: 'gq' }).llm.baseUrl).toBe(
+    'https://api.groq.com/openai/v1',
+  )
+  expect(resolveAgentConfig(null, { ...keys, LLM_PROVIDER: 'mistral', MISTRAL_API_KEY: 'mi' }).llm.model).toBe(
+    'mistral-small-latest',
+  )
 })
 
 test('ElevenLabs Scribe and OpenAI transcription as speech recognition, with their streaming models by default', () => {
@@ -353,9 +407,14 @@ test('ElevenLabs Scribe and OpenAI transcription as speech recognition, with the
 })
 
 test('AssemblyAI as speech recognition: Universal-3.6 Pro by default, its own key', () => {
-  expect(resolveAgentConfig(null, { ...keys, STT_PROVIDER: 'assemblyai_stt', ASSEMBLYAI_STT_API_KEY: 'aa' }).stt).toEqual({ provider: 'assemblyai_stt', apiKey: 'aa', model: 'universal-3-6-pro' })
-  const stored = resolveAgentConfig({ stt: { provider: 'assemblyai_stt', api_key: 'aa-app', model: 'assemblyai-stt-3-7-realtime-agent' }, llm: null, tts: null, recording: null }, keys).stt
-  expect(stored).toEqual({ provider: 'assemblyai_stt', apiKey: 'aa-app', model: 'assemblyai-stt-3-7-realtime-agent' })
+  expect(
+    resolveAgentConfig(null, { ...keys, STT_PROVIDER: 'assemblyai_stt', ASSEMBLYAI_STT_API_KEY: 'aa' }).stt,
+  ).toEqual({ provider: 'assemblyai_stt', apiKey: 'aa', model: 'universal-3-6-pro' })
+  const stored = resolveAgentConfig(
+    { stt: { provider: 'assemblyai_stt', api_key: 'aa-app' }, llm: null, tts: null, recording: null },
+    keys,
+  ).stt
+  expect(stored).toEqual({ provider: 'assemblyai_stt', apiKey: 'aa-app', model: 'universal-3-6-pro' })
   // The after-call transcriber's key in the environment does not switch speech recognition on.
   expect(() => resolveAgentConfig(null, { ...keys, STT_PROVIDER: 'assemblyai_stt', ASSEMBLYAI_API_KEY: 'aa' })).toThrow(/no API key for assemblyai_stt/)
 })
@@ -373,8 +432,8 @@ test('a call test may use another realtime model; the three stages and other cal
 describe("withAssistantModel: the assistant's own language model (usage levels)", () => {
   test("a listed model of the install's provider goes first, the install's model after it as a fallback", () => {
     const config = resolveCallConfig(stored, {})
-    const own = stagesOf(withAssistantModel(config, 'gpt-4.1-mini'))!
-    expect(own.llm).toMatchObject({ provider: 'openai', model: 'gpt-4.1-mini', fallbacks: ['gpt-5.4'] })
+    const own = stagesOf(withAssistantModel(config, 'gpt-4.1'))!
+    expect(own.llm).toMatchObject({ provider: 'openai', model: 'gpt-4.1', fallbacks: ['gpt-4.1-mini'] })
     // The summary model stays the install's.
     expect(own.llm.summaryModel).toBe(stagesOf(config)!.llm.summaryModel)
   })
@@ -382,7 +441,7 @@ describe("withAssistantModel: the assistant's own language model (usage levels)"
   test("no pick, the install's own model, or a model the provider does not serve with a level: the config as it is", () => {
     const config = resolveCallConfig(stored, {})
     expect(withAssistantModel(config, null)).toBe(config)
-    expect(withAssistantModel(config, 'gpt-5.4')).toBe(config)
+    expect(withAssistantModel(config, 'gpt-4.1-mini')).toBe(config)
     expect(withAssistantModel(config, 'google/gemini-3.8-flash')).toBe(config)
     expect(withAssistantModel(config, 'gpt-5.6-terra')).toBe(config)
   })

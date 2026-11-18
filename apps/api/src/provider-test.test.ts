@@ -90,15 +90,6 @@ describe('voice: ElevenLabs', () => {
     expect(await testProvider('elevenlabs', config({ api_key: KEY }), fake.doFetch)).toMatchObject({ ok: false })
   })
 
-  test('a default voice the account does not have is named', async () => {
-    const fake = provider({
-      'GET /v1/user/subscription': [200, { character_count: 1, character_limit: 10_000 }],
-      'GET /v1/voices/': [404, { detail: { status: 'voice_not_found' } }],
-    })
-    const result = await testProvider('elevenlabs', config({ api_key: KEY, voice_id: 'gone-voice' }), fake.doFetch)
-    expect(result).toMatchObject({ ok: false, reason: 'not_found', message: expect.stringMatching(/gone-voice/) })
-  })
-
   test('a rejected key', async () => {
     const fake = provider({ 'GET /v1/user/subscription': [401, { detail: { status: 'invalid_api_key' } }] })
     expect(await testProvider('elevenlabs', config({ api_key: KEY }), fake.doFetch)).toMatchObject({
@@ -162,16 +153,20 @@ describe('language models', () => {
     expect(await testProvider('openrouter', config({ api_key: KEY }), fake.doFetch)).toMatchObject({ reason: 'quota' })
   })
 
-  test('OpenRouter: a model that does not exist is named', async () => {
+  test('OpenRouter: a default model it does not serve is named', async () => {
     const fake = provider({
       'GET /api/v1/credits': [200, { data: { total_credits: 20, total_usage: 1 } }],
-      'POST /chat/completions': [400, { error: { message: 'made/up is not a valid model ID' } }],
+      'POST /chat/completions': [400, { error: { message: 'google/gemini-3.5-flash-lite is not a valid model ID' } }],
     })
-    const result = await testProvider('openrouter', config({ api_key: KEY, model: 'made/up' }), fake.doFetch)
-    expect(result).toMatchObject({ ok: false, reason: 'not_found', message: expect.stringMatching(/made\/up/) })
+    const result = await testProvider('openrouter', config({ api_key: KEY }), fake.doFetch)
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'not_found',
+      message: expect.stringMatching(/gemini-3\.5-flash-lite/),
+    })
   })
 
-  test('OpenRouter: works, with the credit left; the live and the summary model are each asked, once when they are the same', async () => {
+  test('OpenRouter: works, with the credit left; the default live and summary model are each asked, once when they are the same', async () => {
     const fake = provider({ 'GET /api/v1/credits': [200, { data: { total_credits: 20, total_usage: 1 } }] })
     expect(await testProvider('openrouter', config({ api_key: KEY }), fake.doFetch)).toEqual({
       ok: true,
@@ -188,11 +183,6 @@ describe('language models', () => {
       .filter(r => r.url.endsWith('/chat/completions'))
       .map(r => JSON.parse(String(r.init.body)))
     expect(bodies[0].provider).toEqual({ data_collection: 'deny', zdr: true })
-    const other = provider({ 'GET /api/v1/credits': [200, { data: { total_credits: 20, total_usage: 1 } }] })
-    await testProvider('openrouter', config({ api_key: KEY, summary_model: 'openai/gpt-5.4-mini' }), other.doFetch)
-    expect(
-      other.requests.filter(r => r.url.endsWith('/chat/completions')).map(r => JSON.parse(String(r.init.body)).model),
-    ).toEqual(['google/gemini-3.5-flash-lite', 'openai/gpt-5.4-mini'])
   })
 
   test('OpenRouter: a model with no endpoint under the privacy routing fails by name, with the fix', async () => {
@@ -208,11 +198,13 @@ describe('language models', () => {
       'GET /api/v1/credits': [200, { data: { total_credits: 20, total_usage: 1 } }],
       'POST /chat/completions': [404, refusal],
     })
-    const result = await testProvider('openrouter', config({ api_key: KEY, model: 'some/model' }), fake.doFetch)
+    const result = await testProvider('openrouter', config({ api_key: KEY }), fake.doFetch)
     expect(result).toMatchObject({
       ok: false,
       reason: 'not_found',
-      message: expect.stringContaining('OpenRouter has no endpoint for the model some/model with zero data retention'),
+      message: expect.stringContaining(
+        'OpenRouter has no endpoint for the model google/gemini-3.5-flash-lite with zero data retention',
+      ),
     })
     expect(error).toHaveBeenCalledWith(result.message)
     // Turned off by the instance admin: only providers that train are excluded, and the text says so.
@@ -222,10 +214,10 @@ describe('language models', () => {
     })
     const without = await testProvider(
       'openrouter',
-      config({ api_key: KEY, model: 'some/model', zero_data_retention: 'false' }),
+      config({ api_key: KEY, zero_data_retention: 'false' }),
       off.doFetch,
     )
-    expect(without.message).toContain('the model some/model that does not train on the data')
+    expect(without.message).toContain('the model google/gemini-3.5-flash-lite that does not train on the data')
     const body = JSON.parse(String(off.requests.find(r => r.url.endsWith('/chat/completions'))!.init.body))
     expect(body.provider).toEqual({ data_collection: 'deny' })
     error.mockRestore()
@@ -283,13 +275,8 @@ describe('speech to text', () => {
     expect(silentWav().byteLength).toBe(44 + 3200 * 2)
   })
 
-  test('Deepgram: an unknown model and an empty balance', async () => {
+  test('Deepgram: an empty balance', async () => {
     const projects = [200, { projects: [{ project_id: 'p1' }] }] as Route
-    const models = [200, { stt: [{ canonical_name: 'nova-3', name: 'nova-3' }] }] as Route
-    const unknown = provider({ 'GET /v1/projects': projects, 'GET /v1/models': models })
-    expect(await testProvider('deepgram', config({ api_key: KEY, model: 'nova-9' }), unknown.doFetch)).toMatchObject({
-      reason: 'not_found',
-    })
     const empty = provider({
       'GET /v1/projects/p1/balances': [200, { balances: [{ amount: 0 }] }],
       'GET /v1/projects': projects,

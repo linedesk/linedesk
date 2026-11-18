@@ -4,6 +4,7 @@
 // the quota cannot be read otherwise. The result is ok, warning (works, but soon will not) or error, with a reason
 // and a message that names the fix. It never contains a key: provider text is only searched for known codes.
 import {
+  DEFAULT_VOICE_MODELS,
   type LlmProvider,
   llmEndpoints,
   noPrivateEndpointText,
@@ -16,16 +17,18 @@ import {
   providerFieldLabel,
   providerSpec,
   type RecordingStoreName,
+  SUMMARY_MODEL_DEFAULTS,
   zeroDataRetentionOn,
 } from '@linedesk/actions'
-import { msg } from '@linedesk/i18n'
-import { JOBBER_API, JOBBER_CLIENT_REFUSED } from '@linedesk/connectors'
 import { LIVE_KEYS_REFUSED, liveKeysAllowed, loadBillingProvider, stripeKeyMode } from '@linedesk/billing'
+import { JOBBER_API, JOBBER_CLIENT_REFUSED } from '@linedesk/connectors'
+import { msg } from '@linedesk/i18n'
 import { smtpCheck } from './email.ts'
 import { isMailService, type MailService, smtpOf } from './email-services.ts'
+import { WEB_ORIGIN } from './emails/templates.ts'
+import { type Reader, type Said, said, sayIn } from './handler-context.ts'
 import { type ProviderProblem, problemOfError, problemOfResponse, problemOfStatus } from './provider-errors.ts'
 import type { ProviderConfig } from './provider-settings.ts'
-import { type Reader, type Said, said, sayIn } from './handler-context.ts'
 import {
   createFileRecordingStore,
   RecordingConfigError,
@@ -33,7 +36,6 @@ import {
   S3RequestError,
   s3StoreFromValues,
 } from './recording-store.ts'
-import { WEB_ORIGIN } from './emails/templates.ts'
 import { s3EndpointProblem, s3Fetch } from './s3-endpoint.ts'
 
 export const TIMEOUT_MS = 8000
@@ -171,14 +173,6 @@ const deepgram: Check = async (values, http) => {
   if (!projects.ok) return failed(projects.problem)
   const project = (projects.body.projects as Json[] | undefined)?.[0]?.project_id
   if (typeof project !== 'string') return error('permission', said('server.api.providerTest.deepgram.noProject'))
-  if (values.model) {
-    const models = await http.json('https://api.deepgram.com/v1/models', { headers })
-    const names = models.ok
-      ? ((models.body.stt ?? []) as Json[]).flatMap(m => [m.canonical_name, m.name, m.architecture])
-      : []
-    if (models.ok && names.length && !names.includes(values.model))
-      return error('not_found', said('server.api.providerTest.deepgram.noModel', { model: values.model }))
-  }
   // A key with the Member role may not read balances: then the balance is not checked.
   const balances = await http.json(`https://api.deepgram.com/v1/projects/${encodeURIComponent(project)}/balances`, {
     headers,
@@ -244,7 +238,7 @@ export function silentWav(seconds = 0.2, rate = 16000): Uint8Array<ArrayBuffer> 
 
 const OPENAI_STT_MODEL = 'gpt-4o-mini-transcribe'
 const openaiStt: Check = async (values, http) => {
-  const model = values.model || OPENAI_STT_MODEL
+  const model = OPENAI_STT_MODEL
   if (http.free) {
     const found = await http.json(
       `https://api.openai.com/v1/models/${encodeURIComponent(model)}`,
@@ -286,8 +280,6 @@ const assemblyai: Check = async (values, http) => {
 
 // --- Language models ----------------------------------------------------------------------------
 
-/** The first model of a "model, fallback" list, else the provider's default. */
-const firstModel = (value: string | undefined, fallback: string) => value?.split(',')[0]?.trim() || fallback
 
 /**
  * A chat request of a few tokens: the key, the model and the account's quota in one. Routed as the calls are
@@ -332,17 +324,12 @@ async function tinyCompletion(
     : problemOfStatus(provider, res.status, body, `the model ${model}`)
 }
 
-/** The live and the summary model each answer a few tokens. */
+/** The provider's default live and summary model each answer a few tokens (the levels' models are checked in calls). */
 const llm =
   (provider: LlmProvider): Check =>
   async (values, http) => {
     const endpoint = llmEndpoints[provider]
-    const models = [
-      ...new Set([
-        firstModel(values.model, endpoint.models[0]),
-        firstModel(values.summary_model, endpoint.summaryModels[0]),
-      ]),
-    ]
+    const models = [...new Set([endpoint.models[0]!, endpoint.summaryModels[0]!])]
     for (const model of models) {
       const problem = await tinyCompletion(
         provider,
@@ -378,7 +365,7 @@ const openrouter: Check = async (values, http) => {
 /** The realtime model must exist for the key; the summary goes to the chat API with the same key (and quota). */
 const openaiRealtime: Check = async (values, http) => {
   const headers = { authorization: `Bearer ${values.api_key}` }
-  const model = values.model || 'gpt-realtime'
+  const model = 'gpt-realtime'
   const found = await http.json(
     `https://api.openai.com/v1/models/${encodeURIComponent(model)}`,
     { headers },
@@ -390,7 +377,7 @@ const openaiRealtime: Check = async (values, http) => {
     http,
     llmEndpoints.openai.baseUrl,
     values.api_key!,
-    values.summary_model || 'gpt-4.1-mini',
+    SUMMARY_MODEL_DEFAULTS.openai_realtime[0],
   )
   return problem ? failed(problem) : ok()
 }
@@ -402,20 +389,7 @@ const elevenlabs: Check = async (values, http) => {
   const headers = { 'xi-api-key': values.api_key! }
   const quota = await elevenLabsQuota(values, http)
   if (quota && !quota.ok) return quota
-  const voice = values.voice_id || providerDefaultVoices.elevenlabs!
-  if (values.voice_id) {
-    const found = await http.json(`https://api.elevenlabs.io/v1/voices/${encodeURIComponent(voice)}`, { headers })
-    if (!found.ok && found.problem.reason !== 'permission')
-      return found.status === 400 || found.status === 404
-        ? error('not_found', said('server.api.providerTest.elevenlabs.noVoice', { voice }))
-        : failed(found.problem)
-  }
-  if (values.model) {
-    const models = await http.json('https://api.elevenlabs.io/v1/models', { headers })
-    const ids = models.ok && Array.isArray(models.body) ? (models.body as Json[]).map(m => m.model_id) : []
-    if (ids.length && !ids.includes(values.model))
-      return error('not_found', said('server.api.providerTest.elevenlabs.noModel', { model: values.model }))
-  }
+  const voice = providerDefaultVoices.elevenlabs!
   // The quota could not be read with this key: one character of speech shows whether it can speak (not in the free check).
   if (!quota && !http.free) {
     const res = await http.send(
@@ -423,7 +397,7 @@ const elevenlabs: Check = async (values, http) => {
       {
         method: 'POST',
         headers: { ...headers, 'content-type': 'application/json' },
-        body: JSON.stringify({ text: '.', model_id: values.model || ELEVENLABS_TEST_MODEL }),
+        body: JSON.stringify({ text: '.', model_id: ELEVENLABS_TEST_MODEL }),
       },
     )
     if (!res.ok) return failed(await problemOfResponse('elevenlabs', res, 'speaking'))
@@ -436,7 +410,7 @@ const elevenlabs: Check = async (values, http) => {
 const CARTESIA_VERSION = '2025-04-16'
 const cartesia: Check = async (values, http) => {
   const headers = { 'x-api-key': values.api_key!, 'cartesia-version': CARTESIA_VERSION }
-  const voice = values.voice_id || providerDefaultVoices.cartesia!
+  const voice = providerDefaultVoices.cartesia!
   const found = await http.json(`https://api.cartesia.ai/voices/${encodeURIComponent(voice)}`, { headers })
   if (!found.ok)
     return found.problem.reason === 'not_found'
@@ -449,7 +423,7 @@ const cartesia: Check = async (values, http) => {
     method: 'POST',
     headers: { ...headers, 'content-type': 'application/json' },
     body: JSON.stringify({
-      model_id: values.model || 'sonic-2',
+      model_id: DEFAULT_VOICE_MODELS.cartesia,
       transcript: '.',
       voice: { mode: 'id', id: voice },
       output_format: { container: 'raw', encoding: 'pcm_s16le', sample_rate: 8000 },

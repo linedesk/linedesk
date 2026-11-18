@@ -323,8 +323,8 @@ export function auditLabel(
       return t('admin.audit.workspaceCreated', { ...name, ...who })
     case 'voiceCloning.set':
       return t('admin.audit.voiceCloningSet')
-    case 'voicePipelinePolicy.set':
-      return t('admin.audit.pipelinePolicySet')
+    case 'callQuality.set':
+      return t('admin.audit.callQualitySet')
     case 'systemPrompt.setPart':
       return t('admin.audit.systemPromptSet', { part: String(input.key) })
     case 'systemPrompt.resetPart':

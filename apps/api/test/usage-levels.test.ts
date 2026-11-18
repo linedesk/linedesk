@@ -728,25 +728,16 @@ describe('self-hosted (no billing)', () => {
   })
 })
 
-describe("the install's defaults on Cloud are Standard", () => {
-  test('Server admin cannot save a voice or language model that is not Standard; self-hosted can', async () => {
+describe('models come from the call quality level, not from the provider', () => {
+  test('a voice or language provider takes no model; the defaults per level are set under Call quality', async () => {
     const operator = await signUp()
     await asServerAdmin(operator, async () => {
-      const voice = await act(operator, 'provider.setKeys', { provider: 'elevenlabs', values: { model: 'eleven_v3' } })
-      expect(voice.status).toBe(409)
-      expect(voice.body.error).toMatch(/eleven_v3 is not a Standard voice model/)
-      const llm = await act(operator, 'provider.setKeys', { provider: 'openai', values: { model: 'gpt-5.4' } })
-      expect(llm.status).toBe(409)
-      expect(llm.body.error).toMatch(/gpt-5.4 is not a Standard language model/)
-      cloud.on = false
-      try {
-        expect(
-          (await act(operator, 'provider.setKeys', { provider: 'elevenlabs', values: { model: 'eleven_v3' } })).status,
-        ).toBe(200)
-      } finally {
-        cloud.on = true
-        await act(operator, 'provider.setKeys', { provider: 'elevenlabs', values: { model: '' } })
-      }
+      expect(
+        (await act(operator, 'provider.setKeys', { provider: 'elevenlabs', values: { model: 'eleven_v3' } })).status,
+      ).toBe(422)
+      expect(
+        (await act(operator, 'provider.setKeys', { provider: 'openai', values: { model: 'gpt-5.4' } })).status,
+      ).toBe(422)
     })
   })
 })

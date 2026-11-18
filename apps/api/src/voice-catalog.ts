@@ -90,8 +90,7 @@ export async function voiceCatalog(tx: Tx, workspaceId: string, options: Catalog
     const label = providerSpec(provider).label
     const config = setUp.find(p => p.provider === provider)?.config
     const apiKey = config?.api_key?.value
-    const adapter =
-      apiKey && createVoiceProvider(provider, { api_key: apiKey, model: config?.model?.value }, options.doFetch)
+    const adapter = apiKey && createVoiceProvider(provider, { api_key: apiKey }, options.doFetch)
     const state = { provider, label, active: provider === active }
     if (!adapter || !apiKey) {
       providers.push({ ...state, configured: false, error: null })

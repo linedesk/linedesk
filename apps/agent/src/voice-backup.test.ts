@@ -114,16 +114,15 @@ test('a voice alone that gives no audio: synthesize throws, so it is never cache
   await expect(synthesize(new FakeVoice('elevenlabs', 0), 'Hello')).rejects.toThrow(/gave no audio/)
 })
 
-test('the backup takes an OpenAI key that is set up anyway: the realtime model first, in its voice', () => {
-  const entry = (provider: string, api_key: string, voice?: string) => ({
+test('the backup takes an OpenAI key that is set up anyway: the realtime model first, in the default realtime voice', () => {
+  const entry = (provider: string, api_key: string) => ({
     provider,
     api_key,
-    ...(voice ? { voice } : {}),
   })
   const settings = (over: object) => ({ stt: null, llm: null, tts: null, recording: null, ...over }) as never
-  expect(openAiVoiceBackup(settings({ realtime: entry('openai_realtime', 'rt', 'cedar') }), {})).toEqual({
+  expect(openAiVoiceBackup(settings({ realtime: entry('openai_realtime', 'rt') }), {})).toEqual({
     apiKey: 'rt',
-    voice: 'cedar',
+    voice: 'marin',
   })
   expect(openAiVoiceBackup(settings({ stt: entry('openai_stt', 'stt') }), {})).toEqual({
     apiKey: 'stt',

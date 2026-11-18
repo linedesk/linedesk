@@ -79,7 +79,6 @@ import { monthOf, queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { deleteWorkspace } from './workspace-delete.ts'
 import { queueWorkspaceDeletedEmails } from './jobs.ts'
 import type { AuditSubject } from './audit.ts'
-import { refuseNonStandardDefault } from './usage-levels.ts'
 import { addToWorkspace, inviteToWorkspace, noticeAddedByAdmin, openWorkspace } from './memberships.ts'
 import { localeForUserId } from './email-locale.ts'
 import { emailBrandOf } from './partner-brand.ts'
@@ -349,9 +348,6 @@ async function deleteWorkspaceAndTell(
   })
 }
 
-/** The categories whose model is the default of every assistant's calls: checked against the levels on Cloud. */
-const defaultModelCategories: readonly string[] = ['tts', 'llm']
-
 export const adminHandlers: Record<string, Handler> = {
   'provider.setKeys': async ({ tx, actor, now, onCommit }, input) => {
     // Recording storage is never on a link-local or metadata address (s3-endpoint.ts).
@@ -367,9 +363,6 @@ export const adminHandlers: Record<string, Handler> = {
       const liveRefused = refusedStripeKey(input.values.secret_key)
       if (liveRefused) throw new Reject(liveRefused)
     }
-    // On Linedesk Cloud the server's default voice model and language model are Standard ones (usage-levels.ts).
-    if (defaultModelCategories.includes(providerSpec(input.provider).category) && 'model' in input.values)
-      await refuseNonStandardDefault(tx, input.provider, input.values.model)
     await withSecretsKey(() => setProviderKeys(tx, input.provider, input.values, actor.actorId, now))
     if (input.provider === 'stripe') onCommit?.(async () => forgetWebhookBillingProvider())
     afterSignInChange(onCommit, providerSpec(input.provider).category, keysChange(input.provider, 'changed', actor))
@@ -391,10 +384,6 @@ export const adminHandlers: Record<string, Handler> = {
     if (input.category === 'transcript')
       throw new Reject('select after-call transcription with afterCallTranscript.set')
     if (moneyCategories.includes(input.category)) refuseMoneyKeysChange(actor)
-    if (input.provider && defaultModelCategories.includes(input.category)) {
-      const config = await withSecretsKey(() => resolveProvider(tx, input.provider))
-      await refuseNonStandardDefault(tx, input.provider, config.model?.value)
-    }
     if (input.provider) await shareOpenAiKey(tx, input.provider, actor.actorId, now)
     await setActiveProvider(tx, input.category, input.provider, actor.actorId, now)
     // Which mail service sends applies at once, like its keys, and the admins are told (afterSignInChange).

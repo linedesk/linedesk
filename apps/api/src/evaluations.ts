@@ -76,7 +76,9 @@ export function chatJson(
         ...noTrainingFields(baseUrl, zeroDataRetention),
         response_format: { type: 'json_object' },
         // OpenAI's own API wants max_completion_tokens (its gpt-5 models refuse max_tokens).
-        ...(/^https:\/\/api\.openai\.com\//.test(baseUrl) ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens }),
+        ...(/^https:\/\/api\.openai\.com\//.test(baseUrl)
+          ? { max_completion_tokens: maxTokens }
+          : { max_tokens: maxTokens }),
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user },
@@ -111,7 +113,12 @@ export class ChatRequestError extends Error {
   readonly body: string
   /** OpenRouter had no endpoint for the model under our privacy routing: the text that names it (noPrivateEndpointText). */
   readonly privacy: string | null
-  constructor(status: number, body: string, message = `evaluation request failed (${status})`, privacy: string | null = null) {
+  constructor(
+    status: number,
+    body: string,
+    message = `evaluation request failed (${status})`,
+    privacy: string | null = null,
+  ) {
     super(message)
     this.status = status
     this.body = body
@@ -158,8 +165,7 @@ export async function evaluationModel(
   const endpoint = active && endpointOf(active.provider)
   const apiKey = active?.config.api_key?.value
   if (!active || !endpoint || !apiKey) return null
-  // The model field is a list, "model, fallback, ..."; the first is the one used.
-  const model = active.config.model?.value?.split(',')[0]?.trim() || endpoint.model
+  const model = endpoint.model
   const zeroDataRetention = zeroDataRetentionOn(active.config.zero_data_retention?.value)
   return {
     complete: tracked(
@@ -367,7 +373,11 @@ export async function questionGroups(tx: Tx, workspaceId: string, assistantId?: 
     const seen = new Map<string, string>()
     if (q.call_id && liveOwn.has(q.call_id)) seen.set(q.call_id, liveOwn.get(q.call_id)!)
     for (const a of asked)
-      if ((a.assistantId === null || a.assistantId === q.assistant_id) && a.unanswered.some(u => questionKey(u) === key)) seen.set(a.callId, a.at)
+      if (
+        (a.assistantId === null || a.assistantId === q.assistant_id) &&
+        a.unanswered.some(u => questionKey(u) === key)
+      )
+        seen.set(a.callId, a.at)
     const byNewest = [...seen.entries()].sort((x, y) => y[1].localeCompare(x[1]))
     return {
       questionId: q.id,

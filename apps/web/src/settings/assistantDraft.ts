@@ -88,7 +88,7 @@ export type Draft = {
   languages: AssistantLanguages
   /** The call quality: Standard, Premium or Ultra (realtime model); the level alone decides the price. */
   call_quality: CallQuality
-  /** The voice while the realtime model answers (REALTIME_VOICE_IDS); '': the server's default voice. */
+  /** The voice while the realtime model answers (REALTIME_VOICE_IDS); '': marin, the default. */
   realtime_voice: string
   /** The realtime model when a realtime model answers (Ultra on Linedesk Cloud); '': the server's. */
   realtime_model: string
