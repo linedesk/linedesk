@@ -11,13 +11,15 @@ import {
 } from '@linedesk/db'
 import { decideDevReview, devProvider } from '@linedesk/telephony'
 import { and, eq } from 'drizzle-orm'
-import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
-import { db } from '../src/db.ts'
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { Actor } from '../src/context.ts'
+import { db } from '../src/db.ts'
+import { setJobQueue } from '../src/jobs.ts'
 import { installPurchaseRefusal, purchaseIdOfRequest } from '../src/number-purchases.ts'
+import { NUMBER_REQUEST_NOTICE } from '../src/number-request-notices.ts'
 import { documentSlot, NUMBER_REQUEST_WEBHOOK_PATH } from '../src/number-requests.ts'
-import { deleteWorkspace } from '../src/workspace-delete.ts'
 import { decryptSecret } from '../src/secrets.ts'
+import { deleteWorkspace } from '../src/workspace-delete.ts'
 import { act, addMember, appRequest, createWorkspace, type Workspace } from './helpers.ts'
 
 // The carrier is the dev provider for this file, whatever another test file picks in the shared test database.
@@ -441,6 +443,71 @@ describe('approved numbers that cannot be set up wait for the operator, and do n
     errors.mockRestore()
     expect(await requestRow(row.id)).toMatchObject({ status: 'needs_operator', reason: 'workspace_disabled' })
     expect(await db.select().from(phone_numbers).where(eq(phone_numbers.e164, row.e164!))).toEqual([])
+  })
+})
+
+describe('the emails once the carrier decided (number-request-notices.ts), queued where the status changes', () => {
+  let ws: Workspace
+  let notices: { requestId: string; kind: string }[]
+  beforeAll(async () => {
+    ws = await createWorkspace('Brightwater Notices')
+    await readyForGermany(ws)
+  })
+  beforeEach(() => {
+    notices = []
+    setJobQueue({
+      send: async (name: string, job: { requestId: string; kind: string }) => {
+        if (name === NUMBER_REQUEST_NOTICE) notices.push(job)
+        return 'job'
+      },
+    } as never)
+  })
+  afterEach(() => setJobQueue(null))
+
+  test('live through the webhook, not approved through a refresh; nothing while it is still in review', async () => {
+    vi.stubEnv('NUMBER_KYC_COUNTRIES', 'DE')
+    const live = (await act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '30' })).body.data.request
+    const declined = (await act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '40' })).body.data.request
+    expect((await act(ws.owner, 'numberRequest.refresh', { requestId: live.id })).status).toBe(200)
+    expect(notices).toEqual([])
+    decideDevReview((await requestRow(live.id)).order_ref!, 'approved')
+    expect((await webhook({ kind: 'number_order', customerReference: live.id })).status).toBe(200)
+    decideDevReview((await requestRow(declined.id)).order_ref!, 'declined', 'Form not signed')
+    await act(ws.owner, 'numberRequest.refresh', { requestId: declined.id })
+    // Decided: asking again sends nothing more.
+    await act(ws.owner, 'numberRequest.refresh', { requestId: live.id })
+    await act(ws.owner, 'numberRequest.refresh', { requestId: declined.id })
+    expect(notices).toEqual([
+      { requestId: live.id, kind: 'active' },
+      { requestId: declined.id, kind: 'rejected' },
+    ])
+  })
+
+  test('a cancel the carrier beat: the email of where it ended; a plain cancel sends none', async () => {
+    vi.stubEnv('NUMBER_KYC_COUNTRIES', 'DE')
+    const beaten = (await act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '89' })).body.data.request
+    decideDevReview((await requestRow(beaten.id)).order_ref!, 'approved')
+    expect((await act(ws.owner, 'numberRequest.cancel', { requestId: beaten.id })).body.data.cancelled).toBe(false)
+    const plain = (await act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '221' })).body.data.request
+    expect((await act(ws.owner, 'numberRequest.cancel', { requestId: plain.id })).body.data.cancelled).toBe(true)
+    expect(notices).toEqual([{ requestId: beaten.id, kind: 'active' }])
+  })
+
+  test('parked: the operator is told once; set up later, the owner hears it is live', async () => {
+    vi.stubEnv('NUMBER_KYC_COUNTRIES', 'DE')
+    const request = (await act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '69' })).body.data.request
+    decideDevReview((await requestRow(request.id)).order_ref!, 'approved')
+    const route = vi.spyOn(devProvider, 'routeToSip').mockRejectedValue(new Error('SIP trunk missing'))
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await act(ws.owner, 'numberRequest.refresh', { requestId: request.id })
+    await act(ws.owner, 'numberRequest.refresh', { requestId: request.id })
+    route.mockRestore()
+    errors.mockRestore()
+    await act(ws.owner, 'numberRequest.refresh', { requestId: request.id })
+    expect(notices).toEqual([
+      { requestId: request.id, kind: 'needs_operator' },
+      { requestId: request.id, kind: 'active' },
+    ])
   })
 })
 

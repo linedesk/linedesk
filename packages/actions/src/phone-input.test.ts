@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import {
+  formatPhoneNumber,
   completePhone,
   countryOfNumber,
   nanpAreaCode,
@@ -54,6 +55,16 @@ test('a stored value shows in its own country; a number saved as typed is read i
   expect(phoneFromValue('+4930123456', 'US')).toMatchObject({ country: 'DE', display: '030 123456' })
   expect(phoneFromValue('(503) 555-0142', 'US')).toMatchObject({ country: 'US', e164: '+15035550142' })
   expect(phoneFromValue('', 'GB')).toEqual({ country: 'GB', display: '', e164: '' })
+})
+
+describe('formatPhoneNumber', () => {
+  test('any country as written internationally; a 555 test number too; not a number stays as it is', () => {
+    expect(formatPhoneNumber('+15035550142')).toBe('+1 503 555 0142')
+    expect(formatPhoneNumber('+493023125678')).toBe('+49 30 23125678')
+    expect(formatPhoneNumber('+442079460958')).toBe('+44 20 7946 0958')
+    expect(formatPhoneNumber('anonymous')).toBe('anonymous')
+    expect(formatPhoneNumber('+12')).toBe('+12')
+  })
 })
 
 describe('phoneNumberProblem', () => {

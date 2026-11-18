@@ -1301,6 +1301,104 @@ Linedesk · desk.example.com
 ",
   ],
   [
+    "number-request-active",
+    "Your German number +49 30 23125678 is live",
+    "Phone numbers
+
+Your German number +49 30 23125678 is live
+
+The carrier approved your documents, and your number in Berlin is set up.
+
+Your assistant answers it from now on. Which assistant answers it and how it is used can be changed in Settings › Phone numbers.
+
+Open phone numbers:
+https://desk.example.com/#workspace/phone?ws=ws_demo
+
+--
+
+You got this email because you asked for a phone number on desk.example.com or own the workspace.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "number-request-rejected",
+    "Your number request for Berlin was not approved",
+    "Phone numbers
+
+Your number request for Berlin was not approved
+
+The carrier reviewed the documents for your German number in Berlin and did not approve them.
+
+Reason: Proof of address must show the business at an address in Berlin.
+
+Check your business details and documents in Settings › Phone numbers, replace what the carrier objected to, and send the request again.
+
+Nothing was charged for this request.
+
+Upload new documents:
+https://desk.example.com/#workspace/phone?ws=ws_demo
+
+--
+
+You got this email because you asked for a phone number on desk.example.com or own the workspace.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "number-request-rejected-code",
+    "Your number request for Munich was not approved",
+    "Phone numbers
+
+Your number request for Munich was not approved
+
+The carrier reviewed the documents for your German number in Munich and did not approve them.
+
+Reason: The documents were not reviewed in time and expired.
+
+Check your business details and documents in Settings › Phone numbers, replace what the carrier objected to, and send the request again.
+
+Nothing was charged for this request.
+
+Upload new documents:
+https://desk.example.com/#workspace/phone?ws=ws_demo
+
+--
+
+You got this email because you asked for a phone number on desk.example.com or own the workspace.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "admin-number-request-needs-operator",
+    "An approved number could not be set up: +493023125678",
+    "Admin alert
+
+An approved number could not be set up: +493023125678
+
+The carrier approved this number request and the number is on the carrier account (paid from now on), but it could not be set up for the workspace.
+
+Workspace: Brightwater Plumbing & Heating (ws_demo)
+Number: +493023125678
+Request: nr_demo
+Reason: routing_failed
+Carrier account: This server's
+
+Calls to the number go nowhere until it is set up. Fix what stopped it (the reason above; the API log has an ALERT line with the details), then check the request again, or release the number at the carrier.
+
+Open the audit log:
+https://desk.example.com/#admin/audit
+
+--
+
+You got this email because you are a server admin of desk.example.com. Every server admin gets these alerts.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
     "booking-confirmation",
     "Confirmed: your repair visit with Brightwater Plumbing & Heating, Tuesday, November 17 at 9:00 AM PST",
     "Booking confirmed
@@ -2620,6 +2718,104 @@ https://desk.example.com/#calls?ws=ws_demo
 --
 
 Recibes este correo porque pagas una factura en desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "number-request-active",
+    "Your German number +49 30 23125678 is live",
+    "Phone numbers
+
+Your German number +49 30 23125678 is live
+
+The carrier approved your documents, and your number in Berlin is set up.
+
+Your assistant answers it from now on. Which assistant answers it and how it is used can be changed in Settings › Phone numbers.
+
+Open phone numbers:
+https://desk.example.com/#workspace/phone?ws=ws_demo
+
+--
+
+You got this email because you asked for a phone number on desk.example.com or own the workspace.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "number-request-rejected",
+    "Your number request for Berlin was not approved",
+    "Phone numbers
+
+Your number request for Berlin was not approved
+
+The carrier reviewed the documents for your German number in Berlin and did not approve them.
+
+Reason: Proof of address must show the business at an address in Berlin.
+
+Check your business details and documents in Settings › Phone numbers, replace what the carrier objected to, and send the request again.
+
+Nothing was charged for this request.
+
+Upload new documents:
+https://desk.example.com/#workspace/phone?ws=ws_demo
+
+--
+
+You got this email because you asked for a phone number on desk.example.com or own the workspace.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "number-request-rejected-code",
+    "Your number request for Munich was not approved",
+    "Phone numbers
+
+Your number request for Munich was not approved
+
+The carrier reviewed the documents for your German number in Munich and did not approve them.
+
+Reason: The documents were not reviewed in time and expired.
+
+Check your business details and documents in Settings › Phone numbers, replace what the carrier objected to, and send the request again.
+
+Nothing was charged for this request.
+
+Upload new documents:
+https://desk.example.com/#workspace/phone?ws=ws_demo
+
+--
+
+You got this email because you asked for a phone number on desk.example.com or own the workspace.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "admin-number-request-needs-operator",
+    "An approved number could not be set up: +493023125678",
+    "Alerta de administración
+
+An approved number could not be set up: +493023125678
+
+The carrier approved this number request and the number is on the carrier account (paid from now on), but it could not be set up for the workspace.
+
+Workspace: Brightwater Plumbing & Heating (ws_demo)
+Number: +493023125678
+Request: nr_demo
+Reason: routing_failed
+Carrier account: This server's
+
+Calls to the number go nowhere until it is set up. Fix what stopped it (the reason above; the API log has an ALERT line with the details), then check the request again, or release the number at the carrier.
+
+Abrir el registro de auditoría:
+https://desk.example.com/#admin/audit
+
+--
+
+Recibes este correo porque eres administrador del servidor de desk.example.com. Todos los administradores del servidor reciben estas alertas.
 
 Linedesk · desk.example.com
 ",

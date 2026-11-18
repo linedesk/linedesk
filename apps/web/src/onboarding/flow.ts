@@ -1,5 +1,6 @@
 // Onboarding without React: step order, the phone setup input and the carrier forwarding codes.
 import {
+  formatPhoneNumber,
   type BusinessHoursSpan,
   buyableAreaCode,
   canBuyNumbersIn,
@@ -315,11 +316,8 @@ export function outboundE164(typed: string): string | null {
   return toE164(text)
 }
 
-/** +15035550142 → +1 503 555 0142 */
-export function formatNumber(e164: string): string {
-  const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(e164)
-  return m ? `+1 ${m[1]} ${m[2]} ${m[3]}` : e164
-}
+/** +15035550142 → +1 503 555 0142, +493023125678 → +49 30 23125678 (formatPhoneNumber). */
+export const formatNumber = (e164: string): string => formatPhoneNumber(e164)
 
 export type PhoneChoice = { kind: 'existing'; number: string } | { kind: 'new'; areaCode: string; confirmed: boolean }
 

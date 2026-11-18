@@ -1,7 +1,8 @@
 // Settings, Phone numbers: a short list of the workspace's numbers; Manage opens one (which assistant answers it,
 // how it is used, forwarding codes, disconnecting), Add number connects another with the onboarding phone step's
 // choices and words (keep my number, a new number; a number already in the carrier account behind a quiet link).
-// Connecting runs phoneNumber.setup through the outbox; the new row arrives by sync.
+// Connecting runs phoneNumber.setup through the outbox; the new row arrives by sync. In countries whose carrier checks
+// documents first (Germany…), Request a number asks for one instead (NumberRequests.tsx).
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { useT } from '@linedesk/i18n/react'
 import { type ReactNode, useEffect, useState } from 'react'
@@ -31,7 +32,7 @@ import {
   priceCountry,
   priceNote,
 } from '../onboarding/flow.ts'
-import { confirmsNumber, countryOfNumber, phoneFromValue } from '@linedesk/actions'
+import { confirmsNumber, countryOfNumber, type KycCountry, phoneFromValue } from '@linedesk/actions'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { providerAudience } from '../providerAudience.ts'
 import { usePresence } from '../shell/presence.ts'
@@ -51,6 +52,7 @@ import { NearbyAreaCodes } from './NearbyAreaCodes.tsx'
 import { CarrierNumberInput } from './CarrierNumberInput.tsx'
 import { Field, Section } from './fields.tsx'
 import { NumberModeField } from './NumberMode.tsx'
+import { countryInSentence, NumberRequests, useRequestCountries } from './NumberRequests.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { useWorkspaceCountry } from '../workspaceLocale.ts'
 import { brandName } from '../brand.ts'
@@ -104,15 +106,30 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
     window.history.replaceState(null, '', sectionHash('workspace', 'phone'))
   }, [linkedNumber])
   const canAdd = canEdit && !!status?.available
+  // Countries numbers are requested in with documents (none unless the server switched them on).
+  const requestCountries = useRequestCountries(canEdit)
+  const [requesting, setRequesting] = useState<KycCountry | null>(null)
+  const canRequest = canEdit && requestCountries.length > 0
   return (
     <Section
       id="st-phone"
       title={t('settings.phone.title')}
       actions={
-        canAdd && (
-          <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
-            {t('settings.phone.add')}
-          </Button>
+        (canAdd || canRequest) && (
+          <>
+            {canRequest && (
+              <Button size="sm" onClick={() => setRequesting(requestCountries[0]!)}>
+                {requestCountries.length === 1
+                  ? t('settings.phone.request.buttonIn', { country: countryInSentence(requestCountries[0]!) })
+                  : t('settings.phone.request.button')}
+              </Button>
+            )}
+            {canAdd && (
+              <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
+                {t('settings.phone.add')}
+              </Button>
+            )}
+          </>
         )
       }
     >
@@ -198,6 +215,14 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
           <ListEmpty>{canEdit ? t('settings.phone.empty') : t('settings.phone.emptyMember')}</ListEmpty>
         )}
       </Loading>
+      {canEdit && (
+        <NumberRequests
+          canEdit={canEdit}
+          countries={requestCountries}
+          requesting={requesting}
+          onRequesting={setRequesting}
+        />
+      )}
       {adding && (
         <Dialog title={t('settings.phone.addTitle')} size="md" onClose={() => setAdding(false)}>
           <ConnectNumber

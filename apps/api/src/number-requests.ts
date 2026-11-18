@@ -56,6 +56,7 @@ import {
   purchaseIdOfRequest,
 } from './number-purchases.ts'
 import { requestInboundTrunkSync } from './inbound-trunk.ts'
+import { notifyNumberRequestChange } from './number-request-notices.ts'
 import { syncInstallDestinations } from './outbound-policy.ts'
 import { telephonyProvider } from './provider-settings.ts'
 import { decryptSecret, encryptSecret } from './secrets.ts'
@@ -492,7 +493,10 @@ export async function refreshRequest(
 ): Promise<Refreshed> {
   if (!isRefreshable(request.status) || !request.order_ref || !provider.regulatory)
     return { row: request, activated: null }
-  return settle(tx, request, provider, await provider.regulatory.getNumberOrder(request.order_ref), now)
+  const result = await settle(tx, request, provider, await provider.regulatory.getNumberOrder(request.order_ref), now)
+  // Live, not approved or parked: the email (or the operator's alert) is queued with this transaction.
+  await notifyNumberRequestChange(tx, result.row, request.status)
+  return result
 }
 
 /** The workspace's request, locked for this transaction (a webhook or a second tab waits for it). */
@@ -771,6 +775,7 @@ export const numberRequestHandlers: Record<string, Handler> = {
         // The carrier decided before the cancel reached it: a completed order is on the account (paid), so the number
         // is set up rather than left behind unrouted; a failed one rejects the request. Either way: not cancelled.
         const { row, activated } = await atCarrier('cancel', () => settle(tx, request, provider, after, now))
+        await notifyNumberRequestChange(tx, row, request.status)
         if (activated) onCommit?.(() => afterActivation(activated))
         return { rows: {}, data: { request: summaryOf(row), cancelled: false } }
       }

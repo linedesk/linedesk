@@ -1,4 +1,5 @@
 // Inbox views are derived, never stored: does a person still have to act? (architecture §9)
+import { formatPhoneNumber } from '@linedesk/actions'
 import type { Call, Contact, TranscriptSegment } from '@linedesk/db/types'
 import { parseTs, whenLabel } from './time.ts'
 import { i18n } from './i18n/index.tsx'
@@ -196,10 +197,8 @@ export const callerName = (call: Call, contact?: Contact) =>
 export const callTitle = (call: Call) =>
   call.title ?? (call.status === 'live' ? i18n().t('inbox.status.inProgress') : i18n().t('inbox.status.call'))
 
-export function formatPhone(e164: string): string {
-  const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(e164)
-  return m ? `+1 ${m[1]} ${m[2]} ${m[3]}` : e164
-}
+/** The caller's number as written for anyone, any country (formatPhoneNumber). */
+export const formatPhone = (e164: string): string => formatPhoneNumber(e164)
 
 /** How a warm transfer during the call went, for the call's header; null when there was none. */
 export function transferText(

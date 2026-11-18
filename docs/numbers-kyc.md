@@ -29,6 +29,8 @@ Three tables, not synced to browsers (`packages/db/src/schema.ts`, migration `01
   workspace; the first bytes must match the type. The file is encrypted with `SECRETS_KEY` (AES-256-GCM, slot
   `regulatory_document:<id>`) and is moved by `rotate-secrets-key.ts`. The app lists documents by name only; the
   content never goes back to a browser, only to the carrier. Upload input is redacted in the command log.
+  The blank BNetzA form is Telnyx's "German Registration Form Template" (help article 1311450, Germany DID
+  Requirements); the request dialog links it (`BNETZA_FORM_URL` in apps/web/src/settings/NumberRequestForm.tsx).
 - `number_requests`: one per requested number, with its state, the carrier's refs and the reason of a rejection.
 
 Access: owners and admins (`settings:write`). Members, the voice agent and API keys get nothing (the actions are not

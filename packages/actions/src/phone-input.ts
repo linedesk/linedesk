@@ -239,6 +239,17 @@ function spokenGroups(group: string): string[] {
 }
 
 /**
+ * A number in E.164 as it is written for anyone, any country: "+1 503 555 0142", "+49 30 23125678". A North American
+ * number libphonenumber cannot place (a 555 test number) is grouped the same way; anything else stays as it is.
+ */
+export function formatPhoneNumber(e164: string): string {
+  const nanp = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(e164)
+  if (nanp) return `+1 ${nanp[1]} ${nanp[2]} ${nanp[3]}`
+  if (!/^\+\d{7,15}$/.test(e164)) return e164
+  return parsePhoneNumberFromString(e164)?.formatInternational() ?? e164
+}
+
+/**
  * A number in E.164 in the groups people say it in, as written in `country`: a number of that country in its national
  * format ("0151 2345 6789" → ["0151", "2345", "6789"], "010-1234-5678" → ["010", "1234", "5678"]), one from elsewhere
  * with its country code first (["+44", "20", "7946", "0958"]). Long groups are split (spokenGroups).
