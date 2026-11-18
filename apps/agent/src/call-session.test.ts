@@ -401,6 +401,9 @@ test('the usage level call.start decided reaches the call; an install without bi
   // Nothing the workspace may use is set up: the worker declines the call (notAllowedReason), it never runs unpriced.
   expect((await startCall(api({ usageLevel: 'not_allowed' }), phone)).usageLevel).toBe('not_allowed')
   expect((await startCall(api({}), phone)).usageLevel).toBeNull()
+  // The speech recognition model of the call's level; none named: the provider's default (withSttModel).
+  expect((await startCall(api({ sttModel: 'nova-3' }), phone)).sttModel).toBe('nova-3')
+  expect((await startCall(api({}), phone)).sttModel).toBeNull()
 })
 
 test('the contact call.start matched reaches the instructions with its note; a withheld number brings none', async () => {

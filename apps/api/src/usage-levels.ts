@@ -195,10 +195,19 @@ export async function assistantForCall<A extends AssistantChoices>(
   workspaceId: string,
   assistant: A,
   log: (line: string) => void = alert,
-): Promise<{ assistant: A; level: UsageLevel | null; paidLevel: PaidLevel | null; pipeline: VoicePipeline | null }> {
+): Promise<{
+  assistant: A
+  level: UsageLevel | null
+  paidLevel: PaidLevel | null
+  pipeline: VoicePipeline | null
+  /** The speech recognition model of the level that answers (three stages only; null: the provider's default). */
+  sttModel: string | null
+}> {
   const billed = await usageLevelsBilled(tx)
   const settings = await callQualitySettings(tx)
   const defaults = await levelDefaultModels(tx, settings, { billed })
+  const sttOf = (answering: CallQuality, pipeline: VoicePipeline | null) =>
+    pipeline === 'three_stage' && answering !== 'ultra' ? defaults[answering].stt : null
   const level = assistant.call_quality
   const choices = await assistantChoices(tx, assistant, { billed, defaults })
   if (!billed) {
@@ -208,17 +217,19 @@ export async function assistantForCall<A extends AssistantChoices>(
         level: null,
         paidLevel: null,
         pipeline: choices.pipeline,
+        sttModel: sttOf(level, choices.pipeline),
       }
     // Not set up for its level: the other pipeline, when that one is (Standard's defaults, or Ultra's).
     const other: CallQuality = level === 'ultra' ? 'standard' : 'ultra'
     const answered = await assistantChoices(tx, onStandard(assistant), { billed, level: other, defaults })
-    if (!answered) return { assistant, level: null, paidLevel: null, pipeline: null }
+    if (!answered) return { assistant, level: null, paidLevel: null, pipeline: null, sttModel: null }
     console.warn(`assistant ${assistant.id ?? '?'} is on ${level}, which is not set up here: ${other} answers`)
     return {
       assistant: withCheckedModels(onStandard(assistant), answered, other),
       level: null,
       paidLevel: null,
       pipeline: answered.pipeline,
+      sttModel: sttOf(other, answered.pipeline),
     }
   }
   const enabled = await enabledLevels(tx, settings)
@@ -230,6 +241,7 @@ export async function assistantForCall<A extends AssistantChoices>(
       level: decided,
       paidLevel: level,
       pipeline: choices.pipeline,
+      sttModel: sttOf(level, choices.pipeline),
     }
   const fallback = onStandard(assistant)
   const standard = await assistantChoices(tx, fallback, { billed, defaults })
@@ -249,12 +261,13 @@ export async function assistantForCall<A extends AssistantChoices>(
     }`,
   )
   if (!standard || fallbackLevel === 'not_allowed')
-    return { assistant: fallback, level: 'not_allowed', paidLevel: null, pipeline: 'three_stage' }
+    return { assistant: fallback, level: 'not_allowed', paidLevel: null, pipeline: 'three_stage', sttModel: null }
   return {
     assistant: withCheckedModels(fallback, standard, 'standard'),
     level: fallbackLevel,
     paidLevel: 'standard',
     pipeline: 'three_stage',
+    sttModel: defaults.standard.stt,
   }
 }
 

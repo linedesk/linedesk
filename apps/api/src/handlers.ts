@@ -618,6 +618,8 @@ async function openCall(
       workspaceCountry: locale.resolvedCountry,
       workspaceLanguage: locale.resolvedLanguage,
       usageLevel: forCall?.level ?? null,
+      // The speech recognition model of the level that answers (Server admin › Providers › Call quality).
+      sttModel: forCall?.sttModel ?? null,
       // The instance admin's wording for parts of the system prompt (Server admin › System prompt; LIN-346).
       promptOverrides: blocked ? {} : await promptOverridesForCall(tx),
     },

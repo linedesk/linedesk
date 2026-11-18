@@ -279,6 +279,8 @@ describe('call quality on Cloud: the level decides the price', () => {
       centsPerMinute: 5,
       defaults: { llm: 'gpt-4.1-mini', voice: { elevenlabs: 'eleven_flash_v2_5' }, realtime: null },
     })
+    // The assistant editor has no speech recognition pick (later): no stt in its levels.
+    expect(standard.defaults).not.toHaveProperty('stt')
     expect(premium).toMatchObject({
       centsPerMinute: 10,
       defaults: { llm: 'gpt-4.1', voice: { elevenlabs: 'eleven_multilingual_v2' }, realtime: null },
@@ -421,6 +423,34 @@ describe('Server admin › Providers › Call quality', () => {
     // null: back to the default constant.
     expect((await adminSet({ models: { premium: { llm: null } } })).body.data.settings.models.premium).toEqual({})
     expect(await start(ws.number)).toMatchObject({ usageLevel: 'premium', assistant: { llm_model: 'gpt-4.1' } })
+  })
+
+  test("speech recognition per level: a model of the install's provider; the call hears with its level's", async () => {
+    const ws = await createWorkspace('Quality Speech Plumbing')
+    const operator = await signUp()
+    await asServerAdmin(operator, async () => {
+      const got = (await act(operator, 'callQuality.get', {})).body.data
+      expect(got.sttProvider).toBe('deepgram')
+      const [standard, premium, ultra] = got.levels
+      // Without a pick: the provider's first model (what calls used before), on Standard and Premium.
+      expect(standard.defaults.stt).toBe('flux-general-en')
+      expect(premium.defaults.stt).toBe('flux-general-en')
+      expect(standard.sttModels.map((m: { id: string }) => m.id)).toEqual(['flux-general-en', 'nova-3'])
+      expect(ultra).toMatchObject({ sttModels: [], defaults: { stt: null } })
+    })
+    expect(await start(ws.number)).toMatchObject({ usageLevel: 'standard', sttModel: 'flux-general-en' })
+    // Another provider's model, or one Linedesk does not know: refused.
+    expect((await adminSet({ models: { premium: { stt: 'gpt-4o-transcribe' } } })).body).toMatchObject({
+      error: 'That model is not part of Premium.',
+    })
+    expect((await adminSet({ models: { standard: { stt: 'nova-9' } } })).status).toBe(409)
+    expect((await adminSet({ models: { premium: { stt: 'nova-3' } } })).status).toBe(200)
+    expect(await start(ws.number)).toMatchObject({ usageLevel: 'standard', sttModel: 'flux-general-en' })
+    await setLevel(ws.owner, ws.assistant.id, 'premium')
+    expect(await start(ws.number)).toMatchObject({ usageLevel: 'premium', sttModel: 'nova-3' })
+    // null: back to the provider's default.
+    expect((await adminSet({ models: { premium: { stt: null } } })).status).toBe(200)
+    expect(await start(ws.number)).toMatchObject({ usageLevel: 'premium', sttModel: 'flux-general-en' })
   })
 
   test('a level turned off moves its assistants to Standard (a version each, by the admin); Undo moves them back', async () => {

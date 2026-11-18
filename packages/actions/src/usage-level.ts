@@ -230,7 +230,8 @@ export const raisesLevel = (from: CallQuality, to: CallQuality) =>
 
 /**
  * The server's default models of one level: the language model (`llm`, the id at the install's language-model
- * provider), the voice model per voice provider, and speech recognition (`stt`). Missing: CALL_QUALITY_DEFAULTS.
+ * provider), the voice model per voice provider, and speech recognition (`stt`, a model of the install's speech
+ * recognition provider, STT_MODELS). Missing: CALL_QUALITY_DEFAULTS, for speech recognition the provider's first.
  */
 export type LevelDefaults = { llm?: string; voice?: Record<string, string>; stt?: string }
 
@@ -249,8 +250,8 @@ export type CallQualitySettings = {
 /**
  * The one place of the default models per level (decisions.md 2026-11-17, call quality): what an install uses until
  * a server admin picks others. Language models by their id in LANGUAGE_MODEL_LEVELS (each provider's own id is looked
- * up), voice models per voice provider. Ultra's realtime model and speech recognition default to what the install
- * already uses (the realtime and speech providers' settings); `realtime` here only when neither names one.
+ * up), voice models per voice provider. Speech recognition defaults to each provider's first model in STT_MODELS (the
+ * models calls used before it was a setting), at every level.
  */
 export const CALL_QUALITY_DEFAULTS = {
   standard: {
@@ -351,12 +352,45 @@ export const levelVoiceModelsOf = (provider: string, level: CallQuality): ModelC
   voiceModelsOf(provider)
     .filter(m => partFits(m.level, level))
     .map(m => ({ id: m.model, name: m.name }))
+/**
+ * The speech recognition models a server admin can pick per level (Server admin › Providers › Call quality), per
+ * speech recognition provider; the first is its default. Speech recognition has no price of its own: every model fits
+ * every level of the three stages. The agent knows how to stream each (apps/agent/src/pipeline.ts, createStt).
+ */
+// i18n-ignore: product names, the same in every language
+export const STT_MODELS: Record<string, readonly [ModelChoice, ...ModelChoice[]]> = {
+  deepgram: [
+    { id: 'flux-general-en', name: 'Deepgram Flux' },
+    { id: 'nova-3', name: 'Deepgram Nova-3' },
+  ],
+  elevenlabs_stt: [{ id: 'scribe_v2_realtime', name: 'ElevenLabs Scribe v2 Realtime' }],
+  openai_stt: [
+    { id: 'gpt-4o-mini-transcribe', name: 'GPT-4o mini Transcribe' },
+    { id: 'gpt-4o-transcribe', name: 'GPT-4o Transcribe' },
+  ],
+  assemblyai_stt: [
+    { id: 'universal-3-6-pro', name: 'AssemblyAI Universal-3 Pro' },
+    { id: 'universal-streaming-multilingual', name: 'AssemblyAI Universal Streaming' },
+  ],
+}
+/** The speech recognition models of this provider (none for one Linedesk does not know). */
+export const levelSttModelsOf = (provider: string): ModelChoice[] => [...(STT_MODELS[provider] ?? [])]
+/** Whether this provider streams this speech recognition model (STT_MODELS). */
+export const sttModelFits = (provider: string, id: string | null | undefined) =>
+  !!id && levelSttModelsOf(provider).some(m => m.id === id)
+/** The speech recognition model a level hears with at this provider: the first of `picks` it has, else its first; null: an unknown provider. */
+export function levelSttModel(provider: string, ...picks: (string | null | undefined)[]): string | null {
+  for (const pick of picks) if (sttModelFits(provider, pick?.trim())) return pick!.trim()
+  return STT_MODELS[provider]?.[0].id ?? null
+}
+
 /** The realtime models (all Ultra). */
 export const levelRealtimeModelsOf = (): ModelChoice[] =>
   REALTIME_MODEL_LEVELS.map(m => ({ id: m.model, name: m.name }))
 
 /** A model's name for people ("GPT-4.1 mini"), or its id when it is in no list. */
-export function modelName(kind: 'llm' | 'voice' | 'realtime', provider: string, id: string): string {
+export function modelName(kind: 'llm' | 'voice' | 'realtime' | 'stt', provider: string, id: string): string {
+  if (kind === 'stt') return STT_MODELS[provider]?.find(m => m.id === id)?.name ?? id
   if (kind === 'realtime') return REALTIME_MODEL_LEVELS.find(m => m.model === id)?.name ?? id
   if (kind === 'voice') return VOICE_MODEL_LEVELS.find(v => v.provider === provider && v.model === id)?.name ?? id
   return LANGUAGE_MODEL_LEVELS.find(m => m.ids[provider as LlmProvider] === id)?.name ?? id

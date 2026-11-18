@@ -300,7 +300,9 @@ export type CallQualityAdminLevel = {
   models: ModelChoice[]
   voiceModels: Record<string, ModelChoice[]>
   realtimeModels: ModelChoice[]
-  defaults: { llm: string | null; voice: Record<string, string>; realtime: string | null }
+  /** The speech recognition models of the install's speech recognition provider (none on Ultra: realtime hears itself). */
+  sttModels: ModelChoice[]
+  defaults: { llm: string | null; voice: Record<string, string>; realtime: string | null; stt: string | null }
 }
 /** `data` of `callQuality.get` and `callQuality.set`. `centsPerMinute`: null on an install that does not bill. */
 export type CallQualityAdminData = {
@@ -308,6 +310,8 @@ export type CallQualityAdminData = {
   realtimeSetUp: boolean
   centsPerMinute: Record<CallQuality, number> | null
   llmProvider: string | null
+  /** The install's speech recognition provider (null: none set up). */
+  sttProvider: string | null
   levels: CallQualityAdminLevel[]
   /** callQuality.set: the assistants a level turned off moved to Standard, per level (for Undo). */
   moved?: { level: 'premium' | 'ultra'; assistantIds: string[] }[]

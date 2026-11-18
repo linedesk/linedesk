@@ -26,6 +26,8 @@ const full = { id: 'gpt-4.1', name: 'GPT-4.1' }
 const flash = { id: 'eleven_flash_v2_5', name: 'ElevenLabs Flash v2.5' }
 const multi = { id: 'eleven_multilingual_v2', name: 'ElevenLabs Multilingual v2' }
 const realtime = { id: 'gpt-realtime', name: 'GPT Realtime' }
+const flux = { id: 'flux-general-en', name: 'Deepgram Flux' }
+const nova = { id: 'nova-3', name: 'Deepgram Nova-3' }
 const levels = (ultraOn: boolean): CallQualityAdminLevel[] => [
   {
     level: 'standard',
@@ -33,7 +35,13 @@ const levels = (ultraOn: boolean): CallQualityAdminLevel[] => [
     models: [mini],
     voiceModels: { elevenlabs: [flash] },
     realtimeModels: [],
-    defaults: { llm: 'gpt-4.1-mini', voice: { elevenlabs: 'eleven_flash_v2_5' }, realtime: null },
+    sttModels: [flux, nova],
+    defaults: {
+      llm: 'gpt-4.1-mini',
+      voice: { elevenlabs: 'eleven_flash_v2_5' },
+      realtime: null,
+      stt: 'flux-general-en',
+    },
   },
   {
     level: 'premium',
@@ -41,7 +49,8 @@ const levels = (ultraOn: boolean): CallQualityAdminLevel[] => [
     models: [full, mini],
     voiceModels: { elevenlabs: [multi, flash] },
     realtimeModels: [],
-    defaults: { llm: 'gpt-4.1', voice: { elevenlabs: 'eleven_multilingual_v2' }, realtime: null },
+    sttModels: [flux, nova],
+    defaults: { llm: 'gpt-4.1', voice: { elevenlabs: 'eleven_multilingual_v2' }, realtime: null, stt: 'nova-3' },
   },
   {
     level: 'ultra',
@@ -49,7 +58,8 @@ const levels = (ultraOn: boolean): CallQualityAdminLevel[] => [
     models: [],
     voiceModels: {},
     realtimeModels: [realtime],
-    defaults: { llm: null, voice: {}, realtime: 'gpt-realtime' },
+    sttModels: [],
+    defaults: { llm: null, voice: {}, realtime: 'gpt-realtime', stt: null },
   },
 ]
 const billed: CallQualityAdminData = {
@@ -57,6 +67,7 @@ const billed: CallQualityAdminData = {
   realtimeSetUp: true,
   centsPerMinute: { standard: 5, premium: 10, ultra: 20 },
   llmProvider: 'openai',
+  sttProvider: 'deepgram',
   levels: levels(false),
 }
 
@@ -101,6 +112,21 @@ describe('the Call quality card', () => {
     expect(html).toContain('ElevenLabs Multilingual v2')
     expect(html).toContain('GPT Realtime')
     expect(html).toMatch(/Ultra<span class="[^"]*">Off<\/span>/)
+  })
+
+  it("shows speech recognition per Standard and Premium, with the models of the install's provider", () => {
+    const html = render(billed)
+    expect(html).toContain('Speech recognition')
+    expect(html).toMatch(/id="adm-cq-standard-stt"/)
+    expect(html).toMatch(/id="adm-cq-premium-stt"/)
+    expect(html).not.toMatch(/id="adm-cq-ultra-stt"/)
+    expect(html).toContain('Deepgram Nova-3')
+  })
+
+  it('no speech recognition provider set up: no speech recognition rows', () => {
+    const none = levels(false).map(l => ({ ...l, sttModels: [], defaults: { ...l.defaults, stt: null } }))
+    const html = render({ ...billed, sttProvider: null, levels: none })
+    expect(html).not.toContain('Speech recognition')
   })
 })
 

@@ -14,6 +14,11 @@ import {
   levelLanguageModelsOf,
   levelRealtimeModel,
   levelRealtimeModelsOf,
+  levelSttModel,
+  levelSttModelsOf,
+  STT_MODELS,
+  sttModelFits,
+  modelName,
   levelVoiceModel,
   levelVoiceModelsOf,
   partFits,
@@ -251,5 +256,27 @@ describe('realtimeModelFor', () => {
     // Not in the list (gpt-realtime-2.1 is left out on purpose): the install's.
     expect(realtimeModelFor('gpt-realtime-2.1', 'gpt-realtime')).toBe('gpt-realtime')
     expect(REALTIME_MODEL_LEVELS.map(m => m.model)).toEqual(['gpt-realtime', 'gpt-realtime-2'])
+  })
+})
+
+describe('speech recognition per level (STT_MODELS)', () => {
+  it("each provider's first model is the one calls heard with before it was a setting", () => {
+    expect(Object.fromEntries(Object.entries(STT_MODELS).map(([p, list]) => [p, list[0].id]))).toEqual({
+      deepgram: 'flux-general-en',
+      elevenlabs_stt: 'scribe_v2_realtime',
+      openai_stt: 'gpt-4o-mini-transcribe',
+      assemblyai_stt: 'universal-3-6-pro',
+    })
+  })
+  it("is the first pick the provider streams, else the provider's first; null for an unknown provider", () => {
+    expect(levelSttModel('deepgram', 'nova-3')).toBe('nova-3')
+    expect(levelSttModel('deepgram', 'gpt-4o-transcribe', ' nova-3 ')).toBe('nova-3')
+    expect(levelSttModel('deepgram', null, undefined)).toBe('flux-general-en')
+    expect(levelSttModel('openai_stt', 'gpt-4o-transcribe')).toBe('gpt-4o-transcribe')
+    expect(levelSttModel('made_up', 'nova-3')).toBeNull()
+    expect(sttModelFits('deepgram', 'nova-3')).toBe(true)
+    expect(sttModelFits('assemblyai_stt', 'nova-3')).toBe(false)
+    expect(levelSttModelsOf('made_up')).toEqual([])
+    expect(modelName('stt', 'deepgram', 'flux-general-en')).toBe('Deepgram Flux')
   })
 })

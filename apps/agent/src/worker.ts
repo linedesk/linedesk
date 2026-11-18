@@ -68,6 +68,7 @@ import {
   withAssistantRealtimeModel,
   withAssistantRealtimeVoice,
   withLevelFallbacks,
+  withSttModel,
   withRealtimeModel,
 } from './config.ts'
 import { livekitHttpUrl, requireLivekitEnv, turnOffLocalInference, workerAgentName } from './env.ts'
@@ -897,14 +898,18 @@ async function entry(ctx: JobContext) {
   // A realtime call speaks with the assistant's own realtime voice (the server's default when it picked none).
   // The three stages think with the assistant's own language model when it picked one (Settings › Assistant › Voice).
   // Linedesk Cloud: only fallback models of the call's level (withLevelFallbacks).
+  // The three stages hear with the speech recognition model of the call's level (withSttModel).
   const warn = (line: string) => console.warn(`call ${registered.callId}: ${line}`)
   const config = withRealtimeModel(
     withAssistantRealtimeModel(
       withAssistantRealtimeVoice(
         withLevelFallbacks(
-          withAssistantModel(
-            configForAssistant(readiness.config, pipelineOfAssistant(registered.assistant), warn),
-            registered.assistant?.llm_model,
+          withSttModel(
+            withAssistantModel(
+              configForAssistant(readiness.config, pipelineOfAssistant(registered.assistant), warn),
+              registered.assistant?.llm_model,
+            ),
+            registered.sttModel,
           ),
           registered.usageLevel,
           warn,

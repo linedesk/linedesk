@@ -175,12 +175,12 @@ function GroupHead({ level }: { level: CallQualityAdminLevel }) {
   )
 }
 
-/** Standard or Premium: the language model and a voice model per voice provider set up. */
+/** Standard or Premium: the language model, a voice model per voice provider set up, and speech recognition. */
 function StageModels({ level, change }: ModelsProps) {
   const t = useT()
   const l = level.level as 'standard' | 'premium'
   const voices = Object.entries(level.voiceModels).filter(([, list]) => list.length > 0)
-  if (!level.models.length && !voices.length) return null
+  if (!level.models.length && !voices.length && !level.sttModels.length) return null
   return (
     <div className="adm-cq-group">
       <GroupHead level={level} />
@@ -207,6 +207,15 @@ function StageModels({ level, change }: ModelsProps) {
           onChange={model => void change({ models: { [l]: { voice: { [provider]: model } } } })}
         />
       ))}
+      {level.sttModels.length > 0 && (
+        <SelectRow
+          id={`adm-cq-${l}-stt`}
+          title={t('admin.callQuality.speechRecognition')}
+          value={level.defaults.stt ?? ''}
+          options={choices(level.sttModels, level.defaults.stt)}
+          onChange={stt => void change({ models: { [l]: { stt } } })}
+        />
+      )}
     </div>
   )
 }

@@ -11,6 +11,7 @@ import {
   type LlmProvider,
   languageModelFor,
   languageModelLevel,
+  levelSttModel,
   llmEndpoints,
   type PipelinesSetUp,
   pipelineFor,
@@ -188,14 +189,6 @@ export const stageEnvVars = [
 /** Each language-model provider's API and default models (lists, first one first: "primary, fallback, ..."). */
 export const llmDefaults = llmEndpoints
 
-/** The speech model: Deepgram's English Flux, ElevenLabs', OpenAI's and AssemblyAI's streaming models. */
-const sttDefaultModels: Record<SttProvider, string> = {
-  deepgram: 'flux-general-en',
-  elevenlabs_stt: 'scribe_v2_realtime',
-  openai_stt: 'gpt-4o-mini-transcribe',
-  assemblyai_stt: 'universal-3-6-pro',
-}
-
 /** One stage from the environment, in the API's shape; the provider is named even when its key is missing. */
 function fromEnv(key: StageKey, env: Env): NonNullable<Entry> {
   const spec = stages[key]
@@ -248,7 +241,8 @@ export function resolveAgentConfig(settings: ProviderSettings | null, env: Env =
     stt: {
       provider: stt.provider as SttProvider,
       apiKey: stt.api_key!,
-      model: sttDefaultModels[stt.provider as SttProvider],
+      // The provider's default speech model (STT_MODELS, first); a call hears with its level's (withSttModel).
+      model: levelSttModel(stt.provider as SttProvider)!,
     },
     llm: {
       provider: llmProvider,
@@ -392,6 +386,19 @@ export function withAssistantModel(config: CallConfig, llmModel: string | null |
     ...stages,
     llm: { ...stages.llm, model, fallbacks: [stages.llm.model, ...stages.llm.fallbacks].filter(m => m !== model) },
   }
+  return isRealtime(config) ? { ...config, stages: own } : own
+}
+
+/**
+ * The config with the speech recognition model of the call's level (Server admin › Providers › Call quality; call.start
+ * `sttModel`), when the install's speech recognition provider streams it (STT_MODELS); else the provider's default.
+ */
+export function withSttModel(config: CallConfig, sttModel: string | null | undefined): CallConfig {
+  const stages = stagesOf(config)
+  if (!stages) return config
+  const model = levelSttModel(stages.stt.provider, sttModel, stages.stt.model)
+  if (!model || model === stages.stt.model) return config
+  const own: AgentConfig = { ...stages, stt: { ...stages.stt, model } }
   return isRealtime(config) ? { ...config, stages: own } : own
 }
 

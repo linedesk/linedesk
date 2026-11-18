@@ -834,6 +834,7 @@
   "callQuality.premiumPrice": "A smarter model and a more expressive voice. {price} a minute.",
   "callQuality.realtimeModel": "Realtime model",
   "callQuality.showModels": "Show default models",
+  "callQuality.speechRecognition": "Speech recognition",
   "callQuality.standard": "Fast and reliable for most calls.",
   "callQuality.standardPrice": "Fast and reliable for most calls. {price} a minute.",
   "callQuality.title": "Call quality",

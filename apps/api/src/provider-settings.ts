@@ -8,6 +8,7 @@ import {
   categoryNames,
   moneyCategories,
   type Language,
+  levelSttModel,
   levelVoiceModel,
   providerFieldLabel,
   providerNames,
@@ -296,8 +297,9 @@ export async function installLanguages(tx: Tx, env: Env = serverEnv()): Promise<
 export async function installLanguageOptions(tx: Tx, env: Env = serverEnv()) {
   const languages = pickableLanguages(await installLanguages(tx, env))
   const stt = await activeProvider(tx, 'stt', env).catch(() => null)
-  // The provider's default speech model (decisions.md 2026-11-18: no model field).
-  const hearing = stt && { provider: stt.provider, model: null }
+  // Standard's speech recognition model (Server admin › Providers › Call quality), as for the voices above.
+  const standard = (await callQualitySettings(tx).catch(() => null))?.models.standard.stt
+  const hearing = stt && { provider: stt.provider, model: levelSttModel(stt.provider, standard) }
   return { languages, anyLanguages: anyModeLanguages(languages, hearing) }
 }
 

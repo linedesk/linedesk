@@ -38,10 +38,12 @@ import {
   languageModelLevel,
   levelLanguageModelsOf,
   levelRealtimeModelsOf,
+  levelSttModelsOf,
   levelVoiceModel,
   levelVoiceModelsOf,
   partFits,
   realtimeModelLevel,
+  sttModelFits,
   voiceModelLevel,
 } from '@linedesk/actions'
 import { assistants, instance_settings, type Tx, voice_clones } from '@linedesk/db'
@@ -753,7 +755,8 @@ function mergeModels(stored: CallQualitySettings['models'], change: CallQualityS
 
 /**
  * The default models a change names must belong to their level (usage-level.ts): the language model at the install's
- * provider, each voice model at its provider, a realtime model on Ultra.
+ * provider, each voice model at its provider, a speech recognition model the install's speech recognition provider
+ * streams, a realtime model on Ultra.
  */
 async function checkDefaultModels(
   tx: Tx,
@@ -761,6 +764,7 @@ async function checkDefaultModels(
   change: CallQualitySetInput['models'],
 ) {
   const llm = await activeProvider(tx, 'llm').catch(() => null)
+  const stt = await activeProvider(tx, 'stt').catch(() => null)
   for (const level of ['standard', 'premium'] as const) {
     const named = change?.[level]
     if (!named) continue
@@ -770,6 +774,8 @@ async function checkDefaultModels(
     for (const [provider, model] of Object.entries(named.voice ?? {}))
       if (model && !partFits(voiceModelLevel(provider, model), level))
         throw Reject.t('server.api.callQualityModelOutside', { level: CALL_QUALITY_LABELS[level] })
+    if (named.stt && (!stt || !sttModelFits(stt.provider, models[level].stt)))
+      throw Reject.t('server.api.callQualityModelOutside', { level: CALL_QUALITY_LABELS[level] })
   }
   const realtime = change?.ultra?.realtime
   if (realtime && !realtimeModelLevel(realtime))
@@ -789,6 +795,7 @@ export async function callQualityAdminData(tx: Tx): Promise<CallQualityAdminData
     realtimeSetUp: await realtimeSetUp(tx),
     centsPerMinute: billed ? await levelCentsPerMinute(tx) : null,
     llmProvider,
+    sttProvider: defaults.sttProvider,
     levels: CALL_QUALITIES.map(level =>
       level === 'ultra'
         ? {
@@ -797,7 +804,8 @@ export async function callQualityAdminData(tx: Tx): Promise<CallQualityAdminData
             models: [],
             voiceModels: {},
             realtimeModels: levelRealtimeModelsOf(),
-            defaults: { llm: null, voice: {}, realtime: defaults.ultra.realtime },
+            sttModels: [],
+            defaults: { llm: null, voice: {}, realtime: defaults.ultra.realtime, stt: null },
           }
         : {
             level,
@@ -805,7 +813,13 @@ export async function callQualityAdminData(tx: Tx): Promise<CallQualityAdminData
             models: llmProvider ? levelLanguageModelsOf(llmProvider, level) : [],
             voiceModels: Object.fromEntries(voices.map(v => [v.provider, levelVoiceModelsOf(v.provider, level)])),
             realtimeModels: [],
-            defaults: { llm: defaults[level].llm, voice: defaults[level].voice, realtime: null },
+            sttModels: defaults.sttProvider ? levelSttModelsOf(defaults.sttProvider) : [],
+            defaults: {
+              llm: defaults[level].llm,
+              voice: defaults[level].voice,
+              realtime: null,
+              stt: defaults[level].stt,
+            },
           },
     ),
   }

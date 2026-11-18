@@ -2,7 +2,7 @@
 // Providers › Call quality), kept in instance_settings `call_quality`: whether Premium and Ultra can be picked, the
 // level new assistants start on, and per level the models an assistant without its own pick uses. A missing row or
 // entry reads as CALL_QUALITY_INSTALL_DEFAULT with the default models (CALL_QUALITY_DEFAULTS); Ultra's realtime model
-// and speech recognition default to what the install already uses.
+// defaults to what the install already uses, speech recognition to its provider's first model (STT_MODELS).
 import {
   CALL_QUALITIES,
   CALL_QUALITY_INSTALL_DEFAULT,
@@ -11,6 +11,7 @@ import {
   DEFAULT_VOICE_MODELS,
   levelLanguageModel,
   levelRealtimeModel,
+  levelSttModel,
   levelVoiceModel,
   type LlmProvider,
   llmEndpoints,
@@ -84,7 +85,8 @@ export async function newAssistantLevel(tx: Tx): Promise<CallQuality> {
 
 /**
  * What "Default" stands for on each level, for the providers set up: the language model of the install's language-model
- * provider, the voice model per voice provider, and Ultra's realtime model. `billed` false (no prices): a provider
+ * provider, the voice model per voice provider, the speech recognition model of the install's speech recognition
+ * provider, and Ultra's realtime model. `billed` false (no prices): a provider
  * with no model of the level in the lists uses its own default, so a self-hosted install always answers.
  */
 export async function levelDefaultModels(tx: Tx, settings: CallQualitySettings, { billed }: { billed: boolean }) {
@@ -92,6 +94,8 @@ export async function levelDefaultModels(tx: Tx, settings: CallQualitySettings, 
   const llmProvider = (llm?.provider ?? null) as LlmProvider | null
   const voices = await setUpProviders(tx, 'tts').catch(() => [])
   const realtime = await activeProvider(tx, 'realtime').catch(() => null)
+  const stt = await activeProvider(tx, 'stt').catch(() => null)
+  const sttProvider = stt?.provider ?? null
   const threeStage = (level: 'standard' | 'premium') => ({
     llm: llmProvider
       ? (levelLanguageModel(llmProvider, level, settings.models[level].llm) ??
@@ -105,9 +109,11 @@ export async function levelDefaultModels(tx: Tx, settings: CallQualitySettings, 
         return id === null ? [] : [[v.provider, id]]
       }),
     ) as Record<string, string>,
+    stt: sttProvider ? levelSttModel(sttProvider, settings.models[level].stt) : null,
   })
   return {
     llmProvider,
+    sttProvider,
     standard: threeStage('standard'),
     premium: threeStage('premium'),
     ultra: {

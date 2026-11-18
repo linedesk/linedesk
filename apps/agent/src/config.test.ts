@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { AgentConfigError, configForAssistant, pipelineOfAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings, withAssistantModel, withAssistantRealtimeModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel } from './config.ts'
+import { AgentConfigError, configForAssistant, pipelineOfAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings, withAssistantModel, withAssistantRealtimeModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel, withSttModel } from './config.ts'
 
 // OpenRouter named: the tests below were written for it; the default (OpenAI) has its own test.
 const keys = { DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
@@ -452,6 +452,28 @@ describe("withAssistantModel: the assistant's own language model (usage levels)"
       model: 'openai/gpt-4.1-mini',
       fallbacks: ['google/gemini-3.5-flash-lite'],
     })
+  })
+})
+
+describe("withSttModel: the speech recognition model of the call's level (call quality)", () => {
+  test("the provider's default without a pick; the level's model when the provider streams it", () => {
+    const config = resolveCallConfig(stored, {})
+    expect(stagesOf(config)!.stt.model).toBe('flux-general-en')
+    expect(stagesOf(withSttModel(config, 'nova-3'))!.stt).toMatchObject({ provider: 'deepgram', model: 'nova-3' })
+    expect(withSttModel(config, null)).toBe(config)
+    expect(withSttModel(config, 'flux-general-en')).toBe(config)
+    // A model of another provider, or one Linedesk does not know: the provider's default.
+    expect(withSttModel(config, 'gpt-4o-transcribe')).toBe(config)
+    expect(withSttModel(config, 'nova-9')).toBe(config)
+  })
+
+  test('a realtime config keeps its realtime model; only its stages hear with the level model', () => {
+    const both = resolveCallConfig({ ...stored, realtime: { provider: 'openai_realtime', api_key: 'rt' } }, {})
+    if (!isRealtime(both)) throw new Error('expected a realtime config')
+    const picked = withSttModel(both, 'nova-3')
+    if (!isRealtime(picked)) throw new Error('expected a realtime config')
+    expect(picked.realtime).toEqual(both.realtime)
+    expect(stagesOf(picked)!.stt.model).toBe('nova-3')
   })
 })
 

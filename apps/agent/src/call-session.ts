@@ -68,6 +68,8 @@ export interface CallSession {
   assistant: Assistant | null
   /** Linedesk Cloud: the call's usage level from call.start (`not_allowed`: not answered); null or missing: not billed. */
   usageLevel?: UsageLevel | null
+  /** The speech recognition model of the call's level (Server admin › Providers › Call quality); null: the provider's default. */
+  sttModel?: string | null
   /** null: the caller ID is withheld or not a number ("anonymous"), so the caller has no contact. */
   contact: Contact | null
   /**
@@ -169,6 +171,8 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   workspaceLanguage?: string
   /** Linedesk Cloud: the call's usage level, decided at call start (usageLevel); null on an install without billing. */
   usageLevel?: UsageLevel | null
+  /** The speech recognition model of the level that answers; null: the provider's default. */
+  sttModel?: string | null
   /** The instance admin's wording for parts of the system prompt; missing from an older API. */
   promptOverrides?: PromptOverrides
 }
@@ -442,6 +446,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     ...scope,
     assistant,
     usageLevel: started.usageLevel ?? null,
+    sttModel: started.sttModel ?? null,
     contact,
     blocked,
     forwardingCheck,
