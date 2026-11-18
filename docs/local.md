@@ -20,7 +20,7 @@ reserved domain instead.
 The compose defaults are sized for a small server (Postgres 0.1 CPU and 256 MB, the API 0.1 CPU, all call
 audio on one pinned core). On a laptop that is also running builds and tests, that starves Postgres:
 requests and background jobs wait for a connection ("timeout exceeded when trying to connect") and
-saving hangs. For a local stack, add `docker-compose.local.yml` (generous limits, sized for Docker Desktop with
+saving hangs. For a local stack, add `docker-compose.local.yml` (generous limits, sized for a Docker VM with
 8+ CPUs and 8 GB) last in `COMPOSE_FILE` in `.env`:
 
 ```
@@ -29,6 +29,11 @@ COMPOSE_FILE=docker-compose.yml${LINEDESK_MODE:+:docker-compose.$LINEDESK_MODE.y
 
 The voice services share cores 1-4 there; a Docker VM with fewer cores (`docker info` shows the count) needs its own `cpuset`. Then
 `docker compose up -d` recreates the services with the new limits; the data stays in the volumes.
+
+On a Mac, run Docker in [Colima](https://github.com/abiosoft/colima), not Docker Desktop (whose VM disk grows to tens
+of GB): `brew install colima docker docker-compose`, then `colima start --cpu 8 --memory 8` when you need the stack
+(the sizes stay for later starts) and `colima stop` when you are done. Do not start it as a login service
+(`brew services start colima`).
 
 ## One address, the public one
 
