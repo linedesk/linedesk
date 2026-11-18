@@ -304,7 +304,7 @@ describe('the emergency number of the workspace country', () => {
 
   test('the emergency rule is the same in every country and names no number', () => {
     expect(EMERGENCY_RULE).toBe(
-      "A problem that can't wait, even serious damage to property, is urgent: it is for the team, so do not mention the emergency services. Only if the caller says a person is in danger right now (someone hurt, a fire, a break-in happening, a gas smell), tell them to contact the emergency services now, and keep helping them if they stay on the call.",
+      "A problem that can't wait, even serious damage to property, is urgent: it is for the team, so do not mention the emergency services. Only if the caller says a person is in danger right now (someone hurt, a fire, a break-in happening, a gas smell), tell them at once, before any question, to contact the emergency services now, and keep helping them if they stay on the call.",
     )
     // A fixed rule (A3), not one of the call rules the owner's text wins over.
     expect(fixedRules()).toContain(EMERGENCY_RULE)

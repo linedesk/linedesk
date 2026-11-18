@@ -312,7 +312,7 @@ export const PROMPT_TEXTS = {
   'call.clock': {
     section: 'call',
     when: 'timeZone',
-    text: "It is now {now} (time zone {timeZone}). If the caller asks the date, the day or the time, answer from this; never guess them. Do not mention the date or the time otherwise.",
+    text: 'It is now {now} (time zone {timeZone}). If the caller asks the date, the day or the time, answer from this; never guess them. Do not mention the date or the time otherwise.',
   },
   'call.noHours': {
     section: 'call',
@@ -408,7 +408,7 @@ export const PROMPT_TEXTS = {
   },
   'fixed.emergency': {
     section: 'fixed',
-    text: "A problem that can't wait, even serious damage to property, is urgent: it is for the team, so do not mention the emergency services. Only if the caller says a person is in danger right now (someone hurt, a fire, a break-in happening, a gas smell), tell them to contact the emergency services now, and keep helping them if they stay on the call.",
+    text: "A problem that can't wait, even serious damage to property, is urgent: it is for the team, so do not mention the emergency services. Only if the caller says a person is in danger right now (someone hurt, a fire, a break-in happening, a gas smell), tell them at once, before any question, to contact the emergency services now, and keep helping them if they stay on the call.",
   },
 } as const satisfies Record<string, PromptTextDef>
 
