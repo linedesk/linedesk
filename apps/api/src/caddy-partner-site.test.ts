@@ -42,8 +42,11 @@ describe('partner site (docker/Caddyfile)', () => {
     ])
     expect(code(block('(partner-site-on) {'))).toEqual([
       '(partner-site-on) {',
-      ':443 {',
+      '{$LINEDESK_SAAS_ORIGIN:saas-origin.invalid}:443 {',
       'import tls-{$LINEDESK_TLS:automatic}',
+      'import app-routes',
+      '}',
+      ':443 {',
       'import app-routes',
       '}',
       '}',
@@ -81,8 +84,35 @@ describe('partner site (docker/Caddyfile)', () => {
     ])
   })
 
-  test('behind Cloudflare the partner site is on, and LINEDESK_ORIGIN_PULL picks origin-pull', () => {
-    expect(cloudflare).toMatch(/^\s+LINEDESK_PARTNER_SITE: \$\{LINEDESK_PARTNER_SITE:-on\}$/m)
+  // Staging, 2026-11-18 (D1 test): a host-less `:443` with its own `tls` became the TLS policy for every SNI, so
+  // staging.example.com served the partner certificate and was unreachable for a minute. The certificate belongs to the
+  // custom origin's SNI only; the host-less site just routes other Hosts on a connection that got through TLS there.
+  test('the partner certificate is tied to the custom origin’s SNI, never to a host-less :443', () => {
+    const sites = code(caddyfile).filter(line => /^\S*:443 \{$/.test(line) || line === ':443 {')
+    expect(sites).toEqual(['{$LINEDESK_SAAS_ORIGIN:saas-origin.invalid}:443 {', ':443 {'])
+    const lines = code(block('(partner-site-on) {'))
+    const bare = lines.indexOf(':443 {')
+    expect(lines.slice(bare, bare + 3)).toEqual([':443 {', 'import app-routes', '}'])
+    // No other site anywhere without a host name imports a certificate (or a tls directive of its own).
+    const all = code(caddyfile)
+    all.forEach((line, i) => {
+      if (!/^:\d+ \{$/.test(line)) return
+      let depth = 0
+      for (let j = i; j < all.length; j++) {
+        if (all[j]!.endsWith('{')) depth++
+        if (all[j] === '}') depth--
+        if (depth === 0) break
+        expect(all[j], `${line} must not set tls`).not.toMatch(/^(tls\b|import tls-)/)
+      }
+    })
+  })
+
+  test('behind Cloudflare the partner site is off unless switched on with the custom origin’s name', () => {
+    expect(cloudflare).toMatch(/^\s+LINEDESK_PARTNER_SITE: \$\{LINEDESK_PARTNER_SITE:-off\}$/m)
+    expect(cloudflare).toMatch(/^\s+LINEDESK_SAAS_ORIGIN: \$\{LINEDESK_SAAS_ORIGIN:-\}$/m)
+  })
+
+  test('LINEDESK_ORIGIN_PULL picks origin-pull', () => {
     expect(cloudflare).toMatch(/^\s+LINEDESK_TLS: origin\$\{LINEDESK_ORIGIN_PULL:\+-pull\}$/m)
   })
 })

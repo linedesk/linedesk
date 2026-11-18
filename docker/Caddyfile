@@ -175,16 +175,24 @@
 	import app-routes
 }
 
-# Partners' own addresses (white-label S5, docs/white-label.md) behind Cloudflare for SaaS: any other Host on 443,
-# with the same certificate and routes. Cloudflare connects with the custom origin's name as SNI
-# (saas-origin.linedesk.ai), which the certificate covers. Caddy never decides which names are valid: the API answers
-# 421 for a name that is neither the install's own nor a live partner address (apps/api/src/request-host.ts).
-# Off unless LINEDESK_PARTNER_SITE=on (docker-compose.cloudflare.yml); without it, other names get an empty answer.
+# Partners' own addresses (white-label S5, docs/white-label.md) behind Cloudflare for SaaS. Cloudflare connects with the
+# custom origin's name as SNI (LINEDESK_SAAS_ORIGIN, e.g. saas-origin.linedesk.ai), checks the certificate against that
+# name (Full (strict), decision D1) and sends the partner's name only as Host. So the certificate is tied to that SNI in
+# a site of its own, and a host-less :443 without tls routes any other Host on a connection that got through TLS here.
+# Never a host-less :443 with its own tls: it becomes the TLS policy for every other SNI and serves its certificate to
+# every other site, e.g. one from /etc/caddy/sites with its own certificate (staging was offline for a minute,
+# 2026-11-18). Caddy never decides which names are valid: the API answers 421 for a name that is neither the install's
+# own nor a live partner address (apps/api/src/request-host.ts).
+# Off unless LINEDESK_PARTNER_SITE=on and LINEDESK_SAAS_ORIGIN is set (docker-compose.cloudflare.yml); without the name
+# the site waits on saas-origin.invalid, which no connection uses. Off: other names get an empty answer.
 (partner-site-off) {
 }
 (partner-site-on) {
-	:443 {
+	{$LINEDESK_SAAS_ORIGIN:saas-origin.invalid}:443 {
 		import tls-{$LINEDESK_TLS:automatic}
+		import app-routes
+	}
+	:443 {
 		import app-routes
 	}
 }
