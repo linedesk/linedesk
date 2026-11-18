@@ -600,3 +600,26 @@ export const loadHealth = () => get<AdminHealth>('/v1/admin/health')
 
 /** GET /v1/admin/setup-checklist (apps/api/src/setup-checklist.ts): every group's status as the server sees it. */
 export const loadSetupChecklist = () => get<StatusGroups>('/v1/admin/setup-checklist')
+
+/** GET /v1/admin/call-reviews (apps/api/src/admin-routes.ts): one call the evaluation flagged, with the reviewer's notes. */
+export type CallReview = {
+  call_id: string
+  workspace_id: string
+  workspace_name: string | null
+  score: number
+  issues: string[]
+  unanswered: string[]
+  model: string | null
+  created_at: string
+  started_at: string
+  title: string | null
+  source: string
+  assistant_name: string | null
+}
+/** A workspace with flagged calls, for the filter. */
+export type CallReviewWorkspace = { id: string; name: string | null; flagged: number }
+
+export const loadCallReviews = (workspaceId: string | null) =>
+  get<{ reviews: CallReview[]; workspaces: CallReviewWorkspace[] }>(
+    `/v1/admin/call-reviews${workspaceId ? `?workspace=${encodeURIComponent(workspaceId)}` : ''}`,
+  )

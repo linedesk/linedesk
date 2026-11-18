@@ -1,18 +1,9 @@
-/* How <assistant> did (Assistant area): the calls to look at and the questions to answer, compact rows like Knowledge. */
+/* Open questions (Assistant area) and Server admin › Call reviews: compact rows like Knowledge. */
 .rv-list .rv-row {
   padding: 10px 0;
 }
 .rv-list .rv-row:first-child {
   padding-top: 0;
-}
-.rv-call {
-  display: grid;
-  gap: 2px;
-  color: inherit;
-  text-decoration: none;
-}
-.rv-call:hover b {
-  text-decoration: underline;
 }
 .rv-actions {
   display: flex;
@@ -44,4 +35,8 @@
   .rv-row > .kn-main {
     flex-basis: 100%;
   }
+}
+/* No open questions: the app's empty picture, a little smaller inside the card. */
+.rv-zero .zero {
+  padding: 8px 0 4px;
 }

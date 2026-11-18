@@ -314,9 +314,10 @@ const ofAssistant = (assistantId: string) => or(eq(calls.assistant_id, assistant
 const GROUP_CALLS_MAX = 5
 
 /**
- * The open questions of the workspace (or one assistant), each with the calls of the last QUESTIONS_WINDOW_DAYS
- * days that asked it: the question's own call, and every evaluation naming it (same `questionKey`). Answered and
- * dismissed questions are never listed, so a question handled once does not come back. Most asked first.
+ * The open questions of the workspace (or one assistant), grouped per assistant by `questionKey` (the same question,
+ * however it was worded), each with the calls of the last QUESTIONS_WINDOW_DAYS days that asked it: the questions' own
+ * calls, and every evaluation naming it (same key). Answered and dismissed questions are never listed, so a question
+ * handled once does not come back. Most asked first, then most recently asked.
  */
 export async function questionGroups(tx: Tx, workspaceId: string, assistantId?: string): Promise<QuestionGroup[]> {
   const open = await tx
@@ -331,25 +332,27 @@ export async function questionGroups(tx: Tx, workspaceId: string, assistantId?: 
     )
   if (!open.length) return []
   const since = new Date(Date.now() - QUESTIONS_WINDOW_DAYS * 86_400_000).toISOString()
-  const asked = await tx
-    .select({
-      callId: call_evaluations.call_id,
-      assistantId: calls.assistant_id,
-      unanswered: call_evaluations.unanswered,
-      at: calls.started_at,
-    })
-    .from(call_evaluations)
-    .innerJoin(calls, eq(calls.id, call_evaluations.call_id))
-    .where(
-      and(
-        eq(call_evaluations.workspace_id, workspaceId),
-        isNull(calls.deleted_at),
-        gte(calls.started_at, since),
-        sql`jsonb_array_length(${call_evaluations.unanswered}) > 0`,
-        assistantId ? ofAssistant(assistantId) : undefined,
-      ),
-    )
-  // The question's own call counts too (also from before the evaluation kept its questions), unless it was deleted.
+  const asked = (
+    await tx
+      .select({
+        callId: call_evaluations.call_id,
+        assistantId: calls.assistant_id,
+        unanswered: call_evaluations.unanswered,
+        at: calls.started_at,
+      })
+      .from(call_evaluations)
+      .innerJoin(calls, eq(calls.id, call_evaluations.call_id))
+      .where(
+        and(
+          eq(call_evaluations.workspace_id, workspaceId),
+          isNull(calls.deleted_at),
+          gte(calls.started_at, since),
+          sql`jsonb_array_length(${call_evaluations.unanswered}) > 0`,
+          assistantId ? ofAssistant(assistantId) : undefined,
+        ),
+      )
+  ).map(a => ({ ...a, keys: new Set(a.unanswered.map(questionKey)) }))
+  // The questions' own calls count too (also from before the evaluation kept its questions), unless deleted.
   const ownCalls = open.map(q => q.call_id).filter((id): id is string => !!id)
   const liveOwn = new Map(
     ownCalls.length
@@ -368,25 +371,34 @@ export async function questionGroups(tx: Tx, workspaceId: string, assistantId?: 
         ).map(c => [c.id, c.at] as const)
       : [],
   )
-  const groups = open.map(q => {
-    const key = questionKey(q.question)
+  const byKey = new Map<string, (typeof open)[number][]>()
+  for (const q of open) {
+    const key = `${q.assistant_id}\n${questionKey(q.question)}`
+    byKey.set(key, [...(byKey.get(key) ?? []), q])
+  }
+  const groups = [...byKey.values()].map(questions => {
+    const first = questions[0]!
+    const key = questionKey(first.question)
     const seen = new Map<string, string>()
-    if (q.call_id && liveOwn.has(q.call_id)) seen.set(q.call_id, liveOwn.get(q.call_id)!)
+    for (const q of questions) if (q.call_id && liveOwn.has(q.call_id)) seen.set(q.call_id, liveOwn.get(q.call_id)!)
     for (const a of asked)
-      if (
-        (a.assistantId === null || a.assistantId === q.assistant_id) &&
-        a.unanswered.some(u => questionKey(u) === key)
-      )
-        seen.set(a.callId, a.at)
+      if ((a.assistantId === null || a.assistantId === first.assistant_id) && a.keys.has(key)) seen.set(a.callId, a.at)
     const byNewest = [...seen.entries()].sort((x, y) => y[1].localeCompare(x[1]))
+    // The wording shown: a full question (ending in "?") over a bare one, then the shortest, the oldest of those.
+    const bare = (q: { question: string }) => (q.question.trim().endsWith('?') ? 0 : 1)
+    const shown = [...questions].sort(
+      (a, b) => bare(a) - bare(b) || a.question.length - b.question.length || a.created_at.localeCompare(b.created_at),
+    )[0]!
+    const newestQuestion = questions.map(q => q.created_at).sort((a, b) => b.localeCompare(a))[0]!
     return {
-      questionId: q.id,
-      assistantId: q.assistant_id,
-      question: q.question,
-      // An open question older than the window was still asked once.
-      asked: Math.max(1, byNewest.length),
+      questionId: shown.id,
+      questionIds: questions.map(q => q.id),
+      assistantId: first.assistant_id,
+      question: shown.question,
+      // Open questions older than the window were still asked, each once.
+      asked: Math.max(questions.length, byNewest.length),
       callIds: byNewest.slice(0, GROUP_CALLS_MAX).map(([id]) => id),
-      lastAskedAt: byNewest[0]?.[1] ?? q.created_at,
+      lastAskedAt: byNewest[0]?.[1] ?? newestQuestion,
     }
   })
   return groups.sort((a, b) => b.asked - a.asked || b.lastAskedAt.localeCompare(a.lastAskedAt))

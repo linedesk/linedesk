@@ -1,11 +1,22 @@
-// How <assistant> did (Assistant area, #assistant/<id>/review): the pure part. The low-scored calls owners and
-// admins look at and mark as checked, and the questions callers asked that the assistant could not answer.
-import { type CallEvaluation, NEEDS_REVIEW_MAX_SCORE, type QuestionGroup } from '@linedesk/actions'
+// Open questions (Assistant area, #assistant/<id>/review): the pure part. The questions callers asked that the
+// assistant could not answer, grouped (`questionKey`: the same question however it was worded), each answered once
+// into About the business or dismissed. How the assistant itself did on a call is for staff only (Server admin ›
+// Call reviews, and the call view's card for server admins).
+import { NEEDS_REVIEW_MAX_SCORE, type QuestionGroup, questionKey } from '@linedesk/actions'
 import type { KnowledgeQuestion } from '@linedesk/db/types'
 import { i18n } from '../i18n/index.tsx'
 
-/** The section's id in the Assistant area, and its title, named after the assistant ("How Maya did"). */
+/** The section's id in the Assistant area (its address stays `#assistant/<id>/review`), and its name in the list. */
 export const REVIEW_SECTION = 'review'
+export const questionsLabel = () => i18n().t('settings.review.questions.navLabel')
+
+/** The heading of the section: "Questions Maya couldn't answer". */
+export const questionsTitle = (assistantName: string) =>
+  assistantName.trim()
+    ? i18n().t('settings.review.questions.title', { name: assistantName.trim() })
+    : i18n().t('settings.review.questions.titleDefault')
+
+/** "How Maya did": the evaluation of one call, as staff read it (call view, Server admin › Call reviews). */
 export const reviewTitle = (assistantName: string) =>
   assistantName.trim()
     ? i18n().t('settings.review.title', { name: assistantName.trim() })
@@ -23,47 +34,33 @@ export const scoreWords = (score: number) =>
           : 'settings.review.score.wentWrong',
   )
 
-/** A score worth a look (Missed something, Went wrong): the list holds only these. */
+/** A score the evaluation flags (Missed something, Went wrong). */
 export const needsALook = (score: number) => score <= NEEDS_REVIEW_MAX_SCORE
 
-/**
- * The words for the checked state. Not "Done": on a call that is the inbox's Done (E), which finishes the call itself.
- */
-export const checkLabel = (checked: boolean) => i18n().t(checked ? 'settings.review.reopen' : 'settings.review.check')
-export const listToggleLabel = (showingChecked: boolean) =>
-  i18n().t(showingChecked ? 'settings.review.showOpen' : 'settings.review.showChecked')
-
-/** "Asked once", "Asked 3×". */
+/** "Asked once", "Asked 3 times". */
 export const askedLabel = (n: number) => i18n().t('settings.review.questions.asked', { count: Math.max(1, n) })
 
-/** An open list after one of its calls was marked as checked (or reopened elsewhere): the call is gone, the total one less. */
-export function withoutCall(list: ReviewList | undefined, callId: string): ReviewList | undefined {
-  if (!list?.evaluations.some(e => e.callId === callId)) return list
-  return { evaluations: list.evaluations.filter(e => e.callId !== callId), total: Math.max(0, list.total - 1) }
-}
-
-/** A list with this evaluation in its place, newest first (put back by Reopen, or marked as checked into the checked list). */
-export function withCall(list: ReviewList | undefined, evaluation: CallEvaluation): ReviewList | undefined {
-  if (!list) return list
-  const rest = list.evaluations.filter(e => e.callId !== evaluation.callId)
-  const evaluations = [...rest, evaluation].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  return { evaluations, total: list.total + (rest.length === list.evaluations.length ? 1 : 0) }
-}
-
-export type ReviewList = { evaluations: CallEvaluation[]; total: number }
-
 /**
- * The question groups still open on this device: one answered or dismissed here (or in another tab, the rows are
- * synced) leaves at once, before the server's list is read again. A group whose row is not here yet stays.
+ * The question groups still open on this device: a group answered or dismissed here (or in another tab, the rows are
+ * synced) leaves at once, before the server's list is read again. A group stays while one of its questions is open
+ * (or not here yet).
  */
 export function openGroups(groups: readonly QuestionGroup[], rows: readonly KnowledgeQuestion[]): QuestionGroup[] {
   const status = new Map(rows.map(r => [r.id, r.status]))
-  return groups.filter(g => (status.get(g.questionId) ?? 'open') === 'open')
+  return groups.filter(g => (g.questionIds ?? [g.questionId]).some(id => (status.get(id) ?? 'open') === 'open'))
 }
 
 /**
- * The count on the Assistant item in the navigation: open calls to look at plus open questions. Questions are the
- * synced rows (`knowledge_questions`), so an answer drops the count at once.
+ * The count on the Assistant item in the navigation and on the section: open question groups (one per assistant and
+ * `questionKey`), from the synced rows, so an answer drops it at once. `assistantId`: only that assistant's.
  */
-export const openItemCount = (openEvaluations: number, questions: readonly KnowledgeQuestion[]) =>
-  openEvaluations + questions.filter(q => q.status === 'open').length
+export function openGroupCount(questions: readonly KnowledgeQuestion[], assistantId?: string): number {
+  const keys = new Set<string>()
+  for (const q of questions)
+    if (q.status === 'open' && (!assistantId || q.assistant_id === assistantId))
+      keys.add(`${q.assistant_id}\n${questionKey(q.question)}`)
+  return keys.size
+}
+
+/** The rest of a group's questions, closed with the one shown (knowledgeQuestion.answer / .dismiss `alsoIds`). */
+export const otherIds = (group: QuestionGroup) => (group.questionIds ?? []).filter(id => id !== group.questionId)

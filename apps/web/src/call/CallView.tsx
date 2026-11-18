@@ -54,7 +54,7 @@ type Props = CallViewActions & {
   side: ReactNode
   /** How many calls the inbox row stands for (repeat hang-ups fold into one row). */
   repeatCount?: number
-  /** Owners and admins: the call's evaluation under the summary. */
+  /** Server admins who are an owner or admin here: the call's evaluation under the summary (staff only). */
   canReview?: boolean
 }
 

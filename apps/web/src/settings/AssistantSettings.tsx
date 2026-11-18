@@ -36,13 +36,11 @@ import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { languageInSentence, languageLabel, type MessageKey, msg } from '@linedesk/i18n'
 import { T, useFormat, useLocale, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useOutboundCountries } from '../onboarding/outbound-number.ts'
 import { AssistantReview } from '../review/AssistantReview.tsx'
-import { loadReviewList, reviewListKey } from '../review/reviewData.ts'
-import { REVIEW_SECTION, reviewTitle } from '../review/reviewModel.ts'
+import { openGroupCount, questionsLabel, REVIEW_SECTION } from '../review/reviewModel.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
 import { appLink } from '../ui/AppLink.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
@@ -137,18 +135,17 @@ const sectionsIn = (t: ReturnType<typeof useT>): readonly PageSection<SectionId>
   }))
 
 /**
- * The sections this member sees: How <name> did only for owners and admins (it reads evaluations), named after the
- * assistant, with its open calls and questions as a count.
+ * The sections this member sees: Open questions only for owners and admins (it reads evaluations), with its open
+ * question groups as a count.
  */
 function sectionsFor(
   sections: readonly PageSection<SectionId>[],
-  name: string,
   canEdit: boolean,
   openItems: number,
 ): readonly PageSection<SectionId>[] {
   return sections
     .filter(s => s.id !== REVIEW_SECTION || canEdit)
-    .map(s => (s.id === REVIEW_SECTION ? { ...s, label: reviewTitle(name), count: openItems } : s))
+    .map(s => (s.id === REVIEW_SECTION ? { ...s, label: questionsLabel(), count: openItems } : s))
 }
 
 /**
@@ -792,15 +789,8 @@ function Form({
   const set: SectionProps['set'] = (key, value) => setDraft(d => ({ ...d, [key]: value }))
   // The page follows the level picked here at once, before it is saved: Ultra answers with the realtime model's voices.
   const realtime = draft.call_quality === 'ultra'
-  const openReview = useQuery(canEdit ? reviewListKey(assistant.id, true) : null, loadReviewList(assistant.id, true))
-  const openQuestions = useRows('knowledge_questions').filter(
-    q => q.assistant_id === assistant.id && q.status === 'open',
-  ).length
-  const openItems = (openReview.data?.total ?? 0) + openQuestions
-  const shown = useMemo(
-    () => sectionsFor(sectionsIn(t), assistant.name, canEdit, openItems),
-    [t, assistant.name, canEdit, openItems],
-  )
+  const openItems = openGroupCount(useRows('knowledge_questions'), assistant.id)
+  const shown = useMemo(() => sectionsFor(sectionsIn(t), canEdit, openItems), [t, canEdit, openItems])
   const current = useSection(page, shown)
   // `#assistant/<id>/advanced/webhook` (also where the old Webhook section's links land): Advanced, at the webhook.
   const item = sectionParts(page, window.location.hash).item

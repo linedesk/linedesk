@@ -77,22 +77,28 @@ export const knowledgeImport = defineAction({
 /** Open questions kept per assistant; older ones beyond it are not added. */
 export const OPEN_QUESTIONS_MAX = 30
 
+/** The other open questions of a group, closed with the one named (at most every open question an assistant keeps). */
+const alsoIds = z.array(z.string().min(1)).max(OPEN_QUESTIONS_MAX).default([])
+
 export const knowledgeQuestionAnswer = defineAction({
   name: 'knowledgeQuestion.answer',
   description:
-    "Answer a question a caller asked that the assistant could not answer: the question and answer are added to the assistant's About the business text.",
+    "Answer a question a caller asked that the assistant could not answer: the question and answer are added to the assistant's About the business text. `alsoIds`: the other questions of its group, closed with it.",
   input: z.object({
     questionId: z.string().min(1),
     /** The question as the owner wants it in the text (defaults to the caller's wording). */
     question: z.string().trim().min(1).max(QUESTION_MAX).optional(),
     answer: z.string().trim().min(1, 'Write the answer.').max(ANSWER_MAX),
+    /** The other open questions of its group (evaluation.listQuestions' `questionIds`): answered with it. */
+    alsoIds,
   }),
   permission: 'settings:write',
 })
 
 export const knowledgeQuestionDismiss = defineAction({
   name: 'knowledgeQuestion.dismiss',
-  description: 'Dismiss a question the assistant could not answer, without adding an answer.',
-  input: z.object({ questionId: z.string().min(1) }),
+  description:
+    'Dismiss a question the assistant could not answer, without adding an answer. `alsoIds`: the other questions of its group, dismissed with it.',
+  input: z.object({ questionId: z.string().min(1), alsoIds }),
   permission: 'settings:write',
 })

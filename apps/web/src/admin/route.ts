@@ -45,6 +45,12 @@ export const adminSections = [
     label: msg('admin.sections.partners.label'),
     description: msg('admin.sections.partners.description'),
   },
+  // Calls the evaluation flagged, with the reviewer's notes (staff only): last, so no section's number key moves.
+  {
+    id: 'call-reviews',
+    label: msg('admin.sections.callReviews.label'),
+    description: msg('admin.sections.callReviews.description'),
+  },
 ] as const satisfies readonly { id: string; label: MessageKey; description: MessageKey | null }[]
 export type AdminSection = (typeof adminSections)[number]['id']
 export type AdminPlace = { section: AdminSection; id: string | null }

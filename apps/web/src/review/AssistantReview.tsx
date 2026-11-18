@@ -1,30 +1,24 @@
-// How <assistant> did (Assistant area, #assistant/<id>/review; G R): the calls the language model scored low,
-// each with what went wrong and Mark as checked, and the questions callers asked that the assistant could not answer, each
-// answered once into About the business or dismissed. Owners and admins only (the API refuses everyone else).
-import type { CallEvaluation, QuestionGroup } from '@linedesk/actions'
-import type { Assistant, Call, Contact } from '@linedesk/db/types'
-import { useT } from '@linedesk/i18n/react'
+// Open questions (Assistant area, #assistant/<id>/review; G R): the questions callers asked that the assistant could
+// not answer, grouped (the same question however it was worded), most asked first. Each group is answered once into
+// About the business, or dismissed, for all of its questions. Owners and admins only (the API refuses everyone else).
+// How the assistant itself did on each call is not here: the owner cannot change it, staff look at it (Server admin ›
+// Call reviews).
+import type { QuestionGroup } from '@linedesk/actions'
+import type { Assistant } from '@linedesk/db/types'
+import { T, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'
-import { callerName, callTitle } from '../inbox-model.ts'
 import { Section } from '../settings/fields.tsx'
 import { useWriteAction } from '../settings/settings-api.ts'
-import { useRows, useTable } from '../store.tsx'
+import { useRows } from '../store.tsx'
 import { listTime, parseTs } from '../time.ts'
+import { appLink } from '../ui/AppLink.tsx'
 import { Input } from '../ui/form.tsx'
-import { AppLink } from '../ui/AppLink.tsx'
-import { Badge, Button, Note } from '../ui/kit.tsx'
+import { Button } from '../ui/kit.tsx'
+import { ZeroState } from '../ui/listPage.tsx'
 import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
-import { loadQuestions, loadReviewList, questionsKey, reviewListKey, setEvaluationDone } from './reviewData.ts'
-import {
-  askedLabel,
-  checkLabel,
-  listToggleLabel,
-  needsALook,
-  openGroups,
-  reviewTitle,
-  scoreWords,
-} from './reviewModel.ts'
+import { loadQuestions, questionsKey } from './reviewData.ts'
+import { askedLabel, openGroups, otherIds, questionsTitle } from './reviewModel.ts'
 import './review.css'
 
 type Props = {
@@ -35,185 +29,6 @@ type Props = {
 }
 
 export function AssistantReview({ assistant, toast, onAnswered }: Props) {
-  return (
-    <>
-      <CallsCard assistant={assistant} toast={toast} />
-      <QuestionsCard assistant={assistant} toast={toast} onAnswered={onAnswered} />
-    </>
-  )
-}
-
-/** The score in words, as a quiet badge; the number and the judge in its tooltip. */
-export function ScoreBadge({ evaluation }: { evaluation: CallEvaluation }) {
-  const t = useT()
-  return (
-    <Badge
-      tone={needsALook(evaluation.score) ? 'outline' : 'neutral'}
-      title={
-        evaluation.model
-          ? t('settings.review.scoreTip', { score: evaluation.score, model: evaluation.model })
-          : t('settings.review.scoreTipDefault', { score: evaluation.score })
-      }
-    >
-      {scoreWords(evaluation.score)}
-    </Badge>
-  )
-}
-
-/**
- * Mark as checked (or Reopen, once checked): the evaluation leaves the open list, the count in the navigation drops. Without
- * `toast` (the call view) the button's new label is the answer, and a refusal shows next to it.
- */
-export function DoneButton({
-  evaluation,
-  assistantId,
-  toast,
-}: {
-  evaluation: CallEvaluation
-  assistantId: string | null
-  toast?: (text: string) => void
-}) {
-  const t = useT()
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const done = evaluation.reviewedAt !== null
-  async function toggle() {
-    setBusy(true)
-    setError(null)
-    try {
-      await setEvaluationDone(evaluation, assistantId, !done)
-      toast?.(done ? t('settings.review.backOnList') : t('settings.review.markedChecked'))
-    } catch (e) {
-      if (toast) toast((e as Error).message)
-      else setError((e as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-  return (
-    <>
-      <Button
-        size="sm"
-        variant={done ? 'ghost' : 'secondary'}
-        icon={done ? undefined : 'check'}
-        busy={busy}
-        onClick={() => void toggle()}
-        title={done ? t('settings.review.reopenTip') : t('settings.review.checkTip')}
-      >
-        {checkLabel(done)}
-      </Button>
-      {error && <Note tone="danger">{error}</Note>}
-    </>
-  )
-}
-
-function CallsCard({ assistant, toast }: { assistant: Assistant; toast: (text: string) => void }) {
-  const t = useT()
-  const [showDone, setShowDone] = useState(false)
-  const query = useQuery(reviewListKey(assistant.id, !showDone), loadReviewList(assistant.id, !showDone))
-  const calls = useTable('calls')
-  const contacts = useTable('contacts')
-  const name = assistant.name.trim()
-  const list = query.data?.evaluations.filter(e => !calls.get(e.callId)?.deleted_at)
-  return (
-    <Section
-      id="rv-calls"
-      title={reviewTitle(assistant.name)}
-      description={
-        name ? t('settings.review.calls.description', { name }) : t('settings.review.calls.descriptionDefault')
-      }
-      actions={
-        <Button
-          size="sm"
-          variant="ghost"
-          aria-pressed={showDone}
-          onClick={() => setShowDone(s => !s)}
-          title={showDone ? t('settings.review.calls.showOpenTip') : t('settings.review.calls.showCheckedTip')}
-        >
-          {listToggleLabel(showDone)}
-        </Button>
-      }
-    >
-      <Loading
-        what={t('settings.review.calls.loading')}
-        loading={list === undefined}
-        error={query.error}
-        onRetry={() => void query.reload()}
-        skeleton={<SkeletonList rows={3} action />}
-      >
-        {list === undefined ? null : list.length === 0 ? (
-          <p className="help rv-empty">
-            {showDone
-              ? t('settings.review.calls.noneChecked')
-              : name
-                ? t('settings.review.calls.none', { name })
-                : t('settings.review.calls.noneDefault')}
-          </p>
-        ) : (
-          <ul className="kn-list rv-list">
-            {list.map(e => (
-              <CallRow
-                key={e.callId}
-                evaluation={e}
-                call={calls.get(e.callId)}
-                contacts={contacts}
-                assistantId={assistant.id}
-                toast={toast}
-              />
-            ))}
-          </ul>
-        )}
-      </Loading>
-    </Section>
-  )
-}
-
-function CallRow({
-  evaluation,
-  call,
-  contacts,
-  assistantId,
-  toast,
-}: {
-  evaluation: CallEvaluation
-  call: Call | undefined
-  contacts: ReadonlyMap<string, Contact>
-  assistantId: string
-  toast: (text: string) => void
-}) {
-  const t = useT()
-  const who = call
-    ? callerName(call, call.contact_id ? contacts.get(call.contact_id) : undefined)
-    : t('settings.review.calls.unknownCaller')
-  const when = listTime(parseTs(call?.started_at ?? evaluation.createdAt))
-  return (
-    <li className="kn-row rv-row">
-      <div className="kn-main">
-        <a className="rv-call" href={`#call/${evaluation.callId}`} title={t('settings.review.openCall')}>
-          <b>{call ? callTitle(call) : t('settings.review.calls.untitled')}</b>
-          <span className="kn-sub">
-            {who} · {when}
-          </span>
-        </a>
-        {evaluation.issues.length > 0 && (
-          <ul className="evc-issues">
-            {evaluation.issues.map(issue => (
-              <li key={issue}>{issue}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <div className="rv-actions">
-        <ScoreBadge evaluation={evaluation} />
-        <DoneButton evaluation={evaluation} assistantId={assistantId} toast={toast} />
-      </div>
-    </li>
-  )
-}
-
-// --- Questions the assistant could not answer ----------------------------------------------
-
-function QuestionsCard({ assistant, toast, onAnswered }: Props) {
   const t = useT()
   const query = useQuery(questionsKey(assistant.id), loadQuestions(assistant.id))
   const rows = useRows('knowledge_questions')
@@ -222,20 +37,27 @@ function QuestionsCard({ assistant, toast, onAnswered }: Props) {
   return (
     <Section
       id="rv-questions"
-      title={name ? t('settings.review.questions.title', { name }) : t('settings.review.questions.titleDefault')}
-      description={t('settings.review.questions.description')}
+      title={questionsTitle(assistant.name)}
+      description={groups?.length ? t('settings.review.questions.description') : undefined}
     >
       <Loading
         what={t('settings.review.questions.loading')}
         loading={groups === undefined}
         error={query.error}
         onRetry={() => void query.reload()}
-        skeleton={<SkeletonList rows={2} action />}
+        skeleton={<SkeletonList rows={3} action />}
       >
         {groups === undefined ? null : groups.length === 0 ? (
-          <p className="help rv-empty">
-            {name ? t('settings.review.questions.none', { name }) : t('settings.review.questions.noneDefault')}
-          </p>
+          <div className="rv-zero">
+            <ZeroState
+              title={t('settings.review.questions.emptyTitle')}
+              line={
+                name
+                  ? t('settings.review.questions.emptyLine', { name })
+                  : t('settings.review.questions.emptyLineDefault')
+              }
+            />
+          </div>
         ) : (
           <ul className="kn-list rv-list">
             {groups.map(g => (
@@ -245,6 +67,29 @@ function QuestionsCard({ assistant, toast, onAnswered }: Props) {
         )}
       </Loading>
     </Section>
+  )
+}
+
+/** "Asked 3 times · last 9:07 AM": the time opens the last call that asked it. */
+function AskedLine({ group }: { group: QuestionGroup }) {
+  const t = useT()
+  const time = listTime(parseTs(group.lastAskedAt))
+  const last = group.callIds[0]
+  return (
+    <span className="kn-sub">
+      {last ? (
+        <T
+          k="settings.review.questions.askedLast"
+          values={{
+            count: Math.max(1, group.asked),
+            time,
+            link: appLink(`#call/${encodeURIComponent(last)}`, { title: t('settings.review.questions.lastCallTip') }),
+          }}
+        />
+      ) : (
+        askedLabel(group.asked)
+      )}
+    </span>
   )
 }
 
@@ -259,21 +104,21 @@ function QuestionRow({
 }) {
   const t = useT()
   const write = useWriteAction()
-  const calls = useTable('calls')
   const [answering, setAnswering] = useState(false)
   const [answer, setAnswer] = useState('')
   const [busy, setBusy] = useState<'answer' | 'dismiss' | null>(null)
   const fieldId = `rv-answer-${group.questionId}`
+  const alsoIds = otherIds(group)
 
   async function run(action: 'knowledgeQuestion.answer' | 'knowledgeQuestion.dismiss') {
     setBusy(action === 'knowledgeQuestion.answer' ? 'answer' : 'dismiss')
     try {
-      // The row comes back answered or dismissed: the group leaves the list at once (openGroups).
+      // The rows come back answered or dismissed, the whole group: it leaves the list at once (openGroups).
       await write(
         action,
         action === 'knowledgeQuestion.answer'
-          ? { questionId: group.questionId, answer: answer.trim() }
-          : { questionId: group.questionId },
+          ? { questionId: group.questionId, answer: answer.trim(), alsoIds }
+          : { questionId: group.questionId, alsoIds },
       )
       if (action === 'knowledgeQuestion.answer') {
         onAnswered(group.question, answer.trim())
@@ -289,21 +134,7 @@ function QuestionRow({
     <li className="kn-row rv-row">
       <div className="kn-main">
         <b>{group.question}</b>
-        <span className="kn-sub">
-          {askedLabel(group.asked)}
-          {group.callIds.map((id, i) => {
-            const call = calls.get(id)
-            if (!call || call.deleted_at) return null
-            return (
-              <span key={id}>
-                {i === 0 ? ' · ' : ', '}
-                <AppLink to={`#call/${id}`} title={t('settings.review.openCall')}>
-                  {listTime(parseTs(call.started_at))}
-                </AppLink>
-              </span>
-            )
-          })}
-        </span>
+        <AskedLine group={group} />
         {answering && (
           <form
             className="rv-answer"

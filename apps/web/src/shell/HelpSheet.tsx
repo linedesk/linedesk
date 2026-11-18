@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { i18n } from '../i18n/index.tsx'
 import { useCanAssign } from '../team/members.ts'
 import { Icon, Kbd } from '../ui/kit.tsx'
-import { useAssistantName } from '../store.tsx'
 
 export type Group = { group: string; rows: [label: string, keys: string[]][] }
 
@@ -75,7 +74,7 @@ const SHORTCUTS: Group[] = [
       ['help.row.insights', ['G', 'N']],
       ['help.row.integrations', ['G', 'O']],
       ['help.row.assistant', ['G', 'A']],
-      ['help.row.review', ['G', 'R']],
+      ['help.row.openQuestions', ['G', 'R']],
       ['help.row.workspaceSettings', ['G', 'S']],
       ['help.row.team', ['G', 'T']],
       ['help.row.serverAdmin', ['G', 'D']],
@@ -98,16 +97,12 @@ const BULK_ROW = 'help.row.withCallsSelectedEHU'
 const ASSIGN_ROWS = new Set(['help.row.assignToATeammateOrUnassign', 'help.row.assignedToMe', 'help.row.unassigned'])
 
 /** The shortcuts that apply here, in the active language; without teammates the assign ones are left out. */
-export function shortcutsFor(canAssign: boolean, assistant = ''): Group[] {
+export function shortcutsFor(canAssign: boolean): Group[] {
   const { t, format } = i18n()
   const text = (key: string) =>
     key === BULK_ROW
       ? t('shell.help.row.withCallsSelectedEHU', { keys: format.list(['E', 'H', 'U', '#']) })
-      : key === 'help.row.review'
-        ? assistant.trim()
-          ? t('shell.help.row.review', { assistant: assistant.trim() })
-          : t('shell.help.row.reviewDefault')
-        : t(`shell.${key}` as MessageKey)
+      : t(`shell.${key}` as MessageKey)
   return SHORTCUTS.map(g => ({
     group: t(`shell.${g.group}` as MessageKey),
     rows: g.rows.filter(([key]) => canAssign || !ASSIGN_ROWS.has(key)).map(([key, keys]) => [text(key), keys]),
@@ -129,7 +124,7 @@ export function filterShortcuts(groups: Group[], query: string): Group[] {
 export function HelpSheet() {
   const t = useT()
   const [query, setQuery] = useState('')
-  const groups = filterShortcuts(shortcutsFor(useCanAssign(), useAssistantName()), query)
+  const groups = filterShortcuts(shortcutsFor(useCanAssign()), query)
   return (
     <div className="help-sheet" role="dialog" aria-modal="true" aria-label={t('shell.help.title')}>
       <div className="help-head">

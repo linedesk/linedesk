@@ -10,6 +10,7 @@ import {
   admin_devices,
   api_keys,
   auth_events,
+  call_evaluations,
   calls,
   commands,
   instance_settings,
@@ -118,6 +119,7 @@ const adminRoutes = [
   '/v1/admin/health',
   '/v1/admin/onboarding',
   '/v1/admin/install-setup',
+  '/v1/admin/call-reviews',
 ] as const
 const AGENT_ROUTE = '/v1/agent/provider-config'
 const adminActions = [...actions.values()].filter(def => def.permission === 'instance:admin')
@@ -5361,5 +5363,95 @@ describe('alerts without email set up (the CLI on a fresh install)', () => {
     await alertInstanceAdmins(locale => ({ subject: `Subject ${locale}`, blocks: [] }), sender)
     await vi.waitFor(() => expect(sent.length).toBeGreaterThan(0))
     expect(sent.every(e => e.subject === 'Subject en')).toBe(true)
+  })
+})
+
+describe('Server admin › Call reviews: the flagged calls, staff only', () => {
+  const evaluate = async (ws: Workspace, score: number, issues: string[], at: string) => {
+    const id = `call_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
+    await db.insert(calls).values({
+      id,
+      workspace_id: ws.id,
+      from_number: '+15035550199',
+      to_number: ws.number,
+      status: 'completed',
+      title: `Call ${score}`,
+      started_at: at,
+    })
+    await db
+      .insert(call_evaluations)
+      .values({ call_id: id, workspace_id: ws.id, score, issues, unanswered: [], created_at: at })
+    return id
+  }
+  type Review = { call_id: string; workspace_id: string; workspace_name: string; score: number; issues: string[] }
+  const read = async (query = '') =>
+    (await request(operator, 'GET', `/v1/admin/call-reviews${query}`)).body as {
+      reviews: Review[]
+      workspaces: { id: string; name: string; flagged: number }[]
+    }
+
+  test('across workspaces, newest first, only scores of 3 or lower, a deleted call never; filtered by workspace', async () => {
+    const elsewhere = await createWorkspace('Harbor Dental Review')
+    const older = await evaluate(other, 2, ['Kept asking "Are you still there?"'], '2026-11-10T10:00:00.000Z')
+    const newer = await evaluate(elsewhere, 3, ['Said Tuesday for Wednesday'], '2026-11-12T10:00:00.000Z')
+    const fine = await evaluate(other, 5, [], '2026-11-13T10:00:00.000Z')
+    const deleted = await evaluate(other, 1, ['Hung up'], '2026-11-14T10:00:00.000Z')
+    await db.update(calls).set({ deleted_at: new Date().toISOString() }).where(eq(calls.id, deleted))
+
+    const all = await read()
+    const ids = all.reviews.map(r => r.call_id)
+    expect(ids).toEqual(expect.arrayContaining([older, newer]))
+    expect(ids).not.toContain(fine)
+    expect(ids).not.toContain(deleted)
+    expect(ids.indexOf(newer)).toBeLessThan(ids.indexOf(older))
+    expect(all.reviews.find(r => r.call_id === older)).toMatchObject({
+      workspace_id: other.id,
+      workspace_name: 'Brightwater Plumbing & Heating',
+      score: 2,
+      issues: ['Kept asking "Are you still there?"'],
+    })
+    expect(all.workspaces).toEqual(
+      expect.arrayContaining([
+        { id: other.id, name: 'Brightwater Plumbing & Heating', flagged: 1 },
+        { id: elsewhere.id, name: 'Harbor Dental Review', flagged: 1 },
+      ]),
+    )
+
+    const filtered = await read(`?workspace=${elsewhere.id}`)
+    expect(filtered.reviews.map(r => r.call_id)).toEqual([newer])
+    // The filter still offers every workspace with flagged calls.
+    expect(filtered.workspaces.map(w => w.id)).toEqual(expect.arrayContaining([other.id, elsewhere.id]))
+  })
+
+  test("refused to the workspace's own owner and admins, members, agents and a partner's team", async () => {
+    const admin = await addMember(other.id, 'admin')
+    for (const who of [other.owner, admin, member, agent(other.id)])
+      expect((await request(who, 'GET', '/v1/admin/call-reviews')).status).toBe(403)
+    // A white-label partner that runs workspaces for its clients is no server admin either.
+    const mails: Email[] = []
+    vi.spyOn(emailSender, 'send').mockImplementation(async e => void mails.push(e as never))
+    try {
+      const ownerEmail = `partner_${crypto.randomUUID().slice(0, 8)}@linedesk.test`
+      const created = await act(operator, 'partner.create', { name: 'Review Partner', ownerEmail })
+      expect(created.status).toBe(200)
+      const partnerId: string = created.body.data.partner.id
+      expect((await act(operator, 'partner.approve', { partnerId })).status).toBe(200)
+      const partnerOwner = await signUp(ownerEmail)
+      await db.update(user).set({ emailVerified: true }).where(eq(user.id, partnerOwner.userId))
+      const token = mails
+        .filter(e => e.to === ownerEmail)
+        .map(e => e.text.match(/#partner-invite=([\w-]+)/)?.[1])
+        .findLast(Boolean)
+      expect((await act(partnerOwner, 'partnerInvitation.accept', { token })).status).toBe(200)
+      expect((await act(partnerOwner, 'workspace.createForClient', { partnerId, name: 'Partner Client' })).status).toBe(
+        200,
+      )
+      expect(await request(partnerOwner, 'GET', '/v1/admin/call-reviews')).toMatchObject({
+        status: 403,
+        body: { ok: false, error: 'missing permission instance:admin' },
+      })
+    } finally {
+      vi.restoreAllMocks()
+    }
   })
 })

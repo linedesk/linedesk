@@ -1,14 +1,13 @@
 // How <assistant> did on this call, as the language model judged it after the summary: the score in words, what
-// went wrong, the questions it could not answer, and Mark as checked (the same as in the Assistant area, #assistant/<id>/review).
-// Only owners and admins see it (the API refuses everyone else).
-import type { CallEvaluation } from '@linedesk/actions'
+// went wrong and the questions it could not answer. Staff only (server admins, as in Server admin › Call reviews):
+// what the assistant itself did wrong is ours to fix, not the business's. The questions reach the business as Open
+// questions (Assistant area). The API reads it for owners and admins of the workspace.
 import type { Call } from '@linedesk/db/types'
 import { useState } from 'react'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
-import { DoneButton, ScoreBadge } from '../review/AssistantReview.tsx'
-import { evaluationKey, REVIEW_KEY } from '../review/reviewData.ts'
-import { needsALook, reviewTitle } from '../review/reviewModel.ts'
-import { readAction } from '../settings/settings-api.ts'
+import { evaluationKey, loadEvaluation } from '../review/reviewData.ts'
+import { reviewTitle } from '../review/reviewModel.ts'
+import { ScoreBadge } from '../review/ScoreBadge.tsx'
 import { useAssistants } from '../store.tsx'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 import { Button, Note } from '../ui/kit.tsx'
@@ -30,11 +29,7 @@ export function EvaluationCard({ call }: { call: Call }) {
   const finished = call.status === 'completed'
   const assistants = useAssistants()
   const assistant = assistants.find(a => a.id === call.assistant_id) ?? assistants[0]
-  const query = useQuery(finished ? evaluationKey(call.id) : null, () =>
-    readAction<{ evaluation: CallEvaluation | null }>('call.getEvaluation', { callId: call.id }).then(
-      d => d.evaluation,
-    ),
-  )
+  const query = useQuery(finished ? evaluationKey(call.id) : null, loadEvaluation(call.id))
   const [asked, setAsked] = useState(false)
   const [error, setError] = useState<string | null>(null)
   if (!finished || query.data === undefined) return null
@@ -47,10 +42,7 @@ export function EvaluationCard({ call }: { call: Call }) {
       await requestEvaluation(call.id)
       setAsked(true)
       // The job takes a few seconds; look again then.
-      setTimeout(() => {
-        void refreshQuery(evaluationKey(call.id))
-        void refreshQuery(REVIEW_KEY)
-      }, 8000)
+      setTimeout(() => void refreshQuery(evaluationKey(call.id)), 8000)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -78,10 +70,8 @@ export function EvaluationCard({ call }: { call: Call }) {
     <section className="evc" aria-label={title}>
       <div className="evc-h">
         <b>{title}</b>
-        <ScoreBadge evaluation={evaluation} />
-        <span className="evc-who">{t('call.evaluation.who')}</span>
-        {/* Only a call worth a look is on the list, so only it has Mark as checked (and Reopen once checked). */}
-        {needsALook(evaluation.score) && <DoneButton evaluation={evaluation} assistantId={assistant?.id ?? null} />}
+        <ScoreBadge score={evaluation.score} model={evaluation.model} />
+        <span className="evc-who">{t('call.evaluation.whoStaff')}</span>
       </div>
       {evaluation.issues.length > 0 && (
         <ul className="evc-issues">

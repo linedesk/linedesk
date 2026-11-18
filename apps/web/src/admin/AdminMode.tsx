@@ -18,6 +18,7 @@ import type { AdminSecondFactor } from '../auth.ts'
 import { SecondFactorPrompt } from './SecondFactorPrompt.tsx'
 import { SecondPasskeyNote } from './SecondPasskeyNote.tsx'
 import { AuditLog } from './AuditLog.tsx'
+import { CallReviews } from './CallReviews.tsx'
 import { Billing, billingPartTitle, useBillTitle } from './Billing.tsx'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { errorText, type Notify } from './notify.ts'
@@ -221,6 +222,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
     if (place.section === 'system') return <System />
     if (place.section === 'prompt') return <SystemPrompt />
     if (place.section === 'partners') return <Partners notify={notify} waiting={place.id === 'waiting'} />
+    if (place.section === 'call-reviews') return <CallReviews />
     // Providers needs both parts; every other page only the lists, which come back first.
     const ready = place.section === 'providers' ? data : lists
     if (!ready)

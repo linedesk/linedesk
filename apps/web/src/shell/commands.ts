@@ -322,9 +322,7 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
         ...(c.canReview
           ? [
               {
-                label: c.assistantName
-                  ? t('shell.command.goToReview', { assistant: c.assistantName })
-                  : t('shell.command.goToReviewDefault'),
+                label: t('shell.command.goToOpenQuestions'),
                 icon: 'flag' as const,
                 shortcut: ['G', 'R'],
                 run: () => c.goPage('assistant', 'review'),

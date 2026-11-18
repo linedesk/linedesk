@@ -51,10 +51,11 @@ test("Providers' Billing group lives in Billing: its old links land there (LIN-5
 
 test('Tab and Shift-Tab go round the sections', () => {
   expect(nextSection('overview', false)).toBe('workspaces')
-  expect(nextSection('overview', true)).toBe('partners')
+  expect(nextSection('overview', true)).toBe('call-reviews')
   expect(nextSection('audit', false)).toBe('billing')
   expect(nextSection('billing', false)).toBe('partners')
-  expect(nextSection('partners', false)).toBe('overview')
+  expect(nextSection('partners', false)).toBe('call-reviews')
+  expect(nextSection('call-reviews', false)).toBe('overview')
 })
 
 test('Tab switches sections only from the page body, never from a control', () => {

@@ -94,7 +94,6 @@
   "evaluation.testCalls": "Les appels de test ne sont pas évalués séparément.",
   "evaluation.title": "{review} sur cet appel",
   "evaluation.unanswered": "Sans réponse",
-  "evaluation.who": "Seuls les propriétaires et les administrateurs voient ceci.",
   "header.addNameFor": "Ajouter un nom pour {number}",
   "header.copied": "Copié",
   "header.copyNumber": "Copier le numéro",

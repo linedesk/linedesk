@@ -441,4 +441,106 @@ describe("Questions the assistant couldn't answer", () => {
     const rows = await db.select().from(knowledge_questions).where(eq(knowledge_questions.workspace_id, own.id))
     expect(rows.map(r => r.status).sort()).toEqual(['answered', 'dismissed'])
   })
+
+  test('differently put, one group: asked N times, last time, answered or dismissed once for all its questions', async () => {
+    const own = await createWorkspace('Grouped Plumbing')
+    const at = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000).toISOString()
+    const callAt = async (hoursAgo: number, unanswered: string[]) => {
+      const id = `call_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
+      await db.insert(calls).values({
+        id,
+        workspace_id: own.id,
+        from_number: randomNumber(),
+        to_number: own.number,
+        status: 'completed',
+        assistant_id: own.assistant.id,
+        started_at: at(hoursAgo),
+      })
+      await db.insert(call_evaluations).values({ call_id: id, workspace_id: own.id, score: 4, issues: [], unanswered })
+      return id
+    }
+    // Rows as they were stored before questions were grouped: one per wording.
+    const question = async (id: string, callId: string, text: string) =>
+      db.insert(knowledge_questions).values({
+        id,
+        workspace_id: own.id,
+        assistant_id: own.assistant.id,
+        call_id: callId,
+        question: text,
+      })
+    const a = await callAt(5, ['What is the status of my order number 4471?'])
+    const b = await callAt(3, ['Can you provide the status of my order number 4821?'])
+    const c = await callAt(1, ['Can I check the status of my order?'])
+    const d = await callAt(2, ['Do you work on Sundays?'])
+    await question(`kq_a_${own.id}`, a, 'What is the status of my order number 4471?')
+    await question(`kq_b_${own.id}`, b, 'Can you provide the status of my order number 4821?')
+    await question(`kq_c_${own.id}`, c, 'Can I check the status of my order?')
+    await question(`kq_d_${own.id}`, d, 'Do you work on Sundays?')
+
+    const list = async () => (await act(own.owner, 'evaluation.listQuestions', {})).body.data.questions
+    const [orders, sundays] = await list()
+    expect(orders).toMatchObject({ question: 'Can I check the status of my order?', asked: 3, callIds: [c, b, a] })
+    // Most asked first; the newest call of the group is its last time.
+    expect(orders.questionIds.sort()).toEqual([`kq_a_${own.id}`, `kq_b_${own.id}`, `kq_c_${own.id}`].sort())
+    const [newest] = await db.select({ at: calls.started_at }).from(calls).where(eq(calls.id, c))
+    expect(orders.lastAskedAt).toBe(newest!.at)
+    expect(sundays).toMatchObject({ question: 'Do you work on Sundays?', asked: 1, questionIds: [`kq_d_${own.id}`] })
+    // A new wording of an open question adds no row: it is counted in its group.
+    const later = await callAt(0.5, [])
+    await db
+      .insert(transcript_segments)
+      .values({ id: `seg_${later}`, workspace_id: own.id, call_id: later, speaker: 'caller', text: 'Hi', at_ms: 0 })
+    await evaluateCall(
+      db,
+      later,
+      fakeModel(JSON.stringify({ score: 4, issues: [], unanswered: ['Where is the status of my order #5512?'] })).model,
+    )
+    expect(
+      await db.select().from(knowledge_questions).where(eq(knowledge_questions.workspace_id, own.id)),
+    ).toHaveLength(4)
+
+    // Members may not answer for the group; a question of another workspace named in alsoIds is left alone.
+    const elsewhere = await createWorkspace('Grouped Elsewhere')
+    await db.insert(knowledge_questions).values({
+      id: `kq_x_${elsewhere.id}`,
+      workspace_id: elsewhere.id,
+      assistant_id: elsewhere.assistant.id,
+      question: 'Can I check the status of my order?',
+    })
+    const others = orders.questionIds.filter((id: string) => id !== orders.questionId)
+    const ownMember = await addMember(own.id, 'member')
+    expect(
+      (
+        await act(ownMember, 'knowledgeQuestion.answer', {
+          questionId: orders.questionId,
+          answer: 'x',
+          alsoIds: others,
+        })
+      ).status,
+    ).toBe(403)
+    const answered = await act(own.owner, 'knowledgeQuestion.answer', {
+      questionId: orders.questionId,
+      answer: 'We text you when it ships.',
+      alsoIds: [...others, `kq_x_${elsewhere.id}`],
+    })
+    expect(answered.status).toBe(200)
+    expect(answered.body.rows.knowledge_questions.map((r: { status: string }) => r.status)).toEqual([
+      'answered',
+      'answered',
+      'answered',
+    ])
+    const [assistant] = await db.select().from(assistants).where(eq(assistants.id, own.assistant.id))
+    // One line in the business info for the whole group.
+    expect(assistant!.business_profile.instructions?.match(/We text you when it ships\./g)).toHaveLength(1)
+    const [foreign] = await db
+      .select()
+      .from(knowledge_questions)
+      .where(eq(knowledge_questions.id, `kq_x_${elsewhere.id}`))
+    expect(foreign!.status).toBe('open')
+    expect((await list()).map((g: { question: string }) => g.question)).toEqual(['Do you work on Sundays?'])
+
+    // Dismiss closes the group too (alsoIds may be left out).
+    expect((await act(own.owner, 'knowledgeQuestion.dismiss', { questionId: `kq_d_${own.id}` })).status).toBe(200)
+    expect(await list()).toEqual([])
+  })
 })

@@ -2,7 +2,7 @@
 // routes with their own permission check instead of read sync.
 import { AUDIT_KINDS, type AuditKind, isAuditCursor, isCalendarDay, listAudit } from './audit.ts'
 import { adminPasskeyRefusal, secondFactorRefusal } from './admin-second-factor.ts'
-import { avatarUrlOf, type Permission } from '@linedesk/actions'
+import { avatarUrlOf, NEEDS_REVIEW_MAX_SCORE, type Permission } from '@linedesk/actions'
 import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import type { Context, Hono, Next } from 'hono'
@@ -150,6 +150,44 @@ const listUsage = (tx: Tx, months: number) =>
   order by 3 desc, 2, 1`,
   )
 
+/** At most this many flagged calls per read of Server admin › Call reviews. */
+const CALL_REVIEWS_MAX = 200
+
+/**
+ * Server admin › Call reviews: the calls the evaluation flagged (score NEEDS_REVIEW_MAX_SCORE or lower) across
+ * workspaces, newest first, with the reviewer's notes; staff only (the web app shows them to no customer; the
+ * workspace's own owners and admins can still read their calls' evaluations through call.getEvaluation). `workspaces`: every
+ * workspace that has one, for the filter.
+ */
+async function listCallReviews(tx: Tx, workspaceId: string | undefined, limit: number) {
+  const flagged = sql`e.score <= ${NEEDS_REVIEW_MAX_SCORE} and c.deleted_at is null`
+  const [reviews, workspaces] = await Promise.all([
+    rows(
+      tx,
+      sql`
+  select e.call_id, e.workspace_id, o.name as workspace_name, e.score, e.issues, e.unanswered, e.model,
+    ${tz('e.created_at')} as created_at, ${tz('c.started_at')} as started_at, c.title, c.source,
+    a.name as assistant_name
+  from call_evaluations e
+    join calls c on c.id = e.call_id
+    left join organization o on o.id = e.workspace_id
+    left join assistants a on a.id = c.assistant_id
+  where ${flagged} ${workspaceId ? sql`and e.workspace_id = ${workspaceId}` : sql``}
+  order by e.created_at desc, e.call_id
+  limit ${limit}`,
+    ),
+    rows(
+      tx,
+      sql`
+  select e.workspace_id as id, o.name, count(*)::int as flagged
+  from call_evaluations e join calls c on c.id = e.call_id left join organization o on o.id = e.workspace_id
+  where ${flagged}
+  group by 1, 2 order by 2, 1`,
+    ),
+  ])
+  return { reviews, workspaces }
+}
+
 export function registerAdminRoutes(app: Hono<Env>) {
   app.use('/v1/admin/*', requirePermission('instance:admin'))
 
@@ -229,6 +267,13 @@ export function registerAdminRoutes(app: Hono<Env>) {
         limit: Number(q('limit')) || undefined,
       }),
     )
+  })
+
+  // Calls the evaluation flagged, across workspaces (`workspace`: only that one), newest first.
+  app.get('/v1/admin/call-reviews', async c => {
+    const workspace = c.req.query('workspace')?.trim() || undefined
+    const limit = Math.min(CALL_REVIEWS_MAX, Math.max(1, Math.floor(Number(c.req.query('limit'))) || CALL_REVIEWS_MAX))
+    return c.json(await listCallReviews(db, workspace, limit))
   })
 
   // Numbers for the overview: calls, minutes, estimated provider cost, workspaces and users.
