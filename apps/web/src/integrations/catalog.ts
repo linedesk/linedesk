@@ -1,9 +1,10 @@
 // Integrations (#integrations): the catalog of everything Linedesk connects to, by category, without React. Only what
 // works today opens something: Zapier, Make and n8n (through the assistant's webhooks), the assistant's webhooks, the
-// calendar providers this install offers, API keys, the REST API and the MCP server. Each opens its detail view here
-// (`#integrations/<id>`) or the place where it is set up. HubSpot, Slack and Jobber are connected apps (OAuth,
-// docs/crm-sync.md): their detail view connects them. The one being built (ServiceTitan) shows as "In progress" and
-// opens nothing. Phone carriers are not here: they are Server admin's (provider keys).
+// calendar providers (Booking & calendar; one this server does not offer says so), API keys, the REST API and the MCP
+// server. Each opens its detail view here (`#integrations/<id>`) or the place where it is set up, also as a link
+// (`#integrations/make` goes to the webhooks). HubSpot, Slack and Jobber are connected apps (OAuth, docs/crm-sync.md):
+// their detail view connects them. One that is not built (ServiceTitan) shows as "Coming soon" and opens nothing.
+// Phone carriers are not here: they are Server admin's (provider keys).
 // To add one (a CLI, once it has an install command): one entry in CATALOG, its name and line in
 // settings.json (settings.integrations.card.<id>.*), and its status in statusOf.
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -33,7 +34,7 @@ export const CATEGORY_LABEL: Record<CategoryId, MessageKey> = {
 export const DETAIL_IDS = ['zapier', 'hubspot', 'slack', 'jobber', 'api-keys', 'rest-api', 'mcp'] as const
 export type DetailId = (typeof DETAIL_IDS)[number]
 
-/** Being built: shown as "In progress", they open nothing yet. */
+/** Not built yet: shown as "Coming soon", they open nothing. */
 export const IN_PROGRESS_IDS = ['servicetitan'] as const
 export type InProgressId = (typeof IN_PROGRESS_IDS)[number]
 
@@ -178,21 +179,11 @@ export const CATALOG: readonly Integration[] = [
   },
 ]
 
-const CALENDAR_IDS: readonly IntegrationId[] = ['google', 'microsoft', 'caldav', 'calcom', 'calendly']
-const isCalendar = (id: IntegrationId): id is ProviderId => CALENDAR_IDS.includes(id)
 const isInProgress = (id: IntegrationId): id is InProgressId => (IN_PROGRESS_IDS as readonly string[]).includes(id)
 
 // i18n-dynamic: settings.integrations.card.*
 export const nameKey = (id: IntegrationId) => `settings.integrations.card.${id}.name` as MessageKey
 export const lineKey = (id: IntegrationId) => `settings.integrations.card.${id}.line` as MessageKey
-
-/**
- * The cards this install offers: a calendar provider only when the install can connect it (Server admin switches
- * CalDAV, Cal.com and Calendly on; Google and Microsoft need their app); all of them while that is not known yet.
- */
-export function availableIntegrations(calendarProviders: readonly ProviderId[] | null): Integration[] {
-  return CATALOG.filter(i => !isCalendar(i.id) || calendarProviders === null || calendarProviders.includes(i.id))
-}
 
 /** The cards whose name, line, category or keywords contain every word of `query` (any case). */
 export function searchIntegrations(
@@ -233,6 +224,11 @@ export type Facts = {
   webhookUrls: readonly string[] | null | undefined
   /** Calendar accounts by provider (synced). */
   calendars: Partial<Record<ProviderId, number>> | undefined
+  /**
+   * The calendar providers this server can connect (Server admin switches CalDAV, Cal.com and Calendly on; Google and
+   * Microsoft need their app); null while not known.
+   */
+  calendarProviders: readonly ProviderId[] | null
   /** The state of each connected app (synced); an app missing here is not connected. */
   apps: Partial<Record<ConnectableApp, AppConnection['status']>> | undefined
 }
@@ -248,8 +244,10 @@ export type Status =
   | { kind: 'loading' }
   /** Only owners and admins can see it (this person is a member). */
   | { kind: 'adminsOnly' }
-  /** Being built: nothing to connect yet. */
+  /** Not built yet: nothing to connect. */
   | { kind: 'inProgress' }
+  /** A calendar provider this server does not offer (Server admin can switch it on). */
+  | { kind: 'unavailable' }
 
 const counted = (n: number | null | undefined): Status =>
   n === undefined
@@ -302,17 +300,33 @@ export function statusOf(id: IntegrationId, facts: Facts): Status {
         ? { kind: 'connected' }
         : { kind: 'notConnected' }
     default:
-      return facts.calendars === undefined ? { kind: 'loading' } : counted(facts.calendars[id] ?? 0)
+      if (facts.calendarProviders && !facts.calendarProviders.includes(id)) return { kind: 'unavailable' }
+      return facts.calendars === undefined || facts.calendarProviders === null
+        ? { kind: 'loading' }
+        : counted(facts.calendars[id] ?? 0)
   }
 }
 
-/** The page's place in the hash: the catalog, or one integration's detail view (`#integrations/zapier`). */
-export type IntegrationsPlace = { view: 'catalog' } | { view: 'detail'; id: DetailId }
+/**
+ * The page's place in the hash: the catalog, one integration's detail view (`#integrations/zapier`), the place in the
+ * app where a card without a detail view is set up (`#integrations/make` goes to the assistant's webhooks), or a note
+ * that there is nothing at that address (an unknown id, one not built yet, a path below a detail view).
+ */
+export type IntegrationsPlace =
+  | { view: 'catalog' }
+  | { view: 'detail'; id: DetailId }
+  | { view: 'elsewhere'; to: string }
+  | { view: 'missing'; section: string }
 
 export function placeOf(hash: string): IntegrationsPlace {
-  const [page, id, ...rest] = hash.replace(/^#/, '').split('?')[0]!.split('/')
-  if (page !== 'integrations' || !id || rest.length) return { view: 'catalog' }
-  return (DETAIL_IDS as readonly string[]).includes(id) ? { view: 'detail', id: id as DetailId } : { view: 'catalog' }
+  const path = hash.replace(/^#/, '').split('?')[0]!.replace(/\/+$/, '')
+  const [page, id, ...rest] = path.split('/')
+  if (page !== 'integrations' || !id) return { view: 'catalog' }
+  const section = [id, ...rest].join('/')
+  if (rest.length) return { view: 'missing', section }
+  if ((DETAIL_IDS as readonly string[]).includes(id)) return { view: 'detail', id: id as DetailId }
+  const opens = CATALOG.find(i => i.id === id)?.opens
+  return opens ? { view: 'elsewhere', to: opens } : { view: 'missing', section }
 }
 
 /**

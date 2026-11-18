@@ -64,7 +64,7 @@ export function ApiKeys({ canEdit, toast }: Props) {
   const [creating, setCreating] = useState(false)
   if (!canEdit)
     return (
-      <Section id="st-api-keys" title={t('settings.developers.title')}>
+      <Section id="st-api-keys" title={t('settings.integrations.keys.title')}>
         <p className="help">{t('settings.developers.onlyAdmins')}</p>
       </Section>
     )
@@ -72,7 +72,7 @@ export function ApiKeys({ canEdit, toast }: Props) {
   return (
     <Section
       id="st-api-keys"
-      title={t('settings.developers.title')}
+      title={t('settings.integrations.keys.title')}
       help={t('settings.developers.help', {
         header: 'Authorization: Bearer',
         openapi: '/v1/openapi.json',
@@ -116,7 +116,7 @@ export function ZapierSubscriptions({ canEdit, toast }: Props) {
   const [creating, setCreating] = useState(false)
   if (!canEdit)
     return (
-      <Section id="st-integrations" title={t('settings.developers.integrations.title')}>
+      <Section id="st-integrations" title={t('settings.integrations.app.title')}>
         <p className="help">{t('settings.integrations.zapier.onlyAdmins')}</p>
       </Section>
     )
@@ -124,7 +124,7 @@ export function ZapierSubscriptions({ canEdit, toast }: Props) {
   return (
     <Section
       id="st-integrations"
-      title={t('settings.developers.integrations.title')}
+      title={t('settings.integrations.app.title')}
       help={t('settings.developers.integrations.help')}
       actions={
         <Button size="sm" icon="plus" onClick={() => setCreating(true)}>

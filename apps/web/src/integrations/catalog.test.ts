@@ -8,7 +8,6 @@ import {
   appConnectResult,
   appPushErrorKey,
   appSettingsWith,
-  availableIntegrations,
   byCategory,
   CATALOG,
   CATEGORIES,
@@ -35,15 +34,24 @@ import { SwitchRow } from '../settings/fields.tsx'
 const text = (key: MessageKey) => (en as Record<string, string>)[key.replace(/^settings\./, '')] ?? key
 const ids = (list: readonly { id: string }[]) => list.map(i => i.id)
 
-const NOTHING: Facts = { zaps: 0, apiKeys: 0, webhookUrls: [], calendars: {}, apps: {} }
+const PROVIDERS = ['google', 'microsoft', 'caldav', 'calcom', 'calendly'] as const
+const NOTHING: Facts = { zaps: 0, apiKeys: 0, webhookUrls: [], calendars: {}, calendarProviders: PROVIDERS, apps: {} }
 const LOADING: Facts = {
   zaps: undefined,
   apiKeys: undefined,
   webhookUrls: undefined,
   calendars: undefined,
+  calendarProviders: null,
   apps: undefined,
 }
-const MEMBER: Facts = { zaps: null, apiKeys: null, webhookUrls: null, calendars: {}, apps: {} }
+const MEMBER: Facts = {
+  zaps: null,
+  apiKeys: null,
+  webhookUrls: null,
+  calendars: {},
+  calendarProviders: PROVIDERS,
+  apps: {},
+}
 
 describe('the catalog', () => {
   it('has a name and a line for every card, and a category that exists', () => {
@@ -72,14 +80,10 @@ describe('the catalog', () => {
     expect(byCategory(searchIntegrations(CATALOG, 'outlook', text)).map(g => g.category)).toEqual(['calendars'])
   })
 
-  it('shows only the calendar providers the install offers, all of them while unknown', () => {
-    expect(availableIntegrations(null)).toHaveLength(CATALOG.length)
-    const shown = ids(availableIntegrations(['google', 'calcom']))
-    expect(shown).toContain('google')
-    expect(shown).toContain('calcom')
-    expect(shown).not.toContain('microsoft')
-    expect(shown).not.toContain('calendly')
-    expect(shown).toContain('zapier')
+  it('has a calendar card for every provider, each opening Booking & calendar', () => {
+    const calendars = byCategory(CATALOG, 'calendars')[0]!.items
+    expect(ids(calendars)).toEqual(['google', 'microsoft', 'caldav', 'calcom', 'calendly'])
+    for (const c of calendars) expect(c.opens).toBe('#assistant/booking')
   })
 })
 
@@ -147,7 +151,15 @@ describe('statusOf', () => {
     expect(statusOf('jobber', { ...NOTHING, apps: { jobber: 'needs_attention' } })).toEqual({ kind: 'needsAttention' })
   })
 
-  it('says in progress for what is being built, whatever the facts', () => {
+  it('says when this server does not offer a calendar provider, and loading while that is not known', () => {
+    const some: Facts = { ...NOTHING, calendarProviders: ['google'], calendars: { google: 1 } }
+    expect(statusOf('google', some)).toEqual({ kind: 'connected', count: 1 })
+    expect(statusOf('calendly', some)).toEqual({ kind: 'unavailable' })
+    expect(statusOf('calendly', { ...NOTHING, calendarProviders: [] })).toEqual({ kind: 'unavailable' })
+    expect(statusOf('calendly', { ...NOTHING, calendarProviders: null })).toEqual({ kind: 'loading' })
+  })
+
+  it('says coming soon for what is not built, whatever the facts', () => {
     for (const id of IN_PROGRESS_IDS)
       for (const facts of [NOTHING, LOADING, MEMBER]) expect(statusOf(id, facts), id).toEqual({ kind: 'inProgress' })
   })
@@ -176,9 +188,23 @@ describe('placeOf', () => {
     expect(placeOf('#integrations/mcp')).toEqual({ view: 'detail', id: 'mcp' })
     expect(placeOf('#integrations/hubspot?app=connected')).toEqual({ view: 'detail', id: 'hubspot' })
   })
-  it('shows the catalog for anything else', () => {
-    expect(placeOf('#integrations/google')).toEqual({ view: 'catalog' })
-    expect(placeOf('#integrations/zapier/x')).toEqual({ view: 'catalog' })
+  it('sends a card without a detail view to the place where it is set up', () => {
+    expect(placeOf('#integrations/make')).toEqual({ view: 'elsewhere', to: '#assistant/webhooks' })
+    expect(placeOf('#integrations/n8n')).toEqual({ view: 'elsewhere', to: '#assistant/webhooks' })
+    expect(placeOf('#integrations/webhooks')).toEqual({ view: 'elsewhere', to: '#assistant/webhooks' })
+    expect(placeOf('#integrations/google')).toEqual({ view: 'elsewhere', to: '#assistant/booking' })
+    expect(placeOf('#integrations/calendly?x=1')).toEqual({ view: 'elsewhere', to: '#assistant/booking' })
+    for (const i of CATALOG)
+      if (i.opens) expect(['detail', 'elsewhere'], i.id).toContain(placeOf(`#integrations/${i.id}`).view)
+  })
+  it('says there is nothing at an unknown address, one not built yet or a path below a detail view', () => {
+    expect(placeOf('#integrations/salesforce')).toEqual({ view: 'missing', section: 'salesforce' })
+    expect(placeOf('#integrations/servicetitan')).toEqual({ view: 'missing', section: 'servicetitan' })
+    expect(placeOf('#integrations/zapier/x')).toEqual({ view: 'missing', section: 'zapier/x' })
+  })
+  it('shows the catalog for the page itself and anything that is not this page', () => {
+    expect(placeOf('#integrations/')).toEqual({ view: 'catalog' })
+    expect(placeOf('#integrations?q=1')).toEqual({ view: 'catalog' })
     expect(placeOf('#workspace/developers')).toEqual({ view: 'catalog' })
   })
 })

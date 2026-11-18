@@ -1,7 +1,8 @@
 // Integrations (#integrations, G O): everything Linedesk connects to, as cards by category, with a search and one
 // key per category. A card opens its detail view here (#integrations/zapier, /hubspot, /slack, /jobber, /api-keys, /rest-api, /mcp) or
-// the place where it is set up (the assistant's webhooks and booking); one being built shows "In progress". The catalog itself
-// is catalog.ts; API keys and Zapier were Workspace settings › Developers (old links are rewritten, useRoute.ts).
+// the place where it is set up (the assistant's webhooks and booking; #integrations/make and the like go there too); one not
+// built yet shows "Coming soon", and an address with nothing behind it says so. The catalog itself is catalog.ts; API keys and
+// Zapier were Workspace settings › Developers (old links are rewritten, useRoute.ts).
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
@@ -15,10 +16,9 @@ import { useRows } from '../store.tsx'
 import { AppLink, appLink } from '../ui/AppLink.tsx'
 import { Input } from '../ui/form.tsx'
 import { copyText } from '../ui/HelpTip.tsx'
-import { Badge, Button, Kbd } from '../ui/kit.tsx'
+import { Badge, Button, Kbd, Note } from '../ui/kit.tsx'
 import { SkeletonText, useLoadState } from '../ui/LoadStates.tsx'
 import {
-  availableIntegrations,
   byCategory,
   CATALOG,
   CATEGORIES,
@@ -70,31 +70,36 @@ type Props = {
 
 export function Integrations({ canManageKeys, toast }: Props) {
   const place = usePlace()
-  const detail = place.view === 'detail' ? place.id : null
-  // Esc in a detail view goes back to the catalog (the catalog's own keys are in Catalog).
+  const inside = place.view === 'detail' || place.view === 'missing'
+  // Esc in a detail view (or the note that there is none) goes back to the catalog (the catalog's own keys are in Catalog).
   useEffect(() => {
-    if (!detail) return
+    if (!inside) return
     setPageKeys(key => {
       if (key !== 'Escape') return false
       window.location.hash = HOME
       return true
     })
     return () => setPageKeys(null)
-  }, [detail])
+  }, [inside])
   return (
     <div className="page">
       <div className="page-in st-page ig-page">
-        {detail ? (
-          <Detail id={detail} canManageKeys={canManageKeys} toast={toast} />
-        ) : (
+        {place.view === 'detail' ? (
+          <Detail id={place.id} canManageKeys={canManageKeys} toast={toast} />
+        ) : place.view === 'missing' ? (
+          <Missing section={place.section} />
+        ) : place.view === 'catalog' ? (
           <Catalog canManageKeys={canManageKeys} />
-        )}
+        ) : null}
       </div>
     </div>
   )
 }
 
-/** The catalog or the detail view the hash names; follows Back and links. */
+/**
+ * The catalog or the detail view the hash names; follows Back and links. A card set up elsewhere (#integrations/make)
+ * goes to its place in the app, in place of this address in the history.
+ */
 function usePlace(): IntegrationsPlace {
   const [place, setPlace] = useState(() => placeOf(window.location.hash))
   useEffect(() => {
@@ -103,7 +108,27 @@ function usePlace(): IntegrationsPlace {
     onHash()
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+  useEffect(() => {
+    if (place.view === 'elsewhere') window.location.replace(place.to)
+  }, [place])
   return place
+}
+
+/** An address with no integration behind it: say so, with the way back, never the catalog as if nothing were wrong. */
+function Missing({ section }: { section: string }) {
+  const t = useT()
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>{t('settings.integrations.title')}</h1>
+        </div>
+      </div>
+      <Note title={t('settings.integrations.missing.title', { section })}>
+        <T k="settings.integrations.missing.text" values={{ link: appLink(HOME) }} />
+      </Note>
+    </>
+  )
 }
 
 /** What the workspace has set up, from the same cached reads and synced rows as the places that set it up. */
@@ -117,6 +142,7 @@ function useFacts(canManageKeys: boolean): Facts {
   const calendarsLoad = useLoadState('calendar_connections')
   const apps = useRows('app_connections')
   const appsLoad = useLoadState('app_connections')
+  const calendarProviders = useCalendarProviders()
   return useMemo(() => {
     const perProvider: Partial<Record<ProviderId, number>> = {}
     for (const c of calendars) perProvider[c.provider] = (perProvider[c.provider] ?? 0) + 1
@@ -130,9 +156,21 @@ function useFacts(canManageKeys: boolean): Facts {
           ? hooks.filter(h => h.status === 'active' && h.assistant_id && h.hooks.length > 0).map(h => h.url)
           : undefined,
       calendars: calendarsLoad === 'ready' ? perProvider : undefined,
+      calendarProviders,
       apps: appsLoad === 'ready' ? Object.fromEntries(apps.map(a => [a.provider, a.status])) : undefined,
     }
-  }, [canManageKeys, zaps.data, keys.data, hooks, hooksLoad, calendars, calendarsLoad, apps, appsLoad])
+  }, [
+    canManageKeys,
+    zaps.data,
+    keys.data,
+    hooks,
+    hooksLoad,
+    calendars,
+    calendarsLoad,
+    calendarProviders,
+    apps,
+    appsLoad,
+  ])
 }
 
 /** The keys that pick a category: 0 shows all, 1 to 4 one category each (as in the chips' tooltips). */
@@ -142,13 +180,9 @@ function Catalog({ canManageKeys }: { canManageKeys: boolean }) {
   const t = useT()
   const [query, setQuery] = useState('')
   const [only, setOnly] = useState<CategoryId | null>(null)
-  const providers = useCalendarProviders()
   const facts = useFacts(canManageKeys)
-  const available = availableIntegrations(providers)
-  // A category with no card on this install (no calendar provider switched on) gets no chip; the keys stay the same.
-  const shown = CATEGORIES.filter(c => available.some(i => i.category === c))
   const groups = byCategory(
-    searchIntegrations(available, query, k => t(k)),
+    searchIntegrations(CATALOG, query, k => t(k)),
     only,
   )
 
@@ -163,7 +197,7 @@ function Catalog({ canManageKeys }: { canManageKeys: boolean }) {
       return true
     }
     const i = CATEGORIES.findIndex((_, n) => categoryKey(n) === key)
-    if (i >= 0 && shown.includes(CATEGORIES[i]!)) {
+    if (i >= 0) {
       setOnly(c => (c === CATEGORIES[i] ? null : CATEGORIES[i]!))
       return true
     }
@@ -206,17 +240,15 @@ function Catalog({ canManageKeys }: { canManageKeys: boolean }) {
             on={only === null}
             onClick={() => setOnly(null)}
           />
-          {CATEGORIES.map((c, i) =>
-            shown.includes(c) ? (
-              <Chip
-                key={c}
-                label={t(CATEGORY_LABEL[c])}
-                shortcut={categoryKey(i)}
-                on={only === c}
-                onClick={() => setOnly(only === c ? null : c)}
-              />
-            ) : null,
-          )}
+          {CATEGORIES.map((c, i) => (
+            <Chip
+              key={c}
+              label={t(CATEGORY_LABEL[c])}
+              shortcut={categoryKey(i)}
+              on={only === c}
+              onClick={() => setOnly(only === c ? null : c)}
+            />
+          ))}
         </div>
       </div>
       {groups.length === 0 ? (
@@ -263,6 +295,11 @@ function Card({ integration, status }: { integration: Integration; status: Statu
   )
 }
 
+/** "No keys yet": what none means where there is nothing to connect, only something to create. */
+const NONE: Partial<Record<Integration['id'], MessageKey>> = {
+  'api-keys': msg('settings.integrations.status.noKeys'),
+}
+
 /** "3 Zaps", "2 keys", "1 account": what a count means on each card. */
 const COUNTED: Partial<Record<Integration['id'], MessageKey>> = {
   zapier: msg('settings.integrations.status.zaps'),
@@ -291,7 +328,13 @@ function StatusBadge({ id, status }: { id: Integration['id']; status: Status }) 
       )
     }
     case 'notConnected':
-      return <Badge tone="outline">{t('settings.integrations.status.notConnected')}</Badge>
+      return <Badge tone="outline">{t(NONE[id] ?? 'settings.integrations.status.notConnected')}</Badge>
+    case 'unavailable':
+      return (
+        <Badge tone="outline" title={t('settings.integrations.status.unavailableTip')}>
+          {t('settings.integrations.status.unavailable')}
+        </Badge>
+      )
     case 'needsAttention':
       return (
         <Badge tone="danger" dot title={t('settings.integrations.status.needsAttentionTip')}>
