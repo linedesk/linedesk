@@ -31,6 +31,7 @@ export const KEY_READ_ROUTES: readonly KeyReadRoute[] = [
   { path: '/v1/admin/install-setup', mcp: true },
   { path: '/v1/admin/setup-checklist', mcp: true },
   { path: '/v1/admin/system', mcp: true },
+  { path: '/v1/admin/call-reviews', mcp: true },
   // Audio: over HTTP (the CLI's `get`), not as an MCP answer.
   { path: '/v1/calls/:id/recording', mcp: false },
   { path: '/v1/voices/preview/:voiceId', mcp: false },

@@ -619,7 +619,7 @@ export type CallReview = {
 /** A workspace with flagged calls, for the filter. */
 export type CallReviewWorkspace = { id: string; name: string | null; flagged: number }
 
-export const loadCallReviews = (workspaceId: string | null) =>
-  get<{ reviews: CallReview[]; workspaces: CallReviewWorkspace[] }>(
-    `/v1/admin/call-reviews${workspaceId ? `?workspace=${encodeURIComponent(workspaceId)}` : ''}`,
-  )
+export function loadCallReviews(workspaceId: string | null) {
+  const query = new URLSearchParams(workspaceId ? { workspace: workspaceId } : {})
+  return get<{ reviews: CallReview[]; workspaces: CallReviewWorkspace[] }>(`/v1/admin/call-reviews?${query}`)
+}
