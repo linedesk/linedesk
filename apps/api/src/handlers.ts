@@ -974,15 +974,16 @@ type LevelFields = Pick<Assistant, 'voice' | 'llm_model' | 'call_quality'> & { r
 
 /**
  * Whether a save changes what the call quality block picks: the level, the language or realtime model, or a voice model
- * picked for the same voice provider. A voice of another provider (the voice picker) leaves its model to the defaults
- * and is no call quality change, so a white-label client's people still pick a voice where the partner keeps call
- * quality (decisions.md 2026-11-18).
+ * picked for the same voice provider. A voice of another provider without a model (the voice picker) leaves its model
+ * to the defaults and is no call quality change, so a white-label client's people still pick a voice where the partner
+ * keeps call quality (decisions.md 2026-11-18). One that names a model picks it, and is one.
  */
 function changesQualityPicks(stored: LevelFields, after: LevelFields) {
   if (stored.call_quality !== after.call_quality) return true
   if ((stored.llm_model ?? null) !== (after.llm_model ?? null)) return true
   if ((stored.realtime_model ?? null) !== (after.realtime_model ?? null)) return true
-  return stored.voice.provider === after.voice.provider && (stored.voice.model || null) !== (after.voice.model || null)
+  if (stored.voice.provider !== after.voice.provider) return Boolean(after.voice.model)
+  return (stored.voice.model || null) !== (after.voice.model || null)
 }
 
 /** What decides a call's level, as the audit log keeps it: the level, the voice model, the language model. */

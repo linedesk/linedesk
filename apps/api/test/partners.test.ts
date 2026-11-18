@@ -1508,8 +1508,37 @@ describe('Partner › Clients (S3)', () => {
       .select()
       .from(commands)
       .where(and(eq(commands.workspace_id, c), eq(commands.action, 'assistant.update'), eq(commands.rejected, true)))
-    // The client's five refusals above; the team's Ultra without a realtime model is another refusal, not one of them.
-    expect(refused.filter(r => (r.result as { reason?: string }).reason === 'level_raise')).toHaveLength(5)
+    // The client's five refusals above, by what they tried (two raises, a lowering twice and a model pick); the team's
+    // Ultra without a realtime model is another refusal, not one of them.
+    const reasons = refused.map(r => (r.result as { reason?: string }).reason)
+    expect(reasons.filter(r => r === 'level_raise')).toHaveLength(2)
+    expect(reasons.filter(r => r === 'level_change')).toHaveLength(3)
+    // All are in the audit log's call quality entries, the model pick (no call_quality in its input) by its reason;
+    // so is the team's refused Ultra, by its input.
+    const team = await listAudit(db, { kind: 'team', workspaceId: c, limit: 100 })
+    expect(team.entries.filter(e => e.what === 'assistant.update' && e.refused)).toHaveLength(6)
+
+    // A voice of another provider is the client's to pick (the voice picker sends no model), but naming a model with
+    // it picks that model: refused like a pick within the provider (review L-1).
+    const voice = async () => (await getAssistant(assistant!.id))!.voice
+    const before = await voice()
+    expect(await set(clientAdmin, { voice: { provider: 'cartesia', voice_id: '', model: 'sonic-3.6' } })).toBe(403)
+    expect(await set(clientAdmin, { voice: { provider: 'cartesia', voice_id: '' } })).toBe(200)
+    expect(await voice()).toEqual({ provider: 'cartesia', voice_id: '' })
+    expect(await set(clientAdmin, { voice: { provider: 'elevenlabs', voice_id: '', model: 'eleven_v3' } })).toBe(403)
+    expect(await set(padminIn, { voice: before })).toBe(200)
+    expect(await voice()).toEqual(before)
+
+    // Another partner's team changes nothing here: not with this partner's id (not on its team), not with its own (not
+    // its client), neither on nor off (review I-4).
+    const stranger = await billedPartner('Other Level Partner', 'active', true)
+    const strangerSets = async (partnerId: string, on: boolean) =>
+      (await act(stranger.owner, 'partner.setClientCallQuality', { partnerId, workspaceId: c, on })).body
+    for (const on of [true, false]) {
+      expect(await strangerSets(p.id, on)).toMatchObject({ code: 'forbidden' })
+      expect(await strangerSets(stranger.id, on)).toMatchObject({ code: 'client_not_found' })
+    }
+    expect((await listed()).clientCallQuality).toBe(false)
 
     // Giving it to the client is the partner's owner's; a partner admin may not, the client never.
     expect((await allow(padmin, true)).status).toBe(403)
@@ -1523,6 +1552,9 @@ describe('Partner › Clients (S3)', () => {
     expect(await raise(owner, 'standard')).toBe(200)
     expect(await raise(clientAdmin, 'premium')).toBe(200)
     expect(await raise(clientMember, 'standard')).toBe(403)
+    // A voice of another provider with a model of the level is theirs then too.
+    expect(await set(clientAdmin, { voice: { provider: 'cartesia', voice_id: '', model: 'sonic-3.6' } })).toBe(200)
+    expect(await set(clientAdmin, { voice: before })).toBe(200)
     // Still signed in to the app only: an instance admin's impersonation of the client's admin changes nothing.
     const operator = await signUp()
     await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, operator.userId))
@@ -1538,6 +1570,38 @@ describe('Partner › Clients (S3)', () => {
     // Anyone on the team takes it back; the client's people again see nothing and change nothing.
     expect((await allow(padmin, false)).status).toBe(200)
     expect(await rights(owner)).toEqual({ mayChange: false, mayRaise: false })
+    // A clone the client's owner makes keeps the voice model the team picked for that provider (review I-1).
+    expect(await set(padminIn, { voice: { provider: 'elevenlabs', voice_id: '', model: 'eleven_v3' } })).toBe(200)
+    await db
+      .insert(instance_settings)
+      .values({ key: 'voice_cloning', value: 'on' })
+      .onConflictDoUpdate({ target: instance_settings.key, set: { value: 'on' } })
+    vi.stubEnv('ELEVENLABS_API_KEY', 'test-key')
+    vi.stubEnv('TTS_PROVIDER', 'elevenlabs')
+    const realFetch = globalThis.fetch
+    vi.stubGlobal('fetch', async (url: string | URL | Request, init?: RequestInit) =>
+      String(url).startsWith('https://api.elevenlabs.io')
+        ? String(url).endsWith('/voices/add')
+          ? Response.json({ voice_id: 'clone_level_client' })
+          : new Response(null, { status: 200 })
+        : realFetch(url, init),
+    )
+    try {
+      const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WAVEfmt '), Buffer.alloc(64)])
+      const clone = await act(owner, 'voice.clone', {
+        assistantId: assistant!.id,
+        name: 'Owner voice',
+        consent: true,
+        audio: wav.toString('base64'),
+        mimeType: 'audio/wav',
+      })
+      expect(clone).toMatchObject({ status: 200 })
+      expect(await voice()).toEqual({ provider: 'elevenlabs', voice_id: 'clone_level_client', model: 'eleven_v3' })
+    } finally {
+      vi.unstubAllGlobals()
+      vi.unstubAllEnvs()
+      await db.update(instance_settings).set({ value: 'off' }).where(eq(instance_settings.key, 'voice_cloning'))
+    }
     expect(await raise(owner, 'standard')).toBe(403)
     expect(await raise(padminIn, 'standard')).toBe(200)
     // Both switches are in the audit log.

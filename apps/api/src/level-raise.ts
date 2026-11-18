@@ -10,7 +10,7 @@
 import { member, organization, type Tx, workspace_settings } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
-import { Forbidden, LEVEL_RAISE_REFUSED, Reject } from './handler-context.ts'
+import { Forbidden, LEVEL_CHANGE_REFUSED, LEVEL_RAISE_REFUSED, Reject } from './handler-context.ts'
 import { usageLevelsBilled } from './usage-levels.ts'
 
 /** What this caller may do with call quality here (voice.options `callQuality`). */
@@ -65,7 +65,8 @@ export async function levelRights(tx: Tx, actor: Actor): Promise<LevelRights> {
  * Before a save changes what decides an assistant's level (assistant.update, assistant.restoreVersion): refused where
  * the caller may not. `raises`: the level goes up; `changesQuality`: the level or a model pick changes (a white-label
  * client's people change neither while the partner keeps call quality). Every refusal here, a 403 or another (a
- * disabled workspace), is logged as a refused raise for the audit log.
+ * disabled workspace), is logged for the audit log: as a refused raise when the save raises the level, else as a
+ * refused call quality change (a lowering or a model pick).
  */
 export async function refuseLevelChange(tx: Tx, actor: Actor, change: { raises: boolean; changesQuality: boolean }) {
   try {
@@ -75,7 +76,7 @@ export async function refuseLevelChange(tx: Tx, actor: Actor, change: { raises: 
     if (!change.raises || !(await usageLevelsBilled(tx))) return
     if (!raisesAsSelf(actor)) throw Forbidden.t('server.api.callQualityRaise')
   } catch (e) {
-    if (e instanceof Reject) e.reason = LEVEL_RAISE_REFUSED
+    if (e instanceof Reject) e.reason = change.raises ? LEVEL_RAISE_REFUSED : LEVEL_CHANGE_REFUSED
     throw e
   }
 }

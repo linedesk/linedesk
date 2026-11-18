@@ -8,7 +8,7 @@ import type { EmailRules, TransferContact } from '@linedesk/db/types'
 import { type createAuthMiddleware, isAPIError } from 'better-auth/api'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { db } from './db.ts'
-import { LEVEL_RAISE_REFUSED } from './handler-context.ts'
+import { LEVEL_CHANGE_REFUSED, LEVEL_RAISE_REFUSED } from './handler-context.ts'
 import type { SignupRuleChange } from './self-serve.ts'
 
 export type AuthEventName = (typeof auth_events.$inferInsert)['event']
@@ -552,11 +552,11 @@ export const LEVEL_RAISE_REFUSED_TEXT =
   'Premium and Ultra cost more a minute: only the person who pays for this workspace can pick them.'
 /**
  * SQL: a command of `c` that changed what decides the assistant's usage level (`data.usageLevelChange` an object), or
- * one refused whose input named a call quality, or one refused as a raise (`result.reason`, refuseLevelChange: an edit
+ * one refused whose input named a call quality, or one refused as a raise or another call quality change (`result.reason`, refuseLevelChange: an edit
  * or a version restore, also a refusal that is no 403, a disabled workspace), or an older version restore refused
  * with the raise's English.
  */
-const usageLevelChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb_typeof(c.result->'data'->'usageLevelChange') = 'object' or (c.rejected and (c.input ? 'call_quality' or c.result->>'reason' = ${LEVEL_RAISE_REFUSED} or (c.action = 'assistant.restoreVersion' and starts_with(c.result->>'error', ${LEVEL_RAISE_REFUSED_TEXT}))))))`
+const usageLevelChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb_typeof(c.result->'data'->'usageLevelChange') = 'object' or (c.rejected and (c.input ? 'call_quality' or c.result->>'reason' in (${LEVEL_RAISE_REFUSED}, ${LEVEL_CHANGE_REFUSED}) or (c.action = 'assistant.restoreVersion' and starts_with(c.result->>'error', ${LEVEL_RAISE_REFUSED_TEXT}))))))`
 
 /**
  * A change of the recording notice (workspace.updateSettings with `recordingNoticeOn` or `recordingNotice`): turned

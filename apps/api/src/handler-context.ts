@@ -51,7 +51,7 @@ export class Reject extends Error {
   readonly said: Said | undefined
   /**
    * A stable code the command log keeps with the rejection (`result.reason`, run-action.ts), whatever its words or
-   * class: what the audit log finds a kind of refusal by (LEVEL_RAISE_REFUSED). Never part of the caller's answer.
+   * class: what the audit log finds a kind of refusal by (LEVEL_RAISE_REFUSED, LEVEL_CHANGE_REFUSED). Never part of the caller's answer.
    */
   reason: string | undefined
   constructor(message?: string | Said, code?: string) {
@@ -68,6 +68,11 @@ export class Reject extends Error {
 
 /** The `reason` of a refused raise of an assistant's call quality (refuseLevelRaise), an edit or a version restore. */
 export const LEVEL_RAISE_REFUSED = 'level_raise'
+/**
+ * The `reason` of a refused change of an assistant's call quality that is no raise (refuseLevelChange): a lowering or a
+ * model pick, refused where the partner keeps call quality (or the workspace is disabled).
+ */
+export const LEVEL_CHANGE_REFUSED = 'level_change'
 
 /** A rejection's text in these words: its key in that language, else its message as it was written. */
 export const rejectionText = (e: Reject, reader: Reader) => (e.said ? sayIn(e.said, reader) : e.message)

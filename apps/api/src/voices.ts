@@ -397,9 +397,13 @@ export const voiceHandlers: Record<string, Handler> = {
       consent_at: now,
       consent_text: CLONE_CONSENT_TEXT,
     })
+    // The clone takes the provider's default voice model, except where the partner keeps call quality from this caller
+    // (level-raise.ts): there a voice model the team picked for this provider stays.
+    const keepModel =
+      assistant!.voice.provider === provider && assistant!.voice.model && !(await levelRights(tx, actor)).mayChange
     const rows = await tx
       .update(assistants)
-      .set({ voice: { provider, voice_id: voiceId } })
+      .set({ voice: { provider, voice_id: voiceId, ...(keepModel ? { model: assistant!.voice.model } : {}) } })
       .where(eq(assistants.id, assistant!.id))
       .returning()
     await releaseUnusedClones(tx, workspaceId)
