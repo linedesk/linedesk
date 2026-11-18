@@ -72,6 +72,8 @@ const INSTANCE_WIDE_FILES = [
   'test/team-member-edit.test.ts',
   'test/admin-passkey-recovery.test.ts',
   'test/outbound.test.ts',
+  // Switches where German numbers are offered (the carrier blocks rule, instance_settings) and makes server admins.
+  'test/number-requests.test.ts',
   // Reads every workspace's numbers and empties phone_numbers (LiveKit's inbound trunk list, inbound-trunk.ts).
   'test/inbound-trunk.test.ts',
   // Switches calendar tools on and off for the install (instance_settings).

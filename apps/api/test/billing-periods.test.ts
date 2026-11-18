@@ -34,6 +34,7 @@ import {
   sendLifecycleEmail,
 } from '../src/billing-periods.ts'
 import { billingNumberRefusal } from '../src/billing-checkout.ts'
+import { BILLING_RULES_KEY } from '../src/billing-rules.ts'
 import { db } from '../src/db.ts'
 import type { EmailSender } from '../src/email.ts'
 import { setJobQueue } from '../src/jobs.ts'
@@ -616,6 +617,48 @@ describe('extra numbers', () => {
       await credit(b.billId, b.periodId, 10_000_000)
       await run()
       expect(await numberEntries(extra.id)).toEqual([])
+    }
+  })
+  test('numbers that need documents are free while the install waives them (the default); off, they are extra numbers', async () => {
+    const b = await billed({ checkout_confirmed_at: at(Date.now() - 20 * DAY) })
+    const german = (
+      await db
+        .insert(phone_numbers)
+        .values({
+          id: rid('pn'),
+          workspace_id: b.ws.id,
+          e164: `+496221${String(Math.floor(Math.random() * 1e7)).padStart(7, '0')}`,
+          provider: 'dev',
+          purchased: true,
+        })
+        .returning()
+    )[0]!
+    const owner = { actorId: b.ws.owner.userId, permissions: ['settings:write'], role: 'owner', workspaceId: b.ws.id }
+    const refusal = (feeWaived: boolean) =>
+      db.transaction(tx => billingNumberRefusal(tx, owner as never, b.ws.id, { feeWaived }))
+    // No balance at all: another paid number would need its first month, a free one needs nothing.
+    expect(await refusal(false)).toMatchObject({ key: 'server.api.checkout.number.extraCost' })
+    expect(await refusal(true)).toBeNull()
+    expect(await db.transaction(tx => payBoughtNumberMonth(tx, b.ws.id, german.id, at(Date.now())))).toBeNull()
+    await credit(b.billId, b.periodId, 10_000_000)
+    await run()
+    expect(await numberEntries(german.id)).toEqual([])
+    expect((await balanceOf(b.billId))!.balance_micros).toBe(10_000_000)
+    // A free number never takes the included one: a US number bought next is the included one, free as well.
+    await db.update(phone_numbers).set({ purchased: false }).where(eq(phone_numbers.e164, b.ws.number))
+    expect(await refusal(false)).toBeNull()
+    await db.update(phone_numbers).set({ purchased: true }).where(eq(phone_numbers.e164, b.ws.number))
+
+    await db
+      .insert(instance_settings)
+      .values({ key: BILLING_RULES_KEY, value: JSON.stringify({ regulatedNumberFeeWaived: false }) })
+    try {
+      await run()
+      const entries = await numberEntries(german.id)
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).toMatchObject({ amount_micros: -3_000_000, period_id: b.periodId })
+    } finally {
+      await db.delete(instance_settings).where(eq(instance_settings.key, BILLING_RULES_KEY))
     }
   })
 })

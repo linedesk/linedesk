@@ -1,0 +1,1 @@
+ALTER TABLE "regulatory_profiles" ADD COLUMN "register_court" text;

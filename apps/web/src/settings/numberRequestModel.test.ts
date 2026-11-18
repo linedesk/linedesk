@@ -27,6 +27,7 @@ const row = (over: Partial<RequestRow>): RequestRow => ({
   country: 'DE',
   prefix: '30',
   city: 'berlin',
+  areaName: 'Berlin',
   status: 'pending_review',
   reason: null,
   e164: '+493023125678',

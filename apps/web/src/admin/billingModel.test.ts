@@ -31,6 +31,7 @@ import {
 const RESETS = {
   ...Object.fromEntries(RULE_FIELDS.map(([field]) => [field, null])),
   automaticTax: null,
+  regulatedNumberFeeWaived: null,
   levels: Object.fromEntries(Object.keys(BILLING_DEFAULTS.levels).map(name => [name, null])),
 }
 
@@ -83,6 +84,16 @@ test('the Stripe Tax switch: on by default; off is stored as false, back at the 
   })
   expect(rulesForm({ ...BILLING_DEFAULTS, automaticTax: false }).automaticTax).toBe('off')
   expect(rulesFromForm(form, BILLING_DEFAULTS)).toEqual({ rules: RESETS, problems: [] })
+})
+
+test('the free numbers with documents switch: on by default; off is stored as false, back at the default it is reset', () => {
+  const form = rulesForm(BILLING_DEFAULTS)
+  expect(form.regulatedNumberFeeWaived).toBe('on')
+  expect(rulesFromForm({ ...form, regulatedNumberFeeWaived: 'off' }, BILLING_DEFAULTS)).toEqual({
+    rules: { ...RESETS, regulatedNumberFeeWaived: false },
+    problems: [],
+  })
+  expect(rulesForm({ ...BILLING_DEFAULTS, regulatedNumberFeeWaived: false }).regulatedNumberFeeWaived).toBe('off')
 })
 
 test('only what differs from the defaults is stored (the rest reset), in the units the server takes; a changed level whole', () => {
@@ -240,7 +251,7 @@ test('units go inside the field: dollars, dollars per minute for a level price, 
 test('an empty field takes the default, in the rules and in the sign-up limits', () => {
   const form = rulesForm(BILLING_DEFAULTS)
   // A level's factor keeps its own meaning: empty is none, so it is left as it is.
-  const kept = (key: string) => key === 'automaticTax' || key.endsWith('.factor')
+  const kept = (key: string) => key === 'automaticTax' || key === 'regulatedNumberFeeWaived' || key.endsWith('.factor')
   const emptied = Object.fromEntries(Object.keys(form).map(key => [key, kept(key) ? form[key]! : '']))
   expect(rulesFromForm(emptied, BILLING_DEFAULTS)).toEqual({ rules: RESETS, problems: [] })
   const signup = signupForm(SIGNUP_DEFAULTS)
@@ -252,7 +263,13 @@ test('an empty field takes the default, in the rules and in the sign-up limits',
 
 test("the install's own values are the filled fields that differ from the default", () => {
   const defaults = rulesForm(BILLING_DEFAULTS)
-  const form = { ...defaults, trialDays: '21', workspaceMonthlyCents: '', automaticTax: 'on' }
+  const form = {
+    ...defaults,
+    trialDays: '21',
+    workspaceMonthlyCents: '',
+    automaticTax: 'on',
+    regulatedNumberFeeWaived: 'on',
+  }
   expect(customFields(form, defaults)).toEqual(['trialDays'])
   // An emptied factor is a value of its own (the level uses none of the included minutes).
   expect(customFields({ ...defaults, 'levels.standard.factor': '' }, defaults)).toEqual(['levels.standard.factor'])

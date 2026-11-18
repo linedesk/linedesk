@@ -76,7 +76,7 @@ import {
   wordsOf,
 } from './handler-context.ts'
 import { queueBillingAlert, queueRecharge } from './jobs.ts'
-import { lockBalance, periodAt, periodForMoney, postEntry, trialSecondsUsed } from './ledger.ts'
+import { feeNumbers, lockBalance, periodAt, periodForMoney, postEntry, trialSecondsUsed } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 import { type LegalTerms, legalTerms, recordAcceptance, TERMS_CHANGED } from './legal-terms.ts'
 import { ownerStepUpNeeded } from './owner-step-up.ts'
@@ -1356,9 +1356,16 @@ export async function billOfWorkspaceForNumbers(tx: Tx, workspaceId: string) {
  * Why a workspace on a bill may not buy a number now, or null (docs/billing.md §3.2 step 6): runs before the install's
  * purchase limits. Only for workspaces on a bill while billing runs through Stripe (with billing off, as on a self-hosted
  * install, only the install's purchase limits apply); a number on the workspace's own carrier account is not limited by
- * billing. Instance admins buy regardless (they provision by hand).
+ * billing. Instance admins buy regardless (they provision by hand). `feeWaived`: the number asked for costs nothing a
+ * month (a number that needs documents while the install waives their fee, `regulatedNumberFeeWaived`): only the bill's
+ * state and the trial's limit apply, not what an extra number needs.
  */
-export async function billingNumberRefusal(tx: Tx, actor: Actor, workspaceId: string): Promise<Said | null> {
+export async function billingNumberRefusal(
+  tx: Tx,
+  actor: Actor,
+  workspaceId: string,
+  { feeWaived = false }: { feeWaived?: boolean } = {},
+): Promise<Said | null> {
   if (actor.permissions.includes('instance:admin')) return null
   const found = await billOfWorkspaceForNumbers(tx, workspaceId)
   if (!found) return null
@@ -1386,8 +1393,13 @@ export async function billingNumberRefusal(tx: Tx, actor: Actor, workspaceId: st
   }
   // After the trial a number past the included one debits the bill each month (PR 10): only someone who manages the
   // bill (M3; its owner, or an owner or admin of its only workspace: managesBill), and only with balance for its first
-  // month.
-  if (numbers < 1) return null
+  // month. A free number debits nothing; one already held for free does not take the included one (feeNumbers).
+  if (feeWaived) return null
+  const [paying] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(phone_numbers)
+    .where(and(eq(phone_numbers.workspace_id, workspaceId), await feeNumbers(tx)))
+  if ((paying?.n ?? 0) < 1) return null
   if (!inApp) return NUMBER_EXTRA_IN_APP
   if (!(await managesBill(tx, actor, bill))) return NUMBER_OWNER_ONLY
   if (comped) return null

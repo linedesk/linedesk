@@ -145,6 +145,13 @@ export type BillingRules = {
    * running subscriptions too (billing-tax.ts).
    */
   automaticTax: boolean
+  /**
+   * Numbers that need documents (Germany, the UK, Ireland; docs/numbers-kyc.md) cost the workspace nothing a month: they
+   * are left out of the extra numbers (no monthly fee, no balance needed to request one), and the operator pays the
+   * carrier. On by default: Linedesk Cloud gives them free during the beta (decision of 2026-11-18). Off, they are
+   * extra numbers like any other (`extraNumberCents`).
+   */
+  regulatedNumberFeeWaived: boolean
 }
 
 /** Linedesk Cloud's rules, and the defaults of every install. */
@@ -168,6 +175,7 @@ export const BILLING_DEFAULTS: BillingRules = {
   extraNumberCents: 300,
   rechargeCapPerWorkspaceCents: RECHARGE_CAP_PER_WORKSPACE_CENTS,
   automaticTax: true,
+  regulatedNumberFeeWaived: true,
 }
 
 /**

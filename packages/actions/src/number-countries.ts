@@ -1,6 +1,7 @@
 // Countries where a new number needs documents first (KYC; docs/numbers-kyc.md): per country the number types, what
 // the business has to give (fields of its regulatory profile and documents) and the cities a number can be asked for,
-// with the national prefix (the area code without the trunk 0). Data only: which of them are open on a server is the
+// with the national prefix (the area code without the trunk 0); Germany takes any of its Ortsnetze (the BNetzA's list,
+// apps/api/src/number-areas.ts), the cities are only its popular ones. Data only: which of them are open on a server is the
 // server's flag (NUMBER_KYC_COUNTRIES, apps/api/src/number-requests.ts), empty by default, so nothing changes for
 // anyone until a country is switched on. These countries are not in NUMBER_BUY_COUNTRIES (area-codes.ts): a number
 // there is never bought at once, only requested and bought once the carrier approved the documents.
@@ -20,6 +21,8 @@ export const regulatoryFields = [
   'legal_name',
   'entity_type',
   'registration_number',
+  /** The court that keeps the register (Germany: "Amtsgericht Mannheim"); optional, sent with the number. */
+  'register_court',
   'website',
   'use_case',
   'address',
@@ -60,8 +63,13 @@ export type NumberCountryConfig = {
   documents: readonly RegulatoryDocumentKind[]
   /** The address has to be in the number's area-code region (the carrier checks; a city that does not match is flagged). */
   addressInArea: boolean
-  /** Major cities first; more can be added without a migration. */
+  /**
+   * Major cities first; more can be added without a migration. With `anyArea` only the popular suggestions: a number
+   * can be asked for in any area code of the country (Germany: every Ortsnetz).
+   */
   cities: readonly NumberCity[]
+  /** Any of the country's area codes can be asked for, not only `cities` (numberRequest.areas searches them). */
+  anyArea: boolean
 }
 
 export const NUMBER_COUNTRIES: Record<KycCountry, NumberCountryConfig> = {
@@ -74,6 +82,7 @@ export const NUMBER_COUNTRIES: Record<KycCountry, NumberCountryConfig> = {
     fields: ['legal_name', 'entity_type', 'registration_number', 'address', 'contact'],
     documents: ['id_or_registration', 'proof_of_address', 'bnetza_form'],
     addressInArea: true,
+    anyArea: true,
     cities: [
       { id: 'berlin', prefix: '30', names: ['berlin'] },
       { id: 'hamburg', prefix: '40', names: ['hamburg'] },
@@ -93,6 +102,7 @@ export const NUMBER_COUNTRIES: Record<KycCountry, NumberCountryConfig> = {
     fields: ['legal_name', 'entity_type', 'registration_number', 'website', 'use_case', 'address', 'contact'],
     documents: ['id_or_registration', 'proof_of_address'],
     addressInArea: false,
+    anyArea: false,
     cities: [
       { id: 'london', prefix: '20', names: ['london'] },
       { id: 'manchester', prefix: '161', names: ['manchester'] },
@@ -110,6 +120,7 @@ export const NUMBER_COUNTRIES: Record<KycCountry, NumberCountryConfig> = {
     fields: ['legal_name', 'entity_type', 'use_case', 'address', 'contact'],
     documents: ['id_or_registration', 'proof_of_address'],
     addressInArea: true,
+    anyArea: false,
     cities: [
       { id: 'dublin', prefix: '1', names: ['dublin', 'baile átha cliath'] },
       { id: 'cork', prefix: '21', names: ['cork'] },
@@ -130,6 +141,14 @@ export function parseKycCountries(setting: string | undefined): KycCountry[] {
     if (isKycCountry(code) && !out.includes(code)) out.push(code)
   }
   return out
+}
+
+/**
+ * The KYC country a number is in, by its calling code (+49 Germany, +44 the UK, +353 Ireland), or undefined. A number
+ * there was only ever requested with documents (these countries are never in NUMBER_BUY_COUNTRIES).
+ */
+export function kycCountryOfE164(e164: string): KycCountry | undefined {
+  return KYC_COUNTRIES.find(country => e164.startsWith(`+${NUMBER_COUNTRIES[country].callingCode}`))
 }
 
 /** The city of `prefix` in a country, or undefined. A leading trunk 0 is ignored (`030` is `30`). */
@@ -180,6 +199,9 @@ function sourceFromText(kind: 'textual' | 'address' | 'document' | 'action', tex
     return null
   }
   if (kind !== 'textual') return null
+  // Before the registration number: "Commercial register court" names the court, not the number.
+  if (/register court|registry court|registration court|court of regist|registergericht|amtsgericht/.test(text))
+    return { field: 'register_court' }
   if (/registration number|company number|commercial register|handelsregister|\bcrn\b/.test(text))
     return { field: 'registration_number' }
   if (/website|\burl\b|web site/.test(text)) return { field: 'website' }

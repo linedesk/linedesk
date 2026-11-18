@@ -309,6 +309,8 @@ export type AdminInputs = {
   'outboundCountries.set': { countries: string[]; confirmHighRisk?: string[] }
   'voiceCloning.get': Record<string, never>
   'voiceCloning.set': { on: boolean }
+  'numberBlocks.get': Record<string, never>
+  'numberBlocks.set': { on: boolean }
   'callQuality.get': Record<string, never>
   'callQuality.set': {
     premium?: boolean

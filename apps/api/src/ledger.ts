@@ -28,7 +28,8 @@ import {
   type Tx,
   usage_counters,
 } from '@linedesk/db'
-import { and, desc, eq, gt, inArray, lte, sql } from 'drizzle-orm'
+import { KYC_COUNTRIES, NUMBER_COUNTRIES } from '@linedesk/actions'
+import { and, desc, eq, gt, inArray, lte, notLike, type SQL, sql } from 'drizzle-orm'
 import { billingRules } from './billing-rules.ts'
 import { checkLedgerGuards, missingLedgerGuards } from './ledger-guards.ts'
 import { closedLegSeconds } from './transfer-legs.ts'
@@ -117,19 +118,30 @@ export async function extraCallsOnBill(tx: Pick<Tx, 'select'>, billId: string): 
   return rows.map(r => r.extra)
 }
 
-/** Numbers bought on our carrier account beyond the one each workspace includes. */
+/**
+ * The numbers that pay a monthly fee once they are extra: bought through Linedesk on its carrier account, without the
+ * numbers that need documents (Germany, the UK, Ireland) while the install waives their fee (`regulatedNumberFeeWaived`,
+ * docs/numbers-kyc.md). A waived number is not counted at all, so it never takes the number a workspace includes.
+ */
+export async function feeNumbers(tx: Pick<Tx, 'select'>): Promise<SQL> {
+  const waived = (await billingRules(tx)).regulatedNumberFeeWaived
+  return and(
+    eq(phone_numbers.purchased, true),
+    eq(phone_numbers.carrier_account, 'install'),
+    ...(waived ? regulatedPrefixes().map(prefix => notLike(phone_numbers.e164, `${prefix}%`)) : []),
+  )!
+}
+
+/** The calling codes of the countries whose numbers need documents (+49, +44, +353). */
+const regulatedPrefixes = () => KYC_COUNTRIES.map(country => `+${NUMBER_COUNTRIES[country].callingCode}`)
+
+/** Numbers bought on our carrier account beyond the one each workspace includes (feeNumbers). */
 export async function extraNumbersOnBill(tx: Tx, billId: string): Promise<number> {
   const rows = await tx
     .select({ n: sql<number>`count(*)::int` })
     .from(phone_numbers)
     .innerJoin(organization, eq(organization.id, phone_numbers.workspace_id))
-    .where(
-      and(
-        eq(organization.billingAccountId, billId),
-        eq(phone_numbers.purchased, true),
-        eq(phone_numbers.carrier_account, 'install'),
-      ),
-    )
+    .where(and(eq(organization.billingAccountId, billId), await feeNumbers(tx)))
     .groupBy(phone_numbers.workspace_id)
   return rows.reduce((sum, r) => sum + Math.max(0, r.n - 1), 0)
 }

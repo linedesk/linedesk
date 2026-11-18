@@ -76,6 +76,8 @@ describe('calendar.findSlots', () => {
       'knowledge.import',
       'member.list',
       'notifications.get',
+      'numberBlocks.get',
+      'numberRequest.areas',
       'numberRequest.countries',
       'numberRequest.getProfile',
       'numberRequest.list',

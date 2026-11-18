@@ -322,6 +322,8 @@ export function auditLabel(
       return t('admin.audit.workspaceCreated', { ...name, ...who })
     case 'voiceCloning.set':
       return t('admin.audit.voiceCloningSet')
+    case 'numberBlocks.set':
+      return input.on ? t('admin.audit.numberBlocksOn') : t('admin.audit.numberBlocksOff')
     case 'callQuality.set':
       return t('admin.audit.callQualitySet')
     case 'systemPrompt.setPart':

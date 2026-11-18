@@ -12,14 +12,13 @@
 // action but numberRequest.countries refuses and nothing changes for anyone.
 import { createHash } from 'node:crypto'
 import {
-  cityMatches,
   isKycCountry,
   type KycCountry,
   NUMBER_COUNTRIES,
+  type NumberAreasData,
   type NumberRequestStatus,
   type NumberRequestSummary,
   type NumberRequirementsData,
-  numberCity,
   OPEN_NUMBER_REQUEST_STATUSES,
   parseKycCountries,
   REGULATORY_DOCUMENT_MAX_BYTES,
@@ -46,16 +45,27 @@ import { bodyLimit } from 'hono/body-limit'
 import { assistantIn } from './assistants.ts'
 import { billingNumberRefusal, billOfWorkspaceForNumbers } from './billing-checkout.ts'
 import { payBoughtNumberMonth } from './billing-periods.ts'
+import { billingRules } from './billing-rules.ts'
 import { applyCountryDefaults } from './country-defaults.ts'
 import { db } from './db.ts'
 import { type Handler, Reject } from './handler-context.ts'
+import { requestInboundTrunkSync } from './inbound-trunk.ts'
+import {
+  type AreaRule,
+  addressInNumberArea,
+  areaAvailable,
+  inCarrierBlock,
+  numberArea,
+  searchNumberAreas,
+  suggestNumberAreas,
+} from './number-areas.ts'
+import { areaRuleFor, numberBlocksSetting, setNumberBlocks } from './number-blocks.ts'
 import {
   INSTALL_NUMBERS_PER_WORKSPACE,
   installPurchaseRefusal,
   logPurchase,
   purchaseIdOfRequest,
 } from './number-purchases.ts'
-import { requestInboundTrunkSync } from './inbound-trunk.ts'
 import { notifyNumberRequestChange } from './number-request-notices.ts'
 import { syncInstallDestinations } from './outbound-policy.ts'
 import { telephonyProvider } from './provider-settings.ts'
@@ -83,6 +93,9 @@ export const NUMBER_REQUEST_CODES = {
   countryClosed: 'number_request_country_closed',
   incomplete: 'number_request_incomplete',
   unsupported: 'number_request_unsupported',
+  unknownArea: 'number_request_unknown_area',
+  noNumbers: 'number_request_no_numbers',
+  noLocalNumbers: 'number_request_no_local_numbers',
 } as const
 
 function openCountry(country: string, env: Env = process.env): KycCountry {
@@ -119,6 +132,7 @@ async function profileOf(tx: Tx, workspaceId: string): Promise<RegulatoryProfile
     legal_name: row.legal_name,
     entity_type: row.entity_type,
     ...(row.registration_number ? { registration_number: row.registration_number } : {}),
+    ...(row.register_court ? { register_court: row.register_court } : {}),
     ...(row.website ? { website: row.website } : {}),
     ...(row.use_case ? { use_case: row.use_case } : {}),
     address: row.address,
@@ -141,6 +155,21 @@ async function documentsOf(tx: Tx, workspaceId: string): Promise<RegulatoryDocum
     .where(eq(regulatory_documents.workspace_id, workspaceId))
     .orderBy(desc(regulatory_documents.created_at), desc(regulatory_documents.id))
   return rows
+}
+
+/**
+ * Whether a number requested now costs the workspace nothing a month: the install waives the fee of numbers that need
+ * documents (`regulatedNumberFeeWaived`), and the number would be on the install's carrier account (on the workspace's
+ * own account Linedesk never charged for it, so there is nothing to waive).
+ */
+async function feeWaivedFor(tx: Tx, workspaceId: string): Promise<boolean> {
+  if (!(await billingRules(tx)).regulatedNumberFeeWaived) return false
+  return (await accountOf(tx, workspaceId)) === 'install'
+}
+
+/** The carrier account a request of the workspace would be on (the install's when it cannot be resolved now). */
+async function accountOf(tx: Tx, workspaceId: string): Promise<CarrierAccount> {
+  return (await telephonyForWorkspace(tx, workspaceId).catch(() => null))?.account ?? 'install'
 }
 
 /** What the country needs that the profile and documents do not have yet. */
@@ -179,6 +208,7 @@ export const summaryOf = (row: NumberRequestRow): NumberRequestSummary => ({
   country: row.country as KycCountry,
   prefix: row.prefix,
   city: row.city,
+  areaName: numberArea(row.country as KycCountry, row.prefix)?.name ?? null,
   status: row.status,
   reason: row.reason,
   e164: row.e164,
@@ -207,6 +237,9 @@ async function requirementValues(
   const regulatory = provider.regulatory!
   const requirements = await atCarrier('requirements', () => regulatory.numberRequirements(country, 'local'))
   const sources = requirements.map(requirement => ({ requirement, source: requirementSource(requirement) }))
+  // A German registration number is only unique with its court ("HRB 12345, Amtsgericht Mannheim"): without a field of
+  // its own at the carrier, the court goes with the number.
+  const courtAsked = sources.some(s => s.source && 'field' in s.source && s.source.field === 'register_court')
   const unknown = sources.filter(s => !s.source).map(s => s.requirement.name)
   if (unknown.length) {
     // The carrier asks for something no field or document kind stands for: the operator extends the mapping.
@@ -261,6 +294,8 @@ async function requirementValues(
     } else if (source.field === 'contact') {
       const c = profile.contact
       value = source.part === 'email' ? c.email : source.part === 'phone' ? c.phone : `${c.first_name} ${c.last_name}`
+    } else if (source.field === 'registration_number' && !courtAsked && profile.register_court) {
+      value = profile.registration_number && `${profile.registration_number}, ${profile.register_court}`
     } else {
       value = profile[source.field]
     }
@@ -276,13 +311,21 @@ async function requirementValues(
   return values
 }
 
-/** A free number in the city: one no workspace has set up and no open request is waiting for. */
-async function freeNumber(tx: Tx, provider: TelephonyProvider, country: KycCountry, prefix: string) {
+/**
+ * A free number in the area: one no workspace has set up and no open request is waiting for. Under the carrier blocks
+ * rule only a number inside one of the carrier's own blocks (the carrier's search is checked against the BNetzA's
+ * block list, never trusted alone), from a wider search.
+ */
+async function freeNumber(tx: Tx, provider: TelephonyProvider, country: KycCountry, prefix: string, rule: AreaRule) {
   const found = await atCarrier('searching numbers', () =>
-    provider.searchNumbers({ country, areaCode: prefix, limit: 5, withRequirements: true }),
+    provider.searchNumbers({ country, areaCode: prefix, limit: rule.blocks ? 50 : 5, withRequirements: true }),
   )
-  if (!found.length) return undefined
-  const candidates = found.map(n => n.e164)
+  const candidates = found.map(n => n.e164).filter(e164 => inCarrierBlock(rule, prefix, e164))
+  if (candidates.length < found.length)
+    console.warn(
+      `number request: ${found.length - candidates.length} of ${found.length} numbers the carrier found in ${country} 0${prefix} are outside its own number blocks; not offered`,
+    )
+  if (!candidates.length) return undefined
   const taken = await tx
     .select({ e164: phone_numbers.e164 })
     .from(phone_numbers)
@@ -527,10 +570,41 @@ export const numberRequestHandlers: Record<string, Handler> = {
       documents: config.documents,
       addressInArea: config.addressInArea,
       cities: config.cities,
+      anyArea: config.anyArea,
+      monthlyFeeWaived: await feeWaivedFor(tx, workspaceId),
+      carrierBlocksOnly: !!(await areaRuleFor(tx, country, await accountOf(tx, workspaceId))).blocks,
       missing,
     }
     return { rows: {}, data }
   },
+
+  'numberRequest.areas': async (
+    { tx, actor },
+    input: { country: string; query: string; address?: { city?: string; postal_code?: string }; limit: number },
+  ) => {
+    const workspaceId = workspaceOf(actor)
+    const country = openCountry(input.country)
+    let address = input.address
+    if (!address?.city && !address?.postal_code) {
+      const saved = (await profileOf(tx, workspaceId))?.address
+      if (saved?.country === country) address = saved
+    }
+    const rule = await areaRuleFor(tx, country, await accountOf(tx, workspaceId))
+    const data: NumberAreasData = {
+      country,
+      areas: searchNumberAreas(country, input.query, input.limit, rule),
+      suggested: address ? suggestNumberAreas(country, address, rule).slice(0, input.limit) : [],
+      carrierBlocksOnly: !!rule.blocks,
+    }
+    return { rows: {}, data }
+  },
+
+  'numberBlocks.get': async ({ tx }) => ({ rows: {}, data: await numberBlocksSetting(tx) }),
+
+  'numberBlocks.set': async ({ tx, actor, now }, input: { on: boolean }) => ({
+    rows: {},
+    data: await setNumberBlocks(tx, input.on, actor.actorId, now),
+  }),
 
   'numberRequest.getProfile': async ({ tx, actor }) => {
     const workspaceId = workspaceOf(actor)
@@ -547,6 +621,7 @@ export const numberRequestHandlers: Record<string, Handler> = {
       legal_name: input.legal_name,
       entity_type: input.entity_type,
       registration_number: input.registration_number ?? null,
+      register_court: input.register_court ?? null,
       website: input.website ?? null,
       use_case: input.use_case ?? null,
       address: input.address,
@@ -612,8 +687,7 @@ export const numberRequestHandlers: Record<string, Handler> = {
   ) => {
     const workspaceId = workspaceOf(actor)
     const country = openCountry(input.country)
-    const city = numberCity(country, input.prefix)
-    if (!city) throw Reject.t('server.api.numberRequest.unknownCity', { prefix: input.prefix, country })
+    const prefix = input.prefix.replace(/^0+/, '')
     if (actor.workspaceDisabled) throw Reject.t('server.api.workspaceDisabled')
     // No number before Checkout (docs/billing.md §3.1).
     await refusePendingPayment(tx, workspaceId)
@@ -628,6 +702,21 @@ export const numberRequestHandlers: Record<string, Handler> = {
     }
     const { provider, account } = resolved
     if (!provider.regulatory) throw Reject.t('server.api.numberRequest.carrierNoDocuments')
+    // The area: any of the country's (Germany: every Ortsnetz), the listed cities elsewhere. A server admin and a
+    // workspace on its own carrier account are never held to the list: the carrier's search decides.
+    const area = numberArea(country, prefix)
+    const unrestricted = actor.permissions.includes('instance:admin') || account === 'workspace'
+    if (!prefix || (!area && !unrestricted))
+      throw Reject.t('server.api.numberRequest.unknownCity', { prefix, country }, NUMBER_REQUEST_CODES.unknownArea)
+    // Linedesk Cloud: German numbers only where the install's carrier holds number blocks of its own (BNetzA
+    // Mitteilung 90/2026; number-blocks.ts). Nobody is exempt while the rule is on: an instance admin turns it off.
+    const rule = await areaRuleFor(tx, country, account)
+    if (!areaAvailable(rule, prefix))
+      throw Reject.t(
+        'server.api.numberRequest.noLocalNumbers',
+        { prefix, area: area?.name ?? `0${prefix}` },
+        NUMBER_REQUEST_CODES.noLocalNumbers,
+      )
     const assistant = await assistantIn(tx, workspaceId, input.assistantId)
     const open = await tx
       .select({ id: number_requests.id })
@@ -642,7 +731,9 @@ export const numberRequestHandlers: Record<string, Handler> = {
       throw Reject.t('server.api.numberRequest.tooManyOpen', { count: OPEN_REQUESTS_PER_WORKSPACE })
     // On the install's account the operator pays: the same bill and purchase limits as a number bought at once.
     if (account === 'install') {
-      const billRefusal = await billingNumberRefusal(tx, actor, workspaceId)
+      const billRefusal = await billingNumberRefusal(tx, actor, workspaceId, {
+        feeWaived: (await billingRules(tx)).regulatedNumberFeeWaived,
+      })
       if (billRefusal) throw new Reject(billRefusal)
       if (provider.name !== 'dev') {
         const refusal = await installPurchaseRefusal(tx, actor, workspaceId, { byNumber: false, now })
@@ -663,20 +754,23 @@ export const numberRequestHandlers: Record<string, Handler> = {
         NUMBER_REQUEST_CODES.incomplete,
       )
 
-    // Germany and Ireland want the address in the number's area-code region: the carrier decides, a city that does
-    // not match is only told (a suburb can be in the region under another name).
-    const addressOutsideArea = NUMBER_COUNTRIES[country].addressInArea && !cityMatches(city, profile.address.city)
+    // Germany and Ireland want the address in the number's area-code region: the carrier decides, an address that
+    // does not look like it is in the area is only told (a municipality can span several areas), never refused.
+    const addressOutsideArea =
+      NUMBER_COUNTRIES[country].addressInArea &&
+      (profile.address.country !== country || !addressInNumberArea(country, prefix, profile.address))
 
     const id = newId('nr')
-    const e164 = await freeNumber(tx, provider, country, city.prefix)
-    if (!e164) throw Reject.t('server.api.numberRequest.noNumber')
+    const e164 = await freeNumber(tx, provider, country, prefix, rule)
+    if (!e164) throw Reject.t('server.api.numberRequest.noNumber', undefined, NUMBER_REQUEST_CODES.noNumbers)
     await tx.insert(number_requests).values({
       id,
       workspace_id: workspaceId,
       country,
       number_type: 'local',
-      prefix: city.prefix,
-      city: city.id,
+      prefix,
+      // The popular city's id (the app has its translated name); any other area is shown by its name (summaryOf).
+      city: area?.city ?? '',
       assistant_id: assistant?.id ?? null,
       status: 'requested',
       provider: provider.name,

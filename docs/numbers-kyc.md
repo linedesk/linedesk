@@ -20,10 +20,15 @@ by default. While it is empty:
 
 ## Data
 
-Three tables, not synced to browsers (`packages/db/src/schema.ts`, migration `0166_number_requests`):
+Three tables, not synced to browsers (`packages/db/src/schema.ts`, migrations `0166_number_requests` and
+`0167_regulatory_register_court`):
 
 - `regulatory_profiles`: one per workspace. Legal name, type (`business`, `sole_trader`, `individual`), registration
-  number, website, use case, address and contact.
+  number, register court (optional, `register_court`: "Amtsgericht Mannheim"), website, use case, address and contact.
+  A German registration number is only unique with its court: when the carrier has no requirement of its own for the
+  court (none of Telnyx's known German requirements is one), the court is sent with the number ("HRB 123456 B,
+  Amtsgericht Mannheim"); a requirement named like a court (`register court`, `Registergericht`, `Amtsgericht`) gets
+  the court alone.
 - `regulatory_documents`: ID or registration certificate (`id_or_registration`), proof of address
   (`proof_of_address`), the German BNetzA form (`bnetza_form`). PDF, PNG or JPEG, at most 2.5 MB, at most 10 per
   workspace; the first bytes must match the type. The file is encrypted with `SECRETS_KEY` (AES-256-GCM, slot
@@ -139,28 +144,130 @@ with `numberRequest.refresh`.
 | Action | What it does |
 | --- | --- |
 | `numberRequest.countries` | The open countries (empty: flag off). |
-| `numberRequest.requirements` | Fields, documents, cities and what is still missing for a country. |
+| `numberRequest.requirements` | Fields, documents, popular cities, `anyArea`, `monthlyFeeWaived` and what is still missing for a country. |
+| `numberRequest.areas` | `{ country, query?, address?: { city?, postal_code? }, limit? }`: the areas a query finds (a place, a municipality or an area code) and the areas the address suggests (see Area codes), each with `available`; `carrierBlocksOnly` says the carrier blocks rule applies. |
+| `numberBlocks.get` / `set` | Instance admin: `{ on }`, the carrier blocks rule (see "Only where the carrier holds number blocks"); answers `{ on, byDefault, portingId, areas }`. Audited. |
 | `numberRequest.getProfile` / `saveProfile` | The regulatory profile and the document list. |
 | `numberRequest.uploadDocument` / `deleteDocument` | Documents (base64, redacted in the log). |
-| `numberRequest.create` | `{ country, prefix }`: submits everything, orders a number. Same bill and purchase limits as a bought number; at most 2 open requests per workspace. |
+| `numberRequest.create` | `{ country, prefix }`: submits everything, orders a number. Same bill and purchase limits as a bought number; at most 2 open requests per workspace. Refused with `number_request_unknown_area` for an area code the country does not have, `number_request_no_local_numbers` for an area without the carrier's own number blocks (carrier blocks rule), and `number_request_no_numbers` when the carrier has no free number there right now (under the rule: none inside its blocks). |
 | `numberRequest.list` / `refresh` / `cancel` | Where requests stand; ask the carrier now; cancel an open one. |
 
 ## Countries
 
 Data only, in `NUMBER_COUNTRIES` (`packages/actions/src/number-countries.ts`); more cities need no migration.
 
-- Germany (DE, +49), local numbers. Telnyx asks for a contact (name, business, phone), the company registration
-  number, an address in the number's area-code region, proof of address that shows local activity, a German ID or
-  passport or the company's registration certificate, and the BNetzA form. Cities: Berlin 030, Hamburg 040, München
-  089, Köln 0221, Frankfurt 069, Stuttgart 0711, Düsseldorf 0211.
+- Germany (DE, +49), local numbers in **any** Ortsnetz (see Area codes). Telnyx asks for a contact (name, business,
+  phone), the company registration number, an address in the number's area-code region, proof of address that shows
+  local activity, a German ID or passport or the company's registration certificate, and the BNetzA form. Popular
+  cities (the suggestions before a search): Berlin 030, Hamburg 040, München 089, Köln 0221, Frankfurt 069, Stuttgart
+  0711, Düsseldorf 0211.
 - United Kingdom (GB, +44), local numbers. Company website, ID or business registration, contact, proof of address
   (a recent bill), a use case that says the number is sub-allocated to the business; the address can be anywhere.
   Cities: London 020, Manchester 0161, Birmingham 0121, Glasgow 0141, Edinburgh 0131.
 - Ireland (IE, +353), local numbers. End user's name and type, usage, ID or registration, an address in the area-code
   region, proof of address, contact email. Cities: Dublin 01, Cork 021, Galway 091, Limerick 061.
 
-Germany and Ireland want the address in the number's area. Linedesk only flags a city that does not match
-(`addressOutsideArea` in the answer of `numberRequest.create`); Telnyx decides.
+Germany and Ireland want the address in the number's area. Linedesk only flags an address that does not look like it
+is in the area (`addressOutsideArea` in the answer of `numberRequest.create`); Telnyx decides.
+
+## Area codes
+
+The business always keeps the choice: Linedesk suggests an area, it never locks one.
+
+- **Germany: every Ortsnetz.** The list is the Bundesnetzagentur's Vorwahlverzeichnis (5,200 Ortsnetze with their
+  Ortsnetzkennzahl and name), in `apps/api/src/de-areas.data.ts`, made by `apps/api/scripts/de-areas.ts` (run it again
+  with the new files when the BNetzA or Destatis publish a new edition; the script says where to get them).
+  `numberRequest.areas` searches it by name ("Heidelberg"), by area code ("06221", "+49 6221") and by municipality:
+  each of the 10,751 municipalities of the Destatis Gemeindeverzeichnis is mapped to the Ortsnetz its centre lies in
+  (point in polygon on the BNetzA's ONB-Grenzen), so "Dossenheim" finds Heidelberg 06221 with `place: 'Dossenheim'`.
+- **Suggestion from the address.** `numberRequest.areas` answers `suggested`: the areas of the address given (city,
+  postal code), else of the saved profile's address. Best first: the municipality matching city and postcode, then by
+  city ("Heidelberg-Handschuhsheim" matches Heidelberg), then by postcode, then an Ortsnetz named like the city.
+  Limits: the postcode in the data is the one of each municipality's town hall (Destatis has one per municipality, and
+  there is no open postcode → Ortsnetz list), so another postcode of a large city is matched by its city name only; a
+  municipality that spans several Ortsnetze is suggested only the Ortsnetz of its centre (Germany's Ortsnetze follow
+  the old exchange areas, not municipal borders). That is why it is a suggestion: any Ortsnetz can be requested, and
+  an address outside the area is only flagged.
+- **The UK and Ireland** keep their listed cities (`NUMBER_COUNTRIES`), searched by name or area code.
+- **Who is held to the list.** A workspace on Linedesk Cloud's carrier account requests an area of the list (in
+  Germany that is every Ortsnetz, narrowed by the carrier blocks rule below). A server admin and a workspace on its
+  own carrier account are never held to the list: any area code goes, and the carrier's search says whether it has
+  numbers there. Otherwise a request is refused only for the carrier's reasons: `number_request_no_numbers` when the
+  carrier has no free number in that area right now.
+- **Rules that only Linedesk Cloud needs are instance settings**, never code paths for one install: the carrier blocks
+  rule below, the fee waiver (a billing rule), the countries a server opens (`NUMBER_KYC_COUNTRIES`).
+
+### Only where the carrier holds number blocks (Germany, Linedesk Cloud)
+
+BNetzA Mitteilung 90/2026 (17.06.2026) forbids chains of third parties in derived number assignment: a number may be
+passed on to a business only by the carrier the Bundesnetzagentur assigned its number block to. Linedesk Cloud's
+carrier for German numbers is Telnyx Ireland Ltd (DREG 17/109, porting ID D451). It holds blocks of its own in about a
+hundred of the 5,200 Ortsnetze (103 blocks in 99 Ortsnetze in the list of 06.11.2026; Heidelberg 06221 7234000 to
+7234999 is one). In the other Ortsnetze Telnyx is itself a third party of another carrier, so Linedesk passing such a
+number on is likely not allowed. Research and open legal points: `reports/tkg-prep/05-telnyx-relationship-and-registration.md`
+(outside this repo). Until Telnyx or the BNetzA confirms otherwise:
+
+- **The rule.** With the instance setting on (`numberBlocks.set`, Server admin › System › German numbers; key
+  `number_carrier_blocks` in `instance_settings`), a German number on the install's carrier account is offered only
+  in an Ortsnetz where D451 holds a block, and only a number inside one of those blocks is ordered: the carrier's
+  search (`withRequirements`, 50 results) is checked against the block list and the numbers outside it are dropped
+  (logged), never trusted alone. No number inside a block: `number_request_no_numbers`.
+- **Default.** On when the install's carrier is Telnyx and no admin chose (`byDefault`); off with any other carrier.
+  An instance admin turns it off for an install with a number licence or carrier contract of its own (a self-hosted
+  install). While it is on nobody is exempt, a server admin neither: the admin's control is the setting.
+- **Never applied** to a workspace on its own carrier account (its carrier holds or contracts its numbers), nor to
+  the UK and Ireland (the BNetzA list is German).
+- **The full list stays.** Every Ortsnetz and municipality is still found by `numberRequest.areas` (by name, place,
+  postcode or the address), marked `available: false` where there are no blocks, so the app can say calmly "there is
+  no local number available for your area yet" (`number_request_no_local_numbers` from `create`). The empty search
+  lists the available areas, the popular ones first; available areas come first among equal matches.
+- **Data.** `DE_CARRIER_BLOCKS` in `apps/api/src/de-areas.data.ts` ("D451\t6221\t7234": the porting ID, the
+  Ortsnetz and the first digits of every number of the block), made by `apps/api/scripts/de-areas.ts` from the
+  BNetzA's "Verzeichnis der zugeteilten Rufnummernblöcke in Ortsnetzen" (`NVONB.INTERNET.<date>.OZRNB.csv` in
+  https://data.bundesnetzagentur.de/Bundesnetzagentur/DE/Fachthemen/Telekommunikation/Nummerierung/ONRufnr/NVONB.INTERNET.OZRNB.zip,
+  dl-de/by-2-0). Telnyx gets new blocks over time: generate the file again (the BNetzA updates the list regularly) and
+  the areas open up with the next release. The porting IDs kept are `CARRIERS` in the script; the one used is
+  `CLOUD_CARRIER_PORTING_ID` in `apps/api/src/number-blocks.ts`.
+
+### The business's seat in the number's Ortsnetz
+
+A German local number is for a business with a seat (Sitz or Niederlassung) in that Ortsnetz, and the proof of
+address handed to the carrier must show it. So:
+
+- The area suggested from the profile's address is the default (`suggested` of `numberRequest.areas`): the app
+  preselects it.
+- Linedesk Cloud must not offer other areas without proof of a seat there. The business may still pick another area
+  when it has a branch there (the user keeps control), and then the proof of address it uploads must be for that
+  branch, in that Ortsnetz. `create` answers `addressOutsideArea: true` when the profile's address does not look like
+  it is in the area: the app then asks the business to confirm a branch there and to upload the branch's proof of
+  address. The carrier checks the documents and decides; Linedesk never refuses on its own guess (a municipality can
+  span several Ortsnetze).
+
+Sources and licences (named in the generated file):
+
+- Bundesnetzagentur, Vorwahlverzeichnis (CSV in the zip on the BNetzA page "Ortsnetzbereiche, -kennzahlen und
+  -bereichsgrenzen"): Datenlizenz Deutschland – Namensnennung – Version 2.0 (the BNetzA's copyright note puts its
+  `.csv` data under it unless marked otherwise).
+- Statistisches Bundesamt (Destatis), Gemeindeverzeichnis (`AuszugGV…QAktuell.xlsx`): municipality names, town hall
+  postcodes and centre coordinates; "Vervielfältigung und Verbreitung, auch auszugsweise, mit Quellenangabe gestattet."
+- Bundesnetzagentur, ONB-Grenzen (shapefile, same page): "kostenlos zur Nutzung" for the providers of local numbers
+  (who must use it to place their customers in an Ortsnetz). Only the Ortsnetz of each municipality's centre is kept,
+  no geometry. The BNetzA's general copyright note puts non-CSV content under CC BY-ND 4.0: before the public export
+  (open source), confirm with the BNetzA that the derived municipality → Ortsnetz list may be published, or leave that
+  list (`DE_GEMEINDEN`) out of the export and generate it at install time.
+
+## Price during the beta
+
+Billing rule `regulatedNumberFeeWaived` (Server admin › Billing › rules, "Numbers with documents are free"; on by
+default, the value of Linedesk Cloud during the beta, decision of 2026-11-18): numbers in the KYC countries (by calling
+code: +49, +44, +353) cost the workspace nothing a month. They are left out of the extra numbers (`feeNumbers` in
+`apps/api/src/ledger.ts`): no monthly fee is posted when one is set up or by the hourly run, they never count as the
+number a workspace includes (a US number next to a free German one is the included one), they add nothing to the
+recharge cap, and a request needs no balance for a first month (`billingNumberRefusal` with `feeWaived`; the bill must
+still be active, and the trial's number limit applies). Linedesk pays Telnyx for them. `numberRequest.requirements`
+says `monthlyFeeWaived`, so the app can say "free during the beta". Turned off, the next hourly run charges them like
+any extra number. A self-hosted install that bills its own workspaces sets the rule as it likes; on a workspace's own
+carrier account Linedesk never charged for the number.
 
 ## Before a country goes live
 
@@ -169,7 +276,8 @@ Germany and Ireland want the address in the number's area. Linedesk only flags a
 - A real test purchase in Germany with real documents on the install's Telnyx account, and the Telnyx notification
   set (see Webhook).
 - The privacy page (linedesk.ai/privacy): the documents, their purpose, Telnyx as the processor that receives them.
-- Billing stays in USD (decision of 2026-11-18); the price of a German number at Telnyx differs from a US one.
+- Billing stays in USD (decision of 2026-11-18); the price of a German number at Telnyx differs from a US one. Free
+  during the beta (`regulatedNumberFeeWaived`); decide the price before the rule is turned off.
 
 Open legal and tax points (a telecom lawyer and a tax advisor before go-live):
 

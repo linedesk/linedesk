@@ -51,6 +51,7 @@ const FIELDS = {
   extraNumberCents: count(0, 100_000),
   rechargeCapPerWorkspaceCents: count(0, 1_000_000),
   automaticTax: z.boolean(),
+  regulatedNumberFeeWaived: z.boolean(),
 } satisfies Partial<Record<keyof BillingRules, z.ZodType>>
 
 /** `stored` over the defaults, field by field; `problems` names what was ignored. */

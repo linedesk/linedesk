@@ -73,6 +73,7 @@ import {
   signupForm,
   signupFromForm,
   TAX_FIELD,
+  NUMBER_FEE_WAIVED_FIELD,
   usdOfCents,
   usdOfMicros,
   usdSymbol,
@@ -1367,6 +1368,22 @@ function RulesCard({ notify }: { notify: Notify }) {
               </div>
             )}
             <div className="adm-rules-grid">{group.fields.map(key => ruleField(key))}</div>
+            {group.id === 'plans' && (
+              <div className="swrow">
+                <div>
+                  <b>
+                    {t('admin.bills.rules.regulatedNumberFeeWaived')}
+                    <HelpTip text={t('admin.bills.rules.regulatedNumberFeeWaived.help')} />
+                  </b>
+                  <span className="help">{t('admin.bills.rules.regulatedNumberFeeWaived.short')}</span>
+                </div>
+                <Switch
+                  on={form[NUMBER_FEE_WAIVED_FIELD] === 'on'}
+                  onChange={on => setForm(f => ({ ...f, [NUMBER_FEE_WAIVED_FIELD]: on ? 'on' : 'off' }))}
+                  label={t('admin.bills.rules.regulatedNumberFeeWaived')}
+                />
+              </div>
+            )}
           </Card>
         )
       })}

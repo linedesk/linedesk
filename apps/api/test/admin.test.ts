@@ -35,7 +35,6 @@ import { APIError } from 'better-auth/api'
 import { and, eq, getTableName, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { mapOidcProfile } from '../src/account-linking.ts'
-import { lockActiveSender } from '../src/team.ts'
 import {
   adminSignInEmail,
   alertInstanceAdmins,
@@ -88,6 +87,7 @@ import { atRiskWorkspaces, sendDueSetupEmails, workspacesOldEnough } from '../sr
 import { countSignInFailures, limitSignIns } from '../src/sign-in-limits.ts'
 import { mayCreateUser } from '../src/signup-gate.ts'
 import { sendSpendingAlert } from '../src/spending-cap.ts'
+import { lockActiveSender } from '../src/team.ts'
 import { TEST_CALLS_OVER_CAP } from '../src/test-call.ts'
 import { KEPT_TABLES, workspaceTables } from '../src/workspace-delete.ts'
 import { fakeS3 } from './fake-s3.ts'
@@ -219,6 +219,8 @@ describe('access', () => {
       'membership.add',
       'membership.remove',
       'membership.setRole',
+      'numberBlocks.get',
+      'numberBlocks.set',
       'outboundCountries.get',
       'outboundCountries.set',
       'partner.adminList',
@@ -2510,7 +2512,11 @@ describe('impersonation', () => {
       'invitation.listMine',
       'member.list',
       'notifications.get',
+      // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
+      'numberBlocks.get',
       // Number requests (KYC): the countries, what a country needs and where requests stand; the profile is refused.
+      // The area search is public data (the BNetzA's Ortsnetze), suggested from the profile's town and postcode only.
+      'numberRequest.areas',
       'numberRequest.countries',
       'numberRequest.list',
       'numberRequest.requirements',

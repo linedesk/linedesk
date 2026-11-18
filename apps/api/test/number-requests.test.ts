@@ -3,6 +3,7 @@
 // requested to active or rejected, the carrier's webhook, who may do what, and that nothing changes with the flag off.
 import {
   commands,
+  instance_settings,
   number_purchases,
   number_requests,
   organization,
@@ -15,12 +16,13 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vi
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { setJobQueue } from '../src/jobs.ts'
+import { carrierBlocks, inCarrierBlock } from '../src/number-areas.ts'
 import { installPurchaseRefusal, purchaseIdOfRequest } from '../src/number-purchases.ts'
 import { NUMBER_REQUEST_NOTICE } from '../src/number-request-notices.ts'
 import { documentSlot, NUMBER_REQUEST_WEBHOOK_PATH } from '../src/number-requests.ts'
 import { decryptSecret } from '../src/secrets.ts'
 import { deleteWorkspace } from '../src/workspace-delete.ts'
-import { act, addMember, appRequest, createWorkspace, type Workspace } from './helpers.ts'
+import { act, addMember, appRequest, asServerAdmin, createWorkspace, type Workspace } from './helpers.ts'
 
 // The carrier is the dev provider for this file, whatever another test file picks in the shared test database.
 vi.mock('../src/provider-settings.ts', async importOriginal => {
@@ -351,6 +353,222 @@ describe('a number request from requested to active, or rejected', () => {
     expect((await act(ws2.owner, 'numberRequest.create', { country: 'DE', prefix: '69' })).status).toBe(200)
     const third = await act(ws2.owner, 'numberRequest.create', { country: 'DE', prefix: '711' })
     expect(third.status).toBe(409)
+  })
+})
+
+describe('any German area code (Ortsnetz), suggested from the address', () => {
+  /** A complete German profile at an address in Dossenheim (Ortsnetz Heidelberg, 06221). */
+  async function inDossenheim(name: string) {
+    const ws = await createWorkspace(name)
+    await readyForGermany(ws)
+    const dossenheim = profile('Dossenheim', { register_court: 'Amtsgericht Mannheim' })
+    expect(
+      (
+        await act(ws.owner, 'numberRequest.saveProfile', {
+          ...dossenheim,
+          address: { ...dossenheim.address, postal_code: '69221' },
+        })
+      ).status,
+    ).toBe(200)
+    return ws
+  }
+
+  test('areas: by place, municipality or area code; empty, the popular cities; the address suggests its area', async () => {
+    vi.stubEnv('NUMBER_KYC_COUNTRIES', 'DE,GB')
+    const ws = await inDossenheim('Brightwater Sanitär Dossenheim')
+    const search = async (input: Record<string, unknown>) => {
+      const res = await act(ws.owner, 'numberRequest.areas', { country: 'DE', ...input })
+      expect(res.status).toBe(200)
+      return res.body.data
+    }
+    // Dossenheim is not an Ortsnetz of its own: it is found as the place in Heidelberg's.
+    expect((await search({ query: 'Dossenheim' })).areas[0]).toEqual({
+      prefix: '6221',
+      name: 'Heidelberg',
+      place: 'Dossenheim',
+      popular: false,
+      available: true,
+    })
+    expect((await search({ query: '06221' })).areas[0]).toMatchObject({ prefix: '6221', name: 'Heidelberg' })
+    expect((await search({ query: '+49 30' })).areas[0]).toMatchObject({ prefix: '30', name: 'Berlin', city: 'berlin' })
+    expect((await search({ query: 'münchen' })).areas[0]).toMatchObject({ prefix: '89', popular: true })
+    const popular = await search({})
+    expect(popular.areas.map((a: { prefix: string }) => a.prefix)).toEqual([
+      '30',
+      '40',
+      '89',
+      '221',
+      '69',
+      '711',
+      '211',
+    ])
+    // The saved address (Dossenheim, 69221) suggests Heidelberg; another address given suggests its own.
+    expect(popular.suggested[0]).toMatchObject({ prefix: '6221', place: 'Dossenheim' })
+    expect((await search({ address: { city: 'Schriesheim' } })).suggested[0]).toMatchObject({ prefix: '6203' })
+    expect((await search({ address: { postal_code: '69181' } })).suggested[0]).toMatchObject({
+      prefix: '6224',
+      place: 'Leimen',
+    })
+    expect((await search({ address: { city: 'Nowhere Town' } })).suggested).toEqual([])
+    // The UK keeps its list of cities.
+    const uk = await act(ws.owner, 'numberRequest.areas', { country: 'GB', query: 'man' })
+    expect(uk.body.data.areas).toEqual([
+      { prefix: '161', name: 'Manchester', city: 'manchester', popular: true, available: true },
+    ])
+    // Requirements: any area can be asked for, and the number is free during the beta (the default rule).
+    const requirements = await act(ws.owner, 'numberRequest.requirements', { country: 'DE' })
+    expect(requirements.body.data).toMatchObject({ anyArea: true, monthlyFeeWaived: true, carrierBlocksOnly: false })
+    expect((await act(ws.owner, 'numberRequest.requirements', { country: 'GB' })).body.data.anyArea).toBe(false)
+  })
+
+  test('a number in Heidelberg 06221 for a business in Dossenheim: not flagged; the court goes with the number', async () => {
+    vi.stubEnv('NUMBER_KYC_COUNTRIES', 'DE')
+    const ws = await inDossenheim('Brightwater Sanitär Heidelberg')
+    expect((await act(ws.owner, 'numberRequest.getProfile', {})).body.data.profile).toMatchObject({
+      register_court: 'Amtsgericht Mannheim',
+    })
+    const submit = vi.spyOn(devProvider.regulatory!, 'submitRequirementGroup')
+    const res = await act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '06221' })
+    expect(res.status).toBe(200)
+    expect(res.body.data.request).toMatchObject({
+      prefix: '6221',
+      city: '',
+      areaName: 'Heidelberg',
+      status: 'pending_review',
+    })
+    expect(res.body.data.request.e164).toMatch(/^\+496221/)
+    expect(res.body.data.addressOutsideArea).toBe(false)
+    // The dev carrier asks for no court of its own: it goes with the registration number.
+    const values = submit.mock.calls[0]![0].values.map(v => v.value)
+    expect(values).toContain('HRB 123456 B, Amtsgericht Mannheim')
+    submit.mockRestore()
+    // Another area: flagged, never refused (the area is a suggestion, the carrier decides).
+    const munich = await act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '089' })
+    expect(munich.status).toBe(200)
+    expect(munich.body.data).toMatchObject({
+      addressOutsideArea: true,
+      request: { city: 'munich', areaName: 'München' },
+    })
+  })
+
+  test('an area code that is no Ortsnetz is refused for a business, not for a server admin; no free number is said so', async () => {
+    vi.stubEnv('NUMBER_KYC_COUNTRIES', 'DE')
+    const ws = await inDossenheim('Brightwater Sanitär Weinheim')
+    const unknown = await act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '0999' })
+    expect(unknown.status).toBe(409)
+    expect(unknown.body.code).toBe('number_request_unknown_area')
+    vi.stubEnv('LINEDESK_DEV_NO_FREE_AREA_CODES', '6201')
+    const none = await act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '06201' })
+    expect(none.status).toBe(409)
+    expect(none.body.code).toBe('number_request_no_numbers')
+    expect(await db.select().from(number_requests).where(eq(number_requests.workspace_id, ws.id))).toEqual([])
+    // A server admin is never held to the list: the carrier's search decides.
+    const admin = await asServerAdmin(ws.owner, () =>
+      act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '0999' }),
+    )
+    expect(admin.status).toBe(200)
+    expect(admin.body.data.request).toMatchObject({ prefix: '999', city: '', areaName: null })
+  })
+})
+
+describe('Linedesk Cloud: German numbers only where the carrier (Telnyx Ireland, D451) holds number blocks', () => {
+  const blocksRow = eq(instance_settings.key, 'number_carrier_blocks')
+  afterEach(async () => {
+    await db.delete(instance_settings).where(blocksRow)
+  })
+
+  test('the BNetzA block list: Heidelberg 06221 7234000-7234999 is a block of D451; a number is checked against it', () => {
+    const blocks = carrierBlocks('D451')
+    expect(blocks.size).toBeGreaterThan(90)
+    expect(blocks.get('6221')).toEqual(['7234'])
+    expect(blocks.get('30')).toEqual(['40719', '40739'])
+    expect(blocks.has('6201')).toBe(false)
+    const rule = { blocks }
+    expect(inCarrierBlock(rule, '6221', '+4962217234000')).toBe(true)
+    expect(inCarrierBlock(rule, '6221', '+4962217234999')).toBe(true)
+    expect(inCarrierBlock(rule, '6221', '+4962217235000')).toBe(false)
+    expect(inCarrierBlock(rule, '6221', '+4962215550000')).toBe(false)
+    expect(inCarrierBlock(rule, '6221', '+4962207234000')).toBe(false)
+    expect(inCarrierBlock({ blocks: null }, '6221', '+4962215550000')).toBe(true)
+  })
+
+  test('an instance setting: off by default with a carrier other than Telnyx, an admin turns it on; a business cannot', async () => {
+    const ws = await createWorkspace('Brightwater Sanitär Blocks Setting')
+    expect((await act(ws.owner, 'numberBlocks.get', {})).status).toBe(403)
+    expect((await act(ws.owner, 'numberBlocks.set', { on: true })).status).toBe(403)
+    const before = await asServerAdmin(ws.owner, () => act(ws.owner, 'numberBlocks.get', {}))
+    expect(before.body.data).toMatchObject({ on: false, byDefault: true, portingId: 'D451' })
+    expect(before.body.data.areas).toBeGreaterThan(90)
+    const set = await asServerAdmin(ws.owner, () => act(ws.owner, 'numberBlocks.set', { on: true }))
+    expect(set.body.data).toMatchObject({ on: true, byDefault: false })
+    const off = await asServerAdmin(ws.owner, () => act(ws.owner, 'numberBlocks.set', { on: false }))
+    expect(off.body.data).toMatchObject({ on: false, byDefault: false })
+  })
+
+  test('on: areas say where a local number is available, create refuses the others and orders only a number in a block', async () => {
+    vi.stubEnv('NUMBER_KYC_COUNTRIES', 'DE,GB')
+    const ws = await createWorkspace('Brightwater Sanitär Dossenheim Blocks')
+    await readyForGermany(ws)
+    expect(
+      (
+        await act(ws.owner, 'numberRequest.saveProfile', {
+          ...profile('Dossenheim'),
+          address: { ...profile().address, city: 'Dossenheim', postal_code: '69221' },
+        })
+      ).status,
+    ).toBe(200)
+    await asServerAdmin(ws.owner, () => act(ws.owner, 'numberBlocks.set', { on: true }))
+    const search = async (input: Record<string, unknown>) =>
+      (await act(ws.owner, 'numberRequest.areas', { country: 'DE', ...input })).body.data
+    // Empty: only areas with a block, the popular ones first.
+    const offered = await search({ limit: 50 })
+    expect(offered.carrierBlocksOnly).toBe(true)
+    expect(offered.areas.every((a: { available: boolean }) => a.available)).toBe(true)
+    expect(offered.areas.slice(0, 2).map((a: { prefix: string }) => a.prefix)).toEqual(['30', '40'])
+    // The address still suggests its area: Heidelberg has a block; Weinheim (06201) has none, told calmly.
+    expect(offered.suggested[0]).toMatchObject({ prefix: '6221', place: 'Dossenheim', available: true })
+    expect((await search({ query: 'Weinheim' })).areas[0]).toMatchObject({ prefix: '6201', available: false })
+    expect((await search({ address: { city: 'Schriesheim' } })).suggested[0]).toMatchObject({
+      prefix: '6203',
+      available: false,
+    })
+    expect((await act(ws.owner, 'numberRequest.requirements', { country: 'DE' })).body.data.carrierBlocksOnly).toBe(
+      true,
+    )
+    // The UK is not under the BNetzA's block list.
+    expect((await act(ws.owner, 'numberRequest.areas', { country: 'GB', query: '' })).body.data).toMatchObject({
+      carrierBlocksOnly: false,
+    })
+
+    const weinheim = await act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '06201' })
+    expect(weinheim.status).toBe(409)
+    expect(weinheim.body.code).toBe('number_request_no_local_numbers')
+    // Nobody is exempt while it is on, a server admin neither: they turn it off.
+    const admin = await asServerAdmin(ws.owner, () =>
+      act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '06201' }),
+    )
+    expect(admin.body.code).toBe('number_request_no_local_numbers')
+    // The carrier's search is checked against the blocks: the dev carrier's 06221 555 0xxx are outside them.
+    const outside = await act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '06221' })
+    expect(outside.status).toBe(409)
+    expect(outside.body.code).toBe('number_request_no_numbers')
+    const search6221 = vi
+      .spyOn(devProvider, 'searchNumbers')
+      .mockResolvedValue([{ e164: '+4962215550000' }, { e164: '+4962217234567' }])
+    try {
+      const res = await act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '06221' })
+      expect(res.status).toBe(200)
+      expect(res.body.data.request).toMatchObject({ prefix: '6221', areaName: 'Heidelberg', e164: '+4962217234567' })
+      expect(search6221.mock.calls[0]![0]).toMatchObject({ country: 'DE', areaCode: '6221', limit: 50 })
+    } finally {
+      search6221.mockRestore()
+    }
+    expect(await db.select().from(number_requests).where(eq(number_requests.workspace_id, ws.id))).toHaveLength(1)
+
+    // Off (an install with its own licence): every area again.
+    await asServerAdmin(ws.owner, () => act(ws.owner, 'numberBlocks.set', { on: false }))
+    expect((await search({ query: 'Weinheim' })).areas[0]).toMatchObject({ prefix: '6201', available: true })
+    expect((await act(ws.owner, 'numberRequest.create', { country: 'DE', prefix: '06201' })).status).toBe(200)
   })
 })
 

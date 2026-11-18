@@ -1,9 +1,11 @@
 // System: LiveKit, part of the install (its keys are set in env at install time, so this is a
 // read-only status, loaded on its own because a server that is down takes seconds to say so), and
 // whether workspaces may clone voices (off until an instance admin turns it on), where transfers may call (InternationalTransfers.tsx), and
-// whether users are emailed when an admin signs in as them (off by default), and what Zapier needs from this server.
+// whether users are emailed when an admin signs in as them (off by default), where German numbers are offered (only
+// the carrier's own number blocks, on by default with Telnyx), and what Zapier needs from this server.
 import {
   type ImpersonationEmailsData,
+  type NumberBlocksData,
   type VoiceCloningData,
   ZAPIER_APP_URL,
   ZAPIER_HOOKS_HOST,
@@ -11,16 +13,16 @@ import {
 } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
+import { brandName } from '../brand.ts'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
+import { externalLink } from '../settings/ZapierGuide.tsx'
+import { appLink } from '../ui/AppLink.tsx'
 import { Switch } from '../ui/controls.tsx'
 import { Card } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { type LivekitStatus, loadLivekitStatus, runAdmin, type ServiceStatus } from './api.ts'
-import { brandName } from '../brand.ts'
-import { externalLink } from '../settings/ZapierGuide.tsx'
-import { appLink } from '../ui/AppLink.tsx'
 import { InternationalTransfers } from './InternationalTransfers.tsx'
 
 const LIVEKIT = 'admin.livekit'
@@ -200,6 +202,67 @@ function VoiceCloning() {
   )
 }
 
+const NUMBER_BLOCKS = 'admin.numberBlocks'
+const loadNumberBlocks = async () => (await runAdmin('numberBlocks.get', {})) as NumberBlocksData
+
+/**
+ * German numbers only where the install's carrier holds number blocks of its own (BNetzA Mitteilung 90/2026,
+ * docs/numbers-kyc.md): on by default when the carrier is Telnyx. Workspaces on their own carrier account are never
+ * limited.
+ */
+function NumberBlocks() {
+  const t = useT()
+  const query = useQuery(NUMBER_BLOCKS, loadNumberBlocks)
+  const [problem, setProblem] = useState<string | null>(null)
+  const data = query.data
+  async function change(next: boolean) {
+    if (!data) return
+    setProblem(null)
+    setQueryData<NumberBlocksData | undefined>(NUMBER_BLOCKS, { ...data, on: next, byDefault: false })
+    try {
+      setQueryData<NumberBlocksData | undefined>(
+        NUMBER_BLOCKS,
+        (await runAdmin('numberBlocks.set', { on: next })) as NumberBlocksData,
+      )
+    } catch (e) {
+      setQueryData<NumberBlocksData | undefined>(NUMBER_BLOCKS, data)
+      setProblem(e instanceof Error ? e.message : t('admin.system.numberBlocksFailed'))
+    }
+  }
+  return (
+    <Card
+      title={t('admin.system.numberBlocks')}
+      help={t('admin.system.numberBlocksHelp', { areas: data?.areas ?? 0, carrier: data?.portingId ?? '' })}
+    >
+      <div className="swrow">
+        <div>
+          <b>{t('admin.system.numberBlocksOnly')}</b>
+          {data?.byDefault && <span className="help">{t('admin.system.numberBlocksDefault')}</span>}
+        </div>
+        <Loading
+          what={t('admin.system.numberBlocks')}
+          loading={!data}
+          error={query.error}
+          onRetry={() => void query.reload()}
+          skeleton={<Skeleton width={34} height={20} className="sk-round" />}
+        >
+          <Switch
+            on={data?.on ?? false}
+            onChange={v => void change(v)}
+            label={t('admin.system.numberBlocksOnly')}
+            disabled={!data}
+          />
+        </Loading>
+      </div>
+      {problem && (
+        <p className="k-field-msg" role="alert">
+          {problem}
+        </p>
+      )}
+    </Card>
+  )
+}
+
 /**
  * Zapier: one Linedesk app on Zapier serves every install, so a self-hosted server sets up nothing; each workspace
  * connects it with its own key and this address. The server only has to be reachable by Zapier, and reach Zapier.
@@ -243,6 +306,7 @@ export function System() {
       <Livekit />
       <VoiceCloning />
       <InternationalTransfers />
+      <NumberBlocks />
       <ImpersonationEmails />
       <Zapier />
     </>

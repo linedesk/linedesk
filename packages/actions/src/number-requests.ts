@@ -10,10 +10,10 @@ import {
   type NumberCity,
   REGULATORY_DOCUMENT_MAX_BYTES,
   type RegulatoryDocumentKind,
+  type RegulatoryField,
   regulatoryDocumentKinds,
   regulatoryDocumentTypes,
   regulatoryEntityTypes,
-  type RegulatoryField,
 } from './number-countries.ts'
 
 export const numberRequestStatuses = [
@@ -48,6 +48,7 @@ export const regulatoryProfileInput = z
     legal_name: line(200),
     entity_type: z.enum(regulatoryEntityTypes),
     registration_number: line(100).optional(),
+    register_court: line(200).optional(),
     website: z.string().trim().url().max(300).optional(),
     use_case: line(1000).optional(),
     address: z
@@ -87,8 +88,13 @@ export type NumberRequestSummary = {
   id: string
   country: KycCountry
   prefix: string
-  /** The city's id (NumberCity.id); the app shows its name. */
+  /**
+   * The popular city's id (NumberCity.id) when the area is one of them, so the app can show its translated name;
+   * otherwise empty, and the app shows `areaName`.
+   */
   city: string
+  /** The area's own name (Germany: the Ortsnetz's name as the BNetzA writes it, "Heidelberg"); null if not known. */
+  areaName: string | null
   status: NumberRequestStatus
   reason: string | null
   e164: string | null
@@ -104,10 +110,63 @@ export type NumberRequirementsData = {
   fields: readonly RegulatoryField[]
   documents: readonly RegulatoryDocumentKind[]
   addressInArea: boolean
+  /** The popular cities (suggestions; with `anyArea` every area code of the country can be asked for). */
   cities: readonly NumberCity[]
+  /** Any area code of the country can be asked for (Germany): search them with numberRequest.areas. */
+  anyArea: boolean
+  /**
+   * The monthly number fee is waived for numbers in this country (the instance's billing rule
+   * `regulatedNumberFeeWaived`, on by default: free during the beta). False on a workspace's own carrier account,
+   * where Linedesk never charged for the number.
+   */
+  monthlyFeeWaived: boolean
+  /**
+   * Numbers are offered only in the areas where the install's carrier holds number blocks of its own (the instance
+   * setting numberBlocks, Germany on the install's carrier account): `available` on each area says which.
+   */
+  carrierBlocksOnly: boolean
   /** What is still missing in the workspace's profile and documents for this country. */
   missing: { fields: RegulatoryField[]; documents: RegulatoryDocumentKind[] }
 }
+
+/**
+ * An area a number can be asked for. `prefix`: the area code without the trunk 0 (Heidelberg 06221: `6221`); `name`:
+ * the area's name (Germany: the Ortsnetz as the BNetzA writes it, "Neustadt a d Aisch"); `place`: the place the search
+ * or the address matched when it is not the area's own name (Dossenheim is in the area Heidelberg 6221); `city`: the
+ * popular city's id when the area is one (NumberCity.id, for its translated name); `popular`: one of the suggestions
+ * shown before anything is searched; `available`: a number can be requested there (false only under the carrier
+ * blocks rule, in an area where the carrier holds no number block: "no local number available for your area yet").
+ */
+export type NumberArea = {
+  prefix: string
+  name: string
+  place?: string
+  city?: string
+  popular: boolean
+  available: boolean
+}
+
+/**
+ * `data` of numberRequest.areas. `areas`: what the query found (the popular areas when it is empty). `suggested`:
+ * the areas of the address (the one given, else the saved profile's when it is in the country), best first; empty
+ * when the address names no known place. A suggestion only: any available area can be asked for. `carrierBlocksOnly`:
+ * as in NumberRequirementsData; then the empty query lists the available areas, and an area without blocks is still
+ * found (by its name, a place or the address) with `available: false`.
+ */
+export type NumberAreasData = {
+  country: KycCountry
+  areas: NumberArea[]
+  suggested: NumberArea[]
+  carrierBlocksOnly: boolean
+}
+
+/**
+ * `data` of numberBlocks.get and numberBlocks.set: whether German numbers on the install's carrier account are offered
+ * only where the carrier holds number blocks of its own (BNetzA Mitteilung 90/2026). `byDefault`: no admin chose; it
+ * is on when the install's carrier is Telnyx. `portingId`: the carrier's BNetzA porting ID (D451, Telnyx Ireland Ltd);
+ * `areas`: how many Ortsnetze it holds blocks in.
+ */
+export type NumberBlocksData = { on: boolean; byDefault: boolean; portingId: string; areas: number }
 
 /** `data` of numberRequest.countries: the countries open on this server (empty: the flag is off). */
 export type NumberRequestCountriesData = { countries: KycCountry[] }
@@ -136,6 +195,45 @@ export const numberRequestRequirements = defineAction({
   input: z.object({ country, numberType: z.enum(['local']).default('local') }).strict(),
   permission: 'settings:write',
   readOnly: true,
+})
+
+export const numberRequestAreas = defineAction({
+  name: 'numberRequest.areas',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    'Search the areas a number can be requested in: `query` is a place or an area code ("Heidelberg", "Dossenheim", "06221"); empty, the popular cities. Germany has every Ortsnetz; the UK and Ireland their listed cities. Under the carrier blocks rule (`carrierBlocksOnly`) an area without blocks has `available: false`: no local number there yet. `suggested` lists the areas of `address` (city and postal code), else of the saved profile\'s address: a suggestion, any area can be requested.',
+  input: z
+    .object({
+      country,
+      query: z.string().trim().max(100).default(''),
+      address: z
+        .object({ city: z.string().trim().max(100).optional(), postal_code: z.string().trim().max(20).optional() })
+        .strict()
+        .optional(),
+      limit: z.number().int().min(1).max(50).default(20),
+    })
+    .strict(),
+  permission: 'settings:write',
+  readOnly: true,
+})
+
+export const numberBlocksGet = defineAction({
+  name: 'numberBlocks.get',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Whether German numbers on this install's carrier account are offered only in the Ortsnetze where the carrier holds number blocks of its own (BNetzA Mitteilung 90/2026). On by default when the carrier is Telnyx.",
+  input: z.object({}).strict(),
+  permission: 'instance:admin',
+  readOnly: true,
+})
+
+export const numberBlocksSet = defineAction({
+  name: 'numberBlocks.set',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Offer German numbers on this install's carrier account only where the carrier holds number blocks of its own (on), or in every Ortsnetz (off: an install with its own licence or carrier contract). Workspaces on their own carrier account are never restricted. Requests already made are kept.",
+  input: z.object({ on: z.boolean() }).strict(),
+  permission: 'instance:admin',
 })
 
 export const numberRequestGetProfile = defineAction({
@@ -203,7 +301,7 @@ export const numberRequestCreate = defineAction({
   name: 'numberRequest.create',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
-    "Request a number in a country that needs documents: `prefix` is the city's area code (Berlin 30, London 20, Dublin 1). Hands the profile and documents to the carrier and orders a number, which costs money once the carrier approves; until then the request is pending (days). Check it with numberRequest.list.",
+    'Request a number in a country that needs documents: `prefix` is the area code (Berlin 30, Heidelberg 6221, London 20, Dublin 1; Germany takes any Ortsnetz, see numberRequest.areas). Refused with `number_request_no_local_numbers` in an area the carrier holds no number block in (the carrier blocks rule, see numberRequest.areas), and with `number_request_no_numbers` when the carrier has no free number in that area right now. Hands the profile and documents to the carrier and orders a number, which costs money once the carrier approves; until then the request is pending (days). Check it with numberRequest.list.',
   input: z
     .object({
       country,

@@ -1354,6 +1354,8 @@ export const regulatory_profiles = pgTable('regulatory_profiles', {
   legal_name: text('legal_name').notNull(),
   entity_type: text('entity_type', { enum: ['business', 'sole_trader', 'individual'] }).notNull(),
   registration_number: text('registration_number'),
+  /** The court that keeps the register (Germany: "Amtsgericht Mannheim"); optional, sent with the registration number. */
+  register_court: text('register_court'),
   website: text('website'),
   /** What the number is for, in the business's words; the UK asks that it says the number is sub-allocated to it. */
   use_case: text('use_case'),
@@ -1401,13 +1403,24 @@ export const number_requests = pgTable(
     id: id(),
     workspace_id: workspaceId(),
     country: text('country').notNull(),
-    number_type: text('number_type', { enum: ['local'] }).notNull().default('local'),
+    number_type: text('number_type', { enum: ['local'] })
+      .notNull()
+      .default('local'),
     /** National prefix without the trunk 0 (Berlin 030: 30). */
     prefix: text('prefix').notNull(),
     city: text('city').notNull(),
     assistant_id: text('assistant_id'),
     status: text('status', {
-      enum: ['requested', 'submitted', 'pending_review', 'approved', 'active', 'rejected', 'cancelled', 'needs_operator'],
+      enum: [
+        'requested',
+        'submitted',
+        'pending_review',
+        'approved',
+        'active',
+        'rejected',
+        'cancelled',
+        'needs_operator',
+      ],
     }).notNull(),
     /** Why it was rejected or could not be set up: the carrier's words or a code, for the owner and the operator. */
     reason: text('reason'),
