@@ -1243,8 +1243,9 @@ export const NUMBER_EXTRA_IN_APP: Said = { key: msg('server.api.checkout.number.
 
 /**
  * Why a workspace on a bill may not buy a number now, or null (docs/billing.md §3.2 step 6): runs before the install's
- * purchase limits. Only for workspaces on a bill while billing runs through Stripe; a number on the workspace's own
- * carrier account is not limited by billing. Instance admins buy regardless (they provision by hand).
+ * purchase limits. Only for workspaces on a bill while billing runs through Stripe (with billing off, as on a self-hosted
+ * install, only the install's purchase limits apply); a number on the workspace's own carrier account is not limited by
+ * billing. Instance admins buy regardless (they provision by hand).
  */
 export async function billingNumberRefusal(tx: Tx, actor: Actor, workspaceId: string): Promise<Said | null> {
   if (actor.permissions.includes('instance:admin')) return null
@@ -1255,10 +1256,13 @@ export async function billingNumberRefusal(tx: Tx, actor: Actor, workspaceId: st
   if (!org?.bill) return null
   if ((await billingState(tx)).inEffect !== 'stripe') return null
   const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, org.bill))
-  if (!bill || bill.status === 'comped') return null
-  if (bill.status === 'pending_payment' || !bill.checkout_confirmed_at) return NUMBER_NEEDS_CHECKOUT
-  if (!BUYS_NUMBERS.includes(bill.status)) return NUMBER_BILL_INACTIVE
-  if (bill.held_for_review_at) return NUMBER_HELD_FOR_REVIEW
+  if (!bill) return null
+  // A comped bill pays nothing, but an extra number still costs the install each month: who may add one is the same
+  // as on a paying bill, only without the balance (LIN-505).
+  const comped = bill.status === 'comped'
+  if (!comped && (bill.status === 'pending_payment' || !bill.checkout_confirmed_at)) return NUMBER_NEEDS_CHECKOUT
+  if (!comped && !BUYS_NUMBERS.includes(bill.status)) return NUMBER_BILL_INACTIVE
+  if (!comped && bill.held_for_review_at) return NUMBER_HELD_FOR_REVIEW
   const [held] = await tx
     .select({ n: sql<number>`count(*)::int` })
     .from(phone_numbers)
@@ -1285,6 +1289,7 @@ export async function billingNumberRefusal(tx: Tx, actor: Actor, workspaceId: st
   if (numbers < 1) return null
   if (!inApp) return NUMBER_EXTRA_IN_APP
   if (!(await managesBill(tx, actor, bill))) return NUMBER_OWNER_ONLY
+  if (comped) return null
   const rules = await billingRules(tx)
   const balance = await lockBalance(tx, bill.id)
   if (balance.balance_micros - balance.reserved_micros < rules.extraNumberCents * 10_000)

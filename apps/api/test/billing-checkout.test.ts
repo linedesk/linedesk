@@ -37,6 +37,7 @@ import { SIGNUP_RULES_KEY } from '../src/self-serve.ts'
 import {
   billingNumberRefusal,
   NUMBER_EXTRA_IN_APP,
+  NUMBER_OWNER_ONLY,
   CHECKOUT_STARTS_PER_MINUTE,
   CHECKOUT_TOO_OFTEN,
   CHECKOUT_UNAVAILABLE,
@@ -842,6 +843,28 @@ describe('numbers on a billed workspace (docs/billing.md §3.2 step 6)', () => {
       if (before) await db.update(instance_settings).set({ value: before.value }).where(key)
       else await db.delete(instance_settings).where(key)
     }
+  })
+
+  test('a comped bill: the first number freely, an extra one only in the app by who manages the bill, no balance (LIN-505)', async () => {
+    const { ws, bill } = await trialWith(rid('fp'))
+    await db.update(billing_accounts).set({ status: 'comped' }).where(eq(billing_accounts.id, bill.id))
+    const owner = { actorId: ws.owner.userId, permissions: ['settings:write'], role: 'owner', workspaceId: ws.id }
+    const refusal = (actor: object) => db.transaction(tx => billingNumberRefusal(tx, actor as never, ws.id))
+    await db.update(phone_numbers).set({ purchased: false }).where(eq(phone_numbers.workspace_id, ws.id))
+    expect(await refusal({ ...owner, setupKeyId: 'sk_x' })).toBeNull()
+    await db
+      .update(phone_numbers)
+      .set({ purchased: true, carrier_account: 'install' })
+      .where(eq(phone_numbers.workspace_id, ws.id))
+    // No balance on the bill: a comped bill is never asked for one.
+    expect(await refusal(owner)).toBeNull()
+    const impersonation = { adminId: operator.userId, sessionId: 'sess_x', endsAt: new Date().toISOString() }
+    for (const extra of [{ setupKeyId: 'sk_x' }, { apiKeyId: 'key_x' }, { personalKeyId: 'pk_x' }, { impersonation }])
+      expect(await refusal({ ...owner, ...extra }), Object.keys(extra)[0]).toBe(NUMBER_EXTRA_IN_APP)
+    const member = await addMember(ws.id, 'member')
+    expect(
+      await refusal({ actorId: member.userId, permissions: ['settings:write'], role: 'member', workspaceId: ws.id }),
+    ).toBe(NUMBER_OWNER_ONLY)
   })
 
   test('phoneNumber.setup refuses a purchase before Checkout is confirmed', async () => {
