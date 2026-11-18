@@ -498,6 +498,37 @@ export function newTransferContact(list: readonly TransferDraft[], preset: Trans
 
 export const canAddTransfer = (d: Pick<Draft, 'transfers'>) => d.transfers.length < TRANSFER_CONTACTS_MAX
 
+/**
+ * The transfer list while a contact just added is still untouched (`pending`): that contact is shown last but is not
+ * part of the draft yet, so it is no change (no unsaved bar, no dot, not in the summary). The first edit of any of
+ * its fields puts it into the draft; Esc, Remove or leaving the section drops it.
+ */
+export type TransferEdit = { transfers: TransferDraft[]; pending: TransferDraft | null }
+
+/** The rows shown: the draft's contacts, then the untouched new one. */
+export const transferRows = ({ transfers, pending }: TransferEdit): TransferDraft[] =>
+  pending ? [...transfers, pending] : transfers
+
+/** Whether the row at `index` is the untouched new contact. */
+export const isPendingRow = ({ transfers, pending }: TransferEdit, index: number) =>
+  !!pending && index === transfers.length
+
+/** A field of the row at `index` changed: the untouched new contact becomes part of the draft with it. */
+export function editTransfer(edit: TransferEdit, index: number, patch: Partial<TransferDraft>): TransferEdit {
+  if (isPendingRow(edit, index))
+    return { transfers: [...edit.transfers, { ...edit.pending!, ...patch }], pending: null }
+  return { ...edit, transfers: edit.transfers.map((c, i) => (i === index ? { ...c, ...patch } : c)) }
+}
+
+/** The row at `index` removed; the untouched new contact is only dropped, the draft stays as it was. */
+export function removeTransfer(edit: TransferEdit, index: number): TransferEdit {
+  if (isPendingRow(edit, index)) return { ...edit, pending: null }
+  return { ...edit, transfers: edit.transfers.filter((_, i) => i !== index) }
+}
+
+/** Room for one more contact, counting the untouched new one. */
+export const canAddPendingTransfer = (edit: TransferEdit) => transferRows(edit).length < TRANSFER_CONTACTS_MAX
+
 /** The list with the contact at `index` moved one place up (-1) or down (+1). */
 export function moveTransfer<T>(list: readonly T[], index: number, by: -1 | 1): T[] {
   const to = index + by

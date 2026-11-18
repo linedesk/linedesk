@@ -23,10 +23,11 @@ const contact = (over: Partial<TransferDraft> = {}): TransferDraft => ({
 })
 
 const noop = () => {}
-const render = (c: TransferDraft, open = true) =>
+const render = (c: TransferDraft, open = true, isNew = false) =>
   renderToStaticMarkup(
     <ContactRow
       contact={c}
+      isNew={isNew}
       index={0}
       count={1}
       open={open}
@@ -60,4 +61,16 @@ test('briefing off: no consent hint, the row says what changes and that the call
   expect(html).toContain(', put straight through')
   // Closed, the row's summary still says it.
   expect(render(contact({ briefing: false }), false)).toContain('Rings 25s, then a message, put straight through')
+})
+
+test('a contact just added: a Remove next to Done, no status yet, a placeholder that reads as an example', () => {
+  const blank = contact({ name: '', number: '', condition: '' })
+  const html = render(blank, true, true)
+  expect(html).toMatch(/>Remove<\/span><\/button><button[^>]*><span>Done</)
+  expect(html).not.toContain('Add a number to use it')
+  expect(html).toContain('placeholder="e.g. Office"')
+  // A contact already in the list keeps only the trash button and says why it is not used.
+  const saved = render(blank, true, false)
+  expect(saved).not.toContain('>Remove</span>')
+  expect(saved).toContain('Add a number to use it')
 })

@@ -1,6 +1,12 @@
 import type { Assistant } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_SILENCE_CLOSING, disclosesAi, withDisclosure, withoutDisclosure } from '@linedesk/actions'
+import {
+  DEFAULT_SILENCE_CLOSING,
+  TRANSFER_CONTACTS_MAX,
+  disclosesAi,
+  withDisclosure,
+  withoutDisclosure,
+} from '@linedesk/actions'
 import {
   draftOf,
   draftProblem,
@@ -18,6 +24,10 @@ import {
   newTransferContact,
   moveTransfer,
   transferInactive,
+  transferRows,
+  editTransfer,
+  removeTransfer,
+  canAddPendingTransfer,
   hangUpSummary,
   silenceProblem,
   silenceSummary,
@@ -244,6 +254,35 @@ describe('transfer contacts', () => {
     expect(transferInactive({ enabled: false, number: '+1 503 555 0199' })).toBe('Off')
     expect(transferInactive({ enabled: true, number: ' ' })).toBe('Add a number to use it')
     expect(transferInactive({ enabled: true, number: '+1 503 555 0199' })).toBeNull()
+  })
+  it('keeps a contact just added out of the draft until one of its fields changes', () => {
+    const saved = withList(draftOf(assistant({ transfers: [mike] })).transfers)
+    const added = newTransferContact(saved.transfers, 'blank')
+    const edit = { transfers: saved.transfers, pending: added }
+    // Shown last, but no change: no unsaved bar, nothing in the summary, nothing refused on save.
+    expect(transferRows(edit).map(c => c.id)).toEqual(['oncall', added.id])
+    expect(isDirty(withList(edit.transfers), saved)).toBe(false)
+    expect(transferProblem(withList(edit.transfers))).toBeNull()
+    // Remove (or Esc, Done, leaving the section) drops it and leaves the draft as it was.
+    expect(removeTransfer(edit, 1)).toEqual({ transfers: saved.transfers, pending: null })
+    // The first change puts it into the draft.
+    const typed = editTransfer(edit, 1, { name: 'Office' })
+    expect(typed.pending).toBeNull()
+    expect(typed.transfers.map(c => [c.id, c.name])).toEqual([
+      ['oncall', 'Mike'],
+      [added.id, 'Office'],
+    ])
+    expect(isDirty(withList(typed.transfers), saved)).toBe(true)
+    // A change to another row leaves the new one untouched and out of the draft.
+    const other = editTransfer(edit, 0, { ring_seconds: 30 })
+    expect(other.pending).toBe(added)
+    expect(other.transfers.map(c => c.ring_seconds)).toEqual([30])
+    expect(removeTransfer(edit, 0)).toEqual({ transfers: [], pending: added })
+  })
+  it('counts the contact just added against the limit', () => {
+    const many = Array.from({ length: TRANSFER_CONTACTS_MAX - 1 }, (_, i) => ({ ...mike, id: `c${i}`, name: `C${i}` }))
+    expect(canAddPendingTransfer({ transfers: many, pending: null })).toBe(true)
+    expect(canAddPendingTransfer({ transfers: many, pending: newTransferContact(many, 'blank') })).toBe(false)
   })
 })
 

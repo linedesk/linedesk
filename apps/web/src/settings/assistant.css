@@ -626,7 +626,9 @@ a.as-chip:hover {
   color: var(--ink-muted);
   font-size: 13px;
 }
-.tc-done {
+.tc-foot-actions {
+  display: flex;
+  gap: 8px;
   margin-left: auto;
 }
 .tc-empty {

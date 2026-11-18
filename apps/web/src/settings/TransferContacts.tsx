@@ -1,7 +1,8 @@
 // Settings > Assistant > Transfers: the people the assistant puts callers through to (warm transfer),
 // each with a plain-language condition, in order. One compact row per contact; a row opens in place to
-// edit it (Done closes it). Part of the assistant's draft: saved with the page's Save. A field's error
-// shows once the field was left or a save was tried, never on a row just added.
+// edit it (Done or Esc closes it). Part of the assistant's draft: saved with the page's Save. A field's error
+// shows once the field was left or a save was tried, never on a row just added. A row just added stays out of the
+// draft until one of its fields is changed: Esc, Done, Remove or leaving the section drops it (no unsaved change).
 import { countryList, RING_SECONDS_MAX, RING_SECONDS_MIN } from '@linedesk/actions'
 import type { TransferFallback } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -17,14 +18,19 @@ import { formatNumber, outboundE164 } from '../onboarding/flow.ts'
 import { useOutboundCountries } from '../onboarding/outbound-number.ts'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import {
-  canAddTransfer,
+  canAddPendingTransfer,
+  editTransfer,
+  isPendingRow,
   moveTransfer,
   newTransferContact,
   refusedForCountry,
+  removeTransfer,
   type TransferDraft,
+  type TransferEdit,
   type TransferProblem,
   transferInactive,
   transferProblem,
+  transferRows,
 } from './assistantDraft.ts'
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { Field, Section } from './fields.tsx'
@@ -60,7 +66,8 @@ const numberTip = (countries: readonly string[] | 'any') =>
     : i18n().t('settings.transfer.numberTip', { brand: brandName() })
 
 /** The id of a contact's field, for the label and for putting the cursor there after a failed save. */
-export const transferFieldId = (index: number, field: TransferProblem['field']) => `tc-${index}-${field}`
+export const transferFieldId = (index: number, field: TransferProblem['field'] | 'row') => `tc-${index}-${field}`
+const ADD_ID = 'tc-add'
 
 type Props = {
   transfers: TransferDraft[]
@@ -85,14 +92,37 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set())
   const countries = useOutboundCountries()
   const country = useDefaultPhoneCountry()
+  /** The contact just added while none of its fields was changed: shown, but not in the draft (no change yet). */
+  const [pending, setPending] = useState<TransferDraft | null>(null)
+  /** Contacts added during this visit: their open row keeps a Remove next to Done. */
+  const [added, setAdded] = useState<ReadonlySet<string>>(new Set())
+  const edit: TransferEdit = { transfers, pending }
+  const rows = transferRows(edit)
   const problem = transferProblem({ transfers }, countries)
-  const update = (index: number, patch: Partial<TransferDraft>) =>
-    onChange(transfers.map((c, i) => (i === index ? { ...c, ...patch } : c)))
+  function apply(next: TransferEdit) {
+    if (next.transfers !== transfers) onChange(next.transfers)
+    if (next.pending !== pending) setPending(next.pending)
+  }
+  const focusName = (index: number) =>
+    setTimeout(() => document.getElementById(transferFieldId(index, 'name'))?.focus(), 0)
   function add() {
+    if (pending) {
+      setOpen(pending.id)
+      return focusName(transfers.length)
+    }
     const contact = newTransferContact(transfers, 'blank')
-    onChange([...transfers, contact])
+    setPending(contact)
+    setAdded(ids => new Set(ids).add(contact.id))
     setOpen(contact.id)
-    setTimeout(() => document.getElementById(transferFieldId(transfers.length, 'name'))?.focus(), 0)
+    focusName(transfers.length)
+  }
+  /** Done or Esc: the row closes; the untouched new contact goes away (nothing was entered). */
+  function close(index: number) {
+    setOpen(null)
+    const dropped = isPendingRow(edit, index)
+    if (dropped) setPending(null)
+    // The focus stays in the list: on the row that closed, or on Add contact when the row went away.
+    setTimeout(() => document.getElementById(dropped ? ADD_ID : transferFieldId(index, 'row'))?.focus(), 0)
   }
   return (
     <Section
@@ -100,15 +130,16 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
       title={t('settings.transfer.title')}
       description={t('settings.transfer.description')}
       actions={
-        <Button size="sm" icon="plus" disabled={!canAddTransfer({ transfers })} onClick={add}>
+        <Button id={ADD_ID} size="sm" icon="plus" disabled={!canAddPendingTransfer(edit)} onClick={add}>
           {t('settings.transfer.add')}
         </Button>
       }
       help={t('settings.transfer.help', { name: assistantName })}
     >
-      {transfers.length ? (
+      {rows.length ? (
         <ol className="tc-list">
-          {transfers.map((c, i) => {
+          {rows.map((c, i) => {
+            const isNew = isPendingRow(edit, i)
             const mine = problem?.index === i ? problem : null
             // A number refused for its country shows at once: also one saved before the server's countries changed.
             const shown =
@@ -124,17 +155,19 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
                 contact={c}
                 index={i}
                 count={transfers.length}
+                isNew={isNew}
+                added={added.has(c.id)}
                 open={open === c.id || (showErrors && !!mine)}
                 problem={shown}
                 hoursOn={hoursOn}
                 numberTip={numberTip(countries)}
                 defaultCountry={country}
                 onToggle={() => setOpen(open === c.id ? null : c.id)}
-                onClose={() => setOpen(null)}
+                onClose={() => close(i)}
                 onLeave={field => setTouched(seen => new Set(seen).add(`${c.id}:${field}`))}
-                onChange={patch => update(i, patch)}
+                onChange={patch => apply(editTransfer(edit, i, patch))}
                 onMove={by => onChange(moveTransfer(transfers, i, by))}
-                onRemove={() => onChange(transfers.filter((_, j) => j !== i))}
+                onRemove={() => apply(removeTransfer(edit, i))}
               />
             )
           })}
@@ -150,6 +183,10 @@ export type RowProps = {
   contact: TransferDraft
   index: number
   count: number
+  /** The contact was just added and none of its fields changed yet: not moved, no status yet. */
+  isNew?: boolean
+  /** Added during this visit: a Remove next to Done (the others are removed with the row's trash button). */
+  added?: boolean
   open: boolean
   /** The problem to show in this row (null: none, or not shown yet). */
   problem: TransferProblem | null
@@ -159,6 +196,7 @@ export type RowProps = {
   /** The country the phone field starts on: the workspace's (its first Linedesk number). */
   defaultCountry: string
   onToggle: () => void
+  /** Done or Esc in the open row. */
   onClose: () => void
   onLeave: (field: TransferProblem['field']) => void
   onChange: (patch: Partial<TransferDraft>) => void
@@ -188,6 +226,8 @@ export function ContactRow(props: RowProps) {
     contact: c,
     index,
     count,
+    isNew = false,
+    added = isNew,
     open,
     problem,
     hoursOn,
@@ -201,7 +241,7 @@ export function ContactRow(props: RowProps) {
     onRemove,
   } = props
   const t = useT()
-  const inactive = transferInactive(c)
+  const inactive = isNew ? null : transferInactive(c)
   const name = c.name.trim() || t('settings.transfer.newContact')
   const ringOptions: SelectOption<string>[] = RING_SECONDS.map(s => ({
     value: String(s),
@@ -212,12 +252,28 @@ export function ContactRow(props: RowProps) {
   const error = (field: TransferProblem['field']) => (problem?.field === field ? problem.message : null)
   const condition = useRef<HTMLTextAreaElement>(null)
   return (
-    <li className={cx('tc-row', inactive && 'is-off', open && 'is-open')}>
+    <li
+      className={cx('tc-row', inactive && 'is-off', open && 'is-open')}
+      onKeyDown={e => {
+        // Esc closes the open row (a list or menu inside it closes first and marks the key as handled).
+        if (e.key !== 'Escape' || !open || e.defaultPrevented) return
+        e.preventDefault()
+        e.stopPropagation()
+        onClose()
+      }}
+    >
       <div className="tc-line">
         <span className="tc-order" aria-hidden>
           {index + 1}
         </span>
-        <button type="button" className="tc-main" onClick={onToggle} aria-expanded={open} title={open ? t('common.action.close') : t('settings.transfer.edit')}>
+        <button
+          type="button"
+          id={transferFieldId(index, 'row')}
+          className="tc-main"
+          onClick={onToggle}
+          aria-expanded={open}
+          title={open ? t('common.action.close') : t('settings.transfer.edit')}
+        >
           <span className="tc-title">
             <b>{name}</b>
             <span className="tc-number">{numberLabel(c.number)}</span>
@@ -227,10 +283,37 @@ export function ContactRow(props: RowProps) {
           <span className="tc-meta">{summaryOf(c, hoursOn)}</span>
         </button>
         <span className="tc-actions">
-          <Button size="sm" variant="ghost" icon="up" title={t('settings.transfer.moveUp')} aria-label={t('settings.transfer.moveUpName', { name })} disabled={index === 0} onClick={() => onMove(-1)} />
-          <Button size="sm" variant="ghost" icon="down" title={t('settings.transfer.moveDown')} aria-label={t('settings.transfer.moveDownName', { name })} disabled={index === count - 1} onClick={() => onMove(1)} />
-          <Button size="sm" variant="ghost" icon="trash" title={t('settings.transfer.remove')} aria-label={t('settings.transfer.removeName', { name })} onClick={onRemove} />
-          <Switch on={c.enabled} onChange={on => onChange({ enabled: on })} label={t('settings.transfer.toggle', { name })} />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="up"
+            title={t('settings.transfer.moveUp')}
+            aria-label={t('settings.transfer.moveUpName', { name })}
+            disabled={isNew || index === 0}
+            onClick={() => onMove(-1)}
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="down"
+            title={t('settings.transfer.moveDown')}
+            aria-label={t('settings.transfer.moveDownName', { name })}
+            disabled={isNew || index === count - 1}
+            onClick={() => onMove(1)}
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="trash"
+            title={t('settings.transfer.remove')}
+            aria-label={t('settings.transfer.removeName', { name })}
+            onClick={onRemove}
+          />
+          <Switch
+            on={c.enabled}
+            onChange={on => onChange({ enabled: on })}
+            label={t('settings.transfer.toggle', { name })}
+          />
         </span>
       </div>
       {open && (
@@ -268,7 +351,9 @@ export function ContactRow(props: RowProps) {
             </span>
             {/* TCPA: with the briefing a transfer is an outbound call that opens with an AI voice, so the person must have
                 agreed (terms, A10). Without it nothing artificial is said to them: no hint, only what changes. */}
-            <p className="tc-consent">{t(c.briefing ? 'settings.transfer.consent' : 'settings.transfer.briefingOff')}</p>
+            <p className="tc-consent">
+              {t(c.briefing ? 'settings.transfer.consent' : 'settings.transfer.briefingOff')}
+            </p>
           </div>
           <Field id={id('condition')} label={t('settings.transfer.condition')} error={error('condition')}>
             <Textarea
@@ -309,10 +394,22 @@ export function ContactRow(props: RowProps) {
           </Field>
           <div className="tc-grid tc-grid-then">
             <Field id={`tc-${index}-ring`} label={t('settings.transfer.ringFor')}>
-              <Select id={`tc-${index}-ring`} label={t('settings.transfer.ringFor')} value={String(c.ring_seconds)} options={ringOptions} onChange={v => onChange({ ring_seconds: Number(v) })} />
+              <Select
+                id={`tc-${index}-ring`}
+                label={t('settings.transfer.ringFor')}
+                value={String(c.ring_seconds)}
+                options={ringOptions}
+                onChange={v => onChange({ ring_seconds: Number(v) })}
+              />
             </Field>
             <Field id={`tc-${index}-fallback`} label={t('settings.transfer.ifNobody')}>
-              <Select id={`tc-${index}-fallback`} label={t('settings.transfer.ifNobody')} value={c.if_no_answer} options={fallbackOptions} onChange={v => onChange({ if_no_answer: v })} />
+              <Select
+                id={`tc-${index}-fallback`}
+                label={t('settings.transfer.ifNobody')}
+                value={c.if_no_answer}
+                options={fallbackOptions}
+                onChange={v => onChange({ if_no_answer: v })}
+              />
             </Field>
           </div>
           <div className="tc-foot">
@@ -330,9 +427,17 @@ export function ContactRow(props: RowProps) {
                 <EditBusinessHours canEdit label={t('settings.transfer.setHours')} />
               </span>
             )}
-            <Button size="sm" className="tc-done" onClick={onClose} title={t('settings.transfer.doneTip')}>
-              {t('settings.transfer.done')}
-            </Button>
+            {/* Remove and Done stay together at the end, also when the row wraps on a phone. */}
+            <span className="tc-foot-actions">
+              {added && (
+                <Button size="sm" variant="ghost" onClick={onRemove}>
+                  {t('settings.transfer.remove')}
+                </Button>
+              )}
+              <Button size="sm" onClick={onClose} title={t('settings.transfer.doneTip')}>
+                {t('settings.transfer.done')}
+              </Button>
+            </span>
           </div>
         </div>
       )}
