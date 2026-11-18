@@ -90,6 +90,7 @@ import { registerSignInLinkRoutes } from './sign-in-link-routes.ts'
 import { AUTHENTICATOR_ROUTE_ACTIONS, hasAuthenticator } from './authenticator.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { previewInvitation } from './invitations.ts'
+import { createRateLimiter } from './rate-limit.ts'
 import { registerJobberWebhookRoute } from './jobber-webhook.ts'
 import { ADMIN_CHECK_FIRST, mayCreateWorkspace, WORKSPACE_CREATION_CLOSED } from './workspace-creation.ts'
 import { businessSetupFor, onboardingFor, phoneSetupFor } from './onboarding.ts'
@@ -347,8 +348,22 @@ app.post('/v1/setup', async c => {
   }
 })
 
-// Public: the invitation link shows whom it is for and which workspace, before sign-in.
-app.get('/v1/invitations/:id', async c => c.json(await previewInvitation(c.req.param('id'))))
+/** 30 previews a minute per address, as the sign-in link page: the id is 24 random bytes, this only spares the database. */
+const allowInvitationPreview = createRateLimiter({ max: 30, windowMs: 60_000 })
+
+// Public: the invitation link shows whom it is for and which workspace, before sign-in (invitations.ts). Never cached:
+// a pending one carries the address. The session is read here, before the /v1 guard: an accepted one names its
+// workspace only to the invited account signed in on this address.
+app.get('/v1/invitations/:id', async c => {
+  c.header('cache-control', 'no-store')
+  if (!allowInvitationPreview(addressBucket(clientIpOf(c)))) {
+    c.header('retry-after', '60')
+    return c.json({ ok: false, code: 'TOO_MANY_REQUESTS' }, 429)
+  }
+  const host = requestHostOf(c)
+  const session = c.req.header('cookie') ? await sessionHere(c.req.raw.headers, host) : null
+  return c.json(await previewInvitation(c.req.param('id'), session?.user ?? null, host))
+})
 
 // Public: the page the sign-in email's button opens, and its Continue (sign-in-link.ts).
 registerSignInLinkRoutes(app)

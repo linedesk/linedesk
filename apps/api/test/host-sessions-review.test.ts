@@ -228,6 +228,50 @@ describe('L-1: on a partner’s address only that partner’s invitations', () =
   })
 })
 
+describe('review of #1324, L-2: the invitation preview on a partner’s address shows only that partner’s', () => {
+  test('other tenants’ invitations are gone there, pending or accepted; the partner’s show; the install’s own shows all', async () => {
+    const { who, email } = await clientMember()
+    const here = await signInOn(HOST, who)
+    const invite = async (workspaceId: string, inviterId: string, status: 'pending' | 'accepted') => {
+      const id = uid('inv')
+      await db.insert(invitation).values({
+        id,
+        organizationId: workspaceId,
+        email,
+        role: 'member',
+        status,
+        expiresAt: new Date(Date.now() + 86_400_000),
+        inviterId,
+      })
+      return id
+    }
+    const elsewhere = await invite(own.id, own.owner.userId, 'pending')
+    const elsewhereAccepted = await invite(own.id, own.owner.userId, 'accepted')
+    const ours = await invite(client.id, client.owner.userId, 'pending')
+    const oursAccepted = await invite(client.id, client.owner.userId, 'accepted')
+    const preview = async (host: string, id: string, who?: User) => {
+      const res = await onHost(host, `/v1/invitations/${id}`, { who })
+      expect(res.status, `${host} ${id}`).toBe(200)
+      return res.json()
+    }
+
+    for (const id of [elsewhere, elsewhereAccepted]) {
+      expect(await preview(HOST, id), id).toEqual({ status: 'gone' })
+      expect(await preview(HOST, id, here), id).toEqual({ status: 'gone' })
+    }
+    expect(await preview(HOST, ours)).toMatchObject({ status: 'pending', email, workspaceName: 'Review Client' })
+    expect(await preview(HOST, oursAccepted)).toEqual({ status: 'accepted' })
+    expect(await preview(HOST, oursAccepted, here)).toEqual({ status: 'accepted', workspaceId: client.id })
+    // Another partner’s address knows none of them.
+    for (const id of [ours, oursAccepted]) expect(await preview(OTHER_HOST, id), id).toEqual({ status: 'gone' })
+    // The install’s own address answers for every workspace, as accept and list there do.
+    expect(await preview(MAIN_HOST, elsewhere)).toMatchObject({ status: 'pending', email })
+    expect(await preview(MAIN_HOST, ours)).toMatchObject({ status: 'pending', email })
+    // The partner-address session does not count on the install’s own: no workspace named there.
+    expect(await preview(MAIN_HOST, oursAccepted, here)).toEqual({ status: 'accepted' })
+  })
+})
+
 describe('L-2: no account is deleted on a partner’s address', () => {
   test('team.leave and team.removeMember with deleteAccount are main_host_only there', async () => {
     const { who } = await clientMember()

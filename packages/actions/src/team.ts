@@ -61,8 +61,11 @@ export type TeamData = {
 /** What `GET /v1/invitations/<id>` tells the invitation page before anyone signs in. */
 export type InvitationPreview =
   | { status: 'pending'; email: string; workspaceName: string; invitedBy: string; role: string }
-  /** Accepted already: the invitation page opens that workspace for its member instead of saying the link is spent. */
-  | { status: 'accepted'; email: string; workspaceId: string }
+  /**
+   * Accepted already. `workspaceId` only for the signed-in account with the invited address: the invitation page opens
+   * that workspace for its member instead of saying the link is spent. Anyone else learns nothing more.
+   */
+  | { status: 'accepted'; workspaceId?: string }
   | { status: 'expired' | 'gone' }
 
 export const teamList = defineAction({

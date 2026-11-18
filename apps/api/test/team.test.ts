@@ -169,9 +169,29 @@ describe('accepting', () => {
     await verify(invitee)
     expect((await accept(invitee, id)).status).toBe(200)
     expect(await request(invitee, 'GET', '/v1/me')).toMatchObject({ status: 200, body: { role: 'admin', workspace: { id: ws.id } } })
-    // The link opened again: the page opens the workspace for its new member.
-    expect((await request({ headers: {} }, 'GET', `/v1/invitations/${id}`)).body).toEqual({ status: 'accepted', email, workspaceId: ws.id })
+    // The link opened again: the page opens the workspace for its new member (and only for them: review of #1324, L-1).
+    expect((await request(invitee, 'GET', `/v1/invitations/${id}`)).body).toEqual({ status: 'accepted', workspaceId: ws.id })
+    // Anyone else holding the link learns that it was used, not the address or the workspace.
+    expect((await request(anonymous, 'GET', `/v1/invitations/${id}`)).body).toEqual({ status: 'accepted' })
+    expect((await request(stranger, 'GET', `/v1/invitations/${id}`)).body).toEqual({ status: 'accepted' })
+    expect((await request(ws.owner, 'GET', `/v1/invitations/${id}`)).body).toEqual({ status: 'accepted' })
     expect((await accept(invitee, id)).status).toBe(400) // used
+  })
+
+  test('the preview is never cached and is rate limited per address (review of #1324, I-1, I-2)', async () => {
+    const id = await invite(ws.owner, newEmail())
+    const from = randomIp()
+    const open = () => appRequest(`/v1/invitations/${id}`, { headers: { [FROM]: from } })
+    const first = await open()
+    expect(first.status).toBe(200)
+    expect(first.headers.get('cache-control')).toBe('no-store')
+    for (let i = 1; i < 30; i++) expect((await open()).status).toBe(200)
+    const refused = await open()
+    expect(refused.status).toBe(429)
+    expect(refused.headers.get('retry-after')).toBe('60')
+    expect(refused.headers.get('cache-control')).toBe('no-store')
+    // Another address is not affected.
+    expect((await appRequest(`/v1/invitations/${id}`, { headers: { [FROM]: randomIp() } })).status).toBe(200)
   })
 
   test('an expired invitation cannot be accepted', async () => {

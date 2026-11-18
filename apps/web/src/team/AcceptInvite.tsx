@@ -45,12 +45,13 @@ const here = () => window.location.href
 /**
  * An invitation accepted already (at a sign-in with an email code the new member joins at once), opened again: its
  * member goes into the workspace (`open`), someone signed out to the sign-in page, which leads there too (`signIn`),
- * another account reads that the link is spent (`spent`). Null: not accepted.
+ * another account reads that the link is spent (`spent`). Only the invited account signed in gets the workspace id
+ * from the server (apps/api/src/invitations.ts), so that is what decides. Null: not accepted.
  */
 export function acceptedInviteStep(invite: InvitationPreview | null, account: Account | null | undefined) {
   if (invite?.status !== 'accepted' || account === undefined) return null
   if (!account) return 'signIn'
-  return account.email.toLowerCase() === invite.email.toLowerCase() ? 'open' : 'spent'
+  return invite.workspaceId ? 'open' : 'spent'
 }
 
 /** The invitation's card, with the footer every sign-in card has; signed in, the member's own language applies. */
@@ -93,7 +94,7 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
   }, [invitationId, loadAccount, onDone])
   // Its member opening the link again lands in the workspace instead of reading that the link is spent (U6).
   const accepted = acceptedInviteStep(invite, account)
-  const workspaceId = invite?.status === 'accepted' ? invite.workspaceId : null
+  const workspaceId = invite?.status === 'accepted' ? (invite.workspaceId ?? null) : null
   useEffect(() => {
     if (opening !== null) return
     if (accepted === 'signIn') onDone()

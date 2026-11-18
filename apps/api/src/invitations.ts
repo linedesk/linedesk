@@ -5,24 +5,51 @@ import { invitation, member, organization, user } from '@linedesk/db'
 import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
 import { db } from './db.ts'
+import type { RequestHost } from './request-host.ts'
 
 /**
  * Public: the invitation page asks whom the link is for before anyone signs in. The id is the
- * secret from the email, so whoever has it may see the address and the workspace name. An accepted
- * one says so with the workspace's id: its new member, opening the link again, lands in the workspace
- * (only a member can open it; the id alone lets nobody in).
+ * secret from the email, so whoever has it may see the address and the workspace name while it is
+ * pending. An accepted one says only that (security review of #1324, L-1): its workspace id only
+ * to the signed-in account with the invited address, whose link then opens the workspace (only a
+ * member can open it; the id alone lets nobody in). Never the address, which would otherwise stay
+ * readable for as long as the link exists. On a partner's address only that partner's invitations
+ * exist (review L-2, as accept and list there: host-sessions.ts, memberships.ts `onlyHere`).
  */
-export async function previewInvitation(id: string): Promise<InvitationPreview> {
+export async function previewInvitation(
+  id: string,
+  viewer: { email: string } | null,
+  host: RequestHost,
+): Promise<InvitationPreview> {
   const [row] = await db
-    .select({ workspaceId: invitation.organizationId, email: invitation.email, role: invitation.role, status: invitation.status, expiresAt: invitation.expiresAt, workspaceName: organization.name, invitedBy: user.name })
+    .select({
+      workspaceId: invitation.organizationId,
+      email: invitation.email,
+      role: invitation.role,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+      workspaceName: organization.name,
+      invitedBy: user.name,
+      partnerId: organization.partnerId,
+    })
     .from(invitation)
     .innerJoin(organization, eq(organization.id, invitation.organizationId))
     .innerJoin(user, eq(user.id, invitation.inviterId))
     .where(eq(invitation.id, id))
-  if (row?.status === 'accepted') return { status: 'accepted', email: row.email, workspaceId: row.workspaceId }
-  if (row?.status !== 'pending') return { status: 'gone' }
+  if (!row || (host.kind === 'partner' && row.partnerId !== host.partnerId)) return { status: 'gone' }
+  if (row.status === 'accepted') {
+    const invited = viewer !== null && viewer.email.toLowerCase() === row.email.toLowerCase()
+    return invited ? { status: 'accepted', workspaceId: row.workspaceId } : { status: 'accepted' }
+  }
+  if (row.status !== 'pending') return { status: 'gone' }
   if (row.expiresAt.getTime() < Date.now()) return { status: 'expired' }
-  return { status: 'pending', email: row.email, workspaceName: row.workspaceName, invitedBy: row.invitedBy, role: row.role ?? 'member' }
+  return {
+    status: 'pending',
+    email: row.email,
+    workspaceName: row.workspaceName,
+    invitedBy: row.invitedBy,
+    role: row.role ?? 'member',
+  }
 }
 
 /**
