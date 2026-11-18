@@ -16,6 +16,7 @@
   "activate.loading": "Cargando tu plan",
   "activate.number": "Número de teléfono",
   "activate.numberNext": "Lo siguiente, justo después de empezar",
+  "activate.perMonthWorkspace": "{price} al mes por espacio de trabajo",
   "activate.startPlan": "Empezar mi plan",
   "activate.startTrial": "Empezar prueba gratuita",
   "activate.stepCharge": "Primer cobro",

@@ -16,6 +16,7 @@
   "activate.loading": "プランを読み込んでいます",
   "activate.number": "電話番号",
   "activate.numberNext": "開始直後に取得",
+  "activate.perMonthWorkspace": "ワークスペースごとに月額{price}",
   "activate.startPlan": "プランを開始",
   "activate.startTrial": "無料トライアルを開始",
   "activate.stepCharge": "初回請求",

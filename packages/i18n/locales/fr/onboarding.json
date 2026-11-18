@@ -16,6 +16,7 @@
   "activate.loading": "Chargement de votre forfait",
   "activate.number": "Numéro de téléphone",
   "activate.numberNext": "Ensuite, juste après le démarrage",
+  "activate.perMonthWorkspace": "{price} par mois et par espace de travail",
   "activate.startPlan": "Démarrer mon forfait",
   "activate.startTrial": "Démarrer l'essai gratuit",
   "activate.stepCharge": "Premier prélèvement",

@@ -3957,8 +3957,8 @@
     },
     "admin.bills.move.text": {
       "by": "ai",
-      "out": "7903ac73a898edb4149fa97fda9da73fb4293cb50f2e664a927d97c5d9146884",
-      "src": "0d455ed20eb0d02bdc159236f38b670e56d642ba9feb9c85037368e1e442fb26"
+      "out": "6a5f5978e801e6b5631a44eb84473f5f1fdc61003aa3583d65425865b1cabc79",
+      "src": "86141dcc49c8b0d70207571479e42f4f8be61ae577913e59f6e542e08e4d7d5e"
     },
     "admin.bills.move.title": {
       "by": "ai",
@@ -4012,8 +4012,8 @@
     },
     "admin.bills.owner.text": {
       "by": "ai",
-      "out": "7fabfe5fc3b8e46e580a7d1ebe37140376bb38622efafbc7d663f42b5a6dd366",
-      "src": "b4a0b4b87f69874ea13a52a1a0d2d0d8758f21983878b9ba0740f4a1e5498a8d"
+      "out": "86de3e44c4b2d86e817d5d10e468063a045537b0eb2aa162e6b0fa2ccb5a2992",
+      "src": "f3a4efb2ae665d4b6c9ba41bdb4f4b2f1f92d37421f3c4982dc113345bd7bef4"
     },
     "admin.bills.owner.title": {
       "by": "ai",
@@ -11145,10 +11145,10 @@
       "out": "876168f43575caacab0e0ce820c8798e29d0ee187691404a5350d8117ae03823",
       "src": "9ba67d81d121001c733731fbaf7e612e5e16a9d07f3de2951583bc168cf2515e"
     },
-    "auth.signup.planNowYearly": {
+    "auth.signup.planNowYearlyTotal": {
       "by": "ai",
-      "out": "881eb8769b365a8d8546adf420fc0f394b1bca35d310d78f7ff7378ebf172435",
-      "src": "109ecbc6d9487ecfdfcadb822f6c00391269fe45b152a05ede3087cb3f8dd6eb"
+      "out": "35d0e4ffe7bf03f94e79506b72d6bf3408d1cbb543f13e95fccbf8350728c35b",
+      "src": "3c68d3ab95ac53558bd80abc7078660dc7cf25b5c7f13eb1e2c51364569a2347"
     },
     "auth.signup.refused.blockedDomain": {
       "by": "ai",
@@ -12364,6 +12364,16 @@
       "by": "ai",
       "out": "a8bec2facac8528964a60c773a737f00a0085d33c3850b1c1daa3d9923129bfc",
       "src": "9f7c91a045632f16016eb0e051396364d25f1ee4a320cb8ce32b515f98d1245f"
+    },
+    "common.price.billedYearly": {
+      "by": "ai",
+      "out": "f3ebe044b6b0ce2d9ba96a75e97cc33be3be1785e9ffe68029d19c742a963e66",
+      "src": "f6f60960af8077cc3a0f7a84052c792b8c76c647959c5c8411a0bf8d242249ef"
+    },
+    "common.price.yearEach": {
+      "by": "ai",
+      "out": "03f0132c4012a9ac1aeeae68d8112361c2b2d459a25faaa5693532646b9149d9",
+      "src": "e25c637d355eee0b2714bcc9bdca8526eb69be867ff6c2c0d67e47d52fbafc61"
     },
     "common.provider.addCalendar": {
       "by": "ai",
@@ -18455,16 +18465,6 @@
       "out": "f49464f500c688ce8c13aea743f3057ff5e5ebe249c8c816dfac78f7206641fd",
       "src": "391e405152779acc6b0f9429f3a4e27baf2af0deab2c37ba792311efa767d676"
     },
-    "onboarding.activate.billedMonthly": {
-      "by": "ai",
-      "out": "bbea44afd37b214ba8136c39d792cfb6711fb896754ecd4120c1010f1c8d91c0",
-      "src": "939935691daa7e44f9d75575d0fe1a6d6ff79c632a801983a54e7a8163276b5a"
-    },
-    "onboarding.activate.billedYearly": {
-      "by": "ai",
-      "out": "572e3bacaccb8a159b9a4dc3b17ac1e71bd981f86f2baca218b710c74d536348",
-      "src": "a3fe80efd5124145e6a56c8fbec4527e52e3f38aa9801cfd83eb5186da09d19c"
-    },
     "onboarding.activate.business": {
       "by": "ai",
       "out": "6eb0f94937ba38dae4febb803851bb1cdd3012e8a554ff129358f08142209c03",
@@ -18520,10 +18520,10 @@
       "out": "f3ab196a0dde3bed73d9bc199abebc3bbe2374426919ac6219a4167e16417e13",
       "src": "fd22192cd23328092b34cc7563717c4fa2c45ca082b5a4c9bfd9d89d6570b08d"
     },
-    "onboarding.activate.perMonth": {
+    "onboarding.activate.perMonthWorkspace": {
       "by": "ai",
-      "out": "3942158e105fb2808b23dc2217d84cab652bd4da06ed80e14e038c1f3ecc112f",
-      "src": "abab8490f00beebbb00fa7e13ea3b9a9275b22ff4093aff2f7616c679f6bdb56"
+      "out": "a8df0991b4e07a0e7bf6a0b62de75cc656e2e920f1f81daf129851ea3fae74d0",
+      "src": "92c7c93b1227895adfefa0f4eafd304efc587a82b038daef8675401ac1c32f2d"
     },
     "onboarding.activate.startPlan": {
       "by": "ai",
@@ -24160,11 +24160,6 @@
       "out": "3d518837b6531767377eaa8e8f512d5f56b2bf4622503e3a80e6319fd352855f",
       "src": "e74bc6fac796137c84ceb8475db92bf29d3f7944fca58f1d7bdfc9100d522480"
     },
-    "settings.billing.plan.clientsYearly": {
-      "by": "ai",
-      "out": "20537e2952057735e4616c206282ce068b358c6a20ff4ca687fc48c0bf31a419",
-      "src": "09e77d7d0b71649a676131769163dd0e38d8daa3df4b3fe872762f1788805bb5"
-    },
     "settings.billing.plan.comped": {
       "by": "ai",
       "out": "fcb5178dd6c8c717d184fee042558f30698aaad62497fb99f3642da866bd0d50",
@@ -24199,11 +24194,6 @@
       "by": "ai",
       "out": "8af4cb63c1310f81ee57c05f72e6e65f34c303c4fec01d3a1b9286a4fc022064",
       "src": "44a799fabab88dd4c08e2556f28678fae9e029da56a323147860dcaf21448b5b"
-    },
-    "settings.billing.plan.partnerYearly": {
-      "by": "ai",
-      "out": "7e83337ef915a9dfa0e1683767aa5fef53b2df04405faee47398fd97aa2c94f0",
-      "src": "cebe726c73ea1e0d7127506adc3963340c8fbf9ffe4e9610f0488f3292896d38"
     },
     "settings.billing.plan.renews": {
       "by": "ai",
@@ -24249,11 +24239,6 @@
       "by": "ai",
       "out": "3c46539dcc1548799ddd906a92493dc214aabf5505f01b9812a5d107058ec3c6",
       "src": "a9c6703e3edcf15fb347a76c05512d0e77cc01adf4fb1d9e926feebb5f80b25f"
-    },
-    "settings.billing.plan.yearly": {
-      "by": "ai",
-      "out": "65e1ebe54607e9e3d66df498191f588504ae432c259dcd6ef1b7596c2ace903c",
-      "src": "1055cdbd8b3638d9b6d9bc5df7228eeb80d3df67ecb9fb1e8791fffd127b8ad5"
     },
     "settings.billing.portal.button": {
       "by": "ai",
@@ -32600,20 +32585,20 @@
       "out": "dca370981f6531ea1acb56c1ab2a001f402ee2196ec92f5f6959db0ddb36901f",
       "src": "5e712baf71a8c22dfec5c6cc72f721aa9d74fcd9771a915827bce9c0cb8a5fea"
     },
-    "team.partner.bill.priceMonthly": {
+    "team.partner.bill.price": {
       "by": "ai",
-      "out": "c8410ae172a8af174438983e6e60f43dd784eb09c9aaedaf4219ea78a7e75faf",
-      "src": "aca39f8efaca6e5d0d3a18f51a546601b10dc9377e0622dc748e9628a3eff1b5"
-    },
-    "team.partner.bill.priceYearly": {
-      "by": "ai",
-      "out": "a84f80832a7b9ddab472cd66c05b619727cbddccecb81e8ffd0a2e319132a227",
-      "src": "8be38b0dc9ab19a0eb669b9b22ea82d85e43d5491e92aacc2dcdedab57428299"
+      "out": "695be05139b7e9560c339862e0e582c5847979029ec759b7d697b80ab909d80c",
+      "src": "3eec3ef1dfdd7ebe4dfb760096e5ef6f76fff455624def364f6b6b00f7df1493"
     },
     "team.partner.bill.waitsForOwner": {
       "by": "ai",
       "out": "fc3611fc671ca434372051ee68920a4850d0001ff1a293b099c26c969952feb6",
       "src": "8f7a8948ee296c4385aef43e14c7562aa13183d004ddb44eb5162f3cf53e1e62"
+    },
+    "team.partner.bill.yearNote": {
+      "by": "ai",
+      "out": "317eb46328995f42447eabcbbd791584d9b1675792078bb42df31719e04278c9",
+      "src": "861960e0df60cec2edea0fd0e7ed4d61dd2df9a12652c44cc0cca3fca3521ae6"
     },
     "team.partner.billing.title": {
       "by": "ai",
@@ -34232,13 +34217,13 @@
     },
     "team.partner.setup.activate.chargeMonthly": {
       "by": "ai",
-      "out": "d6c3365e486b6648792ff087023826de1b780ae1c613c5f738987990ca9ba9e3",
-      "src": "c363191bb4095d9d9bb46fec2ef3c0b777cc9cd6ec8f7233cddd336fb274985f"
+      "out": "b646cfc4e7777e05cda6696c575dba6621e6f967f0b9c877bf9fc1be8e1329dc",
+      "src": "9b72de91ad07b020487c0a7946e7819c8893a2f052454fdf2c1f67acbb4db598"
     },
     "team.partner.setup.activate.chargeYearly": {
       "by": "ai",
-      "out": "ff6a42395789c94533ce6f94f8addc014034d9ce7f1ba68b15ee7030e2536e99",
-      "src": "59e8890fab6a0d47c2e74b1fbd5a7654121c9f4b86bf4bafb0030bfd628d9383"
+      "out": "a1057b2a02e1a7e2ee15faf4cbf048c9a1dbc05089ea4d9b2ffb55b20a912f42",
+      "src": "0108365595cab0bf9d9a0ced8f67de570341817d8ae85b7ae14b39cf9f07f5fb"
     },
     "team.partner.setup.activate.clients": {
       "by": "ai",
@@ -34279,11 +34264,6 @@
       "by": "ai",
       "out": "b258828172873ce6c3fe585144487fcc0868f943990654ea3b8d8591e96632e4",
       "src": "2b56eeca245fdf00b27a54cb77c4492bf36d34303dd14d70329ce7b68c42510b"
-    },
-    "team.partner.setup.activate.price": {
-      "by": "ai",
-      "out": "cb9e074080dab90a7bf02b149646d7db609098809dd0de3987faec5d71bf084f",
-      "src": "127d01ec77592cd6a1c89f899ebd58e46abe2367e7b56e75f64da0b85b5f765c"
     },
     "team.partner.setup.activate.summary": {
       "by": "ai",
@@ -38534,8 +38514,8 @@
     },
     "admin.bills.move.text": {
       "by": "ai",
-      "out": "26ecd5ae6680c3bfd53268dbb7f6722a6bc7334de9a1e8ef380a616a956f4ab4",
-      "src": "0d455ed20eb0d02bdc159236f38b670e56d642ba9feb9c85037368e1e442fb26"
+      "out": "5740624207173ed1113322bfde5378e1f4a456366e51a8e1bf0a3bf62f1888cf",
+      "src": "86141dcc49c8b0d70207571479e42f4f8be61ae577913e59f6e542e08e4d7d5e"
     },
     "admin.bills.move.title": {
       "by": "ai",
@@ -38589,8 +38569,8 @@
     },
     "admin.bills.owner.text": {
       "by": "ai",
-      "out": "43d59764709f3e366a1e927e839274b988513d493daba993d0431c7572f64dba",
-      "src": "b4a0b4b87f69874ea13a52a1a0d2d0d8758f21983878b9ba0740f4a1e5498a8d"
+      "out": "93cf50a16bfe9ec9da905f1115f077637222bdea9da3fe43d1e552d3e2399d90",
+      "src": "f3a4efb2ae665d4b6c9ba41bdb4f4b2f1f92d37421f3c4982dc113345bd7bef4"
     },
     "admin.bills.owner.title": {
       "by": "ai",
@@ -45722,10 +45702,10 @@
       "out": "c5a1cf10d12250f316c6471aa300d3359bd820cde8779d3082da70bbe64e3cec",
       "src": "9ba67d81d121001c733731fbaf7e612e5e16a9d07f3de2951583bc168cf2515e"
     },
-    "auth.signup.planNowYearly": {
+    "auth.signup.planNowYearlyTotal": {
       "by": "ai",
-      "out": "4a229c31121755a04044ed6b3f777841a4398ceb83063740f998ed5ec63814ae",
-      "src": "109ecbc6d9487ecfdfcadb822f6c00391269fe45b152a05ede3087cb3f8dd6eb"
+      "out": "3ae49e5ede80c51e6af4e8f9d3dd39ef3761fd4c563b86441044be0b7843b8ea",
+      "src": "3c68d3ab95ac53558bd80abc7078660dc7cf25b5c7f13eb1e2c51364569a2347"
     },
     "auth.signup.refused.blockedDomain": {
       "by": "ai",
@@ -46941,6 +46921,16 @@
       "by": "ai",
       "out": "a19f10c2303825c12a712d5d0f8319d343ab1e53748a93bcedb636e999f895f6",
       "src": "9f7c91a045632f16016eb0e051396364d25f1ee4a320cb8ce32b515f98d1245f"
+    },
+    "common.price.billedYearly": {
+      "by": "ai",
+      "out": "36cd305b06c0859ca13109248e0112029c97e6a2be60934b404572298b8a5908",
+      "src": "f6f60960af8077cc3a0f7a84052c792b8c76c647959c5c8411a0bf8d242249ef"
+    },
+    "common.price.yearEach": {
+      "by": "ai",
+      "out": "cd7190d3bdbef8c46344354690223fc4cbe39a43cc295b1bd2401346a31c8a07",
+      "src": "e25c637d355eee0b2714bcc9bdca8526eb69be867ff6c2c0d67e47d52fbafc61"
     },
     "common.provider.addCalendar": {
       "by": "ai",
@@ -53032,16 +53022,6 @@
       "out": "9d55acb6ac4e4dc72a193d4f21ef66e6c21fa3ea3253d5dc3dfc9dfe4b657d85",
       "src": "391e405152779acc6b0f9429f3a4e27baf2af0deab2c37ba792311efa767d676"
     },
-    "onboarding.activate.billedMonthly": {
-      "by": "ai",
-      "out": "cb30de2e10a08e433be9959d2f4e3311006529cdc566d0fdbf2d6c382353d143",
-      "src": "939935691daa7e44f9d75575d0fe1a6d6ff79c632a801983a54e7a8163276b5a"
-    },
-    "onboarding.activate.billedYearly": {
-      "by": "ai",
-      "out": "b2e745dee97fc3d37145a2dda118cf216d0b741f0f28fd1884c49b4cd6011ab4",
-      "src": "a3fe80efd5124145e6a56c8fbec4527e52e3f38aa9801cfd83eb5186da09d19c"
-    },
     "onboarding.activate.business": {
       "by": "ai",
       "out": "07cb3ac8a31812acbf584708df01e8b5a8adce1a97ae28b85459a36647bad805",
@@ -53097,10 +53077,10 @@
       "out": "11b37ec1f853a4a3e1b0f09f298592db368a5d726f48a0b481f08b6b7c73317d",
       "src": "fd22192cd23328092b34cc7563717c4fa2c45ca082b5a4c9bfd9d89d6570b08d"
     },
-    "onboarding.activate.perMonth": {
+    "onboarding.activate.perMonthWorkspace": {
       "by": "ai",
-      "out": "46531b20aa4477233fdb61ad468742007e3e37496ffc534fae4d923f236446c0",
-      "src": "abab8490f00beebbb00fa7e13ea3b9a9275b22ff4093aff2f7616c679f6bdb56"
+      "out": "eac68402f7e391f8273f9959584bb288e6c14e35414be9ae521eef86d0bd24f7",
+      "src": "92c7c93b1227895adfefa0f4eafd304efc587a82b038daef8675401ac1c32f2d"
     },
     "onboarding.activate.startPlan": {
       "by": "ai",
@@ -58737,11 +58717,6 @@
       "out": "c24a66ad60f60f22887c4df4b1f8734883b3c263174d5205d54a0a276622973a",
       "src": "e74bc6fac796137c84ceb8475db92bf29d3f7944fca58f1d7bdfc9100d522480"
     },
-    "settings.billing.plan.clientsYearly": {
-      "by": "ai",
-      "out": "ccec40d21f27cbe3d91ca9c6f3867b896d856006075a50c585d2e9e4e28384c9",
-      "src": "09e77d7d0b71649a676131769163dd0e38d8daa3df4b3fe872762f1788805bb5"
-    },
     "settings.billing.plan.comped": {
       "by": "ai",
       "out": "ac4195bc853fb9fa484a27700520dfa0720bd142c5f18f04aa65460d824dfd8d",
@@ -58776,11 +58751,6 @@
       "by": "ai",
       "out": "eaa3838a28e88b95320023324c17baad010f033d10c4c2d5d7d5e5d5d3488300",
       "src": "44a799fabab88dd4c08e2556f28678fae9e029da56a323147860dcaf21448b5b"
-    },
-    "settings.billing.plan.partnerYearly": {
-      "by": "ai",
-      "out": "0357ccc9b9b4775e42b064a5fcfed7f555cbed5edb89acae3501ea8d2e84df6a",
-      "src": "cebe726c73ea1e0d7127506adc3963340c8fbf9ffe4e9610f0488f3292896d38"
     },
     "settings.billing.plan.renews": {
       "by": "ai",
@@ -58826,11 +58796,6 @@
       "by": "ai",
       "out": "058195225ca15fef3a7511b7fd171cf5978475251c1a0d5b92e32836bae1e81d",
       "src": "a9c6703e3edcf15fb347a76c05512d0e77cc01adf4fb1d9e926feebb5f80b25f"
-    },
-    "settings.billing.plan.yearly": {
-      "by": "ai",
-      "out": "d9f897c4caa99d1d1a8e5221bf92e377c3a87b88b48929d68f69ad13efa9d6b8",
-      "src": "1055cdbd8b3638d9b6d9bc5df7228eeb80d3df67ecb9fb1e8791fffd127b8ad5"
     },
     "settings.billing.portal.button": {
       "by": "ai",
@@ -67177,20 +67142,20 @@
       "out": "8ba0885d124b34f4a9873952fb75e1a6c5c26ac51fd0c324a15568fa26276718",
       "src": "5e712baf71a8c22dfec5c6cc72f721aa9d74fcd9771a915827bce9c0cb8a5fea"
     },
-    "team.partner.bill.priceMonthly": {
+    "team.partner.bill.price": {
       "by": "ai",
-      "out": "922d78f617e310959109bb9e525d6f3878e7e99d5cd6ae9872c2f4369528c741",
-      "src": "aca39f8efaca6e5d0d3a18f51a546601b10dc9377e0622dc748e9628a3eff1b5"
-    },
-    "team.partner.bill.priceYearly": {
-      "by": "ai",
-      "out": "1be439958e5208829884f8be887c06b2f1336aa66825bfdcb0a39efdeacc8c8a",
-      "src": "8be38b0dc9ab19a0eb669b9b22ea82d85e43d5491e92aacc2dcdedab57428299"
+      "out": "b14ca46167247b25c6c8100bed191947eb7885224a72e98158ed9ccd919bf2e9",
+      "src": "3eec3ef1dfdd7ebe4dfb760096e5ef6f76fff455624def364f6b6b00f7df1493"
     },
     "team.partner.bill.waitsForOwner": {
       "by": "ai",
       "out": "cdc4391aaedeeca54129150be95104b6c1de58219d6fcce1fbcffc91dcec836e",
       "src": "8f7a8948ee296c4385aef43e14c7562aa13183d004ddb44eb5162f3cf53e1e62"
+    },
+    "team.partner.bill.yearNote": {
+      "by": "ai",
+      "out": "d6ce07999edea3420fad09242d51561026833c9ba97c9c4ae00d6baf6cc40661",
+      "src": "861960e0df60cec2edea0fd0e7ed4d61dd2df9a12652c44cc0cca3fca3521ae6"
     },
     "team.partner.billing.title": {
       "by": "ai",
@@ -68809,13 +68774,13 @@
     },
     "team.partner.setup.activate.chargeMonthly": {
       "by": "ai",
-      "out": "88f50bbc2f08ca42c3aa3f9f6215fddc3778435fff8b54d5f2db4f75ce220c85",
-      "src": "c363191bb4095d9d9bb46fec2ef3c0b777cc9cd6ec8f7233cddd336fb274985f"
+      "out": "ae5cb12a246c06b22f5c407fe2fd8795b3348dc5cd609fae7f218a6aa00d02c7",
+      "src": "9b72de91ad07b020487c0a7946e7819c8893a2f052454fdf2c1f67acbb4db598"
     },
     "team.partner.setup.activate.chargeYearly": {
       "by": "ai",
-      "out": "f9663d4514396863b93db29ce1692cafe2edc6bfd621f540f45919d903b1c83c",
-      "src": "59e8890fab6a0d47c2e74b1fbd5a7654121c9f4b86bf4bafb0030bfd628d9383"
+      "out": "5e7c178a3c1d5d1d97942362c074ea1c0fcf7f64722949ab70bba146041b4c75",
+      "src": "0108365595cab0bf9d9a0ced8f67de570341817d8ae85b7ae14b39cf9f07f5fb"
     },
     "team.partner.setup.activate.clients": {
       "by": "ai",
@@ -68856,11 +68821,6 @@
       "by": "ai",
       "out": "318f449224b17831302fc696e692acedacbca2ecba1c79c0fb18e23b362661cc",
       "src": "2b56eeca245fdf00b27a54cb77c4492bf36d34303dd14d70329ce7b68c42510b"
-    },
-    "team.partner.setup.activate.price": {
-      "by": "ai",
-      "out": "482bb641aa4dd1946f9c5d52ed0efcb7fbb7b7c7fd441d42e354ce151e061c82",
-      "src": "127d01ec77592cd6a1c89f899ebd58e46abe2367e7b56e75f64da0b85b5f765c"
     },
     "team.partner.setup.activate.summary": {
       "by": "ai",
@@ -73111,8 +73071,8 @@
     },
     "admin.bills.move.text": {
       "by": "ai",
-      "out": "a8a03e8a6ec7ad0dcdf93c8b02079ed85dfd56769079ea6f2aa0cde175c1bd16",
-      "src": "0d455ed20eb0d02bdc159236f38b670e56d642ba9feb9c85037368e1e442fb26"
+      "out": "c69aa3bdd07a323263080ad65cd84e02ede8aae7519396453d29590fe10616ba",
+      "src": "86141dcc49c8b0d70207571479e42f4f8be61ae577913e59f6e542e08e4d7d5e"
     },
     "admin.bills.move.title": {
       "by": "ai",
@@ -73166,8 +73126,8 @@
     },
     "admin.bills.owner.text": {
       "by": "ai",
-      "out": "91bcb624986ef638d1d14fa723b279e0bc0eadd126a6a46fde2b543a71de2724",
-      "src": "b4a0b4b87f69874ea13a52a1a0d2d0d8758f21983878b9ba0740f4a1e5498a8d"
+      "out": "bfdc4cb5eec33a39360421c6d822a58b2cb0decd9b348c88ec6c1f81eb263317",
+      "src": "f3a4efb2ae665d4b6c9ba41bdb4f4b2f1f92d37421f3c4982dc113345bd7bef4"
     },
     "admin.bills.owner.title": {
       "by": "ai",
@@ -80299,10 +80259,10 @@
       "out": "da6b69191e9dbdde937b3b6bdec5e5fef9de6222ac20afa0223dd0be5f8cd3ff",
       "src": "9ba67d81d121001c733731fbaf7e612e5e16a9d07f3de2951583bc168cf2515e"
     },
-    "auth.signup.planNowYearly": {
+    "auth.signup.planNowYearlyTotal": {
       "by": "ai",
-      "out": "827db07ff9bd7444e274c55da3d02231e80dcb2a120d1687d62e69ea1722bf11",
-      "src": "109ecbc6d9487ecfdfcadb822f6c00391269fe45b152a05ede3087cb3f8dd6eb"
+      "out": "510afdd6fb2ac2dc02c0eeaad77417eda653943ff2d6223cf8023bcf3ec3e733",
+      "src": "3c68d3ab95ac53558bd80abc7078660dc7cf25b5c7f13eb1e2c51364569a2347"
     },
     "auth.signup.refused.blockedDomain": {
       "by": "ai",
@@ -81518,6 +81478,16 @@
       "by": "ai",
       "out": "5a5462df6bb38b980ca48a41c2b4447333b6014d50ea4d8e42548b4d27ebeb4b",
       "src": "9f7c91a045632f16016eb0e051396364d25f1ee4a320cb8ce32b515f98d1245f"
+    },
+    "common.price.billedYearly": {
+      "by": "ai",
+      "out": "f4e85aa4a830a5f4f701d23325ea9f4ffb946bf2a996687c062aedeb4dc34b4a",
+      "src": "f6f60960af8077cc3a0f7a84052c792b8c76c647959c5c8411a0bf8d242249ef"
+    },
+    "common.price.yearEach": {
+      "by": "ai",
+      "out": "74fa124098f8d07b56d984e5393477ef383be6000cde96406eb41dbf1e8b1545",
+      "src": "e25c637d355eee0b2714bcc9bdca8526eb69be867ff6c2c0d67e47d52fbafc61"
     },
     "common.provider.addCalendar": {
       "by": "ai",
@@ -87609,16 +87579,6 @@
       "out": "391e405152779acc6b0f9429f3a4e27baf2af0deab2c37ba792311efa767d676",
       "src": "391e405152779acc6b0f9429f3a4e27baf2af0deab2c37ba792311efa767d676"
     },
-    "onboarding.activate.billedMonthly": {
-      "by": "ai",
-      "out": "2f5bafa9df150b7f6be9ebac4d37e4ffb3e3114bd4bf0a279dc69a230371583a",
-      "src": "939935691daa7e44f9d75575d0fe1a6d6ff79c632a801983a54e7a8163276b5a"
-    },
-    "onboarding.activate.billedYearly": {
-      "by": "ai",
-      "out": "b069ee605ec4288a67ba797a4c9e4bd642985a2125b926610f04e4a82961f529",
-      "src": "a3fe80efd5124145e6a56c8fbec4527e52e3f38aa9801cfd83eb5186da09d19c"
-    },
     "onboarding.activate.business": {
       "by": "ai",
       "out": "4b000c1c5bffef44b1c57b6416fd2c2f7c6cc53a45ccc9fa552f7b0fab3e9f7d",
@@ -87674,10 +87634,10 @@
       "out": "ff10e3f5b34297cd5ca5cedcab6457bdd73db1796a927ccb3254ae8a1f53edc8",
       "src": "fd22192cd23328092b34cc7563717c4fa2c45ca082b5a4c9bfd9d89d6570b08d"
     },
-    "onboarding.activate.perMonth": {
+    "onboarding.activate.perMonthWorkspace": {
       "by": "ai",
-      "out": "eb5d85aff2dfa7a5ea85fb3cd207e437bffefe1cff6905b8f4c61767249b027d",
-      "src": "abab8490f00beebbb00fa7e13ea3b9a9275b22ff4093aff2f7616c679f6bdb56"
+      "out": "a55dd5ac4f8adf152abddf7d0827f62b324a28f74f2ac56072d60fc212a41b3b",
+      "src": "92c7c93b1227895adfefa0f4eafd304efc587a82b038daef8675401ac1c32f2d"
     },
     "onboarding.activate.startPlan": {
       "by": "ai",
@@ -93314,11 +93274,6 @@
       "out": "3793de7f8baa9e3710453efd1178b71ef1dbee84ee8b86e4b2dd13a94cd1f015",
       "src": "e74bc6fac796137c84ceb8475db92bf29d3f7944fca58f1d7bdfc9100d522480"
     },
-    "settings.billing.plan.clientsYearly": {
-      "by": "ai",
-      "out": "203037623de6bb1715224af76c4ca9e5541304eb360d043cf33d17cad8ea5f6b",
-      "src": "09e77d7d0b71649a676131769163dd0e38d8daa3df4b3fe872762f1788805bb5"
-    },
     "settings.billing.plan.comped": {
       "by": "ai",
       "out": "6a4bc80cc87764963411b4e08c58323d2f265073ece975e6848b5ef74525f2fa",
@@ -93353,11 +93308,6 @@
       "by": "ai",
       "out": "11b8c22f1d7a3b9710118351ddaa649d8a6145cd1bb6f180a9cab86a5d327b42",
       "src": "44a799fabab88dd4c08e2556f28678fae9e029da56a323147860dcaf21448b5b"
-    },
-    "settings.billing.plan.partnerYearly": {
-      "by": "ai",
-      "out": "c5c1ff04d4008d80151960b08d69efff398392607d76bb256e21d9d2ddce5f5b",
-      "src": "cebe726c73ea1e0d7127506adc3963340c8fbf9ffe4e9610f0488f3292896d38"
     },
     "settings.billing.plan.renews": {
       "by": "ai",
@@ -93403,11 +93353,6 @@
       "by": "ai",
       "out": "b66214688a21001c56e294f16bf60c35b0a28d1a715fbf68048a4dbcce2a7bb8",
       "src": "a9c6703e3edcf15fb347a76c05512d0e77cc01adf4fb1d9e926feebb5f80b25f"
-    },
-    "settings.billing.plan.yearly": {
-      "by": "ai",
-      "out": "62dafc518247d46bf91906e8c88383140d213398af5a9b59a033879544871325",
-      "src": "1055cdbd8b3638d9b6d9bc5df7228eeb80d3df67ecb9fb1e8791fffd127b8ad5"
     },
     "settings.billing.portal.button": {
       "by": "ai",
@@ -101754,20 +101699,20 @@
       "out": "398fffc33f2362490a63f3e76443b7603e7462fdbb1910ca66e5d4205571cbb8",
       "src": "5e712baf71a8c22dfec5c6cc72f721aa9d74fcd9771a915827bce9c0cb8a5fea"
     },
-    "team.partner.bill.priceMonthly": {
+    "team.partner.bill.price": {
       "by": "ai",
-      "out": "8a6fca3354127c6207d6eb31e5a76f61d513e0e1a60e68435f7179c089e9ab02",
-      "src": "aca39f8efaca6e5d0d3a18f51a546601b10dc9377e0622dc748e9628a3eff1b5"
-    },
-    "team.partner.bill.priceYearly": {
-      "by": "ai",
-      "out": "b0e6bcd0068c48e536395681be9766a949ee8104fe372162ea1383cb8df2187d",
-      "src": "8be38b0dc9ab19a0eb669b9b22ea82d85e43d5491e92aacc2dcdedab57428299"
+      "out": "b267fca81e95d9ebd68268d3a12e42eeba421bd1140e648c530315899ad2c509",
+      "src": "3eec3ef1dfdd7ebe4dfb760096e5ef6f76fff455624def364f6b6b00f7df1493"
     },
     "team.partner.bill.waitsForOwner": {
       "by": "ai",
       "out": "e36c405e5c82b4b8c87e1b0f6aa93dc4ddb0ad1078472f0869f08a358870953b",
       "src": "8f7a8948ee296c4385aef43e14c7562aa13183d004ddb44eb5162f3cf53e1e62"
+    },
+    "team.partner.bill.yearNote": {
+      "by": "ai",
+      "out": "19a73548535656c7acea4db539e4dac8f78298ccb87584f0f80eaa8a050cc7b3",
+      "src": "861960e0df60cec2edea0fd0e7ed4d61dd2df9a12652c44cc0cca3fca3521ae6"
     },
     "team.partner.billing.title": {
       "by": "ai",
@@ -103386,13 +103331,13 @@
     },
     "team.partner.setup.activate.chargeMonthly": {
       "by": "ai",
-      "out": "41d91eb7a9eb18b809a82707152b7e0092f75278e10209e1fc64cb37883060e2",
-      "src": "c363191bb4095d9d9bb46fec2ef3c0b777cc9cd6ec8f7233cddd336fb274985f"
+      "out": "4038d99221f135744a94963534289225d33921b11b66d526c48aeb8b13c19b51",
+      "src": "9b72de91ad07b020487c0a7946e7819c8893a2f052454fdf2c1f67acbb4db598"
     },
     "team.partner.setup.activate.chargeYearly": {
       "by": "ai",
-      "out": "060ca44d9701bcb9bdde82f465254163e5f3f7eac4c851d28dc71bff998d64e6",
-      "src": "59e8890fab6a0d47c2e74b1fbd5a7654121c9f4b86bf4bafb0030bfd628d9383"
+      "out": "79819c5e9ccf4f7f1193a874b39940be45ce8b7749a8ef02828ae802203e94a2",
+      "src": "0108365595cab0bf9d9a0ced8f67de570341817d8ae85b7ae14b39cf9f07f5fb"
     },
     "team.partner.setup.activate.clients": {
       "by": "ai",
@@ -103433,11 +103378,6 @@
       "by": "ai",
       "out": "f6cd065e6b2886b8420cc6de261b3c5c66284430e2ccee248e8b0586c50d2cc7",
       "src": "2b56eeca245fdf00b27a54cb77c4492bf36d34303dd14d70329ce7b68c42510b"
-    },
-    "team.partner.setup.activate.price": {
-      "by": "ai",
-      "out": "88e6e15b87e1ec67efccbf8d88a197f596d5b47f7ce18d4d2e6152dc969442a2",
-      "src": "127d01ec77592cd6a1c89f899ebd58e46abe2367e7b56e75f64da0b85b5f765c"
     },
     "team.partner.setup.activate.summary": {
       "by": "ai",
@@ -107688,8 +107628,8 @@
     },
     "admin.bills.move.text": {
       "by": "ai",
-      "out": "a0a301876c02d21195dbeb34ace45fac3d39ab8c133f7d46e86f95bf3c57e2a2",
-      "src": "0d455ed20eb0d02bdc159236f38b670e56d642ba9feb9c85037368e1e442fb26"
+      "out": "1b193b7f851f57d2be8dd15baa77853d7f015772d9b765c4eca1bfb1970695ce",
+      "src": "86141dcc49c8b0d70207571479e42f4f8be61ae577913e59f6e542e08e4d7d5e"
     },
     "admin.bills.move.title": {
       "by": "ai",
@@ -107743,8 +107683,8 @@
     },
     "admin.bills.owner.text": {
       "by": "ai",
-      "out": "867017c2b64ad369b813fc74c7bb28a109351210249d3204952d51baab63db5c",
-      "src": "b4a0b4b87f69874ea13a52a1a0d2d0d8758f21983878b9ba0740f4a1e5498a8d"
+      "out": "2e3c8a5be738f8e80586a74a58a0c9c1de4709fd5c52116295f614768a378e2f",
+      "src": "f3a4efb2ae665d4b6c9ba41bdb4f4b2f1f92d37421f3c4982dc113345bd7bef4"
     },
     "admin.bills.owner.title": {
       "by": "ai",
@@ -114876,10 +114816,10 @@
       "out": "c132a1ffbf933b48c347cf33eff7ed1252547eff3b90512b6e6705aed61fe369",
       "src": "9ba67d81d121001c733731fbaf7e612e5e16a9d07f3de2951583bc168cf2515e"
     },
-    "auth.signup.planNowYearly": {
+    "auth.signup.planNowYearlyTotal": {
       "by": "ai",
-      "out": "9e06b5b4653da3927ab2dd5c88b504648cd3aa969de890f84f8e43a473bc40ba",
-      "src": "109ecbc6d9487ecfdfcadb822f6c00391269fe45b152a05ede3087cb3f8dd6eb"
+      "out": "9638c5a236356cc2c0eb2fa0e369ff787974981b3ef50814a963671603b83a3c",
+      "src": "3c68d3ab95ac53558bd80abc7078660dc7cf25b5c7f13eb1e2c51364569a2347"
     },
     "auth.signup.refused.blockedDomain": {
       "by": "ai",
@@ -116095,6 +116035,16 @@
       "by": "ai",
       "out": "60e4e6f8abba6f4a608392c4791291620d78e86b07dbc6a30255d68f0be53c5e",
       "src": "9f7c91a045632f16016eb0e051396364d25f1ee4a320cb8ce32b515f98d1245f"
+    },
+    "common.price.billedYearly": {
+      "by": "ai",
+      "out": "9c11fda8832f764a337c025d108d7d9cafe0a3af9f719fc0f3edf6e2947bc0a1",
+      "src": "f6f60960af8077cc3a0f7a84052c792b8c76c647959c5c8411a0bf8d242249ef"
+    },
+    "common.price.yearEach": {
+      "by": "ai",
+      "out": "870cc3f42c930ac0d1d74fff0b65282a9e513ac523dbd2d8b5cf7211f42d52f7",
+      "src": "e25c637d355eee0b2714bcc9bdca8526eb69be867ff6c2c0d67e47d52fbafc61"
     },
     "common.provider.addCalendar": {
       "by": "ai",
@@ -122186,16 +122136,6 @@
       "out": "5b4bd8fa892cfaf0887a465d56f51e887a29bbc903af7fd2656c7190a72c810d",
       "src": "391e405152779acc6b0f9429f3a4e27baf2af0deab2c37ba792311efa767d676"
     },
-    "onboarding.activate.billedMonthly": {
-      "by": "ai",
-      "out": "cad6dd60cffb4fa958c5b28b64a2cefc2302c2ccc17bb97e7eeaee3ecb45899e",
-      "src": "939935691daa7e44f9d75575d0fe1a6d6ff79c632a801983a54e7a8163276b5a"
-    },
-    "onboarding.activate.billedYearly": {
-      "by": "ai",
-      "out": "591df575317e11c7490bba88af1a0b211bc04773e70be574e82c0b0d0336c010",
-      "src": "a3fe80efd5124145e6a56c8fbec4527e52e3f38aa9801cfd83eb5186da09d19c"
-    },
     "onboarding.activate.business": {
       "by": "ai",
       "out": "0d1eea46d9f16cf69587909aa860d2decacf9a68da7fda9c6bfa4eecb9874cee",
@@ -122251,10 +122191,10 @@
       "out": "17449224e4ed9f7daea6b264b342d98b9715e4db8f564b29c17b66efa4670445",
       "src": "fd22192cd23328092b34cc7563717c4fa2c45ca082b5a4c9bfd9d89d6570b08d"
     },
-    "onboarding.activate.perMonth": {
+    "onboarding.activate.perMonthWorkspace": {
       "by": "ai",
-      "out": "79c7f1172607307bed1e7a6a25f714e09d5559372d41eaac8557ec7cdc50ff30",
-      "src": "abab8490f00beebbb00fa7e13ea3b9a9275b22ff4093aff2f7616c679f6bdb56"
+      "out": "291f680c41122887e3155468a41d69bfcddc2955865816a1ee609e72a296edc2",
+      "src": "92c7c93b1227895adfefa0f4eafd304efc587a82b038daef8675401ac1c32f2d"
     },
     "onboarding.activate.startPlan": {
       "by": "ai",
@@ -127891,11 +127831,6 @@
       "out": "57ecaf421e6e8e5516d9a652c0ac3cd981ea79eb733cea3c3aa3b2a3fa2958e1",
       "src": "e74bc6fac796137c84ceb8475db92bf29d3f7944fca58f1d7bdfc9100d522480"
     },
-    "settings.billing.plan.clientsYearly": {
-      "by": "ai",
-      "out": "a7ce9fcd90d029198f6348a415cdfe634842b03e1c43c3be7ccafe3429f26595",
-      "src": "09e77d7d0b71649a676131769163dd0e38d8daa3df4b3fe872762f1788805bb5"
-    },
     "settings.billing.plan.comped": {
       "by": "ai",
       "out": "21ac8abe27dc689670643dfb89ae7374c12526e8e81b5698ad65ec91c0145e6e",
@@ -127930,11 +127865,6 @@
       "by": "ai",
       "out": "7a6ffa5f84ad8ccca38c08508546298bf6dabb65997b27a06c1f34c1e487b653",
       "src": "44a799fabab88dd4c08e2556f28678fae9e029da56a323147860dcaf21448b5b"
-    },
-    "settings.billing.plan.partnerYearly": {
-      "by": "ai",
-      "out": "bbcba7e5db77e4e7b167bd17158658c7bcdfb539a3706ccec833ec680f9b40aa",
-      "src": "cebe726c73ea1e0d7127506adc3963340c8fbf9ffe4e9610f0488f3292896d38"
     },
     "settings.billing.plan.renews": {
       "by": "ai",
@@ -127980,11 +127910,6 @@
       "by": "ai",
       "out": "34ec29471d679fa0608fa99e420d855b6409da9a396ebf9e0ad4b422059b73ea",
       "src": "a9c6703e3edcf15fb347a76c05512d0e77cc01adf4fb1d9e926feebb5f80b25f"
-    },
-    "settings.billing.plan.yearly": {
-      "by": "ai",
-      "out": "5eec733f9596a73e8bf6ddc6683134fd57230da42b9b8ef0de20fb402123bec3",
-      "src": "1055cdbd8b3638d9b6d9bc5df7228eeb80d3df67ecb9fb1e8791fffd127b8ad5"
     },
     "settings.billing.portal.button": {
       "by": "ai",
@@ -136331,20 +136256,20 @@
       "out": "6e6c6302b9c9f9effc5f2902dd06e57e6627066c494b716418489640d21c46d2",
       "src": "5e712baf71a8c22dfec5c6cc72f721aa9d74fcd9771a915827bce9c0cb8a5fea"
     },
-    "team.partner.bill.priceMonthly": {
+    "team.partner.bill.price": {
       "by": "ai",
-      "out": "68bc2fcbfe0c95876cca2b95efbb7388632caebb2d86a041f66ed9c64a460d64",
-      "src": "aca39f8efaca6e5d0d3a18f51a546601b10dc9377e0622dc748e9628a3eff1b5"
-    },
-    "team.partner.bill.priceYearly": {
-      "by": "ai",
-      "out": "2cc5de3f3411b982c8cf8fb6d18871512553d777af4fa430abe0a44546e7e3b6",
-      "src": "8be38b0dc9ab19a0eb669b9b22ea82d85e43d5491e92aacc2dcdedab57428299"
+      "out": "4005218f642423de0a05cde4a220fa6bcdbf1ca11dcd728c8e510e4f883beea8",
+      "src": "3eec3ef1dfdd7ebe4dfb760096e5ef6f76fff455624def364f6b6b00f7df1493"
     },
     "team.partner.bill.waitsForOwner": {
       "by": "ai",
       "out": "e75a0031d4d8992af0b107bcf10dff817c923489589cd3002afe4b33b9ba45ee",
       "src": "8f7a8948ee296c4385aef43e14c7562aa13183d004ddb44eb5162f3cf53e1e62"
+    },
+    "team.partner.bill.yearNote": {
+      "by": "ai",
+      "out": "38bb5c4797b3e1d6dd1d8e4f042a8184b4e430999bafffb6411ac353c63b870a",
+      "src": "861960e0df60cec2edea0fd0e7ed4d61dd2df9a12652c44cc0cca3fca3521ae6"
     },
     "team.partner.billing.title": {
       "by": "ai",
@@ -137963,13 +137888,13 @@
     },
     "team.partner.setup.activate.chargeMonthly": {
       "by": "ai",
-      "out": "b6e6f7ea469191e679496457f31b3481071eee8931a1251d15279bc8458eca22",
-      "src": "c363191bb4095d9d9bb46fec2ef3c0b777cc9cd6ec8f7233cddd336fb274985f"
+      "out": "00ca4dfcdcf142b84a3f95f999d131573d662907d1f36a4406ccffe8f126aefd",
+      "src": "9b72de91ad07b020487c0a7946e7819c8893a2f052454fdf2c1f67acbb4db598"
     },
     "team.partner.setup.activate.chargeYearly": {
       "by": "ai",
-      "out": "dc6089cb3337b827a537030ed2bcb66dc5d3110ebdbd1ef8c38fb0ad6136f99e",
-      "src": "59e8890fab6a0d47c2e74b1fbd5a7654121c9f4b86bf4bafb0030bfd628d9383"
+      "out": "cd5cebd4eab5ac4d7f9f4d821c517d8aa95e91fe9fb54e08116153d2358d3779",
+      "src": "0108365595cab0bf9d9a0ced8f67de570341817d8ae85b7ae14b39cf9f07f5fb"
     },
     "team.partner.setup.activate.clients": {
       "by": "ai",
@@ -138010,11 +137935,6 @@
       "by": "ai",
       "out": "232b3942deced598d2ca86399011edb6e97a8a79583d1150d6090bf1641e5b7e",
       "src": "2b56eeca245fdf00b27a54cb77c4492bf36d34303dd14d70329ce7b68c42510b"
-    },
-    "team.partner.setup.activate.price": {
-      "by": "ai",
-      "out": "b60dd2b3bdb1f8e714c6c6e748474eaff828f1c66034ee3b9a11c8a9519e603b",
-      "src": "127d01ec77592cd6a1c89f899ebd58e46abe2367e7b56e75f64da0b85b5f765c"
     },
     "team.partner.setup.activate.summary": {
       "by": "ai",
@@ -142265,8 +142185,8 @@
     },
     "admin.bills.move.text": {
       "by": "ai",
-      "out": "1fe756e3f3302a7e5ea25e3467f2f13671882d4c3dec0b3b38c1e17e0626dbce",
-      "src": "0d455ed20eb0d02bdc159236f38b670e56d642ba9feb9c85037368e1e442fb26"
+      "out": "43bbbccc496239d056aedb6068ddd66c8999974c3f1db8bf8bd99234ce98314a",
+      "src": "86141dcc49c8b0d70207571479e42f4f8be61ae577913e59f6e542e08e4d7d5e"
     },
     "admin.bills.move.title": {
       "by": "ai",
@@ -142320,8 +142240,8 @@
     },
     "admin.bills.owner.text": {
       "by": "ai",
-      "out": "074c130117282ea32e2a56c8ea9c4ce3b14e9826bdeb7e6da91b7493096c3f91",
-      "src": "b4a0b4b87f69874ea13a52a1a0d2d0d8758f21983878b9ba0740f4a1e5498a8d"
+      "out": "e05dc0c53c13bc6b6f3e7a94428d01a3cee1268fa1401a20fc7ad16802a8baa2",
+      "src": "f3a4efb2ae665d4b6c9ba41bdb4f4b2f1f92d37421f3c4982dc113345bd7bef4"
     },
     "admin.bills.owner.title": {
       "by": "ai",
@@ -149453,10 +149373,10 @@
       "out": "19d3673ef6025b5a4f96ad18ed1f1d940bca215652cb70e068849b86188709d6",
       "src": "9ba67d81d121001c733731fbaf7e612e5e16a9d07f3de2951583bc168cf2515e"
     },
-    "auth.signup.planNowYearly": {
+    "auth.signup.planNowYearlyTotal": {
       "by": "ai",
-      "out": "6cc878400cb3b31b9c10aad8cadfcd08f0224b436413f172dabe68e78a0111b5",
-      "src": "109ecbc6d9487ecfdfcadb822f6c00391269fe45b152a05ede3087cb3f8dd6eb"
+      "out": "5b9d5467e905b409c5bd8e8c26b8aad39c95f5db843410e201528d38289419d0",
+      "src": "3c68d3ab95ac53558bd80abc7078660dc7cf25b5c7f13eb1e2c51364569a2347"
     },
     "auth.signup.refused.blockedDomain": {
       "by": "ai",
@@ -150672,6 +150592,16 @@
       "by": "ai",
       "out": "bdeefb5a59ae3a868d95a09cbe87790c304478bc18e34d0ca463cacfef090210",
       "src": "9f7c91a045632f16016eb0e051396364d25f1ee4a320cb8ce32b515f98d1245f"
+    },
+    "common.price.billedYearly": {
+      "by": "ai",
+      "out": "49966733e2bbedf285edab7fe9c0617d235cb19bd5dc2c75b4c97d4aca2f151d",
+      "src": "f6f60960af8077cc3a0f7a84052c792b8c76c647959c5c8411a0bf8d242249ef"
+    },
+    "common.price.yearEach": {
+      "by": "ai",
+      "out": "26a0b2caf3c3a34ce279337ca5adcdf08cd7e540b22df8adececc5f78550fd29",
+      "src": "e25c637d355eee0b2714bcc9bdca8526eb69be867ff6c2c0d67e47d52fbafc61"
     },
     "common.provider.addCalendar": {
       "by": "ai",
@@ -156763,16 +156693,6 @@
       "out": "6b623668e93f15575781b3cf4a3909f5cafa353fec6fb598afa8ac1c2463f1e1",
       "src": "391e405152779acc6b0f9429f3a4e27baf2af0deab2c37ba792311efa767d676"
     },
-    "onboarding.activate.billedMonthly": {
-      "by": "ai",
-      "out": "79a1131d9b6eb92ad507ea9c4874f8cd183cbf52b1eba176327c8471e64f4601",
-      "src": "939935691daa7e44f9d75575d0fe1a6d6ff79c632a801983a54e7a8163276b5a"
-    },
-    "onboarding.activate.billedYearly": {
-      "by": "ai",
-      "out": "277de8740ea97d98ff28ae95bad03414eade889c147a87da4bb1b781ae8c544a",
-      "src": "a3fe80efd5124145e6a56c8fbec4527e52e3f38aa9801cfd83eb5186da09d19c"
-    },
     "onboarding.activate.business": {
       "by": "ai",
       "out": "a4b1ff8ed3a3acf35fb25adf767b9c525791a1d34891efd14500a1886dfa754c",
@@ -156828,10 +156748,10 @@
       "out": "df0cf46c817112446513ea5128749f0d7ac71311b0da26300193b86ef045964d",
       "src": "fd22192cd23328092b34cc7563717c4fa2c45ca082b5a4c9bfd9d89d6570b08d"
     },
-    "onboarding.activate.perMonth": {
+    "onboarding.activate.perMonthWorkspace": {
       "by": "ai",
-      "out": "c73d7310e8090c3531d4b4c1fba5af53036e1c2b9ffde439f53332be4f65f104",
-      "src": "abab8490f00beebbb00fa7e13ea3b9a9275b22ff4093aff2f7616c679f6bdb56"
+      "out": "4cf7ba0f7c93d107b53a2b0d38f05bf309a0f84a05cc6e89057385d3b10f6ddb",
+      "src": "92c7c93b1227895adfefa0f4eafd304efc587a82b038daef8675401ac1c32f2d"
     },
     "onboarding.activate.startPlan": {
       "by": "ai",
@@ -162468,11 +162388,6 @@
       "out": "ed34242d7dd946572c2f452232bce220dcb55a10b770806441d37e8f3d80dedd",
       "src": "e74bc6fac796137c84ceb8475db92bf29d3f7944fca58f1d7bdfc9100d522480"
     },
-    "settings.billing.plan.clientsYearly": {
-      "by": "ai",
-      "out": "d29304c58734e88b0f7d254f7d84f8179056f775071513f730ee83f2fdb3aa34",
-      "src": "09e77d7d0b71649a676131769163dd0e38d8daa3df4b3fe872762f1788805bb5"
-    },
     "settings.billing.plan.comped": {
       "by": "ai",
       "out": "4fdbaffc5b76bedd2d4eb527c642c6f3f72f71fb3f281d32d6bc46ea1f8e9409",
@@ -162507,11 +162422,6 @@
       "by": "ai",
       "out": "47e288ed2ac9f9168ba4023e4bc87597e314252846e746d06e87889e455c1838",
       "src": "44a799fabab88dd4c08e2556f28678fae9e029da56a323147860dcaf21448b5b"
-    },
-    "settings.billing.plan.partnerYearly": {
-      "by": "ai",
-      "out": "1e30d16da88edc5a8af351ba6e7fc5fac253657502787861b1a1f5fe6b4d180e",
-      "src": "cebe726c73ea1e0d7127506adc3963340c8fbf9ffe4e9610f0488f3292896d38"
     },
     "settings.billing.plan.renews": {
       "by": "ai",
@@ -162557,11 +162467,6 @@
       "by": "ai",
       "out": "3bcfbf6328c3fda3bdf3086ff77597a6af8d4b946f960a5fa37b0236e0b1e4e9",
       "src": "a9c6703e3edcf15fb347a76c05512d0e77cc01adf4fb1d9e926feebb5f80b25f"
-    },
-    "settings.billing.plan.yearly": {
-      "by": "ai",
-      "out": "d75d9d57daf923b2d1738c4bb5e9a47bc1173f2d7ac10ad8b646337601ba4df2",
-      "src": "1055cdbd8b3638d9b6d9bc5df7228eeb80d3df67ecb9fb1e8791fffd127b8ad5"
     },
     "settings.billing.portal.button": {
       "by": "ai",
@@ -170908,20 +170813,20 @@
       "out": "a35d3f5c0edbc270021b435a8c0c2e5582e1beb48b29c015cb85ef05a8a27df5",
       "src": "5e712baf71a8c22dfec5c6cc72f721aa9d74fcd9771a915827bce9c0cb8a5fea"
     },
-    "team.partner.bill.priceMonthly": {
+    "team.partner.bill.price": {
       "by": "ai",
-      "out": "e8d67a33b55ebef7e9a86ba60c95e4d4be4f16d33622a4039cc9618cc1c9536e",
-      "src": "aca39f8efaca6e5d0d3a18f51a546601b10dc9377e0622dc748e9628a3eff1b5"
-    },
-    "team.partner.bill.priceYearly": {
-      "by": "ai",
-      "out": "a7286d32038c6ecfd000362e68d7765235fa22331dcde711e3582d5a54111ac0",
-      "src": "8be38b0dc9ab19a0eb669b9b22ea82d85e43d5491e92aacc2dcdedab57428299"
+      "out": "5e19437bea32e6713db4eb126b36c7af17e0ffb44dfb2b61424b840bba12c40f",
+      "src": "3eec3ef1dfdd7ebe4dfb760096e5ef6f76fff455624def364f6b6b00f7df1493"
     },
     "team.partner.bill.waitsForOwner": {
       "by": "ai",
       "out": "65598bbe51a1cc3f933a139b42ca29b88ad5b752c4fff19284e73c8a0ca76ca1",
       "src": "8f7a8948ee296c4385aef43e14c7562aa13183d004ddb44eb5162f3cf53e1e62"
+    },
+    "team.partner.bill.yearNote": {
+      "by": "ai",
+      "out": "04bb0fcffdbd16038e91573d407e96869982a280664dab2ccdae4c88bc77b859",
+      "src": "861960e0df60cec2edea0fd0e7ed4d61dd2df9a12652c44cc0cca3fca3521ae6"
     },
     "team.partner.billing.title": {
       "by": "ai",
@@ -172540,13 +172445,13 @@
     },
     "team.partner.setup.activate.chargeMonthly": {
       "by": "ai",
-      "out": "f6aa710a72f22061cf64a8e810eca2da141be84b852681182484f794cc75987e",
-      "src": "c363191bb4095d9d9bb46fec2ef3c0b777cc9cd6ec8f7233cddd336fb274985f"
+      "out": "5097e7feed13ba0be9000aeba086f0439c0a09074313218f26703bc40f3ef3be",
+      "src": "9b72de91ad07b020487c0a7946e7819c8893a2f052454fdf2c1f67acbb4db598"
     },
     "team.partner.setup.activate.chargeYearly": {
       "by": "ai",
-      "out": "1a6c9c7718855470a1b40b4c147670be93b9e511f06adeebdccdf265d795236e",
-      "src": "59e8890fab6a0d47c2e74b1fbd5a7654121c9f4b86bf4bafb0030bfd628d9383"
+      "out": "b487abd955f4edea1cc22d8e20131558a03b166d80db1ffbcb64f6ca0953c59e",
+      "src": "0108365595cab0bf9d9a0ced8f67de570341817d8ae85b7ae14b39cf9f07f5fb"
     },
     "team.partner.setup.activate.clients": {
       "by": "ai",
@@ -172587,11 +172492,6 @@
       "by": "ai",
       "out": "752a8af74f88f06530cab302a6dd67240e1e2a2a6cf16c1a957c704fdfc0a5f2",
       "src": "2b56eeca245fdf00b27a54cb77c4492bf36d34303dd14d70329ce7b68c42510b"
-    },
-    "team.partner.setup.activate.price": {
-      "by": "ai",
-      "out": "2e3913e785ff2caf02df0bf97c077a1fcb10207d5b570b847fe9f51a060b143c",
-      "src": "127d01ec77592cd6a1c89f899ebd58e46abe2367e7b56e75f64da0b85b5f765c"
     },
     "team.partner.setup.activate.summary": {
       "by": "ai",

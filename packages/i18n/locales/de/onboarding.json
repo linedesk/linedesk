@@ -16,6 +16,7 @@
   "activate.loading": "Dein Tarif wird geladen",
   "activate.number": "Telefonnummer",
   "activate.numberNext": "Als Nächstes, direkt nach dem Start",
+  "activate.perMonthWorkspace": "{price} pro Monat und Workspace",
   "activate.startPlan": "Meinen Tarif starten",
   "activate.startTrial": "Kostenlose Testphase starten",
   "activate.stepCharge": "Erste Abbuchung",

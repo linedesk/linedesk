@@ -70,6 +70,8 @@
   "phoneCountry.allCountries": "Alle Länder",
   "phoneCountry.searchPlaceholder": "Land oder {code} suchen",
   "poweredBy": "Bereitgestellt von <b>{brand}</b>",
+  "price.billedYearly": "{amount} jährlich abgerechnet",
+  "price.yearEach": "je {amount} pro Jahr",
   "provider.addCalendar": "Füge unter Server-Admin › Anbieter eine Kalender-App hinzu.",
   "provider.addVoice": "Füge unter Server-Admin › Anbieter die Sprachdienste hinzu.",
   "provider.askOwner": "Frag die Person, die den Server betreibt.",

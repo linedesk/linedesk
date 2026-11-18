@@ -70,6 +70,8 @@
   "phoneCountry.allCountries": "すべての国",
   "phoneCountry.searchPlaceholder": "国名または{code}で検索",
   "poweredBy": "<b>{brand}</b>で稼働",
+  "price.billedYearly": "年額{amount}を一括請求",
+  "price.yearEach": "1件あたり年額{amount}",
   "provider.addCalendar": "サーバー管理 › プロバイダーでカレンダーアプリを追加してください。",
   "provider.addVoice": "サーバー管理 › プロバイダーで音声サービスを追加してください。",
   "provider.askOwner": "サーバーの管理者に確認してください。",
