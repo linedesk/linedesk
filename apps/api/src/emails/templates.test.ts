@@ -365,7 +365,7 @@ describe('sign-in code', () => {
     expect(email.html).not.toMatch(/href=/)
   })
 
-  it('with a link: the button first, then "Or enter this code", the code, expiry and the do-not-share line', () => {
+  it('with a link: the button first, then "Or enter this code", the smaller code, expiry and the do-not-share line', () => {
     const email = signInCodeEmail('482913', ORIGIN, 'en', LINK)
     expect(email.subject).toBe('482913 is your Linedesk sign-in code')
     // The only link in the card is the button, to the site the email names.
@@ -373,7 +373,10 @@ describe('sign-in code', () => {
     expect(email.html).toContain('>Sign in to Linedesk</a>')
     const button = email.html.indexOf('>Sign in to Linedesk</a>')
     const orCode = email.html.indexOf('Or enter this code on the sign-in page at desk.example.com:')
-    const code = email.html.search(/font-size:34px[^>]*>482913</)
+    // Under a button the code is the fallback: smaller than on its own (34px), in a quiet outline, not a filled box.
+    const code = email.html.search(/font-size:22px[^>]*>482913</)
+    expect(email.html).not.toMatch(/font-size:34px/)
+    expect(email.html).toMatch(/border:1px solid #E7E4DE;[^>]*font-size:22px;[^>]*letter-spacing:4px;[^>]*>482913</)
     const note = email.html.lastIndexOf('expires in 10 minutes')
     expect(button).toBeGreaterThan(0)
     expect(orCode).toBeGreaterThan(button)
@@ -395,6 +398,10 @@ describe('sign-in code', () => {
     expect(email.subject).toBe('482913 is your code to finish signing up for Linedesk')
     expect(email.html).toContain('Confirm your email')
     expect(email.html).toContain('>Confirm my email</a>')
+    const button = email.html.indexOf('>Confirm my email</a>')
+    const code = email.html.search(/font-size:22px[^>]*>482913</)
+    expect(code).toBeGreaterThan(button)
+    expect(email.html).not.toMatch(/font-size:34px/)
     expect(email.text).toContain('Or enter this code on the sign-up page at desk.example.com:')
     expect(email.text).toContain("Don't share this code")
     expect(email.text).not.toMatch(/sign in/i)

@@ -12,7 +12,10 @@ import { emailBranding, emailBrandName } from '../email-brand.ts'
 
 export type Block =
   | { kind: 'text'; text: string; tone?: 'muted' }
-  /** A one-time code, large and monospaced. */
+  /**
+   * A one-time code, monospaced: large when it is the email's only way in, and smaller in a quiet outline under a
+   * button (the sign-in link), so the button reads as the way to go and the code as "or enter this code".
+   */
   | { kind: 'code'; code: string }
   /**
    * A button; `call` adds a quiet second one that dials a number (a tel: link), `second` a quiet second one that opens
@@ -107,13 +110,18 @@ const paragraphs = (text: string) => escapeHtml(text).replace(/\r?\n/g, '<br>')
 
 // ---------------------------------------------------------------- HTML
 
-function blockHtml(block: Block): string {
+/** How a block renders depends on the email: a code under a button is the fallback, not the main action. */
+type BlockContext = { hasButton: boolean }
+
+function blockHtml(block: Block, { hasButton }: BlockContext): string {
   switch (block.kind) {
     case 'text': {
       const muted = block.tone === 'muted'
       return `<p class="${muted ? 'ld-muted' : 'ld-ink'}" style="margin:0 0 16px;font-size:${muted ? 14 : 16}px;line-height:1.55;color:${muted ? MUTED : INK};">${paragraphs(block.text)}</p>`
     }
     case 'code':
+      if (hasButton)
+        return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;"><tr><td class="ld-rule ld-ink" align="center" style="border:1px solid ${LINE};border-radius:8px;padding:10px 16px;font-family:${MONO};font-size:22px;line-height:1;font-weight:600;letter-spacing:4px;color:${INK};">${escapeHtml(block.code)}</td></tr></table>`
       return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:4px 0 20px;"><tr><td class="ld-soft ld-ink" align="center" style="background:${SOFT};border-radius:10px;padding:20px 12px;font-family:${MONO};font-size:34px;line-height:1;font-weight:600;letter-spacing:8px;color:${INK};">${escapeHtml(block.code)}</td></tr></table>`
     case 'button': {
       const url = escapeHtml(checkedUrl(block.url))
@@ -229,6 +237,7 @@ function footerHtml(content: EmailContent): string {
 }
 
 function renderHtml(content: EmailContent): string {
+  const context: BlockContext = { hasButton: content.blocks.some(block => block.kind === 'button') }
   const preheader = `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${PAPER};opacity:0;">${escapeHtml(content.preheader)}${'&#847;&zwnj;&nbsp;'.repeat(30)}</div>`
   return `<!doctype html>
 <html lang="${escapeHtml(getT(content.locale).locale)}" dir="ltr">
@@ -249,7 +258,7 @@ ${preheader}
 <tr><td style="padding:0 4px 16px;font-family:${FONT};">${headerHtml(content)}</td></tr>
 <tr><td class="ld-card ld-pad" bgcolor="#FFFFFF" style="background:#FFFFFF;border:1px solid ${LINE};border-radius:14px;padding:32px;font-family:${FONT};">
 ${eyebrowHtml(content)}<h1 class="ld-ink ld-heading" style="margin:0 0 20px;font-size:24px;line-height:1.25;font-weight:650;letter-spacing:-0.01em;color:${INK};">${escapeHtml(content.heading)}</h1>
-${content.blocks.map(blockHtml).join('\n')}
+${content.blocks.map(block => blockHtml(block, context)).join('\n')}
 </td></tr>
 <tr><td class="ld-muted" style="padding:20px 4px 0;font-family:${FONT};font-size:12px;line-height:1.6;color:${MUTED};">${footerHtml(content)}</td></tr>
 </table>
