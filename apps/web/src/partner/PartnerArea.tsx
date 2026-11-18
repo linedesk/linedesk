@@ -13,10 +13,14 @@ import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { day } from '../admin/parts.tsx'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
-import { goToCheckout } from '../checkout.ts'
 import { useCountryHint } from '../countryHint.ts'
 import { Billing } from '../settings/Billing.tsx'
-import { PARTNER_AGENT_HASH, PARTNER_SETUP_HASH, rememberPartnerByHand } from '../onboarding/setup-choice.ts'
+import {
+  openPartnerActivate,
+  PARTNER_AGENT_HASH,
+  PARTNER_SETUP_HASH,
+  rememberPartnerByHand,
+} from '../onboarding/setup-choice.ts'
 import { SetupTopBar } from '../onboarding/SetupTopBar.tsx'
 import { purchaseKeys } from '../settings/billingModel.ts'
 import { CountrySelect } from '../settings/CountrySelect.tsx'
@@ -244,38 +248,25 @@ function PartnerConsole({ partner, onExit, onFirstWorkspace }: Props) {
 
 /**
  * White-label Cloud waits for its Checkout (the Clients section's own card, never a banner over every section): its
- * real price a month (the partner bill's), billed yearly or monthly, and Activate; until then up to
+ * real price a month (the partner bill's), billed yearly or monthly, and Activate, which resumes the setup's Activate
+ * step; until then up to
  * UNPAID_PARTNER_CLIENTS client workspaces are drafts. Someone else on the team reads that the owner activates it.
  * `primary`: the page's one main action once there is a client to activate it for (else New client is).
  */
 function ActivateCard({ data, primary }: { data: PartnerData; primary: boolean }) {
   const t = useT()
-  const [busy, setBusy] = useState(false)
-  const [failed, setFailed] = useState(false)
   const bill = data.bill!
   if (!bill.mine) return <Note tone="info">{t('team.partner.bill.waitsForOwner')}</Note>
-  const start = async () => {
-    setBusy(true)
-    setFailed(false)
-    try {
-      await goToCheckout(data.partner.id)
-    } catch {
-      setFailed(true)
-      setBusy(false)
-    }
-  }
   return (
     <Card title={t('team.partner.bill.activateTitle')}>
       {/* The button under the words, not in the card's head: on a phone the head has no room for both. */}
       <div className="pa-activate">
         <div className="pa-activate-text">
           <PartnerPrice price={bill.price} />
-          <p className="pa-fine">
-            {t('team.partner.bill.draftsNote', { limit: UNPAID_PARTNER_CLIENTS })}
-            {failed && <span className="help"> {t('auth.checkout.startFailed')}</span>}
-          </p>
+          <p className="pa-fine">{t('team.partner.bill.draftsNote', { limit: UNPAID_PARTNER_CLIENTS })}</p>
         </div>
-        <Button size="sm" variant={primary ? 'primary' : 'secondary'} busy={busy} onClick={() => void start()}>
+        {/* The setup's one Activate step (PartnerSetup.tsx): the drafts, the real total, Checkout; Back comes here. */}
+        <Button size="sm" variant={primary ? 'primary' : 'secondary'} onClick={() => openPartnerActivate('#partner')}>
           {t('team.partner.bill.activateButton')}
         </Button>
       </div>

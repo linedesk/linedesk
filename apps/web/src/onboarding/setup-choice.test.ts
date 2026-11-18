@@ -6,7 +6,12 @@ const {
   backToAgentSetup,
   choseManualSetup,
   ownerAgentSetupDue,
+  openPartnerActivate,
   ownerChoseByHand,
+  PARTNER_ACTIVATE_HASH,
+  PARTNER_AGENT_HASH,
+  PARTNER_CLIENTS_HASH,
+  partnerActivateBack,
   partnerChoseByHand,
   partnerLanding,
   rememberManual,
@@ -212,4 +217,23 @@ describe('set up by hand after all: every step goes back to the agent setup (202
       expect(window.location.hash).toBe('#partner/agent')
     })
   })
+})
+
+it('the one Activate step: Back leads to the page it was opened from, else the by-hand Clients step', () => {
+  const store = new Map<string, string>()
+  vi.stubGlobal('sessionStorage', {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => store.set(k, v),
+    removeItem: (k: string) => store.delete(k),
+  })
+  const location = { hash: '' }
+  vi.stubGlobal('window', { location })
+  expect(partnerActivateBack()).toBe(PARTNER_CLIENTS_HASH)
+  openPartnerActivate(PARTNER_AGENT_HASH)
+  expect(location.hash).toBe(PARTNER_ACTIVATE_HASH)
+  expect(partnerActivateBack()).toBe('#partner/agent')
+  openPartnerActivate('#partner')
+  expect(partnerActivateBack()).toBe('#partner')
+  openPartnerActivate(null)
+  expect(partnerActivateBack()).toBe('#partner/setup/clients')
 })

@@ -11,3 +11,13 @@
   align-items: start;
   min-width: 0;
 }
+/* The Clients and Activate steps: the drafts as one compact list, Add client under it. */
+.ps-clients {
+  margin: 4px 0 0;
+}
+.ps-add {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}

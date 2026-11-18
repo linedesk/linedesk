@@ -36,6 +36,7 @@ import {
   setupStepGroups,
   setupStepNames,
   startPlan,
+  type SetupStepGroup,
   stepsByGroup,
 } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
@@ -767,7 +768,7 @@ function Progress({
     [t],
   )
   const { allDone } = state.progress
-  const steps = withTestCallMade(state.progress.steps, calledHere)
+  const steps = partnerOrder(withTestCallMade(state.progress.steps, calledHere))
   // The workspace the rows are about; its buttons work right here once it is the app's active workspace.
   const selected = state.progress.workspace ?? null
   const here = selected && active?.id === selected.id ? active : null
@@ -799,8 +800,11 @@ function Progress({
         </div>
       )}
       {/* By part of the setup: the admin's own, the server's (once per install), then the picked workspace's. */}
-      {stepsByGroup(steps).map(group => (
-        <div key={group.id} className={cx('as-group', group.id === 'business' && 'as-group-ws')}>
+      {groupsInOrder(steps).map(group => (
+        <div
+          key={group.id}
+          className={cx('as-group', (group.id === 'business' || group.id === 'activate') && 'as-group-ws')}
+        >
           {group.id === 'business' && single ? (
             <WorkspaceHeading name={selected?.name ?? ''} />
           ) : group.id === 'business' ? (
@@ -811,12 +815,16 @@ function Progress({
               onPick={id => (id === NEW_WORKSPACE ? setNewWorkspace(true) : switchTo(id))}
               clients={partnerScope}
             />
-          ) : (
+          ) : group.id === 'activate' ? null : (
             <h3 className="as-group-label" id={`as-group-${group.id}`}>
               {groupLabel(group, t)}
             </h3>
           )}
-          <ul className="as-list" aria-labelledby={`as-group-${group.id}`}>
+          <ul
+            className="as-list"
+            aria-labelledby={group.id === 'activate' ? undefined : `as-group-${group.id}`}
+            aria-label={group.id === 'activate' ? t('team.partner.setup.activate.title') : undefined}
+          >
             {group.steps.map(step => (
               <Fragment key={step.id}>
                 <li className={cx('as-item', step.state)}>
@@ -885,6 +893,29 @@ function Progress({
       ) : null}
     </section>
   )
+}
+
+/**
+ * A partner owner's page before White-label Cloud runs (Janik, 2026-11-18: one flow, agent-first): agency and brand,
+ * the clients (the agent sets each up), then "Activate White-label Cloud" as the very last row, below the picked
+ * client's steps. Team invitations go out only after the Checkout, so the Team row waits until then.
+ */
+export function partnerOrder<S extends { id: string; group?: string; state: string }>(steps: readonly S[]): S[] {
+  const plan = steps.find(s => s.id === 'plan' && s.group === 'partner')
+  if (plan?.state !== 'admin_only') return [...steps]
+  return [...steps.filter(s => s !== plan && !(s.id === 'team' && s.group === 'partner')), plan]
+}
+
+/** The steps by group, in the order they come; Activate (last, see partnerOrder) as a group of its own at the end. */
+function groupsInOrder<S extends { id: string; group: SetupStepGroup; state: string }>(steps: readonly S[]) {
+  const last = steps.at(-1)
+  if (last?.id !== 'plan' || last.state !== 'admin_only') return stepsByGroup(steps)
+  const lastGroup: { id: SetupStepGroup | 'activate'; label: string; steps: S[] } = {
+    id: 'activate',
+    label: '',
+    steps: [last],
+  }
+  return [...stepsByGroup<S>(steps.slice(0, -1)), lastGroup]
 }
 
 /** A group's heading: the server's from the steps' groups; the partner's in this page's language. */
@@ -1066,7 +1097,7 @@ export function StepAction({
   onAddClient?: () => void
   /** A partner owner's page: "Add number" on a client workspace's Phone number row (it costs money). */
   onAddNumber?: () => void
-  /** A partner owner's page: the partner whose "Activate White-label Cloud" row opens its Checkout. */
+  /** A partner owner's page: the partner whose "Activate White-label Cloud" row opens the setup's Activate step. */
   activatePartnerId?: string | null
 }) {
   const t = useT()
@@ -1074,7 +1105,7 @@ export function StepAction({
     if (step.state !== 'admin_only') return null
     return (
       <span className="as-item-action">
-        <SetupActivatePartner partnerId={activatePartnerId} />
+        <SetupActivatePartner />
       </span>
     )
   }

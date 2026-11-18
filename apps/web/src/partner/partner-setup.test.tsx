@@ -6,7 +6,14 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test } from 'vitest'
 import { Clients } from './PartnerArea.tsx'
 import { BrandForm, ReviewNote } from './PartnerBrand.tsx'
-import { partnerChargeCents, partnerSetupStart, partnerSetupSteps } from './PartnerSetup.tsx'
+import {
+  ActivateStep,
+  ClientsStep,
+  PartnerTotal,
+  partnerChargeCents,
+  partnerSetupStart,
+  partnerSetupSteps,
+} from './PartnerSetup.tsx'
 
 const price = { interval: 'year' as const, planCents: 1400, seatCents: 900 }
 type Bill = NonNullable<PartnerData['bill']>
@@ -50,27 +57,81 @@ const brandHtml = (approved: boolean) => {
 const APPROVAL = 'Your branding goes live in client emails once we approve your account'
 
 test('the steps: Activate only while White-label Cloud waits for its owner’s Checkout', () => {
-  expect(partnerSetupSteps(partnerData({}))).toEqual(['agency', 'client', 'activate'])
-  expect(partnerSetupSteps(partnerData({ mine: false }))).toEqual(['agency', 'client'])
-  expect(partnerSetupSteps(partnerData({ bill: 'active' }))).toEqual(['agency', 'client'])
-  expect(partnerSetupSteps(partnerData({ bill: null }))).toEqual(['agency', 'client'])
+  expect(partnerSetupSteps(partnerData({}))).toEqual(['agency', 'clients', 'activate'])
+  expect(partnerSetupSteps(partnerData({ mine: false }))).toEqual(['agency', 'clients'])
+  expect(partnerSetupSteps(partnerData({ bill: 'active' }))).toEqual(['agency', 'clients'])
+  expect(partnerSetupSteps(partnerData({ bill: null }))).toEqual(['agency', 'clients'])
 })
 
-test('the setup opens at the step the address names, else at the first one not done', () => {
-  const all = ['agency', 'client', 'activate'] as const
-  expect(partnerSetupStart('#partner/setup', all, { brand: false, clients: 0 })).toBe('agency')
-  expect(partnerSetupStart('#partner/setup', all, { brand: true, clients: 0 })).toBe('client')
-  expect(partnerSetupStart('#partner/setup', all, { brand: true, clients: 1 })).toBe('activate')
-  expect(partnerSetupStart('#partner/setup', ['agency', 'client'], { brand: true, clients: 1 })).toBe('client')
-  expect(partnerSetupStart('#partner/setup/agency', all, { brand: true, clients: 1 })).toBe('agency')
+test('the setup opens at the step the address names, else at the brand, then the clients', () => {
+  const all = ['agency', 'clients', 'activate'] as const
+  expect(partnerSetupStart('#partner/setup', all, { brand: false })).toBe('agency')
+  expect(partnerSetupStart('#partner/setup', all, { brand: true })).toBe('clients')
+  // Activate is the end of the setup, opened only on purpose (the Clients step, the agent page, the partner area).
+  expect(partnerSetupStart('#partner/setup/activate', all, { brand: false })).toBe('activate')
+  expect(partnerSetupStart('#partner/setup/agency', all, { brand: true })).toBe('agency')
   // A step this partner does not go through (paid already) is not opened by its address.
-  expect(partnerSetupStart('#partner/setup/activate', ['agency', 'client'], { brand: true, clients: 1 })).toBe('client')
+  expect(partnerSetupStart('#partner/setup/activate', ['agency', 'clients'], { brand: true })).toBe('clients')
 })
 
 test('what Checkout charges: the base fee and a seat per client workspace, for a year or a month', () => {
   expect(partnerChargeCents(price, 1)).toBe((1400 + 900) * 12)
   expect(partnerChargeCents(price, 0)).toBe(1400 * 12)
   expect(partnerChargeCents({ ...price, interval: 'month' }, 2)).toBe(1400 + 2 * 900)
+})
+
+const totalHtml = (interval: 'year' | 'month', clients: number) =>
+  renderToStaticMarkup(<PartnerTotal price={{ ...price, interval }} clients={clients} />)
+
+test('Activate: the price a month leads, what Checkout charges today is the grey note', () => {
+  expect(totalHtml('year', 2)).toBe(
+    '<div class="price-line"><b>$14 a month + $9 a month × 2 client workspaces</b><span class="help">$384 billed yearly, charged today</span></div>',
+  )
+  expect(totalHtml('year', 0)).toContain(
+    '<b>$14 a month</b><span class="help">$168 billed yearly, charged today</span>',
+  )
+  expect(totalHtml('month', 1)).toContain(
+    '<b>$14 a month + $9 a month × 1 client workspace</b><span class="help">$23 charged today, then every month</span>',
+  )
+})
+
+const activateHtml = (clients: number) =>
+  renderToStaticMarkup(<ActivateStep data={partnerData({ clients })} onBack={() => {}} />)
+
+test('Activate is the end of the setup: each draft with Remove, the total, only Back and Activate', () => {
+  const three = activateHtml(UNPAID_PARTNER_CLIENTS)
+  expect(three.match(/>Remove</g)?.length).toBe(UNPAID_PARTNER_CLIENTS)
+  for (let i = 0; i < UNPAID_PARTNER_CLIENTS; i++) expect(three).toContain(`Client ${i}`)
+  expect(three).toContain('× 3 client workspaces')
+  // Two buttons in the footer: Back and Activate; no "later" way off to the agent or a client.
+  const foot = three.slice(three.indexOf('class="ob-foot"'))
+  expect(foot.match(/<button/g)?.length).toBe(2)
+  expect(foot).toContain('Back')
+  expect(foot).toContain('Activate White-label Cloud')
+  expect(three).not.toContain('first')
+  const none = activateHtml(0)
+  expect(none).not.toContain('>Remove<')
+  expect(none).toContain('<b>$14 a month</b>')
+})
+
+const clientsStepHtml = (clients: number) =>
+  renderToStaticMarkup(<ClientsStep data={partnerData({ clients })} last={false} onBack={() => {}} onNext={() => {}} />)
+
+test('Clients: each draft set up with the agent (the default) or by hand; Add client up to the cap; none is fine', () => {
+  const none = clientsStepHtml(0)
+  expect(none).toContain('Add client')
+  expect(none).toContain('Skip, add clients later')
+  expect(none).not.toContain('Set up with the agent')
+  const one = clientsStepHtml(1)
+  expect(one).toContain('Client 0')
+  // With the agent is the filled button, by hand the quiet one.
+  expect(one).toMatch(/k-btn-secondary[^>]*>(<[^>]+>)*Set up with the agent/)
+  expect(one).toMatch(/k-btn-ghost[^>]*>(<[^>]+>)*Set up by hand/)
+  expect(one).not.toContain('Skip, add clients later')
+  expect(one).not.toContain('disabled=""')
+  const full = clientsStepHtml(UNPAID_PARTNER_CLIENTS)
+  expect(full.match(/Set up with the agent/g)?.length).toBe(UNPAID_PARTNER_CLIENTS)
+  expect(full).toContain(`Activate White-label Cloud to add more than ${UNPAID_PARTNER_CLIENTS} client workspaces`)
 })
 
 test('before payment, no clients: one primary action (New client), Activate next to it with the real price', () => {

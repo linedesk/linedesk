@@ -1,34 +1,39 @@
-// A white-label partner owner's guided setup by hand (#partner/setup, 2026-11-18): the same full-screen steps as a
-// Cloud sign-up's onboarding (onboarding/Frame.tsx), one thing at a time. 1) Your agency: the name, logo and color the
-// clients see, with a live preview. 2) The first client: its business name makes a client workspace (a free draft until
-// White-label Cloud runs), then the owner picks how to set it up, with the AI agent or by hand. 3) Activate White-label
-// Cloud: the real price (the partner bill's) and Stripe Checkout, or set the client up first and activate later.
-// Approval never stops anything here: it only gates the brand in emails, said quietly on the brand step. The top bar
-// and the footer are the setup pages' own (SetupTopBar, SetupFoot), as in the Cloud onboarding.
+// A white-label partner owner's setup by hand (#partner/setup, 2026-11-18), the fallback to the agent page
+// (#partner/agent, agent-first): one flow of full-screen steps, as a Cloud sign-up's onboarding (onboarding/Frame.tsx).
+// 1) Your agency: the name, logo and color the clients see, with a live preview. 2) Clients: none to
+// UNPAID_PARTNER_CLIENTS drafts, each set up with the agent (the default) or by hand in its own workspace; both lead
+// back here. 3) Activate White-label Cloud, the end of the setup: the drafts (each can be removed), the real total and
+// Stripe Checkout. The agent page's Activate row and the partner area's Activate line open this same step (Janik,
+// 2026-11-18: one Activate screen). Approval never stops anything here: it only gates the brand in emails, said
+// quietly on the brand step. The top bar and the footer are the setup pages' own (SetupTopBar, SetupFoot).
 import type { MyPartner, PartnerBrandData, PartnerClient, PartnerData } from '@linedesk/actions'
+import { UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { ColorField, nameProblem, parsedColor } from '../admin/Branding.tsx'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { goToCheckout } from '../checkout.ts'
-import { useCountryHint } from '../countryHint.ts'
 import { useStepKeys } from '../onboarding/Frame.tsx'
 import { SetupFoot } from '../onboarding/SetupFoot.tsx'
 import { SetupTopBar } from '../onboarding/SetupTopBar.tsx'
-import { PARTNER_AGENT_HASH, PARTNER_SETUP_HASH, rememberPartnerByHand } from '../onboarding/setup-choice.ts'
-import { purchaseKeys } from '../settings/billingModel.ts'
+import {
+  PARTNER_AGENT_HASH,
+  openPartnerActivate,
+  PARTNER_SETUP_HASH,
+  partnerActivateBack,
+  rememberPartnerByHand,
+} from '../onboarding/setup-choice.ts'
 import { callAction } from '../settings/settings-api.ts'
-import { browserTimeZone } from '../settings/timeZones.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { refreshWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
 import { tabWorkspace } from '../tabWorkspace.ts'
-import { FormField, FormMessage, Input } from '../ui/form.tsx'
-import { RadioCard } from '../ui/controls.tsx'
-import { Icon, Note } from '../ui/kit.tsx'
+import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
+import { Button } from '../ui/kit.tsx'
+import { List, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { PriceLine, usePrice } from '../ui/price.tsx'
-import { unpaidPartner } from './PartnerArea.tsx'
+import { NewClientDialog, roomForClient, unpaidPartner } from './PartnerArea.tsx'
 import {
   BRAND_QUERY,
   brandErrorText,
@@ -46,38 +51,34 @@ import '../onboarding/onboarding.css'
 import './partner-brand.css'
 import './partner-setup.css'
 
-export type PartnerSetupStep = 'agency' | 'client' | 'activate'
-
-/** How the first client is set up: on the AI agent's page, or step by step in its own workspace. */
-export type ClientWay = 'agent' | 'hand'
+export type PartnerSetupStep = 'agency' | 'clients' | 'activate'
 
 /** The steps this partner goes through: Activate only while White-label Cloud waits for its owner's Checkout. */
 export function partnerSetupSteps(data: Pick<PartnerData, 'bill'>): PartnerSetupStep[] {
   return data.bill?.status === 'pending_payment' && data.bill.mine
-    ? ['agency', 'client', 'activate']
-    : ['agency', 'client']
+    ? ['agency', 'clients', 'activate']
+    : ['agency', 'clients']
 }
 
 /**
- * Where the setup opens: the step the hash names (`#partner/setup/<step>`), else the first one not done yet. The brand
- * is done once saved, the first client once a client workspace exists.
+ * Where the setup opens: the step the hash names (`#partner/setup/<step>`), else the brand until it is saved, then
+ * the clients. Activate is only ever opened on purpose (its own address, from the clients step, the agent page or the
+ * partner area).
  */
 export function partnerSetupStart(
   hash: string,
   steps: readonly PartnerSetupStep[],
-  done: { brand: boolean; clients: number },
+  done: { brand: boolean },
 ): PartnerSetupStep {
   const named = hash.slice(PARTNER_SETUP_HASH.length + 1) as PartnerSetupStep
   if (hash.startsWith(`${PARTNER_SETUP_HASH}/`) && steps.includes(named)) return named
-  if (!done.brand) return 'agency'
-  if (!done.clients || !steps.includes('activate')) return 'client'
-  return 'activate'
+  return done.brand ? 'clients' : 'agency'
 }
 
 /**
  * White-label Cloud's price as the partner bill has it (`planCents` and `seatCents` a month): the base fee and each
  * client workspace a month, and on the yearly plan their totals a year in the grey note under it (ui/price.tsx).
- * The activate card in the partner area and the setup's activate step show it the same way.
+ * The partner area's Activate card shows it so.
  */
 export function PartnerPrice({
   price,
@@ -97,14 +98,46 @@ export function PartnerPrice({
   )
 }
 
+/**
+ * What Activate costs with these drafts (ui/price.tsx): the price a month first ("$14 a month + $9 a month × 2 client
+ * workspaces"), and what Checkout charges right after as the grey note ("$384 billed yearly, charged today").
+ */
+export function PartnerTotal({
+  price,
+  clients,
+}: {
+  price: { interval: 'month' | 'year'; planCents: number; seatCents: number }
+  clients: number
+}) {
+  const t = useT()
+  const { money } = usePrice()
+  const total = money(partnerChargeCents(price, clients))
+  return (
+    <PriceLine
+      note={t(
+        price.interval === 'year'
+          ? 'team.partner.setup.activate.chargedYearly'
+          : 'team.partner.setup.activate.chargedMonthly',
+        { total },
+      )}
+    >
+      {t('team.partner.setup.activate.price', {
+        price: money(price.planCents),
+        seat: money(price.seatCents),
+        count: clients,
+      })}
+    </PriceLine>
+  )
+}
+
 /** What the first year (or month) of White-label Cloud costs with this many client workspaces, in cents. */
 export function partnerChargeCents(price: { interval: string; planCents: number; seatCents: number }, clients: number) {
   return (price.planCents + price.seatCents * clients) * (price.interval === 'year' ? 12 : 1)
 }
 
-/** The client this setup is about: the newest client workspace. */
-const firstClient = (clients: readonly PartnerClient[]) =>
-  [...clients].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null
+/** The client workspaces in the order they were made. */
+const inOrder = (clients: readonly PartnerClient[]) =>
+  [...clients].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 
 const goTo = (step: PartnerSetupStep) => {
   window.location.hash = `${PARTNER_SETUP_HASH}/${step}`
@@ -134,14 +167,9 @@ export function PartnerSetup({
     window.addEventListener('hashchange', follow)
     return () => window.removeEventListener('hashchange', follow)
   }, [])
-  // How the first client is set up, picked on its step; it decides where Activate and "set it up first" lead.
-  const [way, setWay] = useState<ClientWay>('agent')
   const data = query.data
-  const steps = data ? partnerSetupSteps(data) : (['agency', 'client', 'activate'] as const)
-  const step =
-    data && brand.data
-      ? partnerSetupStart(hash, steps, { brand: !!brand.data.brand, clients: data.clients.length })
-      : 'agency'
+  const steps = data ? partnerSetupSteps(data) : (['agency', 'clients', 'activate'] as const)
+  const step = data && brand.data ? partnerSetupStart(hash, steps, { brand: !!brand.data.brand }) : 'agency'
   const index = steps.indexOf(step)
 
   // i18n-dynamic: team.partner.setup.step.*
@@ -155,7 +183,8 @@ export function PartnerSetup({
     >
       <SetupTopBar
         step={{ n: index + 1, m: steps.length, name: label }}
-        agentPath={() => withAgent(partner.id)}
+        // Activate is the end of the setup: no way off to the agent there, only Back (Janik, 2026-11-18).
+        agentPath={step === 'activate' ? undefined : () => withAgent(partner.id)}
         exit={{ kind: 'finish-later', onExit: finishLater, title: t('team.partner.setup.finishLaterTitle') }}
         brand="install"
         away
@@ -177,24 +206,26 @@ export function PartnerSetup({
             data={data}
             brand={brand.data}
             onSaved={next => setQueryData(BRAND_QUERY(partner.id), next)}
-            onNext={() => goTo('client')}
+            onNext={() => goTo('clients')}
           />
-        ) : step === 'client' ? (
-          <ClientStep
+        ) : step === 'clients' ? (
+          <ClientsStep
             data={data}
-            way={way}
-            onWay={setWay}
             last={!steps.includes('activate')}
             onFirstWorkspace={onFirstWorkspace}
             onBack={() => goTo('agency')}
-            onNext={() => goTo('activate')}
+            onNext={() => {
+              // Activate's Back from here leads to this step again.
+              if (steps.includes('activate')) openPartnerActivate(null)
+              else finishLater()
+            }}
           />
         ) : (
           <ActivateStep
             data={data}
-            brandName={brand.data.brand?.name ?? data.partner.name}
-            way={way}
-            onBack={() => goTo('client')}
+            onBack={() => {
+              window.location.hash = partnerActivateBack()
+            }}
           />
         )}
       </div>
@@ -279,323 +310,248 @@ function AgencyStep({
 }
 
 /**
- * Step 2: the first client's business name makes its workspace (a draft before White-label Cloud runs), then how it is
- * set up: with the AI agent (its page sets up the partner's clients too) or step by step in the client's workspace.
+ * Step 2: the client workspaces, none to UNPAID_PARTNER_CLIENTS drafts before White-label Cloud runs. Each row is set
+ * up with the agent (the default: the agent page with that client picked) or by hand (its own onboarding, which comes
+ * back here at its end). Add client is the partner area's New client dialog; none is fine ("Skip, add clients later").
  */
-function ClientStep({
+export function ClientsStep({
   data,
-  way,
-  onWay,
   last,
   onFirstWorkspace,
   onBack,
   onNext,
 }: {
   data: PartnerData
-  way: ClientWay
-  onWay: (way: ClientWay) => void
-  /** No Activate step after this one (White-label Cloud runs): Continue goes to the way picked. */
+  /** No Activate step after this one (White-label Cloud runs): Continue ends the setup. */
   last: boolean
   onFirstWorkspace?: () => void
   onBack: () => void
   onNext: () => void
 }) {
-  const client = firstClient(data.clients)
-  return client ? (
-    <ClientWayStep data={data} client={client} way={way} onWay={onWay} last={last} onBack={onBack} onNext={onNext} />
-  ) : (
-    <NewClientStep data={data} onFirstWorkspace={onFirstWorkspace} onBack={onBack} />
-  )
-}
-
-function NewClientStep({
-  data,
-  onFirstWorkspace,
-  onBack,
-}: {
-  data: PartnerData
-  onFirstWorkspace?: () => void
-  onBack: () => void
-}) {
   const t = useT()
   const unpaid = unpaidPartner(data)
-  const hint = useCountryHint()
-  const [name, setName] = useState('')
-  const [busy, setBusy] = useState(false)
+  const clients = inOrder(data.clients)
+  const room = roomForClient(data)
+  const [adding, setAdding] = useState(false)
+  const [opening, setOpening] = useState<string | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
-  // One key per client asked for: a retry after no answer gets the client made the first time back (as NewClientDialog).
-  const [keys] = useState(() => purchaseKeys())
 
-  async function create() {
-    if (!name.trim() || busy) return
-    setBusy(true)
+  /** Sets a client up: on the agent page with it picked, or in its own workspace's onboarding by hand. */
+  async function setUp(client: PartnerClient, way: 'agent' | 'hand') {
+    if (opening) return
+    setOpening(`${way}:${client.id}`)
     setProblem(null)
+    rememberPartnerByHand(data.partner.id, way === 'hand')
     try {
-      const timeZone = browserTimeZone()
-      const input = {
-        partnerId: data.partner.id,
-        name: name.trim(),
-        ...(hint?.country ? { country: hint.country } : {}),
-        ...(timeZone ? { timeZone } : {}),
-      }
-      const res = await callAction<{ workspace: { id: string; name: string } }>('workspace.createForClient', input, {
-        idempotencyKey: keys.keyFor(JSON.stringify(input)),
-      })
-      keys.settle()
-      const made: PartnerClient = {
-        ...res.workspace,
-        createdAt: new Date().toISOString(),
-        owner: null,
-        otherMembers: [],
-        invitedByTeam: [],
-      }
-      setQueryData(PARTNER_QUERY(data.partner.id), { ...data, clients: [...data.clients, made] })
-      // In no workspace yet the server now puts the session in the new one: it loads again, and this step stays open
-      // on the hash (as NewClientDialog does).
-      if (!tabWorkspace() && onFirstWorkspace) {
-        window.location.hash = `${PARTNER_SETUP_HASH}/client`
-        onFirstWorkspace()
-        return
-      }
-      const [partner, clients] = await Promise.all([loadPartner(data.partner.id), loadClients(data.partner.id)])
-      setQueryData(PARTNER_QUERY(data.partner.id), partner)
-      setQueryData(PARTNER_CLIENTS_QUERY(data.partner.id), clients)
-      void refreshWorkspaces()
+      // By hand: the client workspace opens on its onboarding (it ends back on this step, Onboarding.tsx).
+      await switchToWorkspace(client.id, way === 'agent' ? PARTNER_AGENT_HASH : undefined)
     } catch (err) {
-      keys.settle(err)
       setProblem(partnerErrorText(err))
-      setBusy(false)
+      setOpening(null)
     }
   }
-  useStepKeys({ onEnter: () => void create(), onEscape: onBack })
+  useStepKeys(adding ? {} : { onEnter: onNext, onEscape: onBack })
 
+  const addClient = (
+    <Button
+      size="sm"
+      variant={clients.length ? 'ghost' : 'secondary'}
+      icon="plus"
+      disabled={!room}
+      onClick={() => setAdding(true)}
+    >
+      {t('team.partner.setup.clients.add')}
+    </Button>
+  )
   return (
     <>
       <div className="ob-body">
-        <h1>{t('team.partner.setup.client.title')}</h1>
+        <h1>{t('team.partner.setup.clients.title')}</h1>
         <p className="ob-lede">
-          {t(unpaid ? 'team.partner.setup.client.ledeDraft' : 'team.partner.setup.client.lede')}
+          {unpaid
+            ? t('team.partner.setup.clients.ledeDraft', { limit: UNPAID_PARTNER_CLIENTS })
+            : t('team.partner.setup.clients.lede')}
         </p>
-        <FormField id="ps-client" label={t('team.partner.clients.name')} error={problem}>
-          <Input
-            id="ps-client"
-            value={name}
-            maxLength={80}
-            autoFocus
-            placeholder={t('team.partner.setup.client.placeholder')}
-            onChange={e => setName(e.target.value)}
-          />
-        </FormField>
-      </div>
-      <SetupFoot
-        onBack={onBack}
-        onContinue={() => void create()}
-        canContinue={!!name.trim()}
-        busy={busy}
-        label={t(unpaid ? 'team.partner.setup.client.createDraft' : 'team.partner.clients.create')}
-      />
-    </>
-  )
-}
-
-function ClientWayStep({
-  data,
-  client,
-  way,
-  onWay,
-  last,
-  onBack,
-  onNext,
-}: {
-  data: PartnerData
-  client: PartnerClient
-  way: ClientWay
-  onWay: (way: ClientWay) => void
-  last: boolean
-  onBack: () => void
-  onNext: () => void
-}) {
-  const t = useT()
-  const [busy, setBusy] = useState(false)
-  const [problem, setProblem] = useState<string | null>(null)
-  const unpaid = unpaidPartner(data)
-
-  async function next() {
-    if (busy) return
-    if (!last) return onNext()
-    setBusy(true)
-    setProblem(null)
-    try {
-      await setUpClient(data.partner.id, client.id, way)
-    } catch (err) {
-      setProblem(partnerErrorText(err))
-      setBusy(false)
-    }
-  }
-  useStepKeys({ onEnter: () => void next(), onEscape: onBack })
-
-  const choices: { id: ClientWay; title: string; text: string }[] = [
-    { id: 'agent', title: t('team.partner.setup.way.agent'), text: t('team.partner.setup.way.agentText') },
-    {
-      id: 'hand',
-      title: t('team.partner.setup.way.hand'),
-      text: t('team.partner.setup.way.handText', { client: client.name }),
-    },
-  ]
-  return (
-    <>
-      <div className="ob-body">
-        <h1>{t('team.partner.setup.way.title')}</h1>
-        <Note tone="success">
-          {t(unpaid ? 'team.partner.setup.way.madeDraft' : 'team.partner.setup.way.made', { client: client.name })}
-        </Note>
-        <p className="ob-lede">{t('team.partner.setup.way.lede')}</p>
-        <div className="k-radios ob-choices" role="radiogroup" aria-label={t('team.partner.setup.way.title')}>
-          {choices.map(c => (
-            <RadioCard
-              key={c.id}
-              name="ps-way"
-              checked={way === c.id}
-              onPick={() => onWay(c.id)}
-              title={c.title}
-              description={c.text}
-            />
-          ))}
+        {clients.length > 0 && (
+          <List label={t('team.partner.setup.clients.title')} className="ps-clients">
+            {clients.map(c => (
+              <ListRow
+                key={c.id}
+                title={c.name}
+                actions={
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      busy={opening === `hand:${c.id}`}
+                      disabled={!!opening}
+                      onClick={() => void setUp(c, 'hand')}
+                    >
+                      {t('team.partner.setup.clients.byHand')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      busy={opening === `agent:${c.id}`}
+                      disabled={!!opening}
+                      onClick={() => void setUp(c, 'agent')}
+                    >
+                      {t('team.partner.setup.clients.withAgent')}
+                    </Button>
+                  </>
+                }
+              />
+            ))}
+          </List>
+        )}
+        <div className="ps-add">
+          {addClient}
+          {!room && (
+            <span className="ob2-note">{t('team.partner.clients.draftLimit', { limit: UNPAID_PARTNER_CLIENTS })}</span>
+          )}
         </div>
         {problem && <FormMessage>{problem}</FormMessage>}
       </div>
       <SetupFoot
         onBack={onBack}
-        onContinue={() => void next()}
-        canContinue
-        busy={busy}
-        label={
-          last ? t(way === 'agent' ? 'team.partner.setup.way.goAgent' : 'team.partner.setup.way.goHand') : undefined
-        }
+        onContinue={onNext}
+        variant={clients.length ? 'primary' : 'secondary'}
+        label={clients.length ? (last ? t('onboarding.frame.done') : undefined) : t('team.partner.setup.clients.skip')}
       />
+      {adding && (
+        <NewClientDialog
+          data={data}
+          onFirstWorkspace={onFirstWorkspace}
+          returnHash={`${PARTNER_SETUP_HASH}/clients`}
+          onOpen={() => {}}
+          onInvite={() => {}}
+          onClose={() => setAdding(false)}
+          onMade={() => setAdding(false)}
+        />
+      )}
     </>
   )
 }
 
-/** Sets the first client up the way picked: the AI agent's page, or the client's own workspace and its onboarding. */
-async function setUpClient(partnerId: string, clientId: string, way: ClientWay) {
-  if (way === 'agent') return withAgent(partnerId)
-  rememberPartnerByHand(partnerId, true)
-  // Its inbox address: a client workspace still being set up opens on its onboarding there.
-  await switchToWorkspace(clientId)
-}
-
 /**
- * Step 3: White-label Cloud's price as the partner bill has it (a month each, billed yearly or monthly), what is
- * charged at Checkout with the client workspaces there are, and Stripe Checkout. Setting the client up first is the
- * equal other way: Activate stays in the partner area and on the agent's page.
+ * Step 3, the end of the setup: White-label Cloud with the drafts it starts with (each can be removed here), the price
+ * a month with what Checkout charges right after as the grey note, and Stripe Checkout. Only Back and Activate: the
+ * agent page's Activate row and the partner area's Activate line open this same step.
  */
-function ActivateStep({
-  data,
-  brandName: agency,
-  way,
-  onBack,
-}: {
-  data: PartnerData
-  brandName: string
-  way: ClientWay
-  onBack: () => void
-}) {
+export function ActivateStep({ data, onBack }: { data: PartnerData; onBack: () => void }) {
   const t = useT()
-  const { money } = usePrice()
-  const [busy, setBusy] = useState<'activate' | 'later' | null>(null)
+  const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  const client = firstClient(data.clients)
-  const price = data.bill!.price
-  const yearly = price.interval === 'year'
-  const count = data.clients.length
+  const [removing, setRemoving] = useState<PartnerClient | null>(null)
+  const clients = inOrder(data.clients)
 
   async function activate() {
     if (busy) return
-    setBusy('activate')
+    setBusy(true)
     setProblem(null)
-    // Back from Checkout the owner lands where the way picked leads (setup-choice.ts, partnerLanding).
-    rememberPartnerByHand(data.partner.id, way === 'hand')
     try {
       await goToCheckout(data.partner.id)
     } catch {
       setProblem(t('auth.checkout.startFailed'))
-      setBusy(null)
+      setBusy(false)
     }
   }
-  async function later() {
-    if (busy || !client) return
-    setBusy('later')
-    setProblem(null)
-    try {
-      await setUpClient(data.partner.id, client.id, way)
-    } catch (err) {
-      setProblem(partnerErrorText(err))
-      setBusy(null)
-    }
-  }
-  useStepKeys({ onEnter: () => void activate(), onEscape: onBack })
+  useStepKeys(removing ? {} : { onEnter: () => void activate(), onEscape: onBack })
 
   return (
     <>
       <div className="ob-body">
         <h1>{t('team.partner.setup.activate.title')}</h1>
         <p className="ob-lede">{t('team.partner.setup.activate.lede')}</p>
-        <section className="ob-points" aria-label={t('team.partner.setup.activate.summary')}>
-          <Point icon="phone" label={t('team.partner.setup.activate.agency')} value={agency} />
-          {client && (
-            <Point
-              icon="phone"
-              label={t('team.partner.setup.activate.clients')}
-              value={t('team.partner.setup.activate.clientsValue', { client: client.name, count })}
-            />
-          )}
-          <Point
-            icon="phone"
-            next
-            label={t('team.partner.setup.activate.next')}
-            value={t('team.partner.setup.activate.nextValue')}
-          />
-        </section>
+        {clients.length > 0 && (
+          <List label={t('team.partner.setup.activate.clients')} className="ps-clients">
+            {clients.map(c => (
+              <ListRow
+                key={c.id}
+                title={c.name}
+                actions={
+                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRemoving(c)}>
+                    {t('team.partner.setup.activate.remove')}
+                  </Button>
+                }
+              />
+            ))}
+          </List>
+        )}
         <div className="ob-activate-plan">
-          <PartnerPrice price={price} />
-          {/* What Checkout charges right after this step: the real amount, not the price a month. */}
-          <span>
-            {t(yearly ? 'team.partner.setup.activate.chargeYearly' : 'team.partner.setup.activate.chargeMonthly', {
-              total: money(partnerChargeCents(price, count)),
-              count,
-            })}
-          </span>
+          <PartnerTotal price={data.bill!.price} clients={clients.length} />
         </div>
         {problem && <FormMessage>{problem}</FormMessage>}
       </div>
       <SetupFoot
         onBack={onBack}
         onContinue={() => void activate()}
-        canContinue
-        busy={busy === 'activate'}
+        busy={busy}
         label={t('team.partner.bill.activateButton')}
-        onSkipStep={client ? () => void later() : undefined}
-        laterLabel={t(
-          way === 'agent' ? 'team.partner.setup.activate.laterAgent' : 'team.partner.setup.activate.laterHand',
-        )}
-        laterTitle={t('team.partner.setup.activate.laterTitle')}
       />
+      {removing && <RemoveDraftDialog data={data} client={removing} onClose={() => setRemoving(null)} />}
     </>
   )
 }
 
-/** One summary row, as on a Cloud sign-up's Activate step: done (a check) or what comes next (its own icon). */
-function Point({ icon, label, value, next }: { icon: 'phone'; label: string; value: string; next?: boolean }) {
+/**
+ * Removes a draft before the Checkout: the partner's owner deletes a client workspace nobody owns yet
+ * (`partner.deleteClient`, audited; a draft never has an owner, its invitation waits for the Checkout). A light
+ * confirm: a draft holds only what was set up in it.
+ */
+function RemoveDraftDialog({
+  data,
+  client,
+  onClose,
+}: {
+  data: PartnerData
+  client: PartnerClient
+  onClose: () => void
+}) {
+  const t = useT()
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+  async function remove() {
+    if (busy) return
+    setBusy(true)
+    setProblem(null)
+    try {
+      await callAction('partner.deleteClient', {
+        partnerId: data.partner.id,
+        workspaceId: client.id,
+        confirmName: client.name,
+      })
+    } catch (err) {
+      setProblem(partnerErrorText(err))
+      setBusy(false)
+      return
+    }
+    // The tab's own workspace went: the page loads again, back on this step, in the partner's next workspace or none.
+    if (tabWorkspace() === client.id) return window.location.reload()
+    const [partner, clients] = await Promise.all([loadPartner(data.partner.id), loadClients(data.partner.id)])
+    setQueryData(PARTNER_QUERY(data.partner.id), partner)
+    setQueryData(PARTNER_CLIENTS_QUERY(data.partner.id), clients)
+    void refreshWorkspaces()
+    onClose()
+  }
   return (
-    <div className="ob-point">
-      <span className="ob-pi">
-        <Icon name={next ? icon : 'check'} size={16} />
-      </span>
-      <div>
-        <b>{label}</b>
-        <span>{value}</span>
-      </div>
-    </div>
+    <Dialog
+      title={t('team.partner.setup.activate.removeTitle', { name: client.name })}
+      description={t('team.partner.setup.activate.removeText')}
+      size="sm"
+      onClose={busy ? () => {} : onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            {t('common.action.cancel')}
+          </Button>
+          <Button variant="danger" busy={busy} onClick={() => void remove()}>
+            {t('team.partner.setup.activate.remove')}
+          </Button>
+        </>
+      }
+    >
+      {problem && <FormMessage>{problem}</FormMessage>}
+    </Dialog>
   )
 }

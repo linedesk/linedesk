@@ -4,6 +4,7 @@ import { expect, test } from 'vitest'
 import {
   AgentEndedNote,
   NEW_WORKSPACE,
+  partnerOrder,
   ProgressSkeleton,
   StepAction,
   WorkspacePicker,
@@ -179,11 +180,22 @@ test("Start your trial: the owner's own row once the free steps are done, never 
   expect(row(step('activate', 'admin_only'), workspace, null, { trial: plan })).toContain('Start my plan')
 })
 
+test("a partner page before Checkout: agency, brand, clients, the client's steps, Activate last; Team waits", () => {
+  const p = (id: string, state: Step['state'] = 'todo') => ({ ...step(id, state), group: 'partner' as const })
+  const w = (id: string) => ({ ...step(id, 'todo'), group: 'business' as const })
+  const steps = [p('company', 'done'), p('brand'), p('team'), p('clients'), p('plan', 'admin_only'), w('business')]
+  expect(partnerOrder(steps).map(s => s.id)).toEqual(['company', 'brand', 'clients', 'business', 'plan'])
+  // Once paid, Team is back in its place and nothing moves.
+  const paid = steps.map(s => (s.id === 'plan' ? p('plan', 'done') : s))
+  expect(partnerOrder(paid).map(s => s.id)).toEqual(['company', 'brand', 'team', 'clients', 'plan', 'business'])
+})
+
 test("Activate White-label Cloud: the partner owner's own row while unpaid, gone once paid (setup before payment)", () => {
   const plan = (state: Step['state']) => ({ ...step('plan', state), group: 'partner' as const })
   const open = row(plan('admin_only'), null, null, { activatePartnerId: 'ptn_1' })
   expect(open).toMatch(/k-btn-secondary[^>]*>(<[^>]+>)*Activate</)
-  expect(open).toContain('charged at once, no free trial')
+  // It opens the setup's one Activate step (the drafts, the total, Checkout), never a Checkout of its own.
+  expect(open).toContain('Your clients and the total, then Stripe Checkout')
   expect(row(plan('done'), null, null, { activatePartnerId: 'ptn_1' })).toBe('')
   // Not a partner owner's page: no button.
   expect(row(plan('admin_only'), null)).toBe('')

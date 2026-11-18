@@ -77,6 +77,37 @@ export const PARTNER_AGENT_HASH = '#partner/agent'
 export const PARTNER_SETUP_HASH = '#partner/setup'
 const PARTNER_BY_HAND = 'linedesk.partnerSetup.byHand.'
 
+/**
+ * White-label Cloud's one Activate screen (PartnerSetup.tsx, its last step; Janik, 2026-11-18): the agent page's
+ * Activate row, the partner area's Activate line and the by-hand steps all open it. Back returns to where it was
+ * opened from, kept for this tab (`openPartnerActivate`); without one, to the by-hand Clients step.
+ */
+export const PARTNER_ACTIVATE_HASH = `${PARTNER_SETUP_HASH}/activate`
+export const PARTNER_CLIENTS_HASH = `${PARTNER_SETUP_HASH}/clients`
+const ACTIVATE_FROM = 'linedesk.partnerSetup.activateFrom'
+
+/** Opens the Activate step from the agent page (`#partner/agent`) or the partner area (`#partner`). */
+export function openPartnerActivate(from: typeof PARTNER_AGENT_HASH | '#partner' | null) {
+  try {
+    if (from) sessionStorage.setItem(ACTIVATE_FROM, from)
+    else sessionStorage.removeItem(ACTIVATE_FROM)
+  } catch {
+    // Private windows: Back goes to the Clients step.
+  }
+  window.location.hash = PARTNER_ACTIVATE_HASH
+}
+
+/** Where the Activate step's Back leads: the page it was opened from, else the by-hand Clients step. */
+export function partnerActivateBack(): string {
+  try {
+    const from = sessionStorage.getItem(ACTIVATE_FROM)
+    if (from === PARTNER_AGENT_HASH || from === '#partner') return from
+  } catch {
+    // As above.
+  }
+  return PARTNER_CLIENTS_HASH
+}
+
 /** Whether this partner's owner chose the partner area by hand in this browser. */
 export function partnerChoseByHand(partnerId: string): boolean {
   try {

@@ -29,6 +29,7 @@ import {
   nextStep,
   type OnboardingStep,
   onboardingSteps,
+  partnerDraftSteps,
   type PickupMemory,
   phoneSetupErrorText,
   previousStep,
@@ -40,6 +41,7 @@ import { InstanceSetupNotice, isInstanceAdmin, useHash } from './InstanceSetup.t
 import { NotifyStep } from './NotifyStep.tsx'
 import { PhoneStep } from './PhoneStep.tsx'
 import { PickupStep } from './PickupStep.tsx'
+import { PARTNER_CLIENTS_HASH } from './setup-choice.ts'
 import { ForClient, useClientWord } from './clientWords.tsx'
 import './onboarding.css'
 
@@ -79,7 +81,12 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload, onAgentSetup }
     if (offersTour(firstUse)) queueTour(me.workspace!.id)
     onDone()
   }
-  const [step, setStep] = useState<OnboardingStep>(state.step)
+  // A white-label partner's draft client workspace (setup before payment): the free steps, then back to the partner's
+  // setup (its Clients step, or the partner area for a partner admin); the number waits for the partner's Checkout.
+  const partnerDraft = me.workspace?.billingState === 'pending_payment' && !!me.workspace.partnerManaged
+  const [step, setStep] = useState<OnboardingStep>(() =>
+    partnerDraft && !partnerDraftSteps.includes(state.step) ? 'notify' : state.step,
+  )
   // The tour is queued as soon as the last step shows: a reload there opens the inbox (onboarding is
   // done on the server), and the tour must still start there.
   const workspaceId = me.workspace!.id
@@ -99,7 +106,10 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload, onAgentSetup }
   // Waiting for its trial (docs/billing.md §3.2): the setup, then `activate` (the card); the number only after it. A
   // white-label partner's draft client workspace waits for the partner's Checkout instead: no card step of its own.
   const activating = me.workspace?.billingState === 'pending_payment' && !me.workspace.partnerManaged
-  const steps = activating ? activationSteps : onboardingSteps
+  const steps = partnerDraft ? partnerDraftSteps : activating ? activationSteps : onboardingSteps
+  const toPartnerSetup = () => {
+    window.location.hash = me.partners?.[0]?.role === 'owner' ? PARTNER_CLIENTS_HASH : '#partner'
+  }
   // A trial sign-up counts its whole way, before and after the card (Step 5 of 7, then 6 of 7).
   const counted = activating || me.workspace?.trialEndsAt ? trialSteps : steps
 
@@ -114,6 +124,11 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload, onAgentSetup }
   // Continue saves the step again: its old refusal goes.
   const forward = () => {
     saves.leaving(step)
+    // A partner's draft: done with the free steps, the number is next once White-label Cloud runs.
+    if (partnerDraft && step === steps.at(-1)) {
+      void run('onboarding.setStep', { step: 'phone' })
+      return toPartnerSetup()
+    }
     go(nextStep(step, steps))
   }
   function skip() {
@@ -131,7 +146,8 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload, onAgentSetup }
         planOnly={me.workspace?.activation?.trialDays === null}
         complete={step === 'done' || (step === 'phone' && hasNumber)}
         // Nothing to finish later before the trial: the app opens only once it runs.
-        onSkip={step === 'done' || activating ? undefined : skip}
+        // A partner's draft: later is its partner's setup, never a skipped onboarding.
+        onSkip={partnerDraft ? toPartnerSetup : step === 'done' || activating ? undefined : skip}
         onAgentSetup={step === 'done' ? undefined : onAgentSetup}
       >
         <SaveErrors saves={saves} step={step} steps={steps} onOpen={go} />

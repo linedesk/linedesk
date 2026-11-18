@@ -53,6 +53,13 @@ export const onboardingSteps = onboardingStepsFor(false)
 export const activationSteps = onboardingStepsFor(true)
 
 /**
+ * A white-label partner's draft client workspace set up by hand before White-label Cloud runs (setup before payment,
+ * 2026-11-18): the free steps only; its last Continue goes back to the partner's setup, and the number follows the
+ * partner's Checkout.
+ */
+export const partnerDraftSteps: readonly OnboardingStep[] = activationSteps.filter(s => s !== 'activate')
+
+/**
  * The whole way of a trial sign-up as its step counter counts it (docs/billing.md §3.2): the setup, "Start your trial",
  * then the number and Done. One count before and after the trial starts ("Step 5 of 7", then "Step 6 of 7").
  */

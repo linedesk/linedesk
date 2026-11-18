@@ -96,7 +96,7 @@
   "agentSetup.owner.signInFirst.text": "A setup link lets your agent change this workspace for 4 hours, so making one needs a sign-in from the last 10 minutes. Sign in again, then create the link.",
   "agentSetup.owner.signInFirst.title": "Sign in again to create a setup link",
   "agentSetup.partner.activate": "Activate",
-  "agentSetup.partner.activateTitle": "Opens Stripe Checkout: charged at once, no free trial",
+  "agentSetup.partner.activateTitle": "Your clients and the total, then Stripe Checkout",
   "agentSetup.partner.addClient": "Add client",
   "agentSetup.partner.addClientTitle": "Add a client workspace: it adds a seat to your partner bill",
   "agentSetup.partner.addNumber": "Add number",

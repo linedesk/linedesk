@@ -12,9 +12,9 @@ import { TestCallPanel } from '../settings/TestCallPanel.tsx'
 import { StoreProvider, useAssistants, useRows, useStore } from '../store.tsx'
 import type { Activation, Me } from '../auth.ts'
 import { Dialog } from '../ui/form.tsx'
-import { goToCheckout } from '../checkout.ts'
 import { Button } from '../ui/kit.tsx'
 import { ActivatePlan, useStartTrial } from './ActivateStep.tsx'
+import { openPartnerActivate, PARTNER_AGENT_HASH } from './setup-choice.ts'
 import { sectionHash } from '../ui/SettingsLayout.tsx'
 import { isForwarded, type NumberMissing, waitForForwardedNumber } from './forwarded-number.ts'
 
@@ -236,37 +236,21 @@ export function ForwardingMissing({ missing, onRetry }: { missing: NumberMissing
  * goes to Stripe Checkout, and back from it this page opens again with the number next.
  */
 /**
- * "Activate White-label Cloud" on a partner owner's setup page (setup before payment, 2026-11-18): the partner's
- * Checkout, charged at once with no trial; the row's hint says what it costs. The terms were accepted at sign-up.
- * Checkout comes back to this page (CheckoutReturn), which then shows the row done.
+ * "Activate White-label Cloud" on a partner owner's setup page (setup before payment, 2026-11-18): the last row. It
+ * opens the setup's one Activate step (PartnerSetup.tsx: the drafts with Remove, the real total, Stripe Checkout),
+ * whose Back comes here again. Checkout comes back to this page (CheckoutReturn), which then shows the row done.
  */
-export function SetupActivatePartner({ partnerId }: { partnerId: string }) {
+export function SetupActivatePartner() {
   const t = useT()
-  const [busy, setBusy] = useState(false)
-  const [failed, setFailed] = useState(false)
-  async function activate() {
-    setBusy(true)
-    setFailed(false)
-    try {
-      await goToCheckout(partnerId)
-    } catch {
-      setFailed(true)
-      setBusy(false)
-    }
-  }
   return (
-    <>
-      {failed && <span className="as-small">{t('auth.checkout.startFailed')}</span>}
-      <Button
-        size="sm"
-        variant="secondary"
-        busy={busy}
-        title={t('onboarding.agentSetup.partner.activateTitle')}
-        onClick={() => void activate()}
-      >
-        {t('onboarding.agentSetup.partner.activate')}
-      </Button>
-    </>
+    <Button
+      size="sm"
+      variant="secondary"
+      title={t('onboarding.agentSetup.partner.activateTitle')}
+      onClick={() => openPartnerActivate(PARTNER_AGENT_HASH)}
+    >
+      {t('onboarding.agentSetup.partner.activate')}
+    </Button>
   )
 }
 
