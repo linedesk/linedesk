@@ -506,6 +506,7 @@ export const pinnedProviders: Partial<Record<ProviderCategory, readonly Provider
   email: ['resend', 'smtp'],
   llm: ['openai', 'openrouter', 'anthropic'],
   sign_in: ['google', 'oidc'],
+  stt: ['deepgram', 'assemblyai_stt'],
 }
 
 /** The option that runs on your own server or account rather than a hosted service. */
