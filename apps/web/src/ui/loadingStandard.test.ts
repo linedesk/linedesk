@@ -62,6 +62,8 @@ const NO_SKELETON_NEEDED: Record<string, string> = {
   'admin/Providers.tsx': 'the walkthrough button is off on Cloud, so it is not always shown; the agent button is',
   'call/EvaluationCard.tsx': 'shown only when the call has an evaluation, or for a test call',
   'onboarding/InstanceSetup.tsx': 'the notice shows only when a part of the server is missing or failing',
+  'partner/ClientSettingsDialog.tsx':
+    'the AI keys switch shows only once the partner connected a key; the limit works at once',
   'settings/CarrierNumberInput.tsx': 'the input works at once; the carrier numbers only add suggestions',
   'shell/BillingBanner.tsx': 'the billing line shows only when something about the bill needs the owner',
   'shell/WorkspaceSwitcher.tsx': 'shown only with more than one workspace or an invitation',

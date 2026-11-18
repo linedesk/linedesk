@@ -2,14 +2,15 @@
 // client workspaces. A server admin creates a partner (its owner is invited by email), approves it, and suspends it:
 // a suspended partner's team leaves every client workspace at once until it is approved again. "Waiting for approval"
 // (`#admin/partners/waiting`, the link in the new-partner email) lists only the partners still to approve, with their
-// number on the tab.
+// number on the tab. A partner's own AI keys (S7) can be turned off here with a reason its owner is emailed: its
+// calls then run on the install's keys and are billed until they are turned on again.
 import { type AdminPartnerList, PARTNER_CLIENT_LIMIT_MAX } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useFormat, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'
 import { useSupportAccess } from '../supportAccess.ts'
-import { Card, FormField, Input } from '../ui/form.tsx'
+import { Card, Dialog, FormField, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { runAdmin } from './api.ts'
@@ -103,6 +104,21 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
     }
   }
 
+  const [keysOff, setKeysOff] = useState<AdminPartner | null>(null)
+
+  async function keysOn(p: AdminPartner) {
+    setBusy(`keys:${p.id}`)
+    try {
+      await runAdmin('partnerKeys.adminEnable', { partnerId: p.id })
+      notify(t('admin.partners.keysOnToast', { name: p.name }))
+      await query.reload()
+    } catch (err) {
+      notify(errorText(err))
+    } finally {
+      setBusy(null)
+    }
+  }
+
   async function change(p: AdminPartner, action: 'partner.approve' | 'partner.suspend') {
     setBusy(p.id)
     try {
@@ -158,6 +174,11 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
                           ) : (
                             <Badge tone="outline">{t('admin.partners.statusPending')}</Badge>
                           )}
+                          {p.ownKeysDisabled && (
+                            <Badge tone="danger" title={p.ownKeysDisabled.reason}>
+                              {t('admin.partners.keysOff')}
+                            </Badge>
+                          )}
                         </span>
                         <span className="adm-sub">
                           {t('admin.partners.since', { day: day(p.createdAt), count: p.members })}
@@ -183,6 +204,22 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
                       </td>
                       <td data-label={t('admin.partners.clients')}>{p.clients}</td>
                       <td className="adm-num">
+                        {p.billingAccountId && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            busy={busy === `keys:${p.id}`}
+                            disabled={supportAccess || !!busy}
+                            title={
+                              p.ownKeysDisabled
+                                ? t('admin.partners.keysOnTip', { name: p.name })
+                                : t('admin.partners.keysOffTip', { name: p.name })
+                            }
+                            onClick={() => (p.ownKeysDisabled ? void keysOn(p) : setKeysOff(p))}
+                          >
+                            {p.ownKeysDisabled ? t('admin.partners.keysOn') : t('admin.partners.keysOffButton')}
+                          </Button>
+                        )}
                         {p.status === 'approved' ? (
                           <Button
                             size="sm"
@@ -261,8 +298,79 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
           </Button>
         </form>
       </Card>
+      {keysOff && (
+        <KeysOffDialog
+          partner={keysOff}
+          onClose={() => setKeysOff(null)}
+          onDone={async () => {
+            notify(t('admin.partners.keysOffToast', { name: keysOff.name }))
+            setKeysOff(null)
+            await query.reload()
+          }}
+        />
+      )}
       <PartnerBrands notify={notify} />
       <ProtectedNames notify={notify} />
     </>
+  )
+}
+
+/** Turning a partner's own AI keys off: the reason goes to its owner by email. */
+function KeysOffDialog({
+  partner,
+  onClose,
+  onDone,
+}: {
+  partner: AdminPartner
+  onClose: () => void
+  onDone: () => Promise<void>
+}) {
+  const t = useT()
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+  async function submit() {
+    if (busy || reason.trim().length < 3) return
+    setBusy(true)
+    setProblem(null)
+    try {
+      await runAdmin('partnerKeys.adminDisable', { partnerId: partner.id, reason: reason.trim() })
+      await onDone()
+    } catch (err) {
+      setProblem(errorText(err))
+      setBusy(false)
+    }
+  }
+  return (
+    <Dialog
+      title={t('admin.partners.keysOffTitle', { name: partner.name })}
+      description={t('admin.partners.keysOffDescription')}
+      size="sm"
+      onClose={busy ? () => {} : onClose}
+      onSubmit={e => {
+        e.preventDefault()
+        void submit()
+      }}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            {t('common.action.cancel')}
+          </Button>
+          <Button type="submit" variant="danger" busy={busy} disabled={reason.trim().length < 3}>
+            {t('admin.partners.keysOffButton')}
+          </Button>
+        </>
+      }
+    >
+      <FormField id="adm-keys-off-reason" label={t('admin.partners.keysOffReason')} error={problem}>
+        <Input
+          id="adm-keys-off-reason"
+          value={reason}
+          maxLength={300}
+          autoComplete="off"
+          onChange={e => setReason(e.target.value)}
+        />
+      </FormField>
+    </Dialog>
   )
 }

@@ -165,9 +165,15 @@ const isPaid = (level: UsageLevel | null): level is PaidLevel =>
  * Posts a finished call's usage (postCallUsage) in a savepoint of the caller's transaction, and queues what follows:
  * the recharge job, the owner's emails, and the admins' email about a capped call (only one that cost something,
  * recheck N2). A call with no reservation (not billed) costs one read. A failure is logged and returns null: the call
- * stays finished, its reservation stays, and the stale sweep posts it again.
+ * stays finished, its reservation stays, and the stale sweep posts it again. `ownKeysConfirmed`: the agent's report
+ * confirmed every stage ran on the partner's own keys (S7, call.finish); the stale sweep never passes it (fail closed).
  */
-export async function postFinishedCall(tx: Tx, callId: string, now: string): Promise<PostOutcome | null> {
+export async function postFinishedCall(
+  tx: Tx,
+  callId: string,
+  now: string,
+  options: { ownKeysConfirmed?: boolean } = {},
+): Promise<PostOutcome | null> {
   const [held] = await tx
     .select({ id: call_reservations.call_id })
     .from(call_reservations)
@@ -175,7 +181,7 @@ export async function postFinishedCall(tx: Tx, callId: string, now: string): Pro
   if (!held) return { kind: 'none' }
   try {
     return await tx.transaction(async sp => {
-      const outcome = await postCallUsage(sp, callId, now)
+      const outcome = await postCallUsage(sp, callId, now, options)
       if (outcome.kind !== 'posted') return outcome
       await afterDebit(sp, outcome.billId, outcome.recharge, now)
       if (outcome.posted) await trialMinutesAlert(sp, outcome.billId, 'trial_minutes_low', now)

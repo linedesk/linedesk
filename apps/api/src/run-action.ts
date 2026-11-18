@@ -384,11 +384,13 @@ export async function runAction(
     (await setupLinkNeedsFreshSignIn(db, actor))
   )
     return { status: 403, body: setupLinkSignInRefusal }
-  // And a personal API key, also one for an MCP client (oauth.approve): a passkey or authenticator confirmation, or a
-  // sign-in (owner-step-up.ts; LIN-339 M2).
+  // And a personal API key, also one for an MCP client (oauth.approve), and a white-label partner's own provider key
+  // (partnerKeys.set, S7): a passkey or authenticator confirmation, or a sign-in (owner-step-up.ts; LIN-339 M2).
   // The handler checks it once more.
   const personalKeyStepUp =
-    name === 'personalKey.create' || name === 'oauth.approve' ? await personalKeyStepUpNeeded(db, actor) : null
+    name === 'personalKey.create' || name === 'oauth.approve' || name === 'partnerKeys.set'
+      ? await personalKeyStepUpNeeded(db, actor)
+      : null
   if (personalKeyStepUp) return { status: 403, body: personalKeyStepUpRefusal(personalKeyStepUp) }
   if (def.readOnly) return runReadOnly(def, parsed.data, actor)
 

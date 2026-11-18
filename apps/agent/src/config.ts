@@ -508,3 +508,63 @@ export function createConfigLoader({
   }
   return async (): Promise<CallConfig> => resolveCallConfig(await settings(), env)
 }
+
+// --- White-label own keys (S7, docs/white-label.md) ---------------------------------------------------------------
+
+// GET /v1/agent/call-provider-config?callId=…: the partner's own key per stage, for one call only. Never cached.
+const partnerSettings = z.object({
+  stt: entry.optional(),
+  llm: entry.optional(),
+  tts: entry.optional(),
+  realtime: entry.optional(),
+})
+export type PartnerSettings = z.infer<typeof partnerSettings>
+
+/** The response of the per-call route, checked. Throws without echoing the body (it holds keys). */
+export function parsePartnerSettings(body: unknown): PartnerSettings {
+  const parsed = partnerSettings.safeParse(body)
+  if (!parsed.success) throw new Error('partner provider settings from the API have an unexpected shape')
+  return parsed.data
+}
+
+/**
+ * The call's config on the partner's own keys alone: never the environment's keys and never another provider of the
+ * install (no backup voice of the install, no voice of another provider): every stage that answers is the partner's,
+ * so `keySources` can say so. A backup voice is OpenAI's only when the partner's own OpenAI key is among its stages.
+ * `recording` stays the install's (not a key the price covers). Null when the partner's keys do not cover the
+ * pipeline the call asked for: the call then runs on the install's config and is billed.
+ */
+export function partnerCallConfig(
+  partner: PartnerSettings,
+  recording: RecordingConfig,
+  pipeline: VoicePipeline | null,
+): {
+  config: CallConfig
+  keySources: { stt?: 'partner'; llm?: 'partner'; tts?: 'partner'; realtime?: 'partner' }
+} | null {
+  const settings: ProviderSettings = {
+    stt: partner.stt ?? null,
+    llm: partner.llm ?? null,
+    tts: partner.tts ?? null,
+    realtime: partner.realtime ?? null,
+    recording: null,
+    tts_providers: partner.tts ? [partner.tts] : [],
+  }
+  const noEnv: Env = {}
+  if (pipeline === 'realtime') {
+    if (!partner.realtime?.api_key) return null
+    let config: CallConfig
+    try {
+      config = resolveCallConfig(settings, noEnv)
+    } catch (e) {
+      if (e instanceof AgentConfigError) return null
+      throw e
+    }
+    if (!isRealtime(config)) return null
+    // The three stages of a realtime call are used only by the call test's caller and the simulated on-call person.
+    return { config: { ...config, recording, stages: null }, keySources: { realtime: 'partner' } }
+  }
+  const stages = stagesOrNull({ ...settings, realtime: null }, noEnv)
+  if (!stages) return null
+  return { config: { ...stages, recording }, keySources: { stt: 'partner', llm: 'partner', tts: 'partner' } }
+}

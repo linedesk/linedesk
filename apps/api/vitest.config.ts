@@ -95,6 +95,8 @@ const INSTANCE_WIDE_FILES = [
   'test/data-purge.test.ts',
   // Writes white-label partner addresses: from the first one on, every request's host is checked (request-host.ts).
   'test/request-host.test.ts',
+  // Makes a server admin, rotates every stored secret (rolled back) and reads white-label partner keys (S7).
+  'test/partner-keys.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

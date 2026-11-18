@@ -1,5 +1,5 @@
-// Moves everything stored with SECRETS_KEY to a new key, in one transaction: provider keys (install-wide and a
-// workspace's own carrier), webhook signing secrets, calendar and connected-app tokens, the push key pair's private
+// Moves everything stored with SECRETS_KEY to a new key, in one transaction: provider keys (install-wide, a
+// workspace's own carrier and a white-label partner's own keys), webhook signing secrets, calendar and connected-app tokens, the push key pair's private
 // half, the port-out PINs of numbers (billing_numbers; security review of #920, L2) and the instance admins'
 // authenticator app secrets (admin_authenticators; LIN-402).
 // Run it in the api container, with the current SECRETS_KEY in its environment and the new key on stdin
@@ -20,17 +20,19 @@ import {
   calendar_connections,
   calendar_credentials,
   instance_settings,
+  partner_providers,
   provider_settings,
   type Tx,
   webhook_secrets,
 } from '@linedesk/db'
-import { eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import { appSlot } from './app-connections.ts'
 import { authenticatorSlot } from './authenticator.ts'
 import { portOutSlot } from './billing-owner.ts'
 import { calendarSlot } from './calendar-connections.ts'
 import { db, pool } from './db.ts'
 import { VAPID_PRIVATE } from './instance-env.ts'
+import { partnerKeySlot } from './partner-keys.ts'
 import { providerSlot } from './provider-settings.ts'
 import { decryptSecret, parseSecretsKey, reencryptSecret } from './secrets.ts'
 import { secretSlot } from './webhooks.ts'
@@ -51,6 +53,14 @@ export async function reencryptSecrets(tx: Tx, from: Buffer, to: Buffer) {
       .update(provider_settings)
       .set({ value_encrypted: again(row.value_encrypted, slot) })
       .where(eq(provider_settings.id, row.id))
+  }
+  // A white-label partner's own provider keys (S7): their own table, bound to partner, stage and provider.
+  const partnerKeys = await tx.select().from(partner_providers)
+  for (const row of partnerKeys) {
+    await tx
+      .update(partner_providers)
+      .set({ key_encrypted: again(row.key_encrypted, partnerKeySlot(row.partner_id, row.category, row.provider)) })
+      .where(and(eq(partner_providers.partner_id, row.partner_id), eq(partner_providers.category, row.category)))
   }
   const webhooks = await tx.select().from(webhook_secrets)
   for (const row of webhooks) {
@@ -119,6 +129,7 @@ export async function reencryptSecrets(tx: Tx, from: Buffer, to: Buffer) {
   if (check) decryptSecret(check.value_encrypted, providerSlot(check.provider, check.field), to)
   return {
     provider_settings: providers.length,
+    partner_providers: partnerKeys.length,
     webhook_secrets: webhooks.length,
     calendar_credentials: calendars.length,
     app_credentials: apps.length,

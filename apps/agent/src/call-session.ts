@@ -19,6 +19,7 @@ import {
   callStartTest,
   ASSISTANT_CALL_DEFAULT_MINUTES,
   type PromptOverrides,
+  type KeySources,
   type UsageLevel,
   ASSISTANT_CALL_MAX_MINUTES,
   DEMO_CALL_MAX_SECONDS,
@@ -70,6 +71,16 @@ export interface CallSession {
   usageLevel?: UsageLevel | null
   /** The speech recognition model of the call's level (Server admin › Providers › Call quality); null: the provider's default. */
   sttModel?: string | null
+  /**
+   * White-label own keys (S7): call.start forecast that the call runs on the partner's own provider keys; the agent
+   * reads them for this call only (GET /v1/agent/call-provider-config).
+   */
+  partnerKeys?: boolean
+  /**
+   * Whose key served each stage, reported with call.finish (S7). Set by the worker once the call's config is known;
+   * unset on a call that did not start on the partner's keys.
+   */
+  keySources?: KeySources
   /** null: the caller ID is withheld or not a number ("anonymous"), so the caller has no contact. */
   contact: Contact | null
   /**
@@ -131,7 +142,7 @@ export interface CallSession {
   promptOverrides?: PromptOverrides
   append(speaker: Speaker, text: string, toolEvent?: ToolEvent): Promise<void>
   /** `{ held: true }` (CallFinishData): the call's news waits for call.finalize (result.awaitTranscript, after-call transcription on). */
-  finish(result: CallResult): Promise<unknown>
+  finish(result: CallResult & { keySources?: KeySources }): Promise<unknown>
   /** The after-call transcript of a held call, made now (call.correctTranscript); missing on fakes. */
   correctTranscript?(): Promise<CorrectTranscriptData>
   /** The summary of the corrected transcript, and the news the call held (call.finalize); missing on fakes. */
@@ -149,6 +160,8 @@ export type CallTimings = Omit<z.input<typeof callRecordTimings.input>, 'callId'
 
 type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'contact'> & {
   callToken?: string
+  /** `partner`: the call runs on the partner's own provider keys (S7); missing or null: the install's. */
+  keys?: 'partner' | null
   blocked?: boolean
   forwardingCheck?: boolean
   busy?: boolean
@@ -447,6 +460,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     assistant,
     usageLevel: started.usageLevel ?? null,
     sttModel: started.sttModel ?? null,
+    partnerKeys: started.keys === 'partner',
     contact,
     blocked,
     forwardingCheck,

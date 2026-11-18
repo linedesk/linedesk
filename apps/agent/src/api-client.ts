@@ -53,6 +53,11 @@ export interface ApiClient {
   run<S extends z.ZodType>(def: ActionDef<S, any>, input: z.input<S>, scope?: CallScope): Promise<ActionResult>
   /** The speech and LLM providers set up in Linedesk, with their keys. The body is never put into an error. */
   providerSettings(): Promise<unknown>
+  /**
+   * White-label own keys (S7): the partner's own keys for one call that call.start forecast on them (install token
+   * only, like providerSettings). The body is never put into an error, and never cached.
+   */
+  callProviderSettings?(callId: string): Promise<unknown>
 }
 
 export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiClientOptions): ApiClient {
@@ -80,6 +85,17 @@ export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiC
       })
       const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
       if (!res.ok) throw new ActionError('provider-config', res.status, typeof body?.error === 'string' ? body.error : res.statusText)
+      return body
+    },
+    async callProviderSettings(callId) {
+      const url = new URL('/v1/agent/call-provider-config', baseUrl)
+      url.searchParams.set('callId', callId)
+      const res = await doFetch(url, {
+        headers: { authorization: `Bearer ${token}`, accept: 'application/json' },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
+      const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
+      if (!res.ok) throw new ActionError('call-provider-config', res.status, typeof body?.error === 'string' ? body.error : res.statusText)
       return body
     },
   }

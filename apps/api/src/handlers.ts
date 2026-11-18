@@ -210,6 +210,13 @@ import { billingNumberRefusal, checkoutHandlers, checkoutPreparers } from './bil
 import { matchLocale, type Translator } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
 import { partnerBrandHandlers } from './partner-brand.ts'
+import {
+  maskFailure,
+  partnerKeyHandlers,
+  partnerKeyPreparers,
+  partnerVoiceFailure,
+  reportConfirmsOwnKeys,
+} from './partner-keys.ts'
 import { partnerSetupHandlers } from './partner-setup.ts'
 
 export { Forbidden, NotFound, Reject, type HandlerCtx, type Undo }
@@ -514,6 +521,8 @@ async function openCall(
           spam_likely: source === 'phone' && spamLikely === true,
           assistant_id: assistant?.id ?? null,
           assistant_version: await versionForCall(tx, workspace_id, assistant?.id),
+          // White-label own keys (S7): forecast on the partner's keys; the agent reads them for this call only.
+          partner_keys: forCall?.level === 'own_keys',
           ...(spam
             ? blockedCall(now, t)
             : overCap
@@ -619,6 +628,8 @@ async function openCall(
       workspaceCountry: locale.resolvedCountry,
       workspaceLanguage: locale.resolvedLanguage,
       usageLevel: forCall?.level ?? null,
+      // White-label own keys (S7): the agent reads the partner's keys for this call (GET /v1/agent/call-provider-config).
+      keys: call!.partner_keys && !blocked ? ('partner' as const) : null,
       // The speech recognition model of the level that answers (Server admin › Providers › Call quality).
       sttModel: forCall?.sttModel ?? null,
       // The instance admin's wording for parts of the system prompt (Server admin › System prompt; LIN-346).
@@ -973,6 +984,7 @@ export const preparers: Record<string, Preparer> = {
   ...stripeEventPreparers,
   ...checkoutPreparers,
   ...billingPagePreparers,
+  ...partnerKeyPreparers,
 }
 
 /**
@@ -1180,6 +1192,7 @@ const handlers: Record<string, Handler> = {
   ...selfServeHandlers,
   ...partnerHandlers,
   ...partnerBrandHandlers,
+  ...partnerKeyHandlers,
   ...partnerSetupHandlers,
   ...checkoutHandlers,
   ...billingPageHandlers,
@@ -1464,6 +1477,26 @@ const handlers: Record<string, Handler> = {
     const call = await loadCall(tx, actor, input.callId)
     // A race in the call's own conversation (two replies at once): the call went on, nothing to keep (LIN-249).
     if (isPerCallProviderError(input.failure.message)) return { rows: {}, data: { failure: input.failure } }
+    // A call on the partner's own keys (S7): the partner's key of that stage is failing, never the install's provider.
+    const partners = call.partner_keys && (await partnerVoiceFailure(tx, call.id, input.failure, now))
+    if (partners) {
+      const known = call.voice_failures.some(
+        f =>
+          f.stage === input.failure.stage && f.provider === input.failure.provider && f.reason === input.failure.reason,
+      )
+      if (known || call.voice_failures.length >= VOICE_FAILURES_PER_CALL)
+        return { rows: {}, data: { failure: input.failure } }
+      const failure: VoiceFailure = {
+        ...input.failure,
+        message: maskFailure(input.failure.message).slice(0, VOICE_FAILURE_MESSAGE_MAX),
+      }
+      const rows = await tx
+        .update(calls)
+        .set({ voice_failures: [...call.voice_failures, { ...failure, at: now }] })
+        .where(eq(calls.id, call.id))
+        .returning()
+      return { rows: { calls: rows }, data: { failure } }
+    }
     // One failure model (LIN-111): the stage's provider is failing for the whole install too (Server admin › Providers, one
     // email per streak). A vague reason comes back refined by the provider's own test, and that is what the call keeps
     // and the agent shows on the test call.
@@ -1517,10 +1550,12 @@ const handlers: Record<string, Handler> = {
     const { outcome, urgency } = keptUrgent(call.urgency, input.outcome ?? 'answered', input.urgency ?? call.urgency)
     // A recorded call's news waits for the corrected transcript when after-call transcription is on (call-news.ts).
     // A repeated finish (agent retry after a lost answer) gets the hold the first one set.
+    // A call on the partner's own keys (S7) never goes to the install's after-call transcription: its live transcript stays.
     const held =
       call.status === 'completed'
         ? !!call.awaiting_transcript_until
-        : input.awaitTranscript === true &&
+        : !call.partner_keys &&
+          input.awaitTranscript === true &&
           (await keepsRecordings(tx, call.workspace_id)) &&
           (await transcribesAfterCalls(tx))
     const [updated] = await tx
@@ -1538,6 +1573,8 @@ const handlers: Record<string, Handler> = {
           : call.action_items,
         fields: input.fields ?? call.fields,
         missing_info: input.missing ?? call.missing_info,
+        // What the agent reported of a call on the partner's own keys (S7); the first report stays.
+        ...(call.partner_keys && input.keySources && !call.key_sources ? { key_sources: input.keySources } : {}),
         ...(held && call.status !== 'completed'
           ? { awaiting_transcript_until: new Date(Date.parse(now) + AWAIT_TRANSCRIPT_MAX_SEC * 1000).toISOString() }
           : {}),
@@ -1547,7 +1584,10 @@ const handlers: Record<string, Handler> = {
     const rows: ActionResult['rows'] = { calls: [updated!] }
     // A billed call's usage posts now, with its end and duration set above (call-billing.ts); a repeated finish finds
     // it posted. A failure leaves the call finished: the stale sweep posts it again.
-    await postFinishedCall(tx, call.id, now)
+    // $0 only when it was forecast on the partner's keys and the agent confirms every stage ran on them (S7).
+    await postFinishedCall(tx, call.id, now, {
+      ownKeysConfirmed: call.partner_keys && reportConfirmsOwnKeys(updated!.key_sources),
+    })
     const named = await nameCaller(tx, call.contact_id, input.callerName)
     if (named) rows.contacts = named
     // Only the first finish notifies; a repeated one (agent retry after a timeout) is not news.

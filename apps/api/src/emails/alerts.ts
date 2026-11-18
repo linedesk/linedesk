@@ -698,6 +698,46 @@ export function usageLimitEmail(
   })
 }
 
+/** What partnerKeysEmail says: a partner key stopped working, or an instance admin turned own keys off. */
+export type PartnerKeysEmail =
+  | { kind: 'failing'; provider: string; reason: string }
+  | { kind: 'disabled'; reason: string }
+
+/**
+ * To a white-label partner's owner (S7, partner-keys.ts): its own key of a stage stopped working (at most once a day per
+ * stage), or an instance admin turned its own keys off. Either way calls run on this server's keys and are billed.
+ */
+export function partnerKeysEmail(
+  content: PartnerKeysEmail,
+  origin = emailOrigin(),
+  locale?: EmailLocale,
+): RenderedEmail {
+  const { t, locale: lang } = getT(locale)
+  const failing = content.kind === 'failing'
+  const subject = failing
+    ? t('email.partnerKeys.failingSubject', { provider: content.provider })
+    : t('email.partnerKeys.disabledSubject')
+  return renderEmail({
+    locale: lang,
+    subject,
+    preheader: t('email.partnerKeys.effect'),
+    eyebrow: t('email.partnerKeys.eyebrow'),
+    heading: subject,
+    blocks: [
+      {
+        kind: 'text',
+        text: failing
+          ? t('email.partnerKeys.failingText', { provider: content.provider, reason: content.reason })
+          : t('email.partnerKeys.disabledText', { reason: content.reason }),
+      },
+      { kind: 'text', text: t('email.partnerKeys.effect') },
+      { kind: 'button', label: t('email.partnerKeys.button'), url: `${origin}/#partner/keys` },
+    ],
+    reason: t('email.partnerKeys.reason', { site: siteHost(origin) }),
+    origin,
+  })
+}
+
 // ---------------------------------------------------------------- install setup
 
 /** How long the code of the setup's test email works (install-setup.ts). */

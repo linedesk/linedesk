@@ -390,6 +390,8 @@ export type AdminPartner = {
   billingAccountId: string | null
   /** The partner bill's status (Server admin › Partners shows it); null without a bill. */
   billStatus: PartnerBillSummary['status'] | null
+  /** An instance admin turned the partner's own provider keys off (partnerKeys.adminDisable). */
+  ownKeysDisabled: { reason: string; at: string } | null
 }
 
 /** `partner.adminList`: the partners, and how many client workspaces each may make while billing is off. */
@@ -436,6 +438,10 @@ export type PartnerClientRow = {
   limitPercent: number | null
   /** On the partner bill: the limit applies only there. */
   billed: boolean
+  /** Switched to the partner's own provider keys (S7, partner.setClientOwnKeys). */
+  ownKeys: boolean
+  /** Calls come in on the client's own Twilio or Telnyx account: needed for a call without a usage fee. */
+  ownCarrier: boolean
   problems: ClientProblem[]
 }
 

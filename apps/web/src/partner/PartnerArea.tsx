@@ -43,18 +43,23 @@ import { loadClients, loadPartner, PARTNER_CLIENTS_QUERY, PARTNER_QUERY, partner
 import '../admin/admin.css'
 import './partner-area.css'
 import { PartnerBrand } from './PartnerBrand.tsx'
+import { PartnerKeys } from './PartnerKeys.tsx'
 
-type Section = 'clients' | 'team' | 'brand' | 'billing'
+type Section = 'clients' | 'team' | 'brand' | 'keys' | 'billing'
 
 /** Bill states in which client workspaces can be added (the plan runs: trial, paid, or comped). */
 const RUNNING: readonly string[] = ['trialing', 'active', 'past_due', 'comped']
 
-/** The partner area's sections; Billing only for the partner bill's owner. */
-export function partnerSections(t: ReturnType<typeof useT>, billing: boolean): PageSection<Section>[] {
+/**
+ * The partner area's sections; AI keys only where calls are billed (a partner with a bill: own keys take the usage fee
+ * away), Billing only for the partner bill's owner.
+ */
+export function partnerSections(t: ReturnType<typeof useT>, billing: boolean, keys = false): PageSection<Section>[] {
   return [
     { id: 'clients', label: t('team.partner.clients.title') },
     { id: 'team', label: t('team.partner.team.title') },
     { id: 'brand', label: t('team.partner.brand.title') },
+    ...(keys ? [{ id: 'keys' as const, label: t('team.partner.keys.title') }] : []),
     ...(billing ? [{ id: 'billing' as const, label: t('team.partner.billing.title') }] : []),
   ]
 }
@@ -99,10 +104,11 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
   // Partner › Billing: the partner bill's own page, for its owner (the partner's owner). Until the partner has loaded,
   // a link straight to it (`#partner/billing`) keeps its section, so the page does not fall back to Clients.
   const billMine = !!data?.bill?.mine
-  const [linkedToBilling] = useState(() => sectionParts('partner', window.location.hash).section === 'billing')
+  const [linked] = useState(() => sectionParts('partner', window.location.hash).section)
   const sections = useMemo(
-    () => partnerSections(t, billMine || (!data && linkedToBilling)),
-    [t, billMine, data, linkedToBilling],
+    () =>
+      partnerSections(t, billMine || (!data && linked === 'billing'), !!data?.bill || (!data && linked === 'keys')),
+    [t, billMine, data, linked],
   )
   const current = useSection('partner', sections)
   // Esc goes back to the inbox, as from Server admin (not while typing in a field, and not when it closes a dialog or
@@ -177,6 +183,8 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
             {data &&
               (current === 'billing' && billMine ? (
                 <Billing toast={text => toaster.show(text)} partnerId={data.partner.id} />
+              ) : current === 'keys' && data.bill ? (
+                <PartnerKeys partnerId={data.partner.id} toast={text => toaster.show(text)} />
               ) : current === 'brand' ? (
                 <PartnerBrand partnerId={data.partner.id} partnerName={data.partner.name} />
               ) : current === 'team' ? (

@@ -125,7 +125,13 @@ export async function finishCall(
   const result = mergeToolResults(summary, log, callbackKnown, call.teamLanguage)
   // A silent call has no caller line to correct.
   const done = await withRetry(
-    () => call.finish({ ...result, ...(awaitTranscript && !silent ? { awaitTranscript: true } : {}) }),
+    () =>
+      call.finish({
+        ...result,
+        ...(awaitTranscript && !silent ? { awaitTranscript: true } : {}),
+        // White-label own keys (S7): whose keys served the call; the API bills it $0 only when all were the partner's.
+        ...(call.keySources ? { keySources: call.keySources } : {}),
+      }),
     retry,
   )
   return { held: isHeld(done), result, named: hasFlag(done, 'named') }

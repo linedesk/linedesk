@@ -357,6 +357,13 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'partnerBrand.setProtectedNames': 'partners',
   'partnerBrand.approve': 'partners',
   'partnerBrand.reset': 'partners',
+  // A partner's own provider keys (S7): never the key itself (the command log redacts `apiKey`).
+  'partnerKeys.set': 'partners',
+  'partnerKeys.clear': 'partners',
+  'partnerKeys.test': 'partners',
+  'partner.setClientOwnKeys': 'partners',
+  'partnerKeys.adminDisable': 'partners',
+  'partnerKeys.adminEnable': 'partners',
 }
 
 /**

@@ -293,7 +293,7 @@ export async function protectedNames(tx: Tx | typeof db): Promise<ProtectedNames
 }
 
 /** The partner for a caller on its team (403 otherwise, the same whether or not it exists), as partners.ts checks. */
-async function partnerOnTeam(tx: Tx, actor: Actor, partnerId: string, write: boolean) {
+export async function partnerOnTeam(tx: Tx, actor: Actor, partnerId: string, write: boolean) {
   if (write) await tx.select({ id: partners.id }).from(partners).where(eq(partners.id, partnerId)).for('update')
   const [row] = await tx
     .select({ partner: partners, role: partner_members.role })

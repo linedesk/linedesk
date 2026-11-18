@@ -345,6 +345,17 @@ export const calls = pgTable(
     /** Stages of the voice pipeline that failed on this call (call.reportVoiceFailure), one per stage, provider and reason. */
     voice_failures: jsonb('voice_failures').$type<CallVoiceFailure[]>().notNull().default([]),
     /**
+     * White-label own keys (S7, docs/white-label.md): call.start forecast that every stage runs on the partner's own
+     * provider keys (partner-keys.ts). The agent then reads the partner's keys for this call; a voice failure counts
+     * against the partner's key, never the install's provider.
+     */
+    partner_keys: boolean('partner_keys').notNull().default(false),
+    /**
+     * What the agent reported at call.finish: per stage whether the partner's key or the install's served it. The call
+     * is $0 (`own_keys`) only when it was forecast and every reported stage is `partner` (ledger.ts ownKeysConfirmed).
+     */
+    key_sources: jsonb('key_sources').$type<Record<string, 'partner' | 'install'>>(),
+    /**
      * The call's news (email, push, evaluation, after-call webhook and integrations) waits for the after-call
      * transcript until this time (call.finish with awaitTranscript): the agent then sends the summary of the corrected
      * transcript (call.finalize), or the CALL_RELEASE job sends the news with the summary it has. null: nothing waits.
@@ -477,6 +488,11 @@ export const workspace_settings = pgTable(
     carrier: text('carrier', { enum: ['default', 'twilio', 'telnyx'] })
       .notNull()
       .default('default'),
+    /**
+     * A white-label client whose calls run on its partner's own provider keys (S7, partner.setClientOwnKeys; the
+     * partner's owner switches it). Off by default.
+     */
+    partner_keys: boolean('partner_keys').notNull().default(false),
     /** Vacation or closure mode: closed on these dates whatever the hours say, with its own greeting; null: off. */
     closure: jsonb('closure').$type<Closure>(),
     /**
@@ -2654,6 +2670,12 @@ export const partners = pgTable(
      * step the agent is on, so a step the owner chose to leave (a team of one) is not asked again. Null: not started.
      */
     setup_step: text('setup_step', { enum: PARTNER_SETUP_STEPS }),
+    /**
+     * An instance admin turned the partner's own provider keys off (S7 kill switch, partnerKeys.adminDisable): its calls
+     * run on the install's keys and are billed, and the keys cannot be changed. Null: not turned off.
+     */
+    own_keys_disabled_reason: text('own_keys_disabled_reason'),
+    own_keys_disabled_at: ts('own_keys_disabled_at'),
     created_at: createdAt(),
     updated_at: ts('updated_at').notNull().defaultNow(),
   },
@@ -2823,5 +2845,43 @@ export const partner_domains = pgTable(
     // What resolveHost compares against: lower-case, no port, no trailing dot, no spaces.
     check('partner_domains_hostname', sql`${t.hostname} ~ '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$'`),
     check('partner_domains_removed', sql`(${t.status} = 'removed') = (${t.removed_at} is not null)`),
+  ],
+)
+
+/** The stages a partner runs on its own provider keys (S7): speech to text, language model, voice, realtime model. */
+export const PARTNER_KEY_CATEGORIES = ['stt', 'llm', 'tts', 'realtime'] as const
+export const PARTNER_KEY_STATUSES = ['untested', 'ok', 'failing'] as const
+
+/**
+ * A white-label partner's own provider key per stage (S7, apps/api/src/partner-keys.ts, the only reader). Its own table,
+ * never `provider_settings`: no query of the install's keys can ever pick up a partner's. The key is AES-256-GCM with
+ * SECRETS_KEY, bound to `partner:<partnerId>:<category>:<provider>.api_key` (secrets.ts), so a value copied to another
+ * partner or stage does not decrypt. Never returned to a browser; only the voice agent's install token reads it, for a
+ * call of one of the partner's clients that forecast own keys.
+ */
+export const partner_providers = pgTable(
+  'partner_providers',
+  {
+    partner_id: text('partner_id')
+      .notNull()
+      .references(() => partners.id, { onDelete: 'cascade' }),
+    category: text('category', { enum: PARTNER_KEY_CATEGORIES }).notNull(),
+    provider: text('provider').notNull(),
+    key_encrypted: text('key_encrypted').notNull(),
+    /** The key's last four characters (keys of 12 characters or more), for display. */
+    last4: text('last4'),
+    status: text('status', { enum: PARTNER_KEY_STATUSES }).notNull().default('untested'),
+    /** Why the last test or call failed: short, with anything that looks like a key masked. */
+    failure: text('failure'),
+    checked_at: ts('checked_at'),
+    /** When the partner's owner was last emailed that this key stopped working (at most once a day). */
+    failure_emailed_at: ts('failure_emailed_at'),
+    updated_at: ts('updated_at').notNull().defaultNow(),
+    updated_by: text('updated_by'),
+  },
+  t => [
+    primaryKey({ columns: [t.partner_id, t.category] }),
+    check('partner_providers_category', oneOf(t.category, PARTNER_KEY_CATEGORIES)),
+    check('partner_providers_status', oneOf(t.status, PARTNER_KEY_STATUSES)),
   ],
 )

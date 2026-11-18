@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { AgentConfigError, configForAssistant, pipelineOfAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings, withAssistantModel, withAssistantRealtimeModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel, withSttModel } from './config.ts'
+import { AgentConfigError, configForAssistant, parsePartnerSettings, partnerCallConfig, pipelineOfAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings, withAssistantModel, withAssistantRealtimeModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel, withSttModel } from './config.ts'
 
 // OpenRouter named: the tests below were written for it; the default (OpenAI) has its own test.
 const keys = { DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
@@ -517,4 +517,58 @@ test('the pipeline of a call follows the call quality the API named: Ultra a rea
   expect(pipelineOfAssistant({ call_quality: 'standard' })).toBe('three_stage')
   expect(pipelineOfAssistant(null)).toBeNull()
   expect(pipelineOfAssistant({})).toBeNull()
+})
+
+describe("partnerCallConfig: a call on a white-label partner's own keys (S7)", () => {
+  const partner = {
+    stt: { provider: 'deepgram', api_key: 'dg-partner' },
+    llm: { provider: 'anthropic', api_key: 'an-partner' },
+    tts: { provider: 'elevenlabs', api_key: 'el-partner' },
+  }
+  const recording = { store: 'file' } as const
+
+  test("the partner's three stages only, never an environment key, with every stage reported as the partner's", () => {
+    const saved = process.env.OPENAI_API_KEY
+    process.env.OPENAI_API_KEY = 'oa-install'
+    try {
+      const got = partnerCallConfig(parsePartnerSettings(partner), recording, 'three_stage')
+      if (!got) throw new Error('expected a config')
+      expect(got.keySources).toEqual({ stt: 'partner', llm: 'partner', tts: 'partner' })
+      const stages = stagesOf(got.config)!
+      expect([stages.stt.apiKey, stages.llm.apiKey, stages.tts.apiKey]).toEqual([
+        'dg-partner',
+        'an-partner',
+        'el-partner',
+      ])
+      // No backup voice and no other voice provider of the install.
+      expect(JSON.stringify(got.config)).not.toContain('oa-install')
+      expect(stages.tts.others ?? []).toEqual([])
+      expect(got.config.recording).toEqual(recording)
+    } finally {
+      if (saved === undefined) delete process.env.OPENAI_API_KEY
+      else process.env.OPENAI_API_KEY = saved
+    }
+  })
+
+  test("a stage missing, or a realtime call without the partner's realtime key: null, the install's config answers", () => {
+    expect(partnerCallConfig(parsePartnerSettings({ ...partner, llm: undefined }), recording, 'three_stage')).toBeNull()
+    expect(partnerCallConfig(parsePartnerSettings(partner), recording, 'realtime')).toBeNull()
+  })
+
+  test("a realtime call on the partner's realtime key: realtime reported as the partner's", () => {
+    const got = partnerCallConfig(
+      parsePartnerSettings({ realtime: { provider: 'openai_realtime', api_key: 'rt-partner' } }),
+      recording,
+      'realtime',
+    )
+    if (!got || !isRealtime(got.config)) throw new Error('expected a realtime config')
+    expect(got.config.realtime.apiKey).toBe('rt-partner')
+    expect(got.keySources).toEqual({ realtime: 'partner' })
+  })
+
+  test('an unexpected answer is refused without echoing it', () => {
+    expect(() => parsePartnerSettings({ stt: { provider: 42, api_key: 'secret-in-body' } })).toThrow(
+      /unexpected shape$/,
+    )
+  })
 })

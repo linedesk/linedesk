@@ -14,6 +14,8 @@ import {
   ledger_entries,
   organization,
   instance_settings,
+  partner_providers,
+  partners,
   usage_counters,
   user,
   workspace_settings,
@@ -598,6 +600,140 @@ describe('posting at the finish and in the stale sweep', () => {
     await Promise.all(Array.from({ length: 4 }, () => finish(b.ws, callId)))
     expect(await usageOf(callId)).toHaveLength(1)
     expect(await mine(b.billId)).toEqual([])
+  })
+})
+
+describe("a white-label client on its partner's own keys (S7)", () => {
+  const finishWith = (ws: Pick<Workspace, 'id'>, callId: string, keySources?: Record<string, string>) =>
+    act(agent(ws.id), 'call.finish', {
+      callId,
+      summary: 'Asked about a leak',
+      outcome: 'message',
+      keySources,
+    })
+  // The client of an approved partner, switched to its keys, on its own carrier, with every stage tested ok
+  // (partner-keys.test.ts covers each condition of the forecast).
+  async function onPartnerKeys(ws: Pick<Workspace, 'id'>) {
+    const [p] = await db
+      .insert(partners)
+      .values({
+        id: crypto.randomUUID(),
+        name: 'Own Keys Partners',
+        status: 'approved',
+        created_by: 'test',
+      })
+      .returning()
+    await db.update(organization).set({ partnerId: p!.id }).where(eq(organization.id, ws.id))
+    await db
+      .insert(workspace_settings)
+      .values({
+        workspace_id: ws.id,
+        timezone: DEFAULT_TIME_ZONE,
+        partner_keys: true,
+        carrier: 'telnyx',
+      })
+      .onConflictDoUpdate({
+        target: workspace_settings.workspace_id,
+        set: { partner_keys: true, carrier: 'telnyx' },
+      })
+    const stages = {
+      stt: ENV.STT_PROVIDER,
+      llm: ENV.LLM_PROVIDER,
+      tts: ENV.TTS_PROVIDER,
+    } as const
+    for (const [category, provider] of Object.entries(stages))
+      await db.insert(partner_providers).values({
+        partner_id: p!.id,
+        category: category as 'stt',
+        provider: provider!,
+        key_encrypted: 'not-read-by-the-forecast',
+        last4: 'TEST',
+        status: 'ok',
+        updated_by: 'test',
+      })
+  }
+
+  test('forecast and confirmed: $0 on own_keys, no allowance used; the agent is told to read the partner keys', async () => {
+    const b = await billed('active', {
+      allowanceUsed: true,
+      creditMicros: 10_000_000,
+    })
+    await onPartnerKeys(b.ws)
+    const started = await start(b.ws)
+    expect(started).toMatchObject({ usageLevel: 'own_keys', keys: 'partner' })
+    expect((await getCall(started.callId))!.partner_keys).toBe(true)
+    // The paid level is still reserved while the call runs.
+    expect(await reservationOf(started.callId)).toMatchObject({
+      own_keys: true,
+    })
+    await startedAgo(started.callId, 120)
+    expect(
+      await finishWith(b.ws, started.callId, {
+        stt: 'partner',
+        llm: 'partner',
+        tts: 'partner',
+      }),
+    ).toMatchObject({
+      status: 200,
+    })
+    const [entry] = await usageOf(started.callId)
+    expect(entry).toMatchObject({
+      price_basis: 'own_keys',
+      amount_micros: 0,
+      included_seconds: 0,
+    })
+    expect((await getCall(started.callId))!.key_sources).toEqual({
+      stt: 'partner',
+      llm: 'partner',
+      tts: 'partner',
+    })
+    expect((await balanceOf(b.billId))!.balance_micros).toBe(10_000_000)
+  })
+
+  test('a stage on the install keys, or no report: billed at its level', async () => {
+    const b = await billed('active', {
+      allowanceUsed: true,
+      creditMicros: 10_000_000,
+    })
+    await onPartnerKeys(b.ws)
+    const one = await start(b.ws)
+    await startedAgo(one.callId, 120)
+    await finishWith(b.ws, one.callId, {
+      stt: 'partner',
+      llm: 'partner',
+      tts: 'install',
+    })
+    expect((await usageOf(one.callId))[0]).toMatchObject({
+      price_basis: 'standard',
+      amount_micros: -100_000,
+    })
+    const two = await start(b.ws)
+    await startedAgo(two.callId, 120)
+    await finish(b.ws, two.callId)
+    expect((await usageOf(two.callId))[0]).toMatchObject({
+      price_basis: 'standard',
+      amount_micros: -100_000,
+    })
+  })
+
+  test('a call not forecast on own keys is billed even when the agent claims partner keys', async () => {
+    const b = await billed('active', {
+      allowanceUsed: true,
+      creditMicros: 10_000_000,
+    })
+    const started = await start(b.ws)
+    expect(started.keys).toBeNull()
+    await startedAgo(started.callId, 120)
+    await finishWith(b.ws, started.callId, {
+      stt: 'partner',
+      llm: 'partner',
+      tts: 'partner',
+    })
+    expect((await usageOf(started.callId))[0]).toMatchObject({
+      price_basis: 'standard',
+      amount_micros: -100_000,
+    })
+    expect((await getCall(started.callId))!.key_sources).toBeNull()
   })
 })
 

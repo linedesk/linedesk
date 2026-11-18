@@ -40,6 +40,7 @@ import * as transfer from './transfer.ts'
 import * as outbound from './outbound.ts'
 import * as partner from './partner.ts'
 import * as partnerBrand from './partner-brand.ts'
+import * as partnerKeys from './partner-keys.ts'
 import * as voiceFailure from './voice-failure.ts'
 import * as voices from './voices.ts'
 import * as webhooks from './webhooks.ts'
@@ -106,6 +107,7 @@ export * from './transfer.ts'
 export * from './outbound.ts'
 export * from './partner.ts'
 export * from './partner-brand.ts'
+export * from './partner-keys.ts'
 export * from './voice-failure.ts'
 export * from './voices.ts'
 export * from './usage-level.ts'
@@ -342,6 +344,13 @@ const all = [
   partnerBrand.partnerBrandReviews,
   partnerBrand.partnerBrandApprove,
   partnerBrand.partnerBrandReset,
+  partnerKeys.partnerKeysGet,
+  partnerKeys.partnerKeysSet,
+  partnerKeys.partnerKeysClear,
+  partnerKeys.partnerKeysTest,
+  partnerKeys.partnerSetClientOwnKeys,
+  partnerKeys.partnerKeysAdminDisable,
+  partnerKeys.partnerKeysAdminEnable,
   billingCheckout.billingStartCheckout,
   billingCheckout.billingConfirmCheckout,
   billingCheckout.billingStartTopUp,

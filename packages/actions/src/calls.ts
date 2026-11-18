@@ -1,3 +1,4 @@
+import { keySourcesInput } from './key-sources.ts'
 import { z } from 'zod'
 import { defineAction, type PatchSpec } from './define.ts'
 import { behaviourOn } from './assistant-prompt.ts'
@@ -402,6 +403,11 @@ export const callFinish = defineAction({
      * call.finalize. Missing: the news goes now, as before.
      */
     awaitTranscript: z.boolean().optional(),
+    /**
+     * White-label own keys (S7): per stage whose key served the call, `partner` or `install`. Only a call that started
+     * on the partner's keys sends it; the call is $0 only when every stage of its pipeline says `partner`.
+     */
+    keySources: keySourcesInput.optional(),
   }),
   permission: 'agent',
   logged: 'ids',

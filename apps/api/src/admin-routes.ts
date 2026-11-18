@@ -17,6 +17,7 @@ import { serverEnv } from './instance-env.ts'
 import { livekitStatus } from './livekit-status.ts'
 import { listProviderFailures } from './provider-failures.ts'
 import { providerStatus, voiceProviderConfig } from './provider-settings.ts'
+import { partnerKeysForCall } from './partner-keys.ts'
 import { SecretsKeyError } from './secrets.ts'
 import { agentSetupState, partnerSetupActor, setupActor, workspaceSetupActor } from './agent-setup.ts'
 import { PARTNER_OWNER_ONLY } from './partner-refusals.ts'
@@ -335,6 +336,25 @@ export function registerAdminRoutes(app: Hono<Env>) {
       return c.json(await voiceProviderConfig(db))
     } catch (e) {
       if (e instanceof SecretsKeyError) return c.json({ ok: false, error: e.message }, 409)
+      throw e
+    }
+  })
+
+  // White-label own keys (S7, partner-keys.ts): the partner's working keys for one running call that call.start
+  // forecast on them, in clear. As above: the install-wide agent token only, never a call token (a leaked one must not
+  // read keys), never a member. 404 for any other call. Nothing here is cached by the agent across calls.
+  app.get('/v1/agent/call-provider-config', requirePermission('agent'), async c => {
+    if (c.get('actor').callId) return c.json({ ok: false, error: 'a call token cannot read the provider config' }, 403)
+    const callId = c.req.query('callId')
+    if (!callId || callId.length > 64) return c.json({ ok: false, error: 'callId is needed' }, 400)
+    c.header('cache-control', 'no-store')
+    try {
+      const config = await partnerKeysForCall(db, callId)
+      if (!config) return c.json({ ok: false, error: 'this call does not run on partner keys' }, 404)
+      return c.json(config)
+    } catch (e) {
+      if (e instanceof SecretsKeyError)
+        return c.json({ ok: false, error: 'the partner keys cannot be read on this server' }, 409)
       throw e
     }
   })

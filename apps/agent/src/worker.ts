@@ -59,6 +59,8 @@ import {
   type CallConfig,
   configForAssistant,
   createConfigLoader,
+  parsePartnerSettings,
+  partnerCallConfig,
   isRealtime,
   parseProviderSettings,
   pipelineOfAssistant,
@@ -900,13 +902,16 @@ async function entry(ctx: JobContext) {
   // Linedesk Cloud: only fallback models of the call's level (withLevelFallbacks).
   // The three stages hear with the speech recognition model of the call's level (withSttModel).
   const warn = (line: string) => console.warn(`call ${registered.callId}: ${line}`)
+  // White-label own keys (S7): a call call.start forecast on the partner's own keys runs on them alone, read for this
+  // call only; anything missing (the API, a stage) and it runs on the install's and is billed at its level.
+  const base = await partnerKeysConfig(api, registered, readiness.config, warn)
   const config = withRealtimeModel(
     withAssistantRealtimeModel(
       withAssistantRealtimeVoice(
         withLevelFallbacks(
           withSttModel(
             withAssistantModel(
-              configForAssistant(readiness.config, pipelineOfAssistant(registered.assistant), warn),
+              configForAssistant(base, pipelineOfAssistant(registered.assistant), warn),
               registered.assistant?.llm_model,
             ),
             registered.sttModel,
@@ -930,6 +935,9 @@ async function entry(ctx: JobContext) {
   // The recording notice is said only when the call is recorded: with no recording store, or an assistant or workspace
   // that does not record, nothing is.
   const call = announceRecording(registered, recorder !== null)
+  // Reported with call.finish: whose keys served the call (only a call that started on the partner's keys).
+  if (registered.partnerKeys)
+    call.keySources = registered.keySources ?? { stt: 'install', llm: 'install', tts: 'install' }
   const log = new CallLog(call)
 
   // From here on the call exists and must be finished: on hang-up (session close), on any error
@@ -968,6 +976,36 @@ async function entry(ctx: JobContext) {
     await finishOnce()
     throw e
   }
+}
+
+/**
+ * The config a call starts from: on the partner's own keys when call.start said so and they cover the assistant's
+ * pipeline (partnerCallConfig), else the install's. Sets `call.keySources` to what it picked.
+ */
+async function partnerKeysConfig(
+  api: ReturnType<typeof apiClientFromEnv>,
+  call: CallSession,
+  install: CallConfig,
+  warn: (line: string) => void,
+): Promise<CallConfig> {
+  if (!call.partnerKeys) return install
+  try {
+    if (!api.callProviderSettings) throw new Error('this API client cannot read them')
+    const partner = parsePartnerSettings(await api.callProviderSettings(call.callId))
+    const picked = partnerCallConfig(partner, install.recording, pipelineOfAssistant(call.assistant))
+    if (picked) {
+      call.keySources = picked.keySources
+      console.log(`call ${call.callId}: on the partner's own provider keys`)
+      return picked.config
+    }
+    warn("the partner's own keys do not cover this call's pipeline: the install's keys answer, the call is billed")
+  } catch (e) {
+    warn(
+      `could not read the partner's own keys, the install's keys answer and the call is billed: ${e instanceof Error ? e.message : String(e)}`,
+    )
+  }
+  call.keySources = isRealtime(install) ? { realtime: 'install' } : { stt: 'install', llm: 'install', tts: 'install' }
+  return install
 }
 
 /** Why a call on Linedesk Cloud is not answered when its usage level is still `not_allowed` at call start. */

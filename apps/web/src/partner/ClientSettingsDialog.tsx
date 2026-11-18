@@ -1,13 +1,21 @@
-// Partner › Clients › Usage limit… (white-label slice S3, LIN-454): a client's monthly usage limit, set by anyone on the
+// Partner › Clients › Settings (white-label slices S3 and S7): a client's monthly usage limit, set by anyone on the
 // partner team; raising or removing it is the partner's owner's. The limit is in dollars on the partner bill's ledger.
-import { CLIENT_USAGE_LIMIT_MAX_USD, CLIENT_USAGE_LIMIT_MIN_USD, type PartnerClientRow } from '@linedesk/actions'
+// The owner also switches the client to the partner's own AI keys (Partner › AI keys), shown once a key is connected.
+import {
+  CLIENT_USAGE_LIMIT_MAX_USD,
+  CLIENT_USAGE_LIMIT_MIN_USD,
+  type PartnerClientRow,
+  type PartnerKeysData,
+} from '@linedesk/actions'
 import { useFormat, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
+import { useQuery } from '../cachedQuery.ts'
+import { SwitchRow } from '../settings/fields.tsx'
 import { callAction } from '../settings/settings-api.ts'
 import { Dialog, FormField, Input } from '../ui/form.tsx'
 import { Button, cx, Note } from '../ui/kit.tsx'
 import { barWidth, usageTone } from './clientModel.ts'
-import { partnerErrorText } from './partner-api.ts'
+import { keysErrorText, PARTNER_KEYS_QUERY } from './PartnerKeys.tsx'
 
 type Props = {
   partnerId: string
@@ -42,7 +50,9 @@ export function ClientSettingsDialog({ partnerId, client, owner, onClose, onSave
   // Raising or removing the limit is the partner's owner's; an admin may lower it or set one (review of #1113, L-1).
   const loosens = limitChanged && client.limitCents !== null && (cents === null || cents > client.limitCents)
   const ownerOnly = loosens && !owner
-  const changed = limitChanged
+  const [ownKeys, setOwnKeys] = useState(client.ownKeys)
+  const ownKeysChanged = ownKeys !== client.ownKeys
+  const changed = limitChanged || ownKeysChanged
 
   async function save() {
     if (busy || invalid || ownerOnly || !changed) return
@@ -51,10 +61,11 @@ export function ClientSettingsDialog({ partnerId, client, owner, onClose, onSave
     try {
       const base = { partnerId, workspaceId: client.id }
       if (limitChanged) await callAction('partner.setClientUsageLimit', { ...base, limitUsd: parsed })
+      if (ownKeysChanged) await callAction('partner.setClientOwnKeys', { ...base, on: ownKeys })
       await onSaved(t('team.partner.clients.saved', { name: client.name }))
       onClose()
     } catch (err) {
-      setProblem(partnerErrorText(err))
+      setProblem(keysErrorText(err))
       setBusy(false)
     }
   }
@@ -105,6 +116,7 @@ export function ClientSettingsDialog({ partnerId, client, owner, onClose, onSave
           onChange={e => setLimit(e.target.value)}
         />
       </FormField>
+      {owner && client.billed && <OwnKeys partnerId={partnerId} client={client} on={ownKeys} onChange={setOwnKeys} />}
       {problem && (
         <Note tone="danger" role="alert">
           {problem}
@@ -152,5 +164,44 @@ function Used({ client, limitCents }: { client: PartnerClientRow; limitCents: nu
         </span>
       )}
     </div>
+  )
+}
+
+/**
+ * The client on the partner's own AI keys: offered once the partner connected a key (or the client is already on
+ * them); what it takes for a call without a usage fee is said under the switch.
+ */
+function OwnKeys({
+  partnerId,
+  client,
+  on,
+  onChange,
+}: {
+  partnerId: string
+  client: PartnerClientRow
+  on: boolean
+  onChange: (on: boolean) => void
+}) {
+  const t = useT()
+  const keys = useQuery(PARTNER_KEYS_QUERY(partnerId), () =>
+    callAction<PartnerKeysData>('partnerKeys.get', { partnerId }),
+  ).data
+  const anyKey = !!keys?.stages.some(s => s.provider)
+  if (!anyKey && !client.ownKeys) return null
+  const ready = !!keys && (keys.ready.threeStage || keys.ready.realtime)
+  return (
+    <SwitchRow
+      title={t('team.partner.clients.ownKeys.title')}
+      description={
+        !ready
+          ? t('team.partner.clients.ownKeys.notReady')
+          : client.ownCarrier
+            ? t('team.partner.clients.ownKeys.help')
+            : t('team.partner.clients.ownKeys.needsCarrier')
+      }
+      on={on}
+      onChange={onChange}
+      disabled={!!keys?.disabled && !on}
+    />
   )
 }

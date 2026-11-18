@@ -844,8 +844,11 @@ async function listClients(tx: Tx, partner: PartnerRow, now: string): Promise<Pa
       bill: organization.billingAccountId,
       billingState: organization.billingState,
       limitCents: organization.usageLimitCents,
+      ownKeys: workspace_settings.partner_keys,
+      carrier: workspace_settings.carrier,
     })
     .from(organization)
+    .leftJoin(workspace_settings, eq(workspace_settings.workspace_id, organization.id))
     .where(eq(organization.partnerId, partner.id))
   const period = partner.billing_account_id ? await periodAt(tx, partner.billing_account_id, now) : null
   const month = new Date(now)
@@ -953,6 +956,8 @@ async function listClients(tx: Tx, partner: PartnerRow, now: string): Promise<Pa
       limitCents: c.limitCents,
       limitPercent: percent,
       billed: onBill,
+      ownKeys: !!c.ownKeys,
+      ownCarrier: !!c.carrier && c.carrier !== 'default',
       problems,
     }
   })
@@ -1291,6 +1296,9 @@ export const partnerHandlers: Record<string, Handler> = {
         clients: clients.find(c => c.partnerId === p.id)?.count ?? 0,
         billingAccountId: p.billing_account_id,
         billStatus: bills.find(b => b.id === p.billing_account_id)?.status ?? null,
+        ownKeysDisabled: p.own_keys_disabled_at
+          ? { reason: p.own_keys_disabled_reason ?? '', at: p.own_keys_disabled_at }
+          : null,
       }
     })
     return { rows: {}, data: { partners: list, clientLimit: await partnerClientLimit(tx) } }

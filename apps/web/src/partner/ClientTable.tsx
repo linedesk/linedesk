@@ -174,6 +174,9 @@ function ClientRow({
       <div className="pc-main">
         <div className="pc-name">
           <span className="pc-title">{row.name}</span>
+          {row.ownKeys && (
+            <Badge title={t('team.partner.clients.ownKeys.badgeTip')}>{t('team.partner.clients.ownKeys.badge')}</Badge>
+          )}
           {row.problems.map(p => (
             <Badge key={p} tone={problemTone(p)}>
               {t(PROBLEM_KEY[p])}

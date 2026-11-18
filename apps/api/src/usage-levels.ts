@@ -41,6 +41,7 @@ import {
 } from './call-quality.ts'
 import type { Actor } from './context.ts'
 import { Forbidden, Reject } from './handler-context.ts'
+import { workspaceOwnKeys } from './partner-keys.ts'
 import { activeProvider, setUpProviders } from './provider-settings.ts'
 
 /** Whether this install bills usage (Linedesk Cloud), so voices and models have a level. Never throws. */
@@ -49,11 +50,16 @@ export async function usageLevelsBilled(tx: Tx): Promise<boolean> {
 }
 
 /**
- * Whether every part of the workspace's calls runs on its own provider keys. Per-workspace speech, model and voice
- * keys are not built yet (docs/billing.md: own keys), so every Cloud call runs on the install's keys: false.
+ * Whether a call with these choices runs on its own provider keys: a white-label client switched to its partner's own
+ * keys (partner-keys.ts, S7). A workspace without a partner never does.
  */
-export async function workspaceOwnKeys(_tx: Tx, _workspaceId: string): Promise<boolean> {
-  return false
+async function ownKeysFor(tx: Tx, workspaceId: string, assistant: AssistantChoices, choices: Choices | null) {
+  if (!choices) return false
+  return workspaceOwnKeys(tx, workspaceId, {
+    pipeline: choices.pipeline,
+    voice: choices.voice,
+    voiceId: (assistant as { voice?: { voice_id?: string } }).voice?.voice_id || null,
+  })
 }
 
 /** An ALERT line in the API's log: something on Linedesk Cloud runs on what it may not, and was moved to Standard. */
@@ -234,7 +240,7 @@ export async function assistantForCall<A extends AssistantChoices>(
     }
   }
   const enabled = await enabledLevels(tx, settings)
-  const ownKeys = await workspaceOwnKeys(tx, workspaceId)
+  const ownKeys = await ownKeysFor(tx, workspaceId, assistant, choices)
   const decided = choices ? usageLevel({ level, parts: choices, ownKeys, levelEnabled: enabled[level] }) : 'not_allowed'
   if (choices && decided !== 'not_allowed')
     return {
@@ -247,7 +253,12 @@ export async function assistantForCall<A extends AssistantChoices>(
   const fallback = onStandard(assistant)
   const standard = await assistantChoices(tx, fallback, { billed, defaults })
   const fallbackLevel = standard
-    ? usageLevel({ level: 'standard', parts: standard, ownKeys, levelEnabled: true })
+    ? usageLevel({
+        level: 'standard',
+        parts: standard,
+        ownKeys: await ownKeysFor(tx, workspaceId, fallback, standard),
+        levelEnabled: true,
+      })
     : 'not_allowed'
   const what = !enabled[level]
     ? `${LEVEL_NAMES[level]} is off`

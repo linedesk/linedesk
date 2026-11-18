@@ -390,6 +390,9 @@ export type AdminInputs = {
   'partnerBrand.reviews': Record<string, never>
   'partnerBrand.approve': { partnerId: string; revision: number; contentHash: string; reason: string }
   'partnerBrand.reset': { partnerId: string; reason: string }
+  // A partner's own AI keys (S7, partner-keys.ts): the kill switch.
+  'partnerKeys.adminDisable': { partnerId: string; reason: string }
+  'partnerKeys.adminEnable': { partnerId: string }
 }
 
 /**
@@ -450,6 +453,8 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, MessageKey>> = {
   'partnerBrand.setProtectedNames': msg('admin.stepUp.what.protectedNames'),
   'partnerBrand.approve': msg('admin.stepUp.what.partnerBrand'),
   'partnerBrand.reset': msg('admin.stepUp.what.partnerBrand'),
+  'partnerKeys.adminDisable': msg('admin.stepUp.what.partner'),
+  'partnerKeys.adminEnable': msg('admin.stepUp.what.partner'),
 }
 /** What the passkey dialog says it confirms; a workspace about to be deleted by its name (LIN-161). */
 export function stepUpLabel<N extends keyof AdminInputs>(name: N, input?: AdminInputs[N]): string {

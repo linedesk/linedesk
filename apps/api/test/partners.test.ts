@@ -1332,6 +1332,8 @@ describe('Partner › Clients (S3)', () => {
       limitCents: 1000,
       limitPercent: 95,
       billed: true,
+      ownKeys: false,
+      ownCarrier: false,
       problems: ['limit_near'],
     })
     expect(second).toMatchObject({ id: quiet, seconds: 0, costCents: 0, limitCents: null, problems: [] })

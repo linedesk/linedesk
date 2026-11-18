@@ -1,6 +1,7 @@
 // Background jobs with pg-boss, in the API process: its tables live in the `pgboss` schema of the
 // same database, so self-hosting needs nothing extra. Several API replicas share the work.
 // JOBS_ENABLED=false: this process only queues jobs and runs none (another replica does them).
+import { checkPartnerKeys } from './partner-keys.ts'
 import type { RecordingStoreName } from '@linedesk/actions'
 import { BillingSetupError } from '@linedesk/billing'
 import { calls, type Tx } from '@linedesk/db'
@@ -296,6 +297,8 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.work(PROVIDER_HEALTH_CHECK, async () => {
     const result = await runProviderHealthCheck(db, { env })
     if (result.failing.length) console.log(`provider health check: failing ${result.failing.join(', ')}`)
+    // White-label partners' own keys too (S7): a failing one that works again goes back to ok. Never throws.
+    await checkPartnerKeys(db)
     return result
   })
   await instance.schedule(SETUP_EMAILS, SETUP_EMAILS_CRON)
