@@ -59,13 +59,17 @@ export const knowledgeImport = defineAction({
         .array(z.string())
         .max(10)
         .default([])
-        .transform(list => list.filter((goal): goal is AssistantGoal => (assistantGoals as readonly string[]).includes(goal))),
+        .transform(list =>
+          list.filter((goal): goal is AssistantGoal => (assistantGoals as readonly string[]).includes(goal)),
+        ),
       goalsNote: z.string().trim().max(1_000).optional(),
       url: z.string().trim().max(2000).optional(),
     })
     .refine(i => i.business || i.url, { message: 'say what the business does, or give its website' }),
   permission: 'settings:write',
   readOnly: true,
+  // A read is logged only in some cases (run-action.ts runReadOnly); then the website keeps only its host (LIN-507).
+  loggedHostOnly: ['url'],
 })
 
 // --- Questions the assistant could not answer ----------------------------------------------

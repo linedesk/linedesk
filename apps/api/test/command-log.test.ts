@@ -4,7 +4,8 @@
 import { commands, contacts } from '@linedesk/db'
 import { eq, inArray } from 'drizzle-orm'
 import { beforeAll, describe, expect, test } from 'vitest'
-import { COMMAND_INPUT_RETENTION_DAYS, idsOnly, OMITTED, pruneOldCommands } from '../src/command-log.ts'
+import { actions } from '@linedesk/actions'
+import { COMMAND_INPUT_RETENTION_DAYS, idsOnly, OMITTED, pruneOldCommands, storedInput } from '../src/command-log.ts'
 import { db } from '../src/db.ts'
 import { act, agent, createWorkspace, randomNumber, type Workspace } from './helpers.ts'
 
@@ -30,6 +31,25 @@ test('idsOnly keeps ids, numbers and booleans and says which other fields there 
 })
 
 describe('what is written', () => {
+  test('a CalDAV server and a knowledge import website keep only their host (LIN-507)', () => {
+    const caldav = storedInput(actions.get('calendar.connectWithPassword')!, {
+      provider: 'caldav',
+      serverUrl: 'https://mike:secret@CalDAV.Example.com/dav/private-path?token=t1',
+      username: 'mike',
+    })
+    expect(caldav).toEqual({ provider: 'caldav', serverUrl: 'caldav.example.com', username: 'mike' })
+    const site = storedInput(actions.get('knowledge.import')!, {
+      assistantId: 'a1',
+      url: 'https://brightwater.example/hidden?preview=t2',
+    })
+    expect(site).toEqual({ assistantId: 'a1', url: 'brightwater.example' })
+    const business = storedInput(actions.get('business.import')!, {
+      assistantId: 'a1',
+      website: 'https://brightwater.example/about?ref=t3',
+    })
+    expect(business).toEqual({ assistantId: 'a1', website: 'brightwater.example' })
+  })
+
   test("the agent's per-call actions keep only ids: no transcript line, message or summary", async () => {
     const callId = ws.call.id
     const keys = { line: crypto.randomUUID(), message: crypto.randomUUID(), finish: crypto.randomUUID() }

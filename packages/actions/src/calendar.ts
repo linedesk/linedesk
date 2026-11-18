@@ -245,6 +245,8 @@ export const calendarConnectWithPassword = defineAction({
   }),
   permission: 'settings:write',
   sensitive: ['password'],
+  // A server address can carry a user name or a private path: the command log keeps its host (LIN-507).
+  loggedHostOnly: ['serverUrl'],
 })
 
 /** `data` of calendar.connectWithPassword. */

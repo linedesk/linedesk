@@ -235,5 +235,6 @@ export const businessImport = defineAction({
     })
     .refine(i => i.placeId || i.name || i.website, { message: 'give the listing, the business name or its website' }),
   permission: 'settings:write',
-  readOnly: true,
+  readOnly: true, // As knowledge.import: if the read is ever logged, the website keeps only its host (LIN-507).
+  loggedHostOnly: ['website'],
 })
