@@ -7,6 +7,8 @@ import * as Sentry from '@sentry/node'
 /** Starts Sentry for this process when SENTRY_DSN is set; true when it is on. */
 export function initErrorReporting(env: Record<string, string | undefined> = process.env): boolean {
   if (!env.SENTRY_DSN) return false
-  Sentry.init(serverSentryOptions('agent', env))
+  // No runtime channel injection: it adds module loader hooks (a thread and ~0.5 s of CPU in every process, LIN-569)
+  // that instrument modules as Node loads them, and the agent runs from a bundle, where there are none to instrument.
+  Sentry.init({ ...serverSentryOptions('agent', env), enableRuntimeChannelInjection: false })
   return true
 }

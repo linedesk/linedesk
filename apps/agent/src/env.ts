@@ -18,7 +18,10 @@ type Env = Record<string, string | undefined>
 /** Returns the named variables, or throws listing every one that is not set. */
 export function requireEnv<K extends string>(names: readonly K[], env: Env = process.env): Record<K, string> {
   const missing = names.filter(name => !env[name])
-  if (missing.length) throw new Error(`Missing environment variable${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}. Set ${missing.length > 1 ? 'them' : 'it'} in .env (see .env.example).`)
+  if (missing.length)
+    throw new Error(
+      `Missing environment variable${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}. Set ${missing.length > 1 ? 'them' : 'it'} in .env (see .env.example).`,
+    )
   return Object.fromEntries(names.map(name => [name, env[name]!])) as Record<K, string>
 }
 
@@ -29,7 +32,9 @@ export function requireLivekitEnv(env: Env = process.env) {
   const livekit = requireEnv(livekitEnv, env)
   const development = env.NODE_ENV !== 'production' && isLocalUrl(livekit.LIVEKIT_URL)
   if (livekit.LIVEKIT_API_SECRET === DEV_LIVEKIT_SECRET && !development) {
-    throw new Error('LIVEKIT_API_SECRET is still the development default. Set your own secret (at least 32 characters) in .env and in the LiveKit server config.')
+    throw new Error(
+      'LIVEKIT_API_SECRET is still the development default. Set your own secret (at least 32 characters) in .env and in the LiveKit server config.',
+    )
   }
   return livekit
 }
@@ -45,6 +50,16 @@ export function requireLivekitEnv(env: Env = process.env) {
 export function turnOffLocalInference(env: Env = process.env) {
   env.LIVEKIT_AGENTS_LOCAL_EOT = '0'
   env.LIVEKIT_AGENTS_PRELOAD_LOCAL_INFERENCE = '0'
+}
+
+/**
+ * The SDK's event-loop monitor logs stalls of the worker and of each call process. It runs in every process, idle ones
+ * too, and checks the loop every warn threshold / 5 (at least 20 ms): at the SDK's 100 ms that was about 5 % of a core
+ * for a worker with two warm processes (LIN-569). 250 ms checks every 50 ms and still logs the stalls a caller hears.
+ * LIVEKIT_AGENTS_LOOP_BLOCK_WARN_MS set in the environment wins; 0 turns the monitor off. Set before the worker starts.
+ */
+export function slowLoopMonitor(env: Env = process.env) {
+  env.LIVEKIT_AGENTS_LOOP_BLOCK_WARN_MS ??= '250'
 }
 
 /** LiveKit's API is served over http(s) on the same host as the ws(s) URL. */

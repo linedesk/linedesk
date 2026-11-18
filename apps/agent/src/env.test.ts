@@ -1,7 +1,7 @@
 import type { Assistant } from '@linedesk/db/types'
 import { EMERGENCY_RULE } from '@linedesk/actions'
 import { expect, test } from 'vitest'
-import { DEV_LIVEKIT_SECRET, requireEnv, requireLivekitEnv, turnOffLocalInference } from './env.ts'
+import { DEV_LIVEKIT_SECRET, requireEnv, requireLivekitEnv, slowLoopMonitor, turnOffLocalInference } from './env.ts'
 import { buildInstructions } from './prompt.ts'
 
 test('requireEnv names every missing variable', () => {
@@ -43,8 +43,15 @@ test('the development LiveKit secret is refused outside local development', () =
 })
 
 const assistant = {
-  name: 'Maya', ai_disclosure: 'at_start', greeting: 'Thanks for calling Brightwater. This is Maya. How can I help?',
-  business_profile: { description: 'Family-run plumbing company in Portland.', services: ['Leak repair', 'Water heaters'], hours: 'Mon–Fri 7 am – 6 pm', faqs: [{ q: 'Do you serve Lake Oswego?', a: 'Yes.' }] },
+  name: 'Maya',
+  ai_disclosure: 'at_start',
+  greeting: 'Thanks for calling Brightwater. This is Maya. How can I help?',
+  business_profile: {
+    description: 'Family-run plumbing company in Portland.',
+    services: ['Leak repair', 'Water heaters'],
+    hours: 'Mon–Fri 7 am – 6 pm',
+    faqs: [{ q: 'Do you serve Lake Oswego?', a: 'Yes.' }],
+  },
 } as Assistant
 
 test('the system prompt is built from name and the free-text instructions; the greeting is not in it', () => {
@@ -77,8 +84,12 @@ test('the prompt holds the product rules: messages only, no transfer, no booking
   const prompt = buildInstructions(assistant)
   expect(prompt).toContain('say truthfully that you are an AI assistant')
   // Asked, it always says it is an AI; ai_disclosure only changes when it says so on its own.
-  expect(buildInstructions({ ...assistant, ai_disclosure: 'never' })).toContain('say truthfully that you are an AI assistant')
-  expect(prompt).toContain('You cannot book appointments, transfer calls or look up records; for those, take a message.')
+  expect(buildInstructions({ ...assistant, ai_disclosure: 'never' })).toContain(
+    'say truthfully that you are an AI assistant',
+  )
+  expect(prompt).toContain(
+    'You cannot book appointments, transfer calls or look up records; for those, take a message.',
+  )
   expect(prompt).toContain('take a message for that person and say they will call back')
   expect(prompt).toContain('Appointments: ask which day and time suit the caller')
   // The one fixed safety rule (#530): someone in danger hears to contact the emergency services, said once.
@@ -97,4 +108,13 @@ test('the worker turns off local inference for itself and its call processes', (
   const env: Record<string, string | undefined> = {}
   turnOffLocalInference(env)
   expect(env).toEqual({ LIVEKIT_AGENTS_LOCAL_EOT: '0', LIVEKIT_AGENTS_PRELOAD_LOCAL_INFERENCE: '0' })
+})
+
+test('the worker slows the event-loop monitor unless the environment sets it', () => {
+  const env: Record<string, string | undefined> = {}
+  slowLoopMonitor(env)
+  expect(env.LIVEKIT_AGENTS_LOOP_BLOCK_WARN_MS).toBe('250')
+  const off: Record<string, string | undefined> = { LIVEKIT_AGENTS_LOOP_BLOCK_WARN_MS: '0' }
+  slowLoopMonitor(off)
+  expect(off.LIVEKIT_AGENTS_LOOP_BLOCK_WARN_MS).toBe('0')
 })

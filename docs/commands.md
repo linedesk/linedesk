@@ -109,7 +109,7 @@ What `docker compose up` gives a user: `docker-compose.yml` alone is the whole a
 - docker compose needs `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` to be set for every command, so `scripts/setup.sh` (or `cp .env.example .env`) comes before `pnpm db:up`.
 - A new service needs `<<: *service`, `mem_limit` and `cpus`.
 - To try the self-host stack next to a running dev stack, always pass another project name (`docker compose -p linedesk-selfhost ...`, the default name is the dev stack's), its own hostname and port (`PUBLIC_URL=http://selfhost.localhost:8480 LINEDESK_HTTP_BIND=127.0.0.1:8480`; never plain `localhost`: cookies are shared across ports and sign the live app out).
-- The images run the `.ts` sources directly on Node (type stripping): see the erasable-syntax rule in [CLAUDE.md](../CLAUDE.md#code-style). The API image starts from a bundle of them instead (`node apps/api/scripts/bundle.ts`, built in the image; LIN-526), so it loads a few dozen files instead of about 2,650 modules; its scripts still run from the sources.
+- The images run the `.ts` sources directly on Node (type stripping): see the erasable-syntax rule in [CLAUDE.md](../CLAUDE.md#code-style). The API image starts from a bundle of them instead (`node apps/api/scripts/bundle.ts`, built in the image; LIN-526), so it loads a few dozen files instead of about 2,650 modules; its scripts still run from the sources. The agent image does the same (`node apps/agent/scripts/bundle.ts`; LIN-569): the worker and every process it keeps warm for a call start from the bundle.
 
 ## Dev mode
 

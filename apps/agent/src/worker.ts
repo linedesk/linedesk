@@ -73,7 +73,7 @@ import {
   withSttModel,
   withRealtimeModel,
 } from './config.ts'
-import { livekitHttpUrl, requireLivekitEnv, turnOffLocalInference, workerAgentName } from './env.ts'
+import { livekitHttpUrl, requireLivekitEnv, slowLoopMonitor, turnOffLocalInference, workerAgentName } from './env.ts'
 import { describeLoadPolicy, describeProcessWait, loadPolicy, reportedLoad } from './worker-load.ts'
 import { checkReadiness, declineCall, describeReadiness, type Readiness } from './not-ready.ts'
 import {
@@ -1136,6 +1136,8 @@ async function main() {
   options.loadFunc = reportedLoad(options.loadFunc, load, line => console.warn(line))
   // No local end-of-turn model and no process for it: no call uses it (env.ts).
   turnOffLocalInference()
+  // The event-loop monitor checks every 50 ms instead of 20 ms, in idle processes too (env.ts).
+  slowLoopMonitor()
   cli.runApp(options)
 }
 

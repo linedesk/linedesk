@@ -88,6 +88,19 @@ RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store \
        typescript@* @typescript+* @img+sharp-*linuxmusl*
 COPY . .
 
+# --- agent bundle: the worker, the job process and the LiveKit Agents SDK in a few files, so the worker and every
+# process it keeps warm for a call start in ~2 s of CPU instead of ~7 s (LIN-569). Same base and lockfile as
+# agent-build, so the packages it leaves in node_modules have the same paths there. ---
+FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS agent-bundle
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
+RUN corepack enable
+WORKDIR /app
+COPY --from=manifests /app .
+RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store \
+    pnpm install --frozen-lockfile --filter "@linedesk/agent..."
+COPY . .
+RUN node apps/agent/scripts/bundle.ts
+
 FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS agent
 ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
@@ -96,9 +109,15 @@ WORKDIR /app
 COPY --from=agent-build --chown=node:node /app/node_modules ./node_modules
 COPY --from=agent-build --chown=node:node /app/apps/agent ./apps/agent
 COPY --from=agent-build --chown=node:node /app/packages ./packages
+# Node runs the bundle; the sources stay for the command-line scripts (`node src/call-test.ts`). --check fails the
+# build if a file the bundle loads from node_modules or the sources is missing.
+COPY --chown=node:node scripts/node-bundle.mts ./scripts/
+COPY --from=agent-bundle --chown=node:node /app/apps/agent/dist ./apps/agent/dist
+RUN node apps/agent/scripts/bundle.ts --check
 USER node
 WORKDIR /app/apps/agent
-CMD ["node", "src/worker.ts", "start"]
+# The job processes the worker starts inherit --enable-source-maps.
+CMD ["node", "--enable-source-maps", "dist/worker.mjs", "start"]
 
 # --- live: the runtime for dev mode (docker-compose.dev.yml). No code inside: api, web and agent run
 # from the source checkout mounted at /app and their node_modules live in a volume (docker/dev-run.mjs),
@@ -120,6 +139,7 @@ COPY --from=api-build --chown=node:node /app/apps/api ./apps/api
 COPY --from=api-build --chown=node:node /app/packages ./packages
 # The bundle reads locales, voice previews and migrations from the sources above; --check fails the build if one is missing.
 COPY --from=api-bundle --chown=node:node /app/apps/api/dist ./apps/api/dist
+COPY --chown=node:node scripts/node-bundle.mts ./scripts/
 RUN node apps/api/scripts/bundle.ts --check
 ENV LINEDESK_API_BUNDLE=1
 COPY --chown=node:node docker/api-entrypoint.sh ./
