@@ -14,6 +14,7 @@ import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { highlight, searchHit } from './search.tsx'
 import { useT } from '@linedesk/i18n/react'
 import { i18n } from '../i18n/index.tsx'
+import { MissingInfoFlags, missingInfoOf, missingInfoText } from '../call/MissingInfo.tsx'
 
 /** The inbox passes them all; a call list elsewhere (a contact's calls) only those it offers. */
 export type RowHandlers = {
@@ -55,6 +56,7 @@ export function rowLabel(call: Call, contact: Contact | undefined, group: Call[]
     callTitle(call),
     group && t('inbox.row.calls', { count: group.length }),
     call.spam_likely && t('inbox.row.spamLikely'),
+    ...missingInfoOf(call).map(missing => missingInfoText(missing).label),
     unread && t('inbox.row.unread'),
     call.inbox_state === 'done' && t('inbox.row.done'),
   ]
@@ -155,7 +157,11 @@ function SelectBox({
         onSelect(call, e.shiftKey)
       }}
     >
-      <Checkbox checked={selected} label={selected ? t('inbox.row.selectedUnselect') : t('inbox.row.select')} onChange={() => {}} />
+      <Checkbox
+        checked={selected}
+        label={selected ? t('inbox.row.selectedUnselect') : t('inbox.row.select')}
+        onChange={() => {}}
+      />
     </span>
   )
 }
@@ -271,6 +277,7 @@ export const Row = memo(function Row({
             {t('inbox.row.spamLikely')}
           </span>
         )}
+        <MissingInfoFlags call={call} row />
       </span>
       <Summary call={call} search={search} segments={segments} />
       <span className="r-status">
@@ -298,14 +305,24 @@ export const Row = memo(function Row({
           ? on.onClearReminder && (
               <RowAction
                 title={t('common.withKey', { label: t('inbox.goLive.clearReminder'), key: '⇧H' })}
-                icon="restart" onClick={() => on.onClearReminder!(call)} />
+                icon="restart"
+                onClick={() => on.onClearReminder!(call)}
+              />
             )
-          : on.onRemind && <RowAction
+          : on.onRemind && (
+              <RowAction
                 title={t('common.withKey', { label: t('shell.command.remindMe'), key: 'H' })}
-                icon="clock" onClick={() => on.onRemind!(call)} />}
-        {on.onCommands && <RowAction
-              title={t('common.withKey', { label: t('inbox.action.allCommands'), key: '⌘ K' })}
-              icon="more" onClick={() => on.onCommands!(call)} />}
+                icon="clock"
+                onClick={() => on.onRemind!(call)}
+              />
+            )}
+        {on.onCommands && (
+          <RowAction
+            title={t('common.withKey', { label: t('inbox.action.allCommands'), key: '⌘ K' })}
+            icon="more"
+            onClick={() => on.onCommands!(call)}
+          />
+        )}
       </span>
     </div>
   )

@@ -155,6 +155,8 @@ export const outcome = z.enum([
   'spam',
 ])
 export const urgency = z.enum(['urgent', 'normal', 'low'])
+/** What a message or call back lacks for the team to act on it (calls.missing_info, CallMissingInfo). */
+export const missingInfo = z.enum(['reason', 'callback_number'])
 
 /**
  * The longest the assistant stays on a call: it says goodbye and hangs up then (the agent's timer). The limit is
@@ -390,6 +392,8 @@ export const callFinish = defineAction({
     summary: z.string().optional(),
     actionItems: z.array(z.object({ text: z.string(), done: z.boolean().optional() })).optional(),
     fields: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+    /** The agent's after-call check: what the message or call back lacks (calls.missing_info); missing: unchanged. */
+    missing: z.array(missingInfo).max(2).optional(),
     /** The caller's name as the summary found it: names the contact when it has no name yet. */
     callerName: z.string().trim().max(CALLER_NAME_MAX).optional(),
     /**
@@ -441,6 +445,8 @@ export const callFinalize = defineAction({
     summary: z.string().optional(),
     actionItems: z.array(z.object({ text: z.string(), done: z.boolean().optional() })).optional(),
     fields: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+    /** The agent's after-call check: what the message or call back lacks (calls.missing_info); missing: unchanged. */
+    missing: z.array(missingInfo).max(2).optional(),
     callerName: z.string().trim().max(CALLER_NAME_MAX).optional(),
     /**
      * What the agent sent with call.finish: its action items are replaced (the team's notes stay); `callerName` only

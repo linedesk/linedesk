@@ -43,6 +43,7 @@ import {
   type BookingField,
   type BusinessProfile,
   type CallField,
+  type CallMissingInfo,
   type CallerDetails,
   type CallVoiceFailure,
   type EmailRoute,
@@ -301,6 +302,11 @@ export const calls = pgTable(
     summary: text('summary'),
     action_items: jsonb('action_items').$type<ActionItem[]>().notNull().default([]),
     fields: jsonb('fields').$type<CallField[]>().notNull().default([]),
+    /**
+     * A message or call back the team cannot act on: what it lacks (CallMissingInfo), from the agent's check after the
+     * call (call.finish, call.finalize); [] when nothing is missing or the call is no message.
+     */
+    missing_info: jsonb('missing_info').$type<CallMissingInfo[]>().notNull().default([]),
     answered_by: text('answered_by', { enum: ['ai', 'human'] })
       .notNull()
       .default('ai'),

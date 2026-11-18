@@ -308,7 +308,7 @@ test('after-call transcription on: call.finish holds the news until call.finaliz
   // A note the team added meanwhile stays; the first summary's item goes.
   await db
     .update(calls)
-    .set({ action_items: [...held.action_items, { text: 'Team note' }] })
+    .set({ action_items: [...held.action_items, { text: 'Team note' }], missing_info: ['callback_number'] })
     .where(eq(calls.id, callId))
   const done = await act(agent(ws.id), 'call.finalize', {
     callId,
@@ -316,11 +316,18 @@ test('after-call transcription on: call.finish holds the news until call.finaliz
     summary: 'The water heater is leaking.',
     outcome: 'callback',
     actionItems: [{ text: 'Call back about the water heater' }],
+    // The corrected transcript has the number the first summary missed: the flag goes (LIN-513).
+    missing: [],
     previous: { actionItems: ['Find someone who speaks Korean'] },
   })
   expect(done.status).toBe(200)
   const final = (await getCall(callId))!
-  expect(final).toMatchObject({ title: 'Water heater leak', outcome: 'callback', awaiting_transcript_until: null })
+  expect(final).toMatchObject({
+    title: 'Water heater leak',
+    outcome: 'callback',
+    awaiting_transcript_until: null,
+    missing_info: [],
+  })
   expect(final.action_items.map((item: { text: string }) => item.text)).toEqual([
     'Call back about the water heater',
     'Team note',

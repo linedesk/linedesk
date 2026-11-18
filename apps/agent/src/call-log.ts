@@ -180,6 +180,8 @@ export async function finalizeCall(
               urgency: better.urgency,
               actionItems: better.actionItems,
               fields: better.fields,
+              // [] clears what the first summary flagged: the corrected transcript may have the reason or number.
+              missing: better.missing ?? [],
               callerName: better.callerName,
               previous: {
                 actionItems: (first.actionItems ?? []).map(item => item.text).slice(0, 200),

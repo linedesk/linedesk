@@ -25,6 +25,11 @@ import type {
 export type ActionItem = { text: string; done?: boolean; kind?: 'message' }
 export type CallField = { label: string; value: string }
 /**
+ * What a message or call back lacks for the team to act on it (calls.missing_info, set by the agent's after-call check):
+ * `reason` nothing says what the caller wants; `callback_number` no caller ID and no number the caller gave.
+ */
+export type CallMissingInfo = 'reason' | 'callback_number'
+/**
  * A stage of the voice pipeline that failed on the call (call.reportVoiceFailure, VoiceFailure in @linedesk/actions),
  * with when it was reported. `stage`: stt, llm, tts or realtime; `reason`: quota, auth, not_found, no_output, timeout
  * or unknown.

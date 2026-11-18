@@ -1549,6 +1549,7 @@ const handlers: Record<string, Handler> = {
           ? [...input.actionItems, ...teamNotesOf(call.action_items, input.actionItems)]
           : call.action_items,
         fields: input.fields ?? call.fields,
+        missing_info: input.missing ?? call.missing_info,
         ...(held && call.status !== 'completed'
           ? { awaiting_transcript_until: new Date(Date.parse(now) + AWAIT_TRANSCRIPT_MAX_SEC * 1000).toISOString() }
           : {}),
@@ -1653,6 +1654,7 @@ const handlers: Record<string, Handler> = {
               ]
             : call.action_items,
           fields: input.fields ?? call.fields,
+          missing_info: input.missing ?? call.missing_info,
         })
         .where(eq(calls.id, call.id))
         .returning()

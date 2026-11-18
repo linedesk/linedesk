@@ -2202,6 +2202,11 @@ button.k-link {
   font-weight: 500;
   line-height: 16px;
 }
+/* A message the team cannot act on (no reason, no callback number): amber, a warning (design rule 1). */
+.r-sample.r-missing {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
 
 /* First-use tour: a small card next to what it explains, its arrow pointing at it, the rest dimmed. */
 .tour {

@@ -4,6 +4,7 @@ import { useRun } from '../store.tsx'
 import { Checkbox } from '../ui/controls.tsx'
 import { cx } from '../ui/kit.tsx'
 import { uniqueKeys } from '../ui/uniqueKeys.ts'
+import { MissingInfoFlags, missingInfoOf } from './MissingInfo.tsx'
 import { useT } from '@linedesk/i18n/react'
 
 function NextSteps({ call }: { call: Call }) {
@@ -36,12 +37,13 @@ function NextSteps({ call }: { call: Call }) {
 /** What the call was about: summary, key facts and next steps. */
 export function SummaryCard({ call }: { call: Call }) {
   const t = useT()
-  if (!call.summary && !call.fields.length && !call.action_items.length) return null
+  if (!call.summary && !call.fields.length && !call.action_items.length && !missingInfoOf(call).length) return null
   const fieldKeys = uniqueKeys(call.fields.map(f => f.label))
   return (
     <section className="sumcard" aria-label={t('call.summary.title')}>
       <div className="sum-h">
         <b>{t('call.summary.title')}</b>
+        <MissingInfoFlags call={call} />
       </div>
       {call.summary && <p className="sum-text">{call.summary}</p>}
       {call.fields.length > 0 && (
