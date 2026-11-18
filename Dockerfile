@@ -29,7 +29,11 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     && cd node_modules/.pnpm && rm -rf vitest@* @vitest+* vite@* rolldown@* @rolldown+* \
        drizzle-kit@* esbuild@* @esbuild+* @esbuild-kit+* lightningcss* \
        react-dom@* @types+* typescript@* @typescript+* \
-    && find . -name "*.map" -delete
+    && find . -name "*.map" -delete \
+    # pnpm's own records (the whole lockfile, the install time): nothing reads them at runtime. Without them the
+    # same packages give the same node_modules layer, also after a lockfile change for another app, so a deploy
+    # does not pull and unpack it again (LIN-570).
+    && cd /app && rm -f node_modules/.modules.yaml node_modules/.pnpm/lock.yaml node_modules/.pnpm-workspace-state-v1.json
 COPY . .
 # Tests and their config are not part of the image.
 RUN rm -rf apps/api/test apps/api/vitest.config.ts && find apps/api packages -name "*.test.ts" -delete
@@ -85,7 +89,9 @@ RUN --mount=type=cache,id=pnpm-glibc,target=/pnpm/store \
     # the TypeScript compiler (an optional peer) and Alpine builds of the image library.
     && cd node_modules/.pnpm && rm -rf onnxruntime-node@*/node_modules/onnxruntime-node/bin/*/darwin \
        onnxruntime-node@*/node_modules/onnxruntime-node/bin/*/win32 \
-       typescript@* @typescript+* @img+sharp-*linuxmusl*
+       typescript@* @typescript+* @img+sharp-*linuxmusl* \
+    # pnpm's own records, as in api-build: the same packages give the same layer (160 MB compressed; LIN-570).
+    && cd /app && rm -f node_modules/.modules.yaml node_modules/.pnpm/lock.yaml node_modules/.pnpm-workspace-state-v1.json
 COPY . .
 
 # --- agent bundle: the worker, the job process and the LiveKit Agents SDK in a few files, so the worker and every
