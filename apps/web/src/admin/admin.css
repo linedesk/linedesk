@@ -386,6 +386,90 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+/* International transfers (InternationalTransfers.tsx): the allowed countries as chips with the picker after them,
+   then the last 24 hours and the limits as quiet rows under a line. */
+.adm-countries {
+  display: grid;
+  gap: 8px;
+}
+.adm-countries-label {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.adm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.adm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
+  background: var(--surface-hover);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.adm-chip:has(.adm-chip-x) {
+  padding-right: 4px;
+}
+.adm-chip-x {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.adm-chip-x:hover {
+  color: var(--ink);
+  background: var(--line);
+}
+.adm-chip-x:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.adm-chips-empty {
+  font-size: 13px;
+  color: var(--ink-muted);
+  margin-right: 4px;
+}
+.adm-chips-add {
+  min-width: 170px;
+}
+.adm-risky-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.adm-transfer-stats {
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+}
+.adm-transfer-stats dd {
+  font-variant-numeric: tabular-nums;
+}
+/* On a phone the short values stay beside their labels (adm-facts stacks them otherwise). */
+@media (max-width: 719px) {
+  .adm-facts.adm-transfer-stats > div {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+  }
+  .adm-transfer-stats dd {
+    text-align: right;
+  }
+}
 /* The spending cap: one amount field and Save on a row. */
 .adm-cap-form {
   display: flex;

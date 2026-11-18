@@ -1,13 +1,9 @@
 // System: LiveKit, part of the install (its keys are set in env at install time, so this is a
 // read-only status, loaded on its own because a server that is down takes seconds to say so), and
-// whether workspaces may clone voices (off until an instance admin turns it on), where outbound calls may go, and
+// whether workspaces may clone voices (off until an instance admin turns it on), where transfers may call (InternationalTransfers.tsx), and
 // whether users are emailed when an admin signs in as them (off by default), and what Zapier needs from this server.
 import {
-  countryList,
   type ImpersonationEmailsData,
-  type OutboundCountriesData,
-  parseCountryList,
-  phoneCountryName,
   type VoiceCloningData,
   ZAPIER_APP_URL,
   ZAPIER_HOOKS_HOST,
@@ -16,17 +12,16 @@ import {
 import { T, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
-import { Checkbox, Switch } from '../ui/controls.tsx'
-import { Card, Input } from '../ui/form.tsx'
-import { Button, cx, Note } from '../ui/kit.tsx'
+import { Switch } from '../ui/controls.tsx'
+import { Card } from '../ui/form.tsx'
+import { Button, cx } from '../ui/kit.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { type LivekitStatus, loadLivekitStatus, runAdmin, type ServiceStatus } from './api.ts'
 import { brandName } from '../brand.ts'
-import { fmt } from '../i18n/format.ts'
-import { i18n } from '../i18n/index.tsx'
 import { externalLink } from '../settings/ZapierGuide.tsx'
 import { appLink } from '../ui/AppLink.tsx'
+import { InternationalTransfers } from './InternationalTransfers.tsx'
 
 const LIVEKIT = 'admin.livekit'
 
@@ -205,163 +200,6 @@ function VoiceCloning() {
   )
 }
 
-const OUTBOUND = 'admin.outboundCountries'
-const loadOutbound = async () => (await runAdmin('outboundCountries.get', {})) as OutboundCountriesData
-
-/**
- * Where transfers and forwarding checks may call: every workspace the countries of its own numbers, plus the
- * countries allowed here for the whole install (or by OUTBOUND_COUNTRIES). With today's use, the limits, and the
- * countries the install's Twilio account still blocks (its Geo permissions are changed in Twilio, never by Linedesk).
- */
-function OutboundCalls() {
-  const t = useT()
-  const query = useQuery(OUTBOUND, loadOutbound)
-  const data = query.data ?? null
-  const [typed, setTyped] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [problem, setProblem] = useState<string | null>(null)
-  const value = typed ?? data?.countries.join(', ') ?? ''
-  const wanted = parseCountryList(value)
-  const unknown = value.split(/[\s,;]+/).filter(c => c.trim() && !wanted.includes(c.trim().toUpperCase()))
-  const changed = !!data && wanted.join() !== data.countries.join()
-  // Frequent toll-fraud destinations being added: saved only after a second, explicit confirmation.
-  const risky = data ? wanted.filter(c => data.highRisk.includes(c) && !data.countries.includes(c)) : []
-  const [confirmed, setConfirmed] = useState(false)
-  const canSave = changed && unknown.length === 0 && (risky.length === 0 || confirmed)
-  async function save() {
-    setProblem(null)
-    setBusy(true)
-    try {
-      const saved = (await runAdmin('outboundCountries.set', {
-        countries: wanted,
-        ...(risky.length && confirmed ? { confirmHighRisk: risky } : {}),
-      })) as OutboundCountriesData
-      setConfirmed(false)
-      setQueryData<OutboundCountriesData | undefined>(OUTBOUND, saved)
-      setTyped(null)
-    } catch (e) {
-      setProblem(e instanceof Error ? e.message : t('admin.system.outboundFailed'))
-    } finally {
-      setBusy(false)
-    }
-  }
-  return (
-    <Card title={t('admin.system.outbound')} help={t('admin.system.outboundHelp')}>
-      <Loading
-        what={t('admin.system.outboundWhat')}
-        loading={!data}
-        error={query.error}
-        onRetry={() => void query.reload()}
-        skeleton={<Skeleton shape="text" width={240} />}
-      >
-        {data && (
-          <>
-            <label className="k-field-label" htmlFor="adm-outbound">
-              {t('admin.system.outboundLabel')}
-            </label>
-            <form
-              className="ob2-row"
-              noValidate
-              onSubmit={e => {
-                e.preventDefault()
-                if (canSave) void save()
-              }}
-            >
-              <Input
-                id="adm-outbound"
-                value={value}
-                placeholder={t('admin.system.outboundPlaceholder')}
-                disabled={data.fromEnv || busy}
-                invalid={unknown.length > 0}
-                onChange={e => {
-                  setTyped(e.target.value)
-                  setConfirmed(false)
-                }}
-              />
-              {!data.fromEnv && (
-                <Button busy={busy} type="submit" disabled={!canSave}>
-                  {t('common.action.save')}
-                </Button>
-              )}
-            </form>
-            <p className="k-field-msg">
-              {unknown.length
-                ? t('admin.system.notCountryCode', {
-                    count: unknown.length,
-                    codes: fmt().list(unknown, { type: 'unit', style: 'short' }),
-                  })
-                : wanted.length
-                  ? t('admin.system.allowedBesides', { countries: countryList(wanted) })
-                  : t('admin.system.onlyOwn')}
-              {data.fromEnv && ` ${t('admin.system.fromEnv', { env: 'OUTBOUND_COUNTRIES' })}`}
-            </p>
-            {risky.length > 0 && !data.fromEnv && (
-              <Note tone="danger">
-                {t('admin.system.riskyWarning', { count: risky.length, countries: countryList(risky) })}
-                <Checkbox checked={confirmed} onChange={setConfirmed}>
-                  {t('admin.system.riskyConfirm', { countries: countryList(risky) })}
-                </Checkbox>
-              </Note>
-            )}
-            {data.twilioBlocked?.length ? (
-              <Note tone="warning">
-                {t('admin.system.twilioBlocked', {
-                  countries: countryList(data.twilioBlocked),
-                  names: fmt().list(
-                    data.twilioBlocked.map(country => phoneCountryName(country, i18n())),
-                    { type: 'unit', style: 'short' },
-                  ),
-                })}
-              </Note>
-            ) : null}
-            {data.spendCapsUnconfirmed?.length ? (
-              <Note tone="warning">
-                {t('admin.system.spendCapsUnconfirmed', {
-                  count: data.spendCapsUnconfirmed.length,
-                  profiles: fmt().list(
-                    data.spendCapsUnconfirmed.map(p => p.profile),
-                    { type: 'unit', style: 'short' },
-                  ),
-                })}
-              </Note>
-            ) : null}
-            <dl className="adm-facts">
-              <div>
-                <dt>{t('admin.system.last24h')}</dt>
-                <dd>
-                  {t('admin.system.usage', {
-                    transfers: data.usage.transfers,
-                    minutes: data.usage.transferMinutes,
-                    installMinutes: data.usage.installTransferMinutes,
-                    checks: data.usage.forwardingChecks,
-                  })}
-                </dd>
-              </div>
-              <div>
-                <dt>{t('admin.system.limits')}</dt>
-                <dd>
-                  {data.limits.minutesPerWorkspaceDay && data.limits.minutesInstallDay && data.limits.transferMaxMinutes
-                    ? t('admin.system.limitsText', {
-                        workspace: data.limits.minutesPerWorkspaceDay,
-                        install: data.limits.minutesInstallDay,
-                        perCall: data.limits.transferMaxMinutes,
-                      })
-                    : t('admin.system.transfersOff')}
-                </dd>
-              </div>
-            </dl>
-          </>
-        )}
-      </Loading>
-      {problem && (
-        <p className="k-field-msg" role="alert">
-          {problem}
-        </p>
-      )}
-    </Card>
-  )
-}
-
 /**
  * Zapier: one Linedesk app on Zapier serves every install, so a self-hosted server sets up nothing; each workspace
  * connects it with its own key and this address. The server only has to be reachable by Zapier, and reach Zapier.
@@ -404,7 +242,7 @@ export function System() {
     <>
       <Livekit />
       <VoiceCloning />
-      <OutboundCalls />
+      <InternationalTransfers />
       <ImpersonationEmails />
       <Zapier />
     </>
