@@ -1313,29 +1313,18 @@ describe('moving a workspace', () => {
   })
 })
 
-describe("a new bill owner gets the old payer's Premium and Ultra moved to Standard (LIN-438)", () => {
-  const SWITCHED_OFF = {
-    level: 'standard',
-    llmModel: null,
-    realtimeModel: null,
-  }
+describe("a new bill owner keeps the assistants' levels (LIN-589, replaces LIN-438)", () => {
   const move = (workspaceId: string, toBillingAccountId: string) =>
     act(operator, 'billing.moveWorkspace', { workspaceId, toBillingAccountId, reason, requestId: rid('req') })
 
-  test("moved onto someone else's bill: both off, the assistant back on Standard and off Ultra, as a version", async () => {
+  test("moved onto someone else's bill: the assistant keeps Premium and its models", async () => {
     const from = await billWith({ stripe_customer_id: null })
     const to = await billWith({ stripe_customer_id: null })
     await withPremiumAndUltra(from.ws)
     const moved = await move(from.ws.id, to.billId)
     expect(moved.status).toBe(200)
-    expect(moved.body.data.payerReset).toEqual({
-      workspaceIds: [from.ws.id],
-      movedToStandard: [from.ws.assistant.id],
-      movedOffUltra: [],
-    })
-    const now = await premiumAndUltraOf(from.ws)
-    expect(now).toMatchObject(SWITCHED_OFF)
-    expect(now.voiceModel).not.toBe('eleven_v3')
+    expect(moved.body.data).toEqual({ from: from.billId, to: to.billId })
+    expect(await premiumAndUltraOf(from.ws)).toEqual(KEPT_PREMIUM_AND_ULTRA)
     const versions = await db
       .select()
       .from(assistant_versions)
@@ -1345,25 +1334,7 @@ describe("a new bill owner gets the old payer's Premium and Ultra moved to Stand
           eq(assistant_versions.changed_by, operator.userId),
         ),
       )
-    expect(versions.length).toBeGreaterThan(0)
-    // In the audit log with the command.
-    expect((await lastCommand('billing.moveWorkspace'))?.result).toMatchObject({
-      data: { payerReset: { workspaceIds: [from.ws.id] } },
-    })
-  })
-
-  test('moved onto another bill of the same owner: both kept', async () => {
-    const from = await billWith({ stripe_customer_id: null })
-    const to = await billWith({ stripe_customer_id: null })
-    await db
-      .update(billing_accounts)
-      .set({ owner_user_id: from.ws.owner.userId })
-      .where(eq(billing_accounts.id, to.billId))
-    await withPremiumAndUltra(from.ws)
-    const moved = await move(from.ws.id, to.billId)
-    expect(moved.status).toBe(200)
-    expect(moved.body.data.payerReset).toEqual({ workspaceIds: [], movedToStandard: [], movedOffUltra: [] })
-    expect(await premiumAndUltraOf(from.ws)).toEqual(KEPT_PREMIUM_AND_ULTRA)
+    expect(versions).toEqual([])
   })
 
   test("after a move onto someone else's bill the workspace's owner raises again: who pays is not asked (decisions.md 2026-11-18)", async () => {
@@ -1383,7 +1354,7 @@ describe("a new bill owner gets the old payer's Premium and Ultra moved to Stand
     expect((await premiumAndUltraOf(from.ws)).level).toBe('premium')
   })
 
-  test("an instance admin's transfer moves them to Standard on every workspace of the bill", async () => {
+  test("an instance admin's transfer keeps them on every workspace of the bill", async () => {
     const { billId, ws } = await billWith({ stripe_customer_id: null })
     const second = await createWorkspace('Brightwater North')
     await db.update(organization).set({ billingAccountId: billId }).where(eq(organization.id, second.id))
@@ -1396,8 +1367,8 @@ describe("a new bill owner gets the old payer's Premium and Ultra moved to Stand
       reason,
     })
     expect(done.status).toBe(200)
-    expect([...done.body.data.payerReset.workspaceIds].sort()).toEqual([ws.id, second.id].sort())
-    for (const w of [ws, second]) expect(await premiumAndUltraOf(w)).toMatchObject(SWITCHED_OFF)
+    expect(done.body.data).toEqual({ previous: ws.owner.userId, owner: teammate.userId })
+    for (const w of [ws, second]) expect(await premiumAndUltraOf(w)).toEqual(KEPT_PREMIUM_AND_ULTRA)
   })
 })
 

@@ -5,7 +5,6 @@
 // off apply only while this install bills usage (billingState: billing on with usable Stripe keys); a self-hosted
 // install has the same levels, without prices.
 import {
-  type BillPayerReset,
   CALL_QUALITIES,
   CALL_QUALITY_LABELS,
   type CallQuality,
@@ -27,16 +26,13 @@ import {
 import { organization, type PaidLevel, type Tx } from '@linedesk/db'
 import type { Assistant } from '@linedesk/db/types'
 import { eq } from 'drizzle-orm'
-import { lockAssistantVersionsOf } from './assistant-versions.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingState } from './billing-settings.ts'
 import {
   callQualitySettings,
   enabledLevels,
-  forgetTurnOffsIn,
   type LevelDefaultModels,
   levelDefaultModels,
-  moveToStandard,
   onStandard,
 } from './call-quality.ts'
 import type { Actor } from './context.ts'
@@ -301,43 +297,6 @@ export async function assistantVoiceOf(tx: Tx, assistant: AssistantChoices): Pro
   const billed = await usageLevelsBilled(tx)
   const choices = await assistantChoices(tx, assistant, { billed })
   return choices?.pipeline === 'three_stage' ? choices.voice : null
-}
-
-/**
- * Before a change that may give these workspaces another bill owner, and before the bill's balance lock: the version
- * locks of all their assistants (billPayerChanged may change them), in the order of `call.start` (a version lock,
- * then the balance), so the two never deadlock.
- */
-export async function lockForPayerChange(tx: Tx, workspaceIds: string[]) {
-  for (const id of [...new Set(workspaceIds)].sort()) await lockAssistantVersionsOf(tx, id)
-}
-
-/**
- * A bill owner changed to another person (LIN-438: `billing.moveWorkspace` to a bill of someone else,
- * `billing.transferOwner`, `billing.handOver`, `team.transferOwnership` moving the bill): Premium and Ultra were the old
- * payer's choice, so each of these workspaces' assistants on them goes to Standard, with a version by `by`; a workspace
- * owner or admin may raise them again (decisions.md 2026-11-18). Call in the same transaction, after the bill's balance
- * lock and the change itself. An Undo of a level turned off before leaves these workspaces' assistants on Standard
- * (forgetTurnOffsIn). Returns what it changed.
- */
-export async function billPayerChanged(tx: Tx, workspaceIds: string[], by: string) {
-  const reset: BillPayerReset = { workspaceIds: [], movedToStandard: [], movedOffUltra: [] }
-  const rows: Assistant[] = []
-  for (const workspaceId of [...new Set(workspaceIds)].sort()) {
-    // Taken already by lockForPayerChange (then this waits for nothing); not yet only for a workspace moved onto the
-    // bill between that and the balance lock (billing.handOver, billing.transferOwner).
-    await lockAssistantVersionsOf(tx, workspaceId)
-    const toStandard = await moveToStandard(tx, workspaceId, ['premium'], by)
-    const offUltra = await moveToStandard(tx, workspaceId, ['ultra'], by)
-    if (!toStandard.length && !offUltra.length) continue
-    reset.workspaceIds.push(workspaceId)
-    reset.movedToStandard.push(...toStandard.map(a => a.id))
-    reset.movedOffUltra.push(...offUltra.map(a => a.id))
-    rows.push(...toStandard, ...offUltra)
-  }
-  // Their assistants an earlier level turn-off moved stay on Standard if that turn-off is undone (review of #1274).
-  await forgetTurnOffsIn(tx, workspaceIds)
-  return { reset, rows }
 }
 
 /**

@@ -482,13 +482,9 @@ export const teamHandlers: Record<string, Handler> = {
     if (!account.emailVerified)
       throw new Reject(`${account.email} must confirm their email address before they can be the owner`)
     // The bill goes with the only workspace on it; with several, the bill is handed over first (docs/billing.md §8).
-    const payer = await billOnWorkspaceHandOver(tx, actor, workspaceId, owner.userId, target.userId, now)
+    await billOnWorkspaceHandOver(tx, actor, workspaceId, owner.userId, target.userId, now)
     await makeOwner(tx, target, owner.id)
-    const subject = await memberSubject(tx, target.userId, target.organizationId)
-    // The bill moved with it: what the new owner did not choose was switched off (LIN-438).
-    if (payer?.reset.workspaceIds.length)
-      return { rows: payer.rows.length ? { assistants: payer.rows } : {}, data: { subject, payerReset: payer.reset } }
-    return { rows: {}, data: { subject } }
+    return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
   },
 
   'team.leave': async ({ tx, actor, now }, input: { deleteAccount?: boolean }) => {

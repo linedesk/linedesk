@@ -173,7 +173,11 @@ async function voiceProviderNamed(tx: Tx, name: string, doFetch: typeof fetch = 
   const config = await resolveProvider(tx, name as ProviderName).catch(() => null)
   const apiKey = config?.api_key?.value
   if (!apiKey) return null
-  return createVoiceProvider(name as ProviderName, { api_key: apiKey, model: await previewVoiceModel(tx, name) }, doFetch)
+  return createVoiceProvider(
+    name as ProviderName,
+    { api_key: apiKey, model: await previewVoiceModel(tx, name) },
+    doFetch,
+  )
 }
 
 /**
@@ -450,9 +454,8 @@ export const voiceHandlers: Record<string, Handler> = {
       if (!enabled[input.restore.level])
         throw Reject.t('server.api.callQualityOff', { level: CALL_QUALITY_LABELS[input.restore.level] })
       // Only within 24 hours of the turn-off, and only the assistants it moved (review L-2).
-      // Not those whose workspace has had another payer since: that payer never chose the level (LIN-438).
-      const back = await takeTurnOff(tx, input.restore.level, input.restore.assistantIds, now)
-      await moveBackToLevel(tx, back, input.restore.level, actor.actorId)
+      await takeTurnOff(tx, input.restore.level, input.restore.assistantIds, now)
+      await moveBackToLevel(tx, input.restore.assistantIds, input.restore.level, actor.actorId)
     }
     return { rows: {}, data: { ...(await callQualityAdminData(tx)), moved } }
   },

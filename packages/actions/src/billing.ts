@@ -220,14 +220,4 @@ export type BillingOwnerData = {
   billId: string
   ownerUserId: string
   previousOwnerUserId: string
-  /** What the new owner did not choose and was switched off (LIN-438). */
-  payerReset: BillPayerReset
 }
-
-/**
- * A workspace got another bill owner (`billing.handOver`, `billing.transferOwner`, `billing.moveWorkspace` to a bill
- * of someone else, `team.transferOwnership` moving the bill; LIN-438): Premium and Ultra were the old payer's choice,
- * so the assistants on them go to Standard. The workspaces that had one, and the assistants moved back to Standard or
- * off Ultra.
- */
-export type BillPayerReset = { workspaceIds: string[]; movedToStandard: string[]; movedOffUltra: string[] }

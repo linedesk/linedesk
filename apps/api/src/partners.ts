@@ -74,7 +74,6 @@ import { createRateLimiter } from './rate-limit.ts'
 import { reloadHosts } from './request-host.ts'
 import { DEFAULT_TIME_ZONE } from './bookings.ts'
 import { cancelSentInvitations, lockActiveSender, lockedOwner } from './team.ts'
-import { billPayerChanged, lockForPayerChange } from './usage-levels.ts'
 import { billingRules } from './billing-rules.ts'
 import { refuseMoneyChange } from './billing-settings.ts'
 import { isPendingPayment } from './self-serve.ts'
@@ -611,11 +610,11 @@ function refuseUnconfirmed(name: string, typed: string) {
  * partner's owner; docs/white-label.md): the partner team leaves it at once (memberships removed with their API keys
  * and setup links, the invitations they sent there canceled), and where it was on the partner bill it moves to a new
  * bill of the client's owner waiting for Checkout (`pending_payment`): calls are answered again once they add a card.
- * Its assistants on Premium or Ultra go to Standard (someone else pays now, LIN-438), and the partner's seats drop
- * after the commit. Refused while calls run there (their usage posts to the bill they started on). The people the partner's team
- * invited there leave too (security review of #1109, L-4; both confirmations name them first), and the partner's usage
- * limit for the client ends. The caller holds the partner row's lock. Lock order: the partner row, the bill's
- * extra-calls lock, the assistants' version locks, the partner bill's balance, the workspace.
+ * Its assistants keep their call quality (LIN-589), and the partner's seats drop after the commit. Refused while
+ * calls run there (their usage posts to the bill they started on). The people the partner's team invited there leave
+ * too (security review of #1109, L-4; both confirmations name them first), and the partner's usage limit for the
+ * client ends. The caller holds the partner row's lock. Lock order: the partner row, the bill's
+ * extra-calls lock, the partner bill's balance, the workspace.
  */
 async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: string, removeMemberIds: string[]) {
   const { tx, actor, now } = ctx
@@ -624,7 +623,7 @@ async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: str
     .from(organization)
     .where(eq(organization.id, workspaceId))
   if (!seen || seen.partner !== partnerId) throw refusePartner('client_not_found')
-  // The owner row first, as team.transferOwnership takes it (before the payer and balance locks, so the two never wait
+  // The owner row first, as team.transferOwnership takes it (before the balance lock, so the two never wait
   // on each other): a hand-over at the same moment either committed before, and the new owner is read here, or waits
   // for this release (security review of #1113, N-1). The bill below is the owner's, and the owner never leaves.
   // A transfer that committed while this waited took the row's owner role away: read again, to see the new owner.
@@ -635,7 +634,6 @@ async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: str
     // Taken first (security review of #1109, L-6): a setExtraCalls asking Stripe under this lock then holds up only
     // this release, never with the partner bill's balance locked, which the call gate of every client waits on.
     await lockExtraCalls(tx, seen.bill)
-    await lockForPayerChange(tx, [workspaceId])
     await lockBalance(tx, seen.bill)
   }
   const [org] = await tx.select().from(organization).where(eq(organization.id, workspaceId)).for('update')
@@ -674,7 +672,6 @@ async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: str
       .update(organization)
       .set({ billingAccountId: billId, billingState: 'pending_payment', extraCalls: 0 })
       .where(eq(organization.id, org.id))
-    await billPayerChanged(tx, [org.id], actor.actorId)
     await seatsFollow(tx, ctx.onCommit, org.billingAccountId, `release_${org.id}`, {
       extraCalls: org.extraCalls > 0 && !!from?.stripe_subscription_id,
     })
@@ -776,7 +773,6 @@ async function adminMoveClient(ctx: HandlerCtx, input: AdminMoveInput) {
   const owner = await lockedOwner(tx, seen.id)
   if (owner && (await onTeam(tx, to.id, owner.userId))) throw refusePartner('owner_on_team')
   if (seen.bill) await lockExtraCalls(tx, seen.bill)
-  await lockForPayerChange(tx, [seen.id])
   for (const id of [seen.bill, to.billing_account_id].filter((id): id is string => !!id).sort())
     await lockBalance(tx, id)
   const bill = await billForNewClient(tx, to)
@@ -807,8 +803,6 @@ async function adminMoveClient(ctx: HandlerCtx, input: AdminMoveInput) {
   await resetUsageLimitAlerts(tx, org.id)
   await ownKeysOff(tx, org.id)
   if (moves) {
-    // Someone else pays from now on: Premium and Ultra were the old payer's choice (LIN-438).
-    if (old?.owner_user_id !== bill.owner_user_id) await billPayerChanged(tx, [org.id], actor.actorId)
     // A canceled bill's subscription ended in Stripe: nothing to lower there (seatsFollowDelete).
     if (old && old.status !== 'canceled')
       await seatsFollow(tx, ctx.onCommit, old.id, `out_${org.id}_${now}`, {

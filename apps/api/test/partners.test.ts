@@ -2135,7 +2135,7 @@ describe('Server admin › Workspaces: a workspace changes partner (LIN-530)', (
     expect(entries.some((e: { what: string }) => e.what === 'partner.adminMoveClient')).toBe(true)
   })
 
-  test("adding a workspace: it leaves its own bill for the partner bill, and the old payer's Premium goes to Standard", async () => {
+  test('adding a workspace: it leaves its own bill for the partner bill, and its assistant keeps Premium (LIN-589)', async () => {
     const to = await billedPartner('Adding Agency', 'active', true)
     const plain = await createWorkspace('Plain Roofing')
     const [own] = await db
@@ -2156,7 +2156,7 @@ describe('Server admin › Workspaces: a workspace changes partner (LIN-530)', (
     )
     expect(await orgRow(plain.id)).toMatchObject({ partnerId: to.id, billingAccountId: to.billId, extraCalls: 0 })
     const [assistant] = await db.select().from(assistants).where(eq(assistants.id, plain.assistant.id))
-    expect(assistant).toMatchObject({ call_quality: 'standard' })
+    expect(assistant).toMatchObject({ call_quality: 'premium' })
     expect(await partnerMembership(plain.id, plain.owner.userId)).toMatchObject({ role: 'owner', partnerId: null })
     expect(await partnerMembership(plain.id, to.owner.userId)).toMatchObject({ role: 'admin', partnerId: to.id })
     expect(await workspaceData(plain.id)).toEqual(before)

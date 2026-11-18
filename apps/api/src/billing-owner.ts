@@ -59,7 +59,7 @@ import { ownerStepUpNeeded } from './owner-step-up.ts'
 import { partnerBillOf } from './partner-billing.ts'
 import { PARTNER_BILL_STAYS } from './partner-refusals.ts'
 import { decryptSecret, encryptSecret } from './secrets.ts'
-import { billPayerChanged, lockForPayerChange, refuseBillingActor } from './usage-levels.ts'
+import { refuseBillingActor } from './usage-levels.ts'
 
 type Bill = typeof billing_accounts.$inferSelect
 type Reader = Tx | typeof db
@@ -90,48 +90,6 @@ async function ownBill(tx: Reader, actor: Actor) {
   if (!bill) throw new Reject('this workspace has no bill')
   if (bill.owner_user_id !== actor.actorId) throw new Forbidden(NOT_BILL_OWNER)
   return bill
-}
-
-/**
- * A choice that makes the bill pay more (an assistant raised to Premium or Ultra; docs/billing.md §7, §8): when the actor's
- * workspace is on a bill, only the bill's owner makes it, not a workspace owner whose workspace another person pays
- * for (security review LIN-396, T1). A workspace without a bill (self-hosted, not billed yet) is not refused here.
- */
-export async function refuseUnlessBillOwner(tx: Tx, actor: Actor) {
-  if (!actor.workspaceId) return
-  // A white-label partner's owner holds billing:manage for its partner bill also where they are only an admin
-  // (context.ts): in a workspace without a bill that is no one's to decide but the workspace's owner, as before.
-  const notOwner = actor.role !== 'owner'
-  // Locked (shared) until the change is saved (LIN-438): a move to another bill or a new bill owner waits for it and
-  // then moves the raised assistant back, or it waits for them and sees the new owner. The bill first, then the workspace: the
-  // order of every bill status change (bill, then its workspaces' rows), so the two never deadlock. Two statements,
-  // never one join: a join waiting on a workspace a move just changed re-checks it against the old bill row, finds
-  // none and would read "no bill" (independent review of #1050).
-  const [seen] = await tx
-    .select({ bill: organization.billingAccountId })
-    .from(organization)
-    .where(eq(organization.id, actor.workspaceId))
-  const [bill] = seen?.bill
-    ? await tx
-        .select({ owner_user_id: billing_accounts.owner_user_id, kind: billing_accounts.kind })
-        .from(billing_accounts)
-        .where(eq(billing_accounts.id, seen.bill))
-        .for('share')
-    : []
-  const [workspace] = await tx
-    .select({ bill: organization.billingAccountId })
-    .from(organization)
-    .where(eq(organization.id, actor.workspaceId))
-    .for('share')
-  // Moved to another bill meanwhile (a move waits on neither lock taken before it): refused, the owner tries again.
-  if ((workspace?.bill ?? null) !== (seen?.bill ?? null)) throw new Forbidden(NOT_BILL_OWNER)
-  if (!workspace?.bill) {
-    if (notOwner) throw new Forbidden(NOT_BILL_OWNER)
-    return
-  }
-  // A bill id without its bill is refused, never read as "no bill". Its owner, or an owner or admin of the only
-  // workspace it pays for (managesBill, decision of 2026-11-17).
-  if (!bill || !(await managesBill(tx, actor, { id: workspace.bill, ...bill }))) throw new Forbidden(NOT_BILL_OWNER)
 }
 
 /** `billing.state`: the banner's data, for the bill owner only. */
@@ -376,12 +334,10 @@ export async function workspacesOnBill(tx: Tx, billId: string) {
 
 /**
  * Makes `userId` the bill's owner: a member of one of its workspaces, with a confirmed address and an account that is
- * not disabled. Under the bill's lock order (its balance row first). Every assistant of the bill's workspaces on
- * Premium or Ultra goes to Standard (billPayerChanged, LIN-438), with a version by `by`; returns those assistants as
- * they are now.
+ * not disabled. Under the bill's lock order (its balance row first). The assistants keep their call quality: any
+ * workspace owner or admin picks it, whoever pays (decisions.md 2026-11-18, LIN-589).
  */
-async function transferBill(tx: Tx, billId: string, userId: string, by: string, now: string) {
-  await lockForPayerChange(tx, await workspacesOnBill(tx, billId))
+async function transferBill(tx: Tx, billId: string, userId: string, now: string): Promise<BillingOwnerData> {
   await lockBalance(tx, billId)
   const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, billId)).for('update')
   if (!bill) throw new Reject('bill not found')
@@ -406,14 +362,7 @@ async function transferBill(tx: Tx, billId: string, userId: string, by: string, 
     .update(billing_accounts)
     .set({ owner_user_id: userId, updated_at: now })
     .where(eq(billing_accounts.id, billId))
-  const { reset, rows } = await billPayerChanged(tx, await workspacesOnBill(tx, billId), by)
-  const data: BillingOwnerData = {
-    billId,
-    ownerUserId: userId,
-    previousOwnerUserId: bill.owner_user_id,
-    payerReset: reset,
-  }
-  return { data, rows }
+  return { billId, ownerUserId: userId, previousOwnerUserId: bill.owner_user_id }
 }
 
 /** The refusal of a bill hand-over without the owner step-up (billing.handOver, and team.transferOwnership moving it). */
@@ -428,10 +377,7 @@ export const billingOwnerHandlers: Record<string, Handler> = {
     refuseBillingActor(actor)
     const bill = await ownBill(tx, actor)
     if (await ownerStepUpNeeded(tx, actor)) throw new Forbidden(HAND_OVER_STEP_UP)
-    const { data, rows } = await transferBill(tx, bill.id, input.userId, actor.actorId, now)
-    // Only the rows of the actor's own workspace go back to the app; the other workspaces read theirs when opened.
-    const own = rows.filter(a => a.workspace_id === actor.workspaceId)
-    return { rows: own.length ? { assistants: own } : {}, data }
+    return { rows: {}, data: await transferBill(tx, bill.id, input.userId, now) }
   },
 }
 
@@ -440,8 +386,7 @@ export const billingOwnerHandlers: Record<string, Handler> = {
  * owns its bill, the bill moves with it if this is the bill's only workspace; with several, the hand-over is refused
  * until the bill has another owner (billing.handOver). Moving the bill hands over its Stripe customer and saved card,
  * so it needs the same owner step-up as billing.handOver (security review of #920, M6): a session left open cannot
- * move the bill through the workspace instead. Call before the roles change, in the same transaction. A moved bill
- * moves its assistants on Premium or Ultra to Standard (billPayerChanged, LIN-438); returns what that changed, or null.
+ * move the bill through the workspace instead. Call before the roles change, in the same transaction.
  */
 export async function billOnWorkspaceHandOver(
   tx: Tx,
@@ -466,19 +411,14 @@ export async function billOnWorkspaceHandOver(
   }
   await refuseSeveral()
   if (await ownerStepUpNeeded(tx, actor)) throw new Forbidden(HAND_OVER_STEP_UP)
-  await lockForPayerChange(tx, [workspaceId])
   await lockBalance(tx, bill.id)
   // Again under the balance lock (independent review of #1050): a workspace moved onto the bill meanwhile (a move
-  // takes this lock too) would stay on it under the new owner, with its assistants on Premium or Ultra.
+  // takes this lock too) would stay on it under the new owner.
   await refuseSeveral()
-  const [moved] = await tx
+  await tx
     .update(billing_accounts)
     .set({ owner_user_id: toUserId, updated_at: now })
     .where(and(eq(billing_accounts.id, bill.id), eq(billing_accounts.owner_user_id, fromUserId)))
-    .returning({ id: billing_accounts.id })
-  if (!moved) return null
-  // The new owner did not choose Premium or Ultra (LIN-438).
-  return billPayerChanged(tx, [workspaceId], actor.actorId)
 }
 
 /**

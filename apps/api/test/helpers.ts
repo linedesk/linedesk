@@ -248,7 +248,7 @@ export const getWebhookEndpoint = async (id: string) =>
   (await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.id, id)))[0]
 export const getAssistant = async (id: string) => (await db.select().from(assistants).where(eq(assistants.id, id)))[0]
 
-/** The workspace's assistant on Premium with a Premium voice and model: what a bill owner chose, written directly (LIN-438 tests). */
+/** The workspace's assistant on Premium with a Premium voice and model: written directly (bill owner change tests). */
 export async function withPremiumAndUltra(ws: Workspace) {
   await db
     .update(assistants)
