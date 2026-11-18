@@ -124,33 +124,66 @@ test('Activate is the end of the setup: each draft with Remove, the total, only 
   expect(foot.match(/<button/g)?.length).toBe(2)
   expect(foot).toContain('Back')
   expect(foot).toContain('Activate White-label Cloud')
+  // As on the owner's Start your free trial step: the card is asked for on the next page, said next to the button.
+  expect(foot).toContain('You add your card on the next page.')
   expect(three).not.toContain('first')
   const none = activateHtml(0)
   expect(none).not.toContain('>Remove<')
   expect(none).toContain('$14 a month</span> <span class="plan-card-unit">+ $9 a month per client workspace</span>')
 })
 
-const clientsStepHtml = (clients: number) =>
-  renderToStaticMarkup(<ClientsStep data={partnerData({ clients })} last={false} onBack={() => {}} onNext={() => {}} />)
+const clientsStepHtml = (clients: number, bill?: Bill['status']) =>
+  renderToStaticMarkup(
+    <ClientsStep data={partnerData({ clients, bill })} last={bill === 'active'} onBack={() => {}} onNext={() => {}} />,
+  )
+const LEDE = 'Each client gets its own workspace, assistant and number.'
 
 test('Clients: each draft set up with the agent (the default) or by hand; Add client up to the cap; none is fine', () => {
   const none = clientsStepHtml(0)
   expect(none).toContain('Add client')
-  expect(none).toMatch(/<span>Later<\/span>/)
   expect(none).not.toContain('With an AI agent')
+  // None yet: Add client is the step's one primary, "Later" the quiet way on (never the main button), no Continue.
+  expect(none).toMatch(/k-btn-primary[^>]*>(<[^>]+>)*Add client/)
+  expect(none).toMatch(/k-btn-ghost[^>]*>(<[^>]+>)*Later/)
+  expect(none).not.toContain('Continue')
+  expect(none.match(/k-btn-primary/g)?.length).toBe(1)
   const one = clientsStepHtml(1)
   expect(one).toContain('Client 0')
   // With the agent is the filled button, by hand the quiet one.
   expect(one).toMatch(/k-btn-secondary[^>]*>(<[^>]+>)*With an AI agent/)
   expect(one).toMatch(/k-btn-ghost[^>]*>(<[^>]+>)*By hand/)
   expect(one).not.toMatch(/<span>Later<\/span>/)
+  expect(one).toMatch(/k-btn-primary[^>]*>(<[^>]+>)*Continue/)
   expect(one).not.toContain('disabled=""')
-  // The limit is only for the setup, said once as the step's line; at the cap Add client is greyed with the same words.
-  expect(none).toContain(`Add up to ${UNPAID_PARTNER_CLIENTS} clients now. You can add more after you activate.`)
+  // The lede stays the step's own; the limit is only for the setup, said once as a fine note under Add client, and at
+  // the cap Add client is greyed with the same words.
+  expect(none).toContain(LEDE)
+  expect(none).toContain(
+    `<p class="ps-fine">Add up to ${UNPAID_PARTNER_CLIENTS} clients now. You can add more after you activate.</p>`,
+  )
   const full = clientsStepHtml(UNPAID_PARTNER_CLIENTS)
   expect(full.match(/With an AI agent/g)?.length).toBe(UNPAID_PARTNER_CLIENTS)
   expect(full.match(/You can add more after you activate/g)?.length).toBe(2)
   expect(full).toMatch(/disabled=""[^>]*>(<[^>]+>)*Add client|title="Add up to[^"]*"[^>]*disabled=""/)
+})
+
+test('once White-label Cloud runs, a client row says who owns it and offers what is next: Invite owner', () => {
+  const paid = clientsStepHtml(2, 'active')
+  expect(paid).toContain(LEDE)
+  expect(paid).not.toContain('You can add more after you activate')
+  expect(paid.match(/No owner yet/g)?.length).toBe(2)
+  expect(paid.match(/>Invite owner</g)?.length).toBe(2)
+  expect(paid).not.toContain('With an AI agent')
+  // The last step now: Done ends the setup.
+  expect(paid).toMatch(/k-btn-primary[^>]*>(<[^>]+>)*Done/)
+})
+
+test('the partner area before payment: drafts are set up by hand or with the agent, and the setup can go on by hand', () => {
+  const html = clientsHtml(partnerData({ clients: 1 }))
+  expect(html).toContain('Continue setup by hand')
+  // The list loads on its own (its rows wait for partner.listClients), so the card's own actions are what show here.
+  expect(html).toContain('Activate White-label Cloud')
+  expect(clientsHtml(partnerData({ bill: 'active', clients: 1 }))).not.toContain('Continue setup by hand')
 })
 
 test('before payment, no clients: one primary action (New client), Activate next to it with the real price', () => {

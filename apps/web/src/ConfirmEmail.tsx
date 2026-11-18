@@ -5,7 +5,8 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { auth } from './auth.ts'
 import { authErrorMessage, CODE_LENGTH, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
-import { Button, Note } from './ui/kit.tsx'
+import { AuthError } from './ui/AuthError.tsx'
+import { Button } from './ui/kit.tsx'
 import { useT } from '@linedesk/i18n/react'
 
 type Result = { error: { code?: string; message?: string; status?: number } | null }
@@ -27,7 +28,9 @@ export function ConfirmEmail({
   const [email, setEmail] = useState(known ?? '')
   const [code, setCode] = useState('')
   const [sent, setSent] = useState(false)
-  const [busy, setBusy] = useState(false)
+  // What runs: sending a code or confirming one; that button shows the spinner and keeps its label.
+  const [running, setRunning] = useState<'send' | 'confirm' | null>(null)
+  const busy = running !== null
   const [error, setError] = useState<string | null>(null)
   const [waitS, setWaitS] = useState(0)
 
@@ -47,19 +50,19 @@ export function ConfirmEmail({
     return () => clearTimeout(timer)
   }, [waitS])
 
-  async function attempt(work: () => Promise<void>) {
-    setBusy(true)
+  async function attempt(what: 'send' | 'confirm', work: () => Promise<void>) {
+    setRunning(what)
     setError(null)
     try {
       await work()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
-      setBusy(false)
+      setRunning(null)
     }
   }
   const sendCode = () =>
-    attempt(async () => {
+    attempt('send', async () => {
       check(await auth.emailOtp.sendVerificationOtp({ email, type: 'email-verification' }))
       setSent(true)
       setCode('')
@@ -68,7 +71,7 @@ export function ConfirmEmail({
   const confirm = (e: FormEvent) => {
     e.preventDefault()
     if (code.length !== CODE_LENGTH) return
-    void attempt(async () => {
+    void attempt('confirm', async () => {
       check(await auth.emailOtp.verifyEmail({ email, otp: code }))
       await onDone()
     })
@@ -100,21 +103,39 @@ export function ConfirmEmail({
               }}
             />
           </span>
-          <Button type="submit" variant="primary" size="sm" disabled={busy || code.length !== CODE_LENGTH}>
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            busy={running === 'confirm'}
+            disabled={busy || code.length !== CODE_LENGTH}
+          >
             {t('auth.confirm.submit')}
           </Button>
-          <Button size="sm" variant="ghost" disabled={busy || waitS > 0} onClick={() => void sendCode()}>
+          <Button
+            size="sm"
+            variant="ghost"
+            busy={running === 'send'}
+            disabled={busy || waitS > 0}
+            onClick={() => void sendCode()}
+          >
             {waitS > 0 ? t('auth.confirm.wait', { seconds: waitS }) : t('auth.confirm.resend')}
           </Button>
         </div>
       ) : (
         <div className="confirm-email-row">
-          <Button variant="primary" size="sm" disabled={busy || !email} onClick={() => void sendCode()}>
+          <Button
+            variant="primary"
+            size="sm"
+            busy={running === 'send'}
+            disabled={busy || !email}
+            onClick={() => void sendCode()}
+          >
             {t('auth.confirm.send')}
           </Button>
         </div>
       )}
-      {error && <Note tone="danger">{error}</Note>}
+      {error && <AuthError message={error} />}
     </form>
   )
 }

@@ -422,6 +422,37 @@ describe('tenancy: nothing of another partner', () => {
       body: { code: 'invitation_invalid' },
     })
   })
+
+  test('before sign-in the link shows the partner, the role, the address and who sent it; once spent, nothing', async () => {
+    const email = newEmail()
+    await act(a.owner, 'partnerMember.invite', { partnerId: a.id, email })
+    const token = tokenFor(email)!
+    const [inviter] = await db.select({ name: user.name }).from(user).where(eq(user.id, a.owner.userId))
+    const preview = async (body: unknown) => {
+      const res = await appRequest('/v1/partner-invitations/preview', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
+        body: JSON.stringify(body),
+      })
+      expect(res.headers.get('cache-control')).toBe('no-store')
+      return { status: res.status, body: await res.json() }
+    }
+    expect(await preview({ token })).toEqual({
+      status: 200,
+      body: { status: 'open', partnerName: a.name, role: 'admin', email, invitedBy: inviter!.name || null },
+    })
+    // Not known, of the wrong shape or missing: the same "gone", nothing about why.
+    for (const body of [{ token: 'x'.repeat(43) }, { token: 'short' }, {}, null])
+      expect(await preview(body)).toEqual({ status: 200, body: { status: 'gone' } })
+    // Signed in, the view names the sender too.
+    const invitee = await signUp(email)
+    await verify(invitee)
+    expect(await act(invitee, 'partnerInvitation.view', { token })).toMatchObject({
+      body: { data: { invitedBy: inviter!.name || null, state: 'open' } },
+    })
+    expect(await act(invitee, 'partnerInvitation.accept', { token })).toMatchObject({ status: 200 })
+    expect(await preview({ token })).toEqual({ status: 200, body: { status: 'gone' } })
+  })
 })
 
 describe('client memberships follow the team', () => {

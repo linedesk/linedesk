@@ -11,6 +11,7 @@ import { emailFieldPasskey } from './passkey-autofill.ts'
 import { useQuery } from './cachedQuery.ts'
 import { LastUsed, ProviderButton, SignInMark } from './ui/brand-logos.tsx'
 import { AuthError } from './ui/AuthError.tsx'
+import { WaitLine } from './shell/SignedInAuthPage.tsx'
 import { HelpTip, type HelpTipContent } from './ui/HelpTip.tsx'
 import { AuthPage, cx, Icon, Spinner } from './ui/kit.tsx'
 import { NO_PASSWORD_MANAGER } from './ui/passwordManager.ts'
@@ -189,7 +190,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
     })
   }
 
-  if (!methods || !brandKnown) return <AuthPage>{error ? <AuthError message={error} /> : <p className="auth-wait">{t('auth.connecting')}</p>}</AuthPage>
+  if (!methods || !brandKnown) return <AuthPage>{error ? <AuthError message={error} /> : <WaitLine />}</AuthPage>
 
   if (methods.setupNeeded && !reauth) return <SetupStep onDone={onDone} />
 
@@ -267,7 +268,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
       <button type="submit" className={cx('k-btn k-btn-primary auth-provider', busy === 'email' && 'is-busy')}
         disabled={busy !== null} aria-busy={busy === 'email' || undefined}>
         {busy === 'email' && <Spinner />}
-        <span className="auth-provider-label">{busy === 'email' ? t('auth.sending') : t('auth.signup.sendCode')}</span>
+        <span className="auth-provider-label">{t('auth.signup.sendCode')}</span>
         {lastUsed === 'email' && <LastUsed />}
       </button>
       {errorPanel('auth-error')}
@@ -290,7 +291,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
           <button type="button" className={cx('k-btn auth-provider', emailOpen ? 'k-btn-secondary' : 'k-btn-primary', passkeyBusy && 'is-busy')}
             disabled={busy !== null} aria-busy={passkeyBusy || undefined} onClick={continueWithPasskey}>
             {passkeyBusy ? <Spinner /> : <SignInMark method="passkey" />}
-            <span className="auth-provider-label">{passkeyBusy ? t('auth.signingIn') : t('auth.withPasskey')}</span>
+            <span className="auth-provider-label">{t('auth.withPasskey')}</span>
             {lastUsed === 'passkey' && <LastUsed />}
           </button>
           {!methods.emailCode && errorPanel()}
@@ -377,8 +378,9 @@ function PasswordForm({ form, set, busy, disabled, error, autoFocus, onSubmit }:
         onChange={set('email')} autoComplete="username" autoCapitalize="none" spellCheck={false} autoFocus={autoFocus} />
       <input type="password" id="signin-password" name="password" aria-label={t('auth.method.password')} placeholder={t('auth.method.password')}
         value={form.password} onChange={set('password')} autoComplete="current-password" />
-      <button type="submit" className="k-btn k-btn-primary" disabled={disabled}>
-        {busy ? t('auth.signingIn') : t('auth.signIn')}
+      <button type="submit" className={cx('k-btn k-btn-primary', busy && 'is-busy')} disabled={disabled} aria-busy={busy || undefined}>
+        {busy && <Spinner />}
+        {t('auth.signIn')}
       </button>
       {error}
     </form>
@@ -562,7 +564,7 @@ export function CodeStep({ email, links, supportEmail, invited = false, selfServ
         <button type="submit" className={cx('k-btn k-btn-primary', (busy || signedIn) && 'is-busy')}
           disabled={busy || code.length < CODE_LENGTH} aria-busy={busy || signedIn || undefined}>
           {(busy || signedIn) && <Spinner />}
-          {signedIn ? t('auth.signingIn') : busy ? t('auth.checking') : t('auth.signup.continue')}
+          {t('auth.signup.continue')}
         </button>
         <div className="auth-links">
           <button type="button" className="auth-switch" disabled={waitS > 0} onClick={() => void resend()}>
@@ -664,7 +666,7 @@ function ResetStep({ initialEmail, links, onDone, onBack }: ResetStepProps) {
             <button type="submit" className={cx('k-btn k-btn-primary', busy === 'send' && 'is-busy')} disabled={busy !== null}
               aria-busy={busy === 'send' || undefined}>
               {busy === 'send' && <Spinner />}
-              {busy === 'send' ? t('auth.sending') : t('auth.reset.send')}
+              {t('auth.reset.send')}
             </button>
             {error && <AuthError message={error} id="reset-error" />}
           </div>
@@ -695,7 +697,7 @@ function ResetStep({ initialEmail, links, onDone, onBack }: ResetStepProps) {
           <button type="submit" className={cx('k-btn k-btn-primary', working && 'is-busy')} disabled={busy !== null}
             aria-busy={working || undefined}>
             {working && <Spinner />}
-            {busy === 'signIn' ? t('auth.signingIn') : busy === 'reset' ? t('common.action.saving') : t('auth.reset.set')}
+            {t('auth.reset.set')}
           </button>
           {error && <AuthError message={error} id="reset-error" />}
         </div>
@@ -766,7 +768,10 @@ function SetupStep({ onDone }: { onDone: () => Promise<void> }) {
           <input type="password" id="setup-new-password" name="new-password" aria-label={t('auth.method.password')}
             placeholder={t('auth.setup.passwordPlaceholder', { min: 12 })} value={form.password} onChange={set('password')} autoComplete="new-password"
             minLength={12} />
-          <button type="submit" className="k-btn k-btn-primary" disabled={busy}>{busy ? t('auth.setup.busy') : t('auth.setup.submit')}</button>
+          <button type="submit" className={cx('k-btn k-btn-primary', busy && 'is-busy')} disabled={busy} aria-busy={busy || undefined}>
+            {busy && <Spinner />}
+            {t('auth.setup.submit')}
+          </button>
           {error && <AuthError message={error} />}
         </div>
         <p className="auth-note">{t('auth.setup.next')}</p>

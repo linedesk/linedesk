@@ -12,13 +12,13 @@ const terms = {
   privacyUrl: 'https://desk.example.com/privacy',
   privacyVersion: '2026-11-10',
 }
-const page = (partner: boolean, fromApp?: { onBack: () => void }) =>
+const page = (partner: boolean, fromApp?: { onBack: () => void }, noTrial = false) =>
   renderToStaticMarkup(
     <DetailsStep
       interval="year"
       partner={partner}
       terms={terms}
-      planNow={null}
+      noTrial={noTrial}
       fromApp={fromApp}
       onTermsChanged={() => {}}
       onDone={() => {}}
@@ -60,6 +60,14 @@ test('New workspace from the app: the same single field, then Create workspace; 
   expect(html).toContain('>Create workspace<')
   expect(html).not.toContain('Country')
   expect(html).not.toContain('autoComplete="organization"')
+})
+
+test('no free trial for this account: nothing is charged here, no price, the plan comes at the end of the setup', () => {
+  const html = page(false, undefined, true)
+  expect(html).toContain('Nothing is charged now. You pay when you start your plan, at the end of the setup.')
+  expect(html).not.toContain('$')
+  expect(html).not.toContain('Starts today')
+  expect(page(false)).not.toContain('Nothing is charged now')
 })
 
 const config = (partnerPlan: SignupConfig['partnerPlan']): SignupConfig => ({

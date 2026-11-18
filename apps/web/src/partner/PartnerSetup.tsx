@@ -7,8 +7,8 @@
 // 2026-11-18: one Activate screen). Approval never stops anything here: it only gates the brand in emails, said
 // quietly on the brand step. The top bar and the footer are the setup pages' own (SetupTopBar, SetupFoot).
 import type { MyPartner, PartnerBrandData, PartnerClient, PartnerData } from '@linedesk/actions'
-import type { PlanPrices } from '@linedesk/db/types'
 import { UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
+import type { PlanPrices } from '@linedesk/db/types'
 import type { MessageKey } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
@@ -16,11 +16,12 @@ import { ColorField, nameProblem, parsedColor } from '../admin/Branding.tsx'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { goToCheckout } from '../checkout.ts'
 import { useStepKeys } from '../onboarding/Frame.tsx'
+import { rememberDraftOpenedFrom } from '../onboarding/flow.ts'
 import { SetupFoot } from '../onboarding/SetupFoot.tsx'
 import { SetupTopBar } from '../onboarding/SetupTopBar.tsx'
 import {
-  PARTNER_AGENT_HASH,
   openPartnerActivate,
+  PARTNER_AGENT_HASH,
   PARTNER_SETUP_HASH,
   partnerActivateBack,
   rememberPartnerByHand,
@@ -31,11 +32,11 @@ import { refreshWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
 import { tabWorkspace } from '../tabWorkspace.ts'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
-import { List, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
+import { List, ListRow } from '../ui/list.tsx'
 import { PlanCard, usePlanPrice } from '../ui/PlanCard.tsx'
 import { PriceLine, usePrice } from '../ui/price.tsx'
-import { NewClientDialog, roomForClient, unpaidPartner } from './PartnerArea.tsx'
+import { InviteOwnerDialog, NewClientDialog, roomForClient, unpaidPartner } from './PartnerArea.tsx'
 import {
   BRAND_QUERY,
   brandErrorText,
@@ -315,9 +316,11 @@ function AgencyStep({
 }
 
 /**
- * Step 2: the client workspaces, none to UNPAID_PARTNER_CLIENTS drafts before White-label Cloud runs. Each row is set
- * up with the agent (the default: the agent page with that client picked) or by hand (its own onboarding, which comes
- * back here at its end). Add client is the partner area's New client dialog; none is fine ("Later").
+ * Step 2: the client workspaces, none to UNPAID_PARTNER_CLIENTS drafts before White-label Cloud runs. Before its
+ * Checkout each row is set up with the agent (the default: the agent page with that client picked) or by hand (its own
+ * onboarding, which comes back here at its end). Once it runs, what a client still needs comes next on its row: its
+ * number, then its owner's invitation. Add client is the partner area's New client dialog, the one draft-limit sentence
+ * as a fine note under it. None yet: Add client is the step's own action and "Later" the quiet way on.
  */
 export function ClientsStep({
   data,
@@ -337,89 +340,113 @@ export function ClientsStep({
   const unpaid = unpaidPartner(data)
   const clients = inOrder(data.clients)
   const room = roomForClient(data)
+  // Once White-label Cloud runs: each client's number from the client list (the partner area's), to say what is next.
+  const rows = useQuery(!unpaid && clients.length > 0 ? PARTNER_CLIENTS_QUERY(data.partner.id) : null, () =>
+    loadClients(data.partner.id),
+  )
   const [adding, setAdding] = useState(false)
+  const [inviting, setInviting] = useState<PartnerClient | null>(null)
   const [opening, setOpening] = useState<string | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
 
-  /** Sets a client up: on the agent page with it picked, or in its own workspace's onboarding by hand. */
-  async function setUp(client: PartnerClient, way: 'agent' | 'hand') {
+  /**
+   * Opens a client: on the agent page with it picked, in its own workspace's onboarding by hand, or on its phone page
+   * for its number.
+   */
+  async function open(client: PartnerClient, way: 'agent' | 'hand' | 'number') {
     if (opening) return
     setOpening(`${way}:${client.id}`)
     setProblem(null)
-    rememberPartnerByHand(data.partner.id, way === 'hand')
+    if (way !== 'number') rememberPartnerByHand(data.partner.id, way === 'hand')
+    // Its setup ends back on this step (onboarding/flow.ts).
+    rememberDraftOpenedFrom(client.id, location.hash)
     try {
       // By hand: the client workspace opens on its onboarding (it ends back on this step, Onboarding.tsx).
-      await switchToWorkspace(client.id, way === 'agent' ? PARTNER_AGENT_HASH : undefined)
+      await switchToWorkspace(
+        client.id,
+        way === 'agent' ? PARTNER_AGENT_HASH : way === 'number' ? '#workspace/phone' : undefined,
+      )
     } catch (err) {
       setProblem(partnerErrorText(err))
       setOpening(null)
     }
   }
-  useStepKeys(adding ? {} : { onEnter: onNext, onEscape: onBack })
+  const empty = clients.length === 0
+  useStepKeys(adding || inviting ? {} : { onEnter: empty ? () => setAdding(true) : onNext, onEscape: onBack })
 
-  const addClient = (
-    <Button
-      size="sm"
-      variant={clients.length ? 'ghost' : 'secondary'}
-      icon="plus"
-      disabled={!room}
-      title={room ? undefined : t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })}
-      onClick={() => setAdding(true)}
-    >
-      {t('team.partner.setup.clients.add')}
-    </Button>
-  )
+  const actionsFor = (c: PartnerClient) => {
+    const button = (way: 'agent' | 'hand' | 'number', variant: 'ghost' | 'secondary', label: string) => (
+      <Button
+        size="sm"
+        variant={variant}
+        busy={opening === `${way}:${c.id}`}
+        disabled={!!opening}
+        onClick={() => void open(c, way)}
+      >
+        {label}
+      </Button>
+    )
+    if (unpaid)
+      return (
+        <>
+          {button('hand', 'ghost', t('team.partner.setup.clients.byHand'))}
+          {button('agent', 'secondary', t('team.partner.setup.clients.withAgent'))}
+        </>
+      )
+    const row = rows.data?.clients.find(r => r.id === c.id)
+    return (
+      <>
+        {c.owner === null && data.role === 'owner' && (
+          <Button size="sm" variant="ghost" disabled={!!opening} onClick={() => setInviting(c)}>
+            {t('team.partner.clients.inviteOwner')}
+          </Button>
+        )}
+        {row && !row.number && button('number', 'secondary', t('team.partner.setup.clients.addNumber'))}
+      </>
+    )
+  }
+  const subFor = (c: PartnerClient) => {
+    if (unpaid) return undefined
+    if (c.owner === null) return t('team.partner.clients.noOwner')
+    if ('invited' in c.owner) return t('team.partner.clients.ownerInvited', { email: c.owner.invited })
+    return t('team.partner.clients.ownerIs', { name: c.owner.name || c.owner.email })
+  }
+
   return (
     <>
       <div className="ob-body">
         <h1>{t('team.partner.setup.clients.title')}</h1>
-        <p className="ob-lede">
-          {unpaid
-            ? t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })
-            : t('team.partner.setup.clients.lede')}
-        </p>
+        <p className="ob-lede">{t('team.partner.setup.clients.lede')}</p>
         {clients.length > 0 && (
           <List label={t('team.partner.setup.clients.title')} className="ps-clients">
             {clients.map(c => (
-              <ListRow
-                key={c.id}
-                title={c.name}
-                actions={
-                  <>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      busy={opening === `hand:${c.id}`}
-                      disabled={!!opening}
-                      onClick={() => void setUp(c, 'hand')}
-                    >
-                      {t('team.partner.setup.clients.byHand')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      busy={opening === `agent:${c.id}`}
-                      disabled={!!opening}
-                      onClick={() => void setUp(c, 'agent')}
-                    >
-                      {t('team.partner.setup.clients.withAgent')}
-                    </Button>
-                  </>
-                }
-              />
+              <ListRow key={c.id} title={c.name} sub={subFor(c)} actions={actionsFor(c)} />
             ))}
           </List>
         )}
-        {/* At the cap the line above says why Add client is greyed: it is only a limit for the setup. */}
-        <div className="ps-add">{addClient}</div>
+        <div className="ps-add">
+          <Button
+            size="sm"
+            variant={empty ? 'primary' : 'ghost'}
+            icon="plus"
+            disabled={!room}
+            title={room ? undefined : t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })}
+            onClick={() => setAdding(true)}
+          >
+            {t('team.partner.setup.clients.add')}
+          </Button>
+          {/* Before the Checkout: the one draft-limit sentence, also why Add client is greyed at the cap. */}
+          {unpaid && (
+            <p className="ps-fine">{t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })}</p>
+          )}
+        </div>
         {problem && <FormMessage>{problem}</FormMessage>}
       </div>
-      <SetupFoot
-        onBack={onBack}
-        onContinue={onNext}
-        variant={clients.length ? 'primary' : 'secondary'}
-        label={clients.length ? (last ? t('onboarding.frame.done') : undefined) : t('onboarding.action.later')}
-      />
+      {empty ? (
+        <SetupFoot onBack={onBack} onSkipStep={onNext} laterTitle={t('team.partner.setup.clients.laterTitle')} />
+      ) : (
+        <SetupFoot onBack={onBack} onContinue={onNext} label={last ? t('onboarding.frame.done') : undefined} />
+      )}
       {adding && (
         <NewClientDialog
           data={data}
@@ -429,6 +456,14 @@ export function ClientsStep({
           onInvite={() => {}}
           onClose={() => setAdding(false)}
           onMade={() => setAdding(false)}
+        />
+      )}
+      {inviting && (
+        <InviteOwnerDialog
+          partnerId={data.partner.id}
+          client={inviting}
+          onClose={() => setInviting(null)}
+          onSent={() => {}}
         />
       )}
     </>
@@ -488,6 +523,7 @@ export function ActivateStep({ data, onBack }: { data: PartnerData; onBack: () =
         onContinue={() => void activate()}
         busy={busy}
         label={t('team.partner.bill.activateButton')}
+        hint={t('onboarding.activate.cardHint')}
       />
       {removing && <RemoveDraftDialog data={data} client={removing} onClose={() => setRemoving(null)} />}
     </>

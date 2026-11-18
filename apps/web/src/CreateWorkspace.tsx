@@ -25,8 +25,8 @@ export async function secondFactorDue(loadMe: () => Promise<Me | null> = fetchMe
 /**
  * First sign-in: name the business. Creates the workspace and its assistant. `lostWorkspace`: the
  * workspace this browser had open, which the member was removed from; said first, so the form is not
- * a surprise. `children`: shown under the form (invitations, Admin). `embedded`: only the form, as the secondary way
- * on a server admin's start page (NoWorkspace.tsx, AdminStart): no page around it, its button not the primary one.
+ * a surprise. `children`: shown under the form (invitations, Admin). `embedded`: only the form, on a server admin's
+ * start page (NoWorkspace.tsx, AdminStart): no page around it; its submit is still the form's primary button.
  * `onSecondFactor`: creating was refused until the passkey check (the session's 12 hours ran out meanwhile); the page
  * around opens the passkey prompt. Without it, this page shows the prompt itself instead of an error line.
  */
@@ -126,18 +126,13 @@ export function CreateWorkspace({
       {error && <Note tone="danger">{error}</Note>}
       <button
         type="submit"
-        className={`k-btn ${embedded ? 'k-btn-secondary' : 'k-btn-primary'}${busy ? ' is-busy' : ''}`}
+        className={`k-btn k-btn-primary${busy ? ' is-busy' : ''}`}
         disabled={busy}
         aria-busy={busy || undefined}
       >
+        {/* Busy, the label stays and the spinner shows it works; the line under it says what happens. */}
         {busy && <Spinner />}
-        {phase === 'opening'
-          ? t('shell.newWorkspace.opening')
-          : busy
-            ? t('auth.setup.busy')
-            : created
-              ? t('shell.tabNotice.reload')
-              : t('shell.tabNotice.continue')}
+        {created && !busy ? t('shell.tabNotice.reload') : t('shell.tabNotice.continue')}
       </button>
       <CreatingStatus phase={phase} name={name.trim()} />
       {children}

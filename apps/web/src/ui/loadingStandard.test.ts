@@ -33,7 +33,13 @@ test('no "Loading…" text anywhere: skeletons show that something loads, screen
 const SPINNERS: Record<string, number> = {
   'ui/kit.tsx': 1,
   'ui/StatusMark.tsx': 1,
-  'Login.tsx': 5,
+  // The cards before setup (sign-in, sign-up, invitations) wait for the server's first answer, like the boot screen:
+  // their one wait line (WaitLine), never a skeleton of data (onboarding harmony audit T1, 2026-11-18).
+  'shell/SignedInAuthPage.tsx': 1,
+  // Send code, passkey, password Sign in, the code's Continue, the reset's two buttons, the first admin's Set up.
+  'Login.tsx': 7,
+  // Sign out and continue, Join, Send code, password Sign in.
+  'team/AcceptInvite.tsx': 4,
   'AddPasskey.tsx': 1,
   'SignInLink.tsx': 1,
   'CreateWorkspace.tsx': 1,

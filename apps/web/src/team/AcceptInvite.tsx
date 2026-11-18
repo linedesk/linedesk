@@ -21,7 +21,8 @@ import { switchToWorkspace } from '../shell/invitations.ts'
 import { previewInvitation } from './team-api.ts'
 import { AuthError } from '../ui/AuthError.tsx'
 import { ProviderButton } from '../ui/brand-logos.tsx'
-import { SignedInAuthPage } from '../shell/SignedInAuthPage.tsx'
+import { SignedInAuthPage, WaitLine } from '../shell/SignedInAuthPage.tsx'
+import { cx, Spinner } from '../ui/kit.tsx'
 import { brandName } from '../brand.ts'
 import { useT } from '@linedesk/i18n/react'
 
@@ -73,7 +74,8 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
   const [account, setAccount] = useState<Account | null | undefined>(undefined)
   const [methods, setMethods] = useState<AuthMethods | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  // What runs ('code', 'join', a provider's id…): that button shows the spinner and keeps its label; all wait meanwhile.
+  const [busy, setBusy] = useState<string | null>(null)
   const [codeSent, setCodeSent] = useState(false)
   // Opening the workspace of an invitation this account accepted already; false once that did not work (they left it).
   const [opening, setOpening] = useState<boolean | null>(null)
@@ -110,8 +112,8 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
     void loadAccount()
   }, [invitationId, loadAccount])
 
-  async function attempt(work: () => Promise<void>) {
-    setBusy(true)
+  async function attempt(what: string, work: () => Promise<void>) {
+    setBusy(what)
     setError(null)
     try {
       await work()
@@ -119,12 +121,12 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
       // Our own messages as they are; a network failure (TypeError) or anything else in plain words.
       setError(e instanceof Error && !(e instanceof TypeError) ? e.message : authErrorMessage(e))
     } finally {
-      setBusy(false)
+      setBusy(null)
     }
   }
 
   const errorLine = error && <AuthError message={error} />
-  // While the workspace of an accepted invitation opens: the empty page, as while loading.
+  // While the workspace of an accepted invitation opens: the wait line, as while loading.
   if (
     !invite ||
     account === undefined ||
@@ -132,7 +134,7 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
     accepted === 'signIn' ||
     (accepted === 'open' && opening !== false)
   )
-    return <SignedInAuthPage>{errorLine}</SignedInAuthPage>
+    return <SignedInAuthPage>{errorLine || <WaitLine />}</SignedInAuthPage>
   if (invite.status !== 'pending') {
     return (
       <Card
@@ -170,7 +172,7 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
     )
   if (!account) {
     return (
-      <SignInForInvite
+      <InviteSignIn
         title={title}
         lead={lead}
         email={invite.email}
@@ -191,15 +193,17 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
         {errorLine}
         <button
           type="button"
-          className="k-btn k-btn-primary"
-          disabled={busy}
+          className={cx('k-btn k-btn-primary', busy === 'signOut' && 'is-busy')}
+          disabled={busy !== null}
+          aria-busy={busy === 'signOut' || undefined}
           onClick={() =>
-            attempt(async () => {
+            attempt('signOut', async () => {
               await signOutAndForget()
               await loadAccount()
             })
           }
         >
+          {busy === 'signOut' && <Spinner />}
           {t('team.invite.signOutContinue')}
         </button>
         <button type="button" className="auth-switch" onClick={onDone}>
@@ -228,15 +232,17 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
       {errorLine}
       <button
         type="button"
-        className="k-btn k-btn-primary"
-        disabled={busy}
+        className={cx('k-btn k-btn-primary', busy === 'join' && 'is-busy')}
+        disabled={busy !== null}
+        aria-busy={busy === 'join' || undefined}
         onClick={() =>
-          attempt(async () => {
+          attempt('join', async () => {
             fail(await auth.organization.acceptInvitation({ invitationId }))
             onDone()
           })
         }
       >
+        {busy === 'join' && <Spinner />}
         {t('team.invite.join', { workspace: invite.workspaceName })}
       </button>
       <button type="button" className="auth-switch" onClick={onDone}>
@@ -251,15 +257,33 @@ type SignInProps = {
   lead: ReactNode
   email: string
   methods: AuthMethods
-  busy: boolean
+  /** What runs ('code', 'password', 'passkey', a provider's id), or null. */
+  busy: string | null
   error: ReactNode
-  attempt: (work: () => Promise<void>) => Promise<void>
+  attempt: (what: string, work: () => Promise<void>) => Promise<void>
   onCodeSent: () => void
   onSignedIn: () => Promise<void>
+  /** The install's brand (a partner team invitation, PartnerInvite.tsx), never a white-label one. */
+  install?: boolean
 }
 
-/** Signed out: the invited address is fixed; any method this install offers works. */
-function SignInForInvite({ title, lead, email, methods, busy, error, attempt, onCodeSent, onSignedIn }: SignInProps) {
+/**
+ * Signed out, an invitation's card: "Join …", who invited which address, then the ways in for that address (it is
+ * fixed); any method this install offers works. Workspace invitations and partner team invitations (PartnerInvite.tsx)
+ * share it, so both read the same.
+ */
+export function InviteSignIn({
+  title,
+  lead,
+  email,
+  methods,
+  busy,
+  error,
+  attempt,
+  onCodeSent,
+  onSignedIn,
+  install,
+}: SignInProps) {
   const t = useT()
   // A new account comes from a proven address (a code or a provider): a password signs in an existing one only.
   const [mode, setMode] = useState<'choose' | 'signIn'>('choose')
@@ -268,7 +292,7 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
 
   function submit(e: FormEvent) {
     e.preventDefault()
-    void attempt(async () => {
+    void attempt('password', async () => {
       const invalid = authFormError('password', { ...form, name: '', email })
       if (invalid) throw new Error(invalid)
       fail(await auth.signIn.email({ email, password: form.password }))
@@ -278,7 +302,7 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
   }
 
   return (
-    <SignedInAuthPage>
+    <SignedInAuthPage install={install}>
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>{title}</h1>
         {lead}
@@ -292,15 +316,17 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
             {methods.emailCode && (
               <button
                 type="button"
-                className="k-btn k-btn-primary"
-                disabled={busy}
+                className={cx('k-btn k-btn-primary', busy === 'code' && 'is-busy')}
+                disabled={busy !== null}
+                aria-busy={busy === 'code' || undefined}
                 onClick={() =>
-                  attempt(async () => {
+                  attempt('code', async () => {
                     fail(await requestSignInCode(email))
                     onCodeSent()
                   })
                 }
               >
+                {busy === 'code' && <Spinner />}
                 {t('auth.signup.sendCode')}
               </button>
             )}
@@ -310,9 +336,9 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
                 method="passkey"
                 label={t('auth.method.passkey')}
                 lastUsed={false}
-                disabled={busy}
+                disabled={busy !== null}
                 onClick={() =>
-                  attempt(async () => {
+                  attempt('passkey', async () => {
                     fail(await signInWithPasskey())
                     rememberSignInMethod('passkey')
                     await onSignedIn()
@@ -326,9 +352,10 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
                 method={m.id}
                 label={m.label}
                 lastUsed={false}
-                disabled={busy}
+                busy={busy === m.id}
+                disabled={busy !== null}
                 onClick={() =>
-                  attempt(async () => {
+                  attempt(m.id, async () => {
                     // Counted as a sign-in only once it comes back with a session (loadAccount).
                     startRedirectSignIn(m.id)
                     fail(await auth.signIn.social({ provider: m.id, ...back }))
@@ -358,7 +385,13 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
               />
             </label>
-            <button type="submit" className="k-btn k-btn-primary" disabled={busy}>
+            <button
+              type="submit"
+              className={cx('k-btn k-btn-primary', busy === 'password' && 'is-busy')}
+              disabled={busy !== null}
+              aria-busy={busy === 'password' || undefined}
+            >
+              {busy === 'password' && <Spinner />}
               {t('auth.signIn')}
             </button>
             <button type="button" className="auth-switch" onClick={() => setMode('choose')}>

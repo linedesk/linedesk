@@ -14,14 +14,15 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { day } from '../admin/parts.tsx'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { useCountryHint } from '../countryHint.ts'
-import { Billing } from '../settings/Billing.tsx'
+import { rememberDraftOpenedFrom } from '../onboarding/flow.ts'
+import { SetupTopBar } from '../onboarding/SetupTopBar.tsx'
 import {
   openPartnerActivate,
   PARTNER_AGENT_HASH,
   PARTNER_SETUP_HASH,
   rememberPartnerByHand,
 } from '../onboarding/setup-choice.ts'
-import { SetupTopBar } from '../onboarding/SetupTopBar.tsx'
+import { Billing } from '../settings/Billing.tsx'
 import { purchaseKeys } from '../settings/billingModel.ts'
 import { CountrySelect } from '../settings/CountrySelect.tsx'
 import { callAction } from '../settings/settings-api.ts'
@@ -36,8 +37,8 @@ import { tabWorkspace } from '../tabWorkspace.ts'
 import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { Card, Dialog, FormField, Input } from '../ui/form.tsx'
 import { Avatar, Badge, Button, Icon, Note } from '../ui/kit.tsx'
-import { List, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
+import { List, ListRow } from '../ui/list.tsx'
 import { type PageSection, SettingsLayout, sectionParts, useSection } from '../ui/SettingsLayout.tsx'
 import { ClientSettingsDialog } from './ClientSettingsDialog.tsx'
 import { ClientList } from './ClientTable.tsx'
@@ -249,9 +250,10 @@ function PartnerConsole({ partner, onExit, onFirstWorkspace }: Props) {
 /**
  * White-label Cloud waits for its Checkout (the Clients section's own card, never a banner over every section): its
  * real price a month (the partner bill's), billed yearly or monthly, and Activate, which resumes the setup's Activate
- * step; until then up to
- * UNPAID_PARTNER_CLIENTS client workspaces are drafts. Someone else on the team reads that the owner activates it.
- * `primary`: the page's one main action once there is a client to activate it for (else New client is).
+ * step; until then up to UNPAID_PARTNER_CLIENTS client workspaces are drafts. While the setup is not finished (Activate
+ * is its end), "Continue setup by hand" goes back into it, as ✦ in the top bar goes to the agent. Someone else on the
+ * team reads that the owner activates it. `primary`: the page's one main action once there is a client to activate it
+ * for (else Add client is).
  */
 function ActivateCard({ data, primary }: { data: PartnerData; primary: boolean }) {
   const t = useT()
@@ -265,10 +267,23 @@ function ActivateCard({ data, primary }: { data: PartnerData; primary: boolean }
           <PartnerPrice price={bill.price} />
           <p className="pa-fine">{t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })}</p>
         </div>
-        {/* The setup's one Activate step (PartnerSetup.tsx): the drafts, the real total, Checkout; Back comes here. */}
-        <Button size="sm" variant={primary ? 'primary' : 'secondary'} onClick={() => openPartnerActivate('#partner')}>
-          {t('team.partner.bill.activateButton')}
-        </Button>
+        <div className="pa-activate-actions">
+          <Button
+            size="sm"
+            variant="ghost"
+            title={t('onboarding.agentSetup.partner.byHandTitle')}
+            onClick={() => {
+              rememberPartnerByHand(data.partner.id, true)
+              window.location.hash = PARTNER_SETUP_HASH
+            }}
+          >
+            {t('team.partner.setup.continueByHand')}
+          </Button>
+          {/* The setup's one Activate step (PartnerSetup.tsx): the drafts, the real total, Checkout; Back comes here. */}
+          <Button size="sm" variant={primary ? 'primary' : 'secondary'} onClick={() => openPartnerActivate('#partner')}>
+            {t('team.partner.bill.activateButton')}
+          </Button>
+        </div>
       </div>
     </Card>
   )
@@ -306,27 +321,41 @@ export function Clients({
   const [settings, setSettings] = useState<PartnerClientRow | null>(null)
 
   /** Opens a client workspace like the workspace menu does; `hash`: the page in it (the inbox by default). */
-  function open(id: string, hash?: string) {
-    setOpening(id)
+  function open(id: string, hash?: string, busyAs = id) {
+    setOpening(busyAs)
     setProblem(null)
+    // Its setup ends back here (the partner area), not on the partner's setup (onboarding/flow.ts).
+    rememberDraftOpenedFrom(id, location.hash)
     switchToWorkspace(id, hash).catch(err => {
       setOpening(null)
       setProblem(partnerErrorText(err))
     })
   }
+  /**
+   * A draft, set up as in the setup's Clients step (PartnerSetup.tsx): with the agent (its page with this client
+   * picked) or by hand (the client's own onboarding). The owner only: the agent page is theirs.
+   */
+  const setUp =
+    owner && unpaidPartner(data)
+      ? (client: PartnerClient, way: 'agent' | 'hand') => {
+          rememberPartnerByHand(data.partner.id, way === 'hand')
+          open(client.id, way === 'agent' ? PARTNER_AGENT_HASH : undefined, `${way}:${client.id}`)
+        }
+      : undefined
 
   const room = roomForClient(data)
   const empty = data.clients.length === 0
   // Why New client cannot be used now, said next to it (never a disabled button alone): the drafts before activating
   // are used up; otherwise the note above the sections (suspended, plan not running) or, without billing, approval.
+  const activating = !!data.bill && unpaidPartner(data) && data.partner.status !== 'suspended'
+  // The Activate card says the draft limit already for its owner: never the same sentence twice on the page.
   const blocked = frozen
     ? !data.bill && data.partner.status === 'pending'
       ? t('team.partner.pending')
       : null
-    : room
+    : room || (activating && data.bill?.mine)
       ? null
       : t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })
-  const activating = !!data.bill && unpaidPartner(data) && data.partner.status !== 'suspended'
   const newClient = (
     <Button
       size="sm"
@@ -366,6 +395,7 @@ export function Clients({
             invitesWait={unpaidPartner(data)}
             opening={opening}
             onOpen={open}
+            onSetUp={setUp}
             onInvite={setInviting}
             onRelease={setReleasing}
             onDelete={setDeleting}
@@ -613,7 +643,7 @@ export function NewClientDialog({
 }
 
 /** Invites the client's own owner by email (the partner's owner; never someone on the partner team). */
-function InviteOwnerDialog({
+export function InviteOwnerDialog({
   partnerId,
   client,
   onClose,

@@ -19,15 +19,13 @@ import {
   loadSignupConfig,
   readSignupParams,
   type SignupConfig,
-  type SignupPlan,
   type SignupTerms,
   signUpBusiness,
 } from './signup.ts'
 import { ExternalLink } from './ui/AppLink.tsx'
 import { AuthError } from './ui/AuthError.tsx'
 import { cx, Spinner } from './ui/kit.tsx'
-import { usePrice } from './ui/price.tsx'
-import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
+import { SignedInAuthPage, WaitLine } from './shell/SignedInAuthPage.tsx'
 import { loadTurnstile } from './turnstile.ts'
 
 type Step = 'email' | 'code' | 'details'
@@ -61,19 +59,20 @@ export function Signup({
   // Another plan than these: the same "not yet" as a country we do not serve.
   if (params.plan !== 'cloud' && params.plan !== 'partner') return <NotYet />
   const partner = params.plan === 'partner'
+  // A partner's own sign-up: the install's brand on every card, as on its team invitation (PartnerInvite).
   if (config === null)
     return (
-      <SignedInAuthPage>
-        <p className="auth-wait">{t('auth.connecting')}</p>
+      <SignedInAuthPage install={partner}>
+        <WaitLine />
       </SignedInAuthPage>
     )
   if (config === 'unreachable')
     return (
-      <SignedInAuthPage>
+      <SignedInAuthPage install={partner}>
         <AuthError message={t('auth.error.server')} />
       </SignedInAuthPage>
     )
-  if (!config.open) return <Closed />
+  if (!config.open) return <Closed install={partner} />
   if (step === 'email')
     return (
       <EmailStep
@@ -86,13 +85,21 @@ export function Signup({
       />
     )
   if (step === 'code')
-    return <CodeStep email={email} config={config} onDone={() => setStep('details')} onBack={() => setStep('email')} />
+    return (
+      <CodeStep
+        email={email}
+        config={config}
+        partner={partner}
+        onDone={() => setStep('details')}
+        onBack={() => setStep('email')}
+      />
+    )
   return (
     <DetailsStep
       interval={params.interval}
       partner={partner}
       terms={config.terms!}
-      planNow={!partner && !config.trial ? config.plan : null}
+      noTrial={!partner && !config.trial}
       fromApp={fromApp}
       onTermsChanged={() => void loadSignupConfig().then(setConfig)}
       onDone={workspaceId => onDone(partner, workspaceId)}
@@ -100,10 +107,10 @@ export function Signup({
   )
 }
 
-function Closed() {
+function Closed({ install }: { install?: boolean }) {
   const t = useT()
   return (
-    <SignedInAuthPage>
+    <SignedInAuthPage install={install}>
       <div className="auth-card">
         <h1>{t('auth.signup.closedTitle')}</h1>
         <p>{t('auth.signup.closedText')}</p>
@@ -116,10 +123,10 @@ function Closed() {
 }
 
 /** Outside the US, Canada and Puerto Rico, and the partner plan: not yet. */
-function NotYet() {
+function NotYet({ install }: { install?: boolean }) {
   const t = useT()
   return (
-    <SignedInAuthPage>
+    <SignedInAuthPage install={install}>
       <div className="auth-card">
         <h1>{t('auth.signup.notYetTitle')}</h1>
         <p>{t('auth.signup.notYetText')}</p>
@@ -232,7 +239,7 @@ export function EmailStep({
   }
 
   return (
-    <SignedInAuthPage>
+    <SignedInAuthPage install={partner}>
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>
           {partner
@@ -262,7 +269,7 @@ export function EmailStep({
             aria-busy={busy || undefined}
           >
             {busy && <Spinner />}
-            {busy ? t('auth.sending') : t('auth.signup.sendCode')}
+            {t('auth.signup.sendCode')}
           </button>
           {error && <AuthError message={error} />}
         </div>
@@ -275,11 +282,13 @@ export function EmailStep({
 function CodeStep({
   email,
   config,
+  partner,
   onDone,
   onBack,
 }: {
   email: string
   config: SignupConfig
+  partner: boolean
   onDone: () => void
   onBack: () => void
 }) {
@@ -324,7 +333,7 @@ function CodeStep({
   }
 
   return (
-    <SignedInAuthPage>
+    <SignedInAuthPage install={partner}>
       <form
         className="auth-card"
         noValidate
@@ -353,9 +362,10 @@ function CodeStep({
           type="submit"
           className={cx('k-btn k-btn-primary', busy && 'is-busy')}
           disabled={busy || code.length < CODE_LENGTH}
+          aria-busy={busy || undefined}
         >
           {busy && <Spinner />}
-          {busy ? t('auth.checking') : t('auth.signup.continue')}
+          {t('auth.signup.continue')}
         </button>
         {waitS <= 0 && config.turnstileSiteKey && <TurnstileBox bot={bot} />}
         <div className="auth-links">
@@ -377,15 +387,15 @@ function CodeStep({
  * the onboarding's first step. Making the account accepts the terms and the privacy policy shown next to the button
  * (clickwrap, A9), for a business and a partner alike; the API records the versions with the time and the session's IP
  * address. A business goes on to set up its assistant without a card and adds one at the onboarding's last step
- * (`activate`), which shows the terms again and records them with what it charges; a partner goes on to its agent setup
- * page and pays when it activates White-label Cloud there. From a country not served yet (as the API sees the request):
+ * (`activate`), which never asks for the terms again; a partner goes on to its agent setup page and pays when it
+ * activates White-label Cloud there. Neither sees a price here: it comes with the plan at that last step. From a country not served yet (as the API sees the request):
  * the "not yet" page.
  */
 export function DetailsStep({
   interval,
   partner,
   terms,
-  planNow,
+  noTrial = false,
   fromApp,
   onTermsChanged,
   onDone,
@@ -394,14 +404,13 @@ export function DetailsStep({
   /** Plan `partner`: the partner's company, not a business that answers calls. */
   partner: boolean
   terms: SignupTerms
-  /** No free trial for this account (it had one): the plan, which starts at Checkout. Null: the trial. */
-  planNow: SignupPlan | null
+  /** No free trial for this account (it had one): its plan starts at the setup's last step, never here. */
+  noTrial?: boolean
   fromApp?: { onBack: () => void }
   onTermsChanged: () => void
   onDone: (workspaceId: string | null) => void | Promise<void>
 }) {
   const t = useT()
-  const prices = usePrice()
   // Signed in already: the account's name, which the person may still change.
   const known = auth.useSession().data?.user?.name ?? ''
   const [typed, setName] = useState<string | null>(null)
@@ -445,9 +454,9 @@ export function DetailsStep({
     )
   }
 
-  if (notYet) return <NotYet />
+  if (notYet) return <NotYet install={partner} />
   return (
-    <SignedInAuthPage>
+    <SignedInAuthPage install={partner}>
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>
           {partner
@@ -480,16 +489,8 @@ export function DetailsStep({
         )}
         {error && <AuthError message={error} />}
         {partner && <p className="auth-plan-now">{t('auth.signup.partnerPayLater')}</p>}
-        {planNow && (
-          <p className="auth-plan-now">
-            {interval === 'year'
-              ? t('auth.signup.planNowYearlyTotal', {
-                  price: prices.perMonth(planNow.yearlyCents, 'year'),
-                  total: prices.money(planNow.yearlyCents),
-                })
-              : t('auth.signup.planNowMonthly', { price: prices.money(planNow.monthlyCents) })}
-          </p>
-        )}
+        {/* Nothing is charged at sign-up: the plan and its price come at the setup's last step (Activate). */}
+        {noTrial && <p className="auth-plan-now">{t('auth.signup.payLater')}</p>}
         <p className="auth-terms">
           <T
             k={fromApp ? 'auth.signup.termsCreateWorkspace' : 'auth.signup.termsCreate'}
@@ -506,7 +507,7 @@ export function DetailsStep({
           aria-busy={busy || undefined}
         >
           {busy && <Spinner />}
-          {busy ? t('auth.setup.busy') : fromApp ? t('auth.signup.createWorkspace') : t('auth.signup.createAccount')}
+          {fromApp ? t('auth.signup.createWorkspace') : t('auth.signup.createAccount')}
         </button>
         {fromApp ? (
           <button type="button" className="auth-switch" disabled={busy} onClick={fromApp.onBack}>

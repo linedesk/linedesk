@@ -21,6 +21,7 @@ import {
   type PartnerClientRow,
   type PartnerInvitedMember,
   type PartnerData,
+  type PartnerInvitationPreview,
   type PartnerInvitationView,
   type PartnerRole,
   type PartnerStatus,
@@ -336,6 +337,34 @@ async function invitationByToken(tx: Tx, token: string) {
 
 const isOpen = (inv: typeof partner_invitations.$inferSelect, now: string) =>
   !inv.accepted_at && !inv.canceled_at && Date.parse(inv.expires_at) > Date.parse(now)
+
+/** Who sent an invitation, by name; null for one sent from the command line (`cli`) or by someone gone. */
+async function inviterName(tx: Pick<Tx, 'select'>, inviterId: string): Promise<string | null> {
+  const [inviter] = await tx.select({ name: user.name }).from(user).where(eq(user.id, inviterId))
+  return inviter?.name || null
+}
+
+/**
+ * Public (app.ts): what a partner team invitation link shows before anyone signs in, as a workspace invitation's does
+ * (invitations.ts `previewInvitation`): the partner, the role, the invited address and who sent it. The token is the
+ * secret from the email, so whoever has it may see that while the invitation is open. Accepted, withdrawn, expired,
+ * of a suspended partner or not known: `gone`, nothing more.
+ */
+export async function previewPartnerInvitation(token: string, now: string): Promise<PartnerInvitationPreview> {
+  const [row] = await db
+    .select({ invitation: partner_invitations, partnerName: partners.name, partnerStatus: partners.status })
+    .from(partner_invitations)
+    .innerJoin(partners, eq(partners.id, partner_invitations.partner_id))
+    .where(eq(partner_invitations.token_hash, hashToken(token)))
+  if (!row || !isOpen(row.invitation, now) || row.partnerStatus === 'suspended') return { status: 'gone' }
+  return {
+    status: 'open',
+    partnerName: row.partnerName,
+    role: row.invitation.role as PartnerRole,
+    email: row.invitation.email,
+    invitedBy: await inviterName(db, row.invitation.invited_by),
+  }
+}
 
 /** The signed-in person's account (partner invitations are accepted by them only: no impersonation, no key). */
 async function me(tx: Tx, actor: Actor) {
@@ -1069,6 +1098,7 @@ export const partnerHandlers: Record<string, Handler> = {
       partnerName: partner.name,
       role: inv.role as PartnerRole,
       email: inv.email,
+      invitedBy: await inviterName(tx, inv.invited_by),
       state: already ? 'member' : account.email.toLowerCase() === inv.email ? 'open' : 'other_email',
     }
     return { rows: {}, data: view }

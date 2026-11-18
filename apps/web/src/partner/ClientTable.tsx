@@ -1,7 +1,8 @@
 // Partner › Clients, the list (white-label slice S3, LIN-454): one row per client workspace that fits the page at every
 // width. The name with what needs a look (problems, worst first, in amber or red), the owner and the number under it,
 // this period's usage from the partner bill's ledger as an amount with a small bar against the monthly limit, and one
-// Open with a "…" menu for the rest. Never call content: counts and money only.
+// Open with a "…" menu for the rest; a draft before White-label Cloud runs is set up instead, "By hand" or "With an AI
+// agent", as on the setup's Clients step. Never call content: counts and money only.
 import type { PartnerClient, PartnerClientList, PartnerClientRow, PartnerData } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useFormat, useT } from '@linedesk/i18n/react'
@@ -31,8 +32,11 @@ type Props = {
   frozen: boolean
   /** Before White-label Cloud is paid: the client workspaces are drafts, open to set up, whose owners' invitations wait. */
   invitesWait?: boolean
+  /** What is opening: a client's id, or `hand:<id>` / `agent:<id>` while a draft opens to be set up. */
   opening: string | null
   onOpen: (id: string, hash?: string) => void
+  /** Drafts (`invitesWait`), for the partner's owner: set one up by hand or with the agent, in place of Open. */
+  onSetUp?: (client: PartnerClient, way: 'agent' | 'hand') => void
   onInvite: (client: PartnerClient) => void
   onRelease: (client: PartnerClient) => void
   onDelete: (client: PartnerClient) => void
@@ -46,6 +50,7 @@ export function ClientList({
   invitesWait = false,
   opening,
   onOpen,
+  onSetUp,
   onInvite,
   onRelease,
   onDelete,
@@ -88,6 +93,7 @@ export function ClientList({
                 invitesWait={invitesWait}
                 opening={opening}
                 onOpen={onOpen}
+                onSetUp={onSetUp}
                 onInvite={onInvite}
                 onRelease={onRelease}
                 onDelete={onDelete}
@@ -109,6 +115,7 @@ function ClientRow({
   invitesWait,
   opening,
   onOpen,
+  onSetUp,
   onInvite,
   onRelease,
   onDelete,
@@ -152,13 +159,16 @@ function ClientRow({
         ? row.billed
           ? t('team.partner.clients.settingsTip', { name: row.name })
           : t('team.partner.clients.limit.notBilled')
-        : action.id === 'inviteOwner'
-          ? t('team.partner.clients.inviteOwnerTip', { name: row.name })
-          : action.id === 'ownerInvitation'
-            ? t('team.partner.clients.ownerInvitationTip', { name: row.name })
-            : action.id === 'release'
-              ? t('team.partner.clients.releaseTip', { name: row.name })
-              : t('team.partner.clients.deleteTip', { name: row.name }),
+        : action.id === 'inviteOwner' || action.id === 'ownerInvitation'
+          ? // Greyed before White-label Cloud runs: invitations wait for it, said where the action is.
+            invitesWait
+            ? t('team.partner.error.activate_first')
+            : action.id === 'inviteOwner'
+              ? t('team.partner.clients.inviteOwnerTip', { name: row.name })
+              : t('team.partner.clients.ownerInvitationTip', { name: row.name })
+          : action.id === 'release'
+            ? t('team.partner.clients.releaseTip', { name: row.name })
+            : t('team.partner.clients.deleteTip', { name: row.name }),
     danger: action.id === 'release' || action.id === 'delete',
     onSelect: () => {
       if (action.id === 'settings') onSettings(row)
@@ -203,16 +213,39 @@ function ClientRow({
       </div>
       <Usage row={row} />
       <div className="pc-actions">
-        <Button
-          size="sm"
-          variant="secondary"
-          busy={opening === row.id}
-          disabled={frozen || !!opening}
-          title={t('team.partner.clients.openTip', { name: row.name })}
-          onClick={() => onOpen(row.id)}
-        >
-          {t('team.partner.clients.open')}
-        </Button>
+        {invitesWait && onSetUp && client ? (
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              busy={opening === `hand:${row.id}`}
+              disabled={frozen || !!opening}
+              onClick={() => onSetUp(client, 'hand')}
+            >
+              {t('team.partner.setup.clients.byHand')}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              busy={opening === `agent:${row.id}`}
+              disabled={frozen || !!opening}
+              onClick={() => onSetUp(client, 'agent')}
+            >
+              {t('team.partner.setup.clients.withAgent')}
+            </Button>
+          </>
+        ) : (
+          <Button
+            size="sm"
+            variant="secondary"
+            busy={opening === row.id}
+            disabled={frozen || !!opening}
+            title={t('team.partner.clients.openTip', { name: row.name })}
+            onClick={() => onOpen(row.id)}
+          >
+            {t('team.partner.clients.open')}
+          </Button>
+        )}
         {items.length > 0 && <MenuButton items={items} title={t('team.partner.clients.more', { name: row.name })} />}
       </div>
     </li>

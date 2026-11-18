@@ -43,7 +43,7 @@ import { addressBucket, clientIpHeaders, clientIpOf, withClientIp } from './clie
 import { admitSignupCode, selfServeState, TURNSTILE_ACTION, turnstileKeys } from './self-serve.ts'
 import { legalTerms } from './legal-terms.ts'
 import { fromSignupPage, signupLinkPath } from './signup-gate.ts'
-import { partnersOf } from './partners.ts'
+import { partnersOf, previewPartnerInvitation } from './partners.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
 import { serveSetupMcp } from './setup-mcp.ts'
 import { mcpCors, registerOAuthRoutes } from './oauth.ts'
@@ -364,6 +364,22 @@ app.get('/v1/invitations/:id', async c => {
   const host = requestHostOf(c)
   const session = c.req.header('cookie') ? await sessionHere(c.req.raw.headers, host) : null
   return c.json(await previewInvitation(c.req.param('id'), session?.user ?? null, host))
+})
+
+// Public: a partner team invitation link shows the partner, the role, the address and who sent it before sign-in, as a
+// workspace invitation does (partners.ts `previewPartnerInvitation`). A POST with the token in the body, never in the
+// address (logs). The links go to the install's own address only: elsewhere, and for a token of the wrong shape, `gone`.
+app.post('/v1/partner-invitations/preview', async c => {
+  c.header('cache-control', 'no-store')
+  if (!allowInvitationPreview(addressBucket(clientIpOf(c)))) {
+    c.header('retry-after', '60')
+    return c.json({ ok: false, code: 'TOO_MANY_REQUESTS' }, 429)
+  }
+  const body = (await c.req.json().catch(() => null)) as { token?: unknown } | null
+  const token =
+    typeof body?.token === 'string' && body.token.length >= 20 && body.token.length <= 128 ? body.token : null
+  if (!token || requestHostOf(c).kind === 'partner') return c.json({ status: 'gone' })
+  return c.json(await previewPartnerInvitation(token, new Date().toISOString()))
 })
 
 // Public: the page the sign-in email's button opens, and its Continue (sign-in-link.ts).

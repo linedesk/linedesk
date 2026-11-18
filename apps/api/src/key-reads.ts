@@ -58,6 +58,7 @@ export const BROWSER_ONLY_ROUTES: ReadonlyMap<string, string> = new Map([
   ['/v1/sign-in-link/:step', "public, the sign-in email's button"],
   ['/v1/openapi.json', 'public: the API description'],
   ['/v1/auth-methods', 'public, before sign-in'],
+  ['/v1/partner-invitations/preview', 'public, a partner team invitation before sign-in'],
   ['/v1/branding', 'public, before sign-in'],
   ['/v1/branding/manifest.webmanifest', 'public, before sign-in'],
   ['/v1/branding/logo.png', 'public, before sign-in'],

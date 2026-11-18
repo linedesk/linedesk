@@ -151,30 +151,6 @@
   }
 }
 
-/* Partner › Clients' header: the title with New client at its right. */
-.pc-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-/* New client, done: the next step for the workspace just made. */
-.pc-done {
-  display: grid;
-  gap: 4px;
-}
-.pc-done-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-.pc-done p {
-  margin: 0;
-  font-size: 13px;
-  color: var(--ink-muted);
-}
-
 /* Usage limit…: this period's use above the limit field. */
 .pc-used {
   display: grid;
@@ -261,4 +237,11 @@
 }
 .pa-activate-text > .pa-fine {
   margin-top: 6px;
+}
+/* Continue setup by hand, then Activate: one row at the right of the price, under it on a phone. */
+.pa-activate-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }

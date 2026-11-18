@@ -442,7 +442,13 @@ a.auth-switch {
   opacity: 0.4;
   cursor: default;
 }
+/* The one wait line of a card before setup (WaitLine): a small spinner and a quiet line, centred in the column. */
 .auth-wait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
   color: var(--ink-muted);
   font-size: 13px;
 }

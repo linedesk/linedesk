@@ -395,8 +395,19 @@ export type PartnerInvitationView = {
   partnerName: string
   role: PartnerRole
   email: string
+  /** Who sent it: their name; null when sent from the command line or by someone no longer here. */
+  invitedBy: string | null
   state: 'open' | 'other_email' | 'member'
 }
+
+/**
+ * What a partner team invitation link shows before anyone signs in (`POST /v1/partner-invitations/preview`), as a
+ * workspace invitation does: `open` with the partner, the role, the invited address and who sent it; `gone` when it was
+ * accepted, withdrawn, has expired or is not known.
+ */
+export type PartnerInvitationPreview =
+  | { status: 'open'; partnerName: string; role: PartnerRole; email: string; invitedBy: string | null }
+  | { status: 'gone' }
 
 /** One row of Server admin › Partners. */
 export type AdminPartner = {
