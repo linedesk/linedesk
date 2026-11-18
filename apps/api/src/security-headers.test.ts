@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 
 const caddyfile = readFileSync(new URL('../../../docker/Caddyfile', import.meta.url), 'utf8')
-const siteBlock = caddyfile.slice(caddyfile.indexOf('{$SITE_ADDRESS::80} {'))
+// The routes and headers live in the (app-routes) snippet, which the install's own site and the partner site import.
+const siteBlock = caddyfile.slice(caddyfile.indexOf('(app-routes) {'), caddyfile.indexOf('{$SITE_ADDRESS::80} {'))
 
 const headerValue = (name: string) => siteBlock.match(new RegExp(`^\\s*${name} (.+)$`, 'm'))?.[1]?.replace(/^"|"$/g, '')
 

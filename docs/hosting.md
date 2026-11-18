@@ -59,6 +59,8 @@ curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/inst
 
 It keeps all data and settings and only changes the address; everyone signs in again once. Behind Cloudflare's proxy, see the README (Three ways to put it on the web).
 
+Behind Cloudflare (`docker-compose.cloudflare.yml`), Caddy also answers every other name on 443 with the app (`LINEDESK_PARTNER_SITE=on`, the default there): that is how white-label partners' own addresses reach the server through Cloudflare for SaaS. The API decides which names it serves and answers 421 for any other once the install has a partner address. Set `LINEDESK_PARTNER_SITE=off` in `.env` to answer only your own address. With partner addresses, the Cloudflare Origin CA certificate must also cover the custom origin name (e.g. `saas-origin.example.com`), because Cloudflare connects with that name. For Authenticated Origin Pulls (only Cloudflare can connect), turn them on in Cloudflare first, put Cloudflare's CA as `origin-pull-ca.pem` next to `origin.pem`, and set `LINEDESK_ORIGIN_PULL=on`. Linedesk's own steps: [runbook.md](runbook.md#partner-addresses-cloudflare-for-saas-white-label-s5).
+
 ## Firewall
 
 Linedesk publishes only the ports it needs. DigitalOcean and Vultr have no firewall in front of a new server. Lightsail does: under Networking, IPv4 Firewall, add these rules (and the same if you add a firewall elsewhere):

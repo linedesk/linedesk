@@ -9,6 +9,13 @@
 # - TLS: Cloudflare's SSL mode "Full (strict)", with a Cloudflare Origin CA certificate for PUBLIC_URL's host in
 #   LINEDESK_ORIGIN_CERT_DIR (origin.pem, and origin.key readable by uid 1000, mode 600). It lasts up to 15 years
 #   and needs no renewal; Caddy's own certificates (HTTP-01) would stop renewing once only Cloudflare reaches 80/443.
+# - Partners' own addresses (white-label S5, Cloudflare for SaaS, docs/hosting.md): Caddy also answers any other Host on
+#   443 with the same routes and certificate (LINEDESK_PARTNER_SITE, on here; set it to off in .env to answer only
+#   PUBLIC_URL's host). Cloudflare connects with the custom origin's name as SNI (saas-origin.<your zone>), so the Origin
+#   CA certificate must cover that name too. The API decides which names it serves (421 for any other).
+# - Authenticated Origin Pulls (optional): LINEDESK_ORIGIN_PULL=on in .env makes Caddy require Cloudflare's client
+#   certificate on every TLS connection (LINEDESK_TLS=origin-pull), checked against Cloudflare's CA in
+#   LINEDESK_ORIGIN_CERT_DIR/origin-pull-ca.pem. Turn on Authenticated Origin Pulls in Cloudflare first, or the site is down.
 # - SIP and call audio do not go through Cloudflare: LIVEKIT_SIP_ENDPOINT must be a DNS-only (grey cloud) name.
 # Cloudflare's ranges: https://www.cloudflare.com/ips/ (checked 2026-11-12); update them here when they change.
 services:
@@ -21,6 +28,7 @@ services:
         2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
       LINEDESK_CLIENT_IP_HEADERS: CF-Connecting-IP
       LINEDESK_COUNTRY_HEADER: CF-IPCountry
-      LINEDESK_TLS: origin
+      LINEDESK_TLS: origin${LINEDESK_ORIGIN_PULL:+-pull}
+      LINEDESK_PARTNER_SITE: ${LINEDESK_PARTNER_SITE:-on}
     volumes:
       - ${LINEDESK_ORIGIN_CERT_DIR:?set LINEDESK_ORIGIN_CERT_DIR to the directory with origin.pem and origin.key}:/etc/caddy/certs:ro
