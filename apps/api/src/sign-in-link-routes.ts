@@ -11,6 +11,7 @@ import { auth, trustedOrigins } from './auth.ts'
 import { addressBucket, CLIENT_IP_HEADER, clientIpOf } from './client-ip.ts'
 import type { Actor } from './context.ts'
 import { createRateLimiter } from './rate-limit.ts'
+import { rememberRequestHost, requestHostOf } from './request-host.ts'
 import { readSignInLink, takeSignInLink } from './sign-in-link.ts'
 
 type Env = { Variables: { actor: Actor } }
@@ -33,6 +34,8 @@ function authHeaders(c: Context): Headers {
   headers.delete('content-length')
   const ip = clientIpOf(c)
   if (ip) headers.set(CLIENT_IP_HEADER, ip)
+  // The address the host middleware resolved for this request: the session is made for it (host-sessions.ts).
+  rememberRequestHost(headers, requestHostOf(c))
   return headers
 }
 

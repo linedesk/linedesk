@@ -58,6 +58,9 @@ export const session = pgTable(
     // What set passkeyVerifiedAt: 'passkey' (a passkey sign-in) or 'authenticator' (a code from an instance admin's
     // authenticator app, the fallback; apps/api/src/authenticator.ts). Null on sessions from before: a passkey.
     secondFactorMethod: text("second_factor_method"),
+    // White-label S5: the partner address (host name) the session was made on; null on the install's own address. The
+    // session works only on that address (apps/api/src/context.ts), so a cookie taken there is useless anywhere else.
+    host: text("host"),
   },
   (table) => [index("session_userId_idx").on(table.userId)],
 );

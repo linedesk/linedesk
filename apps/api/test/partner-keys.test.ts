@@ -240,7 +240,8 @@ describe('key tests', () => {
       status: 409,
       body: { code: 'too_many_tests' },
     })
-  })
+    // Thirteen requests in a row (each test asks the stubbed provider): more than CI's default 5 s on a busy runner.
+  }, 30_000)
 })
 
 describe('encryption', () => {

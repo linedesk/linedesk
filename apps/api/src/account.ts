@@ -5,6 +5,8 @@ import { APIError } from 'better-auth/api'
 import type { Context } from 'hono'
 import { authMethods } from './auth-methods.ts'
 import { auth } from './auth.ts'
+import { sessionFitsHost } from './host-sessions.ts'
+import { requestHostOf } from './request-host.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { db } from './db.ts'
 import { revokeSetupKeysOf } from './passkey-enrolment.ts'
@@ -23,7 +25,9 @@ export async function setFirstPassword(c: Context) {
   if (!authMethods.password) return refuse(400, 'Password sign-in is turned off')
   // Another site cannot send this with the session cookie: refuseCrossSite (csrf.ts) runs before every /v1 route.
   const headers = c.req.raw.headers
-  const session = await auth.api.getSession({ headers })
+  // Only a session made on this address (host-sessions.ts): never one taken from a partner's address.
+  const found = await auth.api.getSession({ headers })
+  const session = found && sessionFitsHost((found.session as { host?: string | null }).host, requestHostOf(c)) ? found : null
   if (!session) return refuse(401, 'not signed in')
   if (session.session.impersonatedBy) return refuse(403, NOT_WHILE_IMPERSONATING)
   if (!allowAttempt(session.user.id)) return refuse(429, 'Too many attempts. Try again in a few minutes.')

@@ -2,8 +2,8 @@
 // request came in on, 421 for an address that is not set up, 404 for what belongs to the install's own address on a
 // partner's, and the trusted origins per host (Better Auth, csrf.ts, the sign-in link page). Writes partner addresses,
 // which turn the host check on for the whole install: an instance-wide file (vitest.config.ts).
-import { instance_settings, partner_domains, partners, user } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
+import { instance_settings, organization, partner_domains, partners, user } from '@linedesk/db'
+import { eq, isNotNull } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import {
@@ -22,17 +22,8 @@ import { actions } from '@linedesk/actions'
 import { crossSiteRefusal } from '../src/csrf.ts'
 import { auth, trustedOrigins } from '../src/auth.ts'
 import { signWithSecretsKey } from '../src/secrets.ts'
-import {
-  act,
-  appRequest,
-  asServerAdmin,
-  createWorkspace,
-  FROM,
-  randomIp,
-  request,
-  signUp,
-  type User,
-} from './helpers.ts'
+import { act, appRequest, asServerAdmin, createWorkspace, request, signUp, type User } from './helpers.ts'
+import { addDomain, makeClient, makePartner, onHost, setStatus, signInOn } from './partner-hosts.ts'
 
 /**
  * Runs once in the middle of the next request, after the host middleware and before the /v1 guard reads the caller:
@@ -57,65 +48,6 @@ const MAIN = 'http://localhost:5173'
 const originsOn = (host: string) => trustedOriginsFor([MAIN], resolveHost(host))
 /** A fresh probe challenge. */
 const nonce = () => crypto.randomUUID().replaceAll('-', '')
-const uid = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`
-
-/** A partner straight in the database, approved unless said otherwise. */
-async function makePartner(status: 'approved' | 'suspended' | 'pending' = 'approved') {
-  const id = uid('ptn')
-  const now = new Date().toISOString()
-  await db.insert(partners).values({
-    id,
-    name: `Agency ${id}`,
-    status,
-    created_by: 'cli',
-    approved_at: status === 'pending' ? null : now,
-    approved_by: status === 'pending' ? null : 'cli',
-    suspended_at: status === 'suspended' ? now : null,
-  })
-  return id
-}
-
-/** A partner address straight in the database (S5's partner page makes them later), and the map loaded again. */
-async function addDomain(partnerId: string, hostname: string, status: (typeof partner_domains.$inferInsert)['status']) {
-  const id = uid('pd')
-  await db.insert(partner_domains).values({
-    id,
-    partner_id: partnerId,
-    hostname,
-    status,
-    challenge_token: 'a'.repeat(64),
-    created_by: 'cli',
-    ...(status === 'removed' ? { removed_at: new Date().toISOString(), removed_by: 'cli' } : {}),
-  })
-  await reloadHosts()
-  return id
-}
-
-async function setStatus(domainId: string, status: 'active' | 'failed' | 'removed') {
-  await db
-    .update(partner_domains)
-    .set({ status, removed_at: status === 'removed' ? new Date().toISOString() : null })
-    .where(eq(partner_domains.id, domainId))
-  await reloadHosts()
-}
-
-/** A request to `host`, as the browser on a page of `origin` would send it (the session cookie when signed in). */
-function onHost(
-  host: string,
-  path: string,
-  init: { method?: string; who?: User; origin?: string; body?: unknown; headers?: Record<string, string> } = {},
-) {
-  const headers: Record<string, string> = { host, [FROM]: randomIp(), ...init.headers }
-  if (init.who?.headers.cookie) headers.cookie = init.who.headers.cookie
-  if (init.origin) headers.origin = init.origin
-  if (init.body !== undefined) headers['content-type'] = 'application/json'
-  return appRequest(path, {
-    method: init.method ?? (init.body === undefined ? 'GET' : 'POST'),
-    headers,
-    body: init.body === undefined ? undefined : JSON.stringify(init.body),
-  })
-}
-
 describe('an install that never had a partner address (ships dark)', () => {
   // The first test of the file: no row in partner_domains yet in this file's own database.
   test('every host is the install’s own, as before', async () => {
@@ -271,18 +203,27 @@ describe('on a partner’s live address', () => {
   const ORIGIN = `https://${HOST}`
   let ws: Awaited<ReturnType<typeof createWorkspace>>
   let admin: User
+  // Signed in on the partner's address (sessions are bound to it, host-sessions.ts).
+  let ownerHere: User
+  let adminHere: User
   beforeAll(async () => {
-    await addDomain(await makePartner(), HOST, 'active')
+    const partnerId = await makePartner()
+    await addDomain(partnerId, HOST, 'active')
     ws = await createWorkspace('Partner Host Plumbing')
+    await makeClient(ws.id, partnerId)
     admin = await signUp()
     await db.update(user).set({ emailVerified: true }).where(eq(user.id, admin.userId))
+    // A server admin who is also a member of the partner's client, so the address signs them in at all.
+    await auth.api.addMember({ body: { userId: admin.userId, organizationId: ws.id, role: 'admin' } })
+    ownerHere = await signInOn(HOST, ws.owner)
+    adminHere = await signInOn(HOST, admin)
   })
 
   test('the app works: reads and writes of a signed-in member, from the address’s own origin', async () => {
     expect((await onHost(HOST, '/v1/auth-methods')).status).toBe(200)
-    expect((await onHost(HOST, '/v1/me', { who: ws.owner })).status).toBe(200)
+    expect((await onHost(HOST, '/v1/me', { who: ownerHere })).status).toBe(200)
     const res = await onHost(HOST, '/v1/actions/call.markRead', {
-      who: ws.owner,
+      who: ownerHere,
       origin: ORIGIN,
       body: { callId: ws.call.id },
     })
@@ -356,16 +297,16 @@ describe('on a partner’s live address', () => {
     ]
     await asServerAdmin(admin, async () => {
       for (const [name, input] of refused) {
-        for (const who of [admin, ws.owner]) {
+        for (const who of [adminHere, ownerHere]) {
           const res = await onHost(HOST, `/v1/actions/${name}`, { who, origin: ORIGIN, body: input })
           expect(res.status, name).toBe(404)
           expect(await res.json(), name).toMatchObject({ code: 'main_host_only' })
         }
       }
       // The session there holds neither Server admin nor the partner area, and the action list offers none of it.
-      const me = await (await onHost(HOST, '/v1/me', { who: admin })).json()
+      const me = await (await onHost(HOST, '/v1/me', { who: adminHere })).json()
       expect(me.permissions ?? []).not.toContain('instance:admin')
-      const offered = (await (await onHost(HOST, '/v1/me/actions', { who: ws.owner })).json()) as {
+      const offered = (await (await onHost(HOST, '/v1/me/actions', { who: ownerHere })).json()) as {
         actions?: { name: string }[]
       }
       const names = (offered.actions ?? []).map(a => a.name)
@@ -452,15 +393,23 @@ describe('trusted origins per host (Better Auth, CSRF, the sign-in link page)', 
   const OTHER = 'app.other-origin-agency.test'
   let domainId: string
   let ws: Awaited<ReturnType<typeof createWorkspace>>
+  let ownerHere: User
   beforeAll(async () => {
-    domainId = await addDomain(await makePartner(), HOST, 'active')
+    const partnerId = await makePartner()
+    domainId = await addDomain(partnerId, HOST, 'active')
     await addDomain(await makePartner(), OTHER, 'active')
     ws = await createWorkspace('Origin Plumbing')
+    await makeClient(ws.id, partnerId)
+    ownerHere = await signInOn(HOST, ws.owner)
   })
 
-  /** A cookie-signed write as JSON from `origin` to `host`. */
+  /** A cookie-signed write as JSON from `origin` to `host`, with the session made on that address. */
   const write = (host: string, origin: string) =>
-    onHost(host, '/v1/actions/call.markRead', { who: ws.owner, origin, body: { callId: ws.call.id } })
+    onHost(host, '/v1/actions/call.markRead', {
+      who: host === HOST ? ownerHere : ws.owner,
+      origin,
+      body: { callId: ws.call.id },
+    })
   /** A password sign-in through Better Auth from `origin` to `host`. */
   const signIn = (host: string, origin: string) =>
     onHost(host, '/api/auth/sign-in/email', {
@@ -487,8 +436,10 @@ describe('trusted origins per host (Better Auth, CSRF, the sign-in link page)', 
       expect(res.status, `${origin} → ${host}`).toBe(403)
       expect(await res.json()).toMatchObject({ code: 'cross_site_refused' })
     }
-    // Sign-in through Better Auth on the address works (a wrong password: 401).
-    expect((await signIn(HOST, ORIGIN)).status).toBe(401)
+    // A password sign-in is the install's own address's (host-sessions.ts): only email codes and links here.
+    const password = await signIn(HOST, ORIGIN)
+    expect(password.status).toBe(404)
+    expect(await password.json()).toMatchObject({ code: 'main_host_only' })
     // Better Auth skips its own Origin check under test (isTest): what it would check is the list its option gives for
     // the request, the same function.
     // the request, from the host the middleware resolved for that Request (app.ts hands it on with the answer).
@@ -533,7 +484,7 @@ describe('trusted origins per host (Better Auth, CSRF, the sign-in link page)', 
     await setStatus(domainId, 'removed')
     expect(originsOn(HOST)).toEqual([MAIN])
     expect((await write(HOST, ORIGIN)).status).toBe(421)
-    expect((await onHost(HOST, '/v1/me', { who: ws.owner })).status).toBe(421)
+    expect((await onHost(HOST, '/v1/me', { who: ownerHere })).status).toBe(421)
     expect((await write('localhost:5173', ORIGIN)).status).toBe(403)
   })
 })
@@ -543,11 +494,15 @@ describe('one answer per request, whatever the map does meanwhile (security revi
   const ORIGIN = `https://${HOST}`
   let partnerId: string
   let admin: User
+  let adminHere: User
   beforeAll(async () => {
     partnerId = await makePartner()
     await addDomain(partnerId, HOST, 'active')
+    const ws = await createWorkspace('Mid-request Plumbing')
+    await makeClient(ws.id, partnerId)
     admin = await signUp()
-    await db.update(user).set({ emailVerified: true }).where(eq(user.id, admin.userId))
+    await auth.api.addMember({ body: { userId: admin.userId, organizationId: ws.id, role: 'admin' } })
+    adminHere = await signInOn(HOST, admin)
   })
   const approveAgain = async () => {
     await db.update(partners).set({ status: 'approved', suspended_at: null }).where(eq(partners.id, partnerId))
@@ -573,19 +528,19 @@ describe('one answer per request, whatever the map does meanwhile (security revi
   test('a request that started on the live address keeps Server admin and the partner area off to its end', async () => {
     await asServerAdmin(admin, async () => {
       suspendMidRequest()
-      const me = await onHost(HOST, '/v1/me', { who: admin })
+      const me = await onHost(HOST, '/v1/me', { who: adminHere })
       expect(midRequest.hook).toBeNull()
       expect(me.status).toBe(200)
       expect((await me.json()).permissions).not.toContain('instance:admin')
       await approveAgain()
       suspendMidRequest()
-      const res = await onHost(HOST, '/v1/actions/partner.adminList', { who: admin, origin: ORIGIN, body: {} })
+      const res = await onHost(HOST, '/v1/actions/partner.adminList', { who: adminHere, origin: ORIGIN, body: {} })
       expect(midRequest.hook).toBeNull()
       expect(res.status).toBe(404)
       expect(await res.json()).toMatchObject({ code: 'main_host_only' })
     })
     // The next request sees the suspension: refused.
-    expect((await onHost(HOST, '/v1/me', { who: admin })).status).toBe(421)
+    expect((await onHost(HOST, '/v1/me', { who: adminHere })).status).toBe(421)
   })
 
   test('the remembered answer, not the map, decides the trusted origins of a request', async () => {
@@ -609,6 +564,8 @@ describe('the host check stays on once an install had a partner address (securit
   test('the first row records it, and deleting every row (partners deleted, rows cascading) does not switch it off', async () => {
     const [latched] = await db.select().from(instance_settings).where(eq(instance_settings.key, HOST_CHECK_KEY))
     expect(latched).toMatchObject({ value: 'on' })
+    // Client workspaces of these partners (made by the tests above) let go of them first, as a partner's removal does.
+    await db.update(organization).set({ partnerId: null }).where(isNotNull(organization.partnerId))
     await db.delete(partners)
     expect(await db.select().from(partner_domains)).toEqual([])
     forgetHosts()

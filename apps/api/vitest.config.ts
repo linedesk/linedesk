@@ -95,6 +95,8 @@ const INSTANCE_WIDE_FILES = [
   'test/data-purge.test.ts',
   // Writes white-label partner addresses: from the first one on, every request's host is checked (request-host.ts).
   'test/request-host.test.ts',
+  // Sessions bound to partner addresses (host-sessions.ts): writes partner addresses too.
+  'test/host-sessions.test.ts',
   // Makes a server admin, rotates every stored secret (rolled back) and reads white-label partner keys (S7).
   'test/partner-keys.test.ts',
   // Makes a server admin and sets SENDER_DOMAINS and EMAIL_FROM in process.env (S6).

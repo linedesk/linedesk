@@ -21,6 +21,11 @@ export type AuthMethods = {
    * links to the sign-up page instead of only sending people to ask for an invitation. Absent from an older API.
    */
   selfServeSignup?: boolean
+  /**
+   * On a white-label partner's own address (host-sessions.ts): the install's own address, where passkeys, passwords,
+   * provider sign-ins and account changes are done. Only email codes and sign-in links work here. Absent elsewhere.
+   */
+  mainOrigin?: string
   /** Sentry for the web app's own errors (error-reporting.ts); null or absent: off. */
   errorReporting?: { dsn: string; environment: string } | null
 }

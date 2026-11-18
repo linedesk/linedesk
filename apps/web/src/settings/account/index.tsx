@@ -5,12 +5,12 @@ import type { MessageKey } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { auth, fetchMe, passkeySupported } from '../../auth.ts'
-import { useSupportAccess } from '../../supportAccess.ts'
 import { removeAuthenticator } from '../../authenticator-api.ts'
 import { ConfirmEmail } from '../../ConfirmEmail.tsx'
 import { refreshQuery, useQuery } from '../../cachedQuery.ts'
 import { signInAgain } from '../../localData.ts'
 import { CODE_LENGTH, normalizeCode, RESEND_AFTER_S } from '../../sign-in-code.ts'
+import { useSupportAccess } from '../../supportAccess.ts'
 import { refreshTeam } from '../../team/team-api.ts'
 import { changedByLabel } from '../../team/team-model.ts'
 import { dateTimeLabel } from '../../time.ts'
@@ -216,7 +216,8 @@ function Profile({ account, reload, hasWorkspace }: SectionProps & { hasWorkspac
   // `=== false`: an account remembered from before this field existed says nothing either way.
   const unconfirmed = account.user.emailVerified === false && account.methods.emailCode
   // The new address is proven with an email code, so it can only change where those are on.
-  const canChangeEmail = account.methods.emailCode
+  // On a white-label partner's own address the email is changed at the install's own (host-sessions.ts).
+  const canChangeEmail = account.methods.emailCode && !account.methods.mainOrigin
   const [changingEmail, setChangingEmail] = useState(false)
   const [emailChanged, setEmailChanged] = useState<string | null>(null)
   return (
@@ -1020,6 +1021,36 @@ function SupportAccessAccount({ hasWorkspace }: Pick<Props, 'hasWorkspace'>) {
   )
 }
 
+/**
+ * Sign-in methods, sessions and personal keys on a white-label partner's own address: managed at the install's own
+ * address (host-sessions.ts), where a domain owner in the middle cannot see them; the page says where, with a link.
+ */
+function MainHostOnly({ section, origin }: { section: SectionId; origin: string }) {
+  const t = useT()
+  const host = new URL(origin).host
+  return (
+    // i18n-dynamic: account.nav.*
+    <Section id={`ac-${section}`} title={t(`account.nav.${section}.label` as MessageKey)}>
+      <Note
+        tone="info"
+        title={t('account.mainHost.title')}
+        action={
+          <a
+            className="k-btn k-btn-secondary k-btn-sm"
+            href={`${origin}/#account/${section}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t('account.mainHost.open', { host })}
+          </a>
+        }
+      >
+        {t('account.mainHost.text', { host })}
+      </Note>
+    </Section>
+  )
+}
+
 function OwnAccount({ hasWorkspace, workspaceName = '' }: Props) {
   const t = useT()
   const query = useQuery(ACCOUNT, loadAccount, { persist: true })
@@ -1032,6 +1063,8 @@ function OwnAccount({ hasWorkspace, workspaceName = '' }: Props) {
   const shown = useSections(hasWorkspace)
   const current = useSection('account', shown)
   const props = account ? { account, reload } : null
+  // On a white-label partner's own address: the install's own, where sign-in methods, sessions and keys are managed.
+  const mainOrigin = account?.methods.mainOrigin
   return (
     <div className="page">
       <SettingsLayout
@@ -1054,9 +1087,15 @@ function OwnAccount({ hasWorkspace, workspaceName = '' }: Props) {
         {props && current === 'profile' && <Profile {...props} hasWorkspace={hasWorkspace} />}
         {current === 'preferences' && <Preferences locale={account?.user.locale} saved={() => void query.reload()} />}
         {hasWorkspace && current === 'notifications' && <Notifications workspaceName={workspaceName} />}
-        {props && current === 'security' && <SignIn {...props} />}
-        {current === 'sessions' && <Sessions />}
-        {current === 'apiKeys' && <PersonalKeys />}
+        {mainOrigin && (current === 'security' || current === 'sessions' || current === 'apiKeys') ? (
+          <MainHostOnly section={current} origin={mainOrigin} />
+        ) : (
+          <>
+            {props && current === 'security' && <SignIn {...props} />}
+            {current === 'sessions' && <Sessions />}
+            {current === 'apiKeys' && <PersonalKeys />}
+          </>
+        )}
       </SettingsLayout>
     </div>
   )

@@ -19,6 +19,7 @@ import { rememberKnownBrowser } from './known-browser.ts'
 import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
 import { requestHostOf, trustedOriginsFor } from './request-host.ts'
+import { guardPartnerHostAuth, sessionHostHooks } from './host-sessions.ts'
 import {
   guardPasskeyChanges,
   notifyPasskeyChange,
@@ -128,6 +129,8 @@ function refuseEmailCodesWithoutEmail(ctx: { path: string }) {
 }
 
 const beforeAuthEndpoints = createAuthMiddleware(async ctx => {
+  // On a white-label partner's address only signing in and out by email code and what a client needs (host-sessions.ts).
+  await guardPartnerHostAuth(ctx)
   refuseEmailCodesWithoutEmail(ctx)
   refuseIdTokenSignIn(ctx)
   await limitSignIns(ctx)
@@ -276,6 +279,7 @@ export const auth = betterAuth({
     starOnGrantHooks,
     adminAlertHooks,
     setupLinkSessionHooks,
+    sessionHostHooks,
   ),
   socialProviders: {
     // A sign-in whose email the provider does not prove has no email and signs nobody in (account-linking.ts).
@@ -328,6 +332,8 @@ export const auth = betterAuth({
       passkeyVerifiedAt: { type: 'date', required: false, input: false },
       // 'passkey' or 'authenticator': what set passkeyVerifiedAt (admin-second-factor.ts passkeySignedIn).
       secondFactorMethod: { type: 'string', required: false, input: false },
+      // The partner address the session was made on, null on the install's own (host-sessions.ts).
+      host: { type: 'string', required: false, input: false },
     },
   },
   plugins: [

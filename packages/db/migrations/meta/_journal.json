@@ -1121,6 +1121,13 @@
       "when": 1794983289907,
       "tag": "0160_partner_sender",
       "breakpoints": true
+    },
+    {
+      "idx": 160,
+      "version": "7",
+      "when": 1794985666222,
+      "tag": "0161_session_host",
+      "breakpoints": true
     }
   ]
 }

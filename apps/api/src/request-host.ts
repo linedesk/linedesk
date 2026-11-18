@@ -217,6 +217,9 @@ export const rememberRequestHost = (request: object, host: RequestHost) => void 
  */
 export const requestHostOf = (request: object): RequestHost => resolvedHosts.get(request) ?? { kind: 'unknown' }
 
+/** The answer the host middleware gave for this request or headers, if it saw them (host-sessions.ts). */
+export const rememberedHostOf = (request: object): RequestHost | undefined => resolvedHosts.get(request)
+
 /** The checker's fresh random challenge (`?nonce=`): 16 to 128 URL-safe characters. */
 const NONCE = /^[A-Za-z0-9_-]{16,128}$/
 export const validProbeNonce = (nonce: string | undefined): nonce is string => !!nonce && NONCE.test(nonce)
@@ -282,6 +285,10 @@ const MAIN_ONLY_PREFIXES = [
   '/v1/apps/webhook/',
   '/v1/demo/',
   '/v1/webhooks/',
+  // The account's password and authenticator app (PR 5.2, security review of #1172 M-2): the password route is
+  // registered before the /v1 guard, so it is refused here, before it runs.
+  '/v1/account/password/',
+  '/v1/account/authenticator/',
 ]
 const MAIN_ONLY_PATHS = new Set([
   '/v1/admin',
@@ -295,6 +302,8 @@ const MAIN_ONLY_PATHS = new Set([
   '/v1/impersonation/start',
   '/v1/openapi.json',
   '/v1/setup',
+  '/v1/account/password',
+  '/v1/account/authenticator',
 ])
 
 /** Whether a path answers only on the install's own address. */
@@ -322,7 +331,18 @@ const MAIN_ONLY_ACTIONS: ReadonlySet<string> = new Set([
   'billing.startTopUp',
   'billing.openPortal',
 ])
-const MAIN_ONLY_PERMISSIONS: ReadonlySet<string> = new Set(['instance:admin', 'partner', 'account:signUp'])
+// On a partner's address also what could take an account away or hand its workspace on (white-label S5 PR 5.2, security
+// review of #1172 M-2): the account's own settings (personal keys, OAuth consent, partner invitations), the authenticator
+// app, and what only a workspace's owner does (hand it over, remove the partner, delete it). A domain owner in the middle
+// sees what is done on its address; these are done on the install's own.
+const MAIN_ONLY_PERMISSIONS: ReadonlySet<string> = new Set([
+  'instance:admin',
+  'partner',
+  'account:signUp',
+  'account:own',
+  'secondFactor:own',
+  'workspace:own',
+])
 
 /** Whether an action (with this input) runs only on the install's own address. */
 export function mainHostOnlyAction(def: Pick<ActionDef, 'name' | 'permission'>, rawInput: unknown): boolean {
@@ -333,7 +353,10 @@ export function mainHostOnlyAction(def: Pick<ActionDef, 'name' | 'permission'>, 
   return def.name.startsWith('billing.') && partnerId !== undefined
 }
 
-/** Permissions a session never holds on a partner's address (Server admin, the partner area, self-serve sign-up). */
+/**
+ * Permissions a session never holds on a partner's address (Server admin, the partner area, self-serve sign-up, the
+ * account's own settings and a workspace owner's).
+ */
 export const withoutMainOnlyPermissions = <P extends string>(permissions: readonly P[]): P[] =>
   permissions.filter(p => !MAIN_ONLY_PERMISSIONS.has(p))
 

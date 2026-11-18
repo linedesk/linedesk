@@ -38,6 +38,8 @@ import {
 } from './admin-second-factor.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { brandName } from './branding.ts'
+import { sessionFitsHost } from './host-sessions.ts'
+import { type RequestHost, resolveRequestHost, withoutMainOnlyPermissions } from './request-host.ts'
 
 export interface Actor {
   actorId: string
@@ -190,8 +192,32 @@ async function agentActor(workspaceId: string | null, callId?: string): Promise<
 }
 
 /** `clientIp` is where the request comes from (client-ip.ts); refused API keys are counted per address. */
-export async function resolveActor(headers: Headers, clientIp: string | null = null): Promise<Actor | null> {
-  const resolved = await resolveCaller(headers, clientIp)
+/**
+ * The address of headers the host middleware did not resolve: from their Host header; none (headers the server made
+ * itself, as a test or a script does) is the install's own.
+ */
+const hostOfHeaders = (headers: Headers): RequestHost =>
+  headers.has('host') ? resolveRequestHost(name => headers.get(name) ?? undefined) : { kind: 'main' }
+
+/**
+ * The signed-in session of a request, only when it was made on the address the request came in on (host-sessions.ts),
+ * for the routes that read the session themselves instead of through resolveCaller.
+ */
+export async function sessionHere(
+  headers: Headers,
+  host: RequestHost = hostOfHeaders(headers),
+  query?: { disableRefresh?: boolean },
+) {
+  const found = await auth.api.getSession({ headers, ...(query ? { query } : {}) })
+  return found && sessionFitsHost((found.session as { host?: string | null }).host, host) ? found : null
+}
+
+export async function resolveActor(
+  headers: Headers,
+  clientIp: string | null = null,
+  host?: RequestHost,
+): Promise<Actor | null> {
+  const resolved = await resolveCaller(headers, clientIp, host)
   return 'actor' in resolved ? resolved.actor : null
 }
 
@@ -202,13 +228,20 @@ export async function resolveActor(headers: Headers, clientIp: string | null = n
 export async function resolveCaller(
   headers: Headers,
   clientIp: string | null = null,
+  // The address as the host middleware resolved it for this request (app.ts); else resolved from the headers now.
+  host: RequestHost = hostOfHeaders(headers),
 ): Promise<{ actor: Actor } | { missing: 'signed_out' | 'no_workspace' }> {
   const signedOut = { missing: 'signed_out' } as const
+  // On a white-label partner's address only a session made there signs anyone in (host-sessions.ts): no API key,
+  // personal key or agent token (the API, MCP and the agent are the install's own address's).
+  if (host.kind === 'unknown') return signedOut
+  const partnerHost = host.kind === 'partner' ? host : null
   // Only the Bearer scheme is ours. Another one (Basic from a password gate in front of the app, such as
   // scripts/local-public.sh) leaves the session cookie in charge.
   const authorization = headers.get('authorization')
   const bearer = authorization?.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : undefined
   if (bearer) {
+    if (partnerHost) return signedOut
     // An API client asks for a language with Accept-Language only; without one it gets English.
     const locale = localeForUser(null, headers.get('accept-language'))
     if (isApiKey(bearer)) {
@@ -235,6 +268,8 @@ export async function resolveCaller(
   }
   const session = await auth.api.getSession({ headers })
   if (!session) return signedOut
+  // Only on the address it was made on: a cookie taken on a partner's address works nowhere else (host-sessions.ts).
+  if (!sessionFitsHost((session.session as { host?: string | null }).host, host)) return signedOut
   const [account] = await db.select().from(user).where(eq(user.id, session.user.id))
   if (!account || account.disabledAt) return signedOut
   const { impersonatedBy } = session.session
@@ -261,7 +296,7 @@ export async function resolveCaller(
   // A partner's owner also owns the partner bill: billing:manage in a client workspace on that bill, where they are an
   // admin (below, ownsBillOf), never account-wide (security review of #1109, M-1). Partner › Billing names the partner instead
   // (`partnerId`, run-action.ts), where partnerBillOf is the gate.
-  const partnerAccess = impersonation ? null : await partnerCaller(account.id, account.email)
+  const partnerAccess = impersonation || partnerHost ? null : await partnerCaller(account.id, account.email)
   if (partnerAccess) extraPermissions.push('partner')
   const extra = {
     sessionId: session.session.id,
@@ -275,17 +310,24 @@ export async function resolveCaller(
     ...(mustConfirmEmail(account.emailVerified) ? { emailUnverified: true as const } : {}),
     ...(impersonation ? { impersonation } : {}),
     ...(secondFactorGap ? { adminSecondFactor: secondFactorGap } : {}),
+    ...(partnerHost
+      ? { partnerHost: { partnerId: partnerHost.partnerId, domainId: partnerHost.domainId, hostname: partnerHost.hostname } }
+      : {}),
   }
   // The active workspace, or the member's first one right after sign-in.
   // A person signed in as themselves manages their own account (personal keys); never while impersonating.
   const own: Permission[] = impersonation ? [] : ['account:own']
-  const actor = await personActor(
-    account.id,
-    session.session.activeOrganizationId ?? null,
-    extraPermissions,
-    own,
-    extra,
-  )
+  // On a partner's address: only that partner's client workspaces, and nothing of the install's own address's.
+  const actor = partnerHost
+    ? await personActor(
+        account.id,
+        session.session.activeOrganizationId ?? null,
+        withoutMainOnlyPermissions(extraPermissions),
+        withoutMainOnlyPermissions(own),
+        extra,
+        partnerHost.partnerId,
+      )
+    : await personActor(account.id, session.session.activeOrganizationId ?? null, extraPermissions, own, extra)
   if (actor && !impersonation && (await ownsBillOf(actor))) actor.permissions = [...actor.permissions, 'billing:manage']
   return actor ? { actor } : { missing: 'no_workspace' }
 }
@@ -360,9 +402,19 @@ export async function personActor(
   extraPermissions: readonly Permission[],
   own: readonly Permission[],
   extra: Partial<Actor>,
+  // Only this partner's client workspaces (a session on its own address, host-sessions.ts): none of them, no actor.
+  onlyPartner?: string,
 ): Promise<Actor | null> {
-  const memberships = await db.select().from(member).where(eq(member.userId, userId)).orderBy(asc(member.createdAt))
+  const memberships = onlyPartner
+    ? await db
+        .select({ organizationId: member.organizationId, role: member.role })
+        .from(member)
+        .innerJoin(organization, eq(organization.id, member.organizationId))
+        .where(and(eq(member.userId, userId), eq(organization.partnerId, onlyPartner)))
+        .orderBy(asc(member.createdAt))
+    : await db.select().from(member).where(eq(member.userId, userId)).orderBy(asc(member.createdAt))
   const m = memberships.find(x => x.organizationId === preferred) ?? memberships[0]
+  if (!m && onlyPartner) return null
   // An instance admin can use the admin area before they belong to a workspace, and an impersonation can be ended; everyone else needs one.
   if (!m)
     return extraPermissions.length || extra.adminSecondFactor
@@ -461,10 +513,13 @@ export async function workspaceRefusal(actor: Actor, requested: string | null): 
   if (actor.role === 'agent') return actor.callId ? accessLost('This call token belongs to another workspace.') : null
   if (actor.apiKeyId) return accessLost('This API key belongs to another workspace.')
   const [membership] = await db
-    .select({ id: member.id })
+    .select({ id: member.id, partnerId: organization.partnerId })
     .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(and(eq(member.userId, actor.actorId), eq(member.organizationId, requested)))
   if (!membership || !actor.workspaceId) return accessLost()
+  // On a partner's address another partner's workspace, or one of no partner, is not there at all.
+  if (actor.partnerHost && membership.partnerId !== actor.partnerHost.partnerId) return accessLost()
   return {
     ok: false,
     error: 'This tab is on another workspace than your account now. Switch back or reload.',

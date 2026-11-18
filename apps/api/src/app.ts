@@ -71,6 +71,7 @@ import {
   clientOutdated,
   resolveActor,
   resolveCaller,
+  sessionHere,
   tooManyInvalidAgentTokens,
   WORKSPACE_HEADER,
   WORKSPACE_STATE_HEADER,
@@ -224,6 +225,20 @@ app.get('/v1/auth-methods', async c => {
     .transaction(tx => selfServeState(tx))
     .then(state => state.open)
     .catch(() => false)
+  // On a partner's own address only email codes and sign-in links (host-sessions.ts): passkeys are bound to the
+  // install's address, provider sign-ins return there, and neither sign-up nor the first admin's setup is done here.
+  if (requestHostOf(c).kind === 'partner')
+    return c.json({
+      ...currentAuthMethods(),
+      password: false,
+      passkey: false,
+      sso: [],
+      signInOrigin: null,
+      errorReporting: browserErrorReporting(),
+      setupNeeded: false,
+      selfServeSignup: false,
+      mainOrigin: TRUSTED_ORIGINS[0],
+    })
   return c.json({
     ...currentAuthMethods(),
     errorReporting: browserErrorReporting(),
@@ -247,7 +262,7 @@ app.get('/v1/branding', async c => {
   c.header('cache-control', 'private, no-cache')
   c.header('vary', 'cookie')
   const session = c.req.header('cookie') && !c.req.header('authorization')
-  const actor = session ? await resolveActor(c.req.raw.headers, clientIpOf(c)).catch(() => null) : null
+  const actor = session ? await resolveActor(c.req.raw.headers, clientIpOf(c), requestHostOf(c)).catch(() => null) : null
   return c.json((await brandingForActor(actor).catch(() => null)) ?? currentBranding())
 })
 app.get('/v1/branding/manifest.webmanifest', c => {
@@ -269,7 +284,7 @@ app.get('/v1/branding/logo.png', async c => {
 // partner's team and the instance admins, never cached.
 app.get('/v1/branding/partners/:partnerId/logo.png', async c => {
   const found = await partnerLogoFor(c.req.param('partnerId'), c.req.query('v'), async () =>
-    c.req.header('cookie') ? ((await auth.api.getSession({ headers: c.req.raw.headers }))?.user.id ?? null) : null,
+    c.req.header('cookie') ? ((await sessionHere(c.req.raw.headers, requestHostOf(c)))?.user.id ?? null) : null,
   )
   if (!found) {
     // Never kept by a cache in front (a CDN caches a 404 on a .png for minutes): a draft probed anonymously, or a logo
@@ -331,7 +346,7 @@ export { WORKSPACE_CREATION_CLOSED }
 // What New workspace prefills its country with (country-hint.ts): the visitor's country from the proxy in front, else
 // the time zone's, else the browser language's region; null when none says. Signed-in accounts only; nothing is stored.
 app.get('/v1/workspaces/country-hint', async c => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers })
+  const session = await sessionHere(c.req.raw.headers, requestHostOf(c))
   if (!session) return c.json({ ok: false, error: 'not signed in' }, 401)
   const hint = requestCountryHint(c.req.raw.headers, {
     timeZone: c.req.query('timeZone'),
@@ -346,13 +361,13 @@ app.get('/v1/workspaces/country-hint', async c => {
 // owner (workspace-creation-handlers.ts), in one transaction, logged and audited like every other way to make one.
 app.post('/v1/workspaces', async c => {
   const headers = c.req.raw.headers
-  const session = await auth.api.getSession({ headers })
+  const session = await sessionHere(headers, requestHostOf(c))
   if (!session) return c.json({ ok: false, error: 'not signed in' }, 401)
   // A workspace made as the user would outlast the impersonation (impersonation-guard.ts).
   if (session.session.impersonatedBy) return c.json({ ok: false, error: NOT_WHILE_IMPERSONATING }, 403)
   // Only server admins create workspaces (workspace-creation.ts); everyone else is invited.
   // The session's own instance:admin (context.ts: after the admin sign-in check), not the account's flag alone.
-  const caller = await resolveCaller(headers, clientIpOf(c))
+  const caller = await resolveCaller(headers, clientIpOf(c), requestHostOf(c))
   // A server admin whose session has not passed the admin sign-in check yet: that first, then the workspace.
   if ('actor' in caller && caller.actor.adminSecondFactor)
     return c.json({ ok: false, code: 'admin_second_factor', error: ADMIN_CHECK_FIRST }, 403)
@@ -424,7 +439,7 @@ app.get('/v1/signup/config', async c => {
 /** Whether the signed-in person (if any, as themselves) still has a free trial; true for everyone else. */
 async function trialForSession(headers: Headers): Promise<boolean> {
   if (!headers.get('cookie')) return true
-  const session = await auth.api.getSession({ headers }).catch(() => null)
+  const session = await sessionHere(headers).catch(() => null)
   if (!session || session.session.impersonatedBy) return true
   return !(await db.transaction(tx => accountTrialUsed(tx, session.user.id)))
 }
@@ -466,7 +481,7 @@ app.post('/v1/signup/code', async c => {
 // only here, only to a session of the person themselves (never an API key, the agent or an impersonation).
 app.post('/v1/signup', async c => {
   const headers = c.req.raw.headers
-  const session = await auth.api.getSession({ headers })
+  const session = await sessionHere(headers, requestHostOf(c))
   if (!session) return c.json({ ok: false, error: 'not signed in', code: 'signed_out' }, 401)
   if (session.session.impersonatedBy) return c.json({ ok: false, error: NOT_WHILE_IMPERSONATING }, 403)
   const [account] = await db.select().from(user).where(eq(user.id, session.user.id))
@@ -559,7 +574,7 @@ app.use('/v1/*', async (c, next) => {
     return next()
   const ip = clientIpOf(c)
   const requested = c.req.header(WORKSPACE_HEADER) ?? null
-  const caller = await resolveCaller(c.req.raw.headers, ip)
+  const caller = await resolveCaller(c.req.raw.headers, ip, requestHostOf(c))
   // A tab of a workspace its member was just removed from (or their last one): no access, not "signed out".
   if ('missing' in caller && caller.missing === 'no_workspace' && requested) return c.json(accessLost(), 403)
   const actor = 'actor' in caller ? caller.actor : null
@@ -663,7 +678,7 @@ app.get('/v1/me', async c => {
   ] = await Promise.all([
     avatarVersionOf(db, actor.actorId),
     profileChangedBy(db, actor.actorId, actor.workspaceId),
-    workspacesOf(actor.actorId),
+    workspacesOf(actor.actorId, actor.partnerHost?.partnerId),
     workspace
       ? onboardingFor(actor).then(async o => [o, await businessSetupFor(actor, o)] as const)
       : ([null, null] as const),
@@ -815,7 +830,7 @@ async function needsPasskeyEnrolment({ actorId, impersonation, passkeyConfirmed 
 
 /** The workspaces a user is a member of, by name, with their icons' addresses (null: the initial shows). */
 /** A disabled workspace stays in the list (the switcher shows it greyed out) but cannot be switched to. */
-async function workspacesOf(userId: string) {
+async function workspacesOf(userId: string, onlyPartner?: string) {
   const rows = await db
     .select({
       id: organization.id,
@@ -826,7 +841,8 @@ async function workspacesOf(userId: string) {
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
     .leftJoin(workspace_icons, eq(workspace_icons.workspace_id, organization.id))
-    .where(eq(member.userId, userId))
+    // On a partner's address only its client workspaces (host-sessions.ts).
+    .where(and(eq(member.userId, userId), onlyPartner ? eq(organization.partnerId, onlyPartner) : undefined))
     .orderBy(asc(organization.name))
   return rows.map(({ id, name, disabledAt, iconVersion }) => ({
     id,
@@ -841,7 +857,15 @@ async function workspacesOf(userId: string) {
 // browser from reading it as anything else. The address changes with every new icon (?v=), so it is cached for good.
 app.get('/v1/workspace-icons/:file', async c => {
   const file = c.req.param('file')
-  const icon = file.endsWith('.png') ? await readIconFor(db, file.slice(0, -4), c.get('actor').actorId) : null
+  const actor = c.get('actor')
+  // On a partner's address only its client workspaces' icons.
+  const workspaceId = file.endsWith('.png') ? file.slice(0, -4) : null
+  const here =
+    workspaceId && actor.partnerHost
+      ? (await db.select({ partnerId: organization.partnerId }).from(organization).where(eq(organization.id, workspaceId)))[0]
+          ?.partnerId === actor.partnerHost.partnerId
+      : true
+  const icon = workspaceId && here ? await readIconFor(db, workspaceId, actor.actorId) : null
   if (!icon) return c.json({ ok: false, error: 'no icon' }, 404)
   c.header('content-type', 'image/png')
   c.header('x-content-type-options', 'nosniff')
@@ -867,7 +891,8 @@ app.get('/v1/avatars/:file', async c => {
 // The member's workspaces for the switcher, read again when the menu opens; the same list /v1/me brings at boot.
 app.get('/v1/me/workspaces', async c => {
   c.header('cache-control', 'no-store')
-  return c.json(await workspacesOf(c.get('actor').actorId))
+  const actor = c.get('actor')
+  return c.json(await workspacesOf(actor.actorId, actor.partnerHost?.partnerId))
 })
 
 /** Who is signed in as this user, for the banner while impersonating. */
