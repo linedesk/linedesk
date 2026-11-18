@@ -3,9 +3,9 @@
 // a white-label partner account with its partner bill, no workspace; the app opens the partner area next. The API decides everything (open or not,
 // the address, the bot check, the limits, the countries); this page only asks and says what came back. Only the plan
 // and the interval travel in the address, never personal data.
-import { T, useT } from '@linedesk/i18n/react'
+import { T, useFormat, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
-import { signInWithCode } from './auth.ts'
+import { auth, signInWithCode } from './auth.ts'
 import { browserPlace, useCountryHint } from './countryHint.ts'
 import { signOutAndForget } from './localData.ts'
 import { CountrySelect } from './settings/CountrySelect.tsx'
@@ -16,6 +16,7 @@ import {
   loadSignupConfig,
   readSignupParams,
   type SignupConfig,
+  type SignupPlan,
   type SignupTerms,
   signUpBusiness,
   SIGNUP_COUNTRIES,
@@ -29,15 +30,18 @@ type Step = 'email' | 'code' | 'details'
 
 /**
  * `signedIn`: someone is signed in already (an account the sign-up page made earlier, or an existing one): straight
- * to the details. `onDone`: the bill and workspace (or the partner) are made; the app loads it (the onboarding comes
- * next for a business, Checkout for a partner).
+ * to the details, their name filled in. `onDone`: the bill and workspace (or the partner) are made; the app loads it
+ * (the onboarding comes next for a business, Checkout for a partner). `fromApp`: opened from the workspace menu by a
+ * Cloud customer who adds a workspace (its own bill); Back returns to the workspace they came from.
  */
 export function Signup({
   signedIn,
+  fromApp,
   onDone,
 }: {
   signedIn: boolean
-  onDone: (partner: boolean) => void | Promise<void>
+  fromApp?: { onBack: () => void }
+  onDone: (partner: boolean, workspaceId: string | null) => void | Promise<void>
 }) {
   const t = useT()
   const [params] = useState(readSignupParams)
@@ -82,8 +86,10 @@ export function Signup({
       interval={params.interval}
       partner={partner}
       terms={config.terms!}
+      planNow={!partner && !config.trial ? config.plan : null}
+      fromApp={fromApp}
       onTermsChanged={() => void loadSignupConfig().then(setConfig)}
-      onDone={() => onDone(partner)}
+      onDone={workspaceId => onDone(partner, workspaceId)}
     />
   )
 }
@@ -340,6 +346,8 @@ function DetailsStep({
   interval,
   partner,
   terms,
+  planNow,
+  fromApp,
   onTermsChanged,
   onDone,
 }: {
@@ -347,11 +355,18 @@ function DetailsStep({
   /** Plan `partner`: the partner's company, not a business that answers calls. */
   partner: boolean
   terms: SignupTerms
+  /** No free trial for this account (it had one): the plan, which starts at Checkout. Null: the trial. */
+  planNow: SignupPlan | null
+  fromApp?: { onBack: () => void }
   onTermsChanged: () => void
-  onDone: () => void | Promise<void>
+  onDone: (workspaceId: string | null) => void | Promise<void>
 }) {
   const t = useT()
-  const [name, setName] = useState('')
+  const format = useFormat()
+  // Signed in already: the account's name, which the person may still change.
+  const known = auth.useSession().data?.user?.name ?? ''
+  const [typed, setName] = useState<string | null>(null)
+  const name = typed ?? known
   const [business, setBusiness] = useState('')
   const hint = useCountryHint()
   const [picked, setPicked] = useState<string | null>(null)
@@ -378,7 +393,7 @@ function DetailsStep({
       timeZone: browserPlace().timeZone ?? undefined,
       acceptedTerms: { termsVersion: terms.termsVersion, privacyVersion: terms.privacyVersion },
     })
-    if (answer.ok) return onDone()
+    if (answer.ok) return onDone(answer.workspaceId)
     setBusy(false)
     // Changed while the page was open: the new links are loaded, and the person reads them and continues again.
     if (answer.termsChanged) onTermsChanged()
@@ -398,11 +413,23 @@ function DetailsStep({
   return (
     <AuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
-        <h1>{partner ? t('auth.signup.partnerDetailsTitle') : t('auth.signup.detailsTitle')}</h1>
+        <h1>
+          {partner
+            ? t('auth.signup.partnerDetailsTitle')
+            : fromApp
+              ? t('auth.signup.newWorkspaceTitle')
+              : t('auth.signup.detailsTitle')}
+        </h1>
         <p>{partner ? t('auth.signup.partnerDetailsText') : t('auth.signup.detailsText')}</p>
         <label>
           {t('auth.signup.yourName')}
-          <input value={name} onChange={e => setName(e.target.value)} autoComplete="name" autoFocus disabled={busy} />
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            autoComplete="name"
+            autoFocus={!name}
+            disabled={busy}
+          />
         </label>
         <label>
           {partner ? t('auth.signup.partnerName') : t('shell.newWorkspace.name')}
@@ -410,6 +437,7 @@ function DetailsStep({
             value={business}
             onChange={e => setBusiness(e.target.value)}
             autoComplete="organization"
+            autoFocus={!!name}
             disabled={busy}
           />
         </label>
@@ -419,9 +447,16 @@ function DetailsStep({
           {notServed && <span className="auth-hint">{t('auth.signup.notYetText')}</span>}
         </div>
         {error && <AuthError message={error} />}
+        {planNow && (
+          <p className="auth-plan-now">
+            {t(interval === 'year' ? 'auth.signup.planNowYearly' : 'auth.signup.planNowMonthly', {
+              price: usd(format, interval === 'year' ? planNow.yearlyCents : planNow.monthlyCents),
+            })}
+          </p>
+        )}
         <p className="auth-terms">
           <T
-            k={partner ? 'auth.signup.terms' : 'auth.signup.termsCreate'}
+            k={partner ? 'auth.signup.terms' : fromApp ? 'auth.signup.termsCreateWorkspace' : 'auth.signup.termsCreate'}
             values={{
               terms: chunks => <ExternalLink href={terms.termsUrl}>{chunks}</ExternalLink>,
               privacy: chunks => <ExternalLink href={terms.privacyUrl}>{chunks}</ExternalLink>,
@@ -435,16 +470,32 @@ function DetailsStep({
           aria-busy={busy || undefined}
         >
           {busy && <Spinner />}
-          {busy ? t('auth.setup.busy') : partner ? t('auth.signup.start') : t('auth.signup.createAccount')}
+          {busy
+            ? t('auth.setup.busy')
+            : partner
+              ? t('auth.signup.start')
+              : fromApp
+                ? t('auth.signup.createWorkspace')
+                : t('auth.signup.createAccount')}
         </button>
-        <button
-          type="button"
-          className="auth-switch"
-          onClick={() => void signOutAndForget().then(() => window.location.reload())}
-        >
-          {t('auth.differentAccount')}
-        </button>
+        {fromApp ? (
+          <button type="button" className="auth-switch" disabled={busy} onClick={fromApp.onBack}>
+            {t('auth.back')}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="auth-switch"
+            onClick={() => void signOutAndForget().then(() => window.location.reload())}
+          >
+            {t('auth.differentAccount')}
+          </button>
+        )}
       </form>
     </AuthPage>
   )
 }
+
+/** A plan price in dollars, whole dollars without cents ("$9", "$90"), as the activation step shows it. */
+const usd = (format: ReturnType<typeof useFormat>, cents: number) =>
+  format.currency(cents / 100, 'USD', { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })

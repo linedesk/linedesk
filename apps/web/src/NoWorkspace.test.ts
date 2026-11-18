@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import type { Me } from './auth.ts'
 import { secondFactorDue } from './CreateWorkspace.tsx'
-import { mayCreateWorkspace, pendingInvitations } from './NoWorkspace.tsx'
+import { mayCreateWorkspace, newWorkspaceChoice, pendingInvitations } from './NoWorkspace.tsx'
 import { ByHand } from './onboarding/AdminStart.tsx'
 
 const now = new Date('2026-11-11T12:00:00Z')
@@ -50,6 +50,56 @@ describe('someone without a workspace', () => {
     expect(mayCreateWorkspace(me([], 'confirm'))).toBe(false)
     expect(mayCreateWorkspace(me([], 'enrol'))).toBe(false)
     expect(mayCreateWorkspace(me([], 'email'))).toBe(false)
+  })
+})
+
+describe('New workspace… in the workspace menu (decision of 2026-11-17)', () => {
+  const cloud = (over: Partial<Me> = {}): Me => ({
+    ...me([]),
+    role: 'owner',
+    workspace: { id: 'ws_mine', name: 'Brightwater Plumbing & Heating', billingState: 'active' },
+    newWorkspace: { trial: false, interval: 'month', waiting: null },
+    ...over,
+  })
+
+  it('a Cloud customer gets their own sign-up, at their bill interval, with the trial as the server says', () => {
+    expect(newWorkspaceChoice(cloud())).toEqual({ kind: 'signup', interval: 'month', trial: false })
+    expect(newWorkspaceChoice(cloud({ newWorkspace: { trial: true, interval: 'year', waiting: null } }))).toEqual({
+      kind: 'signup',
+      interval: 'year',
+      trial: true,
+    })
+  })
+
+  it('a sign-up waiting for Checkout is finished, not started again; none while it is the open one', () => {
+    const waiting = { id: 'ws_new', name: 'Brightwater Drains' }
+    expect(newWorkspaceChoice(cloud({ newWorkspace: { trial: false, interval: 'year', waiting } }))).toEqual({
+      kind: 'finish',
+      workspace: waiting,
+    })
+    const open = cloud({
+      workspace: { id: 'ws_new', name: 'Brightwater Drains', billingState: 'pending_payment' },
+      newWorkspace: { trial: false, interval: 'year', waiting },
+    })
+    expect(newWorkspaceChoice(open)).toBeNull()
+  })
+
+  it('a server admin keeps the New workspace dialog, also when they are a Cloud customer', () => {
+    expect(newWorkspaceChoice(me(['instance:admin']))).toEqual({ kind: 'admin' })
+    expect(newWorkspaceChoice(cloud({ permissions: ['instance:admin'] }))).toEqual({ kind: 'admin' })
+  })
+
+  it('not offered without the server saying so, on a partner team, in a client workspace or signed in as someone', () => {
+    expect(newWorkspaceChoice(null)).toBeNull()
+    expect(newWorkspaceChoice(cloud({ newWorkspace: null }))).toBeNull()
+    expect(newWorkspaceChoice(cloud({ newWorkspace: undefined }))).toBeNull()
+    expect(
+      newWorkspaceChoice(cloud({ partners: [{ id: 'ptn_1', name: 'Cascade IT', role: 'admin' } as never] })),
+    ).toBeNull()
+    expect(
+      newWorkspaceChoice(cloud({ workspace: { id: 'ws_client', name: 'Client', partnerManaged: true } })),
+    ).toBeNull()
+    expect(newWorkspaceChoice(cloud({ impersonation: { by: 'admin' } as never }))).toBeNull()
   })
 })
 

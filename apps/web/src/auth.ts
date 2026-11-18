@@ -149,6 +149,19 @@ export type Me = {
   setupByHand?: boolean
   /** The white-label partners whose team the person is on (the partner area, `#partner`); absent from an older server. */
   partners?: MyPartner[]
+  /**
+   * A Cloud customer may add a workspace of their own (the workspace menu's "New workspace…", the sign-up page without
+   * the email step): whether its plan gets a free trial (one per account), the interval of their latest bill, and a
+   * sign-up still waiting for Checkout, which the menu opens instead. Null or absent: not offered.
+   */
+  newWorkspace?: NewWorkspaceOffer | null
+}
+
+/** `Me.newWorkspace`, as the API decides it (apps/api/src/signup-handlers.ts `newWorkspaceOffer`). */
+export type NewWorkspaceOffer = {
+  trial: boolean
+  interval: 'month' | 'year'
+  waiting: { id: string; name: string } | null
 }
 
 /**

@@ -541,6 +541,120 @@ describe('account.signUp', () => {
   })
 })
 
+describe('one free trial per account, and New workspace from the app (decision of 2026-11-17)', () => {
+  /** The account's sign-up started its trial (as a confirmed Checkout leaves it). */
+  const trialStarted = (billId: string) =>
+    db
+      .update(billing_accounts)
+      .set({
+        status: 'trialing',
+        checkout_confirmed_at: new Date().toISOString(),
+        trial_ends_at: '2026-12-01T00:00:00Z',
+      })
+      .where(eq(billing_accounts.id, billId))
+  const billOf = async (id: string) => (await db.select().from(billing_accounts).where(eq(billing_accounts.id, id)))[0]!
+
+  test('a first account gets the trial: nothing refused, the page and the activation step promise it', async () => {
+    const { who, made } = await signUpThroughPage(address('first'))
+    expect(await billOf(made.body.data.billId)).toMatchObject({ trial_refused: null })
+    expect((await request(who, 'GET', '/v1/signup/config')).body.trial).toBe(true)
+    const me = (await request(who, 'GET', '/v1/me')).body
+    expect(me.workspace).toMatchObject({ trialDays: 14, activation: { trialDays: 14 } })
+    // Its one workspace waits for Checkout: the menu offers to finish that one, never a second sign-up.
+    expect(me.newWorkspace).toEqual({ trial: true, interval: 'year', waiting: made.body.data.workspace })
+    // Signed out, the page promises the trial as before.
+    expect((await request(anonymous, 'GET', '/v1/signup/config')).body.trial).toBe(true)
+  })
+
+  test('a second workspace of the same account: its own bill, no trial, said before the card', async () => {
+    const { email, who, made } = await signUpThroughPage(address('second'))
+    const first = made.body.data
+    await trialStarted(first.billId)
+    // The menu offers a new workspace, with the plan starting today; the sign-up page says the same.
+    expect((await request(who, 'GET', '/v1/me')).body.newWorkspace).toEqual({
+      trial: false,
+      interval: 'year',
+      waiting: null,
+    })
+    expect((await request(who, 'GET', '/v1/signup/config')).body.trial).toBe(false)
+    const again = await request(who, 'POST', '/v1/signup', { ...DETAILS, businessName: 'Brightwater Drains' })
+    expect(again).toMatchObject({ status: 200, body: { ok: true, data: { existing: false } } })
+    const second = again.body.data
+    expect(second.billId).not.toBe(first.billId)
+    expect(await billOf(second.billId)).toMatchObject({
+      kind: 'cloud',
+      status: 'pending_payment',
+      owner_user_id: (await accountOf(email))!.id,
+      trial_refused: 'account_used',
+    })
+    // The first bill is untouched: each workspace keeps its own bill.
+    expect(await billOf(first.billId)).toMatchObject({ status: 'trialing', trial_refused: null })
+    // The app opens the new workspace; its activation step sells the plan from today, no trial anywhere.
+    const me = (await request(who, 'GET', '/v1/me')).body
+    expect(me.workspace).toMatchObject({ id: second.workspace.id, billingState: 'pending_payment', trialDays: null })
+    expect(me.workspace.activation).toMatchObject({ trialDays: null, firstChargeAt: null, reminderDays: [] })
+    // Now it waits for Checkout: the menu finishes it, and a third sign-up answers the waiting one.
+    expect(me.newWorkspace).toMatchObject({ trial: false, waiting: { id: second.workspace.id } })
+    const third = await request(who, 'POST', '/v1/signup', { ...DETAILS, businessName: 'Brightwater Third' })
+    expect(third.body).toMatchObject({ ok: true, data: { billId: second.billId, existing: true } })
+  })
+
+  test('a paid plan without a trial counts too; a sign-up that never reached Checkout does not', async () => {
+    const { who, made } = await signUpThroughPage(address('paid'))
+    // Still waiting (no Checkout yet): that is not a trial used.
+    expect((await request(who, 'GET', '/v1/signup/config')).body.trial).toBe(true)
+    await db
+      .update(billing_accounts)
+      .set({ status: 'active', trial_refused: 'card_used', checkout_confirmed_at: new Date().toISOString() })
+      .where(eq(billing_accounts.id, made.body.data.billId))
+    expect((await request(who, 'GET', '/v1/signup/config')).body.trial).toBe(false)
+  })
+
+  test('not offered to a member who owns no bill, nor on a partner team; the partner sign-up is unchanged', async () => {
+    const { who, made } = await signUpThroughPage(address('teamowner'))
+    await trialStarted(made.body.data.billId)
+    // A member of that workspace (owns no Cloud bill): nothing in the menu.
+    const email = address('member')
+    const { code } = await askCode(email)
+    const joined = await enterCode(email, code!)
+    const memberAccount = await accountOf(email)
+    await db.insert(member).values({
+      id: crypto.randomUUID(),
+      organizationId: made.body.data.workspace.id,
+      userId: memberAccount!.id,
+      role: 'member',
+      createdAt: new Date(),
+    })
+    const asMember = { headers: { ...joined.who.headers, 'x-workspace-id': made.body.data.workspace.id } }
+    expect((await request(asMember, 'GET', '/v1/me')).body.newWorkspace).toBeNull()
+    // The owner signs up as a partner too: the partner bill keeps its trial (the rule is Cloud's), and once on a
+    // partner team the menu no longer offers a workspace of their own (clients are made in the partner area).
+    const partner = await request(who, 'POST', '/v1/signup', {
+      ...DETAILS,
+      businessName: 'Brightwater Partners',
+      plan: 'partner',
+    })
+    expect(partner.status).toBe(200)
+    expect(await billOf(partner.body.data.billId)).toMatchObject({ kind: 'partner', trial_refused: null })
+    const owner = { headers: { ...who.headers, 'x-workspace-id': made.body.data.workspace.id } }
+    expect((await request(owner, 'GET', '/v1/me')).body.newWorkspace).toBeNull()
+  })
+
+  test("not in a partner's client workspace, and not while sign-up is closed", async () => {
+    const { who, made } = await signUpThroughPage(address('client'))
+    await trialStarted(made.body.data.billId)
+    const owner = { headers: { ...who.headers, 'x-workspace-id': made.body.data.workspace.id } }
+    expect((await request(owner, 'GET', '/v1/me')).body.newWorkspace).toMatchObject({ trial: false })
+    await setting(SELF_SERVE_KEY, 'off')
+    expect((await request(owner, 'GET', '/v1/me')).body.newWorkspace).toBeNull()
+    await setting(SELF_SERVE_KEY, 'on')
+    const partnerId = `ptn_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
+    await db.insert(partners).values({ id: partnerId, name: 'Some Agency', created_by: 'an-instance-admin' })
+    await db.update(organization).set({ partnerId }).where(eq(organization.id, made.body.data.workspace.id))
+    expect((await request(owner, 'GET', '/v1/me')).body.newWorkspace).toBeNull()
+  })
+})
+
 describe('before a code goes out', () => {
   test('a disposable domain is refused before anything is sent or counted', async () => {
     for (const domain of ['mailinator.com', 'sub.yopmail.com']) {

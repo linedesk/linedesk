@@ -286,6 +286,7 @@
   "unreachable.title": "Can't reach {brand}",
   "where.search": "Search",
   "workspaceDeleted": "{name} is deleted.",
+  "workspaceMenu.finishSetup": "Finish setting up {workspace}",
   "workspaceMenu.invitationsTip": "{workspace}: {count, plural, one {an invitation} other {# invitations}} to join",
   "workspaceMenu.label": "{workspace} and your account",
   "workspaceMenu.newWorkspace": "New workspace…",

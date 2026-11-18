@@ -21,7 +21,8 @@ import {
   user,
 } from '@linedesk/db'
 import type { CustomerPurchases } from '@linedesk/billing'
-import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm'
+import { accountTrialUsed } from './billing-checkout.ts'
 import { billingProvider } from './billing-settings.ts'
 import type { Actor } from './context.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
@@ -125,12 +126,16 @@ const signUp: Handler = async (ctx, input: SignUpInput) => {
     throw Reject.t('server.api.signup.termsChanged', undefined, TERMS_CHANGED)
   if (input.plan === 'partner') return partnerSignUp(ctx, me, input, terms)
   const billId = crypto.randomUUID()
+  // One free trial per account (decision of 2026-11-17): decided now, so the activation step and Checkout sell the
+  // plan from today and nobody learns it at the card. The card rule (card_used, prepaid) still applies on top.
+  const trialUsed = await accountTrialUsed(tx, me.id)
   await tx.insert(billing_accounts).values({
     id: billId,
     kind: input.plan,
     owner_user_id: me.id,
     status: 'pending_payment',
     interval: input.interval,
+    ...(trialUsed ? { trial_refused: 'account_used' as const } : {}),
     created_at: now,
     updated_at: now,
   })
@@ -198,6 +203,59 @@ async function partnerSignUp(
     existing: false,
   }
   return { rows: {}, data: { ...data, subject: { email: me.email, workspaceId: null } } }
+}
+
+/** What the app offers a Cloud customer in the workspace menu (`/v1/me` `newWorkspace`); null: nothing. */
+export type NewWorkspaceOffer = {
+  /** The account still has its free trial (one per account): false, the plan starts at Checkout. */
+  trial: boolean
+  /** The interval of the account's latest Cloud bill: the new workspace's bill starts with the same. */
+  interval: 'month' | 'year'
+  /** The account's sign-up waiting for Checkout: the menu opens it ("Finish setting up") instead of a new one. */
+  waiting: { id: string; name: string } | null
+}
+
+/**
+ * Whether this person may add a workspace of their own from the app (decision of 2026-11-17): a Cloud customer (owns a
+ * Cloud bill that pays for a workspace), signed in as themselves, with a confirmed address, while self-serve sign-up
+ * is open. Never someone on a partner team (they make clients in the partner area), never in a partner's client
+ * workspace. The same `account.signUp` makes it, so every check there still runs.
+ */
+export async function newWorkspaceOffer(
+  tx: Tx,
+  actor: Actor,
+  current: { partnerId: string | null } | null,
+): Promise<NewWorkspaceOffer | null> {
+  if (actor.impersonation || actor.apiKeyId || actor.personalKeyId || actor.setupKeyId || actor.role === 'agent')
+    return null
+  // Sign-up and Checkout answer only on the install's own address (request-host.ts).
+  if (!actor.sessionId || actor.partnerHost || current?.partnerId) return null
+  const [me] = await tx
+    .select({ id: user.id, verified: user.emailVerified, disabledAt: user.disabledAt })
+    .from(user)
+    .where(eq(user.id, actor.actorId))
+  if (!me?.verified || me.disabledAt) return null
+  const [onTeam] = await tx
+    .select({ id: partner_members.partner_id })
+    .from(partner_members)
+    .where(eq(partner_members.user_id, me.id))
+    .limit(1)
+  if (onTeam) return null
+  const [bill] = await tx
+    .select({ interval: billing_accounts.interval })
+    .from(billing_accounts)
+    .innerJoin(organization, eq(organization.billingAccountId, billing_accounts.id))
+    .where(and(eq(billing_accounts.owner_user_id, me.id), eq(billing_accounts.kind, 'cloud')))
+    .orderBy(desc(billing_accounts.created_at))
+    .limit(1)
+  if (!bill) return null
+  if (!(await selfServeState(tx)).open) return null
+  const waiting = await waitingSignUp(tx, me.id)
+  return {
+    trial: !(await accountTrialUsed(tx, me.id)),
+    interval: bill.interval,
+    waiting: waiting?.workspace ?? null,
+  }
 }
 
 // Opening and closing sign-up (`signup.setSelfServe`, `signup.getSelfServe`) are Server admin › Billing's actions

@@ -52,6 +52,7 @@ export function Frame({
   steps = onboardingSteps,
   counted = steps,
   edit = false,
+  planOnly = false,
   children,
 }: {
   step: OnboardingStep
@@ -70,6 +71,8 @@ export function Frame({
   counted?: readonly OnboardingStep[]
   /** Gone through again from the settings ("Step by step"): "Close" in place of "Finish later". */
   edit?: boolean
+  /** No free trial for this workspace's bill (the account or the card had one): `activate` starts the plan. */
+  planOnly?: boolean
   children: ReactNode
 }) {
   const t = useT()
@@ -94,7 +97,7 @@ export function Frame({
           {t('onboarding.frame.stepCount', {
             step: counted.indexOf(step) + 1,
             total: counted.length,
-            label: stepLabels[step],
+            label: step === 'activate' && planOnly ? t('onboarding.steps.activatePlan') : stepLabels[step],
           })}
         </span>
         {onSkip && (

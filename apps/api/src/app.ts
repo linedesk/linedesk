@@ -49,6 +49,8 @@ import { setsUpByHand } from './install-setup.ts'
 import { authMethods, currentAuthMethods } from './auth-methods.ts'
 import { browserErrorReporting, errorReportingEnabled, type ReportedUser, reportError } from './error-reporting.ts'
 import { billingRules } from './billing-rules.ts'
+import { accountTrialUsed } from './billing-checkout.ts'
+import { newWorkspaceOffer } from './signup-handlers.ts'
 import { billingState } from './billing-settings.ts'
 import { workspaceBillFacts } from './billing-page.ts'
 import { currentBranding, manifestFor, readLogo } from './branding.ts'
@@ -408,6 +410,9 @@ app.get('/v1/signup/config', async c => {
         trialClients: state.rules.trialWorkspacesPartner,
       }
     : null
+  // Signed in already (a new workspace from the app): whether this account still has its free trial (one per account,
+  // account.signUp decides the same), so the page never promises one it won't get. Anyone else: the trial.
+  const trial = state.open ? await trialForSession(c.req.raw.headers) : true
   return c.json({
     ok: true,
     open: state.open,
@@ -416,8 +421,17 @@ app.get('/v1/signup/config', async c => {
     plan,
     partnerPlan,
     terms,
+    trial,
   })
 })
+
+/** Whether the signed-in person (if any, as themselves) still has a free trial; true for everyone else. */
+async function trialForSession(headers: Headers): Promise<boolean> {
+  if (!headers.get('cookie')) return true
+  const session = await auth.api.getSession({ headers }).catch(() => null)
+  if (!session || session.session.impersonatedBy) return true
+  return !(await db.transaction(tx => accountTrialUsed(tx, session.user.id)))
+}
 
 // Public: an email code for the sign-up page. Every check (open, the address, its domain, Turnstile, the limits) runs
 // before the code is sent, and the answer never says whether the address has an account. The code itself is Better
@@ -629,6 +643,7 @@ app.get('/v1/me', async c => {
     locale,
     billFacts,
     partners,
+    newWorkspace,
     billingOn,
   ] = await Promise.all([
     avatarVersionOf(db, actor.actorId),
@@ -650,6 +665,8 @@ app.get('/v1/me', async c => {
     workspace?.billingState || workspace?.partnerId ? workspaceBillFacts(workspace.id, actor.actorId) : null,
     // Only with the `partner` permission (a session of a partner team member, never while impersonated).
     actor.permissions.includes('partner') ? partnersOf(actor.actorId) : [],
+    // A Cloud customer may add a workspace of their own from the workspace menu (signup-handlers.ts).
+    workspace ? db.transaction(tx => newWorkspaceOffer(tx, actor, workspace)) : null,
     // Whether this install bills its workspaces (Linedesk Cloud): a workspace on a bill says so already; one without
     // a bill shows its owners and admins Settings › Billing with "not on a bill" (decision of 2026-11-17).
     workspace && !workspace.billingState
@@ -725,6 +742,9 @@ app.get('/v1/me', async c => {
     setupByHand,
     // The white-label partners whose team the person is on (partners.ts): the partner area and its menu entry.
     partners,
+    // A Cloud customer's "New workspace…" (or "Finish setting up" a sign-up waiting for Checkout), with whether its
+    // plan gets a free trial; null when not offered (signup-handlers.ts newWorkspaceOffer).
+    newWorkspace,
     // The member's UI language (user-locale.ts): `locale` null is Automatic. Signed in as someone else, the admin's
     // own browser decides (null), so they can read what they see.
     ...locale,

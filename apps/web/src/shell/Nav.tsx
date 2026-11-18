@@ -40,6 +40,8 @@ type Props = {
   isInstanceAdmin: boolean
   /** Set only where POST /v1/workspaces would allow this person to create a workspace: the workspace menu offers it. */
   onNewWorkspace?: () => void
+  /** Another line for it than "New workspace…" (WorkspaceMenu). */
+  newWorkspaceLabel?: { label: string; icon: IconName }
   onHelp: () => void
   onSignOut: () => void
   onClose: () => void
@@ -66,7 +68,7 @@ function UnreadDot({ label }: { label: string }) {
 /** Slide-in navigation: opens from ☰ or M; closes with Esc, the close button, a click outside or after choosing.
  * On very wide windows it is docked: always open beside the content. Two parts: the workspace button on top (one
  * menu: switch workspace, your account, sign out) and one list of pages, Workspace settings once at its end. */
-export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, unassignedCount, reviewCount, workspaceName, workspaceId, avatarUrl, toast, invitations, onInvitationsChanged, isInstanceAdmin, onNewWorkspace, onClose, ...on }: Props) {
+export function Nav({ open, docked = false, route, tab, unreadCount, reminderCount, mineCount, unassignedCount, reviewCount, workspaceName, workspaceId, avatarUrl, toast, invitations, onInvitationsChanged, isInstanceAdmin, onNewWorkspace, newWorkspaceLabel, onClose, ...on }: Props) {
   const t = useT()
   const ref = useRef<HTMLElement>(null)
   useFocusTrap(ref, open && !docked, { initial: '.nav-item[aria-current="page"]' }) // opens on the current page, gives focus back when it closes
@@ -84,7 +86,7 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
     <nav className="nav" aria-label={t('shell.nav.label')} ref={ref} inert={!open}>
       <div className="ws-top">
         <WorkspaceMenu name={workspaceName} id={workspaceId} navOpen={open} invitations={invitations} onInvitationsChanged={onInvitationsChanged} toast={toast} avatarUrl={avatarUrl}
-          onNewWorkspace={onNewWorkspace && go(onNewWorkspace)} onAccount={go(() => on.onPage('account'))} onShortcuts={go(on.onHelp)} onSignOut={go(on.onSignOut)} />
+          onNewWorkspace={onNewWorkspace && go(onNewWorkspace)} newWorkspaceLabel={newWorkspaceLabel} onAccount={go(() => on.onPage('account'))} onShortcuts={go(on.onHelp)} onSignOut={go(on.onSignOut)} />
         {!docked && <Button size="sm" variant="ghost" icon="left" aria-label={t('shell.nav.closeMenu')} title={t('common.action.closeWithKey', { key: 'esc' })} onClick={onClose} />}
       </div>
       <NavItem label={t('shell.nav.inbox')} icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done' && !assigneeTabs.includes(tab)} onClick={go(() => on.onInbox('you'))}

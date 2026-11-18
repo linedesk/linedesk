@@ -658,6 +658,80 @@ describe('billing.confirmCheckout (docs/billing.md §3.2 step 4; security review
   })
 })
 
+describe('one free trial per account (decision of 2026-11-17, docs/billing.md §3.1)', () => {
+  /** A second sign-up of the owner of `first` (its workspace and bill), waiting for Checkout. */
+  async function secondOf(
+    first: Awaited<ReturnType<typeof pendingSignUp>>,
+    over: Partial<typeof billing_accounts.$inferInsert> = {},
+  ) {
+    const next = await pendingSignUp({ owner_user_id: first.ws.owner.userId, ...over })
+    await db.insert(member).values({
+      id: rid('mem'),
+      organizationId: next.ws.id,
+      userId: first.ws.owner.userId,
+      // The workspace has its owner already (one per workspace); the bill's owner manages the bill as an admin there.
+      role: 'admin',
+      createdAt: new Date(),
+    })
+    // The app switched to it (the sign-up makes it the session's workspace).
+    await db.update(session).set({ activeOrganizationId: next.ws.id }).where(eq(session.userId, first.ws.owner.userId))
+    return { ...next, owner: { headers: { ...first.ws.owner.headers, 'x-workspace-id': next.ws.id } } as Caller }
+  }
+
+  test('an account that had a trial: Checkout sells the plan now, the activation step says so', async () => {
+    const first = await trialWith(rid('fp'))
+    expect(first.confirmed.body.data).toMatchObject({ status: 'trialing' })
+    const second = await secondOf(first, { trial_refused: 'account_used' })
+    const me = await request(second.owner, 'GET', '/v1/me')
+    expect(me.status, JSON.stringify(me.body)).toBe(200)
+    expect(me.body.workspace.activation).toMatchObject({ trialDays: null, firstChargeAt: null, reminderDays: [] })
+    const plan = await startCheckout(second.owner)
+    expect(plan.body.get('subscription_data[trial_period_days]')).toBeNull()
+    // The consent is recorded with what the step showed: no trial.
+    const [accepted] = await db
+      .select()
+      .from(terms_acceptances)
+      .where(and(eq(terms_acceptances.billing_account_id, second.bill.id), eq(terms_acceptances.source, 'activation')))
+    expect((accepted!.disclosure as ActivationDisclosure).trialDays).toBeNull()
+  })
+
+  test('also a bill made before the rule: checked again at Checkout; a trial subscription for it is refused', async () => {
+    const first = await trialWith(rid('fp'))
+    // No refusal stored (made before the rule, or a workspace moved to it): the account's trial still counts.
+    const second = await secondOf(first)
+    const plan = await startCheckout(second.owner)
+    expect(plan.body.get('subscription_data[trial_period_days]')).toBeNull()
+    // A trial subscription completed anyway (a session opened before): canceled at once, nothing charged.
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const customer = (await billRow(second.bill.id)).stripe_customer_id!
+    const sub = subscription(customer, { card: card(rid('fp')) })
+    complete(sessionId, sub)
+    const confirmed = await act(second.owner, 'billing.confirmCheckout', { sessionId })
+    expect(confirmed.body.data).toEqual({ status: 'trial_refused', reason: 'account_used' })
+    expect(stripe.subscriptions.get(sub.id as string)!.status).toBe('canceled')
+    expect(await billRow(second.bill.id)).toMatchObject({ status: 'pending_payment', trial_refused: 'account_used' })
+  })
+
+  test('the card rule still applies on top: a first account with a card that had a trial gets none', async () => {
+    const fingerprint = rid('fp')
+    await trialWith(fingerprint)
+    // Another account, its first sign-up: the trial is offered, but the card had one.
+    const other = await trialWith(fingerprint)
+    expect(other.confirmed.body.data).toEqual({ status: 'trial_refused', reason: 'card_used' })
+  })
+
+  test('a sign-up that never reached Checkout, or a partner bill, gives the account no "trial used"', async () => {
+    const first = await pendingSignUp()
+    const partnerBill = await db
+      .insert(billing_accounts)
+      .values({ id: rid('bill'), kind: 'partner', owner_user_id: first.ws.owner.userId, status: 'trialing' })
+      .returning()
+    expect(partnerBill).toHaveLength(1)
+    const made = await startCheckout(first.owner)
+    expect(made.body.get('subscription_data[trial_period_days]')).toBe('14')
+  })
+})
+
 describe('the webhook confirms like the return page (checkout.session.completed)', () => {
   test('an owner who closed the tab: the trial starts from the event, with the same card checks', async () => {
     const fingerprint = rid('fp')

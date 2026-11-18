@@ -1,0 +1,2 @@
+ALTER TABLE "billing_accounts" DROP CONSTRAINT IF EXISTS "billing_accounts_trial_refused";--> statement-breakpoint
+ALTER TABLE "billing_accounts" ADD CONSTRAINT "billing_accounts_trial_refused" CHECK ("billing_accounts"."trial_refused" is null or "billing_accounts"."trial_refused" in ('card_used', 'prepaid', 'account_used'));

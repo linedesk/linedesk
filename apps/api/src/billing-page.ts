@@ -54,7 +54,7 @@ import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { syncBillingCatalog } from './billing-catalog.ts'
 import { managesBill, tellBillOwner } from './bill-manager.ts'
-import { activationFacts, BUYS_MINUTES, ownBill, setupFailed } from './billing-checkout.ts'
+import { activationFacts, BUYS_MINUTES, ownBill, setupFailed, trialRefusalOf } from './billing-checkout.ts'
 import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
@@ -514,7 +514,8 @@ export async function workspaceBillFacts(workspaceId: string, actorId?: string):
       ? planPrice(`${found.kind === 'partner' ? 'partner' : 'ws'}_${found.interval}ly`, rules)
       : null
     return {
-      trialDays: pending ? rules.trialDays : null,
+      // No trial for this bill (refused, or the account had one): none promised.
+      trialDays: pending && !(await trialRefusalOf(tx as Tx, found)) ? rules.trialDays : null,
       plan: price ? { interval: found.interval, cents: price.cents } : null,
       extraNumberCents: found.status === 'comped' ? null : rules.extraNumberCents,
       partnerManaged: false,

@@ -103,7 +103,13 @@ export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean, partne
       <AuthPage>
         <div className="auth-card">
           <h1>{t('auth.checkout.refusedTitle')}</h1>
-          <p>{outcome.reason === 'prepaid' ? t('auth.checkout.refusedPrepaid') : t('auth.checkout.refusedCardUsed')}</p>
+          <p>
+            {outcome.reason === 'prepaid'
+              ? t('auth.checkout.refusedPrepaid')
+              : outcome.reason === 'account_used'
+                ? t('auth.checkout.refusedAccountUsed')
+                : t('auth.checkout.refusedCardUsed')}
+          </p>
           <p>{partnerId ? t('auth.checkout.refusedNothingCharged') : t('auth.checkout.refusedNothingChargedSetup')}</p>
           {startFailed && <AuthError message={t('auth.checkout.startFailed')} />}
           <button

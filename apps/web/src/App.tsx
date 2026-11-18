@@ -35,7 +35,7 @@ import { SignInLink, takeSignInLinkToken } from './SignInLink.tsx'
 import { Signup } from './Signup.tsx'
 import { CheckoutReturn } from './CheckoutReturn.tsx'
 import { isCheckoutReturnPath, readCheckoutPartner } from './checkout.ts'
-import { isSignupPath } from './signup.ts'
+import { isSignupPath, signupCameFrom } from './signup.ts'
 import { isInstanceAdmin, passkeySupported, type Me } from './auth.ts'
 import { setProviderAudience } from './providerAudience.ts'
 import { clearSignedIn, passkeyAsk, pausedAt, signedInJustNow } from './passkey-ask.ts'
@@ -140,6 +140,12 @@ export function App() {
   const [inviteId, setInviteId] = useState(readInviteId)
   // The sign-up page (`/signup?plan=…`, Signup.tsx): read once; leaving it goes to the app's own address.
   const [signupPage, setSignupPage] = useState(isSignupPath)
+  // Opened from the workspace menu (signup.ts openSignup) and left with the browser's Back: the address decides.
+  useEffect(() => {
+    const follow = () => setSignupPage(isSignupPath())
+    window.addEventListener('popstate', follow)
+    return () => window.removeEventListener('popstate', follow)
+  }, [])
   // Back from Stripe Checkout (`/billing/return?session_id=…`, CheckoutReturn.tsx): read once, like the sign-up page.
   const [checkoutReturn, setCheckoutReturn] = useState(isCheckoutReturnPath)
   // The sign-in email's button (`#sign-in=<token>`): its page comes first, until Continue or leaving it.
@@ -350,14 +356,27 @@ export function App() {
     !pendingPayment &&
     (session.state === 'signedOut' || session.state === 'needsWorkspace' || session.state === 'ready')
   ) {
+    // From a workspace (the menu's New workspace…): the new one opens like any switch, with its own local store.
+    const fromApp = session.state === 'ready'
     // A partner sign-up goes on to the partner area, where its Checkout starts (Partner › Billing).
-    const leaveSignup = async (partner: boolean) => {
+    const leaveSignup = async (partner: boolean, workspaceId: string | null) => {
       window.history.replaceState(null, '', partner ? '/#partner' : '/')
+      if (fromApp && workspaceId) return switchToWorkspace(workspaceId, null)
       if (partner) window.dispatchEvent(new HashChangeEvent('hashchange'))
       setSignupPage(false)
       await refresh()
     }
-    return <Signup signedIn={session.state !== 'signedOut'} onDone={leaveSignup} />
+    const back = () => {
+      window.history.replaceState(null, '', signupCameFrom())
+      setSignupPage(false)
+    }
+    return (
+      <Signup
+        signedIn={session.state !== 'signedOut'}
+        fromApp={fromApp ? { onBack: back } : undefined}
+        onDone={leaveSignup}
+      />
+    )
   }
   if (session.state === 'signedOut') {
     // Signed out while the app was open: its sync had stopped for good, so the page loads fresh after signing in

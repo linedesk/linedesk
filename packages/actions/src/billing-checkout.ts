@@ -50,7 +50,7 @@ export const billingConfirmCheckout = defineAction({
 /** `data` of `billing.confirmCheckout`. */
 export type CheckoutConfirmData =
   | { status: 'trialing' | 'active'; heldForReview: boolean }
-  | { status: 'trial_refused'; reason: 'card_used' | 'prepaid' }
+  | { status: 'trial_refused'; reason: 'card_used' | 'prepaid' | 'account_used' }
   | { status: 'topup'; credited: boolean; amountCents: number }
 
 export const billingStartTopUp = defineAction({

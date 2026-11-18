@@ -39,6 +39,7 @@ import {
   rechargeCapCents,
   phone_numbers,
   planPrice,
+  type TRIAL_REFUSALS,
   type Tx,
   usage_counters,
   user,
@@ -160,6 +161,40 @@ export const CHECKOUT_UNAVAILABLE: Said = { key: msg('server.api.checkout.unavai
 export const NO_SUCH_CHECKOUT: Said = { key: msg('server.api.checkout.notFound') }
 
 type Bill = typeof billing_accounts.$inferSelect
+type TrialRefusal = (typeof TRIAL_REFUSALS)[number]
+
+// ---- One trial per account -----------------------------------------------------------------------------------
+
+/**
+ * Whether the account had its free trial already (decision of 2026-11-17, docs/billing.md §3.1): it owns another
+ * Cloud bill that started a trial or a plan (a confirmed Checkout, a trial end, or a running status). Such an account's
+ * next Cloud sign-up gets no trial (`account_used`); the card rule (`card_used`, `prepaid`) applies on top.
+ */
+export async function accountTrialUsed(tx: Tx, userId: string, exceptBillId?: string): Promise<boolean> {
+  const [used] = await tx
+    .select({ id: billing_accounts.id })
+    .from(billing_accounts)
+    .where(
+      and(
+        eq(billing_accounts.owner_user_id, userId),
+        eq(billing_accounts.kind, 'cloud'),
+        exceptBillId ? ne(billing_accounts.id, exceptBillId) : undefined,
+        sql`(${billing_accounts.checkout_confirmed_at} is not null or ${billing_accounts.trial_ends_at} is not null or ${billing_accounts.status} in ('trialing', 'active', 'past_due'))`,
+      ),
+    )
+    .limit(1)
+  return !!used
+}
+
+/**
+ * Why a bill waiting for Checkout gets no trial: the stored refusal, else `account_used` for a Cloud bill whose owner
+ * had a trial on another bill (also a bill made before the rule, or one a workspace moved to); null: the trial.
+ */
+export async function trialRefusalOf(tx: Tx, bill: Bill): Promise<Bill['trial_refused']> {
+  if (bill.trial_refused) return bill.trial_refused
+  if (bill.kind !== 'cloud' || bill.status !== 'pending_payment') return null
+  return (await accountTrialUsed(tx, bill.owner_user_id, bill.id)) ? 'account_used' : null
+}
 
 // ---- Whose bill ----------------------------------------------------------------------------------------------
 
@@ -349,12 +384,9 @@ export function activationDisclosure(
  */
 export async function activationFacts(tx: Tx, bill: Bill, rules: BillingRules, now: string): Promise<ActivationFacts> {
   const items = await planItems(tx, bill)
+  const trial = !(await trialRefusalOf(tx, bill))
   return {
-    ...activationDisclosure(
-      { planCents: itemsCents(items, rules), interval: bill.interval, trial: !bill.trial_refused },
-      rules,
-      now,
-    ),
+    ...activationDisclosure({ planCents: itemsCents(items, rules), interval: bill.interval, trial }, rules, now),
     includedMinutes: Math.floor(rules.includedStandardSeconds / 60),
     standardMicrosPerMinute: rules.levels.standard.microsPerMinute,
     calls: {
@@ -404,7 +436,9 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
   // One open Checkout per bill (security review of #961, G1): a second tab, or "Add card" again after going back, ends
   // the session before it, so two can never both be completed. One completed meanwhile is caught by confirmSession.
   if (bill.stripe_customer_id) await provider.expireOpenCheckouts(customerId).catch(setupFailed)
-  const trial = !bill.trial_refused
+  // One trial per account (the server decides; the activation step only showed it): checked again here, so a trial
+  // started on another bill since the sign-up counts too.
+  const trial = !(await db.transaction(tx => trialRefusalOf(tx, bill)))
   // The install's prices, trial and name (Server admin › Billing and › Branding): what this Checkout sells. The price
   // ids are the ones the last catalog sync stored; nothing in Stripe is made or changed here (review of #1040, M-1).
   const rules = await billingRules(db)
@@ -470,8 +504,11 @@ async function storeCustomer(tx: Tx, started: Started, now: string) {
 export type ConfirmData =
   /** The bill is in its trial or paid: the app opens onboarding. */
   | { status: 'trialing' | 'active'; heldForReview: boolean }
-  /** No trial for this card (`card_used`: it had one; `prepaid`): its subscription was canceled, start the plan now. */
-  | { status: 'trial_refused'; reason: 'card_used' | 'prepaid' }
+  /**
+   * No trial (`card_used`: the card had one; `prepaid`; `account_used`: the account had one): its subscription was
+   * canceled, start the plan now.
+   */
+  | { status: 'trial_refused'; reason: TrialRefusal }
   /** A top-up: credited once (`credited` false when it was already). */
   | { status: 'topup'; credited: boolean; amountCents: number }
 
@@ -636,8 +673,10 @@ export async function confirmSession(
 
   if (sub.status === 'trialing') {
     // The checks run on every confirmation while the bill is pending_payment, whoever linked the subscription (M1).
+    // The account had its trial on another bill (a Checkout opened before that, or the rule missed): no trial either.
     const refusal =
-      session.card?.funding === 'prepaid' ? ('prepaid' as const) : await claimTrial(tx, fingerprint, bill.id, now)
+      (await trialRefusalOf(tx, bill)) ??
+      (session.card?.funding === 'prepaid' ? ('prepaid' as const) : await claimTrial(tx, fingerprint, bill.id, now))
     if (refusal !== 'ok') {
       // Nothing was charged: the trial's subscription ends at once, and the bill lets go of it, so the owner's next
       // Checkout (the plan now, no trial) is linked by invoice.paid or here. A failure rolls everything back.

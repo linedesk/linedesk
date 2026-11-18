@@ -98,8 +98,12 @@ type Props = {
   /** Loads the invitations again: when the menu opens, after a decline (nothing during support access). */
   onInvitationsChanged: () => void
   toast: (message: string) => void
-  /** Set only where POST /v1/workspaces would allow this person to create a workspace. */
+  /**
+   * Set only where this person may add a workspace: a server admin (POST /v1/workspaces), or a Cloud customer (their own
+   * sign-up, a bill of its own). `newWorkspaceLabel`: another line for it ("Finish setting up …" while one waits).
+   */
   onNewWorkspace?: () => void
+  newWorkspaceLabel?: { label: string; icon: IconName }
   /** The signed-in member's profile picture as /v1/me had it; their synced member row wins (a picture just changed). */
   avatarUrl?: string | null
   onAccount: () => void
@@ -109,7 +113,7 @@ type Props = {
 
 function Item({ label, icon, keys, onClick }: { label: string; icon: IconName; keys?: string[]; onClick: () => void }) {
   return (
-    <button type="button" role="menuitem" className="nav-item" onClick={onClick}>
+    <button type="button" role="menuitem" className="nav-item" title={label} onClick={onClick}>
       <Icon name={icon} size={15} />
       <span className="lbl">{label}</span>
       {keys && <Kbd keys={keys} />}
@@ -141,6 +145,7 @@ export function WorkspaceMenu({
   onInvitationsChanged,
   toast,
   onNewWorkspace,
+  newWorkspaceLabel,
   avatarUrl,
   onAccount,
   onShortcuts,
@@ -228,7 +233,11 @@ export function WorkspaceMenu({
           {partners.length > 0 && <hr />}
           {items.includes('new') && onNewWorkspace && (
             <>
-              <Item label={t('shell.workspaceMenu.newWorkspace')} icon="plus" onClick={menu.choose(onNewWorkspace)} />
+              <Item
+                label={newWorkspaceLabel?.label ?? t('shell.workspaceMenu.newWorkspace')}
+                icon={newWorkspaceLabel?.icon ?? 'plus'}
+                onClick={menu.choose(onNewWorkspace)}
+              />
               <hr />
             </>
           )}

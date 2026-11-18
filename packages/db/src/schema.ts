@@ -1952,8 +1952,11 @@ export const BILLING_KINDS = ['cloud', 'partner'] as const
 export const SUSPEND_REASONS = ['admin', 'payment', 'dispute', 'early_fraud_warning'] as const
 /** The most calls at once an instance admin may allow one bill (`billing_accounts.concurrent_calls_cap`). */
 export const CONCURRENT_CALLS_CAP_MAX = 1000
-/** Why a bill got no trial at Checkout (docs/billing.md §3.2 step 4). */
-export const TRIAL_REFUSALS = ['card_used', 'prepaid'] as const
+/**
+ * Why a bill gets no trial (docs/billing.md §3.1, §3.2 step 4): the card had one, a prepaid card, or the account had
+ * one on another bill (`account_used`, set at sign-up).
+ */
+export const TRIAL_REFUSALS = ['card_used', 'prepaid', 'account_used'] as const
 export const BILLING_STATUSES = [
   'pending_payment',
   'trialing',
@@ -2017,7 +2020,8 @@ export const billing_accounts = pgTable(
     checkout_confirmed_at: ts('checkout_confirmed_at'),
     /**
      * Why the bill gets no trial (§3.2 step 4): `card_used`, the card already had a trial on another bill; `prepaid`, a
-     * prepaid card. Its trial subscription was canceled at once; the owner starts the plan with a new Checkout.
+     * prepaid card (its trial subscription was canceled at once; the owner starts the plan with a new Checkout);
+     * `account_used`, set at sign-up: the owner had a trial on another Cloud bill (§3.1), so Checkout sells the plan.
      */
     trial_refused: text('trial_refused', { enum: TRIAL_REFUSALS }),
     /** Radar's risk level of the trial's card check; anything but `normal` holds number purchase for review. */
@@ -2058,7 +2062,7 @@ export const billing_accounts = pgTable(
     check('billing_accounts_interval', oneOf(t.interval, BILLING_INTERVALS)),
     check(
       'billing_accounts_trial_refused',
-      sql`${t.trial_refused} is null or ${t.trial_refused} in ('card_used', 'prepaid')`,
+      sql`${t.trial_refused} is null or ${t.trial_refused} in ('card_used', 'prepaid', 'account_used')`,
     ),
     check('billing_accounts_recharge_cap_base', sql`${t.recharge_cap_base_cents} >= 0`),
     check(

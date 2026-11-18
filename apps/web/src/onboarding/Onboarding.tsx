@@ -121,6 +121,7 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload }: Props) {
       step={step}
       steps={steps}
       counted={counted}
+      planOnly={me.workspace?.activation?.trialDays === null}
       complete={step === 'done' || (step === 'phone' && hasNumber)}
       // Nothing to finish later before the trial: the app opens only once it runs.
       onSkip={step === 'done' || activating ? undefined : skip}

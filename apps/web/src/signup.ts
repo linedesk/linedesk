@@ -16,6 +16,11 @@ export type SignupConfig = {
   plan: SignupPlan | null
   partnerPlan: PartnerSignupPlan | null
   terms: SignupTerms | null
+  /**
+   * Whether this sign-up gets the free trial: false for a signed-in account that had one (one per account, decided by
+   * the API again at account.signUp and Checkout); true signed out and from an older server.
+   */
+  trial: boolean
 }
 export type CodeRefusal = 'closed' | 'invalid_email' | 'blocked_domain' | 'bot_check' | 'too_many' | 'busy'
 
@@ -40,6 +45,7 @@ export async function loadSignupConfig(): Promise<SignupConfig | 'unreachable'> 
       plan?: SignupPlan | null
       partnerPlan?: PartnerSignupPlan | null
       terms?: SignupTerms | null
+      trial?: boolean
     }
     const terms = body.terms ?? null
     return {
@@ -49,10 +55,27 @@ export async function loadSignupConfig(): Promise<SignupConfig | 'unreachable'> 
       plan: readPlan(body.plan),
       partnerPlan: readPartnerPlan(body.partnerPlan),
       terms,
+      trial: body.trial !== false,
     }
   } catch {
     return 'unreachable'
   }
+}
+
+/**
+ * Opens the sign-up page from the app (the workspace menu's "New workspace…" for a Cloud customer): the same page
+ * without the email step, at the interval of their bill; Back returns to the app (App.tsx follows the address).
+ */
+export function openSignup(interval: 'month' | 'year') {
+  const from = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  window.history.pushState({ signupFrom: from }, '', `/signup?plan=cloud&interval=${interval}`)
+  window.dispatchEvent(new PopStateEvent('popstate'))
+}
+
+/** Where Back on the sign-up page goes: the place in the app it was opened from, else the app's start. */
+export function signupCameFrom(): string {
+  const from = (window.history.state as { signupFrom?: unknown } | null)?.signupFrom
+  return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : '/'
 }
 
 /** The plan in the config answer, when it is whole (an older server sends none). */

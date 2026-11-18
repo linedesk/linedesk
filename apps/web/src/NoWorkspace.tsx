@@ -49,6 +49,27 @@ async function loadInvitations(): Promise<PendingInvitation[]> {
  */
 export const mayCreateWorkspace = (me: Me | null) => !!me && isInstanceAdmin(me) && !me.adminSecondFactor
 
+/**
+ * What "New workspace…" in the workspace menu does for this person: a server admin's New workspace dialog (`admin`); a
+ * Cloud customer's own sign-up without the email step (`signup`, a new bill of its own, the trial once per account,
+ * decision of 2026-11-17), or the sign-up still waiting for Checkout (`finish`: one at a time); null: not offered (also
+ * on a partner team, in a partner's client workspace or while signed in as someone else). The server decides who is a
+ * Cloud customer (`me.newWorkspace`) and checks it all again.
+ */
+export type NewWorkspaceChoice =
+  | { kind: 'admin' }
+  | { kind: 'signup'; interval: 'month' | 'year'; trial: boolean }
+  | { kind: 'finish'; workspace: { id: string; name: string } }
+
+export function newWorkspaceChoice(me: Me | null): NewWorkspaceChoice | null {
+  if (!me) return null
+  if (mayCreateWorkspace(me)) return { kind: 'admin' }
+  const offer = me.newWorkspace
+  if (!offer || me.impersonation || me.workspace?.partnerManaged || me.partners?.length) return null
+  if (offer.waiting) return offer.waiting.id === me.workspace?.id ? null : { kind: 'finish', workspace: offer.waiting }
+  return { kind: 'signup', interval: offer.interval, trial: offer.trial }
+}
+
 type Props = {
   /** null when /v1/me did not answer for this person (no workspace and no instance admin). */
   me: Me | null

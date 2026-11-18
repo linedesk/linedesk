@@ -26,11 +26,12 @@ import { assigneeTabs, callerName, callTitle, type InboxTab, visibleSplits } fro
 import { chordTarget } from './shell/chords.ts'
 import { commandGroups, type Command } from './shell/commands.ts'
 import type { Overlay } from './shell/keys.ts'
-import { invitationNotice, unannounced, useMyInvitations } from './shell/invitations.ts'
+import { invitationNotice, switchToWorkspace, unannounced, useMyInvitations } from './shell/invitations.ts'
 import { AskName } from './shell/AskName.tsx'
 import { MenuButton, Nav } from './shell/Nav.tsx'
 import { NewWorkspaceDialog } from './shell/NewWorkspace.tsx'
-import { mayCreateWorkspace } from './NoWorkspace.tsx'
+import { newWorkspaceChoice } from './NoWorkspace.tsx'
+import { openSignup } from './signup.ts'
 import { Overlays, type Picker } from './shell/Overlays.tsx'
 import { rejectionText } from './shell/rejections.ts'
 import { BillingBanner } from './shell/BillingBanner.tsx'
@@ -175,8 +176,26 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   }, [tourOffered, tourOpen, inboxCalls, me.workspace])
   // An instance admin who must sign in again still finds the admin area; it asks them to sign in.
   const canOpenAdmin = instanceAdmin
-  // The same rule as the screen without a workspace: only server admins create workspaces.
-  const canCreateWorkspace = mayCreateWorkspace(me)
+  // New workspace…: a server admin's dialog (the same rule as the screen without a workspace), or a Cloud customer's own
+  // sign-up without the email step, or the one of theirs still waiting for Checkout (decision of 2026-11-17).
+  const newWorkspaceKind = newWorkspaceChoice(me)
+  const startNewWorkspace = !newWorkspaceKind
+    ? undefined
+    : newWorkspaceKind.kind === 'admin'
+      ? () => setNewWorkspace(true)
+      : newWorkspaceKind.kind === 'signup'
+        ? () => openSignup(newWorkspaceKind.interval)
+        : () =>
+            void switchToWorkspace(newWorkspaceKind.workspace.id).catch(e =>
+              toaster.show(e instanceof Error ? e.message : String(e)),
+            )
+  const newWorkspaceLabel =
+    newWorkspaceKind?.kind === 'finish'
+      ? {
+          label: t('shell.workspaceMenu.finishSetup', { workspace: newWorkspaceKind.workspace.name }),
+          icon: 'tasks' as const,
+        }
+      : undefined
   // On a bill (Linedesk Cloud) and allowed to manage it: Workspace settings › Billing and the billing line above pages.
   // billing:manage is the owner's and the admins' (decision of 2026-11-17); the server answers only who manages the
   // bill (its owner, or an owner or admin of the only workspace it pays for), anyone else gets the usage view.
@@ -494,7 +513,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
     signOut: () => void signOut(),
     openHelp: () => setOverlay('help'),
     showTour: tourOffered ? () => setTourOpen(true) : undefined,
-    newWorkspace: canCreateWorkspace ? () => setNewWorkspace(true) : undefined,
+    newWorkspace: newWorkspaceKind?.kind === 'finish' ? undefined : startNewWorkspace,
     openNav: () => setNavOpen(true),
     showGoLive: showGoLive
       ? () => {
@@ -556,7 +575,8 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         invitations={invites.invitations}
         onInvitationsChanged={invites.reload}
         isInstanceAdmin={instanceAdmin}
-        onNewWorkspace={canCreateWorkspace ? () => setNewWorkspace(true) : undefined}
+        onNewWorkspace={startNewWorkspace}
+        newWorkspaceLabel={newWorkspaceLabel}
         onInbox={view.setTab}
         onPage={goPage}
         onHelp={() => setOverlay('help')}

@@ -2038,7 +2038,9 @@ button.k-link {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.me-ws .lbl {
+.me-ws .lbl,
+.ws-menu .nav-item .lbl {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
