@@ -208,6 +208,8 @@ async function partnerSignUp(
   await tx.insert(partner_members).values({ partner_id: partnerId, user_id: me.id, role: 'owner', created_at: now })
   await recordAcceptance(tx, { userId: me.id, billId, sessionId: actor.sessionId!, terms, now, source: 'signup' })
   if (input.name !== me.name) await tx.update(user).set({ name: input.name }).where(eq(user.id, me.id))
+  // Every instance admin hears of it, so the approval does not sit unnoticed (sent once the sign-up is committed).
+  await queueBillingAlert(tx, { kind: 'partner_signup', partner: partnerId })
   const data: AccountSignUpData = {
     billId,
     workspace: null,

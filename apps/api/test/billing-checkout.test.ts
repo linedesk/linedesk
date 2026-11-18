@@ -2044,6 +2044,33 @@ describe('the partner bill (white-label S2, docs/white-label.md)', () => {
     return { owner, partnerId, bill: bill! }
   }
 
+  test('a new partner: every instance admin is emailed while it waits for approval, not once approved', async () => {
+    const { owner, partnerId } = await pendingPartner()
+    const [account] = await db.select({ email: user.email }).from(user).where(eq(user.id, owner.userId))
+    await db.update(partners).set({ name: 'Cascade IT https://evil.example' }).where(eq(partners.id, partnerId))
+    mails.length = 0
+    expect(await sendBillingAlert(db, emailSender, { kind: 'partner_signup', partner: partnerId })).toEqual({
+      sent: 'admins',
+    })
+    const alert = mails.find(m => m.subject.includes('New partner waiting for approval'))!
+    expect(alert.subject).toContain('Cascade IT [link]')
+    expect(alert.text).toContain('signed up for White-label Cloud')
+    expect(alert.text).toContain(account!.email)
+    expect(alert.text).toContain('Monthly')
+    expect(alert.text).toContain('/#admin/partners/waiting')
+    expect(alert.text).not.toContain('evil.example')
+    // Approved (or gone) before the job ran: nobody is emailed.
+    mails.length = 0
+    await db.update(partners).set({ status: 'approved' }).where(eq(partners.id, partnerId))
+    expect(await sendBillingAlert(db, emailSender, { kind: 'partner_signup', partner: partnerId })).toEqual({
+      sent: 'nobody',
+    })
+    expect(await sendBillingAlert(db, emailSender, { kind: 'partner_signup', partner: 'ptn_gone' })).toEqual({
+      sent: 'nobody',
+    })
+    expect(mails).toEqual([])
+  })
+
   test('Checkout sells the partner base fee alone; the first client workspace adds its seat to the subscription', async () => {
     const { owner, partnerId, bill } = await pendingPartner()
     const res = await act(owner, 'billing.startCheckout', { partnerId })

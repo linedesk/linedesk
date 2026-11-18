@@ -197,6 +197,42 @@ export const partnerBrandChangedAlert =
     }
   }
 
+/**
+ * A partner signed up for White-label Cloud on its own (`account.signUp` with plan `partner`): it waits for a server
+ * admin's approval, which gates its brand in emails and its own domain; buying and client workspaces work before it.
+ * `partner`: the company name, the partner's own text, made plain before (admin-alerts.ts plainSnippet).
+ */
+export const partnerSignUpAlert =
+  (signUp: { partner: string; ownerEmail: string | null; interval: 'month' | 'year' | null }): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    const { partner } = signUp
+    const none = t('email.adminAlert.partnerBrand.none')
+    return {
+      subject: t('email.adminAlert.partnerSignUp.subject', { brand: emailBrandName(), partner }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.partnerSignUp.text', { partner }) },
+        {
+          kind: 'facts',
+          rows: [
+            [t('email.adminAlert.partnerSignUp.company'), partner],
+            [t('email.adminAlert.partnerSignUp.owner'), signUp.ownerEmail ?? none],
+            [
+              t('email.adminAlert.partnerSignUp.billed'),
+              signUp.interval ? t('email.adminAlert.partnerSignUp.interval', { interval: signUp.interval }) : none,
+            ],
+          ],
+        },
+        { kind: 'text', tone: 'muted', text: t('email.adminAlert.partnerSignUp.check') },
+        {
+          kind: 'button',
+          label: t('email.adminAlert.partnerSignUp.review'),
+          url: `${emailOrigin()}/#admin/partners/waiting`,
+        },
+      ],
+    }
+  }
+
 /** What changed in the email or sign-in settings: a provider's keys, or which mail service sends. */
 export type SettingsChange = {
   change: 'changed' | 'removed' | 'switched' | 'cleared'

@@ -582,9 +582,13 @@ describe('account.signUp', () => {
     ])
     // The app opens the partner area: /v1/me lists the partner.
     expect((await request(who, 'GET', '/v1/me')).body.partners).toMatchObject([{ id: partner.id, role: 'owner' }])
-    // Asked again: the one waiting sign-up, not a second partner.
+    // The instance admins hear of it, in the sign-up's own transaction (sent once it is committed).
+    const told = () => queued.filter(j => j.name === 'billing.alert' && j.data.kind === 'partner_signup')
+    expect(told()).toEqual([{ name: 'billing.alert', data: { kind: 'partner_signup', partner: partner.id } }])
+    // Asked again: the one waiting sign-up, not a second partner, and no second alert.
     const again = await request(who, 'POST', '/v1/signup', { ...PARTNER, businessName: 'Second Agency' })
     expect(again.body).toMatchObject({ ok: true, data: { billId, partner: { id: partner.id }, existing: true } })
+    expect(told()).toHaveLength(1)
     // Once that bill runs, a second partner for the same owner is refused.
     await db.update(billing_accounts).set({ status: 'trialing' }).where(eq(billing_accounts.id, billId))
     expect(await request(who, 'POST', '/v1/signup', PARTNER)).toMatchObject({

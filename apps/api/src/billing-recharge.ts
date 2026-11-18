@@ -17,6 +17,7 @@ import {
   EXTRA_CALLS_STEP,
   instance_settings,
   organization,
+  partners,
   planPrice,
   minutesPromptFor,
   RECHARGE_LIMITS,
@@ -28,13 +29,19 @@ import {
   workspaceCallLimit,
 } from '@linedesk/db'
 import { and, asc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
-import { alertInstanceAdmins } from './admin-alerts.ts'
+import { alertInstanceAdmins, plainSnippet } from './admin-alerts.ts'
 import { billingRules, invoiceTax, rechargeLine, reminderDaysFor, topUpLine } from './billing-rules.ts'
 import { brandName } from './branding.ts'
 import { billingProvider } from './billing-settings.ts'
 import type { EmailSender } from './email.ts'
 import { localeForEmail } from './email-locale.ts'
-import { billingUnusableAlert, cappedCallAlert, signupCapAlert, signupKeptAlert } from './emails/alerts.ts'
+import {
+  billingUnusableAlert,
+  cappedCallAlert,
+  partnerSignUpAlert,
+  signupCapAlert,
+  signupKeptAlert,
+} from './emails/alerts.ts'
 import { billingOwnerEmail } from './emails/billing.ts'
 import { rechargeSetupAlert } from './emails/billing-alerts.ts'
 import { queueBillingAlert } from './jobs.ts'
@@ -368,6 +375,8 @@ export type BillingAlertJob =
   | { kind: 'recharge_failed'; bill: string; ref: string; rechargeId: string; needsOwner: boolean }
   | { kind: 'recharge_setup'; bill: string; rechargeId: string; code: string }
   | { kind: 'signup_cap'; hour: string; cap: number }
+  /** A partner signed up on its own (signup-handlers.ts partnerSignUp) and waits for a server admin's approval. */
+  | { kind: 'partner_signup'; partner: string }
   /**
    * The sign-up sweep kept a bill that waits for Checkout (signup-handlers.ts). Without `reason`: a subscription is
    * linked or the Checkout confirmed in our database (N2); `in_stripe`: Stripe has a running subscription or a
@@ -399,6 +408,32 @@ export type BillingAlertJob =
   | { kind: 'busy_line'; bill: string; ref: string }
 
 /**
+ * A new partner from self-serve sign-up, to every instance admin: the facts as they are when it is sent. A partner
+ * that is gone (the sign-up sweep) or no longer waits for approval (approved meanwhile) gets no email.
+ */
+async function sendPartnerSignUpAlert(db: Db, sender: EmailSender, partnerId: string) {
+  const [row] = await db
+    .select({
+      name: partners.name,
+      status: partners.status,
+      ownerEmail: user.email,
+      interval: billing_accounts.interval,
+    })
+    .from(partners)
+    .leftJoin(user, eq(user.id, partners.created_by))
+    .leftJoin(billing_accounts, eq(billing_accounts.id, partners.billing_account_id))
+    .where(eq(partners.id, partnerId))
+  if (row?.status !== 'pending') return { sent: 'nobody' as const }
+  const alert = partnerSignUpAlert({
+    partner: plainSnippet(row.name, 80),
+    ownerEmail: row.ownerEmail,
+    interval: row.interval,
+  })
+  await alertInstanceAdmins(alert, sender, { wait: true })
+  return { sent: 'admins' as const }
+}
+
+/**
  * Sends one billing email. The facts are read when it is sent (the cap, the balance, the amount); an owner without an
  * address, or a bill that is gone, gets nothing. Throws when the email could not go out, so the job tries again.
  */
@@ -408,6 +443,7 @@ export async function sendBillingAlert(
   job: BillingAlertJob,
   options: { provider?: BillingProvider } = {},
 ) {
+  if (job.kind === 'partner_signup') return sendPartnerSignUpAlert(db, sender, job.partner)
   // Awaited, so the job's retries help when an email does not go out (review of #864, N2).
   if (
     job.kind === 'capped_call' ||

@@ -1,9 +1,11 @@
 // Server admin › Partners (docs/white-label.md): every white-label partner on the install, with its owner, team and
 // client workspaces. A server admin creates a partner (its owner is invited by email), approves it, and suspends it:
-// a suspended partner's team leaves every client workspace at once until it is approved again.
+// a suspended partner's team leaves every client workspace at once until it is approved again. "Waiting for approval"
+// (`#admin/partners/waiting`, the link in the new-partner email) lists only the partners still to approve, with their
+// number on the tab.
 import { type AdminPartnerList, PARTNER_CLIENT_LIMIT_MAX } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
-import { useT } from '@linedesk/i18n/react'
+import { useFormat, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'
 import { useSupportAccess } from '../supportAccess.ts'
@@ -31,7 +33,26 @@ const BILL_STATUS: Record<NonNullable<AdminPartner['billStatus']>, MessageKey> =
   comped: msg('admin.bills.status.comped'),
 }
 
-export function Partners({ notify }: { notify: Notify }) {
+/** The page's two views, as links: each has its own address, so Back, reload and the email's link land on it. */
+export function PartnerTabs({ waiting, count }: { waiting: boolean; count: number }) {
+  const t = useT()
+  const format = useFormat()
+  return (
+    <nav className="adm-billtabs" aria-label={t('admin.partners.tabs')}>
+      <div className="ib-tabs">
+        <a href="#admin/partners" className="ib-tab" aria-current={waiting ? undefined : 'page'}>
+          {t('admin.partners.tabAll')}
+        </a>
+        <a href="#admin/partners/waiting" className="ib-tab" aria-current={waiting ? 'page' : undefined}>
+          {t('admin.partners.tabWaiting')}
+          {count ? <span className="n">{format.number(count)}</span> : null}
+        </a>
+      </div>
+    </nav>
+  )
+}
+
+export function Partners({ notify, waiting = false }: { notify: Notify; waiting?: boolean }) {
   const t = useT()
   const supportAccess = useSupportAccess()
   const query = useQuery(supportAccess ? null : PARTNERS, load)
@@ -42,6 +63,9 @@ export function Partners({ notify }: { notify: Notify }) {
   const [limit, setLimit] = useState('')
   const [limitProblem, setLimitProblem] = useState<string | null>(null)
   const shownLimit = limit || String(query.data?.clientLimit ?? '')
+  const all = query.data?.partners ?? []
+  const pending = all.filter(p => p.status === 'pending')
+  const shown = waiting ? pending : all
 
   async function create(e: FormEvent) {
     e.preventDefault()
@@ -98,6 +122,7 @@ export function Partners({ notify }: { notify: Notify }) {
 
   return (
     <>
+      <PartnerTabs waiting={waiting} count={pending.length} />
       <Card>
         <Loading
           what={t('admin.sections.partners.label')}
@@ -106,8 +131,8 @@ export function Partners({ notify }: { notify: Notify }) {
           onRetry={() => void query.reload()}
           skeleton={<SkeletonRows rows={3} columns={5} className="adm-sk-rows" />}
         >
-          {query.data && query.data.partners.length === 0 ? (
-            <p className="adm-notice">{t('admin.partners.empty')}</p>
+          {query.data && shown.length === 0 ? (
+            <p className="adm-notice">{waiting ? t('admin.partners.noneWaiting') : t('admin.partners.empty')}</p>
           ) : (
             <div className="adm-scroll">
               <table className="adm-table adm-stack">
@@ -121,7 +146,7 @@ export function Partners({ notify }: { notify: Notify }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {(query.data?.partners ?? []).map(p => (
+                  {shown.map(p => (
                     <tr key={p.id}>
                       <th scope="row">
                         <span className="adm-partner-name">

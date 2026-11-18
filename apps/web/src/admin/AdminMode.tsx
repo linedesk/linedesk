@@ -208,7 +208,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
     if (place.section === 'branding') return <BrandingSettings />
     if (place.section === 'system') return <System />
     if (place.section === 'prompt') return <SystemPrompt />
-    if (place.section === 'partners') return <Partners notify={notify} />
+    if (place.section === 'partners') return <Partners notify={notify} waiting={place.id === 'waiting'} />
     // Providers needs both parts; every other page only the lists, which come back first.
     const ready = place.section === 'providers' ? data : lists
     if (!ready)

@@ -240,7 +240,7 @@
   "partner.page": "Partner",
   "partner.pageNamed": "Partner: {partner}",
   "partner.pending": "Your partner account is waiting for approval. You can set up your team now; client workspaces follow once it is approved.",
-  "partner.pendingBilled": "Your partner account is waiting for approval. You can work with your clients now; your own brand follows once it is approved.",
+  "partner.pendingBilled": "Waiting for approval, which turns on your brand in your clients' emails and, once available, your own domain. Your plan and your client workspaces don't need it.",
   "partner.release.after": "What happens",
   "partner.release.bill": "It leaves your partner plan. Its owner adds their own card before calls are answered again.",
   "partner.release.busy": "Handing over…",
