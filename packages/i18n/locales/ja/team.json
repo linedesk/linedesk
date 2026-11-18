@@ -141,7 +141,6 @@
   "partner.clients.create": "ワークスペースを作成",
   "partner.clients.delete": "削除…",
   "partner.clients.deleteTip": "{name}をすべてのデータとともに削除",
-  "partner.clients.draftLimit": "{limit}件を超えるクライアントのワークスペースを追加するには、White-label Cloudを有効にしてください",
   "partner.clients.empty": "クライアントのワークスペースはまだありません。",
   "partner.clients.emptyDraft": "最初のクライアントのビジネス用にワークスペースを追加しましょう。White-label Cloudを有効にするまでは無料の下書きです。",
   "partner.clients.emptyText": "最初のクライアントのビジネス用にワークスペースを追加しましょう。チーム全員で管理します。",

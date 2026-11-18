@@ -38,6 +38,7 @@ import {
   startPlan,
   type SetupStepGroup,
   stepsByGroup,
+  UNPAID_PARTNER_CLIENTS,
 } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
@@ -773,6 +774,10 @@ function Progress({
   const selected = state.progress.workspace ?? null
   const here = selected && active?.id === selected.id ? active : null
   const done = steps.filter(s => s.state === 'done').length
+  // A partner before its Checkout: drafts up to UNPAID_PARTNER_CLIENTS, a limit for the setup only (said on the row).
+  const draftsOnly =
+    partnerScope && steps.some(s => s.id === 'plan' && s.group === 'partner' && s.state === 'admin_only')
+  const draftsFull = draftsOnly && (state.progress.workspaces?.length ?? 0) >= UNPAID_PARTNER_CLIENTS
   return (
     <section
       className={cx('as-card', 'as-progress', fadeIn && 'ld-in')}
@@ -844,6 +849,11 @@ function Progress({
                         )
                       : step.label}
                     {step.hint && <span className="as-hint"> · {step.hint}</span>}
+                    {draftsOnly && step.id === 'clients' && (
+                      <span className="as-hint as-hint-line">
+                        {t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })}
+                      </span>
+                    )}
                   </span>
                   {step.state === 'failing' && (
                     <span className="as-small">{t('onboarding.agentSetup.progress.failing')}</span>
@@ -859,6 +869,7 @@ function Progress({
                     reload={reload}
                     trial={trial}
                     onAddClient={partnerScope ? () => setNewWorkspace(true) : undefined}
+                    clientsFull={draftsFull}
                     activatePartnerId={partnerScope ? (partner?.id ?? null) : null}
                     onAddNumber={
                       partnerScope && selected
@@ -1073,6 +1084,7 @@ export function StepAction({
   reload,
   trial,
   onAddClient,
+  clientsFull = false,
   onAddNumber,
   activatePartnerId = null,
 }: {
@@ -1095,6 +1107,8 @@ export function StepAction({
   trial?: StartTrialProps
   /** A partner owner's page: "Add client" on the Client workspaces row (a seat on the bill: the owner's click). */
   onAddClient?: () => void
+  /** A partner owner's page before its Checkout, at the draft cap: Add client greyed, the row says why. */
+  clientsFull?: boolean
   /** A partner owner's page: "Add number" on a client workspace's Phone number row (it costs money). */
   onAddNumber?: () => void
   /** A partner owner's page: the partner whose "Activate White-label Cloud" row opens the setup's Activate step. */
@@ -1116,7 +1130,12 @@ export function StepAction({
           size="sm"
           variant="secondary"
           icon="plus"
-          title={t('onboarding.agentSetup.partner.addClientTitle')}
+          disabled={clientsFull}
+          title={
+            clientsFull
+              ? t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })
+              : t('onboarding.agentSetup.partner.addClientTitle')
+          }
           onClick={onAddClient}
         >
           {t('onboarding.agentSetup.partner.addClient')}

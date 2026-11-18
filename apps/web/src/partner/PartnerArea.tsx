@@ -325,7 +325,7 @@ export function Clients({
       : null
     : room
       ? null
-      : t('team.partner.clients.draftLimit', { limit: UNPAID_PARTNER_CLIENTS })
+      : t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })
   const activating = !!data.bill && unpaidPartner(data) && data.partner.status !== 'suspended'
   const newClient = (
     <Button

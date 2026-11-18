@@ -358,6 +358,7 @@ export function ClientsStep({
       variant={clients.length ? 'ghost' : 'secondary'}
       icon="plus"
       disabled={!room}
+      title={room ? undefined : t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })}
       onClick={() => setAdding(true)}
     >
       {t('team.partner.setup.clients.add')}
@@ -369,7 +370,7 @@ export function ClientsStep({
         <h1>{t('team.partner.setup.clients.title')}</h1>
         <p className="ob-lede">
           {unpaid
-            ? t('team.partner.setup.clients.ledeDraft', { limit: UNPAID_PARTNER_CLIENTS })
+            ? t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })
             : t('team.partner.setup.clients.lede')}
         </p>
         {clients.length > 0 && (
@@ -404,12 +405,8 @@ export function ClientsStep({
             ))}
           </List>
         )}
-        <div className="ps-add">
-          {addClient}
-          {!room && (
-            <span className="ob2-note">{t('team.partner.clients.draftLimit', { limit: UNPAID_PARTNER_CLIENTS })}</span>
-          )}
-        </div>
+        {/* At the cap the line above says why Add client is greyed: it is only a limit for the setup. */}
+        <div className="ps-add">{addClient}</div>
         {problem && <FormMessage>{problem}</FormMessage>}
       </div>
       <SetupFoot

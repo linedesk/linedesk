@@ -102,7 +102,7 @@ test('Activate is the end of the setup: each draft with Remove, the total, only 
   const three = activateHtml(UNPAID_PARTNER_CLIENTS)
   expect(three.match(/>Remove</g)?.length).toBe(UNPAID_PARTNER_CLIENTS)
   for (let i = 0; i < UNPAID_PARTNER_CLIENTS; i++) expect(three).toContain(`Client ${i}`)
-  expect(three).toContain('× 3 client workspaces')
+  expect(three).toContain(`× ${UNPAID_PARTNER_CLIENTS} client workspaces`)
   // Two buttons in the footer: Back and Activate; no "later" way off to the agent or a client.
   const foot = three.slice(three.indexOf('class="ob-foot"'))
   expect(foot.match(/<button/g)?.length).toBe(2)
@@ -129,9 +129,12 @@ test('Clients: each draft set up with the agent (the default) or by hand; Add cl
   expect(one).toMatch(/k-btn-ghost[^>]*>(<[^>]+>)*Set up by hand/)
   expect(one).not.toContain('Skip, add clients later')
   expect(one).not.toContain('disabled=""')
+  // The limit is only for the setup, said once as the step's line; at the cap Add client is greyed with the same words.
+  expect(none).toContain(`Add up to ${UNPAID_PARTNER_CLIENTS} clients now. You can add more after you activate.`)
   const full = clientsStepHtml(UNPAID_PARTNER_CLIENTS)
   expect(full.match(/Set up with the agent/g)?.length).toBe(UNPAID_PARTNER_CLIENTS)
-  expect(full).toContain(`Activate White-label Cloud to add more than ${UNPAID_PARTNER_CLIENTS} client workspaces`)
+  expect(full.match(/You can add more after you activate/g)?.length).toBe(2)
+  expect(full).toMatch(/disabled=""[^>]*>(<[^>]+>)*Add client|title="Add up to[^"]*"[^>]*disabled=""/)
 })
 
 test('before payment, no clients: one primary action (New client), Activate next to it with the real price', () => {
@@ -151,7 +154,7 @@ test('before payment, drafts: New client still works; at the cap it says why it 
   expect(some).toContain('Activate White-label Cloud')
   const full = clientsHtml(partnerData({ clients: UNPAID_PARTNER_CLIENTS }))
   expect(full).toContain('disabled=""')
-  expect(full).toContain(`Activate White-label Cloud to add more than ${UNPAID_PARTNER_CLIENTS} client workspaces`)
+  expect(full).toContain(`Add up to ${UNPAID_PARTNER_CLIENTS} clients now. You can add more after you activate.`)
 })
 
 test('waiting for approval blocks nothing where billing is on: no note in Clients, one info note in Brand', () => {

@@ -22,7 +22,12 @@ const row = (
   s: Step,
   here: typeof workspace | null = workspace,
   onSwitch: ((action: ResumeAction) => void) | null = null,
-  more: Partial<Pick<Parameters<typeof StepAction>[0], 'switching' | 'resume' | 'trial' | 'activatePartnerId'>> = {},
+  more: Partial<
+    Pick<
+      Parameters<typeof StepAction>[0],
+      'switching' | 'resume' | 'trial' | 'activatePartnerId' | 'onAddClient' | 'clientsFull'
+    >
+  > = {},
 ) =>
   renderToStaticMarkup(
     <StepAction
@@ -199,4 +204,13 @@ test("Activate White-label Cloud: the partner owner's own row while unpaid, gone
   expect(row(plan('done'), null, null, { activatePartnerId: 'ptn_1' })).toBe('')
   // Not a partner owner's page: no button.
   expect(row(plan('admin_only'), null)).toBe('')
+})
+
+test('Add client on a partner page: greyed at the draft cap before Checkout, saying more come after activating', () => {
+  const clients = { ...step('clients', 'done'), group: 'partner' as const }
+  const open = row(clients, null, null, { onAddClient: () => {} })
+  expect(open).not.toContain('disabled=""')
+  const full = row(clients, null, null, { onAddClient: () => {}, clientsFull: true })
+  expect(full).toContain('disabled=""')
+  expect(full).toContain('You can add more after you activate.')
 })

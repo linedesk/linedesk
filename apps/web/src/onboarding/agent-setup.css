@@ -339,3 +339,7 @@
   font-weight: 600;
   overflow-wrap: anywhere;
 }
+/* A second line under a step's name (a partner's Client workspaces row before Checkout: the draft limit). */
+.as-hint-line {
+  display: block;
+}

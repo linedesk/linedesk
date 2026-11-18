@@ -54,9 +54,10 @@ export type PartnerCode = (typeof PARTNER_CODES)[number]
 
 /**
  * Client workspaces a partner may prepare before White-label Cloud is activated (its Checkout, docs/white-label.md):
- * drafts that cost nothing and cannot go live (no number, no calls, no owner invitation) until the plan is paid.
+ * drafts that cost nothing and cannot go live (no number, no calls, no owner invitation) until the plan is paid. Only
+ * a limit for the setup: after the Checkout any number of clients can follow (Janik, 2026-11-18: 5, was 3).
  */
-export const UNPAID_PARTNER_CLIENTS = 3
+export const UNPAID_PARTNER_CLIENTS = 5
 
 const partnerId = z.string().min(1).max(64)
 /**

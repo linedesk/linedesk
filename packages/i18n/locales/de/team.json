@@ -141,7 +141,6 @@
   "partner.clients.create": "Workspace erstellen",
   "partner.clients.delete": "Löschen…",
   "partner.clients.deleteTip": "{name} mit allen Daten löschen",
-  "partner.clients.draftLimit": "Aktiviere White-label Cloud, um mehr als {limit} Kunden-Workspaces hinzuzufügen",
   "partner.clients.empty": "Noch keine Kunden-Workspaces.",
   "partner.clients.emptyDraft": "Füge einen Workspace für dein erstes Kundenunternehmen hinzu. Er bleibt ein kostenloser Entwurf, bis du White-label Cloud aktivierst.",
   "partner.clients.emptyText": "Füge einen Workspace für dein erstes Kundenunternehmen hinzu. Dein ganzes Team betreut ihn.",

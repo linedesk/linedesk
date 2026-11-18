@@ -141,7 +141,6 @@
   "partner.clients.create": "Créer l'espace de travail",
   "partner.clients.delete": "Supprimer…",
   "partner.clients.deleteTip": "Supprimer {name} avec toutes ses données",
-  "partner.clients.draftLimit": "Activez White-label Cloud pour ajouter plus de {limit} espaces de travail clients",
   "partner.clients.empty": "Aucun espace de travail client pour l'instant.",
   "partner.clients.emptyDraft": "Ajoutez un espace de travail pour l'entreprise de votre premier client. Il reste un brouillon gratuit jusqu'à ce que vous activiez White-label Cloud.",
   "partner.clients.emptyText": "Ajoutez un espace de travail pour l'entreprise de votre premier client. Toute votre équipe le gère.",
