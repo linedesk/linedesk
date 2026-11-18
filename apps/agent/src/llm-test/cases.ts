@@ -1680,4 +1680,103 @@ export const CASES: Case[] = [
     checks: [{ type: 'notSay', pattern: /\?[^?]+\?/ }],
     severity: 'should',
   },
+
+  // ── The caller changes their mind mid-call (LIN-511) ─────────────────────────────────────────────────────────────
+  {
+    id: 'other-mind-booking-to-message',
+    category: 'other',
+    title: 'Starts to book, then just wants a message',
+    why: 'rules.appointments + booking.onlyOffered: nothing is booked without a yes to a time; a changed mind means a message',
+    setup: setup({ booking: true, caller: 'contact' }),
+    turns: english([
+      'Can someone come look at my dripping faucet on Thursday?',
+      "Actually, never mind the appointment. I don't know my schedule yet. Just leave a message for them to call me back.",
+      'Yes, this number is fine. Thanks.',
+    ]),
+    checks: [
+      { type: 'noTool', tool: 'book_appointment' },
+      { type: 'say', pattern: MESSAGE, turn: { from: 2 } },
+      {
+        type: 'notSay',
+        pattern: /\b(you're (all )?(set|booked)|I've (booked|scheduled)|is (booked|scheduled|confirmed) for)\b/i,
+      },
+    ],
+    judge: {
+      must: ['follow the changed wish: take a message and say someone will call back'],
+      mustNot: ['book or confirm an appointment', 'keep pushing appointment times after the caller said never mind'],
+    },
+    severity: 'should',
+  },
+  {
+    id: 'other-mind-message-to-urgent',
+    category: 'other',
+    title: 'A routine message turns out to be a burst pipe',
+    why: 'fixed.emergency: serious damage to property is urgent for the team (flag_urgent), not for the emergency services',
+    setup: setup(),
+    turns: english([
+      'Hi, can someone call me back about a dripping faucet in my bathroom?',
+      "Wait, I just looked under the sink and the pipe burst! Water is all over the floor and it's getting into the hallway!",
+      'Yes please, hurry. I already shut the main valve.',
+    ]),
+    checks: [
+      { type: 'tool', tool: 'flag_urgent' },
+      { type: 'urgent', value: true },
+      { type: 'notSay', pattern: EMERGENCY_SERVICES },
+    ],
+    judge: {
+      must: [
+        'treat the call as urgent for the team once the caller says the pipe burst',
+        'say someone will get back quickly',
+      ],
+      mustNot: ['tell the caller to contact the emergency services or 911', 'carry on as if it were a routine message'],
+    },
+    severity: 'should',
+  },
+  {
+    id: 'other-mind-person-to-booking',
+    category: 'other',
+    title: 'Asks for Mike, he does not pick up, caller wants to book instead',
+    why: 'transfer_call result + booking.howTo: when nobody accepted and the caller wants a visit, offer times with find_slots',
+    setup: setup({ booking: true, transfers: [MIKE], caller: 'contact' }),
+    turns: english([
+      'Hi, can I talk to Mike please?',
+      "Okay, he isn't there. Then can I just book a visit for my water heater this week?",
+    ]),
+    sim: { transfer: 'not_connected' },
+    checks: [
+      { type: 'tool', tool: 'transfer_call', byTurn: 1 },
+      { type: 'tool', tool: 'find_slots' },
+      { type: 'noTool', tool: 'book_appointment' },
+    ],
+    judge: {
+      must: ['after the transfer did not connect, help the caller book and offer times that find_slots returned'],
+      mustNot: [
+        'only take a message when the caller asked to book',
+        'say the visit is booked before the caller chose a time',
+      ],
+    },
+    severity: 'should',
+  },
+  {
+    id: 'other-mind-callback-number-corrected',
+    category: 'other',
+    title: 'Confirms the caller ID as callback number, then gives another one',
+    why: 'call.callerId + names rules: a changed callback number replaces the first answer and is taken with get_phone_number (LIN-386)',
+    setup: setup(),
+    turns: english([
+      'Hi, can someone call me back about a quote for a new water heater? My name is Dana Ruiz.',
+      'Yes, this number is fine.',
+      'Oh wait, sorry, I am at work and cannot pick up here. Please use my cell instead: 503-555-0177.',
+      "That's all, thanks.",
+    ]),
+    checks: [
+      { type: 'tool', tool: 'get_phone_number' },
+      { type: 'notSay', pattern: /(only|can only) (call|use)[^.?!]*(this|the) number you(?:'re| are) calling from/i },
+    ],
+    judge: {
+      must: ['accept the new number and use it as the callback number, instead of the one the caller first confirmed'],
+      mustNot: ['insist on the caller ID number', 'ask for the number again after the caller gave it'],
+    },
+    severity: 'should',
+  },
 ]
