@@ -425,8 +425,9 @@ async function linkSubscription(
     return null
   if (!isLinedeskPlan(subscription)) return null
   // A bill whose trial was refused (card used before, prepaid) never links a trial subscription: only the owner's next
-  // Checkout, the plan without a trial, may be linked (security review of #961, G4).
-  if (bill.trial_refused && subscription.status === 'trialing') return null
+  // Checkout, the plan without a trial, may be linked (security review of #961, G4). A partner bill never links one
+  // either: White-label Cloud has no free trial (Janik, 2026-11-18).
+  if ((bill.trial_refused || bill.kind === 'partner') && subscription.status === 'trialing') return null
   const [linked] = await tx
     .update(billing_accounts)
     .set({ stripe_subscription_id: subscription.id, updated_at: now })

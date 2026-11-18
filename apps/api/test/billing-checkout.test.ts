@@ -2370,6 +2370,39 @@ describe('the partner bill (white-label S2, docs/white-label.md)', () => {
     expect(update.idempotencyKey).toBe(`seats_client_${client.body.data.workspace.id}_${bill.id}_0_1`)
   })
 
+  test('a trial subscription on a partner bill (a Checkout an older release opened) is ended, never confirmed', async () => {
+    // White-label Cloud has no free trial (Janik, 2026-11-18): the return page and the webhook both refuse it.
+    const { owner, partnerId, bill } = await pendingPartner()
+    expect((await act(owner, 'billing.startCheckout', { partnerId })).status).toBe(200)
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const customer = (await billRow(bill.id)).stripe_customer_id!
+    const trialSub = () => {
+      const sub = subscription(customer, { status: 'trialing' })
+      const item = (sub.items as { data: Json[] }).data[0]!
+      item.price = { ...(item.price as Json), id: 'price_partner_monthly', lookup_key: 'partner_monthly' }
+      return sub
+    }
+    const first = trialSub()
+    complete(sessionId, first)
+    const res = await act(owner, 'billing.confirmCheckout', { sessionId, partnerId })
+    expect(res.status).toBe(409)
+    expect(JSON.stringify(res.body)).toContain('White-label Cloud has no free trial')
+    expect(stripe.subscriptions.get(first.id as string)!.status).toBe('canceled')
+    expect(await billRow(bill.id)).toMatchObject({
+      status: 'pending_payment',
+      stripe_subscription_id: null,
+      trial_ends_at: null,
+    })
+    // The webhook alone (the owner closed the tab): the same refusal, the trial subscription ended.
+    expect((await act(owner, 'billing.startCheckout', { partnerId })).status).toBe(200)
+    const second = [...stripe.sessions.keys()].at(-1)!
+    const secondSub = trialSub()
+    complete(second, secondSub)
+    await processEvent('checkout.session.completed', { id: second, object: 'checkout.session', customer })
+    expect(stripe.subscriptions.get(secondSub.id as string)!.status).toBe('canceled')
+    expect(await billRow(bill.id)).toMatchObject({ status: 'pending_payment', stripe_subscription_id: null })
+  })
+
   test("a released client leaves its extra calls behind; the partner bill's extra-calls item drops (review of #1109, M-2)", async () => {
     const { owner, partnerId, bill } = await pendingPartner()
     expect((await act(owner, 'billing.startCheckout', { partnerId })).status).toBe(200)

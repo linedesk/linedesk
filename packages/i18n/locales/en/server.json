@@ -37,6 +37,7 @@
   "api.checkout.number.trialLimit": "Your trial includes one number. You can add more once your plan has started.",
   "api.checkout.otherSubscription": "This bill has another subscription. Ask the server admins.",
   "api.checkout.ownerNoAccount": "the owner of this bill has no account",
+  "api.checkout.partnerNoTrial": "White-label Cloud has no free trial. Nothing was charged; start Checkout again to pay for the plan.",
   "api.checkout.paymentNotCredited": "This payment cannot be credited. Ask the server admins.",
   "api.checkout.paymentNotFinished": "This payment is not finished yet.",
   "api.checkout.paymentRunning": "A payment for this bill is still running. Try again in a minute.",

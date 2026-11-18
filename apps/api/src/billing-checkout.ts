@@ -714,6 +714,10 @@ export async function confirmSession(
   const fingerprint = session.card?.fingerprint
   if (!fingerprint) return refuse(msg('server.api.checkout.noCard'))
 
+  // White-label Cloud has no free trial (Janik, 2026-11-18): a partner bill never takes a trial subscription, also one
+  // from a Checkout an older release opened, or one made by hand. It ends at once, nothing charged; the owner's next
+  // Checkout is the paid plan (trialOffered).
+  if (sub.status === 'trialing' && bill.kind === 'partner') return refuse(msg('server.api.checkout.partnerNoTrial'))
   if (sub.status === 'trialing') {
     // The checks run on every confirmation while the bill is pending_payment, whoever linked the subscription (M1).
     // The account had its trial on another bill (a Checkout opened before that, or the rule missed): no trial either.
