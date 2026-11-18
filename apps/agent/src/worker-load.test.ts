@@ -129,3 +129,38 @@ test('the SDK starts warm processes in parallel, up to four (LIN-226)', async ()
   expect(limit).toBeGreaterThanOrEqual(1)
   expect(limit).toBeLessThanOrEqual(4)
 })
+
+test('while calls start, new warm processes wait; one loads when none is left; a waiting call ends the hold (LIN-485)', async () => {
+  // patches/@livekit__agents@*.patch: refills compete with the new calls' setup for the CPU.
+  const { ProcPool } = await import(new URL('ipc/proc_pool.js', import.meta.resolve('@livekit/agents')).href)
+  const pool = new ProcPool({ agent: 'unused', numIdleProcesses: 2 })
+  const settled = async (p: Promise<unknown>) => {
+    let done = false
+    void p.then(() => (done = true))
+    await new Promise(r => setTimeout(r, 300)) // the hold looks again every 250 ms
+    return done
+  }
+  // No call yet (the first fill at start-up): no hold.
+  expect(await settled(pool.waitForQuiet())).toBe(true)
+
+  // A call just started and one warm process is still there: the refill waits.
+  pool.lastLaunchAt = Date.now()
+  pool.warmedProcQueue.items.push({})
+  const held = pool.waitForQuiet()
+  expect(await settled(held)).toBe(false)
+  // A call waits for a process: the hold ends.
+  pool.waitingJobs = 1
+  expect(await settled(held)).toBe(true)
+  pool.waitingJobs = 0
+
+  // None left: one loads at once, the next one waits for it.
+  pool.warmedProcQueue.items.length = 0
+  const first = await pool.waitForQuiet()
+  const second = pool.waitForQuiet()
+  expect(await settled(second)).toBe(false)
+  first()
+  first() // a second call does not free a second slot
+  expect(pool.heldInits).toBe(0)
+  expect(await settled(second)).toBe(true)
+  pool.closed = true
+})

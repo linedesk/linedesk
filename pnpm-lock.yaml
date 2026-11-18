@@ -10,7 +10,7 @@ overrides:
 
 patchedDependencies:
   '@livekit/agents@1.10.0':
-    hash: 35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0
+    hash: cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8
     path: patches/@livekit__agents@1.10.0.patch
 
 importers:
@@ -46,22 +46,22 @@ importers:
         version: link:../../packages/telephony
       '@livekit/agents':
         specifier: ^1.10.0
-        version: 1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
+        version: 1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
       '@livekit/agents-plugin-assemblyai':
         specifier: ^1.10.0
-        version: 1.10.0(@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)
+        version: 1.10.0(@livekit/agents@1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)
       '@livekit/agents-plugin-cartesia':
         specifier: ^1.10.0
-        version: 1.10.0(@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)(zod@4.6.7)
+        version: 1.10.0(@livekit/agents@1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)(zod@4.6.7)
       '@livekit/agents-plugin-deepgram':
         specifier: ^1.10.0
-        version: 1.10.0(@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)
+        version: 1.10.0(@livekit/agents@1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)
       '@livekit/agents-plugin-elevenlabs':
         specifier: ^1.10.0
-        version: 1.10.0(@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)
+        version: 1.10.0(@livekit/agents@1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)
       '@livekit/agents-plugin-openai':
         specifier: ^1.10.0
-        version: 1.10.0(@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)(zod@4.6.7)
+        version: 1.10.0(@livekit/agents@1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)(zod@4.6.7)
       '@livekit/protocol':
         specifier: 1.53.0
         version: 1.53.0
@@ -4021,18 +4021,18 @@ snapshots:
 
   '@levischuck/tiny-cbor@0.2.11': {}
 
-  '@livekit/agents-plugin-assemblyai@1.10.0(@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)':
+  '@livekit/agents-plugin-assemblyai@1.10.0(@livekit/agents@1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)':
     dependencies:
-      '@livekit/agents': 1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
+      '@livekit/agents': 1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
       '@livekit/rtc-node': 1.2.2
       ws: 8.23.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@livekit/agents-plugin-cartesia@1.10.0(@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)(zod@4.6.7)':
+  '@livekit/agents-plugin-cartesia@1.10.0(@livekit/agents@1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)(zod@4.6.7)':
     dependencies:
-      '@livekit/agents': 1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
+      '@livekit/agents': 1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
       '@livekit/rtc-node': 1.2.2
       ws: 8.23.0
       zod: 4.6.7
@@ -4040,18 +4040,18 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@livekit/agents-plugin-deepgram@1.10.0(@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)':
+  '@livekit/agents-plugin-deepgram@1.10.0(@livekit/agents@1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)':
     dependencies:
-      '@livekit/agents': 1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
+      '@livekit/agents': 1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
       '@livekit/rtc-node': 1.2.2
       ws: 8.23.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@livekit/agents-plugin-elevenlabs@1.10.0(@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)':
+  '@livekit/agents-plugin-elevenlabs@1.10.0(@livekit/agents@1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)':
     dependencies:
-      '@livekit/agents': 1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
+      '@livekit/agents': 1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
       '@livekit/mutex': 1.1.1
       '@livekit/rtc-node': 1.2.2
       ws: 8.23.0
@@ -4059,9 +4059,9 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@livekit/agents-plugin-openai@1.10.0(@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)(zod@4.6.7)':
+  '@livekit/agents-plugin-openai@1.10.0(@livekit/agents@1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7))(@livekit/rtc-node@1.2.2)(zod@4.6.7)':
     dependencies:
-      '@livekit/agents': 1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
+      '@livekit/agents': 1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)
       '@livekit/rtc-node': 1.2.2
       openai: 6.49.0(ws@8.23.0)(zod@4.6.7)
       ws: 8.23.0
@@ -4073,7 +4073,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@livekit/agents@1.10.0(patch_hash=35d0107b956d7791062327196e40d68d49d0076f9906b6689d7c6543ea82f8c0)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)':
+  '@livekit/agents@1.10.0(patch_hash=cea598323833c7073fb14722c57d7839dd2c466e1d0f19e8ca67ddd454b576b8)(@livekit/rtc-node@1.2.2)(@modelcontextprotocol/client@2.4.0)(@types/node@26.6.6)(typescript@7.0.2)(zod@4.6.7)':
     dependencies:
       '@bufbuild/protobuf': 1.10.1
       '@livekit/av': 10.1.0
