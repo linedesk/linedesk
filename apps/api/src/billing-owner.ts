@@ -5,7 +5,7 @@
 //   recharge to confirm, a low balance nothing lifts), for the bill owner only; anyone else gets null.
 // - `billing.portOutInfo`: the port-out PIN of each number bought through Linedesk, made on first view and stored
 //   encrypted (SECRETS_KEY); the bill owner only, in the app (no impersonation, API key or setup link), with the owner
-//   step-up; never kept in the command log. `billing.recordPortOut` (instance admin) checks a request's PIN and emails
+//   step-up, and only for the workspaces they are a member of now; never kept in the command log. `billing.recordPortOut` (instance admin) checks a request's PIN and emails
 //   the bill owner and the workspace owner. Moving the number at the carrier is not automated (see docs/billing.md).
 // - `billing.handOver` (the bill owner, with the step-up) and #919's `billing.transferOwner` (an instance admin) name a new
 //   bill owner: a member of one of the bill's workspaces with a confirmed address.
@@ -273,12 +273,18 @@ async function cardOf(bill: Bill, now: number): Promise<TrialMinutesPrompt['card
   return card
 }
 
-/** The numbers of a bill's workspaces bought on Linedesk's carrier account: the ones Linedesk can port out. */
-async function portableNumbers(tx: Reader, billId: string) {
+/**
+ * The numbers of a bill's workspaces bought on Linedesk's carrier account (the ones Linedesk can port out), of the
+ * workspaces `userId` is a member of now. A bill owner who was removed from a workspace on their bill gets no PIN of its
+ * numbers: whoever runs that workspace now must not lose a number to someone outside it (decision of 2026-11-18, Janik;
+ * security review of #1235). Those numbers are left out, not listed without a PIN: nothing to act on there.
+ */
+async function portableNumbers(tx: Reader, billId: string, userId: string) {
   return tx
     .select({ id: phone_numbers.id, e164: phone_numbers.e164 })
     .from(phone_numbers)
     .innerJoin(organization, eq(organization.id, phone_numbers.workspace_id))
+    .innerJoin(member, and(eq(member.organizationId, organization.id), eq(member.userId, userId)))
     .where(
       and(
         eq(organization.billingAccountId, billId),
@@ -292,7 +298,10 @@ async function portableNumbers(tx: Reader, billId: string) {
 /** An 8-digit PIN. */
 const newPin = () => String(randomInt(0, 100_000_000)).padStart(8, '0')
 
-/** `billing.portOutInfo`: the bill owner, in the app, with the step-up; each number's PIN made on first view. */
+/**
+ * `billing.portOutInfo`: the bill owner, in the app, with the step-up; each number's PIN made on first view. Only the
+ * numbers of the bill's workspaces they are a member of now (portableNumbers).
+ */
 async function portOutInfo({
   tx,
   actor,
@@ -303,7 +312,7 @@ async function portOutInfo({
   const stepUp = await ownerStepUpNeeded(tx, actor)
   if (stepUp) return { rows: {}, data: { stepUp, numbers: [] } }
   const numbers: BillingPortOutData['numbers'] = []
-  for (const number of await portableNumbers(tx, bill.id)) {
+  for (const number of await portableNumbers(tx, bill.id, actor.actorId)) {
     await tx
       .insert(billing_numbers)
       .values({

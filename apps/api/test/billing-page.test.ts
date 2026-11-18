@@ -46,6 +46,8 @@ const cloud = vi.hoisted(() => ({
   invoicePages: [] as string[],
   /** Runs while the invoice page is fetched, before the handler's transaction (a change in between). */
   onInvoicePage: null as null | (() => Promise<void>),
+  /** Runs once when an action takes the provider, after its first read of the bill and before Stripe is asked. */
+  onProvider: null as null | (() => Promise<void>),
   /** Stripe has no payment page for the invoice right now. */
   noInvoicePage: false,
   /** What each subscription charges a seat, as Stripe has it (by subscription id); one not here is not known. */
@@ -111,7 +113,12 @@ vi.mock('../src/billing-settings.ts', async original => {
     ...real,
     billingState: async (...args: Parameters<typeof real.billingState>) =>
       cloud.on ? { ...(await real.billingState(...args)), inEffect: 'stripe' as const } : real.billingState(...args),
-    billingProvider: async () => provider,
+    billingProvider: async () => {
+      const hook = cloud.onProvider
+      cloud.onProvider = null
+      await hook?.()
+      return provider
+    },
   }
 })
 
@@ -122,6 +129,7 @@ beforeEach(() => {
   cloud.portal.length = 0
   cloud.invoicePages.length = 0
   cloud.onInvoicePage = null
+  cloud.onProvider = null
   cloud.noInvoicePage = false
   cloud.extraCalls.length = 0
   cloud.refuseExtraCalls = false
@@ -1264,5 +1272,87 @@ describe('busy lines and the add-on offer (LIN-450)', () => {
     } finally {
       vi.unstubAllEnvs()
     }
+  })
+})
+
+describe('a bill owner who is only a member of the workspace (LIN-400; security review of #1235)', () => {
+  /** b's bill owned by a plain member of b.ws (the workspace's owner stays its owner). */
+  async function memberOwned(b: Billed) {
+    const payer = await addMember(b.ws.id, 'member')
+    await db.update(billing_accounts).set({ owner_user_id: payer.userId }).where(eq(billing_accounts.id, b.billId))
+    return payer
+  }
+  /** A failed recharge of the bill: declined (a new attempt on Retry) or waiting for 3D Secure (its invoice page). */
+  async function failed(b: Billed, status: 'failed' | 'canceled') {
+    await db.insert(billing_recharges).values({
+      id: rid('rc'),
+      billing_account_id: b.billId,
+      amount_cents: 2000,
+      status,
+      failure_code: status === 'failed' ? 'authentication_required' : 'card_declined',
+      stripe_invoice_id: rid('in'),
+      created_at: at(Date.now() - 2 * DAY),
+      resolved_at: at(Date.now() - 2 * DAY),
+    })
+    await db
+      .update(billing_accounts)
+      .set({ recharge_failed_at: at(Date.now() - 2 * DAY) })
+      .where(eq(billing_accounts.id, b.billId))
+  }
+
+  test('Retry, auto-recharge, the cap, extra calls and the portal, like the owner; another member gets 403', async () => {
+    const b = await billed({}, 100)
+    await failed(b, 'canceled')
+    const payer = await memberOwned(b)
+    const other = await addMember(b.ws.id, 'member')
+    const changes = [
+      ['billing.retryRecharge', {}],
+      ['billing.setAutoRecharge', { on: false, thresholdCents: 1000, amountCents: 3000 }],
+      ['billing.setRechargeCap', { baseCents: 3000 }],
+      ['billing.setExtraCalls', { workspaceId: b.ws.id, extraCalls: 5 }],
+      ['billing.openPortal', {}],
+    ] as const
+    for (const [name, input] of changes) expect((await act(other, name, input)).status, name).toBe(403)
+    expect(cloud.portal).toEqual([])
+    expect(cloud.extraCalls).toEqual([])
+    expect((await billNow(b.billId)).recharge_failed_at).not.toBeNull()
+    expect((await act(payer, 'billing.retryRecharge', {})).body.data).toEqual({ kind: 'retrying' })
+    const off = await act(payer, 'billing.setAutoRecharge', changes[1][1])
+    expect(off.body.data).toMatchObject({ on: false, thresholdCents: 1000, amountCents: 3000 })
+    expect((await act(payer, 'billing.setRechargeCap', changes[2][1])).body.data).toMatchObject({ baseCents: 3000 })
+    expect((await act(payer, 'billing.setExtraCalls', changes[3][1])).body.data).toMatchObject({ extraCalls: 5 })
+    expect(cloud.extraCalls).toHaveLength(1)
+    expect((await act(payer, 'billing.openPortal', {})).status).toBe(200)
+    expect(cloud.portal).toHaveLength(1)
+    expect(await billNow(b.billId)).toMatchObject({
+      auto_recharge: false,
+      recharge_cap_base_cents: 3000,
+      recharge_failed_at: null,
+    })
+    // Their own changes: no email to the bill owner about them.
+    expect(queued.filter(j => j.name === BILLING_LIFECYCLE_EMAIL)).toEqual([])
+  })
+
+  test('handed over between the first read and Stripe: refused before Stripe is asked (portal, Retry)', async () => {
+    const portal = await billed()
+    const payer = await memberOwned(portal)
+    const handBack = (b: Billed) => async () => {
+      await db
+        .update(billing_accounts)
+        .set({ owner_user_id: b.ws.owner.userId })
+        .where(eq(billing_accounts.id, b.billId))
+    }
+    cloud.onProvider = handBack(portal)
+    expect((await act(payer, 'billing.openPortal', {})).status).toBe(403)
+    expect(cloud.onProvider).toBeNull()
+    expect(cloud.portal).toEqual([])
+
+    const retry = await billed({}, 100)
+    await failed(retry, 'failed')
+    const second = await memberOwned(retry)
+    cloud.onProvider = handBack(retry)
+    expect((await act(second, 'billing.retryRecharge', {})).status).toBe(403)
+    expect(cloud.onProvider).toBeNull()
+    expect(cloud.invoicePages).toEqual([])
   })
 })

@@ -23,6 +23,7 @@ import {
   organization,
   partner_members,
   partners,
+  personal_keys,
   phone_numbers,
   session,
   stripe_events,
@@ -59,7 +60,21 @@ import { setJobQueue } from '../src/jobs.ts'
 import { checkLedgerGuards } from '../src/ledger-guards.ts'
 import { postEntry } from '../src/ledger.ts'
 import { processStripeEventJob } from '../src/stripe-events.ts'
-import { act, addMember, agent, type Caller, createWorkspace, randomNumber, request, type User } from './helpers.ts'
+import { workspaceSetupActor } from '../src/agent-setup.ts'
+import { auth } from '../src/auth.ts'
+import {
+  act,
+  addMember,
+  agent,
+  appRequest,
+  type Caller,
+  createWorkspace,
+  FROM,
+  randomIp,
+  randomNumber,
+  request,
+  type User,
+} from './helpers.ts'
 // After the app (helpers.ts loads it): the sweep's module reaches the handler registry.
 const { sweepSignUps } = await import('../src/signup-handlers.ts')
 
@@ -989,6 +1004,213 @@ describe('a bill owner who is only a member of the workspace (decision of 2026-1
     expect((await billRow(bill.id)).owner_user_id).toBe(ws.owner.userId)
     expect((await act(payer, 'billing.cancel', {})).status).toBe(403)
     expect((await act(owner, 'billing.cancel', {})).status).toBe(200)
+  })
+})
+
+describe('a bill owner who is only a member: what does not come with it (security review of #1235)', () => {
+  /** A trial bill owned by a plain member of its workspace (the workspace's owner stays its owner). */
+  async function memberOwned() {
+    const t = await trialWith(rid('fp'))
+    const payer = await addMember(t.ws.id, 'member')
+    await db.update(billing_accounts).set({ owner_user_id: payer.userId }).where(eq(billing_accounts.id, t.bill.id))
+    expect((await act(payer, 'billing.state', {})).body.data.bill).toMatchObject({ status: 'trialing' })
+    return { ...t, payer }
+  }
+  const BILL_ACTIONS = [
+    ['billing.state', {}],
+    ['billing.overview', {}],
+    ['billing.cancel', {}],
+    ['billing.startTopUp', { amountCents: 2500 }],
+    ['billing.openPortal', {}],
+    ['billing.portOutInfo', {}],
+  ] as const
+  /** Every bill action refused to `who`, and Stripe never asked. */
+  async function refusedAll(who: Caller, label: string) {
+    const asked = stripe.requests.length
+    for (const [name, input] of BILL_ACTIONS)
+      expect((await act(who, name, input)).status, `${label}: ${name}`).toBe(403)
+    expect(stripe.requests.length, label).toBe(asked)
+  }
+
+  test('the owner of another bill, in a workspace on this one, gets 403 here', async () => {
+    const here = await trialWith(rid('fp'))
+    const elsewhere = await trialWith(rid('fp'))
+    await auth.api.addMember({
+      body: { userId: elsewhere.ws.owner.userId, organizationId: here.ws.id, role: 'member' },
+    })
+    await db
+      .update(session)
+      .set({ activeOrganizationId: here.ws.id })
+      .where(eq(session.userId, elsewhere.ws.owner.userId))
+    const visitor: Caller = { headers: { ...elsewhere.ws.owner.headers, 'x-workspace-id': here.ws.id } }
+    await refusedAll(visitor, 'another bill')
+    expect((await act(visitor, 'billing.handOver', { userId: elsewhere.ws.owner.userId })).status).toBe(403)
+    expect((await billRow(here.bill.id)).owner_user_id).toBe(here.ws.owner.userId)
+  })
+
+  test('in a disabled workspace: nothing, read only like everyone there', async () => {
+    const { ws, payer } = await memberOwned()
+    await db.update(organization).set({ disabledAt: new Date() }).where(eq(organization.id, ws.id))
+    await refusedAll(payer, 'disabled')
+  })
+
+  test('impersonated through a real session: nothing, the admin acts as a member', async () => {
+    const { payer } = await memberOwned()
+    const res = await appRequest('/v1/impersonation/start', {
+      method: 'POST',
+      headers: { ...operator.headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ userId: payer.userId, reason: 'Support ticket 1042' }),
+    })
+    expect(res.status).toBe(200)
+    const jar = new Map(
+      (operator.headers.cookie ?? '').split('; ').map(pair => [pair.slice(0, pair.indexOf('=')), pair] as const),
+    )
+    for (const line of res.headers.getSetCookie()) {
+      const [pair = ''] = line.split(';')
+      jar.set(pair.slice(0, pair.indexOf('=')), pair)
+    }
+    const as: Caller = { headers: { ...operator.headers, cookie: [...jar.values()].join('; ') } }
+    expect((await request(as, 'GET', '/v1/me')).body).toMatchObject({
+      actorId: payer.userId,
+      impersonation: { by: { id: operator.userId } },
+    })
+    await refusedAll(as, 'impersonated')
+    expect((await act(as, 'billing.handOver', { userId: payer.userId })).status).toBe(403)
+  })
+
+  test('with a personal key, an OAuth (MCP) key or a setup link: nothing', async () => {
+    const { ws, payer } = await memberOwned()
+    const made = await act(payer, 'personalKey.create', { name: 'Laptop CLI' })
+    expect(made.status).toBe(200)
+    const personal = made.body.data.key as string
+    const issued = await act(payer, 'personalKey.create', { name: 'Claude' })
+    expect(issued.status).toBe(200)
+    // As oauth.ts issues it to an MCP client: a personal key that names the client.
+    await db
+      .update(personal_keys)
+      .set({ oauth_client_id: 'https://claude.ai/oauth/mcp-client-metadata' })
+      .where(eq(personal_keys.id, issued.body.data.personalKeyId))
+    for (const [label, key] of [
+      ['personal key', personal],
+      ['OAuth key', issued.body.data.key as string],
+    ] as const) {
+      const holder: Caller = {
+        headers: { authorization: `Bearer ${key}`, [FROM]: randomIp(), 'x-workspace-id': ws.id },
+      }
+      expect((await request(holder, 'GET', '/v1/me')).body).toMatchObject({ actorId: payer.userId }) // the key works
+      await refusedAll(holder, label)
+    }
+    // A setup link: a member makes none, and one made with another role never acts as a member.
+    expect((await act(payer, 'agentSetup.createWorkspaceKey', {})).status).toBe(403)
+    expect(await workspaceSetupActor(payer.userId, rid('sk'), ws.id, 'member')).toBeNull()
+  })
+
+  test("the owner of a partner bill who is not that partner's owner: nothing, also when they own another partner", async () => {
+    const ws = await createWorkspace('Harbor Dental')
+    const partnerOwner = (await createWorkspace('Cascade IT Home')).owner
+    const payer = await addMember(ws.id, 'member')
+    const [bill] = await db
+      .insert(billing_accounts)
+      .values({ id: rid('bill'), kind: 'partner', owner_user_id: payer.userId, status: 'active' })
+      .returning()
+    await db
+      .update(organization)
+      .set({ billingAccountId: bill!.id, billingState: 'active' })
+      .where(eq(organization.id, ws.id))
+    const [cascade, other] = [rid('ptn'), rid('ptn')]
+    await db.insert(partners).values([
+      { id: cascade, name: 'Cascade IT', billing_account_id: bill!.id, created_by: partnerOwner.userId },
+      { id: other, name: 'Other IT', created_by: payer.userId },
+    ])
+    await db.insert(partner_members).values([
+      { partner_id: cascade, user_id: partnerOwner.userId, role: 'owner' },
+      { partner_id: cascade, user_id: payer.userId, role: 'admin' },
+      { partner_id: other, user_id: payer.userId, role: 'owner' },
+    ])
+    expect((await act(payer, 'billing.state', {})).status).toBe(403)
+    expect((await act(payer, 'billing.cancel', {})).status).toBe(403)
+    // Made the owner of this bill's partner (a partner has one owner): the bill is theirs to manage here.
+    await db
+      .update(partner_members)
+      .set({ role: 'admin' })
+      .where(and(eq(partner_members.partner_id, cascade), eq(partner_members.user_id, partnerOwner.userId)))
+    await db
+      .update(partner_members)
+      .set({ role: 'owner' })
+      .where(and(eq(partner_members.partner_id, cascade), eq(partner_members.user_id, payer.userId)))
+    expect((await act(payer, 'billing.state', {})).status).toBe(200)
+  })
+
+  test('the grant goes with the bill: gone after billing.transferOwner and after billing.moveWorkspace', async () => {
+    const reason = 'Customer asked on support ticket 4411'
+    const { ws, bill, payer } = await memberOwned()
+    const moved = await act(operator, 'billing.transferOwner', {
+      billingAccountId: bill.id,
+      userId: ws.owner.userId,
+      reason,
+    })
+    expect(moved.status).toBe(200)
+    await refusedAll(payer, 'after transferOwner')
+    // Theirs again, then the workspace moves to a bill someone else owns.
+    await db.update(billing_accounts).set({ owner_user_id: payer.userId }).where(eq(billing_accounts.id, bill.id))
+    expect((await act(payer, 'billing.state', {})).status).toBe(200)
+    const [target] = await db
+      .insert(billing_accounts)
+      .values({ id: rid('bill'), kind: 'cloud', owner_user_id: ws.owner.userId, status: 'comped' })
+      .returning()
+    const move = await act(operator, 'billing.moveWorkspace', {
+      workspaceId: ws.id,
+      toBillingAccountId: target!.id,
+      reason,
+      requestId: rid('req'),
+    })
+    expect(move.status, JSON.stringify(move.body)).toBe(200)
+    await refusedAll(payer, 'after moveWorkspace')
+  })
+
+  test('starts and confirms Checkout of a bill waiting for it, like its owner; another member gets 403', async () => {
+    const { ws, bill } = await pendingSignUp()
+    const payer = await addMember(ws.id, 'member')
+    await db.update(billing_accounts).set({ owner_user_id: payer.userId }).where(eq(billing_accounts.id, bill.id))
+    const other = await addMember(ws.id, 'member')
+    expect((await act(other, 'billing.startCheckout', ACCEPTED)).status).toBe(403)
+    await startCheckout(payer)
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    complete(sessionId, subscription((await billRow(bill.id)).stripe_customer_id!, { card: card(rid('fp')) }))
+    expect((await act(other, 'billing.confirmCheckout', { sessionId })).status).toBe(403)
+    expect((await act(payer, 'billing.confirmCheckout', { sessionId })).body.data).toMatchObject({
+      status: 'trialing',
+    })
+  })
+
+  test('handed over between the first read and Stripe: refused before Stripe is asked (cancel, Buy minutes)', async () => {
+    for (const [name, input] of [
+      ['billing.cancel', {}],
+      ['billing.startTopUp', { amountCents: 2500 }],
+    ] as const) {
+      const { ws, bill, payer } = await memberOwned()
+      const transaction = db.transaction.bind(db)
+      let handed = false
+      // Right after the action's first read of the bill, the bill is handed back to the workspace's owner.
+      vi.spyOn(db, 'transaction').mockImplementation((async (run: never, config?: never) => {
+        const result = await transaction(run, config)
+        const read = result as { id?: unknown; owner_user_id?: unknown } | null
+        if (!handed && read?.id === bill.id && read.owner_user_id === payer.userId) {
+          handed = true
+          await db
+            .update(billing_accounts)
+            .set({ owner_user_id: ws.owner.userId })
+            .where(eq(billing_accounts.id, bill.id))
+        }
+        return result
+      }) as never)
+      const asked = stripe.requests.length
+      expect((await act(payer, name, input)).status, name).toBe(403)
+      vi.mocked(db.transaction).mockRestore()
+      expect(handed, name).toBe(true)
+      expect(stripe.requests.length, name).toBe(asked)
+      expect((await billRow(bill.id)).cancel_at_period_end, name).toBe(false)
+    }
   })
 })
 

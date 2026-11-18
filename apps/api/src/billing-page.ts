@@ -54,7 +54,14 @@ import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { syncBillingCatalog } from './billing-catalog.ts'
 import { managesBill, tellBillOwner } from './bill-manager.ts'
-import { activationFacts, BUYS_MINUTES, ownBill, setupFailed, trialRefusalOf } from './billing-checkout.ts'
+import {
+  activationFacts,
+  BUYS_MINUTES,
+  ownBill,
+  setupFailed,
+  stillManages,
+  trialRefusalOf,
+} from './billing-checkout.ts'
 import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
@@ -889,6 +896,7 @@ const preparePortal: Preparer = async ({ actor }, input: { partnerId?: string })
   const bill = await db.transaction(tx => ownBill(tx, actor, { partnerId: input.partnerId }))
   if (!bill.stripe_customer_id) throw refuse('noCustomer')
   const provider = await billingProvider(db)
+  await stillManages(actor, bill.id, input.partnerId)
   const back = input.partnerId ? PARTNER_BILLING_URL() : billingPage(actor.workspaceId!)
   const url = await provider.portalSession({ customerId: bill.stripe_customer_id, returnUrl: back }).catch(setupFailed)
   return { billId: bill.id, url }
@@ -919,6 +927,7 @@ const prepareRetry: Preparer = async ({ actor }, input: { partnerId?: string }):
   const failed = await lastFailedAttempt(db, bill.id)
   if (!failed?.needsAction || !failed.stripe_invoice_id) return { billId: bill.id, confirm: null }
   const provider = await billingProvider(db)
+  await stillManages(actor, bill.id, input.partnerId)
   const url = await provider.rechargeInvoicePage(failed.stripe_invoice_id).catch(setupFailed)
   // No page (Stripe has none for it now): never a second charge instead, the owner tries again later.
   if (!url) throw refuse('invoicePageUnavailable')

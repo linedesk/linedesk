@@ -14,6 +14,7 @@ import {
   organization,
   partner_invitations,
   partner_members,
+  partners,
   passkey,
   user,
 } from '@linedesk/db'
@@ -279,8 +280,7 @@ export async function resolveCaller(
     own,
     extra,
   )
-  if (actor && !impersonation && (await ownsBillOf(actor, partnerAccess === 'owner')))
-    actor.permissions = [...actor.permissions, 'billing:manage']
+  if (actor && !impersonation && (await ownsBillOf(actor))) actor.permissions = [...actor.permissions, 'billing:manage']
   return actor ? { actor } : { missing: 'no_workspace' }
 }
 
@@ -289,17 +289,31 @@ export async function resolveCaller(
  * workspace role, since the rights come from the bill (decision of 2026-11-18, LIN-400; docs/billing.md §8). A member
  * who owns the bill reaches the billing actions, and each handler still asks managesBill. Only signed in as themselves
  * (never an impersonation; API keys, personal keys and setup links never come through here). A partner bill counts only
- * for the partner's owner, in a client workspace on that bill: nowhere else (security review of #1109, M-1).
+ * for the owner of that bill's partner (`partners.billing_account_id`), in a client workspace on that bill: nowhere
+ * else, and never for the owner of another partner (security review of #1109, M-1; of #1235).
  */
-async function ownsBillOf(actor: Actor, partnerOwner: boolean): Promise<boolean> {
+async function ownsBillOf(actor: Actor): Promise<boolean> {
   if (!actor.workspaceId || actor.workspaceDisabled || actor.permissions.includes('billing:manage')) return false
   const [row] = await db
-    .select({ kind: billing_accounts.kind })
+    .select({ id: billing_accounts.id, kind: billing_accounts.kind })
     .from(organization)
     .innerJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
     .where(and(eq(organization.id, actor.workspaceId), eq(billing_accounts.owner_user_id, actor.actorId)))
   if (!row) return false
-  return row.kind !== 'partner' || partnerOwner
+  if (row.kind !== 'partner') return true
+  const [owner] = await db
+    .select({ id: partners.id })
+    .from(partners)
+    .innerJoin(partner_members, eq(partner_members.partner_id, partners.id))
+    .where(
+      and(
+        eq(partners.billing_account_id, row.id),
+        eq(partner_members.user_id, actor.actorId),
+        eq(partner_members.role, 'owner'),
+      ),
+    )
+    .limit(1)
+  return !!owner
 }
 
 /**

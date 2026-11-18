@@ -21,6 +21,7 @@ import {
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { DUNNING, runDunning } from '../src/billing-lifecycle.ts'
+import { auth } from '../src/auth.ts'
 import { refuseDeletingBillOwners } from '../src/billing-owner.ts'
 import { BILLING_LIFECYCLE_EMAIL } from '../src/billing-periods.ts'
 import { db } from '../src/db.ts'
@@ -405,6 +406,33 @@ describe('port-out (billing.portOutInfo, billing.recordPortOut)', () => {
       .where(and(eq(commands.action, 'billing.portOutInfo'), eq(commands.actor_id, b.ws.owner.userId)))
     expect(logged.length).toBe(2)
     expect(JSON.stringify(logged)).not.toContain(pin)
+  })
+
+  test('only for the workspaces they are a member of now: removed from one, its PINs are gone (decision of 2026-11-18)', async () => {
+    // A bill of two workspaces, owned by a plain member of both.
+    const b = await billed()
+    const second = await createWorkspace('Brightwater North')
+    await db.update(organization).set({ billingAccountId: b.billId }).where(eq(organization.id, second.id))
+    const payer = await addMember(b.ws.id, 'member')
+    await auth.api.addMember({ body: { userId: payer.userId, organizationId: second.id, role: 'member' } })
+    await db.update(billing_accounts).set({ owner_user_id: payer.userId }).where(eq(billing_accounts.id, b.billId))
+    await db
+      .update(phone_numbers)
+      .set({ purchased: true })
+      .where(inArray(phone_numbers.e164, [b.ws.number, second.number]))
+    const inSecond: User = { ...payer, headers: { ...payer.headers, 'x-workspace-id': second.id } }
+    await db.update(session).set({ activeOrganizationId: second.id }).where(eq(session.userId, payer.userId))
+    const both = await act(inSecond, 'billing.portOutInfo', {})
+    expect(both.status).toBe(200)
+    expect(both.body.data.numbers.map((n: { e164: string }) => n.e164).sort()).toEqual(
+      [b.ws.number, second.number].sort(),
+    )
+    // Removed from the first workspace, still the bill's owner and a member of the second.
+    await db.delete(member).where(and(eq(member.userId, payer.userId), eq(member.organizationId, b.ws.id)))
+    const after = await act(inSecond, 'billing.portOutInfo', {})
+    expect(after.status).toBe(200)
+    expect(after.body.data.numbers).toEqual([expect.objectContaining({ e164: second.number })])
+    expect(JSON.stringify(after.body)).not.toContain(b.ws.number)
   })
 
   test('an old sign-in gets the step-up and no PIN; an admin of the workspace gets nothing', async () => {

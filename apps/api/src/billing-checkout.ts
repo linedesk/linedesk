@@ -222,6 +222,16 @@ export async function ownBill(
   return bill
 }
 
+/**
+ * Asked again right before Stripe is: the bill read fresh (no lock: Stripe is never asked inside a transaction), still
+ * the same one and still managed by the actor. A hand-over, a new owner or a move to another bill since the first read
+ * is refused before Stripe is touched (security review of #1235). The handler checks once more under its own read.
+ */
+export async function stillManages(actor: Actor, billId: string, partnerId?: string): Promise<void> {
+  const bill = await db.transaction(tx => ownBill(tx, actor, { partnerId }))
+  if (bill.id !== billId) throw new Reject('the bill changed; try again')
+}
+
 /** The bill of the actor's workspace (its id). */
 async function workspaceBillId(tx: Tx, actor: Actor): Promise<string> {
   if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
@@ -434,6 +444,7 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
   // A Cloud business outside the sign-up countries is told "not yet" before any card (served-countries.ts).
   if (bill.kind === 'cloud') await db.transaction(tx => refuseUnservedWorkspaces(tx, bill.id))
   const provider = await billingProvider(db)
+  await stillManages(actor, bill.id, input.partnerId)
   const configuration = await cardOnlyConfiguration(provider)
   const customerId = await customerOf(provider, bill)
   // One open Checkout per bill (security review of #961, G1): a second tab, or "Add card" again after going back, ends
@@ -821,6 +832,7 @@ async function creditTopUp(tx: Tx, bill: Bill, session: CheckoutSession, now: st
 const prepareConfirm: Preparer = async ({ actor }, input: { sessionId: string; partnerId?: string }) => {
   const bill = await db.transaction(tx => ownBill(tx, actor, { partnerId: input.partnerId }))
   const provider = await billingProvider(db)
+  await stillManages(actor, bill.id, input.partnerId)
   const session = await provider.checkoutSession(input.sessionId)
   if (!session) throw new NotFound(NO_SUCH_CHECKOUT)
   return { billId: bill.id, session }
@@ -953,9 +965,10 @@ async function buyWithSavedCard(
   provider: BillingProvider,
   actor: Actor,
   bill: Bill,
-  input: { amountCents: number; confirmCard?: string },
+  input: { amountCents: number; confirmCard?: string; partnerId?: string },
   ids: { commandId: string; now: string },
 ): Promise<SavedCardStep> {
+  const { partnerId } = input
   const id = purchaseIdOf(bill.id, ids.commandId)
   const [retried] = await db.select().from(billing_recharges).where(eq(billing_recharges.id, id))
   if (retried) return purchaseOutcome(provider, bill, retried)
@@ -967,6 +980,7 @@ async function buyWithSavedCard(
   if (input.confirmCard !== card.id)
     return { kind: 'confirm', card: { id: card.id, brand: card.brand ?? null, last4: card.last4 ?? null } }
   await requireOwnerStepUp(actor)
+  await stillManages(actor, bill.id, partnerId)
   const attempt = await db.transaction(async tx => {
     await requireLedgerGuards(tx)
     await lockBalance(tx, bill.id)
@@ -1067,6 +1081,7 @@ const prepareTopUp: Preparer = async (
       throw Reject.t('server.api.checkout.trialRechargeChanged')
   }
   const provider = await billingProvider(db)
+  await stillManages(actor, bill.id, input.partnerId)
   let fallback: SavedCardFallback | undefined
   if (input.savedCard) {
     const step = await buyWithSavedCard(provider, actor, bill, input, { commandId, now })
@@ -1081,6 +1096,7 @@ const prepareTopUp: Preparer = async (
   }
   // A purchase still running (no answer from Stripe yet) is not paid for a second time in Checkout (review L-2).
   if (await pendingPayment(bill.id)) throw Reject.t('server.api.checkout.paymentRunning')
+  if (input.savedCard) await stillManages(actor, bill.id, input.partnerId)
   const configuration = await cardOnlyConfiguration(provider)
   const rules = await billingRules(db)
   const started = await provider
@@ -1122,6 +1138,7 @@ const prepareCancel =
     if (!bill.stripe_subscription_id || !CANCELS.includes(bill.status))
       throw Reject.t('server.api.checkout.noRunningPlan')
     const provider = await billingProvider(db)
+    await stillManages(actor, bill.id, input.partnerId)
     const sub = resume
       ? await provider.resumeSubscription(bill.stripe_subscription_id)
       : await provider.cancelSubscription(bill.stripe_subscription_id, { now: false })
