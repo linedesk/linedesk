@@ -23,7 +23,7 @@ import type {
 import { BUSY_WINDOW_DAYS, TOPUP_CENTS } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
 import { useFormat, useT } from '@linedesk/i18n/react'
-import { createContext, useContext, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { PASSKEY_STEP_UP_REQUIRED, StepUpRequired, withPasskeyStepUp } from '../admin/PasskeyStepUp.tsx'
 import { auth } from '../auth.ts'
 import { refreshQuery, setQueryData, useQuery } from '../cachedQuery.ts'
@@ -250,11 +250,12 @@ function BillingPage({
   return (
     <>
       <PlanCard bill={bill} state={state} toPay={toPay} toast={toast} />
-      {pays && <CallsCard bill={bill} toast={toast} />}
       {(pays || bill.balanceMicros !== 0) && <BalanceCard bill={bill} payFirst={toPay.length > 0} toast={toast} />}
       {pays && <AutoRechargeCard bill={bill} toast={toast} />}
       <UsageCard bill={bill} />
       <InvoicesCard bill={bill} toast={toast} />
+      {/* Rarely changed, so last (2026-11-18); the busy-line link scrolls down to it. */}
+      {pays && <CallsCard bill={bill} toast={toast} />}
     </>
   )
 }
@@ -562,6 +563,12 @@ function CallsCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: s
     if (!w || w.extraCalls + calls.step > calls.maxExtra) return null
     return { workspaceId: w.workspaceId, name: w.name, from: w.extraCalls, to: w.extraCalls + calls.step }
   })
+  // The card is the page's last: opened from the busy-line link, the page goes down to it, so it is in view once the
+  // dialog closes.
+  const [fromLink] = useState(() => asking !== null)
+  useEffect(() => {
+    if (fromLink) document.getElementById('billing-calls')?.scrollIntoView({ block: 'start' })
+  }, [fromLink])
   const price = (extra: number) => money(extra * calls.extraCallCents)
   const editable = changesRecharge(bill)
   // A partner bill names each client workspace, also its only one: never "Your assistant answers".

@@ -565,6 +565,16 @@ test('calls at the same time: 5 included per workspace, 5 more for $5 a month, n
   )
 })
 
+test('calls at the same time come last: plan, balance, auto-recharge, usage, invoices, then calls (2026-11-18)', () => {
+  const order = (html: string) =>
+    ['plan', 'balance', 'auto', 'usage', 'invoices', 'calls'].map(id => html.indexOf(`id="billing-${id}"`))
+  const inOrder = (at: number[]) => at.every((x, i) => x >= 0 && (i === 0 || x > at[i - 1]!))
+  expect(inOrder(order(render({ billingOn: true, bill: bill() })))).toBe(true)
+  expect(inOrder(order(render({ billingOn: true, bill: bill({ interval: 'year' }) })))).toBe(true)
+  expect(inOrder(order(render({ billingOn: true, bill: bill({ kind: 'partner', clientSeatCents: 1100 }) })))).toBe(true)
+  expect(inOrder(order(render({ billingOn: true, bill: bill({ status: 'trialing' }) })))).toBe(true)
+})
+
 test('calls at the same time: callers who got a busy line show next to the workspace, none when there were none', () => {
   expect(render({ billingOn: true, bill: bill() })).not.toContain('busy line')
   const busy = bill({
