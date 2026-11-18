@@ -4,6 +4,7 @@ vi.mock('../admin/api.ts', () => ({ runAdmin: vi.fn(async () => ({})) }))
 const {
   agentSetupWayBack,
   backToAgentSetup,
+  checkoutReturnSetup,
   choseManualSetup,
   ownerAgentSetupDue,
   openPartnerActivate,
@@ -123,6 +124,27 @@ describe("a workspace owner's setup: the agent first, by hand as the alternative
     expect(ownerChoseByHand('ws_2', false)).toBe(false)
     rememberOwnerByHand('ws_1', false)
     expect(ownerChoseByHand('ws_1', false)).toBe(false)
+  })
+
+  it("shows the Checkout's answer in the shell the trial was started from: the agent page's, or the steps' by hand", () => {
+    const pending = {
+      ...owner,
+      workspace: { ...owner.workspace, billingState: 'pending_payment', activation: { trialDays: 14 } },
+    }
+    const setup = (
+      me: Record<string, unknown> | null,
+      more: Partial<{ instanceAdmin: boolean; byHand: boolean }> = {},
+    ) => checkoutReturnSetup(me as never, { instanceAdmin: false, byHand: false, ...more })
+    expect(setup(pending)).toEqual({ inSetup: true, shell: 'agent', planOnly: false })
+    expect(setup(pending, { byHand: true })).toEqual({ inSetup: true, shell: 'steps', planOnly: false })
+    // An admin of the workspace has no agent page: the steps.
+    expect(setup({ ...pending, role: 'admin' }).shell).toBe('steps')
+    // No free trial for this bill: the step was "Start your plan".
+    const noTrial = { ...pending, workspace: { ...pending.workspace, activation: { trialDays: null } } }
+    expect(setup(noTrial)).toEqual({ inSetup: true, shell: 'agent', planOnly: true })
+    // Minutes bought from Settings, or no session: no setup around the answer.
+    expect(setup({ ...pending, workspace: { ...pending.workspace, billingState: 'active' } }).inSetup).toBe(false)
+    expect(setup(null)).toEqual({ inSetup: false, shell: 'steps', planOnly: false })
   })
 })
 

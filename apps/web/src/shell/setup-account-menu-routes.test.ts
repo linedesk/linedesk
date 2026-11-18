@@ -21,9 +21,9 @@ const SETUP_SCREENS: Record<string, string> = {
   'onboarding/AgentSetup.tsx': '<SetupTopBar',
   'partner/PartnerAgentSetup.tsx': '<AgentSetup',
   'settings/ChangeWithAgent.tsx': '<AgentSetup',
-  // Self-hosted first run: the install walkthrough by hand.
+  // Self-hosted first run: the install walkthrough by hand and the start page (#start).
   'onboarding/InstallSetup.tsx': '<SetupTopBar',
-  'onboarding/AdminStart.tsx': '<SignedInAuthPage',
+  'onboarding/AdminStart.tsx': '<SetupTopBar',
   // A white-label partner: the guided setup by hand (#partner/setup) and the partner area (#partner).
   'partner/PartnerSetup.tsx': '<SetupTopBar',
   'partner/PartnerArea.tsx': '<SetupTopBar',

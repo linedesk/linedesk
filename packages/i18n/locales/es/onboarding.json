@@ -41,7 +41,6 @@
   "adminStart.checkTip": "Confirma que eres tú con tu llave de acceso",
   "adminStart.checkTipEmail": "Confirma tu correo electrónico con un código",
   "adminStart.nameAnyway": "Igual puedes ponerle nombre a tu negocio ahora.",
-  "adminStart.otherAccount": "Usar otra cuenta",
   "adminStart.partsFirst": "Primero van las partes del servidor: correo electrónico, atención de llamadas, operador telefónico y audio de las llamadas.",
   "adminStart.partsFirstButton": "Configurar el servidor a mano",
   "adminStart.partsFirstTip": "Haz tú mismo los pasos de configuración del servidor",

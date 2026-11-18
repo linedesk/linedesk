@@ -9,10 +9,11 @@ import { type ProviderFailure, providerFailureReasonKeys } from './provider-heal
 import { pipelineFor, type VoicePipeline } from './settings.ts'
 import { english, type Words } from './words.ts'
 
+// The four a first call needs come first, in the install's order (install-setup.ts installParts).
 export const providerGroupIds = [
   'email',
-  'telephony',
   'answering',
+  'telephony',
   'call-audio',
   'sign-in',
   'calendar',
@@ -55,18 +56,18 @@ export const providerGroups: readonly ProviderGroupSpec[] = [
     whyKey: msg('admin.provider.group.email.why'),
   },
   {
-    id: 'telephony',
-    labelKey: msg('admin.provider.group.telephony.label'),
-    needed: true,
-    categories: ['telephony'],
-    whyKey: msg('admin.provider.group.telephony.why'),
-  },
-  {
     id: 'answering',
     labelKey: msg('admin.provider.group.answering.label'),
     needed: true,
     categories: ['realtime', ...STAGE_CATEGORIES],
     whyKey: msg('admin.provider.group.answering.why'),
+  },
+  {
+    id: 'telephony',
+    labelKey: msg('admin.provider.group.telephony.label'),
+    needed: true,
+    categories: ['telephony'],
+    whyKey: msg('admin.provider.group.telephony.why'),
   },
   {
     id: 'call-audio',

@@ -160,9 +160,9 @@ export type SetupStepName = { label: string; hint?: string }
 
 /** The steps setupStepNames names, in its order, and whether each has a hint. */
 const NAMED_STEPS = [
+  ['email', true],
   ['answering', true],
   ['telephony', true],
-  ['email', true],
   ['call-audio', true],
   // One row for the person's business (Janik, 2026-11-15): its name and time zone together with what the assistant
   // knows about it, never two rows for what is one thing to them.

@@ -291,6 +291,21 @@ function StartTrialDialog({
   const t = useT()
   // Back from Checkout: this page again (the owner did not choose by hand).
   const trial = useStartTrial(me, activation, onTermsChanged, { byHand: false })
+  const canStart = Boolean(activation.terms) && !trial.busy
+  // Enter starts it, as on the onboarding's step (⏎ on the button); a focused button or link keeps its own Enter.
+  const startRef = useRef(trial.start)
+  startRef.current = trial.start
+  useEffect(() => {
+    if (!canStart) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Enter' || e.isComposing || e.defaultPrevented || e.shiftKey || e.metaKey || e.ctrlKey) return
+      if ((document.activeElement as HTMLElement | null)?.matches('button, a, summary, input, textarea, select')) return
+      e.preventDefault()
+      void startRef.current()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [canStart])
   return (
     <Dialog
       title={trial.title}
@@ -304,7 +319,8 @@ function StartTrialDialog({
             variant="primary"
             busy={trial.busy}
             disabled={!activation.terms}
-            title={t('onboarding.activate.cardHint')}
+            shortcut={canStart ? ['⏎'] : undefined}
+            className="as-enter"
             onClick={() => void trial.start()}
           >
             {trial.label}
@@ -313,6 +329,7 @@ function StartTrialDialog({
       }
     >
       <ActivatePlan activation={activation} trial={trial} />
+      <p className="as-dialog-hint">{t('onboarding.activate.cardHint')}</p>
     </Dialog>
   )
 }

@@ -106,8 +106,8 @@ describe('states', () => {
     const body = await checklist()
     expect(body.groups.map(g => [g.id, g.state])).toEqual([
       ['email', 'missing'],
-      ['telephony', 'missing'],
       ['answering', 'missing'],
+      ['telephony', 'missing'],
       ['call-audio', 'missing'],
       ['sign-in', 'off'],
       ['calendar', 'off'],

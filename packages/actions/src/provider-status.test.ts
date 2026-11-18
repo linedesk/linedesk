@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest'
+import { installParts } from './install-setup.ts'
 import {
   groupOfCategory,
   groupOfProvider,
@@ -45,11 +46,11 @@ const input = (facts: ProviderFact[], extra: Partial<StatusInput> = {}): StatusI
 const group = (i: StatusInput, id: string) => statusGroups(i).groups.find(g => g.id === id)!
 
 describe('groups', () => {
-  test('the same order and ids everywhere; needed for calls: email, carrier, answering, call audio', () => {
+  test('the same order and ids everywhere; needed for calls: email, answering, carrier, call audio', () => {
     expect(providerGroups.map(g => g.id)).toEqual([
       'email',
-      'telephony',
       'answering',
+      'telephony',
       'call-audio',
       'sign-in',
       'calendar',
@@ -60,12 +61,8 @@ describe('groups', () => {
       'domains',
       'billing',
     ])
-    expect(providerGroups.filter(g => g.needed).map(g => g.id)).toEqual([
-      'email',
-      'telephony',
-      'answering',
-      'call-audio',
-    ])
+    // The install's own order (installParts): the walkthrough, the agent page and setup_status show them so too.
+    expect(providerGroups.filter(g => g.needed).map(g => g.id)).toEqual([...installParts])
   })
 
   test('every provider is in exactly one group to manage it, and old category links find their group', () => {
@@ -138,8 +135,8 @@ describe('statusGroups', () => {
     const { groups, ready } = statusGroups(input([], { callAudio: undefined }))
     expect(groups.map(g => [g.id, g.state])).toEqual([
       ['email', 'missing'],
-      ['telephony', 'missing'],
       ['answering', 'missing'],
+      ['telephony', 'missing'],
       ['call-audio', 'checking'],
       ['sign-in', 'off'],
       ['calendar', 'off'],

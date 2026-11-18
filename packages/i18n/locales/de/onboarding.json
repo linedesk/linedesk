@@ -41,7 +41,6 @@
   "adminStart.checkTip": "Mit deinem Passkey bestätigen, dass du es bist",
   "adminStart.checkTipEmail": "Deine E-Mail-Adresse mit einem Code bestätigen",
   "adminStart.nameAnyway": "Den Namen deines Unternehmens kannst du trotzdem schon eintragen.",
-  "adminStart.otherAccount": "Anderes Konto verwenden",
   "adminStart.partsFirst": "Zuerst kommen die Bausteine des Servers: E-Mail, Anrufannahme, Telefonanbieter und Anruf-Audio.",
   "adminStart.partsFirstButton": "Server selbst einrichten",
   "adminStart.partsFirstTip": "Die Einrichtungsschritte des Servers selbst durchgehen",

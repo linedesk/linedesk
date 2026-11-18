@@ -3,16 +3,24 @@
 // - join a workspace they are invited to (a skipped invitation stays here until it is answered);
 // - name their own business, if they are a server admin (only server admins create workspaces; self-serve creation
 //   comes with billing), after the passkey check; everyone else waits for a server admin to add them;
-// - open Account settings, which need no workspace, or sign out ("Use a different account");
+// - open Account settings, which need no workspace, or sign out (the account menu; "Use a different account" while
+//   waiting to be added);
 // - a server admin opens Server admin, which needs no workspace. Right after setting up the server they land on
 //   "Name your business" too (the first workspace), with Server admin one click away; once they have a workspace, /
 //   opens it.
+
 import { type ReactNode, useEffect, useState } from 'react'
 import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { auth, isInstanceAdmin, type Me } from './auth.ts'
 import { AdminStart } from './onboarding/AdminStart.tsx'
-import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from './onboarding/AgentSetup.tsx'
+import {
+  AgentSetup,
+  choseManualSetup,
+  isAgentSetupHash,
+  openAgentSetup,
+  rememberManual,
+} from './onboarding/AgentSetup.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { AccountSettings } from './settings/account/index.tsx'
 import { PARTNER_AGENT_HASH } from './onboarding/setup-choice.ts'
@@ -89,6 +97,8 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
   const [invitations, setInvitations] = useState<PendingInvitation[] | null>(null)
   // A new install: its first admin sets it up with an AI agent first, unless they chose to do it by hand.
   const [manualSetup, setManualSetup] = useState(false)
+  // The install walkthrough was left in this tab (finished or set aside): by hand goes on to naming the business.
+  const [installLeft, setInstallLeft] = useState(false)
   useEffect(() => {
     void loadInvitations().then(setInvitations)
   }, [])
@@ -112,11 +122,17 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
     if (me.adminSecondFactor) return <SecondFactorPrompt state={me.adminSecondFactor} onExit={leave} />
     return (
       <InstallSetup
+        // "Set up with an AI agent" on its steps: back to the agent setup page, which goes on from what is saved.
+        onAgentSetup={() => {
+          setManualSetup(false)
+          openAgentSetup()
+        }}
         onExit={() => {
           // Opened by its link or from Server admin › Overview: leaving it goes on to naming the business, not the
           // agent page.
           rememberManual(true)
           setManualSetup(true)
+          setInstallLeft(true)
           leave()
         }}
       />
@@ -147,6 +163,12 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
         onDone={() => {
           if (isAgentSetupHash(hash)) leave()
           onDone()
+        }}
+        // Finish later, as on the owner's and the partner's agent pages: on by hand, from the start page.
+        onLater={() => {
+          rememberManual(true)
+          setManualSetup(true)
+          leave()
         }}
         onWorkspaceReady={onDone}
       />
@@ -185,6 +207,7 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
         lostWorkspace={lostWorkspace}
         byHandFirst={choseManualSetup(me, manualSetup)}
         secondFactor={me.adminSecondFactor ?? null}
+        installLeft={installLeft}
         onInstallByHand={() => {
           rememberManual(true)
           window.location.hash = INSTALL_SETUP_HASH

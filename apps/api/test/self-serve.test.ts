@@ -1153,7 +1153,7 @@ describe("the owner's agent setup link before the trial (agent-first, 2026-11-18
     mcp(key, 'tools/call', { name, arguments: args })
   const errorText = (res: { body: { result: { isError?: boolean; content: { text: string }[] } } }) =>
     res.body.result.isError ? res.body.result.content[0]!.text : null
-  type Step = { id: string; state: string; how?: string[] }
+  type Step = { id: string; label: string; state: string; how?: string[] }
   const stepsOf = async (key: string, readOnly = true): Promise<Step[]> =>
     (await tool(key, 'setup_status', { read_only: readOnly })).body.result.structuredContent.workspaces[0].steps
 
@@ -1216,6 +1216,29 @@ describe("the owner's agent setup link before the trial (agent-first, 2026-11-18
     // Reading the status never moved the onboarding past `activate`.
     const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
     expect(row?.onboarding_step).toBe('activate')
+  })
+
+  test('once the trial (or the plan) started, its row stays as done: the count goes on, never one row fewer', async () => {
+    const { key, workspaceId, billId } = await waitingWithLink()
+    const before = (await stepsOf(key)).map(s => s.id)
+    // As a confirmed Checkout leaves the bill and the workspace.
+    const started = async (set: Partial<typeof billing_accounts.$inferInsert>) => {
+      await db
+        .update(billing_accounts)
+        .set({ checkout_confirmed_at: new Date().toISOString(), ...set })
+        .where(eq(billing_accounts.id, billId))
+      await db.update(organization).set({ billingState: 'active' }).where(eq(organization.id, workspaceId))
+    }
+    await started({ status: 'trialing', trial_ends_at: '2026-12-01T00:00:00Z' })
+    const steps = await stepsOf(key)
+    expect(steps.map(s => s.id)).toEqual(before)
+    expect(steps.find(s => s.id === 'activate')).toMatchObject({ state: 'done', label: 'Start your free trial' })
+    // Without a trial (the card had one): the plan's row, done as well.
+    await started({ status: 'active', trial_ends_at: null, trial_refused: 'card_used' })
+    expect((await stepsOf(key)).find(s => s.id === 'activate')).toMatchObject({
+      state: 'done',
+      label: 'Start your plan',
+    })
   })
 
   test('refused for the link while waiting: a number, a real call, going past activate, Checkout', async () => {

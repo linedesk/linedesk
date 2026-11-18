@@ -1,9 +1,10 @@
 import type { AgentSetupState } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import {
   AgentEndedNote,
   NEW_WORKSPACE,
+  openWorkspaceFromHere,
   partnerOrder,
   ProgressSkeleton,
   StepAction,
@@ -12,6 +13,7 @@ import {
   WorkspaceHeading,
   workspaceOptions,
 } from './AgentSetup.tsx'
+import { draftOpenedFrom } from './flow.ts'
 import type { ResumeAction } from './resume-after-switch.ts'
 
 type Step = AgentSetupState['progress']['steps'][number]
@@ -219,4 +221,32 @@ test('Add client on a partner page: greyed at the draft cap before Checkout, say
   const full = row(clients, null, null, { onAddClient: () => {}, clientsFull: true })
   expect(full).toContain('disabled=""')
   expect(full).toContain('You can add more after you activate.')
+})
+
+test("a client draft opened from the partner's agent page comes back there at its last step, not to the partner area", async () => {
+  const memory = new Map<string, string>()
+  vi.stubGlobal('sessionStorage', {
+    getItem: (k: string) => memory.get(k) ?? null,
+    setItem: (k: string, v: string) => memory.set(k, v),
+  })
+  try {
+    const open = vi.fn(async () => {})
+    await openWorkspaceFromHere('ws_draft', '#partner/agent', open)
+    expect(open).toHaveBeenCalledWith('ws_draft', null)
+    expect(draftOpenedFrom('ws_draft')).toBe('#partner/agent')
+    // From an owner's or the install's page: nothing partner-like to go back to.
+    await openWorkspaceFromHere('ws_own', '#setup-agent', open)
+    expect(draftOpenedFrom('ws_own')).toBeNull()
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+test("a partner's Team row offers Invite, which opens the partner area's team; never for a client or once done", () => {
+  const team = (state: Step['state']): Step => ({ id: 'team', label: 'Team', group: 'partner', state })
+  const invite = row(team('todo'), workspace, null, { activatePartnerId: 'p_1' })
+  expect(invite).toMatch(/k-btn-secondary[^>]*>.*Invite/)
+  expect(invite).toContain('Invite your team in the partner area')
+  expect(row(team('done'), workspace, null, { activatePartnerId: 'p_1' })).not.toContain('Invite')
+  expect(row(team('todo'), workspace, null)).not.toContain('>Invite')
 })

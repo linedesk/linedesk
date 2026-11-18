@@ -26,36 +26,37 @@
 // bill) or the bill; those are the owner's rows on the partner's agent page. Its own instructions
 // (SETUP_MCP_PARTNER_INSTRUCTIONS).
 import {
-  abroadWarning,
-  english,
   type ActionDef,
+  abroadWarning,
   actions,
   callAudioGuideIn,
   canBuyNumbersIn,
+  categoryNames,
+  countryNamed,
   type DialCode,
+  english,
   type ForwardingGuide,
   type ForwardingMode,
   forwardingCountries,
   forwardingInstructions,
+  type GroupStatus,
+  groupText,
   guidesForCountry,
   hasForwardingCountry,
-  OTHER_COUNTRY,
-  type GroupStatus,
+  installParts,
   installPlace,
   isMultiCategory,
   LOCAL_INSTALL_NOTE,
   moneyCategories,
   NUMBER_BUY_COUNTRIES,
+  OTHER_COUNTRY,
+  onboardingSteps,
   oneKey,
   oneKeyIn,
-  onboardingSteps,
-  rolePermissions,
   type ProviderCategory,
   type ProviderName,
-  categoryNames,
   providerCategoryLabel,
   providerGroupIds,
-  groupText,
   providerGroups,
   providerGuide,
   providerHelp,
@@ -63,22 +64,23 @@ import {
   REALTIME_VOICE_IDS,
   recommendedProviders,
   restartCategories,
+  rolePermissions,
   SETUP_MCP_INSTRUCTIONS,
-  setupMcpPartnerInstructions,
   SETUP_MCP_WORKSPACE_INSTRUCTIONS,
-  searchForwardingGuides,
-  statusText,
   type SetupStepGroup,
   type SetupStepName,
+  searchForwardingGuides,
+  setupMcpPartnerInstructions,
   setupStepNames,
   setupStepNamesIn,
+  statusText,
+  UNPAID_PARTNER_CLIENTS,
   type Words,
   type WorkspaceCreateData,
-  countryNamed,
-  UNPAID_PARTNER_CLIENTS,
 } from '@linedesk/actions'
 import {
   assistants,
+  billing_accounts,
   calls,
   member,
   member_notification_settings,
@@ -236,6 +238,7 @@ const answer = (data: Record<string, unknown>, actor?: Actor): ToolResult => {
   const text = forAgent(JSON.stringify(data), notServerLink(actor))
   return { content: [{ type: 'text', text }], structuredContent: JSON.parse(text) }
 }
+
 // The setup link cap (SETUP_LINK_WORKSPACE_CAP) and its count: workspace-creation.ts. workspace.create enforces it in the
 // creating transaction (workspace-creation-handlers.ts); the check here only answers early.
 export { SETUP_LINK_WORKSPACE_CAP }
@@ -471,7 +474,7 @@ const callAudioLines = () => [
 ]
 
 /** The install's own steps (provider groups a first call needs); when all are done, the setup by hand is finished. */
-const INSTALL_GROUP_STEPS: readonly string[] = ['answering', 'telephony', 'email', 'call-audio']
+const INSTALL_GROUP_STEPS: readonly string[] = installParts
 
 /** Whether the install's own part is done: its provider steps by id. */
 export const installPartDone = (steps: readonly Pick<Step, 'id' | 'state'>[]) =>
@@ -494,6 +497,11 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
   // Once per server: the providers a first call needs. The admin's passkey is no step: making the setup link needed it.
   const steps: Step[] = [
     ...inGroup('server', [
+      groupStep(group('email'), [
+        ...guideLines(recommendedProviders.email),
+        'Ask for the From address too (an address on the domain verified with the mail service) and store it with the key: values { api_key, from }.',
+        'Once the test passes: provider_tryOut { kind: "email" } sends a six-digit code to the admin\'s own address; ask them for it in the chat and call provider_confirmEmail { code }. That proves delivery end to end.',
+      ]),
       groupStep(
         group('answering'),
         [
@@ -507,11 +515,6 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
         'ai',
       ),
       groupStep(group('telephony'), [...guideLines(recommendedProviders.telephony), ...devNumberLine()]),
-      groupStep(group('email'), [
-        ...guideLines(recommendedProviders.email),
-        'Ask for the From address too (an address on the domain verified with the mail service) and store it with the key: values { api_key, from }.',
-        'Once the test passes: provider_tryOut { kind: "email" } sends a six-digit code to the admin\'s own address; ask them for it in the chat and call provider_confirmEmail { code }. That proves delivery end to end.',
-      ]),
       groupStep(group('call-audio'), callAudioLines(), 'livekit'),
     ]),
   ]
@@ -895,6 +898,27 @@ function whereItRuns() {
 }
 
 /**
+ * A Cloud sign-up's own trial or plan that started (its Checkout confirmed, docs/billing.md §3.2): `trial` when it got
+ * the free trial. Null for every other workspace (self-hosted, a partner's client, one an instance admin made).
+ */
+async function ownStartOf(workspaceId: string): Promise<{ trial: boolean } | null> {
+  const [row] = await db
+    .select({
+      partnerId: organization.partnerId,
+      state: organization.billingState,
+      kind: billing_accounts.kind,
+      confirmedAt: billing_accounts.checkout_confirmed_at,
+      trialEndsAt: billing_accounts.trial_ends_at,
+      refused: billing_accounts.trial_refused,
+    })
+    .from(organization)
+    .innerJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
+    .where(eq(organization.id, workspaceId))
+  if (!row || row.partnerId || row.kind !== 'cloud' || row.state === 'pending_payment' || !row.confirmedAt) return null
+  return { trial: row.trialEndsAt !== null && row.refused === null }
+}
+
+/**
  * The steps as the setup page names them, in the reader's language (`words`): setup_status names them in English for the
  * agent. The same names in the same places: a partner's own steps, a client workspace's steps about the client, the
  * install's and a business's own; a step without a name of its own keeps its label.
@@ -905,7 +929,14 @@ async function pageStepNames(actor: Actor, workspaceId: string | null, steps: St
   const facts = actor.setupPartnerId ? await partnerSetupFacts(actor.setupPartnerId) : null
   const business = client ? clientStepNamesIn(words) : setupStepNamesIn(words)
   const partner = facts ? partnerStepNamesIn(words, facts) : {}
+  const startPlan = english.t('onboarding.steps.activatePlan')
   return steps.map(step => {
+    // The trial's row: "Start your free trial", or "Start your plan" without a trial.
+    if (step.id === 'activate')
+      return {
+        ...step,
+        label: words.t(step.label === startPlan ? 'onboarding.steps.activatePlan' : 'onboarding.steps.activate'),
+      }
     const name = step.group === 'partner' ? partner[step.id] : business[step.id]
     if (!name) return step
     const { hint: _hint, ...rest } = step
@@ -1110,6 +1141,8 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   // A white-label partner's draft client workspace (setup before payment, 2026-11-18): set up like any, but its number
   // waits for the partner's Checkout (the partner's Activate row), not a trial of its own.
   const waitingForPartner = !waitingForTrial && (await isPendingPayment(db, workspaceId))
+  // Once that trial (or plan) started, its row stays as done: the count goes on (4 of 7 → 7 of 7), never one row fewer.
+  const started = waitingForTrial ? null : await ownStartOf(workspaceId)
   const freeStepsDone = businessDone && assistantDone && pickupDone && notifyDone
   // On Ultra the assistant speaks in the realtime model's voices, not one of the voice provider's (like Assistant settings).
   const realtime = assistant?.call_quality === 'ultra' && (await pipelinesSetUp(db)).realtime
@@ -1210,7 +1243,16 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
             ],
           } satisfies StepBase,
         ]
-      : []),
+      : started
+        ? [
+            {
+              id: 'activate',
+              label: english.t(started.trial ? 'onboarding.steps.activate' : 'onboarding.steps.activatePlan'),
+              state: 'done',
+              how: [],
+            } satisfies StepBase,
+          ]
+        : []),
     {
       id: 'phone',
       label: 'A phone number for the assistant',

@@ -41,7 +41,6 @@
   "adminStart.checkTip": "パスキーで本人確認をします",
   "adminStart.checkTipEmail": "コードでメールアドレスを確認します",
   "adminStart.nameAnyway": "ビジネス名は今すぐ入力できます。",
-  "adminStart.otherAccount": "別のアカウントを使う",
   "adminStart.partsFirst": "まずサーバーの構成要素を設定します。メール、通話応答、通信事業者、通話音声です。",
   "adminStart.partsFirstButton": "サーバーを手動でセットアップ",
   "adminStart.partsFirstTip": "サーバーのセットアップ手順を自分で進めます",

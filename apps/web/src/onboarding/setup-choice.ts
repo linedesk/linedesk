@@ -66,6 +66,24 @@ export function ownerAgentSetupDue(
   return hashOpen || (Boolean(me.onboarding) && !byHand)
 }
 
+/**
+ * How the answer to a setup's Checkout (CheckoutReturn.tsx) shows for a business owner. Inside the setup while the
+ * workspace waited for it (`inSetup`), as the Start trial step's result; in the shell it was started from: the agent
+ * page's (`'agent'`) when the owner did not choose by hand, else the by-hand steps'. `planOnly`: no free trial for this
+ * bill, so the step was "Start your plan".
+ */
+export function checkoutReturnSetup(
+  me: Pick<Me, 'role' | 'onboarding' | 'impersonation' | 'emailUnconfirmed' | 'workspace'> | null,
+  { instanceAdmin, byHand }: { instanceAdmin: boolean; byHand: boolean },
+): { inSetup: boolean; shell: 'steps' | 'agent'; planOnly: boolean } {
+  const viaAgent = !!me && ownerAgentSetupDue(me, { instanceAdmin, hashOpen: false, byHand })
+  return {
+    inSetup: !!me?.onboarding && me.workspace?.billingState === 'pending_payment',
+    shell: viaAgent ? 'agent' : 'steps',
+    planOnly: me?.workspace?.activation?.trialDays === null,
+  }
+}
+
 // A white-label partner's owner (2026-11-18): after the partner Checkout their setup starts with the AI agent too
 // (#partner/agent, a setup link for the partner and its client workspaces); "Set up by hand" opens the partner area and
 // is kept per partner in this browser, as a workspace owner's choice is.

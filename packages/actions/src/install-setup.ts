@@ -7,7 +7,20 @@ import type { ProviderGroupId } from './provider-status.ts'
 // as Server admin › Providers (provider-status.ts) and a real round trip in the provider's dialog (`provider.tryOut`).
 // Where the admin got to is one instance setting, so signing in again (or another admin) resumes there.
 
-export const installSteps = ['welcome', 'email', 'answering', 'telephony', 'call-audio', 'done'] as const
+/**
+ * The server's parts a first answered call needs, in the one order every setup page and the setup agent use (the install
+ * walkthrough, the agent setup page, Server admin › Providers and setup_status): Email, Answering calls, Phone carrier,
+ * Call audio. Their ids are the provider groups' (provider-status.ts).
+ */
+export const installParts = [
+  'email',
+  'answering',
+  'telephony',
+  'call-audio',
+] as const satisfies readonly ProviderGroupId[]
+export type InstallPart = (typeof installParts)[number]
+
+export const installSteps = ['welcome', ...installParts, 'done'] as const
 export type InstallStep = (typeof installSteps)[number]
 
 /** The steps that set up a group, and that group (the same ids). */

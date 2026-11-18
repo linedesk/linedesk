@@ -404,8 +404,9 @@ describe('tools', () => {
       app_links: Record<string, string>
       install: { public: boolean; place?: string; note?: string }
     }
-    // The provider steps carry the group ids of Server admin › Providers; the old names stay as aliases.
-    expect(before.steps.map(s => s.id)).toEqual(['answering', 'telephony', 'email', 'call-audio'])
+    // The provider steps carry the group ids of Server admin › Providers, in the install's one order (installParts:
+    // the walkthrough and the setup page show them so too); the old names stay as aliases.
+    expect(before.steps.map(s => s.id)).toEqual(['email', 'answering', 'telephony', 'call-audio'])
     expect(before.steps.find(s => s.id === 'answering')?.alias).toBe('ai')
     expect(before.steps.find(s => s.id === 'call-audio')?.alias).toBe('livekit')
     // Each step names its part of the setup: the server's (once per install); the workspaces' come on their own.
@@ -445,7 +446,7 @@ describe('tools', () => {
     }
     const after = data(await call(key, 'setup_status')) as Status
     // The server's steps once, then each workspace's own steps with its id, oldest first.
-    expect(after.steps.map(s => s.id)).toEqual(['answering', 'telephony', 'email', 'call-audio'])
+    expect(after.steps.map(s => s.id)).toEqual(['email', 'answering', 'telephony', 'call-audio'])
     expect(after.workspaces.map(w => [w.id, w.name, w.role])).toEqual([
       [first, 'Riverside Dental', 'owner'],
       [second, 'Riverside Dental Eastside', 'owner'],
@@ -458,7 +459,7 @@ describe('tools', () => {
       expect(w.all_done).toBe(false)
     }
     // The server comes first, so no workspace step is next yet and none carries its how-to.
-    expect(after.next_step).toBe('answering')
+    expect(after.next_step).toBe('email')
     expect(after.next_workspace_id).toBeNull()
     expect(after.workspaces.flatMap(w => w.steps).filter(s => s.how && s.state !== 'admin_only')).toEqual([])
   })
@@ -1033,7 +1034,7 @@ describe('every key through the agent (LIN-182)', () => {
     const status = data(await call(key, 'setup_status')) as Status & Record<string, unknown>
     expect(status.steps.map(s => s.id)).not.toContain('passkey')
     expect(status.steps.map(s => s.group)).not.toContain('you')
-    expect(status.steps[0]!.id).toBe('answering')
+    expect(status.steps[0]!.id).toBe('email')
     expect(status).not.toHaveProperty('email_and_sign_in_allowed')
     expect(JSON.stringify(status)).not.toMatch(/PASSKEY_NEEDED|Allow with passkey|\?allow=/)
   })

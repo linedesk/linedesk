@@ -16,6 +16,7 @@ import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from '
 import {
   agentSetupWayBack,
   backToAgentSetup,
+  checkoutReturnSetup,
   ownerAgentSetupDue,
   ownerChoseByHand,
   PARTNER_AGENT_HASH,
@@ -390,6 +391,16 @@ export function App() {
       />
     )
   }
+  // A partner team invitation link (#partner-invite=…): its own card, before and after signing in, as a workspace
+  // invitation is (PartnerInvite.tsx; before sign-in it shows the invitation and signs in or up with an email code).
+  const partnerToken = partnerInviteHash ? partnerInviteToken(window.location.hash) : null
+  if (partnerToken && (session.state === 'signedOut' || (sessionMe && !sessionMe.impersonation))) {
+    const leavePartnerInvite = (joined: boolean) => {
+      window.location.hash = joined ? '#partner' : ''
+      void refresh()
+    }
+    return <PartnerInvite token={partnerToken} onDone={leavePartnerInvite} />
+  }
   if (session.state === 'signedOut') {
     // Signed out while the app was open: its sync had stopped for good, so the page loads fresh after signing in
     // (at the same address). The form stays busy until then.
@@ -409,15 +420,6 @@ export function App() {
         line={t('shell.boot.opening', { name: target.kind === 'switch' ? target.workspace.name : brandName() })}
       />
     )
-  // A partner team invitation link, once signed in (a new address signs up with an email code on the sign-in page).
-  const partnerToken = partnerInviteHash ? partnerInviteToken(window.location.hash) : null
-  if (partnerToken && sessionMe && !sessionMe.impersonation) {
-    const leavePartnerInvite = (joined: boolean) => {
-      window.location.hash = joined ? '#partner' : ''
-      void refresh()
-    }
-    return <PartnerInvite token={partnerToken} onDone={leavePartnerInvite} />
-  }
   // The partner area needs no workspace; with one, Back (Esc) returns to it.
   const myPartner = sessionMe?.partners?.[0]
   // Its owner's agent setup (#partner/agent): where the partner Checkout comes back to, unless chosen by hand.
@@ -457,10 +459,16 @@ export function App() {
       await refresh()
       setCheckoutReturn(false)
     }
-    // From the onboarding's "Start your free trial" step: the answer shows as that step's result, inside the setup.
+    // Back from the onboarding's "Start your free trial" step: the answer shows inside the setup it was started from,
+    // as that step's result. By hand: the steps' shell ("Step 5 of 7"). From the agent setup page's row (the owner did
+    // not choose by hand): the agent page's shell, then that page again, where the row shows done and the number is
+    // next. No trial for this bill: the step was "Start your plan".
     const me = session.state === 'ready' ? session.me : null
-    const inSetup = !!me?.onboarding && me.workspace?.billingState === 'pending_payment'
-    return <CheckoutReturn onDone={leaveReturn} inSetup={inSetup} />
+    const setup = checkoutReturnSetup(me, {
+      instanceAdmin: !!me && isInstanceAdmin(me),
+      byHand: !!me?.workspace && ownerChoseByHand(me.workspace.id, ownerByHand),
+    })
+    return <CheckoutReturn onDone={leaveReturn} {...setup} />
   }
   if (session.state === 'needsWorkspace') {
     return (
@@ -539,6 +547,14 @@ export function App() {
           leave()
           void refresh()
         }}
+        // Finish later, as on the owner's and the partner's agent pages: on by hand (the business onboarding, or the
+        // app once that is done); what is left waits in Server admin.
+        onLater={() => {
+          rememberManual(true)
+          setManualSetup(true)
+          leave()
+        }}
+        onboardingOpen={Boolean(settingUp)}
         active={{ id: session.me.workspace!.id, account: session.me.actorId }}
       />
     )
@@ -569,6 +585,7 @@ export function App() {
             <OwnerAgentSetup
               active={{ id: session.me.workspace!.id, account: session.me.actorId }}
               prepared={Boolean(session.me.workspace?.partnerManaged && !session.me.workspace.viaPartner)}
+              onboardingOpen={Boolean(settingUp)}
               // Waiting for its trial: the owner starts it on the page's Start your free trial row.
               trial={
                 session.me.workspace?.billingState === 'pending_payment'
@@ -649,6 +666,7 @@ function OwnerAgentSetup({
   onLater,
   trial,
   prepared,
+  onboardingOpen,
 }: {
   active: { id: string; account: string }
   onManual: () => void
@@ -657,6 +675,7 @@ function OwnerAgentSetup({
   trial?: ComponentProps<typeof AgentSetup>['trial']
   /** A partner's client workspace, opened by its own owner: the partner may have set it up already. */
   prepared?: boolean
+  onboardingOpen?: boolean
 }) {
   const run = useRun()
   return (
@@ -665,6 +684,7 @@ function OwnerAgentSetup({
       active={active}
       trial={trial}
       prepared={prepared}
+      onboardingOpen={onboardingOpen}
       onManual={onManual}
       onDone={onDone}
       onLater={

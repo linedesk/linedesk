@@ -23,20 +23,21 @@ import {
   type AgentClient,
   type AgentSetupKeyCreated,
   type AgentSetupState,
-  type MyPartner,
   agentClientLabels,
   agentClients,
   cloudClients,
-  SETUP_KEY_HOURS,
   HOSTING_GUIDE_URL,
+  installParts,
   installPlace,
+  type MyPartner,
+  SETUP_KEY_HOURS,
   type SetupChange,
   type SetupScope,
+  type SetupStepGroup,
   type SetupWorkspaceSummary,
   setupStepGroups,
   setupStepNames,
   startPlan,
-  type SetupStepGroup,
   stepsByGroup,
   UNPAID_PARTNER_CLIENTS,
 } from '@linedesk/actions'
@@ -63,6 +64,7 @@ import { microphoneAllowed } from '../call/microphone.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { Select } from '../ui/controls.tsx'
 import { CopyButton } from './Frame.tsx'
+import { rememberDraftOpenedFrom } from './flow.ts'
 import { SetupFoot } from './SetupFoot.tsx'
 import { SetupTopBar } from './SetupTopBar.tsx'
 import { openInstallSetup } from './InstallSetup.tsx'
@@ -188,6 +190,11 @@ type Props = {
    * and the assistant already, and the page then says so.
    */
   prepared?: boolean
+  /**
+   * The business onboarding is still open: opening the app would only open its steps by hand, so the page offers no
+   * "Open {brand} now" while the agent works ("Finish later" is the way out); "Open {brand}" once all is set up.
+   */
+  onboardingOpen?: boolean
 }
 
 type StartTrialProps = { me: Me; onTermsChanged: () => void }
@@ -204,6 +211,7 @@ export function AgentSetup({
   partner,
   onFirstWorkspace,
   prepared = false,
+  onboardingOpen = false,
 }: Props) {
   const t = useT()
   const brand = useBrand()
@@ -329,7 +337,8 @@ export function AgentSetup({
     // The owner's choice is kept by the page around this one (setup-choice.ts, per workspace or partner).
     if (personal) return onManual(false)
     rememberManual(true)
-    onManual(state ? installPartsMissing(state.progress.steps) : false)
+    // The install walkthrough only for parts it has not handled yet (skipped, set aside or finished: agent-setup-passkey.ts).
+    onManual(state ? installPartsMissing(state.progress.steps, install?.progress) : false)
   }
   // Everything is set up: the page offers to change it, with the agent or the install walkthrough (opens at its
   // first part, nothing saved is reset; off on Cloud, where Server admin › Providers is the way by hand).
@@ -368,7 +377,12 @@ export function AgentSetup({
     : 0
   // Open the app once there is a workspace to open (the agent connected, or all done); not while the workspace waits
   // for its trial (the app would only show the card step) and not on a partner's page (its way is the partner area).
-  const openApp = (allDone || connected) && Boolean(state?.progress.workspace) && !trial && partnerId === null
+  // Nor while the business onboarding is open and the agent still works: the app would only open its steps by hand.
+  const openApp =
+    (allDone || (connected && !onboardingOpen)) && Boolean(state?.progress.workspace) && !trial && partnerId === null
+  // A link to create while none is active: the page's main action, also with Enter (⏎ on its button).
+  const createIsMain = state !== null && !state.key && !created && !allDone
+  useEnterKey(createIsMain && busy === null ? () => void createKey() : null)
   // The quiet way in the footer's back slot: by hand, or step by step once everything is set up. Changing settings
   // has none: the top bar's Close goes back to them.
   const foot =
@@ -407,7 +421,7 @@ export function AgentSetup({
         exit={
           change
             ? { kind: 'close', onExit: () => onManual(false), title: t('onboarding.agentSetup.change.backTitle') }
-            : onLater
+            : onLater && !allDone
               ? {
                   kind: 'finish-later',
                   onExit: onLater,
@@ -422,9 +436,12 @@ export function AgentSetup({
       />
       <div className="ob-main as-main">
         <div className={cx('ob-body', view.fadeIn && 'ld-in')}>
-          <span className="as-kicker">
-            <Icon name="spark" size={14} /> {t('onboarding.agentSetup.kicker')}
-          </span>
+          {/* "Recommended" is about choosing a way; once everything is set up there is nothing to choose. */}
+          {!allDone && (
+            <span className="as-kicker">
+              <Icon name="spark" size={14} /> {t('onboarding.agentSetup.kicker')}
+            </span>
+          )}
           {skeleton ? (
             <SkeletonPart reserved={reserved}>
               <Skeleton className="as-sk-h1" width="74%" />
@@ -552,6 +569,8 @@ export function AgentSetup({
                   <Button
                     variant={allDone ? 'secondary' : 'primary'}
                     busy={busy === 'create'}
+                    shortcut={createIsMain ? ['⏎'] : undefined}
+                    className="as-enter"
                     onClick={() => void createKey()}
                   >
                     {t('onboarding.agentSetup.link.create')}
@@ -648,7 +667,7 @@ const NO_WORKSPACE = ''
  */
 const SKELETON_GROUPS: Record<(typeof setupStepGroups)[number]['id'], readonly string[]> = {
   partner: ['company', 'brand', 'team', 'clients', 'plan'],
-  server: ['answering', 'telephony', 'email', 'call-audio'],
+  server: installParts,
   business: ['business', 'assistant', 'pickup', 'notify', 'phone', 'forwarding', 'test_call'],
 }
 const SKELETON_ACTIONS: Record<string, number> = { forwarding: 124, test_call: 132, clients: 104, plan: 178 }
@@ -758,7 +777,7 @@ function Progress({
     (id: string) => {
       setSwitching(id)
       setSwitchError(null)
-      switchToWorkspace(id, null).catch(e => {
+      openWorkspaceFromHere(id).catch(e => {
         setSwitching(null)
         setSwitchError(e instanceof Error ? e.message : t('onboarding.agentSetup.error.switch'))
       })
@@ -782,7 +801,7 @@ function Progress({
       }
       saveResume(id, action)
       try {
-        await switchToWorkspace(id, null)
+        await openWorkspaceFromHere(id)
       } catch (e) {
         clearResume()
         setSwitchingFor(null)
@@ -865,14 +884,18 @@ function Progress({
                     ) : null}
                   </span>
                   <span className="as-item-label">
-                    {step.id === 'activate'
+                    {step.id === 'activate' && trial
                       ? t(
-                          trial?.me.workspace?.activation?.trialDays === null
+                          trial.me.workspace?.activation?.trialDays === null
                             ? 'onboarding.steps.activatePlan'
                             : 'onboarding.steps.activate',
                         )
                       : step.label}
                     {step.hint && <span className="as-hint"> · {step.hint}</span>}
+                    {/* The trial row before the free steps are done: no button yet, so it says when it opens. */}
+                    {step.id === 'activate' && step.state === 'todo' && (
+                      <span className="as-hint"> · {t('onboarding.agentSetup.step.trialWaits')}</span>
+                    )}
                     {draftsOnly && step.id === 'clients' && (
                       <span className="as-hint as-hint-line">
                         {t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })}
@@ -1163,6 +1186,22 @@ export function StepAction({
       </span>
     )
   }
+  // A partner after its Checkout: its team can be invited now, by the agent or by the owner in the partner area.
+  if (step.id === 'team' && step.group === 'partner' && activatePartnerId && step.state !== 'done')
+    return (
+      <span className="as-item-action">
+        <Button
+          size="sm"
+          variant="secondary"
+          title={t('onboarding.agentSetup.partner.inviteTitle')}
+          onClick={() => {
+            window.location.hash = '#partner/team'
+          }}
+        >
+          {t('onboarding.agentSetup.partner.invite')}
+        </Button>
+      </span>
+    )
   if (step.id === 'clients' && onAddClient)
     return (
       <span className="as-item-action">
@@ -1368,4 +1407,39 @@ export function HostingNote({ address }: { address: string }) {
       </a>
     </Note>
   )
+}
+
+/**
+ * Opens workspace `id` in this tab (the page reloads into it). A partner's client draft opened from the partner's agent
+ * page remembers it: the draft's last step comes back here, not to the partner area (onboarding/flow.ts).
+ */
+export function openWorkspaceFromHere(
+  id: string,
+  hash: string = window.location.hash,
+  open: (id: string, hash: string | null) => Promise<unknown> = switchToWorkspace,
+) {
+  rememberDraftOpenedFrom(id, hash)
+  return open(id, null)
+}
+
+/**
+ * Enter runs `onEnter` (the page's main action, its button showing ⏎), except in a field, on a button, link or summary
+ * (they take Enter themselves) and while a dialog is open; null: Enter does nothing here.
+ */
+export function useEnterKey(onEnter: (() => void) | null) {
+  const ref = useRef(onEnter)
+  ref.current = onEnter
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Enter' || e.isComposing || e.defaultPrevented || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey)
+        return
+      if (!ref.current || document.querySelector('[role="dialog"]')) return
+      const at = document.activeElement as HTMLElement | null
+      if (at?.matches('input, textarea, select, button, a, summary, [contenteditable="true"]')) return
+      e.preventDefault()
+      ref.current()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 }
