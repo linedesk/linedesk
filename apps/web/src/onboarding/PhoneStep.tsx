@@ -41,6 +41,7 @@ import {
   turnOffFirst,
   URGENT_CONTACT_ID,
 } from './flow.ts'
+import { useClientWord } from './clientWords.tsx'
 
 type Props = {
   status: PhoneSetupStatus
@@ -123,6 +124,7 @@ function Unavailable({
 
 function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode }: Props & { firstAreaCode: string }) {
   const t = useT()
+  const word = useClientWord()
   const later = useLater()
   const run = useRun()
   const name = useAssistantName()
@@ -200,13 +202,13 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
       <div className="ob-body">
         <h1>
           {forwarding === 'forward_all'
-            ? t('onboarding.phone.choose.titleAll')
-            : t('onboarding.phone.choose.titleMissed')}
+            ? t(word('onboarding.phone.choose.titleAll'))
+            : t(word('onboarding.phone.choose.titleMissed'))}
         </h1>
         <p className="ob-lede">
           {forwarding === 'forward_all'
             ? t('onboarding.phone.choose.ledeAll', { name })
-            : t('onboarding.phone.choose.ledeMissed', { name })}
+            : t(word('onboarding.phone.choose.ledeMissed'), { name })}
         </p>
         {option === 'existing' ? (
           <div className="ob-existing">
@@ -354,6 +356,7 @@ function Connected({
   onNext: () => void
 }) {
   const t = useT()
+  const word = useClientWord()
   // No carrier is assumed: until the owner picks one or the lookup finds it, the picker is empty and no codes show.
   const {
     country,
@@ -396,10 +399,10 @@ function Connected({
       <div className="ob-body">
         <h1>
           {all
-            ? t('onboarding.phone.connected.titleAll')
+            ? t(word('onboarding.phone.connected.titleAll'))
             : forwards
-              ? t('onboarding.phone.connected.titleMissed')
-              : t('onboarding.phone.connected.titleReady')}
+              ? t(word('onboarding.phone.connected.titleMissed'))
+              : t(word('onboarding.phone.connected.titleReady'))}
         </h1>
         <div className="ob-prompt ok">
           <Icon name="check" size={16} />

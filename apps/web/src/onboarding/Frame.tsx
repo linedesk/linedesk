@@ -3,7 +3,8 @@
 import { useT } from '@linedesk/i18n/react'
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { BrandMark, Button } from '../ui/kit.tsx'
-import { onboardingSteps, progress, stepLabels, type OnboardingStep } from './flow.ts'
+import { useClientWord } from './clientWords.tsx'
+import { onboardingSteps, progress, stepLabelKeys, type OnboardingStep } from './flow.ts'
 import { brandName } from '../brand.ts'
 import { SetupAccountMenu } from '../shell/SetupAccountMenu.tsx'
 
@@ -83,6 +84,7 @@ export function Frame({
   children: ReactNode
 }) {
   const t = useT()
+  const word = useClientWord()
   const index = steps.indexOf(step)
   const skipRef = useRef(onSkip)
   skipRef.current = onSkip
@@ -104,7 +106,7 @@ export function Frame({
           {t('onboarding.frame.stepCount', {
             step: counted.indexOf(step) + 1,
             total: counted.length,
-            label: step === 'activate' && planOnly ? t('onboarding.steps.activatePlan') : stepLabels[step],
+            label: step === 'activate' && planOnly ? t('onboarding.steps.activatePlan') : t(word(stepLabelKeys[step])),
           })}
         </span>
         {/* A phone's top bar: the count alone, next to the account menu. */}

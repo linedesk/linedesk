@@ -77,6 +77,7 @@ import {
 import {
   assistants,
   calls,
+  member,
   member_notification_settings,
   organization,
   phone_numbers,
@@ -386,9 +387,9 @@ type Step = StepBase & { group: SetupStepGroup }
  * The steps of one part of the setup, tagged with it; `group` comes right after the label in the agent's output. Each
  * is named as on the setup page (setupStepNames: the app's own place for it, plus a hint where it helps).
  */
-const inGroup = (group: SetupStepGroup, steps: StepBase[]): Step[] =>
+const inGroup = (group: SetupStepGroup, steps: StepBase[], names = setupStepNames): Step[] =>
   steps.map(({ id, alias, label, hint, ...rest }) => {
-    const named = setupStepNames[id]
+    const named = names[id]
     const words = named?.hint ?? hint
     return {
       id,
@@ -729,7 +730,31 @@ async function workspaceStatuses(actor: Actor, advance: boolean): Promise<Worksp
 async function workspaceStatus(actor: Actor, ws: ManagedWorkspace, advance: boolean): Promise<WorkspaceStatus> {
   const inWs = await setupActorIn(actor, ws.id)
   const steps = inWs ? await workspaceSteps(inWs, advance) : []
-  return { id: ws.id, name: ws.name, role: ws.role, steps: inGroup('business', steps) }
+  // A partner (its key, or one of its team in the client workspace) sets up a client's: the steps speak about the client.
+  const names = actor.setupPartnerId || (await viaPartner(actor.actorId, ws.id)) ? clientSetupStepNames : setupStepNames
+  return { id: ws.id, name: ws.name, role: ws.role, steps: inGroup('business', steps, names) }
+}
+
+/**
+ * The workspace steps when a partner (owner or partner admin) sets up a CLIENT workspace (Janik, 2026-11-18): they speak
+ * about the client, not "your …". The client's own owner keeps setupStepNames.
+ */
+const clientSetupStepNames: Readonly<Record<string, { label: string; hint?: string }>> = {
+  ...setupStepNames,
+  business: { ...setupStepNames.business!, label: english.t('server.setupAgent.clientStep.business') },
+  assistant: { ...setupStepNames.assistant!, label: english.t('server.setupAgent.clientStep.assistant') },
+  pickup: { ...setupStepNames.pickup!, hint: english.t('server.setupAgent.clientStep.pickupHint') },
+  phone: { ...setupStepNames.phone!, hint: english.t('server.setupAgent.clientStep.phoneHint') },
+  forwarding: { ...setupStepNames.forwarding!, hint: english.t('server.setupAgent.clientStep.forwardingHint') },
+}
+
+/** Whether `userId` is in `workspaceId` through a partner's team (/v1/me's workspace.viaPartner), not as its own. */
+async function viaPartner(userId: string, workspaceId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ partnerId: member.partnerId })
+    .from(member)
+    .where(and(eq(member.userId, userId), eq(member.organizationId, workspaceId)))
+  return Boolean(row?.partnerId)
 }
 
 /**

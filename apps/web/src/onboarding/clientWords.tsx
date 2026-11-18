@@ -1,0 +1,44 @@
+// A partner (owner or partner admin) setting up a CLIENT workspace (Janik, 2026-11-18): the onboarding's step texts
+// speak about the client ("Client's business", "Client's assistant"), not "your …". The client's own owner still reads
+// "Your …". Who is who: /v1/me's workspace.viaPartner (#1273).
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { createContext, type ReactNode, useContext } from 'react'
+
+/** The step texts that say "your …", and how they read for someone setting the workspace up for a client. */
+export const CLIENT_WORDS: ReadonlyMap<MessageKey, MessageKey> = new Map([
+  [msg('onboarding.steps.business'), msg('onboarding.steps.businessClient')],
+  [msg('onboarding.steps.assistant'), msg('onboarding.steps.assistantClient')],
+  [msg('onboarding.business.heading'), msg('onboarding.business.headingClient')],
+  [msg('onboarding.business.find.help'), msg('onboarding.business.find.helpClient')],
+  [msg('onboarding.business.manual.namePlaceholder'), msg('onboarding.business.manual.namePlaceholderClient')],
+  [msg('onboarding.business.review.isThisYours'), msg('onboarding.business.review.isThisYoursClient')],
+  [msg('onboarding.business.review.aboutYours'), msg('onboarding.business.review.aboutYoursClient')],
+  [msg('onboarding.business.lede.saved'), msg('onboarding.business.lede.savedClient')],
+  [msg('onboarding.business.lede.listing'), msg('onboarding.business.lede.listingClient')],
+  [msg('onboarding.business.lede.listingAndWebsite'), msg('onboarding.business.lede.listingAndWebsiteClient')],
+  [msg('onboarding.business.lede.manual'), msg('onboarding.business.lede.manualClient')],
+  [msg('onboarding.assistant.heading'), msg('onboarding.assistant.headingClient')],
+  [msg('onboarding.pickup.lede'), msg('onboarding.pickup.ledeClient')],
+  [msg('onboarding.phone.choose.titleAll'), msg('onboarding.phone.choose.titleAllClient')],
+  [msg('onboarding.phone.choose.titleMissed'), msg('onboarding.phone.choose.titleMissedClient')],
+  [msg('onboarding.phone.choose.ledeMissed'), msg('onboarding.phone.choose.ledeMissedClient')],
+  [msg('onboarding.phone.connected.titleAll'), msg('onboarding.phone.connected.titleAllClient')],
+  [msg('onboarding.phone.connected.titleMissed'), msg('onboarding.phone.connected.titleMissedClient')],
+  [msg('onboarding.phone.connected.titleReady'), msg('onboarding.phone.connected.titleReadyClient')],
+])
+
+/** `key` as it reads for a client workspace set up through its partner, or as it is. */
+export const clientWord = (key: MessageKey, forClient: boolean): MessageKey =>
+  forClient ? (CLIENT_WORDS.get(key) ?? key) : key
+
+const ForClientContext = createContext(false)
+
+export function ForClient({ value, children }: { value: boolean; children: ReactNode }) {
+  return <ForClientContext.Provider value={value}>{children}</ForClientContext.Provider>
+}
+
+/** The key for this onboarding: a partner's team sees the client's words (CLIENT_WORDS). */
+export function useClientWord(): (key: MessageKey) => MessageKey {
+  const forClient = useContext(ForClientContext)
+  return key => clientWord(key, forClient)
+}

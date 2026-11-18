@@ -28,6 +28,7 @@ import {
   pickupOrder,
   pickupSettings,
 } from './flow.ts'
+import { useClientWord } from './clientWords.tsx'
 
 type StepProps = {
   onBack: () => void
@@ -82,6 +83,7 @@ export function PickupStep(p: StepProps) {
 
 function PickupForm({ saved, onBack, onNext, memory, onMemory, calls }: StepProps & { saved: WorkspaceSettingsData }) {
   const t = useT()
+  const word = useClientWord()
   const run = useRun()
   const write = useWriteAction()
   const name = useAssistantName()
@@ -125,7 +127,7 @@ function PickupForm({ saved, onBack, onNext, memory, onMemory, calls }: StepProp
     <>
       <div className="ob-body">
         <h1>{t('onboarding.pickup.title', { name })}</h1>
-        <p className="ob-lede">{t('onboarding.pickup.lede')}</p>
+        <p className="ob-lede">{t(word('onboarding.pickup.lede'))}</p>
         <div className="k-radios ob-pickup" role="radiogroup" aria-label={t('onboarding.pickup.groupLabel', { name })}>
           {pickupOrder.map(m => (
             <RadioCard

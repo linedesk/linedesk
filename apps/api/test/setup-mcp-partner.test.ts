@@ -2,9 +2,9 @@
 // up the partner (company name, brand, team) and its client workspaces, never the partner bill, a new client workspace
 // (a seat on the bill), a number or a real call, another partner, the owner's own business or the server. In
 // INSTANCE_WIDE_FILES: it makes a server admin, who creates the partners.
-import { agent_setup_keys, billing_accounts, organization, partners, user } from '@linedesk/db'
+import { agent_setup_keys, billing_accounts, organization, partners, session, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
-import { beforeAll, describe, expect, test } from 'vitest'
+import { beforeAll, describe, expect, onTestFinished, test } from 'vitest'
 import { partnerSetupActor, setupActorIn } from '../src/agent-setup.ts'
 import { db } from '../src/db.ts'
 import { type Email, emailSender } from '../src/email.ts'
@@ -204,6 +204,48 @@ describe('what a partner setup link reaches', () => {
     const phone = status.workspaces[0].steps.find((s: { id: string }) => s.id === 'phone')
     expect(phone.state).toBe('admin_only')
     expect(phone.how.join(' ')).toContain('Only the partner owner adds the number')
+  })
+
+  test('a client workspace\'s steps speak about the client; the client\'s own owner and a business keep "Your …"', async () => {
+    // Janik, 2026-11-18: a partner (its key, or one of its team in the client workspace) reads the client's words.
+    const label = (steps: { id: string; label: string; hint?: string }[], id: string) => steps.find(s => s.id === id)
+    // A partner of its own: setup links per person are limited (allowWorkspaceKeyMint).
+    const c = await makePartner('Clearwater Studio')
+    const client = await createClient(c, 'Harbor Dental')
+    const made0 = await asServerAdmin(c.owner, () =>
+      request(c.owner, 'POST', '/v1/workspaces', { name: 'Clearwater HQ' }),
+    )
+    expect(made0.status).toBe(200)
+    const ownWs: string = made0.body.workspace.id
+    const { key } = await makePartnerKey(c)
+    const status = data(await call(key, 'setup_status', { read_only: true }))
+    const steps = status.workspaces[0].steps
+    expect(label(steps, 'business')).toMatchObject({ label: "Client's business" })
+    expect(label(steps, 'assistant')).toMatchObject({ label: "Client's assistant" })
+    expect(label(steps, 'pickup')?.hint).toBe('calls the client misses, after hours, or every call')
+    expect(label(steps, 'phone')?.hint).toBe("a new number, or forwarding from the client's")
+    // The partner owner's own setup link in the client workspace (a workspace link, through the partner's team).
+    const [before] = await db.select().from(session).where(eq(session.userId, c.owner.userId))
+    onTestFinished(async () => {
+      await db
+        .update(session)
+        .set({ activeOrganizationId: before!.activeOrganizationId })
+        .where(eq(session.userId, c.owner.userId))
+    })
+    await db.update(session).set({ activeOrganizationId: client }).where(eq(session.userId, c.owner.userId))
+    const inClient = { ...c.owner, headers: { ...c.owner.headers, 'x-workspace-id': client } }
+    const made = await act(inClient, 'agentSetup.createWorkspaceKey', {})
+    expect(made.status).toBe(200)
+    const own = data(await call(made.body.data.key, 'setup_status', { read_only: true }))
+    expect(label(own.workspaces[0].steps, 'business')).toMatchObject({ label: "Client's business" })
+    // The same owner's own business (not through a partner): "Your business".
+    await db.update(session).set({ activeOrganizationId: ownWs }).where(eq(session.userId, c.owner.userId))
+    const inOwn = { ...c.owner, headers: { ...c.owner.headers, 'x-workspace-id': ownWs } }
+    const mine = await act(inOwn, 'agentSetup.createWorkspaceKey', {})
+    expect(mine.status).toBe(200)
+    const business = data(await call(mine.body.data.key, 'setup_status', { read_only: true }))
+    expect(label(business.workspaces[0].steps, 'business')).toMatchObject({ label: 'Your business' })
+    expect(label(business.workspaces[0].steps, 'assistant')).toMatchObject({ label: 'Assistant' })
   })
 
   test("before the first client: adding one is the owner's row, with the seat price; no workspaces yet", async () => {

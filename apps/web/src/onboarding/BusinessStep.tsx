@@ -50,6 +50,7 @@ import {
   websiteChoice,
 } from './business.ts'
 import { Foot, useStepKeys } from './Frame.tsx'
+import { useClientWord } from './clientWords.tsx'
 
 type Props = {
   businessName: string
@@ -66,12 +67,13 @@ type Props = {
 
 export function BusinessStep(p: Props) {
   const t = useT()
+  const word = useClientWord()
   const assistant = useAssistantOf(p.assistantId)
   if (assistant) return <FindBusiness assistant={assistant} {...p} />
   return (
     <>
       <div className="ob-body">
-        <h1>{t('onboarding.business.heading')}</h1>
+        <h1>{t(word('onboarding.business.heading'))}</h1>
         <Loading what={t('onboarding.assistant.loadingWhat')} loading skeleton={<SkeletonFields fields={2} />} />
       </div>
       <Foot canContinue={false} />
@@ -95,6 +97,7 @@ function FindBusiness({
   onNext,
 }: Props & { assistant: Assistant }) {
   const t = useT()
+  const word = useClientWord()
   // Lookup found off (or its key refused) by a search since the page loaded: not offered again here.
   const [lookupLost, setLookupLost] = useState(false)
   const canSearch = lookup && !lookupLost
@@ -202,7 +205,7 @@ function FindBusiness({
           <Field
             id="ob-biz-q"
             label={t('onboarding.business.find.label')}
-            help={site === 'field' ? t('onboarding.business.find.help') : undefined}
+            help={site === 'field' ? t(word('onboarding.business.find.help')) : undefined}
           >
             <div className="ob-biz-search">
               <TextInput
@@ -261,7 +264,7 @@ function FindBusiness({
               id="ob-biz-name"
               value={name}
               onChange={setName}
-              placeholder={t('onboarding.business.manual.namePlaceholder')}
+              placeholder={t(word('onboarding.business.manual.namePlaceholder'))}
             />
           </Field>
           {site === 'field' && (
@@ -414,19 +417,24 @@ function FindForm({
   children: ReactNode
 }) {
   const t = useT()
+  const word = useClientWord()
   useStepKeys({ onEnter })
   return (
     <>
       <div className="ob-body">
-        <h1>{t('onboarding.business.heading')}</h1>
+        <h1>{t(word('onboarding.business.heading'))}</h1>
         <p className="ob-lede">
           {saved
-            ? t('onboarding.business.lede.saved')
+            ? t(word('onboarding.business.lede.saved'))
             : phase.kind !== 'manual'
-              ? t(readsWebsite ? 'onboarding.business.lede.listingAndWebsite' : 'onboarding.business.lede.listing')
+              ? t(
+                  word(
+                    readsWebsite ? 'onboarding.business.lede.listingAndWebsite' : 'onboarding.business.lede.listing',
+                  ),
+                )
               : readsWebsite
                 ? t('onboarding.business.lede.manualWebsite')
-                : t('onboarding.business.lede.manual')}
+                : t(word('onboarding.business.lede.manual'))}
         </p>
         {children}
       </div>
@@ -469,6 +477,7 @@ function ReviewProfile({
   onNext: () => void
 }) {
   const t = useT()
+  const word = useClientWord()
   const run = useRun()
   const phoneCountry = useDefaultPhoneCountry()
   const settings = useWorkspaceSettings().data
@@ -534,10 +543,10 @@ function ReviewProfile({
   const heading = fromGoogle
     ? draft.name.trim()
       ? t('onboarding.business.review.isThis', { name: draft.name.trim() })
-      : t('onboarding.business.review.isThisYours')
+      : t(word('onboarding.business.review.isThisYours'))
     : draft.name.trim()
       ? t('onboarding.business.review.about', { name: draft.name.trim() })
-      : t('onboarding.business.review.aboutYours')
+      : t(word('onboarding.business.review.aboutYours'))
 
   // A business in a country not served yet: the step stops here. Only the calm "not yet" note and the country (to pick
   // the right one when the listing's is wrong); Back looks the business up again. Nothing else to fill in.

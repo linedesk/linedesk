@@ -32,13 +32,14 @@ import {
   phoneSetupErrorText,
   previousStep,
   rejectionStep,
-  stepLabels,
+  stepLabelKeys,
   URGENT_CONTACT_ID,
 } from './flow.ts'
 import { InstanceSetupNotice, isInstanceAdmin, useHash } from './InstanceSetup.tsx'
 import { NotifyStep } from './NotifyStep.tsx'
 import { PhoneStep } from './PhoneStep.tsx'
 import { PickupStep } from './PickupStep.tsx'
+import { ForClient, useClientWord } from './clientWords.tsx'
 import './onboarding.css'
 
 type Props = {
@@ -120,50 +121,53 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload, onAgentSetup }
   }
 
   return (
-    <Frame
-      step={step}
-      steps={steps}
-      counted={counted}
-      planOnly={me.workspace?.activation?.trialDays === null}
-      complete={step === 'done' || (step === 'phone' && hasNumber)}
-      // Nothing to finish later before the trial: the app opens only once it runs.
-      onSkip={step === 'done' || activating ? undefined : skip}
-      onAgentSetup={step === 'done' ? undefined : onAgentSetup}
-    >
-      <SaveErrors saves={saves} step={step} steps={steps} onOpen={go} />
-      {me.emailUnconfirmed && !confirmed && (
-        <ConfirmEmail onDone={() => setConfirmed(true)} why={t('onboarding.main.confirmWhy')} />
-      )}
-      {/* The server's provider setup is for Server admin, never inside a customer's sign-up (billing on). */}
-      {isInstanceAdmin(me) && !me.workspace?.billingState && <InstanceSetupNotice />}
-      {step === 'activate' && <ActivateStep me={me} onBack={back} onTermsChanged={() => onReload?.()} />}
-      {step !== 'done' && step !== 'activate' && (
-        <StepScreen
-          step={step}
-          me={me}
-          emailConfirmed={!me.emailUnconfirmed || confirmed}
-          phone={state.phone}
-          businessLookup={!!state.businessLookup}
-          websiteImport={state.websiteImport}
-          saves={saves}
-          pickupMemory={pickupMemory}
-          onPickupMemory={setPickupMemory}
-          onRenamed={onRenamed}
-          onBack={back}
-          onNext={forward}
-        />
-      )}
-      {step === 'done' && (
-        <Done
-          onBack={back}
-          onDone={finish}
-          offerSamples={offersSampleCalls(firstUse)}
-          admin={me.permissions.includes('instance:admin')}
-          // A paying Linedesk Cloud customer is not asked for a GitHub star; self-hosted installs keep it.
-          askForStar={!me.workspace?.billingState}
-        />
-      )}
-    </Frame>
+    // A partner's team setting up a client workspace reads the client's words (clientWords.tsx).
+    <ForClient value={!!me.workspace?.viaPartner}>
+      <Frame
+        step={step}
+        steps={steps}
+        counted={counted}
+        planOnly={me.workspace?.activation?.trialDays === null}
+        complete={step === 'done' || (step === 'phone' && hasNumber)}
+        // Nothing to finish later before the trial: the app opens only once it runs.
+        onSkip={step === 'done' || activating ? undefined : skip}
+        onAgentSetup={step === 'done' ? undefined : onAgentSetup}
+      >
+        <SaveErrors saves={saves} step={step} steps={steps} onOpen={go} />
+        {me.emailUnconfirmed && !confirmed && (
+          <ConfirmEmail onDone={() => setConfirmed(true)} why={t('onboarding.main.confirmWhy')} />
+        )}
+        {/* The server's provider setup is for Server admin, never inside a customer's sign-up (billing on). */}
+        {isInstanceAdmin(me) && !me.workspace?.billingState && <InstanceSetupNotice />}
+        {step === 'activate' && <ActivateStep me={me} onBack={back} onTermsChanged={() => onReload?.()} />}
+        {step !== 'done' && step !== 'activate' && (
+          <StepScreen
+            step={step}
+            me={me}
+            emailConfirmed={!me.emailUnconfirmed || confirmed}
+            phone={state.phone}
+            businessLookup={!!state.businessLookup}
+            websiteImport={state.websiteImport}
+            saves={saves}
+            pickupMemory={pickupMemory}
+            onPickupMemory={setPickupMemory}
+            onRenamed={onRenamed}
+            onBack={back}
+            onNext={forward}
+          />
+        )}
+        {step === 'done' && (
+          <Done
+            onBack={back}
+            onDone={finish}
+            offerSamples={offersSampleCalls(firstUse)}
+            admin={me.permissions.includes('instance:admin')}
+            // A paying Linedesk Cloud customer is not asked for a GitHub star; self-hosted installs keep it.
+            askForStar={!me.workspace?.billingState}
+          />
+        )}
+      </Frame>
+    </ForClient>
   )
 }
 
@@ -336,6 +340,7 @@ export function SaveErrors({
   onOpen: (step: OnboardingStep) => void
 }) {
   const t = useT()
+  const word = useClientWord()
   if (!saves.errors.length) return null
   return (
     <div className="ob-save-errors">
@@ -347,7 +352,7 @@ export function SaveErrors({
             <>
               {e.step && e.step !== step && steps.includes(e.step) && (
                 <Button size="sm" onClick={() => onOpen(e.step!)} title={t('onboarding.main.openStepTip')}>
-                  {t('onboarding.main.backTo', { step: stepLabels[e.step] })}
+                  {t('onboarding.main.backTo', { step: t(word(stepLabelKeys[e.step])) })}
                 </Button>
               )}
               <Button size="sm" variant="ghost" onClick={() => saves.dismiss(e)}>

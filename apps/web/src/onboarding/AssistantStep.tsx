@@ -17,6 +17,7 @@ import { Button, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import { assistantChanges, type AssistantDraft, renameInGreeting } from './flow.ts'
+import { useClientWord } from './clientWords.tsx'
 
 /**
  * `operator`: the member runs the server (a test call nobody answers says what to fix there). `assistantId`: the
@@ -26,12 +27,13 @@ type Props = { onBack: () => void; onNext: () => void; operator?: boolean; assis
 
 export function AssistantStep(p: Props) {
   const t = useT()
+  const word = useClientWord()
   const assistant = useAssistantOf(p.assistantId)
   if (assistant) return <AssistantForm assistant={assistant} {...p} />
   return (
     <>
       <div className="ob-body">
-        <h1>{t('onboarding.assistant.heading')}</h1>
+        <h1>{t(word('onboarding.assistant.heading'))}</h1>
         <Loading what={t('onboarding.assistant.loadingWhat')} loading skeleton={<SkeletonFields fields={3} />} />
       </div>
       <Foot onBack={p.onBack} canContinue={false} onContinue={p.onNext} />
@@ -41,6 +43,7 @@ export function AssistantStep(p: Props) {
 
 function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & { assistant: Assistant }) {
   const t = useT()
+  const word = useClientWord()
   const run = useRun()
   const write = useWriteAction()
   // Without a main language of its own the assistant greets in the workspace language: the default greeting shows in it.
@@ -98,7 +101,7 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
   return (
     <>
       <div className="ob-body">
-        <h1>{name ? t('onboarding.assistant.headingNamed', { name }) : t('onboarding.assistant.heading')}</h1>
+        <h1>{name ? t('onboarding.assistant.headingNamed', { name }) : t(word('onboarding.assistant.heading'))}</h1>
         <p className="ob-lede">
           {name ? t('onboarding.assistant.lede', { name }) : t('onboarding.assistant.ledeUnnamed')}
         </p>

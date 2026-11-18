@@ -29,6 +29,7 @@ import {
   type WorkspaceSettingsData,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber, TransferContact } from '@linedesk/db/types'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { brandName } from '../brand.ts'
 import { i18n } from '../i18n/index.tsx'
 import { providerAudience } from '../providerAudience.ts'
@@ -56,30 +57,16 @@ export const trialSteps: readonly OnboardingStep[] = [
   ...onboardingSteps.slice(onboardingSteps.indexOf('phone')),
 ]
 
-/** The steps' names in the active language (read on every use, so a language change shows at once). */
-export const stepLabels: Record<OnboardingStep, string> = {
-  get business() {
-    return i18n().t('onboarding.steps.business')
-  },
-  get assistant() {
-    return i18n().t('onboarding.steps.assistant')
-  },
-  get pickup() {
-    return i18n().t('onboarding.steps.pickup')
-  },
-  get notify() {
-    return i18n().t('onboarding.steps.notify')
-  },
-  get activate() {
-    return i18n().t('onboarding.steps.activate')
-  },
-  get phone() {
-    return i18n().t('onboarding.steps.phone')
-  },
-  get done() {
-    return i18n().t('onboarding.steps.done')
-  },
-}
+/** The steps' names (keys: a partner's team reads the client's words for some, clientWords.tsx). */
+export const stepLabelKeys = {
+  business: msg('onboarding.steps.business'),
+  assistant: msg('onboarding.steps.assistant'),
+  pickup: msg('onboarding.steps.pickup'),
+  notify: msg('onboarding.steps.notify'),
+  activate: msg('onboarding.steps.activate'),
+  phone: msg('onboarding.steps.phone'),
+  done: msg('onboarding.steps.done'),
+} satisfies Record<OnboardingStep, MessageKey>
 
 /** The step after `step` in `steps` (the onboarding's, or the ones step by step goes through again); the last stays. */
 export const nextStep = (step: OnboardingStep, steps: readonly OnboardingStep[] = onboardingSteps): OnboardingStep =>
