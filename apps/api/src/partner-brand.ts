@@ -5,18 +5,22 @@
 // the instance admins. The color is not reviewed.
 //
 // Where it shows:
-// - In the app: GET /v1/branding answers with the brand of the signed-in session's active workspace when that is a
-//   client workspace of a partner that is not suspended: its team sees the draft, everyone else the approved version
-//   (none approved: the install's). The web app asks again when it switches workspace. Before sign-in the install's: the
-//   brand of the request's host needs partner domains (S5), which plug in at brandingForActor.
+// - In the app: GET /v1/branding answers on a partner's own address (S5) with that partner's approved brand, before and
+//   after sign-in, for everyone (its team sees its draft only on the install's own address). On the install's own
+//   address: the brand of the signed-in session's active workspace when that is a client workspace of a partner that is
+//   not suspended: its team sees the draft, everyone else the approved version (none approved: the install's). The web
+//   app asks again when it switches workspace.
 // - In emails: withWorkspaceBrand runs a workspace's emails with its partner's approved brand (name, logo, color,
 //   Reply-To the support email, no "Powered by"), once the partner may use it in emails: approved by an instance admin,
 //   and its bill runs and has a paid subscription invoice (where the install has billing). Until then the install's.
-// - Links in those emails: appOrigin(workspaceId), the install's WEB_ORIGIN until a partner's own domain is live (S5).
+//   Sign-in and confirmation codes asked on a partner's own address carry its brand the same way (hostEmailBrand).
+// - Links: appOrigin(workspaceId), the partner's own address while it is live and its emails carry its brand, else the
+//   install's WEB_ORIGIN. Read from the database, never from a request.
 //
 // Names on the install's protected list (instance setting, Server admin › Partners) are refused. Every change lands in
 // the command log ("Partners"); instance admins approve a revision or reset the brand (partnerBrand.approve, .reset).
 import { createHash } from 'node:crypto'
+import { isIP } from 'node:net'
 import {
   type Branding,
   DEFAULT_PROTECTED_NAMES,
@@ -34,6 +38,7 @@ import {
   instance_settings,
   organization,
   partner_branding,
+  partner_domains,
   partner_members,
   partner_sender_domains,
   partners,
@@ -51,6 +56,8 @@ import { partnerBrandChangedAlert } from './emails/alerts.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { NOT_ON_PARTNER_TEAM, PARTNER_OWNER_ONLY, PARTNER_SUSPENDED } from './partner-refusals.ts'
+import { isMainHost, normaliseHost, type RequestHost } from './request-host.ts'
+import type { LegalLinks } from './auth-types.ts'
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
 const PROTECTED_NAMES_KEY = 'partner.protectedNames'
@@ -59,11 +66,33 @@ type PartnerRow = typeof partners.$inferSelect
 type BrandRow = typeof partner_branding.$inferSelect
 
 /**
- * The address of the app for one workspace: every link in its emails, invitations and pushes. The install's
- * WEB_ORIGIN for now; with partner domains (S5) a client workspace's partner domain once it is live.
+ * The address of the app for one workspace: every link in its emails, invitations, pushes, calendar events and
+ * webhooks. A partner's client gets the partner's own address (S5) while it is live and the partner's emails carry its
+ * brand (emailBrandOf: approved partner, approved brand, the bill's gate), so an email's brand and its links always
+ * agree; anything else, the install's WEB_ORIGIN. From the database only, never from a request's headers.
  */
-export async function appOrigin(_workspaceId: string, _tx: Tx | typeof db = db): Promise<string> {
-  return WEB_ORIGIN
+export async function appOrigin(workspaceId: string, tx: Tx | typeof db = db): Promise<string> {
+  const found = await partnerOfWorkspace(tx, workspaceId)
+  if (!found?.brand || !approvedOf(found.brand)) return WEB_ORIGIN
+  const gate = await brandGate(tx, found.partner)
+  if (!gate.approved || !gate.paid) return WEB_ORIGIN
+  return (await liveAddressOf(tx, found.partner.id)) ?? WEB_ORIGIN
+}
+
+/**
+ * The partner's own address as an origin (`https://<host>`) while its row is `active`, else null. The stored host name
+ * is checked again as the host map would read it (lower-case, no port, not an IP or one of the install's own), so a
+ * malformed row never becomes a link.
+ */
+async function liveAddressOf(tx: Tx | typeof db, partnerId: string): Promise<string | null> {
+  const [row] = await tx
+    .select({ hostname: partner_domains.hostname })
+    .from(partner_domains)
+    .where(and(eq(partner_domains.partner_id, partnerId), eq(partner_domains.status, 'active')))
+    .limit(1)
+  const host = row ? normaliseHost(row.hostname) : null
+  if (!host || host !== row?.hostname || isMainHost(host) || isIP(host)) return null
+  return `https://${host}`
 }
 
 export const partnerLogoPath = (partnerId: string, version: string) =>
@@ -211,7 +240,50 @@ export async function emailBrandOf(workspaceId: string, tx: Tx | typeof db = db)
     // Reply-To only for a support email its owner proved with a code (S6, security review of #1111 L-3).
     replyTo: supportEmailVerified(found.brand!) ? approved.supportEmail : null,
     fromAddress: await verifiedSenderAddress(tx, found.partner.id),
-    origin: await appOrigin(workspaceId, tx),
+    // appOrigin's answer for this workspace: the gate passed and the brand is approved, so its live address if any.
+    origin: (await liveAddressOf(tx, found.partner.id)) ?? WEB_ORIGIN,
+  }
+}
+
+/**
+ * The approved brand of a partner, as a partner's own address shows it to everyone (S5): never the draft, also not for
+ * its team (the draft shows on the install's own address only). Null while the partner is not approved or has no
+ * approved brand: the install's.
+ */
+export async function hostBrandOf(partnerId: string, tx: Tx | typeof db = db): Promise<Branding | null> {
+  const [found] = await tx
+    .select({ partner: partners, brand: partner_branding })
+    .from(partners)
+    .innerJoin(partner_branding, eq(partner_branding.partner_id, partners.id))
+    .where(eq(partners.id, partnerId))
+  if (!found || found.partner.status !== 'approved') return null
+  const approved = approvedOf(found.brand)
+  return approved ? brandingOf(partnerId, approved) : null
+}
+
+/**
+ * The brand of an account email asked for on a partner's own address before any workspace (a sign-in or confirmation
+ * code): the partner's approved brand once its emails may carry it (brandGate, as for its clients' emails), links to
+ * that address. No Reply-To: like a security notice, a reply about a code goes to the install. Null on the install's
+ * own address, or while the gate is not passed (the install's brand).
+ */
+export async function hostEmailBrand(host: RequestHost, tx: Tx | typeof db = db): Promise<EmailBrand | null> {
+  if (host.kind !== 'partner') return null
+  const [found] = await tx
+    .select({ partner: partners, brand: partner_branding })
+    .from(partners)
+    .innerJoin(partner_branding, eq(partner_branding.partner_id, partners.id))
+    .where(eq(partners.id, host.partnerId))
+  const approved = found ? approvedOf(found.brand) : null
+  if (!found || !approved) return null
+  const gate = await brandGate(tx, found.partner)
+  if (!gate.approved || !gate.paid) return null
+  return {
+    branding: brandingOf(found.partner.id, approved),
+    replyTo: null,
+    fromAddress: await verifiedSenderAddress(tx, found.partner.id),
+    // The address the code was asked on, as the host map resolved it from the database (request-host.ts).
+    origin: host.origin,
   }
 }
 
@@ -248,12 +320,26 @@ export async function withWorkspaceBrand<T>(
 }
 
 /**
- * GET /v1/branding: the brand of the caller's active workspace when it is a partner's client, else null (the
- * install's). With partner domains (S5) the request's host comes first here.
+ * GET /v1/branding: on a partner's own address its approved brand, signed in or not (hostBrandOf); on the install's own
+ * the brand of the caller's active workspace when it is a partner's client; else null (the install's).
  */
-export async function brandingForActor(actor: Pick<Actor, 'workspaceId' | 'actorId'> | null): Promise<Branding | null> {
-  if (!actor?.workspaceId) return null
+export async function brandingForActor(
+  actor: Pick<Actor, 'workspaceId' | 'actorId'> | null,
+  host: RequestHost = { kind: 'main' },
+): Promise<Branding | null> {
+  if (host.kind === 'partner') return hostBrandOf(host.partnerId)
+  if (host.kind !== 'main' || !actor?.workspaceId) return null
   return appBrandOf(actor.workspaceId, actor.actorId)
+}
+
+/** The terms, privacy and support links the sign-in page shows on a partner's own address: its approved brand's. */
+export async function hostLegalLinks(partnerId: string): Promise<LegalLinks> {
+  const partner = (await hostBrandOf(partnerId))?.partner
+  return {
+    terms: partner?.terms ?? null,
+    privacy: partner?.privacy ?? null,
+    supportEmail: partner?.supportEmail ?? null,
+  }
 }
 
 /**

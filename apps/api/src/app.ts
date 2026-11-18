@@ -100,7 +100,7 @@ import { voiceReady } from './provider-settings.ts'
 import { isSignedRecordingRequest, serveRecording, serveSignedRecording } from './recording-route.ts'
 import { previewLanguage, servePreview } from './voices.ts'
 import { runAction, runnableBy } from './run-action.ts'
-import { brandingForActor, partnerLogoFor } from './partner-brand.ts'
+import { brandingForActor, hostBrandOf, hostLegalLinks, partnerLogoFor } from './partner-brand.ts'
 import {
   freshHosts,
   hostsLoaded,
@@ -228,9 +228,14 @@ app.get('/v1/auth-methods', async c => {
     .catch(() => false)
   // On a partner's own address only email codes and sign-in links (host-sessions.ts): passkeys are bound to the
   // install's address, provider sign-ins return there, and neither sign-up nor the first admin's setup is done here.
-  if (requestHostOf(c).kind === 'partner')
+  const host = requestHostOf(c)
+  // The answer differs per address (the partner's links): a cache in front keeps one per Host.
+  c.header('vary', 'host')
+  if (host.kind === 'partner')
     return c.json({
       ...currentAuthMethods(),
+      // The partner's own terms, privacy and support (its approved brand), never the install's.
+      links: await hostLegalLinks(host.partnerId).catch(() => ({ terms: null, privacy: null, supportEmail: null })),
       password: false,
       passkey: false,
       sso: [],
@@ -255,21 +260,27 @@ app.get('/v1/health', c => {
   return c.json(body, status)
 })
 
-// Public: the product name, logo and color an instance admin set (branding.ts), for every page including sign-in. A
-// signed-in session whose active workspace is a white-label partner's client gets the partner's brand instead
-// (partner-brand.ts, S4); the web app asks again after switching workspace. Only the session cookie counts here, never
-// an API key, so nothing about keys is learnt or counted on this public route.
+// Public: the product name, logo and color an instance admin set (branding.ts), for every page including sign-in. On a
+// white-label partner's own address its approved brand, signed in or not (S5); on the install's own, a signed-in session
+// whose active workspace is a partner's client gets the partner's brand instead (partner-brand.ts, S4); the web app asks
+// again after switching workspace. Only the session cookie counts here, never an API key, so nothing about keys is
+// learnt or counted on this public route.
 app.get('/v1/branding', async c => {
   c.header('cache-control', 'private, no-cache')
-  c.header('vary', 'cookie')
-  const session = c.req.header('cookie') && !c.req.header('authorization')
-  const actor = session ? await resolveActor(c.req.raw.headers, clientIpOf(c), requestHostOf(c)).catch(() => null) : null
-  return c.json((await brandingForActor(actor).catch(() => null)) ?? currentBranding())
+  c.header('vary', 'host, cookie')
+  const host = requestHostOf(c)
+  const session = host.kind === 'main' && c.req.header('cookie') && !c.req.header('authorization')
+  const actor = session ? await resolveActor(c.req.raw.headers, clientIpOf(c), host).catch(() => null) : null
+  return c.json((await brandingForActor(actor, host).catch(() => null)) ?? currentBranding())
 })
-app.get('/v1/branding/manifest.webmanifest', c => {
+// The installed app's name and icons: a partner's own address names the partner (its approved brand), else the install.
+app.get('/v1/branding/manifest.webmanifest', async c => {
   c.header('cache-control', 'no-cache')
+  c.header('vary', 'host')
   c.header('content-type', 'application/manifest+json')
-  return c.body(JSON.stringify(manifestFor()))
+  const host = requestHostOf(c)
+  const brand = host.kind === 'partner' ? await hostBrandOf(host.partnerId).catch(() => null) : null
+  return c.body(JSON.stringify(manifestFor(brand ?? currentBranding())))
 })
 // The logo's address changes with every new logo (?v=), so it is cached for good.
 app.get('/v1/branding/logo.png', async c => {
@@ -695,8 +706,17 @@ app.get('/v1/me', async c => {
     // On a bill: a sign-up waiting for Checkout is told the install's trial length and the plan's price (Server
     // admin › Billing); everyone what an extra number costs a month.
     workspace?.billingState || workspace?.partnerId ? workspaceBillFacts(workspace.id, actor.actorId) : null,
-    // Only with the `partner` permission (a session of a partner team member, never while impersonated).
-    actor.permissions.includes('partner') ? partnersOf(actor.actorId) : [],
+    // Only with the `partner` permission (a session of a partner team member, never while impersonated). On a partner's
+    // own address (no `partner` permission there) that partner only, for its team, with where its area opens.
+    actor.permissions.includes('partner')
+      ? partnersOf(actor.actorId)
+      : actor.partnerHost && actor.sessionId && !actor.impersonation
+        ? partnersOf(actor.actorId).then(mine =>
+            mine
+              .filter(p => p.id === actor.partnerHost?.partnerId)
+              .map(p => ({ ...p, areaOrigin: TRUSTED_ORIGINS[0] })),
+          )
+        : [],
     // A Cloud customer may add a workspace of their own from the workspace menu (signup-handlers.ts).
     workspace ? db.transaction(tx => newWorkspaceOffer(tx, actor, workspace)) : null,
     // Whether this install bills its workspaces (Linedesk Cloud): a workspace on a bill says so already; one without

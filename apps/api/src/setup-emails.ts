@@ -44,12 +44,11 @@ import {
   type SetupEmail,
   setupDay0Email,
   setupNudgeEmail,
-  WEB_ORIGIN,
   weekSummaryEmail,
 } from './emails/templates.ts'
 import { forwardingVerifiedFor } from './go-live-checklist.ts'
 import type { Handler } from './handler-context.ts'
-import { withWorkspaceBrand } from './partner-brand.ts'
+import { appOrigin, withWorkspaceBrand } from './partner-brand.ts'
 import { HANDLED } from './setup-events.ts'
 import { setupUnsubscribeUrl, unsubscribeHeaders } from './setup-unsubscribe.ts'
 
@@ -170,6 +169,8 @@ async function emailFor(
     .where(eq(assistants.workspace_id, workspaceId))
     .orderBy(asc(assistants.created_at))
     .limit(1)
+  // Links go to the workspace's address: a partner's own one for its clients while it is live (S5).
+  const origin = await appOrigin(workspaceId, tx)
   // The fallbacks in the recipient's language.
   const namesIn = (locale: UiLocale) => ({
     workspaceId,
@@ -196,7 +197,7 @@ async function emailFor(
         ),
       )
     const week = { calls: 0, urgent: 0, booked: 0, messages: 0, ...counts }
-    return (url, locale) => weekSummaryEmail({ ...namesIn(locale), ...week }, WEB_ORIGIN, url, locale)
+    return (url, locale) => weekSummaryEmail({ ...namesIn(locale), ...week }, origin, url, locale)
   }
   const number = setupNumber(
     await tx
@@ -217,12 +218,12 @@ async function emailFor(
     step: nextSetupStep({ number, forwardingVerified, live: false }) ?? 'first_call',
   }
   if (kind === 'setup_day0')
-    return (url, locale) => setupDay0Email({ ...namesIn(locale), ...setup }, WEB_ORIGIN, url, locale)
+    return (url, locale) => setupDay0Email({ ...namesIn(locale), ...setup }, origin, url, locale)
   return (url, locale) =>
     setupNudgeEmail(
       kind === 'setup_day1' ? 1 : 3,
       { ...namesIn(locale), ...setup },
-      WEB_ORIGIN,
+      origin,
       url,
       PARTNER_DIRECTORY_URL,
       locale,
@@ -249,7 +250,11 @@ function sendAll(
   workspaceId: string,
   locales: Map<string, UiLocale>,
 ) {
-  return withWorkspaceBrand(workspaceId, () => sendEach(sender, to, render, workspaceId, locales), tx)
+  return withWorkspaceBrand(
+    workspaceId,
+    async () => sendEach(sender, to, render, workspaceId, locales, await appOrigin(workspaceId, tx)),
+    tx,
+  )
 }
 
 async function sendEach(
@@ -258,11 +263,12 @@ async function sendEach(
   render: Render,
   workspaceId: string,
   locales: Map<string, UiLocale>,
+  origin: string,
 ) {
   let sent = 0
   let failed = 0
   for (const { email: address, userId } of to) {
-    const unsubscribeUrl = setupUnsubscribeUrl(workspaceId, userId)
+    const unsubscribeUrl = setupUnsubscribeUrl(workspaceId, userId, origin)
     try {
       await sender.send({
         to: address,

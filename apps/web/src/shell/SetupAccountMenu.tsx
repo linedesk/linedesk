@@ -9,7 +9,7 @@
 import { useT } from '@linedesk/i18n/react'
 import { useRef, useState } from 'react'
 import { auth } from '../auth.ts'
-import { useMyPartners } from '../partner/partner-api.ts'
+import { openPartnerArea, useMyPartners } from '../partner/partner-api.ts'
 import { tabWorkspace } from '../tabWorkspace.ts'
 import { useAnchoredList } from '../ui/floating.ts'
 import { Avatar } from '../ui/kit.tsx'
@@ -97,7 +97,7 @@ export function SetupAccountMenu({
                   key={p.id}
                   label={t('shell.workspaceMenu.partner', { partner: p.name })}
                   icon="users"
-                  onClick={menu.choose(() => (window.location.hash = '#partner'))}
+                  onClick={menu.choose(() => openPartnerArea(p))}
                 />
               ))}
               {/* The workspace list ends in its own line; the partner rows get one, as in the workspace menu. */}

@@ -304,7 +304,17 @@ export const partnerSetClientLimit = defineAction({
 // --- What the actions answer ------------------------------------------------------------------------------------
 
 /** A partner the signed-in person is on the team of (GET /v1/me `partners`). */
-export type MyPartner = { id: string; name: string; status: PartnerStatus; role: PartnerRole }
+export type MyPartner = {
+  id: string
+  name: string
+  status: PartnerStatus
+  role: PartnerRole
+  /**
+   * Listed on the partner's own address (white-label S5), where the partner area does not open: the install's own
+   * address, where it does (the menu opens it in a new tab). Absent on the install's own address.
+   */
+  areaOrigin?: string
+}
 
 export type PartnerTeamMember = { userId: string; name: string; email: string; role: PartnerRole; joinedAt: string }
 export type PartnerInvitationRow = {

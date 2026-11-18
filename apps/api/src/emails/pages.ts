@@ -1,7 +1,7 @@
 // The few pages the server shows on its own, outside the web app: what a link in an email opens (setup-unsubscribe.ts).
 // Plain HTML in the reader's language; the CSP allows no inline styles or scripts, and none are needed.
 import { getT } from '@linedesk/i18n/server'
-import { brandName } from '../branding.ts'
+import { emailBrandName } from '../email-brand.ts'
 import type { EmailLocale } from './templates.ts'
 
 const htmlEscape = (s: string) => s.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`)
@@ -24,7 +24,7 @@ export function setupUnsubscribePage(kind: 'invalid' | 'confirm' | 'done', local
   return page(
     lang,
     t('email.unsubscribe.confirmTitle'),
-    `${paragraph(t('email.unsubscribe.confirmText', { brand: brandName() }))}<form method="post" action="${htmlEscape(action)}"><button type="submit">${htmlEscape(t('email.unsubscribe.confirmButton'))}</button></form>`,
+    `${paragraph(t('email.unsubscribe.confirmText', { brand: emailBrandName() }))}<form method="post" action="${htmlEscape(action)}"><button type="submit">${htmlEscape(t('email.unsubscribe.confirmButton'))}</button></form>`,
   )
 }
 

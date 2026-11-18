@@ -33,6 +33,9 @@ body,
   display: grid;
   place-items: center;
 }
+.auth-mark.is-pending {
+  visibility: hidden;
+}
 .auth-card {
   width: 100%;
   display: flex;

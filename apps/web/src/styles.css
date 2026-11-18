@@ -1697,6 +1697,9 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 
 /* An install's own logo (Server admin › Branding) in place of the mark: the image itself, no dark square. */
 .ws-mark.is-logo, .auth-mark.is-logo { background: none; overflow: hidden; }
+.ws-mark.is-initial, .auth-mark.is-initial { background: var(--action); color: var(--on-action); font-weight: 600; line-height: 1; }
+.auth-mark.is-initial { font-size: 20px; }
+.ws-mark.is-initial { font-size: 13px; }
 .is-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
 /* Forwarding check (onboarding phone step and Settings, Phone numbers) */

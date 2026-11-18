@@ -13,8 +13,8 @@ import type { Env, Hono } from 'hono'
 import { localeForUser } from '@linedesk/i18n/server'
 import { db } from './db.ts'
 import { localeForUserId } from './email-locale.ts'
+import { withWorkspaceBrand } from './partner-brand.ts'
 import { setupUnsubscribePage } from './emails/pages.ts'
-import { WEB_ORIGIN } from './emails/templates.ts'
 import { hasSecretsKey, signWithSecretsKey } from './secrets.ts'
 
 const PURPOSE = 'setup-emails-unsubscribe'
@@ -41,8 +41,11 @@ export function readSetupUnsubscribeToken(token: string | undefined): { workspac
   return { workspaceId, userId }
 }
 
-/** The one-click link for a member, or null without SECRETS_KEY (the emails then link to the signed-in setting). */
-export function setupUnsubscribeUrl(workspaceId: string, userId: string, origin = WEB_ORIGIN): string | null {
+/**
+ * The one-click link for a member at the workspace's address (`origin`, appOrigin: a partner's own one for its clients),
+ * or null without SECRETS_KEY (the emails then link to the signed-in setting).
+ */
+export function setupUnsubscribeUrl(workspaceId: string, userId: string, origin: string): string | null {
   if (!hasSecretsKey()) return null
   return `${origin}${SETUP_UNSUBSCRIBE_PATH}?t=${setupUnsubscribeToken(workspaceId, userId)}`
 }
@@ -84,7 +87,11 @@ export function registerSetupUnsubscribeRoutes<E extends Env>(app: Hono<E>) {
     const who = readSetupUnsubscribeToken(token)
     const locale = await pageLocale(who, c.req.header('accept-language'))
     if (!who) return c.html(setupUnsubscribePage('invalid', locale), 400)
-    return c.html(setupUnsubscribePage('confirm', locale, `${SETUP_UNSUBSCRIBE_PATH}?t=${token ?? ''}`))
+    // The product named on the page is the workspace's (a partner's client: the partner's, partner-brand.ts).
+    const html = await withWorkspaceBrand(who.workspaceId, async () =>
+      setupUnsubscribePage('confirm', locale, `${SETUP_UNSUBSCRIBE_PATH}?t=${token ?? ''}`),
+    )
+    return c.html(html)
   })
   // The confirm page's button, and mail apps' one-click POST (body "List-Unsubscribe=One-Click", not read).
   app.post(SETUP_UNSUBSCRIBE_PATH, async c => {

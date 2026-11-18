@@ -161,6 +161,8 @@ export type Me = {
   setupByHand?: boolean
   /** The white-label partners whose team the person is on (the partner area, `#partner`); absent from an older server. */
   partners?: MyPartner[]
+  /** Set by the web app (session.ts partnersHere): partners listed with `areaOrigin`, whose area opens elsewhere. */
+  partnersElsewhere?: MyPartner[]
   /**
    * A Cloud customer may add a workspace of their own (the workspace menu's "New workspace…", the sign-up page without
    * the email step): whether its plan gets a free trial (one per account), the interval of their latest bill, and a

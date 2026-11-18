@@ -45,13 +45,13 @@ import {
 } from '@linedesk/db'
 import type { Closure } from '@linedesk/db/types'
 import { and, asc, eq, gt, gte, inArray, lt, lte, ne, sql } from 'drizzle-orm'
-import { WEB_ORIGIN } from './auth.ts'
 import { queueBookingConfirmation, queueCallPush } from './jobs.ts'
 import { noteCalendarAppFailure, providerFor } from './calendar-connections.ts'
 import { calendarToolModes, connectWays } from './calendar-tools.ts'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Forbidden, lockCall, Reject } from './handler-context.ts'
 import { brandName } from './branding.ts'
+import { appOrigin } from './partner-brand.ts'
 
 const DAY_MS = 86_400_000
 /** Used until a workspace has stored its own time zone. */
@@ -749,17 +749,20 @@ function eventDescription({
   phone,
   address,
   callId,
+  origin,
 }: {
   reason: string
   phone: string | null
   address?: string
   callId?: string
+  /** The workspace's address (appOrigin): the call's link in the event. */
+  origin: string
 }) {
   return [
     withoutLinks(reason),
     phone ? `Phone: ${phone}` : null,
     address ? `Address: ${withoutLinks(address)}` : null,
-    callId ? `Call: ${new URL(`/#call/${callId}`, WEB_ORIGIN)}` : null,
+    callId ? `Call: ${new URL(`/#call/${callId}`, origin)}` : null,
     `Booked by the ${brandName()} assistant.`,
   ]
     .filter(Boolean)
@@ -980,13 +983,21 @@ export const bookingHandlers: Record<string, Handler> = {
     if (missing.length)
       throw new Reject(`A ${type.name} needs the caller's ${missing.join(' and ')}: ask for it, then book.`)
     const title = input.callerName ? `${type.name} · ${withoutLinks(input.callerName)}` : type.name
+    // The call's link in the event: the workspace's address (a partner's own one for its clients, S5).
+    const origin = await appOrigin(workspaceId, tx)
     const event = await atProvider(() =>
       provider.createEvent(calendar.external_id, {
         title,
         start,
         end,
         location: input.address && withoutLinks(input.address),
-        description: eventDescription({ reason: input.reason, phone, address: input.address, callId: call?.id }),
+        description: eventDescription({
+          reason: input.reason,
+          phone,
+          address: input.address,
+          callId: call?.id,
+          origin,
+        }),
         attendee: { name: input.callerName && withoutLinks(input.callerName), email, phone },
       }),
     )

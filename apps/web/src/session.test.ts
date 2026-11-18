@@ -215,3 +215,13 @@ describe('renaming the open workspace', () => {
     expect(renameInSession({ state: 'signedOut' }, 'Brightwater')).toBeNull()
   })
 })
+
+describe("on a white-label partner's own address (S5)", () => {
+  it('lists the partner for the menus only: its area opens at the install’s own address', async () => {
+    const partner = { id: 'ptn1', name: 'Cascade', status: 'approved', role: 'admin', areaOrigin: 'https://app.linedesk.example' }
+    vi.stubGlobal('fetch', vi.fn(async () => json(200, { ...me, partners: [partner] })))
+    const session = await loadSession()
+    expect(session).toMatchObject({ state: 'ready', me: { partners: [], partnersElsewhere: [partner] } })
+    expect(peekQuery('partners.mine')).toEqual([partner])
+  })
+})

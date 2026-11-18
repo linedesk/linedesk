@@ -38,9 +38,8 @@ import { invitedByPartnerTeam } from './partner-invited.ts'
 import { revokeMemberSetupKeys, revokeWorkspaceSetupKeys } from './passkey-enrolment.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { deleteAccountWithoutWorkspace } from './workspace-delete.ts'
-import { emailBrandOf, withWorkspaceBrand } from './partner-brand.ts'
+import { appOrigin, emailBrandOf, withWorkspaceBrand } from './partner-brand.ts'
 
-const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
 const DAY_MS = 86_400_000
 
 // Invitation emails go to any address, so a workspace can send a limited number: 30 an hour,
@@ -52,7 +51,8 @@ export { emailSafeName }
 
 /** Unguessable: the id is the secret in the invitation link. */
 const newInvitationId = () => randomBytes(24).toString('base64url')
-export const invitationLink = (id: string) => `${WEB_ORIGIN}/?invite=${encodeURIComponent(id)}`
+/** The invitation's link at the workspace's address (appOrigin: a partner's own address for its clients, S5). */
+export const invitationLink = (id: string, origin: string) => `${origin}/?invite=${encodeURIComponent(id)}`
 
 function workspaceOf(actor: Actor) {
   if (!actor.workspaceId) throw new Reject('no workspace')
@@ -126,7 +126,7 @@ export async function sendInvitation(
     inviter: emailSafeName(inviter?.name, addedAs ? t('email.fallback.serverAdmin') : t('email.fallback.teammate')),
     workspace: emailSafeName(ws?.name, t('email.fallback.team')),
     email: invite.email,
-    url: invitationLink(invite.id),
+    url: invitationLink(invite.id, await appOrigin(invite.organizationId, tx)),
     days: INVITATION_DAYS,
   }
   try {

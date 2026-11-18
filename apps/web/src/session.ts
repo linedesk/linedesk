@@ -88,7 +88,7 @@ function primeQueries(me: Me) {
   setTabWorkspace(me.workspace?.id ?? null, me.actorId)
   setQueryScope(`${me.actorId}/${me.workspace?.id ?? ''}`)
   if (me.workspaces) setQueryData(WORKSPACES_QUERY, me.workspaces, { persist: true })
-  setQueryData(PARTNERS_QUERY, me.partners ?? [])
+  setQueryData(PARTNERS_QUERY, [...(me.partners ?? []), ...(me.partnersElsewhere ?? [])])
 }
 
 /**
@@ -165,10 +165,9 @@ export function markLeft({ accountDeleted = false }: { accountDeleted?: boolean 
 export function leftAndDeleted(): string | null {
   try {
     return sessionStorage.getItem(LEFT_DELETED_KEY) === '1' ? sessionStorage.getItem(LEFT_KEY) : null
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
+
 
 /** Whether this tab left the workspace of that name itself (markLeft). */
 export function leftOnPurpose(workspaceName: string | null): boolean {
@@ -196,10 +195,9 @@ export function readDeleted(): Deleted | null {
   try {
     const value = JSON.parse(sessionStorage.getItem(DELETED_KEY) ?? 'null') as Partial<Deleted> | null
     return typeof value?.name === 'string' ? { name: value.name, accountDeleted: value.accountDeleted === true } : null
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
+
 
 /** What this tab deleted, once: read and forgotten (the toast, the sign-in page). */
 export function takeDeleted(): Deleted | null {
@@ -280,9 +278,18 @@ export async function mainOriginOf(res: Response): Promise<string | null> {
   try {
     const url = new URL(body.mainOrigin)
     return url.protocol === 'https:' || url.protocol === 'http:' ? url.origin : null
-  } catch {
-    return null
-  }
+  } catch { return null }
+}
+
+
+/**
+ * `partners`: those whose area opens here. On a white-label partner's own address the server lists that partner with
+ * `areaOrigin` (S5): its area opens at the install's own address, so only the menus show it (`partnersElsewhere`).
+ */
+export function partnersHere(me: Me): Me {
+  if (!me.partners?.some(p => p.areaOrigin)) return me
+  const all = [...me.partners, ...(me.partnersElsewhere ?? [])]
+  return { ...me, partners: all.filter(p => !p.areaOrigin), partnersElsewhere: all.filter(p => p.areaOrigin) }
 }
 
 export async function loadSession(): Promise<Session> {
@@ -294,7 +301,7 @@ export async function loadSession(): Promise<Session> {
     // Signed out, switched or another answer remembered while this one was on its way: it must not undo that.
     const current = deviceState() === asked
     if (current) sessionChanged()
-    const me = res.ok ? ((await res.json()) as Me) : null
+    const me = res.ok ? partnersHere((await res.json()) as Me) : null
     if (me?.workspace) {
       signedOutOf = null
       if (current) remember(me)

@@ -4,6 +4,9 @@
 // itself here (icons, primary color; Workspace.tsx sets the tab title); components read it with useBrand() or brandName().
 // A white-label partner's own screens (its setup and partner area) always show the install's branding, never a partner's
 // (Janik, 2026-11-18): they read it with useInstallBrand(), installBrandName() and BrandMark's `install`.
+// On a white-label partner's own address the server answers with the partner's brand from the first page (S5); the
+// storage is per address, so each keeps its own. Until the first answer on an address never seen before the brand is
+// not known (useBrandKnown): the sign-in page waits rather than showing the install's name there for a moment.
 import { type Branding, DEFAULT_BRANDING, readableOn } from '@linedesk/actions'
 import { useSyncExternalStore } from 'react'
 
@@ -19,13 +22,19 @@ function cached(key: string): Branding | null {
   }
 }
 
-let current: Branding = cached(STORAGE_KEY) ?? DEFAULT_BRANDING
+const stored = cached(STORAGE_KEY)
+let current: Branding = stored ?? DEFAULT_BRANDING
+/** A brand stored from an earlier visit, or the server answered (or could not be reached) on this one. */
+let known = stored !== null
 /**
  * The install's own branding: `current` unless a partner's client workspace is open, then the last one the install
  * answered with (every page before sign-in gets it), else Linedesk's.
  */
 let install: Branding = cached(INSTALL_KEY) ?? (current.partner ? DEFAULT_BRANDING : current)
 const listeners = new Set<() => void>()
+const notify = () => {
+  for (const listener of listeners) listener()
+}
 const subscribe = (listener: () => void) => {
   listeners.add(listener)
   return () => {
@@ -54,11 +63,20 @@ export const useInstallBrand = (): Branding =>
     () => install,
   )
 
+/** Whether the brand is known yet (stored from an earlier visit, or answered now): the sign-in page waits until it is. */
+export const useBrandKnown = (): boolean =>
+  useSyncExternalStore(
+    subscribe,
+    () => known,
+    () => known,
+  )
+
 /** Makes `next` the branding in effect: stored for the next load, applied to the page, shown by every useBrand(). */
 export function setBrand(next: Branding) {
   if (typeof document !== 'undefined') renameInTitle(current.name, next.name)
   current = next
   if (!next.partner) install = next
+  known = true
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
     localStorage.setItem(INSTALL_KEY, JSON.stringify(install))
@@ -66,18 +84,24 @@ export function setBrand(next: Branding) {
     // Private mode (or no storage at all): the branding is fetched again on the next load.
   }
   if (typeof document !== 'undefined') applyToPage(next)
-  for (const listener of listeners) listener()
+  notify()
 }
 
 /** Applies the stored branding at once, then the server's. A failed request keeps what is shown. */
 export async function loadBrand() {
   applyToPage(current)
-  document.title = current.name
+  if (known) document.title = current.name
   try {
     const res = await fetch('/v1/branding', { headers: { accept: 'application/json' } })
     if (res.ok) setBrand({ ...DEFAULT_BRANDING, ...((await res.json()) as Partial<Branding>) })
   } catch {
     // Offline: the stored branding stays.
+  }
+  if (!known) {
+    // No answer and nothing stored: the install's defaults, rather than a page that waits for good.
+    known = true
+    document.title = current.name
+    notify()
   }
 }
 

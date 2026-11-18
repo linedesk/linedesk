@@ -78,7 +78,11 @@ export async function queueSpendingAlerts(tx: Tx, workspaceId: string, now: stri
   }
 }
 
-/** The email at one level, the same for owners and instance admins, in the recipient's language. */
+/**
+ * The email at one level, the same for owners and instance admins, in the recipient's language. Its site is the
+ * install's own (WEB_ORIGIN), also for a partner's client (S5): the readers are the partner's owner and the instance
+ * admins, who work there, and the email names the install as the site they administer.
+ */
 export function spendingAlertEmail(
   workspace: string | null,
   level: number,

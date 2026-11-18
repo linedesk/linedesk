@@ -14,7 +14,7 @@ import { AuthError } from './ui/AuthError.tsx'
 import { HelpTip, type HelpTipContent } from './ui/HelpTip.tsx'
 import { AuthPage, cx, Icon, Spinner } from './ui/kit.tsx'
 import { NO_PASSWORD_MANAGER } from './ui/passwordManager.ts'
-import { brandName } from './brand.ts'
+import { brandName, useBrandKnown } from './brand.ts'
 import { leftAndDeleted, readDeleted, signedOutOfWorkspace } from './session.ts'
 import { isUiLocale, PSEUDO_LOCALE } from '@linedesk/i18n'
 import { useLocale } from '@linedesk/i18n/react'
@@ -58,6 +58,8 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   const t = useT()
   // What this install offers: the last known at once (kept across visits), checked again in the background.
   const methods = useQuery('auth-methods', loadAuthMethods, { persist: true }).data ?? null
+  // Whose page this is (a white-label partner's own address names the partner, brand.ts): known before the title shows.
+  const brandKnown = useBrandKnown()
   const [step, setStep] = useState<Step>('start')
   const [form, setForm] = useState({ email: '', password: '' })
   // A failed provider sign-in comes back with ?error=CODE: read once, then shown like any other error.
@@ -182,7 +184,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
     })
   }
 
-  if (!methods) return <AuthPage>{error ? <AuthError message={error} /> : <p className="auth-wait">{t('auth.connecting')}</p>}</AuthPage>
+  if (!methods || !brandKnown) return <AuthPage>{error ? <AuthError message={error} /> : <p className="auth-wait">{t('auth.connecting')}</p>}</AuthPage>
 
   if (methods.setupNeeded && !reauth) return <SetupStep onDone={onDone} />
 

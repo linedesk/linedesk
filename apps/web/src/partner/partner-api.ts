@@ -21,6 +21,15 @@ async function loadMyPartners(): Promise<MyPartner[]> {
   return ((await res.json()) as { partners?: MyPartner[] }).partners ?? []
 }
 
+/**
+ * Opens a partner's area: here, or on a white-label partner's own address (`areaOrigin`, S5), where it does not open, at
+ * the install's own address in a new tab.
+ */
+export function openPartnerArea(partner: Pick<MyPartner, 'areaOrigin'>) {
+  if (partner.areaOrigin) window.open(new URL('/#partner', partner.areaOrigin).toString(), '_blank', 'noopener')
+  else window.location.hash = '#partner'
+}
+
 /** The person's partners: known with the session (session.ts primes them from /v1/me), checked again in the background. */
 export const useMyPartners = (): MyPartner[] => useQuery(PARTNERS_QUERY, loadMyPartners).data ?? []
 export const refreshMyPartners = () => fetchQuery(PARTNERS_QUERY, loadMyPartners)

@@ -19,7 +19,7 @@ import { useMenu } from './useMenu.ts'
 import { WorkspaceMark, workspaceIconOf } from './WorkspaceMark.tsx'
 import { refreshWorkspaces, useWorkspaces, type Workspace, WorkspaceSwitcher } from './WorkspaceSwitcher.tsx'
 import { useT } from '@linedesk/i18n/react'
-import { useMyPartners } from '../partner/partner-api.ts'
+import { openPartnerArea, useMyPartners } from '../partner/partner-api.ts'
 
 export type WorkspaceMenuItem = 'switcher' | 'new' | 'account' | 'shortcuts' | 'help' | 'terms' | 'privacy' | 'sign-out'
 
@@ -228,7 +228,7 @@ export function WorkspaceMenu({
               key={p.id}
               label={t('shell.workspaceMenu.partner', { partner: p.name })}
               icon="users"
-              onClick={menu.choose(() => (window.location.hash = '#partner'))}
+              onClick={menu.choose(() => openPartnerArea(p))}
             />
           ))}
           {partners.length > 0 && <hr />}

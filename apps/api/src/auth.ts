@@ -18,8 +18,10 @@ import { countSignInFailures, limitSignIns } from './sign-in-limits.ts'
 import { rememberKnownBrowser } from './known-browser.ts'
 import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
-import { requestHostOf, trustedOriginsFor } from './request-host.ts'
-import { guardPartnerHostAuth, sessionHostHooks } from './host-sessions.ts'
+import { type RequestHost, requestHostOf, trustedOriginsFor } from './request-host.ts'
+import { guardPartnerHostAuth, hostOfAuthContext, sessionHostHooks } from './host-sessions.ts'
+import { withEmailBrand } from './email-brand.ts'
+import { hostEmailBrand } from './partner-brand.ts'
 import {
   guardPasskeyChanges,
   notifyPasskeyChange,
@@ -219,12 +221,33 @@ const acceptLanguageOf = (ctx: unknown) =>
   (ctx as { request?: Request } | undefined)?.request?.headers.get('accept-language') ??
   null
 
-/** Sign-in, confirmation, password reset and email change codes. */
-async function sendSignInCode({ email, otp, type }: { email: string; otp: string; type: string }, ctx?: unknown) {
-  if (type === 'change-email') return sendEmailChangeCode(email, otp, ctx)
+/**
+ * Sign-in, confirmation, password reset and email change codes. Asked on a white-label partner's own address (S5), the
+ * email carries that partner's brand once its emails may (hostEmailBrand) and names and links that address: from the
+ * host map (the database), never from the request's headers.
+ */
+async function sendSignInCode(code: { email: string; otp: string; type: string }, ctx?: unknown) {
+  if (code.type === 'change-email') return sendEmailChangeCode(code.email, code.otp, ctx)
+  const host = hostOfAuthContext(ctx)
+  const brand = await hostEmailBrand(host).catch(err => {
+    console.error("could not read the address's brand; sending with the install's", err)
+    return null
+  })
+  return withEmailBrand(brand, () => sendCodeEmail(code, ctx, host))
+}
+
+async function sendCodeEmail(
+  { email, otp, type }: { email: string; otp: string; type: string },
+  ctx: unknown,
+  host: RequestHost,
+) {
   const locale = await localeForEmail(db, email, acceptLanguageOf(ctx))
   if (type === 'email-verification') {
-    await emailSender.send({ to: email, ...confirmationCodeEmail(otp, process.env, locale) })
+    const rendered =
+      host.kind === 'partner'
+        ? confirmationCodeTemplate(otp, host.origin, host.origin, locale)
+        : confirmationCodeEmail(otp, process.env, locale)
+    await emailSender.send({ to: email, ...rendered })
     return
   }
   if (type === 'forget-password') return sendPasswordResetCode(email, otp, locale)
@@ -232,7 +255,8 @@ async function sendSignInCode({ email, otp, type }: { email: string; otp: string
   // Closed sign-up: no code to an address that cannot sign in.
   if (!(await maySendSignInCode(db, email))) return
   // The email's button and "sign-in page at <site>" name the origin the code was asked from, when it is one of ours.
-  const origin = linkOrigin(originOf(ctx), TRUSTED_ORIGINS, normaliseOrigin(WEB_ORIGIN))
+  const origin =
+    host.kind === 'partner' ? host.origin : linkOrigin(originOf(ctx), TRUSTED_ORIGINS, normaliseOrigin(WEB_ORIGIN))
   // The button goes on where the flow is: the sign-up page for its own code, else the app (sign-in-link.ts).
   const signupPath = signupPageLinkPath()
   const linkPath = signupPath ?? '/'

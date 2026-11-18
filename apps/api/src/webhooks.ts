@@ -36,6 +36,7 @@ import { WEB_ORIGIN } from './auth.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { checkedLookup, isLinkLocalAddress, isPrivateAddress, type Resolve, resolveAll } from './ip-address.ts'
 import { queueWebhookDelivery } from './jobs.ts'
+import { appOrigin } from './partner-brand.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { recordingLink } from './recording-route.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey } from './secrets.ts'
@@ -372,7 +373,8 @@ export async function callEndPayload(tx: Tx, workspaceId: string, callId: string
     transcript_text: lines.map(l => `${l.speaker === 'agent' && assistantName ? assistantName : SPEAKER[l.speaker] ?? l.speaker}: ${l.text}`).join('\n'),
     bookings: booked.map(b => ({ ...b, start_at: iso(b.start_at), end_at: iso(b.end_at) })),
     transfer: call.transfer_to ? { to: call.transfer_to, name: call.transfer_name, result: call.transfer_result } : null,
-    call_url: new URL(`/#call/${call.id}`, WEB_ORIGIN).toString(),
+    // The workspace's address (appOrigin): a partner's own one for its clients while it is live (S5).
+    call_url: new URL(`/#call/${call.id}`, await appOrigin(workspaceId, tx)).toString(),
     recording_url: recording?.url ?? null, recording_expires_at: recording?.expires_at ?? null,
   }
 }
@@ -477,7 +479,7 @@ async function endpointIn(tx: Tx, workspaceId: string, endpointId: string) {
 }
 
 /** An example of what a hook sends, for Send test: a made-up call to the assistant (during it, asking `lookup`). */
-function testRequest(endpoint: WebhookEndpoint, hook: WebhookHook, assistant: { id: string; name: string }, now: string, lookup: WebhookLookup | null): CallStartRequest | DuringCallRequest | CallEndPayload {
+function testRequest(endpoint: WebhookEndpoint, hook: WebhookHook, assistant: { id: string; name: string }, now: string, lookup: WebhookLookup | null, origin: string): CallStartRequest | DuringCallRequest | CallEndPayload {
   const call = {
     call_id: 'call_test', workspace_id: endpoint.workspace_id, assistant_id: assistant.id, assistant_name: assistant.name,
     from_number: '+15035550123', to_number: '+15035550100', started_at: now,
@@ -495,7 +497,7 @@ function testRequest(endpoint: WebhookEndpoint, hook: WebhookHook, assistant: { 
     next_steps: [{ text: 'Call Sam back to schedule a visit tomorrow', kind: 'message' }],
     fields: [{ label: 'Issue', value: 'Leaking water heater' }], caller_details: { name: 'Sam', plan: 'Premium' },
     transcript: lines, transcript_text: lines.map(l => `${l.speaker === 'agent' ? assistant.name : 'Caller'}: ${l.text}`).join('\n'),
-    bookings: [], transfer: null, call_url: new URL('/#call/call_test', WEB_ORIGIN).toString(), recording_url: null, recording_expires_at: null,
+    bookings: [], transfer: null, call_url: new URL('/#call/call_test', origin).toString(), recording_url: null, recording_expires_at: null,
   }
 }
 
@@ -555,7 +557,7 @@ export const webhookHandlers: Record<string, Handler> = {
     const [stored] = await tx.select().from(webhook_secrets).where(eq(webhook_secrets.endpoint_id, endpoint.id))
     if (!stored) throw new Reject('this webhook has no secret; add it again')
     const id = newId('whd')
-    const payload = testRequest(endpoint, input.hook, await assistantOf(tx, endpoint.assistant_id!), now, lookup)
+    const payload = testRequest(endpoint, input.hook, await assistantOf(tx, endpoint.assistant_id!), now, lookup, await appOrigin(workspaceId, tx))
     // The hooks the call waits for are tested with their own time limit and their answer read, as on a call.
     const timeoutMs = input.hook === 'call_start' ? CALL_START_TIMEOUT_MS : input.hook === 'during_call' ? DURING_CALL_TIMEOUT_MS : undefined
     const result = await sendWebhook(endpoint.url, decryptSecret(stored.secret_encrypted, secretSlot(endpoint.id)), id, 'webhook.test', JSON.stringify(payload), timeoutMs ? { timeoutMs, readReply: true } : {})
