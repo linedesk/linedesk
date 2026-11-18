@@ -374,6 +374,7 @@ async function converse(
       text: openingOf(call),
     })
   const cachedGreeting = personalGreeting || !key ? Promise.resolve(null) : greetingCache.get(key) // read while the session starts
+  void cachedGreeting.then(audio => audio && setup.mark('greeting read'))
   let callerIdentity: string | undefined
   void callerJoined.then(
     caller => (callerIdentity = caller.identity),

@@ -2,7 +2,8 @@
 // at once when a call is answered instead of waiting for the voice provider. A changed greeting or
 // voice has another key, so it is synthesized anew; the old file is simply no longer used.
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
+import { mkdir, rename, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ReadableStream } from 'node:stream/web'
@@ -97,10 +98,16 @@ export const GREETING_CACHE_DIR = process.env.GREETING_CACHE_DIR || join(tmpdir(
 export function createGreetingCache(dir = GREETING_CACHE_DIR) {
   const file = (key: string) => join(dir, `${key}.pcm`)
   return {
-    /** The stored audio, or null when there is none, it cannot be read or it is empty (stored before empty audio was refused). */
+    /**
+     * The stored audio, or null when there is none, it cannot be read or it is empty (stored before empty audio was refused).
+     * Read at once, not through Node's thread pool (LIN-262): while a call starts, the pool's few threads also serve the
+     * name lookups of every provider and API connection, and a read queued behind them can wait. On the test server the
+     * greeting was queued up to 0.6 s after the pickup with a stored greeting. A stored greeting is a few hundred kB,
+     * read in about a millisecond.
+     */
     async get(key: string): Promise<GreetingAudio | null> {
       try {
-        const audio = decodeAudio(await readFile(file(key)))
+        const audio = decodeAudio(readFileSync(file(key)))
         return audio.samples.length ? audio : null
       } catch {
         return null
