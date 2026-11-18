@@ -70,6 +70,12 @@ export interface Actor {
    * key never gets the owner's rights, and it stops working once the maker's role is another (agent-setup.ts).
    */
   setupWorkspaceRole?: 'owner' | 'admin'
+  /**
+   * That setup key is a white-label partner owner's (agent_setup_keys.partner_id): the partner's own profile, brand and
+   * team, and the setup of its client workspaces, never the bill, the server or another workspace (agent-setup.ts
+   * partnerSetupActor, setupActorIn; run-action.ts partnerKeyOutOfScope).
+   */
+  setupPartnerId?: string
   /** The session of a signed-in member (not an API key or the agent). */
   sessionId?: string
   /** When that session ends unless it is used again (Better Auth extends it as it is used). */

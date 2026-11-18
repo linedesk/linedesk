@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineAction } from './define.ts'
+import { english } from './words.ts'
 
 // Agent setup (LIN-125, docs/api.md "Setup MCP"): the preferred way to set up an install is an AI agent. An instance
 // admin makes a setup key here; the agent connects to the setup MCP at /mcp/setup with it and sets up providers and
@@ -48,6 +49,47 @@ export const agentSetupRevokeWorkspace = defineAction({
   permission: 'settings:write',
 })
 
+/**
+ * The white-label partner's way (2026-11-18, agent-first): the partner's owner makes a setup key for the partner, to
+ * set it up with an AI agent: the partner's company name, brand and team, and the setup of each client workspace. Never
+ * the partner bill, a new client workspace (a seat: the owner adds it on the setup page), a number or a real call.
+ */
+export const agentSetupCreatePartnerKey = defineAction({
+  name: 'agentSetup.createPartnerKey',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Make a setup key for an AI agent that sets up your white-label partner with you: company name, brand, team invitations, and each client workspace's business info, assistant, hours and notifications. It acts as you, for this partner and its client workspaces only, never the partner bill, the server or another workspace. For security, the key stops working after 4 hours. Earlier setup keys of yours stop working. The key is returned once. The partner's owner only.",
+  input: z.object({ partnerId: z.string().min(1).max(64) }),
+  permission: 'partner',
+  secretResult: ['key', 'url'],
+})
+
+/** Ends the caller's setup links for this partner at once (End access on the partner's agent page). */
+export const agentSetupRevokePartner = defineAction({
+  name: 'agentSetup.revokePartner',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description: 'End agent setup for this partner: your setup keys for it stop working at once.',
+  input: z.object({ partnerId: z.string().min(1).max(64) }).strict(),
+  permission: 'partner',
+})
+
+/** The partner's own setup steps with an AI agent, in order (partners.setup_step in the database). */
+export const partnerSetupSteps = ['company', 'brand', 'team', 'clients', 'done'] as const
+export type PartnerSetupStep = (typeof partnerSetupSteps)[number]
+
+/**
+ * How far the partner's own setup got (the partner's agent page and setup_status), like onboarding.setStep for a
+ * workspace: the agent moves it on, so a step the owner chose to leave (a team of one) is not asked again.
+ */
+export const partnerSetSetupStep = defineAction({
+  name: 'partner.setSetupStep',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Note how far the partner's own setup got: company, brand, team, clients or done. Never moves back. The partner's owner only.",
+  input: z.object({ partnerId: z.string().min(1).max(64), step: z.enum(partnerSetupSteps) }),
+  permission: 'partner',
+})
+
 /** `data` of agentSetup.createKey: `key` and `url` (the MCP address with the key in it) are shown once. */
 export type AgentSetupKeyCreated = { keyId: string; key: string; url: string; prefix: string; expiresAt: string }
 
@@ -93,6 +135,9 @@ export const agentSetupEndOwnAccess = defineAction({
  * it, and heads the workspace part with the workspace dropdown instead of its label.
  */
 export const setupStepGroups = [
+  // A white-label partner's own part (its agent page, scope "partner"): company, brand, team, client workspaces.
+  // The setup page names it (onboarding.agentSetup.partner.group); the agent reads setup_status.partner.
+  { id: 'partner', label: '' },
   { id: 'server', label: 'This server' },
   { id: 'business', label: 'Workspace' },
 ] as const
@@ -133,7 +178,7 @@ export type SetupWorkspaceSummary = { id: string; name: string; done: number; to
  * Which setup a link is for: `install` (an instance admin's: the server's providers and their workspaces) or
  * `workspace` (an owner's: one workspace's own steps only).
  */
-export type SetupScope = 'install' | 'workspace'
+export type SetupScope = 'install' | 'workspace' | 'partner'
 
 /**
  * A workspace link made to change settings, not to set the workspace up (Workspace settings and Assistant settings,
@@ -416,9 +461,11 @@ const MCP_NAME = 'linedesk-setup'
 const commandPrompt = (scope: SetupScope, change?: SetupChange) =>
   change
     ? `Help me change ${changeTarget(change)} in Linedesk, the open-source AI receptionist, through the linedesk-setup tools. Call setup_status first, read the current settings, then ask me what to change and change only that.`
-    : scope === 'workspace'
-      ? 'Help me set up my business in Linedesk, the open-source AI receptionist, through the linedesk-setup tools. Call setup_status first, follow the setup server instructions and the next step it gives, and work through it with me one step at a time.'
-      : 'Help me set up Linedesk, the open-source AI receptionist, on my server through the linedesk-setup tools. Call setup_status first, follow the setup server instructions and the next step it gives, and work through it with me one step at a time.'
+    : scope === 'partner'
+      ? english.t('server.setupAgent.partner.command')
+      : scope === 'workspace'
+        ? 'Help me set up my business in Linedesk, the open-source AI receptionist, through the linedesk-setup tools. Call setup_status first, follow the setup server instructions and the next step it gives, and work through it with me one step at a time.'
+        : 'Help me set up Linedesk, the open-source AI receptionist, on my server through the linedesk-setup tools. Call setup_status first, follow the setup server instructions and the next step it gives, and work through it with me one step at a time.'
 /** A POSIX shell word: single quotes, a single quote inside written as '\''. */
 export const shellQuote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
 
@@ -438,6 +485,7 @@ export function agentSetupPrompt(
 ): string {
   if (change) return changeSettingsPrompt(url, connector, change)
   if (scope === 'workspace') return workspaceSetupPrompt(url, connector)
+  if (scope === 'partner') return partnerSetupPrompt(url, connector)
   const tools = connector
     ? `How to reach the tools:
 - Use the tools of the Linedesk setup connector (setup_status, providers_list, provider_setKeys and so on).
@@ -507,6 +555,13 @@ What to do:
 Keep messages short and plain. Ask one question at a time. If a tool refuses, read its message: it says what to do.`
 }
 
+/** The prompt for a white-label partner owner's link (the partner's agent page, after its Checkout). */
+function partnerSetupPrompt(url: string, connector: boolean): string {
+  return english.t('server.setupAgent.partner.prompt', {
+    tools: toolsLines(url, connector, 'partner_get, partnerBrand_set'),
+  })
+}
+
 /** What a change is about, as the prompt names it: the assistant (and its workspace), or the workspace. */
 const changeTarget = (change: SetupChange) =>
   change.assistant
@@ -557,6 +612,10 @@ Working with the owner:
 Ending your access: when you are done, give the owner a short summary first, then call setup_endAccess. It ends only the setup link you are using, at once; every later call with it is refused, and the setup page tells the owner you ended it. setup_status says when (wrap_up). If steps are still open, ask the owner before you end it. Never end it in the middle of a step.
 
 Choices that work well (US): pick-up "when I can't answer" (no_answer) is the usual choice: the business phone rings first, unanswered calls forward to Linedesk.`
+
+/** The setup MCP's `instructions` for a white-label partner owner's link (agent-first, 2026-11-18). */
+export const setupMcpPartnerInstructions = () =>
+  english.t('server.setupAgent.partner.instructions', { hours: SETUP_KEY_HOURS })
 
 /** The setup MCP's `instructions`: the playbook an agent follows (also when the copied prompt was shortened). */
 export const SETUP_MCP_INSTRUCTIONS = `Linedesk setup: you are setting up a Linedesk install (an open-source AI receptionist that answers a business's phone calls) for its admin, the person you are talking to. You act as that admin, with setup tools only, email and sign-in included, through a key that ends after ${SETUP_KEY_HOURS} hours.

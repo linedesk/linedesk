@@ -15,6 +15,8 @@ import { AdminStart } from './onboarding/AdminStart.tsx'
 import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from './onboarding/AgentSetup.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { AccountSettings } from './settings/account/index.tsx'
+import { PARTNER_AGENT_HASH } from './onboarding/setup-choice.ts'
+import { PartnerAgentSetup } from './partner/PartnerAgentSetup.tsx'
 import { PartnerArea } from './partner/PartnerArea.tsx'
 import { signOutAndForget } from './localData.ts'
 import { deletedOnPurpose, leftOnPurpose } from './session.ts'
@@ -98,6 +100,8 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
   if (hash.startsWith('#account')) return <AccountPage onBack={leave} />
   // On a white-label partner's team: the partner area is their place until they open a client workspace.
   const partner = me?.partners?.[0]
+  if (partner && hash === PARTNER_AGENT_HASH && partner.role === 'owner' && !me?.impersonation)
+    return <PartnerAgentSetup partner={partner} onFirstWorkspace={onDone} />
   if (partner && !hash.startsWith('#admin') && !me?.impersonation)
     return <PartnerArea partner={partner} onSignedOut={onDone} onFirstWorkspace={onDone} />
   if (me && admin && hash.startsWith('#admin')) {

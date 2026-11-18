@@ -50,6 +50,8 @@ const INSTANCE_WIDE_FILES = [
   'test/app-jobber-webhook.test.ts',
   'test/setup-mcp.test.ts',
   'test/setup-mcp-workspace.test.ts',
+  // Makes a server admin, who creates the white-label partners (partner setup links).
+  'test/setup-mcp-partner.test.ts',
   'test/workspace-limit-retired.test.ts',
   // Makes server admins and switches the passkey check (personal keys carry Server admin).
   'test/personal-keys.test.ts',

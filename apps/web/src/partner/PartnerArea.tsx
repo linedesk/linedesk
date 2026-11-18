@@ -11,6 +11,7 @@ import { goToCheckout } from '../checkout.ts'
 import { useCountryHint } from '../countryHint.ts'
 import { signOutAndForget } from '../localData.ts'
 import { Billing } from '../settings/Billing.tsx'
+import { PARTNER_AGENT_HASH, rememberPartnerByHand } from '../onboarding/setup-choice.ts'
 import { purchaseKeys } from '../settings/billingModel.ts'
 import { CountrySelect } from '../settings/CountrySelect.tsx'
 import { callAction } from '../settings/settings-api.ts'
@@ -113,6 +114,20 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
         ) : null}
         <b>{t('team.partner.pageNamed', { partner: data?.partner.name ?? partner.name })}</b>
         <StatusBadge status={status} />
+        {partner.role === 'owner' && status !== 'suspended' && (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="spark"
+            title={t('team.partner.agentTitle')}
+            onClick={() => {
+              rememberPartnerByHand(partner.id, false)
+              window.location.hash = PARTNER_AGENT_HASH
+            }}
+          >
+            {t('team.partner.agent')}
+          </Button>
+        )}
         {!onExit && (
           <Button size="sm" variant="ghost" onClick={() => void signOutAndForget().then(onSignedOut)}>
             {t('shell.signOut')}
@@ -327,18 +342,27 @@ function Clients({
  * workspace (open it to get its number, or invite its owner) in the same dialog. Country and time zone start as this
  * browser's, as for a workspace of one's own.
  */
-function NewClientDialog({
+export function NewClientDialog({
   data,
   onFirstWorkspace,
   onOpen,
   onInvite,
   onClose,
+  onMade,
+  returnHash = '#partner',
 }: {
   data: PartnerData
   onFirstWorkspace?: () => void
   onOpen: (id: string, hash?: string) => void
   onInvite: (client: PartnerClient) => void
   onClose: () => void
+  /**
+   * The partner's agent setup page (AgentSetup, scope "partner"): the new workspace goes straight back to the page,
+   * which sets it up next, instead of the dialog's next steps.
+   */
+  onMade?: (workspace: { id: string; name: string }) => void
+  /** Where the page stays while the session loads again after the first client workspace. */
+  returnHash?: string
 }) {
   const t = useT()
   const owner = data.role === 'owner'
@@ -390,11 +414,12 @@ function NewClientDialog({
             },
           ],
         })
-        window.location.hash = '#partner'
+        window.location.hash = returnHash
         onFirstWorkspace()
         return
       }
       await Promise.all([reloadPartner(data.partner.id), refreshWorkspaces()])
+      if (onMade) return onMade(res.workspace)
       setMade({ ...res.workspace, ownerInvited: owner && email ? email : null })
     } catch (err) {
       keys.settle(err)

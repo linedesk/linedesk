@@ -1093,6 +1093,13 @@
       "when": 1794969706460,
       "tag": "0156_drop_allow_switches",
       "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1794971750811,
+      "tag": "0157_partner_agent_setup",
+      "breakpoints": true
     }
   ]
 }

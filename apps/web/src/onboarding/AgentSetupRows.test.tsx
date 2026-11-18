@@ -89,6 +89,12 @@ test('the workspace dropdown lists every workspace with how far it got, and New 
   ])
   // None yet: said so, and a new one can be made right here.
   expect(workspaceOptions([]).map(o => o.label)).toEqual(['No workspace yet', 'New workspace…'])
+  // A partner owner's page: client workspaces, and a new one is a seat on the partner bill.
+  expect(workspaceOptions([], true).at(-1)).toEqual({
+    value: '__new',
+    label: 'New client workspace…',
+    description: 'Adds a seat to your partner bill',
+  })
   // The dropdown heads the workspace steps and shows the picked one; while switching it waits.
   const html = renderToStaticMarkup(
     <WorkspacePicker workspaces={two} selectedId="ws_2" busy={null} onPick={() => {}} />,

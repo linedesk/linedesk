@@ -18,7 +18,8 @@ import { livekitStatus } from './livekit-status.ts'
 import { listProviderFailures } from './provider-failures.ts'
 import { providerStatus, voiceProviderConfig } from './provider-settings.ts'
 import { SecretsKeyError } from './secrets.ts'
-import { agentSetupState, setupActor, workspaceSetupActor } from './agent-setup.ts'
+import { agentSetupState, partnerSetupActor, setupActor, workspaceSetupActor } from './agent-setup.ts'
+import { PARTNER_OWNER_ONLY } from './partner-refusals.ts'
 import { installSetupState } from './install-setup.ts'
 import { setupProgress } from './setup-mcp.ts'
 import { providerFacts, setupChecklist, storedTests, statusContext } from './setup-checklist.ts'
@@ -292,6 +293,24 @@ export function registerAdminRoutes(app: Hono<Env>) {
       return c.json({ ok: false, error: 'only the workspace owner or an admin sets it up' }, 403)
     const progress = await setupProgress(asAgent, workspaceId)
     return c.json({ ...(await agentSetupState(actor.actorId, workspaceId)), progress })
+  })
+
+  // A white-label partner's agent setup (agent-setup.ts, partner keys; 2026-11-18): the partner owner's working setup
+  // link for that partner (never the key) and the partner's steps, then those of the client workspace the page picked
+  // (?workspace=, one of the partner's; else its first), as its agent sees them. Only the partner's owner, signed in as
+  // themselves (never through a key, a setup link or the voice agent).
+  app.get('/v1/partner/agent-setup', async c => {
+    const actor = c.get('actor')
+    const partnerId = c.req.query('partnerId') ?? ''
+    const person =
+      !actor.apiKeyId && !actor.setupKeyId && !actor.callId && !actor.impersonation && Boolean(actor.sessionId)
+    const asAgent =
+      person && partnerId && actor.permissions.includes('partner')
+        ? await partnerSetupActor(actor.actorId, 'page', partnerId)
+        : null
+    if (!asAgent) return c.json({ ok: false, error: PARTNER_OWNER_ONLY }, 403)
+    const progress = await setupProgress(asAgent, c.req.query('workspace') ?? null)
+    return c.json({ ...(await agentSetupState(actor.actorId, null, partnerId)), progress })
   })
 
   // Install setup by hand (install-setup.ts): where the walkthrough is, and whether a saved change waits for a restart.

@@ -18,6 +18,13 @@
 // with that one workspace and no server steps, the business tools, forwarding_guide and setup_endAccess. Never
 // providers_list, workspace_create or a provider or install action (not even registered), and its own instructions
 // (SETUP_MCP_WORKSPACE_INSTRUCTIONS), which ask for no provider keys.
+//
+// A white-label partner owner's key (agent_setup_keys.partner_id, 2026-11-18) gets the partner's own steps
+// (setup_status.steps: company, brand, team, client workspaces) and its client workspaces' steps, the partner's own
+// tools (PARTNER_KEY_PARTNER_ACTIONS, its partnerId filled in, never asked for) and the workspace tools of
+// PARTNER_KEY_WORKSPACE_ACTIONS: never a number, a forwarding check, a lookup, a new client workspace (a seat on the
+// bill) or the bill; those are the owner's rows on the partner's agent page. Its own instructions
+// (SETUP_MCP_PARTNER_INSTRUCTIONS).
 import {
   abroadWarning,
   english,
@@ -57,6 +64,7 @@ import {
   recommendedProviders,
   restartCategories,
   SETUP_MCP_INSTRUCTIONS,
+  setupMcpPartnerInstructions,
   SETUP_MCP_WORKSPACE_INSTRUCTIONS,
   searchForwardingGuides,
   statusText,
@@ -79,6 +87,8 @@ import { and, asc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   type ManagedWorkspace,
+  PARTNER_KEY_PARTNER_ACTIONS,
+  PARTNER_KEY_WORKSPACE_ACTIONS,
   setupKeyAccess,
   setupWorkspaces,
   setupActorIn,
@@ -102,6 +112,7 @@ import { newAssistant } from './onboarding.ts'
 import { pipelinesSetUp, providerStatus } from './provider-settings.ts'
 import { runAction } from './run-action.ts'
 import { isPendingPayment } from './self-serve.ts'
+import { type PartnerSetupFacts, partnerPast, partnerSetupFacts } from './partner-setup.ts'
 import { setupChecklist } from './setup-checklist.ts'
 import { workspaceLocale } from './workspace-locale.ts'
 import { assistantSpokeIn } from './setup-events.ts'
@@ -141,8 +152,22 @@ export const SETUP_ACTIONS = [
  * Who the agent talks to, as its texts name them: the instance admin (an install link), or the workspace's owner or
  * admin (a workspace link). A workspace link's person is never sent to Server admin: the server is not theirs to set up.
  */
-export const personOf = (actor: Pick<Actor, 'setupWorkspaceId' | 'setupWorkspaceRole'>) =>
-  !actor.setupWorkspaceId ? 'admin' : actor.setupWorkspaceRole === 'admin' ? 'workspace admin' : 'owner'
+export const personOf = (actor: Pick<Actor, 'setupWorkspaceId' | 'setupWorkspaceRole' | 'setupPartnerId'>) =>
+  actor.setupPartnerId
+    ? 'partner owner'
+    : !actor.setupWorkspaceId
+      ? 'admin'
+      : actor.setupWorkspaceRole === 'admin'
+        ? 'workspace admin'
+        : 'owner'
+
+/** A link of someone who does not run the server (a workspace's or a partner's): no server texts, no providers. */
+const notServerLink = (actor?: Pick<Actor, 'setupWorkspaceId' | 'setupPartnerId'>) =>
+  Boolean(actor?.setupWorkspaceId || actor?.setupPartnerId)
+
+/** The setup page this link's person works on: the partner's agent page, or the setup page. */
+const setupPage = (actor: Pick<Actor, 'setupPartnerId'>) =>
+  `${webAddress()}/${actor.setupPartnerId ? '#partner/agent' : '#setup-agent'}`
 
 /**
  * Tools a client should confirm with the person first: they cost money or undo work. The provider tools are only on an
@@ -201,7 +226,7 @@ export function forAgent(text: string, workspaceLink = false): string {
     )
 }
 const answer = (data: Record<string, unknown>, actor?: Actor): ToolResult => {
-  const text = forAgent(JSON.stringify(data), Boolean(actor?.setupWorkspaceId))
+  const text = forAgent(JSON.stringify(data), notServerLink(actor))
   return { content: [{ type: 'text', text }], structuredContent: JSON.parse(text) }
 }
 // The setup link cap (SETUP_LINK_WORKSPACE_CAP) and its count: workspace-creation.ts. workspace.create enforces it in the
@@ -225,7 +250,7 @@ function oneCreateAtATime<T>(keyId: string, run: () => Promise<T>): Promise<T> {
 }
 
 const refusal = (error: string, actor?: Actor): ToolResult => ({
-  content: [{ type: 'text', text: forAgent(error, Boolean(actor?.setupWorkspaceId)) }],
+  content: [{ type: 'text', text: forAgent(error, notServerLink(actor)) }],
   isError: true,
 })
 
@@ -237,9 +262,11 @@ const isServerAction = (name: string) => name.startsWith('provider.') || name.st
 
 /** What a business tool says when its workspace is not one the person may set up (or does not exist). */
 const notYourWorkspace = (actor: Actor) =>
-  actor.setupWorkspaceId
-    ? 'That workspaceId is not one you can set up: this setup link is for one workspace only, use the id in setup_status.workspaces. Nothing was changed.'
-    : 'That workspaceId is not one you can set up: use the id of one of setup_status.workspaces (workspaces where the admin is owner or admin). Nothing was changed.'
+  actor.setupPartnerId
+    ? english.t('server.setupAgent.partner.notYourWorkspace')
+    : actor.setupWorkspaceId
+      ? 'That workspaceId is not one you can set up: this setup link is for one workspace only, use the id in setup_status.workspaces. Nothing was changed.'
+      : 'That workspaceId is not one you can set up: use the id of one of setup_status.workspaces (workspaces where the admin is owner or admin). Nothing was changed.'
 
 /**
  * notifications.update answers with the member's settings, push included: the server's push (VAPID) key and the
@@ -312,6 +339,14 @@ function registerAction(server: McpServer, def: ActionDef, actor: Actor) {
 /** Links into the app for the steps only the admin can do there (a test call with their microphone, forwarding). */
 const appLinks = (actor: Actor) => {
   const app = webAddress()
+  // A partner owner's link: the partner's agent page and the partner area, nothing of Server admin.
+  if (actor.setupPartnerId)
+    return {
+      app,
+      agent_setup: setupPage(actor),
+      partner_area: `${app}/#partner`,
+      test_call: setupPage(actor),
+    }
   // A workspace owner's link: their setup page and the app, nothing of Server admin.
   if (actor.setupWorkspaceId)
     return { app, agent_setup: `${app}/#setup-agent`, test_call: `${app}/#setup-agent`, onboarding: `${app}/` }
@@ -447,6 +482,8 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
   const group = (id: GroupStatus['id']) => groups.find(g => g.id === id)!
   // A workspace owner's link: that workspace's part only.
   if (actor.setupWorkspaceId) return workspaceSetupStatus(actor, groups, advance)
+  // A partner owner's link: the partner's own steps, then its client workspaces'.
+  if (actor.setupPartnerId) return partnerSetupStatus(actor, groups, advance)
   // Once per server: the providers a first call needs. The admin's passkey is no step: making the setup link needed it.
   const steps: Step[] = [
     ...inGroup('server', [
@@ -536,11 +573,113 @@ async function workspaceSetupStatus(actor: Actor, groups: readonly GroupStatus[]
   }
 }
 
+/**
+ * setup_status for a white-label partner owner's link: the partner's own steps (company, brand, team, client
+ * workspaces), then each client workspace's own, as an install link has the server's and then its workspaces'.
+ */
+async function partnerSetupStatus(actor: Actor, groups: readonly GroupStatus[], advance: boolean) {
+  const facts = await partnerSetupFacts(actor.setupPartnerId!)
+  const steps = facts ? inGroup('partner', partnerSteps(actor, facts)) : []
+  const workspaces = await workspaceStatuses(actor, advance)
+  const partnerNext = firstOpen(steps)
+  const nextWorkspace = partnerNext ? null : (workspaces.find(w => firstOpen(w.steps)) ?? null)
+  const next = partnerNext ?? (nextWorkspace ? firstOpen(nextWorkspace.steps) : null)
+  const waiting = [...steps, ...workspaces.flatMap(w => w.steps)].filter(s => s.state === 'admin_only')
+  const shown = (list: Step[], here: boolean) =>
+    list.map(({ how, ...s }) => ((here && s.id === next?.id) || s.state === 'admin_only' ? { ...s, how } : s))
+  return {
+    you_act_as: await whoAmI(actor),
+    server_ready: serverReady(groups),
+    // The partner's own part; its name is the partner's own text, as data.
+    partner: facts ? { id: facts.id, name: facts.name, status: facts.status } : null,
+    steps: shown(steps, Boolean(partnerNext)),
+    // Each client workspace's own steps; pass its id as workspaceId to every business tool for it.
+    workspaces: workspaces.map(w => ({
+      ...w,
+      steps: shown(w.steps, w === nextWorkspace),
+      all_done: !firstOpen(w.steps),
+    })),
+    next_step: next ? next.id : null,
+    next_workspace_id: nextWorkspace?.id ?? null,
+    all_done: !next,
+    wrap_up: wrapUp(!next, waiting, { person: personOf(actor), page: setupPage(actor) }),
+    app_links: appLinks(actor),
+  }
+}
+
+/** The price of one more client workspace, as the agent says it ("$11 a month"); none where billing is off. */
+const seatText = (seat: PartnerSetupFacts['seat']) =>
+  seat
+    ? english.t(
+        seat.interval === 'year' ? 'server.setupAgent.partner.seatYearly' : 'server.setupAgent.partner.seatMonthly',
+        { price: `$${(seat.cents / 100).toFixed(seat.cents % 100 ? 2 : 0)}` },
+      )
+    : english.t('server.setupAgent.partner.seatNone')
+
+/** The same price, short, as the Client workspaces row's hint on the setup page ("$9 a month each, billed yearly"). */
+const seatHint = (seat: NonNullable<PartnerSetupFacts['seat']>) =>
+  english.t(
+    seat.interval === 'year'
+      ? 'server.setupAgent.partner.step.clientsPriceYearly'
+      : 'server.setupAgent.partner.step.clientsPriceMonthly',
+    { price: `$${(seat.cents / 100).toFixed(seat.cents % 100 ? 2 : 0)}` },
+  )
+
+/**
+ * The partner's own steps. Its company name and brand are the partner's own text, quoted as data. The client
+ * workspaces row is the owner's own (a seat on the bill), done once there is one; more can follow from the same row.
+ */
+function partnerSteps(actor: Actor, facts: PartnerSetupFacts): StepBase[] {
+  const who = personOf(actor)
+  const at = facts.step
+  const named = (id: 'company' | 'brand' | 'team' | 'clients') => ({
+    // i18n-dynamic: server.setupAgent.partner.step.*
+    label: english.t(`server.setupAgent.partner.step.${id}`),
+    hint: english.t(`server.setupAgent.partner.step.${id}Hint`),
+  })
+  const step = (id: 'company' | 'brand' | 'team', done: boolean, how: string[]): StepBase => ({
+    id,
+    ...named(id),
+    state: done ? 'done' : 'todo',
+    how,
+  })
+  return [
+    step('company', partnerPast(at, 'company'), [
+      english.t('server.setupAgent.partner.companyHow', { name: JSON.stringify(facts.name), who }),
+    ]),
+    {
+      ...step('brand', facts.brandSaved || partnerPast(at, 'brand'), [
+        english.t('server.setupAgent.partner.brandHow', { who }),
+        english.t('server.setupAgent.partner.brandReview', { who }),
+      ]),
+      detail: facts.brandName ? JSON.stringify(facts.brandName) : null,
+    },
+    step('team', facts.team > 0 || partnerPast(at, 'team'), [english.t('server.setupAgent.partner.teamHow', { who })]),
+    {
+      id: 'clients',
+      ...named('clients'),
+      // What one costs, where the page shows it next to "Add client" (the owner confirms the seat there).
+      ...(facts.seat ? { hint: seatHint(facts.seat) } : {}),
+      state: facts.clients.length ? 'done' : 'admin_only',
+      detail: facts.clients.map(c => JSON.stringify(c.name)).join(', ') || null,
+      how: [
+        english.t('server.setupAgent.partner.clientsHow', {
+          who,
+          price: seatText(facts.seat),
+          page: setupPage(actor),
+          seconds: POLL_SECONDS,
+        }),
+      ],
+    },
+  ]
+}
+
 /** The steps of every workspace the admin may set up; without one yet, the way to the first (workspace_create). */
 async function workspaceStatuses(actor: Actor, advance: boolean): Promise<WorkspaceStatus[]> {
   const mine = await setupWorkspaces(actor)
-  // A workspace key whose owner lost the workspace meanwhile: nothing to set up (the next request is refused).
-  if (!mine.length && actor.setupWorkspaceId) return []
+  // A workspace key whose owner lost the workspace meanwhile: nothing to set up (the next request is refused). A partner
+  // key before its first client workspace: the partner's Client workspaces row is the way to one.
+  if (!mine.length && (actor.setupWorkspaceId || actor.setupPartnerId)) return []
   if (!mine.length) return [{ id: null, name: null, steps: inGroup('business', noWorkspaceSteps()) }]
   const out: WorkspaceStatus[] = []
   for (const ws of mine) out.push(await workspaceStatus(actor, ws, advance))
@@ -560,16 +699,20 @@ async function workspaceStatus(actor: Actor, ws: ManagedWorkspace, advance: bool
 export function wrapUp(
   agentDone: boolean,
   waiting: readonly Pick<Step, 'id'>[],
-  { oneWorkspace = false, person = 'admin' }: { oneWorkspace?: boolean; person?: string } = {},
+  {
+    oneWorkspace = false,
+    person = 'admin',
+    page = `${webAddress()}/#setup-agent`,
+  }: { oneWorkspace?: boolean; person?: string; page?: string } = {},
 ): string {
   const end = `then call setup_endAccess as your last call: this setup link stops working at once, and the setup page tells the ${person} you ended it.`
   if (!agentDone)
     return `Not finished yet. If you stop before every step is done, ask the ${person} first whether to end your access; if they agree, give a short summary of what is set up and what is left, ${end}`
   const open = [...new Set(waiting.map(s => s.id))]
   if (open.includes('test_call') && oneWorkspace)
-    return `Your part is done. Ask the ${person} to make the test call now, right on the setup page (${webAddress()}/#setup-agent): the button on its Test call row calls the assistant with their microphone. Call setup_status { read_only: true } every ${POLL_SECONDS} seconds or when they say they are done, until test_call is done (or they want to skip it). Then give a short summary of what is set up and what is left for them, ${end}`
+    return `Your part is done. Ask the ${person} to make the test call now, right on the setup page (${page}): the button on its Test call row calls the assistant with their microphone. Call setup_status { read_only: true } every ${POLL_SECONDS} seconds or when they say they are done, until test_call is done (or they want to skip it). Then give a short summary of what is set up and what is left for them, ${end}`
   if (open.includes('test_call'))
-    return `Your part is done. Ask the admin to make the test call now, right on the setup page (${webAddress()}/#setup-agent): they pick the workspace in the dropdown above its steps, and the button on its Test call row calls that workspace's assistant with their microphone (once per workspace whose test_call is open). Call setup_status { read_only: true } every ${POLL_SECONDS} seconds or when they say they are done, until test_call is done (or they want to skip it). Then give a short summary of what is set up and what is left for them, ${end}`
+    return `Your part is done. Ask the ${person} to make the test call now, right on the setup page (${page}): they pick the workspace in the dropdown above its steps, and the button on its Test call row calls that workspace's assistant with their microphone (once per workspace whose test_call is open). Call setup_status { read_only: true } every ${POLL_SECONDS} seconds or when they say they are done, until test_call is done (or they want to skip it). Then give a short summary of what is set up and what is left for them, ${end}`
   if (open.length)
     return `Your part is done; only the ${person} can do what is still open (${open.join(', ')}). Give a short summary of what is set up and what is left for them, ask whether to end your access now, and if they agree, ${end}`
   return oneWorkspace
@@ -672,7 +815,8 @@ export async function setupProgress(actor: Actor, selected?: string | null) {
       state,
     })),
     nextStep: next?.id ?? null,
-    allDone: !next,
+    // A partner with no client workspace yet is not set up, though adding one is the owner's row (admin_only).
+    allDone: !next && !steps.some(s => s.id === 'clients' && s.state !== 'done'),
     workspaces: status.workspaces.flatMap(w =>
       w.id
         ? [
@@ -719,7 +863,11 @@ async function whoAmI(actor: Actor) {
   return {
     name: me?.name ?? null,
     email: me?.email ?? null,
-    role: actor.setupWorkspaceId ? `workspace ${actor.setupWorkspaceRole ?? 'admin'}` : 'instance admin',
+    role: actor.setupPartnerId
+      ? 'partner owner'
+      : actor.setupWorkspaceId
+        ? `workspace ${actor.setupWorkspaceRole ?? 'admin'}`
+        : 'instance admin',
   }
 }
 
@@ -907,7 +1055,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
             how: [
               english.t('server.setupAgent.activateHow', {
                 who,
-                page: `${webAddress()}/#setup-agent`,
+                page: setupPage(actor),
                 seconds: POLL_SECONDS,
               }),
             ],
@@ -917,30 +1065,41 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
     {
       id: 'phone',
       label: 'A phone number for the assistant',
-      state: done(phoneDone),
+      // On a partner's link the number is the owner's own row on the setup page (it costs money), never the agent's.
+      state: actor.setupPartnerId && !phoneDone && !waitingForTrial ? 'admin_only' : done(phoneDone),
       // The id too: the forwarding tools need it, also while another step is next and this one has no `how`.
       detail: numbers.map(n => `${n.e164} (${n.mode}, phoneNumberId ${n.id})`).join(', ') || null,
       how: waitingForTrial
         ? [english.t('server.setupAgent.phoneAfterTrial', { who })]
-        : [
-            'Ask how calls should reach the assistant: keep the business number and forward to a new Linedesk number (mode "forward_conditional", or "forward_all" for every call), or a new number of its own (mode "new"). For forwarding, forwarding_guide { workspaceId, carrier? } shows how it works for the business line\'s carrier already now, before the number exists.',
-            numberSetupHow(w, countryNamed(locale.countrySource) ? locale.resolvedCountry : null),
-            `Then onboarding_setStep { ${w}, step: "done" }.`,
-          ],
+        : actor.setupPartnerId
+          ? [english.t('server.setupAgent.partner.phoneHow', { who, page: setupPage(actor), seconds: POLL_SECONDS })]
+          : [
+              'Ask how calls should reach the assistant: keep the business number and forward to a new Linedesk number (mode "forward_conditional", or "forward_all" for every call), or a new number of its own (mode "new"). For forwarding, forwarding_guide { workspaceId, carrier? } shows how it works for the business line\'s carrier already now, before the number exists.',
+              numberSetupHow(w, countryNamed(locale.countrySource) ? locale.resolvedCountry : null),
+              `Then onboarding_setStep { ${w}, step: "done" }.`,
+            ],
     },
     ...(forwarding
       ? [
           {
             id: 'forwarding',
             label: 'Forwarding from the business line',
-            state: done(golive.forwardingVerified),
-            how: [
-              `Ask for the business line's carrier, then forwarding_guide { ${w}, carrier, country, mode: "${forwarding.mode}" } (country: where the business line is, e.g. "US") for the codes to dial on the business phone (they forward to ${forwarding.e164}).`,
-              `After the ${who} dialed them: phoneNumber_checkForwarding { ${w}, phoneNumberId: "${forwarding.id}", businessNumber } calls the business line once; poll phoneNumber_forwardingCheck { ${w}, … } every few seconds while it says dialing.`,
-              actor.setupWorkspaceId
-                ? `The ${who} can also do all of it on the setup page (${webAddress()}/#setup-agent): "Set up forwarding" on the Call forwarding row shows the codes for their carrier and runs the same check.`
-                : `The admin can also do all of it on the setup page (${webAddress()}/#setup-agent): with this workspace picked in the dropdown, "Set up forwarding" on the Call forwarding row shows the codes for their carrier and runs the same check.`,
-            ],
+            state: actor.setupPartnerId && !golive.forwardingVerified ? 'admin_only' : done(golive.forwardingVerified),
+            how: actor.setupPartnerId
+              ? [
+                  english.t('server.setupAgent.partner.forwardingHow', {
+                    who,
+                    page: setupPage(actor),
+                    seconds: POLL_SECONDS,
+                  }),
+                ]
+              : [
+                  `Ask for the business line's carrier, then forwarding_guide { ${w}, carrier, country, mode: "${forwarding.mode}" } (country: where the business line is, e.g. "US") for the codes to dial on the business phone (they forward to ${forwarding.e164}).`,
+                  `After the ${who} dialed them: phoneNumber_checkForwarding { ${w}, phoneNumberId: "${forwarding.id}", businessNumber } calls the business line once; poll phoneNumber_forwardingCheck { ${w}, … } every few seconds while it says dialing.`,
+                  actor.setupWorkspaceId
+                    ? `The ${who} can also do all of it on the setup page (${webAddress()}/#setup-agent): "Set up forwarding" on the Call forwarding row shows the codes for their carrier and runs the same check.`
+                    : `The admin can also do all of it on the setup page (${webAddress()}/#setup-agent): with this workspace picked in the dropdown, "Set up forwarding" on the Call forwarding row shows the codes for their carrier and runs the same check.`,
+                ],
           } satisfies StepBase,
         ]
       : []),
@@ -951,7 +1110,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       // caller got through. Only the admin can do it: they talk.
       state: golive.firstRealCall || (await testCallMade(workspaceId)) ? 'done' : 'admin_only',
       how: [
-        `Only the ${who} can do this: they talk to the assistant. Ask them to stay on the setup page (${webAddress()}/#setup-agent)${actor.setupWorkspaceId ? '' : `, pick ${JSON.stringify(ws?.name ?? '')} in the workspace dropdown`} and click ${JSON.stringify(`Call ${assistant?.name ?? 'Maya'} now`)} on the Test call row: it calls the assistant with their microphone, right there, and the step is done once the assistant answered.${numbers[0] ? ` Or they call ${numbers[0].e164} from another phone.` : ''}`,
+        `Only the ${who} can do this: they talk to the assistant. Ask them to stay on the setup page (${setupPage(actor)})${actor.setupWorkspaceId ? '' : `, pick ${JSON.stringify(ws?.name ?? '')} in the workspace dropdown`} and click ${JSON.stringify(`Call ${assistant?.name ?? 'Maya'} now`)} on the Test call row: it calls the assistant with their microphone, right there, and the step is done once the assistant answered.${numbers[0] ? ` Or they call ${numbers[0].e164} from another phone.` : ''}`,
         `Call setup_status { read_only: true } every ${POLL_SECONDS} seconds or when they say they talked to it, until test_call is done.`,
       ],
     },
@@ -983,8 +1142,8 @@ export function instructionsBeforeNumber(guide: ForwardingGuide, mode: Forwardin
 function registerTools(server: McpServer, actor: Actor) {
   const read = { readOnlyHint: true }
   const who = personOf(actor)
-  // A workspace owner's link: no server tools at all, only the workspace's (agent-setup.ts).
-  const serverTools = !actor.setupWorkspaceId
+  // A workspace owner's or a partner owner's link: no server tools at all, only the workspace's (agent-setup.ts).
+  const serverTools = !actor.setupWorkspaceId && !actor.setupPartnerId
   server.registerTool(
     'setup_status',
     {
@@ -1210,13 +1369,46 @@ function registerTools(server: McpServer, actor: Actor) {
     const def = actions.get(name)
     if (!def || (!serverTools && isServerAction(name))) continue
     if (role && !rolePermissions[role].includes(def.permission)) continue
+    // A partner's link: the workspace setup only, never a number, a forwarding check or a lookup (owner rows).
+    if (actor.setupPartnerId && !PARTNER_KEY_WORKSPACE_ACTIONS.has(name)) continue
     registerAction(server, def, actor)
   }
+  if (actor.setupPartnerId)
+    for (const name of PARTNER_KEY_PARTNER_ACTIONS) {
+      const def = actions.get(name)
+      if (def) registerPartnerAction(server, def, actor, actor.setupPartnerId)
+    }
+}
+
+/**
+ * A partner's own action on a partner owner's link: its partnerId is the link's, filled in here and never asked for,
+ * so the agent cannot name another partner (run-action.ts refuses that too, partnerKeyOutOfScope).
+ */
+function registerPartnerAction(server: McpServer, def: ActionDef, actor: Actor, partnerId: string) {
+  const inputSchema = (def.input as z.ZodObject).omit({ partnerId: true })
+  server.registerTool(
+    toolName(def.name),
+    {
+      description: def.description,
+      inputSchema: inputSchema as never,
+      annotations: { readOnlyHint: Boolean(def.readOnly) },
+    },
+    ((raw: unknown) =>
+      guard(def.name, async () => {
+        const { body } = await runAction(def.name, { ...((raw as object) ?? {}), partnerId }, actor)
+        if (!body.ok) return refusal(body.error, actor)
+        return answer({ ok: true, rows: body.rows, ...(body.data ? { data: body.data } : {}) }, actor)
+      })) as never,
+  )
 }
 
 /** The setup tools for this setup key's admin (or, for a workspace key, its owner or admin, by that role). */
 export function setupMcpServerFor(actor: Actor) {
-  const instructions = actor.setupWorkspaceId ? SETUP_MCP_WORKSPACE_INSTRUCTIONS : SETUP_MCP_INSTRUCTIONS
+  const instructions = actor.setupPartnerId
+    ? setupMcpPartnerInstructions()
+    : actor.setupWorkspaceId
+      ? SETUP_MCP_WORKSPACE_INSTRUCTIONS
+      : SETUP_MCP_INSTRUCTIONS
   const server = new McpServer({ name: 'linedesk-setup', version: '1' }, { instructions })
   registerTools(server, actor)
   return server

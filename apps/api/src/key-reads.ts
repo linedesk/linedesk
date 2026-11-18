@@ -39,6 +39,7 @@ export const KEY_READ_ROUTES: readonly KeyReadRoute[] = [
 ]
 
 const SESSION = 'needs a signed-in browser session'
+const SETUP_LINKS = 'setup links are made and read signed in as yourself'
 /** Routes the web app calls that a personal key does not, with the reason (or the way a key does the same). */
 export const BROWSER_ONLY_ROUTES: ReadonlyMap<string, string> = new Map([
   ['/v1/shape/:table', 'read sync streams tables to the browser; a key reads rows with the records.list action'],
@@ -48,7 +49,8 @@ export const BROWSER_ONLY_ROUTES: ReadonlyMap<string, string> = new Map([
   ['/v1/account/authenticator/:step', SESSION],
   ['/v1/impersonation/start', SESSION],
   ['/v1/impersonation/stop', SESSION],
-  ['/v1/workspace/agent-setup', 'setup links are made and read signed in as yourself'],
+  ['/v1/workspace/agent-setup', SETUP_LINKS],
+  ['/v1/partner/agent-setup', SETUP_LINKS],
   ['/v1/calendar/callback/:provider', 'the calendar provider sends the browser here'],
   ['/v1/apps/callback/:app', 'the connected app sends the browser here'],
   ['/v1/setup', 'install setup before the first account'],

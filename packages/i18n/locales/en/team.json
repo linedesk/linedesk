@@ -82,6 +82,8 @@
   "owner.done": "{name} is now the owner. You are an admin.",
   "owner.make": "Make owner",
   "owner.title": "Make {name} the owner?",
+  "partner.agent": "Set up with an AI agent",
+  "partner.agentTitle": "Let an AI agent change your partner account and client workspaces",
   "partner.back": "Back to the inbox",
   "partner.bill.inactive": "The partner plan is not running. Pay the open invoice or start the plan again in Billing.",
   "partner.bill.startPlan": "Add a card to start the partner plan. You can make client workspaces right after.",

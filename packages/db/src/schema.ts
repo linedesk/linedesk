@@ -1359,6 +1359,10 @@ export type SetupKeyEndReason =
   | 'role_changed'
   /** A workspace key's maker left the workspace or was removed from it. */
   | 'left_workspace'
+  /** A partner key's maker is no longer the partner's owner (or left its team). */
+  | 'left_partner'
+  /** A partner key's partner was suspended. */
+  | 'partner_suspended'
 export const agent_setup_keys = pgTable(
   'agent_setup_keys',
   {
@@ -1381,6 +1385,12 @@ export const agent_setup_keys = pgTable(
      * (apps/api/src/agent-setup.ts workspaceSetupActor).
      */
     role: text('role').$type<'owner' | 'admin'>(),
+    /**
+     * Set: a white-label partner key, made by the partner's owner (agentSetup.createPartnerKey): the partner's profile,
+     * brand and team, and its client workspaces' own setup only (apps/api/src/agent-setup.ts partnerSetupActor). Its
+     * keys go with a deleted partner. workspace_id is null then.
+     */
+    partner_id: text('partner_id').references(() => partners.id, { onDelete: 'cascade' }),
     /**
      * The sign-in session that made the key (Better Auth session.id). The key ends for good once that session ends:
      * signed out, signed out from another device, expired or revoked (agent-setup.ts setupKeyAccess).
@@ -2610,6 +2620,8 @@ export const billing_disputes = pgTable(
 export const PARTNER_STATUSES = ['pending', 'approved', 'suspended'] as const
 /** A partner team role: one owner (decides the team and the company name) and any number of admins. */
 export const PARTNER_ROLES = ['owner', 'admin'] as const
+/** The partner's own setup steps with an AI agent, in order (partners.setup_step). */
+export const PARTNER_SETUP_STEPS = ['company', 'brand', 'team', 'clients', 'done'] as const
 /** How long a partner team invitation link works. */
 export const PARTNER_INVITATION_DAYS = 7
 
@@ -2637,6 +2649,11 @@ export const partners = pgTable(
     approved_at: ts('approved_at'),
     approved_by: text('approved_by'),
     suspended_at: ts('suspended_at'),
+    /**
+     * How far the partner's own setup got with its AI agent (partner.setSetupStep, apps/api/src/partner-setup.ts): the
+     * step the agent is on, so a step the owner chose to leave (a team of one) is not asked again. Null: not started.
+     */
+    setup_step: text('setup_step', { enum: PARTNER_SETUP_STEPS }),
     created_at: createdAt(),
     updated_at: ts('updated_at').notNull().defaultNow(),
   },

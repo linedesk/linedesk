@@ -27,6 +27,8 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['agentSetup.createWorkspaceKey', KEYS],
   ['agentSetup.revoke', KEYS],
   ['agentSetup.revokeWorkspace', KEYS],
+  ['agentSetup.createPartnerKey', KEYS],
+  ['agentSetup.revokePartner', KEYS],
   // A setup key ends its own link with it; a person uses agentSetup.revoke.
   ['agentSetup.endOwnAccess', KEYS],
   ['account.authenticatorStart', SIGN_IN],

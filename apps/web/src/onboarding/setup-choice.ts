@@ -64,3 +64,32 @@ export function ownerAgentSetupDue(
   if (me.workspace?.billingState === 'pending_payment' && me.onboarding?.onlyCard) return false
   return hashOpen || (Boolean(me.onboarding) && !byHand)
 }
+
+// A white-label partner's owner (2026-11-18): after the partner Checkout their setup starts with the AI agent too
+// (#partner/agent, a setup link for the partner and its client workspaces); "Set up by hand" opens the partner area and
+// is kept per partner in this browser, as a workspace owner's choice is.
+export const PARTNER_AGENT_HASH = '#partner/agent'
+const PARTNER_BY_HAND = 'linedesk.partnerSetup.byHand.'
+
+/** Whether this partner's owner chose the partner area by hand in this browser. */
+export function partnerChoseByHand(partnerId: string): boolean {
+  try {
+    return localStorage.getItem(PARTNER_BY_HAND + partnerId) === '1'
+  } catch {
+    return false
+  }
+}
+
+/** Remembers (or forgets, `on` false: back to the agent) the owner's choice for this partner in this browser. */
+export function rememberPartnerByHand(partnerId: string, on: boolean) {
+  try {
+    if (on) localStorage.setItem(PARTNER_BY_HAND + partnerId, '1')
+    else localStorage.removeItem(PARTNER_BY_HAND + partnerId)
+  } catch {
+    // Private windows: the choice lasts this page only.
+  }
+}
+
+/** Where the partner's owner lands after the partner Checkout: the agent setup, unless they chose by hand here. */
+export const partnerLanding = (partnerId: string | null) =>
+  partnerId && !partnerChoseByHand(partnerId) ? PARTNER_AGENT_HASH : '#partner'

@@ -27,6 +27,13 @@
 // account and the workspace are not disabled, and its 4 hours last; the same one-link-per-person rule, End access
 // (agentSetup.revokeWorkspace), the agent's own end, the same revocations (revokeSetupKeysOf) and the command log with
 // the key's id (audit log). Owners need no passkey for it (like API keys); a confirmed email address (run-action.ts).
+//
+// Partner keys (2026-11-18, white-label Cloud agent-first): a white-label partner's owner sets up the partner with an
+// agent. agentSetup.createPartnerKey makes a key with agent_setup_keys.partner_id set. It acts as the partner's owner
+// for the partner's profile, brand and team (PARTNER_KEY_PARTNER_ACTIONS, that partner only) and as the partner team's
+// admin in the partner's client workspaces (setupActorIn): never the partner bill, a seat, a number, a real call, the
+// server or a workspace that is not the partner's client; run-action.ts refuses everything else once more
+// (partnerKeyOutOfScope). It works while its maker is the partner's owner and the partner is not suspended.
 import { createHash, randomBytes } from 'node:crypto'
 import {
   type AgentSetupKeyCreated,
@@ -36,7 +43,16 @@ import {
   SETUP_KEY_HOURS,
   SETUP_KEY_PREFIX,
 } from '@linedesk/actions'
-import { agent_setup_keys, member, organization, type SetupKeyEndReason, session, user } from '@linedesk/db'
+import {
+  agent_setup_keys,
+  member,
+  organization,
+  partner_members,
+  partners,
+  type SetupKeyEndReason,
+  session,
+  user,
+} from '@linedesk/db'
 import { and, asc, desc, eq, gt, inArray, isNull } from 'drizzle-orm'
 import { adminSecondFactorRequired } from './admin-second-factor.ts'
 import { mustConfirmEmail } from './auth-methods.ts'
@@ -45,6 +61,7 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
+import { PARTNER_OWNER_ONLY } from './partner-refusals.ts'
 import { lockSetupKeysOf } from './passkey-enrolment.ts'
 import { createFailureLimiter, createRateLimiter } from './rate-limit.ts'
 
@@ -155,11 +172,95 @@ export async function workspaceSetupActor(
 }
 
 /**
+ * What a partner key (agent_setup_keys.partner_id) may run, besides ending its own link: the partner's own actions
+ * (that partner only, partnerKeyOutOfScope), and in a client workspace the workspace setup's own actions. Never the
+ * partner bill, a client workspace (a seat on the bill: the owner adds it on the setup page), a client's owner, a
+ * number, a forwarding check or a lookup (they cost money or call out: owner rows on the setup page).
+ */
+export const PARTNER_KEY_PARTNER_ACTIONS: ReadonlySet<string> = new Set([
+  'partner.get',
+  'partner.update',
+  'partner.listClients',
+  'partnerBrand.get',
+  'partnerBrand.set',
+  'partnerMember.invite',
+  'partnerMember.revokeInvite',
+  'partner.setSetupStep',
+])
+export const PARTNER_KEY_WORKSPACE_ACTIONS: ReadonlySet<string> = new Set([
+  'business.search',
+  'business.import',
+  'workspace.rename',
+  'workspace.setIcon',
+  'workspace.removeIcon',
+  'assistant.update',
+  'workspace.updateSettings',
+  'businessHours.set',
+  'notifications.update',
+  'phoneNumber.listCarrierNumbers',
+  'phoneNumber.update',
+  'phoneNumber.forwardingCheck',
+  'onboarding.setStep',
+])
+
+/**
+ * The actor of a partner key: its maker while they are still the partner's owner, the partner is not suspended and
+ * the account is not disabled. In no workspace, with `partner` (the partner's actions, each naming the key's partner)
+ * and ending its own link; in a client workspace setupActorIn gives the team's admin rights there. Null otherwise: the
+ * key then answers as ended.
+ */
+export async function partnerSetupActor(userId: string, keyId: string, partnerId: string): Promise<Actor | null> {
+  const [found] = await db
+    .select({
+      disabledAt: user.disabledAt,
+      emailVerified: user.emailVerified,
+      role: partner_members.role,
+      status: partners.status,
+    })
+    .from(partner_members)
+    .innerJoin(user, eq(user.id, partner_members.user_id))
+    .innerJoin(partners, eq(partners.id, partner_members.partner_id))
+    .where(and(eq(partner_members.user_id, userId), eq(partner_members.partner_id, partnerId)))
+  if (!found || found.disabledAt || found.role !== 'owner' || found.status === 'suspended') return null
+  return {
+    actorId: userId,
+    role: 'member',
+    workspaceId: null,
+    permissions: ['setupLink:end', 'partner'],
+    setupKeyId: keyId,
+    setupPartnerId: partnerId,
+    ...(mustConfirmEmail(found.emailVerified) ? { emailUnverified: true as const } : {}),
+  }
+}
+
+/** Why a partner key's maker may no longer use it (partnerSetupActor said no), for its `ended_reason`. */
+async function partnerKeyEndReason(userId: string, partnerId: string): Promise<SetupKeyEndReason> {
+  const [found] = await db
+    .select({ accountDisabledAt: user.disabledAt, role: partner_members.role, status: partners.status })
+    .from(user)
+    .leftJoin(partner_members, and(eq(partner_members.user_id, user.id), eq(partner_members.partner_id, partnerId)))
+    .leftJoin(partners, eq(partners.id, partnerId))
+    .where(eq(user.id, userId))
+  if (!found || found.accountDisabledAt) return 'account_disabled'
+  if (found.status === 'suspended') return 'partner_suspended'
+  return 'left_partner'
+}
+
+/**
  * The workspaces a setup key may set up: for an install key, every one its admin manages (managedWorkspaces); for a
  * workspace key, only its own, and only while its maker still has the role the key was made with there.
  */
 export async function setupWorkspaces(actor: Actor): Promise<ManagedWorkspace[]> {
   const all = await managedWorkspaces(actor.actorId)
+  if (actor.setupPartnerId) {
+    // A partner key: the partner's client workspaces only, never the maker's own business or another partner's client.
+    const clients = await db
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.partnerId, actor.setupPartnerId))
+    const ids = new Set(clients.map(c => c.id))
+    return all.filter(w => ids.has(w.id))
+  }
   if (!actor.setupWorkspaceId) return all
   return all.filter(w => w.id === actor.setupWorkspaceId && w.role === actor.setupWorkspaceRole)
 }
@@ -256,6 +357,16 @@ export async function setupKeyAccess(key: string, ip: string | null): Promise<Se
     await endForGood(row.id, now, 'session_ended')
     return { kind: 'ended', reason: 'ended' }
   }
+  if (row.partner_id) {
+    const actor = await partnerSetupActor(row.created_by, row.id, row.partner_id)
+    if (!actor) {
+      // Ended for good, as a workspace key: the link must not work again if the partner or the role comes back.
+      await endForGood(row.id, now, await partnerKeyEndReason(row.created_by, row.partner_id))
+      return { kind: 'ended', reason: 'ended' }
+    }
+    noteUse(row, now)
+    return { kind: 'ok', actor }
+  }
   if (row.workspace_id) {
     const actor = await workspaceSetupActor(row.created_by, row.id, row.workspace_id, row.role)
     if (!actor) {
@@ -337,7 +448,12 @@ function refuseNonPerson(actor: Actor) {
  * has the role the request came with there, in a workspace that is not disabled (nor the account). A revoke that ran just before (a password change, a signed-out session, a
  * role change, a removal) is committed by now, so this sees it and nothing is made.
  */
-async function stillMayMake(tx: Parameters<Handler>[0]['tx'], actor: Actor, workspaceId: string | null) {
+async function stillMayMake(
+  tx: Parameters<Handler>[0]['tx'],
+  actor: Actor,
+  workspaceId: string | null,
+  partnerId: string | null = null,
+) {
   const [live] = await tx
     .select({ id: session.id })
     .from(session)
@@ -351,6 +467,7 @@ async function stillMayMake(tx: Parameters<Handler>[0]['tx'], actor: Actor, work
       ),
     )
   if (!live) throw new Forbidden('Your session ended. Sign in again to create a setup link.')
+  if (partnerId) return refuseUnlessPartnerOwner(tx, actor, partnerId)
   if (!workspaceId) return
   // The workspace too (#832 N5): a disable that committed while this request waited for the lock leaves no link that
   // would work again once the workspace is enabled.
@@ -364,24 +481,35 @@ async function stillMayMake(tx: Parameters<Handler>[0]['tx'], actor: Actor, work
   if (!me || me.role !== actor.role) throw new Forbidden(ONLY_OWNER_OR_ADMIN)
 }
 
+/** The partner's owner, of a partner that is not suspended (locks nothing: the key's use checks it again). */
+async function refuseUnlessPartnerOwner(tx: Parameters<Handler>[0]['tx'], actor: Actor, partnerId: string) {
+  const [me] = await tx
+    .select({ role: partner_members.role, status: partners.status })
+    .from(partner_members)
+    .innerJoin(partners, eq(partners.id, partner_members.partner_id))
+    .where(and(eq(partner_members.user_id, actor.actorId), eq(partner_members.partner_id, partnerId)))
+  if (!me || me.role !== 'owner' || me.status === 'suspended') throw new Forbidden(PARTNER_OWNER_ONLY)
+}
+
 /** agentSetup.createWorkspaceKey from someone who is not the workspace's owner or an admin there. */
 export const ONLY_OWNER_OR_ADMIN = "Only the workspace's owner or an admin makes a setup link for it."
 
 /**
- * Makes a setup key: an install key (workspaceId null) or a workspace key. One key at a time per person, whatever its
- * kind: making a new one ends the old ones (a copied prompt from earlier stops working).
+ * Makes a setup key: an install key (workspaceId and partnerId null), a workspace key or a partner key. One key at a
+ * time per person, whatever its kind: making a new one ends the old ones (a copied prompt from earlier stops working).
  */
 async function insertKey(
   tx: Parameters<Handler>[0]['tx'],
   actor: Actor,
   now: string,
   workspaceId: string | null,
+  partnerId: string | null = null,
 ): Promise<AgentSetupKeyCreated> {
   // One maker at a time (security review #822 F3): two mints at once would otherwise both see no newer key and both
   // stay working. Held until the transaction ends. Every revoke takes the same lock (passkey-enrolment.ts), so what
   // it changed before is read below, and what it changes after sees this key (review N1).
   await lockSetupKeysOf(tx, actor.actorId)
-  await stillMayMake(tx, actor, workspaceId)
+  await stillMayMake(tx, actor, workspaceId, partnerId)
   await tx
     .update(agent_setup_keys)
     .set({ revoked_at: now, ended_reason: 'replaced' })
@@ -396,16 +524,19 @@ async function insertKey(
       key_hash: hashSetupKey(key),
       created_by: actor.actorId,
       workspace_id: workspaceId,
+      partner_id: partnerId,
       role: workspaceId ? (actor.role as WorkspaceKeyRole) : null,
       session_id: actor.sessionId!,
       expires_at: expiresAt,
       // Whether this session passed the passkey check: an install key made without it (the rule off) stops working
       // once the rule is on again (setupKeyAccess). A workspace key never carries it.
-      passkey_confirmed_until: !workspaceId && actor.passkeyConfirmed ? expiresAt : null,
+      passkey_confirmed_until: !workspaceId && !partnerId && actor.passkeyConfirmed ? expiresAt : null,
     })
     .returning()
   return { keyId: row!.id, key, url: `${setupMcpUrl()}/${key}`, prefix: row!.prefix, expiresAt }
 }
+
+const TOO_MANY_LINKS = 'Too many setup links. Try again in a few minutes.'
 
 export const agentSetupHandlers: Record<string, Handler> = {
   'agentSetup.createKey': async ({ tx, actor, now }) => {
@@ -425,8 +556,34 @@ export const agentSetupHandlers: Record<string, Handler> = {
     if (!actor.workspaceId || !isWorkspaceKeyRole(actor.role)) throw new Forbidden(ONLY_OWNER_OR_ADMIN)
     // Also while the workspace waits for its trial (agent-first, 2026-11-18): the agent does the free steps only; the
     // number, a real call and going past `activate` stay refused for it as for everyone (self-serve.ts).
-    if (!allowWorkspaceKeyMint(actor.actorId)) throw new Reject('Too many setup links. Try again in a few minutes.')
+    if (!allowWorkspaceKeyMint(actor.actorId)) throw new Reject(TOO_MANY_LINKS)
     return { rows: {}, data: await insertKey(tx, actor, now, actor.workspaceId) }
+  },
+
+  // A partner key, made by the partner's owner signed in as themselves (the partner area's agent page). `partner`
+  // (run-action.ts); the owner check is the handler's (stillMayMake, under the person's setup-link lock).
+  'agentSetup.createPartnerKey': async ({ tx, actor, now }, input: { partnerId: string }) => {
+    refuseNonPerson(actor)
+    if (!allowWorkspaceKeyMint(actor.actorId)) throw new Reject(TOO_MANY_LINKS)
+    return { rows: {}, data: await insertKey(tx, actor, now, null, input.partnerId) }
+  },
+
+  // End access on the partner's agent page: the caller's own keys for that partner.
+  'agentSetup.revokePartner': async ({ tx, actor, now }, input: { partnerId: string }) => {
+    refuseNonPerson(actor)
+    await lockSetupKeysOf(tx, actor.actorId) // as agentSetup.revokeWorkspace (#832 N6)
+    const ended = await tx
+      .update(agent_setup_keys)
+      .set({ revoked_at: now, ended_reason: 'ended_by_admin' })
+      .where(
+        and(
+          eq(agent_setup_keys.created_by, actor.actorId),
+          eq(agent_setup_keys.partner_id, input.partnerId),
+          isNull(agent_setup_keys.revoked_at),
+        ),
+      )
+      .returning({ id: agent_setup_keys.id })
+    return { rows: {}, data: { ended: ended.length } }
   },
 
   // End access on the setup page: the caller's own keys for this workspace. Any session of theirs may.
@@ -483,9 +640,13 @@ export const agentSetupHandlers: Record<string, Handler> = {
   },
 }
 
-/** Keys of one kind: the install's (no workspace) or one workspace's. */
-const ofScope = (workspaceId: string | null) =>
-  workspaceId ? eq(agent_setup_keys.workspace_id, workspaceId) : isNull(agent_setup_keys.workspace_id)
+/** Keys of one kind: the install's (no workspace, no partner), one workspace's or one partner's. */
+const ofScope = (workspaceId: string | null, partnerId: string | null = null) =>
+  partnerId
+    ? eq(agent_setup_keys.partner_id, partnerId)
+    : workspaceId
+      ? eq(agent_setup_keys.workspace_id, workspaceId)
+      : and(isNull(agent_setup_keys.workspace_id), isNull(agent_setup_keys.partner_id))
 
 /**
  * GET /v1/admin/agent-setup (`workspaceId` null: the admin's install key) and GET /v1/workspace/agent-setup (the
@@ -494,6 +655,7 @@ const ofScope = (workspaceId: string | null) =>
 export async function agentSetupState(
   userId: string,
   workspaceId: string | null = null,
+  partnerId: string | null = null,
 ): Promise<Omit<AgentSetupState, 'progress'>> {
   const [row] = await db
     .select()
@@ -501,7 +663,7 @@ export async function agentSetupState(
     .where(
       and(
         eq(agent_setup_keys.created_by, userId),
-        ofScope(workspaceId),
+        ofScope(workspaceId, partnerId),
         isNull(agent_setup_keys.revoked_at),
         gt(agent_setup_keys.expires_at, new Date().toISOString()),
       ),
@@ -514,14 +676,15 @@ export async function agentSetupState(
   // for good (#832 N10): the page offers a new link, never "Ready" for a dead one.
   const usable =
     row &&
-    (workspaceId || keyPasskeyConfirmed(row) || !adminSecondFactorRequired()) &&
+    (workspaceId || partnerId || keyPasskeyConfirmed(row) || !adminSecondFactorRequired()) &&
     (await makerSessionLives(row)) &&
-    (!row.workspace_id || (await workspaceSetupActor(row.created_by, row.id, row.workspace_id, row.role)) !== null)
+    (!row.workspace_id || (await workspaceSetupActor(row.created_by, row.id, row.workspace_id, row.role)) !== null) &&
+    (!row.partner_id || (await partnerSetupActor(row.created_by, row.id, row.partner_id)) !== null)
   const working = usable ? row : undefined
   return {
     mcpUrl: setupMcpUrl(),
     reachableFromCloud: reachableFromCloud(webAddress()),
-    endedByAgentAt: working ? null : await endedByAgentAt(userId, workspaceId),
+    endedByAgentAt: working ? null : await endedByAgentAt(userId, workspaceId, partnerId),
     key: working
       ? {
           id: working.id,
@@ -535,11 +698,15 @@ export async function agentSetupState(
 }
 
 /** When the agent ended the admin's newest setup link itself, within a link's lifetime; null otherwise (agentSetupState). */
-async function endedByAgentAt(userId: string, workspaceId: string | null): Promise<string | null> {
+async function endedByAgentAt(
+  userId: string,
+  workspaceId: string | null,
+  partnerId: string | null = null,
+): Promise<string | null> {
   const [newest] = await db
     .select({ reason: agent_setup_keys.ended_reason, at: agent_setup_keys.revoked_at })
     .from(agent_setup_keys)
-    .where(and(eq(agent_setup_keys.created_by, userId), ofScope(workspaceId)))
+    .where(and(eq(agent_setup_keys.created_by, userId), ofScope(workspaceId, partnerId)))
     .orderBy(desc(agent_setup_keys.created_at))
     .limit(1)
   if (newest?.reason !== 'ended_by_agent' || !newest.at) return null

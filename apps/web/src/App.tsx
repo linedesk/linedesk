@@ -13,7 +13,13 @@ import {
 } from './session.ts'
 import { onUnauthorized } from './signedOutWatch.ts'
 import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from './onboarding/AgentSetup.tsx'
-import { ownerAgentSetupDue, ownerChoseByHand, rememberOwnerByHand } from './onboarding/setup-choice.ts'
+import {
+  ownerAgentSetupDue,
+  ownerChoseByHand,
+  PARTNER_AGENT_HASH,
+  partnerLanding,
+  rememberOwnerByHand,
+} from './onboarding/setup-choice.ts'
 import { mayChangeWithAgent, mayStepThrough, useChangeWithAgent, useStepByStep } from './settings/agentChange.ts'
 import { ChangeWithAgent } from './settings/ChangeWithAgent.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
@@ -43,6 +49,7 @@ import { brandName, loadBrand } from './brand.ts'
 import { useMemberLocale } from './i18n/user.ts'
 import { useT } from '@linedesk/i18n/react'
 import { isPartnerHash, partnerInviteToken } from './partner/partner-api.ts'
+import { PartnerAgentSetup } from './partner/PartnerAgentSetup.tsx'
 import { PartnerArea } from './partner/PartnerArea.tsx'
 import { PartnerInvite } from './partner/PartnerInvite.tsx'
 
@@ -168,6 +175,7 @@ export function App() {
   const connectAgentHash = useHashIs(isConnectAgentHash)
   // A white-label partner's area (#partner, docs/white-label.md) and its team invitation link (#partner-invite=…).
   const partnerHash = useHashIs(isPartnerHash)
+  const partnerAgentHash = useHashIs(PARTNER_AGENT_HASH)
   const partnerInviteHash = useHashIs(isPartnerInviteHash)
   // Workspace or Assistant settings › "Change with an AI agent" (#change-with-agent/…, agentChange.ts).
   const changeTarget = useChangeWithAgent()
@@ -409,6 +417,14 @@ export function App() {
   }
   // The partner area needs no workspace; with one, Back (Esc) returns to it.
   const myPartner = sessionMe?.partners?.[0]
+  // Its owner's agent setup (#partner/agent): where the partner Checkout comes back to, unless chosen by hand.
+  if (partnerAgentHash && myPartner?.role === 'owner' && !sessionMe?.impersonation && session.state === 'ready')
+    return (
+      <PartnerAgentSetup
+        partner={myPartner}
+        active={session.me.workspace ? { id: session.me.workspace.id, account: session.me.actorId } : undefined}
+      />
+    )
   if (partnerHash && myPartner && session.state === 'ready')
     return <PartnerArea partner={myPartner} onExit={() => (window.location.hash = '')} />
   // Back from Stripe Checkout (docs/billing.md §3.2 step 4): confirmed here, then the app opens as the bill now is. A
@@ -419,7 +435,13 @@ export function App() {
       window.history.replaceState(
         null,
         '',
-        partner ? (toBilling ? '/#partner/billing' : '/#partner') : toBilling ? '/#workspace/billing' : '/',
+        partner
+          ? toBilling
+            ? '/#partner/billing'
+            : `/${partnerLanding(readCheckoutPartner())}`
+          : toBilling
+            ? '/#workspace/billing'
+            : '/',
       )
       // replaceState fires no hashchange: the partner area follows the hash, so it is told.
       if (partner) window.dispatchEvent(new HashChangeEvent('hashchange'))

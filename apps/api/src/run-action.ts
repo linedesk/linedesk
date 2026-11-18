@@ -18,6 +18,7 @@ import {
 import {
   actions,
   droppedFields,
+  english,
   rolePermissions,
   setsTransferNumber,
   inputErrorText,
@@ -29,9 +30,10 @@ import {
   type ActionResult,
 } from '@linedesk/actions'
 import { createHmac, hkdfSync } from 'node:crypto'
-import { commands } from '@linedesk/db'
+import { commands, organization } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import type { z } from 'zod'
+import { PARTNER_KEY_PARTNER_ACTIONS, PARTNER_KEY_WORKSPACE_ACTIONS } from './agent-setup.ts'
 import { replayedResult, storedInput, storedResult } from './command-log.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -116,6 +118,8 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   'oauth.approve',
   // A workspace owner's AI agent setup link: like an API key, a way in for an agent.
   'agentSetup.createWorkspaceKey',
+  // A partner owner's setup link: the partner's team invitations and its client workspaces.
+  'agentSetup.createPartnerKey',
   'webhook.create',
   'webhook.update',
   // Sends every finished call to an integration (Zapier).
@@ -157,6 +161,40 @@ export function workspaceKeyOutOfScope(def: Pick<ActionDef, 'name' | 'permission
   // Never past the role the key was made with: an admin's key never runs what only the owner may (workspace:own).
   const role = actor.setupWorkspaceRole
   return !role || actor.role !== role || !rolePermissions[role].includes(def.permission)
+}
+
+/** What a partner setup key hears outside its partner and the partner's client workspaces. */
+export const PARTNER_KEY_SCOPE = () => english.t('server.setupAgent.partner.scope')
+/** Rights a partner key never uses, wherever it acts: the server's, the bill's, the owner's own and the team's. */
+const PARTNER_KEY_NEVER = new Set(['instance:admin', 'billing:manage', 'workspace:own', 'team:write'])
+/**
+ * Whether a partner setup key's actor runs something past its short list (agent-setup.ts): outside a workspace only
+ * the partner's own actions and ending its own link, in a workspace only the workspace setup's (no number, forwarding
+ * check or lookup). The input checks follow in partnerKeyOutOfScope.
+ */
+export function partnerKeyRefuses(def: Pick<ActionDef, 'name' | 'permission'>, actor: Actor): boolean {
+  if (PARTNER_KEY_NEVER.has(def.permission)) return true
+  if (def.name === 'agentSetup.endOwnAccess') return false
+  return actor.workspaceId === null
+    ? !PARTNER_KEY_PARTNER_ACTIONS.has(def.name)
+    : !PARTNER_KEY_WORKSPACE_ACTIONS.has(def.name)
+}
+/**
+ * The backstop for a partner key (run before every action): its short list, its own partner named, and in a workspace
+ * one of that partner's client workspaces, whatever the actor says otherwise.
+ */
+async function partnerKeyOutOfScope(def: ActionDef, actor: Actor, rawInput: unknown): Promise<boolean> {
+  if (partnerKeyRefuses(def, actor)) return true
+  if (def.name === 'agentSetup.endOwnAccess') return false
+  if (actor.workspaceId === null) {
+    const partnerId = (rawInput as { partnerId?: unknown } | null)?.partnerId
+    return partnerId !== actor.setupPartnerId
+  }
+  const [org] = await db
+    .select({ partnerId: organization.partnerId })
+    .from(organization)
+    .where(eq(organization.id, actor.workspaceId))
+  return !org || org.partnerId !== actor.setupPartnerId
 }
 
 /**
@@ -255,6 +293,7 @@ export function runnableBy(def: ActionDef, actor: Actor): boolean {
       : actor.permissions.includes(def.permission)
   if (!allowed) return false
   if (actor.setupWorkspaceId && workspaceKeyOutOfScope(def, actor)) return false
+  if (actor.setupPartnerId && partnerKeyRefuses(def, actor)) return false
   if (actor.impersonation && !mayRunWhileImpersonating(def)) return false
   if (actor.apiKeyId && !def.public) return false
   if (actor.personalKeyId && personalKeyRefusal(def.name)) return false
@@ -300,6 +339,8 @@ export async function runAction(
   // A workspace owner's setup key (agent-setup.ts): its own workspace only, never the server's or another workspace's,
   // whatever the actor says otherwise; outside one, only ending its own link.
   if (actor.setupWorkspaceId && workspaceKeyOutOfScope(def, actor)) return forbidden(WORKSPACE_KEY_SCOPE)
+  // A partner owner's setup key: the partner's own actions and its client workspaces' setup only (agent-setup.ts).
+  if (actor.setupPartnerId && (await partnerKeyOutOfScope(def, actor, rawInput))) return forbidden(PARTNER_KEY_SCOPE())
   // An instance admin signed in as this user: reads and a short allow-list only (impersonation-guard.ts).
   if (actor.impersonation && !mayRunWhileImpersonating(def)) return forbidden(NOT_WHILE_IMPERSONATING)
   // A leaked key must not reach settings: carrier, numbers, transfer number, webhooks, calendars.
@@ -342,7 +383,10 @@ export async function runAction(
   )
     return { status: 403, body: removeSignInRefusal }
   // So does a workspace owner's setup link (owner-step-up.ts; security review #822 F2).
-  if (name === 'agentSetup.createWorkspaceKey' && (await setupLinkNeedsFreshSignIn(db, actor)))
+  if (
+    (name === 'agentSetup.createWorkspaceKey' || name === 'agentSetup.createPartnerKey') &&
+    (await setupLinkNeedsFreshSignIn(db, actor))
+  )
     return { status: 403, body: setupLinkSignInRefusal }
   // And a personal API key, also one for an MCP client (oauth.approve): a passkey or authenticator confirmation, or a
   // sign-in (owner-step-up.ts; LIN-339 M2).

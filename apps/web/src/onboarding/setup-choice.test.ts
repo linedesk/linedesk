@@ -1,9 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../admin/api.ts', () => ({ runAdmin: vi.fn(async () => ({})) }))
-const { choseManualSetup, ownerAgentSetupDue, ownerChoseByHand, rememberManual, rememberOwnerByHand } = await import(
-  './setup-choice.ts'
-)
+const {
+  choseManualSetup,
+  ownerAgentSetupDue,
+  ownerChoseByHand,
+  partnerChoseByHand,
+  partnerLanding,
+  rememberManual,
+  rememberOwnerByHand,
+  rememberPartnerByHand,
+} = await import('./setup-choice.ts')
 const { runAdmin } = await import('../admin/api.ts')
 
 beforeEach(() => {
@@ -109,5 +116,20 @@ describe("a workspace owner's setup: the agent first, by hand as the alternative
     expect(ownerChoseByHand('ws_2', false)).toBe(false)
     rememberOwnerByHand('ws_1', false)
     expect(ownerChoseByHand('ws_1', false)).toBe(false)
+  })
+})
+
+describe("a partner owner's way after the partner Checkout (2026-11-18)", () => {
+  it('lands on the agent setup, unless they chose the partner area by hand for this partner here', () => {
+    expect(partnerLanding('p_1')).toBe('#partner/agent')
+    rememberPartnerByHand('p_1', true)
+    expect(partnerChoseByHand('p_1')).toBe(true)
+    expect(partnerLanding('p_1')).toBe('#partner')
+    expect(partnerLanding('p_2')).toBe('#partner/agent')
+    // "Set up with an AI agent" in the partner area takes the choice back.
+    rememberPartnerByHand('p_1', false)
+    expect(partnerLanding('p_1')).toBe('#partner/agent')
+    // No partner in the return address: the partner area.
+    expect(partnerLanding(null)).toBe('#partner')
   })
 })

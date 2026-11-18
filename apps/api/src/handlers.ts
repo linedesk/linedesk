@@ -210,6 +210,7 @@ import { billingNumberRefusal, checkoutHandlers, checkoutPreparers } from './bil
 import { matchLocale, type Translator } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
 import { partnerBrandHandlers } from './partner-brand.ts'
+import { partnerSetupHandlers } from './partner-setup.ts'
 
 export { Forbidden, NotFound, Reject, type HandlerCtx, type Undo }
 
@@ -1179,6 +1180,7 @@ const handlers: Record<string, Handler> = {
   ...selfServeHandlers,
   ...partnerHandlers,
   ...partnerBrandHandlers,
+  ...partnerSetupHandlers,
   ...checkoutHandlers,
   ...billingPageHandlers,
   ...starHandlers,

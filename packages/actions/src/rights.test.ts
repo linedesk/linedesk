@@ -342,6 +342,10 @@ const expectedRights: Record<Right, readonly string[]> = {
     // Partner › Brand (S4): read by the team, changed by the owner only (the handler checks).
     'partnerBrand.get',
     'partnerBrand.set',
+    // The partner owner's AI agent setup link (agent-first, 2026-11-18): the handler checks the owner.
+    'agentSetup.createPartnerKey',
+    'agentSetup.revokePartner',
+    'partner.setSetupStep',
   ],
 }
 

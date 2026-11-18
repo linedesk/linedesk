@@ -330,6 +330,10 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   // A workspace owner's setup link for their one workspace, and ending it.
   'agentSetup.createWorkspaceKey': 'integrations',
   'agentSetup.revokeWorkspace': 'integrations',
+  // A white-label partner owner's setup link for the partner and its client workspaces, and ending it.
+  'agentSetup.createPartnerKey': 'integrations',
+  'agentSetup.revokePartner': 'integrations',
+  'partner.setSetupStep': 'partners',
   // White-label partners (docs/white-label.md): made, approved and suspended by an instance admin; their team, and the
   // client workspaces they create (filed under that workspace).
   'partner.create': 'partners',

@@ -14,11 +14,16 @@
 // link is for the active workspace only (agentSetup.createWorkspaceKey, GET /v1/workspace/agent-setup): the page shows
 // only that workspace's steps, no server part, no workspace dropdown and nothing of Server admin; setting up by hand
 // leads into the step-by-step onboarding.
+// `scope="partner"`: a white-label partner owner's page (#partner/agent, partner/PartnerAgentSetup.tsx): a link for the
+// partner and its client workspaces only (agentSetup.createPartnerKey, GET /v1/partner/agent-setup); the partner's
+// steps, then the client workspace picked in the dropdown. The owner's own rows: adding a client workspace (a seat on
+// the partner bill, the partner area's New client dialog), a number, the call forwarding and the test call.
 import {
   AGENT_SETUP_HASH,
   type AgentClient,
   type AgentSetupKeyCreated,
   type AgentSetupState,
+  type MyPartner,
   agentClientLabels,
   agentClients,
   cloudClients,
@@ -59,8 +64,11 @@ import { CopyButton } from './Frame.tsx'
 import { openInstallSetup } from './InstallSetup.tsx'
 import { clearResume, peekResume, type ResumeAction, saveResume } from './resume-after-switch.ts'
 import { type SetupWorkspace, SetupForwarding, SetupStartTrial, SetupTestCall } from './SetupRowActions.tsx'
-import { rememberManual } from './setup-choice.ts'
-import { loadWorkspaceAgentSetup } from './workspace-agent-setup.ts'
+import { PARTNER_AGENT_HASH, rememberManual } from './setup-choice.ts'
+import { loadPartnerAgentSetup, loadWorkspaceAgentSetup } from './workspace-agent-setup.ts'
+import { NewClientDialog } from '../partner/PartnerArea.tsx'
+import { loadPartner, PARTNER_QUERY } from '../partner/partner-api.ts'
+import { tabWorkspace } from '../tabWorkspace.ts'
 import './agent-setup.css'
 
 export { choseManualSetup, rememberManual } from './setup-choice.ts'
@@ -95,8 +103,12 @@ const POLL_MS = 3000
 const shownKeys = new Map<string, AgentSetupKeyCreated>()
 const unexpired = (link: AgentSetupKeyCreated | null) => (link && Date.parse(link.expiresAt) > Date.now() ? link : null)
 /** Where a link is kept: the install link at SETUP_LINK_KEY, a workspace owner's link under that workspace. */
-export const setupLinkSlot = (scope: SetupScope, workspaceId: string | null) =>
-  scope === 'workspace' ? `${SETUP_LINK_KEY}.workspace.${workspaceId ?? 'none'}` : SETUP_LINK_KEY
+export const setupLinkSlot = (scope: SetupScope, workspaceId: string | null, partnerId: string | null = null) =>
+  scope === 'workspace'
+    ? `${SETUP_LINK_KEY}.workspace.${workspaceId ?? 'none'}`
+    : scope === 'partner'
+      ? `${SETUP_LINK_KEY}.partner.${partnerId ?? 'none'}`
+      : SETUP_LINK_KEY
 function stillShown(slot: string): AgentSetupKeyCreated | null {
   const inMemory = unexpired(shownKeys.get(slot) ?? null)
   if (inMemory) return inMemory
@@ -157,6 +169,10 @@ type Props = {
    * activation step, in a dialog). `onTermsChanged`: the terms changed meanwhile, /v1/me is read again.
    */
   trial?: StartTrialProps
+  /** With `scope="partner"` (required then): the partner this page sets up; its owner is the one here. */
+  partner?: MyPartner
+  /** With `scope="partner"` in no workspace yet: the first client workspace was made, the session loads again. */
+  onFirstWorkspace?: () => void
 }
 
 type StartTrialProps = { me: Me; onTermsChanged: () => void }
@@ -170,13 +186,18 @@ export function AgentSetup({
   change,
   onLater,
   trial,
+  partner,
+  onFirstWorkspace,
 }: Props) {
   const t = useT()
   const owner = scope === 'workspace'
+  // A partner's owner: no Server admin (no passkey check, no server part, no hosting note), as a workspace owner.
+  const partnerId = scope === 'partner' ? (partner?.id ?? null) : null
+  const personal = owner || partnerId !== null
   const [state, setState] = useState<AgentSetupState | null>(null)
   const activeId = active?.id ?? null
   const [loadError, setLoadError] = useState<string | null>(null)
-  const slot = setupLinkSlot(scope, owner ? activeId : null)
+  const slot = setupLinkSlot(scope, owner ? activeId : null, partnerId)
   const [created, setShown] = useState<AgentSetupKeyCreated | null>(() => stillShown(slot))
   // When the link on the page was set (0: kept from before), and when the shown state was asked for: only a state
   // asked for after the link was set can say it ended.
@@ -207,7 +228,7 @@ export function AgentSetup({
   // The passkey check ran out (12 hours): the page turns into the passkey prompt, never an error line.
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
   // Server admin's passkey check: not the owner's page, which is no part of Server admin.
-  useEffect(() => (owner ? undefined : watchAdminSignIn(setSignInAgain)), [owner])
+  useEffect(() => (personal ? undefined : watchAdminSignIn(setSignInAgain)), [personal])
   // Shift+Esc finishes later, as in the business onboarding (onboarding/Frame.tsx).
   const laterRef = useRef(onLater)
   laterRef.current = onLater
@@ -224,7 +245,11 @@ export function AgentSetup({
   const load = useCallback(async () => {
     try {
       const asked = Date.now()
-      const next = owner ? await loadWorkspaceAgentSetup() : await loadAgentSetup(activeId)
+      const next = partnerId
+        ? await loadPartnerAgentSetup(partnerId, activeId)
+        : owner
+          ? await loadWorkspaceAgentSetup()
+          : await loadAgentSetup(activeId)
       if (asked < stateAskedAt.current) return // an older answer that arrived late
       stateAskedAt.current = asked
       setState(next)
@@ -232,7 +257,7 @@ export function AgentSetup({
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : t('onboarding.agentSetup.error.read'))
     }
-  }, [activeId, owner, t])
+  }, [activeId, owner, partnerId, t])
   // The agent works in another window: show its progress as it goes (only while this tab is visible).
   useEffect(() => {
     void load()
@@ -265,9 +290,11 @@ export function AgentSetup({
     setSignInFirst(false)
     try {
       setCreated(
-        owner
-          ? await callAction<AgentSetupKeyCreated>('agentSetup.createWorkspaceKey')
-          : ((await runAdmin('agentSetup.createKey', {})) as AgentSetupKeyCreated),
+        partnerId
+          ? await callAction<AgentSetupKeyCreated>('agentSetup.createPartnerKey', { partnerId })
+          : owner
+            ? await callAction<AgentSetupKeyCreated>('agentSetup.createWorkspaceKey')
+            : ((await runAdmin('agentSetup.createKey', {})) as AgentSetupKeyCreated),
       )
       await load()
     } catch (e) {
@@ -281,7 +308,8 @@ export function AgentSetup({
     setBusy('end')
     setError(null)
     try {
-      if (owner) await callAction('agentSetup.revokeWorkspace')
+      if (partnerId) await callAction('agentSetup.revokePartner', { partnerId })
+      else if (owner) await callAction('agentSetup.revokeWorkspace')
       else await runAdmin('agentSetup.revoke', {})
       setCreated(null)
       await load()
@@ -292,15 +320,15 @@ export function AgentSetup({
     }
   }
   const manual = () => {
-    // The owner's choice is kept by the page around this one (setup-choice.ts, per workspace).
-    if (owner) return onManual(false)
+    // The owner's choice is kept by the page around this one (setup-choice.ts, per workspace or partner).
+    if (personal) return onManual(false)
     rememberManual(true)
     onManual(state ? installPartsMissing(state.progress.steps) : false)
   }
   // Everything is set up: the page offers to change it, with the agent or the install walkthrough (opens at its
   // first part, nothing saved is reset; off on Cloud, where Server admin › Providers is the way by hand).
   const allDone = state?.progress.allDone ?? false
-  const install = useQuery(owner ? null : ADMIN_INSTALL_SETUP, () => loadInstallSetup()).data
+  const install = useQuery(personal ? null : ADMIN_INSTALL_SETUP, () => loadInstallSetup()).data
   const stepByStep = () => {
     if (install?.enabled === false) window.location.hash = '#admin/providers'
     else openInstallSetup({ from: 'start' })
@@ -369,6 +397,17 @@ export function AgentSetup({
               </h1>
               <p className="ob-lede">{t('onboarding.agentSetup.change.lede', { workspace: change.workspaceName })}</p>
             </>
+          ) : partnerId ? (
+            <>
+              <h1>
+                {allDone
+                  ? t('onboarding.agentSetup.partner.changeTitle', { partner: partner?.name ?? '' })
+                  : t('onboarding.agentSetup.partner.title', { partner: partner?.name ?? '' })}
+              </h1>
+              <p className="ob-lede">
+                <T k="onboarding.agentSetup.partner.lede" values={{ b: chunks => <b>{chunks}</b> }} />
+              </p>
+            </>
           ) : allDone ? (
             <>
               <h1>{t('onboarding.agentSetup.changeTitle', { brand: brandName() })}</h1>
@@ -389,7 +428,7 @@ export function AgentSetup({
 
         {/* Before the state is read, this page's own address stands for the server's: the note shows at once. Where
             the server runs is its admin's business, not a workspace owner's. */}
-        {!owner && <HostingNote address={state?.mcpUrl ?? `${globalThis.location?.origin ?? ''}/mcp/setup`} />}
+        {!personal && <HostingNote address={state?.mcpUrl ?? `${globalThis.location?.origin ?? ''}/mcp/setup`} />}
 
         <section className="as-card" aria-label={t('onboarding.agentSetup.yourAgent')}>
           <ol className="as-steps">
@@ -398,9 +437,14 @@ export function AgentSetup({
                 {t('onboarding.agentSetup.link.title')}
                 <HelpTip
                   label={t('onboarding.agentSetup.link.helpLabel')}
-                  text={t(owner ? 'onboarding.agentSetup.owner.linkHelp' : 'onboarding.agentSetup.link.help', {
-                    hours: SETUP_KEY_HOURS,
-                  })}
+                  text={t(
+                    partnerId
+                      ? 'onboarding.agentSetup.partner.linkHelp'
+                      : owner
+                        ? 'onboarding.agentSetup.owner.linkHelp'
+                        : 'onboarding.agentSetup.link.help',
+                    { hours: SETUP_KEY_HOURS },
+                  )}
                 />
               </b>
               <AgentPicker client={client} onPick={pick} />
@@ -467,7 +511,9 @@ export function AgentSetup({
                 </Button>
               }
             >
-              {t('onboarding.agentSetup.owner.signInFirst.text')}
+              {partnerId
+                ? t('onboarding.agentSetup.partner.signInFirst', { hours: SETUP_KEY_HOURS })
+                : t('onboarding.agentSetup.owner.signInFirst.text')}
             </Note>
           )}
           {error && <Note tone="danger">{error}</Note>}
@@ -483,9 +529,12 @@ export function AgentSetup({
             fadeIn={view.fadeIn}
             single={owner}
             trial={trial}
+            partner={partner ?? null}
+            partnerScope={partnerId !== null}
+            onFirstWorkspace={onFirstWorkspace}
           />
         ) : skeleton ? (
-          <ProgressSkeleton reserved={reserved} single={owner} />
+          <ProgressSkeleton reserved={reserved} single={owner} scope={scope} />
         ) : (
           <LoadProblem
             what={t('onboarding.agentSetup.progressWhat')}
@@ -507,6 +556,15 @@ export function AgentSetup({
               title={t('onboarding.agentSetup.change.backTitle')}
             >
               {t('onboarding.agentSetup.change.back')}
+            </button>
+          ) : partnerId ? (
+            <button
+              type="button"
+              className="as-manual"
+              onClick={manual}
+              title={t('onboarding.agentSetup.partner.manualTitle')}
+            >
+              {t(allDone ? 'onboarding.agentSetup.partner.area' : 'onboarding.agentSetup.partner.manual')}
             </button>
           ) : allDone && owner ? null : allDone ? (
             <button
@@ -540,10 +598,11 @@ const NO_WORKSPACE = ''
  * server's, then a workspace's. The rows with a button on this page (forwarding, the test call) are as tall as it.
  */
 const SKELETON_GROUPS: Record<(typeof setupStepGroups)[number]['id'], readonly string[]> = {
+  partner: ['company', 'brand', 'team', 'clients'],
   server: ['answering', 'telephony', 'email', 'call-audio'],
   business: ['business', 'assistant', 'pickup', 'notify', 'phone', 'forwarding', 'test_call'],
 }
-const SKELETON_ACTIONS: Record<string, number> = { forwarding: 124, test_call: 132 }
+const SKELETON_ACTIONS: Record<string, number> = { forwarding: 124, test_call: 132, clients: 104 }
 
 /** A step's row width: its name (13px) and, after " · ", its hint (12px), about as long as the words. */
 export function stepSkeletonRow(id: string): { label: number; action?: number } {
@@ -553,10 +612,21 @@ export function stepSkeletonRow(id: string): { label: number; action?: number } 
 }
 
 /** The setup checklist while its first state is read: its card, head, group headings, dropdown and rows. */
-export function ProgressSkeleton({ reserved, single = false }: { reserved: boolean; single?: boolean }) {
+export function ProgressSkeleton({
+  reserved,
+  single = false,
+  scope = 'install',
+}: {
+  reserved: boolean
+  single?: boolean
+  scope?: SetupScope
+}) {
   const t = useT()
-  // A workspace owner's page: the workspace's part only.
-  const groups = single ? setupStepGroups.filter(g => g.id === 'business') : setupStepGroups
+  // A workspace owner's page: the workspace's part only; a partner's: the partner's and a client workspace's; an
+  // instance admin's: the server's and a workspace's.
+  const groups = setupStepGroups.filter(g =>
+    single ? g.id === 'business' : scope === 'partner' ? g.id !== 'server' : g.id !== 'partner',
+  )
   return (
     <section className="as-card as-progress" aria-label={t('onboarding.agentSetup.progress.label')}>
       <SkeletonPart reserved={reserved}>
@@ -572,7 +642,7 @@ export function ProgressSkeleton({ reserved, single = false }: { reserved: boole
                 <Skeleton width={184} height={28} />
               </div>
             ) : (
-              <h3 className="as-group-label">{group.label}</h3>
+              <h3 className="as-group-label">{groupLabel(group, t)}</h3>
             )}
             <SkeletonChecklist
               rows={SKELETON_GROUPS[group.id].map(stepSkeletonRow)}
@@ -596,6 +666,9 @@ function Progress({
   fadeIn,
   single = false,
   trial,
+  partner = null,
+  partnerScope = false,
+  onFirstWorkspace,
 }: {
   state: AgentSetupState
   connected: boolean
@@ -608,6 +681,10 @@ function Progress({
   single?: boolean
   /** Waiting for the trial: the owner starts it on the Start your trial row. */
   trial?: StartTrialProps
+  /** A partner owner's page: its client workspaces in the dropdown; "New client" in place of "New workspace". */
+  partner?: MyPartner | null
+  partnerScope?: boolean
+  onFirstWorkspace?: () => void
 }) {
   const t = useT()
   // The assistant answered a test call made here: the row shows done at once; the next read of the progress agrees.
@@ -703,10 +780,11 @@ function Progress({
               selectedId={selected?.id ?? null}
               busy={switching ?? (switchingFor && selected ? selected.id : null)}
               onPick={id => (id === NEW_WORKSPACE ? setNewWorkspace(true) : switchTo(id))}
+              clients={partnerScope}
             />
           ) : (
             <h3 className="as-group-label" id={`as-group-${group.id}`}>
-              {group.label}
+              {groupLabel(group, t)}
             </h3>
           )}
           <ul className="as-list" aria-labelledby={`as-group-${group.id}`}>
@@ -743,6 +821,16 @@ function Progress({
                     onCalled={onCalled}
                     reload={reload}
                     trial={trial}
+                    onAddClient={partnerScope ? () => setNewWorkspace(true) : undefined}
+                    onAddNumber={
+                      partnerScope && selected
+                        ? () => {
+                            // The client workspace's Phone number page (Workspace settings), in that workspace.
+                            if (here) window.location.hash = '#workspace/phone'
+                            else void switchToWorkspace(selected.id, '#workspace/phone')
+                          }
+                        : undefined
+                    }
                   />
                 </li>
               </Fragment>
@@ -753,7 +841,8 @@ function Progress({
       {switchError && <Note tone="danger">{switchError}</Note>}
       {/* Before the agent has created the business there is no workspace to open: the button would bring back this page.
           Nor while the workspace waits for its trial: the app would only show the card step, the Start your trial row. */}
-      {(allDone || connected) && Boolean(state.progress.workspace) && !trial && (
+      {/* A partner's page: the way to the partner area is the link under the card, once. */}
+      {(allDone || connected) && Boolean(state.progress.workspace) && !trial && !partnerScope && (
         <div>
           <Button variant={allDone ? 'primary' : 'secondary'} onClick={onDone}>
             {allDone
@@ -762,8 +851,56 @@ function Progress({
           </Button>
         </div>
       )}
-      {newWorkspace && <NewWorkspaceDialog onClose={() => setNewWorkspace(false)} returnTo={AGENT_SETUP_HASH} />}
+      {newWorkspace && partnerScope && partner ? (
+        <NewClient
+          partner={partner}
+          onClose={() => setNewWorkspace(false)}
+          onFirstWorkspace={onFirstWorkspace}
+          onMade={id => {
+            setNewWorkspace(false)
+            // The page shows the new client workspace's steps next: it becomes the tab's workspace.
+            switchTo(id)
+          }}
+        />
+      ) : newWorkspace ? (
+        <NewWorkspaceDialog onClose={() => setNewWorkspace(false)} returnTo={AGENT_SETUP_HASH} />
+      ) : null}
     </section>
+  )
+}
+
+/** A group's heading: the server's from the steps' groups; the partner's in this page's language. */
+function groupLabel(group: { id: string; label: string }, t: ReturnType<typeof useT>) {
+  return group.id === 'partner' ? t('onboarding.agentSetup.partner.group') : group.label
+}
+
+/**
+ * "Add client" on a partner owner's page: the partner area's New client dialog (a client workspace is a seat on the
+ * partner bill, so only the owner adds one, never the agent). Waits for the partner to load first.
+ */
+function NewClient({
+  partner,
+  onClose,
+  onFirstWorkspace,
+  onMade,
+}: {
+  partner: MyPartner
+  onClose: () => void
+  onFirstWorkspace?: () => void
+  onMade: (id: string) => void
+}) {
+  const data = useQuery(PARTNER_QUERY(partner.id), () => loadPartner(partner.id)).data
+  if (!data) return null
+  return (
+    <NewClientDialog
+      data={data}
+      returnHash={PARTNER_AGENT_HASH}
+      onFirstWorkspace={tabWorkspace() ? undefined : onFirstWorkspace}
+      onOpen={id => onMade(id)}
+      onInvite={onClose}
+      onClose={onClose}
+      onMade={workspace => onMade(workspace.id)}
+    />
   )
 }
 
@@ -771,7 +908,7 @@ function Progress({
  * The workspace dropdown's items: each workspace the admin can set up with how far it got (or that there is none yet),
  * then "New workspace…".
  */
-export function workspaceOptions(workspaces: readonly SetupWorkspaceSummary[]) {
+export function workspaceOptions(workspaces: readonly SetupWorkspaceSummary[], clients = false) {
   const { t } = i18n()
   return [
     ...(workspaces.length
@@ -790,11 +927,17 @@ export function workspaceOptions(workspaces: readonly SetupWorkspaceSummary[]) {
             description: t('onboarding.agentSetup.workspace.noneDescription'),
           },
         ]),
-    {
-      value: NEW_WORKSPACE,
-      label: t('onboarding.agentSetup.workspace.new'),
-      description: t('onboarding.agentSetup.workspace.newDescription'),
-    },
+    clients
+      ? {
+          value: NEW_WORKSPACE,
+          label: t('onboarding.agentSetup.partner.newClient'),
+          description: t('onboarding.agentSetup.partner.newClientDescription'),
+        }
+      : {
+          value: NEW_WORKSPACE,
+          label: t('onboarding.agentSetup.workspace.new'),
+          description: t('onboarding.agentSetup.workspace.newDescription'),
+        },
   ]
 }
 
@@ -807,18 +950,23 @@ export function WorkspacePicker({
   selectedId,
   busy,
   onPick,
+  clients = false,
 }: {
   workspaces: readonly SetupWorkspaceSummary[]
   selectedId: string | null
   /** The workspace being switched to: the dropdown waits for the page to reload into it. */
   busy: string | null
   onPick: (id: string) => void
+  /** A partner owner's page: its client workspaces, and "New client workspace…". */
+  clients?: boolean
 }) {
   const t = useT()
-  const options = workspaceOptions(workspaces)
+  const options = workspaceOptions(workspaces, clients)
   return (
     <div className="as-ws-head" id="as-group-business">
-      <span className="as-group-label">{t('onboarding.agentSetup.workspace.label')}</span>
+      <span className="as-group-label">
+        {t(clients ? 'onboarding.agentSetup.partner.client' : 'onboarding.agentSetup.workspace.label')}
+      </span>
       <Select
         label={t('onboarding.agentSetup.workspace.select')}
         value={busy ?? selectedId ?? NO_WORKSPACE}
@@ -875,6 +1023,8 @@ export function StepAction({
   onCalled,
   reload,
   trial,
+  onAddClient,
+  onAddNumber,
 }: {
   step: AgentSetupState['progress']['steps'][number]
   /** The workspace shown, when it is the app's active workspace in this tab: the buttons act in it right here. */
@@ -893,8 +1043,39 @@ export function StepAction({
   reload: () => Promise<void>
   /** Waiting for the trial: "Start free trial" on its row, once the agent's free steps are done (admin_only). */
   trial?: StartTrialProps
+  /** A partner owner's page: "Add client" on the Client workspaces row (a seat on the bill: the owner's click). */
+  onAddClient?: () => void
+  /** A partner owner's page: "Add number" on a client workspace's Phone number row (it costs money). */
+  onAddNumber?: () => void
 }) {
   const t = useT()
+  if (step.id === 'clients' && onAddClient)
+    return (
+      <span className="as-item-action">
+        <Button
+          size="sm"
+          variant={step.state === 'done' ? 'secondary' : 'primary'}
+          icon="plus"
+          title={t('onboarding.agentSetup.partner.addClientTitle')}
+          onClick={onAddClient}
+        >
+          {t('onboarding.agentSetup.partner.addClient')}
+        </Button>
+      </span>
+    )
+  if (step.id === 'phone' && onAddNumber && step.state === 'admin_only')
+    return (
+      <span className="as-item-action">
+        <Button
+          size="sm"
+          variant="primary"
+          title={t('onboarding.agentSetup.partner.addNumberTitle')}
+          onClick={onAddNumber}
+        >
+          {t('onboarding.agentSetup.partner.addNumber')}
+        </Button>
+      </span>
+    )
   if (step.id === 'activate') {
     if (step.state !== 'admin_only' || !trial) return null
     return (
