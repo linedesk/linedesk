@@ -43,7 +43,28 @@ export type SpokenLines = {
   transferNext: (previous: string, next: string) => string
   /** Said when a team member takes the call over from the app, before they speak. */
   takeOver: (name: string) => string
+  /**
+   * What the on-call person hears when they pick up a warm transfer (LIN-510): who calls (`who`: the confirmed name, the
+   * number read digit group by digit group, or aCaller), the name the caller gave when the team did not confirm it
+   * (`claimed`, null: none), what the call is about (`about`, null: not said), and how to answer.
+   */
+  onCallBriefing: (who: string, claimed: string | null, about: string | null) => string
+  /** `who` in the briefing when there is neither a confirmed name nor a number. */
+  aCaller: string
+  /** Said to the on-call person once they said yes, right before they are put through. */
+  onCallConnecting: string
+  /** Said to the on-call person when they said no. */
+  onCallDeclined: string
+  /** Said to the on-call person when they said yes but the call cannot be put through. */
+  onCallFailed: string
+  /** A short spoken yes / no to the briefing's question, as speech recognition writes it (English is always understood too). */
+  onCallYes: RegExp
+  onCallNo: RegExp
 }
+
+/** Any of `words` as whole words, in any script; a word may hold a regex part (a lookbehind such as "not before 'tidak '"). */
+const answerWords = (...words: string[]) =>
+  new RegExp(`(?<![\\p{L}\\p{M}\\p{N}])(?:${words.join('|')})(?![\\p{L}\\p{M}\\p{N}])`, 'iu')
 
 const en: SpokenLines = {
   greeting: (b, n, ai) => `Thanks for calling ${b}. This is ${n}${ai ? ', the AI assistant' : ''}. How can I help?`,
@@ -69,6 +90,14 @@ const en: SpokenLines = {
   transferConnecting: n => `I'm trying to reach ${n} now. Please stay on the line.`,
   transferNext: (p, n) => `${p} can't take the call right now. Let me try ${n}. Please stay on the line.`,
   takeOver: n => `I'm putting you through to ${n} now.`,
+  onCallBriefing: (w, c, a) =>
+    `Call from ${w}${c ? `, who says they are ${c}${a ? ',' : ''}` : ''}${a ? ` about ${a}` : ''}. Press 1 or say yes to take it, or press 2 or say no.`,
+  aCaller: 'a caller',
+  onCallConnecting: 'Connecting you now.',
+  onCallDeclined: "Okay, I'll take a message.",
+  onCallFailed: "Sorry, I can't put the call through right now. I'll take a message.",
+  onCallYes: /\b(yes|yeah|yep|yup|sure|ok(ay)?|put (them|him|her|it) through|connect (me|them|us)|i'?ll take it|go ahead)\b/i,
+  onCallNo: /\b(no|nope|can'?t|cannot|not now|busy|decline)\b/i,
 }
 
 const es: SpokenLines = {
@@ -97,6 +126,14 @@ const es: SpokenLines = {
   transferNext: (p, n) =>
     `${p} no puede atender la llamada en este momento. Voy a intentarlo con ${n}. Por favor, no cuelgue.`,
   takeOver: n => `Le paso con ${n} ahora.`,
+  onCallBriefing: (w, c, a) =>
+    `Llamada de ${w}${c ? `, que dice ser ${c}` : ''}${a ? `. Motivo: ${a}` : ''}. Pulse 1 o diga sí para atenderla, o pulse 2 o diga no.`,
+  aCaller: 'un número desconocido',
+  onCallConnecting: 'Le paso la llamada ahora.',
+  onCallDeclined: 'De acuerdo, tomaré un mensaje.',
+  onCallFailed: 'Lo siento, ahora no puedo pasarle la llamada. Tomaré un mensaje.',
+  onCallYes: answerWords('sí', 'si', 'claro', 'vale', 'de acuerdo', 'adelante', 'pásamel[ao]', 'pásel[ao]'),
+  onCallNo: answerWords('no', 'ahora no', 'no puedo', 'ocupad[oa]'),
 }
 
 const fr: SpokenLines = {
@@ -125,6 +162,14 @@ const fr: SpokenLines = {
   transferNext: (p, n) =>
     `${p} ne peut pas prendre l'appel pour le moment. Je vais essayer ${n}. Merci de rester en ligne.`,
   takeOver: n => `Je vous passe ${n}.`,
+  onCallBriefing: (w, c, a) =>
+    `Appel entrant : ${w}${c ? `, qui dit être ${c}` : ''}${a ? `. Objet : ${a}` : ''}. Appuyez sur 1 ou dites oui pour le prendre, ou appuyez sur 2 ou dites non.`,
+  aCaller: 'numéro inconnu',
+  onCallConnecting: 'Je vous mets en relation.',
+  onCallDeclined: 'D\'accord, je prends un message.',
+  onCallFailed: 'Malheureusement, je ne peux pas transférer l\'appel pour le moment. Je prends un message.',
+  onCallYes: answerWords('oui', 'ouais', 'd\'accord', 'allez-y', 'vas-y', 'passez-le', 'passez-la', 'je le prends', 'je la prends'),
+  onCallNo: answerWords('non', 'pas maintenant', 'je ne peux pas', 'je peux pas', 'occupée?'),
 }
 
 const de: SpokenLines = {
@@ -155,6 +200,14 @@ const de: SpokenLines = {
   transferNext: (p, n) =>
     `${p} kann den Anruf gerade nicht annehmen. Ich versuche es bei ${n}. Bitte bleiben Sie dran.`,
   takeOver: n => `Ich verbinde Sie jetzt mit ${n}.`,
+  onCallBriefing: (w, c, a) =>
+    `Anruf von ${w}${c ? `, laut eigener Angabe ${c}` : ''}${a ? `. Es geht um: ${a}` : ''}. Drücken Sie 1 oder sagen Sie Ja, um den Anruf anzunehmen, oder drücken Sie 2 oder sagen Sie Nein.`,
+  aCaller: 'Unbekannt',
+  onCallConnecting: 'Ich verbinde Sie jetzt.',
+  onCallDeclined: 'In Ordnung, ich nehme eine Nachricht auf.',
+  onCallFailed: 'Leider kann ich den Anruf gerade nicht durchstellen. Ich nehme eine Nachricht auf.',
+  onCallYes: answerWords('ja', 'jawohl', 'klar', 'gerne?', 'sicher', 'passt', 'stellen sie durch', 'stell durch', 'verbinden sie'),
+  onCallNo: answerWords('nein', 'nö', 'nee', 'geht nicht', 'kann nicht', 'jetzt nicht', 'keine zeit', 'besetzt'),
 }
 
 const it: SpokenLines = {
@@ -182,6 +235,14 @@ const it: SpokenLines = {
   transferConnecting: n => `Sto cercando di contattare ${n}. Resti in linea, per favore.`,
   transferNext: (p, n) => `${p} non può rispondere in questo momento. Provo con ${n}. Resti in linea, per favore.`,
   takeOver: n => `Le passo ${n} ora.`,
+  onCallBriefing: (w, c, a) =>
+    `Chiamata da ${w}${c ? `, che dice di essere ${c}` : ''}${a ? `. Motivo: ${a}` : ''}. Prema 1 o dica sì per rispondere, oppure prema 2 o dica no.`,
+  aCaller: 'un numero sconosciuto',
+  onCallConnecting: 'Le passo la chiamata ora.',
+  onCallDeclined: 'D\'accordo, prendo un messaggio.',
+  onCallFailed: 'Mi dispiace, al momento non riesco a passare la chiamata. Prendo un messaggio.',
+  onCallYes: answerWords('sì', 'si', 'certo', 'va bene', 'd\'accordo', 'volentieri', 'me l[oa] passi', 'passamel[oa]'),
+  onCallNo: answerWords('no', 'non posso', 'adesso no', 'ora no', 'occupat[oa]'),
 }
 
 const pt: SpokenLines = {
@@ -209,6 +270,14 @@ const pt: SpokenLines = {
   transferConnecting: n => `Estou tentando falar com ${n} agora. Por favor, aguarde na linha.`,
   transferNext: (p, n) => `${p} não pode atender agora. Vou tentar ${n}. Por favor, aguarde na linha.`,
   takeOver: n => `Vou transferir você para ${n} agora.`,
+  onCallBriefing: (w, c, a) =>
+    `Ligação de ${w}${c ? `, que diz ser ${c}` : ''}${a ? `. Assunto: ${a}` : ''}. Pressione 1 ou diga sim para atender, ou pressione 2 ou diga não.`,
+  aCaller: 'um número desconhecido',
+  onCallConnecting: 'Vou conectar a ligação agora.',
+  onCallDeclined: 'Tudo bem, vou anotar um recado.',
+  onCallFailed: 'Desculpe, não consigo transferir a ligação agora. Vou anotar um recado.',
+  onCallYes: answerWords('sim', 'claro', 'pode passar', 'tá bom', 'tudo bem', 'beleza'),
+  onCallNo: answerWords('não', 'nao', 'agora não', 'não posso', 'ocupad[oa]'),
 }
 
 const nl: SpokenLines = {
@@ -236,6 +305,14 @@ const nl: SpokenLines = {
   transferConnecting: n => `Ik probeer ${n} nu te bereiken. Blijft u even aan de lijn.`,
   transferNext: (p, n) => `${p} kan het gesprek nu niet aannemen. Ik probeer ${n}. Blijft u even aan de lijn.`,
   takeOver: n => `Ik verbind u nu door met ${n}.`,
+  onCallBriefing: (w, c, a) =>
+    `Gesprek van ${w}${c ? `, die zegt ${c} te zijn` : ''}${a ? `. Onderwerp: ${a}` : ''}. Druk op 1 of zeg ja om het aan te nemen, of druk op 2 of zeg nee.`,
+  aCaller: 'een onbekend nummer',
+  onCallConnecting: 'Ik verbind u nu door.',
+  onCallDeclined: 'Goed, ik neem een bericht aan.',
+  onCallFailed: 'Sorry, ik kan het gesprek nu niet doorverbinden. Ik neem een bericht aan.',
+  onCallYes: answerWords('ja', 'jazeker', 'oké', 'prima', 'is goed', 'verbind maar door'),
+  onCallNo: answerWords('nee', 'neen', 'kan niet', 'nu niet', 'bezet'),
 }
 
 const ru: SpokenLines = {
@@ -261,6 +338,14 @@ const ru: SpokenLines = {
   transferConnecting: n => `Сейчас я попробую связаться с ${n}. Пожалуйста, оставайтесь на линии.`,
   transferNext: (p, n) => `${p} сейчас не может ответить. Попробую связаться с ${n}. Пожалуйста, оставайтесь на линии.`,
   takeOver: n => `Соединяю вас с ${n}.`,
+  onCallBriefing: (w, c, a) =>
+    `Входящий звонок: ${w}${c ? `, имя со слов звонящего: ${c}` : ''}${a ? `. Тема: ${a}` : ''}. Нажмите 1 или скажите «да», чтобы принять звонок, или нажмите 2 или скажите «нет».`,
+  aCaller: 'номер неизвестен',
+  onCallConnecting: 'Соединяю вас.',
+  onCallDeclined: 'Хорошо, я запишу сообщение.',
+  onCallFailed: 'К сожалению, сейчас не получается перевести звонок. Я запишу сообщение.',
+  onCallYes: answerWords('да', 'ага', 'хорошо', 'ладно', 'конечно', 'давайте', 'соединяйте', 'окей'),
+  onCallNo: answerWords('нет', 'не могу', 'не сейчас', 'занят', 'занята'),
 }
 
 const hi: SpokenLines = {
@@ -287,6 +372,14 @@ const hi: SpokenLines = {
   transferConnecting: n => `मैं अभी ${n} से संपर्क करने की कोशिश कर रही हूँ। कृपया लाइन पर बने रहें।`,
   transferNext: (p, n) => `${p} अभी कॉल नहीं ले सकते। मैं ${n} से संपर्क करने की कोशिश करती हूँ। कृपया लाइन पर बने रहें।`,
   takeOver: n => `मैं आपको अभी ${n} से जोड़ रही हूँ।`,
+  onCallBriefing: (w, c, a) =>
+    `${w} से कॉल${c ? `, जो अपना नाम ${c} बताते हैं` : ''}${a ? `। विषय: ${a}` : ''}। कॉल लेने के लिए 1 दबाएँ या हाँ कहें, या 2 दबाएँ या ना कहें।`,
+  aCaller: 'अज्ञात नंबर',
+  onCallConnecting: 'मैं अभी कॉल जोड़ रही हूँ।',
+  onCallDeclined: 'ठीक है, मैं संदेश ले लूँगी।',
+  onCallFailed: 'माफ़ कीजिए, अभी मैं कॉल ट्रांसफ़र नहीं कर पा रही हूँ। मैं संदेश ले लूँगी।',
+  onCallYes: answerWords('हाँ', 'हां', 'जी', 'ठीक है', 'ओके'),
+  onCallNo: answerWords('नहीं', 'नही', 'ना'),
 }
 
 const ja: SpokenLines = {
@@ -313,6 +406,14 @@ const ja: SpokenLines = {
   transferConnecting: n => `ただいま${n}におつなぎしています。このままお待ちください。`,
   transferNext: (p, n) => `${p}は現在電話に出られません。${n}におつなぎします。このままお待ちください。`,
   takeOver: n => `${n}におつなぎします。`,
+  onCallBriefing: (w, c, a) =>
+    `お電話です。発信者：${w}${c ? `（ご本人によると${c}様）` : ''}${a ? `。ご用件：${a}` : ''}。お受けになる場合は1を押すか「はい」と、お断りの場合は2を押すか「いいえ」とおっしゃってください。`,
+  aCaller: '不明な番号',
+  onCallConnecting: 'おつなぎします。',
+  onCallDeclined: '承知しました。伝言をお預かりします。',
+  onCallFailed: '申し訳ありません、ただいまお電話をおつなぎできません。伝言をお預かりします。',
+  onCallYes: /はい|ええ|うん|お願いします|つないで|出ます/,
+  onCallNo: /いいえ|いや|無理|むり|だめ|ダメ|出られない|出れない/,
 }
 
 const zh: SpokenLines = {
@@ -337,6 +438,14 @@ const zh: SpokenLines = {
   transferConnecting: n => `我正在为您联系${n}，请不要挂断。`,
   transferNext: (p, n) => `${p}现在无法接听。我来试试联系${n}，请不要挂断。`,
   takeOver: n => `我现在为您转接${n}。`,
+  onCallBriefing: (w, c, a) =>
+    `来电：${w}${c ? `，对方自称${c}` : ''}${a ? `，事由：${a}` : ''}。接听请按1或说“是”，拒绝请按2或说“不”。`,
+  aCaller: '未知号码',
+  onCallConnecting: '现在为您接通。',
+  onCallDeclined: '好的，我会记下留言。',
+  onCallFailed: '抱歉，现在无法转接这通电话。我会记下留言。',
+  onCallYes: /(?<![不没])(是|好|可以|行|接)/,
+  onCallNo: /不|没|别/,
 }
 
 const ko: SpokenLines = {
@@ -364,6 +473,14 @@ const ko: SpokenLines = {
   transferNext: (p, n) =>
     `지금 ${p} 님은 전화를 받을 수 없습니다. ${n} 님께 연결해 보겠습니다. 끊지 말고 잠시만 기다려 주세요.`,
   takeOver: n => `지금 ${n} 님께 연결해 드리겠습니다.`,
+  onCallBriefing: (w, c, a) =>
+    `전화가 왔습니다. 발신자: ${w}${c ? ` (본인 말로는 ${c} 님)` : ''}${a ? `. 용건: ${a}` : ''}. 받으시려면 1번을 누르거나 '네'라고, 거절하시려면 2번을 누르거나 '아니요'라고 말씀해 주세요.`,
+  aCaller: '알 수 없는 번호',
+  onCallConnecting: '지금 연결해 드리겠습니다.',
+  onCallDeclined: '알겠습니다. 메시지를 남겨 두겠습니다.',
+  onCallFailed: '죄송합니다. 지금은 전화를 연결할 수 없습니다. 메시지를 남겨 두겠습니다.',
+  onCallYes: /네|예|좋아요|연결해|받을게/,
+  onCallNo: /아니|안 ?돼|못|싫어/,
 }
 
 const pl: SpokenLines = {
@@ -392,6 +509,14 @@ const pl: SpokenLines = {
   transferConnecting: n => `Próbuję teraz skontaktować się z ${n}. Proszę pozostać na linii.`,
   transferNext: (p, n) => `${p} nie może teraz odebrać. Spróbuję połączyć z ${n}. Proszę pozostać na linii.`,
   takeOver: n => `Teraz łączę z ${n}.`,
+  onCallBriefing: (w, c, a) =>
+    `Dzwoni: ${w}${c ? ` (przedstawia się jako ${c})` : ''}${a ? `. Sprawa: ${a}` : ''}. Proszę nacisnąć 1 lub powiedzieć „tak”, aby odebrać, albo nacisnąć 2 lub powiedzieć „nie”.`,
+  aCaller: 'nieznany numer',
+  onCallConnecting: 'Teraz łączę.',
+  onCallDeclined: 'Dobrze, przyjmę wiadomość.',
+  onCallFailed: 'Przepraszam, nie mogę teraz przełączyć połączenia. Przyjmę wiadomość.',
+  onCallYes: answerWords('tak', 'dobrze', 'jasne', 'okej', 'pewnie', 'proszę łączyć', 'łącz'),
+  onCallNo: answerWords('nie', 'nie mogę', 'nie teraz', 'zajęt[ya]'),
 }
 
 const tr: SpokenLines = {
@@ -419,6 +544,14 @@ const tr: SpokenLines = {
   transferConnecting: n => `Şimdi ${n} ile bağlantı kurmaya çalışıyorum. Lütfen hatta kalın.`,
   transferNext: (p, n) => `${p} şu anda çağrıyı alamıyor. ${n} ile deneyeceğim. Lütfen hatta kalın.`,
   takeOver: n => `Sizi şimdi ${n} ile bağlıyorum.`,
+  onCallBriefing: (w, c, a) =>
+    `Arayan: ${w}${c ? ` (kendini ${c} olarak tanıtıyor)` : ''}${a ? `. Konu: ${a}` : ''}. Çağrıyı almak için 1'e basın veya evet deyin, reddetmek için 2'ye basın veya hayır deyin.`,
+  aCaller: 'bilinmeyen numara',
+  onCallConnecting: 'Şimdi bağlıyorum.',
+  onCallDeclined: 'Tamam, bir mesaj alacağım.',
+  onCallFailed: 'Üzgünüm, çağrıyı şu anda aktaramıyorum. Bir mesaj alacağım.',
+  onCallYes: answerWords('evet', 'tamam', 'olur', 'tabii', 'peki', 'bağla', 'okey'),
+  onCallNo: answerWords('hayır', 'olmaz', 'yok', 'şimdi değil', 'müsait değilim', 'meşgulüm'),
 }
 
 const vi: SpokenLines = {
@@ -448,6 +581,14 @@ const vi: SpokenLines = {
   transferConnecting: n => `Tôi đang liên hệ với ${n}. Xin quý khách vui lòng giữ máy.`,
   transferNext: (p, n) => `${p} hiện không thể nghe máy. Tôi sẽ thử liên hệ với ${n}. Xin quý khách vui lòng giữ máy.`,
   takeOver: n => `Tôi đang nối máy cho quý khách với ${n}.`,
+  onCallBriefing: (w, c, a) =>
+    `Cuộc gọi từ ${w}${c ? `, người gọi tự xưng là ${c}` : ''}${a ? `. Nội dung: ${a}` : ''}. Bấm phím 1 hoặc nói “có” để nhận cuộc gọi, hoặc bấm phím 2 hoặc nói “không”.`,
+  aCaller: 'một số không xác định',
+  onCallConnecting: 'Tôi đang nối máy ngay bây giờ.',
+  onCallDeclined: 'Vâng, tôi sẽ ghi lại lời nhắn.',
+  onCallFailed: 'Xin lỗi, hiện tôi không thể chuyển cuộc gọi. Tôi sẽ ghi lại lời nhắn.',
+  onCallYes: answerWords('có', 'vâng', '(?<!không )được', 'ừ', 'đồng ý', 'nối máy'),
+  onCallNo: answerWords('không', 'bận', 'chưa'),
 }
 
 const id: SpokenLines = {
@@ -479,6 +620,14 @@ const id: SpokenLines = {
   transferNext: (p, n) =>
     `${p} tidak dapat menerima panggilan saat ini. Saya akan mencoba ${n}. Mohon tetap di saluran.`,
   takeOver: n => `Saya sambungkan Anda ke ${n} sekarang.`,
+  onCallBriefing: (w, c, a) =>
+    `Panggilan dari ${w}${c ? `, yang mengaku bernama ${c}` : ''}${a ? `. Perihal: ${a}` : ''}. Tekan 1 atau katakan ya untuk menerima, atau tekan 2 atau katakan tidak.`,
+  aCaller: 'nomor tak dikenal',
+  onCallConnecting: 'Saya sambungkan sekarang.',
+  onCallDeclined: 'Baik, saya akan mencatat pesan.',
+  onCallFailed: 'Maaf, saat ini saya tidak bisa menyambungkan panggilan. Saya akan mencatat pesan.',
+  onCallYes: answerWords('ya', 'iya', 'boleh', 'oke', 'baik', '(?<!(?:tidak|nggak|enggak|gak) )bisa', 'sambungkan'),
+  onCallNo: answerWords('tidak', 'nggak', 'enggak', 'gak', 'jangan', 'sibuk'),
 }
 
 const sv: SpokenLines = {
@@ -508,6 +657,14 @@ const sv: SpokenLines = {
   transferNext: (p, n) =>
     `${p} kan inte ta samtalet just nu. Jag försöker med ${n}. Var vänlig och stanna kvar i luren.`,
   takeOver: n => `Jag kopplar dig till ${n} nu.`,
+  onCallBriefing: (w, c, a) =>
+    `Samtal från ${w}${c ? `, som säger sig vara ${c}` : ''}${a ? `. Ärende: ${a}` : ''}. Tryck 1 eller säg ja för att ta samtalet, eller tryck 2 eller säg nej.`,
+  aCaller: 'ett okänt nummer',
+  onCallConnecting: 'Jag kopplar samtalet nu.',
+  onCallDeclined: 'Okej, jag tar ett meddelande.',
+  onCallFailed: 'Tyvärr kan jag inte koppla samtalet just nu. Jag tar ett meddelande.',
+  onCallYes: answerWords('ja', 'japp', 'absolut', 'okej', 'visst', 'gärna', 'koppla'),
+  onCallNo: answerWords('nej', 'nä', 'kan inte', 'inte nu', 'upptagen'),
 }
 
 const ar: SpokenLines = {
@@ -532,6 +689,14 @@ const ar: SpokenLines = {
   transferConnecting: n => `أحاول الآن الوصول إلى ${n}. يرجى البقاء على الخط.`,
   transferNext: (p, n) => `لا يستطيع ${p} الرد على المكالمة الآن. سأحاول مع ${n}. يرجى البقاء على الخط.`,
   takeOver: n => `سأحولك الآن إلى ${n}.`,
+  onCallBriefing: (w, c, a) =>
+    `مكالمة من ${w}${c ? `، والاسم كما ذكره المتصل: ${c}` : ''}${a ? `. الموضوع: ${a}` : ''}. اضغط 1 أو قل نعم لقبول المكالمة، أو اضغط 2 أو قل لا.`,
+  aCaller: 'رقم غير معروف',
+  onCallConnecting: 'سأوصلك بالمكالمة الآن.',
+  onCallDeclined: 'حسنًا، سأدوّن رسالة.',
+  onCallFailed: 'عذرًا، لا يمكنني تحويل المكالمة الآن. سأدوّن رسالة.',
+  onCallYes: answerWords('نعم', 'أيوه', 'ايوه', 'أجل', 'حسنا', 'حسنًا', 'طيب', 'موافق', 'تمام'),
+  onCallNo: answerWords('لا', 'مش', 'مشغول', 'مشغولة'),
 }
 
 const uk: SpokenLines = {
@@ -558,6 +723,14 @@ const uk: SpokenLines = {
   transferConnecting: n => `Зараз я спробую зв'язатися з ${n}. Будь ласка, залишайтеся на лінії.`,
   transferNext: (p, n) => `${p} зараз не може відповісти. Спробую зв'язатися з ${n}. Будь ласка, залишайтеся на лінії.`,
   takeOver: n => `З'єдную вас із ${n}.`,
+  onCallBriefing: (w, c, a) =>
+    `Вхідний дзвінок: ${w}${c ? `, ім'я зі слів абонента: ${c}` : ''}${a ? `. Тема: ${a}` : ''}. Натисніть 1 або скажіть «так», щоб прийняти дзвінок, або натисніть 2 або скажіть «ні».`,
+  aCaller: 'номер невідомий',
+  onCallConnecting: 'З\'єдную вас.',
+  onCallDeclined: 'Добре, я запишу повідомлення.',
+  onCallFailed: 'На жаль, зараз не вдається переадресувати дзвінок. Я запишу повідомлення.',
+  onCallYes: answerWords('так', 'добре', 'гаразд', 'звісно', 'авжеж', 'окей', 'з\'єднуйте'),
+  onCallNo: answerWords('ні', 'не можу', 'не зараз', 'зайнят(?:ий|а)'),
 }
 
 const ro: SpokenLines = {
@@ -585,6 +758,14 @@ const ro: SpokenLines = {
   transferConnecting: n => `Încerc acum să iau legătura cu ${n}. Vă rog să rămâneți la telefon.`,
   transferNext: (p, n) => `${p} nu poate prelua apelul acum. Încerc la ${n}. Vă rog să rămâneți la telefon.`,
   takeOver: n => `Vă fac legătura acum cu ${n}.`,
+  onCallBriefing: (w, c, a) =>
+    `Apel de la ${w}${c ? `, care spune că se numește ${c}` : ''}${a ? `. Subiect: ${a}` : ''}. Apăsați 1 sau spuneți da pentru a prelua apelul, sau apăsați 2 sau spuneți nu.`,
+  aCaller: 'un număr necunoscut',
+  onCallConnecting: 'Vă fac legătura acum.',
+  onCallDeclined: 'Bine, preiau un mesaj.',
+  onCallFailed: 'Îmi pare rău, nu pot transfera apelul acum. Preiau un mesaj.',
+  onCallYes: answerWords('da', 'sigur', 'bine', 'desigur', 'în regulă', 'faceți legătura'),
+  onCallNo: answerWords('nu', 'nu pot', 'nu acum', 'ocupat', 'ocupată'),
 }
 
 const cs: SpokenLines = {
@@ -611,6 +792,14 @@ const cs: SpokenLines = {
   transferConnecting: n => `Zkouším se teď spojit s ${n}. Zůstaňte prosím na lince.`,
   transferNext: (p, n) => `${p} teď nemůže hovor přijmout. Zkusím ${n}. Zůstaňte prosím na lince.`,
   takeOver: n => `Přepojuji vás teď na ${n}.`,
+  onCallBriefing: (w, c, a) =>
+    `Volá ${w}${c ? ` (podle volajícího ${c})` : ''}${a ? `. Jde o: ${a}` : ''}. Pro přijetí stiskněte 1 nebo řekněte ano, pro odmítnutí stiskněte 2 nebo řekněte ne.`,
+  aCaller: 'neznámé číslo',
+  onCallConnecting: 'Teď vás spojuji.',
+  onCallDeclined: 'Dobře, vezmu vzkaz.',
+  onCallFailed: 'Omlouvám se, hovor teď nemohu přepojit. Vezmu vzkaz.',
+  onCallYes: answerWords('ano', 'jo', 'jasně', 'dobře', 'okej', 'určitě', 'přepojte'),
+  onCallNo: answerWords('ne', 'nemůžu', 'nemohu', 'teď ne', 'mám práci'),
 }
 
 const el: SpokenLines = {
@@ -640,6 +829,14 @@ const el: SpokenLines = {
   transferNext: (p, n) =>
     `${p} δεν μπορεί να απαντήσει αυτή τη στιγμή. Θα δοκιμάσω με ${n}. Παρακαλώ μείνετε στη γραμμή.`,
   takeOver: n => `Σας συνδέω τώρα με ${n}.`,
+  onCallBriefing: (w, c, a) =>
+    `Κλήση από ${w}${c ? `, που λέει ότι είναι ${c}` : ''}${a ? `. Θέμα: ${a}` : ''}. Πατήστε 1 ή πείτε ναι για να την αποδεχτείτε, ή πατήστε 2 ή πείτε όχι.`,
+  aCaller: 'άγνωστο αριθμό',
+  onCallConnecting: 'Σας συνδέω τώρα.',
+  onCallDeclined: 'Εντάξει, θα κρατήσω μήνυμα.',
+  onCallFailed: 'Λυπάμαι, δεν μπορώ να μεταφέρω την κλήση αυτή τη στιγμή. Θα κρατήσω μήνυμα.',
+  onCallYes: answerWords('ναι', 'εντάξει', 'βεβαίως', 'σίγουρα', 'οκ'),
+  onCallNo: answerWords('όχι', 'οχι', 'δεν μπορώ', 'απασχολημένος', 'απασχολημένη'),
 }
 
 const da: SpokenLines = {
@@ -668,6 +865,14 @@ const da: SpokenLines = {
   transferConnecting: n => `Jeg prøver at få fat i ${n} nu. Bliv venligst på linjen.`,
   transferNext: (p, n) => `${p} kan ikke tage opkaldet lige nu. Jeg prøver ${n}. Bliv venligst på linjen.`,
   takeOver: n => `Jeg stiller dig om til ${n} nu.`,
+  onCallBriefing: (w, c, a) =>
+    `Opkald fra ${w}${c ? `, som siger, at de hedder ${c}` : ''}${a ? `. Emne: ${a}` : ''}. Tryk 1 eller sig ja for at tage opkaldet, eller tryk 2 eller sig nej.`,
+  aCaller: 'et ukendt nummer',
+  onCallConnecting: 'Jeg stiller opkaldet igennem nu.',
+  onCallDeclined: 'Okay, jeg tager imod en besked.',
+  onCallFailed: 'Beklager, jeg kan ikke stille opkaldet igennem lige nu. Jeg tager imod en besked.',
+  onCallYes: answerWords('ja', 'jo', 'javel', 'fint', 'klart', 'gerne', 'stil igennem'),
+  onCallNo: answerWords('nej', 'kan ikke', 'ikke nu', 'optaget'),
 }
 
 const fi: SpokenLines = {
@@ -693,6 +898,14 @@ const fi: SpokenLines = {
   transferConnecting: n => `Yritän nyt tavoittaa henkilön ${n}. Pysy linjalla.`,
   transferNext: (p, n) => `${p} ei pysty vastaamaan juuri nyt. Yritän tavoittaa henkilön ${n}. Pysy linjalla.`,
   takeOver: n => `Yhdistän sinut nyt henkilölle ${n}.`,
+  onCallBriefing: (w, c, a) =>
+    `Soittaja: ${w}${c ? ` (kertoo olevansa ${c})` : ''}${a ? `. Asia: ${a}` : ''}. Ota puhelu vastaan painamalla 1 tai sanomalla kyllä, tai paina 2 tai sano ei.`,
+  aCaller: 'tuntematon numero',
+  onCallConnecting: 'Yhdistän puhelun nyt.',
+  onCallDeclined: 'Selvä, otan viestin.',
+  onCallFailed: 'Valitettavasti en voi yhdistää puhelua juuri nyt. Otan viestin.',
+  onCallYes: answerWords('kyllä', 'joo', 'juu', 'okei', 'selvä', '(?<!ei )käy', 'yhdistä'),
+  onCallNo: answerWords('ei', 'en voi', 'kiireinen'),
 }
 
 const no: SpokenLines = {
@@ -719,6 +932,14 @@ const no: SpokenLines = {
   transferConnecting: n => `Jeg prøver å nå ${n} nå. Vennligst bli på linjen.`,
   transferNext: (p, n) => `${p} kan ikke ta samtalen akkurat nå. Jeg prøver ${n}. Vennligst bli på linjen.`,
   takeOver: n => `Jeg setter deg over til ${n} nå.`,
+  onCallBriefing: (w, c, a) =>
+    `Anrop fra ${w}${c ? `, som sier at de heter ${c}` : ''}${a ? `. Gjelder: ${a}` : ''}. Trykk 1 eller si ja for å ta samtalen, eller trykk 2 eller si nei.`,
+  aCaller: 'et ukjent nummer',
+  onCallConnecting: 'Jeg setter samtalen over nå.',
+  onCallDeclined: 'Greit, jeg tar imot en beskjed.',
+  onCallFailed: 'Beklager, jeg kan ikke sette over samtalen akkurat nå. Jeg tar imot en beskjed.',
+  onCallYes: answerWords('ja', 'jo', 'javisst', 'greit', 'okei', 'klart', 'gjerne', 'sett over'),
+  onCallNo: answerWords('nei', 'kan ikke', 'ikke nå', 'opptatt'),
 }
 
 const hu: SpokenLines = {
@@ -746,6 +967,14 @@ const hu: SpokenLines = {
   transferNext: (p, n) =>
     `${p} most nem tudja fogadni a hívást. Megpróbálom ${n} kollégánkat. Kérem, maradjon a vonalban.`,
   takeOver: n => `Most kapcsolom ${n} kollégánkat.`,
+  onCallBriefing: (w, c, a) =>
+    `Hívás: ${w}${c ? ` (a hívó szerint ${c})` : ''}${a ? `. Ügy: ${a}` : ''}. A hívás fogadásához nyomja meg az 1-est, vagy mondja, hogy igen; az elutasításhoz nyomja meg a 2-est, vagy mondja, hogy nem.`,
+  aCaller: 'ismeretlen szám',
+  onCallConnecting: 'Most kapcsolom a hívást.',
+  onCallDeclined: 'Rendben, felveszek egy üzenetet.',
+  onCallFailed: 'Sajnálom, most nem tudom kapcsolni a hívást. Felveszek egy üzenetet.',
+  onCallYes: answerWords('igen', 'persze', 'rendben', 'oké', 'jó', 'kapcsolja'),
+  onCallNo: answerWords('nem', 'most nem', 'foglalt'),
 }
 
 const LINES: Record<Language, SpokenLines> = {

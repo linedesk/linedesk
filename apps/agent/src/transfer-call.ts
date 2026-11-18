@@ -7,7 +7,7 @@
 // Why a bridge and not LiveKit's moveParticipant or SIP REFER: docs/decisions.md (warm transfer).
 import { type llm, voice } from '@livekit/agents'
 import { type RemoteParticipant, type RemoteTrack, Room, RoomEvent, TrackKind } from '@livekit/rtc-node'
-import type { TransferResult } from '@linedesk/actions'
+import { spokenLines, type TransferResult } from '@linedesk/actions'
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk'
 import { type Announcement, forwardAudio, playRingback } from './audio-bridge.ts'
 import { ALL_PARTICIPANT_KINDS } from './counterpart.ts'
@@ -15,12 +15,9 @@ import { livekitHttpUrl } from './env.ts'
 import { audioStream, type GreetingAudio, synthesize } from './greeting-cache.ts'
 import { NotAnsweredError, type OnCallDialer } from './on-call-dialer.ts'
 import { createStt, sttDetectsTurns, type TransferSpeech } from './pipeline.ts'
-import { type Answer, answerOf, answerOfDigit, DECISION_MS } from './transfer.ts'
+import { type Answer, answerOf, answerOfDigit, DECISION_MS, type OnCallLines } from './transfer.ts'
 
 export const ON_CALL_IDENTITY = 'on-call'
-/** What the on-call person hears once they said yes, right before the bridge. */
-const CONNECTING_NOW = 'Connecting you now.'
-
 /** The consult's lines, made before anyone picks up: said live, a slow server could pause them mid-sentence. */
 type ConsultLines = { briefing: GreetingAudio | null; connecting: GreetingAudio | null }
 
@@ -28,7 +25,11 @@ type ConsultLines = { briefing: GreetingAudio | null; connecting: GreetingAudio 
 const PRERENDER_MAX_MS = 8000
 
 /** Synthesizes the consult's lines while the phone rings; a line that fails or takes too long is said live instead (null). */
-function prerenderConsultLines(tts: Parameters<typeof synthesize>[0], briefing: string): Promise<ConsultLines> {
+function prerenderConsultLines(
+  tts: Parameters<typeof synthesize>[0],
+  briefing: string,
+  connecting: string,
+): Promise<ConsultLines> {
   const render = (text: string) =>
     synthesize(tts, text).catch(e => {
       console.warn(
@@ -36,7 +37,7 @@ function prerenderConsultLines(tts: Parameters<typeof synthesize>[0], briefing: 
       )
       return null
     })
-  return Promise.all([render(briefing), render(CONNECTING_NOW)]).then(([b, c]) => ({ briefing: b, connecting: c }))
+  return Promise.all([render(briefing), render(connecting)]).then(([b, c]) => ({ briefing: b, connecting: c }))
 }
 
 /** Says `text` from its pre-rendered audio when there is some, else live. */
@@ -148,6 +149,7 @@ async function decide(
   briefing: string,
   signal: AbortSignal,
   briefingAudio: GreetingAudio | null = null,
+  lines: OnCallLines = spokenLines('en'),
 ): Promise<Answer | null> {
   let settle: (answer: Answer | null) => void = () => {}
   const decided = new Promise<Answer | null>(resolve => {
@@ -158,7 +160,7 @@ async function decide(
   const start = Date.now()
   const at = () => `${((Date.now() - start) / 1000).toFixed(1)} s`
   agent.heard = text => {
-    const answer = asked ? answerOf(text) : null
+    const answer = asked ? answerOf(text, lines) : null
     console.log(
       `transfer ${room.name}: heard ${text.trim().split(/\s+/).length} words, ${asked ? (answer ?? 'no answer') : 'before the question'} (${at()})`,
     )
@@ -287,9 +289,11 @@ export async function warmTransfer(
     connected = true
     return { result: 'connected' } as const
   }
+  // What the on-call person hears, in the business's language (the assistant's main language, TransferSpeech).
+  const said = spokenLines(setup.consult.language)
   try {
     const tts = briefing === null ? null : setup.consult.tts()
-    const lines = tts && briefing !== null ? prerenderConsultLines(tts, briefing) : null // while it rings
+    const lines = tts && briefing !== null ? prerenderConsultLines(tts, briefing, said.onCallConnecting) : null // while it rings
     consult = await joinConsultRoom(livekit, consultName)
     await setup.dialer.dial({
       room: consultName,
@@ -322,10 +326,12 @@ export async function warmTransfer(
     const agent = new ConsultAgent({ instructions: 'You brief the person about a call to put through.' })
     session = new voice.AgentSession({
       vad: null,
-      stt: createStt(setup.consult.stt),
+      stt: createStt(setup.consult.stt, { main: setup.consult.language, others: [] }),
       tts,
       turnHandling: {
-        turnDetection: sttDetectsTurns(setup.consult.stt) ? 'stt' : undefined,
+        turnDetection: sttDetectsTurns(setup.consult.stt, { main: setup.consult.language, others: [] })
+          ? 'stt'
+          : undefined,
         preemptiveGeneration: { enabled: false },
       },
     })
@@ -342,12 +348,12 @@ export async function warmTransfer(
       setTimeout(() => resolve({ briefing: null, connecting: null }), PRERENDER_MAX_MS).unref?.(),
     )
     const { briefing: briefingAudio, connecting } = await Promise.race([lines, tooSlow])
-    const answer = await decide(session, agent, consult, briefing, signal, briefingAudio)
+    const answer = await decide(session, agent, consult, briefing, signal, briefingAudio, said)
     // Timings only: why a yes did not end in a bridge (LIN-263).
     const decidedAt = Date.now()
     const at = () => `${((Date.now() - decidedAt) / 1000).toFixed(1)} s after the answer`
     if (answer !== 'yes' || signal.aborted) {
-      if (answer === 'no') farewell = "Okay, I'll take a message."
+      if (answer === 'no') farewell = said.onCallDeclined
       return { result: answer === 'no' ? 'declined' : 'not_answered' }
     }
     // Fail closed: a recording that cannot be stopped means no bridge; the assistant takes a message.
@@ -357,12 +363,12 @@ export async function warmTransfer(
       console.warn(
         `not putting the call through, the recording could not be stopped: ${e instanceof Error ? e.message : String(e)}`,
       )
-      farewell = "Sorry, I can't put the call through right now. I'll take a message."
+      farewell = said.onCallFailed
       return { result: 'failed' }
     }
 
     console.log(`transfer ${consultName}: recording stopped (${at()})`)
-    await sayToEnd(session, CONNECTING_NOW, connecting)
+    await sayToEnd(session, said.onCallConnecting, connecting)
     console.log(`transfer ${consultName}: connecting line played (${at()})`)
     await session.close()
     session = null

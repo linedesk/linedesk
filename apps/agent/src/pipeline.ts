@@ -514,23 +514,25 @@ const otherRealtimeVoice = (voiceName: string) => (voiceName === 'cedar' ? 'mari
  */
 export type TransferSpeech = {
   line: LineVoice
-  consult: { tts: () => ttsTypes.TTS; stt: AgentConfig['stt'] }
+  /** `language`: what the on-call person hears and answers in, the assistant's main language (LIN-510). */
+  consult: { tts: () => ttsTypes.TTS; stt: AgentConfig['stt']; language: Language }
   onCallVoice: () => ttsTypes.TTS
 }
 
 export function transferSpeechOf(config: CallConfig, assistant: LineAssistant, testCallerVoice = process.env.TEST_CALLER_VOICE_ID): TransferSpeech {
   const line = lineVoiceOf(config, assistant)
+  const language = mainLanguageOf(assistant?.languages)
   if (!isRealtime(config)) {
     return {
       line,
-      consult: { tts: () => createTts(config.tts, assistant?.voice), stt: config.stt },
+      consult: { tts: () => createTts(config.tts, assistant?.voice, language), stt: config.stt, language },
       onCallVoice: () => createTts(config.tts, testCallerVoice ? { provider: config.tts.provider, voice_id: testCallerVoice } : null),
     }
   }
   const { realtime, stages } = config
   return {
     line,
-    consult: { tts: () => createRealtimeLineTts(realtime), stt: { provider: 'openai_stt', apiKey: realtime.apiKey, model: REALTIME_TRANSCRIPTION } },
+    consult: { tts: () => createRealtimeLineTts(realtime), stt: { provider: 'openai_stt', apiKey: realtime.apiKey, model: REALTIME_TRANSCRIPTION }, language },
     // The test caller's voice when the three stages are set up too (as on the three stages), else another realtime voice.
     onCallVoice: stages
       ? transferSpeechOf(stages, assistant, testCallerVoice).onCallVoice

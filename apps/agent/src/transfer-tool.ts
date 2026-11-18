@@ -1,7 +1,7 @@
 // The assistant's transfer_call tool: puts the caller through to the transfer contact whose condition
 // fits (warm transfer, transfer-call.ts), tries the next one when the contact says so, and records how
 // each try went with call.transfer.
-import { type CallTransferData, callTakeMessage, callTransfer, isBriefed, type SpokenLines, type TransferResult } from '@linedesk/actions'
+import { type CallTransferData, callTakeMessage, callTransfer, isBriefed, type SpokenLines, spokenLines, type TransferResult } from '@linedesk/actions'
 import { llm, type JobContext } from '@livekit/agents'
 import { type RemoteParticipant, RoomEvent } from '@livekit/rtc-node'
 import { z } from 'zod'
@@ -248,12 +248,11 @@ export function transferTool({ ctx, api, call, log, speech, callerIdentity, cont
       // The name the caller gave on this call beats the one on file (a shared or test number has someone else's). Only a
       // name the team gave or confirmed is said as the caller's; any other as who they say they are.
       const { name: callerName, confirmed: nameConfirmed } = transferCallerName(caller_name ?? log.confirmedName, call.contact && { name: call.contact.name, nameConfirmed: call.caller?.nameConfirmed })
-      const briefing = briefingText({
-        callerName,
-        nameConfirmed,
-        callerNumber: call.contact?.phone ?? null,
-        about,
-      })
+      // In the business's language, which the consult leg speaks and hears (TransferSpeech.consult).
+      const briefing = briefingText(
+        { callerName, nameConfirmed, callerNumber: call.contact?.phone ?? null, about },
+        spokenLines(speech.consult.language),
+      )
       let previous: Dialable | null = null
       const triedNames: string[] = []
       for (const [i, contact] of plan.tries.entries()) {

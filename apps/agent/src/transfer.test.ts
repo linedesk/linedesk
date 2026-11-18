@@ -1,4 +1,4 @@
-import { spokenLines } from '@linedesk/actions'
+import { type Language, languageCodes, spokenLines } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { expect, test, vi } from 'vitest'
 import { ringbackFrame } from './audio-bridge.ts'
@@ -191,6 +191,66 @@ test('the briefing names the caller (or reads the number) and what it is about, 
     /^Call from 503 555 0142 about no heat\./,
   )
   expect(briefingText({ callerNumber: 'test', about: '' })).toMatch(/^Call from a caller\. Press 1/)
+})
+
+test('the briefing is in the language given, with the number, the claimed name and the topic', () => {
+  const de = spokenLines('de')
+  expect(briefingText({ callerName: 'Dana Ruiz', callerNumber: '+15035550142', about: 'kein Warmwasser.' }, de)).toBe(
+    'Anruf von 503 555 0142, laut eigener Angabe Dana Ruiz. Es geht um: kein Warmwasser. Drücken Sie 1 oder sagen Sie Ja, um den Anruf anzunehmen, oder drücken Sie 2 oder sagen Sie Nein.',
+  )
+  expect(briefingText({ callerNumber: 'test', about: '' }, de)).toMatch(/^Anruf von Unbekannt\. Drücken Sie 1/)
+  for (const code of languageCodes) {
+    const text = briefingText({ callerName: 'Dana Ruiz', nameConfirmed: true, about: 'no heat' }, spokenLines(code))
+    expect(text, code).toContain('Dana Ruiz')
+    expect(text, code).toContain('no heat')
+  }
+})
+
+// What a person says to take or decline the call, in each language the assistant can speak.
+const ANSWERS: Record<Language, [yes: string, no: string]> = {
+  en: ['Yes', 'No'],
+  es: ['Sí, claro', 'No, ahora no puedo'],
+  fr: ['Oui', 'Non'],
+  de: ['Ja, gerne', 'Nein, keine Zeit'],
+  it: ['Sì, va bene', 'No'],
+  pt: ['Sim', 'Não'],
+  nl: ['Ja', 'Nee'],
+  ru: ['Да', 'Нет'],
+  hi: ['हाँ', 'नहीं'],
+  ja: ['はい', 'いいえ'],
+  zh: ['好的', '不行'],
+  ko: ['네', '아니요'],
+  pl: ['Tak', 'Nie'],
+  tr: ['Evet', 'Hayır'],
+  vi: ['Vâng', 'Không'],
+  id: ['Ya, bisa', 'Tidak bisa'],
+  sv: ['Ja', 'Nej'],
+  ar: ['نعم', 'لا'],
+  uk: ['Так', 'Ні'],
+  ro: ['Da', 'Nu'],
+  cs: ['Ano', 'Ne'],
+  el: ['Ναι', 'Όχι'],
+  da: ['Ja', 'Nej'],
+  fi: ['Kyllä', 'Ei käy'],
+  no: ['Ja', 'Nei'],
+  hu: ['Igen', 'Nem'],
+}
+
+test('the on-call person can answer in the business language or in English', () => {
+  for (const code of languageCodes) {
+    const lines = spokenLines(code)
+    const [yes, no] = ANSWERS[code]
+    expect(answerOf(yes, lines), `${code}: ${yes}`).toBe('yes')
+    expect(answerOf(no, lines), `${code}: ${no}`).toBe('no')
+    expect(answerOf('Yes', lines), code).toBe('yes')
+    expect(answerOf('No', lines), code).toBe('no')
+    // Not a word that only starts like a yes or a no.
+    expect(answerOf('Hello?', lines), code).toBeNull()
+  }
+  expect(answerOf('Jawohl, stellen Sie durch', spokenLines('de'))).toBe('yes')
+  expect(answerOf('Ja, aber ich kann nicht', spokenLines('de'))).toBeNull()
+  expect(answerOf('Jahr', spokenLines('de'))).toBeNull()
+  expect(answerOf('不可以', spokenLines('zh'))).toBe('no')
 })
 
 test('the on-call person answers by voice or key; unclear answers are no decision', () => {
@@ -443,7 +503,7 @@ function runTransfer(contacts: Dialable[], dialable: (c: Dialable) => boolean) {
     } as never,
     call,
     log,
-    speech: {} as never,
+    speech: { consult: { language: 'en' } } as never,
     callerIdentity: Promise.resolve('caller'),
     contacts,
     lines: () => spokenLines('en'),

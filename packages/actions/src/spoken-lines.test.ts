@@ -59,6 +59,39 @@ test('every language an assistant can speak has every fixed line, in its own wor
   }
 })
 
+test('every language has the lines the on-call person hears in a transfer, naming the caller, in its own words', () => {
+  const english = spokenLines('en')
+  for (const code of languageCodes) {
+    const lines = spokenLines(code)
+    const briefing = lines.onCallBriefing('503 555 0142', 'Dana Ruiz', 'a burst pipe')
+    expect(briefing, code).toMatch(/503 555 0142.*Dana Ruiz.*a burst pipe/)
+    // The keys to press are said in every language.
+    expect(briefing, code).toMatch(/1.*2/)
+    expect(lines.onCallBriefing('Dana Ruiz', null, null), code).toContain('Dana Ruiz')
+    expect(lines.onCallBriefing('Dana Ruiz', null, null), code).not.toMatch(/undefined|null/)
+    for (const key of ['aCaller', 'onCallConnecting', 'onCallDeclined', 'onCallFailed'] as const) {
+      expect(lines[key].trim().length, `${code}.${key}`).toBeGreaterThan(0)
+      if (code !== 'en') expect(lines[key], `${code}.${key} is still English`).not.toBe(english[key])
+    }
+    if (code !== 'en') {
+      expect(briefing, `${code}.onCallBriefing is still English`).not.toMatch(/Call from|Press 1|say yes/)
+    }
+  }
+})
+
+test('the English briefing reads as before', () => {
+  const { onCallBriefing } = spokenLines('en')
+  expect(onCallBriefing('Dana Ruiz', null, 'a burst pipe')).toBe(
+    'Call from Dana Ruiz about a burst pipe. Press 1 or say yes to take it, or press 2 or say no.',
+  )
+  expect(onCallBriefing('503 555 0142', 'Dana Ruiz', 'no heat')).toBe(
+    'Call from 503 555 0142, who says they are Dana Ruiz, about no heat. Press 1 or say yes to take it, or press 2 or say no.',
+  )
+  expect(onCallBriefing('a caller', 'Dana Ruiz', null)).toBe(
+    'Call from a caller, who says they are Dana Ruiz. Press 1 or say yes to take it, or press 2 or say no.',
+  )
+})
+
 test('a default greeting or line switches to the new main language and back', () => {
   for (const code of languageCodes) {
     const english = spokenLines('en').greeting('Brightwater Plumbing', 'Maya', true)

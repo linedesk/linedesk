@@ -1,7 +1,7 @@
 // Warm transfer, the decisions without any audio: which transfer contacts the assistant may put
 // callers through to on this call, in which order it tries them and what happens when nobody accepts,
 // what the person hears, and how their answer is read. The call itself is in transfer-call.ts.
-import { isActiveContact, RING_SECONDS_DEFAULT, type SpokenLines, type TransferResult } from '@linedesk/actions'
+import { isActiveContact, RING_SECONDS_DEFAULT, type SpokenLines, spokenLines, type TransferResult } from '@linedesk/actions'
 import type { Assistant, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 
@@ -68,13 +68,22 @@ export const displayNumber = (e164: string) => (/^\+1\d{10}$/.test(e164) ? `+1 $
  */
 export type Briefing = { callerName?: string | null; nameConfirmed?: boolean; callerNumber?: string | null; about: string }
 
-/** What the person hears when they pick up. */
-export function briefingText({ callerName, nameConfirmed = false, callerNumber, about }: Briefing): string {
-  const name = callerName?.trim()
+/** The lines the on-call person hears and the answers understood from them, in the business's language (spokenLines). */
+export type OnCallLines = Pick<
+  SpokenLines,
+  'onCallBriefing' | 'aCaller' | 'onCallConnecting' | 'onCallDeclined' | 'onCallFailed' | 'onCallYes' | 'onCallNo'
+>
+
+/** What the person hears when they pick up, in `lines`' language. */
+export function briefingText(
+  { callerName, nameConfirmed = false, callerNumber, about }: Briefing,
+  lines: OnCallLines = spokenLines('en'),
+): string {
+  const name = callerName?.trim() || null
   const number = callerNumber && /^\+\d+$/.test(callerNumber) ? spokenNumber(callerNumber) : null
-  const who = name && nameConfirmed ? name : name ? `${number ?? 'a caller'}, who says they are ${name},` : (number ?? 'a caller')
-  const topic = about.trim().replace(/[.!?]+$/, '')
-  return `Call from ${who}${topic ? ` about ${topic}` : ''}`.replace(/,$/, '') + '. Press 1 or say yes to take it, or press 2 or say no.'
+  const who = name && nameConfirmed ? name : (number ?? lines.aCaller)
+  const topic = about.trim().replace(/[.!?。！？]+$/, '') || null
+  return lines.onCallBriefing(who, name && !nameConfirmed ? name : null, topic)
 }
 
 /**
@@ -91,24 +100,23 @@ export function transferCallerName(said: string | null | undefined, contact: { n
 
 export type Answer = 'yes' | 'no'
 
-const YES =
-  /\b(yes|yeah|yep|yup|sure|ok(ay)?|put (them|him|her|it) through|connect (me|them|us)|i'?ll take it|go ahead)\b/i
-const NO = /\b(no|nope|can'?t|cannot|not now|busy|decline)\b/i
-
 /** A voicemail or an automated line, not a person answering the question. */
 const MACHINE =
   /\b(voice ?mail|leave (me |us )?a message|not available|after the (tone|beep)|mailbox|record your message|press \d)\b/i
 /** A clear answer is short; anything longer is someone talking, not a decision. */
 const MAX_ANSWER_WORDS = 6
 
+const english = spokenLines('en')
+
 /**
- * The on-call person's spoken answer; null when it is neither, both ("yes, but I can't"), longer than a
- * short reply, or sounds like a voicemail greeting.
+ * The on-call person's spoken answer, in `lines`' language or English; null when it is neither, both ("yes, but I
+ * can't"), longer than a short reply, or sounds like a voicemail greeting.
  */
-export function answerOf(text: string): Answer | null {
+export function answerOf(text: string, lines: Pick<OnCallLines, 'onCallYes' | 'onCallNo'> = english): Answer | null {
   if (MACHINE.test(text) || text.trim().split(/\s+/).length > MAX_ANSWER_WORDS) return null
-  const yes = YES.test(text) || /\bno problem\b/i.test(text)
-  const no = NO.test(text.replace(/\bno problem\b/gi, ''))
+  const yes = english.onCallYes.test(text) || lines.onCallYes.test(text) || /\bno problem\b/i.test(text)
+  const rest = text.replace(/\bno problem\b/gi, '')
+  const no = english.onCallNo.test(rest) || lines.onCallNo.test(rest)
   if (yes === no) return null
   return yes ? 'yes' : 'no'
 }
