@@ -29,6 +29,7 @@ import {
   bookingContext,
   CONFIRMATIONS_PER_HOUR,
   DEFAULT_BOOKING_HOURS,
+  duringClosure,
   namesMatch,
   NO_MATCHING_BOOKING,
   slotLabel,
@@ -1353,6 +1354,72 @@ describe('scheduling tools (Cal.com, Calendly): their event type is the appointm
       await run(tx, owner, tool.services, 'appointment.cancel', { bookingId })
       expect(tool.events.get('tool3')!.cancelled).toBe(true)
     })
+  })
+
+  test('vacation or closure mode: no time of the tool on a closed day is offered, booked or moved to (LIN-514)', async () => {
+    const tuesday = new Date(Date.parse(`${MONDAY}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
+    const onTuesday = (time: string) =>
+      new Date(new Date(`${tuesday}T${time}:00Z`).getTime() + offsetMs(tuesday)).toISOString()
+    const tool = fakeTool([at('09:00'), at('11:00'), onTuesday('09:00'), onTuesday('11:00')])
+    await inRollback(async tx => {
+      await asTool(tx)
+      // Booked before the closure was switched on: the move into the closure is refused.
+      const { data: booked } = await run(
+        tx,
+        owner,
+        tool.services,
+        'appointment.book',
+        book(onTuesday('09:00'), { appointmentTypeId: toolTypeId() }),
+      )
+      await tx
+        .update(workspace_settings)
+        .set({ closure: { from: MONDAY, until: MONDAY, greeting: 'We are closed today.' } })
+        .where(eq(workspace_settings.workspace_id, ws.id))
+      const { data } = await run(tx, owner, tool.services, 'calendar.findSlots', {
+        appointmentTypeId: toolTypeId(),
+        fromDate: MONDAY,
+        toDate: tuesday,
+        limit: 50,
+      })
+      expect((data!.slots as { start: string }[]).map(s => s.start)).toEqual([onTuesday('11:00')])
+      await expect(
+        run(
+          tx,
+          agent_(ws.id),
+          tool.services,
+          'appointment.book',
+          book(at('11:00'), { appointmentTypeId: toolTypeId(), assistantId: ws.assistant.id }),
+        ),
+      ).rejects.toThrow(/not free/)
+      await expect(
+        run(tx, owner, tool.services, 'appointment.reschedule', { bookingId: booked!.bookingId, start: at('11:00') }),
+      ).rejects.toThrow(TIME_NOT_FREE)
+      expect([...tool.events.values()].map(e => e.start)).toEqual([onTuesday('09:00')])
+    })
+  })
+
+  test('duringClosure: the start or the end of the time in a closed day, in the business time zone', () => {
+    const closure = { from: '2026-12-24', until: '2026-12-26', greeting: '' }
+    const ny = (local: string) => Date.parse(`${local}-05:00`)
+    const hour = 3_600_000
+    expect(duringClosure(null, ny('2026-12-24T10:00:00'), ny('2026-12-24T11:00:00'), 'America/New_York')).toBe(false)
+    expect(duringClosure(closure, ny('2026-12-24T00:00:00'), ny('2026-12-24T01:00:00'), 'America/New_York')).toBe(true)
+    expect(duringClosure(closure, ny('2026-12-26T23:00:00'), ny('2026-12-27T00:00:00'), 'America/New_York')).toBe(true)
+    // Ends at midnight before the closure: the day before stays open; one that runs into the closure does not.
+    expect(duringClosure(closure, ny('2026-12-23T23:00:00'), ny('2026-12-24T00:00:00'), 'America/New_York')).toBe(false)
+    expect(
+      duringClosure(closure, ny('2026-12-23T23:30:00'), ny('2026-12-23T23:30:00') + hour, 'America/New_York'),
+    ).toBe(true)
+    expect(duringClosure(closure, ny('2026-12-27T00:00:00'), ny('2026-12-27T01:00:00'), 'America/New_York')).toBe(false)
+    // 3:00 UTC on the 24th is still 10 PM on the 23rd in New York.
+    expect(
+      duringClosure(
+        closure,
+        Date.parse('2026-12-24T03:00:00Z'),
+        Date.parse('2026-12-24T04:00:00Z'),
+        'America/New_York',
+      ),
+    ).toBe(false)
   })
 
   test('the agent sees a tool calendar as a type of its own; Linedesk types only while a plain calendar is there', async () => {

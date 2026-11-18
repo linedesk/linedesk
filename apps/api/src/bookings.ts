@@ -23,6 +23,7 @@ import {
   type HoursException,
   hoursFor,
   type Interval,
+  localDate,
   type WorkingHours,
   zonedTimeToInstant,
 } from '@linedesk/calendar'
@@ -169,6 +170,13 @@ export function closureDays(closure: Closure | null, window: Interval): HoursExc
   return days
 }
 
+/** Whether the time from `start` to `end` touches a day of the closure, in the business time zone. */
+export function duringClosure(closure: Closure | null, start: number, end: number, timeZone: string) {
+  if (!closure) return false
+  const days = [localDate(start, timeZone), localDate(Math.max(start, end - 1), timeZone)]
+  return days.some(date => date >= closure.from && date <= closure.until)
+}
+
 /** Closure days win over a holiday with its own hours on the same date. */
 const withClosure = (exceptions: readonly HoursException[], closed: HoursException[]) => {
   const dates = new Set(closed.map(d => d.date))
@@ -247,7 +255,9 @@ async function availableSlots(
 ) {
   if (Date.parse(window.end) <= Date.parse(window.start)) return []
   // A scheduling tool decides itself: its event type's start times, nothing of Linedesk's hours or rules.
-  if (calendar && isToolType(type)) return toolSlots(calendar, type, window, now, limit, timeZone)
+  // Vacation or closure mode still applies: no time on a closed day, as for every other calendar.
+  if (calendar && isToolType(type))
+    return toolSlots(calendar, type, window, now, limit, timeZone, await closureOf(tx, workspaceId))
   const rules = await bookingHours(tx, workspaceId)
   const { before, after } = buffersOf(type)
   const buffer = Math.max(before, after) * 60_000
@@ -318,7 +328,7 @@ function toolType(calendar: AssistantCalendar): AppointmentType {
   return type
 }
 
-/** The tool's start times inside `window`, after now, earliest first. */
+/** The tool's start times inside `window`, after now and outside the closure, earliest first. */
 async function toolSlots(
   calendar: { row: AssistantCalendar; provider: CalendarProvider },
   type: AppointmentType,
@@ -326,12 +336,14 @@ async function toolSlots(
   now: string,
   limit: number,
   timeZone: string,
+  closure: Closure | null,
 ) {
   if (!calendar.provider.slots) throw new Reject(`${calendar.row.name} cannot offer times`)
   const starts = await atProvider(() => calendar.provider.slots!(calendar.row.external_id, window))
   const lo = Math.max(Date.parse(window.start), Date.parse(now))
+  const length = type.duration_min * 60_000
   return [...new Set(starts.map(t => Date.parse(t)))]
-    .filter(t => t >= lo && t < Date.parse(window.end))
+    .filter(t => t >= lo && t < Date.parse(window.end) && !duringClosure(closure, t, t + length, timeZone))
     .sort((a, b) => a - b)
     .slice(0, limit)
     .map(t => {
