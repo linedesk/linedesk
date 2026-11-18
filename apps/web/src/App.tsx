@@ -358,7 +358,8 @@ export function App() {
   ) {
     // From a workspace (the menu's New workspace…): the new one opens like any switch, with its own local store.
     const fromApp = session.state === 'ready'
-    // A partner sign-up goes on to the partner area, where its Checkout starts (Partner › Billing).
+    // A partner sign-up goes to Checkout from the page; it comes here only when Checkout could not open: the partner
+    // area, whose "Add a card" starts it again.
     const leaveSignup = async (partner: boolean, workspaceId: string | null) => {
       window.history.replaceState(null, '', partner ? '/#partner' : '/')
       if (fromApp && workspaceId) return switchToWorkspace(workspaceId, null)

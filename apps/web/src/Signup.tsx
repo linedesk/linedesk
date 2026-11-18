@@ -2,12 +2,13 @@
 // then the code, then the person's name. The business's name and country come in the onboarding's first step (Find
 // your business); the API checks where the request comes from and says "not yet" outside the countries served. Plan
 // `partner` (docs/white-label.md): a white-label partner account with its partner bill, no workspace, and its company's
-// name; the app opens the partner area next. The API decides everything (open or not, the address, the bot check, the
+// name; Stripe Checkout for the partner bill opens next, and it returns into the partner area. The API decides everything (open or not, the address, the bot check, the
 // limits, the countries); this page only asks and says what came back. Only the plan and the interval travel in the
 // address, never personal data.
 import { T, useFormat, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { auth, signInWithCode } from './auth.ts'
+import { goToCheckout } from './checkout.ts'
 import { browserPlace } from './countryHint.ts'
 import { signOutAndForget } from './localData.ts'
 import { CODE_LENGTH, codeErrorMessage, emailError, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
@@ -20,6 +21,7 @@ import {
   type SignupPlan,
   type SignupTerms,
   signUpBusiness,
+  toCheckoutOrDone,
 } from './signup.ts'
 import { ExternalLink } from './ui/AppLink.tsx'
 import { AuthError } from './ui/AuthError.tsx'
@@ -30,8 +32,9 @@ type Step = 'email' | 'code' | 'details'
 
 /**
  * `signedIn`: someone is signed in already (an account the sign-up page made earlier, or an existing one): straight
- * to the details, their name filled in. `onDone`: the bill and workspace (or the partner) are made; the app loads it
- * (the onboarding comes next for a business, Checkout for a partner). `fromApp`: opened from the workspace menu by a
+ * to the details, their name filled in. `onDone`: the bill and workspace are made; the app loads it (the onboarding
+ * comes next). A partner goes to Checkout instead; `onDone` only when Checkout could not open (the partner area, with
+ * "Add a card"). `fromApp`: opened from the workspace menu by a
  * Cloud customer who adds a workspace (its own bill); Back returns to the workspace they came from.
  */
 export function Signup({
@@ -73,6 +76,7 @@ export function Signup({
     return (
       <EmailStep
         config={config}
+        partner={partner}
         onSent={address => {
           setEmail(address)
           setStep('code')
@@ -145,6 +149,11 @@ function refusalText(t: ReturnType<typeof useT>, reason: CodeRefusal) {
   }
 }
 
+function partnerIntro(t: ReturnType<typeof useT>, config: SignupConfig) {
+  const days = config.partnerPlan?.trialDays ?? 0
+  return days > 0 ? t('auth.signup.partnerIntro', { days }) : t('auth.signup.partnerIntroNoTrial')
+}
+
 /** The Turnstile widget; `token` is null until it passed (or when it expired). */
 function useTurnstile(siteKey: string | null) {
   const box = useRef<HTMLDivElement>(null)
@@ -179,7 +188,16 @@ function useTurnstile(siteKey: string | null) {
   return { box, token, failed, reset: () => reset.current() }
 }
 
-function EmailStep({ config, onSent }: { config: SignupConfig; onSent: (email: string) => void }) {
+/** The first step. Plan `partner`: White-label Cloud's name and what it is for, with its free days (none: left out). */
+export function EmailStep({
+  config,
+  partner,
+  onSent,
+}: {
+  config: SignupConfig
+  partner: boolean
+  onSent: (email: string) => void
+}) {
   const t = useT()
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -205,8 +223,8 @@ function EmailStep({ config, onSent }: { config: SignupConfig; onSent: (email: s
   return (
     <AuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
-        <h1>{t('auth.signup.title')}</h1>
-        <p>{t('auth.signup.intro')}</p>
+        <h1>{partner ? t('auth.signup.partnerTitle') : t('auth.signup.title')}</h1>
+        <p>{partner ? partnerIntro(t, config) : t('auth.signup.intro')}</p>
         <div className="auth-form">
           <input
             type="email"
@@ -341,8 +359,8 @@ function CodeStep({
  * the onboarding's first step. Making the account accepts the terms and the privacy policy shown next to the button
  * (clickwrap, A9), for a business and a partner alike; the API records the versions with the time and the session's IP
  * address. A business goes on to set up its assistant without a card and adds one at the onboarding's last step
- * (`activate`), which shows the terms again and records them with what it charges; a partner goes to Checkout from its
- * area. From a country not served yet (as the API sees the request): the "not yet" page.
+ * (`activate`), which shows the terms again and records them with what it charges; a partner goes straight on to
+ * Checkout for its partner bill (the button says so), and to its area only when Checkout could not open. From a country not served yet (as the API sees the request): the "not yet" page.
  */
 export function DetailsStep({
   interval,
@@ -391,7 +409,9 @@ export function DetailsStep({
       locale: place.locale ?? undefined,
       acceptedTerms: { termsVersion: terms.termsVersion, privacyVersion: terms.privacyVersion },
     })
-    if (answer.ok) return onDone(answer.workspaceId)
+    // The button stays busy while the page leaves for Checkout.
+    if (answer.ok)
+      return toCheckoutOrDone(partner ? answer.partnerId : null, goToCheckout, () => onDone(answer.workspaceId))
     setBusy(false)
     if (answer.notYet) return setNotYet(true)
     // Changed while the page was open: the new links are loaded, and the person reads them and continues again.

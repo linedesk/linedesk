@@ -1,7 +1,7 @@
 // The sign-up page's helpers (signup.ts): the config from /v1/signup/config, and the terms the details step shows and
 // sends back as accepted (A9).
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { loadSignupConfig, type SignUpInput, signUpBusiness } from './signup.ts'
+import { loadSignupConfig, type SignUpInput, signUpBusiness, toCheckoutOrDone } from './signup.ts'
 
 const plan = { monthlyCents: 1100, yearlyCents: 10_800, trialDays: 14 }
 
@@ -82,5 +82,36 @@ describe('signUpBusiness', () => {
   it('a request from a country not served yet is "not yet"', async () => {
     answer(409, { ok: false, error: 'not here yet', code: 'country_not_served' })
     expect(await signUpBusiness(INPUT)).toEqual({ ok: false, notYet: true, closed: false, termsChanged: false })
+  })
+})
+
+describe('after the sign-up (toCheckoutOrDone)', () => {
+  it('a partner goes straight to Checkout for its bill, not to the partner area', async () => {
+    const checkout = vi.fn(async () => {})
+    const done = vi.fn()
+    await toCheckoutOrDone('ptn_1', checkout, done)
+    expect(checkout).toHaveBeenCalledWith('ptn_1')
+    expect(done).not.toHaveBeenCalled()
+  })
+
+  it('Checkout does not open: the partner area, where Add a card starts it again', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const done = vi.fn()
+    await toCheckoutOrDone(
+      'ptn_1',
+      async () => {
+        throw new Error('billing_off')
+      },
+      done,
+    )
+    expect(done).toHaveBeenCalledOnce()
+  })
+
+  it('a business goes on to its onboarding, no Checkout', async () => {
+    const checkout = vi.fn(async () => {})
+    const done = vi.fn()
+    await toCheckoutOrDone(null, checkout, done)
+    expect(checkout).not.toHaveBeenCalled()
+    expect(done).toHaveBeenCalledOnce()
   })
 })

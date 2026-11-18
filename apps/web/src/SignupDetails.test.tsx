@@ -3,7 +3,8 @@
 // its company's name.
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test } from 'vitest'
-import { DetailsStep } from './Signup.tsx'
+import { DetailsStep, EmailStep } from './Signup.tsx'
+import type { SignupConfig } from './signup.ts'
 
 const terms = {
   termsUrl: 'https://desk.example.com/terms',
@@ -51,4 +52,31 @@ test('New workspace from the app: the same single field, then Create workspace; 
   expect(html).toContain('>Create workspace<')
   expect(html).not.toContain('Country')
   expect(html).not.toContain('autoComplete="organization"')
+})
+
+const config = (partnerPlan: SignupConfig['partnerPlan']): SignupConfig => ({
+  open: true,
+  turnstileSiteKey: null,
+  plan: { monthlyCents: 1100, yearlyCents: 10_800, trialDays: 14 },
+  partnerPlan,
+  terms,
+  trial: true,
+})
+const emailPage = (partner: boolean, partnerPlan: SignupConfig['partnerPlan']) =>
+  renderToStaticMarkup(<EmailStep config={config(partnerPlan)} partner={partner} onSent={() => {}} />)
+const partnerPlan = { monthlyCents: 1900, yearlyCents: 16_800, trialDays: 14, trialClients: 2 }
+
+test('the first step of a partner sign-up names White-label Cloud and its free days, no price', () => {
+  const html = emailPage(true, partnerPlan)
+  expect(html).toContain('Start White-label Cloud')
+  expect(html).toContain('Run many client workspaces under your name. 14 days free.')
+  expect(html).not.toContain('Start your free trial')
+  expect(html).not.toContain('$')
+})
+
+test('a partner plan without free days leaves them out; a business keeps its own first step', () => {
+  expect(emailPage(true, { ...partnerPlan, trialDays: 0 })).not.toContain('free')
+  const business = emailPage(false, partnerPlan)
+  expect(business).toContain('Start your free trial')
+  expect(business).not.toContain('White-label')
 })

@@ -163,3 +163,23 @@ export async function signUpBusiness(
     return { ok: false, notYet: false, closed: false, termsChanged: false }
   }
 }
+
+/**
+ * After the sign-up: a partner goes on to Stripe Checkout for its partner bill ("Continue to payment"), which returns
+ * into the partner area. When Checkout cannot open (billing not set up, Stripe unreachable), `done` instead: the partner
+ * area, whose "Add a card" starts it again. A business (no partner) goes to `done` at once.
+ */
+export async function toCheckoutOrDone(
+  partnerId: string | null,
+  checkout: (partnerId: string) => Promise<void>,
+  done: () => void | Promise<void>,
+): Promise<void> {
+  if (partnerId) {
+    try {
+      return await checkout(partnerId)
+    } catch (e) {
+      console.warn('sign-up: partner Checkout did not open', e)
+    }
+  }
+  await done()
+}
