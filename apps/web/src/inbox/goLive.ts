@@ -62,15 +62,21 @@ export type GoLiveFacts = {
 
 /** The one sentence for a server whose voice service is not set up: the inbox header and the go-live checklist. */
 export const voiceNotSetUp = (assistant: string) => i18n().t('inbox.voice.notSetUp', { assistant })
-/** What to do about it: instance admins set it up themselves, everyone else asks whoever runs the server. */
+/**
+ * What to do about it: instance admins set it up themselves. Nobody else in a workspace can, owners included, so they
+ * are not sent to ask anyone ("whoever runs this server" means nothing on Cloud): the row ticks itself once it works.
+ */
 export const voiceFix = (canFix: boolean) =>
-  canFix ? i18n().t('inbox.voice.setUpInAdmin') : i18n().t('inbox.voice.askServerOwner')
+  canFix ? i18n().t('inbox.voice.setUpInAdmin') : i18n().t('inbox.voice.nothingToDo')
 /** Set up, but a provider it needs is failing (a used-up quota, a rejected key): the header and the checklist. */
 export const voiceFailing = (assistant: string, canFix: boolean) =>
   i18n().t('inbox.voice.failing', {
     assistant,
-    fix: canFix ? i18n().t('inbox.voice.fixInAdmin') : i18n().t('inbox.voice.askServerOwner'),
+    fix: canFix ? i18n().t('inbox.voice.fixInAdmin') : i18n().t('inbox.voice.nothingToDoFailing'),
   })
+
+/** Where a number is connected: the go-live step and the empty inbox open it. */
+export const CONNECT_NUMBER = '#workspace/phone'
 
 export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[] {
   const { t } = i18n()
@@ -80,7 +86,7 @@ export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[]
       label: t('inbox.goLive.number.label'),
       hint: t('inbox.goLive.number.hint', { assistant }),
       done: facts.hasNumber,
-      href: '#workspace/phone',
+      href: CONNECT_NUMBER,
     },
     {
       id: 'forwarding',
@@ -239,6 +245,10 @@ export function calendarReady(
   const used = new Set(attached.map(a => a.connection_id))
   return connections.some(c => c.status === 'connected' && used.has(c.id))
 }
+
+/** The step the collapsed card names: the first open one the viewer can act on (it has a place to go), else the first. */
+export const nextGoLiveStep = (view: Pick<GoLiveView, 'open'>): GoLiveItem | undefined =>
+  view.open.find(item => item.href) ?? view.open[0]
 
 /** Someone else is in the workspace, or invited and the invitation still works. */
 export const teamInvited = (team: Pick<TeamData, 'members' | 'invitations'>) =>

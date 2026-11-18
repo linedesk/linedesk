@@ -12,6 +12,7 @@ import {
   goLiveSettled,
   goLiveShown,
   goLiveView,
+  nextGoLiveStep,
   teamInvited,
 } from './goLive.ts'
 
@@ -234,7 +235,7 @@ describe('go-live checklist', () => {
     expect(goLiveSettled(server({ forwardingVerified: true, firstRealCall: true }))).toBe(true)
   })
 
-  test('the voice service is the first step where it is not set up; admins get the link, members whom to ask', () => {
+  test('the voice service is the first step where it is not set up; admins get the link, nobody else is sent to ask anyone', () => {
     const admin = goLiveItems({ ...none, voice: { ready: false, failing: false, canFix: true } }, 'Maya')
     expect(admin[0]).toMatchObject({
       id: 'voice',
@@ -246,7 +247,16 @@ describe('go-live checklist', () => {
       "Maya can't answer calls yet: the voice service isn't set up. Set it up under Server admin › Providers.",
     )
     const member = goLiveItems({ ...none, voice: { ready: false, failing: false, canFix: false } }, 'Maya')
-    expect(member[0]).toMatchObject({ href: null, hint: expect.stringContaining('Ask whoever runs this server.') })
+    expect(member[0]).toMatchObject({
+      href: null,
+      hint: "Maya can't answer calls yet: the voice service isn't set up. Nothing for you to do: it starts working on its own.",
+    })
+    // Owners who are not instance admins can't act on it either: no "ask whoever runs this server", no "server" at all.
+    for (const voice of [
+      { ready: false, failing: false },
+      { ready: true, failing: true },
+    ])
+      expect(goLiveItems({ ...none, voice: { ...voice, canFix: false } }, 'Maya')[0]!.hint).not.toMatch(/server|ask/i)
     expect(goLiveItems({ ...none, voice: { ready: true, failing: false, canFix: false } }, 'Maya')[0]!.done).toBe(true)
     // Set up but failing (a used-up quota): not done, and the hint says so, in the header's words.
     const failing = goLiveItems({ ...none, voice: { ready: true, failing: true, canFix: true } }, 'Maya')[0]!
@@ -256,6 +266,15 @@ describe('go-live checklist', () => {
     )
     expect(goLiveItems(none, 'Maya')[0]!.id).toBe('number')
     expect(canSkipGoLiveStep('voice')).toBe(false)
+  })
+
+  test('the collapsed card names the first step the viewer can act on', () => {
+    const items = goLiveItems({ ...none, voice: { ready: false, failing: false, canFix: false } }, 'Maya')
+    expect(items[0]!.id).toBe('voice')
+    expect(nextGoLiveStep(goLiveView(items, [], NOW))?.id).toBe('number')
+    const admin = goLiveItems({ ...none, voice: { ready: false, failing: false, canFix: true } }, 'Maya')
+    expect(nextGoLiveStep(goLiveView(admin, [], NOW))?.id).toBe('voice')
+    expect(nextGoLiveStep({ open: [] })).toBeUndefined()
   })
 
   test('the first-call hint names the assistant', () => {

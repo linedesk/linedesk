@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, test } from 'vitest'
 import { contactsEmptyCopy } from '../contacts/model.ts'
-import { InboxEmpty } from '../inbox/InboxEmpty.tsx'
+import { InboxEmptyState } from '../inbox/InboxEmpty.tsx'
 import { PageTitle, SearchButton, SearchField, ShortcutHints, ZeroState } from './listPage.tsx'
 
 const noop = () => {}
@@ -48,15 +48,21 @@ describe('list page frame', () => {
 
   test('the inbox and contacts share one empty state', () => {
     const inbox = renderToStaticMarkup(
-      <InboxEmpty tab="you" search={null} assistant="Maya" handledCount={0} hasAnyCalls={false} />,
+      <InboxEmptyState tab="you" search={null} assistant="Maya" handledCount={0} hasAnyCalls={true} />,
+    )
+    const noCalls = renderToStaticMarkup(
+      <InboxEmptyState tab="you" search={null} assistant="Maya" handledCount={0} hasAnyCalls={false} />,
     )
     const contacts = renderToStaticMarkup(<ZeroState {...contactsEmptyCopy('')} />)
-    // The same picture, with the page's own mark in the sun: a check for calls, a person for contacts.
+    // The same picture, with the page's own mark in the sun: a check for calls all caught up, the phone before the
+    // first call, a person for contacts.
     const frame = (html: string) =>
-      html.replace(/<h2>.*$/, '').replace(/<path d="[^"]*" class="zero-mark [^"]*"><\/path>/, '')
+      html.replace(/<h2>.*$/, '').replace(/<path d="[^"]*"[^>]* class="zero-mark [^"]*"><\/path>/, '')
     expect(frame(contacts)).toBe(frame(inbox))
+    expect(frame(noCalls)).toBe(frame(inbox))
     expect(inbox).toContain('class="zero-mark zero-check"')
     expect(inbox).not.toContain('zero-contact')
+    expect(noCalls).toContain('class="zero-mark zero-phone"')
     expect(contacts).toContain('class="zero-mark zero-contact"')
     expect(contacts).not.toContain('zero-check')
     expect(contacts).toContain('<h2>No contacts yet</h2>')

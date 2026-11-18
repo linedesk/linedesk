@@ -1,11 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, test } from 'vitest'
 import type { InboxTab } from '../inbox-model.ts'
-import { InboxEmpty, type InboxEmptyProps } from './InboxEmpty.tsx'
+import { InboxEmptyState, type InboxEmptyProps } from './InboxEmpty.tsx'
 import { listFrame } from './listFrame.ts'
 
 const base: InboxEmptyProps = { tab: 'you', search: null, assistant: 'Maya', handledCount: 0, hasAnyCalls: true }
-const render = (props: Partial<InboxEmptyProps>) => renderToStaticMarkup(<InboxEmpty {...base} {...props} />)
+const render = (props: Partial<InboxEmptyProps>) => renderToStaticMarkup(<InboxEmptyState {...base} {...props} />)
 const views: InboxTab[] = ['you', 'ai', 'spam', 'reminders', 'done', 'mine', 'member', 'unassigned']
 
 describe('InboxEmpty', () => {
@@ -39,6 +39,28 @@ describe('InboxEmpty', () => {
       expect(render({ tab, hasAnyCalls: false })).toContain('Calls Maya answers show up here.')
       expect(render({ tab, hasAnyCalls: false, quiet: true })).not.toContain('zero-greet')
     }
+  })
+
+  test('the check ("all caught up") only in views of an inbox that had calls; no call yet: the phone', () => {
+    const check = 'class="zero-mark zero-check"'
+    const phone = 'class="zero-mark zero-phone"'
+    for (const tab of views) {
+      expect(render({ tab }), tab).toContain(check)
+      expect(render({ tab, hasAnyCalls: false }), tab).toContain(phone)
+      expect(render({ tab, hasAnyCalls: false }), tab).not.toContain(check)
+    }
+  })
+
+  test('no call and no number: the one next step, also under the first-call line', () => {
+    for (const quiet of [false, true]) {
+      const owner = render({ hasAnyCalls: false, setup: 'connect', quiet })
+      expect(owner).toContain(
+        '<a class="k-link" href="#workspace/phone">Connect your number</a> so Maya can answer your calls.',
+      )
+      expect(owner.match(/<p /g)?.length).toBe(1)
+    }
+    // Calls came in: the view's own words, never the setup step.
+    expect(render({ tab: 'you', setup: 'connect' })).not.toContain('Connect your number')
   })
 
   test('search with no hit says what was searched, in the same component', () => {

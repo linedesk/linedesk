@@ -44,6 +44,7 @@
   "deleteDialog.title": "{count, plural, one {Delete call} other {Delete # calls}}",
   "empty.ai": "Nothing handled by {assistant} right now",
   "empty.aiLine": "Calls {assistant} resolves on its own show up here.",
+  "empty.connectNumber": "<link>Connect your number</link> so {assistant} can answer your calls.",
   "empty.done": "Nothing done yet",
   "empty.doneLine": "Calls you mark done show up here.",
   "empty.member": "Nothing assigned to them",
@@ -119,7 +120,6 @@
   "presence.cannotAnswer": "{assistant} can't answer calls",
   "presence.cannotAnswerYet": "{assistant} can't answer calls yet",
   "presence.fix": "Fix",
-  "presence.noNumber": "{assistant} has no phone number yet",
   "presence.noNumberTitle": "{assistant} has no phone number yet, so calls don't reach it.",
   "presence.offline": "Offline",
   "presence.offlineTitle": "You are offline. New calls show up once you are back online.",
@@ -225,10 +225,11 @@
   "view.spam": "Spam",
   "view.unassigned": "Unassigned",
   "view.you": "Needs you",
-  "voice.askServerOwner": "Ask whoever runs this server.",
   "voice.failing": "{assistant} can't answer calls: a service it needs is failing (a used-up quota or a rejected key). {fix}",
   "voice.fixInAdmin": "Fix it under Server admin › Providers.",
   "voice.notSetUp": "{assistant} can't answer calls yet: the voice service isn't set up.",
+  "voice.nothingToDo": "Nothing for you to do: it starts working on its own.",
+  "voice.nothingToDoFailing": "Nothing for you to do: it works again on its own once it's fixed.",
   "voice.setUpInAdmin": "Set it up under Server admin › Providers.",
   "yourCalls": "Your calls"
 }

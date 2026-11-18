@@ -176,12 +176,13 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
       </span>
     )
   }
-  // No number: the setup bar above the inbox (or the go-live checklist) already says so, with the link; the header keeps the dot.
+  // No number: the mark with the consequence in words (never a bare ring); why and the link to fix it are in the setup
+  // line above the inbox or the go-live checklist, so they are not said a second time here.
   if (presence.reason === 'number')
     return (
       <span className="ib-maya is-off" title={t('inbox.presence.noNumberTitle', { assistant })}>
         <StatusMark state="missing" label={t('inbox.presence.noNumberTitle', { assistant })} />
-        <span className="sr-only">{t('inbox.presence.noNumber', { assistant })}</span>
+        <span className="ib-maya-t">{t('inbox.presence.cannotAnswerYet', { assistant })}</span>
       </span>
     )
   // The voice service: the same sentence as the go-live checklist's first step.

@@ -17,7 +17,9 @@ type Props = {
   docked?: boolean
   route: Route
   tab: InboxTab
+  /** Unread calls in Needs you: a dot on Inbox, never a number (the one count of open calls is the Needs you tab's). */
   unreadCount: number
+  /** The sub-views' numbers are their rows (countsFor), the same as the view's own header shows. */
   reminderCount: number
   /** Open calls assigned to the signed-in member, and Needs you calls nobody has; null hides both (a workspace of one). */
   mineCount: number | null
@@ -51,6 +53,16 @@ function NavItem({ label, icon, keys, current, sub, muted, badge, title, onClick
   )
 }
 
+/** Something unread in Needs you: the inbox rows' green dot; how many only in the tooltip and for screen readers. */
+function UnreadDot({ label }: { label: string }) {
+  return (
+    <span className="r-dot is-unread">
+      <i aria-hidden="true" />
+      <span className="sr-only">{label}</span>
+    </span>
+  )
+}
+
 /** Slide-in navigation: opens from ☰ or M; closes with Esc, the close button, a click outside or after choosing.
  * On very wide windows it is docked: always open beside the content. Two parts: the workspace button on top (one
  * menu: switch workspace, your account, sign out) and one list of pages, Workspace settings once at its end. */
@@ -77,7 +89,7 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
       </div>
       <NavItem label={t('shell.nav.inbox')} icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done' && !assigneeTabs.includes(tab)} onClick={go(() => on.onInbox('you'))}
         title={unreadCount ? t('shell.nav.inboxUnreadTip', { count: unreadCount }) : undefined}
-        badge={unreadCount ? <span className="k-count">{unreadCount}</span> : null} />
+        badge={unreadCount ? <UnreadDot label={t('shell.nav.inboxUnreadTip', { count: unreadCount })} /> : null} />
       <NavItem sub label={t('shell.nav.reminders')} icon="clock" keys={['G', 'H']} current={onCalls && tab === 'reminders'} onClick={go(() => on.onInbox('reminders'))}
         badge={reminderCount ? <span className="nav-n">{reminderCount}</span> : null} />
       {mineCount !== null && (

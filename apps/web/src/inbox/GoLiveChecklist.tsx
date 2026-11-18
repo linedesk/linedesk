@@ -46,6 +46,7 @@ import {
   goLiveSettled,
   goLiveShown,
   goLiveView,
+  nextGoLiveStep,
   teamInvited,
 } from './goLive.ts'
 import { i18n } from '../i18n/index.tsx'
@@ -297,7 +298,7 @@ export function GoLiveChecklist({
       </aside>
     )
   if (!shown) return null
-  const next = view.open[0]
+  const next = nextGoLiveStep(view)
   function dismiss() {
     setLocal(workspaceId, { dismissed: true, pinned: false })
     setQueryData<GoLiveChecklistData | undefined>(CHECKLIST, prev => (prev ? { ...prev, dismissed: true } : prev), {

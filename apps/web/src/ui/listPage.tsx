@@ -4,6 +4,7 @@
 // list; the shortcut hints at the bottom. Styles: `.ib-head`, `.ib-search`, `.ib-mode`, `.zero`, `.ib-hint`
 // in styles.css and app.css.
 import type { ReactNode } from 'react'
+import { icons } from './icons.ts'
 import { Button, Icon, Kbd } from './kit.tsx'
 import { useT } from '@linedesk/i18n/react'
 
@@ -91,8 +92,14 @@ export function ShortcutHints({ hints, move = true }: { hints: [keys: string[], 
   )
 }
 
-/** The mark in the sun of the empty-state picture: a check for the inbox, a person for Contacts. */
-export type ZeroMark = 'check' | 'contact'
+/**
+ * The mark in the sun of the empty-state picture: a check for an inbox view that is all caught up, the phone for an
+ * inbox that never had a call, a person for Contacts.
+ */
+export type ZeroMark = 'check' | 'phone' | 'contact'
+
+/** The app's phone icon (icons.ts: one path), drawn as the mark for an inbox without calls. */
+const PHONE_PATH = String(icons.phone[0]?.[1].d ?? '')
 
 function ZeroArt({ mark }: { mark: ZeroMark }) {
   return (
@@ -103,6 +110,14 @@ function ZeroArt({ mark }: { mark: ZeroMark }) {
       <path d="M30 84h44M96 84h36M52 96h64" className="zero-wave" />
       {mark === 'contact' ? (
         <path d="M80 51a4 4 0 1 0 8 0a4 4 0 1 0 -8 0M77 63.5a7 5.5 0 0 1 14 0" className="zero-mark zero-contact" />
+      ) : mark === 'phone' ? (
+        // Centred in the sun where the check sits.
+        <path
+          d={PHONE_PATH}
+          transform="translate(70.5 41) scale(1.2)"
+          vectorEffect="non-scaling-stroke"
+          className="zero-mark zero-phone"
+        />
       ) : (
         <path d="M74 58l7 7 14-14" className="zero-mark zero-check" />
       )}
@@ -113,7 +128,7 @@ function ZeroArt({ mark }: { mark: ZeroMark }) {
 /**
  * The one empty state of a list page: the same picture in the middle of the list, below the column
  * headings, a title and at most one line under it. The mark in the picture says what the list holds:
- * the inbox's check (the default) or Contacts' person.
+ * the inbox's check (the default; all caught up), the phone (no call yet) or Contacts' person.
  */
 export function ZeroState({ title, line, mark = 'check' }: { title: ReactNode; line?: ReactNode; mark?: ZeroMark }) {
   return (
