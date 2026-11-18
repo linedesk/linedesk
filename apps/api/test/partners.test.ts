@@ -32,7 +32,13 @@ import { lockExtraCalls } from '../src/extra-calls.ts'
 import { postEntry } from '../src/ledger.ts'
 import { createHash } from 'node:crypto'
 import { PgBoss } from 'pg-boss'
-import { createSeatSyncQueues, PARTNER_SEAT_SYNC, PARTNER_SEAT_SYNC_FAILED, setJobQueue } from '../src/jobs.ts'
+import {
+  createSeatSyncQueues,
+  PARTNER_SEAT_SYNC,
+  PARTNER_SEAT_SYNC_FAILED,
+  setJobQueue,
+  WORKSPACE_DELETED_EMAIL,
+} from '../src/jobs.ts'
 import { runSeatSync, seatProration, seatSyncFailed, syncSeats } from '../src/partner-billing.ts'
 import { canonicalJson } from '../src/run-action.ts'
 import { mayCreateUser } from '../src/signup-gate.ts'
@@ -922,6 +928,89 @@ describe('the partner bill (S2)', () => {
     const { sweepSignUps } = await import('../src/signup-handlers.ts')
     await sweepSignUps(db)
     expect(await orgRow(c)).toMatchObject({ id: c })
+  })
+
+  test("deleting a client nobody owns: only the partner's owner, the name typed; its seat leaves the bill, the team stays", async () => {
+    const p = await billedPartner('Deleting Partner', 'active')
+    const c = await createClient(p, 'Mistaken Client')
+    const admin = await addPartnerAdmin(p)
+    await db
+      .update(billing_accounts)
+      .set({ stripe_subscription_id: rid('sub') })
+      .where(eq(billing_accounts.id, p.billId))
+    const del = (who: User, input: Record<string, unknown> = {}) =>
+      act(who, 'partner.deleteClient', { partnerId: p.id, workspaceId: c, confirmName: 'Mistaken Client', ...input })
+    expect((await del(admin)).status).toBe(403)
+    expect(
+      (await act(b.owner, 'partner.deleteClient', { partnerId: p.id, workspaceId: c, confirmName: 'x' })).status,
+    ).toBe(403)
+    expect(await del(p.owner, { confirmName: 'Other Name' })).toMatchObject({
+      status: 409,
+      body: { code: 'confirm_mismatch' },
+    })
+    expect(await del(p.owner, { workspaceId: clientB })).toMatchObject({
+      status: 409,
+      body: { code: 'client_not_found' },
+    })
+    expect(await orgRow(c)).toMatchObject({ id: c, partnerId: p.id })
+
+    const queued: { name: string; data: unknown }[] = []
+    setJobQueue({
+      send: async (name: string, data: unknown) => void queued.push({ name, data }),
+      insert: async (name: string, jobs: { data: unknown }[]) => {
+        for (const job of jobs) queued.push({ name, data: job.data })
+      },
+    } as never)
+    let done: Awaited<ReturnType<typeof del>>
+    try {
+      done = await del(p.owner, { confirmName: '  mistaken client ' })
+    } finally {
+      setJobQueue(null)
+    }
+    expect(done).toMatchObject({ status: 200, body: { ok: true, data: { workspaceId: c, usersDeleted: [] } } })
+    expect(await db.select().from(organization).where(eq(organization.id, c))).toEqual([])
+    // The seat drops after the commit, as for any deleted workspace on the partner bill (docs/billing.md §6).
+    expect(queued.filter(j => j.name === PARTNER_SEAT_SYNC)).toEqual([
+      { name: PARTNER_SEAT_SYNC, data: { billId: p.billId, key: `delete_${c}`, extraCalls: false } },
+    ])
+    // Everyone else in it hears who deleted it; the team's accounts stay.
+    const ownerEmail = await emailOf(p.owner)
+    expect(queued.filter(j => j.name === WORKSPACE_DELETED_EMAIL).map(j => j.data)).toEqual([
+      expect.objectContaining({
+        to: await emailOf(admin),
+        workspace: 'Mistaken Client',
+        by: `Test User (${ownerEmail})`,
+        accountDeleted: false,
+      }),
+    ])
+    for (const u of [p.owner, admin]) expect(await db.select().from(user).where(eq(user.id, u.userId))).toHaveLength(1)
+    expect((await act(p.owner, 'partner.get', { partnerId: p.id })).body.data.clients).toEqual([])
+    const { entries } = await listAudit(db, { kind: 'partners', workspaceId: c, limit: 50 })
+    expect(entries.find(e => e.what === 'partner.deleteClient' && !e.refused)).toBeTruthy()
+  })
+
+  test('a client with its owner is never deleted by the partner; one whose owner is only invited is', async () => {
+    const p = await billedPartner('Careful Partner', 'active')
+    const owned = await createClient(p, 'Owned Already')
+    await giveOwner(p, owned)
+    expect(
+      await act(p.owner, 'partner.deleteClient', { partnerId: p.id, workspaceId: owned, confirmName: 'Owned Already' }),
+    ).toMatchObject({ status: 409, body: { code: 'client_has_owner' } })
+    expect(await orgRow(owned)).toMatchObject({ id: owned })
+
+    const invited = await createClient(p, 'Invited Only')
+    const email = newEmail('later')
+    expect(
+      await act(p.owner, 'workspace.inviteClientOwner', { partnerId: p.id, workspaceId: invited, email }),
+    ).toMatchObject({ status: 200 })
+    expect(
+      await act(p.owner, 'partner.deleteClient', {
+        partnerId: p.id,
+        workspaceId: invited,
+        confirmName: 'Invited Only',
+      }),
+    ).toMatchObject({ status: 200 })
+    expect(await db.select().from(invitation).where(eq(invitation.organizationId, invited))).toEqual([])
   })
 
   test("removing the partner: only the client's owner, with the name typed; the team leaves and the owner pays", async () => {

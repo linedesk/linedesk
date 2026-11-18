@@ -174,6 +174,15 @@ export const partnerReleaseClient = defineAction({
   permission: 'partner',
 })
 
+export const partnerDeleteClient = defineAction({
+  name: 'partner.deleteClient',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Delete a client workspace that has no owner yet (none, or only invited) with all its data: calls, contacts, settings, recordings and phone numbers. Its seat leaves the partner bill. The partner team's accounts stay; people your team invited lose their accounts when they belong to no other workspace. Once the client's owner joined, hand the workspace over instead. Type the workspace's name to confirm. The partner's owner only.",
+  input: z.object({ partnerId, workspaceId: z.string().min(1).max(64), confirmName }),
+  permission: 'partner',
+})
+
 export const workspaceRemovePartner = defineAction({
   name: 'workspace.removePartner',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app

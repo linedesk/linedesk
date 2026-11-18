@@ -61,14 +61,34 @@ describe('Partner › Clients', () => {
     const accepted = client({ name: 'Carlos', email: 'carlos@x.co' })
     expect(clientActions({ billed: true }, none, false, true)).toEqual([{ id: 'settings', enabled: true }])
     expect(clientActions({ billed: false }, none, false, true)).toEqual([{ id: 'settings', enabled: false }])
-    expect(clientActions({ billed: true }, none, true, true).map(a => a.id)).toEqual(['settings', 'inviteOwner'])
-    expect(clientActions({ billed: true }, invited, true, true).map(a => a.id)).toEqual(['settings', 'ownerInvitation'])
+    expect(clientActions({ billed: true }, none, true, true).map(a => a.id)).toEqual([
+      'settings',
+      'inviteOwner',
+      'delete',
+    ])
+    expect(clientActions({ billed: true }, invited, true, true).map(a => a.id)).toEqual([
+      'settings',
+      'ownerInvitation',
+      'delete',
+    ])
     expect(clientActions({ billed: true }, accepted, true, true).map(a => a.id)).toEqual(['settings', 'release'])
   })
 
   it('offers no Settings without a partner bill (billing off), never a disabled one', () => {
     const none = client(null)
     expect(clientActions({ billed: false }, none, false, false)).toEqual([])
-    expect(clientActions({ billed: false }, none, true, false)).toEqual([{ id: 'inviteOwner', enabled: true }])
+    expect(clientActions({ billed: false }, none, true, false)).toEqual([
+      { id: 'inviteOwner', enabled: true },
+      { id: 'delete', enabled: true },
+    ])
+  })
+
+  it("offers Delete to the partner's owner only while nobody owns the client yet", () => {
+    const ids = (owner: PartnerClient['owner'], isOwner = true) =>
+      clientActions({ billed: true }, client(owner), isOwner, true).map(a => a.id)
+    expect(ids(null)).toContain('delete')
+    expect(ids({ invited: 'ana@x.co' })).toContain('delete')
+    expect(ids({ name: 'Ana', email: 'ana@x.co' })).not.toContain('delete')
+    expect(ids(null, false)).not.toContain('delete')
   })
 })

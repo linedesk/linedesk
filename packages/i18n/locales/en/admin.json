@@ -181,6 +181,7 @@
   "audit.carrierSet": "Changed the workspace's own carrier account",
   "audit.carrierTransferTrunk": "Set up the transfer line at the carrier",
   "audit.clientAllowSet": "{on, select, yes {Allowed} other {Turned off}} {level, select, ultra {Ultra} other {Premium}} for a client workspace",
+  "audit.clientDeleted": "{named, select, yes {Deleted the client workspace “{name}”} other {Deleted a client workspace}}",
   "audit.clientOwnerInvited": "{known, select, yes {Invited {who} as the owner of a client workspace} other {Invited the owner of a client workspace}}",
   "audit.clientReleased": "Handed a client workspace over to the client",
   "audit.clientReleasedRemoving": "Handed a client workspace over to the client and removed {people}",

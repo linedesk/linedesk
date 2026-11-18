@@ -33,11 +33,12 @@ type Props = {
   onOpen: (id: string, hash?: string) => void
   onInvite: (client: PartnerClient) => void
   onRelease: (client: PartnerClient) => void
+  onDelete: (client: PartnerClient) => void
   onSettings: (client: PartnerClientRow) => void
 }
 
 /** The list from `partner.listClients`; while it loads, rows of its shape keep the place. */
-export function ClientList({ data, frozen, opening, onOpen, onInvite, onRelease, onSettings }: Props) {
+export function ClientList({ data, frozen, opening, onOpen, onInvite, onRelease, onDelete, onSettings }: Props) {
   const t = useT()
   const format = useFormat()
   const id = data.partner.id
@@ -76,6 +77,7 @@ export function ClientList({ data, frozen, opening, onOpen, onInvite, onRelease,
                 onOpen={onOpen}
                 onInvite={onInvite}
                 onRelease={onRelease}
+                onDelete={onDelete}
                 onSettings={onSettings}
               />
             ))}
@@ -95,6 +97,7 @@ function ClientRow({
   onOpen,
   onInvite,
   onRelease,
+  onDelete,
   onSettings,
 }: Omit<Props, 'data'> & { row: PartnerClientRow; client: PartnerClient | undefined; data: PartnerData }) {
   const t = useT()
@@ -119,6 +122,7 @@ function ClientRow({
     inviteOwner: t('team.partner.clients.inviteOwner'),
     ownerInvitation: t('team.partner.clients.ownerInvitation'),
     release: t('team.partner.clients.release'),
+    delete: t('team.partner.clients.delete'),
   }
   const items: MenuItem[] = clientActions(row, client, data.role === 'owner', !!data.bill).map(action => ({
     id: action.id,
@@ -138,13 +142,16 @@ function ClientRow({
           ? t('team.partner.clients.inviteOwnerTip', { name: row.name })
           : action.id === 'ownerInvitation'
             ? t('team.partner.clients.ownerInvitationTip', { name: row.name })
-            : t('team.partner.clients.releaseTip', { name: row.name }),
-    danger: action.id === 'release',
+            : action.id === 'release'
+              ? t('team.partner.clients.releaseTip', { name: row.name })
+              : t('team.partner.clients.deleteTip', { name: row.name }),
+    danger: action.id === 'release' || action.id === 'delete',
     onSelect: () => {
       if (action.id === 'settings') onSettings(row)
       else if (action.id === 'inviteOwner' && client) onInvite(client)
       else if (action.id === 'ownerInvitation') onOpen(row.id, '#workspace/team')
       else if (action.id === 'release' && client) onRelease(client)
+      else if (action.id === 'delete' && client) onDelete(client)
     },
   }))
 

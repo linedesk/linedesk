@@ -301,6 +301,11 @@ export function auditLabel(
       return e.removedPeople?.length
         ? t('admin.audit.clientReleasedRemoving', { people: fmt().list(e.removedPeople) })
         : t('admin.audit.clientReleased')
+    case 'partner.deleteClient':
+      return t('admin.audit.clientDeleted', {
+        name: typeof input.confirmName === 'string' ? input.confirmName : '',
+        named: known(input.confirmName),
+      })
     case 'partner.setClientUsageLimit':
       return input.limitUsd == null
         ? t('admin.audit.clientUsageLimitRemoved')

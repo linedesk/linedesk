@@ -55,8 +55,10 @@ import { Forbidden, type Handler, type HandlerCtx, Reject } from './handler-cont
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { lockExtraCalls } from './extra-calls.ts'
 import { lockBalance, periodAt } from './ledger.ts'
+import { queueWorkspaceDeletedEmails } from './jobs.ts'
 import { forgetMember, inviteToWorkspace } from './memberships.ts'
-import { billForNewClient, mirroredState, seatsFollow } from './partner-billing.ts'
+import { billForNewClient, mirroredState, seatsFollow, seatsFollowDelete } from './partner-billing.ts'
+import { emailBrandOf } from './partner-brand.ts'
 import { invitedByPartnerTeam } from './partner-invited.ts'
 import {
   LIMIT_OWNER_ONLY,
@@ -71,6 +73,7 @@ import { cancelSentInvitations, lockActiveSender, lockedOwner } from './team.ts'
 import { billPayerChanged, lockForPayerChange } from './usage-levels.ts'
 import { clientPeriodUsage, limitPercent, queueUsageLimitAlerts, resetUsageLimitAlerts } from './usage-limit.ts'
 import { insertWorkspace } from './workspace-creation-handlers.ts'
+import { deleteWorkspace } from './workspace-delete.ts'
 import { switchAllowLevel } from './workspace-settings.ts'
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
@@ -952,6 +955,71 @@ export const partnerHandlers: Record<string, Handler> = {
     return {
       rows: {},
       data: { partner: { id: partner.id, name: partner.name }, ...done, subject: { email: null, workspaceId: org.id } },
+    }
+  },
+
+  /**
+   * The partner's owner deletes a client workspace nobody owns yet (none, or only invited; docs/white-label.md): a
+   * client made by mistake or never taken up. Once its owner joined it is theirs, and the partner hands it over
+   * instead. The delete is the admin's (workspace-delete.ts): every row, the recordings, the numbers at the carrier,
+   * the accounts of people who belong to no other workspace (never the partner team's, membersOnlyHere). Its seat
+   * leaves the partner bill after the commit (docs/billing.md §6), and everyone else in it is emailed, as when an owner
+   * deletes their own. Not while impersonated, and with no key (personal-key-scope.ts). No fresh sign-in, like the
+   * hand-over: the workspace holds no client of its own yet. Lock order: the partner row, the workspace (an owner
+   * accepting their invitation at the same moment either joined before, and the delete is refused, or waits and fails
+   * on the deleted workspace), its owner rows.
+   */
+  'partner.deleteClient': async (ctx, input: { partnerId: string; workspaceId: string; confirmName: string }) => {
+    const { tx, actor, now } = ctx
+    if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
+    const { partner } = await partnerFor(tx, actor, input.partnerId, { write: true, owner: true })
+    const org = await clientOf(tx, partner.id, input.workspaceId)
+    refuseUnconfirmed(org.name, input.confirmName)
+    await tx.select({ id: organization.id }).from(organization).where(eq(organization.id, org.id)).for('update')
+    if (await lockedOwner(tx, org.id)) throw refusePartner('client_has_owner')
+    const [settings] = await tx
+      .select({ timezone: workspace_settings.timezone })
+      .from(workspace_settings)
+      .where(eq(workspace_settings.workspace_id, org.id))
+    const [me] = await tx.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, actor.actorId))
+    const others = await tx
+      .select({ email: user.email })
+      .from(member)
+      .innerJoin(user, eq(user.id, member.userId))
+      .where(and(eq(member.organizationId, org.id), ne(member.userId, actor.actorId)))
+    // Read before the workspace goes: its people hear it under the partner's name.
+    const brand = await emailBrandOf(org.id, tx)
+    await seatsFollowDelete(tx, ctx.onCommit, org.id)
+    const meName = emailSafeName(me?.name, '')
+    const content = {
+      workspace: emailSafeName(org.name, '') || null,
+      by: meName ? `${meName} (${me!.email})` : (me?.email ?? null),
+      byRole: 'admin' as const,
+      at: now,
+      timeZone: settings?.timezone ?? null,
+    }
+    const result = await deleteWorkspace(
+      tx,
+      { workspaceId: org.id, name: input.confirmName },
+      now,
+      actor.actorId,
+      ctx.telephony,
+      async usersDeleted => {
+        const deleted = new Set(usersDeleted)
+        await queueWorkspaceDeletedEmails(
+          tx,
+          others.map(o => ({ to: o.email, ...content, accountDeleted: deleted.has(o.email) })),
+          brand,
+        )
+      },
+    )
+    return {
+      rows: {},
+      data: {
+        partner: { id: partner.id, name: partner.name },
+        ...result,
+        subject: { email: null, workspaceId: org.id },
+      },
     }
   },
 

@@ -233,6 +233,7 @@ function Clients({
   const [problem, setProblem] = useState<string | null>(null)
   const [inviting, setInviting] = useState<PartnerClient | null>(null)
   const [releasing, setReleasing] = useState<PartnerClient | null>(null)
+  const [deleting, setDeleting] = useState<PartnerClient | null>(null)
   const [settings, setSettings] = useState<PartnerClientRow | null>(null)
 
   /** Opens a client workspace like the workspace menu does; `hash`: the page in it (the inbox by default). */
@@ -274,6 +275,7 @@ function Clients({
           onOpen={open}
           onInvite={setInviting}
           onRelease={setReleasing}
+          onDelete={setDeleting}
           onSettings={setSettings}
         />
       </Card>
@@ -298,6 +300,14 @@ function Clients({
         />
       )}
       {releasing && <ReleaseDialog partnerId={data.partner.id} client={releasing} onClose={() => setReleasing(null)} />}
+      {deleting && (
+        <DeleteClientDialog
+          partnerId={data.partner.id}
+          client={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => toast(t('team.partner.delete.done', { name: deleting.name }))}
+        />
+      )}
       {settings && (
         <ClientSettingsDialog
           partnerId={data.partner.id}
@@ -607,6 +617,55 @@ function ReleaseDialog({
         onChange={setRemoving}
       />
     </DangerConfirmDialog>
+  )
+}
+
+/**
+ * Deletes a client workspace nobody owns yet (`partner.deleteClient`, the partner's owner): all its data, and its seat
+ * leaves the partner plan. The workspace's name is typed to confirm.
+ */
+function DeleteClientDialog({
+  partnerId,
+  client,
+  onClose,
+  onDeleted,
+}: {
+  partnerId: string
+  client: PartnerClient
+  onClose: () => void
+  onDeleted: () => void
+}) {
+  const t = useT()
+  return (
+    <DangerConfirmDialog
+      confirm={{
+        text: t('team.partner.delete.text', { name: client.name }),
+        after: t('team.partner.delete.after'),
+        list: [
+          t('team.partner.delete.data'),
+          ...(client.owner && 'invited' in client.owner
+            ? [t('team.partner.delete.invitation', { email: client.owner.invited })]
+            : []),
+          ...(client.otherMembers.length ? [t('team.partner.delete.people')] : []),
+          t('team.partner.delete.bill'),
+        ],
+        action: t('team.partner.delete.confirm'),
+        busyAction: t('team.partner.delete.busy'),
+        typed: client.name,
+        variant: 'danger',
+      }}
+      run={async () => {
+        try {
+          await callAction('partner.deleteClient', { partnerId, workspaceId: client.id, confirmName: client.name })
+        } catch (err) {
+          throw new Error(partnerErrorText(err))
+        }
+        await Promise.all([reloadPartner(partnerId), refreshWorkspaces()])
+        onDeleted()
+        onClose()
+      }}
+      onClose={onClose}
+    />
   )
 }
 

@@ -326,6 +326,7 @@ const all = [
   partner.workspaceCreateForClient,
   partner.workspaceInviteClientOwner,
   partner.partnerReleaseClient,
+  partner.partnerDeleteClient,
   partner.workspaceRemovePartner,
   partner.partnerAdminList,
   partner.partnerCreate,

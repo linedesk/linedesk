@@ -36,12 +36,13 @@ export const usedNothing = (row: Pick<PartnerClientRow, 'calls' | 'seconds' | 'c
 export const othersThanOwner = (client: Pick<PartnerClient, 'otherMembers'> | undefined) =>
   (client?.otherMembers ?? []).filter(m => m.role !== 'owner')
 
-export type ClientAction = 'settings' | 'inviteOwner' | 'ownerInvitation' | 'release'
+export type ClientAction = 'settings' | 'inviteOwner' | 'ownerInvitation' | 'release' | 'delete'
 
 /**
  * The row's "…" menu, in this order: Settings (limit and Premium; on the partner bill only), then, for the partner's
  * owner, what the client's owner needs next: invite one, see the open invitation (resend or withdraw it on the
- * client's Team page), or hand the workspace over to them. Without a partner bill (billing off on this server) there
+ * client's Team page), or hand the workspace over to them; last, while nobody owns it yet (none, or only invited),
+ * delete it. Without a partner bill (billing off on this server) there
  * is no Settings: the limit is measured on the bill and a self-hosted install has no usage levels, so nothing in it
  * would do anything.
  */
@@ -56,5 +57,6 @@ export function clientActions(
   if (client.owner === null) actions.push({ id: 'inviteOwner', enabled: true })
   else if ('invited' in client.owner) actions.push({ id: 'ownerInvitation', enabled: true })
   else actions.push({ id: 'release', enabled: true })
+  if (client.owner === null || 'invited' in client.owner) actions.push({ id: 'delete', enabled: true })
   return actions
 }
