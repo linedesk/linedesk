@@ -7,7 +7,7 @@ import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import { noteCalendarAppFailure } from '../src/calendar-connections.ts'
-import { ResendError } from '../src/email-resend.ts'
+import { ResendError, resendProblem } from '../src/email-resend.ts'
 import { problemOfStatus } from '../src/provider-errors.ts'
 import {
   clearProviderFailures,
@@ -227,6 +227,23 @@ describe('what a failed email says about the service', () => {
     const sender = new ResendError('config', 'server.api.email.resend.senderRefused', { status: 403 })
     expect(emailProblem(sender)).toEqual({ reason: 'config', message: sender.message })
     expect(emailProblem(new ResendError(null, 'server.api.email.resend.notAccepted', { status: 422 }))).toBeNull()
+  })
+
+  test('one email Resend refuses (a bad recipient, a 403 not about the sending setup) is no failure of the service', async () => {
+    const refusal = (status: number, name: string, message: string) =>
+      resendProblem(new Response(JSON.stringify({ statusCode: status, name, message }), { status }))
+    for (const refused of [
+      await refusal(422, 'validation_error', 'Invalid `to` field. The domain of the address is not valid.'),
+      await refusal(422, 'validation_error', 'Invalid `from` field.'),
+      await refusal(403, 'validation_error', 'The `example.com` domain has been registered already.'),
+      await refusal(409, 'invalid_idempotent_request', 'This idempotency key has been used.'),
+    ])
+      expect(emailProblem(refused)).toBeNull()
+    expect(
+      emailProblem(await refusal(403, 'validation_error', 'The `example.com` domain is not verified.')),
+    ).toMatchObject({
+      reason: 'config',
+    })
   })
 })
 

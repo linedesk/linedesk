@@ -1,7 +1,9 @@
 // Outgoing email behind one interface. SMTP when it is connected (Server admin › Providers › Email, or SMTP_URL), or
 // Resend's HTTPS API when the connection is Resend's (email-services.ts, email-resend.ts); with EMAIL_TO_LOG=true the
 // message is printed to the server log instead (development); otherwise nothing can be sent. A change applies at once.
+import { AsyncLocalStorage } from 'node:async_hooks'
 import nodemailer from 'nodemailer'
+import type { PgBoss } from 'pg-boss'
 import { emailDelivery } from './auth-methods.ts'
 import { emailBrandName, emailFromAddress, emailReplyTo, partnerEmailBrand } from './email-brand.ts'
 import { resendKeyCheck, resendSend, resendSendsText } from './email-resend.ts'
@@ -143,6 +145,36 @@ function smtpSender(url: string, configuredFrom: string | undefined, timeouts: S
   }
 }
 
+const emailJob = new AsyncLocalStorage<string>()
+
+/**
+ * Runs a job (jobs.ts) with its id for every email sent in it, also in what it starts without waiting. The job's
+ * retries keep the id, so Resend can tell a retry of an email it already took (Idempotency-Key, email-resend.ts) and
+ * does not send it twice. Null (no single job): no scope.
+ */
+export const withEmailJob = <T>(jobId: string | null, work: () => T): T =>
+  jobId ? emailJob.run(jobId, work) : emailJob.exit(work)
+
+/** The id of the one job a handler runs (a batch of one, or a job on its own), else null. */
+const singleJobId = (arg: unknown): string | null => {
+  const job = Array.isArray(arg) ? (arg.length === 1 ? arg[0] : null) : arg
+  const id = (job as { id?: unknown } | null)?.id
+  return typeof id === 'string' ? id : null
+}
+
+/**
+ * Every worker of `instance` (jobs.ts) runs its job inside withEmailJob: the emails it sends carry the job's id, which its retries
+ * keep, so a retry after a timeout Resend had already accepted does not send them again (security review of #1325, L-3).
+ */
+export function emailsKeyedByJob(instance: PgBoss): PgBoss {
+  const work = instance.work.bind(instance) as (...args: unknown[]) => Promise<string>
+  instance.work = ((...args: unknown[]) => {
+    const handler = args.pop() as (arg: unknown) => unknown
+    return work(...args, (arg: unknown) => withEmailJob(singleJobId(arg), () => handler(arg)))
+  }) as PgBoss['work']
+  return instance
+}
+
 /** Resend over HTTPS (port 443): works where the host blocks outgoing SMTP. Muting and headers as with SMTP. */
 function resendSender(
   key: string,
@@ -154,7 +186,13 @@ function resendSender(
     kind: 'resend',
     send: async email => {
       try {
-        await resendSend(key, { ...email, ...envelopeOf(email, configuredFrom) }, timeouts.sendMs, doFetch)
+        const retryScope = emailJob.getStore()
+        await resendSend(
+          key,
+          { ...email, ...envelopeOf(email, configuredFrom), ...(retryScope ? { retryScope } : {}) },
+          timeouts.sendMs,
+          doFetch,
+        )
         emailResultListener?.({ ok: true })
       } catch (e) {
         emailResultListener?.({ ok: false, error: e })

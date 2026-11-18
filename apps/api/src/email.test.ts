@@ -1,6 +1,7 @@
 import { createServer } from 'node:net'
+import type { PgBoss } from 'pg-boss'
 import { describe, expect, it, vi } from 'vitest'
-import { createEmailSender, senderLine, smtpCheck } from './email.ts'
+import { createEmailSender, emailsKeyedByJob, senderLine, smtpCheck } from './email.ts'
 import { mailConnectionOf } from './email-services.ts'
 
 describe('createEmailSender', () => {
@@ -226,6 +227,34 @@ describe('createEmailSender with Resend', () => {
     expect(restricted.requests.map(r => `${r.init.method} ${r.url}`)).toEqual(['GET https://api.resend.com/domains'])
     const refused = resendFake(403, { name: 'invalid_api_key' })
     expect(await createEmailSender(env, undefined, refused.doFetch).check()).toMatchObject({ ok: false })
+  })
+
+  it("a job's emails carry an Idempotency-Key that its retry repeats; an email outside a job carries none", async () => {
+    const fake = resendFake()
+    const sender = createEmailSender(env, undefined, fake.doFetch)
+    // A stand-in for pg-boss: work() keeps the handler; a run (and a retry) calls it with the same job.
+    const handlers: ((jobs: unknown) => Promise<unknown>)[] = []
+    const boss = {
+      work: async (_name: string, handler: (jobs: unknown) => Promise<unknown>) => {
+        handlers.push(handler)
+        return 'w'
+      },
+    }
+    const keyed = emailsKeyedByJob(boss as unknown as PgBoss)
+    await keyed.work<{ to: string }>('notify', async ([job]) => {
+      await sender.send({ to: job!.data.to, subject: 'New call', text: 'Mike called' })
+    })
+    const job = { id: '9a1c7a52-0000-4000-8000-000000000001', data: { to: 'mike@brightwater.example' } }
+    await handlers[0]!([job])
+    await handlers[0]!([job])
+    await handlers[0]!([{ ...job, id: '9a1c7a52-0000-4000-8000-000000000002' }])
+    await sender.send({ to: 'mike@brightwater.example', subject: 'New call', text: 'Mike called' })
+    const keys = fake.requests.map(r => new Headers(r.init.headers).get('idempotency-key'))
+    expect(keys[0]).toMatch(/^linedesk-[0-9a-f]{64}$/)
+    expect(keys[1]).toBe(keys[0])
+    expect(keys[2]).toMatch(/^linedesk-/)
+    expect(keys[2]).not.toBe(keys[0])
+    expect(keys[3]).toBeNull()
   })
 
   it('the SMTP provider with a Resend SMTP URL still sends over SMTP', () => {

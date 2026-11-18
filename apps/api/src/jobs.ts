@@ -13,7 +13,7 @@ import { notifyAssigned } from './assign-notifications.ts'
 import { sendBookingConfirmation } from './booking-confirmation.ts'
 import { notifyCallFinished } from './call-notifications.ts'
 import { db } from './db.ts'
-import { emailSender } from './email.ts'
+import { emailSender, emailsKeyedByJob } from './email.ts'
 import { type WorkspaceDeletedEmail, workspaceDeletedEmail } from './emails/templates.ts'
 import { runForwardingCheck } from './forwarding-check.ts'
 import { evaluateCall, evaluationModel } from './evaluations.ts'
@@ -537,7 +537,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(WEBHOOK_DELIVER, { retryLimit: WEBHOOK_ATTEMPTS - 1, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(APP_PUSH, { retryLimit: APP_PUSH_ATTEMPTS - 1, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(APP_PUSH_SWEEP)
-  if (workHere) await runJobs(instance, env)
+  if (workHere) await runJobs(emailsKeyedByJob(instance), env)
   boss = instance
   return instance
 }
