@@ -14,73 +14,74 @@
 //   customer, the expected mode. Anything else answers 404, never what the session is.
 // - Checkout always uses the card-only payment method configuration; without it Checkout does not start, and our own
 //   setup's refusals (a key without a permission, a missing price) go to the instance admins, not to the owner.
+
+import { createHash } from 'node:crypto'
 import {
-  BillingSetupError,
   type BillingProvider,
+  BillingSetupError,
   type BillingSubscription,
   type CheckoutSession,
 } from '@linedesk/billing'
 import {
   type ActivationDisclosure,
   type ActivationFacts,
-  type TrialRechargeDisclosure,
   type BillingRules,
   billing_accounts,
   billing_alerts,
   billing_periods,
   billing_recharges,
-  minutesPromptFor,
   card_fingerprints,
   EXTRA_CALLS_LOOKUP_PREFIX,
   EXTRA_CALLS_STEP,
   maxExtraCalls,
+  minutesPromptFor,
   organization,
   partners,
-  rechargeCapCents,
   phone_numbers,
   planPrice,
+  rechargeCapCents,
   type TRIAL_REFUSALS,
+  type TrialRechargeDisclosure,
   type Tx,
   usage_counters,
   user,
   workspace_settings,
 } from '@linedesk/db'
-import { createHash } from 'node:crypto'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { and, asc, eq, gte, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
-import { managesBill, tellBillOwner } from './bill-manager.ts'
-import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
+import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
+import { managesBill, tellBillOwner } from './bill-manager.ts'
 import { pricesForCheckout } from './billing-catalog.ts'
 import { billingRules, isLinedeskPlan, planCatalog, reminderDaysFor } from './billing-rules.ts'
-import { type LegalTerms, legalTerms, recordAcceptance, TERMS_CHANGED } from './legal-terms.ts'
-import { brandName, currentBranding } from './branding.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
+import { brandName, currentBranding } from './branding.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { checkoutExtraAlert, checkoutRefusedAlert, checkoutSetupAlert } from './emails/billing-alerts.ts'
 import { BILLING_PATH } from './emails/billing-lifecycle.ts'
 import { appLink, WEB_ORIGIN } from './emails/templates.ts'
-import { queueBillingAlert, queueRecharge } from './jobs.ts'
 import {
   Forbidden,
   type Handler,
   NotFound,
   type Preparer,
-  Reject,
   type Reader,
+  Reject,
   type Said,
   wordsOf,
 } from './handler-context.ts'
-import { type MessageKey, msg } from '@linedesk/i18n'
+import { queueBillingAlert, queueRecharge } from './jobs.ts'
 import { lockBalance, periodAt, periodForMoney, postEntry, trialSecondsUsed } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
+import { type LegalTerms, legalTerms, recordAcceptance, TERMS_CHANGED } from './legal-terms.ts'
 import { ownerStepUpNeeded } from './owner-step-up.ts'
 import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { signupRules } from './self-serve.ts'
-import { refuseBillingActor } from './usage-levels.ts'
 import { refuseUnservedWorkspaces } from './served-countries.ts'
+import { refuseBillingActor } from './usage-levels.ts'
 
 /**
  * How long a Checkout Session can be completed (Stripe allows 30 minutes to 24 hours): well under a day, so the sign-up
@@ -93,9 +94,12 @@ export const TOPUP_LIMITS = { minCents: 500, maxCents: 50_000 } as const
 
 /**
  * What Checkout shows above its button, as Stripe shows it: in the language of the owner who starts it, with the
- * install's product name and trial length (Server admin › Branding and › Billing). The plan only: activation never
- * turns auto-recharge on, so the card is saved for the plan's charges and nothing else (Janik, 2026-11-17); the owner
- * turns auto-recharge on later ("Keep calls answered", Settings › Billing), and that is recorded then.
+ * install's product name, trial length and prices (Server admin › Branding and › Billing). Short (Janik, 2026-11-18):
+ * the trial, the price a month after it (billed yearly or monthly, plus tax where it applies) and the reminder emails,
+ * "Your 14-day free trial starts today. Cancel before it ends and you pay nothing. Then $9 a month, billed yearly, plus
+ * tax where it applies. We email you 7 days and 1 day before the first charge." Auto-recharge is not mentioned:
+ * activation never turns it on (2026-11-17), and its consent is taken when the owner turns it on ("Keep calls
+ * answered", Settings › Billing).
  */
 export function checkoutText(
   kind: 'trial' | 'plan' | 'topup',
@@ -105,31 +109,46 @@ export function checkoutText(
     trialDays,
     taxed = false,
     reminderDays = [],
-    yearlyCents,
+    price,
   }: {
     brand: string
     trialDays: number
     taxed?: boolean
     reminderDays?: number[]
-    /** A yearly plan's price: Checkout shows the year, the text says what that is a month (as the step leads with). */
-    yearlyCents?: number
+    /** What the plan costs per interval before tax: the text says what that is a month (as the activation step does). */
+    price?: { cents: number; interval: 'month' | 'year' }
   },
 ): string {
-  // The trial's reminder emails, promised where the card is entered too (docs/billing.md §3.2).
-  if (kind === 'trial' && reminderDays.length)
-    return `${checkoutText(kind, reader, { brand, trialDays, taxed, yearlyCents })} ${reader.t('server.api.checkout.text.reminders', { days: reminderList(reminderDays, reader) })}`
-  // With Stripe Tax on, the amounts charged are before tax.
-  if (taxed)
-    return `${checkoutText(kind, reader, { brand, trialDays, yearlyCents })} ${reader.t('server.api.checkout.text.taxNote')}`
-  if (kind === 'topup') return reader.t('server.api.checkout.text.topup', { brand: plainName(brand) })
-  const text =
+  if (kind === 'topup') {
+    const text = reader.t('server.api.checkout.text.topup', { brand: plainName(brand) })
+    // With Stripe Tax on, the amounts charged are before tax.
+    return taxed ? `${text} ${reader.t('server.api.checkout.text.taxNote')}` : text
+  }
+  const parts = [
     kind === 'trial'
       ? reader.t('server.api.checkout.text.trial', { days: trialDays })
-      : reader.t('server.api.checkout.text.plan')
-  if (!yearlyCents) return text
-  const cents = Math.round(yearlyCents / 12)
-  const monthly = reader.format.currency(cents / 100, 'USD', { maximumFractionDigits: cents % 100 ? 2 : 0 })
-  return `${text} ${reader.t('server.api.checkout.text.yearly', { monthly })}`
+      : price
+        ? reader.t('server.api.checkout.text.planPrice', { price: pricePhrase(price, taxed, reader) })
+        : reader.t('server.api.checkout.text.plan'),
+  ]
+  if (kind === 'trial' && price)
+    parts.push(reader.t('server.api.checkout.text.then', { price: pricePhrase(price, taxed, reader) }))
+  if (taxed && !price) parts.push(reader.t('server.api.checkout.text.taxNote'))
+  // The trial's reminder emails, promised where the card is entered too (docs/billing.md §3.2).
+  if (kind === 'trial' && reminderDays.length)
+    parts.push(reader.t('server.api.checkout.text.reminders', { days: reminderList(reminderDays, reader) }))
+  return parts.join(' ')
+}
+
+/** "$9 a month, billed yearly, plus tax where it applies", in the reader's language. */
+function pricePhrase(price: { cents: number; interval: 'month' | 'year' }, taxed: boolean, reader: Reader): string {
+  const cents = price.interval === 'year' ? Math.round(price.cents / 12) : price.cents
+  const amount = reader.format.currency(cents / 100, 'USD', { maximumFractionDigits: cents % 100 ? 2 : 0 })
+  const phrase =
+    price.interval === 'year'
+      ? reader.t('server.api.checkout.text.priceYearly', { amount })
+      : reader.t('server.api.checkout.text.priceMonthly', { amount })
+  return taxed ? reader.t('server.api.checkout.text.plusTax', { price: phrase }) : phrase
 }
 
 /** "7 days and 1 day", in the reader's language. */
@@ -484,7 +503,7 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
         trialDays: rules.trialDays,
         taxed: rules.automaticTax,
         reminderDays: reminderDaysFor(rules),
-        ...(bill.interval === 'year' ? { yearlyCents: itemsCents(sold, rules) } : {}),
+        price: { cents: itemsCents(sold, rules), interval: bill.interval },
       }),
       branding: checkoutBranding(),
       successUrl: returnUrl(input.partnerId),

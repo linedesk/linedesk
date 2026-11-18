@@ -10,10 +10,10 @@ import {
   type ActivationDisclosure,
   billing_accounts,
   billing_alerts,
-  CARD_FINGERPRINT_RETENTION_MONTHS,
   billing_balances,
   billing_periods,
   billing_recharges,
+  CARD_FINGERPRINT_RETENTION_MONTHS,
   calls,
   card_fingerprints,
   commands,
@@ -33,17 +33,19 @@ import {
 } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import { workspaceSetupActor } from '../src/agent-setup.ts'
+import { auth } from '../src/auth.ts'
 import { BILLING_CATALOG_KEY } from '../src/billing-catalog.ts'
-import { SIGNUP_RULES_KEY } from '../src/self-serve.ts'
 import {
   billingNumberRefusal,
-  NUMBER_EXTRA_IN_APP,
-  NUMBER_OWNER_ONLY,
   CHECKOUT_STARTS_PER_MINUTE,
   CHECKOUT_TOO_OFTEN,
   CHECKOUT_UNAVAILABLE,
+  checkoutText,
+  NUMBER_EXTRA_IN_APP,
   NUMBER_HELD_FOR_REVIEW,
   NUMBER_NEEDS_CHECKOUT,
+  NUMBER_OWNER_ONLY,
   plainName,
   resetCheckoutLimit,
   sendActivationNudges,
@@ -54,14 +56,13 @@ import { BILLING_LIFECYCLE_EMAIL } from '../src/billing-periods.ts'
 import { chargeRecharge, sendBillingAlert } from '../src/billing-recharge.ts'
 import { setBillingFetch } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
-import { sayIn } from '../src/handler-context.ts'
 import { emailSender } from '../src/email.ts'
+import { sayIn, wordsOf } from '../src/handler-context.ts'
 import { setJobQueue } from '../src/jobs.ts'
-import { checkLedgerGuards } from '../src/ledger-guards.ts'
 import { postEntry } from '../src/ledger.ts'
+import { checkLedgerGuards } from '../src/ledger-guards.ts'
+import { SIGNUP_RULES_KEY } from '../src/self-serve.ts'
 import { processStripeEventJob } from '../src/stripe-events.ts'
-import { workspaceSetupActor } from '../src/agent-setup.ts'
-import { auth } from '../src/auth.ts'
 import {
   act,
   addMember,
@@ -75,6 +76,7 @@ import {
   request,
   type User,
 } from './helpers.ts'
+
 // After the app (helpers.ts loads it): the sweep's module reaches the handler registry.
 const { sweepSignUps } = await import('../src/signup-handlers.ts')
 
@@ -2431,6 +2433,37 @@ describe('the partner bill (white-label S2, docs/white-label.md)', () => {
   })
 })
 
+describe('the Checkout card note (custom_text.submit), short since 2026-11-18', () => {
+  const rules = { brand: 'Linedesk', trialDays: 14, taxed: true, reminderDays: [7, 1] }
+  test('trial: the price a month after it, tax, the reminders; never auto-recharge', () => {
+    const yearly = { cents: 10_800, interval: 'year' } as const
+    expect(checkoutText('trial', wordsOf({ locale: 'en' }), { ...rules, price: yearly })).toBe(
+      'Your 14-day free trial starts today. Cancel before it ends and you pay nothing. Then $9 a month, billed yearly, plus tax where it applies. We email you 7 days and 1 day before the first charge.',
+    )
+    expect(checkoutText('trial', wordsOf({ locale: 'de' }), { ...rules, price: yearly })).toBe(
+      'Deine 14-tägige Testphase startet heute. Kündigst du vorher, zahlst du nichts. Danach 9\u00a0$ pro Monat, jährlich abgerechnet, zzgl. Steuern, wo sie anfallen. Wir erinnern dich 7 Tage und 1 Tag vor der ersten Abbuchung per E-Mail.',
+    )
+    const monthly = checkoutText('trial', wordsOf({ locale: 'en' }), {
+      ...rules,
+      taxed: false,
+      price: { cents: 1100, interval: 'month' },
+    })
+    expect(monthly).toBe(
+      'Your 14-day free trial starts today. Cancel before it ends and you pay nothing. Then $11 a month. We email you 7 days and 1 day before the first charge.',
+    )
+    for (const locale of ['en', 'de', 'es', 'fr', 'ja', 'pt-BR'] as const)
+      expect(checkoutText('trial', wordsOf({ locale }), { ...rules, price: yearly })).not.toMatch(
+        /recharge|Aufladung|recarga|recharge|チャージ/i,
+      )
+  })
+
+  test('a plan without a trial (a partner, a refused trial) names its price the same way', () => {
+    expect(
+      checkoutText('plan', wordsOf({ locale: 'en' }), { ...rules, price: { cents: 16_800, interval: 'year' } }),
+    ).toBe('Your plan starts today: $14 a month, billed yearly, plus tax where it applies.')
+  })
+})
+
 describe('the activation step accepts the terms before Checkout (A9, docs/billing.md §3.2)', () => {
   test('recorded with what the step showed: the price, the trial, the first charge, the reminders', async () => {
     const { bill, owner } = await pendingSignUp()
@@ -2451,9 +2484,9 @@ describe('the activation step accepts the terms before Checkout (A9, docs/billin
     expect(made.body.get('custom_text[submit][message]')).toContain(
       'We email you 7 days and 1 day before the first charge.',
     )
-    // The plan only (2026-11-17): no call credit at the trial's end, auto-recharge off, and none in the record.
-    expect(made.body.get('custom_text[submit][message]')).toContain(
-      'After the trial this card is charged for your plan only; auto-recharge for call minutes stays off until you turn it on.',
+    // Short (2026-11-18): the trial, the price after it, the reminders; no auto-recharge (it stays off, 2026-11-17).
+    expect(made.body.get('custom_text[submit][message]')).toBe(
+      'Your 14-day free trial starts today. Cancel before it ends and you pay nothing. Then $11 a month, plus tax where it applies. We email you 7 days and 1 day before the first charge.',
     )
     expect(made.body.get('custom_text[submit][message]')).not.toContain('$25')
     expect(row!.disclosure).not.toHaveProperty('recharge')
