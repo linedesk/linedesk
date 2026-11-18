@@ -68,6 +68,13 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
   rechargePending: null,
   heldForReview: false,
   extraNumberCents: 300,
+  prices: {
+    includedMinutes: 50,
+    standardMicrosPerMinute: 50_000,
+    premiumMicrosPerMinute: 100_000,
+    ultraMicrosPerMinute: 200_000,
+    extraNumberCents: 300,
+  },
   canBuyMinutes: true,
   hasPortal: true,
   taxed: false,
@@ -127,7 +134,13 @@ const primaries = (html: string) => (html.match(/k-btn-primary/g) ?? []).length
 
 test('a running plan: price, renewal, balance, usage, invoices, Buy minutes as the one primary button, Cancel plan', () => {
   const html = render({ billingOn: true, bill: bill() })
-  expect(html).toContain('<b>$11 a month per workspace · 1 workspace</b>')
+  // The shared plan card (ui/PlanCard.tsx): the price a month, its unit, the value rows, then the bill's own facts.
+  expect(html).toContain(
+    '<b><span class="plan-card-price">$11 a month</span> <span class="plan-card-unit">per workspace</span></b>',
+  )
+  expect(html).toContain('50 call minutes included per workspace each month')
+  expect(html).toContain('1 workspace on this plan')
+  expect(html).toMatch(/<details class="plan-card-all"><summary>/)
   // Billed monthly: no yearly note.
   expect(html).not.toContain('billed yearly')
   expect(html).toContain('Renews on')
@@ -150,7 +163,7 @@ test('with Stripe Tax on: prices are before tax, auto-recharge says tax is added
       invoices: [{ ...bill().invoices[0]!, totalCents: 1188, taxCents: 88 }],
     }),
   })
-  expect(taxed).toContain('Prices are before tax. Tax is added where it applies, based on your billing address.')
+  expect(planCard(taxed)).toContain('Plus tax where it applies.')
   expect(taxed).toContain('your card is charged $20 plus tax where it applies. Your balance gets $20.')
   expect(taxed).toContain('$11.88')
   expect(taxed).toContain('incl. $0.88 tax')
@@ -160,7 +173,7 @@ test('with Stripe Tax on: prices are before tax, auto-recharge says tax is added
   const noAddress = render({ billingOn: true, bill: bill({ taxed: true, taxAddressMissing: true }) })
   expect(noAddress).toContain('Until then, recharges are charged without tax.')
   const untaxed = render({ billingOn: true, bill: bill() })
-  expect(untaxed).not.toContain('Prices are before tax')
+  expect(untaxed).not.toContain('Plus tax where it applies')
   expect(untaxed).not.toContain('plus tax')
   expect(untaxed).not.toContain('tax</')
 })
@@ -450,23 +463,23 @@ test("a partner bill: the partner plan's base fee, then its client workspaces on
     billingOn: true,
     bill: partner({ status: 'pending_payment', interval: 'year', seatCents: 16_800, clientSeatCents: 10_800 }),
   })
-  // The price a month leads, the yearly totals are grey notes under it (ui/price.tsx).
-  expect(yearly).toContain('<b>Partner plan: $14 a month</b><span class="help">$168 billed yearly</span>')
+  // The shared plan card, as on the partner's Activate step: the base fee a month, its client workspaces next to it,
+  // the yearly total as the grey note, the minutes per client workspace.
   expect(yearly).toContain(
-    '<b>Client workspaces: $9 a month each · 1 workspace</b><span class="help">$108 a year each</span>',
+    '<b><span class="plan-card-price">$14 a month</span> <span class="plan-card-unit">+ $9 a month × 1 client workspace</span></b><span class="help">$276 billed yearly</span>',
   )
+  expect(yearly).toContain('50 call minutes included per client workspace each month')
   // Before the first Checkout: no status badge ("Waiting for a card"), UI audit P3.
   expect(yearly).not.toContain('Waiting for a card')
-  expect(yearly).not.toContain('per workspace')
+  expect(yearly).not.toContain('per workspace each')
   const monthly = render({ billingOn: true, bill: partner({ seatCents: 1900, workspaces: 0 }) })
-  expect(monthly).toContain('Partner plan: $19 a month')
-  expect(monthly).not.toContain('a year')
-  expect(monthly).toContain('Client workspaces: $11 a month each · none yet')
+  expect(monthly).toContain('$19 a month</span> <span class="plan-card-unit">+ $11 a month per client workspace</span>')
+  expect(monthly).not.toContain('billed yearly')
   expect(render({ billingOn: true, bill: partner({ seatCents: 1900, workspaces: 3 }) })).toContain(
-    'Client workspaces: $11 a month each · 3 workspaces',
+    '+ $11 a month × 3 client workspaces',
   )
-  // A Cloud bill keeps its one line, with no client line.
-  expect(render({ billingOn: true, bill: bill() })).not.toContain('Client workspaces')
+  // A Cloud bill: per workspace, no client workspaces.
+  expect(render({ billingOn: true, bill: bill() })).not.toContain('client workspace')
 })
 
 test('a partner bill speaks of client workspaces: numbers, calls at the same time, a stopped plan, never one business', () => {
@@ -614,7 +627,8 @@ test('calls at the same time in the trial: more only once the plan is paid; seve
   expect(html).toContain('Brightwater North')
   // The numbers once each: the rows say what is included, the note what more cost; the card's line only the busy line.
   expect(html).not.toContain('are included in each workspace')
-  expect(html.match(/\$5 a month/g)).toHaveLength(1)
+  // Once in the calls section, once in the plan card's "See all prices" (5 more calls at the same time).
+  expect(html.match(/\$5 a month/g)).toHaveLength(2)
   expect(html).toContain('When all lines are busy, the next caller hears')
 })
 

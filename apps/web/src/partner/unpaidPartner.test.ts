@@ -5,7 +5,14 @@ import { expect, test } from 'vitest'
 import { clientsFrozen, roomForClient, unpaidPartner } from './PartnerArea.tsx'
 
 const price = { interval: 'year' as const, planCents: 1400, seatCents: 900 }
-const bill = (status: NonNullable<PartnerData['bill']>['status']) => ({ status, mine: true, price })
+const prices = {
+  includedMinutes: 50,
+  standardMicrosPerMinute: 50_000,
+  premiumMicrosPerMinute: 100_000,
+  ultraMicrosPerMinute: 200_000,
+  extraNumberCents: 300,
+}
+const bill = (status: NonNullable<PartnerData['bill']>['status']) => ({ status, mine: true, price, prices })
 const clients = (n: number) =>
   Array.from({ length: n }, (_, i) => ({ id: `ws_${i}` }) as PartnerData['clients'][number])
 

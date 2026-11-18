@@ -74,6 +74,7 @@ import { createRateLimiter } from './rate-limit.ts'
 import { reloadHosts } from './request-host.ts'
 import { DEFAULT_TIME_ZONE } from './bookings.ts'
 import { cancelSentInvitations, lockActiveSender, lockedOwner } from './team.ts'
+import { planPrices } from './billing-checkout.ts'
 import { billingRules } from './billing-rules.ts'
 import { refuseMoneyChange } from './billing-settings.ts'
 import { isPendingPayment } from './self-serve.ts'
@@ -488,6 +489,7 @@ async function billSummary(tx: Tx, partner: PartnerRow, actorId: string): Promis
       planCents: yearly ? Math.round(rules.partnerYearlyCents / 12) : rules.partnerMonthlyCents,
       seatCents: yearly ? Math.round(rules.workspaceYearlyCents / 12) : rules.workspaceMonthlyCents,
     },
+    prices: await planPrices(tx, rules, { comped: bill.status === 'comped' }),
   }
 }
 

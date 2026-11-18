@@ -54,7 +54,15 @@ import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { syncBillingCatalog } from './billing-catalog.ts'
 import { managesBill, tellBillOwner } from './bill-manager.ts'
-import { activationFacts, BUYS_MINUTES, ownBill, setupFailed, stillManages, trialOffered } from './billing-checkout.ts'
+import {
+  activationFacts,
+  BUYS_MINUTES,
+  ownBill,
+  planPrices,
+  setupFailed,
+  stillManages,
+  trialOffered,
+} from './billing-checkout.ts'
 import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
@@ -441,6 +449,7 @@ async function overview(
     heldForReview: !!bill.held_for_review_at,
     // A comped bill pays nothing for its numbers either (docs/billing.md §2).
     extraNumberCents: bill.status === 'comped' ? 0 : rules.extraNumberCents,
+    prices: await planPrices(tx, rules, { comped: bill.status === 'comped' }),
     canBuyMinutes: !!bill.stripe_customer_id && BUYS_MINUTES.includes(bill.status),
     hasPortal: !!bill.stripe_customer_id,
     // Stripe Tax on (Server admin › Billing): what the page states is before tax, and tax is added on top.

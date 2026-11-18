@@ -417,7 +417,6 @@
   "partner.setup.activate.chargedYearly": "{total} billed yearly, charged today",
   "partner.setup.activate.clients": "Client workspaces",
   "partner.setup.activate.lede": "Numbers, calls and your clients' invitations start once it is active. Everything you set up stays.",
-  "partner.setup.activate.price": "{price} a month{count, plural, =0 {} one { + {seat} a month × # client workspace} other { + {seat} a month × # client workspaces}}",
   "partner.setup.activate.remove": "Remove",
   "partner.setup.activate.removeText": "The draft and what was set up in it are deleted.",
   "partner.setup.activate.removeTitle": "Remove {name}?",

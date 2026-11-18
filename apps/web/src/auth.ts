@@ -5,6 +5,7 @@ import { emailOTPClient, inferAdditionalFields, organizationClient } from 'bette
 import type { AuthMethods, LegalLinks, SsoMethod } from '@linedesk/api/auth-types'
 import { createAuthClient } from 'better-auth/react'
 import type { FirstUse, MyPartner, OnboardingStep, StarPrompt } from '@linedesk/actions'
+import type { PlanPrices } from '@linedesk/db/types'
 
 import type { Impersonation } from './impersonation.ts'
 import { authErrorMessage, noAccountText } from './sign-in-code.ts'
@@ -72,6 +73,11 @@ export type Activation = {
    * up to `maxExtra`, at `extraCallCents` a month each). Absent from an older server: no add-on on the step.
    */
   calls?: { included: number; step: number; maxExtra: number; extraCallCents: number }
+  /**
+   * The install's prices for the shared plan card (ui/PlanCard.tsx). Absent from an older server: no value rows and no
+   * "See all prices".
+   */
+  prices?: PlanPrices
   terms: LegalTerms | null
 }
 

@@ -1065,6 +1065,26 @@ describe('while pending_payment', () => {
     })
     const firstCharge = Date.parse(me.body.workspace.activation.firstChargeAt)
     expect(Math.abs(firstCharge - (Date.now() + 14 * DAY))).toBeLessThan(60_000)
+    // "See all prices": Premium a minute, Ultra only with a realtime provider set up (none here), an extra number.
+    expect(me.body.workspace.activation.prices).toEqual({
+      includedMinutes: 50,
+      standardMicrosPerMinute: 50_000,
+      premiumMicrosPerMinute: 100_000,
+      ultraMicrosPerMinute: null,
+      extraNumberCents: 300,
+    })
+    // A level the server admin has off is not offered there either.
+    await setting(
+      'call_quality',
+      JSON.stringify({
+        premium: false,
+        ultra: true,
+        default: 'standard',
+        models: { standard: {}, premium: {}, ultra: {} },
+      }),
+    )
+    expect((await request(inWs, 'GET', '/v1/me')).body.workspace.activation.prices.premiumMicrosPerMinute).toBeNull()
+    await setting('call_quality', null)
     // A step past `activate` stored earlier (or none) opens `activate`.
     await db
       .update(workspace_settings)

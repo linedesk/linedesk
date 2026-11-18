@@ -907,6 +907,13 @@ describe('what the customer reads about the bill (billing tour, G3)', () => {
       rechargePending: null,
       heldForReview: false,
       extraNumberCents: 300,
+      // The plan card's prices (ui/PlanCard.tsx), the same facts as on the activation step.
+      prices: {
+        includedMinutes: 50,
+        standardMicrosPerMinute: 50_000,
+        premiumMicrosPerMinute: 100_000,
+        extraNumberCents: 300,
+      },
     })
     await db.insert(billing_recharges).values({ id: rid('rc'), billing_account_id: b.billId, amount_cents: 3000 })
     await db
@@ -924,6 +931,7 @@ describe('what the customer reads about the bill (billing tour, G3)', () => {
   test('a comped bill: its numbers are free', async () => {
     const b = await billed({ status: 'comped' })
     expect((await overview(b.owner)).bill.extraNumberCents).toBe(0)
+    expect((await overview(b.owner)).bill.prices.extraNumberCents).toBe(0)
   })
 })
 

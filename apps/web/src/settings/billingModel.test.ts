@@ -93,6 +93,13 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
   rechargePending: null,
   heldForReview: false,
   extraNumberCents: 300,
+  prices: {
+    includedMinutes: 50,
+    standardMicrosPerMinute: 50_000,
+    premiumMicrosPerMinute: 100_000,
+    ultraMicrosPerMinute: 200_000,
+    extraNumberCents: 300,
+  },
   canBuyMinutes: true,
   hasPortal: true,
   taxed: false,

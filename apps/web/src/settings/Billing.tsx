@@ -37,6 +37,7 @@ import { Dialog, FormField, Input } from '../ui/form.tsx'
 import { Badge, Button, Note } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
+import { PlanCard, usePlanPrice } from '../ui/PlanCard.tsx'
 import { PriceLine, usePrice } from '../ui/price.tsx'
 import {
   AMOUNT_CHOICES,
@@ -249,7 +250,7 @@ function BillingPage({
   const toPay = invoicesToPay(state, bill.invoices)
   return (
     <>
-      <PlanCard bill={bill} state={state} toPay={toPay} toast={toast} />
+      <BillPlan bill={bill} state={state} toPay={toPay} toast={toast} />
       {(pays || bill.balanceMicros !== 0) && <BalanceCard bill={bill} payFirst={toPay.length > 0} toast={toast} />}
       {pays && <AutoRechargeCard bill={bill} toast={toast} />}
       <UsageCard bill={bill} />
@@ -339,7 +340,53 @@ function takeHashFlag(name: string): boolean {
   return true
 }
 
-function PlanCard({
+/**
+ * The bill's own facts under its price (Settings › Billing only): how many workspaces are on it, the renewal or the
+ * trial's end, the trial's balance note, a missing tax address and what an extra number costs.
+ */
+function BillFacts({
+  bill,
+  line,
+  date,
+}: {
+  bill: BillingOverviewBill
+  line: ReturnType<typeof planLine>
+  date: (iso: string) => string
+}) {
+  const t = useT()
+  const format = useFormat()
+  const partner = bill.kind === 'partner'
+  return (
+    <div className="billing-plan">
+      {!partner && <span className="help">{t('settings.billing.plan.workspaces', { count: bill.workspaces })}</span>}
+      {line && (
+        <span className="help">
+          {line.days !== undefined
+            ? t(line.key, { date: date(line.date), count: line.days })
+            : t(line.key, { date: date(line.date) })}
+        </span>
+      )}
+      {bill.status === 'trialing' && (
+        <span className="help">
+          {t('settings.billing.plan.trialNote')}
+          {!bill.autoRecharge.on && ` ${t('settings.billing.plan.trialAutoOff')}`}
+        </span>
+      )}
+      {bill.taxAddressMissing && <span className="help">{t('settings.billing.plan.taxAddressMissing')}</span>}
+      {bill.extraNumberCents > 0 && (
+        <span className="help">
+          {t(partner ? 'settings.billing.plan.numbersPartner' : 'settings.billing.plan.numbers', {
+            price: format.currency(centsToDollars(bill.extraNumberCents), 'USD', {
+              minimumFractionDigits: bill.extraNumberCents % 100 ? 2 : 0,
+            }),
+          })}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function BillPlan({
   bill,
   state,
   toPay,
@@ -364,23 +411,22 @@ function PlanCard({
   // A partner bill: the partner base fee, then its client workspaces on their own line (docs/white-label.md).
   const partner = bill.kind === 'partner'
   const note = stateNote(state, date, partner)
-  // The price a month leads; a yearly plan's total is the grey note under it (ui/price.tsx).
+  // The shared plan card (ui/PlanCard.tsx): the price a month leads, a yearly plan's total is the grey note under it
+  // (ui/price.tsx), the same value rows, tax line and "See all prices" as the activation steps.
   const pays = paysCharges(bill)
-  const price = prices.perMonth(bill.seatCents, bill.interval)
-  const plan = !pays
-    ? t(partner ? 'settings.billing.plan.compedPartner' : 'settings.billing.plan.comped', { count: bill.workspaces })
-    : partner
-      ? t('settings.billing.plan.partnerMonthly', { price })
-      : t('settings.billing.plan.monthly', { price, count: bill.workspaces })
-  const planNote = pays ? prices.yearNote(bill.seatCents, bill.interval, !partner) : null
+  const planPrice = usePlanPrice()
   const clientCents = bill.clientSeatCents ?? 0
-  const clients =
-    partner && pays
-      ? t('settings.billing.plan.clientsMonthly', {
-          price: prices.perMonth(clientCents, bill.interval),
-          count: bill.workspaces,
-        })
-      : null
+  const price = planPrice(prices.perMonth(bill.seatCents, bill.interval))
+  const unit = partner
+    ? t('common.plan.clientSeats', { seat: prices.perMonth(clientCents, bill.interval), count: bill.workspaces })
+    : t('common.plan.perWorkspace')
+  // A yearly plan's total: the partner fee with its client workspaces; a Cloud seat's "a year each" with more than one.
+  const planNote = partner
+    ? prices.yearNote(bill.seatCents + clientCents * bill.workspaces, bill.interval)
+    : prices.yearNote(bill.seatCents, bill.interval, bill.workspaces > 1)
+  const comped = t(partner ? 'settings.billing.plan.compedPartner' : 'settings.billing.plan.comped', {
+    count: bill.workspaces,
+  })
   const held = bill.heldForReview && (bill.status === 'active' || bill.status === 'trialing')
 
   async function resume() {
@@ -412,34 +458,25 @@ function PlanCard({
         )
       }
     >
-      <div className="billing-plan">
-        <PriceLine note={planNote}>{plan}</PriceLine>
-        {clients && <PriceLine note={prices.yearNote(clientCents, bill.interval, true)}>{clients}</PriceLine>}
-        {line && (
-          <span className="help">
-            {line.days !== undefined
-              ? t(line.key, { date: date(line.date), count: line.days })
-              : t(line.key, { date: date(line.date) })}
-          </span>
-        )}
-        {bill.status === 'trialing' && (
-          <span className="help">
-            {t('settings.billing.plan.trialNote')}
-            {!bill.autoRecharge.on && ` ${t('settings.billing.plan.trialAutoOff')}`}
-          </span>
-        )}
-        {bill.taxed && <span className="help">{t('settings.billing.plan.taxNote')}</span>}
-        {bill.taxAddressMissing && <span className="help">{t('settings.billing.plan.taxAddressMissing')}</span>}
-        {bill.extraNumberCents > 0 && (
-          <span className="help">
-            {t(partner ? 'settings.billing.plan.numbersPartner' : 'settings.billing.plan.numbers', {
-              price: format.currency(centsToDollars(bill.extraNumberCents), 'USD', {
-                minimumFractionDigits: bill.extraNumberCents % 100 ? 2 : 0,
-              }),
-            })}
-          </span>
-        )}
-      </div>
+      {pays ? (
+        <PlanCard
+          bare
+          price={price}
+          unit={unit}
+          note={planNote}
+          prices={bill.prices}
+          perClient={partner}
+          calls={partner ? null : bill.calls}
+          tax={bill.taxed}
+        >
+          <BillFacts bill={bill} line={line} date={date} />
+        </PlanCard>
+      ) : (
+        <div className="billing-plan">
+          <PriceLine note={null}>{comped}</PriceLine>
+          <BillFacts bill={bill} line={line} date={date} />
+        </div>
+      )}
       {held && (
         <Note tone="warning" title={t('settings.billing.held.title')}>
           {supportEmail

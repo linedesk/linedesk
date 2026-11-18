@@ -13,7 +13,8 @@ import { askTermsAgain } from '../shell/TermsUpdate.tsx'
 import { useAssistantName } from '../store.tsx'
 import { Icon, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
-import { PriceLine, usePrice } from '../ui/price.tsx'
+import { PlanCard, usePlanPrice } from '../ui/PlanCard.tsx'
+import { usePrice } from '../ui/price.tsx'
 import { useExtraCalls } from './ExtraCalls.tsx'
 import { activationTimeline, type TimelineEntry } from './flow.ts'
 import { Foot, useStepKeys } from './Frame.tsx'
@@ -129,53 +130,49 @@ export function useStartTrial(me: Me, a: Activation, onTermsChanged: () => void,
 
 /**
  * What the owner reads before starting: the plan's price a month (a yearly plan's total in the grey note under it,
- * ui/price.tsx), the first charge's real amount in the dated timeline, an error from the last try and that the plan renews until
- * cancelled. No terms: accepted at sign-up.
+ * ui/price.tsx), the first charge's real amount in the dated timeline and an error from the last try. No terms (accepted
+ * at sign-up) and no renewal line (Stripe Checkout's own note carries it).
  */
 export function ActivatePlan({ activation: a, trial: s }: { activation: Activation; trial: StartTrial }) {
   const t = useT()
-  const format = useFormat()
   const [now] = useState(() => new Date())
   const prices = usePrice()
+  const planPrice = usePlanPrice()
   const usd = prices.money
   const yearly = a.interval === 'year'
   // What the first charge is with the extra calls: they are billed at the plan's interval (a year is 12 months).
   const extraMonthlyCents = s.extraCalls * (a.calls?.extraCallCents ?? 0)
   const totalCents = a.planCents + extraMonthlyCents * (yearly ? 12 : 1)
-  // "5¢", as the plan is priced (format.centRate).
-  const perMinute = format.centRate(a.standardMicrosPerMinute / 1_000_000, 'USD')
   const timeline = activationTimeline(a, now)
   return (
     <>
-      <div className="ob-activate-plan">
-        <PriceLine note={prices.yearNote(a.planCents, a.interval)}>
-          {t('onboarding.activate.perMonthWorkspace', { price: prices.perMonth(a.planCents, a.interval) })}
-        </PriceLine>
-        <span>
-          {t('onboarding.activate.includes', { minutes: a.includedMinutes, perMinute })}
-          {s.trial ? ` ${t('onboarding.activate.trialFree', { days: a.trialDays })}` : ''}
-        </span>
+      {/* The shared plan card (ui/PlanCard.tsx): the value first, the conditions in one grey line; the dates,
+          reminders and cancelling are the timeline's, not repeated there. */}
+      <PlanCard
+        badge={s.trial && a.trialDays ? t('common.plan.trialBadge', { days: a.trialDays }) : null}
+        price={planPrice(prices.perMonth(a.planCents, a.interval))}
+        unit={t('common.plan.perWorkspace')}
+        note={prices.yearNote(a.planCents, a.interval)}
+        prices={a.prices}
+        calls={a.calls}
+      >
         {s.extraCalls > 0 && (
-          <span>
+          <span className="help">
             {t('onboarding.activate.extraCalls', {
               count: (a.calls?.included ?? 0) + s.extraCalls,
               price: usd(extraMonthlyCents),
             })}
           </span>
         )}
-      </div>
+      </PlanCard>
       <ol className="ob-timeline" aria-label={t('onboarding.activate.timelineLabel')}>
         {timeline.map(entry => (
           <TimelineRow key={entry.kind} entry={entry} amount={usd(totalCents)} />
         ))}
       </ol>
       {s.error && <Note tone="danger">{s.error}</Note>}
-      {a.terms ? (
-        // The renewal, said next to the button (auto-renewal disclosure); the terms were accepted at sign-up.
-        <p className="ob-activate-fine">{t('onboarding.activate.renews')}</p>
-      ) : (
-        <Note tone="danger">{t('auth.checkout.startFailed')}</Note>
-      )}
+      {/* No renewal line here: Stripe Checkout's own note says what is charged and when; the terms were accepted at sign-up. */}
+      {!a.terms && <Note tone="danger">{t('auth.checkout.startFailed')}</Note>}
     </>
   )
 }

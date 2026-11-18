@@ -30,7 +30,9 @@ export function useStepKeys(keys: Keys) {
       }
       if (e.key !== 'Enter' || e.shiftKey || !onEnter) return
       const tag = (e.target as HTMLElement | null)?.tagName
-      if (tag === 'BUTTON' || tag === 'A' || (tag === 'TEXTAREA' && !(e.metaKey || e.ctrlKey))) return
+      // A focused summary opens its details (the activate step's "See all prices"), never the step's primary.
+      if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY' || (tag === 'TEXTAREA' && !(e.metaKey || e.ctrlKey)))
+        return
       e.preventDefault()
       onEnter()
     }

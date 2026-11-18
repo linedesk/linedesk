@@ -16,6 +16,13 @@ import {
 } from './PartnerSetup.tsx'
 
 const price = { interval: 'year' as const, planCents: 1400, seatCents: 900 }
+const prices = {
+  includedMinutes: 50,
+  standardMicrosPerMinute: 50_000,
+  premiumMicrosPerMinute: 100_000,
+  ultraMicrosPerMinute: 200_000,
+  extraNumberCents: 300,
+}
 type Bill = NonNullable<PartnerData['bill']>
 
 const client = (i: number): PartnerData['clients'][number] => ({
@@ -38,7 +45,7 @@ const partnerData = (over: {
   members: [],
   invitations: [],
   clients: Array.from({ length: over.clients ?? 0 }, (_, i) => client(i)),
-  bill: over.bill === null ? null : { status: over.bill ?? 'pending_payment', mine: over.mine ?? true, price },
+  bill: over.bill === null ? null : { status: over.bill ?? 'pending_payment', mine: over.mine ?? true, price, prices },
 })
 
 const clientsHtml = (data: PartnerData, frozen = false) =>
@@ -81,18 +88,24 @@ test('what Checkout charges: the base fee and a seat per client workspace, for a
 })
 
 const totalHtml = (interval: 'year' | 'month', clients: number) =>
-  renderToStaticMarkup(<PartnerTotal price={{ ...price, interval }} clients={clients} />)
+  renderToStaticMarkup(<PartnerTotal price={{ ...price, interval }} prices={prices} clients={clients} />)
 
-test('Activate: the price a month leads, what Checkout charges today is the grey note', () => {
-  expect(totalHtml('year', 2)).toBe(
-    '<div class="price-line"><b>$14 a month + $9 a month × 2 client workspaces</b><span class="help">$384 billed yearly, charged today</span></div>',
+test('Activate: the shared plan card, the price a month leads, what Checkout charges today is the grey note', () => {
+  expect(totalHtml('year', 2)).toContain(
+    '<div class="price-line"><b><span class="plan-card-price">$14 a month</span> <span class="plan-card-unit">+ $9 a month × 2 client workspaces</span></b><span class="help">$384 billed yearly, charged today</span></div>',
   )
+  // No drafts yet: what each client workspace will cost, the total of the base fee alone.
   expect(totalHtml('year', 0)).toContain(
-    '<b>$14 a month</b><span class="help">$168 billed yearly, charged today</span>',
+    '<span class="plan-card-unit">+ $9 a month per client workspace</span></b><span class="help">$168 billed yearly, charged today</span>',
   )
   expect(totalHtml('month', 1)).toContain(
-    '<b>$14 a month + $9 a month × 1 client workspace</b><span class="help">$23 charged today, then every month</span>',
+    '+ $9 a month × 1 client workspace</span></b><span class="help">$23 charged today, then every month</span>',
   )
+  // No trial for a partner: no badge; the value rows per client workspace and "See all prices", as everywhere.
+  const html = totalHtml('year', 2)
+  expect(html).not.toContain('days free')
+  expect(html).toContain('50 call minutes included per client workspace each month')
+  expect(html).toContain('See all prices')
 })
 
 const activateHtml = (clients: number) =>
@@ -111,7 +124,7 @@ test('Activate is the end of the setup: each draft with Remove, the total, only 
   expect(three).not.toContain('first')
   const none = activateHtml(0)
   expect(none).not.toContain('>Remove<')
-  expect(none).toContain('<b>$14 a month</b>')
+  expect(none).toContain('$14 a month</span> <span class="plan-card-unit">+ $9 a month per client workspace</span>')
 })
 
 const clientsStepHtml = (clients: number) =>

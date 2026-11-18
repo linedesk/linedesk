@@ -785,6 +785,14 @@ describe('the partner bill (S2)', () => {
       mine: true,
       // What White-label Cloud and each client workspace cost a month at the bill's interval (the Activate note).
       price: { interval: 'month', planCents: expect.any(Number), seatCents: expect.any(Number) },
+      // The plan card's prices (ui/PlanCard.tsx): included minutes per client workspace, the levels, an extra number.
+      prices: {
+        includedMinutes: 50,
+        standardMicrosPerMinute: 50_000,
+        premiumMicrosPerMinute: 100_000,
+        ultraMicrosPerMinute: null,
+        extraNumberCents: 300,
+      },
     })
     const admin = await addPartnerAdmin(p)
     // An admin of the team makes client workspaces too; the bill is not theirs.

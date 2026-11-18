@@ -325,6 +325,22 @@ export type ActivationFacts = ActivationDisclosure & {
    * there (more in steps of `step`, up to `maxExtra`, at `extraCallCents` a month per extra call).
    */
   calls: { included: number; step: number; maxExtra: number; extraCallCents: number }
+  /** The install's prices for the plan card and its "See all prices" (ui/PlanCard.tsx). */
+  prices: PlanPrices
+}
+
+/**
+ * What the shared plan card shows besides the plan's own price (Janik, 2026-11-18; web ui/PlanCard.tsx), the same facts
+ * on the activation step, the partner's Activate step and Settings › Billing: the included minutes per workspace and
+ * period, the Standard price a minute after them, Premium and Ultra a minute (null while the server admin has the level
+ * off), all in micros, and an extra phone number a month in cents (0 on a comped bill).
+ */
+export type PlanPrices = {
+  includedMinutes: number
+  standardMicrosPerMinute: number
+  premiumMicrosPerMinute: number | null
+  ultraMicrosPerMinute: number | null
+  extraNumberCents: number
 }
 
 /**

@@ -2,6 +2,7 @@
 // approved or suspended by an instance admin, and client workspaces whose admins are the partner's team. Every partner
 // action names its partner; the API checks the caller is on that partner's team (apps/api/src/partners.ts), so a
 // member of one partner reaches nothing of another.
+import type { PlanPrices } from '@linedesk/db/types'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 import { workspaceName } from './settings.ts'
@@ -375,6 +376,8 @@ export type PartnerBillSummary = {
    * workspace's seat ("Activate White-label Cloud" shows it while the bill waits for its Checkout).
    */
   price: { interval: 'month' | 'year'; planCents: number; seatCents: number }
+  /** The install's prices for the plan card on Activate (ui/PlanCard.tsx), per client workspace. */
+  prices: PlanPrices
 }
 
 /** `partner.get`. Invitations only for the owner (the admins see the team, not who is invited). */

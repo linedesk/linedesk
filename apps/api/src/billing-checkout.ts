@@ -38,6 +38,7 @@ import {
   organization,
   partners,
   phone_numbers,
+  type PlanPrices,
   planPrice,
   rechargeCapCents,
   type TRIAL_REFUSALS,
@@ -57,6 +58,7 @@ import { pricesForCheckout } from './billing-catalog.ts'
 import { billingRules, isLinedeskPlan, planCatalog, reminderDaysFor } from './billing-rules.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
 import { brandName, currentBranding } from './branding.ts'
+import { enabledLevels } from './call-quality.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { checkoutExtraAlert, checkoutRefusedAlert, checkoutSetupAlert } from './emails/billing-alerts.ts'
@@ -440,6 +442,23 @@ export async function activationFacts(tx: Tx, bill: Bill, rules: BillingRules, n
       maxExtra: bill.kind === 'cloud' ? maxExtraCalls(rules) : 0,
       extraCallCents: rules.extraCallCents,
     },
+    prices: await planPrices(tx, rules),
+  }
+}
+
+/**
+ * The install's prices the plan card shows (ui/PlanCard.tsx): the included minutes and the price a minute of each level
+ * the server admin has on (call-quality.ts `enabledLevels`), and an extra number. `comped`: a bill that pays nothing
+ * for its numbers.
+ */
+export async function planPrices(tx: Tx, rules: BillingRules, { comped = false } = {}): Promise<PlanPrices> {
+  const levels = await enabledLevels(tx)
+  return {
+    includedMinutes: Math.floor(rules.includedStandardSeconds / 60),
+    standardMicrosPerMinute: rules.levels.standard.microsPerMinute,
+    premiumMicrosPerMinute: levels.premium ? rules.levels.premium.microsPerMinute : null,
+    ultraMicrosPerMinute: levels.ultra ? rules.levels.ultra.microsPerMinute : null,
+    extraNumberCents: comped ? 0 : rules.extraNumberCents,
   }
 }
 

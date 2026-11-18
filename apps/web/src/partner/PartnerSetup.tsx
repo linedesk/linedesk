@@ -7,6 +7,7 @@
 // 2026-11-18: one Activate screen). Approval never stops anything here: it only gates the brand in emails, said
 // quietly on the brand step. The top bar and the footer are the setup pages' own (SetupTopBar, SetupFoot).
 import type { MyPartner, PartnerBrandData, PartnerClient, PartnerData } from '@linedesk/actions'
+import type { PlanPrices } from '@linedesk/db/types'
 import { UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
@@ -32,6 +33,7 @@ import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { List, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
+import { PlanCard, usePlanPrice } from '../ui/PlanCard.tsx'
 import { PriceLine, usePrice } from '../ui/price.tsx'
 import { NewClientDialog, roomForClient, unpaidPartner } from './PartnerArea.tsx'
 import {
@@ -99,34 +101,37 @@ export function PartnerPrice({
 }
 
 /**
- * What Activate costs with these drafts (ui/price.tsx): the price a month first ("$14 a month + $9 a month × 2 client
- * workspaces"), and what Checkout charges right after as the grey note ("$384 billed yearly, charged today").
+ * What Activate costs with these drafts, in the shared plan card (ui/PlanCard.tsx): the price a month first ("$14 a
+ * month", "+ $9 a month × 2 client workspaces" next to it), what Checkout charges right after as the grey note ("$384
+ * billed yearly, charged today"), the included minutes per client workspace and the price a minute after them, the
+ * tax line and "See all prices". No trial for a partner, so no badge.
  */
 export function PartnerTotal({
   price,
+  prices,
   clients,
 }: {
   price: { interval: 'month' | 'year'; planCents: number; seatCents: number }
+  prices: PlanPrices | null | undefined
   clients: number
 }) {
   const t = useT()
   const { money } = usePrice()
+  const planPrice = usePlanPrice()
   const total = money(partnerChargeCents(price, clients))
   return (
-    <PriceLine
+    <PlanCard
+      price={planPrice(money(price.planCents))}
+      unit={t('common.plan.clientSeats', { seat: money(price.seatCents), count: clients })}
       note={t(
         price.interval === 'year'
           ? 'team.partner.setup.activate.chargedYearly'
           : 'team.partner.setup.activate.chargedMonthly',
         { total },
       )}
-    >
-      {t('team.partner.setup.activate.price', {
-        price: money(price.planCents),
-        seat: money(price.seatCents),
-        count: clients,
-      })}
-    </PriceLine>
+      prices={prices}
+      perClient
+    />
   )
 }
 
@@ -475,9 +480,7 @@ export function ActivateStep({ data, onBack }: { data: PartnerData; onBack: () =
             ))}
           </List>
         )}
-        <div className="ob-activate-plan">
-          <PartnerTotal price={data.bill!.price} clients={clients.length} />
-        </div>
+        <PartnerTotal price={data.bill!.price} prices={data.bill!.prices} clients={clients.length} />
         {problem && <FormMessage>{problem}</FormMessage>}
       </div>
       <SetupFoot

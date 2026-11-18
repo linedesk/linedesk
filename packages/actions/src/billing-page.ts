@@ -2,7 +2,12 @@
 // Cancel, resume and "Buy minutes" are billing-checkout.ts; the status and its dates are `billing.state`. Only the owner
 // of the bill (the handlers check it is the bill's owner, not only the workspace's), signed in to the app: never an API
 // key, a personal key, a setup link or an impersonation, for the overview (its invoice links) as for the writes.
-import { EXTRA_CALLS_STEP, RECHARGE_CAP_SELF_SERVE_MAX_CENTS, RECHARGE_LIMITS } from '@linedesk/db/types'
+import {
+  EXTRA_CALLS_STEP,
+  type PlanPrices,
+  RECHARGE_CAP_SELF_SERVE_MAX_CENTS,
+  RECHARGE_LIMITS,
+} from '@linedesk/db/types'
 import { z } from 'zod'
 import { billTarget } from './billing-checkout.ts'
 import { defineAction } from './define.ts'
@@ -87,6 +92,8 @@ export type BillingOverviewBill = {
   heldForReview: boolean
   /** The monthly price of each extra number (paid from the balance), the install's rules; 0 on a comped bill. */
   extraNumberCents: number
+  /** The install's prices for the plan card (ui/PlanCard.tsx); `extraNumberCents` 0 on a comped bill. */
+  prices: PlanPrices
   /** Buy minutes and the Stripe portal are open (a Stripe customer, in the trial or paid). */
   canBuyMinutes: boolean
   hasPortal: boolean
