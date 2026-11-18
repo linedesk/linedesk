@@ -32,6 +32,7 @@ import { brandName } from '../brand.ts'
 import { BrandMark, Button, Note } from '../ui/kit.tsx'
 import { leaveInstallSetup } from './leave-install-setup.ts'
 import { Loading, problemText, SkeletonFields } from '../ui/LoadStates.tsx'
+import { SetupAccountMenu } from '../shell/SetupAccountMenu.tsx'
 import { HostingNote, openAgentSetup } from './AgentSetup.tsx'
 import '../admin/admin.css'
 import './agent-setup.css'
@@ -83,9 +84,14 @@ const RESTART_POLL_MS = 2500
 type Props = {
   /** Leave the walkthrough: on to the business setup, or the app as it is. */
   onExit: () => void
+  /**
+   * Back to the agent setup page (App.tsx): in the top bar of every step between the welcome (which offers it in its
+   * note) and the last, as in the business setup's frame (Frame.tsx).
+   */
+  onAgentSetup?: () => void
 }
 
-export function InstallSetup({ onExit }: Props) {
+export function InstallSetup({ onExit, onAgentSetup }: Props) {
   const t = useT()
   const from = useRef(openFrom)
   useEffect(() => {
@@ -176,9 +182,23 @@ export function InstallSetup({ onExit }: Props) {
                 })
               : t('onboarding.install.countStep', { step: t(stepLabelKeys[step]) })}
         </span>
+        {onAgentSetup && step && step !== 'welcome' && step !== 'done' && (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="spark"
+            className="ob-agent"
+            onClick={onAgentSetup}
+            aria-label={t('onboarding.frame.agent')}
+            title={t('onboarding.frame.agentTitle')}
+          >
+            {t('onboarding.frame.agent')}
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={later} title={t('onboarding.install.laterTip')}>
           {t('onboarding.install.later')}
         </Button>
+        <SetupAccountMenu />
       </div>
       <div className="ob-bar">
         <span style={{ width: `${Math.round((index / (installSteps.length - 1)) * 100)}%` }} />

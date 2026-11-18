@@ -2,6 +2,7 @@
 // not to the browser (LIN-181). It is kept on the server with the install progress (`setup.install`, manualBy), so a
 // new install, or another admin of the same one, starts on the agent setup page again. The browser's old
 // `linedesk.setup.manual` is ignored: it outlived the install it was made on.
+import { AGENT_SETUP_HASH } from '@linedesk/actions'
 import { runAdmin } from '../admin/api.ts'
 import type { Me } from '../auth.ts'
 
@@ -93,3 +94,43 @@ export function rememberPartnerByHand(partnerId: string, on: boolean) {
 /** Where the partner's owner lands after the partner Checkout: the agent setup, unless they chose by hand here. */
 export const partnerLanding = (partnerId: string | null) =>
   partnerId && !partnerChoseByHand(partnerId) ? PARTNER_AGENT_HASH : '#partner'
+
+/**
+ * Which agent setup page someone setting up by hand can go back to (2026-11-18): every step of the step-by-step setup
+ * offers it in its top bar ("Set up with an AI agent"), for the people the page itself is for. An instance admin: the
+ * install's page (#setup-agent). A workspace owner: their workspace's page, by the same rules that open it on its own
+ * (`ownerAgentSetupDue`). The owner of the white-label partner whose client workspace this is: the partner's page
+ * (#partner/agent), as from the partner area's top bar. Nobody while impersonating.
+ */
+export type AgentSetupWayBack = 'install' | 'owner' | 'partner' | null
+
+export function agentSetupWayBack(
+  me: Pick<Me, 'role' | 'onboarding' | 'impersonation' | 'emailUnconfirmed' | 'workspace' | 'partners'>,
+  { instanceAdmin }: { instanceAdmin: boolean },
+): AgentSetupWayBack {
+  if (me.impersonation) return null
+  if (instanceAdmin) return 'install'
+  if (ownerAgentSetupDue(me, { instanceAdmin, hashOpen: true, byHand: true })) return 'owner'
+  const partner = me.partners?.[0]
+  if (me.workspace?.viaPartner && partner?.role === 'owner' && partner.status !== 'suspended') return 'partner'
+  return null
+}
+
+/**
+ * Goes back to that agent setup page and forgets the choice to go by hand, where it is kept: on the server for an
+ * instance admin, in this browser for this workspace's or this partner's owner. Nothing else changes: the page goes on
+ * from what is saved.
+ */
+export function backToAgentSetup(way: Exclude<AgentSetupWayBack, null>, me: Pick<Me, 'workspace' | 'partners'>): void {
+  if (way === 'install') {
+    rememberManual(false)
+    window.location.hash = AGENT_SETUP_HASH
+  } else if (way === 'owner') {
+    if (me.workspace) rememberOwnerByHand(me.workspace.id, false)
+    window.location.hash = AGENT_SETUP_HASH
+  } else {
+    const partner = me.partners?.[0]
+    if (partner) rememberPartnerByHand(partner.id, false)
+    window.location.hash = PARTNER_AGENT_HASH
+  }
+}

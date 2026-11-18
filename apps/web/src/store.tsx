@@ -186,6 +186,11 @@ export function useStore() {
   return useCtx().store
 }
 
+/** The store, or null outside a StoreProvider (a setup page before or without a workspace's data). */
+export function useOptionalStore() {
+  return useContext(StoreContext)?.store ?? null
+}
+
 export function useRejection() {
   const { rejection, clearRejection } = useCtx()
   return { rejection, clearRejection }

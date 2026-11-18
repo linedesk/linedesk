@@ -52,6 +52,7 @@ import { callAction } from '../settings/settings-api.ts'
 import { dateTimeLabel, untilLabel } from '../time.ts'
 import { HelpTip } from '../ui/HelpTip.tsx'
 import { LoadProblem, Skeleton, SkeletonChecklist, SkeletonPart, useLoading } from '../ui/LoadStates.tsx'
+import { SetupAccountMenu } from '../shell/SetupAccountMenu.tsx'
 import { BrandMark, Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
 import { MarkGlyph } from '../ui/StatusMark.tsx'
 import { AgentPicker } from './AgentPicker.tsx'
@@ -372,6 +373,7 @@ export function AgentSetup({
             {t('onboarding.frame.finishLater')}
           </Button>
         )}
+        <SetupAccountMenu workspaceId={active?.id} />
       </div>
       <div className="ob-main as-main">
         <div className={cx('ob-body', view.fadeIn && 'ld-in')}>

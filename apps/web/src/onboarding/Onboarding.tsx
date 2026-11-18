@@ -49,6 +49,8 @@ type Props = {
   onRenamed: (name: string) => void
   /** Reads `me` again (the activation step: the terms changed while it was open). */
   onReload?: () => void
+  /** Back to the agent setup page (setup-choice.ts, `agentSetupWayBack`): in the top bar of every step but the last. */
+  onAgentSetup?: () => void
 }
 
 /** An instance admin can open Admin from here (the setup checklist) and come back to the same step. */
@@ -66,7 +68,7 @@ export function Onboarding(props: Props) {
   return <OnboardingFlow {...props} />
 }
 
-function OnboardingFlow({ me, state, onDone, onRenamed, onReload }: Props) {
+function OnboardingFlow({ me, state, onDone, onRenamed, onReload, onAgentSetup }: Props) {
   const t = useT()
   const run = useRun()
   const firstUse = me.firstUse ?? 'off'
@@ -125,6 +127,7 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload }: Props) {
       complete={step === 'done' || (step === 'phone' && hasNumber)}
       // Nothing to finish later before the trial: the app opens only once it runs.
       onSkip={step === 'done' || activating ? undefined : skip}
+      onAgentSetup={step === 'done' ? undefined : onAgentSetup}
     >
       <SaveErrors saves={saves} step={step} steps={steps} onOpen={go} />
       {me.emailUnconfirmed && !confirmed && (

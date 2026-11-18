@@ -111,7 +111,8 @@ type Props = {
   onSignOut: () => void
 }
 
-function Item({ label, icon, keys, onClick }: { label: string; icon: IconName; keys?: string[]; onClick: () => void }) {
+/** One row of the menu (also the setup pages' account menu, SetupAccountMenu.tsx). */
+export function Item({ label, icon, keys, onClick }: { label: string; icon: IconName; keys?: string[]; onClick: () => void }) {
   return (
     <button type="button" role="menuitem" className="nav-item" title={label} onClick={onClick}>
       <Icon name={icon} size={15} />

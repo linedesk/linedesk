@@ -803,6 +803,13 @@ body { font-size: 13px; }
 .ob-top > b { font-size: 14px; font-weight: 600; }
 .ob-top .ws-mark { margin: 0; }
 .ob-count { margin-left: auto; font-size: 12px; color: var(--ink-muted); }
+/* The setup pages' account menu (shell/SetupAccountMenu.tsx): a round button with the person's initials, last in the top bar. On a phone the step count shortens to "1/7", the brand shows its mark only and "Set up with an AI agent" its spark (the words stay its name and tooltip). */
+.ob-count-short { display: none; font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.ob-me { flex: none; width: auto; }
+.ob-me-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--radius-full); background: transparent; cursor: pointer; }
+.ob-me-btn:hover, .ob-me-btn[aria-expanded="true"] { background: var(--surface-hover); }
+.ob-me-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.ob-me-notice { margin: 2px 8px 4px; font-size: 12px; line-height: 16px; color: var(--ink-muted); }
 .ob-bar { height: 2px; background: var(--line); flex: none; }
 .ob-bar span { display: block; height: 100%; background: var(--action); }
 @media (prefers-reduced-motion: no-preference) { .ob-bar span { transition: width .3s ease-out; } }
@@ -852,7 +859,7 @@ body { font-size: 13px; }
 .ob-badge { width: 48px; height: 48px; border-radius: var(--radius-full); display: grid; place-items: center; background: var(--highlight); color: var(--action); }
 .ob-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
 .ob-foot .k-btn { height: var(--control-h-lg); padding: 0 16px; font-size: 13.5px; }
-@media (max-width: 719px) { .ob h1 { font-size: 23px; line-height: 29px; } .ob-row { grid-template-columns: minmax(0, 1fr) auto; } .ob-s { display: none; } .ob-count { display: none; } .ob-top .k-btn { margin-left: auto; } }
+@media (max-width: 719px) { .ob h1 { font-size: 23px; line-height: 29px; } .ob-row { grid-template-columns: minmax(0, 1fr) auto; } .ob-s { display: none; } .ob-count { display: none; } .ob-top > b { display: none; } .ob-top .ws-mark { margin-right: auto; } .ob-count-short { display: inline; } .ob-agent > span { display: none; } }
 
 .sum-grid { grid-template-columns: minmax(0, 1fr); }
 

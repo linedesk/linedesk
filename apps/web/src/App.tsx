@@ -14,6 +14,8 @@ import {
 import { onUnauthorized } from './signedOutWatch.ts'
 import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from './onboarding/AgentSetup.tsx'
 import {
+  agentSetupWayBack,
+  backToAgentSetup,
   ownerAgentSetupDue,
   ownerChoseByHand,
   PARTNER_AGENT_HASH,
@@ -469,12 +471,26 @@ export function App() {
   // Onboarding opens before Workspace (which sets it too): its admin-only links need the audience as well.
   setProviderAudience(isInstanceAdmin(session.me) ? 'admin' : 'member')
   const settingUp = session.me.onboarding && !onboarded
+  // Set up by hand after all: every step's "Set up with an AI agent" goes back to the agent setup page, which goes on
+  // from what is saved, and the choice to go by hand is forgotten (setup-choice.ts: on the server for an instance admin,
+  // in this browser for a workspace's or a partner's owner), as the partner area's top bar does.
+  const wayBack = agentSetupWayBack(session.me, { instanceAdmin })
+  const meNow = session.me
+  const backToAgent = wayBack
+    ? () => {
+        // This tab's own memory of the choice goes too.
+        if (wayBack === 'install') setManualSetup(false)
+        if (wayBack === 'owner') setOwnerByHand(false)
+        backToAgentSetup(wayBack, meNow)
+      }
+    : undefined
   // The install by hand, step by step (InstallSetup.tsx); leaving it goes on to the business setup.
   if (instanceAdmin && installSetupHash) {
     if (session.me.adminSecondFactor)
       return <SecondFactorPrompt state={session.me.adminSecondFactor} onExit={() => (window.location.hash = '')} />
     return (
       <InstallSetup
+        onAgentSetup={backToAgent}
         onExit={() => {
           // However it was opened, leaving it goes on to the business setup, not back to the agent page.
           rememberManual(true)
@@ -592,6 +608,7 @@ export function App() {
               onDone={() => setOnboarded(true)}
               onRenamed={renamed}
               onReload={() => void refresh()}
+              onAgentSetup={backToAgent}
             />
           ) : (
             <Workspace

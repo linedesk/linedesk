@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { auth } from '../auth.ts'
 import { forgetLocalData } from '../localData.ts'
 import { stopPushOnSignOut } from '../push.ts'
-import { useStore } from '../store.tsx'
+import { useOptionalStore } from '../store.tsx'
 import { clearRoute } from './useRoute.ts'
 import { i18n } from '../i18n/index.tsx'
 
@@ -16,11 +16,13 @@ type Options = { onSignedOut: () => void | Promise<void>; toast: (text: string) 
  * the first attempt only says so; signing out again discards them.
  */
 export function useSignOut({ onSignedOut, toast }: Options) {
-  const store = useStore()
+  // Outside a workspace's data (a setup page without one) there is nothing unsent to wait for.
+  const store = useOptionalStore()
   const warnedAbout = useRef(0)
 
   /** Give the outbox a moment to empty; returns how many changes are still unsent. */
   async function unsentAfterFlush(): Promise<number> {
+    if (!store) return 0
     const deadline = Date.now() + SETTLE_MS
     while (store.getSnapshot().pending > 0 && store.getSnapshot().online && Date.now() < deadline) {
       await store.flush()

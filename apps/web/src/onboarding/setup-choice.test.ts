@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../admin/api.ts', () => ({ runAdmin: vi.fn(async () => ({})) }))
 const {
+  agentSetupWayBack,
+  backToAgentSetup,
   choseManualSetup,
   ownerAgentSetupDue,
   ownerChoseByHand,
@@ -131,5 +133,83 @@ describe("a partner owner's way after the partner Checkout (2026-11-18)", () => 
     expect(partnerLanding('p_1')).toBe('#partner/agent')
     // No partner in the return address: the partner area.
     expect(partnerLanding(null)).toBe('#partner')
+  })
+})
+
+describe('set up by hand after all: every step goes back to the agent setup (2026-11-18)', () => {
+  const onboarding = {
+    step: 'pickup' as const,
+    phone: { provider: null, available: false, detail: null, canAttach: false },
+  }
+  const owner = {
+    role: 'owner',
+    onboarding,
+    impersonation: null,
+    workspace: { id: 'ws_1', name: 'Brightwater' },
+    partners: [] as unknown[],
+  }
+  const way = (me: Record<string, unknown>, instanceAdmin = false) =>
+    agentSetupWayBack({ ...owner, ...me } as never, { instanceAdmin })
+  const partnerOwner = { id: 'p_1', name: 'Northline', status: 'active', role: 'owner' }
+
+  it("an instance admin: the install's page; a workspace owner: their workspace's page", () => {
+    expect(way({}, true)).toBe('install')
+    expect(way({ role: 'member' }, true)).toBe('install')
+    expect(way({})).toBe('owner')
+    // A trial sign-up waiting for its card: the agent page has the Start your trial row.
+    expect(way({ workspace: { id: 'ws_1', name: 'B', billingState: 'pending_payment' } })).toBe('owner')
+  })
+
+  it("the partner's owner in one of its client workspaces: the partner's page", () => {
+    const client = { id: 'ws_2', name: 'Client', viaPartner: true }
+    expect(way({ role: 'admin', workspace: client, partners: [partnerOwner] })).toBe('partner')
+    // The client's own owner: their workspace's page.
+    expect(way({ workspace: client, partners: [] })).toBe('owner')
+  })
+
+  it('nobody the agent setup is not for: a member or admin, a partner admin, a suspended partner, an impersonation', () => {
+    expect(way({ role: 'admin' })).toBeNull()
+    expect(way({ role: 'member' })).toBeNull()
+    const client = { id: 'ws_2', name: 'Client', viaPartner: true }
+    expect(way({ role: 'admin', workspace: client, partners: [{ ...partnerOwner, role: 'admin' }] })).toBeNull()
+    expect(way({ role: 'admin', workspace: client, partners: [{ ...partnerOwner, status: 'suspended' }] })).toBeNull()
+    // The partner's owner in a workspace that is not a client of theirs.
+    expect(way({ role: 'admin', partners: [partnerOwner] })).toBeNull()
+    expect(way({ impersonation: { by: 'x' } }, true)).toBeNull()
+    expect(way({ impersonation: { by: 'x' } })).toBeNull()
+    // The same rules as the owner's page itself: a confirmed address, a workspace that is not disabled.
+    expect(way({ emailUnconfirmed: true })).toBeNull()
+    expect(way({ workspace: { id: 'ws_1', name: 'B', disabled: true } })).toBeNull()
+    const onlyCard = { ...onboarding, step: 'activate', onlyCard: true }
+    expect(
+      way({ onboarding: onlyCard, workspace: { id: 'ws_1', name: 'B', billingState: 'pending_payment' } }),
+    ).toBeNull()
+  })
+
+  describe('going back forgets the choice to go by hand, and nothing else', () => {
+    beforeEach(() => vi.stubGlobal('window', { location: { hash: '' } }))
+
+    it('an instance admin: on the server, then the agent page', () => {
+      backToAgentSetup('install', owner as never)
+      expect(vi.mocked(runAdmin).mock.calls).toEqual([['install.setProgress', { manual: false }]])
+      expect(window.location.hash).toBe('#setup-agent')
+    })
+
+    it("a workspace owner: this workspace's choice in this browser, then the agent page", () => {
+      rememberOwnerByHand('ws_1', true)
+      rememberOwnerByHand('ws_2', true)
+      backToAgentSetup('owner', owner as never)
+      expect(ownerChoseByHand('ws_1', false)).toBe(false)
+      expect(ownerChoseByHand('ws_2', false)).toBe(true)
+      expect(window.location.hash).toBe('#setup-agent')
+      expect(runAdmin).not.toHaveBeenCalled()
+    })
+
+    it("a partner's owner: this partner's choice in this browser, then the partner's agent page", () => {
+      rememberPartnerByHand('p_1', true)
+      backToAgentSetup('partner', { ...owner, partners: [partnerOwner] } as never)
+      expect(partnerChoseByHand('p_1')).toBe(false)
+      expect(window.location.hash).toBe('#partner/agent')
+    })
   })
 })

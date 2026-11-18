@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { BrandMark, Button } from '../ui/kit.tsx'
 import { onboardingSteps, progress, stepLabels, type OnboardingStep } from './flow.ts'
 import { brandName } from '../brand.ts'
+import { SetupAccountMenu } from '../shell/SetupAccountMenu.tsx'
 
 type Keys = { onEnter?: () => void; onEscape?: () => void }
 
@@ -53,6 +54,7 @@ export function Frame({
   counted = steps,
   edit = false,
   planOnly = false,
+  onAgentSetup,
   children,
 }: {
   step: OnboardingStep
@@ -73,6 +75,11 @@ export function Frame({
   edit?: boolean
   /** No free trial for this workspace's bill (the account or the card had one): `activate` starts the plan. */
   planOnly?: boolean
+  /**
+   * Set up by hand after all: "Set up with an AI agent" in the top bar, back to the agent setup page, which goes on from
+   * what is saved (setup-choice.ts, `agentSetupWayBack`). Only for someone that page is for.
+   */
+  onAgentSetup?: () => void
   children: ReactNode
 }) {
   const t = useT()
@@ -100,6 +107,23 @@ export function Frame({
             label: step === 'activate' && planOnly ? t('onboarding.steps.activatePlan') : stepLabels[step],
           })}
         </span>
+        {/* A phone's top bar: the count alone, next to the account menu. */}
+        <span className="ob-count-short" aria-hidden="true">
+          {t('onboarding.frame.stepShort', { step: counted.indexOf(step) + 1, total: counted.length })}
+        </span>
+        {onAgentSetup && (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="spark"
+            className="ob-agent"
+            onClick={onAgentSetup}
+            aria-label={t('onboarding.frame.agent')}
+            title={t('onboarding.frame.agentTitle')}
+          >
+            {t('onboarding.frame.agent')}
+          </Button>
+        )}
         {onSkip && (
           <Button
             size="sm"
@@ -110,6 +134,8 @@ export function Frame({
             {t(edit ? 'onboarding.frame.close' : 'onboarding.frame.finishLater')}
           </Button>
         )}
+        {/* Sign out or another workspace mid-setup; from the settings ("Step by step") the app's own menu is a Close away. */}
+        {!edit && <SetupAccountMenu />}
       </div>
       <div className="ob-bar">
         <span style={{ width: `${progress(step, complete, counted)}%` }} />

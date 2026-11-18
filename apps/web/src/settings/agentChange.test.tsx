@@ -13,6 +13,8 @@ vi.mock('./settings-api.ts', () => ({
 }))
 vi.mock('../store.tsx', () => ({ useRun: () => vi.fn(), useRows: () => [], useAssistants: () => [] }))
 vi.mock('../shell/WorkspaceSwitcher.tsx', () => ({ useWorkspaces: () => [] }))
+// The top bar's account menu (SetupAccountMenu.test.tsx): not about these pages.
+vi.mock('../shell/SetupAccountMenu.tsx', () => ({ SetupAccountMenu: () => null }))
 
 const { changeWithAgentHash, mayChangeWithAgent, parseChangeWithAgent, settingsHashOf } = await import(
   './agentChange.ts'
