@@ -149,12 +149,20 @@ function refusalText(t: ReturnType<typeof useT>, reason: CodeRefusal) {
   }
 }
 
-/** The Turnstile widget; `token` is null until it passed (or when it expired). */
+/**
+ * The Turnstile widget; `token` is null until it passed (or when it expired). `collapsed`: it passed without showing
+ * anything (an invisible widget), so its box gives back the room kept for it.
+ */
 function useTurnstile(siteKey: string | null) {
   const box = useRef<HTMLDivElement>(null)
   const [token, setToken] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const reset = useRef<() => void>(() => {})
+  useEffect(() => {
+    const widget = box.current?.firstElementChild
+    if (token && widget instanceof HTMLElement && widget.offsetHeight === 0) setCollapsed(true)
+  }, [token])
   useEffect(() => {
     if (!siteKey || !box.current) return
     let removed = false
@@ -180,7 +188,12 @@ function useTurnstile(siteKey: string | null) {
       if (widget) window.turnstile?.remove(widget)
     }
   }, [siteKey])
-  return { box, token, failed, reset: () => reset.current() }
+  return { box, token, failed, collapsed, reset: () => reset.current() }
+}
+
+/** Where the Turnstile widget renders: centered under the field, whatever its width (app.css `.auth-turnstile`). */
+export function TurnstileBox({ bot }: { bot: Pick<ReturnType<typeof useTurnstile>, 'box' | 'collapsed'> }) {
+  return <div ref={bot.box} className={cx('auth-turnstile', bot.collapsed && 'is-collapsed')} />
 }
 
 /** The first step. Plan `partner`: White-label Cloud's name and what it is for, with its free days (none: left out). */
@@ -231,7 +244,7 @@ export function EmailStep({
             autoFocus
             disabled={busy}
           />
-          {config.turnstileSiteKey && <div ref={bot.box} className="auth-turnstile" />}
+          {config.turnstileSiteKey && <TurnstileBox bot={bot} />}
           {bot.failed && <AuthError message={t('auth.signup.botCheckFailed')} />}
           <button
             type="submit"
@@ -335,7 +348,7 @@ function CodeStep({
           {busy && <Spinner />}
           {busy ? t('auth.checking') : t('auth.signup.continue')}
         </button>
-        {waitS <= 0 && config.turnstileSiteKey && <div ref={bot.box} className="auth-turnstile" />}
+        {waitS <= 0 && config.turnstileSiteKey && <TurnstileBox bot={bot} />}
         <div className="auth-links">
           <button type="button" className="auth-switch" disabled={waitS > 0} onClick={() => void resend()}>
             {waitS > 0 ? t('auth.code.resendIn', { seconds: waitS }) : t('auth.code.resend')}

@@ -802,9 +802,20 @@ body,
   text-align: center;
 }
 
-/* The sign-up page's bot check (Cloudflare Turnstile): its widget's height, kept so the button does not jump. */
+/*
+ * The sign-up page's bot check (Cloudflare Turnstile): centered in the column, as the widget has its own fixed width.
+ * Its height is kept, so the button does not jump; an invisible widget's box gives it back, with the column's gap,
+ * once it passed.
+ */
 .auth-turnstile {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
   min-height: 65px;
+}
+.auth-turnstile.is-collapsed {
+  min-height: 0;
+  margin-bottom: -12px;
 }
 
 /* Assistant instructions: room for a few paragraphs. */
