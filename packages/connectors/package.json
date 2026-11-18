@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "exports": { ".": "./src/index.ts" },
-  "scripts": { "typecheck": "tsc -p .", "test": "vitest run" },
+  "scripts": { "typecheck": "tsc -p . --checkers 1", "test": "vitest run" },
   "dependencies": { "libphonenumber-js": "^1.13.16" },
   "devDependencies": { "vitest": "^5.1.0" }
 }

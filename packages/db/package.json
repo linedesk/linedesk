@@ -6,7 +6,7 @@
   "scripts": {
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p . --checkers 1"
   },
   "dependencies": { "drizzle-orm": "^0.45.4", "pg": "^8.23.1" },
   "devDependencies": { "@types/node": "^26.6.6", "@types/pg": "^8.23.1", "drizzle-kit": "^0.31.11" }

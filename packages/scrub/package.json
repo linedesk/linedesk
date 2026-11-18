@@ -7,7 +7,7 @@
     "./sentry-node": "./src/sentry-node.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p .",
+    "typecheck": "tsc -p . --checkers 1",
     "test": "vitest run"
   },
   "dependencies": {

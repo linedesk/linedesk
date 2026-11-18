@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "exports": { ".": "./src/index.ts" },
-  "scripts": { "typecheck": "tsc -p .", "test": "vitest run" },
+  "scripts": { "typecheck": "tsc -p . --checkers 1", "test": "vitest run" },
   "dependencies": { "@linedesk/actions": "workspace:*", "@linedesk/db": "workspace:*", "@electric-sql/client": "^1.5.28" },
   "devDependencies": { "fake-indexeddb": "^6.2.8", "vitest": "^5.1.0" }
 }
