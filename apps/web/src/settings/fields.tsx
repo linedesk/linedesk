@@ -3,7 +3,9 @@ import { type ReactNode, useCallback, useState } from 'react'
 import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
 import { type HelpContent, HelpTip, helpContent } from '../ui/HelpTip.tsx'
+import { Note } from '../ui/kit.tsx'
 import { Skeleton, SkeletonFields } from '../ui/LoadStates.tsx'
+import { useReadOnlySection } from './readOnly.ts'
 
 type SectionProps = {
   id: string
@@ -23,6 +25,14 @@ export function Section({ id, title, description, help, actions, children }: Sec
       {children}
     </Card>
   )
+}
+
+/**
+ * For someone who can't change a section (a member, support access): one quiet note at its top, instead of the reason
+ * under every field.
+ */
+export function ReadOnlyNote() {
+  return <Note tone="info">{useReadOnlySection()}</Note>
 }
 
 type FieldProps = {

@@ -1012,7 +1012,13 @@ function SupportAccessAccount({ hasWorkspace }: Pick<Props, 'hasWorkspace'>) {
   const email = auth.useSession().data?.user.email ?? null
   return (
     <div className="page">
-      <SettingsLayout page="account" title={t('account.title')} description={email} sections={shown} current={current}>
+      <SettingsLayout
+        page="account"
+        title={t('account.title')}
+        context={<span className="sl-context-text">{email}</span>}
+        sections={shown}
+        current={current}
+      >
         <Note tone="info" title={t('account.supportAccess.title')}>
           {t('account.supportAccess.text')}
         </Note>
@@ -1072,7 +1078,13 @@ function OwnAccount({ hasWorkspace, workspaceName = '' }: Props) {
         title={t('account.title')}
         // The account's email as the context line, like the workspace's name on Workspace settings: both pages
         // start at the same height (C22); a bar of its width while the account loads.
-        description={account ? account.user.email : query.error ? null : <SkeletonText width={180} />}
+        context={
+          account ? (
+            <span className="sl-context-text">{account.user.email}</span>
+          ) : query.error ? null : (
+            <SkeletonText width={180} />
+          )
+        }
         sections={shown}
         current={current}
       >

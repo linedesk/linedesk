@@ -110,7 +110,7 @@ export function WorkspaceSettings({
       <SettingsLayout
         page="workspace"
         title={t('settings.workspace.title')}
-        description={workspaceName}
+        context={<span className="sl-context-text">{workspaceName}</span>}
         sections={shown}
         current={current}
       >

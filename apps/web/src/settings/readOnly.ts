@@ -19,3 +19,12 @@ export function useReadOnlyNote(): string {
   const t = useT()
   return useSupportAccess() ? t('settings.readOnly.supportAccess') : t('settings.readOnly.onlyAdmins')
 }
+
+/**
+ * Why a whole section is read-only, said once at its top (ReadOnlyNote in fields.tsx), not under every field: support
+ * access, else "Only admins can change these settings."
+ */
+export function useReadOnlySection(): string {
+  const t = useT()
+  return useSupportAccess() ? t('settings.readOnly.supportAccess') : t('settings.readOnly.section')
+}

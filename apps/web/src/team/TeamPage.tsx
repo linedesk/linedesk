@@ -11,8 +11,7 @@ import {
   type TeamRole,
 } from '@linedesk/actions'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
-import { Section } from '../settings/fields.tsx'
-import { useReadOnlyNote } from '../settings/readOnly.ts'
+import { ReadOnlyNote, Section } from '../settings/fields.tsx'
 import { useSupportAccess } from '../supportAccess.ts'
 import { NotificationDefaults } from '../settings/Notifications.tsx'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
@@ -25,7 +24,7 @@ import { Checkbox, Select } from '../ui/controls.tsx'
 import { appLink } from '../ui/AppLink.tsx'
 import { Avatar, Badge, Button, Note } from '../ui/kit.tsx'
 import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
-import { List, ListEmpty, ListRow } from '../ui/list.tsx'
+import { List, ListEmpty, ListRow, MenuButton, type MenuItem } from '../ui/list.tsx'
 import { Loading, SkeletonList } from '../ui/LoadStates.tsx'
 import { sectionParts } from '../ui/SettingsLayout.tsx'
 import { teamApi, useTeam } from './team-api.ts'
@@ -127,6 +126,17 @@ function OwnerConfirm({
   )
 }
 
+/**
+ * One row action pattern for members and invitations (UI cleanup S6): the role, then a ⋯ menu with what can be done to
+ * the row (Edit profile, Edit, Remove; Resend, Revoke). A row with nothing to do keeps the menu's room, so the roles
+ * line up.
+ */
+function RowMenu({ name, items }: { name: string; items: MenuItem[] }) {
+  const t = useT()
+  if (!items.length) return <span className="team-menu-space" />
+  return <MenuButton title={t('settings.team.rowActions', { name })} items={items} />
+}
+
 function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; run: TeamRun; onEdit: () => void }) {
   const t = useT()
   const [removing, setRemoving] = useState(false)
@@ -154,23 +164,6 @@ function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; ru
       sub={t('team.member.sub', { email: m.email, joined: joinedLabel(m.joinedAt) })}
       actions={
         <>
-          {isMe(data, m) && (
-            <Button
-              size="sm"
-              variant="ghost"
-              title={t('team.member.editProfileTitle')}
-              onClick={() => {
-                window.location.hash = PROFILE_HASH
-              }}
-            >
-              {t('team.member.editProfile')}
-            </Button>
-          )}
-          {canEditMember(data, m) && (
-            <Button size="sm" variant="ghost" title={t('team.member.editTitle', { name })} onClick={onEdit}>
-              {t('team.member.edit')}
-            </Button>
-          )}
           <span className="team-role">
             {canEditRole(data, m) ? (
               <RoleSelect
@@ -183,18 +176,43 @@ function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; ru
               <span className="help st-role">{roleLabel(m.role)}</span>
             )}
           </span>
-          {canRemove(data, m) ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              icon="trash"
-              aria-label={t('team.member.remove', { name })}
-              title={t('team.member.remove', { name })}
-              onClick={() => setRemoving(true)}
-            />
-          ) : (
-            data.canManage && <span className="st-rm-space" />
-          )}
+          <RowMenu
+            name={name}
+            items={[
+              ...(isMe(data, m)
+                ? [
+                    {
+                      id: 'profile',
+                      label: t('team.member.editProfile'),
+                      title: t('team.member.editProfileTitle'),
+                      onSelect: () => {
+                        window.location.hash = PROFILE_HASH
+                      },
+                    },
+                  ]
+                : []),
+              ...(canEditMember(data, m)
+                ? [
+                    {
+                      id: 'edit',
+                      label: t('team.member.edit'),
+                      title: t('team.member.editTitle', { name }),
+                      onSelect: onEdit,
+                    },
+                  ]
+                : []),
+              ...(canRemove(data, m)
+                ? [
+                    {
+                      id: 'remove',
+                      label: t('team.member.remove', { name }),
+                      danger: true,
+                      onSelect: () => setRemoving(true),
+                    },
+                  ]
+                : []),
+            ]}
+          />
         </>
       }
       below={
@@ -247,7 +265,13 @@ function MemberRow({ data, m, run, onEdit }: { data: TeamData; m: TeamMember; ru
 
 function InvitationRow({ invite, canManage, run }: { invite: TeamInvitation; canManage: boolean; run: TeamRun }) {
   const t = useT()
+  // Revoke can't be undone (the link stops working): the menu's Revoke turns the menu into "Revoke invitation", and a
+  // second click does it; leaving the button puts the menu back.
   const [confirming, setConfirming] = useState(false)
+  const revoke = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (confirming) revoke.current?.focus()
+  }, [confirming])
   return (
     <ListRow
       lead={<Avatar name={invite.email} size={24} />}
@@ -257,36 +281,62 @@ function InvitationRow({ invite, canManage, run }: { invite: TeamInvitation; can
           <Badge>{invite.expired ? t('team.invitation.expired') : t('team.invitation.invited')}</Badge>
         </>
       }
-      sub={<span title={t('team.invitation.invitedBy', { name: invite.invitedBy || t('team.invitation.aTeammate') })}>{invitationStatus(invite)}</span>}
-      aside={roleLabel(invite.role)}
+      sub={
+        <span title={t('team.invitation.invitedBy', { name: invite.invitedBy || t('team.invitation.aTeammate') })}>
+          {invitationStatus(invite)}
+        </span>
+      }
       actions={
-        canManage && (
-          <span className="team-inv-actions">
+        <>
+          {/* The role where a member's role is, as plain text: an invitation's role is set when it is sent. */}
+          <span className="team-role">
+            <span className="help st-role">{roleLabel(invite.role)}</span>
+          </span>
+          {confirming ? (
             <Button
+              ref={revoke}
               size="sm"
-              variant="ghost"
-              title={t('team.invitation.resendTitle')}
-              onClick={() =>
-                void run(() => teamApi.resend(invite.invitationId), t('team.invitation.resent', { email: invite.email }))
-              }
-            >
-              {t('team.invitation.resend')}
-            </Button>
-            <Button
-              size="sm"
-              variant={confirming ? 'danger' : 'ghost'}
-              title={confirming ? t('team.invitation.revokeConfirmTitle') : t('team.invitation.revokeTitle')}
+              variant="danger"
+              title={t('team.invitation.revokeConfirmTitle')}
               onBlur={() => setConfirming(false)}
               onClick={() =>
-                confirming
-                  ? void run(() => teamApi.revoke(invite.invitationId), t('team.invitation.revoked', { email: invite.email }))
-                  : setConfirming(true)
+                void run(
+                  () => teamApi.revoke(invite.invitationId),
+                  t('team.invitation.revoked', { email: invite.email }),
+                )
               }
             >
-              {confirming ? t('team.invitation.revokeConfirm') : t('team.invitation.revoke')}
+              {t('team.invitation.revokeConfirm')}
             </Button>
-          </span>
-        )
+          ) : (
+            <RowMenu
+              name={invite.email}
+              items={
+                canManage
+                  ? [
+                      {
+                        id: 'resend',
+                        label: t('team.invitation.resend'),
+                        title: t('team.invitation.resendTitle'),
+                        onSelect: () =>
+                          void run(
+                            () => teamApi.resend(invite.invitationId),
+                            t('team.invitation.resent', { email: invite.email }),
+                          ),
+                      },
+                      {
+                        id: 'revoke',
+                        label: t('team.invitation.revoke'),
+                        title: t('team.invitation.revokeTitle'),
+                        danger: true,
+                        onSelect: () => setConfirming(true),
+                      },
+                    ]
+                  : []
+              }
+            />
+          )}
+        </>
       }
     />
   )
@@ -482,7 +532,6 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
 export function TeamSection({ toast }: { toast: (text: string) => void }) {
   const t = useT()
   const team = useTeam()
-  const readOnly = useReadOnlyNote()
   const supportAccess = useSupportAccess()
   const [editing, setEditing] = useState<TeamMember | null>(null)
   const data = teamAsShown(team.data ?? null, supportAccess)
@@ -493,12 +542,8 @@ export function TeamSection({ toast }: { toast: (text: string) => void }) {
 
   return (
     <>
-      <Section
-        id="team-members"
-        title={t('team.members.title')}
-        description={data && !data.canManage ? readOnly : undefined}
-        help={t('team.members.help')}
-      >
+      <Section id="team-members" title={t('team.members.title')} help={t('team.members.help')}>
+        {data && !data.canManage && <ReadOnlyNote />}
         <Loading
           what={t('team.members.what')}
           loading={!data}

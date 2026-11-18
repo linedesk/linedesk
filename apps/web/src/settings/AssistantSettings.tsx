@@ -88,11 +88,10 @@ import { CalendarSettings } from './Calendar.tsx'
 import { CallEmails, emailRuleWhenId, type Undoable } from './CallEmails.tsx'
 import { CallQualitySettings, levelSavedNote } from './CallQuality.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
-import { Field, Section, SelectRow, SkeletonSection, SwitchRow, TextArea, TextInput } from './fields.tsx'
+import { Field, ReadOnlyNote, Section, SelectRow, SkeletonSection, SwitchRow, TextArea, TextInput } from './fields.tsx'
 import { Holidays, VacationMode } from './Holidays.tsx'
 import { Knowledge } from './Knowledge.tsx'
 import { MissingProviderNote } from './MissingProviderNote.tsx'
-import { useReadOnlyNote } from './readOnly.ts'
 import { HoursSummary, RulesSummary, TransfersSummary } from './Summaries.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
@@ -156,10 +155,13 @@ function sectionsFor(
  */
 const pipelinesOf = (options: VoiceOptionsData | undefined): PipelinesSetUp | null => options?.pipelines ?? null
 
+/** Neither way of answering is set up (known once the options came). */
+const nothingAnswers = (setUp: PipelinesSetUp | null) => !!setUp && !setUp.realtime && !setUp.three_stage
+
 /** Neither way of answering is set up: said in General, where the assistant is set up, not tucked away in Advanced. */
 function NotAnswered({ setUp }: { setUp: PipelinesSetUp | null }) {
   const t = useT()
-  if (!setUp || setUp.realtime || setUp.three_stage) return null
+  if (!nothingAnswers(setUp)) return null
   return (
     <Section id="as-not-answered" title={t('settings.assistant.answering.title')}>
       <MissingProviderNote kind="answering" />
@@ -751,7 +753,6 @@ function Form({
   undoable,
 }: FormProps) {
   const t = useT()
-  const readOnly = useReadOnlyNote()
   const format = useFormat()
   const run = useRun()
   const page = `assistant/${assistant.id}`
@@ -918,29 +919,33 @@ function Form({
               name={assistantName(draft, t)}
               savedLevel={saved.call_quality}
             />
-            <VoiceLoading>
-              {realtime ? (
-                <RealtimeVoiceSettings
-                  voice={draft.realtime_voice}
-                  onPick={v => set('realtime_voice', v)}
-                  canEdit={canEdit}
-                  language={mainOf(draft)}
-                  otherLanguages={otherLanguagesOf(draft.languages)}
-                  assistantName={assistantName(draft, t)}
-                />
-              ) : (
-                <VoiceSettings
-                  assistantId={assistant.id}
-                  voice={draft.voice}
-                  onPick={v => set('voice', withPickedVoice(v, draft.voice))}
-                  canEdit={canEdit}
-                  toast={toast}
-                  language={mainOf(draft)}
-                  otherLanguages={otherLanguagesOf(draft.languages)}
-                  assistantName={assistantName(draft, t)}
-                />
-              )}
-            </VoiceLoading>
+            {/* With nothing that answers, the note in Answering calls already names the missing voice: the Voice card
+                would only say it again (one note per page). */}
+            {!(nothingAnswers(setUp) && !realtime && voiceOptions && !voiceOptions.provider) && (
+              <VoiceLoading>
+                {realtime ? (
+                  <RealtimeVoiceSettings
+                    voice={draft.realtime_voice}
+                    onPick={v => set('realtime_voice', v)}
+                    canEdit={canEdit}
+                    language={mainOf(draft)}
+                    otherLanguages={otherLanguagesOf(draft.languages)}
+                    assistantName={assistantName(draft, t)}
+                  />
+                ) : (
+                  <VoiceSettings
+                    assistantId={assistant.id}
+                    voice={draft.voice}
+                    onPick={v => set('voice', withPickedVoice(v, draft.voice))}
+                    canEdit={canEdit}
+                    toast={toast}
+                    language={mainOf(draft)}
+                    otherLanguages={otherLanguagesOf(draft.languages)}
+                    assistantName={assistantName(draft, t)}
+                  />
+                )}
+              </VoiceLoading>
+            )}
           </>
         )}
         {current === 'rules' && (
@@ -987,7 +992,7 @@ function Form({
     <SettingsLayout
       page={page}
       title={t('settings.assistant.title')}
-      heading={
+      context={
         <AssistantHeader
           assistant={assistant}
           assistants={assistants}
@@ -997,13 +1002,14 @@ function Form({
           toast={toast}
         />
       }
-      description={canEdit ? undefined : readOnly}
       actions={<TestCallButton session={testCall} />}
       banner={<TestCallPanel session={testCall} />}
       sections={shown}
       current={current}
       unsaved={unsaved}
     >
+      {/* Members: why nothing here can change, once on top (Webhooks says it in its own words). */}
+      {!canEdit && current !== 'review' && current !== 'webhooks' && <ReadOnlyNote />}
       {current === 'review' ? (
         <AssistantReview
           assistant={assistant}
@@ -1121,11 +1127,11 @@ function AssistantSkeleton({ slow }: { slow: boolean }) {
     <SettingsLayout
       page="assistant"
       title={t('settings.assistant.title')}
-      heading={
+      context={
         <div className="as-head">
           <div className="as-title">
             <span className="as-name">
-              <Skeleton shape="title" width={110} />
+              <Skeleton shape="text" width={64} />
             </span>
           </div>
           <div className="as-numbers">

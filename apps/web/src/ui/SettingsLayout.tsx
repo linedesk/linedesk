@@ -1,6 +1,9 @@
-// The settings layout (after shadcn's): the page title, a narrow nav of the page's sections at the
-// left, one section at a time at the right. Each section has its own hash (`#assistant/<id>/transfers`),
-// so links, reload and Back work. Below 720 px the nav is a row of tabs that scrolls sideways.
+// The settings layout (after shadcn's): one head for every settings area (Assistant, Workspace, Account, Server admin,
+// Partner area). The page bar holds the menu or back button and the area's title; under it, a context line (the
+// assistant switcher, the workspace's name, the account's email) at the same size and place on every page; then a
+// narrow nav of the page's sections at the left and one section at a time at the right, its title inside its card.
+// Each section has its own hash (`#assistant/<id>/transfers`), so links, reload and Back work. Below 720 px the nav is
+// a row of tabs that scrolls sideways, faded at an edge with more tabs behind it.
 import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import './settings-layout.css'
 import { useT } from '@linedesk/i18n/react'
@@ -83,44 +86,76 @@ function showSectionNow(event: MouseEvent, hash: string) {
 type Props<T extends string> = {
   page: string
   title: string
-  description?: ReactNode
-  /** In place of the description: something the page heads itself with (the assistant's name and switcher). */
-  heading?: ReactNode
-  /** At the right of the title, in every section (e.g. Start test call). */
+  /**
+   * The context line above the nav: what this page is about (the workspace's name, the account's email, the assistant
+   * switcher). One size and place on every settings page.
+   */
+  context?: ReactNode
+  /** At the right of the context line, in every section (e.g. Start test call). */
   actions?: ReactNode
   sections: readonly PageSection<T>[]
   current: T
   /** Sections with unsaved changes: a dot in the nav. */
   unsaved?: ReadonlySet<T>
-  /** Under the title, above nav and content (e.g. a running test call). */
+  /** Under the context line, above nav and content (e.g. a running test call). */
   banner?: ReactNode
   children: ReactNode
 }
 
+/** Which edges of the phone's tab row have more tabs behind them: those fade out. */
+type Fade = 'start' | 'end' | 'both' | undefined
+
+export function fadeOf(nav: Pick<HTMLElement, 'scrollWidth' | 'clientWidth' | 'scrollLeft'>): Fade {
+  const more = nav.scrollWidth - nav.clientWidth
+  if (more <= 1) return undefined
+  const start = nav.scrollLeft > 1
+  const end = nav.scrollLeft < more - 1
+  return start && end ? 'both' : start ? 'start' : end ? 'end' : undefined
+}
+
 export function SettingsLayout<T extends string>(props: Props<T>) {
   const t = useT()
-  const { page, title, description, heading, actions, sections, current, unsaved, banner, children } = props
+  const { page, title, context, actions, sections, current, unsaved, banner, children } = props
   const nav = useRef<HTMLElement>(null)
-  // On a phone the nav is a row that scrolls sideways: keep the open section in view.
+  const [fade, setFade] = useState<Fade>(undefined)
+  // On a phone the nav is a row that scrolls sideways: the open section is scrolled to the middle (the tabs before it
+  // stay in sight), and an edge with more tabs behind it fades out, so the row reads as one that scrolls.
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs again whenever another section opens
   useEffect(() => {
-    const item = nav.current?.querySelector<HTMLElement>('[aria-current="page"]')
-    if (item && nav.current && nav.current.scrollWidth > nav.current.clientWidth)
-      nav.current.scrollLeft = item.offsetLeft - nav.current.offsetLeft - 12
+    const row = nav.current
+    const item = row?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (row && item && row.scrollWidth > row.clientWidth) {
+      const box = row.getBoundingClientRect()
+      const at = item.getBoundingClientRect()
+      row.scrollLeft += at.left - box.left - (box.width - at.width) / 2
+    }
+    if (row) setFade(fadeOf(row))
   }, [current])
+  useEffect(() => {
+    const row = nav.current
+    if (!row) return
+    const update = () => setFade(fadeOf(row))
+    row.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    return () => {
+      row.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [])
   return (
     <div className="page-in sl-page">
       <div className="page-head sl-head">
-        <div>
-          <h1>{title}</h1>
-          {heading}
-          {description && <p>{description}</p>}
-        </div>
-        {actions && <div className="sl-actions">{actions}</div>}
+        <h1>{title}</h1>
+        {(context || actions) && (
+          <div className="sl-context">
+            <div className="sl-context-main">{context}</div>
+            {actions && <div className="sl-actions">{actions}</div>}
+          </div>
+        )}
       </div>
       {banner}
       <div className="sl-body">
-        <nav ref={nav} className="sl-nav" aria-label={t('common.settingsLayout.sections', { title })}>
+        <nav ref={nav} className="sl-nav" data-fade={fade} aria-label={t('common.settingsLayout.sections', { title })}>
           {sections.map(s => {
             const dirty = unsaved?.has(s.id)
             return (

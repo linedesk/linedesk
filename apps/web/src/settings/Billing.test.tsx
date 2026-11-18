@@ -625,8 +625,8 @@ test('the bill page has no Voices and models card: picking Premium or Ultra on a
 
 test('no bill on an install that bills: one calm line, no plan, no payment controls', () => {
   const html = renderToStaticMarkup(<Billing toast={() => {}} view="none" />)
-  expect(html).toContain('This workspace is not on a bill.')
-  expect(html).toContain('Its calls are not charged.')
+  expect(html).toContain('No plan: calls in this workspace are not charged.')
+  expect(html).toContain('Your server admin can put it on a plan.')
   expect(html).not.toContain('Buy minutes')
   expect(html).not.toContain('Cancel plan')
   expect(html).not.toContain('Voices and models')

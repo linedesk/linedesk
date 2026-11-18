@@ -78,13 +78,14 @@ describe('the box on top of the settings', () => {
   // From the box to the first field below it.
   const box = (html: string) => html.slice(html.indexOf('k-note-info'), html.indexOf('id="ws-name"'))
 
-  test('Workspace settings › General: the box first, with the agent as the main way and step by step beside it', () => {
+  test('Workspace settings › General: the box first, the agent as a secondary button (Save stays the one black button) and step by step beside it', () => {
     const html = renderToStaticMarkup(
       <WorkspaceGeneral canEdit agentChange name="Brightwater" onRenamed={() => {}} toast={() => {}} />,
     )
     const note = box(html)
     expect(note).toContain('An AI agent can change these settings with you.')
-    expect(note).toMatch(/k-btn-primary[^>]*>.*Change with an AI agent/)
+    expect(note).toMatch(/k-btn-secondary[^>]*>.*Change with an AI agent/)
+    expect(note).not.toContain('k-btn-primary')
     expect(note).toContain('Step by step')
     // Above the form: before the business name.
     expect(html.indexOf('k-note-info')).toBeLessThan(html.indexOf('id="ws-name"'))

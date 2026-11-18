@@ -657,7 +657,8 @@ function ConnectNumber({
         </div>
       ) : (
         <>
-          <div className="k-radios" role="radiogroup" aria-label={t('settings.phone.connect.kind')}>
+          {/* Stacked full width, like every radio card group (UI cleanup O22): long descriptions read side by side. */}
+          <div className="k-radios st-pn-kinds" role="radiogroup" aria-label={t('settings.phone.connect.kind')}>
             {connectOptions.map(o => (
               <RadioCard
                 key={o}

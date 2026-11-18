@@ -1,5 +1,6 @@
-// The top of Settings > Assistant: the assistant's name, which opens the menu of the workspace's assistants
-// (switch, New, Duplicate, Delete), and the numbers it answers. The name is changed under General.
+// The context line of Settings > Assistant (SettingsLayout's `context`): the assistant's name, which opens the menu of
+// the workspace's assistants (switch, New, Duplicate, Delete), and the numbers it answers. The name is changed under
+// General.
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
@@ -69,7 +70,7 @@ function SwitchMenu({ assistant, assistants, canEdit, onPick, onNew, onDuplicate
         onClick={() => setOpen(o => !o)}
       >
         <span>{assistant.name}</span>
-        <Icon name="down" size={16} className="as-name-chevron" />
+        <Icon name="down" size={14} className="as-name-chevron" />
       </button>
       {open && (
         <div className="as-menu" role="menu" aria-label={t('settings.assistantHeader.menu')}>

@@ -5,12 +5,38 @@
   max-width: 892px;
 }
 .page-head.sl-head {
-  align-items: flex-start;
+  display: block;
+}
+/* The context line: one height (a default control's), size and place on every settings page, so the nav and the
+   first card start at the same height whether the line holds a name, an email or the assistant switcher. */
+.sl-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  min-height: var(--control-h);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+.sl-context-main {
+  display: flex;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+/* Plain words (a name, an email) end in an ellipsis rather than pushing the actions off a phone. */
+.sl-context-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sl-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: none;
 }
 .sl-body {
   display: grid;
@@ -66,11 +92,32 @@
   .sl-nav::-webkit-scrollbar {
     display: none;
   }
+  /* An edge with more tabs behind it fades out: the row reads as one that scrolls (SettingsLayout sets data-fade). */
+  .sl-nav[data-fade="end"] {
+    mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+  }
+  .sl-nav[data-fade="start"] {
+    mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+  }
+  .sl-nav[data-fade="both"] {
+    mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+  }
   .sl-nav .sl-item {
     width: auto;
     padding: 0 10px;
     gap: 6px;
   }
+}
+
+/* Settings › Phone numbers › Add a number: the kinds of number stack full width, like every group of radio cards. */
+.k-radios.st-pn-kinds {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Workspace settings › Team: a row with nothing in its ⋯ menu keeps the menu's room, so the roles line up. */
+.team-menu-space {
+  width: var(--control-h-sm);
+  flex: none;
 }
 
 /* Test call: the button in the page header (the call itself is in TestCallPanel). */

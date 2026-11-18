@@ -12,7 +12,8 @@ type NoteProps = {
 }
 
 /**
- * The box on top of the settings page: "Change with an AI agent" (primary) opens the agent page for this workspace or
+ * The box on top of the settings page: "Change with an AI agent" (secondary: the page's own Save stays the one black
+ * button) opens the agent page for this workspace or
  * assistant; "Step by step" opens the setup flow the workspace was set up with, filled in with what is saved. Shown
  * only to those who may change the settings (the page decides, mayChangeWithAgent).
  */
@@ -25,7 +26,7 @@ export function AgentChangeNote({ target, assistantName }: NoteProps) {
         <>
           <Button
             size="sm"
-            variant="primary"
+            variant="secondary"
             icon="spark"
             onClick={() => {
               window.location.hash = changeWithAgentHash(target)

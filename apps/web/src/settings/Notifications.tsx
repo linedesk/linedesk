@@ -22,8 +22,6 @@ import { T, useT } from '@linedesk/i18n/react'
 import { appLink } from '../ui/AppLink.tsx'
 import { i18n } from '../i18n/index.tsx'
 import { useSupportAccess } from '../supportAccess.ts'
-import { SummaryView } from './Summaries.tsx'
-import { notificationsSummary } from './summaryModel.ts'
 
 /** Your own notifications, linked from the team defaults (Workspace settings › Team). */
 export const OWN_NOTIFICATIONS_HASH = '#account/notifications'
@@ -258,28 +256,6 @@ export function NotificationSwitches({
   )
 }
 
-/** What you get and how, in one sentence (LIN-392): from the same settings as the switches below it. */
-function NotificationsSummary({
-  settings,
-  canAssign,
-  device,
-}: {
-  settings: NotificationSettingsData
-  canAssign: boolean
-  device: ReturnType<typeof useDeviceNotifications>
-}) {
-  const summary = notificationsSummary({
-    email: settings.effective.email,
-    assigned: canAssign && settings.assignedEmail,
-    setupEmails: !!settings.setupEmails,
-    device: device.on ? (device.pushOn ? 'push' : 'open') : null,
-    otherDevices: settings.push.publicKey ? settings.push.devices.filter(d => d !== device.id).length : 0,
-    pushSummary: settings.push.summary,
-    brand: brandName(),
-  })
-  return <SummaryView summary={summary} icon="bell" />
-}
-
 function OwnNotifications({ settings, description }: { settings: NotificationSettingsData; description: string }) {
   const t = useT()
   const run = useRun()
@@ -296,7 +272,7 @@ function OwnNotifications({ settings, description }: { settings: NotificationSet
 
   return (
     <>
-      <NotificationsSummary settings={settings} canAssign={canAssign} device={device} />
+      {/* No sentence above the switches repeating what they say (UI cleanup S8): the switches are the summary. */}
       <Section id="st-notify" title={t('account.nav.notifications.label')} description={description}>
         <NotificationSwitches
           settings={settings}

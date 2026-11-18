@@ -1,7 +1,6 @@
 // Workspace settings › General: what is the same for the whole workspace. The business name (workspace.rename),
 // the workspace icon (WorkspaceIconField), the country (Automatic until set: workspace-locale.ts), the time zone (moved here from the assistant's Advanced section;
-// Hours & holidays links here) and the value of a booked appointment (also set from the Insights summary). Owners and admins change them; members see them.
-import { useReadOnlyNote } from './readOnly.ts'
+// Hours & holidays links here) and the value of a booked appointment (also set from the Insights summary). Owners and admins change them; members see them, with one note on top saying why they can't.
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useT } from '@linedesk/i18n/react'
 import { showAppointmentValue } from '../insights/Insights.tsx'
@@ -11,7 +10,7 @@ import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { AgentChangeNote } from './AgentChange.tsx'
 import { AppointmentValue } from './AppointmentValue.tsx'
 import { TimeZoneSelect } from './BusinessHours.tsx'
-import { Field, Section } from './fields.tsx'
+import { Field, ReadOnlyNote, Section } from './fields.tsx'
 import { rejectionText } from '../shell/rejections.ts'
 import {
   callAction,
@@ -46,12 +45,14 @@ export function WorkspaceGeneral({
   toast,
 }: Props & { agentChange?: boolean }) {
   const t = useT()
-  const readOnly = useReadOnlyNote()
   return (
     <Section id="ws-general" title={t('settings.workspace.nav.general.label')}>
       {agentChange && <AgentChangeNote target={{ kind: 'workspace' }} />}
+      {/* Members: why nothing here can change, once at the top, not under every field. */}
+      {!canEdit && <ReadOnlyNote />}
       <BusinessName canEdit={canEdit} name={name} onRenamed={onRenamed} toast={toast} />
-      <WorkspaceIconField canEdit={canEdit} name={name} readOnlyNote={readOnly} toast={toast} />
+      {/* The note above says it for every field: none of its own under the icon. */}
+      <WorkspaceIconField canEdit={canEdit} name={name} readOnlyNote="" toast={toast} />
       <Country canEdit={canEdit} />
       <TimeZone canEdit={canEdit} />
       <Value canEdit={canEdit} toast={toast} />
@@ -63,7 +64,6 @@ export function WorkspaceGeneral({
 function BusinessName({ canEdit, name, onRenamed, toast }: Props) {
   const t = useT()
   const write = useWriteAction()
-  const readOnly = useReadOnlyNote()
   const [draft, setDraft] = useState(name)
   // Renamed elsewhere (another tab, onboarding): the field follows.
   useEffect(() => setDraft(name), [name])
@@ -101,13 +101,7 @@ function BusinessName({ canEdit, name, onRenamed, toast }: Props) {
   }
 
   return (
-    <Field
-      id="ws-name"
-      label={t('settings.general.name.label')}
-      help={canEdit ? undefined : readOnly}
-      tip={t('settings.general.name.tip')}
-      error={problem}
-    >
+    <Field id="ws-name" label={t('settings.general.name.label')} tip={t('settings.general.name.tip')} error={problem}>
       <Input
         id="ws-name"
         value={draft}
@@ -143,7 +137,6 @@ async function saveCountry(change: { country: string | null }) {
  */
 function Country({ canEdit }: { canEdit: boolean }) {
   const t = useT()
-  const readOnly = useReadOnlyNote()
   const settings = useWorkspaceSettings()
   const data = settings.data
   const automatic = useMemo(
@@ -156,12 +149,7 @@ function Country({ canEdit }: { canEdit: boolean }) {
     void saveCountry({ country })
   }
   return (
-    <Field
-      id="ws-country"
-      label={t('settings.general.country.label')}
-      help={canEdit ? undefined : readOnly}
-      tip={t('settings.general.country.tip')}
-    >
+    <Field id="ws-country" label={t('settings.general.country.label')} tip={t('settings.general.country.tip')}>
       <Loading
         what={t('settings.general.country.what')}
         loading={!data}
@@ -187,7 +175,6 @@ function Country({ canEdit }: { canEdit: boolean }) {
 /** The workspace's time zone: the date and time the assistant is told, and what business hours mean. Saves at once. */
 function TimeZone({ canEdit }: { canEdit: boolean }) {
   const t = useT()
-  const readOnly = useReadOnlyNote()
   const run = useRun()
   const settings = useWorkspaceSettings()
   const zone = settings.data?.timeZone
@@ -196,12 +183,7 @@ function TimeZone({ canEdit }: { canEdit: boolean }) {
     void run('workspace.updateSettings', { timeZone })
   }
   return (
-    <Field
-      id="ws-time-zone"
-      label={t('settings.general.timeZone.label')}
-      help={canEdit ? undefined : readOnly}
-      tip={t('settings.general.timeZone.tip')}
-    >
+    <Field id="ws-time-zone" label={t('settings.general.timeZone.label')} tip={t('settings.general.timeZone.tip')}>
       <Loading
         what={t('settings.general.timeZone.what')}
         loading={!zone}
@@ -218,16 +200,10 @@ function TimeZone({ canEdit }: { canEdit: boolean }) {
 /** What one booked appointment is worth on average: Insights multiplies it by the booked appointments. */
 function Value({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => void }) {
   const t = useT()
-  const readOnly = useReadOnlyNote()
   const query = useWorkspaceSettings()
   const settings = query.data
   return (
-    <Field
-      id="ws-appointment-value"
-      label={t('settings.general.value.label')}
-      help={canEdit ? undefined : readOnly}
-      tip={t('settings.general.value.tip')}
-    >
+    <Field id="ws-appointment-value" label={t('settings.general.value.label')} tip={t('settings.general.value.tip')}>
       <Loading
         what={t('settings.general.value.what')}
         loading={!settings}
