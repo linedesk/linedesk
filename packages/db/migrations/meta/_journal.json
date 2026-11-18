@@ -1086,6 +1086,13 @@
       "when": 1794967693623,
       "tag": "0155_provider_key_only",
       "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1794969706460,
+      "tag": "0156_drop_allow_switches",
+      "breakpoints": true
     }
   ]
 }

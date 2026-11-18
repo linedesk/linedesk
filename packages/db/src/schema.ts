@@ -172,11 +172,6 @@ export const assistants = pgTable(
     /** Languages the assistant speaks with callers: English only (the default), English + an allow-list, or any it supports. */
     languages: jsonb('languages').$type<AssistantLanguages>().notNull().default({ mode: 'english', allowed: [] }),
     /**
-     * No longer read (call quality, decisions.md 2026-11-17: Ultra is a realtime model, the other levels the three
-     * stages). Was: how its calls are answered. Kept until a later release drops it.
-     */
-    voice_pipeline: text('voice_pipeline', { enum: ['realtime', 'three_stage'] }),
-    /**
      * Its call quality (CALL_QUALITIES in @linedesk/actions): what its calls cost a minute on Linedesk Cloud and what
      * answers them, Standard and Premium with speech to text, language model and voice, Ultra with a realtime model.
      * Set from the install's default when the assistant is made; only someone who may pay raises it.
@@ -190,8 +185,8 @@ export const assistants = pgTable(
      */
     realtime_voice: text('realtime_voice').notNull().default(''),
     /**
-     * The realtime model that answers its calls when `voice_pipeline` is realtime (REALTIME_MODEL_LEVELS in
-     * @linedesk/actions, the Ultra level on Linedesk Cloud). null: the server's realtime model.
+     * The realtime model that answers its calls on Ultra (REALTIME_MODEL_LEVELS in @linedesk/actions). null: the
+     * level's default realtime model.
      */
     realtime_model: text('realtime_model'),
     /**
@@ -464,16 +459,6 @@ export const workspace_settings = pgTable(
      * number's mode and the hours. null: never chosen.
      */
     pickup_mode: text('pickup_mode', { enum: ['no_answer', 'always', 'after_hours'] }),
-    /**
-     * Linedesk Cloud: the owner allows Premium voices and models (10¢ a minute instead of 5¢; usageLevel in
-     * @linedesk/actions). Off: assistants can pick Standard ones only. Not read on an install without billing.
-     */
-    allow_premium: boolean('allow_premium').notNull().default(false),
-    /**
-     * Linedesk Cloud: the owner allows Ultra, assistants answered by a realtime model (20¢ a minute; usageLevel in
-     * @linedesk/actions). Off: no assistant answers with a realtime model. Not read on an install without billing.
-     */
-    allow_ultra: boolean('allow_ultra').notNull().default(false),
     /** Recordings older than this many days are deleted by the daily cleanup job. null: keep them. */
     recording_retention_days: integer('recording_retention_days').default(90),
     /** New-call notifications for members who have not set their own (member_notification_settings). */

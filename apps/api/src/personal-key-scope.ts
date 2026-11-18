@@ -43,8 +43,6 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['call.takeOver', BROWSER],
   ['starPrompt.answer', BROWSER],
   ['workspace.deleteOwn', FRESH_SIGN_IN],
-  ['workspace.setAllowPremium', OWNER_IN_APP],
-  ['workspace.setAllowUltra', OWNER_IN_APP],
   ['integration.subscribe', INTEGRATIONS],
   ['integration.unsubscribe', INTEGRATIONS],
   // Server admin › Billing writes (billing-admin.ts refuseMoneyChange; security review of #919, H1 and I3).
@@ -94,7 +92,6 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['partner.deleteClient', BROWSER],
   ['partner.listClients', BROWSER],
   ['partner.setClientUsageLimit', BROWSER],
-  ['partner.setClientAllow', BROWSER],
   // Moves what the workspace pays to its owner: only the owner, signed in (partners.ts).
   ['workspace.removePartner', BROWSER],
 ])

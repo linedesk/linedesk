@@ -563,8 +563,6 @@ export type LevelFields = {
   call_quality?: string
   voice_model: string | null
   llm_model: string | null
-  /** Entries from before call quality only. */
-  voice_pipeline?: string | null
   realtime_model?: string | null
 }
 /** `to` is exclusive (the day after the last day shown); `before` is the previous page's `next`. */

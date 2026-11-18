@@ -119,7 +119,7 @@ export type LevelDefaultModels = Awaited<ReturnType<typeof levelDefaultModels>>
 
 /**
  * The assistant on Standard: its picks that are not Standard dropped (they follow the server's Standard defaults).
- * What a level turned off, a payer change and Allow Premium or Allow Ultra off leave.
+ * What a level turned off and a payer change leave.
  */
 export function onStandard<
   A extends Pick<Assistant, 'voice' | 'llm_model' | 'call_quality'> & { realtime_model?: string | null },

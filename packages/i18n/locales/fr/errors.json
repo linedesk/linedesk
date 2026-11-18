@@ -31,8 +31,6 @@
   "couldNot.sample.remove": "Impossible de retirer les appels d'exemple.",
   "couldNot.workspace.removeIcon": "Impossible de retirer l'icône de l'espace de travail.",
   "couldNot.workspace.rename": "Impossible de renommer l'entreprise.",
-  "couldNot.workspace.setAllowPremium": "Impossible de modifier Autoriser Premium.",
-  "couldNot.workspace.setAllowUltra": "Impossible de modifier Autoriser Ultra.",
   "couldNot.workspace.setIcon": "Impossible d'enregistrer l'icône de l'espace de travail.",
   "couldNot.workspace.updateSettings": "Impossible d'enregistrer les réglages de l'espace de travail.",
   "forwarding.checkFailed": "La vérification n'a pas pu démarrer. Réessayez dans un instant.",

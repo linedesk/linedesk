@@ -287,9 +287,6 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'team.removeMemberAvatar': 'team',
   'team.updateMemberNotifications': 'team',
   'workspace.deleteOwn': 'team',
-  // What the workspace pays: the owner allowing Premium voices and models (Linedesk Cloud), on or off.
-  'workspace.setAllowPremium': 'team',
-  'workspace.setAllowUltra': 'team',
   'invitation.accept': 'team',
   'invitation.decline': 'team',
   // An instance admin changing who is in which workspace, also their own membership.
@@ -350,7 +347,6 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'partner.releaseClient': 'partners',
   'partner.deleteClient': 'partners',
   'partner.setClientUsageLimit': 'partners',
-  'partner.setClientAllow': 'partners',
   'workspace.removePartner': 'partners',
   'partnerBrand.set': 'partners',
   'partnerBrand.setProtectedNames': 'partners',
@@ -371,16 +367,14 @@ export const TRANSFER_CHANGE_KIND: AuditKind = 'integrations'
 /**
  * The same actions are audited when they changed what decides the assistant's usage level on Linedesk Cloud (its call
  * quality, and the models it picks within it): their handlers put `data.usageLevelChange` (before and
- * after, model ids only) in the result then. Kind `team`, like Allow Premium.
+ * after, model ids only) in the result then. Kind `team`.
  */
 export const USAGE_LEVEL_CHANGE_KIND: AuditKind = 'team'
 type AuditedLevelFields = {
-  /** The assistant's call quality; missing in entries from before it (they have `voice_pipeline`). */
+  /** The assistant's call quality. */
   call_quality?: string
   voice_model: string | null
   llm_model: string | null
-  /** Entries from before call quality only. */
-  voice_pipeline?: string | null
   /** Missing in entries from before Ultra. */
   realtime_model?: string | null
 }

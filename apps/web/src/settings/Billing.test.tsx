@@ -1,7 +1,7 @@
 // Workspace settings › Billing (Billing.tsx, docs/billing.md §11 PR 9): what the bill owner sees for each state of the
 // bill. The trial with its countdown, the plan and its one primary button, a failed recharge with Retry (then the
 // primary), past due and suspended in plain words, cancel and resume, the page for someone who does not manage the
-// bill, the workspace on no bill, and Voices and models (Allow Premium, Allow Ultra) inside Billing.
+// bill, and the workspace on no bill.
 import type { BillingOverviewBill, BillingOverviewData, BillingStateBill } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, onTestFinished, test, vi } from 'vitest'
@@ -28,20 +28,10 @@ vi.mock('../cachedQuery.ts', () => ({
   refreshQuery: async () => {},
   setQueryData: () => {},
 }))
-// Voices and models (PaidLevels) reads the workspace's settings: Allow Premium on, Ultra off, both switchable.
-const levelSettings = vi.hoisted(() => ({
-  data: {
-    usageLevels: true,
-    allowPremium: true,
-    allowUltra: false,
-    allowSwitch: { on: true, off: true },
-    usageCentsPerMinute: { standard: 10, premium: 20, ultra: 40 },
-  } as Record<string, unknown> | undefined,
-}))
 vi.mock('./settings-api.ts', () => ({
   readAction: vi.fn(),
   callAction: vi.fn(),
-  useWorkspaceSettings: () => ({ data: levelSettings.data }),
+  useWorkspaceSettings: () => ({ data: undefined }),
   useWriteAction: () => vi.fn(),
   patchWorkspaceSettings: vi.fn(),
 }))
@@ -527,26 +517,14 @@ test('the trial: its $0.00 plan invoice says "Trial (no charge)", and auto-recha
   expect(html).not.toContain('Auto-recharge starts once the plan does')
 })
 
-test('Voices and models sits in Billing: Allow Premium and Allow Ultra with their prices, for who manages the bill', () => {
+test('the bill page has no Voices and models card: picking Premium or Ultra on an assistant is the consent', () => {
   queries.overview = { billingOn: true, bill: bill() }
   queries.state = { bill: state() }
-  const html = renderToStaticMarkup(<Billing toast={() => {}} levels={{ canEdit: true, isOwner: false }} />)
-  expect(html).toContain('Voices and models')
-  expect(html).toContain('Allow Premium voices and models')
-  expect(html).toContain('Allow Ultra')
-  expect(html).not.toContain('only the person who pays it can allow')
-})
-
-test('a bill of several workspaces: the admin reads why the switches are not theirs', () => {
-  levelSettings.data = { ...levelSettings.data, allowSwitch: { on: false, off: false } }
-  onTestFinished(() => {
-    levelSettings.data = { ...levelSettings.data, allowSwitch: { on: true, off: true } }
-  })
-  queries.usage = { usage: { period: bill().period, row: null } }
-  const html = renderToStaticMarkup(
-    <Billing toast={() => {}} view="usage" levels={{ canEdit: true, isOwner: false }} />,
-  )
-  expect(html).toContain('This bill pays for several workspaces, so only the person who pays it can allow them.')
+  const html = renderToStaticMarkup(<Billing toast={() => {}} />)
+  expect(html).toContain('Buy minutes')
+  expect(html).not.toContain('Voices and models')
+  expect(html).not.toContain('Allow Premium')
+  expect(html).not.toContain('Allow Ultra')
 })
 
 test('no bill on an install that bills: one calm line, no plan, no payment controls', () => {
@@ -557,15 +535,4 @@ test('no bill on an install that bills: one calm line, no plan, no payment contr
   expect(html).not.toContain('Cancel plan')
   expect(html).not.toContain('Voices and models')
   expect(primaries(html)).toBe(0)
-})
-
-test('no bill: the switches say that only the workspace owner allows them then', () => {
-  levelSettings.data = { ...levelSettings.data, allowSwitch: { on: false, off: false } }
-  onTestFinished(() => {
-    levelSettings.data = { ...levelSettings.data, allowSwitch: { on: true, off: true } }
-  })
-  const html = renderToStaticMarkup(<Billing toast={() => {}} view="none" levels={{ canEdit: true, isOwner: false }} />)
-  expect(html).toContain('This workspace is not on a bill.')
-  expect(html).toContain('While the workspace is not on a bill, only its owner can allow them.')
-  expect(html).not.toContain('a minute')
 })

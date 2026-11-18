@@ -28,12 +28,11 @@ const workspaceActions = [...actions.values()]
   .map(a => ({ name: a.name, permission: a.permission, right: rightOf(a.permission) }))
   .filter(a => a.right === 'member' || a.right === 'admin' || a.right === 'owner')
 
-const callerOf = (role: (typeof WORKSPACE_ROLES)[number]) => (role === 'owner' ? ws.owner : role === 'admin' ? admin : member)
+const callerOf = (role: (typeof WORKSPACE_ROLES)[number]) =>
+  role === 'owner' ? ws.owner : role === 'admin' ? admin : member
 
-// Allow Premium and Allow Ultra: an admin or a member may be the bill's owner, so the handler decides (LIN-440).
-const BILL_OWNER_SWITCHES = new Set(['workspace.setAllowPremium', 'workspace.setAllowUltra'])
 const cases = workspaceActions.flatMap(a =>
-  WORKSPACE_ROLES.map(role => ({ ...a, role, allowed: roleMeets(role, a.right) || BILL_OWNER_SWITCHES.has(a.name) })),
+  WORKSPACE_ROLES.map(role => ({ ...a, role, allowed: roleMeets(role, a.right) })),
 )
 
 describe('every workspace action, by role', () => {
@@ -77,7 +76,9 @@ const memberIdOf = async (workspaceId: string, userId: string) =>
 describe('exactly one owner', () => {
   test('team.setRole cannot make an owner, nor change the owner', async () => {
     const target = await addMember(ws.id, 'member')
-    expect((await act(ws.owner, 'team.setRole', { memberId: await memberIdOf(ws.id, target.userId), role: 'owner' })).status).toBe(422)
+    expect(
+      (await act(ws.owner, 'team.setRole', { memberId: await memberIdOf(ws.id, target.userId), role: 'owner' })).status,
+    ).toBe(422)
     const ownerMember = await memberIdOf(ws.id, ws.owner.userId)
     expect((await act(admin, 'team.setRole', { memberId: ownerMember, role: 'member' })).status).toBe(403)
     expect(await roleIn(ws.id, ws.owner.userId)).toBe('owner')
@@ -104,7 +105,8 @@ describe('exactly one owner', () => {
     })
     // Not to someone of another workspace.
     expect(
-      (await act(shop.owner, 'team.transferOwnership', { memberId: await memberIdOf(other.id, other.owner.userId) })).status,
+      (await act(shop.owner, 'team.transferOwnership', { memberId: await memberIdOf(other.id, other.owner.userId) }))
+        .status,
     ).toBeGreaterThanOrEqual(400)
     // Not to an unconfirmed address.
     await db.update(users).set({ emailVerified: false }).where(eq(users.id, next.userId))
@@ -139,7 +141,10 @@ describe('the workspace country (LIN-258)', () => {
       expect(set.status).toBe(200)
     }
     const read = await act(member, 'workspace.getSettings', {})
-    expect(read.body).toMatchObject({ ok: true, data: { country: 'GB', resolvedCountry: 'GB', resolvedLanguage: 'en' } })
+    expect(read.body).toMatchObject({
+      ok: true,
+      data: { country: 'GB', resolvedCountry: 'GB', resolvedLanguage: 'en' },
+    })
     const reset = await act(admin, 'workspace.updateSettings', { country: null })
     expect(reset.status).toBe(200)
   })

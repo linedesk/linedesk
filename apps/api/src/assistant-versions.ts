@@ -1,6 +1,15 @@
 // Versions of an assistant's call settings (docs/architecture.md, Assistant versions). Every write that
 // changes them ends with recordVersion in the same transaction; calls look up the version they run with.
-import { type AssistantSnapshot, type AssistantVersionData, type AssistantVersionItem, type AssistantVersionsData, snapshotOf, stableJson, storedSnapshot, versionSummary } from '@linedesk/actions'
+import {
+  type AssistantSnapshot,
+  type AssistantVersionData,
+  type AssistantVersionItem,
+  type AssistantVersionsData,
+  snapshotOf,
+  stableJson,
+  storedSnapshot,
+  versionSummary,
+} from '@linedesk/actions'
 import { assistant_calendars, assistant_versions, assistants, user, type Tx } from '@linedesk/db'
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import { type Handler, type HandlerCtx, Reject } from './handler-context.ts'
@@ -11,7 +20,10 @@ const newId = () => `asv_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}
 const LISTED_VERSIONS = 100
 
 async function currentSnapshot(tx: Tx, workspaceId: string, assistantId: string): Promise<AssistantSnapshot | null> {
-  const [assistant] = await tx.select().from(assistants).where(and(eq(assistants.id, assistantId), eq(assistants.workspace_id, workspaceId)))
+  const [assistant] = await tx
+    .select()
+    .from(assistants)
+    .where(and(eq(assistants.id, assistantId), eq(assistants.workspace_id, workspaceId)))
   if (!assistant) return null
   const calendars = await tx.select().from(assistant_calendars).where(eq(assistant_calendars.assistant_id, assistantId))
   return snapshotOf(assistant, calendars)
@@ -33,7 +45,12 @@ type Recorded = { by: string | null; restoredFrom?: number; created?: boolean }
  * Stores the assistant's settings as a new version when they differ from the newest one, and returns the
  * number calls use now. Serialised per assistant, so two saves never take the same number.
  */
-export async function recordVersion(tx: Tx, workspaceId: string, assistantId: string, { by, restoredFrom, created }: Recorded): Promise<number | null> {
+export async function recordVersion(
+  tx: Tx,
+  workspaceId: string,
+  assistantId: string,
+  { by, restoredFrom, created }: Recorded,
+): Promise<number | null> {
   await lockAssistantVersion(tx, assistantId)
   const now = await currentSnapshot(tx, workspaceId, assistantId)
   if (!now) return null
@@ -64,23 +81,35 @@ export const lockAssistantVersion = (tx: Tx, assistantId: string) =>
 
 /**
  * The version lock of every assistant of the workspace, in the order of their ids: for a change of the workspace that
- * then changes its assistants (Allow Premium off), taken before anything else, as a single save takes its own.
+ * then changes its assistants (a level turned off, a payer change), taken before anything else, as a single save takes its own.
  */
 export async function lockAssistantVersionsOf(tx: Tx, workspaceId: string) {
-  const ids = await tx.select({ id: assistants.id }).from(assistants).where(eq(assistants.workspace_id, workspaceId)).orderBy(asc(assistants.id))
+  const ids = await tx
+    .select({ id: assistants.id })
+    .from(assistants)
+    .where(eq(assistants.workspace_id, workspaceId))
+    .orderBy(asc(assistants.id))
   for (const { id } of ids) await lockAssistantVersion(tx, id)
 }
 
 /** Before a change: the settings as they are now are a version, so the change can be undone. */
-export const keepCurrentVersion = (tx: Tx, workspaceId: string, assistantId: string) => recordVersion(tx, workspaceId, assistantId, { by: null })
+export const keepCurrentVersion = (tx: Tx, workspaceId: string, assistantId: string) =>
+  recordVersion(tx, workspaceId, assistantId, { by: null })
 
 /**
  * The version a call starts with. Normally the newest, read without a lock; a change that skipped
  * recordVersion (an older release during an update) becomes a version of its own first.
  */
-export async function versionForCall(tx: Tx, workspaceId: string, assistantId: string | null | undefined): Promise<number | null> {
+export async function versionForCall(
+  tx: Tx,
+  workspaceId: string,
+  assistantId: string | null | undefined,
+): Promise<number | null> {
   if (!assistantId) return null
-  const [latest, now] = await Promise.all([latestVersion(tx, assistantId), currentSnapshot(tx, workspaceId, assistantId)])
+  const [latest, now] = await Promise.all([
+    latestVersion(tx, assistantId),
+    currentSnapshot(tx, workspaceId, assistantId),
+  ])
   if (latest && now && stableJson(latest.settings) === stableJson(now)) return latest.number
   // A savepoint (or a transaction of its own for a read-only action), so the lock holds until the version is in.
   return tx.transaction(t => recordVersion(t, workspaceId, assistantId, { by: null }))
@@ -92,7 +121,10 @@ const workspaceOf = (workspaceId: string | null) => {
 }
 
 async function ownAssistant(tx: Tx, workspaceId: string, assistantId: string) {
-  const [found] = await tx.select({ id: assistants.id }).from(assistants).where(and(eq(assistants.id, assistantId), eq(assistants.workspace_id, workspaceId)))
+  const [found] = await tx
+    .select({ id: assistants.id })
+    .from(assistants)
+    .where(and(eq(assistants.id, assistantId), eq(assistants.workspace_id, workspaceId)))
   if (!found) throw new Reject('assistant not found')
 }
 
@@ -110,7 +142,13 @@ export async function versionOf(tx: Tx, workspaceId: string, assistantId: string
     .select({ ...itemColumns, settings: assistant_versions.settings })
     .from(assistant_versions)
     .leftJoin(user, eq(user.id, assistant_versions.changed_by))
-    .where(and(eq(assistant_versions.assistant_id, assistantId), eq(assistant_versions.workspace_id, workspaceId), eq(assistant_versions.number, number)))
+    .where(
+      and(
+        eq(assistant_versions.assistant_id, assistantId),
+        eq(assistant_versions.workspace_id, workspaceId),
+        eq(assistant_versions.number, number),
+      ),
+    )
   if (!found) throw new Reject(`version ${number} not found`)
   return { ...found, settings: storedSnapshot(found.settings) }
 }
@@ -125,7 +163,9 @@ export const assistantVersionHandlers: Record<string, Handler> = {
       .select(itemColumns)
       .from(assistant_versions)
       .leftJoin(user, eq(user.id, assistant_versions.changed_by))
-      .where(and(eq(assistant_versions.assistant_id, input.assistantId), eq(assistant_versions.workspace_id, workspaceId)))
+      .where(
+        and(eq(assistant_versions.assistant_id, input.assistantId), eq(assistant_versions.workspace_id, workspaceId)),
+      )
       .orderBy(desc(assistant_versions.number))
       .limit(LISTED_VERSIONS)
     const data: AssistantVersionsData = { versions, current }
@@ -157,9 +197,16 @@ async function assistantOfCalendar(tx: Tx, workspaceId: string, assistantCalenda
 }
 
 /** Runs a versioned action: the settings before it are kept as a version, the result becomes the next one. */
-export async function withVersion<R>({ tx, actor }: HandlerCtx, input: { assistantId?: string; assistantCalendarId?: string }, run: () => Promise<R>): Promise<R> {
+export async function withVersion<R>(
+  { tx, actor }: HandlerCtx,
+  input: { assistantId?: string; assistantCalendarId?: string },
+  run: () => Promise<R>,
+): Promise<R> {
   const workspaceId = actor.workspaceId
-  const assistantId = !workspaceId ? null : (input.assistantId ?? (input.assistantCalendarId ? await assistantOfCalendar(tx, workspaceId, input.assistantCalendarId) : null))
+  const assistantId = !workspaceId
+    ? null
+    : (input.assistantId ??
+      (input.assistantCalendarId ? await assistantOfCalendar(tx, workspaceId, input.assistantCalendarId) : null))
   if (!workspaceId || !assistantId) return run()
   await keepCurrentVersion(tx, workspaceId, assistantId)
   const result = await run()

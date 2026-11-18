@@ -42,8 +42,7 @@ const REFUSALS: Record<PartnerCode, string> = {
   no_partner: 'this workspace has no partner',
   already_partner: 'this account owns a partner already: open the partner area',
   client_owner: "the owner of one of this partner's client workspaces cannot join its team",
-  client_not_billed:
-    'this client workspace is not on the partner bill: a usage limit and Allow Premium or Ultra apply only there',
+  client_not_billed: 'this client workspace is not on the partner bill: a usage limit applies only there',
   member_not_invited:
     "one of the people to remove is not someone the partner's team invited into this workspace, or is or was its owner",
   same_partner: 'the workspace is with this partner already',
@@ -95,9 +94,9 @@ export async function refuseAdminFromPartner(tx: Tx, workspaceId: string, actorI
   if (mine?.partnerId) throw Reject.t('server.api.partner.noAdminFromPartner', undefined, 'partner_admin_grant')
 }
 
-/** Allow Premium or Ultra in a white-label client: its partner's owner decides, never the client's own people (LIN-440). */
+/** Premium or Ultra in a white-label client: its partner's owner decides, never the client's own people (LIN-440). */
 // i18n-ignore: API error bodies for logs and API clients; the web app words a 403 itself
-export const PARTNER_DECIDES_LEVELS = "the partner's owner decides Allow Premium and Allow Ultra for this workspace"
+export const PARTNER_DECIDES_LEVELS = "the partner's owner picks Premium or Ultra for this workspace"
 
 /** Whether the person is the owner of the partner `partnerId`. */
 export async function isPartnerOwner(tx: Pick<Tx, 'select'>, partnerId: string, userId: string) {

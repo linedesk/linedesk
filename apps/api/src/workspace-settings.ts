@@ -1,8 +1,6 @@
 // Workspace settings that live in workspace_settings (not synced to browsers): read and change them
 // through the registry. One row per workspace; a workspace without one gets it on the first change.
 import {
-  type AllowPremiumData,
-  type AllowUltraData,
   type ClosedDay,
   DEFAULT_RECORDING_NOTICE,
   DEFAULT_RECORDING_RETENTION_DAYS,
@@ -14,26 +12,12 @@ import {
   type WorkspaceSettingsData,
 } from '@linedesk/actions'
 import type { Closure } from '@linedesk/db/types'
-import {
-  availability_exceptions,
-  availability_rules,
-  organization,
-  type Tx,
-  workspace_settings,
-} from '@linedesk/db'
+import { availability_exceptions, availability_rules, organization, type Tx, workspace_settings } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 import { derivedDaysOf, syncDerivedDays } from './public-holidays.ts'
 import { activeProvider } from './provider-settings.ts'
-import { lockAssistantVersionsOf } from './assistant-versions.ts'
-import { allowSwitchOf, refuseAllowSwitch } from './level-raise.ts'
-import {
-  assistantsBackToStandard,
-  assistantsOffUltra,
-  levelCentsPerMinute,
-  refuseBillingActor,
-  usageLevelsBilled,
-} from './usage-levels.ts'
+import { levelCentsPerMinute, usageLevelsBilled } from './usage-levels.ts'
 import { deleteOwn, deletePreview } from './workspace-delete-own.ts'
 import { workspaceLocale } from './workspace-locale.ts'
 import { refuseUnservedCountry, servedCountriesOf } from './served-countries.ts'
@@ -47,33 +31,6 @@ export const recordingOn = async (tx: Tx, env: Record<string, string | undefined
 
 /** Used until a workspace has stored its own time zone (same default as onboarding). */
 const DEFAULT_TIME_ZONE = 'America/New_York'
-
-/**
- * Switches Allow Premium or Allow Ultra in a workspace once the caller was allowed to (refuseAllowSwitch, or the
- * partner's owner from Partner › Clients). Off moves the workspace's assistants on a Premium voice or model back to
- * the install's defaults (Premium), or those answering with a realtime model back to the three stages (Ultra), in the
- * same transaction, each with a new version by `actorId`. Locks in the order every save takes them: the version locks
- * of all the workspace's assistants (by id), then the settings row, then the assistant rows. A save running at the
- * same time finishes before or starts after, and the move sees it or it sees the move; never a deadlock.
- */
-export async function switchAllowLevel(
-  tx: Tx,
-  workspaceId: string,
-  actorId: string,
-  level: 'premium' | 'ultra',
-  on: boolean,
-) {
-  if (!on) await lockAssistantVersionsOf(tx, workspaceId)
-  const set = level === 'premium' ? { allow_premium: on } : { allow_ultra: on }
-  await tx
-    .insert(workspace_settings)
-    .values({ workspace_id: workspaceId, timezone: DEFAULT_TIME_ZONE, ...set })
-    .onConflictDoUpdate({ target: workspace_settings.workspace_id, set })
-  if (on) return []
-  return level === 'premium'
-    ? await assistantsBackToStandard(tx, workspaceId, actorId)
-    : await assistantsOffUltra(tx, workspaceId, actorId)
-}
 
 export const workspaceSettingsHandlers: Record<string, Handler> = {
   'workspace.getSettings': async ({ tx, actor }) => {
@@ -111,42 +68,11 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       pickupMode: row?.pickup_mode ?? null,
       ...locale,
       servedCountries: await servedCountriesOf(tx, actor.workspaceId),
-      allowPremium: row?.allow_premium ?? false,
-      allowUltra: row?.allow_ultra ?? false,
-      allowSwitch: await allowSwitchOf(tx, actor),
       usageLevels: await usageLevelsBilled(tx),
       // A white-label client's people see minutes, never our prices (docs/white-label.md; review of #1109, L-2).
       ...(partnerManaged ? { partnerManaged } : { usageCentsPerMinute: await levelCentsPerMinute(tx) }),
     }
     return { rows: {}, data }
-  },
-
-  /**
-   * Allow Premium (Linedesk Cloud): the owner only, as themselves in the app (refuseBillingActor), and when the workspace
-   * is on a bill, only its bill's owner switches it on (off costs less, so the workspace owner may); in a white-label
-   * client only its partner's owner (refuseAllowSwitch); audited. Off moves Premium assistants back (switchAllowLevel).
-   */
-  'workspace.setAllowPremium': async ({ tx, actor }, input: { on: boolean }) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
-    refuseBillingActor(actor)
-    await refuseAllowSwitch(tx, actor, input.on)
-    const moved = await switchAllowLevel(tx, actor.workspaceId, actor.actorId, 'premium', input.on)
-    const data: AllowPremiumData = { on: input.on, movedToStandard: moved.map(a => a.id) }
-    return { rows: moved.length ? { assistants: moved } : {}, data }
-  },
-
-  /**
-   * Allow Ultra (Linedesk Cloud): like Allow Premium, the owner only, as themselves in the app, the bill's owner when
-   * there is a bill switches it on, and in a white-label client only its partner's owner; audited. Off moves the
-   * workspace's assistants that answer with a realtime model back to the three stages (switchAllowLevel).
-   */
-  'workspace.setAllowUltra': async ({ tx, actor }, input: { on: boolean }) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
-    refuseBillingActor(actor)
-    await refuseAllowSwitch(tx, actor, input.on)
-    const moved = await switchAllowLevel(tx, actor.workspaceId, actor.actorId, 'ultra', input.on)
-    const data: AllowUltraData = { on: input.on, movedOffUltra: moved.map(a => a.id) }
-    return { rows: moved.length ? { assistants: moved } : {}, data }
   },
 
   /** The business name is the workspace's (organization) name. */

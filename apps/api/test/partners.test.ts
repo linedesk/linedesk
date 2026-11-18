@@ -4,6 +4,7 @@
 // billing on for one test: an instance-wide file (vitest.config.ts).
 import {
   api_keys,
+  assistants,
   billing_accounts,
   billing_balances,
   billing_periods,
@@ -19,10 +20,9 @@ import {
   session,
   usage_limit_alerts,
   user,
-  workspace_settings,
 } from '@linedesk/db'
 import { and, eq, isNull } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, onTestFinished, test, vi } from 'vitest'
 import { listAudit } from '../src/audit.ts'
 import { BILLING_ENABLED_KEY } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
@@ -66,6 +66,17 @@ vi.mock('../src/billing-catalog.ts', async original => {
     ...real,
     pricesForCheckout: async (provider: Parameters<typeof real.pricesForCheckout>[0]) =>
       catalog.prices ?? real.pricesForCheckout(provider),
+  }
+})
+
+/** Usage levels billed (call quality on Linedesk Cloud) for the tests that turn it on; the stored billing otherwise. */
+const cloud = vi.hoisted(() => ({ on: false }))
+vi.mock('../src/billing-settings.ts', async original => {
+  const real = await original<typeof import('../src/billing-settings.ts')>()
+  return {
+    ...real,
+    billingState: async (...args: Parameters<typeof real.billingState>) =>
+      cloud.on ? { ...(await real.billingState(...args)), inEffect: 'stripe' as const } : real.billingState(...args),
   }
 })
 
@@ -1092,19 +1103,17 @@ describe('the partner bill (S2)', () => {
     await db.insert(partner_members).values({ partner_id: partnerId, user_id: plain.userId, role: 'owner' })
     expect(await perms(plain)).toContain('partner')
     expect(await perms(plain)).not.toContain('billing:manage')
-    for (const name of ['workspace.setAllowPremium', 'workspace.setAllowUltra'])
-      expect((await act(plain, name, { on: false })).status, name).toBe(403)
+    const raise = (who: User) => act(who, 'assistant.update', { assistantId: w.assistant.id, call_quality: 'premium' })
+    expect((await raise(plain)).status).toBe(403)
     // Their own partner bill still answers them by partnerId, from a workspace that is not on it.
     expect((await act(plain, 'billing.state', { partnerId })).status).toBe(200)
-    // A disabled workspace is read only: nobody switches them, not even its owner.
+    // A disabled workspace is read only: nobody raises a level there, not even its owner.
     await db.update(organization).set({ disabledAt: new Date() }).where(eq(organization.id, w.id))
     expect(await perms(plain)).not.toContain('billing:manage')
-    for (const name of ['workspace.setAllowPremium', 'workspace.setAllowUltra']) {
-      expect((await act(plain, name, { on: false })).status, name).toBe(403)
-      expect((await act(w.owner, name, { on: false })).status, name).not.toBe(200)
-    }
+    expect((await raise(plain)).status).toBe(403)
+    expect((await raise(w.owner)).status).not.toBe(200)
     await db.update(organization).set({ disabledAt: null }).where(eq(organization.id, w.id))
-    expect((await act(w.owner, 'workspace.setAllowPremium', { on: false })).status).toBe(200)
+    expect((await raise(w.owner)).status).toBe(200)
   })
 
   test("someone who owns one of the partner's clients never joins its team (review of #1109, L-3)", async () => {
@@ -1143,7 +1152,7 @@ describe('the partner bill (S2)', () => {
   })
 })
 
-// ---- Slice S3 (LIN-454): Partner › Clients, the monthly usage limit, Allow Premium and Ultra; review of #1109 ----
+// ---- Slice S3 (LIN-454): Partner › Clients, the monthly usage limit, Premium and Ultra; review of #1109 ----
 
 const DAY_MS = 86_400_000
 const rid = (prefix: string) => `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
@@ -1252,8 +1261,6 @@ describe('Partner › Clients (S3)', () => {
       costCents: 950,
       limitCents: 1000,
       limitPercent: 95,
-      allowPremium: false,
-      allowUltra: false,
       billed: true,
       problems: ['limit_near'],
     })
@@ -1326,24 +1333,24 @@ describe('Partner › Clients (S3)', () => {
     expect(await orgRow(c)).toMatchObject({ usageLimitCents: null })
   })
 
-  test("only the partner's owner switches Allow Premium and Ultra in a client; the client's owner and the team cannot (LIN-440)", async () => {
+  test("only the partner's owner raises a client's assistant to Premium or Ultra; the client's owner and the team cannot (LIN-440)", async () => {
     const p = await billedPartner('Level Partner', 'active', true)
     const c = await createClient(p, 'Level Client')
     const owner = await inWorkspace(await giveOwner(p, c), c)
     const padmin = await addPartnerAdmin(p)
-    const allow = (who: User, level: 'premium' | 'ultra', on: boolean) =>
-      act(who, 'partner.setClientAllow', { partnerId: p.id, workspaceId: c, level, on })
-    expect((await allow(padmin, 'premium', true)).status).toBe(403)
-    expect((await allow(b.owner, 'premium', true)).status).toBe(403)
-    expect(await allow(p.owner, 'premium', true)).toMatchObject({ status: 200 })
-    expect(await allow(p.owner, 'ultra', true)).toMatchObject({ status: 200 })
-    const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, c))
-    expect(row).toMatchObject({ allow_premium: true, allow_ultra: true })
-    // In the client workspace itself only the partner's owner switches them, never the client's owner.
-    expect((await act(owner, 'workspace.setAllowPremium', { on: false })).status).toBe(403)
-    expect((await act(owner, 'workspace.setAllowUltra', { on: false })).status).toBe(403)
-    expect((await act(await inWorkspace(padmin, c), 'workspace.setAllowPremium', { on: false })).status).toBe(403)
-    expect((await act(await inWorkspace(p.owner, c), 'workspace.setAllowUltra', { on: false })).status).toBe(200)
+    const [assistant] = await db.select({ id: assistants.id }).from(assistants).where(eq(assistants.workspace_id, c))
+    const raise = async (who: User, level: 'premium' | 'ultra' | 'standard' = 'premium') =>
+      (await act(who, 'assistant.update', { assistantId: assistant!.id, call_quality: level })).status
+    cloud.on = true
+    onTestFinished(() => {
+      cloud.on = false
+    })
+    // In the client workspace itself only the partner's owner raises, never the client's owner or a partner admin.
+    expect(await raise(owner)).toBe(403)
+    expect(await raise(await inWorkspace(padmin, c))).toBe(403)
+    expect(await raise(await inWorkspace(p.owner, c))).toBe(200)
+    // Anyone who edits the assistant lowers it.
+    expect(await raise(owner, 'standard')).toBe(200)
     // The client's people see no prices: the partner bills them its own way (L-2).
     const settings = (await act(owner, 'workspace.getSettings', {})).body.data
     expect(settings.partnerManaged).toBe(true)
@@ -1929,7 +1936,7 @@ describe('Server admin › Workspaces: a workspace changes partner (LIN-530)', (
     expect(entries.some((e: { what: string }) => e.what === 'partner.adminMoveClient')).toBe(true)
   })
 
-  test('adding a workspace: it leaves its own bill for the partner bill, and Allow Premium goes off', async () => {
+  test("adding a workspace: it leaves its own bill for the partner bill, and the old payer's Premium goes to Standard", async () => {
     const to = await billedPartner('Adding Agency', 'active', true)
     const plain = await createWorkspace('Plain Roofing')
     const [own] = await db
@@ -1937,10 +1944,7 @@ describe('Server admin › Workspaces: a workspace changes partner (LIN-530)', (
       .values({ id: crypto.randomUUID(), kind: 'cloud', owner_user_id: plain.owner.userId, status: 'active' })
       .returning()
     await db.update(organization).set({ billingAccountId: own!.id, extraCalls: 5 }).where(eq(organization.id, plain.id))
-    await db
-      .update(workspace_settings)
-      .set({ allow_premium: true })
-      .where(eq(workspace_settings.workspace_id, plain.id))
+    await db.update(assistants).set({ call_quality: 'premium' }).where(eq(assistants.id, plain.assistant.id))
     const before = await workspaceData(plain.id)
     let res: Awaited<ReturnType<typeof move>> | undefined
     const jobs = await seatJobs(async () => (res = await move(plain.id, to.id, 'Plain Roofing')))
@@ -1952,8 +1956,8 @@ describe('Server admin › Workspaces: a workspace changes partner (LIN-530)', (
       ]),
     )
     expect(await orgRow(plain.id)).toMatchObject({ partnerId: to.id, billingAccountId: to.billId, extraCalls: 0 })
-    const [settings] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, plain.id))
-    expect(settings).toMatchObject({ allow_premium: false })
+    const [assistant] = await db.select().from(assistants).where(eq(assistants.id, plain.assistant.id))
+    expect(assistant).toMatchObject({ call_quality: 'standard' })
     expect(await partnerMembership(plain.id, plain.owner.userId)).toMatchObject({ role: 'owner', partnerId: null })
     expect(await partnerMembership(plain.id, to.owner.userId)).toMatchObject({ role: 'admin', partnerId: to.id })
     expect(await workspaceData(plain.id)).toEqual(before)

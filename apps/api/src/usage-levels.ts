@@ -24,9 +24,9 @@ import {
   voiceModelLevel,
   type VoicePipeline,
 } from '@linedesk/actions'
-import { organization, type PaidLevel, type Tx, workspace_settings } from '@linedesk/db'
+import { organization, type PaidLevel, type Tx } from '@linedesk/db'
 import type { Assistant } from '@linedesk/db/types'
-import { and, eq, or } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { lockAssistantVersionsOf } from './assistant-versions.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingState } from './billing-settings.ts'
@@ -279,15 +279,6 @@ export async function assistantVoiceOf(tx: Tx, assistant: AssistantChoices): Pro
 }
 
 /**
- * Allow Premium or Allow Ultra turned off (until the switches go, call quality 4/5): the workspace's assistants on that
- * level go to Standard, with a version by `by`. Returns the rows it changed.
- */
-export const assistantsBackToStandard = (tx: Tx, workspaceId: string, by: string) =>
-  moveToStandard(tx, workspaceId, ['premium'], by)
-export const assistantsOffUltra = (tx: Tx, workspaceId: string, by: string) =>
-  moveToStandard(tx, workspaceId, ['ultra'], by)
-
-/**
  * Before a change that may give these workspaces another bill owner, and before the bill's balance lock: the version
  * locks of all their assistants (billPayerChanged may change them), in the order of `call.start` (a version lock,
  * then the balance), so the two never deadlock.
@@ -299,9 +290,8 @@ export async function lockForPayerChange(tx: Tx, workspaceIds: string[]) {
 /**
  * A bill owner changed to another person (LIN-438: `billing.moveWorkspace` to a bill of someone else,
  * `billing.transferOwner`, `billing.handOver`, `team.transferOwnership` moving the bill): Premium and Ultra were the old
- * payer's choice, so each of these workspaces' assistants on them goes to Standard, with a version by `by`, and Allow
- * Premium and Allow Ultra go off (until the switches go, call quality 4/5). Call in the same transaction, after the
- * bill's balance lock and the change itself: a raise meanwhile waited for that change (refuseLevelRaise locks the
+ * payer's choice, so each of these workspaces' assistants on them goes to Standard, with a version by `by`. Call in the
+ * same transaction, after the bill's balance lock and the change itself: a raise meanwhile waited for that change (refuseLevelRaise locks the
  * bill) and was refused, or committed before it and is seen here. Returns what it changed.
  */
 export async function billPayerChanged(tx: Tx, workspaceIds: string[], by: string) {
@@ -311,19 +301,9 @@ export async function billPayerChanged(tx: Tx, workspaceIds: string[], by: strin
     // Taken already by lockForPayerChange (then this waits for nothing); not yet only for a workspace moved onto the
     // bill between that and the balance lock (billing.handOver, billing.transferOwner).
     await lockAssistantVersionsOf(tx, workspaceId)
-    const switchedOff = await tx
-      .update(workspace_settings)
-      .set({ allow_premium: false, allow_ultra: false })
-      .where(
-        and(
-          eq(workspace_settings.workspace_id, workspaceId),
-          or(eq(workspace_settings.allow_premium, true), eq(workspace_settings.allow_ultra, true)),
-        ),
-      )
-      .returning({ id: workspace_settings.workspace_id })
     const toStandard = await moveToStandard(tx, workspaceId, ['premium'], by)
     const offUltra = await moveToStandard(tx, workspaceId, ['ultra'], by)
-    if (!toStandard.length && !offUltra.length && !switchedOff.length) continue
+    if (!toStandard.length && !offUltra.length) continue
     reset.workspaceIds.push(workspaceId)
     reset.movedToStandard.push(...toStandard.map(a => a.id))
     reset.movedOffUltra.push(...offUltra.map(a => a.id))
@@ -333,7 +313,7 @@ export async function billPayerChanged(tx: Tx, workspaceIds: string[], by: strin
 }
 
 /**
- * Allow Premium changes what the workspace pays: the owner only, signed in as themselves in the app (billing:manage),
+ * A paid level changes what the workspace pays: the owner only, signed in as themselves in the app (billing:manage),
  * never through an API key, a setup link or an instance admin's impersonation.
  */
 export function refuseBillingActor(actor: Actor) {

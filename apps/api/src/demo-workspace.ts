@@ -56,8 +56,6 @@ const business = z.object({
   prices: line.optional(),
   /** Common calls after the template's. */
   useCases: z.array(line).max(20).default([]),
-  /** How its calls are answered; missing: the install's default. */
-  voicePipeline: z.enum(['realtime', 'three_stage']).optional(),
 })
 export const demoWorkspaceData = z.object({
   workspace: z.object({
@@ -118,7 +116,6 @@ export function demoAssistantUpdate(assistantId: string, b: DemoBusiness, demoRu
     max_call_minutes: DEMO_MAX_CALL_MINUTES,
     transfers: [],
     languages: ENGLISH_ONLY,
-    ...(b.voicePipeline ? { voice_pipeline: b.voicePipeline } : {}),
     business_profile: {
       instructions: demoInstructions(b, demoRules),
       description: b.about,
@@ -251,7 +248,10 @@ async function leftovers(workspaceId: string): Promise<string[]> {
   }
   return Object.entries(found)
     .filter(([, n]) => n > 0)
-    .map(([what, n]) => `Warning: the demo workspace has ${n} ${what}; a public demo workspace should have none (demo calls are refused while it has a phone number, calendar or webhook).`)
+    .map(
+      ([what, n]) =>
+        `Warning: the demo workspace has ${n} ${what}; a public demo workspace should have none (demo calls are refused while it has a phone number, calendar or webhook).`,
+    )
 }
 
 async function main() {

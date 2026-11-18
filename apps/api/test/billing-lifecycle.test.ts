@@ -536,14 +536,12 @@ describe('bill ownership (docs/billing.md §8)', () => {
   })
 
   const SWITCHED_OFF = {
-    allowPremium: false,
-    allowUltra: false,
     level: 'standard',
     llmModel: null,
     realtimeModel: null,
   }
 
-  test('the new bill owner of a hand-over gets Allow Premium and Allow Ultra off on every workspace (LIN-438)', async () => {
+  test("the new bill owner of a hand-over gets the old payer's Premium and Ultra moved to Standard on every workspace (LIN-438)", async () => {
     const b = await billed()
     const second = await createWorkspace('Brightwater North')
     await db.update(organization).set({ billingAccountId: b.billId }).where(eq(organization.id, second.id))
@@ -558,7 +556,7 @@ describe('bill ownership (docs/billing.md §8)', () => {
     for (const w of [b.ws, second]) expect(await premiumAndUltraOf(w)).toMatchObject(SWITCHED_OFF)
   })
 
-  test('handing over the only workspace moves the bill and switches Allow Premium and Allow Ultra off (LIN-438)', async () => {
+  test("handing over the only workspace moves the bill and the old payer's Premium and Ultra to Standard (LIN-438)", async () => {
     const b = await billed()
     await withPremiumAndUltra(b.ws)
     const next = await addMember(b.ws.id, 'admin')

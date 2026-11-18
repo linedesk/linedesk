@@ -131,9 +131,7 @@ export function WorkspaceSettings({
         )}
         {current === 'recordings' && <Recordings canEdit={canEdit} toast={toast} />}
         {current === 'export' && <ExportCalls canEdit={canEdit} toast={toast} />}
-        {current === 'billing' && billing && (
-          <Billing toast={toast} view={billing} levels={{ canEdit, isOwner: role === 'owner' }} />
-        )}
+        {current === 'billing' && billing && <Billing toast={toast} view={billing} />}
         {current === 'danger' && <DangerZone workspaceName={workspaceName} isInstanceAdmin={isInstanceAdmin} />}
       </SettingsLayout>
     </div>

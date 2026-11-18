@@ -31,8 +31,6 @@
   "couldNot.sample.remove": "Não foi possível remover as chamadas de exemplo.",
   "couldNot.workspace.removeIcon": "Não foi possível remover o ícone do espaço de trabalho.",
   "couldNot.workspace.rename": "Não foi possível renomear a empresa.",
-  "couldNot.workspace.setAllowPremium": "Não foi possível alterar Permitir Premium.",
-  "couldNot.workspace.setAllowUltra": "Não foi possível alterar Permitir Ultra.",
   "couldNot.workspace.setIcon": "Não foi possível salvar o ícone do espaço de trabalho.",
   "couldNot.workspace.updateSettings": "Não foi possível salvar as configurações do espaço de trabalho.",
   "forwarding.checkFailed": "Não foi possível iniciar a verificação. Tente novamente em instantes.",

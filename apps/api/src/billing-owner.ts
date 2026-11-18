@@ -93,7 +93,7 @@ async function ownBill(tx: Reader, actor: Actor) {
 }
 
 /**
- * A choice that makes the bill pay more (Allow Premium, Allow Ultra on; docs/billing.md §7, §8): when the actor's
+ * A choice that makes the bill pay more (an assistant raised to Premium or Ultra; docs/billing.md §7, §8): when the actor's
  * workspace is on a bill, only the bill's owner makes it, not a workspace owner whose workspace another person pays
  * for (security review LIN-396, T1). A workspace without a bill (self-hosted, not billed yet) is not refused here.
  */
@@ -102,8 +102,8 @@ export async function refuseUnlessBillOwner(tx: Tx, actor: Actor) {
   // A white-label partner's owner holds billing:manage for its partner bill also where they are only an admin
   // (context.ts): in a workspace without a bill that is no one's to decide but the workspace's owner, as before.
   const notOwner = actor.role !== 'owner'
-  // Locked (shared) until the switch is saved (LIN-438): a move to another bill or a new bill owner waits for it and
-  // then switches it off again, or it waits for them and sees the new owner. The bill first, then the workspace: the
+  // Locked (shared) until the change is saved (LIN-438): a move to another bill or a new bill owner waits for it and
+  // then moves the raised assistant back, or it waits for them and sees the new owner. The bill first, then the workspace: the
   // order of every bill status change (bill, then its workspaces' rows), so the two never deadlock. Two statements,
   // never one join: a join waiting on a workspace a move just changed re-checks it against the old bill row, finds
   // none and would read "no bill" (independent review of #1050).
@@ -376,9 +376,9 @@ export async function workspacesOnBill(tx: Tx, billId: string) {
 
 /**
  * Makes `userId` the bill's owner: a member of one of its workspaces, with a confirmed address and an account that is
- * not disabled. Under the bill's lock order (its balance row first). Allow Premium and Allow Ultra go off on every
- * workspace of the bill (billPayerChanged, LIN-438), with versions of the assistants by `by`; returns those
- * assistants as they are now.
+ * not disabled. Under the bill's lock order (its balance row first). Every assistant of the bill's workspaces on
+ * Premium or Ultra goes to Standard (billPayerChanged, LIN-438), with a version by `by`; returns those assistants as
+ * they are now.
  */
 async function transferBill(tx: Tx, billId: string, userId: string, by: string, now: string) {
   await lockForPayerChange(tx, await workspacesOnBill(tx, billId))
@@ -441,7 +441,7 @@ export const billingOwnerHandlers: Record<string, Handler> = {
  * until the bill has another owner (billing.handOver). Moving the bill hands over its Stripe customer and saved card,
  * so it needs the same owner step-up as billing.handOver (security review of #920, M6): a session left open cannot
  * move the bill through the workspace instead. Call before the roles change, in the same transaction. A moved bill
- * gets Allow Premium and Allow Ultra off (billPayerChanged, LIN-438); returns what that changed, or null.
+ * moves its assistants on Premium or Ultra to Standard (billPayerChanged, LIN-438); returns what that changed, or null.
  */
 export async function billOnWorkspaceHandOver(
   tx: Tx,
@@ -469,7 +469,7 @@ export async function billOnWorkspaceHandOver(
   await lockForPayerChange(tx, [workspaceId])
   await lockBalance(tx, bill.id)
   // Again under the balance lock (independent review of #1050): a workspace moved onto the bill meanwhile (a move
-  // takes this lock too) would stay on it under the new owner, with its own Allow Premium and Allow Ultra.
+  // takes this lock too) would stay on it under the new owner, with its assistants on Premium or Ultra.
   await refuseSeveral()
   const [moved] = await tx
     .update(billing_accounts)
@@ -477,7 +477,7 @@ export async function billOnWorkspaceHandOver(
     .where(and(eq(billing_accounts.id, bill.id), eq(billing_accounts.owner_user_id, fromUserId)))
     .returning({ id: billing_accounts.id })
   if (!moved) return null
-  // The new owner did not choose Allow Premium or Allow Ultra (LIN-438).
+  // The new owner did not choose Premium or Ultra (LIN-438).
   return billPayerChanged(tx, [workspaceId], actor.actorId)
 }
 

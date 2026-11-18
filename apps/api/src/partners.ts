@@ -51,7 +51,7 @@ import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { localeForUserId } from './email-locale.ts'
 import { emailSafeName, partnerInvitationEmail } from './emails/templates.ts'
-import { Forbidden, type Handler, type HandlerCtx, Reject } from './handler-context.ts'
+import { Forbidden, type Handler, type HandlerCtx } from './handler-context.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { lockExtraCalls } from './extra-calls.ts'
 import { lockBalance, periodAt } from './ledger.ts'
@@ -74,7 +74,6 @@ import { refuseMoneyChange } from './billing-settings.ts'
 import { clientPeriodUsage, limitPercent, queueUsageLimitAlerts, resetUsageLimitAlerts } from './usage-limit.ts'
 import { insertWorkspace } from './workspace-creation-handlers.ts'
 import { deleteWorkspace } from './workspace-delete.ts'
-import { switchAllowLevel } from './workspace-settings.ts'
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
 const DAY_MS = 86_400_000
@@ -580,8 +579,8 @@ function refuseUnconfirmed(name: string, typed: string) {
  * partner's owner; docs/white-label.md): the partner team leaves it at once (memberships removed with their API keys
  * and setup links, the invitations they sent there canceled), and where it was on the partner bill it moves to a new
  * bill of the client's owner waiting for Checkout (`pending_payment`): calls are answered again once they add a card.
- * Allow Premium and Allow Ultra go off (someone else pays now, LIN-438), and the partner's seats drop after the
- * commit. Refused while calls run there (their usage posts to the bill they started on). The people the partner's team
+ * Its assistants on Premium or Ultra go to Standard (someone else pays now, LIN-438), and the partner's seats drop
+ * after the commit. Refused while calls run there (their usage posts to the bill they started on). The people the partner's team
  * invited there leave too (security review of #1109, L-4; both confirmations name them first), and the partner's usage
  * limit for the client ends. The caller holds the partner row's lock. Lock order: the partner row, the bill's
  * extra-calls lock, the assistants' version locks, the partner bill's balance, the workspace.
@@ -686,7 +685,7 @@ type AdminMoveInput = { workspaceId: string; toPartnerId: string | null; confirm
  * team becomes admin). Where a bill is involved the workspace changes bills, so only an instance admin signed in with
  * their passkey (refuseMoneyChange, as `billing.moveWorkspace`): onto the new partner's bill, with the gates a new
  * client has there (billForNewClient), its seat added and the old bill's dropped after the commit (seatsFollow,
- * docs/billing.md §6), Allow Premium and Ultra off when someone else pays, its extra calls and usage limit left
+ * docs/billing.md §6), its Premium and Ultra assistants to Standard when someone else pays, its extra calls and usage limit left
  * behind. Taken from its partner it goes the way a release goes (detachClient: a new bill of its owner waiting for
  * their card). Refused for a bill that is past due or suspended, while calls run, and never while impersonating.
  * Lock order: the partner rows (id order), the owner row, the old bill's extra-calls lock, the assistants' version
@@ -756,7 +755,7 @@ async function adminMoveClient(ctx: HandlerCtx, input: AdminMoveInput) {
     .where(eq(organization.id, org.id))
   await resetUsageLimitAlerts(tx, org.id)
   if (moves) {
-    // Someone else pays from now on: Allow Premium and Allow Ultra were the old payer's choice (LIN-438).
+    // Someone else pays from now on: Premium and Ultra were the old payer's choice (LIN-438).
     if (old?.owner_user_id !== bill.owner_user_id) await billPayerChanged(tx, [org.id], actor.actorId)
     // A canceled bill's subscription ended in Stripe: nothing to lower there (seatsFollowDelete).
     if (old && old.status !== 'canceled')
@@ -865,14 +864,6 @@ async function listClients(tx: Tx, partner: PartnerRow, now: string): Promise<Pa
     .from(calls)
     .where(inArray(calls.workspace_id, ids))
     .groupBy(calls.workspace_id)
-  const levels = await tx
-    .select({
-      workspaceId: workspace_settings.workspace_id,
-      premium: workspace_settings.allow_premium,
-      ultra: workspace_settings.allow_ultra,
-    })
-    .from(workspace_settings)
-    .where(inArray(workspace_settings.workspace_id, ids))
   const since = new Date(Date.parse(now) - PROVIDER_ERROR_DAYS * DAY_MS).toISOString()
   const failing = new Set(
     (
@@ -898,7 +889,6 @@ async function listClients(tx: Tx, partner: PartnerRow, now: string): Promise<Pa
           ? 'not_needed'
           : 'unverified'
     const stats = callStats.find(k => k.workspaceId === c.id)
-    const level = levels.find(l => l.workspaceId === c.id)
     const onBill = billed.includes(c.id)
     const used = usage.get(c.id)
     const costMicros = onBill && period ? (used?.costMicros ?? 0) : null
@@ -934,8 +924,6 @@ async function listClients(tx: Tx, partner: PartnerRow, now: string): Promise<Pa
       costCents: costMicros === null ? null : Math.round(costMicros / 10_000),
       limitCents: c.limitCents,
       limitPercent: percent,
-      allowPremium: level?.premium ?? false,
-      allowUltra: level?.ultra ?? false,
       billed: onBill,
       problems,
     }
@@ -1215,37 +1203,6 @@ export const partnerHandlers: Record<string, Handler> = {
       data: {
         workspace: { id: org.id, name: org.name },
         limitCents: cents,
-        subject: { email: null, workspaceId: org.id },
-      },
-    }
-  },
-
-  'partner.setClientAllow': async (
-    { tx, actor, now },
-    input: { partnerId: string; workspaceId: string; level: 'premium' | 'ultra'; on: boolean },
-  ) => {
-    const { partner } = await partnerFor(tx, actor, input.partnerId, { write: true, owner: true })
-    const seen = await clientOf(tx, partner.id, input.workspaceId)
-    if (!partner.billing_account_id) throw refusePartner('client_not_billed')
-    const [bill] = await tx
-      .select({ owner: billing_accounts.owner_user_id })
-      .from(billing_accounts)
-      .where(eq(billing_accounts.id, partner.billing_account_id))
-      .for('share')
-    const [org] = await tx.select().from(organization).where(eq(organization.id, seen.id)).for('share')
-    if (!org || org.partnerId !== partner.id) throw refusePartner('client_not_found')
-    if (org.billingAccountId !== partner.billing_account_id) throw refusePartner('client_not_billed')
-    if (bill?.owner !== actor.actorId) throw new Forbidden(PARTNER_OWNER_ONLY)
-    if (org.disabledAt) throw Reject.t('server.api.workspaceDisabled')
-    const moved = await switchAllowLevel(tx, org.id, actor.actorId, input.level, input.on)
-    return {
-      rows: {},
-      data: {
-        workspace: { id: org.id, name: org.name },
-        level: input.level,
-        on: input.on,
-        moved: moved.map(a => a.id),
-        at: now,
         subject: { email: null, workspaceId: org.id },
       },
     }

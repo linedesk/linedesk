@@ -31,8 +31,6 @@
   "couldNot.sample.remove": "Could not remove the sample calls.",
   "couldNot.workspace.removeIcon": "Could not remove the workspace icon.",
   "couldNot.workspace.rename": "Could not rename the business.",
-  "couldNot.workspace.setAllowPremium": "Could not change Allow Premium.",
-  "couldNot.workspace.setAllowUltra": "Could not change Allow Ultra.",
   "couldNot.workspace.setIcon": "Could not save the workspace icon.",
   "couldNot.workspace.updateSettings": "Could not save the workspace settings.",
   "forwarding.checkFailed": "The check could not start. Try again in a moment.",

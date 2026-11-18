@@ -31,8 +31,6 @@
   "couldNot.sample.remove": "Die Beispielanrufe konnten nicht entfernt werden.",
   "couldNot.workspace.removeIcon": "Das Workspace-Symbol konnte nicht entfernt werden.",
   "couldNot.workspace.rename": "Das Unternehmen konnte nicht umbenannt werden.",
-  "couldNot.workspace.setAllowPremium": "„Premium erlauben“ konnte nicht geändert werden.",
-  "couldNot.workspace.setAllowUltra": "„Ultra erlauben“ konnte nicht geändert werden.",
   "couldNot.workspace.setIcon": "Das Workspace-Symbol konnte nicht gespeichert werden.",
   "couldNot.workspace.updateSettings": "Die Workspace-Einstellungen konnten nicht gespeichert werden.",
   "forwarding.checkFailed": "Die Prüfung konnte nicht starten. Versuch es gleich noch einmal.",

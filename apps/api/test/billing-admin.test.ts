@@ -36,7 +36,7 @@ import {
   user,
 } from '@linedesk/db'
 import { and, desc, eq, sql } from 'drizzle-orm'
-import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, onTestFinished, test, vi } from 'vitest'
 import {
   billingAdminHandlers,
   REFUND_SETTLE_AFTER_MS,
@@ -73,6 +73,17 @@ vi.mock('../src/billing-catalog.ts', async original => {
   return {
     ...real,
     syncedPrices: async (tx: Parameters<typeof real.syncedPrices>[0]) => catalog.prices ?? real.syncedPrices(tx),
+  }
+})
+
+/** Usage levels billed (call quality on Linedesk Cloud) for the tests that turn it on; the stored billing otherwise. */
+const cloud = vi.hoisted(() => ({ on: false }))
+vi.mock('../src/billing-settings.ts', async original => {
+  const real = await original<typeof import('../src/billing-settings.ts')>()
+  return {
+    ...real,
+    billingState: async (...args: Parameters<typeof real.billingState>) =>
+      cloud.on ? { ...(await real.billingState(...args)), inEffect: 'stripe' as const } : real.billingState(...args),
   }
 })
 
@@ -1302,10 +1313,8 @@ describe('moving a workspace', () => {
   })
 })
 
-describe('a new bill owner gets Allow Premium and Allow Ultra off (LIN-438)', () => {
+describe("a new bill owner gets the old payer's Premium and Ultra moved to Standard (LIN-438)", () => {
   const SWITCHED_OFF = {
-    allowPremium: false,
-    allowUltra: false,
     level: 'standard',
     llmModel: null,
     realtimeModel: null,
@@ -1357,7 +1366,11 @@ describe('a new bill owner gets Allow Premium and Allow Ultra off (LIN-438)', ()
     expect(await premiumAndUltraOf(from.ws)).toEqual(KEPT_PREMIUM_AND_ULTRA)
   })
 
-  test("switching Allow Premium on while a move onto someone else's bill commits is refused (review of #1050)", async () => {
+  test("raising an assistant to Premium while a move onto someone else's bill commits is refused (review of #1050)", async () => {
+    cloud.on = true
+    onTestFinished(() => {
+      cloud.on = false
+    })
     const from = await billWith({ stripe_customer_id: null })
     const to = await billWith({ stripe_customer_id: null })
     let moved!: () => void
@@ -1377,10 +1390,13 @@ describe('a new bill owner gets Allow Premium and Allow Ultra off (LIN-438)', ()
       await gate
     })
     await updated
-    const switchOn = act(from.ws.owner, 'workspace.setAllowPremium', { on: true })
+    const switchOn = act(from.ws.owner, 'assistant.update', {
+      assistantId: from.ws.assistant.id,
+      call_quality: 'premium',
+    })
     const probe = createDb(process.env.DATABASE_URL!, { max: 1 })
     try {
-      // Only the backends the move blocks: the switch, waiting on the workspace row the move holds.
+      // Only the backends the move blocks: the raise, waiting on the workspace row the move holds.
       const blockedByMove = async () =>
         (
           await probe.db.execute(
@@ -1396,10 +1412,10 @@ describe('a new bill owner gets Allow Premium and Allow Ultra off (LIN-438)', ()
     }
     // It then sees the workspace on another bill: refused, never read as "no bill" or as the old bill.
     expect((await switchOn).status).toBe(403)
-    expect((await premiumAndUltraOf(from.ws)).allowPremium).toBe(false)
+    expect((await premiumAndUltraOf(from.ws)).level).toBe('standard')
   })
 
-  test("an instance admin's transfer switches both off on every workspace of the bill", async () => {
+  test("an instance admin's transfer moves them to Standard on every workspace of the bill", async () => {
     const { billId, ws } = await billWith({ stripe_customer_id: null })
     const second = await createWorkspace('Brightwater North')
     await db.update(organization).set({ billingAccountId: billId }).where(eq(organization.id, second.id))

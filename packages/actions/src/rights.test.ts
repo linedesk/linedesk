@@ -164,10 +164,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'business.search',
     'business.import',
     // What the workspace pays (billing:manage, owners and admins since 2026-11-17): the handlers let through only who
-    // manages the bill (managesBill: its owner, or an owner or admin of the only workspace it pays for). Allow Premium
-    // voices and models, Allow Ultra on Linedesk Cloud.
-    'workspace.setAllowPremium',
-    'workspace.setAllowUltra',
+    // manages the bill (managesBill: its owner, or an owner or admin of the only workspace it pays for).
     // The bill's Checkout, Buy minutes, cancel and resume (docs/billing.md §3.2).
     'billing.startCheckout',
     'billing.confirmCheckout',
@@ -342,7 +339,6 @@ const expectedRights: Record<Right, readonly string[]> = {
     'partner.deleteClient',
     'partner.listClients',
     'partner.setClientUsageLimit',
-    'partner.setClientAllow',
     // Partner › Brand (S4): read by the team, changed by the owner only (the handler checks).
     'partnerBrand.get',
     'partnerBrand.set',
@@ -398,8 +394,6 @@ describe('workspace rights', () => {
   it('owners and admins decide what the workspace pays (billing:manage), members never', () => {
     expect(rolePermissions.admin).toContain('billing:manage')
     expect(rolePermissions.member).not.toContain('billing:manage')
-    expect(actions.get('workspace.setAllowPremium')!.permission).toBe('billing:manage')
-    expect(actions.get('workspace.setAllowUltra')!.permission).toBe('billing:manage')
     for (const name of [
       'billing.startCheckout',
       'billing.confirmCheckout',

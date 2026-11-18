@@ -572,22 +572,13 @@ export type WorkspaceSettingsData = {
   servedCountries?: readonly string[] | null
   /** The workspace language: the main language of the country in use (resolveWorkspaceLanguage; may be one calls are not answered in). */
   resolvedLanguage?: string
-  /** On a server that bills usage: the owner allows Premium voices and models (workspace.setAllowPremium). */
-  allowPremium: boolean
-  /** On a server that bills usage: the owner allows Ultra, calls answered by a realtime model (workspace.setAllowUltra). */
-  allowUltra: boolean
-  /**
-   * What the caller may do with Allow Premium and Allow Ultra (LIN-440): `on`, the bill's owner (the workspace's owner
-   * where there is no bill), also as an admin or member; `off`, also the workspace's owner. Missing from an older API.
-   */
-  allowSwitch?: { on: boolean; off: boolean }
-  /** This install bills usage: voices and models have a level, and Allow Premium applies. */
+  /** This install bills usage: voices and models have a level with a price a minute. */
   usageLevels: boolean
   /** The install's price of a call minute per level, in US cents (Server admin › Billing); absent from an older server. */
   usageCentsPerMinute?: { standard: number; premium: number; ultra: number }
   /**
    * A white-label client (docs/white-label.md): its people see minutes, never Linedesk's prices, so
-   * `usageCentsPerMinute` is absent; and its partner's owner switches Allow Premium and Allow Ultra, not its own owner.
+   * `usageCentsPerMinute` is absent; and its partner's owner picks Premium or Ultra for its assistants, not its own owner.
    */
   partnerManaged?: boolean
 }
@@ -777,31 +768,6 @@ export const workspaceUpdateSettings = defineAction({
   }),
   permission: 'settings:write',
 })
-
-/**
- * On a server that bills usage: the owner allows Premium voices and models for the workspace's assistants (10¢ a minute instead of
- * 5¢). Turning it off moves every assistant on a Premium voice or model back to the server's defaults. Owner only, in
- * the app (never an API key, a setup link or an impersonation); audited.
- */
-export const workspaceSetAllowPremium = defineAction({
-  name: 'workspace.setAllowPremium',
-  description:
-    "Allow Premium voices and models (on a server that bills usage: the Premium price a minute instead of the Standard one) for this workspace's assistants, or not. Off (the default): assistants pick Standard ones only, and turning it off moves assistants on Premium back to the server's default voice model and language model. On: only the person who pays the bill (the owner where there is no bill), also as an admin or member; off: also the owner.",
-  input: z.object({ on: z.boolean() }),
-  permission: 'billing:manage',
-})
-/** `data` of `workspace.setAllowPremium`: the switch, and the assistants moved back to Standard (turning it off). */
-export type AllowPremiumData = { on: boolean; movedToStandard: string[] }
-
-export const workspaceSetAllowUltra = defineAction({
-  name: 'workspace.setAllowUltra',
-  description:
-    "Allow Ultra (on a server that bills usage: the Ultra price a minute; calls answered by a realtime model in its natural voice) for this workspace's assistants, or not. Off (the default): no assistant answers with a realtime model, and turning it off moves assistants on Ultra back to the three stages and the server's realtime model. On: only the person who pays the bill (the owner where there is no bill), also as an admin or member; off: also the owner.",
-  input: z.object({ on: z.boolean() }),
-  permission: 'billing:manage',
-})
-/** `data` of `workspace.setAllowUltra`: the switch, and the assistants moved off Ultra (turning it off). */
-export type AllowUltraData = { on: boolean; movedOffUltra: string[] }
 
 export const WORKSPACE_NAME_MAX = 80
 

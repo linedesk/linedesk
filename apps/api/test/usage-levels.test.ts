@@ -1,8 +1,8 @@
 // Call quality on Linedesk Cloud (src/usage-levels.ts, src/call-quality.ts, decisions.md 2026-11-17): the assistant's
 // level (Standard, Premium, Ultra) and its model picks, who may raise it, the install's settings in Server admin, the
-// checks in assistant.update and the level call.start decides. Until the switches go (call quality 4/5), Allow Premium
-// and Allow Ultra are still switched by whoever may pay. Billing is switched on by replacing billingState (no Stripe keys in tests); the three stages
-// are set up through the environment, so this file is instance-wide (vitest.config.ts).
+// checks in assistant.update and the level call.start decides. Picking Premium or Ultra is the consent; there are no
+// Allow switches (call quality 4/5). Billing is switched on by replacing billingState (no Stripe keys in tests); the
+// three stages are set up through the environment, so this file is instance-wide (vitest.config.ts).
 import { CALL_QUALITY_INSTALL_DEFAULT, centsPerMinute } from '@linedesk/actions'
 import {
   assistant_versions,
@@ -14,7 +14,6 @@ import {
   partners,
   session,
   user,
-  workspace_settings,
 } from '@linedesk/db'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
@@ -69,8 +68,6 @@ afterAll(() => {
   }
 })
 
-const setAllow = (who: Caller, on: boolean) => act(who, 'workspace.setAllowPremium', { on })
-const setAllowUltra = (who: Caller, on: boolean) => act(who, 'workspace.setAllowUltra', { on })
 // A placeholder, never sent anywhere: the realtime model counts as set up, next to the three stages.
 const REALTIME = { OPENAI_REALTIME_API_KEY: 'placeholder' }
 /** The ALERT lines a console.error spy saw (usage-levels.ts, alert). */
@@ -99,175 +96,6 @@ async function withEnv<T>(vars: Record<string, string | undefined>, run: () => P
   }
 }
 const premiumVoice = { provider: 'elevenlabs', voice_id: 'cgSgspJ2msm6clMCkdW9', model: 'eleven_v3' }
-
-describe('Allow Premium', () => {
-  test('off by default; the owner turns it on and off, and it is in the audit log with who did it', async () => {
-    const ws = await createWorkspace('Premium Switch Plumbing')
-    expect((await act(ws.owner, 'workspace.getSettings', {})).body.data).toMatchObject({
-      allowPremium: false,
-      usageLevels: true,
-    })
-    expect(await setAllow(ws.owner, true)).toMatchObject({
-      status: 200,
-      body: { data: { on: true, movedToStandard: [] } },
-    })
-    expect((await act(ws.owner, 'workspace.getSettings', {})).body.data.allowPremium).toBe(true)
-    expect((await setAllow(ws.owner, false)).body.data).toMatchObject({ on: false })
-    const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, ws.id))
-    expect(row!.allow_premium).toBe(false)
-
-    const audit = await listAudit(db, { kind: 'team', workspaceId: ws.id, limit: 50 })
-    const entries = audit.entries.filter(e => e.what === 'workspace.setAllowPremium')
-    expect(entries).toHaveLength(2)
-    for (const e of entries) expect(e.actor.id).toBe(ws.owner.userId)
-  })
-
-  test('refused for an admin, a member, an API key, a setup link and an impersonation', async () => {
-    const ws = await createWorkspace('Premium Refusals Plumbing')
-    expect((await setAllow(await addMember(ws.id, 'admin'), true)).status).toBe(403)
-    expect((await setAllow(await addMember(ws.id, 'member'), true)).status).toBe(403)
-
-    // The owner's API key, with the highest role a key can have.
-    const key = await act(ws.owner, 'apiKey.create', { name: 'billing', role: 'admin' })
-    const bearer = { headers: { authorization: `Bearer ${key.body.data.key}` } }
-    expect((await setAllow(bearer, true)).status).toBe(403)
-
-    // The owner's setup link for an AI agent.
-    const link = await act(ws.owner, 'agentSetup.createWorkspaceKey', {})
-    const setupActor = (await workspaceSetupActor(ws.owner.userId, link.body.data.keyId, ws.id, 'owner'))!
-    expect((await runAction('workspace.setAllowPremium', { on: true }, setupActor)).status).toBe(403)
-    // Even with billing:manage slipped into its permissions.
-    expect(
-      (await runAction('workspace.setAllowPremium', { on: true }, { ...setupActor, permissions: ['billing:manage'] }))
-        .status,
-    ).toBe(403)
-
-    // An instance admin signed in as the owner.
-    const operator = await signUp()
-    await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, operator.userId))
-    await db.update(session).set({ impersonatedBy: operator.userId }).where(eq(session.userId, ws.owner.userId))
-    try {
-      expect((await setAllow(ws.owner, true)).status).toBe(403)
-    } finally {
-      await db.update(session).set({ impersonatedBy: null }).where(eq(session.userId, ws.owner.userId))
-    }
-    const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, ws.id))
-    expect(row!.allow_premium).toBe(false)
-    const audit = await listAudit(db, { workspaceId: ws.id, limit: 50 })
-    // The admin and the member reach the handler (the bill owner may switch as either, LIN-440): refused, and logged so.
-    const tried = audit.entries.filter(e => e.what === 'workspace.setAllowPremium')
-    expect(tried.map(e => e.refused)).toEqual([true, true])
-  })
-})
-
-describe('Allow Premium and Allow Ultra on a bill another person owns (LIN-399)', () => {
-  test('only the owner of the bill switches them on, not the owner of a workspace the bill pays for', async () => {
-    // Bill owner B pays one bill for W1 (B owns it) and W2 (X owns it).
-    const w1 = await createWorkspace('Bill Owner Plumbing')
-    const w2 = await createWorkspace('Paid For Heating')
-    const billId = `bill_${crypto.randomUUID()}`
-    await db
-      .insert(billing_accounts)
-      .values({ id: billId, kind: 'cloud', owner_user_id: w1.owner.userId, status: 'active' })
-    await db.update(organization).set({ billingAccountId: billId }).where(eq(organization.id, w1.id))
-    await db.update(organization).set({ billingAccountId: billId }).where(eq(organization.id, w2.id))
-
-    expect(await setAllow(w2.owner, true)).toMatchObject({
-      status: 403,
-      body: { error: 'only the owner of the bill can do this' },
-    })
-    expect((await setAllowUltra(w2.owner, true)).status).toBe(403)
-    // Off costs the bill less: the workspace owner may.
-    expect((await setAllow(w2.owner, false)).status).toBe(200)
-    expect((await setAllowUltra(w2.owner, false)).status).toBe(200)
-    const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, w2.id))
-    expect(row?.allow_premium ?? false).toBe(false)
-    expect(row?.allow_ultra ?? false).toBe(false)
-    const audit = await listAudit(db, { workspaceId: w2.id, limit: 50 })
-    // The two refusals are in the audit log.
-    const tries = audit.entries.filter(e => e.what.startsWith('workspace.setAllow') && e.refused)
-    expect(tries).toHaveLength(2)
-    for (const e of tries) expect(e).toMatchObject({ actor: { id: w2.owner.userId } })
-
-    // The bill owner, in the workspace they own.
-    expect((await setAllow(w1.owner, true)).status).toBe(200)
-    expect((await setAllowUltra(w1.owner, true)).status).toBe(200)
-
-    // Once X owns the bill, X may.
-    await db.update(billing_accounts).set({ owner_user_id: w2.owner.userId }).where(eq(billing_accounts.id, billId))
-    expect((await setAllow(w2.owner, true)).status).toBe(200)
-    expect((await setAllowUltra(w2.owner, true)).status).toBe(200)
-  })
-
-  test('the bill owner switches them where they are only an admin or a member; other members never (LIN-440)', async () => {
-    // Bill owner B pays for W1 and W2, which X owns; B is a member of W2, so is an admin A (not paying). A bill of
-    // several workspaces: only B manages it (managesBill, decision of 2026-11-17).
-    const w1 = await createWorkspace('Payer Plumbing')
-    const w2 = await createWorkspace('Paid For Drains')
-    const billId = `bill_${crypto.randomUUID()}`
-    await db
-      .insert(billing_accounts)
-      .values({ id: billId, kind: 'cloud', owner_user_id: w1.owner.userId, status: 'active' })
-    await db
-      .update(organization)
-      .set({ billingAccountId: billId })
-      .where(inArray(organization.id, [w1.id, w2.id]))
-    const payer = w1.owner
-    await auth.api.addMember({ body: { userId: payer.userId, organizationId: w2.id, role: 'member' } })
-    expect((await request(payer, 'POST', '/api/auth/organization/set-active', { organizationId: w2.id })).status).toBe(
-      200,
-    )
-    const other = await addMember(w2.id, 'admin')
-    const switchOf = async (who: Caller) => (await act(who, 'workspace.getSettings', {})).body.data.allowSwitch
-
-    expect(await switchOf(payer)).toEqual({ on: true, off: true })
-    expect(await switchOf(other)).toEqual({ on: false, off: false })
-    expect(await switchOf(w2.owner)).toEqual({ on: false, off: true })
-
-    expect((await setAllow(other, true)).status).toBe(403)
-    expect((await setAllowUltra(other, true)).status).toBe(403)
-    expect((await setAllow(other, false)).status).toBe(403)
-    expect((await setAllow(payer, true)).status).toBe(200)
-    expect((await setAllowUltra(payer, true)).status).toBe(200)
-    const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, w2.id))
-    expect(row).toMatchObject({ allow_premium: true, allow_ultra: true })
-    expect((await setAllow(payer, false)).status).toBe(200)
-
-    // A workspace without a bill: an admin is refused as before, and the page says so.
-    const w3 = await createWorkspace('Unbilled Heating')
-    const admin = await addMember(w3.id, 'admin')
-    expect(await switchOf(admin)).toEqual({ on: false, off: false })
-    expect(await switchOf(w3.owner)).toEqual({ on: true, off: true })
-    expect((await setAllow(admin, true)).status).toBe(403)
-
-    // An API key never switches them (refuseBillingActor), also now that a member may ask.
-    const key = await act(w3.owner, 'apiKey.create', { name: 'billing', role: 'admin' })
-    expect((await setAllow({ headers: { authorization: `Bearer ${key.body.data.key}` } }, true)).status).toBe(403)
-  })
-
-  test('the bill of one workspace: its admins switch them like its owner; members never (decision of 2026-11-17)', async () => {
-    const ws = await createWorkspace('Only Workspace Plumbing')
-    const payer = await addMember(ws.id, 'admin')
-    const billId = `bill_${crypto.randomUUID()}`
-    await db
-      .insert(billing_accounts)
-      .values({ id: billId, kind: 'cloud', owner_user_id: payer.userId, status: 'active' })
-    await db.update(organization).set({ billingAccountId: billId }).where(eq(organization.id, ws.id))
-    const admin = await addMember(ws.id, 'admin')
-    const member = await addMember(ws.id, 'member')
-    const switchOf = async (who: Caller) => (await act(who, 'workspace.getSettings', {})).body.data.allowSwitch
-    expect(await switchOf(admin)).toEqual({ on: true, off: true })
-    expect(await switchOf(ws.owner)).toEqual({ on: true, off: true })
-    expect(await switchOf(member)).toEqual({ on: false, off: false })
-    expect((await setAllow(admin, true)).status).toBe(200)
-    expect((await setAllowUltra(admin, true)).status).toBe(200)
-    expect((await setAllow(member, false)).status).toBe(403)
-    expect((await setAllow(admin, false)).status).toBe(200)
-    // An API key of the admin never does (refuseBillingActor).
-    const key = await act(admin, 'apiKey.create', { name: 'billing', role: 'admin' })
-    expect((await setAllow({ headers: { authorization: `Bearer ${key.body.data.key}` } }, true)).status).toBe(403)
-  })
-})
 
 // --- Call quality
 
@@ -414,6 +242,25 @@ describe('call quality on Cloud: the level decides the price', () => {
     expect((await runAction('assistant.update', { ...raise, call_quality: 'standard' }, setupActor)).status).toBe(200)
   })
 
+  test('the bill of one workspace: its admins raise like its owner; members and API keys never (decision of 2026-11-17)', async () => {
+    const ws = await createWorkspace('Quality Only Workspace Plumbing')
+    const payer = await addMember(ws.id, 'admin')
+    await billOf(payer.userId, [ws.id])
+    const admin = await addMember(ws.id, 'admin')
+    const member = await addMember(ws.id, 'member')
+    const mayRaise = async (who: Caller) => (await act(who, 'voice.options', {})).body.data.callQuality.mayRaise
+    expect(await mayRaise(admin)).toBe(true)
+    expect(await mayRaise(ws.owner)).toBe(true)
+    expect(await mayRaise(member)).toBe(false)
+    expect((await setLevel(member, ws.assistant.id, 'premium')).status).toBe(403)
+    // An API key of the admin never raises (refuseBillingActor), with the highest role a key can have.
+    const key = await act(admin, 'apiKey.create', { name: 'quality', role: 'admin' })
+    const bearer = { headers: { authorization: `Bearer ${key.body.data.key}` } }
+    expect((await setLevel(bearer, ws.assistant.id, 'premium')).status).toBe(403)
+    expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('standard')
+    expect((await setLevel(admin, ws.assistant.id, 'premium')).status).toBe(200)
+  })
+
   test('voice.options: the levels on, their prices, their models and defaults; no prices for a partner client', async () => {
     const ws = await createWorkspace('Quality Options Plumbing')
     await billOf(ws.owner.userId, [ws.id])
@@ -497,17 +344,6 @@ describe('call quality on Cloud: the level decides the price', () => {
     expect(await setLevel(ws.owner, ws.assistant.id, 'ultra')).toMatchObject({
       status: 409,
       body: { error: 'Ultra is off on this server.' },
-    })
-  })
-
-  test('voice_pipeline is no input of assistant.update any more: it leaves the level alone', async () => {
-    await withEnv(REALTIME, async () => {
-      const ws = await createWorkspace('Quality Pipeline Plumbing')
-      const update = (input: Record<string, unknown>) =>
-        act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, ...input })
-      const before = (await getAssistant(ws.assistant.id))!.call_quality
-      expect((await update({ voice_pipeline: 'realtime' })).status).toBe(200)
-      expect((await getAssistant(ws.assistant.id))!.call_quality).toBe(before)
     })
   })
 

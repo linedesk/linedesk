@@ -487,9 +487,9 @@ async function openCall(
   const locale = await workspaceLocale(tx, workspace_id, zone ?? null)
   const t = teamT(locale.resolvedLanguage)
   // The agent answers with the assistant's pipeline, or the one the instance admin picked for every workspace. On
-  // Linedesk Cloud the call's level is decided here, once: a voice or model the workspace may no longer use (Allow
-  // Premium off) falls back to the install's defaults for this call.
-  // On Cloud it is also what the agent answers with (`pipeline`): never a realtime model without Allow Ultra, never the
+  // Linedesk Cloud the call's level is decided here, once: a voice or model the workspace may no longer use (its level
+  // turned off) falls back to the install's defaults for this call.
+  // On Cloud it is also what the agent answers with (`pipeline`): never a realtime model off Ultra, never the
   // install's own models when they are not Standard. A call still `not_allowed` after the fallback is not answered.
   const forCall = assistant && (await assistantForCall(tx, workspace_id, assistant))
   // Linedesk Cloud: a phone call of a workspace on a bill passes the billing gate (call-billing.ts), which reserves it
@@ -1048,8 +1048,8 @@ const handlers: Record<string, Handler> = {
   'assistant.restoreVersion': async ({ tx, actor }, input: { assistantId: string; number: number }) => {
     if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     const workspaceId = actor.workspaceId
-    // The version lock first, as every save and Allow Premium off take it: what is read below cannot change before the
-    // restore writes (a switch-off waits, or has moved the assistant already and the level check sees it).
+    // The version lock first, as every save and a level turned off take it: what is read below cannot change before the
+    // restore writes (a level turned off waits, or has moved the assistant already and the level check sees it).
     await lockAssistantVersion(tx, input.assistantId)
     const current = (await assistantIn(tx, workspaceId, input.assistantId))!
     const { settings } = await versionOf(tx, workspaceId, input.assistantId, input.number)

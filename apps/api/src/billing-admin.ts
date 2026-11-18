@@ -959,8 +959,8 @@ async function moveWorkspace(
       ...(to.stripe_subscription_id ? {} : { extraCalls: 0 }),
     })
     .where(eq(organization.id, workspace.id))
-  // Someone else pays from now on: Allow Premium and Allow Ultra were the old payer's choice (LIN-438). The same
-  // owner keeps them.
+  // Someone else pays from now on: Premium and Ultra were the old payer's choice (LIN-438). The same owner keeps
+  // them.
   const { reset: payerReset } =
     from.owner_user_id === to.owner_user_id
       ? { reset: { workspaceIds: [], movedToStandard: [], movedOffUltra: [] } }
@@ -1109,7 +1109,7 @@ export const billingAdminHandlers: Record<string, Handler> = {
       .update(billing_accounts)
       .set({ owner_user_id: input.userId, updated_at: now })
       .where(eq(billing_accounts.id, bill.id))
-    // The new owner did not choose Allow Premium or Allow Ultra on any of the bill's workspaces (LIN-438).
+    // The new owner did not choose Premium or Ultra on any of the bill's workspaces (LIN-438).
     const { reset } = await billPayerChanged(tx, await workspacesOnBill(tx, bill.id), actor.actorId)
     return { rows: {}, data: { previous: bill.owner_user_id, owner: input.userId, payerReset: reset } }
   },

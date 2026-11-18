@@ -312,11 +312,6 @@ export function auditLabel(
       return input.limitUsd == null
         ? t('admin.audit.clientUsageLimitRemoved')
         : t('admin.audit.clientUsageLimitSet', { amount: usd(input.limitUsd) })
-    case 'partner.setClientAllow':
-      return t('admin.audit.clientAllowSet', {
-        level: input.level === 'ultra' ? 'ultra' : 'premium',
-        on: input.on === true ? 'yes' : 'no',
-      })
     case 'workspace.removePartner':
       return e.removedPeople?.length
         ? t('admin.audit.partnerRemovedRemoving', { people: fmt().list(e.removedPeople) })
@@ -524,7 +519,6 @@ const levelChangeList = ({ before, after }: NonNullable<AuditEntry['usageLevelCh
       ['call_quality', msg('admin.audit.levelChange.callQuality')],
       ['voice_model', msg('admin.audit.levelChange.voiceModel')],
       ['llm_model', msg('admin.audit.levelChange.languageModel')],
-      ['voice_pipeline', msg('admin.audit.levelChange.pipeline')],
       ['realtime_model', msg('admin.audit.levelChange.realtimeModel')],
     ] as const
   )

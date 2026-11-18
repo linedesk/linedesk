@@ -204,7 +204,7 @@ export const partnerListClients = defineAction({
   name: 'partner.listClients',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
-    "The partner's client workspaces with how each is doing this billing period: owner, number, forwarding, last real call, calls, minutes and cost (from the bill's ledger), the share of its monthly usage limit, Allow Premium and Ultra, and its problems. Problems first. Never call content. Refused for a partner you are not on the team of.",
+    "The partner's client workspaces with how each is doing this billing period: owner, number, forwarding, last real call, calls, minutes and cost (from the bill's ledger), the share of its monthly usage limit, and its problems. Problems first. Never call content. Refused for a partner you are not on the team of.",
   input: z.object({ partnerId }),
   permission: 'partner',
   readOnly: true,
@@ -219,20 +219,6 @@ export const partnerSetClientUsageLimit = defineAction({
     partnerId,
     workspaceId: z.string().min(1).max(64),
     limitUsd: z.number().min(CLIENT_USAGE_LIMIT_MIN_USD).max(CLIENT_USAGE_LIMIT_MAX_USD).nullable(),
-  }),
-  permission: 'partner',
-})
-
-export const partnerSetClientAllow = defineAction({
-  name: 'partner.setClientAllow',
-  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
-  description:
-    "Allow Premium voices and models, or Ultra (a realtime model), in a client workspace on the partner bill. Off moves the client's assistants back to Standard (or off Ultra) with a new version. The partner's owner only; the client's owner cannot switch these.",
-  input: z.object({
-    partnerId,
-    workspaceId: z.string().min(1).max(64),
-    level: z.enum(['premium', 'ultra']),
-    on: z.boolean(),
   }),
   permission: 'partner',
 })
@@ -435,9 +421,7 @@ export type PartnerClientRow = {
   /** The monthly usage limit in US cents (null: none), and the cost as a share of it (0..100+, null without a limit). */
   limitCents: number | null
   limitPercent: number | null
-  allowPremium: boolean
-  allowUltra: boolean
-  /** On the partner bill: the limit and the Allow switches apply only there. */
+  /** On the partner bill: the limit applies only there. */
   billed: boolean
   problems: ClientProblem[]
 }

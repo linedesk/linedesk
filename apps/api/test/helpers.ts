@@ -1,6 +1,16 @@
 // Test fixtures: real sessions through Better Auth (accounts written directly: there is no open sign-up), workspaces through the API,
 // rows straight into the test database. Every id is random, so test files can run in parallel.
-import { account as accounts, assistant_calendars, assistants, calendar_connections, calls, contacts, phone_numbers, user as users, webhook_endpoints, workspace_settings } from '@linedesk/db'
+import {
+  account as accounts,
+  assistant_calendars,
+  assistants,
+  calendar_connections,
+  calls,
+  contacts,
+  phone_numbers,
+  user as users,
+  webhook_endpoints,
+} from '@linedesk/db'
 import { hashPassword } from 'better-auth/crypto'
 import { eq } from 'drizzle-orm'
 import { app } from '../src/app.ts'
@@ -37,7 +47,11 @@ export function appRequest(path: string, init: RequestInit = {}) {
   headers.delete(FROM)
   // A browser always sends the address it asked (request-host.ts): the app's own, unless a test names another.
   if (!headers.has('host')) headers.set('host', new URL(ORIGIN).host)
-  return app.request(path, { ...init, headers }, { incoming: { socket: { remoteAddress: address, remotePort: 0, remoteFamily: 'IPv4' } } })
+  return app.request(
+    path,
+    { ...init, headers },
+    { incoming: { socket: { remoteAddress: address, remotePort: 0, remoteFamily: 'IPv4' } } },
+  )
 }
 
 export type Caller = { headers: Record<string, string> }
@@ -55,7 +69,9 @@ export async function signUp(email = `${uid('user')}@linedesk.test`): Promise<Us
   passwordHash ??= hashPassword(PASSWORD)
   const id = uid('u')
   await db.insert(users).values({ id, name: 'Test User', email, emailVerified: false })
-  await db.insert(accounts).values({ id: uid('acc'), accountId: id, providerId: 'credential', userId: id, password: await passwordHash })
+  await db
+    .insert(accounts)
+    .values({ id: uid('acc'), accountId: id, providerId: 'credential', userId: id, password: await passwordHash })
   const res = await appRequest('/api/auth/sign-in/email', {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
@@ -71,7 +87,11 @@ export async function signUp(email = `${uid('user')}@linedesk.test`): Promise<Us
 
 /** The voice agent; each from its own address, so wrong tokens in one test never throttle another (context.ts). */
 export const agent = (workspaceId?: string, token = 'test-agent-token-test-agent-token-0000'): Caller => ({
-  headers: { authorization: `Bearer ${token}`, [FROM]: randomIp(), ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}) },
+  headers: {
+    authorization: `Bearer ${token}`,
+    [FROM]: randomIp(),
+    ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+  },
 })
 export const anonymous: Caller = { headers: {} }
 
@@ -85,7 +105,11 @@ export async function request(
   const res = await appRequest(path, {
     method,
     // Every write is JSON, as the web app sends it (csrf.ts refuses a cookie-signed write that is not).
-    headers: { ...who.headers, ...extra, ...(body === undefined && method === 'GET' ? {} : { 'content-type': 'application/json' }) },
+    headers: {
+      ...who.headers,
+      ...extra,
+      ...(body === undefined && method === 'GET' ? {} : { 'content-type': 'application/json' }),
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   // biome-ignore lint/suspicious/noExplicitAny: response bodies are asserted on in the tests
@@ -142,17 +166,52 @@ export async function createWorkspace(name: string, emailVerified = true) {
     })
     .returning()
   // A connected calendar account (no tokens: nothing reaches a provider) and one calendar of the assistant.
-  const [connection] = await db.insert(calendar_connections)
-    .values({ id: uid('calc'), workspace_id: id, provider: 'google', account_email: `${uid('cal')}@example.com`, connected_by: owner.userId })
+  const [connection] = await db
+    .insert(calendar_connections)
+    .values({
+      id: uid('calc'),
+      workspace_id: id,
+      provider: 'google',
+      account_email: `${uid('cal')}@example.com`,
+      connected_by: owner.userId,
+    })
     .returning()
-  const [assistantCalendar] = await db.insert(assistant_calendars)
-    .values({ id: uid('acal'), workspace_id: id, assistant_id: assistant!.id, connection_id: connection!.id, external_id: 'primary', name: 'Office', is_default: true })
+  const [assistantCalendar] = await db
+    .insert(assistant_calendars)
+    .values({
+      id: uid('acal'),
+      workspace_id: id,
+      assistant_id: assistant!.id,
+      connection_id: connection!.id,
+      external_id: 'primary',
+      name: 'Office',
+      is_default: true,
+    })
     .returning()
   // A webhook of the assistant that is switched off (so it is never asked), so patches on it can be tested.
-  const [webhookEndpoint] = await db.insert(webhook_endpoints)
-    .values({ id: uid('whe'), workspace_id: id, assistant_id: assistant!.id, hooks: ['call_start'], status: 'disabled', url: 'https://example.com/hook', created_by: owner.userId })
+  const [webhookEndpoint] = await db
+    .insert(webhook_endpoints)
+    .values({
+      id: uid('whe'),
+      workspace_id: id,
+      assistant_id: assistant!.id,
+      hooks: ['call_start'],
+      status: 'disabled',
+      url: 'https://example.com/hook',
+      created_by: owner.userId,
+    })
     .returning()
-  return { id, owner, assistant: assistant!, number, contact: contact!, call: call!, connection: connection!, assistantCalendar: assistantCalendar!, webhookEndpoint: webhookEndpoint! }
+  return {
+    id,
+    owner,
+    assistant: assistant!,
+    number,
+    contact: contact!,
+    call: call!,
+    connection: connection!,
+    assistantCalendar: assistantCalendar!,
+    webhookEndpoint: webhookEndpoint!,
+  }
 }
 export type Workspace = Awaited<ReturnType<typeof createWorkspace>>
 
@@ -183,19 +242,14 @@ export async function addMember(workspaceId: string, role: 'admin' | 'member'): 
 
 export const getCall = async (id: string) => (await db.select().from(calls).where(eq(calls.id, id)))[0]
 export const getContact = async (id: string) => (await db.select().from(contacts).where(eq(contacts.id, id)))[0]
-export const getAssistantCalendar = async (id: string) => (await db.select().from(assistant_calendars).where(eq(assistant_calendars.id, id)))[0]
-export const getWebhookEndpoint = async (id: string) => (await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.id, id)))[0]
+export const getAssistantCalendar = async (id: string) =>
+  (await db.select().from(assistant_calendars).where(eq(assistant_calendars.id, id)))[0]
+export const getWebhookEndpoint = async (id: string) =>
+  (await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.id, id)))[0]
 export const getAssistant = async (id: string) => (await db.select().from(assistants).where(eq(assistants.id, id)))[0]
 
-/**
- * Allow Premium and Allow Ultra on, and the workspace's assistant on Premium with a Premium voice and model: what a
- * bill owner chose, written directly (LIN-438 tests).
- */
+/** The workspace's assistant on Premium with a Premium voice and model: what a bill owner chose, written directly (LIN-438 tests). */
 export async function withPremiumAndUltra(ws: Workspace) {
-  await db
-    .insert(workspace_settings)
-    .values({ workspace_id: ws.id, timezone: 'America/Los_Angeles', allow_premium: true, allow_ultra: true })
-    .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { allow_premium: true, allow_ultra: true } })
   await db
     .update(assistants)
     .set({
@@ -206,13 +260,10 @@ export async function withPremiumAndUltra(ws: Workspace) {
     .where(eq(assistants.id, ws.assistant.id))
 }
 
-/** The workspace's Allow Premium and Allow Ultra, and its assistant's level and model picks, as stored now. */
+/** The workspace's assistant's level and model picks, as stored now. */
 export async function premiumAndUltraOf(ws: Workspace) {
-  const [flags] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, ws.id))
   const [assistant] = await db.select().from(assistants).where(eq(assistants.id, ws.assistant.id))
   return {
-    allowPremium: flags?.allow_premium ?? false,
-    allowUltra: flags?.allow_ultra ?? false,
     level: assistant!.call_quality,
     voiceModel: assistant!.voice.model ?? null,
     llmModel: assistant!.llm_model,
@@ -222,8 +273,6 @@ export async function premiumAndUltraOf(ws: Workspace) {
 
 /** What withPremiumAndUltra set, kept. */
 export const KEPT_PREMIUM_AND_ULTRA = {
-  allowPremium: true,
-  allowUltra: true,
   level: 'premium',
   voiceModel: 'eleven_v3',
   llmModel: 'gpt-4.1',

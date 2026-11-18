@@ -551,7 +551,11 @@ export const llmEndpoints = {
     models: ['google/gemini-3.5-flash-lite', 'openai/gpt-4.1-mini'],
     summaryModels: SUMMARY_MODEL_DEFAULTS.openrouter,
   },
-  openai: { baseUrl: 'https://api.openai.com/v1', models: ['gpt-4.1-mini'], summaryModels: SUMMARY_MODEL_DEFAULTS.openai },
+  openai: {
+    baseUrl: 'https://api.openai.com/v1',
+    models: ['gpt-4.1-mini'],
+    summaryModels: SUMMARY_MODEL_DEFAULTS.openai,
+  },
   anthropic: {
     baseUrl: 'https://api.anthropic.com/v1',
     models: ['claude-haiku-5-5'],
@@ -769,8 +773,8 @@ export const providers = {
     guide: guides.cartesia,
     fields: { api_key: apiKey('CARTESIA_API_KEY') },
   },
-  // A speech-to-speech model: hears the caller and answers in its own voice. Once connected it is the default for
-  // assistants (each can pick the three stages above instead: `voice_pipeline`). The summary after the call goes to
+  // A speech-to-speech model: hears the caller and answers in its own voice. Once connected, assistants on Ultra
+  // answer with it (Call quality on the Providers page). The summary after the call goes to
   // OpenAI's chat API with the same key. Its own key variable: an OPENAI_API_KEY for the language model must not
   // switch calls to realtime.
   openai_realtime: {
