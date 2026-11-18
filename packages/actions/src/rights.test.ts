@@ -299,6 +299,9 @@ const expectedRights: Record<Right, readonly string[]> = {
     'partnerBrand.reviews',
     'partnerBrand.approve',
     'partnerBrand.reset',
+    // Server admin › Partners: the kill switch of a partner's own AI keys (S7).
+    'partnerKeys.adminDisable',
+    'partnerKeys.adminEnable',
   ],
   owner: [
     'workspace.deleteOwn',
@@ -342,6 +345,12 @@ const expectedRights: Record<Right, readonly string[]> = {
     // Partner › Brand (S4): read by the team, changed by the owner only (the handler checks).
     'partnerBrand.get',
     'partnerBrand.set',
+    // Partner › AI keys (S7): read by the team, changed by the owner only (the handler checks).
+    'partnerKeys.get',
+    'partnerKeys.set',
+    'partnerKeys.clear',
+    'partnerKeys.test',
+    'partner.setClientOwnKeys',
     // The partner owner's AI agent setup link (agent-first, 2026-11-18): the handler checks the owner.
     'agentSetup.createPartnerKey',
     'agentSetup.revokePartner',
