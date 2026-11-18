@@ -37,7 +37,7 @@ import {
 } from './emails/alerts.ts'
 import { forgetAdminDevices } from './admin-devices.ts'
 import { cancelSentInvitations } from './team.ts'
-import { cancelPartnerInvitationsFrom } from './partners.ts'
+import { cancelPartnerInvitationsFrom } from './partner-invitations-cancel.ts'
 import { removeAuthenticator } from './authenticator.ts'
 import { mayReceiveEnrolmentCode } from './admin-step-up.ts'
 import type { Actor } from './context.ts'

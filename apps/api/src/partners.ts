@@ -324,23 +324,6 @@ async function invitationByToken(tx: Tx, token: string) {
   return row ?? null
 }
 
-/**
- * Cancels the open partner team invitations `userId` sent, in every partner (user.disable, LIN-441): accepted with a
- * second address, one would bring a disabled account back onto the team, and so into every client workspace.
- */
-export async function cancelPartnerInvitationsFrom(tx: Tx, userId: string, now: string) {
-  await tx
-    .update(partner_invitations)
-    .set({ canceled_at: now })
-    .where(
-      and(
-        eq(partner_invitations.invited_by, userId),
-        isNull(partner_invitations.accepted_at),
-        isNull(partner_invitations.canceled_at),
-      ),
-    )
-}
-
 const isOpen = (inv: typeof partner_invitations.$inferSelect, now: string) =>
   !inv.accepted_at && !inv.canceled_at && Date.parse(inv.expires_at) > Date.parse(now)
 
