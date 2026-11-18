@@ -183,7 +183,6 @@
   "adminAlert.signupRules.field.signupsPerIpHour": "ネットワークごとの登録コード数（1時間）",
   "adminAlert.signupRules.field.trialNumbersPerWorkspace": "トライアル中のワークスペースごとの電話番号数",
   "adminAlert.signupRules.field.trialWorkspacesCloud": "トライアル中のワークスペース数",
-  "adminAlert.signupRules.field.trialWorkspacesPartner": "パートナーのトライアル中のワークスペース数",
   "adminAlert.signupRules.field.turnstile": "ボット確認（Cloudflare Turnstile）",
   "adminAlert.signupRules.fromTo": "{from} → {to}",
   "adminAlert.signupRules.noReview": "現在、トライアルを審査のため保留するRadarのリスクレベルはありません。リスクのあるカードでもすぐに電話番号を購入できます。",

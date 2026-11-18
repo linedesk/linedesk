@@ -38,7 +38,6 @@ export const PARTNER_CODES = [
   'client_no_owner',
   'bill_not_started',
   'bill_inactive',
-  'trial_client_limit',
   'calls_running',
   'confirm_mismatch',
   'no_partner',
@@ -339,8 +338,6 @@ export type PartnerInvitedMember = { memberId: string; name: string; email: stri
  */
 export type PartnerBillSummary = {
   status: 'pending_payment' | 'trialing' | 'active' | 'past_due' | 'suspended' | 'canceled' | 'comped'
-  /** The most client workspaces in the free trial (the install's sign-up rules). */
-  trialClientLimit: number
   /** Whether the person asking owns the bill (the partner's owner): they open its page. */
   mine: boolean
 }

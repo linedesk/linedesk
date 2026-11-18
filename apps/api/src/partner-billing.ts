@@ -19,7 +19,6 @@ import { Forbidden, Reject, type Said } from './handler-context.ts'
 import { queueSeatSync } from './jobs.ts'
 import { lockBalance } from './ledger.ts'
 import { refusePartner } from './partner-refusals.ts'
-import { signupRules } from './self-serve.ts'
 
 type Bill = typeof billing_accounts.$inferSelect
 
@@ -64,9 +63,8 @@ export async function workspacesOnBillCount(tx: Tx | typeof db, billId: string):
 /**
  * The partner bill a new client workspace goes on (its balance row locked), or null where billing is off and the
  * partner has no bill (self-host, dev: S1's ceiling applies instead). Refused: a billed install without a partner bill
- * (a partner a server admin made by hand), a bill before its Checkout, a bill that does not run, and in the free trial
- * more client workspaces than the sign-up rules allow (`trialWorkspacesPartner`, docs/billing.md §3.1). The caller holds
- * the partner row's lock, so two creations cannot both pass the trial limit.
+ * (a partner a server admin made by hand), a bill before its Checkout, and a bill that does not run. No trial and so no
+ * trial limit: the partner plan is paid from its Checkout (Janik, 2026-11-18).
  */
 export async function billForNewClient(tx: Tx, partner: { billing_account_id: string | null }): Promise<Bill | null> {
   if (!partner.billing_account_id) {
@@ -78,11 +76,6 @@ export async function billForNewClient(tx: Tx, partner: { billing_account_id: st
   if (!bill) throw refusePartner('client_needs_bill')
   if (bill.status === 'pending_payment') throw refusePartner('bill_not_started')
   if (!TAKES_CLIENTS.includes(bill.status)) throw refusePartner('bill_inactive')
-  if (bill.status === 'trialing') {
-    const rules = await signupRules(tx)
-    if ((await workspacesOnBillCount(tx, bill.id)) >= rules.trialWorkspacesPartner)
-      throw refusePartner('trial_client_limit')
-  }
   return bill
 }
 

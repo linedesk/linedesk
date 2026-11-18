@@ -396,7 +396,6 @@ const SIGNUP_RULE_LABELS: Record<SignupRuleChange['field'], MessageKey> = {
   turnstile: msg('email.adminAlert.signupRules.field.turnstile'),
   blockedDomains: msg('email.adminAlert.signupRules.field.blockedDomains'),
   trialWorkspacesCloud: msg('email.adminAlert.signupRules.field.trialWorkspacesCloud'),
-  trialWorkspacesPartner: msg('email.adminAlert.signupRules.field.trialWorkspacesPartner'),
   trialNumbersPerWorkspace: msg('email.adminAlert.signupRules.field.trialNumbersPerWorkspace'),
   reviewRiskLevels: msg('email.adminAlert.signupRules.field.reviewRiskLevels'),
   setupTestMinutes: msg('email.adminAlert.signupRules.field.setupTestMinutes'),

@@ -64,18 +64,17 @@ const config = (partnerPlan: SignupConfig['partnerPlan']): SignupConfig => ({
 })
 const emailPage = (partner: boolean, partnerPlan: SignupConfig['partnerPlan']) =>
   renderToStaticMarkup(<EmailStep config={config(partnerPlan)} partner={partner} onSent={() => {}} />)
-const partnerPlan = { monthlyCents: 1900, yearlyCents: 16_800, trialDays: 14, trialClients: 2 }
+const partnerPlan = { monthlyCents: 1900, yearlyCents: 16_800 }
 
-test('the first step of a partner sign-up names White-label Cloud and its free days, no price', () => {
+test('the first step of a partner sign-up names White-label Cloud, promises no free trial and shows no price', () => {
   const html = emailPage(true, partnerPlan)
   expect(html).toContain('Start White-label Cloud')
-  expect(html).toContain('Run many client workspaces under your name. 14 days free.')
-  expect(html).not.toContain('Start your free trial')
+  expect(html).toContain('Run many client workspaces under your name.')
+  expect(html).not.toMatch(/free|trial/i)
   expect(html).not.toContain('$')
 })
 
-test('a partner plan without free days leaves them out; a business keeps its own first step', () => {
-  expect(emailPage(true, { ...partnerPlan, trialDays: 0 })).not.toContain('free')
+test('a business keeps its own first step with its free trial', () => {
   const business = emailPage(false, partnerPlan)
   expect(business).toContain('Start your free trial')
   expect(business).not.toContain('White-label')

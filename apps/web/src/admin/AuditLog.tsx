@@ -543,7 +543,6 @@ const SIGNUP_RULE_FIELDS: Record<string, MessageKey> = {
   codesPerInstallHour: msg('admin.bills.signupRules.field.codesPerInstallHour'),
   pendingDays: msg('admin.bills.signupRules.field.pendingDays'),
   trialWorkspacesCloud: msg('admin.bills.signupRules.field.trialWorkspacesCloud'),
-  trialWorkspacesPartner: msg('admin.bills.signupRules.field.trialWorkspacesPartner'),
   trialNumbersPerWorkspace: msg('admin.bills.signupRules.field.trialNumbersPerWorkspace'),
   turnstile: msg('admin.bills.signupRules.turnstile'),
   blockedDomains: msg('admin.bills.signupRules.blockedDomains'),

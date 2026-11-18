@@ -757,22 +757,17 @@ describe('the partner bill (S2)', () => {
     await db.delete(instance_settings).where(eq(instance_settings.key, BILLING_ENABLED_KEY))
   })
 
-  test('client workspaces go on the running partner bill, also before approval; the trial takes at most its clients', async () => {
-    const p = await billedPartner('Trial Partner', 'trialing')
+  test('client workspaces go on the running partner bill, also before approval, with no trial limit (2026-11-18)', async () => {
+    const p = await billedPartner('Paid Partner', 'active')
     const first = await createClient(p, 'First Client')
     expect(await orgRow(first)).toMatchObject({ partnerId: p.id, billingAccountId: p.billId, billingState: 'active' })
+    // No free trial and so no trial limit: a third client right after paying.
     await createClient(p, 'Second Client')
-    expect(await act(p.owner, 'workspace.createForClient', { partnerId: p.id, name: 'Third' })).toMatchObject({
-      status: 409,
-      body: { code: 'trial_client_limit' },
-    })
+    await createClient(p, 'Third Client')
     expect((await act(p.owner, 'partner.get', { partnerId: p.id })).body.data.bill).toEqual({
-      status: 'trialing',
-      trialClientLimit: 2,
+      status: 'active',
       mine: true,
     })
-    await setBill(p.billId, 'active')
-    await createClient(p, 'Third Client')
     const admin = await addPartnerAdmin(p)
     // An admin of the team makes client workspaces too; the bill is not theirs.
     expect(await act(admin, 'workspace.createForClient', { partnerId: p.id, name: 'Fourth' })).toMatchObject({

@@ -82,11 +82,7 @@ export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean, partne
     </AuthPage>
   )
 
-  if (outcome.status === 'trialing')
-    return done(
-      t('auth.checkout.trialTitle'),
-      partnerId ? t('auth.checkout.partnerTrialText') : t('auth.checkout.trialText'),
-    )
+  if (outcome.status === 'trialing') return done(t('auth.checkout.trialTitle'), t('auth.checkout.trialText'))
   if (outcome.status === 'active')
     return done(
       t('auth.checkout.planTitle'),

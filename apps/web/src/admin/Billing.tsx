@@ -1049,10 +1049,6 @@ const SIGNUP_LABELS: Record<SignupCountRule, [MessageKey, MessageKey]> = {
     msg('admin.bills.signupRules.field.trialWorkspacesCloud'),
     msg('admin.bills.signupRules.field.trialWorkspacesCloud.help'),
   ],
-  trialWorkspacesPartner: [
-    msg('admin.bills.signupRules.field.trialWorkspacesPartner'),
-    msg('admin.bills.signupRules.field.trialWorkspacesPartner.help'),
-  ],
   trialNumbersPerWorkspace: [
     msg('admin.bills.signupRules.field.trialNumbersPerWorkspace'),
     msg('admin.bills.signupRules.field.trialNumbersPerWorkspace.help'),

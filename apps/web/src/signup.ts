@@ -2,8 +2,8 @@
 // its checks, and account.signUp. What the page reads from its address: the plan and the interval, nothing else.
 /** The plan's prices and the trial at the install's rules (Server admin › Billing), in cents before tax. */
 export type SignupPlan = { monthlyCents: number; yearlyCents: number; trialDays: number }
-/** The partner plan (docs/white-label.md): its base fee, and in the free trial at most `trialClients` client workspaces. */
-export type PartnerSignupPlan = SignupPlan & { trialClients: number }
+/** The partner plan (docs/white-label.md): its base fee. No free trial (Janik, 2026-11-18). */
+export type PartnerSignupPlan = Pick<SignupPlan, 'monthlyCents' | 'yearlyCents'>
 /** The terms and privacy policy the details step shows next to its button, and records as accepted (A9). */
 export type SignupTerms = { termsUrl: string; termsVersion: string; privacyUrl: string; privacyVersion: string }
 export type SignupConfig = {
@@ -82,9 +82,10 @@ function readPlan(plan: SignupPlan | null | undefined): SignupPlan | null {
 }
 
 function readPartnerPlan(plan: PartnerSignupPlan | null | undefined): PartnerSignupPlan | null {
-  const base = readPlan(plan)
-  return base && plan && Number.isInteger(plan.trialClients) && plan.trialClients >= 0
-    ? { ...base, trialClients: plan.trialClients }
+  if (!plan) return null
+  const whole = (n: unknown) => typeof n === 'number' && Number.isInteger(n) && n >= 0
+  return whole(plan.monthlyCents) && whole(plan.yearlyCents)
+    ? { monthlyCents: plan.monthlyCents, yearlyCents: plan.yearlyCents }
     : null
 }
 

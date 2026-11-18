@@ -190,9 +190,8 @@ export type SignupRules = {
   turnstile: boolean
   /** Address domains refused on top of the built-in list of disposable-mail domains. */
   blockedDomains: string[]
-  /** Workspaces a bill may have during its trial: Cloud, partner. */
+  /** Workspaces a business's bill may have during its trial (a partner's plan has no trial). */
   trialWorkspacesCloud: number
-  trialWorkspacesPartner: number
   /** Numbers a workspace may have during the trial (the included one). */
   trialNumbersPerWorkspace: number
   /** Radar risk levels of the trial's card check that hold number purchase for review. */
@@ -345,7 +344,6 @@ export const SIGNUP_DEFAULTS: SignupRules = {
   turnstile: true,
   blockedDomains: [],
   trialWorkspacesCloud: 1,
-  trialWorkspacesPartner: 2,
   trialNumbersPerWorkspace: 1,
   reviewRiskLevels: ['elevated', 'highest'],
   setupTestMinutes: 15,
@@ -367,7 +365,6 @@ export const SIGNUP_RULE_RANGES = {
   codesPerInstallHour: [1, 100_000],
   pendingDays: [1, 90],
   trialWorkspacesCloud: [1, 100],
-  trialWorkspacesPartner: [1, 100],
   trialNumbersPerWorkspace: [0, 100],
 } as const satisfies Partial<Record<keyof SignupRules, readonly [number, number]>>
 export type SignupCountRule = keyof typeof SIGNUP_RULE_RANGES

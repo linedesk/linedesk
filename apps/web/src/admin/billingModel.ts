@@ -406,7 +406,7 @@ export const SIGNUP_GROUPS = [
   },
   {
     id: 'trial',
-    fields: ['pendingDays', 'trialWorkspacesCloud', 'trialWorkspacesPartner', 'trialNumbersPerWorkspace'],
+    fields: ['pendingDays', 'trialWorkspacesCloud', 'trialNumbersPerWorkspace'],
   },
 ] as const satisfies readonly { id: string; fields: readonly SignupCountRule[] }[]
 

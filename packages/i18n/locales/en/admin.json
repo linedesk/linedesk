@@ -682,8 +682,6 @@
   "bills.signupRules.field.trialNumbersPerWorkspace.help": "How many phone numbers each workspace may have during the trial.",
   "bills.signupRules.field.trialWorkspacesCloud": "Workspaces in the trial",
   "bills.signupRules.field.trialWorkspacesCloud.help": "How many workspaces a business's bill may hold during its free trial. Moving one more workspace onto a bill in its trial is refused.",
-  "bills.signupRules.field.trialWorkspacesPartner": "Workspaces in a partner's trial",
-  "bills.signupRules.field.trialWorkspacesPartner.help": "The same for a partner's bill.",
   "bills.signupRules.group.codes": "Sign-up codes",
   "bills.signupRules.group.codes.text": "How often one address, one network and the whole server may ask for a code.",
   "bills.signupRules.group.trial": "Trials",

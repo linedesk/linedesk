@@ -193,7 +193,6 @@ test('the sign-up limits: defaults go back as null, changes as values, numbers o
       codesPerInstallHour: null,
       pendingDays: null,
       trialWorkspacesCloud: null,
-      trialWorkspacesPartner: null,
       trialNumbersPerWorkspace: null,
       turnstile: null,
       blockedDomains: null,

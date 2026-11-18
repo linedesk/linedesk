@@ -183,7 +183,6 @@
   "adminAlert.signupRules.field.signupsPerIpHour": "Sign-up codes per network, per hour",
   "adminAlert.signupRules.field.trialNumbersPerWorkspace": "Phone numbers per workspace in the trial",
   "adminAlert.signupRules.field.trialWorkspacesCloud": "Workspaces in the trial",
-  "adminAlert.signupRules.field.trialWorkspacesPartner": "Workspaces in a partner's trial",
   "adminAlert.signupRules.field.turnstile": "Bot check (Cloudflare Turnstile)",
   "adminAlert.signupRules.fromTo": "{from} → {to}",
   "adminAlert.signupRules.noReview": "No Radar risk level holds a trial for review now: risky cards can buy phone numbers at once.",

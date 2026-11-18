@@ -403,15 +403,9 @@ app.get('/v1/signup/config', async c => {
   const plan = rules
     ? { monthlyCents: rules.workspaceMonthlyCents, yearlyCents: rules.workspaceYearlyCents, trialDays: rules.trialDays }
     : null
-  // The partner plan (`?plan=partner`, docs/white-label.md): its base fee, plus a workspace's price per client.
-  const partnerPlan = rules
-    ? {
-        monthlyCents: rules.partnerMonthlyCents,
-        yearlyCents: rules.partnerYearlyCents,
-        trialDays: rules.trialDays,
-        trialClients: state.rules.trialWorkspacesPartner,
-      }
-    : null
+  // The partner plan (`?plan=partner`, docs/white-label.md): its base fee, plus a workspace's price per client. No free
+  // trial: it is paid from its Checkout (Janik, 2026-11-18).
+  const partnerPlan = rules ? { monthlyCents: rules.partnerMonthlyCents, yearlyCents: rules.partnerYearlyCents } : null
   // Signed in already (a new workspace from the app): whether this account still has its free trial (one per account,
   // account.signUp decides the same), so the page never promises one it won't get. Anyone else: the trial.
   const trial = state.open ? await trialForSession(c.req.raw.headers) : true

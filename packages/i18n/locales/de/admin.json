@@ -681,8 +681,6 @@
   "bills.signupRules.field.trialNumbersPerWorkspace.help": "Wie viele Telefonnummern jeder Workspace während der Testphase haben darf.",
   "bills.signupRules.field.trialWorkspacesCloud": "Workspaces in der Testphase",
   "bills.signupRules.field.trialWorkspacesCloud.help": "Wie viele Workspaces die Abrechnung eines Unternehmens während der kostenlosen Testphase haben darf. Einen weiteren Workspace in eine Abrechnung in der Testphase zu verschieben, wird abgelehnt.",
-  "bills.signupRules.field.trialWorkspacesPartner": "Workspaces in der Testphase eines Partners",
-  "bills.signupRules.field.trialWorkspacesPartner.help": "Dasselbe für die Abrechnung eines Partners.",
   "bills.signupRules.group.codes": "Registrierungscodes",
   "bills.signupRules.group.codes.text": "Wie oft eine Adresse, ein Netzwerk und der ganze Server einen Code anfordern dürfen.",
   "bills.signupRules.group.trial": "Testphasen",

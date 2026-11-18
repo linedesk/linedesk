@@ -37,7 +37,6 @@ const REFUSALS: Record<PartnerCode, string> = {
   client_no_owner: 'the client has no owner yet: invite its owner first, then hand the workspace over',
   bill_not_started: 'add a card for the partner plan first (Partner › Billing)',
   bill_inactive: 'the partner bill is not running: pay the open invoice or start the plan again',
-  trial_client_limit: 'the free trial has as many client workspaces as it allows; start the paid plan for more',
   calls_running: 'calls are running in this workspace: try again once they ended',
   confirm_mismatch: "type the workspace's name exactly to confirm",
   no_partner: 'this workspace has no partner',

@@ -681,8 +681,6 @@
   "bills.signupRules.field.trialNumbersPerWorkspace.help": "トライアル中に各ワークスペースが持てる電話番号の数です。",
   "bills.signupRules.field.trialWorkspacesCloud": "トライアル中のワークスペース数",
   "bills.signupRules.field.trialWorkspacesCloud.help": "ビジネスの請求が無料トライアル中に持てるワークスペースの数です。トライアル中の請求にさらにワークスペースを移動することはできません。",
-  "bills.signupRules.field.trialWorkspacesPartner": "パートナーのトライアル中のワークスペース数",
-  "bills.signupRules.field.trialWorkspacesPartner.help": "パートナーの請求の場合の同じ上限です。",
   "bills.signupRules.group.codes": "登録コード",
   "bills.signupRules.group.codes.text": "1つのアドレス、1つのネットワーク、サーバー全体がコードを要求できる回数です。",
   "bills.signupRules.group.trial": "トライアル",

@@ -185,16 +185,14 @@ function BillNote({ data }: { data: PartnerData }) {
     }
     return (
       <Note tone="info">
-        {t('team.partner.bill.addCard')}{' '}
+        {t('team.partner.bill.startPlan')}{' '}
         <Button size="sm" variant="primary" busy={busy} onClick={() => void start()}>
-          {t('auth.checkout.addCard')}
+          {t('team.partner.bill.startPlanButton')}
         </Button>
         {failed && <span className="help"> {t('auth.checkout.startFailed')}</span>}
       </Note>
     )
   }
-  if (bill.status === 'trialing')
-    return <Note tone="info">{t('team.partner.bill.trial', { count: bill.trialClientLimit })}</Note>
   if (!RUNNING.includes(bill.status)) return <Note tone="danger">{t('team.partner.bill.inactive')}</Note>
   return null
 }

@@ -67,7 +67,6 @@ import {
   PARTNER_SUSPENDED,
   refusePartner,
 } from './partner-refusals.ts'
-import { signupRules } from './self-serve.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { cancelSentInvitations, lockActiveSender, lockedOwner } from './team.ts'
 import { billPayerChanged, lockForPayerChange } from './usage-levels.ts'
@@ -475,7 +474,6 @@ async function billSummary(tx: Tx, partner: PartnerRow, actorId: string): Promis
   if (!bill) return null
   return {
     status: bill.status,
-    trialClientLimit: (await signupRules(tx)).trialWorkspacesPartner,
     mine: bill.owner_user_id === actorId,
   }
 }

@@ -149,11 +149,6 @@ function refusalText(t: ReturnType<typeof useT>, reason: CodeRefusal) {
   }
 }
 
-function partnerIntro(t: ReturnType<typeof useT>, config: SignupConfig) {
-  const days = config.partnerPlan?.trialDays ?? 0
-  return days > 0 ? t('auth.signup.partnerIntro', { days }) : t('auth.signup.partnerIntroNoTrial')
-}
-
 /** The Turnstile widget; `token` is null until it passed (or when it expired). */
 function useTurnstile(siteKey: string | null) {
   const box = useRef<HTMLDivElement>(null)
@@ -224,7 +219,7 @@ export function EmailStep({
     <AuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>{partner ? t('auth.signup.partnerTitle') : t('auth.signup.title')}</h1>
-        <p>{partner ? partnerIntro(t, config) : t('auth.signup.intro')}</p>
+        <p>{partner ? t('auth.signup.partnerLead') : t('auth.signup.intro')}</p>
         <div className="auth-form">
           <input
             type="email"

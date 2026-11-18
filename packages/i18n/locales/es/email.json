@@ -183,7 +183,6 @@
   "adminAlert.signupRules.field.signupsPerIpHour": "Códigos de registro por red, por hora",
   "adminAlert.signupRules.field.trialNumbersPerWorkspace": "Números de teléfono por espacio de trabajo en la prueba",
   "adminAlert.signupRules.field.trialWorkspacesCloud": "Espacios de trabajo en la prueba",
-  "adminAlert.signupRules.field.trialWorkspacesPartner": "Espacios de trabajo en la prueba de un partner",
   "adminAlert.signupRules.field.turnstile": "Verificación contra bots (Cloudflare Turnstile)",
   "adminAlert.signupRules.fromTo": "{from} → {to}",
   "adminAlert.signupRules.noReview": "Ningún nivel de riesgo de Radar retiene ahora una prueba para revisión: las tarjetas de riesgo pueden comprar números de teléfono de inmediato.",

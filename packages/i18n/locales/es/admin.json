@@ -681,8 +681,6 @@
   "bills.signupRules.field.trialNumbersPerWorkspace.help": "Cuántos números de teléfono puede tener cada espacio de trabajo durante la prueba.",
   "bills.signupRules.field.trialWorkspacesCloud": "Espacios de trabajo en la prueba",
   "bills.signupRules.field.trialWorkspacesCloud.help": "Cuántos espacios de trabajo puede tener la factura de una empresa durante su prueba gratuita. Se rechaza mover un espacio de trabajo más a una factura en prueba.",
-  "bills.signupRules.field.trialWorkspacesPartner": "Espacios de trabajo en la prueba de un partner",
-  "bills.signupRules.field.trialWorkspacesPartner.help": "Lo mismo para la factura de un partner.",
   "bills.signupRules.group.codes": "Códigos de registro",
   "bills.signupRules.group.codes.text": "Cuántas veces pueden pedir un código una dirección, una red y todo el servidor.",
   "bills.signupRules.group.trial": "Pruebas",

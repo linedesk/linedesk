@@ -50,6 +50,12 @@ const DAY = 24 * HOUR
 
 const RANGES: Record<string, readonly [number, number]> = { ...SIGNUP_RULE_RANGES, ...SETUP_RULE_RANGES }
 
+/**
+ * Rules that no longer exist, ignored without a problem where a server still stores one: `trialWorkspacesPartner`
+ * (the partner plan has no free trial since 2026-11-18).
+ */
+const RETIRED_SIGNUP_RULES: ReadonlySet<string> = new Set(['trialWorkspacesPartner'])
+
 /** `stored` over the defaults, field by field; `problems` names what was ignored. */
 export function mergeSignupRules(stored: unknown): { rules: SignupRules; problems: string[] } {
   const rules: SignupRules = { ...SIGNUP_DEFAULTS }
@@ -58,6 +64,7 @@ export function mergeSignupRules(stored: unknown): { rules: SignupRules; problem
   if (typeof stored !== 'object' || stored === null || Array.isArray(stored))
     return { rules, problems: ['not an object'] }
   for (const [key, value] of Object.entries(stored as Record<string, unknown>)) {
+    if (RETIRED_SIGNUP_RULES.has(key)) continue
     const range = RANGES[key]
     if (range && Number.isInteger(value) && (value as number) >= range[0] && (value as number) <= range[1])
       (rules as Record<string, unknown>)[key] = value

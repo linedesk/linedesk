@@ -934,7 +934,8 @@ async function moveWorkspace(
   // balance lock above keeps two moves onto the same bill from both passing it.
   if (to.status === 'trialing' || to.status === 'pending_payment') {
     const rules = await signupRules(tx)
-    const cap = to.kind === 'partner' ? rules.trialWorkspacesPartner : rules.trialWorkspacesCloud
+    // A partner bill has no trial and takes no move (refused above).
+    const cap = rules.trialWorkspacesCloud
     if ((await workspacesOnBill(tx, to.id)).length >= cap)
       throw Reject.t('server.api.trialWorkspaceLimit', { count: cap })
   }

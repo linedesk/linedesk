@@ -41,6 +41,7 @@ import { setJobQueue } from '../src/jobs.ts'
 import { setProviderKeys } from '../src/provider-settings.ts'
 import {
   emailHash,
+  mergeSignupRules,
   PENDING_PAYMENT,
   SELF_SERVE_KEY,
   SIGNUP_RULES_KEY,
@@ -199,8 +200,8 @@ describe('closed unless switched on and billing is in effect', () => {
       countries: ['US', 'CA', 'PR'],
       // The sign-up page shows the price and the trial (billing tour, G3), from the rules, not written into the page.
       plan: { monthlyCents: 1100, yearlyCents: 10_800, trialDays: 14 },
-      // The partner plan (docs/white-label.md): its base fee, and the client workspaces its trial takes.
-      partnerPlan: { monthlyCents: 1900, yearlyCents: 16_800, trialDays: 14, trialClients: 2 },
+      // The partner plan (docs/white-label.md): its base fee, and no free trial (Janik, 2026-11-18).
+      partnerPlan: { monthlyCents: 1900, yearlyCents: 16_800 },
       terms: {
         termsUrl: TERMS.TERMS_URL,
         termsVersion: TERMS.TERMS_VERSION,
@@ -208,6 +209,18 @@ describe('closed unless switched on and billing is in effect', () => {
         privacyVersion: TERMS.PRIVACY_VERSION,
       },
     })
+    expect((await request(anonymous, 'GET', '/v1/signup/config')).body.partnerPlan).toEqual({
+      monthlyCents: 1900,
+      yearlyCents: 16_800,
+    })
+  })
+
+  test('a stored partner trial limit from before 2026-11-18 is ignored without a problem; the Cloud trial limit stays', () => {
+    expect(mergeSignupRules({ trialWorkspacesPartner: 2, trialWorkspacesCloud: 3 })).toEqual({
+      rules: expect.objectContaining({ trialWorkspacesCloud: 3 }),
+      problems: [],
+    })
+    expect(mergeSignupRules({}).rules).not.toHaveProperty('trialWorkspacesPartner')
   })
 
   test('switched on but a terms link or version missing: closed, fail closed (A9)', async () => {

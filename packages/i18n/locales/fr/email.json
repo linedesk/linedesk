@@ -183,7 +183,6 @@
   "adminAlert.signupRules.field.signupsPerIpHour": "Codes d'inscription par réseau, par heure",
   "adminAlert.signupRules.field.trialNumbersPerWorkspace": "Numéros de téléphone par espace de travail pendant l'essai",
   "adminAlert.signupRules.field.trialWorkspacesCloud": "Espaces de travail pendant l'essai",
-  "adminAlert.signupRules.field.trialWorkspacesPartner": "Espaces de travail pendant l'essai d'un partenaire",
   "adminAlert.signupRules.field.turnstile": "Vérification anti-robot (Cloudflare Turnstile)",
   "adminAlert.signupRules.fromTo": "{from} → {to}",
   "adminAlert.signupRules.noReview": "Aucun niveau de risque Radar ne bloque désormais un essai pour vérification : les cartes à risque peuvent acheter des numéros de téléphone immédiatement.",

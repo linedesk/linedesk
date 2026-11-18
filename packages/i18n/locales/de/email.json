@@ -183,7 +183,6 @@
   "adminAlert.signupRules.field.signupsPerIpHour": "Registrierungscodes pro Netzwerk und Stunde",
   "adminAlert.signupRules.field.trialNumbersPerWorkspace": "Telefonnummern pro Workspace in der Testphase",
   "adminAlert.signupRules.field.trialWorkspacesCloud": "Workspaces in der Testphase",
-  "adminAlert.signupRules.field.trialWorkspacesPartner": "Workspaces in der Testphase eines Partners",
   "adminAlert.signupRules.field.turnstile": "Bot-Prüfung (Cloudflare Turnstile)",
   "adminAlert.signupRules.fromTo": "{from} → {to}",
   "adminAlert.signupRules.noReview": "Keine Radar-Risikostufe hält eine Testphase jetzt zur Prüfung an: Riskante Karten können sofort Telefonnummern kaufen.",

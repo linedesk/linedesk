@@ -197,6 +197,14 @@ export async function trialRefusalOf(tx: Tx, bill: Bill): Promise<Bill['trial_re
   return (await accountTrialUsed(tx, bill.owner_user_id, bill.id)) ? 'account_used' : null
 }
 
+/**
+ * Whether a bill waiting for Checkout starts with the free trial: a business's (Cloud) bill unless it was refused one.
+ * A partner bill never does: White-label Cloud has no free trial and is paid from its Checkout (Janik, 2026-11-18).
+ */
+export async function trialOffered(tx: Tx, bill: Bill): Promise<boolean> {
+  return bill.kind !== 'partner' && !(await trialRefusalOf(tx, bill))
+}
+
 // ---- Whose bill ----------------------------------------------------------------------------------------------
 
 /**
@@ -395,7 +403,7 @@ export function activationDisclosure(
  */
 export async function activationFacts(tx: Tx, bill: Bill, rules: BillingRules, now: string): Promise<ActivationFacts> {
   const items = await planItems(tx, bill)
-  const trial = !(await trialRefusalOf(tx, bill))
+  const trial = await trialOffered(tx, bill)
   return {
     ...activationDisclosure({ planCents: itemsCents(items, rules), interval: bill.interval, trial }, rules, now),
     includedMinutes: Math.floor(rules.includedStandardSeconds / 60),
@@ -432,7 +440,8 @@ const itemsCents = (items: { lookupKey: string; quantity: number }[], rules: Bil
   items.reduce((sum, i) => sum + (planPrice(i.lookupKey, rules)?.cents ?? 0) * i.quantity, 0)
 
 /**
- * `billing.startCheckout` (§3.2 step 3): the plan with a 14-day trial, or without one after a refused trial. Stripe is
+ * `billing.startCheckout` (§3.2 step 3): a business's plan with a 14-day trial, or without one after a refused trial;
+ * a partner's plan always without (trialOffered). Stripe is
  * asked before the transaction (the customer, the configuration, the session); the transaction stores the customer.
  */
 const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput) => {
@@ -452,7 +461,8 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
   if (bill.stripe_customer_id) await provider.expireOpenCheckouts(customerId).catch(setupFailed)
   // One trial per account (the server decides; the activation step only showed it): checked again here, so a trial
   // started on another bill since the sign-up counts too.
-  const trial = !(await db.transaction(tx => trialRefusalOf(tx, bill)))
+  // A partner bill never has one (trialOffered).
+  const trial = await db.transaction(tx => trialOffered(tx, bill))
   // The install's prices, trial and name (Server admin › Billing and › Branding): what this Checkout sells. The price
   // ids are the ones the last catalog sync stored; nothing in Stripe is made or changed here (review of #1040, M-1).
   const rules = await billingRules(db)

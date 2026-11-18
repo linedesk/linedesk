@@ -740,7 +740,7 @@ describe('one free trial per account (decision of 2026-11-17, docs/billing.md §
     const first = await pendingSignUp()
     const partnerBill = await db
       .insert(billing_accounts)
-      .values({ id: rid('bill'), kind: 'partner', owner_user_id: first.ws.owner.userId, status: 'trialing' })
+      .values({ id: rid('bill'), kind: 'partner', owner_user_id: first.ws.owner.userId, status: 'active' })
       .returning()
     expect(partnerBill).toHaveLength(1)
     const made = await startCheckout(first.owner)
@@ -2266,6 +2266,33 @@ describe('the partner bill (white-label S2, docs/white-label.md)', () => {
     return { owner, partnerId, bill: bill! }
   }
 
+  /** The partner plan's subscription as Stripe has it after its Checkout: paid at once, no trial (2026-11-18). */
+  async function paidPartnerSubscription(billId: string) {
+    const fingerprint = rid('fp')
+    const sub = subscription((await billRow(billId)).stripe_customer_id!, { status: 'active', card: card(fingerprint) })
+    const item = (sub.items as { data: Json[] }).data[0]!
+    item.price = { ...(item.price as Json), id: 'price_partner_monthly', lookup_key: 'partner_monthly' }
+    stripe.payments.set(sub.latest_invoice as string, [
+      {
+        id: rid('inpay'),
+        object: 'invoice_payment',
+        status: 'paid',
+        amount_paid: 1900,
+        payment: {
+          type: 'payment_intent',
+          payment_intent: {
+            id: rid('pi'),
+            object: 'payment_intent',
+            status: 'succeeded',
+            payment_method: card(fingerprint),
+            latest_charge: { id: rid('ch'), object: 'charge', paid: true, outcome: { risk_level: 'normal' } },
+          },
+        },
+      },
+    ])
+    return sub
+  }
+
   test('a new partner: every instance admin is emailed while it waits for approval, not once approved', async () => {
     const { owner, partnerId } = await pendingPartner()
     const [account] = await db.select({ email: user.email }).from(user).where(eq(user.id, owner.userId))
@@ -2293,7 +2320,7 @@ describe('the partner bill (white-label S2, docs/white-label.md)', () => {
     expect(mails).toEqual([])
   })
 
-  test('Checkout sells the partner base fee alone; the first client workspace adds its seat to the subscription', async () => {
+  test('Checkout sells the partner base fee alone, paid at once with no trial; the first client workspace adds its seat', async () => {
     const { owner, partnerId, bill } = await pendingPartner()
     const res = await act(owner, 'billing.startCheckout', { partnerId })
     expect(res.status).toBe(200)
@@ -2306,18 +2333,22 @@ describe('the partner bill (white-label S2, docs/white-label.md)', () => {
       cancel_url: 'http://localhost:5173/#partner',
     })
     expect(made['line_items[1][price]']).toBeUndefined()
-    // Stripe made the subscription with the base fee; the owner confirms for the partner.
+    // White-label Cloud has no free trial (Janik, 2026-11-18): Checkout asks for none, and says so.
+    expect(made['subscription_data[trial_period_days]']).toBeUndefined()
+    // Stripe made the subscription with the base fee, paid; the owner confirms for the partner.
     const sessionId = [...stripe.sessions.keys()].at(-1)!
-    const sub = subscription((await billRow(bill.id)).stripe_customer_id!)
-    const item = (sub.items as { data: Json[] }).data[0]!
-    item.price = { ...(item.price as Json), id: 'price_partner_monthly', lookup_key: 'partner_monthly' }
+    const sub = await paidPartnerSubscription(bill.id)
     complete(sessionId, sub)
     expect(await act(owner, 'billing.confirmCheckout', { sessionId })).toMatchObject({ status: 409 })
     expect(await act(owner, 'billing.confirmCheckout', { sessionId, partnerId })).toMatchObject({
       status: 200,
-      body: { data: { status: 'trialing' } },
+      body: { data: { status: 'active' } },
     })
-    expect(await billRow(bill.id)).toMatchObject({ status: 'trialing', stripe_subscription_id: sub.id })
+    expect(await billRow(bill.id)).toMatchObject({
+      status: 'active',
+      stripe_subscription_id: sub.id,
+      trial_ends_at: null,
+    })
     stripe.requests.length = 0
     const client = await act(owner, 'workspace.createForClient', { partnerId, name: 'First Client' })
     expect(client).toMatchObject({ status: 200, body: { data: { billId: bill.id } } })
@@ -2341,9 +2372,8 @@ describe('the partner bill (white-label S2, docs/white-label.md)', () => {
     const { owner, partnerId, bill } = await pendingPartner()
     expect((await act(owner, 'billing.startCheckout', { partnerId })).status).toBe(200)
     const sessionId = [...stripe.sessions.keys()].at(-1)!
-    const sub = subscription((await billRow(bill.id)).stripe_customer_id!)
+    const sub = await paidPartnerSubscription(bill.id)
     const items = (sub.items as { data: Json[] }).data
-    items[0]!.price = { ...(items[0]!.price as Json), id: 'price_partner_monthly', lookup_key: 'partner_monthly' }
     complete(sessionId, sub)
     expect((await act(owner, 'billing.confirmCheckout', { sessionId, partnerId })).status).toBe(200)
     const made = await act(owner, 'workspace.createForClient', { partnerId, name: 'Leaving Client' })
