@@ -673,7 +673,6 @@
   "export.title": "通話をエクスポート",
   "export.to": "終了日",
   "export.truncated": "最新の{count, number}件の通話をエクスポートしました。残りは期間を短くして選んでください。",
-  "follows.country": "{what, select, currency {通貨は} other {}}<link>ワークスペースの国</link>（{country}）に合わせています。国を変えると変わります。",
   "follows.countryDefault": "国の既定値：{value}",
   "follows.setByHand": "{what, select, currency {通貨を手動で設定} other {手動で設定}}",
   "follows.team": "<link>チームの既定値</link>に合わせています。チームの既定値を変えると変わります。",

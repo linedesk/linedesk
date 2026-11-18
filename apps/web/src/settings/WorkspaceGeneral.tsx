@@ -2,9 +2,7 @@
 // the workspace icon (WorkspaceIconField), the country (Automatic until set: workspace-locale.ts), the time zone (moved here from the assistant's Advanced section;
 // Hours & holidays links here) and the value of a booked appointment (also set from the Insights summary). Owners and admins change them; members see them, with one note on top saying why they can't.
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { phoneCountryName } from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
-import { i18n } from '../i18n/index.tsx'
 import { showAppointmentValue } from '../insights/Insights.tsx'
 import { useRun } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
@@ -188,9 +186,6 @@ async function saveFollow(change: { timeZone: null } | { jobValueCurrency: null 
   void refreshWorkspaceSettings()
 }
 
-/** The country in use, by name, for the lines of the settings that follow it. */
-const countryName = (country: string | undefined) => phoneCountryName(country ?? 'US', i18n())
-
 /**
  * The workspace's time zone: the date and time the assistant is told, and what business hours mean. It follows the
  * country (moves into it when the country changes) until one is picked here. Saves at once.
@@ -222,10 +217,18 @@ function TimeZone({ canEdit }: { canEdit: boolean }) {
         onRetry={() => void settings.reload()}
         skeleton={<Skeleton shape="field" width="100%" />}
       >
-        {zone && <TimeZoneSelect id="ws-time-zone" value={zone} onChange={change} disabled={!canEdit} />}
+        {zone && (
+          <TimeZoneSelect
+            id="ws-time-zone"
+            value={zone}
+            onChange={change}
+            disabled={!canEdit}
+            countryDefault={data?.countryTimeZone}
+          />
+        )}
         {zone && data?.timeZoneFollowsCountry !== undefined && (
           <FollowsLine
-            source={{ kind: 'country', country: countryName(data.resolvedCountry) }}
+            source="country"
             follows={data.timeZoneFollowsCountry}
             sourceDefault={timeZoneLabel(data.countryTimeZone ?? zone)}
             controlId="ws-time-zone"
@@ -261,6 +264,7 @@ function Value({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => 
             id="ws-appointment-value"
             value={settings.jobValueCents}
             currency={settings.jobValueCurrency ?? 'USD'}
+            countryDefault={settings.countryCurrency}
             canEdit={canEdit}
             onSaved={(cents, currency) => showAppointmentValue(cents, currency)}
             toast={toast}
@@ -268,7 +272,7 @@ function Value({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => 
         )}
         {settings?.jobValueCurrencyFollowsCountry !== undefined && (
           <FollowsLine
-            source={{ kind: 'country', country: countryName(settings.resolvedCountry) }}
+            source="country"
             what="currency"
             controlId="ws-appointment-value"
             follows={settings.jobValueCurrencyFollowsCountry}

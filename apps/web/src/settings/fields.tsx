@@ -268,8 +268,24 @@ export function SelectRow<T extends string>({
   )
 }
 
+/**
+ * The options of a field that follows the workspace's country, the country's own one marked: "Eastern Time (country
+ * default)". The mark stays whether the field follows or was set by hand; none while the country's value is unknown.
+ */
+export function countryDefaultOptions<T extends string>(
+  options: readonly SelectOption<T>[],
+  countryDefault: T | null | undefined,
+  t: ReturnType<typeof useT>,
+): SelectOption<T>[] {
+  return options.map(o =>
+    countryDefault != null && o.value === countryDefault
+      ? { ...o, label: t('settings.follows.countryDefaultOption', { value: o.label }) }
+      : o,
+  )
+}
+
 /** What a setting that follows another one follows: the workspace's country, or the team's default. */
-export type FollowsSource = { kind: 'country'; country: string } | { kind: 'team' }
+export type FollowsSource = 'country' | 'team'
 
 type FollowsLineProps = {
   source: FollowsSource
@@ -279,7 +295,7 @@ type FollowsLineProps = {
   sourceDefault: string
   /** The line names what follows, for a field of more than one part (the appointment value's currency). */
   what?: 'currency'
-  /** Where the source is set, when that is another place this viewer can open; else its name is plain words. */
+  /** Where the team default is set, when that is another place this viewer can open; else its name is plain words. */
   link?: string | null
   /** Goes back to following; none: the viewer can't change it, and the line says what the default is instead. */
   onReset?: () => void
@@ -291,8 +307,9 @@ type FollowsLineProps = {
 
 /**
  * The one line for every setting whose value comes from another setting until someone sets it by hand
- * (docs/design-principles.md, help text): "From your workspace country (United States). Changes when the country
- * changes." while it follows; "Set by hand · Use country default (Eastern Time)" once set, the reset one click.
+ * (docs/design-principles.md, help text). A value that follows the workspace's country has no line: its option says
+ * "(country default)" instead (countryDefaultOptions). Set by hand: "Set by hand · Use country default (Eastern
+ * Time)", the reset one click. A value that follows the team default says so ("From the team default. …").
  * Under the field, in the muted helper style, never a badge or a colour.
  */
 export function FollowsLine({
@@ -310,14 +327,11 @@ export function FollowsLine({
     onReset?.()
     if (controlId) setTimeout(() => document.getElementById(controlId)?.focus(), 0)
   }
-  const tag = link ? appLink(link) : plainTag
-  const country = source.kind === 'country'
+  const country = source === 'country'
+  // Following the country: the picked option already says "(country default)", nothing more to say.
+  if (follows && country) return null
   const body = follows ? (
-    country ? (
-      <T k="settings.follows.country" values={{ what: what ?? 'value', country: source.country, link: tag }} />
-    ) : (
-      <T k="settings.follows.team" values={{ link: tag }} />
-    )
+    <T k="settings.follows.team" values={{ link: link ? appLink(link) : plainTag }} />
   ) : (
     <>
       {t('settings.follows.setByHand', { what: what ?? 'value' })}

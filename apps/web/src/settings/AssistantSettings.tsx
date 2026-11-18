@@ -92,6 +92,7 @@ import { canonicalAssistantHash, OLD_SECTIONS, WEBHOOK_ITEM } from './assistantL
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
 import {
   Field,
+  countryDefaultOptions,
   FollowsLine,
   ReadOnlyNote,
   Section,
@@ -525,7 +526,12 @@ export function Languages({
   // Only languages a connected voice provider speaks (voice.options), and the ones already picked.
   const offered = offeredLanguages(installed, draft)
   // Each language in its own name and in the UI language ("Español · Spanish"), in the registry's order.
-  const languageOptions = offered.map(code => ({ value: code, label: languageLabel(code, ui) }))
+  // The country's language marked "(country default)", once the country is known.
+  const languageOptions = countryDefaultOptions(
+    offered.map(code => ({ value: code, label: languageLabel(code, ui) })),
+    country ? countryLanguage : undefined,
+    t,
+  )
   const coveredByAny = (code: Language) => !anyCovers || anyCovers.includes(code)
   // With a Flux model "any" keeps Flux's languages; the others only when picked (coordinator decision on LIN-268).
   const anyLimited = mode === 'any' && offered.some(code => !coveredByAny(code))
@@ -565,10 +571,9 @@ export function Languages({
           />
           {country && (
             <FollowsLine
-              source={{ kind: 'country', country }}
+              source="country"
               follows={draft.main_language_follows}
               sourceDefault={languageLabel(countryLanguage ?? 'en', ui)}
-              link={sectionHash('workspace', 'general')}
               controlId="as-languages-main"
               onReset={onCountryLanguage}
             />

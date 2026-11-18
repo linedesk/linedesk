@@ -9,6 +9,7 @@ import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { useRun } from '../store.tsx'
 import { Select } from '../ui/controls.tsx'
 import { FormMessage, Input } from '../ui/form.tsx'
+import { countryDefaultOptions } from './fields.tsx'
 import { patchWorkspaceSettings } from './settings-api.ts'
 import './appointmentValue.css'
 import { fmt } from '../i18n/format.ts'
@@ -18,6 +19,8 @@ type Props = {
   id: string
   value: number | null
   currency: JobValueCurrency
+  /** The workspace country's currency, marked "(country default)" (Workspace settings › General). */
+  countryDefault?: JobValueCurrency | null
   canEdit: boolean
   /** A label of its own inside the form (Insights); in a settings Field the Field labels it. */
   label?: string
@@ -39,6 +42,7 @@ export function AppointmentValue({
   id,
   value,
   currency: savedCurrency,
+  countryDefault,
   canEdit,
   label,
   autoFocus,
@@ -50,8 +54,11 @@ export function AppointmentValue({
   const run = useRun()
   // The viewer's own currency first (the workspace's country, else the browser's), then USD, CAD, GBP, AUD (C12).
   const viewer = currencyOfCountry(useDefaultPhoneCountry())
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the labels follow the active language (t)
-  const options = useMemo(() => currencyOptions(viewer), [t, viewer])
+  // The labels follow the active language (t).
+  const options = useMemo(
+    () => countryDefaultOptions(currencyOptions(viewer), countryDefault, t),
+    [t, viewer, countryDefault],
+  )
   const savedText = moneyText(value, savedCurrency)
   const [text, setText] = useState(savedText)
   const [currency, setCurrency] = useState(savedCurrency)
@@ -84,7 +91,7 @@ export function AppointmentValue({
 
   return (
     <form
-      className="av-form"
+      className={countryDefault ? 'av-form av-marked' : 'av-form'}
       onSubmit={e => {
         e.preventDefault()
         save()

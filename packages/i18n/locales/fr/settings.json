@@ -673,7 +673,6 @@
   "export.title": "Exporter les appels",
   "export.to": "Au",
   "export.truncated": "Les {count, number} appels les plus récents ont été exportés. Choisissez une période plus courte pour le reste.",
-  "follows.country": "{what, select, currency {Devise issue} other {Issu}} du <link>pays de l'espace de travail</link> ({country}). Change quand le pays change.",
   "follows.countryDefault": "Par défaut du pays : {value}",
   "follows.setByHand": "{what, select, currency {Devise choisie à la main} other {Choisi à la main}}",
   "follows.team": "Issu du <link>réglage par défaut de l'équipe</link>. Change quand ce réglage change.",

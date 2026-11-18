@@ -234,7 +234,7 @@ export function NotificationSwitches({
         note={
           <FollowsLine
             inline
-            source={{ kind: 'team' }}
+            source="team"
             follows={settings.own.email === null}
             sourceDefault={settings.defaults.email ? 'on' : 'off'}
             link={teamLink}

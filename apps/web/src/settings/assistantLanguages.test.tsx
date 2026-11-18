@@ -38,7 +38,7 @@ test('"any" that covers every offered language has no note; the list is what the
   expect(render({ main: 'en', mode: 'allowed', allowed: ['pl'] }, FLUX)).not.toContain(NOTE)
 })
 
-test('the main language says whether it follows the workspace country or was set by hand (LIN-580)', () => {
+test('the main language marks the country default, and says so only once it was set by hand (LIN-580)', () => {
   const languages = { main: 'de', mode: 'english', allowed: [] }
   const line = (follows: boolean, onCountryLanguage?: () => void) =>
     renderToStaticMarkup(
@@ -52,14 +52,16 @@ test('the main language says whether it follows the workspace country or was set
         installed={installed}
       />,
     )
+  // Following: no line under the select; the country's language says "(country default)" on the select.
   const following = line(true, () => {})
-  expect(following).toContain('From your <a class="k-link" href="#workspace/general">workspace country</a> (Germany)')
-  expect(following).toContain('Changes when the country changes.')
+  expect(following).not.toContain('follows-line')
+  expect(following).not.toContain('Changes when the country changes.')
   expect(following).not.toContain('Set by hand')
+  expect(following).toMatch(/<span>Deutsch[^<]*\(country default\)<\/span>/)
   // Set by hand: one click back to the country's language, for those who can change it.
-  expect(line(false, () => {})).toMatch(
-    /Set by hand.*<button type="button" class="k-link">Use country default \(Deutsch/,
-  )
+  const byHand = line(false, () => {})
+  expect(byHand).toMatch(/Set by hand.*<button type="button" class="k-link">Use country default \(Deutsch/)
+  expect(byHand).toMatch(/<span>Deutsch[^<]*\(country default\)<\/span>/)
   // A member reads what the country would give instead of a button.
   const readOnly = line(false)
   expect(readOnly).toContain('Country default: Deutsch')

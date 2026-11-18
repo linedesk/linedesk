@@ -673,7 +673,6 @@
   "export.title": "Anrufe exportieren",
   "export.to": "Bis",
   "export.truncated": "Die neuesten {count, number} Anrufe wurden exportiert. Wähle für den Rest einen kürzeren Zeitraum.",
-  "follows.country": "{what, select, currency {Währung aus} other {Aus}} deinem <link>Workspace-Land</link> ({country}). Ändert sich, wenn sich das Land ändert.",
   "follows.countryDefault": "Standard des Landes: {value}",
   "follows.setByHand": "{what, select, currency {Währung von Hand festgelegt} other {Von Hand festgelegt}}",
   "follows.team": "Aus dem <link>Team-Standard</link>. Ändert sich, wenn sich der Team-Standard ändert.",

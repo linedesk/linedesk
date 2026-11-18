@@ -5,6 +5,7 @@ import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 
 import { useActiveOptionInView, useAnchoredList } from '../ui/floating.ts'
 import { OptionCheck, type SelectOption } from '../ui/controls.tsx'
 import { cx, Icon } from '../ui/kit.tsx'
+import { countryDefaultOptions } from './fields.tsx'
 import {
   browserTimeZone,
   clockIn,
@@ -54,9 +55,16 @@ export function TimeZoneOptionBody({
   )
 }
 
-type Props = { value: string; onChange: (zone: string) => void; disabled?: boolean; id?: string }
+type Props = {
+  value: string
+  onChange: (zone: string) => void
+  disabled?: boolean
+  id?: string
+  /** The workspace country's zone: marked "(country default)" in the list and on the button. */
+  countryDefault?: string | null
+}
 
-export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
+export function TimeZonePicker({ value, onChange, disabled, id, countryDefault }: Props) {
   const t = useT()
   const now = useNow()
   const [open, setOpen] = useState(false)
@@ -66,7 +74,11 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
   const button = useRef<HTMLButtonElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const listId = useId()
-  const options = useMemo(() => timeZoneOptions(value), [value])
+  const options = useMemo(
+    () => countryDefaultOptions(timeZoneOptions(value), countryDefault, t),
+    [value, countryDefault, t],
+  )
+  const valueLabel = options.find(o => o.value === value)?.label ?? timeZoneLabel(value)
   const matches = useMemo(
     () => (open ? searchTimeZones(options, query, now).slice(0, SHOWN_MAX) : []),
     [open, options, query, now],
@@ -132,7 +144,7 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
         className="k-select-btn"
         disabled={disabled}
         title={t('settings.timeZone.label')}
-        aria-label={t('settings.timeZone.button', { zone: timeZoneLabel(value), offset, clock })}
+        aria-label={t('settings.timeZone.button', { zone: valueLabel, offset, clock })}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => (open ? close() : show())}
@@ -143,7 +155,7 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
           }
         }}
       >
-        <span>{timeZoneLabel(value)}</span>
+        <span>{valueLabel}</span>
         <span className="tz-meta">
           {offset} · {clock}
         </span>

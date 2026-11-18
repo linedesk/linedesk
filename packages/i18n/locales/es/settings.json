@@ -673,7 +673,6 @@
   "export.title": "Exportar llamadas",
   "export.to": "Hasta",
   "export.truncated": "Se exportaron las {count, number} llamadas más recientes. Elige un período más corto para el resto.",
-  "follows.country": "{what, select, currency {Moneda según} other {Según}} el <link>país del espacio de trabajo</link> ({country}). Cambia cuando cambia el país.",
   "follows.countryDefault": "Predeterminado del país: {value}",
   "follows.setByHand": "{what, select, currency {Moneda elegida a mano} other {Elegido a mano}}",
   "follows.team": "Según el <link>valor predeterminado del equipo</link>. Cambia cuando cambia ese valor.",

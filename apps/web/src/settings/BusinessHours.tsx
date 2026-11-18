@@ -136,13 +136,18 @@ export function TimeZoneSelect({
   onChange,
   disabled,
   id,
+  countryDefault,
 }: {
   value: string
   onChange: (zone: string) => void
   disabled?: boolean
   id?: string
+  /** The workspace country's zone, marked "(country default)" in the list and on the button. */
+  countryDefault?: string | null
 }) {
-  return <TimeZonePicker id={id} value={value} onChange={onChange} disabled={disabled} />
+  return (
+    <TimeZonePicker id={id} value={value} onChange={onChange} disabled={disabled} countryDefault={countryDefault} />
+  )
 }
 
 /**
