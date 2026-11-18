@@ -1177,11 +1177,12 @@ describe('every key through the agent (LIN-182)', () => {
     const own = passkeyRow(ws.owner.userId)
     const theirs = passkeyRow(fresh.userId)
     await db.insert(passkey).values([own, theirs])
-    // The browser is offered only this account's passkeys.
+    // The challenge lists no passkeys (Chrome with Apple Passwords shows no Touch ID for a list, LIN-488), so the
+    // browser offers every passkey it holds for this site.
     const options = await request(ws.owner, 'GET', '/api/auth/passkey/generate-authenticate-options')
     expect(options.status).toBe(200)
-    expect(options.body.allowCredentials.map((c: { id: string }) => c.id)).toEqual([own.credentialID])
-    // And the server refuses another account's passkey for a signed-in browser; without a session any passkey signs
+    expect(options.body).not.toHaveProperty('allowCredentials')
+    // The server refuses another account's passkey for a signed-in browser; without a session any passkey signs
     // its own account in (the sign-in page).
     await expect(refuseOtherAccountsPasskey(ws.owner.userId, theirs.credentialID)).rejects.toMatchObject({
       body: { code: 'PASSKEY_OTHER_ACCOUNT' },

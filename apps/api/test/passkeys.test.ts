@@ -264,6 +264,15 @@ describe('the passkey-first sign-in page (LIN-215)', () => {
     expect(JSON.stringify(res.body)).not.toContain(member.userId)
   })
 
+  test('a signed-in caller gets no passkey list either: Chrome with Apple Passwords then shows Touch ID (LIN-488)', async () => {
+    const member = await verifiedSignUp(address('confirm'))
+    await addPasskeyRow(member)
+    const res = await authGet(member, PASSKEY_CHALLENGE_PATH)
+    expect(res.status).toBe(200)
+    expect(res.body.challenge).toBeTruthy()
+    expect(res.body).not.toHaveProperty('allowCredentials')
+  })
+
   test('one address may ask for at most PASSKEY_CHALLENGE_LIMIT challenges a minute', async () => {
     const ip = randomIp()
     const ask = () => request(anonymous, 'GET', `/api/auth${PASSKEY_CHALLENGE_PATH}`, undefined, { ...ORIGIN, [FROM]: ip })

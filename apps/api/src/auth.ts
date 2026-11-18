@@ -25,6 +25,7 @@ import {
   passkeyPlugin,
   passkeyRelyingParty,
   refuseUnverifiedPasskey,
+  askAnyPasskey,
 } from './passkeys.ts'
 import {
   ALLOWED_TRIES,
@@ -150,6 +151,7 @@ const afterAuthEndpoints = createAuthMiddleware(async ctx => {
   // First: once an address changed, the other sessions end and the old address is told, whatever follows.
   await finishEmailChange(ctx)
   await countSignInFailures(ctx)
+  askAnyPasskey(ctx)
   rememberKnownBrowser(ctx)
   await recordAuthEndpoint(ctx)
   await clearProfileChangeAfterOwnUpdate(ctx)

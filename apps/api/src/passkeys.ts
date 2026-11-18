@@ -74,9 +74,9 @@ export function refuseUnverifiedPasskey(ctx: { path: string; body?: unknown }) {
 
 /**
  * A passkey sign-in from a signed-in browser is a confirmation of that person (the step-ups, the check before Server
- * admin): the browser already offers only their passkeys (Better Auth lists them as allowCredentials), and the server
- * refuses another account's passkey too, so a confirmation never switches the browser to someone else. Without a
- * session (the sign-in page) any passkey signs its own account in.
+ * admin). The browser offers every passkey of this site (askAnyPasskey) and the server refuses another account's, so a
+ * confirmation never switches the browser to someone else. Without a session (the sign-in page) any passkey signs its
+ * own account in.
  */
 export const PASSKEY_OTHER_ACCOUNT = 'PASSKEY_OTHER_ACCOUNT'
 export async function refuseOtherAccountsPasskey(signedInUserId: string | null, credentialId: string) {
@@ -90,6 +90,20 @@ export async function refuseOtherAccountsPasskey(signedInUserId: string | null, 
       code: PASSKEY_OTHER_ACCOUNT,
       message: 'That passkey belongs to another account. Use one of your own passkeys.',
     })
+}
+
+/**
+ * After Better Auth's passkey challenge: no list of the account's passkeys (allowCredentials), also when signed in.
+ * With the list, Chrome on macOS finds the passkey in Apple Passwords and offers it, but picking it never shows Touch ID
+ * and the request fails as if it was closed; the same request without the list works (LIN-488). The list only narrowed
+ * what the browser offers: refuseOtherAccountsPasskey still refuses another account's passkey before any session.
+ */
+export function askAnyPasskey(ctx: { path: string; context: { returned?: unknown } }) {
+  if (ctx.path !== '/passkey/generate-authenticate-options') return
+  const returned = ctx.context.returned
+  if (!returned || typeof returned !== 'object' || isAPIError(returned) || !('allowCredentials' in returned)) return
+  const { allowCredentials: _, ...options } = returned as Record<string, unknown>
+  ctx.context.returned = options
 }
 
 /** The endpoints that add, rename or remove a passkey. */
