@@ -112,6 +112,7 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
           />
         ) : null}
         <b>{t('team.partner.pageNamed', { partner: data?.partner.name ?? partner.name })}</b>
+        <StatusBadge status={status} />
         {!onExit && (
           <Button size="sm" variant="ghost" onClick={() => void signOutAndForget().then(onSignedOut)}>
             {t('shell.signOut')}
@@ -123,7 +124,6 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
           page="partner"
           title={data?.partner.name ?? partner.name}
           description={t('team.partner.description')}
-          actions={<StatusBadge status={status} />}
           sections={sections}
           current={current}
         >

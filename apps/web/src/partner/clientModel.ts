@@ -4,7 +4,12 @@
 import type { ClientProblem, PartnerClient, PartnerClientRow } from '@linedesk/actions'
 
 /** Problems that stop calls or money: red. The rest are warnings: amber. */
-const BLOCKING: ReadonlySet<ClientProblem> = new Set(['bill_inactive', 'disabled', 'limit_reached', 'forwarding_failed'])
+const BLOCKING: ReadonlySet<ClientProblem> = new Set([
+  'bill_inactive',
+  'disabled',
+  'limit_reached',
+  'forwarding_failed',
+])
 
 export const problemTone = (problem: ClientProblem): 'danger' | 'warning' =>
   BLOCKING.has(problem) ? 'danger' : 'warning'
@@ -36,10 +41,17 @@ export type ClientAction = 'settings' | 'inviteOwner' | 'ownerInvitation' | 'rel
 /**
  * The row's "…" menu, in this order: Settings (limit and Premium; on the partner bill only), then, for the partner's
  * owner, what the client's owner needs next: invite one, see the open invitation (resend or withdraw it on the
- * client's Team page), or hand the workspace over to them.
+ * client's Team page), or hand the workspace over to them. Without a partner bill (billing off on this server) there
+ * is no Settings: the limit is measured on the bill and a self-hosted install has no usage levels, so nothing in it
+ * would do anything.
  */
-export function clientActions(row: Pick<PartnerClientRow, 'billed'>, client: PartnerClient | undefined, owner: boolean) {
-  const actions: { id: ClientAction; enabled: boolean }[] = [{ id: 'settings', enabled: row.billed }]
+export function clientActions(
+  row: Pick<PartnerClientRow, 'billed'>,
+  client: PartnerClient | undefined,
+  owner: boolean,
+  billing: boolean,
+) {
+  const actions: { id: ClientAction; enabled: boolean }[] = billing ? [{ id: 'settings', enabled: row.billed }] : []
   if (!owner || !client) return actions
   if (client.owner === null) actions.push({ id: 'inviteOwner', enabled: true })
   else if ('invited' in client.owner) actions.push({ id: 'ownerInvitation', enabled: true })

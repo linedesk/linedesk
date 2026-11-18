@@ -106,22 +106,22 @@
   justify-content: flex-end;
   gap: 4px;
 }
-/* Phones: the name and its lines across the row, Open and "…" at its right, the usage under them. */
-@media (max-width: 719px) {
+/* Phones and narrow tablets: each client a stacked block, the name and its lines, then the usage, then Open and "…"
+   across the row as 44px touch targets, so nothing starts off-screen. */
+@media (max-width: 767px) {
   .pc-cols.ib-cols {
     display: none;
   }
   .pc-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    row-gap: 8px;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 10px;
     align-items: start;
+    padding: 14px 0;
   }
   .pc-row:first-child {
     padding-top: 0;
   }
   .pc-usage {
-    grid-column: 1 / -1;
-    grid-row: 2;
     grid-template-columns: auto minmax(0, 1fr);
     column-gap: 12px;
     align-items: baseline;
@@ -136,8 +136,18 @@
     text-align: right;
   }
   .pc-actions {
-    grid-column: 2;
-    grid-row: 1;
+    justify-content: stretch;
+    gap: 8px;
+  }
+  .pc-actions > .k-btn {
+    flex: 1;
+    justify-content: center;
+    height: 44px;
+    font-size: 13.5px;
+  }
+  .pc-actions .k-menu-btn {
+    width: 44px;
+    height: 44px;
   }
 }
 

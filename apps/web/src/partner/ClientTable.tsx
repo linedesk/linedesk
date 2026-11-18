@@ -45,9 +45,12 @@ export function ClientList({ data, frozen, opening, onOpen, onInvite, onRelease,
   const list: PartnerClientList | undefined = query.data
   const period = list?.period
   const short = (iso: string) => format.date(new Date(iso), { month: 'short', day: 'numeric' })
-  const usageHead = period
-    ? t('team.partner.clients.col.usagePeriod', { from: short(period.startsAt), to: short(period.endsAt) })
-    : t('team.partner.clients.col.usage')
+  // Without a partner bill (billing off) the numbers are the calendar month's, not a billing period's.
+  const usageHead = !data.bill
+    ? t('team.partner.clients.col.usageMonth')
+    : period
+      ? t('team.partner.clients.col.usagePeriod', { from: short(period.startsAt), to: short(period.endsAt) })
+      : t('team.partner.clients.col.usage')
 
   if (data.clients.length === 0) return <ListEmpty>{t('team.partner.clients.empty')}</ListEmpty>
   return (
@@ -117,7 +120,7 @@ function ClientRow({
     ownerInvitation: t('team.partner.clients.ownerInvitation'),
     release: t('team.partner.clients.release'),
   }
-  const items: MenuItem[] = clientActions(row, client, data.role === 'owner').map(action => ({
+  const items: MenuItem[] = clientActions(row, client, data.role === 'owner', !!data.bill).map(action => ({
     id: action.id,
     label: labels[action.id],
     disabled:
@@ -186,7 +189,7 @@ function ClientRow({
         >
           {t('team.partner.clients.open')}
         </Button>
-        <MenuButton items={items} title={t('team.partner.clients.more', { name: row.name })} />
+        {items.length > 0 && <MenuButton items={items} title={t('team.partner.clients.more', { name: row.name })} />}
       </div>
     </li>
   )
@@ -203,7 +206,10 @@ function Usage({ row }: { row: PartnerClientRow }) {
   const dollars = (cents: number, digits?: number) =>
     format.currency(cents / 100, 'USD', digits === undefined ? undefined : { maximumFractionDigits: digits })
   const nothing = usedNothing(row)
-  const counts = t('team.partner.clients.counts', { calls: row.calls, minutes: Math.ceil(row.seconds / 60) })
+  // Minutes come from the partner bill's ledger: off the bill only the calls are known.
+  const counts = row.billed
+    ? t('team.partner.clients.counts', { calls: row.calls, minutes: Math.ceil(row.seconds / 60) })
+    : t('team.partner.clients.callCount', { calls: row.calls })
   const limited = row.limitCents !== null && row.limitPercent !== null
   const share = limited ? format.number(row.limitPercent! / 100, { style: 'percent', maximumFractionDigits: 0 }) : ''
   const below = [row.billed && !limited ? t('team.partner.clients.noLimit') : null, nothing ? null : counts].filter(
@@ -222,10 +228,7 @@ function Usage({ row }: { row: PartnerClientRow }) {
           <b>{dollars(row.costCents)}</b>
         )}
         {limited && (
-          <span className="pc-of">
-            {' '}
-            {t('team.partner.clients.limitOf', { amount: dollars(row.limitCents!, 0) })}
-          </span>
+          <span className="pc-of"> {t('team.partner.clients.limitOf', { amount: dollars(row.limitCents!, 0) })}</span>
         )}
       </span>
       {limited && (
