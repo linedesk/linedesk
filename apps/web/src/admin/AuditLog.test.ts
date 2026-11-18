@@ -342,7 +342,7 @@ test('an invitation passed to the owner names the invited address (LIN-264)', ()
 
 test("a removed member's invitation that the removal canceled (LIN-264 review F1)", () => {
   expect(auditLabel({ what: 'invitation_withdrawn', method: 'new@example.com', input: null, subject: null })).toBe(
-    'Invitation to new@example.com canceled: its sender was removed from the workspace',
+    'Invitation to new@example.com canceled: its sender can no longer invite',
   )
 })
 

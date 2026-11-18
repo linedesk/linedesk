@@ -1,4 +1,4 @@
-import { account, api_keys, assistants, auth_events, calendar_connections, integration_subscriptions, member, passkey, phone_numbers, session, user, webhook_endpoints } from '@linedesk/db'
+import { account, api_keys, assistants, auth_events, calendar_connections, integration_subscriptions, invitation, member, passkey, phone_numbers, session, user, webhook_endpoints } from '@linedesk/db'
 import { DEFAULT_TRANSFERS } from '@linedesk/db/types'
 import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
@@ -284,6 +284,29 @@ test("an unconfirmed account's API keys lose their Zapier subscriptions with the
   await dropUnprovenAccessOf(ws.owner.userId)
   expect(await row(theirs)).toHaveLength(0)
   expect(await row(kept)).toHaveLength(1)
+})
+
+test('the invitations an unproven account sent are cancelled, one audit line each (LIN-504)', async () => {
+  const ws = await createWorkspace('Unproven inviter')
+  const id = `inv_${crypto.randomUUID().slice(0, 12)}`
+  const email = `invited-${crypto.randomUUID().slice(0, 8)}@example.com`
+  await db.insert(invitation).values({
+    id,
+    organizationId: ws.id,
+    email,
+    role: 'admin',
+    status: 'pending',
+    expiresAt: new Date(Date.now() + 86_400_000),
+    inviterId: ws.owner.userId,
+  })
+  await dropUnprovenAccessOf(ws.owner.userId)
+  expect((await db.select().from(invitation).where(eq(invitation.id, id)))[0]!.status).toBe('canceled')
+  const lines = await db
+    .select()
+    .from(auth_events)
+    .where(and(eq(auth_events.user_id, ws.owner.userId), eq(auth_events.event, 'invitation_withdrawn')))
+  expect(lines).toHaveLength(1)
+  expect(lines[0]).toMatchObject({ workspace_id: ws.id, method: email })
 })
 
 test('an API key whose creator is unconfirmed cannot run sensitive actions; public actions still work', async () => {

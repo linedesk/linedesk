@@ -105,7 +105,7 @@ export function mapOidcProfile(
  * is the provider account being linked, which proves the address.
  */
 export async function dropUnprovenAccessOf(userId: string, keepAccountId?: string) {
-  const reset = await db.transaction(async tx => {
+  const { reset, withdrawn } = await db.transaction(async tx => {
     // The person's setup-link lock first, as every revoke (#832 N6): a link made at this moment is ended below.
     await lockSetupKeysOf(tx, userId)
     await tx
@@ -143,14 +143,24 @@ export async function dropUnprovenAccessOf(userId: string, keepAccountId?: strin
     await tx.delete(calendar_connections).where(eq(calendar_connections.connected_by, userId))
     // So would an app it connected (HubSpot): every finished call goes there.
     await tx.delete(app_connections).where(eq(app_connections.connected_by, userId))
-    await tx
+    const withdrawn = await tx
       .update(invitation)
       .set({ status: 'canceled' })
       .where(and(eq(invitation.inviterId, userId), eq(invitation.status, 'pending')))
-    return resetCallRoutingOf(tx, userId)
+      .returning({ email: invitation.email, workspaceId: invitation.organizationId })
+    return { reset: await resetCallRoutingOf(tx, userId), withdrawn }
   })
-  // In the audit log, per workspace (after the transaction: the log never stops the cleanup).
+  // In the audit log, per workspace (after the transaction: the log never stops the cleanup). Each cancelled
+  // invitation as team.ts cancelSentInvitations writes it (LIN-504; inline like the cleanups above, so auth.ts
+  // never loads team.ts).
   for (const workspaceId of reset) await recordAuthEvent({ event: 'call_routing_reset', userId, workspaceId })
+  for (const invite of withdrawn)
+    await recordAuthEvent({
+      event: 'invitation_withdrawn',
+      userId,
+      method: invite.email,
+      workspaceId: invite.workspaceId,
+    })
 }
 
 /**

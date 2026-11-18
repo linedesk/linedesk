@@ -1255,8 +1255,9 @@ export const auth_events = pgTable(
         // invited address; user: the deleted account (its `email` here becomes 'deleted' with the account, by the
         // 0026 trigger, like all its events; the invited address in `method` stays); subject_id: the owner it passed to.
         'invitation_reassigned',
-        // A pending invitation canceled because its sender was removed from the workspace (team.removeMember,
-        // membership.remove; LIN-264 review F1). method: the invited address; user: the removed sender.
+        // A pending invitation canceled because its sender may no longer invite: removed or demoted (team.removeMember,
+        // membership.remove; LIN-264 review F1), disabled (user.disable), or an unproven account dropped by account
+        // linking (LIN-504). method: the invited address; user: the sender.
         'invitation_withdrawn',
       ],
     }).notNull(),

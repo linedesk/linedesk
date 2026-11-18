@@ -213,7 +213,7 @@
   "audit.invitationDeclined": "Declined an invitation",
   "audit.invitationReassigned": "Invitation to {email} passed to the workspace owner: its sender's account was deleted",
   "audit.invitationReassignedTo": "Invitation to {email} passed to the workspace owner {owner}: its sender's account was deleted",
-  "audit.invitationWithdrawn": "Invitation to {email} canceled: its sender was removed from the workspace",
+  "audit.invitationWithdrawn": "Invitation to {email} canceled: its sender can no longer invite",
   "audit.inviteResent": "{known, select, yes {Sent the invitation to {who} again} other {Sent the invitation to someone again}}",
   "audit.inviteRevoked": "{known, select, yes {Revoked the invitation to {who}} other {Revoked the invitation to someone}}",
   "audit.joined": "Joined a workspace",
