@@ -1,12 +1,19 @@
 // Numbers in a workspace's own carrier account: set up, routed, released and un-routed with that
 // workspace's credentials only, and the credentials cannot be switched away from numbers that need them.
 // Twilio is a fake with several accounts, told apart by the credentials, like Twilio's own API.
+
 import { commands, phone_numbers } from '@linedesk/db'
+import {
+  CreateSIPOutboundTrunkRequest,
+  DeleteSIPTrunkRequest,
+  ListSIPOutboundTrunkResponse,
+  SIPOutboundTrunkInfo,
+} from '@livekit/protocol'
 import { and, asc, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
-import { lockWorkspaceCarrier } from '../src/workspace-carrier.ts'
 import { NUMBER_SETUP_BUSY } from '../src/number-purchases.ts'
+import { lockWorkspaceCarrier } from '../src/workspace-carrier.ts'
 import { act, agent, createWorkspace, randomNumber, type User, type Workspace } from './helpers.ts'
 
 const SIP = 'sip.linedesk.test'
@@ -40,29 +47,44 @@ const account = (digit: string): Account => ({
 
 type Seen = { account: string | null; method: string; path: string }
 
-/** LiveKit's SIP outbound trunks (Twirp), in memory. */
+/**
+ * LiveKit's SIP outbound trunks (Twirp), in memory. Requests are decoded strictly with LiveKit's own protobuf types
+ * and answered as LiveKit's server does: the proto field names (`sip_trunk_id`) and every field.
+ */
 type LivekitTrunk = { sipTrunkId: string; name: string; numbers: string[]; address: string; authUsername: string }
 let livekitTrunks: LivekitTrunk[] = []
 /** The trunk changes, in order: "create <id>" and "delete <id>". */
 let livekitOps: string[] = []
 let trunkSeq = 0
 const LIVEKIT = 'http://livekit.test'
+const asLivekit = { useProtoFieldName: true, emitDefaultValues: true }
+const refused = (msg: string) => Response.json({ code: 'invalid_argument', msg }, { status: 400 })
 function fakeLivekit(url: URL, init?: RequestInit): Response {
   const body = JSON.parse(String(init?.body ?? '{}'))
   const method = url.pathname.split('/').at(-1)
-  if (method === 'ListSIPOutboundTrunk') return Response.json({ items: livekitTrunks })
+  if (method === 'ListSIPOutboundTrunk')
+    return Response.json(
+      new ListSIPOutboundTrunkResponse({ items: livekitTrunks.map(t => new SIPOutboundTrunkInfo(t)) }).toJson(
+        asLivekit,
+      ),
+    )
   if (method === 'CreateSIPOutboundTrunk') {
-    const trunk = { sipTrunkId: `ST_${++trunkSeq}`, ...body.trunk }
-    livekitTrunks.push(trunk)
-    livekitOps.push(`create ${trunk.sipTrunkId}`)
-    return Response.json(trunk)
+    const { trunk: info } = CreateSIPOutboundTrunkRequest.fromJson(body)
+    if (!info) return refused('trunk must be set')
+    const sipTrunkId = `ST_${++trunkSeq}`
+    const { name, numbers, address, authUsername } = info
+    livekitTrunks.push({ sipTrunkId, name, numbers, address, authUsername })
+    livekitOps.push(`create ${sipTrunkId}`)
+    return Response.json(new SIPOutboundTrunkInfo({ ...info, sipTrunkId }).toJson(asLivekit))
   }
   if (method === 'DeleteSIPTrunk') {
-    livekitTrunks = livekitTrunks.filter(t => t.sipTrunkId !== body.sipTrunkId)
-    livekitOps.push(`delete ${body.sipTrunkId}`)
+    const { sipTrunkId } = DeleteSIPTrunkRequest.fromJson(body)
+    if (!sipTrunkId) return refused('trunk id must be set')
+    livekitTrunks = livekitTrunks.filter(t => t.sipTrunkId !== sipTrunkId)
+    livekitOps.push(`delete ${sipTrunkId}`)
     return Response.json({})
   }
-  return Response.json({ msg: 'no fake' }, { status: 404 })
+  return Response.json({ code: 'bad_route', msg: 'no fake' }, { status: 404 })
 }
 
 /** Twilio for several accounts; a request is in the account its credentials belong to, else 401. */
@@ -243,7 +265,9 @@ describe('numbers in a workspace carrier account', () => {
     expect(res.body.data.numbers).not.toContain(used)
     expect(res.body.data.more).toBe(false)
     // One read, nothing bought or changed, never another workspace's account.
-    expect(seen).toEqual([{ account: accountA.sid, method: 'GET', path: `/2010-04-01/Accounts/${accountA.sid}/IncomingPhoneNumbers.json` }])
+    expect(seen).toEqual([
+      { account: accountA.sid, method: 'GET', path: `/2010-04-01/Accounts/${accountA.sid}/IncomingPhoneNumbers.json` },
+    ])
     const other = await act(inWs(wsB.owner, wsB), 'phoneNumber.listCarrierNumbers', {})
     expect(other.body.data.numbers).not.toContain(free)
   })

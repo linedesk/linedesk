@@ -1,8 +1,18 @@
 // LiveKit's inbound trunk takes calls to exactly the connected numbers (inbound-trunk.ts): written after a number is
-// set up or released, never written empty, never anything but the numbers. LiveKit is a fake here (its Twirp API).
+// set up or released, never written empty, never anything but the numbers. LiveKit is a fake here (its Twirp API)
+// that reads and answers with LiveKit's own protobuf types, as LiveKit's server does: requests decoded strictly,
+// answers with the proto field names (`sip_trunk_id`) and every field, Twirp's default.
 // Reads every workspace's numbers, so this file has a database of its own (INSTANCE_WIDE_FILES).
+
 import { phone_numbers } from '@linedesk/db'
 import { devProvider } from '@linedesk/telephony'
+import {
+  ListSIPInboundTrunkResponse,
+  ListUpdate,
+  SIPInboundTrunkInfo,
+  SIPInboundTrunkUpdate,
+  UpdateSIPInboundTrunkRequest,
+} from '@livekit/protocol'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
@@ -29,16 +39,26 @@ function fakeLivekit(trunks: Trunk[], { failWith }: { failWith?: number } = {}) 
     const method = String(input).split('/').pop()!
     const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
     requests.push({ method, body })
-    if (failWith) return new Response('{"msg":"unavailable"}', { status: failWith })
+    if (failWith) return Response.json({ code: 'unavailable', msg: 'unavailable' }, { status: failWith })
     if (method === 'ListSIPInboundTrunk')
-      // Protobuf JSON leaves an empty list out.
-      return Response.json({ items: trunks.map(t => (t.numbers?.length ? t : { ...t, numbers: undefined })) })
+      return Response.json(
+        new ListSIPInboundTrunkResponse({ items: trunks.map(t => new SIPInboundTrunkInfo(t)) }).toJson({
+          useProtoFieldName: true,
+          emitDefaultValues: true,
+        }),
+      )
     if (method === 'UpdateSIPInboundTrunk') {
-      const trunk = trunks.find(t => t.sipTrunkId === body.sipTrunkId)!
-      trunk.numbers = (body.update as { numbers: { set: string[] } }).numbers.set
-      return Response.json(trunk)
+      // As LiveKit: an unknown field is refused, a request without the trunk id too.
+      const request = UpdateSIPInboundTrunkRequest.fromJson(body as never)
+      if (!request.sipTrunkId)
+        return Response.json({ code: 'invalid_argument', msg: 'trunk id must be set' }, { status: 400 })
+      const trunk = trunks.find(t => t.sipTrunkId === request.sipTrunkId)
+      if (!trunk || request.action.case !== 'update' || !request.action.value.numbers)
+        return Response.json({ code: 'invalid_argument', msg: 'unexpected request' }, { status: 400 })
+      trunk.numbers = request.action.value.numbers.set
+      return Response.json(new SIPInboundTrunkInfo(trunk).toJson({ useProtoFieldName: true, emitDefaultValues: true }))
     }
-    return new Response('{}', { status: 404 })
+    return Response.json({ code: 'bad_route', msg: 'no fake' }, { status: 404 })
   }) as unknown as typeof globalThis.fetch
   const writes = () => requests.filter(r => r.method !== 'ListSIPInboundTrunk')
   return { fetch, requests, writes }
@@ -89,10 +109,16 @@ test('writes exactly the connected numbers, only the numbers, and only the trunk
     added: numbers,
     removed: ['+15035550100'],
   })
-  // A field update of the numbers alone: addresses, headers and call length stay setup-sip's.
-  expect(livekit.writes()).toEqual([
-    { method: 'UpdateSIPInboundTrunk', body: { sipTrunkId: 'ST_in', update: { numbers: { set: numbers } } } },
-  ])
+  // A field update of the numbers alone: addresses, headers and call length stay setup-sip's. The body is the one
+  // LiveKit's SDK sends (updateSipInboundTrunkFields), so the trunk id read from LiveKit's answer reaches it.
+  const sdkRequest = new UpdateSIPInboundTrunkRequest({
+    sipTrunkId: 'ST_in',
+    action: { case: 'update', value: new SIPInboundTrunkUpdate({ numbers: new ListUpdate({ set: numbers }) }) },
+  }).toJson()
+  expect(livekit.writes()).toEqual([{ method: 'UpdateSIPInboundTrunk', body: sdkRequest }])
+  expect(sdkRequest).toEqual({ sipTrunkId: 'ST_in', update: { numbers: { set: numbers } } })
+  expect(ours.numbers).toEqual(numbers)
+  expect(ours.allowedAddresses).toEqual(['192.0.2.1'])
   expect(other.numbers).toEqual(['+15035550199'])
 
   // Already right: nothing is written.
@@ -150,7 +176,8 @@ test('LiveKit failing: logged as an ALERT, never thrown, and tried again later',
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
     const down = fakeLivekit([], { failWith: 503 })
     expect(await requestInboundTrunkSync({ env, fetch: down.fetch })).toBeNull()
-    expect(errors.mock.calls.flat().join(' ')).toMatch(/ALERT inbound trunk: .*HTTP 503/)
+    // LiveKit's reason (its Twirp error) is in the line, so a refusal can be told apart from the log alone.
+    expect(errors.mock.calls.flat().join(' ')).toMatch(/ALERT inbound trunk: .*HTTP 503 \(unavailable: unavailable\)/)
     expect(down.requests).toHaveLength(1)
     await vi.advanceTimersByTimeAsync(15_000)
     await vi.waitFor(() => expect(down.requests).toHaveLength(2))

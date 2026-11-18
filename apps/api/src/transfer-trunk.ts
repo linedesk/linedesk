@@ -77,6 +77,25 @@ function ownOutboundSip(
 
 type TrunkInfo = { sipTrunkId: string; name: string; numbers?: string[] }
 
+/**
+ * A trunk as LiveKit answers it. LiveKit's Twirp server writes protobuf JSON with the proto field names
+ * (`sip_trunk_id`, Twirp's default) and every field, while it reads either spelling; so requests stay camelCase
+ * (as the SDK sends them) and answers are read here. A trunk without an id is never used as one.
+ */
+function trunkInfo(raw: unknown): TrunkInfo {
+  const t = (raw ?? {}) as { sip_trunk_id?: unknown; sipTrunkId?: unknown; name?: unknown; numbers?: unknown }
+  const id = t.sip_trunk_id ?? t.sipTrunkId
+  // i18n-ignore: an internal error for the API's log (an ALERT line), never shown in the web app
+  if (typeof id !== 'string' || !id) throw new Error('LiveKit answered a SIP trunk without an id')
+  return {
+    sipTrunkId: id,
+    name: typeof t.name === 'string' ? t.name : '',
+    // Protobuf JSON may leave an empty list out.
+    numbers: Array.isArray(t.numbers) ? t.numbers.map(String) : [],
+  }
+}
+const trunkList = (json: Record<string, unknown>) => (Array.isArray(json.items) ? json.items : []).map(trunkInfo)
+
 /** LiveKit's SIP API (Twirp), with a short-lived token that may only manage SIP. */
 export function livekitSip(env: Env = process.env, doFetch: typeof fetch = fetch) {
   const url = env.LIVEKIT_URL
@@ -100,7 +119,7 @@ export function livekitSip(env: Env = process.env, doFetch: typeof fetch = fetch
   }
   return {
     async outboundTrunks(): Promise<TrunkInfo[]> {
-      return ((await call('ListSIPOutboundTrunk', {})).items as TrunkInfo[] | undefined) ?? []
+      return trunkList(await call('ListSIPOutboundTrunk', {}))
     },
     async createOutboundTrunk(name: string, numbers: string[], sip: OutboundSip): Promise<string> {
       const trunk = await call('CreateSIPOutboundTrunk', {
@@ -114,15 +133,13 @@ export function livekitSip(env: Env = process.env, doFetch: typeof fetch = fetch
           transport: 'SIP_TRANSPORT_TCP',
         },
       })
-      return String(trunk.sipTrunkId)
+      return trunkInfo(trunk).sipTrunkId
     },
     async deleteTrunk(sipTrunkId: string) {
       await call('DeleteSIPTrunk', { sipTrunkId })
     },
     async inboundTrunks(): Promise<TrunkInfo[]> {
-      const items = ((await call('ListSIPInboundTrunk', {})).items as TrunkInfo[] | undefined) ?? []
-      // Protobuf JSON leaves an empty list out.
-      return items.map(trunk => ({ ...trunk, numbers: trunk.numbers ?? [] }))
+      return trunkList(await call('ListSIPInboundTrunk', {}))
     },
     /** Replaces only the inbound trunk's numbers; its addresses, headers and call length stay as they are. */
     async setInboundNumbers(sipTrunkId: string, numbers: string[]) {
@@ -148,6 +165,13 @@ export class LivekitError extends Error {
     super(message)
     this.status = status
     this.body = body
+  }
+
+  /** The Twirp error's code and message for a log line, e.g. `invalid_argument: trunk id must be set`. */
+  get reason(): string {
+    const code = typeof this.body.code === 'string' ? this.body.code : ''
+    const msg = typeof this.body.msg === 'string' ? this.body.msg.slice(0, 200) : ''
+    return [code, msg].filter(Boolean).join(': ')
   }
 }
 

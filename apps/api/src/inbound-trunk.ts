@@ -13,7 +13,7 @@
 import { phone_numbers } from '@linedesk/db'
 import { asc, sql } from 'drizzle-orm'
 import { db } from './db.ts'
-import { livekitSip } from './transfer-trunk.ts'
+import { LivekitError, livekitSip } from './transfer-trunk.ts'
 
 /** The trunk's name, as in apps/agent/src/sip-trunks.ts (INBOUND_TRUNK_NAME). */
 export const INBOUND_TRUNK_NAME = 'linedesk-inbound'
@@ -58,7 +58,11 @@ export async function syncInboundTrunk(deps: InboundSyncDeps = {}): Promise<Inbo
   })
 }
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
+/** The error for the log; a LiveKit refusal with its Twirp code and message (never the request or a credential). */
+function message(e: unknown) {
+  if (e instanceof LivekitError && e.reason) return `${e.message} (${e.reason})`
+  return e instanceof Error ? e.message : String(e)
+}
 
 /** What a sync leaves in the log; a state that stays (no trunk, no numbers) is logged once, not every few minutes. */
 let lastNotice: string | null = null
