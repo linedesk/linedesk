@@ -149,11 +149,12 @@ export async function endPersonalKeysOf(tx: Tx, userId: string, reason: SetupKey
 }
 
 /** Revokes every personal key of the person (also after an email change, email-change.ts). */
-export async function revokePersonalKeysOf(tx: Tx, userId: string): Promise<void> {
-  await tx
+export async function revokePersonalKeysOf(tx: Tx, userId: string): Promise<{ name: string }[]> {
+  return tx
     .update(personal_keys)
     .set({ revoked_at: new Date().toISOString() })
     .where(and(eq(personal_keys.user_id, userId), isNull(personal_keys.revoked_at)))
+    .returning({ name: personal_keys.name })
 }
 
 /** The cleanups after which none of the person's ways in may last: their personal keys are revoked too. */

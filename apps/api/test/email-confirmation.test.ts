@@ -1,13 +1,14 @@
-import { account, api_keys, assistants, auth_events, calendar_connections, integration_subscriptions, invitation, member, passkey, phone_numbers, session, user, webhook_endpoints } from '@linedesk/db'
+import { account, agent_setup_keys, api_keys, app_connections, assistants, auth_events, calendar_connections, integration_subscriptions, invitation, member, passkey, personal_keys, phone_numbers, session, user, webhook_endpoints } from '@linedesk/db'
 import { DEFAULT_TRANSFERS } from '@linedesk/db/types'
 import { APIError } from 'better-auth/api'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { afterEach, expect, test, vi } from 'vitest'
 import {
   dropUnprovenAccessOf,
   refuseSessionWithoutItsSignIn,
 } from '../src/account-linking.ts'
 import { mustConfirmEmail } from '../src/auth-methods.ts'
+import { hashApiKey } from '../src/api-keys.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
 import { NEEDS_CONFIRMED_EMAIL } from '../src/run-action.ts'
@@ -307,6 +308,101 @@ test('the invitations an unproven account sent are cancelled, one audit line eac
     .where(and(eq(auth_events.user_id, ws.owner.userId), eq(auth_events.event, 'invitation_withdrawn')))
   expect(lines).toHaveLength(1)
   expect(lines[0]).toMatchObject({ workspace_id: ws.id, method: email })
+})
+
+test('every key, link, webhook and connection an unproven account set up gets an audit line where it was (LIN-523)', async () => {
+  const ws = await createWorkspace('Unproven setup')
+  const userId = ws.owner.userId
+  const id = (p: string) => `${p}_${crypto.randomUUID().slice(0, 12)}`
+  const keyId = id('ak')
+  await db.insert(api_keys).values({
+    id: keyId,
+    workspace_id: ws.id,
+    name: 'Zapier',
+    prefix: 'ld_unproven',
+    key_hash: hashApiKey(crypto.randomUUID()),
+    role: 'member',
+    created_by: userId,
+  })
+  await db.insert(integration_subscriptions).values({
+    id: id('isub'),
+    workspace_id: ws.id,
+    api_key_id: keyId,
+    source: 'zapier',
+    event: 'call_finished',
+    target_url: 'https://hooks.zapier.com/hooks/standard/1/secret-token',
+  })
+  await db.insert(personal_keys).values({
+    id: id('pk'),
+    user_id: userId,
+    name: 'Laptop',
+    prefix: 'ldp_unprove',
+    key_hash: hashApiKey(crypto.randomUUID()),
+  })
+  await db.insert(agent_setup_keys).values({
+    id: id('ask'),
+    prefix: 'lds_x',
+    key_hash: `h-${crypto.randomUUID()}`,
+    created_by: userId,
+    workspace_id: ws.id,
+    expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+  })
+  // The receiver's token in the path stays out of the log: the host only.
+  await db.insert(webhook_endpoints).values({
+    id: id('we'),
+    workspace_id: ws.id,
+    url: 'https://hooks.example.com/in/secret-token',
+    created_by: userId,
+  })
+  await db.insert(calendar_connections).values({
+    id: id('cc'),
+    workspace_id: ws.id,
+    provider: 'google',
+    account_email: 'mike@brightwater.example',
+    connected_by: userId,
+  })
+  await db.insert(app_connections).values({
+    id: id('appc'),
+    workspace_id: ws.id,
+    provider: 'hubspot',
+    account_id: '42',
+    account_name: 'portal-42.example',
+    connected_by: userId,
+  })
+  const dropped = [
+    'api_key_dropped',
+    'personal_key_dropped',
+    'zapier_subscription_dropped',
+    'setup_link_dropped',
+    'webhook_dropped',
+    'calendar_dropped',
+    'app_dropped',
+  ] as const
+  const lines = () =>
+    db
+      .select({ event: auth_events.event, method: auth_events.method, workspace: auth_events.workspace_id })
+      .from(auth_events)
+      .where(and(eq(auth_events.user_id, userId), inArray(auth_events.event, [...dropped])))
+  // The workspace's own webhook from createWorkspace is the owner's too.
+  const ownWebhooks = (await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.created_by, userId))).length
+  await dropUnprovenAccessOf(userId)
+  const logged = await lines()
+  expect(logged).toEqual(
+    expect.arrayContaining([
+      { event: 'api_key_dropped', method: 'Zapier', workspace: ws.id },
+      { event: 'personal_key_dropped', method: 'Laptop', workspace: null },
+      { event: 'zapier_subscription_dropped', method: 'call_finished', workspace: ws.id },
+      { event: 'setup_link_dropped', method: null, workspace: ws.id },
+      { event: 'webhook_dropped', method: 'hooks.example.com', workspace: ws.id },
+      { event: 'calendar_dropped', method: 'google', workspace: ws.id },
+      { event: 'app_dropped', method: 'hubspot', workspace: ws.id },
+    ]),
+  )
+  expect(logged.filter(l => l.event === 'webhook_dropped')).toHaveLength(ownWebhooks)
+  expect(logged.some(l => l.method?.includes('secret-token'))).toBe(false)
+  // Nothing left to remove: a second run writes nothing.
+  await dropUnprovenAccessOf(userId)
+  expect(await lines()).toHaveLength(logged.length)
 })
 
 test('an API key whose creator is unconfirmed cannot run sensitive actions; public actions still work', async () => {

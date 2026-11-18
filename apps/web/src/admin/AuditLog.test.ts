@@ -346,6 +346,23 @@ test("a removed member's invitation that the removal canceled (LIN-264 review F1
   )
 })
 
+test('what an unproven account set up, removed when its address was proven (LIN-523)', () => {
+  const dropped = (what: string, method: string | null) => auditLabel({ what, method, input: null, subject: null })
+  expect(dropped('api_key_dropped', 'Zapier')).toBe('API key “Zapier” revoked when the address was proven')
+  expect(dropped('personal_key_dropped', 'Laptop')).toBe('Personal key “Laptop” revoked when the address was proven')
+  expect(dropped('zapier_subscription_dropped', 'call_finished')).toBe(
+    'A Zapier trigger removed when the address was proven',
+  )
+  expect(dropped('setup_link_dropped', null)).toBe('An AI agent setup link ended when the address was proven')
+  expect(dropped('webhook_dropped', 'hooks.example.com')).toBe(
+    'Webhook to hooks.example.com removed when the address was proven',
+  )
+  expect(dropped('calendar_dropped', 'google')).toBe('A Google calendar disconnected when the address was proven')
+  expect(dropped('calendar_dropped', 'caldav')).toBe('A calendar disconnected when the address was proven')
+  expect(dropped('app_dropped', 'hubspot')).toBe('HubSpot disconnected when the address was proven')
+  expect(dropped('app_dropped', null)).toBe('An app disconnected when the address was proven')
+})
+
 test('entries without a name, an address or a host still read as a sentence', () => {
   expect(label('branding.set', { poweredBy: false })).toBe('Changed the branding, Powered by Linedesk hidden')
   expect(label('apiKey.create', {})).toBe('Created an API key')

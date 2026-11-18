@@ -1273,6 +1273,16 @@ export const auth_events = pgTable(
         // membership.remove; LIN-264 review F1), disabled (user.disable), or an unproven account dropped by account
         // linking (LIN-504). method: the invited address; user: the sender.
         'invitation_withdrawn',
+        // What an unproven account set up, removed when its address was proven (account-linking.ts
+        // dropUnprovenAccessOf, LIN-523). user: that account. method: the API or personal key's name, the Zapier
+        // subscription's event, the webhook's host, the calendar's or app's provider (none for a setup link).
+        'api_key_dropped',
+        'personal_key_dropped',
+        'zapier_subscription_dropped',
+        'setup_link_dropped',
+        'webhook_dropped',
+        'calendar_dropped',
+        'app_dropped',
       ],
     }).notNull(),
     /**

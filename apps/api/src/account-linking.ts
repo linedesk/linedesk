@@ -23,7 +23,7 @@ import {
 import { DEFAULT_TRANSFERS } from '@linedesk/db/types'
 import { APIError } from 'better-auth/api'
 import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
-import { recordAuthEvent } from './audit.ts'
+import { type AuthEventName, recordAuthEvent, urlHost } from './audit.ts'
 import { db } from './db.ts'
 import { lockSetupKeysOf, revokePersonalKeysOf } from './passkey-enrolment.ts'
 
@@ -105,7 +105,7 @@ export function mapOidcProfile(
  * is the provider account being linked, which proves the address.
  */
 export async function dropUnprovenAccessOf(userId: string, keepAccountId?: string) {
-  const { reset, withdrawn } = await db.transaction(async tx => {
+  const { reset, withdrawn, dropped } = await db.transaction(async tx => {
     // The person's setup-link lock first, as every revoke (#832 N6): a link made at this moment is ended below.
     await lockSetupKeysOf(tx, userId)
     await tx
@@ -121,34 +121,63 @@ export async function dropUnprovenAccessOf(userId: string, keepAccountId?: strin
       .update(api_keys)
       .set({ revoked_at: new Date().toISOString() })
       .where(and(eq(api_keys.created_by, userId), isNull(api_keys.revoked_at)))
-      .returning({ id: api_keys.id })
+      .returning({ id: api_keys.id, name: api_keys.name, workspaceId: api_keys.workspace_id })
     // And their Zapier subscriptions, as integrations.ts dropKeySubscriptions; not imported, integrations.ts reaches
     // back to auth.ts (through webhooks.ts).
-    if (revokedKeys.length > 0)
-      await tx.delete(integration_subscriptions).where(
-        inArray(
-          integration_subscriptions.api_key_id,
-          revokedKeys.map(k => k.id),
-        ),
-      )
+    const subscriptions =
+      revokedKeys.length > 0
+        ? await tx
+            .delete(integration_subscriptions)
+            .where(
+              inArray(
+                integration_subscriptions.api_key_id,
+                revokedKeys.map(k => k.id),
+              ),
+            )
+            .returning({ event: integration_subscriptions.event, workspaceId: integration_subscriptions.workspace_id })
+        : []
     // So are AI agent setup links (agent-setup.ts); an unproven account is no instance admin, but never keep one.
-    await tx
+    const setupLinks = await tx
       .update(agent_setup_keys)
       .set({ revoked_at: new Date().toISOString(), ended_reason: 'account_recovery' })
       .where(and(eq(agent_setup_keys.created_by, userId), isNull(agent_setup_keys.revoked_at)))
+      .returning({ workspaceId: agent_setup_keys.workspace_id })
     // And its personal API keys: each acts as the account (LIN-339 security review).
-    await revokePersonalKeysOf(tx, userId)
-    await tx.delete(webhook_endpoints).where(eq(webhook_endpoints.created_by, userId))
+    const personalKeys = await revokePersonalKeysOf(tx, userId)
+    const webhooks = await tx
+      .delete(webhook_endpoints)
+      .where(eq(webhook_endpoints.created_by, userId))
+      .returning({ url: webhook_endpoints.url, workspaceId: webhook_endpoints.workspace_id })
     // A calendar it connected would receive bookings with callers' details.
-    await tx.delete(calendar_connections).where(eq(calendar_connections.connected_by, userId))
+    const calendars = await tx
+      .delete(calendar_connections)
+      .where(eq(calendar_connections.connected_by, userId))
+      .returning({ provider: calendar_connections.provider, workspaceId: calendar_connections.workspace_id })
     // So would an app it connected (HubSpot): every finished call goes there.
-    await tx.delete(app_connections).where(eq(app_connections.connected_by, userId))
+    const apps = await tx
+      .delete(app_connections)
+      .where(eq(app_connections.connected_by, userId))
+      .returning({ provider: app_connections.provider, workspaceId: app_connections.workspace_id })
     const withdrawn = await tx
       .update(invitation)
       .set({ status: 'canceled' })
       .where(and(eq(invitation.inviterId, userId), eq(invitation.status, 'pending')))
       .returning({ email: invitation.email, workspaceId: invitation.organizationId })
-    return { reset: await resetCallRoutingOf(tx, userId), withdrawn }
+    const dropped: Dropped[] = [
+      ...revokedKeys.map(k => ({ event: 'api_key_dropped' as const, method: k.name, workspaceId: k.workspaceId })),
+      ...subscriptions.map(s => ({
+        event: 'zapier_subscription_dropped' as const,
+        method: s.event,
+        workspaceId: s.workspaceId,
+      })),
+      ...setupLinks.map(l => ({ event: 'setup_link_dropped' as const, method: null, workspaceId: l.workspaceId })),
+      ...personalKeys.map(k => ({ event: 'personal_key_dropped' as const, method: k.name, workspaceId: null })),
+      // The host only: a webhook URL's path or query can carry the receiver's token (urlHost).
+      ...webhooks.map(w => ({ event: 'webhook_dropped' as const, method: urlHost(w.url), workspaceId: w.workspaceId })),
+      ...calendars.map(c => ({ event: 'calendar_dropped' as const, method: c.provider, workspaceId: c.workspaceId })),
+      ...apps.map(a => ({ event: 'app_dropped' as const, method: a.provider, workspaceId: a.workspaceId })),
+    ]
+    return { reset: await resetCallRoutingOf(tx, userId), withdrawn, dropped }
   })
   // In the audit log, per workspace (after the transaction: the log never stops the cleanup). Each cancelled
   // invitation as team.ts cancelSentInvitations writes it (LIN-504; inline like the cleanups above, so auth.ts
@@ -161,7 +190,12 @@ export async function dropUnprovenAccessOf(userId: string, keepAccountId?: strin
       method: invite.email,
       workspaceId: invite.workspaceId,
     })
+  // And every key, link, webhook and connection removed, one line each where it was (LIN-523).
+  for (const item of dropped) await recordAuthEvent({ userId, ...item })
 }
+
+/** One thing dropUnprovenAccessOf removed, as its audit line: what it was (`method`) and where. */
+type Dropped = { event: AuthEventName; method: string | null; workspaceId: string | null }
 
 /**
  * Where calls go, set up in the workspaces the account created before its address was proven: the

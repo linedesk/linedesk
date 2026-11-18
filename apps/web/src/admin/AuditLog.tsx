@@ -128,6 +128,25 @@ export function auditLabel(
       return t('admin.audit.invitationWithdrawn', { email: e.method ?? '' })
     case 'call_routing_reset':
       return t('admin.audit.callRoutingReset')
+    // What an unproven account set up, removed when its address was proven (LIN-523); `method` names it.
+    case 'api_key_dropped':
+      return t('admin.audit.apiKeyDropped', { name: e.method ?? '', named: known(e.method) })
+    case 'personal_key_dropped':
+      return t('admin.audit.personalKeyDropped', { name: e.method ?? '', named: known(e.method) })
+    case 'zapier_subscription_dropped':
+      return t('admin.audit.zapierSubscriptionDropped')
+    case 'setup_link_dropped':
+      return t('admin.audit.setupLinkDropped')
+    case 'webhook_dropped':
+      return t('admin.audit.webhookDropped', { host: e.method ?? '', known: known(e.method) })
+    case 'calendar_dropped': {
+      const calendar = calendarNames[String(e.method)]
+      return t('admin.audit.calendarDropped', { calendar: calendar ?? '', known: known(calendar) })
+    }
+    case 'app_dropped': {
+      const app = appName(e.method)
+      return t('admin.audit.appDropped', { app: app ?? '', known: known(app) })
+    }
     case 'user.impersonate':
       // Whom it was: kept by the handler since the reason was added; older entries have none.
       return subject ? t('admin.audit.impersonateAs', { who: subject }) : t('admin.audit.impersonate')

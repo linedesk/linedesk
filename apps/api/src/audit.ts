@@ -563,6 +563,13 @@ const AUTH_EVENT_KIND: Record<AuthEventName, AuditKind> = {
   call_routing_reset: 'integrations',
   invitation_reassigned: 'team',
   invitation_withdrawn: 'team',
+  api_key_dropped: 'integrations',
+  personal_key_dropped: 'account',
+  zapier_subscription_dropped: 'integrations',
+  setup_link_dropped: 'integrations',
+  webhook_dropped: 'integrations',
+  calendar_dropped: 'integrations',
+  app_dropped: 'integrations',
 }
 
 export type AuditEntry = {
