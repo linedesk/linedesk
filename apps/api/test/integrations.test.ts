@@ -365,7 +365,7 @@ describe('reads for integrations', () => {
     const { key } = await createKey(ws.owner)
     const testCall = await finishedCall(true)
     const callId = await finishedCall()
-    // A recorded call: a sample still carries no link to it (any member key could mint 7-day links otherwise).
+    // A recorded call: a sample still carries no link to it (any member key could mint 24-hour links otherwise).
     await db
       .update(calls)
       .set({ recording_key: recordingKey(ws.id, callId) })

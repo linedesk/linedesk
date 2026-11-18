@@ -42,6 +42,6 @@ module.exports = hookTrigger({
     { key: 'transcript[]speaker', label: 'Transcript › Speaker' },
     { key: 'transcript[]text', label: 'Transcript › Text' },
     { key: 'call_url', label: 'Call in Linedesk' },
-    { key: 'recording_url', label: 'Recording Link (7 Days)' },
+    { key: 'recording_url', label: 'Recording Link (24 Hours)' },
   ],
 })

@@ -80,6 +80,7 @@ beforeEach(async () => {
   received.length = 0
 })
 
+const HOUR_MS = 3_600_000
 const deliveriesOf = (endpointId: string) => db.select().from(webhook_deliveries).where(eq(webhook_deliveries.endpoint_id, endpointId))
 const endpointRow = async (endpointId: string) => (await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.id, endpointId)))[0]!
 const callRow = async (callId: string) => (await db.select().from(calls).where(eq(calls.id, callId)))[0]!
@@ -504,7 +505,11 @@ describe('after the call', () => {
     expect(body.transcript_text).toMatch(/: Thanks for calling, this is Maya\.\nCaller: My water heater is leaking\.$/)
     expect(body.call_url).toMatch(new RegExp(`/#call/${callId}$`))
     expect(body.recording_url).toMatch(new RegExp(`/v1/calls/${callId}/recording\\?expires=\\d+&signature=[0-9a-f]{64}$`))
-    expect(Date.parse(body.recording_expires_at) - Date.now()).toBeGreaterThan(6 * 86_400_000)
+    // 24 hours from the delivery (LIN-502), never the 7 days of before.
+    const linkLife = Date.parse(body.recording_expires_at) - Date.now()
+    expect(linkLife).toBeGreaterThan(24 * HOUR_MS - 5 * 60_000)
+    expect(linkLife).toBeLessThanOrEqual(24 * HOUR_MS)
+    expect(new URL(body.recording_url).searchParams.get('expires')).toBe(String(Date.parse(body.recording_expires_at) / 1000))
     expect((await deliveriesOf(endpointId))[0]).toMatchObject({ status: 'delivered', attempts: 1, response_status: 200, payload: { call_id: callId, summary: 'Water heater leaking.' } })
     expect((await endpointRow(endpointId)).last_delivery_at).not.toBeNull()
     expect(await attemptDelivery(db, queued!.id)).toBe('skipped') // a duplicate job sends nothing
@@ -538,8 +543,9 @@ describe('after the call', () => {
     expect(await request(anonymous, 'GET', pathOf(ws.id))).toMatchObject({ status: 404, body: { error: 'no recording for this call' } })
     // Signed for another workspace: the same call id does not open.
     expect(await request(anonymous, 'GET', pathOf(other.id))).toMatchObject({ status: 403, body: { error: 'this recording link is not valid' } })
-    // Expired: still refused.
-    const old = pathOf(ws.id, new Date(Date.now() - 8 * 86_400_000))
+    // Made 23 hours ago: still opens. Made 25 hours ago: expired, refused (24 hours, LIN-502).
+    expect(await request(anonymous, 'GET', pathOf(ws.id, new Date(Date.now() - 23 * HOUR_MS)))).toMatchObject({ status: 404, body: { error: 'no recording for this call' } })
+    const old = pathOf(ws.id, new Date(Date.now() - 25 * HOUR_MS))
     expect(await request(anonymous, 'GET', old)).toMatchObject({ status: 403, body: { error: 'this recording link has expired; fetch the recording with an API key' } })
     // An unknown call: refused like a bad signature.
     expect((await request(anonymous, 'GET', pathOf(ws.id).replace(`/calls/${callId}/`, '/calls/call_missing/'))).status).toBe(403)

@@ -146,7 +146,7 @@ A value is said back on one line and cut to 40 characters. The route writes and 
 }
 ```
 
-**The recording link** opens the audio without signing in for 7 days (`RECORDING_LINK_DAYS`): the signature is an HMAC with a key derived from `SECRETS_KEY` over the call id and the expiry (`recordingLink`, `apps/api/src/recording-route.ts`), checked before the sign-in check and again by the route. After that, or for any call, `GET /v1/calls/<id>/recording` with a workspace API key (`Authorization: Bearer ld_…`) or a member's session. Null when the call has no recording. The link points at `PUBLIC_URL` (else `WEB_ORIGIN`); `call_url` at `WEB_ORIGIN`.
+**The recording link** opens the audio without signing in for 24 hours (`RECORDING_LINK_HOURS`; 7 days before 2026-11-18, LIN-502): the signature is an HMAC with a key derived from `SECRETS_KEY` over the call id and the expiry (`recordingLink`, `apps/api/src/recording-route.ts`), checked before the sign-in check and again by the route. After that, or for any call, `GET /v1/calls/<id>/recording` with a workspace API key (`Authorization: Bearer ld_…`) or a member's session. Null when the call has no recording. The link points at `PUBLIC_URL` (else `WEB_ORIGIN`); `call_url` at `WEB_ORIGIN`.
 
 ## Delivery
 

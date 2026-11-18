@@ -1,5 +1,5 @@
 // GET /v1/calls/:id/recording: the audio of a call, for members of the call's workspace (and its API
-// keys), or for anyone with a signed link (recordingLink: the after-call webhook's, valid RECORDING_LINK_DAYS,
+// keys), or for anyone with a signed link (recordingLink: the after-call webhook's, valid RECORDING_LINK_HOURS,
 // bound to the call's workspace and refused while that workspace is disabled).
 // A file store is streamed from here, with Range support so players can seek; an S3 store gets
 // a redirect to a short-lived signed link. The store is the one the call's recording went to
@@ -7,7 +7,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { Readable } from 'node:stream'
-import { isRecordingKey, RECORDING_LINK_DAYS, recordingFormats, recordingKey } from '@linedesk/actions'
+import { isRecordingKey, RECORDING_LINK_HOURS, recordingFormats, recordingKey } from '@linedesk/actions'
 import { calls, organization } from '@linedesk/db'
 import { and, eq, isNull, type SQL } from 'drizzle-orm'
 import type { Actor } from './context.ts'
@@ -74,7 +74,7 @@ const linkText = (workspaceId: string, callId: string, expires: number) => JSON.
 
 /** A link that opens the call's audio without signing in until `expires_at`; `base` is where the API is reached. */
 export function recordingLink(callId: string, workspaceId: string, base: string, now = new Date()): { url: string; expires_at: string } {
-  const expires = Math.floor(now.getTime() / 1000) + RECORDING_LINK_DAYS * 86_400
+  const expires = Math.floor(now.getTime() / 1000) + RECORDING_LINK_HOURS * 3_600
   const url = new URL(`/v1/calls/${encodeURIComponent(callId)}/recording`, base)
   url.searchParams.set('expires', String(expires))
   url.searchParams.set('signature', signWithSecretsKey(LINK_PURPOSE, linkText(workspaceId, callId, expires)))

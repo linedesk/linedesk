@@ -278,7 +278,7 @@ export async function attemptAnyDelivery(tx: Tx, deliveryId: string, env: Env = 
 
 /**
  * The newest finished phone calls (no test calls, no spam), newest first, as an integration gets them, but without a
- * recording link: a sample only shows the fields, and any member key could otherwise mint 7-day links to recordings.
+ * recording link: a sample only shows the fields, and any member key could otherwise mint 24-hour links to recordings.
  */
 export async function sampleCalls(
   tx: Tx,

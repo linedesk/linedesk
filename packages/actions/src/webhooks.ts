@@ -38,8 +38,11 @@ export const TOOL_MAX_WAIT_MS = 10_000
 export const DURING_CALL_MAX_PER_CALL = 5
 /** The after-call webhook goes out this long after the call ends, so the recording is saved by then (RECORDING_WAIT_MS in the agent). */
 export const CALL_END_DELAY_SEC = 20
-/** How long the recording link in the after-call webhook opens the audio without signing in. */
-export const RECORDING_LINK_DAYS = 7
+/**
+ * How long the recording link in the after-call webhook opens the audio without signing in (decision of 2026-11-18,
+ * LIN-502: 24 hours, was 7 days). After that, the recording is fetched with a workspace API key.
+ */
+export const RECORDING_LINK_HOURS = 24
 
 const url = z
   .url({ protocol: /^https?$/ })
@@ -450,7 +453,7 @@ export const callEndPayloadSchema = z.object({
   transfer: z.object({ to: z.string(), name: nullableText, result: nullableText }).nullable(),
   call_url: z.string().describe('The call in Linedesk (members sign in).'),
   recording_url: nullableText.describe(
-    `The audio: opens without signing in for ${RECORDING_LINK_DAYS} days, after that with a workspace API key (Authorization: Bearer). Null without a recording.`,
+    `The audio: opens without signing in for ${RECORDING_LINK_HOURS} hours, after that with a workspace API key (Authorization: Bearer). Null without a recording.`,
   ),
   recording_expires_at: nullableText,
 })
