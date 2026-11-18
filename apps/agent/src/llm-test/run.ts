@@ -24,6 +24,8 @@ const HELP = `pnpm --filter @linedesk/agent llm-test [options]
   --provider <name>      send the assistant's requests to ${Object.keys(PROVIDERS).join(', ')} (key from its env
                          variable, for example OPENROUTER_API_KEY); the judge and the caller stay on the install
   --judge-model <id>     the judge's and the simulated caller's model (default: gpt-4.1 on OpenAI, else --model)
+  --judge-provider <name> the judge and the caller on ${Object.keys(PROVIDERS).join(', ')} instead of the install;
+                         with --provider too, the suite needs no database (default judge: gpt-4.1 there)
   --no-judge             only the deterministic checks
   --list                 list the cases and exit
 `
@@ -153,6 +155,7 @@ async function main() {
       model: { type: 'string' },
       provider: { type: 'string' },
       'judge-model': { type: 'string' },
+      'judge-provider': { type: 'string' },
       'no-judge': { type: 'boolean', default: false },
       list: { type: 'boolean', default: false },
       help: { type: 'boolean', default: false },
@@ -174,14 +177,26 @@ async function main() {
   }
   if (!cases.length) throw new Error('no case matches --case / --category')
   const runs = Math.max(1, Number(values.runs) || 3)
-  const install = await installModel()
+  const judgeProvider = values['judge-provider']
+  // The install's LLM only when the assistant or the judge runs on it: with both providers given, no database.
+  const install = values.provider && judgeProvider ? null : await installModel()
   const assistantConfig: ModelConfig = values.provider
     ? providerModel(values.provider, values.model)
-    : { ...install, model: values.model ?? install.model, fallbacks: values.model ? [] : install.fallbacks }
-  const judgeModelId = values['judge-model'] ?? (install.provider === 'openai' ? 'gpt-4.1' : install.model)
+    : { ...install!, model: values.model ?? install!.model, fallbacks: values.model ? [] : install!.fallbacks }
+  const judgeConfig: ModelConfig = judgeProvider
+    ? providerModel(
+        judgeProvider,
+        values['judge-model'] ?? (judgeProvider === 'openrouter' ? 'openai/gpt-4.1' : 'gpt-4.1'),
+      )
+    : {
+        ...install!,
+        model: values['judge-model'] ?? (install!.provider === 'openai' ? 'gpt-4.1' : install!.model),
+        fallbacks: [],
+      }
+  const judgeModelId = judgeConfig.model
   const usage: UsageTotals = {}
   const model = createModel(assistantConfig, usage)
-  const judgeModel = createModel({ ...install, model: judgeModelId, fallbacks: [] }, usage)
+  const judgeModel = createModel(judgeConfig, usage)
   console.log(`${cases.length} cases x ${runs} runs on ${assistantConfig.model} (judge and caller: ${judgeModelId})`)
 
   let done = 0
@@ -239,7 +254,8 @@ async function main() {
     commit,
     model: assistantConfig.model,
     judgeModel: judgeModelId,
-    provider: values.provider ?? install.provider,
+    provider: values.provider ?? install?.provider,
+    judgeProvider: judgeProvider ?? install?.provider,
     runs,
     replyMs: replyTimes(usage[assistantConfig.model]?.replyMs ?? []),
     usage,
