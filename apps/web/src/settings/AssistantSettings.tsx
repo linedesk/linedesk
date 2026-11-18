@@ -1,108 +1,105 @@
 // Assistant settings by topic, one section at a time (#assistant/<id>/<section>): general (name, greeting,
 // languages), How <name> did (owners and admins: calls to look at and questions to answer), business info, hours
 // and holidays, rules (AI disclosure, tone, behaviour checklist), transfers (transfer contacts), call emails (who gets
-// the email about which call, CallEmails.tsx), booking, voice, and Advanced (how calls are answered, talking speed, silence on the line).
+// the email about which call, CallEmails.tsx), booking, voice and call quality, and Advanced (talking speed, silence on the line).
 // The assistant's own fields are one local draft: Save runs assistant.update through the outbox; a section
 // with unsaved changes keeps a dot in the nav. Hours, holidays and booking save on their own.
-import { useReadOnlyNote } from './readOnly.ts'
+
 import {
-  type PipelinesSetUp,
-  pipelineFor,
-  type VoiceOptionsData,
-  type VoicePipeline,
-  type AiDisclosure,
   AI_DISCLOSURE_MODES,
+  type AiDisclosure,
+  type AssistantLanguages,
   aiDisclosureRisk,
+  answeredQuestionLine,
   BEHAVIOURS,
   type BehaviourId,
-  type CommunicationStyle,
   COMMUNICATION_STYLES,
+  type CommunicationStyle,
+  DEFAULT_SILENCE_REMINDER,
   disclosesAtStart,
   greetingWithDisclosure,
-  withDisclosure,
-  withoutConsentQuestion,
-  withoutDisclosure,
-  DEFAULT_SILENCE_REMINDER,
+  type Language,
+  otherLanguagesOf,
+  type PipelinesSetUp,
   TALKING_SPEED_PCT_DEFAULT,
   TALKING_SPEED_PCT_MAX,
   TALKING_SPEED_PCT_MIN,
   templateNames,
-  type AssistantLanguages,
-  type Language,
-  answeredQuestionLine,
-  otherLanguagesOf,
+  type VoiceOptionsData,
+  withDisclosure,
+  withoutConsentQuestion,
+  withoutDisclosure,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { languageInSentence, languageLabel, type MessageKey, msg } from '@linedesk/i18n'
 import { T, useFormat, useLocale, useT } from '@linedesk/i18n/react'
-import { appLink } from '../ui/AppLink.tsx'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '../cachedQuery.ts'
 import { renameInGreeting } from '../onboarding/flow.ts'
-import { useAssistants, useRows, useRun } from '../store.tsx'
-import { useWorkspaceLanguage } from '../workspaceLocale.ts'
-import { onSaveKey, SaveBar } from '../ui/form.tsx'
-import { Checkbox, Select, type SelectOption } from '../ui/controls.tsx'
-import { Button, Note } from '../ui/kit.tsx'
-import { Loading, LoadProblem, Skeleton, useLoading, useLoadState } from '../ui/LoadStates.tsx'
-import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
-import {
-  behavioursToSave,
-  outsideToSave,
-  type Draft,
-  draftOf,
-  draftProblem,
-  isDirty,
-  keepDraft,
-  languagesProblem,
-  languagesToSave,
-  offeredLanguages,
-  mainOf,
-  pickedOthers,
-  withMainLanguage,
-  keptDraft,
-  mergeDraft,
-  levelChoicesToSave,
-  normalized,
-  withPickedVoice,
-  profileOf,
-  silenceIssue,
-  silenceProblem,
-  type SilenceField,
-  hangUpSummary,
-  silenceSummary,
-  silenceToSave,
-  spokenLength,
-  nameProblem,
-  staleGreetingName,
-  transferProblem,
-  transfersToSave,
-} from './assistantDraft.ts'
-import { AgentChangeNote } from './AgentChange.tsx'
-import { AssistantHeader } from './AssistantHeader.tsx'
-import { CalendarSettings } from './Calendar.tsx'
-import { CONNECT_RETURN_KEY } from './calendarModel.ts'
-import { EditBusinessHours } from './BusinessHoursDialog.tsx'
-import { Field, Section, SelectRow, SkeletonSection, SwitchRow, TextArea, TextInput } from './fields.tsx'
-import { useWorkspaceSettings } from './settings-api.ts'
-import { Knowledge } from './Knowledge.tsx'
+import { useOutboundCountries } from '../onboarding/outbound-number.ts'
 import { AssistantReview } from '../review/AssistantReview.tsx'
 import { loadReviewList, reviewListKey } from '../review/reviewData.ts'
 import { REVIEW_SECTION, reviewTitle } from '../review/reviewModel.ts'
-import { useQuery } from '../cachedQuery.ts'
-import { LevelSettings } from './LevelSettings.tsx'
-import { answeringPipeline } from './levelModel.ts'
-import { UltraSettings } from './UltraSettings.tsx'
-import { RealtimeVoiceSettings, useVoiceOptions, VoiceLoading, VoiceSettings } from './VoiceSettings.tsx'
+import { useAssistants, useRows, useRun } from '../store.tsx'
+import { appLink } from '../ui/AppLink.tsx'
+import { Checkbox, Select } from '../ui/controls.tsx'
+import { onSaveKey, SaveBar } from '../ui/form.tsx'
+import { Button, Note } from '../ui/kit.tsx'
+import { Loading, LoadProblem, Skeleton, useLoading, useLoadState } from '../ui/LoadStates.tsx'
+import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
+import { useWorkspaceLanguage } from '../workspaceLocale.ts'
+import { AgentChangeNote } from './AgentChange.tsx'
+import { AssistantHeader } from './AssistantHeader.tsx'
+import {
+  behavioursToSave,
+  type Draft,
+  draftOf,
+  draftProblem,
+  hangUpSummary,
+  isDirty,
+  keepDraft,
+  keptDraft,
+  languagesProblem,
+  languagesToSave,
+  levelChoicesToSave,
+  mainOf,
+  mergeDraft,
+  nameProblem,
+  normalized,
+  offeredLanguages,
+  outsideToSave,
+  pickedOthers,
+  profileOf,
+  type SilenceField,
+  silenceIssue,
+  silenceProblem,
+  silenceSummary,
+  silenceToSave,
+  spokenLength,
+  staleGreetingName,
+  transferProblem,
+  transfersToSave,
+  withMainLanguage,
+  withPickedVoice,
+} from './assistantDraft.ts'
+import { BusinessHours } from './BusinessHours.tsx'
+import { EditBusinessHours } from './BusinessHoursDialog.tsx'
+import { CalendarSettings } from './Calendar.tsx'
+import { CallEmails, emailRuleWhenId, type Undoable } from './CallEmails.tsx'
+import { CallQualitySettings, levelSavedNote } from './CallQuality.tsx'
+import { CONNECT_RETURN_KEY } from './calendarModel.ts'
+import { Field, Section, SelectRow, SkeletonSection, SwitchRow, TextArea, TextInput } from './fields.tsx'
+import { Holidays, VacationMode } from './Holidays.tsx'
+import { Knowledge } from './Knowledge.tsx'
+import { MissingProviderNote } from './MissingProviderNote.tsx'
+import { useReadOnlyNote } from './readOnly.ts'
+import { HoursSummary, RulesSummary, TransfersSummary } from './Summaries.tsx'
+import { useWorkspaceSettings } from './settings-api.ts'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
-import { useOutboundCountries } from '../onboarding/outbound-number.ts'
 import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
-import { BusinessHours } from './BusinessHours.tsx'
-import { Holidays, VacationMode } from './Holidays.tsx'
-import { HoursSummary, RulesSummary, TransfersSummary } from './Summaries.tsx'
+import { RealtimeVoiceSettings, useVoiceOptions, VoiceLoading, VoiceSettings } from './VoiceSettings.tsx'
 import { Webhooks } from './Webhooks.tsx'
-import { MissingProviderNote } from './MissingProviderNote.tsx'
-import { CallEmails, emailRuleWhenId, type Undoable } from './CallEmails.tsx'
 
 type SectionId =
   | 'general'
@@ -152,27 +149,6 @@ function sectionsFor(
     .map(s => (s.id === REVIEW_SECTION ? { ...s, label: reviewTitle(name), count: openItems } : s))
 }
 
-/** Each way of answering: its name, a short line for the picker and the longer help under it. */
-const PIPELINE_TEXT: Record<VoicePipeline, { label: MessageKey; short: MessageKey; help: MessageKey }> = {
-  realtime: {
-    label: msg('settings.assistant.pipeline.realtime'),
-    short: msg('settings.assistant.pipeline.realtimeShort'),
-    help: msg('settings.assistant.pipeline.realtimeHelp'),
-  },
-  three_stage: {
-    label: msg('settings.assistant.pipeline.threeStage'),
-    short: msg('settings.assistant.pipeline.threeStageShort'),
-    help: msg('settings.assistant.pipeline.threeStageHelp'),
-  },
-}
-
-const pipelineOptions = (t: ReturnType<typeof useT>): SelectOption<VoicePipeline>[] =>
-  (['realtime', 'three_stage'] as const).map(value => ({
-    value,
-    label: t(PIPELINE_TEXT[value].label),
-    description: t(PIPELINE_TEXT[value].short),
-  }))
-
 /**
  * Which pipelines this workspace may use (voice.options: those set up, narrowed to the instance admin's pick); null
  * while not known, and from an API of an older version (during an update), which only says whether a realtime model
@@ -191,34 +167,6 @@ function NotAnswered({ setUp }: { setUp: PipelinesSetUp | null }) {
   )
 }
 
-/**
- * How the assistant's calls are answered, in Advanced: a choice only while the workspace may use both (the instance
- * admin lets workspaces choose, Server admin › Providers); else nothing, there is nothing to decide.
- */
-function PipelineSection({
-  draft,
-  set,
-  setUp,
-  billed,
-}: SectionProps & { setUp: PipelinesSetUp | null; billed: boolean }) {
-  const t = useT()
-  // On Linedesk Cloud the choice is Ultra or not, in General (UltraSettings).
-  if (billed || !setUp?.realtime || !setUp.three_stage) return null
-  const used = pipelineFor(draft.voice_pipeline, setUp)
-  return (
-    <Section id="as-pipeline" title={t('settings.assistant.answering.title')}>
-      <SelectRow
-        id="as-pipeline-select"
-        title={t('settings.assistant.answering.by')}
-        description={t(PIPELINE_TEXT[used].help)}
-        value={used}
-        options={pipelineOptions(t)}
-        onChange={pipeline => set('voice_pipeline', pipeline)}
-      />
-    </Section>
-  )
-}
-
 /** Sections that save on their own, outside the assistant's draft. */
 type OwnSection = 'hours' | 'booking' | 'webhooks' | 'review'
 /** Which draft fields each section holds. */
@@ -229,6 +177,7 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
     'greeting',
     'greeting_outside',
     'languages',
+    'call_quality',
     'voice',
     'llm_model',
     'realtime_voice',
@@ -246,7 +195,6 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
     'silence_reminder',
     'silence_closing',
     'goodbye_line',
-    'voice_pipeline',
   ],
 }
 /** Section ids from before the regrouping, so old links and bookmarks still land in the right place. */
@@ -827,12 +775,8 @@ function Form({
     if (previous !== saved) setDraft(d => mergeDraft(d, previous, saved))
   }, [saved])
   const set: SectionProps['set'] = (key, value) => setDraft(d => ({ ...d, [key]: value }))
-  // The page follows the pipeline picked here at once, before it is saved: the voice picker only for three stages.
-  // An API of an older version (during an update) only says whether a realtime model is connected.
-  // On Linedesk Cloud an assistant that chose none answers on the three stages (a realtime model is Ultra).
-  const billed = voiceOptions?.levels?.billed === true
-  const answering = setUp ? answeringPipeline(draft.voice_pipeline, setUp, billed) : null
-  const realtime = answering ? answering === 'realtime' : voiceOptions?.realtime === true
+  // The page follows the level picked here at once, before it is saved: Ultra answers with the realtime model's voices.
+  const realtime = draft.call_quality === 'ultra'
   const openReview = useQuery(canEdit ? reviewListKey(assistant.id, true) : null, loadReviewList(assistant.id, true))
   const openQuestions = useRows('knowledge_questions').filter(
     q => q.assistant_id === assistant.id && q.status === 'open',
@@ -847,20 +791,13 @@ function Form({
   const changed = dirty
   const unsaved = useMemo(() => {
     const clean = [normalized(draft), normalized(saved)] as const
-    // On Linedesk Cloud the pipeline is picked in General (Ultra or not), not in Advanced.
-    const fieldsOf = (id: Exclude<SectionId, OwnSection>) =>
-      !billed
-        ? sectionFields[id]
-        : id === 'general'
-          ? [...sectionFields.general, 'voice_pipeline' as const]
-          : sectionFields[id].filter(key => key !== 'voice_pipeline')
     const marked = new Set<SectionId>(
       (Object.keys(sectionFields) as Exclude<SectionId, OwnSection>[]).filter(id =>
-        fieldsOf(id).some(key => JSON.stringify(clean[0][key]) !== JSON.stringify(clean[1][key])),
+        sectionFields[id].some(key => JSON.stringify(clean[0][key]) !== JSON.stringify(clean[1][key])),
       ),
     )
     return marked
-  }, [draft, saved, billed])
+  }, [draft, saved])
 
   const outboundCountries = useOutboundCountries()
 
@@ -914,7 +851,6 @@ function Form({
         // Only when changed: an API of the release before does not know it.
         ...(clean.realtime_voice !== normalized(saved).realtime_voice ? { realtime_voice: clean.realtime_voice } : {}),
         talking_speed_pct: clean.talking_speed_pct,
-        voice_pipeline: clean.voice_pipeline,
         // Only when changed: an API of the release before does not know it.
         ...(JSON.stringify(clean.email_rules) !== JSON.stringify(normalized(saved).email_rules)
           ? { email_rules: clean.email_rules }
@@ -922,8 +858,12 @@ function Form({
       })
       setDraft(clean) // the form shows what was saved, so it is not "dirty" any more
     }
-    toast(t('settings.assistant.saved'))
+    toast(savedNote(normalized(draft)))
   }
+  /** "Saved.", and on a new level what the calls cost now (or which level, where there are no prices). */
+  const savedNote = (clean: Draft) =>
+    levelSavedNote(assistantName(clean, t), clean.call_quality, saved.call_quality, voiceOptions?.callQuality) ??
+    t('settings.assistant.saved')
   /**
    * A new main language: its default texts. The voice follows in VoiceSettings, which switches it when it can't
    * perform the assistant's languages (the same for a change of the other languages).
@@ -972,15 +912,12 @@ function Form({
               anyCovers={voiceOptions?.anyLanguages ?? voiceOptions?.languages}
             />
             <NotAnswered setUp={setUp} />
-            {answering && (
-              <UltraSettings
-                pipeline={answering}
-                realtimeModel={draft.realtime_model}
-                onPipeline={pipeline => set('voice_pipeline', pipeline)}
-                onRealtimeModel={model => set('realtime_model', model)}
-                canManageBilling={canEdit}
-              />
-            )}
+            <CallQualitySettings
+              picks={draft}
+              onChange={picks => setDraft(d => ({ ...d, ...picks }))}
+              name={assistantName(draft, t)}
+              savedLevel={saved.call_quality}
+            />
             <VoiceLoading>
               {realtime ? (
                 <RealtimeVoiceSettings
@@ -990,29 +927,18 @@ function Form({
                   language={mainOf(draft)}
                   otherLanguages={otherLanguagesOf(draft.languages)}
                   assistantName={assistantName(draft, t)}
-                  switchTo={!billed && setUp?.three_stage === true ? sectionHash(page, 'advanced') : null}
-                  threeStageName={t(PIPELINE_TEXT.three_stage.label)}
                 />
               ) : (
-                <>
-                  <VoiceSettings
-                    assistantId={assistant.id}
-                    voice={draft.voice}
-                    onPick={v => set('voice', withPickedVoice(v, draft.voice))}
-                    canEdit={canEdit}
-                    toast={toast}
-                    language={mainOf(draft)}
-                    otherLanguages={otherLanguagesOf(draft.languages)}
-                    assistantName={assistantName(draft, t)}
-                  />
-                  <LevelSettings
-                    voice={draft.voice}
-                    llmModel={draft.llm_model}
-                    onVoiceModel={model => set('voice', { ...draft.voice, model })}
-                    onModel={model => set('llm_model', model)}
-                    canManageBilling={canEdit}
-                  />
-                </>
+                <VoiceSettings
+                  assistantId={assistant.id}
+                  voice={draft.voice}
+                  onPick={v => set('voice', withPickedVoice(v, draft.voice))}
+                  canEdit={canEdit}
+                  toast={toast}
+                  language={mainOf(draft)}
+                  otherLanguages={otherLanguagesOf(draft.languages)}
+                  assistantName={assistantName(draft, t)}
+                />
               )}
             </VoiceLoading>
           </>
@@ -1049,7 +975,6 @@ function Form({
           <>
             <TalkingSpeedSection draft={draft} set={set} />
             <Advanced draft={draft} set={set} />
-            <PipelineSection draft={draft} set={set} setUp={setUp} billed={billed} />
           </>
         )}
       </fieldset>

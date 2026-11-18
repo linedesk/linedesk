@@ -13,21 +13,17 @@ import {
   type CallQualityOptions,
   type CallParts,
   DEFAULT_VOICE_MODELS,
-  type LevelChoice,
   languageModelLevel,
   languageModelsOf,
-  levelAllowed,
   levelLanguageModelsOf,
   levelRealtimeModelsOf,
   levelVoiceModelsOf,
   llmEndpoints,
   type LlmProvider,
   partFits,
-  REALTIME_MODEL_LEVELS,
   realtimeModelLevel,
   type SpeakingVoice,
   type UsageLevel,
-  type UsageLevelOptions,
   usageLevel,
   voiceModelLevel,
   voiceModelsOf,
@@ -63,20 +59,6 @@ export async function usageLevelsBilled(tx: Tx): Promise<boolean> {
  */
 export async function workspaceOwnKeys(_tx: Tx, _workspaceId: string): Promise<boolean> {
   return false
-}
-
-/** What a workspace may use on Linedesk Cloud: own keys, Allow Premium, Allow Ultra (one read of the settings row). */
-async function workspaceFlags(tx: Tx, workspaceId: string, { lock = false } = {}) {
-  const query = tx
-    .select({ premium: workspace_settings.allow_premium, ultra: workspace_settings.allow_ultra })
-    .from(workspace_settings)
-    .where(eq(workspace_settings.workspace_id, workspaceId))
-  const [row] = lock ? await query.for('share') : await query
-  return {
-    ownKeys: await workspaceOwnKeys(tx, workspaceId),
-    allowPremium: row?.premium ?? false,
-    allowUltra: row?.ultra ?? false,
-  }
 }
 
 /** An ALERT line in the API's log: something on Linedesk Cloud runs on what it may not, and was moved to Standard. */
@@ -194,9 +176,6 @@ const modelsOf = (list: string | null | undefined, provider: LlmProvider) => {
 /** The first model of a "model, fallback" list, or the provider's default. */
 const firstModel = (list: string | null | undefined, provider: LlmProvider) => modelsOf(list, provider)[0]!
 
-/** The realtime model the install named before call quality (REALTIME_MODEL), for the editor's legacy `levels`. */
-const installRealtimeModel = (configured: string | null | undefined) => configured?.trim() || 'gpt-realtime'
-
 /** What answers a call: the voice and the language model (a realtime model passes itself for both), and the pipeline. */
 type Choices = CallParts & { pipeline: VoicePipeline }
 type AssistantChoices = Pick<Assistant, 'voice' | 'llm_model' | 'call_quality'> & {
@@ -217,7 +196,11 @@ export const pipelineOfLevel = (level: CallQuality): VoicePipeline => (level ===
 export async function assistantChoices(
   tx: Tx,
   assistant: AssistantChoices,
-  { billed, level = assistant.call_quality, defaults }: { billed: boolean; level?: CallQuality; defaults?: LevelDefaultModels },
+  {
+    billed,
+    level = assistant.call_quality,
+    defaults,
+  }: { billed: boolean; level?: CallQuality; defaults?: LevelDefaultModels },
 ): Promise<Choices | null> {
   const models = defaults ?? (await levelDefaultModels(tx, await callQualitySettings(tx), { billed }))
   if (level === 'ultra') {
@@ -262,7 +245,11 @@ const LEVEL_NAMES = CALL_QUALITY_LABELS
  * (level-raise.ts). Checked only when a save changes the level or a pick, so other changes never fail over the
  * install's settings.
  */
-export async function checkAssistantLevel(tx: Tx, after: AssistantChoices, { levelChanged }: { levelChanged: boolean }) {
+export async function checkAssistantLevel(
+  tx: Tx,
+  after: AssistantChoices,
+  { levelChanged }: { levelChanged: boolean },
+) {
   const level = after.call_quality
   if (levelChanged && !(await enabledLevels(tx))[level]) throw levelOff(level)
   if (after.realtime_model && (level !== 'ultra' || !realtimeModelLevel(after.realtime_model))) throw notOfLevel(level)
@@ -271,7 +258,10 @@ export async function checkAssistantLevel(tx: Tx, after: AssistantChoices, { lev
     if (level === 'ultra' || !llm || !partFits(languageModelLevel(llm.provider, after.llm_model), level))
       throw notOfLevel(level)
   }
-  if (after.voice.model && (level === 'ultra' || !partFits(voiceModelLevel(after.voice.provider, after.voice.model), level)))
+  if (
+    after.voice.model &&
+    (level === 'ultra' || !partFits(voiceModelLevel(after.voice.provider, after.voice.model), level))
+  )
     throw notOfLevel(level)
 }
 
@@ -330,7 +320,13 @@ export async function assistantForCall<A extends AssistantChoices>(
   const level = assistant.call_quality
   const choices = await assistantChoices(tx, assistant, { billed, defaults })
   if (!billed) {
-    if (choices) return { assistant: withCheckedModels(assistant, choices, level), level: null, paidLevel: null, pipeline: choices.pipeline }
+    if (choices)
+      return {
+        assistant: withCheckedModels(assistant, choices, level),
+        level: null,
+        paidLevel: null,
+        pipeline: choices.pipeline,
+      }
     // Not set up for its level: the other pipeline, when that one is (Standard's defaults, or Ultra's).
     const other: CallQuality = level === 'ultra' ? 'standard' : 'ultra'
     const answered = await assistantChoices(tx, onStandard(assistant), { billed, level: other, defaults })
@@ -472,60 +468,6 @@ export async function levelCentsPerMinute(tx: Pick<Tx, 'select'>) {
     standard: levels.standard.microsPerMinute / 10_000,
     premium: levels.premium.microsPerMinute / 10_000,
     ultra: levels.ultra.microsPerMinute / 10_000,
-  }
-}
-
-/** What the assistant editor shows of levels (voice.options `levels`). */
-export async function levelOptions(tx: Tx, workspaceId: string): Promise<UsageLevelOptions> {
-  const billed = await usageLevelsBilled(tx)
-  const { ownKeys, allowPremium, allowUltra } = await workspaceFlags(tx, workspaceId)
-  const flags = { billed, allowPremium, allowUltra, ownKeys }
-  const choice = (id: string, name: string, level: LevelChoice['level']): LevelChoice => ({
-    id,
-    name,
-    level,
-    allowed: levelAllowed(level, flags),
-  })
-  const voices = await setUpProviders(tx, 'tts').catch(() => [])
-  const llm = await activeProvider(tx, 'llm').catch(() => null)
-  const llmProvider = (llm?.provider ?? null) as LlmProvider | null
-  const defaultVoiceModels = Object.fromEntries(
-    voices.map(v => {
-      const id = installVoiceModel(v.provider, v.config.model?.value, billed)
-      return [v.provider, { id, level: voiceModelLevel(v.provider, id) }]
-    }),
-  )
-  const defaultModelId = llmProvider ? installLanguageModel(llmProvider, llm?.config.model?.value, billed) : null
-  const realtime = await activeProvider(tx, 'realtime').catch(() => null)
-  const defaultRealtimeId = realtime ? installRealtimeModel(realtime.config.model?.value) : null
-  // A white-label client's people see levels without our prices (docs/white-label.md; review of #1109, L-2).
-  const [org] = await tx
-    .select({ partnerId: organization.partnerId })
-    .from(organization)
-    .where(eq(organization.id, workspaceId))
-  const partnerManaged = !!org?.partnerId
-  const cents = partnerManaged ? { standard: 0, premium: 0, ultra: 0 } : await levelCentsPerMinute(tx)
-  return {
-    ...flags,
-    ...(partnerManaged ? { partnerManaged } : {}),
-    realtimeAllowed: levelAllowed('ultra', flags),
-    standardCentsPerMinute: cents.standard,
-    premiumCentsPerMinute: cents.premium,
-    ultraCentsPerMinute: cents.ultra,
-    realtimeModels: realtime ? REALTIME_MODEL_LEVELS.map(m => choice(m.model, m.name, m.level)) : [],
-    defaultRealtimeModel: defaultRealtimeId
-      ? { id: defaultRealtimeId, level: realtimeModelLevel(defaultRealtimeId) }
-      : null,
-    voiceModels: Object.fromEntries(
-      voices.map(v => [v.provider, voiceModelsOf(v.provider).map(m => choice(m.model, m.name, m.level))]),
-    ),
-    defaultVoiceModels,
-    llmProvider,
-    models: llmProvider ? languageModelsOf(llmProvider).map(m => choice(m.id, m.name, m.level)) : [],
-    defaultModel:
-      llmProvider && defaultModelId
-        ? { id: defaultModelId, level: languageModelLevel(llmProvider, defaultModelId) }
-        : null,
   }
 }
 

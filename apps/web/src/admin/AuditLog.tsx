@@ -1,6 +1,7 @@
 // Server admin › Audit log: who did what on this install, newest first. Sign-ins with their method,
 // sign-in methods added or removed, admin actions, team changes, provider keys and impersonation.
 // Kept forever; filters by kind, person, workspace and dates; "Show older" pages back.
+import { CALL_QUALITY_LABELS, type CallQuality } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { useCallback, useEffect, useState } from 'react'
@@ -494,6 +495,7 @@ const levelChangeList = ({ before, after }: NonNullable<AuditEntry['usageLevelCh
   const shown = (value: string | null) => value ?? t('admin.audit.levelChange.default')
   const parts = (
     [
+      ['call_quality', msg('admin.audit.levelChange.callQuality')],
       ['voice_model', msg('admin.audit.levelChange.voiceModel')],
       ['llm_model', msg('admin.audit.levelChange.languageModel')],
       ['voice_pipeline', msg('admin.audit.levelChange.pipeline')],
@@ -501,7 +503,11 @@ const levelChangeList = ({ before, after }: NonNullable<AuditEntry['usageLevelCh
     ] as const
   )
     .filter(([field]) => (before[field] ?? null) !== (after[field] ?? null))
-    .map(([field, key]) => t(key, { before: shown(before[field] ?? null), after: shown(after[field] ?? null) }))
+    .map(([field, key]) => {
+      const value = (v: string | null) =>
+        field === 'call_quality' && v ? (CALL_QUALITY_LABELS[v as CallQuality] ?? v) : shown(v)
+      return t(key, { before: value(before[field] ?? null), after: value(after[field] ?? null) })
+    })
   return fmt().list(parts, { type: 'unit', style: 'short' })
 }
 

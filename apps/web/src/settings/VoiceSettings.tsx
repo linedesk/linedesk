@@ -19,7 +19,7 @@ import {
   type VoiceOptionsData,
 } from '@linedesk/actions'
 import { T, useFormat, useT } from '@linedesk/i18n/react'
-import { adminLink, appLink } from '../ui/AppLink.tsx'
+import { adminLink } from '../ui/AppLink.tsx'
 import { i18n } from '../i18n/index.tsx'
 import { providerAudience } from '../providerAudience.ts'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
@@ -955,10 +955,6 @@ type RealtimeProps = {
   language: string
   otherLanguages: readonly string[]
   assistantName: string
-  /** The Advanced section's hash (Answered by), when the assistant may switch to the three stages; else null. */
-  switchTo: string | null
-  /** The three stages' name, for the line that says where to switch. */
-  threeStageName: string
 }
 
 /** The realtime voices as More voices takes them: one provider, set up, in effect. */
@@ -988,8 +984,6 @@ export function RealtimeVoiceSettings({
   language,
   otherLanguages,
   assistantName,
-  switchTo,
-  threeStageName,
 }: RealtimeProps) {
   const t = useT()
   const { data: options } = useVoiceOptions()
@@ -1061,16 +1055,8 @@ export function RealtimeVoiceSettings({
         )}
       </details>
       <p className="help">
+        {t('settings.voice.quality.ultraVoices')}{' '}
         <T k="settings.assistant.realtimeVoice.body" values={{ link: adminLink('#admin/providers/answering') }} />
-        {switchTo && (
-          <>
-            {' '}
-            <T
-              k="settings.assistant.realtimeVoice.switch"
-              values={{ pipeline: threeStageName, link: appLink(switchTo) }}
-            />
-          </>
-        )}
       </p>
     </Section>
   )

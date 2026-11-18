@@ -1,7 +1,6 @@
 // Step 2, "Meet your assistant": its name, the greeting callers hear and its voice (with the realtime model, one of the
 // model's own voices), then a test call in the browser, before anything about phones. Talking is encouraged, not required: Continue is always there.
 import { localizedDefault, mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
-import { answeringPipeline } from '../settings/levelModel.ts'
 import type { Assistant } from '@linedesk/db/types'
 import { T, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
@@ -10,7 +9,7 @@ import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { useWriteAction } from '../settings/settings-api.ts'
 import { TestCallButton, useTestCall } from '../settings/TestCall.tsx'
 import { TestCallPanel } from '../settings/TestCallPanel.tsx'
-import { RealtimeVoiceSettings, useVoiceOptions, VoiceLoading, VoiceSettings } from '../settings/VoiceSettings.tsx'
+import { RealtimeVoiceSettings, VoiceLoading, VoiceSettings } from '../settings/VoiceSettings.tsx'
 import { useAssistantOf, useRun } from '../store.tsx'
 import { useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { appLink } from '../ui/AppLink.tsx'
@@ -69,12 +68,8 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
   const problem = nameProblem ?? greetingProblem
   // The greeting still names the saved name after a rename: saving renames it there; the hint says so and offers it now.
   const stale = staleGreetingName(draft.greeting, assistant.name, draft.name)
-  // Like Assistant settings: with the realtime model the picker lists the model's own voices. An API of an older version
-  // (during an update) only says whether a realtime model is connected.
-  const voiceOptions = useVoiceOptions().data
-  const realtime = voiceOptions?.pipelines
-    ? answeringPipeline(assistant.voice_pipeline, voiceOptions.pipelines, voiceOptions.levels?.billed) === 'realtime'
-    : voiceOptions?.realtime === true
+  // Like Assistant settings: on Ultra (a realtime model) the picker lists the model's own voices.
+  const realtime = assistant.call_quality === 'ultra'
 
   function next() {
     if (problem) return
@@ -150,8 +145,6 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
               language={main}
               otherLanguages={otherLanguagesOf(assistant.languages, workspaceLanguage)}
               assistantName={name || assistant.name}
-              switchTo={null}
-              threeStageName=""
             />
           ) : (
             <VoiceSettings

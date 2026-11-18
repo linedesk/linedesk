@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { defineAction } from './define.ts'
 import type { ProviderFailureReason } from './provider-health.ts'
 import type { PipelinesSetUp } from './settings.ts'
-import type { CallQualityOptions, UsageLevelOptions } from './usage-level.ts'
+import type { CallQualityOptions } from './usage-level.ts'
 
 /**
  * A language a voice speaks, as its provider describes it. `code`: the language without region (`de`). `native`: the
@@ -173,10 +173,6 @@ export type VoiceOptionsData = {
    * else all of them. Missing from an older API: `languages`.
    */
   anyLanguages?: string[]
-  /**
-   * The editor's levels before call quality, until its card is replaced (call quality 2/5): `callQuality` decides.
-   */
-  levels: UsageLevelOptions
   /**
    * Call quality (decisions.md 2026-11-17): the levels this server has on, with their price and models, the level new
    * assistants start on, and whether this member may raise an assistant to a paid level.

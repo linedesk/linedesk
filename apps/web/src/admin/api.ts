@@ -544,9 +544,12 @@ export type AuditEntry = {
 }
 /** What decides an assistant's usage level, as the audit log keeps it (null: the server's default). */
 export type LevelFields = {
+  /** The assistant's call quality; missing in entries from before it. */
+  call_quality?: string
   voice_model: string | null
   llm_model: string | null
-  voice_pipeline: string | null
+  /** Entries from before call quality only. */
+  voice_pipeline?: string | null
   realtime_model?: string | null
 }
 /** `to` is exclusive (the day after the last day shown); `before` is the previous page's `next`. */

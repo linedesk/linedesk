@@ -63,8 +63,8 @@ describe('audit labels', () => {
         input: {},
         subject: null,
         usageLevelChange: {
-          before: { voice_model: null, llm_model: 'gpt-5.4-mini', voice_pipeline: null },
-          after: { voice_model: 'elevenlabs/eleven_v3', llm_model: 'gpt-5.4', voice_pipeline: null },
+          before: { voice_model: null, llm_model: 'gpt-5.4-mini' },
+          after: { voice_model: 'elevenlabs/eleven_v3', llm_model: 'gpt-5.4' },
         },
       })
     expect(level('assistant.update')).toBe(
@@ -79,12 +79,12 @@ describe('audit labels', () => {
       input: {},
       subject: null,
       usageLevelChange: {
-        before: { voice_model: null, llm_model: null, voice_pipeline: null, realtime_model: null },
-        after: { voice_model: null, llm_model: null, voice_pipeline: 'realtime', realtime_model: 'gpt-realtime-2' },
+        before: { call_quality: 'standard', voice_model: null, llm_model: null, realtime_model: null },
+        after: { call_quality: 'ultra', voice_model: null, llm_model: null, realtime_model: 'gpt-realtime-2' },
       },
     })
     expect(ultra).toBe(
-      "Changed what the assistant's calls cost (pipeline default to realtime, realtime model default to gpt-realtime-2)",
+      "Changed what the assistant's calls cost (call quality Standard to Ultra, realtime model default to gpt-realtime-2)",
     )
   })
 

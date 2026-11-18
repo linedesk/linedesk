@@ -37,7 +37,6 @@ import {
   languageModelLevel,
   realtimeModelLevel,
   voiceModelLevel,
-  type VoicePipeline,
 } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
 import {
@@ -889,7 +888,6 @@ type LevelInput = {
   voice?: AssistantVoice
   llm_model?: string | null
   call_quality?: CallQuality
-  voice_pipeline?: VoicePipeline | null
   realtime_model?: string | null
 }
 /** Whether an assistant.update names what decides its calls' level: the level, the voice or a model. */
@@ -898,19 +896,6 @@ const choosesLevel = (input: LevelInput) =>
   input.llm_model !== undefined ||
   input.call_quality !== undefined ||
   input.realtime_model !== undefined
-
-/**
- * The older `voice_pipeline` of assistant.update as a call quality, until the assistant editor sends `call_quality`
- * (call quality 2/5): `realtime` is Ultra, `three_stage` takes an assistant off Ultra (to Standard) and leaves the
- * others as they are.
- */
-async function withLevelOfPipeline<I extends LevelInput>(tx: Tx, workspaceId: string, input: I): Promise<I> {
-  const { voice_pipeline: pipeline, ...rest } = input
-  if (pipeline === undefined || input.call_quality !== undefined) return rest as I
-  if (pipeline === 'realtime') return { ...rest, call_quality: 'ultra' } as I
-  const stored = await assistantIn(tx, workspaceId, input.assistantId)
-  return (stored?.call_quality === 'ultra' ? { ...rest, call_quality: 'standard' } : rest) as I
-}
 
 /**
  * An assistant's level and model picks after a save (assistant.update): the level must be on, a raise is for the person
@@ -1009,12 +994,11 @@ export const teamNotesOf = (stored: ActionItem[], finished: { text: string }[]) 
 
 const handlers: Record<string, Handler> = {
   // The patch, plus: a voice must be one the workspace may use, and a clone it stops using is released.
-  'assistant.update': async (ctx, given) => {
+  'assistant.update': async (ctx, input) => {
     if (!ctx.actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     // The version lock first (withVersion took it already; taking it again does not wait), as a level turned off and a
     // payer change take it before they move the assistants: everything read below is what the save writes over.
-    await lockAssistantVersion(ctx.tx, given.assistantId)
-    const input = await withLevelOfPipeline(ctx.tx, ctx.actor.workspaceId, given)
+    await lockAssistantVersion(ctx.tx, input.assistantId)
     if (input.voice) await checkAssistantVoice(ctx.tx, ctx.actor.workspaceId, input.voice)
     // The languages against the voice the calls speak with: again when the voice or the level changes.
     if (input.languages || input.voice || input.call_quality !== undefined) {

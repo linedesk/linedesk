@@ -4,11 +4,10 @@
 import type { VoiceOptionsData } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { NO_LEVELS, NO_PRICES } from './voiceSwitch.fixture.ts'
+import { NO_PRICES } from './voiceSwitch.fixture.ts'
 
 const OPTIONS: VoiceOptionsData = {
   provider: 'elevenlabs',
-  levels: NO_LEVELS,
   callQuality: NO_PRICES,
   realtime: true,
   voices: [],
@@ -37,7 +36,7 @@ const rowsOf = (html: string) =>
     ),
   ].map(m => ({ name: m[2] ?? '', facts: m[3] ?? '', checked: !!m[1] }))
 
-function picker(voice: string, language = 'en', switchTo: string | null = null) {
+function picker(voice: string, language = 'en') {
   return renderToStaticMarkup(
     <RealtimeVoiceSettings
       voice={voice}
@@ -46,8 +45,6 @@ function picker(voice: string, language = 'en', switchTo: string | null = null) 
       language={language}
       otherLanguages={[]}
       assistantName="Maya"
-      switchTo={switchTo}
-      threeStageName="Speech to text, model and voice"
     />,
   )
 }
@@ -74,13 +71,16 @@ describe('the realtime voice picker', () => {
   })
 
   it('says the voices speak another main language with the accent of their own, English (no gender claimed)', () => {
-    expect(rowsOf(picker('', 'de'))[0]).toEqual({ name: 'Cedar (default)', facts: 'German with an English accent', checked: true })
+    expect(rowsOf(picker('', 'de'))[0]).toEqual({
+      name: 'Cedar (default)',
+      facts: 'German with an English accent',
+      checked: true,
+    })
   })
 
-  it('points to the server default and, where it may, to the three stages for the voice providers', () => {
+  it('says Ultra speaks with its own voices and points to the server default', () => {
+    expect(picker('')).toContain('Ultra speaks with its own voices.')
     expect(picker('')).toContain('The default voice is set by an instance admin under')
-    expect(picker('')).not.toContain('Answered by')
-    expect(picker('', 'en', '#settings/assistant/advanced')).toContain('href="#settings/assistant/advanced"')
   })
 
   it("More voices lists all ten, also for an assistant whose main language isn't English", () => {

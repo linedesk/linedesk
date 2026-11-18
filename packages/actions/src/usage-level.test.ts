@@ -6,7 +6,6 @@ import {
   languageModelLevel,
   languageModelsOf,
   centsPerMinute,
-  levelAllowed,
   REALTIME_MODEL_LEVELS,
   realtimeModelFor,
   realtimeModelLevel,
@@ -31,7 +30,10 @@ const v3 = { provider: 'elevenlabs', model: 'eleven_v3' }
 const mini = { provider: 'openai', model: 'gpt-4.1-mini' }
 const big = { provider: 'openai', model: 'gpt-5.4' }
 
-const call = (voice: { provider: string; model: string }, model: { provider: string; model: string }) => ({ voice, model })
+const call = (voice: { provider: string; model: string }, model: { provider: string; model: string }) => ({
+  voice,
+  model,
+})
 
 describe('usageLevel', () => {
   const on = { ownKeys: false, levelEnabled: true }
@@ -61,27 +63,36 @@ describe('usageLevel', () => {
   })
 
   it('is not allowed for an option in no list', () => {
-    expect(usageLevel({ level: 'premium', parts: call(flash, { provider: 'openai', model: 'gpt-5.6-terra' }), ...on })).toBe(
-      'not_allowed',
-    )
-    expect(usageLevel({ level: 'standard', parts: call({ provider: 'cartesia', model: 'sonic-2' }, mini), ...on })).toBe(
-      'not_allowed',
-    )
+    expect(
+      usageLevel({ level: 'premium', parts: call(flash, { provider: 'openai', model: 'gpt-5.6-terra' }), ...on }),
+    ).toBe('not_allowed')
+    expect(
+      usageLevel({ level: 'standard', parts: call({ provider: 'cartesia', model: 'sonic-2' }, mini), ...on }),
+    ).toBe('not_allowed')
   })
 
   it('is own keys, whatever the parts, on the workspace own keys', () => {
-    expect(usageLevel({ level: 'standard', parts: call(v3, { provider: 'x', model: 'y' }), ownKeys: true, levelEnabled: true })).toBe(
-      'own_keys',
-    )
+    expect(
+      usageLevel({
+        level: 'standard',
+        parts: call(v3, { provider: 'x', model: 'y' }),
+        ownKeys: true,
+        levelEnabled: true,
+      }),
+    ).toBe('own_keys')
   })
 
   it('matches the model id at its provider only', () => {
-    expect(usageLevel({ level: 'standard', parts: call(flash, { provider: 'openrouter', model: 'openai/gpt-4.1-mini' }), ...on })).toBe(
-      'standard',
-    )
-    expect(usageLevel({ level: 'standard', parts: call(flash, { provider: 'openrouter', model: 'gpt-4.1-mini' }), ...on })).toBe(
-      'not_allowed',
-    )
+    expect(
+      usageLevel({
+        level: 'standard',
+        parts: call(flash, { provider: 'openrouter', model: 'openai/gpt-4.1-mini' }),
+        ...on,
+      }),
+    ).toBe('standard')
+    expect(
+      usageLevel({ level: 'standard', parts: call(flash, { provider: 'openrouter', model: 'gpt-4.1-mini' }), ...on }),
+    ).toBe('not_allowed')
   })
 })
 
@@ -132,7 +143,11 @@ describe('call quality', () => {
       'eleven_multilingual_v2',
       'eleven_v3',
     ])
-    expect(levelLanguageModelsOf('openai', 'standard').map(m => m.id)).toEqual(['gpt-5.4-mini', 'gpt-4.1-mini', 'gpt-5.4-nano'])
+    expect(levelLanguageModelsOf('openai', 'standard').map(m => m.id)).toEqual([
+      'gpt-5.4-mini',
+      'gpt-4.1-mini',
+      'gpt-5.4-nano',
+    ])
     expect(levelLanguageModelsOf('openai', 'ultra')).toEqual([])
     expect(levelRealtimeModelsOf().map(m => m.id)).toEqual(['gpt-realtime', 'gpt-realtime-2'])
   })
@@ -193,20 +208,6 @@ describe('the effective models', () => {
   })
 })
 
-describe('levelAllowed', () => {
-  const off = { billed: true, allowPremium: false, allowUltra: false, ownKeys: false }
-  it('allows everything without billing or with own keys, Premium only with Allow Premium, Ultra with Allow Ultra', () => {
-    expect(levelAllowed('premium', { ...off, billed: false })).toBe(true)
-    expect(levelAllowed('premium', { ...off, ownKeys: true })).toBe(true)
-    expect(levelAllowed('premium', off)).toBe(false)
-    expect(levelAllowed('premium', { ...off, allowPremium: true })).toBe(true)
-    expect(levelAllowed('standard', off)).toBe(true)
-    expect(levelAllowed('ultra', { ...off, allowPremium: true })).toBe(false)
-    expect(levelAllowed('ultra', { ...off, allowUltra: true })).toBe(true)
-    expect(levelAllowed('ultra', { ...off, billed: false })).toBe(true)
-  })
-})
-
 describe('realtime models (Ultra)', () => {
   const realtime = { provider: 'openai_realtime', model: 'gpt-realtime' }
   it('are listed as Ultra: gpt-realtime and gpt-realtime-2; others are in no list', () => {
@@ -220,7 +221,9 @@ describe('realtime models (Ultra)', () => {
     const on = { ownKeys: false, levelEnabled: true }
     expect(usageLevel({ level: 'ultra', parts: call(realtime, realtime), ...on })).toBe('ultra')
     expect(usageLevel({ level: 'premium', parts: call(realtime, realtime), ...on })).toBe('not_allowed')
-    expect(usageLevel({ level: 'ultra', parts: call(realtime, realtime), ownKeys: true, levelEnabled: true })).toBe('own_keys')
+    expect(usageLevel({ level: 'ultra', parts: call(realtime, realtime), ownKeys: true, levelEnabled: true })).toBe(
+      'own_keys',
+    )
     const mini = { provider: 'openai_realtime', model: 'gpt-realtime-mini' }
     expect(usageLevel({ level: 'ultra', parts: call(mini, mini), ...on })).toBe('not_allowed')
   })
@@ -234,7 +237,7 @@ describe('centsPerMinute', () => {
     expect(() => centsPerMinute('not_allowed')).toThrow(/must not run/)
     expect(centsPerMinute('ultra')).toBe(20)
   })
-  it('takes every paid level\'s price from the billing price table (LEVEL_PRICES)', () => {
+  it("takes every paid level's price from the billing price table (LEVEL_PRICES)", () => {
     for (const level of ['standard', 'premium', 'ultra'] as const)
       expect(centsPerMinute(level) * 10_000).toBe(LEVEL_PRICES[level].microsPerMinute)
   })

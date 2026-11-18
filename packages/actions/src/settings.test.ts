@@ -157,7 +157,7 @@ describe('assistant.update', () => {
     expect(storedSnapshot({ talking_speed: 'slow', talking_speed_pct: 85 })).toMatchObject({ talking_speed_pct: 85 })
   })
 
-  it('sets the call quality; the older voice_pipeline is never stored', () => {
+  it('sets the call quality; voice_pipeline is no input any more', () => {
     const assistants = new Map([['as1', { id: 'as1', call_quality: 'standard', voice_pipeline: null }]])
     const update = (fields: object) =>
       applyLocally(
@@ -170,7 +170,7 @@ describe('assistant.update', () => {
     expect(assistants.get('as1')).toMatchObject({ call_quality: 'premium' })
     update({ name: 'Maya' }) // another field leaves it alone
     expect(assistants.get('as1')).toMatchObject({ call_quality: 'premium' })
-    update({ voice_pipeline: 'realtime' }) // the server turns it into call_quality
+    update({ voice_pipeline: 'realtime' }) // not an input: dropped
     expect(assistants.get('as1')).toMatchObject({ call_quality: 'premium', voice_pipeline: null })
     expect(() => assistantUpdate.input.parse({ assistantId: 'as1', call_quality: 'gold' })).toThrow()
   })

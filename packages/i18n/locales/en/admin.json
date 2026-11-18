@@ -228,6 +228,7 @@
   "audit.kind.signIn": "Sign-ins",
   "audit.kind.team": "Team changes",
   "audit.left": "Left the workspace",
+  "audit.levelChange.callQuality": "call quality {before} to {after}",
   "audit.levelChange.default": "default",
   "audit.levelChange.languageModel": "language model {before} to {after}",
   "audit.levelChange.pipeline": "pipeline {before} to {after}",

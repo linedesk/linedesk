@@ -65,7 +65,7 @@ import {
   voicePipelinePolicy,
 } from './provider-settings.ts'
 import { type CatalogEntry, catalogData, catalogVoice, voiceCatalog } from './voice-catalog.ts'
-import { callQualityOptions, levelCentsPerMinute, levelOptions, usageLevelsBilled } from './usage-levels.ts'
+import { callQualityOptions, levelCentsPerMinute, usageLevelsBilled } from './usage-levels.ts'
 import {
   callQualitySettings,
   enabledLevels,
@@ -339,13 +339,8 @@ export const voiceHandlers: Record<string, Handler> = {
     const provider = active?.provider ?? null
     const clones = provider ? await clonesOf(tx, actor.workspaceId, provider) : []
     const fallback = await installDefaultVoice(tx)
-    // Only what this workspace may use: the one the instance admin picked for all, or both to choose from. On Linedesk
-    // Cloud a realtime model is Ultra: offered only with the owner's Allow Ultra (levels.realtimeModels lists them).
-    const levels = await levelOptions(tx, actor.workspaceId)
-    const setUp = await pipelinesSetUp(tx)
-    const pipelines = levels.realtimeAllowed
-      ? pipelinesAllowed(setUp, await voicePipelinePolicy(tx))
-      : { realtime: false, three_stage: setUp.three_stage }
+    // Only what this workspace may use: the one the instance admin picked for all, or both to choose from.
+    const pipelines = pipelinesAllowed(await pipelinesSetUp(tx), await voicePipelinePolicy(tx))
     const realtimeDefault = pipelines.realtime ? await realtimeDefaultVoice(tx) : null
     const data: VoiceOptionsData = {
       provider,
@@ -360,7 +355,6 @@ export const voiceHandlers: Record<string, Handler> = {
       },
       ...(realtimeDefault ? { realtimeDefaultVoice: realtimeDefault } : {}),
       ...(await installLanguageOptions(tx)),
-      levels,
       callQuality: await callQualityOptions(tx, actor.workspaceId, await mayRaiseLevel(tx, actor)),
     }
     return { rows: {}, data }

@@ -22,25 +22,6 @@ const voice = (
   ...extra,
 })
 
-/** Levels on an install without billing: every choice, no labels. */
-export const NO_LEVELS: VoiceOptionsData['levels'] = {
-  billed: false,
-  allowPremium: false,
-  allowUltra: false,
-  realtimeAllowed: true,
-  ownKeys: false,
-  standardCentsPerMinute: 5,
-  premiumCentsPerMinute: 10,
-  ultraCentsPerMinute: 20,
-  realtimeModels: [],
-  defaultRealtimeModel: null,
-  voiceModels: {},
-  defaultVoiceModels: {},
-  llmProvider: null,
-  models: [],
-  defaultModel: null,
-}
-
 /** Call quality on an install without billing: the three levels, no prices, anyone who edits may pick each. */
 export const NO_PRICES: VoiceOptionsData['callQuality'] = {
   levels: (['standard', 'premium', 'ultra'] as const).map(level => ({
@@ -59,7 +40,6 @@ export const NO_PRICES: VoiceOptionsData['callQuality'] = {
 
 export const SWITCH_OPTIONS: VoiceOptionsData = {
   provider: 'elevenlabs',
-  levels: NO_LEVELS,
   callQuality: NO_PRICES,
   voices: [
     {

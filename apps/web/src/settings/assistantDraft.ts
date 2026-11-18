@@ -41,7 +41,7 @@ import {
   NO_EMAIL_RULES,
   normalizeEmailRules,
   swapDefault,
-  type VoicePipeline,
+  type CallQuality,
   isBriefed,
 } from '@linedesk/actions'
 import type { Assistant, BusinessProfile, EmailRules, TransferContact } from '@linedesk/db/types'
@@ -86,8 +86,8 @@ export type Draft = {
   behaviours: Record<BehaviourId, boolean>
   /** Languages besides English; the picked ones are kept while English only is chosen, but saved empty. */
   languages: AssistantLanguages
-  /** How calls are answered; null: the install default (the realtime model when one is set up). */
-  voice_pipeline: VoicePipeline | null
+  /** The call quality: Standard, Premium or Ultra (realtime model); the level alone decides the price. */
+  call_quality: CallQuality
   /** The voice while the realtime model answers (REALTIME_VOICE_IDS); '': the server's default voice. */
   realtime_voice: string
   /** The realtime model when a realtime model answers (Ultra on Linedesk Cloud); '': the server's. */
@@ -153,7 +153,7 @@ export function draftOf(a: Assistant, workspaceLanguage?: string | null): Draft 
     behaviours: behavioursOf(a.behaviours),
     languages: languagesOf(a.languages, workspaceLanguage),
     // A row synced before the column existed has none: the install default.
-    voice_pipeline: a.voice_pipeline ?? null,
+    call_quality: a.call_quality ?? 'standard',
     // A row synced before the column existed has none: the server's default voice.
     realtime_voice: a.realtime_voice ?? '',
     realtime_model: a.realtime_model ?? '',
@@ -257,10 +257,11 @@ export const withPickedVoice = (
 })
 
 /**
- * The voice, language model and realtime model as assistant.update takes them: no `model` for the server's voice
- * model, null for its language model or realtime model.
+ * The call quality, voice, language model and realtime model as assistant.update takes them: no `model` for the
+ * server's voice model, null for its language model or realtime model.
  */
-export const levelChoicesToSave = (d: Pick<Draft, 'voice' | 'llm_model' | 'realtime_model'>) => ({
+export const levelChoicesToSave = (d: Pick<Draft, 'call_quality' | 'voice' | 'llm_model' | 'realtime_model'>) => ({
+  call_quality: d.call_quality,
   voice: {
     provider: d.voice.provider,
     voice_id: d.voice.voice_id,

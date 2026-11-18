@@ -500,19 +500,14 @@ describe('call quality on Cloud: the level decides the price', () => {
     })
   })
 
-  test('the older voice_pipeline still sets the level until the editor sends call_quality', async () => {
+  test('voice_pipeline is no input of assistant.update any more: it leaves the level alone', async () => {
     await withEnv(REALTIME, async () => {
       const ws = await createWorkspace('Quality Pipeline Plumbing')
       const update = (input: Record<string, unknown>) =>
         act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, ...input })
+      const before = (await getAssistant(ws.assistant.id))!.call_quality
       expect((await update({ voice_pipeline: 'realtime' })).status).toBe(200)
-      expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('ultra')
-      expect((await update({ voice_pipeline: 'three_stage' })).status).toBe(200)
-      expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('standard')
-      // three_stage leaves Premium as it is.
-      expect((await update({ call_quality: 'premium' })).status).toBe(200)
-      expect((await update({ voice_pipeline: 'three_stage' })).status).toBe(200)
-      expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('premium')
+      expect((await getAssistant(ws.assistant.id))!.call_quality).toBe(before)
     })
   })
 

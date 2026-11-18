@@ -775,7 +775,7 @@ describe('the partner bill (S2)', () => {
     expect((await act(admin, 'partner.get', { partnerId: p.id })).body.data.bill).toMatchObject({ mine: false })
   })
 
-  test('Server admin › Partners shows each partner bill\'s status', async () => {
+  test("Server admin › Partners shows each partner bill's status", async () => {
     const p = await billedPartner('Listed Bill Partner', 'trialing')
     const listed = async () =>
       (await asServerAdmin(admin, () => act(admin, 'partner.adminList', {}))).body.data.partners.find(
@@ -1267,7 +1267,8 @@ describe('Partner › Clients (S3)', () => {
     const me = (await request(owner, 'GET', '/v1/me')).body
     expect(me.workspace).toMatchObject({ partnerManaged: true })
     const options = await act(owner, 'voice.options', {})
-    expect(options.body.data.levels).toMatchObject({ partnerManaged: true })
+    expect(options.body.data.callQuality).toMatchObject({ partnerManaged: true })
+    expect(options.body.data).not.toHaveProperty('levels')
   })
 
   test("people the team invited into a client stay on release unless picked; owners, former owners and the client's own never offered (#1113, M-1)", async () => {
