@@ -109,10 +109,12 @@ RUN node apps/agent/scripts/bundle.ts
 
 FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS agent
 ENV NODE_ENV=production
+WORKDIR /app
+# node_modules first, right on the pinned base: a server unpacks a layer again when any layer below it changed, even
+# with the layer's download at hand. The apt layer changes with every build without cache, so it goes above (LIN-570).
+COPY --from=agent-build --chown=node:node /app/node_modules ./node_modules
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /var/cache/linedesk/greetings && chown node:node /var/cache/linedesk/greetings
-WORKDIR /app
-COPY --from=agent-build --chown=node:node /app/node_modules ./node_modules
 COPY --from=agent-build --chown=node:node /app/apps/agent ./apps/agent
 COPY --from=agent-build --chown=node:node /app/packages ./packages
 # Node runs the bundle; the sources stay for the command-line scripts (`node src/call-test.ts`). --check fails the
