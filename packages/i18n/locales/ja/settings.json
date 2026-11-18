@@ -1277,7 +1277,6 @@
   "review.showOpen": "未確認を表示",
   "review.title": "{name}の対応状況",
   "review.titleDefault": "アシスタントの対応状況",
-  "summary.hours.needsHours": "{name}が発信者に営業時間を伝えられるよう、営業時間を設定してください。",
   "summary.hours.nextClosed": "次の休業日：<b>{date}</b>。",
   "summary.hours.nextClosedNamed": "次の休業日：<b>{day}</b>（{date}）。",
   "summary.hours.nextShorter": "<b>{date}</b>は短縮営業です（{hours}）。",

@@ -1277,7 +1277,6 @@
   "review.showOpen": "Mostrar por revisar",
   "review.title": "Cómo lo hizo {name}",
   "review.titleDefault": "Cómo lo hizo el asistente",
-  "summary.hours.needsHours": "Configura tu horario de atención para que {name} pueda decir a quien llama cuándo atiendes.",
   "summary.hours.nextClosed": "Próximo día cerrado: <b>{date}</b>.",
   "summary.hours.nextClosedNamed": "Próximo día cerrado: <b>{day}</b>, {date}.",
   "summary.hours.nextShorter": "Horario reducido el <b>{date}</b>: abierto {hours}.",

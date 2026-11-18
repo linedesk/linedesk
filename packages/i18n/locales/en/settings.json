@@ -1278,7 +1278,6 @@
   "review.showOpen": "Show open",
   "review.title": "How {name} did",
   "review.titleDefault": "How the assistant did",
-  "summary.hours.needsHours": "Set your business hours so {name} can tell callers when you are open.",
   "summary.hours.nextClosed": "Next closed day: <b>{date}</b>.",
   "summary.hours.nextClosedNamed": "Next closed day: <b>{day}</b>, {date}.",
   "summary.hours.nextShorter": "Shorter hours on <b>{date}</b>: open {hours}.",

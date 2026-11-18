@@ -1277,7 +1277,6 @@
   "review.showOpen": "Afficher ceux à examiner",
   "review.title": "Bilan de {name}",
   "review.titleDefault": "Bilan de l'assistant",
-  "summary.hours.needsHours": "Définissez vos horaires d'ouverture pour que {name} puisse indiquer aux appelants quand vous êtes ouvert.",
   "summary.hours.nextClosed": "Prochain jour de fermeture : <b>{date}</b>.",
   "summary.hours.nextClosedNamed": "Prochain jour de fermeture : <b>{day}</b>, {date}.",
   "summary.hours.nextShorter": "Horaires réduits le <b>{date}</b> : ouvert {hours}.",

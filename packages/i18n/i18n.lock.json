@@ -28545,11 +28545,6 @@
       "out": "d92f35b30a98d8198be03cb3d1f6c7cdb4fd36e0ccbf964a1d9a6ab018688207",
       "src": "a40b6b31eb6a9ef6754187c8b47e5f92303478f42b1f710a36baa01b64177079"
     },
-    "settings.summary.hours.needsHours": {
-      "by": "ai",
-      "out": "8b604c7451af283cef63711e16a74e238685d50435f586cbe7dca5299a8b2072",
-      "src": "7bc38aa678bab0d9610a0383ad55d9933dc9245855852113d787f1c8d9d8c6f2"
-    },
     "settings.summary.hours.nextClosed": {
       "by": "ai",
       "out": "06c6c3172aac4dd91ee0939fbbb35f8f13e560c60839df7e7c553ac0f3e08627",
@@ -62481,11 +62476,6 @@
       "by": "ai",
       "out": "3d0351fcba04282ba0443b25c18495463f79ea48314a28ec8aafe84608623d78",
       "src": "a40b6b31eb6a9ef6754187c8b47e5f92303478f42b1f710a36baa01b64177079"
-    },
-    "settings.summary.hours.needsHours": {
-      "by": "ai",
-      "out": "c9c9212bbc60cafac87f4c571d85f1332d4f8eaf5ee9dc25566391b0d088765b",
-      "src": "7bc38aa678bab0d9610a0383ad55d9933dc9245855852113d787f1c8d9d8c6f2"
     },
     "settings.summary.hours.nextClosed": {
       "by": "ai",
@@ -96419,11 +96409,6 @@
       "out": "e1c49818e701237ece65db345a87fe8046b2964dc66c76cea1b6dc9d1a700f7f",
       "src": "a40b6b31eb6a9ef6754187c8b47e5f92303478f42b1f710a36baa01b64177079"
     },
-    "settings.summary.hours.needsHours": {
-      "by": "ai",
-      "out": "76c053ae7fb2eb4de13e89cfb03d9d78b095e9c951b42b9a328821cd533e214a",
-      "src": "7bc38aa678bab0d9610a0383ad55d9933dc9245855852113d787f1c8d9d8c6f2"
-    },
     "settings.summary.hours.nextClosed": {
       "by": "ai",
       "out": "2dd157e3afc55a4b123fdf3291b998f02344139c605760e24f2f4895a1b940c4",
@@ -130356,11 +130341,6 @@
       "out": "14ae753afed2b8741909f9dea4336ef645504ce617e3105587d17a8f96e6753d",
       "src": "a40b6b31eb6a9ef6754187c8b47e5f92303478f42b1f710a36baa01b64177079"
     },
-    "settings.summary.hours.needsHours": {
-      "by": "ai",
-      "out": "51e852eb396c76ade6ef909798b5640bf0f5ffa26447d286d5527c44dada8c93",
-      "src": "7bc38aa678bab0d9610a0383ad55d9933dc9245855852113d787f1c8d9d8c6f2"
-    },
     "settings.summary.hours.nextClosed": {
       "by": "ai",
       "out": "3eb5bab0504c21c40cda442c5f9aa98f6720dd932e5b7ffd42a889832c9d28b9",
@@ -164292,11 +164272,6 @@
       "by": "ai",
       "out": "ecd6cc6c2ae90a10fad4f333dee46b1ba8e1269dc63ce836e0f2d67edcaee8e6",
       "src": "a40b6b31eb6a9ef6754187c8b47e5f92303478f42b1f710a36baa01b64177079"
-    },
-    "settings.summary.hours.needsHours": {
-      "by": "ai",
-      "out": "f21dd21c0db5c4d849f09cb57607db83e3455632e71b0e439e75bf73ee3e975b",
-      "src": "7bc38aa678bab0d9610a0383ad55d9933dc9245855852113d787f1c8d9d8c6f2"
     },
     "settings.summary.hours.nextClosed": {
       "by": "ai",

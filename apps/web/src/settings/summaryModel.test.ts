@@ -80,10 +80,10 @@ test('hours: only closed days within 30 days, never a day opened this year', () 
   )
 })
 
-test('hours: none set needs the owner; off says so', () => {
+test('hours: none set is fine, never "Needs you"; off says so', () => {
   const none = hoursSummary({ ...hours, days: dayRows([]) })
   expect(all(none)).toBe('No business hours: Maya answers every call the same way, at any time.')
-  expect(text(none.needsYou)).toBe('Set your business hours so Maya can tell callers when you are open.')
+  expect(none.needsYou).toBeNull()
   const off = hoursSummary({ ...hours, on: false })
   expect(all(off)).toBe('Business hours are off: Maya answers every call the same way, at any time.')
   expect(off.needsYou).toBeNull()

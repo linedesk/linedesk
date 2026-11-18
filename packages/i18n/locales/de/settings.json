@@ -1277,7 +1277,6 @@
   "review.showOpen": "Offene anzeigen",
   "review.title": "Wie {name} abgeschnitten hat",
   "review.titleDefault": "Wie der Assistent abgeschnitten hat",
-  "summary.hours.needsHours": "Lege deine Öffnungszeiten fest, damit {name} Anrufern sagen kann, wann du geöffnet hast.",
   "summary.hours.nextClosed": "Nächster geschlossener Tag: <b>{date}</b>.",
   "summary.hours.nextClosedNamed": "Nächster geschlossener Tag: <b>{day}</b>, {date}.",
   "summary.hours.nextShorter": "Kürzere Öffnungszeiten am <b>{date}</b>: geöffnet {hours}.",

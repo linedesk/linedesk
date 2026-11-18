@@ -1277,7 +1277,6 @@
   "review.showOpen": "Mostrar abertas",
   "review.title": "Como {name} se saiu",
   "review.titleDefault": "Como o assistente se saiu",
-  "summary.hours.needsHours": "Defina seu horário de atendimento para que {name} possa dizer a quem ligou quando você atende.",
   "summary.hours.nextClosed": "Próximo dia fechado: <b>{date}</b>.",
   "summary.hours.nextClosedNamed": "Próximo dia fechado: <b>{day}</b>, {date}.",
   "summary.hours.nextShorter": "Horário reduzido em <b>{date}</b>: aberto {hours}.",

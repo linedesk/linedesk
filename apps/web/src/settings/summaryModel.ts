@@ -85,10 +85,8 @@ export function hoursSummary({ name, on, days, upcoming, closure, today, outside
   const next = nextClosedDay(upcoming, today)
   if (next) sentences.push(closedDaySentence(next, today))
   if (vacation && !sentences.includes(vacation)) sentences.push(vacation)
-  return {
-    sentences,
-    needsYou: groups.length ? null : { k: msg('settings.summary.hours.needsHours'), values: { name } },
-  }
+  // No business hours is a choice, not a problem: the assistant answers every call the same way (Janik, 2026-11-18).
+  return { sentences, needsYou: null }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
