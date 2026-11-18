@@ -77,6 +77,9 @@ export function sameStart(start: string, given: string, timeZone: string): boole
 
 const failure = (e: unknown) => (e instanceof ActionError ? e.message.replace(/^[\w.]+ failed \(\d+\): /, '') : 'the calendar did not answer')
 
+/** book_appointment with an address but none confirmed on this call. */
+export const ADDRESS_FIRST = 'No address was confirmed on this call. Get it with get_address, then book. Never make up an address.'
+
 export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
   const { callId } = call
   const typeName = (id: string) => call.booking?.appointmentTypes.find(t => t.id === id)?.name ?? 'appointment'
@@ -142,13 +145,16 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
     const again = bookedHere.get(start)
     if (again) return `That time is already booked on this call: ${again}. Do not book it again; tell the caller it is booked.`
     // A garbled spoken email made the whole booking fail: ask for it again, or book without it.
+    // The address is the one the caller confirmed in the address step, never the model's: after a step paused for a
+    // question, models booked a made-up one ("123 Maple Drive") and read it to the caller as booked (LIN-486).
+    if (args.address?.trim() && !log.confirmedAddress) return ADDRESS_FIRST
     if (args.email?.trim() && !z.email().safeParse(args.email.trim()).success)
       return `"${args.email}" is not a valid email address. Get it with get_email, or book without an email (then there is no confirmation email).`
     try {
       const { data } = await api.run(appointmentBook, {
         appointmentTypeId: args.appointment_type_id, calendarId: calendarOf(args.calendar_id), start, reason: args.reason,
         ...(args.caller_name?.trim() ? { callerName: args.caller_name.trim() } : {}),
-        ...(args.address ? { address: args.address } : {}), ...(args.email?.trim() ? { callerEmail: args.email.trim() } : {}), callId, ...(call.assistant ? { assistantId: call.assistant.id } : {}),
+        ...(log.confirmedAddress ? { address: log.confirmedAddress } : {}), ...(args.email?.trim() ? { callerEmail: args.email.trim() } : {}), callId, ...(call.assistant ? { assistantId: call.assistant.id } : {}),
       }, call)
       const booked = data as BookData
       const what = `${typeName(args.appointment_type_id)}, ${booked.label}`

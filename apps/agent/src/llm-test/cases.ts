@@ -1072,6 +1072,24 @@ export const CASES: Case[] = [
     severity: 'must',
   },
   {
+    id: 'booking-address-paused',
+    category: 'booking',
+    title: 'Address step paused for a question: no made-up address',
+    why: 'LIN-486: after the address step paused, models booked "123 Maple Drive" and read it to the caller as booked',
+    setup: setup({ booking: true }),
+    turns: english([
+      'My bathroom faucet keeps dripping. Could someone come Thursday morning?',
+      'Thursday at 9 works. What do you need from me?',
+      'Okay, thanks.',
+    ]),
+    sim: { steps: { get_address: { status: 'question', question: 'What else do you need from me?' } } },
+    checks: [{ type: 'notSay', pattern: /\b\d+\s+(\w+\s+){0,3}(Street|St|Drive|Dr|Avenue|Ave|Road|Rd|Lane|Ln|Way|Blvd)\b/i }],
+    judge: {
+      mustNot: ['say or confirm a street address for the visit that the caller never gave (asking the caller for the address is fine)', 'say the visit is booked at an address'],
+    },
+    severity: 'must',
+  },
+  {
     id: 'booking-estimate-email',
     category: 'booking',
     title: 'Estimate: the type asks for an email',

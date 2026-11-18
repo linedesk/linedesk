@@ -193,7 +193,7 @@ function fakeApi(setup: Setup, sim: SimOptions): ApiClient {
 }
 
 /** What the tools record on the call; only what they read back matters here. */
-export type FakeLog = { confirmedName: string | null; bookings: string[]; record: () => void }
+export type FakeLog = { confirmedName: string | null; confirmedAddress: string | null; bookings: string[]; record: () => void }
 
 /** A tool's options as LiveKit passes them, with nothing behind them: the tools only pause interruptions and nudge. */
 export function fakeToolOptions(id: string): llm.ToolOptions {
@@ -213,7 +213,7 @@ export type SimTools = {
 
 /** The real tools of a call with this setup (assistantTools in assistant-tools.ts). */
 export function buildTools(setup: Setup, sim: SimOptions = {}): SimTools {
-  const log: FakeLog = { confirmedName: null, bookings: [], record() {} }
+  const log: FakeLog = { confirmedName: null, confirmedAddress: null, bookings: [], record() {} }
   const urgent = { flagged: false }
   const call = {
     callId: 'call_llm_test',

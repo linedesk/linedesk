@@ -212,6 +212,7 @@ export async function runCall(
     if (isCollectTool(name)) {
       const { result, value } = stepResult(name, sim.steps?.[name], setup)
       if (name === 'get_name' && value) log.confirmedName = value
+      if (name === 'get_address' && value) log.confirmedAddress = value
       return { result: record(result, args), next: true }
     }
     if (name === 'transfer_call') {

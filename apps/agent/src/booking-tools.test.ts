@@ -1,7 +1,7 @@
 import type { BookingContext } from '@linedesk/actions'
 import { expect, test } from 'vitest'
 import { ActionError, type ApiClient } from './api-client.ts'
-import { bookingTools, MAX_DESCRIBE_ATTEMPTS, sameStart, spreadSlots } from './booking-tools.ts'
+import { ADDRESS_FIRST, bookingTools, MAX_DESCRIBE_ATTEMPTS, sameStart, spreadSlots } from './booking-tools.ts'
 import { CallLog } from './call-log.ts'
 import type { CallSession } from './call-session.ts'
 import { buildInstructions, CHANGE_BOOKING_INSTRUCTIONS, calendarLine, typeLine } from './prompt.ts'
@@ -500,4 +500,30 @@ test('the booking rules: one short way to book, and the two costly mistakes kept
   expect(prompt).not.toMatch(
     /Never make up a free time|pass it to book_appointment|Always confirm the day and time out loud/,
   )
+})
+
+test('the address booked is the one the caller confirmed in the address step, never one the model wrote (LIN-486)', async () => {
+  const call = session()
+  const log = new CallLog(call)
+  const api = offering(() => ({ bookingId: 'bk_1', start: '2026-11-17T17:00:00.000Z', end: '', label: 'Tuesday', calendarName: 'Mike' }))
+  const tools = bookingTools(api, call, log)
+  await tools.findSlots(search)
+  const visit = { ...search, start: 's1', caller_name: 'Pat Lee', reason: 'Dripping faucet' }
+  // The address step paused for a question; the model filled in a placeholder.
+  expect(await tools.book({ ...visit, address: '123 Maple Drive' })).toBe(ADDRESS_FIRST)
+  expect(api.sent.map(([name]) => name)).toEqual(['calendar.findSlots'])
+  log.confirmedAddress = '220 Northeast Alberta Street, Portland, OR 97211'
+  await tools.book({ ...visit, address: '220 NE Alberta St' })
+  expect(api.sent[1]![1]).toMatchObject({ address: '220 Northeast Alberta Street, Portland, OR 97211' })
+})
+
+test('a confirmed address goes with the booking also when the model leaves it out', async () => {
+  const call = session()
+  const log = new CallLog(call)
+  log.confirmedAddress = '88 Northeast Fremont Street, Portland, OR'
+  const api = offering(() => ({ bookingId: 'bk_1', start: '2026-11-17T17:00:00.000Z', end: '', label: 'Tuesday', calendarName: 'Mike' }))
+  const tools = bookingTools(api, call, log)
+  await tools.findSlots(search)
+  await tools.book({ ...search, start: 's1', caller_name: 'Pat Lee', reason: 'Gas smell', address: null })
+  expect(api.sent[1]![1]).toMatchObject({ address: '88 Northeast Fremont Street, Portland, OR' })
 })

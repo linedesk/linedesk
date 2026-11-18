@@ -72,6 +72,7 @@ async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, colle
     })
     ctx.log.record('system', outcomeEvent(outcome))
     if (collector.kind === 'name' && outcome.status === 'confirmed') ctx.log.confirmedName = outcome.value
+    if (collector.kind === 'address' && outcome.status === 'confirmed') ctx.log.confirmedAddress = outcome.value
     if (collector.kind === 'phone_number' && outcome.status === 'confirmed') ctx.log.confirmedNumbers.push(outcome.value)
     // What the summary writes the team's next step from (there is no tool to save a message during the call).
     if (outcome.status === 'confirmed') ctx.log.details.push({ label: outcome.label, value: outcome.value, confirmed: true })

@@ -50,6 +50,8 @@ export class CallLog {
   onHold = false
   /** The caller's name as they confirmed it in the name step (get_name): bookings go under it. */
   confirmedName: string | undefined
+  /** The address the caller confirmed in the address step (get_address): the only one a booking takes. */
+  confirmedAddress: string | undefined
   /** Phone numbers the caller confirmed with get_phone_number (E.164): the only ones the team gets besides caller ID. */
   readonly confirmedNumbers: string[] = []
   /** What the collection steps got, confirmed or a best guess: the summary takes the team's next step from these. */
