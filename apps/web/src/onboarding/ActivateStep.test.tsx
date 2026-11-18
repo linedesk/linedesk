@@ -23,7 +23,9 @@ const activation: Activation = {
   includedMinutes: 50,
   standardMicrosPerMinute: 50_000,
   prices: {
+    includedNumbers: 1,
     includedMinutes: 50,
+    includedCalls: 5,
     standardMicrosPerMinute: 50_000,
     premiumMicrosPerMinute: 100_000,
     ultraMicrosPerMinute: 200_000,
@@ -45,10 +47,10 @@ const text = (a: Activation) =>
 
 test('the price a minute in cents, the plan and the timeline next to Start free trial; no terms again', () => {
   const page = text(activation)
-  // The plan card: the trial as a quiet badge, the price a month, what is included, the conditions in one grey line.
-  expect(page).toContain('14 days free $11 a month per workspace')
+  // The plan card: the trial as the headline, the price after it, what is included, the conditions in one grey line.
+  expect(page).toContain('14 days free Then $11 a month per workspace')
   expect(page).toContain(
-    '50 call minutes included per workspace each month Then 5¢ a minute Plus tax where it applies. See all prices',
+    'A phone number 50 call minutes each month, then 5¢ a minute 5 calls at the same time Plus tax where it applies. See all details',
   )
   expect(page).not.toContain('$0.05')
   // Billed monthly: the price a month alone, no note (ui/price.tsx).
@@ -57,7 +59,7 @@ test('the price a minute in cents, the plan and the timeline next to Start free 
   expect(page.match(/Reminder email/g)).toHaveLength(1)
   expect(page).toContain('Reminder emails 7 days and 1 day before')
   expect(page).toMatch(/Day 15, \w{3} \d{1,2} First charge \$11\. Cancel any time before/)
-  // Activation never turns auto-recharge on (2026-11-17): only "See all prices" says it is off, no call credit charge.
+  // Activation never turns auto-recharge on (2026-11-17): only "See all details" says it is off, no call credit charge.
   expect(page.match(/recharge/gi)).toEqual(['recharge'])
   expect(page).toContain('Auto-recharge is off until you turn it on.')
   expect(page).not.toMatch(/call balance|\$25/i)
@@ -72,20 +74,20 @@ test('the price a minute in cents, the plan and the timeline next to Start free 
   expect(page).toContain('Start free trial')
 })
 
-test('the shared plan card (ui/PlanCard.tsx) with "See all prices", closed; none from an older server', () => {
+test('the shared plan card (ui/PlanCard.tsx) with "See all details", closed; none from an older server', () => {
   const html = renderToStaticMarkup(<ActivateStep me={me(activation)} onBack={() => {}} onTermsChanged={() => {}} />)
   expect(html).toContain('<div class="plan-card">')
   expect(html).toMatch(/<details class="plan-card-all"><summary>/)
   expect(html).not.toMatch(/<details[^>]* open/)
-  expect(text({ ...activation, prices: undefined })).not.toContain('See all prices')
+  expect(text({ ...activation, prices: undefined })).not.toContain('See all details')
 })
 
 test('after a refused trial, Start my plan asks no terms either', () => {
   const page = text({ ...activation, trialDays: null, firstChargeAt: null, reminderDays: [] })
   expect(page).toContain('Start my plan')
-  // No trial: no "days free" badge.
-  expect(page).not.toMatch(/days free/)
-  expect(page).toContain('$11 a month per workspace')
+  // No trial: no "days free"; the price is the headline again, the same included rows.
+  expect(page).not.toMatch(/days free|Then \$11/)
+  expect(page).toContain('$11 a month per workspace A phone number')
   expect(page).not.toMatch(/By clicking|Terms of Service|Privacy Policy/)
   expect(page).not.toMatch(/renews|until you cancel/i)
 })
@@ -139,11 +141,11 @@ describe('starting', () => {
 test('a Premium-priced plan says 10¢; a sub-cent price stays in dollars', () => {
   const rate = (standardMicrosPerMinute: number) =>
     text({ ...activation, prices: { ...activation.prices!, standardMicrosPerMinute } })
-  expect(rate(100_000)).toContain('Then 10¢ a minute')
-  expect(rate(8_500)).toContain('Then $0.0085 a minute')
+  expect(rate(100_000)).toContain('then 10¢ a minute')
+  expect(rate(8_500)).toContain('then $0.0085 a minute')
 })
 
-test('a yearly plan leads with the price a month, its total in the grey note under it and at the first charge', () => {
+test('a yearly plan: the price a month after "14 days free", its total in the grey note under it and at the first charge', () => {
   const html = renderToStaticMarkup(
     <ActivateStep
       me={me({ ...activation, interval: 'year', planCents: 10800 })}
@@ -152,7 +154,7 @@ test('a yearly plan leads with the price a month, its total in the grey note und
     />,
   )
   expect(html).toContain(
-    '<b><span class="plan-card-price">$9 a month</span> <span class="plan-card-unit">per workspace</span></b><span class="help">$108 billed yearly</span>',
+    '<span class="plan-card-price">14 days free</span><div class="price-line"><b><span class="plan-card-then">Then $9 a month per workspace</span></b><span class="help">$108 billed yearly</span></div>',
   )
   const page = text({ ...activation, interval: 'year', planCents: 10800 })
   expect(page.match(/\$108/g)).toHaveLength(2)
@@ -168,7 +170,7 @@ test('calls at the same time (LIN-450): picked on the pick-up step; here one qui
     removeItem: (k: string) => stored.delete(k),
   })
   try {
-    // None picked: no extra calls line (only "See all prices" lists the add-on), and no picker on this step.
+    // None picked: no extra calls line (only "See all details" lists the add-on), and no picker on this step.
     expect(text({ ...activation, calls })).not.toContain('calls at the same time:')
     stored.set('linedesk.activation.extraCalls.ws_1', '5')
     const page = text({ ...activation, calls })

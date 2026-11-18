@@ -327,8 +327,6 @@
   "billing.plan.comped": "Kostenlos · {count, plural, one {# Workspace} other {# Workspaces}}",
   "billing.plan.compedPartner": "Kostenlos · {count, plural, =0 {noch keine Kunden-Workspaces} one {# Kunden-Workspace} other {# Kunden-Workspaces}}",
   "billing.plan.ends": "Du hast gekündigt. Der Tarif endet am {date}; es wird nichts mehr abgebucht.",
-  "billing.plan.numbers": "Jeder Workspace enthält eine Telefonnummer. Zusätzliche Nummern kosten je {price} pro Monat und werden von deinem Guthaben bezahlt.",
-  "billing.plan.numbersPartner": "Jeder Kunden-Workspace enthält eine Telefonnummer. Zusätzliche Nummern kosten je {price} pro Monat und werden von deinem Guthaben bezahlt.",
   "billing.plan.renews": "Wird am {date} verlängert.",
   "billing.plan.resumed": "Dein Tarif läuft weiter",
   "billing.plan.taxAddressMissing": "Füge deine Rechnungsadresse unter „Karte und Rechnungen“ hinzu, damit die Steuer berechnet werden kann. Bis dahin werden Aufladungen ohne Steuer abgebucht.",

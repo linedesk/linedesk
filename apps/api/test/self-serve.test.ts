@@ -1065,9 +1065,12 @@ describe('while pending_payment', () => {
     })
     const firstCharge = Date.parse(me.body.workspace.activation.firstChargeAt)
     expect(Math.abs(firstCharge - (Date.now() + 14 * DAY))).toBeLessThan(60_000)
-    // "See all prices": Premium a minute, Ultra only with a realtime provider set up (none here), an extra number.
+    // The plan card's included number, minutes and calls at the same time per workspace; "See all details": Premium a
+    // minute, Ultra only with a realtime provider set up (none here), an extra number.
     expect(me.body.workspace.activation.prices).toEqual({
+      includedNumbers: 1,
       includedMinutes: 50,
+      includedCalls: 5,
       standardMicrosPerMinute: 50_000,
       premiumMicrosPerMinute: 100_000,
       ultraMicrosPerMinute: null,

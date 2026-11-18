@@ -74,8 +74,8 @@ export type Activation = {
    */
   calls?: { included: number; step: number; maxExtra: number; extraCallCents: number }
   /**
-   * The install's prices for the shared plan card (ui/PlanCard.tsx). Absent from an older server: no value rows and no
-   * "See all prices".
+   * The install's prices for the shared plan card (ui/PlanCard.tsx). Absent from an older server: no included rows and no
+   * "See all details".
    */
   prices?: PlanPrices
   terms: LegalTerms | null

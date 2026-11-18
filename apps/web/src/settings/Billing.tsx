@@ -354,7 +354,6 @@ function BillFacts({
   date: (iso: string) => string
 }) {
   const t = useT()
-  const format = useFormat()
   const partner = bill.kind === 'partner'
   return (
     <div className="billing-plan">
@@ -373,15 +372,6 @@ function BillFacts({
         </span>
       )}
       {bill.taxAddressMissing && <span className="help">{t('settings.billing.plan.taxAddressMissing')}</span>}
-      {bill.extraNumberCents > 0 && (
-        <span className="help">
-          {t(partner ? 'settings.billing.plan.numbersPartner' : 'settings.billing.plan.numbers', {
-            price: format.currency(centsToDollars(bill.extraNumberCents), 'USD', {
-              minimumFractionDigits: bill.extraNumberCents % 100 ? 2 : 0,
-            }),
-          })}
-        </span>
-      )}
     </div>
   )
 }
@@ -412,7 +402,7 @@ function BillPlan({
   const partner = bill.kind === 'partner'
   const note = stateNote(state, date, partner)
   // The shared plan card (ui/PlanCard.tsx): the price a month leads, a yearly plan's total is the grey note under it
-  // (ui/price.tsx), the same value rows, tax line and "See all prices" as the activation steps.
+  // (ui/price.tsx), the same included rows, tax line and "See all details" as the activation steps.
   const pays = paysCharges(bill)
   const planPrice = usePlanPrice()
   const clientCents = bill.clientSeatCents ?? 0
@@ -465,9 +455,10 @@ function BillPlan({
           unit={unit}
           note={planNote}
           prices={bill.prices}
-          perClient={partner}
+          each={partner ? 'client' : bill.workspaces > 1 ? 'workspace' : null}
           calls={partner ? null : bill.calls}
           tax={bill.taxed}
+          autoRecharge={bill.autoRecharge.on}
         >
           <BillFacts bill={bill} line={line} date={date} />
         </PlanCard>

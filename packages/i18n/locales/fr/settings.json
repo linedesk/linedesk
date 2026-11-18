@@ -327,8 +327,6 @@
   "billing.plan.comped": "Gratuit · {count, plural, one {# espace de travail} many {# espaces de travail} other {# espaces de travail}}",
   "billing.plan.compedPartner": "Gratuit · {count, plural, =0 {pas encore d'espace de travail client} one {# espace de travail client} many {# espaces de travail clients} other {# espaces de travail clients}}",
   "billing.plan.ends": "Vous avez résilié. Le forfait prend fin le {date} ; plus rien n'est débité.",
-  "billing.plan.numbers": "Chaque espace de travail inclut un numéro de téléphone. Les numéros supplémentaires coûtent {price} par mois chacun, payés avec votre solde.",
-  "billing.plan.numbersPartner": "Chaque espace de travail client inclut un numéro de téléphone. Les numéros supplémentaires coûtent {price} par mois chacun, payés avec votre solde.",
   "billing.plan.renews": "Renouvellement le {date}.",
   "billing.plan.resumed": "Votre forfait continue",
   "billing.plan.taxAddressMissing": "Ajoutez votre adresse de facturation dans Carte et factures pour que la taxe puisse être calculée. D'ici là, les recharges sont débitées sans taxe.",

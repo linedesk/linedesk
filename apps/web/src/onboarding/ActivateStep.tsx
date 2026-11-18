@@ -146,10 +146,10 @@ export function ActivatePlan({ activation: a, trial: s }: { activation: Activati
   const timeline = activationTimeline(a, now)
   return (
     <>
-      {/* The shared plan card (ui/PlanCard.tsx): the value first, the conditions in one grey line; the dates,
+      {/* The shared plan card (ui/PlanCard.tsx): "14 days free" first, the price after it; the dates,
           reminders and cancelling are the timeline's, not repeated there. */}
       <PlanCard
-        badge={s.trial && a.trialDays ? t('common.plan.trialBadge', { days: a.trialDays }) : null}
+        trialDays={s.trial ? a.trialDays : null}
         price={planPrice(prices.perMonth(a.planCents, a.interval))}
         unit={t('common.plan.perWorkspace')}
         note={prices.yearNote(a.planCents, a.interval)}

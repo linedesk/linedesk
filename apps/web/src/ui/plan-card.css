@@ -30,9 +30,31 @@
   color: var(--ink);
   letter-spacing: -0.01em;
 }
+/* With a trial: "14 days free" leads, the price after it in one readable line under it. */
+.plan-card-head {
+  display: grid;
+  gap: 2px;
+}
+.plan-card-then {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+  color: var(--ink);
+}
 .plan-card-unit {
   font-size: 13px;
   font-weight: 400;
+  color: var(--ink-muted);
+}
+/* What the plan includes, with one small label where the bill has several workspaces. */
+.plan-card-includes {
+  display: grid;
+  gap: 6px;
+  margin-top: 2px;
+}
+.plan-card-each {
+  font-size: 12.5px;
+  line-height: 17px;
   color: var(--ink-muted);
 }
 .plan-card-values {
@@ -61,7 +83,7 @@
   line-height: 17px;
   color: var(--ink-muted);
 }
-/* "See all prices": closed by default. */
+/* "See all details": closed by default. */
 .plan-card-all {
   border-top: 1px solid var(--line);
   padding-top: 10px;

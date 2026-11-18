@@ -33,12 +33,13 @@ import {
   card_fingerprints,
   EXTRA_CALLS_LOOKUP_PREFIX,
   EXTRA_CALLS_STEP,
+  INCLUDED_NUMBERS_PER_WORKSPACE,
   maxExtraCalls,
   minutesPromptFor,
   organization,
+  type PlanPrices,
   partners,
   phone_numbers,
-  type PlanPrices,
   planPrice,
   rechargeCapCents,
   type TRIAL_REFUSALS,
@@ -447,14 +448,16 @@ export async function activationFacts(tx: Tx, bill: Bill, rules: BillingRules, n
 }
 
 /**
- * The install's prices the plan card shows (ui/PlanCard.tsx): the included minutes and the price a minute of each level
- * the server admin has on (call-quality.ts `enabledLevels`), and an extra number. `comped`: a bill that pays nothing
- * for its numbers.
+ * The install's prices the plan card shows (ui/PlanCard.tsx): the included number, minutes and calls at the same time
+ * per workspace, the price a minute of each level the server admin has on (call-quality.ts `enabledLevels`), and an
+ * extra number. `comped`: a bill that pays nothing for its numbers.
  */
 export async function planPrices(tx: Tx, rules: BillingRules, { comped = false } = {}): Promise<PlanPrices> {
   const levels = await enabledLevels(tx)
   return {
+    includedNumbers: INCLUDED_NUMBERS_PER_WORKSPACE,
     includedMinutes: Math.floor(rules.includedStandardSeconds / 60),
+    includedCalls: rules.concurrentCallsPerWorkspace,
     standardMicrosPerMinute: rules.levels.standard.microsPerMinute,
     premiumMicrosPerMinute: levels.premium ? rules.levels.premium.microsPerMinute : null,
     ultraMicrosPerMinute: levels.ultra ? rules.levels.ultra.microsPerMinute : null,

@@ -103,8 +103,8 @@ export function PartnerPrice({
 /**
  * What Activate costs with these drafts, in the shared plan card (ui/PlanCard.tsx): the price a month first ("$14 a
  * month", "+ $9 a month × 2 client workspaces" next to it), what Checkout charges right after as the grey note ("$384
- * billed yearly, charged today"), the included minutes per client workspace and the price a minute after them, the
- * tax line and "See all prices". No trial for a partner, so no badge.
+ * billed yearly, charged today"), what each client workspace includes, the tax line and "See all details". No trial
+ * for a partner, so the price leads.
  */
 export function PartnerTotal({
   price,
@@ -130,7 +130,7 @@ export function PartnerTotal({
         { total },
       )}
       prices={prices}
-      perClient
+      each="client"
     />
   )
 }

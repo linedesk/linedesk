@@ -327,8 +327,6 @@
   "billing.plan.comped": "無料・{count, plural, other {#ワークスペース}}",
   "billing.plan.compedPartner": "無料・{count, plural, =0 {クライアントのワークスペースはまだありません} other {クライアントのワークスペース#件}}",
   "billing.plan.ends": "解約済みです。プランは{date}に終了し、これ以上の請求はありません。",
-  "billing.plan.numbers": "各ワークスペースには電話番号が1つ含まれます。追加の番号は1つにつき月額{price}で、残高から支払われます。",
-  "billing.plan.numbersPartner": "各クライアントのワークスペースには電話番号が1つ含まれます。追加の番号は1つにつき月額{price}で、残高から支払われます。",
   "billing.plan.renews": "{date}に更新されます。",
   "billing.plan.resumed": "プランは継続されます",
   "billing.plan.taxAddressMissing": "税金を計算できるよう、「カードと請求書」で請求先住所を追加してください。それまでは、チャージは税抜きで請求されます。",

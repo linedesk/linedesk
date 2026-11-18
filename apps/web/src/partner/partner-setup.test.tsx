@@ -17,7 +17,9 @@ import {
 
 const price = { interval: 'year' as const, planCents: 1400, seatCents: 900 }
 const prices = {
+  includedNumbers: 1,
   includedMinutes: 50,
+  includedCalls: 5,
   standardMicrosPerMinute: 50_000,
   premiumMicrosPerMinute: 100_000,
   ultraMicrosPerMinute: 200_000,
@@ -101,11 +103,12 @@ test('Activate: the shared plan card, the price a month leads, what Checkout cha
   expect(totalHtml('month', 1)).toContain(
     '+ $9 a month × 1 client workspace</span></b><span class="help">$23 charged today, then every month</span>',
   )
-  // No trial for a partner: no badge; the value rows per client workspace and "See all prices", as everywhere.
+  // No trial for a partner: the price leads; what each client workspace includes and "See all details", as everywhere.
   const html = totalHtml('year', 2)
   expect(html).not.toContain('days free')
-  expect(html).toContain('50 call minutes included per client workspace each month')
-  expect(html).toContain('See all prices')
+  expect(html).toContain('Each client workspace includes:')
+  expect(html).toContain('50 call minutes each month, then 5¢ a minute')
+  expect(html).toContain('See all details')
 })
 
 const activateHtml = (clients: number) =>

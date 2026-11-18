@@ -69,7 +69,9 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
   heldForReview: false,
   extraNumberCents: 300,
   prices: {
+    includedNumbers: 1,
     includedMinutes: 50,
+    includedCalls: 5,
     standardMicrosPerMinute: 50_000,
     premiumMicrosPerMinute: 100_000,
     ultraMicrosPerMinute: 200_000,
@@ -134,11 +136,16 @@ const primaries = (html: string) => (html.match(/k-btn-primary/g) ?? []).length
 
 test('a running plan: price, renewal, balance, usage, invoices, Buy minutes as the one primary button, Cancel plan', () => {
   const html = render({ billingOn: true, bill: bill() })
-  // The shared plan card (ui/PlanCard.tsx): the price a month, its unit, the value rows, then the bill's own facts.
+  // The shared plan card (ui/PlanCard.tsx): the price a month, its unit, the included rows (one workspace: no label),
+  // then the bill's own facts.
   expect(html).toContain(
     '<b><span class="plan-card-price">$11 a month</span> <span class="plan-card-unit">per workspace</span></b>',
   )
-  expect(html).toContain('50 call minutes included per workspace each month')
+  expect(html).toContain('50 call minutes each month, then 5¢ a minute')
+  expect(html).toContain('A phone number')
+  expect(html).toContain('5 calls at the same time')
+  expect(html).not.toContain('Each workspace includes:')
+  expect(html).not.toContain('days free')
   expect(html).toContain('1 workspace on this plan')
   expect(html).toMatch(/<details class="plan-card-all"><summary>/)
   // Billed monthly: no yearly note.
@@ -153,6 +160,19 @@ test('a running plan: price, renewal, balance, usage, invoices, Buy minutes as t
   expect(html).toContain('Cancel plan')
   expect(html).toContain('Card and invoices')
   expect(primaries(html)).toBe(1)
+})
+
+test('several workspaces: "Each workspace includes:" once above the included rows; auto-recharge as the bill has it', () => {
+  const one = render({ billingOn: true, bill: bill() })
+  expect(one).not.toContain('Each workspace includes:')
+  const three = render({ billingOn: true, bill: bill({ workspaces: 3 }) })
+  expect(three.match(/Each workspace includes:/g)).toHaveLength(1)
+  expect(three).toContain('3 workspaces on this plan')
+  // The details say what the bill does: auto-recharge on, or off until turned on.
+  const on = render({ billingOn: true, bill: bill({ autoRecharge: { ...bill().autoRecharge, on: true } }) })
+  expect(on).toContain('Extra minutes and numbers are paid from your balance. Auto-recharge is on.')
+  const off = render({ billingOn: true, bill: bill({ autoRecharge: { ...bill().autoRecharge, on: false } }) })
+  expect(off).toContain('Auto-recharge is off until you turn it on.')
 })
 
 test('with Stripe Tax on: prices are before tax, auto-recharge says tax is added, an invoice shows its tax (LIN-459)', () => {
@@ -390,13 +410,16 @@ test('a comped bill: free of charge, no price, no balance to top up and no auto-
   expect(html).not.toContain('$11')
   expect(html).not.toContain('Recharge automatically')
   expect(html).not.toContain('Buy minutes')
-  expect(html).not.toContain('Extra numbers are')
+  expect(html).not.toContain('Extra phone numbers')
   expect(html).toContain('Usage this period')
 })
 
-test('the price of an extra number, and a recharge on its way', () => {
+test('the price of an extra number once, in "See all details", and a recharge on its way', () => {
   const html = render({ billingOn: true, bill: bill({ rechargePending: { amountCents: 2000 } }) })
-  expect(html).toContain('Extra numbers are $3 a month each, paid from your balance.')
+  // The included number is the card's row; what more cost is in "See all details", not again under the card.
+  expect(html.match(/\$3 a month/g)).toHaveLength(1)
+  expect(html).toContain('Extra phone numbers')
+  expect(html).not.toContain('includes one phone number')
   expect(html).toContain('A recharge of $20.00 is being charged to your card.')
 })
 
@@ -468,7 +491,8 @@ test("a partner bill: the partner plan's base fee, then its client workspaces on
   expect(yearly).toContain(
     '<b><span class="plan-card-price">$14 a month</span> <span class="plan-card-unit">+ $9 a month × 1 client workspace</span></b><span class="help">$276 billed yearly</span>',
   )
-  expect(yearly).toContain('50 call minutes included per client workspace each month')
+  expect(yearly).toContain('Each client workspace includes:')
+  expect(yearly).toContain('50 call minutes each month, then 5¢ a minute')
   // Before the first Checkout: no status badge ("Waiting for a card"), UI audit P3.
   expect(yearly).not.toContain('Waiting for a card')
   expect(yearly).not.toContain('per workspace each')
@@ -487,7 +511,7 @@ test('a partner bill speaks of client workspaces: numbers, calls at the same tim
     bill({ kind: 'partner', seatCents: 1900, clientSeatCents: 1100, ...over })
   // One client workspace: its row is named, never "Your assistant answers".
   const html = render({ billingOn: true, bill: partner() })
-  expect(html).toContain('Each client workspace includes one phone number. Extra numbers are $3 a month each')
+  expect(html).toContain('Each client workspace includes:')
   expect(html).not.toContain('Each workspace includes')
   expect(html).toContain('5 calls at the same time are included in each client workspace; 5 more cost $5 a month.')
   expect(html).toContain('the next caller hears that the business will call back, and the call is filed as missed.')
@@ -533,7 +557,7 @@ test('a partner bill speaks of client workspaces: numbers, calls at the same tim
   expect(cancel).not.toContain('Your numbers')
   // A Cloud bill keeps its own words.
   const cloud = render({ billingOn: true, bill: bill() })
-  expect(cloud).toContain('Each workspace includes one phone number.')
+  expect(cloud).toContain('A phone number')
   expect(cloud).toContain('Your assistant answers')
   expect(cloud).toContain('included in each workspace;')
   expect(renderToStaticMarkup(<CancelDialog bill={bill()} onClose={() => {}} toast={() => {}} />)).toContain(
@@ -627,7 +651,7 @@ test('calls at the same time in the trial: more only once the plan is paid; seve
   expect(html).toContain('Brightwater North')
   // The numbers once each: the rows say what is included, the note what more cost; the card's line only the busy line.
   expect(html).not.toContain('are included in each workspace')
-  // Once in the calls section, once in the plan card's "See all prices" (5 more calls at the same time).
+  // Once in the calls section, once in the plan card's "See all details" (5 more calls at the same time).
   expect(html.match(/\$5 a month/g)).toHaveLength(2)
   expect(html).toContain('When all lines are busy, the next caller hears')
 })

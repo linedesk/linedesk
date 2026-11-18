@@ -785,9 +785,12 @@ describe('the partner bill (S2)', () => {
       mine: true,
       // What White-label Cloud and each client workspace cost a month at the bill's interval (the Activate note).
       price: { interval: 'month', planCents: expect.any(Number), seatCents: expect.any(Number) },
-      // The plan card's prices (ui/PlanCard.tsx): included minutes per client workspace, the levels, an extra number.
+      // The plan card's prices (ui/PlanCard.tsx): per client workspace the included number, minutes and calls at the
+      // same time, the levels, an extra number.
       prices: {
+        includedNumbers: 1,
         includedMinutes: 50,
+        includedCalls: 5,
         standardMicrosPerMinute: 50_000,
         premiumMicrosPerMinute: 100_000,
         ultraMicrosPerMinute: null,

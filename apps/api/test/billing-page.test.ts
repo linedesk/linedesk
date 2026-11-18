@@ -909,7 +909,9 @@ describe('what the customer reads about the bill (billing tour, G3)', () => {
       extraNumberCents: 300,
       // The plan card's prices (ui/PlanCard.tsx), the same facts as on the activation step.
       prices: {
+        includedNumbers: 1,
         includedMinutes: 50,
+        includedCalls: 5,
         standardMicrosPerMinute: 50_000,
         premiumMicrosPerMinute: 100_000,
         extraNumberCents: 300,

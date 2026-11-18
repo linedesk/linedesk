@@ -94,7 +94,9 @@ const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => (
   heldForReview: false,
   extraNumberCents: 300,
   prices: {
+    includedNumbers: 1,
     includedMinutes: 50,
+    includedCalls: 5,
     standardMicrosPerMinute: 50_000,
     premiumMicrosPerMinute: 100_000,
     ultraMicrosPerMinute: 200_000,

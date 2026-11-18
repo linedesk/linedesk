@@ -327,8 +327,6 @@
   "billing.plan.comped": "Free of charge · {count, plural, one {# workspace} other {# workspaces}}",
   "billing.plan.compedPartner": "Free of charge · {count, plural, =0 {no client workspaces yet} one {# client workspace} other {# client workspaces}}",
   "billing.plan.ends": "You canceled. The plan ends on {date}; nothing more is charged.",
-  "billing.plan.numbers": "Each workspace includes one phone number. Extra numbers are {price} a month each, paid from your balance.",
-  "billing.plan.numbersPartner": "Each client workspace includes one phone number. Extra numbers are {price} a month each, paid from your balance.",
   "billing.plan.renews": "Renews on {date}.",
   "billing.plan.resumed": "Your plan continues",
   "billing.plan.taxAddressMissing": "Add your billing address under Card and invoices so tax can be worked out. Until then, recharges are charged without tax.",

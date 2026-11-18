@@ -6,7 +6,9 @@ import { clientsFrozen, roomForClient, unpaidPartner } from './PartnerArea.tsx'
 
 const price = { interval: 'year' as const, planCents: 1400, seatCents: 900 }
 const prices = {
+  includedNumbers: 1,
   includedMinutes: 50,
+  includedCalls: 5,
   standardMicrosPerMinute: 50_000,
   premiumMicrosPerMinute: 100_000,
   ultraMicrosPerMinute: 200_000,
