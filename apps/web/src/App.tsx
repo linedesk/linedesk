@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { forgetBeyond } from './localData.ts'
 import { NoWorkspace } from './NoWorkspace.tsx'
 import { Login } from './Login.tsx'
@@ -521,9 +521,16 @@ export function App() {
           {ownerSetup ? (
             <OwnerAgentSetup
               active={{ id: session.me.workspace!.id, account: session.me.actorId }}
-              // While the onboarding is open: finish it later, as the business onboarding's "Finish later" does.
+              // Waiting for its trial: the owner starts it on the page's Start your trial row.
+              trial={
+                session.me.workspace?.billingState === 'pending_payment'
+                  ? { me: session.me, onTermsChanged: () => void refresh() }
+                  : undefined
+              }
+              // While the onboarding is open: finish it later, as the business onboarding's "Finish later" does. Not
+              // while the workspace waits for its trial: nothing to finish later before it (as in Onboarding.tsx).
               onLater={
-                settingUp
+                settingUp && session.me.workspace?.billingState !== 'pending_payment'
                   ? () => {
                       rememberOwnerByHand(session.me.workspace!.id, true)
                       setOwnerByHand(true)
@@ -589,17 +596,20 @@ function OwnerAgentSetup({
   onManual,
   onDone,
   onLater,
+  trial,
 }: {
   active: { id: string; account: string }
   onManual: () => void
   onDone: () => void
   onLater?: () => void
+  trial?: ComponentProps<typeof AgentSetup>['trial']
 }) {
   const run = useRun()
   return (
     <AgentSetup
       scope="workspace"
       active={active}
+      trial={trial}
       onManual={onManual}
       onDone={onDone}
       onLater={

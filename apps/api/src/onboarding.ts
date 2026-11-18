@@ -58,6 +58,11 @@ export type OnboardingState = {
   phone: PhoneSetupView
   businessLookup: boolean
   websiteImport: WebsiteImport
+  /**
+   * Waiting for its trial with its setup finished or set aside before (a workspace that left its partner): only the
+   * card is left, so the onboarding opens at `activate` by hand, not on the owner's agent setup page. Absent otherwise.
+   */
+  onlyCard?: true
 }
 
 export function phoneSetupView(
@@ -145,7 +150,12 @@ export async function ensureWorkspaceRows(
     await db
       .insert(assistants)
       .values(
-        newAssistant(workspaceId, businessName, await newAssistantTransfers(db, workspaceId), await newAssistantLevel(db)),
+        newAssistant(
+          workspaceId,
+          businessName,
+          await newAssistantTransfers(db, workspaceId),
+          await newAssistantLevel(db),
+        ),
       )
   if (onboardingStep)
     await db
@@ -189,6 +199,7 @@ export async function onboardingFor(actor: Actor): Promise<OnboardingState | nul
   if (resumed === 'done') return null
   return {
     step: resumed,
+    ...(activating && step === 'activate' && stored !== 'activate' ? { onlyCard: true as const } : {}),
     phone: (await phoneSetupFor(actor))!,
     businessLookup: await businessLookupOn(),
     websiteImport: await websiteImportFor(actor.workspaceId),

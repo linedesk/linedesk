@@ -1,6 +1,6 @@
 // What the admin finishes right on the agent setup page (AgentSetup.tsx), never sent into the app: the test call (the
-// same call and side panel as Settings › Assistant, TestCall.tsx) and the call forwarding (the same dialog as Settings ›
-// Phone numbers). Both act in the business's workspace, so each opens that workspace's local store on the first click,
+// same call and side panel as Settings › Assistant, TestCall.tsx), the call forwarding (the same dialog as Settings ›
+// Phone numbers) and, for a sign-up waiting for its trial, starting it (the onboarding's activation step, in a dialog). Both act in the business's workspace, so each opens that workspace's local store on the first click,
 // not with the page: most admins never need it here.
 import { msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
@@ -10,7 +10,10 @@ import { ManageNumber } from '../settings/PhoneNumbers.tsx'
 import { useTestCall } from '../settings/TestCall.tsx'
 import { TestCallPanel } from '../settings/TestCallPanel.tsx'
 import { StoreProvider, useAssistants, useRows, useStore } from '../store.tsx'
+import type { Activation, Me } from '../auth.ts'
+import { Dialog } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
+import { ActivatePlan, useStartTrial } from './ActivateStep.tsx'
 import { sectionHash } from '../ui/SettingsLayout.tsx'
 import { isForwarded, type NumberMissing, waitForForwardedNumber } from './forwarded-number.ts'
 
@@ -222,5 +225,73 @@ export function ForwardingMissing({ missing, onRetry }: { missing: NumberMissing
       )}
       <AppLink to={sectionHash('workspace', 'phone')}>{t('onboarding.rowActions.phoneNumbersLink')}</AppLink>
     </span>
+  )
+}
+
+/**
+ * "Start free trial" on the Start your trial row of the owner's agent setup page (docs/billing.md §3.2): the owner's own
+ * step, never the agent's. The same plan, timeline and terms as the onboarding's activation step, in a dialog; its button
+ * goes to Stripe Checkout, and back from it this page opens again with the number next.
+ */
+export function SetupStartTrial({ me, onTermsChanged }: { me: Me; onTermsChanged: () => void }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  const activation = me.workspace?.activation
+  if (!activation) return null
+  const label = activation.trialDays !== null ? t('onboarding.activate.startTrial') : t('onboarding.activate.startPlan')
+  return (
+    <>
+      <Button size="sm" variant="primary" title={t('onboarding.activate.cardHint')} onClick={() => setOpen(true)}>
+        {label}
+      </Button>
+      {open && (
+        <StartTrialDialog
+          me={me}
+          activation={activation}
+          onTermsChanged={onTermsChanged}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  )
+}
+
+function StartTrialDialog({
+  me,
+  activation,
+  onTermsChanged,
+  onClose,
+}: {
+  me: Me
+  activation: Activation
+  onTermsChanged: () => void
+  onClose: () => void
+}) {
+  const t = useT()
+  // Back from Checkout: this page again (the owner did not choose by hand).
+  const trial = useStartTrial(me, activation, onTermsChanged, { byHand: false })
+  return (
+    <Dialog
+      title={trial.title}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={trial.busy}>
+            {t('common.action.cancel')}
+          </Button>
+          <Button
+            variant="primary"
+            busy={trial.busy}
+            disabled={!activation.terms}
+            title={t('onboarding.activate.cardHint')}
+            onClick={() => void trial.start()}
+          >
+            {trial.label}
+          </Button>
+        </>
+      }
+    >
+      <ActivatePlan activation={activation} trial={trial} />
+    </Dialog>
   )
 }

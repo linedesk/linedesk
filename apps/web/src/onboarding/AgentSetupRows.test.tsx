@@ -21,7 +21,7 @@ const row = (
   s: Step,
   here: typeof workspace | null = workspace,
   onSwitch: ((action: ResumeAction) => void) | null = null,
-  more: Partial<Pick<Parameters<typeof StepAction>[0], 'switching' | 'resume'>> = {},
+  more: Partial<Pick<Parameters<typeof StepAction>[0], 'switching' | 'resume' | 'trial'>> = {},
 ) =>
   renderToStaticMarkup(
     <StepAction
@@ -144,4 +144,29 @@ test("a workspace owner's page names its one workspace: no dropdown, no New work
   const skeleton = renderToStaticMarkup(<ProgressSkeleton reserved={false} single />)
   expect(skeleton).not.toContain('This server')
   expect(renderToStaticMarkup(<ProgressSkeleton reserved={false} />)).toContain('This server')
+})
+
+test("Start your trial: the owner's own row once the free steps are done, never before and never without the trial", () => {
+  const activation = {
+    planCents: 1100,
+    interval: 'month',
+    trialDays: 14,
+    firstChargeAt: null,
+    reminderDays: [7, 1],
+    includedMinutes: 50,
+    standardMicrosPerMinute: 50_000,
+    terms: null,
+  }
+  const me = { workspace: { id: 'ws_1', name: 'Brightwater', activation } } as never
+  const trial = { me, onTermsChanged: () => {} }
+  expect(row(step('activate', 'admin_only'), workspace, null, { trial })).toMatch(
+    /k-btn-primary[^>]*>.*Start free trial/,
+  )
+  expect(row(step('activate', 'todo'), workspace, null, { trial })).toBe('')
+  expect(row(step('activate', 'admin_only'))).toBe('')
+  const plan = {
+    me: { workspace: { id: 'ws_1', name: 'B', activation: { ...activation, trialDays: null } } } as never,
+    onTermsChanged: () => {},
+  }
+  expect(row(step('activate', 'admin_only'), workspace, null, { trial: plan })).toContain('Start my plan')
 })

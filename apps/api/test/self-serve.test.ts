@@ -18,6 +18,7 @@ import {
   signUp,
 } from './helpers.ts'
 import {
+  agent_setup_keys,
   billing_accounts,
   billing_balances,
   commands,
@@ -35,7 +36,9 @@ import { and, count, eq, gte } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { WEB_ORIGIN } from '../src/auth.ts'
 import { noteAgentSeen } from '../src/admin-overview.ts'
+import { setupActorIn, workspaceSetupActor } from '../src/agent-setup.ts'
 import { db } from '../src/db.ts'
+import { runAction } from '../src/run-action.ts'
 import { emailSender } from '../src/email.ts'
 import { setJobQueue } from '../src/jobs.ts'
 import { setProviderKeys } from '../src/provider-settings.ts'
@@ -922,13 +925,13 @@ describe('Turnstile', () => {
 })
 
 describe('while pending_payment', () => {
-  test('no number and no agent setup link before the trial (docs/billing.md §3.2)', async () => {
+  test('no number and no forwarding check before the trial (docs/billing.md §3.2)', async () => {
     const { who, made } = await signUpThroughPage()
     const workspaceId = made.body.data.workspace.id
     const inWs = { headers: { ...who.headers, 'x-workspace-id': workspaceId } }
     for (const [name, input] of [
       ['phoneNumber.setup', { areaCode: '503', purchase: true }],
-      ['agentSetup.createWorkspaceKey', {}],
+      ['phoneNumber.checkForwarding', { phoneNumberId: 'pn_x', businessNumber: '+15035550100' }],
     ] as const)
       expect(await act(inWs, name, input)).toMatchObject({
         status: 409,
@@ -1068,6 +1071,130 @@ describe('while pending_payment', () => {
       .set({ onboarding_step: 'phone' })
       .where(eq(workspace_settings.workspace_id, workspaceId))
     expect((await request(inWs, 'GET', '/v1/me')).body.onboarding.step).toBe('activate')
+  })
+})
+
+describe("the owner's agent setup link before the trial (agent-first, 2026-11-18)", () => {
+  let rpc = 0
+  async function mcp(key: string, method: string, params: Record<string, unknown> = {}) {
+    const res = await appRequest(`/mcp/setup/${key}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        [FROM]: randomIp(),
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: ++rpc, method, params }),
+    })
+    const text = await res.text()
+    const json = text.startsWith('{')
+      ? text
+      : (text
+          .split('\n')
+          .find(l => l.startsWith('data: '))
+          ?.slice(6) ?? 'null')
+    // biome-ignore lint/suspicious/noExplicitAny: JSON-RPC bodies are asserted on in the tests
+    return { status: res.status, body: JSON.parse(json) as any }
+  }
+  const tool = (key: string, name: string, args: Record<string, unknown> = {}) =>
+    mcp(key, 'tools/call', { name, arguments: args })
+  const errorText = (res: { body: { result: { isError?: boolean; content: { text: string }[] } } }) =>
+    res.body.result.isError ? res.body.result.content[0]!.text : null
+  type Step = { id: string; state: string; how?: string[] }
+  const stepsOf = async (key: string, readOnly = true): Promise<Step[]> =>
+    (await tool(key, 'setup_status', { read_only: readOnly })).body.result.structuredContent.workspaces[0].steps
+
+  /** A sign-up waiting for Checkout and the owner's working setup link for its workspace. */
+  async function waitingWithLink() {
+    const { email, who, made } = await signUpThroughPage()
+    const workspaceId: string = made.body.data.workspace.id
+    const inWs = { headers: { ...who.headers, 'x-workspace-id': workspaceId } }
+    const link = await act(inWs, 'agentSetup.createWorkspaceKey', {})
+    expect(link.status, JSON.stringify(link.body)).toBe(200)
+    return { email, inWs, workspaceId, billId: made.body.data.billId as string, key: link.body.data.key as string }
+  }
+
+  test('the owner makes one; it reaches the free steps and no billing or provider tool', async () => {
+    const { key, workspaceId } = await waitingWithLink()
+    const names = ((await mcp(key, 'tools/list')).body.result.tools as { name: string }[]).map(t => t.name)
+    expect(names).toEqual(
+      expect.arrayContaining(['setup_status', 'workspace_updateSettings', 'assistant_update', 'notifications_update']),
+    )
+    expect(names.filter(n => /billing|checkout|provider|workspace_create|team|apiKey/i.test(n))).toEqual([])
+    const w = { workspaceId }
+    expect(errorText(await tool(key, 'workspace_rename', { ...w, name: 'Brightwater Plumbing' }))).toBeNull()
+    expect(errorText(await tool(key, 'workspace_updateSettings', { ...w, pickupMode: 'no_answer' }))).toBeNull()
+    expect(errorText(await tool(key, 'notifications_update', { ...w, email: true }))).toBeNull()
+    expect(errorText(await tool(key, 'onboarding_setStep', { ...w, step: 'notify' }))).toBeNull()
+  })
+
+  test("before the free steps are done, Start your trial waits; after them it is the owner's own row before the number", async () => {
+    const { key, workspaceId } = await waitingWithLink()
+    let steps = await stepsOf(key)
+    const ids = steps.map(s => s.id)
+    expect(ids.indexOf('activate')).toBeGreaterThan(ids.indexOf('notify'))
+    expect(ids.indexOf('activate')).toBeLessThan(ids.indexOf('phone'))
+    expect(steps.find(s => s.id === 'activate')?.state).toBe('todo')
+    // The free steps (here: the onboarding moved past them, as the agent does with onboarding_setStep).
+    expect(errorText(await tool(key, 'onboarding_setStep', { workspaceId, step: 'activate' }))).toBeNull()
+    expect(errorText(await tool(key, 'workspace_updateSettings', { workspaceId, pickupMode: 'no_answer' }))).toBeNull()
+    steps = await stepsOf(key, false)
+    expect(steps.find(s => s.id === 'activate')).toMatchObject({ state: 'admin_only' })
+    expect(steps.find(s => s.id === 'activate')!.how!.join(' ')).toMatch(/Never start it for them/)
+    const phone = steps.find(s => s.id === 'phone')!
+    expect(phone.state).toBe('todo')
+    expect(phone.how!.join(' ')).toMatch(/Opens once the owner started the trial/)
+    expect(phone.how!.join(' ')).not.toMatch(/purchase: true/)
+    // Reading the status never moved the onboarding past `activate`.
+    const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
+    expect(row?.onboarding_step).toBe('activate')
+  })
+
+  test('refused for the link while waiting: a number, a real call, going past activate, Checkout', async () => {
+    const { key, workspaceId, email } = await waitingWithLink()
+    const w = { workspaceId }
+    for (const args of [
+      { ...w, areaCode: '503', purchase: true, mode: 'new' },
+      { ...w, e164: '+15035550123', purchase: false, mode: 'new' },
+    ])
+      expect(errorText(await tool(key, 'phoneNumber_setup', args))).toContain(PENDING_PAYMENT)
+    expect(
+      errorText(
+        await tool(key, 'phoneNumber_checkForwarding', { ...w, phoneNumberId: 'pn_x', businessNumber: '+15035550100' }),
+      ),
+    ).toContain(PENDING_PAYMENT)
+    expect(errorText(await tool(key, 'phoneNumber_lookupLine', { ...w, number: '+15035550100' }))).toContain(
+      PENDING_PAYMENT,
+    )
+    for (const step of ['phone', 'done', 'skipped'])
+      expect(errorText(await tool(key, 'onboarding_setStep', { ...w, step })), step).toContain(PENDING_PAYMENT)
+    // No billing tool is offered, and the link's actor could not start Checkout (or any bill action) if one were.
+    const account = await accountOf(email)
+    const [keyRow] = await db
+      .select({ id: agent_setup_keys.id })
+      .from(agent_setup_keys)
+      .where(eq(agent_setup_keys.created_by, account!.id))
+    const asKey = await workspaceSetupActor(account!.id, keyRow!.id, workspaceId, 'owner')
+    const inWs = await setupActorIn(asKey!, workspaceId)
+    expect(inWs!.permissions).not.toContain('billing:manage')
+    for (const name of ['billing.startCheckout', 'billing.confirmCheckout', 'agentSetup.createWorkspaceKey'])
+      expect((await runAction(name, {}, inWs!)).status, name).toBe(403)
+  })
+
+  test('the link ends when the sweep deletes the sign-up, and with a disabled workspace', async () => {
+    const swept = await waitingWithLink()
+    expect((await mcp(swept.key, 'tools/list')).status).toBe(200)
+    await db
+      .update(billing_accounts)
+      .set({ created_at: new Date(Date.now() - 15 * DAY).toISOString() })
+      .where(eq(billing_accounts.id, swept.billId))
+    await sweepSignUps(db)
+    expect(await db.select().from(organization).where(eq(organization.id, swept.workspaceId))).toEqual([])
+    expect((await mcp(swept.key, 'tools/list')).status).toBe(401)
+
+    const disabled = await waitingWithLink()
+    await db.update(organization).set({ disabledAt: new Date() }).where(eq(organization.id, disabled.workspaceId))
+    expect(await mcp(disabled.key, 'tools/list')).toMatchObject({ status: 401, body: { code: 'SETUP_KEY_ENDED' } })
   })
 })
 

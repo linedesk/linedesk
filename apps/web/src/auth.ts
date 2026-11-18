@@ -49,6 +49,8 @@ export type OnboardingState = {
   phone: PhoneSetupStatus
   businessLookup?: boolean
   websiteImport?: WebsiteImport
+  /** Waiting for its trial with its setup done before (it left its partner): only the card is left (`activate`). */
+  onlyCard?: true
 }
 
 /**

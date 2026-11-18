@@ -173,5 +173,7 @@
   "api.workspaceDisabled": "this workspace is disabled",
   "api.workspaceOfDisabled": "the workspace of {label} is disabled",
   "assistant.defaultTransferName": "Owner",
+  "setupAgent.activateHow": "Only the {who} can do this: they start the free trial with their card on the setup page ({page}), on the Start your trial row. Never start it for them and never ask for card details. The phone number follows once it runs. Call setup_status with read_only: true every {seconds} seconds or when they say they started it, until this step is gone and the phone step opens.",
+  "setupAgent.phoneAfterTrial": "Opens once the {who} started the trial (the Start your trial step): until then no number can be bought or attached.",
   "signup.workspaceName": "My business"
 }

@@ -85,10 +85,20 @@ describe("a workspace owner's setup: the agent first, by hand as the alternative
     expect(due({ workspace: { id: 'ws_1', name: 'B', disabled: true } } as never)).toBe(false)
   })
 
-  it('never while the workspace waits for its trial: the setup goes by hand up to the card', () => {
+  it('also while the workspace waits for its trial: the agent first, the card on its page (2026-11-18)', () => {
     const pending = { workspace: { id: 'ws_1', name: 'B', billingState: 'pending_payment' } } as never
-    expect(due(pending)).toBe(false)
-    expect(due(pending, { hashOpen: true })).toBe(false)
+    expect(due(pending)).toBe(true)
+    expect(due(pending, { hashOpen: true })).toBe(true)
+    expect(due(pending, { byHand: true })).toBe(false)
+  })
+
+  it('not for a waiting workspace whose setup was done before (it left its partner): only the card, by hand', () => {
+    const onlyCard = {
+      workspace: { id: 'ws_1', name: 'B', billingState: 'pending_payment' },
+      onboarding: { ...onboarding, step: 'activate', onlyCard: true },
+    } as never
+    expect(due(onlyCard)).toBe(false)
+    expect(due(onlyCard, { hashOpen: true })).toBe(false)
   })
 
   it('remembers by hand per workspace in this browser, and forgets it again', () => {

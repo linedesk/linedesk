@@ -38,7 +38,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { loadAgentSetup, loadInstallSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
 import { ADMIN_INSTALL_SETUP } from '../admin/Providers.tsx'
 import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
-import type { AdminSecondFactor } from '../auth.ts'
+import type { AdminSecondFactor, Me } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
@@ -58,7 +58,7 @@ import { Select } from '../ui/controls.tsx'
 import { CopyButton } from './Frame.tsx'
 import { openInstallSetup } from './InstallSetup.tsx'
 import { clearResume, peekResume, type ResumeAction, saveResume } from './resume-after-switch.ts'
-import { type SetupWorkspace, SetupForwarding, SetupTestCall } from './SetupRowActions.tsx'
+import { type SetupWorkspace, SetupForwarding, SetupStartTrial, SetupTestCall } from './SetupRowActions.tsx'
 import { rememberManual } from './setup-choice.ts'
 import { loadWorkspaceAgentSetup } from './workspace-agent-setup.ts'
 import './agent-setup.css'
@@ -152,9 +152,25 @@ type Props = {
    * the business onboarding: what is left waits in the go-live checklist.
    */
   onLater?: () => void
+  /**
+   * With `scope="workspace"` while the workspace waits for its trial: the owner starts it on its row (the onboarding's
+   * activation step, in a dialog). `onTermsChanged`: the terms changed meanwhile, /v1/me is read again.
+   */
+  trial?: StartTrialProps
 }
 
-export function AgentSetup({ onManual, onDone, onWorkspaceReady, active, scope = 'install', change, onLater }: Props) {
+type StartTrialProps = { me: Me; onTermsChanged: () => void }
+
+export function AgentSetup({
+  onManual,
+  onDone,
+  onWorkspaceReady,
+  active,
+  scope = 'install',
+  change,
+  onLater,
+  trial,
+}: Props) {
   const t = useT()
   const owner = scope === 'workspace'
   const [state, setState] = useState<AgentSetupState | null>(null)
@@ -466,6 +482,7 @@ export function AgentSetup({ onManual, onDone, onWorkspaceReady, active, scope =
             reload={load}
             fadeIn={view.fadeIn}
             single={owner}
+            trial={trial}
           />
         ) : skeleton ? (
           <ProgressSkeleton reserved={reserved} single={owner} />
@@ -578,6 +595,7 @@ function Progress({
   reload,
   fadeIn,
   single = false,
+  trial,
 }: {
   state: AgentSetupState
   connected: boolean
@@ -588,6 +606,8 @@ function Progress({
   fadeIn: boolean
   /** A workspace owner's page: one workspace, named, with no dropdown (no switching, no new workspace). */
   single?: boolean
+  /** Waiting for the trial: the owner starts it on the Start your trial row. */
+  trial?: StartTrialProps
 }) {
   const t = useT()
   // The assistant answered a test call made here: the row shows done at once; the next read of the progress agrees.
@@ -701,7 +721,13 @@ function Progress({
                     ) : null}
                   </span>
                   <span className="as-item-label">
-                    {step.label}
+                    {step.id === 'activate'
+                      ? t(
+                          trial?.me.workspace?.activation?.trialDays === null
+                            ? 'onboarding.steps.activatePlan'
+                            : 'onboarding.steps.activate',
+                        )
+                      : step.label}
                     {step.hint && <span className="as-hint"> · {step.hint}</span>}
                   </span>
                   {step.state === 'failing' && (
@@ -716,6 +742,7 @@ function Progress({
                     assistantName={selected?.assistantName ?? t('onboarding.agentSetup.yourAssistant')}
                     onCalled={onCalled}
                     reload={reload}
+                    trial={trial}
                   />
                 </li>
               </Fragment>
@@ -724,8 +751,9 @@ function Progress({
         </div>
       ))}
       {switchError && <Note tone="danger">{switchError}</Note>}
-      {/* Before the agent has created the business there is no workspace to open: the button would bring back this page. */}
-      {(allDone || connected) && Boolean(state.progress.workspace) && (
+      {/* Before the agent has created the business there is no workspace to open: the button would bring back this page.
+          Nor while the workspace waits for its trial: the app would only show the card step, the Start your trial row. */}
+      {(allDone || connected) && Boolean(state.progress.workspace) && !trial && (
         <div>
           <Button variant={allDone ? 'primary' : 'secondary'} onClick={onDone}>
             {allDone
@@ -846,6 +874,7 @@ export function StepAction({
   assistantName,
   onCalled,
   reload,
+  trial,
 }: {
   step: AgentSetupState['progress']['steps'][number]
   /** The workspace shown, when it is the app's active workspace in this tab: the buttons act in it right here. */
@@ -862,8 +891,18 @@ export function StepAction({
   assistantName: string
   onCalled: () => void
   reload: () => Promise<void>
+  /** Waiting for the trial: "Start free trial" on its row, once the agent's free steps are done (admin_only). */
+  trial?: StartTrialProps
 }) {
   const t = useT()
+  if (step.id === 'activate') {
+    if (step.state !== 'admin_only' || !trial) return null
+    return (
+      <span className="as-item-action">
+        <SetupStartTrial me={trial.me} onTermsChanged={trial.onTermsChanged} />
+      </span>
+    )
+  }
   if (step.id === 'test_call') {
     // Also once done ("Call again"), so a call in progress keeps its panel when the row turns done.
     if (workspace)

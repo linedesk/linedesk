@@ -20,6 +20,7 @@
 // (SETUP_MCP_WORKSPACE_INSTRUCTIONS), which ask for no provider keys.
 import {
   abroadWarning,
+  english,
   type ActionDef,
   actions,
   callAudioGuideIn,
@@ -98,8 +99,9 @@ import { goLiveChecklist } from './go-live-checklist.ts'
 import { readInstallProgress } from './install-setup.ts'
 import { guard, MCP_MAX_BODY_BYTES, takeSlot, toolName } from './mcp.ts'
 import { newAssistant } from './onboarding.ts'
-import { pipelinesSetUp, providerStatus, } from './provider-settings.ts'
+import { pipelinesSetUp, providerStatus } from './provider-settings.ts'
 import { runAction } from './run-action.ts'
+import { isPendingPayment } from './self-serve.ts'
 import { setupChecklist } from './setup-checklist.ts'
 import { workspaceLocale } from './workspace-locale.ts'
 import { assistantSpokeIn } from './setup-events.ts'
@@ -623,19 +625,21 @@ function optionalSteps(groups: GroupStatus[]) {
       `Each business then connects its own account in the browser under ${webAddress()}/#integrations (a consent page, the one part an agent cannot do). Say so; it is optional.`,
     ],
   }
-  return providerGroups
-    // Billing keys decide where money goes: only an instance admin in the app sets them (billing-settings.ts).
-    .filter(g => !g.needed && !moneyGroups.has(g.id))
-    .map(spec => {
-      const group = groups.find(g => g.id === spec.id)
-      const state = group ? GROUP_STATE[group.state] : 'todo'
-      return {
-        id: spec.id,
-        ...groupText(spec.id),
-        state: group?.state === 'off' ? 'off' : state,
-        ...(group?.state === 'works' ? {} : { how: how[spec.id] ?? [] }),
-      }
-    })
+  return (
+    providerGroups
+      // Billing keys decide where money goes: only an instance admin in the app sets them (billing-settings.ts).
+      .filter(g => !g.needed && !moneyGroups.has(g.id))
+      .map(spec => {
+        const group = groups.find(g => g.id === spec.id)
+        const state = group ? GROUP_STATE[group.state] : 'todo'
+        return {
+          id: spec.id,
+          ...groupText(spec.id),
+          state: group?.state === 'off' ? 'off' : state,
+          ...(group?.state === 'works' ? {} : { how: how[spec.id] ?? [] }),
+        }
+      })
+  )
 }
 
 /** Where the install runs: on a computer or a private network, carriers cannot reach it (LOCAL_INSTALL_NOTE). */
@@ -816,24 +820,29 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
     .limit(1)
   // The "Who hears about calls?" step saves a member's notifications and its own transfer contact (id "urgent",
   // URGENT_CONTACT_ID in apps/web/src/onboarding/flow.ts).
-  const notifyDone =
-    !!notifyRow || !!assistant?.transfers.some(t => t.id === URGENT_CONTACT_ID) || past(step, 'notify')
+  const notifyDone = !!notifyRow || !!assistant?.transfers.some(t => t.id === URGENT_CONTACT_ID) || past(step, 'notify')
+  // A Linedesk Cloud sign-up waiting for its trial (docs/billing.md §3.2): the free steps first, then the owner's card
+  // (`activate`, on the setup page, never the agent's), and only then a number (refused before, self-serve.ts).
+  const waitingForTrial = await isPendingPayment(db, workspaceId)
+  const freeStepsDone = businessDone && assistantDone && pickupDone && notifyDone
   // On Ultra the assistant speaks in the realtime model's voices, not one of the voice provider's (like Assistant settings).
   const realtime = assistant?.call_quality === 'ultra' && (await pipelinesSetUp(db)).realtime
   // Onboarding in the app resumes where the agent got to (never moved back): through the registry, as the admin. The
   // one write of reading the status: bookkeeping, nothing the admin would be asked about.
   const reached =
-    phoneDone && businessDone && pickupDone
-      ? 'done'
-      : !businessDone
-        ? null
-        : !assistantDone
-          ? 'assistant'
-          : !pickupDone
-            ? 'pickup'
-            : !notifyDone
-              ? 'notify'
-              : 'phone'
+    waitingForTrial && freeStepsDone
+      ? 'activate'
+      : phoneDone && businessDone && pickupDone && !waitingForTrial
+        ? 'done'
+        : !businessDone
+          ? null
+          : !assistantDone
+            ? 'assistant'
+            : !pickupDone
+              ? 'pickup'
+              : !notifyDone
+                ? 'notify'
+                : 'phone'
   // A workspace whose owner chose "Finish later" stays so: the app does not reopen onboarding behind their back.
   if (advance && reached && step !== 'skipped' && !past(step, reached) && step !== reached)
     await runAction('onboarding.setStep', { step: reached }, actor)
@@ -885,20 +894,39 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       how: [
         `Each call is summarized by email to the ${who} (notifications_update { ${w}, email: true }).`,
         `Urgent calls can be put through to a person: ask for a mobile number and save it in the assistant's transfers (assistant_update { ${w}, assistantId, transfers }).`,
-        `Then onboarding_setStep { ${w}, step: "phone" }.`,
+        `Then onboarding_setStep { ${w}, step: "${waitingForTrial ? 'activate' : 'phone'}" }.`,
       ],
     },
+    ...(waitingForTrial
+      ? [
+          {
+            id: 'activate',
+            label: english.t('onboarding.steps.activate'),
+            // The owner's own step, once the free steps are done; the setup page shows it as a row with its button.
+            state: freeStepsDone ? 'admin_only' : 'todo',
+            how: [
+              english.t('server.setupAgent.activateHow', {
+                who,
+                page: `${webAddress()}/#setup-agent`,
+                seconds: POLL_SECONDS,
+              }),
+            ],
+          } satisfies StepBase,
+        ]
+      : []),
     {
       id: 'phone',
       label: 'A phone number for the assistant',
       state: done(phoneDone),
       // The id too: the forwarding tools need it, also while another step is next and this one has no `how`.
       detail: numbers.map(n => `${n.e164} (${n.mode}, phoneNumberId ${n.id})`).join(', ') || null,
-      how: [
-        'Ask how calls should reach the assistant: keep the business number and forward to a new Linedesk number (mode "forward_conditional", or "forward_all" for every call), or a new number of its own (mode "new"). For forwarding, forwarding_guide { workspaceId, carrier? } shows how it works for the business line\'s carrier already now, before the number exists.',
-        numberSetupHow(w, countryNamed(locale.countrySource) ? locale.resolvedCountry : null),
-        `Then onboarding_setStep { ${w}, step: "done" }.`,
-      ],
+      how: waitingForTrial
+        ? [english.t('server.setupAgent.phoneAfterTrial', { who })]
+        : [
+            'Ask how calls should reach the assistant: keep the business number and forward to a new Linedesk number (mode "forward_conditional", or "forward_all" for every call), or a new number of its own (mode "new"). For forwarding, forwarding_guide { workspaceId, carrier? } shows how it works for the business line\'s carrier already now, before the number exists.',
+            numberSetupHow(w, countryNamed(locale.countrySource) ? locale.resolvedCountry : null),
+            `Then onboarding_setStep { ${w}, step: "done" }.`,
+          ],
     },
     ...(forwarding
       ? [
@@ -972,80 +1000,89 @@ function registerTools(server: McpServer, actor: Actor) {
     async (input: { read_only?: boolean }) =>
       guard('setup_status', async () => answer(await setupStatus(actor, { advance: !input?.read_only }), actor)),
   )
-  if (serverTools) server.registerTool(
-    'providers_list',
-    {
-      description:
-        'The providers this install can use, by category (telephony, stt, llm, tts, realtime, email, sign_in, recording, transcript, business, apps; billing keys are set only in the app): their fields (name, whether secret, optional), which one is picked, which fields are set (never a value) and help text. Use the field names with provider_setKeys.',
-      inputSchema: z.object({
-        category: z
-          .enum([...categoryNames].filter(c => !moneyCategories.includes(c as ProviderCategory)) as [ProviderCategory])
-          .optional(),
-      }),
-      annotations: read,
-    },
-    async ({ category }) =>
-      guard('providers_list', async () => {
-        const status = await providerStatus(db)
-        const rows = status.providers
-          .filter(p => (!category || p.category === category) && !moneyCategories.includes(p.category))
-          .map(p => {
-            const spec = providerSpec(p.provider)
-            const fieldSpec = (field: string) =>
-              (spec.fields as Record<string, { optional?: true; hint?: string }>)[field]
-            return {
-              provider: p.provider,
-              label: p.label,
-              category: p.category,
-              picked: isMultiCategory(p.category) ? null : status.active[p.category]?.provider === p.provider,
-              fields: p.fields.map(f => ({
-                field: f.field,
-                label: f.label,
-                secret: f.secret,
-                optional: Boolean(fieldSpec(f.field)?.optional),
-                set: Boolean(f.source),
-                hint: fieldSpec(f.field)?.hint ?? null,
-              })),
-              help: providerHelp(p.provider),
-              ...(spec.category === 'sign_in' || spec.category === 'apps' ? { redirect_uris: redirectUris(p.provider) } : {}),
-            }
+  if (serverTools)
+    server.registerTool(
+      'providers_list',
+      {
+        description:
+          'The providers this install can use, by category (telephony, stt, llm, tts, realtime, email, sign_in, recording, transcript, business, apps; billing keys are set only in the app): their fields (name, whether secret, optional), which one is picked, which fields are set (never a value) and help text. Use the field names with provider_setKeys.',
+        inputSchema: z.object({
+          category: z
+            .enum(
+              [...categoryNames].filter(c => !moneyCategories.includes(c as ProviderCategory)) as [ProviderCategory],
+            )
+            .optional(),
+        }),
+        annotations: read,
+      },
+      async ({ category }) =>
+        guard('providers_list', async () => {
+          const status = await providerStatus(db)
+          const rows = status.providers
+            .filter(p => (!category || p.category === category) && !moneyCategories.includes(p.category))
+            .map(p => {
+              const spec = providerSpec(p.provider)
+              const fieldSpec = (field: string) =>
+                (spec.fields as Record<string, { optional?: true; hint?: string }>)[field]
+              return {
+                provider: p.provider,
+                label: p.label,
+                category: p.category,
+                picked: isMultiCategory(p.category) ? null : status.active[p.category]?.provider === p.provider,
+                fields: p.fields.map(f => ({
+                  field: f.field,
+                  label: f.label,
+                  secret: f.secret,
+                  optional: Boolean(fieldSpec(f.field)?.optional),
+                  set: Boolean(f.source),
+                  hint: fieldSpec(f.field)?.hint ?? null,
+                })),
+                help: providerHelp(p.provider),
+                ...(spec.category === 'sign_in' || spec.category === 'apps'
+                  ? { redirect_uris: redirectUris(p.provider) }
+                  : {}),
+              }
+            })
+          return answer({
+            categories: Object.fromEntries(categoryNames.map(c => [c, providerCategoryLabel(c)])),
+            providers: rows,
           })
-        return answer({ categories: Object.fromEntries(categoryNames.map(c => [c, providerCategoryLabel(c)])), providers: rows })
-      }),
-  )
-  if (serverTools) server.registerTool(
-    'workspace_create',
-    {
-      description: `Create a business (a workspace) with its assistant: one per business or location the admin runs (this setup link makes at most ${SETUP_LINK_WORKSPACE_CAP}). They become its owner. Ask for the name first; never make the same business twice (setup_status.workspaces lists the ones there are). Returns its id: pass it as workspaceId to the business tools, then follow setup_status. Only for businesses the admin runs themselves: a business for someone else is created in Server admin › Workspaces › New workspace with its owner's email.`,
-      inputSchema: z.object({
-        name: z.string().trim().min(1).max(80).describe("The business's name, as callers know it"),
-        timeZone: z.string().max(64).optional().describe('IANA time zone, e.g. America/Los_Angeles'),
-      }),
-    },
-    async ({ name, timeZone }) =>
-      guard('workspace_create', async () => {
-        if (/[\r\n]/.test(name)) return refusal('the name is one line')
-        // Only server admins create workspaces (workspace-creation.ts): a setup link is a server admin's.
-        if (!mayCreateWorkspace(actor)) return refusal(WORKSPACE_CREATION_CLOSED)
-        const keyId = actor.setupKeyId
-        if (!keyId) return refusal('could not create the workspace')
-        // The one path for a new workspace (workspace.create without an owner: the admin becomes its owner), logged with
-        // this link like every setup tool. A refusal is said as it is, never "internal error".
-        const made = await oneCreateAtATime(keyId, async () => {
-          // A leaked link must not fill the install with workspaces: the command log counts what it made.
-          if ((await workspacesMadeBy(db, keyId)) >= SETUP_LINK_WORKSPACE_CAP) return 'link_cap' as const
-          return runAction('workspace.create', { name, ...(timeZone ? { timeZone } : {}) }, actor)
-        })
-        if (made === 'link_cap') return refusal(SETUP_LINK_CAP_TEXT)
-        if (!made.body.ok) return refusal(made.body.error)
-        const org = (made.body.data as WorkspaceCreateData).workspace
-        return answer({
-          ok: true,
-          workspace: { id: org.id, name: org.name },
-          next: `Call setup_status, then set this workspace up with workspaceId: "${org.id}" on every business tool.`,
-        })
-      }),
-  )
+        }),
+    )
+  if (serverTools)
+    server.registerTool(
+      'workspace_create',
+      {
+        description: `Create a business (a workspace) with its assistant: one per business or location the admin runs (this setup link makes at most ${SETUP_LINK_WORKSPACE_CAP}). They become its owner. Ask for the name first; never make the same business twice (setup_status.workspaces lists the ones there are). Returns its id: pass it as workspaceId to the business tools, then follow setup_status. Only for businesses the admin runs themselves: a business for someone else is created in Server admin › Workspaces › New workspace with its owner's email.`,
+        inputSchema: z.object({
+          name: z.string().trim().min(1).max(80).describe("The business's name, as callers know it"),
+          timeZone: z.string().max(64).optional().describe('IANA time zone, e.g. America/Los_Angeles'),
+        }),
+      },
+      async ({ name, timeZone }) =>
+        guard('workspace_create', async () => {
+          if (/[\r\n]/.test(name)) return refusal('the name is one line')
+          // Only server admins create workspaces (workspace-creation.ts): a setup link is a server admin's.
+          if (!mayCreateWorkspace(actor)) return refusal(WORKSPACE_CREATION_CLOSED)
+          const keyId = actor.setupKeyId
+          if (!keyId) return refusal('could not create the workspace')
+          // The one path for a new workspace (workspace.create without an owner: the admin becomes its owner), logged with
+          // this link like every setup tool. A refusal is said as it is, never "internal error".
+          const made = await oneCreateAtATime(keyId, async () => {
+            // A leaked link must not fill the install with workspaces: the command log counts what it made.
+            if ((await workspacesMadeBy(db, keyId)) >= SETUP_LINK_WORKSPACE_CAP) return 'link_cap' as const
+            return runAction('workspace.create', { name, ...(timeZone ? { timeZone } : {}) }, actor)
+          })
+          if (made === 'link_cap') return refusal(SETUP_LINK_CAP_TEXT)
+          if (!made.body.ok) return refusal(made.body.error)
+          const org = (made.body.data as WorkspaceCreateData).workspace
+          return answer({
+            ok: true,
+            workspace: { id: org.id, name: org.name },
+            next: `Call setup_status, then set this workspace up with workspaceId: "${org.id}" on every business tool.`,
+          })
+        }),
+    )
   server.registerTool(
     'forwarding_guide',
     {
@@ -1067,7 +1104,9 @@ function registerTools(server: McpServer, actor: Actor) {
           .regex(/^[A-Za-z]{2}$/, 'a two-letter country code (ISO 3166-1 alpha-2), e.g. US or GB')
           .transform(c => c.toUpperCase())
           .optional()
-          .describe('The country the business line is in (ISO 3166-1 alpha-2, e.g. "US", "CA", "GB"); default the workspace\'s country (workspace settings, else worked out from its numbers)'),
+          .describe(
+            'The country the business line is in (ISO 3166-1 alpha-2, e.g. "US", "CA", "GB"); default the workspace\'s country (workspace settings, else worked out from its numbers)',
+          ),
         mode: z.enum(['forward_conditional', 'forward_all']).default('forward_conditional'),
         workspaceId: workspaceIdField,
       }),
@@ -1146,8 +1185,7 @@ function registerTools(server: McpServer, actor: Actor) {
   server.registerTool(
     'setup_endAccess',
     {
-      description:
-        `End your access at the end of the setup: the setup link you are using stops working at once (only this one). Call it last, after your summary to the ${who}. setup_status.wrap_up says when; with steps still open, ask the ${who} first. Every later call with this link is refused. The ${who} can make a new link at any time.`,
+      description: `End your access at the end of the setup: the setup link you are using stops working at once (only this one). Call it last, after your summary to the ${who}. setup_status.wrap_up says when; with steps still open, ask the ${who} first. Every later call with this link is refused. The ${who} can make a new link at any time.`,
       inputSchema: z.object({}),
       annotations: { destructiveHint: true, idempotentHint: true },
     },

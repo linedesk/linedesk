@@ -368,10 +368,11 @@ export const PENDING_PAYMENT = 'Start your free trial first: numbers, invitation
 /**
  * What reaches outside or costs money, refused for every caller while the workspace waits for its trial to start
  * (run-action.ts, before the input is read; security review F1 of #960): an anonymous sign-up must not mail arbitrary
- * addresses through invitations, call out through webhooks, take a number or spend the install's providers beyond the
- * setup allowance. The owner sets the workspace up meanwhile (the onboarding up to its `activate` step, docs/billing.md
- * §3.2): browser test calls and business lookups run within the setup allowance of `signup.rules` (startTestCall, chargeSetupLookup).
- * `phoneNumber.setup` and agent setup links also refuse in their handlers (refusePendingPayment).
+ * addresses through invitations, call out through webhooks, take a number, call a phone or spend the install's
+ * providers beyond the setup allowance. The owner sets the workspace up meanwhile, with an AI agent (a workspace setup
+ * link, agent-first since 2026-11-18) or by hand: the steps up to `activate` (docs/billing.md §3.2). Browser test calls
+ * and business lookups run within the setup allowance of `signup.rules` (startTestCall, chargeSetupLookup).
+ * `phoneNumber.setup` also refuses in its handler (refusePendingPayment), `onboarding.setStep` past `activate` in its own.
  */
 export const REFUSED_WHILE_PENDING_PAYMENT: ReadonlySet<string> = new Set([
   // Invitation emails to any address.
@@ -385,9 +386,10 @@ export const REFUSED_WHILE_PENDING_PAYMENT: ReadonlySet<string> = new Set([
   // Third-party voice cloning and carrier lookups: the install's money, not needed to set up.
   'voice.clone',
   'phoneNumber.lookupLine',
-  // A number, an agent setup link.
+  // A number.
   'phoneNumber.setup',
-  'agentSetup.createWorkspaceKey',
+  // A real call to the business line (the forwarding check), at the install's cost.
+  'phoneNumber.checkForwarding',
 ])
 
 /**
@@ -454,9 +456,9 @@ export async function isPendingPayment(tx: Pick<Tx, 'select'>, workspaceId: stri
 }
 
 /**
- * Nothing that costs money or reaches outside before Checkout (docs/billing.md §3.1): no number, no browser test call,
- * no agent setup link while the workspace waits for its first Checkout. Checked again in those handlers, under their
- * transaction, besides run-action.ts's check of REFUSED_WHILE_PENDING_PAYMENT.
+ * Nothing that costs money or reaches outside before Checkout (docs/billing.md §3.1): no number while the workspace
+ * waits for its first Checkout. Checked again in that handler, under its transaction, besides run-action.ts's check of
+ * REFUSED_WHILE_PENDING_PAYMENT.
  */
 export async function refusePendingPayment(tx: Tx, workspaceId: string | null) {
   if (await isPendingPayment(tx, workspaceId)) throw new Reject(PENDING_PAYMENT)
