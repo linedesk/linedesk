@@ -104,7 +104,12 @@ export type StateNote = {
   values: Record<string, string>
 }
 
-export function stateNote(state: BillingStateBill | null, fmtDate: (iso: string) => string): StateNote | null {
+/** `partner`: a partner bill (Partner › Billing), whose callers and numbers are its client workspaces'. */
+export function stateNote(
+  state: BillingStateBill | null,
+  fmtDate: (iso: string) => string,
+  partner = false,
+): StateNote | null {
   if (!state) return null
   const date = (iso: string | null) => (iso ? fmtDate(iso) : '')
   if (state.status === 'past_due')
@@ -119,7 +124,9 @@ export function stateNote(state: BillingStateBill | null, fmtDate: (iso: string)
   if (state.status === 'suspended') {
     const reason = state.suspendedReason ?? 'admin'
     const text: Record<typeof reason, MessageKey> = {
-      payment: msg('settings.billing.state.suspended.payment'),
+      payment: partner
+        ? msg('settings.billing.state.suspended.paymentPartner')
+        : msg('settings.billing.state.suspended.payment'),
       dispute: msg('settings.billing.state.suspended.dispute'),
       early_fraud_warning: msg('settings.billing.state.suspended.fraud'),
       admin: msg('settings.billing.state.suspended.admin'),
@@ -128,7 +135,11 @@ export function stateNote(state: BillingStateBill | null, fmtDate: (iso: string)
       tone: 'danger',
       title: msg('settings.billing.state.suspended.title'),
       text:
-        reason === 'payment' && !state.cancelsAt ? msg('settings.billing.state.suspended.paymentNoDate') : text[reason],
+        reason === 'payment' && !state.cancelsAt
+          ? partner
+            ? msg('settings.billing.state.suspended.paymentNoDatePartner')
+            : msg('settings.billing.state.suspended.paymentNoDate')
+          : text[reason],
       values: { date: date(state.cancelsAt) },
     }
   }
@@ -137,8 +148,12 @@ export function stateNote(state: BillingStateBill | null, fmtDate: (iso: string)
       tone: 'danger',
       title: msg('settings.billing.state.canceled.title'),
       text: state.numbersReleaseAt
-        ? msg('settings.billing.state.canceled.text')
-        : msg('settings.billing.state.canceled.textNoNumbers'),
+        ? partner
+          ? msg('settings.billing.state.canceled.textPartner')
+          : msg('settings.billing.state.canceled.text')
+        : partner
+          ? msg('settings.billing.state.canceled.textNoNumbersPartner')
+          : msg('settings.billing.state.canceled.textNoNumbers'),
       values: { numbers: date(state.numbersReleaseAt), data: date(state.dataUntil) },
     }
   return null

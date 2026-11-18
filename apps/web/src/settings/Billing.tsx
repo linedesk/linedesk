@@ -358,13 +358,13 @@ function PlanCard({
   const date = (iso: string) => format.date(new Date(iso))
   const badge = statusBadge(bill.status, bill.heldForReview)
   const line = planLine(bill)
-  const note = stateNote(state, date)
-  const price = format.currency(centsToDollars(bill.seatCents), 'USD')
-  const yearly = bill.interval === 'year'
   // A partner bill: the partner base fee, then its client workspaces on their own line (docs/white-label.md).
   const partner = bill.kind === 'partner'
+  const note = stateNote(state, date, partner)
+  const price = format.currency(centsToDollars(bill.seatCents), 'USD')
+  const yearly = bill.interval === 'year'
   const plan = !paysCharges(bill)
-    ? t('settings.billing.plan.comped', { count: bill.workspaces })
+    ? t(partner ? 'settings.billing.plan.compedPartner' : 'settings.billing.plan.comped', { count: bill.workspaces })
     : partner
       ? t(yearly ? 'settings.billing.plan.partnerYearly' : 'settings.billing.plan.partnerMonthly', { price })
       : t(yearly ? 'settings.billing.plan.yearly' : 'settings.billing.plan.monthly', { price, count: bill.workspaces })
@@ -424,7 +424,7 @@ function PlanCard({
         {bill.taxAddressMissing && <span className="help">{t('settings.billing.plan.taxAddressMissing')}</span>}
         {bill.extraNumberCents > 0 && (
           <span className="help">
-            {t('settings.billing.plan.numbers', {
+            {t(partner ? 'settings.billing.plan.numbersPartner' : 'settings.billing.plan.numbers', {
               price: format.currency(centsToDollars(bill.extraNumberCents), 'USD', {
                 minimumFractionDigits: bill.extraNumberCents % 100 ? 2 : 0,
               }),
@@ -498,6 +498,8 @@ export function CancelDialog({
   const refund = yearlyRefundLine(bill, iso => format.date(new Date(iso)))
   const balance = bill.availableMicros > 0 ? format.currency(microsToDollars(bill.availableMicros), 'USD') : null
   const ask = supportEmail ? t('settings.billing.cancel.ask', { email: supportEmail }) : null
+  // A partner bill: the numbers and calls are its client workspaces'.
+  const partner = bill.kind === 'partner'
   return (
     <DangerConfirmDialog
       confirm={{
@@ -508,8 +510,8 @@ export function CancelDialog({
           ...(refund ? [t(refund.key, refund.values)] : []),
           ...(balance ? [t('settings.billing.cancel.balance', { amount: balance })] : []),
           ...(ask && (refund?.key === 'settings.billing.cancel.yearlyRefund' || balance) ? [ask] : []),
-          t('settings.billing.cancel.numbers'),
-          t('settings.billing.cancel.data'),
+          t(partner ? 'settings.billing.cancel.numbersPartner' : 'settings.billing.cancel.numbers'),
+          t(partner ? 'settings.billing.cancel.dataPartner' : 'settings.billing.cancel.data'),
         ],
         action: t('settings.billing.cancel.confirm'),
         busyAction: t('settings.billing.cancel.busy'),
@@ -555,7 +557,9 @@ function CallsCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: s
   })
   const price = (extra: number) => format.currency(centsToDollars(extra * calls.extraCallCents), 'USD')
   const editable = changesRecharge(bill)
-  const several = calls.workspaces.length > 1
+  // A partner bill names each client workspace, also its only one: never "Your assistant answers".
+  const partner = bill.kind === 'partner'
+  const several = partner || calls.workspaces.length > 1
   if (!calls.workspaces.length) return null
   return (
     <Section
@@ -565,7 +569,7 @@ function CallsCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: s
       description={
         bill.status === 'trialing'
           ? t('settings.billing.calls.busyNote')
-          : t('settings.billing.calls.description', {
+          : t(partner ? 'settings.billing.calls.descriptionPartner' : 'settings.billing.calls.description', {
               count: calls.includedPerWorkspace,
               step: calls.step,
               price: price(calls.step),
@@ -615,7 +619,10 @@ function CallsCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: s
       ))}
       {!calls.canAdd && editable && (
         <span className="help">
-          {t('settings.billing.calls.afterTrial', { step: calls.step, price: price(calls.step) })}
+          {t(partner ? 'settings.billing.calls.afterTrialPartner' : 'settings.billing.calls.afterTrial', {
+            step: calls.step,
+            price: price(calls.step),
+          })}
         </span>
       )}
       {asking && (
@@ -1244,7 +1251,14 @@ function CapDialog({
         label={t('settings.billing.cap.base')}
         description={
           extra > 0
-            ? t('settings.billing.cap.perWorkspace', { extra: money(extra) })
+            ? t(
+                bill.kind === 'partner'
+                  ? 'settings.billing.cap.perWorkspacePartner'
+                  : 'settings.billing.cap.perWorkspace',
+                {
+                  extra: money(extra),
+                },
+              )
             : t('settings.billing.cap.baseHelp')
         }
         error={

@@ -461,6 +461,65 @@ test("a partner bill: the partner plan's base fee, then its client workspaces on
   expect(render({ billingOn: true, bill: bill() })).not.toContain('Client workspaces')
 })
 
+test('a partner bill speaks of client workspaces: numbers, calls at the same time, a stopped plan, never one business', () => {
+  const partner = (over: Partial<BillingOverviewBill> = {}) =>
+    bill({ kind: 'partner', seatCents: 1900, clientSeatCents: 1100, ...over })
+  // One client workspace: its row is named, never "Your assistant answers".
+  const html = render({ billingOn: true, bill: partner() })
+  expect(html).toContain('Each client workspace includes one phone number. Extra numbers are $3 a month each')
+  expect(html).not.toContain('Each workspace includes')
+  expect(html).toContain('5 calls at the same time are included in each client workspace; 5 more cost $5.00 a month.')
+  expect(html).toContain('the next caller hears that the business will call back, and the call is filed as missed.')
+  // Adding calls waits for a paid plan; a partner plan has no trial.
+  const pastDue = render({
+    billingOn: true,
+    bill: partner({ status: 'past_due', calls: { ...bill().calls, canAdd: false } }),
+  })
+  expect(pastDue).toContain('Each 5 more cost $5.00 a month; you can add them once your plan is paid.')
+  expect(pastDue).not.toContain('after the trial')
+  expect(html).not.toContain('Your assistant answers')
+  expect(html).toContain('<b>Brightwater Plumbing &amp; Heating</b>')
+  expect(html).toContain('Calls at the same time in Brightwater Plumbing &amp; Heating')
+  // Free of charge: counted in client workspaces.
+  const comped = render({ billingOn: true, bill: partner({ status: 'comped', workspaces: 2 }) })
+  expect(comped).toContain('Free of charge · 2 client workspaces')
+  // Unpaid, then canceled: the callers, numbers and calls are the client workspaces'.
+  const unpaid = render(
+    { billingOn: true, bill: partner({ status: 'suspended' }) },
+    state({ status: 'suspended', suspendedReason: 'payment', cancelsAt: new Date(Date.now() + 5 * DAY).toISOString() }),
+  )
+  expect(unpaid).toContain('Callers of your client workspaces hear that the business will call back')
+  expect(unpaid).not.toContain('Callers hear that you will call back')
+  const canceled = render(
+    { billingOn: true, bill: partner({ status: 'canceled' }) },
+    state({
+      status: 'canceled',
+      numbersReleaseAt: new Date(Date.now() + 30 * DAY).toISOString(),
+      dataUntil: new Date(Date.now() + 90 * DAY).toISOString(),
+    }),
+  )
+  expect(canceled).toContain('numbers are kept until')
+  expect(canceled).toContain('Their calls can be read and exported until')
+  expect(canceled).not.toContain('Your numbers')
+  // The cancel dialog.
+  vi.stubGlobal('document', { activeElement: null })
+  onTestFinished(() => {
+    vi.unstubAllGlobals()
+  })
+  const cancel = renderToStaticMarkup(<CancelDialog bill={partner()} onClose={() => {}} toast={() => {}} />)
+  expect(cancel).toContain('numbers are kept for 30 days, so they can be moved to another carrier.')
+  expect(cancel).toContain('Calls in your client workspaces stay readable and exportable for 90 days.')
+  expect(cancel).not.toContain('Your numbers')
+  // A Cloud bill keeps its own words.
+  const cloud = render({ billingOn: true, bill: bill() })
+  expect(cloud).toContain('Each workspace includes one phone number.')
+  expect(cloud).toContain('Your assistant answers')
+  expect(cloud).toContain('included in each workspace;')
+  expect(renderToStaticMarkup(<CancelDialog bill={bill()} onClose={() => {}} toast={() => {}} />)).toContain(
+    'Your numbers are kept for 30 days',
+  )
+})
+
 test('the partner\'s team in a client workspace: on their own partner plan, never "your partner handles billing"', () => {
   queries.usage = { usage: { period: bill().period, row: null, minutesOnly: true } }
   const team = renderToStaticMarkup(<Billing toast={() => {}} view="usage" viaPartner />)
