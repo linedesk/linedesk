@@ -23,6 +23,7 @@ export type ProviderCategory =
   | 'billing'
   | 'apps'
   | 'bot_check'
+  | 'domains'
 export const providerCategoryKeys: Record<ProviderCategory, MessageKey> = {
   telephony: msg('admin.provider.category.telephony'),
   stt: msg('admin.provider.category.stt'),
@@ -37,6 +38,7 @@ export const providerCategoryKeys: Record<ProviderCategory, MessageKey> = {
   billing: msg('admin.provider.category.billing'),
   apps: msg('admin.provider.category.apps'),
   bot_check: msg('admin.provider.category.botCheck'),
+  domains: msg('admin.provider.category.domains'),
 }
 /** A category's name ("Speech to text") in the reader's words; English for the setup MCP and the CLI. */
 export const providerCategoryLabel = (category: ProviderCategory, words: Words = english) =>
@@ -475,6 +477,16 @@ const guides = {
     ],
     cost: 'Free.',
   },
+  cloudflare_saas: {
+    url: 'https://dash.cloudflare.com/profile/api-tokens',
+    stepKeys: [
+      msg('admin.provider.guide.cloudflare_saas.step1'),
+      msg('admin.provider.guide.cloudflare_saas.step2'),
+      msg('admin.provider.guide.cloudflare_saas.step3'),
+      msg('admin.provider.guide.cloudflare_saas.step4'),
+    ],
+    costKey: msg('admin.provider.guide.cloudflare_saas.cost'),
+  },
 } as const satisfies Record<string, GuideSource>
 
 /**
@@ -495,6 +507,7 @@ export const recommendedProviders: Record<ProviderCategory, ProviderName> = {
   billing: 'stripe',
   apps: 'hubspot',
   bot_check: 'turnstile',
+  domains: 'cloudflare_saas',
 }
 
 /**
@@ -1110,6 +1123,31 @@ export const providers = {
       secret_key: { label: 'Secret key', env: 'TURNSTILE_SECRET_KEY', secret: true, hint: '0x4AAAA…' },
     },
     help: 'The bot check on the self-serve sign-up page. While self-serve sign-up needs it and it is not set up, sign-up stays closed.',
+  },
+  // White-label partners' own addresses (S5, apps/api/src/partner-domain.ts): each partner address is a custom
+  // hostname in the install's zone. Without it, Partner › Domain is hidden.
+  cloudflare_saas: {
+    label: 'Cloudflare for SaaS',
+    category: 'domains',
+    guide: guides.cloudflare_saas,
+    fields: {
+      api_token: { labelKey: msg('admin.provider.field.apiToken'), env: 'CLOUDFLARE_SAAS_API_TOKEN', secret: true },
+      zone_id: { labelKey: msg('admin.provider.field.zoneId'), env: 'CLOUDFLARE_SAAS_ZONE_ID', secret: false },
+      cname_target: {
+        labelKey: msg('admin.provider.field.cnameTarget'),
+        env: 'CLOUDFLARE_SAAS_CNAME_TARGET',
+        secret: false,
+        hint: 'partners.linedesk.ai',
+      },
+      custom_origin: {
+        labelKey: msg('admin.provider.field.customOrigin'),
+        env: 'CLOUDFLARE_SAAS_CUSTOM_ORIGIN',
+        secret: false,
+        optional: true,
+        hint: 'saas-origin.linedesk.ai',
+      },
+    },
+    helpKey: msg('admin.provider.help.cloudflare_saas'),
   },
 } as const satisfies Record<string, ProviderSpec>
 

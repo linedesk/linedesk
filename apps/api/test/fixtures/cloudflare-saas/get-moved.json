@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": "0d89c70d-ad9f-4843-b99f-6cc0252067e9",
+    "hostname": "app.cascade-it.example",
+    "ssl": { "id": "0d89c70d-ad9f-4843-b99f-6cc0252067e9", "method": "http", "status": "active", "type": "dv" },
+    "status": "moved",
+    "verification_errors": ["custom hostname does not CNAME to this zone."]
+  }
+}

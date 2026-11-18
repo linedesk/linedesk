@@ -51,6 +51,7 @@ export const HOSTS_MAX_AGE_MS = 30_000
 const RETRY_AFTER_FAILURE_MS = 5_000
 
 let hosts: HostMap | null = null
+let reloadAgain: Promise<void> | null = null
 let loading: Promise<void> | null = null
 let failedAt = 0
 
@@ -143,7 +144,16 @@ async function loadHosts(): Promise<HostMap> {
  * a change in this process. A failed load keeps the map there was and is logged.
  */
 export function reloadHosts(): Promise<void> {
-  loading ??= loadHosts()
+  // A load already running may have read the rows before the change that asks for this one committed: one more load
+  // after it (never more than one waiting).
+  if (loading) {
+    reloadAgain ??= loading.then(() => {
+      reloadAgain = null
+      return reloadHosts()
+    })
+    return reloadAgain
+  }
+  loading = loadHosts()
     .then(map => {
       hosts = map
       failedAt = 0

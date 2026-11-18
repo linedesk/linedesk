@@ -11,6 +11,7 @@ import {
 } from './alerts.ts'
 import { billingOwnerEmail } from './billing.ts'
 import { managerChangedEmail } from './billing-lifecycle.ts'
+import { partnerDomainAddedAlert, partnerDomainEmail } from './partner.ts'
 import type { RenderedEmail } from './layout.ts'
 import {
   addedNoticeEmail,
@@ -414,6 +415,39 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
         origin,
         locale,
       ),
+    },
+    {
+      name: 'admin-alert-partner-domain',
+      email: adminAlertEmail(
+        partnerDomainAddedAlert({
+          partner: 'Cascade IT Partners',
+          hostname: 'app.cascade-it.example',
+          brandName: 'Cascade Desk',
+          reviewUrl: `${origin}/#admin/partners`,
+        })(locale),
+        origin,
+        locale,
+      ),
+    },
+    {
+      name: 'partner-domain-live',
+      email: partnerDomainEmail({ kind: 'live', hostname: 'app.cascade-it.example' }, origin, locale),
+    },
+    {
+      name: 'partner-domain-failed',
+      email: partnerDomainEmail({ kind: 'failed', hostname: 'app.cascade-it.example' }, origin, locale),
+    },
+    {
+      name: 'partner-domain-removed',
+      email: partnerDomainEmail(
+        { kind: 'removed', hostname: 'app.cascade-it.example', reason: 'Imitates a bank' },
+        origin,
+        locale,
+      ),
+    },
+    {
+      name: 'partner-domain-expired',
+      email: partnerDomainEmail({ kind: 'expired', hostname: 'app.cascade-it.example' }, origin, locale),
     },
     { name: 'welcome', email: welcomeEmail({ name: 'Sam Patel', email: 'sam@example.com' }, origin, locale) },
     { name: 'passkey-added', email: passkeyChangedEmail('added', origin, locale) },

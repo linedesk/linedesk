@@ -105,6 +105,8 @@ const INSTANCE_WIDE_FILES = [
   'test/partner-sender.test.ts',
   // Writes white-label partner addresses (S5 PR 5.3, brand and links by address): turns the host check on for good.
   'test/partner-host-brand.test.ts',
+  // Makes a server admin, stores Cloudflare for SaaS settings and sets PARTNER_DOMAINS in process.env (S5).
+  'test/partner-domain.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

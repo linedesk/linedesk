@@ -230,6 +230,7 @@ describe('access', () => {
       'partnerBrand.reset',
       'partnerBrand.reviews',
       'partnerBrand.setProtectedNames',
+      'partnerDomain.adminRemove',
       'partnerKeys.adminDisable',
       'partnerKeys.adminEnable',
       'partnerSender.adminRemove',
@@ -452,6 +453,7 @@ describe('provider keys', () => {
       billing: { provider: null, chosen: false },
       apps: { provider: null, chosen: false },
       bot_check: { provider: null, chosen: false },
+      domains: { provider: null, chosen: false },
     })
 
     // Only OpenRouter is set up: it is used although OpenAI, the default, comes first in the registry.
@@ -776,6 +778,7 @@ describe('provider keys', () => {
       'slack',
       'jobber',
       'turnstile',
+      'cloudflare_saas',
     ])
     process.env.LIVEKIT_URL = 'ws://livekit.env.test:7880'
     process.env.LIVEKIT_API_KEY = 'APImadeup'
@@ -2522,6 +2525,8 @@ describe('impersonation', () => {
       // Read-only and instance:admin, as above (Server admin › Partners › Protected names).
       'partnerBrand.protectedNames',
       'partnerBrand.reviews',
+      // Read-only and `partner`, as above: the partner's own address and its records (partner-domain.ts).
+      'partnerDomain.get',
       // Read-only and account:own, which an impersonation never has.
       'partnerInvitation.view',
       // Read-only and `partner`, as above: the partner's own AI keys, never a key (partner-keys.ts).

@@ -97,6 +97,7 @@ test('every provider has a category, and the first of each category is the defau
     ['billing', ['stripe']],
     ['apps', ['hubspot', 'slack', 'jobber']],
     ['bot_check', ['turnstile']],
+    ['domains', ['cloudflare_saas']],
   ])
   // Sign-in apps are all in use at once: nothing to pick.
   expect(providerSetActive.input.safeParse({ category: 'sign_in', provider: 'google' }).success).toBe(false)

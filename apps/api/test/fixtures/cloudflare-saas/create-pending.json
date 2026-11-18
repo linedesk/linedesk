@@ -1,0 +1,49 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": "0d89c70d-ad9f-4843-b99f-6cc0252067e9",
+    "hostname": "app.cascade-it.example",
+    "created_at": "2026-11-18T10:00:00.000000Z",
+    "custom_metadata": {},
+    "custom_origin_server": "saas-origin.linedesk.ai",
+    "ownership_verification": {
+      "name": "_cf-custom-hostname.app.cascade-it.example",
+      "type": "txt",
+      "value": "5cc07c04-ea62-4a5a-95f0-419334a875a4"
+    },
+    "ownership_verification_http": {
+      "http_body": "5cc07c04-ea62-4a5a-95f0-419334a875a4",
+      "http_url": "http://app.cascade-it.example/.well-known/cf-custom-hostname-challenge/0d89c70d-ad9f-4843-b99f-6cc0252067e9"
+    },
+    "ssl": {
+      "id": "0d89c70d-ad9f-4843-b99f-6cc0252067e9",
+      "bundle_method": "ubiquitous",
+      "certificate_authority": "google",
+      "custom_csr_id": null,
+      "dcv_delegation_records": [],
+      "expires_on": null,
+      "hosts": ["app.cascade-it.example"],
+      "issuer": null,
+      "method": "http",
+      "serial_number": null,
+      "settings": { "ciphers": [], "early_hints": "on", "http2": "on", "min_tls_version": "1.2", "tls_1_3": "on" },
+      "signature": null,
+      "status": "pending_validation",
+      "type": "dv",
+      "uploaded_on": null,
+      "validation_errors": [],
+      "validation_records": [
+        {
+          "http_body": "ca2NuyQ1fUyTLHLY6hFBi-Cqkp4h3xJ8kG7xSLXOkkg",
+          "http_url": "http://app.cascade-it.example/.well-known/acme-challenge/3VWk8n8cNcpCnf8UvbNM8RS21hLQOkS5pxNuw5MlASo",
+          "status": "pending"
+        }
+      ],
+      "wildcard": false
+    },
+    "status": "pending",
+    "verification_errors": ["custom hostname does not CNAME to this zone."]
+  }
+}

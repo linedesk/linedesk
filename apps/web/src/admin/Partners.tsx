@@ -3,7 +3,9 @@
 // a suspended partner's team leaves every client workspace at once until it is approved again. "Waiting for approval"
 // (`#admin/partners/waiting`, the link in the new-partner email) lists only the partners still to approve, with their
 // number on the tab. A partner's own AI keys (S7) can be turned off here with a reason its owner is emailed: its
-// calls then run on the install's keys and are billed until they are turned on again.
+// calls then run on the install's keys and are billed until they are turned on again. A partner's own address (S5)
+// is removed here at once with a reason its owner is emailed (no approval before: every new address is emailed to the
+// instance admins, D3).
 import { type AdminPartnerList, PARTNER_CLIENT_LIMIT_MAX } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useFormat, useT } from '@linedesk/i18n/react'
@@ -107,6 +109,7 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
 
   const [keysOff, setKeysOff] = useState<AdminPartner | null>(null)
   const [senderOff, setSenderOff] = useState<AdminPartner | null>(null)
+  const [domainOff, setDomainOff] = useState<AdminPartner | null>(null)
 
   async function keysOn(p: AdminPartner) {
     setBusy(`keys:${p.id}`)
@@ -185,6 +188,25 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
                         <span className="adm-sub">
                           {t('admin.partners.since', { day: day(p.createdAt), count: p.members })}
                         </span>
+                        {p.domain && (
+                          <span className="adm-sub">
+                            {p.domain.hostname} ·{' '}
+                            {p.domain.status === 'active'
+                              ? t('admin.partners.domainLive')
+                              : p.domain.status === 'failed'
+                                ? t('admin.partners.domainFailed')
+                                : t('admin.partners.domainPending')}{' '}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={supportAccess || !!busy}
+                              title={t('admin.partners.domainRemoveTip', { partner: p.name })}
+                              onClick={() => setDomainOff(p)}
+                            >
+                              {t('admin.partners.domainRemove')}
+                            </Button>
+                          </span>
+                        )}
                         {p.sender && (
                           <span className="adm-sub" title={p.sender.address}>
                             {p.sender.status === 'verified'
@@ -331,6 +353,26 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
             await query.reload()
           }}
           onClose={() => setSenderOff(null)}
+        />
+      )}
+      {domainOff?.domain && (
+        <DangerConfirmDialog
+          confirm={{
+            text: t('admin.partners.domainRemoveText', {
+              partner: domainOff.name,
+              hostname: domainOff.domain.hostname,
+            }),
+            action: t('admin.partners.domainRemoveAction'),
+            variant: 'danger',
+            reason: { label: t('admin.partners.domainRemoveReason'), placeholder: '', min: 3, max: 300 },
+          }}
+          run={async (_option, reason) => {
+            await runAdmin('partnerDomain.adminRemove', { partnerId: domainOff.id, reason })
+            notify(t('admin.partners.domainRemoveToast'))
+            setDomainOff(null)
+            await query.reload()
+          }}
+          onClose={() => setDomainOff(null)}
         />
       )}
       {keysOff && (

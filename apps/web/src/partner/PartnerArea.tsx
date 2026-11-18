@@ -43,24 +43,27 @@ import { loadClients, loadPartner, PARTNER_CLIENTS_QUERY, PARTNER_QUERY, partner
 import '../admin/admin.css'
 import './partner-area.css'
 import { PartnerBrand } from './PartnerBrand.tsx'
+import { PartnerDomain } from './PartnerDomain.tsx'
 import { PartnerKeys } from './PartnerKeys.tsx'
 import { PartnerSender } from './PartnerSender.tsx'
 import { PartnerSetup } from './PartnerSetup.tsx'
 
-type Section = 'clients' | 'team' | 'brand' | 'email' | 'keys' | 'billing'
+type Section = 'clients' | 'team' | 'brand' | 'domain' | 'email' | 'keys' | 'billing'
 
 /** Bill states in which client workspaces can be added (the plan runs: trial, paid, or comped). */
 const RUNNING: readonly string[] = ['trialing', 'active', 'past_due', 'comped']
 
 /**
- * The partner area's sections; Email sender and AI keys only for a partner with a bill (White-label Cloud: own keys take
- * the usage fee away, the sender needs the install's Resend), Billing only for the partner bill's owner.
+ * The partner area's sections: Domain for every partner (it says itself when this server has no provider for it);
+ * Email sender and AI keys only for a partner with a bill (White-label Cloud: own keys take the usage fee away, the
+ * sender needs the install's Resend), Billing only for the partner bill's owner.
  */
 export function partnerSections(t: ReturnType<typeof useT>, billing: boolean, keys = false): PageSection<Section>[] {
   return [
     { id: 'clients', label: t('team.partner.clients.title') },
     { id: 'team', label: t('team.partner.team.title') },
     { id: 'brand', label: t('team.partner.brand.title') },
+    { id: 'domain', label: t('team.partner.domain.title') },
     ...(keys
       ? [
           { id: 'email' as const, label: t('team.partner.sender.title') },
@@ -215,6 +218,8 @@ function PartnerConsole({ partner, onExit, onFirstWorkspace }: Props) {
                 <PartnerSender partnerId={data.partner.id} toast={text => toaster.show(text)} />
               ) : current === 'keys' && data.bill ? (
                 <PartnerKeys partnerId={data.partner.id} toast={text => toaster.show(text)} />
+              ) : current === 'domain' ? (
+                <PartnerDomain partnerId={data.partner.id} toast={text => toaster.show(text)} />
               ) : current === 'brand' ? (
                 <PartnerBrand partnerId={data.partner.id} partnerName={data.partner.name} />
               ) : current === 'team' ? (

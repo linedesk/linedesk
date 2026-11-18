@@ -148,6 +148,11 @@ export const providerMeta: Record<ProviderName, Meta> = {
     blurb: msg('admin.provider.blurb.stripe'),
     keysUrl: 'https://dashboard.stripe.com/apikeys',
   },
+  cloudflare_saas: {
+    mark: { brand: 'cloudflare' },
+    blurb: msg('admin.provider.blurb.cloudflare_saas'),
+    keysUrl: 'https://dash.cloudflare.com/profile/api-tokens',
+  },
   turnstile: {
     mark: { icon: 'shield' },
     blurb: msg('admin.provider.blurb.turnstile'),

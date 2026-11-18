@@ -1,0 +1,26 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": "0d89c70d-ad9f-4843-b99f-6cc0252067e9",
+    "hostname": "app.cascade-it.example",
+    "created_at": "2026-11-18T10:00:00.000000Z",
+    "custom_origin_server": "saas-origin.linedesk.ai",
+    "ssl": {
+      "id": "0d89c70d-ad9f-4843-b99f-6cc0252067e9",
+      "bundle_method": "ubiquitous",
+      "certificate_authority": "google",
+      "expires_on": "2027-02-16T09:58:12Z",
+      "hosts": ["app.cascade-it.example"],
+      "issuer": "GoogleTrustServices",
+      "method": "http",
+      "settings": { "min_tls_version": "1.2" },
+      "status": "active",
+      "type": "dv",
+      "validation_errors": [],
+      "wildcard": false
+    },
+    "status": "active"
+  }
+}

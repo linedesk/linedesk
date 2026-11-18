@@ -404,6 +404,8 @@ export type AdminPartner = {
   ownKeysDisabled: { reason: string; at: string } | null
   /** The partner's own sender address (S6) and its state; null without one. */
   sender: { address: string; status: 'pending' | 'verified' | 'failed' | 'stopped' } | null
+  /** The partner's own address (S5) and its state; null without one. */
+  domain: { hostname: string; status: 'pending' | 'verifying' | 'active' | 'failed' | 'stopped' } | null
 }
 
 /** `partner.adminList`: the partners, and how many client workspaces each may make while billing is off. */

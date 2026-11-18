@@ -219,6 +219,7 @@ import {
   reportConfirmsOwnKeys,
 } from './partner-keys.ts'
 import { partnerSenderHandlers, partnerSenderPreparers } from './partner-sender.ts'
+import { partnerDomainHandlers, partnerDomainPreparers } from './partner-domain.ts'
 import { partnerSetupHandlers } from './partner-setup.ts'
 
 export { Forbidden, NotFound, Reject, type HandlerCtx, type Undo }
@@ -988,6 +989,7 @@ export const preparers: Record<string, Preparer> = {
   ...billingPagePreparers,
   ...partnerKeyPreparers,
   ...partnerSenderPreparers,
+  ...partnerDomainPreparers,
 }
 
 /**
@@ -1198,6 +1200,7 @@ const handlers: Record<string, Handler> = {
   ...partnerBrandHandlers,
   ...partnerKeyHandlers,
   ...partnerSenderHandlers,
+  ...partnerDomainHandlers,
   ...partnerSetupHandlers,
   ...checkoutHandlers,
   ...billingPageHandlers,

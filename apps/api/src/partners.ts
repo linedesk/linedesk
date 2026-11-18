@@ -37,6 +37,7 @@ import {
   PARTNER_INVITATION_DAYS,
   partner_invitations,
   partner_members,
+  partner_domains,
   partner_sender_domains,
   partners,
   phone_numbers,
@@ -69,6 +70,7 @@ import {
   refusePartner,
 } from './partner-refusals.ts'
 import { createRateLimiter } from './rate-limit.ts'
+import { reloadHosts } from './request-host.ts'
 import { cancelSentInvitations, lockActiveSender, lockedOwner } from './team.ts'
 import { billPayerChanged, lockForPayerChange } from './usage-levels.ts'
 import { billingRules } from './billing-rules.ts'
@@ -1282,12 +1284,18 @@ export const partnerHandlers: Record<string, Handler> = {
           .from(billing_accounts)
           .where(inArray(billing_accounts.id, billIds))
       : []
-    const senders = await tx
-      .select()
-      .from(partner_sender_domains)
-      .where(ne(partner_sender_domains.status, 'removed'))
+    const senders = await tx.select().from(partner_sender_domains).where(ne(partner_sender_domains.status, 'removed'))
+    const domains = await tx
+      .select({
+        partner_id: partner_domains.partner_id,
+        hostname: partner_domains.hostname,
+        status: partner_domains.status,
+      })
+      .from(partner_domains)
+      .where(ne(partner_domains.status, 'removed'))
     const list: AdminPartner[] = rows.map(p => {
       const sender = senders.find(s => s.partner_id === p.id)
+      const domain = domains.find(d => d.partner_id === p.id)
       const owner = team.find(m => m.partnerId === p.id && m.role === 'owner')
       const invite = ownerInvites.find(i => i.partner_id === p.id)
       return {
@@ -1311,6 +1319,9 @@ export const partnerHandlers: Record<string, Handler> = {
               status: sender.status as NonNullable<AdminPartner['sender']>['status'],
             }
           : null,
+        domain: domain
+          ? { hostname: domain.hostname, status: domain.status as NonNullable<AdminPartner['domain']>['status'] }
+          : null,
       }
     })
     return { rows: {}, data: { partners: list, clientLimit: await partnerClientLimit(tx) } }
@@ -1329,7 +1340,7 @@ export const partnerHandlers: Record<string, Handler> = {
     return { rows: {}, data: { partner: { id, name: input.name }, subject: subject(input.ownerEmail) } }
   },
 
-  'partner.approve': async ({ tx, actor, now }, input: { partnerId: string }) => {
+  'partner.approve': async ({ tx, actor, now, onCommit }, input: { partnerId: string }) => {
     const partner = await lockedPartner(tx, input.partnerId)
     await tx
       .update(partners)
@@ -1343,6 +1354,8 @@ export const partnerHandlers: Record<string, Handler> = {
       .where(eq(partners.id, partner.id))
     // A suspended partner's team gets its client workspaces back.
     const sync = await syncPartnerMemberships(tx, partner.id, now)
+    // Its own address answers again at once (request-host.ts: only an approved partner's address resolves).
+    onCommit?.(() => reloadHosts())
     return {
       rows: {},
       data: { partner: { id: partner.id, name: partner.name }, addedMemberships: sync.added, subject: subject(null) },
@@ -1363,7 +1376,7 @@ export const partnerHandlers: Record<string, Handler> = {
     return { rows: {}, data: { clientLimit: input.limit, subject: subject(null) } }
   },
 
-  'partner.suspend': async ({ tx, now }, input: { partnerId: string }) => {
+  'partner.suspend': async ({ tx, now, onCommit }, input: { partnerId: string }) => {
     const partner = await lockedPartner(tx, input.partnerId)
     if (partner.status !== 'suspended')
       await tx
@@ -1372,6 +1385,8 @@ export const partnerHandlers: Record<string, Handler> = {
         .where(eq(partners.id, partner.id))
     // Its team leaves every client workspace at once (API keys revoked, read sync refused).
     const sync = await syncPartnerMemberships(tx, partner.id, now)
+    // Its own address stops answering at once, not at the next reload of the host map.
+    onCommit?.(() => reloadHosts())
     return {
       rows: {},
       data: {

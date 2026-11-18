@@ -100,6 +100,7 @@
   "api.phoneNumberNotFound": "phone number not found",
   "api.providerTest.answered": "{provider} answered HTTP {status}",
   "api.providerTest.cartesia.noVoice": "The voice {voice} is not available to this Cartesia key. Pick another or clear the field.",
+  "api.providerTest.cloudflareSaas.zoneId": "The zone ID is 32 hex digits. Copy it from the zone's Overview page in Cloudflare.",
   "api.providerTest.connected": "Connected",
   "api.providerTest.connectedBalance": "Connected, balance {amount}",
   "api.providerTest.connectedCredit": "Connected, credit {amount}",

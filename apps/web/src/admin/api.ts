@@ -400,6 +400,8 @@ export type AdminInputs = {
   'partnerKeys.adminEnable': { partnerId: string }
   // A partner's own sender address (S6, partner-sender.ts): removed with a reason.
   'partnerSender.adminRemove': { partnerId: string; reason: string }
+  // A partner's own address (S5, partner-domain.ts): removed at once with a reason.
+  'partnerDomain.adminRemove': { partnerId: string; reason: string }
 }
 
 /**
@@ -463,6 +465,7 @@ const stepUpLabels: Partial<Record<keyof AdminInputs, MessageKey>> = {
   'partnerKeys.adminDisable': msg('admin.stepUp.what.partner'),
   'partnerKeys.adminEnable': msg('admin.stepUp.what.partner'),
   'partnerSender.adminRemove': msg('admin.stepUp.what.partner'),
+  'partnerDomain.adminRemove': msg('admin.stepUp.what.partner'),
 }
 /** What the passkey dialog says it confirms; a workspace about to be deleted by its name (LIN-161). */
 export function stepUpLabel<N extends keyof AdminInputs>(name: N, input?: AdminInputs[N]): string {

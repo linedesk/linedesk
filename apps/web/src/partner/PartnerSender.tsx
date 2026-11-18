@@ -2,20 +2,15 @@
 // own domain once the email provider verified its DNS records, and replies go to the support email once its owner
 // proved it with a code. Until then emails come from the standard address with the partner's name, without Reply-To.
 // The owner changes it; the team sees the same page without buttons.
-import {
-  PARTNER_SENDER_CODES,
-  type PartnerSenderData,
-  type PartnerSenderState,
-  type SenderRecord,
-} from '@linedesk/actions'
+import { PARTNER_SENDER_CODES, type PartnerSenderData, type PartnerSenderState } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
-import { CopyButton } from '../onboarding/Frame.tsx'
 import { callAction } from '../settings/settings-api.ts'
 import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
+import { DnsRecords } from '../ui/DnsRecords.tsx'
 import { Card, Dialog, FormField, Input } from '../ui/form.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
@@ -46,34 +41,6 @@ export function senderLead(status: PartnerSenderState): MessageKey {
   if (status === 'failed') return msg('team.partner.sender.failedLead')
   if (status === 'stopped') return msg('team.partner.sender.stoppedLead')
   return msg('team.partner.sender.pendingLead')
-}
-
-/**
- * The DNS records the partner adds at its DNS host: type, name and value in full (never cut short: they are copied),
- * each with Copy buttons; the buttons go under the value on phones.
- */
-export function DnsRecords({ records }: { records: SenderRecord[] }) {
-  const t = useT()
-  return (
-    <ul className="ps-records" aria-label={t('team.partner.sender.records')}>
-      {records.map(r => (
-        <li key={`${r.type}:${r.name}:${r.value}`} className="ps-record">
-          <div className="ps-record-text">
-            <span className="ps-record-head">
-              {r.type} · <code>{r.name}</code>
-              {r.priority !== null && ` · ${t('team.partner.sender.priority', { priority: r.priority })}`}
-              {r.found && <StatusMark state="works" label={t('team.partner.sender.recordFound')} />}
-            </span>
-            <code className="ps-value">{r.value}</code>
-          </div>
-          <div className="ps-record-copy">
-            <CopyButton text={r.name} label={t('team.partner.sender.copyName')} />
-            <CopyButton text={r.value} label={t('team.partner.sender.copyValue')} />
-          </div>
-        </li>
-      ))}
-    </ul>
-  )
 }
 
 /** The sender's state, records and buttons, without data loading: also what the tests render. */
@@ -147,9 +114,7 @@ export function SenderBody({
             <StatusMark state={senderMark(sender.status)} />
             <div>
               <strong>{sender.address}</strong>
-              <p className="help">
-                {t(senderLead(sender.status))}
-              </p>
+              <p className="help">{t(senderLead(sender.status))}</p>
             </div>
           </div>
           {sender.status !== 'verified' && (

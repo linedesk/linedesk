@@ -280,7 +280,6 @@ const assemblyai: Check = async (values, http) => {
 
 // --- Language models ----------------------------------------------------------------------------
 
-
 /**
  * A chat request of a few tokens: the key, the model and the account's quota in one. Routed as the calls are
  * (noTrainingFields, `zeroDataRetention` from the OpenRouter switch), so a model OpenRouter has no private endpoint
@@ -461,6 +460,20 @@ const turnstile: Check = async (values, http) => {
   return ok()
 }
 
+// --- Partner addresses --------------------------------------------------------------------------
+// Cloudflare for SaaS (white-label S5): list one custom hostname of the zone. Free, nothing is changed. A token
+// without the SSL and Certificates permission, or another zone, is refused here.
+
+const cloudflareSaas: Check = async (values, http) => {
+  if (!/^[0-9a-f]{32}$/i.test(values.zone_id?.trim() ?? ''))
+    return error('config', said('server.api.providerTest.cloudflareSaas.zoneId'))
+  const answer = await http.json(
+    `https://api.cloudflare.com/client/v4/zones/${encodeURIComponent(values.zone_id!.trim())}/custom_hostnames?per_page=1`,
+    { headers: { authorization: `Bearer ${values.api_token}` } },
+  )
+  return answer.ok ? ok() : failed(answer.problem)
+}
+
 // --- Connected apps -----------------------------------------------------------------------------
 // Slack checks a made-up code before the client (`oauth.v2.access` answers `invalid_code` to any client ID), so the
 // code exchange of the other OAuth apps proves nothing for Slack. `oauth.v2.exchange` with a made-up token checks the
@@ -541,6 +554,7 @@ const checks: Record<HttpProvider, Check> = {
   assemblyai,
   elevenlabs_transcript: elevenLabsStt,
   turnstile,
+  cloudflare_saas: cloudflareSaas,
 }
 
 // --- Billing ------------------------------------------------------------------------------------

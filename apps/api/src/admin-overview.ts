@@ -70,6 +70,8 @@ export const pricePerMinute: Record<ProviderName, number> = {
   stripe: 0,
   // The sign-up page's bot check is free.
   turnstile: 0,
+  // Partner addresses cost per custom hostname a month, not per call minute.
+  cloudflare_saas: 0,
 }
 
 export type ProviderCost = {
@@ -146,6 +148,7 @@ async function activeRates(tx: Tx): Promise<ActiveRate[]> {
     'billing',
     'apps',
     'bot_check',
+    'domains',
     ...((await realtimeInUse(tx)) ? ['stt', 'llm', 'tts'] : ['realtime']),
     // After-call transcription only while an admin has selected a provider (off by default).
     ...((await activeProvider(tx, 'transcript').catch(() => null)) ? [] : ['transcript']),

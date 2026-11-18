@@ -110,6 +110,11 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['partnerSender.remove', BROWSER],
   ['partnerBrand.verifySupportEmail', BROWSER],
   ['partnerBrand.confirmSupportEmail', BROWSER],
+  // The partner's own address (S5, partner-domain.ts): in the browser.
+  ['partnerDomain.get', BROWSER],
+  ['partnerDomain.add', BROWSER],
+  ['partnerDomain.check', BROWSER],
+  ['partnerDomain.remove', BROWSER],
   // The partner owner's setup progress (partner-setup.ts): the page and the partner setup link set it.
   ['partner.setSetupStep', BROWSER],
   // Moves what the workspace pays to its owner: only the owner, signed in (partners.ts).

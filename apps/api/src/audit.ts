@@ -374,6 +374,15 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'partnerSender.adminRemove': 'partners',
   'partnerBrand.verifySupportEmail': 'partners',
   'partnerBrand.confirmSupportEmail': 'partners',
+  // A partner's own address (S5): added, checked and removed by its owner, removed by a server admin; and the job's own
+  // entries (actor `partner-domains:system`, partner-domain.ts recordSystemAudit): live, failed, removed after 30 days.
+  'partnerDomain.add': 'partners',
+  'partnerDomain.check': 'partners',
+  'partnerDomain.remove': 'partners',
+  'partnerDomain.adminRemove': 'partners',
+  'partnerDomain.live': 'partners',
+  'partnerDomain.failed': 'partners',
+  'partnerDomain.expired': 'partners',
 }
 
 /**

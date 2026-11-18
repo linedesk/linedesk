@@ -20,6 +20,7 @@ export const providerGroupIds = [
   'recording',
   'transcript',
   'business',
+  'domains',
   'billing',
 ] as const
 export type ProviderGroupId = (typeof providerGroupIds)[number]
@@ -117,6 +118,13 @@ export const providerGroups: readonly ProviderGroupSpec[] = [
     needed: false,
     categories: ['business'],
     whyKey: msg('admin.provider.group.business.why'),
+  },
+  {
+    id: 'domains',
+    labelKey: msg('admin.provider.group.domains.label'),
+    needed: false,
+    categories: ['domains'],
+    whyKey: msg('admin.provider.group.domains.why'),
   },
   {
     id: 'billing',
@@ -517,6 +525,10 @@ export function statusGroups(input: StatusInput, words: Words = english): Status
       }
       case 'business':
         return several(configured(providersIn('business')))
+      case 'domains': {
+        const used = inUse('domains')
+        return used ? fromLine(used) : empty('off')
+      }
       case 'billing': {
         const used = inUse('billing')
         return used ? fromLine(used) : empty('off')

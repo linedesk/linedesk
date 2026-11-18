@@ -86,6 +86,7 @@ describe('calendar.findSlots', () => {
       'partnerBrand.get',
       'partnerBrand.protectedNames',
       'partnerBrand.reviews',
+      'partnerDomain.get',
       'partnerInvitation.view',
       'partnerKeys.get',
       'partnerSender.get',

@@ -3,6 +3,7 @@
 // JOBS_ENABLED=false: this process only queues jobs and runs none (another replica does them).
 import { checkPartnerKeys } from './partner-keys.ts'
 import { checkSenderDomains } from './partner-sender.ts'
+import { checkOneDomain, checkPartnerDomains, recheckPartnerDomains } from './partner-domain.ts'
 import type { RecordingStoreName } from '@linedesk/actions'
 import { BillingSetupError } from '@linedesk/billing'
 import { calls, type Tx } from '@linedesk/db'
@@ -92,6 +93,15 @@ const HELD_NEWS_SWEEP_CRON = '*/5 * * * *'
 /** Every 5 minutes: white-label partners' sender domains that are due are checked at the email provider (S6). */
 const SENDER_DOMAIN_CHECK = 'partner.sender-check'
 const SENDER_DOMAIN_CHECK_CRON = '*/5 * * * *'
+/**
+ * White-label partners' own addresses (S5, partner-domain.ts): every 5 minutes the new ones that are due (our TXT, then
+ * Cloudflare and the probe), and one right after an address is added (`domainId`, one per address).
+ */
+export const PARTNER_DOMAIN_CHECK = 'partner.domainCheck'
+const PARTNER_DOMAIN_CHECK_CRON = '*/5 * * * *'
+/** Daily: live and failed addresses checked again; those failed (or of a suspended partner) for 30 days removed. */
+const PARTNER_DOMAIN_RECHECK = 'partner.domainRecheck'
+const PARTNER_DOMAIN_RECHECK_CRON = '41 4 * * *'
 /** One webhook or integration delivery (webhooks.ts, integrations.ts). Retried with backoff: 1, 2, 4 … 32 minutes, about an hour in all. */
 export const WEBHOOK_DELIVER = 'webhook.deliver'
 /** Webhook deliveries one API process sends at the same time. */
@@ -307,6 +317,13 @@ async function runJobs(instance: PgBoss, env: Env) {
   })
   await instance.schedule(SENDER_DOMAIN_CHECK, SENDER_DOMAIN_CHECK_CRON)
   await instance.work(SENDER_DOMAIN_CHECK, async () => checkSenderDomains(db))
+  await instance.schedule(PARTNER_DOMAIN_CHECK, PARTNER_DOMAIN_CHECK_CRON)
+  await instance.work<{ domainId?: string }>(PARTNER_DOMAIN_CHECK, async ([job]) => {
+    if (job?.data?.domainId) await checkOneDomain(job.data.domainId)
+    else await checkPartnerDomains()
+  })
+  await instance.schedule(PARTNER_DOMAIN_RECHECK, PARTNER_DOMAIN_RECHECK_CRON)
+  await instance.work(PARTNER_DOMAIN_RECHECK, async () => recheckPartnerDomains())
   await instance.schedule(SETUP_EMAILS, SETUP_EMAILS_CRON)
   await instance.work(SETUP_EMAILS, async () => sendDueSetupEmails(db, emailSender))
   await instance.schedule(COMMAND_PRUNE, COMMAND_PRUNE_CRON)
@@ -511,6 +528,9 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(SETUP_EMAILS)
   await instance.createQueue(HELD_NEWS_SWEEP)
   await instance.createQueue(SENDER_DOMAIN_CHECK)
+  // Never retried: the next scheduled run is the retry.
+  await instance.createQueue(PARTNER_DOMAIN_CHECK, { retryLimit: 0, expireInSeconds: 600 })
+  await instance.createQueue(PARTNER_DOMAIN_RECHECK, { retryLimit: 0, expireInSeconds: 1800 })
   // One run at a time, never retried: the next scheduled run is the retry.
   await instance.createQueue(PROVIDER_HEALTH_CHECK, { retryLimit: 0, expireInSeconds: 600 })
   await instance.createQueue(VOICE_DELETE, { retryLimit: 24, retryDelay: 3600 })
@@ -613,6 +633,14 @@ export async function queueSeatSync(tx: Tx, job: SeatSyncJob): Promise<boolean> 
   if (!boss) return false
   await boss.send(PARTNER_SEAT_SYNC, job, { db: fromDrizzle(tx, sql) })
   return true
+}
+
+/**
+ * Queues the first check of a partner address in the caller's transaction (partner-domain.ts add), one per address.
+ * Without a queue (tests) nothing runs; the scheduled check finds it.
+ */
+export async function queueDomainCheck(tx: Tx, domainId: string) {
+  await boss?.send(PARTNER_DOMAIN_CHECK, { domainId }, { db: fromDrizzle(tx, sql), singletonKey: domainId })
 }
 
 /** Queues a usage-limit email in the caller's transaction. Without a queue (tests) nothing is sent. */

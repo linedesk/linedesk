@@ -667,6 +667,109 @@ Linedesk · desk.example.com
 ",
   ],
   [
+    "admin-alert-partner-domain",
+    "Partner address on Linedesk: Cascade IT Partners",
+    "Admin alert
+
+Partner address on Linedesk: Cascade IT Partners
+
+The white-label partner Cascade IT Partners added its own address. Once its DNS records are in, its clients sign in there.
+
+Address: app.cascade-it.example
+Product name: Cascade Desk
+
+Check that the address is the partner's own and imitates no one else's. Server admin › Partners removes it at once.
+
+Open Server admin › Partners:
+https://desk.example.com/#admin/partners
+
+Open the audit log:
+https://desk.example.com/#admin/audit
+
+--
+
+You got this email because you are a server admin of desk.example.com. Every server admin gets these alerts.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "partner-domain-live",
+    "app.cascade-it.example is live",
+    "Your address
+
+app.cascade-it.example is live
+
+Your clients can sign in at app.cascade-it.example now.
+
+Open Partner › Domain:
+https://desk.example.com/#partner/domain
+
+--
+
+You get this email because you own a partner account on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "partner-domain-failed",
+    "app.cascade-it.example stopped working",
+    "Your address
+
+app.cascade-it.example stopped working
+
+app.cascade-it.example no longer reaches us. Your clients sign in at the standard address until it works again.
+
+Open Partner › Domain:
+https://desk.example.com/#partner/domain
+
+--
+
+You get this email because you own a partner account on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "partner-domain-removed",
+    "app.cascade-it.example was removed",
+    "Your address
+
+app.cascade-it.example was removed
+
+A server admin removed your address app.cascade-it.example. Reason: Imitates a bank. Your clients sign in at the standard address again.
+
+Open Partner › Domain:
+https://desk.example.com/#partner/domain
+
+--
+
+You get this email because you own a partner account on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "partner-domain-expired",
+    "app.cascade-it.example was removed",
+    "Your address
+
+app.cascade-it.example was removed
+
+We removed app.cascade-it.example: it did not work, or your partner account was not active, for 30 days. Your clients sign in at the standard address. You can add it again any time.
+
+Open Partner › Domain:
+https://desk.example.com/#partner/domain
+
+--
+
+You get this email because you own a partner account on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
     "welcome",
     "Your Linedesk account is ready",
     "Welcome, Sam Patel
@@ -1883,6 +1986,109 @@ https://desk.example.com/#admin/audit
 --
 
 Recibes este correo porque eres administrador del servidor de desk.example.com. Todos los administradores del servidor reciben estas alertas.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "admin-alert-partner-domain",
+    "Partner address on Linedesk: Cascade IT Partners",
+    "Alerta de administración
+
+Partner address on Linedesk: Cascade IT Partners
+
+The white-label partner Cascade IT Partners added its own address. Once its DNS records are in, its clients sign in there.
+
+Address: app.cascade-it.example
+Nombre del producto: Cascade Desk
+
+Check that the address is the partner's own and imitates no one else's. Server admin › Partners removes it at once.
+
+Open Server admin › Partners:
+https://desk.example.com/#admin/partners
+
+Abrir el registro de auditoría:
+https://desk.example.com/#admin/audit
+
+--
+
+Recibes este correo porque eres administrador del servidor de desk.example.com. Todos los administradores del servidor reciben estas alertas.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "partner-domain-live",
+    "app.cascade-it.example is live",
+    "Your address
+
+app.cascade-it.example is live
+
+Your clients can sign in at app.cascade-it.example now.
+
+Open Partner › Domain:
+https://desk.example.com/#partner/domain
+
+--
+
+You get this email because you own a partner account on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "partner-domain-failed",
+    "app.cascade-it.example stopped working",
+    "Your address
+
+app.cascade-it.example stopped working
+
+app.cascade-it.example no longer reaches us. Your clients sign in at the standard address until it works again.
+
+Open Partner › Domain:
+https://desk.example.com/#partner/domain
+
+--
+
+You get this email because you own a partner account on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "partner-domain-removed",
+    "app.cascade-it.example was removed",
+    "Your address
+
+app.cascade-it.example was removed
+
+A server admin removed your address app.cascade-it.example. Reason: Imitates a bank. Your clients sign in at the standard address again.
+
+Open Partner › Domain:
+https://desk.example.com/#partner/domain
+
+--
+
+You get this email because you own a partner account on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "partner-domain-expired",
+    "app.cascade-it.example was removed",
+    "Your address
+
+app.cascade-it.example was removed
+
+We removed app.cascade-it.example: it did not work, or your partner account was not active, for 30 days. Your clients sign in at the standard address. You can add it again any time.
+
+Open Partner › Domain:
+https://desk.example.com/#partner/domain
+
+--
+
+You get this email because you own a partner account on desk.example.com.
 
 Linedesk · desk.example.com
 ",
