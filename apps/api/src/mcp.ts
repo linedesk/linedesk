@@ -23,6 +23,7 @@ import { KEY_READ_ROUTES, keyReadRoute } from './key-reads.ts'
 import { mcpChallenge } from './oauth.ts'
 import { actorForPersonalKey, isPersonalKey } from './personal-keys.ts'
 import { runAction, runnableBy } from './run-action.ts'
+import { withoutHopByHopHeaders } from './keep-alive.ts'
 
 /** MCP tool names: letters, digits, _ and - (some clients refuse dots). `call.markDone` → `call_markDone`. */
 export const toolName = (action: string) => action.replaceAll('.', '_')
@@ -513,14 +514,18 @@ export function takeSlot(apiKeyId: string): (() => void) | null {
   return release
 }
 
-/** The response, with the slot given back once its body has been sent or dropped. */
+/**
+ * The response, with the slot given back once its body has been sent or dropped. Without the SDK's connection headers
+ * (an SSE answer sets `Connection: keep-alive`, which would keep this connection open on shutdown).
+ */
 function releasingWhenSent(res: Response, release: () => void): Response {
+  const headers = withoutHopByHopHeaders(res.headers)
   if (!res.body) {
     release()
-    return res
+    return new Response(null, { status: res.status, statusText: res.statusText, headers })
   }
   const body = res.body.pipeThrough(new TransformStream({ flush: release }))
-  return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers })
+  return new Response(body, { status: res.status, statusText: res.statusText, headers })
 }
 
 /**

@@ -102,6 +102,7 @@ import { isSignedRecordingRequest, serveRecording, serveSignedRecording } from '
 import { previewLanguage, servePreview } from './voices.ts'
 import { runAction, runnableBy } from './run-action.ts'
 import { brandingForActor, hostBrandOf, hostLegalLinks, partnerLogoFor } from './partner-brand.ts'
+import { withoutHopByHopHeaders } from './keep-alive.ts'
 import {
   freshHosts,
   hostsLoaded,
@@ -1086,7 +1087,8 @@ app.get('/v1/shape/:table', async c => {
     console.error(`shape ${table}: Electric answered ${res.status}`)
     return c.json({ ok: false, error: 'read sync is unavailable' }, 502)
   }
-  const headers = new Headers(res.headers)
+  // Not Electric's connection headers: a `Connection: keep-alive` would keep this connection open on shutdown.
+  const headers = withoutHopByHopHeaders(res.headers)
   headers.delete('content-encoding')
   headers.delete('content-length')
   // Electric allows any origin; this API answers its own app only (cookies, no CORS).

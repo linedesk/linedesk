@@ -5,7 +5,14 @@ import { createServer, type Server } from 'node:http'
 import { connect, type Socket } from 'node:net'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, test } from 'vitest'
-import { configureKeepAlive, HEADERS_TIMEOUT_MS, KEEP_ALIVE_TIMEOUT_MS } from './keep-alive.ts'
+import { getRequestListener } from '@hono/node-server'
+import {
+  configureKeepAlive,
+  HEADERS_TIMEOUT_MS,
+  HOP_BY_HOP_HEADERS,
+  KEEP_ALIVE_TIMEOUT_MS,
+  withoutHopByHopHeaders,
+} from './keep-alive.ts'
 
 const root = new URL('../../../', import.meta.url)
 const read = (path: string) => readFileSync(new URL(path, root), 'utf8')
@@ -153,5 +160,65 @@ describe('configureKeepAlive', () => {
     waiting.splice(0).forEach(end => end())
     await stream.closed
     await stopped
+  })
+})
+
+describe('withoutHopByHopHeaders', () => {
+  test('drops the connection headers and those the Connection header names, keeps the rest', () => {
+    const headers = withoutHopByHopHeaders({
+      connection: 'keep-alive, X-Hop',
+      'keep-alive': 'timeout=5',
+      'proxy-connection': 'keep-alive',
+      te: 'trailers',
+      trailer: 'expires',
+      'transfer-encoding': 'chunked',
+      upgrade: 'h2c',
+      'x-hop': '1',
+      'content-type': 'application/json',
+      'electric-handle': 'abc',
+    })
+    for (const name of [...HOP_BY_HOP_HEADERS, 'x-hop']) expect(headers.has(name), name).toBe(false)
+    expect(Object.fromEntries(headers)).toEqual({ 'content-type': 'application/json', 'electric-handle': 'abc' })
+  })
+
+  test('every response passed on from elsewhere goes through it', () => {
+    // The shape proxy (Electric's answer) and both MCP endpoints (the SDK sets Connection: keep-alive on SSE).
+    expect(read('apps/api/src/app.ts')).toMatch(/const headers = withoutHopByHopHeaders\(res\.headers\)/)
+    expect(read('apps/api/src/mcp.ts')).toMatch(/withoutHopByHopHeaders\(res\.headers\)/)
+    expect(read('apps/api/src/setup-mcp.ts')).toMatch(/headers: withoutHopByHopHeaders\(res\.headers\)/)
+  })
+
+  test('on shutdown, a passed-on Connection: keep-alive no longer keeps the connection open', async () => {
+    // As the API serves it (@hono/node-server): an answer copied from an upstream that sent Connection: keep-alive.
+    const waiting: (() => void)[] = []
+    const upstream = { connection: 'keep-alive', 'keep-alive': 'timeout=5', 'content-type': 'text/plain' }
+    const listener = getRequestListener(
+      () =>
+        new Promise<Response>(resolve =>
+          waiting.push(() => resolve(new Response('ok', { headers: withoutHopByHopHeaders(upstream) }))),
+        ),
+    )
+    const server = createServer(listener)
+    const { stopKeepingAlive } = configureKeepAlive(server)
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    const { port } = server.address() as { port: number }
+    const socket = connect(port, '127.0.0.1')
+    try {
+      socket.write('GET / HTTP/1.1\r\nHost: test\r\n\r\n')
+      const head = new Promise<string>(resolve => socket.once('data', data => resolve(String(data))))
+      const closed = new Promise<void>(resolve => socket.once('close', () => resolve()))
+      await expect.poll(() => waiting.length).toBe(1)
+
+      const stopped = new Promise<void>(resolve => server.close(() => resolve()))
+      stopKeepingAlive()
+      waiting.splice(0).forEach(answer => answer())
+      expect(await head).toMatch(/Connection: close/i)
+      expect(await head).not.toMatch(/Keep-Alive: timeout=5/i)
+      await closed
+      await stopped
+    } finally {
+      socket.destroy()
+      server.closeAllConnections()
+    }
   })
 })

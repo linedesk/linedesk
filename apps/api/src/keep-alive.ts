@@ -3,7 +3,7 @@
 // The proxy (docker/Caddyfile) keeps idle connections to the API for `keepalive 60s` and reuses them. Node's default
 // is 5 s: the API closed a connection the proxy was just sending the next request on, the proxy got EOF and answered
 // 502 (staging, 2026-11-18; a request that reached the API is not retried, docker/Caddyfile). So the API waits
-// longer than the proxy: the proxy always lets go of an idle connection first (caddy-upstreams.test.ts).
+// longer than the proxy: the proxy always lets go of an idle connection first (keep-alive.test.ts).
 import type { Server, ServerResponse } from 'node:http'
 
 /** Above the proxy's 60 s, with room for the time between the API's last byte and the proxy putting it back. */
@@ -41,4 +41,27 @@ export function configureKeepAlive(server: Server) {
       server.closeIdleConnections()
     },
   }
+}
+
+/** Headers about one connection, never passed on to another one (RFC 9110 §7.6.1). */
+export const HOP_BY_HOP_HEADERS = [
+  'connection',
+  'keep-alive',
+  'proxy-connection',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+] as const
+
+/**
+ * A copy of `source` (an upstream's answer, or one the MCP SDK made) without the headers about its connection, and
+ * without those its `Connection` header names. A passed-on `Connection: keep-alive` would make Node keep the
+ * connection to the proxy open after `stopKeepingAlive` (Node takes the header over `shouldKeepAlive`).
+ */
+export function withoutHopByHopHeaders(source: HeadersInit): Headers {
+  const headers = new Headers(source)
+  const named = (headers.get('connection') ?? '').split(',').map(name => name.trim().toLowerCase())
+  for (const name of [...HOP_BY_HOP_HEADERS, ...named]) if (name) headers.delete(name)
+  return headers
 }

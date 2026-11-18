@@ -121,6 +121,7 @@ import { type PartnerSetupFacts, partnerPast, partnerSetupFacts } from './partne
 import { setupChecklist } from './setup-checklist.ts'
 import { workspaceLocale } from './workspace-locale.ts'
 import { assistantSpokeIn } from './setup-events.ts'
+import { withoutHopByHopHeaders } from './keep-alive.ts'
 
 /**
  * The registry actions an agent gets, by name. Instance: the providers. Workspace: what onboarding does. Each is
@@ -861,10 +862,7 @@ function optionalSteps(groups: GroupStatus[]) {
     ],
     business: guideLines(recommendedProviders.business),
     // White-label partners' own addresses (Partner › Domain): off until this provider is set up.
-    domains: [
-      english.t('server.setupAgent.optional.domains'),
-      ...guideLines(recommendedProviders.domains),
-    ],
+    domains: [english.t('server.setupAgent.optional.domains'), ...guideLines(recommendedProviders.domains)],
     apps: [
       ...guideLines(recommendedProviders.apps),
       'The OAuth app needs the redirect URI that providers_list gives (redirect_uris).',
@@ -1607,7 +1605,12 @@ export async function serveSetupMcp(request: Request, keyInPath: string | null, 
     })
     const body = await res.text()
     release()
-    return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers })
+    // Not the SDK's connection headers (keep-alive.ts).
+    return new Response(body, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: withoutHopByHopHeaders(res.headers),
+    })
   } catch (e) {
     release()
     throw e
