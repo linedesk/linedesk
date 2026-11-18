@@ -49,6 +49,11 @@ export const wordsOf = (actor: Pick<Actor, 'locale'> | null | undefined): Reader
 export class Reject extends Error {
   readonly code: string | undefined
   readonly said: Said | undefined
+  /**
+   * A stable code the command log keeps with the rejection (`result.reason`, run-action.ts), whatever its words or
+   * class: what the audit log finds a kind of refusal by (LEVEL_RAISE_REFUSED). Never part of the caller's answer.
+   */
+  reason: string | undefined
   constructor(message?: string | Said, code?: string) {
     super(typeof message === 'object' ? sayIn(message) : message)
     this.said = typeof message === 'object' ? message : undefined
@@ -60,6 +65,9 @@ export class Reject extends Error {
     return new this({ key, params }, code) as InstanceType<T>
   }
 }
+
+/** The `reason` of a refused raise of an assistant's call quality (refuseLevelRaise), an edit or a version restore. */
+export const LEVEL_RAISE_REFUSED = 'level_raise'
 
 /** A rejection's text in these words: its key in that language, else its message as it was written. */
 export const rejectionText = (e: Reject, reader: Reader) => (e.said ? sayIn(e.said, reader) : e.message)

@@ -8,7 +8,7 @@ import { eq } from 'drizzle-orm'
 import { managesBill } from './bill-manager.ts'
 import { refuseUnlessBillOwner } from './billing-owner.ts'
 import type { Actor } from './context.ts'
-import { Forbidden, Reject } from './handler-context.ts'
+import { Forbidden, LEVEL_RAISE_REFUSED, Reject } from './handler-context.ts'
 import { isPartnerOwner, PARTNER_DECIDES_LEVELS } from './partner-refusals.ts'
 import { refuseBillingActor, usageLevelsBilled } from './usage-levels.ts'
 
@@ -101,7 +101,9 @@ export async function refuseLevelRaise(tx: Tx, actor: Actor) {
     refuseBillingActor(actor)
     await refuseUnlessMayPay(tx, actor)
   } catch (e) {
-    if (e instanceof Forbidden) throw Forbidden.t('server.api.callQualityRaise')
-    throw e
+    // Every refusal here, a 403 or another (a disabled workspace), is logged as a refused raise for the audit log.
+    const refusal = e instanceof Forbidden ? Forbidden.t('server.api.callQualityRaise') : e
+    if (refusal instanceof Reject) refusal.reason = LEVEL_RAISE_REFUSED
+    throw refusal
   }
 }

@@ -456,7 +456,7 @@ export async function runAction(
       if (undone.length) console.error(`${name} failed after it had side effects: ${undone.join('; ')}`)
       throw e // unexpected: 500, the client retries
     }
-    const logged = rejectionBody(e, undone)
+    const logged = { ...rejectionBody(e, undone), ...(e.reason ? { reason: e.reason } : {}) }
     await db
       .insert(commands)
       .values({ ...record, result: logged, rejected: true })

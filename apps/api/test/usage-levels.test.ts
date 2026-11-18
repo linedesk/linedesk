@@ -8,6 +8,7 @@ import {
   assistant_versions,
   assistants,
   billing_accounts,
+  commands,
   createDb,
   instance_settings,
   organization,
@@ -21,7 +22,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vite
 import { setupActorIn, workspaceSetupActor } from '../src/agent-setup.ts'
 import { listAudit } from '../src/audit.ts'
 import { auth } from '../src/auth.ts'
+import { pruneSet } from '../src/command-log.ts'
+import { resolveActor } from '../src/context.ts'
 import { db } from '../src/db.ts'
+import { said, sayIn } from '../src/handler-context.ts'
 import { runAction } from '../src/run-action.ts'
 import {
   act,
@@ -889,6 +893,62 @@ describe('audit, locking and limits', () => {
     expect(again.entries.filter(e => e.what === 'assistant.restoreVersion' && e.refused)).toHaveLength(1)
     expect((await restore(ws.owner)).status).toBe(200)
     expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('premium')
+  })
+
+  test('refused raises are in the call quality entries by their reason, not their words; other refusals are not', async () => {
+    const ws = await createWorkspace('Quality Refusal Reason Plumbing')
+    expect((await setLevel(ws.owner, ws.assistant.id, 'premium', { greeting: 'Premium days.' })).status).toBe(200)
+    const premiumVersion = (await latestVersion(ws.assistant.id)).number
+    expect((await setLevel(ws.owner, ws.assistant.id, 'standard')).status).toBe(200)
+    const admin = await addMember(ws.id, 'admin')
+    const restoreInput = { assistantId: ws.assistant.id, number: premiumVersion }
+    const refusedRows = (action: string) =>
+      db
+        .select()
+        .from(commands)
+        .where(and(eq(commands.workspace_id, ws.id), eq(commands.action, action), eq(commands.rejected, true)))
+    const listed = async () =>
+      (await listAudit(db, { kind: 'team', workspaceId: ws.id, limit: 50 })).entries.filter(e => e.refused)
+
+    // A refused edit and a refused restore (403): logged with the reason.
+    expect((await setLevel(admin, ws.assistant.id, 'premium')).status).toBe(403)
+    expect((await act(admin, 'assistant.restoreVersion', restoreInput)).status).toBe(403)
+    // A refusal that is no 403 (the workspace disabled while the save ran): a refused raise all the same.
+    const owner = (await resolveActor(new Headers(ws.owner.headers)))!
+    expect(owner.workspaceId).toBe(ws.id)
+    const disabled = await runAction('assistant.restoreVersion', restoreInput, { ...owner, workspaceDisabled: true })
+    expect(disabled.status).toBe(409)
+    expect(disabled.body).not.toHaveProperty('reason')
+    const [edit] = await refusedRows('assistant.update')
+    const restores = await refusedRows('assistant.restoreVersion')
+    expect(edit!.result).toMatchObject({ reason: 'level_raise' })
+    expect(restores.map(r => (r.result as { reason?: string }).reason)).toEqual(['level_raise', 'level_raise'])
+
+    // Unrelated refusals: a restore of no such version, an edit that does not touch the call quality.
+    const missing = { assistantId: ws.assistant.id, number: premiumVersion + 100 }
+    expect((await act(admin, 'assistant.restoreVersion', missing)).status).toBeGreaterThanOrEqual(400)
+    const otherAssistant = { assistantId: crypto.randomUUID(), greeting: 'Nobody here.' }
+    expect((await act(admin, 'assistant.update', otherAssistant)).status).toBeGreaterThanOrEqual(400)
+    expect((await refusedRows('assistant.restoreVersion')).length).toBe(3)
+
+    const ids = (await listed()).map(e => e.id).sort()
+    expect(ids).toEqual([edit!.id, ...restores.map(r => r.id)].sort())
+
+    // Worded differently, the reason still finds them; the 90-day prune keeps it.
+    await db
+      .update(commands)
+      .set({ result: sql`${commands.result} || '{"error":"Reworded."}'::jsonb` })
+      .where(inArray(commands.id, ids))
+    await db.update(commands).set(pruneSet(new Date())).where(inArray(commands.id, ids))
+    expect((await listed()).map(e => e.id).sort()).toEqual(ids)
+
+    // An entry logged before the reason (its English only) is still found.
+    const old = restores[0]!
+    await db
+      .update(commands)
+      .set({ result: { ok: false, error: sayIn(said('server.api.callQualityRaise')), code: 'forbidden' } })
+      .where(eq(commands.id, old.id))
+    expect((await listed()).map(e => e.id)).toContain(old.id)
   })
 
   test('the level is one of three in the database too; the longest call is 30 minutes', async () => {

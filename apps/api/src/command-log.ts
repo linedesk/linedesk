@@ -90,8 +90,11 @@ const idsOnlySql = (value: SQL) => sql`(
   from jsonb_each(case when jsonb_typeof(${value}) = 'object' then ${value} else '{}'::jsonb end) as e(key, v)
 )`
 
-/** A stored result cut down to whether it succeeded and the ids in its data (rows were never kept in full since this file). */
-const prunedResultSql = sql`jsonb_strip_nulls(jsonb_build_object('ok', ${commands.result} -> 'ok', 'data', case when ${commands.result} ? 'data' then ${idsOnlySql(sql`${commands.result} -> 'data'`)} end))`
+/**
+ * A stored result cut down to whether it succeeded and the ids in its data (rows were never kept in full since this
+ * file), and a rejection's `reason`, a fixed code the audit log lists it by (a refused raise of the call quality).
+ */
+const prunedResultSql = sql`jsonb_strip_nulls(jsonb_build_object('ok', ${commands.result} -> 'ok', 'reason', ${commands.result} -> 'reason', 'data', case when ${commands.result} ? 'data' then ${idsOnlySql(sql`${commands.result} -> 'data'`)} end))`
 
 /**
  * A change of transfer contacts keeps its `data.transferChanges` (ids, names, last four digits: audit.ts), a change

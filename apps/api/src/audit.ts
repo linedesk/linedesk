@@ -8,7 +8,7 @@ import type { EmailRules, TransferContact } from '@linedesk/db/types'
 import { type createAuthMiddleware, isAPIError } from 'better-auth/api'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { db } from './db.ts'
-import { said, sayIn } from './handler-context.ts'
+import { LEVEL_RAISE_REFUSED, said, sayIn } from './handler-context.ts'
 import type { SignupRuleChange } from './self-serve.ts'
 
 export type AuthEventName = (typeof auth_events.$inferInsert)['event']
@@ -516,16 +516,18 @@ const transferChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb
 /** SQL: an assistant.update of `c` that changed the call email rules (or, before LIN-470, the instruction), or one refused whose input had them. */
 const emailRoutingChangeSql = sql`(c.action = 'assistant.update' and (jsonb_typeof(c.result->'data'->'emailRoutingChanges') = 'object' or (c.rejected and (c.input ? 'email_rules' or c.input ? 'email_routing'))))`
 /**
- * The English of a refused raise, as the command log keeps a rejection (`result.error`, run-action.ts): how a refused
- * assistant.restoreVersion raise is told apart, whose input names only the version (review L-3).
+ * The English of a refused raise, as the command log kept a rejection before it kept its `reason` (`result.error`,
+ * run-action.ts): how an older refused assistant.restoreVersion raise is told apart, whose input names only the
+ * version (review L-3). Only a fallback for those entries; newer ones carry LEVEL_RAISE_REFUSED.
  */
-const LEVEL_RAISE_REFUSED = sayIn(said('server.api.callQualityRaise'))
+const LEVEL_RAISE_REFUSED_TEXT = sayIn(said('server.api.callQualityRaise'))
 /**
  * SQL: a command of `c` that changed what decides the assistant's usage level (`data.usageLevelChange` an object), or
- * one refused whose input named a call quality (a raise by someone who may not pay, for one), or a version restore
- * refused as a raise.
+ * one refused whose input named a call quality, or one refused as a raise (`result.reason`, refuseLevelRaise: an edit
+ * or a version restore, also a refusal that is no 403, a disabled workspace), or an older version restore refused
+ * with the raise's English.
  */
-const usageLevelChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb_typeof(c.result->'data'->'usageLevelChange') = 'object' or (c.rejected and (c.input ? 'call_quality' or (c.action = 'assistant.restoreVersion' and starts_with(c.result->>'error', ${LEVEL_RAISE_REFUSED}))))))`
+const usageLevelChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb_typeof(c.result->'data'->'usageLevelChange') = 'object' or (c.rejected and (c.input ? 'call_quality' or c.result->>'reason' = ${LEVEL_RAISE_REFUSED} or (c.action = 'assistant.restoreVersion' and starts_with(c.result->>'error', ${LEVEL_RAISE_REFUSED_TEXT}))))))`
 
 /**
  * A change of the recording notice (workspace.updateSettings with `recordingNoticeOn` or `recordingNotice`): turned
