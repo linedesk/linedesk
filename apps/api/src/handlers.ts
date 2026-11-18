@@ -157,6 +157,7 @@ import { authenticatorHandlers, authenticatorPreparers } from './authenticator.t
 import { workspaceIconHandlers } from './workspace-icon.ts'
 import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
 import { workspaceLocale } from './workspace-locale.ts'
+import { applyCountryDefaults } from './country-defaults.ts'
 import { publicHolidayHandlers } from './public-holidays.ts'
 import { checkAssistantVoice, releaseUnusedClones, voiceHandlers, voicePreparers } from './voices.ts'
 import { promptOverridesForCall, systemPromptHandlers } from './system-prompt.ts'
@@ -1969,6 +1970,8 @@ const handlers: Record<string, Handler> = {
     if (carrier_account === 'install') onCommit?.(() => syncInstallDestinations())
     // The go-live checklist's first step ("Connect your number"), and where Server admin › Onboarding sees a business stop.
     await recordSetupEvent(tx, workspace_id, 'number_connected', now)
+    // A workspace whose country is worked out from its numbers may be in another country now: what follows it moves.
+    await applyCountryDefaults(tx, workspace_id)
     // A transfer contact on this number would now ring back into Linedesk: switched off.
     const switchedOff = await switchOffLoopingTransfers(tx, workspace_id, [e164])
     return { rows: { phone_numbers: rows, ...(switchedOff.length ? { assistants: switchedOff } : {}) } }

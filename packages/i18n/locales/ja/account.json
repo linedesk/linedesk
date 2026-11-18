@@ -176,7 +176,6 @@
   "notify.summaryMeDescription": "通知に通話の内容を1行追加します。ロック画面に表示されることがあります。",
   "notify.summaryThem": "プッシュ通知に通話の内容を表示",
   "notify.summaryThemDescription": "本人の端末の通知に通話の内容を1行追加します。ロック画面に表示されることがあるため、本人のみオンにできます。",
-  "notify.teamDefault": "チームの既定値",
   "notify.thisDevice": "この端末の通知",
   "notify.turningOn": "オンにしています…",
   "notify.what": "通知設定",

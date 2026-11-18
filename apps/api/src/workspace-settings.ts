@@ -8,6 +8,7 @@ import {
   type JobValueCurrency,
   type PickupMode,
   currencyOfCountry,
+  mainTimeZoneOf,
   rescaleMinorUnits,
   type WorkspaceSettingsData,
 } from '@linedesk/actions'
@@ -20,6 +21,7 @@ import { activeProvider } from './provider-settings.ts'
 import { levelCentsPerMinute, usageLevelsBilled } from './usage-levels.ts'
 import { deleteOwn, deletePreview } from './workspace-delete-own.ts'
 import { workspaceLocale } from './workspace-locale.ts'
+import { applyCountryDefaults } from './country-defaults.ts'
 import { refuseUnservedCountry, servedCountriesOf } from './served-countries.ts'
 
 /**
@@ -55,6 +57,8 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       recordingNoticeOn: row?.recording_notice_on ?? true,
       recordingNotice: row?.recording_notice ?? DEFAULT_RECORDING_NOTICE,
       timeZone: row?.timezone ?? DEFAULT_TIME_ZONE,
+      timeZoneFollowsCountry: row?.timezone_follows_country ?? true,
+      countryTimeZone: mainTimeZoneOf(locale.resolvedCountry),
       businessHours: rules
         .map(r => ({ weekday: r.weekday, start: r.start_time.slice(0, 5), end: r.end_time.slice(0, 5) }))
         .sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start)),
@@ -65,6 +69,8 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       closure: row?.closure ?? null,
       jobValueCents: row?.job_value_cents ?? null,
       jobValueCurrency: jobValueCurrencyOf(row, locale.resolvedCountry),
+      jobValueCurrencyFollowsCountry: row?.job_value_currency_follows_country ?? true,
+      countryCurrency: currencyOfCountry(locale.resolvedCountry),
       pickupMode: row?.pickup_mode ?? null,
       ...locale,
       servedCountries: await servedCountriesOf(tx, actor.workspaceId),
@@ -98,10 +104,10 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       businessHoursOn?: boolean
       recordingNoticeOn?: boolean
       recordingNotice?: string
-      timeZone?: string
+      timeZone?: string | null
       closure?: Closure | null
       jobValueCents?: number | null
-      jobValueCurrency?: JobValueCurrency
+      jobValueCurrency?: JobValueCurrency | null
       pickupMode?: PickupMode
       country?: string | null
       language?: string | null
@@ -115,30 +121,49 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
         .where(eq(workspace_settings.workspace_id, actor.workspaceId))
       await refuseUnservedCountry(tx, actor.workspaceId, input.country, current?.country ?? null)
     }
+    // A currency picked is set by hand; null goes back to the country's (applyCountryDefaults below).
     const jobValueCents =
-      input.jobValueCents === undefined && input.jobValueCurrency !== undefined
+      input.jobValueCents === undefined && input.jobValueCurrency
         ? await rescaledJobValue(tx, actor.workspaceId, input.jobValueCurrency)
         : input.jobValueCents
+    // A value typed without a currency is in the currency the field showed (the country's, while it follows).
+    const typedIn =
+      input.jobValueCents !== undefined && input.jobValueCurrency === undefined
+        ? await shownJobValueCurrency(tx, actor.workspaceId)
+        : undefined
     const set = {
       ...(input.recordingRetentionDays !== undefined ? { recording_retention_days: input.recordingRetentionDays } : {}),
       ...(input.businessHoursOn !== undefined ? { business_hours_on: input.businessHoursOn } : {}),
       ...(input.recordingNoticeOn !== undefined ? { recording_notice_on: input.recordingNoticeOn } : {}),
       ...(input.recordingNotice !== undefined ? { recording_notice: input.recordingNotice } : {}),
-      ...(input.timeZone !== undefined ? { timezone: input.timeZone } : {}),
+      // A time zone picked is set by hand and stays when the country changes; null follows the country again.
+      ...(input.timeZone ? { timezone: input.timeZone, timezone_follows_country: false } : {}),
+      ...(input.timeZone === null ? { timezone_follows_country: true } : {}),
       ...(input.closure !== undefined ? { closure: input.closure } : {}),
       ...(jobValueCents !== undefined ? { job_value_cents: jobValueCents } : {}),
-      ...(input.jobValueCurrency !== undefined ? { job_value_currency: input.jobValueCurrency } : {}),
+      ...(input.jobValueCurrency
+        ? { job_value_currency: input.jobValueCurrency, job_value_currency_follows_country: false }
+        : {}),
+      ...(input.jobValueCurrency === null ? { job_value_currency_follows_country: true } : {}),
+      ...(typedIn ? { job_value_currency: typedIn } : {}),
       ...(input.pickupMode !== undefined ? { pickup_mode: input.pickupMode } : {}),
       ...(input.country !== undefined ? { country: input.country } : {}),
     }
     if (!Object.keys(set).length) return { rows: {} }
-    const [row] = await tx
+    const [upserted] = await tx
       .insert(workspace_settings)
       .values({ workspace_id: actor.workspaceId, timezone: DEFAULT_TIME_ZONE, ...set })
       .onConflictDoUpdate({ target: workspace_settings.workspace_id, set })
       .returning()
     // A new time zone moves "today", from which the holidays and yearly days are kept.
-    if (input.timeZone !== undefined) await syncDerivedDays(tx, actor.workspaceId)
+    if (input.timeZone) await syncDerivedDays(tx, actor.workspaceId)
+    // What follows the country moves with it: a new country, or a setting put back to following ("Use country
+    // default": the country's main time zone, its currency).
+    const follow = input.country !== undefined || input.timeZone === null || input.jobValueCurrency === null
+    if (follow) await applyCountryDefaults(tx, actor.workspaceId, { timeZone: input.timeZone === null })
+    const [row] = follow
+      ? await tx.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, actor.workspaceId))
+      : [upserted]
     return {
       rows: {},
       data: {
@@ -147,9 +172,11 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
         recordingNoticeOn: row!.recording_notice_on,
         recordingNotice: row!.recording_notice ?? DEFAULT_RECORDING_NOTICE,
         timeZone: row!.timezone,
+        timeZoneFollowsCountry: row!.timezone_follows_country,
         closure: row!.closure,
         jobValueCents: row!.job_value_cents,
         jobValueCurrency: row!.job_value_currency,
+        jobValueCurrencyFollowsCountry: row!.job_value_currency_follows_country,
         pickupMode: row!.pickup_mode,
         ...(input.country !== undefined ? await workspaceLocale(tx, actor.workspaceId, row!) : {}),
       } satisfies Pick<
@@ -159,9 +186,11 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
         | 'recordingNoticeOn'
         | 'recordingNotice'
         | 'timeZone'
+        | 'timeZoneFollowsCountry'
         | 'closure'
         | 'jobValueCents'
         | 'jobValueCurrency'
+        | 'jobValueCurrencyFollowsCountry'
         | 'pickupMode'
       > &
         Partial<WorkspaceSettingsData>,
@@ -268,14 +297,28 @@ async function rescaledJobValue(tx: Tx, workspaceId: string, to: JobValueCurrenc
   return cents
 }
 
+/** The currency the appointment value field shows now (jobValueCurrencyOf); undefined without a settings row. */
+async function shownJobValueCurrency(tx: Tx, workspaceId: string): Promise<JobValueCurrency | undefined> {
+  const [row] = await tx.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
+  if (!row) return undefined
+  return jobValueCurrencyOf(row, (await workspaceLocale(tx, workspaceId, row)).resolvedCountry)
+}
+
 /**
- * The currency of the appointment value: the one saved with a value; while no value is set, the currency of the
- * workspace's country (EUR in Germany), so the field starts in the money the business counts in. USD in the US, as before.
+ * The currency of the appointment value: the one picked by hand, or saved with a value; while it follows the country
+ * and no value is set, the currency of the country in use (EUR in Germany), also when that country is worked out
+ * (applyCountryDefaults stores it when a value is set or the country changes). USD in the US.
  */
 function jobValueCurrencyOf(
-  row: { job_value_cents: number | null; job_value_currency: JobValueCurrency } | undefined,
+  row:
+    | {
+        job_value_cents: number | null
+        job_value_currency: JobValueCurrency
+        job_value_currency_follows_country: boolean
+      }
+    | undefined,
   country: string,
 ): JobValueCurrency {
-  if (row && row.job_value_cents !== null) return row.job_value_currency
+  if (row && (row.job_value_cents !== null || !row.job_value_currency_follows_country)) return row.job_value_currency
   return currencyOfCountry(country) ?? row?.job_value_currency ?? 'USD'
 }

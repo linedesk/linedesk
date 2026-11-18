@@ -1,5 +1,7 @@
 // Settings pages build on the kit's form pieces (ui/form.tsx); these keep the short names they use.
 import { type ReactNode, useCallback, useState } from 'react'
+import { T, useT } from '@linedesk/i18n/react'
+import { appLink, LinkButton, plainTag } from '../ui/AppLink.tsx'
 import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
 import { type HelpContent, HelpTip, helpContent } from '../ui/HelpTip.tsx'
@@ -110,6 +112,8 @@ export function TextArea({ id, value, onChange, placeholder, label, tall, invali
 type SwitchRowProps = {
   title: string
   description?: string
+  /** A quiet line under the description: where the value comes from (FollowsLine). */
+  note?: ReactNode
   /** Quiet note next to the title, e.g. "Team default". */
   aside?: string
   on: boolean
@@ -123,7 +127,18 @@ type SwitchRowProps = {
   tip?: string
 }
 
-export function SwitchRow({ title, description, aside, on, onChange, disabled, dimmed, nested, tip }: SwitchRowProps) {
+export function SwitchRow({
+  title,
+  description,
+  note,
+  aside,
+  on,
+  onChange,
+  disabled,
+  dimmed,
+  nested,
+  tip,
+}: SwitchRowProps) {
   const className = ['swrow', dimmed && 'is-dimmed', nested && 'is-nested'].filter(Boolean).join(' ')
   return (
     <div className={className}>
@@ -133,6 +148,7 @@ export function SwitchRow({ title, description, aside, on, onChange, disabled, d
           {aside && <span className="swrow-aside">{aside}</span>}
         </b>
         {description && <span className="help">{description}</span>}
+        {note}
       </div>
       <Switch on={on} onChange={onChange} label={title} disabled={disabled} title={tip} />
     </div>
@@ -245,5 +261,79 @@ export function SelectRow<T extends string>({
       </div>
       <Select id={id} size="sm" align="end" value={value} options={options} onChange={onChange} label={title} />
     </div>
+  )
+}
+
+/** What a setting that follows another one follows: the workspace's country, or the team's default. */
+export type FollowsSource = { kind: 'country'; country: string } | { kind: 'team' }
+
+type FollowsLineProps = {
+  source: FollowsSource
+  /** The value follows its source now; false: set by hand. */
+  follows: boolean
+  /** What the source gives now: the country's ("Eastern Time"), or the team default ('on' or 'off'). */
+  sourceDefault: string
+  /** The line names what follows, for a field of more than one part (the appointment value's currency). */
+  what?: 'currency'
+  /** Where the source is set, when that is another place this viewer can open; else its name is plain words. */
+  link?: string | null
+  /** Goes back to following; none: the viewer can't change it, and the line says what the default is instead. */
+  onReset?: () => void
+  /** In a SwitchRow: a span under its description. */
+  inline?: boolean
+  /** The field's control: it gets the focus after the reset (the reset button itself goes away). */
+  controlId?: string
+}
+
+/**
+ * The one line for every setting whose value comes from another setting until someone sets it by hand
+ * (docs/design-principles.md, help text): "From your workspace country (United States). Changes when the country
+ * changes." while it follows; "Set by hand · Use country default (Eastern Time)" once set, the reset one click.
+ * Under the field, in the muted helper style, never a badge or a colour.
+ */
+export function FollowsLine({
+  source,
+  follows,
+  sourceDefault,
+  what,
+  link,
+  onReset,
+  inline,
+  controlId,
+}: FollowsLineProps) {
+  const t = useT()
+  const reset = () => {
+    onReset?.()
+    if (controlId) setTimeout(() => document.getElementById(controlId)?.focus(), 0)
+  }
+  const tag = link ? appLink(link) : plainTag
+  const country = source.kind === 'country'
+  const body = follows ? (
+    country ? (
+      <T k="settings.follows.country" values={{ what: what ?? 'value', country: source.country, link: tag }} />
+    ) : (
+      <T k="settings.follows.team" values={{ link: tag }} />
+    )
+  ) : (
+    <>
+      {t('settings.follows.setByHand', { what: what ?? 'value' })}
+      <span aria-hidden="true"> · </span>
+      {onReset ? (
+        <LinkButton onClick={reset}>
+          {country
+            ? t('settings.follows.useCountry', { value: sourceDefault })
+            : t('settings.follows.useTeam', { value: sourceDefault })}
+        </LinkButton>
+      ) : country ? (
+        t('settings.follows.countryDefault', { value: sourceDefault })
+      ) : (
+        t('settings.follows.teamDefault', { value: sourceDefault })
+      )}
+    </>
+  )
+  return inline ? (
+    <span className="help follows-line">{body}</span>
+  ) : (
+    <p className="k-field-desc follows-line">{body}</p>
   )
 }

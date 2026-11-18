@@ -332,6 +332,18 @@ export const shownTimeZone = (picked: string | null, draft: Pick<ProfileDraft, '
 export const zoneForCountry = (country: string, shown: string | null): string | null =>
   workspaceTimeZoneFor(country, shown)
 
-/** What the step saves of the time zone: the one shown, when it is not the workspace's already. */
-export const timeZoneToSave = (shown: string | null, saved: string | null): { timeZone?: string } =>
-  shown && shown !== saved ? { timeZone: shown } : {}
+/**
+ * What the step saves of the time zone: the one shown, when it is not what the workspace will have anyway: its own,
+ * or with a new country (`country`, saved with it) the zone the API moves a following time zone to (applyCountryDefaults).
+ * A zone saved here is set by hand; one left out keeps following the country.
+ */
+export const timeZoneToSave = (
+  shown: string | null,
+  saved: string | null,
+  country?: string | null,
+  /** The saved zone follows the country (timeZoneFollowsCountry; missing from an older API: no). */
+  follows = false,
+): { timeZone?: string } => {
+  const expected = country && follows ? (workspaceTimeZoneFor(country, saved) ?? saved) : saved
+  return shown && shown !== expected ? { timeZone: shown } : {}
+}

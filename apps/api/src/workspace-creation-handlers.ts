@@ -8,6 +8,7 @@ import {
   countryHintOf,
   type WorkspaceCreateData,
   workspaceTimeZoneFor,
+  currencyOfCountry,
 } from '@linedesk/actions'
 import { agent_setup_keys, assistants, organization, session, user, workspace_settings } from '@linedesk/db'
 import { eq, sql } from 'drizzle-orm'
@@ -79,6 +80,8 @@ export async function insertWorkspace(
   await tx.insert(workspace_settings).values({
     ...settings,
     country: input.country ?? null,
+    // The appointment value's currency follows the country from the start (USD where Insights has none for it).
+    job_value_currency: currencyOfCountry(input.country ?? hint?.country) ?? 'USD',
     country_hint: hint?.country ?? null,
     country_hint_source: hint?.source ?? null,
   })

@@ -16,7 +16,8 @@ import { useCanAssign } from '../team/members.ts'
 import { changedByLabel } from '../team/team-model.ts'
 import { useWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
 import { Loading } from '../ui/LoadStates.tsx'
-import { Section, SkeletonSwitchRows, SwitchRow } from './fields.tsx'
+import { sectionHash } from '../ui/SettingsLayout.tsx'
+import { FollowsLine, Section, SkeletonSwitchRows, SwitchRow } from './fields.tsx'
 import { permissionText, useNotificationPermission } from './notificationPermission.ts'
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink } from '../ui/AppLink.tsx'
@@ -174,7 +175,8 @@ export function Notifications({ workspaceName }: { workspaceName: string }) {
 
 /** The settings a member keeps per workspace that NotificationSwitches changes. */
 export type NotificationChange = {
-  email?: boolean
+  /** null: back to the team default. */
+  email?: boolean | null
   assignedEmail?: boolean
   setupEmails?: boolean
   pushSummary?: boolean
@@ -185,7 +187,12 @@ export function withChange(settings: NotificationSettingsData, change: Notificat
   const { email, assignedEmail, setupEmails, pushSummary } = change
   return {
     ...settings,
-    ...(email === undefined ? {} : { own: { ...settings.own, email }, effective: { ...settings.effective, email } }),
+    ...(email === undefined
+      ? {}
+      : {
+          own: { ...settings.own, email },
+          effective: { ...settings.effective, email: email ?? settings.defaults.email },
+        }),
     ...(assignedEmail === undefined ? {} : { assignedEmail }),
     ...(setupEmails === undefined ? {} : { setupEmails }),
     ...(pushSummary === undefined ? {} : { push: { ...settings.push, summary: pushSummary } }),
@@ -205,6 +212,7 @@ export function NotificationSwitches({
   device,
   them,
   pushSummaryOffOnly,
+  teamLink,
   onChange,
 }: {
   settings: NotificationSettingsData
@@ -214,6 +222,8 @@ export function NotificationSwitches({
   them?: boolean
   /** The push summary can only be turned off (someone else's: what a call was about is theirs to put on a lock screen). */
   pushSummaryOffOnly?: boolean
+  /** Where the team default is set, when the viewer can open it there (owners and admins, not inside the Team page). */
+  teamLink?: string | null
   onChange: (change: NotificationChange) => void
 }) {
   const t = useT()
@@ -221,7 +231,16 @@ export function NotificationSwitches({
     <div className="st-swlist">
       <SwitchRow
         title={t('account.notify.emailEveryCall')}
-        aside={settings.own.email === null ? t('account.notify.teamDefault') : undefined}
+        note={
+          <FollowsLine
+            inline
+            source={{ kind: 'team' }}
+            follows={settings.own.email === null}
+            sourceDefault={settings.defaults.email ? 'on' : 'off'}
+            link={teamLink}
+            onReset={() => onChange({ email: null })}
+          />
+        }
         on={settings.effective.email}
         onChange={email => onChange({ email })}
       />
@@ -276,6 +295,7 @@ function OwnNotifications({ settings, description }: { settings: NotificationSet
       <Section id="st-notify" title={t('account.nav.notifications.label')} description={description}>
         <NotificationSwitches
           settings={settings}
+          teamLink={settings.canEditDefaults ? sectionHash('workspace', 'team') : null}
           canAssign={canAssign}
           pushOn={device.pushOn}
           onChange={change}

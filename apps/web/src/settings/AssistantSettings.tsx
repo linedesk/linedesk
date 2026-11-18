@@ -19,7 +19,9 @@ import {
   disclosesAtStart,
   greetingWithDisclosure,
   type Language,
+  mainLanguageOf,
   otherLanguagesOf,
+  phoneCountryName,
   type PipelinesSetUp,
   TALKING_SPEED_PCT_DEFAULT,
   TALKING_SPEED_PCT_MAX,
@@ -35,6 +37,7 @@ import { languageInSentence, languageLabel, type MessageKey, msg } from '@linede
 import { T, useFormat, useLocale, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'
+import { i18n } from '../i18n/index.tsx'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useOutboundCountries } from '../onboarding/outbound-number.ts'
 import { AssistantReview } from '../review/AssistantReview.tsx'
@@ -47,7 +50,7 @@ import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { Loading, LoadProblem, Skeleton, useLoading, useLoadState } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
-import { useWorkspaceLanguage } from '../workspaceLocale.ts'
+import { useWorkspaceCountry, useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { AgentChangeNote } from './AgentChange.tsx'
 import { AssistantHeader } from './AssistantHeader.tsx'
 import {
@@ -88,7 +91,17 @@ import { CalendarSettings } from './Calendar.tsx'
 import { CallEmails, emailRuleWhenId, type Undoable } from './CallEmails.tsx'
 import { CallQualitySettings, levelSavedNote } from './CallQuality.tsx'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
-import { Field, ReadOnlyNote, Section, SelectRow, SkeletonSection, SwitchRow, TextArea, TextInput } from './fields.tsx'
+import {
+  Field,
+  FollowsLine,
+  ReadOnlyNote,
+  Section,
+  SelectRow,
+  SkeletonSection,
+  SwitchRow,
+  TextArea,
+  TextInput,
+} from './fields.tsx'
 import { Holidays, VacationMode } from './Holidays.tsx'
 import { Knowledge } from './Knowledge.tsx'
 import { MissingProviderNote } from './MissingProviderNote.tsx'
@@ -179,6 +192,7 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
     'greeting',
     'greeting_outside',
     'languages',
+    'main_language_follows',
     'call_quality',
     'voice',
     'llm_model',
@@ -509,10 +523,19 @@ export function Languages({
   draft,
   set,
   onMainLanguage,
+  onCountryLanguage,
+  country,
+  countryLanguage,
   installed,
   anyCovers,
 }: SectionProps & {
   onMainLanguage: (code: Language) => void
+  /** Back to following the workspace's country; none: can't change it (a member). */
+  onCountryLanguage?: () => void
+  /** The workspace's country in use, by name; null while it loads (no line yet). */
+  country?: string | null
+  /** The main language the country gives (mainLanguageOf with the workspace language). */
+  countryLanguage?: Language
   installed?: readonly string[]
   /** What "Any supported language" covers on this install (voice.options anyLanguages); missing: every one offered. */
   anyCovers?: readonly string[]
@@ -563,6 +586,16 @@ export function Languages({
             options={languageOptions}
             onChange={onMainLanguage}
           />
+          {country && (
+            <FollowsLine
+              source={{ kind: 'country', country }}
+              follows={draft.main_language_follows}
+              sourceDefault={languageLabel(countryLanguage ?? 'en', ui)}
+              link={sectionHash('workspace', 'general')}
+              controlId="as-languages-main"
+              onReset={onCountryLanguage}
+            />
+          )}
         </Field>
         <Field id="as-languages-mode" label={t('settings.assistant.languages.also')}>
           <Select
@@ -763,6 +796,7 @@ function Form({
   const [transferSaveTried, setTransferSaveTried] = useState(false)
   const [emailSaveTried, setEmailSaveTried] = useState(false)
   const workspaceLanguage = useWorkspaceLanguage()
+  const workspaceCountry = useWorkspaceCountry()
   const savedJson = JSON.stringify(draftOf(assistant, workspaceLanguage))
   const saved = useMemo(() => JSON.parse(savedJson) as Draft, [savedJson])
   const [draft, setDraft] = useState(() => keptDraft(assistant.id) ?? saved) // an edit left unsaved earlier comes back
@@ -872,6 +906,10 @@ function Form({
   function changeMainLanguage(code: Language) {
     setDraft(d => withMainLanguage(d, code))
   }
+  /** "Use country default": the workspace language again, and it follows the country from then on (once saved). */
+  function followCountryLanguage() {
+    setDraft(d => withMainLanguage(d, mainLanguageOf(null, workspaceLanguage), true))
+  }
 
   function cancel() {
     setDraft(saved)
@@ -909,6 +947,9 @@ function Form({
               draft={draft}
               set={set}
               onMainLanguage={changeMainLanguage}
+              onCountryLanguage={canEdit ? followCountryLanguage : undefined}
+              country={workspaceCountry ? phoneCountryName(workspaceCountry.country, i18n()) : null}
+              countryLanguage={mainLanguageOf(null, workspaceLanguage)}
               installed={voiceOptions?.languages}
               anyCovers={voiceOptions?.anyLanguages ?? voiceOptions?.languages}
             />

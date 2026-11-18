@@ -86,6 +86,11 @@ export type Draft = {
   behaviours: Record<BehaviourId, boolean>
   /** Languages besides English; the picked ones are kept while English only is chosen, but saved empty. */
   languages: AssistantLanguages
+  /**
+   * The main language follows the workspace's country (none stored: the workspace language, mainLanguageOf); false:
+   * picked by hand. `languages.main` is the one in use either way.
+   */
+  main_language_follows: boolean
   /** The call quality: Standard, Premium or Ultra (realtime model); the level alone decides the price. */
   call_quality: CallQuality
   /** The voice while the realtime model answers (REALTIME_VOICE_IDS); '': marin, the default. */
@@ -152,6 +157,7 @@ export function draftOf(a: Assistant, workspaceLanguage?: string | null): Draft 
     talking_speed_pct: talkingSpeedPctOf(a),
     behaviours: behavioursOf(a.behaviours),
     languages: languagesOf(a.languages, workspaceLanguage),
+    main_language_follows: !a.languages?.main,
     // A row synced before the column existed has none: the install default.
     call_quality: a.call_quality ?? 'standard',
     // A row synced before the column existed has none: the server's default voice.
@@ -208,25 +214,30 @@ export function offeredLanguages(installed: readonly string[] | undefined, d: Pi
   )
 }
 
-/** What assistant.update takes: no list unless the allow-list is used, never the main language in it. */
-export const languagesToSave = (d: Draft) => ({
+/**
+ * What assistant.update takes: no list unless the allow-list is used, never the main language in it; no main language
+ * while it follows the workspace's country (the voice agent and the API work it out, so it changes with the country).
+ */
+export const languagesToSave = (d: Pick<Draft, 'languages' | 'main_language_follows'>) => ({
   languages: {
-    main: mainOf(d),
+    ...(d.main_language_follows ? {} : { main: mainOf(d) }),
     mode: d.languages.mode,
     allowed: d.languages.mode === 'allowed' ? pickedOthers(d) : [],
   },
 })
 
 /**
- * The draft with another main language: texts that are still the old language's default (greetings, the
- * closing line) become the new one's; texts the owner wrote stay.
+ * The draft with another main language, picked by hand (`follows`: the workspace's, following its country again):
+ * texts that are still the old language's default (greetings, the closing line) become the new one's; texts the
+ * owner wrote stay.
  */
-export function withMainLanguage(d: Draft, main: Language): Draft {
+export function withMainLanguage(d: Draft, main: Language, follows = false): Draft {
   const from = mainOf(d)
   const swap = (text: string) => (text.trim() ? swapDefault(text, from, main) : text)
   return {
     ...d,
     languages: { ...d.languages, main },
+    main_language_follows: follows,
     greeting: swap(d.greeting),
     greeting_outside: swap(d.greeting_outside),
     silence_closing: swap(d.silence_closing),
@@ -294,8 +305,9 @@ export const normalized = (d: Draft): Draft => ({
   silence_closing: d.silence_closing.trim(),
   silence_reminder: d.silence_reminder.trim(),
   goodbye_line: d.goodbye_line.trim(),
-  // As saved: no picked languages unless "These languages", so switching back to None is clean after Save.
-  languages: languagesToSave(d).languages,
+  // As saved: no picked languages unless "These languages", so switching back to None is clean after Save. The main
+  // language in use stays in the draft also while it follows the country (it is not saved then).
+  languages: { ...languagesToSave(d).languages, main: mainOf(d) },
 })
 
 /** The contact with its fields in one fixed order: Postgres keeps jsonb keys in its own order, and drafts compare as JSON. */

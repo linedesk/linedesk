@@ -176,7 +176,6 @@
   "notify.summaryMeDescription": "Agrega una línea sobre la llamada a estas notificaciones. Puede verse en tu pantalla de bloqueo.",
   "notify.summaryThem": "Las notificaciones push dicen de qué trató la llamada",
   "notify.summaryThemDescription": "Agrega una línea sobre la llamada a las notificaciones de sus dispositivos. Puede verse en una pantalla de bloqueo, así que solo esa persona puede activarlo.",
-  "notify.teamDefault": "Predeterminado del equipo",
   "notify.thisDevice": "Notificaciones en este dispositivo",
   "notify.turningOn": "Activando…",
   "notify.what": "Configuración de notificaciones",

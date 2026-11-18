@@ -176,7 +176,6 @@
   "notify.summaryMeDescription": "Fügt diesen Benachrichtigungen eine Zeile zum Anruf hinzu. Sie kann auf deinem Sperrbildschirm erscheinen.",
   "notify.summaryThem": "Push-Benachrichtigungen sagen, worum es im Anruf ging",
   "notify.summaryThemDescription": "Fügt den Benachrichtigungen auf den Geräten der Person eine Zeile zum Anruf hinzu. Sie kann auf einem Sperrbildschirm erscheinen, daher kann nur die Person selbst das einschalten.",
-  "notify.teamDefault": "Team-Standard",
   "notify.thisDevice": "Benachrichtigungen auf diesem Gerät",
   "notify.turningOn": "Wird eingeschaltet…",
   "notify.what": "Benachrichtigungseinstellungen",

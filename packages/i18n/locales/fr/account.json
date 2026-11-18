@@ -176,7 +176,6 @@
   "notify.summaryMeDescription": "Ajoute une ligne sur l'appel à ces notifications. Elle peut s'afficher sur votre écran de verrouillage.",
   "notify.summaryThem": "Les notifications push indiquent l'objet de l'appel",
   "notify.summaryThemDescription": "Ajoute une ligne sur l'appel aux notifications sur ses appareils. Elle peut s'afficher sur un écran de verrouillage : seule cette personne peut donc l'activer.",
-  "notify.teamDefault": "Réglage par défaut de l'équipe",
   "notify.thisDevice": "Notifications sur cet appareil",
   "notify.turningOn": "Activation…",
   "notify.what": "Réglages des notifications",

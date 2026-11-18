@@ -37,3 +37,31 @@ test('"any" that covers every offered language has no note; the list is what the
   expect(html).not.toContain('Hungarian')
   expect(render({ main: 'en', mode: 'allowed', allowed: ['pl'] }, FLUX)).not.toContain(NOTE)
 })
+
+test('the main language says whether it follows the workspace country or was set by hand (LIN-580)', () => {
+  const languages = { main: 'de', mode: 'english', allowed: [] }
+  const line = (follows: boolean, onCountryLanguage?: () => void) =>
+    renderToStaticMarkup(
+      <Languages
+        draft={{ name: 'Maya', languages, main_language_follows: follows } as never}
+        set={() => {}}
+        onMainLanguage={() => {}}
+        onCountryLanguage={onCountryLanguage}
+        country="Germany"
+        countryLanguage="de"
+        installed={installed}
+      />,
+    )
+  const following = line(true, () => {})
+  expect(following).toContain('From your <a class="k-link" href="#workspace/general">workspace country</a> (Germany)')
+  expect(following).toContain('Changes when the country changes.')
+  expect(following).not.toContain('Set by hand')
+  // Set by hand: one click back to the country's language, for those who can change it.
+  expect(line(false, () => {})).toMatch(
+    /Set by hand.*<button type="button" class="k-link">Use country default \(Deutsch/,
+  )
+  // A member reads what the country would give instead of a button.
+  const readOnly = line(false)
+  expect(readOnly).toContain('Country default: Deutsch')
+  expect(readOnly).not.toContain('<button type="button" class="k-link">')
+})

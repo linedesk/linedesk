@@ -534,11 +534,9 @@ function ReviewProfile({
     void run('assistant.update', { assistantId: assistant.id, ...changes })
     // Saved as set only what the owner picked: a country left as shown stays Automatic, so a number connected later
     // (or the business phone) still decides it.
-    // The time zone shown is saved when it is not the workspace's already (picked, the listing's, or the country's).
-    const locale = {
-      ...localeToSave(pickedCountry, settings?.country ?? null, listingCountry),
-      ...timeZoneToSave(zone, savedZone),
-    }
+    // The time zone shown is saved (as set by hand) when it is not what the workspace has or gets with the country.
+    const country = localeToSave(pickedCountry, settings?.country ?? null, listingCountry)
+    const locale = { ...country, ...timeZoneToSave(zone, savedZone, country.country, settings?.timeZoneFollowsCountry) }
     if (Object.keys(locale).length) {
       void run('workspace.updateSettings', locale)
       patchWorkspaceSettings({

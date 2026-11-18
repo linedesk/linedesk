@@ -32,6 +32,7 @@ import {
   silenceProblem,
   silenceSummary,
   silenceToSave,
+  withMainLanguage,
 } from './assistantDraft.ts'
 
 const oldProfile = {
@@ -105,6 +106,24 @@ describe('draft', () => {
     const none = { ...picked, languages: { ...picked.languages, mode: 'english' as const } }
     const afterSave = draftOf(assistant(languagesToSave(none)))
     expect(isDirty(normalized(none), afterSave)).toBe(false)
+  })
+  it('keeps a main language that follows the country out of what is saved, and one picked by hand in it', () => {
+    // None stored: the workspace language (German) is in use and follows the country.
+    const following = draftOf(assistant({ languages: { mode: 'english', allowed: [] } }), 'de')
+    expect(following.languages.main).toBe('de')
+    expect(following.main_language_follows).toBe(true)
+    expect(languagesToSave(following).languages).toEqual({ mode: 'english', allowed: [] })
+    // Picked by hand, even the same language: saved, so it no longer changes with the country.
+    const picked = withMainLanguage(following, 'de')
+    expect(picked.main_language_follows).toBe(false)
+    expect(isDirty(picked, following)).toBe(true)
+    expect(languagesToSave(picked).languages).toEqual({ main: 'de', mode: 'english', allowed: [] })
+    // "Use country default": the country's language again, following, and clean against what was saved before.
+    const back = withMainLanguage(withMainLanguage(following, 'fr'), 'de', true)
+    expect(back.main_language_follows).toBe(true)
+    expect(isDirty(back, following)).toBe(false)
+    // A saved draft keeps showing the language in use while it follows.
+    expect(normalized(following).languages.main).toBe('de')
   })
   it('requires a name and a greeting', () => {
     expect(draftProblem(saved)).toBeNull()

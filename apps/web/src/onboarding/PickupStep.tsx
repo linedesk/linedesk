@@ -98,7 +98,8 @@ function PickupForm({ saved, onBack, onNext, memory, onMemory, calls }: StepProp
   function next() {
     if (problem) return
     const { input, hoursOnBefore } = pickupSettings(saved, mode, memory)
-    const settingsInput = needsHours ? { ...input, timeZone } : input
+    // The zone only when it is not the saved one: saved, it counts as set by hand and stops following the country.
+    const settingsInput = needsHours && timeZone !== saved.timeZone ? { ...input, timeZone } : input
     if (needsHours) {
       const hours = spansOf(days)
       void run('businessHours.set', { hours })

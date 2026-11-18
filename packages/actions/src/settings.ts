@@ -546,6 +546,10 @@ export type WorkspaceSettingsData = {
   recordingNoticeOn: boolean
   recordingNotice: string
   timeZone: string
+  /** The time zone follows the country (moves into it when the country changes); false: set by hand. Missing from an older API. */
+  timeZoneFollowsCountry?: boolean
+  /** The main time zone of the country in use ("Use country default"); null: none known. Missing from an older API. */
+  countryTimeZone?: string | null
   businessHours: BusinessHoursSpan[]
   businessHoursOn: boolean
   recordingOn: boolean
@@ -561,6 +565,10 @@ export type WorkspaceSettingsData = {
   jobValueCents: number | null
   /** The currency of jobValueCents. Missing from an older API: USD. */
   jobValueCurrency?: JobValueCurrency
+  /** The currency follows the country; false: picked by hand. Missing from an older API. */
+  jobValueCurrencyFollowsCountry?: boolean
+  /** The currency of the country in use ("Use country default"); null: one Insights does not offer. Missing from an older API. */
+  countryCurrency?: JobValueCurrency | null
   /** When the assistant picks up, as chosen in onboarding; null: never chosen. Missing from an older API. */
   pickupMode?: PickupMode | null
   /** The country the owner set (ISO 3166-1 alpha-2); null: automatic. Missing from an older API. */
@@ -749,9 +757,9 @@ export const workspaceGetSettings = defineAction({
 export const workspaceUpdateSettings = defineAction({
   name: 'workspace.updateSettings',
   description:
-    'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting when the call is recorded; on by default), `recordingNotice` (that sentence, e.g. "This call may be recorded and transcribed."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles") and `jobValueCents` (what a booked appointment is worth on average, for Insights, in the minor units of its currency: cents, or whole units for JPY, KRW and CLP; null clears it), `jobValueCurrency` (its currency: ' +
+    'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting when the call is recorded; on by default), `recordingNotice` (that sentence, e.g. "This call may be recorded and transcribed."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles"; set, it stays when the country changes; null: follows the country again, its main zone) and `jobValueCents` (what a booked appointment is worth on average, for Insights, in the minor units of its currency: cents, or whole units for JPY, KRW and CLP; null clears it), `jobValueCurrency` (its currency: ' +
     jobValueCurrencies.join(', ') +
-    '; until set, the currency of the workspace country; changed without jobValueCents, the shown amount stays: $350 becomes ¥350); `country` (where the business is, ISO 3166-1 alpha-2 like "US"; null: automatic, from the assistant\'s number, the business phone or the holiday calendar, else US; the default country of phone numbers, the forwarding guide, the holidays and the currency, and the region phone numbers callers say are read in; its main language is what call summaries and messages for the team are written in, and what an assistant without a main language of its own greets in); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off); `pickupMode` (when the assistant picks up, as chosen in onboarding: no_answer, always or after_hours; it decides which forwarding code is shown, the routing itself stays with the number\'s mode and the business hours).',
+    '; until picked, the currency of the workspace country, changing with it; null: follows the country again; changed without jobValueCents, the shown amount stays: $350 becomes ¥350); `country` (where the business is, ISO 3166-1 alpha-2 like "US"; null: automatic, from the assistant\'s number, the business phone or the holiday calendar, else US; the default country of phone numbers, the forwarding guide, the holidays and the currency, and the region phone numbers callers say are read in; its main language is what call summaries and messages for the team are written in, and what an assistant without a main language of its own greets in); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off); `pickupMode` (when the assistant picks up, as chosen in onboarding: no_answer, always or after_hours; it decides which forwarding code is shown, the routing itself stays with the number\'s mode and the business hours).',
   input: z.object({
     recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
     businessHoursOn: z.boolean().optional(),
@@ -762,11 +770,13 @@ export const workspaceUpdateSettings = defineAction({
       .min(1, 'Write the sentence the assistant says.')
       .max(RECORDING_NOTICE_MAX)
       .optional(),
-    timeZone: z.string().refine(isTimeZone, 'a time zone like America/Los_Angeles').optional(),
+    /** Set by hand; null: follows the country again (its main time zone). */
+    timeZone: z.string().refine(isTimeZone, 'a time zone like America/Los_Angeles').nullable().optional(),
     /** Vacation or closure mode; null turns it off. */
     closure: closureSchema.nullable().optional(),
     jobValueCents: z.number().int().min(0).max(JOB_VALUE_MAX_CENTS).nullable().optional(),
-    jobValueCurrency: z.enum(jobValueCurrencies).optional(),
+    /** Picked by hand; null: follows the country again. */
+    jobValueCurrency: z.enum(jobValueCurrencies).nullable().optional(),
     pickupMode: z.enum(pickupModes).optional(),
     country: workspaceCountrySchema.nullable().optional(),
   }),

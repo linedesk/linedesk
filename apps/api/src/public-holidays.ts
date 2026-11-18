@@ -11,6 +11,7 @@ import Holidays from 'date-holidays'
 import { and, asc, eq, gte, inArray, isNotNull, or } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
 import { workspaceLocale } from './workspace-locale.ts'
+import { applyCountryDefaults } from './country-defaults.ts'
 
 /** Same default as the workspace settings. */
 const DEFAULT_TIME_ZONE = 'America/New_York'
@@ -268,6 +269,8 @@ export const publicHolidayHandlers: Record<string, Handler> = {
       .values({ workspace_id, timezone: timeZone, holidays })
       .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { holidays } })
     await syncDerivedDays(tx, workspace_id)
+    // A workspace whose country is worked out from its holidays may be in another country now: what follows it moves.
+    await applyCountryDefaults(tx, workspace_id)
     return { rows: {}, data: { holidays, derivedDays: await derivedDaysOf(tx, workspace_id, timeZone) } }
   },
 }

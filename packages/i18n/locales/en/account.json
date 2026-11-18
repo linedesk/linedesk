@@ -176,7 +176,6 @@
   "notify.summaryMeDescription": "Adds one line about the call to these notifications. It can show on your lock screen.",
   "notify.summaryThem": "Push notifications say what the call was about",
   "notify.summaryThemDescription": "Adds one line about the call to the notifications on their devices. It can show on a lock screen, so only they can turn it on.",
-  "notify.teamDefault": "Team default",
   "notify.thisDevice": "Notifications on this device",
   "notify.turningOn": "Turning on…",
   "notify.what": "Notification settings",

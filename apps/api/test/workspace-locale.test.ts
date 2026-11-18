@@ -305,3 +305,82 @@ describe('GET /v1/workspaces/country-hint', () => {
     expect((await request(anonymous, 'GET', '/v1/workspaces/country-hint')).status).toBe(401)
   })
 })
+
+describe('the time zone and currency follow the country until set by hand (LIN-580)', () => {
+  const settingsOf = async (owner: User) => (await act(owner, 'workspace.getSettings', {})).body.data
+
+  test('following: they move with the country; a value keeps its amount in the new currency', async () => {
+    const ws = await createWorkspace('Follows Country Plumbing')
+    await act(ws.owner, 'workspace.updateSettings', { country: 'US', timeZone: null })
+    await act(ws.owner, 'workspace.updateSettings', { jobValueCents: 35000 })
+    expect(await settingsOf(ws.owner)).toMatchObject({
+      timeZone: 'America/New_York',
+      timeZoneFollowsCountry: true,
+      countryTimeZone: 'America/New_York',
+      jobValueCents: 35000,
+      jobValueCurrency: 'USD',
+      jobValueCurrencyFollowsCountry: true,
+    })
+    await act(ws.owner, 'workspace.updateSettings', { country: 'DE' })
+    expect(await settingsOf(ws.owner)).toMatchObject({
+      timeZone: 'Europe/Berlin',
+      timeZoneFollowsCountry: true,
+      jobValueCents: 35000,
+      jobValueCurrency: 'EUR',
+      countryCurrency: 'EUR',
+    })
+    // To Japan: ¥350, whole yen (no minor units), not ¥35,000.
+    await act(ws.owner, 'workspace.updateSettings', { country: 'JP' })
+    expect(await settingsOf(ws.owner)).toMatchObject({
+      timeZone: 'Asia/Tokyo',
+      jobValueCents: 350,
+      jobValueCurrency: 'JPY',
+    })
+  })
+
+  test('set by hand: they stay when the country changes; null follows the country again', async () => {
+    const ws = await createWorkspace('Set By Hand Plumbing')
+    await act(ws.owner, 'workspace.updateSettings', { country: 'US' })
+    await act(ws.owner, 'workspace.updateSettings', { timeZone: 'America/Chicago' })
+    await act(ws.owner, 'workspace.updateSettings', { jobValueCurrency: 'CAD' })
+    await act(ws.owner, 'workspace.updateSettings', { country: 'DE' })
+    expect(await settingsOf(ws.owner)).toMatchObject({
+      timeZone: 'America/Chicago',
+      timeZoneFollowsCountry: false,
+      countryTimeZone: 'Europe/Berlin',
+      jobValueCurrency: 'CAD',
+      jobValueCurrencyFollowsCountry: false,
+      countryCurrency: 'EUR',
+    })
+    const back = await act(ws.owner, 'workspace.updateSettings', { timeZone: null, jobValueCurrency: null })
+    expect(back.status).toBe(200)
+    expect(back.body.data).toMatchObject({
+      timeZone: 'Europe/Berlin',
+      timeZoneFollowsCountry: true,
+      jobValueCurrency: 'EUR',
+      jobValueCurrencyFollowsCountry: true,
+    })
+  })
+
+  test('a following time zone already in the new country stays where it is', async () => {
+    const ws = await createWorkspace('Stays In Country Plumbing')
+    await act(ws.owner, 'workspace.updateSettings', { country: 'DE' })
+    await db
+      .update(workspace_settings)
+      .set({ timezone: 'America/Denver', timezone_follows_country: true })
+      .where(eq(workspace_settings.workspace_id, ws.id))
+    await act(ws.owner, 'workspace.updateSettings', { country: 'US' })
+    expect(await settingsOf(ws.owner)).toMatchObject({ timeZone: 'America/Denver', timeZoneFollowsCountry: true })
+  })
+
+  test('a value typed while the currency follows is saved in the currency shown', async () => {
+    const ws = await createWorkspace('Typed Value Plumbing')
+    await act(ws.owner, 'workspace.updateSettings', { country: 'GB' })
+    await act(ws.owner, 'workspace.updateSettings', { jobValueCents: 12000 })
+    expect(await settingsOf(ws.owner)).toMatchObject({
+      jobValueCents: 12000,
+      jobValueCurrency: 'GBP',
+      jobValueCurrencyFollowsCountry: true,
+    })
+  })
+})

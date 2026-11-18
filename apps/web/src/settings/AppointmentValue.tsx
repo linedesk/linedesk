@@ -67,8 +67,14 @@ export function AppointmentValue({
     onDone?.()
     if (parsed === value && currency === savedCurrency) return
     onSaved?.(parsed, currency)
-    patchWorkspaceSettings({ jobValueCents: parsed, jobValueCurrency: currency })
-    void run('workspace.updateSettings', { jobValueCents: parsed, jobValueCurrency: currency })
+    // The currency only when picked here: sent, it is set by hand and stops following the country.
+    const picked = currency !== savedCurrency
+    patchWorkspaceSettings({
+      jobValueCents: parsed,
+      jobValueCurrency: currency,
+      ...(picked ? { jobValueCurrencyFollowsCountry: false } : {}),
+    })
+    void run('workspace.updateSettings', { jobValueCents: parsed, ...(picked ? { jobValueCurrency: currency } : {}) })
     toast(
       parsed === null
         ? t('insights.value.cleared')
@@ -120,7 +126,11 @@ export function AppointmentValue({
           disabled={!canEdit}
         />
       </div>
-      {invalid && <FormMessage>{whole ? t('insights.value.wholeNumber', { example: 5000 }) : t('insights.value.number', { a: 350, b: 1250 })}</FormMessage>}
+      {invalid && (
+        <FormMessage>
+          {whole ? t('insights.value.wholeNumber', { example: 5000 }) : t('insights.value.number', { a: 350, b: 1250 })}
+        </FormMessage>
+      )}
     </form>
   )
 }

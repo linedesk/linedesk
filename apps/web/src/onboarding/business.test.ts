@@ -280,4 +280,15 @@ describe('the time zone in step 1 (LIN-433)', () => {
     expect(timeZoneToSave('Europe/Berlin', 'Europe/Berlin')).toEqual({})
     expect(timeZoneToSave(null, 'Europe/Berlin')).toEqual({})
   })
+
+  test('with a new country, a following zone the API moves anyway is not saved (it keeps following)', () => {
+    // Berlin follows the country; the owner picks the US: the API moves it to Eastern, nothing to save.
+    expect(timeZoneToSave('America/New_York', 'Europe/Berlin', 'US', true)).toEqual({})
+    // Another zone in the US picked by hand is saved (set by hand).
+    expect(timeZoneToSave('America/Chicago', 'Europe/Berlin', 'US', true)).toEqual({ timeZone: 'America/Chicago' })
+    // A zone set by hand does not move with the country: the one shown is saved.
+    expect(timeZoneToSave('America/New_York', 'Europe/Berlin', 'US', false)).toEqual({
+      timeZone: 'America/New_York',
+    })
+  })
 })

@@ -511,6 +511,11 @@ export const workspace_settings = pgTable(
     country_hint: text('country_hint'),
     /** Where country_hint came from. */
     country_hint_source: text('country_hint_source', { enum: ['sign_up_location', 'time_zone', 'browser_language'] }),
+    /**
+     * The time zone follows the country (true): when the country in use changes, `timezone` moves into it
+     * (workspaceTimeZoneFor in @linedesk/actions, applyCountryDefaults in the API). false: set by hand, it stays.
+     */
+    timezone_follows_country: boolean('timezone_follows_country').notNull().default(true),
     /** The public holiday calendar the workspace follows; null: never set up. */
     holidays: jsonb('holidays').$type<HolidayCalendar>(),
     /** What a booked job is worth on average, in the minor units of job_value_currency (cents; whole units for JPY, KRW and CLP), for Insights ("≈ $X in booked work"). null: not set. */
@@ -561,6 +566,11 @@ export const workspace_settings = pgTable(
     })
       .notNull()
       .default('USD'),
+    /**
+     * The currency follows the country (true): it is the country's (currencyOfCountry) and changes with it, a value
+     * set moving to the new currency's minor units. false: picked by hand, it stays.
+     */
+    job_value_currency_follows_country: boolean('job_value_currency_follows_country').notNull().default(true),
     created_at: createdAt(),
     version: version(),
   },
