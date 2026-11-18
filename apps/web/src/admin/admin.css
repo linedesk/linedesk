@@ -413,22 +413,44 @@
   font-size: 12.5px;
   color: var(--ink-muted);
 }
-.adm-row:has(> .adm-cell-acts) {
-  position: relative;
+/*
+ * Row actions get a column of their own at the end of the row, so they never cover a cell's text ("Never", a time).
+ * Its width fits the most icons a row of this list has. On phones and touch screens (no hover) the icons fold into
+ * one ⋯ menu with a 44px hit area.
+ */
+.adm-list-acts {
+  --adm-acts-n: 1;
+  --adm-acts-w: calc(var(--adm-acts-n) * var(--control-h-sm) + (var(--adm-acts-n) - 1) * 2px);
+}
+.adm-list-acts:has(.adm-rowacts-icons > :nth-child(2)) {
+  --adm-acts-n: 2;
+}
+.adm-list-acts:has(.adm-rowacts-icons > :nth-child(3)) {
+  --adm-acts-n: 3;
+}
+.adm-list-acts:has(.adm-rowacts-icons > :nth-child(4)) {
+  --adm-acts-n: 4;
+}
+.adm-list-acts:has(.adm-rowacts-icons > :nth-child(5)) {
+  --adm-acts-n: 5;
+}
+.adm-list-acts > .adm-row {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr) minmax(0, 1fr) var(--adm-acts-w);
+}
+.adm-list-acts > .adm-row:has(> :nth-child(4):not(.adm-cell-acts)) {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1fr) var(--adm-acts-w);
 }
 .adm-cell.adm-cell-acts {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  display: flex;
+  justify-content: flex-end;
   overflow: visible;
 }
+.adm-rowacts,
 .adm-rowacts-icons {
   display: flex;
   gap: 2px;
-  padding: 2px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-hover);
+}
+.adm-rowacts-icons {
   opacity: 0;
   pointer-events: none;
 }
@@ -440,25 +462,24 @@
 }
 .adm-rowacts-more {
   display: none;
-  position: relative;
 }
-.adm-rowmenu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: 30;
-  min-width: 200px;
-  padding: 4px;
-  background: var(--surface);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-2);
-}
-@media (hover: none) {
+@media (max-width: 767px), (hover: none), (pointer: coarse) {
+  .adm-list-acts {
+    --adm-acts-w: 44px;
+  }
   .adm-rowacts-icons {
     display: none;
   }
   .adm-rowacts-more {
     display: inline-flex;
+  }
+  .adm-rowacts-more .k-menu-btn {
+    width: 44px;
+    height: 44px;
+  }
+  /* The ⋯ sits in the row's end padding, as far right as the icons would. */
+  .adm-cell.adm-cell-acts {
+    margin-right: -10px;
   }
 }
 
@@ -670,6 +691,21 @@
   .adm-row,
   .adm-row:has(> :nth-child(4):not(.adm-cell-acts)) {
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .adm-list-acts > .adm-row,
+  .adm-list-acts > .adm-row:has(> :nth-child(4):not(.adm-cell-acts)) {
+    grid-template-columns: minmax(0, 1fr) auto var(--adm-acts-w);
+  }
+  /* A badge ("Server admin") goes under the name instead of cutting it off. */
+  .adm-list .adm-strong {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    white-space: normal;
+  }
+  .adm-list .adm-strong .k-badge {
+    margin-left: 0;
   }
   .adm-facts > div {
     grid-template-columns: minmax(0, 1fr);

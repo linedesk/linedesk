@@ -1,5 +1,6 @@
 // A list for the admin pages: search, sorting by a column, a keyboard cursor (J/K, Enter opens,
-// / searches) and a click that opens the row. `rowActions` adds quick actions at the end of a row.
+// / searches) and a click that opens the row. `rowActions` adds quick actions in a column of their own at the end of
+// a row, so they never cover a cell's text.
 import { useT } from '@linedesk/i18n/react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { cx, Icon } from '../ui/kit.tsx'
@@ -33,7 +34,7 @@ type Props<T> = {
   onOpen: (row: T) => void
   keysRef: { current: ListKeys | null }
   empty: ReactNode
-  /** Quick actions at the right end of a row (shown on hover, focus or the cursor). */
+  /** Quick actions in the last column of a row (icons on hover, focus or the cursor; a ⋯ menu on phones and touch). */
   rowActions?: (row: T) => ReactNode
   /** Controls under the search, such as a filter (Users: "No workspace"). */
   tools?: ReactNode
@@ -118,7 +119,12 @@ export function AdminList<T>({
           <kbd className="k-kbd">/</kbd>
         </label>
         {tools}
-        <div className="adm-list" role="table" aria-label={label ?? searchLabel} ref={list}>
+        <div
+          className={cx('adm-list', rowActions && 'adm-list-acts')}
+          role="table"
+          aria-label={label ?? searchLabel}
+          ref={list}
+        >
           <div className="adm-row adm-row-head" role="row">
             {columns.map(c => (
               <div
@@ -142,6 +148,9 @@ export function AdminList<T>({
                 )}
               </div>
             ))}
+            {rowActions && (
+              <div role="columnheader" className="adm-cell adm-cell-acts" aria-label={t('admin.actions.menu')} />
+            )}
           </div>
           {shown.map((row, i) => (
             <div

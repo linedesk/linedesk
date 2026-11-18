@@ -1,8 +1,8 @@
 // What an admin can do to a user or a workspace, in one place: the detail page shows the actions as
-// a row of buttons, the list as quick icon buttons on each row (and a ⋯ menu on touch screens).
+// a row of buttons, the list as quick icon buttons on each row (and a ⋯ menu on phones and touch screens).
 // Actions that change access ask once in a dialog; the rest run at once.
 import { useT } from '@linedesk/i18n/react'
-import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { brandName } from '../brand.ts'
 import { fmt } from '../i18n/format.ts'
 import { i18n } from '../i18n/index.tsx'
@@ -12,6 +12,7 @@ import { confirmErrorText, type DangerConfirmation, DangerConfirmDialog } from '
 import { Dialog, Input } from '../ui/form.tsx'
 import type { IconName } from '../ui/icons.ts'
 import { Button, Icon } from '../ui/kit.tsx'
+import { MenuButton, type MenuItem } from '../ui/list.tsx'
 import { type AdminUser, type AdminWorkspace, runAdmin } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
 
@@ -480,30 +481,18 @@ export function ActionBar({ actions, onPick }: { actions: AdminAction[]; onPick:
 /** A row's quick actions: icon buttons on hover or focus, a ⋯ menu on touch screens. */
 export function RowActions({ actions, onPick }: { actions: AdminAction[]; onPick: (action: AdminAction) => void }) {
   const t = useT()
-  const [open, setOpen] = useState(false)
-  const root = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!open) return
-    root.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
-    const outside = (e: MouseEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', outside)
-    return () => document.removeEventListener('mousedown', outside)
-  }, [open])
   if (!actions.length) return null
-  const choose = (a: AdminAction) => {
-    setOpen(false)
-    onPick(a)
-  }
-  function onKeyDown(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !open) return
-    e.stopPropagation()
-    setOpen(false)
-  }
+  const items: MenuItem[] = actions.map(a => ({
+    id: a.id,
+    label: a.label,
+    lead: <Icon name={a.icon} size={15} />,
+    danger: a.danger,
+    title: a.tip,
+    onSelect: () => onPick(a),
+  }))
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: keeps the row's click (open) away from its buttons; Esc closes the menu
-    <div className="adm-rowacts" ref={root} onClick={e => e.stopPropagation()} onKeyDown={onKeyDown}>
+    // biome-ignore lint/a11y/noStaticElementInteractions: keeps the row's click (open) away from its buttons
+    <div className="adm-rowacts" onClick={e => e.stopPropagation()}>
       <span className="adm-rowacts-icons">
         {actions.map(a => (
           <Button
@@ -514,31 +503,12 @@ export function RowActions({ actions, onPick }: { actions: AdminAction[]; onPick
             aria-label={a.label.replace('…', '')}
             title={a.label.replace('…', '')}
             data-desc={a.tip}
-            onClick={() => choose(a)}
+            onClick={() => onPick(a)}
           />
         ))}
       </span>
       <span className="adm-rowacts-more">
-        <Button
-          size="sm"
-          variant="ghost"
-          icon="more"
-          aria-label={t('admin.actions.menu')}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          title={t('admin.actions.menu')}
-          onClick={() => setOpen(o => !o)}
-        />
-        {open && (
-          <div className="adm-rowmenu" role="menu">
-            {actions.map(a => (
-              <button key={a.id} type="button" role="menuitem" className="nav-item" onClick={() => choose(a)}>
-                <Icon name={a.icon} size={15} />
-                <span className="lbl">{a.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        <MenuButton items={items} title={t('admin.actions.menu')} />
       </span>
     </div>
   )
