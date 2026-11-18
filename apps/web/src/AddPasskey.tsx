@@ -60,7 +60,6 @@ export function AddPasskeyPage({ account, onAdded, onDone }: PageProps) {
           <button
             type="button"
             className="k-btn k-btn-primary"
-            autoFocus
             onClick={() => {
               void onAdded()
               onDone()
@@ -82,7 +81,7 @@ export function AddPasskeyPage({ account, onAdded, onDone }: PageProps) {
         </p>
         {request.error && <AuthError message={request.error} />}
         {request.needsSignIn ? (
-          <button type="button" className="k-btn k-btn-primary" autoFocus onClick={() => void signInAgain()}>
+          <button type="button" className="k-btn k-btn-primary" onClick={() => void signInAgain()}>
             {t('auth.addPasskey.signInAgain')}
           </button>
         ) : (
@@ -91,7 +90,6 @@ export function AddPasskeyPage({ account, onAdded, onDone }: PageProps) {
             className={cx('k-btn k-btn-primary', adding && 'is-busy')}
             disabled={adding}
             aria-busy={adding || undefined}
-            autoFocus
             onClick={() => void request.add()}
           >
             {adding && <Spinner />}

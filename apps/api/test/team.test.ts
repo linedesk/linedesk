@@ -169,6 +169,8 @@ describe('accepting', () => {
     await verify(invitee)
     expect((await accept(invitee, id)).status).toBe(200)
     expect(await request(invitee, 'GET', '/v1/me')).toMatchObject({ status: 200, body: { role: 'admin', workspace: { id: ws.id } } })
+    // The link opened again: the page opens the workspace for its new member.
+    expect((await request({ headers: {} }, 'GET', `/v1/invitations/${id}`)).body).toEqual({ status: 'accepted', email, workspaceId: ws.id })
     expect((await accept(invitee, id)).status).toBe(400) // used
   })
 

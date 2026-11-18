@@ -112,7 +112,6 @@ export function SignInLink({
                 className={cx('k-btn k-btn-primary', busy && 'is-busy')}
                 disabled={busy}
                 aria-busy={busy || undefined}
-                autoFocus
                 onClick={() => void continueSignIn()}
               >
                 {busy && <Spinner />}

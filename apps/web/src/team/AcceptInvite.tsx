@@ -6,6 +6,7 @@ import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from
 import {
   type AuthMethods,
   auth,
+  type LegalLinks,
   fetchAuthMethods,
   passkeySupported,
   requestSignInCode,
@@ -13,9 +14,10 @@ import {
 } from '../auth.ts'
 import { ConfirmEmail } from '../ConfirmEmail.tsx'
 import { signOutAndForget } from '../localData.ts'
-import { CodeStep } from '../Login.tsx'
+import { CardFooter, CodeStep } from '../Login.tsx'
 import { authErrorMessage, authFormError } from '../sign-in-code.ts'
 import { rememberSignInMethod, startRedirectSignIn, takeRedirectSignIn } from '../sign-in-methods.ts'
+import { switchToWorkspace } from '../shell/invitations.ts'
 import { previewInvitation } from './team-api.ts'
 import { AuthError } from '../ui/AuthError.tsx'
 import { ProviderButton } from '../ui/brand-logos.tsx'
@@ -40,12 +42,25 @@ const fail = (res: Result) => {
 }
 const here = () => window.location.href
 
-function Card({ title, children }: { title: string; children: ReactNode }) {
+/**
+ * An invitation accepted already (at a sign-in with an email code the new member joins at once), opened again: its
+ * member goes into the workspace (`open`), someone signed out to the sign-in page, which leads there too (`signIn`),
+ * another account reads that the link is spent (`spent`). Null: not accepted.
+ */
+export function acceptedInviteStep(invite: InvitationPreview | null, account: Account | null | undefined) {
+  if (invite?.status !== 'accepted' || account === undefined) return null
+  if (!account) return 'signIn'
+  return account.email.toLowerCase() === invite.email.toLowerCase() ? 'open' : 'spent'
+}
+
+/** The invitation's card, with the footer every sign-in card has; signed in, the member's own language applies. */
+function Card({ title, links, children }: { title: string; links: LegalLinks; children: ReactNode }) {
   return (
     <SignedInAuthPage>
       <div className="auth-card">
         <h1>{title}</h1>
         {children}
+        <CardFooter links={links} language={false} />
       </div>
     </SignedInAuthPage>
   )
@@ -59,6 +74,8 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [codeSent, setCodeSent] = useState(false)
+  // Opening the workspace of an invitation this account accepted already; false once that did not work (they left it).
+  const [opening, setOpening] = useState<boolean | null>(null)
 
   const loadAccount = useCallback(async () => {
     const session = (await auth.getSession()).data
@@ -74,6 +91,18 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
     const now = await previewInvitation(invitationId).catch(() => null)
     if (now && now.status !== 'pending') onDone()
   }, [invitationId, loadAccount, onDone])
+  // Its member opening the link again lands in the workspace instead of reading that the link is spent (U6).
+  const accepted = acceptedInviteStep(invite, account)
+  const workspaceId = invite?.status === 'accepted' ? invite.workspaceId : null
+  useEffect(() => {
+    if (opening !== null) return
+    if (accepted === 'signIn') onDone()
+    if (accepted !== 'open' || !workspaceId) return
+    setOpening(true)
+    // Without the invitation in the address, or the reload into the workspace would open this page again.
+    clearInviteId()
+    switchToWorkspace(workspaceId).catch(() => setOpening(false))
+  }, [accepted, workspaceId, opening, onDone])
   useEffect(() => {
     previewInvitation(invitationId).then(setInvite, (e: unknown) => setError(authErrorMessage(e)))
     fetchAuthMethods().then(setMethods, (e: unknown) => setError(authErrorMessage(e)))
@@ -94,10 +123,21 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
   }
 
   const errorLine = error && <AuthError message={error} />
-  if (!invite || account === undefined || !methods) return <SignedInAuthPage>{errorLine}</SignedInAuthPage>
+  // While the workspace of an accepted invitation opens: the empty page, as while loading.
+  if (
+    !invite ||
+    account === undefined ||
+    !methods ||
+    accepted === 'signIn' ||
+    (accepted === 'open' && opening !== false)
+  )
+    return <SignedInAuthPage>{errorLine}</SignedInAuthPage>
   if (invite.status !== 'pending') {
     return (
-      <Card title={invite.status === 'expired' ? t('team.invite.expired') : t('team.invite.invalid')}>
+      <Card
+        title={invite.status === 'expired' ? t('team.invite.expired') : t('team.invite.invalid')}
+        links={methods.links}
+      >
         <p>{t('team.invite.askAgain')}</p>
         <button type="button" className="k-btn k-btn-secondary" onClick={onDone}>
           {t('team.invite.continueTo', { brand: brandName() })}
@@ -120,6 +160,7 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
     return (
       <CodeStep
         email={invite.email}
+        links={methods.links}
         supportEmail={methods.links.supportEmail}
         invited
         onDone={afterSignIn}
@@ -143,7 +184,7 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
   }
   if (account.email.toLowerCase() !== invite.email.toLowerCase()) {
     return (
-      <Card title={title}>
+      <Card title={title} links={methods.links}>
         {lead}
         <p>{t('team.invite.otherAccount', { current: account.email, invited: invite.email })}</p>
         {errorLine}
@@ -151,7 +192,6 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
           type="button"
           className="k-btn k-btn-primary"
           disabled={busy}
-          autoFocus
           onClick={() =>
             attempt(async () => {
               await signOutAndForget()
@@ -169,7 +209,7 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
   }
   if (!account.emailVerified) {
     return (
-      <Card title={title}>
+      <Card title={title} links={methods.links}>
         {errorLine}
         <ConfirmEmail
           email={invite.email}
@@ -182,14 +222,13 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
     )
   }
   return (
-    <Card title={title}>
+    <Card title={title} links={methods.links}>
       {lead}
       {errorLine}
       <button
         type="button"
         className="k-btn k-btn-primary"
         disabled={busy}
-        autoFocus
         onClick={() =>
           attempt(async () => {
             fail(await auth.organization.acceptInvitation({ invitationId }))
@@ -254,7 +293,6 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
                 type="button"
                 className="k-btn k-btn-primary"
                 disabled={busy}
-                autoFocus
                 onClick={() =>
                   attempt(async () => {
                     fail(await requestSignInCode(email))
@@ -262,7 +300,7 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
                   })
                 }
               >
-                {t('auth.confirm.send')}
+                {t('auth.signup.sendCode')}
               </button>
             )}
             {/* Someone who already has an account with a passkey: in with it (another account's is caught below). */}
@@ -328,6 +366,7 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
           </>
         )}
         {error}
+        <CardFooter links={methods.links} />
       </form>
     </SignedInAuthPage>
   )

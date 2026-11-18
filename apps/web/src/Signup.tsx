@@ -9,6 +9,7 @@
 import { T, useFormat, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { auth, signInWithCode } from './auth.ts'
+import { CardFooter, HaveAccount, useAuthMethods } from './Login.tsx'
 import { browserPlace } from './countryHint.ts'
 import { signOutAndForget } from './localData.ts'
 import { CODE_LENGTH, codeErrorMessage, emailError, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
@@ -211,6 +212,7 @@ export function EmailStep({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const bot = useTurnstile(config.turnstileSiteKey)
+  const links = useAuthMethods()?.links ?? null
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -257,9 +259,7 @@ export function EmailStep({
           </button>
           {error && <AuthError message={error} />}
         </div>
-        <a className="auth-switch" href="/">
-          {t('auth.signup.haveAccount')}
-        </a>
+        <CardFooter links={links} note={<HaveAccount />} />
       </form>
     </SignedInAuthPage>
   )
@@ -282,6 +282,7 @@ function CodeStep({
   const [busy, setBusy] = useState(false)
   const [waitS, setWaitS] = useState(RESEND_AFTER_S)
   const bot = useTurnstile(waitS > 0 ? null : config.turnstileSiteKey)
+  const links = useAuthMethods()?.links ?? null
 
   useEffect(() => {
     if (waitS <= 0) return
@@ -330,6 +331,7 @@ function CodeStep({
         <input
           className="auth-code"
           aria-label={t('auth.code.label')}
+          placeholder={t('auth.code.label')}
           value={code}
           onChange={e => change(e.target.value)}
           disabled={busy}
@@ -357,6 +359,7 @@ function CodeStep({
             {t('auth.differentEmail')}
           </button>
         </div>
+        <CardFooter links={links} />
       </form>
     </SignedInAuthPage>
   )
@@ -505,7 +508,7 @@ export function DetailsStep({
             className="auth-switch"
             onClick={() => void signOutAndForget().then(() => window.location.reload())}
           >
-            {t('auth.differentAccount')}
+            {t('auth.differentEmail')}
           </button>
         )}
       </form>

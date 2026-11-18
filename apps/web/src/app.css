@@ -223,6 +223,10 @@ body,
 .auth-switch:hover {
   color: var(--ink);
 }
+/* A quiet link that goes somewhere ("Go to sign in") looks like the quiet buttons: no underline of its own. */
+a.auth-switch {
+  text-decoration: none;
+}
 .auth-switch:focus-visible,
 .auth-inline:focus-visible {
   outline: 2px solid var(--focus);
@@ -803,6 +807,12 @@ body,
   font-size: 24px;
   letter-spacing: 0.35em;
   text-align: center;
+}
+/* "Code from the email" in the empty field: the card's own text, not the code's large spaced digits. */
+.auth-card input.auth-code::placeholder {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  letter-spacing: 0;
 }
 
 /*

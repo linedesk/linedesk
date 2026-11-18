@@ -29,6 +29,12 @@ type Result = { error: { message?: string; code?: string; status?: number } | nu
 /** Keeps trying while the server is unreachable (a restart), so the page recovers by itself. */
 const loadAuthMethods = () => fetchAuthMethods()
 
+/**
+ * What this install offers (GET /v1/auth-methods): the last known at once (kept across visits), checked again in the
+ * background. The sign-up and invitation pages read their footer's links from it too.
+ */
+export const useAuthMethods = () => useQuery('auth-methods', loadAuthMethods, { persist: true }).data ?? null
+
 /** The sign-up page (Signup.tsx); the language this browser chose carries over, it is kept in the browser. */
 const SIGNUP_PATH = '/signup'
 
@@ -56,8 +62,7 @@ export type Reauth = { title: string; why: string; onBack: () => void }
  */
 export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?: Reauth }) {
   const t = useT()
-  // What this install offers: the last known at once (kept across visits), checked again in the background.
-  const methods = useQuery('auth-methods', loadAuthMethods, { persist: true }).data ?? null
+  const methods = useAuthMethods()
   // Whose page this is (a white-label partner's own address names the partner, brand.ts): known before the title shows.
   const brandKnown = useBrandKnown()
   const [step, setStep] = useState<Step>('start')
@@ -189,11 +194,11 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
   if (methods.setupNeeded && !reauth) return <SetupStep onDone={onDone} />
 
   if (step === 'code') {
-    return <CodeStep email={form.email} supportEmail={methods.links.supportEmail} selfServeSignup={methods.selfServeSignup} onDone={onDone} onDifferentEmail={() => go('start')} />
+    return <CodeStep email={form.email} links={methods.links} supportEmail={methods.links.supportEmail} selfServeSignup={methods.selfServeSignup} onDone={onDone} onDifferentEmail={() => go('start')} />
   }
 
   if (step === 'reset') {
-    return <ResetStep initialEmail={form.email} onDone={onDone} onBack={() => go('password')} />
+    return <ResetStep initialEmail={form.email} links={methods.links} onDone={onDone} onBack={() => go('password')} />
   }
 
   const title = reauth ? reauth.title : t('auth.signInTo', { brand: brandName() })
@@ -258,10 +263,11 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
         // offer a passkey right in this field (autofill).
         autoComplete={start.passkeyFirst ? 'username webauthn' : 'username'} autoFocus={!start.passkeyFirst || emailOpen}
         aria-describedby={error ? 'auth-error' : undefined} />
-      <button type="submit" className={cx('k-btn auth-provider', start.passkeyFirst ? 'k-btn-secondary' : 'k-btn-primary', busy === 'email' && 'is-busy')}
+      {/* "Send code", black, as on the sign-up and password reset pages. */}
+      <button type="submit" className={cx('k-btn k-btn-primary auth-provider', busy === 'email' && 'is-busy')}
         disabled={busy !== null} aria-busy={busy === 'email' || undefined}>
         {busy === 'email' && <Spinner />}
-        <span className="auth-provider-label">{busy === 'email' ? t('auth.sending') : t('auth.provider.continueEmail')}</span>
+        <span className="auth-provider-label">{busy === 'email' ? t('auth.sending') : t('auth.signup.sendCode')}</span>
         {lastUsed === 'email' && <LastUsed />}
       </button>
       {errorPanel('auth-error')}
@@ -279,8 +285,10 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
               {lostNote}
             </p>
           )}
-          <button type="button" className={cx('k-btn k-btn-primary auth-provider', passkeyBusy && 'is-busy')} disabled={busy !== null}
-            aria-busy={passkeyBusy || undefined} autoFocus={!emailOpen} onClick={continueWithPasskey}>
+          {/* One black button: the passkey, until the email form opens and its "Send code" is the step's action. Not
+              focused on load: a focus ring around the first thing on the page reads as an error (U4). */}
+          <button type="button" className={cx('k-btn auth-provider', emailOpen ? 'k-btn-secondary' : 'k-btn-primary', passkeyBusy && 'is-busy')}
+            disabled={busy !== null} aria-busy={passkeyBusy || undefined} onClick={continueWithPasskey}>
             {passkeyBusy ? <Spinner /> : <SignInMark method="passkey" />}
             <span className="auth-provider-label">{passkeyBusy ? t('auth.signingIn') : t('auth.withPasskey')}</span>
             {lastUsed === 'passkey' && <LastUsed />}
@@ -378,24 +386,47 @@ function PasswordForm({ form, set, busy, disabled, error, autoFocus, onSubmit }:
 }
 
 /**
- * Who can get an account: the sign-up page while self-serve sign-up is open on this install (`selfServeSignup`), else an
- * invitation from a workspace admin. On its own line "Need help? Write to …" (the install's support address, when set),
- * then Terms · Privacy, each only when set.
+ * The sign-in page's footer. Who can get an account: the sign-up page while self-serve sign-up is open on this install
+ * (`selfServeSignup`), else an invitation from a workspace admin.
  */
 export function AuthFooter({ methods }: { methods: AuthMethods }) {
   const t = useT()
+  const note = (
+    <p className="auth-note">
+      {methods.selfServeSignup
+        ? <T k="auth.noAccountSignup" values={{ a: chunks => <a className="k-link" href={SIGNUP_PATH}>{chunks}</a> }} />
+        : t('auth.noAccount')}
+    </p>
+  )
+  return <CardFooter links={methods.links} note={note} />
+}
+
+/** The sign-up page's way back: "Already have an account? Sign in", in the same look as the sign-in page's "No account?". */
+export function HaveAccount() {
+  return (
+    <p className="auth-note">
+      <T k="auth.signup.haveAccountSignIn" values={{ a: chunks => <a className="k-link" href="/">{chunks}</a> }} />
+    </p>
+  )
+}
+
+/**
+ * The one footer of every sign-in, sign-up, password reset and invitation card: an optional quiet line (who gets an
+ * account, "Already have an account? Sign in"), "Need help? Write to …" (the install's support address, when set), then
+ * Terms · Privacy, each only when set, and the language. `language` is off for someone signed in: their own language
+ * (Account › Preferences) applies.
+ */
+export function CardFooter({ links, note, language = true }: { links: LegalLinks | null; note?: ReactNode; language?: boolean }) {
   return (
     <footer className="auth-footer">
-      <div className="auth-notes">
-        <p className="auth-note">
-          {methods.selfServeSignup
-            ? <T k="auth.noAccountSignup" values={{ a: chunks => <a className="k-link" href={SIGNUP_PATH}>{chunks}</a> }} />
-            : t('auth.noAccount')}
-        </p>
-        {methods.links.supportEmail && <NeedHelp email={methods.links.supportEmail} />}
-      </div>
-      <LegalLinksLine links={methods.links} />
-      <SignInLanguage />
+      {(note || links?.supportEmail) && (
+        <div className="auth-notes">
+          {note}
+          {links?.supportEmail && <NeedHelp email={links.supportEmail} />}
+        </div>
+      )}
+      {links && <LegalLinksLine links={links} />}
+      {language && <SignInLanguage />}
     </footer>
   )
 }
@@ -450,6 +481,8 @@ function LegalLinksLine({ links }: { links: LegalLinks }) {
 
 type CodeStepProps = {
   email: string
+  /** The install's Terms and Privacy for the footer. */
+  links?: LegalLinks
   /** SUPPORT_EMAIL of this install: named in the "No email?" line when set. */
   supportEmail?: string | null
   /** Signing in from an invitation: the address may sign in, so the page says the code was sent and does not send them to ask for an invitation. */
@@ -461,7 +494,7 @@ type CodeStepProps = {
 }
 
 /** One field for the six digits: typing, pasting the whole code or the OS's one-time-code fill all work; the sixth digit submits. */
-export function CodeStep({ email, supportEmail, invited = false, selfServeSignup = false, onDone, onDifferentEmail }: CodeStepProps) {
+export function CodeStep({ email, links, supportEmail, invited = false, selfServeSignup = false, onDone, onDifferentEmail }: CodeStepProps) {
   const t = useT()
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -521,7 +554,7 @@ export function CodeStep({ email, supportEmail, invited = false, selfServeSignup
             same for every address: whether this one has an account is not told (no account enumeration). From an
             invitation the address may sign in, so it says plainly that the code was sent. */}
         <p>{invited ? t('auth.code.sentInvited', { email }) : t('auth.code.sentIfAccount', { email })}</p>
-        <input ref={input} className="auth-code" id="signin-code" name="code" aria-label={t('auth.code.label')} value={code}
+        <input ref={input} className="auth-code" id="signin-code" name="code" aria-label={t('auth.code.label')} placeholder={t('auth.code.label')} value={code}
           onChange={e => change(e.target.value)} disabled={busy}
           inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={CODE_LENGTH + 6} autoFocus
           aria-describedby={error ? 'code-error' : undefined} />
@@ -529,7 +562,7 @@ export function CodeStep({ email, supportEmail, invited = false, selfServeSignup
         <button type="submit" className={cx('k-btn k-btn-primary', (busy || signedIn) && 'is-busy')}
           disabled={busy || code.length < CODE_LENGTH} aria-busy={busy || signedIn || undefined}>
           {(busy || signedIn) && <Spinner />}
-          {signedIn ? t('auth.signingIn') : busy ? t('auth.checking') : t('auth.signIn')}
+          {signedIn ? t('auth.signingIn') : busy ? t('auth.checking') : t('auth.signup.continue')}
         </button>
         <div className="auth-links">
           <button type="button" className="auth-switch" disabled={waitS > 0} onClick={() => void resend()}>
@@ -541,6 +574,8 @@ export function CodeStep({ email, supportEmail, invited = false, selfServeSignup
         <span className="sr-only" role="status">{waitS > 0 ? '' : t('auth.code.resendReady')}</span>
         {/* Only after a minute without a sign-in: before that the email is most likely still on its way. */}
         {late && <NoCodeHint invited={invited} supportEmail={supportEmail} />}
+        {/* The legal links and the language only: "Need help?" comes with the hint above, after a minute. */}
+        {links && <CardFooter links={{ ...links, supportEmail: null }} />}
       </form>
     </AuthPage>
   )
@@ -557,13 +592,13 @@ export function NoCodeHint({ invited, supportEmail }: Pick<CodeStepProps, 'invit
   )
 }
 
-type ResetStepProps = { initialEmail: string; onDone: () => Promise<void>; onBack: () => void }
+type ResetStepProps = { initialEmail: string; links: LegalLinks; onDone: () => Promise<void>; onBack: () => void }
 
 /**
  * "Forgot password?": the email, then the emailed code and a new password. The server ends every
  * session of the account; this browser then signs in with the new password.
  */
-function ResetStep({ initialEmail, onDone, onBack }: ResetStepProps) {
+function ResetStep({ initialEmail, links, onDone, onBack }: ResetStepProps) {
   const t = useT()
   const [email, setEmail] = useState(initialEmail)
   const [sent, setSent] = useState(false)
@@ -634,6 +669,7 @@ function ResetStep({ initialEmail, onDone, onBack }: ResetStepProps) {
             {error && <AuthError message={error} id="reset-error" />}
           </div>
           <button type="button" className="auth-switch" onClick={onBack}>{t('auth.reset.back')}</button>
+          <CardFooter links={links} />
         </form>
       </AuthPage>
     )
@@ -649,7 +685,7 @@ function ResetStep({ initialEmail, onDone, onBack }: ResetStepProps) {
         <div className="auth-form">
           {/* The account the new password belongs to, for password managers: they update that login. */}
           <input type="email" name="username" autoComplete="username" value={email.trim()} readOnly hidden />
-          <input className="auth-code" id="reset-code" name="code" aria-label={t('auth.reset.code')} value={code}
+          <input className="auth-code" id="reset-code" name="code" aria-label={t('auth.code.label')} placeholder={t('auth.code.label')} value={code}
             onChange={e => setCode(normalizeCode(e.target.value))}
             disabled={working} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={CODE_LENGTH + 6} autoFocus
             aria-describedby={error ? 'reset-error' : undefined} />
@@ -668,6 +704,7 @@ function ResetStep({ initialEmail, onDone, onBack }: ResetStepProps) {
           ? <p className="auth-note">{t('auth.code.wait', { seconds: waitS })}</p>
           : <button type="button" className="auth-switch" disabled={busy !== null} onClick={() => void send()}>{t('auth.code.resend')}</button>}
         <button type="button" className="auth-switch" onClick={() => { setSent(false); setError(null) }}>{t('auth.differentEmail')}</button>
+        <CardFooter links={links} />
       </form>
     </AuthPage>
   )
