@@ -156,11 +156,13 @@ export function deepgramChoice(model: string, languages: CallLanguages = ENGLISH
 }
 
 /**
- * AssemblyAI's turn setting: `balanced` (end of turn after 128 ms of silence when the model is sure, at the latest
- * after 1280 ms). Without a mode the LiveKit plugin ends every turn after 100 ms of silence, which cuts callers off
- * mid-sentence (a pause before a house number).
+ * AssemblyAI's turn setting: `max_accuracy` by default, which ends turns as late as Deepgram Flux and cut as few
+ * callers off in the bench (docs/stack.md, LIN-516). `balanced` (Server admin › Providers › AssemblyAI, "Wait for
+ * callers to finish" off) ends a turn after 128 ms of silence when the model is sure, at the latest after 1280 ms: about 0.25 s sooner,
+ * but it cut callers off at a short pause in two thirds of the turns. Without a mode the LiveKit plugin ends every
+ * turn after 100 ms of silence.
  */
-export const ASSEMBLYAI_TURN_MODE = 'balanced' as const
+export const assemblyAiTurnMode = (fastTurnEnd = false): 'balanced' | 'max_accuracy' => (fastTurnEnd ? 'balanced' : 'max_accuracy')
 /** AssemblyAI steers toward at most 10 languages; with more (or every language) it is not steered and hears all it knows. */
 const ASSEMBLYAI_MAX_LANGUAGES = 10
 /** The languages AssemblyAI's Universal-3 Pro streaming takes in `language_codes` (its API reference, 2026-11-17). */
@@ -173,13 +175,13 @@ const ASSEMBLYAI_U3_PRO = new Set(['u3-rt-pro', 'u3-rt-pro-beta-1', 'universal-3
  * assistant speaks every language), and the language of each turn reported when other languages are allowed. A model
  * outside Universal-3 Pro gets neither mode nor languages (the plugin would refuse to start).
  */
-export function assemblyAiChoice(model: string, languages: CallLanguages = ENGLISH_CALL) {
+export function assemblyAiChoice(model: string, languages: CallLanguages = ENGLISH_CALL, fastTurnEnd = false) {
   const { main, others, everyLanguage } = languages
   const base = { speechModel: model as assemblyai.STTModels, languageDetection: !englishOnly(languages) }
   if (!ASSEMBLYAI_U3_PRO.has(model)) return base
   const steered = (everyLanguage ? [main] : [main, ...others]).filter(code => ASSEMBLYAI_LANGUAGES.has(code))
   const steer = steered.length > 0 && steered.length <= ASSEMBLYAI_MAX_LANGUAGES
-  return { ...base, mode: ASSEMBLYAI_TURN_MODE, ...(steer ? { languageCodes: steered } : {}) }
+  return { ...base, mode: assemblyAiTurnMode(fastTurnEnd), ...(steer ? { languageCodes: steered } : {}) }
 }
 
 /**
@@ -188,12 +190,12 @@ export function assemblyAiChoice(model: string, languages: CallLanguages = ENGLI
  * (reported with the transcript); else they are told the one. Deepgram gets `mip_opt_out` on every stream, as the
  * after-call transcriber does: it then keeps no call audio for its Model Improvement Program (training).
  */
-export function createStt({ provider, apiKey, model }: AgentConfig['stt'], languages: CallLanguages = ENGLISH_CALL) {
+export function createStt({ provider, apiKey, model, fastTurnEnd }: AgentConfig['stt'], languages: CallLanguages = ENGLISH_CALL) {
   const multi = !englishOnly(languages)
   const { main } = languages
   if (provider === 'elevenlabs_stt') return new elevenlabs.STT({ apiKey, model, useRealtime: true, ...(multi ? {} : { languageCode: main }) })
   if (provider === 'openai_stt') return new openai.STT({ apiKey, model, useRealtime: true, detectLanguage: multi, language: main })
-  if (provider === 'assemblyai_stt') return new assemblyai.STT({ apiKey, ...assemblyAiChoice(model, languages) })
+  if (provider === 'assemblyai_stt') return new assemblyai.STT({ apiKey, ...assemblyAiChoice(model, languages, fastTurnEnd) })
   const choice = deepgramChoice(model, languages)
   const { languageHint } = choice
   // Deepgram's Flux models speak a different protocol than Nova.

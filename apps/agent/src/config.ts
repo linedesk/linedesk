@@ -28,7 +28,8 @@ import { z } from 'zod'
 import { type RecordingConfig, recordingSettings, resolveRecording } from './recording.ts'
 
 export interface AgentConfig {
-  stt: { provider: SttProvider; apiKey: string; model: string }
+  /** `fastTurnEnd`: AssemblyAI only, "Wait for callers to finish" off: its `balanced` turn mode instead of `max_accuracy` (assemblyAiChoice). */
+  stt: { provider: SttProvider; apiKey: string; model: string; fastTurnEnd?: boolean }
   /**
    * Any OpenAI-compatible chat completions API: `model` for the conversation, `summaryModel` for the call
    * summary. `fallbacks` are tried by OpenRouter when the model fails (a rate limit, a provider outage);
@@ -115,6 +116,7 @@ const entry = z
     provider: z.string(),
     api_key: z.string().nullish(),
     zero_data_retention: z.string().nullish(),
+    wait_for_caller: z.string().nullish(),
   })
   .nullable()
 // `recording` is missing from an API older than the agent: the environment applies then.
@@ -183,6 +185,7 @@ export const stageEnvVars = [
     ...Object.values(stages).flatMap(spec => [spec.providerEnv, ...Object.values(spec.providers)]),
     'LLM_BASE_URL',
     'OPENROUTER_ZERO_DATA_RETENTION',
+    'ASSEMBLYAI_STT_WAIT_FOR_CALLER',
     ...Object.values(realtimeEnv),
   ]),
 ]
@@ -198,6 +201,7 @@ function fromEnv(key: StageKey, env: Env): NonNullable<Entry> {
     provider,
     api_key: keyVar ? env[keyVar] : undefined,
     zero_data_retention: key === 'llm' ? env.OPENROUTER_ZERO_DATA_RETENTION : undefined,
+    wait_for_caller: key === 'stt' ? env.ASSEMBLYAI_STT_WAIT_FOR_CALLER : undefined,
   }
 }
 
@@ -243,6 +247,7 @@ export function resolveAgentConfig(settings: ProviderSettings | null, env: Env =
       apiKey: stt.api_key!,
       // The provider's default speech model (STT_MODELS, first); a call hears with its level's (withSttModel).
       model: levelSttModel(stt.provider as SttProvider)!,
+      ...(stt.provider === 'assemblyai_stt' && stt.wait_for_caller?.trim() === 'false' ? { fastTurnEnd: true } : {}),
     },
     llm: {
       provider: llmProvider,

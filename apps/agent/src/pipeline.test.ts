@@ -219,10 +219,12 @@ test('an assistant with a voice of another provider that has a key gets that pro
   expect(greetingVoice({ tts } as never, { assistant: { voice: { provider: 'cartesia', voice_id: 'sonic_voice' }, talking_speed: 'fast' } })).toMatchObject({ speed: 110 })
 })
 
-test('AssemblyAI: its own turn detection in balanced mode, steered to the call\'s languages', () => {
+test('AssemblyAI: its own turn detection in max_accuracy mode (balanced with Wait for callers to finish off), steered to the call\'s languages', () => {
   const aai = { provider: 'assemblyai_stt', apiKey: 'aa', model: 'universal-3-6-pro' } as const
   expect(sttDetectsTurns(aai)).toBe(true)
-  expect(assemblyAiChoice(aai.model)).toEqual({ speechModel: 'universal-3-6-pro', mode: 'balanced', languageDetection: false, languageCodes: ['en'] })
+  expect(assemblyAiChoice(aai.model)).toEqual({ speechModel: 'universal-3-6-pro', mode: 'max_accuracy', languageDetection: false, languageCodes: ['en'] })
+  expect(assemblyAiChoice(aai.model, undefined, true)).toMatchObject({ mode: 'balanced' })
+  expect(assemblyAiChoice('assemblyai-stt-3-7-realtime-agent', undefined, true)).not.toHaveProperty('mode')
   expect(assemblyAiChoice(aai.model, { main: 'de', others: ['en', 'fr'] })).toMatchObject({ languageDetection: true, languageCodes: ['de', 'en', 'fr'] })
   // Every language: steered to the main one only, the language of each turn still reported.
   expect(assemblyAiChoice(aai.model, { main: 'es', others: ['en', 'ko', 'pl'], everyLanguage: true })).toMatchObject({ languageDetection: true, languageCodes: ['es'] })

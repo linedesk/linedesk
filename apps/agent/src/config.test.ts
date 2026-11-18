@@ -222,6 +222,20 @@ test('OpenRouter asks for zero data retention unless the instance admin turned i
   expect(stageEnvVars).toContain('OPENROUTER_ZERO_DATA_RETENTION')
 })
 
+test('AssemblyAI ends turns in max_accuracy unless the instance admin turned off Wait for callers to finish, stored or by env', async () => {
+  const app = (value: string | null, provider = 'assemblyai_stt') =>
+    resolveAgentConfig({ ...stored, stt: { provider, api_key: 'aa-app', wait_for_caller: value } }, keys).stt.fastTurnEnd
+  expect(app(null)).toBeUndefined()
+  expect(app('true')).toBeUndefined()
+  expect(app('false')).toBe(true)
+  // Only AssemblyAI has the setting.
+  expect(app('false', 'deepgram')).toBeUndefined()
+  const env = { ...keys, STT_PROVIDER: 'assemblyai_stt', ASSEMBLYAI_STT_API_KEY: 'aa-env' }
+  expect((await configFromEnv({ ...env, ASSEMBLYAI_STT_WAIT_FOR_CALLER: 'false' })).stt.fastTurnEnd).toBe(true)
+  expect((await configFromEnv(env)).stt.fastTurnEnd).toBeUndefined()
+  expect(stageEnvVars).toContain('ASSEMBLYAI_STT_WAIT_FOR_CALLER')
+})
+
 test('recording storage comes with the provider settings; without it (an older API, or null) the environment decides', () => {
   const s3 = { provider: 's3', endpoint: 'https://s3.test', region: null, bucket: 'calls', access_key_id: 'k', secret_access_key: 's', prefix: null, force_path_style: 'true' }
   const parsed = parseProviderSettings({ ...stored, recording: s3 })

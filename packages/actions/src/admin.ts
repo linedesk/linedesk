@@ -704,7 +704,19 @@ export const providers = {
     label: 'AssemblyAI',
     category: 'stt',
     guide: guides.assemblyai_stt,
-    fields: { api_key: apiKey('ASSEMBLYAI_STT_API_KEY') },
+    fields: {
+      api_key: apiKey('ASSEMBLYAI_STT_API_KEY'),
+      // On unless "false" (as every switch): `max_accuracy` ends a turn as late as Deepgram Flux; off, `balanced` ends
+      // it sooner but cuts callers off at a short pause (docs/stack.md, LIN-516).
+      wait_for_caller: {
+        labelKey: msg('admin.provider.field.waitForCaller'),
+        env: 'ASSEMBLYAI_STT_WAIT_FOR_CALLER',
+        secret: false,
+        optional: true,
+        switch: true,
+      },
+    },
+    helpKey: msg('admin.provider.help.assemblyai_stt'),
   },
   // After-call transcription: the recording is uploaded after the call and the caller's lines are corrected. Never
   // picked on its own: only an instance admin's choice turns it on (no first-set-up fallback, like recording storage).
