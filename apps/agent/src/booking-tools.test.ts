@@ -1,5 +1,5 @@
 import type { BookingContext } from '@linedesk/actions'
-import { expect, test } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { ActionError, type ApiClient } from './api-client.ts'
 import { ADDRESS_FIRST, bookingTools, MAX_DESCRIBE_ATTEMPTS, sameStart, spreadSlots } from './booking-tools.ts'
 import { CallLog } from './call-log.ts'
@@ -28,6 +28,14 @@ const booking: BookingContext = {
     { id: 'acal_mike', name: 'Mike', instruction: 'Emergencies', is_default: false },
   ],
 }
+
+/** The clock at midday where the business is on `iso`: the tools read "today" from it, so day words never depend on the real date. */
+const onDay = (iso: string) => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(`${iso}T20:00:00Z`))
+}
+beforeEach(() => onDay(booking.todayDate))
+afterEach(() => vi.useRealTimers())
 
 const slot = (day: string, time: string) => ({
   start: `2026-11-${day}T${time}:00.000Z`,
@@ -457,11 +465,37 @@ test('find_slots takes the day as the caller said it; an ambiguous one is asked 
   const api = fakeApi(() => ({ slots: [slot('17', '17:00')] }))
   const tools = bookingTools(api, call, log)
   const asked = await tools.findSlots({ ...search, from_date: 'next Wednesday', to_date: null })
-  expect(asked).toMatch(/can mean Wednesday, November \d+ or Wednesday, November \d+\. Ask the caller which one/)
+  expect(asked).toContain('can mean Wednesday, November 18 or Wednesday, November 25. Ask the caller which one')
   expect(api.sent).toEqual([])
   await tools.findSlots({ ...search, from_date: 'November 17', to_date: 'November 18' })
   expect(api.sent[0]?.[1]).toMatchObject({ fromDate: '2026-11-17', toDate: '2026-11-18' })
 })
+
+// "next Wednesday" said on each day of one week (Monday, November 9 to Sunday, November 15): the coming Wednesday or
+// the one after, never today; a plain "Wednesday" is the coming one (on a Wednesday, a week out) and is searched.
+test.each([
+  ['2026-11-09', 'Monday', 'November 11', 'November 18', '2026-11-11'],
+  ['2026-11-10', 'Tuesday', 'November 11', 'November 18', '2026-11-11'],
+  ['2026-11-11', 'Wednesday', 'November 18', 'November 25', '2026-11-18'],
+  ['2026-11-12', 'Thursday', 'November 18', 'November 25', '2026-11-18'],
+  ['2026-11-13', 'Friday', 'November 18', 'November 25', '2026-11-18'],
+  ['2026-11-14', 'Saturday', 'November 18', 'November 25', '2026-11-18'],
+  ['2026-11-15', 'Sunday', 'November 18', 'November 25', '2026-11-18'],
+])(
+  'find_slots on %s (a %s): "next Wednesday" can mean Wednesday, %s or %s; "Wednesday" is %s',
+  async (today, _weekday, coming, following, plain) => {
+    onDay(today)
+    const call = session()
+    const api = fakeApi(() => ({ slots: [] }))
+    const tools = bookingTools(api, call, new CallLog(call))
+    expect(await tools.findSlots({ ...search, from_date: 'next Wednesday', to_date: null })).toBe(
+      `"next Wednesday" can mean Wednesday, ${coming} or Wednesday, ${following}. Ask the caller which one, then call this again with that date.`,
+    )
+    expect(api.sent).toEqual([])
+    await tools.findSlots({ ...search, from_date: 'Wednesday', to_date: null })
+    expect(api.sent[0]?.[1]).toMatchObject({ fromDate: plain })
+  },
+)
 
 test('cancel_appointment takes the day as the caller said it; a day it cannot read is asked again, not guessed', async () => {
   const call = session()
