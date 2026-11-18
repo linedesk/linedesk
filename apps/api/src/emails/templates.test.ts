@@ -389,6 +389,16 @@ describe('sign-in code', () => {
     setBrandingInMemory({ name: 'Front Desk Pro' })
     expect(signInCodeEmail('482913', ORIGIN, 'en', LINK).html).toContain('>Sign in to Front Desk Pro</a>')
   })
+
+  it('from the sign-up page: confirm the email to finish signing up, never "Sign in"', () => {
+    const email = signInCodeEmail('482913', ORIGIN, 'en', `${ORIGIN}/signup#sign-in=abc`, { signUp: true })
+    expect(email.subject).toBe('482913 is your code to finish signing up for Linedesk')
+    expect(email.html).toContain('Confirm your email')
+    expect(email.html).toContain('>Confirm my email</a>')
+    expect(email.text).toContain('Or enter this code on the sign-up page at desk.example.com:')
+    expect(email.text).toContain("Don't share this code")
+    expect(email.text).not.toMatch(/sign in/i)
+  })
 })
 
 describe('password reset', () => {
@@ -632,5 +642,25 @@ describe('in the recipient language', () => {
   it('sets <html lang> and keeps English for an unknown language', () => {
     expect(previewEmails(ORIGIN, 'ja')[0]!.email.html).toContain('<html lang="ja"')
     expect(previewEmails(ORIGIN, 'xx')[0]!.email.html).toContain('<html lang="en"')
+  })
+})
+
+describe('trial emails (docs/billing.md §3.2)', () => {
+  const byName = (name: string) => previewEmails(ORIGIN).find(e => e.name === name)!.email
+  it('the trial-minutes emails: the first sentence adds to the heading, never repeats it; not labelled Billing', () => {
+    for (const name of ['trial-minutes-low', 'trial-minutes-used']) {
+      const email = byName(name)
+      const [, body] = email.text.split(email.subject)
+      expect(body, name).not.toContain(email.subject)
+      expect(email.html, name).toContain('Your free trial')
+      expect(email.html, name).not.toMatch(/>Billing</)
+    }
+    expect(byName('trial-minutes-low').text).toContain('10 minutes are left.')
+    expect(byName('trial-minutes-low').text).toContain(
+      'Your plan stays free until December 1, 2026. Minutes beyond the included ones cost 5¢ each.',
+    )
+  })
+  it('the day-3 nudge is about the setup, not billing', () => {
+    expect(byName('trial-setup-nudge').html).toContain('Your setup')
   })
 })

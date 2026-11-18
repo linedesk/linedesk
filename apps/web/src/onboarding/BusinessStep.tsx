@@ -24,7 +24,7 @@ import { TimeZoneSelect } from '../settings/BusinessHours.tsx'
 import { timeZoneLabel } from '../settings/timeZones.ts'
 import { useAssistantOf, useRun } from '../store.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
-import { Button, Note } from '../ui/kit.tsx'
+import { Button, Icon, Note } from '../ui/kit.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
 import { flagOf } from '../ui/phoneInputModel.ts'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
@@ -642,32 +642,43 @@ function ReviewProfile({
             <span className="ob2-note">{t('onboarding.business.hours.note', { assistant: assistant.name })}</span>
           </div>
         )}
-        <Field
-          id="ob-biz-services"
-          label={t('onboarding.business.field.services')}
-          help={t('onboarding.business.field.servicesHelp')}
-        >
-          <TextArea id="ob-biz-services" value={draft.services} onChange={v => set({ services: v })} />
-        </Field>
-        <Field
-          id="ob-biz-about"
-          label={t('onboarding.business.field.about')}
-          help={t('onboarding.business.field.aboutHelp', { assistant: assistant.name })}
-        >
-          <TextArea
-            id="ob-biz-about"
-            value={draft.about}
-            onChange={v => set({ about: v })}
-            placeholder={t('onboarding.business.field.aboutPlaceholder')}
-          />
-        </Field>
-        <Field
-          id="ob-biz-calls"
-          label={t('onboarding.business.field.calls')}
-          help={t('onboarding.business.field.callsHelp')}
-        >
-          <TextArea id="ob-biz-calls" value={draft.useCases} onChange={v => set({ useCases: v })} tall />
-        </Field>
+        {/* What callers hear about the business: filled in from the listing or the kind of business, so it folds away
+            under the basics; the owner opens it to check or change it. */}
+        <details className="ob-more">
+          <summary title={t('onboarding.business.more.tip')}>
+            <Icon name="down" size={14} className="ob-more-chevron" />
+            <b>{t('onboarding.business.more.title')}</b>
+            <span>{t('onboarding.business.more.what')}</span>
+          </summary>
+          <div className="ob-more-body">
+            <Field
+              id="ob-biz-services"
+              label={t('onboarding.business.field.services')}
+              help={t('onboarding.business.field.servicesHelp')}
+            >
+              <TextArea id="ob-biz-services" value={draft.services} onChange={v => set({ services: v })} />
+            </Field>
+            <Field
+              id="ob-biz-about"
+              label={t('onboarding.business.field.about')}
+              help={t('onboarding.business.field.aboutHelp', { assistant: assistant.name })}
+            >
+              <TextArea
+                id="ob-biz-about"
+                value={draft.about}
+                onChange={v => set({ about: v })}
+                placeholder={t('onboarding.business.field.aboutPlaceholder')}
+              />
+            </Field>
+            <Field
+              id="ob-biz-calls"
+              label={t('onboarding.business.field.calls')}
+              help={t('onboarding.business.field.callsHelp')}
+            >
+              <TextArea id="ob-biz-calls" value={draft.useCases} onChange={v => set({ useCases: v })} tall />
+            </Field>
+          </div>
+        </details>
         {/* The greeting with the business's name is saved too; the owner hears and edits it in the next step. */}
         {fromGoogle && <GoogleMapsCredit />}
       </div>

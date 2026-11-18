@@ -1037,6 +1037,13 @@
       "when": 1794959327761,
       "tag": "0148_partner_domains",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1794960230559,
+      "tag": "0149_auto_recharge_off",
+      "breakpoints": true
     }
   ]
 }

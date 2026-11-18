@@ -72,7 +72,11 @@ export async function refuseClosedSignUp(
   created: { email: string; emailVerified?: boolean },
   path: string | null = null,
 ) {
-  if (!(await mayCreateUser(tx, created.email, created.emailVerified === true, { selfServe: path === EMAIL_CODE_SIGN_IN_PATH })))
+  if (
+    !(await mayCreateUser(tx, created.email, created.emailVerified === true, {
+      selfServe: path === EMAIL_CODE_SIGN_IN_PATH,
+    }))
+  )
     throw new APIError('FORBIDDEN', { code: 'SIGNUP_CLOSED', message: NO_ACCOUNT })
 }
 
@@ -100,6 +104,16 @@ export const fromSignupPage = <T>(send: () => Promise<T>, linkPath = '/signup'):
 
 /** The sign-up page's path while it sends its code (fromSignupPage), else null. */
 export const signupPageLinkPath = (): string | null => signupPageSend.getStore()?.linkPath ?? null
+
+/** Whether an account has this address (any case). */
+export async function accountExists(tx: Tx, email: string): Promise<boolean> {
+  const [found] = await tx
+    .select({ id: user.id })
+    .from(user)
+    .where(sql`lower(${user.email}) = ${email.toLowerCase()}`)
+    .limit(1)
+  return !!found
+}
 
 /**
  * A sign-in code only goes out when it can sign someone in: to an account, or to an address that may create one. An

@@ -657,6 +657,11 @@ body,
   border-radius: 4px;
 }
 
+/* Who can get an account, and where to ask for help: two quiet lines under the sign-in options, kept together. */
+.auth-notes {
+  display: grid;
+  gap: 4px;
+}
 /* Who can get an account: a quiet line under the sign-in options. */
 .auth-note {
   margin: 0;
@@ -1635,6 +1640,21 @@ button.k-link {
   .cv > .ib-head .ib-right {
     flex: none;
     gap: 2px;
+  }
+  /* The free trial line (InboxHead TrialStatus) gets a quiet row of its own under the views. */
+  .cv > .ib-head:has(> .ib-trial) {
+    flex-wrap: wrap;
+  }
+  .cv > .ib-head > .ib-trial {
+    order: 5;
+    flex-basis: 100%;
+    margin-left: 0;
+    padding: 0 4px 2px;
+  }
+  .cv > .ib-head > .ib-trial + .ib-right {
+    margin-left: auto;
+    padding-left: 0;
+    border-left: 0;
   }
   /* A contact's record: its header buttons show only their icons (the page header's do so through .ib-right). */
   .ct-head .k-btn .k-kbds {

@@ -506,8 +506,25 @@ test('calls at the same time in the trial: more only once the plan is paid; seve
     },
   })
   const html = render({ billingOn: true, bill: trial })
-  expect(html).toContain('More calls at the same time can be added once your plan is paid, after the trial.')
+  expect(html).toContain('Each 5 more cost $5.00 a month; you can add them once your plan is paid, after the trial.')
   expect(html).toContain('Brightwater North')
+  // The numbers once each: the rows say what is included, the note what more cost; the card's line only the busy line.
+  expect(html).not.toContain('are included in each workspace')
+  expect(html.match(/\$5\.00 a month/g)).toHaveLength(1)
+  expect(html).toContain('When all lines are busy, the next caller hears')
+})
+
+test('the trial: its $0.00 plan invoice says "Trial (no charge)", and auto-recharge off is said once in the plan', () => {
+  const trial = bill({
+    status: 'trialing',
+    autoRecharge: { ...bill().autoRecharge, on: false },
+    invoices: [{ ...bill().invoices[0]!, kind: 'subscription', totalCents: 0, taxCents: 0, status: 'paid' }],
+  })
+  const html = render({ billingOn: true, bill: trial })
+  expect(html).toContain('Trial (no charge)')
+  expect(html).not.toContain('$0.00')
+  expect(html).toContain('Auto-recharge is off until you turn it on below.')
+  expect(html).not.toContain('Auto-recharge starts once the plan does')
 })
 
 test('Voices and models sits in Billing: Allow Premium and Allow Ultra with their prices, for who manages the bill', () => {

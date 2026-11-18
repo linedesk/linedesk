@@ -36,7 +36,7 @@ async function billFor(status: 'active' | 'trialing' | 'comped', creditMicros = 
   const ws = await createWorkspace('Brightwater Plumbing & Heating')
   const [bill] = await db
     .insert(billing_accounts)
-    .values({ id: rid('bill'), kind: 'cloud', owner_user_id: ws.owner.userId, status })
+    .values({ id: rid('bill'), kind: 'cloud', owner_user_id: ws.owner.userId, status, auto_recharge: true })
     .returning()
   const [period] = await db
     .insert(billing_periods)

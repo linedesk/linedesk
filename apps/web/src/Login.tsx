@@ -377,32 +377,33 @@ function PasswordForm({ form, set, busy, disabled, error, autoFocus, onSubmit }:
 
 /**
  * Who can get an account: the sign-up page while self-serve sign-up is open on this install (`selfServeSignup`), else an
- * invitation from a workspace admin. Then Terms · Privacy · Help, each only when set.
+ * invitation from a workspace admin. On its own line "Need help? Write to …" (the install's support address, when set),
+ * then Terms · Privacy, each only when set.
  */
 export function AuthFooter({ methods }: { methods: AuthMethods }) {
   const t = useT()
   return (
     <footer className="auth-footer">
-      <p className="auth-note">
-        {methods.selfServeSignup
-          ? <T k="auth.noAccountSignup" values={{ a: chunks => <a className="k-link" href={SIGNUP_PATH}>{chunks}</a> }} />
-          : t('auth.noAccount')}
-        {methods.links.supportEmail && (
-          <>
-            {' '}
-            <T
-              k="auth.writeTo"
-              values={{
-                email: methods.links.supportEmail,
-                a: chunks => <a className="k-link" href={`mailto:${methods.links.supportEmail}`}>{chunks}</a>,
-              }}
-            />
-          </>
-        )}
-      </p>
+      <div className="auth-notes">
+        <p className="auth-note">
+          {methods.selfServeSignup
+            ? <T k="auth.noAccountSignup" values={{ a: chunks => <a className="k-link" href={SIGNUP_PATH}>{chunks}</a> }} />
+            : t('auth.noAccount')}
+        </p>
+        {methods.links.supportEmail && <NeedHelp email={methods.links.supportEmail} />}
+      </div>
       <LegalLinksLine links={methods.links} />
       <SignInLanguage />
     </footer>
+  )
+}
+
+/** "Need help? Write to support@…": its own quiet line, the address a mailto link (sign-in footer, the code step). */
+export function NeedHelp({ email }: { email: string }) {
+  return (
+    <p className="auth-note">
+      <T k="auth.needHelp" values={{ email, a: chunks => <a className="k-link" href={`mailto:${email}`}>{chunks}</a> }} />
+    </p>
   )
 }
 
@@ -440,7 +441,6 @@ function LegalLinksLine({ links }: { links: LegalLinks }) {
   const items = [
     links.terms && <a key="terms" href={links.terms} target="_blank" rel="noreferrer">{t('common.legal.terms')}</a>,
     links.privacy && <a key="privacy" href={links.privacy} target="_blank" rel="noreferrer">{t('common.legal.privacy')}</a>,
-    links.supportEmail && <a key="help" href={`mailto:${links.supportEmail}`}>{t('common.legal.help')}</a>,
   ].filter(Boolean)
   if (!items.length) return null
   return <nav className="auth-legal" aria-label={t('auth.legalLabel')}>{items}</nav>
@@ -548,15 +548,10 @@ export function CodeStep({ email, supportEmail, invited = false, selfServeSignup
 export function NoCodeHint({ invited, supportEmail }: Pick<CodeStepProps, 'invited' | 'supportEmail'>) {
   const t = useT()
   return (
-    <p className="auth-note">
-      {t(invited ? 'auth.code.noEmailInvited' : 'auth.code.noEmail')}
-      {supportEmail && (
-        <>
-          {' '}
-          <T k="auth.writeTo" values={{ email: supportEmail, a: chunks => <a className="k-link" href={`mailto:${supportEmail}`}>{chunks}</a> }} />
-        </>
-      )}
-    </p>
+    <div className="auth-notes">
+      <p className="auth-note">{t(invited ? 'auth.code.noEmailInvited' : 'auth.code.noEmail')}</p>
+      {supportEmail && <NeedHelp email={supportEmail} />}
+    </div>
   )
 }
 

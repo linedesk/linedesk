@@ -21,6 +21,7 @@ import { BusinessStep } from './BusinessStep.tsx'
 import { Foot, Frame, useStepKeys } from './Frame.tsx'
 import {
   activationSteps,
+  trialSteps,
   doneState,
   mobileErrorText,
   NO_PICKUP_MEMORY,
@@ -94,6 +95,8 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload }: Props) {
   // Waiting for its trial (docs/billing.md §3.2): the setup, then `activate` (the card); the number only after it.
   const activating = me.workspace?.billingState === 'pending_payment'
   const steps = activating ? activationSteps : onboardingSteps
+  // A trial sign-up counts its whole way, before and after the card (Step 5 of 7, then 6 of 7).
+  const counted = activating || me.workspace?.trialEndsAt ? trialSteps : steps
 
   function go(to: OnboardingStep) {
     setStep(to)
@@ -117,6 +120,7 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload }: Props) {
     <Frame
       step={step}
       steps={steps}
+      counted={counted}
       complete={step === 'done' || (step === 'phone' && hasNumber)}
       // Nothing to finish later before the trial: the app opens only once it runs.
       onSkip={step === 'done' || activating ? undefined : skip}
@@ -125,7 +129,8 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload }: Props) {
       {me.emailUnconfirmed && !confirmed && (
         <ConfirmEmail onDone={() => setConfirmed(true)} why={t('onboarding.main.confirmWhy')} />
       )}
-      {isInstanceAdmin(me) && <InstanceSetupNotice />}
+      {/* The server's provider setup is for Server admin, never inside a customer's sign-up (billing on). */}
+      {isInstanceAdmin(me) && !me.workspace?.billingState && <InstanceSetupNotice />}
       {step === 'activate' && <ActivateStep me={me} onBack={back} onTermsChanged={() => onReload?.()} />}
       {step !== 'done' && step !== 'activate' && (
         <StepScreen
@@ -149,6 +154,8 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload }: Props) {
           onDone={finish}
           offerSamples={offersSampleCalls(firstUse)}
           admin={me.permissions.includes('instance:admin')}
+          // A paying Linedesk Cloud customer is not asked for a GitHub star; self-hosted installs keep it.
+          askForStar={!me.workspace?.billingState}
         />
       )}
     </Frame>
@@ -243,13 +250,26 @@ export function StepScreen(p: StepScreenProps) {
         />
       )
     case 'pickup':
-      return <PickupStep onBack={p.onBack} onNext={p.onNext} memory={p.pickupMemory} onMemory={p.onPickupMemory} />
+      return (
+        <PickupStep
+          onBack={p.onBack}
+          onNext={p.onNext}
+          memory={p.pickupMemory}
+          onMemory={p.onPickupMemory}
+          calls={
+            p.me.workspace?.billingState === 'pending_payment' && p.me.workspace.activation?.calls
+              ? { workspaceId: p.me.workspace.id, offer: p.me.workspace.activation.calls }
+              : undefined
+          }
+        />
+      )
     case 'notify':
       return (
         <NotifyStep
           actorId={p.me.actorId}
           emailConfirmed={p.emailConfirmed}
           admin={admin}
+          serverNotes={!p.me.workspace?.billingState}
           assistantId={p.assistantId}
           onBack={p.onBack}
           onNext={p.onNext}
@@ -379,11 +399,14 @@ function Done({
   onDone,
   offerSamples,
   admin,
+  askForStar,
 }: {
   onBack: () => void
   onDone: () => void
   offerSamples: boolean
   admin: boolean
+  /** Off a bill (self-hosted): the quiet GitHub star line. Not for a workspace on a bill (Linedesk Cloud). */
+  askForStar: boolean
 }) {
   const t = useT()
   const name = useAssistantName()
@@ -459,7 +482,7 @@ function Done({
           </p>
         )}
         {sampleError && <Note tone="danger">{sampleError}</Note>}
-        <StarLine />
+        {askForStar && <StarLine />}
       </div>
       <Foot onBack={onBack} onContinue={openCalls} canContinue label={t('onboarding.main.openCalls')} />
     </>

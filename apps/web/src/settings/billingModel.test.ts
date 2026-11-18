@@ -267,6 +267,7 @@ test('Buy minutes keeps one command id per purchase while its outcome is unknown
 
 const prompt = (over: Partial<TrialMinutesPrompt> = {}): TrialMinutesPrompt => ({
   stage: 'low',
+  paid: false,
   usedMinutes: 40,
   includedMinutes: 50,
   amountCents: 2500,

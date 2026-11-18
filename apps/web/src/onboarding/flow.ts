@@ -47,6 +47,15 @@ export const onboardingSteps = onboardingStepsFor(false)
  */
 export const activationSteps = onboardingStepsFor(true)
 
+/**
+ * The whole way of a trial sign-up as its step counter counts it (docs/billing.md §3.2): the setup, "Start your trial",
+ * then the number and Done. One count before and after the trial starts ("Step 5 of 7", then "Step 6 of 7").
+ */
+export const trialSteps: readonly OnboardingStep[] = [
+  ...activationSteps,
+  ...onboardingSteps.slice(onboardingSteps.indexOf('phone')),
+]
+
 /** The steps' names in the active language (read on every use, so a language change shows at once). */
 export const stepLabels: Record<OnboardingStep, string> = {
   get business() {
@@ -94,25 +103,35 @@ export function stepByStepSteps(target: 'workspace' | 'assistant', forwardingCha
   return ['business', 'assistant', 'pickup', 'notify', ...(forwardingChanged ? (['phone'] as const) : [])]
 }
 
-/** One line of the activation step's timeline: what happens on which day of the trial (day 0: today). */
-export type TimelineEntry = { kind: 'start' | 'reminder' | 'charge'; day: number; at: Date }
+/**
+ * One line of the activation step's timeline. `day` counts today as day 1, as the website's "No charge until day 15"
+ * does: a 14-day trial's first charge is on day 15. The reminder emails are one line (`before`: the days before the
+ * first charge each goes out, latest first, with their dates).
+ */
+export type TimelineEntry =
+  | { kind: 'start'; day: number; at: Date }
+  | { kind: 'reminders'; before: number[]; at: Date[] }
+  | { kind: 'charge'; day: number; at: Date }
 
 /**
- * The activation step's timeline (docs/billing.md §3.2): today the trial starts, a reminder email `reminderDays`
- * before its end, the first charge when it ends. Without a trial (a refused one): the charge today, nothing else.
- * The dates count from the first charge the server named, so they match what Checkout and the emails say.
+ * The activation step's timeline (docs/billing.md §3.2): today the trial starts, the reminder emails `reminderDays`
+ * before its end (one line), the first charge when it ends. Without a trial (a refused one): the charge today, nothing
+ * else. The dates count from the first charge the server named, so they match what Checkout and the emails say.
  */
 export function activationTimeline(
   a: { trialDays: number | null; firstChargeAt: string | null; reminderDays: readonly number[] },
   now: Date,
 ): TimelineEntry[] {
-  if (!a.trialDays || !a.firstChargeAt) return [{ kind: 'charge', day: 0, at: now }]
+  if (!a.trialDays || !a.firstChargeAt) return [{ kind: 'charge', day: 1, at: now }]
   const end = Date.parse(a.firstChargeAt)
-  const reminders = [...a.reminderDays]
-    .filter(d => d >= 1 && d < a.trialDays!)
-    .sort((x, y) => y - x)
-    .map(d => ({ kind: 'reminder' as const, day: a.trialDays! - d, at: new Date(end - d * 86_400_000) }))
-  return [{ kind: 'start', day: 0, at: now }, ...reminders, { kind: 'charge', day: a.trialDays, at: new Date(end) }]
+  const before = [...a.reminderDays].filter(d => d >= 1 && d < a.trialDays!).sort((x, y) => y - x)
+  return [
+    { kind: 'start', day: 1, at: now },
+    ...(before.length
+      ? [{ kind: 'reminders' as const, before, at: before.map(d => new Date(end - d * 86_400_000)) }]
+      : []),
+    { kind: 'charge', day: a.trialDays + 1, at: new Date(end) },
+  ]
 }
 
 /** The pick-up choices in the order shown; the first is recommended and preselected. */
@@ -587,8 +606,8 @@ export const FALLBACK_OWNER_NAME = 'the owner'
 
 /**
  * What happens when a caller has an urgent matter: put through to the owner's mobile (the step's contact, on), or a
- * message the owner is alerted to right away (the contact off, or none). Null until the owner picks one: nothing
- * is preselected, so nobody continues past a choice they didn't see.
+ * message the owner is alerted to right away (the contact off, or none). A first visit starts at "Take a message and
+ * alert me" (decision of 2026-11-17): it needs no number, so Continue works at once; null only in a draft built by hand.
  */
 export type UrgentChoice = 'transfer' | 'message'
 
@@ -611,7 +630,7 @@ export function firstWhoHears(transfers: readonly TransferContact[], urgentCases
     }
   const person = transfers.find(c => c.id === PERSON_CONTACT_ID)
   return {
-    urgent: null,
+    urgent: 'message',
     mobile: person?.number ? formatNumber(person.number) : '',
     condition: urgentCases ?? DEFAULT_URGENT_CONDITION,
   }

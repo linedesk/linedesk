@@ -23,7 +23,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi 
 import { sendBillingAlert } from '../src/billing-recharge.ts'
 import { DEFAULT_TIME_ZONE } from '../src/bookings.ts'
 import { todayIn } from '../src/public-holidays.ts'
-import { BILLING_UNUSABLE_KEY, gateCall, postFinishedCall } from '../src/call-billing.ts'
+import { BILLING_UNUSABLE_KEY, gateCall, postFinishedCall, trialMinutesAlert } from '../src/call-billing.ts'
 import { db } from '../src/db.ts'
 import type { EmailSender } from '../src/email.ts'
 import { runLedgerCheck, runStuckRechargeCheck, setJobQueue } from '../src/jobs.ts'
@@ -898,18 +898,31 @@ describe('the trial prompt, its grace and the trial recharge (docs/billing.md §
     expect(await alerts(b.billId)).toMatchObject([{ kind: 'trial_minutes_low', ref }])
   })
 
-  test('no prompt once the owner turned on the trial recharge, with auto-recharge off, or after the trial', async () => {
+  test('no prompt once the owner pressed it in the trial, nor on a paid plan with auto-recharge on', async () => {
     const tapped = await trial({ usedSeconds: 2390 })
     await db
       .update(billing_accounts)
       .set({ trial_recharge_at: new Date().toISOString() })
       .where(eq(billing_accounts.id, tapped.billId))
     await call(tapped, 60)
-    const off = await trial({ usedSeconds: 2390, autoRecharge: false })
-    await call(off, 60)
     const paid = await billed('active', { usedSeconds: 2390 })
     await call(paid, 60)
     expect(jobs('billing.alert').filter(j => String(j.kind).startsWith('trial_minutes'))).toEqual([])
+  })
+
+  test('auto-recharge off (the default since 2026-11-17): the trial is prompted, and a paid plan once per month', async () => {
+    const off = await trial({ usedSeconds: 2390, autoRecharge: false })
+    await call(off, 60)
+    const paid = await billed('active', { usedSeconds: 2390, autoRecharge: false })
+    await call(paid, 60)
+    await call(paid, 60)
+    expect(jobs('billing.alert').filter(j => String(j.kind).startsWith('trial_minutes'))).toEqual([
+      { kind: 'trial_minutes_low', bill: off.billId, ref: off.periodId },
+      { kind: 'trial_minutes_low', bill: paid.billId, ref: paid.periodId },
+    ])
+    // A paid plan has no grace: never the used-up prompt.
+    await trialMinutesAlert(db as never, paid.billId, 'trial_minutes_used', new Date().toISOString())
+    expect(jobs('billing.alert').filter(j => j.kind === 'trial_minutes_used')).toEqual([])
   })
 
   test('minutes used up and no balance: new calls are answered on the 10-minute grace, the owner emailed once', async () => {
@@ -980,9 +993,10 @@ describe('the trial prompt, its grace and the trial recharge (docs/billing.md §
     } as never
     await sendBillingAlert(db, sender, { kind: 'trial_minutes_low', bill: b.billId, ref: b.periodId }, { provider })
     expect(sent[0]!.subject).toBe('You used 41 of your 50 trial minutes')
-    expect(sent[0]!.text).toContain('Keep every call answered: add $25 with Visa ending in 4242.')
-    expect(sent[0]!.text).toContain('We top up automatically below $5.')
-    expect(sent[0]!.text).toContain('Plan stays free until December 1, 2026; minutes 5¢.')
+    expect(sent[0]!.text).toContain('9 minutes are left. After that, calls need call credit.')
+    expect(sent[0]!.text).toContain('To keep every call answered, add $25 with Visa ending in 4242.')
+    expect(sent[0]!.text).toContain('Whenever your balance falls below $5, we add $25 again.')
+    expect(sent[0]!.text).toContain('Your plan stays free until December 1, 2026.')
     expect(sent[0]!.html).toContain('Keep calls answered')
     await sendBillingAlert(db, sender, { kind: 'trial_minutes_used', bill: b.billId, ref: b.periodId }, { provider })
     expect(sent[1]!.subject).toBe('Your 50 trial minutes are used up')
@@ -1004,6 +1018,30 @@ describe('the trial prompt, its grace and the trial recharge (docs/billing.md §
       await sendBillingAlert(db, sender, { kind: 'trial_minutes_low', bill: b.billId, ref: b.periodId }, { provider }),
     ).toEqual({ sent: 'nobody' })
     expect(sent).toHaveLength(3)
+  })
+
+  test('a paid plan with auto-recharge off: the minutes of the month, the purchase, no trial date; nothing once it is on', async () => {
+    const b = await billed('active', { usedSeconds: 2460, autoRecharge: false })
+    const sent: { subject: string; text: string; html: string }[] = []
+    const sender = {
+      kind: 'smtp',
+      send: async (e: (typeof sent)[number]) => void sent.push(e),
+    } as unknown as EmailSender
+    const provider = {
+      name: 'stripe',
+      rechargeCard: async () => ({ id: 'pm_1', brand: 'visa', last4: '4242' }),
+    } as never
+    await sendBillingAlert(db, sender, { kind: 'trial_minutes_low', bill: b.billId, ref: b.periodId }, { provider })
+    expect(sent[0]!.subject).toBe('You used 41 of your 50 included minutes this month')
+    expect(sent[0]!.text).toContain('9 minutes are left this month.')
+    expect(sent[0]!.text).toContain('To keep every call answered, add $25 with Visa ending in 4242.')
+    expect(sent[0]!.text).not.toContain('trial')
+    expect(sent[0]!.text).not.toContain('stays free')
+    await db.update(billing_accounts).set({ auto_recharge: true }).where(eq(billing_accounts.id, b.billId))
+    expect(
+      await sendBillingAlert(db, sender, { kind: 'trial_minutes_low', bill: b.billId, ref: b.periodId }, { provider }),
+    ).toEqual({ sent: 'nobody' })
+    expect(sent).toHaveLength(1)
   })
 })
 

@@ -1,7 +1,7 @@
 // Step 4, "Who hears about calls?": first where call summaries go (email and push for this member,
 // notifications.*), then what happens when a caller has an urgent matter: put through to the owner's mobile (a transfer
-// contact of the assistant, assistant.update) or a message with an alert right away. Nothing is preselected for
-// urgent matters, and only "put through" asks for a number. No texts yet. Can be done later; it shows what exists (the
+// contact of the assistant, assistant.update) or a message with an alert right away. A first visit starts at the
+// message (it needs no number), and only "put through" asks for a number. No texts yet. Can be done later; it shows what exists (the
 // contact it saved before, the member's notification settings). Continue never waits for the server: the saves are
 // queued, and a refusal comes back as the onboarding's save error for this step (Onboarding.tsx).
 import { type NotificationSettingsData, setsTransferNumber } from '@linedesk/actions'
@@ -42,6 +42,11 @@ type Props = {
   emailConfirmed: boolean
   /** An instance admin: what the server lacks links to Server admin › Providers; everyone else is told whom to ask. */
   admin: boolean
+  /**
+   * False in a customer's sign-up on a bill (Linedesk Cloud): the server's own setup (email not set up) belongs to
+   * Server admin, never to this step, so it says nothing about it there.
+   */
+  serverNotes?: boolean
   onBack: () => void
   onNext: () => void
   /** The assistant whose calls these are (step by step from its settings); else the workspace's default one. */
@@ -65,7 +70,15 @@ export function NotifyStep(p: Props) {
 
 const LATER = msg('onboarding.notify.later')
 
-function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext }: Props & { assistant: Assistant }) {
+function NotifyForm({
+  assistant,
+  actorId,
+  emailConfirmed,
+  admin,
+  serverNotes = true,
+  onBack,
+  onNext,
+}: Props & { assistant: Assistant }) {
   const t = useT()
   const run = useRun()
   const me = useMember(actorId)
@@ -89,7 +102,7 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
   const problem = withUnfinishedNumber(draft, whoHearsProblem(draft, assistant.transfers, countries))
   // "Take a message and alert me" alerts by email or push; with both off nobody hears of an urgent call until they look.
   // Email that this server cannot send alerts nobody either.
-  const emailWorks = emailOn && settings?.emailReady !== false
+  const emailWorks = emailOn && (!serverNotes || settings?.emailReady !== false)
   const nobodyAlerted = draft.urgent === 'message' && !!settings && !emailWorks && settings.push.devices.length === 0
   const name = assistant.name
 
@@ -156,25 +169,28 @@ function NotifyForm({ assistant, actorId, emailConfirmed, admin, onBack, onNext 
             </div>
           }
         >
-          {settings && <Summaries settings={settings} email={emailOn} onEmail={setEmail} admin={admin} />}
+          {settings && (
+            <Summaries settings={settings} email={emailOn} onEmail={setEmail} admin={admin} serverNotes={serverNotes} />
+          )}
         </Loading>
         <span className="ob-label" id="ob-urgent">
           {t('onboarding.notify.urgentLabel')}
         </span>
         <div className="k-radios ob-choices" role="radiogroup" aria-labelledby="ob-urgent">
+          {/* The default first (it needs no number), as on the pick-up step. */}
+          <RadioCard
+            name="ob-urgent"
+            checked={draft.urgent === 'message'}
+            onPick={() => pick('message')}
+            title={t('onboarding.notify.message.title')}
+            description={t('onboarding.notify.message.description', { name })}
+          />
           <RadioCard
             name="ob-urgent"
             checked={draft.urgent === 'transfer'}
             onPick={() => pick('transfer')}
             title={t('onboarding.notify.transfer.title')}
             description={t('onboarding.notify.transfer.description', { name })}
-          />
-          <RadioCard
-            name="ob-urgent"
-            checked={draft.urgent === 'message'}
-            onPick={() => pick('message')}
-            title={t('onboarding.notify.message.title')}
-            description={t('onboarding.notify.message.description')}
           />
         </div>
         {nobodyAlerted && (
@@ -236,11 +252,13 @@ function Summaries({
   email,
   onEmail,
   admin,
+  serverNotes,
 }: {
   settings: NotificationSettingsData
   email: boolean
   onEmail: (on: boolean) => void
   admin: boolean
+  serverNotes: boolean
 }) {
   const t = useT()
   const device = useDeviceNotifications(settings)
@@ -250,7 +268,7 @@ function Summaries({
         {t('onboarding.notify.emailSummary')}
       </Checkbox>
       {/* The choice is kept either way; it says that nothing arrives until the server sends email. */}
-      {settings.emailReady === false && (
+      {serverNotes && settings.emailReady === false && (
         <p className="ob2-note" role="status">
           {t('onboarding.notify.emailMissing')}{' '}
           {admin ? (

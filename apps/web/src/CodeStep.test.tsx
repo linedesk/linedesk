@@ -31,10 +31,11 @@ test('from an invitation the address may sign in: the line says plainly that the
 
 test('the hint after a minute: spam, or ask for an invitation, with the support address when the install sets one', () => {
   expect(renderToStaticMarkup(<NoCodeHint />)).toBe(
-    '<p class="auth-note">No email? Check spam, or ask your workspace admin for an invitation.</p>',
+    '<div class="auth-notes"><p class="auth-note">No email? Check spam, or ask your workspace admin for an invitation.</p></div>',
   )
-  expect(renderToStaticMarkup(<NoCodeHint supportEmail="support@brightwater.example" />)).toContain(
-    'Or write to <a class="k-link" href="mailto:support@brightwater.example">support@brightwater.example</a>.',
+  expect(renderToStaticMarkup(<NoCodeHint supportEmail="support@brightwater.example" />)).toBe(
+    '<div class="auth-notes"><p class="auth-note">No email? Check spam, or ask your workspace admin for an invitation.</p>' +
+      '<p class="auth-note">Need help? Write to <a class="k-link" href="mailto:support@brightwater.example">support@brightwater.example</a></p></div>',
   )
 })
 

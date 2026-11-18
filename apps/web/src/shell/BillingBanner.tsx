@@ -83,7 +83,7 @@ async function buy(input: object, idempotencyKey: string): Promise<TopUpData> {
 }
 
 /**
- * The trial prompt's line and its one button. The card shown is the card charged: when the server reads another card
+ * The minutes prompt's line and its one button (the trial, or a paid plan with auto-recharge off). The card shown is the card charged: when the server reads another card
  * than the one on screen (or none was readable), the line names it and nothing is charged until the next press.
  */
 function TrialPrompt({
@@ -156,7 +156,7 @@ function TrialPrompt({
           ? t('settings.billing.topUp.paid', { amount })
           : t('settings.billing.topUp.processing', { amount }),
       )
-      // The trial recharge is on now: the line goes, and the billing page shows the new balance.
+      // Auto-recharge is on now: the line goes, and the billing page shows the new balance.
       await Promise.all([refreshQuery(STATE), refreshQuery(OVERVIEW)])
     } catch (err) {
       const key = refusalKey((err as { code?: string }).code)
@@ -174,7 +174,10 @@ function TrialPrompt({
         size="sm"
         variant="primary"
         busy={busy}
-        title={t('settings.billing.banner.keepAnsweredTip', values)}
+        title={t(
+          prompt.paid ? 'settings.billing.banner.keepAnsweredTipPlan' : 'settings.billing.banner.keepAnsweredTip',
+          values,
+        )}
         onClick={() => void keep()}
       >
         {t('settings.billing.banner.keepAnswered')}

@@ -20,6 +20,8 @@ import {
   type GateReason,
   instance_settings,
   ledger_entries,
+  minutesPromptFor,
+  minutesPromptPeriod,
   organization,
   PAID_LEVELS,
   type PaidLevel,
@@ -242,7 +244,8 @@ export async function afterDebit(tx: Tx, billId: string, recharge: RechargeOutco
 }
 
 /**
- * With auto-recharge off, the owner hears once per low stretch that the balance fell below the threshold: the stretch
+ * With auto-recharge off, the owner hears once per low stretch that the balance fell below the threshold (in the trial
+ * only after "Keep calls answered"): the stretch
  * is named by the last credit before it (a recharge, top-up, credit or write-off), so the next one starts a new one.
  */
 async function lowBalanceAlert(tx: Tx, billId: string) {
@@ -250,6 +253,7 @@ async function lowBalanceAlert(tx: Tx, billId: string) {
     .select({
       auto: billing_accounts.auto_recharge,
       status: billing_accounts.status,
+      trialRecharge: billing_accounts.trial_recharge_at,
       threshold: billing_accounts.recharge_threshold_cents,
       balance: billing_balances.balance_micros,
       reserved: billing_balances.reserved_micros,
@@ -257,7 +261,9 @@ async function lowBalanceAlert(tx: Tx, billId: string) {
     .from(billing_accounts)
     .innerJoin(billing_balances, eq(billing_balances.billing_account_id, billing_accounts.id))
     .where(eq(billing_accounts.id, billId))
+  // Not in the trial before "Keep calls answered": its balance is $0 by design, and the minutes prompt covers it.
   if (!bill || bill.auto || !['trialing', 'active', 'past_due'].includes(bill.status)) return
+  if (bill.status === 'trialing' && !bill.trialRecharge) return
   if (bill.balance - bill.reserved >= bill.threshold * 10_000) return
   const [lastCredit] = await tx
     .select({ id: ledger_entries.id })
@@ -275,10 +281,11 @@ async function lowBalanceAlert(tx: Tx, billId: string) {
 }
 
 /**
- * The trial prompt (docs/billing.md §3.2 step 7), once per trial each: `trial_minutes_low` when a workspace of a trial
- * bill used `TRIAL_PROMPT_SHARE` of its included minutes, `trial_minutes_used` when a call was answered only on the
- * trial grace after they were all used. Only while the owner has not pressed "Keep calls answered" and auto-recharge is on (the email offers
- * it). The used-up email also marks the low one as sent, so it never follows later. The ref is the trial's period.
+ * The minutes prompt (docs/billing.md §3.2 step 7), once per period each: `trial_minutes_low` when a workspace used
+ * `TRIAL_PROMPT_SHARE` of its included minutes, `trial_minutes_used` when a call was answered only on the trial grace
+ * after they were all used (the trial only: a paid plan has no grace). For a trial until the owner pressed "Keep calls
+ * answered" (the email offers it), and for a paid plan with auto-recharge off (`minutesPromptFor`). The used-up email
+ * also marks the low one as sent, so it never follows later. The ref is the period.
  */
 export async function trialMinutesAlert(
   tx: Tx,
@@ -287,9 +294,10 @@ export async function trialMinutesAlert(
   now: string,
 ) {
   const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, billId))
-  if (bill?.status !== 'trialing' || !bill.auto_recharge || bill.trial_recharge_at) return
+  const prompt = bill ? minutesPromptFor(bill) : null
+  if (!prompt || (prompt === 'plan' && kind === 'trial_minutes_used')) return
   const period = await periodAt(tx, billId, now)
-  if (period?.kind !== 'trial') return
+  if (period?.kind !== minutesPromptPeriod(prompt)) return
   // Low: the share of the minutes used. Used up: all of them (a call near the end of the minutes may start on the
   // grace too, for the part of its limit they no longer cover; that is not "used up" yet).
   const used = await trialSecondsUsed(tx, billId, period.id)

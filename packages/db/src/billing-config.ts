@@ -209,7 +209,8 @@ export type SignupRules = {
 /**
  * What the activation step showed next to its button and the owner agreed to (`terms_acceptances.disclosure`): the
  * plan's price before tax and its interval, the trial's length, the first charge's date (null: charged today, no
- * trial), the days before it that a reminder goes out, and the auto-recharge (null: off).
+ * trial) and the days before it that a reminder goes out. No auto-recharge: activation never turns it on (Janik,
+ * 2026-11-17); the owner turns it on later with "Keep calls answered" or in Settings › Billing.
  */
 export type ActivationDisclosure = {
   planCents: number
@@ -217,7 +218,6 @@ export type ActivationDisclosure = {
   trialDays: number | null
   firstChargeAt: string | null
   reminderDays: number[]
-  recharge: { amountCents: number; thresholdCents: number; capCents: number } | null
   /**
    * Extra calls at the same time the owner added on the activation step (LIN-450), in `planCents` already: how many,
    * and what they cost a month. Absent: none (and on activations before this existed).
@@ -241,10 +241,11 @@ export type ExtraCallsDisclosure = {
 }
 
 /**
- * What "Keep calls answered" showed in the trial when the owner pressed it (`terms_acceptances.disclosure`, source
- * `trial_recharge`; docs/billing.md §3.2 step 7): the minutes used of the trial's included ones, the purchase now
- * (`amountCents` on `card`, brand and last four), that auto-recharge then runs in the trial too (the threshold and the
- * monthly cap), until when the plan stays free, and the price of a Standard minute (micros). `rechargeId`: the purchase.
+ * What "Keep calls answered" showed when the owner pressed it (`terms_acceptances.disclosure`, source `trial_recharge`;
+ * docs/billing.md §3.2 step 7): the minutes used of the period's included ones (the trial's, or a paid period's with
+ * auto-recharge off), the purchase now (`amountCents` on `card`, brand and last four), that auto-recharge is on from
+ * then (the threshold and the monthly cap), until when the plan stays free (null: a paid plan), and the price of a
+ * Standard minute (micros). `rechargeId`: the purchase.
  */
 export type TrialRechargeDisclosure = {
   kind: 'trial_recharge'
@@ -260,10 +261,29 @@ export type TrialRechargeDisclosure = {
 }
 
 /**
- * The trial prompt (docs/billing.md §3.2 step 7): at this share of the included minutes the owner of a trial with
- * auto-recharge on is asked once (banner and email) to "Keep calls answered".
+ * The minutes prompt (docs/billing.md §3.2 step 7): at this share of the included minutes the owner is asked once per
+ * period (banner and email) to "Keep calls answered": in the trial until they did, and on a paid plan with
+ * auto-recharge off.
  */
 export const TRIAL_PROMPT_SHARE = 0.8
+
+/**
+ * Whom the minutes prompt is for: a trial until "Keep calls answered" was pressed in it (`trial`), a paid plan with
+ * auto-recharge off (`plan`, once per month period), else nobody. Pressing it charges the recharge amount and turns
+ * auto-recharge on, so neither asks again.
+ */
+export function minutesPromptFor(bill: {
+  status: string
+  auto_recharge: boolean
+  trial_recharge_at: string | null
+}): 'trial' | 'plan' | null {
+  if (bill.status === 'trialing') return bill.trial_recharge_at ? null : 'trial'
+  if (bill.status === 'active') return bill.auto_recharge ? null : 'plan'
+  return null
+}
+
+/** The period kind the minutes prompt counts in: the trial's, or a paid plan's month. */
+export const minutesPromptPeriod = (prompt: 'trial' | 'plan') => (prompt === 'trial' ? 'trial' : 'month')
 
 /**
  * The trial grace: in the trial, once the balance (less what running calls hold) is gone, new calls are still

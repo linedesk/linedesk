@@ -686,6 +686,9 @@ app.get('/v1/me', async c => {
           extraNumberCents: billFacts?.extraNumberCents ?? null,
           // A white-label client on its partner's bill: no prices anywhere in the workspace (docs/white-label.md).
           partnerManaged: billFacts?.partnerManaged ?? false,
+          // In the free trial: when it ends (the first charge); the onboarding counts its steps with the trial's, and
+          // the inbox shows the days left. Null otherwise.
+          trialEndsAt: billFacts?.trialEndsAt ?? null,
           // While `pending_payment`, for the bill's owner: what the onboarding's last step shows before Checkout (the
           // price, the trial, the first charge, the reminder emails, the auto-recharge, the terms); else null.
           activation: billFacts?.activation ?? null,

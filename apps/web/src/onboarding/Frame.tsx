@@ -50,6 +50,7 @@ export function Frame({
   complete,
   onSkip,
   steps = onboardingSteps,
+  counted = steps,
   edit = false,
   children,
 }: {
@@ -62,6 +63,11 @@ export function Frame({
   onSkip?: () => void
   /** The steps gone through, in order: the onboarding's, or the ones step by step goes through again. */
   steps?: readonly OnboardingStep[]
+  /**
+   * The steps the counter and the bar count (default: `steps`). A trial sign-up counts its whole way, from the setup
+   * through "Start your trial" to the number and Done, so the count never starts over when the trial begins.
+   */
+  counted?: readonly OnboardingStep[]
   /** Gone through again from the settings ("Step by step"): "Close" in place of "Finish later". */
   edit?: boolean
   children: ReactNode
@@ -86,8 +92,8 @@ export function Frame({
         <b>{brandName()}</b>
         <span className="ob-count">
           {t('onboarding.frame.stepCount', {
-            step: index + 1,
-            total: steps.length,
+            step: counted.indexOf(step) + 1,
+            total: counted.length,
             label: stepLabels[step],
           })}
         </span>
@@ -103,7 +109,7 @@ export function Frame({
         )}
       </div>
       <div className="ob-bar">
-        <span style={{ width: `${progress(step, complete, steps)}%` }} />
+        <span style={{ width: `${progress(step, complete, counted)}%` }} />
       </div>
       <StepModeContext.Provider value={{ edit, last: index === steps.length - 1 }}>
         <div className="ob-main">{children}</div>

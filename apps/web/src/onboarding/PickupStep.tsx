@@ -1,6 +1,8 @@
 // Step 3, "When should Maya pick up?": when the business can't answer (the default), when it is closed,
 // or every call. The choices speak as the business ("we"). Business hours are asked only for "when we're closed". The choice picks the forwarding
-// code on the phone step; routing stays with the number's mode and the hours (no new call routing).
+// code on the phone step; routing stays with the number's mode and the hours (no new call routing). Before the trial
+// (Linedesk Cloud) it also asks how many calls Maya answers at the same time (ExtraCalls.tsx), so the pay step stays
+// short.
 import type { PickupMode, WorkspaceSettingsData } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
@@ -14,6 +16,7 @@ import { useAssistantName, useRows, useRun } from '../store.tsx'
 import { RadioCard } from '../ui/controls.tsx'
 import { Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
+import { type CallsOffer, ExtraCallsPicker, useExtraCalls } from './ExtraCalls.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import {
   firstHoursDraft,
@@ -31,6 +34,8 @@ type StepProps = {
   onNext: () => void
   memory: PickupMemory
   onMemory: (memory: PickupMemory) => void
+  /** Before the trial: the workspace and the calls at the same time it may add (none: no picker). */
+  calls?: { workspaceId: string; offer: CallsOffer }
 }
 
 const choiceText: Record<PickupMode, { title: MessageKey; description: MessageKey }> = {
@@ -75,7 +80,7 @@ export function PickupStep(p: StepProps) {
   )
 }
 
-function PickupForm({ saved, onBack, onNext, memory, onMemory }: StepProps & { saved: WorkspaceSettingsData }) {
+function PickupForm({ saved, onBack, onNext, memory, onMemory, calls }: StepProps & { saved: WorkspaceSettingsData }) {
   const t = useT()
   const run = useRun()
   const write = useWriteAction()
@@ -142,9 +147,16 @@ function PickupForm({ saved, onBack, onNext, memory, onMemory }: StepProps & { s
             <HoursGrid days={days} set={set} canEdit />
           </>
         )}
+        {calls && calls.offer.maxExtra > 0 && <CallsChoice {...calls} />}
         {problem && <Note tone="danger">{problem}</Note>}
       </div>
       <Foot onBack={onBack} onContinue={next} canContinue={!problem} />
     </>
   )
+}
+
+/** Calls at the same time before the trial: kept in this browser until the pay step sells them with the plan. */
+function CallsChoice({ workspaceId, offer }: { workspaceId: string; offer: CallsOffer }) {
+  const [extra, setExtra] = useExtraCalls(workspaceId, offer)
+  return <ExtraCallsPicker calls={offer} extra={extra} onChange={setExtra} />
 }

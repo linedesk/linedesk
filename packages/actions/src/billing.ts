@@ -146,14 +146,16 @@ export type BusyLinePrompt = {
 }
 
 /**
- * The trial prompt: a trial bill with auto-recharge on whose owner has not pressed "Keep calls answered", once a
- * workspace used `TRIAL_PROMPT_SHARE` of its included minutes. `stage`: `low` (minutes left, or a balance that still
+ * The minutes prompt: a trial bill whose owner has not pressed "Keep calls answered", or a paid plan with auto-recharge
+ * off (once a month period), once a workspace used `TRIAL_PROMPT_SHARE` of its included minutes. `stage`: `low` (minutes left, or a balance that still
  * covers calls), `grace` (minutes used up: new calls answered on the trial grace for a short time), `paused` (the grace
  * is used: new callers hear that the business calls back). The purchase (`amountCents` on `card`, null when it could
  * not be read), the automatic top-up after it (below `thresholdCents`, at most `capCents` a month), and the trial's end.
  */
 export type TrialMinutesPrompt = {
   stage: 'low' | 'grace' | 'paused'
+  /** A paid plan's month with auto-recharge off (stage `low` only, no `freeUntil`), not the trial. */
+  paid: boolean
   usedMinutes: number
   includedMinutes: number
   amountCents: number

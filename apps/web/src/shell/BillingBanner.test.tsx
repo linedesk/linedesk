@@ -16,6 +16,7 @@ const { BillingBanner } = await import('./BillingBanner.tsx')
 
 const prompt = (over: Partial<TrialMinutesPrompt> = {}): TrialMinutesPrompt => ({
   stage: 'low',
+  paid: false,
   usedMinutes: 40,
   includedMinutes: 50,
   amountCents: 2500,
@@ -56,9 +57,22 @@ test('the trial prompt: one line naming the card, and "Keep calls answered" with
     'You used 40 of your 50 trial minutes. Add $25 with Visa ending in 4242 and we top up automatically below $5.',
   )
   expect(html).toContain('>Keep calls answered<')
-  expect(html).toContain('Charges $25 to Visa ending in 4242 now.')
+  expect(html).toContain('Charges $25 to Visa ending in 4242 now and turns on auto-recharge')
   expect(html).toContain('at most $50 a month')
+  expect(html).toContain('Your plan stays free until December 1, 2026.')
   expect(html).not.toContain('#workspace/billing')
+})
+
+test('a paid plan with auto-recharge off gets the same prompt once a month: its included minutes, no trial date', () => {
+  const html = render(bill({ status: 'active', trialMinutes: prompt({ paid: true, freeUntil: null }) }))
+  expect(html).toContain('is-warning')
+  expect(html).toContain(
+    'You used 40 of your 50 included minutes this month. Add $25 with Visa ending in 4242 and we top up automatically below $5.',
+  )
+  expect(html).toContain('>Keep calls answered<')
+  expect(html).toContain('Charges $25 to Visa ending in 4242 now and turns on auto-recharge')
+  expect(html).not.toContain('trial')
+  expect(html).not.toContain('stays free')
 })
 
 test('used up: answered for a short time, then paused in red; the button stays', () => {

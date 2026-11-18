@@ -392,7 +392,6 @@ export const WEBHOOK_EVENTS = [
   'customer.subscription.updated',
   'customer.subscription.deleted',
   'customer.subscription.trial_will_end',
-  'invoice.created',
   'invoice.finalized',
   'invoice.finalization_failed',
   'invoice.paid',

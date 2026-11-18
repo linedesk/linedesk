@@ -1,5 +1,6 @@
 // The last step before a number (docs/billing.md §3.2): the business set everything up without a card; here it sees
-// what it set up, what the plan costs, when the first charge comes and that reminder emails come before it, accepts
+// what it set up, what the plan costs a month (a yearly plan's amount once, small, at its first charge), when the first
+// charge comes and that reminder emails come before it, accepts
 // the terms next to the button (clickwrap, A9: recorded with what this step showed) and goes to Stripe Checkout for
 // the card. Back from Checkout (CheckoutReturn.tsx) the trial runs and the onboarding goes on to the phone number.
 import { T, useFormat, useT } from '@linedesk/i18n/react'
@@ -8,9 +9,9 @@ import type { Activation, Me } from '../auth.ts'
 import { goToCheckout } from '../checkout.ts'
 import { useAssistantName } from '../store.tsx'
 import { ExternalLink } from '../ui/AppLink.tsx'
-import { Select } from '../ui/controls.tsx'
 import { Icon, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
+import { useExtraCalls, useUsd } from './ExtraCalls.tsx'
 import { activationTimeline, type TimelineEntry } from './flow.ts'
 import { Foot, useStepKeys } from './Frame.tsx'
 import { rememberOwnerByHand } from './setup-choice.ts'
@@ -39,22 +40,19 @@ function Activate({ me, activation: a, onBack, onTermsChanged }: Props & { activ
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [now] = useState(() => new Date())
-  // Extra calls at the same time (LIN-450): one quiet picker in the plan card, none by default.
-  const [extraCalls, setExtraCalls] = useState(0)
+  // Extra calls at the same time (LIN-450), picked on the pick-up step; here only sold with the plan.
+  const [extraCalls] = useExtraCalls(me.workspace!.id, a.calls)
   const trial = a.trialDays !== null
-  const usd = (cents: number) =>
-    format.currency(cents / 100, 'USD', { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })
-  const plan =
-    a.interval === 'year'
-      ? t('onboarding.activate.planYearly', { price: usd(a.planCents), monthly: usd(Math.round(a.planCents / 12)) })
-      : t('onboarding.activate.planMonthly', { price: usd(a.planCents) })
+  const usd = useUsd()
+  const yearly = a.interval === 'year'
+  // What the plan costs a month: the yearly price over 12 months, as the plans are compared.
+  const perMonth = usd(yearly ? Math.round(a.planCents / 12) : a.planCents)
   // What the first charge is with the extra calls: they are billed at the plan's interval (a year is 12 months).
-  const extraCents = extraCalls * (a.calls?.extraCallCents ?? 0) * (a.interval === 'year' ? 12 : 1)
-  const totalCents = a.planCents + extraCents
+  const extraMonthlyCents = extraCalls * (a.calls?.extraCallCents ?? 0)
+  const totalCents = a.planCents + extraMonthlyCents * (yearly ? 12 : 1)
   // "5¢", as the plan is priced (format.centRate).
   const perMinute = format.centRate(a.standardMicrosPerMinute / 1_000_000, 'USD')
   const timeline = activationTimeline(a, now)
-  const firstCharge = timeline.at(-1)!
   const terms = a.terms
 
   async function start() {
@@ -97,40 +95,26 @@ function Activate({ me, activation: a, onBack, onTermsChanged }: Props & { activ
           />
         </section>
         <div className="ob-activate-plan">
-          <b>{plan}</b>
+          <b>{t('onboarding.activate.perMonth', { price: perMonth })}</b>
           <span>
+            {t(yearly ? 'onboarding.activate.billedYearly' : 'onboarding.activate.billedMonthly')}{' '}
             {t('onboarding.activate.includes', { minutes: a.includedMinutes, perMinute })}
             {trial ? ` ${t('onboarding.activate.trialFree', { days: a.trialDays })}` : ''}
           </span>
-          {a.calls && a.calls.maxExtra > 0 && (
-            <CallsPicker calls={a.calls} extra={extraCalls} onChange={setExtraCalls} usd={usd} trial={trial} />
+          {extraCalls > 0 && (
+            <span>
+              {t('onboarding.activate.extraCalls', {
+                count: (a.calls?.included ?? 0) + extraCalls,
+                price: usd(extraMonthlyCents),
+              })}
+            </span>
           )}
         </div>
         <ol className="ob-timeline" aria-label={t('onboarding.activate.timelineLabel')}>
           {timeline.map(entry => (
-            <TimelineRow key={`${entry.kind}-${entry.day}`} entry={entry} plan={usd(totalCents)} />
+            <TimelineRow key={entry.kind} entry={entry} amount={usd(totalCents)} />
           ))}
         </ol>
-        {trial && (
-          <p className="ob-activate-note">
-            <Icon name="mail" size={14} />
-            <span>
-              {t('onboarding.activate.reminderPromise', {
-                count: a.reminderDays.length,
-                date: format.date(firstCharge.at, { dateStyle: 'long' }),
-              })}
-            </span>
-          </p>
-        )}
-        {a.recharge && (
-          <p className="ob-activate-fine">
-            {t(trial ? 'onboarding.activate.rechargeTrial' : 'onboarding.activate.rechargePlan', {
-              recharge: usd(a.recharge.amountCents),
-              threshold: usd(a.recharge.thresholdCents),
-              cap: usd(a.recharge.capCents),
-            })}
-          </p>
-        )}
         {error && <Note tone="danger">{error}</Note>}
         {terms ? (
           <p className="ob-activate-fine">
@@ -158,59 +142,6 @@ function Activate({ me, activation: a, onBack, onTermsChanged }: Props & { activ
   )
 }
 
-/**
- * Calls at the same time on the activation step (LIN-450): the included ones, and more in steps at a price a month,
- * picked from the same list as in Settings › Billing. In a trial they are charged with the plan when it ends.
- */
-function CallsPicker({
-  calls,
-  extra,
-  onChange,
-  usd,
-  trial,
-}: {
-  calls: NonNullable<Activation['calls']>
-  extra: number
-  onChange: (extra: number) => void
-  usd: (cents: number) => string
-  trial: boolean
-}) {
-  const t = useT()
-  const choices: number[] = []
-  for (let n = 0; n <= calls.maxExtra; n += calls.step) choices.push(n)
-  return (
-    <div className="ob-activate-calls">
-      <span>
-        {extra
-          ? t(trial ? 'onboarding.activate.callsExtraTrial' : 'onboarding.activate.callsExtra', {
-              price: usd(extra * calls.extraCallCents),
-            })
-          : t('onboarding.activate.callsIncluded', {
-              count: calls.included,
-              step: calls.step,
-              price: usd(calls.step * calls.extraCallCents),
-            })}
-      </span>
-      <Select
-        id="activate-calls"
-        size="sm"
-        align="end"
-        value={String(extra)}
-        label={t('onboarding.activate.callsLabel')}
-        options={choices.map(n => ({
-          value: String(n),
-          label: t('settings.billing.calls.option', { count: calls.included + n }),
-          description:
-            n === 0
-              ? t('settings.billing.calls.optionIncluded')
-              : t('settings.billing.calls.optionPrice', { price: usd(n * calls.extraCallCents) }),
-        }))}
-        onChange={v => onChange(Number(v))}
-      />
-    </div>
-  )
-}
-
 function SummaryRow({
   icon,
   label,
@@ -235,28 +166,34 @@ function SummaryRow({
   )
 }
 
-function TimelineRow({ entry, plan }: { entry: TimelineEntry; plan: string }) {
+/** One row of the trial's timeline; the charge row names the first charge's amount, the one place it shows. */
+function TimelineRow({ entry, amount }: { entry: TimelineEntry; amount: string }) {
   const t = useT()
   const format = useFormat()
-  const date = format.date(entry.at, { month: 'short', day: 'numeric' })
-  const when =
-    entry.day === 0 ? t('onboarding.activate.today', { date }) : t('onboarding.activate.day', { day: entry.day, date })
-  const what =
-    entry.kind === 'start'
-      ? t('onboarding.activate.stepStart')
-      : entry.kind === 'reminder'
-        ? t('onboarding.activate.stepReminder')
-        : entry.day === 0
-          ? t('onboarding.activate.stepChargeToday', { plan })
-          : t('onboarding.activate.stepCharge', { plan })
-  const detail =
-    entry.kind === 'start'
-      ? t('onboarding.activate.stepStartDetail')
-      : entry.kind === 'reminder'
-        ? t('onboarding.activate.stepReminderDetail')
-        : entry.day === 0
-          ? t('onboarding.activate.stepChargeTodayDetail')
-          : t('onboarding.activate.stepChargeDetail')
+  const short = (at: Date) => format.date(at, { month: 'short', day: 'numeric' })
+  let when: string
+  let what: string
+  let detail: string
+  if (entry.kind === 'reminders') {
+    when = format.list(entry.at.map(short))
+    what = t('onboarding.activate.stepReminders', {
+      days: format.list(entry.before.map(count => t('onboarding.activate.daysBefore', { count }))),
+    })
+    detail = t('onboarding.activate.stepRemindersDetail')
+  } else {
+    const date = short(entry.at)
+    when =
+      entry.day === 1
+        ? t('onboarding.activate.today', { date })
+        : t('onboarding.activate.day', { day: entry.day, date })
+    what = entry.kind === 'start' ? t('onboarding.activate.stepStart') : t('onboarding.activate.stepCharge')
+    detail =
+      entry.kind === 'start'
+        ? t('onboarding.activate.stepStartDetail')
+        : entry.day === 1
+          ? t('onboarding.activate.stepChargeTodayDetail', { amount })
+          : t('onboarding.activate.stepChargeDetail', { amount })
+  }
   return (
     <li className={`ob-timeline-${entry.kind}`}>
       <span className="ob-timeline-dot" aria-hidden="true" />

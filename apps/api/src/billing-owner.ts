@@ -29,6 +29,8 @@ import {
   billing_numbers,
   EXTRA_CALLS_STEP,
   member,
+  minutesPromptFor,
+  minutesPromptPeriod,
   organization,
   phone_numbers,
   rechargeCapCents,
@@ -221,34 +223,40 @@ const CARD_TTL_MS = 5 * 60_000
 const cards = new Map<string, { card: TrialMinutesPrompt['card']; at: number }>()
 
 /**
- * The trial prompt of `billing.state` (docs/billing.md §3.2 step 7): offered to a trial bill with auto-recharge on,
- * without the trial recharge yet, once a workspace used `TRIAL_PROMPT_SHARE` of its included minutes in the trial.
- * The stage from the minutes and the balance: `low`, then `grace` (used up and no balance: calls on the trial grace),
- * then `paused` (the grace used). The card is the one a recharge charges, read from the billing provider.
+ * The minutes prompt of `billing.state` (docs/billing.md §3.2 step 7): offered to a trial bill without "Keep calls
+ * answered" yet, and to a paid plan with auto-recharge off (`minutesPromptFor`), once a workspace used
+ * `TRIAL_PROMPT_SHARE` of its included minutes in the period. In the trial the stage follows the minutes and the
+ * balance: `low`, then `grace` (used up and no balance: calls on the trial grace), then `paused` (the grace used); a paid
+ * plan has no grace, so `low` only (its low balance shows as before once this is pressed or the period ends). The card
+ * is the one a recharge charges, read from the billing provider.
  */
 async function trialMinutesPrompt(tx: Tx, bill: Bill, now: string): Promise<TrialMinutesPrompt | null> {
-  if (bill.status !== 'trialing' || !bill.auto_recharge || bill.trial_recharge_at) return null
+  const prompt = minutesPromptFor(bill)
+  if (!prompt) return null
   const period = await periodAt(tx, bill.id, now)
-  if (period?.kind !== 'trial') return null
+  if (period?.kind !== minutesPromptPeriod(prompt)) return null
   const rules = await billingRules(tx)
   const used = await trialSecondsUsed(tx, bill.id, period.id)
   if (used < TRIAL_PROMPT_SHARE * rules.includedStandardSeconds) return null
   const [balance] = await tx.select().from(billing_balances).where(eq(billing_balances.billing_account_id, bill.id))
   const available = Number(balance?.balance_micros ?? 0) - Number(balance?.reserved_micros ?? 0)
   const stage =
-    available <= -trialGraceMicros(rules)
-      ? 'paused'
-      : used >= rules.includedStandardSeconds && available <= 0
-        ? 'grace'
-        : 'low'
+    prompt === 'plan'
+      ? 'low'
+      : available <= -trialGraceMicros(rules)
+        ? 'paused'
+        : used >= rules.includedStandardSeconds && available <= 0
+          ? 'grace'
+          : 'low'
   return {
     stage,
+    paid: prompt === 'plan',
     usedMinutes: Math.min(Math.floor(used / 60), Math.floor(rules.includedStandardSeconds / 60)),
     includedMinutes: Math.floor(rules.includedStandardSeconds / 60),
     amountCents: bill.recharge_amount_cents,
     thresholdCents: bill.recharge_threshold_cents,
     capCents: rechargeCapCents(bill.recharge_cap_base_cents, (await workspacesOnBill(tx, bill.id)).length, rules),
-    freeUntil: bill.trial_ends_at,
+    freeUntil: prompt === 'trial' ? bill.trial_ends_at : null,
     standardMicrosPerMinute: rules.levels.standard.microsPerMinute,
     card: await cardOf(bill, Date.parse(now)),
   }

@@ -66,31 +66,49 @@ const codeNote = (locale: EmailLocale) =>
  * working in any browser or device. The button only opens the site the email names, which shows the address and signs
  * in only on Continue, in the browser that clicks: a mail scanner that follows the link signs nobody in.
  */
+/** The texts of the code email; each in a sign-in (`email.signInCode.*`) and a sign-up (`email.signUpCode.*`) form. */
+type CodeEmailPart =
+  | 'button'
+  | 'heading'
+  | 'linkHeading'
+  | 'linkPreheader'
+  | 'linkText'
+  | 'orCode'
+  | 'preheader'
+  | 'reason'
+  | 'subject'
+  | 'text'
+
 export function signInCodeEmail(
   code: string,
   origin = emailOrigin(),
   locale?: EmailLocale,
   link?: string,
+  options: { signUp?: boolean } = {},
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
   const site = siteHost(origin)
   const brand = emailBrandName()
+  // From the sign-up page, for an address without an account yet: "Confirm your email", not "Sign in".
+  const key = options.signUp ? ('signUpCode' as const) : ('signInCode' as const)
+  // i18n-dynamic: email.signInCode.*, email.signUpCode.*
+  const k = (name: CodeEmailPart) => `email.${key}.${name}` as const
   const blocks: Block[] = link
     ? [
-        { kind: 'text', text: t('email.signInCode.linkText', { brand, site }) },
-        { kind: 'button', label: t('email.signInCode.button', { brand }), url: link },
-        { kind: 'text', text: t('email.signInCode.orCode', { site }) },
+        { kind: 'text', text: t(k('linkText'), { brand, site }) },
+        { kind: 'button', label: t(k('button'), { brand }), url: link },
+        { kind: 'text', text: t(k('orCode'), { site }) },
       ]
-    : [{ kind: 'text', text: t('email.signInCode.text', { brand, site }) }]
+    : [{ kind: 'text', text: t(k('text'), { brand, site }) }]
   return renderEmail({
     locale: lang,
-    subject: t('email.signInCode.subject', { code, brand }),
+    subject: t(k('subject'), { code, brand }),
     preheader: link
-      ? t('email.signInCode.linkPreheader', { site, minutes: SIGN_IN_CODE_MINUTES })
-      : t('email.signInCode.preheader', { site, minutes: SIGN_IN_CODE_MINUTES }),
-    heading: link ? t('email.signInCode.linkHeading', { brand }) : t('email.signInCode.heading'),
+      ? t(k('linkPreheader'), { site, minutes: SIGN_IN_CODE_MINUTES })
+      : t(k('preheader'), { site, minutes: SIGN_IN_CODE_MINUTES }),
+    heading: link ? t(k('linkHeading'), { brand }) : t(k('heading')),
     blocks: [...blocks, { kind: 'code', code }, { kind: 'text', tone: 'muted', text: codeNote(locale) }],
-    reason: t('email.signInCode.reason', { site }),
+    reason: t(k('reason'), { site }),
     origin,
   })
 }
@@ -972,12 +990,12 @@ function callContent(call: CallEmail, origin: string, locale: EmailLocale, outsi
   // The button before the transcript: a long call would push it far down. Outside the team: no app to open.
   if (!outside)
     blocks.push({
-    kind: 'button',
-    label: t('email.call.open'),
-    url: callLink(origin, call.workspaceId, call.callId),
-    // No caller ID ("anonymous"): nothing to dial.
-    call: isE164(call.fromNumber) ? { label: t('email.call.callBack'), number: call.fromNumber } : undefined,
-  })
+      kind: 'button',
+      label: t('email.call.open'),
+      url: callLink(origin, call.workspaceId, call.callId),
+      // No caller ID ("anonymous"): nothing to dial.
+      call: isE164(call.fromNumber) ? { label: t('email.call.callBack'), number: call.fromNumber } : undefined,
+    })
   const transcript = transcriptLines(call, callerName, locale)
   if (transcript.lines.length) {
     blocks.push({ kind: 'transcript', title: t('email.call.transcript'), lines: transcript.lines })

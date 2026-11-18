@@ -39,7 +39,7 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { type NotCreditedReason, rechargeNotCreditedAlert, stripeEventFailedAlert } from './emails/billing-alerts.ts'
 import { type Handler, type Preparer, Reject } from './handler-context.ts'
-import { jobQueue, queueRecharge } from './jobs.ts'
+import { jobQueue } from './jobs.ts'
 import { lockBalance, periodForMoney, postEntry } from './ledger.ts'
 import { requireLedgerGuards } from './ledger-guards.ts'
 
@@ -82,13 +82,12 @@ const CARD_CHANGES = ['payment_method.attached', 'customer.updated'] as const
 /**
  * Trial Checkout (docs/billing.md §3.2, billing-checkout.ts): a finished Checkout confirmed like the return page does
  * (the only way out of `pending_payment` besides the owner's own confirmation, security review M1), the trial's end
- * email, and the first recharge added to the conversion invoice. By the job (they ask Stripe).
+ * email. By the job (they ask Stripe).
  */
 const CHECKOUT_EVENTS = [
   'checkout.session.completed',
   'checkout.session.async_payment_succeeded',
   'customer.subscription.trial_will_end',
-  'invoice.created',
 ] as const
 /** Cancellations, disputes, fraud warnings and refunds (billing-lifecycle.ts, PR 11). By the job too (they ask Stripe). */
 const LIFECYCLE_EVENTS = [
@@ -475,18 +474,10 @@ async function planPaid(tx: Tx, bill: Bill, subscription: BillingSubscription | 
  * took over and the first month opens there at once, so calls never land in a trial that is over and the bill no
  * longer says "Trial ends" on a date still to come. The bill's `trial_ends_at` becomes the real end.
  *
- * The first recharge normally rides on the conversion invoice (`firstRecharge`, while Stripe keeps it a draft for an
- * hour). An early end invoices at once (finalized, `subscription_update`), so there was no draft to add it to: then
- * the same first recharge (the bill's recharge amount, unless auto-recharge is off) is charged now with its own
- * invoice, as Checkout's text promised. A recharge already pending is not doubled.
+ * Nothing else is charged when the trial ends: the first charge is the plan only (Janik, 2026-11-17). Auto-recharge
+ * runs only once the owner turned it on ("Keep calls answered", Settings › Billing).
  */
-async function trialConverted(
-  tx: Tx,
-  bill: Bill,
-  subscription: BillingSubscription,
-  rechargeOnInvoice: boolean,
-  now: string,
-) {
+async function trialConverted(tx: Tx, bill: Bill, subscription: BillingSubscription, now: string) {
   const ended = subscription.trialEnd ?? subscription.currentPeriodStart
   if (ended && bill.trial_ends_at && Date.parse(ended) < Date.parse(bill.trial_ends_at)) {
     await tx
@@ -509,18 +500,6 @@ async function trialConverted(
     const { openNextPeriods } = await import('./billing-periods.ts')
     await openNextPeriods(tx, bill.id, now)
   }
-  if (rechargeOnInvoice || !bill.auto_recharge) return
-  const [made] = await tx
-    .insert(billing_recharges)
-    .values({
-      id: `rc_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
-      billing_account_id: bill.id,
-      amount_cents: bill.recharge_amount_cents,
-      created_at: now,
-    })
-    .onConflictDoNothing()
-    .returning({ id: billing_recharges.id })
-  if (made) await queueRecharge(tx, made.id)
 }
 
 /** The invoice in the bill's list (display only): plan invoices and recharges. */
@@ -614,8 +593,7 @@ async function invoicePaid(
   const ownSubscription = !!invoice.subscriptionId && invoice.subscriptionId === bill.stripe_subscription_id
   if (ownSubscription && invoice.customerId === bill.stripe_customer_id) {
     result.plan = await planPaid(tx, bill, subscription, now)
-    if (result.plan === 'active' && bill.status === 'trialing')
-      await trialConverted(tx, bill, subscription!, !!recharge, now)
+    if (result.plan === 'active' && bill.status === 'trialing') await trialConverted(tx, bill, subscription!, now)
   }
   if (ownSubscription || recharge)
     await mirrorInvoice(tx, bill, invoice, ownSubscription ? 'subscription' : 'recharge', now)
@@ -875,9 +853,7 @@ async function checkoutEventJob(event: StoredEvent): Promise<EventOutcome> {
   const result =
     event.type === 'customer.subscription.trial_will_end'
       ? await checkout.trialWillEnd(objectId, customerId, now)
-      : event.type === 'invoice.created'
-        ? await checkout.firstRecharge(objectId, customerId, now)
-        : await checkout.checkoutCompleted(objectId, customerId, now)
+      : await checkout.checkoutCompleted(objectId, customerId, now)
   if (result.outcome === 'unknown')
     return done({ outcome: retryUnknown(event.received_at, now) ? 'unknown_retry' : 'unknown' })
   return done(result)

@@ -50,12 +50,23 @@ import {
 
 export type Preview = { name: string; email: RenderedEmail }
 
-/** A monthly trial that ends on Dec 1 with the default first recharge of $25. */
+/** A monthly trial that ends on Dec 1: the first charge is the plan only. */
 const trial = {
   planCents: 1100,
   interval: 'month' as const,
   trialEnd: '2026-12-01T17:00:00.000Z',
-  rechargeCents: 2500,
+  workspaceId: 'ws_demo',
+  bufferMicros: 0,
+}
+
+/** The trial prompt's facts: $25 with a Visa ending in 4242, topped up below $5, free until Dec 1, 5¢ a minute. */
+const trialMinutes = {
+  includedMinutes: 50,
+  amountCents: 2500,
+  thresholdCents: 500,
+  card: { brand: 'visa', last4: '4242' },
+  freeUntil: trial.trialEnd,
+  standardMicrosPerMinute: 50_000,
   workspaceId: 'ws_demo',
   bufferMicros: 0,
 }
@@ -215,6 +226,17 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
       ),
     },
     { name: 'sign-in-code-only', email: signInCodeEmail('482913', origin, locale) },
+    // The same code from the sign-up page, for an address without an account yet.
+    {
+      name: 'sign-up-code',
+      email: signInCodeEmail(
+        '482913',
+        origin,
+        locale,
+        `${origin}/signup#sign-in=Zm9yLXRoZS1wcmV2aWV3LW9ubHktbm90LWEtcmVhbC10b2tlbg`,
+        { signUp: true },
+      ),
+    },
     { name: 'password-reset-code', email: passwordResetCodeEmail('815302', origin, locale) },
     { name: 'confirmation-code', email: confirmationCodeEmail('730514', origin, origin, locale) },
     {
@@ -531,6 +553,23 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
       email: managerChangedEmail(
         { ...managerChange, change: 'paymentMethod', card: { brand: 'visa', last4: '4242' } },
         trial.workspaceId,
+        origin,
+        locale,
+      ),
+    },
+    // In the trial, most of its included minutes used, then all of them (docs/billing.md §3.2 step 7).
+    {
+      name: 'trial-minutes-low',
+      email: billingOwnerEmail({ ...trialMinutes, kind: 'trial_minutes_low', usedMinutes: 40 }, origin, locale),
+    },
+    {
+      name: 'trial-minutes-used',
+      email: billingOwnerEmail({ ...trialMinutes, kind: 'trial_minutes_used', usedMinutes: 50 }, origin, locale),
+    },
+    {
+      name: 'plan-minutes-low',
+      email: billingOwnerEmail(
+        { ...trialMinutes, kind: 'trial_minutes_low', usedMinutes: 40, paid: true, freeUntil: null },
         origin,
         locale,
       ),

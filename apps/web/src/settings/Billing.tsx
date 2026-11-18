@@ -409,7 +409,12 @@ function PlanCard({
               : t(line.key, { date: date(line.date) })}
           </span>
         )}
-        {bill.status === 'trialing' && <span className="help">{t('settings.billing.plan.trialNote')}</span>}
+        {bill.status === 'trialing' && (
+          <span className="help">
+            {t('settings.billing.plan.trialNote')}
+            {!bill.autoRecharge.on && ` ${t('settings.billing.plan.trialAutoOff')}`}
+          </span>
+        )}
         {bill.taxed && <span className="help">{t('settings.billing.plan.taxNote')}</span>}
         {bill.taxAddressMissing && <span className="help">{t('settings.billing.plan.taxAddressMissing')}</span>}
         {bill.extraNumberCents > 0 && (
@@ -551,11 +556,16 @@ function CallsCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: s
     <Section
       id="billing-calls"
       title={t('settings.billing.calls.title')}
-      description={t('settings.billing.calls.description', {
-        count: calls.includedPerWorkspace,
-        step: calls.step,
-        price: price(calls.step),
-      })}
+      // In the trial the row says what is included and the note under it what more cost: the numbers once each.
+      description={
+        bill.status === 'trialing'
+          ? t('settings.billing.calls.busyNote')
+          : t('settings.billing.calls.description', {
+              count: calls.includedPerWorkspace,
+              step: calls.step,
+              price: price(calls.step),
+            })
+      }
     >
       {calls.workspaces.map(w => (
         <div className="swrow" key={w.workspaceId}>
@@ -598,7 +608,11 @@ function CallsCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: s
           />
         </div>
       ))}
-      {!calls.canAdd && editable && <span className="help">{t('settings.billing.calls.afterTrial')}</span>}
+      {!calls.canAdd && editable && (
+        <span className="help">
+          {t('settings.billing.calls.afterTrial', { step: calls.step, price: price(calls.step) })}
+        </span>
+      )}
       {asking && (
         <CallsDialog
           change={asking}
@@ -1359,37 +1373,49 @@ function InvoicesCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text
         <ListEmpty>{t('settings.billing.invoices.empty')}</ListEmpty>
       ) : (
         <List label={t('settings.billing.invoices.title')}>
-          {bill.invoices.map(inv => (
-            <ListRow
-              key={inv.id}
-              // i18n-dynamic: settings.billing.invoices.kind.* settings.billing.invoices.status.*
-              title={t(`settings.billing.invoices.kind.${inv.kind}` as MessageKey)}
-              sub={[
-                format.date(new Date(inv.createdAt)),
-                inv.number,
-                // Tax as its own line: the total above includes it; the balance never got it.
-                inv.taxCents > 0 &&
-                  t('settings.billing.invoices.tax', { amount: format.currency(centsToDollars(inv.taxCents), 'USD') }),
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-              aside={
-                <>
-                  {format.currency(centsToDollars(inv.totalCents), 'USD')}{' '}
-                  <Badge tone={inv.status === 'open' ? 'danger' : 'neutral'}>
-                    {t(`settings.billing.invoices.status.${inv.status}` as MessageKey)}
-                  </Badge>
-                </>
-              }
-              actions={
-                inv.url && (
-                  <ExternalLink href={inv.url}>
-                    {inv.status === 'open' ? t('settings.billing.invoices.pay') : t('settings.billing.invoices.view')}
-                  </ExternalLink>
-                )
-              }
-            />
-          ))}
+          {bill.invoices.map(inv => {
+            // The trial's $0.00 plan invoice (Stripe makes one when the trial starts): named so, no amount or status.
+            const trial = inv.kind === 'subscription' && inv.totalCents === 0
+            return (
+              <ListRow
+                key={inv.id}
+                // i18n-dynamic: settings.billing.invoices.kind.* settings.billing.invoices.status.*
+                title={
+                  trial
+                    ? t('settings.billing.invoices.trial')
+                    : t(`settings.billing.invoices.kind.${inv.kind}` as MessageKey)
+                }
+                sub={[
+                  format.date(new Date(inv.createdAt)),
+                  inv.number,
+                  // Tax as its own line: the total above includes it; the balance never got it.
+                  inv.taxCents > 0 &&
+                    t('settings.billing.invoices.tax', {
+                      amount: format.currency(centsToDollars(inv.taxCents), 'USD'),
+                    }),
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+                aside={
+                  !trial && (
+                    <>
+                      {format.currency(centsToDollars(inv.totalCents), 'USD')}{' '}
+                      <Badge tone={inv.status === 'open' ? 'danger' : 'neutral'}>
+                        {t(`settings.billing.invoices.status.${inv.status}` as MessageKey)}
+                      </Badge>
+                    </>
+                  )
+                }
+                actions={
+                  inv.url && (
+                    <ExternalLink href={inv.url}>
+                      {inv.status === 'open' ? t('settings.billing.invoices.pay') : t('settings.billing.invoices.view')}
+                    </ExternalLink>
+                  )
+                }
+              />
+            )
+          })}
         </List>
       )}
     </Section>

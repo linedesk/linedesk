@@ -228,7 +228,9 @@ async function lastFailedAttempt(tx: Reader, billId: string) {
 export async function balanceFlags(tx: Reader, bill: Bill, now: string) {
   const failed = bill.recharge_failed_at ? await lastFailedAttempt(tx, bill.id) : null
   let lowBalance: 'auto_recharge_off' | 'cap_reached' | null = null
-  if (bill.status === 'trialing' || bill.status === 'active') {
+  // In the trial only once "Keep calls answered" was pressed: before, its balance is $0 by design (the included minutes
+  // and the minutes prompt cover it), and auto-recharge starts off since 2026-11-17.
+  if ((bill.status === 'trialing' && bill.trial_recharge_at) || bill.status === 'active') {
     const [balance] = await tx.select().from(billing_balances).where(eq(billing_balances.billing_account_id, bill.id))
     const available = exactMicros(balance?.balance_micros) - exactMicros(balance?.reserved_micros)
     if (available < bill.recharge_threshold_cents * 10_000) {
@@ -470,6 +472,8 @@ export type WorkspaceBillFacts = {
    * so the plan and the extra number's price are null, and the app says no price instead of the carrier's.
    */
   partnerManaged: boolean
+  /** In the free trial (the bill is `trialing`): when it ends, the day of the first charge; else null. */
+  trialEndsAt: string | null
   /**
    * While `pending_payment`, for the bill's owner: what the onboarding's last step (`activate`) shows next to its
    * button (the price, the trial, the first charge's date, the reminders, the auto-recharge); else null.
@@ -483,6 +487,7 @@ export async function workspaceBillFacts(workspaceId: string, actorId?: string):
     plan: null,
     extraNumberCents: null,
     partnerManaged: false,
+    trialEndsAt: null,
     activation: null,
   }
   return db.transaction(async tx => {
@@ -510,6 +515,7 @@ export async function workspaceBillFacts(workspaceId: string, actorId?: string):
       plan: price ? { interval: found.interval, cents: price.cents } : null,
       extraNumberCents: found.status === 'comped' ? null : rules.extraNumberCents,
       partnerManaged: false,
+      trialEndsAt: found.status === 'trialing' ? found.trial_ends_at : null,
       // Only the bill's owner starts the trial, so only they are told what it charges.
       activation:
         pending && actorId === found.owner_user_id

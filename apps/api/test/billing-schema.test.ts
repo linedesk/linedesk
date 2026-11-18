@@ -299,10 +299,10 @@ describe('balances, reservations and counters', () => {
 })
 
 describe('auto-recharge settings and the monthly cap', () => {
-  test('defaults: on, below $5 charge $25, cap base $50; the cap adds $25 per workspace after the first', async () => {
+  test('defaults: off until the owner turns it on (2026-11-17), below $5 charge $25, cap base $50; the cap adds $25 per workspace after the first', async () => {
     const { account } = await bill()
     expect(account).toMatchObject({
-      auto_recharge: true,
+      auto_recharge: false,
       recharge_threshold_cents: RECHARGE_DEFAULTS.thresholdCents,
       recharge_amount_cents: RECHARGE_DEFAULTS.amountCents,
       recharge_cap_base_cents: RECHARGE_CAP_BASE_CENTS,

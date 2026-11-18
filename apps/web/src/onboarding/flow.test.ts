@@ -4,6 +4,7 @@ import { describe, expect, it, test } from 'vitest'
 import {
   activationSteps,
   activationTimeline,
+  trialSteps,
   EMERGENCY_NOTE,
   ALSO_PERSON,
   areaCodeIn,
@@ -325,7 +326,12 @@ const withNumber = (c: TransferContact, number: string | null): TransferContact 
 const person = DEFAULT_TRANSFERS[0]!
 
 test("who hears: a new workspace starts with no urgent-matter choice; only the person contact's number is offered", () => {
-  expect(firstWhoHears(DEFAULT_TRANSFERS)).toEqual({ urgent: null, mobile: '', condition: DEFAULT_URGENT_CONDITION })
+  // Nothing saved yet: "Take a message and alert me" is chosen, so Continue works without picking first.
+  expect(firstWhoHears(DEFAULT_TRANSFERS)).toEqual({
+    urgent: 'message',
+    mobile: '',
+    condition: DEFAULT_URGENT_CONDITION,
+  })
   // Dana's billing line is not the owner's mobile.
   expect(firstWhoHears([...DEFAULT_TRANSFERS, settingsContact]).mobile).toBe('')
   expect(firstWhoHears([withNumber(person, '+15035550177'), settingsContact]).mobile).toBe('+1 503 555 0177')
@@ -627,25 +633,41 @@ describe('the activation step (docs/billing.md §3.2)', () => {
     expect(stepFor('activate', false)).toBe('phone')
   })
 
-  test('the timeline: today the trial, a reminder 7 days and 1 day before, the first charge on day 14', () => {
+  test('a trial sign-up counts one way through: activate is step 5 of 7, the number 6 of 7', () => {
+    expect(trialSteps).toEqual(['business', 'assistant', 'pickup', 'notify', 'activate', 'phone', 'done'])
+    expect(trialSteps.indexOf('activate') + 1).toBe(5)
+    expect(trialSteps.indexOf('phone') + 1).toBe(6)
+  })
+
+  test('the timeline: today (day 1) the trial, one line for the reminders 7 days and 1 day before, the first charge on day 15', () => {
     const now = new Date('2026-11-17T12:00:00Z')
     const firstChargeAt = '2026-12-01T12:00:00.000Z'
     expect(activationTimeline({ trialDays: 14, firstChargeAt, reminderDays: [1, 7] }, now)).toEqual([
-      { kind: 'start', day: 0, at: now },
-      { kind: 'reminder', day: 7, at: new Date('2026-11-24T12:00:00Z') },
-      { kind: 'reminder', day: 13, at: new Date('2026-11-30T12:00:00Z') },
-      { kind: 'charge', day: 14, at: new Date(firstChargeAt) },
+      { kind: 'start', day: 1, at: now },
+      {
+        kind: 'reminders',
+        before: [7, 1],
+        at: [new Date('2026-11-24T12:00:00Z'), new Date('2026-11-30T12:00:00Z')],
+      },
+      { kind: 'charge', day: 15, at: new Date(firstChargeAt) },
     ])
     // A reminder day the trial is too short for is left out.
-    expect(activationTimeline({ trialDays: 5, firstChargeAt, reminderDays: [7, 1] }, now).map(e => e.day)).toEqual([
-      0, 4, 5,
+    expect(activationTimeline({ trialDays: 5, firstChargeAt, reminderDays: [7, 1] }, now)[1]).toEqual({
+      kind: 'reminders',
+      before: [1],
+      at: [new Date('2026-11-30T12:00:00Z')],
+    })
+    // No reminder day fits: no reminder line.
+    expect(activationTimeline({ trialDays: 1, firstChargeAt, reminderDays: [7, 1] }, now).map(e => e.kind)).toEqual([
+      'start',
+      'charge',
     ])
   })
 
   test('without a trial (one refused before): the charge today, nothing else', () => {
     const now = new Date('2026-11-17T12:00:00Z')
     expect(activationTimeline({ trialDays: null, firstChargeAt: null, reminderDays: [] }, now)).toEqual([
-      { kind: 'charge', day: 0, at: now },
+      { kind: 'charge', day: 1, at: now },
     ])
   })
 })

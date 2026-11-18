@@ -125,6 +125,8 @@ async function pendingRecharge(over: Partial<typeof billing_accounts.$inferInser
   await db.insert(billing_accounts).values({
     id: billId,
     kind: 'cloud',
+    // A bill whose owner turned auto-recharge on (it starts off since 2026-11-17).
+    auto_recharge: true,
     owner_user_id: ws.owner.userId,
     status: 'active',
     stripe_customer_id: rid('cus'),

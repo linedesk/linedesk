@@ -757,7 +757,10 @@ describe('numbers on a billed workspace (docs/billing.md §3.2 step 6)', () => {
     await db
       .insert(instance_settings)
       .values({ key: SIGNUP_RULES_KEY, value: JSON.stringify({ trialNumbersPerWorkspace: 2 }) })
-      .onConflictDoUpdate({ target: instance_settings.key, set: { value: JSON.stringify({ trialNumbersPerWorkspace: 2 }) } })
+      .onConflictDoUpdate({
+        target: instance_settings.key,
+        set: { value: JSON.stringify({ trialNumbersPerWorkspace: 2 }) },
+      })
     try {
       expect(await refusal(owner)).toBeNull()
       expect(await refusal({ ...owner, setupKeyId: 'sk_x' })).toBe(NUMBER_EXTRA_IN_APP)
@@ -1514,7 +1517,9 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
     expect(mail.subject).toMatch(/free trial ends in 7 days/)
     expect(mail.text).toContain('First charge')
     expect(mail.text).toContain('$11.00 a month, plus tax where it applies')
-    expect(mail.text).toContain('adds $25.00')
+    // The plan only: no call credit with the first charge (2026-11-17).
+    expect(mail.text).toContain('That is your plan only.')
+    expect(mail.text).not.toContain('$25')
     expect(mail.text).toContain('you pay nothing')
     expect(mail.text).toContain('because we promised to remind you')
     // Manage, and Cancel: the cancel dialog of the bill's workspace's Settings › Billing.
@@ -1571,72 +1576,10 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
     expect(mail.text).toContain('Cancel my trial')
   })
 
-  test('the conversion invoice gets the first recharge as an invoice item, once', async () => {
+  test('the conversion invoice gets nothing added, even with auto-recharge on: the first charge is the plan only', async () => {
     const { bill, sub } = await trialWith(rid('fp'))
-    const invoiceId = rid('in')
-    stripe.invoices.set(invoiceId, {
-      id: invoiceId,
-      object: 'invoice',
-      livemode: false,
-      customer: sub.customer,
-      parent: { type: 'subscription_details', subscription_details: { subscription: sub.id } },
-      status: 'draft',
-      billing_reason: 'subscription_cycle',
-      currency: 'usd',
-      total: 10_800,
-      total_taxes: [],
-      amount_paid: 0,
-      amount_paid_off_stripe: 0,
-      metadata: {},
-      lines: list([], `/v1/invoices/${invoiceId}/lines`),
-      number: null,
-      period_start: nowSec(),
-      period_end: nowSec(),
-    })
-    const object = { id: invoiceId, object: 'invoice', customer: sub.customer }
-    expect(await processEvent('invoice.created', object)).toMatchObject({ detail: 'recharge_added' })
-    const [recharge] = await db
-      .select()
-      .from(billing_recharges)
-      .where(eq(billing_recharges.billing_account_id, bill.id))
-    expect(recharge).toMatchObject({ status: 'pending', stripe_invoice_id: invoiceId, amount_cents: 2500 })
-    const item = stripe.requests.find(r => r.method === 'POST' && r.path === '/v1/invoiceitems')!
-    expect(Object.fromEntries(item.body)).toMatchObject({
-      invoice: invoiceId,
-      amount: '2500',
-      currency: 'usd',
-      'metadata[billing_recharge_id]': recharge!.id,
-    })
-    expect(item.idempotencyKey).toBe(`${recharge!.id}:item`)
-
-    // A failed conversion invoice is dunning's (PR 11): the bill goes past_due after a failed first payment, the
-    // invoice is never voided here, and the recharge stays pending.
-    Object.assign(stripe.invoices.get(invoiceId)!, { status: 'open' })
-    stripe.subscriptions.get(sub.id as string)!.status = 'past_due'
-    stripe.requests.length = 0
-    expect(await processEvent('invoice.payment_failed', object)).toMatchObject({
-      outcome: 'lifecycle',
-      change: 'past_due',
-    })
-    expect((await db.select().from(billing_accounts).where(eq(billing_accounts.id, bill.id)))[0]).toMatchObject({
-      status: 'past_due',
-      past_due_first_payment: true,
-    })
-    expect(stripe.requests.filter(r => r.method === 'POST' && r.path.startsWith('/v1/invoices/'))).toEqual([])
-    expect((await db.select().from(billing_recharges).where(eq(billing_recharges.id, recharge!.id)))[0]!.status).toBe(
-      'pending',
-    )
-    // Voided: the recharge is canceled with it.
-    Object.assign(stripe.invoices.get(invoiceId)!, { status: 'void' })
-    await processEvent('invoice.voided', object)
-    expect((await db.select().from(billing_recharges).where(eq(billing_recharges.id, recharge!.id)))[0]!.status).toBe(
-      'canceled',
-    )
-  })
-
-  test('auto-recharge off, or not the conversion invoice: no recharge added', async () => {
-    const { bill, sub } = await trialWith(rid('fp'))
-    await db.update(billing_accounts).set({ auto_recharge: false }).where(eq(billing_accounts.id, bill.id))
+    // Turned on in the trial ("Keep calls answered"): still nothing rides on the plan's first invoice (2026-11-17).
+    await db.update(billing_accounts).set({ auto_recharge: true }).where(eq(billing_accounts.id, bill.id))
     const invoiceId = rid('in')
     stripe.invoices.set(invoiceId, {
       id: invoiceId,
@@ -1655,11 +1598,14 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
       lines: list([], `/v1/invoices/${invoiceId}/lines`),
     })
     const object = { id: invoiceId, object: 'invoice', customer: sub.customer }
-    expect(await processEvent('invoice.created', object)).toMatchObject({ detail: 'no_recharge' })
+    expect(await processEvent('invoice.created', object)).toMatchObject({ outcome: 'unhandled' })
     expect(stripe.requests.filter(r => r.path === '/v1/invoiceitems')).toEqual([])
+    expect(await db.select().from(billing_recharges).where(eq(billing_recharges.billing_account_id, bill.id))).toEqual(
+      [],
+    )
   })
 
-  test('a trial ended early: the trial period cut, the first month open, the first recharge decided (billing tour G1)', async () => {
+  test('a trial ended early: the trial period cut, the first month open, nothing but the plan charged (billing tour G1)', async () => {
     const queued: { name: string; data: Record<string, unknown> }[] = []
     setJobQueue({
       send: async (name: string, data: Record<string, unknown>) => {
@@ -1670,6 +1616,8 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
     } as never)
     try {
       const { bill, sub } = await trialWith(rid('fp'))
+      // Even with auto-recharge on, no call credit is charged when the trial ends (2026-11-17).
+      await db.update(billing_accounts).set({ auto_recharge: true }).where(eq(billing_accounts.id, bill.id))
       expect(Date.parse((await billRow(bill.id)).trial_ends_at!)).toBeGreaterThan(Date.now() + 13 * DAY_S * 1000)
       // "Start my plan now": Stripe ends the trial and charges the plan at once; no draft hour, no invoice.created.
       const ended = nowSec() - 60
@@ -1705,19 +1653,12 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
       const trial = periods.find(p => p.kind === 'trial')!
       expect(Date.parse(trial.ends_at)).toBeLessThanOrEqual(Date.now())
       expect(periods.some(p => p.kind === 'month' && Date.parse(p.ends_at) > Date.now())).toBe(true)
-      // No draft to add it to: the first recharge (the bill's amount) is charged now with its own invoice, once.
-      const recharges = await db
-        .select()
-        .from(billing_recharges)
-        .where(eq(billing_recharges.billing_account_id, bill.id))
-      expect(recharges).toMatchObject([
-        { status: 'pending', amount_cents: 2500, manual: false, stripe_invoice_id: null },
-      ])
-      expect(queued.filter(j => j.data.rechargeId === recharges[0]!.id)).toHaveLength(1)
+      // Nothing else is charged: no recharge row, no recharge job, also when the event comes again.
       await processEvent('invoice.paid', { id: invoiceId, object: 'invoice', customer: sub.customer })
       expect(
         await db.select().from(billing_recharges).where(eq(billing_recharges.billing_account_id, bill.id)),
-      ).toHaveLength(1)
+      ).toEqual([])
+      expect(queued.filter(j => j.name === 'billing.recharge')).toEqual([])
     } finally {
       setJobQueue(null)
     }
@@ -2104,6 +2045,13 @@ describe('the activation step accepts the terms before Checkout (A9, docs/billin
     expect(made.body.get('custom_text[submit][message]')).toContain(
       'We email you 7 days and 1 day before the first charge.',
     )
+    // The plan only (2026-11-17): no call credit at the trial's end, auto-recharge off, and none in the record.
+    expect(made.body.get('custom_text[submit][message]')).toContain(
+      'After the trial this card is charged for your plan only; auto-recharge for call minutes stays off until you turn it on.',
+    )
+    expect(made.body.get('custom_text[submit][message]')).not.toContain('$25')
+    expect(row!.disclosure).not.toHaveProperty('recharge')
+    expect(await billRow(row!.billing_account_id!)).toMatchObject({ auto_recharge: false })
   })
 
   test('no terms, or other versions than in effect: no Checkout, terms_changed', async () => {
@@ -2231,6 +2179,7 @@ describe('"Keep calls answered" in the trial (docs/billing.md §3.2 step 7)', ()
     expect(res.status).toBe(200)
     expect(res.body.data).toEqual({ kind: 'paid', amountCents: 2500, credited: true })
     expect((await balance(t.bill.id)).balance_micros).toBe(25_000_000)
+    expect(await billRow(t.bill.id)).toMatchObject({ auto_recharge: true })
     expect((await billRow(t.bill.id)).trial_recharge_at).not.toBeNull()
     const [consent, ...more] = await consents(t.bill.id)
     expect(more).toEqual([])
@@ -2263,6 +2212,21 @@ describe('"Keep calls answered" in the trial (docs/billing.md §3.2 step 7)', ()
     expect(
       await db.select().from(billing_recharges).where(eq(billing_recharges.billing_account_id, t.bill.id)),
     ).toHaveLength(1)
+  })
+
+  test('a paid plan with auto-recharge off: the tap charges $25 and turns auto-recharge on, no trial date; once', async () => {
+    const t = await trialUsed(2500)
+    const card = (await state(t.owner)).trialMinutes.card.id
+    await db.update(billing_accounts).set({ status: 'active' }).where(eq(billing_accounts.id, t.bill.id))
+    const res = await tap(t.owner, card)
+    expect(res.status).toBe(200)
+    expect(res.body.data).toMatchObject({ kind: 'paid', amountCents: 2500 })
+    expect(await billRow(t.bill.id)).toMatchObject({ auto_recharge: true, trial_recharge_at: null })
+    const [consent] = await consents(t.bill.id)
+    expect(consent).toMatchObject({ disclosure: { kind: 'trial_recharge', amountCents: 2500, freeUntil: null } })
+    // On now: a second tap is refused, nothing more charged.
+    expect((await tap(t.owner, card)).status).toBe(409)
+    expect(await consents(t.bill.id)).toHaveLength(1)
   })
 
   test('an admin of the only workspace presses it too, after the same step-up as the owner (decision of 2026-11-17)', async () => {
@@ -2304,8 +2268,12 @@ describe('"Keep calls answered" in the trial (docs/billing.md §3.2 step 7)', ()
     ).toEqual([])
     expect((await billRow(t.bill.id)).trial_recharge_at).toBeNull()
     expect(await consents(t.bill.id)).toEqual([])
-    // A paid plan buys minutes as before, never "Keep calls answered".
-    await db.update(billing_accounts).set({ status: 'active' }).where(eq(billing_accounts.id, t.bill.id))
+    // A paid plan with auto-recharge on buys minutes as before, never "Keep calls answered" (with it off: offered
+    // once a month, below).
+    await db
+      .update(billing_accounts)
+      .set({ status: 'active', auto_recharge: true })
+      .where(eq(billing_accounts.id, t.bill.id))
     expect((await tap(t.owner, card)).status).toBe(409)
   })
 
@@ -2326,6 +2294,8 @@ describe('"Keep calls answered" in the trial (docs/billing.md §3.2 step 7)', ()
     const card = (await state(t.owner)).trialMinutes.card.id
     expect((await tap(t.owner, card)).body.data).toMatchObject({ kind: 'paid', credited: true })
     expect((await balance(t.bill.id)).balance_micros).toBe(25_000_000)
+    // The tap turned auto-recharge on (it starts off since 2026-11-17).
+    expect(await billRow(t.bill.id)).toMatchObject({ auto_recharge: true })
     // Past the 50 included minutes, every call is paid from the balance; below $5 the card is recharged.
     let recharge: string | undefined
     for (let i = 0; i < 30 && !recharge; i++) {

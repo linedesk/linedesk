@@ -2,8 +2,10 @@ import type { Call } from '@linedesk/db/types'
 import type { ReactNode } from 'react'
 import { assigneeTabs, callerName, type InboxTab, isTestCall, type splits, visibleSplits } from '../inbox-model.ts'
 import { usePresence } from '../shell/presence.ts'
+import { useNow } from '../shell/useNow.ts'
 import { useAssistantName, useAssistantNameOrNull, useContact } from '../store.tsx'
 import { clock, parseTs } from '../time.ts'
+import { appLink } from '../ui/AppLink.tsx'
 import { Button, Icon } from '../ui/kit.tsx'
 import { SkeletonText } from '../ui/LoadStates.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
@@ -12,7 +14,7 @@ import { SearchButton, SearchField } from '../ui/listPage.tsx'
 import { type BulkActions, BulkBar } from './BulkBar.tsx'
 import { voiceFailing, voiceFix, voiceNotSetUp } from './goLive.ts'
 import { type MessageKey, msg } from '@linedesk/i18n'
-import { T, useT } from '@linedesk/i18n/react'
+import { T, useFormat, useT } from '@linedesk/i18n/react'
 
 export type InboxHeadProps = {
   tab: InboxTab
@@ -30,6 +32,8 @@ export type InboxHeadProps = {
   memberName?: string
   /** In an assignee view: switch to another one (a picker under the title). */
   onAssigneeViews?: (anchor: DOMRect) => void
+  /** In the free trial, for who sees Billing: when it ends (the first charge). The header says the days left. */
+  trialEndsAt?: string | null
 }
 
 export const SEARCH_INPUT_ID = 'call-search'
@@ -200,6 +204,33 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
   )
 }
 
+const DAY_MS = 86_400_000
+
+/**
+ * The free trial, quietly in the header (docs/billing.md §3.2): the days left and the first charge's date, a link to
+ * Workspace settings › Billing. Today counts as a day, as on the activation step ("14 days left" on the first day).
+ */
+export function TrialStatus({ endsAt }: { endsAt: string }) {
+  const t = useT()
+  const format = useFormat()
+  const now = useNow(60 * 60_000)
+  const end = new Date(endsAt)
+  // Ended (the page was loaded during the trial): the plan runs, nothing to count.
+  if (end.getTime() <= now.getTime()) return null
+  const days = Math.ceil((end.getTime() - now.getTime()) / DAY_MS)
+  const date = format.date(end, { month: 'short', day: 'numeric' })
+  return (
+    <span className="ib-trial" title={t('inbox.trial.tip', { date: format.date(end, { dateStyle: 'long' }) })}>
+      <span className="ib-trial-tag">{t('inbox.trial.tag')}</span>
+      <span>{t('inbox.trial.daysLeft', { count: days })}</span>
+      <span className="ib-trial-charge">{t('inbox.trial.firstCharge', { date })}</span>
+      <span>
+        <T k="inbox.trial.billing" values={{ link: appLink('#workspace/billing') }} />
+      </span>
+    </span>
+  )
+}
+
 export function InboxHead({
   resultCount,
   menu,
@@ -238,6 +269,7 @@ export function InboxHead({
       ) : (
         <Tabs tab={p.tab} setTab={p.setTab} counts={p.counts} />
       )}
+      {p.search === null && p.trialEndsAt && <TrialStatus endsAt={p.trialEndsAt} />}
       {p.search === null && (
         <div className="ib-right">
           <Presence liveCall={p.liveCall} onOpen={p.onOpen} canFixVoice={p.canFixVoice} />

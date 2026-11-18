@@ -29,6 +29,7 @@ import {
   billing_alerts,
   billing_periods,
   billing_recharges,
+  minutesPromptFor,
   card_fingerprints,
   EXTRA_CALLS_LOOKUP_PREFIX,
   EXTRA_CALLS_STEP,
@@ -38,7 +39,6 @@ import {
   rechargeCapCents,
   phone_numbers,
   planPrice,
-  STRIPE_TAX_CODE,
   type Tx,
   usage_counters,
   user,
@@ -51,7 +51,7 @@ import { managesBill, tellBillOwner } from './bill-manager.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { pricesForCheckout } from './billing-catalog.ts'
-import { billingRules, isLinedeskPlan, planCatalog, rechargeLine, reminderDaysFor } from './billing-rules.ts'
+import { billingRules, isLinedeskPlan, planCatalog, reminderDaysFor } from './billing-rules.ts'
 import { type LegalTerms, legalTerms, recordAcceptance, TERMS_CHANGED } from './legal-terms.ts'
 import { brandName, currentBranding } from './branding.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
@@ -89,14 +89,11 @@ const checkoutExpiresAt = () => Math.floor(Date.now() / 1000) + CHECKOUT_EXPIRES
 /** "Buy minutes": the amounts the server allows, in cents before tax (docs/billing.md §2.2, L5). */
 export const TOPUP_LIMITS = { minCents: 500, maxCents: 50_000 } as const
 
-/** The bill's auto-recharge as Checkout states it (docs/billing.md §2.2 "Off-session consent"). */
-export type CheckoutRecharge = { on: boolean; amountCents: number; thresholdCents: number; capCents: number }
-
 /**
  * What Checkout shows above its button, as Stripe shows it: in the language of the owner who starts it, with the
- * install's product name and trial length (Server admin › Branding and › Billing). A plan states the bill's own
- * auto-recharge (amount, threshold and monthly cap, from the bill and the install's rules, never written here), so the
- * card is saved for off-session charges the owner was told about.
+ * install's product name and trial length (Server admin › Branding and › Billing). The plan only: activation never
+ * turns auto-recharge on, so the card is saved for the plan's charges and nothing else (Janik, 2026-11-17); the owner
+ * turns auto-recharge on later ("Keep calls answered", Settings › Billing), and that is recorded then.
  */
 export function checkoutText(
   kind: 'trial' | 'plan' | 'topup',
@@ -104,49 +101,39 @@ export function checkoutText(
   {
     brand,
     trialDays,
-    recharge,
     taxed = false,
     reminderDays = [],
-  }: { brand: string; trialDays: number; recharge?: CheckoutRecharge; taxed?: boolean; reminderDays?: number[] },
+    yearlyCents,
+  }: {
+    brand: string
+    trialDays: number
+    taxed?: boolean
+    reminderDays?: number[]
+    /** A yearly plan's price: Checkout shows the year, the text says what that is a month (as the step leads with). */
+    yearlyCents?: number
+  },
 ): string {
   // The trial's reminder emails, promised where the card is entered too (docs/billing.md §3.2).
   if (kind === 'trial' && reminderDays.length)
-    return `${checkoutText(kind, reader, { brand, trialDays, recharge, taxed })} ${reader.t('server.api.checkout.text.reminders', { days: reminderList(reminderDays, reader) })}`
-  // With Stripe Tax on, the amounts named here (the recharges charged later, off-session) are before tax.
+    return `${checkoutText(kind, reader, { brand, trialDays, taxed, yearlyCents })} ${reader.t('server.api.checkout.text.reminders', { days: reminderList(reminderDays, reader) })}`
+  // With Stripe Tax on, the amounts charged are before tax.
   if (taxed)
-    return `${checkoutText(kind, reader, { brand, trialDays, recharge })} ${reader.t('server.api.checkout.text.taxNote')}`
+    return `${checkoutText(kind, reader, { brand, trialDays, yearlyCents })} ${reader.t('server.api.checkout.text.taxNote')}`
   if (kind === 'topup') return reader.t('server.api.checkout.text.topup', { brand: plainName(brand) })
-  const money = (cents: number) =>
-    reader.format.currency(cents / 100, 'USD', { maximumFractionDigits: cents % 100 ? 2 : 0 })
-  if (!recharge?.on)
-    return kind === 'trial'
-      ? reader.t('server.api.checkout.text.trialNoRecharge', { days: trialDays })
-      : reader.t('server.api.checkout.text.planNoRecharge')
-  const values = {
-    recharge: money(recharge.amountCents),
-    threshold: money(recharge.thresholdCents),
-    cap: money(recharge.capCents),
-  }
-  return kind === 'trial'
-    ? reader.t('server.api.checkout.text.trial', { days: trialDays, ...values })
-    : reader.t('server.api.checkout.text.plan', values)
+  const text =
+    kind === 'trial'
+      ? reader.t('server.api.checkout.text.trial', { days: trialDays })
+      : reader.t('server.api.checkout.text.plan')
+  if (!yearlyCents) return text
+  const cents = Math.round(yearlyCents / 12)
+  const monthly = reader.format.currency(cents / 100, 'USD', { maximumFractionDigits: cents % 100 ? 2 : 0 })
+  return `${text} ${reader.t('server.api.checkout.text.yearly', { monthly })}`
 }
 
 /** "7 days and 1 day", in the reader's language. */
 export function reminderList(days: readonly number[], reader: Reader): string {
   const words = days.map(count => reader.t('server.api.checkout.text.reminderDay', { count }))
   return new Intl.ListFormat(reader.locale, { type: 'conjunction' }).format(words)
-}
-
-/** The bill's auto-recharge for Checkout's text: its own settings, the cap for the workspaces Checkout sells. */
-async function checkoutRecharge(bill: Bill, workspaces: number): Promise<CheckoutRecharge> {
-  const rules = await billingRules(db)
-  return {
-    on: bill.auto_recharge,
-    amountCents: bill.recharge_amount_cents,
-    thresholdCents: bill.recharge_threshold_cents,
-    capCents: rechargeCapCents(bill.recharge_cap_base_cents, workspaces, rules),
-  }
 }
 
 /**
@@ -330,14 +317,14 @@ function termsToAccept(bill: Bill, input: StartInput): LegalTerms | null {
 /**
  * What the activation step shows next to its button (docs/billing.md §3.2), from the bill and the install's rules: the
  * plan's price for the workspaces Checkout sells, the trial (none after a refused one), the first charge's date, the
- * reminder days and the auto-recharge. The step reads the same through /v1/me (`activationFacts`).
+ * reminder days. No auto-recharge: activation never turns it on. The step reads the same through /v1/me
+ * (`activationFacts`).
  */
 export function activationDisclosure(
   o: {
     planCents: number
     interval: 'month' | 'year'
     trial: boolean
-    recharge: CheckoutRecharge
     /** Extra calls at the same time added on the step (LIN-450), already in `planCents`. */
     extraCalls?: number
   },
@@ -352,30 +339,19 @@ export function activationDisclosure(
     trialDays,
     firstChargeAt: trialDays ? new Date(Date.parse(now) + trialDays * 86_400_000).toISOString() : null,
     reminderDays: trialDays ? reminderDaysFor(rules) : [],
-    recharge: o.recharge.on
-      ? {
-          amountCents: o.recharge.amountCents,
-          thresholdCents: o.recharge.thresholdCents,
-          capCents: o.recharge.capCents,
-        }
-      : null,
   }
 }
 
 /**
  * The activation step's facts for a bill waiting for its trial (/v1/me, billing-page.ts): what Checkout will say and
- * charge, from the same rules and the bill's own auto-recharge as `billing.startCheckout`. `now`: the trial would
+ * charge, from the same rules as `billing.startCheckout`. `now`: the trial would
  * start now, so its first charge is `trialDays` from now (Stripe counts the trial from the subscription's start).
  */
 export async function activationFacts(tx: Tx, bill: Bill, rules: BillingRules, now: string): Promise<ActivationFacts> {
   const items = await planItems(tx, bill)
-  const recharge = await checkoutRecharge(
-    bill,
-    items.reduce((n, i) => n + i.quantity, 0),
-  )
   return {
     ...activationDisclosure(
-      { planCents: itemsCents(items, rules), interval: bill.interval, trial: !bill.trial_refused, recharge },
+      { planCents: itemsCents(items, rules), interval: bill.interval, trial: !bill.trial_refused },
       rules,
       now,
     ),
@@ -433,11 +409,7 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
   // ids are the ones the last catalog sync stored; nothing in Stripe is made or changed here (review of #1040, M-1).
   const rules = await billingRules(db)
   const prices = await pricesForCheckout(provider).catch(setupFailed)
-  const recharge = await checkoutRecharge(
-    bill,
-    items.reduce((n, i) => n + i.quantity, 0),
-  )
-  // The seats first (the recharge cap counts them), then the extra calls the step added.
+  // The seats first, then the extra calls the step added.
   const sold = withExtraCalls(bill, items, input.extraCalls, rules)
   const started = await provider
     .startCheckout({
@@ -453,8 +425,8 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
         brand: brandName(),
         trialDays: rules.trialDays,
         taxed: rules.automaticTax,
-        recharge,
         reminderDays: reminderDaysFor(rules),
+        ...(bill.interval === 'year' ? { yearlyCents: itemsCents(sold, rules) } : {}),
       }),
       branding: checkoutBranding(),
       successUrl: returnUrl(input.partnerId),
@@ -472,7 +444,6 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
             planCents: itemsCents(sold, rules),
             interval: bill.interval,
             trial,
-            recharge,
             extraCalls: input.extraCalls ?? 0,
           },
           rules,
@@ -921,7 +892,7 @@ async function trialRechargeConsent(
     card: card ?? { brand: null, last4: null },
     thresholdCents: bill.recharge_threshold_cents,
     capCents: rechargeCapCents(bill.recharge_cap_base_cents, workspaces?.n ?? 1, rules),
-    freeUntil: bill.trial_ends_at,
+    freeUntil: bill.status === 'trialing' ? bill.trial_ends_at : null,
     standardMicrosPerMinute: rules.levels.standard.microsPerMinute,
     rechargeId: purchaseIdOf(bill.id, ids.commandId),
   }
@@ -1044,18 +1015,13 @@ const prepareTopUp: Preparer = async (
       min: reader => reader.format.currency(TOPUP_LIMITS.minCents / 100, 'USD'),
       max: reader => reader.format.currency(TOPUP_LIMITS.maxCents / 100, 'USD'),
     })
-  // "Keep calls answered" in the trial (docs/billing.md §3.2 step 7): the bill's recharge amount on the saved card, while
-  // the trial runs with auto-recharge on; the terms in effect are recorded with it, so they must be there before a charge.
+  // "Keep calls answered" (docs/billing.md §3.2 step 7): the bill's recharge amount on the saved card, offered in the
+  // trial until pressed there and on a paid plan with auto-recharge off (`minutesPromptFor`); it turns auto-recharge on.
+  // The terms in effect are recorded with it, so they must be there before a charge.
   if (input.trialRecharge) {
     const { terms } = legalTerms()
     if (!terms) throw new Reject(CHECKOUT_UNAVAILABLE)
-    if (
-      !input.savedCard ||
-      bill.status !== 'trialing' ||
-      !bill.auto_recharge ||
-      bill.trial_recharge_at !== null ||
-      input.amountCents !== bill.recharge_amount_cents
-    )
+    if (!input.savedCard || !minutesPromptFor(bill) || input.amountCents !== bill.recharge_amount_cents)
       throw Reject.t('server.api.checkout.trialRechargeChanged')
   }
   const provider = await billingProvider(db)
@@ -1191,13 +1157,19 @@ export const checkoutHandlers: Record<string, Handler> = {
     if (bill.id !== done.billId && !charged) throw new Reject('the bill changed; try again')
     if (bill.id !== done.billId)
       console.error(`billing: Buy minutes for bill ${done.billId} answered while the owner's bill is now ${bill.id}`)
-    // "Keep calls answered" charged: from now on auto-recharge runs in the trial too, and the consent is kept (the
-    // terms in effect, the session's IP and browser, what the banner showed). Once: a retry finds the flag set.
+    // "Keep calls answered" charged: auto-recharge is on from now (in the trial too), and the consent is kept (the
+    // terms in effect, the session's IP and browser, what the banner showed). Once: a retry finds it on already.
     if (done.consent && bill.id === done.billId) {
+      const trial = bill.status === 'trialing'
       const [turnedOn] = await tx
         .update(billing_accounts)
-        .set({ trial_recharge_at: now, updated_at: now })
-        .where(and(eq(billing_accounts.id, bill.id), isNull(billing_accounts.trial_recharge_at)))
+        .set({ auto_recharge: true, ...(trial ? { trial_recharge_at: now } : {}), updated_at: now })
+        .where(
+          and(
+            eq(billing_accounts.id, bill.id),
+            trial ? isNull(billing_accounts.trial_recharge_at) : eq(billing_accounts.auto_recharge, false),
+          ),
+        )
         .returning({ id: billing_accounts.id })
       const { terms } = legalTerms()
       if (turnedOn && terms && actor.sessionId)
@@ -1477,58 +1449,4 @@ export async function trialWillEnd(subscriptionId: string, customerId: string | 
     bill: bill.id,
     detail: emailed.length ? 'emailed' : 'no_email',
   } satisfies CheckoutEventOutcome
-}
-
-/**
- * `invoice.created` (§3.2 step 9): the trial's conversion invoice, still a draft, gets the first recharge as an
- * invoice item (the bill's recharge amount), unless auto-recharge is off. The attempt row (with the invoice id) is
- * stored first, so `invoice.paid` credits it once with the existing rules; the item is added with the attempt id as
- * its idempotency key.
- */
-export async function firstRecharge(invoiceId: string, customerId: string | null, now: string) {
-  const bill = await billOfCustomer(customerId)
-  if (!bill) return { outcome: 'unknown' } satisfies CheckoutEventOutcome
-  const provider = await billingProvider(db)
-  const invoice = await provider.invoice(invoiceId)
-  if (!invoice) return { outcome: 'not_found' } satisfies CheckoutEventOutcome
-  const skip = (detail: string) => ({ outcome: 'applied', bill: bill.id, detail }) satisfies CheckoutEventOutcome
-  if (
-    invoice.status !== 'draft' ||
-    invoice.customerId !== bill.stripe_customer_id ||
-    !invoice.subscriptionId ||
-    invoice.subscriptionId !== bill.stripe_subscription_id ||
-    // The first invoice after the trial (Stripe's `subscription_cycle` at the trial's end).
-    invoice.billingReason !== 'subscription_cycle'
-  )
-    return skip('not_conversion')
-  const recharge = await db.transaction(async tx => {
-    await lockBalance(tx, bill.id)
-    const [current] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, bill.id))
-    if (current?.status !== 'trialing' || !current.auto_recharge) return null
-    const [stored] = await tx.select().from(billing_recharges).where(eq(billing_recharges.stripe_invoice_id, invoiceId))
-    if (stored) return stored
-    const [made] = await tx
-      .insert(billing_recharges)
-      .values({
-        id: `rc_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
-        billing_account_id: bill.id,
-        amount_cents: current.recharge_amount_cents,
-        stripe_invoice_id: invoiceId,
-        created_at: now,
-      })
-      .onConflictDoNothing()
-      .returning()
-    return made ?? null
-  })
-  if (!recharge) return skip('no_recharge')
-  if (recharge.status !== 'pending') return skip('settled')
-  await provider.addInvoiceItem({
-    customerId: bill.stripe_customer_id!,
-    invoiceId,
-    amountCents: recharge.amount_cents,
-    description: rechargeLine(brandName()),
-    rechargeId: recharge.id,
-    taxCode: STRIPE_TAX_CODE,
-  })
-  return skip('recharge_added')
 }

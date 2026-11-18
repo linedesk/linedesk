@@ -15,11 +15,28 @@ const methods = (over: Partial<AuthMethods> = {}): AuthMethods => ({
 })
 const footer = (over: Partial<AuthMethods> = {}) => renderToStaticMarkup(<AuthFooter methods={methods(over)} />)
 
-test('sign-up open: the footer links to the sign-up page, the support address stays', () => {
+test('sign-up open: the footer links to the sign-up page; the support address is its own line', () => {
   const out = footer({ selfServeSignup: true })
-  expect(out).toContain('No account? <a class="k-link" href="/signup">Start your free trial</a>')
+  expect(out).toContain(
+    '<p class="auth-note">No account? <a class="k-link" href="/signup">Start your free trial</a></p><p class="auth-note">Need help? Write to <a class="k-link" href="mailto:support@brightwater.example">support@brightwater.example</a></p>',
+  )
   expect(out).not.toContain('Ask your workspace admin for an invitation')
-  expect(out).toContain('Or write to <a class="k-link" href="mailto:support@brightwater.example">')
+  expect(out).not.toContain('Or write to')
+})
+
+test('the links under the card: Terms and Privacy only, no Help (the support line above has the address)', () => {
+  const out = footer({
+    links: {
+      terms: 'https://x.example/terms',
+      privacy: 'https://x.example/privacy',
+      supportEmail: 'support@brightwater.example',
+    },
+  })
+  const legal = out.slice(out.indexOf('<nav class="auth-legal"'), out.indexOf('</nav>'))
+  expect(legal).toContain('>Terms<')
+  expect(legal).toContain('>Privacy<')
+  expect(legal).not.toContain('mailto:')
+  expect(legal).not.toContain('Help')
 })
 
 test('sign-up closed (or an older API without the flag): the footer sends people to ask for an invitation', () => {

@@ -16,8 +16,8 @@ export type BillingOwnerEmail =
     | { kind: 'low_balance'; balanceMicros: number }
     /**
      * A trial reminder (§3.2 step 8), `daysBefore` the trial's end (7 and 1 by default), and the trial's confirmation
-     * when it starts (`trial_started`, with the days the reminders go out): the plan's charge then, its date, the
-     * first recharge with it (null when auto-recharge is off) and how to cancel. `workspaceId`: the bill's oldest
+     * when it starts (`trial_started`, with the days the reminders go out): the plan's charge then (the plan only:
+     * nothing else is charged at the trial's end), its date and how to cancel. `workspaceId`: the bill's oldest
      * workspace, whose Settings › Billing the buttons open (cancel is there); null: no buttons.
      */
     | (TrialFacts & { kind: 'trial_will_end'; daysBefore: number })
@@ -67,8 +67,12 @@ export type BillingOwnerEmail =
     bufferMicros: number
   }
 
-/** What the trial prompt's emails say (`BillingOwnerEmail`, `trial_minutes_low` and `trial_minutes_used`). */
+/**
+ * What the minutes prompt's emails say (`BillingOwnerEmail`, `trial_minutes_low` and `trial_minutes_used`). `paid`: a
+ * paid plan's month with auto-recharge off (the low email only), not the trial.
+ */
 type TrialMinutesFacts = {
+  paid?: boolean
   usedMinutes: number
   includedMinutes: number
   amountCents: number
@@ -84,7 +88,6 @@ type TrialFacts = {
   planCents: number
   interval: 'month' | 'year'
   trialEnd: string
-  rechargeCents: number | null
   workspaceId: string | null
 }
 
@@ -160,7 +163,7 @@ function balanceEmail(
 
 /**
  * The trial's emails (§3.2 step 8): its confirmation when it starts, and a reminder on each reminder day before it
- * ends. Both say the first charge's date and amount, the first recharge with it, and how to cancel before: a button to
+ * ends. Both say the first charge's date and amount (the plan only), and how to cancel before: a button to
  * Settings › Billing and one that opens the cancel dialog there.
  */
 function trialEmail(
@@ -178,7 +181,6 @@ function trialEmail(
         ? t('email.billing.trial.planYearly', { price })
         : t('email.billing.trial.planMonthly', { price }),
     date: format.dateTime(new Date(email.trialEnd), { dateStyle: 'long', timeZone: 'UTC' }),
-    recharge: email.rechargeCents === null ? '' : usd(email.rechargeCents),
   }
   const started = email.kind === 'trial_started'
   const reminders =
@@ -208,13 +210,7 @@ function trialEmail(
           : []),
       ],
     },
-    {
-      kind: 'text',
-      text:
-        email.rechargeCents === null
-          ? t('email.billing.trialWillEnd.noRecharge', values)
-          : t('email.billing.trialWillEnd.recharge', values),
-    },
+    { kind: 'text', text: t('email.billing.trialWillEnd.planOnly', values) },
     { kind: 'text', text: t('email.billing.trialWillEnd.cancel', values) },
   ]
   // Settings › Billing, and the cancel dialog there: the plan is canceled in two clicks (the portal has no cancel).
@@ -277,7 +273,7 @@ function activationNudgeEmail(
     locale: lang,
     subject,
     preheader: lead,
-    eyebrow: t('email.billing.eyebrow'),
+    eyebrow: t('email.billing.activationNudge.eyebrow'),
     heading: subject,
     blocks,
     reason: t('email.billing.activationNudge.reason', { site: siteHost(origin) }),
@@ -309,6 +305,7 @@ function trialMinutesEmail(
   const values = {
     used: email.usedMinutes,
     included: email.includedMinutes,
+    left: Math.max(0, email.includedMinutes - email.usedMinutes),
     amount: usd(email.amountCents),
     card,
     threshold: usd(email.thresholdCents),
@@ -318,10 +315,14 @@ function trialMinutesEmail(
   const usedUp = email.kind === 'trial_minutes_used'
   const subject = usedUp
     ? t('email.billing.trialMinutesUsed.subject', values)
-    : t('email.billing.trialMinutesLow.subject', values)
+    : email.paid
+      ? t('email.billing.planMinutesLow.subject', values)
+      : t('email.billing.trialMinutesLow.subject', values)
   const lead = usedUp
     ? t('email.billing.trialMinutesUsed.text', values)
-    : t('email.billing.trialMinutesLow.text', values)
+    : email.paid
+      ? t('email.billing.planMinutesLow.text', values)
+      : t('email.billing.trialMinutesLow.text', values)
   const blocks: Block[] = [
     { kind: 'text', text: lead },
     { kind: 'text', text: t('email.billing.trialMinutes.keep', values) },
@@ -338,7 +339,7 @@ function trialMinutesEmail(
     locale: lang,
     subject,
     preheader: lead,
-    eyebrow: t('email.billing.eyebrow'),
+    eyebrow: email.paid ? t('email.billing.planMinutes.eyebrow') : t('email.billing.trialMinutes.eyebrow'),
     heading: subject,
     blocks,
     reason: t('email.billing.reason', { site: siteHost(origin) }),

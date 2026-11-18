@@ -152,6 +152,8 @@ async function billed(over: Partial<typeof billing_accounts.$inferInsert> = {}, 
   await db.insert(billing_accounts).values({
     id: billId,
     kind: 'cloud',
+    // A bill whose owner turned auto-recharge on (it starts off since 2026-11-17).
+    auto_recharge: true,
     owner_user_id: ws.owner.userId,
     status: 'active',
     stripe_customer_id: rid('cus'),
@@ -765,6 +767,14 @@ describe('billing.state: the banner flags (review of #1007, I-4)', () => {
     expect(await stateOf(fine.owner)).toMatchObject({ rechargeNeedsAction: false, lowBalance: null })
     const off = await billed({ auto_recharge: false }, 100)
     expect((await stateOf(off.owner)).lowBalance).toBe('auto_recharge_off')
+    // A trial's balance is $0 by design: no low-balance line before "Keep calls answered" (auto-recharge starts off).
+    const trial = await billed({ status: 'trialing', auto_recharge: false }, 0)
+    expect((await stateOf(trial.owner)).lowBalance).toBeNull()
+    await db
+      .update(billing_accounts)
+      .set({ trial_recharge_at: new Date().toISOString() })
+      .where(eq(billing_accounts.id, trial.billId))
+    expect((await stateOf(trial.owner)).lowBalance).toBe('auto_recharge_off')
     const capped = await billed({}, 100)
     await db.insert(billing_recharges).values({
       id: rid('rc'),

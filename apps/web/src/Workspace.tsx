@@ -681,6 +681,8 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
             liveCall={view.liveCall}
             onOpen={open}
             canFixVoice={instanceAdmin}
+            // The free trial's days left, for who sees Billing (the header links there).
+            trialEndsAt={billingView ? (me.workspace?.trialEndsAt ?? null) : null}
             search={search}
             onSearch={openSearch}
             onSearchChange={view.changeSearch}

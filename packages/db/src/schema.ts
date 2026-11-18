@@ -1990,8 +1990,11 @@ export const billing_accounts = pgTable(
      * the 31st), so months counted from it drift and leave stub periods (security review of #879, M1).
      */
     billing_anchor: ts('billing_anchor'),
-    /** Auto-recharge, on by default: below the threshold the saved card is charged the amount. Off: "Buy minutes" only. */
-    auto_recharge: boolean('auto_recharge').notNull().default(true),
+    /**
+     * Auto-recharge: below the threshold the saved card is charged the amount. Off by default: activation never turns it
+     * on (Janik, 2026-11-17); the owner does, with "Keep calls answered" or in Settings › Billing. Off: "Buy minutes".
+     */
+    auto_recharge: boolean('auto_recharge').notNull().default(false),
     recharge_threshold_cents: integer('recharge_threshold_cents').notNull().default(RECHARGE_DEFAULTS.thresholdCents),
     recharge_amount_cents: integer('recharge_amount_cents').notNull().default(RECHARGE_DEFAULTS.amountCents),
     /** The owner's monthly recharge cap base ($50 default); the cap in effect adds $25 per further workspace. */

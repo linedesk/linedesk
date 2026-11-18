@@ -324,10 +324,11 @@ export function billingBanner(state: BillingStateBill | null): BillingBanner | n
       ? { key: msg('settings.billing.banner.rechargeConfirm'), tone: 'danger' }
       : { key: msg('settings.billing.banner.rechargeFailed'), tone: 'danger' }
   if (state.unpaidNumbers.length) return { key: msg('settings.billing.banner.unpaidNumber'), tone: 'warning' }
-  // In the trial, most of its minutes used: one tap keeps every call answered (a purchase, then auto-recharge).
+  // Most of the period's minutes used, in the trial or on a paid plan with auto-recharge off: one tap keeps every call
+  // answered (a purchase, then auto-recharge).
   if (state.trialMinutes)
     return {
-      key: TRIAL_KEYS[state.trialMinutes.stage],
+      key: state.trialMinutes.paid ? msg('settings.billing.banner.planLow') : TRIAL_KEYS[state.trialMinutes.stage],
       tone: state.trialMinutes.stage === 'paused' ? 'danger' : 'warning',
       trial: state.trialMinutes,
     }

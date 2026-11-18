@@ -228,6 +228,8 @@ async function billWith(over: Partial<typeof billing_accounts.$inferInsert> = {}
     .values({
       id: rid('bill'),
       kind: 'cloud',
+      // A bill whose owner turned auto-recharge on (it starts off since 2026-11-17).
+      auto_recharge: true,
       owner_user_id: ws.owner.userId,
       status: 'active',
       stripe_customer_id: rid('cus'),

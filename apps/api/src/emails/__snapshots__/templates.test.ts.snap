@@ -286,6 +286,29 @@ Linedesk · desk.example.com
 ",
   ],
   [
+    "sign-up-code",
+    "482913 is your code to finish signing up for Linedesk",
+    "Confirm your email
+
+Click the button to confirm your email and finish signing up for Linedesk at desk.example.com.
+
+Confirm my email:
+https://desk.example.com/signup#sign-in=Zm9yLXRoZS1wcmV2aWV3LW9ubHktbm90LWEtcmVhbC10b2tlbg
+
+Or enter this code on the sign-up page at desk.example.com:
+
+    482913
+
+It works once and expires in 10 minutes. Don't share this code: nobody from Linedesk or your team will ever ask you for it.
+
+--
+
+You got this email because someone started signing up on desk.example.com with this address. If it wasn't you, you can ignore it.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
     "password-reset-code",
     "815302 is your Linedesk password reset code",
     "Reset your password
@@ -940,7 +963,7 @@ First charge: December 1, 2026
 Amount: $11.00 a month, plus tax where it applies
 Reminder emails: 7 days and 1 day before the first charge
 
-Auto-recharge is on, so the same invoice also adds $25.00 to your prepaid call balance.
+That is your plan only. Minutes beyond the included ones need call credit; you can buy it or turn on auto-recharge in Settings › Billing.
 
 Not for you? Cancel before December 1, 2026 and you pay nothing. It takes two clicks in Settings › Billing, no call needed.
 
@@ -969,7 +992,7 @@ Your free trial ends on December 1, 2026. Then your plan starts and your card is
 First charge: December 1, 2026
 Amount: $11.00 a month, plus tax where it applies
 
-Auto-recharge is on, so the same invoice also adds $25.00 to your prepaid call balance.
+That is your plan only. Minutes beyond the included ones need call credit; you can buy it or turn on auto-recharge in Settings › Billing.
 
 Not for you? Cancel before December 1, 2026 and you pay nothing. It takes two clicks in Settings › Billing, no call needed.
 
@@ -998,7 +1021,7 @@ Your free trial ends on December 1, 2026. Then your plan starts and your card is
 First charge: December 1, 2026
 Amount: $11.00 a month, plus tax where it applies
 
-Auto-recharge is on, so the same invoice also adds $25.00 to your prepaid call balance.
+That is your plan only. Minutes beyond the included ones need call credit; you can buy it or turn on auto-recharge in Settings › Billing.
 
 Not for you? Cancel before December 1, 2026 and you pay nothing. It takes two clicks in Settings › Billing, no call needed.
 
@@ -1018,7 +1041,7 @@ Linedesk · desk.example.com
   [
     "trial-setup-nudge",
     "One step left: start your Linedesk free trial",
-    "Billing
+    "Your setup
 
 One step left: start your Linedesk free trial
 
@@ -1099,6 +1122,73 @@ Not what you expected? Check Settings › Billing and talk to Dana Lee.
 
 Open Settings › Billing:
 https://desk.example.com/#workspace/billing?ws=ws_demo
+
+--
+
+You got this email because you pay for a bill on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "trial-minutes-low",
+    "You used 40 of your 50 trial minutes",
+    "Your free trial
+
+You used 40 of your 50 trial minutes
+
+10 minutes are left. After that, calls need call credit.
+
+To keep every call answered, add $25 with Visa ending in 4242. Whenever your balance falls below $5, we add $25 again.
+
+Your plan stays free until December 1, 2026. Minutes beyond the included ones cost 5¢ each.
+
+Keep calls answered:
+https://desk.example.com/#calls?ws=ws_demo
+
+--
+
+You got this email because you pay for a bill on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "trial-minutes-used",
+    "Your 50 trial minutes are used up",
+    "Your free trial
+
+Your 50 trial minutes are used up
+
+Calls are still answered for a short time. After that, new callers hear that you will call them back.
+
+To keep every call answered, add $25 with Visa ending in 4242. Whenever your balance falls below $5, we add $25 again.
+
+Your plan stays free until December 1, 2026. Minutes beyond the included ones cost 5¢ each.
+
+Keep calls answered:
+https://desk.example.com/#calls?ws=ws_demo
+
+--
+
+You got this email because you pay for a bill on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "plan-minutes-low",
+    "You used 40 of your 50 included minutes this month",
+    "Your plan
+
+You used 40 of your 50 included minutes this month
+
+10 minutes are left this month. After that, calls need call credit, and auto-recharge is off.
+
+To keep every call answered, add $25 with Visa ending in 4242. Whenever your balance falls below $5, we add $25 again.
+
+Keep calls answered:
+https://desk.example.com/#calls?ws=ws_demo
 
 --
 
@@ -1412,6 +1502,29 @@ Funciona una sola vez y vence en 10 minutos. No compartas este código: nadie de
 --
 
 Recibes este correo porque alguien pidió iniciar sesión en desk.example.com con esta dirección. Si no fuiste tú, puedes ignorarlo.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "sign-up-code",
+    "482913 is your code to finish signing up for Linedesk",
+    "Confirm your email
+
+Click the button to confirm your email and finish signing up for Linedesk at desk.example.com.
+
+Confirm my email:
+https://desk.example.com/signup#sign-in=Zm9yLXRoZS1wcmV2aWV3LW9ubHktbm90LWEtcmVhbC10b2tlbg
+
+Or enter this code on the sign-up page at desk.example.com:
+
+    482913
+
+Funciona una sola vez y vence en 10 minutos. No compartas este código: nadie de Linedesk ni de tu equipo te lo pedirá nunca.
+
+--
+
+You got this email because someone started signing up on desk.example.com with this address. If it wasn't you, you can ignore it.
 
 Linedesk · desk.example.com
 ",
@@ -2071,7 +2184,7 @@ Primer cobro: 1 de diciembre de 2026
 Importe: 11,00 US$ al mes, más impuestos donde corresponda
 Correos de recordatorio: 7 días y 1 día antes del primer cobro
 
-La recarga automática está activada, así que la misma factura también agrega 25,00 US$ a tu saldo de llamadas prepago.
+That is your plan only. Minutes beyond the included ones need call credit; you can buy it or turn on auto-recharge in Settings › Billing.
 
 ¿No es para ti? Cancela antes del 1 de diciembre de 2026 y no pagas nada. Son dos clics en Configuración › Facturación, sin necesidad de llamar.
 
@@ -2100,7 +2213,7 @@ Tu prueba gratuita termina el 1 de diciembre de 2026. Luego empieza tu plan y se
 Primer cobro: 1 de diciembre de 2026
 Importe: 11,00 US$ al mes, más impuestos donde corresponda
 
-La recarga automática está activada, así que la misma factura también agrega 25,00 US$ a tu saldo de llamadas prepago.
+That is your plan only. Minutes beyond the included ones need call credit; you can buy it or turn on auto-recharge in Settings › Billing.
 
 ¿No es para ti? Cancela antes del 1 de diciembre de 2026 y no pagas nada. Son dos clics en Configuración › Facturación, sin necesidad de llamar.
 
@@ -2129,7 +2242,7 @@ Tu prueba gratuita termina el 1 de diciembre de 2026. Luego empieza tu plan y se
 Primer cobro: 1 de diciembre de 2026
 Importe: 11,00 US$ al mes, más impuestos donde corresponda
 
-La recarga automática está activada, así que la misma factura también agrega 25,00 US$ a tu saldo de llamadas prepago.
+That is your plan only. Minutes beyond the included ones need call credit; you can buy it or turn on auto-recharge in Settings › Billing.
 
 ¿No es para ti? Cancela antes del 1 de diciembre de 2026 y no pagas nada. Son dos clics en Configuración › Facturación, sin necesidad de llamar.
 
@@ -2149,7 +2262,7 @@ Linedesk · desk.example.com
   [
     "trial-setup-nudge",
     "Te queda un paso: empieza tu prueba gratuita de Linedesk",
-    "Facturación
+    "Your setup
 
 Te queda un paso: empieza tu prueba gratuita de Linedesk
 
@@ -2230,6 +2343,73 @@ Not what you expected? Check Settings › Billing and talk to Dana Lee.
 
 Open Settings › Billing:
 https://desk.example.com/#workspace/billing?ws=ws_demo
+
+--
+
+Recibes este correo porque pagas una factura en desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "trial-minutes-low",
+    "Usaste 40 de tus 50 minutos de prueba",
+    "Your free trial
+
+Usaste 40 de tus 50 minutos de prueba
+
+10 minutes are left. After that, calls need call credit.
+
+Para que se conteste cada llamada, agrega 25 US$ con Visa terminada en 4242. Recargamos automáticamente cuando el saldo baja de 5 US$.
+
+Tu plan sigue gratis hasta el 1 de diciembre de 2026; cada minuto cuesta 0,05 US$.
+
+Seguir contestando llamadas:
+https://desk.example.com/#calls?ws=ws_demo
+
+--
+
+Recibes este correo porque pagas una factura en desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "trial-minutes-used",
+    "Tus 50 minutos de prueba se agotaron",
+    "Your free trial
+
+Tus 50 minutos de prueba se agotaron
+
+Calls are still answered for a short time. After that, new callers hear that you will call them back.
+
+Para que se conteste cada llamada, agrega 25 US$ con Visa terminada en 4242. Recargamos automáticamente cuando el saldo baja de 5 US$.
+
+Tu plan sigue gratis hasta el 1 de diciembre de 2026; cada minuto cuesta 0,05 US$.
+
+Seguir contestando llamadas:
+https://desk.example.com/#calls?ws=ws_demo
+
+--
+
+Recibes este correo porque pagas una factura en desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "plan-minutes-low",
+    "You used 40 of your 50 included minutes this month",
+    "Your plan
+
+You used 40 of your 50 included minutes this month
+
+10 minutes are left this month. After that, calls need call credit, and auto-recharge is off.
+
+Para que se conteste cada llamada, agrega 25 US$ con Visa terminada en 4242. Recargamos automáticamente cuando el saldo baja de 5 US$.
+
+Seguir contestando llamadas:
+https://desk.example.com/#calls?ws=ws_demo
 
 --
 

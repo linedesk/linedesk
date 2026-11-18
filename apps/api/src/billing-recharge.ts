@@ -18,6 +18,7 @@ import {
   instance_settings,
   organization,
   planPrice,
+  minutesPromptFor,
   RECHARGE_LIMITS,
   type RECHARGE_TAX,
   rechargeCapCents,
@@ -476,7 +477,6 @@ export async function sendBillingAlert(
       planCents: charged ?? price.cents * Math.max(1, workspaces),
       interval: bill.bill.interval,
       trialEnd: job.ref,
-      rechargeCents: bill.bill.auto_recharge ? bill.bill.recharge_amount_cents : null,
       workspaceId: await oldestWorkspace(db, job.bill),
     }
     content =
@@ -541,10 +541,11 @@ async function sendActivationNudge(
 }
 
 /**
- * The trial prompt's email, read when it is sent: nothing once the owner pressed "Keep calls answered", the trial
- * ended or auto-recharge was turned off. Names the minutes used, the purchase and the saved card it would charge
- * (brand and last four, read from the billing provider; "your saved card" when it cannot be read), the automatic
- * top-up below the threshold, and until when the plan stays free.
+ * The minutes prompt's email, read when it is sent: nothing once the owner pressed "Keep calls answered" or turned
+ * auto-recharge on, or the bill is neither in its trial nor on a paid plan (`minutesPromptFor`). Names the minutes
+ * used, the purchase and the saved card it would charge (brand and last four, read from the billing provider; "your
+ * saved card" when it cannot be read), the automatic top-up below the threshold, and in the trial until when the plan
+ * stays free.
  */
 async function sendTrialMinutes(
   db: Db,
@@ -554,7 +555,8 @@ async function sendTrialMinutes(
   email: string,
   override?: BillingProvider,
 ) {
-  if (bill.status !== 'trialing' || !bill.auto_recharge || bill.trial_recharge_at) return { sent: 'nobody' as const }
+  const prompt = minutesPromptFor(bill)
+  if (!prompt) return { sent: 'nobody' as const }
   const rules = await billingRules(db)
   const used = await trialSecondsUsed(db, bill.id, job.ref)
   const locale = await localeForEmail(db, email)
@@ -567,7 +569,8 @@ async function sendTrialMinutes(
       amountCents: bill.recharge_amount_cents,
       thresholdCents: bill.recharge_threshold_cents,
       card: await savedCard(db, bill, override),
-      freeUntil: bill.trial_ends_at,
+      paid: prompt === 'plan',
+      freeUntil: prompt === 'trial' ? bill.trial_ends_at : null,
       standardMicrosPerMinute: rules.levels.standard.microsPerMinute,
       workspaceId: await oldestWorkspace(db, bill.id),
     },
