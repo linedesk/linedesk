@@ -1,5 +1,9 @@
 // Provider for local development and tests: no carrier, no network, nothing to pay.
+import { devRegulatory } from './dev-regulatory.ts'
 import type { CallStatusEvent, NumberLookup, TelephonyProvider } from './provider.ts'
+
+/** Country calling codes of the countries `dev` hands out numbers in outside the NANP (number requests, KYC). */
+const DEV_CALLING_CODES: Record<string, string> = { DE: '49', GB: '44', IE: '353' }
 
 /** What `dev` says every number is: a Verizon mobile, so the carrier chips have something to preselect. */
 export const DEV_LOOKUP: Omit<NumberLookup, 'e164'> = { lineType: 'mobile', carrier: 'Verizon Wireless' }
@@ -16,8 +20,12 @@ export const devNoFreeAreaCodes = (setting = process.env.LINEDESK_DEV_NO_FREE_AR
 
 export const devProvider: TelephonyProvider = {
   name: 'dev',
-  async searchNumbers({ areaCode = '503', limit = 3 }) {
+  regulatory: devRegulatory,
+  async searchNumbers({ country, areaCode = '503', limit = 3 }) {
     if (devNoFreeAreaCodes().includes(areaCode)) return []
+    const callingCode = DEV_CALLING_CODES[country]
+    if (callingCode)
+      return Array.from({ length: limit }, (_, i) => ({ e164: `+${callingCode}${areaCode}5550${String(i).padStart(3, '0')}` }))
     return Array.from({ length: limit }, (_, i) => ({ e164: `+1${areaCode}55501${String(i).padStart(2, '0')}` }))
   },
   async listNumbers() {

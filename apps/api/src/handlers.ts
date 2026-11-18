@@ -224,6 +224,7 @@ import {
 import { partnerSenderHandlers, partnerSenderPreparers } from './partner-sender.ts'
 import { partnerDomainHandlers, partnerDomainPreparers } from './partner-domain.ts'
 import { partnerSetupHandlers } from './partner-setup.ts'
+import { numberRequestHandlers } from './number-requests.ts'
 
 export { Forbidden, NotFound, Reject, type HandlerCtx, type Undo }
 
@@ -1227,6 +1228,7 @@ const handlers: Record<string, Handler> = {
   ...partnerSenderHandlers,
   ...partnerDomainHandlers,
   ...partnerSetupHandlers,
+  ...numberRequestHandlers,
   ...checkoutHandlers,
   ...billingPageHandlers,
   ...starHandlers,

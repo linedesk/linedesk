@@ -1325,13 +1325,11 @@ export const NUMBER_OWNER_ONLY: Said = { key: msg('server.api.checkout.number.ow
 export const NUMBER_EXTRA_IN_APP: Said = { key: msg('server.api.checkout.number.extraInApp') }
 
 /**
- * Why a workspace on a bill may not buy a number now, or null (docs/billing.md §3.2 step 6): runs before the install's
- * purchase limits. Only for workspaces on a bill while billing runs through Stripe (with billing off, as on a self-hosted
- * install, only the install's purchase limits apply); a number on the workspace's own carrier account is not limited by
- * billing. Instance admins buy regardless (they provision by hand).
+ * The workspace's bill while billing runs through Stripe, and why its state alone stops a new number (checkout not
+ * done, not paying, held for review), or null without a bill. Also asked again when a number the carrier took days to
+ * approve is set up (number-requests.ts): the bill may have stopped meanwhile.
  */
-export async function billingNumberRefusal(tx: Tx, actor: Actor, workspaceId: string): Promise<Said | null> {
-  if (actor.permissions.includes('instance:admin')) return null
+export async function billOfWorkspaceForNumbers(tx: Tx, workspaceId: string) {
   const [org] = await tx
     .select({ bill: organization.billingAccountId })
     .from(organization)
@@ -1343,9 +1341,29 @@ export async function billingNumberRefusal(tx: Tx, actor: Actor, workspaceId: st
   // A comped bill pays nothing, but an extra number still costs the install each month: who may add one is the same
   // as on a paying bill, only without the balance (LIN-505).
   const comped = bill.status === 'comped'
-  if (!comped && (bill.status === 'pending_payment' || !bill.checkout_confirmed_at)) return NUMBER_NEEDS_CHECKOUT
-  if (!comped && !BUYS_NUMBERS.includes(bill.status)) return NUMBER_BILL_INACTIVE
-  if (!comped && bill.held_for_review_at) return NUMBER_HELD_FOR_REVIEW
+  const blocked =
+    !comped && (bill.status === 'pending_payment' || !bill.checkout_confirmed_at)
+      ? NUMBER_NEEDS_CHECKOUT
+      : !comped && !BUYS_NUMBERS.includes(bill.status)
+        ? NUMBER_BILL_INACTIVE
+        : !comped && bill.held_for_review_at
+          ? NUMBER_HELD_FOR_REVIEW
+          : null
+  return { bill, comped, blocked }
+}
+
+/**
+ * Why a workspace on a bill may not buy a number now, or null (docs/billing.md §3.2 step 6): runs before the install's
+ * purchase limits. Only for workspaces on a bill while billing runs through Stripe (with billing off, as on a self-hosted
+ * install, only the install's purchase limits apply); a number on the workspace's own carrier account is not limited by
+ * billing. Instance admins buy regardless (they provision by hand).
+ */
+export async function billingNumberRefusal(tx: Tx, actor: Actor, workspaceId: string): Promise<Said | null> {
+  if (actor.permissions.includes('instance:admin')) return null
+  const found = await billOfWorkspaceForNumbers(tx, workspaceId)
+  if (!found) return null
+  if (found.blocked) return found.blocked
+  const { bill, comped } = found
   const [held] = await tx
     .select({ n: sql<number>`count(*)::int` })
     .from(phone_numbers)

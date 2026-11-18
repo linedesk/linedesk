@@ -1,5 +1,6 @@
 // Telnyx adapter, REST API v2 with plain fetch. https://developers.telnyx.com/api
 import { createPublicKey, verify } from 'node:crypto'
+import { createTelnyxRegulatory } from './telnyx-regulatory.ts'
 import { installCarrierName, TelephonyError, type TelephonyErrorCode, type AvailableNumber, type CallStatus, type CallStatusEvent, type LineType, type NumberLookup, type OwnedNumber, type TelephonyProvider } from './provider.ts'
 
 const API = 'https://api.telnyx.com/v2'
@@ -177,6 +178,8 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
     const signature = headers['telnyx-signature-ed25519']
     const timestamp = headers['telnyx-timestamp']
     if (!signature || !timestamp) throw fail('webhook has no signature headers')
+    // A timestamp that is not a number would pass the tolerance check below (NaN compares false).
+    if (!/^\d{1,12}$/.test(timestamp)) throw fail('webhook timestamp is not a number')
     if (Math.abs(now() / 1000 - Number(timestamp)) > WEBHOOK_TOLERANCE_SEC) throw fail('webhook timestamp is outside the tolerance')
     const key = createPublicKey({ key: Buffer.concat([ED25519_SPKI_PREFIX, Buffer.from(publicKey, 'base64')]), format: 'der', type: 'spki' })
     const valid = verify(null, Buffer.from(`${timestamp}|${rawBody}`), key, Buffer.from(signature, 'base64'))
@@ -215,10 +218,13 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
   return {
     name: 'telnyx',
 
-    async searchNumbers({ country, areaCode, limit = 10 }) {
+    regulatory: createTelnyxRegulatory({ request, findNumberId, verifySignature }),
+
+    async searchNumbers({ country, areaCode, limit = 10, withRequirements = false }) {
       // Outside the US, a country can need an address or documents before Telnyx activates a local number (a
-      // requirement group). Linedesk submits none yet, so such a number would stay pending: refused before buying.
-      if (country !== 'US') {
+      // requirement group). A plain purchase submits none, so such a number would stay pending: refused before
+      // buying. The number request flow (withRequirements) submits them itself.
+      if (country !== 'US' && !withRequirements) {
         const needs = await orderingRequirements(country)
         if (needs.length)
           throw fail(`local numbers in ${country} need ${needs.join(', ')} at Telnyx, which Linedesk cannot submit yet`, undefined, 'country_requirements')

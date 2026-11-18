@@ -2,8 +2,10 @@
 // so whoever is not an instance admin gets a few numbers (US, Canada, Puerto Rico) and no more. A workspace's own carrier account
 // is its own money and has no limits here. Every purchase is logged in `number_purchases`, which outlives
 // the number, so buying and releasing in a loop counts too; the row is committed before the carrier is
-// asked, so a purchase whose action fails afterwards (and is released again) still counts.
-import { number_purchases, phone_numbers, type Tx } from '@linedesk/db'
+// asked, so a purchase whose action fails afterwards (and is released again) still counts. A number request in a
+// country that needs documents (number-requests.ts) logs its purchase under `purchaseIdOfRequest` before the order;
+// once the carrier rejected it or it was cancelled, no number came of it and it no longer counts.
+import { number_purchases, number_requests, phone_numbers, type Tx } from '@linedesk/db'
 import { buyableAreaCode, canBuyNumbersIn, countryNamed, countryOfNumber, nameInSentence } from '@linedesk/actions'
 import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
@@ -116,6 +118,10 @@ async function countPurchases(tx: Tx, where: ReturnType<typeof and>) {
   return row?.count ?? 0
 }
 
+/** The purchase a number request logs before its order (one per request). */
+export const purchaseIdOfRequest = (requestId: string) => `np_${requestId}`
+const purchaseIdOfRequestSql = (column: typeof number_requests.id) => sql`'np_' || ${column}`
+
 /**
  * Why the actor may not buy a number on the install's account now, or null. Instance admins always may.
  * Purchases on the install's account run one at a time: one that comes while another is under way is refused
@@ -138,11 +144,13 @@ export async function installPurchaseRefusal(
     sql`select pg_try_advisory_xact_lock(hashtext('number_purchases:install')) as locked`,
   )
   if (rows[0]?.locked !== true) return NUMBER_SETUP_BUSY
-  // What the operator pays for: the install's account, bought by someone who is not an admin, not the free `dev` carrier.
+  // What the operator pays for: the install's account, bought by someone who is not an admin, not the free `dev` carrier,
+  // not a number request that ended without a number (rejected by the carrier, or cancelled before it decided).
   const counted = and(
     eq(number_purchases.carrier_account, 'install'),
     eq(number_purchases.by_admin, false),
     ne(number_purchases.provider, 'dev'),
+    sql`not exists (select 1 from ${number_requests} where ${purchaseIdOfRequestSql(number_requests.id)} = ${number_purchases.id} and ${number_requests.status} in ('rejected', 'cancelled'))`,
   )
   const [held] = await tx
     .select({ count: sql<number>`count(*)::int` })
@@ -199,10 +207,17 @@ export async function installPurchaseRefusal(
  */
 export async function logPurchase(
   actor: Actor,
-  values: { workspaceId: string; e164: string; provider: string; carrierAccount: 'install' | 'workspace' },
+  values: {
+    workspaceId: string
+    e164: string
+    provider: string
+    carrierAccount: 'install' | 'workspace'
+    /** A number request's purchase: `purchaseIdOfRequest(request.id)`. */
+    id?: string
+  },
 ) {
   await ownCommitDb.insert(number_purchases).values({
-    id: `np_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
+    id: values.id ?? `np_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
     workspace_id: values.workspaceId,
     actor_id: actor.actorId,
     e164: values.e164,

@@ -2510,6 +2510,10 @@ describe('impersonation', () => {
       'invitation.listMine',
       'member.list',
       'notifications.get',
+      // Number requests (KYC): the countries, what a country needs and where requests stand; the profile is refused.
+      'numberRequest.countries',
+      'numberRequest.list',
+      'numberRequest.requirements',
       // The go-live checklist's facts, so the inbox looks as the user sees it. Closing or reopening it stays refused.
       'onboarding.goLiveChecklist',
       // Which countries transfers may call, so the Transfers settings show what the user sees.

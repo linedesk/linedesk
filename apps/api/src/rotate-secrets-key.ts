@@ -1,7 +1,7 @@
 // Moves everything stored with SECRETS_KEY to a new key, in one transaction: provider keys (install-wide, a
 // workspace's own carrier and a white-label partner's own keys), webhook signing secrets, calendar and connected-app tokens, the push key pair's private
 // half, the port-out PINs of numbers (billing_numbers; security review of #920, L2) and the instance admins'
-// authenticator app secrets (admin_authenticators; LIN-402).
+// authenticator app secrets (admin_authenticators; LIN-402) and the documents for number requests (regulatory_documents).
 // Run it in the api container, with the current SECRETS_KEY in its environment and the new key on stdin
 // (never as an argument, which `ps` shows):
 //   openssl rand -base64 32 > new-key.txt
@@ -22,6 +22,7 @@ import {
   instance_settings,
   partner_providers,
   provider_settings,
+  regulatory_documents,
   type Tx,
   webhook_secrets,
 } from '@linedesk/db'
@@ -32,6 +33,7 @@ import { portOutSlot } from './billing-owner.ts'
 import { calendarSlot } from './calendar-connections.ts'
 import { db, pool } from './db.ts'
 import { VAPID_PRIVATE } from './instance-env.ts'
+import { documentSlot } from './number-requests.ts'
 import { partnerKeySlot } from './partner-keys.ts'
 import { providerSlot } from './provider-settings.ts'
 import { decryptSecret, parseSecretsKey, reencryptSecret } from './secrets.ts'
@@ -124,6 +126,15 @@ export async function reencryptSecrets(tx: Tx, from: Buffer, to: Buffer) {
       .update(admin_authenticators)
       .set({ secret: again(row.secret, authenticatorSlot(row.userId)) })
       .where(eq(admin_authenticators.user_id, row.userId))
+  // Documents for number requests (KYC): without them a request could not hand them to the carrier.
+  const documents = await tx
+    .select({ id: regulatory_documents.id, content: regulatory_documents.content_encrypted })
+    .from(regulatory_documents)
+  for (const row of documents)
+    await tx
+      .update(regulatory_documents)
+      .set({ content_encrypted: again(row.content, documentSlot(row.id)) })
+      .where(eq(regulatory_documents.id, row.id))
   // Read back under the new key before the commit.
   const [check] = await tx.select().from(provider_settings).where(isNull(provider_settings.workspace_id)).limit(1)
   if (check) decryptSecret(check.value_encrypted, providerSlot(check.provider, check.field), to)
@@ -136,6 +147,7 @@ export async function reencryptSecrets(tx: Tx, from: Buffer, to: Buffer) {
     push_key: push ? 1 : 0,
     port_out_pins: pins.length,
     admin_authenticators: authenticators.length,
+    regulatory_documents: documents.length,
   }
 }
 

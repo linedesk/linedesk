@@ -493,6 +493,8 @@ describe('telnyx adapter', () => {
     expect(() => provider.parseWebhook({ ...signed, rawBody: signed.rawBody.replace('hangup', 'answered') })).toThrow('signature is not valid')
     expect(() => provider.parseWebhook({ rawBody: signed.rawBody, headers: {} })).toThrow('no signature headers')
     expect(() => provider.parseWebhook(signedWebhook(event, NOW / 1000 - 600))).toThrow('outside the tolerance')
+    // Signed, but the timestamp is not a number: NaN would pass a plain tolerance check.
+    expect(() => provider.parseWebhook(signedWebhook(event, 'soon' as unknown as number))).toThrow('not a number')
   })
 })
 
