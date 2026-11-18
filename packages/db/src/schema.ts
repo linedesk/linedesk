@@ -171,11 +171,18 @@ export const assistants = pgTable(
     /** Languages the assistant speaks with callers: English only (the default), English + an allow-list, or any it supports. */
     languages: jsonb('languages').$type<AssistantLanguages>().notNull().default({ mode: 'english', allowed: [] }),
     /**
-     * How its calls are answered (VOICE_PIPELINES in @linedesk/actions): a realtime model, or speech to text, language
-     * model and voice. null: the install's default (the realtime model when one is set up). pipelineFor picks the other
-     * one when the chosen one is not set up.
+     * No longer read (call quality, decisions.md 2026-11-17: Ultra is a realtime model, the other levels the three
+     * stages). Was: how its calls are answered. Kept until a later release drops it.
      */
     voice_pipeline: text('voice_pipeline', { enum: ['realtime', 'three_stage'] }),
+    /**
+     * Its call quality (CALL_QUALITIES in @linedesk/actions): what its calls cost a minute on Linedesk Cloud and what
+     * answers them, Standard and Premium with speech to text, language model and voice, Ultra with a realtime model.
+     * Set from the install's default when the assistant is made; only someone who may pay raises it.
+     */
+    call_quality: text('call_quality', { enum: ['standard', 'premium', 'ultra'] })
+      .notNull()
+      .default('standard'),
     /**
      * The voice while the realtime model answers its calls (REALTIME_VOICE_IDS in @linedesk/actions); '': the server's
      * default voice (Server admin › Providers › OpenAI Realtime). `voice` is the three stages' voice; each keeps its own.
@@ -210,6 +217,7 @@ export const assistants = pgTable(
     index('assistants_ws').on(t.workspace_id),
     // ASSISTANT_CALL_MAX_MINUTES (packages/actions/src/calls.ts): seeds and scripts too, not only the API's check.
     check('assistants_max_call_minutes', sql`${t.max_call_minutes} between 1 and 30`),
+    check('assistants_call_quality', sql`${t.call_quality} in ('standard', 'premium', 'ultra')`),
   ],
 )
 

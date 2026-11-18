@@ -1065,6 +1065,13 @@
       "when": 1794963015718,
       "tag": "0152_logged_url_hosts",
       "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1794963414458,
+      "tag": "0153_call_quality",
+      "breakpoints": true
     }
   ]
 }

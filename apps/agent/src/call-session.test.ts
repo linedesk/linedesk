@@ -122,14 +122,12 @@ test("the call test may pick the pipeline for its call instead of the assistant'
     workspaceId: 'ws_1',
     room: 'r',
   })
-  const row = { id: 'as_1', greeting: 'Hello.', business_profile: {}, voice_pipeline: 'realtime' }
+  const row = { id: 'as_1', greeting: 'Hello.', business_profile: {}, call_quality: 'ultra' }
   const api = {
     run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {} } }),
   } as never
-  expect((await startCall(api, origin)).assistant?.voice_pipeline).toBe('three_stage')
-  expect((await startCall(api, { kind: 'test', workspaceId: 'ws_1', room: 'r' })).assistant?.voice_pipeline).toBe(
-    'realtime',
-  )
+  expect((await startCall(api, origin)).assistant?.call_quality).toBe('standard')
+  expect((await startCall(api, { kind: 'test', workspaceId: 'ws_1', room: 'r' })).assistant?.call_quality).toBe('ultra')
 })
 
 test("on an install that bills usage, the call test's pipeline and realtime model are ignored, with a warning", async () => {
@@ -138,7 +136,7 @@ test("on an install that bills usage, the call test's pipeline and realtime mode
     {},
     'r',
   )
-  const row = { id: 'as_1', greeting: 'Hello.', business_profile: {}, voice_pipeline: 'three_stage' }
+  const row = { id: 'as_1', greeting: 'Hello.', business_profile: {}, call_quality: 'standard' }
   const api = (usageLevel: unknown) =>
     ({
       run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {}, usageLevel } }),
@@ -147,14 +145,14 @@ test("on an install that bills usage, the call test's pipeline and realtime mode
   vi.spyOn(console, 'log').mockImplementation(() => {})
   try {
     const billed = await startCall(api('standard'), origin)
-    expect(billed.assistant?.voice_pipeline).toBe('three_stage')
+    expect(billed.assistant?.call_quality).toBe('standard')
     expect(billed.realtimeModel).toBeUndefined()
     expect(warn).toHaveBeenCalledWith(
       expect.stringMatching(/call test's pipeline or realtime model is ignored \(usage level standard\)/),
     )
     // Self-hosted (no level): the call test picks them, as before.
     const own = await startCall(api(null), origin)
-    expect(own.assistant?.voice_pipeline).toBe('realtime')
+    expect(own.assistant?.call_quality).toBe('ultra')
     expect(own.realtimeModel).toBe('gpt-realtime-2')
   } finally {
     vi.restoreAllMocks()

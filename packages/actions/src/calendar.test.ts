@@ -61,6 +61,7 @@ describe('calendar.findSlots', () => {
       'call.listen',
       'call.lookUpCaller',
       'call.takeOver',
+      'callQuality.get',
       'carrier.get',
       'carrier.test',
       'carrier.transferTrunk',

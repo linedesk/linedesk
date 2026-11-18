@@ -1306,8 +1306,8 @@ describe('a new bill owner gets Allow Premium and Allow Ultra off (LIN-438)', ()
   const SWITCHED_OFF = {
     allowPremium: false,
     allowUltra: false,
+    level: 'standard',
     llmModel: null,
-    pipeline: 'three_stage',
     realtimeModel: null,
   }
   const move = (workspaceId: string, toBillingAccountId: string) =>
@@ -1322,7 +1322,7 @@ describe('a new bill owner gets Allow Premium and Allow Ultra off (LIN-438)', ()
     expect(moved.body.data.payerReset).toEqual({
       workspaceIds: [from.ws.id],
       movedToStandard: [from.ws.assistant.id],
-      movedOffUltra: [from.ws.assistant.id],
+      movedOffUltra: [],
     })
     const now = await premiumAndUltraOf(from.ws)
     expect(now).toMatchObject(SWITCHED_OFF)

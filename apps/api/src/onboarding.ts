@@ -1,5 +1,12 @@
 // What the web app needs to show onboarding: where the workspace is, and whether phone setup can work here.
-import { DEFAULT_AI_DISCLOSURE, greetingFor, type OnboardingStep, resumeStep, stepFor } from '@linedesk/actions'
+import {
+  type CallQuality,
+  DEFAULT_AI_DISCLOSURE,
+  greetingFor,
+  type OnboardingStep,
+  resumeStep,
+  stepFor,
+} from '@linedesk/actions'
 import { assistants, organization, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import type { TransferContact } from '@linedesk/db/types'
@@ -7,6 +14,7 @@ import { businessLookupOn, type WebsiteImport, websiteImportFor } from './busine
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { newAssistantTransfers } from './default-transfers.ts'
+import { newAssistantLevel } from './call-quality.ts'
 import { telephonyForWorkspace } from './workspace-carrier.ts'
 
 // Here, not in handlers.ts: handlers.ts imports admin-handlers.ts, which reaches this file (LIN-493).
@@ -95,13 +103,23 @@ export const newWorkspaceSettings = (workspaceId: string, timeZone: unknown) => 
   onboarding_step: 'business' as const,
 })
 
-/** The default assistant of a new workspace; `transfers`: its first contact named in the workspace's language (newAssistantTransfers). */
-export const newAssistant = (workspaceId: string, businessName: string, transfers: TransferContact[]) => ({
+/**
+ * The default assistant of a new workspace; `transfers`: its first contact named in the workspace's language
+ * (newAssistantTransfers); `callQuality`: the install's level for new assistants (newAssistantLevel). A new workspace's
+ * first assistant takes it whatever it costs: the workspace's owner is the one who pays for it.
+ */
+export const newAssistant = (
+  workspaceId: string,
+  businessName: string,
+  transfers: TransferContact[],
+  callQuality: CallQuality,
+) => ({
   id: `as_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
   workspace_id: workspaceId,
   greeting: greetingFor(businessName, 'Maya'),
   ai_disclosure: DEFAULT_AI_DISCLOSURE,
   transfers,
+  call_quality: callQuality,
 })
 
 /** The rows every workspace needs besides the organization: its assistant and its settings. Missing ones are added. */
@@ -126,7 +144,9 @@ export async function ensureWorkspaceRows(
   if (!any)
     await db
       .insert(assistants)
-      .values(newAssistant(workspaceId, businessName, await newAssistantTransfers(db, workspaceId)))
+      .values(
+        newAssistant(workspaceId, businessName, await newAssistantTransfers(db, workspaceId), await newAssistantLevel(db)),
+      )
   if (onboardingStep)
     await db
       .update(workspace_settings)

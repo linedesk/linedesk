@@ -34,7 +34,6 @@ import {
   type ProviderConfig,
   providerStatus,
   storedProviderValues,
-  voicePipelinePolicy,
 } from './provider-settings.ts'
 import { hasSecretsKey, SecretsKeyError, signWithSecretsKey } from './secrets.ts'
 
@@ -181,15 +180,10 @@ function devCarrierMessage(facts: readonly ProviderFact[], words: Words) {
     : words.t('admin.provider.devCarrierLine', { setting })
 }
 
-/**
- * Each assistant's choice of how its calls are answered (null: the install default), across the install; the instance
- * admin's pick instead while workspaces may not choose.
- */
+/** How the install's assistants answer, by their call quality: Ultra with a realtime model, the others the three stages. */
 async function assistantPipelines(tx: Tx): Promise<(VoicePipeline | null)[]> {
-  const policy = await voicePipelinePolicy(tx)
-  if (policy !== 'choice') return [policy]
-  const rows = await tx.selectDistinct({ pipeline: assistants.voice_pipeline }).from(assistants)
-  return rows.map(r => r.pipeline)
+  const rows = await tx.selectDistinct({ level: assistants.call_quality }).from(assistants)
+  return rows.map(r => (r.level === 'ultra' ? 'realtime' : 'three_stage'))
 }
 
 /**

@@ -15,6 +15,7 @@ import { JOB_VALUE_MAX_CENTS, type JobValueCurrency, jobValueCurrencies } from '
 import { assistantLanguages } from './languages.ts'
 import { type WorkspaceCountrySource, workspaceCountrySchema } from './workspace-locale.ts'
 import { transferContacts } from './transfer.ts'
+import { CALL_QUALITIES, type CallQuality, type CallQualitySettings, type ModelChoice } from './usage-level.ts'
 import { realtimeVoiceChoice, voiceId } from './voices.ts'
 import type { ProviderName, WorkspaceDeleteData } from './admin.ts'
 
@@ -295,6 +296,70 @@ export const voicePipelinePolicySet = defineAction({
 export type VoicePipelinePolicyData = { policy: VoicePipelinePolicy }
 
 /**
+ * Call quality (decisions.md 2026-11-17, Server admin › Providers › Call quality): which levels assistants can pick
+ * (Standard always; Ultra needs a realtime model), the level new assistants start on, and the models per level an
+ * assistant without its own pick uses.
+ */
+export const callQualityGet = defineAction({
+  name: 'callQuality.get',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "The install's call quality settings: whether Premium and Ultra can be picked (`premium`, `ultra`; Standard always can, Ultra only with a realtime model connected), the level new assistants start on (`default`), the stored default models per level, and per level the models that belong to it and what its default stands for.",
+  input: z.object({}),
+  permission: 'instance:admin',
+  readOnly: true,
+})
+const levelModelsInput = z.object({
+  llm: z.string().trim().min(1).max(VOICE_MODEL_ID_MAX).nullable().optional(),
+  voice: z.record(z.string(), z.string().trim().min(1).max(VOICE_MODEL_ID_MAX).nullable()).optional(),
+  stt: z.string().trim().min(1).max(VOICE_MODEL_ID_MAX).nullable().optional(),
+})
+export const callQualitySet = defineAction({
+  name: 'callQuality.set',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Change the install's call quality settings. `premium` / `ultra`: whether assistants can pick the level; turning one off moves every assistant on it to Standard at once (the result lists them under `moved`). `restore`: undo of that, the listed assistants (still on Standard) go back to `level`, which must be on. `default`: the level new assistants start on (one that is on; existing assistants keep theirs). `models`: the default models per level (`standard`/`premium`: `llm` at the install's language-model provider, `voice` per voice provider, `stt` speech recognition; `ultra`: `realtime`); each must belong to its level, null goes back to the built-in default. Assistants without their own pick use them from their next call on; the price stays the level's.",
+  input: z.object({
+    premium: z.boolean().optional(),
+    ultra: z.boolean().optional(),
+    default: z.enum(CALL_QUALITIES).optional(),
+    models: z
+      .object({
+        standard: levelModelsInput.optional(),
+        premium: levelModelsInput.optional(),
+        ultra: z
+          .object({ realtime: z.string().trim().min(1).max(VOICE_MODEL_ID_MAX).nullable().optional() })
+          .optional(),
+      })
+      .optional(),
+    restore: z
+      .object({ level: z.enum(['premium', 'ultra']), assistantIds: z.array(z.string().min(1)).max(10_000) })
+      .optional(),
+  }),
+  permission: 'instance:admin',
+})
+/** One level as Server admin › Providers › Call quality shows it: what belongs to it and what its default stands for. */
+export type CallQualityAdminLevel = {
+  level: CallQuality
+  /** The server admin has it on and it can answer (Ultra: a realtime model is connected). */
+  enabled: boolean
+  models: ModelChoice[]
+  voiceModels: Record<string, ModelChoice[]>
+  realtimeModels: ModelChoice[]
+  defaults: { llm: string | null; voice: Record<string, string>; realtime: string | null }
+}
+/** `data` of `callQuality.get` and `callQuality.set`. `centsPerMinute`: null on an install that does not bill. */
+export type CallQualityAdminData = {
+  settings: CallQualitySettings
+  realtimeSetUp: boolean
+  centsPerMinute: Record<CallQuality, number> | null
+  llmProvider: string | null
+  levels: CallQualityAdminLevel[]
+  /** callQuality.set: the assistants a level turned off moved to Standard, per level (for Undo). */
+  moved?: { level: 'premium' | 'ultra'; assistantIds: string[] }[]
+}
+
+/**
  * After-call transcription (apps/api/src/after-call-transcript.ts): once a call's recording is saved, it is uploaded
  * to the transcription provider an instance admin selected (Server admin › Providers › After-call transcription) and
  * the caller's lines are replaced with what it heard. Off until an admin selects one.
@@ -374,7 +439,7 @@ const BUSINESS_WEBSITE_PROBLEM = 'Enter a website address, like yourbusiness.com
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
-    "Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business, how fast it talks (`talking_speed_pct`: 80-120 percent of the voice's own pace, 100: its own pace), what it asks when the line is quiet (`silence_reminder`, null: the default) and says before hanging up (`silence_closing`), the longest it stays on a call (`max_call_minutes`). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a landline or mobile in E.164 in a country the workspace may call, see outbound.countries; null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `briefing` (default true): an AI voice first tells the person who is calling and they take the call or not; false: the caller is put straight through once the phone is answered (no way to decline, and a voicemail that answers gets the caller). `languages`: `main` (the language it greets and speaks in; missing: the workspace language, English for a workspace in the US or a country whose language calls cannot be answered in) and `mode`: `english` (the main language only, the default; the name is from before the main language could be picked), `allowed` (the main language plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in the main language. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never_confirm: not even when asked, it neither confirms nor denies it; never; when_asked; at_start, the default; at_start_consent: says it and asks whether that is okay); it never claims to be human, and in every mode but never_confirm it says it is an AI when asked. `communication_style`: the tone (standard, professional, casual, formal, empathetic). `voice_pipeline`: how calls are answered, `realtime` (a realtime model, in its own voice) or `three_stage` (speech to text, language model and the assistant's voice); null: the install default; when the chosen one is not set up, the other answers. `realtime_voice`: the voice while the realtime model answers its calls, one of the realtime voices (REALTIME_VOICE_IDS: marin and cedar, which OpenAI recommends, alloy, ash, ballad, coral, echo, sage, shimmer, verse); '' (the default): the server's default voice. `voice` is the voice of the three stages; each keeps its own. `voice.model` picks the voice model (eleven_flash_v2_5, eleven_multilingual_v2, eleven_v3, sonic-3.6; missing: the server's) and `llm_model` the language model (as the server's language-model provider names it, e.g. gpt-5.4-mini; null: the server's default). On a server that bills usage each is Standard or Premium (a call is Premium when its voice or model is; the prices are the server's): Premium needs the owner's Allow Premium (workspace.setAllowPremium), and an option in neither list needs the workspace's own provider keys; voice.options lists them with their level. `realtime_model` picks the realtime model (gpt-realtime, gpt-realtime-2; null: the server's) for when `voice_pipeline` is realtime; on a server that bills usage a realtime call is Ultra and needs the owner's Allow Ultra (workspace.setAllowUltra). `email_rules`: who gets the email about each finished call (emailRouting.get lists the members). `always`: members (user ids) who get every call email. `rules`, in order, each with `id`, `when` (the calls it is about, in plain words, e.g. 'Calls about water heaters or boilers'), `to` (members who get the email) and `assign` (one of `to` who gets the call assigned while nobody has it, or null). Rules are on only when a language model is set up (emailRouting.available); without one they are ignored. After each call the model only says which rules fit; the members of every rule that fits and the `always` members get the email, and the first fitting rule with an assignee assigns it. No rule fits: the `always` members, or without them every member with call emails on. No rules and no `always`: every member with call emails on. At most 20 rules.",
+    "Update the assistant: name, greeting, voice, whether calls are recorded, what it knows about the business, how fast it talks (`talking_speed_pct`: 80-120 percent of the voice's own pace, 100: its own pace), what it asks when the line is quiet (`silence_reminder`, null: the default) and says before hanging up (`silence_closing`), the longest it stays on a call (`max_call_minutes`). `greeting_outside` is used outside business hours when the workspace uses them (null: the same as during hours). `transfers` replaces the list of transfer contacts: who callers are put through to (a landline or mobile in E.164 in a country the workspace may call, see outbound.countries; null while there is none) and when (`condition`, in plain words), tried in list order when several fit; `hours_only` only while the business is open; `ring_seconds` (10-60); `if_no_answer`: message_urgent, message or next (the next contact that fits). `briefing` (default true): an AI voice first tells the person who is calling and they take the call or not; false: the caller is put straight through once the phone is answered (no way to decline, and a voicemail that answers gets the caller). `languages`: `main` (the language it greets and speaks in; missing: the workspace language, English for a workspace in the US or a country whose language calls cannot be answered in) and `mode`: `english` (the main language only, the default; the name is from before the main language could be picked), `allowed` (the main language plus the `allowed` codes) or `any`; the assistant switches to the language the caller speaks only when it is allowed, the greeting stays in the main language. `behaviours` sets switches of the behaviour checklist (ask_name, offer_callback, confirm_number); `ai_disclosure`: whether and when it mentions being an AI (never_confirm: not even when asked, it neither confirms nor denies it; never; when_asked; at_start, the default; at_start_consent: says it and asks whether that is okay); it never claims to be human, and in every mode but never_confirm it says it is an AI when asked. `communication_style`: the tone (standard, professional, casual, formal, empathetic). `call_quality`: `standard`, `premium` or `ultra` (voice.options `callQuality` lists the levels this server has on, with their price a minute where there are prices); the level alone decides what a call minute costs; Standard and Premium answer with speech to text, a language model and the assistant's voice, Ultra with a realtime model in its own voice. Only the person who pays for the workspace (its bill's manager; the workspace owner without a bill; the partner's owner for a white-label client), signed in to the app, raises the level; anyone who edits the assistant lowers it. Picks that do not belong to a new level are cleared in the same save. `voice_pipeline` (`realtime`: Ultra, `three_stage`: off Ultra) is the older way to say the same and goes away. `realtime_voice`: the voice while the realtime model answers its calls, one of the realtime voices (REALTIME_VOICE_IDS: marin and cedar, which OpenAI recommends, alloy, ash, ballad, coral, echo, sage, shimmer, verse); '' (the default): the server's default voice. `voice` is the voice of the three stages; each keeps its own. `voice.model` picks the voice model and `llm_model` the language model (as the server's language-model provider names it, e.g. gpt-4.1-mini), `realtime_model` the realtime model on Ultra (gpt-realtime, gpt-realtime-2); each must belong to the assistant's level (Standard: Standard models; Premium: Premium and Standard ones; voice.options `callQuality` lists them per level) and null or missing follows the server's default for the level. `email_rules`: who gets the email about each finished call (emailRouting.get lists the members). `always`: members (user ids) who get every call email. `rules`, in order, each with `id`, `when` (the calls it is about, in plain words, e.g. 'Calls about water heaters or boilers'), `to` (members who get the email) and `assign` (one of `to` who gets the call assigned while nobody has it, or null). Rules are on only when a language model is set up (emailRouting.available); without one they are ignored. After each call the model only says which rules fit; the members of every rule that fits and the `always` members get the email, and the first fitting rule with an assignee assigns it. No rule fits: the `always` members, or without them every member with call emails on. No rules and no `always`: every member with call emails on. At most 20 rules.",
   input: z.object({
     assistantId: z.string().min(1),
     name: z.string().trim().min(1).max(60).optional(),
@@ -418,7 +483,12 @@ export const assistantUpdate = defineAction({
       .optional(),
     /** The assistant's main language and which languages it speaks with callers besides it. */
     languages: assistantLanguages.optional(),
-    /** How calls are answered (VOICE_PIPELINES); null: the install default. */
+    /**
+     * The assistant's call quality (CALL_QUALITIES): what its calls cost a minute and what answers them. Raising it is
+     * for the person who pays only (apps/api/src/level-raise.ts).
+     */
+    call_quality: z.enum(CALL_QUALITIES).optional(),
+    /** The older way to say Ultra (`realtime`) or not (`three_stage`); the server stores it as `call_quality`. */
     voice_pipeline: z.enum(VOICE_PIPELINES).nullable().optional(),
     /**
      * An empty voice_id: the provider's default voice. `model`: the text-to-speech model (VOICE_MODEL_LEVELS); missing
@@ -436,11 +506,11 @@ export const assistantUpdate = defineAction({
      * normalized (an `assign` not among the rule's `to` becomes null). Empty: every member with call emails on.
      */
     email_rules: emailRulesInput.optional(),
-    /** The language model of live turns at the install's provider (LANGUAGE_MODEL_LEVELS); null: the install's default. */
+    /** The language model of live turns at the install's provider (LANGUAGE_MODEL_LEVELS); null: the level's default. */
     llm_model: z.string().trim().min(1).max(VOICE_MODEL_ID_MAX).nullable().optional(),
     /** The voice while the realtime model answers its calls (REALTIME_VOICE_IDS); '': the server's default voice. */
     realtime_voice: realtimeVoiceChoice.optional(),
-    /** The realtime model that answers its calls when `voice_pipeline` is realtime (REALTIME_MODEL_LEVELS); null: the install's. */
+    /** The realtime model that answers its calls on Ultra (REALTIME_MODEL_LEVELS); null: the server's default for Ultra. */
     realtime_model: z.string().trim().min(1).max(VOICE_MODEL_ID_MAX).nullable().optional(),
     business_profile: z
       .object({
@@ -470,7 +540,9 @@ export const assistantUpdate = defineAction({
   patch: {
     table: 'assistants',
     id: i => i.assistantId,
-    set: ({ assistantId: _id, ...rest }) => defined({ ...rest, ...talkingSpeedColumns(rest) }),
+    // voice_pipeline is no longer stored: the server turns it into call_quality (apps/api/src/handlers.ts).
+    set: ({ assistantId: _id, voice_pipeline: _pipeline, ...rest }) =>
+      defined({ ...rest, ...talkingSpeedColumns(rest) }),
   },
 })
 

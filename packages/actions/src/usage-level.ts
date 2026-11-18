@@ -1,9 +1,9 @@
-// Usage levels on Linedesk Cloud (decisions.md 2026-11-16): a call costs 5¢ a minute on the Standard level and 10¢ on
-// Premium, the same for every workspace (partners too). A call is Premium when its voice or its language model is in
-// the Premium list; options in neither list run only on the workspace's own provider keys. With own keys there is no
-// usage fee and no restriction. Self-hosted installs (no billing) use every option, without levels. A call answered by
-// a realtime (speech-to-speech) model is Ultra (20¢ a minute), which needs the owner's Allow Ultra.
-// The one source of truth for the lists: the voice picker, the API's checks (assistant.update, call.start) and billing.
+// Call quality on Linedesk (decisions.md 2026-11-17): every assistant has one level, Standard, Premium or Ultra, and
+// the level alone decides what a call minute costs on Linedesk Cloud (5¢, 10¢, 20¢ by default, the server's prices).
+// Standard runs on Standard models, Premium on Premium and Standard ones, Ultra on a realtime (speech-to-speech) model.
+// Options in no list run only on the workspace's own provider keys; with own keys there is no usage fee. Self-hosted
+// installs (no billing) have the same three levels, without prices.
+// The one source of truth for the lists: the assistant editor, the API's checks (assistant.update, call.start) and billing.
 import { LEVEL_PRICES } from '@linedesk/db/types'
 import type { LlmProvider } from './admin.ts'
 
@@ -160,61 +160,217 @@ export const languageModelsOf = (provider: string) =>
 /** The voice models a voice provider has with a level, in list order. */
 export const voiceModelsOf = (provider: string) => VOICE_MODEL_LEVELS.filter(v => v.provider === provider)
 
-/**
- * What a call uses, as the call starts: the voice (`provider` the voice provider, `model` the text-to-speech model id)
- * and the language model of live turns (`provider` one of llmEndpoints, `model` its id). A call answered by a realtime
- * model passes that model for both (REALTIME_PROVIDER): its level is the realtime model's. `ownKeys`: every part of
- * the call runs on the workspace's own provider keys (a call with any part on Linedesk's keys pays its level's price).
- * `allowPremium`: the owner's "Allow Premium" (workspace_settings.allow_premium); false turns a Premium call into
- * `not_allowed`. `allowUltra`: the owner's "Allow Ultra" (workspace_settings.allow_ultra); anything but true turns an Ultra call into
- * `not_allowed`. `allowPremium` left out: the level by the voice and model alone.
- */
-export type UsageLevelInput = {
-  voice: { provider: string; model: string }
-  model: { provider: string; model: string }
-  ownKeys: boolean
-  allowPremium?: boolean
-  allowUltra?: boolean
-}
+/** A voice (`provider` the voice provider, `model` the text-to-speech model id) or a language model of live turns. */
+export type CallPart = { provider: string; model: string }
 
 /**
- * A call's level: own keys first (no fee, no restriction), then not allowed when its voice or model is in neither list
- * (or it is Premium and `allowPremium` is false), then Premium when either is Premium, else Standard. Pure: the level of
- * a whole call is decided once, at call start; a fallback to the backup voice during the call does not change it.
+ * What a call uses, as the call starts: the voice and the language model of live turns (`provider` one of
+ * llmEndpoints). A call answered by a realtime model passes that model for both (REALTIME_PROVIDER).
  */
-export function usageLevel(input: UsageLevelInput): UsageLevel {
-  if (input.ownKeys) return 'own_keys'
-  const tier = usageTierOf(input)
-  if (!tier) return 'not_allowed'
-  if (tier === 'premium' && input.allowPremium === false) return 'not_allowed'
-  if (tier === 'ultra' && input.allowUltra !== true) return 'not_allowed'
-  return tier
+export type CallParts = { voice: CallPart; model: CallPart }
+
+/**
+ * Whether a part of this level belongs to a call quality (decisions.md 2026-11-17, call quality): Standard holds
+ * Standard parts only, Premium Premium and Standard ones (a Premium call may use the fastest Standard voice), Ultra
+ * realtime models only. A part in no list belongs to none.
+ */
+export function partFits(part: UsageTier | null, level: UsageTier): boolean {
+  if (!part) return false
+  if (level === 'ultra') return part === 'ultra'
+  return part === 'standard' || (level === 'premium' && part === 'premium')
 }
 
-/** The level by the voice and model alone, null when either is in no list. A realtime model: its own level. */
-function usageTierOf({ voice, model }: Pick<UsageLevelInput, 'voice' | 'model'>): UsageTier | null {
+/** Whether every part of a call belongs to its call quality: a realtime model only on Ultra, the three stages never. */
+export function partsFit({ voice, model }: CallParts, level: UsageTier): boolean {
   if (voice.provider === REALTIME_PROVIDER || model.provider === REALTIME_PROVIDER)
-    return voice.provider === model.provider && voice.model === model.model ? realtimeModelLevel(model.model) : null
-  const v = voiceModelLevel(voice.provider, voice.model)
-  const m = languageModelLevel(model.provider, model.model)
-  if (!v || !m) return null
-  return v === 'premium' || m === 'premium' ? 'premium' : 'standard'
+    return (
+      level === 'ultra' &&
+      voice.provider === model.provider &&
+      voice.model === model.model &&
+      partFits(realtimeModelLevel(model.model), level)
+    )
+  return (
+    partFits(voiceModelLevel(voice.provider, voice.model), level) &&
+    partFits(languageModelLevel(model.provider, model.model), level)
+  )
 }
 
 /**
- * Why a workspace on Linedesk Cloud may not use these choices, or null when it may: `premiumNotAllowed` (Premium
- * without the owner's "Allow Premium"), `ultraNotAllowed` (a realtime model without "Allow Ultra") or `ownKeysOnly` (an
- * option in no list, without own keys).
+ * A call as it starts: `level` the assistant's call quality (`assistants.call_quality`), `parts` what answers it,
+ * `ownKeys` every part runs on the workspace's own provider keys, `levelEnabled` the server admin has the level on
+ * (Server admin › Providers › Call quality).
  */
-export function usageLevelProblem(
-  input: Omit<UsageLevelInput, 'allowPremium'> & { allowPremium: boolean },
-): 'premiumNotAllowed' | 'ultraNotAllowed' | 'ownKeysOnly' | null {
-  if (input.ownKeys) return null
-  const tier = usageTierOf(input)
-  if (!tier) return 'ownKeysOnly'
-  if (tier === 'premium' && !input.allowPremium) return 'premiumNotAllowed'
-  if (tier === 'ultra' && input.allowUltra !== true) return 'ultraNotAllowed'
-  return null
+export type UsageLevelInput = { level: UsageTier; parts: CallParts; ownKeys: boolean; levelEnabled: boolean }
+
+/**
+ * A call's level: the assistant's call quality alone decides it, not the highest of its parts. `not_allowed` for a
+ * level the server admin turned off, or a part that does not belong to the level (and no own keys); `own_keys` when
+ * every part runs on the workspace's own keys (no fee). Pure: decided once, at call start; a fallback to the backup
+ * voice during the call does not change it.
+ */
+export function usageLevel({ level, parts, ownKeys, levelEnabled }: UsageLevelInput): UsageLevel {
+  if (!levelEnabled) return 'not_allowed'
+  if (ownKeys) return 'own_keys'
+  return partsFit(parts, level) ? level : 'not_allowed'
+}
+
+/** The call qualities, cheapest first; a higher index costs more a minute. */
+export const CALL_QUALITIES = USAGE_LEVELS
+export type CallQuality = UsageTier
+/** The levels' names: product names, the same in every language. */
+// i18n-ignore: product names, the same in every language
+export const CALL_QUALITY_LABELS: Record<CallQuality, string> = {
+  standard: 'Standard',
+  premium: 'Premium',
+  ultra: 'Ultra',
+}
+/** Whether going from `from` to `to` raises the price: only someone who may pay does that (levelRaise in the API). */
+export const raisesLevel = (from: CallQuality, to: CallQuality) =>
+  CALL_QUALITIES.indexOf(to) > CALL_QUALITIES.indexOf(from)
+
+/**
+ * The server's default models of one level: the language model (`llm`, the id at the install's language-model
+ * provider), the voice model per voice provider, and speech recognition (`stt`). Missing: CALL_QUALITY_DEFAULTS.
+ */
+export type LevelDefaults = { llm?: string; voice?: Record<string, string>; stt?: string }
+
+/**
+ * The install's call quality settings (instance_settings `call_quality`, Server admin › Providers › Call quality):
+ * whether Premium and Ultra can be picked (Standard always can), the level new assistants start on, and per level the
+ * models an assistant without its own pick uses.
+ */
+export type CallQualitySettings = {
+  premium: boolean
+  ultra: boolean
+  default: CallQuality
+  models: { standard: LevelDefaults; premium: LevelDefaults; ultra: { realtime?: string } }
+}
+
+/**
+ * The one place of the default models per level (decisions.md 2026-11-17, call quality): what an install uses until
+ * a server admin picks others. Language models by their id in LANGUAGE_MODEL_LEVELS (each provider's own id is looked
+ * up), voice models per voice provider. Ultra's realtime model and speech recognition default to what the install
+ * already uses (the realtime and speech providers' settings); `realtime` here only when neither names one.
+ */
+export const CALL_QUALITY_DEFAULTS = {
+  standard: {
+    llm: 'gpt-4.1-mini',
+    voice: { elevenlabs: 'eleven_flash_v2_5', cartesia: 'sonic-3.6', openai: 'gpt-4o-mini-tts' },
+  },
+  premium: { llm: 'gpt-4.1', voice: { elevenlabs: 'eleven_multilingual_v2' } },
+  ultra: { realtime: 'gpt-realtime' },
+} as const satisfies {
+  standard: { llm: string; voice: Record<string, string> }
+  premium: { llm: string; voice: Record<string, string> }
+  ultra: { realtime: string }
+}
+
+/** A fresh install's settings: Premium and Ultra on (Ultra needs a realtime model to be picked), new assistants on Standard. */
+export const CALL_QUALITY_INSTALL_DEFAULT: CallQualitySettings = {
+  premium: true,
+  ultra: true,
+  default: 'standard',
+  models: { standard: {}, premium: {}, ultra: {} },
+}
+
+/**
+ * The language model of a level at this provider: the first of `picks` (the assistant's own, then the server admin's
+ * default) that belongs to the level, else the level's default (CALL_QUALITY_DEFAULTS) when the provider serves it,
+ * else the provider's first model of exactly that level, else its first that belongs to it; null: it has none.
+ */
+export function levelLanguageModel(
+  provider: string,
+  level: 'standard' | 'premium',
+  ...picks: (string | null | undefined)[]
+): string | null {
+  for (const pick of picks) {
+    const id = pick?.trim()
+    if (id && partFits(languageModelLevel(provider, id), level)) return id
+  }
+  const preset = LANGUAGE_MODEL_LEVELS.find(m => m.id === CALL_QUALITY_DEFAULTS[level].llm)?.ids[
+    provider as LlmProvider
+  ]
+  if (preset) return preset
+  const models = languageModelsOf(provider)
+  return (models.find(m => m.level === level) ?? models.find(m => partFits(m.level, level)))?.id ?? null
+}
+
+/** The voice model of a level for this voice provider, chosen like levelLanguageModel; null: the provider has none. */
+export function levelVoiceModel(
+  provider: string,
+  level: 'standard' | 'premium',
+  ...picks: (string | null | undefined)[]
+): string | null {
+  for (const pick of picks) {
+    const id = pick?.trim()
+    if (id && partFits(voiceModelLevel(provider, id), level)) return id
+  }
+  const preset = (CALL_QUALITY_DEFAULTS[level].voice as Record<string, string>)[provider]
+  if (preset) return preset
+  const models = voiceModelsOf(provider)
+  return (models.find(m => m.level === level) ?? models.find(m => partFits(m.level, level)))?.model ?? null
+}
+
+/** Ultra's realtime model: the first of `picks` that an assistant can pick, else the default (CALL_QUALITY_DEFAULTS). */
+export function levelRealtimeModel(...picks: (string | null | undefined)[]): string {
+  for (const pick of picks) {
+    const id = pick?.trim()
+    if (id && realtimeModelLevel(id)) return id
+  }
+  return CALL_QUALITY_DEFAULTS.ultra.realtime
+}
+
+/** One model an assistant or the server admin can pick within a level. */
+export type ModelChoice = { id: string; name: string }
+
+/** The language models of a level at this provider, in list order. */
+export const levelLanguageModelsOf = (provider: string, level: CallQuality): ModelChoice[] =>
+  languageModelsOf(provider)
+    .filter(m => partFits(m.level, level))
+    .map(m => ({ id: m.id, name: m.name }))
+/** The voice models of a level for this voice provider, in list order. */
+export const levelVoiceModelsOf = (provider: string, level: CallQuality): ModelChoice[] =>
+  voiceModelsOf(provider)
+    .filter(m => partFits(m.level, level))
+    .map(m => ({ id: m.model, name: m.name }))
+/** The realtime models (all Ultra). */
+export const levelRealtimeModelsOf = (): ModelChoice[] =>
+  REALTIME_MODEL_LEVELS.map(m => ({ id: m.model, name: m.name }))
+
+/** A model's name for people ("GPT-4.1 mini"), or its id when it is in no list. */
+export function modelName(kind: 'llm' | 'voice' | 'realtime', provider: string, id: string): string {
+  if (kind === 'realtime') return REALTIME_MODEL_LEVELS.find(m => m.model === id)?.name ?? id
+  if (kind === 'voice') return VOICE_MODEL_LEVELS.find(v => v.provider === provider && v.model === id)?.name ?? id
+  return LANGUAGE_MODEL_LEVELS.find(m => m.ids[provider as LlmProvider] === id)?.name ?? id
+}
+
+/**
+ * One call quality as the assistant editor shows it (voice.options `callQuality`): its price a minute in US cents
+ * (null: no prices here, a white-label client, a workspace on no bill or an install that does not bill), the models
+ * that belong to it and what "Default" stands for. Standard and Premium: language models (of the install's provider)
+ * and voice models per voice provider set up; Ultra: realtime models.
+ */
+export type CallQualityLevelOption = {
+  level: CallQuality
+  centsPerMinute: number | null
+  models: ModelChoice[]
+  voiceModels: Record<string, ModelChoice[]>
+  realtimeModels: ModelChoice[]
+  defaults: { llm: string | null; voice: Record<string, string>; realtime: string | null }
+}
+
+/**
+ * What the assistant editor shows of call quality (voice.options `callQuality`): the levels the server admin has on
+ * (Standard always), the level new assistants start on, whether this member may raise an assistant to a paid level
+ * (`mayRaise`, the person who pays: decisions.md 2026-11-17), and whether the workspace is a white-label client
+ * (its partner's owner decides).
+ */
+export type CallQualityOptions = {
+  levels: CallQualityLevelOption[]
+  defaultLevel: CallQuality
+  mayRaise: boolean
+  partnerManaged: boolean
+  llmProvider: string | null
 }
 
 /**
@@ -245,6 +401,8 @@ export function languageModelFor(provider: string, assistantModel: string | null
 export type LevelChoice = { id: string; name: string; level: UsageTier; allowed: boolean }
 
 /**
+ * The assistant editor's levels before call quality (voice.options `levels`), until its card is replaced (call quality
+ * 2/5, LIN-497 follow-up): CallQualityOptions is what decides.
  * What the assistant editor shows of levels (voice.options `levels`). `billed`: this install bills usage (Linedesk
  * Cloud): levels and prices are shown and Allow Premium applies; false (self-hosted): every choice, no labels.
  * `voiceModels` per voice provider set up; `defaultVoiceModel` and `defaultModel`: what "Default" stands for, with

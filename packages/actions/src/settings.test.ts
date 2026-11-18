@@ -157,8 +157,8 @@ describe('assistant.update', () => {
     expect(storedSnapshot({ talking_speed: 'slow', talking_speed_pct: 85 })).toMatchObject({ talking_speed_pct: 85 })
   })
 
-  it('sets how calls are answered, and back to the install default with null', () => {
-    const assistants = new Map([['as1', { id: 'as1', voice_pipeline: null }]])
+  it('sets the call quality; the older voice_pipeline is never stored', () => {
+    const assistants = new Map([['as1', { id: 'as1', call_quality: 'standard', voice_pipeline: null }]])
     const update = (fields: object) =>
       applyLocally(
         { assistants } as unknown as LocalTables,
@@ -166,13 +166,13 @@ describe('assistant.update', () => {
         assistantUpdate.input.parse({ assistantId: 'as1', ...fields }),
         '2026-11-13T00:00:00Z',
       )
-    update({ voice_pipeline: 'three_stage' })
-    expect(assistants.get('as1')).toMatchObject({ voice_pipeline: 'three_stage' })
+    update({ call_quality: 'premium' })
+    expect(assistants.get('as1')).toMatchObject({ call_quality: 'premium' })
     update({ name: 'Maya' }) // another field leaves it alone
-    expect(assistants.get('as1')).toMatchObject({ voice_pipeline: 'three_stage' })
-    update({ voice_pipeline: null })
-    expect(assistants.get('as1')).toMatchObject({ voice_pipeline: null })
-    expect(() => assistantUpdate.input.parse({ assistantId: 'as1', voice_pipeline: 'cascaded' })).toThrow()
+    expect(assistants.get('as1')).toMatchObject({ call_quality: 'premium' })
+    update({ voice_pipeline: 'realtime' }) // the server turns it into call_quality
+    expect(assistants.get('as1')).toMatchObject({ call_quality: 'premium', voice_pipeline: null })
+    expect(() => assistantUpdate.input.parse({ assistantId: 'as1', call_quality: 'gold' })).toThrow()
   })
 
   it('takes settings:write: owners and admins choose the pipeline, members do not', () => {

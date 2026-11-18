@@ -213,6 +213,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'voiceCloning.set',
     'voicePipelinePolicy.get',
     'voicePipelinePolicy.set',
+    'callQuality.get',
+    'callQuality.set',
     // The fixed parts of the assistant's system prompt, for the whole install (LIN-346).
     'systemPrompt.get',
     'systemPrompt.setPart',

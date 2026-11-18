@@ -177,6 +177,8 @@ const all = [
   voices.voiceCloningGet,
   voices.voiceCloningSet,
   settings.voicePipelinePolicyGet,
+  settings.callQualityGet,
+  settings.callQualitySet,
   settings.voicePipelinePolicySet,
   systemPrompt.systemPromptGet,
   systemPrompt.systemPromptSetPart,

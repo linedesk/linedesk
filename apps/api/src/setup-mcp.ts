@@ -41,8 +41,6 @@ import {
   oneKey,
   oneKeyIn,
   onboardingSteps,
-  pipelineFor,
-  pipelinesAllowed,
   rolePermissions,
   type ProviderCategory,
   type ProviderName,
@@ -100,7 +98,7 @@ import { goLiveChecklist } from './go-live-checklist.ts'
 import { readInstallProgress } from './install-setup.ts'
 import { guard, MCP_MAX_BODY_BYTES, takeSlot, toolName } from './mcp.ts'
 import { newAssistant } from './onboarding.ts'
-import { pipelinesSetUp, providerStatus, voicePipelinePolicy } from './provider-settings.ts'
+import { pipelinesSetUp, providerStatus, } from './provider-settings.ts'
 import { runAction } from './run-action.ts'
 import { setupChecklist } from './setup-checklist.ts'
 import { workspaceLocale } from './workspace-locale.ts'
@@ -807,7 +805,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   const businessDone = hasProfile || past(step, 'business')
   const phoneDone = numbers.length > 0
   const pickupDone = Boolean(settings?.pickup_mode)
-  const fresh = newAssistant(workspaceId, ws?.name ?? '', [])
+  const fresh = newAssistant(workspaceId, ws?.name ?? '', [], 'standard')
   const assistantChanged =
     !!assistant && (assistant.name !== DEFAULT_ASSISTANT_NAME || assistant.greeting !== fresh.greeting)
   const assistantDone = assistantChanged || past(step, 'assistant')
@@ -820,10 +818,8 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   // URGENT_CONTACT_ID in apps/web/src/onboarding/flow.ts).
   const notifyDone =
     !!notifyRow || !!assistant?.transfers.some(t => t.id === URGENT_CONTACT_ID) || past(step, 'notify')
-  // With the realtime model the assistant speaks in the server's voice, not one it picks (like Assistant settings).
-  const policy = await voicePipelinePolicy(db)
-  const realtime =
-    pipelineFor(assistant?.voice_pipeline, pipelinesAllowed(await pipelinesSetUp(db), policy)) === 'realtime'
+  // On Ultra the assistant speaks in the realtime model's voices, not one of the voice provider's (like Assistant settings).
+  const realtime = assistant?.call_quality === 'ultra' && (await pipelinesSetUp(db)).realtime
   // Onboarding in the app resumes where the agent got to (never moved back): through the registry, as the admin. The
   // one write of reading the status: bookkeeping, nothing the admin would be asked about.
   const reached =

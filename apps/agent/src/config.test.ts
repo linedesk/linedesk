@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest'
-import { AgentConfigError, configForAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings, withAssistantModel, withAssistantRealtimeModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel } from './config.ts'
+import { AgentConfigError, configForAssistant, pipelineOfAssistant, configFromEnv, createConfigLoader, isRealtime, parseProviderSettings, resolveAgentConfig, resolveCallConfig, stageEnvVars, stagesOf, type ProviderSettings, withAssistantModel, withAssistantRealtimeModel, withAssistantRealtimeVoice, withLevelFallbacks, withRealtimeModel } from './config.ts'
 
 // OpenRouter named: the tests below were written for it; the default (OpenAI) has its own test.
 const keys = { DEEPGRAM_API_KEY: 'dg', LLM_PROVIDER: 'openrouter', OPENROUTER_API_KEY: 'or', ELEVENLABS_API_KEY: 'el' }
@@ -428,4 +428,12 @@ test('after one good read, a failing API keeps the last settings instead of the 
   clock = 2000
   expect(await load()).toEqual(first)
   expect(log).toHaveBeenLastCalledWith('could not read provider settings from the API, using the last settings read: The operation was aborted due to timeout')
+})
+
+test('the pipeline of a call follows the call quality the API named: Ultra a realtime model, the others three stages', () => {
+  expect(pipelineOfAssistant({ call_quality: 'ultra' })).toBe('realtime')
+  expect(pipelineOfAssistant({ call_quality: 'premium' })).toBe('three_stage')
+  expect(pipelineOfAssistant({ call_quality: 'standard' })).toBe('three_stage')
+  expect(pipelineOfAssistant(null)).toBeNull()
+  expect(pipelineOfAssistant({})).toBeNull()
 })

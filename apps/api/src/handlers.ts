@@ -1,5 +1,7 @@
 // Server side of the registry. Patch actions run generically; the rest have a handler here.
 import {
+  type CallQuality,
+  raisesLevel,
   actions,
   type AssistantRestoreData,
   AWAIT_TRANSCRIPT_MAX_SEC,
@@ -13,7 +15,6 @@ import {
   isPickable,
   spokenLanguages,
   unspokenLanguages,
-  pipelineChoiceUnder,
   isActiveContact,
   setsTransferNumber,
   ASSISTANT_CALL_MAX_MINUTES,
@@ -128,8 +129,9 @@ import {
   type Undo,
 } from './handler-context.ts'
 import { languageInSentence } from '@linedesk/i18n'
-import { activeProvider, installLanguages, telephonyProvider, voicePipelinePolicy } from './provider-settings.ts'
-import { assistantForCall, assistantVoiceOf, checkAssistantLevel } from './usage-levels.ts'
+import { activeProvider, installLanguages, telephonyProvider } from './provider-settings.ts'
+import { refuseLevelRaise } from './level-raise.ts'
+import { assistantForCall, assistantVoiceOf, checkAssistantLevel, picksForLevel } from './usage-levels.ts'
 import { startTestCall } from './test-call.ts'
 import { liveCallHandlers } from './live-call.ts'
 import { membershipHandlers } from './memberships.ts'
@@ -592,11 +594,8 @@ async function openCall(
       : null
   // What the assistant can ask the business's system during the call (its webhook's during-call lookups).
   const lookups = blocked ? [] : await duringCallLookups(tx, assistant?.id)
-  const answeredBy = forCall && {
-    ...forCall.assistant,
-    voice_pipeline:
-      forCall.pipeline ?? pipelineChoiceUnder(await voicePipelinePolicy(tx), forCall.assistant.voice_pipeline),
-  }
+  // What answers: the level the call runs on (Ultra: the realtime model), with the models named (assistantForCall).
+  const answeredBy = forCall?.assistant
   return {
     rows: { calls: [call!], ...(contact ? { contacts: [contact.row] } : {}) },
     data: {
@@ -853,7 +852,7 @@ async function checkAssistantLanguages(
   workspaceId: string,
   assistantId: string,
   languages: StoredLanguages,
-  change: { voice?: AssistantVoice; voice_pipeline?: VoicePipeline | null } = {},
+  change: { voice?: AssistantVoice; call_quality?: CallQuality } = {},
 ) {
   const stored = await assistantIn(tx, workspaceId, assistantId)
   if (!stored) throw Reject.t('server.api.noSuchAssistant')
@@ -872,7 +871,7 @@ async function checkAssistantLanguages(
   const callVoice = await assistantVoiceOf(tx, {
     voice,
     llm_model: stored.llm_model,
-    voice_pipeline: change.voice_pipeline !== undefined ? change.voice_pipeline : stored.voice_pipeline,
+    call_quality: change.call_quality ?? stored.call_quality,
   })
   const spoken = callVoice ? spokenLanguages([callVoice]) : await installLanguages(tx)
   const missing = unspokenLanguages(languages, spoken).filter(code => !kept.includes(code))
@@ -889,38 +888,56 @@ type LevelInput = {
   assistantId: string
   voice?: AssistantVoice
   llm_model?: string | null
+  call_quality?: CallQuality
   voice_pipeline?: VoicePipeline | null
   realtime_model?: string | null
 }
-/** Whether an assistant.update names what decides its calls' level: the voice, the models or the pipeline. */
+/** Whether an assistant.update names what decides its calls' level: the level, the voice or a model. */
 const choosesLevel = (input: LevelInput) =>
   input.voice !== undefined ||
   input.llm_model !== undefined ||
-  input.voice_pipeline !== undefined ||
+  input.call_quality !== undefined ||
   input.realtime_model !== undefined
 
 /**
- * The voice model and language model an assistant picks must be ones with a level (usage-level.ts) for the voice
- * provider and the install's language-model provider; on Linedesk Cloud, of a level the workspace may use.
+ * The older `voice_pipeline` of assistant.update as a call quality, until the assistant editor sends `call_quality`
+ * (call quality 2/5): `realtime` is Ultra, `three_stage` takes an assistant off Ultra (to Standard) and leaves the
+ * others as they are.
  */
-async function checkAssistantChoices(tx: Tx, workspaceId: string, input: LevelInput): Promise<UsageLevelChange | null> {
+async function withLevelOfPipeline<I extends LevelInput>(tx: Tx, workspaceId: string, input: I): Promise<I> {
+  const { voice_pipeline: pipeline, ...rest } = input
+  if (pipeline === undefined || input.call_quality !== undefined) return rest as I
+  if (pipeline === 'realtime') return { ...rest, call_quality: 'ultra' } as I
+  const stored = await assistantIn(tx, workspaceId, input.assistantId)
+  return (stored?.call_quality === 'ultra' ? { ...rest, call_quality: 'standard' } : rest) as I
+}
+
+/**
+ * An assistant's level and model picks after a save (assistant.update): the level must be on, a raise is for the person
+ * who pays (refuseLevelRaise), each pick must belong to the level. A new level clears the picks of the old one that do
+ * not belong to it (picksForLevel), unless the save names them. Returns what the save writes of them, and the change
+ * for the audit log (null: nothing that decides the level changed).
+ */
+async function checkAssistantChoices(
+  tx: Tx,
+  actor: Actor,
+  input: LevelInput,
+): Promise<{ set: Partial<LevelFields>; change: UsageLevelChange | null }> {
+  const workspaceId = actor.workspaceId!
   const stored = await assistantIn(tx, workspaceId, input.assistantId)
   if (!stored) throw Reject.t('server.api.noSuchAssistant')
-  const after = {
-    voice: input.voice ?? stored.voice,
-    llm_model: input.llm_model !== undefined ? input.llm_model : stored.llm_model,
-    voice_pipeline: input.voice_pipeline !== undefined ? input.voice_pipeline : stored.voice_pipeline,
-    realtime_model: input.realtime_model !== undefined ? input.realtime_model : stored.realtime_model,
+  const level = input.call_quality ?? stored.call_quality
+  const levelChanged = level !== stored.call_quality
+  const kept = levelChanged ? await picksForLevel(tx, stored, level) : stored
+  const after: LevelFields = {
+    call_quality: level,
+    voice: input.voice ?? kept.voice,
+    llm_model: input.llm_model !== undefined ? input.llm_model : kept.llm_model,
+    realtime_model: input.realtime_model !== undefined ? input.realtime_model : kept.realtime_model,
   }
   // A save that leaves them as they are (the web app sends the voice with every save) is never refused over them.
-  const same =
-    after.voice.provider === stored.voice.provider &&
-    after.voice.voice_id === stored.voice.voice_id &&
-    (after.voice.model ?? '') === (stored.voice.model ?? '') &&
-    after.llm_model === stored.llm_model &&
-    after.voice_pipeline === stored.voice_pipeline &&
-    after.realtime_model === stored.realtime_model
-  if (same) return null
+  const change = usageLevelChange(stored, after)
+  if (!change) return { set: {}, change: null }
   if (input.voice?.model && !voiceModelLevel(input.voice.provider, input.voice.model))
     throw new Reject(
       `${input.voice.model} is not a voice model of ${input.voice.provider} here: pick one of voice.options`,
@@ -934,36 +951,23 @@ async function checkAssistantChoices(tx: Tx, workspaceId: string, input: LevelIn
   }
   if (input.realtime_model && !realtimeModelLevel(input.realtime_model))
     throw new Reject(`${input.realtime_model} is not a realtime model an assistant can pick: pick one of voice.options`)
-  await checkAssistantLevel(tx, workspaceId, after, { picksRealtime: picksRealtime(stored, after) })
-  return usageLevelChange(stored, after)
+  await checkAssistantLevel(tx, after, { levelChanged })
+  if (raisesLevel(stored.call_quality, level)) await refuseLevelRaise(tx, actor)
+  return {
+    set: levelChanged
+      ? { call_quality: level, voice: after.voice, llm_model: after.llm_model, realtime_model: after.realtime_model }
+      : {},
+    change,
+  }
 }
 
-/**
- * A realtime model is only for an assistant that answers with one: on the three stages a save stores none, as Allow
- * Ultra off leaves it. A save that picks one right after Allow Ultra off moved the assistant to the three stages (it
- * waited for the version lock) would otherwise set it there again, without an Ultra check.
- */
-async function withoutStrayRealtimeModel<I extends LevelInput>(tx: Tx, workspaceId: string, input: I): Promise<I> {
-  if (!input.realtime_model) return input
-  const pipeline =
-    input.voice_pipeline !== undefined
-      ? input.voice_pipeline
-      : (await assistantIn(tx, workspaceId, input.assistantId))?.voice_pipeline
-  return pipeline === 'three_stage' ? { ...input, realtime_model: null } : input
-}
+type LevelFields = Pick<Assistant, 'voice' | 'llm_model' | 'call_quality'> & { realtime_model?: string | null }
 
-type LevelFields = Pick<Assistant, 'voice' | 'llm_model' | 'voice_pipeline'> & { realtime_model?: string | null }
-
-/** Whether a save turns on answering with a realtime model, or picks another one (Ultra on Linedesk Cloud). */
-const picksRealtime = (stored: LevelFields, after: LevelFields) =>
-  after.voice_pipeline === 'realtime' &&
-  (stored.voice_pipeline !== 'realtime' || (after.realtime_model ?? null) !== (stored.realtime_model ?? null))
-
-/** What decides a call's level, as the audit log keeps it: the voice model, the language model, the pipeline. */
+/** What decides a call's level, as the audit log keeps it: the level, the voice model, the language model. */
 const levelFieldsOf = (a: LevelFields) => ({
+  call_quality: a.call_quality,
   voice_model: a.voice.model ? `${a.voice.provider}/${a.voice.model}` : null,
   llm_model: a.llm_model ?? null,
-  voice_pipeline: a.voice_pipeline ?? null,
   realtime_model: a.realtime_model ?? null,
 })
 /** A change of what decides the level (who doubled the bill), for the audit log: before and after; null: none. */
@@ -1007,19 +1011,19 @@ const handlers: Record<string, Handler> = {
   // The patch, plus: a voice must be one the workspace may use, and a clone it stops using is released.
   'assistant.update': async (ctx, given) => {
     if (!ctx.actor.workspaceId) throw Reject.t('server.api.noWorkspace')
-    // The version lock first (withVersion took it already; taking it again does not wait), as Allow Premium and Allow
-    // Ultra off take it before they move the assistants: everything read below is what the save writes over.
+    // The version lock first (withVersion took it already; taking it again does not wait), as a level turned off and a
+    // payer change take it before they move the assistants: everything read below is what the save writes over.
     await lockAssistantVersion(ctx.tx, given.assistantId)
-    const input = await withoutStrayRealtimeModel(ctx.tx, ctx.actor.workspaceId, given)
+    const input = await withLevelOfPipeline(ctx.tx, ctx.actor.workspaceId, given)
     if (input.voice) await checkAssistantVoice(ctx.tx, ctx.actor.workspaceId, input.voice)
-    // The languages against the voice the calls speak with: again when the voice changes.
-    if (input.languages || input.voice || input.voice_pipeline !== undefined) {
+    // The languages against the voice the calls speak with: again when the voice or the level changes.
+    if (input.languages || input.voice || input.call_quality !== undefined) {
       const languages =
         input.languages ?? (await assistantIn(ctx.tx, ctx.actor.workspaceId, input.assistantId))?.languages
       if (input.languages || languages)
         await checkAssistantLanguages(ctx.tx, ctx.actor.workspaceId, input.assistantId, languages, {
           voice: input.voice,
-          voice_pipeline: input.voice_pipeline,
+          call_quality: input.call_quality,
         })
     }
     // Only contacts that can be dialled: one switched off because its line forwards to Linedesk
@@ -1032,9 +1036,10 @@ const handlers: Record<string, Handler> = {
       input.email_rules !== undefined
         ? ((await assistantIn(ctx.tx, ctx.actor.workspaceId, input.assistantId))?.email_rules ?? null)
         : undefined
-    // The voice and model it will answer with: models of the lists only, and on Linedesk Cloud of a level it may use.
-    const levelChange = choosesLevel(input) ? await checkAssistantChoices(ctx.tx, ctx.actor.workspaceId, input) : null
-    const result = await runPatch(ctx, actions.get('assistant.update')!, input)
+    // The level and the models it will answer with: on, of the lists and of the level; a raise only by who pays.
+    const level = choosesLevel(input) ? await checkAssistantChoices(ctx.tx, ctx.actor, input) : null
+    const levelChange = level?.change ?? null
+    const result = await runPatch(ctx, actions.get('assistant.update')!, { ...input, ...level?.set })
     if (input.voice) await releaseUnusedClones(ctx.tx, ctx.actor.workspaceId)
     if (setsTransferNumber(input)) await recordSetupEvent(ctx.tx, ctx.actor.workspaceId, 'mobile_added', ctx.now)
     // A change of the numbers calls are put through to is in the audit log (audit.ts, TRANSFER_CHANGE_ACTIONS).
@@ -1069,30 +1074,34 @@ const handlers: Record<string, Handler> = {
     await checkAssistantVoice(tx, workspaceId, fields.voice).catch(e => {
       throw Reject.t('server.api.versionVoiceGone', { number: input.number, error: errorMessage(e) })
     })
+    // A version from before call quality has no level: Standard, the column's default (as the check and the audit
+    // below assume), its picks only where they belong to it.
+    const versionLevel: CallQuality = fields.call_quality ?? 'standard'
     if (fields.languages)
       await checkAssistantLanguages(tx, workspaceId, input.assistantId, fields.languages, {
         voice: fields.voice,
-        voice_pipeline: fields.voice_pipeline ?? null,
+        call_quality: versionLevel,
       }).catch(e => {
         throw Reject.t('server.api.versionLanguagesGone', { number: input.number, error: errorMessage(e) })
       })
     for (const contact of fields.transfers ?? [])
       if (contact.number) await checkOnCallNotLinedesk(tx, workspaceId, contact.number, contact.name)
-    // Like assistant.update: checked only when the version changes the voice, the model or the pipeline.
+    // Like assistant.update: checked only when the version changes the level or a model.
     const levelAfter = {
-      voice: fields.voice,
-      llm_model: fields.llm_model ?? null,
-      voice_pipeline: fields.voice_pipeline ?? null,
-      // As assistant.update stores it: no realtime model on the three stages.
-      realtime_model: fields.voice_pipeline === 'three_stage' ? null : (fields.realtime_model ?? null),
+      call_quality: versionLevel,
+      ...(await picksForLevel(
+        tx,
+        { voice: fields.voice, llm_model: fields.llm_model ?? null, realtime_model: fields.realtime_model ?? null },
+        versionLevel,
+      )),
     }
     const levelChange = usageLevelChange(current, levelAfter)
-    if (levelChange)
-      await checkAssistantLevel(tx, workspaceId, levelAfter, {
-        picksRealtime: picksRealtime(current, levelAfter),
-      }).catch(e => {
+    if (levelChange) {
+      await checkAssistantLevel(tx, levelAfter, { levelChanged: versionLevel !== current.call_quality }).catch(e => {
         throw Reject.t('server.api.versionVoiceOrModelGone', { number: input.number, error: errorMessage(e) })
       })
+      if (raisesLevel(current.call_quality, versionLevel)) await refuseLevelRaise(tx, actor)
+    }
     const transfersBefore = await assistantTransfers(tx, workspaceId, input.assistantId)
     // A version from before a level column has no key for it: the column's default (null), as the check and the audit
     // above assume, not what the assistant has now.
@@ -1100,8 +1109,9 @@ const handlers: Record<string, Handler> = {
       .update(assistants)
       .set({
         ...fields,
+        call_quality: levelAfter.call_quality,
+        voice: levelAfter.voice,
         llm_model: levelAfter.llm_model,
-        voice_pipeline: levelAfter.voice_pipeline,
         realtime_model: levelAfter.realtime_model,
       })
       .where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspaceId)))

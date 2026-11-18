@@ -188,8 +188,8 @@ export const getWebhookEndpoint = async (id: string) => (await db.select().from(
 export const getAssistant = async (id: string) => (await db.select().from(assistants).where(eq(assistants.id, id)))[0]
 
 /**
- * Allow Premium and Allow Ultra on, and the workspace's assistant on a Premium voice and model and answering with a
- * realtime model (Ultra): what a bill owner chose, written directly (LIN-438 tests).
+ * Allow Premium and Allow Ultra on, and the workspace's assistant on Premium with a Premium voice and model: what a
+ * bill owner chose, written directly (LIN-438 tests).
  */
 export async function withPremiumAndUltra(ws: Workspace) {
   await db
@@ -199,24 +199,23 @@ export async function withPremiumAndUltra(ws: Workspace) {
   await db
     .update(assistants)
     .set({
+      call_quality: 'premium',
       voice: { provider: 'elevenlabs', voice_id: 'cgSgspJ2msm6clMCkdW9', model: 'eleven_v3' },
       llm_model: 'gpt-4.1',
-      voice_pipeline: 'realtime',
-      realtime_model: 'gpt-realtime',
     })
     .where(eq(assistants.id, ws.assistant.id))
 }
 
-/** The workspace's Allow Premium and Allow Ultra, and its assistant's Premium and Ultra choices, as stored now. */
+/** The workspace's Allow Premium and Allow Ultra, and its assistant's level and model picks, as stored now. */
 export async function premiumAndUltraOf(ws: Workspace) {
   const [flags] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, ws.id))
   const [assistant] = await db.select().from(assistants).where(eq(assistants.id, ws.assistant.id))
   return {
     allowPremium: flags?.allow_premium ?? false,
     allowUltra: flags?.allow_ultra ?? false,
+    level: assistant!.call_quality,
     voiceModel: assistant!.voice.model ?? null,
     llmModel: assistant!.llm_model,
-    pipeline: assistant!.voice_pipeline,
     realtimeModel: assistant!.realtime_model,
   }
 }
@@ -225,8 +224,8 @@ export async function premiumAndUltraOf(ws: Workspace) {
 export const KEPT_PREMIUM_AND_ULTRA = {
   allowPremium: true,
   allowUltra: true,
+  level: 'premium',
   voiceModel: 'eleven_v3',
   llmModel: 'gpt-4.1',
-  pipeline: 'realtime',
-  realtimeModel: 'gpt-realtime',
+  realtimeModel: null,
 }

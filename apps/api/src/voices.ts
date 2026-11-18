@@ -32,6 +32,19 @@ import {
   type VoicePipelinePolicy,
   type VoicePipelinePolicyData,
   voiceId as voiceIdSchema,
+  CALL_QUALITIES,
+  CALL_QUALITY_LABELS,
+  type CallQuality,
+  type CallQualityAdminData,
+  type CallQualitySettings,
+  type LevelDefaults,
+  languageModelLevel,
+  levelLanguageModelsOf,
+  levelRealtimeModelsOf,
+  levelVoiceModelsOf,
+  partFits,
+  realtimeModelLevel,
+  voiceModelLevel,
 } from '@linedesk/actions'
 import { assistants, instance_settings, type Tx, voice_clones } from '@linedesk/db'
 import { and, eq, isNull, notInArray, sql } from 'drizzle-orm'
@@ -44,6 +57,7 @@ import { problemOfStatus } from './provider-errors.ts'
 import { audienceOf, noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import {
   activeProvider,
+  setUpProviders,
   installLanguageOptions,
   pipelinesSetUp,
   resolveProvider,
@@ -51,7 +65,17 @@ import {
   voicePipelinePolicy,
 } from './provider-settings.ts'
 import { type CatalogEntry, catalogData, catalogVoice, voiceCatalog } from './voice-catalog.ts'
-import { levelOptions } from './usage-levels.ts'
+import { callQualityOptions, levelCentsPerMinute, levelOptions, usageLevelsBilled } from './usage-levels.ts'
+import {
+  callQualitySettings,
+  enabledLevels,
+  levelDefaultModels,
+  moveBackToLevel,
+  moveToStandard,
+  realtimeSetUp,
+  saveCallQualitySettings,
+} from './call-quality.ts'
+import { mayRaiseLevel } from './level-raise.ts'
 import {
   createVoiceProvider,
   ELEVENLABS_SAMPLE_HOST,
@@ -337,6 +361,7 @@ export const voiceHandlers: Record<string, Handler> = {
       ...(realtimeDefault ? { realtimeDefaultVoice: realtimeDefault } : {}),
       ...(await installLanguageOptions(tx)),
       levels,
+      callQuality: await callQualityOptions(tx, actor.workspaceId, await mayRaiseLevel(tx, actor)),
     }
     return { rows: {}, data }
   },
@@ -380,6 +405,44 @@ export const voiceHandlers: Record<string, Handler> = {
       .values({ key: CLONING_KEY, value, updated_at: now, updated_by: actor.actorId })
       .onConflictDoUpdate({ target: instance_settings.key, set: { value, updated_at: now, updated_by: actor.actorId } })
     return { rows: {}, data: { on: input.on } satisfies VoiceCloningData }
+  },
+
+  'callQuality.get': async ({ tx }) => ({ rows: {}, data: await callQualityAdminData(tx) }),
+
+  /**
+   * Server admin › Providers › Call quality. A level turned off moves every assistant on it to Standard (with a version
+   * each, by the admin), `restore` moves them back (Undo); audited (audit.ts).
+   */
+  'callQuality.set': async ({ tx, actor, now }, input: CallQualitySetInput) => {
+    const before = await callQualitySettings(tx)
+    const realtime = await realtimeSetUp(tx)
+    const after: CallQualitySettings = {
+      premium: input.premium ?? before.premium,
+      ultra: input.ultra ?? before.ultra,
+      default: input.default ?? before.default,
+      models: mergeModels(before.models, input.models),
+    }
+    if (input.ultra && !before.ultra && !realtime) throw Reject.t('server.api.callQualityNeedsRealtime')
+    // On and set up (Ultra needs a realtime model), after this change.
+    const enabled = { standard: true, premium: after.premium, ultra: after.ultra && realtime }
+    // The level new assistants start on stays one that is on; a level turned off takes it back to Standard.
+    if (input.default && !enabled[input.default])
+      throw Reject.t('server.api.callQualityOff', { level: CALL_QUALITY_LABELS[input.default] })
+    if (!enabled[after.default]) after.default = 'standard'
+    await checkDefaultModels(tx, after.models, input.models)
+    await saveCallQualitySettings(tx, after, actor.actorId, now)
+    const moved: CallQualityAdminData['moved'] = []
+    for (const level of ['premium', 'ultra'] as const)
+      if (before[level] && !after[level]) {
+        const rows = await moveToStandard(tx, null, [level], actor.actorId)
+        moved.push({ level, assistantIds: rows.map(r => r.id) })
+      }
+    if (input.restore) {
+      if (!enabled[input.restore.level])
+        throw Reject.t('server.api.callQualityOff', { level: CALL_QUALITY_LABELS[input.restore.level] })
+      await moveBackToLevel(tx, input.restore.assistantIds, input.restore.level, actor.actorId)
+    }
+    return { rows: {}, data: { ...(await callQualityAdminData(tx)), moved } }
   },
 
   'voicePipelinePolicy.get': async ({ tx }) => ({
@@ -656,5 +719,101 @@ async function cachedSample(
       )
     }
     throw e
+  }
+}
+
+// --- Call quality (Server admin › Providers)
+
+type LevelModelsInput = { llm?: string | null; voice?: Record<string, string | null>; stt?: string | null }
+type CallQualitySetInput = {
+  premium?: boolean
+  ultra?: boolean
+  default?: CallQuality
+  models?: { standard?: LevelModelsInput; premium?: LevelModelsInput; ultra?: { realtime?: string | null } }
+  restore?: { level: 'premium' | 'ultra'; assistantIds: string[] }
+}
+
+/** The stored default models with a change applied: a value sets it, null goes back to the built-in default. */
+function mergeModels(stored: CallQualitySettings['models'], change: CallQualitySetInput['models']) {
+  const level = (s: LevelDefaults, c: LevelModelsInput | undefined): LevelDefaults => {
+    if (!c) return s
+    const out: LevelDefaults = { ...s, voice: { ...s.voice } }
+    for (const key of ['llm', 'stt'] as const)
+      if (c[key] !== undefined) {
+        if (c[key] === null) delete out[key]
+        else out[key] = c[key]!
+      }
+    for (const [provider, model] of Object.entries(c.voice ?? {})) {
+      if (model === null) delete out.voice![provider]
+      else out.voice![provider] = model
+    }
+    if (!Object.keys(out.voice!).length) delete out.voice
+    return out
+  }
+  const realtime = change?.ultra?.realtime
+  return {
+    standard: level(stored.standard, change?.standard),
+    premium: level(stored.premium, change?.premium),
+    ultra: realtime === undefined ? stored.ultra : realtime === null ? {} : { ...stored.ultra, realtime },
+  }
+}
+
+/**
+ * The default models a change names must belong to their level (usage-level.ts): the language model at the install's
+ * provider, each voice model at its provider, a realtime model on Ultra.
+ */
+async function checkDefaultModels(
+  tx: Tx,
+  models: CallQualitySettings['models'],
+  change: CallQualitySetInput['models'],
+) {
+  const llm = await activeProvider(tx, 'llm').catch(() => null)
+  for (const level of ['standard', 'premium'] as const) {
+    const named = change?.[level]
+    if (!named) continue
+    const id = models[level].llm
+    if (named.llm && id && (!llm || !partFits(languageModelLevel(llm.provider, id), level)))
+      throw Reject.t('server.api.callQualityModelOutside', { level: CALL_QUALITY_LABELS[level] })
+    for (const [provider, model] of Object.entries(named.voice ?? {}))
+      if (model && !partFits(voiceModelLevel(provider, model), level))
+        throw Reject.t('server.api.callQualityModelOutside', { level: CALL_QUALITY_LABELS[level] })
+  }
+  const realtime = change?.ultra?.realtime
+  if (realtime && !realtimeModelLevel(realtime))
+    throw Reject.t('server.api.callQualityModelOutside', { level: CALL_QUALITY_LABELS.ultra })
+}
+
+/** What Server admin › Providers › Call quality shows (callQuality.get). */
+export async function callQualityAdminData(tx: Tx): Promise<CallQualityAdminData> {
+  const billed = await usageLevelsBilled(tx)
+  const settings = await callQualitySettings(tx)
+  const enabled = await enabledLevels(tx, settings)
+  const defaults = await levelDefaultModels(tx, settings, { billed })
+  const voices = await setUpProviders(tx, 'tts').catch(() => [])
+  const llmProvider = defaults.llmProvider
+  return {
+    settings,
+    realtimeSetUp: await realtimeSetUp(tx),
+    centsPerMinute: billed ? await levelCentsPerMinute(tx) : null,
+    llmProvider,
+    levels: CALL_QUALITIES.map(level =>
+      level === 'ultra'
+        ? {
+            level,
+            enabled: enabled.ultra,
+            models: [],
+            voiceModels: {},
+            realtimeModels: levelRealtimeModelsOf(),
+            defaults: { llm: null, voice: {}, realtime: defaults.ultra.realtime },
+          }
+        : {
+            level,
+            enabled: enabled[level],
+            models: llmProvider ? levelLanguageModelsOf(llmProvider, level) : [],
+            voiceModels: Object.fromEntries(voices.map(v => [v.provider, levelVoiceModelsOf(v.provider, level)])),
+            realtimeModels: [],
+            defaults: { llm: defaults[level].llm, voice: defaults[level].voice, realtime: null },
+          },
+    ),
   }
 }

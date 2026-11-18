@@ -9,6 +9,9 @@ import type { Assistant } from '@linedesk/db/types'
 import { DEFAULT_AI_DISCLOSURE, forwardsCalls, greetingFor } from '@linedesk/actions'
 import { and, asc, eq, ne } from 'drizzle-orm'
 import { type Handler, Reject } from './handler-context.ts'
+import { newAssistantLevel } from './call-quality.ts'
+import { mayRaiseLevel } from './level-raise.ts'
+import { picksForLevel } from './usage-levels.ts'
 
 const newId = () => `as_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 
@@ -76,9 +79,14 @@ export const assistantHandlers: Record<string, Handler> = {
     const source = input.copyOf ? await assistantIn(tx, workspaceId, input.copyOf) : null
     // The first contact named in the workspace's language (else the member's).
     const transfers = await newAssistantTransfers(tx, workspaceId, actor.locale)
+    // The install's default level, or the copied one's; a paid level only for the person who pays (level-raise.ts),
+    // anyone else starts it on Standard.
+    const wanted = source?.call_quality ?? (await newAssistantLevel(tx))
+    const level = wanted === 'standard' || (await mayRaiseLevel(tx, actor)) ? wanted : 'standard'
     const values = source
       ? {
           ...source,
+          ...(level !== source.call_quality ? { call_quality: level, ...(await picksForLevel(tx, source, level)) } : {}),
           id: newId(),
           name: input.name ?? `${source.name} copy`,
           // Transfer numbers are set on purpose per assistant (they need a confirmed email): a copy starts with the default.
@@ -93,6 +101,7 @@ export const assistantHandlers: Record<string, Handler> = {
           greeting: greetingFor(org?.name ?? 'us', name),
           ai_disclosure: DEFAULT_AI_DISCLOSURE,
           transfers,
+          call_quality: level,
         }
     const rows = await tx.insert(assistants).values(values).returning()
     await recordVersion(tx, workspaceId, rows[0]!.id, { by: actor.actorId, created: true })

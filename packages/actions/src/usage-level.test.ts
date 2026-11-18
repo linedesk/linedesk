@@ -10,9 +10,17 @@ import {
   REALTIME_MODEL_LEVELS,
   realtimeModelFor,
   realtimeModelLevel,
+  CALL_QUALITY_INSTALL_DEFAULT,
+  levelLanguageModel,
+  levelLanguageModelsOf,
+  levelRealtimeModel,
+  levelRealtimeModelsOf,
+  levelVoiceModel,
+  levelVoiceModelsOf,
+  partFits,
+  raisesLevel,
   USAGE_CENTS_PER_MINUTE,
   usageLevel,
-  usageLevelProblem,
   VOICE_MODEL_LEVELS,
   voiceModelFor,
   voiceModelLevel,
@@ -23,44 +31,114 @@ const v3 = { provider: 'elevenlabs', model: 'eleven_v3' }
 const mini = { provider: 'openai', model: 'gpt-4.1-mini' }
 const big = { provider: 'openai', model: 'gpt-5.4' }
 
+const call = (voice: { provider: string; model: string }, model: { provider: string; model: string }) => ({ voice, model })
+
 describe('usageLevel', () => {
-  it('is Standard when voice and model are Standard', () => {
-    expect(usageLevel({ voice: flash, model: mini, ownKeys: false })).toBe('standard')
+  const on = { ownKeys: false, levelEnabled: true }
+  it('is the call quality alone, not the highest of its parts', () => {
+    expect(usageLevel({ level: 'standard', parts: call(flash, mini), ...on })).toBe('standard')
+    expect(usageLevel({ level: 'premium', parts: call(v3, big), ...on })).toBe('premium')
   })
 
-  it('is Premium when the voice or the model is Premium', () => {
-    expect(usageLevel({ voice: v3, model: mini, ownKeys: false, allowPremium: true })).toBe('premium')
-    expect(usageLevel({ voice: flash, model: big, ownKeys: false, allowPremium: true })).toBe('premium')
-    expect(usageLevel({ voice: v3, model: big, ownKeys: false })).toBe('premium')
+  it('lets Premium run on Standard parts, at the Premium price (decision 3)', () => {
+    expect(usageLevel({ level: 'premium', parts: call(flash, mini), ...on })).toBe('premium')
+    expect(usageLevel({ level: 'premium', parts: call(v3, mini), ...on })).toBe('premium')
   })
 
-  it('is not allowed for Premium without Allow Premium', () => {
-    expect(usageLevel({ voice: v3, model: mini, ownKeys: false, allowPremium: false })).toBe('not_allowed')
-    expect(usageLevel({ voice: flash, model: mini, ownKeys: false, allowPremium: false })).toBe('standard')
+  it('is not allowed for a part that does not belong to the level', () => {
+    expect(usageLevel({ level: 'standard', parts: call(v3, mini), ...on })).toBe('not_allowed')
+    expect(usageLevel({ level: 'standard', parts: call(flash, big), ...on })).toBe('not_allowed')
+    expect(usageLevel({ level: 'ultra', parts: call(flash, mini), ...on })).toBe('not_allowed')
   })
 
-  it('is not allowed for an option in neither list', () => {
-    expect(usageLevel({ voice: flash, model: { provider: 'openai', model: 'gpt-5.6-terra' }, ownKeys: false })).toBe(
+  it('is not allowed on a level the server admin turned off, own keys or not', () => {
+    expect(usageLevel({ level: 'premium', parts: call(v3, big), ownKeys: false, levelEnabled: false })).toBe(
       'not_allowed',
     )
-    expect(usageLevel({ voice: { provider: 'cartesia', model: 'sonic-2' }, model: mini, ownKeys: false })).toBe(
+    expect(usageLevel({ level: 'premium', parts: call(v3, big), ownKeys: true, levelEnabled: false })).toBe(
       'not_allowed',
     )
   })
 
-  it('is own keys, whatever the choices, on the workspace own keys', () => {
-    expect(usageLevel({ voice: v3, model: { provider: 'x', model: 'y' }, ownKeys: true, allowPremium: false })).toBe(
+  it('is not allowed for an option in no list', () => {
+    expect(usageLevel({ level: 'premium', parts: call(flash, { provider: 'openai', model: 'gpt-5.6-terra' }), ...on })).toBe(
+      'not_allowed',
+    )
+    expect(usageLevel({ level: 'standard', parts: call({ provider: 'cartesia', model: 'sonic-2' }, mini), ...on })).toBe(
+      'not_allowed',
+    )
+  })
+
+  it('is own keys, whatever the parts, on the workspace own keys', () => {
+    expect(usageLevel({ level: 'standard', parts: call(v3, { provider: 'x', model: 'y' }), ownKeys: true, levelEnabled: true })).toBe(
       'own_keys',
     )
   })
 
   it('matches the model id at its provider only', () => {
-    expect(
-      usageLevel({ voice: flash, model: { provider: 'openrouter', model: 'openai/gpt-4.1-mini' }, ownKeys: false }),
-    ).toBe('standard')
-    expect(usageLevel({ voice: flash, model: { provider: 'openrouter', model: 'gpt-4.1-mini' }, ownKeys: false })).toBe(
+    expect(usageLevel({ level: 'standard', parts: call(flash, { provider: 'openrouter', model: 'openai/gpt-4.1-mini' }), ...on })).toBe(
+      'standard',
+    )
+    expect(usageLevel({ level: 'standard', parts: call(flash, { provider: 'openrouter', model: 'gpt-4.1-mini' }), ...on })).toBe(
       'not_allowed',
     )
+  })
+})
+
+describe('call quality', () => {
+  it('lets a part belong to its level: Standard Standard, Premium Premium and Standard, Ultra realtime only', () => {
+    expect(partFits('standard', 'standard')).toBe(true)
+    expect(partFits('premium', 'standard')).toBe(false)
+    expect(partFits('standard', 'premium')).toBe(true)
+    expect(partFits('premium', 'premium')).toBe(true)
+    expect(partFits('ultra', 'premium')).toBe(false)
+    expect(partFits('ultra', 'ultra')).toBe(true)
+    expect(partFits('standard', 'ultra')).toBe(false)
+    expect(partFits(null, 'premium')).toBe(false)
+  })
+
+  it('raises only to a dearer level', () => {
+    expect(raisesLevel('standard', 'premium')).toBe(true)
+    expect(raisesLevel('premium', 'ultra')).toBe(true)
+    expect(raisesLevel('ultra', 'premium')).toBe(false)
+    expect(raisesLevel('premium', 'standard')).toBe(false)
+    expect(raisesLevel('premium', 'premium')).toBe(false)
+  })
+
+  it('defaults to GPT-4.1 mini and Flash v2.5 on Standard, GPT-4.1 and Multilingual v2 on Premium', () => {
+    expect(levelLanguageModel('openai', 'standard')).toBe('gpt-4.1-mini')
+    expect(levelLanguageModel('openrouter', 'standard')).toBe('openai/gpt-4.1-mini')
+    expect(levelLanguageModel('openai', 'premium')).toBe('gpt-4.1')
+    expect(levelVoiceModel('elevenlabs', 'standard')).toBe('eleven_flash_v2_5')
+    expect(levelVoiceModel('elevenlabs', 'premium')).toBe('eleven_multilingual_v2')
+    expect(levelRealtimeModel()).toBe('gpt-realtime')
+  })
+
+  it('takes the first pick that belongs to the level, else the default, else what the provider has', () => {
+    expect(levelLanguageModel('openai', 'standard', 'gpt-5.4', 'gpt-5.4-nano')).toBe('gpt-5.4-nano')
+    expect(levelLanguageModel('openai', 'premium', 'gpt-5.4-mini')).toBe('gpt-5.4-mini')
+    expect(levelLanguageModel('mistral', 'premium')).toBe('mistral-small-latest')
+    expect(levelLanguageModel('groq', 'standard', 'llama-9')).toBe('llama-3.3-70b-versatile')
+    expect(levelLanguageModel('nobody', 'standard')).toBeNull()
+    expect(levelVoiceModel('cartesia', 'premium')).toBe('sonic-3.6')
+    expect(levelVoiceModel('elevenlabs', 'standard', 'eleven_v3')).toBe('eleven_flash_v2_5')
+    expect(levelRealtimeModel('gpt-realtime-mini', 'gpt-realtime-2')).toBe('gpt-realtime-2')
+  })
+
+  it('lists the models of a level', () => {
+    expect(levelVoiceModelsOf('elevenlabs', 'standard').map(m => m.id)).toEqual(['eleven_flash_v2_5'])
+    expect(levelVoiceModelsOf('elevenlabs', 'premium').map(m => m.id)).toEqual([
+      'eleven_flash_v2_5',
+      'eleven_multilingual_v2',
+      'eleven_v3',
+    ])
+    expect(levelLanguageModelsOf('openai', 'standard').map(m => m.id)).toEqual(['gpt-5.4-mini', 'gpt-4.1-mini', 'gpt-5.4-nano'])
+    expect(levelLanguageModelsOf('openai', 'ultra')).toEqual([])
+    expect(levelRealtimeModelsOf().map(m => m.id)).toEqual(['gpt-realtime', 'gpt-realtime-2'])
+  })
+
+  it('keeps Premium and Ultra on and new assistants on Standard on a fresh install', () => {
+    expect(CALL_QUALITY_INSTALL_DEFAULT).toMatchObject({ premium: true, ultra: true, default: 'standard' })
   })
 })
 
@@ -97,29 +175,6 @@ describe('the lists', () => {
       'gpt-5.4',
       'gpt-4.1',
     ])
-  })
-})
-
-describe('usageLevelProblem', () => {
-  it('names why a Cloud workspace may not use the choices', () => {
-    expect(usageLevelProblem({ voice: v3, model: mini, ownKeys: false, allowPremium: false })).toBe('premiumNotAllowed')
-    expect(usageLevelProblem({ voice: v3, model: mini, ownKeys: false, allowPremium: true })).toBeNull()
-    expect(
-      usageLevelProblem({
-        voice: flash,
-        model: { provider: 'openai', model: 'o9' },
-        ownKeys: false,
-        allowPremium: true,
-      }),
-    ).toBe('ownKeysOnly')
-    expect(
-      usageLevelProblem({
-        voice: flash,
-        model: { provider: 'openai', model: 'o9' },
-        ownKeys: true,
-        allowPremium: false,
-      }),
-    ).toBeNull()
   })
 })
 
@@ -161,15 +216,13 @@ describe('realtime models (Ultra)', () => {
     ])
     expect(realtimeModelLevel('gpt-realtime-mini')).toBeNull()
   })
-  it('a realtime call is Ultra, which needs Allow Ultra', () => {
-    expect(usageLevel({ voice: realtime, model: realtime, ownKeys: false })).toBe('not_allowed')
-    expect(usageLevel({ voice: realtime, model: realtime, ownKeys: false, allowUltra: true })).toBe('ultra')
-    expect(usageLevel({ voice: realtime, model: realtime, ownKeys: true })).toBe('own_keys')
-    expect(usageLevelProblem({ voice: realtime, model: realtime, ownKeys: false, allowPremium: true })).toBe(
-      'ultraNotAllowed',
-    )
+  it('a realtime model belongs to Ultra only', () => {
+    const on = { ownKeys: false, levelEnabled: true }
+    expect(usageLevel({ level: 'ultra', parts: call(realtime, realtime), ...on })).toBe('ultra')
+    expect(usageLevel({ level: 'premium', parts: call(realtime, realtime), ...on })).toBe('not_allowed')
+    expect(usageLevel({ level: 'ultra', parts: call(realtime, realtime), ownKeys: true, levelEnabled: true })).toBe('own_keys')
     const mini = { provider: 'openai_realtime', model: 'gpt-realtime-mini' }
-    expect(usageLevelProblem({ voice: mini, model: mini, ownKeys: false, allowPremium: true })).toBe('ownKeysOnly')
+    expect(usageLevel({ level: 'ultra', parts: call(mini, mini), ...on })).toBe('not_allowed')
   })
 })
 

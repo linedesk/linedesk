@@ -298,10 +298,10 @@ describe('the language the visitor picked', () => {
       const kept = Object.fromEntries(Object.keys(stages).map(k => [k, process.env[k]]))
       Object.assign(process.env, stages)
       const [own] = await db
-        .select({ pipeline: assistants.voice_pipeline })
+        .select({ level: assistants.call_quality })
         .from(assistants)
         .where(eq(assistants.id, ws.assistant.id))
-      await db.update(assistants).set({ voice_pipeline: 'three_stage' }).where(eq(assistants.id, ws.assistant.id))
+      await db.update(assistants).set({ call_quality: 'standard' }).where(eq(assistants.id, ws.assistant.id))
       const alert = vi.spyOn(console, 'error').mockImplementation(() => {})
       try {
         expect(await ask({ industry: 'auto', ipHash: hash(), language: code })).toEqual({
@@ -323,7 +323,7 @@ describe('the language the visitor picked', () => {
         alert.mockRestore()
         await db
           .update(assistants)
-          .set({ voice_pipeline: own?.pipeline ?? null })
+          .set({ call_quality: own?.level ?? 'standard' })
           .where(eq(assistants.id, ws.assistant.id))
         for (const [k, v] of Object.entries(kept)) {
           if (v === undefined) delete process.env[k]

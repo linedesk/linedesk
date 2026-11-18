@@ -420,7 +420,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
           ...(onCall ? { transfers: simulatedContacts(onCall) } : {}),
           ...(languages ? { languages: { ...(own.languages?.main ? { main: own.languages.main } : {}), mode: 'allowed' as const, allowed: languages } } : {}),
           ...(mainLanguage ? { languages: { main: mainLanguage, mode: 'english' as const, allowed: [] } } : {}),
-          ...(pipeline ? { voice_pipeline: pipeline } : {}),
+          ...(pipeline ? { call_quality: pipeline === 'realtime' ? ('ultra' as const) : ('standard' as const) } : {}),
         }
       : own
   // The greeting and instructions that apply now: outside business hours, the outside variants.

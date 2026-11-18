@@ -5,6 +5,7 @@
 // holds the stages when both are set up): `CallConfig` is either; configForAssistant picks the assistant's one.
 // `createConfigLoader()` builds the cached loader the worker uses (`loadAgentConfig` in worker.ts).
 import {
+  type CallQuality,
   languageModelFor,
   languageModelLevel,
   type UsageLevel,
@@ -450,8 +451,17 @@ export const pipelinesOf = (config: CallConfig): PipelinesSetUp => ({
 })
 
 /**
- * The config one assistant's call uses: the pipeline it chose (pipelineFor; null: the realtime model when one is set
- * up). When that one is not set up the other answers, with a line in the log: a call never goes unanswered over it.
+ * The pipeline an assistant's call answers with, by the call quality the API decided for this call (call.start names
+ * it on the assistant, decisions.md 2026-11-17): Ultra a realtime model, Standard and Premium the three stages. No
+ * assistant (or none named): null, the install's default.
+ */
+export const pipelineOfAssistant = (assistant: { call_quality?: CallQuality | null } | null | undefined): VoicePipeline | null =>
+  assistant?.call_quality ? (assistant.call_quality === 'ultra' ? 'realtime' : 'three_stage') : null
+
+/**
+ * The config one assistant's call uses: the pipeline of its call quality (pipelineOfAssistant; null: the realtime model
+ * when one is set up). When that one is not set up the other answers, with a line in the log: a call never goes
+ * unanswered over it (the API already falls back on an install that bills, so this is for one that does not).
  */
 export function configForAssistant(
   config: CallConfig,

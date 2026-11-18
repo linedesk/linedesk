@@ -510,8 +510,8 @@ describe('bill ownership (docs/billing.md §8)', () => {
   const SWITCHED_OFF = {
     allowPremium: false,
     allowUltra: false,
+    level: 'standard',
     llmModel: null,
-    pipeline: 'three_stage',
     realtimeModel: null,
   }
 

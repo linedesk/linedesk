@@ -12,6 +12,7 @@ import { isInstanceAdmin } from './instance-admin.ts'
 import { newAssistantTransfers } from './default-transfers.ts'
 import { addToWorkspace } from './memberships.ts'
 import { newAssistant, newWorkspaceSettings } from './onboarding.ts'
+import { newAssistantLevel } from './call-quality.ts'
 import {
   SETUP_LINK_CAP_TEXT,
   SETUP_LINK_WORKSPACE_CAP,
@@ -72,7 +73,7 @@ export async function insertWorkspace({ tx, now, actor }: HandlerCtx, input: Cre
   // After the settings: the assistant's first contact is named in the workspace's language, which they decide. For
   // another owner, never the admin's own language.
   const transfers = await newAssistantTransfers(tx, org!.id, forOther ? null : actor.locale)
-  await tx.insert(assistants).values(newAssistant(org!.id, name, transfers))
+  await tx.insert(assistants).values(newAssistant(org!.id, name, transfers, await newAssistantLevel(tx)))
   return org!
 }
 

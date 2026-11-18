@@ -9,7 +9,6 @@ import { actions, PROMPT_OVERRIDE_MAX, PROMPT_TEXTS, REDACTED, recordingKey } fr
 import {
   admin_devices,
   api_keys,
-  assistants,
   auth_events,
   calls,
   commands,
@@ -206,6 +205,8 @@ describe('access', () => {
       'branding.set',
       'calendarTools.get',
       'calendarTools.set',
+      'callQuality.get',
+      'callQuality.set',
       'impersonationEmails.get',
       'impersonationEmails.set',
       'install.setProgress',
@@ -2492,6 +2493,8 @@ describe('impersonation', () => {
       'call.markRead',
       'call.markUnread',
       'call.remind',
+      // Read-only and instance:admin, like setupEmails.get: an impersonation never has instance:admin.
+      'callQuality.get',
       'carrier.get',
       'carrier.transferTrunk',
       // Call emails (LIN-470): the section's reads.
@@ -5251,11 +5254,10 @@ describe('workspace.delete', () => {
   })
 })
 
-describe('how calls are answered: each assistant chooses, or the instance admin picks one for all', () => {
+// The older pipeline policy, until Server admin › Call quality replaces its card (call quality 3/5); calls follow the
+// assistant's call quality (usage-levels.test.ts).
+describe('the older pipeline policy: only instance admins read or change it', () => {
   const setPolicy = (policy: string) => act(operator, 'voicePipelinePolicy.set', { policy })
-  const startCall = async (ws: Workspace) =>
-    (await act(agent(), 'call.start', { from: `+1503${Math.floor(1e6 + Math.random() * 9e6)}`, to: ws.number })).body
-      .data.assistant.voice_pipeline
 
   afterAll(() => db.delete(instance_settings).where(eq(instance_settings.key, 'voice_pipeline.policy')))
 
@@ -5265,19 +5267,6 @@ describe('how calls are answered: each assistant chooses, or the instance admin 
     const ws = await createWorkspace('Pipeline Choice Plumbing')
     expect((await act(ws.owner, 'voicePipelinePolicy.set', { policy: 'realtime' })).status).toBe(403)
     expect((await setPolicy('sometimes')).status).toBe(422)
-  })
-
-  test("the agent gets the admin's pick for every assistant, and the assistant's own choice again under choice", async () => {
-    const ws = await createWorkspace('Pipeline Policy Plumbing')
-    await db.update(assistants).set({ voice_pipeline: 'three_stage' }).where(eq(assistants.id, ws.assistant.id))
-    expect((await setPolicy('realtime')).body.data).toEqual({ policy: 'realtime' })
-    expect((await act(operator, 'voicePipelinePolicy.get', {})).body.data).toEqual({ policy: 'realtime' })
-    expect(await startCall(ws)).toBe('realtime')
-    await setPolicy('choice')
-    expect(await startCall(ws)).toBe('three_stage')
-    // The assistant's own choice is kept while the admin decides, so letting workspaces choose again restores it.
-    const [stored] = await db.select().from(assistants).where(eq(assistants.id, ws.assistant.id))
-    expect(stored!.voice_pipeline).toBe('three_stage')
   })
 })
 

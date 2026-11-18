@@ -203,6 +203,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   // Install-wide switches a server admin sets for every workspace.
   'voiceCloning.set': 'admin',
   'voicePipelinePolicy.set': 'admin',
+  'callQuality.set': 'admin',
   // The wording of the assistant's system prompt for every workspace (LIN-346).
   'systemPrompt.setPart': 'admin',
   'systemPrompt.resetPart': 'admin',
@@ -367,15 +368,18 @@ export const TRANSFER_CHANGE_ACTIONS = ['assistant.update', 'assistant.restoreVe
 export const TRANSFER_CHANGE_KIND: AuditKind = 'integrations'
 
 /**
- * The same actions are audited when they changed what decides the assistant's usage level on Linedesk Cloud (the voice
- * model, the language model, the pipeline: what its calls cost): their handlers put `data.usageLevelChange` (before and
+ * The same actions are audited when they changed what decides the assistant's usage level on Linedesk Cloud (its call
+ * quality, and the models it picks within it): their handlers put `data.usageLevelChange` (before and
  * after, model ids only) in the result then. Kind `team`, like Allow Premium.
  */
 export const USAGE_LEVEL_CHANGE_KIND: AuditKind = 'team'
 type AuditedLevelFields = {
+  /** The assistant's call quality; missing in entries from before it (they have `voice_pipeline`). */
+  call_quality?: string
   voice_model: string | null
   llm_model: string | null
-  voice_pipeline: string | null
+  /** Entries from before call quality only. */
+  voice_pipeline?: string | null
   /** Missing in entries from before Ultra. */
   realtime_model?: string | null
 }
@@ -511,8 +515,11 @@ const transferChangeActions = sql.join(
 const transferChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb_typeof(c.result->'data'->'transferChanges') = 'object' or (c.rejected and c.input ? 'transfers')))`
 /** SQL: an assistant.update of `c` that changed the call email rules (or, before LIN-470, the instruction), or one refused whose input had them. */
 const emailRoutingChangeSql = sql`(c.action = 'assistant.update' and (jsonb_typeof(c.result->'data'->'emailRoutingChanges') = 'object' or (c.rejected and (c.input ? 'email_rules' or c.input ? 'email_routing'))))`
-/** SQL: a command of `c` that changed what decides the assistant's usage level (`data.usageLevelChange` an object). */
-const usageLevelChangeSql = sql`(c.action in (${transferChangeActions}) and jsonb_typeof(c.result->'data'->'usageLevelChange') = 'object')`
+/**
+ * SQL: a command of `c` that changed what decides the assistant's usage level (`data.usageLevelChange` an object), or
+ * one refused whose input named a call quality (a raise by someone who may not pay, for one).
+ */
+const usageLevelChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb_typeof(c.result->'data'->'usageLevelChange') = 'object' or (c.rejected and c.input ? 'call_quality')))`
 
 /**
  * A change of the recording notice (workspace.updateSettings with `recordingNoticeOn` or `recordingNotice`): turned

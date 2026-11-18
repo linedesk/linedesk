@@ -293,7 +293,8 @@ async function demoAssistant(
       greeting: assistants.greeting,
       voice: assistants.voice,
       llmModel: assistants.llm_model,
-      voicePipeline: assistants.voice_pipeline,
+      callQuality: assistants.call_quality,
+      realtimeModel: assistants.realtime_model,
       recordCalls: assistants.record_calls,
       transfers: assistants.transfers,
       transferNumber: assistants.transfer_number,
@@ -336,7 +337,8 @@ async function demoAssistant(
     const voice = await assistantVoiceOf(tx, {
       voice: row.voice,
       llm_model: row.llmModel,
-      voice_pipeline: row.voicePipeline,
+      call_quality: row.callQuality,
+      realtime_model: row.realtimeModel,
     })
     if (voice && !voiceSpeaks(voice, language)) {
       warnOnce(

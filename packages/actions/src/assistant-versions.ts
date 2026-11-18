@@ -12,8 +12,8 @@ import {
   silenceReminderOf,
   talkingSpeedLabel,
   talkingSpeedPctOf,
-  VOICE_PIPELINE_LABELS,
 } from './settings.ts'
+import { CALL_QUALITY_LABELS } from './usage-level.ts'
 
 /** The assistant's columns a version keeps: everything that changes a call. */
 export const VERSIONED_FIELDS = [
@@ -38,7 +38,7 @@ export const VERSIONED_FIELDS = [
   'record_calls',
   'talking_speed',
   'talking_speed_pct',
-  'voice_pipeline',
+  'call_quality',
   'realtime_voice',
   'realtime_model',
 ] as const satisfies readonly (keyof Assistant)[]
@@ -154,9 +154,10 @@ export const VERSION_PARTS: readonly VersionPart[] = [
         .join('\n') || 'None',
   },
   {
-    id: 'voice_pipeline',
-    label: 'Answered by',
-    text: s => (s.voice_pipeline ? VOICE_PIPELINE_LABELS[s.voice_pipeline] : 'Install default'),
+    id: 'call_quality',
+    label: 'Call quality',
+    // A version from before call quality: Standard, the column's default.
+    text: s => CALL_QUALITY_LABELS[s.call_quality ?? 'standard'],
   },
   {
     id: 'voice',

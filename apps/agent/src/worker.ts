@@ -61,6 +61,7 @@ import {
   createConfigLoader,
   isRealtime,
   parseProviderSettings,
+  pipelineOfAssistant,
   SETTINGS_TTL_MS,
   stagesOf,
   withAssistantModel,
@@ -902,7 +903,7 @@ async function entry(ctx: JobContext) {
       withAssistantRealtimeVoice(
         withLevelFallbacks(
           withAssistantModel(
-            configForAssistant(readiness.config, registered.assistant?.voice_pipeline, warn),
+            configForAssistant(readiness.config, pipelineOfAssistant(registered.assistant), warn),
             registered.assistant?.llm_model,
           ),
           registered.usageLevel,
@@ -982,7 +983,7 @@ async function tellCaller(
   const readiness = await ready
   if (!readiness.ready) return
   const config = withAssistantRealtimeVoice(
-    configForAssistant(readiness.config, call.assistant?.voice_pipeline, () => {}),
+    configForAssistant(readiness.config, pipelineOfAssistant(call.assistant), () => {}),
     call.assistant?.realtime_voice,
   )
   const joined = await Promise.race([
