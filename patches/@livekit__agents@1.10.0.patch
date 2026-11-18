@@ -236,6 +236,38 @@ index b395941db61248002ab9ee014ac64ee891db42b6..d57cf810527867ad233ae5c84edbe2c4
    start() {
      if (this.started) {
        return;
+diff --git a/dist/tts/tts.cjs b/dist/tts/tts.cjs
+index 88a107fbc195c08f392cc680c0b55bc102e59ba9..c2c6f3aec29cd44f01881ef6f6ed437f63d802d1 100644
+--- a/dist/tts/tts.cjs
++++ b/dist/tts/tts.cjs
+@@ -668,6 +668,11 @@ class ChunkedStream {
+           attemptQueue.close();
+         }
+         await drainAttemptQueue;
++        if (this.abortController.signal.aborted) {
++          // Linedesk patch (LIN-516): the stream was closed on purpose (an interrupted reply, a dropped preemptive
++          // generation); a request that fails because of that abort is no error, else the session closes as unrecoverable.
++          return;
++        }
+         if (error instanceof import_exceptions.APIError) {
+           const shouldRetry = error.retryable && this._connOptions.maxRetry > 0 && i < this._connOptions.maxRetry;
+           if (!shouldRetry) {
+diff --git a/dist/tts/tts.js b/dist/tts/tts.js
+index 71d7fb7c1ad8e44e05ae8b736f7cfabd8935bff0..fcf872578ed8688d3daea178fe3354b343387a22 100644
+--- a/dist/tts/tts.js
++++ b/dist/tts/tts.js
+@@ -652,6 +652,11 @@ class ChunkedStream {
+           attemptQueue.close();
+         }
+         await drainAttemptQueue;
++        if (this.abortController.signal.aborted) {
++          // Linedesk patch (LIN-516): the stream was closed on purpose (an interrupted reply, a dropped preemptive
++          // generation); a request that fails because of that abort is no error, else the session closes as unrecoverable.
++          return;
++        }
+         if (error instanceof APIError) {
+           const shouldRetry = error.retryable && this._connOptions.maxRetry > 0 && i < this._connOptions.maxRetry;
+           if (!shouldRetry) {
 diff --git a/dist/worker.cjs b/dist/worker.cjs
 index 360da761381211c8012e6d5f636977e46d99b4fd..09e43576e4e287d0ec92981aa36002ed2e4c2171 100644
 --- a/dist/worker.cjs
