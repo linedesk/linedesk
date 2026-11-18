@@ -3,10 +3,10 @@
 // holds the steps when they are gone through again from the settings ("Step by step", StepByStep.tsx).
 import { useT } from '@linedesk/i18n/react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Button } from '../ui/kit.tsx'
+import { Button, cx } from '../ui/kit.tsx'
 import { useClientWord } from './clientWords.tsx'
 import { onboardingSteps, stepLabelKeys, type OnboardingStep } from './flow.ts'
-import { brandName } from '../brand.ts'
+import { brandName, installBrandName } from '../brand.ts'
 import { StepModeContext } from './SetupFoot.tsx'
 import { SetupTopBar } from './SetupTopBar.tsx'
 
@@ -54,6 +54,9 @@ export function Frame({
   edit = false,
   planOnly = false,
   onAgentSetup,
+  exitTitle,
+  brand = 'app',
+  closes = false,
   children,
 }: {
   step: OnboardingStep
@@ -80,21 +83,37 @@ export function Frame({
    * what is saved (setup-choice.ts, `agentSetupWayBack`). Only for someone that page is for.
    */
   onAgentSetup?: () => void
+  /** The way out's tooltip where it leads somewhere else than the go-live checklist (a client draft: the partner's setup). */
+  exitTitle?: string
+  /**
+   * `install`: the install's own brand, never a white-label one: a partner's team setting up a client workspace is doing
+   * the partner's own work, as on the partner's setup pages (its account menu lists every workspace, this one too).
+   */
+  brand?: 'app' | 'install'
+  /** The last step ends the steps where they were opened (a client draft back to the partner's setup): Done, no Later. */
+  closes?: boolean
   children: ReactNode
 }) {
   const t = useT()
   const word = useClientWord()
   const index = steps.indexOf(step)
+  const install = brand === 'install'
   const name = step === 'activate' && planOnly ? t('onboarding.steps.activatePlan') : t(word(stepLabelKeys[step]))
   return (
-    <div className="ob" role="main" aria-label={t('onboarding.frame.title', { brand: brandName() })}>
+    <div
+      className={cx('ob', install && 'k-install-brand')}
+      role="main"
+      aria-label={t('onboarding.frame.title', { brand: install ? installBrandName() : brandName() })}
+    >
       <SetupTopBar
         step={{ n: counted.indexOf(step) + 1, m: counted.length, name }}
         ahead={complete}
         agentPath={onAgentSetup}
-        exit={onSkip ? { kind: edit ? 'close' : 'finish-later', onExit: onSkip } : null}
+        exit={onSkip ? { kind: edit ? 'close' : 'finish-later', onExit: onSkip, title: exitTitle } : null}
+        brand={brand}
+        away={install}
       />
-      <StepModeContext.Provider value={{ edit, last: index === steps.length - 1 }}>
+      <StepModeContext.Provider value={{ edit, last: index === steps.length - 1, closes }}>
         <div className="ob-main">{children}</div>
       </StepModeContext.Provider>
     </div>

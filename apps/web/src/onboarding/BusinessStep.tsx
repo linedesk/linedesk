@@ -244,7 +244,7 @@ function FindBusiness({
                 onClick={() => void search()}
                 title={t('onboarding.business.find.searchTip', { key: 'Enter' })}
               >
-                {searching ? t('onboarding.business.find.searching') : t('common.search.button')}
+                {t('common.search.button')}
               </Button>
             </div>
           </Field>

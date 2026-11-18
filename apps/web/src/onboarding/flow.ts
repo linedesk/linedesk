@@ -68,6 +68,61 @@ export const trialSteps: readonly OnboardingStep[] = [
   ...onboardingSteps.slice(onboardingSteps.indexOf('phone')),
 ]
 
+/**
+ * The steps a workspace goes through by hand (2026-11-18): a trial sign-up (its own bill: `trialSteps`, before and after
+ * the card, so the count runs on and Back from the number passes "Start your free trial" as done); a partner's draft
+ * client workspace (the free steps); else, off billing, the onboarding's.
+ */
+type StepsFor = {
+  /** The steps gone through, Back and Continue. */
+  steps: readonly OnboardingStep[]
+  /** The steps the counter counts: a trial sign-up's whole way, also while it waits for the card. */
+  counted: readonly OnboardingStep[]
+  /** A white-label partner's draft client workspace. */
+  draft: boolean
+  /** Waiting for the trial's (or the plan's) Checkout: `activate` is the step that starts it. */
+  activating: boolean
+}
+
+export function stepsFor(
+  workspace:
+    | { billingState?: 'pending_payment' | 'active' | 'suspended' | null; partnerManaged?: boolean }
+    | null
+    | undefined,
+): StepsFor {
+  const pending = workspace?.billingState === 'pending_payment'
+  if (pending && workspace?.partnerManaged)
+    return { steps: partnerDraftSteps, counted: partnerDraftSteps, draft: true, activating: false }
+  if (pending) return { steps: activationSteps, counted: trialSteps, draft: false, activating: true }
+  if (workspace?.billingState && !workspace.partnerManaged)
+    return { steps: trialSteps, counted: trialSteps, draft: false, activating: false }
+  return { steps: onboardingSteps, counted: onboardingSteps, draft: false, activating: false }
+}
+
+const DRAFT_FROM = 'linedesk.draftFrom.'
+
+/**
+ * Where a partner's client draft was opened (the partner's setup, the partner area, the partner's agent page), kept in
+ * this tab across the reload the switch makes: its last step goes back there. Called by whatever opens the draft.
+ */
+export function rememberDraftOpenedFrom(workspaceId: string, hash: string, storage?: Storage) {
+  try {
+    ;(storage ?? sessionStorage).setItem(DRAFT_FROM + workspaceId, hash)
+  } catch {
+    // Storage off (a private window): the role decides, as before.
+  }
+}
+
+/** Where the client draft `workspaceId` was opened in this tab, or null (then the partner role decides). */
+export function draftOpenedFrom(workspaceId: string, storage?: Storage): string | null {
+  try {
+    const hash = (storage ?? sessionStorage).getItem(DRAFT_FROM + workspaceId)
+    return hash?.startsWith('#partner') ? hash : null
+  } catch {
+    return null
+  }
+}
+
 /** The steps' names (keys: a partner's team reads the client's words for some, clientWords.tsx). */
 export const stepLabelKeys = {
   business: msg('onboarding.steps.business'),

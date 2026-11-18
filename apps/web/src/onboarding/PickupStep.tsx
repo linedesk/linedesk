@@ -72,11 +72,8 @@ export function PickupStep(p: StepProps) {
           skeleton={<SkeletonFields fields={3} />}
         />
       </div>
-      {settings.error ? (
-        <Foot onBack={onBack} onContinue={onNext} canContinue label={t('onboarding.action.later')} />
-      ) : (
-        <Foot onBack={onBack} onContinue={onNext} canContinue={false} />
-      )}
+      {/* Not loaded: the step waits for later (the quiet Later), never as the primary. */}
+      <Foot onBack={onBack} onContinue={onNext} canContinue={false} onSkipStep={settings.error ? onNext : undefined} />
     </>
   )
 }

@@ -10,8 +10,10 @@ import { Button } from '../ui/kit.tsx'
 /**
  * How the steps are gone through: the first setup (onboarding), or again from the settings (`edit`, StepByStep.tsx),
  * where the last step's Continue says Done and nothing is put off for "Later" (the settings stay where they are).
+ * `closes`: the last step ends the steps where they were opened (again from the settings, or a partner's client draft
+ * that goes back to the partner's setup): its primary says Done and it offers no "Later".
  */
-export type StepMode = { edit: boolean; last: boolean }
+export type StepMode = { edit: boolean; last: boolean; closes?: boolean }
 export const StepModeContext = createContext<StepMode>({ edit: false, last: false })
 
 /** Whether the step shows in the first setup or again from the settings, and whether it is the last one. */
@@ -63,9 +65,10 @@ export function SetupFoot({
 }: SetupFootProps) {
   const t = useT()
   const mode = useStepMode()
-  // Again from the settings: the last step's Continue ends there ("Done"), and nothing is put off for later.
-  const continueLabel = mode.edit && mode.last ? t('onboarding.frame.done') : (label ?? t('onboarding.action.continue'))
-  const skipStep = mode.edit ? undefined : onSkipStep
+  // Again from the settings, or a client draft's last step: its Continue ends there ("Done"), nothing waits for later.
+  const closing = mode.last && (mode.edit || !!mode.closes)
+  const continueLabel = closing ? t('onboarding.frame.done') : (label ?? t('onboarding.action.continue'))
+  const skipStep = mode.edit || closing ? undefined : onSkipStep
   return (
     <div className="ob-foot">
       {onBack ? (

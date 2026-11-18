@@ -2,7 +2,9 @@
 // (AgentSetup.tsx). One screen per provider group a first answered call needs, in the order of Server admin ›
 // Providers: each step is its heading, the same group panel as Server admin › Providers (ProviderGroup, embedded: it
 // opens the provider's dialog in place and never navigates away) and the footer. The dialog has Test again and Try it, a real
-// round trip (`provider.tryOut`). Welcome and Done show the "Ready for calls" list. Where the admin got to is kept on
+// round trip (`provider.tryOut`). Welcome and Done list the four parts in the agent page's rows (a mark where a part
+// works; on Done a way back to each part that does not). Only the four parts are counted ("Step n of 4"); Welcome and
+// Done say "By hand" in the top bar. Where the admin got to is kept on
 // the server (`install.setProgress`), so it resumes there. It opens only after the passkey check of Server admin
 // (SecondFactorPrompt), so the admin has a passkey here already (LIN-248).
 import {
@@ -15,7 +17,6 @@ import {
 } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
-import { LinkButton } from '../ui/AppLink.tsx'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { type AdminData, reloadAdminData, loadInstallSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
 import { errorText } from '../admin/notify.ts'
@@ -25,11 +26,11 @@ import { ProviderDialogFor } from '../admin/Providers.tsx'
 import { type ProviderStatusState, useProviderStatus } from '../admin/providerStatus.ts'
 import { useAdminData } from '../admin/useAdminData.ts'
 import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
-import { StatusList } from '../admin/StatusCard.tsx'
 import { TryOut } from '../admin/TryOut.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
-import { Note } from '../ui/kit.tsx'
+import { Button, cx, Note } from '../ui/kit.tsx'
+import { MarkGlyph } from '../ui/StatusMark.tsx'
 import { leaveInstallSetup } from './leave-install-setup.ts'
 import { Loading, problemText, SkeletonFields } from '../ui/LoadStates.tsx'
 import { HostingNote, openAgentSetup } from './AgentSetup.tsx'
@@ -37,7 +38,6 @@ import { SetupFoot } from './SetupFoot.tsx'
 import { SetupTopBar } from './SetupTopBar.tsx'
 import '../admin/admin.css'
 import './agent-setup.css'
-import './install-setup.css'
 
 export const INSTALL_SETUP_HASH = '#setup-install'
 /**
@@ -82,12 +82,24 @@ type PartStepId = Exclude<InstallStep, 'welcome' | 'done'>
 const partSteps = installSteps.filter(s => installStepGroups[s]) as PartStepId[]
 const RESTART_POLL_MS = 2500
 
+/**
+ * The top bar of a walkthrough screen: only the four parts are counted (`part`: "Step 2 of 4 · Answering calls"),
+ * Welcome and Done have none (the bar says "By hand"); the line runs from the welcome (empty) to Done (full).
+ */
+export function installTopBar(step: InstallStep): { part: { n: number; m: number } | null; progress: number } {
+  const at = partSteps.indexOf(step as PartStepId)
+  return {
+    part: at >= 0 ? { n: at + 1, m: partSteps.length } : null,
+    progress: Math.round((installSteps.indexOf(step) / (installSteps.length - 1)) * 100),
+  }
+}
+
 type Props = {
   /** Leave the walkthrough: on to the business setup, or the app as it is. */
   onExit: () => void
   /**
-   * Back to the agent setup page (App.tsx): in the top bar of every step between the welcome (which offers it in its
-   * note) and the last, as in the business setup's frame (Frame.tsx).
+   * Back to the agent setup page (App.tsx): in the top bar of every step but the last, as in the business setup's frame
+   * (Frame.tsx). Without it (a first run in no workspace yet), the agent page opens by its address.
    */
   onAgentSetup?: () => void
 }
@@ -166,13 +178,16 @@ export function InstallSetup({ onExit, onAgentSetup }: Props) {
 
   const index = step ? installSteps.indexOf(step) : 0
   const groups = status.status?.groups ?? null
+  const bar = step ? installTopBar(step) : { part: null, progress: 0 }
   return (
     <div className="ob is" role="main" aria-label={t('onboarding.install.label', { brand: brandName() })}>
       <SetupTopBar
-        step={step ? { n: index + 1, m: installSteps.length, name: t(stepLabelKeys[step]) } : undefined}
-        label={step ? undefined : t('onboarding.install.count')}
-        agentPath={onAgentSetup && step && step !== 'welcome' && step !== 'done' ? onAgentSetup : undefined}
-        exit={{ kind: 'finish-later', onExit: later, title: t('onboarding.install.laterTip') }}
+        step={bar.part && step ? { ...bar.part, name: t(stepLabelKeys[step]) } : undefined}
+        label={bar.part ? undefined : t('onboarding.install.count')}
+        progress={bar.progress}
+        agentPath={step === 'done' ? undefined : (onAgentSetup ?? openAgentSetup)}
+        // Done is the end of the walkthrough: its own button goes on, there is nothing to finish later.
+        exit={step === 'done' ? null : { kind: 'finish-later', onExit: later, title: t('onboarding.install.laterTip') }}
       />
       <div className="ob-main as-main">
         {!setup || !step || !data || !groups ? (
@@ -187,7 +202,6 @@ export function InstallSetup({ onExit, onAgentSetup }: Props) {
         ) : step === 'done' ? (
           <Done
             status={status}
-            skipped={setup.progress.skipped}
             onBack={() => go(installSteps[index - 1]!)}
             onOpen={step => go(step)}
             onFinish={finish}
@@ -249,13 +263,11 @@ function Welcome({ status, onStart }: { status: ProviderStatusState; onStart: ()
       </div>
       <HostingNote address={window.location.origin} />
       <section className="as-card">
-        <StatusList groups={status.status!.groups} links={false} />
+        <Parts status={status} />
       </section>
+      {/* The way to the agent is the top bar's "Set up with an AI agent", as on every step. */}
       <Note tone="info">
-        <T k="onboarding.install.agentNote" values={BOLD} />{' '}
-        <LinkButton onClick={openAgentSetup} title={t('onboarding.install.agentTip')}>
-          {t('onboarding.install.agentButton')}
-        </LinkButton>
+        <T k="onboarding.install.agentNote" values={BOLD} />
       </Note>
       <SetupFoot onContinue={onStart} label={t('onboarding.install.welcome.start')} />
     </>
@@ -264,6 +276,43 @@ function Welcome({ status, onStart }: { status: ProviderStatusState; onStart: ()
 
 /** `<b>…</b>` in a message. */
 const BOLD = { b: (chunks: ReactNode[]) => <b>{chunks}</b> }
+
+/**
+ * The four parts in the agent page's rows (agent-setup.css `.as-list`): a filled mark and the provider in use where a
+ * part works. `onOpen` (Done): each part that does not work says what is missing without it and has a way back to it.
+ */
+function Parts({ status, onOpen }: { status: ProviderStatusState; onOpen?: (step: PartStepId) => void }) {
+  const t = useT()
+  return (
+    <ul className="as-list">
+      {partSteps.map(s => {
+        const group = groupOfStep(status, s)
+        const works = group.state === 'works'
+        const failing = group.state === 'failing'
+        const effect = !works && onOpen && skipEffectKeys[s] ? t(skipEffectKeys[s]) : null
+        return (
+          <li key={s} className={cx('as-item', works && 'done', failing && 'failing')}>
+            <span className="as-mark" aria-hidden>
+              {works ? <MarkGlyph kind="works" size={12} /> : failing ? <MarkGlyph kind="partly" size={12} /> : null}
+            </span>
+            <span className="as-item-label">
+              {t(stepLabelKeys[s])}
+              {works && group.providerLabel && <span className="as-hint"> · {group.providerLabel}</span>}
+              {effect && <span className="as-hint as-hint-line">{effect}</span>}
+            </span>
+            {!works && onOpen && (
+              <span className="as-item-action">
+                <Button size="sm" variant="secondary" onClick={() => onOpen(s)}>
+                  {t('onboarding.install.done.setUp')}
+                </Button>
+              </span>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
 
 type PartProps = {
   step: PartStepId
@@ -319,15 +368,14 @@ function PartStep({ step, data, status, setup, reloadAll, onBack, onNext, onSkip
         </p>
       )}
 
+      {/* Not set up yet: the quiet "Later" goes on, Continue (and Enter) waits for the part to work. */}
       <SetupFoot
         onBack={onBack}
         backTitle={t('onboarding.action.backTip')}
-        onSkipStep={ready && group.state !== 'works' ? onSkip : undefined}
-        laterLabel={t('onboarding.action.later')}
+        onSkipStep={group.state !== 'works' ? onSkip : undefined}
         laterTitle={skipTitle}
-        onContinue={ready ? onNext : onSkip}
-        label={ready ? t('onboarding.action.continue') : t('onboarding.action.later')}
-        variant={ready ? 'primary' : 'secondary'}
+        onContinue={onNext}
+        canContinue={ready}
       />
 
       {dialog && (
@@ -346,13 +394,11 @@ function PartStep({ step, data, status, setup, reloadAll, onBack, onNext, onSkip
 
 function Done({
   status,
-  skipped,
   onBack,
   onOpen,
   onFinish,
 }: {
   status: ProviderStatusState
-  skipped: readonly InstallStep[]
   onBack: () => void
   onOpen: (step: InstallStep) => void
   onFinish: () => void
@@ -369,26 +415,8 @@ function Done({
         </p>
       </div>
       <section className="as-card">
-        <StatusList groups={status.status!.groups} links={false} />
+        <Parts status={status} onOpen={onOpen} />
       </section>
-      {open.length > 0 && (
-        <ul className="is-remaining">
-          {open.map(s => (
-            <li key={s}>
-              <T
-                k={
-                  skipped.includes(s) ? 'onboarding.install.done.remainingSkipped' : 'onboarding.install.done.remaining'
-                }
-                values={{
-                  part: t(stepLabelKeys[s]),
-                  effect: skipEffectKeys[s] ? t(skipEffectKeys[s]) : '',
-                  link: chunks => <LinkButton onClick={() => onOpen(s)}>{chunks}</LinkButton>,
-                }}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
       {/* A hint, not a link: the walkthrough never leaves itself (Server admin has no way back to this step). */}
       <Note tone="info">{t('onboarding.install.done.later')}</Note>
       <SetupFoot

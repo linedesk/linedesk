@@ -81,6 +81,24 @@ function Activate({ me, activation: a, onBack, onTermsChanged }: Props & { activ
 export type StartTrial = ReturnType<typeof useStartTrial>
 
 /**
+ * "Start your free trial" once it is done (the trial or the plan runs): what came of it, as the Checkout return said,
+ * where Back from the number passes it, so the count goes 6, 5, 4 and never jumps over it. Nothing to start again here.
+ */
+export function ActivatedStep({ trial, onBack, onNext }: { trial: boolean; onBack: () => void; onNext: () => void }) {
+  const t = useT()
+  useStepKeys({ onEnter: onNext, onEscape: onBack })
+  return (
+    <>
+      <div className="ob-body">
+        <h1>{trial ? t('auth.checkout.trialTitle') : t('auth.checkout.planTitle')}</h1>
+        <p className="ob-lede">{trial ? t('auth.checkout.trialText') : t('auth.checkout.planText')}</p>
+      </div>
+      <Foot onBack={onBack} onContinue={onNext} />
+    </>
+  )
+}
+
+/**
  * Starting the trial (or the plan, after a refused trial) through Stripe Checkout, from this step or from the owner's
  * agent setup page (its Start your free trial row, SetupRowActions.tsx). `byHand`: back from Checkout the onboarding goes on
  * by hand (this step); from the agent setup page it opens that page again.

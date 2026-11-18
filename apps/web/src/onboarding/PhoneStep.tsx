@@ -101,7 +101,8 @@ function Unavailable({
 }) {
   const t = useT()
   const later = useLater()
-  useStepKeys({ onEnter: onNext, onEscape: onBack })
+  // Nothing to connect: Enter does nothing (no primary), Esc goes back.
+  useStepKeys({ onEscape: onBack })
   return (
     <>
       <div className="ob-body">
@@ -120,7 +121,7 @@ function Unavailable({
           )}
         </p>
       </div>
-      <Foot onBack={onBack} onContinue={onNext} canContinue label={later.laterLabel} />
+      <Foot onBack={onBack} onContinue={onNext} canContinue={false} onSkipStep={onNext} {...later} />
     </>
   )
 }
@@ -178,8 +179,7 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
     void run('phoneNumber.setup', result.input)
   }
   function primary() {
-    if (sending) return
-    if (nothingToConnect) return onNext()
+    if (sending || nothingToConnect) return
     if (!buying) return send(false)
     // Buying is a second, deliberate step: the first press asks the question above the footer, whose primary button
     // then buys (a click, or Enter once the question has been read for a moment).
@@ -327,22 +327,21 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
       <Foot
         onBack={confirming && !sending ? () => setConfirming(false) : onBack}
         onContinue={primary}
-        onSkipStep={nothingToConnect || confirming ? undefined : onNext}
+        onSkipStep={confirming ? undefined : onNext}
         {...later}
-        canContinue
+        canContinue={!nothingToConnect}
         busy={sending}
+        // Nothing to connect here: the primary stays off, only "Connect later" goes on.
         label={
-          nothingToConnect
-            ? later.laterLabel
-            : confirming
+          confirming
+            ? dev
+              ? t('onboarding.phone.choose.addTestNumber')
+              : t('onboarding.phone.choose.buyNumber')
+            : buying
               ? dev
-                ? t('onboarding.phone.choose.addTestNumber')
-                : t('onboarding.phone.choose.buyNumber')
-              : buying
-                ? dev
-                  ? t('onboarding.phone.choose.addATestNumber')
-                  : t('onboarding.phone.choose.getNumber')
-                : t('onboarding.phone.choose.connectNumber')
+                ? t('onboarding.phone.choose.addATestNumber')
+                : t('onboarding.phone.choose.getNumber')
+              : t('onboarding.phone.choose.connectNumber')
         }
       />
     </>

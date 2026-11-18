@@ -5,7 +5,7 @@ import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
 import { useEffect, useRef, useState } from 'react'
 import { AdminMode } from '../admin/AdminMode.tsx'
-import { ActivateStep } from './ActivateStep.tsx'
+import { ActivatedStep, ActivateStep } from './ActivateStep.tsx'
 import type { Me, OnboardingState, PhoneSetupStatus, WebsiteImport } from '../auth.ts'
 import { brandName, useBrand } from '../brand.ts'
 import { ConfirmEmail } from '../ConfirmEmail.tsx'
@@ -20,8 +20,6 @@ import { AssistantStep } from './AssistantStep.tsx'
 import { BusinessStep } from './BusinessStep.tsx'
 import { Foot, Frame, useStepKeys } from './Frame.tsx'
 import {
-  activationSteps,
-  trialSteps,
   type DoneLeft,
   doneState,
   mobileErrorText,
@@ -31,10 +29,12 @@ import {
   onboardingSteps,
   partnerDraftSteps,
   type PickupMemory,
+  draftOpenedFrom,
   phoneSetupErrorText,
   previousStep,
   rejectionStep,
   stepLabelKeys,
+  stepsFor,
   URGENT_CONTACT_ID,
 } from './flow.ts'
 import { InstanceSetupNotice, isInstanceAdmin, useHash } from './InstanceSetup.tsx'
@@ -81,9 +81,11 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload, onAgentSetup }
     if (offersTour(firstUse)) queueTour(me.workspace!.id)
     onDone()
   }
-  // A white-label partner's draft client workspace (setup before payment): the free steps, then back to the partner's
-  // setup (its Clients step, or the partner area for a partner admin); the number waits for the partner's Checkout.
-  const partnerDraft = me.workspace?.billingState === 'pending_payment' && !!me.workspace.partnerManaged
+  // Waiting for its trial (docs/billing.md §3.2): the setup, then `activate` (the card); the number only after it. Once
+  // it runs, the count goes on over "Start your free trial" as a done step (Step 5 of 7, then 6 of 7, and back again).
+  // A white-label partner's draft client workspace (setup before payment): the free steps, then back to where the draft
+  // was opened (the partner's setup, the partner area); the number waits for the partner's Checkout.
+  const { steps, counted, draft: partnerDraft, activating } = stepsFor(me.workspace)
   const [step, setStep] = useState<OnboardingStep>(() =>
     partnerDraft && !partnerDraftSteps.includes(state.step) ? 'notify' : state.step,
   )
@@ -103,18 +105,18 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload, onAgentSetup }
   // What the pick-up step changed this session (hours it turned on, the forwarding a number had before).
   const [pickupMemory, setPickupMemory] = useState<PickupMemory>(NO_PICKUP_MEMORY)
   const hasNumber = useRows('phone_numbers').length > 0
-  // Waiting for its trial (docs/billing.md §3.2): the setup, then `activate` (the card); the number only after it. A
-  // white-label partner's draft client workspace waits for the partner's Checkout instead: no card step of its own.
-  const activating = me.workspace?.billingState === 'pending_payment' && !me.workspace.partnerManaged
-  const steps = partnerDraft ? partnerDraftSteps : activating ? activationSteps : onboardingSteps
   const toPartnerSetup = () => {
-    window.location.hash = me.partners?.[0]?.role === 'owner' ? PARTNER_CLIENTS_HASH : '#partner'
+    window.location.hash =
+      draftOpenedFrom(workspaceId) ?? (me.partners?.[0]?.role === 'owner' ? PARTNER_CLIENTS_HASH : '#partner')
   }
-  // A trial sign-up counts its whole way, before and after the card (Step 5 of 7, then 6 of 7).
-  const counted = activating || me.workspace?.trialEndsAt ? trialSteps : steps
+  // A partner's team doing a client workspace's setup: the partner's own work, in the install's brand (brand.ts).
+  const partnerWork = !!me.workspace?.viaPartner
 
   function go(to: OnboardingStep) {
     setStep(to)
+    // Once the trial runs, "Start your free trial" is only shown as done (Back from the number): never saved as where
+    // the setup is, the server resumes at the number.
+    if (to === 'activate' && !activating) return
     void run('onboarding.setStep', { step: to })
   }
   const back = () => {
@@ -143,12 +145,16 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload, onAgentSetup }
         step={step}
         steps={steps}
         counted={counted}
-        planOnly={me.workspace?.activation?.trialDays === null}
-        complete={step === 'done' || (step === 'phone' && hasNumber)}
+        planOnly={me.workspace?.activation?.trialDays === null || (!activating && !me.workspace?.trialEndsAt)}
+        complete={step === 'done' || (step === 'phone' && hasNumber) || (step === 'activate' && !activating)}
         // Nothing to finish later before the trial: the app opens only once it runs.
         // A partner's draft: later is its partner's setup, never a skipped onboarding.
         onSkip={partnerDraft ? toPartnerSetup : step === 'done' || activating ? undefined : skip}
-        onAgentSetup={step === 'done' ? undefined : onAgentSetup}
+        exitTitle={partnerDraft ? t('team.partner.setup.finishLaterTitle') : undefined}
+        // The start of the plan ends the setup, as the partner's Activate does: no way off to the agent there.
+        onAgentSetup={step === 'done' || step === 'activate' ? undefined : onAgentSetup}
+        brand={partnerWork ? 'install' : 'app'}
+        closes={partnerDraft}
       >
         <SaveErrors saves={saves} step={step} steps={steps} onOpen={go} />
         {me.emailUnconfirmed && !confirmed && (
@@ -156,7 +162,12 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload, onAgentSetup }
         )}
         {/* The server's provider setup is for Server admin, never inside a customer's sign-up (billing on). */}
         {isInstanceAdmin(me) && !me.workspace?.billingState && <InstanceSetupNotice />}
-        {step === 'activate' && <ActivateStep me={me} onBack={back} onTermsChanged={() => onReload?.()} />}
+        {step === 'activate' &&
+          (activating ? (
+            <ActivateStep me={me} onBack={back} onTermsChanged={() => onReload?.()} />
+          ) : (
+            <ActivatedStep trial={!!me.workspace?.trialEndsAt} onBack={back} onNext={forward} />
+          ))}
         {step !== 'done' && step !== 'activate' && (
           <StepScreen
             step={step}

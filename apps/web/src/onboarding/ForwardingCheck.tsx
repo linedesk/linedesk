@@ -273,7 +273,7 @@ export function ForwardingCheck({
             disabled={starting || dialing}
             title={t('onboarding.forwardingCheck.checkTitle')}
           >
-            {starting || dialing ? t('onboarding.forwardingCheck.checking') : t('onboarding.forwardingCheck.check')}
+            {t('onboarding.forwardingCheck.check')}
           </Button>
         </div>
       )}

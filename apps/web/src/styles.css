@@ -868,7 +868,8 @@ body { font-size: 13px; }
 .ob-foot { position: sticky; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; margin: -12px 0; background: var(--bg); box-shadow: 0 -10px 10px -2px var(--bg); }
 @media not ((hover: hover) and (pointer: fine)) { .ob-foot .k-kbds { display: none; } }
 .ob-foot .k-btn { height: var(--control-h-lg); padding: 0 16px; font-size: 13.5px; }
-@media (max-width: 719px) { .ob h1 { font-size: 23px; line-height: 29px; } .ob-row { grid-template-columns: minmax(0, 1fr) auto; } .ob-s { display: none; } .ob-count { display: none; } .ob-top > b { display: none; } .ob-top .ws-mark { margin-right: auto; } .ob-count-short { display: inline; } .ob-agent > span { display: none; } .ob-count.ob-count-label { display: inline; margin-left: 0; } }
+/* On a phone the long step count is out of sight only: screen readers still read it (the short one is aria-hidden). */
+@media (max-width: 719px) { .ob h1 { font-size: 23px; line-height: 29px; } .ob-row { grid-template-columns: minmax(0, 1fr) auto; } .ob-s { display: none; } .ob-count { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } .ob-top > b { display: none; } .ob-top .ws-mark { margin-right: auto; } .ob-count-short { display: inline; } .ob-agent > span { display: none; } .ob-count.ob-count-label { position: static; width: auto; height: auto; overflow: visible; clip-path: none; display: inline; margin-left: 0; } }
 
 .sum-grid { grid-template-columns: minmax(0, 1fr); }
 
