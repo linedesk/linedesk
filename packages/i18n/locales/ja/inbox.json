@@ -44,6 +44,7 @@
   "deleteDialog.title": "{count, plural, other {#件の通話を削除}}",
   "empty.ai": "現在、{assistant}が対応済みの通話はありません",
   "empty.aiLine": "{assistant}が自分で対応した通話がここに表示されます。",
+  "empty.connectNumber": "{assistant}が通話に応答できるよう、<link>番号を接続</link>してください。",
   "empty.done": "完了した通話はまだありません",
   "empty.doneLine": "完了にした通話がここに表示されます。",
   "empty.member": "割り当てられた通話はありません",
@@ -210,6 +211,11 @@
   "transfer.nameAndNumber": "{name}（{number}）",
   "transfer.notAnswered": "転送先が応答しませんでした",
   "transfer.onCallPhone": "当番の電話",
+  "trial.billing": "<link>請求</link>",
+  "trial.daysLeft": "残り{count, plural, other {#日}}",
+  "trial.firstCharge": "初回請求日 {date}",
+  "trial.tag": "無料トライアル",
+  "trial.tip": "無料トライアルは{date}に終了し、同日に初回の請求が行われます。それまでなら、設定 › 請求でいつでも解約できます。",
   "view.ai": "{assistant}が対応済み",
   "view.assigned": "割り当て済み",
   "view.done": "完了",
@@ -222,6 +228,8 @@
   "voice.failing": "{assistant}は通話に応答できません：必要なサービスでエラーが発生しています（使用量の上限、またはキーの拒否）。{fix}",
   "voice.fixInAdmin": "サーバー管理 › プロバイダーで修正してください。",
   "voice.notSetUp": "{assistant}はまだ通話に応答できません：音声サービスが設定されていません。",
+  "voice.nothingToDo": "操作は不要です。自動的に動作を開始します。",
+  "voice.nothingToDoFailing": "操作は不要です。修正されると自動的に再び動作します。",
   "voice.setUpInAdmin": "サーバー管理 › プロバイダーで設定してください。",
   "yourCalls": "あなたの通話"
 }

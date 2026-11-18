@@ -1508,15 +1508,15 @@ Linedesk · desk.example.com
   ],
   [
     "sign-up-code",
-    "482913 is your code to finish signing up for Linedesk",
-    "Confirm your email
+    "482913 es tu código para terminar el registro en Linedesk",
+    "Confirma tu correo
 
-Click the button to confirm your email and finish signing up for Linedesk at desk.example.com.
+Haz clic en el botón para confirmar tu correo y terminar el registro en Linedesk en desk.example.com.
 
-Confirm my email:
+Confirmar mi correo:
 https://desk.example.com/signup#sign-in=Zm9yLXRoZS1wcmV2aWV3LW9ubHktbm90LWEtcmVhbC10b2tlbg
 
-Or enter this code on the sign-up page at desk.example.com:
+O escribe este código en la página de registro de desk.example.com:
 
     482913
 
@@ -1524,7 +1524,7 @@ Funciona una sola vez y vence en 10 minutos. No compartas este código: nadie de
 
 --
 
-You got this email because someone started signing up on desk.example.com with this address. If it wasn't you, you can ignore it.
+Recibiste este correo porque alguien empezó a registrarse en desk.example.com con esta dirección. Si no fuiste tú, puedes ignorarlo.
 
 Linedesk · desk.example.com
 ",
@@ -2184,7 +2184,7 @@ Primer cobro: 1 de diciembre de 2026
 Importe: 11,00 US$ al mes, más impuestos donde corresponda
 Correos de recordatorio: 7 días y 1 día antes del primer cobro
 
-That is your plan only. Minutes beyond the included ones need call credit; you can buy it or turn on auto-recharge in Settings › Billing.
+Eso es solo tu plan. Los minutos más allá de los incluidos necesitan saldo de llamadas; puedes comprarlo o activar la recarga automática en Configuración › Facturación.
 
 ¿No es para ti? Cancela antes del 1 de diciembre de 2026 y no pagas nada. Son dos clics en Configuración › Facturación, sin necesidad de llamar.
 
@@ -2213,7 +2213,7 @@ Tu prueba gratuita termina el 1 de diciembre de 2026. Luego empieza tu plan y se
 Primer cobro: 1 de diciembre de 2026
 Importe: 11,00 US$ al mes, más impuestos donde corresponda
 
-That is your plan only. Minutes beyond the included ones need call credit; you can buy it or turn on auto-recharge in Settings › Billing.
+Eso es solo tu plan. Los minutos más allá de los incluidos necesitan saldo de llamadas; puedes comprarlo o activar la recarga automática en Configuración › Facturación.
 
 ¿No es para ti? Cancela antes del 1 de diciembre de 2026 y no pagas nada. Son dos clics en Configuración › Facturación, sin necesidad de llamar.
 
@@ -2242,7 +2242,7 @@ Tu prueba gratuita termina el 1 de diciembre de 2026. Luego empieza tu plan y se
 Primer cobro: 1 de diciembre de 2026
 Importe: 11,00 US$ al mes, más impuestos donde corresponda
 
-That is your plan only. Minutes beyond the included ones need call credit; you can buy it or turn on auto-recharge in Settings › Billing.
+Eso es solo tu plan. Los minutos más allá de los incluidos necesitan saldo de llamadas; puedes comprarlo o activar la recarga automática en Configuración › Facturación.
 
 ¿No es para ti? Cancela antes del 1 de diciembre de 2026 y no pagas nada. Son dos clics en Configuración › Facturación, sin necesidad de llamar.
 
@@ -2262,7 +2262,7 @@ Linedesk · desk.example.com
   [
     "trial-setup-nudge",
     "Te queda un paso: empieza tu prueba gratuita de Linedesk",
-    "Your setup
+    "Tu configuración
 
 Te queda un paso: empieza tu prueba gratuita de Linedesk
 
@@ -2284,19 +2284,19 @@ Linedesk · desk.example.com
   ],
   [
     "busy-line",
-    "3 callers got a busy line at Brightwater Plumbing & Heating",
+    "3 personas oyeron la línea ocupada en Brightwater Plumbing & Heating",
     "Facturación
 
-3 callers got a busy line at Brightwater Plumbing & Heating
+3 personas oyeron la línea ocupada en Brightwater Plumbing & Heating
 
-On 17 de noviembre de 2026, Brightwater Plumbing & Heating was already on 5 calls at the same time, so 3 callers heard that you'll call back. They are in your inbox as missed calls, with their numbers.
+El 17 de noviembre de 2026, Brightwater Plumbing & Heating ya tenía 5 llamadas al mismo tiempo, así que 3 personas que llamaron oyeron que les devolverás la llamada. Están en tu bandeja de entrada como llamadas perdidas, con sus números.
 
-Each 5 more calls at the same time cost 5 US$ a month. You can pick another amount in Settings › Billing.
+Cada 5 llamadas simultáneas más cuestan 5 US$ al mes. Puedes elegir otra cantidad en Configuración › Facturación.
 
-Add 5 more lines for 5 US$ a month:
+Agregar 5 líneas más por 5 US$ al mes:
 https://desk.example.com/#workspace/billing?addCalls=1&ws=ws_demo
 
-We send this at most once a day per workspace.
+Enviamos este aviso como máximo una vez al día por espacio de trabajo.
 
 --
 
@@ -2307,18 +2307,18 @@ Linedesk · desk.example.com
   ],
   [
     "bill-changed-by-admin-cancel",
-    "Dana Lee canceled the plan for Brightwater Plumbing & Heating",
+    "Dana Lee canceló el plan de Brightwater Plumbing & Heating",
     "Facturación
 
-Dana Lee canceled the plan for Brightwater Plumbing & Heating
+Dana Lee canceló el plan de Brightwater Plumbing & Heating
 
-Dana Lee (dana@brightwater.example) manages the bill of Brightwater Plumbing & Heating with you and made this change on 14 de noviembre de 2026, 9:05 GMT-8. You pay this bill, so we let you know.
+Dana Lee (dana@brightwater.example) administra contigo la factura de Brightwater Plumbing & Heating e hizo este cambio el 14 de noviembre de 2026, 9:05 GMT-8. Tú pagas esta factura, por eso te avisamos.
 
-The plan ends on 1 de diciembre de 2026. Until then calls are answered as before, and the plan can be resumed in Settings › Billing.
+El plan termina el 1 de diciembre de 2026. Hasta entonces las llamadas se contestan como siempre, y el plan se puede reanudar en Configuración › Facturación.
 
-Not what you expected? Check Settings › Billing and talk to Dana Lee.
+¿No es lo que esperabas? Revisa Configuración › Facturación y habla con Dana Lee.
 
-Open Settings › Billing:
+Abrir Configuración › Facturación:
 https://desk.example.com/#workspace/billing?ws=ws_demo
 
 --
@@ -2330,18 +2330,18 @@ Linedesk · desk.example.com
   ],
   [
     "bill-changed-by-admin-card",
-    "Dana Lee changed the card for Brightwater Plumbing & Heating",
+    "Dana Lee cambió la tarjeta de Brightwater Plumbing & Heating",
     "Facturación
 
-Dana Lee changed the card for Brightwater Plumbing & Heating
+Dana Lee cambió la tarjeta de Brightwater Plumbing & Heating
 
-Dana Lee (dana@brightwater.example) manages the bill of Brightwater Plumbing & Heating with you and made this change on 14 de noviembre de 2026, 9:05 GMT-8. You pay this bill, so we let you know.
+Dana Lee (dana@brightwater.example) administra contigo la factura de Brightwater Plumbing & Heating e hizo este cambio el 14 de noviembre de 2026, 9:05 GMT-8. Tú pagas esta factura, por eso te avisamos.
 
-From now on the bill is charged to the Visa card ending in 4242.
+A partir de ahora, la factura se cobra a la tarjeta Visa terminada en 4242.
 
-Not what you expected? Check Settings › Billing and talk to Dana Lee.
+¿No es lo que esperabas? Revisa Configuración › Facturación y habla con Dana Lee.
 
-Open Settings › Billing:
+Abrir Configuración › Facturación:
 https://desk.example.com/#workspace/billing?ws=ws_demo
 
 --
@@ -2354,15 +2354,15 @@ Linedesk · desk.example.com
   [
     "trial-minutes-low",
     "Usaste 40 de tus 50 minutos de prueba",
-    "Your free trial
+    "Tu prueba gratuita
 
 Usaste 40 de tus 50 minutos de prueba
 
-10 minutes are left. After that, calls need call credit.
+Quedan 10 minutos. Después, las llamadas necesitan saldo de llamadas.
 
-Para que se conteste cada llamada, agrega 25 US$ con Visa terminada en 4242. Recargamos automáticamente cuando el saldo baja de 5 US$.
+Para que se conteste cada llamada, agrega 25 US$ con Visa terminada en 4242. Cada vez que tu saldo baje de 5 US$, agregamos 25 US$ otra vez.
 
-Tu plan sigue gratis hasta el 1 de diciembre de 2026; cada minuto cuesta 0,05 US$.
+Tu plan sigue gratis hasta el 1 de diciembre de 2026. Cada minuto más allá de los incluidos cuesta 0,05 US$.
 
 Seguir contestando llamadas:
 https://desk.example.com/#calls?ws=ws_demo
@@ -2377,15 +2377,15 @@ Linedesk · desk.example.com
   [
     "trial-minutes-used",
     "Tus 50 minutos de prueba se agotaron",
-    "Your free trial
+    "Tu prueba gratuita
 
 Tus 50 minutos de prueba se agotaron
 
-Calls are still answered for a short time. After that, new callers hear that you will call them back.
+Las llamadas se siguen contestando por poco tiempo. Después, quienes llamen oirán que les devolverás la llamada.
 
-Para que se conteste cada llamada, agrega 25 US$ con Visa terminada en 4242. Recargamos automáticamente cuando el saldo baja de 5 US$.
+Para que se conteste cada llamada, agrega 25 US$ con Visa terminada en 4242. Cada vez que tu saldo baje de 5 US$, agregamos 25 US$ otra vez.
 
-Tu plan sigue gratis hasta el 1 de diciembre de 2026; cada minuto cuesta 0,05 US$.
+Tu plan sigue gratis hasta el 1 de diciembre de 2026. Cada minuto más allá de los incluidos cuesta 0,05 US$.
 
 Seguir contestando llamadas:
 https://desk.example.com/#calls?ws=ws_demo
@@ -2399,14 +2399,14 @@ Linedesk · desk.example.com
   ],
   [
     "plan-minutes-low",
-    "You used 40 of your 50 included minutes this month",
-    "Your plan
+    "Usaste 40 de tus 50 minutos incluidos este mes",
+    "Tu plan
 
-You used 40 of your 50 included minutes this month
+Usaste 40 de tus 50 minutos incluidos este mes
 
-10 minutes are left this month. After that, calls need call credit, and auto-recharge is off.
+Quedan 10 minutos este mes. Después, las llamadas necesitan saldo de llamadas, y la recarga automática está desactivada.
 
-Para que se conteste cada llamada, agrega 25 US$ con Visa terminada en 4242. Recargamos automáticamente cuando el saldo baja de 5 US$.
+Para que se conteste cada llamada, agrega 25 US$ con Visa terminada en 4242. Cada vez que tu saldo baje de 5 US$, agregamos 25 US$ otra vez.
 
 Seguir contestando llamadas:
 https://desk.example.com/#calls?ws=ws_demo

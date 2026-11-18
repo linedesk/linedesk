@@ -44,6 +44,7 @@
   "deleteDialog.title": "{count, plural, one {Supprimer l'appel} many {Supprimer # appels} other {Supprimer # appels}}",
   "empty.ai": "Rien de traité par {assistant} pour le moment",
   "empty.aiLine": "Les appels que {assistant} traite seul apparaissent ici.",
+  "empty.connectNumber": "<link>Connectez votre numéro</link> pour que {assistant} puisse répondre à vos appels.",
   "empty.done": "Rien de terminé pour l'instant",
   "empty.doneLine": "Les appels que vous marquez comme terminés apparaissent ici.",
   "empty.member": "Rien ne lui est attribué",
@@ -210,6 +211,11 @@
   "transfer.nameAndNumber": "{name} ({number})",
   "transfer.notAnswered": "Transfert sans réponse",
   "transfer.onCallPhone": "le téléphone d'astreinte",
+  "trial.billing": "<link>Facturation</link>",
+  "trial.daysLeft": "{count, plural, one {# jour restant} many {# jours restants} other {# jours restants}}",
+  "trial.firstCharge": "premier prélèvement le {date}",
+  "trial.tag": "Essai gratuit",
+  "trial.tip": "Votre essai gratuit prend fin et le premier prélèvement a lieu le {date}. Résiliez à tout moment avant dans Réglages › Facturation.",
   "view.ai": "Traités par {assistant}",
   "view.assigned": "Attribués",
   "view.done": "Terminés",
@@ -222,6 +228,8 @@
   "voice.failing": "{assistant} ne peut pas répondre aux appels : un service dont il a besoin est en panne (quota épuisé ou clé refusée). {fix}",
   "voice.fixInAdmin": "Corrigez-le dans Administration du serveur › Fournisseurs.",
   "voice.notSetUp": "{assistant} ne peut pas encore répondre aux appels : le service vocal n'est pas configuré.",
+  "voice.nothingToDo": "Vous n'avez rien à faire : cela se met en marche tout seul.",
+  "voice.nothingToDoFailing": "Vous n'avez rien à faire : cela refonctionne tout seul une fois le problème résolu.",
   "voice.setUpInAdmin": "Configurez-le dans Administration du serveur › Fournisseurs.",
   "yourCalls": "Vos appels"
 }

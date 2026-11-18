@@ -22,6 +22,7 @@
   "copy.copy": "コピー",
   "copy.copyThis": "{text}をコピー",
   "copy.selectIt": "選択してください",
+  "dangerConfirm.copyName": "名前をコピー",
   "dangerConfirm.typeToConfirm": "確認のため「<b>{text}</b>」と入力してください",
   "dateInput.placeholder": "日付を選択",
   "help.learnMore": "詳しくはドキュメントをご覧ください",

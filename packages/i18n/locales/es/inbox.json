@@ -44,6 +44,7 @@
   "deleteDialog.title": "{count, plural, one {Eliminar llamada} many {Eliminar # llamadas} other {Eliminar # llamadas}}",
   "empty.ai": "Nada resuelto por {assistant} en este momento",
   "empty.aiLine": "Aquí aparecen las llamadas que {assistant} resuelve por su cuenta.",
+  "empty.connectNumber": "<link>Conecta tu número</link> para que {assistant} pueda contestar tus llamadas.",
   "empty.done": "Todavía no hay nada listo",
   "empty.doneLine": "Aquí aparecen las llamadas que marcas como listas.",
   "empty.member": "No tiene nada asignado",
@@ -210,6 +211,11 @@
   "transfer.nameAndNumber": "{name} ({number})",
   "transfer.notAnswered": "Nadie contestó la transferencia",
   "transfer.onCallPhone": "el teléfono de guardia",
+  "trial.billing": "<link>Facturación</link>",
+  "trial.daysLeft": "{count, plural, one {Queda # día} many {Quedan # días} other {Quedan # días}}",
+  "trial.firstCharge": "primer cobro el {date}",
+  "trial.tag": "Prueba gratuita",
+  "trial.tip": "Tu prueba gratuita termina y el primer cobro es el {date}. Cancela cuando quieras antes en Configuración › Facturación.",
   "view.ai": "Resueltas por {assistant}",
   "view.assigned": "Asignadas",
   "view.done": "Listas",
@@ -222,6 +228,8 @@
   "voice.failing": "{assistant} no puede contestar llamadas: falla un servicio que necesita (una cuota agotada o una clave rechazada). {fix}",
   "voice.fixInAdmin": "Soluciónalo en Administración del servidor › Proveedores.",
   "voice.notSetUp": "{assistant} todavía no puede contestar llamadas: el servicio de voz no está configurado.",
+  "voice.nothingToDo": "No tienes que hacer nada: empieza a funcionar solo.",
+  "voice.nothingToDoFailing": "No tienes que hacer nada: vuelve a funcionar solo cuando se solucione.",
   "voice.setUpInAdmin": "Configúralo en Administración del servidor › Proveedores.",
   "yourCalls": "Tus llamadas"
 }

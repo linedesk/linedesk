@@ -44,6 +44,7 @@
   "deleteDialog.title": "{count, plural, one {Anruf löschen} other {# Anrufe löschen}}",
   "empty.ai": "Gerade nichts von {assistant} erledigt",
   "empty.aiLine": "Anrufe, die {assistant} selbst erledigt, erscheinen hier.",
+  "empty.connectNumber": "<link>Verbinde deine Nummer</link>, damit {assistant} deine Anrufe annehmen kann.",
   "empty.done": "Noch nichts archiviert",
   "empty.doneLine": "Anrufe, die du archivierst, erscheinen hier.",
   "empty.member": "Nichts zugewiesen",
@@ -210,6 +211,11 @@
   "transfer.nameAndNumber": "{name} ({number})",
   "transfer.notAnswered": "Weiterleitung nicht angenommen",
   "transfer.onCallPhone": "das Bereitschaftstelefon",
+  "trial.billing": "<link>Abrechnung</link>",
+  "trial.daysLeft": "{count, plural, one {Noch # Tag} other {Noch # Tage}}",
+  "trial.firstCharge": "erste Abbuchung am {date}",
+  "trial.tag": "Kostenlose Testphase",
+  "trial.tip": "Deine kostenlose Testphase endet und die erste Abbuchung erfolgt am {date}. Kündige jederzeit vorher unter Einstellungen › Abrechnung.",
   "view.ai": "Von {assistant} erledigt",
   "view.assigned": "Zugewiesen",
   "view.done": "Archiviert",
@@ -222,6 +228,8 @@
   "voice.failing": "{assistant} kann keine Anrufe annehmen: Ein benötigter Dienst fällt aus (aufgebrauchtes Kontingent oder abgelehnter Schlüssel). {fix}",
   "voice.fixInAdmin": "Beheb es unter Server-Admin › Anbieter.",
   "voice.notSetUp": "{assistant} kann noch keine Anrufe annehmen: Der Sprachdienst ist nicht eingerichtet.",
+  "voice.nothingToDo": "Du musst nichts tun: Es startet von selbst.",
+  "voice.nothingToDoFailing": "Du musst nichts tun: Es funktioniert von selbst wieder, sobald es behoben ist.",
   "voice.setUpInAdmin": "Richte es unter Server-Admin › Anbieter ein.",
   "yourCalls": "Deine Anrufe"
 }
