@@ -19,7 +19,7 @@ import { rememberKnownBrowser } from './known-browser.ts'
 import { refuseWhileImpersonating } from './impersonation-guard.ts'
 import { instanceAdminHooks } from './instance-admin.ts'
 import { type RequestHost, requestHostOf, trustedOriginsFor } from './request-host.ts'
-import { guardPartnerHostAuth, hostOfAuthContext, sessionHostHooks } from './host-sessions.ts'
+import { guardPartnerHostAuth, hostOfAuthContext, rememberCodeHost, sessionHostHooks } from './host-sessions.ts'
 import { withEmailBrand } from './email-brand.ts'
 import { hostEmailBrand } from './partner-brand.ts'
 import {
@@ -228,6 +228,8 @@ const acceptLanguageOf = (ctx: unknown) =>
  */
 async function sendSignInCode(code: { email: string; otp: string; type: string }, ctx?: unknown) {
   if (code.type === 'change-email') return sendEmailChangeCode(code.email, code.otp, ctx)
+  // A sign-in or confirmation code works only on the address it was asked on (host-sessions.ts).
+  await rememberCodeHost(code.email, code.type, ctx)
   const host = hostOfAuthContext(ctx)
   const brand = await hostEmailBrand(host).catch(err => {
     console.error("could not read the address's brand; sending with the install's", err)
@@ -358,6 +360,8 @@ export const auth = betterAuth({
       secondFactorMethod: { type: 'string', required: false, input: false },
       // The partner address the session was made on, null on the install's own (host-sessions.ts).
       host: { type: 'string', required: false, input: false },
+      // That address's row (partner_domains.id): the session ends with it (host-sessions.ts).
+      hostDomainId: { type: 'string', required: false, input: false },
     },
   },
   plugins: [

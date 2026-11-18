@@ -38,7 +38,7 @@ import {
 } from './admin-second-factor.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { brandName } from './branding.ts'
-import { sessionFitsHost } from './host-sessions.ts'
+import { type SessionHost, sessionFitsHost } from './host-sessions.ts'
 import { type RequestHost, resolveRequestHost, withoutMainOnlyPermissions } from './request-host.ts'
 
 export interface Actor {
@@ -209,7 +209,7 @@ export async function sessionHere(
   query?: { disableRefresh?: boolean },
 ) {
   const found = await auth.api.getSession({ headers, ...(query ? { query } : {}) })
-  return found && sessionFitsHost((found.session as { host?: string | null }).host, host) ? found : null
+  return found && sessionFitsHost(found.session as SessionHost, host) ? found : null
 }
 
 export async function resolveActor(
@@ -269,7 +269,7 @@ export async function resolveCaller(
   const session = await auth.api.getSession({ headers })
   if (!session) return signedOut
   // Only on the address it was made on: a cookie taken on a partner's address works nowhere else (host-sessions.ts).
-  if (!sessionFitsHost((session.session as { host?: string | null }).host, host)) return signedOut
+  if (!sessionFitsHost(session.session as SessionHost, host)) return signedOut
   const [account] = await db.select().from(user).where(eq(user.id, session.user.id))
   if (!account || account.disabledAt) return signedOut
   const { impersonatedBy } = session.session
@@ -311,7 +311,13 @@ export async function resolveCaller(
     ...(impersonation ? { impersonation } : {}),
     ...(secondFactorGap ? { adminSecondFactor: secondFactorGap } : {}),
     ...(partnerHost
-      ? { partnerHost: { partnerId: partnerHost.partnerId, domainId: partnerHost.domainId, hostname: partnerHost.hostname } }
+      ? {
+          partnerHost: {
+            partnerId: partnerHost.partnerId,
+            domainId: partnerHost.domainId,
+            hostname: partnerHost.hostname,
+          },
+        }
       : {}),
   }
   // The active workspace, or the member's first one right after sign-in.

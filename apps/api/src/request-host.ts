@@ -49,6 +49,12 @@ type HostMap = {
 export const HOSTS_MAX_AGE_MS = 30_000
 /** After a failed load, how long before the next request tries again (the old map is kept meanwhile). */
 const RETRY_AFTER_FAILURE_MS = 5_000
+/**
+ * How old the map may get, while loads keep failing, before no partner address resolves any more (421): a removed
+ * address or suspended partner must not live on with an old map (security review of S5.2, I-3). The install's own
+ * address is never affected.
+ */
+export const HOSTS_FAIL_CLOSED_MS = 120_000
 
 let hosts: HostMap | null = null
 let reloadAgain: Promise<void> | null = null
@@ -191,7 +197,8 @@ export function resolveHost(rawHost: string | null | undefined): RequestHost {
   const host = normaliseHost(rawHost)
   if (isMainHost(host)) return { kind: 'main' }
   const entry = host ? hosts?.byHost.get(host) : undefined
-  if (host && entry && entry.status === 'active' && entry.partnerApproved && !isIP(host))
+  const current = !!hosts && Date.now() - hosts.loadedAt < HOSTS_FAIL_CLOSED_MS
+  if (host && entry && current && entry.status === 'active' && entry.partnerApproved && !isIP(host))
     return {
       kind: 'partner',
       partnerId: entry.partnerId,
@@ -354,13 +361,22 @@ const MAIN_ONLY_PERMISSIONS: ReadonlySet<string> = new Set([
   'workspace:own',
 ])
 
+/**
+ * Actions that delete an account when asked to (`deleteAccount`): leaving one's last workspace, or an owner removing a
+ * member whose only workspace it is. With that, the install's own address only (security review of S5.2, L-2); leaving
+ * or removing without it stays possible on a partner's address.
+ */
+const ACCOUNT_DELETING_ACTIONS: ReadonlySet<string> = new Set(['team.leave', 'team.removeMember'])
+
 /** Whether an action (with this input) runs only on the install's own address. */
 export function mainHostOnlyAction(def: Pick<ActionDef, 'name' | 'permission'>, rawInput: unknown): boolean {
   if (MAIN_ONLY_ACTIONS.has(def.name) || MAIN_ONLY_PERMISSIONS.has(def.permission)) return true
   if (/^partner[A-Z.]/.test(def.name)) return true
+  const input = rawInput as { partnerId?: unknown; deleteAccount?: unknown } | null | undefined
+  if (ACCOUNT_DELETING_ACTIONS.has(def.name) && input?.deleteAccount !== undefined && input.deleteAccount !== false)
+    return true
   // A billing action that names the partner bill (Partner › Billing).
-  const partnerId = (rawInput as { partnerId?: unknown } | null | undefined)?.partnerId
-  return def.name.startsWith('billing.') && partnerId !== undefined
+  return def.name.startsWith('billing.') && input?.partnerId !== undefined
 }
 
 /**

@@ -5,7 +5,7 @@ import { APIError } from 'better-auth/api'
 import type { Context } from 'hono'
 import { authMethods } from './auth-methods.ts'
 import { auth } from './auth.ts'
-import { sessionFitsHost } from './host-sessions.ts'
+import { type SessionHost, sessionFitsHost } from './host-sessions.ts'
 import { requestHostOf } from './request-host.ts'
 import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { db } from './db.ts'
@@ -21,17 +21,19 @@ export const signedInRecently = (createdAt: Date, now = Date.now()) => now - cre
 const allowAttempt = createRateLimiter({ max: 5, windowMs: 10 * 60_000 })
 
 export async function setFirstPassword(c: Context) {
-  const refuse = (status: 400 | 401 | 403 | 422 | 429, error: string, code?: string) => c.json({ ok: false, error, code }, status)
+  const refuse = (status: 400 | 401 | 403 | 422 | 429, error: string, code?: string) =>
+    c.json({ ok: false, error, code }, status)
   if (!authMethods.password) return refuse(400, 'Password sign-in is turned off')
   // Another site cannot send this with the session cookie: refuseCrossSite (csrf.ts) runs before every /v1 route.
   const headers = c.req.raw.headers
   // Only a session made on this address (host-sessions.ts): never one taken from a partner's address.
   const found = await auth.api.getSession({ headers })
-  const session = found && sessionFitsHost((found.session as { host?: string | null }).host, requestHostOf(c)) ? found : null
+  const session = found && sessionFitsHost(found.session as SessionHost, requestHostOf(c)) ? found : null
   if (!session) return refuse(401, 'not signed in')
   if (session.session.impersonatedBy) return refuse(403, NOT_WHILE_IMPERSONATING)
   if (!allowAttempt(session.user.id)) return refuse(429, 'Too many attempts. Try again in a few minutes.')
-  if (!signedInRecently(session.session.createdAt)) return refuse(403, 'Sign in again to set a password.', SIGN_IN_AGAIN)
+  if (!signedInRecently(session.session.createdAt))
+    return refuse(403, 'Sign in again to set a password.', SIGN_IN_AGAIN)
   const { newPassword } = await c.req.json<{ newPassword?: unknown }>().catch(() => ({ newPassword: undefined }))
   if (typeof newPassword !== 'string') return refuse(422, 'newPassword is required')
   try {

@@ -9,7 +9,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import type { CookieOptions } from 'hono/utils/cookie'
 import { auth } from './auth.ts'
 import type { Actor } from './context.ts'
-import { sessionFitsHost } from './host-sessions.ts'
+import { type SessionHost, sessionFitsHost } from './host-sessions.ts'
 import { requestHostOf } from './request-host.ts'
 import { db } from './db.ts'
 import { IMPERSONATION_SEC } from './impersonation.ts'
@@ -96,7 +96,7 @@ export function registerImpersonationRoutes(app: Hono<Env>) {
   app.post('/v1/impersonation/start', async c => {
     const found = await auth.api.getSession({ headers: c.req.raw.headers, query: { disableRefresh: true } })
     // Only a session made on this address (host-sessions.ts).
-    const own = found && sessionFitsHost((found.session as { host?: string | null }).host, requestHostOf(c)) ? found : null
+    const own = found && sessionFitsHost(found.session as SessionHost, requestHostOf(c)) ? found : null
     if (!own) return c.json({ ok: false, error: 'not signed in' }, 401)
     const input = await c.req.json().catch(() => ({}))
     const { status, body } = await runAction('user.impersonate', input, c.get('actor'))

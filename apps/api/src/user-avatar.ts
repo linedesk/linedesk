@@ -4,7 +4,7 @@
 // version into workspace_members (migration 0087), so every member of the person's workspaces gets the new address
 // with the next sync; the handlers return the actor's own rows so their tab shows it at once.
 import { avatarPath, type UserAvatarData } from '@linedesk/actions'
-import { type Db, member, profile_changes, type Tx, user_avatars, workspace_members } from '@linedesk/db'
+import { type Db, member, organization, profile_changes, type Tx, user_avatars, workspace_members } from '@linedesk/db'
 import { and, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { isAPIError } from 'better-auth/api'
@@ -25,22 +25,31 @@ export async function avatarVersionOf(db: Db | Tx, userId: string): Promise<stri
 /**
  * The picture's bytes for someone who may see it, else null (also without a picture): the person themselves,
  * anyone who shares a workspace with them, and instance admins (Server admin › Users). "No picture" and "not for you"
- * look the same, so the address tells nobody else whether an account exists.
+ * look the same, so the address tells nobody else whether an account exists. On a white-label partner's address the
+ * shared workspace must be one of that partner's clients (security review of S5.2, I-1), as for workspace icons.
  */
 export async function readAvatarFor(
   db: Db,
   userId: string,
-  viewer: Pick<Actor, 'actorId' | 'permissions'>,
+  viewer: Pick<Actor, 'actorId' | 'permissions' | 'partnerHost'>,
 ): Promise<Buffer | null> {
   const [row] = await db.select({ png: user_avatars.png }).from(user_avatars).where(eq(user_avatars.user_id, userId))
   if (!row) return null
   if (viewer.actorId === userId || viewer.permissions.includes('instance:admin')) return Buffer.from(row.png, 'base64')
   const theirs = alias(member, 'theirs')
+  const partnerId = viewer.partnerHost?.partnerId
   const [shared] = await db
     .select({ one: sql`1` })
     .from(member)
     .innerJoin(theirs, and(eq(theirs.organizationId, member.organizationId), eq(theirs.userId, userId)))
-    .where(eq(member.userId, viewer.actorId))
+    .where(
+      and(
+        eq(member.userId, viewer.actorId),
+        partnerId
+          ? sql`exists (select 1 from ${organization} o where o.id = ${member.organizationId} and o.partner_id = ${partnerId})`
+          : undefined,
+      ),
+    )
     .limit(1)
   return shared ? Buffer.from(row.png, 'base64') : null
 }
@@ -67,7 +76,10 @@ export async function storeAvatar(tx: Tx, userId: string, avatar: string, now: s
   // A new address every time, also when the same short id came up again.
   if (version === (await avatarVersionOf(tx, userId))) version = crypto.randomUUID().slice(0, 8)
   const set = { png, version, updated_at: now }
-  await tx.insert(user_avatars).values({ user_id: userId, ...set }).onConflictDoUpdate({ target: user_avatars.user_id, set })
+  await tx
+    .insert(user_avatars)
+    .values({ user_id: userId, ...set })
+    .onConflictDoUpdate({ target: user_avatars.user_id, set })
   return avatarPath(userId, version)
 }
 

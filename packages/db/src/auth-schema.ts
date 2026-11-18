@@ -61,6 +61,10 @@ export const session = pgTable(
     // White-label S5: the partner address (host name) the session was made on; null on the install's own address. The
     // session works only on that address (apps/api/src/context.ts), so a cookie taken there is useless anywhere else.
     host: text("host"),
+    // That address's row (partner_domains.id; its foreign key, cascading, is in migration 0163, as auth-schema cannot
+    // import schema.ts). The session is bound to the row, not only the name: triggers there delete it when the address
+    // leaves `active` or its partner is no longer approved, so it never comes back with a re-approval or a re-added name.
+    hostDomainId: text("host_domain_id"),
   },
   (table) => [index("session_userId_idx").on(table.userId)],
 );

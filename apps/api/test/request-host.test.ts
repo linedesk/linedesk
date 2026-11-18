@@ -477,6 +477,10 @@ describe('trusted origins per host (Better Auth, CSRF, the sign-in link page)', 
     expect((await write('localhost:5173', ORIGIN)).status).toBe(403)
     expect((await signIn(HOST, ORIGIN)).status).toBe(421)
     await setStatus(domainId, 'active')
+    // Active again, the address answers, but the session made on it before ended with the failure (review of S5.2,
+    // L-3): a new sign-in there writes again.
+    expect((await write(HOST, ORIGIN)).status).toBe(401)
+    ownerHere = await signInOn(HOST, ws.owner)
     expect((await write(HOST, ORIGIN)).status).toBe(200)
   })
 
@@ -513,14 +517,14 @@ describe('one answer per request, whatever the map does meanwhile (security revi
     await approveAgain()
   })
 
-  /** Suspends the partner and loads the map again, in the middle of the next request. */
+  /**
+   * The address leaves the map in the middle of the next request. A real suspension also ends the sessions made on the
+   * partner's address at once (review of S5.2, L-3; tested below), so the map alone is changed here: forgotten, as if
+   * reloaded without the address.
+   */
   const suspendMidRequest = () => {
     midRequest.hook = async () => {
-      await db
-        .update(partners)
-        .set({ status: 'suspended', suspended_at: new Date().toISOString() })
-        .where(eq(partners.id, partnerId))
-      await reloadHosts()
+      forgetHosts()
       expect(resolveHost(HOST)).toEqual({ kind: 'unknown' })
     }
   }
@@ -539,7 +543,16 @@ describe('one answer per request, whatever the map does meanwhile (security revi
       expect(res.status).toBe(404)
       expect(await res.json()).toMatchObject({ code: 'main_host_only' })
     })
-    // The next request sees the suspension: refused.
+    // A real suspension in the middle of a request ends its session there and then (L-3): refused, and the next
+    // request sees the suspension.
+    midRequest.hook = async () => {
+      await db
+        .update(partners)
+        .set({ status: 'suspended', suspended_at: new Date().toISOString() })
+        .where(eq(partners.id, partnerId))
+      await reloadHosts()
+    }
+    expect((await onHost(HOST, '/v1/me', { who: adminHere })).status).toBe(401)
     expect((await onHost(HOST, '/v1/me', { who: adminHere })).status).toBe(421)
   })
 

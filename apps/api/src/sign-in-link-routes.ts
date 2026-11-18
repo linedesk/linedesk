@@ -3,7 +3,9 @@
 // Continue signs in through Better Auth's `/sign-in/email-otp` with the link's code, so every hook of a typed code
 // runs: the before-hook's lockouts, the tries of the code, the sign-up gate and invitations, the unproven-access
 // cleanup, the audit log (method `email_code`) and the admin alerts. Any browser may Continue: the session is made for
-// the browser that clicks, never for the one that asked for the code.
+// the browser that clicks, never for the one that asked for the code. A link works only on the address its code was
+// asked on (host-sessions.ts codeFitsHost; security review of S5.2, H-1): on any other it is spent, never `Origin`
+// alone deciding, which a server in the middle sets as it likes.
 import { isAPIError } from 'better-auth/api'
 import type { Context, Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
@@ -11,8 +13,9 @@ import { auth, trustedOrigins } from './auth.ts'
 import { addressBucket, CLIENT_IP_HEADER, clientIpOf } from './client-ip.ts'
 import type { Actor } from './context.ts'
 import { createRateLimiter } from './rate-limit.ts'
+import { codeFitsHost } from './host-sessions.ts'
 import { rememberRequestHost, requestHostOf } from './request-host.ts'
-import { readSignInLink, takeSignInLink } from './sign-in-link.ts'
+import { readSignInLink, type SignInLinkState, takeSignInLink } from './sign-in-link.ts'
 
 type Env = { Variables: { actor: Actor } }
 
@@ -45,6 +48,13 @@ function authHeaders(c: Context): Headers {
  */
 const fromApp = (c: Context) => trustedOrigins(c).includes(c.req.header('origin') ?? '')
 
+/** The link as this address sees it: spent unless its code was asked on this address. */
+async function linkHere(c: Context, token: string): Promise<SignInLinkState> {
+  const link = await readSignInLink(token)
+  if (link.state !== 'ready') return link
+  return (await codeFitsHost('sign-in', link.email, requestHostOf(c))) ? link : { state: 'spent' }
+}
+
 export function registerSignInLinkRoutes(app: Hono<Env>) {
   app.use('/v1/sign-in-link/*', bodyLimit({ maxSize: MAX_BODY_BYTES, onError: c => c.json({ ok: false }, 413) }))
 
@@ -52,7 +62,7 @@ export function registerSignInLinkRoutes(app: Hono<Env>) {
     c.header('cache-control', 'no-store')
     if (!fromApp(c)) return c.json({ ok: false, code: 'cross_site_refused' }, 403)
     if (!allow(addressBucket(clientIpOf(c)))) return c.json({ ok: false, code: 'TOO_MANY_REQUESTS' }, 429)
-    const link = await readSignInLink(await tokenOf(c))
+    const link = await linkHere(c, await tokenOf(c))
     if (link.state === 'ready') return c.json({ ok: true, state: 'ready', email: link.email })
     return c.json({ ok: true, state: link.state })
   })
@@ -62,7 +72,8 @@ export function registerSignInLinkRoutes(app: Hono<Env>) {
     if (!fromApp(c)) return c.json({ ok: false, code: 'cross_site_refused' }, 403)
     if (!allow(addressBucket(clientIpOf(c)))) return c.json({ ok: false, code: 'TOO_MANY_REQUESTS' }, 429)
     const token = await tokenOf(c)
-    const link = await readSignInLink(token)
+    // Checked before the link is taken: a try on another address does not use it up.
+    const link = await linkHere(c, token)
     if (link.state !== 'ready') return c.json({ ok: false, state: link.state }, 400)
     // Single use: only the request that deleted the link goes on.
     if (!(await takeSignInLink(token))) return c.json({ ok: false, state: 'spent' }, 400)

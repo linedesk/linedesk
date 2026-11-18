@@ -53,6 +53,8 @@ const INSTANCE_WIDE_FILES = [
   // Makes a server admin, who creates the white-label partners (partner setup links).
   'test/setup-mcp-partner.test.ts',
   'test/workspace-limit-retired.test.ts',
+  // Partner addresses (the host check on for the install), the S5.2 review's exploit tests.
+  'test/host-sessions-review.test.ts',
   // Makes server admins and switches the passkey check (personal keys carry Server admin).
   'test/personal-keys.test.ts',
   // Makes a server admin (an OAuth key never has Server admin).

@@ -57,12 +57,21 @@ async function invitee(tx: Tx, actor: Actor) {
 
 const sameEmail = (email: string) => sql`lower(${invitation.email}) = lower(${email})`
 
+/**
+ * On a white-label partner's address only invitations to that partner's client workspaces exist (security review of
+ * S5.2, L-1): the partner sees what is done there, so neither the person's other invitations nor accepting one.
+ */
+const onlyHere = (actor: Actor) =>
+  actor.partnerHost
+    ? sql`exists (select 1 from ${organization} o where o.id = ${invitation.organizationId} and o.partner_id = ${actor.partnerHost.partnerId})`
+    : undefined
+
 /** A pending invitation to this address. Someone else's invitation is "not found", like a missing one. */
-async function myPendingInvitation(tx: Tx, email: string, invitationId: string) {
+async function myPendingInvitation(tx: Tx, actor: Actor, email: string, invitationId: string) {
   const [row] = await tx
     .select()
     .from(invitation)
-    .where(and(eq(invitation.id, invitationId), eq(invitation.status, 'pending'), sameEmail(email)))
+    .where(and(eq(invitation.id, invitationId), eq(invitation.status, 'pending'), sameEmail(email), onlyHere(actor)))
     .for('update')
   if (!row) throw new Reject('invitation not found')
   return row
@@ -155,6 +164,7 @@ async function listMine(tx: Tx, actor: Actor, now: string): Promise<MyInvitation
         eq(invitation.status, 'pending'),
         sameEmail(account.email),
         gt(invitation.expiresAt, new Date(now)),
+        onlyHere(actor),
         sql`not exists (select 1 from member m where m.organization_id = ${invitation.organizationId} and m.user_id = ${account.id})`,
       ),
     )
@@ -460,7 +470,7 @@ export const membershipHandlers: Record<string, Handler> = {
   'invitation.accept': async ({ tx, actor, now }, input: { invitationId: string }) => {
     const account = await invitee(tx, actor)
     if (!account.emailVerified) throw new Reject('confirm your email address first')
-    const invite = await myPendingInvitation(tx, account.email, input.invitationId)
+    const invite = await myPendingInvitation(tx, actor, account.email, input.invitationId)
     if (invite.expiresAt.getTime() < Date.parse(now)) throw new Reject('this invitation has expired; ask for a new one')
     const already = 'you are already a member of this workspace'
     if (await isMember(tx, invite.organizationId, account.id)) throw new Reject(already)
@@ -486,7 +496,7 @@ export const membershipHandlers: Record<string, Handler> = {
 
   'invitation.decline': async ({ tx, actor }, input: { invitationId: string }) => {
     const account = await invitee(tx, actor)
-    const invite = await myPendingInvitation(tx, account.email, input.invitationId)
+    const invite = await myPendingInvitation(tx, actor, account.email, input.invitationId)
     await tx
       .update(invitation)
       .set({ status: 'rejected' })
