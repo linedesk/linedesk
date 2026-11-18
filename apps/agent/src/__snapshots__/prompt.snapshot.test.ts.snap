@@ -16,7 +16,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -66,7 +66,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -129,7 +129,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
 
@@ -207,7 +207,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
 
@@ -285,7 +285,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
 
@@ -353,7 +353,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
 
@@ -417,7 +417,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
 
@@ -472,7 +472,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
 
@@ -536,7 +536,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
 
@@ -582,7 +582,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -653,7 +653,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
 
@@ -699,7 +699,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -744,7 +744,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -789,7 +789,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -834,7 +834,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -879,7 +879,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -922,7 +922,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -967,7 +967,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1012,7 +1012,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1075,7 +1075,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 If the caller asks for a specific person: put them through if a transfer contact covers it, otherwise take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
 
@@ -1146,7 +1146,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1191,7 +1191,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1236,7 +1236,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1285,7 +1285,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1334,7 +1334,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1397,7 +1397,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
 
@@ -1443,7 +1443,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1488,7 +1488,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1550,7 +1550,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1592,7 +1592,7 @@ You cannot book appointments, transfer calls or look up records; for those, take
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls:
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1634,7 +1634,7 @@ You cannot book appointments, transfer calls or look up records; for those, take
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls:
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1683,7 +1683,7 @@ Hours: 8-6
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1728,7 +1728,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1775,7 +1775,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1822,7 +1822,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1869,7 +1869,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1916,7 +1916,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -1961,7 +1961,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -2006,7 +2006,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
@@ -2067,7 +2067,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 If the caller asks for a specific person: put them through if a transfer contact covers it, otherwise take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.
 
@@ -2137,7 +2137,7 @@ We fix pipes in Portland. Service call $89.
 Only state facts and prices the owner gave you above, exactly as written; never guess or estimate one. If you don't know something, say so; for a price, say someone will get back to them with one, and take a message.
 
 How to handle calls (where what the owner wants you to know says otherwise, follow the owner):
-Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.
+Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.
 Appointments: ask which day and time suit the caller, put that in the message and say someone will confirm.
 If the caller asks for a specific person: put them through if a transfer contact covers it, otherwise take a message for that person and say they will call back.
 If the call is a sales pitch or spam, stay polite, keep it short and say goodbye.

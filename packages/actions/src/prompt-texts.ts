@@ -234,7 +234,7 @@ export const PROMPT_TEXTS = {
   'rules.heading': { section: 'rules', when: 'noKnowledge', text: 'How to handle calls:\n{rules}' },
   'rules.message': {
     section: 'rules',
-    text: "Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.",
+    text: "Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say the time goes into the message, but you can't promise it or any other day or time; someone will get back to them as soon as possible.",
   },
   'rules.appointments': { section: 'rules', when: 'noBooking', text: `Appointments: ${ASK_TIMES}` },
   'rules.person': {
