@@ -12,7 +12,8 @@ import { providerAudience } from '../providerAudience.ts'
 import { useRun } from '../store.tsx'
 import { Select, type SelectOption } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
-import { Button, Note } from '../ui/kit.tsx'
+import { copyText } from '../ui/HelpTip.tsx'
+import { Button, Icon, Note } from '../ui/kit.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { Field, Section, SkeletonSwitchRows, SwitchRow, TextInput } from './fields.tsx'
 import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
@@ -158,17 +159,24 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
   )
 }
 
+/** Copies the whole notice, also while it is folded away; says whether it worked. */
+export const copyCallerPrivacyNotice = (recording: NoticeRecording, clipboard?: Pick<Clipboard, 'writeText'>) => {
+  const text = callerPrivacyNotice(recording, brandName())
+  return clipboard ? copyText(text, clipboard) : copyText(text)
+}
+
 /**
  * A privacy notice template for callers that the business copies to its website (A11): the business is the controller
  * and must inform callers (GDPR Art. 13/14, CCPA). Shown to everyone who can open the page; copying changes nothing.
+ * The long text is folded away by default ("Show text"); Copy always takes the whole text.
  */
 function CallerPrivacyNotice({ recording, toast }: { recording: NoticeRecording; toast: (text: string) => void }) {
   const t = useT()
+  const [open, setOpen] = useState(false)
   const text = callerPrivacyNotice(recording, brandName())
   const copy = () =>
-    navigator.clipboard.writeText(text).then(
-      () => toast(t('settings.privacyNotice.copied')),
-      () => toast(t('settings.privacyNotice.copyFailed')),
+    copyCallerPrivacyNotice(recording).then(result =>
+      toast(t(result === 'copied' ? 'settings.privacyNotice.copied' : 'settings.privacyNotice.copyFailed')),
     )
   return (
     <Section
@@ -182,8 +190,17 @@ function CallerPrivacyNotice({ recording, toast }: { recording: NoticeRecording;
         </Button>
       }
     >
-      <p className="st-privacy-fill">{t('settings.privacyNotice.fill')}</p>
-      <pre className="st-privacy-text">{text}</pre>
+      <p className="st-privacy-disclaimer">{t('settings.privacyNotice.disclaimer')}</p>
+      <details className="st-privacy-more" onToggle={e => setOpen(e.currentTarget.open)}>
+        <summary>
+          <Icon name="down" size={14} className="st-privacy-chevron" />
+          {open ? t('settings.privacyNotice.hide') : t('settings.privacyNotice.show')}
+        </summary>
+        <div className="st-privacy-body">
+          <p className="st-privacy-fill">{t('settings.privacyNotice.fill')}</p>
+          <pre className="st-privacy-text">{text}</pre>
+        </div>
+      </details>
     </Section>
   )
 }

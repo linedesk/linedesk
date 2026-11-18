@@ -2127,7 +2127,45 @@ button.k-link {
 .st-notice > :first-child {
   flex: 1;
 }
-/* Settings, Recordings: the caller privacy notice template, as it will be pasted (paragraphs, wrapped). */
+/* Settings, Recordings: the caller privacy notice template, folded away by default ("Show text"), then as it will be
+   pasted (paragraphs, wrapped). */
+.st-privacy-disclaimer {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.st-privacy-more > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.st-privacy-more > summary::-webkit-details-marker {
+  display: none;
+}
+.st-privacy-more > summary:hover {
+  color: var(--ink);
+}
+.st-privacy-more > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+.st-privacy-chevron {
+  transform: rotate(-90deg);
+  transition: transform 120ms ease;
+}
+.st-privacy-more[open] .st-privacy-chevron {
+  transform: none;
+}
+.st-privacy-body {
+  margin-top: 10px;
+}
 .st-privacy-fill {
   margin: 0 0 8px;
   color: var(--ink-muted);

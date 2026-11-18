@@ -2,6 +2,7 @@
 // The business is the controller and has to tell callers what happens to their data (GDPR Art. 13/14, CCPA notice at
 // collection); the recording sentence follows the workspace's own settings, the rest is filled in by the business in
 // [brackets]. Plain text, paragraphs split by a blank line, so it pastes cleanly anywhere.
+// The Linedesk facts here (providers, US transfers, DPF/SCC) change in the same change as privacy.html or providers.
 import { RECORDINGS_NOT_KEPT } from '@linedesk/actions'
 import { i18n } from '../i18n/index.tsx'
 

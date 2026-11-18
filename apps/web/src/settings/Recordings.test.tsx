@@ -18,7 +18,9 @@ vi.mock('./settings-api.ts', () => ({
 }))
 vi.mock('../store.tsx', () => ({ useRun: () => vi.fn() }))
 
-const { Recordings } = await import('./Recordings.tsx')
+const { Recordings, copyCallerPrivacyNotice } = await import('./Recordings.tsx')
+const { callerPrivacyNotice } = await import('./callerPrivacyNotice.ts')
+const { brandName } = await import('../brand.ts')
 
 const render = (recordingOn: boolean, canEdit = true) => {
   settings.data = { ...settings.data, recordingOn }
@@ -61,12 +63,58 @@ test('the caller privacy notice template follows the recording settings and can 
   const on = render(true, false)
   expect(on).toContain('Caller privacy notice')
   // What it is for, at the top of the card.
-  expect(on).toContain('A text for your website or call notes that tells callers how their data is handled; in the EU the business must give this information.')
+  expect(on).toContain(
+    'A text for your website or call notes that tells callers how their data is handled; in the EU the business must give this information.',
+  )
   expect(on).toContain('Copy text')
   expect(on).toContain('delete the recordings after 30 days.')
   // Recording off on the server: the template says no audio is kept.
   expect(render(false)).toContain('We do not keep audio recordings of calls.')
   settings.data = { ...settings.data, recordingRetentionDays: 0 }
+})
+
+test('the caller privacy notice is folded away by default, opens to the whole text, and Copy takes all of it', async () => {
+  settings.data = { ...settings.data, recordingRetentionDays: 30 }
+  const html = render(true, false)
+  settings.data = { ...settings.data, recordingRetentionDays: 0 }
+  // Closed by default: a "Show text" disclosure, not open.
+  const details = html.match(/<details class="st-privacy-more"( open="")?>([\s\S]*?)<\/details>/)
+  expect(details).not.toBeNull()
+  expect(details![1]).toBeUndefined()
+  const [summary = '', body = ''] = details![2]!.split('</summary>')
+  expect(summary).toContain('Show text')
+  expect(summary).not.toContain('Hide text')
+  // Opening it shows the hint and the whole text, as it will be pasted; nothing of it sits outside the disclosure.
+  const full = callerPrivacyNotice({ on: true, days: 30 }, brandName())
+  const escaped = full
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#x27;')
+  expect(body).toContain('fill in the parts in [brackets].')
+  expect(body).toContain(`<pre class="st-privacy-text">${escaped}</pre>`)
+  expect(body).not.toBe('')
+  expect(html.replace(body, '')).not.toContain('delete the recordings after 30 days.')
+  // The disclaimer: always visible, outside the folded part, and never part of the copied notice.
+  const disclaimer = 'This is a template, not legal advice. Check it with your own adviser.'
+  expect(html).toContain(`<p class="st-privacy-disclaimer">${disclaimer}</p>`)
+  expect(html.indexOf(disclaimer)).toBeLessThan(html.indexOf('<details class="st-privacy-more"'))
+  expect(body).not.toContain('not legal advice')
+  expect(full).not.toContain('not legal advice')
+  // Copy is in the header, outside the folded part, so it works while closed, and copies the full text.
+  expect(html.indexOf('Copy text')).toBeLessThan(html.indexOf('<details class="st-privacy-more"'))
+  const written: string[] = []
+  expect(
+    await copyCallerPrivacyNotice({ on: true, days: 30 }, { writeText: async text => void written.push(text) }),
+  ).toBe('copied')
+  expect(written).toEqual([full])
+  expect(written[0]).toContain('How we handle your calls')
+  expect(written[0]).toContain('delete the recordings after 30 days.')
+  expect(written[0]).toContain('Questions or requests: [email or phone].')
+  expect(
+    await copyCallerPrivacyNotice({ on: true, days: 30 }, { writeText: () => Promise.reject(new Error('denied')) }),
+  ).toBe('failed')
 })
 
 test('law hints by setting and country: only notes, every control stays usable (A4, A5)', () => {
