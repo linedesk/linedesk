@@ -1072,7 +1072,7 @@ describe('the trial prompt, its grace and the trial recharge (docs/billing.md §
     })
     expect(await start(b.ws)).toMatchObject({ blocked: true, refused: 'no_balance' })
     expect(jobs('billing.alert')).toEqual([{ kind: 'trial_minutes_used', bill: b.billId, ref: b.periodId }])
-    // 4 minutes billed: 20¢ of the 50¢ grace used; the next call starts on the grace too, no second email.
+    // 4 minutes billed: $0.20 of the $0.50 grace used; the next call starts on the grace too, no second email.
     await startedAgo(first.callId, 240)
     await finish(b.ws, first.callId)
     expect(await balanceOf(b.billId)).toMatchObject({ balance_micros: -200_000, reserved_micros: 0 })

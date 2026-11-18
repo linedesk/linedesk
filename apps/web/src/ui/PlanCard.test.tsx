@@ -26,7 +26,7 @@ test('a trial: "14 days free" large, then the price and its note, the included r
     <PlanCard trialDays={14} price="$9 a month" unit="per workspace" note="$108 billed yearly" prices={prices} />,
   )
   expect(text(html)).toMatch(
-    /^14 days free Then \$9 a month per workspace \$108 billed yearly A phone number 50 call minutes each month, then 5¢ a minute 5 calls at the same time Plus tax where it applies\. See all details/,
+    /^14 days free Then \$9 a month per workspace \$108 billed yearly A phone number 50 call minutes each month, then \$0\.05 a minute 5 calls at the same time Plus tax where it applies\. See all details/,
   )
   expect(html).toContain('<span class="plan-card-price">14 days free</span>')
   expect(html).toMatch(/<details class="plan-card-all"><summary>/)
@@ -45,8 +45,8 @@ test('no trial: the price is the headline, the same included rows', () => {
 test('"See all details": the install\'s other prices; the included number and calls are not repeated there', () => {
   const all = text(renderToStaticMarkup(<PlanCard price="$11 a month" note={null} prices={prices} calls={calls} />))
   const details = all.slice(all.indexOf('See all details'))
-  expect(details).toContain('Premium call quality Optional, you turn it on per assistant 10¢ a minute')
-  expect(details).toContain('Ultra call quality Optional, you turn it on per assistant 20¢ a minute')
+  expect(details).toContain('Premium call quality Optional, you turn it on per assistant $0.10 a minute')
+  expect(details).toContain('Ultra call quality Optional, you turn it on per assistant $0.20 a minute')
   expect(details).toContain('Extra phone numbers $3 a month each')
   expect(details).toContain('5 more calls at the same time $5 a month')
   expect(details).toContain(

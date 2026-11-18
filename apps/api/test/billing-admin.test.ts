@@ -1564,7 +1564,7 @@ describe('the billing rules editor', () => {
 
   test('plan prices have a floor (a seat covers its included minutes) and yearly is at most 12 monthly (review of #1040, L-6)', async () => {
     const set = (rules: Record<string, unknown>) => act(operator, 'billingRules.set', { rules, reason })
-    // The defaults where the floor comes from: 50 included minutes at 5¢ = $2.50 a month.
+    // The defaults where the floor comes from: 50 included minutes at $0.05 = $2.50 a month.
     expect((await set({ includedStandardSeconds: null, levels: { standard: null, premium: null } })).status).toBe(200)
     expect((await act(operator, 'billingRules.get', {})).body.data).toMatchObject({ minPlanCents: 250 })
     const tooLow = await set({ workspaceMonthlyCents: 249 })

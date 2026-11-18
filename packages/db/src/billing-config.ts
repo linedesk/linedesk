@@ -78,7 +78,7 @@ export const RECHARGE_AMOUNT_OVER_THRESHOLD_CENTS = 500
 export const BALANCE_BUFFER_MICROS = 5_000_000
 
 /**
- * The usage levels and their default prices (Standard 5¢, Premium 10¢, Ultra 20¢ a minute). Per level: the price of
+ * The usage levels and their default prices (Standard $0.05, Premium $0.10, Ultra $0.20 a minute). Per level: the price of
  * a minute (billed per second) and how many Standard seconds of the included allowance one second uses, or null when
  * the level's minutes never use it (every Ultra minute is paid from the balance). A new level is a row here plus the
  * regenerated CHECKs on `call_reservations.usage_level` and `ledger_entries.price_basis`, not new rating code.

@@ -664,7 +664,7 @@ describe('trial emails (docs/billing.md §3.2)', () => {
     }
     expect(byName('trial-minutes-low').text).toContain('10 minutes are left.')
     expect(byName('trial-minutes-low').text).toContain(
-      'Your plan stays free until December 1, 2026. Minutes beyond the included ones cost 5¢ each.',
+      'Your plan stays free until December 1, 2026. Minutes beyond the included ones cost $0.05 each.',
     )
   })
   it('the day-3 nudge is about the setup, not billing', () => {

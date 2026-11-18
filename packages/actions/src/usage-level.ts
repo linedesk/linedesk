@@ -1,5 +1,5 @@
 // Call quality on Linedesk (decisions.md 2026-11-17): every assistant has one level, Standard, Premium or Ultra, and
-// the level alone decides what a call minute costs on Linedesk Cloud (5¢, 10¢, 20¢ by default, the server's prices).
+// the level alone decides what a call minute costs on Linedesk Cloud ($0.05, $0.10, $0.20 by default, the server's prices).
 // Standard runs on Standard models, Premium on Premium and Standard ones, Ultra on a realtime (speech-to-speech) model.
 // Options in no list run only on the workspace's own provider keys; with own keys there is no usage fee. Self-hosted
 // installs (no billing) have the same three levels, without prices.

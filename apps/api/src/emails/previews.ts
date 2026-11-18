@@ -61,7 +61,7 @@ const trial = {
   bufferMicros: 0,
 }
 
-/** The trial prompt's facts: $25 with a Visa ending in 4242, topped up below $5, free until Dec 1, 5¢ a minute. */
+/** The trial prompt's facts: $25 with a Visa ending in 4242, topped up below $5, free until Dec 1, $0.05 a minute. */
 const trialMinutes = {
   includedMinutes: 50,
   amountCents: 2500,

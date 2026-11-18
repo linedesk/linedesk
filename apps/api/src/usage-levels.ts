@@ -1,5 +1,5 @@
 // Call quality on Linedesk Cloud (packages/actions/src/usage-level.ts, decisions.md 2026-11-17): every assistant has
-// a level (Standard 5¢, Premium 10¢, Ultra 20¢ a minute by default) and the level alone decides the price. What answers
+// a level (Standard $0.05, Premium $0.10, Ultra $0.20 a minute by default) and the level alone decides the price. What answers
 // its calls: the three stages for Standard and Premium (its own models when they belong to the level, else the server's
 // defaults for it, call-quality.ts), a realtime model for Ultra. Prices and the checks of a level the server admin turned
 // off apply only while this install bills usage (billingState: billing on with usable Stripe keys); a self-hosted

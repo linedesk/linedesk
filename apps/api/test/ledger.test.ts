@@ -292,7 +292,7 @@ describe('a call from the gate to its usage entry', () => {
     const b = await billFor('active')
     await allowanceUsedUp(b)
     const call = await newCall(b.ws.id)
-    // 20 minutes at 5¢ is $1, within the −$5 buffer; 20 minutes of Ultra is $4, two of them are not.
+    // 20 minutes at $0.05 is $1, within the −$5 buffer; 20 minutes of Ultra is $4, two of them are not.
     expect(await reserve(b, call.id)).toMatchObject({ allow: true, reservedMicros: 1_000_000 })
     expect(await reserve(b, (await newCall(b.ws.id)).id, { level: 'ultra' })).toMatchObject({ allow: true })
     expect(await reserve(b, (await newCall(b.ws.id)).id, { level: 'ultra' })).toMatchObject({

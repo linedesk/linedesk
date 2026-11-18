@@ -135,15 +135,9 @@ export interface Formatters {
   currency(value: number, currency: string, options?: Intl.NumberFormatOptions): string
   /**
    * A rate, such as a price a minute: an amount in a currency with at least two decimals and up to four for sub-cent
-   * prices ("$0.05", "$0.10", "$0.0085" in en). Never the cent sign (decisions.md 2026-11-16).
+   * prices ("$0.05", "$0.10", "$0.0085" in en). Never the cent sign (decisions.md 2026-11-16, 2026-11-18).
    */
   rate(value: number, currency: string): string
-  /**
-   * A price a minute where a sign-up decides (the trial funnel, Janik 2026-11-17): whole US cents under a dollar in
-   * English as the cent sign ("5¢", "10¢"); anything else (another currency or language, sub-cent prices, a dollar
-   * or more) as rate() ("$0.0085", "0,05 $", "€0.05").
-   */
-  centRate(value: number, currency: string): string
   /** "A, B and C" in the active language. */
   list(items: readonly string[], options?: Intl.ListFormatOptions): string
   /**
@@ -196,12 +190,6 @@ export function createFormatters(active: ActiveLocale): Formatters {
       return cached('cur', locale, all, () => new Intl.NumberFormat(locale, all)).format(value)
     },
     rate,
-    centRate: (value, currency) => {
-      const cents = Math.round(value * 100)
-      const wholeCents = Math.abs(value * 100 - cents) < 1e-9
-      if (currency === 'USD' && locale === 'en' && wholeCents && cents > 0 && cents < 100) return `${cents}¢`
-      return rate(value, currency)
-    },
     list: (items, options = { type: 'conjunction' }) =>
       cached('lf', locale, options, () => new Intl.ListFormat(locale, options)).format(items),
     region: code => {

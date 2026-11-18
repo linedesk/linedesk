@@ -103,7 +103,7 @@ export function PlanCard({
               <Icon name="check" size={14} />
               {t('common.plan.minutes', {
                 minutes: prices.includedMinutes,
-                perMinute: format.centRate(prices.standardMicrosPerMinute / 1_000_000, 'USD'),
+                perMinute: format.rate(prices.standardMicrosPerMinute / 1_000_000, 'USD'),
               })}
             </li>
             {prices.includedCalls > 0 && (
@@ -145,7 +145,7 @@ function AllDetails({
   const format = useFormat()
   const usd = usePrice().money
   const perMinute = (micros: number) =>
-    t('common.plan.prices.perMinute', { price: format.centRate(micros / 1_000_000, 'USD') })
+    t('common.plan.prices.perMinute', { price: format.rate(micros / 1_000_000, 'USD') })
   const rows: { key: string; label: string; value: string; note?: string }[] = []
   if (p.premiumMicrosPerMinute !== null)
     rows.push({

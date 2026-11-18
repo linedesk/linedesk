@@ -310,7 +310,7 @@ function trialMinutesEmail(
     card,
     threshold: usd(email.thresholdCents),
     date: email.freeUntil ? format.dateTime(new Date(email.freeUntil), { dateStyle: 'long', timeZone: 'UTC' }) : '',
-    rate: format.centRate(email.standardMicrosPerMinute / 1_000_000, 'USD'),
+    rate: format.rate(email.standardMicrosPerMinute / 1_000_000, 'USD'),
   }
   const usedUp = email.kind === 'trial_minutes_used'
   const subject = usedUp

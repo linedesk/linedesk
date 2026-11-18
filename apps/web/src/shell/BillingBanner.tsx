@@ -116,7 +116,7 @@ function TrialPrompt({
     threshold: usd(prompt.thresholdCents),
     cap: usd(prompt.capCents),
     date: prompt.freeUntil ? format.date(new Date(prompt.freeUntil), { dateStyle: 'long' }) : '',
-    rate: format.centRate(prompt.standardMicrosPerMinute / 1_000_000, 'USD'),
+    rate: format.rate(prompt.standardMicrosPerMinute / 1_000_000, 'USD'),
   }
 
   async function keep() {

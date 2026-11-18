@@ -50,7 +50,7 @@ const rate = (over: Partial<Parameters<typeof rateCall>[0]> = {}) =>
   })
 
 describe('rating a call', () => {
-  test('Standard is 5¢, Premium 10¢ and Ultra 20¢ a minute, per second', () => {
+  test('Standard is $0.05, Premium $0.10 and Ultra $0.20 a minute, per second', () => {
     expect(PAID_LEVELS).toEqual(['standard', 'premium', 'ultra'])
     expect(LEVEL_PRICES.standard.microsPerMinute).toBe(50_000)
     expect(LEVEL_PRICES.premium.microsPerMinute).toBe(100_000)
@@ -309,7 +309,7 @@ describe('the call gate', () => {
       allow: true,
     })
     expect(callGate({ ...bill, status: 'trialing' }, 0)).toEqual({ allow: true })
-    // In the trial a call the balance does not cover starts on the grace while the bill is above −50¢ (10 × 5¢).
+    // In the trial a call the balance does not cover starts on the grace while the bill is above −$0.50 (10 × $0.05).
     expect(trialGraceMicros()).toBe(500_000)
     expect(callGate({ ...bill, status: 'trialing' }, 1)).toEqual({ allow: true, grace: true })
     expect(callGate({ ...bill, status: 'trialing', balanceMicros: -499_999 }, 1_000_000)).toEqual({

@@ -141,7 +141,7 @@ test('a running plan: price, renewal, balance, usage, invoices, Buy minutes as t
   expect(html).toContain(
     '<b><span class="plan-card-price">$11 a month</span> <span class="plan-card-unit">per workspace</span></b>',
   )
-  expect(html).toContain('50 call minutes each month, then 5¢ a minute')
+  expect(html).toContain('50 call minutes each month, then $0.05 a minute')
   expect(html).toContain('A phone number')
   expect(html).toContain('5 calls at the same time')
   expect(html).not.toContain('Each workspace includes:')
@@ -492,7 +492,7 @@ test("a partner bill: the partner plan's base fee, then its client workspaces on
     '<b><span class="plan-card-price">$14 a month</span> <span class="plan-card-unit">+ $9 a month × 1 client workspace</span></b><span class="help">$276 billed yearly</span>',
   )
   expect(yearly).toContain('Each client workspace includes:')
-  expect(yearly).toContain('50 call minutes each month, then 5¢ a minute')
+  expect(yearly).toContain('50 call minutes each month, then $0.05 a minute')
   // Before the first Checkout: no status badge ("Waiting for a card"), UI audit P3.
   expect(yearly).not.toContain('Waiting for a card')
   expect(yearly).not.toContain('per workspace each')

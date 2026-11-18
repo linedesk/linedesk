@@ -172,7 +172,7 @@ export const PLAN_RULE_FIELDS: ReadonlySet<string> = new Set([
 
 /**
  * The lowest monthly plan fee an admin may set (security review of #1040, L-6): the server's BILLING_MIN_PLAN_CENTS,
- * else what a seat's included minutes cost at the Standard price (default: 50 minutes at 5¢ = $2.50), so a mistyped
+ * else what a seat's included minutes cost at the Standard price (default: 50 minutes at $0.05 = $2.50), so a mistyped
  * fee never sells seats below the minutes they include. A yearly fee: at least 12 times this.
  */
 export function minPlanCents(rules: BillingRules, env: Record<string, string | undefined> = process.env): number {

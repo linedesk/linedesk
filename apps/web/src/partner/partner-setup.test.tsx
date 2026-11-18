@@ -107,7 +107,7 @@ test('Activate: the shared plan card, the price a month leads, what Checkout cha
   const html = totalHtml('year', 2)
   expect(html).not.toContain('days free')
   expect(html).toContain('Each client workspace includes:')
-  expect(html).toContain('50 call minutes each month, then 5¢ a minute')
+  expect(html).toContain('50 call minutes each month, then $0.05 a minute')
   expect(html).toContain('See all details')
 })
 

@@ -45,14 +45,14 @@ const text = (a: Activation) =>
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
 
-test('the price a minute in cents, the plan and the timeline next to Start free trial; no terms again', () => {
+test('the price a minute in dollars, the plan and the timeline next to Start free trial; no terms again', () => {
   const page = text(activation)
   // The plan card: the trial as the headline, the price after it, what is included, the conditions in one grey line.
   expect(page).toContain('14 days free Then $11 a month per workspace')
   expect(page).toContain(
-    'A phone number 50 call minutes each month, then 5¢ a minute 5 calls at the same time Plus tax where it applies. See all details',
+    'A phone number 50 call minutes each month, then $0.05 a minute 5 calls at the same time Plus tax where it applies. See all details',
   )
-  expect(page).not.toContain('$0.05')
+  expect(page).not.toContain('¢')
   // Billed monthly: the price a month alone, no note (ui/price.tsx).
   expect(page).not.toContain('billed')
   // One line for both reminder emails; today is day 1, so the first charge is on day 15 (as the website says).
@@ -138,10 +138,10 @@ describe('starting', () => {
   })
 })
 
-test('a Premium-priced plan says 10¢; a sub-cent price stays in dollars', () => {
+test('a Premium-priced plan says $0.10; a sub-cent price keeps its digits', () => {
   const rate = (standardMicrosPerMinute: number) =>
     text({ ...activation, prices: { ...activation.prices!, standardMicrosPerMinute } })
-  expect(rate(100_000)).toContain('then 10¢ a minute')
+  expect(rate(100_000)).toContain('then $0.10 a minute')
   expect(rate(8_500)).toContain('then $0.0085 a minute')
 })
 
