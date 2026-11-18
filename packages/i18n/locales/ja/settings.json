@@ -165,7 +165,6 @@
   "assistantHeader.numberTip": "この番号を開く：応答するアシスタント、通話の届き方",
   "assistantHeader.switchTip": "アシスタントの切り替え、追加、コピー",
   "billing.auto.amount": "請求額",
-  "billing.auto.offText": "オフ：通話時間はご自身で購入します。残高が少なくなるとメールでお知らせします。",
   "billing.auto.onText": "残高が{threshold}を下回ると、カードに{amount}が請求されます。",
   "billing.auto.onTextTaxed": "残高が{threshold}を下回ると、カードに{amount}が請求されます（該当する場合は税金が別途かかります）。残高には{amount}が追加されます。",
   "billing.auto.saved": "自動チャージを保存しました",

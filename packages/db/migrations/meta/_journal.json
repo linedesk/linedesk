@@ -1044,6 +1044,13 @@
       "when": 1794960230559,
       "tag": "0149_auto_recharge_off",
       "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1794961583758,
+      "tag": "0150_auto_recharge_consent",
+      "breakpoints": true
     }
   ]
 }

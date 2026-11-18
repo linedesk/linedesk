@@ -452,6 +452,50 @@ describe('billing.setAutoRecharge', () => {
     expect(rechargesQueued()).toEqual([expect.objectContaining({ data: { rechargeId: attempt!.id } })])
   })
 
+  test('turning it on is recorded with the line next to the switch, like "Keep calls answered"; off and changes are not', async () => {
+    vi.stubEnv('TERMS_URL', 'https://desk.example.com/terms')
+    vi.stubEnv('TERMS_VERSION', '2026-11-18')
+    vi.stubEnv('PRIVACY_URL', 'https://desk.example.com/privacy')
+    vi.stubEnv('PRIVACY_VERSION', '2026-11-10')
+    try {
+      const b = await billed({ auto_recharge: false, recharge_cap_base_cents: 5000 }, 5000)
+      const on = { on: true, thresholdCents: 500, amountCents: 2500 }
+      expect((await act(b.owner, 'billing.setAutoRecharge', on)).status).toBe(200)
+      // Already on: a new amount, a retry; off: nothing more is recorded.
+      expect((await act(b.owner, 'billing.setAutoRecharge', on)).status).toBe(200)
+      expect((await act(b.owner, 'billing.setAutoRecharge', { ...on, amountCents: 3000 })).status).toBe(200)
+      expect((await act(b.owner, 'billing.setAutoRecharge', { ...on, on: false })).status).toBe(200)
+      const rows = await db.select().from(terms_acceptances).where(eq(terms_acceptances.billing_account_id, b.billId))
+      expect(rows).toMatchObject([
+        {
+          user_id: b.ws.owner.userId,
+          source: 'auto_recharge',
+          terms_url: 'https://desk.example.com/terms',
+          terms_version: '2026-11-18',
+          privacy_version: '2026-11-10',
+          disclosure: {
+            kind: 'auto_recharge',
+            // The install's default adds tax where it applies, so the page shows the taxed line.
+            key: 'settings.billing.auto.offTermsTaxed',
+            text: 'Off: buy minutes yourself. Turning it on charges your card $25, plus tax where it applies, whenever your balance falls below $5, at most $50 a month.',
+            amountCents: 2500,
+            thresholdCents: 500,
+            capCents: 5000,
+            taxed: true,
+          },
+        },
+      ])
+      expect(rows[0]!.accepted_at).toBeTruthy()
+      // Turned on again later: a new record.
+      expect((await act(b.owner, 'billing.setAutoRecharge', on)).status).toBe(200)
+      expect(
+        await db.select().from(terms_acceptances).where(eq(terms_acceptances.billing_account_id, b.billId)),
+      ).toHaveLength(2)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   test('the amount must clear the threshold by $5, and limits hold', async () => {
     const b = await billed()
     expect(

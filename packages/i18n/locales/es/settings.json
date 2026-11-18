@@ -165,7 +165,6 @@
   "assistantHeader.numberTip": "Abrir este número: qué asistente lo contesta y cómo le llegan las llamadas",
   "assistantHeader.switchTip": "Cambiar, agregar o copiar un asistente",
   "billing.auto.amount": "Cobro",
-  "billing.auto.offText": "Desactivada: compras los minutos tú. Te enviamos un correo cuando el saldo esté bajo.",
   "billing.auto.onText": "Cuando el saldo baje de {threshold}, se cobran {amount} a tu tarjeta.",
   "billing.auto.onTextTaxed": "Cuando el saldo baje de {threshold}, se cobran {amount} a tu tarjeta, más impuestos donde corresponda. Tu saldo recibe {amount}.",
   "billing.auto.saved": "Recarga automática guardada",

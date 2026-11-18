@@ -36,6 +36,7 @@ import {
   type ActionItem,
   type ActivationDisclosure,
   type TrialRechargeDisclosure,
+  type AutoRechargeDisclosure,
   type ExtraCallsDisclosure,
   type AssistantLanguages,
   type AssistantVoice,
@@ -2449,7 +2450,8 @@ export const signup_attempts = pgTable(
  * trial (the trial recharge: auto-recharge before the trial ends, docs/billing.md §3.2 step 7).
  */
 // `extra_calls`: the owner added calls at the same time in Settings › Billing or from the busy-line banner (LIN-450).
-const TERMS_SOURCES = ['signup', 'activation', 'trial_recharge', 'extra_calls'] as const
+// `auto_recharge`: the owner turned auto-recharge on in Settings › Billing (Janik, 2026-11-18).
+const TERMS_SOURCES = ['signup', 'activation', 'trial_recharge', 'extra_calls', 'auto_recharge'] as const
 
 export const terms_acceptances = pgTable(
   'terms_acceptances',
@@ -2464,7 +2466,9 @@ export const terms_acceptances = pgTable(
     privacy_version: text('privacy_version').notNull(),
     ip_address: text('ip_address'),
     user_agent: text('user_agent'),
-    disclosure: jsonb('disclosure').$type<ActivationDisclosure | TrialRechargeDisclosure | ExtraCallsDisclosure>(),
+    disclosure: jsonb('disclosure').$type<
+      ActivationDisclosure | TrialRechargeDisclosure | ExtraCallsDisclosure | AutoRechargeDisclosure
+    >(),
     accepted_at: ts('accepted_at').notNull().defaultNow(),
   },
   t => [

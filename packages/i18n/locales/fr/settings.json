@@ -165,7 +165,6 @@
   "assistantHeader.numberTip": "Ouvrir ce numéro : quel assistant y répond, comment les appels y arrivent",
   "assistantHeader.switchTip": "Changer, ajouter ou copier un assistant",
   "billing.auto.amount": "Montant débité",
-  "billing.auto.offText": "Désactivée : vous achetez les minutes vous-même. Nous vous envoyons un e-mail quand le solde baisse.",
   "billing.auto.onText": "Quand le solde passe sous {threshold}, votre carte est débitée de {amount}.",
   "billing.auto.onTextTaxed": "Quand le solde passe sous {threshold}, votre carte est débitée de {amount}, taxes en sus le cas échéant. Votre solde reçoit {amount}.",
   "billing.auto.saved": "Recharge automatique enregistrée",

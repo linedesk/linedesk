@@ -47,6 +47,8 @@ import {
   usage_counters,
   workspaceCallLimit,
 } from '@linedesk/db'
+import { msg } from '@linedesk/i18n'
+import { getT } from '@linedesk/i18n/server'
 import { and, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
@@ -60,6 +62,7 @@ import { busyCallersByWorkspace } from './billing-recharge.ts'
 import { afterDebit } from './call-billing.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
+import { localeForUserId } from './email-locale.ts'
 import { appLink, WEB_ORIGIN } from './emails/templates.ts'
 import { BILLING_PATH } from './emails/billing-lifecycle.ts'
 import {
@@ -772,11 +775,61 @@ async function rechargeNow(tx: Tx, billId: string, now: string) {
   return outcome.kind === 'recharge'
 }
 
+/** The line Settings › Billing shows next to the switch while auto-recharge is off: what turning it on agrees to. */
+export const AUTO_RECHARGE_TERMS = msg('settings.billing.auto.offTerms')
+export const AUTO_RECHARGE_TERMS_TAXED = msg('settings.billing.auto.offTermsTaxed')
+
+/**
+ * Records that the owner turned auto-recharge on in Settings › Billing (`terms_acceptances.source = auto_recharge`),
+ * with the line next to the switch as the page words it (the owner's language, the same amounts): the amount, the
+ * threshold, the monthly cap and whether tax is added. Needs the terms in effect and a session, like the other records.
+ */
+async function recordAutoRechargeConsent(
+  tx: Tx,
+  actor: Actor,
+  bill: { id: string; recharge_cap_base_cents: number },
+  input: { thresholdCents: number; amountCents: number },
+  now: string,
+) {
+  const { terms } = legalTerms()
+  if (!terms || !actor.sessionId) return
+  const rules = await billingRules(tx)
+  const capCents = rechargeCapCents(bill.recharge_cap_base_cents, (await workspacesOf(tx, bill.id)).length, rules)
+  const taxed = rules.automaticTax
+  const key = taxed ? AUTO_RECHARGE_TERMS_TAXED : AUTO_RECHARGE_TERMS
+  const words = getT(await localeForUserId(tx, actor.actorId))
+  const money = (cents: number) => words.format.currency(cents / 100, 'USD', { maximumFractionDigits: 0 })
+  await recordAcceptance(tx, {
+    userId: actor.actorId,
+    billId: bill.id,
+    sessionId: actor.sessionId,
+    terms,
+    now,
+    source: 'auto_recharge',
+    disclosure: {
+      kind: 'auto_recharge',
+      key,
+      text: words.t(key, {
+        amount: money(input.amountCents),
+        threshold: money(input.thresholdCents),
+        cap: money(capCents),
+      }),
+      amountCents: input.amountCents,
+      thresholdCents: input.thresholdCents,
+      capCents,
+      taxed,
+    },
+  })
+}
+
 async function setAutoRecharge(
   { tx, actor, now }: HandlerCtx,
   { partnerId, ...input }: { on: boolean; thresholdCents: number; amountCents: number; partnerId?: string },
 ): Promise<{ rows: Record<string, never>; data: AutoRechargeData }> {
   const bill = await billToChange(tx, actor, partnerId)
+  // Turned on: the consent to the automatic charges is kept like "Keep calls answered"'s (Janik, 2026-11-18): the terms
+  // in effect, the session's IP and browser, and the line the switch showed. Turned off, or changed while on: none.
+  if (input.on && !bill.auto_recharge) await recordAutoRechargeConsent(tx, actor, bill, input, now)
   await tx
     .update(billing_accounts)
     .set({

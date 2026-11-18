@@ -1093,7 +1093,12 @@ function AutoRechargeCard({ bill, toast }: { bill: BillingOverviewBill; toast: (
                 threshold: money(auto.thresholdCents),
                 amount: money(auto.amountCents),
               })
-            : t('settings.billing.auto.offText')
+            : // What turning it on agrees to, word for word what billing.setAutoRecharge records (source auto_recharge).
+              t(bill.taxed ? 'settings.billing.auto.offTermsTaxed' : 'settings.billing.auto.offTerms', {
+                amount: money(auto.amountCents),
+                threshold: money(auto.thresholdCents),
+                cap: money(bill.cap.effectiveCents),
+              })
         }
         on={auto.on}
         disabled={!editable}

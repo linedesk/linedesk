@@ -8,6 +8,7 @@ import {
   terms_acceptances,
   type TrialRechargeDisclosure,
   type ExtraCallsDisclosure,
+  type AutoRechargeDisclosure,
   type Tx,
 } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
@@ -66,7 +67,8 @@ export function legalTerms(env: Env = process.env): { terms: LegalTerms | null; 
  * the session that accepted (Better Auth keeps them on the session; null when it has none). `source`: the sign-up
  * page (`signup`), the activation step before Checkout (`activation`, with what it showed next to its button), or
  * "Keep calls answered" in the trial (`trial_recharge`, with what the banner showed; docs/billing.md §3.2 step 7), or
- * more calls at the same time (`extra_calls`, with what the dialog or the busy-line banner said; LIN-450).
+ * more calls at the same time (`extra_calls`, with what the dialog or the busy-line banner said; LIN-450), or
+ * auto-recharge turned on in Settings › Billing (`auto_recharge`, with the line next to the switch).
  */
 export async function recordAcceptance(
   tx: Tx,
@@ -76,8 +78,8 @@ export async function recordAcceptance(
     sessionId: string
     terms: LegalTerms
     now: string
-    source: 'signup' | 'activation' | 'trial_recharge' | 'extra_calls'
-    disclosure?: ActivationDisclosure | TrialRechargeDisclosure | ExtraCallsDisclosure
+    source: 'signup' | 'activation' | 'trial_recharge' | 'extra_calls' | 'auto_recharge'
+    disclosure?: ActivationDisclosure | TrialRechargeDisclosure | ExtraCallsDisclosure | AutoRechargeDisclosure
   },
 ) {
   const [from] = await tx

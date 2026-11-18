@@ -165,7 +165,6 @@
   "assistantHeader.numberTip": "Diese Nummer öffnen: welcher Assistent sie annimmt, wie Anrufe sie erreichen",
   "assistantHeader.switchTip": "Assistenten wechseln, hinzufügen oder kopieren",
   "billing.auto.amount": "Abbuchung",
-  "billing.auto.offText": "Aus: Du kaufst Minuten selbst. Wir schicken dir eine E-Mail, wenn das Guthaben knapp wird.",
   "billing.auto.onText": "Fällt das Guthaben unter {threshold}, wird deine Karte mit {amount} belastet.",
   "billing.auto.onTextTaxed": "Fällt das Guthaben unter {threshold}, wird deine Karte mit {amount} belastet, zuzüglich Steuern, wo sie anfallen. Dein Guthaben erhält {amount}.",
   "billing.auto.saved": "Automatische Aufladung gespeichert",

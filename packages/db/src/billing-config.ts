@@ -261,6 +261,22 @@ export type TrialRechargeDisclosure = {
 }
 
 /**
+ * What Settings › Billing showed next to the switch when the owner turned auto-recharge on (`terms_acceptances.
+ * disclosure`, source `auto_recharge`; Janik, 2026-11-18): the same terms as "Keep calls answered" without its purchase
+ * now. `text`: the line itself, in the owner's language (the `key` names it); the amount charged each time, the balance
+ * it is charged below, the monthly cap of automatic recharges and whether tax is added where it applies.
+ */
+export type AutoRechargeDisclosure = {
+  kind: 'auto_recharge'
+  key: string
+  text: string
+  amountCents: number
+  thresholdCents: number
+  capCents: number
+  taxed: boolean
+}
+
+/**
  * The minutes prompt (docs/billing.md §3.2 step 7): at this share of the included minutes the owner is asked once per
  * period (banner and email) to "Keep calls answered": in the trial until they did, and on a paid plan with
  * auto-recharge off.
