@@ -859,6 +859,11 @@ function optionalSteps(groups: GroupStatus[]) {
       `Turning it on is the admin's choice in ${webAddress()}/#admin/providers/transcript (app_links.providers_transcript), because recordings leave the server: there they only select the provider, with a key you stored or the key already saved for the same service (ElevenLabs: voice or speech to text; OpenAI: realtime model, speech to text or language model). Say so.`,
     ],
     business: guideLines(recommendedProviders.business),
+    // White-label partners' own addresses (Partner › Domain): off until this provider is set up.
+    domains: [
+      english.t('server.setupAgent.optional.domains'),
+      ...guideLines(recommendedProviders.domains),
+    ],
     apps: [
       ...guideLines(recommendedProviders.apps),
       'The OAuth app needs the redirect URI that providers_list gives (redirect_uris).',
