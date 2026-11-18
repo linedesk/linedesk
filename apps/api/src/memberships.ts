@@ -34,6 +34,7 @@ import { recordSetupEvent } from './setup-events.ts'
 import {
   cancelSentInvitations,
   insertInvitation,
+  lockActiveSender,
   makeOwner,
   pendingInvitationTo,
   queueRemovedEmail,
@@ -336,6 +337,7 @@ export async function inviteToWorkspace(
   // An invitation names the person who sent it; the command line is nobody.
   if (actor.actorId === 'cli')
     throw new Reject('the command line cannot add to a workspace: use Server admin › Users › Add user')
+  await lockActiveSender(tx, actor.actorId)
   if (await isMemberByEmail(tx, workspace.id, email))
     throw new Reject(`${email} is already a member of ${workspace.name}`)
   if (await pendingInvitationTo(tx, workspace.id, email))

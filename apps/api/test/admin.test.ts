@@ -35,6 +35,7 @@ import { APIError } from 'better-auth/api'
 import { and, eq, getTableName, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { mapOidcProfile } from '../src/account-linking.ts'
+import { lockActiveSender } from '../src/team.ts'
 import {
   adminSignInEmail,
   alertInstanceAdmins,
@@ -1153,6 +1154,40 @@ describe('users', () => {
       e => e.event === 'invitation_withdrawn',
     )
     expect(withdrawn.map(e => e.workspace_id).sort()).toEqual([first.id, second.id].sort())
+  })
+
+  test('an invitation sent while the account is being disabled is cancelled too, and none is sent after (LIN-503)', async () => {
+    const ws = await createWorkspace('Racing Inviter')
+    const sender = await addMember(ws.id, 'admin')
+    const id = `inv_${randomBytes(6).toString('hex')}`
+    let release!: () => void
+    const held = new Promise<void>(r => (release = r))
+    let ready!: () => void
+    const inserted = new Promise<void>(r => (ready = r))
+    // team.invite's transaction, held open after its insert: the disable must wait for it, then cancel what it sent.
+    const inviting = db.transaction(async tx => {
+      await lockActiveSender(tx, sender.userId)
+      await tx.insert(invitation).values({
+        id,
+        organizationId: ws.id,
+        email: `race-${randomBytes(4).toString('hex')}@example.com`,
+        role: 'admin',
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 86_400_000),
+        inviterId: sender.userId,
+      })
+      ready()
+      await held
+    })
+    await inserted
+    const disabling = act(operator, 'user.disable', { userId: sender.userId })
+    await new Promise(r => setTimeout(r, 300))
+    release()
+    await inviting
+    expect((await disabling).status).toBe(200)
+    expect((await db.select().from(invitation).where(eq(invitation.id, id)))[0]!.status).toBe('canceled')
+    // After the disable, the sender's lock refuses (an invite already past sign-in when the account was disabled).
+    await expect(db.transaction(tx => lockActiveSender(tx, sender.userId))).rejects.toThrow('this account is disabled')
   })
 
   test('every sign-in method is blocked for a disabled user: the session hook refuses it', async () => {

@@ -67,7 +67,7 @@ import {
 } from './partner-refusals.ts'
 import { signupRules } from './self-serve.ts'
 import { createRateLimiter } from './rate-limit.ts'
-import { cancelSentInvitations, lockedOwner } from './team.ts'
+import { cancelSentInvitations, lockActiveSender, lockedOwner } from './team.ts'
 import { billPayerChanged, lockForPayerChange } from './usage-levels.ts'
 import { clientPeriodUsage, limitPercent, queueUsageLimitAlerts, resetUsageLimitAlerts } from './usage-limit.ts'
 import { insertWorkspace } from './workspace-creation-handlers.ts'
@@ -281,6 +281,7 @@ async function invite(
   now: string,
 ) {
   if (emailSender.kind === 'none') throw refusePartner('no_email')
+  await lockActiveSender(tx, inviterId)
   if (!allowEmailFor(partner.id) || !allowEmailTo(email)) throw refusePartner('invite_limit')
   const token = randomBytes(32).toString('base64url')
   const id = newId('pinv')

@@ -1,4 +1,5 @@
 {
+  "api.accountDisabled": "this account is disabled",
   "api.alreadyContact": "{phone} is already a contact",
   "api.assistantCannotAssign": "the assistant cannot assign calls",
   "api.callEnded": "the call has ended",

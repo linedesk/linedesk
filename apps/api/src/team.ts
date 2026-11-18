@@ -176,12 +176,23 @@ async function loadMember(tx: Tx, workspaceId: string, memberId: string) {
 }
 
 /**
+ * Locks the account that sends an invitation (FOR SHARE) and refuses a disabled one. `user.disable` updates this row
+ * before it cancels the account's pending invitations, so the two wait for each other: an invitation committed first is
+ * cancelled there, and one sent after sees the account disabled (LIN-503).
+ */
+export async function lockActiveSender(tx: Tx, userId: string) {
+  const [row] = await tx.select({ disabledAt: user.disabledAt }).from(user).where(eq(user.id, userId)).for('share')
+  if (!row || row.disabledAt) throw Forbidden.t('server.api.accountDisabled')
+}
+
+/**
  * The one inviting or renewing an invitation still manages the team, read from their member row: the permission came
  * from the role when the request started, and a demotion or removal committed since then must win. FOR SHARE, so a
  * role change or removal of this row (locked FOR UPDATE, loadMember) waits for the invitation, and its
  * cancelSentInvitations then sees it, or the invitation waits and sees the new role.
  */
 async function lockInviter(tx: Tx, workspaceId: string, actorId: string) {
+  await lockActiveSender(tx, actorId)
   const [row] = await tx
     .select({ role: member.role })
     .from(member)
