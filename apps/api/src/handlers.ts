@@ -81,6 +81,7 @@ import { eraseCallNow } from './data-purge.ts'
 import { emailRoutingChangesIn, transferChanges } from './audit.ts'
 import { agentSetupHandlers } from './agent-setup.ts'
 import { installSetupHandlers } from './install-setup.ts'
+import { requestInboundTrunkSync } from './inbound-trunk.ts'
 import { apiKeyHandlers } from './api-keys.ts'
 import { personalKeyHandlers } from './personal-keys.ts'
 import { oauthHandlers } from './oauth.ts'
@@ -1990,6 +1991,8 @@ const handlers: Record<string, Handler> = {
     // An install-account number in a new country: the install's carrier profiles may call it too, once this commits
     // (Telnyx; logged, never fails the setup). Own-account numbers never widen the install's profiles.
     if (carrier_account === 'install') onCommit?.(() => syncInstallDestinations())
+    // LiveKit's inbound trunk takes calls to the number once this commits, before the command answers (inbound-trunk.ts).
+    onCommit?.(async () => void (await requestInboundTrunkSync()))
     // The go-live checklist's first step ("Connect your number"), and where Server admin › Onboarding sees a business stop.
     await recordSetupEvent(tx, workspace_id, 'number_connected', now)
     // A workspace whose country is worked out from its numbers may be in another country now: what follows it moves.
@@ -2044,6 +2047,8 @@ const handlers: Record<string, Handler> = {
         impersonatedBy: impersonatorOf(actor),
       })
     if (number.carrier_account !== 'workspace') onCommit?.(() => syncInstallDestinations())
+    // And LiveKit's inbound trunk stops taking calls to it (inbound-trunk.ts).
+    onCommit?.(async () => void (await requestInboundTrunkSync()))
     return { rows: {}, deleted: { phone_numbers: [number.id] }, data: { releasedAtCarrier, unroutedAtCarrier } }
   },
 }

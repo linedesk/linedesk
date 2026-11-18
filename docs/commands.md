@@ -45,7 +45,7 @@ The system prompt and tools against the install's LLM, text only (no speech, no 
 ## Voice
 
 - `pnpm voice:up` (LiveKit on 7880, LiveKit SIP on 5060, Redis).
-- `pnpm --filter @linedesk/agent setup-sip [--outbound] <numbers>` (SIP inbound trunk, only from the carriers' signaling addresses in `LIVEKIT_SIP_ALLOWED_ADDRESSES`, default `telnyx twilio`, + dispatch rule; `--outbound` also the trunk warm transfers dial out through, Telnyx only).
+- `pnpm --filter @linedesk/agent setup-sip [--outbound] <numbers>` (SIP inbound trunk, only from the carriers' signaling addresses in `LIVEKIT_SIP_ALLOWED_ADDRESSES`, default `telnyx twilio`, + dispatch rule; `--outbound` also the trunk warm transfers dial out through, Telnyx only). Once per install: the API then keeps the inbound trunk's numbers in step with the connected numbers.
 - `pnpm --filter @linedesk/agent worker` (voice agent; answers calls once speech recognition, language model and voice are set up in Linedesk under Providers, or by `DEEPGRAM_API_KEY`, `OPENROUTER_API_KEY` and `ELEVENLABS_API_KEY` in its env; until then it runs and logs each call as missed; it reads the settings through `GET /v1/agent/provider-config`, see `apps/agent/src/config.ts`).
 
 ## Recordings (optional)

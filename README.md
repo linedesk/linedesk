@@ -153,7 +153,7 @@ Published on the host, and nothing else (Postgres, Electric, Valkey, the API and
 
 Call audio and SIP cannot go through an HTTP proxy, which is why they are published directly.
 
-Firewall: ports that Docker publishes on `0.0.0.0` bypass `ufw` (Docker writes its own iptables rules), so `ufw deny` does not close them. Keep `LIVEKIT_BIND_IP` and `LINEDESK_HTTP_BIND` as narrow as you need, and open the call ports with your provider's firewall (or ufw's `ufw-docker` rules) if you filter there. After the first start, tell LiveKit which numbers to accept:
+Firewall: ports that Docker publishes on `0.0.0.0` bypass `ufw` (Docker writes its own iptables rules), so `ufw deny` does not close them. Keep `LIVEKIT_BIND_IP` and `LINEDESK_HTTP_BIND` as narrow as you need, and open the call ports with your provider's firewall (or ufw's `ufw-docker` rules) if you filter there. After the first start, set up LiveKit's SIP trunk once (with the numbers you have; from then on the API keeps the trunk's numbers in step with the numbers connected in the app):
 
 ```sh
 docker compose run --rm agent node src/setup-sip.ts +15035550142   # your numbers

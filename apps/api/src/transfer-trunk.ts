@@ -119,6 +119,17 @@ export function livekitSip(env: Env = process.env, doFetch: typeof fetch = fetch
     async deleteTrunk(sipTrunkId: string) {
       await call('DeleteSIPTrunk', { sipTrunkId })
     },
+    async inboundTrunks(): Promise<TrunkInfo[]> {
+      const items = ((await call('ListSIPInboundTrunk', {})).items as TrunkInfo[] | undefined) ?? []
+      // Protobuf JSON leaves an empty list out.
+      return items.map(trunk => ({ ...trunk, numbers: trunk.numbers ?? [] }))
+    },
+    /** Replaces only the inbound trunk's numbers; its addresses, headers and call length stay as they are. */
+    async setInboundNumbers(sipTrunkId: string, numbers: string[]) {
+      // An empty `set` would change nothing (and `clear` would accept calls to every number): never sent.
+      if (!numbers.length) return
+      await call('UpdateSIPInboundTrunk', { sipTrunkId, update: { numbers: { set: numbers } } })
+    },
     /**
      * Dials out through an outbound trunk into `roomName` (forwarding checks). With `waitUntilAnswered` it returns
      * once the callee answered; a refusal (busy, no answer) is a LivekitError whose body says the SIP status.

@@ -83,6 +83,9 @@ startJobs().catch(error => console.error('jobs could not start:', error))
 // update brings older profiles to them. In the background, never blocking the start: it retries with backoff, logs
 // ALERT lines and records unconfirmed profiles for Server admin › System; it never throws.
 void (await import('./outbound-policy.ts')).syncTelnyxProfiles()
+// LiveKit's inbound trunk takes calls to exactly the connected numbers: written now and every few minutes, so a
+// write after a number change that failed is put right (inbound-trunk.ts). Logs and never throws.
+void (await import('./inbound-trunk.ts')).startInboundTrunkSync()
 
 // Stop on SIGTERM/SIGINT (as PID 1 in a container Node would ignore them): finish open requests,
 // but don't wait for long-lived sync streams. Their connections close after their response, so the proxy sends the

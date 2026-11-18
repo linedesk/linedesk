@@ -8,7 +8,8 @@
 // are the caller IDs a transfer may show (each business's own Linedesk number). The Telnyx voice profile may call the
 // countries of those numbers plus OUTBOUND_COUNTRIES (the API keeps it to the install's list afterwards).
 // --print-allowed-addresses prints the address list, one per line, and changes nothing (for a firewall).
-// The numbers replace the trunk's whole list, so every number that must keep working is passed each time;
+// The numbers replace the trunk's whole list, so every number that must keep working is passed each time (the API
+// writes the connected numbers back within minutes anyway: apps/api/src/inbound-trunk.ts);
 // no number or an unknown option prints the usage and changes nothing.
 // Usage: pnpm --filter @linedesk/agent setup-sip [--outbound] <+15035550142 ...> | --print-allowed-addresses
 import { countriesOfNumbers, parseCountryList } from '@linedesk/actions'

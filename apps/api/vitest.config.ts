@@ -72,6 +72,8 @@ const INSTANCE_WIDE_FILES = [
   'test/team-member-edit.test.ts',
   'test/admin-passkey-recovery.test.ts',
   'test/outbound.test.ts',
+  // Reads every workspace's numbers and empties phone_numbers (LiveKit's inbound trunk list, inbound-trunk.ts).
+  'test/inbound-trunk.test.ts',
   // Switches calendar tools on and off for the install (instance_settings).
   'test/calendar-connections.test.ts',
   'test/calendar-tools.test.ts',
