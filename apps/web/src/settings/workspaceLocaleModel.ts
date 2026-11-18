@@ -33,6 +33,24 @@ export function countryOptions(resolvedCountry: string, source: WorkspaceCountry
   ]
 }
 
+/**
+ * Only the countries a workspace may be in (`served`), in that order, plus the one it has (`value`) when that is
+ * another (a workspace that came to a Cloud bill from elsewhere still shows its country). "Automatic" stays first. No
+ * group headings: the list is short.
+ */
+export function servedOptions(all: readonly SearchOption[], served: readonly string[], value: string): SearchOption[] {
+  const byCode = new Map(all.map(o => [o.value, o]))
+  const codes = [...served, ...(value && value !== AUTOMATIC && !served.includes(value) ? [value] : [])]
+  const automatic = all.filter(o => o.value === AUTOMATIC)
+  const countries = codes.flatMap(code => {
+    const option = byCode.get(code)
+    if (!option) return []
+    const { group: _group, ...rest } = option
+    return [rest]
+  })
+  return [...automatic, ...countries]
+}
+
 /** The country search of the phone field (name, ISO code), with "Automatic" kept when it matches. */
 export function searchCountries(options: readonly SearchOption[], query: string): SearchOption[] {
   if (!query.trim()) return [...options]
@@ -40,5 +58,10 @@ export function searchCountries(options: readonly SearchOption[], query: string)
   const phone = phoneCountryOptions()
   const found = new Set(searchPhoneCountries(phone, query).map(o => o.value))
   const byCode = new Map(options.map(o => [o.value, o]))
-  return [...automatic, ...[...found].map(code => ({ ...byCode.get(code)!, group: undefined }))]
+  // Only the options offered (a list of the served countries is shorter than the phone field's).
+  const countries = [...found].flatMap(code => {
+    const option = byCode.get(code)
+    return option ? [{ ...option, group: undefined }] : []
+  })
+  return [...automatic, ...countries]
 }

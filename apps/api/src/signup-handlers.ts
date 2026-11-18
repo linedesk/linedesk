@@ -1,7 +1,7 @@
 // The handlers of self-serve sign-up (account.signUp, signup.*) and the daily sign-up sweep (docs/billing.md §3.1).
 // Apart from self-serve.ts, which the sign-in gate imports, so that the gate does not pull in workspace creation and
 // deletion (and with them the handler registry) while it loads.
-import type { AccountSignUpData } from '@linedesk/actions'
+import type { AccountSignUpData, CountryHint } from '@linedesk/actions'
 import {
   billing_accounts,
   billing_balances,
@@ -13,7 +13,6 @@ import {
   partner_invitations,
   partner_members,
   partners,
-  SIGNUP_COUNTRIES,
   session,
   signup_attempts,
   terms_acceptances,
@@ -27,6 +26,7 @@ import { billingProvider } from './billing-settings.ts'
 import type { Actor } from './context.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
+import { COUNTRY_NOT_SERVED, countryNotYet, isServedCountry, placeholderWorkspaceName } from './served-countries.ts'
 import { type LegalTerms, legalTerms, recordAcceptance, TERMS_CHANGED } from './legal-terms.ts'
 
 export { TERMS_CHANGED }
@@ -41,8 +41,7 @@ const DAY = 24 * 3_600_000
 
 // --- account.signUp -----------------------------------------------------------------------------------
 
-/** What someone outside the sign-up countries is told (the page shows its own "not yet" text first). */
-export const COUNTRY_NOT_YET = 'Linedesk is not available in this country yet.'
+export { COUNTRY_NOT_SERVED }
 export const SIGNUP_CLOSED = 'Sign-up is not open on this server.'
 
 /** Only a person signed in as themselves signs up: never an API key, a setup link, the agent or an impersonation. */
@@ -60,8 +59,12 @@ function refuseSignUpActor(actor: Actor) {
 
 type SignUpInput = {
   name: string
-  businessName: string
-  country: string
+  /** The partner's company name (required for a partner); a business's name comes in the onboarding's Business step. */
+  businessName?: string
+  /** As an older sign-up page picked it; else the request's hint decides. */
+  country?: string
+  /** Where the request comes from (POST /v1/signup sets it from the request, never the caller). */
+  countryHint?: CountryHint
   plan: 'cloud' | 'partner'
   interval: 'year' | 'month'
   timeZone?: string
@@ -115,7 +118,10 @@ const signUp: Handler = async (ctx, input: SignUpInput) => {
     const data: AccountSignUpData = { ...waiting, existing: true }
     return { rows: {}, data: { ...data, subject: { email: me.email, workspaceId: waiting.workspace?.id ?? null } } }
   }
-  if (!(SIGNUP_COUNTRIES as readonly string[]).includes(input.country)) throw new Reject(COUNTRY_NOT_YET)
+  // The country gate (docs/billing.md §3.2): the country picked (an older page), else where the request comes from.
+  // Unknown: let through, the onboarding's Business step decides on the business's own country.
+  const country = input.country ?? input.countryHint?.country ?? null
+  if (country && !isServedCountry(country)) throw countryNotYet()
   // The terms the page showed must still be the ones in effect (A9): changed while the page was open, it reloads them.
   const { terms } = legalTerms()
   if (!terms) throw new Forbidden(SIGNUP_CLOSED)
@@ -139,9 +145,12 @@ const signUp: Handler = async (ctx, input: SignUpInput) => {
     created_at: now,
     updated_at: now,
   })
+  // The business's name and country come in the Business step: until then a placeholder name, and the country only as
+  // picked (an older page), else Automatic on the request's hint.
   const org = await insertWorkspace(ctx, {
-    name: input.businessName,
-    country: input.country,
+    name: input.businessName ?? placeholderWorkspaceName(actor.locale),
+    ...(input.country ? { country: input.country } : {}),
+    ...(input.countryHint ? { countryHint: input.countryHint } : {}),
     ...(input.timeZone ? { timeZone: input.timeZone } : {}),
   })
   await tx
@@ -174,6 +183,9 @@ async function partnerSignUp(
     .from(partner_members)
     .where(and(eq(partner_members.user_id, me.id), eq(partner_members.role, 'owner')))
   if (owning) throw refusePartner('already_partner')
+  // The schema asks for it; checked again, as the partner's name is its brand until a server admin approves it.
+  const partnerName = input.businessName
+  if (!partnerName) throw Reject.t('server.api.signup.partnerNameMissing')
   const billId = crypto.randomUUID()
   await tx.insert(billing_accounts).values({
     id: billId,
@@ -187,7 +199,7 @@ async function partnerSignUp(
   const partnerId = `ptn_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
   await tx.insert(partners).values({
     id: partnerId,
-    name: input.businessName,
+    name: partnerName,
     billing_account_id: billId,
     created_by: me.id,
     created_at: now,
@@ -199,7 +211,7 @@ async function partnerSignUp(
   const data: AccountSignUpData = {
     billId,
     workspace: null,
-    partner: { id: partnerId, name: input.businessName },
+    partner: { id: partnerId, name: partnerName },
     existing: false,
   }
   return { rows: {}, data: { ...data, subject: { email: me.email, workspaceId: null } } }

@@ -100,7 +100,8 @@ export function renamedWorkspace(me: Me, name: string): Me {
   const rename = (list: { id: string; name: string }[]) => list.map(w => (w.id === id ? { ...w, name } : w))
   const next: Me = {
     ...me,
-    workspace: me.workspace && { ...me.workspace, name },
+    // Named now: no longer the sign-up's placeholder.
+    workspace: me.workspace && { ...me.workspace, name, unnamed: false },
     ...(me.workspaces ? { workspaces: rename(me.workspaces) } : {}),
   }
   setQueryData<{ id: string; name: string }[]>(WORKSPACES_QUERY, list => rename(list ?? next.workspaces ?? []), {

@@ -1,14 +1,15 @@
 // Self-serve sign-up on Linedesk Cloud (`/signup?plan=cloud|partner&interval=year|month`, docs/billing.md §3.2): email,
-// then the code, then the person's name, the business's name and its country. Plan `partner` (docs/white-label.md):
-// a white-label partner account with its partner bill, no workspace; the app opens the partner area next. The API decides everything (open or not,
-// the address, the bot check, the limits, the countries); this page only asks and says what came back. Only the plan
-// and the interval travel in the address, never personal data.
+// then the code, then the person's name. The business's name and country come in the onboarding's first step (Find
+// your business); the API checks where the request comes from and says "not yet" outside the countries served. Plan
+// `partner` (docs/white-label.md): a white-label partner account with its partner bill, no workspace, and its company's
+// name; the app opens the partner area next. The API decides everything (open or not, the address, the bot check, the
+// limits, the countries); this page only asks and says what came back. Only the plan and the interval travel in the
+// address, never personal data.
 import { T, useFormat, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { auth, signInWithCode } from './auth.ts'
-import { browserPlace, useCountryHint } from './countryHint.ts'
+import { browserPlace } from './countryHint.ts'
 import { signOutAndForget } from './localData.ts'
-import { CountrySelect } from './settings/CountrySelect.tsx'
 import { CODE_LENGTH, codeErrorMessage, emailError, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
 import {
   askSignupCode,
@@ -19,7 +20,6 @@ import {
   type SignupPlan,
   type SignupTerms,
   signUpBusiness,
-  SIGNUP_COUNTRIES,
 } from './signup.ts'
 import { ExternalLink } from './ui/AppLink.tsx'
 import { AuthError } from './ui/AuthError.tsx'
@@ -337,12 +337,14 @@ function CodeStep({
 }
 
 /**
- * The last step. Making the account accepts the terms and the privacy policy shown next to the button (clickwrap, A9),
- * for a business and a partner alike; the API records the versions with the time and the session's IP address. A
- * business goes on to set up its assistant without a card and adds one at the onboarding's last step (`activate`),
- * which shows the terms again and records them with what it charges; a partner goes to Checkout from its area.
+ * The last step: the person's name (and a partner's company name), nothing more; the business is found and named in
+ * the onboarding's first step. Making the account accepts the terms and the privacy policy shown next to the button
+ * (clickwrap, A9), for a business and a partner alike; the API records the versions with the time and the session's IP
+ * address. A business goes on to set up its assistant without a card and adds one at the onboarding's last step
+ * (`activate`), which shows the terms again and records them with what it charges; a partner goes to Checkout from its
+ * area. From a country not served yet (as the API sees the request): the "not yet" page.
  */
-function DetailsStep({
+export function DetailsStep({
   interval,
   partner,
   terms,
@@ -367,34 +369,31 @@ function DetailsStep({
   const known = auth.useSession().data?.user?.name ?? ''
   const [typed, setName] = useState<string | null>(null)
   const name = typed ?? known
-  const [business, setBusiness] = useState('')
-  const hint = useCountryHint()
-  const [picked, setPicked] = useState<string | null>(null)
-  const country = picked ?? hint?.country ?? ''
+  const [company, setCompany] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const notServed = Boolean(country) && !(SIGNUP_COUNTRIES as readonly string[]).includes(country)
+  const [notYet, setNotYet] = useState(false)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (busy) return
     if (!name.trim()) return setError(t('auth.signup.nameMissing'))
-    if (!business.trim()) return setError(t('auth.create.nameMissing'))
-    if (!country) return setError(t('shell.newWorkspace.countryMissing'))
-    if (notServed) return setError(t('auth.signup.notYetText'))
+    if (partner && !company.trim()) return setError(t('auth.signup.partnerNameMissing'))
     setBusy(true)
     setError(null)
+    const place = browserPlace()
     const answer = await signUpBusiness({
       name: name.trim(),
-      businessName: business.trim(),
-      country,
+      ...(partner ? { businessName: company.trim() } : {}),
       plan: partner ? 'partner' : 'cloud',
       interval,
-      timeZone: browserPlace().timeZone ?? undefined,
+      timeZone: place.timeZone ?? undefined,
+      locale: place.locale ?? undefined,
       acceptedTerms: { termsVersion: terms.termsVersion, privacyVersion: terms.privacyVersion },
     })
     if (answer.ok) return onDone(answer.workspaceId)
     setBusy(false)
+    if (answer.notYet) return setNotYet(true)
     // Changed while the page was open: the new links are loaded, and the person reads them and continues again.
     if (answer.termsChanged) onTermsChanged()
     setError(
@@ -402,14 +401,13 @@ function DetailsStep({
         ? t('auth.signup.termsChanged')
         : answer.partnerOwned
           ? t('auth.signup.partnerOwned')
-          : answer.notYet
-            ? t('auth.signup.notYetText')
-            : answer.closed
-              ? t('auth.signup.closedText')
-              : t('auth.signup.failed'),
+          : answer.closed
+            ? t('auth.signup.closedText')
+            : t('auth.signup.failed'),
     )
   }
 
+  if (notYet) return <NotYet />
   return (
     <AuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
@@ -418,9 +416,9 @@ function DetailsStep({
             ? t('auth.signup.partnerDetailsTitle')
             : fromApp
               ? t('auth.signup.newWorkspaceTitle')
-              : t('auth.signup.detailsTitle')}
+              : t('auth.signup.nameTitle')}
         </h1>
-        <p>{partner ? t('auth.signup.partnerDetailsText') : t('auth.signup.detailsText')}</p>
+        <p>{partner ? t('auth.signup.partnerDetailsText') : t('auth.signup.nameText')}</p>
         <label>
           {t('auth.signup.yourName')}
           <input
@@ -431,21 +429,17 @@ function DetailsStep({
             disabled={busy}
           />
         </label>
-        <label>
-          {partner ? t('auth.signup.partnerName') : t('shell.newWorkspace.name')}
-          <input
-            value={business}
-            onChange={e => setBusiness(e.target.value)}
-            autoComplete="organization"
-            autoFocus={!!name}
-            disabled={busy}
-          />
-        </label>
-        <div className="auth-field">
-          <label htmlFor="signup-country">{t('settings.general.country.label')}</label>
-          <CountrySelect id="signup-country" value={country} onChange={setPicked} disabled={busy} />
-          {notServed && <span className="auth-hint">{t('auth.signup.notYetText')}</span>}
-        </div>
+        {partner && (
+          <label>
+            {t('auth.signup.partnerName')}
+            <input
+              value={company}
+              onChange={e => setCompany(e.target.value)}
+              autoComplete="organization"
+              disabled={busy}
+            />
+          </label>
+        )}
         {error && <AuthError message={error} />}
         {planNow && (
           <p className="auth-plan-now">
@@ -466,7 +460,7 @@ function DetailsStep({
         <button
           type="submit"
           className={cx('k-btn k-btn-primary', busy && 'is-busy')}
-          disabled={busy || notServed}
+          disabled={busy}
           aria-busy={busy || undefined}
         >
           {busy && <Spinner />}

@@ -12,6 +12,7 @@ import {
 } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import type { WebsiteImport } from '../auth.ts'
+import { brandName } from '../brand.ts'
 import { i18n } from '../i18n/index.tsx'
 import { type KeyboardEvent, type ReactNode, useState } from 'react'
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -307,12 +308,25 @@ function FindBusiness({
 }
 
 /**
- * What the Business step saves of the country: only what the owner picked (Change). A country left as shown is not
- * saved as set (it stays Automatic, so a number connected later still decides it).
+ * What the Business step saves of the country: what the owner picked (Change), else the listing's (Google says where
+ * the business is). A country only worked out (the sign-up location, the time zone) and left as shown is not saved as
+ * set (it stays Automatic, so a number connected later still decides it).
  */
-export function localeToSave(pickedCountry: string | null, savedCountry: string | null): { country?: string } {
-  return pickedCountry !== null && pickedCountry !== savedCountry ? { country: pickedCountry } : {}
+export function localeToSave(
+  pickedCountry: string | null,
+  savedCountry: string | null,
+  listingCountry: string | null = null,
+): { country?: string } {
+  const country = pickedCountry ?? listingCountry
+  return country !== null && country !== savedCountry ? { country } : {}
 }
+
+/**
+ * Whether the business is in a country this workspace is not served in yet (a workspace on a Linedesk Cloud bill:
+ * only the sign-up countries). Null `served`: every country is.
+ */
+export const countryNotServed = (country: string, served: readonly string[] | null | undefined) =>
+  !!served && !served.includes(country)
 
 /**
  * The listings found, as buttons: Enter, Space or a click picks one (and imports it); the arrow keys only move
@@ -463,7 +477,12 @@ function ReviewProfile({
   // (workspace-locale.ts, the same order as Workspace settings › General), until the owner picks.
   const [pickedCountry, setPickedCountry] = useState<string | null>(null)
   const [changingCountry, setChangingCountry] = useState(false)
-  const country = pickedCountry ?? phoneCountry
+  // The listing's country (Google), else the workspace's, until the owner picks.
+  const listingCountry = proposal.country ?? null
+  const country = pickedCountry ?? listingCountry ?? phoneCountry
+  // A workspace on a Linedesk Cloud bill is served only in the sign-up countries: a business elsewhere stops here.
+  const served = settings?.servedCountries ?? null
+  const notServed = countryNotServed(country, served)
   // The time zone: the workspace's (set when it was made, from its country), the listing's when Google has one, until
   // the owner picks one (Change) or picks another country (the zone then follows it, zoneForCountry).
   const savedZone = settings?.timeZone ?? null
@@ -480,13 +499,16 @@ function ReviewProfile({
   const set = (change: Partial<ProfileDraft>) => setDraft(d => ({ ...d, ...change }))
 
   function save() {
-    if (problem) return
+    if (problem || notServed) return
     const { assistant: changes, hours, rename } = profileSave(draft, assistant.business_profile, businessName)
     void run('assistant.update', { assistantId: assistant.id, ...changes })
     // Saved as set only what the owner picked: a country left as shown stays Automatic, so a number connected later
     // (or the business phone) still decides it.
     // The time zone shown is saved when it is not the workspace's already (picked, the listing's, or the country's).
-    const locale = { ...localeToSave(pickedCountry, settings?.country ?? null), ...timeZoneToSave(zone, savedZone) }
+    const locale = {
+      ...localeToSave(pickedCountry, settings?.country ?? null, listingCountry),
+      ...timeZoneToSave(zone, savedZone),
+    }
     if (Object.keys(locale).length) {
       void run('workspace.updateSettings', locale)
       patchWorkspaceSettings({
@@ -509,18 +531,40 @@ function ReviewProfile({
   }
   useStepKeys({ onEnter: save, onEscape: onBack })
 
+  const heading = fromGoogle
+    ? draft.name.trim()
+      ? t('onboarding.business.review.isThis', { name: draft.name.trim() })
+      : t('onboarding.business.review.isThisYours')
+    : draft.name.trim()
+      ? t('onboarding.business.review.about', { name: draft.name.trim() })
+      : t('onboarding.business.review.aboutYours')
+
+  // A business in a country not served yet: the step stops here. Only the calm "not yet" note and the country (to pick
+  // the right one when the listing's is wrong); Back looks the business up again. Nothing else to fill in.
+  if (notServed)
+    return (
+      <>
+        <div className="ob-body">
+          <h1>{heading}</h1>
+          <Note tone="info" title={t('auth.signup.notYetTitle')} role="status">
+            {t('onboarding.business.notServed', { brand: brandName(), country: phoneCountryName(country, i18n()) })}
+          </Note>
+          <Field
+            id="ob-biz-country"
+            label={t('settings.general.country.label')}
+            tip={t('settings.general.country.tip')}
+          >
+            <CountrySelect id="ob-biz-country" value="" onChange={pickCountry} served={served} />
+          </Field>
+        </div>
+        <Foot onBack={onBack} canContinue={false} label={t('onboarding.business.review.save')} />
+      </>
+    )
+
   return (
     <>
       <div className="ob-body">
-        <h1>
-          {fromGoogle
-            ? draft.name.trim()
-              ? t('onboarding.business.review.isThis', { name: draft.name.trim() })
-              : t('onboarding.business.review.isThisYours')
-            : draft.name.trim()
-              ? t('onboarding.business.review.about', { name: draft.name.trim() })
-              : t('onboarding.business.review.aboutYours')}
-        </h1>
+        <h1>{heading}</h1>
         <p className="ob-lede">{sourcesLine(proposal.pages, fromGoogle)}</p>
         {proposal.notes.map(note => (
           <p key={note} className="ob2-note">
@@ -588,7 +632,7 @@ function ReviewProfile({
             tip={t('settings.general.country.tip')}
           >
             {changingCountry ? (
-              <CountrySelect id="ob-biz-country" value={country} onChange={pickCountry} />
+              <CountrySelect id="ob-biz-country" value={country} onChange={pickCountry} served={served} />
             ) : (
               <span className="ob-biz-country">
                 <span id="ob-biz-country">

@@ -543,6 +543,11 @@ export type WorkspaceSettingsData = {
   resolvedCountry?: string
   /** Where resolvedCountry came from. */
   countrySource?: WorkspaceCountrySource
+  /**
+   * The countries this workspace may be in (a workspace on a Linedesk Cloud bill: the sign-up countries); null or
+   * missing: every country.
+   */
+  servedCountries?: readonly string[] | null
   /** The workspace language: the main language of the country in use (resolveWorkspaceLanguage; may be one calls are not answered in). */
   resolvedLanguage?: string
   /** On a server that bills usage: the owner allows Premium voices and models (workspace.setAllowPremium). */

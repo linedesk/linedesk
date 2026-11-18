@@ -21,7 +21,15 @@ import { db } from './db.ts'
 import { type EvaluationModel, evaluationModel } from './evaluations.ts'
 import { serverEnv } from './instance-env.ts'
 import { type Handler, Reject } from './handler-context.ts'
-import { type PlaceDetails, PlacesError, placeArea, placeDetails, placesHoursToSpans, searchPlaces } from './places.ts'
+import {
+  type PlaceDetails,
+  PlacesError,
+  placeArea,
+  placeCountry,
+  placeDetails,
+  placesHoursToSpans,
+  searchPlaces,
+} from './places.ts'
 import { activeProvider } from './provider-settings.ts'
 import { createFailureLimiter } from './rate-limit.ts'
 import { IMPORT_TEXT_MAX, ImportRefused, readSite, type SitePage } from './site-import.ts'
@@ -288,6 +296,7 @@ async function proposal(
     name,
     address: details?.formattedAddress ?? null,
     area: answer.area ?? (details ? placeArea(details) : null),
+    country: details ? placeCountry(details) : null,
     phone: details?.internationalPhoneNumber ?? null,
     website: readWebsite ?? website,
     hours: placesHoursToSpans(details?.regularOpeningHours?.periods),

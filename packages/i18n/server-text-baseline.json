@@ -96,7 +96,7 @@
   "apps/api/src/setup.ts": 5,
   "apps/api/src/sign-in-limits.ts": 5,
   "apps/api/src/signup-gate.ts": 1,
-  "apps/api/src/signup-handlers.ts": 5,
+  "apps/api/src/signup-handlers.ts": 4,
   "apps/api/src/site-import.ts": 12,
   "apps/api/src/stale-calls.ts": 6,
   "apps/api/src/star-prompt.ts": 1,

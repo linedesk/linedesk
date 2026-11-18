@@ -90,6 +90,8 @@ export type Me = {
   workspace: {
     id: string
     name: string
+    /** Made by sign-up and not named yet (a placeholder name): the Business step asks for the name. */
+    unnamed?: boolean
     disabled?: boolean
     iconUrl?: string | null
     billingState?: 'pending_payment' | 'active' | 'suspended' | null

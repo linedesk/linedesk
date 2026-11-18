@@ -1,9 +1,5 @@
 // The sign-up page's requests (apps/api/src/self-serve.ts and app.ts): whether sign-up is open, the email code with
 // its checks, and account.signUp. What the page reads from its address: the plan and the interval, nothing else.
-import { SIGNUP_COUNTRIES } from '@linedesk/db/types'
-
-export { SIGNUP_COUNTRIES }
-
 /** The plan's prices and the trial at the install's rules (Server admin › Billing), in cents before tax. */
 export type SignupPlan = { monthlyCents: number; yearlyCents: number; trialDays: number }
 /** The partner plan (docs/white-label.md): its base fee, and in the free trial at most `trialClients` client workspaces. */
@@ -121,11 +117,13 @@ export async function askSignupCode(
 
 export type SignUpInput = {
   name: string
-  businessName: string
-  country: string
+  /** The partner's company name (plan `partner`); a business is named in the onboarding's Business step. */
+  businessName?: string
   plan: 'cloud' | 'partner'
   interval: 'year' | 'month'
+  /** This browser's time zone and language: where the request comes from when the proxy does not say (country-hint.ts). */
   timeZone?: string
+  locale?: string
   acceptedTerms: { termsVersion: string; privacyVersion: string }
 }
 
@@ -156,10 +154,11 @@ export async function signUpBusiness(
     if (res.ok && body?.ok && (workspaceId || partnerId)) return { ok: true, workspaceId, partnerId }
     if (body?.code === 'already_partner')
       return { ok: false, notYet: false, closed: false, termsChanged: false, partnerOwned: true }
-    // 409 with `terms_changed`: the terms changed while the page was open (A9); 409 without a code: the country is not
-    // served yet; 403: closed meanwhile.
+    // 409 with `terms_changed`: the terms changed while the page was open (A9); `country_not_served` (an older API: 409
+    // without a code): the request comes from a country not served yet; 403: closed meanwhile.
     const termsChanged = res.status === 409 && body?.code === 'terms_changed'
-    return { ok: false, notYet: res.status === 409 && !body?.code, closed: res.status === 403, termsChanged }
+    const notYet = body?.code === 'country_not_served' || (res.status === 409 && !body?.code)
+    return { ok: false, notYet, closed: res.status === 403, termsChanged }
   } catch {
     return { ok: false, notYet: false, closed: false, termsChanged: false }
   }

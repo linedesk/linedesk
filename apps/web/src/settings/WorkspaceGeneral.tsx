@@ -174,6 +174,7 @@ function Country({ canEdit }: { canEdit: boolean }) {
             id="ws-country"
             value={data.country ?? AUTOMATIC}
             automatic={automatic}
+            served={data.servedCountries}
             onChange={change}
             disabled={!canEdit}
           />

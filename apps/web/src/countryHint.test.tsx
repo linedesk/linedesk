@@ -4,7 +4,7 @@ import { loadCountryHint, phoneCountryFrom } from './countryHint.ts'
 import { i18n } from './i18n/index.tsx'
 import { CountrySelect } from './settings/CountrySelect.tsx'
 import { createWorkspace } from './auth.ts'
-import { localeToSave } from './onboarding/BusinessStep.tsx'
+import { countryNotServed, localeToSave } from './onboarding/BusinessStep.tsx'
 
 const answer = (body: unknown, status = 200) =>
   (async () => new Response(JSON.stringify(body), { status })) as typeof fetch
@@ -81,6 +81,21 @@ describe('a prefilled country left as it is is not saved as set (it stays Automa
     expect(localeToSave(null, null)).toEqual({})
     expect(localeToSave('ES', null)).toEqual({ country: 'ES' })
     expect(localeToSave('ES', 'ES')).toEqual({})
+  })
+
+  test("the listing's country is saved as the business's; what the owner picks wins", () => {
+    expect(localeToSave(null, null, 'CA')).toEqual({ country: 'CA' })
+    expect(localeToSave('US', null, 'CA')).toEqual({ country: 'US' })
+    expect(localeToSave(null, 'CA', 'CA')).toEqual({})
+  })
+
+  test('a business outside the countries a Cloud workspace is served in stops the Business step', () => {
+    const served = ['US', 'CA', 'PR']
+    expect(countryNotServed('DE', served)).toBe(true)
+    expect(countryNotServed('PR', served)).toBe(false)
+    // A workspace not on a Cloud bill (or an older API): every country.
+    expect(countryNotServed('DE', null)).toBe(false)
+    expect(countryNotServed('DE', undefined)).toBe(false)
   })
 
   test("before the settings load, the phone field uses this browser's own hint in the same order", () => {

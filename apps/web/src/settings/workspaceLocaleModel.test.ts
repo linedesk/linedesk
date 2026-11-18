@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { AUTOMATIC, countryOptions, searchCountries } from './workspaceLocaleModel.ts'
+import { AUTOMATIC, countryOptions, searchCountries, servedOptions } from './workspaceLocaleModel.ts'
 import { draftOf } from './assistantDraft.ts'
 import type { Assistant } from '@linedesk/db/types'
 
@@ -41,4 +41,15 @@ test('Automatic says where a hinted country came from: sign-up location, time zo
   expect(countryOptions('AT', 'browser_language')[0]?.label).toBe(
     'Automatic (Austria, from the browser language it was created in)',
   )
+})
+
+test('only the served countries (a Cloud workspace), without headings; one set elsewhere stays shown; the search keeps to them', () => {
+  const all = countryOptions('US', 'sign_up_location')
+  const served = servedOptions(all, ['US', 'CA', 'PR'], 'CA')
+  expect(served.map(o => o.value)).toEqual([AUTOMATIC, 'US', 'CA', 'PR'])
+  expect(served.every(o => !o.group)).toBe(true)
+  expect(servedOptions(all.slice(1), ['US', 'CA', 'PR'], 'DE').map(o => o.value)).toEqual(['US', 'CA', 'PR', 'DE'])
+  // Searching a country that is not offered finds nothing, never an empty option.
+  expect(searchCountries(served, 'germ')).toEqual([])
+  expect(searchCountries(served, 'puerto').map(o => o.value)).toEqual(['PR'])
 })

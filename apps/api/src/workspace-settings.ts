@@ -40,6 +40,7 @@ import {
 } from './usage-levels.ts'
 import { deleteOwn, deletePreview } from './workspace-delete-own.ts'
 import { workspaceLocale } from './workspace-locale.ts'
+import { refuseUnservedCountry, servedCountriesOf } from './served-countries.ts'
 
 /**
  * Whether calls are recorded on this server: a recording store is picked in the admin area (and set
@@ -173,6 +174,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       jobValueCurrency: jobValueCurrencyOf(row, locale.resolvedCountry),
       pickupMode: row?.pickup_mode ?? null,
       ...locale,
+      servedCountries: await servedCountriesOf(tx, actor.workspaceId),
       allowPremium: row?.allow_premium ?? false,
       allowUltra: row?.allow_ultra ?? false,
       allowSwitch: await allowSwitchOf(tx, actor),
@@ -244,6 +246,13 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
     },
   ) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
+    if (input.country !== undefined) {
+      const [current] = await tx
+        .select({ country: workspace_settings.country })
+        .from(workspace_settings)
+        .where(eq(workspace_settings.workspace_id, actor.workspaceId))
+      await refuseUnservedCountry(tx, actor.workspaceId, input.country, current?.country ?? null)
+    }
     const jobValueCents =
       input.jobValueCents === undefined && input.jobValueCurrency !== undefined
         ? await rescaledJobValue(tx, actor.workspaceId, input.jobValueCurrency)

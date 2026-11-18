@@ -80,6 +80,7 @@ import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { signupRules } from './self-serve.ts'
 import { refuseBillingActor } from './usage-levels.ts'
+import { refuseUnservedWorkspaces } from './served-countries.ts'
 
 /**
  * How long a Checkout Session can be completed (Stripe allows 30 minutes to 24 hours): well under a day, so the sign-up
@@ -430,6 +431,8 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
   const terms = termsToAccept(bill, input)
   refuseCheckoutFlood(bill.id)
   const items = await db.transaction(tx => planItems(tx, bill))
+  // A Cloud business outside the sign-up countries is told "not yet" before any card (served-countries.ts).
+  if (bill.kind === 'cloud') await db.transaction(tx => refuseUnservedWorkspaces(tx, bill.id))
   const provider = await billingProvider(db)
   const configuration = await cardOnlyConfiguration(provider)
   const customerId = await customerOf(provider, bill)

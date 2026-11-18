@@ -8,7 +8,9 @@ import {
   type WorkspaceCreateData,
   workspaceNameProblem,
 } from '@linedesk/actions'
+import { localeForUser } from '@linedesk/i18n/server'
 import { requestCountryHint } from './country-hint.ts'
+import { isPlaceholderWorkspaceName } from './served-countries.ts'
 import {
   member,
   organization,
@@ -482,10 +484,26 @@ app.post('/v1/signup', async c => {
     permissions: ['account:signUp'],
     sessionId: session.session.id,
     sessionExpiresAt: new Date(session.session.expiresAt),
+    // The workspace's placeholder name is in the person's language (signup-handlers.ts).
+    locale: localeForUser(account, headers.get('accept-language')),
   }
-  const made = await runAction('account.signUp', await c.req.json().catch(() => null), actor)
+  const body = await c.req.json().catch(() => null)
+  // Where the request comes from (country-hint.ts), never what the caller says it is: the sign-up's country gate.
+  const input =
+    body && typeof body === 'object' && !Array.isArray(body)
+      ? withRequestHint(body as Record<string, unknown>, headers)
+      : body
+  const made = await runAction('account.signUp', input, actor)
   return c.json(made.body, made.status)
 })
+
+/** The sign-up's body with the request's own country hint in place of any the caller sent. */
+function withRequestHint(body: Record<string, unknown>, headers: Headers): Record<string, unknown> {
+  const { countryHint: _sent, ...rest } = body
+  const hint = requestCountryHint(headers, { timeZone: body.timeZone, locale: body.locale })
+  const { locale: _locale, ...input } = rest
+  return hint ? { ...input, countryHint: hint } : input
+}
 
 // Public, before the guard: the API description lists no data, only the public actions' schemas.
 const openApi = openApiDocument(actions.values(), process.env.PUBLIC_URL || WEB_ORIGIN)
@@ -688,6 +706,8 @@ app.get('/v1/me', async c => {
       ? {
           id: workspace.id,
           name: workspace.name,
+          // Made by sign-up and not named yet: the Business step asks for the name and does not prefill this one.
+          unnamed: isPlaceholderWorkspaceName(workspace.name),
           disabled: Boolean(workspace.disabledAt),
           iconUrl: iconUrlOf(workspace.id, workspace.iconVersion),
           // On a bill: `pending_payment` until Checkout, then `active` or `suspended`; null off billing.

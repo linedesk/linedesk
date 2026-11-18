@@ -232,7 +232,7 @@ export function StepScreen(p: StepScreenProps) {
     case 'business':
       return (
         <BusinessStep
-          businessName={p.me.workspace!.name}
+          businessName={p.me.workspace!.unnamed ? '' : p.me.workspace!.name}
           lookup={p.businessLookup}
           websiteImport={p.websiteImport}
           admin={admin}

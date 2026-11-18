@@ -140,6 +140,15 @@ export function placeArea(details: PlaceDetails): string | null {
   return [city, state].filter(Boolean).join(', ') || null
 }
 
+/** The listing's country ("US"), from its address components, or null. */
+export function placeCountry(details: PlaceDetails): string | null {
+  const code = details.addressComponents
+    ?.find(a => a.types?.includes('country'))
+    ?.shortText?.trim()
+    .toUpperCase()
+  return code && /^[A-Z]{2}$/.test(code) ? code : null
+}
+
 // --- Opening hours ---------------------------------------------------------------------------
 
 const DAY = 24 * 60

@@ -683,6 +683,7 @@
   "general.allowSwitchTipNoBill": "Only the workspace owner can change this while the workspace is not on a bill.",
   "general.country.choose": "Choose a country",
   "general.country.label": "Country",
+  "general.country.moreSoon": "More countries coming soon.",
   "general.country.search": "Search a country",
   "general.country.tip": "Where the business is. Phone numbers, the forwarding guide, holidays and the currency start with it, and the assistant reads the numbers callers say the way they are written there.",
   "general.country.what": "The country",

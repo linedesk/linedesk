@@ -196,6 +196,8 @@ export type BusinessImportData = {
   name: string
   address: string | null
   area: string | null
+  /** The listing's country (ISO 3166-1 alpha-2); null without a listing. Missing from an older API. */
+  country?: string | null
   /** As Google gives it, international ("+1 503-555-0142"). */
   phone: string | null
   website: string | null

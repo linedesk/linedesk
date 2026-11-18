@@ -33,6 +33,10 @@ type Props = {
   empty?: string
   /** The open list's least width in pixels (default 260), for options with a long meta (an email address). */
   listWidth?: number
+  /** A quiet line under the options that cannot be picked ("More countries coming soon."). */
+  note?: string
+  /** Off for a short list: no search field, the list itself takes the keys. */
+  searchable?: boolean
 }
 
 const fold = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -81,6 +85,8 @@ export function SearchSelect({
   disabled,
   empty,
   listWidth = 260,
+  note,
+  searchable = true,
 }: Props) {
   const t = useT()
   const [open, setOpen] = useState(false)
@@ -105,6 +111,11 @@ export function SearchSelect({
   useEffect(() => {
     if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' })
   }, [open, active, listId])
+  // Without a search field the list takes the focus, and with it the keys.
+  const optionList = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (open && !searchable) optionList.current?.focus()
+  }, [open, searchable])
 
   function show() {
     if (disabled) return
@@ -125,7 +136,7 @@ export function SearchSelect({
     close()
     if (next !== value) onChange(next)
   }
-  function onSearchKey(e: KeyboardEvent<HTMLInputElement>) {
+  function onSearchKey(e: KeyboardEvent<HTMLElement>) {
     e.stopPropagation()
     if (e.key === 'ArrowDown') {
       e.preventDefault()
@@ -171,21 +182,36 @@ export function SearchSelect({
       </button>
       {open && (
         <div ref={list} popover="manual" className="k-select-list k-ssel-list k-float">
-          <input
-            autoFocus
-            className="k-ssel-search"
-            placeholder={placeholder ?? t('common.searchSelect.placeholder')}
-            aria-label={t('common.searchSelect.searchLabel', { label })}
-            aria-controls={listId}
-            aria-activedescendant={matches[active] ? `${listId}-${active}` : undefined}
-            value={query}
-            onChange={e => {
-              setQuery(e.target.value)
-              setActive(0)
-            }}
-            onKeyDown={onSearchKey}
-          />
-          <div id={listId} role="listbox" aria-label={label} className="k-ssel-options">
+          {searchable && (
+            <input
+              autoFocus
+              className="k-ssel-search"
+              placeholder={placeholder ?? t('common.searchSelect.placeholder')}
+              aria-label={t('common.searchSelect.searchLabel', { label })}
+              aria-controls={listId}
+              aria-activedescendant={matches[active] ? `${listId}-${active}` : undefined}
+              value={query}
+              onChange={e => {
+                setQuery(e.target.value)
+                setActive(0)
+              }}
+              onKeyDown={onSearchKey}
+            />
+          )}
+          <div
+            ref={optionList}
+            id={listId}
+            role="listbox"
+            aria-label={label}
+            className="k-ssel-options"
+            {...(searchable
+              ? {}
+              : {
+                  tabIndex: -1,
+                  'aria-activedescendant': matches[active] ? `${listId}-${active}` : undefined,
+                  onKeyDown: onSearchKey,
+                })}
+          >
             {matches.map((o, i) => (
               <Fragment key={o.value}>
                 {o.group && o.group !== matches[i - 1]?.group && (
@@ -207,6 +233,7 @@ export function SearchSelect({
             ))}
             {!matches.length && <div className="k-ssel-empty">{t('common.searchSelect.noMatch', { query })}</div>}
           </div>
+          {note && <p className="k-ssel-note">{note}</p>}
         </div>
       )}
     </div>

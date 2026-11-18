@@ -4,6 +4,7 @@
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 import { workspaceName } from './settings.ts'
+import { countryHintSchema } from './workspace-locale.ts'
 
 /**
  * The plans a sign-up can start: `cloud` (a bill with the business's workspace), or `partner` (a white-label partner
@@ -15,28 +16,38 @@ export const SIGNUP_INTERVALS = ['year', 'month'] as const
 export const accountSignUp = defineAction({
   name: 'account.signUp',
   description:
-    "Start a plan on this server for your business: makes your bill and your workspace (you are its owner), waiting for a card at Checkout. With plan `partner`: a white-label partner account instead (you are its owner, pending a server admin's approval) with the partner bill and no workspace yet. Your name, the business's name and its country (US, CA or PR), and the versions of the terms and privacy policy the sign-up page showed (you accept them by starting). One waiting sign-up per account: asked again, it answers the one there is.",
-  input: z.object({
-    name: z.string().trim().min(1).max(80),
-    businessName: workspaceName,
-    /** ISO 3166-1 alpha-2; only the sign-up countries are taken (the handler says "not yet" to others). */
-    country: z
-      .string()
-      .trim()
-      .regex(/^[A-Za-z]{2}$/)
-      .transform(c => c.toUpperCase()),
-    plan: z.enum(SIGNUP_PLANS),
-    interval: z.enum(SIGNUP_INTERVALS),
-    timeZone: z.string().max(64).optional(),
-    /**
-     * The terms and privacy policy versions the page showed next to its button (GET /v1/signup/config): starting the
-     * plan accepts them (A9). The server records them only when they are still the ones in effect.
-     */
-    acceptedTerms: z.object({
-      termsVersion: z.string().trim().min(1).max(40),
-      privacyVersion: z.string().trim().min(1).max(40),
-    }),
-  }),
+    "Start a plan on this server for your business: makes your bill and your workspace (you are its owner), waiting for a card at Checkout. With plan `partner`: a white-label partner account instead (you are its owner, pending a server admin's approval) with the partner bill and no workspace yet. Your name and the versions of the terms and privacy policy the sign-up page showed (you accept them by starting); for a partner also its company name. The business's name and country are set in the onboarding's first step; until then the workspace has a placeholder name and the country the request comes from (only US, CA and PR are served; another one is told \"not yet\"). One waiting sign-up per account: asked again, it answers the one there is.",
+  input: z
+    .object({
+      name: z.string().trim().min(1).max(80),
+      /** The workspace's name (plan `cloud`, optional: a placeholder until the Business step) or the partner's (required). */
+      businessName: workspaceName.optional(),
+      /** ISO 3166-1 alpha-2, optional: only the sign-up countries are taken (the handler says "not yet" to others). */
+      country: z
+        .string()
+        .trim()
+        .regex(/^[A-Za-z]{2}$/)
+        .transform(c => c.toUpperCase())
+        .optional(),
+      /**
+       * Where the request comes from (countryHintOf): set by POST /v1/signup from the request itself, never taken from
+       * the caller. Without `country`, a hint outside the sign-up countries is told "not yet".
+       */
+      countryHint: countryHintSchema.optional(),
+      plan: z.enum(SIGNUP_PLANS),
+      interval: z.enum(SIGNUP_INTERVALS),
+      timeZone: z.string().max(64).optional(),
+      /**
+       * The terms and privacy policy versions the page showed next to its button (GET /v1/signup/config): starting the
+       * plan accepts them (A9). The server records them only when they are still the ones in effect.
+       */
+      acceptedTerms: z.object({
+        termsVersion: z.string().trim().min(1).max(40),
+        privacyVersion: z.string().trim().min(1).max(40),
+      }),
+    })
+    // A partner's company name is its brand until a server admin approves it: required for a partner.
+    .refine(input => input.plan !== 'partner' || !!input.businessName, { path: ['businessName'] }),
   permission: 'account:signUp',
 })
 /** What `account.signUp` made (or found: one waiting sign-up per account). */
