@@ -510,6 +510,8 @@ async function createForClient(ctx: HandlerCtx, input: CreateForClientInput) {
   // so a partner waiting for a server admin's approval can try it with its clients (approval gates its brand, S4).
   const bill = await billForNewClient(tx, partner)
   if (!bill) await refuseOverCeiling(tx, partner)
+  // Its assistant starts on Standard, whatever the install's default and whoever on the partner team creates it: the
+  // partner pays, and only its owner raises a client's assistant later (decisions.md 2026-11-18, review L-1).
   const org = await insertWorkspace(
     ctx,
     {
@@ -518,6 +520,7 @@ async function createForClient(ctx: HandlerCtx, input: CreateForClientInput) {
       ...(input.timeZone ? { timeZone: input.timeZone } : {}),
     },
     true,
+    'standard',
   )
   await tx
     .update(organization)

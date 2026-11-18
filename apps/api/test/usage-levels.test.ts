@@ -107,6 +107,7 @@ async function resetCallQuality() {
     .insert(instance_settings)
     .values({ key: 'call_quality', value, updated_at: new Date().toISOString(), updated_by: 'test' })
     .onConflictDoUpdate({ target: instance_settings.key, set: { value } })
+  await db.delete(instance_settings).where(sql`${instance_settings.key} like 'call_quality.turned_off.%'`)
 }
 afterEach(resetCallQuality)
 
@@ -569,6 +570,65 @@ describe('Server admin › Providers › Call quality', () => {
     expect((await getAssistant(other.assistant.id))!.call_quality).toBe('premium')
     // Undo of a level that is off: refused.
     expect((await adminSet({ restore: { level: 'ultra', assistantIds: [ws.assistant.id] } })).status).toBe(409)
+    // One Undo per turn-off: a second one is refused.
+    expect(await setLevel(ws.owner, ws.assistant.id, 'standard')).toMatchObject({ status: 200 })
+    expect(await adminSet({ restore: { level: 'premium', assistantIds: [ws.assistant.id] } })).toMatchObject({
+      status: 409,
+      body: { error: 'Undo works only within 24 hours after Premium was turned off.' },
+    })
+    expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('standard')
+  })
+
+  test('Undo of a level turned off: only the assistants that turn-off moved, only within 24 hours; audited (review L-2)', async () => {
+    const ws = await createWorkspace('Quality Undo Window Plumbing')
+    const other = await createWorkspace('Quality Undo Window Heating')
+    expect((await setLevel(ws.owner, ws.assistant.id, 'premium')).status).toBe(200)
+    const off = await adminSet({ premium: false })
+    const moved = (off.body.data.moved as { level: string; assistantIds: string[] }[])[0]!.assistantIds
+    expect(moved).toContain(ws.assistant.id)
+    expect(moved).not.toContain(other.assistant.id)
+    // An assistant the turn-off did not move (on Standard all along): refused, and nothing moves back.
+    const undo = (assistantIds: string[]) => adminSet({ premium: true, restore: { level: 'premium', assistantIds } })
+    expect(await undo([...moved, other.assistant.id])).toMatchObject({
+      status: 409,
+      body: { error: 'Undo moves back only the assistants that turning Premium off moved to Standard.' },
+    })
+    expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('standard')
+    expect((await getAssistant(other.assistant.id))!.call_quality).toBe('standard')
+    // More than 24 hours after the turn-off: refused (the turn-off's record, dated back).
+    const key = 'call_quality.turned_off.premium'
+    const [record] = await db.select().from(instance_settings).where(eq(instance_settings.key, key))
+    const dated = (hours: number) =>
+      db
+        .update(instance_settings)
+        .set({
+          value: JSON.stringify({
+            ...JSON.parse(record!.value),
+            at: new Date(Date.now() - hours * 60 * 60 * 1000).toISOString(),
+          }),
+        })
+        .where(eq(instance_settings.key, key))
+    await dated(25)
+    const late = await undo(moved)
+    expect(late).toMatchObject({
+      status: 409,
+      body: { error: 'Undo works only within 24 hours after Premium was turned off.' },
+    })
+    expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('standard')
+    // Within 24 hours: the moved assistants go back.
+    await dated(23)
+    const inTime = await undo(moved)
+    expect(inTime.status).toBe(200)
+    expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('premium')
+    // The refused Undos and the one that passed are in the audit log.
+    const audit = await listAudit(db, { kind: 'admin', limit: 50 })
+    const undos = audit.entries.filter(
+      e =>
+        e.what === 'callQuality.set' &&
+        !!e.actor.id &&
+        [late.operator.userId, inTime.operator.userId].includes(e.actor.id),
+    )
+    expect(undos.map(e => e.refused).sort()).toEqual([false, true])
   })
 
   test('a level off behind the switch (stored settings changed): the call falls back to Standard with an ALERT', async () => {
@@ -795,6 +855,16 @@ describe('audit, locking and limits', () => {
     const restore = (who: Caller) =>
       act(who, 'assistant.restoreVersion', { assistantId: ws.assistant.id, number: premiumVersion })
     expect((await restore(admin)).status).toBe(403)
+    // The refused raise is in the audit log's call quality entries (kind team), like a refused edit (review L-3).
+    const team = await listAudit(db, { kind: 'team', workspaceId: ws.id, limit: 50 })
+    expect(
+      team.entries.filter(e => e.what === 'assistant.restoreVersion' && e.refused && e.actor.id === admin.userId),
+    ).toHaveLength(1)
+    // A restore refused for another reason (no such version) is not.
+    const missing = { assistantId: ws.assistant.id, number: premiumVersion + 100 }
+    expect((await act(admin, 'assistant.restoreVersion', missing)).status).toBeGreaterThanOrEqual(400)
+    const again = await listAudit(db, { kind: 'team', workspaceId: ws.id, limit: 50 })
+    expect(again.entries.filter(e => e.what === 'assistant.restoreVersion' && e.refused)).toHaveLength(1)
     expect((await restore(ws.owner)).status).toBe(200)
     expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('premium')
   })

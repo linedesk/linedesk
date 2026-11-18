@@ -69,6 +69,8 @@ import {
   enabledLevels,
   levelDefaultModels,
   moveBackToLevel,
+  recordTurnOff,
+  takeTurnOff,
   moveToStandard,
   realtimeSetUp,
   saveCallQualitySettings,
@@ -416,7 +418,8 @@ export const voiceHandlers: Record<string, Handler> = {
 
   /**
    * Server admin › Providers › Call quality. A level turned off moves every assistant on it to Standard (with a version
-   * each, by the admin), `restore` moves them back (Undo); audited (audit.ts).
+   * each, by the admin), `restore` moves them back (Undo: within 24 hours, only the assistants that turn-off moved);
+   * audited (audit.ts).
    */
   'callQuality.set': async ({ tx, actor, now }, input: CallQualitySetInput) => {
     const before = await callQualitySettings(tx)
@@ -439,12 +442,15 @@ export const voiceHandlers: Record<string, Handler> = {
     const moved: CallQualityAdminData['moved'] = []
     for (const level of ['premium', 'ultra'] as const)
       if (before[level] && !after[level]) {
-        const rows = await moveToStandard(tx, null, [level], actor.actorId)
-        moved.push({ level, assistantIds: rows.map(r => r.id) })
+        const assistantIds = (await moveToStandard(tx, null, [level], actor.actorId)).map(r => r.id)
+        moved.push({ level, assistantIds })
+        await recordTurnOff(tx, level, assistantIds, actor.actorId, now)
       }
     if (input.restore) {
       if (!enabled[input.restore.level])
         throw Reject.t('server.api.callQualityOff', { level: CALL_QUALITY_LABELS[input.restore.level] })
+      // Only within 24 hours of the turn-off, and only the assistants it moved (review L-2).
+      await takeTurnOff(tx, input.restore.level, input.restore.assistantIds, now)
       await moveBackToLevel(tx, input.restore.assistantIds, input.restore.level, actor.actorId)
     }
     return { rows: {}, data: { ...(await callQualityAdminData(tx)), moved } }

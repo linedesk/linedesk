@@ -2,7 +2,13 @@
 // makes a workspace for a business and gives it its one owner, or makes one of their own (the app's New workspace,
 // POST /v1/workspaces in app.ts, and the setup MCP's workspace_create). Who may create workspaces at all:
 // workspace-creation.ts.
-import { type CountryHint, countryHintOf, type WorkspaceCreateData, workspaceTimeZoneFor } from '@linedesk/actions'
+import {
+  type CallQuality,
+  type CountryHint,
+  countryHintOf,
+  type WorkspaceCreateData,
+  workspaceTimeZoneFor,
+} from '@linedesk/actions'
 import { agent_setup_keys, assistants, organization, session, user, workspace_settings } from '@linedesk/db'
 import { eq, sql } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
@@ -50,9 +56,15 @@ export function creationHint(input: Pick<CreateInput, 'timeZone' | 'countryHint'
 /**
  * The workspace with its assistant and settings. The country only as picked (left as prefilled it stays Automatic,
  * so a number connected later still decides it), and the country hint (creationHint): only a code and its source.
- * The time zone follows the country.
+ * The time zone follows the country. `level`: the first assistant's call quality, else the install's level for new
+ * assistants (newAssistantLevel).
  */
-export async function insertWorkspace({ tx, now, actor }: HandlerCtx, input: CreateInput, forOther = false) {
+export async function insertWorkspace(
+  { tx, now, actor }: HandlerCtx,
+  input: CreateInput,
+  forOther = false,
+  level?: CallQuality,
+) {
   const { name } = input
   const id = crypto.randomUUID().replaceAll('-', '')
   const [org] = await tx
@@ -73,7 +85,7 @@ export async function insertWorkspace({ tx, now, actor }: HandlerCtx, input: Cre
   // After the settings: the assistant's first contact is named in the workspace's language, which they decide. For
   // another owner, never the admin's own language.
   const transfers = await newAssistantTransfers(tx, org!.id, forOther ? null : actor.locale)
-  await tx.insert(assistants).values(newAssistant(org!.id, name, transfers, await newAssistantLevel(tx)))
+  await tx.insert(assistants).values(newAssistant(org!.id, name, transfers, level ?? (await newAssistantLevel(tx))))
   return org!
 }
 

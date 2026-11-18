@@ -1100,6 +1100,13 @@
       "when": 1794971750811,
       "tag": "0157_partner_agent_setup",
       "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1794974074473,
+      "tag": "0158_call_quality_standard",
+      "breakpoints": true
     }
   ]
 }

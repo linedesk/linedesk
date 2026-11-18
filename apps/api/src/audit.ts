@@ -8,6 +8,7 @@ import type { EmailRules, TransferContact } from '@linedesk/db/types'
 import { type createAuthMiddleware, isAPIError } from 'better-auth/api'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { db } from './db.ts'
+import { said, sayIn } from './handler-context.ts'
 import type { SignupRuleChange } from './self-serve.ts'
 
 export type AuthEventName = (typeof auth_events.$inferInsert)['event']
@@ -515,10 +516,16 @@ const transferChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb
 /** SQL: an assistant.update of `c` that changed the call email rules (or, before LIN-470, the instruction), or one refused whose input had them. */
 const emailRoutingChangeSql = sql`(c.action = 'assistant.update' and (jsonb_typeof(c.result->'data'->'emailRoutingChanges') = 'object' or (c.rejected and (c.input ? 'email_rules' or c.input ? 'email_routing'))))`
 /**
- * SQL: a command of `c` that changed what decides the assistant's usage level (`data.usageLevelChange` an object), or
- * one refused whose input named a call quality (a raise by someone who may not pay, for one).
+ * The English of a refused raise, as the command log keeps a rejection (`result.error`, run-action.ts): how a refused
+ * assistant.restoreVersion raise is told apart, whose input names only the version (review L-3).
  */
-const usageLevelChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb_typeof(c.result->'data'->'usageLevelChange') = 'object' or (c.rejected and c.input ? 'call_quality')))`
+const LEVEL_RAISE_REFUSED = sayIn(said('server.api.callQualityRaise'))
+/**
+ * SQL: a command of `c` that changed what decides the assistant's usage level (`data.usageLevelChange` an object), or
+ * one refused whose input named a call quality (a raise by someone who may not pay, for one), or a version restore
+ * refused as a raise.
+ */
+const usageLevelChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb_typeof(c.result->'data'->'usageLevelChange') = 'object' or (c.rejected and (c.input ? 'call_quality' or (c.action = 'assistant.restoreVersion' and starts_with(c.result->>'error', ${LEVEL_RAISE_REFUSED}))))))`
 
 /**
  * A change of the recording notice (workspace.updateSettings with `recordingNoticeOn` or `recordingNotice`): turned

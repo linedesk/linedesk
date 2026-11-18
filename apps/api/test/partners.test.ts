@@ -1333,6 +1333,52 @@ describe('Partner › Clients (S3)', () => {
     expect(await orgRow(c)).toMatchObject({ usageLimitCents: null })
   })
 
+  test("a new client workspace's assistant starts on Standard, whatever the install's default and whoever on the team creates it (review L-1)", async () => {
+    const p = await billedPartner('Default Level Partner', 'active', true)
+    const padmin = await addPartnerAdmin(p)
+    // The install's level for new assistants is Premium (Server admin › Providers › Call quality).
+    const [before] = await db.select().from(instance_settings).where(eq(instance_settings.key, 'call_quality'))
+    const premiumDefault = {
+      premium: true,
+      ultra: true,
+      default: 'premium',
+      models: { standard: {}, premium: {}, ultra: {} },
+    }
+    await db
+      .insert(instance_settings)
+      .values({ key: 'call_quality', value: JSON.stringify(premiumDefault) })
+      .onConflictDoUpdate({ target: instance_settings.key, set: { value: JSON.stringify(premiumDefault) } })
+    onTestFinished(async () => {
+      if (before)
+        await db.update(instance_settings).set({ value: before.value }).where(eq(instance_settings.key, 'call_quality'))
+      else await db.delete(instance_settings).where(eq(instance_settings.key, 'call_quality'))
+      cloud.on = false
+    })
+    for (const billed of [false, true]) {
+      cloud.on = billed
+      for (const who of [p.owner, padmin]) {
+        const res = await act(who, 'workspace.createForClient', {
+          partnerId: p.id,
+          name: `Default Level Client ${billed}`,
+        })
+        expect(res).toMatchObject({ status: 200 })
+        const levels = await db
+          .select({ level: assistants.call_quality })
+          .from(assistants)
+          .where(eq(assistants.workspace_id, res.body.data.workspace.id))
+        expect(levels).toEqual([{ level: 'standard' }])
+      }
+    }
+    // A server admin's own new workspace still starts on the install's default.
+    const own = await asServerAdmin(admin, () => act(admin, 'workspace.create', { name: 'Default Level Own' }))
+    expect(own).toMatchObject({ status: 200 })
+    const [ownLevel] = await db
+      .select({ level: assistants.call_quality })
+      .from(assistants)
+      .where(eq(assistants.workspace_id, own.body.data.workspace.id))
+    expect(ownLevel).toEqual({ level: 'premium' })
+  })
+
   test("only the partner's owner raises a client's assistant to Premium or Ultra; the client's owner and the team cannot (LIN-440)", async () => {
     const p = await billedPartner('Level Partner', 'active', true)
     const c = await createClient(p, 'Level Client')

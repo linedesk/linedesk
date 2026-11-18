@@ -6,6 +6,7 @@
 import {
   CALL_QUALITIES,
   CALL_QUALITY_INSTALL_DEFAULT,
+  CALL_QUALITY_LABELS,
   type CallQuality,
   type CallQualitySettings,
   DEFAULT_VOICE_MODELS,
@@ -21,6 +22,7 @@ import type { Assistant } from '@linedesk/db/types'
 import { and, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { lockAssistantVersionsOf, recordVersion } from './assistant-versions.ts'
+import { Reject } from './handler-context.ts'
 import { activeProvider, setUpProviders } from './provider-settings.ts'
 
 export const CALL_QUALITY_KEY = 'call_quality'
@@ -162,6 +164,50 @@ export async function moveToStandard(tx: Tx, workspaceId: string | null, levels:
     changed.push(updated!)
   }
   return changed
+}
+
+/** How long after a level was turned off its Undo moves the assistants back (decisions.md 2026-11-18, review L-2). */
+export const UNDO_TURN_OFF_MS = 24 * 60 * 60 * 1000
+/** instance_settings key of the last turn-off of `level`: when, and the assistants it moved to Standard. */
+const turnOffKey = (level: 'premium' | 'ultra') => `${CALL_QUALITY_KEY}.turned_off.${level}`
+const turnOffSchema = z.object({ at: z.string(), assistantIds: z.array(z.string()) })
+
+/** Keeps what turning `level` off just did, for its Undo: replaces the record of an earlier turn-off. */
+export async function recordTurnOff(
+  tx: Tx,
+  level: 'premium' | 'ultra',
+  assistantIds: string[],
+  actorId: string,
+  now: string,
+) {
+  const value = JSON.stringify({ at: now, assistantIds })
+  await tx
+    .insert(instance_settings)
+    .values({ key: turnOffKey(level), value, updated_at: now, updated_by: actorId })
+    .onConflictDoUpdate({ target: instance_settings.key, set: { value, updated_at: now, updated_by: actorId } })
+}
+
+/**
+ * Before an Undo of a level turned off: refused unless `level` was turned off at most 24 hours ago and every listed
+ * assistant is one that turn-off moved (review L-2: never a raise of assistants it did not move, or later). The record
+ * is used up: one Undo per turn-off. Locks the record, so two Undos of the same turn-off cannot both pass.
+ */
+export async function takeTurnOff(tx: Tx, level: 'premium' | 'ultra', assistantIds: string[], now: string) {
+  const [row] = await tx
+    .select()
+    .from(instance_settings)
+    .where(eq(instance_settings.key, turnOffKey(level)))
+    .for('update')
+  let record: z.infer<typeof turnOffSchema> | null = null
+  try {
+    record = row ? turnOffSchema.parse(JSON.parse(row.value)) : null
+  } catch {}
+  const label = { level: CALL_QUALITY_LABELS[level] }
+  const age = record ? Date.parse(now) - Date.parse(record.at) : Number.NaN
+  if (!record || !(age >= 0 && age <= UNDO_TURN_OFF_MS)) throw Reject.t('server.api.callQualityUndoExpired', label)
+  const moved = new Set(record.assistantIds)
+  if (assistantIds.some(id => !moved.has(id))) throw Reject.t('server.api.callQualityUndoNotMoved', label)
+  await tx.delete(instance_settings).where(eq(instance_settings.key, turnOffKey(level)))
 }
 
 /**
