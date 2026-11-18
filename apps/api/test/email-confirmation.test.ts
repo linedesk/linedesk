@@ -1,3 +1,4 @@
+import { actions } from '@linedesk/actions'
 import { account, agent_setup_keys, api_keys, app_connections, assistants, auth_events, calendar_connections, integration_subscriptions, invitation, member, passkey, personal_keys, phone_numbers, session, user, webhook_endpoints } from '@linedesk/db'
 import { DEFAULT_TRANSFERS } from '@linedesk/db/types'
 import { APIError } from 'better-auth/api'
@@ -43,7 +44,11 @@ test('unconfirmed members cannot perform sensitive actions, and their own confir
   await db.update(user).set({ emailVerified: false }).where(eq(user.id, ws.owner.userId))
   const [owner] = await db.select().from(user).where(eq(user.id, ws.owner.userId))
   expect((await request(ws.owner, 'GET', '/v1/me')).body.emailUnconfirmed).toBe(true)
+  // A partner owner's actions need the partner permission first; setup-mcp-partner.test.ts checks them with a partner owner.
+  const partnerOwnerOnly = [...NEEDS_CONFIRMED_EMAIL].filter(action => actions.get(action)?.permission === 'partner')
+  expect(partnerOwnerOnly).toEqual(['agentSetup.createPartnerKey'])
   for (const action of NEEDS_CONFIRMED_EMAIL) {
+    if (partnerOwnerOnly.includes(action)) continue
     expect(await act(ws.owner, action, {})).toMatchObject({ status: 403, body: { code: 'EMAIL_NOT_VERIFIED' } })
   }
   // Calendar connections, forwarding and the call export are in the list; the assistant's warm transfer is refused only when it is set.

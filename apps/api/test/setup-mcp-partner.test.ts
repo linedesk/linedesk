@@ -8,7 +8,7 @@ import { beforeAll, describe, expect, test } from 'vitest'
 import { partnerSetupActor, setupActorIn } from '../src/agent-setup.ts'
 import { db } from '../src/db.ts'
 import { type Email, emailSender } from '../src/email.ts'
-import { PARTNER_KEY_SCOPE, runAction } from '../src/run-action.ts'
+import { EMAIL_NOT_VERIFIED, PARTNER_KEY_SCOPE, runAction } from '../src/run-action.ts'
 import { act, appRequest, asServerAdmin, FROM, randomIp, request, signUp, type User } from './helpers.ts'
 
 const sent: Email[] = []
@@ -115,6 +115,19 @@ describe('who makes a partner setup link', () => {
     expect((await act(b.owner, 'agentSetup.createPartnerKey', { partnerId: a.id })).status).toBe(403)
     // Someone on no partner team and in no workspace: no account context at all (401, as partners.test.ts).
     expect((await act(await signUp(), 'agentSetup.createPartnerKey', { partnerId: a.id })).status).toBe(401)
+  })
+
+  test('the owner confirms the email first (NEEDS_CONFIRMED_EMAIL, as email-confirmation.test.ts for a workspace)', async () => {
+    await db.update(user).set({ emailVerified: false }).where(eq(user.id, a.owner.userId))
+    try {
+      expect(await act(a.owner, 'agentSetup.createPartnerKey', { partnerId: a.id })).toMatchObject({
+        status: 403,
+        body: { code: EMAIL_NOT_VERIFIED },
+      })
+    } finally {
+      await verify(a.owner)
+    }
+    await makePartnerKey(a)
   })
 
   test('the page reads its link and progress; nobody else does', async () => {

@@ -94,6 +94,8 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['partner.deleteClient', BROWSER],
   ['partner.listClients', BROWSER],
   ['partner.setClientUsageLimit', BROWSER],
+  // The partner owner's setup progress (partner-setup.ts): the page and the partner setup link set it.
+  ['partner.setSetupStep', BROWSER],
   // Moves what the workspace pays to its owner: only the owner, signed in (partners.ts).
   ['workspace.removePartner', BROWSER],
 ])
