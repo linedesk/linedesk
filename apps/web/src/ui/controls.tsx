@@ -283,7 +283,7 @@ export function Select<T extends string>({
         ref={button}
         id={id}
         type="button"
-        className="k-select-btn"
+        className={cx('k-select-btn', !current && 'is-placeholder')}
         disabled={disabled}
         title={label}
         aria-label={`${label}: ${current?.label ?? ''}`}

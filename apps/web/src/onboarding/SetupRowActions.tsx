@@ -64,7 +64,8 @@ export function SetupTestCall({
   const label = done
     ? t('onboarding.rowActions.callAgain')
     : t('onboarding.rowActions.callNow', { name: assistantName })
-  const variant = done ? 'ghost' : 'primary'
+  // One black primary per setup page (the setup link's): the row's own buttons are secondary.
+  const variant = done ? 'ghost' : 'secondary'
   if (!asked)
     return (
       <Button size="sm" variant={variant} icon="phone-in" title={t(TEST_CALL_TITLE)} onClick={() => setAsked(1)}>
@@ -99,7 +100,7 @@ function TestCallHere({
   onCalled,
 }: {
   label: string
-  variant: 'primary' | 'ghost'
+  variant: 'secondary' | 'ghost'
   asked: number
   onAsk: () => void
   onCalled: () => void
@@ -258,7 +259,7 @@ export function SetupActivatePartner({ partnerId }: { partnerId: string }) {
       {failed && <span className="as-small">{t('auth.checkout.startFailed')}</span>}
       <Button
         size="sm"
-        variant="primary"
+        variant="secondary"
         busy={busy}
         title={t('onboarding.agentSetup.partner.activateTitle')}
         onClick={() => void activate()}
@@ -277,7 +278,7 @@ export function SetupStartTrial({ me, onTermsChanged }: { me: Me; onTermsChanged
   const label = activation.trialDays !== null ? t('onboarding.activate.startTrial') : t('onboarding.activate.startPlan')
   return (
     <>
-      <Button size="sm" variant="primary" title={t('onboarding.activate.cardHint')} onClick={() => setOpen(true)}>
+      <Button size="sm" variant="secondary" title={t('onboarding.activate.cardHint')} onClick={() => setOpen(true)}>
         {label}
       </Button>
       {open && (

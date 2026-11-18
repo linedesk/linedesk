@@ -3,7 +3,8 @@
 // with, gone through again. The onboarding's own frame, steps and saves (Onboarding.tsx: StepScreen, useStepSaves),
 // never a copy of them: each step starts from what is saved and saves with the same actions as the settings. Nothing
 // here moves the onboarding (no `onboarding.setStep`); the steps that are done once are left out (stepByStepSteps).
-// Close, or Done on the last step, goes back to the settings page it was opened from.
+// Close, or Done on the last step, goes back to the settings page it was opened from; the account menu is in the top bar
+// as on every setup page (SetupTopBar.tsx).
 import { useEffect, useState } from 'react'
 import type { Me } from '../auth.ts'
 import { type ChangeTarget, settingsHashOf } from '../settings/agentChange.ts'
@@ -60,7 +61,7 @@ export function StepByStep({ target, me, onRenamed }: Props) {
   }
   if (unknown || step === 'done' || step === 'activate') return null
   return (
-    <Frame step={step} complete steps={steps} edit onSkip={close}>
+    <Frame step={step} complete={false} steps={steps} edit onSkip={close}>
       <SaveErrors saves={saves} step={step} steps={steps} onOpen={open} />
       <StepScreen
         step={step}

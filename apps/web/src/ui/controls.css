@@ -167,6 +167,10 @@
 .k-select-btn:hover:not(:disabled) {
   background: var(--surface-hover);
 }
+/* Nothing chosen yet ("Choose…"): a white field with the muted words of a text field's placeholder. */
+.k-select-btn.is-placeholder > span:first-child {
+  color: var(--ink-muted);
+}
 .k-select-btn:focus-visible {
   outline: none;
   border-color: var(--focus);

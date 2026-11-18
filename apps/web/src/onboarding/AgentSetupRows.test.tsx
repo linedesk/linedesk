@@ -36,8 +36,10 @@ const row = (
   )
 
 test('the test call is made right on the setup page: "Call Maya now", never "do this in the app"', () => {
+  // A row's button is secondary: the page's one black primary is the setup link's (2026-11-18).
   const open = row(step('test_call', 'admin_only'))
-  expect(open).toMatch(/k-btn-primary[^>]*>.*Call Maya now/)
+  expect(open).not.toContain('k-btn-primary')
+  expect(open).toMatch(/k-btn-secondary[^>]*>.*Call Maya now/)
   expect(open).not.toMatch(/in the app/)
   // Done: a quiet Call again, so a call still running keeps its panel.
   const done = row(step('test_call', 'done'))
@@ -51,7 +53,7 @@ test('the test call is made right on the setup page: "Call Maya now", never "do 
 test('the buttons always act on the workspace shown: another than the active one is opened first, never hidden (LIN-237)', () => {
   const switchTo = () => {}
   const call = row(step('test_call', 'admin_only'), null, switchTo)
-  expect(call).toMatch(/k-btn-primary[^>]*>.*Call Maya now/)
+  expect(call).toMatch(/k-btn-secondary[^>]*>.*Call Maya now/)
   expect(call).toContain('Opens this workspace in this tab, then calls')
   expect(call).not.toMatch(/tab of your first workspace/)
   const forwarding = row(step('forwarding', 'todo'), null, switchTo)
@@ -166,7 +168,7 @@ test("Start your trial: the owner's own row once the free steps are done, never 
   const me = { workspace: { id: 'ws_1', name: 'Brightwater', activation } } as never
   const trial = { me, onTermsChanged: () => {} }
   expect(row(step('activate', 'admin_only'), workspace, null, { trial })).toMatch(
-    /k-btn-primary[^>]*>.*Start free trial/,
+    /k-btn-secondary[^>]*>.*Start free trial/,
   )
   expect(row(step('activate', 'todo'), workspace, null, { trial })).toBe('')
   expect(row(step('activate', 'admin_only'))).toBe('')
@@ -180,7 +182,7 @@ test("Start your trial: the owner's own row once the free steps are done, never 
 test("Activate White-label Cloud: the partner owner's own row while unpaid, gone once paid (setup before payment)", () => {
   const plan = (state: Step['state']) => ({ ...step('plan', state), group: 'partner' as const })
   const open = row(plan('admin_only'), null, null, { activatePartnerId: 'ptn_1' })
-  expect(open).toMatch(/k-btn-primary[^>]*>(<[^>]+>)*Activate</)
+  expect(open).toMatch(/k-btn-secondary[^>]*>(<[^>]+>)*Activate</)
   expect(open).toContain('charged at once, no free trial')
   expect(row(plan('done'), null, null, { activatePartnerId: 'ptn_1' })).toBe('')
   // Not a partner owner's page: no button.

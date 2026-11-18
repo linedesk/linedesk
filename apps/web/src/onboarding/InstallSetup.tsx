@@ -29,11 +29,12 @@ import { StatusList } from '../admin/StatusCard.tsx'
 import { TryOut } from '../admin/TryOut.tsx'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
-import { BrandMark, Button, Note } from '../ui/kit.tsx'
+import { Note } from '../ui/kit.tsx'
 import { leaveInstallSetup } from './leave-install-setup.ts'
 import { Loading, problemText, SkeletonFields } from '../ui/LoadStates.tsx'
-import { SetupAccountMenu } from '../shell/SetupAccountMenu.tsx'
 import { HostingNote, openAgentSetup } from './AgentSetup.tsx'
+import { SetupFoot } from './SetupFoot.tsx'
+import { SetupTopBar } from './SetupTopBar.tsx'
 import '../admin/admin.css'
 import './agent-setup.css'
 import './install-setup.css'
@@ -164,45 +165,15 @@ export function InstallSetup({ onExit, onAgentSetup }: Props) {
   if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onExit} />
 
   const index = step ? installSteps.indexOf(step) : 0
-  const partIndex = step ? partSteps.indexOf(step as PartStepId) : -1
   const groups = status.status?.groups ?? null
   return (
     <div className="ob is" role="main" aria-label={t('onboarding.install.label', { brand: brandName() })}>
-      <div className="ob-top">
-        <BrandMark />
-        <b>{brandName()}</b>
-        <span className="ob-count">
-          {!step
-            ? t('onboarding.install.count')
-            : partIndex >= 0
-              ? t('onboarding.install.countStepOf', {
-                  step: t(stepLabelKeys[step]),
-                  number: partIndex + 1,
-                  total: partSteps.length,
-                })
-              : t('onboarding.install.countStep', { step: t(stepLabelKeys[step]) })}
-        </span>
-        {onAgentSetup && step && step !== 'welcome' && step !== 'done' && (
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="spark"
-            className="ob-agent"
-            onClick={onAgentSetup}
-            aria-label={t('onboarding.frame.agent')}
-            title={t('onboarding.frame.agentTitle')}
-          >
-            {t('onboarding.frame.agent')}
-          </Button>
-        )}
-        <Button size="sm" variant="ghost" onClick={later} title={t('onboarding.install.laterTip')}>
-          {t('onboarding.install.later')}
-        </Button>
-        <SetupAccountMenu />
-      </div>
-      <div className="ob-bar">
-        <span style={{ width: `${Math.round((index / (installSteps.length - 1)) * 100)}%` }} />
-      </div>
+      <SetupTopBar
+        step={step ? { n: index + 1, m: installSteps.length, name: t(stepLabelKeys[step]) } : undefined}
+        label={step ? undefined : t('onboarding.install.count')}
+        agentPath={onAgentSetup && step && step !== 'welcome' && step !== 'done' ? onAgentSetup : undefined}
+        exit={{ kind: 'finish-later', onExit: later, title: t('onboarding.install.laterTip') }}
+      />
       <div className="ob-main as-main">
         {!setup || !step || !data || !groups ? (
           <Loading
@@ -225,7 +196,6 @@ export function InstallSetup({ onExit, onAgentSetup }: Props) {
           <PartStep
             key={step}
             step={step as PartStepId}
-            number={partIndex + 1}
             data={data}
             status={status}
             setup={setup}
@@ -265,45 +235,6 @@ function useWalkKeys(onEnter: (() => void) | null, onEscape: (() => void) | null
   }, [])
 }
 
-function Foot({
-  onBack,
-  onSkip,
-  skipTitle,
-  onNext,
-  nextLabel,
-  nextPrimary = true,
-}: {
-  onBack?: () => void
-  onSkip?: () => void
-  skipTitle?: string
-  onNext: () => void
-  nextLabel?: string
-  nextPrimary?: boolean
-}) {
-  const t = useT()
-  return (
-    <div className="ob-foot">
-      {onBack ? (
-        <Button variant="ghost" icon="left" onClick={onBack} title={t('onboarding.action.backTip')}>
-          {t('onboarding.action.back')}
-        </Button>
-      ) : (
-        <span />
-      )}
-      <div className="ob2-foot-r">
-        {onSkip && (
-          <Button variant="ghost" onClick={onSkip} title={skipTitle}>
-            {t('onboarding.action.skipForNow')}
-          </Button>
-        )}
-        <Button variant={nextPrimary ? 'primary' : 'secondary'} shortcut={['⏎']} onClick={onNext}>
-          {nextLabel ?? t('onboarding.action.continue')}
-        </Button>
-      </div>
-    </div>
-  )
-}
-
 const groupOfStep = (status: ProviderStatusState, step: PartStepId) =>
   status.status!.groups.find(g => g.id === installStepGroups[step])!
 
@@ -326,7 +257,7 @@ function Welcome({ status, onStart }: { status: ProviderStatusState; onStart: ()
           {t('onboarding.install.agentButton')}
         </LinkButton>
       </Note>
-      <Foot onNext={onStart} nextLabel={t('onboarding.install.welcome.start')} />
+      <SetupFoot onContinue={onStart} label={t('onboarding.install.welcome.start')} />
     </>
   )
 }
@@ -336,7 +267,6 @@ const BOLD = { b: (chunks: ReactNode[]) => <b>{chunks}</b> }
 
 type PartProps = {
   step: PartStepId
-  number: number
   data: AdminData
   status: ProviderStatusState
   setup: InstallSetupState
@@ -347,7 +277,7 @@ type PartProps = {
 }
 
 /** One group: its heading, the same panel as Server admin › Providers, and the footer. */
-function PartStep({ step, number, data, status, setup, reloadAll, onBack, onNext, onSkip }: PartProps) {
+function PartStep({ step, data, status, setup, reloadAll, onBack, onNext, onSkip }: PartProps) {
   const t = useT()
   const group = groupOfStep(status, step)
   const [dialog, setDialog] = useState<ProviderName | null>(null)
@@ -355,11 +285,14 @@ function PartStep({ step, number, data, status, setup, reloadAll, onBack, onNext
   const emailByLog = step === 'email' && setup.emailDelivery === 'log'
   const ready = group.state !== 'missing' || emailByLog
   useWalkKeys(ready ? onNext : null, onBack)
+  const skipTitle = t('onboarding.install.skipTip', {
+    part: group.label,
+    effect: skipEffectKeys[step] ? t(skipEffectKeys[step]) : '',
+  }).trim()
 
   return (
     <>
       <div className="ob-body">
-        <span className="as-kicker">{t('onboarding.install.part.stepOf', { number, total: partSteps.length })}</span>
         <h1>{group.label}</h1>
         <p className="ob-lede">{t(groupSpec(group.id).whyKey)}</p>
       </div>
@@ -386,16 +319,15 @@ function PartStep({ step, number, data, status, setup, reloadAll, onBack, onNext
         </p>
       )}
 
-      <Foot
+      <SetupFoot
         onBack={onBack}
-        onSkip={ready && group.state !== 'works' ? onSkip : undefined}
-        skipTitle={t('onboarding.install.skipTip', {
-          part: group.label,
-          effect: skipEffectKeys[step] ? t(skipEffectKeys[step]) : '',
-        }).trim()}
-        onNext={ready ? onNext : onSkip}
-        nextLabel={ready ? t('onboarding.action.continue') : t('onboarding.action.skipForNow')}
-        nextPrimary={ready}
+        backTitle={t('onboarding.action.backTip')}
+        onSkipStep={ready && group.state !== 'works' ? onSkip : undefined}
+        laterLabel={t('onboarding.action.skipForNow')}
+        laterTitle={skipTitle}
+        onContinue={ready ? onNext : onSkip}
+        label={ready ? t('onboarding.action.continue') : t('onboarding.action.skipForNow')}
+        variant={ready ? 'primary' : 'secondary'}
       />
 
       {dialog && (
@@ -459,7 +391,12 @@ function Done({
       )}
       {/* A hint, not a link: the walkthrough never leaves itself (Server admin has no way back to this step). */}
       <Note tone="info">{t('onboarding.install.done.later')}</Note>
-      <Foot onBack={onBack} onNext={onFinish} nextLabel={t('onboarding.install.done.next')} />
+      <SetupFoot
+        onBack={onBack}
+        backTitle={t('onboarding.action.backTip')}
+        onContinue={onFinish}
+        label={t('onboarding.install.done.next')}
+      />
     </>
   )
 }

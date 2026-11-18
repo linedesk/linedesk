@@ -1,5 +1,5 @@
-// The setup pages' account menu (SetupAccountMenu.tsx, 2026-11-18): a round button in the top bar of every onboarding
-// step (not when the steps are gone through again from the settings), the workspaces only when there is somewhere else
+// The setup pages' account menu (SetupAccountMenu.tsx, 2026-11-18): a round button in the top bar of every setup page
+// (SetupTopBar.tsx), also when the steps are gone through again from the settings, the workspaces only when there is somewhere else
 // to go, and Sign out that works without a workspace's data (a setup page outside the store) and touches nothing of the
 // setup's progress.
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -37,7 +37,7 @@ describe('the account menu in the setup top bar', () => {
     expect(html).toContain('>MB<')
   })
 
-  test('on every onboarding step, last in the top bar; not when gone through again from the settings', () => {
+  test('on every onboarding step, last in the top bar; also when gone through again from the settings', () => {
     const top = (edit: boolean) => {
       const html = renderToStaticMarkup(
         <Frame step="pickup" complete={false} edit={edit} onSkip={() => {}}>
@@ -48,7 +48,9 @@ describe('the account menu in the setup top bar', () => {
     }
     expect(top(false)).toContain('aria-label="Your account"')
     expect(top(false).indexOf('Finish later')).toBeLessThan(top(false).indexOf('Your account'))
-    expect(top(true)).not.toContain('Your account')
+    // Every signed-in setup page shows it (2026-11-18), "Step by step" from the settings too, after its Close.
+    expect(top(true)).toContain('aria-label="Your account"')
+    expect(top(true).indexOf('Close')).toBeLessThan(top(true).indexOf('Your account'))
   })
 
   test('the step count also in short, for a phone', () => {

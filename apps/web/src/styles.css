@@ -861,9 +861,12 @@ body { font-size: 13px; }
 .ob-open p { margin: 0; font-size: 14px; line-height: 21px; }
 .ob-empty { padding: 40px 14px; text-align: center; font-size: 13px; color: var(--ink-muted); }
 .ob-badge { width: 48px; height: 48px; border-radius: var(--radius-full); display: grid; place-items: center; background: var(--highlight); color: var(--action); }
-.ob-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+/* The setup footer (onboarding/SetupFoot.tsx): one row that stays in view at the bottom of the content column while the
+   step scrolls under it; the ⏎ hint only with a keyboard's fine pointer, never on a touch phone. */
+.ob-foot { position: sticky; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; margin: -12px 0; background: var(--bg); box-shadow: 0 -10px 10px -2px var(--bg); }
+@media not ((hover: hover) and (pointer: fine)) { .ob-foot .k-kbds { display: none; } }
 .ob-foot .k-btn { height: var(--control-h-lg); padding: 0 16px; font-size: 13.5px; }
-@media (max-width: 719px) { .ob h1 { font-size: 23px; line-height: 29px; } .ob-row { grid-template-columns: minmax(0, 1fr) auto; } .ob-s { display: none; } .ob-count { display: none; } .ob-top > b { display: none; } .ob-top .ws-mark { margin-right: auto; } .ob-count-short { display: inline; } .ob-agent > span { display: none; } }
+@media (max-width: 719px) { .ob h1 { font-size: 23px; line-height: 29px; } .ob-row { grid-template-columns: minmax(0, 1fr) auto; } .ob-s { display: none; } .ob-count { display: none; } .ob-top > b { display: none; } .ob-top .ws-mark { margin-right: auto; } .ob-count-short { display: inline; } .ob-agent > span { display: none; } .ob-count.ob-count-label { display: inline; margin-left: 0; } }
 
 .sum-grid { grid-template-columns: minmax(0, 1fr); }
 

@@ -692,7 +692,8 @@ function partnerSteps(actor: Actor, facts: PartnerSetupFacts): StepBase[] {
     how,
   })
   return [
-    step('company', partnerPast(at, 'company'), [
+    // The company's name is given at sign-up: done once there is one, as every step follows the data.
+    step('company', facts.name.trim() !== '' || partnerPast(at, 'company'), [
       english.t('server.setupAgent.partner.companyHow', { name: JSON.stringify(facts.name), who }),
     ]),
     {
@@ -1077,7 +1078,8 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   const step = settings?.onboarding_step
   const businessDone = hasProfile || past(step, 'business')
   const phoneDone = numbers.length > 0
-  const pickupDone = Boolean(settings?.pickup_mode)
+  // A workspace set up before the choice was stored answers with the default: done once onboarding went past it.
+  const pickupDone = Boolean(settings?.pickup_mode) || past(step, 'pickup')
   const fresh = newAssistant(workspaceId, ws?.name ?? '', [], 'standard')
   const assistantChanged =
     !!assistant && (assistant.name !== DEFAULT_ASSISTANT_NAME || assistant.greeting !== fresh.greeting)

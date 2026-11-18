@@ -1,8 +1,8 @@
 // Every screen a signed-in person can reach while setting up or joining (2026-11-18) offers the account menu in its top
 // bar (SetupAccountMenu): another workspace or partner area, and Sign out. The screens have no app navigation, so
-// without it someone could be stuck on one. They get it one of three ways: the onboarding's frame (Frame.tsx), the
-// agent setup page (AgentSetup.tsx), the menu itself, or the sign-in card page with it in its corner once signed in
-// (SignedInAuthPage.tsx). A new screen in the list below, or one built on the bare AuthPage, fails here.
+// without it someone could be stuck on one. They get it one of three ways: the setup pages' one top bar
+// (SetupTopBar.tsx: the onboarding's frame, the install walkthrough, the agent setup pages), the menu itself, or the
+// sign-in card page with it in its corner once signed in (SignedInAuthPage.tsx). A new screen in the list below, or one built on the bare AuthPage, fails here.
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { expect, test } from 'vitest'
@@ -12,14 +12,17 @@ const source = (file: string) => readFileSync(join(SRC, file), 'utf8')
 
 /** The setup and joining screens, by the file that renders each; what renders the menu for it. */
 const SETUP_SCREENS: Record<string, string> = {
-  // Cloud trial and step-by-step onboarding (its steps: business, assistant, pick-up, notify, activate, phone, done).
+  // Cloud trial and step-by-step onboarding (its steps: business, assistant, pick-up, notify, activate, phone, done),
+  // and the same steps again from the settings.
   'onboarding/Onboarding.tsx': '<Frame',
+  'onboarding/StepByStep.tsx': '<Frame',
+  'onboarding/Frame.tsx': '<SetupTopBar',
   // The agent setup pages: install (#setup-agent), workspace owner, partner (#partner/agent), change with the agent.
-  'onboarding/AgentSetup.tsx': '<SetupAccountMenu',
+  'onboarding/AgentSetup.tsx': '<SetupTopBar',
   'partner/PartnerAgentSetup.tsx': '<AgentSetup',
   'settings/ChangeWithAgent.tsx': '<AgentSetup',
   // Self-hosted first run: the install walkthrough by hand.
-  'onboarding/InstallSetup.tsx': '<SetupAccountMenu',
+  'onboarding/InstallSetup.tsx': '<SetupTopBar',
   'onboarding/AdminStart.tsx': '<SignedInAuthPage',
   // A white-label partner: the guided setup by hand (#partner/setup) and the partner area (#partner).
   'partner/PartnerSetup.tsx': '<SetupAccountMenu',
@@ -39,7 +42,7 @@ const SETUP_SCREENS: Record<string, string> = {
 }
 
 /** Where the menu itself is drawn, for the screens that reach it through them. */
-const MENU_HOSTS = ['onboarding/Frame.tsx', 'onboarding/AgentSetup.tsx', 'shell/SignedInAuthPage.tsx']
+const MENU_HOSTS = ['onboarding/SetupTopBar.tsx', 'shell/SignedInAuthPage.tsx']
 
 /** Pages before signing in: the bare card page, no account to show. */
 const SIGNED_OUT_ONLY = new Set(['Login.tsx', 'SignInLink.tsx', 'shell/SignedInAuthPage.tsx'])

@@ -58,6 +58,8 @@ vi.mock('./outbound-number.ts', () => ({
   useOutboundCountries: () => null,
   withUnfinishedNumber: (_d: unknown, p: unknown) => p,
 }))
+// The account menu in the top bar (SetupTopBar), drawn on its own in SetupAccountMenu.test.tsx.
+vi.mock('../shell/SetupAccountMenu.tsx', () => ({ SetupAccountMenu: () => <span className="ob-me" /> }))
 vi.mock('./Frame.tsx', async importOriginal => {
   const real = await importOriginal<typeof import('./Frame.tsx')>()
   return {
@@ -171,6 +173,8 @@ describe('the workspace’s steps, from Workspace settings', () => {
     expect(html).toContain('Step 1 of 4 · Business')
     expect(html).toMatch(/title="Back to settings[^"]*\(Shift\+Esc\)"[^>]*><span>Close</)
     expect(html).not.toContain('Finish later')
+    // The account menu, as on every setup page (2026-11-18).
+    expect(html).toContain('class="ob-me"')
   })
 
   test('the business details as saved, to look over and change', () => {

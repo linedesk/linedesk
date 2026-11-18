@@ -52,8 +52,7 @@ import { callAction } from '../settings/settings-api.ts'
 import { dateTimeLabel, untilLabel } from '../time.ts'
 import { HelpTip } from '../ui/HelpTip.tsx'
 import { LoadProblem, Skeleton, SkeletonChecklist, SkeletonPart, useLoading } from '../ui/LoadStates.tsx'
-import { SetupAccountMenu } from '../shell/SetupAccountMenu.tsx'
-import { BrandMark, Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
+import { Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
 import { MarkGlyph } from '../ui/StatusMark.tsx'
 import { AgentPicker } from './AgentPicker.tsx'
 import { installPartsMissing } from './agent-setup-passkey.ts'
@@ -62,6 +61,8 @@ import { microphoneAllowed } from '../call/microphone.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { Select } from '../ui/controls.tsx'
 import { CopyButton } from './Frame.tsx'
+import { SetupFoot } from './SetupFoot.tsx'
+import { SetupTopBar } from './SetupTopBar.tsx'
 import { openInstallSetup } from './InstallSetup.tsx'
 import { clearResume, peekResume, type ResumeAction, saveResume } from './resume-after-switch.ts'
 import {
@@ -238,19 +239,6 @@ export function AgentSetup({
   const [signInAgain, setSignInAgain] = useState<AdminSecondFactor | null>(null)
   // Server admin's passkey check: not the owner's page, which is no part of Server admin.
   useEffect(() => (personal ? undefined : watchAdminSignIn(setSignInAgain)), [personal])
-  // Shift+Esc finishes later, as in the business onboarding (onboarding/Frame.tsx).
-  const laterRef = useRef(onLater)
-  laterRef.current = onLater
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape' || !e.shiftKey || e.isComposing || !laterRef.current) return
-      e.preventDefault()
-      laterRef.current()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
-
   const load = useCallback(async () => {
     try {
       const asked = Date.now()
@@ -358,6 +346,32 @@ export function AgentSetup({
   const view = useLoading(state === null && !loadError)
   const skeleton = state === null && (view.phase === 'reserve' || view.phase === 'skeleton')
   const reserved = view.phase === 'reserve'
+  // The line under the top bar: how much of the checklist is done.
+  const checklist = state?.progress.steps ?? []
+  const checklistDone = checklist.length
+    ? Math.round((checklist.filter(s => s.state === 'done').length / checklist.length) * 100)
+    : 0
+  // Open the app once there is a workspace to open (the agent connected, or all done); not while the workspace waits
+  // for its trial (the app would only show the card step) and not on a partner's page (its way is the partner area).
+  const openApp = (allDone || connected) && Boolean(state?.progress.workspace) && !trial && partnerId === null
+  // The quiet way in the footer's back slot: by hand, or step by step once everything is set up. Changing settings
+  // has none: the top bar's Close goes back to them.
+  const foot =
+    change || (allDone && owner) || (allDone && partnerId)
+      ? {}
+      : allDone
+        ? {
+            onBack: stepByStep,
+            backLabel: t('onboarding.agentSetup.stepByStep'),
+            backTitle: t('onboarding.agentSetup.stepByStepTitle'),
+            backIcon: false,
+          }
+        : {
+            onBack: manual,
+            backLabel: t(partnerId ? 'onboarding.agentSetup.partner.byHand' : 'onboarding.agentSetup.manual'),
+            backTitle: t(partnerId ? 'onboarding.agentSetup.partner.byHandTitle' : 'onboarding.agentSetup.manualTitle'),
+            backIcon: false,
+          }
   // After signing in, the page loads again at the same address (SecondFactorPrompt).
   if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onDone} />
   return (
@@ -372,17 +386,20 @@ export function AgentSetup({
           {t('onboarding.agentSetup.loading')}
         </span>
       )}
-      <div className="ob-top">
-        <BrandMark install={scope === 'partner'} />
-        <b>{product}</b>
-        <span className="ob-count">{t('onboarding.agentSetup.setup')}</span>
-        {onLater && (
-          <Button size="sm" variant="ghost" onClick={onLater} title={t('onboarding.frame.finishLaterTitle')}>
-            {t('onboarding.frame.finishLater')}
-          </Button>
-        )}
-        <SetupAccountMenu workspaceId={active?.id} away={scope === 'partner'} />
-      </div>
+      <SetupTopBar
+        label={t('team.partner.setup.way.agent')}
+        progress={change ? 0 : checklistDone}
+        exit={
+          change
+            ? { kind: 'close', onExit: () => onManual(false), title: t('onboarding.agentSetup.change.backTitle') }
+            : onLater
+              ? { kind: 'finish-later', onExit: onLater }
+              : null
+        }
+        brand={scope === 'partner' ? 'install' : 'app'}
+        workspaceId={active?.id}
+        away={scope === 'partner'}
+      />
       <div className="ob-main as-main">
         <div className={cx('ob-body', view.fadeIn && 'ld-in')}>
           <span className="as-kicker">
@@ -441,76 +458,78 @@ export function AgentSetup({
         {!personal && <HostingNote address={state?.mcpUrl ?? `${globalThis.location?.origin ?? ''}/mcp/setup`} />}
 
         <section className="as-card" aria-label={t('onboarding.agentSetup.yourAgent')}>
-          <ol className="as-steps">
-            <li>
-              <b className="as-step-title">
-                {t('onboarding.agentSetup.link.title')}
-                <HelpTip
-                  label={t('onboarding.agentSetup.link.helpLabel')}
-                  text={t(
-                    partnerId
-                      ? 'onboarding.agentSetup.partner.linkHelp'
-                      : owner
-                        ? 'onboarding.agentSetup.owner.linkHelp'
-                        : 'onboarding.agentSetup.link.help',
-                    { hours: SETUP_KEY_HOURS },
-                  )}
-                />
-              </b>
-              <AgentPicker client={client} onPick={pick} />
-              {cloudBlocked && (
-                <Note
-                  tone="warning"
-                  title={t('onboarding.agentSetup.cloudBlocked.title', { agent: agentClientLabels[client] })}
-                >
-                  {t('onboarding.agentSetup.cloudBlocked.body', {
-                    agent: agentClientLabels[client],
-                    address: state?.mcpUrl.replace(/\/mcp\/setup$/, '') ?? '',
-                    brand: product,
-                  })}
-                </Note>
-              )}
-              {hasLink ? (
-                <>
-                  <div className="as-link">
-                    <span className="as-small">
-                      {t('onboarding.agentSetup.link.ready', {
-                        until: timeOf(created?.expiresAt ?? state?.key?.expiresAt ?? ''),
-                      })}
-                    </span>
-                    <Button
-                      size="sm"
-                      busy={busy === 'end'}
-                      onClick={() => void endAccess()}
-                      title={t('onboarding.agentSetup.link.endTitle')}
-                    >
-                      {t('onboarding.agentSetup.link.end')}
-                    </Button>
-                  </div>
-                  {created ? (
-                    <StartAgent client={client} url={created.url} scope={scope} change={change} />
-                  ) : (
-                    <span className="as-small">{t('onboarding.agentSetup.link.otherBrowser')}</span>
-                  )}
-                </>
-              ) : skeleton ? (
-                <div className="as-step">
-                  <SkeletonPart reserved={reserved}>
-                    <Skeleton width={148} height={32} />
-                  </SkeletonPart>
+          <div className="as-link-step">
+            <b className="as-step-title">
+              {t('onboarding.agentSetup.link.title')}
+              <HelpTip
+                label={t('onboarding.agentSetup.link.helpLabel')}
+                text={t(
+                  partnerId
+                    ? 'onboarding.agentSetup.partner.linkHelp'
+                    : owner
+                      ? 'onboarding.agentSetup.owner.linkHelp'
+                      : 'onboarding.agentSetup.link.help',
+                  { hours: SETUP_KEY_HOURS },
+                )}
+              />
+            </b>
+            <AgentPicker client={client} onPick={pick} />
+            {cloudBlocked && (
+              <Note
+                tone="warning"
+                title={t('onboarding.agentSetup.cloudBlocked.title', { agent: agentClientLabels[client] })}
+              >
+                {t('onboarding.agentSetup.cloudBlocked.body', {
+                  agent: agentClientLabels[client],
+                  address: state?.mcpUrl.replace(/\/mcp\/setup$/, '') ?? '',
+                  brand: product,
+                })}
+              </Note>
+            )}
+            {hasLink ? (
+              <>
+                <div className="as-link">
+                  <span className="as-small">
+                    {t('onboarding.agentSetup.link.ready', {
+                      until: timeOf(created?.expiresAt ?? state?.key?.expiresAt ?? ''),
+                    })}
+                  </span>
+                  <Button
+                    size="sm"
+                    busy={busy === 'end'}
+                    onClick={() => void endAccess()}
+                    title={t('onboarding.agentSetup.link.endTitle')}
+                  >
+                    {t('onboarding.agentSetup.link.end')}
+                  </Button>
                 </div>
-              ) : (
-                <div className="as-step">
-                  {state?.endedByAgentAt && <AgentEndedNote at={state.endedByAgentAt} />}
-                  <div>
-                    <Button variant="primary" busy={busy === 'create'} onClick={() => void createKey()}>
-                      {t('onboarding.agentSetup.link.create')}
-                    </Button>
-                  </div>
+                {created ? (
+                  <StartAgent client={client} url={created.url} scope={scope} change={change} />
+                ) : (
+                  <span className="as-small">{t('onboarding.agentSetup.link.otherBrowser')}</span>
+                )}
+              </>
+            ) : skeleton ? (
+              <div className="as-step">
+                <SkeletonPart reserved={reserved}>
+                  <Skeleton width={148} height={32} />
+                </SkeletonPart>
+              </div>
+            ) : (
+              <div className="as-step">
+                {state?.endedByAgentAt && <AgentEndedNote at={state.endedByAgentAt} />}
+                <div>
+                  <Button
+                    variant={allDone ? 'secondary' : 'primary'}
+                    busy={busy === 'create'}
+                    onClick={() => void createKey()}
+                  >
+                    {t('onboarding.agentSetup.link.create')}
+                  </Button>
                 </div>
-              )}
-            </li>
-          </ol>
+              </div>
+            )}
+          </div>
           {signInFirst && (
             <Note
               tone="warning"
@@ -533,7 +552,7 @@ export function AgentSetup({
           <Progress
             state={state}
             connected={connected}
-            onDone={onDone}
+            change={Boolean(change)}
             active={active ?? null}
             reload={load}
             fadeIn={view.fadeIn}
@@ -553,47 +572,34 @@ export function AgentSetup({
           />
         )}
 
-        <div className="as-foot">
-          {skeleton ? (
+        {skeleton ? (
+          <div className="ob-foot">
             <SkeletonPart reserved={reserved}>
-              <Skeleton shape="text" width={132} />
+              <Skeleton width={148} height={36} />
             </SkeletonPart>
-          ) : change ? (
-            <button
-              type="button"
-              className="as-manual"
-              onClick={() => onManual(false)}
-              title={t('onboarding.agentSetup.change.backTitle')}
-            >
-              {t('onboarding.agentSetup.change.back')}
-            </button>
-          ) : partnerId ? (
-            // Set up by hand: the partner's guided setup (PartnerSetup.tsx); once all is done, the partner area.
-            <button
-              type="button"
-              className="as-manual"
-              onClick={allDone ? onDone : manual}
-              title={t(
-                allDone ? 'onboarding.agentSetup.partner.areaTitle' : 'onboarding.agentSetup.partner.byHandTitle',
-              )}
-            >
-              {t(allDone ? 'onboarding.agentSetup.partner.area' : 'onboarding.agentSetup.partner.byHand')}
-            </button>
-          ) : allDone && owner ? null : allDone ? (
-            <button
-              type="button"
-              className="as-manual"
-              onClick={stepByStep}
-              title={t('onboarding.agentSetup.stepByStepTitle')}
-            >
-              {t('onboarding.agentSetup.stepByStep')}
-            </button>
-          ) : (
-            <button type="button" className="as-manual" onClick={manual} title={t('onboarding.agentSetup.manualTitle')}>
-              {t('onboarding.agentSetup.manual')}
-            </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <SetupFoot
+            {...foot}
+            primary={
+              openApp ? (
+                <Button variant={allDone && !hasLink ? 'primary' : 'secondary'} onClick={onDone}>
+                  {allDone
+                    ? t('onboarding.agentSetup.open', { brand: brandName() })
+                    : t('onboarding.agentSetup.openNow', { brand: brandName() })}
+                </Button>
+              ) : partnerId && allDone ? (
+                <Button
+                  variant={hasLink ? 'secondary' : 'primary'}
+                  onClick={onDone}
+                  title={t('onboarding.agentSetup.partner.areaTitle')}
+                >
+                  {t('onboarding.agentSetup.partner.area')}
+                </Button>
+              ) : null
+            }
+          />
+        )}
       </div>
     </div>
   )
@@ -673,7 +679,7 @@ export function ProgressSkeleton({
 function Progress({
   state,
   connected,
-  onDone,
+  change = false,
   active,
   reload,
   fadeIn,
@@ -685,7 +691,8 @@ function Progress({
 }: {
   state: AgentSetupState
   connected: boolean
-  onDone: () => void
+  /** Changing settings (AgentSetup's `change`): what the agent can change, with no "set up" words and no count. */
+  change?: boolean
   active: SetupWorkspace | null
   reload: () => Promise<void>
   /** The state just arrived after the skeleton: the card fades in. */
@@ -766,22 +773,26 @@ function Progress({
       aria-label={t('onboarding.agentSetup.progress.label')}
       aria-live="polite"
     >
-      <div className="as-progress-head">
-        {allDone ? (
-          <b>{t('onboarding.agentSetup.progress.allDone')}</b>
-        ) : connected ? (
-          <b>
-            <span className="as-dot" aria-hidden /> {t('onboarding.agentSetup.progress.connected')}
-          </b>
-        ) : state.key ? (
-          <b className="as-waiting">
-            <Spinner /> {t('onboarding.agentSetup.progress.waiting')}
-          </b>
-        ) : (
-          <b>{t('onboarding.agentSetup.progress.willSetUp')}</b>
-        )}
-        <span className="as-small">{t('onboarding.agentSetup.progress.count', { done, total: steps.length })}</span>
-      </div>
+      {change && !connected && !state.key ? null : (
+        <div className="as-progress-head">
+          {change ? null : allDone ? (
+            <b>{t('onboarding.agentSetup.progress.allDone')}</b>
+          ) : connected ? (
+            <b>
+              <span className="as-dot" aria-hidden /> {t('onboarding.agentSetup.progress.connected')}
+            </b>
+          ) : state.key ? (
+            <b className="as-waiting">
+              <Spinner /> {t('onboarding.agentSetup.progress.waiting')}
+            </b>
+          ) : (
+            <b>{t('onboarding.agentSetup.progress.willSetUp')}</b>
+          )}
+          {!change && (
+            <span className="as-small">{t('onboarding.agentSetup.progress.count', { done, total: steps.length })}</span>
+          )}
+        </div>
+      )}
       {/* By part of the setup: the admin's own, the server's (once per install), then the picked workspace's. */}
       {stepsByGroup(steps).map(group => (
         <div key={group.id} className={cx('as-group', group.id === 'business' && 'as-group-ws')}>
@@ -853,18 +864,6 @@ function Progress({
         </div>
       ))}
       {switchError && <Note tone="danger">{switchError}</Note>}
-      {/* Before the agent has created the business there is no workspace to open: the button would bring back this page.
-          Nor while the workspace waits for its trial: the app would only show the card step, the Start your trial row. */}
-      {/* A partner's page: the way to the partner area is the link under the card, once. */}
-      {(allDone || connected) && Boolean(state.progress.workspace) && !trial && !partnerScope && (
-        <div>
-          <Button variant={allDone ? 'primary' : 'secondary'} onClick={onDone}>
-            {allDone
-              ? t('onboarding.agentSetup.open', { brand: brandName() })
-              : t('onboarding.agentSetup.openNow', { brand: brandName() })}
-          </Button>
-        </div>
-      )}
       {newWorkspace && partnerScope && partner ? (
         <NewClient
           partner={partner}
@@ -1079,7 +1078,7 @@ export function StepAction({
       <span className="as-item-action">
         <Button
           size="sm"
-          variant={step.state === 'done' ? 'secondary' : 'primary'}
+          variant="secondary"
           icon="plus"
           title={t('onboarding.agentSetup.partner.addClientTitle')}
           onClick={onAddClient}
@@ -1093,7 +1092,7 @@ export function StepAction({
       <span className="as-item-action">
         <Button
           size="sm"
-          variant="primary"
+          variant="secondary"
           title={t('onboarding.agentSetup.partner.addNumberTitle')}
           onClick={onAddNumber}
         >
@@ -1129,7 +1128,7 @@ export function StepAction({
         <span className="as-item-action">
           <Button
             size="sm"
-            variant="primary"
+            variant="secondary"
             icon="phone-in"
             busy={switching === 'test_call'}
             disabled={Boolean(switching)}

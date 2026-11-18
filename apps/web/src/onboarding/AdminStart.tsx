@@ -69,17 +69,15 @@ export function AdminStart({
         {lostWorkspace && <LostWorkspace name={lostWorkspace} />}
         <h1>{t('onboarding.adminStart.title', { brand: brandName() })}</h1>
         <section className="as-card">
-          <ol className="as-steps">
-            <li>
-              <b>{t('onboarding.adminStart.agent')}</b>
-              <span className="as-small">{t('onboarding.adminStart.agentHelp')}</span>
-              <div>
-                <Button variant="primary" onClick={openAgentSetup} title={t('onboarding.adminStart.agentTip')}>
-                  {t('onboarding.adminStart.agentButton')}
-                </Button>
-              </div>
-            </li>
-          </ol>
+          <div className="as-link-step">
+            <b>{t('onboarding.adminStart.agent')}</b>
+            <span className="as-small">{t('onboarding.adminStart.agentHelp')}</span>
+            <div>
+              <Button variant="primary" onClick={openAgentSetup} title={t('onboarding.adminStart.agentTip')}>
+                {t('onboarding.adminStart.agentButton')}
+              </Button>
+            </div>
+          </div>
         </section>
         {byHand ? (
           <div className="as-byhand">
@@ -99,14 +97,14 @@ export function AdminStart({
             />
           </div>
         ) : (
-          <button
-            type="button"
-            className="as-manual as-manual-center"
+          <Button
+            variant="ghost"
+            className="as-manual-center"
             onClick={() => setByHand(true)}
             title={t('onboarding.adminStart.byHandTip')}
           >
             {t('onboarding.adminStart.byHand')}
-          </button>
+          </Button>
         )}
         {children}
         <button type="button" className="auth-switch" onClick={() => void signOutAndForget().then(onDone)}>

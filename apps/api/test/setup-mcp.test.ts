@@ -1702,6 +1702,23 @@ describe('what is done follows the data (B6)', () => {
       .where(eq(workspace_settings.workspace_id, workspaceId))
     expect(settings!.step).toBe('skipped')
   })
+
+  test('a workspace whose onboarding went past "When to answer" has it done, also with no choice stored', async () => {
+    const admin = await signUp()
+    await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, admin.userId))
+    const { key } = await makeKey(admin)
+    const made = data(await call(key, 'workspace_create', { name: 'Brightwater Done', timeZone: 'America/Denver' }))
+    const workspaceId = (made as { workspace: { id: string } }).workspace.id
+    await db
+      .update(workspace_settings)
+      .set({ onboarding_step: 'done', pickup_mode: null })
+      .where(eq(workspace_settings.workspace_id, workspaceId))
+    type Status = { workspaces: { steps: { id: string; state: string }[] }[] }
+    const status = data(await call(key, 'setup_status', { read_only: true })) as Status
+    expect(Object.fromEntries(status.workspaces[0]!.steps.map(s => [s.id, s.state]))).toMatchObject({
+      pickup: 'done',
+    })
+  })
 })
 
 describe("the phone step's how-to by the workspace's country (LIN-300)", () => {

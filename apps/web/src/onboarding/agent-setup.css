@@ -1,8 +1,6 @@
 /* Agent-first setup (AgentSetup.tsx): the onboarding page shell (.ob) with one card for the agent and one for progress. */
 .as-main {
-  max-width: 640px;
   gap: 20px;
-  padding-top: 6vh;
 }
 .as-kicker {
   display: inline-flex;
@@ -48,10 +46,11 @@
 .as-agent:hover {
   background: var(--surface-hover);
 }
+/* The chosen agent: the selected outline of every choice in setup (.ob-choice.on), never a second black button. */
 .as-agent.on {
   border-color: var(--action);
-  background: var(--action);
-  color: var(--on-action);
+  background: var(--highlight);
+  box-shadow: var(--ring-action);
 }
 /* The agent's own mark left of its name, the same size for every agent; "Other" (no brand) muted until chosen. */
 .as-agent-mark {
@@ -62,48 +61,19 @@
   color: var(--ink-muted);
 }
 .as-agent.on .as-agent-mark.is-muted {
-  color: inherit;
+  color: var(--ink);
 }
 .as-agent:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-.as-steps {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: as-step;
+/* Giving the agent its link: the title with its (?) help, the agent picker, then the link or the button that makes it. */
+.as-link-step {
   display: grid;
-  gap: 18px;
-}
-.as-steps > li {
-  position: relative;
-  display: grid;
-  gap: 8px;
-  padding-left: 32px;
+  gap: 10px;
   font-size: 13.5px;
-  counter-increment: as-step;
 }
-.as-steps > li::before {
-  content: counter(as-step);
-  position: absolute;
-  left: 0;
-  top: -1px;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--action);
-  color: var(--on-action);
-  font-size: 12px;
-  font-weight: 600;
-}
-.as-steps > li.as-later::before {
-  background: var(--surface-hover);
-  color: var(--ink-muted);
-}
-.as-steps > li > b {
+.as-link-step > b {
   font-weight: 600;
   line-height: 20px;
 }
@@ -112,55 +82,6 @@
   display: flex;
   align-items: center;
   gap: 6px;
-}
-.as-steps > li.as-later {
-  color: var(--ink-muted);
-}
-/* Step 1 done (the passkey): one line with the works mark in place of its number, so step 2 leads. */
-.as-steps > li.as-passed {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-left: 32px;
-  color: var(--ink);
-}
-.as-steps > li.as-passed::before {
-  content: none;
-}
-.as-steps > li.as-passed .as-passed-mark {
-  position: absolute;
-  left: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-}
-.as-steps > li .as-skel {
-  height: 20px;
-  width: 60%;
-}
-.as-why {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.as-code-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 320px;
-}
-.as-code-field > :first-child {
-  flex: 1;
-}
-/* Why the passkey was not added: the words first, Try again and the way to Account › Security under them. */
-.as-passkey-note {
-  flex-wrap: wrap;
-}
-.as-passkey-note .k-note-action {
-  display: flex;
-  flex-basis: 100%;
-  align-items: center;
-  gap: 12px;
-  padding-left: 26px;
 }
 .as-step {
   display: grid;
@@ -206,7 +127,7 @@
   font-size: 12px;
   color: var(--ink-muted);
 }
-/* Step 2, starting the agent: the open link first (button, then what it does), the other way behind a quiet "Or …". */
+/* Starting the agent: the open link first (button, then what it does), the other way behind a quiet "Or …". */
 .as-start {
   display: grid;
   gap: 12px;
@@ -271,17 +192,15 @@
   border-radius: 50%;
   background: var(--live-ok);
 }
-/* One part of the setup (Security, This server, Your business): a small label over its steps, like the admin's side labels. */
+/* One part of the setup (This server, Workspace, Partner account): a group label over its steps, in sentence case. */
 .as-group {
   display: grid;
   gap: 2px;
 }
 .as-group-label {
   margin: 0;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--ink-muted);
 }
 .as-list {
@@ -327,6 +246,11 @@
   padding-top: 12px;
   border-top: 1px solid var(--line);
 }
+/* The first part of the card (changing a workspace's settings: no server steps above it): no line over it. */
+.as-group-ws:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
 .as-ws-head {
   display: flex;
   flex-wrap: wrap;
@@ -363,27 +287,6 @@
 .as-item.failing .as-mark {
   border-color: var(--danger);
 }
-/* The manual way: there, but small and gray. */
-.as-foot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding-bottom: 24px;
-}
-.as-manual {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 12px;
-  color: var(--ink-disabled);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-.as-manual:hover {
-  color: var(--ink-muted);
-}
 /* The start page of an admin without a workspace (AdminStart.tsx): the steps card, then the way by hand under it. */
 .as-start .as-card {
   text-align: left;
@@ -394,7 +297,7 @@
   padding-top: 4px;
 }
 .as-manual-center {
-  align-self: center;
+  justify-self: center;
 }
 .as-byhand-title {
   margin: 0;

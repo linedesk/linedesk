@@ -1,18 +1,20 @@
-// The onboarding page around each step: top bar, progress, footer, and the keys (Enter continues, Esc goes back). The
-// same frame holds the steps when they are gone through again from the settings ("Step by step", StepByStep.tsx).
+// The onboarding page around each step: the shared setup top bar (SetupTopBar.tsx) with its progress line, the shared
+// footer (SetupFoot.tsx, as `Foot`), and the keys (Enter continues, Esc goes back, Shift+Esc leaves). The same frame
+// holds the steps when they are gone through again from the settings ("Step by step", StepByStep.tsx).
 import { useT } from '@linedesk/i18n/react'
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { BrandMark, Button } from '../ui/kit.tsx'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Button } from '../ui/kit.tsx'
 import { useClientWord } from './clientWords.tsx'
-import { onboardingSteps, progress, stepLabelKeys, type OnboardingStep } from './flow.ts'
+import { onboardingSteps, stepLabelKeys, type OnboardingStep } from './flow.ts'
 import { brandName } from '../brand.ts'
-import { SetupAccountMenu } from '../shell/SetupAccountMenu.tsx'
+import { StepModeContext } from './SetupFoot.tsx'
+import { SetupTopBar } from './SetupTopBar.tsx'
 
 type Keys = { onEnter?: () => void; onEscape?: () => void }
 
 /**
  * Enter outside buttons, links and text areas (there ⌘/Ctrl+Enter) runs `onEnter`; Esc runs `onEscape`. Shift+Esc is
- * the frame's own: Finish later.
+ * the top bar's own: Finish later (or Close).
  */
 export function useStepKeys(keys: Keys) {
   const ref = useRef(keys)
@@ -37,15 +39,9 @@ export function useStepKeys(keys: Keys) {
   }, [])
 }
 
-/**
- * How the steps are gone through: the first setup (onboarding), or again from the settings (`edit`, StepByStep.tsx),
- * where the last step's Continue says Done and nothing is put off for "Later" (the settings stay where they are).
- */
-type StepMode = { edit: boolean; last: boolean }
-const StepModeContext = createContext<StepMode>({ edit: false, last: false })
-
-/** Whether the step shows in the first setup or again from the settings, and whether it is the last one. */
-export const useStepMode = (): StepMode => useContext(StepModeContext)
+export { useStepMode } from './SetupFoot.tsx'
+/** The step's footer: the shared setup footer (SetupFoot.tsx), Back, Later and the primary. */
+export { SetupFoot as Foot } from './SetupFoot.tsx'
 
 export function Frame({
   step,
@@ -59,6 +55,7 @@ export function Frame({
   children,
 }: {
   step: OnboardingStep
+  /** The step is done already (a number bought on the phone step): the line under the top bar shows it. */
   complete: boolean
   /**
    * Leave setup now and finish it later (what is left stays in the go-live checklist); in `edit`, close the steps and
@@ -86,135 +83,18 @@ export function Frame({
   const t = useT()
   const word = useClientWord()
   const index = steps.indexOf(step)
-  const skipRef = useRef(onSkip)
-  skipRef.current = onSkip
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape' || !e.shiftKey || e.isComposing || !skipRef.current) return
-      e.preventDefault()
-      skipRef.current()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  const name = step === 'activate' && planOnly ? t('onboarding.steps.activatePlan') : t(word(stepLabelKeys[step]))
   return (
     <div className="ob" role="main" aria-label={t('onboarding.frame.title', { brand: brandName() })}>
-      <div className="ob-top">
-        <BrandMark />
-        <b>{brandName()}</b>
-        <span className="ob-count">
-          {t('onboarding.frame.stepCount', {
-            step: counted.indexOf(step) + 1,
-            total: counted.length,
-            label: step === 'activate' && planOnly ? t('onboarding.steps.activatePlan') : t(word(stepLabelKeys[step])),
-          })}
-        </span>
-        {/* A phone's top bar: the count alone, next to the account menu. */}
-        <span className="ob-count-short" aria-hidden="true">
-          {t('onboarding.frame.stepShort', { step: counted.indexOf(step) + 1, total: counted.length })}
-        </span>
-        {onAgentSetup && (
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="spark"
-            className="ob-agent"
-            onClick={onAgentSetup}
-            aria-label={t('onboarding.frame.agent')}
-            title={t('onboarding.frame.agentTitle')}
-          >
-            {t('onboarding.frame.agent')}
-          </Button>
-        )}
-        {onSkip && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onSkip}
-            title={t(edit ? 'onboarding.frame.closeTitle' : 'onboarding.frame.finishLaterTitle')}
-          >
-            {t(edit ? 'onboarding.frame.close' : 'onboarding.frame.finishLater')}
-          </Button>
-        )}
-        {/* Sign out or another workspace mid-setup; from the settings ("Step by step") the app's own menu is a Close away. */}
-        {!edit && <SetupAccountMenu />}
-      </div>
-      <div className="ob-bar">
-        <span style={{ width: `${progress(step, complete, counted)}%` }} />
-      </div>
+      <SetupTopBar
+        step={{ n: counted.indexOf(step) + 1, m: counted.length, name }}
+        ahead={complete}
+        agentPath={onAgentSetup}
+        exit={onSkip ? { kind: edit ? 'close' : 'finish-later', onExit: onSkip } : null}
+      />
       <StepModeContext.Provider value={{ edit, last: index === steps.length - 1 }}>
         <div className="ob-main">{children}</div>
       </StepModeContext.Provider>
-    </div>
-  )
-}
-
-type FootProps = {
-  onBack?: () => void
-  onContinue?: () => void
-  canContinue: boolean
-  label?: string
-  hint?: string
-  /** Waiting for something that must finish first: the primary button shows a spinner (never a text-only "…ing"). */
-  busy?: boolean
-  /**
-   * This step can be done later, next to its own action. Nothing in setup is skipped for good: the label says
-   * "Later" (or `laterLabel`) and the tooltip says where it waits (`laterTitle`).
-   */
-  onSkipStep?: () => void
-  laterLabel?: string
-  laterTitle?: string
-}
-
-export function Foot({
-  onBack,
-  onContinue,
-  canContinue,
-  label,
-  hint,
-  busy,
-  onSkipStep,
-  laterLabel,
-  laterTitle,
-}: FootProps) {
-  const t = useT()
-  const mode = useStepMode()
-  // Again from the settings: the last step's Continue ends there ("Done"), and nothing is put off for later.
-  const continueLabel = mode.edit && mode.last ? t('onboarding.frame.done') : (label ?? t('onboarding.action.continue'))
-  const skipStep = mode.edit ? undefined : onSkipStep
-  return (
-    <div className="ob-foot">
-      {onBack ? (
-        <Button variant="ghost" icon="left" onClick={onBack} title={t('onboarding.frame.backTitle')}>
-          {t('onboarding.action.back')}
-        </Button>
-      ) : (
-        <span />
-      )}
-      <div className="ob2-foot-r">
-        {hint && <span className="ob2-hint">{hint}</span>}
-        {skipStep && (
-          <Button
-            variant="ghost"
-            onClick={skipStep}
-            disabled={busy}
-            title={laterTitle ?? t('onboarding.frame.laterTitle')}
-          >
-            {laterLabel ?? t('onboarding.action.later')}
-          </Button>
-        )}
-        {onContinue && (
-          <Button
-            variant="primary"
-            shortcut={canContinue && !busy ? ['⏎'] : undefined}
-            disabled={!canContinue}
-            busy={busy}
-            onClick={onContinue}
-          >
-            {continueLabel}
-          </Button>
-        )}
-      </div>
     </div>
   )
 }

@@ -276,7 +276,9 @@ describe('what a partner setup link reaches', () => {
     expect(clients.how.join(' ')).toContain('Never add one for them')
     expect(clients.how.join(' ')).toContain('Add client')
     expect(status.workspaces).toEqual([])
-    expect(status.next_step).toBe('company')
+    // The company's name was given at sign-up: that step is done, the brand is next.
+    expect(status.steps.find((s: { id: string }) => s.id === 'company').state).toBe('done')
+    expect(status.next_step).toBe('brand')
   })
 
   test("before White-label Cloud is paid: the Activate row is the owner's, drafts wait for it, no invitation goes out", async () => {
