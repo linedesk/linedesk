@@ -186,7 +186,7 @@ import { queueFinishedNews, releaseHeldNews } from './call-news.ts'
 import { recordingStoreCache } from './recording-store.ts'
 import { claimForwardingCheck, forwardingCheckHandlers, forwardingCheckStart } from './forwarding-check.ts'
 import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
-import { numberUnpaid } from './billing-periods.ts'
+import { numberUnpaid, payBoughtNumberMonth } from './billing-periods.ts'
 import { billOfCall, busyLineAlert, type CallRefusal, gateCall, postFinishedCall } from './call-billing.ts'
 import { evaluationHandlers } from './evaluations.ts'
 import { businessHandlers } from './business-import.ts'
@@ -1901,6 +1901,8 @@ const handlers: Record<string, Handler> = {
         created_at: now,
       })
       .returning()
+    // An extra number pays its first month now, in this transaction (LIN-506).
+    if (buying && carrier_account === 'install') await payBoughtNumberMonth(tx, workspace_id, rows[0]!.id, now)
     // Warm transfers from a number in the workspace account dial through that account: set its trunk up now.
     if (carrier_account === 'workspace')
       await refreshTransferTrunk(tx, workspace_id, {

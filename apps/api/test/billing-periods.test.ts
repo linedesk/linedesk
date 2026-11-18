@@ -28,10 +28,12 @@ import {
   MIN_MONTH_MS,
   nextPeriodEnd,
   openNextPeriods,
+  payBoughtNumberMonth,
   RENEWAL_REMINDER_DAYS_KEY,
   runBillingPeriods,
   sendLifecycleEmail,
 } from '../src/billing-periods.ts'
+import { billingNumberRefusal } from '../src/billing-checkout.ts'
 import { db } from '../src/db.ts'
 import type { EmailSender } from '../src/email.ts'
 import { setJobQueue } from '../src/jobs.ts'
@@ -337,6 +339,57 @@ describe('periods', () => {
 })
 
 describe('extra numbers', () => {
+  test('a bought extra number pays its month at once, so a second purchase sees the balance without it (LIN-506)', async () => {
+    const b = await billed({ checkout_confirmed_at: at(Date.now() - 20 * DAY) })
+    // One month's money ($3) and $1 more.
+    await credit(b.billId, b.periodId, 4_000_000)
+    const owner = { actorId: b.ws.owner.userId, permissions: ['settings:write'], role: 'owner', workspaceId: b.ws.id }
+    // As phoneNumber.setup: the check (balance locked), the number bought, its month posted, in one transaction.
+    const purchase = () =>
+      db.transaction(async tx => {
+        const refusal = await billingNumberRefusal(tx, owner as never, b.ws.id)
+        if (refusal) return { refusal }
+        const [row] = await tx
+          .insert(phone_numbers)
+          .values({ id: rid('pn'), workspace_id: b.ws.id, e164: randomNumber(), provider: 'dev', purchased: true })
+          .returning()
+        return { id: row!.id, month: await payBoughtNumberMonth(tx, b.ws.id, row!.id, at(Date.now())) }
+      })
+    const [one, two] = await Promise.all([purchase(), purchase()])
+    const bought = [one, two].filter(p => 'id' in p)
+    expect(bought).toHaveLength(1)
+    expect(bought[0]).toMatchObject({ month: { kind: 'posted' } })
+    expect([one, two].find(p => 'refusal' in p)).toMatchObject({
+      refusal: { key: 'server.api.checkout.number.extraCost' },
+    })
+    const id = (bought[0] as { id: string }).id
+    expect(await numberEntries(id)).toHaveLength(1)
+    expect((await balanceOf(b.billId))!.balance_micros).toBe(1_000_000)
+    // The hourly run does not charge that month again.
+    await run()
+    expect(await numberEntries(id)).toHaveLength(1)
+    expect((await balanceOf(b.billId))!.balance_micros).toBe(1_000_000)
+  })
+
+  test('nothing is posted at purchase for the included number, a trial, a comped bill or with billing off (LIN-506)', async () => {
+    const pay = (ws: string, id: string) => db.transaction(tx => payBoughtNumberMonth(tx, ws, id, at(Date.now())))
+    for (const status of ['trialing', 'comped'] as const) {
+      const b = await billed({ status })
+      await credit(b.billId, b.periodId, 10_000_000)
+      const extra = await extraNumber(b.ws)
+      expect(await pay(b.ws.id, extra.id)).toBeNull()
+      expect(await numberEntries(extra.id)).toEqual([])
+    }
+    const b = await billed()
+    await credit(b.billId, b.periodId, 10_000_000)
+    const [included] = await db.select().from(phone_numbers).where(eq(phone_numbers.e164, b.ws.number))
+    expect(await pay(b.ws.id, included!.id)).toBeNull()
+    cloud.on = false
+    const extra = await extraNumber(b.ws)
+    expect(await pay(b.ws.id, extra.id)).toBeNull()
+    expect(await numberEntries(extra.id)).toEqual([])
+  })
+
   test('the included number pays nothing; an extra one posts $3 once per period from a covering balance', async () => {
     const b = await billed()
     const extra = await extraNumber(b.ws)

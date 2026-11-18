@@ -384,6 +384,33 @@ export async function followWorkspaceBills(tx: Tx, now: string, workspaceId?: st
 }
 
 /**
+ * A number just bought (phoneNumber.setup, in its transaction): when it is an extra number of a bill that pays numbers,
+ * its current month is posted now, under the balance lock the purchase check took (billingNumberRefusal). So the
+ * balance a second purchase sees no longer holds this month, and two purchases cannot both pass with one month's
+ * money (LIN-506). The hourly run finds the month posted. Billing not in effect, a trial, a comped bill or the
+ * workspace's included number: nothing is posted. Without the balance (only an instance admin buys past the check)
+ * the number is unpaid, as in the hourly run.
+ */
+export async function payBoughtNumberMonth(tx: Tx, workspaceId: string, numberId: string, now: string) {
+  const [org] = await tx
+    .select({ billId: organization.billingAccountId })
+    .from(organization)
+    .where(eq(organization.id, workspaceId))
+  if (!org?.billId) return null
+  if ((await billingState(tx)).inEffect !== 'stripe') return null
+  const [bill] = await tx
+    .select({ status: billing_accounts.status })
+    .from(billing_accounts)
+    .where(eq(billing_accounts.id, org.billId))
+  if (!bill || !(PAYS_NUMBERS as readonly string[]).includes(bill.status)) return null
+  const number = (await extraNumbersOf(tx, org.billId)).find(n => n.id === numberId)
+  if (!number) return null
+  const period = await periodAt(tx, org.billId, now)
+  if (!period) return null
+  return chargeNumberMonth(tx, org.billId, number, period.id, now)
+}
+
+/**
  * Every extra number of a bill pays its months: the month left unpaid first (owed since then), then the current one;
  * the number is unpaid until both are posted. Numbers that are no longer extra (another one was released) are cleared.
  */
