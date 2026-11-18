@@ -217,7 +217,7 @@ export function setup(o: SetupOptions = {}): Setup {
     `Business: Brightwater Plumbing & Heating, Portland. Assistant: ${assistant.name}. Owner: Mike Brennan.`,
     `Owner's business text: ${o.businessText === '' ? 'none' : 'services, service area, address, prices ($89 service call, drain cleaning from $149), what is urgent'}.`,
     `Opening hours: ${hoursKind === 'none' ? 'none set' : hoursKind === 'open' ? 'open now' : hoursKind === 'closed' ? 'closed now (opens tomorrow 7 AM)' : 'closed for a break until Monday, November 30'}.`,
-    `Booking: ${booking ? `on (types: ${booking.appointmentTypes.map(t => `${t.name} asks for ${t.required_fields.join(', ')}`).join('; ')}; changing bookings ${booking.canChangeBookings ? 'allowed' : 'not allowed'})` : 'off (cannot book)'}.`,
+    `Booking: ${booking ? `on (types: ${booking.appointmentTypes.map(t => `${t.name} asks for ${t.required_fields.join(', ')}`).join('; ')}; changing bookings ${booking.canChangeBookings ? 'allowed' : 'not allowed'})` : 'off (it cannot book; asking which day and time suit and putting that in the message is right)'}.`,
     `Transfer contacts reachable now: ${transfers.length ? transfers.map(t => `${t.name} (${t.condition})`).join('; ') : 'none'}.`,
     `Caller: ${caller?.phone ? `caller ID ${caller.phone}${caller.name ? `, saved contact "${caller.name}"` : ''}` : caller?.testCall ? 'test call from the app, no caller ID' : 'number withheld'}.`,
     `Languages: main ${languages.main ?? 'en'}, mode ${languages.mode ?? 'english'}${languages.allowed?.length ? ` (${languages.allowed.join(', ')})` : ''}. AI disclosure: ${assistant.ai_disclosure}.`,
