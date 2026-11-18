@@ -37,6 +37,27 @@ export function decodeAudio(file: Buffer): GreetingAudio {
   return { sampleRate: file.readUInt32LE(0), channels: file.readUInt32LE(4), samples }
 }
 
+/** A sample this quiet or quieter (about -50 dBFS) counts as silence before the voice starts. */
+const SILENCE_LEVEL = 100
+/** Kept before the first audible sample, so a soft first sound is never cut. */
+const KEEP_BEFORE_MS = 20
+
+/**
+ * The audio without the silence the voice provider put before the first word (LIN-262): played from the cache it would
+ * only delay the greeting. Measured on the test server's 89 stored greetings: 30 ms in the median, 180 ms at p90, up to
+ * 960 ms. The last KEEP_BEFORE_MS before the first sound stay; audio that is silent throughout is returned as it is.
+ */
+export function withoutLeadingSilence(audio: GreetingAudio): GreetingAudio {
+  const { sampleRate, channels, samples } = audio
+  let first = 0
+  while (first < samples.length && Math.abs(samples[first]!) <= SILENCE_LEVEL) first++
+  if (first >= samples.length) return audio
+  const keep = Math.round((sampleRate * KEEP_BEFORE_MS) / 1000)
+  const startFrame = Math.max(0, Math.floor(first / channels) - keep)
+  if (startFrame === 0) return audio
+  return { sampleRate, channels, samples: samples.subarray(startFrame * channels) }
+}
+
 /** The audio as a stream of 20 ms frames, the way `session.say(text, { audio })` takes it. */
 export function audioStream({ sampleRate, channels, samples }: GreetingAudio, frameMs = 20): ReadableStream<AudioFrame> {
   const perFrame = Math.round((sampleRate * frameMs) / 1000) * channels

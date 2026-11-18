@@ -98,7 +98,7 @@ import {
   warmUpLlm,
   REALTIME_TURNS,
 } from './pipeline.ts'
-import { audioStream, createGreetingCache, greetingKey, synthesize } from './greeting-cache.ts'
+import { audioStream, createGreetingCache, greetingKey, synthesize, withoutLeadingSilence } from './greeting-cache.ts'
 import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
 import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
 import { describeRealtimeUsage, type RealtimeUsageMetrics, realtimeUsageCounter } from './realtime-usage.ts'
@@ -149,7 +149,7 @@ import { watchTakeOver } from './take-over.ts'
 import { dialerLookup, onCallDialerFor } from './transfer-tool.ts'
 import { parseTestCallerMetadata, type TestCallerMetadata } from './test-caller/scenarios.ts'
 import { type OnCallResponderMetadata, parseOnCallResponderMetadata, runOnCallResponder } from './oncall-responder.ts'
-import { type AgentSetup, SETUP_ATTRIBUTE } from './test-caller/latency.ts'
+import { GREETING_STEP, type SetupTimer, setupTimer, watchAgentAudio } from './setup-timing.ts'
 
 // Sentry, when SENTRY_DSN is set (error-reporting.ts), in the worker and in every job process it starts for a call.
 initErrorReporting()
@@ -231,17 +231,21 @@ async function greet(
   cached: Promise<Awaited<ReturnType<typeof greetingCache.get>>>,
   key: string,
   details: Promise<CallerDetails | null> | null,
+  queued: () => void,
 ) {
   // A greeting with caller details ({{name}}) waits briefly for them and is spoken live: it differs per caller.
   if (details) {
     const text = fillTemplate(openingOf(call), await within(details, GREETING_WAIT_MS, null))
+    queued()
     session.say(text)
     return 'personal'
   }
   const text = openingOf(call)
   const audio = await cached
+  queued()
   if (audio) {
-    session.say(text, { audio: audioStream(audio) })
+    // Without the silence the voice put before the first word: it would only delay the greeting (LIN-262).
+    session.say(text, { audio: audioStream(withoutLeadingSilence(audio)) })
     return 'cached'
   }
   session.say(text)
@@ -479,7 +483,7 @@ async function converse(
   const onSpeaking = ({ newState }: { newState: string }) => {
     if (newState !== 'speaking') return
     session.off(voice.AgentSessionEventTypes.AgentStateChanged, onSpeaking)
-    setup.mark('greeting audio')
+    setup.mark(GREETING_STEP)
     setup.log(call.callId, ctx.room)
   }
   session.on(voice.AgentSessionEventTypes.AgentStateChanged, onSpeaking)
@@ -710,6 +714,7 @@ async function converse(
     const replies = realtimeLines?.model()?.replies
     if (replies?.serverReplies()) return setup.note('dropped: the realtime model already answered the caller')
     const askedBefore = replies?.asked() ?? 0
+    setup.mark('greeting queued')
     const greeting = session.generateReply({
       instructions: realtimeLine(personalGreeting ? fillTemplate(openingOf(call), details) : openingOf(call)),
     })
@@ -722,7 +727,11 @@ async function converse(
     })
     return setup.note('spoken by the realtime model')
   }
-  setup.note(await greet(session, stages, call, cachedGreeting, key, personalGreeting ? callerDetails : null))
+  setup.note(
+    await greet(session, stages, call, cachedGreeting, key, personalGreeting ? callerDetails : null, () =>
+      setup.mark('greeting queued'),
+    ),
+  )
 }
 
 /** The realtime model's tokens for the whole call, logged once when the session closes (cost per minute, per model). */
@@ -801,31 +810,6 @@ function transferFrom(
   }
 }
 
-/** Times from the job's start to each setup step, logged once per call with the wall-clock start. */
-type SetupTimer = ReturnType<typeof setupTimer>
-function setupTimer(processWait: string | null, startedAt = Date.now()) {
-  const steps: Record<string, number> = {}
-  let detail = ''
-  return {
-    mark(step: string) {
-      steps[step] = Date.now() - startedAt
-    },
-    note(text: string) {
-      detail = text
-    },
-    /** Logs the timings and publishes them on the agent's participant, where the call test reads them. */
-    log(callId: string, room?: JobContext['room']) {
-      const marks = Object.entries(steps).map(([step, ms]) => `${step} +${ms} ms`)
-      const wait = processWait ? ` (${processWait})` : ''
-      console.log(
-        `setup ${callId}: job started ${new Date(startedAt).toISOString()}${wait}, ${marks.join(', ')}${detail ? ` (greeting ${detail})` : ''}`,
-      )
-      const setup: AgentSetup = { steps, greeting: detail }
-      void room?.localParticipant?.setAttributes({ [SETUP_ATTRIBUTE]: JSON.stringify(setup) }).catch(() => {})
-    },
-  }
-}
-
 async function entry(ctx: JobContext) {
   const setup = setupTimer(describeProcessWait(ctx.info))
   // A room the call-test command dialled out of: this agent plays the caller, not the business.
@@ -846,6 +830,8 @@ async function entry(ctx: JobContext) {
   const early = registerEarly(ctx, api)
   await ctx.connect()
   setup.mark('connected')
+  // When the agent's audio goes out and is subscribed: on a phone call that is when LiveKit SIP answers (setup-timing.ts).
+  watchAgentAudio(ctx.room, setup.mark)
   // Checked at every call: until the providers are configured the call is logged as missed and ended.
   // Started now, so the config lookup overlaps with waiting for the caller and registering the call.
   const ready = checkReadiness(loadAgentConfig)

@@ -207,6 +207,11 @@ test('greeting from pickup: the business agent\'s own timing, checked against 2.
   expect(greetingCheck(null)).toMatchObject({ ok: false, detail: 'not measured' })
   expect(formatAgentSetup(setup)).toBe('Greeting from pickup (business agent): 0.9 s (greeting cached); steps: connected 0.3 s, caller 0.3 s, session 0.9 s, greeting audio 0.9 s')
   expect(formatAgentSetup(null)).toContain('not measured')
+  // Steps in the order they happened, and the greeting from the moment the caller's side subscribed (LIN-262).
+  const subscribed = { steps: { session: 893, 'greeting audio': 1_525, 'audio subscribed': 1_400, connected: 310 }, greeting: 'cached' }
+  expect(formatAgentSetup(subscribed)).toBe(
+    "Greeting from pickup (business agent): 1.5 s (greeting cached); steps: connected 0.3 s, session 0.9 s, audio subscribed 1.4 s, greeting audio 1.5 s; greeting 0.1 s after the caller's side subscribed",
+  )
 })
 
 test('the long call: over the phone only, the caller stays 26 minutes and is told to ask at minute 24, then to hang up', () => {

@@ -4,6 +4,7 @@ import type { CallTestFinding } from '@linedesk/actions'
 import { type AgentSetup, GREETING_TARGET_MS, type LatencySample } from './latency.ts'
 import type { Expectation, Scenario } from './scenarios.ts'
 import { promisesUrgent } from '../urgent-promise.ts'
+import { greetingAfterPickup, inOrder } from '../setup-timing.ts'
 
 export type Check = { ok: boolean; label: string; detail: string }
 type Line = CallTestFinding['lines'][number]
@@ -211,8 +212,10 @@ export function formatAgentSetup(setup: AgentSetup | null): string {
   if (!setup) return 'Greeting from pickup (business agent): not measured'
   const { steps, greeting } = setup
   const greetingAt = steps['greeting audio']
-  const parts = Object.entries(steps).map(([step, ms]) => `${step} ${seconds(ms)}`).join(', ')
-  return `Greeting from pickup (business agent): ${greetingAt === undefined ? 'none' : seconds(greetingAt)}${greeting ? ` (greeting ${greeting})` : ''}; steps: ${parts}`
+  const parts = inOrder(steps).map(([step, ms]) => `${step} ${seconds(ms)}`).join(', ')
+  const after = greetingAfterPickup(steps)
+  const subscribed = after === null ? '' : `; greeting ${seconds(after)} after the caller's side subscribed`
+  return `Greeting from pickup (business agent): ${greetingAt === undefined ? 'none' : seconds(greetingAt)}${greeting ? ` (greeting ${greeting})` : ''}; steps: ${parts}${subscribed}`
 }
 
 /** The greeting starts within GREETING_TARGET_MS of pickup, measured by the business's agent. */
