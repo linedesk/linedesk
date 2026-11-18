@@ -32,6 +32,7 @@ import { ImpersonationFrame } from './shell/ImpersonationBar.tsx'
 import { switchToWorkspace } from './shell/invitations.ts'
 import { linkNotice, linkWorkspace, linkWorkspaceTarget, withoutLinkWorkspace } from './shell/useRoute.ts'
 import { TabWorkspaceGuard } from './shell/TabWorkspaceNotice.tsx'
+import { TermsUpdate } from './shell/TermsUpdate.tsx'
 import { disabledWorkspaceText, StoreProvider, useRun } from './store.tsx'
 import { Workspace } from './Workspace.tsx'
 import { AcceptInvite, clearInviteId, readInviteId } from './team/AcceptInvite.tsx'
@@ -428,7 +429,12 @@ export function App() {
       />
     )
   if (partnerHash && myPartner && session.state === 'ready')
-    return <PartnerArea partner={myPartner} onExit={() => (window.location.hash = '')} />
+    return (
+      <>
+        <PartnerArea partner={myPartner} onExit={() => (window.location.hash = '')} />
+        <TermsUpdate terms={session.me.termsUpdate ?? null} onDone={refresh} />
+      </>
+    )
   // Back from Stripe Checkout (docs/billing.md §3.2 step 4): confirmed here, then the app opens as the bill now is. A
   // partner bill's Checkout (`&partner=`) comes back to someone who may be in no workspace yet, and on to #partner.
   if (checkoutReturn && (session.state === 'ready' || (session.state === 'needsWorkspace' && readCheckoutPartner()))) {
@@ -621,6 +627,8 @@ export function App() {
           )}
         </TabWorkspaceGuard>
       </StoreProvider>
+      {/* A bill's owner accepts a new terms version once (LIN-420), over whatever is open. */}
+      <TermsUpdate terms={session.me.termsUpdate ?? null} onDone={refresh} />
     </ImpersonationFrame>
   )
 }

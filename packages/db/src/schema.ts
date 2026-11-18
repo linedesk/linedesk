@@ -2491,7 +2491,15 @@ export const signup_attempts = pgTable(
  */
 // `extra_calls`: the owner added calls at the same time in Settings › Billing or from the busy-line banner (LIN-450).
 // `auto_recharge`: the owner turned auto-recharge on in Settings › Billing (Janik, 2026-11-18).
-const TERMS_SOURCES = ['signup', 'activation', 'trial_recharge', 'extra_calls', 'auto_recharge'] as const
+// `terms_update`: a bill's owner accepted a new terms version in the app after TERMS_VERSION changed (LIN-420).
+const TERMS_SOURCES = [
+  'signup',
+  'activation',
+  'trial_recharge',
+  'extra_calls',
+  'auto_recharge',
+  'terms_update',
+] as const
 
 export const terms_acceptances = pgTable(
   'terms_acceptances',

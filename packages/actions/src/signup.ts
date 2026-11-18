@@ -60,3 +60,21 @@ export type AccountSignUpData = {
   /** True when the account already had a sign-up waiting for Checkout, which is answered instead of a new one. */
   existing: boolean
 }
+
+/**
+ * A new terms version for existing customers (LIN-420): the app asks a bill's owner once TERMS_VERSION changed
+ * (`/v1/me` `termsUpdate`), and accepting records it for each bill they own that has not accepted that version.
+ */
+export const accountAcceptTerms = defineAction({
+  name: 'account.acceptTerms',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    'Accept the terms of service in effect now (and acknowledge the privacy policy) after they changed: recorded for each plan you own that has not accepted that version yet. Only in the app, signed in as yourself. Takes the versions the app showed; other versions than in effect are refused with `terms_changed`.',
+  input: z.object({
+    termsVersion: z.string().trim().min(1).max(40),
+    privacyVersion: z.string().trim().min(1).max(40),
+  }),
+  permission: 'account:own',
+})
+/** What `account.acceptTerms` recorded: the number of bills (0 when none was waiting for this version). */
+export type AccountAcceptTermsData = { accepted: number }

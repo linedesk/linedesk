@@ -154,6 +154,11 @@ export function UserDetail({ user: u, workspaces, currentUserId, notify, reload 
           </Fact>
           <Fact label={t('admin.users.fact.lastSignIn')}>{when(u.last_sign_in_at)}</Fact>
           <Fact label={t('admin.users.fact.created')}>{day(u.created_at)}</Fact>
+          <Fact label={t('admin.users.fact.terms')}>
+            {u.terms
+              ? t('admin.users.fact.termsAccepted', { version: u.terms.terms_version, when: when(u.terms.accepted_at) })
+              : t('admin.users.fact.termsNone')}
+          </Fact>
         </dl>
       </Card>
       <UserWorkspaces user={u} workspaces={workspaces} notify={notify} reload={reload} />

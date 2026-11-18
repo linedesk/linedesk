@@ -327,6 +327,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'personalKey.list',
     'personalKey.revoke',
     'account.signUp',
+    // A new terms version, accepted in the app by a bill's owner (LIN-420).
+    'account.acceptTerms',
     // A partner team invitation (docs/white-label.md): its link, for the address it was sent to.
     'partnerInvitation.view',
     'partnerInvitation.accept',

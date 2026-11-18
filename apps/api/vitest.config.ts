@@ -57,6 +57,8 @@ const INSTANCE_WIDE_FILES = [
   'test/personal-keys.test.ts',
   // Makes a server admin (an OAuth key never has Server admin).
   'test/mcp-oauth.test.ts',
+  // Makes a server admin (Server admin › Users shows the terms accepted last).
+  'test/terms-update.test.ts',
   // Every action and key read route for each role, a server admin among them (LIN-339).
   'test/every-action.test.ts',
   // Makes an instance admin, switches billing on and sets the protected names (instance_settings).

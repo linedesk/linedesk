@@ -53,6 +53,7 @@ import { browserErrorReporting, errorReportingEnabled, type ReportedUser, report
 import { billingRules } from './billing-rules.ts'
 import { accountTrialUsed } from './billing-checkout.ts'
 import { newWorkspaceOffer } from './signup-handlers.ts'
+import { termsUpdateFor } from './terms-update.ts'
 import { billingState } from './billing-settings.ts'
 import { workspaceBillFacts } from './billing-page.ts'
 import { currentBranding, manifestFor, readLogo } from './branding.ts'
@@ -675,6 +676,7 @@ app.get('/v1/me', async c => {
     partners,
     newWorkspace,
     billingOn,
+    termsUpdate,
   ] = await Promise.all([
     avatarVersionOf(db, actor.actorId),
     profileChangedBy(db, actor.actorId, actor.workspaceId),
@@ -705,6 +707,8 @@ app.get('/v1/me', async c => {
           () => false,
         )
       : !!workspace?.billingState,
+    // A bill's owner asked to accept a new terms version once (terms-update.ts, LIN-420).
+    termsUpdateFor(db, actor),
   ])
   return c.json({
     actorId: actor.actorId,
@@ -780,6 +784,9 @@ app.get('/v1/me', async c => {
     // A Cloud customer's "New workspace…" (or "Finish setting up" a sign-up waiting for Checkout), with whether its
     // plan gets a free trial; null when not offered (signup-handlers.ts newWorkspaceOffer).
     newWorkspace,
+    // The terms in effect when the person owns a bill that has not accepted this version yet (the app asks once);
+    // null otherwise, and always without terms set, while impersonating or with a key.
+    termsUpdate,
     // The member's UI language (user-locale.ts): `locale` null is Automatic. Signed in as someone else, the admin's
     // own browser decides (null), so they can read what they see.
     ...locale,
@@ -862,8 +869,12 @@ app.get('/v1/workspace-icons/:file', async c => {
   const workspaceId = file.endsWith('.png') ? file.slice(0, -4) : null
   const here =
     workspaceId && actor.partnerHost
-      ? (await db.select({ partnerId: organization.partnerId }).from(organization).where(eq(organization.id, workspaceId)))[0]
-          ?.partnerId === actor.partnerHost.partnerId
+      ? (
+          await db
+            .select({ partnerId: organization.partnerId })
+            .from(organization)
+            .where(eq(organization.id, workspaceId))
+        )[0]?.partnerId === actor.partnerHost.partnerId
       : true
   const icon = workspaceId && here ? await readIconFor(db, workspaceId, actor.actorId) : null
   if (!icon) return c.json({ ok: false, error: 'no icon' }, 404)

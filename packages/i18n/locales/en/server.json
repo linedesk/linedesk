@@ -167,6 +167,8 @@
   "api.signup.termsChanged": "The terms or privacy policy changed while this page was open. Read them again, then continue.",
   "api.signup.termsMissing": "Self-serve sign-up needs the terms and privacy policy: set {vars} in the server's environment and restart it.",
   "api.signupRules.invalid": "These sign-up rules are out of range or unknown: {fields}. Nothing was changed.",
+  "api.terms.none": "This server has no terms to accept.",
+  "api.terms.onlyYou": "Only you can accept the terms, signed in to the app as yourself.",
   "api.trialWorkspaceLimit": "This bill is in its trial and has its {count, plural, one {# workspace} other {# workspaces}} already (Sign-up limits, Workspaces in the trial). Raise the limit, or move the workspace once the plan has started.",
   "api.typeNumberToConfirm": "type the number {number} to confirm",
   "api.versionLanguagesGone": "Version {number}'s languages can't be used any more ({error}): pick the languages and save instead",

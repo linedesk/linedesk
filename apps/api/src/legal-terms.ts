@@ -68,7 +68,8 @@ export function legalTerms(env: Env = process.env): { terms: LegalTerms | null; 
  * page (`signup`), the activation step before Checkout (`activation`, with what it showed next to its button), or
  * "Keep calls answered" in the trial (`trial_recharge`, with what the banner showed; docs/billing.md §3.2 step 7), or
  * more calls at the same time (`extra_calls`, with what the dialog or the busy-line banner said; LIN-450), or
- * auto-recharge turned on in Settings › Billing (`auto_recharge`, with the line next to the switch).
+ * auto-recharge turned on in Settings › Billing (`auto_recharge`, with the line next to the switch), or a new terms
+ * version accepted in the app by a bill's owner (`terms_update`, terms-update.ts).
  */
 export async function recordAcceptance(
   tx: Tx,
@@ -78,7 +79,7 @@ export async function recordAcceptance(
     sessionId: string
     terms: LegalTerms
     now: string
-    source: 'signup' | 'activation' | 'trial_recharge' | 'extra_calls' | 'auto_recharge'
+    source: 'signup' | 'activation' | 'trial_recharge' | 'extra_calls' | 'auto_recharge' | 'terms_update'
     disclosure?: ActivationDisclosure | TrialRechargeDisclosure | ExtraCallsDisclosure | AutoRechargeDisclosure
   },
 ) {

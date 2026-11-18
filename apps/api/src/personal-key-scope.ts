@@ -62,6 +62,8 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['signup.setRules', MONEY],
   // Self-serve sign-up (docs/billing.md §3.1): only POST /v1/signup grants account.signUp, and only to a session.
   ['account.signUp', SIGN_UP_PAGE],
+  // A new terms version (LIN-420): accepted in the app's dialog by the person, with their session's address.
+  ['account.acceptTerms', BROWSER],
   // Trial Checkout (docs/billing.md §3.2): payments and the plan are the owner's, in the app.
   ['billing.startCheckout', OWNER_IN_APP],
   ['billing.confirmCheckout', OWNER_IN_APP],

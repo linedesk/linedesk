@@ -72,8 +72,11 @@ export type Activation = {
    * up to `maxExtra`, at `extraCallCents` a month each). Absent from an older server: no add-on on the step.
    */
   calls?: { included: number; step: number; maxExtra: number; extraCallCents: number }
-  terms: { termsUrl: string; termsVersion: string; privacyUrl: string; privacyVersion: string } | null
+  terms: LegalTerms | null
 }
+
+/** The install's terms and privacy policy: the links, and the version of the text behind each (A9). */
+export type LegalTerms = { termsUrl: string; termsVersion: string; privacyUrl: string; privacyVersion: string }
 
 export type Me = {
   actorId: string
@@ -164,6 +167,11 @@ export type Me = {
    * sign-up still waiting for Checkout, which the menu opens instead. Null or absent: not offered.
    */
   newWorkspace?: NewWorkspaceOffer | null
+  /**
+   * The terms changed since this person, the owner of a bill, last accepted them: the app asks once (TermsUpdate.tsx,
+   * LIN-420). Null or absent: nothing to accept.
+   */
+  termsUpdate?: LegalTerms | null
 }
 
 /** `Me.newWorkspace`, as the API decides it (apps/api/src/signup-handlers.ts `newWorkspaceOffer`). */

@@ -91,7 +91,10 @@ const listUsers = (tx: Tx) =>
       where i.status = 'pending' and lower(i.email) = lower(u.email)), '[]'::json) as invitations,
     coalesce((select json_agg(json_build_object('name', p.name, 'device_type', p.device_type, 'created_at', ${utc('p.created_at')})
         order by p.created_at)
-      from passkey p where p.user_id = u.id), '[]'::json) as passkeys
+      from passkey p where p.user_id = u.id), '[]'::json) as passkeys,
+    (select json_build_object('terms_version', t.terms_version, 'privacy_version', t.privacy_version, 'source', t.source,
+        'accepted_at', ${tz('t.accepted_at')})
+      from terms_acceptances t where t.user_id = u.id order by t.accepted_at desc, t.id limit 1) as terms
   from "user" u order by u.created_at, u.id`,
   )
 

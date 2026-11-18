@@ -205,6 +205,7 @@ import { queueUsageLimitAlerts, type UsageLimit, usageLimit } from './usage-limi
 import { askWebhook, clearCallPayloads, duringCallLookups, lookUpCaller, webhookHandlers } from './webhooks.ts'
 import { PENDING_PAYMENT, refusePendingPayment, waitsForOwnTrial } from './self-serve.ts'
 import { selfServeHandlers } from './signup-handlers.ts'
+import { termsUpdateHandlers } from './terms-update.ts'
 import { partnerHandlers } from './partners.ts'
 import { billingNumberRefusal, checkoutHandlers, checkoutPreparers } from './billing-checkout.ts'
 import { matchLocale, type Translator } from '@linedesk/i18n'
@@ -1192,6 +1193,7 @@ const handlers: Record<string, Handler> = {
   ...stripeEventHandlers,
   ...billingOwnerHandlers,
   ...selfServeHandlers,
+  ...termsUpdateHandlers,
   ...partnerHandlers,
   ...partnerBrandHandlers,
   ...partnerKeyHandlers,

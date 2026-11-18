@@ -319,6 +319,7 @@ const all = [
   billing.billingRecordPortOut,
   billing.billingHandOver,
   signup.accountSignUp,
+  signup.accountAcceptTerms,
   partner.partnerGet,
   partner.partnerUpdate,
   partner.partnerMemberInvite,

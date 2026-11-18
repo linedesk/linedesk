@@ -1079,6 +1079,8 @@ describe('users', () => {
       'name',
       // Name, device type and date only: never a credential id or key.
       'passkeys',
+      // The terms accepted last (LIN-420): versions, source and time, never the IP address or browser.
+      'terms',
       'workspaces',
     ])
   })

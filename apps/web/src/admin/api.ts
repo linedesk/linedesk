@@ -72,6 +72,11 @@ export type AdminUser = {
   invitations: { id: string; workspace_id: string; workspace_name: string; role: string; expires_at: string }[]
   /** Their passkeys (absent from an older API): an instance admin's become their second factor. */
   passkeys?: { name: string | null; device_type: string; created_at: string | null }[]
+  /**
+   * The terms they accepted last (A9, LIN-420: at sign-up, activation, a billing consent or a new version), null when
+   * none is recorded (absent from an older API).
+   */
+  terms?: { terms_version: string; privacy_version: string; source: string; accepted_at: string } | null
 }
 
 /**

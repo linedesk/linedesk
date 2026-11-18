@@ -462,6 +462,7 @@ const plainLabels: Record<string, MessageKey> = {
   'appointment.reschedule': msg('admin.audit.appointment.reschedule'),
   // Sign-up and the bill's own actions (apps/api/src/audit.ts): what the owner did, never the raw action name.
   'account.signUp': msg('admin.audit.billing.signUp'),
+  'account.acceptTerms': msg('admin.audit.billing.acceptTerms'),
   'billing.startCheckout': msg('admin.audit.billing.startCheckout'),
   'billing.confirmCheckout': msg('admin.audit.billing.confirmCheckout'),
   'billing.cancel': msg('admin.audit.billing.cancel'),
