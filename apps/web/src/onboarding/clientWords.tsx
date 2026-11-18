@@ -19,6 +19,33 @@ export const CLIENT_WORDS: ReadonlyMap<MessageKey, MessageKey> = new Map([
   [msg('onboarding.business.lede.manual'), msg('onboarding.business.lede.manualClient')],
   [msg('onboarding.assistant.heading'), msg('onboarding.assistant.headingClient')],
   [msg('onboarding.pickup.lede'), msg('onboarding.pickup.ledeClient')],
+  [msg('onboarding.pickup.noAnswer.title'), msg('onboarding.pickup.noAnswer.titleClient')],
+  [msg('onboarding.pickup.afterHours.title'), msg('onboarding.pickup.afterHours.titleClient')],
+  [msg('onboarding.pickup.afterHours.description'), msg('onboarding.pickup.afterHours.descriptionClient')],
+  // Who hears about calls: the summaries are the signed-in member's own (the partner's), the urgent calls the client's.
+  [msg('onboarding.notify.lede'), msg('onboarding.notify.ledeClient')],
+  [msg('onboarding.notify.hearLabel'), msg('onboarding.notify.hearLabelClient')],
+  [msg('onboarding.notify.message.title'), msg('onboarding.notify.message.titleClient')],
+  [msg('onboarding.notify.message.description'), msg('onboarding.notify.message.descriptionClient')],
+  [msg('onboarding.notify.transfer.title'), msg('onboarding.notify.transfer.titleClient')],
+  [msg('onboarding.notify.transfer.description'), msg('onboarding.notify.transfer.descriptionClient')],
+  [msg('onboarding.notify.mobile.label'), msg('onboarding.notify.mobile.labelClient')],
+  [msg('onboarding.flow.option.forward.title'), msg('onboarding.flow.option.forward.titleClient')],
+  [msg('onboarding.flow.option.forward.description'), msg('onboarding.flow.option.forward.descriptionClient')],
+  [msg('onboarding.flow.option.new.description'), msg('onboarding.flow.option.new.descriptionClient')],
+  [msg('onboarding.flow.option.existing.description'), msg('onboarding.flow.option.existing.descriptionClient')],
+  [msg('onboarding.phone.connected.keepAll'), msg('onboarding.phone.connected.keepAllClient')],
+  [msg('onboarding.phone.connected.keepMissed'), msg('onboarding.phone.connected.keepMissedClient')],
+  [msg('onboarding.phone.connected.onlyNew'), msg('onboarding.phone.connected.onlyNewClient')],
+  [msg('onboarding.phone.connected.forwardAllToo'), msg('onboarding.phone.connected.forwardAllTooClient')],
+  [msg('onboarding.phone.connected.forwardMissedToo'), msg('onboarding.phone.connected.forwardMissedTooClient')],
+  [msg('onboarding.phone.connected.carrier'), msg('onboarding.phone.connected.carrierClient')],
+  [msg('onboarding.phone.connected.pickCarrier'), msg('onboarding.phone.connected.pickCarrierClient')],
+  [msg('onboarding.forwardingCheck.numberLabel'), msg('onboarding.forwardingCheck.numberLabelClient')],
+  [msg('onboarding.forwardingCheck.numberTip'), msg('onboarding.forwardingCheck.numberTipClient')],
+  [msg('onboarding.forwardingCheck.enterNumber'), msg('onboarding.forwardingCheck.enterNumberClient')],
+  [msg('onboarding.flow.done.answersOnceConnected'), msg('onboarding.flow.done.answersOnceConnectedClient')],
+  [msg('onboarding.flow.done.connectNumber'), msg('onboarding.flow.done.connectNumberClient')],
   [msg('onboarding.phone.choose.titleAll'), msg('onboarding.phone.choose.titleAllClient')],
   [msg('onboarding.phone.choose.titleMissed'), msg('onboarding.phone.choose.titleMissedClient')],
   [msg('onboarding.phone.choose.ledeMissed'), msg('onboarding.phone.choose.ledeMissedClient')],
@@ -36,6 +63,9 @@ const ForClientContext = createContext(false)
 export function ForClient({ value, children }: { value: boolean; children: ReactNode }) {
   return <ForClientContext.Provider value={value}>{children}</ForClientContext.Provider>
 }
+
+/** Whether a partner's team sets this workspace up for its client. */
+export const useForClient = (): boolean => useContext(ForClientContext)
 
 /** The key for this onboarding: a partner's team sees the client's words (CLIENT_WORDS). */
 export function useClientWord(): (key: MessageKey) => MessageKey {

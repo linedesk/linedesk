@@ -54,6 +54,8 @@ import {
   whoHearsProblem,
   whoHearsTransfers,
 } from './flow.ts'
+import { clientWord } from './clientWords.tsx'
+import type { MessageKey } from '@linedesk/i18n'
 
 test('steps run business → assistant → pick-up → who hears → phone → done, and back', () => {
   expect(nextStep('business')).toBe('assistant')
@@ -490,20 +492,42 @@ test('a refused save names the step it came from', () => {
 
 test('done says live only when calls are really answered', () => {
   const base = { voiceMissing: false, forwardingVerified: false, admin: false, assistant: 'Maya' }
-  expect(doneState({ ...base, number: null })).toMatchObject({ live: false, left: [{ href: '#workspace/phone' }] })
+  // What is left goes back to the phone step in place, never out of the walkthrough.
+  expect(doneState({ ...base, number: null })).toMatchObject({
+    live: false,
+    left: [{ label: 'Connect your number', to: { step: 'phone' }, action: 'Connect' }],
+  })
   const forwarded = { e164: '+15035550142', mode: 'forward_conditional' as const }
   const almost = doneState({ ...base, number: forwarded })
   expect(almost.live).toBe(false)
   expect(almost.lede).toBe('Maya answers +1 503 555 0142 once forwarding is on.')
-  expect(doneState({ ...base, number: forwarded, forwardingVerified: true }).title).toBe("You're live.")
+  expect(almost.left).toEqual([{ label: 'Turn on call forwarding', to: { step: 'phone' }, action: 'Show how' }])
+  expect(doneState({ ...base, number: forwarded, forwardingVerified: true }).title).toBe("You're live")
   expect(doneState({ ...base, number: { ...forwarded, mode: 'new' } }).live).toBe(true)
   const noVoice = doneState({ ...base, number: { ...forwarded, mode: 'new' }, voiceMissing: true })
   expect(noVoice.left).toEqual([
-    { label: "The voice service isn't working yet: ask whoever runs this server", href: null },
+    { label: "The voice service isn't working yet: ask whoever runs this server", to: null, action: null },
   ])
   expect(
-    doneState({ ...base, admin: true, number: { ...forwarded, mode: 'new' }, voiceMissing: true }).left[0]!.href,
-  ).toBe('#admin/providers/answering')
+    doneState({ ...base, admin: true, number: { ...forwarded, mode: 'new' }, voiceMissing: true }).left[0]!.to,
+  ).toEqual({ admin: '#admin/providers/answering' })
+})
+
+test("a partner's team reads the client's words on the last step and in the phone options", () => {
+  const forClient = (key: MessageKey) => clientWord(key, true)
+  const base = { voiceMissing: false, forwardingVerified: false, admin: false, assistant: 'Maya', number: null }
+  expect(doneState(base, forClient)).toMatchObject({
+    lede: "Maya answers once the client's number is connected.",
+    left: [{ label: "Connect the client's number" }],
+  })
+  expect(phoneOptionText('forward', 'Maya', null, forClient)).toEqual({
+    title: 'Keep their number',
+    description:
+      'We get Maya a number, and the client dials a short code once on their business phone to forward to it.',
+  })
+  expect(phoneOptionText('new', 'Maya', null, forClient).description).toBe(
+    "Only calls to the new number reach Maya. The client's current number rings as it does today.",
+  )
 })
 
 test('the phone options read the same in onboarding and Settings › Phone numbers', () => {

@@ -457,7 +457,10 @@ export function App() {
       await refresh()
       setCheckoutReturn(false)
     }
-    return <CheckoutReturn onDone={leaveReturn} />
+    // From the onboarding's "Start your trial" step: the answer shows as that step's result, inside the setup.
+    const me = session.state === 'ready' ? session.me : null
+    const inSetup = !!me?.onboarding && me.workspace?.billingState === 'pending_payment'
+    return <CheckoutReturn onDone={leaveReturn} inSetup={inSetup} />
   }
   if (session.state === 'needsWorkspace') {
     return (

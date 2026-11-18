@@ -3,7 +3,7 @@
 import type { PhoneNumber } from '@linedesk/db/types'
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink } from '../ui/AppLink.tsx'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { AreaCodeInput } from '../settings/AreaCodeInput.tsx'
@@ -14,7 +14,7 @@ import { useWorkspaceSettings, useWriteAction } from '../settings/settings-api.t
 import { useAssistant, useAssistantName, useRows, useRun } from '../store.tsx'
 import { useWorkspaceCountry } from '../workspaceLocale.ts'
 import { RadioCard } from '../ui/controls.tsx'
-import { Button, Icon, Note } from '../ui/kit.tsx'
+import { Button, Note } from '../ui/kit.tsx'
 import { ForwardingCheck } from './ForwardingCheck.tsx'
 import { AbroadWarning, ForwardingSteps, GuidePickers, useForwardingPick } from './ForwardingGuide.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
@@ -56,6 +56,9 @@ type Props = {
   onBack: () => void
   onNext: () => void
 }
+
+/** How long the purchase question shows before Enter buys (a held or double-pressed Enter only asks). */
+const CONFIRM_ENTER_MS = 800
 
 /** A number is never skipped, only connected later: it stays in the go-live checklist. */
 function useLater() {
@@ -146,6 +149,8 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
   // Only a code of the workspace's country (its list): a prefilled one of another country is dropped.
   const areaCode = areaCodeIn(picked, country) ? picked : ''
   const [confirming, setConfirming] = useState(false)
+  // When the purchase question appeared: Enter buys only once it has been on screen a moment, never a repeated key.
+  const askedAt = useRef(0)
   const [sending, setSending] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const carrier = carrierName(status.provider)
@@ -176,14 +181,22 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
     if (sending) return
     if (nothingToConnect) return onNext()
     if (!buying) return send(false)
-    // Buying needs a second, deliberate click: Enter only asks for the confirmation.
+    // Buying is a second, deliberate step: the first press asks the question above the footer, whose primary button
+    // then buys (a click, or Enter once the question has been read for a moment).
     if (!confirming) {
       const check = phoneOptionSetup(option, { number: typed, areaCode, confirmed: true }, forwarding)
       if ('problem' in check) return setProblem(check.problem)
       setProblem(null)
-      setConfirming(true)
+      ask()
+      return
     }
+    send(true)
   }
+  function ask() {
+    askedAt.current = Date.now()
+    setConfirming(true)
+  }
+  const enterBuys = () => Date.now() - askedAt.current >= CONFIRM_ENTER_MS
   function pick(next: PhoneOption) {
     setOption(next)
     setConfirming(false)
@@ -191,12 +204,12 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
   }
   const toChoices = () => pick(phoneOptions[0]!)
   useStepKeys({
-    onEnter: primary,
+    onEnter: () => (confirming && !enterBuys() ? undefined : primary()),
     onEscape: () => (confirming ? setConfirming(false) : option === 'existing' && buyable ? toChoices() : onBack()),
   })
 
   const error = problem ?? setupError
-  const existing = phoneOptionText('existing', name, carrier)
+  const existing = phoneOptionText('existing', name, carrier, word)
   return (
     <>
       <div className="ob-body">
@@ -217,14 +230,14 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
           </div>
         ) : (
           <>
-            <div className="k-radios" role="radiogroup" aria-label={t('onboarding.phone.choose.label')}>
+            <div className="k-radios ob-choices" role="radiogroup" aria-label={t('onboarding.phone.choose.label')}>
               {phoneOptions.map(o => (
                 <RadioCard
                   key={o}
                   name="ob-mode"
                   checked={option === o}
                   onPick={() => pick(o)}
-                  {...phoneOptionText(o, name, carrier)}
+                  {...phoneOptionText(o, name, carrier, word)}
                 />
               ))}
             </div>
@@ -287,18 +300,11 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
               />
             </Field>
             <p className="ob2-note">{priceNote(status.provider, priceCountry(areaCode, country))}</p>
+            {/* The question right above the footer, whose primary button does it; Back (Esc) cancels. */}
             {confirming && (
-              <div className="ob-prompt" role="alert">
-                <span>{buyQuestion(status.provider, areaCode)}</span>
-                <span className="ob2-row">
-                  <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={sending}>
-                    {t('common.action.cancel')}
-                  </Button>
-                  <Button size="sm" variant="primary" busy={sending} onClick={() => send(true)}>
-                    {dev ? t('onboarding.phone.choose.addTestNumber') : t('onboarding.phone.choose.buyNumber')}
-                  </Button>
-                </span>
-              </div>
+              <p className="ob-confirm" role="alert">
+                {buyQuestion(status.provider, areaCode)}
+              </p>
             )}
           </>
         )}
@@ -311,7 +317,7 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
               setProblem(null)
               clearError()
               // The next step is the purchase question for that code, as after the primary button.
-              setConfirming(true)
+              ask()
             }}
           />
         ) : (
@@ -319,20 +325,24 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
         )}
       </div>
       <Foot
-        onBack={onBack}
+        onBack={confirming && !sending ? () => setConfirming(false) : onBack}
         onContinue={primary}
-        onSkipStep={nothingToConnect ? undefined : onNext}
+        onSkipStep={nothingToConnect || confirming ? undefined : onNext}
         {...later}
-        canContinue={!confirming}
-        busy={sending && !confirming}
+        canContinue
+        busy={sending}
         label={
           nothingToConnect
             ? later.laterLabel
-            : buying
+            : confirming
               ? dev
-                ? t('onboarding.phone.choose.addATestNumber')
-                : t('onboarding.phone.choose.getNumber')
-              : t('onboarding.phone.choose.connectNumber')
+                ? t('onboarding.phone.choose.addTestNumber')
+                : t('onboarding.phone.choose.buyNumber')
+              : buying
+                ? dev
+                  ? t('onboarding.phone.choose.addATestNumber')
+                  : t('onboarding.phone.choose.getNumber')
+                : t('onboarding.phone.choose.connectNumber')
         }
       />
     </>
@@ -404,20 +414,19 @@ function Connected({
               ? t(word('onboarding.phone.connected.titleMissed'))
               : t(word('onboarding.phone.connected.titleReady'))}
         </h1>
-        <div className="ob-prompt ok">
-          <Icon name="check" size={16} />
-          <span>{t('onboarding.phone.connected.answers', { name, number: formatNumber(number.e164) })}</span>
-        </div>
+        <Note tone="success">
+          {t('onboarding.phone.connected.answers', { name, number: formatNumber(number.e164) })}
+        </Note>
         {offer && (
           <>
             <p className="ob-lede">
-              {t('onboarding.phone.connected.onlyNew', { name, number: formatNumber(number.e164) })}
+              {t(word('onboarding.phone.connected.onlyNew'), { name, number: formatNumber(number.e164) })}
             </p>
             <div className="ob2-row">
               <Button variant="secondary" onClick={forwardToo}>
                 {offer === 'forward_all'
-                  ? t('onboarding.phone.connected.forwardAllToo')
-                  : t('onboarding.phone.connected.forwardMissedToo')}
+                  ? t(word('onboarding.phone.connected.forwardAllToo'))
+                  : t(word('onboarding.phone.connected.forwardMissedToo'))}
               </Button>
             </div>
             {forwardProblem && <Note tone="danger">{forwardProblem}</Note>}
@@ -427,8 +436,8 @@ function Connected({
           <>
             <p className="ob-lede">
               {all
-                ? t('onboarding.phone.connected.keepAll', { name })
-                : t('onboarding.phone.connected.keepMissed', { name })}
+                ? t(word('onboarding.phone.connected.keepAll'), { name })
+                : t(word('onboarding.phone.connected.keepMissed'), { name })}
             </p>
             <ForwardingCheck
               number={number}
@@ -439,7 +448,7 @@ function Connected({
             >
               <div className="field">
                 <label htmlFor="ob-carrier" className="ob-label">
-                  {t('onboarding.phone.connected.carrier')}
+                  {t(word('onboarding.phone.connected.carrier'))}
                 </label>
                 <GuidePickers
                   id="ob-carrier"
@@ -463,7 +472,7 @@ function Connected({
                   country={country}
                 />
               ) : (
-                <p className="ob2-note">{t('onboarding.phone.connected.pickCarrier')}</p>
+                <p className="ob2-note">{t(word('onboarding.phone.connected.pickCarrier'))}</p>
               )}
             </ForwardingCheck>
           </>

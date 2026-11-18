@@ -39,6 +39,10 @@ type PhoneNumberMode = PhoneNumber['mode']
 
 export type { OnboardingStep }
 
+/** How a text key reads for whoever sets the workspace up (clientWords.tsx `useClientWord`); `same` keeps it. */
+export type Words = (key: MessageKey) => MessageKey
+const same: Words = key => key
+
 /** The onboarding's steps once the trial runs (or off billing): every step but `activate`. */
 export const onboardingSteps = onboardingStepsFor(false)
 
@@ -357,23 +361,25 @@ export function phoneOptionText(
   option: PhoneOption,
   name: string,
   carrier: string | null,
+  /** A partner setting up a client's workspace reads the client's words (clientWords.tsx); else the keys as they are. */
+  word: Words = same,
 ): { title: string; description: string } {
   const { t } = i18n()
   if (option === 'forward')
     return {
-      title: t('onboarding.flow.option.forward.title'),
-      description: t('onboarding.flow.option.forward.description', { name }),
+      title: t(word(msg('onboarding.flow.option.forward.title'))),
+      description: t(word(msg('onboarding.flow.option.forward.description')), { name }),
     }
   if (option === 'existing')
     return {
       title: carrier
         ? t('onboarding.flow.option.existing.titleIn', { carrier })
         : t('onboarding.flow.option.existing.title'),
-      description: t('onboarding.flow.option.existing.description', { name }),
+      description: t(word(msg('onboarding.flow.option.existing.description')), { name }),
     }
   return {
     title: t('onboarding.flow.option.new.title'),
-    description: t('onboarding.flow.option.new.description', { name }),
+    description: t(word(msg('onboarding.flow.option.new.description')), { name }),
   }
 }
 
@@ -806,44 +812,67 @@ export function rejectionStep(action: string, input: unknown, left: OnboardingSt
   return left
 }
 
-/** What is left before calls are really answered, in the go-live checklist's words, with where it is done (null: nowhere this member can open). */
-export type DoneLeft = { label: string; href: string | null }
+/**
+ * What is left before calls are really answered, in the go-live checklist's words, and where it is done without
+ * leaving the walkthrough (design-principles.md rule 14): `phone`, back to the phone step (the number, the forwarding
+ * codes); `admin`, Server admin in place (an instance admin, InstanceSetup.tsx), which returns to this step; null,
+ * nowhere this member can go (ask whoever runs the server).
+ */
+export type DoneLeft = { label: string; to: { step: 'phone' } | { admin: string } | null; action: string | null }
 
 /**
  * The last step, honest: "You're live" only when a number is connected, the voice service answers and, for a number
- * the business forwards to, forwarding is verified. Otherwise what is left, the next open item first; its link is
- * where the Done button leads. `voiceMissing`: the server says the voice service is not set up or is failing
- * (presence), only an instance admin can change that.
+ * the business forwards to, forwarding is verified. Otherwise what is left, each with the way to it. `voiceMissing`:
+ * the server says the voice service is not set up or is failing (presence), only an instance admin can change that.
  * LIN-85 (#488): `forwardingVerified` and the items should come from the go-live checklist's state (inbox/goLive.ts)
  * once it is on main; until then nothing on the client knows forwarding is verified, so a forwarded number is never
  * called live here.
  */
-export function doneState(facts: {
-  number: Pick<PhoneNumber, 'e164' | 'mode'> | null
-  voiceMissing: boolean
-  forwardingVerified: boolean
-  admin: boolean
-  assistant: string
-}): { live: boolean; title: string; lede: string; left: DoneLeft[] } {
+export function doneState(
+  facts: {
+    number: Pick<PhoneNumber, 'e164' | 'mode'> | null
+    voiceMissing: boolean
+    forwardingVerified: boolean
+    admin: boolean
+    assistant: string
+  },
+  word: Words = same,
+): { live: boolean; title: string; lede: string; left: DoneLeft[] } {
   const { number, voiceMissing, forwardingVerified, admin, assistant } = facts
   const { t } = i18n()
   const voice: DoneLeft = admin
-    ? { label: t('onboarding.flow.done.voiceAdmin'), href: '#admin/providers/answering' }
-    : { label: t('onboarding.flow.done.voiceMember'), href: null }
+    ? {
+        label: t('onboarding.flow.done.voiceAdmin'),
+        to: { admin: '#admin/providers/answering' },
+        action: t('onboarding.flow.done.open'),
+      }
+    : { label: t('onboarding.flow.done.voiceMember'), to: null, action: null }
   if (!number)
     return {
       live: false,
       title: t('onboarding.flow.done.almost'),
-      lede: t('onboarding.flow.done.answersOnceConnected', { assistant }),
+      lede: t(word(msg('onboarding.flow.done.answersOnceConnected')), { assistant }),
       left: [
-        { label: t('onboarding.flow.done.connectNumber'), href: '#workspace/phone' },
+        {
+          label: t(word(msg('onboarding.flow.done.connectNumber'))),
+          to: { step: 'phone' },
+          action: t('onboarding.flow.done.connect'),
+        },
         ...(voiceMissing ? [voice] : []),
       ],
     }
   const shown = formatNumber(number.e164)
   const forwarding = (number.mode === 'forward_conditional' || number.mode === 'forward_all') && !forwardingVerified
   const left: DoneLeft[] = [
-    ...(forwarding ? [{ label: t('onboarding.flow.done.turnOnForwarding'), href: '#workspace/phone' }] : []),
+    ...(forwarding
+      ? [
+          {
+            label: t('onboarding.flow.done.turnOnForwarding'),
+            to: { step: 'phone' as const },
+            action: t('onboarding.flow.done.showHow'),
+          },
+        ]
+      : []),
     ...(voiceMissing ? [voice] : []),
   ]
   const values = { assistant, number: shown }

@@ -135,8 +135,8 @@ function PickupForm({ saved, onBack, onNext, memory, onMemory, calls }: StepProp
               name="ob-pickup"
               checked={mode === m}
               onPick={() => setMode(m)}
-              title={t(choiceText[m].title)}
-              description={t(choiceText[m].description, { name })}
+              title={t(word(choiceText[m].title))}
+              description={t(word(choiceText[m].description), { name })}
             />
           ))}
         </div>

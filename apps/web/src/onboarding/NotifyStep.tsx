@@ -22,6 +22,7 @@ import { PhoneInput } from '../ui/PhoneInput.tsx'
 import { Loading, Skeleton, SkeletonFields } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import { useOutboundCountries, withUnfinishedNumber } from './outbound-number.ts'
+import { useClientWord, useForClient } from './clientWords.tsx'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { useWorkspaceCountry } from '../workspaceLocale.ts'
 import {
@@ -80,6 +81,9 @@ function NotifyForm({
   onNext,
 }: Props & { assistant: Assistant }) {
   const t = useT()
+  const word = useClientWord()
+  // A partner's team: urgent calls go to the client's mobile, so the contact is named for the owner, not this member.
+  const forClient = useForClient()
   const run = useRun()
   const me = useMember(actorId)
   const numbers = useRows('phone_numbers')
@@ -114,7 +118,7 @@ function NotifyForm({
   function next() {
     setShown(true)
     if (problem) return
-    const transfers = whoHearsTransfers(assistant.transfers, draft, me?.name ?? '')
+    const transfers = whoHearsTransfers(assistant.transfers, draft, forClient ? '' : (me?.name ?? ''))
     if (transfers && !emailConfirmed && setsTransferNumber({ transfers }))
       return setError({ message: t('onboarding.flow.mobileError.confirmEmail'), mobile: false })
     // The server refuses a number of this workspace too; said here at once, without a round trip.
@@ -153,9 +157,9 @@ function NotifyForm({
     <>
       <div className="ob-body">
         <h1>{t('onboarding.notify.title')}</h1>
-        <p className="ob-lede">{t('onboarding.notify.lede', { name })}</p>
+        <p className="ob-lede">{t(word('onboarding.notify.lede'), { name })}</p>
         <span className="ob-label" id="ob-hear">
-          {t('onboarding.notify.hearLabel')}
+          {t(word('onboarding.notify.hearLabel'))}
         </span>
         <Loading
           what={t('onboarding.notify.loadingSettings')}
@@ -182,15 +186,15 @@ function NotifyForm({
             name="ob-urgent"
             checked={draft.urgent === 'message'}
             onPick={() => pick('message')}
-            title={t('onboarding.notify.message.title')}
-            description={t('onboarding.notify.message.description', { name })}
+            title={t(word('onboarding.notify.message.title'))}
+            description={t(word('onboarding.notify.message.description'), { name })}
           />
           <RadioCard
             name="ob-urgent"
             checked={draft.urgent === 'transfer'}
             onPick={() => pick('transfer')}
-            title={t('onboarding.notify.transfer.title')}
-            description={t('onboarding.notify.transfer.description', { name })}
+            title={t(word('onboarding.notify.transfer.title'))}
+            description={t(word('onboarding.notify.transfer.description'), { name })}
           />
         </div>
         {nobodyAlerted && (
@@ -202,7 +206,7 @@ function NotifyForm({
           <div className="ob-urgent">
             <Field
               id="ob-mobile"
-              label={t('onboarding.notify.mobile.label')}
+              label={t(word('onboarding.notify.mobile.label'))}
               tip={t('onboarding.notify.mobile.tip')}
               error={mobileError}
             >
@@ -269,7 +273,7 @@ function Summaries({
       </Checkbox>
       {/* The choice is kept either way; it says that nothing arrives until the server sends email. */}
       {serverNotes && settings.emailReady === false && (
-        <p className="ob2-note" role="status">
+        <p className="ob2-note ob-push-note" role="status">
           {t('onboarding.notify.emailMissing')}{' '}
           {admin ? (
             <AppLink to="#admin/providers/email">{t('onboarding.notify.emailMissingFix')}</AppLink>

@@ -206,7 +206,6 @@
   "business.manual.namePlaceholder": "あなたのビジネス名",
   "business.manual.namePlaceholderClient": "クライアントのビジネス名",
   "business.manual.next": "次へ",
-  "business.manual.nextTip": "次へ（{key}）",
   "business.manual.paused": "Web サイトの読み取りは本日は一時停止中です。",
   "business.manual.readWebsite": "Web サイトを読み取る",
   "business.manual.searchGoogle": "Google ビジネス プロフィールを検索する",

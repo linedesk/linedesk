@@ -11,6 +11,7 @@ import {
   providerProblem,
   renameBusiness,
   savedProposal,
+  savedTemplate,
   shownTimeZone,
   sourcesLine,
   switchTemplate,
@@ -140,7 +141,8 @@ describe('the review draft', () => {
     expect(again).toMatchObject({
       phone: '+1 503-555-0142',
       website: 'https://brightwater-plumbing.example',
-      template: null,
+      // The kind chosen before shows again (its default calls are in the saved common calls).
+      template: 'plumbing_hvac',
     })
     expect(again.useCases).toEqual(draftFrom(proposal()).useCases.split('\n'))
     const resaved = profileSave(draftFrom(again), first, 'Brightwater Plumbing & Heating').assistant.business_profile
@@ -148,6 +150,18 @@ describe('the review draft', () => {
     // A field left empty keeps what was saved.
     const emptied = profileSave({ ...draftFrom(again), phone: '', website: '' }, first, 'x').assistant.business_profile
     expect(emptied).toMatchObject({ phone: first.phone, website: first.website })
+  })
+
+  test('coming back: the kind of business is worked out from the saved calls, else from the name', () => {
+    const dental = businessTemplates.dental_medical.useCases
+    expect(savedTemplate([...dental, 'When a caller asks for parking, say it is free.'], 'Harbor')).toBe(
+      'dental_medical',
+    )
+    // The most matching template wins over a single shared line.
+    expect(savedTemplate([dental[0]!, ...businessTemplates.salon_spa.useCases], 'Harbor')).toBe('salon_spa')
+    // Nothing saved from a template: the name tells, or nobody does.
+    expect(savedTemplate([], 'Brightwater Plumbing & Heating')).toBe('plumbing_hvac')
+    expect(savedTemplate(['When a caller is rude, stay calm.'], 'Harbor')).toBeNull()
   })
 
   test('the About text: brief, services, area, address and the common calls', () => {

@@ -12,8 +12,12 @@ import {
   readCheckoutPartner,
   readCheckoutSession,
 } from './checkout.ts'
+import { activationSteps, trialSteps } from './onboarding/flow.ts'
+import { Foot, Frame } from './onboarding/Frame.tsx'
+import './onboarding/onboarding.css'
 import { AuthError } from './ui/AuthError.tsx'
-import { cx, Spinner } from './ui/kit.tsx'
+import { cx, Note, Spinner } from './ui/kit.tsx'
+import { Loading, SkeletonFields } from './ui/LoadStates.tsx'
 import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
 
 /**
@@ -21,7 +25,17 @@ import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
  * were bought from Settings › Billing, so the app goes back there. `partner`: the Checkout was a partner bill's, so
  * the app goes back to the partner area.
  */
-export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean, partner: boolean) => void | Promise<void> }) {
+export function CheckoutReturn({
+  onDone,
+  inSetup = false,
+}: {
+  onDone: (toBilling: boolean, partner: boolean) => void | Promise<void>
+  /**
+   * Back from the onboarding's "Start your trial" step: the answer shows inside the setup frame as that step's
+   * result (Step 5 of 7), so the count and the bar run on to the number without a page of another kind in between.
+   */
+  inSetup?: boolean
+}) {
   const t = useT()
   const format = useFormat()
   const [outcome, setOutcome] = useState<ConfirmOutcome | null>(null)
@@ -53,6 +67,10 @@ export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean, partne
       setBusy(false)
     }
   }
+
+  // A business's own Checkout from its setup (never a partner's bill, never minutes bought from the settings).
+  if (inSetup && !partnerId && outcome?.status !== 'topup')
+    return <SetupResult outcome={outcome} busy={busy} onContinue={() => void leave()} />
 
   if (!outcome)
     return (
@@ -143,5 +161,81 @@ export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean, partne
         </button>
       </div>
     </SignedInAuthPage>
+  )
+}
+
+/**
+ * The Checkout's answer inside the onboarding frame, as the result of the "Start your trial" step: the trial (or the
+ * plan) started and Continue goes on to the number; no trial for this card, or not confirmed: Continue goes back to
+ * that step, which offers the plan again.
+ */
+function SetupResult({
+  outcome,
+  busy,
+  onContinue,
+}: {
+  outcome: ConfirmOutcome | null
+  busy: boolean
+  onContinue: () => void
+}) {
+  const t = useT()
+  const started = outcome?.status === 'trialing' || outcome?.status === 'active'
+  const body = () => {
+    if (!outcome)
+      return <Loading what={t('auth.checkout.confirming')} loading skeleton={<SkeletonFields fields={1} />} />
+    if (outcome.status === 'trialing')
+      return (
+        <>
+          <h1>{t('auth.checkout.trialTitle')}</h1>
+          <p className="ob-lede">{t('auth.checkout.trialText')}</p>
+        </>
+      )
+    if (outcome.status === 'active')
+      return (
+        <>
+          <h1>{t('auth.checkout.planTitle')}</h1>
+          <p className="ob-lede">{t('auth.checkout.planText')}</p>
+          {outcome.heldForReview && <Note tone="info">{t('auth.checkout.heldForReview')}</Note>}
+        </>
+      )
+    if (outcome.status === 'trial_refused')
+      return (
+        <>
+          <h1>{t('auth.checkout.refusedTitle')}</h1>
+          <p className="ob-lede">
+            {outcome.reason === 'prepaid'
+              ? t('auth.checkout.refusedPrepaid')
+              : outcome.reason === 'account_used'
+                ? t('auth.checkout.refusedAccountUsed')
+                : t('auth.checkout.refusedCardUsed')}{' '}
+            {t('auth.checkout.refusedNothingChargedSetup')}
+          </p>
+        </>
+      )
+    return (
+      <>
+        <h1>{t('auth.checkout.failedTitle')}</h1>
+        <Note tone="danger">
+          {outcome.status === 'not_found' ? t('auth.checkout.notFound') : t('auth.checkout.failedText')}
+        </Note>
+      </>
+    )
+  }
+  return (
+    <Frame step="activate" steps={activationSteps} counted={trialSteps} complete={started}>
+      <div className="ob-body">{body()}</div>
+      <Foot
+        onContinue={onContinue}
+        canContinue={!!outcome}
+        busy={busy}
+        label={
+          !outcome || started
+            ? t('auth.checkout.continue')
+            : outcome.status === 'trial_refused'
+              ? t('auth.checkout.toActivate')
+              : t('auth.checkout.back')
+        }
+      />
+    </Frame>
   )
 }

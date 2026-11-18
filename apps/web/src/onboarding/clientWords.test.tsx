@@ -21,12 +21,12 @@ const page = (forClient: boolean) => renderToStaticMarkup(<ForClient value={forC
 
 test("the partner's team: the client's business and assistant", () => {
   expect(page(true)).toBe(
-    '<p>Client&#x27;s business | Client&#x27;s assistant | When to pick up | Tell us about the client&#x27;s business.</p>',
+    '<p>Client&#x27;s business | Client&#x27;s assistant | When to pick up | Tell us about the client&#x27;s business</p>',
   )
 })
 
 test("the client's own owner (and anyone without the partner flag): your business and assistant", () => {
-  expect(page(false)).toBe('<p>Business | Your assistant | When to pick up | Tell us about your business.</p>')
+  expect(page(false)).toBe('<p>Business | Your assistant | When to pick up | Tell us about your business</p>')
   expect(renderToStaticMarkup(<Heading />)).toBe(page(false))
 })
 

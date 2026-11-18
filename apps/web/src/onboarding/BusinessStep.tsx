@@ -109,8 +109,18 @@ function FindBusiness({
     proposal: savedProposal(profile, businessName, assistant.greeting),
     fromGoogle: false,
   })
-  const [phase, setPhase] = useState<Phase>(() => (saved ? savedReview() : { kind: lookup ? 'find' : 'manual' }))
-  const [query, setQuery] = useState('')
+  // A business named already (a partner's client draft, a workspace made with its name) and no lookup to search with:
+  // nothing more to ask before the review, which starts from that name.
+  const namedReview = (): Phase => ({
+    kind: 'review',
+    proposal: manualProposal(businessName, assistant.name),
+    fromGoogle: false,
+  })
+  const [phase, setPhase] = useState<Phase>(() =>
+    saved ? savedReview() : lookup ? { kind: 'find' } : businessName.trim() ? namedReview() : { kind: 'manual' },
+  )
+  // The search starts from the name the business has.
+  const [query, setQuery] = useState(businessName)
   const [results, setResults] = useState<BusinessCandidate[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [name, setName] = useState(businessName)
@@ -191,6 +201,18 @@ function FindBusiness({
       phase={phase}
       onEnter={phase.kind === 'find' ? () => void search() : phase.kind === 'manual' ? manualContinue : undefined}
       onBack={saved ? () => setPhase(savedReview()) : undefined}
+      // Naming the business by hand: Next (or Read my website) is the footer's primary, as on every other step.
+      primary={
+        phase.kind === 'manual'
+          ? {
+              onClick: manualContinue,
+              label:
+                site === 'field' && website.trim()
+                  ? t('onboarding.business.manual.readWebsite')
+                  : t('onboarding.business.manual.next'),
+            }
+          : undefined
+      }
       saved={saved}
       readsWebsite={site === 'field'}
     >
@@ -286,22 +308,13 @@ function FindBusiness({
           {site === 'needs_model' && (
             <ProblemNote problem={providerProblem({ provider: 'llm', reason: 'config' }, 'search')} admin />
           )}
-          <p className="ob2-row ob-tight">
-            <Button
-              variant="primary"
-              onClick={manualContinue}
-              title={t('onboarding.business.manual.nextTip', { key: 'Enter' })}
-            >
-              {site === 'field' && website.trim()
-                ? t('onboarding.business.manual.readWebsite')
-                : t('onboarding.business.manual.next')}
-            </Button>
-            {canSearch && (
+          {canSearch && (
+            <p className="ob2-row ob-tight">
               <Button size="sm" variant="ghost" onClick={() => setPhase({ kind: 'find' })}>
                 {t('onboarding.business.manual.searchGoogle')}
               </Button>
-            )}
-          </p>
+            </p>
+          )}
         </>
       )}
       {typeof error === 'string' && <Note tone="danger">{error}</Note>}
@@ -404,6 +417,7 @@ function FindForm({
   phase,
   onEnter,
   onBack,
+  primary,
   saved,
   readsWebsite,
   children,
@@ -412,6 +426,8 @@ function FindForm({
   onEnter?: () => void
   /** Back to the profile saved before (coming back to this step and looking it up again). */
   onBack?: () => void
+  /** The footer's primary button (naming the business by hand); none while searching (the search leads on). */
+  primary?: { onClick: () => void; label: string }
   saved: boolean
   readsWebsite: boolean
   children: ReactNode
@@ -438,8 +454,13 @@ function FindForm({
         </p>
         {children}
       </div>
-      {/* No Continue here: the search (or Next) leads on, the one primary action; the saved profile is one Back away. */}
-      <Foot onBack={phase.kind === 'loading' ? undefined : onBack} canContinue={false} />
+      {/* While searching, the search leads on (the one primary action); the saved profile is one Back away. */}
+      <Foot
+        onBack={phase.kind === 'loading' ? undefined : onBack}
+        onContinue={primary?.onClick}
+        canContinue={!!primary}
+        label={primary?.label}
+      />
     </>
   )
 }

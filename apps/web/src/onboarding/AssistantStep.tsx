@@ -9,7 +9,7 @@ import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { useWriteAction } from '../settings/settings-api.ts'
 import { TestCallButton, useTestCall } from '../settings/TestCall.tsx'
 import { TestCallPanel } from '../settings/TestCallPanel.tsx'
-import { RealtimeVoiceSettings, VoiceLoading, VoiceSettings } from '../settings/VoiceSettings.tsx'
+import { RealtimeVoiceSettings, useVoiceOptions, VoiceLoading, VoiceSettings } from '../settings/VoiceSettings.tsx'
 import { useAssistantOf, useRun } from '../store.tsx'
 import { useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { appLink } from '../ui/AppLink.tsx'
@@ -73,6 +73,12 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
   const stale = staleGreetingName(draft.greeting, assistant.name, draft.name)
   // Like Assistant settings: on Ultra (a realtime model) the picker lists the model's own voices.
   const realtime = assistant.call_quality === 'ultra'
+  // No voice on this server: the Voice section's warning says so, and the test call can't be answered either. One
+  // message for one fact (design-principles.md, Messages): the line under the test call stays quiet then, and the
+  // button's tooltip still says why it is off.
+  const voiceOptions = useVoiceOptions().data
+  const voiceNoted = !realtime && !!voiceOptions && !voiceOptions.provider
+  const quietHint = voiceNoted && !!session.blockedReason
 
   function next() {
     if (problem) return
@@ -166,16 +172,18 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
           {/* The same button and panel as Assistant settings; the click saves first. */}
           {/* Secondary: Continue is the step's one primary button (design-principles.md). */}
           <TestCallButton session={session} onStart={() => void talk()} />
-          <span className="ob2-note">
-            {session.voiceFixable ? (
-              <T
-                k="settings.testCall.voiceDownOperatorLink"
-                values={{ name: session.name, link: appLink('#admin/providers/answering') }}
-              />
-            ) : (
-              (session.blockedReason ?? t('onboarding.assistant.talkHint'))
-            )}
-          </span>
+          {!quietHint && (
+            <span className="ob2-note">
+              {session.voiceFixable ? (
+                <T
+                  k="settings.testCall.voiceDownOperatorLink"
+                  values={{ name: session.name, link: appLink('#admin/providers/answering') }}
+                />
+              ) : (
+                (session.blockedReason ?? t('onboarding.assistant.talkHint'))
+              )}
+            </span>
+          )}
         </div>
         {/* No Open in inbox here: the inbox would end onboarding before the number is connected. */}
         <TestCallPanel session={session} onOpenCall={null} onStart={() => void talk()} />

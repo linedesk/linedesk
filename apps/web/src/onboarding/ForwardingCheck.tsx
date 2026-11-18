@@ -26,6 +26,7 @@ import {
   simulatedMark,
 } from './forwarding-check.ts'
 import { formatNumber, outboundE164 } from './flow.ts'
+import { useClientWord } from './clientWords.tsx'
 import { useOutboundCountries } from './outbound-number.ts'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 
@@ -66,6 +67,7 @@ export function ForwardingCheck({
   canCheck = true,
 }: Props) {
   const t = useT()
+  const word = useClientWord()
   const name = useAssistantName()
   const write = useWriteAction()
   const run = useRun()
@@ -192,7 +194,7 @@ export function ForwardingCheck({
   async function start() {
     if (starting || dialing || !available) return
     if (policyProblem) return setProblem(policyProblem)
-    if (!businessNumber) return setProblem(t('onboarding.forwardingCheck.enterNumber'))
+    if (!businessNumber) return setProblem(t(word('onboarding.forwardingCheck.enterNumber')))
     setProblem(null)
     setStarting(true)
     try {
@@ -221,8 +223,8 @@ export function ForwardingCheck({
       {canCheck && (
         <Field
           id={fieldId}
-          label={t('onboarding.forwardingCheck.numberLabel')}
-          tip={t('onboarding.forwardingCheck.numberTip')}
+          label={t(word('onboarding.forwardingCheck.numberLabel'))}
+          tip={t(word('onboarding.forwardingCheck.numberTip'))}
         >
           <PhoneInput
             id={fieldId}

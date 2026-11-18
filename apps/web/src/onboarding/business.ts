@@ -6,11 +6,13 @@ import {
   type BusinessLookupFailure,
   type BusinessTemplateId,
   businessPhoneProblem,
+  businessTemplateIds,
   businessTemplates,
   businessWebsiteProblem,
   greetingFor,
   INSTRUCTIONS_MAX,
   phoneNumberProblem,
+  templateFor,
   workspaceNameProblem,
   workspaceTimeZoneFor,
 } from '@linedesk/actions'
@@ -132,10 +134,26 @@ export function commonCallsOf(instructions: string | undefined): string[] {
 }
 
 /**
+ * The kind of business a saved profile was made with. It is not stored on its own: the template whose default use
+ * cases are most of the saved common calls (the review put them there when it was chosen), else the one the name
+ * points to (templateFor), else null ("Choose…").
+ */
+export function savedTemplate(commonCalls: readonly string[], name: string): BusinessTemplateId | null {
+  const saved = new Set(commonCalls)
+  let best: { id: BusinessTemplateId; hits: number } | null = null
+  for (const id of businessTemplateIds) {
+    const hits = businessTemplates[id].useCases.filter(u => saved.has(u)).length
+    if (hits > 0 && (!best || hits > best.hits)) best = { id, hits }
+  }
+  return best?.id ?? templateFor({ name })
+}
+
+/**
  * A proposal from the profile saved before (coming back to this step): the review starts from it, so saving again
- * keeps what was there. The kind of business is not stored: the owner may choose it again.
+ * keeps what was there, the kind of business included (savedTemplate).
  */
 export function savedProposal(profile: BusinessProfile, name: string, greeting: string): BusinessImportData {
+  const useCases = commonCallsOf(profile.instructions)
   return {
     name: name.trim(),
     address: profile.address ?? null,
@@ -145,10 +163,10 @@ export function savedProposal(profile: BusinessProfile, name: string, greeting: 
     hours: null,
     hoursText: [],
     timeZone: null,
-    template: null,
+    template: savedTemplate(useCases, name),
     services: profile.services ?? [],
     about: profile.description ?? '',
-    useCases: commonCallsOf(profile.instructions),
+    useCases,
     greeting,
     pages: [],
     notes: [],

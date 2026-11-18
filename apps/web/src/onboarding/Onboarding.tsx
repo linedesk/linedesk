@@ -22,6 +22,7 @@ import { Foot, Frame, useStepKeys } from './Frame.tsx'
 import {
   activationSteps,
   trialSteps,
+  type DoneLeft,
   doneState,
   mobileErrorText,
   NO_PICKUP_MEMORY,
@@ -159,6 +160,7 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload, onAgentSetup }
         {step === 'done' && (
           <Done
             onBack={back}
+            onOpenStep={go}
             onDone={finish}
             offerSamples={offersSampleCalls(firstUse)}
             admin={me.permissions.includes('instance:admin')}
@@ -406,12 +408,15 @@ function StarLine() {
 /** "You're live" only when calls are really answered; otherwise what is left, with the way to it. */
 function Done({
   onBack,
+  onOpenStep,
   onDone,
   offerSamples,
   admin,
   askForStar,
 }: {
   onBack: () => void
+  /** Back to a step of the walkthrough (the number, its forwarding codes), in place. */
+  onOpenStep: (step: OnboardingStep) => void
   onDone: () => void
   offerSamples: boolean
   admin: boolean
@@ -419,6 +424,7 @@ function Done({
   askForStar: boolean
 }) {
   const t = useT()
+  const word = useClientWord()
   const name = useAssistantName()
   const number = useRows('phone_numbers')[0] ?? null
   const presence = usePresence()
@@ -429,15 +435,18 @@ function Done({
   const hasCalls = useRows('calls').length > 0
   const [adding, setAdding] = useState(false)
   const [sampleError, setSampleError] = useState<string | null>(null)
-  const state = doneState({
-    number,
-    // Not set up, or set up but failing (a used-up quota, LIN-111): either way calls are not answered.
-    voiceMissing: presence.kind === 'notAnswering' && presence.reason !== 'number',
-    // LIN-85 (#488): read from the go-live checklist's state once it is on main.
-    forwardingVerified: false,
-    admin,
-    assistant: name,
-  })
+  const state = doneState(
+    {
+      number,
+      // Not set up, or set up but failing (a used-up quota, LIN-111): either way calls are not answered.
+      voiceMissing: presence.kind === 'notAnswering' && presence.reason !== 'number',
+      // LIN-85 (#488): read from the go-live checklist's state once it is on main.
+      forwardingVerified: false,
+      admin,
+      assistant: name,
+    },
+    word,
+  )
   // Sample calls land in the inbox at once (the answer carries the rows), then the inbox opens.
   async function trySamples() {
     setAdding(true)
@@ -451,10 +460,14 @@ function Done({
       setAdding(false)
     }
   }
-  // The same places the go-live checklist leads to.
   function open(href: string) {
     window.history.replaceState(null, '', href)
     onDone()
+  }
+  // What is left opens in place (design-principles.md rule 14): the phone step, or Server admin, which comes back here.
+  function follow(to: NonNullable<DoneLeft['to']>) {
+    if ('step' in to) onOpenStep(to.step)
+    else window.location.hash = to.admin
   }
   return (
     <>
@@ -465,12 +478,11 @@ function Done({
           <ul className="ob-left">
             {state.left.map(l => (
               <li key={l.label}>
-                {l.href ? (
-                  <button type="button" className="ob-link" onClick={() => open(l.href!)}>
-                    {l.label}
-                  </button>
-                ) : (
-                  l.label
+                <span>{l.label}</span>
+                {l.to && l.action && (
+                  <Button size="sm" variant="secondary" onClick={() => follow(l.to!)}>
+                    {l.action}
+                  </Button>
                 )}
               </li>
             ))}
@@ -478,17 +490,14 @@ function Done({
         )}
         {offerSamples && !hasCalls && (
           <p className="ob2-row ob-tight">
-            {offerSamples && !hasCalls && (
-              <Button
-                size="sm"
-                icon="spark"
-                busy={adding}
-                onClick={() => void trySamples()}
-                title={t('onboarding.main.samplesTip')}
-              >
-                {t('onboarding.main.samples')}
-              </Button>
-            )}
+            <Button
+              variant="secondary"
+              busy={adding}
+              onClick={() => void trySamples()}
+              title={t('onboarding.main.samplesTip')}
+            >
+              {t('onboarding.main.samples')}
+            </Button>
           </p>
         )}
         {sampleError && <Note tone="danger">{sampleError}</Note>}

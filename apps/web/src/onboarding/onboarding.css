@@ -231,7 +231,7 @@
   color: var(--ink);
 }
 
-/* Notifications in the notify step: its line sits under the checkbox. */
+/* Notify step: the line under each checkbox (email, notifications) sits under its label. */
 .ob-push-note {
   margin-top: -6px;
   padding-left: 26px;
@@ -395,4 +395,32 @@
   display: grid;
   gap: 16px;
   margin-top: 16px;
+}
+/* The phone step's purchase question, right above the footer whose primary button buys (PhoneStep.tsx). */
+.ob-confirm {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+/* The last step: what is left before calls are answered, one row each with the way back to it (Onboarding.tsx). */
+.ob-left {
+  display: grid;
+  margin: 0;
+  padding: 4px 16px;
+  list-style: none;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+.ob-left li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 6px 0;
+  font-size: 13.5px;
+}
+.ob-left li + li {
+  border-top: 1px solid var(--line-soft);
 }
