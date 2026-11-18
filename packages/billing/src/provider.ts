@@ -1,6 +1,6 @@
 // The billing provider (docs/billing.md §7): what the rest of Linedesk asks of a payment service. An install runs
 // `none` by default; it runs `stripe` once an instance admin connected the install's own Stripe account under Server
-// admin › Providers › Billing and turned billing on (Linedesk Cloud is one such install). The vendor SDK lives only in its adapter (`./stripe/`), loaded lazily.
+// admin › Billing › Stripe and turned billing on (Linedesk Cloud is one such install). The vendor SDK lives only in its adapter (`./stripe/`), loaded lazily.
 
 /** Test keys charge nothing; live keys charge real cards. Read from the key itself, never from a setting. */
 export type KeyMode = 'test' | 'live'
@@ -652,7 +652,7 @@ export type BillingProvider = {
   charge(id: string): Promise<BillingChargeSource | null>
 }
 
-/** The keys of the `stripe` adapter, as stored under Server admin › Providers › Billing. */
+/** The keys of the `stripe` adapter, as stored under Server admin › Billing › Stripe. */
 export type StripeKeys = {
   secretKey: string
   webhookSecret: string

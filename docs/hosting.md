@@ -114,10 +114,10 @@ Raise the rate if you allow a country whose mobile numbers cost more (Telnyx's o
 
 Your install can charge the businesses on it, through your own Stripe account, at your prices and under your product name. It is off until you turn it on.
 
-1. In Stripe, create a restricted key with the permissions in [billing.md](billing.md) section 7, and store it with the webhook signing secret under Server admin › Providers › Billing.
+1. In Stripe, create a restricted key with the permissions in [billing.md](billing.md) section 7, and store it with the webhook signing secret under Server admin › Billing › Stripe.
 2. Run the bootstrap script once with your webhook URL and your terms and privacy links ([runbook.md](runbook.md), "Stripe account setup"): it sets up the customer portal, card-only Checkout and the webhook.
 3. Set your prices in Server admin › Billing (plan per workspace, free trial, price a minute, included minutes) and your product name in Server admin › Branding. Linedesk makes the matching products and prices in your Stripe account when you save them; if Stripe refuses (the key needs write on Products and Prices), every server admin is emailed at once.
-4. Turn billing on under Server admin › Providers › Billing.
+4. Turn billing on under Server admin › Billing › Stripe.
 
 Prices are in US dollars. A new price applies to new sign-ups; running subscriptions keep theirs. Details: [billing.md](billing.md) section 7b.
 

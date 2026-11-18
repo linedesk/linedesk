@@ -203,7 +203,16 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       )
     if (place.section === 'onboarding') return <Onboarding />
     // Billing loads its own rows (the bills, the Stripe events), and says itself when a bill is not found.
-    if (place.section === 'billing') return <Billing id={place.id} onOpen={open} notify={notify} keysRef={listKeys} />
+    if (place.section === 'billing')
+      return (
+        <Billing
+          id={place.id}
+          onOpen={open}
+          notify={notify}
+          keysRef={listKeys}
+          providers={{ data, status, error: providersError, reload, notify }}
+        />
+      )
     // Pages that load their own data never wait for the lists or the providers.
     if (place.section === 'branding') return <BrandingSettings />
     if (place.section === 'system') return <System />

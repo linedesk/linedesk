@@ -62,8 +62,19 @@ const bill: AdminBillDetail = {
   otherBills: [],
 }
 
+// Stripe and the bot check wait for the admin data (BillingProviders): not read yet here.
+const providers = {
+  data: null,
+  status: { status: null, health: null },
+  error: null,
+  reload: async () => {},
+  notify: () => {},
+} as never
+
 const render = () =>
-  renderToStaticMarkup(<Billing id="bill_1" onOpen={() => {}} notify={() => {}} keysRef={{ current: null }} />)
+  renderToStaticMarkup(
+    <Billing id="bill_1" onOpen={() => {}} notify={() => {}} keysRef={{ current: null }} providers={providers} />,
+  )
 
 test("a bill's page: paid from the ledger, invoices in the Stripe Dashboard, only the actions that can run", () => {
   data['admin.billing.bill.bill_1'] = bill
@@ -108,7 +119,9 @@ const selfServe = (over: Partial<SelfServeData>): SelfServeData => ({
   ...over,
 })
 const renderList = (tab: string | null = 'signup') =>
-  renderToStaticMarkup(<Billing id={tab} onOpen={() => {}} notify={() => {}} keysRef={{ current: null }} />)
+  renderToStaticMarkup(
+    <Billing id={tab} onOpen={() => {}} notify={() => {}} keysRef={{ current: null }} providers={providers} />,
+  )
 
 test('sign-up switched on without Turnstile keys says plainly that it is closed, and why', () => {
   data['admin.billing.selfServe'] = selfServe({
@@ -119,7 +132,9 @@ test('sign-up switched on without Turnstile keys says plainly that it is closed,
   const html = renderList()
   expect(html).toContain('Closed')
   expect(html).toContain('Sign-up is switched on but closed: the bot check (Cloudflare Turnstile) has no keys.')
-  expect(html).toContain('href="#admin/providers/turnstile"')
+  // The bot check's keys are on this page, right below (BillingProviders).
+  expect(html).toContain('href="#admin/billing/signup"')
+  expect(html).toContain('Loading Bot check')
   expect(html).toContain('Turnstile has no keys yet')
   // Adding the keys is the fix; the page never points to switching the bot check off.
   expect(html).not.toContain('turn the bot check off')
@@ -177,7 +192,7 @@ test('the status header names each fact and links to where it is fixed', () => {
   }
   const html = renderList(null)
   expect(html).toContain('Not connected')
-  expect(html).toContain('href="#admin/providers')
+  expect(html).toContain('href="#admin/billing/stripe"')
   expect(html).toContain('1 held')
   expect(html).toContain('href="#admin/billing/review"')
   expect(html).toContain('2 owe money')

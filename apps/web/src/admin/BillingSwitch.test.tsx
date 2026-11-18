@@ -1,4 +1,4 @@
-// Server admin › Providers › Billing during support access: read-only like every setting then, nothing loaded.
+// Server admin › Billing › Stripe during support access: read-only like every setting then, nothing loaded.
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test, vi } from 'vitest'
 

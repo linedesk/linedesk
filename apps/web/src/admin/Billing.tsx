@@ -1,6 +1,6 @@
 // Server admin › Billing (docs/billing.md §11, PR 13): the bills of this install with their ledger, payments and
-// invoices; what waits for review; the Stripe event inbox; who may sign up on their own; and the install's billing
-// rules. Every write asks why (kept in the audit log) and runs through runAdmin, so the server's passkey step-up asks
+// invoices; what waits for review; the Stripe event inbox; who may sign up on their own, with the bot check; the
+// install's billing rules; and Stripe with the billing switch (BillingProviders.tsx, LIN-556). Every write asks why (kept in the audit log) and runs through runAdmin, so the server's passkey step-up asks
 // for the admin's passkey first; the ones that reach Stripe send one request id per dialog (its idempotency key).
 //
 // The page: a status line on top (billing on and its mode, sign-up open or why not, what needs the admin), then one
@@ -35,6 +35,7 @@ import { Loading, Skeleton, SkeletonRows } from '../ui/LoadStates.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
 import { ActionBar, type AdminAction } from './actions.tsx'
+import { BillingProviders, type BillingProvidersProps } from './BillingProviders.tsx'
 import { runAdmin } from './api.ts'
 import {
   ago,
@@ -189,9 +190,11 @@ type Props = {
   onOpen: (id: string) => void
   notify: Notify
   keysRef: { current: ListKeys | null }
+  /** Stripe and the bot check: the admin data and the providers' status, as on Server admin › Providers. */
+  providers: BillingProvidersProps
 }
 
-export function Billing({ id, onOpen, notify, keysRef }: Props) {
+export function Billing({ id, onOpen, notify, keysRef, providers }: Props) {
   const tab = billingTab(id)
   if (!tab) return <BillDetail id={id!} notify={notify} />
   return (
@@ -205,10 +208,12 @@ export function Billing({ id, onOpen, notify, keysRef }: Props) {
       {tab === 'signup' && (
         <>
           <SelfServeCard notify={notify} />
+          <BillingProviders part="bot_check" {...providers} />
           <SignupRulesCard notify={notify} />
         </>
       )}
       {tab === 'rules' && <RulesCard notify={notify} />}
+      {tab === 'stripe' && <BillingProviders part="billing" {...providers} />}
     </>
   )
 }
@@ -221,7 +226,7 @@ type StatusFact = { id: string; label: string; state: StatusState; value: string
 /** Whether billing through Stripe runs, in which mode, or what stops it. */
 function billingFact(t: Translate, s: AdminBillingSummary): StatusFact {
   const b = s.billing
-  const base = { id: 'billing', label: t('admin.bills.summary.billing'), href: '#admin/providers/billing' }
+  const base = { id: 'billing', label: t('admin.bills.summary.billing'), href: '#admin/billing/stripe' }
   if (!b.connected)
     return {
       ...base,
@@ -375,6 +380,7 @@ const TAB_LABELS: Record<BillingTab, MessageKey> = {
   events: msg('admin.bills.tab.events'),
   signup: msg('admin.bills.tab.signup'),
   rules: msg('admin.bills.tab.rules'),
+  stripe: msg('admin.bills.tab.stripe'),
 }
 
 const tabHref = (tab: BillingTab) => (tab === 'overview' ? '#admin/billing' : `#admin/billing/${tab}`)
@@ -831,7 +837,7 @@ function EventsCard({ notify }: { notify: Notify }) {
           </div>
         ) : filter === 'all' ? (
           <p className="adm-notice">
-            <T k="admin.bills.events.emptyHow" values={{ link: appLink('#admin/providers/billing') }} />
+            <T k="admin.bills.events.emptyHow" values={{ link: appLink('#admin/billing/stripe') }} />
           </p>
         ) : (
           <p className="adm-notice">
@@ -872,7 +878,7 @@ function SelfServeCard({ notify }: { notify: Notify }) {
   const query = useQuery(SELF_SERVE, loadSelfServe, KEPT)
   const [asking, setAsking] = useState<boolean | null>(null)
   const data = query.data
-  const link = { link: appLink('#admin/providers/billing') }
+  const link = { link: appLink('#admin/billing/stripe') }
   return (
     <Card
       title={t('admin.bills.selfServe.title')}
@@ -914,7 +920,7 @@ function SelfServeCard({ notify }: { notify: Notify }) {
       </div>
       {data?.on && data.closedBecause === 'bot_check_missing' && (
         <Note tone="danger">
-          <T k="admin.bills.selfServe.closed.botCheck" values={{ link: appLink('#admin/providers/turnstile') }} />
+          <T k="admin.bills.selfServe.closed.botCheck" values={{ link: appLink('#admin/billing/signup') }} />
         </Note>
       )}
       {data?.on && data.closedBecause === 'billing_not_in_effect' && (

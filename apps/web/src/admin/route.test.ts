@@ -4,6 +4,7 @@ import {
   adminSections,
   billingTab,
   isListPlace,
+  movedPlace,
   nextSection,
   parseAdminHash,
   placeUp,
@@ -33,6 +34,19 @@ test('Providers: a group scrolls, a provider opens its dialog, old category and 
   expect(providersTarget('ai')).toEqual({ group: 'answering' })
   expect(providersTarget('nothing')).toBeNull()
   expect(providersTarget(null)).toBeNull()
+})
+
+test("Providers' Billing group lives in Billing: its old links land there (LIN-556)", () => {
+  const providers = (id: string | null) => ({ section: 'providers' as const, id })
+  expect(movedPlace(providers('billing'))).toEqual({ section: 'billing', id: 'stripe' })
+  expect(movedPlace(providers('stripe'))).toEqual({ section: 'billing', id: 'stripe' })
+  expect(movedPlace(providers('turnstile'))).toEqual({ section: 'billing', id: 'signup' })
+  expect(movedPlace(providers('bot_check'))).toEqual({ section: 'billing', id: 'signup' })
+  expect(movedPlace(providers('email'))).toBeNull()
+  expect(movedPlace(providers('deepgram'))).toBeNull()
+  expect(movedPlace(providers(null))).toBeNull()
+  expect(movedPlace({ section: 'billing', id: 'stripe' })).toBeNull()
+  expect(billingTab('stripe')).toBe('stripe')
 })
 
 test('Tab and Shift-Tab go round the sections', () => {

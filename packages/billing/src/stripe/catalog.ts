@@ -106,7 +106,7 @@ export async function ensureCatalog(stripe: Stripe, catalog: PlanCatalog): Promi
 export const PROBE_IDS = { product: 'linedesk_permission_probe', price: 'price_linedesk_permission_probe' } as const
 
 /**
- * Whether the key may write Products and Prices (Server admin › Providers › Billing, Test; review M-1): an empty update
+ * Whether the key may write Products and Prices (Server admin › Billing › Stripe, Test; review M-1): an empty update
  * of an object that does not exist. Stripe checks a restricted key's permission first (403), then the object (404),
  * so nothing is ever written. `null`: the answer was neither (a network failure), not known.
  */

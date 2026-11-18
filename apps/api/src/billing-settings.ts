@@ -1,5 +1,5 @@
 // Billing for Linedesk Cloud (docs/billing.md §7): which billing provider is in effect. `none` (every self-hosted
-// install) unless Server admin › Providers › Billing has Stripe with both keys **and** an instance admin turned billing
+// install) unless Server admin › Billing › Stripe has Stripe with both keys **and** an instance admin turned billing
 // on (`billing.enabled`, off by default). A live key counts only where the server allows it (BILLING_LIVE_KEYS=1,
 // production only): elsewhere it is refused when stored, by the provider test, and here.
 //
@@ -86,7 +86,7 @@ async function stripeKeys(tx: Tx): Promise<StripeKeys | null> {
   }
 }
 
-/** What Server admin › Providers › Billing shows next to the switch. */
+/** What Server admin › Billing › Stripe shows next to the switch. */
 export async function billingState(tx: Tx, env: Env = serverEnv()): Promise<BillingEnabledData> {
   const keys = await stripeKeys(tx)
   const mode = keys ? stripeKeyMode(keys.secretKey) : null
@@ -216,15 +216,14 @@ export async function boundAccount(tx: Pick<Tx, 'select'>): Promise<Binding | nu
 async function connectedAccount(tx: Tx): Promise<Binding> {
   const keys = await stripeKeys(tx)
   const mode = keys && stripeKeyMode(keys.secretKey)
-  if (!keys || !mode) throw new Reject('Connect Stripe first: both keys under Providers › Billing.')
+  if (!keys || !mode) throw new Reject('Connect Stripe first: both keys under Billing › Stripe.')
   let id: string | undefined
   try {
     id = (await (await loadBillingProvider(keys, stripeFetch)).account())?.id
   } catch {
-    throw new Reject('Stripe did not confirm the account. Test the keys under Providers › Billing, then try again.')
+    throw new Reject('Stripe did not confirm the account. Test the keys under Billing › Stripe, then try again.')
   }
-  if (!id)
-    throw new Reject('Stripe did not confirm the account. Test the keys under Providers › Billing, then try again.')
+  if (!id) throw new Reject('Stripe did not confirm the account. Test the keys under Billing › Stripe, then try again.')
   return { id, mode }
 }
 
@@ -262,7 +261,7 @@ export const billingSettingsHandlers: Record<string, Handler> = {
     const state = await billingState(tx)
     let binding: Binding | null = null
     if (input.on) {
-      if (!state.connected) throw new Reject('Connect Stripe first: both keys under Providers › Billing.')
+      if (!state.connected) throw new Reject('Connect Stripe first: both keys under Billing › Stripe.')
       if (state.mode === 'live' && !state.liveAllowed) throw new Reject(LIVE_KEYS_REFUSED)
       binding = await connectedAccount(tx)
       const bound = await boundAccount(tx)

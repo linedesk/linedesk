@@ -126,15 +126,19 @@ type Props = {
   embedded?: boolean
   /** Server admin › Providers: the page holds which lists are open. Left out: each list keeps its own. */
   folds?: ListFolds
+  /** Only this category's list (Server admin › Billing › Stripe shows the Billing group without its bot check). */
+  only?: ProviderCategory
 }
 
-export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, embedded, folds }: Props) {
+export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, embedded, folds, only }: Props) {
   const t = useT()
   // Answering shows one of its two ways at a time (tabs); the other groups all their lists.
   const [pickedWay, setPickedWay] = useState<VoicePipeline | null>(null)
   const answering = group.id === 'answering'
   const way = pickedWay ?? defaultAnsweringWay(group, data)
-  const lists = listsOfGroup(group.id).filter(l => !answering || wayOfCategory(l.category) === way)
+  const lists = listsOfGroup(group.id).filter(
+    l => (!answering || wayOfCategory(l.category) === way) && (!only || l.category === only),
+  )
   const note = groupNote(group)
   const help = groupHelp(group, embedded)
   const detail = groupProblem(group)?.detail
@@ -205,7 +209,8 @@ export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, em
   )
 }
 
-function ProviderList({
+/** One category's providers, each with Connect or Edit; also on Server admin › Billing › Sign-up (the bot check). */
+export function ProviderList({
   title,
   category,
   providers,

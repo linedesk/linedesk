@@ -3,6 +3,7 @@
 // Kept in the hash like the rest of the app, so reload and the browser's Back work. Labels are message keys (t()).
 import {
   groupOfCategory,
+  groupOfProvider,
   isProviderGroupId,
   type ProviderCategory,
   providerCategoryKeys,
@@ -80,10 +81,22 @@ export function parseAdminHash(hash: string): AdminPlace {
 
 export const adminHash = ({ section, id }: AdminPlace) => `#admin/${section}${id ? `/${encodeURIComponent(id)}` : ''}`
 
+/**
+ * The place an address shows, after `movedPlace`: an old address of something that moved is replaced in the history,
+ * so Back never returns to it.
+ */
+function currentPlace(): AdminPlace {
+  const place = parseAdminHash(window.location.hash)
+  const moved = movedPlace(place)
+  if (!moved) return place
+  window.history.replaceState(window.history.state, '', adminHash(moved))
+  return moved
+}
+
 export function useAdminPlace() {
-  const [place, setPlace] = useState(() => parseAdminHash(window.location.hash))
+  const [place, setPlace] = useState(currentPlace)
   useEffect(() => {
-    const onHash = () => setPlace(parseAdminHash(window.location.hash))
+    const onHash = () => setPlace(currentPlace())
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
@@ -98,7 +111,7 @@ export function useAdminPlace() {
  * Server admin › Billing's sections: `#admin/billing` is its overview, `#admin/billing/<tab>` one section, anything else
  * after `billing/` a bill (`#admin/billing/<bill id>`).
  */
-export const BILLING_TABS = ['overview', 'bills', 'review', 'events', 'signup', 'rules'] as const
+export const BILLING_TABS = ['overview', 'bills', 'review', 'events', 'signup', 'rules', 'stripe'] as const
 export type BillingTab = (typeof BILLING_TABS)[number]
 
 /** The section of Billing that `#admin/billing/<id>` shows; null when `id` is a bill. */
@@ -119,6 +132,21 @@ export function placeUp(place: AdminPlace): AdminPlace | null {
   if (!place.id) return null
   if (place.section === 'billing' && billingTab(place.id) === null) return { section: 'billing', id: 'bills' }
   return { section: place.section, id: null }
+}
+
+/**
+ * Where an address of Server admin › Providers' Billing group goes now (LIN-556): Stripe and the billing switch to
+ * Billing › Stripe, the bot check (Turnstile) to Billing › Sign-up; null for every other place. Links from before
+ * (emails, the setup agent's `providers_billing`, the overview's card) keep working.
+ */
+export function movedPlace(place: AdminPlace): AdminPlace | null {
+  if (place.section !== 'providers' || !place.id) return null
+  const target = providersTarget(place.id)
+  if (!target) return null
+  if (place.id === 'bot_check') return { section: 'billing', id: 'signup' }
+  if ('group' in target) return target.group === 'billing' ? { section: 'billing', id: 'stripe' } : null
+  if (groupOfProvider(target.provider) !== 'billing') return null
+  return { section: 'billing', id: providerRegistry[target.provider].category === 'bot_check' ? 'signup' : 'stripe' }
 }
 
 /** What `#admin/providers/<id>` points at: a group to scroll to, or a provider whose dialog opens. */

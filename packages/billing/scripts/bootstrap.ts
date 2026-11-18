@@ -15,7 +15,7 @@
  * - The ids go to `--out` (default `stripe-ids.<mode>.json` in packages/billing, git-ignored). The webhook signing
  *   secret, shown by Stripe once when the endpoint is created, goes to `--secret-out` (default
  *   `stripe-webhook-secret.<mode>.txt` in packages/billing, git-ignored), created new with mode 0600 (an existing file
- *   or a symlink there is refused) and never printed: paste it into Server admin › Providers › Billing, then delete it.
+ *   or a symlink there is refused) and never printed: paste it into Server admin › Billing › Stripe, then delete it.
  * - The account's Terms of Service URL (Dashboard › Settings › Business › Public details) cannot be set through the API,
  *   but every trial and plan Checkout asks for terms consent and fails without it: the script checks it and says so.
  * - A price whose amount changed is replaced only with `--replace-prices`. A webhook endpoint in an old API version
@@ -146,8 +146,8 @@ try {
     writeSecret(secretOut, webhookSecret)
     console.log(
       ids.oldWebhookEndpoints.length
-        ? `the new webhook signing secret is in ${secretOut} (0600): in Server admin › Providers › Billing, put the current secret into "Previous webhook signing secret" and this one into "Webhook signing secret", then delete the file. Once the new endpoint receives, run again with --delete-old-webhooks.`
-        : `the new webhook signing secret is in ${secretOut} (0600): paste it into Server admin › Providers › Billing, then delete the file`,
+        ? `the new webhook signing secret is in ${secretOut} (0600): in Server admin › Billing › Stripe, put the current secret into "Previous webhook signing secret" and this one into "Webhook signing secret", then delete the file. Once the new endpoint receives, run again with --delete-old-webhooks.`
+        : `the new webhook signing secret is in ${secretOut} (0600): paste it into Server admin › Billing › Stripe, then delete the file`,
     )
   } else if (ids.oldWebhookEndpoints.length)
     console.log(

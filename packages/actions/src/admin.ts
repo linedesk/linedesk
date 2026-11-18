@@ -1053,7 +1053,7 @@ export const providers = {
         hint: 'whsec_… (only while rotating)',
       },
     },
-    help: 'A restricted key (rk_…) with only the permissions billing needs, or a secret key (sk_…), and the signing secret of the webhook endpoint. Test keys charge nothing; live keys are refused on a dev install. Billing starts only once it is turned on below; the prices are set in Server admin › Billing.',
+    help: 'A restricted key (rk_…) with only the permissions billing needs, or a secret key (sk_…), and the signing secret of the webhook endpoint. Test keys charge nothing; live keys are refused on a dev install. Billing starts only once it is turned on below; the prices are set under Billing › Prices and rules.',
   },
   // Connected apps (docs/crm-sync.md): a business connects its own account by consent page, and finished calls go there.
   hubspot: {

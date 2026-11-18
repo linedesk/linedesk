@@ -1,5 +1,5 @@
 // Billing of an install's workspaces through its own Stripe account (docs/billing.md). The instance switch: billing runs only when Stripe is connected under
-// Server admin › Providers › Billing and an instance admin turned it on here. Off by default, so a self-hosted install
+// Server admin › Billing › Stripe and an instance admin turned it on here. Off by default, so a self-hosted install
 // never bills anyone, even with keys stored.
 import { z } from 'zod'
 import { billTarget } from './billing-checkout.ts'
@@ -16,7 +16,7 @@ export const billingEnabledGet = defineAction({
 export const billingEnabledSet = defineAction({
   name: 'billingEnabled.set',
   description:
-    'Turn billing through Stripe on or off for this install. On needs Stripe keys under Providers › Billing and binds billing to their Stripe account and mode; live keys only where the server allows them. Off: nothing is billed and every billing path stays closed. `rebind`: turn on with keys of another account or mode than before (its customers are not there).',
+    'Turn billing through Stripe on or off for this install. On needs Stripe keys under Billing › Stripe and binds billing to their Stripe account and mode; live keys only where the server allows them. Off: nothing is billed and every billing path stays closed. `rebind`: turn on with keys of another account or mode than before (its customers are not there).',
   input: z.object({ on: z.boolean(), rebind: z.boolean().optional() }),
   permission: 'instance:admin',
 })

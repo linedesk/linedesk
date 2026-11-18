@@ -1176,9 +1176,7 @@ export const billingAdminHandlers: Record<string, Handler> = {
     if (input.on) refuseMoneyChange(actor)
     const before = await selfServe(tx)
     if (input.on && !before.billingInEffect)
-      throw new Reject(
-        'Self-serve sign-up needs billing through Stripe in effect (Server admin › Providers › Billing).',
-      )
+      throw new Reject('Self-serve sign-up needs billing through Stripe in effect (Server admin › Billing › Stripe).')
     // No contract without terms (A9): the links and versions come from the environment, never from this page.
     if (input.on && before.termsMissing.length)
       throw Reject.t('server.api.signup.termsMissing', { vars: before.termsMissing.join(', ') })
