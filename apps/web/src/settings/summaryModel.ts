@@ -142,11 +142,14 @@ const contactName = (c: TransferDraft) => c.name.trim() || i18n().t('settings.tr
 /** "Maya puts callers through to Mike Brennan and Office: the first one whose condition fits. …" */
 export function transfersSummary({ name, transfers, hoursOn, vacationOn }: TransfersInput): Summary {
   const live = transfers.filter(c => c.enabled && c.number.trim())
+  // Switched on without a number: the assistant skips it and takes a message. Said plainly at the end, never as
+  // "Needs you" (Janik, 2026-11-18): calls are still answered; the contact itself says what to do.
   const noNumber = transfers.filter(c => c.enabled && !c.number.trim()).map(contactName)
-  const needsYou: SummarySentence | null = noNumber.length
-    ? { k: msg('settings.summary.transfers.noNumber'), values: { name, contacts: noNumber, count: noNumber.length } }
-    : null
-  if (!live.length) return { sentences: [{ k: msg('settings.summary.transfers.none'), values: { name } }], needsYou }
+  const skipped: SummarySentence[] = noNumber.length
+    ? [{ k: msg('settings.summary.transfers.noNumber'), values: { name, contacts: noNumber, count: noNumber.length } }]
+    : []
+  if (!live.length)
+    return { sentences: [{ k: msg('settings.summary.transfers.none'), values: { name } }, ...skipped], needsYou: null }
   const sentences: SummarySentence[] = [
     { k: msg('settings.summary.transfers.to'), values: { name, contacts: live.map(contactName), count: live.length } },
   ]
@@ -159,7 +162,7 @@ export function transfersSummary({ name, transfers, hoursOn, vacationOn }: Trans
     })
   sentences.push({ k: msg('settings.summary.transfers.otherwise'), values: { name } })
   if (vacationOn) sentences.push({ k: msg('settings.summary.transfers.vacation') })
-  return { sentences, needsYou }
+  return { sentences: [...sentences, ...skipped], needsYou: null }
 }
 
 // ---------------------------------------------------------------------------------------------------------------

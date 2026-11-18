@@ -23,9 +23,10 @@ const contact = (over: Partial<TransferDraft> = {}): TransferDraft => ({
 })
 
 const noop = () => {}
-const render = (c: TransferDraft, open = true, isNew = false) =>
+const render = (c: TransferDraft, open = true, isNew = false, more: { added?: boolean; numberLeft?: boolean } = {}) =>
   renderToStaticMarkup(
     <ContactRow
+      {...more}
       contact={c}
       isNew={isNew}
       index={0}
@@ -67,10 +68,32 @@ test('a contact just added: a Remove next to Done, no status yet, a placeholder 
   const blank = contact({ name: '', number: '', condition: '' })
   const html = render(blank, true, true)
   expect(html).toMatch(/>Remove<\/span><\/button><button[^>]*><span>Done</)
-  expect(html).not.toContain('Add a number to use it')
+  expect(html).not.toContain(NO_NUMBER)
   expect(html).toContain('placeholder="e.g. Office"')
   // A contact already in the list keeps only the trash button and says why it is not used.
   const saved = render(blank, true, false)
   expect(saved).not.toContain('>Remove</span>')
-  expect(saved).toContain('Add a number to use it')
+  expect(saved).toContain(NO_NUMBER)
+})
+
+const NO_NUMBER = 'Add a number, or turn this contact off.'
+
+test('switched on without a number: one quiet note at the contact, never an error or a badge', () => {
+  const missing = contact({ number: '' })
+  // Open: under the number field, in the field-note look (not the red field message).
+  const open = render(missing)
+  expect(open).toContain(`<p class="k-field-desc tc-note">${NO_NUMBER}</p>`)
+  expect(open).not.toContain('k-field-msg')
+  expect(open.split(NO_NUMBER)).toHaveLength(2)
+  // Closed: one line in the row, no status chip.
+  const closed = render(missing, false)
+  expect(closed).toContain(`<span class="tc-note">${NO_NUMBER}</span>`)
+  expect(closed).not.toContain('tc-status')
+  // Switched off: the "Off" chip, no note.
+  const off = render(contact({ number: '', enabled: false }), false)
+  expect(off).toContain('>Off</span>')
+  expect(off).not.toContain(NO_NUMBER)
+  // Added during this visit: only once the number field was left.
+  expect(render(missing, true, false, { added: true })).not.toContain(NO_NUMBER)
+  expect(render(missing, true, false, { added: true, numberLeft: true })).toContain(NO_NUMBER)
 })

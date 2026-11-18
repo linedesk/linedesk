@@ -159,6 +159,7 @@ export function TransferContacts({ transfers, onChange, hoursOn, assistantName, 
                 added={added.has(c.id)}
                 open={open === c.id || (showErrors && !!mine)}
                 problem={shown}
+                numberLeft={showErrors || touched.has(`${c.id}:number`)}
                 hoursOn={hoursOn}
                 numberTip={numberTip(countries)}
                 defaultCountry={country}
@@ -190,6 +191,8 @@ export type RowProps = {
   open: boolean
   /** The problem to show in this row (null: none, or not shown yet). */
   problem: TransferProblem | null
+  /** The number field was left once, or a save was tried: a contact added during this visit says it has no number. */
+  numberLeft?: boolean
   hoursOn: boolean
   /** What the number field's tip says about where calls may go. */
   numberTip: string
@@ -230,6 +233,7 @@ export function ContactRow(props: RowProps) {
     added = isNew,
     open,
     problem,
+    numberLeft = false,
     hoursOn,
     numberTip,
     defaultCountry,
@@ -242,6 +246,10 @@ export function ContactRow(props: RowProps) {
   } = props
   const t = useT()
   const inactive = isNew ? null : transferInactive(c)
+  // Switched on without a number: the assistant skips it and takes a message. Not an error, and no "Needs you" in the
+  // summary: one quiet line at the contact (under the number while the row is open). A contact added during this visit
+  // says it only once its number field was left, like a field's error.
+  const noNumber = inactive === 'noNumber' && (!added || numberLeft)
   const name = c.name.trim() || t('settings.transfer.newContact')
   const ringOptions: SelectOption<string>[] = RING_SECONDS.map(s => ({
     value: String(s),
@@ -277,10 +285,11 @@ export function ContactRow(props: RowProps) {
           <span className="tc-title">
             <b>{name}</b>
             <span className="tc-number">{numberLabel(c.number)}</span>
-            {inactive && <span className="tc-status">{inactive}</span>}
+            {inactive === 'off' && <span className="tc-status">{t('settings.assistant.draft.transferOff')}</span>}
           </span>
           <span className="tc-cond">{c.condition.trim() || t('settings.transfer.noCondition')}</span>
           <span className="tc-meta">{summaryOf(c, hoursOn)}</span>
+          {noNumber && !open && <span className="tc-note">{t('settings.transfer.noNumberNote')}</span>}
         </button>
         <span className="tc-actions">
           <Button
@@ -340,6 +349,9 @@ export function ContactRow(props: RowProps) {
                 onBlur={() => onLeave('number')}
                 invalid={!!error('number')}
               />
+              {noNumber && !error('number') && (
+                <p className="k-field-desc tc-note">{t('settings.transfer.noNumberNote')}</p>
+              )}
             </Field>
           </div>
           <div className="tc-briefing">

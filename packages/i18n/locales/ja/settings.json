@@ -52,7 +52,6 @@
   "assistant.draft.transferConditionMissing": "この連絡先に取り次ぐ条件を入力してください。",
   "assistant.draft.transferNameMissing": "連絡先に名前を付けてください。",
   "assistant.draft.transferNameTaken": "「{name}」という名前の連絡先がすでにあります。",
-  "assistant.draft.transferNoNumber": "使うには番号を追加してください",
   "assistant.draft.transferOff": "オフ",
   "assistant.draft.transferPresetCondition": "発信者が担当者との会話を希望したとき",
   "assistant.draft.transferPresetName": "オーナー",

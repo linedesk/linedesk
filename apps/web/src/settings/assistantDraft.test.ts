@@ -270,8 +270,9 @@ describe('transfer contacts', () => {
     expect(moveTransfer(['a', 'b'], 0, -1)).toEqual(['a', 'b'])
   })
   it('says why a contact is not used', () => {
-    expect(transferInactive({ enabled: false, number: '+1 503 555 0199' })).toBe('Off')
-    expect(transferInactive({ enabled: true, number: ' ' })).toBe('Add a number to use it')
+    expect(transferInactive({ enabled: false, number: '+1 503 555 0199' })).toBe('off')
+    expect(transferInactive({ enabled: false, number: '' })).toBe('off')
+    expect(transferInactive({ enabled: true, number: ' ' })).toBe('noNumber')
     expect(transferInactive({ enabled: true, number: '+1 503 555 0199' })).toBeNull()
   })
   it('keeps a contact just added out of the draft until one of its fields changes', () => {

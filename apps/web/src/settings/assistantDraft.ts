@@ -551,10 +551,14 @@ export function moveTransfer<T>(list: readonly T[], index: number, by: -1 | 1): 
   return next
 }
 
-/** Why a contact is not used on calls right now, in a few words; null when it is. */
-export function transferInactive(c: Pick<TransferDraft, 'enabled' | 'number'>): string | null {
-  if (!c.enabled) return i18n().t('settings.assistant.draft.transferOff')
-  if (!c.number.trim()) return i18n().t('settings.assistant.draft.transferNoNumber')
+/**
+ * Why a contact is not used on calls right now: switched off, or switched on without a number (the assistant skips it
+ * and takes a message, so it is not a problem that needs the owner: a quiet note at the contact, no "Needs you"). Null
+ * when it is used.
+ */
+export function transferInactive(c: Pick<TransferDraft, 'enabled' | 'number'>): 'off' | 'noNumber' | null {
+  if (!c.enabled) return 'off'
+  if (!c.number.trim()) return 'noNumber'
   return null
 }
 

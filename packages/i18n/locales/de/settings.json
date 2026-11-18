@@ -52,7 +52,6 @@
   "assistant.draft.transferConditionMissing": "Gib an, wann Anrufe an diesen Kontakt gehen.",
   "assistant.draft.transferNameMissing": "Gib dem Kontakt einen Namen.",
   "assistant.draft.transferNameTaken": "Ein anderer Kontakt heißt schon „{name}“.",
-  "assistant.draft.transferNoNumber": "Füge eine Nummer hinzu, um ihn zu nutzen",
   "assistant.draft.transferOff": "Aus",
   "assistant.draft.transferPresetCondition": "Der Anrufer möchte mit einer Person sprechen",
   "assistant.draft.transferPresetName": "Inhaber",

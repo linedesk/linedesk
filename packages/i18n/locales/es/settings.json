@@ -52,7 +52,6 @@
   "assistant.draft.transferConditionMissing": "Indica cuándo se pasan las llamadas a este contacto.",
   "assistant.draft.transferNameMissing": "Ponle un nombre al contacto.",
   "assistant.draft.transferNameTaken": "Otro contacto ya se llama “{name}”.",
-  "assistant.draft.transferNoNumber": "Agrega un número para usarlo",
   "assistant.draft.transferOff": "Desactivado",
   "assistant.draft.transferPresetCondition": "Quien llama pide hablar con una persona",
   "assistant.draft.transferPresetName": "Propietario",

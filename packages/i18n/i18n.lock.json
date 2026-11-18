@@ -22415,11 +22415,6 @@
       "out": "db50a4861915c6e2b266497eed2628698a49ca9ddc206dff348b36d3be1695ba",
       "src": "52f01f7849f6d357b45d242691482699fd9d884789b1b6e4ff550577aa4d98a0"
     },
-    "settings.assistant.draft.transferNoNumber": {
-      "by": "ai",
-      "out": "e2635de683c8b1e87ba248e6f4a0143bd3b5059a3ac0d1589fd0de4c4d8d0e14",
-      "src": "717bbc8697770c90a88a7469f4534bce59b8d6fbbe793c5146db1c2ab7609a20"
-    },
     "settings.assistant.draft.transferOff": {
       "by": "ai",
       "out": "f0ce94502ed90ac3253eeb12f85f320eeb87b7c2d2be0a1a56f540b5603ead1b",
@@ -56331,11 +56326,6 @@
       "by": "ai",
       "out": "0aa8e86eea5671d45f91f69b2394312d89b6f608eff15f6a49351fb25a511c80",
       "src": "52f01f7849f6d357b45d242691482699fd9d884789b1b6e4ff550577aa4d98a0"
-    },
-    "settings.assistant.draft.transferNoNumber": {
-      "by": "ai",
-      "out": "7e225d136c999be4ac8b8d41ed275e10568553ae0086163fba8f3ff2a8fc25cc",
-      "src": "717bbc8697770c90a88a7469f4534bce59b8d6fbbe793c5146db1c2ab7609a20"
     },
     "settings.assistant.draft.transferOff": {
       "by": "ai",
@@ -90249,11 +90239,6 @@
       "out": "bd813089bae8e51740a0ebb7e75b9ecac27deca084f2bd3d68c5967323974018",
       "src": "52f01f7849f6d357b45d242691482699fd9d884789b1b6e4ff550577aa4d98a0"
     },
-    "settings.assistant.draft.transferNoNumber": {
-      "by": "ai",
-      "out": "4840dc299bba8728a25852ebadf9f71a02d2b344cc59ece5ddd8801566f0c5b0",
-      "src": "717bbc8697770c90a88a7469f4534bce59b8d6fbbe793c5146db1c2ab7609a20"
-    },
     "settings.assistant.draft.transferOff": {
       "by": "ai",
       "out": "da60ff35b212a8aa4758f2a8bf63f12cdc79fb2f84d64ab2ed2689d80417bdf5",
@@ -124166,11 +124151,6 @@
       "out": "2d13de8b4cf6b65654de4a9627a7cec3f29f0f07d9f3a841fb024eac68d1cbcb",
       "src": "52f01f7849f6d357b45d242691482699fd9d884789b1b6e4ff550577aa4d98a0"
     },
-    "settings.assistant.draft.transferNoNumber": {
-      "by": "ai",
-      "out": "690a5a4ff76ed96d0e567b43ef2079bb65509626ac8513b8af4f86ee4a3e25b1",
-      "src": "717bbc8697770c90a88a7469f4534bce59b8d6fbbe793c5146db1c2ab7609a20"
-    },
     "settings.assistant.draft.transferOff": {
       "by": "ai",
       "out": "01c2df03fd3f553758a90a99605066bd31372cb19f7dce6f22087f6f96680c41",
@@ -158082,11 +158062,6 @@
       "by": "ai",
       "out": "5fad59238807bc8cf67748313dc5592589f22de6cc8a57bb6f4238acf87e4682",
       "src": "52f01f7849f6d357b45d242691482699fd9d884789b1b6e4ff550577aa4d98a0"
-    },
-    "settings.assistant.draft.transferNoNumber": {
-      "by": "ai",
-      "out": "226854671760fdb0ef34e9f8fe57f0405fc058cea55a73c9c32cd8391760f6d8",
-      "src": "717bbc8697770c90a88a7469f4534bce59b8d6fbbe793c5146db1c2ab7609a20"
     },
     "settings.assistant.draft.transferOff": {
       "by": "ai",

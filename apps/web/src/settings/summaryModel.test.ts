@@ -127,8 +127,15 @@ test('transfers: none, switched off, or without a number', () => {
     ...transfers,
     transfers: [contact('Mike Brennan'), contact('Office', { number: ' ' })],
   })
-  expect(text(missing.needsYou)).toBe('Office has no number, so Maya skips it.')
+  // Not a "Needs you": calls are still answered, and the contact itself says what to do.
+  expect(missing.needsYou).toBeNull()
   expect(all(missing)).toContain('Maya puts callers through to Mike Brennan when the condition fits.')
+  expect(all(missing)).toMatch(/Office has no number, so Maya skips it\.$/)
+  const onlyMissing = transfersSummary({ ...transfers, transfers: [contact('Office', { number: '' })] })
+  expect(onlyMissing.needsYou).toBeNull()
+  expect(all(onlyMissing)).toBe(
+    'Maya puts no calls through; it takes a message. Office has no number, so Maya skips it.',
+  )
 })
 
 const notify = {

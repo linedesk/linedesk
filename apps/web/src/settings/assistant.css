@@ -535,6 +535,15 @@ a.as-chip:hover {
   font-size: 12px;
   line-height: 16px;
 }
+/* A contact switched on without a number: one quiet line, the field-note look (not red, no badge). */
+.tc-note {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.k-field-desc.tc-note {
+  margin: 0;
+}
 .tc-actions {
   display: flex;
   flex: none;
