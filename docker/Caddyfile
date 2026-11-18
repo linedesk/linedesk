@@ -51,6 +51,17 @@
 	}
 }
 
+# Idle connections to an upstream are kept for 60 s (Caddy's default: 2 minutes), shorter than the upstreams keep
+# them: the API 75 s (apps/api/src/keep-alive.ts), the web container's Caddy 5 minutes (its default). An
+# upstream that closes an idle connection first can do so just as Caddy sends the next request on it: Caddy gets EOF
+# and answers 502, since a request that reached a container is not retried (below). Node's default of 5 s did that
+# (staging, 2026-11-18).
+(upstream-keepalive) {
+	transport http {
+		keepalive 60s
+	}
+}
+
 # The API, with retries while a container starts or stops. The argument says where the request came in
 # (`public` or `internal`); it replaces any X-Linedesk-Entry the client sent, and the API accepts the voice
 # agent's tokens only on `internal` requests (apps/api/src/context.ts).
@@ -86,6 +97,7 @@
 			}
 			# Flush at once: /v1/shape/* responses are long-lived streams.
 			flush_interval -1
+			import upstream-keepalive
 		}
 	}
 }
@@ -136,7 +148,9 @@
 	# LiveKit signalling (WebSocket) on the same address: browsers need no extra port or certificate.
 	@livekit path /rtc /rtc/*
 	handle @livekit {
-		reverse_proxy {$LIVEKIT_UPSTREAM:livekit:7880}
+		reverse_proxy {$LIVEKIT_UPSTREAM:livekit:7880} {
+			import upstream-keepalive
+		}
 	}
 
 	handle {
@@ -151,6 +165,7 @@
 			lb_retry_match {
 				expression false
 			}
+			import upstream-keepalive
 		}
 	}
 }

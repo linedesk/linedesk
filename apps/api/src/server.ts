@@ -1,8 +1,10 @@
 import { serve } from '@hono/node-server'
+import type { Server } from 'node:http'
 import { initErrorReporting } from './error-reporting.ts'
 import { agentTokenProblem } from '@linedesk/actions'
 import { authSecretProblem } from './auth-secret.ts'
 import { db } from './db.ts'
+import { configureKeepAlive } from './keep-alive.ts'
 import { emailProviderInUse, loadInstanceEnv, watchInstanceEnv } from './instance-env.ts'
 
 // Sentry, when SENTRY_DSN is set (error-reporting.ts). Before the rest of the startup; the static imports above run first.
@@ -70,7 +72,10 @@ startStaleCallSweep(db)
 // Recording files the agent never reported are linked to their calls (orphan-recordings.ts).
 startOrphanRecordingSweep(db)
 
-const server = serve({ fetch: app.fetch, port }, () => console.log(`api on http://localhost:${port}`))
+const server = serve({ fetch: app.fetch, port }, () => console.log(`api on http://localhost:${port}`)) as Server
+// Idle connections stay open longer than the proxy keeps them, so it never sends a request on one the API just closed
+// (keep-alive.ts).
+const { stopKeepingAlive } = configureKeepAlive(server)
 
 // Jobs failing to start must not take the API down: requests keep working, the jobs wait for a restart.
 startJobs().catch(error => console.error('jobs could not start:', error))
@@ -80,10 +85,12 @@ startJobs().catch(error => console.error('jobs could not start:', error))
 void (await import('./outbound-policy.ts')).syncTelnyxProfiles()
 
 // Stop on SIGTERM/SIGINT (as PID 1 in a container Node would ignore them): finish open requests,
-// but don't wait for long-lived sync streams.
+// but don't wait for long-lived sync streams. Their connections close after their response, so the proxy sends the
+// next request to the new container.
 function shutdown() {
   void stopJobs().catch(() => {})
   server.close(() => process.exit(0))
+  stopKeepingAlive()
   setTimeout(() => process.exit(0), 3000).unref()
 }
 process.on('SIGTERM', shutdown)
