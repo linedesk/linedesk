@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineAction } from './define.ts'
-import { english } from './words.ts'
+import type { MessageKey } from '@linedesk/i18n'
+import { english, type Words } from './words.ts'
 
 // Agent setup (LIN-125, docs/api.md "Setup MCP"): the preferred way to set up an install is an AI agent. An instance
 // admin makes a setup key here; the agent connects to the setup MCP at /mcp/setup with it and sets up providers and
@@ -155,21 +156,44 @@ export function stepsByGroup<S extends { group: SetupStepGroup }>(steps: readonl
  * changed later (Server admin › Providers, Assistant and Workspace settings, Account › Notifications), and where it helps a
  * short hint with the industry term or the usual providers. Steps not listed keep their own label.
  */
-export const setupStepNames: Readonly<Record<string, { label: string; hint?: string }>> = {
-  answering: { label: 'Answering calls', hint: 'AI model and voice · e.g. OpenAI or ElevenLabs' },
-  telephony: { label: 'Phone carrier', hint: 'Telnyx or Twilio' },
-  email: { label: 'Email', hint: 'Resend or SMTP' },
-  'call-audio': { label: 'Call audio', hint: 'LiveKit voice server and its SIP bridge' },
+export type SetupStepName = { label: string; hint?: string }
+
+/** The steps setupStepNames names, in its order, and whether each has a hint. */
+const NAMED_STEPS = [
+  ['answering', true],
+  ['telephony', true],
+  ['email', true],
+  ['call-audio', true],
   // One row for the person's business (Janik, 2026-11-15): its name and time zone together with what the assistant
   // knows about it, never two rows for what is one thing to them.
-  business: { label: 'Your business', hint: 'name, time zone, services, area, prices' },
-  assistant: { label: 'Assistant', hint: 'name, greeting, voice' },
-  pickup: { label: 'When to answer', hint: 'calls you miss, after hours, or every call' },
-  notify: { label: 'Notifications', hint: 'call summaries and urgent calls' },
-  phone: { label: 'Phone number', hint: 'a new number, or forwarding from yours' },
-  forwarding: { label: 'Call forwarding', hint: 'from your business line' },
-  test_call: { label: 'Test call' },
+  ['business', true],
+  ['assistant', true],
+  ['pickup', true],
+  ['notify', true],
+  ['phone', true],
+  ['forwarding', true],
+  ['test_call', false],
+] as const
+
+/**
+ * The names of setupStepNames in a reader's language (`words`): the setup page shows the steps in the person's language,
+ * the agent's setup_status stays English (docs/translations.md, "Which language a reader gets").
+ */
+export function setupStepNamesIn(words: Words): Readonly<Record<string, SetupStepName>> {
+  const key = (id: string) => id.replace('-', '_')
+  return Object.fromEntries(
+    NAMED_STEPS.map(([id, hinted]) => [
+      id,
+      {
+        // i18n-dynamic: server.setupAgent.step.*
+        label: words.t(`server.setupAgent.step.${key(id)}` as MessageKey),
+        ...(hinted ? { hint: words.t(`server.setupAgent.step.${key(id)}Hint` as MessageKey) } : {}),
+      },
+    ]),
+  )
 }
+
+export const setupStepNames: Readonly<Record<string, SetupStepName>> = setupStepNamesIn(english)
 
 /** One workspace in the setup page's dropdown: its name and how far its own steps got. */
 export type SetupWorkspaceSummary = { id: string; name: string; done: number; total: number }

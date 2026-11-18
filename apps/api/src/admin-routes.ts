@@ -273,7 +273,7 @@ export function registerAdminRoutes(app: Hono<Env>) {
     // of; else their first): what the agent sees for it, whatever workspace the session is in.
     const asAgent =
       (await setupActor(actor.actorId, 'page', { passkeyConfirmed: actor.passkeyConfirmed === true })) ?? actor
-    const progress = await setupProgress(asAgent, c.req.query('workspace') ?? null)
+    const progress = await setupProgress(asAgent, c.req.query('workspace') ?? null, await readerWords(c))
     return c.json({ ...(await agentSetupState(actor.actorId)), progress })
   })
 
@@ -292,7 +292,7 @@ export function registerAdminRoutes(app: Hono<Env>) {
         : null
     if (!workspaceId || !asAgent)
       return c.json({ ok: false, error: 'only the workspace owner or an admin sets it up' }, 403)
-    const progress = await setupProgress(asAgent, workspaceId)
+    const progress = await setupProgress(asAgent, workspaceId, await readerWords(c))
     return c.json({ ...(await agentSetupState(actor.actorId, workspaceId)), progress })
   })
 
@@ -310,7 +310,7 @@ export function registerAdminRoutes(app: Hono<Env>) {
         ? await partnerSetupActor(actor.actorId, 'page', partnerId)
         : null
     if (!asAgent) return c.json({ ok: false, error: PARTNER_OWNER_ONLY }, 403)
-    const progress = await setupProgress(asAgent, c.req.query('workspace') ?? null)
+    const progress = await setupProgress(asAgent, c.req.query('workspace') ?? null, await readerWords(c))
     return c.json({ ...(await agentSetupState(actor.actorId, null, partnerId)), progress })
   })
 

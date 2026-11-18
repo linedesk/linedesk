@@ -20,7 +20,7 @@ import { PartnerAgentSetup } from './partner/PartnerAgentSetup.tsx'
 import { PartnerArea } from './partner/PartnerArea.tsx'
 import { signOutAndForget } from './localData.ts'
 import { deletedOnPurpose, leftOnPurpose } from './session.ts'
-import { AuthPage } from './ui/kit.tsx'
+import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
 import { T, useT } from '@linedesk/i18n/react'
 import { i18n } from './i18n/index.tsx'
 import { roleLabel } from './shell/invitations.ts'
@@ -103,7 +103,7 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
   if (partner && hash === PARTNER_AGENT_HASH && partner.role === 'owner' && !me?.impersonation)
     return <PartnerAgentSetup partner={partner} onFirstWorkspace={onDone} />
   if (partner && !hash.startsWith('#admin') && !me?.impersonation)
-    return <PartnerArea partner={partner} onSignedOut={onDone} onFirstWorkspace={onDone} />
+    return <PartnerArea partner={partner} onFirstWorkspace={onDone} />
   if (me && admin && hash.startsWith('#admin')) {
     if (me.adminSecondFactor) return <SecondFactorPrompt state={me.adminSecondFactor} onExit={leave} />
     return <AdminMode currentUserId={me.actorId} onExit={leave} />
@@ -152,7 +152,7 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
       />
     )
   }
-  if (invitations === null) return <AuthPage>{null}</AuthPage>
+  if (invitations === null) return <SignedInAuthPage>{null}</SignedInAuthPage>
 
   const extras = (
     <>
@@ -267,7 +267,7 @@ function NoWorkspaceYet({
 }) {
   const t = useT()
   return (
-    <AuthPage>
+    <SignedInAuthPage>
       <div className="auth-card">
         <h1>
           {lostWorkspace
@@ -284,6 +284,6 @@ function NoWorkspaceYet({
           {t('auth.differentAccount')}
         </button>
       </div>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 }

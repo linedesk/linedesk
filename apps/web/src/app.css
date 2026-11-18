@@ -2525,3 +2525,13 @@ button.k-link {
     font-size: 16px !important;
   }
 }
+/* The account menu on a centred page someone reaches signed in (shell/SignedInAuthPage.tsx), where the setup pages'
+   top bar has it. */
+.auth {
+  position: relative;
+}
+.auth-corner {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+}

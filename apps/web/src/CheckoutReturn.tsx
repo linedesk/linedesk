@@ -13,7 +13,8 @@ import {
   readCheckoutSession,
 } from './checkout.ts'
 import { AuthError } from './ui/AuthError.tsx'
-import { AuthPage, cx, Spinner } from './ui/kit.tsx'
+import { cx, Spinner } from './ui/kit.tsx'
+import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
 
 /**
  * `onDone`: leaves the page; the app reads the workspace again (no longer waiting for Checkout). `toBilling`: minutes
@@ -55,15 +56,15 @@ export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean, partne
 
   if (!outcome)
     return (
-      <AuthPage>
+      <SignedInAuthPage>
         <div className="auth-card" aria-busy>
           <p className="auth-wait">{t('auth.checkout.confirming')}</p>
         </div>
-      </AuthPage>
+      </SignedInAuthPage>
     )
 
   const done = (title: string, text: string, extra?: string) => (
-    <AuthPage>
+    <SignedInAuthPage>
       <div className="auth-card">
         <h1>{title}</h1>
         <p>{text}</p>
@@ -79,7 +80,7 @@ export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean, partne
           {t('auth.checkout.continue')}
         </button>
       </div>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 
   if (outcome.status === 'trialing') return done(t('auth.checkout.trialTitle'), t('auth.checkout.trialText'))
@@ -96,7 +97,7 @@ export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean, partne
     )
   if (outcome.status === 'trial_refused')
     return (
-      <AuthPage>
+      <SignedInAuthPage>
         <div className="auth-card">
           <h1>{t('auth.checkout.refusedTitle')}</h1>
           <p>
@@ -128,10 +129,10 @@ export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean, partne
             </button>
           )}
         </div>
-      </AuthPage>
+      </SignedInAuthPage>
     )
   return (
-    <AuthPage>
+    <SignedInAuthPage>
       <div className="auth-card">
         <h1>{t('auth.checkout.failedTitle')}</h1>
         <AuthError
@@ -141,6 +142,6 @@ export function CheckoutReturn({ onDone }: { onDone: (toBilling: boolean, partne
           {t('auth.checkout.back')}
         </button>
       </div>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 }

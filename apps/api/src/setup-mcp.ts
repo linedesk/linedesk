@@ -69,7 +69,10 @@ import {
   searchForwardingGuides,
   statusText,
   type SetupStepGroup,
+  type SetupStepName,
   setupStepNames,
+  setupStepNamesIn,
+  type Words,
   type WorkspaceCreateData,
   countryNamed,
   UNPAID_PARTNER_CLIENTS,
@@ -619,8 +622,8 @@ const seatText = (seat: PartnerSetupFacts['seat']) =>
     : english.t('server.setupAgent.partner.seatNone')
 
 /** The same price, short, as the Client workspaces row's hint on the setup page ("$9 a month each, billed yearly"). */
-const seatHint = (seat: NonNullable<PartnerSetupFacts['seat']>) =>
-  english.t(
+const seatHint = (seat: NonNullable<PartnerSetupFacts['seat']>, words: Words = english) =>
+  words.t(
     seat.interval === 'year'
       ? 'server.setupAgent.partner.step.clientsPriceYearly'
       : 'server.setupAgent.partner.step.clientsPriceMonthly',
@@ -631,13 +634,43 @@ const seatHint = (seat: NonNullable<PartnerSetupFacts['seat']>) =>
 const dollars = (cents: number) => `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}`
 
 /** What White-label Cloud costs, as its row's hint ("$14 a month, billed yearly, plus $9 per client workspace"). */
-const planHint = (plan: NonNullable<PartnerSetupFacts['plan']>, seat: PartnerSetupFacts['seat']) =>
-  english.t(
+const planHint = (
+  plan: NonNullable<PartnerSetupFacts['plan']>,
+  seat: PartnerSetupFacts['seat'],
+  words: Words = english,
+) =>
+  words.t(
     plan.interval === 'year'
       ? 'server.setupAgent.partner.step.planPriceYearly'
       : 'server.setupAgent.partner.step.planPriceMonthly',
     { price: dollars(plan.cents), seat: dollars(seat?.cents ?? 0) },
   )
+
+/**
+ * The partner's own steps' names in a reader's language: the agent's setup_status in English, the setup page in the
+ * owner's (setupProgress). The Client workspaces row's hint says what one costs, White-label Cloud's its price.
+ */
+function partnerStepNamesIn(words: Words, facts: PartnerSetupFacts): Readonly<Record<string, SetupStepName>> {
+  const named = (id: 'company' | 'brand' | 'team' | 'clients') => ({
+    // i18n-dynamic: server.setupAgent.partner.step.*
+    label: words.t(`server.setupAgent.partner.step.${id}`),
+    hint: words.t(`server.setupAgent.partner.step.${id}Hint`),
+  })
+  return {
+    company: named('company'),
+    brand: named('brand'),
+    team: named('team'),
+    clients: { ...named('clients'), ...(facts.seat ? { hint: seatHint(facts.seat, words) } : {}) },
+    ...(facts.plan
+      ? {
+          plan: {
+            label: words.t('server.setupAgent.partner.step.plan'),
+            hint: planHint(facts.plan, facts.seat, words),
+          },
+        }
+      : {}),
+  }
+}
 
 /**
  * The partner's own steps. Its company name and brand are the partner's own text, quoted as data. The client
@@ -650,11 +683,8 @@ function partnerSteps(actor: Actor, facts: PartnerSetupFacts): StepBase[] {
   const who = personOf(actor)
   const at = facts.step
   const unpaid = facts.plan?.unpaid ?? false
-  const named = (id: 'company' | 'brand' | 'team' | 'clients') => ({
-    // i18n-dynamic: server.setupAgent.partner.step.*
-    label: english.t(`server.setupAgent.partner.step.${id}`),
-    hint: english.t(`server.setupAgent.partner.step.${id}Hint`),
-  })
+  const names = partnerStepNamesIn(english, facts)
+  const named = (id: 'company' | 'brand' | 'team' | 'clients') => names[id]!
   const step = (id: 'company' | 'brand' | 'team', done: boolean, how: string[]): StepBase => ({
     id,
     ...named(id),
@@ -677,9 +707,8 @@ function partnerSteps(actor: Actor, facts: PartnerSetupFacts): StepBase[] {
     ]),
     {
       id: 'clients',
+      // With what one costs, where the page shows it next to "Add client" (the owner confirms the seat there).
       ...named('clients'),
-      // What one costs, where the page shows it next to "Add client" (the owner confirms the seat there).
-      ...(facts.seat ? { hint: seatHint(facts.seat) } : {}),
       state: facts.clients.length ? 'done' : 'admin_only',
       detail: facts.clients.map(c => JSON.stringify(c.name)).join(', ') || null,
       how: [
@@ -698,8 +727,7 @@ function partnerSteps(actor: Actor, facts: PartnerSetupFacts): StepBase[] {
       ? [
           {
             id: 'plan',
-            label: english.t('server.setupAgent.partner.step.plan'),
-            hint: planHint(facts.plan, facts.seat),
+            ...names.plan!,
             // The owner's own row: its button opens the Checkout. Done once paid.
             state: unpaid ? 'admin_only' : 'done',
             how: [
@@ -739,14 +767,18 @@ async function workspaceStatus(actor: Actor, ws: ManagedWorkspace, advance: bool
  * The workspace steps when a partner (owner or partner admin) sets up a CLIENT workspace (Janik, 2026-11-18): they speak
  * about the client, not "your …". The client's own owner keeps setupStepNames.
  */
-const clientSetupStepNames: Readonly<Record<string, { label: string; hint?: string }>> = {
-  ...setupStepNames,
-  business: { ...setupStepNames.business!, label: english.t('server.setupAgent.clientStep.business') },
-  assistant: { ...setupStepNames.assistant!, label: english.t('server.setupAgent.clientStep.assistant') },
-  pickup: { ...setupStepNames.pickup!, hint: english.t('server.setupAgent.clientStep.pickupHint') },
-  phone: { ...setupStepNames.phone!, hint: english.t('server.setupAgent.clientStep.phoneHint') },
-  forwarding: { ...setupStepNames.forwarding!, hint: english.t('server.setupAgent.clientStep.forwardingHint') },
+function clientStepNamesIn(words: Words): Readonly<Record<string, SetupStepName>> {
+  const names = setupStepNamesIn(words)
+  return {
+    ...names,
+    business: { ...names.business!, label: words.t('server.setupAgent.clientStep.business') },
+    assistant: { ...names.assistant!, label: words.t('server.setupAgent.clientStep.assistant') },
+    pickup: { ...names.pickup!, hint: words.t('server.setupAgent.clientStep.pickupHint') },
+    phone: { ...names.phone!, hint: words.t('server.setupAgent.clientStep.phoneHint') },
+    forwarding: { ...names.forwarding!, hint: words.t('server.setupAgent.clientStep.forwardingHint') },
+  }
 }
+const clientSetupStepNames = clientStepNamesIn(english)
 
 /** Whether `userId` is in `workspaceId` through a partner's team (/v1/me's workspace.viaPartner), not as its own. */
 async function viaPartner(userId: string, workspaceId: string): Promise<boolean> {
@@ -858,12 +890,31 @@ function whereItRuns() {
 }
 
 /**
+ * The steps as the setup page names them, in the reader's language (`words`): setup_status names them in English for the
+ * agent. The same names in the same places: a partner's own steps, a client workspace's steps about the client, the
+ * install's and a business's own; a step without a name of its own keeps its label.
+ */
+async function pageStepNames(actor: Actor, workspaceId: string | null, steps: Step[], words: Words): Promise<Step[]> {
+  if (words === english) return steps
+  const client = Boolean(actor.setupPartnerId || (workspaceId ? await viaPartner(actor.actorId, workspaceId) : false))
+  const facts = actor.setupPartnerId ? await partnerSetupFacts(actor.setupPartnerId) : null
+  const business = client ? clientStepNamesIn(words) : setupStepNamesIn(words)
+  const partner = facts ? partnerStepNamesIn(words, facts) : {}
+  return steps.map(step => {
+    const name = step.group === 'partner' ? partner[step.id] : business[step.id]
+    if (!name) return step
+    const { hint: _hint, ...rest } = step
+    return { ...rest, label: name.label, ...(name.hint ? { hint: name.hint } : {}) }
+  })
+}
+
+/**
  * The steps without their how-to, for the setup page in the app (GET /v1/admin/agent-setup, and for a workspace
  * owner GET /v1/workspace/agent-setup: their one workspace's steps only), which shows the agent's
  * progress: the server's steps, then those of one workspace, `selected` when the admin may set it up, else their
  * first. `workspaces` lists every one they may set up, with how far each got (the page's dropdown).
  */
-export async function setupProgress(actor: Actor, selected?: string | null) {
+export async function setupProgress(actor: Actor, selected?: string | null, words: Words = english) {
   const status = await setupStatus(actor, { advance: false })
   // A workspace owner's page always has its one workspace (the route checks the owner); none only if it just went.
   const chosen: WorkspaceStatus = status.workspaces.find(w => w.id && w.id === selected) ??
@@ -872,7 +923,7 @@ export async function setupProgress(actor: Actor, selected?: string | null) {
   const next = firstOpen(steps)
   const assistant = chosen.id ? await firstAssistant(chosen.id) : null
   return {
-    steps: steps.map(({ id, label, hint, group, state }) => ({
+    steps: (await pageStepNames(actor, chosen.id, steps, words)).map(({ id, label, hint, group, state }) => ({
       id,
       label,
       ...(hint ? { hint } : {}),

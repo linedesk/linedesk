@@ -17,7 +17,8 @@ import { brandName } from '../brand.ts'
 import { StepUpFields, StepUpSubmit, useKeyStepUp } from '../settings/account/KeyStepUp.tsx'
 import { callAction } from '../settings/settings-api.ts'
 import { AuthError } from '../ui/AuthError.tsx'
-import { AuthPage, Button } from '../ui/kit.tsx'
+import { Button } from '../ui/kit.tsx'
+import { SignedInAuthPage } from '../shell/SignedInAuthPage.tsx'
 
 export const isConnectAgentHash = (hash: string) =>
   hash === OAUTH_CONSENT_HASH || hash.startsWith(`${OAUTH_CONSENT_HASH}?`)
@@ -61,12 +62,12 @@ function problemOf(err: unknown): Problem | null {
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <AuthPage>
+    <SignedInAuthPage>
       <div className="auth-card connect-agent">
         <h1>{title}</h1>
         {children}
       </div>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 }
 
@@ -96,7 +97,7 @@ export function ConnectAgent({ onLeave }: { onLeave: () => void }) {
       />
     )
   }
-  if (!described || !request) return <AuthPage>{null}</AuthPage>
+  if (!described || !request) return <SignedInAuthPage>{null}</SignedInAuthPage>
   return <Consent request={request} about={described} />
 }
 

@@ -20,11 +20,23 @@ import { refreshWorkspaces, useWorkspaces, WorkspaceSwitcher } from './Workspace
 
 /**
  * Whether the menu lists the workspaces: only when there is another place to go, another workspace or a partner area
- * (the partner rows show then too).
+ * (the partner rows show then too). A page outside any workspace (the partner area, a partner's setup) has no current
+ * one, so a single workspace is already somewhere else to go: the client workspace a partner just made.
  */
-export const setupMenuSwitches = (workspaces: number, partners: number) => workspaces > 1 || partners > 0
+export const setupMenuSwitches = (workspaces: number, partners: number, inWorkspace = true) =>
+  workspaces > (inWorkspace ? 1 : 0) || partners > 0
 
-export function SetupAccountMenu({ workspaceId }: { workspaceId?: string | null }) {
+export function SetupAccountMenu({
+  workspaceId,
+  away = false,
+}: {
+  workspaceId?: string | null
+  /**
+   * A page that is not the open workspace's own (the partner area, a partner's setup): every workspace is somewhere to
+   * go, the one the tab has open too (a partner's client workspace just made).
+   */
+  away?: boolean
+}) {
   const t = useT()
   const menu = useMenu(true, () => void refreshWorkspaces())
   const list = useRef<HTMLDivElement>(null)
@@ -39,8 +51,8 @@ export function SetupAccountMenu({ workspaceId }: { workspaceId?: string | null 
   const [notice, setNotice] = useState<string | null>(null)
   const signOut = useSignOut({ onSignedOut: () => window.location.assign('/'), toast: setNotice })
   const currentId = workspaceId ?? tabWorkspace() ?? ''
-  const current = workspaces?.find(w => w.id === currentId)
-  const switches = setupMenuSwitches(workspaces?.length ?? 0, partners.length)
+  const current = away ? undefined : workspaces?.find(w => w.id === currentId)
+  const switches = setupMenuSwitches(workspaces?.length ?? 0, partners.length, !!current)
   const label = t('shell.workspaceMenu.yourAccount')
   return (
     <div className="ws-wrap ob-me" ref={menu.root}>
@@ -71,10 +83,10 @@ export function SetupAccountMenu({ workspaceId }: { workspaceId?: string | null 
         >
           {switches && (
             <>
-              {workspaces && workspaces.length > 1 && (
+              {workspaces && workspaces.length > (current ? 1 : 0) && (
                 <WorkspaceSwitcher
                   all={current ? switcherWorkspaces(workspaces, current) : workspaces}
-                  currentId={currentId}
+                  currentId={current ? currentId : ''}
                   invitations={[]}
                   onInvitationsChanged={() => {}}
                   onError={setNotice}

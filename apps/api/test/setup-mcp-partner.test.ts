@@ -144,6 +144,25 @@ describe('who makes a partner setup link', () => {
     expect(page.body.progress.workspaces.map((w: { id: string }) => w.id)).toEqual([clientA])
     expect((await request(b.owner, 'GET', `/v1/partner/agent-setup?partnerId=${a.id}`)).status).toBe(403)
   })
+
+  // The page's checklist is written in its reader's language (2026-11-18): it showed English in the German app. The MCP
+  // and the CLI stay English.
+  test("the page's checklist is in the reader's language", async () => {
+    const label = async () => {
+      const page = await request(a.owner, 'GET', `/v1/partner/agent-setup?partnerId=${a.id}`)
+      return (page.body.progress.steps as { id: string; label: string }[]).find(s => s.id === 'brand')?.label
+    }
+    expect(await label()).toBe('Brand')
+    await db.update(user).set({ locale: 'de' }).where(eq(user.id, a.owner.userId))
+    onTestFinished(() =>
+      db
+        .update(user)
+        .set({ locale: null })
+        .where(eq(user.id, a.owner.userId))
+        .then(() => {}),
+    )
+    expect(await label()).toBe('Marke')
+  })
 })
 
 describe('what a partner setup link reaches', () => {

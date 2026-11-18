@@ -44,7 +44,7 @@ import { loadAgentSetup, loadInstallSetup, runAdmin, watchAdminSignIn } from '..
 import { ADMIN_INSTALL_SETUP } from '../admin/Providers.tsx'
 import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import type { AdminSecondFactor, Me } from '../auth.ts'
-import { brandName } from '../brand.ts'
+import { brandName, installBrandName } from '../brand.ts'
 import { useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
 import { SETUP_LINK_KEY, signInAgain as signOutAndSignIn } from '../localData.ts'
@@ -201,6 +201,8 @@ export function AgentSetup({
   // A partner's owner: no Server admin (no passkey check, no server part, no hosting note), as a workspace owner.
   const partnerId = scope === 'partner' ? (partner?.id ?? null) : null
   const personal = owner || partnerId !== null
+  // A partner's own setup shows the install's brand, never its white-label one (brand.ts), even with a client open.
+  const product = scope === 'partner' ? installBrandName() : brandName()
   const [state, setState] = useState<AgentSetupState | null>(null)
   const activeId = active?.id ?? null
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -360,9 +362,9 @@ export function AgentSetup({
   if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onDone} />
   return (
     <div
-      className="ob as"
+      className={cx('ob as', scope === 'partner' && 'k-install-brand')}
       role="main"
-      aria-label={t('onboarding.agentSetup.ariaLabel', { brand: brandName() })}
+      aria-label={t('onboarding.agentSetup.ariaLabel', { brand: product })}
       aria-busy={skeleton || undefined}
     >
       {skeleton && (
@@ -371,15 +373,15 @@ export function AgentSetup({
         </span>
       )}
       <div className="ob-top">
-        <BrandMark />
-        <b>{brandName()}</b>
+        <BrandMark install={scope === 'partner'} />
+        <b>{product}</b>
         <span className="ob-count">{t('onboarding.agentSetup.setup')}</span>
         {onLater && (
           <Button size="sm" variant="ghost" onClick={onLater} title={t('onboarding.frame.finishLaterTitle')}>
             {t('onboarding.frame.finishLater')}
           </Button>
         )}
-        <SetupAccountMenu workspaceId={active?.id} />
+        <SetupAccountMenu workspaceId={active?.id} away={scope === 'partner'} />
       </div>
       <div className="ob-main as-main">
         <div className={cx('ob-body', view.fadeIn && 'ld-in')}>
@@ -464,7 +466,7 @@ export function AgentSetup({
                   {t('onboarding.agentSetup.cloudBlocked.body', {
                     agent: agentClientLabels[client],
                     address: state?.mcpUrl.replace(/\/mcp\/setup$/, '') ?? '',
-                    brand: brandName(),
+                    brand: product,
                   })}
                 </Note>
               )}
@@ -566,13 +568,16 @@ export function AgentSetup({
               {t('onboarding.agentSetup.change.back')}
             </button>
           ) : partnerId ? (
+            // Set up by hand: the partner's guided setup (PartnerSetup.tsx); once all is done, the partner area.
             <button
               type="button"
               className="as-manual"
-              onClick={manual}
-              title={t('onboarding.agentSetup.partner.manualTitle')}
+              onClick={allDone ? onDone : manual}
+              title={t(
+                allDone ? 'onboarding.agentSetup.partner.areaTitle' : 'onboarding.agentSetup.partner.byHandTitle',
+              )}
             >
-              {t(allDone ? 'onboarding.agentSetup.partner.area' : 'onboarding.agentSetup.partner.manual')}
+              {t(allDone ? 'onboarding.agentSetup.partner.area' : 'onboarding.agentSetup.partner.byHand')}
             </button>
           ) : allDone && owner ? null : allDone ? (
             <button

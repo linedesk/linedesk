@@ -6,7 +6,8 @@ import { useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { signOutAndForget } from '../localData.ts'
 import { callAction } from '../settings/settings-api.ts'
-import { AuthPage, Button } from '../ui/kit.tsx'
+import { Button } from '../ui/kit.tsx'
+import { SignedInAuthPage } from '../shell/SignedInAuthPage.tsx'
 import { partnerErrorText, refreshMyPartners } from './partner-api.ts'
 
 type Props = {
@@ -42,7 +43,7 @@ export function PartnerInvite({ token, onDone }: Props) {
 
   const role = view?.role === 'owner' ? t('team.partner.role.owner') : t('team.partner.role.admin')
   return (
-    <AuthPage>
+    <SignedInAuthPage install>
       <div className="auth-card">
         <h1>
           {view ? t('team.partner.invite.title', { partner: view.partnerName }) : t('team.partner.invite.loading')}
@@ -79,6 +80,6 @@ export function PartnerInvite({ token, onDone }: Props) {
           </button>
         )}
       </div>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 }

@@ -9,7 +9,8 @@ import { PAUSE_DAYS, pause } from './passkey-ask.ts'
 import { addPasskeyForThisDevice, SignInAgain } from './settings/account/account-api.ts'
 import { AuthError } from './ui/AuthError.tsx'
 import { HelpTip } from './ui/form.tsx'
-import { AuthPage, Button, cx, Note, Spinner } from './ui/kit.tsx'
+import { Button, cx, Note, Spinner } from './ui/kit.tsx'
+import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
 
 /** The one line why (auth.addPasskey.why) and the longer explanation behind the "?" (auth.addPasskey.help). */
 
@@ -52,7 +53,7 @@ export function AddPasskeyPage({ account, onAdded, onDone }: PageProps) {
   const request = useAddPasskey(() => {})
   if (request.step === 'added') {
     return (
-      <AuthPage>
+      <SignedInAuthPage>
         <div className="auth-card">
           <h1>{t('auth.addPasskey.added')}</h1>
           <p>{t('auth.addPasskey.addedNext')}</p>
@@ -68,12 +69,12 @@ export function AddPasskeyPage({ account, onAdded, onDone }: PageProps) {
             {t('auth.addPasskey.continue')}
           </button>
         </div>
-      </AuthPage>
+      </SignedInAuthPage>
     )
   }
   const adding = request.step === 'adding'
   return (
-    <AuthPage>
+    <SignedInAuthPage>
       <div className="auth-card">
         <h1>{t('auth.addPasskey.title')}</h1>
         <p className="auth-why">
@@ -109,7 +110,7 @@ export function AddPasskeyPage({ account, onAdded, onDone }: PageProps) {
           {t('auth.addPasskey.notNow')}
         </button>
       </div>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 }
 

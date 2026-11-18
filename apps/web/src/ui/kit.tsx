@@ -2,7 +2,7 @@
 import { type Branding, DEFAULT_PRODUCT_NAME, poweredByUrl, showsPoweredBy } from '@linedesk/actions'
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 import { useState } from 'react'
-import { useBrand } from '../brand.ts'
+import { useBrand, useInstallBrand } from '../brand.ts'
 import { filledIcons, icons, type IconName } from './icons.ts'
 import { T } from '@linedesk/i18n/react'
 
@@ -209,18 +209,23 @@ export function LogoMark({ size = 21 }: { size?: number }) {
 
 /**
  * The install's logo (Server admin › Branding) when an instance admin set one, else the Linedesk mark on its dark square.
- * `label` names it for screen readers; without one it is decoration next to the product name.
+ * `label` names it for screen readers; without one it is decoration next to the product name. `install`: the install's
+ * even in a white-label partner's client workspace, for the partner's own screens (brand.ts).
  */
 export function BrandMark({
   className = 'ws-mark',
   size,
   label,
+  install = false,
 }: {
   className?: string
   size?: number
   label?: string
+  install?: boolean
 }) {
-  const { logoUrl } = useBrand()
+  const open = useBrand()
+  const own = useInstallBrand()
+  const { logoUrl } = install ? own : open
   const a11y = label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true }
   if (logoUrl)
     return (
@@ -251,13 +256,28 @@ export function PoweredBy({ brand }: { brand: Pick<Branding, 'name' | 'logoUrl' 
   )
 }
 
-/** The page around sign-in, sign-up and invitations: the install's mark above a centred column, no card. */
-export function AuthPage({ children }: { children: ReactNode }) {
-  const brand = useBrand()
+/**
+ * The page around sign-in, sign-up and invitations: the install's mark above a centred column, no card. `corner`: the
+ * account menu at the top right, once someone is signed in (shell/SignedInAuthPage.tsx). `install`: the install's
+ * branding even in a white-label partner's client workspace, for the partner's own pages (its team invitation).
+ */
+export function AuthPage({
+  children,
+  corner,
+  install = false,
+}: {
+  children: ReactNode
+  corner?: ReactNode
+  install?: boolean
+}) {
+  const open = useBrand()
+  const own = useInstallBrand()
+  const brand = install ? own : open
   return (
-    <main className="auth">
+    <main className={cx('auth', install && 'k-install-brand')}>
+      {corner && <div className="auth-corner">{corner}</div>}
       <div className="auth-column">
-        <BrandMark className="auth-mark" size={28} label={brand.name} />
+        <BrandMark className="auth-mark" size={28} label={brand.name} install={install} />
         {children}
         <PoweredBy brand={brand} />
       </div>

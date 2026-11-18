@@ -15,16 +15,16 @@ import { day } from '../admin/parts.tsx'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { goToCheckout } from '../checkout.ts'
 import { useCountryHint } from '../countryHint.ts'
-import { signOutAndForget } from '../localData.ts'
 import { Billing } from '../settings/Billing.tsx'
 import { useUsd } from '../onboarding/ExtraCalls.tsx'
-import { PARTNER_AGENT_HASH, rememberPartnerByHand } from '../onboarding/setup-choice.ts'
+import { PARTNER_AGENT_HASH, PARTNER_SETUP_HASH, rememberPartnerByHand } from '../onboarding/setup-choice.ts'
 import { purchaseKeys } from '../settings/billingModel.ts'
 import { CountrySelect } from '../settings/CountrySelect.tsx'
 import { callAction } from '../settings/settings-api.ts'
 import { TimeZonePicker } from '../settings/TimeZonePicker.tsx'
 import { browserTimeZone } from '../settings/timeZones.ts'
 import { AskName } from '../shell/AskName.tsx'
+import { SetupAccountMenu } from '../shell/SetupAccountMenu.tsx'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { Toast } from '../shell/Toast.tsx'
 import { useToast } from '../shell/useToast.ts'
@@ -32,7 +32,7 @@ import { refreshWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
 import { tabWorkspace } from '../tabWorkspace.ts'
 import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { Card, Dialog, FormField, Input } from '../ui/form.tsx'
-import { Avatar, Badge, Button, Note } from '../ui/kit.tsx'
+import { Avatar, Badge, BrandMark, Button, Icon, Note } from '../ui/kit.tsx'
 import { List, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, sectionParts, useSection } from '../ui/SettingsLayout.tsx'
@@ -45,6 +45,7 @@ import './partner-area.css'
 import { PartnerBrand } from './PartnerBrand.tsx'
 import { PartnerKeys } from './PartnerKeys.tsx'
 import { PartnerSender } from './PartnerSender.tsx'
+import { PartnerSetup } from './PartnerSetup.tsx'
 
 type Section = 'clients' | 'team' | 'brand' | 'email' | 'keys' | 'billing'
 
@@ -93,15 +94,35 @@ export const roomForClient = (data: Pick<PartnerData, 'bill' | 'clients'>) =>
 
 type Props = {
   partner: MyPartner
-  /** Back to the inbox; absent for someone in no workspace yet (they sign out from here instead). */
+  /** Back to the inbox; absent for someone in no workspace yet (the account menu signs out). */
   onExit?: () => void
-  /** After signing out (no workspace). */
-  onSignedOut?: () => void
   /** The first client workspace was made by someone in no workspace yet: the session now has one, load it again. */
   onFirstWorkspace?: () => void
 }
 
-export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: Props) {
+export function PartnerArea(props: Props) {
+  // The owner's guided setup (#partner/setup): full screen, in place of the area.
+  const setup = useHashStartsWith(PARTNER_SETUP_HASH)
+  if (setup && props.partner.role === 'owner' && props.partner.status !== 'suspended')
+    return <PartnerSetup partner={props.partner} onFirstWorkspace={props.onFirstWorkspace} />
+  return <PartnerConsole {...props} />
+}
+
+/** Whether the address is `prefix` or below it (`prefix/…`), following it as it changes. */
+function useHashStartsWith(prefix: string) {
+  const [on, setOn] = useState(() => hashUnder(window.location.hash, prefix))
+  useEffect(() => {
+    const follow = () => setOn(hashUnder(window.location.hash, prefix))
+    window.addEventListener('hashchange', follow)
+    return () => window.removeEventListener('hashchange', follow)
+  }, [prefix])
+  return on
+}
+
+/** `hash` is `prefix` or a page below it. */
+export const hashUnder = (hash: string, prefix: string) => hash === prefix || hash.startsWith(`${prefix}/`)
+
+function PartnerConsole({ partner, onExit, onFirstWorkspace }: Props) {
   const t = useT()
   const toaster = useToast()
   const query = useQuery(PARTNER_QUERY(partner.id), () => loadPartner(partner.id))
@@ -113,7 +134,11 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
   const [linked] = useState(() => sectionParts('partner', window.location.hash).section)
   const sections = useMemo(
     () =>
-      partnerSections(t, billMine || (!data && linked === 'billing'), !!data?.bill || (!data && (linked === 'keys' || linked === 'email'))),
+      partnerSections(
+        t,
+        billMine || (!data && linked === 'billing'),
+        !!data?.bill || (!data && (linked === 'keys' || linked === 'email')),
+      ),
     [t, billMine, data, linked],
   )
   const current = useSection('partner', sections)
@@ -132,8 +157,10 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
     return () => window.removeEventListener('keydown', onKey)
   }, [onExit])
   return (
-    <div className="adm-mode">
-      <div className="pagebar">
+    <div className="adm-mode k-install-brand">
+      {/* The top bar of the setup screens (onboarding/Frame.tsx): the mark, whose area this is, the AI agent and the
+          account menu (another workspace or partner, sign out); Back to the inbox where there is one. */}
+      <div className="pagebar pa-bar">
         {onExit ? (
           <Button
             size="sm"
@@ -144,13 +171,17 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
             onClick={onExit}
           />
         ) : null}
-        <b>{t('team.partner.pageNamed', { partner: data?.partner.name ?? partner.name })}</b>
-        <StatusBadge status={status} />
+        <BrandMark install />
+        <b className="pa-name">{data?.partner.name ?? partner.name}</b>
+        <span className="pa-kind">{t('team.partner.page')}</span>
+        <span className="pa-grow" />
         {partner.role === 'owner' && status !== 'suspended' && (
           <Button
             size="sm"
             variant="ghost"
             icon="spark"
+            className="pa-agent"
+            aria-label={t('team.partner.agent')}
             title={t('team.partner.agentTitle')}
             onClick={() => {
               rememberPartnerByHand(partner.id, false)
@@ -160,25 +191,16 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
             {t('team.partner.agent')}
           </Button>
         )}
-        {!onExit && (
-          <Button size="sm" variant="ghost" onClick={() => void signOutAndForget().then(onSignedOut)}>
-            {t('shell.signOut')}
-          </Button>
-        )}
+        <SetupAccountMenu away />
       </div>
       <div className="page">
-        <SettingsLayout
-          page="partner"
-          title={data?.partner.name ?? partner.name}
-          description={t('team.partner.description')}
-          sections={sections}
-          current={current}
-        >
-          {status === 'pending' && (
-            <Note tone="info">{data?.bill ? t('team.partner.pendingBilled') : t('team.partner.pending')}</Note>
-          )}
+        <SettingsLayout page="partner" title={data?.partner.name ?? partner.name} sections={sections} current={current}>
+          {/* Only what stops the partner shows above every section; approval never does where billing is on (it only
+              gates the brand in emails: said in Brand), and activating is the Clients section's own card. */}
           {status === 'suspended' && <Note tone="danger">{t('team.partner.suspended')}</Note>}
-          {data?.bill && status !== 'suspended' && <BillNote data={data} />}
+          {data?.bill && status !== 'suspended' && !RUNNING.includes(data.bill.status) && !unpaidPartner(data) && (
+            <Note tone="danger">{t('team.partner.bill.inactive')}</Note>
+          )}
           <Loading
             what={t('team.partner.page')}
             loading={!data}
@@ -221,55 +243,49 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
 }
 
 /**
- * The partner bill in one line above the sections: waiting for its Checkout (its owner activates White-label Cloud
- * here, charged at once, no trial; until then up to UNPAID_PARTNER_CLIENTS client workspaces are drafts), or not running.
+ * White-label Cloud waits for its Checkout (the Clients section's own card, never a banner over every section): its
+ * real price a month (the partner bill's), billed yearly or monthly, and Activate; until then up to
+ * UNPAID_PARTNER_CLIENTS client workspaces are drafts. Someone else on the team reads that the owner activates it.
+ * `primary`: the page's one main action once there is a client to activate it for (else New client is).
  */
-function BillNote({ data }: { data: PartnerData }) {
+function ActivateCard({ data, primary }: { data: PartnerData; primary: boolean }) {
   const t = useT()
   const usd = useUsd()
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   const bill = data.bill!
-  if (bill.status === 'pending_payment') {
-    if (!bill.mine) return <Note tone="info">{t('team.partner.bill.waitsForOwner')}</Note>
-    const start = async () => {
-      setBusy(true)
-      setFailed(false)
-      try {
-        await goToCheckout(data.partner.id)
-      } catch {
-        setFailed(true)
-        setBusy(false)
-      }
+  if (!bill.mine) return <Note tone="info">{t('team.partner.bill.waitsForOwner')}</Note>
+  const start = async () => {
+    setBusy(true)
+    setFailed(false)
+    try {
+      await goToCheckout(data.partner.id)
+    } catch {
+      setFailed(true)
+      setBusy(false)
     }
-    const price = bill.price
-    return (
-      <Note
-        tone="info"
-        action={
-          <Button size="sm" variant="primary" busy={busy} onClick={() => void start()}>
-            {t('team.partner.bill.activateButton')}
-          </Button>
-        }
-      >
-        {t(price.interval === 'year' ? 'team.partner.bill.activateYearly' : 'team.partner.bill.activateMonthly', {
-          price: usd(price.planCents),
-          seat: usd(price.seatCents),
-          limit: UNPAID_PARTNER_CLIENTS,
-        })}
-        {failed && <span className="help"> {t('auth.checkout.startFailed')}</span>}
-      </Note>
-    )
   }
-  if (!RUNNING.includes(bill.status)) return <Note tone="danger">{t('team.partner.bill.inactive')}</Note>
-  return null
-}
-
-function StatusBadge({ status }: { status: PartnerData['partner']['status'] }) {
-  const t = useT()
-  if (status === 'approved') return <Badge tone="ok">{t('team.partner.status.approved')}</Badge>
-  if (status === 'suspended') return <Badge tone="danger">{t('team.partner.status.suspended')}</Badge>
-  return <Badge tone="outline">{t('team.partner.status.pending')}</Badge>
+  const price = bill.price
+  return (
+    <Card
+      title={t('team.partner.bill.activateTitle')}
+      description={t(price.interval === 'year' ? 'team.partner.bill.priceYearly' : 'team.partner.bill.priceMonthly', {
+        price: usd(price.planCents),
+        seat: usd(price.seatCents),
+      })}
+    >
+      {/* The button under the words, not in the card's head: on a phone the head has no room for both. */}
+      <div className="pa-activate">
+        <p className="pa-fine">
+          {t('team.partner.bill.draftsNote', { limit: UNPAID_PARTNER_CLIENTS })}
+          {failed && <span className="help"> {t('auth.checkout.startFailed')}</span>}
+        </p>
+        <Button size="sm" variant={primary ? 'primary' : 'secondary'} busy={busy} onClick={() => void start()}>
+          {t('team.partner.bill.activateButton')}
+        </Button>
+      </div>
+    </Card>
+  )
 }
 
 /** After a change: the partner as the server has it now, and the person's workspace list (a new client). */
@@ -281,7 +297,8 @@ const reloadPartner = async (id: string) => {
 /** After a change to one client's limit or switches: the client list as the server has it now. */
 const reloadClients = async (id: string) => setQueryData(PARTNER_CLIENTS_QUERY(id), await loadClients(id))
 
-function Clients({
+/** Partner › Clients: the list (or its empty state with one action), Activate before payment, New client. */
+export function Clients({
   data,
   frozen,
   onFirstWorkspace,
@@ -312,43 +329,63 @@ function Clients({
     })
   }
 
+  const room = roomForClient(data)
+  const empty = data.clients.length === 0
+  // Why New client cannot be used now, said next to it (never a disabled button alone): the drafts before activating
+  // are used up; otherwise the note above the sections (suspended, plan not running) or, without billing, approval.
+  const blocked = frozen
+    ? !data.bill && data.partner.status === 'pending'
+      ? t('team.partner.pending')
+      : null
+    : room
+      ? null
+      : t('team.partner.clients.draftLimit', { limit: UNPAID_PARTNER_CLIENTS })
+  const activating = !!data.bill && unpaidPartner(data) && data.partner.status !== 'suspended'
+  const newClient = (
+    <Button
+      size="sm"
+      variant={activating && !empty ? 'secondary' : 'primary'}
+      icon="plus"
+      disabled={frozen || !room}
+      title={t('team.partner.clients.newTip')}
+      onClick={() => setCreating(true)}
+    >
+      {t('team.partner.clients.new')}
+    </Button>
+  )
   return (
     <>
-      <Card
-        title={t('team.partner.clients.title')}
-        actions={
-          <Button
-            size="sm"
-            variant={frozen || !roomForClient(data) ? 'secondary' : 'primary'}
-            icon="plus"
-            disabled={frozen || !roomForClient(data)}
-            title={
-              roomForClient(data)
-                ? t('team.partner.clients.newTip')
-                : t('team.partner.clients.draftLimit', { limit: UNPAID_PARTNER_CLIENTS })
-            }
-            onClick={() => setCreating(true)}
-          >
-            {t('team.partner.clients.new')}
-          </Button>
-        }
-      >
+      {activating && <ActivateCard data={data} primary={!empty} />}
+      <Card title={t('team.partner.clients.title')} actions={empty ? undefined : newClient}>
         {problem && (
           <Note tone="danger" role="alert">
             {problem}
           </Note>
         )}
-        <ClientList
-          data={data}
-          frozen={frozen}
-          invitesWait={unpaidPartner(data)}
-          opening={opening}
-          onOpen={open}
-          onInvite={setInviting}
-          onRelease={setReleasing}
-          onDelete={setDeleting}
-          onSettings={setSettings}
-        />
+        {blocked && <p className="pa-fine">{blocked}</p>}
+        {empty ? (
+          // The first run's one action: a client workspace (a draft before White-label Cloud is active).
+          <div className="empty pa-empty">
+            <span className="ob-badge" aria-hidden="true">
+              <Icon name="users" size={20} />
+            </span>
+            <b>{t('team.partner.clients.emptyTitle')}</b>
+            <span>{t(unpaidPartner(data) ? 'team.partner.clients.emptyDraft' : 'team.partner.clients.emptyText')}</span>
+            {newClient}
+          </div>
+        ) : (
+          <ClientList
+            data={data}
+            frozen={frozen}
+            invitesWait={unpaidPartner(data)}
+            opening={opening}
+            onOpen={open}
+            onInvite={setInviting}
+            onRelease={setReleasing}
+            onDelete={setDeleting}
+            onSettings={setSettings}
+          />
+        )}
       </Card>
       {creating && (
         <NewClientDialog

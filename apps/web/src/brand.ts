@@ -2,46 +2,70 @@
 // and whether the GitHub star prompt shows. Read before sign-in from GET /v1/branding and kept in
 // localStorage, so the next page load shows the right name and logo at once. Applied to the page
 // itself here (icons, primary color; Workspace.tsx sets the tab title); components read it with useBrand() or brandName().
+// A white-label partner's own screens (its setup and partner area) always show the install's branding, never a partner's
+// (Janik, 2026-11-18): they read it with useInstallBrand(), installBrandName() and BrandMark's `install`.
 import { type Branding, DEFAULT_BRANDING, readableOn } from '@linedesk/actions'
 import { useSyncExternalStore } from 'react'
 
 const STORAGE_KEY = 'linedesk.branding'
+const INSTALL_KEY = 'linedesk.branding.install'
 
-function cached(): Branding | null {
+function cached(key: string): Branding | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(key)
     return raw ? { ...DEFAULT_BRANDING, ...(JSON.parse(raw) as Partial<Branding>) } : null
   } catch {
     return null
   }
 }
 
-let current: Branding = cached() ?? DEFAULT_BRANDING
+let current: Branding = cached(STORAGE_KEY) ?? DEFAULT_BRANDING
+/**
+ * The install's own branding: `current` unless a partner's client workspace is open, then the last one the install
+ * answered with (every page before sign-in gets it), else Linedesk's.
+ */
+let install: Branding = cached(INSTALL_KEY) ?? (current.partner ? DEFAULT_BRANDING : current)
 const listeners = new Set<() => void>()
+const subscribe = (listener: () => void) => {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
 
 /** The product name: "Linedesk" unless an instance admin renamed it. */
 export const brandName = () => current.name
 
 export const useBrand = (): Branding =>
   useSyncExternalStore(
-    listener => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
+    subscribe,
     () => current,
     () => current,
   )
 
+/** The install's name, never a white-label partner's: for a partner's own screens. */
+export const installBrandName = () => install.name
+
+/** The install's branding, never a white-label partner's: for a partner's own screens (its setup, the partner area). */
+export const useInstallBrand = (): Branding =>
+  useSyncExternalStore(
+    subscribe,
+    () => install,
+    () => install,
+  )
+
 /** Makes `next` the branding in effect: stored for the next load, applied to the page, shown by every useBrand(). */
 export function setBrand(next: Branding) {
-  renameInTitle(current.name, next.name)
+  if (typeof document !== 'undefined') renameInTitle(current.name, next.name)
   current = next
+  if (!next.partner) install = next
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    localStorage.setItem(INSTALL_KEY, JSON.stringify(install))
   } catch {
-    // Private mode: the branding is fetched again on the next load.
+    // Private mode (or no storage at all): the branding is fetched again on the next load.
   }
-  applyToPage(next)
+  if (typeof document !== 'undefined') applyToPage(next)
   for (const listener of listeners) listener()
 }
 
@@ -96,12 +120,18 @@ function applyToPage(b: Branding) {
   const icon = tabIcon(b, workspaceIcon)
   setLink('icon', icon.href, icon.type)
   setLink('apple-touch-icon', b.logoUrl ?? DEFAULT_ICONS.apple)
+  // The primary color: --action, and the install's as --install-action for a partner's own screens (.k-install-brand).
   const root = document.documentElement.style
-  if (b.color) {
-    root.setProperty('--action', b.color)
-    root.setProperty('--on-action', readableOn(b.color))
-  } else {
-    root.removeProperty('--action')
-    root.removeProperty('--on-action')
+  for (const [prefix, color] of [
+    ['--', b.color],
+    ['--install-', install.color],
+  ] as const) {
+    if (color) {
+      root.setProperty(`${prefix}action`, color)
+      root.setProperty(`${prefix}on-action`, readableOn(color))
+    } else {
+      root.removeProperty(`${prefix}action`)
+      root.removeProperty(`${prefix}on-action`)
+    }
   }
 }

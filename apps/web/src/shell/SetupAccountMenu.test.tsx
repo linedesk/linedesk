@@ -66,6 +66,12 @@ describe('the account menu in the setup top bar', () => {
     expect(setupMenuSwitches(2, 0)).toBe(true)
     expect(setupMenuSwitches(1, 1)).toBe(true)
   })
+
+  test('outside any workspace (partner area, partner setup) a single workspace is somewhere else to go', () => {
+    expect(setupMenuSwitches(1, 0, false)).toBe(true)
+    expect(setupMenuSwitches(0, 1, false)).toBe(true)
+    expect(setupMenuSwitches(0, 0, false)).toBe(false)
+  })
 })
 
 const probe = { signOut: null as (() => Promise<void>) | null, onSignedOut: vi.fn() }

@@ -24,7 +24,8 @@ import {
 } from './signup.ts'
 import { ExternalLink } from './ui/AppLink.tsx'
 import { AuthError } from './ui/AuthError.tsx'
-import { AuthPage, cx, Spinner } from './ui/kit.tsx'
+import { cx, Spinner } from './ui/kit.tsx'
+import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
 import { loadTurnstile } from './turnstile.ts'
 
 type Step = 'email' | 'code' | 'details'
@@ -60,15 +61,15 @@ export function Signup({
   const partner = params.plan === 'partner'
   if (config === null)
     return (
-      <AuthPage>
+      <SignedInAuthPage>
         <p className="auth-wait">{t('auth.connecting')}</p>
-      </AuthPage>
+      </SignedInAuthPage>
     )
   if (config === 'unreachable')
     return (
-      <AuthPage>
+      <SignedInAuthPage>
         <AuthError message={t('auth.error.server')} />
-      </AuthPage>
+      </SignedInAuthPage>
     )
   if (!config.open) return <Closed />
   if (step === 'email')
@@ -100,7 +101,7 @@ export function Signup({
 function Closed() {
   const t = useT()
   return (
-    <AuthPage>
+    <SignedInAuthPage>
       <div className="auth-card">
         <h1>{t('auth.signup.closedTitle')}</h1>
         <p>{t('auth.signup.closedText')}</p>
@@ -108,7 +109,7 @@ function Closed() {
           {t('auth.signup.toSignIn')}
         </a>
       </div>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 }
 
@@ -116,7 +117,7 @@ function Closed() {
 function NotYet() {
   const t = useT()
   return (
-    <AuthPage>
+    <SignedInAuthPage>
       <div className="auth-card">
         <h1>{t('auth.signup.notYetTitle')}</h1>
         <p>{t('auth.signup.notYetText')}</p>
@@ -124,7 +125,7 @@ function NotYet() {
           {t('auth.signup.toSignIn')}
         </a>
       </div>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 }
 
@@ -228,7 +229,7 @@ export function EmailStep({
   }
 
   return (
-    <AuthPage>
+    <SignedInAuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>{partner ? t('auth.signup.partnerTitle') : t('auth.signup.title')}</h1>
         <p>{partner ? t('auth.signup.partnerLead') : t('auth.signup.intro')}</p>
@@ -260,7 +261,7 @@ export function EmailStep({
           {t('auth.signup.haveAccount')}
         </a>
       </form>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 }
 
@@ -315,7 +316,7 @@ function CodeStep({
   }
 
   return (
-    <AuthPage>
+    <SignedInAuthPage>
       <form
         className="auth-card"
         noValidate
@@ -357,7 +358,7 @@ function CodeStep({
           </button>
         </div>
       </form>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 }
 
@@ -436,7 +437,7 @@ export function DetailsStep({
 
   if (notYet) return <NotYet />
   return (
-    <AuthPage>
+    <SignedInAuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>
           {partner
@@ -508,7 +509,7 @@ export function DetailsStep({
           </button>
         )}
       </form>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 }
 

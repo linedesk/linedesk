@@ -7,7 +7,8 @@ import { type CreatingPhase, CreatingStatus } from './CreatingStatus.tsx'
 import { CountrySelect } from './settings/CountrySelect.tsx'
 import { signOutAndForget } from './localData.ts'
 import { deletedOnPurpose, leftOnPurpose } from './session.ts'
-import { AuthPage, Note, Spinner } from './ui/kit.tsx'
+import { Note, Spinner } from './ui/kit.tsx'
+import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
 
 /** How long "Opening…" may last before the page says to reload. */
 const OPENING_MS = 15_000
@@ -147,7 +148,7 @@ export function CreateWorkspace({
       )}
     </form>
   )
-  return embedded ? form : <AuthPage>{form}</AuthPage>
+  return embedded ? form : <SignedInAuthPage>{form}</SignedInAuthPage>
 }
 
 /** The workspace this browser had open and the member is no longer in: said first, so the page is not a surprise. */

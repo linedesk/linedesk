@@ -130,7 +130,9 @@ export function SettingsLayout<T extends string>(props: Props<T>) {
                 className="nav-item sl-item"
                 onClick={e => showSectionNow(e, sectionHash(page, s.id))}
                 aria-current={s.id === current ? 'page' : undefined}
-                title={s.shortcut ? `${s.label} (${s.shortcut})` : s.label}
+                // A tooltip only when it says more than the label (its key): one repeating the label would cover the
+                // line above the nav on hover (the partner area, 2026-11-18).
+                title={s.shortcut ? `${s.label} (${s.shortcut})` : undefined}
                 data-desc={s.description}
               >
                 <span>{s.label}</span>

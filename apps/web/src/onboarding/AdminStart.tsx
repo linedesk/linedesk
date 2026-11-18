@@ -12,7 +12,8 @@ import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { CreateWorkspace, LostWorkspace } from '../CreateWorkspace.tsx'
 import { signOutAndForget } from '../localData.ts'
-import { AuthPage, Button } from '../ui/kit.tsx'
+import { Button } from '../ui/kit.tsx'
+import { SignedInAuthPage } from '../shell/SignedInAuthPage.tsx'
 import { Loading, LoadProblem, SkeletonFields } from '../ui/LoadStates.tsx'
 import { openAgentSetup } from './AgentSetup.tsx'
 import { installPartsMissing } from './agent-setup-passkey.ts'
@@ -63,7 +64,7 @@ export function AdminStart({
   if (prompting && checkDue) return <SecondFactorPrompt state={checkDue} onExit={() => setPrompting(false)} />
 
   return (
-    <AuthPage>
+    <SignedInAuthPage>
       <div className="auth-card as-start">
         {lostWorkspace && <LostWorkspace name={lostWorkspace} />}
         <h1>{t('onboarding.adminStart.title', { brand: brandName() })}</h1>
@@ -112,7 +113,7 @@ export function AdminStart({
           {t('onboarding.adminStart.otherAccount')}
         </button>
       </div>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 }
 

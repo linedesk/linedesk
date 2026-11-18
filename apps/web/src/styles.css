@@ -7,7 +7,9 @@
      outline buttons, the lightest warm grey with 3:1 on white (WCAG 1.4.11). */
   --line: #e7e4de; --line-control: #99948c; --line-soft: #d8d3cb; /* --line-soft: dashed tiles, spinner tracks, outline badges */
   --ink: #1c1917; --ink-muted: #645d57; --ink-disabled: #a8a29e;
-  --action: #1c1917; --on-action: #fafaf8;
+  /* --install-action: the install's primary color (brand.ts); --action is a white-label partner's in its client workspaces. */
+  --install-action: #1c1917; --install-on-action: #fafaf8;
+  --action: var(--install-action); --on-action: var(--install-on-action);
   --signal: #1c1917; --signal-soft: #f0efeb; --on-signal: #fafaf8;
   --bubble-out: #f3f2ee; --bubble-in: #ffffff; --bubble-caller: #1c1917;
   --info: #4a5f7a; --info-soft: #edf0f4; --read-tick: #4a5f7a; --focus: #1c1917;
@@ -34,6 +36,8 @@ body { background: var(--bg); color: var(--ink); }
 /* Kontor components */
 
 body { margin: 0; font-family: var(--font-sans); background: var(--bg); color: var(--ink); font-size: 14px; line-height: 20px; -webkit-font-smoothing: antialiased; }
+/* A partner's own screens (its setup, the partner area): the install's color, never the partner's (brand.ts). */
+.k-install-brand { --action: var(--install-action); --on-action: var(--install-on-action); }
 .k-icon { display: block; flex: none; }
 
 /* Kbd */

@@ -27,10 +27,10 @@ import './partner-brand.css'
 const DEFAULT_COLOR = '#1c1917'
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-const BRAND_QUERY = (partnerId: string) => `partner.${partnerId}.brand`
-const loadBrand = (partnerId: string) => callAction<PartnerBrandData>('partnerBrand.get', { partnerId })
+export const BRAND_QUERY = (partnerId: string) => `partner.${partnerId}.brand`
+export const loadBrand = (partnerId: string) => callAction<PartnerBrandData>('partnerBrand.get', { partnerId })
 
-type Draft = {
+export type Draft = {
   name: string
   /** As typed (parsedColor). */
   color: string
@@ -41,7 +41,7 @@ type Draft = {
   privacyUrl: string
 }
 
-const draftOf = (data: PartnerBrandData, fallbackName: string): Draft => ({
+export const draftOf = (data: PartnerBrandData, fallbackName: string): Draft => ({
   name: data.brand?.name ?? fallbackName,
   color: data.brand?.color ?? '',
   logo: undefined,
@@ -78,7 +78,7 @@ export function inputOf(partnerId: string, draft: Draft): PartnerBrandInput {
 }
 
 // i18n-dynamic: team.partner.brand.error.*
-function brandErrorText(err: unknown, t: ReturnType<typeof useT>) {
+export function brandErrorText(err: unknown, t: ReturnType<typeof useT>) {
   const code = (err as { code?: string }).code
   if (code && (PARTNER_BRAND_CODES as readonly string[]).includes(code))
     return t(`team.partner.brand.error.${code}` as MessageKey)
@@ -128,14 +128,12 @@ function ReviewNote({ data }: { data: PartnerBrandData }) {
     )
   }
   if (data.emails.active) return <Note tone="info">{t('team.partner.brand.emailsActive')}</Note>
-  return (
-    <Note tone="info">
-      {!data.emails.approved ? t('team.partner.brand.emailsAfterApproval') : t('team.partner.brand.emailsAfterPayment')}
-    </Note>
-  )
+  // Waiting for approval is said quietly above the form (ApprovalLine), never as a note.
+  if (!data.emails.approved) return null
+  return <Note tone="info">{t('team.partner.brand.emailsAfterPayment')}</Note>
 }
 
-function BrandForm({
+export function BrandForm({
   partnerId,
   partnerName,
   data,
@@ -190,6 +188,8 @@ function BrandForm({
   return (
     <form className="pb-form" onSubmit={save} onKeyDown={e => onSaveKey(e, dirty && !invalid && !saving && !readOnly)}>
       {readOnly && <Note tone="neutral">{t('team.partner.brand.ownerOnly')}</Note>}
+      {/* Approval only gates the brand in emails (and, once available, the own domain): one quiet line, here only. */}
+      {!data.emails.approved && <p className="pb-muted">{t('team.partner.approvalPending')}</p>}
       <ReviewNote data={data} />
       <Card
         title={t('team.partner.brand.title')}
@@ -273,7 +273,7 @@ function BrandForm({
   )
 }
 
-function LogoField({
+export function LogoField({
   logo,
   hasSaved,
   readOnly,
@@ -363,19 +363,6 @@ function Previews({
       }
     : change
   const logo = now ? approved.logoUrl : changeLogo
-  const name = draft.name.trim() || DEFAULT_PRODUCT_NAME
-  const color = parsedColor(draft.color) ?? DEFAULT_COLOR
-  const button = { background: color, color: readableOn(color) }
-  const mark = (
-    <span className={logo ? 'ws-mark is-logo' : 'ws-mark'} aria-hidden="true">
-      {logo ? <img src={logo} alt="" /> : <LogoMark />}
-    </span>
-  )
-  const links = [
-    draft.supportEmail.trim() && t('common.legal.help'),
-    draft.termsUrl.trim() && t('common.legal.terms'),
-    draft.privacyUrl.trim() && t('common.legal.privacy'),
-  ].filter(Boolean)
   return (
     <Card
       title={t('admin.branding.preview')}
@@ -397,43 +384,84 @@ function Previews({
       }
     >
       <div className="pb-previews">
-        <section className="pb-preview" aria-label={t('team.partner.brand.previewSignIn')}>
-          <p className="pb-preview-label">{t('team.partner.brand.previewSignIn')}</p>
-          <div className="pb-signin">
-            <div className="pb-head">
-              {mark}
-              <b>{name}</b>
-            </div>
-            <p className="pb-heading">{t('team.partner.brand.sampleSignIn', { brand: name })}</p>
-            <span className="pb-field" />
-            <span className="k-btn k-btn-sm pb-sample" style={button}>
-              {t('team.partner.brand.sampleContinue')}
-            </span>
-            {links.length > 0 && <p className="pb-links">{links.join(' · ')}</p>}
-          </div>
-        </section>
-        <section className="pb-preview" aria-label={t('team.partner.brand.previewEmail')}>
-          <p className="pb-preview-label">{t('team.partner.brand.previewEmail')}</p>
-          <div className="pb-email">
-            <div className="pb-head">
-              {mark}
-              <b>{name}</b>
-            </div>
-            <div className="pb-email-card">
-              <p className="pb-heading">{t('team.partner.brand.sampleEmailHeading')}</p>
-              <p className="pb-muted">{t('team.partner.brand.sampleEmailText')}</p>
-              <span className="k-btn k-btn-sm pb-sample" style={button}>
-                {t('team.partner.brand.sampleEmailButton')}
-              </span>
-            </div>
-            <p className="pb-links">
-              {draft.supportEmail.trim()
-                ? t('team.partner.brand.sampleReplyTo', { brand: name, email: draft.supportEmail.trim() })
-                : name}
-            </p>
-          </div>
-        </section>
+        <SignInSample draft={draft} logo={logo} />
+        <EmailSample draft={draft} logo={logo} />
       </div>
     </Card>
+  )
+}
+
+/** How the brand looks to a client: its name (or the default product name), its color on a button and its mark. */
+function sampleLook(draft: Pick<Draft, 'name' | 'color'>, logo: string | null) {
+  const name = draft.name.trim() || DEFAULT_PRODUCT_NAME
+  const color = parsedColor(draft.color) ?? DEFAULT_COLOR
+  const mark = (
+    <span className={logo ? 'ws-mark is-logo' : 'ws-mark'} aria-hidden="true">
+      {logo ? <img src={logo} alt="" /> : <LogoMark />}
+    </span>
+  )
+  return { name, button: { background: color, color: readableOn(color) }, mark }
+}
+
+/** The sign-in page as the partner's clients see it with this brand. */
+export function SignInSample({ draft, logo }: { draft: Draft; logo: string | null }) {
+  const t = useT()
+  const { name, button, mark } = sampleLook(draft, logo)
+  const links = [
+    draft.supportEmail.trim() && t('common.legal.help'),
+    draft.termsUrl.trim() && t('common.legal.terms'),
+    draft.privacyUrl.trim() && t('common.legal.privacy'),
+  ].filter(Boolean)
+  return (
+    <section className="pb-preview" aria-label={t('team.partner.brand.previewSignIn')}>
+      <p className="pb-preview-label">{t('team.partner.brand.previewSignIn')}</p>
+      <div className="pb-signin">
+        <div className="pb-head">
+          {mark}
+          <b>{name}</b>
+        </div>
+        <p className="pb-heading">{t('team.partner.brand.sampleSignIn', { brand: name })}</p>
+        <span className="pb-field" />
+        <span className="k-btn k-btn-sm pb-sample" style={button}>
+          {t('team.partner.brand.sampleContinue')}
+        </span>
+        {links.length > 0 && <p className="pb-links">{links.join(' · ')}</p>}
+      </div>
+    </section>
+  )
+}
+
+/** A call email as the partner's clients get it with this brand. */
+export function EmailSample({
+  draft,
+  logo,
+}: {
+  draft: Pick<Draft, 'name' | 'color' | 'supportEmail'>
+  logo: string | null
+}) {
+  const t = useT()
+  const { name, button, mark } = sampleLook(draft, logo)
+  return (
+    <section className="pb-preview" aria-label={t('team.partner.brand.previewEmail')}>
+      <p className="pb-preview-label">{t('team.partner.brand.previewEmail')}</p>
+      <div className="pb-email">
+        <div className="pb-head">
+          {mark}
+          <b>{name}</b>
+        </div>
+        <div className="pb-email-card">
+          <p className="pb-heading">{t('team.partner.brand.sampleEmailHeading')}</p>
+          <p className="pb-muted">{t('team.partner.brand.sampleEmailText')}</p>
+          <span className="k-btn k-btn-sm pb-sample" style={button}>
+            {t('team.partner.brand.sampleEmailButton')}
+          </span>
+        </div>
+        <p className="pb-links">
+          {draft.supportEmail.trim()
+            ? t('team.partner.brand.sampleReplyTo', { brand: name, email: draft.supportEmail.trim() })
+            : name}
+        </p>
+      </div>
+    </section>
   )
 }

@@ -109,8 +109,6 @@
   "agentSetup.partner.group": "Cuenta de partner",
   "agentSetup.partner.lede": "Tu agente configura tu cuenta de partner contigo: tu empresa, tu marca, tu equipo y luego el negocio, el asistente y las notificaciones de cada cliente. <b>Unos 10 minutos para ti, algunos más por cliente.</b> Los clientes y los números los agregas tú, porque cuestan dinero.",
   "agentSetup.partner.linkHelp": "Permite que tu agente configure este partner y sus espacios de trabajo de clientes por ti, usando solo herramientas de configuración: nunca tu factura, otro partner ni el servidor. Por seguridad, el enlace deja de funcionar después de {hours, plural, one {# hora} many {# horas} other {# horas}}. Puedes terminarlo aquí en cualquier momento.",
-  "agentSetup.partner.manual": "Configurar a mano en el área de partner",
-  "agentSetup.partner.manualTitle": "Abre el área de partner y configúrala tú mismo",
   "agentSetup.partner.newClient": "Nuevo espacio de trabajo de cliente…",
   "agentSetup.partner.newClientDescription": "Suma un puesto a tu factura de partner",
   "agentSetup.partner.signInFirst": "Un enlace de configuración permite que tu agente cambie este partner y sus espacios de trabajo de clientes durante {hours, plural, one {# hora} many {# horas} other {# horas}}, así que para crear uno necesitas haber iniciado sesión en los últimos 10 minutos. Vuelve a iniciar sesión y luego crea el enlace.",

@@ -28,7 +28,8 @@ import { passkeyAddCancelled } from '../settings/account/add-passkey.ts'
 import { AUTHENTICATOR_HOURS, authenticatorErrorText } from '../settings/account/authenticator.tsx'
 import { passkeyNotVerifiedText } from '../sign-in-code.ts'
 import { AuthError } from '../ui/AuthError.tsx'
-import { AuthPage, cx, Spinner } from '../ui/kit.tsx'
+import { cx, Spinner } from '../ui/kit.tsx'
+import { SignedInAuthPage } from '../shell/SignedInAuthPage.tsx'
 import { NO_PASSWORD_MANAGER } from '../ui/passwordManager.ts'
 import { runAdminOnce } from './api.ts'
 
@@ -168,7 +169,7 @@ function PasskeyGate({ state, onExit, hasAuthenticator }: GateProps) {
   if (mode === 'addHere') return <AddPasskeyHere />
   if (appMode)
     return (
-      <AuthPage>
+      <SignedInAuthPage>
         <div className="auth-card" role="main" aria-label={t('account.authenticator.title')}>
           <h1>{t('account.authenticator.title')}</h1>
           <p className="auth-why">{t('account.authenticator.checkWhy', { hours: AUTHENTICATOR_HOURS })}</p>
@@ -197,10 +198,10 @@ function PasskeyGate({ state, onExit, hasAuthenticator }: GateProps) {
             {t('account.authenticator.back')}
           </button>
         </div>
-      </AuthPage>
+      </SignedInAuthPage>
     )
   return (
-    <AuthPage>
+    <SignedInAuthPage>
       <div className="auth-card" role="main" aria-label={text.title}>
         <h1>{text.title}</h1>
         <p className="auth-why">{text.why}</p>
@@ -278,7 +279,7 @@ function PasskeyGate({ state, onExit, hasAuthenticator }: GateProps) {
           {t('admin.secondFactor.back')}
         </button>
       </div>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 }
 
@@ -362,7 +363,7 @@ function AddPasskeyHere() {
     }
   }
   return (
-    <AuthPage>
+    <SignedInAuthPage>
       <div className="auth-card" role="main" aria-label={t('account.authenticator.addHereTitle')}>
         <h1>{t('account.authenticator.addHereTitle')}</h1>
         <p className="auth-why">{t('account.authenticator.addHereWhy')}</p>
@@ -389,7 +390,7 @@ function AddPasskeyHere() {
           {t('account.authenticator.notNow')}
         </button>
       </div>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 }
 

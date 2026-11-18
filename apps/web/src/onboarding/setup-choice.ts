@@ -70,6 +70,11 @@ export function ownerAgentSetupDue(
 // (#partner/agent, a setup link for the partner and its client workspaces); "Set up by hand" opens the partner area and
 // is kept per partner in this browser, as a workspace owner's choice is.
 export const PARTNER_AGENT_HASH = '#partner/agent'
+/**
+ * The owner's guided setup by hand (PartnerSetup.tsx): their agency's brand, the first client workspace and White-label
+ * Cloud's Checkout, one full-screen step at a time; `#partner/setup/<step>` opens a step.
+ */
+export const PARTNER_SETUP_HASH = '#partner/setup'
 const PARTNER_BY_HAND = 'linedesk.partnerSetup.byHand.'
 
 /** Whether this partner's owner chose the partner area by hand in this browser. */

@@ -3,7 +3,14 @@
 // redirect (a provider) comes back to this same URL, so the flow picks up where it was.
 import type { InvitationPreview } from '@linedesk/actions'
 import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from 'react'
-import { type AuthMethods, auth, fetchAuthMethods, passkeySupported, requestSignInCode, signInWithPasskey } from '../auth.ts'
+import {
+  type AuthMethods,
+  auth,
+  fetchAuthMethods,
+  passkeySupported,
+  requestSignInCode,
+  signInWithPasskey,
+} from '../auth.ts'
 import { ConfirmEmail } from '../ConfirmEmail.tsx'
 import { signOutAndForget } from '../localData.ts'
 import { CodeStep } from '../Login.tsx'
@@ -12,7 +19,7 @@ import { rememberSignInMethod, startRedirectSignIn, takeRedirectSignIn } from '.
 import { previewInvitation } from './team-api.ts'
 import { AuthError } from '../ui/AuthError.tsx'
 import { ProviderButton } from '../ui/brand-logos.tsx'
-import { AuthPage } from '../ui/kit.tsx'
+import { SignedInAuthPage } from '../shell/SignedInAuthPage.tsx'
 import { brandName } from '../brand.ts'
 import { useT } from '@linedesk/i18n/react'
 
@@ -34,7 +41,14 @@ const fail = (res: Result) => {
 const here = () => window.location.href
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
-  return <AuthPage><div className="auth-card"><h1>{title}</h1>{children}</div></AuthPage>
+  return (
+    <SignedInAuthPage>
+      <div className="auth-card">
+        <h1>{title}</h1>
+        {children}
+      </div>
+    </SignedInAuthPage>
+  )
 }
 
 export function AcceptInvite({ invitationId, onDone }: { invitationId: string; onDone: () => void }) {
@@ -80,27 +94,51 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
   }
 
   const errorLine = error && <AuthError message={error} />
-  if (!invite || account === undefined || !methods) return <AuthPage>{errorLine}</AuthPage>
+  if (!invite || account === undefined || !methods) return <SignedInAuthPage>{errorLine}</SignedInAuthPage>
   if (invite.status !== 'pending') {
     return (
       <Card title={invite.status === 'expired' ? t('team.invite.expired') : t('team.invite.invalid')}>
         <p>{t('team.invite.askAgain')}</p>
-        <button type="button" className="k-btn k-btn-secondary" onClick={onDone}>{t('team.invite.continueTo', { brand: brandName() })}</button>
+        <button type="button" className="k-btn k-btn-secondary" onClick={onDone}>
+          {t('team.invite.continueTo', { brand: brandName() })}
+        </button>
       </Card>
     )
   }
   const lead = (
     <p>
-      {t('team.invite.lead', { inviter: invite.invitedBy || t('team.invite.aTeammate'), email: invite.email, role: invite.role })}
+      {t('team.invite.lead', {
+        inviter: invite.invitedBy || t('team.invite.aTeammate'),
+        email: invite.email,
+        role: invite.role,
+      })}
     </p>
   )
   const title = t('team.invite.join', { workspace: invite.workspaceName })
 
-  if (!account && codeSent) return <CodeStep email={invite.email} supportEmail={methods.links.supportEmail} invited onDone={afterSignIn} onDifferentEmail={() => setCodeSent(false)} />
+  if (!account && codeSent)
+    return (
+      <CodeStep
+        email={invite.email}
+        supportEmail={methods.links.supportEmail}
+        invited
+        onDone={afterSignIn}
+        onDifferentEmail={() => setCodeSent(false)}
+      />
+    )
   if (!account) {
     return (
-      <SignInForInvite title={title} lead={lead} email={invite.email} methods={methods} busy={busy} error={errorLine} attempt={attempt}
-        onCodeSent={() => setCodeSent(true)} onSignedIn={afterSignIn} />
+      <SignInForInvite
+        title={title}
+        lead={lead}
+        email={invite.email}
+        methods={methods}
+        busy={busy}
+        error={errorLine}
+        attempt={attempt}
+        onCodeSent={() => setCodeSent(true)}
+        onSignedIn={afterSignIn}
+      />
     )
   }
   if (account.email.toLowerCase() !== invite.email.toLowerCase()) {
@@ -109,8 +147,23 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
         {lead}
         <p>{t('team.invite.otherAccount', { current: account.email, invited: invite.email })}</p>
         {errorLine}
-        <button type="button" className="k-btn k-btn-primary" disabled={busy} autoFocus onClick={() => attempt(async () => { await signOutAndForget(); await loadAccount() })}>{t('team.invite.signOutContinue')}</button>
-        <button type="button" className="auth-switch" onClick={onDone}>{t('team.invite.notNow')}</button>
+        <button
+          type="button"
+          className="k-btn k-btn-primary"
+          disabled={busy}
+          autoFocus
+          onClick={() =>
+            attempt(async () => {
+              await signOutAndForget()
+              await loadAccount()
+            })
+          }
+        >
+          {t('team.invite.signOutContinue')}
+        </button>
+        <button type="button" className="auth-switch" onClick={onDone}>
+          {t('team.invite.notNow')}
+        </button>
       </Card>
     )
   }
@@ -118,8 +171,13 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
     return (
       <Card title={title}>
         {errorLine}
-        <ConfirmEmail email={invite.email} onDone={async () => { await loadAccount() }}
-          why={t('team.invite.confirmWhy', { workspace: invite.workspaceName, email: invite.email })} />
+        <ConfirmEmail
+          email={invite.email}
+          onDone={async () => {
+            await loadAccount()
+          }}
+          why={t('team.invite.confirmWhy', { workspace: invite.workspaceName, email: invite.email })}
+        />
       </Card>
     )
   }
@@ -127,18 +185,37 @@ export function AcceptInvite({ invitationId, onDone }: { invitationId: string; o
     <Card title={title}>
       {lead}
       {errorLine}
-      <button type="button" className="k-btn k-btn-primary" disabled={busy} autoFocus onClick={() => attempt(async () => {
-        fail(await auth.organization.acceptInvitation({ invitationId }))
-        onDone()
-      })}>{t('team.invite.join', { workspace: invite.workspaceName })}</button>
-      <button type="button" className="auth-switch" onClick={onDone}>{t('team.invite.notNow')}</button>
+      <button
+        type="button"
+        className="k-btn k-btn-primary"
+        disabled={busy}
+        autoFocus
+        onClick={() =>
+          attempt(async () => {
+            fail(await auth.organization.acceptInvitation({ invitationId }))
+            onDone()
+          })
+        }
+      >
+        {t('team.invite.join', { workspace: invite.workspaceName })}
+      </button>
+      <button type="button" className="auth-switch" onClick={onDone}>
+        {t('team.invite.notNow')}
+      </button>
     </Card>
   )
 }
 
 type SignInProps = {
-  title: string; lead: ReactNode; email: string; methods: AuthMethods; busy: boolean; error: ReactNode
-  attempt: (work: () => Promise<void>) => Promise<void>; onCodeSent: () => void; onSignedIn: () => Promise<void>
+  title: string
+  lead: ReactNode
+  email: string
+  methods: AuthMethods
+  busy: boolean
+  error: ReactNode
+  attempt: (work: () => Promise<void>) => Promise<void>
+  onCodeSent: () => void
+  onSignedIn: () => Promise<void>
 }
 
 /** Signed out: the invited address is fixed; any method this install offers works. */
@@ -161,50 +238,97 @@ function SignInForInvite({ title, lead, email, methods, busy, error, attempt, on
   }
 
   return (
-    <AuthPage>
+    <SignedInAuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
         <h1>{title}</h1>
         {lead}
         {/* The account's name for password managers: the password below fills and saves for this address. */}
-        <label>{t('auth.email')}<input type="email" name="username" autoComplete="username" value={email} readOnly /></label>
+        <label>
+          {t('auth.email')}
+          <input type="email" name="username" autoComplete="username" value={email} readOnly />
+        </label>
         {mode === 'choose' && (
           <>
             {methods.emailCode && (
-              <button type="button" className="k-btn k-btn-primary" disabled={busy} autoFocus onClick={() => attempt(async () => {
-                fail(await requestSignInCode(email))
-                onCodeSent()
-              })}>{t('auth.confirm.send')}</button>
+              <button
+                type="button"
+                className="k-btn k-btn-primary"
+                disabled={busy}
+                autoFocus
+                onClick={() =>
+                  attempt(async () => {
+                    fail(await requestSignInCode(email))
+                    onCodeSent()
+                  })
+                }
+              >
+                {t('auth.confirm.send')}
+              </button>
             )}
             {/* Someone who already has an account with a passkey: in with it (another account's is caught below). */}
             {methods.passkey && passkeySupported() && (
-              <ProviderButton method="passkey" label={t('auth.method.passkey')} lastUsed={false} disabled={busy}
-                onClick={() => attempt(async () => {
-                  fail(await signInWithPasskey())
-                  rememberSignInMethod('passkey')
-                  await onSignedIn()
-                })} />
+              <ProviderButton
+                method="passkey"
+                label={t('auth.method.passkey')}
+                lastUsed={false}
+                disabled={busy}
+                onClick={() =>
+                  attempt(async () => {
+                    fail(await signInWithPasskey())
+                    rememberSignInMethod('passkey')
+                    await onSignedIn()
+                  })
+                }
+              />
             )}
             {methods.sso.map(m => (
-              <ProviderButton key={m.id} method={m.id} label={m.label} lastUsed={false} disabled={busy}
-                onClick={() => attempt(async () => {
-                  // Counted as a sign-in only once it comes back with a session (loadAccount).
-                  startRedirectSignIn(m.id)
-                  fail(await auth.signIn.social({ provider: m.id, ...back }))
-                })} />
+              <ProviderButton
+                key={m.id}
+                method={m.id}
+                label={m.label}
+                lastUsed={false}
+                disabled={busy}
+                onClick={() =>
+                  attempt(async () => {
+                    // Counted as a sign-in only once it comes back with a session (loadAccount).
+                    startRedirectSignIn(m.id)
+                    fail(await auth.signIn.social({ provider: m.id, ...back }))
+                  })
+                }
+              />
             ))}
-            {methods.password && <button type="button" className="auth-switch" onClick={() => setMode('signIn')}>{t('team.invite.havePassword')}</button>}
+            {methods.password && (
+              <button type="button" className="auth-switch" onClick={() => setMode('signIn')}>
+                {t('team.invite.havePassword')}
+              </button>
+            )}
           </>
         )}
         {mode !== 'choose' && (
           <>
-            <label>{t('auth.method.password')}<input required type="password" name="password" minLength={8} value={form.password} autoFocus autoComplete="current-password"
-              onChange={e => setForm(f => ({ ...f, password: e.target.value }))} /></label>
-            <button type="submit" className="k-btn k-btn-primary" disabled={busy}>{t('auth.signIn')}</button>
-            <button type="button" className="auth-switch" onClick={() => setMode('choose')}>{t('team.invite.otherWays')}</button>
+            <label>
+              {t('auth.method.password')}
+              <input
+                required
+                type="password"
+                name="password"
+                minLength={8}
+                value={form.password}
+                autoFocus
+                autoComplete="current-password"
+                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+              />
+            </label>
+            <button type="submit" className="k-btn k-btn-primary" disabled={busy}>
+              {t('auth.signIn')}
+            </button>
+            <button type="button" className="auth-switch" onClick={() => setMode('choose')}>
+              {t('team.invite.otherWays')}
+            </button>
           </>
         )}
         {error}
       </form>
-    </AuthPage>
+    </SignedInAuthPage>
   )
 }

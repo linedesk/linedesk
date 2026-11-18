@@ -233,3 +233,50 @@
   display: block;
   width: var(--control-h-sm);
 }
+/* The partner area's top bar (PartnerArea.tsx): the mark, the partner's name and "Partner", then the AI agent and the
+   account menu at the end, as on the setup screens. */
+.pa-bar .ws-mark {
+  margin: 0;
+}
+.pa-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pa-kind {
+  font-size: 12px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.pa-grow {
+  flex: 1;
+}
+.pa-fine {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.pa-empty {
+  padding: 32px 16px;
+}
+@media (max-width: 719px) {
+  .pa-kind {
+    display: none;
+  }
+  /* The agent button keeps its icon; its words would push the account menu off a phone's top bar. */
+  .pa-bar .pa-agent > span {
+    display: none;
+  }
+}
+.pa-activate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+.pa-activate .pa-fine {
+  flex: 1 1 280px;
+}

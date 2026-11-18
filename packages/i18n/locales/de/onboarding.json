@@ -109,8 +109,6 @@
   "agentSetup.partner.group": "Partnerkonto",
   "agentSetup.partner.lede": "Dein Agent richtet dein Partnerkonto mit dir ein: dein Unternehmen, deine Marke, dein Team, dann für jeden Kunden das Unternehmen, den Assistenten und die Benachrichtigungen. <b>Etwa 10 Minuten für dich, ein paar mehr pro Kunde.</b> Kunden und Nummern fügst du selbst hinzu, da sie Geld kosten.",
   "agentSetup.partner.linkHelp": "Damit kann dein Agent diesen Partner und seine Kunden-Workspaces für dich einrichten, nur mit Einrichtungs-Tools: nie deine Abrechnung, einen anderen Partner oder den Server. Aus Sicherheitsgründen funktioniert der Link nach {hours, plural, one {# Stunde} other {# Stunden}} nicht mehr. Du kannst ihn hier jederzeit beenden.",
-  "agentSetup.partner.manual": "Selbst im Partnerbereich einrichten",
-  "agentSetup.partner.manualTitle": "Den Partnerbereich öffnen und selbst einrichten",
   "agentSetup.partner.newClient": "Neuer Kunden-Workspace…",
   "agentSetup.partner.newClientDescription": "Ein weiterer Platz in deiner Partner-Abrechnung",
   "agentSetup.partner.signInFirst": "Mit einem Einrichtungslink kann dein Agent diesen Partner und seine Kunden-Workspaces {hours, plural, one {# Stunde} other {# Stunden}} lang ändern. Um einen zu erstellen, musst du dich daher in den letzten 10 Minuten angemeldet haben. Melde dich erneut an und erstelle dann den Link.",
