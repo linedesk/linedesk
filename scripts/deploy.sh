@@ -10,7 +10,8 @@
 # local), the images are built here as before.
 #
 # 1. Build (or pull) while the old version serves.
-# 2. api, then web: when the image or the service's settings changed, start a new container next to the
+# 2. api and web (checked at the same time; web's new container starts once the new API serves): when the
+#    image or the service's settings changed, start a new container next to the
 #    old one, wait until it is healthy (the proxy already sends requests to both and retries a request
 #    on the other one when a container is not reachable), then stop the old one. The new API applies
 #    the database migrations once when it starts, while the old API still serves: migrations must work
@@ -115,9 +116,21 @@ pull_prebuilt() {
   log "pulling the images of $tag from $prebuilt_registry (the running version keeps serving)"
   DOCKER_CONFIG=$docker_config docker login --username "$prebuilt_user" --password-stdin "${prebuilt_registry%%/*}" \
     <<<"$prebuilt_token" >/dev/null
+  # All images at once (they share layers, which Docker fetches once); named only when every pull worked.
+  local pids=() services=() i failed=''
+  for service in $prebuilt_services; do
+    DOCKER_CONFIG=$docker_config docker pull -q "$prebuilt_registry/linedesk-$service:$tag" </dev/null >/dev/null &
+    pids+=($!) services+=("$service")
+  done
+  for i in "${!pids[@]}"; do
+    wait "${pids[$i]}" || failed+=" ${services[$i]}"
+  done
+  if [ -n "$failed" ]; then
+    log "pulling failed for:$failed. Not deploying; the running version keeps serving." >&2
+    exit 1
+  fi
   for service in $prebuilt_services; do
     image="$prebuilt_registry/linedesk-$service:$tag"
-    DOCKER_CONFIG=$docker_config docker pull -q "$image" >/dev/null
     docker tag "$image" "linedesk-$service"
     docker rmi "$image" >/dev/null # only the registry name; the image stays as linedesk-$service
   done
@@ -152,9 +165,34 @@ clean_up() {
   log "free disk: $(docker_free_mb) MB"
 }
 
-# Running containers of a service, one id per line.
+# Running containers of a service, one id per line, newest first. What `docker compose ps -q` lists, asked of
+# Docker by compose's labels: each `docker compose` call reads the whole project (about 0.6 s on a small server),
+# this takes 0.1 s, and the deploy asks it many times. PROJECT and SERVICES are set once, before the update.
 containers_of() {
-  docker compose ps -q "$1"
+  docker ps -q --no-trunc --filter "label=com.docker.compose.project=$PROJECT" \
+    --filter "label=com.docker.compose.service=$1" --filter label=com.docker.compose.oneoff=False
+}
+
+# Of the services given, the ones whose running container `docker compose up` would recreate (new image or
+# settings), one per line: one dry run for all of them, as each `docker compose` call costs about a second.
+would_recreate() {
+  [ $# -gt 0 ] || return 0
+  local plan service container name
+  if ! plan=$(docker compose up --dry-run -d --no-build --no-deps "$@" 2>&1); then
+    echo "$plan" >&2
+    return 1
+  fi
+  for service in "$@"; do
+    for container in $(containers_of "$service"); do
+      name=$(docker inspect -f '{{.Name}}' "$container")
+      # A line "Container <name> Recreate" (older versions put "DRY-RUN MODE - " in front).
+      if awk -v name="${name#/}" '/Recreate/ { for (i = 1; i <= NF; i++) if ($i == name) found = 1 }
+        END { exit !found }' <<<"$plan"; then
+        echo "$service"
+        break
+      fi
+    done
+  done
 }
 
 # True when the service's (first) running container runs the newest build of its image with the current
@@ -189,18 +227,46 @@ wait_healthy() {
   return 1
 }
 
+# Rolls of api and web run at the same time (scripts/deploy.sh's main part): a roll marks its service ready in
+# READY_DIR once the new version serves (or nothing changed), and a roll that must come after it waits for that.
+mark_ready() { [ -z "${READY_DIR:-}" ] || touch "$READY_DIR/$1.ready"; }
+
+# Waits until the roll of $1 (the job $2, which writes its exit status to READY_DIR/$1.exit) marked it ready;
+# fails when that roll ended without (also when it was killed and wrote nothing) or took far longer than its
+# health timeout.
+wait_ready() {
+  local deadline=$((SECONDS + HEALTH_TIMEOUT + 300))
+  until [ -e "$READY_DIR/$1.ready" ]; do
+    if [ -e "$READY_DIR/$1.exit" ] || ! kill -0 "$2" 2>/dev/null || [ $SECONDS -ge $deadline ]; then
+      [ -e "$READY_DIR/$1.ready" ] || return 1
+    fi
+    sleep 0.2
+  done
+}
+
 # Start-first replacement of one service: the old containers keep running until the new one is healthy.
+# With a second and third argument (a service and the pid of its roll), the new container starts only once that
+# service's roll marked it ready (wait_ready).
 roll() {
-  local service=$1 old new count
+  local service=$1 after=${2:-} after_job=${3:-} old new count
   old=$(containers_of "$service")
   count=$(echo "$old" | grep -c . || true)
+  if [ "$count" -eq 1 ] && is_current "$service"; then
+    log "$service: unchanged"
+    mark_ready "$service"
+    return
+  fi
+  if [ -n "$after" ]; then
+    [ -e "$READY_DIR/$after.ready" ] || log "$service: changed; its new container starts once $after is updated or found unchanged"
+    if ! wait_ready "$after" "$after_job"; then
+      log "$service: not updated, as $after's update failed; the old version keeps serving" >&2
+      exit 1
+    fi
+  fi
   if [ "$count" -eq 0 ]; then
     log "$service: not running; starting it"
     docker compose up -d --no-build --no-deps "$service"
-    return
-  fi
-  if [ "$count" -eq 1 ] && is_current "$service"; then
-    log "$service: unchanged"
+    mark_ready "$service"
     return
   fi
   log "$service: starting a new container next to the $count running"
@@ -212,6 +278,7 @@ roll() {
     docker rm -f "$new" >/dev/null
     exit 1
   fi
+  mark_ready "$service"
   if [ "$service" = agent ]; then
     # A call may run for up to 2 hours (one put through to a person), so the update does not wait for the
     # old agent: it drains in the background and Docker removes it once its calls are over.
@@ -244,7 +311,7 @@ QUIET_WAIT=${LINEDESK_DEPLOY_QUIET_WAIT:-1800} # seconds to wait for no live cal
 
 # The call services this stack runs (livekit-egress only with the recording profile), one per line.
 call_services() {
-  docker compose config --services | grep -xF "${CALL_SERVICES[@]/#/-e}" || true
+  grep -xF "${CALL_SERVICES[@]/#/-e}" <<<"$SERVICES" || true
 }
 
 # Calls in progress (empty when the database cannot be asked, which counts as busy).
@@ -288,25 +355,29 @@ check_sip_setup() {
   fi
 }
 
-# Recreates the call services that changed, at a moment without live calls. LINEDESK_DEPLOY_DROP_CALLS=1
-# does it at once (e.g. an urgent security update). Gives up after QUIET_WAIT; the next deploy tries again.
 # The call services that are running but would be recreated (new image or settings), one per line.
 changed_call_services() {
-  local service
+  local service running=()
   for service in $(call_services); do
-    [ -n "$(containers_of "$service")" ] || continue
-    grep -q Recreate <<<"$(docker compose up --dry-run -d --no-build --no-deps "$service" 2>&1)" && echo "$service"
+    [ -z "$(containers_of "$service")" ] || running+=("$service")
   done
-  return 0
+  [ ${#running[@]} -eq 0 ] || would_recreate "${running[@]}"
 }
 
+# Recreates the call services that changed, at a moment without live calls. LINEDESK_DEPLOY_DROP_CALLS=1
+# does it at once (e.g. an urgent security update). Gives up after QUIET_WAIT; the next deploy tries again.
 update_call_services() {
-  local service changed=() missing=() again=() calls deadline=$((SECONDS + QUIET_WAIT))
+  local service plan changed=() missing=() again=() calls deadline=$((SECONDS + QUIET_WAIT))
   for service in $(call_services); do
     [ -n "$(containers_of "$service")" ] || missing+=("$service")
   done
   [ ${#missing[@]} -eq 0 ] || docker compose up -d --no-build --no-deps "${missing[@]}"
-  read -r -a changed <<<"$(changed_call_services | tr '\n' ' ')"
+  if ! plan=$(changed_call_services); then
+    log "call services: could not check them for changes (docker compose dry run failed, above); left as they are. The next deploy tries again."
+    CALL_SERVICES_PENDING=1
+    return
+  fi
+  read -r -a changed <<<"$(tr '\n' ' ' <<<"$plan")"
   if [ ${#changed[@]} -eq 0 ]; then
     log "call services: unchanged"
     return
@@ -330,7 +401,13 @@ update_call_services() {
   log "call services: recreating ${changed[*]}"
   docker compose up -d --no-build --no-deps "${changed[@]}"
   # livekit-sip and livekit-egress run in livekit's network: a new livekit container needs them recreated too.
-  read -r -a again <<<"$(changed_call_services | tr '\n' ' ')"
+  if ! plan=$(changed_call_services); then
+    log "call services: could not check the ones that depend on what was just recreated (docker compose dry run failed, above). Check livekit-sip and livekit-egress; the next deploy tries again."
+    CALL_SERVICES_PENDING=1
+    check_sip_setup "$sip_before"
+    return
+  fi
+  read -r -a again <<<"$(tr '\n' ' ' <<<"$plan")"
   if [ ${#again[@]} -gt 0 ]; then
     log "call services: recreating ${again[*]} (they depend on what was just recreated)"
     docker compose up -d --no-build --no-deps "${again[@]}"
@@ -339,7 +416,7 @@ update_call_services() {
 }
 
 others() {
-  docker compose config --services | grep -vxF "${ROLLED[@]/#/-e}" "${CALL_SERVICES[@]/#/-e}" || true
+  grep -vxF "${ROLLED[@]/#/-e}" "${CALL_SERVICES[@]/#/-e}" <<<"$SERVICES" || true
 }
 
 # The proxy cannot run twice (it owns the published port), so a new Caddyfile is reloaded in place.
@@ -385,17 +462,44 @@ elif [ "${1:-}" != --no-build ]; then
   BUILDX_NO_DEFAULT_ATTESTATIONS=1 docker compose build
 fi
 
-if [ -z "$(docker compose ps -q api)" ]; then
+running_api=$(docker compose ps -q api)
+running_api=${running_api%%$'\n'*} # the first one; no `| head -1`, which pipefail can fail with SIGPIPE
+if [ -z "$running_api" ]; then
   log "nothing running yet: starting the stack"
   [ -z "$release" ] || export SENTRY_RELEASE="$release"
   docker compose up -d --no-build --remove-orphans
   clean_up
   exit 0
 fi
+# Asked once (containers_of, call_services, others): the compose project, read off the running API so it is
+# the one compose itself uses, and the services of this configuration.
+PROJECT=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$running_api")
+SERVICES=$(docker compose config --services)
+if [ -z "$PROJECT" ] || [ -z "$SERVICES" ]; then
+  log "could not read the compose project or its services: not updating; the running version keeps serving." >&2
+  exit 1
+fi
 
+# api and web at the same time, each with its own exit status. web's new container starts only once the new
+# API serves (it may need the API's migrations or new actions), so its check and its start overlap with the
+# API's start and the stop of the old API. A failure of either keeps that service's old version and fails
+# the deploy after both are done; when the API fails, web is not updated.
 if [ -n "$release" ]; then SENTRY_RELEASE=$(release_of api); export SENTRY_RELEASE; fi
-roll api
-roll web
+READY_DIR=$(mktemp -d)
+# shellcheck disable=SC2064 # the directory is known now
+trap "rm -rf '$READY_DIR'" EXIT
+# shellcheck disable=SC2016 # expanded when the roll ends
+(trap 'echo $? >"$READY_DIR/api.exit"' EXIT; roll api) &
+api_job=$!
+roll web api "$api_job" &
+web_job=$!
+rolled=0
+wait "$api_job" || rolled=1
+wait "$web_job" || rolled=1
+rm -rf "$READY_DIR"
+trap - EXIT
+unset READY_DIR
+[ "$rolled" -eq 0 ] || exit 1
 update_proxy
 log "other services: recreating only what changed"
 # shellcheck disable=SC2046 # one service name per word
