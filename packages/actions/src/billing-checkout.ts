@@ -17,15 +17,9 @@ export const TOPUP_CENTS = { min: 500, max: 50_000 } as const
 export const billingStartCheckout = defineAction({
   name: 'billing.startCheckout',
   description:
-    "Start Checkout for this workspace's bill: the plan with a 14-day free trial (or without one when this card had a trial), with any extra calls at the same time added (`extraCalls`). Answers the Checkout link to open. A business's bill (not a partner's) takes the versions of the terms and privacy policy the activation step showed next to its button (`acceptedTerms`): starting accepts them, and they are recorded before Checkout opens.",
+    "Start Checkout for this workspace's bill: the plan with a 14-day free trial (or without one when this card had a trial), with any extra calls at the same time added (`extraCalls`). Answers the Checkout link to open. The terms are accepted once, at sign-up: neither this nor Checkout asks for them again. While the bill's owner has not accepted the terms in effect (they changed since sign-up), it is refused with `terms_changed` until the owner accepts them in the app. A business's start records the consent to the trial and its first charge with what the activation step showed.",
   input: z.object({
     ...billTarget,
-    acceptedTerms: z
-      .object({
-        termsVersion: z.string().trim().min(1).max(40),
-        privacyVersion: z.string().trim().min(1).max(40),
-      })
-      .optional(),
     /**
      * A business's bill (LIN-450): extra calls at the same time added on the activation step, a multiple of 5 up to the
      * install's most per workspace. They are a line of the plan's subscription, so in a trial they are charged with the

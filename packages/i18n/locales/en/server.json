@@ -43,6 +43,7 @@
   "api.checkout.paymentNotFinished": "This payment is not finished yet.",
   "api.checkout.paymentRunning": "A payment for this bill is still running. Try again in a minute.",
   "api.checkout.planGone": "Stripe no longer has this plan. Ask the server admins.",
+  "api.checkout.termsNotAccepted": "The terms changed since this plan's owner accepted them. The owner accepts the new terms in the app first, then the plan can start.",
   "api.checkout.text.plan": "Your plan starts today.",
   "api.checkout.text.planPrice": "Your plan starts today: {price}.",
   "api.checkout.text.plusTax": "{price}, plus tax where it applies",

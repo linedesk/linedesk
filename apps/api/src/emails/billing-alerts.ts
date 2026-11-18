@@ -1,7 +1,6 @@
 // What the instance admins hear about Stripe's webhook events (stripe-events.ts) and the nightly reconciliation with
 // Stripe (billing-reconcile.ts). Every word comes from packages/i18n/locales/en/email.json; the ids are Stripe's and
 // ours, and Stripe's error text stays as it came.
-import { STRIPE_TERMS_URL_MISSING } from '@linedesk/billing'
 import { getT } from '@linedesk/i18n/server'
 import { brandName } from '../branding.ts'
 import type { AdminAlertText } from './alerts.ts'
@@ -153,15 +152,7 @@ export const checkoutSetupAlert =
       subject: t('email.adminAlert.checkoutSetup.subject', { brand: brandName() }),
       blocks: [
         { kind: 'text', text: t('email.adminAlert.checkoutSetup.text', { code }) },
-        {
-          kind: 'text',
-          // The one Dashboard setting the API cannot make (A9): named, so nobody hunts through keys and prices.
-          text: t(
-            code === STRIPE_TERMS_URL_MISSING
-              ? 'email.adminAlert.checkoutSetup.termsUrl'
-              : 'email.adminAlert.checkoutSetup.check',
-          ),
-        },
+        { kind: 'text', text: t('email.adminAlert.checkoutSetup.check') },
       ],
     }
   }

@@ -1380,7 +1380,6 @@
   "provider.test.stripePortalWrite": "{line}。ただし、このキーはカスタマーポータルの設定に書き込めません。請求ではポータルを請求書とカードのみ（解約なし）に制限するため、この権限が必要です。制限付きキーにCustomer portalの「Write」を付与してから、もう一度テストしてください。",
   "provider.test.stripeTaxNoRegistrations": "{line}。ただし、Stripe Taxに有効な税務登録がありません。この場合Stripeはどこでも税金を請求せず、基準額を監視するだけです。税理士が指定する登録をStripeダッシュボード › Tax › Registrationsで追加してください。",
   "provider.test.stripeTaxPending": "{line}。ただし、アカウントでStripe Taxが設定されていません（不足：{missing}）。サーバー管理 › 請求でStripe Taxがオンになっているため、設定が済むまでStripeはCheckoutと請求書を拒否します。Stripeダッシュボード › Settings › Taxで本社住所を追加してから、もう一度テストしてください。",
-  "provider.test.stripeTermsUrl": "{line}。ただし、Stripeアカウントに利用規約のURLがありません。Checkoutではすべての顧客に規約への同意を求めるため、このリンクがないとStripeが拒否し、誰もトライアルやプランを開始できません。Stripeダッシュボード › Settings › Business › Public details（Terms of service）で追加してから、もう一度テストしてください。",
   "providerDialog.confirmDisconnect": "保存されている{provider}のキーを削除しますか？",
   "providerDialog.confirmSharedKey": "{providers}も同じキーを使っているため、{count, plural, other {あわせて停止します}}。",
   "providerDialog.connectedRestart": "接続しました。反映のため、{brand}がバックグラウンドで再起動します（数秒）。",

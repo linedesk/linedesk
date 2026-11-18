@@ -1389,7 +1389,6 @@
   "provider.test.stripePortalWrite": "{line}, but the key cannot write the customer portal configuration. Billing keeps the portal to invoices and cards (no cancel) and needs that access: give the restricted key \"Write\" on Customer portal, then test again.",
   "provider.test.stripeTaxNoRegistrations": "{line}, but Stripe Tax has no active tax registration. Stripe then charges no tax anywhere and only watches the thresholds. Add the registrations your tax advisor names in the Stripe Dashboard › Tax › Registrations.",
   "provider.test.stripeTaxPending": "{line}, but Stripe Tax is not set up on the account (missing: {missing}). Stripe Tax is on under Server admin › Billing, so Stripe refuses Checkout and invoices until it is. Add the head office address in the Stripe Dashboard › Settings › Tax, then test again.",
-  "provider.test.stripeTermsUrl": "{line}, but the Stripe account has no Terms of Service URL. Checkout asks every customer to accept the terms and Stripe refuses it without that link, so nobody can start a trial or a plan. Add it in the Stripe Dashboard › Settings › Business › Public details (Terms of service), then test again.",
   "providerDialog.confirmDisconnect": "Delete the stored {provider} keys?",
   "providerDialog.confirmSharedKey": "{providers} {count, plural, one {uses} other {use}} the same key and stop too.",
   "providerDialog.connectedRestart": "Connected. {brand} restarts in the background to apply it (a few seconds).",

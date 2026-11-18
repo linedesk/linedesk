@@ -131,7 +131,7 @@ describe('a new terms version (LIN-420)', () => {
     expect((await act(ws.owner, 'account.acceptTerms', SHOWN)).body.data).toEqual({ accepted: 0 })
   })
 
-  test('nobody else is asked: a member, a canceled bill, a cloud sign-up waiting for Checkout', async () => {
+  test('nobody else is asked: a member, a canceled bill', async () => {
     const ws = await createWorkspace('Brightwater Plumbing & Heating')
     await bill(ws.owner, 'active', { ws })
     const member = await addMember(ws.id, 'admin')
@@ -141,15 +141,26 @@ describe('a new terms version (LIN-420)', () => {
 
     const other = await createWorkspace('Riverside Dental')
     await bill(other.owner, 'canceled', { ws: other })
-    await bill(other.owner, 'pending_payment')
     expect(await askedOf(other.owner)).toBeNull()
   })
 
-  test('a partner bill waiting for Checkout is asked: its Checkout takes no terms', async () => {
+  test.each(['cloud', 'partner'] as const)(
+    'a %s sign-up waiting for Checkout is asked: neither the activation step nor Checkout asks for terms (2026-11-18)',
+    async kind => {
+      const ws = await createWorkspace('Brightwater Plumbing & Heating')
+      const billId = await bill(ws.owner, 'pending_payment', { kind })
+      await accepted(ws.owner, billId, '2026-11-17')
+      expect(await askedOf(ws.owner)).toEqual(IN_EFFECT)
+      expect((await act(ws.owner, 'account.acceptTerms', SHOWN)).body.data).toEqual({ accepted: 1 })
+      expect(await askedOf(ws.owner)).toBeNull()
+    },
+  )
+
+  test('a sign-up waiting for Checkout that accepted the terms in effect at sign-up is not asked', async () => {
     const ws = await createWorkspace('Brightwater Plumbing & Heating')
-    const billId = await bill(ws.owner, 'pending_payment', { kind: 'partner' })
-    await accepted(ws.owner, billId, '2026-11-17')
-    expect(await askedOf(ws.owner)).toEqual(IN_EFFECT)
+    const billId = await bill(ws.owner, 'pending_payment')
+    await accepted(ws.owner, billId, TERMS.TERMS_VERSION)
+    expect(await askedOf(ws.owner)).toBeNull()
   })
 
   test('without terms set (a self-hosted install): nobody is asked, and accepting is refused', async () => {

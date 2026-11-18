@@ -252,7 +252,6 @@ function fakeStripe(invoices: Map<string, BillingInvoice>, blockers: string[] = 
     },
     catalogWriteAccess: async () => ({ products: null, prices: null }),
     portalWriteAccess: async () => null,
-    checkoutTermsReady: async () => null,
     taxSetup: async () => null,
     customerTaxReady: async () => true,
     customersWithoutTaxAddress: async () => 0,

@@ -112,15 +112,6 @@ function fakeStripe() {
     const form = parseForm(typeof init?.body === 'string' ? init.body : '')
     const parts = url.pathname.split('/').slice(2)
     const [kind, sub, third] = parts
-    // The terms URL check (a setup session made and expired at once) is a check, not setup: never counted as a write.
-    // This account has no terms URL, as a new sandbox.
-    if (kind === 'checkout')
-      return reply(400, {
-        error: {
-          type: 'invalid_request_error',
-          message: 'You cannot collect consent to your terms of service unless a URL is set in the Stripe Dashboard.',
-        },
-      })
     if (method !== 'GET') state.writes.push(`${method} ${url.pathname}`)
     if (kind === 'account') return reply(200, { id: 'acct_1Test', object: 'account' })
 
@@ -301,8 +292,8 @@ describe('bootstrap', () => {
       },
     })
 
-    // The one step the API cannot do is named (docs/runbook.md "Stripe account setup").
-    expect(first.termsOfServiceUrl).toBe('missing')
+    // No Checkout is made: Checkout asks for no terms (accepted at sign-up), so no Terms of Service URL is checked.
+    expect(stripe.state.writes.some(w => w.includes('/checkout/'))).toBe(false)
 
     const writes = stripe.state.writes.length
     const second = await run()

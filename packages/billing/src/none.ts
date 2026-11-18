@@ -16,7 +16,6 @@ export const noneBillingProvider: BillingProvider = {
   syncCatalog: off,
   catalogWriteAccess: async () => ({ products: null, prices: null }),
   portalWriteAccess: async () => null,
-  checkoutTermsReady: async () => null,
   taxSetup: async () => null,
   customerTaxReady: off,
   customersWithoutTaxAddress: off,

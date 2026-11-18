@@ -72,7 +72,6 @@
   "adminAlert.checkoutRefused.text": "請求{bill}のCheckout {session}はStripeで完了しましたが、サーバーは反映しませんでした：{reason}",
   "adminAlert.checkoutSetup.check": "請求のブートストラップを実行してください（カードのみの支払い方法設定、カスタマーポータル、Webhookエンドポイントを作成します。料金は、請求をオンにしたときか料金を保存したときにアプリが作成します）。その後、サーバー管理 › 請求 › StripeでStripeキーとその権限を確認してください。",
   "adminAlert.checkoutSetup.subject": "{brand}のCheckoutを開始できませんでした",
-  "adminAlert.checkoutSetup.termsUrl": "このアカウントのStripeには利用規約のURLがありませんが、Checkoutは顧客に利用規約への同意を求めます。StripeダッシュボードのSettings › Public detailsで、利用規約とプライバシーポリシーのURLを追加してください（TERMS_URLとPRIVACY_URLと同じリンクです）。",
   "adminAlert.checkoutSetup.text": "請求の所有者がCheckoutを開始しようとしましたが、設定が原因でStripeが拒否しました（{code}）。修正されるまで、誰もトライアルの開始や通話時間の購入ができません。所有者には、後でもう一度試すよう案内しました。",
   "adminAlert.dataPurgeFailed.items": "削除できなかった項目",
   "adminAlert.dataPurgeFailed.next": "明日の次回実行で再試行します。失敗が続く場合は、録音の保存先とサーバーログを確認してください。この削除はプライバシーポリシーで約束しています。",

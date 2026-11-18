@@ -5,7 +5,6 @@ import type { BillingProvider, StripeKeys } from './provider.ts'
 
 export { isStripeWebhookSecret, LIVE_KEYS_REFUSED, liveKeysAllowed, stripeKeyMode } from './keys.ts'
 export { noneBillingProvider } from './none.ts'
-export { STRIPE_API_VERSION } from './version.ts'
 export type {
   BillingAccountInfo,
   BillingChargeSource,
@@ -17,14 +16,16 @@ export type {
   BillingProvider,
   BillingProviderName,
   BillingSubscription,
-  InvoiceRefund,
-  InvoiceRefundInput,
   CheckoutCard,
   CheckoutInput,
   CheckoutSession,
   CheckoutStarted,
   CustomerPurchases,
+  ExtraCallsAnswer,
+  ExtraCallsQuantityInput,
   InvoiceItemInput,
+  InvoiceRefund,
+  InvoiceRefundInput,
   InvoiceTax,
   KeyMode,
   PlanCatalog,
@@ -35,8 +36,6 @@ export type {
   RechargeInvoiceInput,
   RechargeInvoiceStop,
   RefundBlocker,
-  ExtraCallsAnswer,
-  ExtraCallsQuantityInput,
   SeatQuantityInput,
   StripeKeys,
   SubscriptionTaxSync,
@@ -46,11 +45,11 @@ export type {
 export {
   BillingSetupError,
   CHECKOUT_PMC_NAME,
-  STRIPE_TERMS_URL_MISSING,
   WEBHOOK_EVENTS,
   WEBHOOK_TOLERANCE_SECONDS,
   WebhookRefused,
 } from './provider.ts'
+export { STRIPE_API_VERSION } from './version.ts'
 
 /** The provider for the keys in effect: `none` without keys, else the Stripe adapter, loaded on first use. */
 export async function loadBillingProvider(

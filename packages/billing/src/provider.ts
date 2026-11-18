@@ -362,12 +362,6 @@ export class BillingSetupError extends Error {
 }
 
 /**
- * Stripe's refusal when Checkout asks for terms consent (`consent_collection.terms_of_service`) but the account has no
- * terms of service URL in its public details (Dashboard › Settings › Public details; the API cannot set it). A9.
- */
-export const STRIPE_TERMS_URL_MISSING = 'stripe_terms_url_missing'
-
-/**
  * Why a webhook delivery was refused. `signature`: not from Stripe (or changed, or too old). `livemode` comes with a
  * valid signature: Stripe sent it, but the endpoint is of the other mode than the key. An event in another API version
  * than the adapter's is not refused (docs/billing.md §5.1): processing reads only fields every version has, and
@@ -536,13 +530,6 @@ export type BillingProvider = {
    * is written). `null`: not known.
    */
   portalWriteAccess(): Promise<boolean | null>
-  /**
-   * Whether the Stripe account has a Terms of Service URL, which a plan's Checkout needs for its terms checkbox
-   * (Dashboard › Settings › Public details; the API cannot set it). Asked by making a setup-mode Checkout Session with
-   * the terms checkbox and expiring it at once (nothing is charged or saved). `null`: not known (another refusal).
-   * `successUrl`: the install's own address (the session needs one; nobody can reach it, it is expired at once).
-   */
-  checkoutTermsReady(successUrl: string): Promise<boolean | null>
   /**
    * Stripe Tax on the account (`TaxSetup`): its settings and active registrations, read only. `null`: not known (a key
    * without the permission, no answer). The provider test warns from it; account settings are never written here.

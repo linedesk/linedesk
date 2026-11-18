@@ -81,6 +81,7 @@ import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { signupRules } from './self-serve.ts'
 import { refuseUnservedWorkspaces } from './served-countries.ts'
+import { billsToReaccept } from './terms-update.ts'
 import { refuseBillingActor } from './usage-levels.ts'
 
 /**
@@ -356,7 +357,8 @@ const cancelUrl = (partnerId?: string) => (partnerId ? `${WEB_ORIGIN}/#partner` 
 
 /**
  * What a start prepared before its transaction: the session made, and the customer to store. `accepted`: a business's
- * bill: the terms the activation step showed and what it said next to its button, recorded in the transaction.
+ * bill: the terms in effect (accepted at sign-up) and what the activation step said next to its button, recorded in
+ * the transaction.
  */
 type Started = {
   url: string
@@ -368,22 +370,27 @@ type Started = {
 
 type StartInput = {
   partnerId?: string
-  acceptedTerms?: { termsVersion: string; privacyVersion: string }
   /** Extra calls at the same time added on the activation step (LIN-450); a business's bill only. */
   extraCalls?: number
 }
 
 /**
- * The terms a business's owner accepts by starting the trial or the plan (A9, docs/billing.md §3.1): the ones the
- * activation step showed, still in effect. A partner's bill accepted them at sign-up and passes none.
+ * The terms in effect, which the bill's owner accepted once, at sign-up (or since, in the app's "We updated our terms"
+ * dialog, LIN-420): Checkout and the activation step ask for none (decision of 2026-11-18, docs/billing.md §3.1). A
+ * start is refused with `terms_changed` while the owner has no acceptance of the version in effect for this bill (the
+ * terms changed since sign-up): exactly when `/v1/me` `termsUpdate` asks them (terms-update.ts), so nobody starts
+ * paying under terms they never accepted. A business's start records them with what the activation step showed; a
+ * partner's records nothing (accepted at sign-up). No terms set: a business's Checkout cannot start (sign-up is closed
+ * too), a partner's is not held.
  */
-function termsToAccept(bill: Bill, input: StartInput): LegalTerms | null {
-  if (bill.kind === 'partner') return null
+async function termsInEffect(bill: Bill): Promise<LegalTerms | null> {
   const { terms } = legalTerms()
-  if (!terms) throw new Reject(CHECKOUT_UNAVAILABLE)
-  const shown = input.acceptedTerms
-  if (!shown || shown.termsVersion !== terms.termsVersion || shown.privacyVersion !== terms.privacyVersion)
-    throw Reject.t('server.api.signup.termsChanged', undefined, TERMS_CHANGED)
+  if (!terms) {
+    if (bill.kind === 'partner') return null
+    throw new Reject(CHECKOUT_UNAVAILABLE)
+  }
+  const waiting = await db.transaction(tx => billsToReaccept(tx, bill.owner_user_id, terms.termsVersion))
+  if (waiting.includes(bill.id)) throw Reject.t('server.api.checkout.termsNotAccepted', undefined, TERMS_CHANGED)
   return terms
 }
 
@@ -466,7 +473,7 @@ const itemsCents = (items: { lookupKey: string; quantity: number }[], rules: Bil
 const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput) => {
   const bill = await db.transaction(tx => ownBill(tx, actor, { partnerId: input.partnerId }))
   if (bill.status !== 'pending_payment') throw Reject.t('server.api.checkout.alreadyFinished')
-  const terms = termsToAccept(bill, input)
+  const terms = await termsInEffect(bill)
   refuseCheckoutFlood(bill.id)
   const items = await db.transaction(tx => planItems(tx, bill))
   // A Cloud business outside the sign-up countries is told "not yet" before any card (served-countries.ts).
@@ -513,21 +520,22 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
       expiresAt: checkoutExpiresAt(),
     })
     .catch(setupFailed)
-  const accepted = terms
-    ? {
-        terms,
-        disclosure: activationDisclosure(
-          {
-            planCents: itemsCents(sold, rules),
-            interval: bill.interval,
-            trial,
-            extraCalls: input.extraCalls ?? 0,
-          },
-          rules,
-          now,
-        ),
-      }
-    : null
+  const accepted =
+    terms && bill.kind !== 'partner'
+      ? {
+          terms,
+          disclosure: activationDisclosure(
+            {
+              planCents: itemsCents(sold, rules),
+              interval: bill.interval,
+              trial,
+              extraCalls: input.extraCalls ?? 0,
+            },
+            rules,
+            now,
+          ),
+        }
+      : null
   return { url: started.url, sessionId: started.id, customerId, billId: bill.id, accepted } satisfies Started
 }
 
@@ -1219,8 +1227,8 @@ export const checkoutHandlers: Record<string, Handler> = {
     const bill = await ownBill(tx, actor, { lock: true, partnerId: input.partnerId })
     if (bill.id !== started.billId) throw new Reject('the bill changed; try again')
     await storeCustomer(tx, started, now)
-    // The consent to the trial and its automatic charge, recorded before Checkout opens (A9): the terms, and what the
-    // activation step said next to its button.
+    // The consent to the trial and its automatic charge, recorded before Checkout opens (A9): what the activation step
+    // said next to its button, with the terms in effect (accepted at sign-up; the step does not ask for them again).
     if (started.accepted)
       await recordAcceptance(tx, {
         userId: actor.actorId,

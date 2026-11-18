@@ -2,7 +2,7 @@
 // texts. Accepting records it for every plan they own (account.acceptTerms). Later hides it for this session for this
 // version; the next load asks again. Calls and billing go on either way.
 import { T, useT } from '@linedesk/i18n/react'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import type { LegalTerms } from '../auth.ts'
 import { callAction } from '../settings/settings-api.ts'
 import { ExternalLink } from '../ui/AppLink.tsx'
@@ -26,6 +26,21 @@ function rememberLater(version: string) {
   } catch {
     // Private mode: it asks again on the next load.
   }
+}
+
+const ASK_AGAIN = 'linedesk:terms-ask-again'
+
+/**
+ * Asks again now, though Later was chosen: starting the trial or the plan needs the terms in effect accepted (the
+ * activation step and Checkout do not ask for them; docs/billing.md §3.1), so the dialog opens over the step.
+ */
+export function askTermsAgain() {
+  try {
+    sessionStorage.removeItem(LATER_KEY)
+  } catch {
+    // Private mode: nothing was kept.
+  }
+  window.dispatchEvent(new Event(ASK_AGAIN))
 }
 
 /** The terms to ask about now: none, or a version Later was chosen for (in this tab or this session), ask nothing. */
@@ -61,6 +76,11 @@ export function TermsUpdate({ terms, onDone }: Props) {
   const [later, setLater] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    const again = () => setLater(null)
+    window.addEventListener(ASK_AGAIN, again)
+    return () => window.removeEventListener(ASK_AGAIN, again)
+  }, [])
   const asked = termsToAsk(terms, later)
   if (!asked) return null
   const version = asked.termsVersion

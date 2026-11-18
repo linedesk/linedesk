@@ -9,7 +9,6 @@ import {
   liveKeysAllowed,
   loadBillingProvider,
   noneBillingProvider,
-  STRIPE_TERMS_URL_MISSING,
   type StripeKeys,
   stripeKeyMode,
   WEBHOOK_EVENTS,
@@ -1211,10 +1210,11 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
       'customer_update[address]': 'auto',
       'customer_update[name]': 'auto',
       'tax_id_collection[enabled]': 'true',
-      'consent_collection[terms_of_service]': 'required',
       'metadata[linedesk_checkout]': 'trial',
       expires_at: '1900000000',
     })
+    // No terms checkbox: the terms are accepted once, at sign-up (docs/billing.md §3.1).
+    expect(Object.keys(body).some(k => k.startsWith('consent_collection'))).toBe(false)
     expect(Object.keys(body).some(k => k.startsWith('payment_method_types'))).toBe(false)
     expect(Object.keys(body).some(k => k.includes('setup_future_usage'))).toBe(false)
     // The synced price ids only: no product or price is read or written at Checkout (review of #1040, M-1).
@@ -1272,8 +1272,8 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
       'branding_settings[display_name]': 'Front Desk',
       'branding_settings[button_color]': '#112233',
       'custom_text[submit][message]': base.submitText,
-      'consent_collection[terms_of_service]': 'required',
     })
+    expect(Object.keys(body).some(k => k.startsWith('consent_collection'))).toBe(false)
     expect(Object.keys(body).some(k => k.startsWith('branding_settings[logo]'))).toBe(false)
     // A color that is not a hex color is left out, never sent for Stripe to refuse the session.
     const odd = stripeRoutes({ ...catalogRoutes(), 'POST /v1/checkout/sessions': () => [200, session] })
@@ -1454,26 +1454,6 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
       .catch(e => e)
     expect(second).toBeInstanceOf(BillingSetupError)
     expect(second.code).toBe('stripe_parameter_invalid')
-  })
-
-  test('Checkout refused for a missing terms of service URL names that setting (A9)', async () => {
-    const noTerms = stripeRoutes({
-      ...catalogRoutes(),
-      'POST /v1/checkout/sessions': () => [
-        400,
-        {
-          error: {
-            type: 'invalid_request_error',
-            message: 'You cannot collect consent to your terms of service unless a URL is set in the Stripe Dashboard.',
-          },
-        },
-      ],
-    })
-    const error = await (await stripeWith(noTerms.doFetch))
-      .startCheckout({ ...base, kind: 'plan', items: [{ lookupKey: 'ws_yearly', quantity: 1 }] })
-      .catch(e => e)
-    expect(error).toBeInstanceOf(BillingSetupError)
-    expect(error.code).toBe(STRIPE_TERMS_URL_MISSING)
   })
 
   test('a session reads the trial card’s fingerprint and funding; a plan’s charge gives Radar’s risk level', async () => {
@@ -1843,31 +1823,7 @@ describe('stripe customer portal (Settings › Billing, docs/billing.md §2.4)',
     expect(await (await stripeWith(denied.doFetch)).taxSetup()).toBeNull()
   })
 
-  test('the provider test’s checks: terms URL (a setup session made and expired) and portal write access', async () => {
-    const noTerms = stripeRoutes({
-      'POST /v1/checkout/sessions': () => [
-        400,
-        {
-          error: {
-            type: 'invalid_request_error',
-            message: 'You cannot collect consent to your terms of service unless a URL is set in the Stripe Dashboard.',
-          },
-        },
-      ],
-    })
-    expect(await (await stripeWith(noTerms.doFetch)).checkoutTermsReady('https://app.linedesk.test')).toBe(false)
-    const ready = stripeRoutes({
-      'POST /v1/checkout/sessions': () => [200, { id: 'cs_test_probe', object: 'checkout.session' }],
-      'POST /v1/checkout/sessions/cs_test_probe/expire': () => [200, { id: 'cs_test_probe' }],
-    })
-    expect(await (await stripeWith(ready.doFetch)).checkoutTermsReady('https://app.linedesk.test')).toBe(true)
-    const made = Object.fromEntries(ready.calls.find(c => c.route === 'POST /v1/checkout/sessions')!.body)
-    expect(made).toMatchObject({
-      mode: 'setup',
-      'consent_collection[terms_of_service]': 'required',
-      success_url: 'https://app.linedesk.test',
-    })
-    expect(ready.calls.some(c => c.route === 'POST /v1/checkout/sessions/cs_test_probe/expire')).toBe(true)
+  test('the provider test’s check of portal write access', async () => {
     const noWrite = stripeRoutes({
       'POST /v1/billing_portal/configurations/bpc_linedesk_permission_check': () => [
         403,

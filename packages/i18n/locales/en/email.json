@@ -72,7 +72,6 @@
   "adminAlert.checkoutRefused.text": "Checkout {session} of bill {bill} was completed in Stripe, and the server did not apply it: {reason}",
   "adminAlert.checkoutSetup.check": "Run the billing bootstrap (it makes the card-only payment method configuration, the customer portal and the webhook endpoint; the prices are made by the app when billing is turned on or the prices are saved), then check the Stripe keys and their permissions in Server admin › Billing › Stripe.",
   "adminAlert.checkoutSetup.subject": "Checkout on {brand} could not start",
-  "adminAlert.checkoutSetup.termsUrl": "Stripe has no terms of service URL for this account, and Checkout asks customers to accept the terms. Add your terms of service and privacy policy URLs in the Stripe Dashboard under Settings › Public details (the same links as TERMS_URL and PRIVACY_URL).",
   "adminAlert.checkoutSetup.text": "A bill owner tried to start Checkout, and Stripe refused it because of the setup ({code}). Nobody can start a trial or buy minutes until this is fixed; the owner was asked to try again later.",
   "adminAlert.dataPurgeFailed.items": "Not deleted",
   "adminAlert.dataPurgeFailed.next": "The next run tomorrow tries them again. If they keep failing, check the recording storage and the server log: the privacy policy promises this deletion.",

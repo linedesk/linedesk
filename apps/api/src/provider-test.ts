@@ -26,7 +26,6 @@ import { msg } from '@linedesk/i18n'
 import { smtpCheck } from './email.ts'
 import { ResendError, resendKeyCheck } from './email-resend.ts'
 import { isMailService, type MailService, mailConnectionOf } from './email-services.ts'
-import { WEB_ORIGIN } from './emails/templates.ts'
 import { type Reader, type Said, said, sayIn } from './handler-context.ts'
 import { type ProviderProblem, problemOfError, problemOfResponse, problemOfStatus } from './provider-errors.ts'
 import type { ProviderConfig } from './provider-settings.ts'
@@ -622,10 +621,6 @@ export async function testStripe(
           denied: reader => reader.t(STRIPE_WRITE_DENIED[denied]),
         }),
       )
-    // Every trial and plan Checkout asks for terms consent, which Stripe refuses without the account's Terms of
-    // Service URL (stripe_terms_url_missing). The API cannot set it: the admin is told where, before an owner meets it.
-    if ((await provider.checkoutTermsReady(WEB_ORIGIN)) === false)
-      return warning('config', said('admin.provider.test.stripeTermsUrl', { line }))
     // The catalog sync keeps the customer portal to the design (no cancel): it needs write on its configuration.
     if ((await provider.portalWriteAccess()) === false)
       return warning('permission', said('admin.provider.test.stripePortalWrite', { line }))

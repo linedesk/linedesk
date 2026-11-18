@@ -1,15 +1,15 @@
-// The terms and privacy policy a person accepts when they make an account on the sign-up page and again when they start
-// the trial or the plan at the onboarding's last step (A9; docs/billing.md §3.1). The links are the install's own (TERMS_URL, PRIVACY_URL, also shown under sign-in); the versions (TERMS_VERSION, PRIVACY_VERSION) name
+// The terms and privacy policy a person accepts once, when they make an account on the sign-up page (A9; docs/billing.md
+// §3.1); the activation step and Checkout do not ask again, and a new version is accepted in the app (terms-update.ts). The links are the install's own (TERMS_URL, PRIVACY_URL, also shown under sign-in); the versions (TERMS_VERSION, PRIVACY_VERSION) name
 // the text behind each link, so a record says which text was accepted, not just which address. Self-serve sign-up
 // stays closed while any of the four is missing (self-serve.ts `selfServeState`): no contract without its terms.
 import {
   type ActivationDisclosure,
-  session,
-  terms_acceptances,
-  type TrialRechargeDisclosure,
-  type ExtraCallsDisclosure,
   type AutoRechargeDisclosure,
+  type ExtraCallsDisclosure,
+  session,
+  type TrialRechargeDisclosure,
   type Tx,
+  terms_acceptances,
 } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { readLegalLinks } from './auth-methods.ts'
@@ -17,12 +17,13 @@ import { readLegalLinks } from './auth-methods.ts'
 type Env = Record<string, string | undefined>
 
 /**
- * The rejection code when the terms changed while the page that showed them was open (the sign-up page, the
- * activation step): the page loads them again.
+ * The rejection code when the terms changed while the page that showed them was open (the sign-up page, the "We updated
+ * our terms" dialog): the page loads them again. Also `billing.startCheckout`'s while the bill's owner has not accepted
+ * the terms in effect: the app asks them first.
  */
 export const TERMS_CHANGED = 'terms_changed'
 
-/** What the sign-up page and the activation step show, and `account.signUp` and `billing.startCheckout` record. */
+/** What the sign-up page shows, and `account.signUp` and `billing.startCheckout` record. */
 export type LegalTerms = { termsUrl: string; termsVersion: string; privacyUrl: string; privacyVersion: string }
 
 /** The variables self-serve sign-up needs, in the order an admin is told about them. */

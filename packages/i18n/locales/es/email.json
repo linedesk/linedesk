@@ -72,7 +72,6 @@
   "adminAlert.checkoutRefused.text": "El Checkout {session} de la factura {bill} se completó en Stripe y el servidor no lo aplicó: {reason}",
   "adminAlert.checkoutSetup.check": "Ejecuta el bootstrap de facturación (crea la configuración de métodos de pago solo con tarjeta, el portal de clientes y el endpoint del webhook; los precios los crea la app cuando se activa la facturación o se guardan los precios) y luego revisa las claves de Stripe y sus permisos en Administración del servidor › Facturación › Stripe.",
   "adminAlert.checkoutSetup.subject": "No se pudo iniciar Checkout en {brand}",
-  "adminAlert.checkoutSetup.termsUrl": "Stripe no tiene URL de términos del servicio para esta cuenta, y el Checkout pide a los clientes que acepten los términos. Agrega las URL de tus términos del servicio y de tu política de privacidad en el Dashboard de Stripe, en Settings › Public details (los mismos enlaces que TERMS_URL y PRIVACY_URL).",
   "adminAlert.checkoutSetup.text": "El titular de una factura intentó iniciar Checkout y Stripe lo rechazó por la configuración ({code}). Nadie puede empezar una prueba ni comprar minutos hasta que se corrija; se le pidió al titular que lo intente más tarde.",
   "adminAlert.dataPurgeFailed.items": "No eliminados",
   "adminAlert.dataPurgeFailed.next": "La próxima ejecución, mañana, vuelve a intentarlo. Si siguen fallando, revisa el almacenamiento de grabaciones y el registro del servidor: la política de privacidad promete esta eliminación.",

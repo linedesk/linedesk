@@ -1,25 +1,25 @@
-// A new terms version for existing customers (LIN-420; docs/billing.md §3.1, "Terms acceptance (A9)"). Sign-up and the
-// activation step record the terms in effect then; when TERMS_VERSION changes, every bill's owner accepts the new
+// A new terms version for existing customers (LIN-420; docs/billing.md §3.1, "Terms acceptance (A9)"). Sign-up records
+// the terms in effect then (the one place they are asked); when TERMS_VERSION changes, every bill's owner accepts the new
 // version once, in the app (`/v1/me` `termsUpdate`, then `account.acceptTerms`). Calls, keys and billing go on while
 // it waits: only the app asks. A new PRIVACY_VERSION alone asks nobody (the policy is acknowledged, not agreed to);
 // the next acceptance records it. Without terms set (a self-hosted install), nothing is asked.
 import type { AccountAcceptTermsData } from '@linedesk/actions'
 import { billing_accounts, terms_acceptances, type Tx, user } from '@linedesk/db'
-import { and, eq, inArray, notExists, or } from 'drizzle-orm'
+import { and, eq, inArray, notExists } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { type LegalTerms, legalTerms, recordAcceptance, TERMS_CHANGED } from './legal-terms.ts'
 
 /**
- * The bills that are a running contract: from the trial on, a comped one too, and suspended ones (still a customer,
- * only paused). Not canceled ones, and not a cloud sign-up waiting for Checkout, whose activation step records the terms
- * in effect anyway (`billing.startCheckout`).
+ * The bills that are a contract or about to be one: waiting for Checkout, from the trial on, a comped one too, and
+ * suspended ones (still a customer, only paused). Not canceled ones.
  */
-const CONTRACT_STATUSES = ['trialing', 'active', 'past_due', 'suspended', 'comped'] as const
+const CONTRACT_STATUSES = ['pending_payment', 'trialing', 'active', 'past_due', 'suspended', 'comped'] as const
 
 /**
- * The bills `userId` owns that have no acceptance of this terms version by them. A partner bill waiting for Checkout
- * counts too: its Checkout takes no terms (accepted at sign-up), so an older version would carry over.
+ * The bills `userId` owns that have no acceptance of this terms version by them. A bill waiting for Checkout counts
+ * too: neither the activation step nor Checkout asks for the terms (decision of 2026-11-18), so a sign-up made under an
+ * older version accepts the new one here first; `billing.startCheckout` is refused until then (billing-checkout.ts).
  */
 export async function billsToReaccept(tx: Tx, userId: string, termsVersion: string): Promise<string[]> {
   const bills = await tx
@@ -28,10 +28,7 @@ export async function billsToReaccept(tx: Tx, userId: string, termsVersion: stri
     .where(
       and(
         eq(billing_accounts.owner_user_id, userId),
-        or(
-          inArray(billing_accounts.status, CONTRACT_STATUSES),
-          and(eq(billing_accounts.kind, 'partner'), eq(billing_accounts.status, 'pending_payment')),
-        ),
+        inArray(billing_accounts.status, CONTRACT_STATUSES),
         notExists(
           tx
             .select({ id: terms_acceptances.id })

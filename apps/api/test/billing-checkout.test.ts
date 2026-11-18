@@ -401,13 +401,38 @@ function complete(sessionId: string, sub: Json) {
 let operator: User
 const mails: { to: string; subject: string; html?: string; text?: string }[] = []
 
-/** A sign-up waiting for Checkout: its bill (no Stripe customer yet), its workspace pending_payment, the owner. */
-async function pendingSignUp(over: Partial<typeof billing_accounts.$inferInsert> = {}) {
+/**
+ * The terms `userId` accepted for `billId`, as the sign-up page records them (A9; source `signup`): the one place a
+ * business accepts them. `termsVersion`: an older version, as when the terms changed since the sign-up.
+ */
+async function acceptedTerms(userId: string, billId: string, termsVersion = TERMS.TERMS_VERSION) {
+  await db.insert(terms_acceptances).values({
+    id: rid('terms'),
+    user_id: userId,
+    billing_account_id: billId,
+    source: 'signup',
+    terms_url: TERMS.TERMS_URL,
+    terms_version: termsVersion,
+    privacy_url: TERMS.PRIVACY_URL,
+    privacy_version: TERMS.PRIVACY_VERSION,
+    accepted_at: new Date().toISOString(),
+  })
+}
+
+/**
+ * A sign-up waiting for Checkout: its bill (no Stripe customer yet), its workspace pending_payment, the owner, who
+ * accepted the terms in effect at sign-up (`termsVersion`: another, older version; null: none at all).
+ */
+async function pendingSignUp(
+  over: Partial<typeof billing_accounts.$inferInsert> = {},
+  termsVersion: string | null = TERMS.TERMS_VERSION,
+) {
   const ws = await createWorkspace('Brightwater Plumbing & Heating')
   const [bill] = await db
     .insert(billing_accounts)
     .values({ id: rid('bill'), kind: 'cloud', owner_user_id: ws.owner.userId, status: 'pending_payment', ...over })
     .returning()
+  if (termsVersion) await acceptedTerms(bill!.owner_user_id, bill!.id, termsVersion)
   await db
     .update(organization)
     .set({ billingAccountId: bill!.id, billingState: 'pending_payment' })
@@ -422,7 +447,7 @@ const checkoutsMade = () => stripe.requests.filter(r => r.method === 'POST' && r
 
 /** Starts Checkout as the owner; answers the session made at the fake Stripe. */
 async function startCheckout(owner: Caller) {
-  const res = await act(owner, 'billing.startCheckout', ACCEPTED)
+  const res = await act(owner, 'billing.startCheckout', {})
   expect(res.status).toBe(200)
   expect(res.body.data.url).toBe('https://checkout.stripe.test/c/pay')
   return checkoutsMade().at(-1)!
@@ -465,15 +490,13 @@ beforeAll(async () => {
   expect(keys.status).toBe(200)
   expect((await act(operator, 'billingEnabled.set', { on: true })).status).toBe(200)
 })
-/** The install's terms (A9): a business's owner accepts them at the activation step, which starts Checkout. */
+/** The install's terms (A9): accepted once, at sign-up; neither the activation step nor Checkout asks again. */
 const TERMS = {
   TERMS_URL: 'https://desk.example.com/terms',
   TERMS_VERSION: '2026-11-17',
   PRIVACY_URL: 'https://desk.example.com/privacy',
   PRIVACY_VERSION: '2026-11-10',
 }
-/** What the activation step sends with "Start free trial": the versions it showed. */
-const ACCEPTED = { acceptedTerms: { termsVersion: TERMS.TERMS_VERSION, privacyVersion: TERMS.PRIVACY_VERSION } }
 
 beforeEach(() => {
   vi.restoreAllMocks()
@@ -526,9 +549,10 @@ describe('billing.startCheckout (docs/billing.md §3.2 step 3)', () => {
       billing_address_collection: 'required',
       'customer_update[address]': 'auto',
       'tax_id_collection[enabled]': 'true',
-      'consent_collection[terms_of_service]': 'required',
       success_url: 'http://localhost:5173/billing/return?session_id={CHECKOUT_SESSION_ID}',
     })
+    // No terms checkbox: the terms were accepted at sign-up (decision of 2026-11-18).
+    expect([...made.body.keys()].filter(k => k.startsWith('consent_collection'))).toEqual([])
     expect([...made.body.keys()].filter(k => k.startsWith('payment_method_types'))).toEqual([])
     expect([...made.body.keys()].filter(k => k.includes('setup_future_usage'))).toEqual([])
     // The customer is made once per bill: the bill id is its idempotency key, and a second start reuses it.
@@ -540,14 +564,10 @@ describe('billing.startCheckout (docs/billing.md §3.2 step 3)', () => {
   test('never a member, signed in, and only while the bill waits for Checkout', async () => {
     const { ws, bill, owner } = await pendingSignUp()
     const member = await addMember(ws.id, 'member')
-    const res = await act(
-      { headers: { ...member.headers, 'x-workspace-id': ws.id } },
-      'billing.startCheckout',
-      ACCEPTED,
-    )
+    const res = await act({ headers: { ...member.headers, 'x-workspace-id': ws.id } }, 'billing.startCheckout', {})
     expect(res.status).toBe(403)
     await db.update(billing_accounts).set({ status: 'comped' }).where(eq(billing_accounts.id, bill.id))
-    expect((await act(owner, 'billing.startCheckout', ACCEPTED)).status).toBe(409)
+    expect((await act(owner, 'billing.startCheckout', {})).status).toBe(409)
     expect(checkoutsMade()).toEqual([])
   })
 
@@ -556,7 +576,7 @@ describe('billing.startCheckout (docs/billing.md §3.2 step 3)', () => {
     for (const missing of [null, 403] as const) {
       stripe.configuration = missing
       mails.length = 0
-      const res = await act(owner, 'billing.startCheckout', ACCEPTED)
+      const res = await act(owner, 'billing.startCheckout', {})
       expect(res).toMatchObject({ status: 409, body: { ok: false, error: sayIn(CHECKOUT_UNAVAILABLE) } })
       await vi.waitFor(() => expect(mails.some(m => /Checkout on .* could not start/.test(m.subject))).toBe(true))
     }
@@ -984,6 +1004,8 @@ describe('a bill owner who is only a member of the workspace (decision of 2026-1
     const { bill, ws, owner } = await trialWith(rid('fp'))
     const payer = await addMember(ws.id, 'member')
     await db.update(billing_accounts).set({ owner_user_id: payer.userId }).where(eq(billing_accounts.id, bill.id))
+    // The new owner accepts the terms first (the app's "We updated our terms" dialog asks them, terms-update.ts).
+    await acceptedTerms(payer.userId, bill.id)
     const other = await addMember(ws.id, 'member')
     for (const [name, input] of [
       ['billing.state', {}],
@@ -1174,8 +1196,10 @@ describe('a bill owner who is only a member: what does not come with it (securit
     const { ws, bill } = await pendingSignUp()
     const payer = await addMember(ws.id, 'member')
     await db.update(billing_accounts).set({ owner_user_id: payer.userId }).where(eq(billing_accounts.id, bill.id))
+    // The new owner accepts the terms first (the app's "We updated our terms" dialog asks them, terms-update.ts).
+    await acceptedTerms(payer.userId, bill.id)
     const other = await addMember(ws.id, 'member')
-    expect((await act(other, 'billing.startCheckout', ACCEPTED)).status).toBe(403)
+    expect((await act(other, 'billing.startCheckout', {})).status).toBe(403)
     await startCheckout(payer)
     const sessionId = [...stripe.sessions.keys()].at(-1)!
     complete(sessionId, subscription((await billRow(bill.id)).stripe_customer_id!, { card: card(rid('fp')) }))
@@ -2218,7 +2242,7 @@ describe('the catalog sync and Checkout (security review of #1040)', () => {
     await db.delete(instance_settings).where(eq(instance_settings.key, BILLING_CATALOG_KEY))
     stripe.catalogWritable = false
     const { owner } = await pendingSignUp()
-    const refused = await act(owner, 'billing.startCheckout', ACCEPTED)
+    const refused = await act(owner, 'billing.startCheckout', {})
     expect(refused).toMatchObject({ status: 409, body: { error: sayIn(CHECKOUT_UNAVAILABLE) } })
     await vi.waitFor(() => expect(mails.some(m => /Checkout on .* could not start/.test(m.subject))).toBe(true))
     expect(syncAlerts()[0]!.text).toMatch(/nobody can start a trial or a plan/)
@@ -2244,7 +2268,7 @@ describe('the catalog sync and Checkout (security review of #1040)', () => {
     const { owner } = await pendingSignUp()
     for (let i = 0; i < CHECKOUT_STARTS_PER_MINUTE; i++) await startCheckout(owner)
     const made = checkoutsMade().length
-    expect(await act(owner, 'billing.startCheckout', ACCEPTED)).toMatchObject({
+    expect(await act(owner, 'billing.startCheckout', {})).toMatchObject({
       status: 409,
       body: { error: sayIn(CHECKOUT_TOO_OFTEN) },
     })
@@ -2253,8 +2277,11 @@ describe('the catalog sync and Checkout (security review of #1040)', () => {
 })
 
 describe('the partner bill (white-label S2, docs/white-label.md)', () => {
-  /** A partner sign-up waiting for Checkout: its owner (no workspace), the partner, the partner bill. */
-  async function pendingPartner() {
+  /**
+   * A partner sign-up waiting for Checkout: its owner (no workspace), the partner, the partner bill; the owner accepted
+   * the terms at sign-up (`termsVersion`, as `pendingSignUp`).
+   */
+  async function pendingPartner(termsVersion: string | null = TERMS.TERMS_VERSION) {
     const { owner } = await createWorkspace('Owner Home')
     const partnerId = rid('ptn')
     const [bill] = await db
@@ -2265,6 +2292,7 @@ describe('the partner bill (white-label S2, docs/white-label.md)', () => {
       .insert(partners)
       .values({ id: partnerId, name: 'Cascade IT', billing_account_id: bill!.id, created_by: owner.userId })
     await db.insert(partner_members).values({ partner_id: partnerId, user_id: owner.userId, role: 'owner' })
+    if (termsVersion) await acceptedTerms(owner.userId, bill!.id, termsVersion)
     return { owner, partnerId, bill: bill! }
   }
 
@@ -2320,6 +2348,21 @@ describe('the partner bill (white-label S2, docs/white-label.md)', () => {
       sent: 'nobody',
     })
     expect(mails).toEqual([])
+  })
+
+  test('a partner accepted the terms at sign-up: its Checkout asks none and records none; changed since, refused', async () => {
+    const { owner, partnerId, bill } = await pendingPartner()
+    expect((await act(owner, 'billing.startCheckout', { partnerId })).status).toBe(200)
+    const made = checkoutsMade().at(-1)!
+    expect([...made.body.keys()].filter(k => k.startsWith('consent_collection'))).toEqual([])
+    const rows = await db.select().from(terms_acceptances).where(eq(terms_acceptances.billing_account_id, bill.id))
+    expect(rows.map(r => r.source)).toEqual(['signup'])
+    // Terms changed since its sign-up: the owner accepts them in the app first.
+    const stale = await pendingPartner('2026-01-01')
+    expect(await act(stale.owner, 'billing.startCheckout', { partnerId: stale.partnerId })).toMatchObject({
+      status: 409,
+      body: { code: 'terms_changed' },
+    })
   })
 
   test('Checkout sells the partner base fee alone, paid at once with no trial; the first client workspace adds its seat', async () => {
@@ -2538,7 +2581,7 @@ describe('the Checkout card note (custom_text.submit), short since 2026-11-18', 
   })
 })
 
-describe('the activation step accepts the terms before Checkout (A9, docs/billing.md §3.2)', () => {
+describe('the terms once, at sign-up; the activation records the consent to the trial (A9, docs/billing.md §3.1)', () => {
   test('recorded with what the step showed: the price, the trial, the first charge, the reminders', async () => {
     const { bill, owner } = await pendingSignUp()
     await startCheckout(owner)
@@ -2567,15 +2610,53 @@ describe('the activation step accepts the terms before Checkout (A9, docs/billin
     expect(await billRow(row!.billing_account_id!)).toMatchObject({ auto_recharge: false })
   })
 
-  test('no terms, or other versions than in effect: no Checkout, terms_changed', async () => {
+  test('the start takes no terms: an older page that still sends the versions it showed starts the same', async () => {
+    const { bill, owner } = await pendingSignUp()
+    const res = await act(owner, 'billing.startCheckout', {
+      acceptedTerms: { termsVersion: '2026-01-01', privacyVersion: TERMS.PRIVACY_VERSION },
+    })
+    expect(res.status, JSON.stringify(res.body)).toBe(200)
+    const rows = await db.select().from(terms_acceptances).where(eq(terms_acceptances.billing_account_id, bill.id))
+    // The sign-up's acceptance and the activation's consent, both of the terms in effect.
+    expect(rows.map(r => [r.source, r.terms_version]).sort()).toEqual([
+      ['activation', TERMS.TERMS_VERSION],
+      ['signup', TERMS.TERMS_VERSION],
+    ])
+  })
+
+  test('terms changed since sign-up: no Checkout (terms_changed) until the owner accepts them in the app', async () => {
+    const { bill, owner } = await pendingSignUp({}, '2026-01-01')
+    // The app's "We updated our terms" dialog asks this owner (a bill waiting for Checkout counts, LIN-420).
+    const me = await request(owner, 'GET', '/v1/me')
+    expect(me.body.termsUpdate).toMatchObject({ termsVersion: TERMS.TERMS_VERSION })
+    const refused = await act(owner, 'billing.startCheckout', {})
+    expect(refused).toMatchObject({ status: 409, body: { ok: false, code: 'terms_changed' } })
+    expect(checkoutsMade()).toHaveLength(0)
+    const shown = { termsVersion: TERMS.TERMS_VERSION, privacyVersion: TERMS.PRIVACY_VERSION }
+    expect((await act(owner, 'account.acceptTerms', shown)).body.data).toEqual({ accepted: 1 })
+    expect((await request(owner, 'GET', '/v1/me')).body.termsUpdate ?? null).toBeNull()
+    await startCheckout(owner)
+    const [activation] = await db
+      .select()
+      .from(terms_acceptances)
+      .where(and(eq(terms_acceptances.billing_account_id, bill.id), eq(terms_acceptances.source, 'activation')))
+    expect(activation).toMatchObject({ terms_version: TERMS.TERMS_VERSION })
+  })
+
+  test('no acceptance at all (a workspace released by its partner): no Checkout until the owner accepts', async () => {
+    const { owner } = await pendingSignUp({}, null)
+    expect(await act(owner, 'billing.startCheckout', {})).toMatchObject({
+      status: 409,
+      body: { code: 'terms_changed' },
+    })
+    expect(checkoutsMade()).toHaveLength(0)
+  })
+
+  test("no terms set on the install: a business's Checkout cannot start", async () => {
     const { owner } = await pendingSignUp()
-    for (const input of [
-      {},
-      { acceptedTerms: { termsVersion: '2026-01-01', privacyVersion: TERMS.PRIVACY_VERSION } },
-    ]) {
-      const res = await act(owner, 'billing.startCheckout', input)
-      expect(res).toMatchObject({ status: 409, body: { ok: false, code: 'terms_changed' } })
-    }
+    vi.stubEnv('TERMS_VERSION', '')
+    const res = await act(owner, 'billing.startCheckout', {})
+    expect(res).toMatchObject({ status: 409, body: { ok: false, error: sayIn(CHECKOUT_UNAVAILABLE) } })
     expect(checkoutsMade()).toHaveLength(0)
   })
 })
@@ -2853,7 +2934,7 @@ describe('extra calls at the same time on the activation step (LIN-450)', () => 
 
   test('sold as a second line of the plan, with what the step showed recorded; the plan price includes them', async () => {
     const { bill, owner } = await pendingSignUp()
-    expect((await act(owner, 'billing.startCheckout', { ...ACCEPTED, extraCalls: 10 })).status).toBe(200)
+    expect((await act(owner, 'billing.startCheckout', { extraCalls: 10 })).status).toBe(200)
     const made = checkoutsMade().at(-1)!
     // The synced prices (another test may have moved a lookup key to a new amount's price meanwhile).
     expect(made.body.get('line_items[0][price]')).toMatch(/^price_ws_monthly/)
@@ -2875,14 +2956,17 @@ describe('extra calls at the same time on the activation step (LIN-450)', () => 
     const { bill, owner } = await pendingSignUp()
     await startCheckout(owner)
     expect(checkoutsMade().at(-1)!.body.get('line_items[1][price]')).toBeNull()
-    const [row] = await db.select().from(terms_acceptances).where(eq(terms_acceptances.billing_account_id, bill.id))
+    const [row] = await db
+      .select()
+      .from(terms_acceptances)
+      .where(and(eq(terms_acceptances.billing_account_id, bill.id), eq(terms_acceptances.source, 'activation')))
     expect(row!.disclosure).not.toHaveProperty('extraCalls')
   })
 
   test('only in steps of 5, and at most 45 more (50 at the same time): no Checkout otherwise', async () => {
     const { owner } = await pendingSignUp()
-    expect((await act(owner, 'billing.startCheckout', { ...ACCEPTED, extraCalls: 7 })).status).toBe(422)
-    const above = await act(owner, 'billing.startCheckout', { ...ACCEPTED, extraCalls: 50 })
+    expect((await act(owner, 'billing.startCheckout', { extraCalls: 7 })).status).toBe(422)
+    const above = await act(owner, 'billing.startCheckout', { extraCalls: 50 })
     expect(above.status).toBe(409)
     expect(above.body.error).toContain('at most 50 calls at the same time')
     expect(checkoutsMade()).toEqual([])
@@ -2890,7 +2974,7 @@ describe('extra calls at the same time on the activation step (LIN-450)', () => 
 
   test('a trial: the workspace has them from the confirmation; nothing counts as paid until the trial ends', async () => {
     const { ws, bill, owner } = await pendingSignUp()
-    await act(owner, 'billing.startCheckout', { ...ACCEPTED, extraCalls: 10 })
+    await act(owner, 'billing.startCheckout', { extraCalls: 10 })
     const sessionId = [...stripe.sessions.keys()].at(-1)!
     const customer = (await billRow(bill.id)).stripe_customer_id!
     complete(sessionId, withExtraItem(subscription(customer, { card: card(rid('fp')) }), 10))
@@ -2902,7 +2986,7 @@ describe('extra calls at the same time on the activation step (LIN-450)', () => 
 
   test('a plan paid now: the first invoice paid them for this period (going back up to them is free)', async () => {
     const { ws, bill, owner } = await pendingSignUp({ trial_refused: 'card_used' })
-    await act(owner, 'billing.startCheckout', { ...ACCEPTED, extraCalls: 5 })
+    await act(owner, 'billing.startCheckout', { extraCalls: 5 })
     const sessionId = [...stripe.sessions.keys()].at(-1)!
     const customer = (await billRow(bill.id)).stripe_customer_id!
     complete(sessionId, withExtraItem(subscription(customer, { status: 'active', card: card(rid('fp')) }), 5))

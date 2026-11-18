@@ -72,7 +72,6 @@
   "adminAlert.checkoutRefused.text": "Checkout {session} der Abrechnung {bill} wurde in Stripe abgeschlossen, und der Server hat ihn nicht übernommen: {reason}",
   "adminAlert.checkoutSetup.check": "Führe das Billing-Bootstrap aus (es erstellt die Zahlungsmethoden-Konfiguration nur für Karten, das Kundenportal und den Webhook-Endpunkt; die Preise erstellt die App, wenn die Abrechnung eingeschaltet oder die Preise gespeichert werden) und prüfe dann die Stripe-Schlüssel und ihre Berechtigungen unter Server-Admin › Abrechnung › Stripe.",
   "adminAlert.checkoutSetup.subject": "Checkout auf {brand} konnte nicht gestartet werden",
-  "adminAlert.checkoutSetup.termsUrl": "Stripe hat für dieses Konto keine URL zu den Nutzungsbedingungen, und Checkout fordert Kunden auf, die Bedingungen zu akzeptieren. Füge die URLs deiner Nutzungsbedingungen und deiner Datenschutzerklärung im Stripe-Dashboard unter Settings › Public details hinzu (dieselben Links wie TERMS_URL und PRIVACY_URL).",
   "adminAlert.checkoutSetup.text": "Ein Inhaber einer Abrechnung wollte Checkout starten, und Stripe hat ihn wegen der Einrichtung abgelehnt ({code}). Bis das behoben ist, kann niemand eine Testphase starten oder Minuten kaufen; der Inhaber wurde gebeten, es später noch einmal zu versuchen.",
   "adminAlert.dataPurgeFailed.items": "Nicht gelöscht",
   "adminAlert.dataPurgeFailed.next": "Der nächste Lauf morgen versucht es erneut. Wenn es weiter fehlschlägt, prüfe den Speicher der Aufnahmen und das Server-Log: Die Datenschutzerklärung verspricht diese Löschung.",

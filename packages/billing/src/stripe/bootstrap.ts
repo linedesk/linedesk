@@ -10,12 +10,7 @@
 import Stripe from 'stripe'
 import { stripeKeyMode } from '../keys.ts'
 import { CHECKOUT_PMC_NAME, type KeyMode, PORTAL_METADATA, WEBHOOK_EVENTS } from '../provider.ts'
-import {
-  createStripeBillingProvider,
-  findCheckoutConfiguration,
-  STRIPE_API_VERSION,
-  STRIPE_TIMEOUT_MS,
-} from './index.ts'
+import { findCheckoutConfiguration, STRIPE_API_VERSION, STRIPE_TIMEOUT_MS } from './index.ts'
 import { portalFits, portalParams } from './portal.ts'
 
 export { CHECKOUT_PMC_NAME } from '../provider.ts'
@@ -66,12 +61,6 @@ export type BootstrapResult = {
   changes: string[]
   /** Only when the endpoint was created now: Stripe shows the signing secret once. Never log it. */
   webhookSecret: string | null
-  /**
-   * Whether the account has a Terms of Service URL (Dashboard › Settings › Public details), which a plan's Checkout
-   * needs for its terms checkbox. The API cannot set it: `missing` is a step for the person running the script.
-   * `unknown`: Stripe gave another answer (or a dry run).
-   */
-  termsOfServiceUrl: 'set' | 'missing' | 'unknown'
 }
 
 export { PORTAL_METADATA } from '../provider.ts'
@@ -201,14 +190,6 @@ export async function bootstrapStripe(
   const paymentMethodConfiguration = await checkoutPaymentMethods(stripe, write)
   const portalConfiguration = await portal(stripe, options, write)
   const webhook = await webhookEndpoint(stripe, options, write)
-  // Checked last, through the adapter's own check (a setup session made and expired at once; not on a dry run).
-  const terms = options.dryRun
-    ? null
-    : await createStripeBillingProvider({ secretKey, webhookSecret: 'whsec_bootstrap' }, doFetch).checkoutTermsReady(
-        // The install's own address (the webhook URL's origin), never a third party's.
-        new URL(options.webhookUrl).origin,
-      )
-
   return {
     account: account.id,
     mode,
@@ -220,7 +201,6 @@ export async function bootstrapStripe(
     oldWebhookEndpoints: webhook.old,
     changes,
     webhookSecret: webhook.secret,
-    termsOfServiceUrl: terms === true ? 'set' : terms === false ? 'missing' : 'unknown',
   }
 }
 

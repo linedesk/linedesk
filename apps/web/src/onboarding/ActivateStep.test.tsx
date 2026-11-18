@@ -1,13 +1,17 @@
 // The activation step (ActivateStep.tsx, docs/billing.md §3.2): what the owner reads above "Start free trial": the
 // plan's price a month (a yearly plan's total in the grey note under it, and at the first charge) and its price a
-// minute in cents, the dated timeline with the reminder emails and the first charge, no auto-recharge, and the terms next to the button.
+// minute in cents, the dated timeline with the reminder emails and the first charge, no auto-recharge, and no terms:
+// they were accepted once, at sign-up (decision of 2026-11-18).
 import { renderToStaticMarkup } from 'react-dom/server'
-import { expect, test, vi } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 import type { Activation, Me } from '../auth.ts'
 
 vi.mock('../store.tsx', () => ({ useAssistantName: () => 'Maya' }))
 vi.mock('../checkout.ts', () => ({ goToCheckout: vi.fn() }))
-const { ActivateStep } = await import('./ActivateStep.tsx')
+vi.mock('../shell/TermsUpdate.tsx', () => ({ askTermsAgain: vi.fn() }))
+const { ActivateStep, useStartTrial } = await import('./ActivateStep.tsx')
+const { goToCheckout } = await import('../checkout.ts')
+const { askTermsAgain } = await import('../shell/TermsUpdate.tsx')
 
 const activation: Activation = {
   planCents: 1100,
@@ -31,7 +35,7 @@ const text = (a: Activation) =>
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
 
-test('the price a minute in cents, the plan, the timeline and the terms next to Start free trial', () => {
+test('the price a minute in cents, the plan and the timeline next to Start free trial; no terms again', () => {
   const page = text(activation)
   expect(page).toContain('50 call minutes included, then 5¢ a minute.')
   expect(page).not.toContain('$0.05')
@@ -46,8 +50,64 @@ test('the price a minute in cents, the plan, the timeline and the terms next to 
   // Activation never turns auto-recharge on (2026-11-17): nothing about it, nor a call credit charge.
   expect(page).not.toMatch(/recharge|call balance|\$25/i)
   expect(page).not.toContain('We email you')
-  expect(page).toContain('By clicking Start free trial')
+  // The terms were accepted at sign-up: no clickwrap and no terms links here.
+  expect(page).not.toMatch(/By clicking|Terms of Service|Privacy Policy/)
+  expect(
+    renderToStaticMarkup(<ActivateStep me={me(activation)} onBack={() => {}} onTermsChanged={() => {}} />),
+  ).not.toContain('example.test/terms')
   expect(page).toContain('Start free trial')
+})
+
+test('after a refused trial, Start my plan asks no terms either', () => {
+  const page = text({ ...activation, trialDays: null, firstChargeAt: null, reminderDays: [] })
+  expect(page).toContain('Start my plan')
+  expect(page).not.toMatch(/By clicking|Terms of Service|Privacy Policy/)
+})
+
+/** Renders the hook once (no DOM here) and hands its start out: what it calls is what counts. */
+function Probe({
+  m,
+  onTermsChanged,
+  got,
+}: {
+  m: Me
+  onTermsChanged: () => void
+  got: (s: () => Promise<void>) => void
+}) {
+  got(useStartTrial(m, activation, onTermsChanged, { byHand: false }).start)
+  return null
+}
+
+describe('starting', () => {
+  function starter(m: Me, onTermsChanged = () => {}) {
+    let start: (() => Promise<void>) | null = null
+    renderToStaticMarkup(<Probe m={m} onTermsChanged={onTermsChanged} got={s => (start = s)} />)
+    return start!
+  }
+  beforeEach(() => vi.mocked(goToCheckout).mockReset())
+
+  test('goes to Checkout without any terms (accepted at sign-up)', async () => {
+    vi.mocked(goToCheckout).mockResolvedValue(undefined)
+    await starter(me(activation))()
+    expect(goToCheckout).toHaveBeenCalledWith(null, 0)
+  })
+
+  test('terms changed since sign-up and not accepted yet: the app’s terms dialog asks first, no Checkout', async () => {
+    vi.mocked(askTermsAgain).mockClear()
+    const waiting = { ...me(activation), termsUpdate: activation.terms } as Me
+    await starter(waiting)()
+    expect(goToCheckout).not.toHaveBeenCalled()
+    expect(askTermsAgain).toHaveBeenCalledOnce()
+  })
+
+  test('refused with terms_changed (changed since the page loaded): /v1/me is read again and the dialog asks', async () => {
+    vi.mocked(askTermsAgain).mockClear()
+    vi.mocked(goToCheckout).mockRejectedValueOnce(Object.assign(new Error('changed'), { code: 'terms_changed' }))
+    const reload = vi.fn()
+    await starter(me(activation), reload)()
+    expect(reload).toHaveBeenCalledOnce()
+    expect(askTermsAgain).toHaveBeenCalledOnce()
+  })
 })
 
 test('a Premium-priced plan says 10¢; a sub-cent price stays in dollars', () => {

@@ -23,7 +23,6 @@ import {
   type RechargeInvoiceInput,
   type RefundBlocker,
   type StripeKeys,
-  STRIPE_TERMS_URL_MISSING,
   WEBHOOK_TOLERANCE_SECONDS,
   WebhookRefused,
 } from '../provider.ts'
@@ -168,7 +167,7 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
     },
     startCheckout: input =>
       startCheckout(stripe, input).catch(error => {
-        // A 400 here is our setup too (a price, the tax settings, the terms URL): never the owner's card.
+        // A 400 here is our setup too (a price, the tax settings): never the owner's card.
         throw setupError(error) ?? refusedSetup(error) ?? error
       }),
     syncCatalog: catalog =>
@@ -191,30 +190,6 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
         if (status === 404) return true
         return null
       }
-    },
-    async checkoutTermsReady(successUrl) {
-      // Stripe checks the terms URL when a session asks for the terms checkbox. A setup-mode session saves nothing
-      // until someone completes it, and it is expired at once, so nobody can.
-      let id: string
-      try {
-        const session = await stripe.checkout.sessions.create({
-          mode: 'setup',
-          currency: 'usd',
-          success_url: successUrl,
-          consent_collection: { terms_of_service: 'required' },
-          expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-          metadata: { linedesk_check: 'terms_url' },
-        })
-        id = session.id
-      } catch (error) {
-        return termsUrlRefused(error) ? false : null
-      }
-      if (id)
-        await stripe.checkout.sessions.expire(id).catch(error => {
-          // Harmless (it ends by itself within 30 minutes, and its link was never handed out), but worth seeing.
-          console.warn(`billing: the terms check session ${id} could not be expired: ${(error as Error).message}`)
-        })
-      return true
     },
     async taxSetup() {
       // Reads only (GET /v1/tax/settings, GET /v1/tax/registrations): the head office and registrations are set by a
@@ -806,24 +781,10 @@ export async function findCheckoutConfiguration(
 /** An id no portal configuration has: the write-access probe's (nothing is written). */
 const PORTAL_PROBE_ID = 'bpc_linedesk_permission_check'
 
-/**
- * Stripe refuses the terms checkbox when the account has no Terms of Service URL (Dashboard › Settings › Public
- * details): a 400 without its own code, told by its parameter or message (as Checkout's own mapping to
- * `stripe_terms_url_missing` does). The checkbox is never left out to get past it.
- */
-function termsUrlRefused(error: unknown) {
-  const e = error as { statusCode?: number; message?: unknown; param?: unknown }
-  if (e.statusCode !== 400) return false
-  const about = `${typeof e.param === 'string' ? e.param : ''} ${typeof e.message === 'string' ? e.message : ''}`
-  return /terms[ _]of[ _]service/i.test(about)
-}
-
-/** A 400 when a Checkout is made: the account is not set up for it (a price, tax, the terms URL). For the admins. */
+/** A 400 when a Checkout is made: the account is not set up for it (a price, tax). For the admins. */
 function refusedSetup(error: unknown): BillingSetupError | null {
   const e = error as { statusCode?: number; code?: string }
   if (e.statusCode !== 400) return null
-  // Named on its own (A9): the admins are told exactly which Dashboard setting is missing.
-  if (termsUrlRefused(error)) return new BillingSetupError(STRIPE_TERMS_URL_MISSING)
   return new BillingSetupError(`stripe_${e.code ?? 400}`)
 }
 
@@ -845,8 +806,8 @@ export function checkoutTax(automaticTax: boolean) {
 
 /**
  * A Checkout Session (docs/billing.md §3.2 step 3, §2.2): the card-only configuration and never
- * `payment_method_types` (§2.4), our exclusive prices with the install's tax fields (`checkoutTax`), the terms for a
- * plan. A plan saves its card on the subscription; no `setup_future_usage` in subscription mode.
+ * `payment_method_types` (§2.4), our exclusive prices with the install's tax fields (`checkoutTax`). No terms checkbox:
+ * the terms are accepted once, at sign-up (docs/billing.md §3.1). A plan saves its card on the subscription; no `setup_future_usage` in subscription mode.
  */
 async function startCheckout(stripe: Stripe, input: CheckoutInput) {
   const metadata = { [BILL_METADATA]: input.billId, [CHECKOUT_METADATA]: input.kind }
@@ -903,7 +864,6 @@ async function startCheckout(stripe: Stripe, input: CheckoutInput) {
         mode: 'subscription',
         line_items: items.map(i => ({ price: prices[i.lookupKey]!, quantity: i.quantity })),
         payment_method_collection: 'always',
-        consent_collection: { terms_of_service: 'required' },
         subscription_data: {
           metadata,
           ...(input.kind === 'trial' && input.trialDays

@@ -94,7 +94,6 @@ function fakeProvider(charge: (input: RechargeInvoiceInput) => Awaited<ReturnTyp
     },
     catalogWriteAccess: async () => ({ products: null, prices: null }),
     portalWriteAccess: async () => null,
-    checkoutTermsReady: async () => null,
     taxSetup: async () => null,
     customerTaxReady: async () => fakeTax.ready,
     customersWithoutTaxAddress: async () => 0,
