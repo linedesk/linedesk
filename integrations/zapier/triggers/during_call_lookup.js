@@ -1,4 +1,4 @@
-// Instant trigger: during a call the assistant asked one of its lookups (Assistant › Webhooks › during the call, e.g.
+// Instant trigger: during a call the assistant asked one of its lookups (Assistant › Advanced › Webhook › during the call, e.g.
 // "order status") and got an answer. Zapier cannot answer the assistant in time (a few seconds); this tells the Zap
 // what was asked and answered, e.g. to log it.
 const { hookTrigger, nestedCaller } = require('../lib/hook.js')

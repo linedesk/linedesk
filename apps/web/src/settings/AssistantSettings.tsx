@@ -49,7 +49,7 @@ import { Checkbox, Select } from '../ui/controls.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { Loading, LoadProblem, Skeleton, useLoading, useLoadState } from '../ui/LoadStates.tsx'
-import { type PageSection, SettingsLayout, sectionHash, useSection } from '../ui/SettingsLayout.tsx'
+import { type PageSection, SettingsLayout, sectionHash, sectionParts, useSection } from '../ui/SettingsLayout.tsx'
 import { useWorkspaceCountry, useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { AgentChangeNote } from './AgentChange.tsx'
 import { AssistantHeader } from './AssistantHeader.tsx'
@@ -90,6 +90,7 @@ import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { CalendarSettings } from './Calendar.tsx'
 import { CallEmails, emailRuleWhenId, type Undoable } from './CallEmails.tsx'
 import { CallQualitySettings, levelSavedNote } from './CallQuality.tsx'
+import { canonicalAssistantHash, OLD_SECTIONS, WEBHOOK_ITEM } from './assistantLinks.ts'
 import { CONNECT_RETURN_KEY } from './calendarModel.ts'
 import {
   Field,
@@ -111,19 +112,9 @@ import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
 import { TransferContacts, transferFieldId } from './TransferContacts.tsx'
 import { RealtimeVoiceSettings, useVoiceOptions, VoiceLoading, VoiceSettings } from './VoiceSettings.tsx'
-import { Webhooks } from './Webhooks.tsx'
+import { WEBHOOK_SECTION_ID, Webhooks } from './Webhooks.tsx'
 
-type SectionId =
-  | 'general'
-  | 'review'
-  | 'business'
-  | 'hours'
-  | 'rules'
-  | 'transfers'
-  | 'emails'
-  | 'booking'
-  | 'webhooks'
-  | 'advanced'
+type SectionId = 'general' | 'review' | 'business' | 'hours' | 'rules' | 'transfers' | 'emails' | 'booking' | 'advanced'
 const SECTION_IDS: readonly SectionId[] = [
   'general',
   // Named after the assistant on the page (sectionsFor); owners and admins only.
@@ -134,7 +125,6 @@ const SECTION_IDS: readonly SectionId[] = [
   'transfers',
   'emails',
   'booking',
-  'webhooks',
   'advanced',
 ]
 /** Each section's name and line in the nav, in the active language. */
@@ -183,7 +173,7 @@ function NotAnswered({ setUp }: { setUp: PipelinesSetUp | null }) {
 }
 
 /** Sections that save on their own, outside the assistant's draft. */
-type OwnSection = 'hours' | 'booking' | 'webhooks' | 'review'
+type OwnSection = 'hours' | 'booking' | 'review'
 /** Which draft fields each section holds. */
 const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
   business: ['instructions', 'website'],
@@ -212,16 +202,6 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
     'silence_closing',
     'goodbye_line',
   ],
-}
-/** Section ids from before the regrouping, so old links and bookmarks still land in the right place. */
-const OLD_SECTIONS: Record<string, SectionId> = {
-  greeting: 'general',
-  knowledge: 'business',
-  transfer: 'transfers',
-  calls: 'transfers',
-  calendar: 'booking',
-  emergencies: 'transfers',
-  voice: 'general',
 }
 
 /** The assistant's name as the help texts say it, also while the name field is being edited. */
@@ -822,6 +802,11 @@ function Form({
     [t, assistant.name, canEdit, openItems],
   )
   const current = useSection(page, shown)
+  // `#assistant/<id>/advanced/webhook` (also where the old Webhook section's links land): Advanced, at the webhook.
+  const item = sectionParts(page, window.location.hash).item
+  useEffect(() => {
+    if (current === 'advanced' && item === WEBHOOK_ITEM) return scrollToWhileSettling(WEBHOOK_SECTION_ID)
+  }, [current, item])
   const hoursOn = useBusinessHoursOn()
   const changed = dirty
   const unsaved = useMemo(() => {
@@ -1049,8 +1034,8 @@ function Form({
       current={current}
       unsaved={unsaved}
     >
-      {/* Members: why nothing here can change, once on top (Webhooks says it in its own words). */}
-      {!canEdit && current !== 'review' && current !== 'webhooks' && <ReadOnlyNote />}
+      {/* Members: why nothing here can change, once on top (the webhook's card in Advanced says it for itself). */}
+      {!canEdit && current !== 'review' && <ReadOnlyNote />}
       {current === 'review' ? (
         <AssistantReview
           assistant={assistant}
@@ -1076,12 +1061,14 @@ function Form({
           <Holidays canEdit={canEdit} toast={toast} />
           <VacationMode canEdit={canEdit} toast={toast} />
         </>
-      ) : current === 'webhooks' ? (
-        <Webhooks assistantId={assistant.id} canEdit={canEdit} toast={toast} />
       ) : (
-        <form onSubmit={save} onKeyDown={e => onSaveKey(e, canEdit && changed)}>
-          {body}
-        </form>
+        <>
+          <form onSubmit={save} onKeyDown={e => onSaveKey(e, canEdit && changed)}>
+            {body}
+          </form>
+          {/* The webhook saves on its own, so it sits outside the draft's form, last in Advanced. */}
+          {current === 'advanced' && <Webhooks assistantId={assistant.id} canEdit={canEdit} toast={toast} />}
+        </>
       )}
     </SettingsLayout>
   )
@@ -1103,24 +1090,38 @@ function returnFromCalendarConnect(assistants: Assistant[]) {
   if (assistant) history.replaceState(null, '', `#assistant/${assistant.id}/booking${query ? `?${query}` : ''}`)
 }
 
+/** What ends the scroll to a linked place: the user moving the page themselves. */
+const USER_MOVES = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const
+
 /**
- * Old and short links in place: `#assistant/<section>` (no assistant) goes to the first assistant, and a
- * section id from before the regrouping (`greeting`, `knowledge`, `transfer`, `calendar`, `emergencies`) to its new one.
+ * Scrolls to the element and keeps it there while the cards around it settle (a load that arrives after the first
+ * frame makes the page taller), until the user moves the page or 2 s have passed. Returns the stop.
  */
-function canonicalAssistantHash(assistants: Assistant[]) {
-  const [path = '', query] = window.location.hash.replace(/^#/, '').split('?')
-  const [page, ...parts] = path.split('/')
-  if (page !== 'assistant' || !parts.length) return
-  const isAssistant = assistants.some(a => a.id === parts[0])
-  const id = isAssistant ? parts[0]! : assistants[0]?.id
-  const section = isAssistant ? parts[1] : parts[0]
-  if (!id || !section) return
-  // Notifications are your own settings now (Account settings › Notifications), not the assistant's.
-  if (section === 'notifications')
-    return history.replaceState(null, '', `#account/notifications${query ? `?${query}` : ''}`)
-  const next = OLD_SECTIONS[section] ?? section
-  if (isAssistant && next === section) return
-  history.replaceState(null, '', `#assistant/${id}/${next}${query ? `?${query}` : ''}`)
+function scrollToWhileSettling(id: string): () => void {
+  const element = document.getElementById(id)
+  if (!element) return () => {}
+  const scroll = () => element.scrollIntoView({ block: 'start' })
+  scroll()
+  const sizes = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scroll)
+  sizes?.observe(element)
+  if (element.parentElement) sizes?.observe(element.parentElement)
+  const stop = () => {
+    sizes?.disconnect()
+    clearTimeout(timer)
+    for (const type of USER_MOVES) window.removeEventListener(type, stop, true)
+  }
+  const timer = setTimeout(stop, 2000)
+  for (const type of USER_MOVES) window.addEventListener(type, stop, { capture: true, passive: true })
+  return stop
+}
+
+/** Old and short links in place (assistantLinks.ts): the address says what is on screen. */
+function rewriteOldAssistantHash(assistants: Assistant[]) {
+  const next = canonicalAssistantHash(
+    window.location.hash,
+    assistants.map(a => a.id),
+  )
+  if (next) history.replaceState(null, '', next)
 }
 
 /** The assistant the hash names (`#assistant/<id>/<section>`), else the workspace's first. */
@@ -1142,8 +1143,7 @@ const SECTION_CARDS: Record<SectionId, number> = {
   transfers: 1,
   emails: 3,
   booking: 3,
-  webhooks: 1,
-  advanced: 3,
+  advanced: 4,
 }
 
 /** The section the hash names (`#assistant/<id>/<section>` or `#assistant/<section>`, old ids too), else the first. */
@@ -1209,7 +1209,7 @@ export function AssistantSettings(props: Props) {
   }, [])
   if (assistants.length) {
     returnFromCalendarConnect(assistants)
-    canonicalAssistantHash(assistants)
+    rewriteOldAssistantHash(assistants)
   }
   const assistant = assistantInHash(assistants)
   // The skeleton stays until the gate lets it go (no flash, no blink), then the assistant's page takes its place.

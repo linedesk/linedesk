@@ -53,13 +53,14 @@ export function parseHash(hash: string, last: InboxPlace = HOME): Location {
     return { ...last, route: 'calls', callId: path.slice(CALL_PREFIX.length), known: true }
   if (isPageRoute(path)) return { ...last, route: path, callId: null, known: true }
   // A section of a page (`#workspace/recordings`), or of one of several things on it
-  // (`#assistant/<assistant id>/hours`): the page reads which (ui/SettingsLayout.tsx).
+  // (`#assistant/<assistant id>/hours`), and a place in it (`#assistant/<assistant id>/advanced/webhook`): the page
+  // reads which (ui/SettingsLayout.tsx).
   const [page = '', ...parts] = path.split('/')
   if (
     isPageRoute(page) &&
     hasSections(page) &&
     parts.length >= 1 &&
-    parts.length <= 2 &&
+    parts.length <= (page === 'assistant' ? 3 : 2) &&
     parts.every(p => /^[A-Za-z0-9_-]+$/.test(p))
   )
     return { ...last, route: page, callId: null, known: true }
@@ -136,14 +137,14 @@ export function linkNotice(target: LinkTarget): string | null {
 
 /**
  * Old links, exact paths first. Settings became Workspace settings (Team is a section of it), your notifications
- * are in Account, Business hours and Webhooks in the assistant's settings, Call details became Export calls, Needs
+ * are in Account, Business hours and the webhook (Advanced) in the assistant's settings, Call details became Export calls, Needs
  * review became How <assistant> did.
  */
 const MOVED: Record<string, string> = {
   settings: 'workspace',
   'settings/assistant': 'assistant',
   'settings/hours': 'assistant/hours',
-  'settings/webhooks': 'assistant/webhooks',
+  'settings/webhooks': 'assistant/advanced/webhook',
   'settings/fields': 'workspace/export',
   'settings/notifications': 'account/notifications',
   'assistant/notifications': 'account/notifications',

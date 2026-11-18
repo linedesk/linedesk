@@ -1,4 +1,4 @@
-// Assistant settings, Webhooks: the assistant's webhook, one address with the hooks it gets switched on.
+// Assistant settings, Advanced, Webhook: the assistant's webhook, one address with the hooks it gets switched on.
 // When a call starts, Linedesk asks it about the caller; during the call, the assistant asks its lookups
 // (WebhookLookups.tsx); after the call, it sends the whole call (docs/webhooks.md). The webhook comes from the local store (synced, no secret), so it is there at once.
 // Adding it shows its signing secret once; the hook switches and on/off go through the outbox; add,
@@ -22,6 +22,7 @@ import { useSupportAccess } from '../supportAccess.ts'
 import { Loading, SkeletonList, SkeletonRows, useLoadState } from '../ui/LoadStates.tsx'
 import { Checkbox, Switch } from '../ui/controls.tsx'
 import { Dialog, Input } from '../ui/form.tsx'
+import type { HelpContent } from '../ui/HelpTip.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
@@ -30,7 +31,6 @@ import { Field, Section, SwitchRow } from './fields.tsx'
 import { callAction, readAction, useWriteAction } from './settings-api.ts'
 import { lookupTestText, WebhookLookups } from './WebhookLookups.tsx'
 import './webhooks.css'
-import { brandName } from '../brand.ts'
 import { fmt } from '../i18n/format.ts'
 
 /** Each hook's name (the switch, the Send checkbox) and its test item in the row's menu. */
@@ -44,21 +44,32 @@ const HOOK_TEST: Record<WebhookHook, MessageKey> = {
   during_call: msg('settings.webhooks.test.duringCall'),
   call_end: msg('settings.webhooks.test.callEnd'),
 }
-/** What a hook's switch says it sends; JSON and the greeting's {{name}} come in as arguments. */
-function hookHelp(t: ReturnType<typeof useT>, hook: WebhookHook): string {
-  if (hook === 'call_start')
-    return t('settings.webhooks.hookHelp.callStart', {
-      brand: brandName(),
-      seconds: CALL_START_TIMEOUT_MS / 1000,
-      json: '{"name": "Sam"}',
-      placeholder: '{{name}}',
-    })
+/** The webhook's card, also where `#assistant/<id>/advanced/webhook` scrolls to. */
+export const WEBHOOK_SECTION_ID = 'as-webhooks'
+
+/** What a hook sends and how long it waits, in one line under its switch. */
+function hookLine(t: ReturnType<typeof useT>, hook: WebhookHook): string {
+  if (hook === 'call_start') return t('settings.webhooks.hookLine.callStart', { seconds: CALL_START_TIMEOUT_MS / 1000 })
   if (hook === 'during_call')
-    return t('settings.webhooks.hookHelp.duringCall', {
-      seconds: DURING_CALL_TIMEOUT_MS / 1000,
-      json: '{"answer": "Order 1234 shipped Monday."}',
-    })
-  return t('settings.webhooks.hookHelp.callEnd', { seconds: CALL_END_DELAY_SEC })
+    return t('settings.webhooks.hookLine.duringCall', { seconds: DURING_CALL_TIMEOUT_MS / 1000 })
+  return t('settings.webhooks.hookLine.callEnd', { seconds: CALL_END_DELAY_SEC })
+}
+
+/** Example answers: JSON, the same in every language. */
+const CALL_START_EXAMPLE = '{"name": "Sam"}'
+const DURING_CALL_EXAMPLE = '{"answer": "Order 1234 shipped Monday."}'
+
+/** The detail behind a hook's (?): what to answer, with an example to copy. */
+function hookTip(t: ReturnType<typeof useT>, hook: WebhookHook): HelpContent {
+  const example = (code: string) => [{ code, label: t('settings.webhooks.exampleAnswer') }]
+  if (hook === 'call_start')
+    return {
+      text: t('settings.webhooks.hookTip.callStart', { placeholder: '{{name}}' }),
+      commands: example(CALL_START_EXAMPLE),
+    }
+  if (hook === 'during_call')
+    return { text: t('settings.webhooks.hookTip.duringCall'), commands: example(DURING_CALL_EXAMPLE) }
+  return t('settings.webhooks.hookTip.callEnd')
 }
 /** The Request column of the log, by the delivery's event. */
 const SENT_LABEL: Record<string, MessageKey> = {
@@ -78,15 +89,20 @@ export function Webhooks({ assistantId, canEdit, toast }: Props) {
   const [editing, setEditing] = useState(false)
   if (!canEdit)
     return (
-      <Section id="as-webhooks" title={t('settings.webhooks.title')}>
-        <p className="help">{t(supportAccess ? 'settings.readOnly.supportAccess' : 'settings.webhooks.onlyAdmins')}</p>
+      <Section
+        id={WEBHOOK_SECTION_ID}
+        title={t('settings.webhooks.title')}
+        description={t(supportAccess ? 'settings.readOnly.supportAccess' : 'settings.webhooks.onlyAdmins')}
+      >
+        {null}
       </Section>
     )
   return (
     <Section
-      id="as-webhooks"
+      id={WEBHOOK_SECTION_ID}
       title={t('settings.webhooks.title')}
-      help={t('settings.webhooks.help', { field: '"hook"', header: 'Linedesk-Hook', brand: brandName() })}
+      description={t('settings.webhooks.description')}
+      help={t('settings.webhooks.help', { field: '"hook"', header: 'Linedesk-Hook' })}
       actions={
         !endpoint &&
         load === 'ready' && (
@@ -135,7 +151,8 @@ function HookSwitches({ endpoint, toast }: { endpoint: WebhookEndpoint; toast: P
         <Fragment key={hook}>
           <SwitchRow
             title={t(HOOK_LABEL[hook])}
-            description={hookHelp(t, hook)}
+            description={hookLine(t, hook)}
+            help={hookTip(t, hook)}
             on={endpoint.hooks.includes(hook)}
             onChange={on => set(hook, on)}
           />
@@ -150,12 +167,15 @@ function HookSwitches({ endpoint, toast }: { endpoint: WebhookEndpoint; toast: P
 
 function StatusBadge({ endpoint }: { endpoint: WebhookEndpoint }) {
   const t = useT()
+  // On phones the switch next to it says the same, and the address needs the room.
   if (endpoint.status === 'active')
     return (
-      <Badge tone="ok">
-        <StatusMark state="works" label={t('settings.webhooks.status.on')} />
-        {t('settings.webhooks.status.on')}
-      </Badge>
+      <span className="wh-status-on">
+        <Badge tone="ok">
+          <StatusMark state="works" label={t('settings.webhooks.status.on')} />
+          {t('settings.webhooks.status.on')}
+        </Badge>
+      </span>
     )
   return endpoint.disabled_reason ? (
     <Badge tone="danger" title={endpoint.disabled_reason}>

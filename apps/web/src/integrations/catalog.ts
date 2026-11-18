@@ -61,7 +61,7 @@ export type Integration = {
 }
 
 const detail = (id: DetailId) => `#integrations/${id}`
-const WEBHOOKS = '#assistant/webhooks'
+const WEBHOOKS = '#assistant/advanced/webhook'
 const BOOKING = '#assistant/booking'
 
 export const CATALOG: readonly Integration[] = [

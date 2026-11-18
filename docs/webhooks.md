@@ -1,6 +1,6 @@
 # Webhooks
 
-Each assistant has one webhook: one address, set by owners and admins in the assistant's settings under Webhook, with a switch per hook it gets (`hooks`; `apps/web/src/settings/Webhooks.tsx`; actions in `packages/actions/src/webhooks.ts`, server in `apps/api/src/webhooks.ts`). Each request says its hook in the `hook` field of the body and the `Linedesk-Hook` header:
+Each assistant has one webhook: one address, set by owners and admins in the assistant's settings under Advanced › Webhook, with a switch per hook it gets (`hooks`; `apps/web/src/settings/Webhooks.tsx`; actions in `packages/actions/src/webhooks.ts`, server in `apps/api/src/webhooks.ts`). Each request says its hook in the `hook` field of the body and the `Linedesk-Hook` header:
 
 | Hook          | When                                                          | Linedesk sends                                                  | It answers                    |
 | ------------- | ------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------- |

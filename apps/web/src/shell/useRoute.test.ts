@@ -41,6 +41,7 @@ describe('route parsing', () => {
     expect(parseHash('#workspace/phone/pn_1')).toEqual({ ...list, route: 'workspace' })
     expect(parseHash('#account/notifications')).toEqual({ ...list, route: 'account' })
     expect(parseHash('#assistant/as_123abc/hours')).toEqual({ ...list, route: 'assistant' })
+    expect(parseHash('#assistant/as_123abc/advanced/webhook')).toEqual({ ...list, route: 'assistant' })
   })
   it('keeps the inbox view while a call or another page is open', () => {
     const last = { tab: 'done', search: 'leak' } as const
@@ -69,7 +70,8 @@ describe('route parsing', () => {
       '#calls/done/extra',
       '#settings',
       '#team',
-      '#assistant/a/b/c',
+      '#assistant/a/b/c/d',
+      '#workspace/a/b/c',
       '#assistant/h%20x',
       '#contacts/a/b',
     ]) {
@@ -146,7 +148,7 @@ describe('old links (LIN-165)', () => {
     ['#workspace/developers?ws=w1', '#integrations/api-keys?ws=w1'],
     ['#settings/fields', '#workspace/export'],
     ['#settings/hours', '#assistant/hours'],
-    ['#settings/webhooks', '#assistant/webhooks'],
+    ['#settings/webhooks', '#assistant/advanced/webhook'],
     ['#settings/assistant', '#assistant'],
     ['#team', '#workspace/team'],
     ['#team/members', '#workspace/team'],
@@ -205,7 +207,10 @@ describe('old links (LIN-165)', () => {
 })
 
 describe('settings sections', () => {
-  const sections = [{ id: 'notifications', label: 'Notifications' }, { id: 'phone', label: 'Phone numbers' }]
+  const sections = [
+    { id: 'notifications', label: 'Notifications' },
+    { id: 'phone', label: 'Phone numbers' },
+  ]
 
   it('sends #settings/assistant to the assistant', () => {
     expect(movedHash('#settings/assistant')).toBe('#assistant')

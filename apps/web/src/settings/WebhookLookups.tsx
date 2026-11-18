@@ -1,9 +1,8 @@
-// Assistant settings, Webhook, During the call: what the assistant can ask the business's system on a call
+// Assistant settings, Advanced, Webhook, During the call: what the assistant can ask the business's system on a call
 // (the webhook's lookups, docs/webhooks.md). Each lookup has a name, when to ask and the fields the assistant
 // fills in from what the caller says. Saved through the outbox (webhook.update), so the list changes at once;
 // Test asks the webhook with made-up values and needs the server's answer.
 import {
-  DURING_CALL_TIMEOUT_MS,
   LOOKUP_DESCRIPTION_MAX,
   LOOKUP_FIELDS_MAX,
   LOOKUP_WHEN_MAX,
@@ -78,7 +77,7 @@ export function WebhookLookups({ endpoint, toast }: Props) {
   return (
     <div className="wh-lookups">
       <div className="wh-lookups-head">
-        <span className="help">{t('settings.lookups.help')} {t('settings.lookups.maxWait', { seconds: DURING_CALL_TIMEOUT_MS / 1000 })}</span>
+        <b className="wh-lookups-title">{t('settings.lookups.label')}</b>
         <Button
           size="sm"
           icon="plus"
@@ -94,7 +93,7 @@ export function WebhookLookups({ endpoint, toast }: Props) {
           {lookups.map((lookup, index) => (
             <ListRow
               key={lookup.name}
-              title={<code>{lookup.name}</code>}
+              title={<code className="wh-key">{lookup.name}</code>}
               sub={lookup.when}
               actions={
                 <>

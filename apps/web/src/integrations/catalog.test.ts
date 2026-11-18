@@ -189,9 +189,9 @@ describe('placeOf', () => {
     expect(placeOf('#integrations/hubspot?app=connected')).toEqual({ view: 'detail', id: 'hubspot' })
   })
   it('sends a card without a detail view to the place where it is set up', () => {
-    expect(placeOf('#integrations/make')).toEqual({ view: 'elsewhere', to: '#assistant/webhooks' })
-    expect(placeOf('#integrations/n8n')).toEqual({ view: 'elsewhere', to: '#assistant/webhooks' })
-    expect(placeOf('#integrations/webhooks')).toEqual({ view: 'elsewhere', to: '#assistant/webhooks' })
+    expect(placeOf('#integrations/make')).toEqual({ view: 'elsewhere', to: '#assistant/advanced/webhook' })
+    expect(placeOf('#integrations/n8n')).toEqual({ view: 'elsewhere', to: '#assistant/advanced/webhook' })
+    expect(placeOf('#integrations/webhooks')).toEqual({ view: 'elsewhere', to: '#assistant/advanced/webhook' })
     expect(placeOf('#integrations/google')).toEqual({ view: 'elsewhere', to: '#assistant/booking' })
     expect(placeOf('#integrations/calendly?x=1')).toEqual({ view: 'elsewhere', to: '#assistant/booking' })
     for (const i of CATALOG)

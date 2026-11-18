@@ -116,6 +116,8 @@ type SwitchRowProps = {
   note?: ReactNode
   /** Quiet note next to the title, e.g. "Team default". */
   aside?: string
+  /** Detail behind a (?) next to the title. */
+  help?: HelpContent
   on: boolean
   onChange: (on: boolean) => void
   disabled?: boolean
@@ -132,6 +134,7 @@ export function SwitchRow({
   description,
   note,
   aside,
+  help,
   on,
   onChange,
   disabled,
@@ -145,6 +148,7 @@ export function SwitchRow({
       <div>
         <b>
           {title}
+          {help && <HelpTip {...helpContent(help)} />}
           {aside && <span className="swrow-aside">{aside}</span>}
         </b>
         {description && <span className="help">{description}</span>}
