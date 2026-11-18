@@ -1151,7 +1151,7 @@ describe("the owner's agent setup link before the trial (agent-first, 2026-11-18
     expect(errorText(await tool(key, 'onboarding_setStep', { ...w, step: 'notify' }))).toBeNull()
   })
 
-  test("before the free steps are done, Start your trial waits; after them it is the owner's own row before the number", async () => {
+  test("before the free steps are done, Start your free trial waits; after them it is the owner's own row before the number", async () => {
     const { key, workspaceId } = await waitingWithLink()
     let steps = await stepsOf(key)
     const ids = steps.map(s => s.id)

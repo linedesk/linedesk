@@ -120,6 +120,7 @@ import { isPendingPayment, waitsForOwnTrial } from './self-serve.ts'
 import { type PartnerSetupFacts, partnerPast, partnerSetupFacts } from './partner-setup.ts'
 import { setupChecklist } from './setup-checklist.ts'
 import { workspaceLocale } from './workspace-locale.ts'
+import { isPlaceholderWorkspaceName } from './served-countries.ts'
 import { assistantSpokeIn } from './setup-events.ts'
 import { withoutHopByHopHeaders } from './keep-alive.ts'
 
@@ -949,7 +950,15 @@ export async function setupProgress(actor: Actor, selected?: string | null, word
           ]
         : [],
     ),
-    workspace: chosen.id ? { id: chosen.id, name: chosen.name ?? '', assistantName: assistant?.name ?? 'Maya' } : null,
+    workspace: chosen.id
+      ? {
+          id: chosen.id,
+          name: chosen.name ?? '',
+          // Made by sign-up and not named yet: the page says so in place of the placeholder name.
+          unnamed: isPlaceholderWorkspaceName(chosen.name ?? ''),
+          assistantName: assistant?.name ?? 'Maya',
+        }
+      : null,
   }
 }
 

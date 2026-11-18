@@ -231,7 +231,7 @@ export function ForwardingMissing({ missing, onRetry }: { missing: NumberMissing
 }
 
 /**
- * "Start free trial" on the Start your trial row of the owner's agent setup page (docs/billing.md §3.2): the owner's own
+ * "Start free trial" on the Start your free trial row of the owner's agent setup page (docs/billing.md §3.2): the owner's own
  * step, never the agent's. The same plan and timeline as the onboarding's activation step (no terms: accepted at sign-up), in a dialog; its button
  * goes to Stripe Checkout, and back from it this page opens again with the number next.
  */

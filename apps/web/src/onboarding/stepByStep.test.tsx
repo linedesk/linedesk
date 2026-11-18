@@ -170,7 +170,7 @@ describe('the workspace’s steps, from Workspace settings', () => {
 
   test('the first step in the onboarding’s frame: its count, Close in place of Finish later', () => {
     const html = render()
-    expect(html).toContain('Step 1 of 4 · Business')
+    expect(html).toContain('Step 1 of 4 · Your business')
     expect(html).toMatch(/title="Back to settings[^"]*\(Shift\+Esc\)"[^>]*><span>Close</)
     expect(html).not.toContain('Finish later')
     // The account menu, as on every setup page (2026-11-18).
@@ -182,7 +182,7 @@ describe('the workspace’s steps, from Workspace settings', () => {
     expect(html).toMatch(/id="ob-biz-name"[^>]*value="Brightwater Plumbing &amp; Heating"/)
     expect(html).toMatch(/id="ob-biz-web"[^>]*value="brightwater-plumbing.example"/)
     expect(html).toContain('Plumbing and heating in Portland')
-    // One primary button: Save and continue.
+    // One primary button: Continue.
     expect(html.match(/k-btn-primary/g)).toHaveLength(1)
   })
 })

@@ -7,6 +7,7 @@ import {
   PARTNER_CODES,
   type TeamData,
   type TeamLeaveData,
+  UNPAID_PARTNER_CLIENTS,
 } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
 import { fetchQuery, refreshQuery, useQuery } from '../cachedQuery.ts'
@@ -36,7 +37,8 @@ async function runTeamAction<T = unknown>(name: string, input: object): Promise<
 export function teamErrorText(body: { error?: string; code?: string } | null): string {
   const { t } = i18n()
   const code = body?.code
-  if (code && (PARTNER_CODES as readonly string[]).includes(code)) return t(`team.partner.error.${code}` as MessageKey)
+  if (code && (PARTNER_CODES as readonly string[]).includes(code))
+    return t(`team.partner.error.${code}` as MessageKey, { limit: UNPAID_PARTNER_CLIENTS })
   return body?.error ?? t('errors.generic')
 }
 

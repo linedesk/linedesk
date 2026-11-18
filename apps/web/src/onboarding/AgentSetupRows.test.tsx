@@ -97,12 +97,14 @@ test('the workspace dropdown lists every workspace with how far it got, and New 
   ])
   // None yet: said so, and a new one can be made right here.
   expect(workspaceOptions([]).map(o => o.label)).toEqual(['No workspace yet', 'New workspace…'])
-  // A partner owner's page: client workspaces, and a new one is a seat on the partner bill.
+  // A partner owner's page: client workspaces, and a new one is a seat on the partner bill (before the Checkout a
+  // free draft).
   expect(workspaceOptions([], true).at(-1)).toEqual({
     value: '__new',
-    label: 'New client workspace…',
+    label: 'Add client…',
     description: 'Adds a seat to your partner bill',
   })
+  expect(workspaceOptions([], true, true).at(-1)?.description).toBe('Free draft until you activate White-label Cloud')
   // The dropdown heads the workspace steps and shows the picked one; while switching it waits.
   const html = renderToStaticMarkup(
     <WorkspacePicker workspaces={two} selectedId="ws_2" busy={null} onPick={() => {}} />,
@@ -151,8 +153,12 @@ test('after the reload into the clicked workspace the row carries on by itself: 
 
 test("a workspace owner's page names its one workspace: no dropdown, no New workspace, no server part", () => {
   const heading = renderToStaticMarkup(<WorkspaceHeading name="Brightwater Plumbing & Heating" />)
-  expect(heading).toContain('Workspace')
+  expect(heading).toContain('Business')
   expect(heading).toContain('as-ws-name')
+  // Made by sign-up and not named yet: no placeholder name.
+  expect(renderToStaticMarkup(<WorkspaceHeading name="My business" unnamed />)).toContain(
+    'Your business · not named yet',
+  )
   expect(heading).not.toContain('k-select')
   expect(heading).not.toContain('New workspace')
   const skeleton = renderToStaticMarkup(<ProgressSkeleton reserved={false} single />)
@@ -160,7 +166,7 @@ test("a workspace owner's page names its one workspace: no dropdown, no New work
   expect(renderToStaticMarkup(<ProgressSkeleton reserved={false} />)).toContain('This server')
 })
 
-test("Start your trial: the owner's own row once the free steps are done, never before and never without the trial", () => {
+test("Start your free trial: the owner's own row once the free steps are done, never before and never without the trial", () => {
   const activation = {
     planCents: 1100,
     interval: 'month',
@@ -182,7 +188,7 @@ test("Start your trial: the owner's own row once the free steps are done, never 
     me: { workspace: { id: 'ws_1', name: 'B', activation: { ...activation, trialDays: null } } } as never,
     onTermsChanged: () => {},
   }
-  expect(row(step('activate', 'admin_only'), workspace, null, { trial: plan })).toContain('Start my plan')
+  expect(row(step('activate', 'admin_only'), workspace, null, { trial: plan })).toContain('Start plan')
 })
 
 test("a partner page before Checkout: agency, brand, clients, the client's steps, Activate last; Team waits", () => {

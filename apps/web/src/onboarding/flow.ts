@@ -60,7 +60,7 @@ export const activationSteps = onboardingStepsFor(true)
 export const partnerDraftSteps: readonly OnboardingStep[] = activationSteps.filter(s => s !== 'activate')
 
 /**
- * The whole way of a trial sign-up as its step counter counts it (docs/billing.md §3.2): the setup, "Start your trial",
+ * The whole way of a trial sign-up as its step counter counts it (docs/billing.md §3.2): the setup, "Start your free trial",
  * then the number and Done. One count before and after the trial starts ("Step 5 of 7", then "Step 6 of 7").
  */
 export const trialSteps: readonly OnboardingStep[] = [

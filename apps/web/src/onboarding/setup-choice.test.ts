@@ -161,7 +161,7 @@ describe('set up by hand after all: every step goes back to the agent setup (202
     expect(way({}, true)).toBe('install')
     expect(way({ role: 'member' }, true)).toBe('install')
     expect(way({})).toBe('owner')
-    // A trial sign-up waiting for its card: the agent page has the Start your trial row.
+    // A trial sign-up waiting for its card: the agent page has the Start your free trial row.
     expect(way({ workspace: { id: 'ws_1', name: 'B', billingState: 'pending_payment' } })).toBe('owner')
   })
 

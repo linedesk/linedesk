@@ -152,7 +152,7 @@ describe('who makes a partner setup link', () => {
       const page = await request(a.owner, 'GET', `/v1/partner/agent-setup?partnerId=${a.id}`)
       return (page.body.progress.steps as { id: string; label: string }[]).find(s => s.id === 'brand')?.label
     }
-    expect(await label()).toBe('Brand')
+    expect(await label()).toBe('Your brand')
     await db.update(user).set({ locale: 'de' }).where(eq(user.id, a.owner.userId))
     onTestFinished(() =>
       db
@@ -264,7 +264,7 @@ describe('what a partner setup link reaches', () => {
     expect(mine.status).toBe(200)
     const business = data(await call(mine.body.data.key, 'setup_status', { read_only: true }))
     expect(label(business.workspaces[0].steps, 'business')).toMatchObject({ label: 'Your business' })
-    expect(label(business.workspaces[0].steps, 'assistant')).toMatchObject({ label: 'Assistant' })
+    expect(label(business.workspaces[0].steps, 'assistant')).toMatchObject({ label: 'Your assistant' })
   })
 
   test("before the first client: adding one is the owner's row, with the seat price; no workspaces yet", async () => {

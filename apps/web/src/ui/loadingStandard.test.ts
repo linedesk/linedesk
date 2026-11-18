@@ -41,7 +41,7 @@ const SPINNERS: Record<string, number> = {
   'Signup.tsx': 3,
   'admin/SecondFactorPrompt.tsx': 4,
   'onboarding/AgentSetup.tsx': 1,
-  // On the page Checkout returns to: Continue, and Start my plan now (or Back to the last step).
+  // On the page Checkout returns to: Continue, and Start plan (or Back to the last step).
   'CheckoutReturn.tsx': 2,
 }
 

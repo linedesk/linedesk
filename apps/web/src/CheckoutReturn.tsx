@@ -31,7 +31,7 @@ export function CheckoutReturn({
 }: {
   onDone: (toBilling: boolean, partner: boolean) => void | Promise<void>
   /**
-   * Back from the onboarding's "Start your trial" step: the answer shows inside the setup frame as that step's
+   * Back from the onboarding's "Start your free trial" step: the answer shows inside the setup frame as that step's
    * result (Step 5 of 7), so the count and the bar run on to the number without a page of another kind in between.
    */
   inSetup?: boolean
@@ -104,7 +104,7 @@ export function CheckoutReturn({
   if (outcome.status === 'trialing') return done(t('auth.checkout.trialTitle'), t('auth.checkout.trialText'))
   if (outcome.status === 'active')
     return done(
-      t('auth.checkout.planTitle'),
+      partnerId ? t('auth.checkout.partnerPlanTitle') : t('auth.checkout.planTitle'),
       partnerId ? t('auth.checkout.partnerPlanText') : t('auth.checkout.planText'),
       outcome.heldForReview ? t('auth.checkout.heldForReview') : undefined,
     )
@@ -165,7 +165,7 @@ export function CheckoutReturn({
 }
 
 /**
- * The Checkout's answer inside the onboarding frame, as the result of the "Start your trial" step: the trial (or the
+ * The Checkout's answer inside the onboarding frame, as the result of the "Start your free trial" step: the trial (or the
  * plan) started and Continue goes on to the number; no trial for this card, or not confirmed: Continue goes back to
  * that step, which offers the plan again.
  */

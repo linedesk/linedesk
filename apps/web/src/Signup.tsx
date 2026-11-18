@@ -234,7 +234,13 @@ export function EmailStep({
   return (
     <SignedInAuthPage>
       <form className="auth-card" onSubmit={submit} noValidate>
-        <h1>{partner ? t('auth.signup.partnerTitle') : t('auth.signup.title')}</h1>
+        <h1>
+          {partner
+            ? t('auth.signup.partnerTitle')
+            : config.trial
+              ? t('auth.signup.title')
+              : t('auth.signup.titleNoTrial')}
+        </h1>
         <p>{partner ? t('auth.signup.partnerLead') : t('auth.signup.intro')}</p>
         <div className="auth-form">
           <input

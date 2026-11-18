@@ -457,7 +457,7 @@ export function App() {
       await refresh()
       setCheckoutReturn(false)
     }
-    // From the onboarding's "Start your trial" step: the answer shows as that step's result, inside the setup.
+    // From the onboarding's "Start your free trial" step: the answer shows as that step's result, inside the setup.
     const me = session.state === 'ready' ? session.me : null
     const inSetup = !!me?.onboarding && me.workspace?.billingState === 'pending_payment'
     return <CheckoutReturn onDone={leaveReturn} inSetup={inSetup} />
@@ -568,7 +568,8 @@ export function App() {
           {ownerSetup ? (
             <OwnerAgentSetup
               active={{ id: session.me.workspace!.id, account: session.me.actorId }}
-              // Waiting for its trial: the owner starts it on the page's Start your trial row.
+              prepared={Boolean(session.me.workspace?.partnerManaged && !session.me.workspace.viaPartner)}
+              // Waiting for its trial: the owner starts it on the page's Start your free trial row.
               trial={
                 session.me.workspace?.billingState === 'pending_payment'
                   ? { me: session.me, onTermsChanged: () => void refresh() }
@@ -647,12 +648,15 @@ function OwnerAgentSetup({
   onDone,
   onLater,
   trial,
+  prepared,
 }: {
   active: { id: string; account: string }
   onManual: () => void
   onDone: () => void
   onLater?: () => void
   trial?: ComponentProps<typeof AgentSetup>['trial']
+  /** A partner's client workspace, opened by its own owner: the partner may have set it up already. */
+  prepared?: boolean
 }) {
   const run = useRun()
   return (
@@ -660,6 +664,7 @@ function OwnerAgentSetup({
       scope="workspace"
       active={active}
       trial={trial}
+      prepared={prepared}
       onManual={onManual}
       onDone={onDone}
       onLater={

@@ -159,14 +159,14 @@ describe('setup keys', () => {
     expect(groupOf('workspace')).toBeUndefined()
     expect(step('business')).toMatchObject({ label: 'Your business', hint: 'name, time zone, services, area, prices' })
     // Named like the app's own places, with the industry term where it helps (setupStepNames).
-    expect(step('notify')).toMatchObject({ label: 'Notifications' })
+    expect(step('notify')).toMatchObject({ label: 'Who hears about calls' })
     expect(step('telephony')).toMatchObject({ label: 'Phone carrier', hint: 'Telnyx or Twilio' })
     expect(step('call-audio').hint).toMatch(/LiveKit/)
     // The workspaces the admin can set up, for the page's dropdown; the steps are for the first one here.
     expect(body.progress.workspaces).toEqual([
       { id: ws.id, name: 'Brightwater Plumbing & Heating', done: expect.any(Number), total: expect.any(Number) },
     ])
-    expect(body.progress.workspace).toMatchObject({ id: ws.id, name: 'Brightwater Plumbing & Heating' })
+    expect(body.progress.workspace).toMatchObject({ id: ws.id, name: 'Brightwater Plumbing & Heating', unnamed: false })
   })
 })
 
@@ -961,9 +961,9 @@ describe('every key through the agent (LIN-182)', () => {
     expect(forAgent('Email is not set up: connect it in Server admin › Providers › Email')).toBe(
       'Email is not set up: set up email with provider_setKeys',
     )
-    expect(forAgent('Not set up: connect email in Server admin › Providers › Email. Sign-in codes cannot go out.')).toBe(
-      'Not set up: set up email with provider_setKeys. Sign-in codes cannot go out.',
-    )
+    expect(
+      forAgent('Not set up: connect email in Server admin › Providers › Email. Sign-in codes cannot go out.'),
+    ).toBe('Not set up: set up email with provider_setKeys. Sign-in codes cannot go out.')
   })
 
   test("forAgent on a workspace link: the server's part is for whoever runs it, never Server admin or provider_setKeys", () => {
@@ -1476,7 +1476,12 @@ describe('the test call on the setup page', () => {
     expect(before.app_links.test_call).toMatch(/\/#setup-agent$/)
     // The page offers the call in this workspace, with the assistant's name.
     const page = (await request(admin, 'GET', '/v1/admin/agent-setup')).body
-    expect(page.progress.workspace).toEqual({ id: workspaceId, name: 'Brightwater Test Call', assistantName: 'Maya' })
+    expect(page.progress.workspace).toEqual({
+      id: workspaceId,
+      name: 'Brightwater Test Call',
+      unnamed: false,
+      assistantName: 'Maya',
+    })
     expect(page.progress.steps.find((s: { id: string }) => s.id === 'test_call').state).toBe('admin_only')
 
     // A browser test call the assistant could not answer (providers not set up): a missed call, not done yet.
@@ -1703,7 +1708,7 @@ describe('what is done follows the data (B6)', () => {
     expect(settings!.step).toBe('skipped')
   })
 
-  test('a workspace whose onboarding went past "When to answer" has it done, also with no choice stored', async () => {
+  test('a workspace whose onboarding went past "When to pick up" has it done, also with no choice stored', async () => {
     const admin = await signUp()
     await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, admin.userId))
     const { key } = await makeKey(admin)

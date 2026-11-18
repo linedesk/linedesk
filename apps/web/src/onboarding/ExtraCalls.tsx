@@ -49,10 +49,13 @@ export function ExtraCallsPicker({
   calls,
   extra,
   onChange,
+  trial = true,
 }: {
   calls: CallsOffer
   extra: number
   onChange: (extra: number) => void
+  /** A free trial comes first: the extra calls are billed with the plan after it (else from the plan's start). */
+  trial?: boolean
 }) {
   const t = useT()
   const usd = usePrice().money
@@ -63,7 +66,7 @@ export function ExtraCallsPicker({
       <div>
         <span className="ob-label">{t('onboarding.pickup.calls.title')}</span>
         <span className="ob-calls-hint">
-          {t('onboarding.pickup.calls.hint', {
+          {t(trial ? 'onboarding.pickup.calls.hint' : 'onboarding.pickup.calls.hintNoTrial', {
             count: calls.included,
             step: calls.step,
             price: usd(calls.step * calls.extraCallCents),

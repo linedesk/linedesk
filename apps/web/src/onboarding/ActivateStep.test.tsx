@@ -82,9 +82,9 @@ test('the shared plan card (ui/PlanCard.tsx) with "See all details", closed; non
   expect(text({ ...activation, prices: undefined })).not.toContain('See all details')
 })
 
-test('after a refused trial, Start my plan asks no terms either', () => {
+test('after a refused trial, Start plan asks no terms either', () => {
   const page = text({ ...activation, trialDays: null, firstChargeAt: null, reminderDays: [] })
-  expect(page).toContain('Start my plan')
+  expect(page).toContain('Start plan')
   // No trial: no "days free"; the price is the headline again, the same included rows.
   expect(page).not.toMatch(/days free|Then \$11/)
   expect(page).toContain('$11 a month per workspace A phone number')

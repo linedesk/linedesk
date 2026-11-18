@@ -1,6 +1,6 @@
 // Step 1, "Find your business": one field (name and city, or the website). With business lookup on this server the
 // name is searched in Google Places and the owner picks the listing; without it, name and website. Then the listing
-// and the website become a profile proposal the owner reviews and edits; nothing is saved before Save and continue.
+// and the website become a profile proposal the owner reviews and edits; nothing is saved before Continue.
 import {
   type BusinessCandidate,
   type BusinessImportData,
@@ -201,7 +201,7 @@ function FindBusiness({
       phase={phase}
       onEnter={phase.kind === 'find' ? () => void search() : phase.kind === 'manual' ? manualContinue : undefined}
       onBack={saved ? () => setPhase(savedReview()) : undefined}
-      // Naming the business by hand: Next (or Read my website) is the footer's primary, as on every other step.
+      // Naming the business by hand: Continue (or Read my website) is the footer's primary, as on every other step.
       primary={
         phase.kind === 'manual'
           ? {
@@ -209,7 +209,7 @@ function FindBusiness({
               label:
                 site === 'field' && website.trim()
                   ? t('onboarding.business.manual.readWebsite')
-                  : t('onboarding.business.manual.next'),
+                  : t('onboarding.action.continue'),
             }
           : undefined
       }
@@ -585,7 +585,7 @@ function ReviewProfile({
             <CountrySelect id="ob-biz-country" value="" onChange={pickCountry} served={served} />
           </Field>
         </div>
-        <Foot onBack={onBack} canContinue={false} label={t('onboarding.business.review.save')} />
+        <Foot onBack={onBack} canContinue={false} />
       </>
     )
 
@@ -754,7 +754,7 @@ function ReviewProfile({
         {/* The greeting with the business's name is saved too; the owner hears and edits it in the next step. */}
         {fromGoogle && <GoogleMapsCredit />}
       </div>
-      <Foot onBack={onBack} onContinue={save} canContinue={!problem} label={t('onboarding.business.review.save')} />
+      <Foot onBack={onBack} onContinue={save} canContinue={!problem} />
     </>
   )
 }

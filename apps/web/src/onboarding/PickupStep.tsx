@@ -36,7 +36,7 @@ type StepProps = {
   memory: PickupMemory
   onMemory: (memory: PickupMemory) => void
   /** Before the trial: the workspace and the calls at the same time it may add (none: no picker). */
-  calls?: { workspaceId: string; offer: CallsOffer }
+  calls?: { workspaceId: string; offer: CallsOffer; trial: boolean }
 }
 
 const choiceText: Record<PickupMode, { title: MessageKey; description: MessageKey }> = {
@@ -159,7 +159,7 @@ function PickupForm({ saved, onBack, onNext, memory, onMemory, calls }: StepProp
 }
 
 /** Calls at the same time before the trial: kept in this browser until the pay step sells them with the plan. */
-function CallsChoice({ workspaceId, offer }: { workspaceId: string; offer: CallsOffer }) {
+function CallsChoice({ workspaceId, offer, trial }: { workspaceId: string; offer: CallsOffer; trial: boolean }) {
   const [extra, setExtra] = useExtraCalls(workspaceId, offer)
-  return <ExtraCallsPicker calls={offer} extra={extra} onChange={setExtra} />
+  return <ExtraCallsPicker calls={offer} extra={extra} onChange={setExtra} trial={trial} />
 }

@@ -26,7 +26,7 @@ test("the partner's team: the client's business and assistant", () => {
 })
 
 test("the client's own owner (and anyone without the partner flag): your business and assistant", () => {
-  expect(page(false)).toBe('<p>Business | Your assistant | When to pick up | Tell us about your business</p>')
+  expect(page(false)).toBe('<p>Your business | Your assistant | When to pick up | Tell us about your business</p>')
   expect(renderToStaticMarkup(<Heading />)).toBe(page(false))
 })
 

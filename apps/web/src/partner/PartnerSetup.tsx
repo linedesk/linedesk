@@ -1,6 +1,6 @@
 // A white-label partner owner's setup by hand (#partner/setup, 2026-11-18), the fallback to the agent page
 // (#partner/agent, agent-first): one flow of full-screen steps, as a Cloud sign-up's onboarding (onboarding/Frame.tsx).
-// 1) Your agency: the name, logo and color the clients see, with a live preview. 2) Clients: none to
+// 1) Your brand: the name, logo and color the clients see, with a live preview. 2) Clients: none to
 // UNPAID_PARTNER_CLIENTS drafts, each set up with the agent (the default) or by hand in its own workspace; both lead
 // back here. 3) Activate White-label Cloud, the end of the setup: the drafts (each can be removed), the real total and
 // Stripe Checkout. The agent page's Activate row and the partner area's Activate line open this same step (Janik,
@@ -317,7 +317,7 @@ function AgencyStep({
 /**
  * Step 2: the client workspaces, none to UNPAID_PARTNER_CLIENTS drafts before White-label Cloud runs. Each row is set
  * up with the agent (the default: the agent page with that client picked) or by hand (its own onboarding, which comes
- * back here at its end). Add client is the partner area's New client dialog; none is fine ("Skip, add clients later").
+ * back here at its end). Add client is the partner area's New client dialog; none is fine ("Later").
  */
 export function ClientsStep({
   data,
@@ -418,7 +418,7 @@ export function ClientsStep({
         onBack={onBack}
         onContinue={onNext}
         variant={clients.length ? 'primary' : 'secondary'}
-        label={clients.length ? (last ? t('onboarding.frame.done') : undefined) : t('team.partner.setup.clients.skip')}
+        label={clients.length ? (last ? t('onboarding.frame.done') : undefined) : t('onboarding.action.later')}
       />
       {adding && (
         <NewClientDialog

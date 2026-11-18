@@ -4,7 +4,7 @@
 // terms here: they were accepted once, at sign-up (A9, decision of 2026-11-18); starting records the consent to the
 // trial and its charge with what this step showed. Changed since sign-up, the app's "We updated our terms" dialog asks
 // first. Back from Checkout (CheckoutReturn.tsx) the trial runs and the onboarding goes on to the phone number.
-// The owner's agent setup page shows the same plan in its Start your trial row (SetupRowActions.tsx).
+// The owner's agent setup page shows the same plan in its Start your free trial row (SetupRowActions.tsx).
 import { useFormat, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import type { Activation, Me } from '../auth.ts'
@@ -82,7 +82,7 @@ export type StartTrial = ReturnType<typeof useStartTrial>
 
 /**
  * Starting the trial (or the plan, after a refused trial) through Stripe Checkout, from this step or from the owner's
- * agent setup page (its Start your trial row, SetupRowActions.tsx). `byHand`: back from Checkout the onboarding goes on
+ * agent setup page (its Start your free trial row, SetupRowActions.tsx). `byHand`: back from Checkout the onboarding goes on
  * by hand (this step); from the agent setup page it opens that page again.
  */
 export function useStartTrial(me: Me, a: Activation, onTermsChanged: () => void, { byHand }: { byHand: boolean }) {

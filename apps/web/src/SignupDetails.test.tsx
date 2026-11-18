@@ -76,7 +76,7 @@ const partnerPlan = { monthlyCents: 1900, yearlyCents: 16_800 }
 
 test('the first step of a partner sign-up names White-label Cloud, promises no free trial and shows no price', () => {
   const html = emailPage(true, partnerPlan)
-  expect(html).toContain('Start White-label Cloud')
+  expect(html).toContain('Set up White-label Cloud')
   expect(html).toContain('Run many client workspaces under your name.')
   expect(html).not.toMatch(/free|trial/i)
   expect(html).not.toContain('$')

@@ -253,9 +253,9 @@ export type AgentSetupState = {
     /**
      * The workspace the business steps are about (the one asked for, else the admin's first) and its assistant's name:
      * the page offers the test call and the forwarding check right on it, in that workspace. Null before there is one.
-     * Missing from older APIs.
+     * Missing from older APIs. `unnamed`: made by sign-up and not named yet (its name is the sign-up placeholder).
      */
-    workspace?: { id: string; name?: string; assistantName: string } | null
+    workspace?: { id: string; name?: string; unnamed?: boolean; assistantName: string } | null
   }
 }
 
@@ -624,7 +624,7 @@ Keep messages short and plain. Ask one question at a time. If a tool refuses, re
  */
 export const SETUP_MCP_WORKSPACE_INSTRUCTIONS = `Linedesk setup: you are setting up one business (a workspace) in Linedesk, an open-source AI receptionist that answers a business's phone calls, or changing its settings, for its owner or one of its admins, the person you are talking to (setup_status.you_act_as says which). You act as that person, with their role, in this one workspace only, with setup tools only, through a key that ends after ${SETUP_KEY_HOURS} hours. If they only want to change some settings of a workspace that is set up, read the current settings first and change only what they ask. The server itself (phone carrier, AI providers, email) is run by the server admin, not by the owner: there are no provider steps for you, and you never ask the owner for provider keys.
 
-Always start with setup_status and call it again after each step: it lists this workspace's steps in order with their state and, for the next one, exactly what to do: the business (its name, time zone, and what the assistant knows about it, one step), assistant, when to answer, notifications, phone number, call forwarding, a test call. setup_status.workspaces has exactly one workspace; pass its id as workspaceId to every business tool. Any other id is refused. Before a new workspace's free trial has started, a Start your trial step comes before the phone number: only the owner does it, on the setup page, with their card; do the steps before it, never ask for card details, and wait for it before the phone number. If setup_status.server_ready is false, the server cannot answer calls yet: set up everything else, and tell the owner once that their server admin still has to finish the server's part.
+Always start with setup_status and call it again after each step: it lists this workspace's steps in order with their state and, for the next one, exactly what to do: the business (its name, time zone, and what the assistant knows about it, one step), assistant, when to answer, notifications, phone number, call forwarding, a test call. setup_status.workspaces has exactly one workspace; pass its id as workspaceId to every business tool. Any other id is refused. Before a new workspace's free trial has started, a Start your free trial step comes before the phone number: only the owner does it, on the setup page, with their card; do the steps before it, never ask for card details, and wait for it before the phone number. If setup_status.server_ready is false, the server cannot answer calls yet: set up everything else, and tell the owner once that their server admin still has to finish the server's part.
 
 Working with the owner:
 - Short, plain messages; one question at a time; recommend a default and say why in one line.

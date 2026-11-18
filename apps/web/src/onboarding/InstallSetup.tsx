@@ -323,10 +323,10 @@ function PartStep({ step, data, status, setup, reloadAll, onBack, onNext, onSkip
         onBack={onBack}
         backTitle={t('onboarding.action.backTip')}
         onSkipStep={ready && group.state !== 'works' ? onSkip : undefined}
-        laterLabel={t('onboarding.action.skipForNow')}
+        laterLabel={t('onboarding.action.later')}
         laterTitle={skipTitle}
         onContinue={ready ? onNext : onSkip}
-        label={ready ? t('onboarding.action.continue') : t('onboarding.action.skipForNow')}
+        label={ready ? t('onboarding.action.continue') : t('onboarding.action.later')}
         variant={ready ? 'primary' : 'secondary'}
       />
 

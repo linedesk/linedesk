@@ -68,7 +68,7 @@ export function Frame({
   steps?: readonly OnboardingStep[]
   /**
    * The steps the counter and the bar count (default: `steps`). A trial sign-up counts its whole way, from the setup
-   * through "Start your trial" to the number and Done, so the count never starts over when the trial begins.
+   * through "Start your free trial" to the number and Done, so the count never starts over when the trial begins.
    */
   counted?: readonly OnboardingStep[]
   /** Gone through again from the settings ("Step by step"): "Close" in place of "Finish later". */

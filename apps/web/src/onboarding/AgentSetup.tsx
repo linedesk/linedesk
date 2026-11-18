@@ -46,7 +46,7 @@ import { loadAgentSetup, loadInstallSetup, runAdmin, watchAdminSignIn } from '..
 import { ADMIN_INSTALL_SETUP } from '../admin/Providers.tsx'
 import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import type { AdminSecondFactor, Me } from '../auth.ts'
-import { brandName, installBrandName } from '../brand.ts'
+import { brandName, installBrandName, useBrand } from '../brand.ts'
 import { useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
 import { SETUP_LINK_KEY, signInAgain as signOutAndSignIn } from '../localData.ts'
@@ -183,6 +183,11 @@ type Props = {
   partner?: MyPartner
   /** With `scope="partner"` in no workspace yet: the first client workspace was made, the session loads again. */
   onFirstWorkspace?: () => void
+  /**
+   * With `scope="workspace"`: a partner's client workspace its owner opens; the partner may have set up the business
+   * and the assistant already, and the page then says so.
+   */
+  prepared?: boolean
 }
 
 type StartTrialProps = { me: Me; onTermsChanged: () => void }
@@ -198,8 +203,10 @@ export function AgentSetup({
   trial,
   partner,
   onFirstWorkspace,
+  prepared = false,
 }: Props) {
   const t = useT()
+  const brand = useBrand()
   const owner = scope === 'workspace'
   // A partner's owner: no Server admin (no passkey check, no server part, no hosting note), as a workspace owner.
   const partnerId = scope === 'partner' ? (partner?.id ?? null) : null
@@ -334,6 +341,12 @@ export function AgentSetup({
   }
 
   const connected = Boolean(state?.key?.lastUsedAt)
+  const stepDone = (id: string, group?: SetupStepGroup) =>
+    state?.progress.steps.some(s => s.id === id && (!group || s.group === group) && s.state === 'done') ?? false
+  // A partner after its Checkout: White-label Cloud runs; what is left for the owner is numbers and invitations.
+  const partnerPaid = partnerId !== null && stepDone('plan', 'partner')
+  // A client owner whose partner set up the business and the assistant: the page says who did and what is left.
+  const preparedByPartner = owner && prepared && stepDone('business') && stepDone('assistant')
   // One setup link at a time: while one is active the page offers only to end it, otherwise only to create one.
   // The link ended elsewhere (expired, replaced in another browser, agent access ended): it goes from the page too.
   useEffect(() => {
@@ -389,7 +402,7 @@ export function AgentSetup({
         </span>
       )}
       <SetupTopBar
-        label={t('team.partner.setup.way.agent')}
+        label={t('onboarding.agentSetup.topLabel')}
         progress={change ? 0 : checklistDone}
         exit={
           change
@@ -439,7 +452,11 @@ export function AgentSetup({
                   : t('onboarding.agentSetup.partner.title', { partner: partner?.name ?? '' })}
               </h1>
               <p className="ob-lede">
-                <T k="onboarding.agentSetup.partner.lede" values={{ b: chunks => <b>{chunks}</b> }} />
+                {partnerPaid ? (
+                  t('onboarding.agentSetup.partner.ledePaid')
+                ) : (
+                  <T k="onboarding.agentSetup.partner.lede" values={{ b: chunks => <b>{chunks}</b> }} />
+                )}
               </p>
             </>
           ) : allDone ? (
@@ -451,10 +468,16 @@ export function AgentSetup({
             <>
               <h1>{t('onboarding.agentSetup.title', { brand: brandName() })}</h1>
               <p className="ob-lede">
-                <T
-                  k={owner ? 'onboarding.agentSetup.owner.lede' : 'onboarding.agentSetup.lede'}
-                  values={{ b: chunks => <b>{chunks}</b> }}
-                />
+                {preparedByPartner ? (
+                  t('onboarding.agentSetup.owner.ledePrepared', {
+                    partner: brand.partner ? brand.name : t('onboarding.agentSetup.owner.yourPartner'),
+                  })
+                ) : (
+                  <T
+                    k={owner ? 'onboarding.agentSetup.owner.lede' : 'onboarding.agentSetup.lede'}
+                    values={{ b: chunks => <b>{chunks}</b> }}
+                  />
+                )}
               </p>
             </>
           )}
@@ -549,7 +572,7 @@ export function AgentSetup({
             >
               {partnerId
                 ? t('onboarding.agentSetup.partner.signInFirst', { hours: SETUP_KEY_HOURS })
-                : t('onboarding.agentSetup.owner.signInFirst.text')}
+                : t('onboarding.agentSetup.owner.signInFirst.text', { hours: SETUP_KEY_HOURS })}
             </Note>
           )}
           {error && <Note tone="danger">{error}</Note>}
@@ -706,7 +729,7 @@ function Progress({
   fadeIn: boolean
   /** A workspace owner's page: one workspace, named, with no dropdown (no switching, no new workspace). */
   single?: boolean
-  /** Waiting for the trial: the owner starts it on the Start your trial row. */
+  /** Waiting for the trial: the owner starts it on the Start your free trial row. */
   trial?: StartTrialProps
   /** A partner owner's page: its client workspaces in the dropdown; "New client" in place of "New workspace". */
   partner?: MyPartner | null
@@ -811,7 +834,7 @@ function Progress({
           className={cx('as-group', (group.id === 'business' || group.id === 'activate') && 'as-group-ws')}
         >
           {group.id === 'business' && single ? (
-            <WorkspaceHeading name={selected?.name ?? ''} />
+            <WorkspaceHeading name={selected?.name ?? ''} unnamed={selected?.unnamed ?? false} />
           ) : group.id === 'business' ? (
             <WorkspacePicker
               workspaces={state.progress.workspaces ?? []}
@@ -819,6 +842,7 @@ function Progress({
               busy={switching ?? (switchingFor && selected ? selected.id : null)}
               onPick={id => (id === NEW_WORKSPACE ? setNewWorkspace(true) : switchTo(id))}
               clients={partnerScope}
+              drafts={draftsOnly}
             />
           ) : group.id === 'activate' ? null : (
             <h3 className="as-group-label" id={`as-group-${group.id}`}>
@@ -870,6 +894,7 @@ function Progress({
                     trial={trial}
                     onAddClient={partnerScope ? () => setNewWorkspace(true) : undefined}
                     clientsFull={draftsFull}
+                    clientsDraft={draftsOnly}
                     activatePartnerId={partnerScope ? (partner?.id ?? null) : null}
                     onAddNumber={
                       partnerScope && selected
@@ -968,7 +993,7 @@ function NewClient({
  * The workspace dropdown's items: each workspace the admin can set up with how far it got (or that there is none yet),
  * then "New workspace…".
  */
-export function workspaceOptions(workspaces: readonly SetupWorkspaceSummary[], clients = false) {
+export function workspaceOptions(workspaces: readonly SetupWorkspaceSummary[], clients = false, drafts = false) {
   const { t } = i18n()
   return [
     ...(workspaces.length
@@ -991,7 +1016,11 @@ export function workspaceOptions(workspaces: readonly SetupWorkspaceSummary[], c
       ? {
           value: NEW_WORKSPACE,
           label: t('onboarding.agentSetup.partner.newClient'),
-          description: t('onboarding.agentSetup.partner.newClientDescription'),
+          description: t(
+            drafts
+              ? 'onboarding.agentSetup.partner.newClientDescriptionDraft'
+              : 'onboarding.agentSetup.partner.newClientDescription',
+          ),
         }
       : {
           value: NEW_WORKSPACE,
@@ -1011,17 +1040,20 @@ export function WorkspacePicker({
   busy,
   onPick,
   clients = false,
+  drafts = false,
 }: {
   workspaces: readonly SetupWorkspaceSummary[]
   selectedId: string | null
   /** The workspace being switched to: the dropdown waits for the page to reload into it. */
   busy: string | null
   onPick: (id: string) => void
-  /** A partner owner's page: its client workspaces, and "New client workspace…". */
+  /** A partner owner's page: its client workspaces, and "Add client…". */
   clients?: boolean
+  /** A partner before its Checkout: a new client is a free draft. */
+  drafts?: boolean
 }) {
   const t = useT()
-  const options = workspaceOptions(workspaces, clients)
+  const options = workspaceOptions(workspaces, clients, drafts)
   return (
     <div className="as-ws-head" id="as-group-business">
       <span className="as-group-label">
@@ -1035,18 +1067,23 @@ export function WorkspacePicker({
         size="sm"
         onChange={onPick}
       />
-      <HelpTip text={t('onboarding.agentSetup.workspace.help')} />
+      <HelpTip
+        text={t(clients ? 'onboarding.agentSetup.partner.clientHelp' : 'onboarding.agentSetup.workspace.help')}
+      />
     </div>
   )
 }
 
-/** The heading of the workspace steps on a workspace owner's page: their one workspace, by name. */
-export function WorkspaceHeading({ name }: { name: string }) {
+/**
+ * The heading of the workspace steps on a workspace owner's page: their one business, by name (`unnamed`: made by
+ * sign-up and not named yet, so no placeholder name).
+ */
+export function WorkspaceHeading({ name, unnamed = false }: { name: string; unnamed?: boolean }) {
   const t = useT()
   return (
     <div className="as-ws-head" id="as-group-business">
-      <span className="as-group-label">{t('onboarding.agentSetup.workspace.label')}</span>
-      <b className="as-ws-name">{name}</b>
+      <span className="as-group-label">{t('onboarding.agentSetup.owner.business')}</span>
+      <b className="as-ws-name">{unnamed ? t('onboarding.agentSetup.owner.unnamed') : name}</b>
     </div>
   )
 }
@@ -1085,6 +1122,7 @@ export function StepAction({
   trial,
   onAddClient,
   clientsFull = false,
+  clientsDraft = false,
   onAddNumber,
   activatePartnerId = null,
 }: {
@@ -1109,6 +1147,8 @@ export function StepAction({
   onAddClient?: () => void
   /** A partner owner's page before its Checkout, at the draft cap: Add client greyed, the row says why. */
   clientsFull?: boolean
+  /** A partner owner's page before its Checkout: a new client is a free draft (Add client's tooltip says so). */
+  clientsDraft?: boolean
   /** A partner owner's page: "Add number" on a client workspace's Phone number row (it costs money). */
   onAddNumber?: () => void
   /** A partner owner's page: the partner whose "Activate White-label Cloud" row opens the setup's Activate step. */
@@ -1134,7 +1174,11 @@ export function StepAction({
           title={
             clientsFull
               ? t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })
-              : t('onboarding.agentSetup.partner.addClientTitle')
+              : t(
+                  clientsDraft
+                    ? 'onboarding.agentSetup.partner.addClientTitleDraft'
+                    : 'onboarding.agentSetup.partner.addClientTitle',
+                )
           }
           onClick={onAddClient}
         >

@@ -160,7 +160,7 @@ describe('stepsByGroup', () => {
 
 describe('setup step names', () => {
   test('each step is named as its place in the app, the setup_status order words match', () => {
-    expect(setupStepNames.notify?.label).toBe('Notifications')
+    expect(setupStepNames.notify?.label).toBe('Who hears about calls')
     expect(setupStepNames['call-audio']?.hint).toMatch(/LiveKit.*SIP/)
     expect(SETUP_MCP_INSTRUCTIONS).toContain('when to answer, notifications, phone number')
     expect(SETUP_MCP_INSTRUCTIONS).not.toContain('who hears about calls')

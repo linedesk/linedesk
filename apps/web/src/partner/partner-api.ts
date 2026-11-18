@@ -1,6 +1,12 @@
 // The partner area's link to the API (docs/white-label.md): partner actions run directly (callAction), not through
 // the outbox, since partner rows are not synced to the browser. A refusal with a partner code is worded here.
-import { type MyPartner, PARTNER_CODES, type PartnerClientList, type PartnerData } from '@linedesk/actions'
+import {
+  type MyPartner,
+  PARTNER_CODES,
+  UNPAID_PARTNER_CLIENTS,
+  type PartnerClientList,
+  type PartnerData,
+} from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
 import { fetchQuery, useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
@@ -46,7 +52,8 @@ export const loadClients = (partnerId: string) => callAction<PartnerClientList>(
 export function partnerErrorText(err: unknown): string {
   const { t } = i18n()
   const code = (err as { code?: string }).code
-  if (code && (PARTNER_CODES as readonly string[]).includes(code)) return t(`team.partner.error.${code}` as MessageKey)
+  if (code && (PARTNER_CODES as readonly string[]).includes(code))
+    return t(`team.partner.error.${code}` as MessageKey, { limit: UNPAID_PARTNER_CLIENTS })
   if (code === 'forbidden') return t('team.partner.error.forbidden')
   return err instanceof Error ? err.message : String(err)
 }

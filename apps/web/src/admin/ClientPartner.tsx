@@ -1,7 +1,7 @@
 // Server admin › Workspaces › Partner… (LIN-530): move a workspace to another white-label partner, add it to one, or
 // take it from its partner (`partner.adminMoveClient`). The shared type-to-confirm dialog with a partner picker: what
 // changes is listed for the picked choice, the workspace's name unlocks the button, the reason goes to the audit log.
-import { type AdminPartnerList, PARTNER_CODES } from '@linedesk/actions'
+import { type AdminPartnerList, PARTNER_CODES, UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
@@ -42,7 +42,7 @@ function refusalOf(t: Translate, err: unknown): unknown {
   const code = (err as { code?: unknown } | null)?.code
   if (code === 'client_no_owner') return new Error(t('admin.clientPartner.noOwner'))
   return typeof code === 'string' && (PARTNER_CODES as readonly string[]).includes(code)
-    ? new Error(t(`team.partner.error.${code}` as MessageKey))
+    ? new Error(t(`team.partner.error.${code}` as MessageKey, { limit: UNPAID_PARTNER_CLIENTS }))
     : err
 }
 

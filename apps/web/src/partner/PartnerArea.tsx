@@ -182,7 +182,7 @@ function PartnerConsole({ partner, onExit, onFirstWorkspace }: Props) {
             ? {
                 kind: 'close',
                 onExit,
-                title: t('common.withKey', { label: t('team.partner.back'), key: 'esc' }),
+                title: t('common.withKey', { label: t('team.partner.back'), key: 'Shift+Esc' }),
               }
             : null
         }
@@ -263,7 +263,7 @@ function ActivateCard({ data, primary }: { data: PartnerData; primary: boolean }
       <div className="pa-activate">
         <div className="pa-activate-text">
           <PartnerPrice price={bill.price} />
-          <p className="pa-fine">{t('team.partner.bill.draftsNote', { limit: UNPAID_PARTNER_CLIENTS })}</p>
+          <p className="pa-fine">{t('team.partner.clients.setupLimit', { limit: UNPAID_PARTNER_CLIENTS })}</p>
         </div>
         {/* The setup's one Activate step (PartnerSetup.tsx): the drafts, the real total, Checkout; Back comes here. */}
         <Button size="sm" variant={primary ? 'primary' : 'secondary'} onClick={() => openPartnerActivate('#partner')}>

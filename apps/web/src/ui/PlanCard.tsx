@@ -1,7 +1,7 @@
 // The one plan card (Janik, 2026-11-18: "focus on the value, but the conditions should be clear", "as harmonized as
 // possible"; then "The 14 days free should be big and the money small"): wherever a plan's price is shown before or
 // outside a charge, the same card with the same wording and spacing: the cloud activation step and the agent page's
-// "Start your trial" dialog (onboarding/ActivateStep.tsx), the partner's Activate step (partner/PartnerSetup.tsx) and
+// "Start your free trial" dialog (onboarding/ActivateStep.tsx), the partner's Activate step (partner/PartnerSetup.tsx) and
 // Settings › Billing's Plan (settings/Billing.tsx).
 //
 // Top to bottom: the headline, large: "14 days free" with a trial, else the price a month with its unit muted next to
