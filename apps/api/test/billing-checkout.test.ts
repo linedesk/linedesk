@@ -962,6 +962,36 @@ describe("an admin's cancel or resume: the bill owner gets one email (decision o
   })
 })
 
+describe('a bill owner who is only a member of the workspace (decision of 2026-11-18, LIN-400)', () => {
+  test('the rights come from the bill: they cancel, resume, buy minutes and hand the bill over; other members get 403', async () => {
+    const { bill, ws, owner } = await trialWith(rid('fp'))
+    const payer = await addMember(ws.id, 'member')
+    await db.update(billing_accounts).set({ owner_user_id: payer.userId }).where(eq(billing_accounts.id, bill.id))
+    const other = await addMember(ws.id, 'member')
+    for (const [name, input] of [
+      ['billing.state', {}],
+      ['billing.cancel', {}],
+      ['billing.startTopUp', { amountCents: 2500 }],
+      ['billing.handOver', { userId: other.userId }],
+    ] as const)
+      expect((await act(other, name, input)).status, name).toBe(403)
+    expect((await act(payer, 'billing.state', {})).body.data.bill).toMatchObject({ status: 'trialing' })
+    expect((await act(payer, 'billing.overview', {})).status).toBe(200)
+    expect((await act(payer, 'billing.cancel', {})).body.data).toMatchObject({ cancelAtPeriodEnd: true })
+    expect((await act(payer, 'billing.resume', {})).body.data).toMatchObject({ cancelAtPeriodEnd: false })
+    expect((await act(payer, 'billing.startTopUp', { amountCents: 2500 })).status).toBe(200)
+    expect((await act(payer, 'billing.portOutInfo', {})).status).toBe(200)
+    // Nothing else comes with it: still a member of the workspace.
+    expect((await act(payer, 'team.setRole', { memberId: 'x', role: 'admin' })).status).toBe(403)
+    // Handed back to the workspace's owner: the rights go with the bill.
+    const handed = await act(payer, 'billing.handOver', { userId: ws.owner.userId })
+    expect(handed.body.data).toMatchObject({ billId: bill.id, ownerUserId: ws.owner.userId })
+    expect((await billRow(bill.id)).owner_user_id).toBe(ws.owner.userId)
+    expect((await act(payer, 'billing.cancel', {})).status).toBe(403)
+    expect((await act(owner, 'billing.cancel', {})).status).toBe(200)
+  })
+})
+
 describe('billing.startTopUp (docs/billing.md §2.2)', () => {
   test('Buy minutes: a payment Checkout of our product and amount, credited once with the pre-tax amount', async () => {
     const { bill, owner } = await trialWith(rid('fp'))

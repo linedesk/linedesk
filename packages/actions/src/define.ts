@@ -25,10 +25,12 @@ import type { z } from 'zod'
  */
 /**
  * `billing:manage`: what changes what the workspace pays (the plan, payment method, recharges and the cap, Allow
- * Premium and Allow Ultra; docs/billing.md §8). Owners and admins hold it (decision of 2026-11-17); the handlers let
- * through only who manages the bill: its owner, or an owner or admin of the only workspace it pays for (managesBill in
- * apps/api), never on a partner bill or a bill of several workspaces they do not own. Never an API key, a setup link or
- * an impersonation (the handlers refuse those too: refuseBillingActor in apps/api).
+ * Premium and Allow Ultra; docs/billing.md §8). Owners and admins hold it (decision of 2026-11-17), and so does the
+ * bill's owner in a workspace on their bill whatever their role (decision of 2026-11-18, LIN-400; ownsBillOf in
+ * apps/api/src/context.ts, a session only); the handlers let through only who manages the bill: its owner, or an
+ * owner or admin of the only workspace it pays for (managesBill in apps/api), never on a partner bill or a bill of
+ * several workspaces they do not own. Never an API key, a setup link or an impersonation (the handlers refuse those
+ * too: refuseBillingActor in apps/api).
  */
 /**
  * `billing:system`: the Stripe webhook's processor and the billing jobs (docs/billing.md §5.1, §8). No role, no API key,

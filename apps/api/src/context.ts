@@ -252,7 +252,7 @@ export async function resolveCaller(
   // or invited to one, so a new account can open the invitation link and join. Only signed in as themselves: never
   // while impersonated, never with a key. Each partner action checks the caller is on that partner's team.
   // A partner's owner also owns the partner bill: billing:manage in a client workspace on that bill, where they are an
-  // admin (below), never account-wide (security review of #1109, M-1). Partner › Billing names the partner instead
+  // admin (below, ownsBillOf), never account-wide (security review of #1109, M-1). Partner › Billing names the partner instead
   // (`partnerId`, run-action.ts), where partnerBillOf is the gate.
   const partnerAccess = impersonation ? null : await partnerCaller(account.id, account.email)
   if (partnerAccess) extraPermissions.push('partner')
@@ -279,29 +279,27 @@ export async function resolveCaller(
     own,
     extra,
   )
-  if (actor && partnerAccess === 'owner' && (await ownsPartnerBillOf(actor)))
+  if (actor && !impersonation && (await ownsBillOf(actor, partnerAccess === 'owner')))
     actor.permissions = [...actor.permissions, 'billing:manage']
   return actor ? { actor } : { missing: 'no_workspace' }
 }
 
 /**
- * Whether the actor's workspace is a client workspace on a partner bill they own, and not disabled: there a partner's
- * owner manages the bill (billing:manage) though they are only an admin. Nowhere else (security review of #1109, M-1).
+ * Whether the bill of the actor's workspace (not disabled) is theirs: then they hold billing:manage there whatever their
+ * workspace role, since the rights come from the bill (decision of 2026-11-18, LIN-400; docs/billing.md §8). A member
+ * who owns the bill reaches the billing actions, and each handler still asks managesBill. Only signed in as themselves
+ * (never an impersonation; API keys, personal keys and setup links never come through here). A partner bill counts only
+ * for the partner's owner, in a client workspace on that bill: nowhere else (security review of #1109, M-1).
  */
-async function ownsPartnerBillOf(actor: Actor): Promise<boolean> {
+async function ownsBillOf(actor: Actor, partnerOwner: boolean): Promise<boolean> {
   if (!actor.workspaceId || actor.workspaceDisabled || actor.permissions.includes('billing:manage')) return false
   const [row] = await db
-    .select({ id: billing_accounts.id })
+    .select({ kind: billing_accounts.kind })
     .from(organization)
     .innerJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
-    .where(
-      and(
-        eq(organization.id, actor.workspaceId),
-        eq(billing_accounts.kind, 'partner'),
-        eq(billing_accounts.owner_user_id, actor.actorId),
-      ),
-    )
-  return !!row
+    .where(and(eq(organization.id, actor.workspaceId), eq(billing_accounts.owner_user_id, actor.actorId)))
+  if (!row) return false
+  return row.kind !== 'partner' || partnerOwner
 }
 
 /**
