@@ -1329,7 +1329,8 @@ const handlers: Record<string, Handler> = {
   'call.findForTest': async ({ tx, now, calendars }, input) => {
     const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, input.to))
     if (!number) throw Reject.t('server.api.numberNotSetUp', { number: input.to })
-    // A phone call comes in on the number; a no-phone test call is found by its room.
+    // A phone call comes in on the number; a no-phone test call is found by its room. The first call since the moment:
+    // a later call from the same test number is another run's (LIN-263: call-test took another session's call).
     const which = input.room
       ? eq(calls.room, input.room)
       : input.from
@@ -1340,7 +1341,7 @@ const handlers: Record<string, Handler> = {
           .select()
           .from(calls)
           .where(and(eq(calls.workspace_id, number.workspace_id), which, gte(calls.started_at, input.since)))
-          .orderBy(desc(calls.started_at))
+          .orderBy(asc(calls.started_at))
           .limit(1)
       : []
     const segments = call

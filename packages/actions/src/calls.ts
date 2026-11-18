@@ -248,7 +248,7 @@ export const callStartTest = defineAction({
 export const callFindForTest = defineAction({
   name: 'call.findForTest',
   description:
-    'Find the call the call test placed in the workspace of a business number: by caller number or by room, the newest since a moment.',
+    'Find the call the call test placed in the workspace of a business number: by caller number or by room, the first since a moment.',
   input: z.object({
     /** The business number: it names the workspace. */
     to: z.string().min(3),

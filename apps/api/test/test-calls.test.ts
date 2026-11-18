@@ -287,7 +287,7 @@ test('a phone call is still filed as a phone call', async () => {
   expect(call?.source).toBe('phone')
 })
 
-test('call.findForTest finds the newest call between two numbers since a moment, for the agent only', async () => {
+test('call.findForTest finds the first call between two numbers since a moment, for the agent only', async () => {
   const since = new Date(Date.now() - 1000).toISOString()
   const from = '+19715550188'
   const none = await act(agent(), 'call.findForTest', { from, to: ws.number, since })
@@ -315,6 +315,11 @@ test('call.findForTest finds the newest call between two numbers since a moment,
     { speaker: 'agent', text: 'Hello', at_ms: 0 },
     { speaker: 'caller', text: 'Hi', at_ms: 900 },
   ])
+  // A later call from the same test number is another run's: the first call since the moment stays the one found.
+  const other = await act(agent(), 'call.start', { from, to: ws.number })
+  await act(agent(ws.id), 'call.finish', { callId: other.body.data.callId, outcome: 'message', title: 'Other' })
+  const first = await act(agent(), 'call.findForTest', { from, to: ws.number, since })
+  expect(first.body.data.call.id).toBe(callId)
 
   // A no-phone test call is found by its room in the workspace of the business number.
   const test = await act(agent(ws.id), 'call.startTest', { room: 'call-test-room-a' })
