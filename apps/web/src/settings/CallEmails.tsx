@@ -9,6 +9,7 @@ import {
   EMAIL_RULE_TO_MAX,
   EMAIL_RULE_WHEN_MAX,
   EMAIL_RULES_MAX,
+  type EmailRoutingAvailability,
   type EmailRoutingData,
 } from '@linedesk/actions'
 import type { EmailRule, EmailRules, WorkspaceMember } from '@linedesk/db/types'
@@ -26,6 +27,8 @@ import './call-emails.css'
 
 const ROUTING_KEY = 'emailRouting.get'
 const loadRouting = () => readAction<EmailRoutingData>(ROUTING_KEY)
+const AVAILABLE_KEY = 'emailRouting.available'
+const loadAvailable = () => readAction<EmailRoutingAvailability>(AVAILABLE_KEY)
 
 /** Revert a change from a toast's Undo (Workspace's undo stack, also Z). */
 export type Undoable = (label: string, key: string, revert: () => void) => void
@@ -63,10 +66,12 @@ export function CallEmails({ name, rules, onChange, canEdit, undoable, showError
   const routing = useQuery<EmailRoutingData>(canEdit ? ROUTING_KEY : null, loadRouting)
   const emailOff = (userId: string) => routing.data?.members.find(m => m.userId === userId)?.emailOn === false
   const emailOf = (userId: string) => routing.data?.members.find(m => m.userId === userId)?.email
-  // Rules need a language model; without one only "Always send to" works, so only it shows. Members who cannot edit
-  // do not read routing.data: they see the rules as saved.
-  const llmKnown = !canEdit || routing.data !== undefined || routing.error !== null
-  const showRules = !canEdit || routing.data?.llm === true
+  // Members who cannot edit may not read routing.data; they ask only whether rules are on.
+  const available = useQuery<EmailRoutingAvailability>(canEdit ? null : AVAILABLE_KEY, loadAvailable)
+  // Rules need a language model; without one only "Always send to" works, so only it shows, for everyone.
+  const llm = canEdit ? routing : available
+  const llmKnown = llm.data !== undefined || llm.error !== null
+  const showRules = llm.data?.llm === true
   const named = [...new Set([...rules.always, ...(showRules ? rules.rules.flatMap(r => r.to) : [])])]
   const off = named.filter(emailOff)
   const label = (userId: string) => memberLabel(members.find(m => m.user_id === userId))

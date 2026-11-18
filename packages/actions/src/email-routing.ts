@@ -113,6 +113,20 @@ export const emailRoutingGet = defineAction({
   readOnly: true,
 })
 
+/** `data` of emailRouting.available. */
+export type EmailRoutingAvailability = { llm: boolean }
+
+/** For every member: whether call email rules are on (they need a language model), so the page shows them or not. */
+export const emailRoutingAvailable = defineAction({
+  name: 'emailRouting.available',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    'Whether call email rules are on: `llm` true when a language model is set up (Server admin › Providers). Without one, only the `always` members of `email_rules` count and the rules are ignored.',
+  input: z.object({}),
+  permission: 'call:read',
+  readOnly: true,
+})
+
 const outsideEmail = z.string().trim().toLowerCase().pipe(z.email().max(254))
 
 export const emailRecipientAdd = defineAction({

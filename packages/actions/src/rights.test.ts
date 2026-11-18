@@ -59,6 +59,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'insights.get',
     // Reading rows through a key or MCP instead of the sync shapes (records.ts, LIN-339).
     'records.list',
+    // Call emails (LIN-470): whether the rules are on, so members see the section as it works.
+    'emailRouting.available',
   ],
   admin: [
     // Workspace settings › Billing for owners and admins: this workspace's usage only, read-only (docs/billing.md §8).

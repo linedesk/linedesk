@@ -16,6 +16,7 @@ import {
   OUTSIDE_PAGE_REQUESTS_PER_MINUTE,
   OUTSIDE_STOP_PATH,
   outsideStopToken,
+  previewDeps,
 } from '../src/email-recipients.ts'
 import { EMAIL_ROUTING_SYSTEM, promptName, readDecision, routeFor, routingUserMessage } from '../src/email-routing.ts'
 import { mayRunWhileImpersonating } from '../src/impersonation-guard.ts'
@@ -585,5 +586,22 @@ describe('saving the rules', () => {
     expect(cleared.body.rows.assistants[0].email_rules).toEqual({ always: [], rules: [] })
     expect(actions.get('assistant.previewEmailRouting')).toBeUndefined()
     expect(mayRunWhileImpersonating(actions.get('emailRouting.get')!)).toBe(true)
+  })
+
+  test('emailRouting.available: every member learns whether rules are on, and nothing else', async () => {
+    const ws = await createWorkspace('Rules On Plumbing')
+    const dave = await addMember(ws.id, 'member')
+    const model = previewDeps.model
+    try {
+      previewDeps.model = async () => null
+      const off = await act(dave, 'emailRouting.available', {})
+      expect(off.status).toBe(200)
+      expect(off.body.data).toEqual({ llm: false })
+      previewDeps.model = async () => ({ model: 'test', complete: async () => '{}' }) as EvaluationModel
+      expect((await act(dave, 'emailRouting.available', {})).body.data).toEqual({ llm: true })
+    } finally {
+      previewDeps.model = model
+    }
+    expect(mayRunWhileImpersonating(actions.get('emailRouting.available')!)).toBe(true)
   })
 })

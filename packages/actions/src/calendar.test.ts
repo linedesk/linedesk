@@ -64,6 +64,7 @@ describe('calendar.findSlots', () => {
       'carrier.get',
       'carrier.test',
       'carrier.transferTrunk',
+      'emailRouting.available',
       'emailRouting.get',
       'evaluation.listQuestions',
       'holidays.lookup',

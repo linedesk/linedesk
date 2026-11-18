@@ -161,6 +161,7 @@ const all = [
   settings.contactMerge,
   settings.assistantUpdate,
   emailRouting.emailRoutingGet,
+  emailRouting.emailRoutingAvailable,
   emailRouting.emailRecipientAdd,
   emailRouting.emailRecipientResend,
   emailRouting.emailRecipientRemove,

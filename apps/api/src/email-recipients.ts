@@ -14,6 +14,7 @@
 // OUTSIDE_CONFIRMS_PER_DAY confirmation emails in 24 hours, counted from confirm_sent_at (removed rows too).
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import {
+  type EmailRoutingAvailability,
   type EmailRoutingCode,
   type EmailRoutingData,
   OUTSIDE_CONFIRM_DAYS,
@@ -204,6 +205,11 @@ export const previewDeps: { model: (tx: Tx) => Promise<EvaluationModel | null> }
 }
 
 export const emailRecipientHandlers: Record<string, Handler> = {
+  'emailRouting.available': async ({ tx }) => {
+    const data: EmailRoutingAvailability = { llm: !!(await previewDeps.model(tx).catch(() => null)) }
+    return { rows: {}, data }
+  },
+
   'emailRouting.get': async ({ tx, actor }) => {
     if (!actor.workspaceId) throw refuse('no_workspace')
     const ids = await tx
