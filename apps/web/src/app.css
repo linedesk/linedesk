@@ -1086,20 +1086,18 @@ a.k-btn {
     display: inline;
   }
 }
-/* Transcript (call view and test-call panel): the caller speaks in black bubbles with light text, the
-   assistant in the grey ones. */
+/* Transcript (call view and test-call panel): the caller speaks in white bubbles with a hairline, the
+   assistant in the grey ones. Calm on purpose: the call's actions keep the attention. */
 .cv .k-bubble.k-tone-signal,
 .cv .k-msg-them .k-bubble.k-tone-signal {
   background: var(--bubble-caller);
-  color: #fafaf8;
+  color: var(--ink);
   box-shadow: none;
-  border-color: transparent;
+  border: 1px solid var(--line);
 }
-.cv .k-bubble.k-tone-signal .k-msg-author {
-  color: #ffffff;
-}
+.cv .k-bubble.k-tone-signal .k-msg-author,
 .cv .k-bubble.k-tone-signal .k-meta {
-  color: rgb(250 250 248 / 0.6);
+  color: var(--ink-muted);
 }
 
 /* Done and Spam are finished work: their badges are quiet, never red. */
