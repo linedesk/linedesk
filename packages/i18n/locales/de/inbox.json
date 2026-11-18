@@ -215,7 +215,7 @@
   "trial.daysLeft": "{count, plural, one {Noch # Tag} other {Noch # Tage}}",
   "trial.firstCharge": "erste Abbuchung am {date}",
   "trial.tag": "Kostenlose Testphase",
-  "trial.tip": "Deine kostenlose Testphase endet und die erste Abbuchung erfolgt am {date}. Kündige jederzeit vorher unter Einstellungen › Abrechnung.",
+  "trial.tip": "Deine kostenlose Testphase endet und die erste Abbuchung erfolgt am {date}. Du kannst jederzeit vorher unter Einstellungen › Abrechnung kündigen.",
   "view.ai": "Von {assistant} erledigt",
   "view.assigned": "Zugewiesen",
   "view.done": "Archiviert",

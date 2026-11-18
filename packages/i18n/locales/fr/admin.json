@@ -857,7 +857,7 @@
   "clientPartner.line.ownBill": "Il passe sur une nouvelle facture de son propriétaire, qui ajoute une carte.",
   "clientPartner.line.stays": "Le propriétaire, les numéros et les appels restent.",
   "clientPartner.line.toBill": "Son siège passe sur la facture de {partner}.",
-  "clientPartner.loading": "des partenaires",
+  "clientPartner.loading": "les partenaires",
   "clientPartner.noOwner": "Cet espace de travail n'a pas encore de propriétaire : sans partenaire, personne ne pourrait l'ouvrir. Déplacez-le vers un autre partenaire, ou invitez d'abord son propriétaire.",
   "clientPartner.none": "Aucun partenaire",
   "clientPartner.open": "Partenaire…",

@@ -62,7 +62,7 @@
   "leave.signInFirst.text": "La suppression de votre compte demande une connexion de moins de 10 minutes. Vous revenez ici ensuite.",
   "leave.signInFirst.title": "Reconnectez-vous d'abord.",
   "leave.title": "Quitter l'espace de travail",
-  "leave.viaPartner": "Vous êtes dans cet espace de travail via l'équipe de {partner} : votre accès se modifie donc là-bas, dans votre <link>espace partenaire</link>.",
+  "leave.viaPartner": "Vous êtes dans cet espace de travail via l'équipe de {partner} : votre accès se modifie donc là-bas, dans <link>l'espace partenaire</link>.",
   "member.edit": "Modifier",
   "member.editProfile": "Modifier le profil",
   "member.editProfileTitle": "Votre nom, votre connexion et vos sessions, dans Compte",
