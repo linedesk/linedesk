@@ -6,6 +6,7 @@ import { useFormat, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import type { Activation } from '../auth.ts'
 import { Select } from '../ui/controls.tsx'
+import { usePrice } from '../ui/price.tsx'
 
 export type CallsOffer = NonNullable<Activation['calls']>
 
@@ -40,13 +41,6 @@ export function useExtraCalls(workspaceId: string, calls: CallsOffer | undefined
   return [validExtraCalls(extra, calls), set]
 }
 
-/** "$5", as the plan prices it: whole dollars without cents. */
-export function useUsd() {
-  const format = useFormat()
-  return (cents: number) =>
-    format.currency(cents / 100, 'USD', { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })
-}
-
 /**
  * The pick-up step's picker: how many calls the assistant answers at the same time, the included ones first, more in
  * steps at a price a month (the same list as Settings › Billing), charged with the plan from the trial's end.
@@ -61,7 +55,7 @@ export function ExtraCallsPicker({
   onChange: (extra: number) => void
 }) {
   const t = useT()
-  const usd = useUsd()
+  const usd = usePrice().money
   const choices: number[] = []
   for (let n = 0; n <= calls.maxExtra; n += calls.step) choices.push(n)
   return (

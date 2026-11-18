@@ -76,7 +76,10 @@ test('what Checkout charges: the base fee and a seat per client workspace, for a
 test('before payment, no clients: one primary action (New client), Activate next to it with the real price', () => {
   const html = clientsHtml(partnerData({}))
   expect(html).toContain('No clients yet')
-  expect(html).toContain('$14 a month + $9 a month per client workspace, billed yearly.')
+  // The price a month leads; the yearly totals are the grey note under it (ui/price.tsx).
+  expect(html).toContain(
+    '<b>$14 a month + $9 a month per client workspace</b><span class="help">$168 billed yearly + $108 a year per client workspace</span>',
+  )
   expect(html.match(/k-btn-primary/g)?.length).toBe(1)
   expect(html).not.toContain('disabled=""')
 })

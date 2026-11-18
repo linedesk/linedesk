@@ -249,6 +249,16 @@
   justify-content: space-between;
   gap: 12px 24px;
 }
-.pa-activate .pa-fine {
+/* The price a month, the yearly note under it (ui/price.tsx) and the drafts line, at the left of Activate. */
+.pa-activate-text {
   flex: 1 1 280px;
+  display: grid;
+  gap: 2px;
+}
+.pa-activate-text b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.pa-activate-text > .pa-fine {
+  margin-top: 6px;
 }

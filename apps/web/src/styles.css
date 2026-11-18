@@ -470,6 +470,8 @@ span.mono { font-family: var(--font-mono); font-size: 12px; color: var(--ink-mut
 .field { display: grid; gap: 6px; }
 .field label { font-size: 13px; font-weight: 500; }
 .help { font-size: 12px; color: var(--ink-muted); }
+/* A plan's price a month and its yearly note right under it (ui/price.tsx): one group in the plan boxes. */
+.price-line { display: grid; gap: 1px; }
 /* A plain link inside helper text looks like every other link (.k-link), never the browser's blue. */
 .help a:not([class]) { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
 .ta { font: inherit; font-size: 13.5px; line-height: 20px; padding: 8px 10px; border: 1px solid var(--line-control); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); resize: vertical; min-height: 72px; }

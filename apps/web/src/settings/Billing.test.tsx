@@ -127,7 +127,9 @@ const primaries = (html: string) => (html.match(/k-btn-primary/g) ?? []).length
 
 test('a running plan: price, renewal, balance, usage, invoices, Buy minutes as the one primary button, Cancel plan', () => {
   const html = render({ billingOn: true, bill: bill() })
-  expect(html).toContain('$11.00 a month per workspace · 1 workspace')
+  expect(html).toContain('<b>$11 a month per workspace · 1 workspace</b>')
+  // Billed monthly: no yearly note.
+  expect(html).not.toContain('billed yearly')
   expect(html).toContain('Renews on')
   expect(html).toContain('$12.34')
   expect(html).toContain('20 of 50 included minutes used')
@@ -372,7 +374,7 @@ test('a comped bill: free of charge, no price, no balance to top up and no auto-
     bill: bill({ status: 'comped', balanceMicros: 0, availableMicros: 0, extraNumberCents: 0, invoices: [] }),
   })
   expect(html).toContain('Free of charge · 1 workspace')
-  expect(html).not.toContain('$11.00')
+  expect(html).not.toContain('$11')
   expect(html).not.toContain('Recharge automatically')
   expect(html).not.toContain('Buy minutes')
   expect(html).not.toContain('Extra numbers are')
@@ -448,14 +450,20 @@ test("a partner bill: the partner plan's base fee, then its client workspaces on
     billingOn: true,
     bill: partner({ status: 'pending_payment', interval: 'year', seatCents: 16_800, clientSeatCents: 10_800 }),
   })
-  expect(yearly).toContain('Partner plan: $168.00 a year')
-  expect(yearly).toContain('Client workspaces: $108.00 a year each · 1 workspace')
+  // The price a month leads, the yearly totals are grey notes under it (ui/price.tsx).
+  expect(yearly).toContain('<b>Partner plan: $14 a month</b><span class="help">$168 billed yearly</span>')
+  expect(yearly).toContain(
+    '<b>Client workspaces: $9 a month each · 1 workspace</b><span class="help">$108 a year each</span>',
+  )
+  // Before the first Checkout: no status badge ("Waiting for a card"), UI audit P3.
+  expect(yearly).not.toContain('Waiting for a card')
   expect(yearly).not.toContain('per workspace')
   const monthly = render({ billingOn: true, bill: partner({ seatCents: 1900, workspaces: 0 }) })
-  expect(monthly).toContain('Partner plan: $19.00 a month')
-  expect(monthly).toContain('Client workspaces: $11.00 a month each · none yet')
+  expect(monthly).toContain('Partner plan: $19 a month')
+  expect(monthly).not.toContain('a year')
+  expect(monthly).toContain('Client workspaces: $11 a month each · none yet')
   expect(render({ billingOn: true, bill: partner({ seatCents: 1900, workspaces: 3 }) })).toContain(
-    'Client workspaces: $11.00 a month each · 3 workspaces',
+    'Client workspaces: $11 a month each · 3 workspaces',
   )
   // A Cloud bill keeps its one line, with no client line.
   expect(render({ billingOn: true, bill: bill() })).not.toContain('Client workspaces')
@@ -468,14 +476,14 @@ test('a partner bill speaks of client workspaces: numbers, calls at the same tim
   const html = render({ billingOn: true, bill: partner() })
   expect(html).toContain('Each client workspace includes one phone number. Extra numbers are $3 a month each')
   expect(html).not.toContain('Each workspace includes')
-  expect(html).toContain('5 calls at the same time are included in each client workspace; 5 more cost $5.00 a month.')
+  expect(html).toContain('5 calls at the same time are included in each client workspace; 5 more cost $5 a month.')
   expect(html).toContain('the next caller hears that the business will call back, and the call is filed as missed.')
   // Adding calls waits for a paid plan; a partner plan has no trial.
   const pastDue = render({
     billingOn: true,
     bill: partner({ status: 'past_due', calls: { ...bill().calls, canAdd: false } }),
   })
-  expect(pastDue).toContain('Each 5 more cost $5.00 a month; you can add them once your plan is paid.')
+  expect(pastDue).toContain('Each 5 more cost $5 a month; you can add them once your plan is paid.')
   expect(pastDue).not.toContain('after the trial')
   expect(html).not.toContain('Your assistant answers')
   expect(html).toContain('<b>Brightwater Plumbing &amp; Heating</b>')
@@ -539,7 +547,7 @@ test('the partner\'s team in a client workspace: on their own partner plan, neve
 test('calls at the same time: 5 included per workspace, 5 more for $5 a month, no extra primary button', () => {
   const html = render({ billingOn: true, bill: bill() })
   expect(html).toContain('Calls at the same time')
-  expect(html).toContain('5 calls at the same time are included in each workspace; 5 more cost $5.00 a month.')
+  expect(html).toContain('5 calls at the same time are included in each workspace; 5 more cost $5 a month.')
   expect(html).toContain('Up to 5 calls at the same time, included in your plan')
   // A custom list, never the browser's select.
   expect(html).not.toContain('<select')
@@ -553,7 +561,7 @@ test('calls at the same time: 5 included per workspace, 5 more for $5 a month, n
     },
   })
   expect(render({ billingOn: true, bill: bought })).toContain(
-    'Up to 15 calls at the same time, $10.00 a month for the extra ones',
+    'Up to 15 calls at the same time, $10 a month for the extra ones',
   )
 })
 
@@ -592,11 +600,11 @@ test('calls at the same time in the trial: more only once the plan is paid; seve
     },
   })
   const html = render({ billingOn: true, bill: trial })
-  expect(html).toContain('Each 5 more cost $5.00 a month; you can add them once your plan is paid, after the trial.')
+  expect(html).toContain('Each 5 more cost $5 a month; you can add them once your plan is paid, after the trial.')
   expect(html).toContain('Brightwater North')
   // The numbers once each: the rows say what is included, the note what more cost; the card's line only the busy line.
   expect(html).not.toContain('are included in each workspace')
-  expect(html.match(/\$5\.00 a month/g)).toHaveLength(1)
+  expect(html.match(/\$5 a month/g)).toHaveLength(1)
   expect(html).toContain('When all lines are busy, the next caller hears')
 })
 

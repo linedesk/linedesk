@@ -16,7 +16,6 @@ import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { goToCheckout } from '../checkout.ts'
 import { useCountryHint } from '../countryHint.ts'
 import { Billing } from '../settings/Billing.tsx'
-import { useUsd } from '../onboarding/ExtraCalls.tsx'
 import { PARTNER_AGENT_HASH, PARTNER_SETUP_HASH, rememberPartnerByHand } from '../onboarding/setup-choice.ts'
 import { SetupTopBar } from '../onboarding/SetupTopBar.tsx'
 import { purchaseKeys } from '../settings/billingModel.ts'
@@ -46,7 +45,7 @@ import { PartnerBrand } from './PartnerBrand.tsx'
 import { PartnerDomain } from './PartnerDomain.tsx'
 import { PartnerKeys } from './PartnerKeys.tsx'
 import { PartnerSender } from './PartnerSender.tsx'
-import { PartnerSetup } from './PartnerSetup.tsx'
+import { PartnerPrice, PartnerSetup } from './PartnerSetup.tsx'
 
 type Section = 'clients' | 'team' | 'brand' | 'domain' | 'email' | 'keys' | 'billing'
 
@@ -251,7 +250,6 @@ function PartnerConsole({ partner, onExit, onFirstWorkspace }: Props) {
  */
 function ActivateCard({ data, primary }: { data: PartnerData; primary: boolean }) {
   const t = useT()
-  const usd = useUsd()
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   const bill = data.bill!
@@ -266,21 +264,17 @@ function ActivateCard({ data, primary }: { data: PartnerData; primary: boolean }
       setBusy(false)
     }
   }
-  const price = bill.price
   return (
-    <Card
-      title={t('team.partner.bill.activateTitle')}
-      description={t(price.interval === 'year' ? 'team.partner.bill.priceYearly' : 'team.partner.bill.priceMonthly', {
-        price: usd(price.planCents),
-        seat: usd(price.seatCents),
-      })}
-    >
+    <Card title={t('team.partner.bill.activateTitle')}>
       {/* The button under the words, not in the card's head: on a phone the head has no room for both. */}
       <div className="pa-activate">
-        <p className="pa-fine">
-          {t('team.partner.bill.draftsNote', { limit: UNPAID_PARTNER_CLIENTS })}
-          {failed && <span className="help"> {t('auth.checkout.startFailed')}</span>}
-        </p>
+        <div className="pa-activate-text">
+          <PartnerPrice price={bill.price} />
+          <p className="pa-fine">
+            {t('team.partner.bill.draftsNote', { limit: UNPAID_PARTNER_CLIENTS })}
+            {failed && <span className="help"> {t('auth.checkout.startFailed')}</span>}
+          </p>
+        </div>
         <Button size="sm" variant={primary ? 'primary' : 'secondary'} busy={busy} onClick={() => void start()}>
           {t('team.partner.bill.activateButton')}
         </Button>

@@ -6,7 +6,7 @@
 // Checkout once the setup is ready (setup before payment, 2026-11-18). The API decides everything (open or not, the address, the bot check, the
 // limits, the countries); this page only asks and says what came back. Only the plan and the interval travel in the
 // address, never personal data.
-import { T, useFormat, useT } from '@linedesk/i18n/react'
+import { T, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { auth, signInWithCode } from './auth.ts'
 import { CardFooter, HaveAccount, useAuthMethods } from './Login.tsx'
@@ -26,6 +26,7 @@ import {
 import { ExternalLink } from './ui/AppLink.tsx'
 import { AuthError } from './ui/AuthError.tsx'
 import { cx, Spinner } from './ui/kit.tsx'
+import { usePrice } from './ui/price.tsx'
 import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
 import { loadTurnstile } from './turnstile.ts'
 
@@ -394,7 +395,7 @@ export function DetailsStep({
   onDone: (workspaceId: string | null) => void | Promise<void>
 }) {
   const t = useT()
-  const format = useFormat()
+  const prices = usePrice()
   // Signed in already: the account's name, which the person may still change.
   const known = auth.useSession().data?.user?.name ?? ''
   const [typed, setName] = useState<string | null>(null)
@@ -475,9 +476,12 @@ export function DetailsStep({
         {partner && <p className="auth-plan-now">{t('auth.signup.partnerPayLater')}</p>}
         {planNow && (
           <p className="auth-plan-now">
-            {t(interval === 'year' ? 'auth.signup.planNowYearly' : 'auth.signup.planNowMonthly', {
-              price: usd(format, interval === 'year' ? planNow.yearlyCents : planNow.monthlyCents),
-            })}
+            {interval === 'year'
+              ? t('auth.signup.planNowYearlyTotal', {
+                  price: prices.perMonth(planNow.yearlyCents, 'year'),
+                  total: prices.money(planNow.yearlyCents),
+                })
+              : t('auth.signup.planNowMonthly', { price: prices.money(planNow.monthlyCents) })}
           </p>
         )}
         <p className="auth-terms">
@@ -515,7 +519,3 @@ export function DetailsStep({
     </SignedInAuthPage>
   )
 }
-
-/** A plan price in dollars, whole dollars without cents ("$9", "$90"), as the activation step shows it. */
-const usd = (format: ReturnType<typeof useFormat>, cents: number) =>
-  format.currency(cents / 100, 'USD', { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })

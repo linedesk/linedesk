@@ -37,6 +37,7 @@ import { Dialog, FormField, Input } from '../ui/form.tsx'
 import { Badge, Button, Note } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
+import { PriceLine, usePrice } from '../ui/price.tsx'
 import {
   AMOUNT_CHOICES,
   amountFits,
@@ -351,6 +352,7 @@ function PlanCard({
   const t = useT()
   const calls = useBillCalls()
   const format = useFormat()
+  const prices = usePrice()
   // "Cancel my trial" in the trial emails links here with `cancel=1`: the cancel dialog opens at once (once).
   const [cancelOpen, setCancelOpen] = useState(() => takeCancelRequest() && canCancel(bill))
   const [resuming, setResuming] = useState(false)
@@ -361,18 +363,20 @@ function PlanCard({
   // A partner bill: the partner base fee, then its client workspaces on their own line (docs/white-label.md).
   const partner = bill.kind === 'partner'
   const note = stateNote(state, date, partner)
-  const price = format.currency(centsToDollars(bill.seatCents), 'USD')
-  const yearly = bill.interval === 'year'
-  const plan = !paysCharges(bill)
+  // The price a month leads; a yearly plan's total is the grey note under it (ui/price.tsx).
+  const pays = paysCharges(bill)
+  const price = prices.perMonth(bill.seatCents, bill.interval)
+  const plan = !pays
     ? t(partner ? 'settings.billing.plan.compedPartner' : 'settings.billing.plan.comped', { count: bill.workspaces })
     : partner
-      ? t(yearly ? 'settings.billing.plan.partnerYearly' : 'settings.billing.plan.partnerMonthly', { price })
-      : t(yearly ? 'settings.billing.plan.yearly' : 'settings.billing.plan.monthly', { price, count: bill.workspaces })
-  const clientPrice = format.currency(centsToDollars(bill.clientSeatCents ?? 0), 'USD')
+      ? t('settings.billing.plan.partnerMonthly', { price })
+      : t('settings.billing.plan.monthly', { price, count: bill.workspaces })
+  const planNote = pays ? prices.yearNote(bill.seatCents, bill.interval, !partner) : null
+  const clientCents = bill.clientSeatCents ?? 0
   const clients =
-    partner && paysCharges(bill)
-      ? t(yearly ? 'settings.billing.plan.clientsYearly' : 'settings.billing.plan.clientsMonthly', {
-          price: clientPrice,
+    partner && pays
+      ? t('settings.billing.plan.clientsMonthly', {
+          price: prices.perMonth(clientCents, bill.interval),
           count: bill.workspaces,
         })
       : null
@@ -399,14 +403,17 @@ function PlanCard({
       id="billing-plan"
       title={t('settings.billing.plan.title')}
       actions={
-        <Badge tone={badge.tone} dot>
-          {t(badge.key)}
-        </Badge>
+        // Before the first Checkout there is no plan to report on: no "Waiting for a card" before activation started.
+        bill.status === 'pending_payment' ? undefined : (
+          <Badge tone={badge.tone} dot>
+            {t(badge.key)}
+          </Badge>
+        )
       }
     >
       <div className="billing-plan">
-        <b>{plan}</b>
-        {clients && <span className="help">{clients}</span>}
+        <PriceLine note={planNote}>{plan}</PriceLine>
+        {clients && <PriceLine note={prices.yearNote(clientCents, bill.interval, true)}>{clients}</PriceLine>}
         {line && (
           <span className="help">
             {line.days !== undefined
@@ -546,7 +553,7 @@ type CallsChange = { workspaceId: string; name: string; from: number; to: number
  */
 function CallsCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: string) => void }) {
   const t = useT()
-  const format = useFormat()
+  const { money } = usePrice()
   const calls = bill.calls
   // From the busy-line email or banner: the dialog opens one step up for this workspace, when the owner can add.
   const [asking, setAsking] = useState<CallsChange | null>(() => {
@@ -555,7 +562,7 @@ function CallsCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: s
     if (!w || w.extraCalls + calls.step > calls.maxExtra) return null
     return { workspaceId: w.workspaceId, name: w.name, from: w.extraCalls, to: w.extraCalls + calls.step }
   })
-  const price = (extra: number) => format.currency(centsToDollars(extra * calls.extraCallCents), 'USD')
+  const price = (extra: number) => money(extra * calls.extraCallCents)
   const editable = changesRecharge(bill)
   // A partner bill names each client workspace, also its only one: never "Your assistant answers".
   const partner = bill.kind === 'partner'

@@ -1,6 +1,6 @@
 // The activation step (ActivateStep.tsx, docs/billing.md §3.2): what the owner reads above "Start free trial": the
-// plan's price a month (a yearly plan's amount once, at the first charge) and its price a minute in cents, the dated
-// timeline with the reminder emails and the first charge, no auto-recharge, and the terms next to the button.
+// plan's price a month (a yearly plan's total in the grey note under it, and at the first charge) and its price a
+// minute in cents, the dated timeline with the reminder emails and the first charge, no auto-recharge, and the terms next to the button.
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test, vi } from 'vitest'
 import type { Activation, Me } from '../auth.ts'
@@ -35,7 +35,9 @@ test('the price a minute in cents, the plan, the timeline and the terms next to 
   const page = text(activation)
   expect(page).toContain('50 call minutes included, then 5¢ a minute.')
   expect(page).not.toContain('$0.05')
-  expect(page).toContain('$11 a month Per workspace, billed monthly.')
+  // Billed monthly: the price a month alone, no note (ui/price.tsx).
+  expect(page).toContain('$11 a month per workspace Plus tax where it applies.')
+  expect(page).not.toContain('billed')
   expect(page).toContain('The first 14 days are free.')
   // One line for both reminder emails; today is day 1, so the first charge is on day 15 (as the website says).
   expect(page.match(/Reminder email/g)).toHaveLength(1)
@@ -53,10 +55,17 @@ test('a Premium-priced plan says 10¢; a sub-cent price stays in dollars', () =>
   expect(text({ ...activation, standardMicrosPerMinute: 8_500 })).toContain('then $0.0085 a minute')
 })
 
-test('a yearly plan leads with the price a month; the year shows once, small, at the first charge', () => {
+test('a yearly plan leads with the price a month, its total in the grey note under it and at the first charge', () => {
+  const html = renderToStaticMarkup(
+    <ActivateStep
+      me={me({ ...activation, interval: 'year', planCents: 10800 })}
+      onBack={() => {}}
+      onTermsChanged={() => {}}
+    />,
+  )
+  expect(html).toContain('<b>$9 a month per workspace</b><span class="help">$108 billed yearly</span>')
   const page = text({ ...activation, interval: 'year', planCents: 10800 })
-  expect(page).toContain('$9 a month Per workspace, billed yearly.')
-  expect(page.match(/\$108/g)).toHaveLength(1)
+  expect(page.match(/\$108/g)).toHaveLength(2)
   expect(page).toMatch(/First charge \$108\. Cancel any time before/)
 })
 

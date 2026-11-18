@@ -13,7 +13,6 @@ import { ColorField, nameProblem, parsedColor } from '../admin/Branding.tsx'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { goToCheckout } from '../checkout.ts'
 import { useCountryHint } from '../countryHint.ts'
-import { useUsd } from '../onboarding/ExtraCalls.tsx'
 import { useStepKeys } from '../onboarding/Frame.tsx'
 import { SetupFoot } from '../onboarding/SetupFoot.tsx'
 import { SetupTopBar } from '../onboarding/SetupTopBar.tsx'
@@ -28,6 +27,7 @@ import { FormField, FormMessage, Input } from '../ui/form.tsx'
 import { RadioCard } from '../ui/controls.tsx'
 import { Icon, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
+import { PriceLine, usePrice } from '../ui/price.tsx'
 import { unpaidPartner } from './PartnerArea.tsx'
 import {
   BRAND_QUERY,
@@ -72,6 +72,29 @@ export function partnerSetupStart(
   if (!done.brand) return 'agency'
   if (!done.clients || !steps.includes('activate')) return 'client'
   return 'activate'
+}
+
+/**
+ * White-label Cloud's price as the partner bill has it (`planCents` and `seatCents` a month): the base fee and each
+ * client workspace a month, and on the yearly plan their totals a year in the grey note under it (ui/price.tsx).
+ * The activate card in the partner area and the setup's activate step show it the same way.
+ */
+export function PartnerPrice({
+  price,
+}: {
+  price: { interval: 'month' | 'year'; planCents: number; seatCents: number }
+}) {
+  const t = useT()
+  const { money } = usePrice()
+  const note =
+    price.interval === 'year'
+      ? t('team.partner.bill.yearNote', { price: money(price.planCents * 12), seat: money(price.seatCents * 12) })
+      : null
+  return (
+    <PriceLine note={note}>
+      {t('team.partner.bill.price', { price: money(price.planCents), seat: money(price.seatCents) })}
+    </PriceLine>
+  )
 }
 
 /** What the first year (or month) of White-label Cloud costs with this many client workspaces, in cents. */
@@ -479,7 +502,7 @@ function ActivateStep({
   onBack: () => void
 }) {
   const t = useT()
-  const usd = useUsd()
+  const { money } = usePrice()
   const [busy, setBusy] = useState<'activate' | 'later' | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const client = firstClient(data.clients)
@@ -535,10 +558,11 @@ function ActivateStep({
           />
         </section>
         <div className="ob-activate-plan">
-          <b>{t('team.partner.setup.activate.price', { plan: usd(price.planCents), seat: usd(price.seatCents) })}</b>
+          <PartnerPrice price={price} />
+          {/* What Checkout charges right after this step: the real amount, not the price a month. */}
           <span>
             {t(yearly ? 'team.partner.setup.activate.chargeYearly' : 'team.partner.setup.activate.chargeMonthly', {
-              total: usd(partnerChargeCents(price, count)),
+              total: money(partnerChargeCents(price, count)),
               count,
             })}
           </span>

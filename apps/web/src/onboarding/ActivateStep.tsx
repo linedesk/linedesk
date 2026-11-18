@@ -1,5 +1,5 @@
 // The last step before a number (docs/billing.md §3.2): the business set everything up without a card; here it sees
-// what it set up, what the plan costs a month (a yearly plan's amount once, small, at its first charge), when the first
+// what it set up, what the plan costs a month (a yearly plan's total in a grey note under it, and at its first charge), when the first
 // charge comes and that reminder emails come before it, accepts
 // the terms next to the button (clickwrap, A9: recorded with what this step showed) and goes to Stripe Checkout for
 // the card. Back from Checkout (CheckoutReturn.tsx) the trial runs and the onboarding goes on to the phone number.
@@ -12,7 +12,8 @@ import { useAssistantName } from '../store.tsx'
 import { ExternalLink } from '../ui/AppLink.tsx'
 import { Icon, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
-import { useExtraCalls, useUsd } from './ExtraCalls.tsx'
+import { PriceLine, usePrice } from '../ui/price.tsx'
+import { useExtraCalls } from './ExtraCalls.tsx'
 import { activationTimeline, type TimelineEntry } from './flow.ts'
 import { Foot, useStepKeys } from './Frame.tsx'
 import { rememberOwnerByHand } from './setup-choice.ts'
@@ -119,17 +120,16 @@ export function useStartTrial(me: Me, a: Activation, onTermsChanged: () => void,
 }
 
 /**
- * What the owner reads before starting: the plan's price a month (a yearly plan's amount once, small, at its first
- * charge), the dated timeline, an error from the last try and the terms next to the button.
+ * What the owner reads before starting: the plan's price a month (a yearly plan's total in the grey note under it,
+ * ui/price.tsx), the first charge's real amount in the dated timeline, an error from the last try and the terms next to the button.
  */
 export function ActivatePlan({ activation: a, trial: s }: { activation: Activation; trial: StartTrial }) {
   const t = useT()
   const format = useFormat()
   const [now] = useState(() => new Date())
-  const usd = useUsd()
+  const prices = usePrice()
+  const usd = prices.money
   const yearly = a.interval === 'year'
-  // What the plan costs a month: the yearly price over 12 months, as the plans are compared.
-  const perMonth = usd(yearly ? Math.round(a.planCents / 12) : a.planCents)
   // What the first charge is with the extra calls: they are billed at the plan's interval (a year is 12 months).
   const extraMonthlyCents = s.extraCalls * (a.calls?.extraCallCents ?? 0)
   const totalCents = a.planCents + extraMonthlyCents * (yearly ? 12 : 1)
@@ -140,9 +140,10 @@ export function ActivatePlan({ activation: a, trial: s }: { activation: Activati
   return (
     <>
       <div className="ob-activate-plan">
-        <b>{t('onboarding.activate.perMonth', { price: perMonth })}</b>
+        <PriceLine note={prices.yearNote(a.planCents, a.interval)}>
+          {t('onboarding.activate.perMonthWorkspace', { price: prices.perMonth(a.planCents, a.interval) })}
+        </PriceLine>
         <span>
-          {t(yearly ? 'onboarding.activate.billedYearly' : 'onboarding.activate.billedMonthly')}{' '}
           {t('onboarding.activate.includes', { minutes: a.includedMinutes, perMinute })}
           {s.trial ? ` ${t('onboarding.activate.trialFree', { days: a.trialDays })}` : ''}
         </span>
