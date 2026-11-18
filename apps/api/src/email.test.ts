@@ -1,7 +1,7 @@
 import { createServer } from 'node:net'
 import { describe, expect, it, vi } from 'vitest'
 import { createEmailSender, senderLine, smtpCheck } from './email.ts'
-import { smtpOf } from './email-services.ts'
+import { mailConnectionOf } from './email-services.ts'
 
 describe('createEmailSender', () => {
   it('uses SMTP when SMTP_URL is set', () => {
@@ -102,8 +102,8 @@ describe('createEmailSender', () => {
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     const { port } = server.address() as { port: number }
     try {
-      // The Resend preset's own URL, pointed at the local server: same scheme, user, key and query.
-      const preset = new URL(smtpOf('resend', { api_key: 're_secret' })!.url)
+      // The SendGrid preset's own URL, pointed at the local server: same scheme, user, key and query.
+      const preset = new URL(mailConnectionOf('sendgrid', { api_key: 're_secret' })!.url)
       preset.hostname = '127.0.0.1'
       preset.port = String(port)
       const sender = createEmailSender({ SMTP_URL: preset.toString() }, { connectMs: 1000, sendMs: 3000 })
@@ -156,6 +156,80 @@ describe('createEmailSender', () => {
     } finally {
       server.close()
     }
+  })
+})
+
+describe('createEmailSender with Resend', () => {
+  const env = {
+    SMTP_URL: mailConnectionOf('resend', { api_key: 're_secret_key' })!.url,
+    EMAIL_FROM: 'Desk <desk@example.com>',
+  }
+  const resendFake = (status = 200, body: unknown = { id: 'e1' }) => {
+    const requests: { url: string; init: RequestInit }[] = []
+    const doFetch = vi.fn(async (input: string | URL | Request, init: RequestInit = {}) => {
+      requests.push({ url: String(input), init })
+      return new Response(JSON.stringify(body), { status })
+    })
+    return { doFetch: doFetch as unknown as typeof fetch, requests }
+  }
+
+  it('sends over the HTTPS API with the key as a bearer token: From, Reply-To, both parts and the headers', async () => {
+    const fake = resendFake()
+    const sender = createEmailSender(env, undefined, fake.doFetch)
+    expect(sender.kind).toBe('resend')
+    await sender.send({
+      to: 'mike@brightwater.example',
+      subject: 'Your code',
+      text: 'code 123456',
+      html: '<p>code 123456</p>',
+      replyTo: 'help@brightwater.example',
+      headers: { 'List-Unsubscribe': '<https://example.com/u>' },
+    })
+    expect(fake.requests).toHaveLength(1)
+    const [request] = fake.requests
+    expect(request!.url).toBe('https://api.resend.com/emails')
+    expect(request!.init.method).toBe('POST')
+    expect((request!.init.headers as Record<string, string>).authorization).toBe('Bearer re_secret_key')
+    expect(JSON.parse(String(request!.init.body))).toEqual({
+      from: 'Desk <desk@example.com>',
+      to: ['mike@brightwater.example'],
+      subject: 'Your code',
+      text: 'code 123456',
+      html: '<p>code 123456</p>',
+      reply_to: 'help@brightwater.example',
+      headers: { 'List-Unsubscribe': '<https://example.com/u>' },
+    })
+  })
+
+  it('keeps muting: a muted address gets nothing and no request goes out', async () => {
+    const fake = resendFake()
+    const sender = createEmailSender({ ...env, EMAIL_MUTED_TO: 'mike@brightwater.example' }, undefined, fake.doFetch)
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    await sender.send({ to: 'Mike@Brightwater.example', subject: 'Your code', text: 'code 123456' })
+    log.mockRestore()
+    expect(fake.requests).toHaveLength(0)
+  })
+
+  it('a refused key fails with a message that names the fix and never the key', async () => {
+    const fake = resendFake(403, { statusCode: 403, name: 'invalid_api_key', message: 'API key is invalid' })
+    const sent = createEmailSender(env, undefined, fake.doFetch).send({ to: 'a@b.example', subject: 's', text: 't' })
+    await expect(sent).rejects.toThrow(/Resend refused the API key \(HTTP 403\).*Server admin › Providers › Resend/)
+    await expect(sent).rejects.not.toThrow(/re_secret_key/)
+  })
+
+  it('check: a sending-only key (it may not list domains) still works, a refused one does not; nothing is sent', async () => {
+    const restricted = resendFake(401, { statusCode: 401, name: 'restricted_api_key', message: 'restricted' })
+    expect(await createEmailSender(env, undefined, restricted.doFetch).check()).toEqual({
+      ok: true,
+      message: 'Sends through the Resend API (api.resend.com).',
+    })
+    expect(restricted.requests.map(r => `${r.init.method} ${r.url}`)).toEqual(['GET https://api.resend.com/domains'])
+    const refused = resendFake(403, { name: 'invalid_api_key' })
+    expect(await createEmailSender(env, undefined, refused.doFetch).check()).toMatchObject({ ok: false })
+  })
+
+  it('the SMTP provider with a Resend SMTP URL still sends over SMTP', () => {
+    expect(createEmailSender({ SMTP_URL: 'smtp://resend:re_1@smtp.resend.com:587?requireTLS=true' }).kind).toBe('smtp')
   })
 })
 

@@ -907,8 +907,9 @@ export const providers = {
       },
     ],
   },
-  // Mail services with a key or an app password instead of an SMTP URL. The API turns their fields into the SMTP
-  // connection it sends with (apps/api/src/email-services.ts). One of them sends: the one picked, else the first set up.
+  // Mail services with a key or an app password instead of an SMTP URL. The API turns their fields into the connection
+  // it sends with (apps/api/src/email-services.ts): SMTP on 587, except Resend, which sends through its HTTPS API (443,
+  // open where hosts block SMTP). One of them sends: the one picked, else the first set up.
   resend: {
     label: 'Resend',
     category: 'email',

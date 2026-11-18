@@ -108,6 +108,26 @@ test('a needed field without a value, or an emptied stored one, stops Save', () 
   })
 })
 
+test('adding only an optional secret keeps the saved one: no error, only the new field is sent', () => {
+  const resend = (apiKey: Partial<ProviderField>): ProviderStatus => ({
+    provider: 'resend',
+    label: 'Resend',
+    category: 'email',
+    fields: [
+      field({ field: 'api_key', label: 'API key', ...apiKey }),
+      field({ field: 'from', label: 'From', secret: false, source: 'app', value: 'desk@example.com' }),
+      field({ field: 'domains_api_key', label: 'Domains API key (partners)' }),
+    ],
+  })
+  const saved = resend({ source: 'app', last4: 'abcd' })
+  const values = { ...initialValues(saved), domains_api_key: 're_full' }
+  expect(fieldErrors(saved, values)).toEqual({})
+  expect(changedValues(saved, values)).toEqual({ domains_api_key: 're_full' })
+  // A key only on the server (.env) counts as set too; one set nowhere is still needed.
+  expect(fieldErrors(resend({ source: 'env' }), values)).toEqual({})
+  expect(fieldErrors(resend({}), values)).toEqual({ api_key: 'Required.' })
+})
+
 test('the spending cap field: empty is no cap, dollars with up to two decimals, nothing below zero or over the limit', () => {
   expect(parseSpendingCap('')).toEqual({ capUsd: null })
   expect(parseSpendingCap('  ')).toEqual({ capUsd: null })

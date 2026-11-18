@@ -25,6 +25,7 @@ import { alertInstanceAdmins, plainSnippet } from './admin-alerts.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { onEmailResult } from './email.ts'
+import { ResendError } from './email-resend.ts'
 import { type AdminAlertText, providerFailureAlert } from './emails/alerts.ts'
 import type { Handler } from './handler-context.ts'
 import type { ProviderProblem } from './provider-errors.ts'
@@ -151,27 +152,29 @@ export async function clearProviderFailures(tx: Tx, providers: readonly Provider
 /** Every provider failing now, the most recent first. */
 export async function listProviderFailures(tx: Tx): Promise<ProviderFailure[]> {
   const rows = await tx.select().from(provider_failures)
-  return rows
-    // Older rows of a per-call race (before LIN-249 they were recorded): not a provider failure.
-    .filter(row => isProvider(row.provider) && !isPerCallProviderError(row.message))
-    .map(row => {
-      const provider = row.provider as ProviderName
-      const { label, category } = providerSpec(provider)
-      return {
-        provider,
-        category,
-        label,
-        reason: row.reason as ProviderFailureReason,
-        message: row.message,
-        source: row.source as ProviderFailureSource,
-        since: new Date(row.since).toISOString(),
-        last_at: new Date(row.last_at).toISOString(),
-        count: row.count,
-        workspace_id: row.workspace_id,
-        call_id: row.call_id,
-      }
-    })
-    .sort((a, b) => b.last_at.localeCompare(a.last_at))
+  return (
+    rows
+      // Older rows of a per-call race (before LIN-249 they were recorded): not a provider failure.
+      .filter(row => isProvider(row.provider) && !isPerCallProviderError(row.message))
+      .map(row => {
+        const provider = row.provider as ProviderName
+        const { label, category } = providerSpec(provider)
+        return {
+          provider,
+          category,
+          label,
+          reason: row.reason as ProviderFailureReason,
+          message: row.message,
+          source: row.source as ProviderFailureSource,
+          since: new Date(row.since).toISOString(),
+          last_at: new Date(row.last_at).toISOString(),
+          count: row.count,
+          workspace_id: row.workspace_id,
+          call_id: row.call_id,
+        }
+      })
+      .sort((a, b) => b.last_at.localeCompare(a.last_at))
+  )
 }
 
 /**
@@ -202,7 +205,9 @@ export function noteProviderOk(providers: ProviderName | readonly ProviderName[]
  * timeout) does not count: the next call may well work.
  */
 export async function voiceFailing(tx: Tx): Promise<boolean> {
-  const rows = await tx.select({ provider: provider_failures.provider, reason: provider_failures.reason }).from(provider_failures)
+  const rows = await tx
+    .select({ provider: provider_failures.provider, reason: provider_failures.reason })
+    .from(provider_failures)
   const failing = new Set(
     rows.filter(r => !passingProviderFailure(r.reason as ProviderFailureReason)).map(r => r.provider),
   )
@@ -237,7 +242,9 @@ export const providerHealthHandlers: Record<string, Handler> = {
  * only the login, the connection, a sending limit or a refused sender mean the service is failing. Fixed texts:
  * the server's answer can quote addresses.
  */
-export function smtpProblem(e: unknown): ProviderProblem | null {
+export function emailProblem(e: unknown): ProviderProblem | null {
+  // Resend over HTTPS (email-resend.ts) says what its refusal means itself.
+  if (e instanceof ResendError) return e.reason ? { reason: e.reason, message: e.message } : null
   const err = (e ?? {}) as { code?: string; responseCode?: number; response?: string; message?: string }
   const text = `${err.response ?? ''} ${err.message ?? ''}`
   const status = err.responseCode ? ` (SMTP ${err.responseCode})` : ''
@@ -275,7 +282,7 @@ export function watchEmailFailures(provider: () => ProviderName) {
   onEmailResult(result => {
     if (result.ok) void noteProviderOk(emailProviders())
     else {
-      const problem = smtpProblem(result.error)
+      const problem = emailProblem(result.error)
       if (problem) void noteProviderFailure(provider(), problem, 'email')
     }
   })

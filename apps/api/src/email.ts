@@ -1,8 +1,11 @@
-// Outgoing email behind one interface. SMTP when it is connected (Server admin › Providers › Email, or SMTP_URL); with EMAIL_TO_LOG=true the
+// Outgoing email behind one interface. SMTP when it is connected (Server admin › Providers › Email, or SMTP_URL), or
+// Resend's HTTPS API when the connection is Resend's (email-services.ts, email-resend.ts); with EMAIL_TO_LOG=true the
 // message is printed to the server log instead (development); otherwise nothing can be sent. A change applies at once.
 import nodemailer from 'nodemailer'
 import { emailDelivery } from './auth-methods.ts'
 import { emailBrandName, emailFromAddress, emailReplyTo, partnerEmailBrand } from './email-brand.ts'
+import { resendKeyCheck, resendSend, resendSendsText } from './email-resend.ts'
+import { resendApiKeyOf } from './email-services.ts'
 
 export interface Email {
   to: string
@@ -16,9 +19,9 @@ export interface Email {
   replyTo?: string
 }
 export interface EmailSender {
-  kind: 'smtp' | 'log' | 'none'
+  kind: 'smtp' | 'resend' | 'log' | 'none'
   send(email: Email): Promise<void>
-  /** Whether email can go out, for the admin overview. SMTP: connects and logs in, nothing is sent. */
+  /** Whether email can go out, for the admin overview. SMTP: connects and logs in; Resend: checks the key. Nothing is sent. */
   check(): Promise<{ ok: boolean; message: string }>
 }
 
@@ -140,6 +143,35 @@ function smtpSender(url: string, configuredFrom: string | undefined, timeouts: S
   }
 }
 
+/** Resend over HTTPS (port 443): works where the host blocks outgoing SMTP. Muting and headers as with SMTP. */
+function resendSender(
+  key: string,
+  configuredFrom: string | undefined,
+  timeouts: SmtpTimeouts,
+  doFetch: typeof fetch = fetch,
+): EmailSender {
+  return {
+    kind: 'resend',
+    send: async email => {
+      try {
+        await resendSend(key, { ...email, ...envelopeOf(email, configuredFrom) }, timeouts.sendMs, doFetch)
+        emailResultListener?.({ ok: true })
+      } catch (e) {
+        emailResultListener?.({ ok: false, error: e })
+        throw e
+      }
+    },
+    check: async () => {
+      try {
+        await resendKeyCheck(key, timeouts.connectMs * 2, doFetch)
+        return { ok: true, message: resendSendsText() }
+      } catch (e) {
+        return { ok: false, message: e instanceof Error ? e.message : String(e) }
+      }
+    },
+  }
+}
+
 const logSender: EmailSender = {
   kind: 'log',
   send: async email =>
@@ -193,14 +225,28 @@ function withMuted(sender: EmailSender, muted: Set<string>): EmailSender {
   }
 }
 
+/** The sender of a connection URL: Resend's API (email-services.ts) over HTTPS, any other over SMTP. */
+function connectionSender(
+  url: string,
+  configuredFrom: string | undefined,
+  timeouts: SmtpTimeouts,
+  doFetch: typeof fetch,
+): EmailSender {
+  const resendKey = resendApiKeyOf(url)
+  return resendKey
+    ? resendSender(resendKey, configuredFrom, timeouts, doFetch)
+    : smtpSender(url, configuredFrom, timeouts)
+}
+
 export function createEmailSender(
   env: Record<string, string | undefined>,
   timeouts: SmtpTimeouts = SMTP_TIMEOUTS,
+  doFetch: typeof fetch = fetch,
 ): EmailSender {
   const delivery = emailDelivery(env)
   const sender =
     delivery === 'smtp'
-      ? smtpSender(env.SMTP_URL!, env.EMAIL_FROM, timeouts)
+      ? connectionSender(env.SMTP_URL!, env.EMAIL_FROM, timeouts, doFetch)
       : delivery === 'log'
         ? logSender
         : noSender

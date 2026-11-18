@@ -24,7 +24,8 @@ import { LIVE_KEYS_REFUSED, liveKeysAllowed, loadBillingProvider, stripeKeyMode 
 import { JOBBER_API, JOBBER_CLIENT_REFUSED } from '@linedesk/connectors'
 import { msg } from '@linedesk/i18n'
 import { smtpCheck } from './email.ts'
-import { isMailService, type MailService, smtpOf } from './email-services.ts'
+import { ResendError, resendKeyCheck } from './email-resend.ts'
+import { isMailService, type MailService, mailConnectionOf } from './email-services.ts'
 import { WEB_ORIGIN } from './emails/templates.ts'
 import { type Reader, type Said, said, sayIn } from './handler-context.ts'
 import { type ProviderProblem, problemOfError, problemOfResponse, problemOfStatus } from './provider-errors.ts'
@@ -697,22 +698,29 @@ async function testSmtp(url: string, from: string | undefined, login: 'url' | 'k
 /** The domain of a From line ("Desk <desk@example.com>" or a bare address). */
 export const fromDomain = (from: string | undefined) => /@([^\s>]+)>?\s*$/.exec(from ?? '')?.[1]?.toLowerCase() ?? null
 
-/** Resend sends only from verified domains. A key with sending access only cannot list them: then not checked. */
-async function resendDomain(values: Values, doFetch: typeof fetch): Promise<Tested | null> {
+/**
+ * Resend: the key over its HTTPS API (as it sends, email-resend.ts), nothing is sent. Resend sends only from verified
+ * domains: a key that may list them (full access) is checked against From; one with sending access only cannot list
+ * them, then From is not checked.
+ */
+async function testResend(values: Values, doFetch: typeof fetch): Promise<Tested> {
+  let domains: Json[] | null
+  try {
+    domains = (await resendKeyCheck(values.api_key!, TIMEOUT_MS, doFetch)).domains as Json[] | null
+  } catch (e) {
+    if (e instanceof ResendError) return error(e.reason ?? 'config', said(e.key, e.params))
+    return error('network', said('server.api.email.resend.unreachable', { error: 'error' }))
+  }
   const domain = fromDomain(values.from)
-  if (!domain) return null
-  const answer = await httpFor('resend', doFetch).json('https://api.resend.com/domains', {
-    headers: { authorization: `Bearer ${values.api_key}` },
-  })
-  if (!answer.ok) return null
-  const listed = ((answer.body.data ?? []) as Json[]).find(d => String(d.name).toLowerCase() === domain)
+  if (!domain || !domains) return ok()
+  const listed = domains.find(d => String(d.name).toLowerCase() === domain)
   if (!listed) return error('config', said('server.api.providerTest.resend.notADomain', { domain }))
   if (listed.status !== 'verified')
     return error(
       'config',
       said('server.api.providerTest.resend.notVerified', { domain, status: String(listed.status).slice(0, 30) }),
     )
-  return null
+  return ok()
 }
 
 // --- Sign-in and calendar apps ------------------------------------------------------------------
@@ -970,12 +978,11 @@ export async function testProviderSaid(
     )
   if (isRecordingStore(provider)) return testRecordingStore(provider, values, doFetch, env)
   if (provider === 'smtp') return testSmtp(values.url!, values.from)
+  if (provider === 'resend') return testResend(values, doFetch)
   if (isMailService(provider)) {
-    const smtp = smtpOf(provider, values)
+    const smtp = mailConnectionOf(provider, values)
     if (!smtp) return error('config', said('server.api.providerTest.notSetUp'))
-    const login = await testSmtp(smtp.url, smtp.from, 'key')
-    if (!login.ok || provider !== 'resend') return login
-    return (await resendDomain(values, doFetch).catch(() => null)) ?? login
+    return testSmtp(smtp.url, smtp.from, 'key')
   }
   if (isOAuthApp(provider)) return testOAuthApp(provider, values, doFetch)
   if (provider === 'stripe') return testStripe(values, doFetch, env, { automaticTax })

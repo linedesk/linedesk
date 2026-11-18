@@ -7,6 +7,7 @@ import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
 import { noteCalendarAppFailure } from '../src/calendar-connections.ts'
+import { ResendError } from '../src/email-resend.ts'
 import { problemOfStatus } from '../src/provider-errors.ts'
 import {
   clearProviderFailures,
@@ -15,8 +16,8 @@ import {
   listProviderFailures,
   providerFailureEmail,
   recordProviderFailure,
+  emailProblem,
   refineProblem,
-  smtpProblem,
 } from '../src/provider-failures.ts'
 import { adminAlertEmail } from '../src/emails/alerts.ts'
 import { act, agent, createWorkspace } from './helpers.ts'
@@ -86,7 +87,7 @@ describe('record and clear', () => {
   })
 
   test('email failing: recorded, no email about it (it could not go out); shown in the app only', async () => {
-    const problem = smtpProblem(Object.assign(new Error('Invalid login'), { code: 'EAUTH', responseCode: 535 }))
+    const problem = emailProblem(Object.assign(new Error('Invalid login'), { code: 'EAUTH', responseCode: 535 }))
     expect(problem).toMatchObject({ reason: 'auth' })
     expect(await recordProviderFailure(db, 'gmail', problem!, 'email')).toMatchObject({ alerted: false })
     expect(alerts.sent).toHaveLength(0)
@@ -219,7 +220,13 @@ describe('what a failed email says about the service', () => {
     [{ responseCode: 452, response: '452 Daily sending quota exceeded' }, 'quota'],
     [{ responseCode: 550, response: '550 No such user here' }, null],
   ])('%j → %s', (error, reason) => {
-    expect(smtpProblem(Object.assign(new Error('x'), error))?.reason ?? null).toBe(reason)
+    expect(emailProblem(Object.assign(new Error('x'), error))?.reason ?? null).toBe(reason)
+  })
+
+  test("Resend over HTTPS: its refusal's own reason and words; one about this email only is none", () => {
+    const sender = new ResendError('config', 'server.api.email.resend.senderRefused', { status: 403 })
+    expect(emailProblem(sender)).toEqual({ reason: 'config', message: sender.message })
+    expect(emailProblem(new ResendError(null, 'server.api.email.resend.notAccepted', { status: 422 }))).toBeNull()
   })
 })
 

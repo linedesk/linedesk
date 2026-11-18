@@ -855,3 +855,51 @@ describe('apps: Jobber', () => {
     expect(await testProvider('jobber', keys, down.doFetch)).toMatchObject({ ok: false, reason: 'network' })
   })
 })
+
+describe('email: Resend over its HTTPS API', () => {
+  const values = { api_key: KEY, from: 'Desk <desk@example.com>' }
+
+  test('checks the key with GET /domains, sends nothing and never touches SMTP', async () => {
+    const fake = provider({
+      'GET api.resend.com/domains': [200, { data: [{ name: 'example.com', status: 'verified' }] }],
+    })
+    expect(await testProvider('resend', config(values), fake.doFetch)).toMatchObject({ ok: true, status: 'ok' })
+    expect(fake.calls).toEqual(['GET https://api.resend.com/domains'])
+    expect((fake.requests[0]!.init.headers as Record<string, string>).authorization).toBe(`Bearer ${KEY}`)
+  })
+
+  test('a sending-only key cannot list domains: it works, From is not checked', async () => {
+    const fake = provider({ 'GET api.resend.com/domains': [401, { name: 'restricted_api_key' }] })
+    expect(await testProvider('resend', config(values), fake.doFetch)).toMatchObject({ ok: true, status: 'ok' })
+  })
+
+  test('a refused key, an unverified From domain and no answer each say what to fix', async () => {
+    const refused = provider({ 'GET api.resend.com/domains': [403, { name: 'invalid_api_key' }] })
+    const keyResult = await testProvider('resend', config(values), refused.doFetch)
+    expect(keyResult).toMatchObject({ ok: false, reason: 'auth' })
+    expect(keyResult.message).toMatch(/Resend refused the API key \(HTTP 403\)/)
+    expect(keyResult.message).not.toContain(KEY)
+
+    const pending = provider({
+      'GET api.resend.com/domains': [200, { data: [{ name: 'example.com', status: 'pending' }] }],
+    })
+    expect(await testProvider('resend', config(values), pending.doFetch)).toMatchObject({
+      ok: false,
+      reason: 'config',
+      message: expect.stringMatching(/example\.com is not verified in Resend yet \(pending\)/),
+    })
+    const other = provider({
+      'GET api.resend.com/domains': [200, { data: [{ name: 'other.com', status: 'verified' }] }],
+    })
+    expect(await testProvider('resend', config(values), other.doFetch)).toMatchObject({ ok: false, reason: 'config' })
+
+    const blocked = vi.fn(async () => {
+      throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ETIMEDOUT' } })
+    }) as unknown as typeof fetch
+    expect(await testProvider('resend', config(values), blocked)).toMatchObject({
+      ok: false,
+      reason: 'network',
+      message: expect.stringMatching(/no answer from api\.resend\.com \(ETIMEDOUT\).*port 443/),
+    })
+  })
+})
