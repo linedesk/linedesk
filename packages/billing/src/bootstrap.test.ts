@@ -17,7 +17,7 @@ const LIVE_KEY = fakeStripeKey('rk', 'live')
 const WEBHOOK_URL = 'https://desk.example.com/v1/billing/stripe/webhook'
 
 const catalog: Catalog = {
-  products: { workspace: 'Linedesk workspace', partner: 'Linedesk Partner' },
+  products: { workspace: 'Linedesk workspace', partner: 'White-label Cloud' },
   prices: [
     { lookupKey: 'ws_monthly', product: 'workspace', cents: 1100, interval: 'month' },
     { lookupKey: 'ws_yearly', product: 'workspace', cents: 10_800, interval: 'year' },
@@ -275,7 +275,7 @@ describe('bootstrap', () => {
       recurring: { interval: 'year', usage_type: 'licensed' },
     })
     expect(stripe.state.products.get('linedesk_partner')).toMatchObject({
-      name: 'Linedesk Partner',
+      name: 'White-label Cloud',
       tax_code: 'txcd_10103001',
     })
     expect(stripe.state.tax.defaults).toMatchObject({ tax_code: 'txcd_10103001', tax_behavior: 'exclusive' })

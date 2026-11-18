@@ -30,12 +30,14 @@ export type PlanProduct = 'workspace' | 'partner' | 'extra_calls' | 'balance_rec
 export type PlanPrice = { lookupKey: string; product: PlanProduct; cents: number; interval: 'month' | 'year' }
 /**
  * The Stripe products by their names on invoices and receipts, with the install's product name (Server admin ›
- * Branding) in front of the plan products. English, like every text this install sends to Stripe. The balance
- * products have no fixed price: a recharge invoice item and a top-up Checkout line give the amount.
+ * Branding) in front of the workspace and extra-calls products. The partner plan keeps its own name, "White-label
+ * Cloud", on every install, like the balance products (Janik, 2026-11-18): the catalog sync renames the product
+ * back to these names. English, like every text this install sends to Stripe. The balance products have no fixed
+ * price: a recharge invoice item and a top-up Checkout line give the amount.
  */
 export const planProducts = (brand: string): Record<PlanProduct, string> => ({
   workspace: `${brand} workspace`,
-  partner: `${brand} Partner`,
+  partner: 'White-label Cloud',
   extra_calls: `${brand} extra calls at the same time`,
   balance_recharge: 'Balance recharge',
   balance_topup: 'Prepaid minutes',

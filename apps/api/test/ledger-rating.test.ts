@@ -435,6 +435,11 @@ describe("an install's own rules (docs/billing.md §7a)", () => {
   test('Stripe Tax is on by default; an install turns it off, and Checkout and its own invoices follow (LIN-459)', () => {
     expect(BILLING_DEFAULTS.automaticTax).toBe(true)
     expect(planCatalog(BILLING_DEFAULTS, 'Front Desk')).toMatchObject({ automaticTax: true, taxCode: 'txcd_10103001' })
+    // The partner plan keeps its own name; the catalog sync must not rename the Stripe product back (2026-11-18).
+    expect(planCatalog(BILLING_DEFAULTS, 'Front Desk').products).toMatchObject({
+      workspace: 'Front Desk workspace',
+      partner: 'White-label Cloud',
+    })
     const { rules, problems } = mergeBillingRules({ automaticTax: false })
     expect(problems).toEqual([])
     expect(planCatalog(rules, 'Front Desk').automaticTax).toBe(false)
