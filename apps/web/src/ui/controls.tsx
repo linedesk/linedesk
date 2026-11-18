@@ -2,7 +2,7 @@
 // browser's own controls, so every page looks the same. Styles in controls.css (k-check, sw,
 // k-radio, k-select). Checkbox and RadioCard keep a hidden native input for keyboard and screen readers.
 import { Fragment, type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
-import { useAnchoredList } from './floating.ts'
+import { useActiveOptionInView, useAnchoredList } from './floating.ts'
 import { cx, Icon } from './kit.tsx'
 import './controls.css'
 import { useT } from '@linedesk/i18n/react'
@@ -223,9 +223,7 @@ export function Select<T extends string>({
   }, [open])
 
   // A long list (time zones) keeps the active option in view while the keys move it.
-  useEffect(() => {
-    if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' })
-  }, [open, active, listId])
+  const pointAt = useActiveOptionInView(open, listId, active, setActive)
 
   function jumpTo(key: string) {
     const now = Date.now()
@@ -321,7 +319,7 @@ export function Select<T extends string>({
                   aria-selected={o.value === value}
                   aria-disabled={o.disabled || undefined}
                   className={cx('k-select-opt', i === active && 'active', o.disabled && 'is-off')}
-                  onMouseEnter={() => setActive(i)}
+                  onMouseEnter={() => pointAt(i)}
                   onClick={() => pick(o)}
                 >
                   <SelectOptionBody option={o} selected={o.value === value} />

@@ -2,7 +2,7 @@
 // the open list is shown in the browser's top layer (popover="manual"), so a dialog's or a panel's scrolling body
 // never cuts it off, and it is placed against its control with position: fixed. It stays in the DOM where React
 // renders it, so focus traps, clicks outside, Esc and Tab keep working as for any element inside the dialog.
-import { type RefObject, useLayoutEffect, useRef } from 'react'
+import { type RefObject, useEffect, useLayoutEffect, useRef } from 'react'
 import './controls.css'
 
 export type AnchorRect = { top: number; bottom: number; left: number; right: number; width: number }
@@ -100,6 +100,17 @@ function cssMaxHeight(el: HTMLElement): number {
 }
 
 /**
+ * Runs `place` and puts the list's scroll back where it was. Placing measures the list shrunk for a moment
+ * (descriptions left out, no height limit) and the browser clamps the scroll to that, so every render (the pointer
+ * moving onto another option) pulled a list scrolled further down back up (LIN-532).
+ */
+export function keepingScroll(el: { scrollTop: number }, place: () => void) {
+  const scrolled = el.scrollTop
+  place()
+  if (el.scrollTop !== scrolled) el.scrollTop = scrolled
+}
+
+/**
  * While `open`, shows `list` in the top layer and keeps it placed against `anchor` (placeList): again on every
  * render, on any scroll outside the list, on resize and when either changes size. Give the list `popover="manual"`;
  * it leaves the top layer when it unmounts (the dialog closes) or `open` turns off.
@@ -121,51 +132,52 @@ export function useAnchoredList(
     const limit = cssMaxHeight(el)
     Object.assign(el.style, { position: 'fixed', margin: '0', right: 'auto', zIndex: '80' })
 
-    place.current = () => {
-      const a = anchor.current
-      if (!a || !el.isConnected) return
-      const { match, minWidth, natural } = opts.current
-      const r = a.getBoundingClientRect()
-      const viewport = { width: document.documentElement.clientWidth, height: window.innerHeight }
-      let listWidth: number
-      if (natural && !match) {
-        // Every option on one line: the width the list needs so that none wraps or is cut.
-        el.dataset.measuring = ''
-        Object.assign(el.style, { width: 'max-content', minWidth: '0px', maxWidth: 'none' })
-        listWidth = Math.ceil(el.getBoundingClientRect().width)
-        delete el.dataset.measuring
-        const widthFor = (w: number) =>
-          placeList({ ...opts.current, anchor: r, viewport, contentHeight: 0, listWidth: w }).width
-        el.style.width = `${widthFor(listWidth)}px`
-        // A scrollbar that takes room (not the overlay kind) would make the widest option wrap: add its width.
-        const bar = el.offsetWidth - el.clientWidth
-        if (bar > 0) {
-          listWidth += bar
+    place.current = () =>
+      keepingScroll(el, () => {
+        const a = anchor.current
+        if (!a || !el.isConnected) return
+        const { match, minWidth, natural } = opts.current
+        const r = a.getBoundingClientRect()
+        const viewport = { width: document.documentElement.clientWidth, height: window.innerHeight }
+        let listWidth: number
+        if (natural && !match) {
+          // Every option on one line: the width the list needs so that none wraps or is cut.
+          el.dataset.measuring = ''
+          Object.assign(el.style, { width: 'max-content', minWidth: '0px', maxWidth: 'none' })
+          listWidth = Math.ceil(el.getBoundingClientRect().width)
+          delete el.dataset.measuring
+          const widthFor = (w: number) =>
+            placeList({ ...opts.current, anchor: r, viewport, contentHeight: 0, listWidth: w }).width
           el.style.width = `${widthFor(listWidth)}px`
+          // A scrollbar that takes room (not the overlay kind) would make the widest option wrap: add its width.
+          const bar = el.offsetWidth - el.clientWidth
+          if (bar > 0) {
+            listWidth += bar
+            el.style.width = `${widthFor(listWidth)}px`
+          }
+        } else {
+          // The least width first: text that wraps wraps there, and what does not (a long label) shows in scrollWidth.
+          const least = match ? r.width : Math.max(r.width, minWidth ?? 0)
+          Object.assign(el.style, { width: `${least}px`, minWidth: '0px', maxWidth: 'none' })
+          listWidth = el.scrollWidth
         }
-      } else {
-        // The least width first: text that wraps wraps there, and what does not (a long label) shows in scrollWidth.
-        const least = match ? r.width : Math.max(r.width, minWidth ?? 0)
-        Object.assign(el.style, { width: `${least}px`, minWidth: '0px', maxWidth: 'none' })
-        listWidth = el.scrollWidth
-      }
-      const p = placeList({
-        ...opts.current,
-        anchor: r,
-        viewport,
-        contentHeight: el.scrollHeight,
-        listWidth,
-        maxHeight: limit,
+        const p = placeList({
+          ...opts.current,
+          anchor: r,
+          viewport,
+          contentHeight: el.scrollHeight,
+          listWidth,
+          maxHeight: limit,
+        })
+        Object.assign(el.style, {
+          top: p.top === undefined ? 'auto' : `${p.top}px`,
+          bottom: p.bottom === undefined ? 'auto' : `${p.bottom}px`,
+          left: `${p.left}px`,
+          width: `${p.width}px`,
+          maxHeight: `${p.maxHeight}px`,
+        })
+        el.dataset.side = p.side
       })
-      Object.assign(el.style, {
-        top: p.top === undefined ? 'auto' : `${p.top}px`,
-        bottom: p.bottom === undefined ? 'auto' : `${p.bottom}px`,
-        left: `${p.left}px`,
-        width: `${p.width}px`,
-        maxHeight: `${p.maxHeight}px`,
-      })
-      el.dataset.side = p.side
-    }
     place.current()
 
     let frame = 0
@@ -196,4 +208,48 @@ export function useAnchoredList(
   useLayoutEffect(() => {
     if (open) place.current()
   })
+}
+
+/**
+ * Which moves of an open list's active option scroll it into view: the keys' (and opening), never the pointer's. The
+ * option under the pointer turns active too, but scrolling to it fed on itself: scrolling the list (wheel, trackpad)
+ * moved the next option under the resting pointer, which was then scrolled into view in turn, so the list jumped a
+ * whole option per small scroll and ran on to its end (the list of calls at the same time, LIN-532).
+ */
+export function activeOptionScroll() {
+  let pointed: number | null = null
+  return {
+    /** The pointer moved onto option `i` while `active` was active. */
+    pointer(i: number, active: number) {
+      // Already active: nothing changes, so no move follows; a later move by the keys scrolls as usual.
+      pointed = i === active ? null : i
+    },
+    /** `active` just changed (or the list opened): whether to scroll it into view. */
+    scrolls(active: number): boolean {
+      const byPointer = pointed === active
+      pointed = null
+      return !byPointer
+    },
+  }
+}
+
+/**
+ * Keeps the active option of an open list (the element `${listId}-${active}`) in view while the keys move it, and
+ * returns what an option's onMouseEnter calls instead of `setActive` (activeOptionScroll).
+ */
+export function useActiveOptionInView(
+  open: boolean,
+  listId: string,
+  active: number,
+  setActive: (i: number) => void,
+): (i: number) => void {
+  const scroll = useRef(activeOptionScroll()).current
+  useEffect(() => {
+    if (scroll.scrolls(active) && open)
+      document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' })
+  }, [open, active, listId, scroll])
+  return i => {
+    scroll.pointer(i, active)
+    setActive(i)
+  }
 }

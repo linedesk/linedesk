@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { type AnchorRect, placeList } from './floating.ts'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, relative } from 'node:path'
+import { type AnchorRect, activeOptionScroll, keepingScroll, placeList } from './floating.ts'
 
 const viewport = { width: 1280, height: 700 }
 const field = (top: number, left = 400, width = 360, height = 36): AnchorRect => ({
@@ -126,5 +128,106 @@ describe('placeList', () => {
     })
     expect(phone.width).toBe(375 - 16)
     expect(phone.left).toBe(8)
+  })
+})
+
+// LIN-532: the open list of calls at the same time jumped while it was scrolled with a wheel or trackpad.
+describe('activeOptionScroll', () => {
+  it('never scrolls to the option the pointer moved onto, so scrolling under a resting pointer cannot run on', () => {
+    const scroll = activeOptionScroll()
+    expect(scroll.scrolls(0)).toBe(true) // the list opens: the picked option is shown
+    // A small wheel step moves option 4 under the pointer, then option 5: neither scrolls the list.
+    scroll.pointer(4, 0)
+    expect(scroll.scrolls(4)).toBe(false)
+    scroll.pointer(5, 4)
+    expect(scroll.scrolls(5)).toBe(false)
+  })
+
+  it('still scrolls when the keys move the active option, also right after the pointer moved it', () => {
+    const scroll = activeOptionScroll()
+    scroll.pointer(3, 0)
+    expect(scroll.scrolls(3)).toBe(false)
+    expect(scroll.scrolls(4)).toBe(true) // ArrowDown
+    expect(scroll.scrolls(9)).toBe(true) // End
+  })
+
+  it('the pointer resting on the active option leaves the next key move scrolling', () => {
+    const scroll = activeOptionScroll()
+    scroll.pointer(2, 2) // no change, no move follows
+    expect(scroll.scrolls(2)).toBe(true) // e.g. reopened on the same option
+    scroll.pointer(7, 2)
+    expect(scroll.scrolls(7)).toBe(false)
+  })
+})
+
+describe('keepingScroll', () => {
+  /** A list whose scroll the browser clamps to its content, which placing shrinks for a moment. */
+  function list(content: number, height = 280) {
+    let top = 0
+    const el = {
+      content,
+      get scrollTop() {
+        return top
+      },
+      set scrollTop(v: number) {
+        top = Math.max(0, Math.min(v, el.content - height))
+      },
+    }
+    return el
+  }
+
+  it('puts a list scrolled down back where it was after measuring shrank it', () => {
+    const el = list(538)
+    el.scrollTop = 200
+    keepingScroll(el, () => {
+      el.content = 328 // measuring: descriptions left out, the browser clamps the scroll to 48
+      const was = el.scrollTop
+      el.scrollTop = was
+      el.content = 538
+    })
+    expect(el.scrollTop).toBe(200)
+  })
+
+  it('leaves the scroll alone when placing did not move it', () => {
+    const el = list(538)
+    el.scrollTop = 120
+    let writes = 0
+    const watched = {
+      get scrollTop() {
+        return el.scrollTop
+      },
+      set scrollTop(v: number) {
+        writes++
+        el.scrollTop = v
+      },
+    }
+    keepingScroll(watched, () => {})
+    expect(writes).toBe(0)
+    expect(el.scrollTop).toBe(120)
+  })
+})
+
+describe('lists that open from a control', () => {
+  const SRC = join(import.meta.dirname, '..')
+  const sources = (dir = SRC): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+      const path = join(dir, entry.name)
+      if (entry.isDirectory()) return sources(path)
+      return /\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) ? [relative(SRC, path)] : []
+    })
+  const files = sources().map(path => ({ path, text: readFileSync(join(SRC, path), 'utf8') }))
+
+  it('that keep the active option in view let the pointer move it only through useActiveOptionInView', () => {
+    const direct = files
+      .filter(f => f.text.includes('useActiveOptionInView(') && /onMouseEnter=\{\(\) => setActive\(/.test(f.text))
+      .map(f => f.path)
+    expect(direct, 'onMouseEnter={() => pointAt(i)}, pointAt from useActiveOptionInView (ui/floating.ts)').toEqual([])
+  })
+
+  it('scroll their active option into view only in useActiveOptionInView', () => {
+    const own = files
+      .filter(f => f.path !== join('ui', 'floating.ts') && /-\$\{active\}`\)\?\.scrollIntoView/.test(f.text))
+      .map(f => f.path)
+    expect(own, 'use useActiveOptionInView from ui/floating.ts').toEqual([])
   })
 })

@@ -3,7 +3,7 @@
 import { useT } from '@linedesk/i18n/react'
 import { Fragment, type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { OptionCheck } from './controls.tsx'
-import { useAnchoredList } from './floating.ts'
+import { useActiveOptionInView, useAnchoredList } from './floating.ts'
 import { cx, Icon } from './kit.tsx'
 import './search-select.css'
 
@@ -108,9 +108,7 @@ export function SearchSelect({
     document.addEventListener('mousedown', outside)
     return () => document.removeEventListener('mousedown', outside)
   }, [open])
-  useEffect(() => {
-    if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' })
-  }, [open, active, listId])
+  const pointAt = useActiveOptionInView(open, listId, active, setActive)
   // Without a search field the list takes the focus, and with it the keys.
   const optionList = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -224,7 +222,7 @@ export function SearchSelect({
                   role="option"
                   aria-selected={o.value === value}
                   className={cx('k-select-opt', i === active && 'active')}
-                  onMouseEnter={() => setActive(i)}
+                  onMouseEnter={() => pointAt(i)}
                   onClick={() => pick(o.value)}
                 >
                   <SearchOptionBody option={o} selected={o.value === value} />

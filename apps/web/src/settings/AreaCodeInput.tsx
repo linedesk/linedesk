@@ -13,7 +13,7 @@ import {
 import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Input } from '../ui/form.tsx'
-import { useAnchoredList } from '../ui/floating.ts'
+import { useActiveOptionInView, useAnchoredList } from '../ui/floating.ts'
 import { cx, Icon } from '../ui/kit.tsx'
 
 /** "503 · Portland, OR" for a code in the list; the code itself otherwise. */
@@ -70,9 +70,7 @@ export function AreaCodeInput({ id, value, onChange, label, country }: Props) {
     document.addEventListener('mousedown', outside)
     return () => document.removeEventListener('mousedown', outside)
   }, [open])
-  useEffect(() => {
-    if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' })
-  }, [open, active, listId])
+  const pointAt = useActiveOptionInView(open, listId, active, setActive)
 
   function show() {
     if (open) return
@@ -154,7 +152,7 @@ export function AreaCodeInput({ id, value, onChange, label, country }: Props) {
               role="option"
               aria-selected={a.code === value}
               className={cx('k-select-opt', i === active && 'active')}
-              onMouseEnter={() => setActive(i)}
+              onMouseEnter={() => pointAt(i)}
               // Keeps the focus in the field, so the list does not close before the click.
               onMouseDown={e => e.preventDefault()}
               onClick={() => pick(a.code)}

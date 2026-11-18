@@ -2,7 +2,7 @@
 // city, region, zone name or offset ("berlin", "eastern", "gmt+1", "utc-5").
 import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useAnchoredList } from '../ui/floating.ts'
+import { useActiveOptionInView, useAnchoredList } from '../ui/floating.ts'
 import { OptionCheck, type SelectOption } from '../ui/controls.tsx'
 import { cx, Icon } from '../ui/kit.tsx'
 import {
@@ -81,9 +81,7 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
     document.addEventListener('mousedown', outside)
     return () => document.removeEventListener('mousedown', outside)
   }, [open])
-  useEffect(() => {
-    if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' })
-  }, [open, active, listId])
+  const pointAt = useActiveOptionInView(open, listId, active, setActive)
 
   function show() {
     if (disabled) return
@@ -177,7 +175,7 @@ export function TimeZonePicker({ value, onChange, disabled, id }: Props) {
                 role="option"
                 aria-selected={o.value === value}
                 className={cx('k-select-opt', i === active && 'active')}
-                onMouseEnter={() => setActive(i)}
+                onMouseEnter={() => pointAt(i)}
                 onClick={() => pick(o.value)}
               >
                 <TimeZoneOptionBody option={o} selected={o.value === value} now={now} />

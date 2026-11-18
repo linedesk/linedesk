@@ -28,7 +28,7 @@ import { intlLocale } from '../i18n/format.ts'
 import { i18n } from '../i18n/index.tsx'
 import { useWorkspaceSettings } from '../settings/settings-api.ts'
 import { useAssistants } from '../store.tsx'
-import { useAnchoredList } from '../ui/floating.ts'
+import { useActiveOptionInView, useAnchoredList } from '../ui/floating.ts'
 import { Icon, cx } from '../ui/kit.tsx'
 import { encodeQr, qrPath } from '../ui/qr.ts'
 import { useMediaQuery } from '../ui/useMediaQuery.ts'
@@ -185,9 +185,7 @@ function SearchPicker({
     document.addEventListener('mousedown', outside)
     return () => document.removeEventListener('mousedown', outside)
   })
-  useEffect(() => {
-    if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' })
-  }, [open, active, listId])
+  const pointAt = useActiveOptionInView(open, listId, active, setActive)
 
   function show() {
     setQuery('')
@@ -277,7 +275,7 @@ function SearchPicker({
               role="option"
               aria-selected={item.id === value}
               className={cx('k-select-opt', i === active && 'active')}
-              onMouseEnter={() => setActive(i)}
+              onMouseEnter={() => pointAt(i)}
               onMouseDown={e => e.preventDefault()}
               onClick={() => pick(item)}
             >

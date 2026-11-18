@@ -7,7 +7,7 @@ import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'
 import { formatNumber } from '../onboarding/flow.ts'
-import { useAnchoredList } from '../ui/floating.ts'
+import { useActiveOptionInView, useAnchoredList } from '../ui/floating.ts'
 import { cx } from '../ui/kit.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
 import { readAction } from './settings-api.ts'
@@ -55,9 +55,7 @@ export function CarrierNumberInput({ id, value, onChange, defaultCountry, invali
     document.addEventListener('mousedown', outside)
     return () => document.removeEventListener('mousedown', outside)
   }, [open])
-  useEffect(() => {
-    if (shown) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' })
-  }, [shown, active, listId])
+  const pointAt = useActiveOptionInView(shown, listId, active, setActive)
 
   function pick(e164: string) {
     onChange(e164)
@@ -133,7 +131,7 @@ export function CarrierNumberInput({ id, value, onChange, defaultCountry, invali
               role="option"
               aria-selected={i === active}
               className={cx('k-select-opt', i === active && 'active')}
-              onMouseEnter={() => setActive(i)}
+              onMouseEnter={() => pointAt(i)}
               // Keeps the focus in the field, so the list does not close before the click.
               onMouseDown={e => e.preventDefault()}
               onClick={() => pick(n)}

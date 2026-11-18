@@ -19,7 +19,7 @@ import {
   useState,
 } from 'react'
 import { OptionCheck, optionGroups } from './controls.tsx'
-import { useAnchoredList } from './floating.ts'
+import { useActiveOptionInView, useAnchoredList } from './floating.ts'
 import { cx, Icon } from './kit.tsx'
 import {
   caretAfterDigits,
@@ -242,9 +242,7 @@ function CountryPicker({ country, viewer, onPick, disabled, size }: PickerProps)
     document.addEventListener('mousedown', outside)
     return () => document.removeEventListener('mousedown', outside)
   }, [open])
-  useEffect(() => {
-    if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' })
-  }, [open, active, listId])
+  const pointAt = useActiveOptionInView(open, listId, active, setActive)
 
   function show(typed = '') {
     if (disabled) return
@@ -352,7 +350,7 @@ function CountryPicker({ country, viewer, onPick, disabled, size }: PickerProps)
                     role="option"
                     aria-selected={o.value === country}
                     className={cx('k-select-opt', i === active && 'active')}
-                    onMouseEnter={() => setActive(i)}
+                    onMouseEnter={() => pointAt(i)}
                     onClick={() => pick(o)}
                   >
                     <PhoneCountryOptionBody option={o} selected={o.value === country} />
