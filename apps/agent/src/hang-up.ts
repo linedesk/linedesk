@@ -110,14 +110,16 @@ export function asksCaller(text: string): boolean {
  * `toolReply`: the reply that called end_call, played out first; `said`: the words that end the call when no tool was
  * called. `sayGoodbye` says the goodbye line, unless those words said goodbye already (nothing is said twice).
  * `stopListening` once the goodbye starts: the caller can no longer cut it off or start another reply. At most `maxMs`
- * in all. Never after words that ask the caller something (asksCaller, LIN-341): then nothing is hung up and it
- * resolves false (the call goes on); true once the call ends.
+ * in all. Never after words that ask the caller something (asksCaller, LIN-341), and never while the caller is still
+ * speaking (`callerSpeaking`, LIN-499: "No, that's all. I just want to make sure-" got the goodbye): then nothing is hung
+ * up and it resolves false (the call goes on); true once the call ends.
  */
 export async function hangUpWithGoodbye({
   toolReply,
   said = '',
   sayGoodbye,
   stopListening = () => {},
+  callerSpeaking = () => false,
   hangUp,
   maxMs = GOODBYE_MAX_MS,
 }: {
@@ -125,6 +127,7 @@ export async function hangUpWithGoodbye({
   said?: string
   sayGoodbye: () => Promise<unknown>
   stopListening?: () => void
+  callerSpeaking?: () => boolean
   hangUp: () => void
   maxMs?: number
 }) {
@@ -133,7 +136,7 @@ export async function hangUpWithGoodbye({
     await playedOut(toolReply)
     words = wordsOf(toolReply)
   }
-  if (words && asksCaller(words)) return false
+  if ((words && asksCaller(words)) || callerSpeaking()) return false
   let done = false
   const once = () => {
     if (done) return
@@ -183,8 +186,12 @@ export function closingFlow() {
   // While the fixed question is being said: the messages that are not it (the reply that called end_call).
   let questionComing: ReadonlySet<string> | null = null
   return {
-    /** Each of the assistant's messages, as it reaches the transcript. */
-    assistantSaid(id: string, text: string) {
+    /**
+     * Each of the assistant's messages, as it reaches the transcript. A silence reminder ("Are you still there?") is not
+     * one: after "anything else?" and a reminder, the caller's goodbye still answers the question (LIN-499).
+     */
+    assistantSaid(id: string, text: string, reminder = false) {
+      if (reminder) return
       const fixed = questionComing !== null && !questionComing.has(id)
       if (fixed) questionComing = null
       said.push({ id, question: fixed || asksAnythingElse(text) })

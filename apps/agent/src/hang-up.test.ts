@@ -170,6 +170,34 @@ test('closingFlow: end_call asks first; it hangs up only when the last thing sai
   expect(flow.step()).toBe('ask')
 })
 
+test('closingFlow: a silence reminder after "anything else?" does not make end_call ask again (LIN-499)', () => {
+  const flow = closingFlow()
+  flow.assistantSaid('a1', 'Can I help you with anything else?')
+  flow.assistantSaid('r1', 'Sind Sie noch da?', true)
+  flow.assistantSaid('r2', 'Sind Sie noch da?', true)
+  expect(flow.step()).toBe('hang_up')
+})
+
+test('end_call while the caller is still speaking: no goodbye, the call goes on (LIN-499)', async () => {
+  const toolReply = reply()
+  const hangUp = vi.fn()
+  const sayGoodbye = vi.fn(async () => {})
+  const stopListening = vi.fn()
+  const ended = hangUpWithGoodbye({
+    toolReply: toolReply.reply,
+    sayGoodbye,
+    stopListening,
+    callerSpeaking: () => true,
+    hangUp,
+  })
+  toolReply.play()
+  expect(await ended).toBe(false)
+  await vi.advanceTimersByTimeAsync(30_000)
+  expect(sayGoodbye).not.toHaveBeenCalled()
+  expect(stopListening).not.toHaveBeenCalled()
+  expect(hangUp).not.toHaveBeenCalled()
+})
+
 test('closingFlow: the fixed question counts once it is said, also when its words are not known (realtime, translated)', () => {
   const flow = closingFlow()
   flow.assistantSaid('a1', 'Okay, noted.')
