@@ -73,6 +73,23 @@ export async function mayRaiseLevel(tx: Tx, actor: Actor): Promise<boolean> {
 }
 
 /**
+ * Whether a new assistant may start on a paid level (assistant.create: the install's default, or a copy's level): as
+ * refuseLevelRaise decides it, under the same shared bill lock, so a change of the bill's owner at the same moment waits
+ * for the new assistant and then moves it back, or commits first and the new assistant starts on Standard (as a raise
+ * does, LIN-438). mayRaiseLevel reads without that lock and is only for what the editor offers.
+ */
+export async function mayStartOnPaidLevel(tx: Tx, actor: Actor): Promise<boolean> {
+  if (actor.workspaceDisabled) return false
+  try {
+    await refuseLevelRaise(tx, actor)
+    return true
+  } catch (e) {
+    if (e instanceof Forbidden) return false
+    throw e
+  }
+}
+
+/**
  * Before a save raises an assistant to Premium or Ultra on Linedesk Cloud: refused unless the caller may pay, signed in
  * as themselves in the app (refuseBillingActor), never through an API key or an impersonation. Locks the bill (shared)
  * until the save commits, so a change of the bill's owner waits for it and then moves the assistant back (LIN-438).

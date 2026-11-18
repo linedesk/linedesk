@@ -8,6 +8,7 @@ import {
   assistant_versions,
   assistants,
   billing_accounts,
+  createDb,
   instance_settings,
   organization,
   partner_members,
@@ -15,7 +16,7 @@ import {
   session,
   user,
 } from '@linedesk/db'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { setupActorIn, workspaceSetupActor } from '../src/agent-setup.ts'
 import { listAudit } from '../src/audit.ts'
@@ -366,6 +367,91 @@ describe('call quality on Cloud: the level decides the price', () => {
     // Changing the default changes new assistants only.
     expect((await adminSet({ default: 'standard' })).status).toBe(200)
     expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('premium')
+  })
+
+  test("a copy of a Premium assistant while a move onto someone else's bill commits waits for it, then starts on Standard", async () => {
+    const ws = await createWorkspace('Quality Copy Race Plumbing')
+    await billOf(ws.owner.userId, [ws.id])
+    expect((await setLevel(ws.owner, ws.assistant.id, 'premium')).status).toBe(200)
+    const payer = await signUp()
+    const otherBill = `bill_${crypto.randomUUID()}`
+    await db
+      .insert(billing_accounts)
+      .values({ id: otherBill, kind: 'cloud', owner_user_id: payer.userId, status: 'active' })
+    let moved!: () => void
+    const updated = new Promise<void>(resolve => {
+      moved = resolve
+    })
+    let release!: () => void
+    const gate = new Promise<void>(resolve => {
+      release = resolve
+    })
+    // A move that has changed the workspace's bill and not committed yet.
+    let movePid = 0
+    const move = db.transaction(async tx => {
+      movePid = (await tx.execute(sql`select pg_backend_pid() as pid`)).rows[0]?.pid as number
+      await tx.update(organization).set({ billingAccountId: otherBill }).where(eq(organization.id, ws.id))
+      moved()
+      await gate
+    })
+    await updated
+    const copy = act(ws.owner, 'assistant.create', { copyOf: ws.assistant.id })
+    const probe = createDb(process.env.DATABASE_URL!, { max: 1 })
+    try {
+      // The copy waits on the workspace row the move holds (the bill lock a raise takes), as a raise does.
+      const blockedByMove = async () =>
+        (
+          await probe.db.execute(
+            sql`select count(*)::int as n from pg_stat_activity where ${movePid}::int = any(pg_blocking_pids(pid))`,
+          )
+        ).rows[0]?.n as number
+      for (let i = 0; i < 200 && (await blockedByMove()) < 1; i++) await new Promise(r => setTimeout(r, 25))
+      expect(await blockedByMove()).toBe(1)
+    } finally {
+      release()
+      await move
+      await probe.pool.end()
+    }
+    // Someone else pays now: the copy is no raise of the new payer's, it starts on Standard.
+    const made = await copy
+    expect(made.status).toBe(200)
+    expect((await getAssistant(made.body.data.assistantId))!.call_quality).toBe('standard')
+  })
+
+  test('a version saved before call quality (voice_pipeline, a Premium model, no level) restores on Standard', async () => {
+    const ws = await createWorkspace('Quality Old Version Plumbing')
+    const admin = await addMember(ws.id, 'admin')
+    expect((await setLevel(ws.owner, ws.assistant.id, 'standard', { greeting: 'Today.' })).status).toBe(200)
+    const current = await latestVersion(ws.assistant.id)
+    const { call_quality: _level, realtime_model: _realtime, ...before } = current.settings
+    const number = current.number + 1
+    await db.insert(assistant_versions).values({
+      id: `asv_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
+      workspace_id: ws.id,
+      assistant_id: ws.assistant.id,
+      number,
+      // As a release before migration 0153 stored it: the pipeline, Premium picks, no call_quality key.
+      settings: { ...before, voice_pipeline: 'realtime', llm_model: 'gpt-4.1', voice: premiumVoice },
+      summary: 'Before call quality',
+      changed_by: null,
+    })
+    // No raise (it restores on Standard), so also someone who may not pay restores it; the Premium picks go.
+    const restored = await act(admin, 'assistant.restoreVersion', { assistantId: ws.assistant.id, number })
+    expect(restored.status).toBe(200)
+    const after = (await getAssistant(ws.assistant.id))!
+    expect(after).toMatchObject({ call_quality: 'standard', llm_model: null, realtime_model: null })
+    expect(after.voice.model).toBeUndefined()
+    expect(after).not.toHaveProperty('voice_pipeline')
+  })
+
+  test('voice_pipeline is no input any more (dropped by 0156): a page from before sends it, the level stays', async () => {
+    await withEnv(REALTIME, async () => {
+      const ws = await createWorkspace('Quality Pipeline Input Plumbing')
+      await billOf(ws.owner.userId, [ws.id])
+      const input = { assistantId: ws.assistant.id, voice_pipeline: 'realtime', greeting: 'Hello there.' }
+      expect((await act(ws.owner, 'assistant.update', input)).status).toBe(200)
+      expect(await getAssistant(ws.assistant.id)).toMatchObject({ call_quality: 'standard', greeting: 'Hello there.' })
+    })
   })
 })
 
