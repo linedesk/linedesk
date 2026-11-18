@@ -75,7 +75,7 @@ import {
   realtimeSetUp,
   saveCallQualitySettings,
 } from './call-quality.ts'
-import { mayRaiseLevel } from './level-raise.ts'
+import { levelRights } from './level-raise.ts'
 import {
   createVoiceProvider,
   ELEVENLABS_SAMPLE_HOST,
@@ -368,7 +368,7 @@ export const voiceHandlers: Record<string, Handler> = {
       },
       ...(realtimeDefault ? { realtimeDefaultVoice: realtimeDefault } : {}),
       ...(await installLanguageOptions(tx)),
-      callQuality: await callQualityOptions(tx, actor.workspaceId, await mayRaiseLevel(tx, actor)),
+      callQuality: await callQualityOptions(tx, actor.workspaceId, await levelRights(tx, actor)),
     }
     return { rows: {}, data }
   },

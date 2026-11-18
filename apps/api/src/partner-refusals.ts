@@ -1,7 +1,7 @@
 // How partner actions say no (partners.ts), apart from it so team.ts and memberships.ts can refuse a partner's
 // membership without importing the partner handlers.
 import { type PartnerCode, UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
-import { member, partner_members, type Tx } from '@linedesk/db'
+import { member, type Tx } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { Reject } from './handler-context.ts'
 
@@ -95,17 +95,4 @@ export async function refuseAdminFromPartner(tx: Tx, workspaceId: string, actorI
     .from(member)
     .where(and(eq(member.organizationId, workspaceId), eq(member.userId, actorId)))
   if (mine?.partnerId) throw Reject.t('server.api.partner.noAdminFromPartner', undefined, 'partner_admin_grant')
-}
-
-/** Premium or Ultra in a white-label client: its partner's owner decides, never the client's own people (LIN-440). */
-// i18n-ignore: API error bodies for logs and API clients; the web app words a 403 itself
-export const PARTNER_DECIDES_LEVELS = "the partner's owner picks Premium or Ultra for this workspace"
-
-/** Whether the person is the owner of the partner `partnerId`. */
-export async function isPartnerOwner(tx: Pick<Tx, 'select'>, partnerId: string, userId: string) {
-  const [row] = await tx
-    .select({ role: partner_members.role })
-    .from(partner_members)
-    .where(and(eq(partner_members.partner_id, partnerId), eq(partner_members.user_id, userId)))
-  return row?.role === 'owner'
 }

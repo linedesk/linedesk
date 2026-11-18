@@ -182,6 +182,8 @@
   "audit.callsExported": "Exported calls",
   "audit.carrierSet": "Changed the workspace's own carrier account",
   "audit.carrierTransferTrunk": "Set up the transfer line at the carrier",
+  "audit.clientCallQualityOff": "Took call quality back from a client workspace's owner and admins",
+  "audit.clientCallQualityOn": "Let a client workspace's owner and admins change call quality",
   "audit.clientDeleted": "{named, select, yes {Deleted the client workspace “{name}”} other {Deleted a client workspace}}",
   "audit.clientOwnerInvited": "{known, select, yes {Invited {who} as the owner of a client workspace} other {Invited the owner of a client workspace}}",
   "audit.clientPartnerMoved": "Moved the workspace to another partner",

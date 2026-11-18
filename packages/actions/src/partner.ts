@@ -231,6 +231,15 @@ export const partnerSetClientUsageLimit = defineAction({
   permission: 'partner',
 })
 
+export const partnerSetClientCallQuality = defineAction({
+  name: 'partner.setClientCallQuality',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Whether a client workspace's own owner and admins may change its assistants' call quality (Standard, Premium, Ultra) and models. Off by default: only the partner's team changes it, and the client's people do not see it. The partner's owner switches it on; anyone on the team may switch it off.",
+  input: z.object({ partnerId, workspaceId: z.string().min(1).max(64), on: z.boolean() }),
+  permission: 'partner',
+})
+
 // --- Server admin › Partners -------------------------------------------------------------------------------------
 
 export const partnerAdminList = defineAction({
@@ -454,6 +463,8 @@ export type PartnerClientRow = {
   billed: boolean
   /** Switched to the partner's own provider keys (S7, partner.setClientOwnKeys). */
   ownKeys: boolean
+  /** The client's own owner and admins may change call quality (partner.setClientCallQuality); off: only the team. */
+  clientCallQuality: boolean
   /** Calls come in on the client's own Twilio or Telnyx account: needed for a call without a usage fee. */
   ownCarrier: boolean
   problems: ClientProblem[]

@@ -315,10 +315,10 @@ export async function lockForPayerChange(tx: Tx, workspaceIds: string[]) {
 /**
  * A bill owner changed to another person (LIN-438: `billing.moveWorkspace` to a bill of someone else,
  * `billing.transferOwner`, `billing.handOver`, `team.transferOwnership` moving the bill): Premium and Ultra were the old
- * payer's choice, so each of these workspaces' assistants on them goes to Standard, with a version by `by`. Call in the
- * same transaction, after the bill's balance lock and the change itself: a raise meanwhile waited for that change (refuseLevelRaise locks the
- * bill) and was refused, or committed before it and is seen here. An Undo of a level turned off before leaves these
- * workspaces' assistants on Standard (forgetTurnOffsIn). Returns what it changed.
+ * payer's choice, so each of these workspaces' assistants on them goes to Standard, with a version by `by`; a workspace
+ * owner or admin may raise them again (decisions.md 2026-11-18). Call in the same transaction, after the bill's balance
+ * lock and the change itself. An Undo of a level turned off before leaves these workspaces' assistants on Standard
+ * (forgetTurnOffsIn). Returns what it changed.
  */
 export async function billPayerChanged(tx: Tx, workspaceIds: string[], by: string) {
   const reset: BillPayerReset = { workspaceIds: [], movedToStandard: [], movedOffUltra: [] }
@@ -341,8 +341,9 @@ export async function billPayerChanged(tx: Tx, workspaceIds: string[], by: strin
 }
 
 /**
- * A paid level changes what the workspace pays: the owner only, signed in as themselves in the app (billing:manage),
- * never through an API key, a setup link or an instance admin's impersonation.
+ * A change of what a bill pays (billing pages, Checkout, the bill's owner): signed in as themselves in the app, never
+ * through an API key, a setup link or an instance admin's impersonation. Raising call quality applies the same rule
+ * of its own (level-raise.ts).
  */
 export function refuseBillingActor(actor: Actor) {
   if (actor.impersonation)
@@ -365,9 +366,13 @@ export async function levelCentsPerMinute(tx: Pick<Tx, 'select'>) {
  * What the assistant editor shows of call quality (voice.options `callQuality`): the levels the server admin has on,
  * each with its price a minute (null without prices: a white-label client, a workspace on no bill, an install that
  * does not bill), the models that belong to it and what "Default" stands for; the level new assistants start on; and
- * `mayRaise`, whether this member may pick a paid level (level-raise.ts).
+ * what this member may do with it (`mayChange`, `mayRaise`: level-raise.ts).
  */
-export async function callQualityOptions(tx: Tx, workspaceId: string, mayRaise: boolean): Promise<CallQualityOptions> {
+export async function callQualityOptions(
+  tx: Tx,
+  workspaceId: string,
+  rights: { mayChange: boolean; mayRaise: boolean },
+): Promise<CallQualityOptions> {
   const billed = await usageLevelsBilled(tx)
   const settings = await callQualitySettings(tx)
   const enabled = await enabledLevels(tx, settings)
@@ -403,7 +408,8 @@ export async function callQualityOptions(tx: Tx, workspaceId: string, mayRaise: 
   return {
     levels,
     defaultLevel: enabled[settings.default] ? settings.default : 'standard',
-    mayRaise,
+    mayChange: rights.mayChange,
+    mayRaise: rights.mayRaise,
     partnerManaged,
     llmProvider,
   }

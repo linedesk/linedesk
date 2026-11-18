@@ -1,6 +1,7 @@
 // Settings › Assistant › General › Call quality (CallQuality.tsx, decisions.md 2026-11-17): the three levels with their
-// line and price, the server's default level marked; Premium and Ultra locked for someone who may not pay (with one
-// line why), for a partner's client without prices; the models of the level behind "Choose specific models".
+// line and price, the server's default level marked; Premium and Ultra locked for a member who is no admin (with one
+// line why); nothing at all for a partner's client the partner keeps call quality for (decisions.md 2026-11-18); the
+// models of the level behind "Choose specific models".
 import type { CallQualityLevelOption, CallQualityOptions } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -46,6 +47,7 @@ const LEVELS: CallQualityLevelOption[] = [
 const payer: CallQualityOptions = {
   levels: LEVELS,
   defaultLevel: 'standard',
+  mayChange: true,
   mayRaise: true,
   partnerManaged: false,
   llmProvider: 'openai',
@@ -80,7 +82,7 @@ const cards = (html: string) =>
   }))
 
 describe('the Call quality card', () => {
-  it('shows the three levels with their price, the default marked, for the person who pays', () => {
+  it('shows the three levels with their price, the default marked, for a workspace admin', () => {
     const html = render(payer)
     expect(cards(html)).toEqual([
       { title: 'Standard Default $0.05 a minute', checked: true, disabled: false },
@@ -88,26 +90,30 @@ describe('the Call quality card', () => {
       { title: 'Ultra $0.20 a minute', checked: false, disabled: false },
     ])
     expect(html).toContain('Fast and reliable for most calls.')
-    expect(html).not.toContain('Only the person who pays')
+    expect(html).not.toContain('Workspace admins can change this.')
   })
 
-  it('locks Premium and Ultra for someone who may not pay, with one line why; going back down stays open', () => {
+  it('locks Premium and Ultra for a member, with one line saying who can; going back down stays open', () => {
     const html = render({ ...payer, mayRaise: false }, picks({ call_quality: 'premium' }))
     expect(cards(html).map(c => [c.title.split(' ')[0], c.disabled])).toEqual([
       ['Standard', false],
       ['Premium', false],
       ['Ultra', true],
     ])
-    expect(html).toContain('Only the person who pays for this workspace can pick Premium or Ultra.')
-    expect(html).toContain('Anyone who edits Maya can go back to Standard.')
+    expect(html).toContain('Premium and Ultra cost more per minute. Workspace admins can change this.')
+    expect(html).not.toContain('person who pays')
   })
 
-  it("a partner's client: no prices, and the partner picks the paid levels", () => {
-    const html = render({ ...noPrices(payer), mayRaise: false, partnerManaged: true })
+  it("a partner's client the partner keeps call quality for: no Call quality block at all", () => {
+    const html = render({ ...noPrices(payer), mayChange: false, mayRaise: false, partnerManaged: true })
+    expect(html).toBe('')
+  })
+
+  it("a partner's client whose admins the partner lets change it (or the partner's team): every level, no prices", () => {
+    const html = render({ ...noPrices(payer), partnerManaged: true })
     expect(html).not.toContain('a minute')
-    expect(cards(html).map(c => c.disabled)).toEqual([false, true, true])
-    expect(html).toContain('Your partner picks Premium or Ultra for this workspace.')
-    expect(html).not.toContain('Only the person who pays')
+    expect(cards(html).map(c => c.disabled)).toEqual([false, false, false])
+    expect(html).not.toContain('Workspace admins can change this.')
   })
 
   it('without prices (no bill, self-hosted): the same levels, no price, anyone who edits may pick each', () => {

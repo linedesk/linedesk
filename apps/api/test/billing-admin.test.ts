@@ -1366,53 +1366,21 @@ describe("a new bill owner gets the old payer's Premium and Ultra moved to Stand
     expect(await premiumAndUltraOf(from.ws)).toEqual(KEPT_PREMIUM_AND_ULTRA)
   })
 
-  test("raising an assistant to Premium while a move onto someone else's bill commits is refused (review of #1050)", async () => {
+  test("after a move onto someone else's bill the workspace's owner raises again: who pays is not asked (decisions.md 2026-11-18)", async () => {
     cloud.on = true
     onTestFinished(() => {
       cloud.on = false
     })
     const from = await billWith({ stripe_customer_id: null })
     const to = await billWith({ stripe_customer_id: null })
-    let moved!: () => void
-    const updated = new Promise<void>(resolve => {
-      moved = resolve
-    })
-    let release!: () => void
-    const gate = new Promise<void>(resolve => {
-      release = resolve
-    })
-    // A move that has changed the workspace's bill and not committed yet.
-    let movePid = 0
-    const move = db.transaction(async tx => {
-      movePid = (await tx.execute(sql`select pg_backend_pid() as pid`)).rows[0]?.pid as number
-      await tx.update(organization).set({ billingAccountId: to.billId }).where(eq(organization.id, from.ws.id))
-      moved()
-      await gate
-    })
-    await updated
-    const switchOn = act(from.ws.owner, 'assistant.update', {
+    // The bill lock of #1050 is gone with "only who pays raises": the move and the raise need no order between them.
+    await db.update(organization).set({ billingAccountId: to.billId }).where(eq(organization.id, from.ws.id))
+    const raised = await act(from.ws.owner, 'assistant.update', {
       assistantId: from.ws.assistant.id,
       call_quality: 'premium',
     })
-    const probe = createDb(process.env.DATABASE_URL!, { max: 1 })
-    try {
-      // Only the backends the move blocks: the raise, waiting on the workspace row the move holds.
-      const blockedByMove = async () =>
-        (
-          await probe.db.execute(
-            sql`select count(*)::int as n from pg_stat_activity where ${movePid}::int = any(pg_blocking_pids(pid))`,
-          )
-        ).rows[0]?.n as number
-      for (let i = 0; i < 200 && (await blockedByMove()) < 1; i++) await new Promise(r => setTimeout(r, 25))
-      expect(await blockedByMove()).toBe(1)
-    } finally {
-      release()
-      await move
-      await probe.pool.end()
-    }
-    // It then sees the workspace on another bill: refused, never read as "no bill" or as the old bill.
-    expect((await switchOn).status).toBe(403)
-    expect((await premiumAndUltraOf(from.ws)).level).toBe('standard')
+    expect(raised.status).toBe(200)
+    expect((await premiumAndUltraOf(from.ws)).level).toBe('premium')
   })
 
   test("an instance admin's transfer moves them to Standard on every workspace of the bill", async () => {

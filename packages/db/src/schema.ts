@@ -493,6 +493,11 @@ export const workspace_settings = pgTable(
      * partner's owner switches it). Off by default.
      */
     partner_keys: boolean('partner_keys').notNull().default(false),
+    /**
+     * A white-label client whose own owner and admins may change its assistants' call quality (partner.setClientCallQuality;
+     * decisions.md 2026-11-18). Off by default: only the partner's team changes it, and the client's people do not see it.
+     */
+    client_call_quality: boolean('client_call_quality').notNull().default(false),
     /** Vacation or closure mode: closed on these dates whatever the hours say, with its own greeting; null: off. */
     closure: jsonb('closure').$type<Closure>(),
     /**

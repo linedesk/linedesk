@@ -342,6 +342,7 @@ const all = [
   partner.partnerAdminMoveClient,
   partner.partnerListClients,
   partner.partnerSetClientUsageLimit,
+  partner.partnerSetClientCallQuality,
   partnerBrand.partnerBrandGet,
   partnerBrand.partnerBrandSet,
   partnerBrand.partnerBrandProtectedNames,

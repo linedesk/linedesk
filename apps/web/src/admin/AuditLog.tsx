@@ -312,6 +312,8 @@ export function auditLabel(
       return input.limitUsd == null
         ? t('admin.audit.clientUsageLimitRemoved')
         : t('admin.audit.clientUsageLimitSet', { amount: usd(input.limitUsd) })
+    case 'partner.setClientCallQuality':
+      return input.on ? t('admin.audit.clientCallQualityOn') : t('admin.audit.clientCallQualityOff')
     case 'workspace.removePartner':
       return e.removedPeople?.length
         ? t('admin.audit.partnerRemovedRemoving', { people: fmt().list(e.removedPeople) })

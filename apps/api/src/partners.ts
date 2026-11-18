@@ -47,7 +47,7 @@ import {
   workspace_settings,
 } from '@linedesk/db'
 import { getT } from '@linedesk/i18n/server'
-import { and, asc, desc, eq, gt, gte, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
@@ -72,6 +72,7 @@ import {
 } from './partner-refusals.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { reloadHosts } from './request-host.ts'
+import { DEFAULT_TIME_ZONE } from './bookings.ts'
 import { cancelSentInvitations, lockActiveSender, lockedOwner } from './team.ts'
 import { billPayerChanged, lockForPayerChange } from './usage-levels.ts'
 import { billingRules } from './billing-rules.ts'
@@ -535,7 +536,7 @@ async function createForClient(ctx: HandlerCtx, input: CreateForClientInput) {
   const bill = await billForNewClient(tx, partner, { draft: true })
   if (!bill) await refuseOverCeiling(tx, partner)
   // Its assistant starts on Standard, whatever the install's default and whoever on the partner team creates it: the
-  // partner pays, and only its owner raises a client's assistant later (decisions.md 2026-11-18, review L-1).
+  // partner pays, and its team raises a client's assistant later (decisions.md 2026-11-18, review L-1).
   const org = await insertWorkspace(
     ctx,
     {
@@ -708,13 +709,19 @@ async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: str
 /**
  * A workspace that changes partner (a release, a removal by its owner, a Server admin move, in or out) leaves the
  * partner's own keys switched off (S7, security review of #1289/#1290 M-1): the switch was the old partner owner's
- * choice, and only the new one decides whether its provider accounts carry this client's calls.
+ * choice, and only the new one decides whether its provider accounts carry this client's calls. The same for the
+ * client's own say over call quality (decisions.md 2026-11-18): the new partner decides it again.
  */
 async function ownKeysOff(tx: Tx, workspaceId: string) {
   await tx
     .update(workspace_settings)
-    .set({ partner_keys: false })
-    .where(and(eq(workspace_settings.workspace_id, workspaceId), eq(workspace_settings.partner_keys, true)))
+    .set({ partner_keys: false, client_call_quality: false })
+    .where(
+      and(
+        eq(workspace_settings.workspace_id, workspaceId),
+        or(eq(workspace_settings.partner_keys, true), eq(workspace_settings.client_call_quality, true)),
+      ),
+    )
 }
 
 /** A bill that dunning, a dispute or an admin holds: a workspace on it changes partner once it is paid or resumed. */
@@ -863,6 +870,7 @@ async function listClients(tx: Tx, partner: PartnerRow, now: string): Promise<Pa
       billingState: organization.billingState,
       limitCents: organization.usageLimitCents,
       ownKeys: workspace_settings.partner_keys,
+      clientCallQuality: workspace_settings.client_call_quality,
       carrier: workspace_settings.carrier,
     })
     .from(organization)
@@ -975,6 +983,7 @@ async function listClients(tx: Tx, partner: PartnerRow, now: string): Promise<Pa
       limitPercent: percent,
       billed: onBill,
       ownKeys: !!c.ownKeys,
+      clientCallQuality: !!c.clientCallQuality,
       ownCarrier: !!c.carrier && c.carrier !== 'default',
       problems,
     }
@@ -1259,6 +1268,30 @@ export const partnerHandlers: Record<string, Handler> = {
         limitCents: cents,
         subject: { email: null, workspaceId: org.id },
       },
+    }
+  },
+
+  // Whether the client's own owner and admins may change call quality (decisions.md 2026-11-18). Giving it to the
+  // client lets them raise what the partner pays: the partner's owner only, like loosening a usage limit; anyone on
+  // the team may take it back.
+  'partner.setClientCallQuality': async (
+    { tx, actor },
+    input: { partnerId: string; workspaceId: string; on: boolean },
+  ) => {
+    const { partner } = await partnerFor(tx, actor, input.partnerId, { write: true, owner: input.on })
+    const org = await clientOf(tx, partner.id, input.workspaceId)
+    const changed = await tx
+      .update(workspace_settings)
+      .set({ client_call_quality: input.on })
+      .where(eq(workspace_settings.workspace_id, org.id))
+      .returning({ id: workspace_settings.workspace_id })
+    if (!changed.length)
+      await tx
+        .insert(workspace_settings)
+        .values({ workspace_id: org.id, timezone: DEFAULT_TIME_ZONE, client_call_quality: input.on })
+    return {
+      rows: {},
+      data: { workspace: { id: org.id, name: org.name }, on: input.on, subject: { email: null, workspaceId: org.id } },
     }
   },
 

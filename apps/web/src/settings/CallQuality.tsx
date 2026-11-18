@@ -1,8 +1,10 @@
 // Settings › Assistant › General: the assistant's call quality (decisions.md 2026-11-17). Standard, Premium or Ultra,
 // each with one line and its price a minute (none for a partner's client, a workspace without a bill or a self-hosted
 // install); the level alone decides the price. Under it, collapsed, the models of the level: the language model and the
-// voice model, or the realtime model on Ultra, each on "Default (…)" until picked. Only the person who pays raises the
-// level (voice.options `callQuality.mayRaise`); anyone who edits the assistant lowers it.
+// voice model, or the realtime model on Ultra, each on "Default (…)" until picked. A workspace owner or admin raises the
+// level (voice.options `callQuality.mayRaise`); anyone who edits the assistant lowers it. In a white-label client the
+// partner's team decides, and the client's own admins only where the partner lets them: whoever may not change it
+// (`mayChange`) sees no call quality at all (decisions.md 2026-11-18).
 import {
   type CallQuality,
   type CallQualityLevelOption,
@@ -92,7 +94,7 @@ type Props = {
   onChange: (picks: Picks) => void
   /** The assistant's name, as the texts say it ("What Maya thinks with during the call"). */
   name: string
-  /** The level as saved: someone who may not pay may still go back to it. */
+  /** The level as saved: someone who may not raise may still go back to it. */
   savedLevel: CallQuality
 }
 
@@ -100,10 +102,10 @@ export function CallQualitySettings({ picks, onChange, name, savedLevel }: Props
   const t = useT()
   const options = useVoiceOptions().data?.callQuality
   const [open, setOpen] = useState(false)
-  if (!options) return null
+  if (!options?.mayChange) return null
   const level = picks.call_quality
   const current = options.levels.find(l => l.level === level)
-  // Raising above the saved level is for the person who pays; going back down is for anyone who edits.
+  // Raising above the saved level is for a workspace owner or admin; going back down is for anyone who edits.
   const locked = (l: CallQuality) => !options.mayRaise && raisesLevel(savedLevel, l)
   const anyLocked = options.levels.some(l => locked(l.level))
   const price = current?.centsPerMinute == null ? null : pricePerMinute(current.centsPerMinute)
@@ -130,13 +132,7 @@ export function CallQualitySettings({ picks, onChange, name, savedLevel }: Props
           />
         ))}
       </div>
-      {anyLocked && (
-        <p className="help">
-          {options.partnerManaged
-            ? t('settings.voice.quality.partner')
-            : t('settings.voice.quality.cannotPay', { name })}
-        </p>
-      )}
+      {anyLocked && <p className="help">{t('settings.voice.quality.adminsChange')}</p>}
       {current && (
         <details className="vp-more cq-models" open={open} onToggle={e => setOpen(e.currentTarget.open)}>
           <summary>

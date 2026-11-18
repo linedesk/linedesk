@@ -29455,11 +29455,6 @@
       "out": "9c054944c6aa8d781e3ad86d3fc5a8ea3a672e8aab0dfa993b7d88cdc840361a",
       "src": "bafda6e4b0e80b416bedd504f7d11a45022f8f4b6d0cfec4b16a7d464419b194"
     },
-    "settings.voice.quality.cannotPay": {
-      "by": "ai",
-      "out": "2a801f13a45c91653fdfb87b09d65952e15a950b6c2d27fdc881d022fa8a7b66",
-      "src": "ec0221ef75baf53902d5a863e221fdb6a7219204df96e2bbe8778209b0bd9596"
-    },
     "settings.voice.quality.default": {
       "by": "ai",
       "out": "9ee0b3c284022565c7b866d7ec82fd693fd46c03a3b3251fd4f4e4983d06021d",
@@ -29499,11 +29494,6 @@
       "by": "ai",
       "out": "e5aa8fdc7cf8e6e1ec8e03dcc9c09895f9092d70603e974038e8fee7af45dd45",
       "src": "a4eccb408880c8a29e2a259704038b9f977fd4b17b97534a68945aaa8bcfc6b8"
-    },
-    "settings.voice.quality.partner": {
-      "by": "ai",
-      "out": "5cbab59c27a919240266fe426c10388c5918929ba43154c1de66d58d2b194048",
-      "src": "031e3910819bad0e1f3c401c0c22736efe10cd7815bc6e9bc81a8d4628ad9528"
     },
     "settings.voice.quality.perMinute": {
       "by": "ai",
@@ -63382,11 +63372,6 @@
       "out": "3b56071a0b436485498011bf3586bf32e9ad6a309ae48d1c3709a4c0658bb231",
       "src": "bafda6e4b0e80b416bedd504f7d11a45022f8f4b6d0cfec4b16a7d464419b194"
     },
-    "settings.voice.quality.cannotPay": {
-      "by": "ai",
-      "out": "47b9c1760980cf42aaa5c3ed8bdc929efe96890d935aaa50045945a84bc86920",
-      "src": "ec0221ef75baf53902d5a863e221fdb6a7219204df96e2bbe8778209b0bd9596"
-    },
     "settings.voice.quality.default": {
       "by": "ai",
       "out": "13bd6e86a13953ee766a25f05e42657537877e498b506145a826164adaaf4a04",
@@ -63426,11 +63411,6 @@
       "by": "ai",
       "out": "def0946b02e67febc290d859c1685cfe8264d6d478be2ce43c00eadbb65d7419",
       "src": "a4eccb408880c8a29e2a259704038b9f977fd4b17b97534a68945aaa8bcfc6b8"
-    },
-    "settings.voice.quality.partner": {
-      "by": "ai",
-      "out": "74aef35961a76b0c5f3167fddc0d96682c90da8f0a786c765055aa1fd3a42c17",
-      "src": "031e3910819bad0e1f3c401c0c22736efe10cd7815bc6e9bc81a8d4628ad9528"
     },
     "settings.voice.quality.perMinute": {
       "by": "ai",
@@ -97309,11 +97289,6 @@
       "out": "e5b3e6e131f1dc780c662222ebf20c49680f2882e12e855586dd90d9c92ae3c9",
       "src": "bafda6e4b0e80b416bedd504f7d11a45022f8f4b6d0cfec4b16a7d464419b194"
     },
-    "settings.voice.quality.cannotPay": {
-      "by": "ai",
-      "out": "6cdf923663d53d7c396da4369f24f7b7c2f5e88331d50b1793cc27fdf9339bb2",
-      "src": "ec0221ef75baf53902d5a863e221fdb6a7219204df96e2bbe8778209b0bd9596"
-    },
     "settings.voice.quality.default": {
       "by": "ai",
       "out": "291b4fc834dc08c6476873f6c062a43e3abb8d36220207002baf0a65490a3762",
@@ -97353,11 +97328,6 @@
       "by": "ai",
       "out": "7ebf7c7932402f8e5f4e435e1caf96a8765ac6dd5c14fc5ef0a0dffef60b071d",
       "src": "a4eccb408880c8a29e2a259704038b9f977fd4b17b97534a68945aaa8bcfc6b8"
-    },
-    "settings.voice.quality.partner": {
-      "by": "ai",
-      "out": "21e7173aa0bc3eb0d64b11936f8cd1805af7879aa98d767a50a67a0b0a52f2ce",
-      "src": "031e3910819bad0e1f3c401c0c22736efe10cd7815bc6e9bc81a8d4628ad9528"
     },
     "settings.voice.quality.perMinute": {
       "by": "ai",
@@ -131236,11 +131206,6 @@
       "out": "aab431cd63c4dce6f0ab3582c713363d394ef7ff22cb6b3830a2fe96dc5d757f",
       "src": "bafda6e4b0e80b416bedd504f7d11a45022f8f4b6d0cfec4b16a7d464419b194"
     },
-    "settings.voice.quality.cannotPay": {
-      "by": "ai",
-      "out": "1622347bbe8fa695604754c127c0ed1402cb783ddd6760cca9c08e6463ffe55e",
-      "src": "ec0221ef75baf53902d5a863e221fdb6a7219204df96e2bbe8778209b0bd9596"
-    },
     "settings.voice.quality.default": {
       "by": "ai",
       "out": "3f0577f9b1e5732369bf3ca3825f553a60aced47776607b5c2ca43fff72b7c29",
@@ -131280,11 +131245,6 @@
       "by": "ai",
       "out": "c994492c6867ce7eea4b99a98dbe1c50ba0017a3932c03783c05688155e6a0ff",
       "src": "a4eccb408880c8a29e2a259704038b9f977fd4b17b97534a68945aaa8bcfc6b8"
-    },
-    "settings.voice.quality.partner": {
-      "by": "ai",
-      "out": "afaa22be260ebffa96a3349f0428f10c78ec856bd53bc3aeb5e2b1baa6e37d1a",
-      "src": "031e3910819bad0e1f3c401c0c22736efe10cd7815bc6e9bc81a8d4628ad9528"
     },
     "settings.voice.quality.perMinute": {
       "by": "ai",
@@ -165163,11 +165123,6 @@
       "out": "2dc4f9ea9c6c9122a4ed3109a455c8c49e16d826b504e3fc78f0be237ca5eb4d",
       "src": "bafda6e4b0e80b416bedd504f7d11a45022f8f4b6d0cfec4b16a7d464419b194"
     },
-    "settings.voice.quality.cannotPay": {
-      "by": "ai",
-      "out": "a795ee08f1f7696498c1bf5f428de1ec69be983fead9f46bff2e03c54b87ff42",
-      "src": "ec0221ef75baf53902d5a863e221fdb6a7219204df96e2bbe8778209b0bd9596"
-    },
     "settings.voice.quality.default": {
       "by": "ai",
       "out": "0758c00e6ea0ca61a80fe428ef2c9e06371299f8fab4bd6abc1bf61180c9b53a",
@@ -165207,11 +165162,6 @@
       "by": "ai",
       "out": "cb5350b38e625eaa7030d0e80ca08d3baf53b6f60f278364ee76bcb3a0a3ff34",
       "src": "a4eccb408880c8a29e2a259704038b9f977fd4b17b97534a68945aaa8bcfc6b8"
-    },
-    "settings.voice.quality.partner": {
-      "by": "ai",
-      "out": "9ce0f33059abe4f736f839920b03a8ebaa416cdf7dd7b8f41697c63c14c46668",
-      "src": "031e3910819bad0e1f3c401c0c22736efe10cd7815bc6e9bc81a8d4628ad9528"
     },
     "settings.voice.quality.perMinute": {
       "by": "ai",

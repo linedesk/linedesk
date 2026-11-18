@@ -1,6 +1,8 @@
 // Partner › Clients › Settings (white-label slices S3 and S7): a client's monthly usage limit, set by anyone on the
 // partner team; raising or removing it is the partner's owner's. The limit is in dollars on the partner bill's ledger.
 // The owner also switches the client to the partner's own AI keys (Partner › AI keys), shown once a key is connected.
+// Whether the client's own owner and admins may change call quality: off by default (only the team changes it, and the
+// client does not see it); the partner's owner turns it on, anyone on the team turns it off (decisions.md 2026-11-18).
 import {
   CLIENT_USAGE_LIMIT_MAX_USD,
   CLIENT_USAGE_LIMIT_MIN_USD,
@@ -52,7 +54,9 @@ export function ClientSettingsDialog({ partnerId, client, owner, onClose, onSave
   const ownerOnly = loosens && !owner
   const [ownKeys, setOwnKeys] = useState(client.ownKeys)
   const ownKeysChanged = ownKeys !== client.ownKeys
-  const changed = limitChanged || ownKeysChanged
+  const [clientQuality, setClientQuality] = useState(client.clientCallQuality)
+  const clientQualityChanged = clientQuality !== client.clientCallQuality
+  const changed = limitChanged || ownKeysChanged || clientQualityChanged
 
   async function save() {
     if (busy || invalid || ownerOnly || !changed) return
@@ -62,6 +66,7 @@ export function ClientSettingsDialog({ partnerId, client, owner, onClose, onSave
       const base = { partnerId, workspaceId: client.id }
       if (limitChanged) await callAction('partner.setClientUsageLimit', { ...base, limitUsd: parsed })
       if (ownKeysChanged) await callAction('partner.setClientOwnKeys', { ...base, on: ownKeys })
+      if (clientQualityChanged) await callAction('partner.setClientCallQuality', { ...base, on: clientQuality })
       await onSaved(t('team.partner.clients.saved', { name: client.name }))
       onClose()
     } catch (err) {
@@ -116,6 +121,18 @@ export function ClientSettingsDialog({ partnerId, client, owner, onClose, onSave
           onChange={e => setLimit(e.target.value)}
         />
       </FormField>
+      <SwitchRow
+        title={t('team.partner.clients.callQuality.title')}
+        description={
+          owner || client.clientCallQuality
+            ? t('team.partner.clients.callQuality.help')
+            : t('team.partner.clients.callQuality.helpAdmin')
+        }
+        on={clientQuality}
+        onChange={setClientQuality}
+        // Giving it to the client is the partner's owner's; anyone on the team takes it back.
+        disabled={!owner && !client.clientCallQuality}
+      />
       {owner && client.billed && <OwnKeys partnerId={partnerId} client={client} on={ownKeys} onChange={setOwnKeys} />}
       {problem && (
         <Note tone="danger" role="alert">

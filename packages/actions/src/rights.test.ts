@@ -348,6 +348,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'partner.deleteClient',
     'partner.listClients',
     'partner.setClientUsageLimit',
+    'partner.setClientCallQuality',
     // Partner › Brand (S4): read by the team, changed by the owner only (the handler checks).
     'partnerBrand.get',
     'partnerBrand.set',

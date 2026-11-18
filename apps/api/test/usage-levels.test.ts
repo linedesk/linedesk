@@ -20,12 +20,11 @@ import {
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { setupActorIn, workspaceSetupActor } from '../src/agent-setup.ts'
-import { listAudit } from '../src/audit.ts'
+import { LEVEL_RAISE_REFUSED_TEXT, listAudit } from '../src/audit.ts'
 import { auth } from '../src/auth.ts'
 import { pruneSet } from '../src/command-log.ts'
 import { resolveActor } from '../src/context.ts'
 import { db } from '../src/db.ts'
-import { said, sayIn } from '../src/handler-context.ts'
 import { runAction } from '../src/run-action.ts'
 import {
   act,
@@ -128,6 +127,20 @@ const latestVersion = async (assistantId: string) =>
   (await db.select().from(assistant_versions).where(eq(assistant_versions.assistant_id, assistantId))).sort(
     (a, b) => b.number - a.number,
   )[0]!
+/**
+ * An AI agent's setup link of `who` (an owner or admin of `workspaceId`), as a caller: it edits assistants but never
+ * raises a level (signed in to the app only).
+ */
+async function setupLinkOf(who: Caller & { userId: string }, workspaceId: string, role: 'owner' | 'admin' = 'owner') {
+  const link = await act(who, 'agentSetup.createWorkspaceKey', {})
+  const linkActor = (await workspaceSetupActor(who.userId, link.body.data.keyId, workspaceId, role))!
+  const actor = (await setupActorIn(linkActor, workspaceId))!
+  const run = async (action: string, input: Record<string, unknown>) => {
+    const res = await runAction(action, input, actor)
+    return { status: res.status, body: res.body as { data?: unknown; error?: string } }
+  }
+  return Object.assign(actor, { run })
+}
 /** A bill of `owner` paying for these workspaces. */
 async function billOf(ownerId: string, workspaceIds: string[]) {
   const billId = `bill_${crypto.randomUUID()}`
@@ -185,8 +198,8 @@ describe('call quality on Cloud: the level decides the price', () => {
     })
   })
 
-  test('only the person who pays raises; anyone who edits the assistant lowers; never an API key or impersonation', async () => {
-    // Bill owner B pays for W, which X owns; an admin A of W does not pay.
+  test('every workspace admin raises, the owner too, whoever pays; members never; never an API key or impersonation (decisions.md 2026-11-18)', async () => {
+    // Bill owner B pays for W, which X owns; A is an admin of W, M a member. Who pays is not asked any more.
     const payerWs = await createWorkspace('Quality Payer Plumbing')
     const ws = await createWorkspace('Quality Paid For Heating')
     await billOf(payerWs.owner.userId, [payerWs.id, ws.id])
@@ -196,49 +209,47 @@ describe('call quality on Cloud: the level decides the price', () => {
       200,
     )
     const admin = await addMember(ws.id, 'admin')
-    const mayRaise = async (who: Caller) => (await act(who, 'voice.options', {})).body.data.callQuality.mayRaise
+    const member = await addMember(ws.id, 'member')
+    const rights = async (who: Caller) => {
+      const q = (await act(who, 'voice.options', {})).body.data.callQuality
+      return { mayChange: q.mayChange, mayRaise: q.mayRaise }
+    }
 
-    expect(await mayRaise(ws.owner)).toBe(false)
-    expect(await mayRaise(admin)).toBe(false)
-    expect(await mayRaise(payer)).toBe(true)
-    expect(await setLevel(ws.owner, ws.assistant.id, 'premium')).toMatchObject({
-      status: 403,
-      body: {
-        error: 'Premium and Ultra cost more a minute: only the person who pays for this workspace can pick them.',
-      },
-    })
-    expect((await setLevel(admin, ws.assistant.id, 'premium')).status).toBe(403)
-    expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('standard')
+    expect(await rights(ws.owner)).toEqual({ mayChange: true, mayRaise: true })
+    expect(await rights(admin)).toEqual({ mayChange: true, mayRaise: true })
+    expect(await rights(payer)).toEqual({ mayChange: true, mayRaise: true })
+    expect(await rights(member)).toEqual({ mayChange: true, mayRaise: false })
+    // A member edits no assistant at all (assistant.update is an admin's).
+    expect((await setLevel(member, ws.assistant.id, 'premium')).status).toBe(403)
 
-    // The payer raises it, as an admin of the workspace.
-    expect((await setLevel(payer, ws.assistant.id, 'premium', { llm_model: 'gpt-5.4' })).status).toBe(200)
-    // Others may change the picks within the level (no raise), and lower it.
+    // The owner and any admin raise, not only the one who pays.
+    expect((await setLevel(ws.owner, ws.assistant.id, 'premium', { llm_model: 'gpt-5.4' })).status).toBe(200)
+    expect((await setLevel(admin, ws.assistant.id, 'standard')).status).toBe(200)
+    expect((await setLevel(admin, ws.assistant.id, 'premium')).status).toBe(200)
     expect((await act(admin, 'assistant.update', { assistantId: ws.assistant.id, llm_model: 'gpt-4.1' })).status).toBe(
       200,
     )
-    expect((await setLevel(admin, ws.assistant.id, 'standard')).status).toBe(200)
+    expect((await setLevel(payer, ws.assistant.id, 'standard')).status).toBe(200)
     expect(await getAssistant(ws.assistant.id)).toMatchObject({ call_quality: 'standard', llm_model: null })
 
-    // The payer signed in as someone else (an instance admin impersonating them): no raise.
+    // An admin signed in as someone else (an instance admin impersonating them): no raise, a lowering is fine.
     const operator = await signUp()
     await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, operator.userId))
-    await db.update(session).set({ impersonatedBy: operator.userId }).where(eq(session.userId, payer.userId))
+    await db.update(session).set({ impersonatedBy: operator.userId }).where(eq(session.userId, admin.userId))
     try {
-      expect((await setLevel(payer, ws.assistant.id, 'premium')).status).toBe(403)
+      expect((await setLevel(admin, ws.assistant.id, 'premium')).status).toBe(403)
+      expect((await rights(admin)).mayRaise).toBe(false)
     } finally {
-      await db.update(session).set({ impersonatedBy: null }).where(eq(session.userId, payer.userId))
+      await db.update(session).set({ impersonatedBy: null }).where(eq(session.userId, admin.userId))
     }
-
-    // The refusals are in the audit log.
-    const audit = await listAudit(db, { workspaceId: ws.id, limit: 50 })
-    expect(audit.entries.filter(e => e.what === 'assistant.update' && e.refused).length).toBeGreaterThanOrEqual(2)
   })
 
-  test('a workspace without a bill: its owner raises, its admins do not', async () => {
+  test('a workspace without a bill: its owner and admins raise; a setup link never (it lowers)', async () => {
     const ws = await createWorkspace('Quality Unbilled Plumbing')
     const admin = await addMember(ws.id, 'admin')
-    expect((await setLevel(admin, ws.assistant.id, 'premium')).status).toBe(403)
-    // An AI agent's setup link of the owner: no raise either (refuseBillingActor); lowering is fine.
+    expect((await setLevel(admin, ws.assistant.id, 'premium')).status).toBe(200)
+    expect((await setLevel(admin, ws.assistant.id, 'standard')).status).toBe(200)
+    // An AI agent's setup link of the owner: no raise (signed in to the app only); lowering is fine.
     const link = await act(ws.owner, 'agentSetup.createWorkspaceKey', {})
     const linkActor = (await workspaceSetupActor(ws.owner.userId, link.body.data.keyId, ws.id, 'owner'))!
     const setupActor = (await setupActorIn(linkActor, ws.id))!
@@ -248,18 +259,15 @@ describe('call quality on Cloud: the level decides the price', () => {
     expect((await runAction('assistant.update', { ...raise, call_quality: 'standard' }, setupActor)).status).toBe(200)
   })
 
-  test('the bill of one workspace: its admins raise like its owner; members and API keys never (decision of 2026-11-17)', async () => {
+  test('the bill of one workspace: its admins raise like its owner; an API key never (it runs no assistant.update)', async () => {
     const ws = await createWorkspace('Quality Only Workspace Plumbing')
     const payer = await addMember(ws.id, 'admin')
     await billOf(payer.userId, [ws.id])
     const admin = await addMember(ws.id, 'admin')
-    const member = await addMember(ws.id, 'member')
     const mayRaise = async (who: Caller) => (await act(who, 'voice.options', {})).body.data.callQuality.mayRaise
     expect(await mayRaise(admin)).toBe(true)
     expect(await mayRaise(ws.owner)).toBe(true)
-    expect(await mayRaise(member)).toBe(false)
-    expect((await setLevel(member, ws.assistant.id, 'premium')).status).toBe(403)
-    // An API key of the admin never raises (refuseBillingActor), with the highest role a key can have.
+    // An API key of the admin never raises, with the highest role a key can have.
     const key = await act(admin, 'apiKey.create', { name: 'quality', role: 'admin' })
     const bearer = { headers: { authorization: `Bearer ${key.body.data.key}` } }
     expect((await setLevel(bearer, ws.assistant.id, 'premium')).status).toBe(403)
@@ -274,6 +282,7 @@ describe('call quality on Cloud: the level decides the price', () => {
     const got = await options()
     expect(got).toMatchObject({
       defaultLevel: 'standard',
+      mayChange: true,
       mayRaise: true,
       partnerManaged: false,
       llmProvider: 'openai',
@@ -355,18 +364,25 @@ describe('call quality on Cloud: the level decides the price', () => {
     })
   })
 
-  test('a new assistant starts on the install default, Standard for someone who may not pay; a copy keeps the level', async () => {
+  test('a new assistant starts on the install default, Standard for someone who may not raise; a copy keeps the level', async () => {
     expect((await adminSet({ default: 'premium' })).status).toBe(200)
-    // A new workspace's first assistant: its owner pays.
+    // A new workspace's first assistant: its owner made it.
     const ws = await createWorkspace('Quality Default Plumbing')
     expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('premium')
     const created = await act(ws.owner, 'assistant.create', {})
     expect((await getAssistant(created.body.data.assistantId))!.call_quality).toBe('premium')
+    // Any admin raises, so an admin's new assistant and copy keep the paid level too (decisions.md 2026-11-18).
     const admin = await addMember(ws.id, 'admin')
     const byAdmin = await act(admin, 'assistant.create', {})
-    expect((await getAssistant(byAdmin.body.data.assistantId))!.call_quality).toBe('standard')
+    expect((await getAssistant(byAdmin.body.data.assistantId))!.call_quality).toBe('premium')
     const copy = await act(admin, 'assistant.create', { copyOf: ws.assistant.id })
-    expect((await getAssistant(copy.body.data.assistantId))!.call_quality).toBe('standard')
+    expect((await getAssistant(copy.body.data.assistantId))!.call_quality).toBe('premium')
+    // An AI agent's setup link may not raise: what it creates starts on Standard.
+    const link = await setupLinkOf(ws.owner, ws.id)
+    const byLink = await link.run('assistant.create', { copyOf: ws.assistant.id })
+    expect(byLink.status).toBe(200)
+    const made = (byLink.body.data as { assistantId: string }).assistantId
+    expect((await getAssistant(made))!.call_quality).toBe('standard')
     const ownerCopy = await act(ws.owner, 'assistant.create', { copyOf: ws.assistant.id })
     expect((await getAssistant(ownerCopy.body.data.assistantId))!.call_quality).toBe('premium')
     // Changing the default changes new assistants only.
@@ -374,53 +390,16 @@ describe('call quality on Cloud: the level decides the price', () => {
     expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('premium')
   })
 
-  test("a copy of a Premium assistant while a move onto someone else's bill commits waits for it, then starts on Standard", async () => {
-    const ws = await createWorkspace('Quality Copy Race Plumbing')
+  test("a copy of a Premium assistant on someone else's bill keeps its level: who pays is not asked (decisions.md 2026-11-18)", async () => {
+    const ws = await createWorkspace('Quality Copy Other Bill Plumbing')
     await billOf(ws.owner.userId, [ws.id])
     expect((await setLevel(ws.owner, ws.assistant.id, 'premium')).status).toBe(200)
+    // The workspace moves onto a bill of someone else; its owner copies the Premium assistant.
     const payer = await signUp()
-    const otherBill = `bill_${crypto.randomUUID()}`
-    await db
-      .insert(billing_accounts)
-      .values({ id: otherBill, kind: 'cloud', owner_user_id: payer.userId, status: 'active' })
-    let moved!: () => void
-    const updated = new Promise<void>(resolve => {
-      moved = resolve
-    })
-    let release!: () => void
-    const gate = new Promise<void>(resolve => {
-      release = resolve
-    })
-    // A move that has changed the workspace's bill and not committed yet.
-    let movePid = 0
-    const move = db.transaction(async tx => {
-      movePid = (await tx.execute(sql`select pg_backend_pid() as pid`)).rows[0]?.pid as number
-      await tx.update(organization).set({ billingAccountId: otherBill }).where(eq(organization.id, ws.id))
-      moved()
-      await gate
-    })
-    await updated
-    const copy = act(ws.owner, 'assistant.create', { copyOf: ws.assistant.id })
-    const probe = createDb(process.env.DATABASE_URL!, { max: 1 })
-    try {
-      // The copy waits on the workspace row the move holds (the bill lock a raise takes), as a raise does.
-      const blockedByMove = async () =>
-        (
-          await probe.db.execute(
-            sql`select count(*)::int as n from pg_stat_activity where ${movePid}::int = any(pg_blocking_pids(pid))`,
-          )
-        ).rows[0]?.n as number
-      for (let i = 0; i < 200 && (await blockedByMove()) < 1; i++) await new Promise(r => setTimeout(r, 25))
-      expect(await blockedByMove()).toBe(1)
-    } finally {
-      release()
-      await move
-      await probe.pool.end()
-    }
-    // Someone else pays now: the copy is no raise of the new payer's, it starts on Standard.
-    const made = await copy
+    await billOf(payer.userId, [ws.id])
+    const made = await act(ws.owner, 'assistant.create', { copyOf: ws.assistant.id })
     expect(made.status).toBe(200)
-    expect((await getAssistant(made.body.data.assistantId))!.call_quality).toBe('standard')
+    expect((await getAssistant(made.body.data.assistantId))!.call_quality).toBe('premium')
   })
 
   test('a version saved before call quality (voice_pipeline, a Premium model, no level) restores on Standard', async () => {
@@ -872,26 +851,24 @@ describe('audit, locking and limits', () => {
     })
   })
 
-  test('restoring a version on a raised level is a raise: refused for someone who may not pay', async () => {
+  test('restoring a version on a raised level is a raise: refused for someone who may not raise', async () => {
     const ws = await createWorkspace('Quality Restore Raise Plumbing')
     expect((await setLevel(ws.owner, ws.assistant.id, 'premium', { greeting: 'Premium days.' })).status).toBe(200)
     const premiumVersion = (await latestVersion(ws.assistant.id)).number
     expect((await setLevel(ws.owner, ws.assistant.id, 'standard')).status).toBe(200)
-    const admin = await addMember(ws.id, 'admin')
-    const restore = (who: Caller) =>
-      act(who, 'assistant.restoreVersion', { assistantId: ws.assistant.id, number: premiumVersion })
-    expect((await restore(admin)).status).toBe(403)
+    // An AI agent's setup link of the owner: it edits the assistant, but never raises the level.
+    const link = await setupLinkOf(ws.owner, ws.id)
+    const input = { assistantId: ws.assistant.id, number: premiumVersion }
+    expect((await link.run('assistant.restoreVersion', input)).status).toBe(403)
     // The refused raise is in the audit log's call quality entries (kind team), like a refused edit (review L-3).
     const team = await listAudit(db, { kind: 'team', workspaceId: ws.id, limit: 50 })
-    expect(
-      team.entries.filter(e => e.what === 'assistant.restoreVersion' && e.refused && e.actor.id === admin.userId),
-    ).toHaveLength(1)
+    expect(team.entries.filter(e => e.what === 'assistant.restoreVersion' && e.refused)).toHaveLength(1)
     // A restore refused for another reason (no such version) is not.
     const missing = { assistantId: ws.assistant.id, number: premiumVersion + 100 }
-    expect((await act(admin, 'assistant.restoreVersion', missing)).status).toBeGreaterThanOrEqual(400)
+    expect((await link.run('assistant.restoreVersion', missing)).status).toBeGreaterThanOrEqual(400)
     const again = await listAudit(db, { kind: 'team', workspaceId: ws.id, limit: 50 })
     expect(again.entries.filter(e => e.what === 'assistant.restoreVersion' && e.refused)).toHaveLength(1)
-    expect((await restore(ws.owner)).status).toBe(200)
+    expect((await act(ws.owner, 'assistant.restoreVersion', input)).status).toBe(200)
     expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('premium')
   })
 
@@ -900,7 +877,8 @@ describe('audit, locking and limits', () => {
     expect((await setLevel(ws.owner, ws.assistant.id, 'premium', { greeting: 'Premium days.' })).status).toBe(200)
     const premiumVersion = (await latestVersion(ws.assistant.id)).number
     expect((await setLevel(ws.owner, ws.assistant.id, 'standard')).status).toBe(200)
-    const admin = await addMember(ws.id, 'admin')
+    // An AI agent's setup link of the owner: it edits the assistant, but never raises the level.
+    const link = await setupLinkOf(ws.owner, ws.id)
     const restoreInput = { assistantId: ws.assistant.id, number: premiumVersion }
     const refusedRows = (action: string) =>
       db
@@ -911,8 +889,10 @@ describe('audit, locking and limits', () => {
       (await listAudit(db, { kind: 'team', workspaceId: ws.id, limit: 50 })).entries.filter(e => e.refused)
 
     // A refused edit and a refused restore (403): logged with the reason.
-    expect((await setLevel(admin, ws.assistant.id, 'premium')).status).toBe(403)
-    expect((await act(admin, 'assistant.restoreVersion', restoreInput)).status).toBe(403)
+    expect((await link.run('assistant.update', { assistantId: ws.assistant.id, call_quality: 'premium' })).status).toBe(
+      403,
+    )
+    expect((await link.run('assistant.restoreVersion', restoreInput)).status).toBe(403)
     // A refusal that is no 403 (the workspace disabled while the save ran): a refused raise all the same.
     const owner = (await resolveActor(new Headers(ws.owner.headers)))!
     expect(owner.workspaceId).toBe(ws.id)
@@ -926,9 +906,9 @@ describe('audit, locking and limits', () => {
 
     // Unrelated refusals: a restore of no such version, an edit that does not touch the call quality.
     const missing = { assistantId: ws.assistant.id, number: premiumVersion + 100 }
-    expect((await act(admin, 'assistant.restoreVersion', missing)).status).toBeGreaterThanOrEqual(400)
+    expect((await link.run('assistant.restoreVersion', missing)).status).toBeGreaterThanOrEqual(400)
     const otherAssistant = { assistantId: crypto.randomUUID(), greeting: 'Nobody here.' }
-    expect((await act(admin, 'assistant.update', otherAssistant)).status).toBeGreaterThanOrEqual(400)
+    expect((await link.run('assistant.update', otherAssistant)).status).toBeGreaterThanOrEqual(400)
     expect((await refusedRows('assistant.restoreVersion')).length).toBe(3)
 
     const ids = (await listed()).map(e => e.id).sort()
@@ -946,7 +926,7 @@ describe('audit, locking and limits', () => {
     const old = restores[0]!
     await db
       .update(commands)
-      .set({ result: { ok: false, error: sayIn(said('server.api.callQualityRaise')), code: 'forbidden' } })
+      .set({ result: { ok: false, error: LEVEL_RAISE_REFUSED_TEXT, code: 'forbidden' } })
       .where(eq(commands.id, old.id))
     expect((await listed()).map(e => e.id)).toContain(old.id)
   })

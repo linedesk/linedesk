@@ -130,7 +130,7 @@ import {
 } from './handler-context.ts'
 import { languageInSentence } from '@linedesk/i18n'
 import { activeProvider, installLanguages, telephonyProvider } from './provider-settings.ts'
-import { refuseLevelRaise } from './level-raise.ts'
+import { refuseLevelChange } from './level-raise.ts'
 import { assistantForCall, assistantVoiceOf, checkAssistantLevel, picksForLevel } from './usage-levels.ts'
 import { startTestCall } from './test-call.ts'
 import { liveCallHandlers } from './live-call.ts'
@@ -917,8 +917,9 @@ const choosesLevel = (input: LevelInput) =>
   input.realtime_model !== undefined
 
 /**
- * An assistant's level and model picks after a save (assistant.update): the level must be on, a raise is for the person
- * who pays (refuseLevelRaise), each pick must belong to the level. A new level clears the picks of the old one that do
+ * An assistant's level and model picks after a save (assistant.update): the level must be on, a raise is for a
+ * workspace owner or admin and a white-label client's people change it only where the partner lets them
+ * (refuseLevelChange), each pick must belong to the level. A new level clears the picks of the old one that do
  * not belong to it (picksForLevel), unless the save names them. Returns what the save writes of them, and the change
  * for the audit log (null: nothing that decides the level changed).
  */
@@ -942,6 +943,11 @@ async function checkAssistantChoices(
   // A save that leaves them as they are (the web app sends the voice with every save) is never refused over them.
   const change = usageLevelChange(stored, after)
   if (!change) return { set: {}, change: null }
+  // Who may change it, before what the save names is checked: a refused caller learns nothing about the lists.
+  await refuseLevelChange(tx, actor, {
+    raises: raisesLevel(stored.call_quality, level),
+    changesQuality: changesQualityPicks(stored, after),
+  })
   if (input.voice?.model && !voiceModelLevel(input.voice.provider, input.voice.model))
     throw new Reject(
       `${input.voice.model} is not a voice model of ${input.voice.provider} here: pick one of voice.options`,
@@ -956,7 +962,6 @@ async function checkAssistantChoices(
   if (input.realtime_model && !realtimeModelLevel(input.realtime_model))
     throw new Reject(`${input.realtime_model} is not a realtime model an assistant can pick: pick one of voice.options`)
   await checkAssistantLevel(tx, after, { levelChanged })
-  if (raisesLevel(stored.call_quality, level)) await refuseLevelRaise(tx, actor)
   return {
     set: levelChanged
       ? { call_quality: level, voice: after.voice, llm_model: after.llm_model, realtime_model: after.realtime_model }
@@ -966,6 +971,19 @@ async function checkAssistantChoices(
 }
 
 type LevelFields = Pick<Assistant, 'voice' | 'llm_model' | 'call_quality'> & { realtime_model?: string | null }
+
+/**
+ * Whether a save changes what the call quality block picks: the level, the language or realtime model, or a voice model
+ * picked for the same voice provider. A voice of another provider (the voice picker) leaves its model to the defaults
+ * and is no call quality change, so a white-label client's people still pick a voice where the partner keeps call
+ * quality (decisions.md 2026-11-18).
+ */
+function changesQualityPicks(stored: LevelFields, after: LevelFields) {
+  if (stored.call_quality !== after.call_quality) return true
+  if ((stored.llm_model ?? null) !== (after.llm_model ?? null)) return true
+  if ((stored.realtime_model ?? null) !== (after.realtime_model ?? null)) return true
+  return stored.voice.provider === after.voice.provider && (stored.voice.model || null) !== (after.voice.model || null)
+}
 
 /** What decides a call's level, as the audit log keeps it: the level, the voice model, the language model. */
 const levelFieldsOf = (a: LevelFields) => ({
@@ -1042,7 +1060,7 @@ const handlers: Record<string, Handler> = {
       input.email_rules !== undefined
         ? ((await assistantIn(ctx.tx, ctx.actor.workspaceId, input.assistantId))?.email_rules ?? null)
         : undefined
-    // The level and the models it will answer with: on, of the lists and of the level; a raise only by who pays.
+    // The level and the models it will answer with: on, of the lists and of the level; a raise only by an owner or admin.
     const level = choosesLevel(input) ? await checkAssistantChoices(ctx.tx, ctx.actor, input) : null
     const levelChange = level?.change ?? null
     const result = await runPatch(ctx, actions.get('assistant.update')!, { ...input, ...level?.set })
@@ -1106,7 +1124,10 @@ const handlers: Record<string, Handler> = {
       await checkAssistantLevel(tx, levelAfter, { levelChanged: versionLevel !== current.call_quality }).catch(e => {
         throw Reject.t('server.api.versionVoiceOrModelGone', { number: input.number, error: errorMessage(e) })
       })
-      if (raisesLevel(current.call_quality, versionLevel)) await refuseLevelRaise(tx, actor)
+      await refuseLevelChange(tx, actor, {
+        raises: raisesLevel(current.call_quality, versionLevel),
+        changesQuality: changesQualityPicks(current, levelAfter),
+      })
     }
     const transfersBefore = await assistantTransfers(tx, workspaceId, input.assistantId)
     // A version from before a level column has no key for it: the column's default (null), as the check and the audit

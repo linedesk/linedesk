@@ -1,0 +1,1 @@
+ALTER TABLE "workspace_settings" ADD COLUMN "client_call_quality" boolean DEFAULT false NOT NULL;

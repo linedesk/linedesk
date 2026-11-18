@@ -224,7 +224,7 @@ export const CALL_QUALITY_LABELS: Record<CallQuality, string> = {
   premium: 'Premium',
   ultra: 'Ultra',
 }
-/** Whether going from `from` to `to` raises the price: only someone who may pay does that (levelRaise in the API). */
+/** Whether going from `from` to `to` raises the price: only a workspace owner or admin does that (level-raise.ts in the API). */
 export const raisesLevel = (from: CallQuality, to: CallQuality) =>
   CALL_QUALITIES.indexOf(to) > CALL_QUALITIES.indexOf(from)
 
@@ -413,13 +413,15 @@ export type CallQualityLevelOption = {
 
 /**
  * What the assistant editor shows of call quality (voice.options `callQuality`): the levels the server admin has on
- * (Standard always), the level new assistants start on, whether this member may raise an assistant to a paid level
- * (`mayRaise`, the person who pays: decisions.md 2026-11-17), and whether the workspace is a white-label client
- * (its partner's owner decides).
+ * (Standard always), the level new assistants start on, whether this member may change it at all (`mayChange`: false
+ * for a white-label client's people while the partner keeps it, and the editor then shows no call quality) and raise
+ * an assistant to a paid level (`mayRaise`: a workspace owner or admin, decisions.md 2026-11-18), and whether the
+ * workspace is a white-label client.
  */
 export type CallQualityOptions = {
   levels: CallQualityLevelOption[]
   defaultLevel: CallQuality
+  mayChange: boolean
   mayRaise: boolean
   partnerManaged: boolean
   llmProvider: string | null

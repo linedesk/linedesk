@@ -1,82 +1,93 @@
-// Who may raise an assistant's call quality to Premium or Ultra (decisions.md 2026-11-17): only someone who may pay
-// (LIN-440, #1158): who manages the bill (its owner, or an owner or admin of the only workspace a Cloud bill pays for);
-// the workspace's owner when it is on no bill; in a white-label client only the partner's owner. Picking the level is
-// the consent; there are no Allow switches (call quality 4/5). Lowering a level, or changing models within it, is
-// anyone's who edits the assistant.
-import { billing_accounts, organization, type Tx } from '@linedesk/db'
-import { eq } from 'drizzle-orm'
-import { managesBill } from './bill-manager.ts'
-import { refuseUnlessBillOwner } from './billing-owner.ts'
+// Who may change an assistant's call quality (decisions.md 2026-11-18, replacing "only the person who pays"):
+// - Raising it to Premium or Ultra where levels are billed: a workspace owner or admin, signed in to the app as
+//   themselves (refuseBillingActor: never an API key, a personal key, a setup link or an impersonation). Who pays is
+//   not asked; the bill of the workspace pays the level, as before.
+// - Lowering it, or changing the models within it: anyone who edits the assistant.
+// - In a white-label client (docs/white-label.md): the partner's team always (they are admins there); the client's own
+//   owner and admins only while the partner lets them (`workspace_settings.client_call_quality`, partner.setClientCallQuality,
+//   off by default); the client's members never. Whoever may not change it there does not see it either.
+// Where levels are not billed, everyone who edits may raise outside a white-label client.
+import { member, organization, type Tx, workspace_settings } from '@linedesk/db'
+import { and, eq } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { Forbidden, LEVEL_RAISE_REFUSED, Reject } from './handler-context.ts'
-import { isPartnerOwner, PARTNER_DECIDES_LEVELS } from './partner-refusals.ts'
-import { refuseBillingActor, usageLevelsBilled } from './usage-levels.ts'
+import { usageLevelsBilled } from './usage-levels.ts'
 
-/**
- * Refused (403) unless the caller may pay here (security review of #1109, M-1): never in a disabled workspace (read
- * only); who manages the bill (its owner, or an owner or admin of the only workspace it pays for: managesBill; the
- * workspace's owner where there is no bill). In a white-label client (docs/white-label.md, LIN-440) only its partner's
- * owner, never the client's own owner: the partner pays.
- */
-async function refuseUnlessMayPay(tx: Tx, actor: Actor) {
-  if (actor.workspaceDisabled) throw Reject.t('server.api.workspaceDisabled')
-  const [org] = actor.workspaceId
-    ? await tx
-        .select({ partnerId: organization.partnerId, bill: organization.billingAccountId })
-        .from(organization)
-        .where(eq(organization.id, actor.workspaceId))
-    : []
-  if (org?.partnerId) {
-    if (!(await isPartnerOwner(tx, org.partnerId, actor.actorId))) throw new Forbidden(PARTNER_DECIDES_LEVELS)
-    // A client without a bill: only as its owner, as before LIN-440 let admins and members ask (review of #1140, L-1).
-    if (!org.bill && actor.role !== 'owner') throw new Forbidden(PARTNER_DECIDES_LEVELS)
-    // On the partner bill, its owner is the partner's owner: checked (and the bill locked) as for every bill.
-    if (org.bill) await refuseUnlessBillOwner(tx, actor)
-    return
-  }
-  await refuseUnlessBillOwner(tx, actor)
+/** What this caller may do with call quality here (voice.options `callQuality`). */
+export type LevelRights = {
+  /** May change the level or its models at all; false only in a white-label client the partner keeps it for. */
+  mayChange: boolean
+  /** May raise an assistant to Premium or Ultra. */
+  mayRaise: boolean
 }
 
-/** Whether the caller may pay here, as refuseUnlessMayPay decides it (read without locks; LIN-440). */
-async function mayPay(tx: Tx, actor: Actor): Promise<boolean> {
-  if (!actor.workspaceId || actor.workspaceDisabled) return false
-  if (actor.impersonation || actor.apiKeyId || actor.personalKeyId || actor.setupKeyId) return false
+const isAdmin = (actor: Actor) => actor.role === 'owner' || actor.role === 'admin'
+
+/**
+ * In a white-label client: whether the caller may change call quality there at all (the partner's team, or the
+ * client's owner or admins while the partner lets them). Null outside a white-label client.
+ */
+async function partnerClientAllows(tx: Tx, actor: Actor): Promise<boolean | null> {
   const [org] = await tx
-    .select({
-      partnerId: organization.partnerId,
-      billId: organization.billingAccountId,
-      billOwner: billing_accounts.owner_user_id,
-      billKind: billing_accounts.kind,
-    })
+    .select({ partnerId: organization.partnerId, clientMay: workspace_settings.client_call_quality })
     .from(organization)
-    .leftJoin(billing_accounts, eq(billing_accounts.id, organization.billingAccountId))
-    .where(eq(organization.id, actor.workspaceId))
-  // A bill id without its bill: refused by the handler (refuseUnlessBillOwner), so nobody here.
-  if (!org || (org.billId && !org.billOwner)) return false
-  // Who manages the bill (managesBill: its owner, or an owner or admin of its only workspace); without a bill, the
-  // workspace's owner.
-  const ownsBill =
-    org.billId && org.billOwner && org.billKind
-      ? await managesBill(tx, actor, { id: org.billId, owner_user_id: org.billOwner, kind: org.billKind })
-      : actor.role === 'owner'
-  if (org.partnerId) return Boolean(ownsBill) && (await isPartnerOwner(tx, org.partnerId, actor.actorId))
-  return Boolean(ownsBill)
+    .leftJoin(workspace_settings, eq(workspace_settings.workspace_id, organization.id))
+    .where(eq(organization.id, actor.workspaceId!))
+  if (!org?.partnerId) return null
+  // On the partner's team: an admin membership marked with the client's partner (partners.ts keeps them in step).
+  const [mine] = await tx
+    .select({ partnerId: member.partnerId })
+    .from(member)
+    .where(and(eq(member.organizationId, actor.workspaceId!), eq(member.userId, actor.actorId)))
+  if (mine?.partnerId && mine.partnerId === org.partnerId) return true
+  return Boolean(org.clientMay) && isAdmin(actor)
 }
 
 /**
- * Whether this member may raise an assistant to a paid level here (mayPay, read without locks, for the
- * editor: Premium and Ultra are greyed for anyone it would refuse). Always on an install that does not bill usage.
+ * Whether the caller may raise where levels are billed: an owner or admin, signed in to the app as themselves (as
+ * refuseBillingActor: never an API key, a personal key, a setup link or an instance admin's impersonation).
  */
-export async function mayRaiseLevel(tx: Tx, actor: Actor): Promise<boolean> {
-  if (!(await usageLevelsBilled(tx))) return true
-  return mayPay(tx, actor)
+function raisesAsSelf(actor: Actor) {
+  if (!isAdmin(actor)) return false
+  return !(actor.impersonation || actor.apiKeyId || actor.personalKeyId || actor.setupKeyId)
+}
+
+/** What the assistant editor offers this caller (read without locks). */
+export async function levelRights(tx: Tx, actor: Actor): Promise<LevelRights> {
+  if (!actor.workspaceId || actor.workspaceDisabled) return { mayChange: false, mayRaise: false }
+  const mayChange = (await partnerClientAllows(tx, actor)) ?? true
+  if (!mayChange) return { mayChange, mayRaise: false }
+  if (!(await usageLevelsBilled(tx))) return { mayChange, mayRaise: true }
+  return { mayChange, mayRaise: raisesAsSelf(actor) }
+}
+
+/**
+ * Before a save changes what decides an assistant's level (assistant.update, assistant.restoreVersion): refused where
+ * the caller may not. `raises`: the level goes up; `changesQuality`: the level or a model pick changes (a white-label
+ * client's people change neither while the partner keeps call quality). Every refusal here, a 403 or another (a
+ * disabled workspace), is logged as a refused raise for the audit log.
+ */
+export async function refuseLevelChange(tx: Tx, actor: Actor, change: { raises: boolean; changesQuality: boolean }) {
+  try {
+    if (actor.workspaceDisabled) throw Reject.t('server.api.workspaceDisabled')
+    if (change.changesQuality && actor.workspaceId && (await partnerClientAllows(tx, actor)) === false)
+      throw Forbidden.t('server.api.callQualityPartner')
+    if (!change.raises || !(await usageLevelsBilled(tx))) return
+    if (!raisesAsSelf(actor)) throw Forbidden.t('server.api.callQualityRaise')
+  } catch (e) {
+    if (e instanceof Reject) e.reason = LEVEL_RAISE_REFUSED
+    throw e
+  }
+}
+
+/** Before a save raises an assistant to Premium or Ultra: refuseLevelChange for a raise. */
+export async function refuseLevelRaise(tx: Tx, actor: Actor) {
+  await refuseLevelChange(tx, actor, { raises: true, changesQuality: true })
 }
 
 /**
  * Whether a new assistant may start on a paid level (assistant.create: the install's default, or a copy's level): as
- * refuseLevelRaise decides it, under the same shared bill lock, so a change of the bill's owner at the same moment waits
- * for the new assistant and then moves it back, or commits first and the new assistant starts on Standard (as a raise
- * does, LIN-438). mayRaiseLevel reads without that lock and is only for what the editor offers.
+ * refuseLevelRaise decides it; anyone else starts it on Standard.
  */
 export async function mayStartOnPaidLevel(tx: Tx, actor: Actor): Promise<boolean> {
   if (actor.workspaceDisabled) return false
@@ -86,24 +97,5 @@ export async function mayStartOnPaidLevel(tx: Tx, actor: Actor): Promise<boolean
   } catch (e) {
     if (e instanceof Forbidden) return false
     throw e
-  }
-}
-
-/**
- * Before a save raises an assistant to Premium or Ultra on Linedesk Cloud: refused unless the caller may pay, signed in
- * as themselves in the app (refuseBillingActor), never through an API key or an impersonation. Locks the bill (shared)
- * until the save commits, so a change of the bill's owner waits for it and then moves the assistant back (LIN-438).
- * Nothing on an install that does not bill usage.
- */
-export async function refuseLevelRaise(tx: Tx, actor: Actor) {
-  if (!(await usageLevelsBilled(tx))) return
-  try {
-    refuseBillingActor(actor)
-    await refuseUnlessMayPay(tx, actor)
-  } catch (e) {
-    // Every refusal here, a 403 or another (a disabled workspace), is logged as a refused raise for the audit log.
-    const refusal = e instanceof Forbidden ? Forbidden.t('server.api.callQualityRaise') : e
-    if (refusal instanceof Reject) refusal.reason = LEVEL_RAISE_REFUSED
-    throw refusal
   }
 }

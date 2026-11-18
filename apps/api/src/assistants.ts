@@ -79,8 +79,8 @@ export const assistantHandlers: Record<string, Handler> = {
     const source = input.copyOf ? await assistantIn(tx, workspaceId, input.copyOf) : null
     // The first contact named in the workspace's language (else the member's).
     const transfers = await newAssistantTransfers(tx, workspaceId, actor.locale)
-    // The install's default level, or the copied one's; a paid level only for the person who pays (level-raise.ts),
-    // checked under the bill lock like a raise; anyone else starts it on Standard.
+    // The install's default level, or the copied one's; a paid level only for whoever may raise one (level-raise.ts);
+    // anyone else starts it on Standard.
     const wanted = source?.call_quality ?? (await newAssistantLevel(tx))
     const level = wanted === 'standard' || (await mayStartOnPaidLevel(tx, actor)) ? wanted : 'standard'
     const values = source

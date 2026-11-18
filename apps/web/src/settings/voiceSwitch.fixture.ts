@@ -33,6 +33,7 @@ export const NO_PRICES: VoiceOptionsData['callQuality'] = {
     defaults: { llm: null, voice: {}, realtime: null },
   })),
   defaultLevel: 'standard',
+  mayChange: true,
   mayRaise: true,
   partnerManaged: false,
   llmProvider: null,

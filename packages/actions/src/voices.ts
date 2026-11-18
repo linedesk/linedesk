@@ -183,7 +183,7 @@ export type VoiceOptionsData = {
 export const voiceOptions = defineAction({
   name: 'voice.options',
   description:
-    "The voices an assistant can use with the text-to-speech provider in effect: curated voices, the workspace's cloned voices, and whether it can clone one. `callQuality`: the call qualities (standard, premium, ultra) this server has on, each with its price a minute in US cents (null where no prices are shown), the models that belong to it (language models, voice models per voice provider, realtime models on Ultra) and what its default stands for; `defaultLevel` (new assistants start on it) and `mayRaise` (whether you may pick a paid level for an assistant).",
+    "The voices an assistant can use with the text-to-speech provider in effect: curated voices, the workspace's cloned voices, and whether it can clone one. `callQuality`: the call qualities (standard, premium, ultra) this server has on, each with its price a minute in US cents (null where no prices are shown), the models that belong to it (language models, voice models per voice provider, realtime models on Ultra) and what its default stands for; `defaultLevel` (new assistants start on it), `mayChange` (whether you may change an assistant's level and models at all; false in a white-label client whose partner keeps call quality) and `mayRaise` (whether you may pick a paid level for an assistant).",
   input: z.object({}),
   permission: 'call:read',
   readOnly: true,

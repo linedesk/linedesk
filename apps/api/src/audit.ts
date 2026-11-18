@@ -8,7 +8,7 @@ import type { EmailRules, TransferContact } from '@linedesk/db/types'
 import { type createAuthMiddleware, isAPIError } from 'better-auth/api'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { db } from './db.ts'
-import { LEVEL_RAISE_REFUSED, said, sayIn } from './handler-context.ts'
+import { LEVEL_RAISE_REFUSED } from './handler-context.ts'
 import type { SignupRuleChange } from './self-serve.ts'
 
 export type AuthEventName = (typeof auth_events.$inferInsert)['event']
@@ -354,6 +354,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'partner.releaseClient': 'partners',
   'partner.deleteClient': 'partners',
   'partner.setClientUsageLimit': 'partners',
+  'partner.setClientCallQuality': 'partners',
   'workspace.removePartner': 'partners',
   'partnerBrand.set': 'partners',
   'partnerBrand.setProtectedNames': 'partners',
@@ -546,10 +547,12 @@ const emailRoutingChangeSql = sql`(c.action = 'assistant.update' and (jsonb_type
  * run-action.ts): how an older refused assistant.restoreVersion raise is told apart, whose input names only the
  * version (review L-3). Only a fallback for those entries; newer ones carry LEVEL_RAISE_REFUSED.
  */
-const LEVEL_RAISE_REFUSED_TEXT = sayIn(said('server.api.callQualityRaise'))
+// i18n-ignore: the English older command-log rows kept (before 2026-11-18 reworded it), matched, never shown
+export const LEVEL_RAISE_REFUSED_TEXT =
+  'Premium and Ultra cost more a minute: only the person who pays for this workspace can pick them.'
 /**
  * SQL: a command of `c` that changed what decides the assistant's usage level (`data.usageLevelChange` an object), or
- * one refused whose input named a call quality, or one refused as a raise (`result.reason`, refuseLevelRaise: an edit
+ * one refused whose input named a call quality, or one refused as a raise (`result.reason`, refuseLevelChange: an edit
  * or a version restore, also a refusal that is no 403, a disabled workspace), or an older version restore refused
  * with the raise's English.
  */

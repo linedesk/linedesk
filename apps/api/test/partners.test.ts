@@ -54,6 +54,7 @@ import {
   asServerAdmin,
   createWorkspace,
   FROM,
+  getAssistant,
   randomIp,
   request,
   signUp,
@@ -1336,6 +1337,7 @@ describe('Partner › Clients (S3)', () => {
       limitPercent: 95,
       billed: true,
       ownKeys: false,
+      clientCallQuality: false,
       ownCarrier: false,
       problems: ['limit_near'],
     })
@@ -1454,24 +1456,94 @@ describe('Partner › Clients (S3)', () => {
     expect(ownLevel).toEqual({ level: 'premium' })
   })
 
-  test("only the partner's owner raises a client's assistant to Premium or Ultra; the client's owner and the team cannot (LIN-440)", async () => {
+  test("call quality in a client: the partner's team always; the client's owner and admins only while the partner lets them (decisions.md 2026-11-18)", async () => {
     const p = await billedPartner('Level Partner', 'active', true)
     const c = await createClient(p, 'Level Client')
     const owner = await inWorkspace(await giveOwner(p, c), c)
     const padmin = await addPartnerAdmin(p)
+    const clientAdmin = await inWorkspace(await addMember(c, 'admin'), c)
+    const clientMember = await inWorkspace(await addMember(c, 'member'), c)
     const [assistant] = await db.select({ id: assistants.id }).from(assistants).where(eq(assistants.workspace_id, c))
-    const raise = async (who: User, level: 'premium' | 'ultra' | 'standard' = 'premium') =>
-      (await act(who, 'assistant.update', { assistantId: assistant!.id, call_quality: level })).status
+    const set = async (who: User, input: Record<string, unknown>) =>
+      (await act(who, 'assistant.update', { assistantId: assistant!.id, ...input })).status
+    const raise = (who: User, level: 'premium' | 'ultra' | 'standard' = 'premium') => set(who, { call_quality: level })
+    const rights = async (who: User) => {
+      const q = (await act(who, 'voice.options', {})).body.data.callQuality
+      return { mayChange: q.mayChange, mayRaise: q.mayRaise }
+    }
+    const allow = (who: User, on: boolean) =>
+      act(who, 'partner.setClientCallQuality', { partnerId: p.id, workspaceId: c, on })
+    const listed = async () =>
+      (await act(p.owner, 'partner.listClients', { partnerId: p.id })).body.data.clients.find(
+        (x: { id: string }) => x.id === c,
+      )
     cloud.on = true
     onTestFinished(() => {
       cloud.on = false
     })
-    // In the client workspace itself only the partner's owner raises, never the client's owner or a partner admin.
+    const ownerIn = await inWorkspace(p.owner, c)
+    const padminIn = await inWorkspace(padmin, c)
+
+    // Off by default: only the partner's team changes it (owner and admins alike); the client's people neither see it
+    // nor change it, not even down or a model within the level.
+    expect((await listed()).clientCallQuality).toBe(false)
+    expect(await rights(ownerIn)).toEqual({ mayChange: true, mayRaise: true })
+    expect(await rights(padminIn)).toEqual({ mayChange: true, mayRaise: true })
+    for (const who of [owner, clientAdmin, clientMember])
+      expect(await rights(who)).toEqual({ mayChange: false, mayRaise: false })
     expect(await raise(owner)).toBe(403)
-    expect(await raise(await inWorkspace(padmin, c))).toBe(403)
-    expect(await raise(await inWorkspace(p.owner, c))).toBe(200)
-    // Anyone who edits the assistant lowers it.
+    expect(await raise(clientAdmin)).toBe(403)
+    expect(await raise(padminIn)).toBe(200)
+    expect(await raise(ownerIn, 'ultra')).not.toBe(403)
+    expect(await raise(ownerIn, 'premium')).toBe(200)
+    expect(await raise(owner, 'standard')).toBe(403)
+    expect(await set(clientAdmin, { llm_model: 'gpt-4.1' })).toBe(403)
+    // A change that leaves call quality as it is (the greeting) stays the client's.
+    expect(await set(owner, { greeting: 'Thanks for calling.' })).toBe(200)
+    expect((await getAssistant(assistant!.id))!.call_quality).toBe('premium')
+    // The refusal says who manages it, and is in the audit log as a refused call quality change.
+    const refusal = await act(owner, 'assistant.update', { assistantId: assistant!.id, call_quality: 'standard' })
+    expect(refusal.body).toMatchObject({ error: 'Your partner manages call quality for this workspace.' })
+    const refused = await db
+      .select()
+      .from(commands)
+      .where(and(eq(commands.workspace_id, c), eq(commands.action, 'assistant.update'), eq(commands.rejected, true)))
+    // The client's five refusals above; the team's Ultra without a realtime model is another refusal, not one of them.
+    expect(refused.filter(r => (r.result as { reason?: string }).reason === 'level_raise')).toHaveLength(5)
+
+    // Giving it to the client is the partner's owner's; a partner admin may not, the client never.
+    expect((await allow(padmin, true)).status).toBe(403)
+    expect((await allow(owner, true)).status).toBe(403)
+    expect((await allow(p.owner, true)).status).toBe(200)
+    expect((await listed()).clientCallQuality).toBe(true)
+    // On: the client's owner and admins change it like the team; its members still never (they edit no assistant).
+    expect(await rights(owner)).toEqual({ mayChange: true, mayRaise: true })
+    expect(await rights(clientAdmin)).toEqual({ mayChange: true, mayRaise: true })
+    expect(await rights(clientMember)).toEqual({ mayChange: false, mayRaise: false })
     expect(await raise(owner, 'standard')).toBe(200)
+    expect(await raise(clientAdmin, 'premium')).toBe(200)
+    expect(await raise(clientMember, 'standard')).toBe(403)
+    // Still signed in to the app only: an instance admin's impersonation of the client's admin changes nothing.
+    const operator = await signUp()
+    await db.update(user).set({ instanceAdmin: true }).where(eq(user.id, operator.userId))
+    await db.update(session).set({ impersonatedBy: operator.userId }).where(eq(session.userId, clientAdmin.userId))
+    try {
+      expect((await rights(clientAdmin)).mayRaise).toBe(false)
+      expect(await raise(clientAdmin, 'standard')).toBe(403)
+      expect((await getAssistant(assistant!.id))!.call_quality).toBe('premium')
+    } finally {
+      await db.update(session).set({ impersonatedBy: null }).where(eq(session.userId, clientAdmin.userId))
+    }
+
+    // Anyone on the team takes it back; the client's people again see nothing and change nothing.
+    expect((await allow(padmin, false)).status).toBe(200)
+    expect(await rights(owner)).toEqual({ mayChange: false, mayRaise: false })
+    expect(await raise(owner, 'standard')).toBe(403)
+    expect(await raise(padminIn, 'standard')).toBe(200)
+    // Both switches are in the audit log.
+    const audit = await listAudit(db, { kind: 'partners', limit: 100 })
+    expect(audit.entries.filter(e => e.what === 'partner.setClientCallQuality').length).toBeGreaterThanOrEqual(2)
+
     // The client's people see no prices: the partner bills them its own way (L-2).
     const settings = (await act(owner, 'workspace.getSettings', {})).body.data
     expect(settings.partnerManaged).toBe(true)
@@ -2237,9 +2309,18 @@ describe('a client that changes partner leaves own keys off (security review of 
   test("a Server admin move to another partner: off, and the new partner's keys never answer until its owner says so", async () => {
     const c = await switchedOn(from, 'Keys Moving Dental')
     expect(await ownKeys(c)).toBe(true)
+    // The old partner also let the client change call quality (decisions.md 2026-11-18): the new partner decides it again.
+    expect(
+      await act(from.owner, 'partner.setClientCallQuality', { partnerId: from.id, workspaceId: c, on: true }),
+    ).toMatchObject({ status: 200 })
     expect(await move(c, to.id, 'Keys Moving Dental')).toMatchObject({ status: 200 })
     expect(await orgRow(c)).toMatchObject({ partnerId: to.id })
     expect(await switchOf(c)).toBe(false)
+    const [settings] = await db
+      .select({ clientCallQuality: workspace_settings.client_call_quality })
+      .from(workspace_settings)
+      .where(eq(workspace_settings.workspace_id, c))
+    expect(settings).toEqual({ clientCallQuality: false })
     expect(await ownKeys(c)).toBe(false)
     // The new partner's owner decides.
     expect(
