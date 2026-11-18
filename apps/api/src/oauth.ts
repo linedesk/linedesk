@@ -354,9 +354,13 @@ export function clientFromDocument(clientId: string, doc: unknown): OAuthClient 
   const uris = d.redirect_uris
   if (!Array.isArray(uris) || !uris.length || uris.length > REDIRECT_URIS_MAX) return null
   if (!uris.every(u => typeof u === 'string' && redirectKind(u))) return null
-  // A document is public: no secret, so only public clients (PKCE).
+  // A document is public: no secret, so only public clients (PKCE). A client that prefers another method but also
+  // supports `none` (ChatGPT: private_key_jwt, with `none` in token_endpoint_auth_methods_supported) connects as a
+  // public client; this server does not offer its preferred method, so the client uses `none` with us.
   const method = d.token_endpoint_auth_method ?? 'none'
-  if (method !== 'none') return null
+  const supported = d.token_endpoint_auth_methods_supported
+  if (typeof method !== 'string') return null
+  if (method !== 'none' && !(Array.isArray(supported) && supported.includes('none'))) return null
   const host = new URL(clientId).host
   return {
     clientId,
@@ -569,6 +573,7 @@ export async function serveToken(request: Request, ip: string | null): Promise<R
   if (!clientId || !code || !verifier || !redirectUri)
     return tokenError(400, 'invalid_request', 'client_id, code, code_verifier and redirect_uri are required')
 
+  // A client_assertion (private_key_jwt) is ignored on purpose: such a client connects as a public one (clientFromDocument).
   const client = await findClient(clientId, addressBucket(ip))
   if (!client || client === 'unreachable')
     return tokenError(401, 'invalid_client', 'unknown client', { 'www-authenticate': 'Basic realm="linedesk"' })

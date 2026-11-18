@@ -517,6 +517,43 @@ describe('client metadata documents (CIMD)', () => {
     expect((await mcp(res.body.access_token)).status).toBe(200)
   })
 
+  test('a client that prefers private_key_jwt but also supports none connects as a public client (ChatGPT)', async () => {
+    const CHATGPT = 'https://chatgpt.com/oauth/client.json'
+    const doc = (supported: string[]) => ({
+      client_id: CHATGPT,
+      client_name: 'ChatGPT',
+      redirect_uris: [CALLBACK],
+      token_endpoint_auth_method: 'private_key_jwt',
+      token_endpoint_auth_methods_supported: supported,
+      jwks_uri: 'https://chatgpt.com/oauth/jwks.json',
+    })
+    clientMetadata.fetch = async url => (url === CHATGPT ? doc(['none', 'private_key_jwt']) : null)
+    const flow: Flow = { clientId: CHATGPT, redirectUri: CALLBACK, ...pkce(), state: 'chatgpt' }
+    const described = await act(ws.owner, 'oauth.describe', request(flow))
+    expect(described.body.data).toMatchObject({ ok: true, clientName: 'ChatGPT', clientHost: 'chatgpt.com' })
+    // ChatGPT may still send its client assertion: it is ignored, PKCE is what counts.
+    const assertion = {
+      client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+      client_assertion: 'x.y.z',
+    }
+    const wrong = await exchange(flow, await approve(ws.owner, flow), { ...assertion, code_verifier: pkce().verifier })
+    expect(wrong.body.error).toBe('invalid_grant')
+    const res = await exchange(flow, await approve(ws.owner, flow), assertion)
+    expect(res.status).toBe(200)
+    expect((await mcp(res.body.access_token)).status).toBe(200)
+
+    // Without `none` among its methods (or with no list, or a string), the client needs a method this server does not offer.
+    for (const supported of [['private_key_jwt'], undefined, 'none']) {
+      forgetClientDocuments()
+      clientMetadata.fetch = async () => ({ ...doc([]), token_endpoint_auth_methods_supported: supported })
+      expect((await act(ws.owner, 'oauth.describe', request(flow))).body.data, String(supported)).toEqual({
+        ok: false,
+        problem: 'client',
+        errorTo: null,
+      })
+    }
+  })
+
   test('a document for another client_id, or one that cannot be fetched, is refused', async () => {
     clientMetadata.fetch = async () => ({ client_id: 'https://other.example/doc', redirect_uris: [CALLBACK] })
     const flow: Flow = { clientId: DOC, redirectUri: CALLBACK, ...pkce(), state: 'x' }
