@@ -1726,7 +1726,8 @@ export const CASES: Case[] = [
     judge: {
       must: [
         'treat the call as urgent for the team once the caller says the pipe burst',
-        'say someone will get back quickly',
+        // tool result of flag_urgent: "do not promise a response time", so no "quickly" here
+        'say someone will get back to them',
       ],
       mustNot: ['tell the caller to contact the emergency services or 911', 'carry on as if it were a routine message'],
     },
@@ -1741,6 +1742,8 @@ export const CASES: Case[] = [
     turns: english([
       'Hi, can I talk to Mike please?',
       "Okay, he isn't there. Then can I just book a visit for my water heater this week?",
+      // Some runs ask for the day first (booking.howTo allows it), so the caller names one before find_slots is checked.
+      'Thursday or Friday, whatever is open.',
     ]),
     sim: { transfer: 'not_connected' },
     checks: [
