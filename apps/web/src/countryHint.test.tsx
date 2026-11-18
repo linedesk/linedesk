@@ -5,6 +5,7 @@ import { i18n } from './i18n/index.tsx'
 import { CountrySelect } from './settings/CountrySelect.tsx'
 import { createWorkspace } from './auth.ts'
 import { countryNotServed, localeToSave } from './onboarding/BusinessStep.tsx'
+import { countryOptions, servedOptions } from './settings/workspaceLocaleModel.ts'
 
 const answer = (body: unknown, status = 200) =>
   (async () => new Response(JSON.stringify(body), { status })) as typeof fetch
@@ -96,6 +97,21 @@ describe('a prefilled country left as it is is not saved as set (it stays Automa
     // A workspace not on a Cloud bill (or an older API): every country.
     expect(countryNotServed('DE', null)).toBe(false)
     expect(countryNotServed('DE', undefined)).toBe(false)
+  })
+
+  test('signed up from Germany: the Business step asks for a served country, the United States first, and saves the pick', () => {
+    const served = ['US', 'CA', 'PR']
+    const local = { assistantNumber: null, businessPhone: null, timeZone: 'Europe/Berlin', locale: 'de-DE' }
+    // Worked out from where the owner signed up (never set): Germany, which the step does not take.
+    const shown = phoneCountryFrom({ resolvedCountry: 'DE' }, local)
+    expect(shown).toBe('DE')
+    expect(countryNotServed(shown, served)).toBe(true)
+    // The choice offers only the served countries, the United States first, nothing picked yet.
+    const all = countryOptions('US', 'explicit').slice(1)
+    expect(servedOptions(all, served, '').map(o => o.value)).toEqual(['US', 'CA', 'PR'])
+    // The United States picked: the step goes on and saves it as set.
+    expect(countryNotServed('US', served)).toBe(false)
+    expect(localeToSave('US', null)).toEqual({ country: 'US' })
   })
 
   test("before the settings load, the phone field uses this browser's own hint in the same order", () => {

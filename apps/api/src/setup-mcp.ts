@@ -120,7 +120,7 @@ import { isPendingPayment, waitsForOwnTrial } from './self-serve.ts'
 import { type PartnerSetupFacts, partnerPast, partnerSetupFacts } from './partner-setup.ts'
 import { setupChecklist } from './setup-checklist.ts'
 import { workspaceLocale } from './workspace-locale.ts'
-import { isPlaceholderWorkspaceName } from './served-countries.ts'
+import { isPlaceholderWorkspaceName, servedCountriesOf } from './served-countries.ts'
 import { assistantSpokeIn } from './setup-events.ts'
 import { withoutHopByHopHeaders } from './keep-alive.ts'
 
@@ -1083,7 +1083,12 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   // step onboarding went past (not "Finish later") is done too. The assistant and who hears about calls are choices
   // with defaults: done once changed.
   const step = settings?.onboarding_step
-  const businessDone = hasProfile || past(step, 'business')
+  // A workspace on a Linedesk Cloud bill is served only in the sign-up countries (served-countries.ts): one whose
+  // country is another (worked out from where its owner signed up, say) needs a served one set before the business
+  // step counts as done, as Checkout refuses it otherwise.
+  const served = await servedCountriesOf(db, workspaceId)
+  const countryUnserved = !!served && !served.includes(locale.resolvedCountry)
+  const businessDone = (hasProfile || past(step, 'business')) && !countryUnserved
   const phoneDone = numbers.length > 0
   // A workspace set up before the choice was stored answers with the default: done once onboarding went past it.
   const pickupDone = Boolean(settings?.pickup_mode) || past(step, 'pickup')
@@ -1138,6 +1143,17 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       // The name is a member's text: quoted, as data.
       detail: `${JSON.stringify(ws?.name ?? '')} (${workspaceId}), time zone ${settings?.timezone ?? 'unknown'}, country ${locale.resolvedCountry}${locale.country ? '' : ` (automatic, ${locale.countrySource})`}, language ${locale.resolvedLanguage} (from the country), assistant ${assistant?.id ?? 'none'}`,
       how: [
+        ...(countryUnserved
+          ? [
+              english.t('server.setupAgent.countryNotServed', {
+                served: served!.join(', '),
+                country: locale.resolvedCountry,
+                how: locale.country ? 'set' : `only worked out, from ${locale.countrySource}`,
+                who,
+                call: `workspace_updateSettings { ${w}, country }`,
+              }),
+            ]
+          : []),
         `Check the name, time zone and country with the ${who}: workspace_rename { ${w}, name }, workspace_updateSettings { ${w}, timeZone, country: "US" } (ISO country code; null: automatic). The country is the default for phone numbers, the forwarding guide, holidays and currency, and the region numbers callers say are read in; its main language is what call summaries are written in and what the assistant greets in unless it has its own main language (assistant_update languages.main).`,
         `business_search { ${w}, query: "<name> <city>" } finds the listing (when business lookup is set up); business_import { ${w}, assistantId: "${assistant?.id ?? ''}", placeId?, name?, website? } drafts a profile from the listing and the website. It changes nothing.`,
         `Show the ${who} a short summary (services, area, hours, what to say about prices), fix what they correct, then save it: assistant_update { ${w}, assistantId, business_profile }. Opening hours: businessHours_set { ${w}, … }.`,

@@ -495,8 +495,12 @@ describe('account.signUp', () => {
     expect(again.body.data.workspace.id).toBe(made.body.data.workspace.id)
   })
 
-  test('outside the US, Canada and Puerto Rico: not yet, nothing is made', async () => {
-    const { email, made } = await signUpThroughPage(address('abroad'), { ...DETAILS, country: 'de' })
+  test('a country picked outside the US, Canada and Puerto Rico: not yet, nothing is made', async () => {
+    const { email, made } = await signUpThroughPage(
+      address('abroad'),
+      { ...DETAILS, country: 'de' },
+      FROM_COUNTRY('US'),
+    )
     expect(made).toMatchObject({ status: 409, body: { ok: false, code: COUNTRY_NOT_SERVED } })
     const account = await accountOf(email)
     expect(await db.select().from(billing_accounts).where(eq(billing_accounts.owner_user_id, account!.id))).toEqual([])
@@ -516,22 +520,47 @@ describe('account.signUp', () => {
     expect((await request(who, 'GET', '/v1/me')).body.workspace).toMatchObject({ id: workspace.id, unnamed: true })
   })
 
-  test('name only, from a country not served yet: not yet, nothing is made', async () => {
-    const { email, made } = await signUpThroughPage(address('fromde'), NAME_ONLY, FROM_COUNTRY('DE'))
-    expect(made).toMatchObject({ status: 409, body: { ok: false, code: COUNTRY_NOT_SERVED } })
-    const account = await accountOf(email)
-    expect(await db.select().from(billing_accounts).where(eq(billing_accounts.owner_user_id, account!.id))).toEqual([])
+  test('name only, from a country not served yet: made; the Business step asks for a served country (2026-11-18)', async () => {
+    const { who, made } = await signUpThroughPage(address('fromde'), NAME_ONLY, FROM_COUNTRY('DE'))
+    expect(made).toMatchObject({ status: 200, body: { ok: true, data: { existing: false } } })
+    const workspaceId = made.body.data.workspace.id
+    const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
+    // Never set from the hint: worked out as Germany, which the Business step and Checkout do not take.
+    expect(row).toMatchObject({ country: null, country_hint: 'DE', country_hint_source: 'sign_up_location' })
+    const inWs = { headers: { ...who.headers, 'x-workspace-id': workspaceId } }
+    const before = (await act(inWs, 'workspace.getSettings', {})).body.data
+    expect(before).toMatchObject({ country: null, resolvedCountry: 'DE', servedCountries: ['US', 'CA', 'PR'] })
+    // A German tester runs a US business: the United States is taken, the time zone and currency follow it.
+    expect((await act(inWs, 'workspace.updateSettings', { country: 'US' })).status).toBe(200)
+    const after = (await act(inWs, 'workspace.getSettings', {})).body.data
+    expect(after).toMatchObject({ country: 'US', resolvedCountry: 'US', countrySource: 'explicit' })
+    const [saved] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
+    expect(saved).toMatchObject({ job_value_currency: 'USD' })
+    expect(saved!.timezone.startsWith('America/')).toBe(true)
   })
 
   test("the hint is the request's own: one the caller sends is replaced", async () => {
     const sent = { ...NAME_ONLY, countryHint: { country: 'US', source: 'sign_up_location' } }
+    const hintOf = async (workspaceId: string) =>
+      (await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId)))[0]
     const { made } = await signUpThroughPage(address('claims'), sent, FROM_COUNTRY('DE'))
-    expect(made).toMatchObject({ status: 409, body: { code: COUNTRY_NOT_SERVED } })
+    expect(made.status).toBe(200)
+    expect(await hintOf(made.body.data.workspace.id)).toMatchObject({
+      country: null,
+      country_hint: 'DE',
+      country_hint_source: 'sign_up_location',
+    })
     // Without a location, the time zone the page sent decides.
     const zoned = await signUpThroughPage(address('zoned'), { ...NAME_ONLY, timeZone: 'Europe/Berlin' })
-    expect(zoned.made).toMatchObject({ status: 409, body: { code: COUNTRY_NOT_SERVED } })
+    expect(zoned.made.status).toBe(200)
+    expect(await hintOf(zoned.made.body.data.workspace.id)).toMatchObject({
+      country: null,
+      country_hint: 'DE',
+      country_hint_source: 'time_zone',
+    })
     const chicago = await signUpThroughPage(address('chicago'), { ...NAME_ONLY, timeZone: 'America/Chicago' })
     expect(chicago.made.status).toBe(200)
+    expect(await hintOf(chicago.made.body.data.workspace.id)).toMatchObject({ country_hint: 'US' })
   })
 
   test('name only, from nowhere known: made, the Business step decides on the country', async () => {
@@ -559,7 +588,8 @@ describe('account.signUp', () => {
       { ...PARTNER, businessName: 'Agentur' },
       FROM_COUNTRY('DE'),
     )
-    expect(abroad.made).toMatchObject({ status: 409, body: { code: COUNTRY_NOT_SERVED } })
+    // Where the request comes from never refuses a sign-up (2026-11-18).
+    expect(abroad.made).toMatchObject({ status: 200, body: { data: { partner: { name: 'Agentur' } } } })
     const named = { ...PARTNER, businessName: 'Cascade IT Partners' }
     const { made } = await signUpThroughPage(address('partnername'), named, FROM_COUNTRY('CA'))
     expect(made).toMatchObject({ status: 200, body: { data: { partner: { name: 'Cascade IT Partners' } } } })
@@ -1128,8 +1158,8 @@ describe("the owner's agent setup link before the trial (agent-first, 2026-11-18
     (await tool(key, 'setup_status', { read_only: readOnly })).body.result.structuredContent.workspaces[0].steps
 
   /** A sign-up waiting for Checkout and the owner's working setup link for its workspace. */
-  async function waitingWithLink() {
-    const { email, who, made } = await signUpThroughPage()
+  async function waitingWithLink(details: Record<string, unknown> = DETAILS, headers: Record<string, string> = {}) {
+    const { email, who, made } = await signUpThroughPage(address('owner'), details, headers)
     const workspaceId: string = made.body.data.workspace.id
     const inWs = { headers: { ...who.headers, 'x-workspace-id': workspaceId } }
     const link = await act(inWs, 'agentSetup.createWorkspaceKey', {})
@@ -1149,6 +1179,21 @@ describe("the owner's agent setup link before the trial (agent-first, 2026-11-18
     expect(errorText(await tool(key, 'workspace_updateSettings', { ...w, pickupMode: 'no_answer' }))).toBeNull()
     expect(errorText(await tool(key, 'notifications_update', { ...w, email: true }))).toBeNull()
     expect(errorText(await tool(key, 'onboarding_setStep', { ...w, step: 'notify' }))).toBeNull()
+  })
+
+  test('signed up from Germany: the business step asks for a served country and stays to do until one is set', async () => {
+    const { key, workspaceId, inWs } = await waitingWithLink(NAME_ONLY, FROM_COUNTRY('DE'))
+    // Even with the profile saved and the onboarding moved on, the business step waits for a served country.
+    expect(errorText(await tool(key, 'onboarding_setStep', { workspaceId, step: 'activate' }))).toBeNull()
+    let business = (await stepsOf(key)).find(s => s.id === 'business')!
+    expect(business.state).toBe('todo')
+    expect(business.how!.join(' ')).toMatch(/serves businesses only in US, CA, PR, and its country is DE/)
+    // The agent sets the United States: taken, and the step is done.
+    expect(errorText(await tool(key, 'workspace_updateSettings', { workspaceId, country: 'US' }))).toBeNull()
+    business = (await stepsOf(key)).find(s => s.id === 'business')!
+    expect(business.state).toBe('done')
+    expect(business.how?.join(' ') ?? '').not.toMatch(/serves businesses only/)
+    expect((await act(inWs, 'workspace.getSettings', {})).body.data).toMatchObject({ resolvedCountry: 'US' })
   })
 
   test("before the free steps are done, Start your free trial waits; after them it is the owner's own row before the number", async () => {

@@ -118,10 +118,11 @@ const signUp: Handler = async (ctx, input: SignUpInput) => {
     const data: AccountSignUpData = { ...waiting, existing: true }
     return { rows: {}, data: { ...data, subject: { email: me.email, workspaceId: waiting.workspace?.id ?? null } } }
   }
-  // The country gate (docs/billing.md §3.2): the country picked (an older page), else where the request comes from.
-  // Unknown: let through, the onboarding's Business step decides on the business's own country.
-  const country = input.country ?? input.countryHint?.country ?? null
-  if (country && !isServedCountry(country)) throw countryNotYet()
+  // The country gate (docs/billing.md §3.2): only a country picked (an older page) outside the sign-up countries is
+  // refused. Where the request comes from (the hint) never is: someone abroad may run a business in a served country
+  // (2026-11-18). The onboarding's Business step asks for the business's own country, served ones only, and Checkout
+  // refuses a workspace whose country is another one (served-countries.ts).
+  if (input.country && !isServedCountry(input.country)) throw countryNotYet()
   // The terms the page showed must still be the ones in effect (A9): changed while the page was open, it reloads them.
   const { terms } = legalTerms()
   if (!terms) throw new Forbidden(SIGNUP_CLOSED)

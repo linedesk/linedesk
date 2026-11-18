@@ -30,6 +30,7 @@ import {
   terms_acceptances,
   usage_counters,
   user,
+  workspace_settings,
 } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
@@ -62,6 +63,7 @@ import { setJobQueue } from '../src/jobs.ts'
 import { postEntry } from '../src/ledger.ts'
 import { checkLedgerGuards } from '../src/ledger-guards.ts'
 import { SIGNUP_RULES_KEY } from '../src/self-serve.ts'
+import { COUNTRY_NOT_SERVED } from '../src/served-countries.ts'
 import { processStripeEventJob } from '../src/stripe-events.ts'
 import {
   act,
@@ -559,6 +561,28 @@ describe('billing.startCheckout (docs/billing.md §3.2 step 3)', () => {
     expect(stripe.requests.find(r => r.path === '/v1/customers')?.idempotencyKey).toBe(`${bill.id}:customer`)
     await startCheckout(owner)
     expect(stripe.requests.filter(r => r.path === '/v1/customers')).toHaveLength(1)
+  })
+
+  test('a business worked out to be abroad is refused before any card; set to the US (owner in Germany) it starts', async () => {
+    const { ws, owner } = await pendingSignUp()
+    // Signed up from Germany (the proxy's country): worked out as Germany until the Business step sets a country.
+    await db
+      .update(workspace_settings)
+      .set({ country: null, country_hint: 'DE', country_hint_source: 'sign_up_location', timezone: 'Europe/Berlin' })
+      .where(eq(workspace_settings.workspace_id, ws.id))
+    // No number of its own yet (a number would name its country).
+    await db.delete(phone_numbers).where(eq(phone_numbers.workspace_id, ws.id))
+    expect((await act(owner, 'workspace.getSettings', {})).body.data).toMatchObject({ resolvedCountry: 'DE' })
+    expect(await act(owner, 'billing.startCheckout', {})).toMatchObject({
+      status: 409,
+      body: { ok: false, code: COUNTRY_NOT_SERVED },
+    })
+    expect(checkoutsMade()).toEqual([])
+    expect((await act(owner, 'workspace.updateSettings', { country: 'US' })).status).toBe(200)
+    const params = Object.fromEntries((await startCheckout(owner)).body)
+    // The billing address is the owner's own, wherever it is: Checkout names no allowed countries.
+    expect(params).toMatchObject({ billing_address_collection: 'required' })
+    expect(Object.keys(params).filter(k => k.includes('allowed_countries'))).toEqual([])
   })
 
   test('never a member, signed in, and only while the bill waits for Checkout', async () => {

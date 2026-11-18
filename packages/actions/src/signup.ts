@@ -16,7 +16,7 @@ export const SIGNUP_INTERVALS = ['year', 'month'] as const
 export const accountSignUp = defineAction({
   name: 'account.signUp',
   description:
-    "Start a plan on this server for your business: makes your bill and your workspace (you are its owner), waiting for a card at Checkout. With plan `partner`: a white-label partner account instead (you are its owner, pending a server admin's approval) with the partner bill and no workspace yet. Your name and the versions of the terms and privacy policy the sign-up page showed (you accept them by starting); for a partner also its company name. The business's name and country are set in the onboarding's first step; until then the workspace has a placeholder name and the country the request comes from (only US, CA and PR are served; another one is told \"not yet\"). One waiting sign-up per account: asked again, it answers the one there is.",
+    "Start a plan on this server for your business: makes your bill and your workspace (you are its owner), waiting for a card at Checkout. With plan `partner`: a white-label partner account instead (you are its owner, pending a server admin's approval) with the partner bill and no workspace yet. Your name and the versions of the terms and privacy policy the sign-up page showed (you accept them by starting); for a partner also its company name. The business's name and country are set in the onboarding's first step; until then the workspace has a placeholder name and the country the request comes from, worked out (only US, CA and PR are served: from anywhere else the first step asks which of these the business is in, and Checkout refuses another one). One waiting sign-up per account: asked again, it answers the one there is.",
   input: z
     .object({
       name: z.string().trim().min(1).max(80),
@@ -31,7 +31,7 @@ export const accountSignUp = defineAction({
         .optional(),
       /**
        * Where the request comes from (countryHintOf): set by POST /v1/signup from the request itself, never taken from
-       * the caller. Without `country`, a hint outside the sign-up countries is told "not yet".
+       * the caller. It only prefills the workspace's country (worked out, never set) and never refuses a sign-up.
        */
       countryHint: countryHintSchema.optional(),
       plan: z.enum(SIGNUP_PLANS),

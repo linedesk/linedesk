@@ -198,6 +198,7 @@
   "setupAgent.clientStep.forwardingHint": "from the client's business line",
   "setupAgent.clientStep.phoneHint": "a new number, or forwarding from the client's",
   "setupAgent.clientStep.pickupHint": "calls the client misses, after hours, or every call",
+  "setupAgent.countryNotServed": "This workspace's plan serves businesses only in {served}, and its country is {country} ({how}). Ask the {who} which of these countries the business is in and set it: {call}. Until then this step stays to do, and Checkout refuses the workspace.",
   "setupAgent.optional.domains": "Only for white-label partners who want their clients to sign in at an address of their own. Ask the admin whether they want it; it is optional.",
   "setupAgent.partner.brandHow": "The brand is what the partner's clients see instead of Linedesk: a product name (also the sender name of their emails), a logo (PNG), a color, a support email (where client emails are answered) and links to the partner's terms and privacy policy. partnerBrand_get shows it; ask the {who} for each and save it with partnerBrand_set. Then partner_setSetupStep with step \"team\".",
   "setupAgent.partner.brandReview": "Linedesk reviews the brand before clients see it, and every change after that: until then client workspaces and emails show Linedesk. Tell the {who} once; nothing else waits for it. Their own address (domain) for clients comes later.",

@@ -3,9 +3,9 @@
 // only from X-Linedesk-Country, which Caddy sets from the header LINEDESK_COUNTRY_HEADER names (CF-IPCountry behind
 // Cloudflare, docker-compose.cloudflare.yml) and which replaces anything a client sent. No geo-IP lookup here and no
 // outside service: without such a proxy there is no sign-up location. Only the two-letter code is ever kept, never
-// the address. Self-serve sign-up keeps it as the new workspace's country hint and says "not yet" to a country it does
-// not serve (signup-handlers.ts). A client that reaches the API around the proxy can name its own country: it only
-// prefills a field, or passes that first gate, which the Business step and Checkout check again (served-countries.ts).
+// the address. Self-serve sign-up keeps it as the new workspace's country hint and never refuses for it (signup-handlers.ts):
+// someone abroad may run a business in a served country. A client that reaches the API around the proxy can name its
+// own country: it only prefills a field, which the Business step and Checkout check (served-countries.ts).
 import { type CountryHint, countryHintOf } from '@linedesk/actions'
 
 export const COUNTRY_HEADER = 'x-linedesk-country'
