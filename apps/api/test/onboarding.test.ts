@@ -3,8 +3,7 @@ import { phone_numbers, setup_events, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
-import { phoneSetupStatus } from '../src/handlers.ts'
-import { phoneSetupView, workspaceTimeZone } from '../src/onboarding.ts'
+import { phoneSetupStatus, phoneSetupView, workspaceTimeZone } from '../src/onboarding.ts'
 import { act, addMember, createWorkspace, getAssistant, request } from './helpers.ts'
 
 /** A number libphonenumber takes as a US line (randomNumber can draw an exchange no line has). */

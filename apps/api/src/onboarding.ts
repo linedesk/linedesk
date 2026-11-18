@@ -7,8 +7,25 @@ import { businessLookupOn, type WebsiteImport, websiteImportFor } from './busine
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { newAssistantTransfers } from './default-transfers.ts'
-import { phoneSetupStatus, type PhoneSetupStatus } from './handlers.ts'
 import { telephonyForWorkspace } from './workspace-carrier.ts'
+
+// Here, not in handlers.ts: handlers.ts imports admin-handlers.ts, which reaches this file (LIN-493).
+/** Whether `phoneNumber.setup` can work on this server: the carrier it would use, or why it cannot. */
+export type PhoneSetupStatus = { provider: string | null; problem: string | null }
+
+export async function phoneSetupStatus(
+  loadProvider: () => Promise<{ name: string }>,
+  env: Record<string, string | undefined> = process.env,
+): Promise<PhoneSetupStatus> {
+  try {
+    const { name } = await loadProvider()
+    if (name !== 'dev' && !env.LIVEKIT_SIP_ENDPOINT)
+      return { provider: name, problem: 'LIVEKIT_SIP_ENDPOINT is not set' }
+    return { provider: name, problem: null }
+  } catch (e) {
+    return { provider: null, problem: e instanceof Error ? e.message : String(e) }
+  }
+}
 
 /**
  * What the web app may show about phone setup. `detail` names what the server lacks (environment
