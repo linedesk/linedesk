@@ -631,6 +631,28 @@ describe('Server admin › Providers › Call quality', () => {
     expect(undos.map(e => e.refused).sort()).toEqual([false, true])
   })
 
+  test('Undo of a level turned off leaves on Standard the assistants whose workspace got another payer since (LIN-438)', async () => {
+    const ws = await createWorkspace('Quality Undo Payer Plumbing')
+    const other = await createWorkspace('Quality Undo Payer Heating')
+    await billOf(ws.owner.userId, [ws.id])
+    await billOf(other.owner.userId, [other.id])
+    expect((await setLevel(ws.owner, ws.assistant.id, 'premium')).status).toBe(200)
+    expect((await setLevel(other.owner, other.assistant.id, 'premium')).status).toBe(200)
+    const off = await adminSet({ premium: false })
+    const moved = (off.body.data.moved as { level: string; assistantIds: string[] }[])[0]!.assistantIds
+    expect(moved).toEqual(expect.arrayContaining([ws.assistant.id, other.assistant.id]))
+    // Someone else pays for ws from now on (a bill handed over, a move between partners): the turn-off had already
+    // moved its assistant, so the payer change itself moves nothing.
+    const { billPayerChanged } = await import('../src/usage-levels.ts')
+    const { reset } = await db.transaction(tx => billPayerChanged(tx, [ws.id], ws.owner.userId))
+    expect(reset.movedToStandard).toEqual([])
+    // Undo within 24 hours: the other workspace's assistant goes back; ws's new payer never chose Premium.
+    const undo = await adminSet({ premium: true, restore: { level: 'premium', assistantIds: moved } })
+    expect(undo.status).toBe(200)
+    expect((await getAssistant(other.assistant.id))!.call_quality).toBe('premium')
+    expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('standard')
+  })
+
   test('a level off behind the switch (stored settings changed): the call falls back to Standard with an ALERT', async () => {
     const ws = await createWorkspace('Quality Fallback Plumbing')
     await setLevel(ws.owner, ws.assistant.id, 'premium', { llm_model: 'gpt-5.4' })

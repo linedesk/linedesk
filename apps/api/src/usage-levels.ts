@@ -33,6 +33,7 @@ import { billingState } from './billing-settings.ts'
 import {
   callQualitySettings,
   enabledLevels,
+  forgetTurnOffsIn,
   type LevelDefaultModels,
   levelDefaultModels,
   moveToStandard,
@@ -305,7 +306,8 @@ export async function lockForPayerChange(tx: Tx, workspaceIds: string[]) {
  * `billing.transferOwner`, `billing.handOver`, `team.transferOwnership` moving the bill): Premium and Ultra were the old
  * payer's choice, so each of these workspaces' assistants on them goes to Standard, with a version by `by`. Call in the
  * same transaction, after the bill's balance lock and the change itself: a raise meanwhile waited for that change (refuseLevelRaise locks the
- * bill) and was refused, or committed before it and is seen here. Returns what it changed.
+ * bill) and was refused, or committed before it and is seen here. An Undo of a level turned off before leaves these
+ * workspaces' assistants on Standard (forgetTurnOffsIn). Returns what it changed.
  */
 export async function billPayerChanged(tx: Tx, workspaceIds: string[], by: string) {
   const reset: BillPayerReset = { workspaceIds: [], movedToStandard: [], movedOffUltra: [] }
@@ -322,6 +324,8 @@ export async function billPayerChanged(tx: Tx, workspaceIds: string[], by: strin
     reset.movedOffUltra.push(...offUltra.map(a => a.id))
     rows.push(...toStandard, ...offUltra)
   }
+  // Their assistants an earlier level turn-off moved stay on Standard if that turn-off is undone (review of #1274).
+  await forgetTurnOffsIn(tx, workspaceIds)
   return { reset, rows }
 }
 

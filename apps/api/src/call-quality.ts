@@ -10,11 +10,11 @@ import {
   type CallQuality,
   type CallQualitySettings,
   DEFAULT_VOICE_MODELS,
+  type LlmProvider,
   levelLanguageModel,
   levelRealtimeModel,
   levelSttModel,
   levelVoiceModel,
-  type LlmProvider,
   llmEndpoints,
 } from '@linedesk/actions'
 import { assistants, instance_settings, type Tx } from '@linedesk/db'
@@ -170,7 +170,15 @@ export async function moveToStandard(tx: Tx, workspaceId: string | null, levels:
 export const UNDO_TURN_OFF_MS = 24 * 60 * 60 * 1000
 /** instance_settings key of the last turn-off of `level`: when, and the assistants it moved to Standard. */
 const turnOffKey = (level: 'premium' | 'ultra') => `${CALL_QUALITY_KEY}.turned_off.${level}`
-const turnOffSchema = z.object({ at: z.string(), assistantIds: z.array(z.string()) })
+/**
+ * `payerChanged`: the moved assistants whose workspace has had another payer since (forgetTurnOffsIn): their Undo
+ * would be a raise the new payer never chose (LIN-438), so it leaves them on Standard.
+ */
+const turnOffSchema = z.object({
+  at: z.string(),
+  assistantIds: z.array(z.string()),
+  payerChanged: z.array(z.string()).default([]),
+})
 
 /** Keeps what turning `level` off just did, for its Undo: replaces the record of an earlier turn-off. */
 export async function recordTurnOff(
@@ -190,9 +198,13 @@ export async function recordTurnOff(
 /**
  * Before an Undo of a level turned off: refused unless `level` was turned off at most 24 hours ago and every listed
  * assistant is one that turn-off moved (review L-2: never a raise of assistants it did not move, or later). The record
- * is used up: one Undo per turn-off. Locks the record, so two Undos of the same turn-off cannot both pass.
+ * is used up: one Undo per turn-off. Takes the version locks of the listed assistants' workspaces first, then the
+ * record, the order of a payer change (forgetTurnOffsIn), so the two never deadlock; two Undos of the same turn-off
+ * cannot both pass. Returns the assistants the Undo moves back: those listed, without the ones whose workspace has had
+ * another payer since the turn-off (LIN-438).
  */
 export async function takeTurnOff(tx: Tx, level: 'premium' | 'ultra', assistantIds: string[], now: string) {
+  await lockVersionsOfAssistants(tx, assistantIds)
   const [row] = await tx
     .select()
     .from(instance_settings)
@@ -208,6 +220,54 @@ export async function takeTurnOff(tx: Tx, level: 'premium' | 'ultra', assistantI
   const moved = new Set(record.assistantIds)
   if (assistantIds.some(id => !moved.has(id))) throw Reject.t('server.api.callQualityUndoNotMoved', label)
   await tx.delete(instance_settings).where(eq(instance_settings.key, turnOffKey(level)))
+  const payerChanged = new Set(record.payerChanged)
+  return assistantIds.filter(id => !payerChanged.has(id))
+}
+
+/** The version locks of every workspace these assistants are in, in the order of the workspace ids. */
+async function lockVersionsOfAssistants(tx: Tx, assistantIds: string[]) {
+  if (!assistantIds.length) return
+  const found = await tx
+    .selectDistinct({ workspace_id: assistants.workspace_id })
+    .from(assistants)
+    .where(inArray(assistants.id, assistantIds))
+  for (const ws of found.map(r => r.workspace_id).sort()) await lockAssistantVersionsOf(tx, ws)
+}
+
+/**
+ * A payer change of these workspaces (billPayerChanged, LIN-438): their assistants a level turned off had moved are
+ * marked in that turn-off's record, so its Undo leaves them on Standard; the new payer never chose Premium or Ultra.
+ * Called with the workspaces' version locks held (lockForPayerChange), before the record's lock, as takeTurnOff does.
+ */
+export async function forgetTurnOffsIn(tx: Tx, workspaceIds: string[]) {
+  if (!workspaceIds.length) return
+  for (const level of ['premium', 'ultra'] as const) {
+    const [row] = await tx
+      .select()
+      .from(instance_settings)
+      .where(eq(instance_settings.key, turnOffKey(level)))
+      .for('update')
+    if (!row) continue
+    let record: z.infer<typeof turnOffSchema>
+    try {
+      record = turnOffSchema.parse(JSON.parse(row.value))
+    } catch {
+      continue // Unreadable: its Undo is refused anyway (takeTurnOff).
+    }
+    const marked = new Set(record.payerChanged)
+    const open = record.assistantIds.filter(id => !marked.has(id))
+    if (!open.length) continue
+    const inWorkspaces = await tx
+      .select({ id: assistants.id })
+      .from(assistants)
+      .where(and(inArray(assistants.id, open), inArray(assistants.workspace_id, workspaceIds)))
+    if (!inWorkspaces.length) continue
+    const value = JSON.stringify({ ...record, payerChanged: [...marked, ...inWorkspaces.map(r => r.id)] })
+    await tx
+      .update(instance_settings)
+      .set({ value })
+      .where(eq(instance_settings.key, turnOffKey(level)))
+  }
 }
 
 /**
