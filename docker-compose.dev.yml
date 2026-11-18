@@ -82,10 +82,8 @@ services:
       - greetings:/var/cache/linedesk/greetings
     mem_limit: ${LINEDESK_DEV_AGENT_MEM:-896m}
 
-  # The API and the web app restart in place (same address): skip a failed one for 1 s, not 10 s.
   proxy:
     environment:
-      LINEDESK_PROXY_FAIL_DURATION: 1s
       # The Vite dev server's inline preamble and injected styles; set it to override.
       LINEDESK_CSP_DEV: ${LINEDESK_CSP_DEV:-'unsafe-inline'}
 

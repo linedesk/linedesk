@@ -20,7 +20,6 @@ Everything else (Postgres and its volume, Electric, the proxy, LiveKit, SIP, egr
 - Web and agent never see the checkout's `.env` (an empty file is mounted over `/app/.env`); they get only the variables `docker-compose.yml` gives them, as in image mode. The agent's checkout is read-only, so it never installs (`LINEDESK_DEV_INSTALL=wait`: it waits until the api or web container has installed the lockfile); the process that handles caller audio and LLM tool calls cannot change the code the other services run.
 - The API runs `docker/api-entrypoint.sh` on every start, so new migrations are applied when they arrive. Expand/contract still applies (docs/architecture.md §11).
 - Web: Vite takes the public URL from `PUBLIC_URL` and opens its hot-reload WebSocket there (`wss://<host>:443` behind https), so the page and the API keep one origin and the session cookie works. It serves only the web app and the packages it is built from (`server.fs.allow`), never server code or `.env`.
-- The proxy skips a container that failed a request for 1 s instead of 10 s (`LINEDESK_PROXY_FAIL_DURATION`), because in dev mode the API restarts on the same address.
 - A new `docker/dev-run.mjs` restarts its containers by itself; a new Caddyfile is reloaded by `scripts/deploy.sh`; a change to the compose files is applied by the next deploy (start-first for api and web, like image mode).
 
 ## Switching
