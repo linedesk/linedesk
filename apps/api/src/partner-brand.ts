@@ -35,6 +35,7 @@ import {
   organization,
   partner_branding,
   partner_members,
+  partner_sender_domains,
   partners,
   type Tx,
   user,
@@ -207,9 +208,24 @@ export async function emailBrandOf(workspaceId: string, tx: Tx | typeof db = db)
   if (!gate.approved || !gate.paid) return null
   return {
     branding: brandingOf(found.partner.id, approved),
-    replyTo: approved.supportEmail,
+    // Reply-To only for a support email its owner proved with a code (S6, security review of #1111 L-3).
+    replyTo: supportEmailVerified(found.brand!) ? approved.supportEmail : null,
+    fromAddress: await verifiedSenderAddress(tx, found.partner.id),
     origin: await appOrigin(workspaceId, tx),
   }
+}
+
+/** Whether the approved support email is the one its owner proved with a code (partner-sender.ts). */
+export const supportEmailVerified = (row: Pick<BrandRow, 'approved_support_email' | 'support_email_verified'>) =>
+  !!row.approved_support_email && row.support_email_verified === row.approved_support_email
+
+/** The partner's own sender address while its domain is verified (S6), else null: emails use the install's address. */
+export async function verifiedSenderAddress(tx: Tx | typeof db, partnerId: string): Promise<string | null> {
+  const [row] = await tx
+    .select({ local: partner_sender_domains.local_part, domain: partner_sender_domains.domain })
+    .from(partner_sender_domains)
+    .where(and(eq(partner_sender_domains.partner_id, partnerId), eq(partner_sender_domains.status, 'verified')))
+  return row ? `${row.local}@${row.domain}` : null
 }
 
 /**

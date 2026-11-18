@@ -198,6 +198,31 @@ export const partnerBrandChangedAlert =
   }
 
 /**
+ * A white-label partner added a sender domain (S6): its clients' emails will come from it once the provider verified
+ * its DNS records. Look-alike domains are refused by the protected names, this is the human check.
+ */
+export const partnerSenderAddedAlert =
+  (added: { partner: string; address: string; brandName: string | null; reviewUrl: string }): AdminAlertText =>
+  locale => {
+    const { t } = getT(locale)
+    return {
+      subject: t('email.adminAlert.partnerSender.subject', { brand: emailBrandName(), partner: added.partner }),
+      blocks: [
+        { kind: 'text', text: t('email.adminAlert.partnerSender.text', { partner: added.partner }) },
+        {
+          kind: 'facts',
+          rows: [
+            [t('email.adminAlert.partnerSender.address'), added.address],
+            [t('email.adminAlert.partnerBrand.name'), added.brandName ?? t('email.adminAlert.partnerBrand.none')],
+          ],
+        },
+        { kind: 'text', tone: 'muted', text: t('email.adminAlert.partnerSender.check') },
+        { kind: 'button', label: t('email.adminAlert.partnerSender.review'), url: added.reviewUrl },
+      ],
+    }
+  }
+
+/**
  * A partner signed up for White-label Cloud on its own (`account.signUp` with plan `partner`): it waits for a server
  * admin's approval, which gates its brand in emails and its own domain; buying and client workspaces work before it.
  * `partner`: the company name, the partner's own text, made plain before (admin-alerts.ts plainSnippet).
@@ -734,6 +759,96 @@ export function partnerKeysEmail(
       { kind: 'button', label: t('email.partnerKeys.button'), url: `${origin}/#partner/keys` },
     ],
     reason: t('email.partnerKeys.reason', { site: siteHost(origin) }),
+    origin,
+  })
+}
+
+/** What partnerSenderEmail says to a partner's owner about its own sender address (S6, partner-sender.ts). */
+export type PartnerSenderEmail =
+  | { kind: 'verified'; address: string }
+  | { kind: 'failed'; address: string }
+  | { kind: 'removed'; address: string; reason: string }
+
+/**
+ * To a white-label partner's owner (S6): its sender address was verified, stopped working (its DNS records are gone),
+ * or an instance admin removed it. The install's brand: we write to the partner, not to its clients.
+ */
+export function partnerSenderEmail(
+  content: PartnerSenderEmail,
+  origin = emailOrigin(),
+  locale?: EmailLocale,
+): RenderedEmail {
+  const { t, locale: lang } = getT(locale)
+  const { address } = content
+  const subject =
+    content.kind === 'verified'
+      ? t('email.partnerSender.verifiedSubject', { address })
+      : content.kind === 'failed'
+        ? t('email.partnerSender.failedSubject', { address })
+        : t('email.partnerSender.removedSubject', { address })
+  const text =
+    content.kind === 'verified'
+      ? t('email.partnerSender.verifiedText', { address })
+      : content.kind === 'failed'
+        ? t('email.partnerSender.failedText', { address })
+        : t('email.partnerSender.removedText', { address, reason: content.reason })
+  return renderEmail({
+    locale: lang,
+    subject,
+    preheader: text,
+    eyebrow: t('email.partnerSender.eyebrow'),
+    heading: subject,
+    blocks: [
+      { kind: 'text', text },
+      { kind: 'button', label: t('email.partnerSender.button'), url: `${origin}/#partner/email` },
+    ],
+    reason: t('email.partnerSender.reason', { site: siteHost(origin) }),
+    origin,
+  })
+}
+
+/** How long the code that proves a partner's support email works (partner-sender.ts). */
+export const SUPPORT_CODE_MINUTES = 10
+
+/**
+ * The code that proves a white-label partner's support email (S6, security review of #1111 L-3): only then do its
+ * clients' emails send replies there. To the support address, in the install's brand.
+ */
+export function supportEmailCodeEmail(
+  code: string,
+  partner: string,
+  origin = emailOrigin(),
+  locale?: EmailLocale,
+): RenderedEmail {
+  const { t, locale: lang } = getT(locale)
+  const brand = emailBrandName()
+  const site = siteHost(origin)
+  return renderEmail({
+    locale: lang,
+    subject: t('email.supportEmailCode.subject', { code, brand }),
+    preheader: t('email.supportEmailCode.preheader', { partner }),
+    heading: t('email.supportEmailCode.heading'),
+    blocks: [
+      { kind: 'text', text: t('email.supportEmailCode.text', { partner, brand, site }) },
+      { kind: 'code', code },
+      { kind: 'text', tone: 'muted', text: t('email.supportEmailCode.note', { minutes: SUPPORT_CODE_MINUTES }) },
+    ],
+    reason: t('email.supportEmailCode.reason', { site, brand }),
+    origin,
+  })
+}
+
+/** The test email of a partner's sender address (partnerSender.sendTest), in the partner's brand, to its owner. */
+export function senderTestEmail(address: string, origin = emailOrigin(), locale?: EmailLocale): RenderedEmail {
+  const { t, locale: lang } = getT(locale)
+  const brand = emailBrandName()
+  return renderEmail({
+    locale: lang,
+    subject: t('email.senderTest.subject', { brand }),
+    preheader: t('email.senderTest.text', { address }),
+    heading: t('email.senderTest.heading'),
+    blocks: [{ kind: 'text', text: t('email.senderTest.text', { address }) }],
+    reason: t('email.senderTest.reason', { site: siteHost(origin) }),
     origin,
   })
 }

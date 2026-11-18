@@ -302,6 +302,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     // Server admin › Partners: the kill switch of a partner's own AI keys (S7).
     'partnerKeys.adminDisable',
     'partnerKeys.adminEnable',
+    // Server admin › Partners: removing a partner's own sender address (S6).
+    'partnerSender.adminRemove',
   ],
   owner: [
     'workspace.deleteOwn',
@@ -351,6 +353,14 @@ const expectedRights: Record<Right, readonly string[]> = {
     'partnerKeys.clear',
     'partnerKeys.test',
     'partner.setClientOwnKeys',
+    // Partner › Email sender (S6): read by the team, changed by the owner only (the handler checks).
+    'partnerSender.get',
+    'partnerSender.add',
+    'partnerSender.check',
+    'partnerSender.sendTest',
+    'partnerSender.remove',
+    'partnerBrand.verifySupportEmail',
+    'partnerBrand.confirmSupportEmail',
     // The partner owner's AI agent setup link (agent-first, 2026-11-18): the handler checks the owner.
     'agentSetup.createPartnerKey',
     'agentSetup.revokePartner',

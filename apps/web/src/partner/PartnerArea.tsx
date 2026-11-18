@@ -44,22 +44,28 @@ import '../admin/admin.css'
 import './partner-area.css'
 import { PartnerBrand } from './PartnerBrand.tsx'
 import { PartnerKeys } from './PartnerKeys.tsx'
+import { PartnerSender } from './PartnerSender.tsx'
 
-type Section = 'clients' | 'team' | 'brand' | 'keys' | 'billing'
+type Section = 'clients' | 'team' | 'brand' | 'email' | 'keys' | 'billing'
 
 /** Bill states in which client workspaces can be added (the plan runs: trial, paid, or comped). */
 const RUNNING: readonly string[] = ['trialing', 'active', 'past_due', 'comped']
 
 /**
- * The partner area's sections; AI keys only where calls are billed (a partner with a bill: own keys take the usage fee
- * away), Billing only for the partner bill's owner.
+ * The partner area's sections; Email sender and AI keys only for a partner with a bill (White-label Cloud: own keys take
+ * the usage fee away, the sender needs the install's Resend), Billing only for the partner bill's owner.
  */
 export function partnerSections(t: ReturnType<typeof useT>, billing: boolean, keys = false): PageSection<Section>[] {
   return [
     { id: 'clients', label: t('team.partner.clients.title') },
     { id: 'team', label: t('team.partner.team.title') },
     { id: 'brand', label: t('team.partner.brand.title') },
-    ...(keys ? [{ id: 'keys' as const, label: t('team.partner.keys.title') }] : []),
+    ...(keys
+      ? [
+          { id: 'email' as const, label: t('team.partner.sender.title') },
+          { id: 'keys' as const, label: t('team.partner.keys.title') },
+        ]
+      : []),
     ...(billing ? [{ id: 'billing' as const, label: t('team.partner.billing.title') }] : []),
   ]
 }
@@ -107,7 +113,7 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
   const [linked] = useState(() => sectionParts('partner', window.location.hash).section)
   const sections = useMemo(
     () =>
-      partnerSections(t, billMine || (!data && linked === 'billing'), !!data?.bill || (!data && linked === 'keys')),
+      partnerSections(t, billMine || (!data && linked === 'billing'), !!data?.bill || (!data && (linked === 'keys' || linked === 'email'))),
     [t, billMine, data, linked],
   )
   const current = useSection('partner', sections)
@@ -183,6 +189,8 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
             {data &&
               (current === 'billing' && billMine ? (
                 <Billing toast={text => toaster.show(text)} partnerId={data.partner.id} />
+              ) : current === 'email' && data.bill ? (
+                <PartnerSender partnerId={data.partner.id} toast={text => toaster.show(text)} />
               ) : current === 'keys' && data.bill ? (
                 <PartnerKeys partnerId={data.partner.id} toast={text => toaster.show(text)} />
               ) : current === 'brand' ? (

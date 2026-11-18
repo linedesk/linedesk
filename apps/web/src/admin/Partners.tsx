@@ -10,6 +10,7 @@ import { useFormat, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'
 import { useSupportAccess } from '../supportAccess.ts'
+import { DangerConfirmDialog } from '../ui/DangerConfirmDialog.tsx'
 import { Card, Dialog, FormField, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
@@ -105,6 +106,7 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
   }
 
   const [keysOff, setKeysOff] = useState<AdminPartner | null>(null)
+  const [senderOff, setSenderOff] = useState<AdminPartner | null>(null)
 
   async function keysOn(p: AdminPartner) {
     setBusy(`keys:${p.id}`)
@@ -183,6 +185,22 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
                         <span className="adm-sub">
                           {t('admin.partners.since', { day: day(p.createdAt), count: p.members })}
                         </span>
+                        {p.sender && (
+                          <span className="adm-sub" title={p.sender.address}>
+                            {p.sender.status === 'verified'
+                              ? t('admin.partners.senderBadge')
+                              : t('admin.partners.senderPending')}{' '}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={supportAccess || !!busy}
+                              title={t('admin.partners.senderRemoveTip', { partner: p.name })}
+                              onClick={() => setSenderOff(p)}
+                            >
+                              {t('admin.partners.senderRemove')}
+                            </Button>
+                          </span>
+                        )}
                       </th>
                       <td data-label={t('admin.partners.owner')}>
                         {p.owner ? (
@@ -298,6 +316,23 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
           </Button>
         </form>
       </Card>
+      {senderOff?.sender && (
+        <DangerConfirmDialog
+          confirm={{
+            text: t('admin.partners.senderRemoveText', { partner: senderOff.name, address: senderOff.sender.address }),
+            action: t('admin.partners.senderRemoveAction'),
+            variant: 'danger',
+            reason: { label: t('admin.partners.senderRemoveReason'), placeholder: '', min: 3, max: 300 },
+          }}
+          run={async (_option, reason) => {
+            await runAdmin('partnerSender.adminRemove', { partnerId: senderOff.id, reason })
+            notify(t('admin.partners.senderRemoveToast'))
+            setSenderOff(null)
+            await query.reload()
+          }}
+          onClose={() => setSenderOff(null)}
+        />
+      )}
       {keysOff && (
         <KeysOffDialog
           partner={keysOff}

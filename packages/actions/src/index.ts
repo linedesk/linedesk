@@ -41,6 +41,7 @@ import * as outbound from './outbound.ts'
 import * as partner from './partner.ts'
 import * as partnerBrand from './partner-brand.ts'
 import * as partnerKeys from './partner-keys.ts'
+import * as partnerSender from './partner-sender.ts'
 import * as voiceFailure from './voice-failure.ts'
 import * as voices from './voices.ts'
 import * as webhooks from './webhooks.ts'
@@ -108,6 +109,7 @@ export * from './outbound.ts'
 export * from './partner.ts'
 export * from './partner-brand.ts'
 export * from './partner-keys.ts'
+export * from './partner-sender.ts'
 export * from './voice-failure.ts'
 export * from './voices.ts'
 export * from './usage-level.ts'
@@ -351,6 +353,14 @@ const all = [
   partnerKeys.partnerSetClientOwnKeys,
   partnerKeys.partnerKeysAdminDisable,
   partnerKeys.partnerKeysAdminEnable,
+  partnerSender.partnerSenderGet,
+  partnerSender.partnerSenderAdd,
+  partnerSender.partnerSenderCheck,
+  partnerSender.partnerSenderSendTest,
+  partnerSender.partnerSenderRemove,
+  partnerSender.partnerSenderAdminRemove,
+  partnerSender.partnerBrandVerifySupportEmail,
+  partnerSender.partnerBrandConfirmSupportEmail,
   billingCheckout.billingStartCheckout,
   billingCheckout.billingConfirmCheckout,
   billingCheckout.billingStartTopUp,

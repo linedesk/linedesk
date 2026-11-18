@@ -37,6 +37,7 @@ import {
   PARTNER_INVITATION_DAYS,
   partner_invitations,
   partner_members,
+  partner_sender_domains,
   partners,
   phone_numbers,
   provider_failures,
@@ -1281,7 +1282,12 @@ export const partnerHandlers: Record<string, Handler> = {
           .from(billing_accounts)
           .where(inArray(billing_accounts.id, billIds))
       : []
+    const senders = await tx
+      .select()
+      .from(partner_sender_domains)
+      .where(ne(partner_sender_domains.status, 'removed'))
     const list: AdminPartner[] = rows.map(p => {
+      const sender = senders.find(s => s.partner_id === p.id)
       const owner = team.find(m => m.partnerId === p.id && m.role === 'owner')
       const invite = ownerInvites.find(i => i.partner_id === p.id)
       return {
@@ -1298,6 +1304,12 @@ export const partnerHandlers: Record<string, Handler> = {
         billStatus: bills.find(b => b.id === p.billing_account_id)?.status ?? null,
         ownKeysDisabled: p.own_keys_disabled_at
           ? { reason: p.own_keys_disabled_reason ?? '', at: p.own_keys_disabled_at }
+          : null,
+        sender: sender
+          ? {
+              address: `${sender.local_part}@${sender.domain}`,
+              status: sender.status as NonNullable<AdminPartner['sender']>['status'],
+            }
           : null,
       }
     })

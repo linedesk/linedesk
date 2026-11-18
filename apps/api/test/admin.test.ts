@@ -232,6 +232,7 @@ describe('access', () => {
       'partnerBrand.setProtectedNames',
       'partnerKeys.adminDisable',
       'partnerKeys.adminEnable',
+      'partnerSender.adminRemove',
       'provider.clearKeys',
       'provider.confirmEmail',
       'provider.connectOneKey',
@@ -2523,6 +2524,8 @@ describe('impersonation', () => {
       'partnerInvitation.view',
       // Read-only and `partner`, as above: the partner's own AI keys, never a key (partner-keys.ts).
       'partnerKeys.get',
+      // Read-only and `partner`, as above: the partner's sender address and its records (partner-sender.ts).
+      'partnerSender.get',
       // Read-only and account:own, which an impersonation never has; the handler refuses an impersonation as well.
       'personalKey.list',
       'phoneNumber.forwardingCheck',

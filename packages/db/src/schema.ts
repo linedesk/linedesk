@@ -2782,6 +2782,11 @@ export const partner_branding = pgTable(
     approved_support_email: text('approved_support_email'),
     approved_terms_url: text('approved_terms_url'),
     approved_privacy_url: text('approved_privacy_url'),
+    /**
+     * The support email its owner proved with a code (S6, security review of #1111 L-3): Reply-To of the partner's
+     * emails only while it equals the approved support email. A new support email needs the code again.
+     */
+    support_email_verified: text('support_email_verified'),
     approved_at: ts('approved_at'),
     /** The instance admin who approved it; no foreign key, like `updated_by`. */
     approved_by: text('approved_by'),
@@ -2792,6 +2797,66 @@ export const partner_branding = pgTable(
       'partner_branding_approved',
       sql`(${t.approved_revision} is null) = (${t.approved_name} is null) and (${t.approved_revision} is null) = (${t.approved_at} is null)`,
     ),
+  ],
+)
+
+export const PARTNER_SENDER_STATUSES = ['pending', 'verified', 'failed', 'stopped', 'removed'] as const
+export type PartnerSenderStatus = (typeof PARTNER_SENDER_STATUSES)[number]
+/** One DNS record the partner adds for its sender domain, as the email provider asks for it. */
+export type SenderDnsRecord = {
+  type: string
+  name: string
+  value: string
+  priority?: number | null
+  ttl?: string | null
+  /** The provider's word for this record: `verified`, `pending`, `failed`, `not_started`. */
+  status?: string | null
+}
+
+/**
+ * A white-label partner's own sender address (docs/white-label.md, S6): its clients' emails come from
+ * `<local_part>@<domain>` once the email provider (Resend) verified the domain's DKIM and return-path records. One
+ * not-removed row per partner and per domain. Anything but `verified` sends from the install's address with the
+ * partner's name, as before.
+ */
+export const partner_sender_domains = pgTable(
+  'partner_sender_domains',
+  {
+    id: id(),
+    partner_id: text('partner_id')
+      .notNull()
+      .references(() => partners.id, { onDelete: 'cascade' }),
+    /** Lower-case, no trailing dot. */
+    domain: text('domain').notNull(),
+    local_part: text('local_part').notNull().default('notify'),
+    status: text('status', { enum: PARTNER_SENDER_STATUSES }).notNull().default('pending'),
+    provider: text('provider').notNull().default('resend'),
+    /** The email provider's id of the domain, once created there. */
+    provider_domain_id: text('provider_domain_id'),
+    records: jsonb('records').$type<SenderDnsRecord[]>().notNull().default([]),
+    /** The provider's last word on the domain (`not_started`, `pending`, `verified`, `failed`…). */
+    provider_status: text('provider_status'),
+    /** Checks in a row that the provider said failed while verified: two turn it `failed`. */
+    failed_checks: integer('failed_checks').notNull().default(0),
+    last_checked_at: ts('last_checked_at'),
+    /** Checks of a pending domain stop (`stopped`) after this. */
+    checks_until: ts('checks_until'),
+    verified_at: ts('verified_at'),
+    failed_at: ts('failed_at'),
+    created_at: createdAt(),
+    /** The user id that added it; no foreign key, so the row outlives the account. */
+    created_by: text('created_by').notNull(),
+    removed_at: ts('removed_at'),
+    removed_by: text('removed_by'),
+    removed_reason: text('removed_reason'),
+  },
+  t => [
+    uniqueIndex('partner_sender_domains_domain').on(t.domain).where(sql`${t.status} <> 'removed'`),
+    uniqueIndex('partner_sender_domains_one_per_partner').on(t.partner_id).where(sql`${t.status} <> 'removed'`),
+    check('partner_sender_domains_status', oneOf(t.status, PARTNER_SENDER_STATUSES)),
+    check('partner_sender_domains_domain', sql`${t.domain} ~ '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$'`),
+    check('partner_sender_domains_local_part', sql`${t.local_part} ~ '^[a-z0-9][a-z0-9._-]{0,31}$'`),
+    check('partner_sender_domains_removed', sql`(${t.status} = 'removed') = (${t.removed_at} is not null)`),
   ],
 )
 

@@ -2,7 +2,7 @@
 // message is printed to the server log instead (development); otherwise nothing can be sent. A change applies at once.
 import nodemailer from 'nodemailer'
 import { emailDelivery } from './auth-methods.ts'
-import { emailBrandName, emailReplyTo, partnerEmailBrand } from './email-brand.ts'
+import { emailBrandName, emailFromAddress, emailReplyTo, partnerEmailBrand } from './email-brand.ts'
 
 export interface Email {
   to: string
@@ -70,18 +70,24 @@ function sendError(e: unknown, host: string): Error {
   return e instanceof Error ? e : new Error(String(e))
 }
 
+/** The address of EMAIL_FROM as set ("Desk <desk@example.com>" or a bare address), or the fallback. */
+export const installAddress = (configured: string | undefined) => {
+  const value = configured?.trim()
+  return value?.match(/<([^<>]+)>\s*$/)?.[1]?.trim() || value || 'no-reply@localhost'
+}
+
+/** A partner's From line: its product name, and its own verified address or else the install's. */
+export const partnerSenderLine = (name: string, address: string) => `"${name.replace(/["\\<>]/g, '')}" <${address}>`
+
 /**
  * The From line: EMAIL_FROM as set when it names a sender ("Desk <desk@example.com>"); a bare address, or none,
  * gets the install's product name (branding.ts), read at send time so a rename shows in the next email. Inside a
- * partner's email brand (email-brand.ts) the partner's product name replaces any name EMAIL_FROM gives: the address
- * stays the install's until the partner has its own sender domain (S6).
+ * partner's email brand (email-brand.ts) the partner's product name replaces any name EMAIL_FROM gives, and the
+ * address is the partner's own once its sender domain is verified (S6), else the install's.
  */
 export function senderLine(configured: string | undefined): string {
   const value = configured?.trim()
-  if (partnerEmailBrand()) {
-    const address = value?.match(/<([^<>]+)>\s*$/)?.[1]?.trim() || value || 'no-reply@localhost'
-    return `"${emailBrandName().replace(/["\\<>]/g, '')}" <${address}>`
-  }
+  if (partnerEmailBrand()) return partnerSenderLine(emailBrandName(), emailFromAddress() ?? installAddress(value))
   if (value?.includes('<')) return value
   return `${emailBrandName().replace(/["<>]/g, '')} <${value || 'no-reply@localhost'}>`
 }

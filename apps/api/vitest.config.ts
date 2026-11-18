@@ -97,6 +97,8 @@ const INSTANCE_WIDE_FILES = [
   'test/request-host.test.ts',
   // Makes a server admin, rotates every stored secret (rolled back) and reads white-label partner keys (S7).
   'test/partner-keys.test.ts',
+  // Makes a server admin and sets SENDER_DOMAINS and EMAIL_FROM in process.env (S6).
+  'test/partner-sender.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

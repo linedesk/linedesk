@@ -2,6 +2,7 @@
 // same database, so self-hosting needs nothing extra. Several API replicas share the work.
 // JOBS_ENABLED=false: this process only queues jobs and runs none (another replica does them).
 import { checkPartnerKeys } from './partner-keys.ts'
+import { checkSenderDomains } from './partner-sender.ts'
 import type { RecordingStoreName } from '@linedesk/actions'
 import { BillingSetupError } from '@linedesk/billing'
 import { calls, type Tx } from '@linedesk/db'
@@ -88,6 +89,9 @@ export const CALL_RELEASE = 'call.release'
 /** Every 5 minutes: holds older than 5 minutes past their end (call-news.ts) are released. */
 const HELD_NEWS_SWEEP = 'call.held-news-sweep'
 const HELD_NEWS_SWEEP_CRON = '*/5 * * * *'
+/** Every 5 minutes: white-label partners' sender domains that are due are checked at the email provider (S6). */
+const SENDER_DOMAIN_CHECK = 'partner.sender-check'
+const SENDER_DOMAIN_CHECK_CRON = '*/5 * * * *'
 /** One webhook or integration delivery (webhooks.ts, integrations.ts). Retried with backoff: 1, 2, 4 … 32 minutes, about an hour in all. */
 export const WEBHOOK_DELIVER = 'webhook.deliver'
 /** Webhook deliveries one API process sends at the same time. */
@@ -301,6 +305,8 @@ async function runJobs(instance: PgBoss, env: Env) {
     await checkPartnerKeys(db)
     return result
   })
+  await instance.schedule(SENDER_DOMAIN_CHECK, SENDER_DOMAIN_CHECK_CRON)
+  await instance.work(SENDER_DOMAIN_CHECK, async () => checkSenderDomains(db))
   await instance.schedule(SETUP_EMAILS, SETUP_EMAILS_CRON)
   await instance.work(SETUP_EMAILS, async () => sendDueSetupEmails(db, emailSender))
   await instance.schedule(COMMAND_PRUNE, COMMAND_PRUNE_CRON)
@@ -504,6 +510,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await createBillingLifecycleQueues(instance)
   await instance.createQueue(SETUP_EMAILS)
   await instance.createQueue(HELD_NEWS_SWEEP)
+  await instance.createQueue(SENDER_DOMAIN_CHECK)
   // One run at a time, never retried: the next scheduled run is the retry.
   await instance.createQueue(PROVIDER_HEALTH_CHECK, { retryLimit: 0, expireInSeconds: 600 })
   await instance.createQueue(VOICE_DELETE, { retryLimit: 24, retryDelay: 3600 })

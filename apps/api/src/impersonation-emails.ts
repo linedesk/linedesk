@@ -3,7 +3,7 @@
 import { instance_settings, organization, type Tx, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { emailSender, sendNotice } from './email.ts'
-import { withEmailBrand } from './email-brand.ts'
+import { securityNoticeBrand, withEmailBrand } from './email-brand.ts'
 import { localeForUserId } from './email-locale.ts'
 import { impersonationApiKeyEmail } from './emails/templates.ts'
 import { emailBrandOf } from './partner-brand.ts'
@@ -40,7 +40,7 @@ export async function queueApiKeyNotice(
   const [ws] = await tx.select({ name: organization.name }).from(organization).where(eq(organization.id, notice.workspaceId))
   const locale = await localeForUserId(tx, notice.userId)
   // With the workspace's brand: a white-label partner's client hears it under the partner's name (partner-brand.ts).
-  const brand = await emailBrandOf(notice.workspaceId, tx).catch(() => null)
+  const brand = securityNoticeBrand(await emailBrandOf(notice.workspaceId, tx).catch(() => null))
   onCommit(async () =>
     withEmailBrand(brand, () => {
       const email = impersonationApiKeyEmail(

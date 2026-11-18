@@ -11,8 +11,10 @@ import { currentBranding } from './branding.ts'
 export type EmailBrand = {
   /** As GET /v1/branding returns it; `partner` is set for a partner's brand. */
   branding: Branding
-  /** Reply-To of every email in the scope: the partner's support email, else none. */
+  /** Reply-To of every email in the scope: the partner's support email once its owner proved it (S6), else none. */
   replyTo: string | null
+  /** The partner's own sender address once its domain is verified (S6, partner-sender.ts), else null: the install's. */
+  fromAddress?: string | null
   /** Where links and the footer's site point: appOrigin(workspaceId) (partner-brand.ts). */
   origin: string
 }
@@ -28,6 +30,14 @@ export function withEmailBrand<T>(brand: EmailBrand | null, work: () => T): T {
 }
 
 /**
+ * A security notice (an admin opened the account, made a key in it) in a partner's brand: its name and look, but no
+ * Reply-To, so a reply about it never goes to the partner's support instead of the install (security review of #1111,
+ * L-3).
+ */
+export const securityNoticeBrand = (brand: EmailBrand | null): EmailBrand | null =>
+  brand ? { ...brand, replyTo: null } : null
+
+/**
  * Runs `work` with the install's brand, whatever scope it is started in: the install's own emails to its operators
  * (admin alerts) never go out under a partner's name or with its Reply-To, also when a workspace's email set them off
  * (a failed send alerts the admins; security review of #1111, L-1).
@@ -40,6 +50,8 @@ export const emailBranding = (): Branding => scope.getStore()?.branding ?? curre
 export const emailBrandName = () => emailBranding().name
 /** Whether the emails now carry a partner's brand (no "Powered by", the partner's name in the From line). */
 export const partnerEmailBrand = () => !!scope.getStore()?.branding.partner
+/** The partner's verified sender address of the emails now, or null (the install's address). */
+export const emailFromAddress = () => scope.getStore()?.fromAddress ?? null
 /** Reply-To of the emails now, or null. */
 export const emailReplyTo = () => scope.getStore()?.replyTo ?? null
 /** The app's address for links and the footer: the scope's (appOrigin), else WEB_ORIGIN. */

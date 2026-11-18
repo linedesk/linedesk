@@ -8,7 +8,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
 import { db } from './db.ts'
 import { sendNotice } from './email.ts'
-import { withEmailBrand } from './email-brand.ts'
+import { securityNoticeBrand, withEmailBrand } from './email-brand.ts'
 import { localeForUserId } from './email-locale.ts'
 import { impersonationStartedEmail } from './emails/templates.ts'
 import { EMAILS_SETTING, emailConnected, impersonationEmailsOn, impersonationNoticesGoOut } from './impersonation-emails.ts'
@@ -64,7 +64,7 @@ export const impersonationHandlers: Record<string, Handler> = {
       const [admin] = await tx.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, actor.actorId))
       const locale = await localeForUserId(tx, target.id)
       // With the workspace's brand: a white-label partner's client hears it under the partner's name (partner-brand.ts).
-      const brand = first?.workspaceId ? await emailBrandOf(first.workspaceId, tx).catch(() => null) : null
+      const brand = securityNoticeBrand(first?.workspaceId ? await emailBrandOf(first.workspaceId, tx).catch(() => null) : null)
       onCommit?.(async () =>
         withEmailBrand(brand, () => {
           const email = impersonationStartedEmail(

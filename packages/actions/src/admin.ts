@@ -315,7 +315,7 @@ const guides = {
     steps: [
       'Sign up at resend.com.',
       'Domains → Add Domain. Add the DNS records it shows and wait until it says Verified.',
-      'API Keys → Create API Key, permission Sending access. Copy the key.',
+      'API Keys → Create API Key, permission Sending access, domain All domains. Copy the key.',
       'Paste it here. From is an address on the verified domain, e.g. desk@yourdomain.com.',
     ],
     cost: 'Free up to about 3,000 emails a month.',
@@ -888,8 +888,21 @@ export const providers = {
     label: 'Resend',
     category: 'email',
     guide: guides.resend,
-    fields: { api_key: apiKey('RESEND_API_KEY'), from: emailFrom },
-    help: 'An API key with sending access. The From address must be on a domain verified in Resend.',
+    fields: {
+      api_key: apiKey('RESEND_API_KEY'),
+      from: emailFrom,
+      // White-label partners' own sender domains (S6, apps/api/src/partner-sender.ts): adding, checking and removing a
+      // domain needs a full-access key; the sending key above keeps sending access only. Without it, Partner › Email
+      // sender is hidden.
+      domains_api_key: {
+        // i18n-ignore: a field name in the English-only provider registry, like every other field label here
+        label: 'Domains API key (partners)',
+        env: 'RESEND_DOMAINS_API_KEY',
+        secret: true,
+        optional: true,
+      },
+    },
+    help: 'An API key with sending access, on all domains. The From address must be on a domain verified in Resend. Optional: a second key with full access lets white-label partners send from their own domains.',
   },
   postmark: {
     label: 'Postmark',

@@ -364,6 +364,14 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'partner.setClientOwnKeys': 'partners',
   'partnerKeys.adminDisable': 'partners',
   'partnerKeys.adminEnable': 'partners',
+  // A partner's own sender address and the proof of its support email (S6): never the code (redacted).
+  'partnerSender.add': 'partners',
+  'partnerSender.check': 'partners',
+  'partnerSender.sendTest': 'partners',
+  'partnerSender.remove': 'partners',
+  'partnerSender.adminRemove': 'partners',
+  'partnerBrand.verifySupportEmail': 'partners',
+  'partnerBrand.confirmSupportEmail': 'partners',
 }
 
 /**

@@ -8,11 +8,12 @@ import {
   commands,
   instance_settings,
   member,
+  partner_branding,
   partners,
   session,
   user,
 } from '@linedesk/db'
-import { desc, eq } from 'drizzle-orm'
+import { desc, eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
 import { BILLING_ENABLED_KEY } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
@@ -106,7 +107,18 @@ const approveAs = (review: Pick<Review, 'revision' | 'contentHash'>, partnerId: 
 async function approveBrand(partnerId: string) {
   const res = await approveAs(await reviewOf(partnerId), partnerId, 'checked: their own brand')
   expect(res).toMatchObject({ status: 200 })
+  await supportProven(partnerId)
 }
+
+/**
+ * The owner proved the approved support email with its code (S6, partnerBrand.confirmSupportEmail; partner-sender.test.ts
+ * covers the code): only then is it Reply-To. Here directly, as this file is about the brand.
+ */
+const supportProven = (partnerId: string) =>
+  db
+    .update(partner_branding)
+    .set({ support_email_verified: sql`${partner_branding.approved_support_email}` })
+    .where(eq(partner_branding.partner_id, partnerId))
 
 const brandInput = (partnerId: string, extra: Record<string, unknown> = {}) => ({
   partnerId,
@@ -513,6 +525,9 @@ describe('review of brand changes (security review of #1111, M-2)', () => {
     ).toBe(422)
     const approved = await approveAs(review, a.id, 'their own new name')
     expect(approved).toMatchObject({ status: 200, body: { data: { review: { state: 'approved' } } } })
+    // The new support email is not proven yet: no Reply-To until its owner enters the code (S6).
+    expect(await emailBrandOf(clientA)).toMatchObject({ branding: { name: 'Cascade Phones' }, replyTo: null })
+    await supportProven(a.id)
     expect(await emailBrandOf(clientA)).toMatchObject({
       branding: { name: 'Cascade Phones' },
       replyTo: 'billing@other.example',

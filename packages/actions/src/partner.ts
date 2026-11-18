@@ -392,6 +392,8 @@ export type AdminPartner = {
   billStatus: PartnerBillSummary['status'] | null
   /** An instance admin turned the partner's own provider keys off (partnerKeys.adminDisable). */
   ownKeysDisabled: { reason: string; at: string } | null
+  /** The partner's own sender address (S6) and its state; null without one. */
+  sender: { address: string; status: 'pending' | 'verified' | 'failed' | 'stopped' } | null
 }
 
 /** `partner.adminList`: the partners, and how many client workspaces each may make while billing is off. */
