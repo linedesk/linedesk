@@ -1356,7 +1356,13 @@ describe('Partner › Clients (S3)', () => {
     expect(settings.partnerManaged).toBe(true)
     expect(settings).not.toHaveProperty('usageCentsPerMinute')
     const me = (await request(owner, 'GET', '/v1/me')).body
-    expect(me.workspace).toMatchObject({ partnerManaged: true })
+    expect(me.workspace).toMatchObject({ partnerManaged: true, viaPartner: false })
+    // The partner's team is there through the partner: Billing and the name prompt tell them apart from the client's.
+    for (const who of [padmin, p.owner])
+      expect((await request(await inWorkspace(who, c), 'GET', '/v1/me')).body.workspace).toMatchObject({
+        id: c,
+        viaPartner: true,
+      })
     const options = await act(owner, 'voice.options', {})
     expect(options.body.data.callQuality).toMatchObject({ partnerManaged: true })
     expect(options.body.data).not.toHaveProperty('levels')

@@ -51,7 +51,11 @@ const cloud = vi.hoisted(() => ({
   /** Stripe has no payment page for the invoice right now. */
   noInvoicePage: false,
   /** What each subscription charges a seat, as Stripe has it (by subscription id); one not here is not known. */
-  seats: new Map<string, { lookupKey: string; cents: number }>(),
+  /** Each subscription's plan items; `productId` defaults to the workspace seat's product. */
+  seats: new Map<
+    string,
+    { lookupKey: string; cents: number; productId?: string }[] | { lookupKey: string; cents: number }
+  >(),
   subscriptionReads: 0,
   /**
    * The extra-calls quantities Stripe was asked to set; `refuseExtraCalls`: Stripe answers an error; `cardRefused`: the
@@ -91,9 +95,12 @@ vi.mock('../src/billing-settings.ts', async original => {
       if (!seat) return null
       return {
         id,
-        items: [
-          { lookupKey: seat.lookupKey, quantity: 1, unitAmountCents: seat.cents, productId: 'linedesk_workspace' },
-        ],
+        items: [seat].flat().map(item => ({
+          lookupKey: item.lookupKey,
+          quantity: 1,
+          unitAmountCents: item.cents,
+          productId: ('productId' in item && item.productId) || 'linedesk_workspace',
+        })),
       }
     },
     setExtraCallsQuantity: async (input: (typeof cloud.extraCalls)[number]) => {
@@ -261,6 +268,41 @@ describe('billing.overview', () => {
     expect((await overview((await billed({ stripe_subscription_id: rid('sub') })).owner)).bill.seatCents).toBe(1100)
     const pending = await billed({ status: 'pending_payment', stripe_subscription_id: null })
     expect((await overview(pending.owner)).bill.seatCents).toBe(1100)
+  })
+
+  test("a partner bill: the base fee and each client workspace's price, both as its subscription charges them", async () => {
+    // Before Checkout: the install's prices, the yearly partner base fee and a client workspace's seat.
+    const pending = await billed({
+      kind: 'partner',
+      interval: 'year',
+      status: 'pending_payment',
+      stripe_subscription_id: null,
+    })
+    expect((await overview(pending.owner)).bill).toMatchObject({
+      kind: 'partner',
+      seatCents: 16_800,
+      clientSeatCents: 10_800,
+      workspaces: 1,
+    })
+    // Subscribed on older prices: each item read from the subscription, the base fee by its own product.
+    const subscriptionId = rid('sub')
+    cloud.seats.set(subscriptionId, [
+      { lookupKey: 'partner_monthly', cents: 1500, productId: 'linedesk_partner' },
+      { lookupKey: 'ws_monthly', cents: 900 },
+    ])
+    const running = await billed({ kind: 'partner', stripe_subscription_id: subscriptionId })
+    expect((await overview(running.owner)).bill).toMatchObject({
+      kind: 'partner',
+      seatCents: 1500,
+      clientSeatCents: 900,
+    })
+    // No client yet: the subscription has the base fee alone, the seat is the install's price.
+    const alone = rid('sub')
+    cloud.seats.set(alone, [{ lookupKey: 'partner_monthly', cents: 1900, productId: 'linedesk_partner' }])
+    const first = await billed({ kind: 'partner', stripe_subscription_id: alone })
+    expect((await overview(first.owner)).bill).toMatchObject({ seatCents: 1900, clientSeatCents: 1100 })
+    // A Cloud bill has no client price.
+    expect((await overview((await billed()).owner)).bill).toMatchObject({ kind: 'cloud', clientSeatCents: null })
   })
 
   test('the bill owner sees the plan, balance, recharge settings, usage per level and invoices', async () => {

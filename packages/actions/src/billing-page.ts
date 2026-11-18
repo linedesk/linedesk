@@ -51,8 +51,15 @@ export type BillingOverviewData = { billingOn: boolean; bill: BillingOverviewBil
 export type BillingOverviewBill = {
   status: 'pending_payment' | 'trialing' | 'active' | 'past_due' | 'suspended' | 'canceled' | 'comped'
   interval: 'month' | 'year'
-  /** The plan's price per workspace and interval, before tax. */
+  /**
+   * `cloud`, a business's bill of its workspaces; `partner`, a white-label partner's bill: the partner base fee plus
+   * its client workspaces.
+   */
+  kind: 'cloud' | 'partner'
+  /** The plan's price per interval, before tax: per workspace on a Cloud bill, the partner base fee on a partner bill. */
   seatCents: number
+  /** A partner bill: the price of each client workspace per interval, before tax; null on a Cloud bill. */
+  clientSeatCents: number | null
   workspaces: number
   trialEndsAt: string | null
   currentPeriodEnd: string | null

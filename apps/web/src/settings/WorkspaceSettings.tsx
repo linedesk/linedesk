@@ -71,6 +71,8 @@ type Props = {
    * members it is not there at all.
    */
   billing?: 'owner' | 'usage' | 'none' | null
+  /** In this client workspace through a white-label partner's team: Billing says it is on their partner plan. */
+  viaPartner?: boolean
   /** On a bill: what each extra number costs a month, said where a number is added; null otherwise. */
   extraNumberCents?: number | null
   workspaceName: string
@@ -86,6 +88,7 @@ export function WorkspaceSettings({
   phoneSetup,
   isInstanceAdmin,
   billing = null,
+  viaPartner = false,
   extraNumberCents = null,
   workspaceName,
   onRenamed,
@@ -131,7 +134,7 @@ export function WorkspaceSettings({
         )}
         {current === 'recordings' && <Recordings canEdit={canEdit} toast={toast} />}
         {current === 'export' && <ExportCalls canEdit={canEdit} toast={toast} />}
-        {current === 'billing' && billing && <Billing toast={toast} view={billing} />}
+        {current === 'billing' && billing && <Billing toast={toast} view={billing} viaPartner={viaPartner} />}
         {current === 'danger' && <DangerZone workspaceName={workspaceName} isInstanceAdmin={isInstanceAdmin} />}
       </SettingsLayout>
     </div>

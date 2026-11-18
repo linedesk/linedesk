@@ -42,7 +42,9 @@ const DAY = 86_400_000
 const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => ({
   status: 'active',
   interval: 'month',
+  kind: 'cloud',
   seatCents: 1100,
+  clientSeatCents: null,
   workspaces: 1,
   trialEndsAt: null,
   currentPeriodEnd: new Date(Date.now() + 20 * DAY).toISOString(),
@@ -438,6 +440,41 @@ test('the cancel dialog: the yearly refund within 14 days and the balance refund
   const monthly = renderToStaticMarkup(<CancelDialog bill={bill()} onClose={() => {}} toast={() => {}} />)
   expect(monthly).not.toContain('refunded if you ask by')
   expect(monthly).toContain('Your unused balance of $12.34')
+})
+
+test("a partner bill: the partner plan's base fee, then its client workspaces on their own line, never per workspace", () => {
+  const partner = (over: Partial<BillingOverviewBill>) => bill({ kind: 'partner', clientSeatCents: 1100, ...over })
+  const yearly = render({
+    billingOn: true,
+    bill: partner({ status: 'pending_payment', interval: 'year', seatCents: 16_800, clientSeatCents: 10_800 }),
+  })
+  expect(yearly).toContain('Partner plan: $168.00 a year')
+  expect(yearly).toContain('Client workspaces: $108.00 a year each · 1 workspace')
+  expect(yearly).not.toContain('per workspace')
+  const monthly = render({ billingOn: true, bill: partner({ seatCents: 1900, workspaces: 0 }) })
+  expect(monthly).toContain('Partner plan: $19.00 a month')
+  expect(monthly).toContain('Client workspaces: $11.00 a month each · none yet')
+  expect(render({ billingOn: true, bill: partner({ seatCents: 1900, workspaces: 3 }) })).toContain(
+    'Client workspaces: $11.00 a month each · 3 workspaces',
+  )
+  // A Cloud bill keeps its one line, with no client line.
+  expect(render({ billingOn: true, bill: bill() })).not.toContain('Client workspaces')
+})
+
+test('the partner\'s team in a client workspace: on their own partner plan, never "your partner handles billing"', () => {
+  queries.usage = { usage: { period: bill().period, row: null, minutesOnly: true } }
+  const team = renderToStaticMarkup(<Billing toast={() => {}} view="usage" viaPartner />)
+  expect(team).toContain('This client workspace is on your partner plan; here are the minutes it used.')
+  expect(team).not.toContain('Your partner handles billing')
+  // An admin of the team holds billing:manage there (an admin's right) but manages no bill: the same line.
+  queries.overview = { billingOn: true, bill: null }
+  expect(renderToStaticMarkup(<Billing toast={() => {}} viaPartner />)).toContain(
+    'This client workspace is on your partner plan',
+  )
+  // The client's own people keep the partner line.
+  const client = renderToStaticMarkup(<Billing toast={() => {}} view="usage" />)
+  expect(client).toContain('Your partner handles billing')
+  expect(client).not.toContain('your partner plan')
 })
 
 test('calls at the same time: 5 included per workspace, 5 more for $5 a month, no extra primary button', () => {

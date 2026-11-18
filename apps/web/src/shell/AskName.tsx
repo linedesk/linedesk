@@ -1,7 +1,7 @@
 // Someone who signed up with an email code has no name yet: teammates would see their address twice
 // and emails would say "A teammate". Ask once, right in the app; Later hides it for this session.
 import { type FormEvent, useState } from 'react'
-import { auth } from '../auth.ts'
+import { auth, type Me } from '../auth.ts'
 import { changeName } from '../settings/account/account-api.ts'
 import { Dialog, FormField, FormMessage, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
@@ -16,6 +16,12 @@ function laterChosen() {
     return false
   }
 }
+
+/**
+ * Whether a workspace asks for the name: not one the person is in through a white-label partner's team (a client
+ * workspace they work in for the partner). The partner area asks them instead, their own place.
+ */
+export const asksNameIn = (me: Pick<Me, 'workspace'>) => !me.workspace?.viaPartner
 
 /** Shown while the signed-in user has no name (not while an admin is signed in as them). */
 export function AskName({ impersonating }: { impersonating: boolean }) {

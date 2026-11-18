@@ -27,7 +27,7 @@ import { chordTarget } from './shell/chords.ts'
 import { commandGroups, type Command } from './shell/commands.ts'
 import type { Overlay } from './shell/keys.ts'
 import { invitationNotice, switchToWorkspace, unannounced, useMyInvitations } from './shell/invitations.ts'
-import { AskName } from './shell/AskName.tsx'
+import { AskName, asksNameIn } from './shell/AskName.tsx'
 import { MenuButton, Nav } from './shell/Nav.tsx'
 import { NewWorkspaceDialog } from './shell/NewWorkspace.tsx'
 import { newWorkspaceChoice } from './NoWorkspace.tsx'
@@ -620,6 +620,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
                 agentChange: mayChangeWithAgent(me),
                 isInstanceAdmin: instanceAdmin,
                 billing: billingView,
+                viaPartner: !!me.workspace?.viaPartner,
                 extraNumberCents: me.workspace?.extraNumberCents ?? null,
                 userId: me.actorId,
                 menu,
@@ -727,7 +728,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
           </div>
         )}
         <SyncBar />
-        <AskName impersonating={!!me.impersonation} />
+        {asksNameIn(me) && <AskName impersonating={!!me.impersonation} />}
       </main>
       <Overlays
         overlay={overlay}

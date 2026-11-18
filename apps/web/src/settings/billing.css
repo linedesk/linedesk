@@ -45,4 +45,11 @@
   .billing-choices {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  /* Calls at the same time on a phone: the choice goes under its row's words instead of past the card's edge. */
+  .billing-calls-row {
+    flex-wrap: wrap;
+  }
+  .billing-calls-row .k-select {
+    width: 100%;
+  }
 }

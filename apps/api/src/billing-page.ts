@@ -54,14 +54,7 @@ import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { syncBillingCatalog } from './billing-catalog.ts'
 import { managesBill, tellBillOwner } from './bill-manager.ts'
-import {
-  activationFacts,
-  BUYS_MINUTES,
-  ownBill,
-  setupFailed,
-  stillManages,
-  trialOffered,
-} from './billing-checkout.ts'
+import { activationFacts, BUYS_MINUTES, ownBill, setupFailed, stillManages, trialOffered } from './billing-checkout.ts'
 import { PARTNER_BILLING_URL, partnerBillOf } from './partner-billing.ts'
 import { billingRules } from './billing-rules.ts'
 import { billingProvider, billingState } from './billing-settings.ts'
@@ -339,17 +332,18 @@ const seatPrices = new Map<string, { cents: number; at: number }>()
  * price, never an error.
  */
 async function seatCentsOf(subscriptionId: string, lookupKey: string, now = Date.now()): Promise<number | null> {
-  const hit = seatPrices.get(subscriptionId)
+  // One entry per subscription and price: a partner bill's base fee and its client workspaces' seat are both read.
+  const cacheKey = `${subscriptionId}:${lookupKey}`
+  const hit = seatPrices.get(cacheKey)
   if (hit && now - hit.at < SEAT_PRICE_TTL_MS) return hit.cents
   try {
     const sub = await (await billingProvider(db)).subscription(subscriptionId)
-    const item =
-      sub?.items.find(i => i.lookupKey === lookupKey) ??
-      sub?.items.find(i => i.productId === 'linedesk_workspace' || i.productId === 'linedesk_partner')
+    const product = lookupKey.startsWith('partner_') ? 'linedesk_partner' : 'linedesk_workspace'
+    const item = sub?.items.find(i => i.lookupKey === lookupKey) ?? sub?.items.find(i => i.productId === product)
     const cents = item?.unitAmountCents
     if (typeof cents !== 'number') return null
     if (seatPrices.size > 10_000) seatPrices.clear()
-    seatPrices.set(subscriptionId, { cents, at: now })
+    seatPrices.set(cacheKey, { cents, at: now })
     return cents
   } catch (error) {
     console.error(`billing: the seat price of subscription ${subscriptionId} could not be read:`, error)
@@ -403,15 +397,21 @@ async function overview(
     )
     .orderBy(desc(billing_invoices.created_at))
     .limit(INVOICES_SHOWN)
-  const lookupKey = bill.kind === 'partner' ? `partner_${bill.interval}ly` : `ws_${bill.interval}ly`
-  // What the subscription charges a seat (security review of #1040, L-4): a price change applies to new Checkouts
-  // only, so a bill on an older price is shown that one. The install's price now only for a bill without a plan yet.
-  const charged = bill.stripe_subscription_id ? await seatCentsOf(bill.stripe_subscription_id, lookupKey) : null
-  const seat = planPrice(lookupKey, rules)
+  const seatKey = `ws_${bill.interval}ly`
+  const lookupKey = bill.kind === 'partner' ? `partner_${bill.interval}ly` : seatKey
+  // What the subscription charges (security review of #1040, L-4): a price change applies to new Checkouts only, so a
+  // bill on an older price is shown that one. The install's price now only for a bill without that item yet (a partner
+  // bill gets its client workspaces' seat item with its first client).
+  const chargedCents = async (key: string) =>
+    (bill.stripe_subscription_id ? await seatCentsOf(bill.stripe_subscription_id, key) : null) ??
+    planPrice(key, rules)?.cents ??
+    0
   const data: BillingOverviewBill = {
     status: bill.status,
     interval: bill.interval,
-    seatCents: charged ?? seat?.cents ?? 0,
+    kind: bill.kind,
+    seatCents: await chargedCents(lookupKey),
+    clientSeatCents: bill.kind === 'partner' ? await chargedCents(seatKey) : null,
     workspaces: workspaces.length,
     trialEndsAt: bill.status === 'trialing' ? bill.trial_ends_at : null,
     currentPeriodEnd: bill.current_period_end,

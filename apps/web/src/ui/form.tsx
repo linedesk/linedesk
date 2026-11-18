@@ -360,6 +360,22 @@ type DialogProps = {
   children?: ReactNode
 }
 
+/**
+ * Where a dialog's focus starts, given the element that has it now (null: leave it there). A field in the body keeps
+ * it; else the first field, else the body's primary button; with neither (a dialog of words and buttons, such as a
+ * provider with its keys stored), the dialog itself, so Esc and Tab still work inside it. A control in the footer
+ * that took the focus itself (autoFocus) keeps it; the ✕ in the head never starts it (its focus ring stood out).
+ */
+export function dialogStart(box: HTMLElement, at: Element | null): HTMLElement | null {
+  const body = box.querySelector('.k-dialog-body')
+  if (at && body?.contains(at)) return null
+  const first =
+    body?.querySelector<HTMLElement>(':is(input, textarea):not(:disabled)') ??
+    body?.querySelector<HTMLElement>('.k-btn-primary:not(:disabled)')
+  if (first) return first
+  return at && box.contains(at) && !at.closest('.k-dialog-head') ? null : box
+}
+
 /** A modal over the page. Esc, the ✕ or a click outside closes it; focus stays inside. */
 export function Dialog({ title, description, icon, onClose, footer, onSubmit, size = 'md', children }: DialogProps) {
   const t = useT()
@@ -368,14 +384,7 @@ export function Dialog({ title, description, icon, onClose, footer, onSubmit, si
   const box = useRef<HTMLDivElement>(null)
   // Focus starts in the first field (the backdrop's trap would pick the ✕, the first control in the DOM).
   useEffect(() => {
-    const at = document.activeElement
-    if (at && box.current?.querySelector('.k-dialog-body')?.contains(at)) return
-    const body = box.current?.querySelector('.k-dialog-body')
-    const first =
-      body?.querySelector<HTMLElement>(':is(input, textarea):not(:disabled)') ??
-      body?.querySelector<HTMLElement>('.k-btn-primary:not(:disabled)')
-    // Nothing to start in (a dialog of words and buttons): the dialog itself, so Esc and Tab still work inside it.
-    ;(first ?? (at && box.current?.contains(at) ? null : box.current))?.focus()
+    if (box.current) dialogStart(box.current, document.activeElement)?.focus()
   }, [])
   function onKey(e: KeyboardEvent) {
     // ⌘S and ⌘↵ belong to this dialog (its form, or nothing): never to a page form the dialog opened from.

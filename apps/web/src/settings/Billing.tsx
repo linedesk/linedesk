@@ -125,14 +125,19 @@ type Props = {
   toast: (text: string) => void
   view?: 'owner' | 'usage' | 'none'
   partnerId?: string
+  /**
+   * The reader is in this client workspace through its white-label partner's team: where they do not manage the bill,
+   * the page says the workspace is on their partner plan, not that their partner handles billing.
+   */
+  viaPartner?: boolean
 }
 
-export function Billing({ toast, view = 'owner', partnerId }: Props) {
+export function Billing({ toast, view = 'owner', partnerId, viaPartner = false }: Props) {
   if (view === 'none') return <NoBill />
-  if (view === 'usage') return <NotPaying />
+  if (view === 'usage') return <NotPaying viaPartner={viaPartner} />
   return (
     <BillPartner.Provider value={partnerId ?? null}>
-      <OwnerBilling toast={toast} />
+      <OwnerBilling toast={toast} viaPartner={viaPartner} />
     </BillPartner.Provider>
   )
 }
@@ -150,7 +155,7 @@ function NoBill() {
   )
 }
 
-function OwnerBilling({ toast }: { toast: (text: string) => void }) {
+function OwnerBilling({ toast, viaPartner }: { toast: (text: string) => void; viaPartner: boolean }) {
   const t = useT()
   const calls = useBillCalls()
   const overview = useQuery(calls.overview, calls.loadOverview)
@@ -166,7 +171,7 @@ function OwnerBilling({ toast }: { toast: (text: string) => void }) {
     >
       {data && !data.bill ? (
         data.billingOn ? (
-          <NotPaying />
+          <NotPaying viaPartner={viaPartner} />
         ) : (
           <Section id="billing-none" title={t('settings.workspace.nav.billing.label')}>
             <span className="help">{t('settings.billing.off')}</span>
@@ -182,9 +187,9 @@ function OwnerBilling({ toast }: { toast: (text: string) => void }) {
 /**
  * For the workspace's owners and admins who do not manage its bill (docs/billing.md §8: a bill of several workspaces,
  * or a partner's): who handles billing, and this workspace's usage this period. No plan, balance, invoices or payment
- * controls.
+ * controls. `viaPartner`: someone on the partner's team, whose own partner plan pays for this client workspace.
  */
-function NotPaying() {
+function NotPaying({ viaPartner = false }: { viaPartner?: boolean }) {
   const t = useT()
   const format = useFormat()
   const read = useQuery(WORKSPACE_USAGE, loadWorkspaceUsage)
@@ -194,7 +199,11 @@ function NotPaying() {
     <>
       <Section id="billing-none" title={t('settings.workspace.nav.billing.label')}>
         <span className="help">
-          {usage?.minutesOnly ? t('settings.billing.partnerPays') : t('settings.billing.notOwner')}
+          {viaPartner
+            ? t('settings.billing.partnerTeam')
+            : usage?.minutesOnly
+              ? t('settings.billing.partnerPays')
+              : t('settings.billing.notOwner')}
         </span>
       </Section>
       <Loading
@@ -351,11 +360,22 @@ function PlanCard({
   const line = planLine(bill)
   const note = stateNote(state, date)
   const price = format.currency(centsToDollars(bill.seatCents), 'USD')
+  const yearly = bill.interval === 'year'
+  // A partner bill: the partner base fee, then its client workspaces on their own line (docs/white-label.md).
+  const partner = bill.kind === 'partner'
   const plan = !paysCharges(bill)
     ? t('settings.billing.plan.comped', { count: bill.workspaces })
-    : bill.interval === 'year'
-      ? t('settings.billing.plan.yearly', { price, count: bill.workspaces })
-      : t('settings.billing.plan.monthly', { price, count: bill.workspaces })
+    : partner
+      ? t(yearly ? 'settings.billing.plan.partnerYearly' : 'settings.billing.plan.partnerMonthly', { price })
+      : t(yearly ? 'settings.billing.plan.yearly' : 'settings.billing.plan.monthly', { price, count: bill.workspaces })
+  const clientPrice = format.currency(centsToDollars(bill.clientSeatCents ?? 0), 'USD')
+  const clients =
+    partner && paysCharges(bill)
+      ? t(yearly ? 'settings.billing.plan.clientsYearly' : 'settings.billing.plan.clientsMonthly', {
+          price: clientPrice,
+          count: bill.workspaces,
+        })
+      : null
   const held = bill.heldForReview && (bill.status === 'active' || bill.status === 'trialing')
 
   async function resume() {
@@ -386,6 +406,7 @@ function PlanCard({
     >
       <div className="billing-plan">
         <b>{plan}</b>
+        {clients && <span className="help">{clients}</span>}
         {line && (
           <span className="help">
             {line.days !== undefined
@@ -552,7 +573,7 @@ function CallsCard({ bill, toast }: { bill: BillingOverviewBill; toast: (text: s
       }
     >
       {calls.workspaces.map(w => (
-        <div className="swrow" key={w.workspaceId}>
+        <div className="swrow billing-calls-row" key={w.workspaceId}>
           <div>
             <b>{several ? w.name : t('settings.billing.calls.rowTitle')}</b>
             <span className="help">

@@ -1,4 +1,4 @@
-// Partner › Clients › Settings… (white-label slice S3, LIN-454): a client's monthly usage limit, set by anyone on the
+// Partner › Clients › Usage limit… (white-label slice S3, LIN-454): a client's monthly usage limit, set by anyone on the
 // partner team; raising or removing it is the partner's owner's. The limit is in dollars on the partner bill's ledger.
 import { CLIENT_USAGE_LIMIT_MAX_USD, CLIENT_USAGE_LIMIT_MIN_USD, type PartnerClientRow } from '@linedesk/actions'
 import { useFormat, useT } from '@linedesk/i18n/react'

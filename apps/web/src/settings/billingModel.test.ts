@@ -67,7 +67,9 @@ test('auto-recharge: the amount clears the threshold by $5; refusal codes have t
 const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => ({
   status: 'active',
   interval: 'month',
+  kind: 'cloud',
   seatCents: 1100,
+  clientSeatCents: null,
   workspaces: 1,
   trialEndsAt: null,
   currentPeriodEnd: '2026-12-05T00:00:00Z',

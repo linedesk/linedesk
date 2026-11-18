@@ -104,6 +104,11 @@ export type Me = {
     billingOn?: boolean
     /** A white-label client on its partner's bill: no prices anywhere in the workspace (absent from an older server). */
     partnerManaged?: boolean
+    /**
+     * The member is here through a white-label partner's team (a client workspace they work in for the partner), not
+     * as one of the workspace's own people (absent from an older server).
+     */
+    viaPartner?: boolean
     trialDays?: number | null
     plan?: { interval: 'month' | 'year'; cents: number } | null
     extraNumberCents?: number | null

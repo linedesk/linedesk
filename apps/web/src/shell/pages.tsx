@@ -27,6 +27,8 @@ export type PageProps = {
    * workspace's admins (this workspace's usage, read-only), null off billing and for members.
    */
   billing: 'owner' | 'usage' | 'none' | null
+  /** In this client workspace through a white-label partner's team: Billing says it is on their partner plan. */
+  viaPartner: boolean
   /** On a bill: what each number beyond the included one costs a month (from the balance); null otherwise. */
   extraNumberCents: number | null
   userId: string
@@ -100,6 +102,7 @@ export const pages = {
         phoneSetup={p.phoneSetup}
         isInstanceAdmin={p.isInstanceAdmin}
         billing={p.billing}
+        viaPartner={p.viaPartner}
         extraNumberCents={p.extraNumberCents}
         workspaceName={p.workspaceName}
         onRenamed={p.onRenamed}

@@ -175,7 +175,7 @@
   color: var(--ink-muted);
 }
 
-/* Settings…: this period's use above the limit field. */
+/* Usage limit…: this period's use above the limit field. */
 .pc-used {
   display: grid;
   gap: 4px;

@@ -21,7 +21,7 @@ import {
   tableNames,
   type TableName,
 } from '@linedesk/db'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 
@@ -634,9 +634,12 @@ app.get('/v1/me', async c => {
           billingState: organization.billingState,
           partnerId: organization.partnerId,
           iconVersion: workspace_icons.version,
+          // The member's place here comes from a partner team (docs/white-label.md): they work in a client workspace.
+          memberPartnerId: member.partnerId,
         })
         .from(organization)
         .leftJoin(workspace_icons, eq(workspace_icons.workspace_id, organization.id))
+        .leftJoin(member, and(eq(member.organizationId, organization.id), eq(member.userId, actor.actorId)))
         .where(eq(organization.id, actor.workspaceId))
     : []
   // Independent reads, side by side: the app's first screen waits for this answer.
@@ -717,6 +720,9 @@ app.get('/v1/me', async c => {
           extraNumberCents: billFacts?.extraNumberCents ?? null,
           // A white-label client on its partner's bill: no prices anywhere in the workspace (docs/white-label.md).
           partnerManaged: billFacts?.partnerManaged ?? false,
+          // In a client workspace through the partner's team, not as one of the client's own people: Billing says the
+          // workspace is on their partner plan, and the app asks for their name in the partner area, not here.
+          viaPartner: Boolean(workspace.memberPartnerId),
           // In the free trial: when it ends (the first charge); the onboarding counts its steps with the trial's, and
           // the inbox shows the days left. Null otherwise.
           trialEndsAt: billFacts?.trialEndsAt ?? null,

@@ -17,6 +17,7 @@ import { CountrySelect } from '../settings/CountrySelect.tsx'
 import { callAction } from '../settings/settings-api.ts'
 import { TimeZonePicker } from '../settings/TimeZonePicker.tsx'
 import { browserTimeZone } from '../settings/timeZones.ts'
+import { AskName } from '../shell/AskName.tsx'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { Toast } from '../shell/Toast.tsx'
 import { useToast } from '../shell/useToast.ts'
@@ -173,6 +174,9 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
         </SettingsLayout>
       </div>
       {toaster.toast && <Toast toast={toaster.toast} onUndo={() => {}} />}
+      {/* A team member who joined with an email code has no name yet: asked here, never in a client workspace. The
+          partner area is never open while a server admin is signed in as someone (no `partner` permission then). */}
+      <AskName impersonating={false} />
     </div>
   )
 }
