@@ -44,8 +44,17 @@ if [ -n "$AGENT_API_TOKEN" ] && [ "${#AGENT_API_TOKEN}" -lt 32 ]; then
   exit 1
 fi
 
-node packages/db/src/migrate.ts
+# The api image runs the bundle built with it (LINEDESK_API_BUNDLE, apps/api/scripts/bundle.ts): it starts in a
+# fraction of the time. Dev mode runs the sources.
+if [ "$LINEDESK_API_BUNDLE" = 1 ]; then
+  node --enable-source-maps apps/api/dist/migrate.mjs
+else
+  node packages/db/src/migrate.ts
+fi
 # Something starts the API again when it exits (Docker's restart policy, dev mode's runner): a change to
 # the sign-in or email settings in the admin area restarts it to apply them (apps/api/src/instance-env.ts).
 export LINEDESK_SELF_RESTART=1
+if [ "$LINEDESK_API_BUNDLE" = 1 ]; then
+  exec node --enable-source-maps apps/api/dist/server.mjs
+fi
 exec node apps/api/src/server.ts

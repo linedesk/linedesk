@@ -34,6 +34,14 @@ COPY . .
 # Tests and their config are not part of the image.
 RUN rm -rf apps/api/test apps/api/vitest.config.ts && find apps/api packages -name "*.test.ts" -delete
 
+# --- api bundle: the server and the migration runner in a few files, so the API starts fast (LIN-526) ---
+FROM base AS api-bundle
+COPY --from=manifests /app .
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --filter "@linedesk/api..."
+COPY . .
+RUN node apps/api/scripts/bundle.ts
+
 # --- web: build the SPA, serve it with Caddy ---
 FROM base AS web-build
 COPY --from=manifests /app .
@@ -102,16 +110,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 
 # --- api runtime: the default target (see the top) ---
-# Node runs the TypeScript sources directly (type stripping), so there is no compile step.
+# Node runs the bundle from `api-bundle` (built from the TypeScript sources); the sources stay in the image for the
+# command-line scripts (`node apps/api/src/setup-code.ts`) and the files the bundle reads next to them.
 FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS api
 ENV NODE_ENV=production PORT=3100
 WORKDIR /app
 COPY --from=api-build --chown=node:node /app/node_modules ./node_modules
 COPY --from=api-build --chown=node:node /app/apps/api ./apps/api
 COPY --from=api-build --chown=node:node /app/packages ./packages
+# The bundle reads locales, voice previews and migrations from the sources above; --check fails the build if one is missing.
+COPY --from=api-bundle --chown=node:node /app/apps/api/dist ./apps/api/dist
+RUN node apps/api/scripts/bundle.ts --check
+ENV LINEDESK_API_BUNDLE=1
 COPY --chown=node:node docker/api-entrypoint.sh ./
 USER node
 EXPOSE 3100
-HEALTHCHECK --interval=5s --timeout=3s --retries=20 \
+# Every second while it starts, so a deploy goes on as soon as it is up; then every 5 s.
+HEALTHCHECK --interval=5s --timeout=3s --retries=20 --start-period=60s --start-interval=1s \
   CMD wget -qO- http://127.0.0.1:${PORT}/healthz || exit 1
 ENTRYPOINT ["/bin/sh", "/app/api-entrypoint.sh"]
