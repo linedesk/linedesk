@@ -30,6 +30,7 @@ import {
   type NearbyNumbersData,
   nearbyAreaCodes,
   type ReplyTiming,
+  type KeySource,
   type VoiceFailure,
   VOICE_FAILURES_PER_CALL,
   VOICE_FAILURE_MESSAGE_MAX,
@@ -1481,12 +1482,16 @@ const handlers: Record<string, Handler> = {
   // Not synced (admin overview only): no rows go back to the store.
   // A stage of the voice pipeline failed (VoiceFailure): kept on the call (the call's own view), once per stage, provider
   // and reason.
-  'call.reportVoiceFailure': async ({ tx, actor, now }, input: { callId: string; failure: VoiceFailure }) => {
+  'call.reportVoiceFailure': async (
+    { tx, actor, now },
+    input: { callId: string; failure: VoiceFailure; keySource?: KeySource },
+  ) => {
     const call = await loadCall(tx, actor, input.callId)
     // A race in the call's own conversation (two replies at once): the call went on, nothing to keep (LIN-249).
     if (isPerCallProviderError(input.failure.message)) return { rows: {}, data: { failure: input.failure } }
-    // A call on the partner's own keys (S7): the partner's key of that stage is failing, never the install's provider.
-    const partners = call.partner_keys && (await partnerVoiceFailure(tx, call.id, input.failure, now))
+    // A stage the partner's own keys served (S7): the partner's key of that stage is failing, never the install's
+    // provider. One that fell back to the install's keys is the install's failure (security review, L-4).
+    const partners = call.partner_keys && (await partnerVoiceFailure(tx, call.id, input.failure, now, input.keySource))
     if (partners) {
       const known = call.voice_failures.some(
         f =>

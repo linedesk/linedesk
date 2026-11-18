@@ -125,4 +125,4 @@ export const partnerKeysAdminEnable = defineAction({
   permission: 'instance:admin',
 })
 
-export { KEY_SOURCES, type KeySources, keySourcesInput, keysConfirmed } from './key-sources.ts'
+export { KEY_SOURCES, type KeySource, type KeySources, keySourcesInput, keysConfirmed } from './key-sources.ts'

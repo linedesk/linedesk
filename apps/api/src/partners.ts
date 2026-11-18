@@ -61,6 +61,7 @@ import { queueWorkspaceDeletedEmails } from './jobs.ts'
 import { forgetMember, inviteToWorkspace } from './memberships.ts'
 import { billForNewClient, mirroredState, seatsFollow, seatsFollowDelete } from './partner-billing.ts'
 import { emailBrandOf } from './partner-brand.ts'
+import { endSuspendedSenders } from './partner-sender.ts'
 import { invitedByPartnerTeam } from './partner-invited.ts'
 import {
   LIMIT_OWNER_ONLY,
@@ -691,6 +692,7 @@ async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: str
   }
   await tx.update(organization).set({ partnerId: null, usageLimitCents: null }).where(eq(organization.id, org.id))
   await resetUsageLimitAlerts(tx, org.id)
+  await ownKeysOff(tx, org.id)
   const sync = await syncPartnerMemberships(tx, partnerId, now)
   return {
     workspace: { id: org.id, name: org.name },
@@ -701,6 +703,18 @@ async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: str
     removedPeople: leaving.map(m => m.email),
     invitationsCanceled: sync.invitationsCanceled + invitedCanceled,
   }
+}
+
+/**
+ * A workspace that changes partner (a release, a removal by its owner, a Server admin move, in or out) leaves the
+ * partner's own keys switched off (S7, security review of #1289/#1290 M-1): the switch was the old partner owner's
+ * choice, and only the new one decides whether its provider accounts carry this client's calls.
+ */
+async function ownKeysOff(tx: Tx, workspaceId: string) {
+  await tx
+    .update(workspace_settings)
+    .set({ partner_keys: false })
+    .where(and(eq(workspace_settings.workspace_id, workspaceId), eq(workspace_settings.partner_keys, true)))
 }
 
 /** A bill that dunning, a dispute or an admin holds: a workspace on it changes partner once it is paid or resumed. */
@@ -784,6 +798,7 @@ async function adminMoveClient(ctx: HandlerCtx, input: AdminMoveInput) {
     })
     .where(eq(organization.id, org.id))
   await resetUsageLimitAlerts(tx, org.id)
+  await ownKeysOff(tx, org.id)
   if (moves) {
     // Someone else pays from now on: Premium and Ultra were the old payer's choice (LIN-438).
     if (old?.owner_user_id !== bill.owner_user_id) await billPayerChanged(tx, [org.id], actor.actorId)
@@ -1387,6 +1402,9 @@ export const partnerHandlers: Record<string, Handler> = {
     const sync = await syncPartnerMemberships(tx, partner.id, now)
     // Its own address stops answering at once, not at the next reload of the host map.
     onCommit?.(() => reloadHosts())
+    // Its sender domain is deleted at the email provider once this commits (security review of #1291, L-3); the
+    // sender job retries one the provider refused. An unsuspended partner adds it again.
+    onCommit?.(() => endSuspendedSenders(db, now, partner.id))
     return {
       rows: {},
       data: {

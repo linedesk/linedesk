@@ -2,13 +2,14 @@
 // never comes back, is bound to its partner and stage, is rotated, and is read by the voice agent only for a call that
 // runs on it; when a call is forecast on own keys, and when its report confirms it. Makes an instance admin: an
 // instance-wide file (vitest.config.ts).
-import { calls, commands, partner_providers, user, workspace_settings } from '@linedesk/db'
+import { calls, commands, partner_providers, partners, provider_failures, user, workspace_settings } from '@linedesk/db'
 import { and, desc, eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { partnerSetupActor } from '../src/agent-setup.ts'
 import { db } from '../src/db.ts'
 import { type Email, emailSender } from '../src/email.ts'
 import {
+  checkPartnerKeys,
   maskFailure,
   partnerKeySlot,
   partnerKeysForCall,
@@ -364,5 +365,137 @@ describe('calls on the partner keys', () => {
     expect(reportConfirmsOwnKeys({ stt: 'partner', llm: 'partner' })).toBe(false)
     expect(reportConfirmsOwnKeys({})).toBe(false)
     expect(reportConfirmsOwnKeys(null)).toBe(false)
+  })
+})
+
+describe('security review of #1289/#1290', () => {
+  /** A call of a client of `p` that call.start forecast on the partner's keys. */
+  async function ownKeysCall(p: Partner) {
+    const client = await createClient(p, `Failure Client ${crypto.randomUUID().slice(0, 4)}`)
+    const id = `call_${crypto.randomUUID().slice(0, 12)}`
+    await db
+      .insert(calls)
+      .values({ id, workspace_id: client, from_number: '+14155550100', to_number: '+14155550101', partner_keys: true })
+    return { client, id }
+  }
+  const failure = { stage: 'stt', provider: 'deepgram', reason: 'auth', message: 'Invalid credentials' }
+  const installFailure = () =>
+    db
+      .select()
+      .from(provider_failures)
+      .where(eq(provider_failures.provider, 'deepgram'))
+      .then(rows => rows[0])
+
+  test("L-4: a failure is the partner key's only when the partner's key served the stage", async () => {
+    // The install's own provider check (a vague reason's diagnosis) never leaves the test.
+    vi.stubGlobal('fetch', async () => new Response('{}', { status: 500 }))
+    const p = await makePartner('Fallback Partners')
+    await storeWorking(p, 'stt', 'deepgram')
+    const ownerEmail = (await db.select({ email: user.email }).from(user).where(eq(user.id, p.owner.userId)))[0]!.email
+    await db.delete(provider_failures).where(eq(provider_failures.provider, 'deepgram'))
+
+    // Forecast on own keys, but the agent ran on the install's config (it could not read the keys): the install's.
+    const fellBack = await ownKeysCall(p)
+    sent.length = 0
+    expect(
+      await act(agent(fellBack.client), 'call.reportVoiceFailure', {
+        callId: fellBack.id,
+        failure,
+        keySource: 'install',
+      }),
+    ).toMatchObject({ status: 200 })
+    expect(await stage(p, 'stt')).toMatchObject({ status: 'ok', failure: null })
+    expect(sent.some(e => e.to === ownerEmail)).toBe(false)
+    expect(await installFailure()).toMatchObject({ provider: 'deepgram', call_id: fellBack.id })
+
+    // No source said (an older agent): the install's, never an email to the partner.
+    await db.delete(provider_failures).where(eq(provider_failures.provider, 'deepgram'))
+    const unsaid = await ownKeysCall(p)
+    expect(await act(agent(unsaid.client), 'call.reportVoiceFailure', { callId: unsaid.id, failure })).toMatchObject({
+      status: 200,
+    })
+    expect(await stage(p, 'stt')).toMatchObject({ status: 'ok' })
+    expect(await installFailure()).toMatchObject({ call_id: unsaid.id })
+
+    // The partner's key served it: the partner's stage fails and its owner is told; the install's provider is fine.
+    await db.delete(provider_failures).where(eq(provider_failures.provider, 'deepgram'))
+    const own = await ownKeysCall(p)
+    expect(
+      await act(agent(own.client), 'call.reportVoiceFailure', { callId: own.id, failure, keySource: 'partner' }),
+    ).toMatchObject({ status: 200 })
+    expect(await stage(p, 'stt')).toMatchObject({ status: 'failing' })
+    expect(sent.some(e => e.to === ownerEmail)).toBe(true)
+    expect(await installFailure()).toBeUndefined()
+  })
+
+  test('I-1: a key test asks the provider after the partner row is let go', async () => {
+    const p = await makePartner('Slow Provider Partners')
+    await storeWorking(p, 'stt', 'deepgram')
+    let answer: () => void = () => {}
+    const asked = new Promise<void>(resolve => {
+      let waiting = true
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+        // The first request waits until the test lets it answer; the rest answer at once.
+        if (waiting) {
+          waiting = false
+          resolve()
+          await new Promise<void>(go => {
+            answer = go
+          })
+        }
+        const url = String(input instanceof Request ? input.url : input)
+        if (url.endsWith('/v1/projects')) return Response.json({ projects: [{ project_id: 'p1' }] })
+        return Response.json({ balances: [] })
+      })
+    })
+    const testing = act(p.owner, 'partnerKeys.test', { partnerId: p.id, stage: 'stt' })
+    await asked
+    // While the provider has not answered, another write on the partner goes through.
+    const renamed = act(p.owner, 'partner.update', { partnerId: p.id, name: 'Slow Provider Partners 2' })
+    const first = await Promise.race([
+      renamed.then(() => 'renamed'),
+      new Promise(resolve => setTimeout(() => resolve('waited'), 3000)),
+    ])
+    answer()
+    expect(first).toBe('renamed')
+    expect(await renamed).toMatchObject({ status: 200 })
+    expect(await testing).toMatchObject({ status: 200 })
+  }, 15_000)
+
+  test('I-3: the daily check leaves suspended and admin-disabled partners alone', async () => {
+    const suspended = await makePartner('Suspended Keys Partner')
+    const disabled = await makePartner('Disabled Keys Partner')
+    const active = await makePartner('Active Keys Partner')
+    const keyOf = (p: Partner) => `dg_${p.id}_0123456789abcdef`
+    for (const p of [suspended, disabled, active]) {
+      expect(
+        await act(p.owner, 'partnerKeys.set', {
+          partnerId: p.id,
+          stage: 'stt',
+          provider: 'deepgram',
+          apiKey: keyOf(p),
+        }),
+      ).toMatchObject({ status: 200 })
+      await db
+        .update(partner_providers)
+        .set({ status: 'ok' })
+        .where(and(eq(partner_providers.partner_id, p.id), eq(partner_providers.category, 'stt')))
+    }
+    await asServerAdmin(admin, () => act(admin, 'partner.suspend', { partnerId: suspended.id }))
+    await asServerAdmin(admin, () =>
+      act(admin, 'partnerKeys.adminDisable', { partnerId: disabled.id, reason: 'checking it' }),
+    )
+    expect((await db.select().from(partners).where(eq(partners.id, suspended.id)))[0]!.status).toBe('suspended')
+    const seen: string[] = []
+    const refuse: typeof fetch = async (_input, init) => {
+      seen.push(JSON.stringify(init?.headers ?? {}))
+      return new Response(JSON.stringify({ err_msg: 'Invalid credentials' }), { status: 401 })
+    }
+    await checkPartnerKeys(db, refuse)
+    expect(seen.some(h => h.includes(keyOf(active)))).toBe(true)
+    expect(seen.some(h => h.includes(keyOf(suspended)) || h.includes(keyOf(disabled)))).toBe(false)
+    expect(await stage(active, 'stt')).toMatchObject({ status: 'failing' })
+    expect(await stage(suspended, 'stt')).toMatchObject({ status: 'ok' })
+    expect(await stage(disabled, 'stt')).toMatchObject({ status: 'ok' })
   })
 })

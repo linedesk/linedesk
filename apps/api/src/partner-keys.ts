@@ -15,6 +15,7 @@
 //   it until a test passes again; its owner is emailed once a day at most.
 import {
   KEY_SOURCES,
+  type KeySource,
   type KeySources,
   PARTNER_KEY_STAGES,
   type PartnerKeyCode,
@@ -36,7 +37,7 @@ import {
   voice_clones,
   workspace_settings,
 } from '@linedesk/db'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, ne } from 'drizzle-orm'
 import { DEFAULT_TIME_ZONE } from './bookings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -324,14 +325,18 @@ export function reportConfirmsOwnKeys(sources: KeySources | null | undefined): b
 
 /**
  * call.reportVoiceFailure of a call on the partner's keys: the stage's partner key is marked failing (never the
- * install's provider). True when it was the partner's key.
+ * install's provider). True when it was the partner's key. Decided by what served the stage (`source`, the agent's
+ * keySources), not by the forecast: a call forecast on own keys that fell back to the install's config reports
+ * `install`, and that failure is the install's provider's (security review of #1289/#1290, L-4).
  */
 export async function partnerVoiceFailure(
   tx: Tx,
   callId: string,
   failure: { stage: string; provider: string; message: string },
   now: string,
+  source: KeySource | undefined,
 ) {
+  if (source !== 'partner') return false
   const found = await partnerOfCall(tx, callId)
   if (!found?.call.partner_keys) return false
   return markPartnerKeyFailing(tx, found.partner.id, failure.stage, failure.provider, failure.message, now)
@@ -342,14 +347,22 @@ export const allPartnerKeys = (tx: Pick<Tx, 'select'>) => tx.select().from(partn
 
 /**
  * The daily free check of partner keys (provider-health-check.ts): a `failing` stage that works again goes back to
- * `ok`; an `ok` one that is refused turns `failing` (and its owner is emailed once a day). Never throws.
+ * `ok`; an `ok` one that is refused turns `failing` (and its owner is emailed once a day). Not for a suspended partner
+ * or one whose own keys an instance admin turned off: no call uses those keys (security review of #1289/#1290, I-3).
+ * Never throws.
  */
 export async function checkPartnerKeys(
   dbOrTx: typeof db,
   doFetch: typeof fetch = fetch,
   now = new Date().toISOString(),
 ) {
-  const rows = await allPartnerKeys(dbOrTx)
+  const rows = (
+    await dbOrTx
+      .select({ row: partner_providers })
+      .from(partner_providers)
+      .innerJoin(partners, eq(partners.id, partner_providers.partner_id))
+      .where(and(ne(partners.status, 'suspended'), isNull(partners.own_keys_disabled_at)))
+  ).map(r => r.row)
   for (const row of rows) {
     try {
       const key = decryptSecret(row.key_encrypted, partnerKeySlot(row.partner_id, row.category, row.provider))
@@ -372,17 +385,19 @@ export async function checkPartnerKeys(
  */
 export const partnerKeyPreparers: Record<string, Preparer> = {
   'partnerKeys.test': async ({ actor }, input: { partnerId: string; stage: PartnerKeyStage }) => {
-    return db.transaction(async tx => {
+    const stored = await db.transaction(async tx => {
       await ownerWrite(tx, actor, input.partnerId)
       if (!allowTest(input.partnerId)) throw refuse('too_many_tests')
       const stored = await storedKey(tx, input.partnerId, input.stage)
-      if (!stored) return { result: null, keyEncrypted: null }
-      if (!stored.key) throw refuse('key_unreadable')
-      return {
-        keyEncrypted: stored.row.key_encrypted,
-        result: await testPartnerKey(stored.row.provider as ProviderName, stored.key),
-      }
+      if (stored && !stored.key) throw refuse('key_unreadable')
+      return stored ? { provider: stored.row.provider, keyEncrypted: stored.row.key_encrypted, key: stored.key! } : null
     })
+    if (!stored) return { result: null, keyEncrypted: null }
+    // Asked after the partner row's lock is let go (security review of #1289/#1290, I-1): up to a provider timeout.
+    return {
+      keyEncrypted: stored.keyEncrypted,
+      result: await testPartnerKey(stored.provider as ProviderName, stored.key),
+    }
   },
 }
 

@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { providerNames, providers } from './admin.ts'
 import { english, type Words } from './words.ts'
 import { defineAction } from './define.ts'
+import { KEY_SOURCES } from './key-sources.ts'
 import {
   type ProviderFailureReason,
   providerFailureReason,
@@ -85,7 +86,15 @@ export const callReportVoiceFailure = defineAction({
   name: 'call.reportVoiceFailure',
   description:
     'Report that a stage of the voice pipeline (speech to text, language model, voice, realtime model) failed on a call.',
-  input: z.object({ callId: z.string().min(1), failure: voiceFailureSchema }),
+  input: z.object({
+    callId: z.string().min(1),
+    failure: voiceFailureSchema,
+    /**
+     * Whose key served the failed stage (white-label own keys, S7): only `partner` marks the partner's key failing and
+     * emails its owner; missing or `install` is the install's provider's failure (Server admin › Providers).
+     */
+    keySource: z.enum(KEY_SOURCES).optional(),
+  }),
   permission: 'agent',
   logged: 'ids',
 })

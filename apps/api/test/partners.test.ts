@@ -15,11 +15,13 @@ import {
   organization,
   partner_invitations,
   partner_members,
+  partner_providers,
   partners,
   phone_numbers,
   session,
   usage_limit_alerts,
   user,
+  workspace_settings,
 } from '@linedesk/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import { UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
@@ -41,6 +43,7 @@ import {
   WORKSPACE_DELETED_EMAIL,
 } from '../src/jobs.ts'
 import { runSeatSync, seatProration, seatSyncFailed, syncSeats } from '../src/partner-billing.ts'
+import { workspaceOwnKeys } from '../src/partner-keys.ts'
 import { canonicalJson } from '../src/run-action.ts'
 import { mayCreateUser } from '../src/signup-gate.ts'
 import {
@@ -2171,5 +2174,121 @@ describe('Server admin › Workspaces: without billing, a partner takes at most 
     } finally {
       await db.delete(instance_settings).where(eq(instance_settings.key, 'partners.client_limit'))
     }
+  })
+})
+
+// ---- The own-keys switch never outlives the partner that set it (security review of #1289/#1290, M-1) ----
+
+describe('a client that changes partner leaves own keys off (security review of #1289/#1290, M-1)', () => {
+  const three = { pipeline: 'three_stage' as const, voice: { provider: 'elevenlabs' } }
+  const ownKeys = (workspaceId: string) => db.transaction(tx => workspaceOwnKeys(tx, workspaceId, three))
+  const switchOf = async (workspaceId: string) =>
+    (
+      await db
+        .select({ on: workspace_settings.partner_keys })
+        .from(workspace_settings)
+        .where(eq(workspace_settings.workspace_id, workspaceId))
+    )[0]?.on
+  /** Working keys on every stage (as after passing tests; no provider is asked). */
+  async function workingKeys(p: Partner) {
+    for (const [stage, provider] of [
+      ['stt', 'deepgram'],
+      ['llm', 'openai'],
+      ['tts', 'elevenlabs'],
+    ] as const) {
+      expect(
+        await act(p.owner, 'partnerKeys.set', {
+          partnerId: p.id,
+          stage,
+          provider,
+          apiKey: `${stage}_key_${crypto.randomUUID()}`,
+        }),
+      ).toMatchObject({ status: 200 })
+      await db
+        .update(partner_providers)
+        .set({ status: 'ok' })
+        .where(and(eq(partner_providers.partner_id, p.id), eq(partner_providers.category, stage)))
+    }
+  }
+  /** A client of `p` on its own carrier with own keys switched on by `p`'s owner. */
+  async function switchedOn(p: Partner, name: string) {
+    const c = await createClient(p, name)
+    expect(await act(p.owner, 'partner.setClientOwnKeys', { partnerId: p.id, workspaceId: c, on: true })).toMatchObject(
+      { status: 200 },
+    )
+    await db.update(workspace_settings).set({ carrier: 'telnyx' }).where(eq(workspace_settings.workspace_id, c))
+    expect(await switchOf(c)).toBe(true)
+    return c
+  }
+  const move = (workspaceId: string, toPartnerId: string | null, confirmName: string) =>
+    asServerAdmin(admin, () =>
+      act(admin, 'partner.adminMoveClient', { workspaceId, toPartnerId, confirmName, reason: 'support request' }),
+    )
+
+  let from: Partner
+  let to: Partner
+  beforeAll(async () => {
+    from = await makePartner('Keys Old Agency')
+    to = await makePartner('Keys New Agency')
+    await workingKeys(from)
+    await workingKeys(to)
+  })
+
+  test("a Server admin move to another partner: off, and the new partner's keys never answer until its owner says so", async () => {
+    const c = await switchedOn(from, 'Keys Moving Dental')
+    expect(await ownKeys(c)).toBe(true)
+    expect(await move(c, to.id, 'Keys Moving Dental')).toMatchObject({ status: 200 })
+    expect(await orgRow(c)).toMatchObject({ partnerId: to.id })
+    expect(await switchOf(c)).toBe(false)
+    expect(await ownKeys(c)).toBe(false)
+    // The new partner's owner decides.
+    expect(
+      await act(to.owner, 'partner.setClientOwnKeys', { partnerId: to.id, workspaceId: c, on: true }),
+    ).toMatchObject({ status: 200 })
+    expect(await ownKeys(c)).toBe(true)
+  })
+
+  test('a Server admin move out of the partner, and back to one later: off', async () => {
+    const c = await switchedOn(from, 'Keys Leaving Dental')
+    // Taken from its partner it goes as a release does: it needs an owner of its own.
+    await giveOwner(from, c)
+    expect(await move(c, null, 'Keys Leaving Dental')).toMatchObject({ status: 200 })
+    expect(await orgRow(c)).toMatchObject({ partnerId: null })
+    expect(await switchOf(c)).toBe(false)
+    expect(await move(c, to.id, 'Keys Leaving Dental')).toMatchObject({ status: 200 })
+    expect(await ownKeys(c)).toBe(false)
+  })
+
+  test('a Server admin adds a workspace whose switch was left on: off', async () => {
+    const c = await switchedOn(from, 'Keys Stale Dental')
+    // As a row written before this fix: no partner, the switch still on.
+    await db.update(organization).set({ partnerId: null }).where(eq(organization.id, c))
+    expect(await move(c, to.id, 'Keys Stale Dental')).toMatchObject({ status: 200 })
+    expect(await switchOf(c)).toBe(false)
+    expect(await ownKeys(c)).toBe(false)
+  })
+
+  test("the partner's owner releases the client: off", async () => {
+    const c = await switchedOn(from, 'Keys Released Dental')
+    await giveOwner(from, c)
+    expect(
+      await act(from.owner, 'partner.releaseClient', {
+        partnerId: from.id,
+        workspaceId: c,
+        confirmName: 'Keys Released Dental',
+      }),
+    ).toMatchObject({ status: 200 })
+    expect(await switchOf(c)).toBe(false)
+    expect(await move(c, to.id, 'Keys Released Dental')).toMatchObject({ status: 200 })
+    expect(await ownKeys(c)).toBe(false)
+  })
+
+  test("the client's owner removes the partner: off", async () => {
+    const c = await switchedOn(from, 'Keys Independent Dental')
+    const owner = await giveOwner(from, c)
+    expect(
+      await act(await inWorkspace(owner, c), 'workspace.removePartner', { confirmName: 'Keys Independent Dental' }),
+    ).toMatchObject({ status: 200 })
+    expect(await switchOf(c)).toBe(false)
   })
 })

@@ -19,6 +19,7 @@ import {
   callStartTest,
   ASSISTANT_CALL_DEFAULT_MINUTES,
   type PromptOverrides,
+  type KeySource,
   type KeySources,
   type UsageLevel,
   ASSISTANT_CALL_MAX_MINUTES,
@@ -149,8 +150,11 @@ export interface CallSession {
   finalize?(result: FinalResult): Promise<void>
   /** Stores how long the replies took (call.recordTimings), for the admin overview. */
   recordTimings(timings: CallTimings): Promise<void>
-  /** Marks the call with a failed stage of the voice pipeline (call.reportVoiceFailure); the failure as kept, refined. */
-  reportVoiceFailure?(failure: VoiceFailure): Promise<VoiceFailure>
+  /**
+   * Marks the call with a failed stage of the voice pipeline (call.reportVoiceFailure); the failure as kept, refined.
+   * `keySource`: whose key served that stage (own keys, S7); only `partner` is booked to the partner's key.
+   */
+  reportVoiceFailure?(failure: VoiceFailure, keySource?: KeySource): Promise<VoiceFailure>
   /** Providers that worked on this call (provider.reportOk): a failure recorded for them before is over. */
   reportProvidersOk?(providers: ProviderName[]): Promise<void>
 }
@@ -499,8 +503,9 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     async recordTimings(timings) {
       await api.run(callRecordTimings, { callId, ...timings }, scope)
     },
-    async reportVoiceFailure(failure) {
-      const result = await api.run(callReportVoiceFailure, { callId, failure }, scope)
+    async reportVoiceFailure(failure, keySource) {
+      const input = { callId, failure, ...(keySource ? { keySource } : {}) }
+      const result = await api.run(callReportVoiceFailure, input, scope)
       return (result.data as ReportVoiceFailureData | undefined)?.failure ?? failure
     },
     async reportProvidersOk(providers) {

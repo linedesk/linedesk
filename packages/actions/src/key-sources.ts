@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 /** What the agent reports at call.finish: per stage, whose key served it. */
 export const KEY_SOURCES = ['partner', 'install'] as const
+export type KeySource = (typeof KEY_SOURCES)[number]
 export const keySourcesInput = z
   .object({
     stt: z.enum(KEY_SOURCES).optional(),

@@ -51,6 +51,7 @@ import { billingSwitchOn } from './billing-settings.ts'
 import { decodeLogo } from './branding.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
+import { senderDomainProvider } from './domains/sender.ts'
 import { type EmailBrand, withEmailBrand } from './email-brand.ts'
 import { partnerBrandChangedAlert } from './emails/alerts.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
@@ -291,13 +292,21 @@ export async function hostEmailBrand(host: RequestHost, tx: Tx | typeof db = db)
 export const supportEmailVerified = (row: Pick<BrandRow, 'approved_support_email' | 'support_email_verified'>) =>
   !!row.approved_support_email && row.support_email_verified === row.approved_support_email
 
-/** The partner's own sender address while its domain is verified (S6), else null: emails use the install's address. */
+/**
+ * The partner's own sender address while its domain is verified (S6) at the provider the install sends with now, else
+ * null: emails use the install's address. A domain verified at Resend has no DKIM once the install sends through
+ * another provider or loses its domains key (security review of #1291, L-2).
+ */
 export async function verifiedSenderAddress(tx: Tx | typeof db, partnerId: string): Promise<string | null> {
   const [row] = await tx
-    .select({ local: partner_sender_domains.local_part, domain: partner_sender_domains.domain })
+    .select({
+      local: partner_sender_domains.local_part,
+      domain: partner_sender_domains.domain,
+      provider: partner_sender_domains.provider,
+    })
     .from(partner_sender_domains)
     .where(and(eq(partner_sender_domains.partner_id, partnerId), eq(partner_sender_domains.status, 'verified')))
-  return row ? `${row.local}@${row.domain}` : null
+  return row && senderDomainProvider()?.name === row.provider ? `${row.local}@${row.domain}` : null
 }
 
 /**

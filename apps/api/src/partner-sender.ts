@@ -9,11 +9,16 @@
 // - Checks: at once on "Check now" (rate limited), and by the job every 5 minutes for the first hour, then every 30
 //   minutes up to 72 hours (then `stopped` until "Check now"). A verified domain is checked once a day; two failed
 //   checks in a row turn it `failed` (fallback), and its owner is emailed.
-// - Refused: a domain of the install's own, one with a protected name in a label (as brand names), one another partner
-//   holds. Adding needs the brand approved and the first invoice paid (brandGate), like the brand in emails.
+// - Refused: a domain of the install's own, one with a protected name in a label (as brand names, IDN labels decoded
+//   first), one another partner holds. Adding needs the brand approved and the first invoice paid (brandGate), like the
+//   brand in emails.
+// - Claims end (security review of #1291, L-1 and L-3): one that never verified is removed 7 days after it was added,
+//   one that verified once and then failed 30 days after it failed, and a suspended partner's at once. Each is deleted
+//   at the provider first, so it frees the domain for its real owner and the provider's domain slot.
 // - Reply-To: the partner's approved support email once its owner proved it with a 6-digit code sent there (security
 //   review of #1111 L-3); a new support email needs the code again.
 import { createHash, randomInt, timingSafeEqual } from 'node:crypto'
+import { domainToUnicode } from 'node:url'
 import {
   type PartnerSenderCode,
   type PartnerSenderData,
@@ -26,7 +31,7 @@ import {
   partner_branding,
   partner_members,
   partner_sender_domains,
-  type partners,
+  partners,
   type SenderDnsRecord,
   type Tx,
   user,
@@ -55,6 +60,13 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 /** A pending domain is checked this long, then `stopped` until "Check now". */
 export const SENDER_CHECKS_FOR_MS = 72 * HOUR
+/** A claim that never verified is removed this long after it was added (docs/decisions.md): 72 hours of checks, then
+ * a few days in which "Check now" still works. It frees the domain for its real owner (security review of #1291, L-1). */
+export const SENDER_CLAIM_EXPIRES_MS = 7 * 24 * HOUR
+/** A sender that verified once and then failed is removed this long after it failed. */
+export const SENDER_FAILED_EXPIRES_MS = 30 * 24 * HOUR
+/** Who removed a claim that ended on its own (expired, or its partner suspended): the job, no person. */
+export const SENDER_SYSTEM_REMOVER = 'system'
 /** "Check now" asks the provider each time: a few in a row are normal, more per partner are refused. */
 export const SENDER_CHECKS_PER_10_MIN = 10
 export const SENDER_TESTS_PER_HOUR = 5
@@ -124,21 +136,31 @@ export function installDomains(env: Record<string, string | undefined> = process
   return [...domains]
 }
 
-/** Why a domain cannot be a partner's sender, or null: the install's own, or a protected name in a label. */
+/**
+ * Why a domain cannot be a partner's sender, or null: the install's own, or a protected name in a label. Punycode
+ * labels (`xn--pypal-4ve`) are decoded first, so the look-alike folding of brand names sees `pаypal` (security review of
+ * #1291, L-5); one that does not decode is not an address a sender can use.
+ */
 export function domainRefusal(
   domain: string,
   protectedList: readonly string[],
   env: Record<string, string | undefined> = process.env,
-): 'domain_install' | 'domain_protected' | null {
+): 'domain_install' | 'domain_protected' | 'address_invalid' | null {
   if (installDomains(env).some(own => domain === own || domain.endsWith(`.${own}`))) return 'domain_install'
+  const unicode = domain.split('.').some(label => label.startsWith('xn--')) ? domainToUnicode(domain) : domain
+  if (!unicode || unicode.split('.').some(label => label.startsWith('xn--'))) return 'address_invalid'
   // Every label but the top-level one, as words ("paypal-billing" → "paypal billing"), as a brand name is checked.
-  const labels = domain.split('.').slice(0, -1)
+  const labels = unicode.split('.').slice(0, -1)
   if (labels.some(label => protectedNameIn(label.replace(/-/g, ' '), protectedList))) return 'domain_protected'
   if (protectedNameIn(labels.join(' '), protectedList)) return 'domain_protected'
   return null
 }
 
 const addressOf = (row: Pick<SenderRow, 'local_part' | 'domain'>) => `${row.local_part}@${row.domain}`
+
+/** Verified at the provider the install sends with now (as partner-brand.ts verifiedSenderAddress decides it). */
+const sendsNow = (row: SenderRow | null): row is SenderRow =>
+  row?.status === 'verified' && senderDomainProvider()?.name === row.provider
 
 const recordsOf = (records: SenderDnsRecord[]): SenderRecord[] =>
   records.map(r => ({
@@ -170,7 +192,7 @@ async function senderData(tx: Tx, partner: PartnerRow, role: string): Promise<Pa
         .where(and(eq(partner_sender_domains.partner_id, partner.id), isNotNull(partner_sender_domains.removed_reason)))
         .orderBy(desc(partner_sender_domains.removed_at))
         .limit(1)
-  const verified = row?.status === 'verified'
+  const verified = sendsNow(row)
   return {
     available: !!senderDomainProvider(),
     locked: brandApproved && gate.paid ? null : { brandApproved, paid: gate.paid },
@@ -292,15 +314,90 @@ export function senderCheckDue(row: SenderRow, now: string): boolean {
 }
 
 /**
- * The job (every 5 minutes, jobs.ts): each due domain is verified again at the provider and its state moved on. A
- * pending one past its 72 hours turns `stopped` without asking. Never throws.
+ * When a claim that is not verified now ends (SENDER_CLAIM_EXPIRES_MS, SENDER_FAILED_EXPIRES_MS): never verified, a
+ * week after it was added; verified once, 30 days after it failed. Null for a verified one.
+ */
+export function senderClaimEndsAt(row: SenderRow): number | null {
+  if (row.status === 'verified' || row.status === 'removed') return null
+  if (!row.verified_at) return Date.parse(row.created_at) + SENDER_CLAIM_EXPIRES_MS
+  const since = row.failed_at ?? row.last_checked_at ?? row.created_at
+  return Date.parse(since) + SENDER_FAILED_EXPIRES_MS
+}
+
+/**
+ * Ends a claim on its own (expired, or its partner suspended): the domain is deleted at the provider first (gone
+ * already is fine), then the row is `removed`, which frees the domain for another partner. The provider is asked
+ * outside any transaction. When the install no longer has the provider the row was made at, nothing there can be
+ * reached: the row is removed anyway (logged). False when the provider refused: the job tries again next time.
+ */
+async function endClaim(dbOrTx: typeof db, row: SenderRow, now: string, why: string): Promise<boolean> {
+  const provider = senderDomainProvider()
+  if (provider && row.provider_domain_id && row.provider === provider.name) {
+    try {
+      await provider.remove(row.provider_domain_id)
+    } catch (e) {
+      console.error(
+        `could not delete the sender domain of ${row.partner_id} (${why})`,
+        e instanceof Error ? e.message : e,
+      )
+      return false
+    }
+  } else if (row.provider_domain_id) {
+    console.warn(
+      `sender domain of ${row.partner_id} removed (${why}) without deleting it at ${row.provider}: not in use`,
+    )
+  }
+  await dbOrTx
+    .update(partner_sender_domains)
+    .set({ status: 'removed', removed_at: now, removed_by: SENDER_SYSTEM_REMOVER, removed_reason: null })
+    .where(and(eq(partner_sender_domains.id, row.id), ne(partner_sender_domains.status, 'removed')))
+  return true
+}
+
+/**
+ * A suspended partner's sender (security review of #1291, L-3): deleted at the provider and removed, right after the
+ * suspension commits (partners.ts) and by the job for any left over. After an unsuspension the partner adds it again.
+ */
+export async function endSuspendedSenders(dbOrTx: typeof db = db, now = new Date().toISOString(), partnerId?: string) {
+  const rows = await dbOrTx
+    .select({ row: partner_sender_domains })
+    .from(partner_sender_domains)
+    .innerJoin(partners, eq(partners.id, partner_sender_domains.partner_id))
+    .where(
+      and(
+        ne(partner_sender_domains.status, 'removed'),
+        eq(partners.status, 'suspended'),
+        ...(partnerId ? [eq(partners.id, partnerId)] : []),
+      ),
+    )
+  for (const { row } of rows) await endClaim(dbOrTx, row, now, 'partner suspended')
+}
+
+/**
+ * The job (every 5 minutes, jobs.ts): a suspended partner's sender and an expired claim are removed (endClaim); each
+ * other due domain is verified again at the provider and its state moved on. A pending one past its 72 hours turns
+ * `stopped` without asking. Never throws.
  */
 export async function checkSenderDomains(dbOrTx: typeof db = db, now = new Date().toISOString()) {
   const provider = senderDomainProvider()
-  const rows = await dbOrTx.select().from(partner_sender_domains).where(ne(partner_sender_domains.status, 'removed'))
-  for (const row of rows) {
-    if (!senderCheckDue(row, now)) continue
+  const rows = await dbOrTx
+    .select({ row: partner_sender_domains, partnerStatus: partners.status })
+    .from(partner_sender_domains)
+    .innerJoin(partners, eq(partners.id, partner_sender_domains.partner_id))
+    .where(ne(partner_sender_domains.status, 'removed'))
+  const nowMs = Date.parse(now)
+  for (const { row, partnerStatus } of rows) {
     try {
+      if (partnerStatus === 'suspended') {
+        await endClaim(dbOrTx, row, now, 'partner suspended')
+        continue
+      }
+      const ends = senderClaimEndsAt(row)
+      if (ends !== null && ends <= nowMs) {
+        await endClaim(dbOrTx, row, now, 'claim expired')
+        continue
+      }
+      if (!senderCheckDue(row, now)) continue
       const pastDeadline =
         row.status === 'pending' && row.checks_until && Date.parse(row.checks_until) < Date.parse(now)
       if (pastDeadline) {
@@ -380,21 +477,24 @@ export const partnerSenderPreparers: Record<string, Preparer> = {
     return { ...parsed, provider: provider.name, created }
   },
 
-  'partnerSender.check': async ({ actor }, input: { partnerId: string }) =>
-    db.transaction(async tx => {
+  'partnerSender.check': async ({ actor }, input: { partnerId: string }) => {
+    const { provider, row } = await db.transaction(async tx => {
       const { provider } = await ownerAndProvider(tx, actor, input.partnerId)
       const row = await currentRow(tx, input.partnerId)
       if (!row?.provider_domain_id) throw refuse('no_sender')
       if (!allowCheck(input.partnerId)) throw refuse('too_many_checks')
-      await provider.verify(row.provider_domain_id).catch(providerFailed)
-      return { rowId: row.id, found: await provider.get(row.provider_domain_id).catch(providerFailed) }
-    }),
+      return { provider, row: { id: row.id, domainId: row.provider_domain_id } }
+    })
+    // Asked after the partner row's lock is let go (security review of #1291, I-1): up to two provider timeouts.
+    await provider.verify(row.domainId).catch(providerFailed)
+    return { rowId: row.id, found: await provider.get(row.domainId).catch(providerFailed) }
+  },
 
   'partnerSender.sendTest': async ({ actor }, input: { partnerId: string }) => {
     const { to, brand, address } = await db.transaction(async tx => {
       const team = await partnerOnTeam(tx, actor, input.partnerId, true)
       const row = await currentRow(tx, input.partnerId)
-      if (row?.status !== 'verified') throw refuse('not_verified')
+      if (!sendsNow(row)) throw refuse('not_verified')
       if (!allowTest(input.partnerId)) throw refuse('too_many_tests')
       const [me] = await tx.select({ email: user.email }).from(user).where(eq(user.id, actor.actorId))
       const [brandRow] = await tx

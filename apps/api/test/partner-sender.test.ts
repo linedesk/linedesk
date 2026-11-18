@@ -7,7 +7,7 @@ import { and, desc, eq, ne } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { partnerSetupActor } from '../src/agent-setup.ts'
 import { db } from '../src/db.ts'
-import { stateOf } from '../src/domains/sender.ts'
+import { fakeSenderDomains, SenderDomainError, stateOf } from '../src/domains/sender.ts'
 import { type Email, emailSender, envelopeOf } from '../src/email.ts'
 import { securityNoticeBrand } from '../src/email-brand.ts'
 import { emailBrandOf, withWorkspaceBrand } from '../src/partner-brand.ts'
@@ -17,6 +17,9 @@ import {
   domainRefusal,
   installDomains,
   SENDER_CHECKS_FOR_MS,
+  SENDER_CLAIM_EXPIRES_MS,
+  SENDER_FAILED_EXPIRES_MS,
+  SENDER_SYSTEM_REMOVER,
   senderCheckDue,
 } from '../src/partner-sender.ts'
 import { runAction } from '../src/run-action.ts'
@@ -388,4 +391,225 @@ describe('the support email becomes Reply-To only once proven', () => {
       .where(eq(verification.identifier, `partner-support:${b.id}`))
     expect(left).toBeUndefined()
   })
+})
+
+describe('security review of #1291', () => {
+  const iso = (ms: number) => new Date(ms).toISOString()
+  const fake = { ...fakeSenderDomains }
+  /** The fake provider's deletions while `work` runs (and any override of its calls). */
+  async function atProvider<T>(override: Partial<typeof fakeSenderDomains>, work: (removed: string[]) => Promise<T>) {
+    const removed: string[] = []
+    Object.assign(fakeSenderDomains, {
+      remove: async (id: string) => void removed.push(id),
+      ...override,
+    })
+    try {
+      return await work(removed)
+    } finally {
+      Object.assign(fakeSenderDomains, fake)
+    }
+  }
+  const lastRemoved = (p: Partner) =>
+    db
+      .select()
+      .from(partner_sender_domains)
+      .where(and(eq(partner_sender_domains.partner_id, p.id), eq(partner_sender_domains.status, 'removed')))
+      .orderBy(desc(partner_sender_domains.removed_at))
+      .limit(1)
+      .then(rows => rows[0])
+  async function brandedPartner(name: string) {
+    const p = await makePartner(`${name} Agency`)
+    await approvedBrand(p, `${name} Desk`, `help@${name.toLowerCase()}.example`)
+    return p
+  }
+  async function verifiedSender(p: Partner, address: string) {
+    expect(await act(p.owner, 'partnerSender.add', { partnerId: p.id, address })).toMatchObject({ status: 200 })
+    expect((await act(p.owner, 'partnerSender.check', { partnerId: p.id })).body.data.sender.status).toBe('verified')
+  }
+
+  test('L-1: a claim that never verifies ends after 7 days at the provider and frees the domain', async () => {
+    const squatter = await brandedPartner('Squat')
+    const real = await brandedPartner('Realowner')
+    const address = 'notify@pending.realowner.example'
+    expect(await act(squatter.owner, 'partnerSender.add', { partnerId: squatter.id, address })).toMatchObject({
+      status: 200,
+    })
+    expect(await act(real.owner, 'partnerSender.add', { partnerId: real.id, address })).toMatchObject({
+      status: 409,
+      body: { code: 'domain_taken' },
+    })
+    const created = Date.parse((await rowOf(squatter))!.created_at)
+    await checkSenderDomains(db, iso(created + SENDER_CHECKS_FOR_MS + 60_000))
+    expect((await rowOf(squatter))!.status).toBe('stopped')
+    // "Check now" checks again, but never makes the claim last longer.
+    expect((await act(squatter.owner, 'partnerSender.check', { partnerId: squatter.id })).body.data.sender.status).toBe(
+      'pending',
+    )
+    await checkSenderDomains(db, iso(created + SENDER_CLAIM_EXPIRES_MS - 60_000))
+    expect(await rowOf(squatter)).toBeDefined()
+    await atProvider({}, async removed => {
+      await checkSenderDomains(db, iso(created + SENDER_CLAIM_EXPIRES_MS + 60_000))
+      expect(removed).toContain('fake_pending.realowner.example')
+    })
+    expect(await rowOf(squatter)).toBeUndefined()
+    expect(await lastRemoved(squatter)).toMatchObject({ removed_by: SENDER_SYSTEM_REMOVER, removed_reason: null })
+    // Not shown as a server admin's removal; the real owner adds it now.
+    expect((await act(squatter.owner, 'partnerSender.get', { partnerId: squatter.id })).body.data).toMatchObject({
+      sender: null,
+      removedByAdmin: null,
+    })
+    expect(await act(real.owner, 'partnerSender.add', { partnerId: real.id, address })).toMatchObject({ status: 200 })
+  })
+
+  test('L-1: a sender that verified once and then failed ends 30 days after it failed, not after 7', async () => {
+    const p = await brandedPartner('Lapsed')
+    await verifiedSender(p, 'notify@mail.lapsed.example')
+    const failed = { id: 'fake_x', status: 'failed', state: 'failed' as const, records: [] }
+    const now = new Date().toISOString()
+    for (let i = 0; i < 2; i++) await db.transaction(async tx => applySenderCheck(tx, (await rowOf(p))!, failed, now))
+    const row = (await rowOf(p))!
+    expect(row.status).toBe('failed')
+    await checkSenderDomains(db, iso(Date.parse(row.created_at) + SENDER_CLAIM_EXPIRES_MS + 60_000))
+    expect((await rowOf(p))!.status).toBe('failed')
+    await atProvider({}, async removed => {
+      await checkSenderDomains(db, iso(Date.parse(row.failed_at!) + SENDER_FAILED_EXPIRES_MS + 60_000))
+      expect(removed).toContain('fake_mail.lapsed.example')
+    })
+    expect(await rowOf(p)).toBeUndefined()
+  })
+
+  test('L-2: a verified sender is used only while the install sends with the provider that verified it', async () => {
+    const p = await brandedPartner('Switch')
+    const res = await act(p.owner, 'workspace.createForClient', { partnerId: p.id, name: 'Switch Client' })
+    const client: string = res.body.data.workspace.id
+    await verifiedSender(p, 'notify@mail.switch.example')
+    expect((await emailBrandOf(client))?.fromAddress).toBe('notify@mail.switch.example')
+    // The install stopped sending with Resend, or its domains key is gone: no provider for partner domains.
+    delete process.env.SENDER_DOMAINS
+    try {
+      expect((await emailBrandOf(client))?.fromAddress).toBeNull()
+      sent.length = 0
+      await withWorkspaceBrand(client, async () =>
+        emailSender.send({ to: 'someone@switch-client.example', subject: 's', text: 't' }),
+      )
+      const from = sent.findLast(e => e.to === 'someone@switch-client.example')!.envelope.from
+      expect(from).toMatch(/^"Switch Desk" </)
+      expect(from).not.toContain('switch.example>')
+      const page = (await act(p.owner, 'partnerSender.get', { partnerId: p.id })).body.data
+      expect(page.fromLine).not.toContain('mail.switch.example')
+      expect(await act(p.owner, 'partnerSender.sendTest', { partnerId: p.id })).toMatchObject({
+        status: 409,
+        body: { code: 'not_verified' },
+      })
+    } finally {
+      process.env.SENDER_DOMAINS = 'fake'
+    }
+    // A row verified at another provider than the one in use: the same.
+    await db
+      .update(partner_sender_domains)
+      .set({ provider: 'resend' })
+      .where(eq(partner_sender_domains.id, (await rowOf(p))!.id))
+    expect((await emailBrandOf(client))?.fromAddress).toBeNull()
+    await db
+      .update(partner_sender_domains)
+      .set({ provider: 'fake' })
+      .where(eq(partner_sender_domains.id, (await rowOf(p))!.id))
+    expect((await emailBrandOf(client))?.fromAddress).toBe('notify@mail.switch.example')
+  })
+
+  test('L-3: suspending a partner deletes its sender at the provider; the job never checks it; it adds it again after', async () => {
+    const p = await brandedPartner('Suspend')
+    await verifiedSender(p, 'notify@mail.suspend.example')
+    await atProvider({}, async removed => {
+      expect(await asServerAdmin(admin, () => act(admin, 'partner.suspend', { partnerId: p.id }))).toMatchObject({
+        status: 200,
+      })
+      expect(removed).toEqual(['fake_mail.suspend.example'])
+    })
+    expect(await rowOf(p)).toBeUndefined()
+    expect(await lastRemoved(p)).toMatchObject({ removed_by: SENDER_SYSTEM_REMOVER, removed_reason: null })
+
+    // The provider refuses at the suspension: the suspension stands, the job deletes it later and never checks it.
+    const q = await brandedPartner('Refused')
+    await verifiedSender(q, 'notify@mail.refused.example')
+    const asked: string[] = []
+    await atProvider(
+      {
+        remove: async () => {
+          throw new SenderDomainError('Resend refused (500): try later', 500)
+        },
+        get: async id => {
+          asked.push(id)
+          return fake.get(id)
+        },
+      },
+      async () => {
+        expect(await asServerAdmin(admin, () => act(admin, 'partner.suspend', { partnerId: q.id }))).toMatchObject({
+          status: 200,
+        })
+        expect((await rowOf(q))!.status).toBe('verified')
+        await checkSenderDomains(db, iso(Date.now() + 2 * 24 * 3600_000))
+        expect(asked).not.toContain('fake_mail.refused.example')
+        expect(await rowOf(q)).toBeDefined()
+      },
+    )
+    await atProvider({}, async removed => {
+      await checkSenderDomains(db, iso(Date.now() + 2 * 24 * 3600_000))
+      expect(removed).toContain('fake_mail.refused.example')
+    })
+    expect(await rowOf(q)).toBeUndefined()
+    // Unsuspended: the partner adds its sender again.
+    expect((await asServerAdmin(admin, () => act(admin, 'partner.approve', { partnerId: q.id }))).status).toBe(200)
+    expect(
+      await act(q.owner, 'partnerSender.add', { partnerId: q.id, address: 'notify@mail.refused.example' }),
+    ).toMatchObject({ status: 200 })
+  })
+
+  test('L-5: punycode look-alikes are decoded before the protected-name check', async () => {
+    // pаypal with a Cyrillic а.
+    expect(domainRefusal('mail.xn--pypal-4ve.com', ['PayPal'], {})).toBe('domain_protected')
+    expect(domainRefusal(new URL('https://mail.pаypal.com').hostname, ['PayPal'], {})).toBe('domain_protected')
+    // A real IDN without a protected name is fine; one that does not decode is not an address.
+    expect(domainRefusal('mail.xn--mnchen-3ya.de', ['PayPal'], {})).toBeNull()
+    expect(domainRefusal('mail.xn--a.example', ['PayPal'], {})).toBe('address_invalid')
+    // PayPal is on the built-in list.
+    const p = await brandedPartner('Lookalike')
+    const res = await act(p.owner, 'partnerSender.add', { partnerId: p.id, address: 'notify@mail.xn--pypal-4ve.com' })
+    expect(res).toMatchObject({ status: 409, body: { code: 'domain_protected' } })
+  })
+
+  test('I-1: "Check now" asks the provider after the partner row is let go', async () => {
+    const p = await brandedPartner('Slowcheck')
+    expect(
+      await act(p.owner, 'partnerSender.add', { partnerId: p.id, address: 'notify@mail.slowcheck.example' }),
+    ).toMatchObject({ status: 200 })
+    let answer: () => void = () => {}
+    let asked: () => void = () => {}
+    const askedNow = new Promise<void>(resolve => {
+      asked = resolve
+    })
+    await atProvider(
+      {
+        verify: async () => {
+          asked()
+          await new Promise<void>(go => {
+            answer = go
+          })
+        },
+      },
+      async () => {
+        const checking = act(p.owner, 'partnerSender.check', { partnerId: p.id })
+        await askedNow
+        const renamed = act(p.owner, 'partner.update', { partnerId: p.id, name: 'Slowcheck Agency 2' })
+        const first = await Promise.race([
+          renamed.then(() => 'renamed'),
+          new Promise(resolve => setTimeout(() => resolve('waited'), 3000)),
+        ])
+        answer()
+        expect(first).toBe('renamed')
+        expect(await renamed).toMatchObject({ status: 200 })
+        expect((await checking).body.data.sender.status).toBe('verified')
+      },
+    )
+  }, 15_000)
 })

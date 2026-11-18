@@ -276,8 +276,9 @@ function reportVoiceFailure(room: Room, call: CallSession, log: CallLog, failure
   show(failure)
   // The API records it as the provider's failure too and may refine a vague reason (a used-up quota behind "no audio"):
   // the test call then shows the cause.
+  // Whose key served the stage: a call forecast on the partner's keys that fell back reports `install` (S7).
   void call
-    .reportVoiceFailure?.(failure)
+    .reportVoiceFailure?.(failure, call.keySources?.[failure.stage] ?? 'install')
     .then(kept => {
       if (kept.reason !== failure.reason || kept.message !== failure.message) show(kept)
     })
