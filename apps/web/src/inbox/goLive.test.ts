@@ -13,6 +13,7 @@ import {
   goLiveShown,
   goLiveView,
   nextGoLiveStep,
+  presenceSaidByChecklist,
   teamInvited,
 } from './goLive.ts'
 
@@ -280,4 +281,15 @@ describe('go-live checklist', () => {
   test('the first-call hint names the assistant', () => {
     expect(firstCallHint('Maya')).toMatch(/^When someone calls, Maya answers/)
   })
+})
+
+test('the header leaves out why the assistant cannot answer while the checklist steps say it', () => {
+  for (const reason of ['number', 'voice', 'failing'] as const) {
+    expect(presenceSaidByChecklist({ kind: 'notAnswering', reason }, true)).toBe(true)
+    expect(presenceSaidByChecklist({ kind: 'notAnswering', reason }, false)).toBe(false)
+  }
+  // Not a checklist step: always in the header.
+  expect(presenceSaidByChecklist({ kind: 'answering' }, true)).toBe(false)
+  expect(presenceSaidByChecklist({ kind: 'offline' }, true)).toBe(false)
+  expect(presenceSaidByChecklist({ kind: 'unknown' }, true)).toBe(false)
 })

@@ -20,6 +20,7 @@ import { brandName } from '../brand.ts'
 import { fmt } from '../i18n/format.ts'
 import { i18n } from '../i18n/index.tsx'
 import { type ForwardedCall, realCallReached } from '../onboarding/forwarding-check.ts'
+import type { Presence } from '../shell/presence.ts'
 
 export type GoLiveId = GoLiveStep
 
@@ -74,6 +75,14 @@ export const voiceFailing = (assistant: string, canFix: boolean) =>
     assistant,
     fix: canFix ? i18n().t('inbox.voice.fixInAdmin') : i18n().t('inbox.voice.nothingToDoFailing'),
   })
+
+/**
+ * The inbox header's "can't answer calls yet" line is left out while the checklist's steps are on screen: its open
+ * steps (Maya can answer calls, Connect your number) say the same, with the way to fix it. A live call, "answering"
+ * and "offline" are not checklist steps and always show.
+ */
+export const presenceSaidByChecklist = (presence: Presence, checklistSteps: boolean) =>
+  checklistSteps && presence.kind === 'notAnswering'
 
 /** Where a number is connected: the go-live step and the empty inbox open it. */
 export const CONNECT_NUMBER = '#workspace/phone'

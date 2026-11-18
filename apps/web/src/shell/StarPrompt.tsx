@@ -1,8 +1,10 @@
-// The GitHub star prompt: a small card at the bottom right, like the tour. Star stars the repository
+// The GitHub star prompt: a small card at the bottom right, like the tour (a sheet along the bottom on phones),
+// only over the inbox: never over a page, a call, a dialog or the tour. Star stars the repository
 // in one click for members who signed in with GitHub (GitHub asks them to allow it, then they are back
 // here), else opens it on GitHub; No thanks closes it for good, the close button only for this session. A star made here ends in a short burst
 // of confetti in the app's own colors.
 import { formatStarCount, type StarPrompt as Prompt, STAR_SCOPE } from '@linedesk/actions'
+import { useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { auth } from '../auth.ts'
 import { useBrand } from '../brand.ts'
@@ -13,15 +15,16 @@ import {
   markShown,
   msUntilDue,
   repoUrl,
+  type StarCardState,
   shownThisSession,
+  starCardOnScreen,
   starMove,
   starPitch,
   takeGrantReturn,
 } from './starPrompt.ts'
-import { useT } from '@linedesk/i18n/react'
+import './star-prompt.css'
 
-/** `waiting`: not shown yet; `closed`: answered or thanked, gone for this page. */
-type State = 'waiting' | 'ask' | 'starring' | 'thanks' | 'failed' | 'closed'
+type State = StarCardState
 const THANKS_MS = 4000
 
 /** True once the session is two minutes old (msUntilDue); waits only while `enabled`. */
@@ -107,7 +110,7 @@ export function StarPrompt({ prompt, quiet }: { prompt: Prompt | null; quiet: bo
     setState('closed')
   }
 
-  if (state === 'waiting' || state === 'closed') return null
+  if (!starCardOnScreen(state, quiet)) return null
   if (state === 'thanks') {
     return (
       <section className="tour star-card" role="status" aria-live="polite">
@@ -120,7 +123,12 @@ export function StarPrompt({ prompt, quiet }: { prompt: Prompt | null; quiet: bo
   const failed = state === 'failed'
   const move = starMove(prompt)
   return (
-    <section className="tour star-card" role="dialog" aria-label={t('shell.star.dialog', { product: 'Linedesk' })} aria-live="polite">
+    <section
+      className="tour star-card"
+      role="dialog"
+      aria-label={t('shell.star.dialog', { product: 'Linedesk' })}
+      aria-live="polite"
+    >
       <Button
         size="sm"
         variant="ghost"
@@ -134,22 +142,25 @@ export function StarPrompt({ prompt, quiet }: { prompt: Prompt | null; quiet: bo
         <Icon name="heart" size={15} className="star-heart" />
         {t('shell.star.title', { product: 'Linedesk' })}
       </h2>
-      <p>
-        {failed
-          ? t('shell.star.failed')
-          : starPitch('Linedesk', starCount, formatStarCount)}
-      </p>
+      <p>{failed ? t('shell.star.failed') : starPitch('Linedesk', starCount, formatStarCount)}</p>
       <div className="tour-foot">
         <span className="tour-count" />
         <Button size="sm" variant="ghost" onClick={dismiss} title={t('shell.star.dismissTip')}>
           {t('shell.star.dismiss')}
         </Button>
         {failed || move === 'open' ? (
-          <Button size="sm" variant="primary" icon="star" onClick={open} title={t('shell.star.open', { repo: prompt.repo })}>
+          <Button
+            size="sm"
+            variant="primary"
+            icon="star"
+            onClick={open}
+            title={t('shell.star.open', { repo: prompt.repo })}
+          >
             {failed ? t('shell.star.openGitHub') : t('shell.star.button')}
           </Button>
         ) : (
-          <Button busy={state === 'starring'}
+          <Button
+            busy={state === 'starring'}
             size="sm"
             variant="primary"
             icon="star"

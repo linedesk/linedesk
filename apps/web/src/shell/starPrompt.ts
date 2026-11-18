@@ -27,6 +27,16 @@ export const starMove = (prompt: StarPrompt): StarMove => (prompt.github ? 'gran
 
 export const repoUrl = (repo: string) => `https://github.com/${repo}`
 
+/** `waiting`: not shown yet; `closed`: answered or thanked, gone for this page. */
+export type StarCardState = 'waiting' | 'ask' | 'starring' | 'thanks' | 'failed' | 'closed'
+
+/**
+ * Whether the card is on screen. It never sits over a page, a call, a dialog or the tour (`quiet`): opened from
+ * the inbox and then a settings page, it steps aside there and comes back on the inbox, still unanswered.
+ */
+export const starCardOnScreen = (state: StarCardState, quiet: boolean) =>
+  state !== 'waiting' && state !== 'closed' && !quiet
+
 function read(storage: Storage, key: string): string | null {
   try {
     return storage.getItem(key)

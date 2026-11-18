@@ -1,4 +1,6 @@
 import type { Call } from '@linedesk/db/types'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { T, useFormat, useT } from '@linedesk/i18n/react'
 import type { ReactNode } from 'react'
 import { assigneeTabs, callerName, type InboxTab, isTestCall, type splits, visibleSplits } from '../inbox-model.ts'
 import { usePresence } from '../shell/presence.ts'
@@ -7,14 +9,13 @@ import { useAssistantName, useAssistantNameOrNull, useContact } from '../store.t
 import { clock, parseTs } from '../time.ts'
 import { appLink } from '../ui/AppLink.tsx'
 import { Button, Icon } from '../ui/kit.tsx'
-import { SkeletonText } from '../ui/LoadStates.tsx'
-import { StatusMark } from '../ui/StatusMark.tsx'
 import { useElapsed } from '../ui/LiveIndicator.tsx'
+import { SkeletonText } from '../ui/LoadStates.tsx'
 import { SearchButton, SearchField } from '../ui/listPage.tsx'
+import { StatusMark } from '../ui/StatusMark.tsx'
 import { type BulkActions, BulkBar } from './BulkBar.tsx'
-import { voiceFailing, voiceFix, voiceNotSetUp } from './goLive.ts'
-import { type MessageKey, msg } from '@linedesk/i18n'
-import { T, useFormat, useT } from '@linedesk/i18n/react'
+import { useGoLiveStepsVisible } from './GoLiveChecklist.tsx'
+import { presenceSaidByChecklist, voiceFailing, voiceFix, voiceNotSetUp } from './goLive.ts'
 
 export type InboxHeadProps = {
   tab: InboxTab
@@ -157,9 +158,12 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
   const t = useT()
   const assistant = useAssistantNameOrNull()
   const presence = usePresence()
+  const checklistSteps = useGoLiveStepsVisible()
   if (liveCall) return <LiveCallButton call={liveCall} onOpen={onOpen} />
   // Not known yet, or the name has not arrived: nothing rather than a guess (the line is not always there).
   if (presence.kind === 'unknown' || assistant === null) return null
+  // The go-live checklist beside the calls says it already, with the way to fix it: once is enough.
+  if (presenceSaidByChecklist(presence, checklistSteps)) return null
   if (presence.kind === 'answering') {
     return (
       <span className="ib-maya" title={t('inbox.presence.answeringCalls', { assistant })}>

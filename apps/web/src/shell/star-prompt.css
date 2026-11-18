@@ -1,0 +1,41 @@
+/* The GitHub star prompt (StarPrompt.tsx), and the passkey card that borrows its place (AddPasskey.tsx): a tour card
+   (app.css `.tour`) that points at nothing, always at the bottom right. */
+.tour.star-card {
+  top: auto;
+  left: auto;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+}
+/* Nothing to place, so never hidden while it waits to be placed (app.css `.tour:not([data-ready])`, whichever file loads first). */
+.tour.star-card:not([data-ready]) {
+  visibility: visible;
+}
+/* Phones: a sheet along the bottom, the full width between the gutters, above the home indicator. */
+@media (max-width: 719px) {
+  .tour.star-card {
+    left: max(12px, env(safe-area-inset-left, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    width: auto;
+  }
+}
+/* Closes the card for this session; No thanks is the answer that ends it for good. */
+.star-card .star-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+.star-card h2 {
+  padding-right: 28px;
+}
+/* Same calm outline heart as Server admin › Branding, Support Linedesk: muted ink, centred on the heading. */
+.star-card .star-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 20px;
+}
+.star-card .star-heart {
+  color: var(--ink-muted);
+  flex: none;
+}

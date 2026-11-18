@@ -7,6 +7,7 @@
 // goLiveStepScope); both are listed collapsed under the open steps, one click (or ⇧H, ⇧⌫) brings one back.
 // A write the server refuses is undone (undoGoLiveRefusal, from the app's one rejection toast).
 import { type GoLiveChecklistData, type GoLiveStepState, isRealCall } from '@linedesk/actions'
+import { useT } from '@linedesk/i18n/react'
 import {
   type KeyboardEvent,
   useCallback,
@@ -18,6 +19,7 @@ import {
   useSyncExternalStore,
 } from 'react'
 import { peekStoredQuery, refreshQuery, setQueryData, useQuery } from '../cachedQuery.ts'
+import { i18n } from '../i18n/index.tsx'
 import { useCalendarProviders } from '../settings/calendar-providers.ts'
 import { readAction } from '../settings/settings-api.ts'
 import { anchoredStyle } from '../shell/Overlays.tsx'
@@ -30,8 +32,8 @@ import { useTeam } from '../team/team-api.ts'
 import { Backdrop } from '../ui/Backdrop.tsx'
 import { type CommandItem, CommandMenu } from '../ui/CommandMenu.tsx'
 import { Button, cx, Icon } from '../ui/kit.tsx'
-import { MarkGlyph } from '../ui/StatusMark.tsx'
 import { useLoadState } from '../ui/LoadStates.tsx'
+import { MarkGlyph } from '../ui/StatusMark.tsx'
 import { useMediaQuery } from '../ui/useMediaQuery.ts'
 import {
   calendarReady,
@@ -49,8 +51,6 @@ import {
   nextGoLiveStep,
   teamInvited,
 } from './goLive.ts'
-import { i18n } from '../i18n/index.tsx'
-import { useT } from '@linedesk/i18n/react'
 
 const CHECKLIST = 'golive.checklist'
 const loadChecklist = () => readAction<GoLiveChecklistData>('onboarding.goLiveChecklist')
@@ -122,10 +122,14 @@ export function undoGoLiveRefusal(workspaceId: string, action: string) {
   void refreshGoLiveChecklist()
 }
 
-/** Whether the checklist is on screen: the "Connect your number" banner stays away meanwhile (it is the first step). */
-let visible = false
+/**
+ * What of the checklist is on screen: its steps, the line saying it could not load, or nothing. While anything is,
+ * the "Connect your number" banner stays away (it is the first step); while the steps are, the inbox header leaves
+ * out why the assistant cannot answer yet (the first open step says it, with the way to fix it).
+ */
+let visible: 'steps' | 'problem' | null = null
 const visibleListeners = new Set<() => void>()
-function setVisible(value: boolean) {
+function setVisible(value: typeof visible) {
   if (visible === value) return
   visible = value
   for (const listener of visibleListeners) listener()
@@ -134,7 +138,9 @@ const subscribeVisible = (listener: () => void) => {
   visibleListeners.add(listener)
   return () => visibleListeners.delete(listener)
 }
-export const useGoLiveVisible = () => useSyncExternalStore(subscribeVisible, () => visible)
+export const useGoLiveVisible = () => useSyncExternalStore(subscribeVisible, () => visible !== null)
+/** The checklist's steps are on screen (also collapsed to one line on narrow windows). */
+export const useGoLiveStepsVisible = () => useSyncExternalStore(subscribeVisible, () => visible === 'steps')
 
 /** ⌘K "Show go-live checklist": reopens it after it was closed, and opens its steps. Undefined where it does not apply. */
 export function useShowGoLive(canEdit: boolean, workspaceId: string): (() => void) | undefined {
@@ -285,8 +291,8 @@ export function GoLiveChecklist({
   // Not loaded at all (nothing kept from before): one line that says so, instead of no checklist.
   const failed = canEdit && !server && query.error !== null
   useLayoutEffect(() => {
-    setVisible(shown || failed)
-    return () => setVisible(false)
+    setVisible(failed ? 'problem' : shown ? 'steps' : null)
+    return () => setVisible(null)
   }, [shown, failed])
   if (failed)
     return (
@@ -373,7 +379,12 @@ export function GoLiveChecklist({
     toaster.via('key', () => restore(id))
   }
   return (
-    <aside ref={panel} className={cx('golive', open && 'is-open')} aria-label={t('inbox.goLive.title')} onKeyDown={onKeyDown}>
+    <aside
+      ref={panel}
+      className={cx('golive', open && 'is-open')}
+      aria-label={t('inbox.goLive.title')}
+      onKeyDown={onKeyDown}
+    >
       <div className="golive-head">
         {wide ? (
           <div className="golive-toggle">
@@ -447,7 +458,10 @@ export function GoLiveChecklist({
                     variant="ghost"
                     icon="close"
                     aria-label={t('inbox.goLive.notNeededItem', { step: item.label })}
-                    title={t('common.withKey', { label: item.scope === 'person' ? t('inbox.goLive.notNeededForMe') : t('inbox.goLive.notNeeded'), key: '⌫' })}
+                    title={t('common.withKey', {
+                      label: item.scope === 'person' ? t('inbox.goLive.notNeededForMe') : t('inbox.goLive.notNeeded'),
+                      key: '⌫',
+                    })}
                     onClick={() => skip(item)}
                   />
                 )}
@@ -465,7 +479,10 @@ export function GoLiveChecklist({
                 type="button"
                 className="golive-more"
                 aria-expanded={expanded === 'later'}
-                title={t('common.withKey', { label: expanded === 'later' ? t('inbox.goLive.hideReminders') : t('inbox.goLive.showReminders'), key: 'Enter' })}
+                title={t('common.withKey', {
+                  label: expanded === 'later' ? t('inbox.goLive.hideReminders') : t('inbox.goLive.showReminders'),
+                  key: 'Enter',
+                })}
                 onClick={() => toggleSet('later')}
               >
                 <Icon name="down" size={12} />
@@ -499,7 +516,10 @@ export function GoLiveChecklist({
                 type="button"
                 className="golive-more"
                 aria-expanded={expanded === 'skipped'}
-                title={t('common.withKey', { label: expanded === 'skipped' ? t('inbox.goLive.hideSkipped') : t('inbox.goLive.showSkipped'), key: 'Enter' })}
+                title={t('common.withKey', {
+                  label: expanded === 'skipped' ? t('inbox.goLive.hideSkipped') : t('inbox.goLive.showSkipped'),
+                  key: 'Enter',
+                })}
                 onClick={() => toggleSet('skipped')}
               >
                 <Icon name="down" size={12} />

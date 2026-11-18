@@ -7,6 +7,7 @@ import {
   repoUrl,
   STAR_DELAY_MS,
   shownThisSession,
+  starCardOnScreen,
   starMove,
   starPitch,
   takeGrantReturn,
@@ -72,4 +73,16 @@ test('due two minutes into the session, also after a reload', () => {
   expect(msUntilDue(1_000_000, storage)).toBe(STAR_DELAY_MS)
   expect(msUntilDue(1_000_000 + 90_000, storage)).toBe(30_000)
   expect(msUntilDue(1_000_000 + 200_000, storage)).toBe(0)
+})
+
+test('the card shows only over the inbox: a page, a call, a dialog or the tour hides it until they close', () => {
+  expect(starCardOnScreen('ask', false)).toBe(true)
+  expect(starCardOnScreen('failed', false)).toBe(true)
+  expect(starCardOnScreen('thanks', false)).toBe(true)
+  // Shown on the inbox, then a settings page opened: it steps aside, unanswered, and is back on the inbox.
+  expect(starCardOnScreen('ask', true)).toBe(false)
+  expect(starCardOnScreen('failed', true)).toBe(false)
+  expect(starCardOnScreen('thanks', true)).toBe(false)
+  expect(starCardOnScreen('waiting', false)).toBe(false)
+  expect(starCardOnScreen('closed', false)).toBe(false)
 })
