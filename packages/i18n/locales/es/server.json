@@ -108,7 +108,6 @@
   "api.providerTest.elevenlabs.usedUp": "Cuota de ElevenLabs agotada ({used} de {limit} créditos{resets, select, none {} other {; se renueva el {resets}}}): el asistente no puede hablar. Mejora el plan o activa la facturación por uso en ElevenLabs.",
   "api.providerTest.notSet": "Sin definir: {fields}",
   "api.providerTest.notSetUp": "Sin configurar",
-  "api.providerTest.oauth.conditionalAccess": "{provider} rechazó la app (AADSTS53003): revisa el ID de cliente o una directiva de acceso condicional que bloquee la app.",
   "api.providerTest.oauth.secretExpired": "El secreto de cliente de {provider} venció: crea uno nuevo en Microsoft Entra e ingrésalo aquí.",
   "api.providerTest.oauth.unknownTenant": "{provider} no reconoce el inquilino {tenant}: revisa el ID de inquilino.",
   "api.providerTest.oauth.unreachable": "No se pudo contactar con {provider}: {error}",

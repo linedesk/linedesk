@@ -108,7 +108,6 @@
   "api.providerTest.elevenlabs.usedUp": "ElevenLabs-Kontingent aufgebraucht ({used} von {limit} Credits{resets, select, none {} other {; es wird am {resets} zurückgesetzt}}): Der Assistent kann nicht sprechen. Wechsle zu einem größeren Plan oder schalte in ElevenLabs die nutzungsbasierte Abrechnung ein.",
   "api.providerTest.notSet": "Nicht gesetzt: {fields}",
   "api.providerTest.notSetUp": "Nicht eingerichtet",
-  "api.providerTest.oauth.conditionalAccess": "{provider} hat die App abgelehnt (AADSTS53003): Prüfe die Client-ID oder eine Richtlinie für bedingten Zugriff, die die App blockiert.",
   "api.providerTest.oauth.secretExpired": "Das Client-Secret von {provider} ist abgelaufen: Erstelle in Microsoft Entra ein neues und gib es hier ein.",
   "api.providerTest.oauth.unknownTenant": "{provider} kennt den Mandanten {tenant} nicht: Prüfe die Mandanten-ID.",
   "api.providerTest.oauth.unreachable": "{provider} war nicht erreichbar: {error}",

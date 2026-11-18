@@ -108,7 +108,7 @@
   "api.providerTest.elevenlabs.usedUp": "ElevenLabs quota used up ({used} of {limit} credits{resets, select, none {} other {; it resets on {resets}}}): the assistant cannot speak. Upgrade the plan or turn on usage-based billing in ElevenLabs.",
   "api.providerTest.notSet": "Not set: {fields}",
   "api.providerTest.notSetUp": "Not set up",
-  "api.providerTest.oauth.conditionalAccess": "{provider} refused the app (AADSTS53003): check the client ID, or a Conditional Access policy that blocks the app.",
+  "api.providerTest.oauth.checkedAtSignIn": "Not checked: {provider} does not let the keys be tested from here. They are confirmed at the first sign-in or calendar connection.",
   "api.providerTest.oauth.secretExpired": "The {provider} client secret has expired: make a new one in Microsoft Entra and enter it here.",
   "api.providerTest.oauth.unknownTenant": "{provider} does not know the tenant {tenant}: check the tenant ID.",
   "api.providerTest.oauth.unreachable": "Could not reach {provider}: {error}",

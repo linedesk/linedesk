@@ -1,10 +1,12 @@
 // Runtime provider failures (provider-failures.ts): recorded per provider, cleared by a success, one email per
 // streak (none for a test, none for email itself), and the voice agent's reports through the registry. The table is
 // install-wide, so this file is in INSTANCE_WIDE_FILES (vitest.config.ts).
+import { createMicrosoftOAuth } from '@linedesk/calendar'
 import { provider_failures } from '@linedesk/db'
 import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { db } from '../src/db.ts'
+import { noteCalendarAppFailure } from '../src/calendar-connections.ts'
 import { problemOfStatus } from '../src/provider-errors.ts'
 import {
   clearProviderFailures,
@@ -30,7 +32,7 @@ vi.mock('../src/admin-alerts.ts', async importOriginal => ({
 }))
 
 // Providers no other instance-wide test records failures for.
-const MINE = ['mistral', 'groq', 'gmail', 'elevenlabs_stt'] as const
+const MINE = ['mistral', 'groq', 'gmail', 'elevenlabs_stt', 'microsoft'] as const
 const quota = { reason: 'quota' as const, message: 'Mistral quota or credit used up (HTTP 402).' }
 
 beforeEach(async () => {
@@ -102,7 +104,9 @@ describe('record and clear', () => {
     expect(alerts.sent).toHaveLength(0)
     // A row recorded before this rule: read as no failure.
     const at = new Date().toISOString()
-    await db.insert(provider_failures).values({ provider: 'groq', ...race, source: 'agent', since: at, last_at: at, count: 1 })
+    await db
+      .insert(provider_failures)
+      .values({ provider: 'groq', ...race, source: 'agent', since: at, last_at: at, count: 1 })
     expect(await mine()).toEqual([])
   })
 
@@ -116,9 +120,62 @@ describe('record and clear', () => {
   })
 })
 
+describe('Microsoft: a failure is recorded from a real calendar connect or refresh (its key test cannot tell)', () => {
+  test('a calendar connect whose code exchange Microsoft refuses for the client is recorded as the app failing', async () => {
+    // Microsoft's answer to a wrong client secret at the token endpoint (AADSTS7000215).
+    const doFetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: 'invalid_client',
+            error_description: 'AADSTS7000215: Invalid client secret provided.',
+            error_codes: [7000215],
+          }),
+          { status: 401, headers: { 'content-type': 'application/json' } },
+        ),
+    )
+    const oauth = createMicrosoftOAuth(
+      { clientId: 'client-id-made-up', clientSecret: 'secret-made-up' },
+      { fetch: doFetch },
+    )
+    const refused = await oauth
+      .exchangeCode({ code: 'code', redirectUri: 'https://app.test/v1/calendar/callback/microsoft', codeVerifier: 'v' })
+      .catch(e => e)
+    noteCalendarAppFailure(refused)
+    await vi.waitFor(async () => expect((await mine()).map(f => f.provider)).toEqual(['microsoft']))
+    expect((await mine())[0]).toMatchObject({
+      reason: 'auth',
+      source: 'calendar',
+      message: /Microsoft refused the app/,
+    })
+  })
+
+  test("one account's refused grant is not the app failing: nothing recorded", async () => {
+    const doFetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ error: 'invalid_grant', error_codes: [70008] }), {
+          status: 400,
+          headers: { 'content-type': 'application/json' },
+        }),
+    )
+    const oauth = createMicrosoftOAuth(
+      { clientId: 'client-id-made-up', clientSecret: 'secret-made-up' },
+      { fetch: doFetch },
+    )
+    noteCalendarAppFailure(await oauth.refresh('refresh-made-up').catch(e => e))
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(await mine()).toEqual([])
+  })
+})
+
 describe("a vague failure is refined by the provider's own test", () => {
   const noAudio = { reason: 'no_output' as const, message: 'TTS stream completed but no audio' }
-  const quotaFound = { ok: false, status: 'error' as const, reason: 'quota' as const, message: 'ElevenLabs quota used up.' }
+  const quotaFound = {
+    ok: false,
+    status: 'error' as const,
+    reason: 'quota' as const,
+    message: 'ElevenLabs quota used up.',
+  }
 
   test('no audio from the voice: the test finds the used-up quota; the email and the record say so', async () => {
     const diagnose = vi.fn(async () => quotaFound)
@@ -129,7 +186,11 @@ describe("a vague failure is refined by the provider's own test", () => {
   })
 
   test('a test that passes, cannot run or is vague itself keeps the failure as reported', async () => {
-    for (const found of [{ ok: true, status: 'ok' as const, message: 'Connected' }, null, { ...quotaFound, reason: 'network' as const }]) {
+    for (const found of [
+      { ok: true, status: 'ok' as const, message: 'Connected' },
+      null,
+      { ...quotaFound, reason: 'network' as const },
+    ]) {
       expect(await refineProblem('elevenlabs', noAudio, async () => found)).toEqual(noAudio)
     }
   })
@@ -181,7 +242,12 @@ describe('the voice agent reports through the registry', () => {
       { scope: { workspaceId: ws.id, callId: null } },
     )
     expect(await mine()).toEqual([
-      expect.objectContaining({ provider: 'elevenlabs_stt', reason: 'no_output', source: 'agent', workspace_id: ws.id }),
+      expect.objectContaining({
+        provider: 'elevenlabs_stt',
+        reason: 'no_output',
+        source: 'agent',
+        workspace_id: ws.id,
+      }),
     ])
     // provider.reportFailure is gone: the agent never called it (E10).
     expect(

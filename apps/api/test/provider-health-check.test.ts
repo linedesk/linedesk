@@ -114,6 +114,37 @@ describe('check', () => {
     expect(alerts.sent).toHaveLength(2)
   })
 
+  test('microsoft: the AADSTS53003 failure stored before is cleared by the next run; the test passes with a note', async () => {
+    await keys('microsoft', { client_id: 'client-id-made-up', client_secret: KEY, tenant_id: 'common' })
+    // What the check stored before: Microsoft answers every app token request through common with AADSTS53003.
+    const old = { reason: 'permission' as const, message: 'Microsoft refused the app (AADSTS53003).' }
+    await db.insert(provider_failures).values({ provider: 'microsoft', ...old, source: 'health' })
+    // The answer recorded from Microsoft (2026-11-17) for a made-up client ID and secret through common.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown) => {
+        expect(String(url)).toBe('https://login.microsoftonline.com/common/oauth2/v2.0/token')
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_grant',
+            error_description: 'AADSTS53003: Access has been blocked by Conditional Access policies.',
+            error_codes: [53003],
+          }),
+          { status: 400, headers: { 'content-type': 'application/json' } },
+        )
+      }),
+    )
+    const result = await runProviderHealthCheck(db, { env: quiet })
+    expect(result.tested).toContain('microsoft')
+    expect(result.failing).toEqual([])
+    expect(await db.select().from(provider_failures)).toEqual([])
+    const [stored] = (await db.select().from(provider_tests)).filter(r => r.provider === 'microsoft')
+    expect(stored).toMatchObject({
+      ok: true,
+      message: expect.stringMatching(/^Not checked: Microsoft .*first sign-in/),
+    })
+  })
+
   test('optional providers and providers not in use fail quietly: shown, never emailed', async () => {
     await keys('google_places', { api_key: KEY })
     // Two carriers set up: Telnyx is in use (first set up), Twilio only sits there.

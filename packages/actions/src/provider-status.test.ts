@@ -233,6 +233,20 @@ describe('statusGroups', () => {
     })
   })
 
+  test('sign-in lists only the sign-in apps: a failing Cal.com or Calendly turns the calendar group red, not sign-in', () => {
+    const failures = (['calcom', 'calendly'] as const).map(provider => ({
+      provider,
+      reason: 'auth' as const,
+      message: 'Rejected',
+      last_at: at(9),
+    }))
+    const i = input([works('google'), works('calcom'), works('calendly')], { failures })
+    expect(group(i, 'sign-in')).toMatchObject({ state: 'works', providerLabel: 'Google', provider: 'google' })
+    expect(group(i, 'calendar').state).toBe('failing')
+    // Only calendar apps set up: sign-in stays off.
+    expect(group(input([works('calcom'), works('calendly')], { failures }), 'sign-in').state).toBe('off')
+  })
+
   test('development: the dev carrier works, email to the log says so', () => {
     const groups = statusGroups(input([], { devCarrier: 'Development carrier', emailToLog: true })).groups
     expect(groups.find(g => g.id === 'telephony')).toMatchObject({ state: 'works', message: 'Development carrier' })

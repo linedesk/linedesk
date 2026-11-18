@@ -492,7 +492,8 @@ export function statusGroups(input: StatusInput, words: Words = english): Status
       case 'call-audio':
         return callAudio(input.callAudio, words)
       case 'sign-in': {
-        const apps = several(configured(providersIn('sign_in')))
+        // Only the apps people sign in with: Calendly and Cal.com share the category but are the calendar group's.
+        const apps = several(configured(SIGN_IN_APPS))
         // A test passes before the API runs with the new settings: until it restarted, it is not in effect.
         if (!input.signInPending || apps.state === 'off') return apps
         return {

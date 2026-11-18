@@ -758,7 +758,8 @@ async function tokenEndpoint(provider: OAuthApp, values: Values, doFetch: typeof
  * code they reject ("invalid_grant", "bad_verification_code") means the app is right. HubSpot and Microsoft check the
  * code first and pass any client with "BAD_AUTH_CODE" or "AADSTS9002313" (LIN-370): they are asked for an app token
  * instead (client_credentials), which they refuse for an unknown client or a wrong secret. A token they do issue is
- * not kept. Calendly asks for PKCE before it looks at the client, so its request has a code_verifier.
+ * not kept. Microsoft answers AADSTS53003 for any client outside the consumers tenant: then the test cannot tell and
+ * passes with a note (testOAuthApp). Calendly asks for PKCE before it looks at the client, so its request has a code_verifier.
  */
 function oauthProbe(provider: OAuthApp, values: Values): URLSearchParams {
   const client = { client_id: values.client_id!, client_secret: values.client_secret! }
@@ -845,9 +846,12 @@ async function testOAuthApp(provider: OAuthApp, values: Values, doFetch: typeof 
           tenant: (values.tenant_id || 'common').slice(0, 80),
         }),
       )
-    // Microsoft answers an unknown client ID with AADSTS53003 too, so this cannot tell the two apart.
-    if (aadsts.includes(53003))
-      return error('permission', said('server.api.providerTest.oauth.conditionalAccess', { provider: label }))
+    // Through common, organizations or a named tenant Microsoft refuses every app token with AADSTS53003, a made-up
+    // client ID and secret too (2026-11-17), so this answer says nothing about the keys: a pass with a note. The keys
+    // are confirmed when someone signs in or connects a calendar; a refused client there is recorded as the
+    // provider's failure (noteCalendarAppFailure in calendar-connections.ts).
+    if (provider === 'microsoft' && aadsts.includes(53003))
+      return ok(said('server.api.providerTest.oauth.checkedAtSignIn', { provider: label }))
     if (asksForAppToken(provider)) {
       if (pastClientCheck(provider, res, answer)) return ok()
     } else if (['invalid_grant', 'bad_verification_code', 'redirect_uri_mismatch'].includes(String(answer.error)))

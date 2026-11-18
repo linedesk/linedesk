@@ -500,12 +500,48 @@ test.each([
   })
 })
 
-test('microsoft: an unknown client through common (AADSTS53003) fails, without blaming the secret', async () => {
-  const result = await testProvider('microsoft', config(app), answer(400, aadsts('invalid_grant', 53003)))
-  expect(result).toMatchObject({
+// Recorded 2026-11-17: through common, organizations and a named tenant Microsoft answers a made-up client ID and
+// secret with AADSTS53003 (invalid_grant), exactly as it answers the real app. Only consumers names the unknown app.
+const madeUpThroughCommon = {
+  error: 'invalid_grant',
+  error_description:
+    'AADSTS53003: Access has been blocked by Conditional Access policies. The access policy does not allow token issuance. Trace ID: 00000000-0000-0000-0000-000000000000 Correlation ID: 00000000-0000-0000-0000-000000000000 Timestamp: 2026-11-17 10:00:00Z',
+  error_codes: [53003],
+  timestamp: '2026-11-17 10:00:00Z',
+  trace_id: '00000000-0000-0000-0000-000000000000',
+  correlation_id: '00000000-0000-0000-0000-000000000000',
+  suberror: 'message_only',
+}
+const madeUpThroughConsumers = {
+  error: 'unauthorized_client',
+  error_description:
+    "AADSTS700016: Application with identifier 'client-id-123' was not found in the directory 'Microsoft Accounts'. Trace ID: 00000000-0000-0000-0000-000000000000",
+  error_codes: [700016],
+}
+
+test.each([
+  ['common', {}],
+  ['organizations', { tenant_id: 'organizations' }],
+  ['a named tenant', { tenant_id: 'contoso.onmicrosoft.com' }],
+] as const)(
+  'microsoft: AADSTS53003 through %s cannot tell good keys from bad ones: a pass with a note',
+  async (_, extra) => {
+    const result = await testProvider('microsoft', config({ ...app, ...extra }), answer(400, madeUpThroughCommon))
+    expect(result).toEqual({
+      ok: true,
+      status: 'ok',
+      message:
+        'Not checked: Microsoft does not let the keys be tested from here. They are confirmed at the first sign-in or calendar connection.',
+    })
+  },
+)
+
+test('microsoft: an unknown client through consumers (AADSTS700016) still fails the check', async () => {
+  const values = { ...app, tenant_id: 'consumers' }
+  expect(await testProvider('microsoft', config(values), answer(400, madeUpThroughConsumers))).toMatchObject({
     ok: false,
-    reason: 'permission',
-    message: expect.stringMatching(/client ID.*Conditional Access/),
+    reason: 'auth',
+    message: 'Microsoft rejected the client ID or secret',
   })
 })
 

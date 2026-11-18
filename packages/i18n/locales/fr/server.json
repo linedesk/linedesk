@@ -108,7 +108,6 @@
   "api.providerTest.elevenlabs.usedUp": "Quota ElevenLabs épuisé ({used} sur {limit} crédits{resets, select, none {} other { ; il se réinitialise le {resets}}}) : l'assistant ne peut pas parler. Passez à un plan supérieur ou activez la facturation à l'usage dans ElevenLabs.",
   "api.providerTest.notSet": "Non défini : {fields}",
   "api.providerTest.notSetUp": "Non configuré",
-  "api.providerTest.oauth.conditionalAccess": "{provider} a refusé l'app (AADSTS53003) : vérifiez l'ID client, ou une stratégie d'accès conditionnel qui bloque l'app.",
   "api.providerTest.oauth.secretExpired": "Le secret client {provider} a expiré : créez-en un nouveau dans Microsoft Entra et saisissez-le ici.",
   "api.providerTest.oauth.unknownTenant": "{provider} ne connaît pas le locataire {tenant} : vérifiez l'ID du locataire.",
   "api.providerTest.oauth.unreachable": "Impossible de joindre {provider} : {error}",

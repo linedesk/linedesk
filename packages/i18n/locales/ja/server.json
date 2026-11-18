@@ -108,7 +108,6 @@
   "api.providerTest.elevenlabs.usedUp": "ElevenLabsの利用枠がなくなりました（{limit}クレジット中{used}を使用{resets, select, none {} other {、{resets}にリセット}}）。アシスタントは話せません。ElevenLabsでプランをアップグレードするか、従量課金をオンにしてください。",
   "api.providerTest.notSet": "未設定：{fields}",
   "api.providerTest.notSetUp": "未設定",
-  "api.providerTest.oauth.conditionalAccess": "{provider}がアプリを拒否しました（AADSTS53003）。クライアントID、またはアプリをブロックしている条件付きアクセスのポリシーを確認してください。",
   "api.providerTest.oauth.secretExpired": "{provider}のクライアントシークレットの有効期限が切れました。Microsoft Entraで新しいシークレットを作成し、ここに入力してください。",
   "api.providerTest.oauth.unknownTenant": "{provider}はテナント{tenant}を認識していません。テナントIDを確認してください。",
   "api.providerTest.oauth.unreachable": "{provider}に接続できませんでした：{error}",
