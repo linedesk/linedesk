@@ -96,7 +96,7 @@ test('in the install setup too, the passkey dialog comes after the steps, so it 
 
 test('an admin without a passkey is told how to add one, not a raw refusal', () => {
   expect(confirmErrorText(new StepUpRequired('This needs a passkey.', 'enrol'))).toBe(
-    'Add a passkey first under Account › Sign-in & security, with the enrolment code from another admin or from user:passkeys --enrol on the server. Nothing changed.',
+    'Add a passkey first under Account › Sign-in & security, with the enrollment code from another admin or from user:passkeys --enrol on the server. Nothing changed.',
   )
 })
 

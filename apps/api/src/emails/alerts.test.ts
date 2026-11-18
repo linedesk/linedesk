@@ -132,6 +132,18 @@ describe('in the pseudo-locale nothing is left in English', () => {
     expect(text).toContain('If this was them, nothing to do.')
   })
 
+  it("Stripe's settings alert points to Server admin › Billing, where Stripe is, not to Providers", () => {
+    const actor = { email: 'ann@brightwater.example' }
+    const stripe = settingsChangedAlert({ change: 'changed', provider: 'Stripe', actor, agent: null, money: true })
+    const { text } = adminAlertEmail(stripe('en'), ORIGIN, 'en')
+    expect(text).toContain('(Server admin › Billing)')
+    expect(text).toContain('check Server admin › Billing and Audit log')
+    expect(text).not.toContain('Providers')
+    // Email and sign-in keys stay under Providers.
+    const resend = settingsChangedAlert({ change: 'changed', provider: 'Resend', actor, agent: null })
+    expect(adminAlertEmail(resend('en'), ORIGIN, 'en').text).toContain('check Server admin › Providers and Audit log')
+  })
+
   it('the sign-in code email with its button, and without one', () => {
     const link = `${ORIGIN}/#sign-in=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ`
     for (const email of [signInCodeEmail('482913', ORIGIN, pseudo, link), signInCodeEmail('482913', ORIGIN, pseudo)]) {

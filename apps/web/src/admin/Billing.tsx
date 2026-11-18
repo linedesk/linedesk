@@ -3,9 +3,10 @@
 // install's billing rules; and Stripe with the billing switch (BillingProviders.tsx, LIN-556). Every write asks why (kept in the audit log) and runs through runAdmin, so the server's passkey step-up asks
 // for the admin's passkey first; the ones that reach Stripe send one request id per dialog (its idempotency key).
 //
-// The page: a status line on top (billing on and its mode, sign-up open or why not, what needs the admin), then one
-// section at a time, each with its own address (`#admin/billing/<tab>`, route.ts), so only the section on screen loads
-// its rows. The status line is one read (billing.adminSummary), kept between visits.
+// The page: one card of rows, as on Server admin › Overview (UI cleanup E, A2): bills, review, Stripe events, sign-up,
+// prices and rules, Stripe, each with its state and a link to its own page (`#admin/billing/<tab>`, route.ts). A part
+// opens like a workspace from its list, with a crumb back, so only the part on screen loads its rows. The rows are one
+// read (billing.adminSummary), kept between visits.
 import type {
   AdminBillDetail,
   AdminBillingSummary,
@@ -31,8 +32,8 @@ import { AppLink, appLink, LinkButton } from '../ui/AppLink.tsx'
 import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Card, Dialog, FormField, FormMessage, HelpTip, Input, onSaveKey, SaveBar, Textarea } from '../ui/form.tsx'
 import { Badge, Button, cx, Note } from '../ui/kit.tsx'
+import { List } from '../ui/list.tsx'
 import { Loading, Skeleton, SkeletonRows } from '../ui/LoadStates.tsx'
-import { StatusMark } from '../ui/StatusMark.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
 import { ActionBar, type AdminAction } from './actions.tsx'
 import { BillingProviders, type BillingProvidersProps } from './BillingProviders.tsx'
@@ -78,7 +79,8 @@ import {
 } from './billingModel.ts'
 import { errorText, type Notify } from './notify.ts'
 import { day, EMPTY, when } from './parts.tsx'
-import { BILLING_TABS, type BillingTab, billingTab } from './route.ts'
+import { type BillingTab, billingTab } from './route.ts'
+import { type Row, StatusRow } from './StatusCard.tsx'
 import { Fact } from './WorkspacesPage.tsx'
 
 type Translate = ReturnType<typeof useT>
@@ -173,13 +175,16 @@ function Ago({ iso }: { iso: string }) {
 const ownerText = (t: Translate, owner: { email: string | null; name: string | null }) =>
   owner.email ?? owner.name ?? t('admin.bills.noOwner')
 
-/** The title of `#admin/billing/<id>`: whose bill it is, from the bill or the list, whichever is here first. */
+/**
+ * The title of `#admin/billing/<id>`: a part's name, or whose bill it is, from the bill or the list, whichever is here
+ * first; null on Billing's own page.
+ */
 export function useBillTitle(id: string | null): string | null {
   const t = useT()
   const billId = billingTab(id) === null ? id : null
   const bill = useQuery(billId ? billKey(billId) : null, loadBill(billId ?? '')).data
   const bills = useQuery(billId ? BILLS : null, loadBills).data
-  if (!billId) return null
+  if (!billId) return billingPartTitle(t, id)
   const owner = bill?.owner ?? bills?.find(b => b.id === billId)?.owner
   return owner ? t('admin.bills.detail.title', { owner: ownerText(t, owner) }) : t('admin.bills.detail.untitled')
 }
@@ -197,180 +202,28 @@ type Props = {
 export function Billing({ id, onOpen, notify, keysRef, providers }: Props) {
   const tab = billingTab(id)
   if (!tab) return <BillDetail id={id!} notify={notify} />
-  return (
-    <>
-      <BillingStatus />
-      <BillingTabs current={tab} />
-      {tab === 'overview' && <OverviewSection />}
-      {tab === 'bills' && <BillsList onOpen={onOpen} keysRef={keysRef} />}
-      {tab === 'review' && <ReviewCard onOpen={onOpen} notify={notify} />}
-      {tab === 'events' && <EventsCard notify={notify} />}
-      {tab === 'signup' && (
+  switch (tab) {
+    case 'overview':
+      return <BillingHome />
+    case 'bills':
+      return <BillsList onOpen={onOpen} keysRef={keysRef} />
+    case 'review':
+      return <ReviewCard onOpen={onOpen} notify={notify} />
+    case 'events':
+      return <EventsCard notify={notify} />
+    case 'signup':
+      return (
         <>
           <SelfServeCard notify={notify} />
           <BillingProviders part="bot_check" {...providers} />
           <SignupRulesCard notify={notify} />
         </>
-      )}
-      {tab === 'rules' && <RulesCard notify={notify} />}
-      {tab === 'stripe' && <BillingProviders part="billing" {...providers} />}
-    </>
-  )
-}
-
-// ---- The status line ----
-
-/** One fact of the status line: its mark and word, a muted line under it, and the place that fixes it. */
-type StatusFact = { id: string; label: string; state: StatusState; value: string; line: string | null; href: string }
-
-/** Whether billing through Stripe runs, in which mode, or what stops it. */
-function billingFact(t: Translate, s: AdminBillingSummary): StatusFact {
-  const b = s.billing
-  const base = { id: 'billing', label: t('admin.bills.summary.billing'), href: '#admin/billing/stripe' }
-  if (!b.connected)
-    return {
-      ...base,
-      state: 'missing',
-      value: t('admin.bills.summary.notConnected'),
-      line: t('admin.bills.summary.connect'),
-    }
-  if (b.mode === 'live' && !b.liveAllowed)
-    return {
-      ...base,
-      state: 'failing',
-      value: t('admin.bills.summary.liveRefused'),
-      line: t('admin.billing.liveRefused'),
-    }
-  if (!b.guardsOk)
-    return { ...base, state: 'failing', value: t('admin.bills.summary.paused'), line: t('admin.billing.guardsMissing') }
-  const mode = t(b.mode === 'live' ? 'admin.bills.summary.live' : 'admin.bills.summary.test')
-  if (!b.on)
-    return {
-      ...base,
-      state: 'off',
-      value: t('admin.bills.summary.off'),
-      line: t('admin.bills.summary.turnOn', { mode }),
-    }
-  return {
-    ...base,
-    state: b.mode === 'live' ? 'works' : 'partly',
-    value: t('admin.bills.summary.on', { mode }),
-    line: t(s.automaticTax ? 'admin.bills.summary.taxOn' : 'admin.bills.summary.taxOff'),
+      )
+    case 'rules':
+      return <RulesCard notify={notify} />
+    case 'stripe':
+      return <BillingProviders part="billing" {...providers} />
   }
-}
-
-const CLOSED_BECAUSE: Record<NonNullable<AdminBillingSummary['selfServe']['closedBecause']>, MessageKey> = {
-  switched_off: msg('admin.bills.summary.signup.switchedOff'),
-  billing_not_in_effect: msg('admin.bills.summary.signup.billing'),
-  terms_missing: msg('admin.bills.summary.signup.terms'),
-  bot_check_missing: msg('admin.bills.summary.signup.botCheck'),
-}
-
-/** Self-serve sign-up: open, or closed and why (switched on but closed is a problem; switched off is a choice). */
-function signupFact(t: Translate, s: AdminBillingSummary): StatusFact {
-  const { on, open, closedBecause } = s.selfServe
-  return {
-    id: 'signup',
-    label: t('admin.bills.selfServe.title'),
-    state: open ? 'works' : on ? 'failing' : 'off',
-    value: t(open ? 'admin.bills.selfServe.state.open' : 'admin.bills.selfServe.state.closed'),
-    line: closedBecause ? t(CLOSED_BECAUSE[closedBecause]) : t('admin.bills.selfServe.openNow'),
-    href: '#admin/billing/signup',
-  }
-}
-
-/** What the admin has to decide: bills held for review, and how many trials are new. */
-function reviewFact(t: Translate, s: AdminBillingSummary): StatusFact {
-  return {
-    id: 'review',
-    label: t('admin.bills.review.title'),
-    state: s.held ? 'partly' : 'works',
-    value: s.held ? t('admin.bills.summary.held', { count: s.held }) : t('admin.bills.summary.nothingHeld'),
-    line: t('admin.bills.summary.newTrials', { count: s.newTrials }),
-    href: '#admin/billing/review',
-  }
-}
-
-/** Bills that owe money or are stopped. */
-function billsFact(t: Translate, s: AdminBillingSummary): StatusFact {
-  const owing = s.bills.past_due + s.bills.suspended
-  const total = Object.values(s.bills).reduce((sum, n) => sum + n, 0)
-  return {
-    id: 'bills',
-    label: t('admin.bills.what'),
-    state: owing ? 'partly' : 'works',
-    value: owing
-      ? t('admin.bills.summary.owing', { count: owing })
-      : t('admin.bills.summary.billCount', { count: total }),
-    line: owing
-      ? t('admin.bills.summary.owingLine', { pastDue: s.bills.past_due, suspended: s.bills.suspended })
-      : null,
-    href: owing ? billsHref(s.bills.past_due ? 'past_due' : 'suspended') : billsHref('all'),
-  }
-}
-
-/** Stripe events that did not go through. */
-function eventsFact(t: Translate, s: AdminBillingSummary): StatusFact {
-  const stuck = s.events.failed + s.events.unhandled
-  return {
-    id: 'events',
-    label: t('admin.bills.events.title'),
-    state: s.events.failed ? 'failing' : stuck ? 'partly' : 'works',
-    value: stuck ? t('admin.bills.summary.eventsStuck', { count: stuck }) : t('admin.bills.summary.eventsOk'),
-    line: s.events.waiting ? t('admin.bills.summary.eventsWaiting', { count: s.events.waiting }) : null,
-    href: eventsHref(s.events.failed ? 'failed' : s.events.unhandled ? 'unhandled' : 'all'),
-  }
-}
-
-const facts = (t: Translate, s: AdminBillingSummary) => [
-  billingFact(t, s),
-  signupFact(t, s),
-  reviewFact(t, s),
-  billsFact(t, s),
-  eventsFact(t, s),
-]
-
-const useSummary = () => useQuery(SUMMARY, loadSummary, KEPT)
-
-/** The top of the page: five facts, each a link to where it is changed or looked at. */
-function BillingStatus() {
-  const t = useT()
-  const query = useSummary()
-  const data = query.data
-  return (
-    <section className="k-card adm-billstatus" aria-label={t('admin.bills.summary.label')}>
-      <Loading
-        what={t('admin.bills.summary.label')}
-        loading={!data}
-        error={query.error}
-        onRetry={() => void query.reload()}
-        className="adm-billstatus-grid"
-        skeleton={[0, 1, 2, 3, 4].map(i => (
-          <div key={i} className="adm-billfact">
-            <Skeleton shape="text" width={70} />
-            <Skeleton shape="text" width={110} />
-          </div>
-        ))}
-      >
-        {data &&
-          facts(t, data).map(f => (
-            <a
-              key={f.id}
-              className="adm-billfact"
-              href={f.href}
-              title={t('admin.bills.summary.openTip', { part: f.label })}
-            >
-              <span className="adm-billfact-label">
-                <StatusMark state={f.state} label={f.value} />
-                {f.label}
-              </span>
-              <span className="adm-billfact-value">{f.value}</span>
-              {f.line && <span className="adm-billfact-line">{f.line}</span>}
-            </a>
-          ))}
-      </Loading>
-    </section>
-  )
 }
 
 const TAB_LABELS: Record<BillingTab, MessageKey> = {
@@ -383,67 +236,165 @@ const TAB_LABELS: Record<BillingTab, MessageKey> = {
   stripe: msg('admin.bills.tab.stripe'),
 }
 
-const tabHref = (tab: BillingTab) => (tab === 'overview' ? '#admin/billing' : `#admin/billing/${tab}`)
+/** The title of a part of Billing (`#admin/billing/<tab>`); null on Billing's own page and for a bill. */
+export function billingPartTitle(t: Translate, id: string | null): string | null {
+  const tab = billingTab(id)
+  return tab && tab !== 'overview' ? t(TAB_LABELS[tab]) : null
+}
 
-/** The page's sections, as links: each has its own address, so Back, reload and a shared link land on it. */
-function BillingTabs({ current }: { current: BillingTab }) {
-  const t = useT()
-  const summary = useSummary().data
-  // A number only where something waits for the admin.
-  const counts: Partial<Record<BillingTab, number>> = summary
-    ? { review: summary.held, events: summary.events.failed + summary.events.unhandled }
-    : {}
-  return (
-    <nav className="adm-billtabs" aria-label={t('admin.bills.tab.label')}>
-      <div className="ib-tabs">
-        {BILLING_TABS.map(tab => (
-          <a key={tab} href={tabHref(tab)} className="ib-tab" aria-current={tab === current ? 'page' : undefined}>
-            {t(TAB_LABELS[tab])}
-            {counts[tab] ? <span className="n">{fmt().number(counts[tab])}</span> : null}
-          </a>
-        ))}
-      </div>
-    </nav>
+// ---- Billing's own page: one row per part ----
+
+/** One part's row: its state in a word, a muted line under it, and the page it opens. */
+type PartRow = Row & { id: BillingTab }
+
+/** Whether billing through Stripe runs, in which mode, or what stops it. */
+function stripeRow(t: Translate, s: AdminBillingSummary): PartRow {
+  const b = s.billing
+  const row = (state: StatusState, value: string, line: string): PartRow => ({
+    id: 'stripe',
+    label: t(TAB_LABELS.stripe),
+    state,
+    mark: value,
+    value,
+    problem: line,
+    help: null,
+    href: '#admin/billing/stripe',
+  })
+  if (!b.connected) return row('missing', t('admin.bills.summary.notConnected'), t('admin.bills.summary.connect'))
+  if (b.mode === 'live' && !b.liveAllowed)
+    return row('failing', t('admin.bills.summary.liveRefused'), t('admin.billing.liveRefused'))
+  if (!b.guardsOk) return row('failing', t('admin.bills.summary.paused'), t('admin.billing.guardsMissing'))
+  const mode = t(b.mode === 'live' ? 'admin.bills.summary.live' : 'admin.bills.summary.test')
+  if (!b.on) return row('off', t('admin.bills.summary.off'), t('admin.bills.summary.turnOn', { mode }))
+  return row(
+    b.mode === 'live' ? 'works' : 'partly',
+    t('admin.bills.summary.on', { mode }),
+    t(s.automaticTax ? 'admin.bills.summary.taxOn' : 'admin.bills.summary.taxOff'),
   )
 }
 
-// ---- Overview ----
+const CLOSED_BECAUSE: Record<NonNullable<AdminBillingSummary['selfServe']['closedBecause']>, MessageKey> = {
+  switched_off: msg('admin.bills.summary.signup.switchedOff'),
+  billing_not_in_effect: msg('admin.bills.summary.signup.billing'),
+  terms_missing: msg('admin.bills.summary.signup.terms'),
+  bot_check_missing: msg('admin.bills.summary.signup.botCheck'),
+}
 
-/**
- * The overview below the status line: the bills by status, each a link to them; a calm line when every fact above
- * works.
- */
-function OverviewSection() {
+/** Self-serve sign-up: open, or closed and why (switched on but closed is a problem; switched off is a choice). */
+function signupRow(t: Translate, s: AdminBillingSummary): PartRow {
+  const { on, open, closedBecause } = s.selfServe
+  const value = t(open ? 'admin.bills.selfServe.state.open' : 'admin.bills.selfServe.state.closed')
+  return {
+    id: 'signup',
+    label: t(TAB_LABELS.signup),
+    state: open ? 'works' : on ? 'failing' : 'off',
+    mark: value,
+    value,
+    problem: closedBecause ? t(CLOSED_BECAUSE[closedBecause]) : t('admin.bills.selfServe.openNow'),
+    help: null,
+    href: '#admin/billing/signup',
+  }
+}
+
+/** What the admin has to decide: bills held for review, and how many trials are new. */
+function reviewRow(t: Translate, s: AdminBillingSummary): PartRow {
+  const value = s.held ? t('admin.bills.summary.held', { count: s.held }) : t('admin.bills.summary.nothingHeld')
+  return {
+    id: 'review',
+    label: t(TAB_LABELS.review),
+    state: s.held ? 'partly' : 'works',
+    mark: value,
+    value,
+    problem: t('admin.bills.summary.newTrials', { count: s.newTrials }),
+    help: null,
+    href: '#admin/billing/review',
+  }
+}
+
+/** Bills that owe money or are stopped. */
+function billsRow(t: Translate, s: AdminBillingSummary): PartRow {
+  const owing = s.bills.past_due + s.bills.suspended
+  const total = Object.values(s.bills).reduce((sum, n) => sum + n, 0)
+  const value = owing
+    ? t('admin.bills.summary.owing', { count: owing })
+    : t('admin.bills.summary.billCount', { count: total })
+  return {
+    id: 'bills',
+    label: t(TAB_LABELS.bills),
+    state: owing ? 'partly' : 'works',
+    mark: value,
+    value,
+    problem: owing
+      ? t('admin.bills.summary.owingLine', { pastDue: s.bills.past_due, suspended: s.bills.suspended })
+      : null,
+    help: null,
+    href: owing ? billsHref(s.bills.past_due ? 'past_due' : 'suspended') : billsHref('all'),
+  }
+}
+
+/** Stripe events that did not go through. */
+function eventsRow(t: Translate, s: AdminBillingSummary): PartRow {
+  const stuck = s.events.failed + s.events.unhandled
+  const value = stuck ? t('admin.bills.summary.eventsStuck', { count: stuck }) : t('admin.bills.summary.eventsOk')
+  return {
+    id: 'events',
+    label: t(TAB_LABELS.events),
+    state: s.events.failed ? 'failing' : stuck ? 'partly' : 'works',
+    mark: value,
+    value,
+    problem: s.events.waiting ? t('admin.bills.summary.eventsWaiting', { count: s.events.waiting }) : null,
+    help: null,
+    href: eventsHref(s.events.failed ? 'failed' : s.events.unhandled ? 'unhandled' : 'all'),
+  }
+}
+
+/** The plan prices and the billing rules: settings, with no state of their own. */
+const rulesRow = (t: Translate): PartRow => ({
+  id: 'rules',
+  label: t(TAB_LABELS.rules),
+  state: null,
+  mark: '',
+  value: null,
+  problem: null,
+  help: null,
+  href: '#admin/billing/rules',
+})
+
+/** The day's work first (bills, review, events), then how billing is set up (sign-up, prices and rules, Stripe). */
+const partRows = (t: Translate, s: AdminBillingSummary): PartRow[] => [
+  billsRow(t, s),
+  reviewRow(t, s),
+  eventsRow(t, s),
+  signupRow(t, s),
+  rulesRow(t),
+  stripeRow(t, s),
+]
+
+const useSummary = () => useQuery(SUMMARY, loadSummary, KEPT)
+
+/** Billing's own page: one card, a row per part with its state, each opening the part's page. */
+function BillingHome() {
   const t = useT()
   const query = useSummary()
   const data = query.data
-  const calm = !!data && facts(t, data).every(f => f.state === 'works' || f.state === 'off')
   return (
-    <Card
-      title={t('admin.bills.overview.byStatus')}
-      description={t('admin.bills.overview.byStatusText')}
-      className="adm-detail"
-    >
+    <section className="adm-card adm-billhome" aria-label={t('admin.bills.summary.label')}>
       <Loading
-        what={t('admin.bills.overview.byStatus')}
+        what={t('admin.bills.summary.label')}
         loading={!data}
         error={query.error}
         onRetry={() => void query.reload()}
-        skeleton={<SkeletonRows rows={1} columns={4} />}
+        skeleton={<SkeletonRows rows={6} columns={2} />}
       >
         {data && (
-          <div className="adm-statuscounts">
-            {(Object.keys(STATUS) as AdminBillStatus[]).map(status => (
-              <a key={status} className="adm-statuscount" href={billsHref(status)}>
-                <b>{fmt().number(data.bills[status])}</b>
-                <StatusBadge status={status} />
-              </a>
+          <List label={t('admin.bills.summary.label')}>
+            {partRows(t, data).map(row => (
+              <StatusRow key={row.id} row={row} link />
             ))}
-          </div>
+          </List>
         )}
-        {calm && <p className="adm-notice">{t('admin.bills.overview.calm')}</p>}
       </Loading>
-    </Card>
+    </section>
   )
 }
 

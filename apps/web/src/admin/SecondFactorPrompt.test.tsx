@@ -40,10 +40,10 @@ describe('the passkey check before Server admin', () => {
     )
   })
 
-  test('enrol: the enrolment code and where to get it, the CLI included', () => {
+  test('enrol: the enrollment code and where to get it, the CLI included', () => {
     const html = renderToStaticMarkup(<SecondFactorPrompt state="enrol" onExit={noop} />)
     expect(html).toContain('Add a passkey for Server admin')
-    expect(html).toContain('Enrolment code')
+    expect(html).toContain('Enrollment code')
     expect(html).toContain(enrolmentCommand().replace('<', '&lt;').replace('>', '&gt;'))
     expect(enrolmentCommand()).toMatch(/user-passkeys\.ts --enrol --email <your email>$/)
     expect(html).toContain('Add passkey')

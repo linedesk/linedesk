@@ -180,7 +180,7 @@ test('the bills list filters by status with counted chips and colour badges', ()
   expect(html).not.toContain('Past due<span')
 })
 
-test('the status header names each fact and links to where it is fixed', () => {
+test("Billing's own page is one card of part rows, each with its state and the page it opens; no tab strip", () => {
   data['admin.billing.summary'] = {
     billing: { stripeConnected: false },
     selfServe: { on: false, open: false, closedBecause: null, termsMissing: [] },
@@ -199,8 +199,21 @@ test('the status header names each fact and links to where it is fixed', () => {
   expect(html).toContain('href="#admin/billing/bills?status=')
   expect(html).toContain('2 need a look')
   expect(html).toContain('href="#admin/billing/events')
-  // The tabs carry counts of what needs attention.
-  expect(html).toContain('aria-current="page"')
+  expect(html).toContain('href="#admin/billing/signup"')
+  // Prices and rules has no state, but a row like the others.
+  expect(html).toContain('href="#admin/billing/rules"')
+  expect(html).toContain('adm-status-nomark')
+  // The parts are rows of one list, as on Overview: no second strip of facts, no tabs, no "Bills by status" card.
+  expect(html.match(/adm-status-row-link/g)).toHaveLength(6)
+  expect(html).not.toContain('ib-tab')
+  expect(html).not.toContain('Bills by status')
+})
+
+test('a part of Billing shows only that part: no status line, no tabs above it', () => {
+  data['admin.billing.bills'] = [{ ...bill, status: 'trialing' }]
+  const html = renderList('bills')
+  expect(html).not.toContain('ib-tab')
+  expect(html).not.toContain('Not connected')
 })
 
 test('turning Stripe Tax on: the count of customers without an address shows once asked, "counting" meanwhile (review #1105, N-1)', async () => {

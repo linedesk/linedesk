@@ -610,30 +610,21 @@
 .adm-provlists > * {
   min-width: 0;
 }
+/* A group's label: sentence case, 13 px, medium, muted, as every group label in the app (no uppercase eyebrows). */
 .adm-provcat h2 {
   display: flex;
   align-items: center;
   gap: 8px;
   margin: 0;
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
   color: var(--ink-muted);
-}
-/* The (?) beside the heading: its tip reads as normal text, not as the uppercase heading. */
-.adm-provcat h2 .k-help {
-  letter-spacing: 0;
-  text-transform: none;
 }
 .adm-provcat-note {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
 }
 .adm-tile-status {
   display: inline-flex;
@@ -901,11 +892,9 @@
 }
 .adm-health-sub {
   margin: 6px 0 0;
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
   color: var(--ink-muted);
 }
 .adm-health-sub:first-child {
@@ -914,6 +903,11 @@
 /* A row that opens its page: the name is the link, stretched over the whole row. */
 .adm-status-row-link {
   position: relative;
+}
+/* A part with no state (Billing › Prices and rules) keeps the mark's place, so the names stay in one column. */
+.adm-status-nomark {
+  display: inline-block;
+  width: 14px;
 }
 .adm-status-row-link:hover {
   background: var(--surface-hover);
@@ -1718,61 +1712,13 @@
   font-size: 12px;
 }
 
-/* Server admin › Billing: the status line on top, the sections, the rules and limits editors (fields two a row, one
-   on a phone), and a refund's payments. */
-.adm-billstatus {
-  padding: 4px;
+/* Server admin › Billing: its own page (one card of part rows, as on Overview), the rules and limits editors (fields
+   two a row, one on a phone), and a refund's payments. */
+.adm-billhome {
+  padding: 8px 12px;
 }
-.adm-billstatus-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(124px, 1fr));
-  gap: 2px;
-}
-.adm-billfact {
-  display: grid;
-  align-content: start;
-  gap: 2px;
-  min-width: 0;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  color: inherit;
-  text-decoration: none;
-}
-a.adm-billfact:hover {
-  background: var(--surface-hover);
-}
-a.adm-billfact:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: -2px;
-}
-.adm-billfact-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--ink-muted);
-}
-.adm-billfact-value {
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--ink);
-}
-.adm-billfact-line {
-  font-size: 12px;
-  line-height: 16px;
-  color: var(--ink-muted);
-}
-/* On a phone the status line keeps only the words and marks: the detail is one tap away. */
-@media (max-width: 559px) {
-  .adm-billfact {
-    padding: 8px 10px;
-  }
-  .adm-billfact-line {
-    display: none;
-  }
-}
-/* The sections: the inbox's tabs, scrolling sideways inside their row on a narrow screen, never the page. */
+/* Section tabs (Server admin › Partners): the inbox's tabs, scrolling sideways inside their row on a narrow screen,
+   never the page. */
 .adm-billtabs {
   min-width: 0;
   overflow-x: auto;
@@ -1794,29 +1740,6 @@ a.adm-billfact:focus-visible {
   font-size: 11px;
   font-weight: 600;
   color: var(--danger);
-}
-.adm-statuscounts {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 8px;
-}
-.adm-statuscount {
-  display: grid;
-  justify-items: start;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  color: inherit;
-  text-decoration: none;
-}
-.adm-statuscount:hover {
-  background: var(--surface-hover);
-}
-.adm-statuscount b {
-  font-size: 18px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 /* The bills filter: one chip per status that has bills, with its count. */
 .adm-chips {

@@ -18,7 +18,7 @@ import type { AdminSecondFactor } from '../auth.ts'
 import { SecondFactorPrompt } from './SecondFactorPrompt.tsx'
 import { SecondPasskeyNote } from './SecondPasskeyNote.tsx'
 import { AuditLog } from './AuditLog.tsx'
-import { Billing, useBillTitle } from './Billing.tsx'
+import { Billing, billingPartTitle, useBillTitle } from './Billing.tsx'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { errorText, type Notify } from './notify.ts'
 import { Onboarding } from './Onboarding.tsx'
@@ -189,6 +189,9 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const user = place.section === 'users' && place.id ? lists?.users.find(u => u.id === place.id) : undefined
   const billTitle = useBillTitle(place.section === 'billing' ? place.id : null)
   const detailTitle = workspace?.name ?? (user ? user.name || user.email : billTitle)
+  // The crumb names where it goes: a bill goes up to Billing › Bills, everything else to its section.
+  const up = placeUp(place)
+  const crumb = (place.section === 'billing' && billingPartTitle(t, up?.id ?? null)) || t(meta.label)
   const viewerWorkspaces = new Set(lists?.users.find(u => u.id === currentUserId)?.workspaces.map(w => w.id))
 
   function page(): ReactNode {
@@ -325,14 +328,11 @@ export function AdminMode({ currentUserId, onExit }: Props) {
                 <button
                   type="button"
                   className="adm-crumb"
-                  onClick={() => go(placeUp(place) ?? { section: place.section, id: null })}
-                  title={t('common.withKey', {
-                    label: t('admin.frame.backTo', { section: t(meta.label) }),
-                    key: 'esc',
-                  })}
+                  onClick={() => go(up ?? { section: place.section, id: null })}
+                  title={t('common.withKey', { label: t('admin.frame.backTo', { section: crumb }), key: 'esc' })}
                 >
                   <Icon name="left" size={13} />
-                  {t(meta.label)}
+                  {crumb}
                 </button>
                 <h2>{detailTitle}</h2>
               </>

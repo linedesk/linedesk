@@ -28,7 +28,8 @@ import { groupProblem, groupValue, type ProviderStatusState, providerErrorLine }
 export type Row = {
   id: string
   label: string
-  state: StatusState
+  /** null: a part with no state of its own (Billing › Prices and rules); the row keeps the mark's place empty. */
+  state: StatusState | null
   mark: string
   value: string | null
   problem: string | null
@@ -84,13 +85,20 @@ export const serverRows = (health: AdminHealth | null): Row[] =>
     }
   })
 
-function StatusRow({ row, link }: { row: Row; link: boolean }) {
+/** One part as a row of the list; with `link` the whole row opens `href` (Overview, Billing). */
+export function StatusRow({ row, link }: { row: Row; link: boolean }) {
   const t = useT()
   const bad = row.state === 'failing'
   return (
     <ListRow
       className={cx('adm-status-row', link && 'adm-status-row-link')}
-      lead={<StatusMark state={row.state} label={row.mark} />}
+      lead={
+        row.state ? (
+          <StatusMark state={row.state} label={row.mark} />
+        ) : (
+          <span className="adm-status-nomark" aria-hidden />
+        )
+      }
       sub={
         row.problem ? (
           <span className={cx('adm-status-problem', bad && 'adm-status-bad')}>

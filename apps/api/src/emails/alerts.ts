@@ -293,7 +293,8 @@ export const settingsChangedAlert =
       subject: t('email.adminAlert.settings.subject', { change, provider, agent: agent ? 'yes' : 'no' }),
       blocks: [
         { kind: 'text', text },
-        { kind: 'text', text: t('email.adminAlert.checkProviders') },
+        // Stripe's keys live under Server admin › Billing (#1292), every other provider's under Providers.
+        { kind: 'text', text: t(money ? 'email.adminAlert.checkStripe' : 'email.adminAlert.checkProviders') },
         ...(agent ? [{ kind: 'text', text: t('email.adminAlert.settings.agentEnds') } as const] : []),
       ],
     }
