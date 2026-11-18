@@ -99,7 +99,7 @@
   "agentSetup.owner.linkHelp": "Damit kann dein Agent diesen Workspace für dich einrichten, nur mit Einrichtungs-Tools: nie den Server oder einen anderen Workspace. Aus Sicherheitsgründen funktioniert der Link nach {hours, plural, one {# Stunde} other {# Stunden}} nicht mehr. Du kannst ihn hier jederzeit beenden.",
   "agentSetup.owner.signInFirst.text": "Mit einem Einrichtungslink kann dein Agent diesen Workspace 4 Stunden lang ändern. Um einen zu erstellen, musst du dich daher in den letzten 10 Minuten angemeldet haben. Melde dich erneut an und erstelle dann den Link.",
   "agentSetup.owner.signInFirst.title": "Melde dich erneut an, um einen Einrichtungslink zu erstellen",
-  "agentSetup.partner.addClient": "Kunden hinzufügen",
+  "agentSetup.partner.addClient": "Kunde hinzufügen",
   "agentSetup.partner.addClientTitle": "Einen Kunden-Workspace hinzufügen: Deine Partner-Abrechnung bekommt einen weiteren Platz",
   "agentSetup.partner.addNumber": "Nummer hinzufügen",
   "agentSetup.partner.addNumberTitle": "Eine Nummer für diesen Kunden in seinen Telefonnummer-Einstellungen hinzufügen",

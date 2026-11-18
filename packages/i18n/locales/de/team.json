@@ -99,7 +99,7 @@
   "partner.brand.field.name": "Name",
   "partner.brand.field.privacyUrl": "Datenschutz-Link",
   "partner.brand.field.supportEmail": "Support-E-Mail",
-  "partner.brand.field.termsUrl": "Nutzungsbedingungen-Link",
+  "partner.brand.field.termsUrl": "AGB-Link",
   "partner.brand.help": "Wird in deinen Kunden-Workspaces anstelle von Namen und Logo dieses Servers angezeigt: im Browser-Tab, auf dem Home-Bildschirm, hinter Hilfe, Nutzungsbedingungen und Datenschutz sowie in den E-Mails, die deine Kunden und ihre Anrufer bekommen. Antworten auf diese E-Mails gehen an deine Support-E-Mail.",
   "partner.brand.logoHelp": "Quadratisch funktioniert am besten. Wird im Browser-Tab und in E-Mails angezeigt.",
   "partner.brand.ownerOnly": "Nur der Inhaber deines Partnerkontos kann die Marke ändern.",
