@@ -86,8 +86,6 @@
   "partner.agentTitle": "Deja que un agente de IA cambie tu cuenta de partner y tus espacios de trabajo de clientes",
   "partner.back": "Volver a la bandeja de entrada",
   "partner.bill.inactive": "El plan de partner no está activo. Paga la factura pendiente o vuelve a iniciar el plan en Facturación.",
-  "partner.bill.startPlan": "Agrega una tarjeta para iniciar el plan de partner. Justo después puedes crear espacios de trabajo de clientes.",
-  "partner.bill.startPlanButton": "Agregar una tarjeta e iniciar el plan",
   "partner.bill.waitsForOwner": "El propietario de tu cuenta de partner agrega primero una tarjeta. Después vienen los espacios de trabajo de clientes.",
   "partner.billing.title": "Facturación",
   "partner.brand.description": "Lo que tus clientes ven en la pestaña del navegador, en su pantalla de inicio y en los correos.",

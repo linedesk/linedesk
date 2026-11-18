@@ -72,6 +72,7 @@ import {
   setupStepNames,
   type WorkspaceCreateData,
   countryNamed,
+  UNPAID_PARTNER_CLIENTS,
 } from '@linedesk/actions'
 import {
   assistants,
@@ -111,7 +112,7 @@ import { guard, MCP_MAX_BODY_BYTES, takeSlot, toolName } from './mcp.ts'
 import { newAssistant } from './onboarding.ts'
 import { pipelinesSetUp, providerStatus } from './provider-settings.ts'
 import { runAction } from './run-action.ts'
-import { isPendingPayment } from './self-serve.ts'
+import { isPendingPayment, waitsForOwnTrial } from './self-serve.ts'
 import { type PartnerSetupFacts, partnerPast, partnerSetupFacts } from './partner-setup.ts'
 import { setupChecklist } from './setup-checklist.ts'
 import { workspaceLocale } from './workspace-locale.ts'
@@ -625,13 +626,29 @@ const seatHint = (seat: NonNullable<PartnerSetupFacts['seat']>) =>
     { price: `$${(seat.cents / 100).toFixed(seat.cents % 100 ? 2 : 0)}` },
   )
 
+/** A price in whole dollars where it has no cents ("$14", "$9.50"). */
+const dollars = (cents: number) => `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}`
+
+/** What White-label Cloud costs, as its row's hint ("$14 a month, billed yearly, plus $9 per client workspace"). */
+const planHint = (plan: NonNullable<PartnerSetupFacts['plan']>, seat: PartnerSetupFacts['seat']) =>
+  english.t(
+    plan.interval === 'year'
+      ? 'server.setupAgent.partner.step.planPriceYearly'
+      : 'server.setupAgent.partner.step.planPriceMonthly',
+    { price: dollars(plan.cents), seat: dollars(seat?.cents ?? 0) },
+  )
+
 /**
  * The partner's own steps. Its company name and brand are the partner's own text, quoted as data. The client
  * workspaces row is the owner's own (a seat on the bill), done once there is one; more can follow from the same row.
+ * Where billing is on, the last row is White-label Cloud itself: the owner activates it (its Checkout, charged at once,
+ * no trial) once the setup is ready. Before that up to UNPAID_PARTNER_CLIENTS client workspaces are drafts, and no
+ * invitation, number or call goes out (setup before payment, 2026-11-18).
  */
 function partnerSteps(actor: Actor, facts: PartnerSetupFacts): StepBase[] {
   const who = personOf(actor)
   const at = facts.step
+  const unpaid = facts.plan?.unpaid ?? false
   const named = (id: 'company' | 'brand' | 'team' | 'clients') => ({
     // i18n-dynamic: server.setupAgent.partner.step.*
     label: english.t(`server.setupAgent.partner.step.${id}`),
@@ -654,7 +671,9 @@ function partnerSteps(actor: Actor, facts: PartnerSetupFacts): StepBase[] {
       ]),
       detail: facts.brandName ? JSON.stringify(facts.brandName) : null,
     },
-    step('team', facts.team > 0 || partnerPast(at, 'team'), [english.t('server.setupAgent.partner.teamHow', { who })]),
+    step('team', facts.team > 0 || partnerPast(at, 'team'), [
+      english.t(unpaid ? 'server.setupAgent.partner.teamHowUnpaid' : 'server.setupAgent.partner.teamHow', { who }),
+    ]),
     {
       id: 'clients',
       ...named('clients'),
@@ -669,8 +688,29 @@ function partnerSteps(actor: Actor, facts: PartnerSetupFacts): StepBase[] {
           page: setupPage(actor),
           seconds: POLL_SECONDS,
         }),
+        ...(unpaid
+          ? [english.t('server.setupAgent.partner.clientsHowUnpaid', { who, limit: UNPAID_PARTNER_CLIENTS })]
+          : []),
       ],
     },
+    ...(facts.plan
+      ? [
+          {
+            id: 'plan',
+            label: english.t('server.setupAgent.partner.step.plan'),
+            hint: planHint(facts.plan, facts.seat),
+            // The owner's own row: its button opens the Checkout. Done once paid.
+            state: unpaid ? 'admin_only' : 'done',
+            how: [
+              english.t('server.setupAgent.partner.planHow', {
+                who,
+                page: setupPage(actor),
+                seconds: POLL_SECONDS,
+              }),
+            ],
+          } satisfies StepBase,
+        ]
+      : []),
   ]
 }
 
@@ -971,7 +1011,10 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   const notifyDone = !!notifyRow || !!assistant?.transfers.some(t => t.id === URGENT_CONTACT_ID) || past(step, 'notify')
   // A Linedesk Cloud sign-up waiting for its trial (docs/billing.md §3.2): the free steps first, then the owner's card
   // (`activate`, on the setup page, never the agent's), and only then a number (refused before, self-serve.ts).
-  const waitingForTrial = await isPendingPayment(db, workspaceId)
+  const waitingForTrial = await waitsForOwnTrial(db, workspaceId)
+  // A white-label partner's draft client workspace (setup before payment, 2026-11-18): set up like any, but its number
+  // waits for the partner's Checkout (the partner's Activate row), not a trial of its own.
+  const waitingForPartner = !waitingForTrial && (await isPendingPayment(db, workspaceId))
   const freeStepsDone = businessDone && assistantDone && pickupDone && notifyDone
   // On Ultra the assistant speaks in the realtime model's voices, not one of the voice provider's (like Assistant settings).
   const realtime = assistant?.call_quality === 'ultra' && (await pipelinesSetUp(db)).realtime
@@ -1066,18 +1109,21 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       id: 'phone',
       label: 'A phone number for the assistant',
       // On a partner's link the number is the owner's own row on the setup page (it costs money), never the agent's.
-      state: actor.setupPartnerId && !phoneDone && !waitingForTrial ? 'admin_only' : done(phoneDone),
+      state:
+        actor.setupPartnerId && !phoneDone && !waitingForTrial && !waitingForPartner ? 'admin_only' : done(phoneDone),
       // The id too: the forwarding tools need it, also while another step is next and this one has no `how`.
       detail: numbers.map(n => `${n.e164} (${n.mode}, phoneNumberId ${n.id})`).join(', ') || null,
       how: waitingForTrial
         ? [english.t('server.setupAgent.phoneAfterTrial', { who })]
-        : actor.setupPartnerId
-          ? [english.t('server.setupAgent.partner.phoneHow', { who, page: setupPage(actor), seconds: POLL_SECONDS })]
-          : [
-              'Ask how calls should reach the assistant: keep the business number and forward to a new Linedesk number (mode "forward_conditional", or "forward_all" for every call), or a new number of its own (mode "new"). For forwarding, forwarding_guide { workspaceId, carrier? } shows how it works for the business line\'s carrier already now, before the number exists.',
-              numberSetupHow(w, countryNamed(locale.countrySource) ? locale.resolvedCountry : null),
-              `Then onboarding_setStep { ${w}, step: "done" }.`,
-            ],
+        : waitingForPartner
+          ? [english.t('server.setupAgent.partner.phoneAfterActivate', { who })]
+          : actor.setupPartnerId
+            ? [english.t('server.setupAgent.partner.phoneHow', { who, page: setupPage(actor), seconds: POLL_SECONDS })]
+            : [
+                'Ask how calls should reach the assistant: keep the business number and forward to a new Linedesk number (mode "forward_conditional", or "forward_all" for every call), or a new number of its own (mode "new"). For forwarding, forwarding_guide { workspaceId, carrier? } shows how it works for the business line\'s carrier already now, before the number exists.',
+                numberSetupHow(w, countryNamed(locale.countrySource) ? locale.resolvedCountry : null),
+                `Then onboarding_setStep { ${w}, step: "done" }.`,
+              ],
     },
     ...(forwarding
       ? [

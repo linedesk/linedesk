@@ -2370,6 +2370,47 @@ describe('the partner bill (white-label S2, docs/white-label.md)', () => {
     expect(update.idempotencyKey).toBe(`seats_client_${client.body.data.workspace.id}_${bill.id}_0_1`)
   })
 
+  test('client workspaces prepared before paying: the Checkout sells their seats with the base fee, no trial; paid, they go live', async () => {
+    // Setup before payment (2026-11-18): drafts first, then "Activate White-label Cloud" opens this Checkout.
+    const { owner, partnerId, bill } = await pendingPartner()
+    const drafts: string[] = []
+    for (const name of ['Draft One', 'Draft Two']) {
+      const made = await act(owner, 'workspace.createForClient', { partnerId, name })
+      expect(made).toMatchObject({ status: 200, body: { data: { billId: bill.id } } })
+      drafts.push(made.body.data.workspace.id)
+    }
+    // A draft costs nothing yet: Stripe is not asked to add a seat.
+    expect(stripe.requests.filter(r => r.method === 'POST' && r.path.startsWith('/v1/subscriptions/'))).toEqual([])
+    for (const id of drafts)
+      expect((await db.select().from(organization).where(eq(organization.id, id)))[0]).toMatchObject({
+        billingState: 'pending_payment',
+      })
+    expect((await act(owner, 'billing.startCheckout', { partnerId })).status).toBe(200)
+    const made = Object.fromEntries(checkoutsMade().at(-1)!.body)
+    expect(made).toMatchObject({
+      'line_items[0][price]': 'price_partner_monthly',
+      'line_items[0][quantity]': '1',
+      'line_items[1][price]': expect.stringMatching(/^price_ws_monthly/),
+      'line_items[1][quantity]': '2',
+    })
+    // Charged at once: no trial on any path.
+    expect(made['subscription_data[trial_period_days]']).toBeUndefined()
+    const sessionId = [...stripe.sessions.keys()].at(-1)!
+    const sub = await paidPartnerSubscription(bill.id)
+    complete(sessionId, sub)
+    expect(await act(owner, 'billing.confirmCheckout', { sessionId, partnerId })).toMatchObject({
+      status: 200,
+      body: { data: { status: 'active' } },
+    })
+    // Paid: the drafts run with the bill (numbers, calls and invitations open), and more clients can follow.
+    for (const id of drafts)
+      expect((await db.select().from(organization).where(eq(organization.id, id)))[0]).toMatchObject({
+        billingState: 'active',
+      })
+    for (const name of ['Third', 'Fourth'])
+      expect((await act(owner, 'workspace.createForClient', { partnerId, name })).status).toBe(200)
+  })
+
   test('a trial subscription on a partner bill (a Checkout an older release opened) is ended, never confirmed', async () => {
     // White-label Cloud has no free trial (Janik, 2026-11-18): the return page and the webhook both refuse it.
     const { owner, partnerId, bill } = await pendingPartner()

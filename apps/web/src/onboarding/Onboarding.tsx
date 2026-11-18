@@ -94,8 +94,9 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload, onAgentSetup }
   // What the pick-up step changed this session (hours it turned on, the forwarding a number had before).
   const [pickupMemory, setPickupMemory] = useState<PickupMemory>(NO_PICKUP_MEMORY)
   const hasNumber = useRows('phone_numbers').length > 0
-  // Waiting for its trial (docs/billing.md §3.2): the setup, then `activate` (the card); the number only after it.
-  const activating = me.workspace?.billingState === 'pending_payment'
+  // Waiting for its trial (docs/billing.md §3.2): the setup, then `activate` (the card); the number only after it. A
+  // white-label partner's draft client workspace waits for the partner's Checkout instead: no card step of its own.
+  const activating = me.workspace?.billingState === 'pending_payment' && !me.workspace.partnerManaged
   const steps = activating ? activationSteps : onboardingSteps
   // A trial sign-up counts its whole way, before and after the card (Step 5 of 7, then 6 of 7).
   const counted = activating || me.workspace?.trialEndsAt ? trialSteps : steps

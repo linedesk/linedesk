@@ -70,7 +70,9 @@ import {
 import { createRateLimiter } from './rate-limit.ts'
 import { cancelSentInvitations, lockActiveSender, lockedOwner } from './team.ts'
 import { billPayerChanged, lockForPayerChange } from './usage-levels.ts'
+import { billingRules } from './billing-rules.ts'
 import { refuseMoneyChange } from './billing-settings.ts'
+import { isPendingPayment } from './self-serve.ts'
 import { clientPeriodUsage, limitPercent, queueUsageLimitAlerts, resetUsageLimitAlerts } from './usage-limit.ts'
 import { insertWorkspace } from './workspace-creation-handlers.ts'
 import { deleteWorkspace } from './workspace-delete.ts'
@@ -472,10 +474,27 @@ async function billSummary(tx: Tx, partner: PartnerRow, actorId: string): Promis
   if (!partner.billing_account_id) return null
   const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, partner.billing_account_id))
   if (!bill) return null
+  const rules = await billingRules(tx)
+  const yearly = bill.interval === 'year'
   return {
     status: bill.status,
     mine: bill.owner_user_id === actorId,
+    price: {
+      interval: bill.interval,
+      planCents: yearly ? Math.round(rules.partnerYearlyCents / 12) : rules.partnerMonthlyCents,
+      seatCents: yearly ? Math.round(rules.workspaceYearlyCents / 12) : rules.workspaceMonthlyCents,
+    },
   }
+}
+
+/** Whether the partner's bill still waits for its Checkout (White-label Cloud not activated yet). */
+async function partnerUnpaid(tx: Tx, partner: PartnerRow): Promise<boolean> {
+  if (!partner.billing_account_id) return false
+  const [bill] = await tx
+    .select({ status: billing_accounts.status })
+    .from(billing_accounts)
+    .where(eq(billing_accounts.id, partner.billing_account_id))
+  return bill?.status === 'pending_payment'
 }
 
 /** Partner actions file their audit entry under no workspace, with whom the change was about. */
@@ -505,10 +524,11 @@ async function refuseOverCeiling(tx: Tx, partner: PartnerRow) {
 async function createForClient(ctx: HandlerCtx, input: CreateForClientInput) {
   const { tx, actor, now } = ctx
   const { partner } = await partnerFor(tx, actor, input.partnerId, { write: true, owner: !!input.ownerEmail })
-  // Where billing is on, a client workspace goes on the partner bill and adds a seat to its subscription (S2): the
-  // bill must run, and in its free trial it takes at most the trial's client workspaces. The bill is the gate there,
-  // so a partner waiting for a server admin's approval can try it with its clients (approval gates its brand, S4).
-  const bill = await billForNewClient(tx, partner)
+  // Where billing is on, a client workspace goes on the partner bill and adds a seat to its subscription (S2). Before
+  // the partner's Checkout it is a draft (at most UNPAID_PARTNER_CLIENTS, free until the Checkout sells its seat): set up
+  // first, live once paid. The bill is the gate there, so a partner waiting for a server admin's approval works with its
+  // clients (approval gates its brand, S4).
+  const bill = await billForNewClient(tx, partner, { draft: true })
   if (!bill) await refuseOverCeiling(tx, partner)
   // Its assistant starts on Standard, whatever the install's default and whoever on the partner team creates it: the
   // partner pays, and only its owner raises a client's assistant later (decisions.md 2026-11-18, review L-1).
@@ -531,7 +551,8 @@ async function createForClient(ctx: HandlerCtx, input: CreateForClientInput) {
     .where(eq(organization.id, org.id))
   await syncPartnerMemberships(tx, partner.id, now)
   if (input.ownerEmail) await inviteOwner(ctx, partner.id, org, input.ownerEmail)
-  if (bill) await seatsFollow(ctx.tx, ctx.onCommit, bill.id, `client_${org.id}`)
+  // A draft has no seat to add yet: the Checkout counts the client workspaces on the bill (planItems).
+  if (bill && bill.status !== 'pending_payment') await seatsFollow(ctx.tx, ctx.onCommit, bill.id, `client_${org.id}`)
   return {
     rows: {},
     // The audit log files the entry under the new workspace.
@@ -553,6 +574,9 @@ async function createForClient(ctx: HandlerCtx, input: CreateForClientInput) {
  */
 async function inviteOwner(ctx: HandlerCtx, partnerId: string, workspace: { id: string; name: string }, email: string) {
   const { tx, actor, now } = ctx
+  // Nothing goes out before White-label Cloud is paid (setup before payment, 2026-11-18): a draft client workspace
+  // waits for the partner's Checkout like a Cloud sign-up's (self-serve.ts, REFUSED_WHILE_PENDING_PAYMENT).
+  if (await isPendingPayment(tx, workspace.id)) throw refusePartner('activate_first')
   if (await onTeamByEmail(tx, partnerId, email)) throw refusePartner('owner_on_team')
   const [owner] = await tx
     .select({ id: member.id })
@@ -900,7 +924,8 @@ async function listClients(tx: Tx, partner: PartnerRow, now: string): Promise<Pa
         ? Math.floor(limitPercent({ limitCents: c.limitCents, usedMicros: costMicros }))
         : null
     const problems: ClientProblem[] = []
-    if (onBill && c.billingState !== 'active') problems.push('bill_inactive')
+    // A draft made before the partner's Checkout waits for it (setup before payment): not a problem of the client.
+    if (onBill && c.billingState !== 'active' && c.billingState !== 'pending_payment') problems.push('bill_inactive')
     if (c.disabledAt) problems.push('disabled')
     if (percent !== null && percent >= 100) problems.push('limit_reached')
     else if (percent !== null && percent >= 80) problems.push('limit_near')
@@ -951,6 +976,9 @@ export const partnerHandlers: Record<string, Handler> = {
 
   'partnerMember.invite': async ({ tx, actor, now }, input: { partnerId: string; email: string }) => {
     const { partner } = await partnerFor(tx, actor, input.partnerId, { write: true, owner: true })
+    // No invitation email before White-label Cloud is paid, as a Cloud sign-up sends none before its trial (team.invite
+    // in REFUSED_WHILE_PENDING_PAYMENT, security review F1 of #960): a fresh email-code account must not mail anyone.
+    if (await partnerUnpaid(tx, partner)) throw refusePartner('activate_first')
     if (await onTeamByEmail(tx, partner.id, input.email)) throw refusePartner('already_member')
     if (await openInvitationTo(tx, partner.id, input.email, now)) throw refusePartner('already_invited')
     if (await ownsClientByEmail(tx, partner.id, input.email)) throw refusePartner('client_owner')

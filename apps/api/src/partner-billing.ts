@@ -3,6 +3,7 @@
 // Its subscription has the partner base fee and one seat per client workspace; every client workspace is on it, and
 // all their usage comes from its one balance. Here: which partner bill a caller may manage, whether a new client
 // workspace may go on it, and the seats that follow the client workspaces in Stripe after a change committed.
+import { UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
 import type { BillingProvider } from '@linedesk/billing'
 import { billing_accounts, organization, partner_members, partners, type Tx } from '@linedesk/db'
 import { msg } from '@linedesk/i18n'
@@ -65,8 +66,18 @@ export async function workspacesOnBillCount(tx: Tx | typeof db, billId: string):
  * partner has no bill (self-host, dev: S1's ceiling applies instead). Refused: a billed install without a partner bill
  * (a partner a server admin made by hand), a bill before its Checkout, and a bill that does not run. No trial and so no
  * trial limit: the partner plan is paid from its Checkout (Janik, 2026-11-18).
+ *
+ * `draft`: a new client workspace the partner prepares (workspace.createForClient). Before the Checkout the partner sets
+ * up first (setup before payment, 2026-11-18): at most UNPAID_PARTNER_CLIENTS of them go on the bill waiting for its
+ * Checkout, cost nothing until it is paid (the Checkout then sells their seats with the base fee) and wait for it like a
+ * Cloud sign-up's workspace (`pending_payment`: no number, no calls, no invitations, self-serve.ts). The caller holds
+ * the partner row's lock, so two creations cannot both pass the cap.
  */
-export async function billForNewClient(tx: Tx, partner: { billing_account_id: string | null }): Promise<Bill | null> {
+export async function billForNewClient(
+  tx: Tx,
+  partner: { billing_account_id: string | null },
+  { draft = false }: { draft?: boolean } = {},
+): Promise<Bill | null> {
   if (!partner.billing_account_id) {
     if (await billingSwitchOn(tx)) throw refusePartner('client_needs_bill')
     return null
@@ -74,7 +85,11 @@ export async function billForNewClient(tx: Tx, partner: { billing_account_id: st
   await lockBalance(tx, partner.billing_account_id)
   const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, partner.billing_account_id))
   if (!bill) throw refusePartner('client_needs_bill')
-  if (bill.status === 'pending_payment') throw refusePartner('bill_not_started')
+  if (bill.status === 'pending_payment') {
+    if (!draft) throw refusePartner('bill_not_started')
+    if ((await workspacesOnBillCount(tx, bill.id)) >= UNPAID_PARTNER_CLIENTS) throw refusePartner('unpaid_client_limit')
+    return bill
+  }
   if (!TAKES_CLIENTS.includes(bill.status)) throw refusePartner('bill_inactive')
   return bill
 }

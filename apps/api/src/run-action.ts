@@ -40,13 +40,7 @@ import { db } from './db.ts'
 import { type Reader, rejectionText, wordsOf } from './handler-context.ts'
 import { Forbidden, NotFound, preparers, Reject, runHandler, type Undo } from './handlers.ts'
 import { personalKeyRefusal } from './personal-key-scope.ts'
-import {
-  chargeSetupLookup,
-  isPendingPayment,
-  PENDING_PAYMENT,
-  REFUSED_WHILE_PENDING_PAYMENT,
-  SETUP_LOOKUPS,
-} from './self-serve.ts'
+import { chargeSetupLookup, pendingPaymentRefusal, REFUSED_WHILE_PENDING_PAYMENT, SETUP_LOOKUPS } from './self-serve.ts'
 import { impersonatorOf, mayRunWhileImpersonating, NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { MAIN_HOST_ONLY, mainHostOnlyAction } from './request-host.ts'
 
@@ -350,8 +344,10 @@ export async function runAction(
   if (personalRefused) return forbidden(personalRefused)
   if (actor.emailUnverified && needsConfirmedEmail(name, rawInput)) return emailNotVerified
   // A sign-up waiting for Checkout reaches nothing outside and spends nothing (self-serve.ts; security review F1).
-  if (REFUSED_WHILE_PENDING_PAYMENT.has(name) && (await isPendingPayment(db, actor.workspaceId)))
-    return rejection(409, PENDING_PAYMENT)
+  const pendingRefusal = REFUSED_WHILE_PENDING_PAYMENT.has(name)
+    ? await pendingPaymentRefusal(db, actor.workspaceId)
+    : null
+  if (pendingRefusal) return { status: 409, body: rejectionBody(pendingRefusal, [], wordsOf(actor)) }
   // Before its trial a workspace runs only `setupLookups` business lookups in all (self-serve.ts).
   if (SETUP_LOOKUPS.has(name)) {
     try {

@@ -22,6 +22,7 @@ import {
   user,
 } from '@linedesk/db'
 import { and, eq, isNull } from 'drizzle-orm'
+import { UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
 import { afterAll, beforeAll, describe, expect, onTestFinished, test, vi } from 'vitest'
 import { listAudit } from '../src/audit.ts'
 import { BILLING_ENABLED_KEY } from '../src/billing-settings.ts'
@@ -778,6 +779,8 @@ describe('the partner bill (S2)', () => {
     expect((await act(p.owner, 'partner.get', { partnerId: p.id })).body.data.bill).toEqual({
       status: 'active',
       mine: true,
+      // What White-label Cloud and each client workspace cost a month at the bill's interval (the Activate note).
+      price: { interval: 'month', planCents: expect.any(Number), seatCents: expect.any(Number) },
     })
     const admin = await addPartnerAdmin(p)
     // An admin of the team makes client workspaces too; the bill is not theirs.
@@ -798,15 +801,82 @@ describe('the partner bill (S2)', () => {
     expect(await listed()).toMatchObject({ billStatus: 'past_due' })
   })
 
-  test('no client workspace before Checkout, nor on a bill that does not run', async () => {
+  test(`before Checkout at most ${UNPAID_PARTNER_CLIENTS} draft client workspaces, none on a bill that does not run`, async () => {
+    // Setup before payment (2026-11-18): drafts on the bill waiting for its Checkout, waiting with it.
     const p = await billedPartner('Waiting Partner', 'pending_payment', true)
-    const create = () => act(p.owner, 'workspace.createForClient', { partnerId: p.id, name: 'Nope' })
-    expect(await create()).toMatchObject({ status: 409, body: { code: 'bill_not_started' } })
+    const create = (name: string) => act(p.owner, 'workspace.createForClient', { partnerId: p.id, name })
+    const drafts: string[] = []
+    for (let i = 0; i < UNPAID_PARTNER_CLIENTS; i++) drafts.push(await createClient(p, `Draft ${i + 1}`))
+    for (const id of drafts)
+      expect(await orgRow(id)).toMatchObject({
+        partnerId: p.id,
+        billingAccountId: p.billId,
+        billingState: 'pending_payment',
+      })
+    expect(await create('One too many')).toMatchObject({ status: 409, body: { code: 'unpaid_client_limit' } })
+    // A draft waits for the Checkout: listed without the "Plan not active" problem.
+    const listed = (await act(p.owner, 'partner.listClients', { partnerId: p.id })).body.data.clients
+    expect(listed).toHaveLength(UNPAID_PARTNER_CLIENTS)
+    for (const c of listed) expect(c.problems).not.toContain('bill_inactive')
+    // A draft deleted makes room again.
+    expect(
+      await act(p.owner, 'partner.deleteClient', { partnerId: p.id, workspaceId: drafts[0], confirmName: 'Draft 1' }),
+    ).toMatchObject({ status: 200 })
+    expect(await create('Draft again')).toMatchObject({ status: 200 })
     for (const status of ['suspended', 'canceled'] as const) {
       await setBill(p.billId, status)
-      expect(await create()).toMatchObject({ status: 409, body: { code: 'bill_inactive' } })
+      expect(await create('Nope')).toMatchObject({ status: 409, body: { code: 'bill_inactive' } })
     }
-    expect(await db.select().from(organization).where(eq(organization.partnerId, p.id))).toEqual([])
+    expect(await db.select().from(organization).where(eq(organization.partnerId, p.id))).toHaveLength(
+      UNPAID_PARTNER_CLIENTS,
+    )
+  })
+
+  test('before Checkout nothing goes out: no team or owner invitation, no number, no integration in a draft', async () => {
+    const p = await billedPartner('Unpaid Partner', 'pending_payment')
+    const draft = await createClient(p, 'Draft Plumbing')
+    const partnerInvites = async () =>
+      (await db.select().from(partner_invitations).where(eq(partner_invitations.partner_id, p.id))).length
+    // The owner's own invitation (the partner was made by a server admin here).
+    const before = await partnerInvites()
+    const activateFirst = { status: 409, body: { code: 'activate_first' } }
+    // The partner team and the client's owner: no invitation email before White-label Cloud is paid.
+    expect(await act(p.owner, 'partnerMember.invite', { partnerId: p.id, email: newEmail('team') })).toMatchObject(
+      activateFirst,
+    )
+    expect(
+      await act(p.owner, 'workspace.inviteClientOwner', { partnerId: p.id, workspaceId: draft, email: newEmail('o') }),
+    ).toMatchObject(activateFirst)
+    // A new client with its owner's email: refused whole, no workspace left behind.
+    expect(
+      await act(p.owner, 'workspace.createForClient', { partnerId: p.id, name: 'With Owner', ownerEmail: newEmail() }),
+    ).toMatchObject(activateFirst)
+    expect(await db.select().from(organization).where(eq(organization.partnerId, p.id))).toHaveLength(1)
+    // In the draft, as the partner's team: what the Cloud trial blocks before the card, said for White-label Cloud.
+    const there = await inWorkspace(p.owner, draft)
+    for (const [name, input] of [
+      ['team.invite', { email: newEmail('staff'), role: 'member' }],
+      ['phoneNumber.setup', {}],
+      ['phoneNumber.checkForwarding', {}],
+      ['webhook.create', { url: 'https://hooks.example.com/x', events: ['call.ended'] }],
+    ] as const) {
+      const res = await act(there, name, input)
+      expect(res.status, name).toBe(409)
+      expect(res.body.error, name).toContain('Activate White-label Cloud first')
+    }
+    // Its setup is not held back: no card step of its own, so finishing or setting it aside is fine.
+    expect(await act(there, 'onboarding.setStep', { step: 'skipped' })).toMatchObject({ status: 200 })
+    expect(await db.select().from(invitation).where(eq(invitation.organizationId, draft))).toEqual([])
+    expect(await partnerInvites()).toBe(before)
+    // Paid (the Checkout confirmation sets the bill and its workspaces running): invitations go out.
+    await setBill(p.billId, 'active')
+    await db.update(organization).set({ billingState: 'active' }).where(eq(organization.id, draft))
+    expect(await act(p.owner, 'partnerMember.invite', { partnerId: p.id, email: newEmail('team') })).toMatchObject({
+      status: 200,
+    })
+    expect(
+      await act(p.owner, 'workspace.inviteClientOwner', { partnerId: p.id, workspaceId: draft, email: newEmail('o') }),
+    ).toMatchObject({ status: 200 })
   })
 
   test("the partner's owner reads the partner bill by partnerId; an admin and another partner get 403", async () => {

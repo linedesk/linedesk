@@ -86,8 +86,6 @@
   "partner.agentTitle": "Laisser un agent IA modifier votre compte partenaire et vos espaces de travail clients",
   "partner.back": "Retour à la boîte de réception",
   "partner.bill.inactive": "Le forfait partenaire n'est pas actif. Payez la facture en attente ou relancez le forfait dans Facturation.",
-  "partner.bill.startPlan": "Ajoutez une carte pour démarrer le forfait partenaire. Vous pourrez créer des espaces de travail clients juste après.",
-  "partner.bill.startPlanButton": "Ajouter une carte et démarrer le forfait",
   "partner.bill.waitsForOwner": "Le propriétaire de votre compte partenaire ajoute d'abord une carte. Les espaces de travail clients suivent ensuite.",
   "partner.billing.title": "Facturation",
   "partner.brand.description": "Ce que vos clients voient dans l'onglet du navigateur, sur leur écran d'accueil et dans les e-mails.",

@@ -64,7 +64,13 @@ import { Select } from '../ui/controls.tsx'
 import { CopyButton } from './Frame.tsx'
 import { openInstallSetup } from './InstallSetup.tsx'
 import { clearResume, peekResume, type ResumeAction, saveResume } from './resume-after-switch.ts'
-import { type SetupWorkspace, SetupForwarding, SetupStartTrial, SetupTestCall } from './SetupRowActions.tsx'
+import {
+  SetupActivatePartner,
+  type SetupWorkspace,
+  SetupForwarding,
+  SetupStartTrial,
+  SetupTestCall,
+} from './SetupRowActions.tsx'
 import { PARTNER_AGENT_HASH, rememberManual } from './setup-choice.ts'
 import { loadPartnerAgentSetup, loadWorkspaceAgentSetup } from './workspace-agent-setup.ts'
 import { NewClientDialog } from '../partner/PartnerArea.tsx'
@@ -600,11 +606,11 @@ const NO_WORKSPACE = ''
  * server's, then a workspace's. The rows with a button on this page (forwarding, the test call) are as tall as it.
  */
 const SKELETON_GROUPS: Record<(typeof setupStepGroups)[number]['id'], readonly string[]> = {
-  partner: ['company', 'brand', 'team', 'clients'],
+  partner: ['company', 'brand', 'team', 'clients', 'plan'],
   server: ['answering', 'telephony', 'email', 'call-audio'],
   business: ['business', 'assistant', 'pickup', 'notify', 'phone', 'forwarding', 'test_call'],
 }
-const SKELETON_ACTIONS: Record<string, number> = { forwarding: 124, test_call: 132, clients: 104 }
+const SKELETON_ACTIONS: Record<string, number> = { forwarding: 124, test_call: 132, clients: 104, plan: 178 }
 
 /** A step's row width: its name (13px) and, after " · ", its hint (12px), about as long as the words. */
 export function stepSkeletonRow(id: string): { label: number; action?: number } {
@@ -824,6 +830,7 @@ function Progress({
                     reload={reload}
                     trial={trial}
                     onAddClient={partnerScope ? () => setNewWorkspace(true) : undefined}
+                    activatePartnerId={partnerScope ? (partner?.id ?? null) : null}
                     onAddNumber={
                       partnerScope && selected
                         ? () => {
@@ -1027,6 +1034,7 @@ export function StepAction({
   trial,
   onAddClient,
   onAddNumber,
+  activatePartnerId = null,
 }: {
   step: AgentSetupState['progress']['steps'][number]
   /** The workspace shown, when it is the app's active workspace in this tab: the buttons act in it right here. */
@@ -1049,8 +1057,18 @@ export function StepAction({
   onAddClient?: () => void
   /** A partner owner's page: "Add number" on a client workspace's Phone number row (it costs money). */
   onAddNumber?: () => void
+  /** A partner owner's page: the partner whose "Activate White-label Cloud" row opens its Checkout. */
+  activatePartnerId?: string | null
 }) {
   const t = useT()
+  if (step.id === 'plan' && activatePartnerId) {
+    if (step.state !== 'admin_only') return null
+    return (
+      <span className="as-item-action">
+        <SetupActivatePartner partnerId={activatePartnerId} />
+      </span>
+    )
+  }
   if (step.id === 'clients' && onAddClient)
     return (
       <span className="as-item-action">

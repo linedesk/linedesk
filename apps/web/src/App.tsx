@@ -43,7 +43,7 @@ import { SignInLink, takeSignInLinkToken } from './SignInLink.tsx'
 import { Signup } from './Signup.tsx'
 import { CheckoutReturn } from './CheckoutReturn.tsx'
 import { isCheckoutReturnPath, readCheckoutPartner } from './checkout.ts'
-import { isSignupPath, signupCameFrom } from './signup.ts'
+import { afterSignupAddress, isSignupPath, signupCameFrom } from './signup.ts'
 import { isInstanceAdmin, passkeySupported, type Me } from './auth.ts'
 import { setProviderAudience } from './providerAudience.ts'
 import { clearSignedIn, passkeyAsk, pausedAt, signedInJustNow } from './passkey-ask.ts'
@@ -368,10 +368,10 @@ export function App() {
   ) {
     // From a workspace (the menu's New workspace…): the new one opens like any switch, with its own local store.
     const fromApp = session.state === 'ready'
-    // A partner sign-up goes to Checkout from the page; it comes here only when Checkout could not open: the partner
-    // area, whose "Add a card" starts it again.
+    // A partner sign-up goes on to its owner's agent setup (#partner/agent): the setup first, then "Activate White-label
+    // Cloud" there opens the Checkout (setup before payment, 2026-11-18).
     const leaveSignup = async (partner: boolean, workspaceId: string | null) => {
-      window.history.replaceState(null, '', partner ? '/#partner' : '/')
+      window.history.replaceState(null, '', afterSignupAddress(partner))
       if (fromApp && workspaceId) return switchToWorkspace(workspaceId, null)
       if (partner) window.dispatchEvent(new HashChangeEvent('hashchange'))
       setSignupPage(false)

@@ -2,7 +2,13 @@
 // new ones and (the owner) manages the team and the partner bill. It needs no workspace: a new partner has no clients
 // yet. Every member of the team is an admin of every client workspace; opening one switches to it like the workspace
 // menu does. Where billing is on, client workspaces are seats on the partner bill, which must run first (S2).
-import type { MyPartner, PartnerClient, PartnerClientRow, PartnerData } from '@linedesk/actions'
+import {
+  type MyPartner,
+  type PartnerClient,
+  type PartnerClientRow,
+  type PartnerData,
+  UNPAID_PARTNER_CLIENTS,
+} from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { day } from '../admin/parts.tsx'
@@ -11,6 +17,7 @@ import { goToCheckout } from '../checkout.ts'
 import { useCountryHint } from '../countryHint.ts'
 import { signOutAndForget } from '../localData.ts'
 import { Billing } from '../settings/Billing.tsx'
+import { useUsd } from '../onboarding/ExtraCalls.tsx'
 import { PARTNER_AGENT_HASH, rememberPartnerByHand } from '../onboarding/setup-choice.ts'
 import { purchaseKeys } from '../settings/billingModel.ts'
 import { CountrySelect } from '../settings/CountrySelect.tsx'
@@ -53,13 +60,25 @@ export function partnerSections(t: ReturnType<typeof useT>, billing: boolean): P
 }
 
 /**
- * Whether client workspaces are closed: a suspended partner; with a partner bill, until it runs (approval then gates
- * only the brand, S4); without one (no billing on this server), until a server admin approved the partner.
+ * Whether client workspaces are closed: a suspended partner; with a partner bill, while it does not run (approval then
+ * gates only the brand, S4), except before its Checkout, when the partner prepares drafts (unpaidPartner); without one
+ * (no billing on this server), until a server admin approved the partner.
  */
 export function clientsFrozen(data: Pick<PartnerData, 'bill'> & { partner: { status: string } }) {
   if (data.partner.status === 'suspended') return true
+  if (unpaidPartner(data)) return false
   return data.bill ? !RUNNING.includes(data.bill.status) : data.partner.status !== 'approved'
 }
+
+/**
+ * White-label Cloud is not paid yet (setup before payment, 2026-11-18): the partner sets up and prepares up to
+ * UNPAID_PARTNER_CLIENTS client workspaces; invitations, numbers and calls wait for its Checkout.
+ */
+export const unpaidPartner = (data: Pick<PartnerData, 'bill'>) => data.bill?.status === 'pending_payment'
+
+/** Whether another client workspace can be made now: before the Checkout, only up to UNPAID_PARTNER_CLIENTS. */
+export const roomForClient = (data: Pick<PartnerData, 'bill' | 'clients'>) =>
+  !unpaidPartner(data) || data.clients.length < UNPAID_PARTNER_CLIENTS
 
 type Props = {
   partner: MyPartner
@@ -161,7 +180,11 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
               ) : current === 'brand' ? (
                 <PartnerBrand partnerId={data.partner.id} partnerName={data.partner.name} />
               ) : current === 'team' ? (
-                <Team data={data} frozen={status === 'suspended'} toast={text => toaster.show(text)} />
+                <Team
+                  data={data}
+                  frozen={status === 'suspended' || unpaidPartner(data)}
+                  toast={text => toaster.show(text)}
+                />
               ) : (
                 <Clients
                   data={data}
@@ -182,11 +205,12 @@ export function PartnerArea({ partner, onExit, onSignedOut, onFirstWorkspace }: 
 }
 
 /**
- * The partner bill in one line above the sections: waiting for a card (its owner adds one here and the free trial
- * starts), in the free trial (how many client workspaces it takes), or not running.
+ * The partner bill in one line above the sections: waiting for its Checkout (its owner activates White-label Cloud
+ * here, charged at once, no trial; until then up to UNPAID_PARTNER_CLIENTS client workspaces are drafts), or not running.
  */
 function BillNote({ data }: { data: PartnerData }) {
   const t = useT()
+  const usd = useUsd()
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   const bill = data.bill!
@@ -202,12 +226,21 @@ function BillNote({ data }: { data: PartnerData }) {
         setBusy(false)
       }
     }
+    const price = bill.price
     return (
-      <Note tone="info">
-        {t('team.partner.bill.startPlan')}{' '}
-        <Button size="sm" variant="primary" busy={busy} onClick={() => void start()}>
-          {t('team.partner.bill.startPlanButton')}
-        </Button>
+      <Note
+        tone="info"
+        action={
+          <Button size="sm" variant="primary" busy={busy} onClick={() => void start()}>
+            {t('team.partner.bill.activateButton')}
+          </Button>
+        }
+      >
+        {t(price.interval === 'year' ? 'team.partner.bill.activateYearly' : 'team.partner.bill.activateMonthly', {
+          price: usd(price.planCents),
+          seat: usd(price.seatCents),
+          limit: UNPAID_PARTNER_CLIENTS,
+        })}
         {failed && <span className="help"> {t('auth.checkout.startFailed')}</span>}
       </Note>
     )
@@ -270,10 +303,14 @@ function Clients({
         actions={
           <Button
             size="sm"
-            variant={frozen ? 'secondary' : 'primary'}
+            variant={frozen || !roomForClient(data) ? 'secondary' : 'primary'}
             icon="plus"
-            disabled={frozen}
-            title={t('team.partner.clients.newTip')}
+            disabled={frozen || !roomForClient(data)}
+            title={
+              roomForClient(data)
+                ? t('team.partner.clients.newTip')
+                : t('team.partner.clients.draftLimit', { limit: UNPAID_PARTNER_CLIENTS })
+            }
             onClick={() => setCreating(true)}
           >
             {t('team.partner.clients.new')}
@@ -288,6 +325,7 @@ function Clients({
         <ClientList
           data={data}
           frozen={frozen}
+          invitesWait={unpaidPartner(data)}
           opening={opening}
           onOpen={open}
           onInvite={setInviting}
@@ -369,7 +407,9 @@ export function NewClientDialog({
   returnHash?: string
 }) {
   const t = useT()
-  const owner = data.role === 'owner'
+  // Before White-label Cloud is paid a client workspace is a draft: its owner's invitation waits (unpaidPartner).
+  const unpaid = unpaidPartner(data)
+  const owner = data.role === 'owner' && !unpaid
   // Where the business is: this browser's country and time zone until picked, as for a workspace of one's own.
   const hint = useCountryHint()
   const [picked, setPicked] = useState<string | null>(null)
@@ -450,7 +490,9 @@ export function NewClientDialog({
         description={
           made.ownerInvited
             ? t('team.partner.clients.madeInvited', { email: made.ownerInvited })
-            : t('team.partner.clients.madeNext')
+            : unpaid
+              ? t('team.partner.clients.madeDraft')
+              : t('team.partner.clients.madeNext')
         }
         size="sm"
         onClose={onClose}
@@ -465,9 +507,15 @@ export function NewClientDialog({
                 {t('common.action.close')}
               </Button>
             )}
-            <Button variant="primary" onClick={() => onOpen(made.id, '#workspace/phone')}>
-              {t('team.partner.clients.setUpNumber')}
-            </Button>
+            {unpaid ? (
+              <Button variant="primary" onClick={() => onOpen(made.id)}>
+                {t('team.partner.clients.openDraft')}
+              </Button>
+            ) : (
+              <Button variant="primary" onClick={() => onOpen(made.id, '#workspace/phone')}>
+                {t('team.partner.clients.setUpNumber')}
+              </Button>
+            )}
           </>
         }
       />
@@ -477,7 +525,7 @@ export function NewClientDialog({
   return (
     <Dialog
       title={t('team.partner.clients.newTitle')}
-      description={t('team.partner.clients.newDescription')}
+      description={unpaid ? t('team.partner.clients.newDraftDescription') : t('team.partner.clients.newDescription')}
       size="sm"
       onClose={busy ? () => {} : onClose}
       onSubmit={e => {
@@ -820,7 +868,11 @@ function Team({ data, frozen, toast }: { data: PartnerData; frozen: boolean; toa
           <FormField
             id="partner-invite-email"
             label={t('team.partner.team.inviteTitle')}
-            help={t('team.partner.team.inviteDescription')}
+            help={
+              unpaidPartner(data)
+                ? t('team.partner.team.inviteAfterActivate')
+                : t('team.partner.team.inviteDescription')
+            }
             error={problem}
           >
             <Input

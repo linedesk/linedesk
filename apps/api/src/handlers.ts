@@ -203,7 +203,7 @@ import { callExportHandlers } from './call-export.ts'
 import { integrationHandlers, queueCallStarted, queueLookup } from './integrations.ts'
 import { queueUsageLimitAlerts, type UsageLimit, usageLimit } from './usage-limit.ts'
 import { askWebhook, clearCallPayloads, duringCallLookups, lookUpCaller, webhookHandlers } from './webhooks.ts'
-import { isPendingPayment, PENDING_PAYMENT, refusePendingPayment } from './self-serve.ts'
+import { PENDING_PAYMENT, refusePendingPayment, waitsForOwnTrial } from './self-serve.ts'
 import { selfServeHandlers } from './signup-handlers.ts'
 import { partnerHandlers } from './partners.ts'
 import { billingNumberRefusal, checkoutHandlers, checkoutPreparers } from './billing-checkout.ts'
@@ -1726,10 +1726,11 @@ const handlers: Record<string, Handler> = {
 
   'onboarding.setStep': async ({ tx, actor, now }, input) => {
     if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
-    // Before the trial starts the setup ends at `activate` (the card): no number step, no finishing or setting aside.
+    // Before the trial starts the setup ends at `activate` (the card): no number step, no finishing or setting aside. A
+    // partner's draft client workspace has no trial of its own: its number is refused on its own until the partner paid.
     if (
       (input.step === 'phone' || input.step === 'done' || input.step === 'skipped') &&
-      (await isPendingPayment(tx, actor.workspaceId))
+      (await waitsForOwnTrial(tx, actor.workspaceId))
     )
       throw new Reject(PENDING_PAYMENT)
     await tx

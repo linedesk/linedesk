@@ -1,5 +1,7 @@
 // The sign-up page's requests (apps/api/src/self-serve.ts and app.ts): whether sign-up is open, the email code with
 // its checks, and account.signUp. What the page reads from its address: the plan and the interval, nothing else.
+import { PARTNER_AGENT_HASH } from './onboarding/setup-choice.ts'
+
 /** The plan's prices and the trial at the install's rules (Server admin › Billing), in cents before tax. */
 export type SignupPlan = { monthlyCents: number; yearlyCents: number; trialDays: number }
 /** The partner plan (docs/white-label.md): its base fee. No free trial (Janik, 2026-11-18). */
@@ -166,21 +168,8 @@ export async function signUpBusiness(
 }
 
 /**
- * After the sign-up: a partner goes on to Stripe Checkout for its partner bill ("Continue to payment"), which returns
- * into the partner area. When Checkout cannot open (billing not set up, Stripe unreachable), `done` instead: the partner
- * area, whose "Add a card" starts it again. A business (no partner) goes to `done` at once.
+ * Where the app goes after the sign-up (setup before payment, 2026-11-18): a partner to its owner's agent setup
+ * (#partner/agent), never straight to Checkout; "Activate White-label Cloud" there opens the Checkout once the setup is
+ * ready. A business to the app, whose onboarding ends with its card (`activate`).
  */
-export async function toCheckoutOrDone(
-  partnerId: string | null,
-  checkout: (partnerId: string) => Promise<void>,
-  done: () => void | Promise<void>,
-): Promise<void> {
-  if (partnerId) {
-    try {
-      return await checkout(partnerId)
-    } catch (e) {
-      console.warn('sign-up: partner Checkout did not open', e)
-    }
-  }
-  await done()
-}
+export const afterSignupAddress = (partner: boolean) => (partner ? `/${PARTNER_AGENT_HASH}` : '/')

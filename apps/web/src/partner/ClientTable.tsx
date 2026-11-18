@@ -29,6 +29,8 @@ const PROBLEM_KEY: Record<PartnerClientRow['problems'][number], MessageKey> = {
 type Props = {
   data: PartnerData
   frozen: boolean
+  /** Before White-label Cloud is paid: the client workspaces are drafts, open to set up, whose owners' invitations wait. */
+  invitesWait?: boolean
   opening: string | null
   onOpen: (id: string, hash?: string) => void
   onInvite: (client: PartnerClient) => void
@@ -38,7 +40,17 @@ type Props = {
 }
 
 /** The list from `partner.listClients`; while it loads, rows of its shape keep the place. */
-export function ClientList({ data, frozen, opening, onOpen, onInvite, onRelease, onDelete, onSettings }: Props) {
+export function ClientList({
+  data,
+  frozen,
+  invitesWait = false,
+  opening,
+  onOpen,
+  onInvite,
+  onRelease,
+  onDelete,
+  onSettings,
+}: Props) {
   const t = useT()
   const format = useFormat()
   const id = data.partner.id
@@ -73,6 +85,7 @@ export function ClientList({ data, frozen, opening, onOpen, onInvite, onRelease,
                 client={data.clients.find(c => c.id === row.id)}
                 data={data}
                 frozen={frozen}
+                invitesWait={invitesWait}
                 opening={opening}
                 onOpen={onOpen}
                 onInvite={onInvite}
@@ -93,6 +106,7 @@ function ClientRow({
   client,
   data,
   frozen,
+  invitesWait,
   opening,
   onOpen,
   onInvite,
@@ -131,8 +145,8 @@ function ClientRow({
       !action.enabled ||
       suspended ||
       (action.id !== 'settings' && !!opening) ||
-      (action.id === 'inviteOwner' && frozen) ||
-      (action.id === 'ownerInvitation' && frozen),
+      (action.id === 'inviteOwner' && (frozen || invitesWait)) ||
+      (action.id === 'ownerInvitation' && (frozen || invitesWait)),
     title:
       action.id === 'settings'
         ? row.billed

@@ -47,8 +47,16 @@ export const PARTNER_CODES = [
   'member_not_invited',
   'same_partner',
   'client_bill_inactive',
+  'unpaid_client_limit',
+  'activate_first',
 ] as const
 export type PartnerCode = (typeof PARTNER_CODES)[number]
+
+/**
+ * Client workspaces a partner may prepare before White-label Cloud is activated (its Checkout, docs/white-label.md):
+ * drafts that cost nothing and cannot go live (no number, no calls, no owner invitation) until the plan is paid.
+ */
+export const UNPAID_PARTNER_CLIENTS = 3
 
 const partnerId = z.string().min(1).max(64)
 /**
@@ -342,6 +350,11 @@ export type PartnerBillSummary = {
   status: 'pending_payment' | 'trialing' | 'active' | 'past_due' | 'suspended' | 'canceled' | 'comped'
   /** Whether the person asking owns the bill (the partner's owner): they open its page. */
   mine: boolean
+  /**
+   * What White-label Cloud costs at the bill's interval, a month in cents before tax: its base fee and each client
+   * workspace's seat ("Activate White-label Cloud" shows it while the bill waits for its Checkout).
+   */
+  price: { interval: 'month' | 'year'; planCents: number; seatCents: number }
 }
 
 /** `partner.get`. Invitations only for the owner (the admins see the team, not who is invited). */

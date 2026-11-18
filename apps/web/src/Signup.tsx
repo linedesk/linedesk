@@ -2,13 +2,13 @@
 // then the code, then the person's name. The business's name and country come in the onboarding's first step (Find
 // your business); the API checks where the request comes from and says "not yet" outside the countries served. Plan
 // `partner` (docs/white-label.md): a white-label partner account with its partner bill, no workspace, and its company's
-// name; Stripe Checkout for the partner bill opens next, and it returns into the partner area. The API decides everything (open or not, the address, the bot check, the
+// name; its owner's agent setup page (#partner/agent) opens next, and "Activate White-label Cloud" there opens Stripe
+// Checkout once the setup is ready (setup before payment, 2026-11-18). The API decides everything (open or not, the address, the bot check, the
 // limits, the countries); this page only asks and says what came back. Only the plan and the interval travel in the
 // address, never personal data.
 import { T, useFormat, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { auth, signInWithCode } from './auth.ts'
-import { goToCheckout } from './checkout.ts'
 import { browserPlace } from './countryHint.ts'
 import { signOutAndForget } from './localData.ts'
 import { CODE_LENGTH, codeErrorMessage, emailError, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
@@ -21,7 +21,6 @@ import {
   type SignupPlan,
   type SignupTerms,
   signUpBusiness,
-  toCheckoutOrDone,
 } from './signup.ts'
 import { ExternalLink } from './ui/AppLink.tsx'
 import { AuthError } from './ui/AuthError.tsx'
@@ -33,8 +32,8 @@ type Step = 'email' | 'code' | 'details'
 /**
  * `signedIn`: someone is signed in already (an account the sign-up page made earlier, or an existing one): straight
  * to the details, their name filled in. `onDone`: the bill and workspace are made; the app loads it (the onboarding
- * comes next). A partner goes to Checkout instead; `onDone` only when Checkout could not open (the partner area, with
- * "Add a card"). `fromApp`: opened from the workspace menu by a
+ * comes next). A partner too: its agent setup page comes next, Checkout only once it activates White-label Cloud there.
+ * `fromApp`: opened from the workspace menu by a
  * Cloud customer who adds a workspace (its own bill); Back returns to the workspace they came from.
  */
 export function Signup({
@@ -367,8 +366,9 @@ function CodeStep({
  * the onboarding's first step. Making the account accepts the terms and the privacy policy shown next to the button
  * (clickwrap, A9), for a business and a partner alike; the API records the versions with the time and the session's IP
  * address. A business goes on to set up its assistant without a card and adds one at the onboarding's last step
- * (`activate`), which shows the terms again and records them with what it charges; a partner goes straight on to
- * Checkout for its partner bill (the button says so), and to its area only when Checkout could not open. From a country not served yet (as the API sees the request): the "not yet" page.
+ * (`activate`), which shows the terms again and records them with what it charges; a partner goes on to its agent setup
+ * page and pays when it activates White-label Cloud there. From a country not served yet (as the API sees the request):
+ * the "not yet" page.
  */
 export function DetailsStep({
   interval,
@@ -417,9 +417,8 @@ export function DetailsStep({
       locale: place.locale ?? undefined,
       acceptedTerms: { termsVersion: terms.termsVersion, privacyVersion: terms.privacyVersion },
     })
-    // The button stays busy while the page leaves for Checkout.
-    if (answer.ok)
-      return toCheckoutOrDone(partner ? answer.partnerId : null, goToCheckout, () => onDone(answer.workspaceId))
+    // A partner sets up first (its agent setup page) and pays when it activates White-label Cloud there (2026-11-18).
+    if (answer.ok) return onDone(answer.workspaceId)
     setBusy(false)
     if (answer.notYet) return setNotYet(true)
     // Changed while the page was open: the new links are loaded, and the person reads them and continues again.
@@ -469,6 +468,7 @@ export function DetailsStep({
           </label>
         )}
         {error && <AuthError message={error} />}
+        {partner && <p className="auth-plan-now">{t('auth.signup.partnerPayLater')}</p>}
         {planNow && (
           <p className="auth-plan-now">
             {t(interval === 'year' ? 'auth.signup.planNowYearly' : 'auth.signup.planNowMonthly', {
@@ -478,7 +478,7 @@ export function DetailsStep({
         )}
         <p className="auth-terms">
           <T
-            k={partner ? 'auth.signup.terms' : fromApp ? 'auth.signup.termsCreateWorkspace' : 'auth.signup.termsCreate'}
+            k={fromApp ? 'auth.signup.termsCreateWorkspace' : 'auth.signup.termsCreate'}
             values={{
               terms: chunks => <ExternalLink href={terms.termsUrl}>{chunks}</ExternalLink>,
               privacy: chunks => <ExternalLink href={terms.privacyUrl}>{chunks}</ExternalLink>,
@@ -492,13 +492,7 @@ export function DetailsStep({
           aria-busy={busy || undefined}
         >
           {busy && <Spinner />}
-          {busy
-            ? t('auth.setup.busy')
-            : partner
-              ? t('auth.signup.start')
-              : fromApp
-                ? t('auth.signup.createWorkspace')
-                : t('auth.signup.createAccount')}
+          {busy ? t('auth.setup.busy') : fromApp ? t('auth.signup.createWorkspace') : t('auth.signup.createAccount')}
         </button>
         {fromApp ? (
           <button type="button" className="auth-switch" disabled={busy} onClick={fromApp.onBack}>

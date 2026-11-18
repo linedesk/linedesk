@@ -45,6 +45,14 @@ test("a partner: its company's name too, still no country", () => {
   expect(html).not.toContain('Country')
 })
 
+test('a partner sets up first and pays when it activates: Create account, no payment step yet (2026-11-18)', () => {
+  const html = page(true)
+  expect(html).toContain('>Create account<')
+  expect(html).toContain('By clicking Create account')
+  expect(html).toContain('You pay when you activate White-label Cloud')
+  expect(html).not.toContain('Continue to payment')
+})
+
 test('New workspace from the app: the same single field, then Create workspace; the Business step names it', () => {
   const html = page(false, { onBack: () => {} })
   expect(fields(html)).toBe(1)

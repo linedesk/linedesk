@@ -1,6 +1,6 @@
 // How partner actions say no (partners.ts), apart from it so team.ts and memberships.ts can refuse a partner's
 // membership without importing the partner handlers.
-import type { PartnerCode } from '@linedesk/actions'
+import { type PartnerCode, UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
 import { member, partner_members, type Tx } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { Reject } from './handler-context.ts'
@@ -48,6 +48,9 @@ const REFUSALS: Record<PartnerCode, string> = {
   same_partner: 'the workspace is with this partner already',
   client_bill_inactive:
     "the workspace's bill is past due or suspended: it changes partner once the bill is paid or resumed",
+  unpaid_client_limit: `before White-label Cloud is activated a partner prepares at most ${UNPAID_PARTNER_CLIENTS} client workspaces: activate it to add more`,
+  activate_first:
+    'activate White-label Cloud first (its Checkout): invitations, numbers and calls start once it is paid',
 }
 export const refusePartner = (code: PartnerCode) => new Reject(REFUSALS[code], code)
 

@@ -37,6 +37,11 @@ export type PartnerSetupFacts = {
   clients: { id: string; name: string }[]
   /** The plan fee per client workspace (a seat on the partner bill), a month, in cents before tax; null without billing. */
   seat: { cents: number; interval: 'month' | 'year' } | null
+  /**
+   * White-label Cloud itself: whether it is paid yet (`unpaid` until the partner's Checkout; setup before payment,
+   * 2026-11-18) and its base fee a month at the bill's interval, in cents before tax; null without billing.
+   */
+  plan: { unpaid: boolean; cents: number; interval: 'month' | 'year' } | null
 }
 
 export async function partnerSetupFacts(partnerId: string, tx: Tx | typeof db = db): Promise<PartnerSetupFacts | null> {
@@ -75,7 +80,23 @@ export async function partnerSetupFacts(partnerId: string, tx: Tx | typeof db = 
     team: (members?.n ?? 0) + (invited?.n ?? 0),
     clients,
     seat: await seatPrice(tx, partner.billing_account_id),
+    plan: await planFacts(tx, partner.billing_account_id),
   }
+}
+
+/** The partner plan's base fee a month at the bill's interval, and whether the bill still waits for its Checkout. */
+async function planFacts(tx: Tx | typeof db, billId: string | null): Promise<PartnerSetupFacts['plan']> {
+  if (!billId) return null
+  const [bill] = await tx
+    .select({ interval: billing_accounts.interval, status: billing_accounts.status })
+    .from(billing_accounts)
+    .where(eq(billing_accounts.id, billId))
+  if (!bill) return null
+  const rules = await billingRules(tx)
+  const unpaid = bill.status === 'pending_payment'
+  return bill.interval === 'year'
+    ? { unpaid, cents: Math.round(rules.partnerYearlyCents / 12), interval: 'year' }
+    : { unpaid, cents: rules.partnerMonthlyCents, interval: 'month' }
 }
 
 /** The price of one more client workspace on the partner bill, at the bill's interval; null where billing is off. */

@@ -445,14 +445,45 @@ export async function refuseSetupTestCall(tx: Tx, workspaceId: string, nowMs: nu
   if ((used?.seconds ?? 0) >= rules.setupTestMinutes * 60) throw Reject.t('server.api.setup.testMinutesUsed')
 }
 
-/** Whether the workspace waits for its first Checkout (docs/billing.md §3.1). */
-export async function isPendingPayment(tx: Pick<Tx, 'select'>, workspaceId: string | null): Promise<boolean> {
-  if (!workspaceId) return false
+/** Whether the workspace waits for its first Checkout (docs/billing.md §3.1), and whose: its own or its partner's. */
+async function pendingPaymentOf(
+  tx: Pick<Tx, 'select'>,
+  workspaceId: string | null,
+): Promise<'trial' | 'partner' | null> {
+  if (!workspaceId) return null
   const [row] = await tx
-    .select({ state: organization.billingState })
+    .select({ state: organization.billingState, partnerId: organization.partnerId })
     .from(organization)
     .where(eq(organization.id, workspaceId))
-  return row?.state === 'pending_payment'
+  if (row?.state !== 'pending_payment') return null
+  return row.partnerId ? 'partner' : 'trial'
+}
+
+/** Whether the workspace waits for its first Checkout (docs/billing.md §3.1): a Cloud sign-up's, or a partner's draft. */
+export async function isPendingPayment(tx: Pick<Tx, 'select'>, workspaceId: string | null): Promise<boolean> {
+  return (await pendingPaymentOf(tx, workspaceId)) !== null
+}
+
+/**
+ * Whether the workspace waits for its own trial (a Cloud sign-up): its onboarding ends at `activate`, the card. A
+ * partner's draft client workspace waits for the partner's Checkout instead and has no `activate` step of its own.
+ */
+export async function waitsForOwnTrial(tx: Pick<Tx, 'select'>, workspaceId: string | null): Promise<boolean> {
+  return (await pendingPaymentOf(tx, workspaceId)) === 'trial'
+}
+
+/**
+ * Why something is refused while the workspace waits for its first Checkout (run-action.ts), or null. A white-label
+ * partner's draft client workspace waits for the partner's Checkout (White-label Cloud, no trial), not a trial of its
+ * own (setup before payment, 2026-11-18; docs/white-label.md).
+ */
+export async function pendingPaymentRefusal(
+  tx: Pick<Tx, 'select'>,
+  workspaceId: string | null,
+): Promise<Reject | null> {
+  const pending = await pendingPaymentOf(tx, workspaceId)
+  if (pending === 'partner') return Reject.t('server.api.partner.activateFirst')
+  return pending === 'trial' ? new Reject(PENDING_PAYMENT) : null
 }
 
 /**
@@ -461,5 +492,6 @@ export async function isPendingPayment(tx: Pick<Tx, 'select'>, workspaceId: stri
  * REFUSED_WHILE_PENDING_PAYMENT.
  */
 export async function refusePendingPayment(tx: Tx, workspaceId: string | null) {
-  if (await isPendingPayment(tx, workspaceId)) throw new Reject(PENDING_PAYMENT)
+  const refusal = await pendingPaymentRefusal(tx, workspaceId)
+  if (refusal) throw refusal
 }

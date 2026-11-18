@@ -2,7 +2,7 @@
 // up the partner (company name, brand, team) and its client workspaces, never the partner bill, a new client workspace
 // (a seat on the bill), a number or a real call, another partner, the owner's own business or the server. In
 // INSTANCE_WIDE_FILES: it makes a server admin, who creates the partners.
-import { agent_setup_keys, partners, user } from '@linedesk/db'
+import { agent_setup_keys, billing_accounts, organization, partners, user } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test } from 'vitest'
 import { partnerSetupActor, setupActorIn } from '../src/agent-setup.ts'
@@ -218,6 +218,45 @@ describe('what a partner setup link reaches', () => {
     expect(status.next_step).toBe('company')
   })
 
+  test("before White-label Cloud is paid: the Activate row is the owner's, drafts wait for it, no invitation goes out", async () => {
+    // Setup before payment (2026-11-18): a partner whose bill waits for its Checkout.
+    const c = await makePartner('Westfield Studio')
+    const [bill] = await db
+      .insert(billing_accounts)
+      .values({ id: crypto.randomUUID(), kind: 'partner', owner_user_id: c.owner.userId, status: 'pending_payment' })
+      .returning()
+    await db.update(partners).set({ billing_account_id: bill!.id }).where(eq(partners.id, c.id))
+    const draft = await createClient(c, 'Draft Bakery')
+    const { key } = await makePartnerKey(c)
+    const status = data(await call(key, 'setup_status', { read_only: true }))
+    expect(status.steps.map((s: { id: string }) => s.id)).toEqual(['company', 'brand', 'team', 'clients', 'plan'])
+    const byId = Object.fromEntries(status.steps.map((s: { id: string }) => [s.id, s]))
+    expect(byId.plan).toMatchObject({ label: 'Activate White-label Cloud', state: 'admin_only' })
+    expect(byId.plan.hint).toMatch(/^\$\d+ a month, plus \$\d+ per client workspace$/)
+    expect(byId.plan.how.join(' ')).toContain('no free trial')
+    expect(byId.plan.how.join(' ')).toContain('Never start it for them')
+    // The team step, once it is next: the invitations wait for the activation.
+    expect((await call(key, 'partner_setSetupStep', { step: 'team' })).body.result.isError).toBeFalsy()
+    const atTeam = data(await call(key, 'setup_status', { read_only: true }))
+    expect(atTeam.next_step).toBe('team')
+    const team = atTeam.steps.find((s: { id: string }) => s.id === 'team')
+    expect(team.how.join(' ')).toContain('once the partner owner activated White-label Cloud')
+    // The draft's number waits for the activation: not the owner's Add number row yet, no card step of its own.
+    const steps = status.workspaces.find((w: { id: string }) => w.id === draft).steps
+    expect(steps.map((s: { id: string }) => s.id)).not.toContain('activate')
+    const phone = steps.find((s: { id: string }) => s.id === 'phone')
+    expect(phone.state).toBe('todo')
+    // The key has the same limits as the owner: no team invitation (a number is never a key's tool).
+    expect(errorText(await call(key, 'partnerMember_invite', { email: newEmail('team') }))).toContain(
+      'activate White-label Cloud first',
+    )
+    // Paid: the row is done.
+    await db.update(billing_accounts).set({ status: 'active' }).where(eq(billing_accounts.id, bill!.id))
+    await db.update(organization).set({ billingState: 'active' }).where(eq(organization.id, draft))
+    const paid = data(await call(key, 'setup_status', { read_only: true }))
+    expect(paid.steps.find((s: { id: string }) => s.id === 'plan').state).toBe('done')
+  })
+
   test("the partner's own tools act on its partner only, whatever partnerId the agent sends", async () => {
     const { key } = await makePartnerKey(a)
     const renamed = await call(key, 'partner_update', { name: 'Northwind Agency LLC', partnerId: b.id })
@@ -228,7 +267,7 @@ describe('what a partner setup link reaches', () => {
     expect(theirs!.name).toBe('Southside Digital')
     // The step goes on and never back.
     expect(errorText(await call(key, 'partner_setSetupStep', { step: 'team' }))).toBeNull()
-    expect(errorText(await call(key, 'partner_setSetupStep', { step: 'brand' }))).toBeNull()
+    expect(errorText(await call(key, 'partner_setSetupStep', { step: 'team' }))).toBeNull()
     const [after] = await db.select().from(partners).where(eq(partners.id, a.id))
     expect(after!.setup_step).toBe('team')
     // Behind the tools: the key's actor naming another partner is refused by runAction itself.

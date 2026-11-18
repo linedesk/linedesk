@@ -21,7 +21,7 @@ const row = (
   s: Step,
   here: typeof workspace | null = workspace,
   onSwitch: ((action: ResumeAction) => void) | null = null,
-  more: Partial<Pick<Parameters<typeof StepAction>[0], 'switching' | 'resume' | 'trial'>> = {},
+  more: Partial<Pick<Parameters<typeof StepAction>[0], 'switching' | 'resume' | 'trial' | 'activatePartnerId'>> = {},
 ) =>
   renderToStaticMarkup(
     <StepAction
@@ -175,4 +175,14 @@ test("Start your trial: the owner's own row once the free steps are done, never 
     onTermsChanged: () => {},
   }
   expect(row(step('activate', 'admin_only'), workspace, null, { trial: plan })).toContain('Start my plan')
+})
+
+test("Activate White-label Cloud: the partner owner's own row while unpaid, gone once paid (setup before payment)", () => {
+  const plan = (state: Step['state']) => ({ ...step('plan', state), group: 'partner' as const })
+  const open = row(plan('admin_only'), null, null, { activatePartnerId: 'ptn_1' })
+  expect(open).toMatch(/k-btn-primary[^>]*>(<[^>]+>)*Activate</)
+  expect(open).toContain('charged at once, no free trial')
+  expect(row(plan('done'), null, null, { activatePartnerId: 'ptn_1' })).toBe('')
+  // Not a partner owner's page: no button.
+  expect(row(plan('admin_only'), null)).toBe('')
 })

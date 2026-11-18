@@ -1199,7 +1199,7 @@ describe("the owner's agent setup link before the trial (agent-first, 2026-11-18
 })
 
 describe('the daily sign-up sweep', () => {
-  test('a partner sign-up without Checkout goes after 14 days: the partner, its bill and the account', async () => {
+  test('a partner sign-up without Checkout goes after 14 days: the partner, its drafts, its bill and the account', async () => {
     const { email, made } = await signUpThroughPage(address('partner'), { ...DETAILS, plan: 'partner' })
     const { billId, partner } = made.body.data
     const account = await accountOf(email)
@@ -1207,7 +1207,19 @@ describe('the daily sign-up sweep', () => {
       .update(billing_accounts)
       .set({ created_at: new Date(Date.now() - 15 * DAY).toISOString() })
       .where(eq(billing_accounts.id, billId))
+    // A draft client workspace it prepared before paying (setup before payment, 2026-11-18) goes with it.
+    const draftId = crypto.randomUUID().replaceAll('-', '')
+    await db.insert(organization).values({
+      id: draftId,
+      name: 'Draft Client',
+      slug: `draft-${draftId}`,
+      partnerId: partner.id,
+      billingAccountId: billId,
+      billingState: 'pending_payment',
+      createdAt: new Date(),
+    })
     expect((await sweepSignUps(db)).bills).toBeGreaterThanOrEqual(1)
+    expect(await db.select().from(organization).where(eq(organization.id, draftId))).toEqual([])
     expect(await db.select().from(partners).where(eq(partners.id, partner.id))).toEqual([])
     expect(await db.select().from(billing_accounts).where(eq(billing_accounts.id, billId))).toEqual([])
     expect(await db.select().from(user).where(eq(user.id, account!.id))).toEqual([])
