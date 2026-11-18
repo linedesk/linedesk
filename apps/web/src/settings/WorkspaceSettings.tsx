@@ -1,6 +1,6 @@
-// Workspace settings: everything about the workspace that is not the assistant, one section at a time
-// (#workspace/<section>): its name, the team, phone numbers, recordings, the call export, billing (Linedesk Cloud: owners
-// and admins, with or without a bill) and leaving it.
+// Workspace settings: everything about the workspace, one section at a time (#workspace/<section>): its name, its
+// assistants (a list that opens each one's own settings), the team, phone numbers, recordings, the call export, billing
+// (Linedesk Cloud: owners and admins, with or without a bill) and leaving it.
 // Reached by G S (G T opens Team), the menu and ⌘K. Your own notifications are in Account; business hours and
 // webhooks in the assistant's settings; API keys and Zapier in Integrations (old #settings, #team and
 // #workspace/developers links are rewritten, shell/useRoute.ts).
@@ -17,10 +17,20 @@ import { DangerZone } from './DangerZone.tsx'
 import { ExportCalls } from './ExportCalls.tsx'
 import { PhoneNumbers } from './PhoneNumbers.tsx'
 import { Recordings } from './Recordings.tsx'
+import { WorkspaceAssistants } from './WorkspaceAssistants.tsx'
 import { WorkspaceGeneral } from './WorkspaceGeneral.tsx'
 
-type SectionId = 'general' | 'team' | 'phone' | 'recordings' | 'export' | 'billing' | 'danger'
-const SECTION_IDS: readonly SectionId[] = ['general', 'team', 'phone', 'recordings', 'export', 'billing', 'danger']
+type SectionId = 'general' | 'assistants' | 'team' | 'phone' | 'recordings' | 'export' | 'billing' | 'danger'
+const SECTION_IDS: readonly SectionId[] = [
+  'general',
+  'assistants',
+  'team',
+  'phone',
+  'recordings',
+  'export',
+  'billing',
+  'danger',
+]
 
 /**
  * Which sections this person sees. Members can't export calls (call:export): that section is not shown, and during
@@ -123,6 +133,7 @@ export function WorkspaceSettings({
             toast={toast}
           />
         )}
+        {current === 'assistants' && <WorkspaceAssistants canEdit={canEdit} toast={toast} />}
         {current === 'team' && <TeamSection toast={toast} />}
         {current === 'phone' && (
           <PhoneNumbers
