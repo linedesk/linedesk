@@ -1992,19 +1992,19 @@ Linedesk · desk.example.com
   ],
   [
     "admin-alert-partner-domain",
-    "Partner address on Linedesk: Cascade IT Partners",
+    "Dirección de un partner en Linedesk: Cascade IT Partners",
     "Alerta de administración
 
-Partner address on Linedesk: Cascade IT Partners
+Dirección de un partner en Linedesk: Cascade IT Partners
 
-The white-label partner Cascade IT Partners added its own address. Once its DNS records are in, its clients sign in there.
+El partner de marca blanca Cascade IT Partners agregó su propia dirección. En cuanto sus registros DNS estén listos, sus clientes iniciarán sesión allí.
 
-Address: app.cascade-it.example
+Dirección: app.cascade-it.example
 Nombre del producto: Cascade Desk
 
-Check that the address is the partner's own and imitates no one else's. Server admin › Partners removes it at once.
+Comprueba que la dirección sea del propio partner y no imite a nadie más. En Administración del servidor › Partners la quitas al instante.
 
-Open Server admin › Partners:
+Abrir Administración del servidor › Partners:
 https://desk.example.com/#admin/partners
 
 Abrir el registro de auditoría:
@@ -2019,76 +2019,76 @@ Linedesk · desk.example.com
   ],
   [
     "partner-domain-live",
-    "app.cascade-it.example is live",
-    "Your address
+    "app.cascade-it.example ya está activa",
+    "Tu dirección
 
-app.cascade-it.example is live
+app.cascade-it.example ya está activa
 
-Your clients can sign in at app.cascade-it.example now.
+Tus clientes ya pueden iniciar sesión en app.cascade-it.example.
 
-Open Partner › Domain:
+Abrir Partner › Dominio:
 https://desk.example.com/#partner/domain
 
 --
 
-You get this email because you own a partner account on desk.example.com.
+Recibes este correo porque eres propietario de una cuenta de partner en desk.example.com.
 
 Linedesk · desk.example.com
 ",
   ],
   [
     "partner-domain-failed",
-    "app.cascade-it.example stopped working",
-    "Your address
+    "app.cascade-it.example dejó de funcionar",
+    "Tu dirección
 
-app.cascade-it.example stopped working
+app.cascade-it.example dejó de funcionar
 
-app.cascade-it.example no longer reaches us. Your clients sign in at the standard address until it works again.
+app.cascade-it.example ya no llega a nosotros. Tus clientes inician sesión en la dirección estándar hasta que vuelva a funcionar.
 
-Open Partner › Domain:
+Abrir Partner › Dominio:
 https://desk.example.com/#partner/domain
 
 --
 
-You get this email because you own a partner account on desk.example.com.
+Recibes este correo porque eres propietario de una cuenta de partner en desk.example.com.
 
 Linedesk · desk.example.com
 ",
   ],
   [
     "partner-domain-removed",
-    "app.cascade-it.example was removed",
-    "Your address
+    "Se quitó app.cascade-it.example",
+    "Tu dirección
 
-app.cascade-it.example was removed
+Se quitó app.cascade-it.example
 
-A server admin removed your address app.cascade-it.example. Reason: Imitates a bank. Your clients sign in at the standard address again.
+Un administrador del servidor quitó tu dirección app.cascade-it.example. Motivo: Imitates a bank. Tus clientes vuelven a iniciar sesión en la dirección estándar.
 
-Open Partner › Domain:
+Abrir Partner › Dominio:
 https://desk.example.com/#partner/domain
 
 --
 
-You get this email because you own a partner account on desk.example.com.
+Recibes este correo porque eres propietario de una cuenta de partner en desk.example.com.
 
 Linedesk · desk.example.com
 ",
   ],
   [
     "partner-domain-expired",
-    "app.cascade-it.example was removed",
-    "Your address
+    "Se quitó app.cascade-it.example",
+    "Tu dirección
 
-app.cascade-it.example was removed
+Se quitó app.cascade-it.example
 
-We removed app.cascade-it.example: it did not work, or your partner account was not active, for 30 days. Your clients sign in at the standard address. You can add it again any time.
+Quitamos app.cascade-it.example: no funcionó, o tu cuenta de partner no estuvo activa, durante 30 días. Tus clientes inician sesión en la dirección estándar. Puedes volver a agregarla cuando quieras.
 
-Open Partner › Domain:
+Abrir Partner › Dominio:
 https://desk.example.com/#partner/domain
 
 --
 
-You get this email because you own a partner account on desk.example.com.
+Recibes este correo porque eres propietario de una cuenta de partner en desk.example.com.
 
 Linedesk · desk.example.com
 ",
