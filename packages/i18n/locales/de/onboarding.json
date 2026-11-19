@@ -96,7 +96,7 @@
   "agentSetup.owner.yourPartner": "Dein Partner",
   "agentSetup.partner.activate": "Aktivieren",
   "agentSetup.partner.activateTitle": "Deine Kunden und der Gesamtbetrag, dann Stripe Checkout",
-  "agentSetup.partner.addClient": "Kunde hinzufügen",
+  "agentSetup.partner.addClient": "Kunden hinzufügen",
   "agentSetup.partner.addClientTitle": "Einen Kunden-Workspace hinzufügen: Deine Partner-Abrechnung bekommt einen weiteren Platz",
   "agentSetup.partner.addClientTitleDraft": "Kunden-Workspace hinzufügen: ein kostenloser Entwurf, bis du White-label Cloud aktivierst",
   "agentSetup.partner.addNumber": "Nummer hinzufügen",

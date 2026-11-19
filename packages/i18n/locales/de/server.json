@@ -13,7 +13,7 @@
   "api.callQualityNeedsRealtime": "Verbinde zuerst ein Echtzeitmodell.",
   "api.callQualityOff": "{level} ist auf diesem Server ausgeschaltet.",
   "api.callQualityPartner": "Dein Partner verwaltet die Anrufqualität für diesen Workspace.",
-  "api.callQualityRaise": "Premium und Ultra kosten mehr pro Minute: Nur ein Inhaber oder Admin des Workspace kann sie wählen, angemeldet in der App.",
+  "api.callQualityRaise": "Premium und Ultra kosten mehr pro Minute: Nur ein Inhaber oder Admin des Workspace kann sie wählen, und zwar angemeldet in der App.",
   "api.callQualityUndoExpired": "Rückgängig machen geht nur innerhalb von 24 Stunden, nachdem {level} ausgeschaltet wurde.",
   "api.callQualityUndoNotMoved": "Rückgängig machen stellt nur die Assistenten zurück, die beim Ausschalten von {level} auf Standard umgestellt wurden.",
   "api.checkout.alreadyFinished": "Diese Abrechnung hat den Checkout abgeschlossen.",
