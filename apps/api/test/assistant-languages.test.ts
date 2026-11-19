@@ -156,32 +156,18 @@ test('"any language" covers Flux\'s 10 on Deepgram (its default model, Flux), ev
   expect(scribe.anyLanguages).toEqual(scribe.languages)
 })
 
-test('a hidden language (its test calls failed) is not offered and is refused as a new choice; one already saved stays', async () => {
+test('Mandarin and Korean are offered and can be picked (their test calls passed, LIN-268)', async () => {
   noVoice()
   vi.stubEnv('ELEVENLABS_API_KEY', 'el-test')
   vi.stubEnv('STT_PROVIDER', 'elevenlabs_stt')
   vi.stubEnv('ELEVENLABS_STT_API_KEY', 'es-test')
   const ws = await createWorkspace('Brightwater Plumbing & Heating')
   const options = (await act(ws.owner, 'voice.options', {})).body.data
-  for (const list of [options.languages, options.anyLanguages]) {
-    expect(list).not.toContain('zh')
-    expect(list).not.toContain('ko')
-    expect(list).toContain('pl')
-  }
-  const update = (languages: { main: string; mode: string; allowed: readonly string[] }, voice?: object) =>
-    act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, languages, ...(voice ? { voice } : {}) })
-  const refused = await update({ main: 'en', mode: 'allowed', allowed: ['zh', 'pl'] })
-  expect(refused.status).toBe(409)
-  expect(JSON.stringify(refused.body)).toContain("Chinese can't be picked for now")
-  expect((await update({ main: 'ko', mode: 'english', allowed: [] })).status).toBe(409)
-  // Saved before the language was hidden: it stays, saved again as it is, with another language or another voice.
-  const korean = { main: 'ko' as const, mode: 'allowed' as const, allowed: ['zh' as const] }
-  await db.update(assistants).set({ languages: korean }).where(eq(assistants.id, ws.assistant.id))
-  expect((await update(korean)).status).toBe(200)
-  expect((await update({ ...korean, allowed: ['zh', 'pl'] })).status).toBe(200)
-  // Another voice (a library voice of the ElevenLabs catalog): the hidden languages it has stay.
-  const other = { provider: 'elevenlabs', voice_id: 'cgSgspJ2msm6clMCkdW9', model: 'eleven_flash_v2_5' }
-  expect((await update(korean, other)).status).toBe(200)
+  expect(options.languages).toEqual(expect.arrayContaining(['zh', 'ko', 'pl']))
+  const update = (languages: { main: string; mode: string; allowed: readonly string[] }) =>
+    act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, languages })
+  expect((await update({ main: 'en', mode: 'allowed', allowed: ['zh', 'pl'] })).status).toBe(200)
+  expect((await update({ main: 'ko', mode: 'english', allowed: [] })).status).toBe(200)
   const [saved] = await db.select().from(assistants).where(eq(assistants.id, ws.assistant.id))
-  expect(saved?.languages).toEqual(korean)
+  expect(saved?.languages).toEqual({ main: 'ko', mode: 'english', allowed: [] })
 })

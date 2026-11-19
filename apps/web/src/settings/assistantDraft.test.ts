@@ -417,11 +417,11 @@ describe('offeredLanguages', () => {
   it('offers every language when an older API does not say', () => {
     expect(offeredLanguages(undefined, { languages: { main: 'en', mode: 'english', allowed: [] } })).toContain('pl')
   })
-  it('never offers a hidden language as a new choice, but keeps one the assistant already has', () => {
+  it('offers Mandarin and Korean again (their test calls passed, LIN-268), and keeps what the assistant already has', () => {
     const english = { languages: { main: 'en' as const, mode: 'english' as const, allowed: [] } }
-    expect(offeredLanguages(['en', 'zh', 'ko', 'pl'], english)).toEqual(['en', 'pl'])
-    expect(offeredLanguages(undefined, english)).not.toContain('zh')
-    expect(offeredLanguages(undefined, english)).not.toContain('ko')
+    expect(offeredLanguages(['en', 'zh', 'ko', 'pl'], english)).toEqual(['en', 'zh', 'ko', 'pl'])
+    expect(offeredLanguages(undefined, english)).toContain('zh')
+    expect(offeredLanguages(undefined, english)).toContain('ko')
     const korean = { languages: { main: 'ko' as const, mode: 'allowed' as const, allowed: ['zh' as const] } }
     expect(offeredLanguages(['en', 'zh', 'ko'], korean)).toEqual(['en', 'zh', 'ko'])
   })

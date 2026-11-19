@@ -27,8 +27,7 @@ test("an assistant without a main language shows its workspace country's languag
   expect(draftOf(base, 'en').languages.main).toBe('en')
   expect(draftOf(base, 'es').languages.main).toBe('es')
   expect(draftOf(base, 'pl').languages.main).toBe('pl')
-  // Korean is hidden (HIDDEN_LANGUAGES): not a default either, until its test calls pass.
-  expect(draftOf(base, 'ko').languages.main).toBe('en')
+  expect(draftOf(base, 'ko').languages.main).toBe('ko')
   expect(draftOf(base, 'he').languages.main).toBe('en')
   expect(draftOf({ ...base, languages: { main: 'en', mode: 'english', allowed: [] } }, 'es').languages.main).toBe('en')
 })

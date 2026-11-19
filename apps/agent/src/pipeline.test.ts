@@ -335,12 +335,11 @@ test("a call's languages keep only those a voice provider of the install speaks"
   const any = callLanguagesOf({ main: 'en', mode: 'any', allowed: [] }, elevenlabs, { provider: 'deepgram', model: 'nova-3' })
   expect(any.everyLanguage).toBe(true)
   expect(any.others).toEqual(expect.arrayContaining(['es', 'pl', 'hu']))
-  // A hidden language (HIDDEN_LANGUAGES) is not part of "any"; picked explicitly it still is (above).
-  expect(any.others).not.toContain('zh')
-  expect(any.others).not.toContain('ko')
+  // Mandarin and Korean are part of "any" again (no language is hidden since LIN-268's test calls passed).
+  expect(any.others).toEqual(expect.arrayContaining(['zh', 'ko']))
   const scribe = callLanguagesOf({ main: 'en', mode: 'any', allowed: [] }, elevenlabs, { provider: 'elevenlabs_stt', model: 'scribe_v2_realtime' })
   expect(scribe.others).toContain('pl')
-  expect(scribe.others).not.toContain('ko')
+  expect(scribe.others).toContain('ko')
   // No voice provider (a realtime call): Flux's languages, as before more were added.
   expect(callLanguagesOf({ main: 'en', mode: 'any', allowed: [] }).others).toEqual(['es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja'])
   // The voice the call speaks with: the assistant's own, with its own voice model.

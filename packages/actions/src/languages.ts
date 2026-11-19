@@ -66,13 +66,12 @@ export const languageCodes = Object.keys(LANGUAGES) as Language[]
 const languageCode = z.enum(languageCodes as [Language, ...Language[]])
 
 /**
- * Languages the pickers do not offer for now, because their test calls failed: the Mandarin and Korean test calls on
- * LIN-268 (2026-11-15) mis-detected short turns, spelled "王" letter by letter, asked for an area code and lost the
- * callback number. Hidden until a language test passes for them (LIN-461); turning one back on is
- * removing it here. Hidden is only about new choices: an assistant that already has one keeps it, on calls and in its
- * settings (offeredLanguages in the web app, checkAssistantLanguages in the API), and the spoken lines stay.
+ * Languages the pickers do not offer for now. Empty since Mandarin and Korean passed their test calls on LIN-268
+ * (2026-11-19, room mode, three stages; Janik's decision); they were hidden since LIN-461. To hide one again, add it
+ * here. Hidden is only about new choices: an assistant that already has one keeps it, on calls and in its settings
+ * (offeredLanguages in the web app, checkAssistantLanguages in the API), and the spoken lines stay.
  */
-export const HIDDEN_LANGUAGES: readonly Language[] = ['zh', 'ko']
+export const HIDDEN_LANGUAGES: readonly Language[] = []
 /** Whether a language may be picked as a new choice (not in HIDDEN_LANGUAGES). */
 export const isPickable = (code: string): boolean => !(HIDDEN_LANGUAGES as readonly string[]).includes(code)
 /** The languages of `codes` that may be picked as a new choice, in the same order. */
