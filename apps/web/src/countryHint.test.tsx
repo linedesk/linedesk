@@ -4,8 +4,9 @@ import { loadCountryHint, phoneCountryFrom } from './countryHint.ts'
 import { i18n } from './i18n/index.tsx'
 import { CountrySelect } from './settings/CountrySelect.tsx'
 import { createWorkspace } from './auth.ts'
-import { countryNotServed, localeToSave } from './onboarding/BusinessStep.tsx'
-import { countryOptions, servedOptions } from './settings/workspaceLocaleModel.ts'
+import { businessCountry, countryNotServed, localeToSave } from './onboarding/BusinessStep.tsx'
+import { countryOptions, explicitCountryPatch, servedOptions } from './settings/workspaceLocaleModel.ts'
+import { PhoneInput } from './ui/PhoneInput.tsx'
 
 const answer = (body: unknown, status = 200) =>
   (async () => new Response(JSON.stringify(body), { status })) as typeof fetch
@@ -118,5 +119,30 @@ describe('a prefilled country left as it is is not saved as set (it stays Automa
     const local = { assistantNumber: null, businessPhone: null, timeZone: 'Europe/Madrid', locale: 'de-DE' }
     expect(phoneCountryFrom(undefined, local)).toBe('ES')
     expect(phoneCountryFrom(undefined, { ...local, assistantNumber: '+15035550142' })).toBe('US')
+  })
+})
+
+describe('Germany picked on the Business step (staging test of the German launch)', () => {
+  const local = { assistantNumber: null, businessPhone: null, timeZone: 'America/New_York', locale: 'en-US' }
+
+  test('the business phone field starts with +49, not the +1 of the workspace country before', () => {
+    expect(businessCountry('DE', null, 'US')).toBe('DE')
+    expect(businessCountry(null, 'CA', 'US')).toBe('CA')
+    expect(businessCountry(null, null, 'US')).toBe('US')
+    const field = (country: string, value = '') =>
+      renderToStaticMarkup(<PhoneInput id="p" value={value} onChange={() => {}} defaultCountry={country} />)
+    expect(field(businessCountry('DE', null, 'US'))).toContain('+49')
+    expect(field(businessCountry('DE', null, 'US'))).not.toContain('+1<')
+    // A number already typed keeps its own country.
+    expect(field(businessCountry('DE', null, 'US'), '+15035550142')).toContain('+1')
+  })
+
+  test('the settings the next steps read have the country and its language at once, without a reload', () => {
+    const before = { country: null, resolvedCountry: 'US', countrySource: 'default' as const, resolvedLanguage: 'en' }
+    const after = { ...before, ...explicitCountryPatch('DE') }
+    expect(after).toMatchObject({ country: 'DE', resolvedCountry: 'DE', countrySource: 'explicit' })
+    expect(after.resolvedLanguage).toBe('de')
+    expect(phoneCountryFrom(after, local)).toBe('DE')
+    expect(explicitCountryPatch('US').resolvedLanguage).toBe('en')
   })
 })

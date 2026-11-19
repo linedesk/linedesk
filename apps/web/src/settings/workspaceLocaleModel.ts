@@ -1,10 +1,27 @@
 // The options of Workspace settings › General › Country (and New workspace): every country of the phone field (flags,
 // common ones first), opened by "Automatic (…)": the country worked out when none is set (workspace-locale.ts in
 // @linedesk/actions).
-import { phoneCountryName, type WorkspaceCountrySource } from '@linedesk/actions'
+import {
+  phoneCountryName,
+  resolveWorkspaceLanguage,
+  type WorkspaceCountrySource,
+  type WorkspaceSettingsData,
+} from '@linedesk/actions'
 import { i18n } from '../i18n/index.tsx'
 import { phoneCountryOptions, searchPhoneCountries } from '../ui/phoneInputModel.ts'
 import { type SearchOption, searchOptions } from '../ui/SearchSelect.tsx'
+
+/**
+ * What the cached workspace settings become when the owner sets the country (patchWorkspaceSettings), as the API would
+ * answer: the country in use and the language that follows it (resolveWorkspaceLanguage), so the greeting, the voices
+ * and the phone fields of the next screen use it at once, not after a reload.
+ */
+export const explicitCountryPatch = (country: string): Partial<WorkspaceSettingsData> => ({
+  country,
+  resolvedCountry: country,
+  countrySource: 'explicit',
+  resolvedLanguage: resolveWorkspaceLanguage({ country }),
+})
 
 /** The value of "Automatic": nothing set (null in workspace.updateSettings). */
 export const AUTOMATIC = ''

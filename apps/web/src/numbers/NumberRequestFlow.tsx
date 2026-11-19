@@ -21,6 +21,7 @@ import { Foot, useStepKeys } from '../onboarding/Frame.tsx'
 import { ACCOUNT, loadAccount } from '../settings/account/account-api.ts'
 import { rejectionReason as errorText } from '../shell/rejections.ts'
 import { useAssistantName } from '../store.tsx'
+import { tabWorkspace } from '../tabWorkspace.ts'
 import { Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import {
@@ -35,6 +36,9 @@ import {
   type DraftField,
   type DraftProblem,
   draftOf,
+  forgetUnsentDraft,
+  keepUnsentDraft,
+  unsentDraft,
   missingDocuments,
   nationalPrefix,
   type ProfileDraft,
@@ -124,14 +128,17 @@ function Steps(
   p: Props & { saved: RegulatoryProfileData; owner: { name: string; email: string }; lastArea: NumberArea | null },
 ) {
   const [stage, setStage] = useState<Stage>('company')
-  const [draft, setDraft] = useState<ProfileDraft>(() =>
-    draftOf(p.saved.profile, {
-      country: p.country,
-      legalName: p.known.businessName,
-      name: p.owner.name,
-      email: p.owner.email,
-      phone: p.known.phone,
-    }),
+  // What was typed before the step was left comes back (unsentDraft), as the uploaded documents do.
+  const [draft, setDraft] = useState<ProfileDraft>(
+    () =>
+      unsentDraft(tabWorkspace()) ??
+      draftOf(p.saved.profile, {
+        country: p.country,
+        legalName: p.known.businessName,
+        name: p.owner.name,
+        email: p.owner.email,
+        phone: p.known.phone,
+      }),
   )
   // A suggestion, never a lock: the area of the address until one is picked by hand (or the one sent last time).
   const [area, setArea] = useState<NumberArea | null>(p.lastArea)
@@ -144,7 +151,13 @@ function Steps(
       <Company
         {...p}
         draft={draft}
-        onChange={change => setDraft(d => ({ ...d, ...change }))}
+        onChange={change =>
+          setDraft(d => {
+            const changed = { ...d, ...change }
+            keepUnsentDraft(tabWorkspace(), changed)
+            return changed
+          })
+        }
         onSaved={() => go('area')}
       />
     )
@@ -325,6 +338,7 @@ function Documents({
     try {
       // The request shows at once in the list the step reads: it turns into the review.
       await createRequest(country, prefix)
+      forgetUnsentDraft(tabWorkspace())
     } catch (e) {
       setProblem(createProblemText(e))
       setSending(false)

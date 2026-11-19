@@ -20,6 +20,8 @@ import { T, useT } from '@linedesk/i18n/react'
 import { appLink, LinkButton } from '../ui/AppLink.tsx'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
 import { callAction, patchWorkspaceSettings, useWorkspaceSettings } from '../settings/settings-api.ts'
+import { explicitCountryPatch } from '../settings/workspaceLocaleModel.ts'
+import { preloadVoiceCatalog } from '../settings/VoiceSettings.tsx'
 import { CountrySelect } from '../settings/CountrySelect.tsx'
 import { TimeZoneSelect } from '../settings/BusinessHours.tsx'
 import { timeZoneLabel } from '../settings/timeZones.ts'
@@ -338,6 +340,13 @@ export function localeToSave(
 }
 
 /**
+ * Where the business is, as the Business step shows it and as its phone field starts: what the owner picked (Change),
+ * else the listing's, else the workspace's. A pick moves the phone field to that country's code while it is empty.
+ */
+export const businessCountry = (picked: string | null, listing: string | null, workspace: string): string =>
+  picked ?? listing ?? workspace
+
+/**
  * Whether the business is in a country this workspace is not served in yet (a workspace on a Linedesk Cloud bill:
  * only the sign-up countries). Null `served`: every country is.
  */
@@ -509,7 +518,7 @@ function ReviewProfile({
   const [changingCountry, setChangingCountry] = useState(false)
   // The listing's country (Google), else the workspace's, until the owner picks.
   const listingCountry = proposal.country ?? null
-  const country = pickedCountry ?? listingCountry ?? phoneCountry
+  const country = businessCountry(pickedCountry, listingCountry, phoneCountry)
   // A workspace on a Linedesk Cloud bill is served only in the sign-up countries: a business elsewhere stops here.
   const served = settings?.servedCountries ?? null
   const notServed = countryNotServed(country, served)
@@ -539,10 +548,10 @@ function ReviewProfile({
     const locale = { ...country, ...timeZoneToSave(zone, savedZone, country.country, settings?.timeZoneFollowsCountry) }
     if (Object.keys(locale).length) {
       void run('workspace.updateSettings', locale)
-      patchWorkspaceSettings({
-        ...locale,
-        ...(locale.country ? { resolvedCountry: locale.country, countrySource: 'explicit' as const } : {}),
-      })
+      // The next step (the assistant) greets and suggests voices in the country's language at once, not after a reload.
+      const patch = { ...locale, ...(locale.country ? explicitCountryPatch(locale.country) : {}) }
+      patchWorkspaceSettings(patch)
+      if (patch.resolvedLanguage && patch.resolvedLanguage !== 'en') void preloadVoiceCatalog()
     }
     // The business name is the workspace's name: renamed with it, shown at once in the menu.
     if (rename) {
@@ -639,7 +648,7 @@ function ReviewProfile({
             <PhoneInput
               id="ob-biz-phone"
               value={draft.phone}
-              defaultCountry={phoneCountry}
+              defaultCountry={country}
               autoComplete="off"
               onChange={v => set({ phone: v })}
               invalid={!!problems.phone}

@@ -9,6 +9,9 @@ import {
   documentProblem,
   documentsByKind,
   draftOf,
+  forgetUnsentDraft,
+  keepUnsentDraft,
+  unsentDraft,
   holdReason,
   listedAreas,
   missingDocuments,
@@ -215,5 +218,19 @@ describe('documents', () => {
       'id_or_registration',
       'bnetza_form',
     ])
+  })
+})
+
+describe('the business details of a request that was not sent', () => {
+  test('come back when the form opens again (Cancel, then reopen), like the uploaded documents; sending forgets them', () => {
+    const typed = { ...draftOf(null, { country: 'DE' }), legal_name: 'Sanitär Dossenheim GmbH', city: 'Dossenheim' }
+    expect(unsentDraft('ws_1')).toBeNull()
+    keepUnsentDraft('ws_1', typed)
+    expect(unsentDraft('ws_1')).toEqual(typed)
+    // Another workspace (another tab) starts from its own.
+    expect(unsentDraft('ws_2')).toBeNull()
+    expect(unsentDraft(null)).toBeNull()
+    forgetUnsentDraft('ws_1')
+    expect(unsentDraft('ws_1')).toBeNull()
   })
 })

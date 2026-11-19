@@ -9,6 +9,7 @@ import type { Email, EmailSender } from '../src/email.ts'
 import {
   numberRequestEmail,
   numberRequestNeedsOperatorAlert,
+  requestAreaText,
   requestedNumberText,
 } from '../src/emails/number-requests.ts'
 import { setJobQueue } from '../src/jobs.ts'
@@ -173,14 +174,26 @@ describe('the texts', () => {
     expect(requestedNumberText('DE', '89', '+493023125678')).toBe('+493023125678')
   })
 
-  test('a city the catalog does not name shows its area code; an unknown reason code stays as written', () => {
+  test('an area outside the popular cities shows its name and area code; an unknown reason code stays as written', () => {
     const email = numberRequestEmail(
-      { kind: 'rejected', country: 'DE', city: 'potsdam', prefix: '331', e164: null, reason: 'odd_code' },
+      { kind: 'rejected', country: 'DE', city: '', prefix: '331', e164: null, reason: 'odd_code' },
       'ws_1',
       'https://desk.example.com',
     )
-    expect(email.subject).toBe('Your number request for 0331 was not approved')
+    expect(email.subject).toBe('Your number request for Potsdam (0331) was not approved')
     expect(email.text).toContain('odd_code')
+    const live = numberRequestEmail(
+      { kind: 'active', country: 'DE', city: '', prefix: '6221', e164: '+4962217234160', reason: null },
+      'ws_1',
+      'https://desk.example.com',
+    )
+    expect(live.text).toContain('your number in Heidelberg (06221) is set up')
+  })
+
+  test('a popular city by its own name; an area code no list names by the code alone', () => {
+    expect(requestAreaText('DE', 'berlin', '30')).toBe('Berlin')
+    expect(requestAreaText('DE', '', '6221')).toBe('Heidelberg (06221)')
+    expect(requestAreaText('DE', '', '99999')).toBe('099999')
   })
 
   test('the operator alert names the workspace, number, request and reason', () => {

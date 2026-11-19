@@ -10,6 +10,8 @@ import {
   type ForwardingMode,
   forwardingInstructions,
   isActiveContact,
+  type Language,
+  localizedDefault,
   nanpAreaCode,
   type OnboardingStep,
   type OutboundCountries,
@@ -605,6 +607,15 @@ export function dialPath(userAgent: string, touchPoints: number, coarsePointer: 
 export function renameInGreeting(greeting: string, oldName: string, newName: string): string {
   if (!oldName || oldName === newName) return greeting
   return greeting.replace(new RegExp(`\\b${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g'), newName)
+}
+
+/**
+ * The greeting the assistant step shows when the language it greets in changes while the step is open (the workspace
+ * settings arrive, or their country changed): the saved greeting's default in the new language, while what is shown is
+ * still the default in the old one. A greeting the owner changed stays.
+ */
+export function greetingInLanguage(shown: string, saved: string, from: Language, to: Language): string {
+  return from !== to && shown === localizedDefault(saved, from) ? localizedDefault(saved, to) : shown
 }
 
 /** What the assistant step edits. */

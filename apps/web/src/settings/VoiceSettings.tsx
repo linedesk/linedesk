@@ -23,7 +23,7 @@ import { adminLink } from '../ui/AppLink.tsx'
 import { i18n } from '../i18n/index.tsx'
 import { providerAudience } from '../providerAudience.ts'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { refreshQuery, useQuery } from '../cachedQuery.ts'
+import { fetchQuery, refreshQuery, useQuery } from '../cachedQuery.ts'
 import { workspaceHeaders } from '../tabWorkspace.ts'
 import { Checkbox, Select } from '../ui/controls.tsx'
 import { FormMessage } from '../ui/form.tsx'
@@ -67,6 +67,11 @@ const loadOptions = () => readAction<VoiceOptionsData>(VOICE_OPTIONS)
 const loadCatalog = () => readAction<VoiceCatalogData>(VOICE_CATALOG)
 /** The voices of the provider in effect; the same for every assistant of the install. */
 export const useVoiceOptions = () => useQuery(VOICE_OPTIONS, loadOptions, { persist: true })
+/**
+ * Reads the providers' voices ahead: for an assistant in another language than English, Suggested lists the voices
+ * native in it from this list, so a screen that is about to show the Voice card (onboarding, after the country) has it.
+ */
+export const preloadVoiceCatalog = () => fetchQuery(VOICE_CATALOG, loadCatalog, { persist: true })
 /** How many voices More voices shows at first, and adds per "Show more". */
 const PAGE = 30
 /**
@@ -681,12 +686,8 @@ export function VoiceSettings({
   }, [followed])
   // The catalog is read when More voices opens, for languages besides English alone (their voices are suggested), when
   // the voice in use is one of it, or to follow a change of the languages.
-  const needCatalog =
-    moreOpen ||
-    follow ||
-    language !== 'en' ||
-    otherLanguages.some(code => code !== 'en') ||
-    (!!voice.voice_id && !!options && !isCurated)
+  const forOtherLanguage = language !== 'en' || otherLanguages.some(code => code !== 'en')
+  const needCatalog = moreOpen || follow || forOtherLanguage || (!!voice.voice_id && !!options && !isCurated)
   const {
     data: catalog,
     error: catalogError,
@@ -722,6 +723,9 @@ export function VoiceSettings({
           configuredProviders.length === 1 ? configuredProviders[0]!.label : null,
         )
       : null
+  // Suggested for another language comes from the providers' list: until it is read, grey rows, never the English
+  // voices that turn into the native ones when it comes (design-principles.md, 15). Not read: the curated ones.
+  const suggestedLoading = forOtherLanguage && !catalog && !catalogError
   const suggested = [...(forLanguage.length ? forLanguage : curated.map(described)), ...clones.map(described)]
   const isSuggested = suggested.some(v => v.provider === voice.provider && v.id === voice.voice_id)
   const usable = catalog
@@ -734,6 +738,12 @@ export function VoiceSettings({
     !forLanguage.length && provider && options?.defaultVoice ? voiceKey(provider, options.defaultVoice.id) : null
   const listed =
     defaultKey && current !== defaultKey ? suggested.filter(v => voiceKey(v.provider, v.id) !== defaultKey) : suggested
+  // For another language there is no default row: the install's default voice, when it is listed, is the checked one
+  // while the assistant has none of its own ('' is the default voice).
+  const installDefaultKey = provider && options?.defaultVoice ? voiceKey(provider, options.defaultVoice.id) : null
+  const isChecked = (v: PickerVoice) =>
+    current === voiceKey(v.provider, v.id) ||
+    (current === '' && forLanguage.length > 0 && voiceKey(v.provider, v.id) === installDefaultKey)
   const fromCatalog =
     current && !isSuggested
       ? (catalogVoices.find(v => voiceKey(v.provider, v.id) === current) ?? {
@@ -792,51 +802,55 @@ export function VoiceSettings({
       <div className="vp-group-label" id="vp-suggested">
         {t('settings.voice.suggested')}
       </div>
-      <div className="vp-list" role="radiogroup" aria-labelledby="vp-suggested">
-        {fromCatalog && (
-          <VoiceRow
-            voice={fromCatalog}
-            checked
-            onPick={() => pick(fromCatalog)}
-            disabled={!canEdit}
-            preview={preview}
-            facts={voiceFacts(
-              fromCatalog,
-              language,
-              otherLanguages,
-              catalog?.providers.find(p => p.provider === fromCatalog.provider)?.label,
-            )}
-          />
-        )}
-        {/* The default voice speaks English: offered for English, and for a language the providers have no voices for. */}
-        {!forLanguage.length && (
-          <VoiceRow
-            voice={null}
-            defaultNote={t('settings.voice.defaultNote', { name: assistantName })}
-            defaultSample={provider && options?.defaultVoice ? { provider, ...options.defaultVoice } : null}
-            checked={current === ''}
-            onPick={() => pick(null)}
-            disabled={!canEdit}
-            preview={preview}
-            facts={(defaultVoice && languageLabel(defaultVoice, language, otherLanguages)) || undefined}
-          />
-        )}
-        {listed.map(v => (
-          <VoiceRow
-            key={voiceKey(v.provider, v.id)}
-            voice={v}
-            checked={current === voiceKey(v.provider, v.id)}
-            onPick={() => pick(v)}
-            disabled={!canEdit}
-            preview={preview}
-            facts={
-              (forLanguage.includes(v)
-                ? voiceFacts(v, language, otherLanguages)
-                : languageLabel(v, language, otherLanguages)) || undefined
-            }
-          />
-        ))}
-      </div>
+      {suggestedLoading ? (
+        <VoiceRowsSkeleton rows={Math.min(SUGGESTED_FOR_LANGUAGE, Math.max(curated.length, VOICE_SKELETON_ROWS))} />
+      ) : (
+        <div className="vp-list" role="radiogroup" aria-labelledby="vp-suggested">
+          {fromCatalog && (
+            <VoiceRow
+              voice={fromCatalog}
+              checked
+              onPick={() => pick(fromCatalog)}
+              disabled={!canEdit}
+              preview={preview}
+              facts={voiceFacts(
+                fromCatalog,
+                language,
+                otherLanguages,
+                catalog?.providers.find(p => p.provider === fromCatalog.provider)?.label,
+              )}
+            />
+          )}
+          {/* The default voice speaks English: offered for English, and for a language the providers have no voices for. */}
+          {!forLanguage.length && (
+            <VoiceRow
+              voice={null}
+              defaultNote={t('settings.voice.defaultNote', { name: assistantName })}
+              defaultSample={provider && options?.defaultVoice ? { provider, ...options.defaultVoice } : null}
+              checked={current === ''}
+              onPick={() => pick(null)}
+              disabled={!canEdit}
+              preview={preview}
+              facts={(defaultVoice && languageLabel(defaultVoice, language, otherLanguages)) || undefined}
+            />
+          )}
+          {listed.map(v => (
+            <VoiceRow
+              key={voiceKey(v.provider, v.id)}
+              voice={v}
+              checked={isChecked(v)}
+              onPick={() => pick(v)}
+              disabled={!canEdit}
+              preview={preview}
+              facts={
+                (forLanguage.includes(v)
+                  ? voiceFacts(v, language, otherLanguages)
+                  : languageLabel(v, language, otherLanguages)) || undefined
+              }
+            />
+          ))}
+        </div>
+      )}
       {followed && (
         <p className="help vp-followed" role="status">
           {followedNotice(followed)}{' '}

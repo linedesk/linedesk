@@ -27,6 +27,9 @@ import {
   type DraftField,
   type DraftProblem,
   draftOf,
+  forgetUnsentDraft,
+  keepUnsentDraft,
+  unsentDraft,
   holdReason,
   missingDocuments,
   type ProfileDraft,
@@ -49,6 +52,7 @@ import {
   useRegulatoryProfile,
 } from '../numbers/numberRequestQueries.ts'
 import { useStore } from '../store.tsx'
+import { tabWorkspace } from '../tabWorkspace.ts'
 import { useTeam } from '../team/team-api.ts'
 import { Select } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
@@ -346,15 +350,17 @@ function RequestDialog({ countries, initialCountry, initialArea, onClose }: Dial
   const [sending, setSending] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
 
-  // The form starts from the saved profile once it is here, else from what the workspace already knows.
+  // The form starts from what was typed before Cancel (unsentDraft), else from the saved profile once it is here, else
+  // from what the workspace already knows.
   useEffect(() => {
     if (draft || !saved) return
     setDraft(
-      draftOf(saved.profile, {
-        country: initialCountry,
-        email: me?.email,
-        name: me?.name,
-      }),
+      unsentDraft(tabWorkspace()) ??
+        draftOf(saved.profile, {
+          country: initialCountry,
+          email: me?.email,
+          name: me?.name,
+        }),
     )
   }, [draft, saved, initialCountry, me])
 
@@ -365,7 +371,12 @@ function RequestDialog({ countries, initialCountry, initialArea, onClose }: Dial
   const missing = missingDocuments(kinds, documents)
 
   function change(next: Partial<ProfileDraft>) {
-    setDraft(d => (d ? { ...d, ...next } : d))
+    setDraft(d => {
+      if (!d) return d
+      const changed = { ...d, ...next }
+      keepUnsentDraft(tabWorkspace(), changed)
+      return changed
+    })
     if (tried) setProblems(p => Object.fromEntries(Object.entries(p).filter(([k]) => !(k in next))))
     setProblem(null)
   }
@@ -385,6 +396,7 @@ function RequestDialog({ countries, initialCountry, initialArea, onClose }: Dial
     try {
       if (!sameProfile(saved?.profile ?? null, result.input as RegulatoryProfileInput)) await saveProfile(result.input)
       await createRequest(country, area.prefix)
+      forgetUnsentDraft(tabWorkspace())
       onClose()
     } catch (err) {
       setProblem(createProblemText(err))

@@ -16,7 +16,7 @@ import { appLink } from '../ui/AppLink.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
-import { assistantChanges, type AssistantDraft, renameInGreeting } from './flow.ts'
+import { assistantChanges, type AssistantDraft, greetingInLanguage, renameInGreeting } from './flow.ts'
 import { useClientWord } from './clientWords.tsx'
 
 /**
@@ -56,6 +56,14 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
     // A row synced before the column existed has none: the server's default voice.
     realtime_voice: assistant.realtime_voice ?? '',
   }))
+  // The language arrived or changed after the step opened (the settings loading, the country set a moment before): an
+  // untouched default greeting follows it, as it would have opened in it.
+  const [greetingLanguage, setGreetingLanguage] = useState(main)
+  if (greetingLanguage !== main) {
+    setGreetingLanguage(main)
+    if (!assistant.languages?.main)
+      setDraft(d => ({ ...d, greeting: greetingInLanguage(d.greeting, assistant.greeting, greetingLanguage, main) }))
+  }
   // The test call's lines ("Maya can't take calls yet") use the name on screen, not the saved one.
   const session = useTestCall(true, { id: assistant.id, name: draft.name.trim() || assistant.name }, operator)
   const [message, setMessage] = useState<string | null>(null)

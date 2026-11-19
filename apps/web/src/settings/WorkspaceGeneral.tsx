@@ -22,7 +22,7 @@ import {
 import { renameCheck, saveRename } from './workspaceGeneral.ts'
 import { CountrySelect } from './CountrySelect.tsx'
 import { timeZoneLabel } from './timeZones.ts'
-import { AUTOMATIC } from './workspaceLocaleModel.ts'
+import { AUTOMATIC, explicitCountryPatch } from './workspaceLocaleModel.ts'
 import { WorkspaceIconField } from './WorkspaceIconField.tsx'
 
 type Props = {
@@ -146,7 +146,7 @@ function Country({ canEdit }: { canEdit: boolean }) {
   )
   const change = (value: string) => {
     const country = value === AUTOMATIC ? null : value
-    patchWorkspaceSettings({ country, ...(country ? { resolvedCountry: country, countrySource: 'explicit' } : {}) })
+    patchWorkspaceSettings(country ? explicitCountryPatch(country) : { country })
     void saveCountry({ country })
   }
   return (

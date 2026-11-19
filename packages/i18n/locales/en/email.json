@@ -479,6 +479,7 @@
   "numberRequest.active.next": "Your assistant answers it from now on. Which assistant answers it and how it is used can be changed in Settings › Phone numbers.",
   "numberRequest.active.subject": "Your {country, select, DE {German} GB {UK} IE {Irish} other {new}} number {number} is live",
   "numberRequest.active.text": "The carrier approved your documents, and your number in {city} is set up.",
+  "numberRequest.area": "{area} (0{prefix})",
   "numberRequest.city.berlin": "Berlin",
   "numberRequest.city.birmingham": "Birmingham",
   "numberRequest.city.cologne": "Cologne",

@@ -142,6 +142,21 @@ export type ProfileDraft = {
 }
 export type DraftField = keyof ProfileDraft
 
+/**
+ * The business details typed into a request that was not sent (Cancel, the step left): kept per workspace while the
+ * page is open, as the uploaded documents are kept, so the form opens again on them instead of on the saved profile.
+ * Only in memory: personal and company details never go into browser storage. Sending the request forgets them.
+ */
+const unsentDrafts = new Map<string, ProfileDraft>()
+export const unsentDraft = (workspaceId: string | null): ProfileDraft | null =>
+  (workspaceId && unsentDrafts.get(workspaceId)) || null
+export function keepUnsentDraft(workspaceId: string | null, draft: ProfileDraft) {
+  if (workspaceId) unsentDrafts.set(workspaceId, draft)
+}
+export function forgetUnsentDraft(workspaceId: string | null) {
+  if (workspaceId) unsentDrafts.delete(workspaceId)
+}
+
 /** What the form starts with when nothing is saved yet: the workspace's name and country, the signed-in person. */
 export type DraftDefaults = {
   country: string

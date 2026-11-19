@@ -1,4 +1,4 @@
-import { forwardingGuideById, resumeStep, stepFor } from '@linedesk/actions'
+import { forwardingGuideById, localizedDefault, resumeStep, stepFor } from '@linedesk/actions'
 import { DEFAULT_TRANSFERS, type TransferContact } from '@linedesk/db/types'
 import { describe, expect, it, test } from 'vitest'
 import {
@@ -46,6 +46,7 @@ import {
   pickupSettings,
   previousStep,
   progress,
+  greetingInLanguage,
   renameInGreeting,
   toE164,
   turnOffFirst,
@@ -706,4 +707,18 @@ describe('the activation step (docs/billing.md §3.2)', () => {
       { kind: 'charge', day: 1, at: now },
     ])
   })
+})
+
+test('the greeting on the assistant step follows a language that arrives after it opened, unless it was changed', () => {
+  const saved = 'Thanks for calling Brightwater Plumbing & Heating. This is Maya, the AI assistant. How can I help?'
+  const english = localizedDefault(saved, 'en')
+  const german = localizedDefault(saved, 'de')
+  expect(german).not.toBe(english)
+  expect(german).toContain('Brightwater Plumbing & Heating')
+  // Opened in English (the settings still loading, or the country set a moment before), then German: it follows.
+  expect(greetingInLanguage(english, saved, 'en', 'de')).toBe(german)
+  // Typed by the owner: stays.
+  expect(greetingInLanguage('Hi, Brightwater here.', saved, 'en', 'de')).toBe('Hi, Brightwater here.')
+  // The same language: nothing changes.
+  expect(greetingInLanguage(german, saved, 'de', 'de')).toBe(german)
 })

@@ -6,6 +6,7 @@ import { NUMBER_COUNTRIES, type KycCountry } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
 import { emailOrigin } from '../email-brand.ts'
+import { numberArea } from '../number-areas.ts'
 import type { AdminAlertText } from './alerts.ts'
 import { type Block, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
 import { appLink, type EmailLocale } from './templates.ts'
@@ -35,8 +36,20 @@ const REASON_KEYS: Record<string, string> = {
   requirements_no_longer_eligible: 'noLongerEligible',
 }
 
-/** Cities with a name of their own in the catalog; any other shows its area code only. */
+/** Cities with a name of their own in the catalog; any other shows the name of its area (number-areas.ts). */
 const knownCity = (country: KycCountry, city: string) => NUMBER_COUNTRIES[country].cities.some(c => c.id === city)
+
+/**
+ * Where the number is: a catalog city by its translated name (Berlin), any other area by its official name and area
+ * code (Heidelberg (06221)), an area code no list names by the code alone (0331).
+ */
+export function requestAreaText(country: KycCountry, city: string, prefix: string, locale?: EmailLocale): string {
+  const { t } = getT(locale)
+  // i18n-dynamic: email.numberRequest.city.*
+  if (knownCity(country, city)) return t(`email.numberRequest.city.${city}` as MessageKey)
+  const area = numberArea(country, prefix)?.name
+  return area ? t('email.numberRequest.area', { area, prefix }) : `0${prefix}`
+}
 
 /**
  * +49 30 12345678: the calling code, the area code and the rest, as people write a number in these countries. Without
@@ -66,10 +79,7 @@ export function numberRequestEmail(
   locale?: EmailLocale,
 ): RenderedEmail {
   const { t, locale: lang } = getT(locale)
-  const city = knownCity(email.country, email.city)
-    ? // i18n-dynamic: email.numberRequest.city.*
-      t(`email.numberRequest.city.${email.city}` as MessageKey)
-    : `0${email.prefix}`
+  const city = requestAreaText(email.country, email.city, email.prefix, locale)
   const values = {
     country: email.country,
     city,
