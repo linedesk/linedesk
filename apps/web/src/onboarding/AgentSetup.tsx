@@ -23,7 +23,6 @@ import {
   type AgentClient,
   type AgentSetupKeyCreated,
   type AgentSetupState,
-  agentClientLabels,
   agentClients,
   cloudClients,
   HOSTING_GUIDE_URL,
@@ -58,7 +57,7 @@ import { HelpTip } from '../ui/HelpTip.tsx'
 import { LoadProblem, Skeleton, SkeletonChecklist, SkeletonPart, useLoading } from '../ui/LoadStates.tsx'
 import { Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
 import { MarkGlyph } from '../ui/StatusMark.tsx'
-import { AgentPicker } from './AgentPicker.tsx'
+import { AgentPicker, agentLabel } from './AgentPicker.tsx'
 import { installPartsMissing } from './agent-setup-passkey.ts'
 import { NewWorkspaceDialog } from '../shell/NewWorkspace.tsx'
 import { microphoneAllowed } from '../call/microphone.ts'
@@ -523,10 +522,10 @@ export function AgentSetup({
             {cloudBlocked && (
               <Note
                 tone="warning"
-                title={t('onboarding.agentSetup.cloudBlocked.title', { agent: agentClientLabels[client] })}
+                title={t('onboarding.agentSetup.cloudBlocked.title', { agent: agentLabel(client, t) })}
               >
                 {t('onboarding.agentSetup.cloudBlocked.body', {
-                  agent: agentClientLabels[client],
+                  agent: agentLabel(client, t),
                   address: state?.mcpUrl.replace(/\/mcp\/setup$/, '') ?? '',
                   brand: product,
                 })}
@@ -986,8 +985,12 @@ function groupsInOrder<S extends { id: string; group: SetupStepGroup; state: str
 }
 
 /** A group's heading: the server's from the steps' groups; the partner's in this page's language. */
+/** A part's heading in the reader's language; the API's `label` is English (the setup MCP reads it). */
 function groupLabel(group: { id: string; label: string }, t: ReturnType<typeof useT>) {
-  return group.id === 'partner' ? t('onboarding.agentSetup.partner.group') : group.label
+  if (group.id === 'partner') return t('onboarding.agentSetup.partner.group')
+  if (group.id === 'server') return t('onboarding.agentSetup.server.group')
+  if (group.id === 'business') return t('onboarding.agentSetup.workspace.label')
+  return group.label
 }
 
 /**

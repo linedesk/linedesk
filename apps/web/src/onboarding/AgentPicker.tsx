@@ -62,6 +62,11 @@ export function AgentMark({ client }: { client: AgentClient }) {
   }
 }
 
+/** An agent's name to show: the product's own name, or "Other" in the reader's language (agentClientLabels is English). */
+export function agentLabel(id: AgentClient, t: ReturnType<typeof useT>): string {
+  return id === 'other' ? t('onboarding.agentPicker.other') : agentClientLabels[id]
+}
+
 /** One option per agent, recommended first; the chosen one shows its steps below. */
 export function AgentPicker({ client, onPick }: { client: AgentClient; onPick: (client: AgentClient) => void }) {
   const t = useT()
@@ -75,10 +80,10 @@ export function AgentPicker({ client, onPick }: { client: AgentClient; onPick: (
           aria-checked={client === id}
           className={cx('as-agent', client === id && 'on')}
           onClick={() => onPick(id)}
-          title={t('onboarding.agentPicker.showSteps', { agent: agentClientLabels[id] })}
+          title={t('onboarding.agentPicker.showSteps', { agent: agentLabel(id, t) })}
         >
           <AgentMark client={id} />
-          {agentClientLabels[id]}
+          {agentLabel(id, t)}
         </button>
       ))}
     </div>
