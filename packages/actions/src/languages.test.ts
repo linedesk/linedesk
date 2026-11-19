@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import {
   anyModeLanguages,
+  callLanguageOf,
   FLUX_LANGUAGES,
   HIDDEN_LANGUAGES,
   isPickable,
@@ -59,7 +60,9 @@ test('"any language" covers Flux\'s 10 with a Flux model, everything spoken and 
   // Deepgram without a model set: the agent's default, Flux.
   expect(anyModeLanguages(spoken, { provider: 'deepgram' })).toEqual(FLUX_LANGUAGES)
   expect(anyModeLanguages(spoken, { provider: 'deepgram', model: 'nova-3' })).toEqual(pickableLanguages(spoken))
-  expect(anyModeLanguages(spoken, { provider: 'elevenlabs_stt', model: 'scribe_v2_realtime' })).toEqual(pickableLanguages(spoken))
+  expect(anyModeLanguages(spoken, { provider: 'elevenlabs_stt', model: 'scribe_v2_realtime' })).toEqual(
+    pickableLanguages(spoken),
+  )
   expect(anyModeLanguages(spoken, null)).toEqual(pickableLanguages(spoken))
 })
 
@@ -79,4 +82,17 @@ test('hidden languages (their test calls failed) are not offered as new choices;
   expect(otherLanguagesOf({ main: 'en', mode: 'allowed', allowed: ['zh'] })).toEqual(['zh'])
   expect(mainLanguageOf(null, 'ko')).toBe('en')
   expect(mainLanguageOf(null, 'pl')).toBe('pl')
+})
+
+test("a call's texts are in the language it is answered in: the assistant's main language, else the workspace's", () => {
+  // Production, 2026-11-19: a German assistant in a workspace that still read US wrote English summaries.
+  expect(callLanguageOf({ languages: { main: 'de', mode: 'allowed', allowed: ['en'] } }, 'en')).toBe('de')
+  expect(callLanguageOf({ languages: { mode: 'english', allowed: [] } }, 'de')).toBe('de')
+  expect(callLanguageOf({ languages: null }, 'es')).toBe('es')
+  // English stays English.
+  expect(callLanguageOf({ languages: { main: 'en', mode: 'english', allowed: [] } }, 'en')).toBe('en')
+  expect(callLanguageOf({ languages: { main: 'en', mode: 'english', allowed: [] } }, 'de')).toBe('en')
+  // No assistant: the workspace language as it is.
+  expect(callLanguageOf(null, 'de')).toBe('de')
+  expect(callLanguageOf(undefined, undefined)).toBe('en')
 })

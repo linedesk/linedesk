@@ -3,8 +3,9 @@
 //   request's Accept-Language (a sign-in code often has no account behind it yet), else English;
 // - an invitation: the workspace's language when the web app has it, else the inviter's, else English;
 // - notifications to members: each recipient's own;
-// - a booking confirmation to a caller: the language of the call when the web app has it, else English.
-import { mainLanguageOf } from '@linedesk/actions'
+// - a booking confirmation to a caller, and a call email to an address outside the team: the language of the call when
+//   the web app has it, else English.
+import { callLanguageOf } from '@linedesk/actions'
 import { assistants, calls, type Tx, user } from '@linedesk/db'
 import { isUiLocale, matchLocale, SOURCE, type UiLocale } from '@linedesk/i18n'
 import { localeForUser } from '@linedesk/i18n/server'
@@ -58,11 +59,10 @@ export async function invitationLocale(tx: Tx, workspaceId: string, inviterId?: 
 }
 
 /**
- * A message to a caller (the booking confirmation): the language the call was answered in, which is the assistant's
- * main language (else the workspace's); English when the web app does not have it. The call does not store the
- * language the caller switched to, so a caller who switched still gets the main one.
+ * The language a call is answered in (callLanguageOf: its assistant's main language, else the workspace's), which its
+ * title, summary and next steps are written in. Without a call (or one without an assistant): the workspace language.
  */
-export async function callerLocale(tx: Tx, workspaceId: string, callId: string | null): Promise<UiLocale> {
+export async function callLanguage(tx: Tx, workspaceId: string, callId: string | null): Promise<string> {
   const [call] = callId
     ? await tx
         .select({ languages: assistants.languages })
@@ -70,6 +70,14 @@ export async function callerLocale(tx: Tx, workspaceId: string, callId: string |
         .innerJoin(assistants, eq(assistants.id, calls.assistant_id))
         .where(eq(calls.id, callId))
     : []
-  const workspaceLanguage = (await workspaceLocale(tx, workspaceId)).resolvedLanguage
-  return uiLocaleOf(mainLanguageOf(call?.languages, workspaceLanguage)) ?? SOURCE
+  return callLanguageOf(call, (await workspaceLocale(tx, workspaceId)).resolvedLanguage)
+}
+
+/**
+ * A message to a caller (the booking confirmation), and a call email to an address outside the team, which carries the
+ * call's summary: the language the call was answered in (callLanguage); English when the web app does not have it. The
+ * call does not store the language the caller switched to, so a caller who switched still gets the main one.
+ */
+export async function callerLocale(tx: Tx, workspaceId: string, callId: string | null): Promise<UiLocale> {
+  return uiLocaleOf(await callLanguage(tx, workspaceId, callId)) ?? SOURCE
 }

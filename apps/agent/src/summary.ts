@@ -37,7 +37,10 @@ const summarySchema = z.object({
     .transform(name => name?.trim().slice(0, CALLER_NAME_MAX) || null),
 })
 
-/** The system prompt; `language` is the team's (the workspace language): what the title, summary and items are written in. */
+/**
+ * The system prompt; `language` is the team's (the language the call is answered in, callLanguageOf): what the title,
+ * summary and items are written in.
+ */
 export function summarySystem(language = 'en'): string {
   return `You summarize a phone call between an AI assistant and a caller, for the owner's inbox.
 Answer with one JSON object and nothing else:
@@ -227,7 +230,7 @@ const ONLY_BY_TOOLS = new Set<CallResult['outcome']>(['booked', 'transferred'])
 /**
  * `savedMessages` are the action items saved during the call (a transfer nobody took); the LLM is told not to repeat
  * them. `details`: what the collection steps got, which the next steps are written from. `teamLanguage`: the
- * workspace language the owner reads it in. `callbackKnown`: the team has a number to call back on (caller ID, or one
+ * language the call is answered in (callLanguageOf), which the owner reads it in. `callbackKnown`: the team has a number to call back on (caller ID, or one
  * the caller gave: hasCallbackNumber); without one the summary is told not to ask for a call back.
  */
 export async function summarizeCall(

@@ -3,7 +3,7 @@
 // the members of every rule that fits, only with call emails on), the assignee (the first fitting rule's), nothing
 // fitting with and without always, the fallbacks, one decision per call (a retry reuses it), the request's format,
 // and the outside addresses' actions and confirm and stop links (kept in the API, no longer on the page).
-import { call_events, calls, email_recipients, user } from '@linedesk/db'
+import { assistants, call_events, calls, email_recipients, user } from '@linedesk/db'
 import type { EmailRule, EmailRules } from '@linedesk/db/types'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, test, vi } from 'vitest'
@@ -604,4 +604,19 @@ describe('saving the rules', () => {
     }
     expect(mayRunWhileImpersonating(actions.get('emailRouting.available')!)).toBe(true)
   })
+})
+
+test("the reason is asked for in the call's language: a German assistant in a workspace that reads US", async () => {
+  const ws = await createWorkspace('Routing Sprache Sanitär')
+  const dave = await addMember(ws.id, 'member')
+  await setRules(ws, { always: [], rules: [rule('Warmwasser', [dave.userId])] })
+  await db
+    .update(assistants)
+    .set({ languages: { main: 'de', mode: 'english', allowed: [] } })
+    .where(eq(assistants.id, ws.assistant.id))
+  const call = await finishedCall(ws)
+  const { sender } = fakeSender()
+  const { model, requests } = fakeModel([1], 'Der Boiler leckt.')
+  await notifyCallFinished(db, sender, call.id, { model: async () => model })
+  expect(requests[0]!.system).toBe(EMAIL_ROUTING_SYSTEM.replace('{language}', 'German'))
 })

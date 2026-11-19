@@ -1,8 +1,8 @@
 // Which languages an assistant speaks with callers (`assistants.languages`): a main language (unless set, the
 // workspace language when calls can be answered in it, else English) and, besides it, none, a picked list, or every
-// supported language. The greeting and the fixed lines are in the main language (spoken-lines.ts); the call's summary
-// is written in the workspace language for the team (the main language of its country, workspace-locale.ts), its transcript stays
-// in the language spoken.
+// supported language. The greeting and the fixed lines are in the main language (spoken-lines.ts); the call's summary,
+// title and next steps are written in the language the call is answered in (callLanguageOf), its transcript stays in the
+// language spoken.
 import { z } from 'zod'
 
 /**
@@ -102,6 +102,17 @@ export const mainLanguageOf = (languages: StoredLanguages, fallback?: string | n
   languageCodes.find(code => code === languages?.main) ??
   languageCodes.find(code => code === fallback && isPickable(code)) ??
   'en'
+
+/**
+ * The language a call is answered in, which its title, summary and next steps for the team are written in (and the
+ * texts a call that is not answered is filed with): the assistant's main language (mainLanguageOf, the workspace
+ * language when it has none); without an assistant, the workspace language. A German assistant in a workspace whose
+ * country is not set yet (the sign-up hint said US) writes its summaries in German, not English.
+ */
+export const callLanguageOf = (
+  assistant: { languages?: StoredLanguages } | null | undefined,
+  workspaceLanguage: string | null | undefined,
+): string => (assistant ? mainLanguageOf(assistant.languages, workspaceLanguage) : workspaceLanguage || 'en')
 
 /** The languages besides the main one a call may switch to (none: the main language only). Unknown codes are dropped. */
 export function otherLanguagesOf(languages: StoredLanguages, fallback?: string | null): Language[] {

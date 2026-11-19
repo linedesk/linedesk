@@ -98,3 +98,28 @@ test('voice failures and missed calls are filed in the team language', () => {
     actionItems: [{ text: 'es:call.autoSummary.missed.callBack' }],
   })
 })
+
+test('a German call is summarized in German; an English one in English as before', async () => {
+  const { summarySystem } = await import('./summary.ts')
+  const answer = JSON.stringify({
+    title: 'Lieferstatus',
+    summary: 'Der Anrufer fragt nach seiner Bestellung.',
+    outcome: 'message',
+    urgency: 'normal',
+    action_items: ['Lieferstatus prüfen'],
+    caller_name: null,
+  })
+  const complete = vi.fn(async (_system: string, _user: string) => answer)
+  const germanCall = { ...spanishCall(), teamLanguage: 'de' } as CallSession & { finish: ReturnType<typeof vi.fn> }
+  const log = new CallLog(germanCall)
+  log.record('caller', 'Wo bleibt meine Bestellung?')
+  await finishCall(germanCall, log, complete, noWait)
+  const system = complete.mock.calls[0]![0]
+  expect(system).toBe(summarySystem('de'))
+  expect(system).toContain('Write the title, summary and action items in German (language code "de")')
+  expect(germanCall.finish).toHaveBeenCalledWith(
+    expect.objectContaining({ summary: 'Der Anrufer fragt nach seiner Bestellung.' }),
+  )
+  expect(summarySystem('en')).toContain('Write the title, summary and action items in English')
+  expect(summarySystem()).toBe(summarySystem('en'))
+})

@@ -22,15 +22,14 @@ import {
 import type { EmailRoute, EmailRouteRecipient } from '@linedesk/db/types'
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import type { EmailSender } from './email.ts'
-import { uiLocaleOf } from './email-locale.ts'
+import { callerLocale } from './email-locale.ts'
 import { assignByRouting, membersById, routeCall, sendableOutside } from './email-routing.ts'
 import { type CallEmail, callEmail, emailSafeName, firstCallEmail, slotInZone } from './emails/templates.ts'
 import { type EvaluationModel, evaluationModel } from './evaluations.ts'
 import { outsideStopUrl } from './email-recipients.ts'
 import { unsubscribeHeaders } from './setup-unsubscribe.ts'
-import { workspaceLocale } from './workspace-locale.ts'
 import { claimFirstCallEmail, releaseFirstCallEmail, setupRecipients } from './setup-emails.ts'
-import { SOURCE, type UiLocale } from '@linedesk/i18n'
+import type { UiLocale } from '@linedesk/i18n'
 import { getT, localeForUser } from '@linedesk/i18n/server'
 import { withWorkspaceBrand } from './partner-brand.ts'
 
@@ -189,6 +188,7 @@ async function sendCallEmails(tx: Tx, sender: EmailSender, callId: string, deps:
       call.workspace_id,
       assistant.email_rules,
       {
+        id: call.id,
         title: call.title,
         urgent: call.urgency === 'urgent',
         caller: contact?.name ?? call.from_number,
@@ -242,9 +242,10 @@ async function sendCallEmails(tx: Tx, sender: EmailSender, callId: string, deps:
       console.warn(`call email to a member of ${call.workspace_id} failed: ${e instanceof Error ? e.message : e}`)
     }
   }
-  // Outside the team (confirmed, not stopped): the workspace's language, no link into the app, a link to stop them.
+  // Outside the team (confirmed, not stopped): the call's language like the summary it carries (callerLocale), no link
+  // into the app, a link to stop them.
   if (outside.length) {
-    const locale = uiLocaleOf((await workspaceLocale(tx, call.workspace_id)).resolvedLanguage) ?? SOURCE
+    const locale = await callerLocale(tx, call.workspace_id, call.id)
     for (const recipient of outside) {
       const stopUrl = outsideStopUrl(recipient.id)
       // Without SECRETS_KEY there is no stop link, and an outside address never gets an email it cannot stop.

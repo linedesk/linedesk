@@ -21,12 +21,12 @@ import type { UiLocale } from '@linedesk/i18n'
 import { localeForUser } from '@linedesk/i18n/server'
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { z } from 'zod'
+import { callLanguage } from './email-locale.ts'
 import type { EvaluationModel } from './evaluations.ts'
 import { createFailureLimiter } from './rate-limit.ts'
-import { workspaceLocale } from './workspace-locale.ts'
 
 /**
- * The system message of the routing request. `{language}` is the workspace's language, in English. Change it only with
+ * The system message of the routing request. `{language}` is the call's language (routingLanguage), in English. Change it only with
  * an OK on the exact wording (CLAUDE.md, rule 11).
  */
 // i18n-ignore: the routing request to the language model, not shown in the app
@@ -116,6 +116,8 @@ export async function sendableOutside(tx: Tx, workspaceId: string, emails: strin
 
 /** What the request needs to know about the call. */
 export type RoutingCall = {
+  /** The call's id: the language of the model's reason (routingLanguage); missing: the workspace's. */
+  id?: string | null
   title: string | null
   urgent: boolean
   caller: string
@@ -282,9 +284,12 @@ export function routeFor(
   }
 }
 
-/** The workspace's language, in English, for the reason the model writes. */
-export async function routingLanguage(tx: Tx, workspaceId: string): Promise<string> {
-  return workspaceLanguageName((await workspaceLocale(tx, workspaceId)).resolvedLanguage)
+/**
+ * The language of the reason the model writes, in English ("German"): the call's (callLanguage), like its summary;
+ * without a call, the workspace's.
+ */
+export async function routingLanguage(tx: Tx, workspaceId: string, callId: string | null = null): Promise<string> {
+  return workspaceLanguageName(await callLanguage(tx, workspaceId, callId))
 }
 
 /**
@@ -305,7 +310,7 @@ export async function routeCall(
   if (!model) return routeFor({ ...emailRules, rules: [] }, null, members, everyone, at)
   let decision: Decision | null = null
   if (emailRules.rules.length) {
-    const language = await routingLanguage(tx, workspaceId)
+    const language = await routingLanguage(tx, workspaceId, call.id ?? null)
     const message = routingUserMessage(emailRules.rules, call)
     decision = await decide(model, workspaceId, language, message, emailRules.rules.length)
   }

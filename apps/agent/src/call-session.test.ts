@@ -591,3 +591,27 @@ describe('a public demo call in the language the visitor picked (mainLanguage in
     expect(buildInstructions(call.assistant, null)).toContain(`Speak ${LANGUAGES[code]} only, whatever language the caller speaks.`)
   })
 })
+
+test("the team's texts are in the language the call is answered in: the assistant's main language, else the workspace's", async () => {
+  // Production, 2026-11-19: a German assistant in a workspace that still read US (its country not set, the sign-up
+  // hint said US) got its summary and next steps in English.
+  const api = (assistant: unknown, workspaceLanguage?: string) =>
+    ({
+      run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant, contact: {}, workspaceLanguage } }),
+    }) as never
+  const phone = { kind: 'phone', from: '+15035550191', to: '+15035550142' } as const
+  const row = { id: 'as_1', greeting: 'Hallo.', business_profile: {} }
+  const team = async (assistant: unknown, workspaceLanguage?: string) =>
+    (await startCall(api(assistant, workspaceLanguage), phone)).teamLanguage
+  const german = { ...row, languages: { main: 'de', mode: 'allowed', allowed: ['en'] } }
+  expect(await team(german, 'en')).toBe('de')
+  expect(await team(german, 'de')).toBe('de')
+  // Without a main language of its own the assistant answers in the workspace language: so are the texts.
+  expect(await team(row, 'de')).toBe('de')
+  // English as before.
+  expect(await team(row, 'en')).toBe('en')
+  expect(await team(row)).toBe('en')
+  expect(await team({ ...row, languages: { main: 'en', mode: 'english', allowed: [] } }, 'de')).toBe('en')
+  // No assistant: the workspace language.
+  expect(await team(null, 'fr')).toBe('fr')
+})

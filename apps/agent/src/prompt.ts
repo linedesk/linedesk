@@ -288,14 +288,15 @@ export type CallerContext = Pick<Contact, 'name' | 'note'> & {
 }
 
 /**
- * language.team: the notes and booking details saved with tools are in the team's language (the workspace language).
+ * language.team: the notes and booking details saved with tools are in the team's language (the call's, callLanguageOf).
  * language.spoken: tool results and the example lines in these instructions are English: without it a model goes back
  * to English after a tool.
  */
 
 /**
  * Which languages the assistant speaks (assistants.languages): its main language, and the ones it may switch to.
- * `teamLanguage`: the workspace language, what it writes messages for the team in (English unless set).
+ * `teamLanguage`: the language the call is answered in (callLanguageOf), what it writes messages for the team in
+ * (English unless set).
  */
 export function languageInstructions(assistant: Pick<Assistant, 'languages'> | null, teamLanguage = 'en', pt: PromptTexts = defaultPromptTexts): string {
   const main = mainLanguageOf(assistant?.languages)

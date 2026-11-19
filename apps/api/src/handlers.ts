@@ -37,6 +37,7 @@ import {
   VOICE_FAILURES_PER_CALL,
   VOICE_FAILURE_MESSAGE_MAX,
   isPerCallProviderError,
+  callLanguageOf,
   languageModelLevel,
   realtimeModelLevel,
   voiceModelLevel,
@@ -500,10 +501,10 @@ async function openCall(
     .where(eq(workspace_settings.workspace_id, workspace_id))
   const timeZone = zone?.timezone ?? DEFAULT_TIME_ZONE
   // Where the business is (Workspace settings › General, else worked out) and its country's language: the region numbers callers
-  // say are read in, the greeting's language when the assistant has none of its own, the summary's for the team (and
-  // the texts a call that is not answered is filed with).
+  // say are read in, the greeting's language when the assistant has none of its own. The texts a call that is not
+  // answered is filed with are in the language the call is answered in, like its summary (callLanguageOf).
   const locale = await workspaceLocale(tx, workspace_id, zone ?? null)
-  const t = teamT(locale.resolvedLanguage)
+  const t = teamT(callLanguageOf(assistant, locale.resolvedLanguage))
   // The agent answers with the assistant's pipeline, or the one the instance admin picked for every workspace. On
   // Linedesk Cloud the call's level is decided here, once: a voice or model the workspace may no longer use (its level
   // turned off) falls back to the install's defaults for this call.
@@ -827,8 +828,9 @@ const blockedCall = (now: string, t: TeamT) => ({
 })
 
 /**
- * `t()` for the texts filed on a call for the team: in the workspace language like the call summaries (written once per
- * call; emails, webhooks and exports carry them too), the closest UI language, else English.
+ * `t()` for the texts filed on a call for the team: in the language the call is answered in like the call summaries
+ * (callLanguageOf; written once per call, emails, webhooks and exports carry them too), the closest UI language, else
+ * English.
  */
 type TeamT = Translator['t']
 const teamT = (language: string): TeamT => getT(matchLocale([language])).t

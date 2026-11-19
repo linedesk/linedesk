@@ -23,6 +23,7 @@ import {
   type KeySources,
   type UsageLevel,
   ASSISTANT_CALL_MAX_MINUTES,
+  callLanguageOf,
   DEMO_CALL_MAX_SECONDS,
   demoLines,
   type SpokenLines,
@@ -137,7 +138,10 @@ export interface CallSession {
    * Germany). Missing: 'US'.
    */
   country?: string
-  /** The workspace language: what the summary and messages for the team are written in. Missing: 'en'. */
+  /**
+   * The language the call is answered in (callLanguageOf: the assistant's main language, else the workspace language):
+   * what the title, summary, next steps and messages for the team are written in. Missing: 'en'.
+   */
   teamLanguage?: string
   /** The instance admin's wording for parts of the system prompt (Server admin › System prompt); missing: the defaults. */
   promptOverrides?: PromptOverrides
@@ -479,7 +483,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     recordingNotice: started.recordingNotice?.trim() || null,
     lookups: started.lookups ?? [],
     country: started.workspaceCountry ?? 'US',
-    teamLanguage: started.workspaceLanguage ?? 'en',
+    teamLanguage: callLanguageOf(assistant, started.workspaceLanguage),
     promptOverrides: started.promptOverrides ?? {},
     businessNumber: origin.kind === 'phone' ? origin.to : null,
     ...(origin.kind === 'test' && origin.realtimeModel && !billed ? { realtimeModel: origin.realtimeModel } : {}),
