@@ -3,6 +3,7 @@
 // the place where it is set up (the assistant's webhooks and booking; #integrations/make and the like go there too); one not
 // built yet shows "Coming soon", and an address with nothing behind it says so. The catalog itself is catalog.ts; API keys and
 // Zapier were Workspace settings › Developers (old links are rewritten, useRoute.ts).
+import { CHATGPT_PLUGINS_URL, CLAUDE_CONNECTORS_URL } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
@@ -14,6 +15,7 @@ import { Section } from '../settings/fields.tsx'
 import { setPageKeys } from '../shell/keys.ts'
 import { useRows } from '../store.tsx'
 import { AppLink, appLink } from '../ui/AppLink.tsx'
+import { ClientLink, ClientLinks } from '../ui/ClientLink.tsx'
 import { Input } from '../ui/form.tsx'
 import { copyText } from '../ui/HelpTip.tsx'
 import { Badge, Button, Kbd, Note } from '../ui/kit.tsx'
@@ -415,22 +417,25 @@ function Mcp({ toast }: { toast: Props['toast'] }) {
       <CopyField label={t('settings.integrations.mcp.address')} value={mcpAddress(origin())} toast={toast} />
       <div className="ig-copy">
         <span className="ig-copy-label">{t('settings.integrations.mcp.oneClick')}</span>
-        <div className="ig-mcp-installs">
-          <a
-            className="k-btn k-btn-secondary k-btn-sm"
-            href={cursorInstallLink(origin())}
-            title={t('settings.integrations.mcp.cursorTip', { brand })}
-          >
-            {t('settings.integrations.mcp.cursor')}
-          </a>
-          <a
-            className="k-btn k-btn-secondary k-btn-sm"
-            href={vscodeInstallLink(origin())}
-            title={t('settings.integrations.mcp.vscodeTip', { brand })}
-          >
-            {t('settings.integrations.mcp.vscode')}
-          </a>
-        </div>
+        <ClientLinks
+          links={[
+            {
+              href: cursorInstallLink(origin()),
+              label: t('settings.integrations.mcp.cursor'),
+              title: t('settings.integrations.mcp.cursorTip', { brand }),
+            },
+            {
+              href: vscodeInstallLink(origin()),
+              label: t('settings.integrations.mcp.vscode'),
+              title: t('settings.integrations.mcp.vscodeTip', { brand }),
+            },
+            {
+              href: vscodeInstallLink(origin(), true),
+              label: t('settings.integrations.mcp.vscodeInsiders'),
+              title: t('settings.integrations.mcp.vscodeTip', { brand }),
+            },
+          ]}
+        />
       </div>
       <McpSteps
         label={t('settings.integrations.mcp.claude')}
@@ -446,7 +451,7 @@ function Mcp({ toast }: { toast: Props['toast'] }) {
         label={t('settings.integrations.mcp.chatgpt')}
         text={t('settings.integrations.mcp.chatgptSteps')}
         open={{
-          href: CHATGPT_CONNECTORS_URL,
+          href: CHATGPT_PLUGINS_URL,
           label: t('settings.integrations.mcp.openChatgpt'),
           tip: t('settings.integrations.mcp.openChatgptTip'),
         }}
@@ -484,10 +489,6 @@ function Mcp({ toast }: { toast: Props['toast'] }) {
   )
 }
 
-/** Where Claude and ChatGPT add a connector (each opens in a new tab). */
-const CLAUDE_CONNECTORS_URL = 'https://claude.ai/settings/connectors'
-const CHATGPT_CONNECTORS_URL = 'https://chatgpt.com/#settings/Connectors'
-
 /**
  * A client that is set up in its own settings: where to go there, in one line, a button that opens that page in a new
  * tab, and Copy for the server address to paste there.
@@ -514,15 +515,7 @@ function McpSteps({
       <span className="ig-copy-label">{label}</span>
       <p className="help ig-mcp-steps">{text}</p>
       <div className="ig-mcp-installs">
-        <a
-          className="k-btn k-btn-secondary k-btn-sm"
-          href={open.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={open.tip}
-        >
-          {open.label}
-        </a>
+        <ClientLink href={open.href} label={open.label} title={open.tip} />
         <Button size="sm" icon="copy" onClick={() => void copy()} title={t('settings.integrations.copyTip', { what })}>
           {t('settings.integrations.mcp.copyAddress')}
         </Button>

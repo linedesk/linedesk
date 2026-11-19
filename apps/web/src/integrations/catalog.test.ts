@@ -251,6 +251,10 @@ describe('setup snippets', () => {
       type: 'http',
       url: 'https://desk.example/mcp',
     })
+    // VS Code Insiders: the same server, its own scheme. No link carries a key: the sign-in is OAuth.
+    expect(vscodeInstallLink(origin, true)).toBe(vscode.replace(/^vscode:/, 'vscode-insiders:'))
+    for (const link of [cursorInstallLink(origin), vscode, vscodeInstallLink(origin, true)])
+      expect(decodeURIComponent(link)).not.toMatch(/lds_|lk_|Bearer|LINEDESK_KEY/)
   })
 
   it('read the key from a variable and never contain one', () => {

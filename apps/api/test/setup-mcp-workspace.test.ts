@@ -163,6 +163,17 @@ describe('what a workspace setup link reaches', () => {
     expect(typeof status.server_ready).toBe('boolean')
     expect(JSON.stringify(status.app_links)).not.toMatch(/#admin/)
     expect(status.optional).toBeUndefined()
+    // What Linedesk already knows about the business, for the agent to confirm first (2026-11-19).
+    expect(status.workspaces[0].known).toMatchObject({ name: 'Status Business', country: expect.any(String) })
+  })
+
+  test("setup_status names the person's own language: the agent talks to them in it", async () => {
+    const own = await createWorkspace('Sprache Betrieb')
+    await db.update(user).set({ locale: 'de' }).where(eq(user.id, own.owner.userId))
+    const { key } = await makeWorkspaceKey(own.owner)
+    expect(data(await call(key, 'setup_status')).you_act_as.language).toBe('German')
+    await db.update(user).set({ locale: null, localeAuto: null }).where(eq(user.id, own.owner.userId))
+    expect(data(await call(key, 'setup_status')).you_act_as.language).toBe('English')
   })
 
   test('another workspace, even one the same person owns, is refused and stays unchanged', async () => {

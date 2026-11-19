@@ -1,7 +1,17 @@
 // The agent setup page's start plan (agent-setup.ts): one command or link where the agent connects itself, a
 // connector step only for the cloud chat apps, and the setup key never in a link to a website.
 import { describe, expect, test } from 'vitest'
+import { createTranslator } from '@linedesk/i18n'
+import deOnboarding from '@linedesk/i18n/locales/de/onboarding.json' with { type: 'json' }
+import deServer from '@linedesk/i18n/locales/de/server.json' with { type: 'json' }
 import { english, type Words } from './words.ts'
+import {
+  CHATGPT_PLUGINS_URL,
+  CLAUDE_CONNECTORS_URL,
+  cursorMcpInstallLink,
+  opensWebPage,
+  vscodeMcpInstallLink,
+} from './agent-client-links.ts'
 import {
   agentClients,
   agentSetupPrompt,
@@ -160,7 +170,7 @@ describe('stepsByGroup', () => {
 
 describe('setup step names', () => {
   test('each step is named as its place in the app, the setup_status order words match', () => {
-    expect(setupStepNames.notify?.label).toBe('Who hears about calls')
+    expect(setupStepNames.notify?.label).toBe('Call alerts')
     expect(setupStepNames['call-audio']?.hint).toMatch(/LiveKit.*SIP/)
     expect(SETUP_MCP_INSTRUCTIONS).toContain('when to answer, notifications, phone number')
     expect(SETUP_MCP_INSTRUCTIONS).not.toContain('who hears about calls')
@@ -251,4 +261,63 @@ test("the setup page's step names are the reader's words", () => {
   expect(names['test-call']?.hint).toBeUndefined()
   // English stays what the setup MCP and the CLI say.
   expect(setupStepNamesIn(english)).toEqual(setupStepNames)
+})
+
+describe('direct links to the clients\' own settings (2026-11-19)', () => {
+  test('Claude and ChatGPT: say they cannot add the server themselves, and link their settings page first', () => {
+    const claude = startPlan('claude', URL)
+    expect(claude.steps[0]!.text).toMatch(/^Claude cannot add the setup server by itself/)
+    expect(claude.steps[0]!.link).toEqual({ label: 'Open Claude connectors', href: CLAUDE_CONNECTORS_URL })
+    expect(CLAUDE_CONNECTORS_URL).toBe('https://claude.ai/customize/connectors')
+    const chatgpt = startPlan('chatgpt', URL)
+    expect(chatgpt.steps[0]!.text).toMatch(/^ChatGPT cannot add the setup server by itself/)
+    expect(chatgpt.steps[0]!.link).toEqual({ label: 'Open ChatGPT plugins', href: CHATGPT_PLUGINS_URL })
+    expect(CHATGPT_PLUGINS_URL).toBe('https://chatgpt.com/plugins')
+  })
+
+  test('one-click install links carry the address and nothing else', () => {
+    const cursor = new globalThis.URL(cursorMcpInstallLink('linedesk', 'https://desk.example/mcp'))
+    expect(cursor.protocol).toBe('cursor:')
+    expect(JSON.parse(atob(cursor.searchParams.get('config')!))).toEqual({ url: 'https://desk.example/mcp' })
+    expect(vscodeMcpInstallLink('linedesk', 'https://desk.example/mcp', true)).toMatch(/^vscode-insiders:mcp\/install\?/)
+    expect(opensWebPage(CLAUDE_CONNECTORS_URL)).toBe(true)
+    expect(opensWebPage('cursor://anysphere.cursor-deeplink/mcp/install')).toBe(false)
+  })
+})
+
+describe('the setup prompt in the person\'s language', () => {
+  const namespaced = (ns: string, messages: Record<string, string>) =>
+    Object.fromEntries(Object.entries(messages).map(([key, text]) => [`${ns}.${key}`, text]))
+  const german: Words = createTranslator('de', {
+    ...namespaced('onboarding', deOnboarding),
+    ...namespaced('server', deServer),
+  })
+  test('English by default: says to talk in English, confirms the business first, no plan up front', () => {
+    const prompt = agentSetupPrompt(URL, { scope: 'workspace' })
+    expect(prompt).toMatch(/Talk to me in English\.$/)
+    expect(prompt).toMatch(/No plan, no list of steps/)
+    expect(prompt).toMatch(/workspaces\[\]\.known/)
+  })
+
+  test('German on a German page: every prompt and command, with the setup address kept', () => {
+    for (const scope of ['install', 'workspace', 'partner'] as const) {
+      const plan = startPlan('claude_code', URL, scope, undefined, german)
+      expect(plan.prompt, scope).toMatch(/Sprich mit mir auf Deutsch\.$/)
+      expect(plan.prompt, scope).toContain(URL)
+      expect(plan.steps[0]!.code, scope).toMatch(/Sprich mit mir auf Deutsch/)
+    }
+    const change = { workspaceId: 'ws_1', workspaceName: 'Sanitär Müller' }
+    const changed = agentSetupPrompt(URL, { scope: 'workspace', change, words: german })
+    expect(changed).toContain('"Sanitär Müller" (workspaceId ws_1)')
+    expect(changed).toMatch(/Sprich mit mir auf Deutsch\.$/)
+    // Through a connector: no address, no key.
+    expect(agentSetupPrompt(URL, { connector: true, scope: 'workspace', words: german })).not.toContain('lds_')
+  })
+
+  test('the setup MCP tells the agent to use the person\'s language and to confirm before anything else', () => {
+    for (const text of [SETUP_MCP_INSTRUCTIONS, SETUP_MCP_WORKSPACE_INSTRUCTIONS]) {
+      expect(text).toMatch(/setup_status\.you_act_as\.language/)
+      expect(text).toMatch(/no plan, no list of steps/)
+    }
+  })
 })

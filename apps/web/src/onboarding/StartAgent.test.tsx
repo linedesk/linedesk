@@ -1,7 +1,7 @@
 import { type AgentClient, agentClients } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, test } from 'vitest'
-import { StartAgent } from './AgentSetup.tsx'
+import { describe, expect, test, vi } from 'vitest'
+import { SetUpYourself, StartAgent } from './AgentSetup.tsx'
 
 const URL = 'https://desk.example.com/mcp/setup/lds_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG'
 const render = (client: AgentClient) => renderToStaticMarkup(<StartAgent client={client} url={URL} />)
@@ -75,5 +75,48 @@ describe("StartAgent for a workspace owner's link", () => {
     expect(renderToStaticMarkup(<StartAgent client="other" url={URL} scope="workspace" />)).toMatch(
       /set up my business in Linedesk/,
     )
+  })
+})
+
+describe('StartAgent: direct links to the cloud apps\' own settings', () => {
+  test('Claude: says it cannot add the server itself and opens its connector settings in a new tab, first', () => {
+    const claude = render('claude')
+    expect(claude).toContain('Claude cannot add the setup server by itself')
+    const settings = at(
+      claude,
+      /<a class="k-btn k-btn-primary k-btn-sm" href="https:\/\/claude\.ai\/customize\/connectors" target="_blank" rel="noopener noreferrer">Open Claude connectors<\/a>/,
+    )
+    expect(settings).toBeGreaterThanOrEqual(0)
+    expect(settings).toBeLessThan(at(claude, /Name it Linedesk setup/))
+    // The chat link opens claude.ai in a new tab too.
+    expect(claude).toMatch(/href="https:\/\/claude\.ai\/new\?q=[^"]+" target="_blank" rel="noopener noreferrer">Open Claude</)
+  })
+
+  test('ChatGPT: its plugins page, in a new tab', () => {
+    const chatgpt = render('chatgpt')
+    expect(chatgpt).toContain('ChatGPT cannot add the setup server by itself')
+    expect(chatgpt).toMatch(
+      /href="https:\/\/chatgpt\.com\/plugins" target="_blank" rel="noopener noreferrer">Open ChatGPT plugins</,
+    )
+  })
+
+  test('links that open an app on this computer stay in this tab', () => {
+    for (const client of ['claude_code', 'cursor', 'copilot'] as const)
+      expect(render(client)).not.toMatch(/href="(claude|cursor|vscode):[^"]*" target=/)
+  })
+})
+
+describe('SetUpYourself: the way without an AI agent', () => {
+  test('a real secondary button with its line, which opens the setup by hand', () => {
+    const onClick = vi.fn()
+    const props = { text: 'No AI agent? Set it up yourself, one step at a time.', label: 'Set it up yourself', title: 'Go through the setup steps yourself', onClick }
+    const html = renderToStaticMarkup(<SetUpYourself {...props} />)
+    expect(html).toMatch(/class="as-by-hand"><span>No AI agent\? Set it up yourself, one step at a time\.<\/span><button[^>]*k-btn-secondary/)
+    expect(html).toContain('Set it up yourself</')
+    // The button's click is the page's way by hand (AgentSetup passes its `manual`).
+    const button = (SetUpYourself(props) as { props: { children: { props: { onClick: () => void } }[] } }).props
+      .children[1]!
+    button.props.onClick()
+    expect(onClick).toHaveBeenCalledOnce()
   })
 })

@@ -14,7 +14,9 @@ import {
   type AppSettingId,
   appSettingOn,
   type ConnectableApp,
+  cursorMcpInstallLink,
   isAppConnectError,
+  vscodeMcpInstallLink,
 } from '@linedesk/actions'
 import type { AppConnection, AppErrorCode } from '@linedesk/db/types'
 import type { ProviderId } from '../settings/calendarModel.ts'
@@ -427,15 +429,12 @@ export const codexCommand = (origin: string) => `codex mcp add linedesk --url ${
 /** Adding it to Gemini CLI: it finds the OAuth sign-in from the server's 401. */
 export const geminiCommand = (origin: string) => `gemini mcp add --transport http linedesk ${mcpAddress(origin)}`
 
-/** Cursor's one-click install link: the config as base64 JSON (Cursor docs, MCP install links). */
-export const cursorInstallLink = (origin: string) =>
-  `cursor://anysphere.cursor-deeplink/mcp/install?name=linedesk&config=${encodeURIComponent(
-    btoa(JSON.stringify({ url: mcpAddress(origin) })),
-  )}`
+/** Cursor's one-click install link (agent-client-links.ts): the address alone, the sign-in is OAuth. */
+export const cursorInstallLink = (origin: string) => cursorMcpInstallLink('linedesk', mcpAddress(origin))
 
-/** VS Code's one-click install link: the server as URL-encoded JSON. */
-export const vscodeInstallLink = (origin: string) =>
-  `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: 'linedesk', type: 'http', url: mcpAddress(origin) }))}`
+/** VS Code's (or VS Code Insiders') one-click install link: the address alone, the sign-in is OAuth. */
+export const vscodeInstallLink = (origin: string, insiders = false) =>
+  vscodeMcpInstallLink('linedesk', mcpAddress(origin), insiders)
 
 /** With an API key instead of the sign-in (a client that cannot do OAuth): Claude Code. */
 export const claudeCodeKeyCommand = (origin: string) =>

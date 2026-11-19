@@ -1719,3 +1719,10 @@ dd.copy:hover { text-decoration: underline; text-underline-offset: 2px; }
 /* Development carrier: a quiet marker, never alarming, so a made-up result is never read as a real one. */
 .fc-sim { display: inline-block; margin-left: 8px; padding: 0 6px; border: 1px solid var(--line); border-radius: var(--radius-xs); color: var(--ink-muted); font-size: 11px; line-height: 18px; font-weight: 400; }
 .fc-result .fc-sim { margin-left: 0; justify-self: start; }
+
+/* Buttons that open an AI client (ui/ClientLink.tsx): side by side, wrapping on a phone. */
+.client-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

@@ -31,6 +31,8 @@ import {
   actions,
   callAudioGuideIn,
   canBuyNumbersIn,
+  CHATGPT_PLUGINS_URL,
+  CLAUDE_CONNECTORS_URL,
   categoryNames,
   countryNamed,
   type DialCode,
@@ -80,6 +82,7 @@ import {
 } from '@linedesk/actions'
 import {
   assistants,
+  type BusinessProfile,
   billing_accounts,
   calls,
   member,
@@ -89,6 +92,7 @@ import {
   user,
   workspace_settings,
 } from '@linedesk/db'
+import { languageInSentence } from '@linedesk/i18n'
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { and, asc, eq } from 'drizzle-orm'
 import { z } from 'zod'
@@ -122,6 +126,7 @@ import { isPendingPayment, waitsForOwnTrial } from './self-serve.ts'
 import { type PartnerSetupFacts, partnerPast, partnerSetupFacts } from './partner-setup.ts'
 import { setupChecklist } from './setup-checklist.ts'
 import { workspaceLocale } from './workspace-locale.ts'
+import { localeForUserId } from './email-locale.ts'
 import { isPlaceholderWorkspaceName, servedCountriesOf } from './served-countries.ts'
 import { assistantSpokeIn } from './setup-events.ts'
 import { withoutHopByHopHeaders } from './keep-alive.ts'
@@ -182,8 +187,9 @@ const setupPage = (actor: Pick<Actor, 'setupPartnerId'>) =>
  * Tools a client should confirm with the person first: they cost money or undo work. The provider tools are only on an
  * install link, so their person is always the instance admin.
  */
+
 const askFirst = (actor: Actor): Record<string, string> => ({
-  'phoneNumber.setup': `With purchase: true this buys a phone number (only for a workspace in the US, Canada or Puerto Rico; about $1 a month${actor.setupWorkspaceId ? '' : ' on Telnyx'} in the US and Canada, $3 in Puerto Rico): ask the ${personOf(actor)} first and say the cost. With purchase: false it attaches a number the carrier account already has (phoneNumber_listCarrierNumbers lists them).`,
+  'phoneNumber.setup': `With purchase: true this buys a phone number, only for a workspace in ${NUMBER_BUY_COUNTRIES.join(', ')} (about $1 a month${actor.setupWorkspaceId ? '' : ' on Telnyx'} in the US and Canada, $3 in Puerto Rico): ask the ${personOf(actor)} first and say the cost. With purchase: false it attaches a number the carrier account already has (phoneNumber_listCarrierNumbers lists them).`,
   'provider.clearKeys': 'Removes the stored keys of a provider: ask the admin first.',
   'provider.tryOut':
     'kind "email" sends one real email with a six-digit code to the admin\'s own address: ask them for the code, then provider_confirmEmail { code }. kind "telephony" lists numbers without buying any.',
@@ -481,7 +487,31 @@ export const installPartDone = (steps: readonly Pick<Step, 'id' | 'state'>[]) =>
   steps.filter(s => INSTALL_GROUP_STEPS.includes(s.id)).every(s => s.state === 'done')
 
 /** One workspace's steps for the agent, with its id: every business tool takes it as workspaceId. */
-type WorkspaceStatus = { id: string | null; name: string | null; role?: ManagedWorkspace['role']; steps: Step[] }
+/**
+ * What Linedesk already knows about a workspace's business, so the agent confirms it instead of asking (its first
+ * reply: "I'll set up Linedesk for <name> (<what it does>, <city>). Is that right?"). Business text is data.
+ */
+type KnownBusiness = {
+  name: string | null
+  description: string | null
+  address: string | null
+  service_area: string | null
+  website: string | null
+  services: string[]
+  hours: string | null
+  /** The About text the assistant answers from (business_profile.instructions); when set, it replaces the fields. */
+  about: string | null
+  country: string
+  language: string
+  time_zone: string | null
+}
+type WorkspaceStatus = {
+  id: string | null
+  name: string | null
+  role?: ManagedWorkspace['role']
+  known?: KnownBusiness
+  steps: Step[]
+}
 
 /** The first step still to do (not done, not the admin's own). */
 const firstOpen = (steps: readonly Step[]) => steps.find(s => s.state !== 'done' && s.state !== 'admin_only') ?? null
@@ -766,7 +796,28 @@ async function workspaceStatus(actor: Actor, ws: ManagedWorkspace, advance: bool
   const steps = inWs ? await workspaceSteps(inWs, advance) : []
   // A partner (its key, or one of its team in the client workspace) sets up a client's: the steps speak about the client.
   const names = actor.setupPartnerId || (await viaPartner(actor.actorId, ws.id)) ? clientSetupStepNames : setupStepNames
-  return { id: ws.id, name: ws.name, role: ws.role, steps: inGroup('business', steps, names) }
+  return { id: ws.id, name: ws.name, role: ws.role, known: await knownBusiness(ws), steps: inGroup('business', steps, names) }
+}
+
+/** What the workspace's profile and settings already say about the business (KnownBusiness). */
+async function knownBusiness(ws: ManagedWorkspace): Promise<KnownBusiness> {
+  const [settings] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, ws.id))
+  const assistant = await firstAssistant(ws.id)
+  const locale = await workspaceLocale(db, ws.id, settings ?? null)
+  const profile = (assistant?.business_profile ?? {}) as BusinessProfile
+  return {
+    name: isPlaceholderWorkspaceName(ws.name) ? null : ws.name,
+    description: profile.description || null,
+    address: profile.address || null,
+    service_area: profile.service_area || null,
+    website: profile.website || null,
+    services: profile.services ?? [],
+    hours: profile.hours || null,
+    about: profile.instructions?.trim() || null,
+    country: locale.resolvedCountry,
+    language: languageInSentence(locale.resolvedLanguage, 'en'),
+    time_zone: settings?.timezone ?? null,
+  }
 }
 
 /**
@@ -1023,6 +1074,8 @@ async function whoAmI(actor: Actor) {
   return {
     name: me?.name ?? null,
     email: me?.email ?? null,
+    // The language they use the app in: the agent talks to them in it (SETUP_MCP_INSTRUCTIONS, "Talking to the person").
+    language: languageInSentence(await localeForUserId(db, actor.actorId), 'en'),
     role: actor.setupPartnerId
       ? 'partner owner'
       : actor.setupWorkspaceId
@@ -1053,8 +1106,8 @@ const BUSINESS_STEPS = [
   ['business', 'The business: its name, time zone, and what the assistant knows about it'],
   ['assistant', 'The assistant: name, greeting, voice'],
   ['pickup', 'When the assistant picks up'],
-  ['notify', 'Who hears about calls'],
-  ['phone', 'A phone number for the assistant'],
+  ['notify', 'Call alerts: an email after every call, urgent calls to a mobile'],
+  ['phone', 'Phone number: the number callers reach the assistant on'],
 ] as const
 
 /**
@@ -1080,8 +1133,28 @@ const noWorkspaceSteps = (): StepBase[] => [
  * Canada and Puerto Rico (NUMBER_BUY_COUNTRIES); elsewhere attaching a number the business already has. `w` is the
  * workspace argument the tool calls carry; `country` null: nothing names the workspace's country yet.
  */
-export function numberSetupHow(w: string, country: string | null): string {
+/**
+ * Learning from the business's emails (Janik, 2026-11-19): right after the business is confirmed the agent offers to
+ * read the customer requests in the person's own mailbox (a mail connector in their AI app) and saves only the general
+ * questions and answers in the About text, the place answered caller questions go too (knowledgeQuestion.answer,
+ * answeredQuestionLine). Never an email or anyone's personal data.
+ */
+export const emailKnowledgeHow = (who: string, w: string) =>
+  english.t('server.setupAgent.mcp.emailKnowledge', {
+    who,
+    claude: CLAUDE_CONNECTORS_URL,
+    chatgpt: CHATGPT_PLUGINS_URL,
+    line: 'If a caller asks "<question>": <answer>',
+    save: `assistant_update { ${w}, assistantId, business_profile }`,
+  })
+
+export function numberSetupHow(
+  w: string,
+  country: string | null,
+  web = webAddress(),
+): string {
   const countries = NUMBER_BUY_COUNTRIES.join(', ')
+
   const listed = `phoneNumber_listCarrierNumbers { ${w} } lists the numbers in the carrier account that are free to attach`
   const attach = `A number the carrier account already has (${listed}): { ${w}, e164, purchase: false, mode }.`
   // Nothing names the workspace's country yet: the area code picks it, and the bought number sets it.
@@ -1187,9 +1260,10 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
               }),
             ]
           : []),
-        `Check the name, time zone and country with the ${who}: workspace_rename { ${w}, name }, workspace_updateSettings { ${w}, timeZone, country: "US" } (ISO country code; null: automatic). The country is the default for phone numbers, the forwarding guide, holidays and currency, and the region numbers callers say are read in; its main language is what call summaries are written in and what the assistant greets in unless it has its own main language (assistant_update languages.main).`,
+        `Check the name, time zone and country with the ${who}: workspace_rename { ${w}, name }, workspace_updateSettings { ${w}, timeZone, country } (ISO country code, now ${locale.resolvedCountry}; null: automatic). The country is the default for phone numbers, the forwarding guide, holidays and currency, and the region numbers callers say are read in; its main language is what call summaries are written in and what the assistant greets in unless it has its own main language (assistant_update languages.main).`,
         `business_search { ${w}, query: "<name> <city>" } finds the listing (when business lookup is set up); business_import { ${w}, assistantId: "${assistant?.id ?? ''}", placeId?, name?, website? } drafts a profile from the listing and the website. It changes nothing.`,
         `Show the ${who} a short summary (services, area, hours, what to say about prices), fix what they correct, then save it: assistant_update { ${w}, assistantId, business_profile }. Opening hours: businessHours_set { ${w}, … }.`,
+        emailKnowledgeHow(who, w),
         `Then onboarding_setStep { ${w}, step: "assistant" }.`,
       ],
     },
@@ -1219,11 +1293,11 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
     },
     {
       id: 'notify',
-      label: 'Who hears about calls',
+      label: BUSINESS_STEPS[3][1],
       state: done(notifyDone),
       how: [
-        `Each call is summarized by email to the ${who} (notifications_update { ${w}, email: true }).`,
-        `Urgent calls can be put through to a person: ask for a mobile number and save it in the assistant's transfers (assistant_update { ${w}, assistantId, transfers }).`,
+        `What it is for, in plain words: after every call the ${who} gets an email with a short summary, and a caller with something urgent can be put through to their mobile. Turn the email on (notifications_update { ${w}, email: true }) and say so.`,
+        `Suggest putting urgent calls through to the ${who}'s own mobile and ask only for the number; save it in the assistant's transfers (assistant_update { ${w}, assistantId, transfers }). Say it in plain words ("urgent calls go to your mobile"), never "transfers".`,
         `Then onboarding_setStep { ${w}, step: "${waitingForTrial ? 'activate' : 'phone'}" }.`,
       ],
     },
@@ -1240,6 +1314,11 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
                 page: setupPage(actor),
                 seconds: POLL_SECONDS,
               }),
+              // TODO use trialStartPath (apps/api/src/trial-link.ts, built in another PR) once it is on master-dev.
+              english.t('server.setupAgent.mcp.trialLink', {
+                who,
+                link: `${webAddress()}/#workspace/billing?start-trial=1&ws=${workspaceId}`,
+              }),
             ],
           } satisfies StepBase,
         ]
@@ -1255,7 +1334,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
         : []),
     {
       id: 'phone',
-      label: 'A phone number for the assistant',
+      label: BUSINESS_STEPS[4][1],
       // On a partner's link the number is the owner's own row on the setup page (it costs money), never the agent's.
       state:
         actor.setupPartnerId && !phoneDone && !waitingForTrial && !waitingForPartner ? 'admin_only' : done(phoneDone),
@@ -1268,8 +1347,12 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
           : actor.setupPartnerId
             ? [english.t('server.setupAgent.partner.phoneHow', { who, page: setupPage(actor), seconds: POLL_SECONDS })]
             : [
-                'Ask how calls should reach the assistant: keep the business number and forward to a new Linedesk number (mode "forward_conditional", or "forward_all" for every call), or a new number of its own (mode "new"). For forwarding, forwarding_guide { workspaceId, carrier? } shows how it works for the business line\'s carrier already now, before the number exists.',
-                numberSetupHow(w, countryNamed(locale.countrySource) ? locale.resolvedCountry : null),
+                'What it is for, in plain words: the assistant needs its own phone number. Most businesses keep their number: calls they miss are forwarded to the new Linedesk number (mode "forward_conditional", or "forward_all" for every call). Or callers use the new number directly (mode "new"). Suggest forwarding and ask only to confirm. For forwarding, forwarding_guide { workspaceId, carrier? } shows how it works for the business line\'s carrier already now, before the number exists.',
+                numberSetupHow(
+                  w,
+                  countryNamed(locale.countrySource) ? locale.resolvedCountry : null,
+                  webAddress(),
+                ),
                 `Then onboarding_setStep { ${w}, step: "done" }.`,
               ],
     },

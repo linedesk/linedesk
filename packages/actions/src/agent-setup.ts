@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 import type { MessageKey } from '@linedesk/i18n'
+import { CHATGPT_PLUGINS_URL, CLAUDE_CONNECTORS_URL } from './agent-client-links.ts'
 import { english, type Words } from './words.ts'
 
 // Agent setup (LIN-125, docs/api.md "Setup MCP"): the preferred way to set up an install is an AI agent. An instance
@@ -349,21 +350,23 @@ export function startPlan(
   url: string,
   scope: SetupScope = 'install',
   change?: SetupChange,
+  words: Words = english,
 ): { open: OpenLink | null; otherWay?: string; steps: StartStep[]; prompt: string; promptFirst: boolean } {
-  const prompt = agentSetupPrompt(url, { scope, change })
-  const COMMAND_PROMPT = commandPrompt(scope, change)
+  const t = words.t
+  const prompt = agentSetupPrompt(url, { scope, change, words })
+  const COMMAND_PROMPT = commandPrompt(scope, change, words)
   switch (client) {
     case 'claude_code':
       return {
         open: {
-          label: 'Open in Claude Code',
+          label: t('onboarding.agentSetup.start.claudeCode.open'),
           href: `claude://code/new?q=${encodeURIComponent(prompt)}`,
-          text: 'Opens the Claude desktop app with the prompt filled in. Send it to start.',
+          text: t('onboarding.agentSetup.start.claudeCode.openText'),
         },
-        otherWay: 'Or copy the command for a terminal',
+        otherWay: t('onboarding.agentSetup.start.claudeCode.otherWay'),
         steps: [
           {
-            text: 'Run this in a terminal. It connects the setup server and starts the setup:',
+            text: t('onboarding.agentSetup.start.runCommand'),
             code: `claude ${shellQuote(COMMAND_PROMPT)} --mcp-config ${shellQuote(JSON.stringify({ mcpServers: { [MCP_NAME]: { type: 'http', url } } }))}`,
           },
         ],
@@ -375,7 +378,7 @@ export function startPlan(
         open: null,
         steps: [
           {
-            text: 'Run this in a terminal. It connects the setup server and starts the setup:',
+            text: t('onboarding.agentSetup.start.runCommand'),
             code: `codex -c ${shellQuote(`mcp_servers.${MCP_NAME}.url="${url}"`)} ${shellQuote(COMMAND_PROMPT)}`,
           },
         ],
@@ -386,20 +389,16 @@ export function startPlan(
       // VS Code's chat link is the one its own docs use for "Ask in VS Code" (vscode://GitHub.Copilot-Chat/chat?prompt=).
       // In Agent mode Copilot runs terminal commands, so it reaches the tools over HTTP as the prompt says, like Cursor.
       // Adding the setup server first (MCP: Add Server, code.visualstudio.com/docs/agent-customization/mcp-servers)
-      // gives it the tools directly: the other way.
+      // gives it the tools directly: the other way. No vscode:mcp/install link here: the setup address carries the
+      // setup key, and VS Code would keep it in its settings after the setup (agent-client-links.ts).
       return {
         open: {
-          label: 'Open in VS Code',
+          label: t('onboarding.agentSetup.start.copilot.open'),
           href: `vscode://GitHub.Copilot-Chat/chat?prompt=${encodeURIComponent(prompt)}`,
-          text: 'Opens Copilot Chat with the prompt filled in. Switch it to Agent mode and send it.',
+          text: t('onboarding.agentSetup.start.copilot.openText'),
         },
-        otherWay: 'Or add the setup server first',
-        steps: [
-          {
-            text: 'In VS Code, run MCP: Add Server from the Command Palette, choose HTTP, paste this URL and name it linedesk-setup. Then open the chat with the button above:',
-            code: url,
-          },
-        ],
+        otherWay: t('onboarding.agentSetup.start.copilot.otherWay'),
+        steps: [{ text: t('onboarding.agentSetup.start.copilot.addServer'), code: url }],
         prompt,
         promptFirst: false,
       }
@@ -411,13 +410,10 @@ export function startPlan(
         open: null,
         steps: [
           {
-            text: 'Run this in a terminal with Gemini CLI. It connects the setup server and starts the setup:',
+            text: t('onboarding.agentSetup.start.gemini.runCommand'),
             code: `gemini mcp add --scope user --transport http ${MCP_NAME} ${shellQuote(url)} && gemini -i ${shellQuote(COMMAND_PROMPT)}`,
           },
-          {
-            text: 'Gemini in the browser can use it only if your account can add a custom app by URL (Connected Apps, on some plans). Add one with this URL, then ask Gemini to set up Linedesk with it, starting with setup_status:',
-            code: url,
-          },
+          { text: t('onboarding.agentSetup.start.gemini.web'), code: url },
         ],
         prompt,
         promptFirst: false,
@@ -425,28 +421,34 @@ export function startPlan(
     case 'cursor':
       return {
         open: {
-          label: 'Open in Cursor',
+          label: t('onboarding.agentSetup.start.cursor.open'),
           href: `cursor://anysphere.cursor-deeplink/prompt?text=${encodeURIComponent(prompt)}`,
-          text: 'Opens Cursor with the prompt filled in. Send it, and the agent calls the setup tools from its terminal.',
+          text: t('onboarding.agentSetup.start.cursor.openText'),
         },
-        otherWay: 'Or copy the prompt',
-        steps: [{ text: 'Paste it into a Cursor chat in Agent mode and send it:', prompt: true }],
+        otherWay: t('onboarding.agentSetup.start.cursor.otherWay'),
+        steps: [{ text: t('onboarding.agentSetup.start.cursor.paste'), prompt: true }],
         prompt,
         promptFirst: false,
       }
     case 'claude': {
-      const viaConnector = agentSetupPrompt(url, { connector: true, scope, change })
-      // The link works only once the connector is added, so it stays the last step (no `open`).
+      const viaConnector = agentSetupPrompt(url, { connector: true, scope, change, words })
+      // Claude cannot add a connector by itself and has no link that fills in the address: its connector settings
+      // open in a new tab (CLAUDE_CONNECTORS_URL). The chat link works only once the connector is added, so it stays
+      // the last step (no `open`).
       return {
         open: null,
         steps: [
           {
-            text: 'Claude cannot add the setup server by itself. In Claude: Settings → Connectors → Add custom connector.',
+            text: t('onboarding.agentSetup.start.claude.settings'),
+            link: { label: t('onboarding.agentSetup.start.claude.openSettings'), href: CLAUDE_CONNECTORS_URL },
           },
-          { text: 'Name it Linedesk setup and paste this URL, then Add:', code: url },
+          { text: t('onboarding.agentSetup.start.claude.add'), code: url },
           {
-            text: 'Open a new chat with the prompt filled in, turn the connector on (+ → Connectors) and send it:',
-            link: { label: 'Open Claude', href: `https://claude.ai/new?q=${encodeURIComponent(viaConnector)}` },
+            text: t('onboarding.agentSetup.start.claude.chat'),
+            link: {
+              label: t('onboarding.agentSetup.start.claude.openChat'),
+              href: `https://claude.ai/new?q=${encodeURIComponent(viaConnector)}`,
+            },
           },
         ],
         prompt: viaConnector,
@@ -454,26 +456,24 @@ export function startPlan(
       }
     }
     case 'chatgpt':
+      // The same for ChatGPT: its plugins page, where a custom MCP server is added (CHATGPT_PLUGINS_URL).
       return {
         open: null,
         steps: [
           {
-            text: 'ChatGPT cannot add the setup server by itself. Settings → Apps & Connectors → Advanced settings → turn on Developer mode.',
+            text: t('onboarding.agentSetup.start.chatgpt.settings'),
+            link: { label: t('onboarding.agentSetup.start.chatgpt.openSettings'), href: CHATGPT_PLUGINS_URL },
           },
-          { text: 'Create a connector: name Linedesk setup, this URL, authentication None:', code: url },
-          { text: 'In a new chat, pick Developer mode, turn on Linedesk setup and paste the prompt below.' },
+          { text: t('onboarding.agentSetup.start.chatgpt.add'), code: url },
+          { text: t('onboarding.agentSetup.start.chatgpt.chat') },
         ],
-        prompt: agentSetupPrompt(url, { connector: true, scope, change }),
+        prompt: agentSetupPrompt(url, { connector: true, scope, change, words }),
         promptFirst: true,
       }
     case 'other':
       return {
         open: null,
-        steps: [
-          {
-            text: 'Paste the prompt below into your agent. It contains the setup server, so the agent connects by itself: as an MCP server (Streamable HTTP, no sign-in) or over HTTP from a terminal.',
-          },
-        ],
+        steps: [{ text: t('onboarding.agentSetup.start.other.paste') }],
         prompt,
         promptFirst: true,
       }
@@ -482,22 +482,28 @@ export function startPlan(
 
 const MCP_NAME = 'linedesk-setup'
 /** The first message of the one-command start: the setup server's own instructions carry the playbook. */
-const commandPrompt = (scope: SetupScope, change?: SetupChange) =>
+const commandPrompt = (scope: SetupScope, change: SetupChange | undefined, words: Words) =>
   change
-    ? `Help me change ${changeTarget(change)} in Linedesk, the open-source AI receptionist, through the linedesk-setup tools. Call setup_status first, read the current settings, then ask me what to change and change only that.`
+    ? change.assistant
+      ? words.t('server.setupAgent.command.changeAssistant', {
+          assistant: JSON.stringify(change.assistant.name),
+          workspace: JSON.stringify(change.workspaceName),
+        })
+      : words.t('server.setupAgent.command.changeWorkspace', { workspace: JSON.stringify(change.workspaceName) })
     : scope === 'partner'
-      ? english.t('server.setupAgent.partner.command')
+      ? words.t('server.setupAgent.partner.command')
       : scope === 'workspace'
-        ? 'Help me set up my business in Linedesk, the open-source AI receptionist, through the linedesk-setup tools. Call setup_status first, follow the setup server instructions and the next step it gives, and work through it with me one step at a time.'
-        : 'Help me set up Linedesk, the open-source AI receptionist, on my server through the linedesk-setup tools. Call setup_status first, follow the setup server instructions and the next step it gives, and work through it with me one step at a time.'
+        ? words.t('server.setupAgent.command.workspace')
+        : words.t('server.setupAgent.command.install')
 /** A POSIX shell word: single quotes, a single quote inside written as '\''. */
 export const shellQuote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`
 
 /**
- * The prompt the admin pastes into their agent (or that a link fills in): what to do, how to work with them, and how
- * to reach the tools. The full playbook is the setup MCP's own instructions (SETUP_MCP_INSTRUCTIONS) and
- * `setup_status`, so this stays readable and the server can grow without new prompts. `connector`: the agent has the
- * tools through a connector the admin added (Claude, ChatGPT), so the prompt carries no URL and no key.
+ * The prompt the admin pastes into their agent (or that a link fills in), in the person's language (`words`: the
+ * setup page passes its own), so the agent talks to them in it: what to do, a short plan in plain words to show
+ * first, and how to reach the tools. The full playbook is the setup MCP's own instructions (SETUP_MCP_INSTRUCTIONS)
+ * and `setup_status`, so this stays readable and the server can grow without new prompts. `connector`: the agent has
+ * the tools through a connector the admin added (Claude, ChatGPT), so the prompt carries no URL and no key.
  */
 export function agentSetupPrompt(
   url: string,
@@ -505,118 +511,67 @@ export function agentSetupPrompt(
     connector = false,
     scope = 'install',
     change,
-  }: { connector?: boolean; scope?: SetupScope; change?: SetupChange } = {},
+    words = english,
+  }: { connector?: boolean; scope?: SetupScope; change?: SetupChange; words?: Words } = {},
 ): string {
-  if (change) return changeSettingsPrompt(url, connector, change)
-  if (scope === 'workspace') return workspaceSetupPrompt(url, connector)
-  if (scope === 'partner') return partnerSetupPrompt(url, connector)
-  const tools = connector
-    ? `How to reach the tools:
-- Use the tools of the Linedesk setup connector (setup_status, providers_list, provider_setKeys and so on).
-- If you do not see them, tell me to turn the connector on in this chat first.`
-    : `How to reach the tools (the setup server is ${url}):
-- If you have tools named setup_status, providers_list, provider_setKeys and so on (the "linedesk-setup" MCP server), use them.
-- If not, but you can run shell commands, call the same tools over HTTP. Each call is one POST:
-  curl -s ${url} -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"setup_status","arguments":{}}}'
-  The answer is a line starting with "data: " followed by JSON. Use "method":"tools/list" once to see every tool and its input.
-- If you can do neither, tell me to connect you to that address as an MCP server first.
-The address contains a setup key that stops working after ${SETUP_KEY_HOURS} hours, for security. Do not repeat it, post it or save it anywhere.`
-  return `You are helping me set up Linedesk, the open-source AI receptionist, on my server. Linedesk answers my business's phone calls with an AI assistant. Please set it up end to end with me, through the Linedesk setup tools.
-
-${tools}
-
-What to do:
-1. Call setup_status first. It says what is set up, what is missing, and the next step with exact instructions. Read the server's instructions too.
-2. Give me a short plan: what we will do, which accounts I need (a phone carrier and an AI provider), roughly what it costs and how long it takes (about 10 minutes).
-3. Work through the next steps one at a time, and call setup_status again after each one.
-   - For every provider (AI, phone carrier, email, and the optional ones): recommend the default and say why in one line, give me the exact page to open and what to click, then ask me to paste the key here in the chat. Store it right away yourself (provider_setKeys, or provider_connectOneKey for a single OpenAI key); it is tested at once, so tell me the result in a few words. Never send me to Linedesk to paste a key, never show a key back to me, never write it into a file.
-   - I create accounts, accept terms, pay and copy keys myself. You never enter payment details.
-   - For my business: ask for its name and website (or find it with business_search), draft the assistant's profile with business_import, show me a short summary, and save it once I agree.
-   - Ask me once whether I run more than one business or location. Each one gets its own workspace (workspace_create); we set them up one after the other.
-   - Ask before anything that costs money (buying a phone number) or that I cannot undo, and say what it costs.
-4. When the phone number works, help me forward my business line (forwarding_guide, with the country the line is in), check it (phoneNumber_checkForwarding), and have me call it once.
-5. Ask me to make the test call right on the setup page ("Call <assistant> now" on the Test call row) and wait until setup_status shows it done.
-6. Finish with a short summary of what is set up and what is left for me, then end your own access with setup_endAccess (if steps are still open, ask me first).
-
-Keep messages short and plain. Ask one question at a time. If a tool refuses, read its message: it says what to do.`
-}
-
-/** How a pasted prompt reaches the tools: through the connector the person added, or the setup server's address. */
-function toolsLines(url: string, connector: boolean, example: string) {
-  return connector
-    ? `How to reach the tools:
-- Use the tools of the Linedesk setup connector (setup_status, ${example} and so on).
-- If you do not see them, tell me to turn the connector on in this chat first.`
-    : `How to reach the tools (the setup server is ${url}):
-- If you have tools named setup_status, ${example} and so on (the "linedesk-setup" MCP server), use them.
-- If not, but you can run shell commands, call the same tools over HTTP. Each call is one POST:
-  curl -s ${url} -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"setup_status","arguments":{}}}'
-  The answer is a line starting with "data: " followed by JSON. Use "method":"tools/list" once to see every tool and its input.
-- If you can do neither, tell me to connect you to that address as an MCP server first.
-The address contains a setup key that stops working after ${SETUP_KEY_HOURS} hours, for security. Do not repeat it, post it or save it anywhere.`
-}
-
-/**
- * The prompt for a workspace owner's setup link: only their business's steps. The server (phone carrier, AI, email)
- * is the server admin's, so the prompt asks for no provider accounts or keys.
- */
-function workspaceSetupPrompt(url: string, connector: boolean): string {
-  return `You are helping me set up my business in Linedesk, the open-source AI receptionist. Linedesk answers my business's phone calls with an AI assistant. The server is already run for me; please set up my business end to end with me, through the Linedesk setup tools.
-
-${toolsLines(url, connector, 'business_search, assistant_update')}
-
-What to do:
-1. Call setup_status first. It says what is set up, what is missing, and the next step with exact instructions. Read the server's instructions too.
-2. Give me a short plan: what we will do and how long it takes (about 10 minutes).
-3. Work through the next steps one at a time, and call setup_status again after each one.
-   - Ask for my business's name and website (or find it with business_search), draft the assistant's profile with business_import, show me a short summary, and save it once I agree.
-   - Then the assistant's name and greeting, when it picks up, who hears about calls, and a phone number.
-   - Ask before anything that costs money (buying a phone number) or that I cannot undo, and say what it costs.
-4. When the phone number works, help me forward my business line (forwarding_guide, with the country the line is in), check it (phoneNumber_checkForwarding), and have me call it once.
-5. Ask me to make the test call right on the setup page ("Call <assistant> now" on the Test call row) and wait until setup_status shows it done.
-6. Finish with a short summary of what is set up and what is left for me, then end your own access with setup_endAccess (if steps are still open, ask me first).
-
-Keep messages short and plain. Ask one question at a time. If a tool refuses, read its message: it says what to do.`
-}
-
-/** The prompt for a white-label partner owner's link (the partner's agent page, after its Checkout). */
-function partnerSetupPrompt(url: string, connector: boolean): string {
-  return english.t('server.setupAgent.partner.prompt', {
-    tools: toolsLines(url, connector, 'partner_get, partnerBrand_set'),
+  if (change) return changeSettingsPrompt(url, connector, change, words)
+  // Where the person connects their email in their AI app, for the step that learns from it (agent-client-links.ts).
+  const connect = { claudeConnectors: CLAUDE_CONNECTORS_URL, chatgptPlugins: CHATGPT_PLUGINS_URL }
+  if (scope === 'workspace')
+    return words.t('server.setupAgent.prompt.workspace', {
+      tools: toolsLines(url, connector, 'business_search, assistant_update', words),
+      ...connect,
+    })
+  if (scope === 'partner')
+    return words.t('server.setupAgent.partner.prompt', {
+      tools: toolsLines(url, connector, 'partner_get, partnerBrand_set', words),
+    })
+  return words.t('server.setupAgent.prompt.install', {
+    tools: toolsLines(url, connector, 'providers_list, provider_setKeys', words),
+    ...connect,
   })
 }
 
-/** What a change is about, as the prompt names it: the assistant (and its workspace), or the workspace. */
-const changeTarget = (change: SetupChange) =>
-  change.assistant
-    ? `the settings of my assistant ${JSON.stringify(change.assistant.name)} in my workspace ${JSON.stringify(change.workspaceName)}`
-    : `the settings of my workspace ${JSON.stringify(change.workspaceName)}`
+/** One tool call over HTTP, for an agent with a shell but without MCP (the prompt's way in without the tools). */
+const curlCall = (url: string) =>
+  `curl -s ${url} -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"setup_status","arguments":{}}}'`
+
+/** How a pasted prompt reaches the tools: through the connector the person added, or the setup server's address. */
+function toolsLines(url: string, connector: boolean, example: string, words: Words) {
+  return connector
+    ? words.t('server.setupAgent.prompt.toolsConnector', { example })
+    : words.t('server.setupAgent.prompt.toolsServer', {
+        url,
+        example,
+        curl: curlCall(url),
+        hours: SETUP_KEY_HOURS,
+      })
+}
 
 /**
  * The prompt for a link made from Workspace settings or Assistant settings ("Change with an AI agent"): the workspace
  * is set up already; the agent reads what is set now and changes only what the person asks. The names are the
  * person's own text, quoted as data; the ids say exactly which workspace and assistant.
  */
-function changeSettingsPrompt(url: string, connector: boolean, change: SetupChange): string {
-  const which = change.assistant
-    ? `The assistant is ${JSON.stringify(change.assistant.name)} (assistantId ${change.assistant.id}) in the workspace ${JSON.stringify(change.workspaceName)} (workspaceId ${change.workspaceId}).`
-    : `The workspace is ${JSON.stringify(change.workspaceName)} (workspaceId ${change.workspaceId}).`
-  return `You are helping me change ${changeTarget(change)} in Linedesk, the open-source AI receptionist. Linedesk answers my business's phone calls with an AI assistant. It is set up already; I want to change some of its settings with you, through the Linedesk setup tools.
-
-${which}
-
-${toolsLines(url, connector, 'assistant_update, workspace_updateSettings')}
-
-What to do:
-1. Call setup_status first and read the current settings (setup_status, and the details it gives for this workspace${change.assistant ? ' and this assistant' : ''}). Do not change anything yet.
-2. Ask me what I want to change, in one short question. Tell me briefly what is set now where it helps.
-3. Change only what I ask for, nothing else, and only in this ${change.assistant ? 'assistant and ' : ''}workspace. Before you save, say in one line what will change. After saving, read it back and tell me it is done.
-   - Ask before anything that costs money (buying a phone number) or that I cannot undo, and say what it costs.
-   - If something cannot be changed with these tools, tell me where it is in the app instead.
-4. When I am done, give me a short summary of what changed, then end your own access with setup_endAccess.
-
-Keep messages short and plain. Ask one question at a time. If a tool refuses, read its message: it says what to do.`
+function changeSettingsPrompt(url: string, connector: boolean, change: SetupChange, words: Words): string {
+  const tools = toolsLines(url, connector, 'assistant_update, workspace_updateSettings', words)
+  const workspace = JSON.stringify(change.workspaceName)
+  return change.assistant
+    ? words.t('server.setupAgent.prompt.changeAssistant', {
+        assistant: JSON.stringify(change.assistant.name),
+        assistantId: change.assistant.id,
+        workspace,
+        workspaceId: change.workspaceId,
+        tools,
+      })
+    : words.t('server.setupAgent.prompt.changeWorkspace', { workspace, workspaceId: change.workspaceId, tools })
 }
+
+/**
+ * How to talk to the person, in every setup MCP's `instructions`: in their own language (setup_status.you_act_as names
+ * it, the language they use the app in) and, first, a short plan a business owner without tech knowledge follows.
+ */
+const TALKING_TO_THEM = `Talking to the person: use the language setup_status.you_act_as.language names (the language they use Linedesk in), unless they write to you in another one. Your first reply: one short greeting, then the business setup_status already knows (workspaces[].known) in one line to confirm, and nothing else: no plan, no list of steps (several workspaces: suggest which one to start with). Then go step by step, one question at a time, and set up only what matters for the first calls. Use what you already know (setup_status, the business's website, your own memory of the person) to propose concrete values (greeting, services, hours, the mobile for urgent calls, an area code) and ask only to confirm or correct them; say when a value is your suggestion. When you reach a step, say in one plain sentence what it is for. Right after the business is confirmed, offer once to look through their emails for typical customer requests and their usual answers (the business step's how in setup_status says how, and what may be saved: only general questions and answers, never anyone's personal data). Never use internal terms (workspace id, pickup mode, transfers, onboarding step, KYC) without saying in plain words what they mean.`
 
 /**
  * The setup MCP's `instructions` for a workspace owner's link: one workspace's steps, nothing of the server's. Its
@@ -635,11 +590,13 @@ Working with the owner:
 
 Ending your access: when you are done, give the owner a short summary first, then call setup_endAccess. It ends only the setup link you are using, at once; every later call with it is refused, and the setup page tells the owner you ended it. setup_status says when (wrap_up). If steps are still open, ask the owner before you end it. Never end it in the middle of a step.
 
-Choices that work well (US): pick-up "when I can't answer" (no_answer) is the usual choice: the business phone rings first, unanswered calls forward to Linedesk.`
+Choices that work well: pick-up "when I can't answer" (no_answer) is the usual choice: the business phone rings first, unanswered calls forward to Linedesk.
+
+${TALKING_TO_THEM}`
 
 /** The setup MCP's `instructions` for a white-label partner owner's link (agent-first, 2026-11-18). */
 export const setupMcpPartnerInstructions = () =>
-  english.t('server.setupAgent.partner.instructions', { hours: SETUP_KEY_HOURS })
+  `${english.t('server.setupAgent.partner.instructions', { hours: SETUP_KEY_HOURS })}\n\n${TALKING_TO_THEM}`
 
 /** The setup MCP's `instructions`: the playbook an agent follows (also when the copied prompt was shortened). */
 export const SETUP_MCP_INSTRUCTIONS = `Linedesk setup: you are setting up a Linedesk install (an open-source AI receptionist that answers a business's phone calls) for its admin, the person you are talking to. You act as that admin, with setup tools only, email and sign-in included, through a key that ends after ${SETUP_KEY_HOURS} hours.
@@ -660,7 +617,7 @@ Working with the admin:
 
 Ending your access: when you are done, give the admin a short summary first, then call setup_endAccess. It ends only the setup link you are using, at once; every later call with it is refused, and the setup page tells the admin you ended it. setup_status says when (wrap_up). If steps are still open, ask the admin before you end it. Never end it in the middle of a step.
 
-Choices that work well (US):
+Choices that work well:
 - AI: one OpenAI key (simplest: one account, about $0.05 per call minute) or Deepgram + OpenRouter + ElevenLabs (best voice and features, about $0.03 per minute, three accounts).
 - Phone: Telnyx (about $1 a month per number plus about $0.005 a minute). Twilio works too.
 - Email: Resend (free to start; needs DNS records on a domain the admin owns).
@@ -668,4 +625,6 @@ Choices that work well (US):
 
 Where the install runs: setup_status.install. When install.public is false, read install.note: phone calls need a server, and it says how to move there.
 
-If you can run commands on the server itself (for example Claude Code there), you may check the install with docker compose ps and docker compose logs, and fix the voice server item. Never print the .env file or any secret.`
+If you can run commands on the server itself (for example Claude Code there), you may check the install with docker compose ps and docker compose logs, and fix the voice server item. Never print the .env file or any secret.
+
+${TALKING_TO_THEM}`

@@ -159,7 +159,7 @@ describe('setup keys', () => {
     expect(groupOf('workspace')).toBeUndefined()
     expect(step('business')).toMatchObject({ label: 'Your business', hint: 'name, time zone, services, area, prices' })
     // Named like the app's own places, with the industry term where it helps (setupStepNames).
-    expect(step('notify')).toMatchObject({ label: 'Who hears about calls' })
+    expect(step('notify')).toMatchObject({ label: 'Call alerts', hint: expect.stringMatching(/email after every call/) })
     expect(step('telephony')).toMatchObject({ label: 'Phone carrier', hint: 'Telnyx or Twilio' })
     expect(step('call-audio').hint).toMatch(/LiveKit/)
     // The workspaces the admin can set up, for the page's dropdown; the steps are for the first one here.
@@ -1741,9 +1741,9 @@ describe("the phone step's how-to by the workspace's country (LIN-300)", () => {
   })
 
   test('elsewhere: buying is refused, so attach a number the business has', () => {
-    const how = numberSetupHow(w, 'DE')
+    const how = numberSetupHow(w, 'AT')
     expect(how).not.toContain('purchase: true')
-    expect(how).toContain('Numbers can be bought only for workspaces in US, CA, PR; this one is in DE')
+    expect(how).toContain('Numbers can be bought only for workspaces in US, CA, PR; this one is in AT')
     expect(how).toContain(`phoneNumber_setup { ${w}, e164, purchase: false, mode }`)
     expect(how).toContain(`phoneNumber_listCarrierNumbers { ${w} }`)
   })

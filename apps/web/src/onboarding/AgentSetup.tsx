@@ -41,7 +41,7 @@ import {
   stepsByGroup,
   UNPAID_PARTNER_CLIENTS,
 } from '@linedesk/actions'
-import { T, useT } from '@linedesk/i18n/react'
+import { T, useFormat, useT } from '@linedesk/i18n/react'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { loadAgentSetup, loadInstallSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
 import { ADMIN_INSTALL_SETUP } from '../admin/Providers.tsx'
@@ -53,6 +53,7 @@ import { i18n } from '../i18n/index.tsx'
 import { SETUP_LINK_KEY, signInAgain as signOutAndSignIn } from '../localData.ts'
 import { callAction } from '../settings/settings-api.ts'
 import { dateTimeLabel, untilLabel } from '../time.ts'
+import { ClientLink } from '../ui/ClientLink.tsx'
 import { HelpTip } from '../ui/HelpTip.tsx'
 import { LoadProblem, Skeleton, SkeletonChecklist, SkeletonPart, useLoading } from '../ui/LoadStates.tsx'
 import { Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
@@ -383,8 +384,8 @@ export function AgentSetup({
   // A link to create while none is active: the page's main action, also with Enter (⏎ on its button).
   const createIsMain = state !== null && !state.key && !created && !allDone
   useEnterKey(createIsMain && busy === null ? () => void createKey() : null)
-  // The quiet way in the footer's back slot: by hand, or step by step once everything is set up. Changing settings
-  // has none: the top bar's Close goes back to them.
+  // The footer's back slot: step by step once everything is set up. Changing settings has none: the top bar's Close
+  // goes back to them. By hand is its own button under the agent card (byHand).
   const foot =
     change || (allDone && owner) || (allDone && partnerId)
       ? {}
@@ -395,12 +396,10 @@ export function AgentSetup({
             backTitle: t('onboarding.agentSetup.stepByStepTitle'),
             backIcon: false,
           }
-        : {
-            onBack: manual,
-            backLabel: t(partnerId ? 'onboarding.agentSetup.partner.byHand' : 'onboarding.agentSetup.manual'),
-            backTitle: t(partnerId ? 'onboarding.agentSetup.partner.byHandTitle' : 'onboarding.agentSetup.manualTitle'),
-            backIcon: false,
-          }
+        : {}
+  // Setting up by hand, for people without an AI agent: a real button right under the agent card, never a small link
+  // at the bottom only (Janik, 2026-11-19). Not while changing settings (Close goes back) or once all is set up.
+  const byHand = !change && !allDone
   // After signing in, the page loads again at the same address (SecondFactorPrompt).
   if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onDone} />
   return (
@@ -596,6 +595,15 @@ export function AgentSetup({
           )}
           {error && <Note tone="danger">{error}</Note>}
         </section>
+
+        {byHand && !skeleton && (
+          <SetUpYourself
+            text={t(partnerId ? 'onboarding.agentSetup.partner.noAgent' : 'onboarding.agentSetup.noAgent')}
+            label={t(partnerId ? 'onboarding.agentSetup.partner.byHand' : 'onboarding.agentSetup.manual')}
+            title={t(partnerId ? 'onboarding.agentSetup.partner.byHandTitle' : 'onboarding.agentSetup.manualTitle')}
+            onClick={manual}
+          />
+        )}
 
         {state ? (
           <Progress
@@ -1306,6 +1314,31 @@ export function StepAction({
 }
 
 /**
+ * The way without an AI agent, under the agent card: one line and a secondary button that opens the setup by hand
+ * (AgentSetup's `manual`). The agent stays the primary way; this is there for everyone who has none.
+ */
+export function SetUpYourself({
+  text,
+  label,
+  title,
+  onClick,
+}: {
+  text: string
+  label: string
+  title: string
+  onClick: () => void
+}) {
+  return (
+    <div className="as-by-hand">
+      <span>{text}</span>
+      <Button variant="secondary" title={title} onClick={onClick}>
+        {label}
+      </Button>
+    </div>
+  )
+}
+
+/**
  * How to start the chosen agent with the link. Where one link opens the agent with the prompt filled in (`open`), that
  * button comes first and the command or prompt to copy waits behind a quiet "Or …" (opened on request). Elsewhere the
  * steps are the way: one command or link where the agent connects itself, the prompt to copy where pasting it is.
@@ -1323,7 +1356,9 @@ export function StartAgent({
   change?: SetupChange
 }) {
   const t = useT()
-  const { open, otherWay, steps, prompt, promptFirst } = startPlan(client, url, scope, change)
+  const format = useFormat()
+  // The page's language: the steps and the prompt the agent gets, so it talks to the person in it.
+  const { open, otherWay, steps, prompt, promptFirst } = startPlan(client, url, scope, change, { t, format })
   const promptToCopy = (primary: boolean) => (
     <>
       <pre className="as-prompt">{prompt}</pre>
@@ -1349,9 +1384,7 @@ export function StartAgent({
       )}
       {step.link && (
         <div>
-          <a className={cx('k-btn', 'k-btn-sm', lead(i) ? 'k-btn-primary' : 'k-btn-secondary')} href={step.link.href}>
-            {step.link.label}
-          </a>
+          <ClientLink href={step.link.href} label={step.link.label} variant={lead(i) ? 'primary' : 'secondary'} />
         </div>
       )}
       {step.prompt && promptToCopy(false)}
@@ -1361,15 +1394,14 @@ export function StartAgent({
     return (
       <>
         {stepList}
-        {promptFirst && <div className="as-step">{promptToCopy(true)}</div>}
+        {/* The prompt to copy leads, unless the first step already has the main button (ChatGPT's settings). */}
+        {promptFirst && <div className="as-step">{promptToCopy(!steps[0]?.link && !steps[0]?.code)}</div>}
       </>
     )
   return (
     <div className="as-start">
       <div className="as-open">
-        <a className="k-btn k-btn-primary k-btn-md" href={open.href}>
-          {open.label}
-        </a>
+        <ClientLink href={open.href} label={open.label} variant="primary" size="md" />
         <span className="as-small">{open.text}</span>
       </div>
       <details className="as-other-way">

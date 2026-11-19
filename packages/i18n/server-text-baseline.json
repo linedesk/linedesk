@@ -126,7 +126,7 @@
   "apps/api/src/workspace-icon.ts": 3,
   "apps/api/src/workspace-settings.ts": 8,
   "packages/actions/src/admin.ts": 255,
-  "packages/actions/src/agent-setup.ts": 56,
+  "packages/actions/src/agent-setup.ts": 18,
   "packages/actions/src/agent-token.ts": 1,
   "packages/actions/src/api-keys.ts": 3,
   "packages/actions/src/apps.ts": 5,
