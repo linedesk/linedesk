@@ -23835,11 +23835,6 @@
       "out": "f481f5fc1dbcbe1b0f8eb693c06b1f5e4ed989d920809ed43699064330019f72",
       "src": "8da574722f9017032c78c97caf7e608a0d6974d38738f45eb4b44ee8aa40eded"
     },
-    "settings.assistant.languages.also": {
-      "by": "ai",
-      "out": "445420f051035985b2a2c8c8440cd0fdfe3cf21cc8b1a2ba1dd4d1cf144a145c",
-      "src": "d4c15a0adb3e9deda3923a323795bdec152e55447b5facc313619efedc39c8fb"
-    },
     "settings.assistant.languages.anyNote": {
       "by": "ai",
       "out": "9c10baf016f0d0eeab11fac5cc613138a7d702dc9151a780e8fe7978a1de449d",
@@ -23854,41 +23849,6 @@
       "by": "ai",
       "out": "5ac164bb511b7e960c9f8c1da99b2778334d546112794849480426b9699a9946",
       "src": "d8428119b571d9fcfaa87c6d82ce7157bbac404ad0f1760e9a99677cc808e5b3"
-    },
-    "settings.assistant.languages.mode.allowed": {
-      "by": "ai",
-      "out": "425371f3d1b73d7f06e95c68752521a5ebcb7c269fc762bd9a0849bf0163a16f",
-      "src": "4b2394abef104b409f72a4c9808f3fd2a549d95d2dee66ad75fb9e5ee232f0f3"
-    },
-    "settings.assistant.languages.mode.allowedDescription": {
-      "by": "ai",
-      "out": "b6fe67303cbbdf2378493313016a9630a32b4f99e33ff1eb7f0f78f33af4cd72",
-      "src": "b8ace9edc04f1a5e510a939e33602bc380a0b7809436dcf93af9f0f17dbc31f6"
-    },
-    "settings.assistant.languages.mode.any": {
-      "by": "ai",
-      "out": "f89cdc5fa06c7dab6d79b1224248e15c71b3947161b92680b9d0221ed902d7c5",
-      "src": "bbf4277aa68c00c40036f259120ecd18375a5a0ef11d62431df880470b85dfdb"
-    },
-    "settings.assistant.languages.mode.anyDescription": {
-      "by": "ai",
-      "out": "ce792bee1c992c04f48e69d477705eb02da3367b5caff5f7f16d9de94b8fbef6",
-      "src": "9675d48e6e47150ce33e97222f98773cb74f1d58e1cfd3ae887dc80f811dcfd1"
-    },
-    "settings.assistant.languages.mode.none": {
-      "by": "ai",
-      "out": "8a572015c49b2071ebcf52dde28b20d61ba0559b2410e83d41a0a1a14184bf90",
-      "src": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
-    },
-    "settings.assistant.languages.mode.noneDescription": {
-      "by": "ai",
-      "out": "e2d6a25c28f68773bb67ac53fe59dbf68635cf9aa60aa081d2efa382afa30175",
-      "src": "e11d8e4f7163f6558948cc225af3d0a5706235fd408510cc2097229a1d41cb83"
-    },
-    "settings.assistant.languages.others": {
-      "by": "ai",
-      "out": "0b95dba9161639d05c9ff679adbb01a0ea01b5237960c70c369fef0fcc1a3092",
-      "src": "c42005443824e435a746a76ec418d6a89adea94c9bdf15603a463a9ccb641a80"
     },
     "settings.assistant.languages.problem": {
       "by": "ai",
@@ -59582,11 +59542,6 @@
       "out": "328a1774139c430ff49d1be4cdff7fedebc593a30ba12e5c77e4defebd6702da",
       "src": "8da574722f9017032c78c97caf7e608a0d6974d38738f45eb4b44ee8aa40eded"
     },
-    "settings.assistant.languages.also": {
-      "by": "ai",
-      "out": "951dbc29ec69b56e7108879eb6c9bfee1b4c28465b2aee86da2219f04eeffb43",
-      "src": "d4c15a0adb3e9deda3923a323795bdec152e55447b5facc313619efedc39c8fb"
-    },
     "settings.assistant.languages.anyNote": {
       "by": "ai",
       "out": "747c339e82ec62256151cdc9c129eebdaaecbbc95da2cc0ddae43a2b32c241c0",
@@ -59601,41 +59556,6 @@
       "by": "ai",
       "out": "37c833678c8accb543b09fa16c98156827b3178537b53ce925f13087cd1a2a04",
       "src": "d8428119b571d9fcfaa87c6d82ce7157bbac404ad0f1760e9a99677cc808e5b3"
-    },
-    "settings.assistant.languages.mode.allowed": {
-      "by": "ai",
-      "out": "50efde265a9f03a802def595d6e2f9531051acf9567ae0f33e32f53d938ecfeb",
-      "src": "4b2394abef104b409f72a4c9808f3fd2a549d95d2dee66ad75fb9e5ee232f0f3"
-    },
-    "settings.assistant.languages.mode.allowedDescription": {
-      "by": "ai",
-      "out": "3a3ed079c974fafeb0eddc2a7ff8ddd1d36c5159741a40143f57ddcea7fa4c55",
-      "src": "b8ace9edc04f1a5e510a939e33602bc380a0b7809436dcf93af9f0f17dbc31f6"
-    },
-    "settings.assistant.languages.mode.any": {
-      "by": "ai",
-      "out": "d3b501ba32050d5698c2a76a1ff44d579ddd113478a10c4976d9d87fdc2fff7c",
-      "src": "bbf4277aa68c00c40036f259120ecd18375a5a0ef11d62431df880470b85dfdb"
-    },
-    "settings.assistant.languages.mode.anyDescription": {
-      "by": "ai",
-      "out": "5cd2e774dae6eda594070b46e965ba331b78ee5f838b1c4135b11bcb301a8e21",
-      "src": "9675d48e6e47150ce33e97222f98773cb74f1d58e1cfd3ae887dc80f811dcfd1"
-    },
-    "settings.assistant.languages.mode.none": {
-      "by": "ai",
-      "out": "9e3fc69d0d9cdcd532456f53c9c12909328ffeaab9046874a240c51fb813322d",
-      "src": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
-    },
-    "settings.assistant.languages.mode.noneDescription": {
-      "by": "ai",
-      "out": "93d1f59bb805bb3739fca8309813f658c1f9a4cc37af2b08bb3a1050a93aa9a2",
-      "src": "e11d8e4f7163f6558948cc225af3d0a5706235fd408510cc2097229a1d41cb83"
-    },
-    "settings.assistant.languages.others": {
-      "by": "ai",
-      "out": "dd061ce858c80c0511a3196b220d4a4940b7f8ac0716a89045810136581e2a0a",
-      "src": "c42005443824e435a746a76ec418d6a89adea94c9bdf15603a463a9ccb641a80"
     },
     "settings.assistant.languages.problem": {
       "by": "ai",
@@ -95329,11 +95249,6 @@
       "out": "67c06154af5dbe08ba6eae276b58c77c8f651642105d83724e6bb30389b177f0",
       "src": "8da574722f9017032c78c97caf7e608a0d6974d38738f45eb4b44ee8aa40eded"
     },
-    "settings.assistant.languages.also": {
-      "by": "ai",
-      "out": "7be2ee8fcaa6eceee0d42c0a51e14c13606094a36a772201292c4187098afaa5",
-      "src": "d4c15a0adb3e9deda3923a323795bdec152e55447b5facc313619efedc39c8fb"
-    },
     "settings.assistant.languages.anyNote": {
       "by": "ai",
       "out": "8c5675435f7432adebee3dffc8df5a31926c6f38a4a85073cf815051985d26c0",
@@ -95348,41 +95263,6 @@
       "by": "ai",
       "out": "fa109049a92c1392b9001e2e191c742cb694538635618eb1f424789c41092fea",
       "src": "d8428119b571d9fcfaa87c6d82ce7157bbac404ad0f1760e9a99677cc808e5b3"
-    },
-    "settings.assistant.languages.mode.allowed": {
-      "by": "ai",
-      "out": "c3727d7ff6bc71e43e8894045df8e94886a65857495d9cbba3fecd31f605c40a",
-      "src": "4b2394abef104b409f72a4c9808f3fd2a549d95d2dee66ad75fb9e5ee232f0f3"
-    },
-    "settings.assistant.languages.mode.allowedDescription": {
-      "by": "ai",
-      "out": "a47b217ab0e7b1163fdc1c6a4c7313bdbc51436c970fdf107a95935b638e3efd",
-      "src": "b8ace9edc04f1a5e510a939e33602bc380a0b7809436dcf93af9f0f17dbc31f6"
-    },
-    "settings.assistant.languages.mode.any": {
-      "by": "ai",
-      "out": "4d04be14ac1a03909de8b14ba62570a29fc0384c57c014273a1748a3d8d49792",
-      "src": "bbf4277aa68c00c40036f259120ecd18375a5a0ef11d62431df880470b85dfdb"
-    },
-    "settings.assistant.languages.mode.anyDescription": {
-      "by": "ai",
-      "out": "6ce89ae3000bb114fed78f802289906a316941320087cfafcd19ca56ed1095b0",
-      "src": "9675d48e6e47150ce33e97222f98773cb74f1d58e1cfd3ae887dc80f811dcfd1"
-    },
-    "settings.assistant.languages.mode.none": {
-      "by": "ai",
-      "out": "290106c8a56a482a98bae225bf0601591b410962084d18cdba6c684a4b2d8568",
-      "src": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
-    },
-    "settings.assistant.languages.mode.noneDescription": {
-      "by": "ai",
-      "out": "fe1d52d730844e7f789968d47ac50dc07e6814320eef8c1a055a1100c6e8defd",
-      "src": "e11d8e4f7163f6558948cc225af3d0a5706235fd408510cc2097229a1d41cb83"
-    },
-    "settings.assistant.languages.others": {
-      "by": "ai",
-      "out": "a57c17f69faf51d6d14f9db7978ccc404e5230dc7f1f7984682d1666f4ae16c7",
-      "src": "c42005443824e435a746a76ec418d6a89adea94c9bdf15603a463a9ccb641a80"
     },
     "settings.assistant.languages.problem": {
       "by": "ai",
@@ -131076,11 +130956,6 @@
       "out": "e9189c8bff25202c1ec102c923204bb22bc416da88117125bdfc6fe8d9a2606b",
       "src": "8da574722f9017032c78c97caf7e608a0d6974d38738f45eb4b44ee8aa40eded"
     },
-    "settings.assistant.languages.also": {
-      "by": "ai",
-      "out": "71cd4e98cdef996e045d53f4b7d669c6cea9b1f6075e415ca65def0308f55a6c",
-      "src": "d4c15a0adb3e9deda3923a323795bdec152e55447b5facc313619efedc39c8fb"
-    },
     "settings.assistant.languages.anyNote": {
       "by": "ai",
       "out": "84b886b96518d320ccb203944cc68bcbd529a86f821a5b5149c4312fd93cf905",
@@ -131095,41 +130970,6 @@
       "by": "ai",
       "out": "cae00b6d9beae53726a2bc0a6e04d2862e252e81638b10473c7c1a986fb8fdbf",
       "src": "d8428119b571d9fcfaa87c6d82ce7157bbac404ad0f1760e9a99677cc808e5b3"
-    },
-    "settings.assistant.languages.mode.allowed": {
-      "by": "ai",
-      "out": "f414bca2f1b263ed2fad4bf23f5497cd692e209d71fcff305da1f964e38b9980",
-      "src": "4b2394abef104b409f72a4c9808f3fd2a549d95d2dee66ad75fb9e5ee232f0f3"
-    },
-    "settings.assistant.languages.mode.allowedDescription": {
-      "by": "ai",
-      "out": "94f865bd757dfd70ca51e635565029167b2a5bd6d52fbfbc407fed1fbddd8057",
-      "src": "b8ace9edc04f1a5e510a939e33602bc380a0b7809436dcf93af9f0f17dbc31f6"
-    },
-    "settings.assistant.languages.mode.any": {
-      "by": "ai",
-      "out": "7955210a3e65068603fa9a5076ac705b9e4a06b30cb485c838e21bd61760cc00",
-      "src": "bbf4277aa68c00c40036f259120ecd18375a5a0ef11d62431df880470b85dfdb"
-    },
-    "settings.assistant.languages.mode.anyDescription": {
-      "by": "ai",
-      "out": "8149e7e97171e817946f779abdca6fd9f7cda6bd84b2ceaaaae175b4102f2ade",
-      "src": "9675d48e6e47150ce33e97222f98773cb74f1d58e1cfd3ae887dc80f811dcfd1"
-    },
-    "settings.assistant.languages.mode.none": {
-      "by": "ai",
-      "out": "868310e193d1af0b9a0a16b18d5826a5490fe3f9410defa30dc115829fc1db4a",
-      "src": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
-    },
-    "settings.assistant.languages.mode.noneDescription": {
-      "by": "ai",
-      "out": "54ba52f949e14367ca39ded5e50a747750f90f749f09aec0b8a6a9340bcc877d",
-      "src": "e11d8e4f7163f6558948cc225af3d0a5706235fd408510cc2097229a1d41cb83"
-    },
-    "settings.assistant.languages.others": {
-      "by": "ai",
-      "out": "1a869a320349995c0354a7a93ff270feaa69949d899352de7edded97c7c22db7",
-      "src": "c42005443824e435a746a76ec418d6a89adea94c9bdf15603a463a9ccb641a80"
     },
     "settings.assistant.languages.problem": {
       "by": "ai",
@@ -166823,11 +166663,6 @@
       "out": "4ff6da3720e77e19c416f28eb774ae0c0fcf73886d427ee58959e8557b65190c",
       "src": "8da574722f9017032c78c97caf7e608a0d6974d38738f45eb4b44ee8aa40eded"
     },
-    "settings.assistant.languages.also": {
-      "by": "ai",
-      "out": "00ebe07f9f3fd18efead14ca23071d2313edcc6258f99be0da2069575ece3d8a",
-      "src": "d4c15a0adb3e9deda3923a323795bdec152e55447b5facc313619efedc39c8fb"
-    },
     "settings.assistant.languages.anyNote": {
       "by": "ai",
       "out": "d87359b765f2aa40adf01845ae34d9d360aad223236e55080a5bbbfb6a74289d",
@@ -166842,41 +166677,6 @@
       "by": "ai",
       "out": "37c833678c8accb543b09fa16c98156827b3178537b53ce925f13087cd1a2a04",
       "src": "d8428119b571d9fcfaa87c6d82ce7157bbac404ad0f1760e9a99677cc808e5b3"
-    },
-    "settings.assistant.languages.mode.allowed": {
-      "by": "ai",
-      "out": "22fb4d5b611e5131d0e2652d637e1fc54d1db0e8970c7d7f63a5d53d785e49c8",
-      "src": "4b2394abef104b409f72a4c9808f3fd2a549d95d2dee66ad75fb9e5ee232f0f3"
-    },
-    "settings.assistant.languages.mode.allowedDescription": {
-      "by": "ai",
-      "out": "fa16d96096ae67be2fab767e242e98a18372534614731893ba882dea6f81567c",
-      "src": "b8ace9edc04f1a5e510a939e33602bc380a0b7809436dcf93af9f0f17dbc31f6"
-    },
-    "settings.assistant.languages.mode.any": {
-      "by": "ai",
-      "out": "2798d1816469714a97c19c55ee1873a5a98736b65f8495270a8001788c1cdf30",
-      "src": "bbf4277aa68c00c40036f259120ecd18375a5a0ef11d62431df880470b85dfdb"
-    },
-    "settings.assistant.languages.mode.anyDescription": {
-      "by": "ai",
-      "out": "1ac01aadc108ecb897954ffead6c6381af9fd400f267b4a7c38becb81f1ef55a",
-      "src": "9675d48e6e47150ce33e97222f98773cb74f1d58e1cfd3ae887dc80f811dcfd1"
-    },
-    "settings.assistant.languages.mode.none": {
-      "by": "ai",
-      "out": "496a53a0f11e2a18d6c45add3b20e9dde6ce74131ba4f998ceb3420b5de9ac91",
-      "src": "dc937b59892604f5a86ac96936cd7ff09e25f18ae6b758e8014a24c7fa039e91"
-    },
-    "settings.assistant.languages.mode.noneDescription": {
-      "by": "ai",
-      "out": "a3075b7511cee28739f68b18355c3ca141ad0b9c4086d76d21b5920e89e25e03",
-      "src": "e11d8e4f7163f6558948cc225af3d0a5706235fd408510cc2097229a1d41cb83"
-    },
-    "settings.assistant.languages.others": {
-      "by": "ai",
-      "out": "8a80c13300f2f474f94680a0d1c48d9a5d179a1cdef2df37041d03263489462f",
-      "src": "c42005443824e435a746a76ec418d6a89adea94c9bdf15603a463a9ccb641a80"
     },
     "settings.assistant.languages.problem": {
       "by": "ai",

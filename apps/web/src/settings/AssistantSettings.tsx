@@ -43,15 +43,17 @@ import { AssistantReview } from '../review/AssistantReview.tsx'
 import { openGroupCount, questionsLabel, REVIEW_SECTION } from '../review/reviewModel.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
 import { appLink } from '../ui/AppLink.tsx'
-import { Checkbox, Select } from '../ui/controls.tsx'
+import { RadioCard, Select } from '../ui/controls.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
-import { Button, Note } from '../ui/kit.tsx'
+import { Button, Icon, Note } from '../ui/kit.tsx'
 import { Loading, LoadProblem, Skeleton, useLoading, useLoadState } from '../ui/LoadStates.tsx'
+import { SearchSelect } from '../ui/SearchSelect.tsx'
 import { type PageSection, SettingsLayout, sectionHash, sectionParts, useSection } from '../ui/SettingsLayout.tsx'
 import { useWorkspaceCountry, useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { AgentChangeNote } from './AgentChange.tsx'
 import { AssistantHeader } from './AssistantHeader.tsx'
 import {
+  addableLanguages,
   behavioursToSave,
   type Draft,
   draftOf,
@@ -80,7 +82,9 @@ import {
   staleGreetingName,
   transferProblem,
   transfersToSave,
+  withLanguage,
   withMainLanguage,
+  withoutLanguage,
   withPickedVoice,
 } from './assistantDraft.ts'
 import { BusinessHours } from './BusinessHours.tsx'
@@ -476,24 +480,21 @@ export function AiDisclosureRow({ draft, set }: SectionProps) {
   )
 }
 
-const alsoModes = (
-  t: ReturnType<typeof useT>,
-  main: string,
-): { value: AssistantLanguages['mode']; label: string; description: string }[] => [
+/** The three answers to "When a caller speaks another language", in the order the owner reads them. */
+const SWITCH_MODES: { value: AssistantLanguages['mode']; title: MessageKey; description?: MessageKey }[] = [
   {
     value: 'english',
-    label: t('settings.assistant.languages.mode.none'),
-    description: t('settings.assistant.languages.mode.noneDescription', { language: main }),
-  },
-  {
-    value: 'allowed',
-    label: t('settings.assistant.languages.mode.allowed'),
-    description: t('settings.assistant.languages.mode.allowedDescription'),
+    title: msg('settings.assistant.languages.switch.none'),
+    description: msg('settings.assistant.languages.switch.noneDescription'),
   },
   {
     value: 'any',
-    label: t('settings.assistant.languages.mode.any'),
-    description: t('settings.assistant.languages.mode.anyDescription'),
+    title: msg('settings.assistant.languages.switch.any'),
+    description: msg('settings.assistant.languages.switch.anyDescription'),
+  },
+  {
+    value: 'allowed',
+    title: msg('settings.assistant.languages.switch.allowed'),
   },
 ]
 
@@ -515,7 +516,7 @@ export function Languages({
   /** The main language the country gives (mainLanguageOf with the workspace language). */
   countryLanguage?: Language
   installed?: readonly string[]
-  /** What "Any supported language" covers on this install (voice.options anyLanguages); missing: every one offered. */
+  /** What "Switch to the caller's language" covers on this install (voice.options anyLanguages); missing: every one offered. */
   anyCovers?: readonly string[]
 }) {
   const ui = useLocale()
@@ -532,20 +533,14 @@ export function Languages({
     country ? countryLanguage : undefined,
     t,
   )
-  const coveredByAny = (code: Language) => !anyCovers || anyCovers.includes(code)
   // With a Flux model "any" keeps Flux's languages; the others only when picked (coordinator decision on LIN-268).
-  const anyLimited = mode === 'any' && offered.some(code => !coveredByAny(code))
-  const others = pickedOthers(draft)
+  const anyLimited = mode === 'any' && !!anyCovers && offered.some(code => !anyCovers.includes(code))
   const problem = languagesProblem(draft)
-  const toggle = (code: Language, on: boolean) =>
-    set('languages', {
-      ...draft.languages,
-      allowed: offered.filter(c => c !== main && (c === code ? on : others.includes(c))),
-    })
   return (
     <Section
       id="as-languages"
       title={t('settings.assistant.languages.title')}
+      description={t('settings.assistant.languages.description')}
       help={{
         text: (
           <T
@@ -559,8 +554,7 @@ export function Languages({
         ),
       }}
     >
-      {/* Both selects right under their labels, so they line up; the note on "Any" goes under its select. */}
-      <div className="as-languages-row">
+      <div className="as-languages-main">
         <Field id="as-languages-main" label={t('settings.assistant.languages.main')}>
           <Select
             id="as-languages-main"
@@ -579,44 +573,92 @@ export function Languages({
             />
           )}
         </Field>
-        <Field id="as-languages-mode" label={t('settings.assistant.languages.also')}>
-          <Select
-            id="as-languages-mode"
-            label={t('settings.assistant.languages.also')}
-            value={mode}
-            options={alsoModes(t, mainName)}
-            onChange={m => set('languages', { ...draft.languages, mode: m })}
-          />
-          {anyLimited && <p className="k-field-desc as-languages-note">{t('settings.assistant.languages.anyNote')}</p>}
-        </Field>
       </div>
-      {mode !== 'english' && (
-        <div
-          className="as-languages"
-          role="group"
-          aria-label={t('settings.assistant.languages.others', { language: mainName })}
-        >
-          {offered
-            .filter(code => code !== main)
-            .map(code => (
-              <Checkbox
-                key={code}
-                checked={mode === 'any' ? coveredByAny(code) : others.includes(code)}
-                disabled={mode === 'any'}
-                onChange={on => toggle(code, on)}
-              >
-                {languageLabel(code, ui)}
-              </Checkbox>
-            ))}
+      <fieldset className="as-languages-switch">
+        <legend className="as-languages-q">{t('settings.assistant.languages.switch.label')}</legend>
+        <div className="as-languages-modes" role="radiogroup" aria-label={t('settings.assistant.languages.switch.label')}>
+          {SWITCH_MODES.map(m => (
+            <RadioCard
+              key={m.value}
+              name="as-languages-mode"
+              checked={mode === m.value}
+              onPick={() => set('languages', { ...draft.languages, mode: m.value })}
+              title={t(m.title, { language: mainName })}
+              description={m.description && t(m.description)}
+            />
+          ))}
         </div>
-      )}
-      {/* An error, not a hint: Save is refused until it is fixed. */}
-      {problem && (
-        <span className="k-field-msg" role="alert">
-          {problem}
+        {anyLimited && <p className="k-field-desc as-languages-note">{t('settings.assistant.languages.anyNote')}</p>}
+        {mode === 'allowed' && (
+          <PickedLanguages
+            offered={offered}
+            main={main}
+            picked={pickedOthers(draft)}
+            onChange={allowed => set('languages', { ...draft.languages, allowed })}
+          />
+        )}
+        {/* An error, not a hint: Save is refused until it is fixed. */}
+        {problem && (
+          <span className="k-field-msg" role="alert">
+            {problem}
+          </span>
+        )}
+      </fieldset>
+    </Section>
+  )
+}
+
+/**
+ * The languages the assistant may switch to: each a chip with a remove button, then a searchable "Add language" with
+ * the ones offered that are neither the main language nor picked. Kept in the registry's order, as before.
+ */
+function PickedLanguages({
+  offered,
+  main,
+  picked,
+  onChange,
+}: {
+  offered: readonly Language[]
+  main: Language
+  picked: readonly Language[]
+  onChange: (allowed: Language[]) => void
+}) {
+  const ui = useLocale()
+  const t = useT()
+  const addable = addableLanguages(offered, main, picked)
+  return (
+    <div className="as-languages-picked" role="group" aria-label={t('settings.assistant.languages.picked')}>
+      {picked.map(code => {
+        const label = languageLabel(code, ui)
+        return (
+          <span key={code} className="as-languages-chip">
+            {label}
+            <button
+              type="button"
+              className="as-languages-chip-x"
+              title={t('settings.assistant.languages.remove', { language: label })}
+              aria-label={t('settings.assistant.languages.remove', { language: label })}
+              onClick={() => onChange(withoutLanguage(picked, code))}
+            >
+              <Icon name="close" size={12} />
+            </button>
+          </span>
+        )
+      })}
+      {addable.length > 0 && (
+        <span className="as-languages-add">
+          <SearchSelect
+            id="as-languages-add"
+            value=""
+            options={addable.map(code => ({ value: code, label: languageLabel(code, ui) }))}
+            label={t('settings.assistant.languages.add')}
+            empty={t('settings.assistant.languages.add')}
+            listWidth={280}
+            onChange={code => code && onChange(withLanguage(offered, main, picked, code as Language))}
+          />
         </span>
       )}
-    </Section>
+    </div>
   )
 }
 

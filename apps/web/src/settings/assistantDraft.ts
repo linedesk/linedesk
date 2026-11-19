@@ -214,6 +214,25 @@ export function offeredLanguages(installed: readonly string[] | undefined, d: Pi
   )
 }
 
+/** What "Add language" offers: the languages offered that are neither the main language nor picked yet. */
+export const addableLanguages = (
+  offered: readonly Language[],
+  main: Language,
+  picked: readonly Language[],
+): Language[] => offered.filter(code => code !== main && !picked.includes(code))
+
+/** The picked languages with `code` added, in the order the pickers list them (offeredLanguages). */
+export const withLanguage = (
+  offered: readonly Language[],
+  main: Language,
+  picked: readonly Language[],
+  code: Language,
+): Language[] => offered.filter(c => c !== main && (c === code || picked.includes(c)))
+
+/** The picked languages without `code`. */
+export const withoutLanguage = (picked: readonly Language[], code: Language): Language[] =>
+  picked.filter(c => c !== code)
+
 /**
  * What assistant.update takes: no list unless the allow-list is used, never the main language in it; no main language
  * while it follows the workspace's country (the voice agent and the API work it out, so it changes with the country).
@@ -305,8 +324,8 @@ export const normalized = (d: Draft): Draft => ({
   silence_closing: d.silence_closing.trim(),
   silence_reminder: d.silence_reminder.trim(),
   goodbye_line: d.goodbye_line.trim(),
-  // As saved: no picked languages unless "These languages", so switching back to None is clean after Save. The main
-  // language in use stays in the draft also while it follows the country (it is not saved then).
+  // As saved: no picked languages unless "Switch only to languages I pick", so switching back to "Stay in …" is clean
+  // after Save. The main language in use stays in the draft also while it follows the country (it is not saved then).
   languages: { ...languagesToSave(d).languages, main: mainOf(d) },
 })
 
