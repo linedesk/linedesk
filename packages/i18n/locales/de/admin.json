@@ -1650,7 +1650,7 @@
   "system.signupAccess.description": "Wer in welchem Land ein Unternehmen registrieren kann.",
   "system.signupAccess.email": "E-Mail-Adresse",
   "system.signupAccess.failed": "Speichern fehlgeschlagen. Versuch es noch einmal.",
-  "system.signupAccess.help": "Die Länder, die dieser Server bedienen kann. Deutschland erscheint, sobald der Server Anträge für deutsche Nummern annimmt (NUMBER_KYC_COUNTRIES); die Nummer wird dort mit Unterlagen beantragt. Die Abrechnung bleibt in USD. Workspaces, die du selbst anlegst, und Installationen ohne Abrechnung können jedes Land nutzen.",
+  "system.signupAccess.help": "Die Länder, die dieser Server bedienen kann. Deutschland ist für eingeladene Adressen, bis du es öffnest. Die Abrechnung bleibt in USD. Workspaces, die du selbst anlegst, und Installationen ohne Abrechnung können jedes Land nutzen.",
   "system.signupAccess.invites": "Eingeladene Adressen",
   "system.signupAccess.invitesHelp": "Für die Länder, in denen nur eingeladene E-Mail-Adressen zugelassen sind: die Adresse, mit der sich das Unternehmen registriert.",
   "system.signupAccess.mode.invited": "Nur eingeladene E-Mail-Adressen",
