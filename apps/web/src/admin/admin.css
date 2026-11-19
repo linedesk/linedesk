@@ -136,6 +136,21 @@
   font-weight: 400;
   color: var(--ink-muted);
 }
+/* A sub line with its button (Partners: the address, the sender): the button goes under the text instead of widening
+   the column, so the row's last column stays in the card. */
+.adm-sub-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 6px;
+  white-space: normal;
+}
+.adm-sub-action > span {
+  white-space: nowrap;
+}
+.adm-sub-action > .k-btn-ghost {
+  margin-left: -11px; /* 10px padding + 1px border: the label lines up with the text when it wraps */
+}
 .adm-muted {
   color: var(--ink-muted);
 }

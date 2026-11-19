@@ -118,10 +118,10 @@ export function SenderBody({
             </div>
           </div>
           {sender.status !== 'verified' && (
-            <>
+            <div className="ps-records">
               <p>{t('team.partner.sender.addRecords')}</p>
               <DnsRecords records={sender.records} />
-            </>
+            </div>
           )}
           {edit && (
             <div className="ps-actions">

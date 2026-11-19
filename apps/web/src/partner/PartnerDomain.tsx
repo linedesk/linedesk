@@ -124,10 +124,10 @@ export function DomainBody({
             </div>
           </div>
           {domain.status !== 'active' && (
-            <>
+            <div className="ps-records">
               <p>{t('team.partner.domain.addRecords')}</p>
               <DnsRecords records={domain.records} />
-            </>
+            </div>
           )}
           {edit && (
             <div className="ps-actions">

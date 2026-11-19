@@ -1,6 +1,7 @@
 /* DNS records to add (DnsRecords.tsx): one row per record, the Copy buttons beside it, under it on phones. */
 .dns-value {
-  overflow-wrap: anywhere;
+  /* A token fills each line instead of breaking at its first hyphen. */
+  word-break: break-all;
   font-size: 12px;
 }
 .dns-records {

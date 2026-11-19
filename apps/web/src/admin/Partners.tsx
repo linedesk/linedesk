@@ -189,13 +189,15 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
                           {t('admin.partners.since', { day: day(p.createdAt), count: p.members })}
                         </span>
                         {p.domain && (
-                          <span className="adm-sub">
-                            {p.domain.hostname} ·{' '}
-                            {p.domain.status === 'active'
-                              ? t('admin.partners.domainLive')
-                              : p.domain.status === 'failed'
-                                ? t('admin.partners.domainFailed')
-                                : t('admin.partners.domainPending')}{' '}
+                          <span className="adm-sub adm-sub-action">
+                            <span>
+                              {p.domain.hostname} ·{' '}
+                              {p.domain.status === 'active'
+                                ? t('admin.partners.domainLive')
+                                : p.domain.status === 'failed'
+                                  ? t('admin.partners.domainFailed')
+                                  : t('admin.partners.domainPending')}
+                            </span>
                             <Button
                               size="sm"
                               variant="ghost"
@@ -208,10 +210,12 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
                           </span>
                         )}
                         {p.sender && (
-                          <span className="adm-sub" title={p.sender.address}>
-                            {p.sender.status === 'verified'
-                              ? t('admin.partners.senderBadge')
-                              : t('admin.partners.senderPending')}{' '}
+                          <span className="adm-sub adm-sub-action" title={p.sender.address}>
+                            <span>
+                              {p.sender.status === 'verified'
+                                ? t('admin.partners.senderBadge')
+                                : t('admin.partners.senderPending')}
+                            </span>
                             <Button
                               size="sm"
                               variant="ghost"

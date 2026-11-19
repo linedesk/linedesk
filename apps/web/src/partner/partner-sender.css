@@ -25,3 +25,16 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+/* The line asking for the records sits right above them. */
+.ps-records {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+}
+.ps-records > p {
+  margin: 0;
+}
+/* Remove… alone (a live address, a verified sender): its label starts at the content's left edge. */
+.ps-actions > .k-btn-ghost:only-child {
+  margin-left: -11px; /* 10px padding + 1px border */
+}
