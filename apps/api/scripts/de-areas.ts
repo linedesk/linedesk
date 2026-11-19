@@ -19,18 +19,54 @@
 //    dl-de/by-2-0 like source 1. Only the blocks of the carriers in CARRIERS are kept: Linedesk Cloud offers German
 //    numbers only where its carrier holds blocks of its own (BNetzA Mitteilung 90/2026, docs/numbers-kyc.md).
 //
-// Usage: node apps/api/scripts/de-areas.ts <ONB.csv> <ONB_…_Gauss3d-3.shp> <AuszugGV….xlsx> <OZRNB.csv>
-// Needs `unzip` (to read the xlsx). No dependencies.
+// Usually not run by hand: `pnpm --filter @linedesk/api de-areas:update` (scripts/de-areas-update.ts) downloads the
+// newest edition of every source and runs this; .github/workflows/de-areas.yml does that every week and opens a PR.
+// By hand: node apps/api/scripts/de-areas.ts <ONB.csv> <ONB_…_Gauss3d-3.shp> <AuszugGV….xlsx> <OZRNB.csv>
+//   [--boundaries-date=YYYY-MM-DD] (the date of the ONB-Grenzen edition, from its zip's name; it is not in the files)
+// Needs `unzip` (to read the xlsx). No dependencies. Every source is checked for the format this script knows (columns,
+// file names, the shapefile's projection): a change throws instead of writing a broken file.
 import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename } from 'node:path'
 
-const [csvPath, shpPath, xlsxPath, blocksPath] = process.argv.slice(2)
-if (!csvPath || !shpPath || !xlsxPath || !blocksPath) {
+const args = process.argv.slice(2)
+const flags = Object.fromEntries(
+  args.filter(a => a.startsWith('--')).map(a => a.slice(2).split('=', 2) as [string, string | undefined]),
+)
+const [csvPath, shpPath, xlsxPath, blocksPath, extra] = args.filter(a => !a.startsWith('--'))
+const boundariesDate = flags['boundaries-date']
+const unknownFlags = Object.keys(flags).filter(f => f !== 'boundaries-date')
+if (
+  !csvPath ||
+  !shpPath ||
+  !xlsxPath ||
+  !blocksPath ||
+  extra ||
+  unknownFlags.length ||
+  (boundariesDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(boundariesDate))
+) {
   console.error(
-    'usage: node apps/api/scripts/de-areas.ts <ONB.csv> <ONB shapefile .shp> <Destatis AuszugGV .xlsx> <OZRNB.csv>',
+    'usage: node apps/api/scripts/de-areas.ts <ONB.csv> <ONB shapefile .shp> <Destatis AuszugGV .xlsx> <OZRNB.csv> [--boundaries-date=YYYY-MM-DD]',
   )
   process.exit(1)
+}
+
+/** "NVONB.INTERNET.20261106.OZRNB.csv" → "2026-11-06": the BNetzA dates each edition in the file name. */
+function dateInName(path: string, kind: 'ONB' | 'OZRNB'): string {
+  const m = new RegExp(`^NVONB\\.INTERNET\\.(\\d{4})(\\d{2})(\\d{2})\\.${kind}\\.csv$`).exec(basename(path))
+  if (!m) throw new Error(`${basename(path)} is not named NVONB.INTERNET.<yyyymmdd>.${kind}.csv`)
+  return `${m[1]}-${m[2]}-${m[3]}`
+}
+const vwvDate = dateInName(csvPath, 'ONB')
+const blocksDate = dateInName(blocksPath, 'OZRNB')
+
+/** The first line of a CSV must be exactly this: a new or moved column fails here instead of shifting the data. */
+function checkHeader(text: string, expected: string, file: string) {
+  const header = text
+    .split(/\r?\n/, 1)[0]!
+    .replace(/^\uFEFF/, '')
+    .trim()
+  if (header !== expected) throw new Error(`${file}: the columns changed. Expected "${expected}", got "${header}"`)
 }
 /** The carriers (by their BNetzA porting ID, Portierungskennung) whose number blocks are kept: Telnyx Ireland Ltd. */
 const CARRIERS = ['D451']
@@ -40,7 +76,9 @@ const OUT = new URL('../src/de-areas.data.ts', import.meta.url)
 
 type Ortsnetz = { onkz: string; name: string }
 const ortsnetze: Ortsnetz[] = []
-for (const line of readFileSync(csvPath, 'utf8').split(/\r?\n/).slice(1)) {
+const vwv = readFileSync(csvPath, 'utf8')
+checkHeader(vwv, 'Ortsnetzkennzahl;Ortsnetzname;KennzeichenAktiv', basename(csvPath))
+for (const line of vwv.split(/\r?\n/).slice(1)) {
   const [onkz, name, active] = line.split(';')
   if (!onkz || !name || active?.trim() !== '1') continue
   if (!/^\d{2,5}$/.test(onkz)) throw new Error(`bad area code ${onkz}`)
@@ -52,6 +90,11 @@ const known = new Set(ortsnetze.map(o => o.onkz))
 
 type Area = { onkz: string; box: [number, number, number, number]; rings: Float64Array[] }
 function readAreas(path: string): Area[] {
+  // The point-in-polygon below projects to DHDN Gauß-Krüger zone 3 (EPSG:31467); another projection would put every
+  // municipality into the wrong Ortsnetz without any other error.
+  const prj = path.replace(/\.shp$/i, '.prj')
+  if (!existsSync(prj) || !/Gauss.*Zone_3|EPSG",\s*31467/i.test(readFileSync(prj, 'utf8')))
+    throw new Error(`${basename(prj)}: not DHDN Gauß-Krüger zone 3 (EPSG:31467)`)
   const shp = readFileSync(path)
   const dbf = readFileSync(path.replace(/\.shp$/i, '.dbf'))
   // dbf: header, field descriptors (32 bytes each, ended by 0x0d), then fixed-length records.
@@ -223,6 +266,12 @@ const xmlText = (s: string) =>
     .replace(/&amp;/g, '&')
 const shared = [...unzip('xl/sharedStrings.xml').matchAll(/<si>([\s\S]*?)<\/si>/g)].map(m => xmlText(m[1]!))
 const sheet = unzip('xl/worksheets/sheet2.xml')
+/** "Gebietsstand: 30.06.2026 (2. Quartal)" → "2026-06-30": the edition's date, for the header. */
+const gvDate = (() => {
+  const m = shared.map(t => /Gebietsstand:?\s*(?:am\s*)?(\d{2})\.(\d{2})\.(\d{4})/.exec(t)).find(Boolean)
+  if (!m) throw new Error(`${basename(xlsxPath)}: no "Gebietsstand" date in the workbook`)
+  return `${m[3]}-${m[2]}-${m[1]}`
+})()
 
 type Gemeinde = { name: string; plz: string; lat: number; lon: number }
 const gemeinden: Gemeinde[] = []
@@ -239,6 +288,8 @@ for (const row of sheet.matchAll(/<row [^>]*>([\s\S]*?)<\/row>/g)) {
   const lon = Number((cells.O ?? '').replace(',', '.'))
   const lat = Number((cells.P ?? '').replace(',', '.'))
   if (!cells.H || !/^\d{5}$/.test(cells.N ?? '') || !lat || !lon) throw new Error(`bad row ${JSON.stringify(cells)}`)
+  // Inside Germany's bounding box: moved or swapped coordinate columns fail here.
+  if (lat < 47.2 || lat > 55.1 || lon < 5.8 || lon > 15.1) throw new Error(`not in Germany: ${JSON.stringify(cells)}`)
   // "Heidelberg, Stadt", "München, Landeshauptstadt": the name without what it is.
   gemeinden.push({ name: cells.H.replace(/,.*$/, '').trim(), plz: cells.N!, lat, lon })
 }
@@ -267,7 +318,13 @@ if (gemeinden.length < 10_000 || ortsnetze.length < 5000 || outside > 50)
 
 // A block is every number of its Ortsnetz that starts with its digits: "7234000" to "7234999" is "7234".
 const blocks: string[] = []
-for (const line of readFileSync(blocksPath, 'latin1').split(/\r?\n/).slice(1)) {
+const blockList = readFileSync(blocksPath, 'latin1')
+checkHeader(
+  blockList,
+  'Ortsnetzkennzahl;Ortsnetzname;RufnummernblockVon;RufnummernblockBis;RNBGroesse;Portierungskennung;KurznameAnbieter;Zuteilungsdatum;Wirksamkeitsdatum;DatumBefristetBis;DatumAenderungenSeit',
+  basename(blocksPath),
+)
+for (const line of blockList.split(/\r?\n/).slice(1)) {
   const [onkz, , from, to, , carrier] = line.split(';')
   if (!onkz || !from || !to || !carrier || !CARRIERS.includes(carrier)) continue
   if (!known.has(onkz)) throw new Error(`block of ${carrier} in unknown area code ${onkz}`)
@@ -284,12 +341,37 @@ if (blocks.length < 50) throw new Error(`unexpected: only ${blocks.length} block
 /** A single-quoted string literal, as the repo's formatter writes it. */
 const quoted = (text: string) => `'${JSON.stringify(text).slice(1, -1).replace(/\\"/g, '"').replace(/'/g, "\\'")}'`
 
-const header = `// Generated by apps/api/scripts/de-areas.ts; do not edit. docs/numbers-kyc.md, "Area codes".
-// Sources: Bundesnetzagentur, Vorwahlverzeichnis (${basename(csvPath)}), dl-de/by-2-0; Bundesnetzagentur, ONB-Grenzen
-// (${basename(shpPath)}), only to find the Ortsnetz of each municipality's centre; Statistisches Bundesamt (Destatis),
-// Gemeindeverzeichnis (${basename(xlsxPath)}), reproduced with the source named; Bundesnetzagentur, Verzeichnis der
-// zugeteilten Rufnummernblöcke in Ortsnetzen (${basename(blocksPath)}), dl-de/by-2-0.
-`
+/** "2026-11-06" → "06.11.2026", as the sources write their dates. */
+const german = (iso: string) => iso.split('-').reverse().join('.')
+/** Wraps comment text at the formatter's 120 columns. */
+function comment(text: string): string {
+  const lines: string[] = []
+  let line = '//'
+  for (const word of text.split(' ')) {
+    if (line.length + 1 + word.length > 120) {
+      lines.push(line)
+      line = '//'
+    }
+    line += ` ${word}`
+  }
+  return `${[...lines, line].join('\n')}\n`
+}
+const header =
+  comment('Generated by apps/api/scripts/de-areas.ts; do not edit. docs/numbers-kyc.md, "Area codes".') +
+  comment(
+    `Sources: Bundesnetzagentur, Vorwahlverzeichnis (${basename(csvPath)}, ${german(vwvDate)}), dl-de/by-2-0; ` +
+      `Bundesnetzagentur, ONB-Grenzen (${basename(shpPath)}${boundariesDate ? `, ${german(boundariesDate)}` : ''}), ` +
+      "only to find the Ortsnetz of each municipality's centre; Statistisches Bundesamt (Destatis), " +
+      `Gemeindeverzeichnis (${basename(xlsxPath)}, Gebietsstand ${german(gvDate)}), reproduced with the source named; ` +
+      'Bundesnetzagentur, Verzeichnis der zugeteilten Rufnummernblöcke in Ortsnetzen ' +
+      `(${basename(blocksPath)}, ${german(blocksDate)}), dl-de/by-2-0.`,
+  )
+const editions = {
+  vorwahlverzeichnis: vwvDate,
+  onbGrenzen: boundariesDate ?? null,
+  gemeindeverzeichnis: gvDate,
+  rufnummernbloecke: blocksDate,
+}
 writeFileSync(
   OUT,
   `${header}
@@ -309,6 +391,16 @@ export const DE_GEMEINDEN =
  */
 export const DE_CARRIER_BLOCKS =
   ${quoted(blocks.join('\n'))}
+
+/**
+ * The date of each source's edition (ISO). CI warns when the block list is older than 75 days
+ * (scripts/de-areas-age.ts); the weekly workflow .github/workflows/de-areas.yml makes a new file.
+ */
+export const DE_AREAS_EDITIONS = {
+${Object.entries(editions)
+  .map(([k, v]) => `  ${k}: ${v === null ? 'null' : `'${v}'`},`)
+  .join('\n')}
+} as const
 `,
 )
 console.log(

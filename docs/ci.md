@@ -7,7 +7,7 @@ public repository.
 
 | Workflow | Trigger | Jobs |
 | --- | --- | --- |
-| `ci.yml` | every pull request, every push to `master-dev` or `master-prod` | `check`: install, typecheck, lint, `pnpm i18n:check` (missing translations allowed), the scrub tests, `pnpm db:check-journal` (the migrations journal's `idx` and `when` strictly increase) and the Zapier app's checks. `images`: builds the api, web and proxy images (self-hosting must work at every commit). `secrets`: gitleaks over the history of the tested commit. Pull requests into `master-prod` also run `release-source` and `release-translations` (releases, see "Branches"). |
+| `ci.yml` | every pull request, every push to `master-dev` or `master-prod`, by hand (Actions → CI → Run workflow) | `check`: install, typecheck, lint, `pnpm i18n:check` (missing translations allowed), the scrub tests, `pnpm db:check-journal` (the migrations journal's `idx` and `when` strictly increase), a warning (never a failure) when the German number block list in `apps/api/src/de-areas.data.ts` is older than 75 days, and the Zapier app's checks. `images`: builds the api, web and proxy images (self-hosting must work at every commit). `secrets`: gitleaks over the history of the tested commit. Pull requests into `master-prod` also run `release-source` and `release-translations` (releases, see "Branches"). |
 | `tests.yml` | every push to `master-dev`, by hand (Actions → Tests → Run workflow) | `test`: the full test suite with Postgres, in four parallel parts. `report`: a red run on `master-dev` comments on the merged PR. |
 | `dco.yml` | every pull request (public repository) | `sign-off`: every commit of the pull request has a `Signed-off-by:` line (CONTRIBUTING.md, "Developer Certificate of Origin"). |
 

@@ -1,0 +1,118 @@
+# Keeps the German area data (apps/api/src/de-areas.data.ts: Ortsnetze, municipalities, the number blocks of Linedesk
+# Cloud's carrier) current, so it ships with every release (Janik, 2026-11-18; docs/numbers-kyc.md, "Area codes").
+# Every Monday, and by hand (Actions → German area data → Run workflow): downloads the newest editions from the
+# Bundesnetzagentur and Destatis (`pnpm --filter @linedesk/api de-areas:update`), and when the file changed, opens a PR
+# into master-dev titled "German area data <date of the block list>" from the branch data/de-areas (or updates the
+# open one). Merging it puts the data into the next release; the release checklist asks for it (docs/internal/working.md,
+# "Branches and releases"). A source whose format changed fails the run and nothing is pushed.
+#
+# Token: GITHUB_TOKEN, no personal token needed. It may open PRs once the organisation and repository allow it
+# (Settings › Actions › General, "Allow GitHub Actions to create and approve pull requests"). GitHub starts no workflow
+# for a push or PR made with GITHUB_TOKEN, so after opening or updating the PR the job starts ci.yml on the branch
+# (workflow_dispatch is allowed with GITHUB_TOKEN); its checks are on the PR's head commit and show on the PR. While the
+# setting is off, the job pushes the branch and fails with the link to open the PR by hand.
+# Optional: the repository secret DE_AREAS_PR_TOKEN (a token with Contents and Pull requests read and write) is used
+# instead when set; its PRs start CI by themselves. docs/internal/ci-internal.md, "German area data".
+name: German area data
+
+on:
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: de-areas
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write # gh workflow run ci.yml
+    env:
+      BRANCH: data/de-areas
+      DATA: apps/api/src/de-areas.data.ts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: master-dev
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Download the newest editions and make the data file
+        env:
+          DE_AREAS_SUMMARY: ${{ runner.temp }}/summary.md
+        run: pnpm --filter @linedesk/api de-areas:update
+      - name: Did the data change?
+        id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- "$DATA"; then
+            echo "The data file already has the newest editions."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          elif git fetch -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH" 2>/dev/null &&
+            git diff --quiet FETCH_HEAD -- "$DATA"; then
+            echo "$BRANCH already has exactly this data."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: The new file typechecks and is formatted
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          pnpm --filter @linedesk/api typecheck
+          pnpm exec biome check "$DATA"
+      - name: Push data/de-areas and open or update the PR
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.DE_AREAS_PR_TOKEN || github.token }}
+          OWN_TOKEN: ${{ secrets.DE_AREAS_PR_TOKEN != '' }}
+        run: |
+          date=$(node --disable-warning=ExperimentalWarning -e \
+            "import('./$DATA').then(m => console.log(m.DE_AREAS_EDITIONS.rufnummernbloecke))")
+          title="German area data $date"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$BRANCH"
+          git add -- "$DATA"
+          git commit -s -q -m "$title" -m "Made by .github/workflows/de-areas.yml (pnpm --filter @linedesk/api de-areas:update)."
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$BRANCH"
+          {
+            cat "$RUNNER_TEMP/summary.md"
+            echo
+            echo "Made by the weekly workflow \`.github/workflows/de-areas.yml\` from the newest BNetzA and Destatis editions."
+            echo "Merge it before the next release (docs/internal/working.md, \"Branches and releases\")."
+            if [ "$OWN_TOKEN" != true ]; then
+              echo
+              echo "Opened with GITHUB_TOKEN: the workflow started CI on \`$BRANCH\` itself (Actions → CI)."
+            fi
+          } > "$RUNNER_TEMP/body.md"
+          pr=$(gh pr list --head "$BRANCH" --base master-dev --state open --json number --jq '.[0].number // empty')
+          if [ -n "$pr" ]; then
+            gh pr edit "$pr" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+            echo "Updated PR #$pr: $title" | tee -a "$GITHUB_STEP_SUMMARY"
+          elif gh pr create --base master-dev --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"; then
+            echo "Opened the PR: $title" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            link="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/master-dev...$BRANCH?expand=1"
+            echo "::error title=German area data::$BRANCH is pushed but the PR could not be opened (allow GitHub Actions to create pull requests, see the top of this workflow). Open it by hand: $link"
+            exit 1
+          fi
+          # A push or PR by GITHUB_TOKEN starts no workflow: start CI on the branch, on the PR's head commit.
+          if [ "$OWN_TOKEN" != true ]; then
+            gh workflow run ci.yml --ref "$BRANCH"
+            echo "Started CI on $BRANCH." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi

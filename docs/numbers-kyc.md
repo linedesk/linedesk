@@ -176,8 +176,10 @@ is in the area (`addressOutsideArea` in the answer of `numberRequest.create`); T
 The business always keeps the choice: Linedesk suggests an area, it never locks one.
 
 - **Germany: every Ortsnetz.** The list is the Bundesnetzagentur's Vorwahlverzeichnis (5,200 Ortsnetze with their
-  Ortsnetzkennzahl and name), in `apps/api/src/de-areas.data.ts`, made by `apps/api/scripts/de-areas.ts` (run it again
-  with the new files when the BNetzA or Destatis publish a new edition; the script says where to get them).
+  Ortsnetzkennzahl and name), in `apps/api/src/de-areas.data.ts`, made by `apps/api/scripts/de-areas.ts`. It is
+  refreshed with the releases: `pnpm --filter @linedesk/api de-areas:update` downloads the newest editions of every
+  source and runs the generator; a weekly workflow runs it and opens a PR into `master-dev` when anything changed
+  (decision of 2026-11-18). The file's header names each source with its edition date (`DE_AREAS_EDITIONS`).
   `numberRequest.areas` searches it by name ("Heidelberg"), by area code ("06221", "+49 6221") and by municipality:
   each of the 10,751 municipalities of the Destatis Gemeindeverzeichnis is mapped to the Ortsnetz its centre lies in
   (point in polygon on the BNetzA's ONB-Grenzen), so "Dossenheim" finds Heidelberg 06221 with `place: 'Dossenheim'`.
@@ -226,8 +228,8 @@ number on is likely not allowed. Research and open legal points: `reports/tkg-pr
   Ortsnetz and the first digits of every number of the block), made by `apps/api/scripts/de-areas.ts` from the
   BNetzA's "Verzeichnis der zugeteilten Rufnummernblöcke in Ortsnetzen" (`NVONB.INTERNET.<date>.OZRNB.csv` in
   https://data.bundesnetzagentur.de/Bundesnetzagentur/DE/Fachthemen/Telekommunikation/Nummerierung/ONRufnr/NVONB.INTERNET.OZRNB.zip,
-  dl-de/by-2-0). Telnyx gets new blocks over time: generate the file again (the BNetzA updates the list regularly) and
-  the areas open up with the next release. The porting IDs kept are `CARRIERS` in the script; the one used is
+  dl-de/by-2-0). Telnyx gets new blocks over time: the weekly refresh above picks up the BNetzA's newest list, and the
+  areas open up with the next release. The porting IDs kept are `CARRIERS` in the script; the one used is
   `CLOUD_CARRIER_PORTING_ID` in `apps/api/src/number-blocks.ts`.
 
 ### The business's seat in the number's Ortsnetz

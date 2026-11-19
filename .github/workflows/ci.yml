@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [master-dev, master-prod]
+  # By hand, and by de-areas.yml for its PR: GitHub starts no workflow for a PR that GITHUB_TOKEN opened or pushed, so
+  # that workflow starts this one on its branch. The runs are on the PR's head commit, so the PR shows their checks.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -124,6 +127,9 @@ jobs:
       # The migrations journal in order: a `when` not after the one before is skipped by the migrator on installs past it
       # (packages/db/scripts/check-journal.ts; about 1 s, no database needed).
       - run: pnpm db:check-journal
+      # A warning, never a failure, when the German number block list (apps/api/src/de-areas.data.ts) is older than 75
+      # days: the weekly "German area data" PR (de-areas.yml) is not merged or the workflow stopped working.
+      - run: node --disable-warning=ExperimentalWarning apps/api/scripts/de-areas-age.ts
       # The Zapier app has every public action of the registry (packages/actions/scripts/zapier.ts): a new or changed
       # one needs `pnpm zapier:generate`, so it reaches Zapier with the release (zapier.yml). Then the app's own tests
       # (no network, no Zapier account; about 2 s).
