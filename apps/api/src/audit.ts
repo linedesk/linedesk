@@ -2,7 +2,7 @@
 // the command log (`commands`: admin actions, team and role changes, provider keys, impersonation),
 // and `auth_events` for what happens in Better Auth's own endpoints (sign-ins with their method,
 // sign-in methods added or removed, invitations accepted). Nothing here is ever deleted.
-import { REDACTED } from '@linedesk/actions'
+import { isBriefed, REDACTED } from '@linedesk/actions'
 import { auth_events, type Db, type Tx, user } from '@linedesk/db'
 import type { EmailRules, TransferContact } from '@linedesk/db/types'
 import { type createAuthMiddleware, isAPIError } from 'better-auth/api'
@@ -443,7 +443,9 @@ const audited = (c: TransferContact): AuditedContact => ({ id: c.id, name: c.nam
 /** The fields of a contact that differ between two versions of it (jsonb keeps keys in its own order). */
 function changedFields(was: TransferContact, now: TransferContact): string[] {
   const keys = [...new Set([...Object.keys(was), ...Object.keys(now)])].sort()
-  const get = (c: TransferContact, k: string) => JSON.stringify((c as Record<string, unknown>)[k] ?? null)
+  // A missing `briefing` is on (isBriefed): the settings page saves it as `true`, which is no change.
+  const get = (c: TransferContact, k: string) =>
+    JSON.stringify(k === 'briefing' ? isBriefed(c) : ((c as Record<string, unknown>)[k] ?? null))
   return keys.filter(k => get(was, k) !== get(now, k))
 }
 
