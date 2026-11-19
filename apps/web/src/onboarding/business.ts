@@ -198,6 +198,7 @@ export function renameBusiness(draft: ProfileDraft, name: string): ProfileDraft 
 export function instructionsOf(draft: ProfileDraft): string {
   const services = lines(draft.services)
   const useCases = lines(draft.useCases)
+  // i18n-ignore: the assistant's About text, which it reads (CLAUDE.md rule 11: wording needs Tim's or Janik's OK)
   return [
     draft.about.trim(),
     services.length ? `Services: ${services.join('; ')}.` : null,

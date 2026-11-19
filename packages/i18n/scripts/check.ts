@@ -98,6 +98,15 @@ export function checkEnglish(report: Report): Catalog {
   return en
 }
 
+/**
+ * Namespaces the web app never loads in other languages (the `!**\/server.json` in apps/web/src/i18n/index.tsx's
+ * glob): only the API writes them, in the reader's language. A key of theirs used in the web app is English for everyone.
+ */
+export const WEB_UNLOADED_NAMESPACES: readonly string[] = ['server']
+
+const inWebApp = (file: string) => file.startsWith(`${RATCHET_ROOT}/`)
+const webUnloaded = (key: string) => WEB_UNLOADED_NAMESPACES.includes(key.split('.')[0] as string)
+
 /** Code vs catalogs, from a scan of every source file. */
 export function checkUsage(en: Catalog, scans: KeyScan[], report: Report) {
   const used = new Set<string>()
@@ -106,7 +115,19 @@ export function checkUsage(en: Catalog, scans: KeyScan[], report: Report) {
     for (const use of scan.used) {
       used.add(use.key)
       if (!(use.key in en)) report.errors.push(`${use.file}:${use.line}: unknown key "${use.key}"`)
+      else if (inWebApp(use.file) && webUnloaded(use.key))
+        report.errors.push(
+          `${use.file}:${use.line}: "${use.key}" is in a namespace the web app does not load, so it shows in ` +
+            'English in every language. Move it to a namespace the web app loads (common, settings, …), or have the API write it ' +
+            '(docs/translations.md, "Server-side text")',
+        )
     }
+    for (const { prefix, file } of scan.dynamic)
+      if (inWebApp(file) && webUnloaded(prefix))
+        report.errors.push(
+          `${file}: i18n-dynamic prefix "${prefix}*" is in a namespace the web app does not load, so its keys show ` +
+            'in English in every language (docs/translations.md, "Server-side text")',
+        )
     for (const use of scan.undeclared)
       report.errors.push(
         `${use.file}:${use.line}: key built at runtime (${use.key}); declare its prefix with // i18n-dynamic: <prefix>.*`,
@@ -275,7 +296,7 @@ function main() {
 
   const ignore = ratchetIgnore(glossary)
   const webFiles = sourceFiles(RATCHET_ROOT)
-  const hits = hardcodedIn([RATCHET_ROOT], ignore)
+  const hits = hardcodedIn([RATCHET_ROOT], ignore, { textReceivers: true })
   const counts = Object.fromEntries(Object.entries(hits).map(([file, h]) => [file, h.length]))
   checkFormatting(
     webFiles.flatMap(file => findFormatting(file, readFileSync(`${REPO_DIR}${file}`, 'utf8'))),

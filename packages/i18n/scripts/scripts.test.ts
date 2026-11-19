@@ -138,9 +138,33 @@ describe('key scan', () => {
       'inbox.unused: defined in English but not used anywhere',
     ])
   })
+  it('fails a server.json key in the web app: it would show in English in every language', () => {
+    const report: Report = { errors: [], warnings: [] }
+    const web = scanKeys('apps/web/src/a.tsx', 't("server.api.noWorkspace") // i18n-dynamic: server.forwardingGuides.*')
+    const api = scanKeys('apps/api/src/b.ts', 't("server.api.noWorkspace"); t("inbox.known")')
+    checkUsage({ 'server.api.noWorkspace': 'S', 'inbox.known': 'K' }, [web, api], report)
+    expect(report.errors).toEqual([
+      expect.stringMatching(
+        /^apps\/web\/src\/a\.tsx:1: "server\.api\.noWorkspace" is in a namespace the web app does not load/,
+      ),
+      expect.stringMatching(/^apps\/web\/src\/a\.tsx: i18n-dynamic prefix "server\.forwardingGuides\.\*"/),
+    ])
+  })
 })
 
 describe('hardcoded ratchet', () => {
+  it('reads what join and replace are called on in the web app, not their arguments', () => {
+    const source = `
+      export const about = (area: string, calls: string[]) =>
+        [\`Service area: \${area}.\`, \`Common calls:\\n\${calls.join('\\n')}\`].filter(Boolean).join('\\n\\n')
+      export const note = (n: number) => 'Saved {n} calls'.replace('{n}', String(n))
+      export const ok = ['Enter', 'Tab'].includes(key) && parts.join(', ')
+    `
+    const web = findHardcoded('a.ts', source, new Set(), { textReceivers: true }).map(hit => hit.text)
+    expect(web).toEqual(['Service area: .', 'Common calls:', 'Saved {n} calls'])
+    // The server's baseline counts without it.
+    expect(findHardcoded('a.ts', source)).toEqual([])
+  })
   it('counts JSX text, text attributes and toast() but not keys, brand names or symbols', () => {
     const source = `
       export function A() {

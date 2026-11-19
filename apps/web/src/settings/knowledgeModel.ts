@@ -67,6 +67,7 @@ export const defaultPicks = (review: ImportReview, proposal: KnowledgeImportData
 export function applyImport(draft: Draft, proposal: KnowledgeImportData, picks: ImportPicks): Draft {
   const about = picks.about ? proposal.about.trim() : draft.instructions.trim()
   const useCases = proposal.useCases.filter((_, i) => picks.useCases.has(i))
+  // i18n-ignore: the assistant's About text, which it reads (CLAUDE.md rule 11: wording needs Tim's or Janik's OK)
   const instructions = useCases.length
     ? [about, `Common calls:\n${useCases.map(u => `- ${u}`).join('\n')}`].filter(Boolean).join('\n\n')
     : picks.about

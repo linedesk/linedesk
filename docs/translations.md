@@ -125,6 +125,8 @@ a fallback (`name ?? 'Assistant'`) and an error message the page shows are all u
 
 - English: valid ICU, sorted keys, no duplicates, no empty strings.
 - Code and catalogs: every key the code uses exists, every English key is used (or under an `i18n-dynamic` prefix).
+  The web app uses no key of `server.json` (it never loads it in other languages, so the text would be English for
+  everyone): such a text moves to a namespace the web app loads, or the API writes it.
 - Other languages: no keys English lacks, the same arguments, tags and plural forms, a lock entry for every key.
 - `--complete` (release pull requests only): every key translated and current, and `hardcoded-baseline.json` empty.
   A file listed there fails the release with a note to move its strings to keys and use `t()`.
@@ -134,7 +136,8 @@ a fallback (`name ?? 'Assistant'`) and an error message the page shows are all u
   moving strings out, `pnpm i18n:check --update-baseline` writes the new counts. Never raise it to pass a check.
 - What the scanner counts (`packages/i18n/scripts/scan.ts`, `findHardcoded`): JSX text, text attributes (`title`,
   `placeholder`, `aria-label`, `label`, `alt`, `tooltip`) and `toast(…)`; in all code, a string or template that
-  reads like a sentence, and a capitalised word that is returned, chosen, assigned or listed; error messages too. Not
+  reads like a sentence, and a capitalised word that is returned, chosen, assigned or listed; error messages too; also
+  what `join`, `replace` and `replaceAll` are called on (`[\`Address: ${address}.\`, …].join('\n')`). Not
   counted: types, object keys, comparisons, imports, logs, class names, URLs, ids and keys, keyboard keys, `t()` keys
   and the glossary's never-translate words alone. Text that is not UI (an example file whose column names are read
   back, browser messages the code matches, a programming error) gets `// i18n-ignore: <why>` right before its

@@ -206,6 +206,12 @@ const PLUMBING_CALLS = new Set([
   'test',
   'expect',
 ])
+/**
+ * Plumbing methods whose receiver is still text people read: `[\`Services: ${list}.\`, …].join('\\n')`,
+ * `\`Saved ${n} calls\`.replace(…)`. Their arguments stay plumbing (`'\\n'`); the web app's ratchet reads the receiver
+ * (findHardcoded's `textReceivers`).
+ */
+const TEXT_RECEIVER_CALLS = new Set(['join', 'replace', 'replaceAll'])
 /** Objects whose methods write logs (`console.warn(…)`, `logger.error(…)`): logs stay English. */
 const LOG_OBJECT = /^(?:console|log|logger|\w+Logger)$/
 /** Object keys and JSX attributes whose values are never shown to people. */
@@ -389,9 +395,14 @@ export function findHardcoded(
      * arguments alone are plumbing. Off for the web app's ratchet.
      */
     readReceivers?: boolean
+    /**
+     * The web app: what `join`, `replace` and `replaceAll` are called on (TEXT_RECEIVER_CALLS), whose arguments alone
+     * are plumbing. Off on the server, whose baseline counts without it.
+     */
+    textReceivers?: boolean
   } = {},
 ): Hardcoded[] {
-  const { within, readReceivers = false } = options
+  const { within, readReceivers = false, textReceivers = false } = options
   const { program, comments } = parse(file, source)
   const skip = ignoredStarts(source, comments)
   const hits: Hardcoded[] = []
@@ -436,7 +447,7 @@ export function findHardcoded(
         if (name && (KEY_CALLS.has(name) || PLUMBING_CALLS.has(name))) {
           // The arguments are plumbing ('\n' in `.join('\n')`, a key in `t('…')`); what the method is called on is
           // not: `['A sentence.', …].join('\n')` is read.
-          if (!readReceivers) return false
+          if (!readReceivers && !(textReceivers && TEXT_RECEIVER_CALLS.has(name))) return false
           for (const arg of node.arguments) plumbing.add(arg)
           return node.callee?.type === 'MemberExpression'
         }
@@ -491,7 +502,7 @@ export function countHardcoded(file: string, source: string, ignore: ReadonlySet
 export function hardcodedIn(
   roots: readonly string[],
   ignore: ReadonlySet<string>,
-  options: { readReceivers?: boolean } = {},
+  options: { readReceivers?: boolean; textReceivers?: boolean } = {},
 ): Record<string, Hardcoded[]> {
   const out: Record<string, Hardcoded[]> = {}
   for (const root of roots)
@@ -505,7 +516,10 @@ export function hardcodedIn(
 /** The ratchet's counts for every file of the web app that has any. */
 export function hardcodedCounts(ignore: ReadonlySet<string>): Record<string, number> {
   return Object.fromEntries(
-    Object.entries(hardcodedIn([RATCHET_ROOT], ignore)).map(([file, hits]) => [file, hits.length]),
+    Object.entries(hardcodedIn([RATCHET_ROOT], ignore, { textReceivers: true })).map(([file, hits]) => [
+      file,
+      hits.length,
+    ]),
   )
 }
 
