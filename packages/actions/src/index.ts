@@ -30,7 +30,7 @@ import * as knowledge from './knowledge.ts'
 import * as liveCall from './live-call.ts'
 import * as membership from './membership.ts'
 import * as notifications from './notifications.ts'
-import * as numberRequests from './number-requests.ts'
+import * as numberBuy from './number-buy.ts'
 import * as onboarding from './onboarding.ts'
 import * as providerHealth from './provider-health.ts'
 import * as sample from './sample.ts'
@@ -57,8 +57,7 @@ export * from './words.ts'
 export * from './agent-token.ts'
 export * from './area-codes.ts'
 export * from './nearby-area-codes.ts'
-export * from './number-countries.ts'
-export * from './number-requests.ts'
+export * from './number-buy.ts'
 export * from './signup-access.ts'
 export * from './client.ts'
 export * from './input-errors.ts'
@@ -205,19 +204,8 @@ const all = [
   forwarding.phoneNumberLookupLine,
   forwarding.phoneNumberCheckForwarding,
   forwarding.phoneNumberForwardingCheck,
-  numberRequests.numberRequestCountries,
-  numberRequests.numberRequestRequirements,
-  numberRequests.numberRequestAreas,
-  numberRequests.numberBlocksGet,
-  numberRequests.numberBlocksSet,
-  numberRequests.numberRequestGetProfile,
-  numberRequests.numberRequestSaveProfile,
-  numberRequests.numberRequestUploadDocument,
-  numberRequests.numberRequestDeleteDocument,
-  numberRequests.numberRequestCreate,
-  numberRequests.numberRequestList,
-  numberRequests.numberRequestRefresh,
-  numberRequests.numberRequestCancel,
+  numberBuy.germanNumbersGet,
+  numberBuy.germanNumbersSet,
   carrier.carrierSet,
   carrier.carrierGet,
   carrier.carrierTest,

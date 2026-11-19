@@ -1,6 +1,5 @@
 // Telnyx adapter, REST API v2 with plain fetch. https://developers.telnyx.com/api
 import { createPublicKey, verify } from 'node:crypto'
-import { createTelnyxRegulatory } from './telnyx-regulatory.ts'
 import { installCarrierName, TelephonyError, type TelephonyErrorCode, type AvailableNumber, type CallStatus, type CallStatusEvent, type LineType, type NumberLookup, type OwnedNumber, type TelephonyProvider } from './provider.ts'
 
 const API = 'https://api.telnyx.com/v2'
@@ -218,12 +217,10 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
   return {
     name: 'telnyx',
 
-    regulatory: createTelnyxRegulatory({ request, findNumberId, verifySignature }),
-
-    async searchNumbers({ country, areaCode, limit = 10, withRequirements = false }) {
+    async searchNumbers({ country, areaCode, limit = 10, withRequirements = false, numberType }) {
       // Outside the US, a country can need an address or documents before Telnyx activates a local number (a
       // requirement group). A plain purchase submits none, so such a number would stay pending: refused before
-      // buying. The number request flow (withRequirements) submits them itself.
+      // buying. A purchase with the install's requirement group (withRequirements) passes them with the order.
       if (country !== 'US' && !withRequirements) {
         const needs = await orderingRequirements(country)
         if (needs.length)
@@ -232,6 +229,7 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
       // No best-effort results (US and Canada): those are numbers near the area code, not in it.
       const query = new URLSearchParams({ 'filter[country_code]': country, 'filter[features][]': 'voice', 'filter[limit]': String(limit), 'filter[best_effort]': 'false' })
       if (areaCode) query.set('filter[national_destination_code]', areaCode)
+      if (numberType) query.set('filter[phone_number_type]', numberType)
       const answer = await request('GET', `/available_phone_numbers?${query}`).catch((e: unknown) => {
         if (!isNoInventory(e)) throw e
         // No free number there: an empty search, which the app tells as such. Telnyx's words stay in the log.
@@ -259,8 +257,11 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
       return id ? { e164, providerRef: id } : null
     },
 
-    async buyNumber(e164): Promise<OwnedNumber> {
-      const { data } = await request('POST', '/number_orders', { phone_numbers: [{ phone_number: e164 }] })
+    async buyNumber(e164, options): Promise<OwnedNumber> {
+      const group = options?.requirementGroupRef
+      const { data } = await request('POST', '/number_orders', {
+        phone_numbers: [{ phone_number: e164, ...(group ? { requirement_group_id: group } : {}) }],
+      })
       if (data.status === 'failure') throw fail(`number order ${data.id} for ${e164} failed`)
       // An order whose regulatory requirements are not met stays pending until they are, at Telnyx: cancelled.
       if (data.requirements_met === false) throw await notActivated(data, e164, 'waits for regulatory requirements (address or documents)')

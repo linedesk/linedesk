@@ -209,6 +209,8 @@ describe('access', () => {
       'calendarTools.set',
       'callQuality.get',
       'callQuality.set',
+      'germanNumbers.get',
+      'germanNumbers.set',
       'impersonationEmails.get',
       'impersonationEmails.set',
       'install.setProgress',
@@ -219,8 +221,6 @@ describe('access', () => {
       'membership.add',
       'membership.remove',
       'membership.setRole',
-      'numberBlocks.get',
-      'numberBlocks.set',
       'outboundCountries.get',
       'outboundCountries.set',
       'partner.adminList',
@@ -2504,6 +2504,8 @@ describe('impersonation', () => {
       'emailRouting.get',
       // The questions of How <assistant> did, a read; marking an evaluation done or open stays refused.
       'evaluation.listQuestions',
+      // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
+      'germanNumbers.get',
       'holidays.lookup',
       'impersonation.stop',
       // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
@@ -2514,14 +2516,6 @@ describe('impersonation', () => {
       'invitation.listMine',
       'member.list',
       'notifications.get',
-      // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
-      'numberBlocks.get',
-      // Number requests (KYC): the countries, what a country needs and where requests stand; the profile is refused.
-      // The area search is public data (the BNetzA's Ortsnetze), suggested from the profile's town and postcode only.
-      'numberRequest.areas',
-      'numberRequest.countries',
-      'numberRequest.list',
-      'numberRequest.requirements',
       // The go-live checklist's facts, so the inbox looks as the user sees it. Closing or reopening it stays refused.
       'onboarding.goLiveChecklist',
       // Which countries transfers may call, so the Transfers settings show what the user sees.

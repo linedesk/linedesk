@@ -1,7 +1,6 @@
 // Server admin › System › Sign-up countries (packages/actions/src/signup-access.ts): per country the install can serve,
 // who may sign up there: everyone, only invited email addresses, or nobody. The US, Canada and Puerto Rico are open by
-// default; Germany shows once the server takes number requests there (NUMBER_KYC_COUNTRIES), for invited addresses by
-// default. One invite list for every country set to "only invited". Each change saves at once and is audited.
+// default; Germany for invited addresses by default (whether German numbers can be bought yet does not matter here). One invite list for every country set to "only invited". Each change saves at once and is audited.
 import { normalizeInviteEmail, phoneCountryName, type SignupAccessData, type SignupMode } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'

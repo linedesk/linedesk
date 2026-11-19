@@ -6,8 +6,6 @@ import { createTwilioProvider } from './twilio.ts'
 
 export * from './provider.ts'
 export { DEV_LOOKUP, devForwardingOutcome, devNoFreeAreaCodes, devProvider, type DevForwardingOutcome } from './dev.ts'
-export { decideDevReview, devRegulatory, devUploadCount } from './dev-regulatory.ts'
-export { createTelnyxRegulatory, telnyxGroupStatus, telnyxOrderStatus } from './telnyx-regulatory.ts'
 export { createTelnyxProvider, telnyxLineType, type TelnyxOptions } from './telnyx.ts'
 export {
   createTelnyxOutbound,

@@ -85,9 +85,6 @@ export const IMPERSONATION_ALLOWED_WRITES: ReadonlySet<string> = new Set([
  * lasting key to the person's account, which only the person does (oauth.approve is refused as a write).
  * Settings › Billing's overview (billing.overview): its invoices' Stripe links work without a login and outlast the
  * impersonation (security review of #1007, M-1); support sees the bill's state through billing.state.
- * The regulatory profile for number requests (numberRequest.getProfile: legal details, the contact, the list of ID and
- * address documents): identity data only the business gives the carrier; support sees the requests' state through
- * numberRequest.list.
  */
 const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set([
   'webhook.test',
@@ -106,7 +103,6 @@ const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set([
   'workspace.deletePreview',
   'oauth.describe',
   'billing.overview',
-  'numberRequest.getProfile',
 ])
 
 /** Whether an impersonated session may run this action. */

@@ -17,8 +17,6 @@
 // numbers: a number Linedesk bought in the install's carrier account is released there (so nobody pays for it);
 // any other number is un-routed in the account it is in and stays the business's (its own carrier account, or
 // a number it brought). A carrier failure does not stop the delete: the number is listed as left at the carrier.
-// Number requests in countries that need documents (number-requests.ts): an order still open at the carrier is
-// cancelled, and a number the carrier already put on the install's account for one is released (ALERT if not).
 import type { WorkspaceDeleteData } from '@linedesk/actions'
 import * as schema from '@linedesk/db'
 import {
@@ -46,7 +44,6 @@ import { pruneSet } from './command-log.ts'
 import { Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { queueRecordingFileDeletions } from './jobs.ts'
-import { cancelOrdersOfDeletedWorkspace, ordersOfDeletedWorkspace } from './number-requests.ts'
 import { telephonyProvider } from './provider-settings.ts'
 import { removeTransferTrunks } from './transfer-trunk.ts'
 import { releaseWorkspaceClones } from './voices.ts'
@@ -267,7 +264,6 @@ export async function deleteWorkspace(
 
   const numbers = await tx.select().from(phone_numbers).where(eq(phone_numbers.workspace_id, workspaceId))
   const carriers = await carriersFor(tx, workspaceId, numbers, telephony)
-  const numberOrders = await ordersOfDeletedWorkspace(tx, workspaceId, telephony)
   const recordings = await tx
     .select({ store: calls.recording_store, key: calls.recording_key })
     .from(calls)
@@ -312,7 +308,6 @@ export async function deleteWorkspace(
     numberResults.push(
       await releaseAtCarrier(number, number.carrier_account === 'workspace' ? carriers.workspace : carriers.install),
     )
-  numberResults.push(...(await cancelOrdersOfDeletedWorkspace(tx, numberOrders)))
   // The LiveKit trunk transfers dialled out through, for the workspace's own carrier account.
   await removeTransferTrunks(workspaceId).catch(e =>
     console.warn(`transfer trunks of deleted workspace ${workspaceId} not removed: ${reason(e)}`),

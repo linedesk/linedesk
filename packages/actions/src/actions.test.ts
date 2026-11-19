@@ -24,9 +24,11 @@ test('inputs are validated', () => {
   expect(phoneNumberSetup.input.safeParse({ e164: '+15035550142' }).success).toBe(true)
   expect(phoneNumberSetup.input.safeParse({ areaCode: '503' }).success).toBe(false) // an area code alone would buy
   expect(phoneNumberSetup.input.safeParse({ areaCode: '503', purchase: true }).success).toBe(true)
-  // Only area codes a number can be bought in: not toll-free, N11, 555 or one that is not in service.
-  for (const areaCode of ['800', '411', '555', '123', '999'])
-    expect(phoneNumberSetup.input.safeParse({ areaCode, purchase: true }).success).toBe(false)
+  // Which area codes a number can be bought in depends on the workspace's country and the install's offers: the
+  // server refuses toll-free, N11, 555 and codes not in service (apps/api/test/number-buy.test.ts).
+  expect(phoneNumberSetup.input.safeParse({ areaCode: '0503', purchase: true }).success).toBe(false)
+  // A country without area codes (a national number) buys with neither: the server checks the offer.
+  expect(phoneNumberSetup.input.safeParse({ purchase: true }).success).toBe(true)
   expect(phoneNumberSetup.input.parse({ e164: '+15035550142' })).toEqual({ e164: '+15035550142', purchase: false })
   expect(phoneNumberSetup.input.safeParse({ e164: '+15035550142', mode: 'ported' }).success).toBe(true)
   expect(phoneNumberSetup.input.safeParse({ e164: '+15035550142', mode: 'rented' }).success).toBe(false)

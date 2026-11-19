@@ -1,7 +1,7 @@
 // Setup MCP at /mcp/setup (LIN-125): an instance admin's setup key, the short list of setup tools, and every way a
 // key stops working. In INSTANCE_WIDE_FILES: it makes instance admins and stores provider keys.
 import { randomBytes } from 'node:crypto'
-import { providerGroups, SETUP_MCP_INSTRUCTIONS } from '@linedesk/actions'
+import { BASE_BUY_OFFERS, providerGroups, SETUP_MCP_INSTRUCTIONS } from '@linedesk/actions'
 import {
   agent_setup_keys,
   assistants,
@@ -37,6 +37,7 @@ import {
   SETUP_LINK_WORKSPACE_CAP,
   wrapUp,
 } from '../src/setup-mcp.ts'
+import { trialStartPath } from '../src/trial-link.ts'
 import { mayCreateWorkspace } from '../src/workspace-creation.ts'
 import {
   act,
@@ -159,7 +160,10 @@ describe('setup keys', () => {
     expect(groupOf('workspace')).toBeUndefined()
     expect(step('business')).toMatchObject({ label: 'Your business', hint: 'name, time zone, services, area, prices' })
     // Named like the app's own places, with the industry term where it helps (setupStepNames).
-    expect(step('notify')).toMatchObject({ label: 'Call alerts', hint: expect.stringMatching(/email after every call/) })
+    expect(step('notify')).toMatchObject({
+      label: 'Call alerts',
+      hint: expect.stringMatching(/email after every call/),
+    })
     expect(step('telephony')).toMatchObject({ label: 'Phone carrier', hint: 'Telnyx or Twilio' })
     expect(step('call-audio').hint).toMatch(/LiveKit/)
     // The workspaces the admin can set up, for the page's dropdown; the steps are for the first one here.
@@ -1748,11 +1752,34 @@ describe("the phone step's how-to by the workspace's country (LIN-300)", () => {
     expect(how).toContain(`phoneNumber_listCarrierNumbers { ${w} }`)
   })
 
+  test('Germany once German numbers are on: buy in an offered area code, like the US (LIN-619)', () => {
+    const offers = [
+      ...BASE_BUY_OFFERS,
+      { country: 'DE', numberType: 'local' as const, areaCodes: ['6221'], ready: true },
+    ]
+    const how = numberSetupHow(w, 'DE', 'https://app.test', offers)
+    expect(how).toContain(`phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one`)
+    expect(how).toContain('(DE: 6221, digits without the leading 0; numbers can be bought in US, CA, PR, DE)')
+    expect(how).not.toMatch(/document|request/i)
+    // Not set up at the carrier yet: buying is not offered, as elsewhere.
+    // German numbers off or not set up at the carrier yet: being set up, continue and connect later.
+    const notReady = numberSetupHow(w, 'DE', 'https://app.test', [...BASE_BUY_OFFERS, { ...offers[3]!, ready: false }])
+    expect(notReady).not.toContain('purchase: true')
+    expect(notReady).toContain('Numbers in DE are being set up on this server')
+    expect(notReady).toContain(`phoneNumber_setup { ${w}, e164, purchase: false, mode }`)
+  })
+
   test('nothing names the country yet: an area code where the business is, and the number sets the country', () => {
     const how = numberSetupHow(w, null)
     expect(how).toContain(`phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one`)
     expect(how).toContain("the workspace's country is not set yet, so the number sets it")
     expect(how).toContain(`workspace_updateSettings { ${w}, country }`)
     expect(how).not.toContain('(US;')
+  })
+})
+
+describe("the activate step's trial link (LIN-614)", () => {
+  test('the setup agent hands out the shared deep link, by workspace id: the same link the app and emails use', () => {
+    expect(trialStartPath('ws_1')).toBe('/#workspace/billing?start-trial=1&ws=ws_1')
   })
 })

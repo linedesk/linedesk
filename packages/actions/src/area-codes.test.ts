@@ -58,18 +58,17 @@ test('a search matches the code, the city and the state', () => {
   expect(search('nowhere')).toEqual([])
 })
 
-test('the server refuses an area code that is not in the list, in a plain sentence', () => {
-  const sent = { areaCode: '555', purchase: true }
-  const parsed = phoneNumberSetup.input.safeParse(sent)
-  expect(parsed.success).toBe(false)
-  expect(inputErrorText(parsed.error!, sent)).toBe(
-    'Area code: not an area code a number can be bought in (US, Canada, Puerto Rico).',
-  )
-  // Canada's and Puerto Rico's are taken; a Caribbean one (Jamaica 876, the Dominican Republic 809) is not.
-  for (const areaCode of ['416', '604', '787', '939'])
+test('the input takes an area code as digits without the trunk 0; the server checks it against the offer', () => {
+  // The list depends on the country's buy offer (the US list, Germany's codes), so the server checks it
+  // (areaCodeCountryRefusal, apps/api/test/telephony-handlers.test.ts); the input refuses what is no area code at all.
+  for (const areaCode of ['416', '604', '787', '939', '6221', '30'])
     expect(phoneNumberSetup.input.safeParse({ areaCode, purchase: true }).success, areaCode).toBe(true)
-  for (const areaCode of ['876', '809', '242', '671', '340'])
-    expect(phoneNumberSetup.input.safeParse({ areaCode, purchase: true }).success, areaCode).toBe(false)
+  for (const areaCode of ['06221', '5', 'abc', '123456']) {
+    const sent = { areaCode, purchase: true }
+    const parsed = phoneNumberSetup.input.safeParse(sent)
+    expect(parsed.success, areaCode).toBe(false)
+    expect(inputErrorText(parsed.error!, sent)).toBe('The area code is its digits without the leading 0, such as 503 or 6221.')
+  }
 })
 
 test('numbers can be bought in the US, Canada and Puerto Rico (LIN-300), whatever the case', () => {

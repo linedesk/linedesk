@@ -9,7 +9,6 @@ import {
   billing_accounts,
   billing_numbers,
   phone_numbers,
-  regulatory_documents,
 } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { expect, test } from 'vitest'
@@ -17,7 +16,6 @@ import { appSlot } from '../src/app-connections.ts'
 import { authenticatorSlot } from '../src/authenticator.ts'
 import { portOutSlot } from '../src/billing-owner.ts'
 import { db } from '../src/db.ts'
-import { documentSlot } from '../src/number-requests.ts'
 import { reencryptSecrets } from '../src/rotate-secrets-key.ts'
 import { decryptSecret, encryptSecret, parseSecretsKey } from '../src/secrets.ts'
 import { createWorkspace, signUp } from './helpers.ts'
@@ -105,32 +103,4 @@ test('a Slack webhook URL is re-encrypted with the new key, next to the tokens',
     .catch((e: { stored: string }) => e)
   expect(decryptSecret(rotated.stored, appSlot(connection, 'webhook'), to)).toBe(url)
   expect(() => decryptSecret(rotated.stored, appSlot(connection, 'webhook'), from)).toThrow()
-})
-
-test('a document for number requests is re-encrypted with the new key and still reads under its own slot', async () => {
-  const ws = await createWorkspace('Brightwater Plumbing & Heating')
-  const id = rid('rdoc')
-  const content = Buffer.from('%PDF-1.4 proof of address').toString('base64')
-  await db.insert(regulatory_documents).values({
-    id,
-    workspace_id: ws.id,
-    kind: 'proof_of_address',
-    filename: 'bill.pdf',
-    content_type: 'application/pdf',
-    size: 25,
-    sha256: 'x',
-    content_encrypted: encryptSecret(content, documentSlot(id)),
-  })
-  const from = parseSecretsKey(process.env.SECRETS_KEY!)
-  const to = randomBytes(32)
-  const rotated = await db
-    .transaction(async tx => {
-      const counts = await reencryptSecrets(tx, from, to)
-      const [row] = await tx.select().from(regulatory_documents).where(eq(regulatory_documents.id, id))
-      throw Object.assign(new Error('rollback'), { counts, stored: row!.content_encrypted })
-    })
-    .catch((e: { counts: Record<string, number>; stored: string }) => e)
-  expect(rotated.counts.regulatory_documents).toBe(1)
-  expect(decryptSecret(rotated.stored, documentSlot(id), to)).toBe(content)
-  expect(() => decryptSecret(rotated.stored, documentSlot(id), from)).toThrow()
 })

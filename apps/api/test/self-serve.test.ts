@@ -6,17 +6,7 @@
 // Billing is switched on by replacing billingState (no Stripe keys in tests). Instance-wide: it sets instance
 // settings and the Turnstile keys.
 // The app first (as the server loads it): the handler registry before the modules it collects.
-import {
-  act,
-  anonymous,
-  appRequest,
-  asServerAdmin,
-  createWorkspace,
-  FROM,
-  randomIp,
-  request,
-  signUp,
-} from './helpers.ts'
+
 import {
   agent_setup_keys,
   billing_accounts,
@@ -34,14 +24,14 @@ import {
 } from '@linedesk/db'
 import { and, count, eq, gte } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { WEB_ORIGIN } from '../src/auth.ts'
 import { noteAgentSeen } from '../src/admin-overview.ts'
 import { setupActorIn, workspaceSetupActor } from '../src/agent-setup.ts'
+import { WEB_ORIGIN } from '../src/auth.ts'
 import { db } from '../src/db.ts'
-import { runAction } from '../src/run-action.ts'
 import { emailSender } from '../src/email.ts'
 import { setJobQueue } from '../src/jobs.ts'
 import { setProviderKeys } from '../src/provider-settings.ts'
+import { runAction } from '../src/run-action.ts'
 import {
   emailHash,
   mergeSignupRules,
@@ -52,8 +42,19 @@ import {
   setTurnstileFetch,
   TURNSTILE_VERIFY_URL,
 } from '../src/self-serve.ts'
-import { COUNTRY_NOT_SERVED, sweepSignUps, TERMS_CHANGED } from '../src/signup-handlers.ts'
 import { EMAIL_CODE_SIGN_IN_PATH, mayCreateUser, refuseClosedSignUp } from '../src/signup-gate.ts'
+import { COUNTRY_NOT_SERVED, sweepSignUps, TERMS_CHANGED } from '../src/signup-handlers.ts'
+import {
+  act,
+  anonymous,
+  appRequest,
+  asServerAdmin,
+  createWorkspace,
+  FROM,
+  randomIp,
+  request,
+  signUp,
+} from './helpers.ts'
 
 const billing = vi.hoisted(() => ({ inEffect: true }))
 vi.mock('../src/billing-settings.ts', async original => {
@@ -1438,23 +1439,23 @@ describe('sign-up countries: a mode per country, Germany by invitation by defaul
     admin = await signUp()
     await setting('signup_access.modes', null)
     await setting('signup_access.invites', null)
+    await setting('number_buy.de', null)
   })
 
-  test('off by default: without NUMBER_KYC_COUNTRIES nobody gets Germany, invited or not', async () => {
-    vi.stubEnv('NUMBER_KYC_COUNTRIES', '')
-    const email = address('tester')
-    await access({ invites: [email] })
-    const { who, made } = await signUpThroughPage(email, NAME_ONLY, FROM_COUNTRY('DE'))
-    const inWs = inWorkspace(who, made.body.data.workspace.id)
-    expect(await served(inWs)).toEqual(['US', 'CA', 'PR'])
-    expect(await act(inWs, 'workspace.updateSettings', { country: 'DE' })).toMatchObject({
-      status: 409,
-      body: { code: COUNTRY_NOT_SERVED },
-    })
+  test('sign-up does not depend on German numbers: with them off, Germany follows only its mode (LIN-619)', async () => {
+    await setting('number_buy.de', null)
+    await access({ modes: { DE: 'open' } })
+    const { who, made } = await signUpThroughPage(address('anyone-off'), { ...DETAILS, country: 'DE' })
+    expect(made).toMatchObject({ status: 200, body: { ok: true } })
+    expect(await served(inWorkspace(who, made.body.data.workspace.id))).toEqual(['US', 'CA', 'PR', 'DE'])
+    // Off: nobody, German numbers on or not.
+    await setting('number_buy.de', JSON.stringify({ on: true, requirementGroupId: 'rg_1' }))
+    await access({ modes: { DE: 'off' } })
+    const refused = await signUpThroughPage(address('nobody'), { ...DETAILS, country: 'DE' })
+    expect(refused.made).toMatchObject({ status: 409, body: { code: COUNTRY_NOT_SERVED } })
   })
 
-  test('with DE open on the server: only an invited address (any case) may pick Germany', async () => {
-    vi.stubEnv('NUMBER_KYC_COUNTRIES', 'DE,GB')
+  test('invited only by default: only an invited address (any case) may pick Germany', async () => {
     const invited = address('invited')
     await access({ invites: [`  ${invited.toUpperCase()} `] })
     const stranger = await signUpThroughPage(address('stranger'), NAME_ONLY, FROM_COUNTRY('DE'))
@@ -1465,7 +1466,6 @@ describe('sign-up countries: a mode per country, Germany by invitation by defaul
     const tester = await signUpThroughPage(invited, NAME_ONLY, FROM_COUNTRY('DE'))
     const workspaceId = tester.made.body.data.workspace.id
     const testerWs = inWorkspace(tester.who, workspaceId)
-    // The UK is open for number requests but not a sign-up country (yet): only Germany joins.
     expect(await served(testerWs)).toEqual(['US', 'CA', 'PR', 'DE'])
     expect((await act(testerWs, 'workspace.updateSettings', { country: 'DE' })).status).toBe(200)
     const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
@@ -1474,7 +1474,6 @@ describe('sign-up countries: a mode per country, Germany by invitation by defaul
   })
 
   test('open to everyone: every sign-up may pick Germany, also an older page that sends it', async () => {
-    vi.stubEnv('NUMBER_KYC_COUNTRIES', 'DE')
     await access({ modes: { DE: 'open' } })
     const { who, made } = await signUpThroughPage(address('anyone'), { ...DETAILS, country: 'DE' })
     expect(made).toMatchObject({ status: 200, body: { ok: true } })
@@ -1486,19 +1485,18 @@ describe('sign-up countries: a mode per country, Germany by invitation by defaul
   })
 
   test('every country has a mode: a sign-up country can be set to invited only or off as well', async () => {
-    vi.stubEnv('NUMBER_KYC_COUNTRIES', '')
     const invited = address('invited-ca')
     await access({ modes: { CA: 'invited', PR: 'off' }, invites: [invited] })
     const stranger = await signUpThroughPage(address('stranger-ca'), NAME_ONLY, FROM_COUNTRY('US'))
     expect(await served(inWorkspace(stranger.who, stranger.made.body.data.workspace.id))).toEqual(['US'])
     const guest = await signUpThroughPage(invited, NAME_ONLY, FROM_COUNTRY('US'))
-    expect(await served(inWorkspace(guest.who, guest.made.body.data.workspace.id))).toEqual(['US', 'CA'])
+    // Germany is invited only by default: the invite list opens it too.
+    expect(await served(inWorkspace(guest.who, guest.made.body.data.workspace.id))).toEqual(['US', 'CA', 'DE'])
     // The public sign-up page lists only the countries open to everyone.
     expect((await request(anonymous, 'GET', '/v1/signup/config')).body.countries).toEqual(['US'])
   })
 
   test('Server admin › System: instance admins only; the list is kept trimmed, lower case, sorted and once', async () => {
-    vi.stubEnv('NUMBER_KYC_COUNTRIES', 'DE')
     const { owner } = await createWorkspace('Access Owner')
     expect((await act(owner, 'signupAccess.get', {})).status).toBe(403)
     expect((await act(owner, 'signupAccess.set', { modes: { DE: 'open' } })).status).toBe(403)
@@ -1528,8 +1526,9 @@ describe('sign-up countries: a mode per country, Germany by invitation by defaul
       'DE:open',
     ])
     expect(after.invites).toEqual(['a@x.test', 'b@x.test'])
-    vi.stubEnv('NUMBER_KYC_COUNTRIES', '')
+    // German numbers off: Germany stays a sign-up country (LIN-619).
+    await setting('number_buy.de', null)
     const off = (await asServerAdmin(admin, () => act(admin, 'signupAccess.get', {}))).body.data
-    expect(off.countries.map((c: { country: string }) => c.country)).toEqual(['US', 'CA', 'PR'])
+    expect(off.countries.map((c: { country: string }) => c.country)).toEqual(['US', 'CA', 'PR', 'DE'])
   })
 })

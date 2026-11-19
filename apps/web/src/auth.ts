@@ -4,7 +4,7 @@ import { passkeyClient } from '@better-auth/passkey/client'
 import { emailOTPClient, inferAdditionalFields, organizationClient } from 'better-auth/client/plugins'
 import type { AuthMethods, LegalLinks, SsoMethod } from '@linedesk/api/auth-types'
 import { createAuthClient } from 'better-auth/react'
-import type { FirstUse, MyPartner, OnboardingStep, StarPrompt } from '@linedesk/actions'
+import type { BuyOffer, FirstUse, MyPartner, OnboardingStep, StarPrompt } from '@linedesk/actions'
 import type { PlanPrices } from '@linedesk/db/types'
 
 import type { Impersonation } from './impersonation.ts'
@@ -32,11 +32,13 @@ export const auth = createAuthClient({
 
 /** Whether this server can set up phone numbers and with which carrier. `detail` (what the server lacks) only reaches instance admins. */
 /** `canAttach`: the member may connect a number already in the carrier account (else only a new one). */
+/** `buy`: where a number can be bought on the carrier account (numberBuyOffers); absent from an older server. */
 export type PhoneSetupStatus = {
   provider: string | null
   available: boolean
   detail: string | null
   canAttach: boolean
+  buy?: BuyOffer[]
 }
 /** Present while the workspace is in onboarding and this member may finish it. */
 /**

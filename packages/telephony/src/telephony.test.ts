@@ -329,6 +329,27 @@ describe('telnyx adapter', () => {
     expect(calls[1]!.path).toBe(`/phone_numbers?filter[phone_number]=${NUMBER}`)
   })
 
+  test('a German number is searched with the install\'s requirements and ordered with its requirement group (LIN-619)', async () => {
+    const { provider, calls } = mockTelnyx(telnyxAccount())
+    await provider.searchNumbers({ country: 'DE', areaCode: '6221', limit: 5, withRequirements: true })
+    expect(calls.map(c => c.path)).toEqual([
+      '/available_phone_numbers?filter[country_code]=DE&filter[features][]=voice&filter[limit]=5&filter[best_effort]=false&filter[national_destination_code]=6221',
+    ])
+    await provider.buyNumber(NUMBER, { requirementGroupRef: 'rg_1' })
+    expect(calls.find(c => c.path === '/number_orders')!.body).toEqual({ phone_numbers: [{ phone_number: NUMBER, requirement_group_id: 'rg_1' }] })
+  })
+
+  test('a national number (Germany 032) is searched by its type, without an area code', async () => {
+    const { provider, calls } = mockTelnyx(telnyxAccount())
+    await provider.searchNumbers({ country: 'DE', limit: 5, withRequirements: true, numberType: 'national' })
+    expect(calls[0]!.path).toContain('filter[phone_number_type]=national')
+    expect(calls[0]!.path).not.toContain('national_destination_code')
+  })
+
+  test('the dev carrier gives a national number the area code 32, and none when 32 has no free number', async () => {
+    expect((await devProvider.searchNumbers({ country: 'DE', numberType: 'national', limit: 1 }))[0]!.e164).toMatch(/^\+4932/)
+  })
+
   test('findNumber looks the number up and never orders', async () => {
     const owned = mockTelnyx(telnyxAccount({ owned: true }))
     expect(await owned.provider.findNumber(NUMBER)).toEqual({ e164: NUMBER, providerRef: 'num_1' })

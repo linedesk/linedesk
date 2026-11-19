@@ -1,12 +1,19 @@
 // Buying numbers on the install's carrier account: the operator pays for every one, and anyone can sign up,
-// so whoever is not an instance admin gets a few numbers (US, Canada, Puerto Rico) and no more. A workspace's own carrier account
-// is its own money and has no limits here. Every purchase is logged in `number_purchases`, which outlives
-// the number, so buying and releasing in a loop counts too; the row is committed before the carrier is
-// asked, so a purchase whose action fails afterwards (and is released again) still counts. A number request in a
-// country that needs documents (number-requests.ts) logs its purchase under `purchaseIdOfRequest` before the order;
-// once the carrier rejected it or it was cancelled, no number came of it and it no longer counts.
-import { number_purchases, number_requests, phone_numbers, type Tx } from '@linedesk/db'
-import { buyableAreaCode, canBuyNumbersIn, countryNamed, countryOfNumber, nameInSentence } from '@linedesk/actions'
+// so whoever is not an instance admin gets a few numbers (the buy offers: number-buy.ts) and no more. A workspace's own
+// carrier account is its own money and has no limits here. Every purchase is logged in `number_purchases`, which
+// outlives the number, so buying and releasing in a loop counts too; the row is committed before the carrier is
+// asked, so a purchase whose action fails afterwards (and is released again) still counts.
+import { number_purchases, phone_numbers, type Tx } from '@linedesk/db'
+import {
+  type BuyOffer,
+  buyableAreaCode,
+  buyOfferIn,
+  canBuyNumbersIn,
+  countryNamed,
+  countryOfNumber,
+  english,
+  nameInSentence,
+} from '@linedesk/actions'
 import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { ownCommitDb } from './db.ts'
@@ -59,8 +66,8 @@ export const NUMBERS_NEED_DOCUMENTS =
 /** When a number order did not complete and was cancelled (`not_activated`); the operator has an ALERT in the log. */
 export const NUMBER_NOT_ACTIVATED = 'This number could not be activated: try another area code.'
 
-/** The start of the refusal for a purchase outside NUMBER_BUY_COUNTRIES; the web app matches it (phoneSetupErrorText). */
-export const BUY_COUNTRIES_ONLY = 'Buying numbers is available in the US, Canada and Puerto Rico for now'
+/** The start of the refusal for a purchase outside the buy offers; the web app matches it (phoneSetupErrorText). */
+export const BUY_COUNTRIES_ONLY = 'Buying numbers is not available in this country on this server'
 
 /**
  * The country a purchase is in: the workspace's, as set or worked out (a number, the business phone, holidays). When
@@ -84,21 +91,35 @@ export async function purchaseCountry(
 }
 
 /**
- * Why a workspace in `country` may not buy a number at all, or null: only workspaces in NUMBER_BUY_COUNTRIES can.
- * Any carrier account, any actor: elsewhere a business connects a number it already has. Q6, 2026-11-15; LIN-300.
+ * Why a workspace in `country` may not buy a number at all, or null: only workspaces in a country of the buy offers
+ * (numberBuyOffers) can. Any carrier account, any actor: elsewhere a business connects a number it already has.
+ * Q6, 2026-11-15; LIN-300.
  */
-export function buyCountryRefusal(country: string): string | null {
-  if (canBuyNumbersIn(country)) return null
+export function buyCountryRefusal(country: string, offers: readonly BuyOffer[]): string | null {
+  if (buyOfferIn(offers, country)) return null
   return `${BUY_COUNTRIES_ONLY}; this workspace is in ${country}. Connect a number already in the carrier account instead: give its number (e164) without purchase.`
 }
 
 /**
  * Why the workspace may not buy in `areaCode`, or null: a number is bought in the workspace's own country, so a
- * Canadian area code is for a workspace in Canada (LIN-300). The area code is one of AREA_CODES (checked by the input).
+ * Canadian area code is for a workspace in Canada (LIN-300), and only in an area code of the country's offer (its
+ * listed codes; AREA_CODES for the US, Canada and Puerto Rico). An offer without area codes (a national number) takes
+ * none.
  */
-export function areaCodeCountryRefusal(areaCode: string, country: string): string | null {
+export function areaCodeCountryRefusal(areaCode: string, country: string, offer?: BuyOffer): string | null {
+  if (offer?.areaCodes) {
+    if (offer.areaCodes.includes(areaCode)) return null
+    return offer.areaCodes.length
+      ? english.t('server.api.areaCodeNotOffered', {
+          areaCode,
+          country: nameInSentence(country),
+          areaCodes: offer.areaCodes.join(', '),
+        })
+      : english.t('server.api.numbersWithoutAreaCode', { country: nameInSentence(country) })
+  }
   const area = buyableAreaCode(areaCode)
-  if (!area || area.country === country) return null
+  if (!area) return english.t('server.api.areaCodeNotBuyable', { areaCode })
+  if (area.country === country) return null
   return `Area code ${areaCode} is in ${nameInSentence(area.country)}, but this workspace is in ${nameInSentence(country)}: pick an area code there, or change the workspace's country first.`
 }
 
@@ -117,10 +138,6 @@ async function countPurchases(tx: Tx, where: ReturnType<typeof and>) {
   const [row] = await tx.select({ count: sql<number>`count(*)::int` }).from(number_purchases).where(where)
   return row?.count ?? 0
 }
-
-/** The purchase a number request logs before its order (one per request). */
-export const purchaseIdOfRequest = (requestId: string) => `np_${requestId}`
-const purchaseIdOfRequestSql = (column: typeof number_requests.id) => sql`'np_' || ${column}`
 
 /**
  * Why the actor may not buy a number on the install's account now, or null. Instance admins always may.
@@ -144,13 +161,11 @@ export async function installPurchaseRefusal(
     sql`select pg_try_advisory_xact_lock(hashtext('number_purchases:install')) as locked`,
   )
   if (rows[0]?.locked !== true) return NUMBER_SETUP_BUSY
-  // What the operator pays for: the install's account, bought by someone who is not an admin, not the free `dev` carrier,
-  // not a number request that ended without a number (rejected by the carrier, or cancelled before it decided).
+  // What the operator pays for: the install's account, bought by someone who is not an admin, not the free `dev` carrier.
   const counted = and(
     eq(number_purchases.carrier_account, 'install'),
     eq(number_purchases.by_admin, false),
     ne(number_purchases.provider, 'dev'),
-    sql`not exists (select 1 from ${number_requests} where ${purchaseIdOfRequestSql(number_requests.id)} = ${number_purchases.id} and ${number_requests.status} in ('rejected', 'cancelled'))`,
   )
   const [held] = await tx
     .select({ count: sql<number>`count(*)::int` })
@@ -212,12 +227,10 @@ export async function logPurchase(
     e164: string
     provider: string
     carrierAccount: 'install' | 'workspace'
-    /** A number request's purchase: `purchaseIdOfRequest(request.id)`. */
-    id?: string
   },
 ) {
   await ownCommitDb.insert(number_purchases).values({
-    id: values.id ?? `np_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
+    id: `np_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
     workspace_id: values.workspaceId,
     actor_id: actor.actorId,
     e164: values.e164,

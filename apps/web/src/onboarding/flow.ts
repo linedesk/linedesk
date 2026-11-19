@@ -1,9 +1,11 @@
 // Onboarding without React: step order, the phone setup input and the carrier forwarding codes.
 import {
   formatPhoneNumber,
+  BASE_BUY_OFFERS,
   type BusinessHoursSpan,
+  type BuyOffer,
   buyableAreaCode,
-  canBuyNumbersIn,
+  buyOfferIn,
   completePhone,
   emergencyNumberOf,
   type ForwardingGuide,
@@ -321,7 +323,10 @@ export function outboundE164(typed: string): string | null {
 /** +15035550142 → +1 503 555 0142, +493023125678 → +49 30 23125678 (formatPhoneNumber). */
 export const formatNumber = (e164: string): string => formatPhoneNumber(e164)
 
-export type PhoneChoice = { kind: 'existing'; number: string } | { kind: 'new'; areaCode: string; confirmed: boolean }
+/** A new number: by area code, or (`noAreaCode`: a national number) the first free one of the country. */
+export type PhoneChoice =
+  | { kind: 'existing'; number: string }
+  | { kind: 'new'; areaCode: string; confirmed: boolean; noAreaCode?: boolean; offered?: readonly string[] }
 
 type Forwarding = 'forward_conditional' | 'forward_all'
 
@@ -331,7 +336,7 @@ type Forwarding = 'forward_conditional' | 'forward_all'
  */
 export type PhoneSetupInput =
   | { e164: string; purchase: false; mode?: Forwarding }
-  | { areaCode: string; purchase: true; mode: 'new' | Forwarding }
+  | { areaCode?: string; purchase: true; mode: 'new' | Forwarding }
 
 /**
  * The `phoneNumber.setup` input for what the user picked, or why it cannot be sent yet.
@@ -352,9 +357,13 @@ export function phoneSetupInput(
       problem: (international && phoneNumberProblem(typed, i18n())) || i18n().t('onboarding.flow.problem.enterNumber'),
     }
   }
-  if (!buyableAreaCode(choice.areaCode)) return { problem: i18n().t('onboarding.flow.problem.pickAreaCode') }
+  // The area code is one of the picker's: the offer's listed codes (Germany: 6221), else AREA_CODES of the US, Canada
+  // and Puerto Rico. The server checks it again.
+  const picked = choice.offered ? choice.offered.includes(choice.areaCode) : !!buyableAreaCode(choice.areaCode)
+  if (!choice.noAreaCode && !picked) return { problem: i18n().t('onboarding.flow.problem.pickAreaCode') }
   if (!choice.confirmed) return { problem: i18n().t('onboarding.flow.problem.confirmCost') }
-  return { input: { areaCode: choice.areaCode, purchase: true, mode: forwarding ?? 'new' } }
+  const area = choice.noAreaCode ? {} : { areaCode: choice.areaCode }
+  return { input: { ...area, purchase: true, mode: forwarding ?? 'new' } }
 }
 
 /**
@@ -368,11 +377,26 @@ export type PhoneOption = 'forward' | 'existing' | 'new'
 /** The cards everyone sees, in order; the first is recommended and preselected. */
 export const phoneOptions: readonly PhoneOption[] = ['forward', 'new']
 
+/** The buy offers of the phone setup status (numberBuyOffers on the server); the base ones from an older server. */
+export const buyOffersOf = (status: { buy?: readonly BuyOffer[] } | null | undefined): readonly BuyOffer[] =>
+  status?.buy ?? BASE_BUY_OFFERS
+
 /**
- * Whether the phone step and Settings › Phone numbers offer buying a number: only in a country numbers can be bought
- * in (NUMBER_BUY_COUNTRIES; the server refuses the rest). While the workspace country loads (null): yes, as before.
+ * Whether the phone step and Settings › Phone numbers offer buying a number: only in a country of the install's buy
+ * offers that is ready (the server refuses the rest). While the workspace country loads (null): yes, as before.
  */
-export const offersBuying = (country: string | null): boolean => country === null || canBuyNumbersIn(country)
+export const offersBuying = (country: string | null, offers: readonly BuyOffer[] = BASE_BUY_OFFERS): boolean =>
+  country === null || buyOfferIn(offers, country)?.ready === true
+
+/**
+ * Whether numbers in the workspace's country are turned on on this server but not set up at the carrier yet: the
+ * phone step says so calmly instead of offering to buy (the server alerts its operator).
+ */
+export const numbersBeingSetUp = (country: string | null, offers: readonly BuyOffer[] = BASE_BUY_OFFERS): boolean =>
+  buyOfferIn(offers, country)?.ready === false
+
+/** The line shown while numbers in the country are being set up (numbersBeingSetUp). */
+export const beingSetUpText = (): string => i18n().t('onboarding.flow.numbersBeingSetUp')
 
 /**
  * The country the number picker buys in: the workspace's, once something names it (country, a number, the business
@@ -383,7 +407,7 @@ export const offersBuying = (country: string | null): boolean => country === nul
 export const buyingCountry = (place: { country: string; known: boolean } | null): string | null =>
   place?.known ? place.country : null
 
-/** The country whose price the note shows: that of the picked area code, else the workspace's. */
+/** The country whose price the note shows: that of the picked (North American) area code, else the workspace's. */
 export const priceCountry = (areaCode: string, country: string | null): string | null =>
   buyableAreaCode(areaCode)?.country ?? country
 
@@ -406,11 +430,17 @@ export const existingLinkText = (carrier: string | null): string =>
 /** The `phoneNumber.setup` choice and forwarding for a phone step option. */
 export function phoneOptionSetup(
   option: PhoneOption,
-  fields: { number: string; areaCode: string; confirmed: boolean },
+  fields: { number: string; areaCode: string; confirmed: boolean; noAreaCode?: boolean; offered?: readonly string[] },
   forwarding: Forwarding,
 ): { input: PhoneSetupInput } | { problem: string } {
   if (option === 'existing') return phoneSetupInput({ kind: 'existing', number: fields.number }, forwarding)
-  const choice = { kind: 'new' as const, areaCode: fields.areaCode, confirmed: fields.confirmed }
+  const choice = {
+    kind: 'new' as const,
+    areaCode: fields.areaCode,
+    confirmed: fields.confirmed,
+    ...(fields.noAreaCode ? { noAreaCode: true } : {}),
+    ...(fields.offered ? { offered: fields.offered } : {}),
+  }
   return phoneSetupInput(choice, option === 'forward' ? forwarding : undefined)
 }
 
@@ -473,10 +503,15 @@ export function phoneSetupErrorText(error: string, audience: ProviderAudience = 
       : t('onboarding.flow.setupError.notConfigured')
   if (/is already set up/i.test(error)) return t('onboarding.flow.setupError.alreadyConnected', { brand: brandName() })
   // Outside the countries numbers can be bought in (apps/api/src/number-purchases.ts, buyCountryRefusal).
-  if (/^Buying numbers is available in the US, Canada and Puerto Rico/i.test(error))
-    return buyUnavailableText(null, true)
-  // An area code of another country than the workspace's (areaCodeCountryRefusal).
-  if (/^Area code \d{3} is in .*, but this workspace is in /i.test(error))
+  if (/^Buying numbers is not available in this country/i.test(error)) return buyUnavailableText(null, true)
+  // Turned on but not set up at the carrier yet, or none in stock (apps/api/src/number-buy.ts).
+  if (/^Numbers in this country are being set up/i.test(error)) return beingSetUpText()
+  // An area code of another country than the workspace's, or not offered there (areaCodeCountryRefusal).
+  if (
+    /^Area code \d+ (is in .*, but this workspace is in |is not offered in |is not one a number can be bought in)/i.test(
+      error,
+    )
+  )
     return t('onboarding.flow.setupError.areaCodeCountry')
   // A typed number of another country (numberCountryRefusal).
   if (/^Number \+\d+ (is in .*|has no country), but this workspace is in /i.test(error))
@@ -520,10 +555,11 @@ export const numberModeLabel: Record<PhoneNumberMode, string> = {
 
 /**
  * The carriers' list prices for a local number a month, in USD, by country (telnyx.com/phone-numbers, Twilio's
- * pricing pages, 15 Nov 2026). A country not listed: the carrier's own price, unnamed.
+ * pricing pages, 15 Nov 2026; Telnyx's German local numbers from its number search, 19 Nov 2026). A country not
+ * listed: the carrier's own price, unnamed.
  */
 const LIST_PRICES: Readonly<Record<string, Readonly<Record<string, number>>>> = {
-  telnyx: { US: 1, CA: 1, PR: 3 },
+  telnyx: { US: 1, CA: 1, PR: 3, DE: 1 },
   twilio: { US: 1.15, CA: 1.15, PR: 3.25 },
 }
 const CARRIER_LABELS: Readonly<Record<string, string>> = { telnyx: 'Telnyx', twilio: 'Twilio' }
@@ -567,8 +603,12 @@ export function billedNumberNote(
  * (priceNote), so the question doesn't repeat it.
  */
 export function buyQuestion(provider: string | null, areaCode: string): string {
-  if (provider === 'dev') return i18n().t('onboarding.flow.buyQuestionDev', { areaCode })
-  return i18n().t('onboarding.flow.buyQuestion', { areaCode })
+  const { t } = i18n()
+  // A national number has no area code (noAreaCode): the question names none.
+  if (!areaCode)
+    return provider === 'dev' ? t('onboarding.flow.buyQuestionDevNoArea') : t('onboarding.flow.buyQuestionNoArea')
+  if (provider === 'dev') return t('onboarding.flow.buyQuestionDev', { areaCode })
+  return t('onboarding.flow.buyQuestion', { areaCode })
 }
 
 /**
@@ -859,8 +899,17 @@ export function areaCodeOf(country: string | null, ...numbers: (string | null | 
   return ''
 }
 
-/** Whether a number can be bought in `code` by a workspace in `country` (null while it loads: any buyable code). */
-export function areaCodeIn(code: string, country: string | null): boolean {
+/**
+ * Whether a number can be bought in `code` by a workspace in `country` (null while it loads: any buyable North
+ * American code): one of the country's offered codes (Germany), else of AREA_CODES in that country.
+ */
+export function areaCodeIn(
+  code: string,
+  country: string | null,
+  offers: readonly BuyOffer[] = BASE_BUY_OFFERS,
+): boolean {
+  const listed = buyOfferIn(offers, country)?.areaCodes
+  if (listed) return listed.includes(code)
   const area = buyableAreaCode(code)
   return !!area && (country === null || area.country === country.toUpperCase())
 }
@@ -906,12 +955,10 @@ export function doneState(
     forwardingVerified: boolean
     admin: boolean
     assistant: string
-    /** The city of a number requested with documents that the carrier still reviews (numbers/), if any. */
-    reviewedNumber?: string | null
   },
   word: Words = same,
 ): { live: boolean; title: string; lede: string; left: DoneLeft[] } {
-  const { number, voiceMissing, forwardingVerified, admin, assistant, reviewedNumber } = facts
+  const { number, voiceMissing, forwardingVerified, admin, assistant } = facts
   const { t } = i18n()
   const voice: DoneLeft = admin
     ? {
@@ -920,21 +967,6 @@ export function doneState(
         action: t('onboarding.flow.done.open'),
       }
     : { label: t('onboarding.flow.done.voiceMember'), to: null, action: null }
-  // Requested and under review: nothing to connect now, the number sets itself up once approved.
-  if (!number && reviewedNumber)
-    return {
-      live: false,
-      title: t('onboarding.flow.done.almost'),
-      lede: t('onboarding.flow.done.answersOnceApproved', { assistant, city: reviewedNumber }),
-      left: [
-        {
-          label: t('onboarding.flow.done.numberInReview', { city: reviewedNumber }),
-          to: { step: 'phone' },
-          action: t('onboarding.flow.done.showReview'),
-        },
-        ...(voiceMissing ? [voice] : []),
-      ],
-    }
   if (!number)
     return {
       live: false,

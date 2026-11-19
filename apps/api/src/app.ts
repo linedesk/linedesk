@@ -38,7 +38,6 @@ import { publicHealth } from './admin-overview.ts'
 import { registerSetupUnsubscribeRoutes } from './setup-unsubscribe.ts'
 import { registerEmailRecipientRoutes } from './email-recipients.ts'
 import { registerStripeWebhookRoute } from './stripe-webhook.ts'
-import { registerNumberRequestWebhookRoute } from './number-requests.ts'
 import { registerTestLookupRoute } from './test-lookup.ts'
 import { addressBucket, clientIpHeaders, clientIpOf, withClientIp } from './client-ip.ts'
 import { admitSignupCode, selfServeState, TURNSTILE_ACTION, turnstileKeys } from './self-serve.ts'
@@ -219,9 +218,6 @@ app.use(
 registerStripeWebhookRoute(app)
 // Public: Jobber's webhook (APP_DISCONNECT), checked by its signature, 404 while Jobber is not set up (jobber-webhook.ts).
 registerJobberWebhookRoute(app)
-// Public: the carrier's number order and requirement group events, checked by its signature, 404 while no country is
-// open for number requests (number-requests.ts).
-registerNumberRequestWebhookRoute(app)
 
 // Public: the sign-in screen asks which methods this install offers, whether it still needs its first admin, and
 // whether self-serve sign-up is open (self-serve.ts `selfServeState`: the same check every sign-up step runs), so it

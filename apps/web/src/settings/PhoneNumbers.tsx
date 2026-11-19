@@ -1,8 +1,8 @@
 // Settings, Phone numbers: a short list of the workspace's numbers; Manage opens one (which assistant answers it,
 // how it is used, forwarding codes, disconnecting), Add number connects another with the onboarding phone step's
 // choices and words (keep my number, a new number; a number already in the carrier account behind a quiet link).
-// Connecting runs phoneNumber.setup through the outbox; the new row arrives by sync. In countries whose carrier checks
-// documents first (Germany…), Request a number asks for one instead (NumberRequests.tsx).
+// Connecting runs phoneNumber.setup through the outbox; the new row arrives by sync. Where a number can be bought comes
+// from the install's buy offers (the phone setup status), the same list as onboarding's.
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { useT } from '@linedesk/i18n/react'
 import { type ReactNode, useEffect, useState } from 'react'
@@ -13,7 +13,9 @@ import { forwardingUnverified, type GuidePickedBy } from '../onboarding/forwardi
 import {
   areaCodeIn,
   areaCodeOf,
+  beingSetUpText,
   billedNumberNote,
+  buyOffersOf,
   buyQuestion,
   buyingCountry,
   buyUnavailableText,
@@ -27,12 +29,23 @@ import {
   phoneOptionSetup,
   phoneOptionText,
   isNoneFreeText,
+  numbersBeingSetUp,
   phoneSetupErrorText,
   pickupNumberMode,
   priceCountry,
   priceNote,
 } from '../onboarding/flow.ts'
-import { confirmsNumber, countryOfNumber, type KycCountry, phoneFromValue } from '@linedesk/actions'
+import {
+  areaCodeShown,
+  BASE_BUY_OFFERS,
+  buyableAreaCode,
+  buyOfferIn,
+  confirmsNumber,
+  countryOfNumber,
+  offerAreaCodes,
+  offerHasAreaCode,
+  phoneFromValue,
+} from '@linedesk/actions'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { providerAudience } from '../providerAudience.ts'
 import { usePresence } from '../shell/presence.ts'
@@ -52,7 +65,6 @@ import { NearbyAreaCodes } from './NearbyAreaCodes.tsx'
 import { CarrierNumberInput } from './CarrierNumberInput.tsx'
 import { Field, Section } from './fields.tsx'
 import { NumberModeField } from './NumberMode.tsx'
-import { countryInSentence, NumberRequests, useRequestCountries } from './NumberRequests.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { useWorkspaceCountry } from '../workspaceLocale.ts'
 import { brandName } from '../brand.ts'
@@ -82,6 +94,8 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
           available: carrier.sipReady,
           detail: null,
           canAttach: true,
+          // A workspace's own carrier account buys where every install does (Germany only on the install's).
+          buy: [...BASE_BUY_OFFERS],
         }
       : serverStatus
   const numbers = useRows('phone_numbers').sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -106,30 +120,15 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
     window.history.replaceState(null, '', sectionHash('workspace', 'phone'))
   }, [linkedNumber])
   const canAdd = canEdit && !!status?.available
-  // Countries numbers are requested in with documents (none unless the server switched them on).
-  const requestCountries = useRequestCountries(canEdit)
-  const [requesting, setRequesting] = useState<KycCountry | null>(null)
-  const canRequest = canEdit && requestCountries.length > 0
   return (
     <Section
       id="st-phone"
       title={t('settings.phone.title')}
       actions={
-        (canAdd || canRequest) && (
-          <>
-            {canRequest && (
-              <Button size="sm" onClick={() => setRequesting(requestCountries[0]!)}>
-                {requestCountries.length === 1
-                  ? t('settings.phone.request.buttonIn', { country: countryInSentence(requestCountries[0]!) })
-                  : t('settings.phone.request.button')}
-              </Button>
-            )}
-            {canAdd && (
-              <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
-                {t('settings.phone.add')}
-              </Button>
-            )}
-          </>
+        canAdd && (
+          <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
+            {t('settings.phone.add')}
+          </Button>
         )
       }
     >
@@ -215,14 +214,6 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
           <ListEmpty>{canEdit ? t('settings.phone.empty') : t('settings.phone.emptyMember')}</ListEmpty>
         )}
       </Loading>
-      {canEdit && (
-        <NumberRequests
-          canEdit={canEdit}
-          countries={requestCountries}
-          requesting={requesting}
-          onRequesting={setRequesting}
-        />
-      )}
       {adding && (
         <Dialog title={t('settings.phone.addTitle')} size="md" onClose={() => setAdding(false)}>
           <ConnectNumber
@@ -599,10 +590,14 @@ function ConnectNumber({
   const count = numbers.length
   // Numbers already in the install's carrier account are for instance admins only: only they see the link to it.
   const canAttach = status?.canAttach !== false
-  // Outside the countries numbers can be bought in, only a number the business already has (offersBuying).
-  // Unknown yet: every buyable area code, and the one picked names the country (buyingCountry).
+  // Outside the countries numbers can be bought in (the install's buy offers), only a number the business already has
+  // (offersBuying). Unknown yet: every buyable area code, and the one picked names the country (buyingCountry).
   const country = buyingCountry(useWorkspaceCountry())
-  const buyable = offersBuying(country)
+  const offers = buyOffersOf(status)
+  const offer = buyOfferIn(offers, country)
+  const buyable = offersBuying(country, offers)
+  const settingUp = numbersBeingSetUp(country, offers)
+  const noAreaCode = !offerHasAreaCode(offer)
   const [chosen, setOption] = useState<PhoneOption>(connectOptions[0]!)
   const option: PhoneOption = buyable ? chosen : 'existing'
   // Nothing to connect here: no buying, and the install's carrier account is for instance admins only.
@@ -611,10 +606,11 @@ function ConnectNumber({
   const [typed, setTyped] = useState('')
   const phoneCountry = useDefaultPhoneCountry()
   const businessPhone = (useAssistants()[0]?.business_profile as { phone?: string } | undefined)?.phone
-  // Like onboarding: the business phone's area code, else that of a number the workspace already has.
+  // Like onboarding: the business phone's area code, else that of a number the workspace already has, else the
+  // country's first offered code (Germany).
   const [picked, setAreaCode] = useState(() => areaCodeOf(country, businessPhone, ...numbers.map(n => n.e164)))
   // Only a code of the workspace's country (its list): one prefilled while the country loaded is dropped.
-  const areaCode = areaCodeIn(picked, country) ? picked : ''
+  const areaCode = areaCodeIn(picked, country, offers) ? picked : (offer?.areaCodes?.[0] ?? '')
   const [confirming, setConfirming] = useState(false)
   const [sentAt, setSentAt] = useState<number | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
@@ -627,6 +623,15 @@ function ConnectNumber({
   const partnerManaged = settings?.partnerManaged === true
   const buying = option !== 'existing'
   const dev = status?.provider === 'dev'
+  const price =
+    // A white-label client's people see no prices (docs/white-label.md): its partner pays for the number.
+    partnerManaged
+      ? undefined
+      : (billedNumberNote(
+          extraNumberCents,
+          status?.provider ?? null,
+          numbers.filter(n => n.purchased && n.carrier_account === 'install').length,
+        ) ?? priceNote(status?.provider ?? null, priceCountry(areaCode, country)))
 
   // Success is the new row arriving by sync; a refusal ends the wait with its reason.
   useEffect(() => {
@@ -644,7 +649,11 @@ function ConnectNumber({
   }, [rejection, sentAt, clearRejection])
 
   function send(confirmed: boolean) {
-    const result = phoneOptionSetup(option, { number: typed, areaCode, confirmed }, forwarding)
+    const result = phoneOptionSetup(
+      option,
+      { number: typed, areaCode, confirmed, noAreaCode, offered: offer?.areaCodes },
+      forwarding,
+    )
     if ('problem' in result) return setProblem(result.problem)
     setProblem(null)
     setSentAt(count)
@@ -654,7 +663,11 @@ function ConnectNumber({
     if (sentAt !== null || nothingToConnect) return
     if (!buying) return send(false)
     // Buying needs a second, deliberate click: Enter only asks for the confirmation.
-    const check = phoneOptionSetup(option, { number: typed, areaCode, confirmed: true }, forwarding)
+    const check = phoneOptionSetup(
+      option,
+      { number: typed, areaCode, confirmed: true, noAreaCode, offered: offer?.areaCodes },
+      forwarding,
+    )
     if ('problem' in check) return setProblem(check.problem)
     setProblem(null)
     setConfirming(true)
@@ -678,7 +691,9 @@ function ConnectNumber({
       {option === 'existing' ? (
         <div className="st-pn-t">
           <b>{existing.title}</b>
-          <span className="help">{buyable ? existing.description : buyUnavailableText(carrier, canAttach)}</span>
+          <span className="help">
+            {buyable ? existing.description : settingUp ? beingSetUpText() : buyUnavailableText(carrier, canAttach)}
+          </span>
         </div>
       ) : (
         <>
@@ -730,38 +745,35 @@ function ConnectNumber({
         </>
       ) : (
         <>
-          <Field
-            id="st-pn-area"
-            label={
-              option === 'forward'
-                ? t('settings.phone.connect.areaCodeFor', { name })
-                : t('settings.phone.connect.areaCode')
-            }
-            help={
-              // A white-label client's people see no prices (docs/white-label.md): its partner pays for the number.
-              partnerManaged
-                ? undefined
-                : (billedNumberNote(
-                    extraNumberCents,
-                    status?.provider ?? null,
-                    numbers.filter(n => n.purchased && n.carrier_account === 'install').length,
-                  ) ?? priceNote(status?.provider ?? null, priceCountry(areaCode, country)))
-            }
-          >
-            <AreaCodeInput
+          {/* The price line: under the area code, or alone for a number without one (a national number). */}
+          {noAreaCode ? (
+            price && <p className="help">{price}</p>
+          ) : (
+            <Field
               id="st-pn-area"
-              country={country}
-              value={areaCode}
-              onChange={v => {
-                setAreaCode(v)
-                setConfirming(false)
-                setProblem(null)
-              }}
-            />
-          </Field>
+              label={
+                option === 'forward'
+                  ? t('settings.phone.connect.areaCodeFor', { name })
+                  : t('settings.phone.connect.areaCode')
+              }
+              help={price}
+            >
+              <AreaCodeInput
+                id="st-pn-area"
+                country={country}
+                codes={offer?.areaCodes ? offerAreaCodes(offer) : undefined}
+                value={areaCode}
+                onChange={v => {
+                  setAreaCode(v)
+                  setConfirming(false)
+                  setProblem(null)
+                }}
+              />
+            </Field>
+          )}
           {confirming && (
             <div className="ob-prompt" role="alert">
-              <span>{buyQuestion(status?.provider ?? null, areaCode)}</span>
+              <span>{buyQuestion(status?.provider ?? null, noAreaCode ? '' : areaCodeShown(areaCode, country))}</span>
               <span className="ob2-row">
                 <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={busy}>
                   {t('common.action.cancel')}
@@ -778,7 +790,7 @@ function ConnectNumber({
           )}
         </>
       )}
-      {problem && buying && areaCode && isNoneFreeText(problem) ? (
+      {problem && buying && buyableAreaCode(areaCode) && isNoneFreeText(problem) ? (
         <NearbyAreaCodes
           areaCode={areaCode}
           message={problem}

@@ -308,31 +308,31 @@ describe('telephony handlers', () => {
     expect(failing.routeToSip).not.toHaveBeenCalled()
   }))
 
-  describe('buying outside the US, Canada and Puerto Rico (NUMBER_BUY_COUNTRIES)', () => {
+  describe('buying outside the buy offers (numberBuyOffers; German numbers off)', () => {
     const inCountry = (tx: Tx, country: string | null) =>
       tx.insert(workspace_settings).values({ workspace_id: WORKSPACE, timezone: 'Europe/Berlin', country })
         .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { country } })
     const admin: Actor = { ...owner, permissions: [...rolePermissions.owner, 'instance:admin'] }
 
     test('a workspace in another country cannot buy, by area code or by number, but attaches what it has', () => inRollback(async tx => {
-      await inCountry(tx, 'DE')
-      const account = carrier(['+493012345678'])
+      await inCountry(tx, 'AT')
+      const account = carrier(['+4315123456'])
       const search = vi.spyOn(account, 'searchNumbers')
       for (const [input, actor] of [[{ areaCode: '503', purchase: true }, owner], [{ e164: '+15035550901', purchase: true }, owner], [{ areaCode: '503', purchase: true }, admin]] as const) {
         const error = await setup(tx, input, account, actor).catch(e => e)
         expect(error).toBeInstanceOf(Reject)
-        expect(error.message).toMatch(new RegExp(`^${BUY_COUNTRIES_ONLY}; this workspace is in DE`))
+        expect(error.message).toMatch(new RegExp(`^${BUY_COUNTRIES_ONLY}; this workspace is in AT`))
       }
       expect(search).not.toHaveBeenCalled()
       expect(account.buyNumber).not.toHaveBeenCalled()
       expect(await tx.select().from(number_purchases).where(eq(number_purchases.workspace_id, WORKSPACE))).toEqual([])
       // A number already in the carrier account: attached, also when the caller passed purchase: true.
-      const { rows } = await setup(tx, { e164: '+493012345678', purchase: true }, account)
-      expect(rows.phone_numbers?.[0]).toMatchObject({ e164: '+493012345678', purchased: false })
+      const { rows } = await setup(tx, { e164: '+4315123456', purchase: true }, account)
+      expect(rows.phone_numbers?.[0]).toMatchObject({ e164: '+4315123456', purchased: false })
     }))
 
-    test('no country set: worked out from the workspace, so a German number it answers counts as Germany', () => inRollback(async tx => {
-      await tx.insert(phone_numbers).values({ id: `pn_${crypto.randomUUID().slice(0, 12)}`, workspace_id: WORKSPACE, e164: '+493012345679', provider: 'dev', provider_ref: 'ref_de' })
+    test('no country set: worked out from the workspace, so an Austrian number it answers counts as Austria', () => inRollback(async tx => {
+      await tx.insert(phone_numbers).values({ id: `pn_${crypto.randomUUID().slice(0, 12)}`, workspace_id: WORKSPACE, e164: '+4315123457', provider: 'dev', provider_ref: 'ref_de' })
       await expect(setup(tx, { areaCode: '503', purchase: true }, carrier())).rejects.toThrow(BUY_COUNTRIES_ONLY)
     }))
 
@@ -367,10 +367,17 @@ describe('telephony handlers', () => {
       expect(await tx.select().from(number_purchases).where(eq(number_purchases.workspace_id, WORKSPACE))).toEqual([])
     }))
 
-    test('a Caribbean or other territory area code is no input at all', () => {
+    // The input takes any area code's digits (Germany's come from the server's offer, LIN-619); the server refuses one
+    // no number can be bought in before the carrier is asked.
+    test('a Caribbean or other territory area code is refused before the carrier is asked', () => inRollback(async tx => {
+      await inCountry(tx, 'US')
+      const account = carrier()
+      const search = vi.spyOn(account, 'searchNumbers')
       for (const areaCode of ['876', '809', '242', '340', '671'])
-        expect(actions.get('phoneNumber.setup')!.input.safeParse({ areaCode, purchase: true }).success, areaCode).toBe(false)
-    })
+        await expect(setup(tx, { areaCode, purchase: true }, account), areaCode).rejects.toThrow(`Area code ${areaCode} is not one a number can be bought in.`)
+      expect(search).not.toHaveBeenCalled()
+      expect(account.buyNumber).not.toHaveBeenCalled()
+    }))
 
     test('a workspace in Canada attaches a number it already has, as anywhere', () => inRollback(async tx => {
       await inCountry(tx, 'CA')

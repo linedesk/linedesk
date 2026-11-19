@@ -1,5 +1,7 @@
 // What the web app needs to show onboarding: where the workspace is, and whether phone setup can work here.
 import {
+  BASE_BUY_OFFERS,
+  type BuyOffer,
   type CallQuality,
   DEFAULT_AI_DISCLOSURE,
   greetingFor,
@@ -15,6 +17,7 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { newAssistantTransfers } from './default-transfers.ts'
 import { newAssistantLevel } from './call-quality.ts'
+import { numberBuyOffers } from './number-buy.ts'
 import { telephonyForWorkspace } from './workspace-carrier.ts'
 
 // Here, not in handlers.ts: handlers.ts imports admin-handlers.ts, which reaches this file (LIN-493).
@@ -48,6 +51,8 @@ export type PhoneSetupView = {
    * workspace's own account and without a real carrier (dev), in the install's account only instance admins.
    */
   canAttach: boolean
+  /** Where a number can be bought on this workspace's carrier account (numberBuyOffers): one list for app, API and MCP. */
+  buy: BuyOffer[]
 }
 /**
  * `businessLookup`: the install can look businesses up (Google Places): the first step searches by name and city.
@@ -69,10 +74,17 @@ export function phoneSetupView(
   status: PhoneSetupStatus,
   actor: Pick<Actor, 'permissions'>,
   account: 'install' | 'workspace' = 'install',
+  buy: BuyOffer[] = [...BASE_BUY_OFFERS],
 ): PhoneSetupView {
   const isAdmin = actor.permissions.includes('instance:admin')
   const canAttach = account === 'workspace' || status.provider === 'dev' || isAdmin
-  return { provider: status.provider, available: !status.problem, detail: isAdmin ? status.problem : null, canAttach }
+  return {
+    provider: status.provider,
+    available: !status.problem,
+    detail: isAdmin ? status.problem : null,
+    canAttach,
+    buy,
+  }
 }
 
 /** Phone setup as this member may see it; null for members who cannot change settings. */
@@ -86,7 +98,8 @@ export async function phoneSetupFor(actor: Actor): Promise<PhoneSetupView | null
     account = resolved.account
     return resolved.provider
   })
-  return phoneSetupView(status, actor, account)
+  const buy = await numberBuyOffers(db, { account, provider: status.provider })
+  return phoneSetupView(status, actor, account, buy)
 }
 
 const FALLBACK_TIME_ZONE = 'America/New_York'

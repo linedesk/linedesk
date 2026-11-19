@@ -89,18 +89,6 @@ const expectedRights: Record<Right, readonly string[]> = {
     'phoneNumber.lookupLine',
     'phoneNumber.checkForwarding',
     'phoneNumber.forwardingCheck',
-    // Numbers that need documents (KYC, docs/numbers-kyc.md): the business's legal details and documents.
-    'numberRequest.countries',
-    'numberRequest.requirements',
-    'numberRequest.areas',
-    'numberRequest.getProfile',
-    'numberRequest.saveProfile',
-    'numberRequest.uploadDocument',
-    'numberRequest.deleteDocument',
-    'numberRequest.create',
-    'numberRequest.list',
-    'numberRequest.refresh',
-    'numberRequest.cancel',
     'carrier.set',
     'carrier.get',
     'carrier.test',
@@ -221,9 +209,9 @@ const expectedRights: Record<Right, readonly string[]> = {
   'server-admin': [
     'voiceCloning.get',
     'voiceCloning.set',
-    // German numbers only where the install's carrier holds number blocks (docs/numbers-kyc.md).
-    'numberBlocks.get',
-    'numberBlocks.set',
+    // German numbers held in the install's name (number-buy.ts).
+    'germanNumbers.get',
+    'germanNumbers.set',
     'callQuality.get',
     'callQuality.set',
     // The fixed parts of the assistant's system prompt, for the whole install (LIN-346).

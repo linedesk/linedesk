@@ -1,7 +1,8 @@
 // The area code of a new number: the area codes a number can be bought in, of the workspace's country (AREA_CODES:
-// the US, Canada, Puerto Rico), as a searchable list under the field, built like CarrierNumberInput. Search by code,
-// city, state or province ("503", "portland", "OR", "ontario"). Only a code from the list is taken: the value is the
-// three digits, or empty while what is typed is not one of them.
+// the US, Canada, Puerto Rico; or the codes of the country's buy offer, Germany's 06221), as a searchable list under
+// the field, built like CarrierNumberInput. Search by code, city, state or province ("503", "portland", "OR",
+// "ontario", "06221"). Only a code from the list is taken: the value is its digits without a trunk 0, or empty while
+// what is typed is not one of them.
 import {
   type AreaCode,
   areaCodeLabel,
@@ -16,9 +17,9 @@ import { Input } from '../ui/form.tsx'
 import { useActiveOptionInView, useAnchoredList } from '../ui/floating.ts'
 import { cx, Icon } from '../ui/kit.tsx'
 
-/** "503 · Portland, OR" for a code in the list; the code itself otherwise. */
-export const areaCodeText = (code: string): string => {
-  const a = buyableAreaCode(code)
+/** "503 · Portland, OR" for a code in the list ("06221 · Heidelberg" in Germany's); the code itself otherwise. */
+export const areaCodeText = (code: string, list?: readonly AreaCode[]): string => {
+  const a = list?.find(c => c.code === code) ?? buyableAreaCode(code)
   return a ? areaCodeLabel(a) : code
 }
 
@@ -31,37 +32,47 @@ export const areaCodeList = (country?: string | null): readonly AreaCode[] =>
  * search: the whole list shows, so another code is one arrow key away.
  */
 export function areaCodeMatches(query: string, value: string, list: readonly AreaCode[] = BUYABLE_AREA_CODES) {
-  return value && query === areaCodeText(value) ? [...list] : searchAreaCodes(list, query)
+  if (value && query === areaCodeText(value, list)) return [...list]
+  // A German code is searched as dialled too ("06221").
+  return searchAreaCodes(list, list.some(a => a.country === 'DE') ? query.trim().replace(/^0/, '') : query)
 }
 
-/** The code typed in full ("503", " 503 "), when it is in the list: taken without picking it. */
+/** The code typed in full ("503", " 503 ", "06221"), when it is in the list: taken without picking it. */
 export const typedAreaCode = (query: string, list: readonly AreaCode[] = BUYABLE_AREA_CODES): string => {
-  const digits = query.trim()
-  return /^\d{3}$/.test(digits) && list.some(a => a.code === digits) ? digits : ''
+  const digits = query.trim().replace(/^0/, '')
+  return /^\d{2,5}$/.test(digits) && list.some(a => a.code === digits) ? digits : ''
 }
 
 /**
  * `label` names the field for screen readers where no visible label points at `id` (Server admin › Providers, Try it).
  * `country`: the workspace's, whose area codes are listed; none: every country's numbers can be bought in.
  */
-type Props = { id: string; value: string; onChange: (code: string) => void; label?: string; country?: string | null }
+type Props = {
+  id: string
+  value: string
+  onChange: (code: string) => void
+  label?: string
+  country?: string | null
+  /** The codes of the country's buy offer when it lists its own (offerAreaCodes); else the country's AREA_CODES. */
+  codes?: readonly AreaCode[]
+}
 
-export function AreaCodeInput({ id, value, onChange, label, country }: Props) {
+export function AreaCodeInput({ id, value, onChange, label, country, codes: listed }: Props) {
   const t = useT()
   const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState(() => areaCodeText(value))
+  const [query, setQuery] = useState(() => areaCodeText(value, listed))
   const [active, setActive] = useState(0)
   const root = useRef<HTMLDivElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const listId = useId()
-  const codes = useMemo(() => areaCodeList(country), [country])
+  const codes = useMemo(() => listed ?? areaCodeList(country), [listed, country])
   const matches = useMemo(() => areaCodeMatches(query, value, codes), [query, value, codes])
   useAnchoredList(open, root, list, { match: true })
 
   // Closed, the field shows the picked code with its city (or nothing): what was typed and not picked is dropped.
   useEffect(() => {
-    if (!open) setQuery(areaCodeText(value))
-  }, [open, value])
+    if (!open) setQuery(areaCodeText(value, codes))
+  }, [open, value, codes])
   useEffect(() => {
     if (!open) return
     const outside = (e: MouseEvent) => {
@@ -74,7 +85,7 @@ export function AreaCodeInput({ id, value, onChange, label, country }: Props) {
 
   function show() {
     if (open) return
-    setQuery(areaCodeText(value))
+    setQuery(areaCodeText(value, codes))
     // Opens on the picked code.
     setActive(
       Math.max(
@@ -86,7 +97,7 @@ export function AreaCodeInput({ id, value, onChange, label, country }: Props) {
   }
   function pick(code: string) {
     setOpen(false)
-    setQuery(areaCodeText(code))
+    setQuery(areaCodeText(code, codes))
     if (code !== value) onChange(code)
   }
   function onKey(e: KeyboardEvent<HTMLInputElement>) {

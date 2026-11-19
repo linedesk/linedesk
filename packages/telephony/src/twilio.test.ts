@@ -120,6 +120,12 @@ describe('twilio adapter', () => {
     expect(calls[0]!.auth).toBe(`Basic ${Buffer.from(`AC1:${TOKEN}`).toString('base64')}`)
   })
 
+  test('a national number (Germany 032) is refused before Twilio is asked: it needs a requirement group', async () => {
+    const { provider, calls } = mockTwilio()
+    await expect(provider.searchNumbers({ country: 'DE', numberType: 'national' })).rejects.toMatchObject({ code: 'country_requirements' })
+    expect(calls).toEqual([])
+  })
+
   test('searches Canada and Puerto Rico under their own country code (no address needed for local numbers there)', async () => {
     const { provider, calls } = mockTwilio()
     for (const [country, areaCode] of [['CA', '416'], ['PR', '787']] as const) {

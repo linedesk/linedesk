@@ -1,5 +1,6 @@
-// The onboarding phone step by the workspace's country (LIN-300): in the US, Canada and Puerto Rico it offers a new
-// number with that country's area codes and the carrier's price there; elsewhere only a number the business has.
+// The onboarding phone step by the workspace's country (LIN-300): in a country of the server's buy offers (the US,
+// Canada and Puerto Rico; Germany once German numbers are on, LIN-619) it offers a new number with that country's area
+// codes and the carrier's price there; elsewhere only a number the business has.
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
@@ -7,13 +8,6 @@ const place = vi.hoisted(() => ({
   country: 'US' as string | null,
   known: true,
   businessPhone: undefined as string | undefined,
-}))
-
-// A country whose numbers need documents, once the server takes requests there (the request itself: NumberRequestFlow).
-const kyc = vi.hoisted(() => ({ country: null as string | null, loading: false }))
-vi.mock('../numbers/numberRequestQueries.ts', () => ({ useKycCountry: () => ({ ...kyc }) }))
-vi.mock('../numbers/NumberRequestFlow.tsx', () => ({
-  NumberRequestFlow: ({ country }: { country: string }) => <p>number request for {country}</p>,
 }))
 
 vi.mock('../workspaceLocale.ts', () => ({
@@ -35,11 +29,21 @@ vi.mock('../store.tsx', () => ({
 const { PhoneStep } = await import('./PhoneStep.tsx')
 const { phoneSetupErrorText } = await import('./flow.ts')
 
-const status = { provider: 'telnyx', available: true, detail: null, canAttach: true }
+const { BASE_BUY_OFFERS } = await import('@linedesk/actions')
+type Offer = (typeof BASE_BUY_OFFERS)[number]
+const GERMANY: Offer = { country: 'DE', numberType: 'local', areaCodes: ['6221'], ready: true }
+const offers = vi.hoisted(() => ({ extra: [] as unknown[] }))
+
 const render = (setupError: string | null = null) =>
   renderToStaticMarkup(
     <PhoneStep
-      status={status}
+      status={{
+        provider: 'telnyx',
+        available: true,
+        detail: null,
+        canAttach: true,
+        buy: [...BASE_BUY_OFFERS, ...(offers.extra as Offer[])],
+      }}
       oldForwarding={null}
       setupError={setupError}
       clearError={() => {}}
@@ -60,8 +64,7 @@ describe('the phone step by country', () => {
     place.country = 'US'
     place.known = true
     place.businessPhone = undefined
-    kyc.country = null
-    kyc.loading = false
+    offers.extra = []
   })
 
   test('in Canada: a new number with a Canadian area code from the business phone, at the Canadian price', () => {
@@ -112,7 +115,7 @@ describe('the phone step by country', () => {
   })
 
   test('outside the buying countries: no area code field, the line says where buying works', () => {
-    place.country = 'DE'
+    place.country = 'AT'
     const html = render()
     expect(html).not.toContain('id="ob-area"')
     expect(html).toContain(
@@ -120,20 +123,28 @@ describe('the phone step by country', () => {
     )
   })
 
-  test('Germany, open for number requests on the server: the request with documents instead of buying', () => {
+  test('Germany with German numbers on: buys like the US, in the offered area code 06221, no documents', () => {
     place.country = 'DE'
-    kyc.country = 'DE'
+    offers.extra = [GERMANY]
     const html = render()
-    expect(html).toContain('number request for DE')
+    expect(html).toContain('id="ob-area"')
+    expect(html).toContain('About $1 a month plus call minutes, billed by Telnyx.')
+    expect(html).not.toContain('Buying numbers is available')
+    expect(html).not.toMatch(/document|Handelsregister|register/i)
+  })
+
+  test('Germany while German numbers are off or not set up yet: the calm being-set-up line, no buying', () => {
+    place.country = 'DE'
+    offers.extra = [{ ...GERMANY, ready: false }]
+    const html = render()
     expect(html).not.toContain('id="ob-area"')
+    expect(html).toContain('Numbers in your country are being set up. Continue for now and connect your number later.')
     expect(html).not.toContain('Buying numbers is available')
   })
 
-  test('while the server is asked which countries take requests: a placeholder, not the wrong step', () => {
-    place.country = 'DE'
-    kyc.loading = true
-    const html = render()
-    expect(html).toContain('aria-busy="true"')
-    expect(html).not.toContain('Buying numbers is available')
+  test('the being-set-up refusal of the API is said calmly too', () => {
+    expect(phoneSetupErrorText('Numbers in this country are being set up on this server')).toBe(
+      'Numbers in your country are being set up. Continue for now and connect your number later.',
+    )
   })
 })

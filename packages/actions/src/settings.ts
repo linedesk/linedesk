@@ -11,6 +11,7 @@ import { ASSISTANT_CALL_MAX_MINUTES } from './calls.ts'
 import { buyableAreaCode } from './area-codes.ts'
 import { defineAction } from './define.ts'
 import { emailRulesInput } from './email-routing.ts'
+import { english } from './words.ts'
 import { JOB_VALUE_MAX_CENTS, type JobValueCurrency, jobValueCurrencies } from './insights.ts'
 import { assistantLanguages } from './languages.ts'
 import { type WorkspaceCountrySource, workspaceCountrySchema } from './workspace-locale.ts'
@@ -924,15 +925,21 @@ const buyableAreaCodeInput = z
 export const phoneNumberSetup = defineAction({
   name: 'phoneNumber.setup',
   description:
-    'Connect a phone number to the workspace and route its calls to the assistant. By default it attaches `e164`, a number that already exists in the carrier account, and buys nothing. With `purchase: true` it buys `e164`, or the first free number in `areaCode`, which costs money; only a workspace in the US, Canada or Puerto Rico can buy (NUMBER_BUY_COUNTRIES), a number or an area code of its own country (none set yet: the country of the area code, which the number then sets); elsewhere attach a number the business already has. Repeating it for the same number finishes a setup that failed halfway.',
+    "Connect a phone number to the workspace and route its calls to the assistant. By default it attaches `e164`, a number that already exists in the carrier account, and buys nothing. With `purchase: true` it buys `e164`, or the first free number in `areaCode`, which costs money; only a workspace in a country of the install's buy offers can buy (the US, Canada and Puerto Rico by area code; Germany in the area codes the server offers, such as 6221, where it has German numbers on), a number or an area code of its own country (none set yet: the country of the area code, which the number then sets); elsewhere attach a number the business already has. An area code is its digits without the trunk 0 (503, 6221). Where the offer is a national number without an area code, give neither `e164` nor `areaCode`: the first free number of the country is bought. Repeating it for the same number finishes a setup that failed halfway.",
   input: z
     .object({
       e164: z
         .string()
         .regex(/^\+[1-9]\d{6,14}$/)
         .optional(),
-      /** An area code a number can be bought in (AREA_CODES: US, Canada, Puerto Rico), in the workspace's country. */
-      areaCode: buyableAreaCodeInput.optional(),
+      /**
+       * An area code of the workspace country's buy offer, without the trunk 0: three digits in the US, Canada and
+       * Puerto Rico (AREA_CODES), the listed codes in Germany (`6221`). The server checks it against the offer.
+       */
+      areaCode: z
+        .string()
+        .regex(/^[1-9]\d{1,4}$/, english.t('server.api.areaCodeDigits'))
+        .optional(),
       /** Buying is never implied: without this, a number that is not in the account is rejected. */
       purchase: z.boolean().default(false),
       /** How the business uses the number. Default: `new` for a bought number, `forward_conditional` for an attached one. */
@@ -940,7 +947,9 @@ export const phoneNumberSetup = defineAction({
       /** The assistant that answers it (one of the workspace's). Default: the workspace's first. */
       assistantId: z.string().min(1).optional(),
     })
-    .refine(i => i.e164 || i.areaCode, { message: 'give a number (e164) or an area code' })
+    .refine(i => i.e164 || i.areaCode || i.purchase, {
+      message: 'give a number (e164), an area code, or purchase: true',
+    })
     .refine(i => i.e164 || i.purchase, {
       message: 'an area code alone means buying a number: pass purchase: true, or give the number (e164) to attach',
     }),

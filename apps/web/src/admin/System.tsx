@@ -1,12 +1,12 @@
 // System: LiveKit, part of the install (its keys are set in env at install time, so this is a
 // read-only status, loaded on its own because a server that is down takes seconds to say so), and
 // whether workspaces may clone voices (off until an instance admin turns it on), where transfers may call (InternationalTransfers.tsx), and
-// whether users are emailed when an admin signs in as them (off by default), where German numbers are offered (only
-// the carrier's own number blocks, on by default with Telnyx), who may sign up in which country (open, only invited
-// emails or off; Germany once the server takes its number requests: SignupAccess.tsx), and what Zapier needs from this server.
+// whether users are emailed when an admin signs in as them (off by default), German numbers held in this server's name
+// (off by default), who may sign up in which country (open, only invited emails or off; Germany once German numbers
+// are on: SignupAccess.tsx), and what Zapier needs from this server.
 import {
   type ImpersonationEmailsData,
-  type NumberBlocksData,
+  type GermanNumbersData,
   type VoiceCloningData,
   ZAPIER_APP_URL,
   ZAPIER_HOOKS_HOST,
@@ -19,7 +19,8 @@ import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { externalLink } from '../settings/ZapierGuide.tsx'
 import { appLink } from '../ui/AppLink.tsx'
 import { Switch } from '../ui/controls.tsx'
-import { Card } from '../ui/form.tsx'
+import { Field } from '../settings/fields.tsx'
+import { Card, Input } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
@@ -204,45 +205,61 @@ function VoiceCloning() {
   )
 }
 
-const NUMBER_BLOCKS = 'admin.numberBlocks'
-const loadNumberBlocks = async () => (await runAdmin('numberBlocks.get', {})) as NumberBlocksData
+const GERMAN_NUMBERS = 'admin.germanNumbers'
+const loadGermanNumbers = async () => (await runAdmin('germanNumbers.get', {})) as GermanNumbersData
 
 /**
- * German numbers only where the install's carrier holds number blocks of its own (BNetzA Mitteilung 90/2026,
- * docs/numbers-kyc.md): on by default when the carrier is Telnyx. Workspaces on their own carrier account are never
- * limited.
+ * German numbers held in this server's name (apps/api/src/number-buy.ts): on, German workspaces on this server's
+ * carrier account buy a number like a US one, ordered with the server's own requirement group at the carrier (its
+ * one-time KYC), so the business hands in no documents. Off by default. Workspaces on their own carrier account are
+ * never affected.
  */
-function NumberBlocks() {
+function GermanNumbers() {
   const t = useT()
-  const query = useQuery(NUMBER_BLOCKS, loadNumberBlocks)
+  const query = useQuery(GERMAN_NUMBERS, loadGermanNumbers)
   const [problem, setProblem] = useState<string | null>(null)
+  const [group, setGroup] = useState<string | null>(null)
+  const [codes, setCodes] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
   const data = query.data
-  async function change(next: boolean) {
+  async function save(change: { on?: boolean; requirementGroupId?: string; areaCodes?: string[] }) {
     if (!data) return
     setProblem(null)
-    setQueryData<NumberBlocksData | undefined>(NUMBER_BLOCKS, { ...data, on: next, byDefault: false })
+    setSaving(true)
+    if (change.on !== undefined) setQueryData<GermanNumbersData | undefined>(GERMAN_NUMBERS, { ...data, ...change })
     try {
-      setQueryData<NumberBlocksData | undefined>(
-        NUMBER_BLOCKS,
-        (await runAdmin('numberBlocks.set', { on: next })) as NumberBlocksData,
+      setQueryData<GermanNumbersData | undefined>(
+        GERMAN_NUMBERS,
+        (await runAdmin('germanNumbers.set', change)) as GermanNumbersData,
       )
+      setGroup(null)
+      setCodes(null)
     } catch (e) {
-      setQueryData<NumberBlocksData | undefined>(NUMBER_BLOCKS, data)
-      setProblem(e instanceof Error ? e.message : t('admin.system.numberBlocksFailed'))
+      setQueryData<GermanNumbersData | undefined>(GERMAN_NUMBERS, data)
+      setProblem(e instanceof Error ? e.message : t('admin.system.germanNumbersFailed'))
+    } finally {
+      setSaving(false)
     }
   }
+  const groupValue = group ?? data?.requirementGroupId ?? ''
+  const codesValue = codes ?? (data?.areaCodes ?? []).map(c => `0${c}`).join(', ')
+  const typedCodes = codesValue
+    .split(/[\s,]+/)
+    .map(c => c.replace(/^0/, ''))
+    .filter(Boolean)
+  const changed =
+    !!data && (groupValue.trim() !== data.requirementGroupId || typedCodes.join(',') !== data.areaCodes.join(','))
   return (
-    <Card
-      title={t('admin.system.numberBlocks')}
-      help={t('admin.system.numberBlocksHelp', { areas: data?.areas ?? 0, carrier: data?.portingId ?? '' })}
-    >
+    <Card title={t('admin.system.germanNumbers')} help={t('admin.system.germanNumbersHelp')}>
       <div className="swrow">
         <div>
-          <b>{t('admin.system.numberBlocksOnly')}</b>
-          {data?.byDefault && <span className="help">{t('admin.system.numberBlocksDefault')}</span>}
+          <b>{t('admin.system.germanNumbersOn')}</b>
+          {data?.on && !data.requirementGroupId && (
+            <span className="help">{t('admin.system.germanNumbersNoGroup')}</span>
+          )}
         </div>
         <Loading
-          what={t('admin.system.numberBlocks')}
+          what={t('admin.system.germanNumbers')}
           loading={!data}
           error={query.error}
           onRetry={() => void query.reload()}
@@ -250,12 +267,44 @@ function NumberBlocks() {
         >
           <Switch
             on={data?.on ?? false}
-            onChange={v => void change(v)}
-            label={t('admin.system.numberBlocksOnly')}
-            disabled={!data}
+            onChange={v => void save({ on: v })}
+            label={t('admin.system.germanNumbersOn')}
+            disabled={!data || saving}
           />
         </Loading>
       </div>
+      {data && (
+        <form
+          className="adm-german-numbers"
+          onSubmit={e => {
+            e.preventDefault()
+            if (changed) void save({ requirementGroupId: groupValue.trim(), areaCodes: typedCodes })
+          }}
+        >
+          <Field
+            id="adm-de-group"
+            label={t('admin.system.germanNumbersGroup')}
+            help={t('admin.system.germanNumbersGroupHelp')}
+          >
+            <Input id="adm-de-group" value={groupValue} onChange={e => setGroup(e.target.value)} autoComplete="off" />
+          </Field>
+          {data.numberType === 'local' && (
+            <Field id="adm-de-codes" label={t('admin.system.germanNumbersAreaCodes')}>
+              <Input id="adm-de-codes" value={codesValue} onChange={e => setCodes(e.target.value)} autoComplete="off" />
+            </Field>
+          )}
+          <div className="ob2-row">
+            <Button type="submit" size="sm" disabled={!changed || saving} busy={saving}>
+              {t('admin.system.germanNumbersSave')}
+            </Button>
+          </div>
+          <p className={cx('help', data.numbers >= data.alertAt && 'adm-status-bad')} role="status">
+            {data.numbers >= data.alertAt
+              ? t('admin.system.germanNumbersCountWarn', { count: data.numbers })
+              : t('admin.system.germanNumbersCount', { count: data.numbers })}
+          </p>
+        </form>
+      )}
       {problem && (
         <p className="k-field-msg" role="alert">
           {problem}
@@ -308,7 +357,7 @@ export function System() {
       <Livekit />
       <VoiceCloning />
       <InternationalTransfers />
-      <NumberBlocks />
+      <GermanNumbers />
       <SignupAccess />
       <ImpersonationEmails />
       <Zapier />

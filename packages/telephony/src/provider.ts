@@ -9,10 +9,17 @@ export interface NumberSearch {
   areaCode?: string
   limit?: number
   /**
-   * The caller submits the country's requirements itself (a requirement group, `RegulatoryNumbers`): a country whose
-   * local numbers need an address or documents is searched instead of refused (`country_requirements`).
+   * The caller orders with a requirement group of its own (`BuyOptions`): a country whose numbers need an address or
+   * documents is searched instead of refused (`country_requirements`).
    */
   withRequirements?: boolean
+  /** Local numbers (the default) or national ones (Germany 032: no area code). */
+  numberType?: 'local' | 'national'
+}
+
+/** How a number is bought: with the install's approved requirement group when the country needs one (Germany 032). */
+export interface BuyOptions {
+  requirementGroupRef?: string
 }
 
 export interface AvailableNumber {
@@ -91,127 +98,19 @@ export class TelephonyError extends Error {
   }
 }
 
-/** The kinds of number a regulated country sells; Linedesk asks for `local` only so far. */
-export type RegulatedNumberType = 'local' | 'national' | 'mobile' | 'toll_free'
-
-/** What one requirement asks for: a text, an address (the carrier's own address object) or a document. */
-export type RequirementKind = 'textual' | 'address' | 'document' | 'action'
-
-/** One requirement the carrier has for numbers of a country and type, in the carrier's words (never shown as such). */
-export interface NumberRequirement {
-  /** The carrier's id; the value for it goes into the requirement group under this id. */
-  id: string
-  name: string
-  kind: RequirementKind
-  description?: string
-}
-
-/** A postal address as the carrier keeps it (Telnyx: POST /addresses). */
-export interface RegulatoryAddress {
-  businessName: string
-  firstName: string
-  lastName: string
-  street: string
-  extendedAddress?: string
-  locality: string
-  administrativeArea?: string
-  postalCode: string
-  /** ISO 3166-1 alpha-2. */
-  countryCode: string
-  phoneNumber?: string
-  customerReference?: string
-}
-
-/** A file to hand to the carrier for a requirement. */
-export interface RegulatoryFile {
-  filename: string
-  contentType: string
-  content: Uint8Array
-  customerReference?: string
-}
-
-/** Where the carrier's review of a requirement group stands. */
-export type RequirementGroupStatus = 'unapproved' | 'pending_approval' | 'approved' | 'declined' | 'expired' | 'no_longer_eligible'
-
-export interface RequirementGroup {
-  ref: string
-  status: RequirementGroupStatus
-  /** Why it was declined, in the carrier's words (for the operator's log and the request's reason). */
-  reason?: string
-}
-
-/** Where a number order stands: `pending` until every requirement is approved, then `success` (the number is on the account). */
-export type NumberOrderStatus = 'pending' | 'success' | 'failure' | 'cancelled'
-
-export interface NumberOrder {
-  ref: string
-  status: NumberOrderStatus
-  e164: string
-  requirementsMet: boolean
-  /** The number on the account, once the order succeeded. */
-  number?: OwnedNumber
-  reason?: string
-}
-
-/**
- * A carrier webhook about a number order or a requirement group, verified, in one shape. It only says which object
- * changed: the API reads the object again from the carrier (`getNumberOrder`, `getRequirementGroup`) and never takes
- * its state from the webhook body.
- */
-export interface RegulatoryEvent {
-  id: string
-  kind: 'number_order' | 'requirement_group'
-  /** The carrier's id of the order or group, when the event names it. */
-  ref?: string
-  /** The `customer_reference` Linedesk set (the number request's id), when the event carries it. */
-  customerReference?: string
-  providerEventType: string
-}
-
-/**
- * Buying numbers in a country whose carrier asks for documents first (KYC; docs/numbers-kyc.md). Every write here is
- * a request to the carrier that costs money or puts the business's documents there: only the number request flow
- * (apps/api/src/number-requests.ts) calls it, never a test with a real key.
- */
-export interface RegulatoryNumbers {
-  /** What the carrier needs before it activates a number of `type` in `country` (ordering); none: []. Reads only. */
-  numberRequirements(country: string, type: RegulatedNumberType): Promise<NumberRequirement[]>
-  /** Stores an address at the carrier; its id is the value of an address requirement. */
-  createAddress(address: RegulatoryAddress): Promise<string>
-  /** Uploads a document; its id is the value of a document requirement. */
-  uploadDocument(file: RegulatoryFile): Promise<string>
-  /** A requirement group with every value, submitted for the carrier's review. */
-  submitRequirementGroup(group: {
-    country: string
-    type: RegulatedNumberType
-    customerReference: string
-    values: { requirementId: string; value: string }[]
-  }): Promise<RequirementGroup>
-  getRequirementGroup(ref: string): Promise<RequirementGroup>
-  /** Orders `e164` with the requirement group: pending at the carrier until the group is approved. Costs money once it completes. */
-  orderNumber(order: { e164: string; requirementGroupRef: string; customerReference: string }): Promise<NumberOrder>
-  getNumberOrder(ref: string): Promise<NumberOrder>
-  /**
-   * Cancels a pending order (its sub-orders), so no number lands on the account later. Safe to repeat. Answers the
-   * order as it stands: `cancelled` once cancelled, else what it was (`success`: the number is on the account already
-   * and costs money until it is set up or released; the caller must not treat that as cancelled).
-   */
-  cancelNumberOrder(ref: string): Promise<NumberOrder>
-  /** Verifies and parses a number order or requirement group webhook; null for any other event. Throws TelephonyError if the signature is not valid. */
-  parseRegulatoryWebhook(request: WebhookRequest): RegulatoryEvent | null
-}
-
 export interface TelephonyProvider {
   readonly name: ProviderName
-  /** Numbers in countries that need documents (KYC). Only carriers that support it; absent: such countries cannot be bought in. */
-  readonly regulatory?: RegulatoryNumbers
   searchNumbers(search: NumberSearch): Promise<AvailableNumber[]>
   /** Numbers the account owns, at most `limit`. Only reads: "Test connection" for a workspace's own carrier. */
   listNumbers(limit: number): Promise<OwnedNumber[]>
   /** The number if the account already owns it, else null. Never buys anything. */
   findNumber(e164: string): Promise<OwnedNumber | null>
-  /** Buys the number: this costs money. Only for a number `findNumber` did not find. */
-  buyNumber(e164: string): Promise<OwnedNumber>
+  /**
+   * Buys the number: this costs money. Only for a number `findNumber` did not find. With a requirement group the order
+   * carries it (the carrier's review was done once for the group); an order that still waits for a review is
+   * cancelled and refused (`not_activated`), never left pending.
+   */
+  buyNumber(e164: string, options?: BuyOptions): Promise<OwnedNumber>
   /** Sends the number's inbound calls to a SIP endpoint (host of LiveKit SIP). Safe to repeat; a changed endpoint replaces the old one. */
   routeToSip(number: OwnedNumber, sipEndpoint: string): Promise<void>
   /**

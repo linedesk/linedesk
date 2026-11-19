@@ -135,7 +135,9 @@ export function createTwilioProvider(options: TwilioOptions): TelephonyProvider 
   return {
     name: 'twilio',
 
-    async searchNumbers({ country, areaCode, limit = 10 }) {
+    async searchNumbers({ country, areaCode, limit = 10, numberType }) {
+      // National numbers (Germany 032) are bought only with a requirement group, which Twilio has no adapter for yet.
+      if (numberType === 'national') throw new TelephonyError('twilio', `national numbers in ${country} cannot be bought with Twilio here yet`, undefined, 'country_requirements')
       const query = new URLSearchParams({ VoiceEnabled: 'true', PageSize: String(limit) })
       if (areaCode) query.set('AreaCode', areaCode)
       const { available_phone_numbers } = await request('search numbers', 'GET', `${account}/AvailablePhoneNumbers/${country}/Local.json?${query}`)

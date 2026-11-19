@@ -13,8 +13,11 @@
 export const NUMBER_BUY_COUNTRIES = ['US', 'CA', 'PR'] as const
 export type NumberBuyCountry = (typeof NUMBER_BUY_COUNTRIES)[number]
 
-/** `state`: the two letters of the US state, Canadian province or territory, or PR. */
-export type AreaCode = { code: string; city: string; state: string; country: NumberBuyCountry }
+/**
+ * `state`: the two letters of the US state, Canadian province or territory, or PR; empty for a German area code (one
+ * of a buy offer, number-buy.ts). `code`: without the trunk 0 (Heidelberg 06221: `6221`).
+ */
+export type AreaCode = { code: string; city: string; state: string; country: string }
 
 type Row = readonly [code: string, city: string, state: string]
 
@@ -490,8 +493,9 @@ export const areaCodesIn = (country: string): readonly AreaCode[] => {
   return canBuyNumbersIn(code) ? AREA_CODES[code as NumberBuyCountry] : []
 }
 
-/** "503 · Portland, OR", "416 · Toronto, ON", "787 · San Juan, PR" */
-export const areaCodeLabel = (a: AreaCode): string => `${a.code} · ${a.city}, ${a.state}`
+/** "503 · Portland, OR", "416 · Toronto, ON", "787 · San Juan, PR"; "06221 · Heidelberg" in Germany. */
+export const areaCodeLabel = (a: AreaCode): string =>
+  a.country === 'DE' ? `0${a.code}${a.city ? ` · ${a.city}` : ''}` : `${a.code} · ${a.city}, ${a.state}`
 
 /** The places by their two letters, so a search for "oregon" finds OR and "ontario" ON. */
 export const REGION_NAMES: Readonly<Record<string, string>> = {

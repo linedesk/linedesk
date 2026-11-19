@@ -4,7 +4,7 @@
 // every country. Sign-up checks where the request comes from, the Business step and Workspace settings › General
 // offer only these countries, workspace.updateSettings refuses another one, and Checkout refuses a workspace whose
 // country is another one. A server admin sets per country who may pick it (signup-access.ts): open to everyone, only
-// invited addresses, or off; Germany joins, for invited addresses by default, while the server takes number requests there.
+// invited addresses, or off; Germany joins, for invited addresses by default.
 import { billing_accounts, organization, type Tx, user } from '@linedesk/db'
 import { SOURCE, UI_LOCALES } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'

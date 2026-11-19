@@ -11,7 +11,6 @@ import {
 } from './alerts.ts'
 import { billingOwnerEmail } from './billing.ts'
 import { managerChangedEmail } from './billing-lifecycle.ts'
-import { numberRequestEmail, numberRequestNeedsOperatorAlert } from './number-requests.ts'
 import { partnerDomainAddedAlert, partnerDomainEmail } from './partner.ts'
 import type { RenderedEmail } from './layout.ts'
 import {
@@ -605,55 +604,6 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
       name: 'plan-minutes-low',
       email: billingOwnerEmail(
         { ...trialMinutes, kind: 'trial_minutes_low', usedMinutes: 40, paid: true, freeUntil: null },
-        origin,
-        locale,
-      ),
-    },
-    // A German number request (docs/numbers-kyc.md): live, not approved, and the operator's alert.
-    {
-      name: 'number-request-active',
-      email: numberRequestEmail(
-        { kind: 'active', country: 'DE', city: 'berlin', prefix: '30', e164: '+493023125678', reason: null },
-        trial.workspaceId,
-        origin,
-        locale,
-      ),
-    },
-    {
-      name: 'number-request-rejected',
-      email: numberRequestEmail(
-        {
-          kind: 'rejected',
-          country: 'DE',
-          city: 'berlin',
-          prefix: '30',
-          e164: null,
-          reason: 'Proof of address must show the business at an address in Berlin.',
-        },
-        trial.workspaceId,
-        origin,
-        locale,
-      ),
-    },
-    {
-      name: 'number-request-rejected-code',
-      email: numberRequestEmail(
-        { kind: 'rejected', country: 'DE', city: 'munich', prefix: '89', e164: null, reason: 'requirements_expired' },
-        trial.workspaceId,
-        origin,
-        locale,
-      ),
-    },
-    {
-      name: 'admin-number-request-needs-operator',
-      email: adminAlertEmail(
-        numberRequestNeedsOperatorAlert({
-          requestId: 'nr_demo',
-          workspace: 'Brightwater Plumbing & Heating (ws_demo)',
-          e164: '+493023125678',
-          reason: 'routing_failed',
-          carrierAccount: 'install',
-        })(locale),
         origin,
         locale,
       ),

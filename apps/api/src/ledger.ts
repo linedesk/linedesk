@@ -28,7 +28,6 @@ import {
   type Tx,
   usage_counters,
 } from '@linedesk/db'
-import { KYC_COUNTRIES, NUMBER_COUNTRIES } from '@linedesk/actions'
 import { and, desc, eq, gt, inArray, lte, notLike, type SQL, sql } from 'drizzle-orm'
 import { billingRules } from './billing-rules.ts'
 import { checkLedgerGuards, missingLedgerGuards } from './ledger-guards.ts'
@@ -120,8 +119,8 @@ export async function extraCallsOnBill(tx: Pick<Tx, 'select'>, billId: string): 
 
 /**
  * The numbers that pay a monthly fee once they are extra: bought through Linedesk on its carrier account, without the
- * numbers that need documents (Germany, the UK, Ireland) while the install waives their fee (`regulatedNumberFeeWaived`,
- * docs/numbers-kyc.md). A waived number is not counted at all, so it never takes the number a workspace includes.
+ * numbers of the countries that once needed documents (Germany, the UK, Ireland) while the install waives their fee
+ * (`regulatedNumberFeeWaived`; Germany's numbers are now held in the install's name, number-buy.ts). A waived number is not counted at all, so it never takes the number a workspace includes.
  */
 export async function feeNumbers(tx: Pick<Tx, 'select'>): Promise<SQL> {
   const waived = (await billingRules(tx)).regulatedNumberFeeWaived
@@ -132,8 +131,8 @@ export async function feeNumbers(tx: Pick<Tx, 'select'>): Promise<SQL> {
   )!
 }
 
-/** The calling codes of the countries whose numbers need documents (+49, +44, +353). */
-const regulatedPrefixes = () => KYC_COUNTRIES.map(country => `+${NUMBER_COUNTRIES[country].callingCode}`)
+/** The calling codes of the countries the fee waiver covers (Germany, the UK, Ireland). */
+const regulatedPrefixes = () => ['+49', '+44', '+353']
 
 /** Numbers bought on our carrier account beyond the one each workspace includes (feeNumbers). */
 export async function extraNumbersOnBill(tx: Tx, billId: string): Promise<number> {

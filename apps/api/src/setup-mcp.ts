@@ -29,10 +29,12 @@ import {
   type ActionDef,
   abroadWarning,
   actions,
-  callAudioGuideIn,
-  canBuyNumbersIn,
+  BASE_BUY_OFFERS,
+  type BuyOffer,
+  buyOfferIn,
   CHATGPT_PLUGINS_URL,
   CLAUDE_CONNECTORS_URL,
+  callAudioGuideIn,
   categoryNames,
   countryNamed,
   type DialCode,
@@ -50,7 +52,6 @@ import {
   isMultiCategory,
   LOCAL_INSTALL_NOTE,
   moneyCategories,
-  NUMBER_BUY_COUNTRIES,
   OTHER_COUNTRY,
   onboardingSteps,
   oneKey,
@@ -100,13 +101,31 @@ import {
   type ManagedWorkspace,
   PARTNER_KEY_PARTNER_ACTIONS,
   PARTNER_KEY_WORKSPACE_ACTIONS,
-  setupKeyAccess,
-  setupWorkspaces,
   setupActorIn,
+  setupKeyAccess,
   setupKeyEndedResponse,
+  setupWorkspaces,
   tooManyRefusedSetupKeys,
   webAddress,
 } from './agent-setup.ts'
+import type { Actor } from './context.ts'
+import { db } from './db.ts'
+import { localeForUserId } from './email-locale.ts'
+import { goLiveChecklist } from './go-live-checklist.ts'
+import { readInstallProgress } from './install-setup.ts'
+import { withoutHopByHopHeaders } from './keep-alive.ts'
+import { guard, MCP_MAX_BODY_BYTES, takeSlot, toolName } from './mcp.ts'
+import { numberBuyOffers } from './number-buy.ts'
+import { newAssistant } from './onboarding.ts'
+import { type PartnerSetupFacts, partnerPast, partnerSetupFacts } from './partner-setup.ts'
+import { pipelinesSetUp, providerStatus } from './provider-settings.ts'
+import { runAction } from './run-action.ts'
+import { isPendingPayment, waitsForOwnTrial } from './self-serve.ts'
+import { isPlaceholderWorkspaceName, servedCountriesOf } from './served-countries.ts'
+import { setupChecklist } from './setup-checklist.ts'
+import { assistantSpokeIn } from './setup-events.ts'
+import { trialStartPath } from './trial-link.ts'
+import { telephonyForWorkspace } from './workspace-carrier.ts'
 import {
   mayCreateWorkspace,
   SETUP_LINK_CAP_TEXT,
@@ -114,22 +133,7 @@ import {
   WORKSPACE_CREATION_CLOSED,
   workspacesMadeBy,
 } from './workspace-creation.ts'
-import type { Actor } from './context.ts'
-import { db } from './db.ts'
-import { goLiveChecklist } from './go-live-checklist.ts'
-import { readInstallProgress } from './install-setup.ts'
-import { guard, MCP_MAX_BODY_BYTES, takeSlot, toolName } from './mcp.ts'
-import { newAssistant } from './onboarding.ts'
-import { pipelinesSetUp, providerStatus } from './provider-settings.ts'
-import { runAction } from './run-action.ts'
-import { isPendingPayment, waitsForOwnTrial } from './self-serve.ts'
-import { type PartnerSetupFacts, partnerPast, partnerSetupFacts } from './partner-setup.ts'
-import { setupChecklist } from './setup-checklist.ts'
 import { workspaceLocale } from './workspace-locale.ts'
-import { localeForUserId } from './email-locale.ts'
-import { isPlaceholderWorkspaceName, servedCountriesOf } from './served-countries.ts'
-import { assistantSpokeIn } from './setup-events.ts'
-import { withoutHopByHopHeaders } from './keep-alive.ts'
 
 /**
  * The registry actions an agent gets, by name. Instance: the providers. Workspace: what onboarding does. Each is
@@ -189,7 +193,7 @@ const setupPage = (actor: Pick<Actor, 'setupPartnerId'>) =>
  */
 
 const askFirst = (actor: Actor): Record<string, string> => ({
-  'phoneNumber.setup': `With purchase: true this buys a phone number, only for a workspace in ${NUMBER_BUY_COUNTRIES.join(', ')} (about $1 a month${actor.setupWorkspaceId ? '' : ' on Telnyx'} in the US and Canada, $3 in Puerto Rico): ask the ${personOf(actor)} first and say the cost. With purchase: false it attaches a number the carrier account already has (phoneNumber_listCarrierNumbers lists them).`,
+  'phoneNumber.setup': `With purchase: true this buys a phone number, only for a workspace in a country the phone step names (about $1 a month${actor.setupWorkspaceId ? '' : ' on Telnyx'} in the US, Canada and Germany, $3 in Puerto Rico): ask the ${personOf(actor)} first and say the cost. With purchase: false it attaches a number the carrier account already has (phoneNumber_listCarrierNumbers lists them).`,
   'provider.clearKeys': 'Removes the stored keys of a provider: ask the admin first.',
   'provider.tryOut':
     'kind "email" sends one real email with a six-digit code to the admin\'s own address: ask them for the code, then provider_confirmEmail { code }. kind "telephony" lists numbers without buying any.',
@@ -796,7 +800,13 @@ async function workspaceStatus(actor: Actor, ws: ManagedWorkspace, advance: bool
   const steps = inWs ? await workspaceSteps(inWs, advance) : []
   // A partner (its key, or one of its team in the client workspace) sets up a client's: the steps speak about the client.
   const names = actor.setupPartnerId || (await viaPartner(actor.actorId, ws.id)) ? clientSetupStepNames : setupStepNames
-  return { id: ws.id, name: ws.name, role: ws.role, known: await knownBusiness(ws), steps: inGroup('business', steps, names) }
+  return {
+    id: ws.id,
+    name: ws.name,
+    role: ws.role,
+    known: await knownBusiness(ws),
+    steps: inGroup('business', steps, names),
+  }
 }
 
 /** What the workspace's profile and settings already say about the business (KnownBusiness). */
@@ -1129,11 +1139,6 @@ const noWorkspaceSteps = (): StepBase[] => [
 
 /** One workspace's steps; `actor` acts in it as its owner or admin (setupActorIn). */
 /**
- * How the phone step gets a number, by the workspace's country: buying by an area code of that country in the US,
- * Canada and Puerto Rico (NUMBER_BUY_COUNTRIES); elsewhere attaching a number the business already has. `w` is the
- * workspace argument the tool calls carry; `country` null: nothing names the workspace's country yet.
- */
-/**
  * Learning from the business's emails (Janik, 2026-11-19): right after the business is confirmed the agent offers to
  * read the customer requests in the person's own mailbox (a mail connector in their AI app) and saves only the general
  * questions and answers in the About text, the place answered caller questions go too (knowledgeQuestion.answer,
@@ -1148,21 +1153,49 @@ export const emailKnowledgeHow = (who: string, w: string) =>
     save: `assistant_update { ${w}, assistantId, business_profile }`,
   })
 
+/**
+ * How the phone step gets a number, by the workspace's country: buying in a country of the buy offers (numberBuyOffers:
+ * the US, Canada and Puerto Rico by area code; Germany in the area codes the server offers, once it has German numbers
+ * on); elsewhere attaching a number the business already has. `w` is the workspace argument the tool calls carry;
+ * `country` null: nothing names the workspace's country yet.
+ */
 export function numberSetupHow(
   w: string,
   country: string | null,
   web = webAddress(),
+  offers: readonly BuyOffer[] = BASE_BUY_OFFERS,
 ): string {
-  const countries = NUMBER_BUY_COUNTRIES.join(', ')
+  const buying = offers.filter(o => o.ready)
+  const countries = buying.map(o => o.country).join(', ')
+  const offer = country ? buyOfferIn(buying, country) : undefined
 
   const listed = `phoneNumber_listCarrierNumbers { ${w} } lists the numbers in the carrier account that are free to attach`
   const attach = `A number the carrier account already has (${listed}): { ${w}, e164, purchase: false, mode }.`
   // Nothing names the workspace's country yet: the area code picks it, and the bought number sets it.
   if (country === null)
     return `phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one, with an area code where the business is (numbers can be bought in ${countries}; the workspace's country is not set yet, so the number sets it). If the business is elsewhere, set its country first (workspace_updateSettings { ${w}, country }); say the cost and ask first. ${attach}`
-  if (canBuyNumbersIn(country))
+  // Offered here but not ready yet (German numbers off, or the carrier setup missing): the app says numbers are being set
+  // up; the business continues now and connects its number later.
+  if (country && !offer && buyOfferIn(offers, country))
+    return english.t('server.setupAgent.phoneBeingSetUp', { country, listed, w })
+  if (offer?.numberType === 'national')
+    return `phoneNumber_setup { ${w}, purchase: true, mode } buys one, without an area code (numbers in ${country} have none; numbers can be bought in ${countries}); say the cost and ask first. ${attach}`
+  if (offer?.areaCodes)
+    return `phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one, with an area code this server offers in the workspace's country (${country}: ${offer.areaCodes.join(', ')}, digits without the leading 0; numbers can be bought in ${countries}); say the cost and ask first. ${attach}`
+  if (offer)
     return `phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one, with an area code in the workspace's country (${country}; numbers can be bought in ${countries}); say the cost and ask first. ${attach}`
   return `Numbers can be bought only for workspaces in ${countries}; this one is in ${country}, so buying is refused. Attach a number the business already has in its carrier account (${listed}): phoneNumber_setup { ${w}, e164, purchase: false, mode }. If the country is wrong, fix it first (workspace_updateSettings { ${w}, country }).`
+}
+
+/** Where the workspace can buy a number: its carrier account's buy offers (numberBuyOffers). */
+async function buyOffersOf(workspaceId: string): Promise<BuyOffer[]> {
+  try {
+    const { account, provider } = await telephonyForWorkspace(db, workspaceId)
+    return await numberBuyOffers(db, { account, provider: provider.name })
+  } catch {
+    // No carrier set up (or its keys unreadable): the offers every install has; buying fails later with its reason.
+    return [...BASE_BUY_OFFERS]
+  }
 }
 
 async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[]> {
@@ -1314,10 +1347,9 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
                 page: setupPage(actor),
                 seconds: POLL_SECONDS,
               }),
-              // TODO use trialStartPath (apps/api/src/trial-link.ts, built in another PR) once it is on master-dev.
               english.t('server.setupAgent.mcp.trialLink', {
                 who,
-                link: `${webAddress()}/#workspace/billing?start-trial=1&ws=${workspaceId}`,
+                link: `${webAddress()}${trialStartPath(workspaceId)}`,
               }),
             ],
           } satisfies StepBase,
@@ -1352,6 +1384,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
                   w,
                   countryNamed(locale.countrySource) ? locale.resolvedCountry : null,
                   webAddress(),
+                  await buyOffersOf(workspaceId),
                 ),
                 `Then onboarding_setStep { ${w}, step: "done" }.`,
               ],

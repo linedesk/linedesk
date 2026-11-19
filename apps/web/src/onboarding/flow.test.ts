@@ -1,4 +1,4 @@
-import { forwardingGuideById, localizedDefault, resumeStep, stepFor } from '@linedesk/actions'
+import { BASE_BUY_OFFERS, forwardingGuideById, localizedDefault, resumeStep, stepFor } from '@linedesk/actions'
 import { DEFAULT_TRANSFERS, type TransferContact } from '@linedesk/db/types'
 import { describe, expect, it, test } from 'vitest'
 import {
@@ -35,6 +35,7 @@ import {
   NO_PICKUP_MEMORY,
   nextStep,
   onboardingSteps,
+  numbersBeingSetUp,
   offersBuying,
   oldForwardingAfter,
   phoneOptionSetup,
@@ -269,6 +270,13 @@ test('a new number is only requested with purchase after the user confirmed the 
     })
   expect(phoneSetupInput({ kind: 'new', areaCode: '503', confirmed: true })).toEqual({
     input: { areaCode: '503', purchase: true, mode: 'new' },
+  }) // An offer with listed area codes (Germany: 6221, without the trunk 0): only those; a national number takes none.
+  expect(phoneSetupInput({ kind: 'new', areaCode: '6221', confirmed: true, offered: ['6221'] })).toEqual({
+    input: { areaCode: '6221', purchase: true, mode: 'new' },
+  })
+  expect(phoneSetupInput({ kind: 'new', areaCode: '30', confirmed: true, offered: ['6221'] })).toHaveProperty('problem')
+  expect(phoneSetupInput({ kind: 'new', areaCode: '', confirmed: true, noAreaCode: true })).toEqual({
+    input: { purchase: true, mode: 'new' },
   })
 })
 
@@ -512,18 +520,6 @@ test('done says live only when calls are really answered', () => {
   expect(
     doneState({ ...base, admin: true, number: { ...forwarded, mode: 'new' }, voiceMissing: true }).left[0]!.to,
   ).toEqual({ admin: '#admin/providers/answering' })
-  // A number requested with documents (Germany) and under review: the review is what is left, shown in place.
-  expect(doneState({ ...base, number: null, reviewedNumber: 'Berlin' })).toMatchObject({
-    live: false,
-    lede: 'Maya answers your calls once your Berlin number is approved.',
-    left: [
-      {
-        label: 'Your Berlin number is under review (usually 1–3 business days)',
-        to: { step: 'phone' },
-        action: 'Show',
-      },
-    ],
-  })
 })
 
 test("a partner's team reads the client's words on the last step and in the phone options", () => {
@@ -572,6 +568,13 @@ test('buying a number is offered in the US, Canada and Puerto Rico, and as befor
   for (const country of ['US', 'us', 'CA', 'PR']) expect(offersBuying(country), country).toBe(true)
   expect(offersBuying(null)).toBe(true)
   for (const country of ['DE', 'GB', 'MX', 'JM']) expect(offersBuying(country), country).toBe(false)
+  // Germany once the server has German numbers on (the phone setup status's `buy`, LIN-619); while its carrier setup is
+  // missing, numbers there are being set up (numbersBeingSetUp), not bought.
+  const de = { country: 'DE', numberType: 'local' as const, areaCodes: ['6221'], ready: true }
+  expect(offersBuying('DE', [...BASE_BUY_OFFERS, de])).toBe(true)
+  expect(offersBuying('DE', [...BASE_BUY_OFFERS, { ...de, ready: false }])).toBe(false)
+  expect(numbersBeingSetUp('DE', [...BASE_BUY_OFFERS, { ...de, ready: false }])).toBe(true)
+  expect(numbersBeingSetUp('DE', BASE_BUY_OFFERS)).toBe(false)
   expect(buyUnavailableText('Telnyx', true)).toBe(
     'Buying numbers is available in the US, Canada and Puerto Rico for now. Connect a number you already have in Telnyx.',
   )
@@ -580,7 +583,7 @@ test('buying a number is offered in the US, Canada and Puerto Rico, and as befor
   // The server's refusal (apps/api/src/number-purchases.ts) in the same words.
   expect(
     phoneSetupErrorText(
-      'Buying numbers is available in the US, Canada and Puerto Rico for now; this workspace is in DE. Connect a number already in the carrier account instead: give its number (e164) without purchase.',
+      'Buying numbers is not available in this country on this server; this workspace is in DE. Connect a number already in the carrier account instead: give its number (e164) without purchase.',
     ),
   ).toBe(buyUnavailableText(null, true))
   expect(

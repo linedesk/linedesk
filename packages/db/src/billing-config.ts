@@ -146,9 +146,8 @@ export type BillingRules = {
    */
   automaticTax: boolean
   /**
-   * Numbers that need documents (Germany, the UK, Ireland; docs/numbers-kyc.md) cost the workspace nothing a month: they
-   * are left out of the extra numbers (no monthly fee, no balance needed to request one), and the operator pays the
-   * carrier. Off by default: a German number is the number a workspace includes like a US one, more numbers are extra
+   * Numbers in regulated countries (Germany, the UK, Ireland) cost the workspace nothing a month: they are left out of
+   * the extra numbers (no monthly fee), and the operator pays the carrier. Off by default: a German number is the number a workspace includes like a US one, more numbers are extra
    * numbers (`extraNumberCents`; decision of 2026-11-18, no beta). An install that wants to give them away turns it on.
    */
   regulatedNumberFeeWaived: boolean

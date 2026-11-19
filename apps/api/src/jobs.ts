@@ -57,7 +57,6 @@ import { createReconcileQueue, runReconcileJob } from './billing-reconcile.ts'
 import { createStripeEventQueues, runStripeEventJobs } from './stripe-events.ts'
 import { createBillingPeriodQueues, runBillingPeriodJobs } from './billing-periods.ts'
 import { createBillingLifecycleQueues, runBillingLifecycleJobs } from './billing-lifecycle.ts'
-import { createNumberRequestNoticeQueue, runNumberRequestNoticeJobs } from './number-request-notices.ts'
 import { type EmailBrand, withEmailBrand } from './email-brand.ts'
 
 type Env = Record<string, string | undefined>
@@ -381,7 +380,6 @@ async function runJobs(instance: PgBoss, env: Env) {
   // Periods, extra numbers and renewal reminders (billing-periods.ts).
   await runBillingPeriodJobs(instance, emailSender)
   await runBillingLifecycleJobs(instance)
-  await runNumberRequestNoticeJobs(instance, emailSender)
   await instance.schedule(HOLIDAY_SYNC, HOLIDAY_SYNC_CRON)
   await instance.work(HOLIDAY_SYNC, async () => {
     // One transaction per workspace, so a long run holds no locks for long.
@@ -527,7 +525,6 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await createReconcileQueue(instance)
   await createBillingPeriodQueues(instance)
   await createBillingLifecycleQueues(instance)
-  await createNumberRequestNoticeQueue(instance)
   await instance.createQueue(SETUP_EMAILS)
   await instance.createQueue(HELD_NEWS_SWEEP)
   await instance.createQueue(SENDER_DOMAIN_CHECK)

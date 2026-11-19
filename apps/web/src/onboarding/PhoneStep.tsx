@@ -13,17 +13,17 @@ import { NearbyAreaCodes } from '../settings/NearbyAreaCodes.tsx'
 import { useWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
 import { useAssistant, useAssistantName, useRows, useRun } from '../store.tsx'
 import { useWorkspaceCountry } from '../workspaceLocale.ts'
-import { NumberRequestFlow } from '../numbers/NumberRequestFlow.tsx'
-import { useKycCountry } from '../numbers/numberRequestQueries.ts'
-import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { RadioCard } from '../ui/controls.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { ForwardingCheck } from './ForwardingCheck.tsx'
 import { AbroadWarning, ForwardingSteps, GuidePickers, useForwardingPick } from './ForwardingGuide.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
+import { areaCodeShown, buyableAreaCode, buyOfferIn, offerAreaCodes, offerHasAreaCode } from '@linedesk/actions'
 import {
   areaCodeIn,
   areaCodeOf,
+  beingSetUpText,
+  buyOffersOf,
   buyQuestion,
   buyingCountry,
   buyUnavailableText,
@@ -33,6 +33,7 @@ import {
   formatNumber,
   forwardingOffer,
   isNoneFreeText,
+  numbersBeingSetUp,
   type PhoneOption,
   phoneOptionSetup,
   offersBuying,
@@ -56,8 +57,6 @@ type Props = {
   clearError: () => void
   /** An instance admin: hints about the server link to Server admin › Providers; everyone else is told whom to ask. */
   admin: boolean
-  /** The business's name: prefills a number request's details (a country that checks documents). */
-  businessName?: string
   onBack: () => void
   onNext: () => void
 }
@@ -90,40 +89,7 @@ export function PhoneStep(p: Props) {
     )
   if (!p.status.available)
     return <Unavailable detail={p.status.detail} admin={p.admin} onBack={p.onBack} onNext={p.onNext} />
-  return (
-    <ChooseOrRequest {...p} firstAreaCode={areaCodeOf(null, businessPhone, mobile)} businessPhone={businessPhone} />
-  )
-}
-
-/**
- * In a country whose carrier checks documents first (Germany, when the server takes requests there), the number is
- * requested (NumberRequestFlow); elsewhere it is bought or connected at once (Choose). A number already in the
- * carrier account (instance admins) can still be connected from the request's first step.
- */
-function ChooseOrRequest(p: Props & { firstAreaCode: string; businessPhone: string | null }) {
-  const t = useT()
-  const kyc = useKycCountry()
-  const [existing, setExisting] = useState(false)
-  if (kyc.loading)
-    return (
-      <>
-        <div className="ob-body">
-          <Loading what={t('onboarding.numberRequest.loading')} loading skeleton={<SkeletonFields fields={3} />} />
-        </div>
-        <Foot onBack={p.onBack} onSkipStep={p.onNext} canContinue={false} />
-      </>
-    )
-  if (kyc.country && !existing)
-    return (
-      <NumberRequestFlow
-        country={kyc.country}
-        known={{ businessName: p.businessName ?? '', phone: p.businessPhone ?? '' }}
-        onExisting={p.status.canAttach !== false ? () => setExisting(true) : undefined}
-        onBack={p.onBack}
-        onNext={p.onNext}
-      />
-    )
-  return <Choose {...p} />
+  return <Choose {...p} firstAreaCode={areaCodeOf(null, businessPhone, mobile)} />
 }
 
 function Unavailable({
@@ -172,10 +138,14 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
   const name = useAssistantName()
   // Numbers already in the install's carrier account are for instance admins only: only they see the link to it.
   const canAttach = status?.canAttach !== false
-  // Outside the countries numbers can be bought in, only a number the business already has (offersBuying).
-  // Unknown yet: every buyable area code, and the one picked names the country (buyingCountry).
+  // Outside the countries numbers can be bought in (the install's buy offers), only a number the business already has
+  // (offersBuying). Unknown yet: every buyable area code, and the one picked names the country (buyingCountry).
   const country = buyingCountry(useWorkspaceCountry())
-  const buyable = offersBuying(country)
+  const offers = buyOffersOf(status)
+  const offer = buyOfferIn(offers, country)
+  const buyable = offersBuying(country, offers)
+  const settingUp = numbersBeingSetUp(country, offers)
+  const noAreaCode = !offerHasAreaCode(offer)
   const [chosen, setOption] = useState<PhoneOption>(phoneOptions[0]!)
   const option: PhoneOption = buyable ? chosen : 'existing'
   // Nothing to connect here: no buying, and the install's carrier account is for instance admins only.
@@ -183,10 +153,11 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
   // E.164 as far as typed (PhoneInput). No number is connected yet, so no forwarding guide has picked a country.
   const [typed, setTyped] = useState('')
   const phoneCountry = useDefaultPhoneCountry()
-  // Prefilled from a number the owner already gave; empty otherwise (no example that looks filled in).
+  // Prefilled from a number the owner already gave, else the country's first offered code (Germany: one by default);
+  // empty otherwise (no example that looks filled in).
   const [picked, setAreaCode] = useState(firstAreaCode)
   // Only a code of the workspace's country (its list): a prefilled one of another country is dropped.
-  const areaCode = areaCodeIn(picked, country) ? picked : ''
+  const areaCode = areaCodeIn(picked, country, offers) ? picked : (offer?.areaCodes?.[0] ?? '')
   const [confirming, setConfirming] = useState(false)
   // When the purchase question appeared: Enter buys only once it has been on screen a moment, never a repeated key.
   const askedAt = useRef(0)
@@ -209,7 +180,11 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
   }, [setupError])
 
   function send(confirmed: boolean) {
-    const result = phoneOptionSetup(option, { number: typed, areaCode, confirmed }, forwarding)
+    const result = phoneOptionSetup(
+      option,
+      { number: typed, areaCode, confirmed, noAreaCode, offered: offer?.areaCodes },
+      forwarding,
+    )
     if ('problem' in result) return setProblem(result.problem)
     setProblem(null)
     clearError()
@@ -222,7 +197,11 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
     // Buying is a second, deliberate step: the first press asks the question above the footer, whose primary button
     // then buys (a click, or Enter once the question has been read for a moment).
     if (!confirming) {
-      const check = phoneOptionSetup(option, { number: typed, areaCode, confirmed: true }, forwarding)
+      const check = phoneOptionSetup(
+        option,
+        { number: typed, areaCode, confirmed: true, noAreaCode, offered: offer?.areaCodes },
+        forwarding,
+      )
       if ('problem' in check) return setProblem(check.problem)
       setProblem(null)
       ask()
@@ -264,7 +243,9 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
         {option === 'existing' ? (
           <div className="ob-existing">
             <b>{existing.title}</b>
-            <span className="ob2-note">{buyable ? existing.description : buyUnavailableText(carrier, canAttach)}</span>
+            <span className="ob2-note">
+              {buyable ? existing.description : settingUp ? beingSetUpText() : buyUnavailableText(carrier, canAttach)}
+            </span>
           </div>
         ) : (
           <>
@@ -317,36 +298,39 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
           </>
         ) : (
           <>
-            <Field
-              id="ob-area"
-              label={
-                option === 'forward'
-                  ? t('onboarding.phone.choose.areaCodeFor', { name })
-                  : t('onboarding.phone.choose.areaCode')
-              }
-            >
-              <AreaCodeInput
+            {!noAreaCode && (
+              <Field
                 id="ob-area"
-                country={country}
-                value={areaCode}
-                onChange={v => {
-                  setAreaCode(v)
-                  setConfirming(false)
-                  setProblem(null)
-                  clearError()
-                }}
-              />
-            </Field>
+                label={
+                  option === 'forward'
+                    ? t('onboarding.phone.choose.areaCodeFor', { name })
+                    : t('onboarding.phone.choose.areaCode')
+                }
+              >
+                <AreaCodeInput
+                  id="ob-area"
+                  country={country}
+                  codes={offer?.areaCodes ? offerAreaCodes(offer) : undefined}
+                  value={areaCode}
+                  onChange={v => {
+                    setAreaCode(v)
+                    setConfirming(false)
+                    setProblem(null)
+                    clearError()
+                  }}
+                />
+              </Field>
+            )}
             <p className="ob2-note">{priceNote(status.provider, priceCountry(areaCode, country))}</p>
             {/* The question right above the footer, whose primary button does it; Back (Esc) cancels. */}
             {confirming && (
               <p className="ob-confirm" role="alert">
-                {buyQuestion(status.provider, areaCode)}
+                {buyQuestion(status.provider, noAreaCode ? '' : areaCodeShown(areaCode, country))}
               </p>
             )}
           </>
         )}
-        {error && buying && areaCode && isNoneFreeText(error) ? (
+        {error && buying && buyableAreaCode(areaCode) && isNoneFreeText(error) ? (
           <NearbyAreaCodes
             areaCode={areaCode}
             message={error}

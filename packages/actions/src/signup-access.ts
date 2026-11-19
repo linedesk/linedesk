@@ -1,15 +1,13 @@
 // Who may sign up in which country (Server admin › System › Sign-up countries; decisions of 2026-11-18): each country
 // the install can serve has a sign-up mode, open to everyone, only invited email addresses, or off. The countries are
 // the sign-up countries (SIGNUP_COUNTRIES: the US, Canada, Puerto Rico; open by default, so nothing changes for them)
-// and the countries whose numbers need documents (KYC, docs/numbers-kyc.md) once the server takes number requests
-// there (NUMBER_KYC_COUNTRIES): Germany first, invited addresses only by default; the UK and Ireland follow by adding
-// them to SIGNUP_ACCESS_COUNTRIES. One invite list serves every country set to "only invited". Each change is audited.
+// and the countries the server sells numbers in once an admin turned them on (Germany: Server admin › System › German
+// numbers, apps/api/src/number-buy.ts), invited addresses only by default. One invite list serves every country set to "only invited". Each change is audited.
 import { z } from 'zod'
 import { defineAction } from './define.ts'
-import type { KycCountry } from './number-countries.ts'
 
-/** Countries with documents a sign-up may pick once the server takes number requests there. */
-export const SIGNUP_ACCESS_COUNTRIES = ['DE'] as const satisfies readonly KycCountry[]
+/** Countries a sign-up may pick once the server sells numbers there (an admin turned them on). */
+export const SIGNUP_ACCESS_COUNTRIES = ['DE'] as const
 export type SignupAccessCountry = (typeof SIGNUP_ACCESS_COUNTRIES)[number]
 
 /** How a country takes sign-ups: everyone, only the invited addresses, or nobody. */

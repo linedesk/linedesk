@@ -8,6 +8,7 @@ import {
   type CallFinishData,
   type CorrectTranscriptData,
   buyableAreaCode,
+  buyOfferIn,
   behaviourOn,
   callerRecognized,
   type CallerAttestation,
@@ -21,6 +22,7 @@ import {
   setsTransferNumber,
   ASSISTANT_CALL_MAX_MINUTES,
   confirmsNumber,
+  offerHasAreaCode,
   isE164,
   normalizeCallerId,
   recordingKey,
@@ -227,7 +229,15 @@ import {
 import { partnerSenderHandlers, partnerSenderPreparers } from './partner-sender.ts'
 import { partnerDomainHandlers, partnerDomainPreparers } from './partner-domain.ts'
 import { partnerSetupHandlers } from './partner-setup.ts'
-import { numberRequestHandlers } from './number-requests.ts'
+import {
+  alertNumbersNotReady,
+  germanNumbersHandlers,
+  germanRequirementGroup,
+  NUMBERS_BEING_SET_UP,
+  numberBuyOffers,
+  warnAtHeldNumbersLimit,
+  germanNumbersNotReadyWhy,
+} from './number-buy.ts'
 import { signupAccessHandlers } from './signup-access.ts'
 
 export { Forbidden, NotFound, Reject, type HandlerCtx, type Undo }
@@ -1246,7 +1256,7 @@ const handlers: Record<string, Handler> = {
   ...partnerSenderHandlers,
   ...partnerDomainHandlers,
   ...partnerSetupHandlers,
-  ...numberRequestHandlers,
+  ...germanNumbersHandlers,
   ...signupAccessHandlers,
   ...checkoutHandlers,
   ...billingPageHandlers,
@@ -1913,15 +1923,29 @@ const handlers: Record<string, Handler> = {
       const billRefusal = await billingNumberRefusal(tx, actor, workspace_id)
       if (billRefusal) throw new Reject(billRefusal)
     }
-    // Only workspaces in a country numbers can be bought in may buy (NUMBER_BUY_COUNTRIES), and by area code only in
-    // their own country (LIN-300). Asked once, when a purchase is allowed by the input; refused before the carrier is
-    // searched for an area code.
+    // Only workspaces in a country of the install's buy offers may buy (numberBuyOffers: the US, Canada, Puerto Rico;
+    // Germany where the server has it on), and by area code only in their own country and its offered codes
+    // (LIN-300). Asked once, when a purchase is allowed by the input; refused before the carrier is searched.
+    const offers = await numberBuyOffers(tx, { account: carrier_account, provider: provider.name })
     const country = input.purchase ? await purchaseCountry(tx, workspace_id, input) : null
-    const countryRefusal = country ? buyCountryRefusal(country) : null
+    const offer = country ? buyOfferIn(offers, country) : undefined
+    const countryRefusal = country ? buyCountryRefusal(country, offers) : null
     if (countryRefusal && !input.e164) throw new Reject(countryRefusal)
     const areaRefusal =
-      country && input.areaCode && !input.e164 ? areaCodeCountryRefusal(input.areaCode, country) : null
+      country && input.areaCode && !input.e164 ? areaCodeCountryRefusal(input.areaCode, country, offer) : null
     if (areaRefusal) throw new Reject(areaRefusal)
+    if (input.purchase && !input.e164 && !input.areaCode && offerHasAreaCode(offer))
+      throw new Reject('give an area code (areaCode) to buy a number in')
+    // Turned on but not set up yet at the carrier (no requirement group): said calmly, the operator is alerted.
+    if (input.purchase && offer && !offer.ready) {
+      alertNumbersNotReady(workspace_id, await germanNumbersNotReadyWhy(tx, provider.name))
+      throw new Reject(NUMBERS_BEING_SET_UP)
+    }
+    // A country whose numbers are held in the install's name (Germany) orders with the install's requirement group.
+    const requirementGroupRef =
+      input.purchase && carrier_account === 'install' && offer?.country === 'DE'
+        ? ((await germanRequirementGroup(tx)) ?? undefined)
+        : undefined
     // A purchase by area code: its limits are checked before the carrier is searched, so a refused one makes no
     // carrier request (and takes the install-wide purchase lock before it does).
     if (onInstallAccount && input.purchase && !input.e164) {
@@ -1930,15 +1954,33 @@ const handlers: Record<string, Handler> = {
     }
     // Only a purchase may search: attaching always names the number.
     // A few candidates, so a number that is already set up here (dev's are always the same) is passed over.
-    // The search is in the area code's own country (US, CA or PR: the carriers file Puerto Rico's numbers under PR).
-    const searchCountry = (input.areaCode && buyableAreaCode(input.areaCode)?.country) || 'US'
+    // The search is in the area code's own country (US, CA or PR: the carriers file Puerto Rico's numbers under PR),
+    // else the offer's (Germany).
+    const searchCountry = (input.areaCode && buyableAreaCode(input.areaCode)?.country) || offer?.country || 'US'
     const e164: string | undefined =
       input.e164 ??
       (await firstFreeNumber(
         tx,
-        await atCarrier(() => provider.searchNumbers({ country: searchCountry, areaCode: input.areaCode, limit: 5 })),
+        await atCarrier(() =>
+          provider.searchNumbers({
+            country: searchCountry,
+            areaCode: input.areaCode,
+            limit: 5,
+            ...(offer && offer.numberType !== 'local' ? { numberType: offer.numberType } : {}),
+            ...(requirementGroupRef ? { withRequirements: true } : {}),
+          }),
+        ),
       ))
-    if (!e164) throw new Reject(english.t('server.api.noNumberInAreaCode', { areaCode: input.areaCode }))
+    if (!e164 && requirementGroupRef) {
+      // None in stock in the install's own numbers: said calmly, the operator is alerted (another area code or type).
+      // i18n-ignore: an operator log line (ALERT), never shown in the app
+      alertNumbersNotReady(
+        workspace_id,
+        `the carrier has no free number${input.areaCode ? ` in ${input.areaCode}` : ''}`,
+      )
+      throw new Reject(NUMBERS_BEING_SET_UP)
+    }
+    if (!e164) throw new Reject(english.t('server.api.noNumberInAreaCode', { areaCode: input.areaCode ?? '' }))
     const [taken] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, e164))
     if (taken) throw new Reject(english.t('server.api.numberAlreadySetUp', { number: e164 }))
 
@@ -1976,7 +2018,11 @@ const handlers: Record<string, Handler> = {
         provider: provider.name,
         carrierAccount: carrier_account,
       })
-    const number = existing ?? (await atCarrier(() => provider.buyNumber(e164)))
+    const number =
+      existing ??
+      (await atCarrier(() =>
+        requirementGroupRef ? provider.buyNumber(e164, { requirementGroupRef }) : provider.buyNumber(e164),
+      ))
     if (buying) onRollback?.(releaseBought(provider, number))
 
     await atCarrier(() => provider.routeToSip(number, sipEndpoint))
@@ -2002,6 +2048,8 @@ const handlers: Record<string, Handler> = {
       .returning()
     // An extra number pays its first month now, in this transaction (LIN-506).
     if (buying && carrier_account === 'install') await payBoughtNumberMonth(tx, workspace_id, rows[0]!.id, now)
+    // Numbers held in the install's name (Germany): the operator is warned from 8 on (number-buy.ts).
+    if (buying && requirementGroupRef) await warnAtHeldNumbersLimit(tx, e164)
     // Warm transfers from a number in the workspace account dial through that account: set its trunk up now.
     if (carrier_account === 'workspace')
       await refreshTransferTrunk(tx, workspace_id, {

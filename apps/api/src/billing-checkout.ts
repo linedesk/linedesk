@@ -1353,8 +1353,7 @@ export const NUMBER_EXTRA_IN_APP: Said = { key: msg('server.api.checkout.number.
 
 /**
  * The workspace's bill while billing runs through Stripe, and why its state alone stops a new number (checkout not
- * done, not paying, held for review), or null without a bill. Also asked again when a number the carrier took days to
- * approve is set up (number-requests.ts): the bill may have stopped meanwhile.
+ * done, not paying, held for review), or null without a bill.
  */
 export async function billOfWorkspaceForNumbers(tx: Tx, workspaceId: string) {
   const [org] = await tx
