@@ -78,18 +78,24 @@ describe("StartAgent for a workspace owner's link", () => {
   })
 })
 
-describe('StartAgent: direct links to the cloud apps\' own settings', () => {
-  test('Claude: says it cannot add the server itself and opens its connector settings in a new tab, first', () => {
+describe("StartAgent: direct links to the cloud apps' own settings", () => {
+  test('Claude: says it cannot add the server itself and opens Add custom connector filled in, in a new tab, first', () => {
     const claude = render('claude')
     expect(claude).toContain('Claude cannot add the setup server by itself')
     const settings = at(
       claude,
-      /<a class="k-btn k-btn-primary k-btn-sm" href="https:\/\/claude\.ai\/customize\/connectors" target="_blank" rel="noopener noreferrer">Open Claude connectors<\/a>/,
+      new RegExp(
+        `<a class="k-btn k-btn-primary k-btn-sm" href="https://claude\\.ai/customize/connectors\\?modal=add-custom-connector&amp;connectorName=Linedesk%20setup&amp;connectorUrl=${encodeURIComponent(URL)}" target="_blank" rel="noopener noreferrer">Open in Claude</a>`,
+      ),
     )
     expect(settings).toBeGreaterThanOrEqual(0)
-    expect(settings).toBeLessThan(at(claude, /Name it Linedesk setup/))
+    // The address to copy stays, below the link, in case the link did not fill it in.
+    expect(settings).toBeLessThan(at(claude, /Link didn&#x27;t fill it in\? Paste this URL:/))
+    expect(claude).toContain(`<code>${URL}</code>`)
     // The chat link opens claude.ai in a new tab too.
-    expect(claude).toMatch(/href="https:\/\/claude\.ai\/new\?q=[^"]+" target="_blank" rel="noopener noreferrer">Open Claude</)
+    expect(claude).toMatch(
+      /href="https:\/\/claude\.ai\/new\?q=[^"]+" target="_blank" rel="noopener noreferrer">Open Claude</,
+    )
   })
 
   test('ChatGPT: its plugins page, in a new tab', () => {
@@ -109,9 +115,16 @@ describe('StartAgent: direct links to the cloud apps\' own settings', () => {
 describe('SetUpYourself: the way without an AI agent', () => {
   test('a real secondary button with its line, which opens the setup by hand', () => {
     const onClick = vi.fn()
-    const props = { text: 'No AI agent? Set it up yourself, one step at a time.', label: 'Set it up yourself', title: 'Go through the setup steps yourself', onClick }
+    const props = {
+      text: 'No AI agent? Set it up yourself, one step at a time.',
+      label: 'Set it up yourself',
+      title: 'Go through the setup steps yourself',
+      onClick,
+    }
     const html = renderToStaticMarkup(<SetUpYourself {...props} />)
-    expect(html).toMatch(/class="as-by-hand"><span>No AI agent\? Set it up yourself, one step at a time\.<\/span><button[^>]*k-btn-secondary/)
+    expect(html).toMatch(
+      /class="as-by-hand"><span>No AI agent\? Set it up yourself, one step at a time\.<\/span><button[^>]*k-btn-secondary/,
+    )
     expect(html).toContain('Set it up yourself</')
     // The button's click is the page's way by hand (AgentSetup passes its `manual`).
     const button = (SetUpYourself(props) as { props: { children: { props: { onClick: () => void } }[] } }).props

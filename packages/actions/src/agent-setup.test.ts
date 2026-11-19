@@ -8,6 +8,7 @@ import { english, type Words } from './words.ts'
 import {
   CHATGPT_PLUGINS_URL,
   CLAUDE_CONNECTORS_URL,
+  claudeConnectorLink,
   cursorMcpInstallLink,
   opensWebPage,
   vscodeMcpInstallLink,
@@ -89,12 +90,16 @@ describe('startPlan', () => {
     }
   })
 
-  test('the cloud chat apps connect a connector first; their prompt and link carry no key', () => {
+  test("the cloud chat apps connect a connector first; their prompt and links carry no key, but Claude's connector link", () => {
     for (const client of ['claude', 'chatgpt'] as const) {
       const { steps, prompt } = startPlan(client, URL)
       expect(steps.some(s => s.code === URL)).toBe(true)
       expect(prompt).not.toContain('lds_')
-      for (const step of steps) expect(step.link?.href ?? '').not.toContain('lds_')
+      // Claude's install link fills in the setup address, key and all (decisions.md, 2026-11-19); no other link has it.
+      const isConnectorLink = (href: string) => href.startsWith(claudeConnectorLink('Linedesk setup'))
+      for (const step of steps)
+        if (!isConnectorLink(step.link?.href ?? '')) expect(step.link?.href ?? '').not.toContain('lds_')
+      expect(steps.filter(step => isConnectorLink(step.link?.href ?? '')).length).toBe(client === 'claude' ? 1 : 0)
     }
   })
 
@@ -263,11 +268,22 @@ test("the setup page's step names are the reader's words", () => {
   expect(setupStepNamesIn(english)).toEqual(setupStepNames)
 })
 
-describe('direct links to the clients\' own settings (2026-11-19)', () => {
+describe("direct links to the clients' own settings (2026-11-19)", () => {
   test('Claude and ChatGPT: say they cannot add the server themselves, and link their settings page first', () => {
     const claude = startPlan('claude', URL)
     expect(claude.steps[0]!.text).toMatch(/^Claude cannot add the setup server by itself/)
-    expect(claude.steps[0]!.link).toEqual({ label: 'Open Claude connectors', href: CLAUDE_CONNECTORS_URL })
+    // One link: the name and the setup address (with its key) filled in, encoded; the address to copy as the fallback.
+    const link = claude.steps[0]!.link!
+    expect(link.label).toBe('Open in Claude')
+    expect(link.href).toBe(
+      `https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Linedesk%20setup&connectorUrl=${encodeURIComponent(URL)}`,
+    )
+    expect(new globalThis.URL(link.href).searchParams.get('connectorUrl')).toBe(URL)
+    expect(claude.steps[1]!.text).toBe("Link didn't fill it in? Paste this URL:")
+    expect(claude.steps[1]!.code).toBe(URL)
+    // Only there: the chat link and the prompt carry no key.
+    expect(claude.steps[2]!.link!.href).not.toContain('lds_')
+    expect(claude.prompt).not.toContain('lds_')
     expect(CLAUDE_CONNECTORS_URL).toBe('https://claude.ai/customize/connectors')
     const chatgpt = startPlan('chatgpt', URL)
     expect(chatgpt.steps[0]!.text).toMatch(/^ChatGPT cannot add the setup server by itself/)
@@ -275,17 +291,33 @@ describe('direct links to the clients\' own settings (2026-11-19)', () => {
     expect(CHATGPT_PLUGINS_URL).toBe('https://chatgpt.com/plugins')
   })
 
+  test("Claude's install link: Add custom connector with the name and the address filled in, or the owner's", () => {
+    const link = new globalThis.URL(claudeConnectorLink('Linedesk', 'https://desk.example/mcp?x=1&y=2'))
+    expect(link.origin + link.pathname).toBe('https://claude.ai/customize/connectors')
+    expect(Object.fromEntries(link.searchParams)).toEqual({
+      modal: 'add-custom-connector',
+      connectorName: 'Linedesk',
+      connectorUrl: 'https://desk.example/mcp?x=1&y=2',
+    })
+    expect(claudeConnectorLink('Linedesk', 'https://desk.example/mcp', true)).toBe(
+      'https://claude.ai/admin-settings/connectors?modal=add-custom-connector&connectorName=Linedesk&connectorUrl=https%3A%2F%2Fdesk.example%2Fmcp',
+    )
+    expect(claudeConnectorLink('Linedesk setup')).not.toContain('connectorUrl')
+  })
+
   test('one-click install links carry the address and nothing else', () => {
     const cursor = new globalThis.URL(cursorMcpInstallLink('linedesk', 'https://desk.example/mcp'))
     expect(cursor.protocol).toBe('cursor:')
     expect(JSON.parse(atob(cursor.searchParams.get('config')!))).toEqual({ url: 'https://desk.example/mcp' })
-    expect(vscodeMcpInstallLink('linedesk', 'https://desk.example/mcp', true)).toMatch(/^vscode-insiders:mcp\/install\?/)
+    expect(vscodeMcpInstallLink('linedesk', 'https://desk.example/mcp', true)).toMatch(
+      /^vscode-insiders:mcp\/install\?/,
+    )
     expect(opensWebPage(CLAUDE_CONNECTORS_URL)).toBe(true)
     expect(opensWebPage('cursor://anysphere.cursor-deeplink/mcp/install')).toBe(false)
   })
 })
 
-describe('the setup prompt in the person\'s language', () => {
+describe("the setup prompt in the person's language", () => {
   const namespaced = (ns: string, messages: Record<string, string>) =>
     Object.fromEntries(Object.entries(messages).map(([key, text]) => [`${ns}.${key}`, text]))
   const german: Words = createTranslator('de', {
@@ -314,7 +346,7 @@ describe('the setup prompt in the person\'s language', () => {
     expect(agentSetupPrompt(URL, { connector: true, scope: 'workspace', words: german })).not.toContain('lds_')
   })
 
-  test('the setup MCP tells the agent to use the person\'s language and to confirm before anything else', () => {
+  test("the setup MCP tells the agent to use the person's language and to confirm before anything else", () => {
     for (const text of [SETUP_MCP_INSTRUCTIONS, SETUP_MCP_WORKSPACE_INSTRUCTIONS]) {
       expect(text).toMatch(/setup_status\.you_act_as\.language/)
       expect(text).toMatch(/no plan, no list of steps/)

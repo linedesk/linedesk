@@ -25,10 +25,13 @@ calls and their summaries, find contacts, see and change bookings, and change yo
 - **Address:** `https://app.linedesk.ai/mcp` (Streamable HTTP). On your own install: `https://<your-address>/mcp`.
 - **Sign-in:** OAuth 2.1. Add the address as a custom connector in your AI tool, sign in with your Linedesk account
   and pick the workspace. No API key to copy. The connector acts with your role in that workspace.
-- **Adding it:** Claude and ChatGPT cannot add a connector by themselves: add it in
-  [Claude's connectors](https://claude.ai/customize/connectors) (Add › Add custom connector) or
-  [ChatGPT's plugins](https://chatgpt.com/plugins) (Add › Add custom MCP server). Cursor and VS Code install it in one
-  click from Workspace settings › Integrations › MCP; Claude Code, Codex and Gemini CLI with one command from there.
+- **Adding it:** Claude in one link,
+  [Add to Claude](https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Linedesk&connectorUrl=https%3A%2F%2Fapp.linedesk.ai%2Fmcp)
+  (confirm, then Connect; Claude Team or Enterprise: the owner adds it under
+  [organization connectors](https://claude.ai/admin-settings/connectors?modal=add-custom-connector&connectorName=Linedesk&connectorUrl=https%3A%2F%2Fapp.linedesk.ai%2Fmcp)).
+  ChatGPT cannot add one by itself: in [ChatGPT's plugins](https://chatgpt.com/plugins) click Add › Add custom MCP
+  server, paste the address and choose OAuth. Cursor and VS Code install it in one click from Workspace settings ›
+  Integrations › MCP; Claude Code, Codex and Gemini CLI with one command from there.
 - **Tools:** every action of the app (the same registry the web app uses), plus `calls_list`, `calls_get`,
   `contacts_search`, `workspaces_list` and `api_get`. Each tool says whether it only reads or also changes data.
 - **Listed in:** the official MCP registry as `ai.linedesk/linedesk`.

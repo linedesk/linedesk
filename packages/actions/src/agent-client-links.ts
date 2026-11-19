@@ -4,10 +4,21 @@
 
 /**
  * Claude (web and desktop app): its connector settings, where Add › Add custom connector takes a server address.
- * Claude cannot add a connector by itself, and has no link that fills in the address
- * (claude.com/docs/connectors/custom/add-unlisted, which links this page).
+ * Claude cannot add a connector by itself; claudeConnectorLink opens that dialog filled in.
  */
 export const CLAUDE_CONNECTORS_URL = 'https://claude.ai/customize/connectors'
+
+/**
+ * Claude's install link for a custom connector: opens Add custom connector with the name (and the address, when given)
+ * filled in; the person clicks Add, then Connect (claude.com/docs/connectors/building/directory-vs-custom, "Custom
+ * connector install link", checked 2026-11-19). `admin`: Claude Team or Enterprise, where only an owner adds a
+ * connector for the organization (admin-settings/connectors). The setup server's address carries its short-lived key:
+ * it reaches Claude either way, the link adds only the person's own browser history (decisions.md, 2026-11-19).
+ */
+export const claudeConnectorLink = (name: string, url?: string, admin = false) =>
+  `https://claude.ai/${admin ? 'admin-settings' : 'customize'}/connectors?modal=add-custom-connector&connectorName=${encodeURIComponent(
+    name,
+  )}${url ? `&connectorUrl=${encodeURIComponent(url)}` : ''}`
 
 /**
  * ChatGPT (web): its plugins page, where Add › Add custom MCP server takes a server address. ChatGPT cannot add one by

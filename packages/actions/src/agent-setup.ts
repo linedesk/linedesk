@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 import type { MessageKey } from '@linedesk/i18n'
-import { CHATGPT_PLUGINS_URL, CLAUDE_CONNECTORS_URL } from './agent-client-links.ts'
+import { CHATGPT_PLUGINS_URL, CLAUDE_CONNECTORS_URL, claudeConnectorLink } from './agent-client-links.ts'
 import { english, type Words } from './words.ts'
 
 // Agent setup (LIN-125, docs/api.md "Setup MCP"): the preferred way to set up an install is an AI agent. An instance
@@ -343,7 +343,7 @@ export type OpenLink = { label: string; href: string; text: string }
  *
  * `open`: the agent opens with the prompt filled in from one link, with nothing to set up first. That is the first
  * and recommended way; `steps` are then the other way (`otherWay` names it), kept out of sight until asked for.
- * Claude (the web app) has a link too, but only after its connector is added, so it stays a step there.
+ * Claude (the web app) has a chat link too, but only after its connector is added, so it stays a step there.
  */
 export function startPlan(
   client: AgentClient,
@@ -432,15 +432,20 @@ export function startPlan(
       }
     case 'claude': {
       const viaConnector = agentSetupPrompt(url, { connector: true, scope, change, words })
-      // Claude cannot add a connector by itself and has no link that fills in the address: its connector settings
-      // open in a new tab (CLAUDE_CONNECTORS_URL). The chat link works only once the connector is added, so it stays
-      // the last step (no `open`).
+      // Claude cannot add a connector by itself. Its install link opens Add custom connector with the name and this
+      // address filled in (claudeConnectorLink). The address carries the setup key: it reaches Claude either way (the
+      // person would paste it there), the link adds only their own browser history, and the key lasts SETUP_KEY_HOURS
+      // with the setup scope only (Janik, 2026-11-19). The address stays to copy in case the link did not fill it in.
+      // The chat link works only once the connector is added, so it stays the last step (no `open`).
       return {
         open: null,
         steps: [
           {
             text: t('onboarding.agentSetup.start.claude.settings'),
-            link: { label: t('onboarding.agentSetup.start.claude.openSettings'), href: CLAUDE_CONNECTORS_URL },
+            link: {
+              label: t('onboarding.agentSetup.start.claude.openSettings'),
+              href: claudeConnectorLink(t('onboarding.agentSetup.start.claude.connectorName'), url),
+            },
           },
           { text: t('onboarding.agentSetup.start.claude.add'), code: url },
           {

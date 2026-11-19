@@ -14,6 +14,7 @@ import {
   type AppSettingId,
   appSettingOn,
   type ConnectableApp,
+  claudeConnectorLink,
   cursorMcpInstallLink,
   isAppConnectError,
   vscodeMcpInstallLink,
@@ -431,6 +432,14 @@ export const geminiCommand = (origin: string) => `gemini mcp add --transport htt
 
 /** Cursor's one-click install link (agent-client-links.ts): the address alone, the sign-in is OAuth. */
 export const cursorInstallLink = (origin: string) => cursorMcpInstallLink('linedesk', mcpAddress(origin))
+
+/**
+ * Claude's install link (agent-client-links.ts): opens Add custom connector with the install's name and the address
+ * filled in, the sign-in is OAuth. `admin`: the organization's connector settings, for an owner of Claude Team or
+ * Enterprise.
+ */
+export const claudeInstallLink = (origin: string, name: string, admin = false) =>
+  claudeConnectorLink(name, mcpAddress(origin), admin)
 
 /** VS Code's (or VS Code Insiders') one-click install link: the address alone, the sign-in is OAuth. */
 export const vscodeInstallLink = (origin: string, insiders = false) =>

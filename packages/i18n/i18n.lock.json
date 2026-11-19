@@ -28155,11 +28155,6 @@
       "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
       "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
     },
-    "settings.integrations.mcp.chatgptSteps": {
-      "by": "ai",
-      "out": "1b2b224a7b3583cda94434c8ef46145b4721b13d123a4ca50f55e914687207fa",
-      "src": "674a467bd9a66ba76aa73a40a33eff0de08a11647d54f0ff5f0c24bd6abed925"
-    },
     "settings.integrations.mcp.claude": {
       "by": "ai",
       "out": "816af7935146fb5d8b35f2f53eb271e0ddc583327627ceb384d3703389286546",
@@ -63861,11 +63856,6 @@
       "by": "ai",
       "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
       "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
-    },
-    "settings.integrations.mcp.chatgptSteps": {
-      "by": "ai",
-      "out": "f274bd7050d71f2b4d15ef27f6a8aff87e889e4b63b7ea6ba656367a85d4e93e",
-      "src": "674a467bd9a66ba76aa73a40a33eff0de08a11647d54f0ff5f0c24bd6abed925"
     },
     "settings.integrations.mcp.claude": {
       "by": "ai",
@@ -99569,11 +99559,6 @@
       "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
       "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
     },
-    "settings.integrations.mcp.chatgptSteps": {
-      "by": "ai",
-      "out": "c015823de831b68f681cbf3379162bb393ca514852ce46d4a6194a2b30716cba",
-      "src": "674a467bd9a66ba76aa73a40a33eff0de08a11647d54f0ff5f0c24bd6abed925"
-    },
     "settings.integrations.mcp.claude": {
       "by": "ai",
       "out": "9bffdf16957d968b75b3bc7dc268f5c59d03e1aa8035b2152e34fccdb896c30c",
@@ -135276,11 +135261,6 @@
       "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
       "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
     },
-    "settings.integrations.mcp.chatgptSteps": {
-      "by": "ai",
-      "out": "c81ee4a97e3ae2910a32b1f77417591ac696abba6d7ea411b797c0866ef46ae9",
-      "src": "674a467bd9a66ba76aa73a40a33eff0de08a11647d54f0ff5f0c24bd6abed925"
-    },
     "settings.integrations.mcp.claude": {
       "by": "ai",
       "out": "c94839f51f81b793bbe7b1fba8d9eb9e93efa989e9e8878839dd9007fa737b83",
@@ -170982,11 +170962,6 @@
       "by": "ai",
       "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
       "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
-    },
-    "settings.integrations.mcp.chatgptSteps": {
-      "by": "ai",
-      "out": "d33b0279b6daad45b3247f9600fa8474b1def411f5ed689f26dd52df7bf18280",
-      "src": "674a467bd9a66ba76aa73a40a33eff0de08a11647d54f0ff5f0c24bd6abed925"
     },
     "settings.integrations.mcp.claude": {
       "by": "ai",

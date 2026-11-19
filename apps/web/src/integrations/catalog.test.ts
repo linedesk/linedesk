@@ -14,6 +14,7 @@ import {
   claudeCodeCommand,
   claudeCodeKeyCommand,
   codexCommand,
+  claudeInstallLink,
   cursorInstallLink,
   geminiCommand,
   vscodeInstallLink,
@@ -253,7 +254,20 @@ describe('setup snippets', () => {
     })
     // VS Code Insiders: the same server, its own scheme. No link carries a key: the sign-in is OAuth.
     expect(vscodeInstallLink(origin, true)).toBe(vscode.replace(/^vscode:/, 'vscode-insiders:'))
-    for (const link of [cursorInstallLink(origin), vscode, vscodeInstallLink(origin, true)])
+    // Claude: Add custom connector with the install's name and its /mcp filled in; the owner's for Team and Enterprise.
+    const claude = new URL(claudeInstallLink(origin, 'Acme Desk'))
+    expect(claude.origin + claude.pathname).toBe('https://claude.ai/customize/connectors')
+    expect(claude.searchParams.get('modal')).toBe('add-custom-connector')
+    expect(claude.searchParams.get('connectorName')).toBe('Acme Desk')
+    expect(claude.searchParams.get('connectorUrl')).toBe('https://desk.example/mcp')
+    expect(new URL(claudeInstallLink(origin, 'Acme Desk', true)).pathname).toBe('/admin-settings/connectors')
+    for (const link of [
+      cursorInstallLink(origin),
+      vscode,
+      vscodeInstallLink(origin, true),
+      claudeInstallLink(origin, 'Linedesk'),
+      claudeInstallLink(origin, 'Linedesk', true),
+    ])
       expect(decodeURIComponent(link)).not.toMatch(/lds_|lk_|Bearer|LINEDESK_KEY/)
   })
 

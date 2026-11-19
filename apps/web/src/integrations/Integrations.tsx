@@ -3,13 +3,14 @@
 // the place where it is set up (the assistant's webhooks and booking; #integrations/make and the like go there too); one not
 // built yet shows "Coming soon", and an address with nothing behind it says so. The catalog itself is catalog.ts; API keys and
 // Zapier were Workspace settings › Developers (old links are rewritten, useRoute.ts).
-import { CHATGPT_PLUGINS_URL, CLAUDE_CONNECTORS_URL } from '@linedesk/actions'
+import { CHATGPT_PLUGINS_URL } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { pollWhileVisible, useQuery } from '../cachedQuery.ts'
 import { useCalendarProviders } from '../settings/calendar-providers.ts'
+import { externalLink } from '../settings/ZapierGuide.tsx'
 import type { ProviderId } from '../settings/calendarModel.ts'
 import { Section } from '../settings/fields.tsx'
 import { setPageKeys } from '../shell/keys.ts'
@@ -27,6 +28,7 @@ import {
   CATEGORY_LABEL,
   type CategoryId,
   claudeCodeCommand,
+  claudeInstallLink,
   claudeCodeKeyCommand,
   codexCommand,
   cursorInstallLink,
@@ -439,22 +441,33 @@ function Mcp({ toast }: { toast: Props['toast'] }) {
       </div>
       <McpSteps
         label={t('settings.integrations.mcp.claude')}
-        text={t('settings.integrations.mcp.claudeSteps')}
+        steps={[t('settings.integrations.mcp.claudeSteps')]}
         open={{
-          href: CLAUDE_CONNECTORS_URL,
+          href: claudeInstallLink(origin(), brand),
           label: t('settings.integrations.mcp.openClaude'),
           tip: t('settings.integrations.mcp.openClaudeTip'),
         }}
+        note={
+          <T
+            k="settings.integrations.mcp.claudeTeam"
+            values={{ link: externalLink(claudeInstallLink(origin(), brand, true)) }}
+          />
+        }
         toast={toast}
       />
       <McpSteps
         label={t('settings.integrations.mcp.chatgpt')}
-        text={t('settings.integrations.mcp.chatgptSteps')}
+        steps={[
+          t('settings.integrations.mcp.chatgptStep1'),
+          t('settings.integrations.mcp.chatgptStep2', { brand }),
+          t('settings.integrations.mcp.chatgptStep3'),
+        ]}
         open={{
           href: CHATGPT_PLUGINS_URL,
           label: t('settings.integrations.mcp.openChatgpt'),
           tip: t('settings.integrations.mcp.openChatgptTip'),
         }}
+        copy
         toast={toast}
       />
       <CopyField
@@ -490,18 +503,22 @@ function Mcp({ toast }: { toast: Props['toast'] }) {
 }
 
 /**
- * A client that is set up in its own settings: where to go there, in one line, a button that opens that page in a new
- * tab, and Copy for the server address to paste there.
+ * A client that is set up in its own settings: what to do there (one line, or numbered steps), a button that opens
+ * that page in a new tab, `copy`: Copy for the server address to paste there, and a `note` below.
  */
 function McpSteps({
   label,
-  text,
+  steps,
   open,
+  copy: withCopy,
+  note,
   toast,
 }: {
   label: string
-  text: string
+  steps: string[]
   open: { href: string; label: string; tip: string }
+  copy?: boolean
+  note?: ReactNode
   toast: Props['toast']
 }) {
   const t = useT()
@@ -513,13 +530,29 @@ function McpSteps({
   return (
     <div className="ig-copy">
       <span className="ig-copy-label">{label}</span>
-      <p className="help ig-mcp-steps">{text}</p>
+      {steps.length === 1 ? (
+        <p className="help ig-mcp-steps">{steps[0]}</p>
+      ) : (
+        <ol className="help ig-mcp-steps ig-mcp-step-list">
+          {steps.map(step => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+      )}
       <div className="ig-mcp-installs">
         <ClientLink href={open.href} label={open.label} title={open.tip} />
-        <Button size="sm" icon="copy" onClick={() => void copy()} title={t('settings.integrations.copyTip', { what })}>
-          {t('settings.integrations.mcp.copyAddress')}
-        </Button>
+        {withCopy && (
+          <Button
+            size="sm"
+            icon="copy"
+            onClick={() => void copy()}
+            title={t('settings.integrations.copyTip', { what })}
+          >
+            {t('settings.integrations.mcp.copyAddress')}
+          </Button>
+        )}
       </div>
+      {note && <p className="help ig-mcp-steps">{note}</p>}
     </div>
   )
 }

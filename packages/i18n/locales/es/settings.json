@@ -943,7 +943,6 @@
   "integrations.lede": "Conecta tu asistente con las herramientas que ya usas: automatizaciones, calendarios, tu CRM, el chat de equipo y tus propios programas.",
   "integrations.mcp.address": "Dirección del servidor MCP",
   "integrations.mcp.chatgpt": "ChatGPT",
-  "integrations.mcp.chatgptSteps": "Configuración › Apps y conectores › Configuración avanzada: activa el modo de desarrollador. Luego haz clic en Crear, pega la dirección del servidor, elige OAuth y haz clic en Permitir.",
   "integrations.mcp.claude": "Claude (web y app de escritorio)",
   "integrations.mcp.claudeCode": "Claude Code",
   "integrations.mcp.claudeCodeKey": "Claude Code con una clave de API",

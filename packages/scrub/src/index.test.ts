@@ -156,3 +156,10 @@ test('the log template loses logged objects too', () => {
   })
   expect(log.attributes?.['sentry.message.template']).toBe('saving [object] failed {}')
 })
+
+test("a setup key inside Claude's install link is scrubbed, encoded or not", () => {
+  const key = 'lds_fakeSetupKey0123456789abcdefghijklmnopqrstu'
+  const url = `https://desk.example.com/mcp/setup/${key}`
+  const link = `https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Linedesk%20setup&connectorUrl=${encodeURIComponent(url)}`
+  for (const text of [`opened ${link}`, `copied ${url}`]) expect(scrubText(text)).not.toContain(key.slice(4))
+})

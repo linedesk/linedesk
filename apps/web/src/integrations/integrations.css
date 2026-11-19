@@ -227,3 +227,9 @@
 .ig-mcp-key-body > .help {
   margin: 0;
 }
+/* ChatGPT's three steps: numbered, close together. */
+.ig-mcp-step-list {
+  display: grid;
+  gap: 2px;
+  padding-left: 18px;
+}

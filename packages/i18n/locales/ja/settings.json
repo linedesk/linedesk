@@ -943,7 +943,6 @@
   "integrations.lede": "アシスタントを、すでに使っているツールとつなぎます：自動化、カレンダー、CRM、チームチャット、自社のプログラム。",
   "integrations.mcp.address": "MCPサーバーのアドレス",
   "integrations.mcp.chatgpt": "ChatGPT",
-  "integrations.mcp.chatgptSteps": "設定 › アプリとコネクタ › 詳細設定：開発者モードをオンにします。次に「作成」を選び、サーバーのアドレスを貼り付け、OAuthを選んで「許可」をクリックします。",
   "integrations.mcp.claude": "Claude（ウェブ版とデスクトップアプリ）",
   "integrations.mcp.claudeCode": "Claude Code",
   "integrations.mcp.claudeCodeKey": "APIキーを使うClaude Code",
