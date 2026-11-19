@@ -37,7 +37,7 @@
     "date-holidays": "3.39.1",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.18",
-    "nodemailer": "^10.5.0",
+    "nodemailer": "^10.6.0",
     "pg-boss": "^12.38.2",
     "tldts": "7.4.19",
     "undici": "^7.30.2",
