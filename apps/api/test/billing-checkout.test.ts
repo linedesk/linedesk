@@ -61,13 +61,14 @@ import { chargeRecharge, sendBillingAlert } from '../src/billing-recharge.ts'
 import { setBillingFetch } from '../src/billing-settings.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
-import { Forbidden, runHandler } from '../src/handlers.ts'
+import { Forbidden, Reject, runHandler } from '../src/handlers.ts'
 import { INSTALL_NUMBER_ADMIN_ONLY } from '../src/workspace-carrier.ts'
 import { emailSender } from '../src/email.ts'
 import { sayIn, wordsOf } from '../src/handler-context.ts'
 import { setJobQueue } from '../src/jobs.ts'
 import { postEntry } from '../src/ledger.ts'
 import { checkLedgerGuards } from '../src/ledger-guards.ts'
+import { BY_AREA_CODE_ONLY } from '../src/number-purchases.ts'
 import { SIGNUP_RULES_KEY } from '../src/self-serve.ts'
 import { COUNTRY_NOT_SERVED } from '../src/served-countries.ts'
 import { processStripeEventJob } from '../src/stripe-events.ts'
@@ -944,14 +945,17 @@ describe('numbers on a billed workspace (docs/billing.md §3.2 step 6)', () => {
     } as Actor
     const admin = { ...owner, permissions: [...rolePermissions.owner, 'instance:admin'] } as Actor
     const inAccount = ['+15035550961', '+15035550962']
+    const notInAccount = '+15035550969'
     const install = (name: 'telnyx' | 'twilio') => {
       const findNumber = vi.fn(async (e164: string) =>
         inAccount.includes(e164) ? { e164, providerRef: `ref_${e164}` } : null,
       )
+      const buyNumber = vi.fn(devProvider.buyNumber)
       return {
         ...devProvider,
         name,
         findNumber,
+        buyNumber,
         listNumbers: async () => inAccount.map(e164 => ({ e164, providerRef: `ref_${e164}` })),
       }
     }
@@ -982,14 +986,15 @@ describe('numbers on a billed workspace (docs/billing.md §3.2 step 6)', () => {
             expect(refused, `${status} ${name}`).toBeInstanceOf(Forbidden)
             expect(refused.message).toBe(INSTALL_NUMBER_ADMIN_ONLY)
             expect(carrier.findNumber).not.toHaveBeenCalled()
-            const named = await run(
-              tx,
-              owner,
-              'phoneNumber.setup',
-              { e164: inAccount[0], purchase: true },
-              carrier,
-            ).catch(e => e)
-            expect(named).toBeInstanceOf(Error)
+            // Named with purchase: true, a number in the account and one that is not get the same refusal, and the
+            // carrier is never asked about either: the answer does not tell which numbers the install has.
+            for (const e164 of [inAccount[0], notInAccount]) {
+              const named = await run(tx, owner, 'phoneNumber.setup', { e164, purchase: true }, carrier).catch(e => e)
+              expect(named, `${status} ${name} ${e164}`).toBeInstanceOf(Reject)
+              expect(named.message).toBe(BY_AREA_CODE_ONLY)
+            }
+            expect(carrier.findNumber).not.toHaveBeenCalled()
+            expect(carrier.buyNumber).not.toHaveBeenCalled()
             // The list of the account's numbers stays empty for the owner, as the app's link stays hidden (canAttach).
             expect((await run(tx, owner, 'phoneNumber.listCarrierNumbers', {}, carrier)).data).toEqual({
               numbers: [],
@@ -1005,6 +1010,10 @@ describe('numbers on a billed workspace (docs/billing.md §3.2 step 6)', () => {
               carrier_account: 'install',
               provider: name,
             })
+            // An instance admin who names it with purchase: true attaches it as well, nothing is bought.
+            const named = await run(tx, admin, 'phoneNumber.setup', { e164: inAccount[0], purchase: true }, carrier)
+            expect(named.rows.phone_numbers?.[0]).toMatchObject({ e164: inAccount[0], purchased: false })
+            expect(carrier.buyNumber).not.toHaveBeenCalled()
           })
         }
       }

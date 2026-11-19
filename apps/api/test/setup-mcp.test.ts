@@ -1733,23 +1733,37 @@ describe('what is done follows the data (B6)', () => {
 
 describe("the phone step's how-to by the workspace's country (LIN-300)", () => {
   const w = 'workspaceId: "ws_1"'
-  test('in the US, Canada and Puerto Rico: buy by an area code of that country, or attach', () => {
+  // On the server's carrier a setup key never attaches a number already there (attachRefused): never told to.
+  const noAttach = (how: string) => {
+    expect(how).not.toContain('purchase: false')
+    expect(how).not.toContain('phoneNumber_listCarrierNumbers')
+    expect(how).toContain('whoever runs this server attaches one in the app')
+    expect(how).toContain('connects its own carrier account in the app (https://app.test/#workspace/phone)')
+  }
+
+  test("in the US, Canada and Puerto Rico: buy by an area code of that country; attach only on the workspace's own account", () => {
     for (const country of ['US', 'CA', 'PR']) {
-      const how = numberSetupHow(w, country)
+      const how = numberSetupHow(w, country, 'https://app.test')
       expect(how).toContain(`phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one`)
       expect(how).toContain(`in the workspace's country (${country}; numbers can be bought in US, CA, PR)`)
-      expect(how).toContain(`{ ${w}, e164, purchase: false, mode }`)
-      // The numbers the carrier account already has, to attach one.
-      expect(how).toContain(`phoneNumber_listCarrierNumbers { ${w} } lists the numbers in the carrier account`)
+      noAttach(how)
+      const own = numberSetupHow(w, country, 'https://app.test', BASE_BUY_OFFERS, 'workspace')
+      expect(own).toContain(`phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one`)
+      expect(own).toContain(`{ ${w}, e164, purchase: false, mode }`)
+      // The numbers the workspace's own carrier account already has, to attach one.
+      expect(own).toContain(`phoneNumber_listCarrierNumbers { ${w} } lists the numbers in the carrier account`)
     }
   })
 
-  test('elsewhere: buying is refused, so attach a number the business has', () => {
-    const how = numberSetupHow(w, 'AT')
+  test('elsewhere: buying is refused; a number the business has is attached in the app, or with its own account', () => {
+    const how = numberSetupHow(w, 'AT', 'https://app.test')
     expect(how).not.toContain('purchase: true')
     expect(how).toContain('Numbers can be bought only for workspaces in US, CA, PR; this one is in AT')
-    expect(how).toContain(`phoneNumber_setup { ${w}, e164, purchase: false, mode }`)
-    expect(how).toContain(`phoneNumber_listCarrierNumbers { ${w} }`)
+    noAttach(how)
+    const own = numberSetupHow(w, 'AT', 'https://app.test', BASE_BUY_OFFERS, 'workspace')
+    expect(own).not.toContain('purchase: true')
+    expect(own).toContain(`phoneNumber_setup { ${w}, e164, purchase: false, mode }`)
+    expect(own).toContain(`phoneNumber_listCarrierNumbers { ${w} }`)
   })
 
   test('Germany once German numbers are on: buy in an offered area code, like the US (LIN-619)', () => {
@@ -1763,15 +1777,20 @@ describe("the phone step's how-to by the workspace's country (LIN-300)", () => {
     expect(how).not.toMatch(/document|request/i)
     // Not set up at the carrier yet: buying is not offered, as elsewhere.
     // German numbers off or not set up at the carrier yet: being set up, continue and connect later.
-    const notReady = numberSetupHow(w, 'DE', 'https://app.test', [...BASE_BUY_OFFERS, { ...offers[3]!, ready: false }])
+    const notReadyOffers = [...BASE_BUY_OFFERS, { ...offers[3]!, ready: false }]
+    const notReady = numberSetupHow(w, 'DE', 'https://app.test', notReadyOffers)
     expect(notReady).not.toContain('purchase: true')
     expect(notReady).toContain('Numbers in DE are being set up on this server')
-    expect(notReady).toContain(`phoneNumber_setup { ${w}, e164, purchase: false, mode }`)
+    noAttach(notReady)
+    const own = numberSetupHow(w, 'DE', 'https://app.test', notReadyOffers, 'workspace')
+    expect(own).toContain('Numbers in DE are being set up on this server')
+    expect(own).toContain(`phoneNumber_setup { ${w}, e164, purchase: false, mode }`)
   })
 
   test('nothing names the country yet: an area code where the business is, and the number sets the country', () => {
-    const how = numberSetupHow(w, null)
+    const how = numberSetupHow(w, null, 'https://app.test')
     expect(how).toContain(`phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one`)
+    noAttach(how)
     expect(how).toContain("the workspace's country is not set yet, so the number sets it")
     expect(how).toContain(`workspace_updateSettings { ${w}, country }`)
     expect(how).not.toContain('(US;')

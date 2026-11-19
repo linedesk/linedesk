@@ -86,13 +86,17 @@ describe('telephony handlers', () => {
       vi.stubEnv('LIVEKIT_SIP_ENDPOINT', 'sip.linedesk.test')
       try {
         const install = { ...carrier(['+15035550977', '+15035550978']), name, listNumbers: async () => [{ e164: '+15035550977', providerRef: 'ref_+15035550977' }] }
-        // Refused with 403 before the carrier is asked anything, also when named with purchase: true.
-        for (const input of [{ e164: '+15035550977' }, { e164: '+15035550977', purchase: true }]) {
-          const error = await setup(tx, input, install).catch(e => e)
-          expect(error).toBeInstanceOf(Forbidden)
-          expect(error.message).toBe(INSTALL_NUMBER_ADMIN_ONLY)
+        // Refused with 403 before the carrier is asked anything.
+        const error = await setup(tx, { e164: '+15035550977' }, install).catch(e => e)
+        expect(error).toBeInstanceOf(Forbidden)
+        expect(error.message).toBe(INSTALL_NUMBER_ADMIN_ONLY)
+        // Named with purchase: true, in the account or not: the same refusal, before the carrier is asked about it.
+        for (const e164 of ['+15035550977', '+15035550976']) {
+          const named = await setup(tx, { e164, purchase: true }, install).catch(e => e)
+          expect(named).toBeInstanceOf(Reject)
+          expect(named.message).toBe(BY_AREA_CODE_ONLY)
         }
-        expect(install.findNumber).toHaveBeenCalledTimes(1) // only the purchase: true lookup, which finds it owned
+        expect(install.findNumber).not.toHaveBeenCalled()
         expect(install.routeToSip).not.toHaveBeenCalled()
         expect(install.buyNumber).not.toHaveBeenCalled()
         // The account's numbers are not listed for the owner, as the app hides the link (canAttach).

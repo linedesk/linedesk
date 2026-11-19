@@ -125,7 +125,7 @@ import { isPlaceholderWorkspaceName, servedCountriesOf } from './served-countrie
 import { setupChecklist } from './setup-checklist.ts'
 import { assistantSpokeIn } from './setup-events.ts'
 import { trialStartPath } from './trial-link.ts'
-import { telephonyForWorkspace } from './workspace-carrier.ts'
+import { type CarrierAccount, telephonyForWorkspace } from './workspace-carrier.ts'
 import {
   mayCreateWorkspace,
   SETUP_LINK_CAP_TEXT,
@@ -193,7 +193,7 @@ const setupPage = (actor: Pick<Actor, 'setupPartnerId'>) =>
  */
 
 const askFirst = (actor: Actor): Record<string, string> => ({
-  'phoneNumber.setup': `With purchase: true this buys a phone number, only for a workspace in a country the phone step names (about $1 a month${actor.setupWorkspaceId ? '' : ' on Telnyx'} in the US, Canada and Germany, $3 in Puerto Rico): ask the ${personOf(actor)} first and say the cost. With purchase: false it attaches a number the carrier account already has (phoneNumber_listCarrierNumbers lists them).`,
+  'phoneNumber.setup': `With purchase: true this buys a phone number, only for a workspace in a country the phone step names (about $1 a month${actor.setupWorkspaceId ? '' : ' on Telnyx'} in the US, Canada and Germany, $3 in Puerto Rico): ask the ${personOf(actor)} first and say the cost. With purchase: false it attaches a number the workspace's own carrier account already has (phoneNumber_listCarrierNumbers lists them); a number already in this server's carrier account is refused here, so on this server's carrier buy a new one by area code.`,
   'provider.clearKeys': 'Removes the stored keys of a provider: ask the admin first.',
   'provider.tryOut':
     'kind "email" sends one real email with a six-digit code to the admin\'s own address: ask them for the code, then provider_confirmEmail { code }. kind "telephony" lists numbers without buying any.',
@@ -1157,44 +1157,57 @@ export const emailKnowledgeHow = (who: string, w: string) =>
  * How the phone step gets a number, by the workspace's country: buying in a country of the buy offers (numberBuyOffers:
  * the US, Canada and Puerto Rico by area code; Germany in the area codes the server offers, once it has German numbers
  * on); elsewhere attaching a number the business already has. `w` is the workspace argument the tool calls carry;
- * `country` null: nothing names the workspace's country yet.
+ * `country` null: nothing names the workspace's country yet. `account`: the carrier account the workspace's numbers are
+ * set up in. On the install's account (the default) a setup key never attaches a number that is already there (only an
+ * instance admin does, in the app: attachRefused in handlers.ts), so the agent buys a new one by area code.
  */
 export function numberSetupHow(
   w: string,
   country: string | null,
   web = webAddress(),
   offers: readonly BuyOffer[] = BASE_BUY_OFFERS,
+  account: CarrierAccount = 'install',
 ): string {
   const buying = offers.filter(o => o.ready)
   const countries = buying.map(o => o.country).join(', ')
   const offer = country ? buyOfferIn(buying, country) : undefined
 
   const listed = `phoneNumber_listCarrierNumbers { ${w} } lists the numbers in the carrier account that are free to attach`
-  const attach = `A number the carrier account already has (${listed}): { ${w}, e164, purchase: false, mode }.`
+  // On the install's carrier a number already in an account is connected in the app, never with these tools.
+  const ownAccount = account === 'workspace'
+  const attach = ownAccount
+    ? english.t('server.setupAgent.attachOwnAccount', { listed, w })
+    : english.t('server.setupAgent.attachInApp', { web })
   // Nothing names the workspace's country yet: the area code picks it, and the bought number sets it.
   if (country === null)
     return `phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one, with an area code where the business is (numbers can be bought in ${countries}; the workspace's country is not set yet, so the number sets it). If the business is elsewhere, set its country first (workspace_updateSettings { ${w}, country }); say the cost and ask first. ${attach}`
   // Offered here but not ready yet (German numbers off, or the carrier setup missing): the app says numbers are being set
   // up; the business continues now and connects its number later.
   if (country && !offer && buyOfferIn(offers, country))
-    return english.t('server.setupAgent.phoneBeingSetUp', { country, listed, w })
+    return ownAccount
+      ? english.t('server.setupAgent.phoneBeingSetUp', { country, listed, w })
+      : english.t('server.setupAgent.phoneBeingSetUpInstall', { country, attach })
   if (offer?.numberType === 'national')
     return `phoneNumber_setup { ${w}, purchase: true, mode } buys one, without an area code (numbers in ${country} have none; numbers can be bought in ${countries}); say the cost and ask first. ${attach}`
   if (offer?.areaCodes)
     return `phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one, with an area code this server offers in the workspace's country (${country}: ${offer.areaCodes.join(', ')}, digits without the leading 0; numbers can be bought in ${countries}); say the cost and ask first. ${attach}`
   if (offer)
     return `phoneNumber_setup { ${w}, areaCode, purchase: true, mode } buys one, with an area code in the workspace's country (${country}; numbers can be bought in ${countries}); say the cost and ask first. ${attach}`
-  return `Numbers can be bought only for workspaces in ${countries}; this one is in ${country}, so buying is refused. Attach a number the business already has in its carrier account (${listed}): phoneNumber_setup { ${w}, e164, purchase: false, mode }. If the country is wrong, fix it first (workspace_updateSettings { ${w}, country }).`
+  return `Numbers can be bought only for workspaces in ${countries}; this one is in ${country}, so buying is refused. ${attach} If the country is wrong, fix it first (workspace_updateSettings { ${w}, country }).`
 }
 
-/** Where the workspace can buy a number: its carrier account's buy offers (numberBuyOffers). */
-async function buyOffersOf(workspaceId: string): Promise<BuyOffer[]> {
+/**
+ * Where the workspace can buy a number: its carrier account's buy offers (numberBuyOffers), and that account
+ * (numberSetupHow's last two arguments).
+ */
+async function buyOffersOf(workspaceId: string): Promise<[BuyOffer[], CarrierAccount]> {
   try {
     const { account, provider } = await telephonyForWorkspace(db, workspaceId)
-    return await numberBuyOffers(db, { account, provider: provider.name })
+    return [await numberBuyOffers(db, { account, provider: provider.name }), account]
   } catch {
-    // No carrier set up (or its keys unreadable): the offers every install has; buying fails later with its reason.
-    return [...BASE_BUY_OFFERS]
+    // No carrier set up (or its keys unreadable): the install's, with the offers every install has; buying fails later
+    // with its reason.
+    return [[...BASE_BUY_OFFERS], 'install']
   }
 }
 
@@ -1384,7 +1397,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
                   w,
                   countryNamed(locale.countrySource) ? locale.resolvedCountry : null,
                   webAddress(),
-                  await buyOffersOf(workspaceId),
+                  ...(await buyOffersOf(workspaceId)),
                 ),
                 `Then onboarding_setStep { ${w}, step: "done" }.`,
               ],

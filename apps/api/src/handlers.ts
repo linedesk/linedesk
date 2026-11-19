@@ -1961,10 +1961,11 @@ const handlers: Record<string, Handler> = {
       input.purchase && carrier_account === 'install' && offer?.country === 'DE'
         ? ((await germanRequirementGroup(tx)) ?? undefined)
         : undefined
-    // A purchase by area code: its limits are checked before the carrier is searched, so a refused one makes no
-    // carrier request (and takes the install-wide purchase lock before it does).
-    if (onInstallAccount && input.purchase && !input.e164) {
-      const refusal = await installPurchaseRefusal(tx, actor, workspace_id, { byNumber: false, now })
+    // A purchase's limits are checked before the carrier is searched or asked about a number, so a refused one makes
+    // no carrier request (and takes the install-wide purchase lock before it does). A number typed in is refused for
+    // everyone but instance admins whether or not it is in the install's account: the answer never tells which.
+    if (onInstallAccount && input.purchase) {
+      const refusal = await installPurchaseRefusal(tx, actor, workspace_id, { byNumber: Boolean(input.e164), now })
       if (refusal) throw new Reject(refusal)
     }
     // Only a purchase may search: attaching always names the number.
@@ -2010,11 +2011,6 @@ const handlers: Record<string, Handler> = {
     const buying = !existing
     // A number typed in that is not in the account would be bought: the same country rules, also its own country.
     if (buying && countryRefusal) throw new Reject(countryRefusal)
-    // A number typed in (checked above when searched by area code).
-    if (buying && onInstallAccount && input.e164) {
-      const refusal = await installPurchaseRefusal(tx, actor, workspace_id, { byNumber: true, now })
-      if (refusal) throw new Reject(refusal)
-    }
     const numberRefusal = buying && country && input.e164 ? numberCountryRefusal(input.e164, country) : null
     if (numberRefusal) throw new Reject(numberRefusal)
     // Logged (committed) before the carrier is asked: a purchase that fails later still counts.
