@@ -7,7 +7,8 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import { afterEach, describe, expect, onTestFinished, test, vi } from 'vitest'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
-import { Reject, runHandler, type Undo } from '../src/handlers.ts'
+import { Forbidden, Reject, runHandler, type Undo } from '../src/handlers.ts'
+import { INSTALL_NUMBER_ADMIN_ONLY } from '../src/workspace-carrier.ts'
 import {
   BUY_COUNTRIES_ONLY, BY_AREA_CODE_ONLY, INSTALL_CAP_REACHED, INSTALL_NUMBERS_PER_WORKSPACE, INSTALL_PURCHASES_PER_HOUR, INSTALL_PURCHASES_PER_USER_PER_DAY, installPurchaseCaps, NOT_WITH_API_KEY, NUMBER_NOT_ACTIVATED, NUMBER_SETUP_BUSY, NUMBERS_NEED_DOCUMENTS,
 } from '../src/number-purchases.ts'
@@ -78,23 +79,34 @@ describe('telephony handlers', () => {
     expect((await setup(tx, { e164: '+15035550990', mode: 'ported' }, carrier(['+15035550990']))).rows.phone_numbers?.[0]?.mode).toBe('ported')
   }))
 
-  // On a bill that pays for numbers only instance admins may (billing-checkout.test.ts, "numbers on a billed workspace").
-  test("a number already in the install's account: anyone may attach it while the workspace pays no bill", () => inRollback(async tx => {
-    vi.stubEnv('LIVEKIT_SIP_ENDPOINT', 'sip.linedesk.test')
-    try {
-      const install = { ...carrier(['+15035550977', '+15035550978', '+15035550976']), name: 'telnyx' as const }
-      expect((await setup(tx, { e164: '+15035550977' }, install)).rows.phone_numbers?.[0]).toMatchObject({ e164: '+15035550977', purchased: false, carrier_account: 'install' })
-      // Named with purchase: true, a number already in the account is attached, never bought.
-      expect((await setup(tx, { e164: '+15035550976', purchase: true }, install)).rows.phone_numbers?.[0]?.purchased).toBe(false)
-      expect(install.buyNumber).not.toHaveBeenCalled()
-      const admin: Actor = { ...owner, permissions: [...rolePermissions.owner, 'instance:admin'] }
-      expect((await setup(tx, { e164: '+15035550978' }, install, admin)).rows.phone_numbers?.[0]?.e164).toBe('+15035550978')
-      // Buying a new number stays open to owners, by US area code.
-      expect((await setup(tx, { areaCode: '503', purchase: true }, install)).rows.phone_numbers?.[0]?.purchased).toBe(true)
-    } finally {
-      vi.unstubAllEnvs()
-    }
-  }))
+  // Whatever the workspace's bill: this workspace has none; trial, paying and comped bills in billing-checkout.test.ts
+  // ("numbers on a billed workspace"). A workspace's own carrier account stays open (carrier-routing.test.ts).
+  for (const name of ['telnyx', 'twilio'] as const) {
+    test(`a number already in the install's account (${name}) is attached by instance admins only`, () => inRollback(async tx => {
+      vi.stubEnv('LIVEKIT_SIP_ENDPOINT', 'sip.linedesk.test')
+      try {
+        const install = { ...carrier(['+15035550977', '+15035550978']), name, listNumbers: async () => [{ e164: '+15035550977', providerRef: 'ref_+15035550977' }] }
+        // Refused with 403 before the carrier is asked anything, also when named with purchase: true.
+        for (const input of [{ e164: '+15035550977' }, { e164: '+15035550977', purchase: true }]) {
+          const error = await setup(tx, input, install).catch(e => e)
+          expect(error).toBeInstanceOf(Forbidden)
+          expect(error.message).toBe(INSTALL_NUMBER_ADMIN_ONLY)
+        }
+        expect(install.findNumber).toHaveBeenCalledTimes(1) // only the purchase: true lookup, which finds it owned
+        expect(install.routeToSip).not.toHaveBeenCalled()
+        expect(install.buyNumber).not.toHaveBeenCalled()
+        // The account's numbers are not listed for the owner, as the app hides the link (canAttach).
+        expect((await run(tx, owner, 'phoneNumber.listCarrierNumbers', {}, install)).data).toEqual({ numbers: [], more: false })
+        const admin: Actor = { ...owner, permissions: [...rolePermissions.owner, 'instance:admin'] }
+        expect((await run(tx, admin, 'phoneNumber.listCarrierNumbers', {}, install)).data).toMatchObject({ numbers: ['+15035550977'] })
+        expect((await setup(tx, { e164: '+15035550978' }, install, admin)).rows.phone_numbers?.[0]).toMatchObject({ e164: '+15035550978', purchased: false, carrier_account: 'install', provider: name })
+        // Buying a new number stays open to owners, by US area code.
+        expect((await setup(tx, { areaCode: '503', purchase: true }, install)).rows.phone_numbers?.[0]?.purchased).toBe(true)
+      } finally {
+        vi.unstubAllEnvs()
+      }
+    }))
+  }
 
   describe("buying on the install's carrier account", () => {
     const admin: Actor = { ...owner, permissions: [...rolePermissions.owner, 'instance:admin'] }

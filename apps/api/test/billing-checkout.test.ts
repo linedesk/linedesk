@@ -55,7 +55,6 @@ import {
   sendActivationNudges,
   sendTrialReminders,
   TRIAL_NUMBER_LIMIT,
-  workspaceBillPaysNumbers,
 } from '../src/billing-checkout.ts'
 import { BILLING_LIFECYCLE_EMAIL } from '../src/billing-periods.ts'
 import { chargeRecharge, sendBillingAlert } from '../src/billing-recharge.ts'
@@ -935,22 +934,33 @@ describe('numbers on a billed workspace (docs/billing.md §3.2 step 6)', () => {
     ).toBe(NUMBER_OWNER_ONLY)
   })
 
-  test("a number already in the install's account: only an instance admin attaches it while the bill pays for numbers", async () => {
+  test("a number already in the install's account: only an instance admin attaches it, on a trial, paying or comped bill", async () => {
     const { ws, bill } = await trialWith(rid('fp'))
-    const owner = { actorId: ws.owner.userId, role: 'owner', workspaceId: ws.id, permissions: rolePermissions.owner } as Actor
+    const owner = {
+      actorId: ws.owner.userId,
+      role: 'owner',
+      workspaceId: ws.id,
+      permissions: rolePermissions.owner,
+    } as Actor
     const admin = { ...owner, permissions: [...rolePermissions.owner, 'instance:admin'] } as Actor
     const inAccount = ['+15035550961', '+15035550962']
-    const install = () => {
-      const findNumber = vi.fn(async (e164: string) => (inAccount.includes(e164) ? { e164, providerRef: `ref_${e164}` } : null))
+    const install = (name: 'telnyx' | 'twilio') => {
+      const findNumber = vi.fn(async (e164: string) =>
+        inAccount.includes(e164) ? { e164, providerRef: `ref_${e164}` } : null,
+      )
       return {
         ...devProvider,
-        name: 'telnyx' as const,
+        name,
         findNumber,
         listNumbers: async () => inAccount.map(e164 => ({ e164, providerRef: `ref_${e164}` })),
       }
     }
     const run = (tx: Tx, actor: Actor, name: string, input: unknown, telephony: TelephonyProvider) =>
-      runHandler({ tx, actor, now: new Date().toISOString(), telephony }, actions.get(name)!, actions.get(name)!.input.parse(input))
+      runHandler(
+        { tx, actor, now: new Date().toISOString(), telephony },
+        actions.get(name)!,
+        actions.get(name)!.input.parse(input),
+      )
     const inRollback = (body: (tx: Tx) => Promise<void>) =>
       db
         .transaction(async tx => {
@@ -962,29 +972,42 @@ describe('numbers on a billed workspace (docs/billing.md §3.2 step 6)', () => {
         })
     vi.stubEnv('LIVEKIT_SIP_ENDPOINT', 'sip.linedesk.test')
     try {
-      expect(await db.transaction(tx => workspaceBillPaysNumbers(tx, ws.id))).toBe(true)
-      await inRollback(async tx => {
-        const carrier = install()
-        // Refused before the carrier is asked anything, named with purchase: true too.
-        const refused = await run(tx, owner, 'phoneNumber.setup', { e164: inAccount[0] }, carrier).catch(e => e)
-        expect(refused).toBeInstanceOf(Forbidden)
-        expect(refused.message).toBe(INSTALL_NUMBER_ADMIN_ONLY)
-        expect(carrier.findNumber).not.toHaveBeenCalled()
-        const named = await run(tx, owner, 'phoneNumber.setup', { e164: inAccount[0], purchase: true }, carrier).catch(e => e)
-        expect(named).toBeInstanceOf(Error)
-        // The list of the account's numbers stays empty for the owner, as the app's link stays hidden (canAttach).
-        expect((await run(tx, owner, 'phoneNumber.listCarrierNumbers', {}, carrier)).data).toEqual({ numbers: [], more: false })
-        expect((await run(tx, admin, 'phoneNumber.listCarrierNumbers', {}, carrier)).data).toMatchObject({ numbers: inAccount })
-        const attached = await run(tx, admin, 'phoneNumber.setup', { e164: inAccount[1] }, carrier)
-        expect(attached.rows.phone_numbers?.[0]).toMatchObject({ e164: inAccount[1], purchased: false, carrier_account: 'install' })
-      })
-      // A comped bill pays nothing for its numbers: the owner may attach one (billing off for numbers).
-      await db.update(billing_accounts).set({ status: 'comped' }).where(eq(billing_accounts.id, bill.id))
-      expect(await db.transaction(tx => workspaceBillPaysNumbers(tx, ws.id))).toBe(false)
-      await inRollback(async tx => {
-        const attached = await run(tx, owner, 'phoneNumber.setup', { e164: inAccount[0] }, install())
-        expect(attached.rows.phone_numbers?.[0]).toMatchObject({ e164: inAccount[0], purchased: false })
-      })
+      for (const status of ['trialing', 'active', 'comped'] as const) {
+        await db.update(billing_accounts).set({ status }).where(eq(billing_accounts.id, bill.id))
+        for (const name of ['telnyx', 'twilio'] as const) {
+          await inRollback(async tx => {
+            const carrier = install(name)
+            // Refused before the carrier is asked anything; named with purchase: true it is refused too.
+            const refused = await run(tx, owner, 'phoneNumber.setup', { e164: inAccount[0] }, carrier).catch(e => e)
+            expect(refused, `${status} ${name}`).toBeInstanceOf(Forbidden)
+            expect(refused.message).toBe(INSTALL_NUMBER_ADMIN_ONLY)
+            expect(carrier.findNumber).not.toHaveBeenCalled()
+            const named = await run(
+              tx,
+              owner,
+              'phoneNumber.setup',
+              { e164: inAccount[0], purchase: true },
+              carrier,
+            ).catch(e => e)
+            expect(named).toBeInstanceOf(Error)
+            // The list of the account's numbers stays empty for the owner, as the app's link stays hidden (canAttach).
+            expect((await run(tx, owner, 'phoneNumber.listCarrierNumbers', {}, carrier)).data).toEqual({
+              numbers: [],
+              more: false,
+            })
+            expect((await run(tx, admin, 'phoneNumber.listCarrierNumbers', {}, carrier)).data).toMatchObject({
+              numbers: inAccount,
+            })
+            const attached = await run(tx, admin, 'phoneNumber.setup', { e164: inAccount[1] }, carrier)
+            expect(attached.rows.phone_numbers?.[0]).toMatchObject({
+              e164: inAccount[1],
+              purchased: false,
+              carrier_account: 'install',
+              provider: name,
+            })
+          })
+        }
+      }
     } finally {
       vi.unstubAllEnvs()
     }

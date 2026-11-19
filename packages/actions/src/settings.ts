@@ -925,7 +925,7 @@ const buyableAreaCodeInput = z
 export const phoneNumberSetup = defineAction({
   name: 'phoneNumber.setup',
   description:
-    "Connect a phone number to the workspace and route its calls to the assistant. By default it attaches `e164`, a number that already exists in the carrier account, and buys nothing (in the install's account only an instance admin may, while the workspace pays for its numbers through a bill). With `purchase: true` it buys `e164`, or the first free number in `areaCode`, which costs money; only a workspace in a country of the install's buy offers can buy (the US, Canada and Puerto Rico by area code; Germany in the area codes the server offers, such as 6221, where it has German numbers on), a number or an area code of its own country (none set yet: the country of the area code, which the number then sets); elsewhere attach a number the business already has. An area code is its digits without the trunk 0 (503, 6221). Where the offer is a national number without an area code, give neither `e164` nor `areaCode`: the first free number of the country is bought. Repeating it for the same number finishes a setup that failed halfway.",
+    "Connect a phone number to the workspace and route its calls to the assistant. By default it attaches `e164`, a number that already exists in the carrier account, and buys nothing (in the install's account only an instance admin may). With `purchase: true` it buys `e164`, or the first free number in `areaCode`, which costs money; only a workspace in a country of the install's buy offers can buy (the US, Canada and Puerto Rico by area code; Germany in the area codes the server offers, such as 6221, where it has German numbers on), a number or an area code of its own country (none set yet: the country of the area code, which the number then sets); elsewhere attach a number the business already has. An area code is its digits without the trunk 0 (503, 6221). Where the offer is a national number without an area code, give neither `e164` nor `areaCode`: the first free number of the country is bought. Repeating it for the same number finishes a setup that failed halfway.",
   input: z
     .object({
       e164: z
@@ -967,7 +967,7 @@ export type CarrierNumbersData = {
 export const phoneNumberListCarrierNumbers = defineAction({
   name: 'phoneNumber.listCarrierNumbers',
   description:
-    "List the numbers already in the workspace's carrier account (its own, else the install's) that are not set up in Linedesk yet, to pick one for `phoneNumber.setup`. One read at the carrier, free; buys nothing. Numbers in the install's account are listed only for instance admins while the workspace pays for its numbers through a bill.",
+    "List the numbers already in the workspace's carrier account (its own, else the install's) that are not set up in Linedesk yet, to pick one for `phoneNumber.setup`. One read at the carrier, free; buys nothing. Numbers in the install's account are listed only for instance admins.",
   input: z.object({}),
   permission: 'settings:write',
   readOnly: true,

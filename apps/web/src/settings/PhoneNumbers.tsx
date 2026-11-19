@@ -593,8 +593,8 @@ export function ConnectNumber({
   const numbers = useRows('phone_numbers')
   const count = numbers.length
   // Numbers already in the carrier account: the server says who may connect one (canAttach: the workspace's own
-  // account; the install's for an instance admin, or for anyone while the workspace pays no bill for its numbers).
-  const canAttach = status?.canAttach !== false
+  // account; the install's, whatever carrier and bill, only for an instance admin). Unknown: not offered.
+  const canAttach = status?.canAttach === true
   // Outside the countries numbers can be bought in (the install's buy offers), only a number the business already has
   // (offersBuying). Unknown yet: every buyable area code, and the one picked names the country (buyingCountry).
   const country = buyingCountry(useWorkspaceCountry())

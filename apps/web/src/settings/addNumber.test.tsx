@@ -1,6 +1,6 @@
 // Settings › Phone numbers › Add number, step 1: a new number for the assistant with its monthly price (the bill's
 // extra-number price, or the carrier's list price without a bill), and the quiet link to a number already in the
-// carrier account only where the server allows it (canAttach). Step 2's answers map to the number's mode.
+// carrier account only where the server allows it (canAttach: instance admins, any carrier). Step 2's answers map to the number's mode.
 import type { PhoneNumber } from '@linedesk/db/types'
 import { BASE_BUY_OFFERS } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -30,13 +30,15 @@ const boughtNumber = { id: 'pn_1', e164: '+15035550111', purchased: true, carrie
 const render = ({
   extraNumberCents = null,
   canAttach = true,
+  provider = 'telnyx',
 }: {
   extraNumberCents?: number | null
   canAttach?: boolean
+  provider?: string
 }) =>
   renderToStaticMarkup(
     <ConnectNumber
-      status={{ provider: 'telnyx', available: true, detail: null, canAttach, buy: [...BASE_BUY_OFFERS] }}
+      status={{ provider, available: true, detail: null, canAttach, buy: [...BASE_BUY_OFFERS] }}
       extraNumberCents={extraNumberCents}
       onDone={() => {}}
     />,
@@ -83,6 +85,9 @@ describe('step 1: a new number', () => {
     expect(render({ canAttach: true })).toContain('Already have a number in Telnyx? Use it')
     expect(render({ canAttach: false })).not.toContain('Already have a number in Telnyx? Use it')
     expect(render({ canAttach: false, extraNumberCents: 300 })).not.toContain('Use it')
+    // Any install carrier: the link names it, and is hidden the same way for whoever is not an instance admin.
+    expect(render({ provider: 'twilio', canAttach: true })).toContain('Already have a number in Twilio? Use it')
+    expect(render({ provider: 'twilio', canAttach: false })).not.toContain('Use it')
   })
 })
 

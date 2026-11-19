@@ -136,8 +136,8 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
   const later = useLater()
   const run = useRun()
   const name = useAssistantName()
-  // Numbers already in the install's carrier account are for instance admins only: only they see the link to it.
-  const canAttach = status?.canAttach !== false
+  // Numbers already in the install's carrier account (any carrier) are for instance admins only: only they see the link.
+  const canAttach = status?.canAttach === true
   // Outside the countries numbers can be bought in (the install's buy offers), only a number the business already has
   // (offersBuying). Unknown yet: every buyable area code, and the one picked names the country (buyingCountry).
   const country = buyingCountry(useWorkspaceCountry())

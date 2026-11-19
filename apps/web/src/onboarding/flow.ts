@@ -522,7 +522,7 @@ export function phoneSetupErrorText(error: string, audience: ProviderAudience = 
     return t('onboarding.flow.setupError.countryRequirements')
   if (/^This number could not be activated/i.test(error)) return t('onboarding.flow.setupError.notActivated')
   if (/is not in the .* account/i.test(error)) return t('onboarding.flow.setupError.notInAccount')
-  // A number already in the server's carrier account, on a workspace that pays for its numbers (attachRefused).
+  // A number already in the server's carrier account, for someone who is not an instance admin (attachRefused).
   if (/can only be connected by whoever runs this server/i.test(error))
     return t('onboarding.flow.setupError.attachBilled')
   if (/no number available in area code/i.test(error)) return t('onboarding.flow.setupError.noneFree')

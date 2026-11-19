@@ -134,9 +134,9 @@ export async function tryLockWorkspaceCarrier(tx: Tx, workspaceId: string) {
   return rows[0]?.locked === true
 }
 
-/** A number already in the install's carrier account, on a workspace that pays for its numbers (attachRefused). */
+/** A number already in the install's carrier account, for someone who is not an instance admin (attachRefused). */
 export const INSTALL_NUMBER_ADMIN_ONLY =
-  "This workspace pays for its numbers through its plan: numbers already in this server's carrier account can only be connected by whoever runs this server. Get a new number, or use your own carrier account."
+  "Numbers already in this server's carrier account can only be connected by whoever runs this server. Get a new number, or use your own carrier account."
 
 export type CarrierAccount = 'install' | 'workspace'
 
