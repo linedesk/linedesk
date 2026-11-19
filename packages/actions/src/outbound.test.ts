@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import {
   allowedOutboundCountries,
   countriesOfNumbers,
+  countryList,
   isCheckableBusinessNumber,
   onCallNumberProblem,
   outboundNumberProblem,
@@ -9,6 +10,7 @@ import {
   parseCountryList,
   routeCountries,
 } from './index.ts'
+import { english, type Words } from './words.ts'
 
 const reason = (e164: string, allowed: readonly string[] | 'any') =>
   outboundNumberProblem(e164, allowed)?.reason ?? null
@@ -194,5 +196,24 @@ describe('allowed countries', () => {
     expect(parseCountryList(['zz', 'us'])).toEqual(['US'])
     expect(parseCountryList(undefined)).toEqual([])
     expect(parseCountryList('*')).toEqual([])
+  })
+})
+
+describe("the number rules in the reader's words (LIN-371)", () => {
+  test('each problem comes from a key, said for the use; English stays as the assistant reads it', () => {
+    const seen: [string, unknown][] = []
+    const keys: Words = {
+      ...english,
+      t: ((key: string, params: unknown) => (seen.push([key, params]), key)) as Words['t'],
+    }
+    expect(onCallNumberProblem('+18005550100', ['US'], 'check', keys)).toBe('common.outbound.problem.tollFree')
+    expect(seen.at(-1)).toEqual(['common.outbound.problem.tollFree', { use: 'check' }])
+    expect(outboundNumberProblem('+33612345678', ['US', 'CA'], 'transfer', keys)?.message).toBe(
+      'common.outbound.problem.country',
+    )
+    expect(onCallNumberProblem('+33612345678', ['US', 'CA', 'MX'])).toBe(
+      'Only numbers in the United States, Canada and Mexico can take transferred calls. Ask your server admin to allow other countries.',
+    )
+    expect(countryList(['CA', 'MX', 'US'])).toBe('Canada, Mexico and the United States')
   })
 })

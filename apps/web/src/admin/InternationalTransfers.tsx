@@ -174,7 +174,7 @@ export function InternationalTransfers() {
             {data.fromEnv && <p className="help">{t('admin.system.fromEnv', { env: 'OUTBOUND_COUNTRIES' })}</p>}
             {risky && editable && (
               <Note tone="danger">
-                {t('admin.system.riskyWarning', { count: 1, countries: countryList([risky]) })}
+                {t('admin.system.riskyWarning', { count: 1, countries: countryList([risky], i18n()) })}
                 <span className="adm-risky-actions">
                   <Button
                     size="sm"
@@ -202,7 +202,7 @@ export function InternationalTransfers() {
             {data.twilioBlocked?.length ? (
               <Note tone="warning">
                 {t('admin.system.twilioBlocked', {
-                  countries: countryList(data.twilioBlocked),
+                  countries: countryList(data.twilioBlocked, i18n()),
                   names: fmt().list(data.twilioBlocked.map(name), { type: 'unit', style: 'short' }),
                 })}
               </Note>

@@ -806,7 +806,7 @@ export function whoHearsProblem(
       message:
         (typed.startsWith('+') && phoneNumberProblem(typed, i18n())) || t('onboarding.flow.whoHears.mobileAreaCode'),
     }
-  const problem = onCallNumberProblem(e164, countries)
+  const problem = onCallNumberProblem(e164, countries, 'transfer', i18n())
   if (problem) return { field: 'mobile', message: problem }
   if (!transfers.some(c => c.id === URGENT_CONTACT_ID) && transfers.length >= TRANSFER_CONTACTS_MAX)
     return {

@@ -164,7 +164,7 @@
   "packages/actions/src/oauth.ts": 2,
   "packages/actions/src/onboarding.ts": 8,
   "packages/actions/src/openapi.ts": 36,
-  "packages/actions/src/outbound.ts": 22,
+  "packages/actions/src/outbound.ts": 3,
   "packages/actions/src/personal-keys.ts": 3,
   "packages/actions/src/prompt-texts.ts": 63,
   "packages/actions/src/provider-health.ts": 1,

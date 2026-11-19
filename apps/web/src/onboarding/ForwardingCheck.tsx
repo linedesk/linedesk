@@ -9,6 +9,7 @@ import {
 } from '@linedesk/actions'
 import type { PhoneNumber } from '@linedesk/db/types'
 import { useT } from '@linedesk/i18n/react'
+import { i18n } from '../i18n/index.tsx'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { callAction, readAction, useWriteAction } from '../settings/settings-api.ts'
 import { Field } from '../settings/fields.tsx'
@@ -95,7 +96,7 @@ export function ForwardingCheck({
   const phoneCountry = useDefaultPhoneCountry()
   const typedNumber = outboundE164(typed)
   // The destination policy, said under the field at once: a country this workspace may not call, a toll-free number.
-  const policyProblem = typedNumber ? onCallNumberProblem(typedNumber, countries, 'check') : null
+  const policyProblem = typedNumber ? onCallNumberProblem(typedNumber, countries, 'check', i18n()) : null
   const businessNumber = policyProblem ? null : typedNumber
   const dialing = check?.status === 'dialing'
 

@@ -13,6 +13,8 @@ import { parsePhoneNumberFromString } from 'libphonenumber-js/max'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 import { countryOfCallingCode, isPhoneCountry, nameInSentence } from './phone-input.ts'
+import { english, type Words } from './words.ts'
+import type { MessageKey } from '@linedesk/i18n'
 
 /**
  * The countries a number may be in: a list of ISO 3166-1 alpha-2 codes (empty: none), or `any`, which skips the
@@ -95,20 +97,7 @@ const NANP = /^\+1([2-9]\d{2})([2-9]\d{2})(\d{4})$/
  * non-geographic service codes (600, 622, 633), listed here so the rule does not depend on how libphonenumber types
  * them (it calls 600 VoIP).
  */
-const BLOCKED_AREA_CODES = new Set([
-  '900',
-  '976',
-  '500',
-  '533',
-  '544',
-  '566',
-  '577',
-  '588',
-  '700',
-  '600',
-  '622',
-  '633',
-])
+const BLOCKED_AREA_CODES = new Set(['900', '976', '500', '533', '544', '566', '577', '588', '700', '600', '622', '633'])
 /** Directory assistance behind any NANP area code (NXX-555-1212, 555-4334): billed per call. */
 const DIRECTORY_LINES = new Set(['1212', '4334'])
 
@@ -122,14 +111,16 @@ function splitCallingCode(digits: string): { code: string; national: string } | 
 }
 
 /** "the United States", "Canada and Mexico", "Canada, Mexico and the United States". */
-export function countryList(countries: readonly string[]): string {
-  const names = countries.map(country => nameInSentence(country))
+export function countryList(countries: readonly string[], words: Words = english): string {
+  const names = countries.map(country => nameInSentence(country, words))
+  // Another language joins as its own lists do; English keeps the words the assistant has always read (no serial comma).
+  if (words !== english) return words.format.list(names)
   if (names.length <= 1) return names[0] ?? ''
   return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
 }
 
-const can = (use: OutboundUse) => (use === 'transfer' ? 'can take transferred calls' : 'can be checked')
-const cannot = (use: OutboundUse) => (use === 'transfer' ? 'cannot take transferred calls' : 'cannot be checked')
+/** The example in "Enter the number with its country code, like …". */
+const EXAMPLE_NUMBER = '+1 503 555 0100'
 
 /**
  * Why Linedesk may not call this number, with a message for the owner that names the country; null when it may.
@@ -144,35 +135,37 @@ export function outboundNumberProblem(
   e164: string,
   allowed: OutboundCountries,
   use: OutboundUse = 'transfer',
+  words: Words = english,
 ): OutboundProblem | null {
   const problem = (reason: OutboundReason, message: string, country: string | null = null): OutboundProblem => ({
     reason,
     message,
     country,
   })
+  const said = (key: MessageKey, params: Record<string, string> = {}) => words.t(key, { use, ...params })
   const value = e164.trim()
-  if (!/^\+\d+$/.test(value)) return problem('format', 'Enter the number with its country code, like +1 503 555 0100.')
+  if (!/^\+\d+$/.test(value))
+    return problem('format', said('common.outbound.problem.countryCode', { example: EXAMPLE_NUMBER }))
   const digits = value.slice(1)
   const split = splitCallingCode(digits)
   if (EMERGENCY.has(digits) || (split && EMERGENCY.has(split.national)))
-    return problem('emergency', `Emergency numbers ${cannot(use)}.`)
+    return problem('emergency', said('common.outbound.problem.emergency'))
   if (!split) {
     const parsed = parsePhoneNumberFromString(value)
     if (parsed?.isValid() && !parsed.country)
-      return problem('non_geographic', `Numbers without a country (like +800 or satellite phones) ${cannot(use)}.`)
-    return problem('invalid', "This doesn't look like a phone number.")
+      return problem('non_geographic', said('common.outbound.problem.nonGeographic'))
+    return problem('invalid', said('common.outbound.problem.invalid'))
   }
-  if (split.national.length < SHORT_NATIONAL)
-    return problem('short', `Short and service numbers ${cannot(use)}. Enter a mobile or landline with its area code.`)
+  if (split.national.length < SHORT_NATIONAL) return problem('short', said('common.outbound.problem.short'))
   if (split.code === '1') {
     const m = NANP.exec(value)
-    if (!m) return problem('format', 'Enter the number with its area code, like +1 503 555 0100.')
+    if (!m) return problem('format', said('common.outbound.problem.areaCode', { example: EXAMPLE_NUMBER }))
     const [, area, exchange, line] = m as unknown as [string, string, string, string]
     if (/^[2-9]11$/.test(area) || /^[2-9]11$/.test(exchange) || (exchange === '555' && DIRECTORY_LINES.has(line)))
-      return problem('service', `Service numbers (like 411) ${cannot(use)}.`)
+      return problem('service', said('common.outbound.problem.service'))
     // 976 is premium rate behind any area code (212-976-…)
     if (BLOCKED_AREA_CODES.has(area) || exchange === '976')
-      return problem('premium', `Premium-rate and personal numbers (900, 976, 500, 700) ${cannot(use)}.`)
+      return problem('premium', said('common.outbound.problem.premiumNanp'))
   }
   const parsed = parsePhoneNumberFromString(value)
   const country = parsed?.country ?? null
@@ -182,36 +175,26 @@ export function outboundNumberProblem(
     if (where && allowed !== 'any' && allowed.length && !allowed.includes(where)) return countryProblem(where)
     return problem(
       'invalid',
-      `This doesn't look like a phone number${where ? ` in ${nameInSentence(where)}` : ''}.`,
+      where
+        ? said('common.outbound.problem.invalidIn', { where: nameInSentence(where, words) })
+        : said('common.outbound.problem.invalid'),
       where,
     )
   }
   const type = parsed.getType()
-  if (type === 'PREMIUM_RATE') return problem('premium', `Premium-rate numbers ${cannot(use)}.`, country)
-  if (type === 'SHARED_COST')
-    return problem('shared_cost', `Shared-cost service numbers ${cannot(use)}. Enter a mobile or landline.`, country)
-  if (type === 'TOLL_FREE')
-    return problem('toll_free', `Toll-free numbers ${cannot(use)}. Enter a mobile or landline.`, country)
-  if (type === 'PERSONAL_NUMBER')
-    return problem('personal', `Personal (follow-me) numbers ${cannot(use)}. Enter a mobile or landline.`, country)
+  if (type === 'PREMIUM_RATE') return problem('premium', said('common.outbound.problem.premium'), country)
+  if (type === 'SHARED_COST') return problem('shared_cost', said('common.outbound.problem.sharedCost'), country)
+  if (type === 'TOLL_FREE') return problem('toll_free', said('common.outbound.problem.tollFree'), country)
+  if (type === 'PERSONAL_NUMBER') return problem('personal', said('common.outbound.problem.personal'), country)
   if (!type || !CALLABLE_TYPES.has(type))
-    return problem('not_callable', `Only mobiles and landlines ${can(use)}. Enter a mobile or landline.`, country)
+    return problem('not_callable', said('common.outbound.problem.notCallable'), country)
   if (allowed === 'any' || allowed.includes(country)) return null
-  if (!allowed.length)
-    return problem(
-      'no_country',
-      `No number ${can(use)} yet: connect a phone number first, or ask your server admin to allow countries.`,
-      country,
-    )
+  if (!allowed.length) return problem('no_country', said('common.outbound.problem.noCountry'), country)
   return countryProblem(country)
 
   function countryProblem(where: string) {
-    const list = allowed === 'any' ? '' : countryList(allowed)
-    return problem(
-      'country',
-      `Only numbers in ${list} ${can(use)}. Ask your server admin to allow other countries.`,
-      where,
-    )
+    const countries = allowed === 'any' ? '' : countryList(allowed, words)
+    return problem('country', said('common.outbound.problem.country', { countries }), where)
   }
 }
 
@@ -220,7 +203,8 @@ export const onCallNumberProblem = (
   e164: string,
   allowed: OutboundCountries,
   use: OutboundUse = 'transfer',
-): string | null => outboundNumberProblem(e164, allowed, use)?.message ?? null
+  words: Words = english,
+): string | null => outboundNumberProblem(e164, allowed, use, words)?.message ?? null
 
 /**
  * A list of countries as the admin or `OUTBOUND_COUNTRIES` gives it ("de, AT  ch"): upper case, known countries only,
