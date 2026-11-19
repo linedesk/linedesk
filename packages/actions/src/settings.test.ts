@@ -4,6 +4,7 @@ import { rolePermissions } from './define.ts'
 import { storedSnapshot } from './assistant-versions.ts'
 import { EMAIL_ALWAYS_MAX, EMAIL_RULE_TO_MAX, EMAIL_RULE_WHEN_MAX, EMAIL_RULES_MAX } from './email-routing.ts'
 import { applyLocally, type LocalTables } from './index.ts'
+import { english, type Words } from './words.ts'
 import { currencyDigits, fromMinorUnits, jobValueCurrencies, rescaleMinorUnits, toMinorUnits } from './insights.ts'
 import {
   assistantUpdate,
@@ -394,6 +395,25 @@ describe('the business phone and website in the profile', () => {
       expect(businessWebsiteProblem(ok), ok).toBeNull()
     for (const bad of ['not a url', 'yourbusiness', 'ftp://x.com', 'https://'])
       expect(businessWebsiteProblem(bad), bad).not.toBeNull()
+  })
+  it("says what is wrong in the reader's words (the web app passes its language, LIN-371)", () => {
+    const keys: Words = { ...english, t: (key => key) as Words['t'] }
+    expect([
+      workspaceNameProblem('', keys),
+      workspaceNameProblem('x'.repeat(81), keys),
+      workspaceNameProblem('Two\nlines', keys),
+      businessPhoneProblem('abc', keys),
+      businessWebsiteProblem('not a url', keys),
+    ]).toEqual([
+      'common.business.problem.nameEmpty',
+      'common.business.problem.nameTooLong',
+      'common.business.problem.nameOneLine',
+      'common.business.problem.phone',
+      'common.business.problem.website',
+    ])
+    expect(workspaceNameProblem('x'.repeat(81))).toBe('The name can be 80 characters at most.')
+    // The schema the API checks with says the same, in English.
+    expect(workspaceName.safeParse(' ').error?.issues[0]?.message).toBe(workspaceNameProblem(' '))
   })
 })
 

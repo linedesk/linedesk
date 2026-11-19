@@ -59,6 +59,7 @@ import { workspaceBillFacts } from './billing-page.ts'
 import { currentBranding, manifestFor, readLogo } from './branding.ts'
 import { profileChangedBy } from './team-member-edit.ts'
 import { avatarVersionOf, readAvatarFor } from './user-avatar.ts'
+import { wordsOf } from './handler-context.ts'
 import { iconUrlOf, readIconFor } from './workspace-icon.ts'
 import { auth, TRUSTED_ORIGINS, trustedOrigins, WEB_ORIGIN } from './auth.ts'
 import { refuseCrossSite } from './csrf.ts'
@@ -420,7 +421,7 @@ app.post('/v1/workspaces', async c => {
   const body = await c.req
     .json<{ name?: unknown; timeZone?: unknown; country?: unknown; locale?: unknown }>()
     .catch(() => ({ name: undefined, timeZone: undefined, country: undefined, locale: undefined }))
-  const problem = workspaceNameProblem(body.name)
+  const problem = workspaceNameProblem(body.name, wordsOf(caller.actor))
   if (problem) return c.json({ ok: false, error: problem }, 422)
   const name = (body.name as string).trim()
   // A time zone that is not one falls back to the default, as before (onboarding.ts, workspaceTimeZone).

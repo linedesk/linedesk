@@ -214,14 +214,16 @@ export function instructionsOf(draft: ProfileDraft): string {
 /** What is wrong with the draft, per field (shown under it); empty when it can be saved. */
 export function draftProblems(draft: ProfileDraft): Partial<Record<'name' | 'phone' | 'website', string>> {
   const problems: Partial<Record<'name' | 'phone' | 'website', string>> = {}
-  const name = draft.name.trim() ? workspaceNameProblem(draft.name) : i18n().t('onboarding.business.nameRequired')
+  const name = draft.name.trim()
+    ? workspaceNameProblem(draft.name, i18n())
+    : i18n().t('onboarding.business.nameRequired')
   if (name) problems.name = name
   // The phone field's value is E.164 as far as typed: an unfinished number says so for its country.
   const phone =
     (draft.phone.trim().startsWith('+') ? phoneNumberProblem(draft.phone, i18n()) : null) ??
-    businessPhoneProblem(draft.phone)
+    businessPhoneProblem(draft.phone, i18n())
   if (phone) problems.phone = phone
-  const website = businessWebsiteProblem(draft.website)
+  const website = businessWebsiteProblem(draft.website, i18n())
   if (website) problems.website = website
   return problems
 }

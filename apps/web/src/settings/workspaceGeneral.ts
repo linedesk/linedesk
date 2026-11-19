@@ -1,5 +1,6 @@
 // Workspace settings › General without React: the checks behind the business name field.
 import { workspaceNameProblem } from '@linedesk/actions'
+import { i18n } from '../i18n/index.tsx'
 
 /**
  * What the business name field would save: the trimmed name, whether it differs from the saved one, and why it
@@ -8,7 +9,7 @@ import { workspaceNameProblem } from '@linedesk/actions'
 export function renameCheck(draft: string, saved: string): { next: string; changed: boolean; problem: string | null } {
   const next = draft.trim()
   const changed = next !== saved
-  return { next, changed, problem: changed ? workspaceNameProblem(next) : null }
+  return { next, changed, problem: changed ? workspaceNameProblem(next, i18n()) : null }
 }
 
 type RenameSteps = {

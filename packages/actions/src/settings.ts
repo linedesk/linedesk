@@ -11,7 +11,7 @@ import { ASSISTANT_CALL_MAX_MINUTES } from './calls.ts'
 import { buyableAreaCode } from './area-codes.ts'
 import { defineAction } from './define.ts'
 import { emailRulesInput } from './email-routing.ts'
-import { english } from './words.ts'
+import { english, type Words } from './words.ts'
 import { JOB_VALUE_MAX_CENTS, type JobValueCurrency, jobValueCurrencies } from './insights.ts'
 import { assistantLanguages } from './languages.ts'
 import { type WorkspaceCountrySource, workspaceCountrySchema } from './workspace-locale.ts'
@@ -392,9 +392,6 @@ export const DEFAULT_SILENCE_REMINDER = 'Are you still there?'
 /** The reminder an assistant asks: its own, or the default. */
 export const silenceReminderOf = (stored: string | null | undefined) => stored?.trim() || DEFAULT_SILENCE_REMINDER
 
-const BUSINESS_PHONE_PROBLEM = 'Enter the phone number with its area code, or leave it empty.'
-const BUSINESS_WEBSITE_PROBLEM = 'Enter a website address, like yourbusiness.com, or leave it empty.'
-
 export const assistantUpdate = defineAction({
   name: 'assistant.update',
   description:
@@ -481,14 +478,14 @@ export const assistantUpdate = defineAction({
           .string()
           .trim()
           .max(2000)
-          .refine(w => !businessWebsiteProblem(w), BUSINESS_WEBSITE_PROBLEM)
+          .refine(w => !businessWebsiteProblem(w), english.t('common.business.problem.website'))
           .optional(),
         /** The business's own number as its listing gives it (business.import) or the owner types it. */
         phone: z
           .string()
           .trim()
           .max(40)
-          .refine(p => !businessPhoneProblem(p), BUSINESS_PHONE_PROBLEM)
+          .refine(p => !businessPhoneProblem(p), english.t('common.business.problem.phone'))
           .optional(),
       })
       .optional(),
@@ -802,41 +799,43 @@ const unsafeNameChar = (c: number) =>
  * A workspace (business) name, the same for creating a workspace and for workspace.rename: trimmed, 1 to 80
  * characters, one line, no control or bidi characters (it goes into emails, the menu and other members' screens).
  */
+const isOneLineName = (name: string) => ![...name].some(ch => unsafeNameChar(ch.codePointAt(0)!))
+
 export const workspaceName = z
   .string()
   .trim()
-  .min(1, 'Enter the business name.')
-  .max(WORKSPACE_NAME_MAX, `The name can be ${WORKSPACE_NAME_MAX} characters at most.`)
-  .refine(
-    name => ![...name].some(ch => unsafeNameChar(ch.codePointAt(0)!)),
-    'The name must be one line, without control characters.',
-  )
+  .min(1, english.t('common.business.problem.nameEmpty'))
+  .max(WORKSPACE_NAME_MAX, english.t('common.business.problem.nameTooLong', { max: WORKSPACE_NAME_MAX }))
+  .refine(isOneLineName, english.t('common.business.problem.nameOneLine'))
 
 /**
  * Why the business's phone in its profile is not a phone number, or null (empty is fine). As people and listings
  * write it ("(503) 555-0142", "+1 503-555-0142"): digits with spaces, dots, dashes, brackets and a leading +, 7 to 15
  * digits.
  */
-export function businessPhoneProblem(phone: string): string | null {
+export function businessPhoneProblem(phone: string, words: Words = english): string | null {
   const text = phone.trim()
   if (!text) return null
   const digits = text.replace(/\D/g, '').length
-  return /^\+?[\d\s().-]+$/.test(text) && digits >= 7 && digits <= 15 ? null : BUSINESS_PHONE_PROBLEM
+  return /^\+?[\d\s().-]+$/.test(text) && digits >= 7 && digits <= 15 ? null : words.t('common.business.problem.phone')
 }
 
 /** Why the business's website in its profile is not a website address, or null (empty is fine). */
-export function businessWebsiteProblem(website: string): string | null {
+export function businessWebsiteProblem(website: string, words: Words = english): string | null {
   const text = website.trim()
   if (!text) return null
   return /^(https?:\/\/)?[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(:\d+)?([/?#]\S*)?$/i.test(text)
     ? null
-    : BUSINESS_WEBSITE_PROBLEM
+    : words.t('common.business.problem.website')
 }
 
-/** Why `name` is not a workspace name, or null when it is one. */
-export function workspaceNameProblem(name: unknown): string | null {
-  const parsed = workspaceName.safeParse(name)
-  return parsed.success ? null : (parsed.error.issues[0]?.message ?? 'Enter the business name.')
+/** Why `name` is not a workspace name (the checks of `workspaceName`), in `words`, or null when it is one. */
+export function workspaceNameProblem(name: unknown, words: Words = english): string | null {
+  const text = typeof name === 'string' ? name.trim() : ''
+  if (!text) return words.t('common.business.problem.nameEmpty')
+  if (text.length > WORKSPACE_NAME_MAX)
+    return words.t('common.business.problem.nameTooLong', { max: WORKSPACE_NAME_MAX })
+  return isOneLineName(text) ? null : words.t('common.business.problem.nameOneLine')
 }
 
 export const workspaceRename = defineAction({
