@@ -9530,15 +9530,140 @@
       "out": "d6f14bd88e0020b0504d9758d66a21fb3910214f34ef8a0da7b98fb9ccf535f9",
       "src": "a7cc671371fa6ba2780cf45e0edd872ee61d4a2aaf95f88c763f990a0e5eea81"
     },
+    "admin.system.germanGroupAddress": {
+      "by": "ai",
+      "out": "862fa65ff3417f0a7bf67e7684fb15dc6cf85bb62db71bd2677c55aad3fcf812",
+      "src": "4ce6465d7157fba92b5e968ecc619d3d57dea406004952a58255d6f7d55f108c"
+    },
+    "admin.system.germanGroupApproved": {
+      "by": "ai",
+      "out": "ed04045dd2b097612e44f30cc86c78ed476f1593837c052fd421a4cdf8608f99",
+      "src": "87b42e40c2a290e01d87b721bf381c3c5e259d1eb0a4660e41fdbf8bc73f7ddd"
+    },
+    "admin.system.germanGroupApprovedDetail": {
+      "by": "ai",
+      "out": "927f26bb40c215e6944951bdd974b7a9646834916893865a44a1a526c648944e",
+      "src": "169f922c5469cadd964b75c5ee929d28f9895ad6f9f8350840a0bd593732a000"
+    },
+    "admin.system.germanGroupCheck": {
+      "by": "ai",
+      "out": "7da626487f352e1009d523b1e7b82631d03dd353197e3db42ca9cfceaea2c9db",
+      "src": "fb7099ad8e818d42eceefe0d97c824fd54ddb0eeef54c263ec72c77d39198ac9"
+    },
+    "admin.system.germanGroupChecking": {
+      "by": "ai",
+      "out": "8c73b33ac3c31206936727345d6ed691c32b4420639824be608f30503206cd38",
+      "src": "00bd0fe7140cdeccf71aff63b33621b6671e835227eb2fff7274d861ba478f84"
+    },
+    "admin.system.germanGroupDeclined": {
+      "by": "ai",
+      "out": "a9148e8654e848357e0fae7ee7bb71bc512d5f88256d71d54f502fdec0e174bd",
+      "src": "dce083a2c47ffdc44982315487afb6e121e96cef2df6dc1ec11bac7ab5052142"
+    },
+    "admin.system.germanGroupDeclinedDetail": {
+      "by": "ai",
+      "out": "be104f42b238cdb4e0f93e16bb30f55a41f67ba9f460d964f29595ff668a6ee4",
+      "src": "ac37eb1d3502aff199995298566fbc660e0ae55ae2ca1e917da68319fd23bdd3"
+    },
+    "admin.system.germanGroupExpired": {
+      "by": "ai",
+      "out": "8e93f2e8507d3d5cb6b27abd6b768799ae552f65258bd18a7864449bd25006f3",
+      "src": "424a2551d356754c882d04ac16c63e6b50b80b159549d23231001f629455756e"
+    },
+    "admin.system.germanGroupExpiredDetail": {
+      "by": "ai",
+      "out": "c9c4c6360b3dbd48ae8a76dbc6cc1b6676a4556edeb10dd5e5827239a5f1fcc3",
+      "src": "3b35d9179567ae88051a4193596d79cc98103cc44184bb9e45071e46e9d07e28"
+    },
+    "admin.system.germanGroupInReview": {
+      "by": "ai",
+      "out": "828f4aadad134e2d594ce7dc2d3d8ada723f799239ba51cfccb5905c3ccbd5eb",
+      "src": "2b203fffd24aa37e99fdb21ca39084c34a47a29c55bcb6cdb29b93ec66aeac0c"
+    },
+    "admin.system.germanGroupInReviewDetail": {
+      "by": "ai",
+      "out": "95a1cf0e9464451b25e589bbae28a9f5f09bf19cdd4fdd6ea1e27bca8c12efa0",
+      "src": "c81799304be5b1821724bffe0583b43d4303bfa03ebec4c286f8c398488939a0"
+    },
+    "admin.system.germanGroupMismatch": {
+      "by": "ai",
+      "out": "f01a4a5852c0999b0dff6fb129d387d88d079babfc144208cb126cfe46561815",
+      "src": "1fd06719ddada94548791c4fd8f0cbdb49d20234098fa52aa31964c409362303"
+    },
+    "admin.system.germanGroupMismatchDetail": {
+      "by": "ai",
+      "out": "8adc7147a9571e1a6aad1467dc0763d507b031c9b37d33918fb65a0f9b78f55e",
+      "src": "f5cc94ba1ea77c551f4623d85cd88a24c83c61aeec6bbddd58666e282a613244"
+    },
+    "admin.system.germanGroupNoCarrier": {
+      "by": "ai",
+      "out": "de9ac0034658d22293f2cab0157b3dc6a636af088dcabcff42a3e19e86f171a7",
+      "src": "1bd68550c40f53b39b95bda3c41d2d1422cf92127d4a88f6ef7ed092ddaa6468"
+    },
+    "admin.system.germanGroupNoCarrierDetail": {
+      "by": "ai",
+      "out": "0b246f5be2daa1b7f880b358dac5419ea7dc527df2d2f56a7ae80c836de94644",
+      "src": "c14ff94e8b8c9962c464822ec210194bfa385bd2afffd6f971cdbc9163130c88"
+    },
+    "admin.system.germanGroupNotFound": {
+      "by": "ai",
+      "out": "c2adb27318956c61fea2faedcc5c5cc2c497b3889a3f3de9841c86e9c7198d7d",
+      "src": "3b84733e4b0943422f28446f5d6a94354a785ba372b08ea79d63b2f9c6a7ceca"
+    },
+    "admin.system.germanGroupNotFoundDetail": {
+      "by": "ai",
+      "out": "7a8d01eeb4c695c385cc75f57e357ad904307ed8df7e1455126fddf29e7d86a9",
+      "src": "ed39d13c059de16db79a652d417049a4fb90c72736878313264c9e742e8afdc7"
+    },
+    "admin.system.germanGroupOpen": {
+      "by": "ai",
+      "out": "1a379a7b378abe641521d56bc654a44a8dcd43304ed4ed8f80697c595e9e857a",
+      "src": "f5fe4d900725f7a8ce1671a8882837763eb7bfc80b472118e48f9a878709a646"
+    },
+    "admin.system.germanGroupUnapproved": {
+      "by": "ai",
+      "out": "322fe4e0dd1806c37aaf1ef018984e831712831dbc795c3013f5096da4b6aef7",
+      "src": "fb63a9606ecd27c9f9f8c5b7199c5a470cdaa59305f22873e477a16f0a702e95"
+    },
+    "admin.system.germanGroupUnapprovedDetail": {
+      "by": "ai",
+      "out": "1bdd62872a21d49cc69b7517949bf9791444668022e58f7a119bd9c8fef7a187",
+      "src": "3ee898a147cb23577cebe8b9dd67d92100c8464df94ee97416ca796b4a110af0"
+    },
+    "admin.system.germanGroupUnreachable": {
+      "by": "ai",
+      "out": "b159192081923a3a0142faedb5496f2c7bc4c85ccc1c50092b1c3aa49c2c3f0f",
+      "src": "9dca0c1ce17e9a1c5782a4a79763834d5af45afa16807bc5f7d01d02c986e2d7"
+    },
+    "admin.system.germanGroupUnreachableDetail": {
+      "by": "ai",
+      "out": "5c89b2bdd98125139bc8d39c26cb3ae13a96bc575bdf4a17caccca0a02453ca5",
+      "src": "dfd07c8b3c7ab25f0106d6c4e5281fe2c3e93e70aa95b780d65524c54e3538da"
+    },
     "admin.system.germanNumbers": {
       "by": "human",
       "out": "939114372cbc018c9d5bd2a8dc307ced6b4d2e46398d5295b33ed2201ee13677",
       "src": "8fd2fd4ae58b9426b4a318bd20570d384e73878cfc66856eb4f6c017b2d072ce"
     },
+    "admin.system.germanNumbersAreaCode": {
+      "by": "ai",
+      "out": "fd4bbb6a3261ccb82001ddd93713447af507004c1176796a1255b473601bdb5d",
+      "src": "2cb0c5b5a13174d9eaa725be1ac83bbeea5ffb4279036db4c699a9c3108064c6"
+    },
+    "admin.system.germanNumbersAreaCodeFrom": {
+      "by": "ai",
+      "out": "0dc20210333bbbe1ad4da3c614a55745514ec5ac7a6f26d9e7400d8bfa818538",
+      "src": "93d8a49fda505d7892dd8b2753915624ae1731f745ec815cb42489a9adb5d2c8"
+    },
     "admin.system.germanNumbersAreaCodes": {
       "by": "human",
       "out": "14dff42bbae80bbd39ab5e28df9299728e9d04edca91e7ae7808a202adfc91d3",
       "src": "8fd2622f9b2e27928945b2dc9045ed889aedbed53f0985a552a9216ecb0adfae"
+    },
+    "admin.system.germanNumbersAreaCodesHelp": {
+      "by": "ai",
+      "out": "5d55c9ad9fb7b7bee4a07f4978445067bb895dcd11a2e0644f769c5636e2d97a",
+      "src": "26b14f851330ec6c1105577addc358546f763c596ead5b6c77e5237aa31df9fc"
     },
     "admin.system.germanNumbersCount": {
       "by": "human",
@@ -9561,9 +9686,9 @@
       "src": "6dbaa6292086ba430ae11d6f8e504c8db4e091e942d1858a47ed412dbddbd244"
     },
     "admin.system.germanNumbersGroupHelp": {
-      "by": "human",
-      "out": "af92be09aebdd91757648c61316c57fceb7fe0fd72e62932e821983aa86396f9",
-      "src": "1cb8002fa29157fb4b8713211dec817d20027e5f7734deb5315851b801e55f4d"
+      "by": "ai",
+      "out": "e02fbccb3bca3a5bc36812a70182a00db6415a68edc184ed38cca3ecf0d72826",
+      "src": "748a368452de5e0be025ff136f4ccb828118e94d298b0b59c1eecbef5b7dc63f"
     },
     "admin.system.germanNumbersHelp": {
       "by": "human",
@@ -20420,6 +20545,11 @@
       "out": "efa05180bd1c437cc067488820660541f06549ad617700ca55b0f23f52697158",
       "src": "f2e0222809567861721d943b920c3623a3274f2efe980c55ed82300d394718e0"
     },
+    "onboarding.flow.setupError.attachBilled": {
+      "by": "ai",
+      "out": "147a9661dab6922a1a777897675d3013095909d9e4fe949708d36dfcf80ee17a",
+      "src": "5e4a9e2fd45c1f5b259bea34a30c7f9ccc1a83643e776d400416ee6b2abb1d4d"
+    },
     "onboarding.flow.setupError.countryRequirements": {
       "by": "ai",
       "out": "f72a84c0a0ace6fe88c93870ce64d682a326f148928b30a80759b2f63da618ef",
@@ -22755,6 +22885,16 @@
       "out": "0614f4133e077d7fb173970ea2381499f2cfc10e477c14c3c62724b5a34fb00f",
       "src": "de9083f4cb265a740622b00ef856775030aefe73159633b770af0ee0f396ffeb"
     },
+    "server.setupAgent.attachInApp": {
+      "by": "ai",
+      "out": "f4dd133f8649a90de3175e39b376093b829fdb4bfce8941e9caaf7e5dc023742",
+      "src": "a2cce396b619b7e51a352988ab44b309a4f60c1038540951831e8dedb5152fc8"
+    },
+    "server.setupAgent.attachOwnAccount": {
+      "by": "ai",
+      "out": "88e7aa32a2e1eb5b61ec5ed8c223b1a3c2fec3a39a3fb2369894b07509676127",
+      "src": "a1e8fe26acf0af77cfa3471babc501a6d6b78ae1a056dd96759526ff64f38bc8"
+    },
     "server.setupAgent.clientStep.assistant": {
       "by": "ai",
       "out": "117bd1f72502cfe03f9a544599b7d7c156d03026da76d5b9b283b04084ccbc67",
@@ -22989,6 +23129,11 @@
       "by": "ai",
       "out": "0f043e8b2fe3d8cb6d9f313d38bbc78364d9081d23d9507fa49083de3494229a",
       "src": "393d816d9d359bac06a98c5445f60b1d3781c5b2b4b6a4552bb223369715d052"
+    },
+    "server.setupAgent.phoneBeingSetUpInstall": {
+      "by": "ai",
+      "out": "ff3b25373f519a3b1354953f1331c3708931dbbb346e3d5476dce116de22a504",
+      "src": "2f0d505eb71fd48f27fcaf1279af8093351e541f52373f52865f5b552eb49b96"
     },
     "server.setupAgent.prompt.changeAssistant": {
       "by": "human",
@@ -23645,10 +23790,15 @@
       "out": "89d2232dce6041ce428c5dbc5d2767afd482a09882bc30055c6498dd154ce889",
       "src": "7ef7c4415c8ea5dee02a700e54f32a353dde5aec3e2feeaf555111fc3f02272e"
     },
+    "settings.assistant.languages.anyList": {
+      "by": "ai",
+      "out": "734ca49b63ca497683391325dcb3bd74db91bb54b2dcffb6d8f96554c525623e",
+      "src": "8bedf7ae9d754e0ac7e4cba271e1f556e7ddfdd06ed54cce1e00df5b5e14eb00"
+    },
     "settings.assistant.languages.anyNote": {
       "by": "ai",
-      "out": "b07c25118ade80035024968a7444d0caa1c220cbd3ef64deed855c1aa61f94dd",
-      "src": "28993d8267fc2be314ece9e3dc46e8e47159a75ffb70070fb7f2461d095ce8c8"
+      "out": "292c696b3a86becb1557df8c935a2fc297735ee36a67d34a287436a95314a827",
+      "src": "7f704ba54404fa5a37950f516dd06ac211988a2e74334851d3a1105317a23ea0"
     },
     "settings.assistant.languages.description": {
       "by": "ai",
@@ -23690,10 +23840,25 @@
       "out": "129f47a38bd67f0f8a5ed3659cd20ef57ce9f1b9c1ce928c6d88bc2134d349d1",
       "src": "7a5963732aa0ebc1c0db26af9e78b73d0c228adba28c55f32859014af276b078"
     },
+    "settings.assistant.languages.switch.anyCount": {
+      "by": "ai",
+      "out": "ec5d1caa2c13b31096fd7b55499ade206c77332184c46a58a2ce0b5d281d88c0",
+      "src": "6034d12bf0c35864db7b7b5d92612a640f9ea40056be1dafc898ee26196ba7b5"
+    },
+    "settings.assistant.languages.switch.anyCovers": {
+      "by": "ai",
+      "out": "560e19a8e76e9ff4645a10615f327544fbf036506be9994b48229e51f9d55b89",
+      "src": "281f6063e65d852a8e9b44aa3468dcc8bb0af541717aa1fd4ba18eed266bd8a9"
+    },
     "settings.assistant.languages.switch.anyDescription": {
       "by": "ai",
       "out": "50c1b48e30ffe036a96366a9060945a9ba0a68913d8914b212a68913cb3dd29d",
       "src": "a327d2a1bec1346fccf288b70ef36e49ffb326a0ffee84d5592d7e1d32219fa2"
+    },
+    "settings.assistant.languages.switch.anyMore": {
+      "by": "ai",
+      "out": "0136df537f29f1df6f150a21d37a6d01e451bf2746c00a1b8f71774cae7e44a7",
+      "src": "5f4f590acbda8ee3ef5686113938693ce4ea990c751396e88a64d49ed3449460"
     },
     "settings.assistant.languages.switch.label": {
       "by": "ai",
@@ -28772,13 +28937,23 @@
     },
     "settings.phone.connect.back": {
       "by": "ai",
-      "out": "d1ccdef9b48914723db38a3101298f10eb942259ca7d96c4b4121a691d5c3815",
-      "src": "d76ec9b700c3088cbe86a182c13e9c8958e65286f5296490c8c85b7366e3d386"
+      "out": "e5a8c80d012d8d4231b7b31b94093408903c94ee646691a62504fcc6415db0a2",
+      "src": "b4b18fa3276d52bca38e3a06f6b7e235d04d0444a8df892645179f314158f2e1"
     },
     "settings.phone.connect.buy": {
       "by": "ai",
       "out": "08294aa6b49211d76fc1e2b6bf496dc8f2d512908495713e9c50afd029e781b1",
       "src": "95cdf792e2c21b04f8f80b77c7f8eda200dbde77a4a0953f7fcaded7b3bfe3e3"
+    },
+    "settings.phone.connect.buyHelp": {
+      "by": "ai",
+      "out": "8354bde9003f5ebb46b53ddc5035cd8fac47fc508747b47506cd5b066c3ed187",
+      "src": "e1d1f1aedf19b400305044d586e33236c10f13202773a8e2b8aa789690ffeb86"
+    },
+    "settings.phone.connect.buyTitle": {
+      "by": "ai",
+      "out": "4d4e8d16e53b8dbcde129369055e9f730d5ace5cfae49da281cc46ae9de81453",
+      "src": "cb21806458ccae6789bba7fe1fbde4ce2d041609d897898e74dbf2faae715bf8"
     },
     "settings.phone.connect.buying": {
       "by": "ai",
@@ -28800,6 +28975,11 @@
       "out": "0385b02680f5a356841de2f8a71dbe0068774e8137ea6f3f57220cbe2667f4b3",
       "src": "499ba97615e3e68f0abfb9346f44972a4e5af8aa2a93085b2a17ea375e6348b2"
     },
+    "settings.phone.connect.fromBalance": {
+      "by": "ai",
+      "out": "05602faf7c57e530af95c612cc8bbba7c6c6b202dfdb41ff2c04fdf7dd0dbf55",
+      "src": "9308ebf7f9d8aeb7b42aa8cbb05b5a0de101abb3194fb9a0d57f9d62f08b4b47"
+    },
     "settings.phone.connect.get": {
       "by": "ai",
       "out": "f4cb460765dfb1cd372094cba0b2680c370192ead33e1701707e224adb83d5fc",
@@ -28814,6 +28994,11 @@
       "by": "ai",
       "out": "7fbe9b9c99c2c2c2894df2f1908717f64fc3959b10c615d713c690f81f0b7f85",
       "src": "f1a78ccecea181d2802b13f1ad6da83cb6b7179e00b0b078d1ea6c47e9f3e3f6"
+    },
+    "settings.phone.connect.perMonth": {
+      "by": "ai",
+      "out": "2ef91c6c23ade9467cad353582a1bcd3a998d9cf2564799c95ebbee8d703addf",
+      "src": "0a772ab2a2b91bae6a570738d28ebb6c02eed0ae7cb5df5dae125f7bb3eb7a3a"
     },
     "settings.phone.disconnect.busy": {
       "by": "ai",
@@ -28864,6 +29049,36 @@
       "by": "ai",
       "out": "f025c7e42b7b9c4604e60ce2af17d088bcdf61f9dd5d6865e0ef501c09f6035d",
       "src": "d920b60b80b0502d45f5750318808cd98e4801d14c544e2d484e71f021c2178a"
+    },
+    "settings.phone.forwardStep.added": {
+      "by": "ai",
+      "out": "a4a50b1c673ea1fecb1f6bd86f0142cecf2fabf91f57116177d5c6c624826ed2",
+      "src": "5a977cefd024070fd9fd6113006d44cc7596f1f9181ed7289159a93dc1eb9fbd"
+    },
+    "settings.phone.forwardStep.no.description": {
+      "by": "ai",
+      "out": "06a621322c96f88cd5fde87df2536d1c835d1559184439be47899093bab6c881",
+      "src": "f304312009b0b6306e33200691d8876359c1a7619a96c482ad9afb0cae26e93f"
+    },
+    "settings.phone.forwardStep.no.title": {
+      "by": "ai",
+      "out": "c6ee6d0ea683727e7fd2704c53dcbf425d7950a2ed5000c63d9e1f9b235d1f9f",
+      "src": "22a40c8068a5f267ac5c9eb6f53398ccb7d1f3cd197c3198e9f50cace682a977"
+    },
+    "settings.phone.forwardStep.title": {
+      "by": "ai",
+      "out": "a87bcc539b27d65684ea9c94a67443f9eb98eb2f48a1499651cc4e01bdbdc060",
+      "src": "f6ef912eab5ac8108a0b4eba6e281ad75b8a4513474b6d9376692c816cca79df"
+    },
+    "settings.phone.forwardStep.yes.description": {
+      "by": "ai",
+      "out": "d0f8d4e4249d6e6bbd8fa61a9ed843ed5c32a6f8ebd79c63464350bcb913d1ce",
+      "src": "fa9cc1a59ef57c00fd76c506c905ad42df62d64c2cc7bcb1f48ac81a346b6bc1"
+    },
+    "settings.phone.forwardStep.yes.title": {
+      "by": "ai",
+      "out": "96231b52420cc37f64e699ee18dd1163a591c6ef2607f990edad7ae77df2edad",
+      "src": "746e07a76e6d1a515e4f0da946a11d23c4b49188fb702fda65cd276ee175d7ac"
     },
     "settings.phone.forwarding.carrier": {
       "by": "ai",
@@ -44617,15 +44832,140 @@
       "out": "985b1759e11444064fc29eb0b8a4ed9227daee03f1090fcc1febab59ce955c24",
       "src": "a7cc671371fa6ba2780cf45e0edd872ee61d4a2aaf95f88c763f990a0e5eea81"
     },
+    "admin.system.germanGroupAddress": {
+      "by": "ai",
+      "out": "34cb37dd83214e908f3ad6215f8ff87e18f07637fc8c61253ee6145b6a0a1b85",
+      "src": "4ce6465d7157fba92b5e968ecc619d3d57dea406004952a58255d6f7d55f108c"
+    },
+    "admin.system.germanGroupApproved": {
+      "by": "ai",
+      "out": "be113ca8d997bbc828707ea6962f758cba5ea2ac39aabbd0aad93d091bf0691b",
+      "src": "87b42e40c2a290e01d87b721bf381c3c5e259d1eb0a4660e41fdbf8bc73f7ddd"
+    },
+    "admin.system.germanGroupApprovedDetail": {
+      "by": "ai",
+      "out": "0b0121f3bfcf8473158f2b48417d09f7d6513bcdfbe2d288ae3d112648207adc",
+      "src": "169f922c5469cadd964b75c5ee929d28f9895ad6f9f8350840a0bd593732a000"
+    },
+    "admin.system.germanGroupCheck": {
+      "by": "ai",
+      "out": "1568b4df4ebd76c74bafe238647736250f01b75213f9760f1e2deb5730904f54",
+      "src": "fb7099ad8e818d42eceefe0d97c824fd54ddb0eeef54c263ec72c77d39198ac9"
+    },
+    "admin.system.germanGroupChecking": {
+      "by": "ai",
+      "out": "3da5fe1f4350b88c7376b7d7585beb3e1fdc4ed808d9dc81c9581677741773fb",
+      "src": "00bd0fe7140cdeccf71aff63b33621b6671e835227eb2fff7274d861ba478f84"
+    },
+    "admin.system.germanGroupDeclined": {
+      "by": "ai",
+      "out": "71ed92a675af8343aceeeae28d8435d3d402cb6428bced5d8f0aa5abb98ecebd",
+      "src": "dce083a2c47ffdc44982315487afb6e121e96cef2df6dc1ec11bac7ab5052142"
+    },
+    "admin.system.germanGroupDeclinedDetail": {
+      "by": "ai",
+      "out": "83f116b793976c78db9ca59141af09621cc86807f3410557dd80229de91a31dc",
+      "src": "ac37eb1d3502aff199995298566fbc660e0ae55ae2ca1e917da68319fd23bdd3"
+    },
+    "admin.system.germanGroupExpired": {
+      "by": "ai",
+      "out": "252e8581c42523eb3e6d055041570092bb097e0490c41818a9aa6c34f4f19b3e",
+      "src": "424a2551d356754c882d04ac16c63e6b50b80b159549d23231001f629455756e"
+    },
+    "admin.system.germanGroupExpiredDetail": {
+      "by": "ai",
+      "out": "264cacfb301f574a89d9a85529970776bf5cf3d23ba3fc391203047d988c9ee5",
+      "src": "3b35d9179567ae88051a4193596d79cc98103cc44184bb9e45071e46e9d07e28"
+    },
+    "admin.system.germanGroupInReview": {
+      "by": "ai",
+      "out": "8e098d1260be1a18069fbc4953a449d7f2b1914529bc6e0225aa4d97ff169b0e",
+      "src": "2b203fffd24aa37e99fdb21ca39084c34a47a29c55bcb6cdb29b93ec66aeac0c"
+    },
+    "admin.system.germanGroupInReviewDetail": {
+      "by": "ai",
+      "out": "fca3aa4836b2940ec8bcceee782fd084a4b09532720ae4f9098d2e5006687e77",
+      "src": "c81799304be5b1821724bffe0583b43d4303bfa03ebec4c286f8c398488939a0"
+    },
+    "admin.system.germanGroupMismatch": {
+      "by": "ai",
+      "out": "9c8d3f3628cc330709e906e72b46c1c0a5f448dee3bf36a258a3ce161295b808",
+      "src": "1fd06719ddada94548791c4fd8f0cbdb49d20234098fa52aa31964c409362303"
+    },
+    "admin.system.germanGroupMismatchDetail": {
+      "by": "ai",
+      "out": "f7c8fb371aac0b25664f15054efb74586fecf5ed374e2152a450295b516c4e7a",
+      "src": "f5cc94ba1ea77c551f4623d85cd88a24c83c61aeec6bbddd58666e282a613244"
+    },
+    "admin.system.germanGroupNoCarrier": {
+      "by": "ai",
+      "out": "296ae8e9d0dcee0a8a8dec5019c8e904db231d0e98fbba633175a9f8c31c275a",
+      "src": "1bd68550c40f53b39b95bda3c41d2d1422cf92127d4a88f6ef7ed092ddaa6468"
+    },
+    "admin.system.germanGroupNoCarrierDetail": {
+      "by": "ai",
+      "out": "24f2ff4f7509e6b73a5fda811c5ef858df3f6f1190f0d88babddb9e55450f7a6",
+      "src": "c14ff94e8b8c9962c464822ec210194bfa385bd2afffd6f971cdbc9163130c88"
+    },
+    "admin.system.germanGroupNotFound": {
+      "by": "ai",
+      "out": "e78db909ddec392cc9cc6411e9e0b0715c1189001e09b1bb7705d7f755f0cd91",
+      "src": "3b84733e4b0943422f28446f5d6a94354a785ba372b08ea79d63b2f9c6a7ceca"
+    },
+    "admin.system.germanGroupNotFoundDetail": {
+      "by": "ai",
+      "out": "6964f7235068a9c1bf29b056e1b74f97251c7f02b569188ef02e23fed2397d35",
+      "src": "ed39d13c059de16db79a652d417049a4fb90c72736878313264c9e742e8afdc7"
+    },
+    "admin.system.germanGroupOpen": {
+      "by": "ai",
+      "out": "41fc261ce921f86aa0ab5c0efa6ba82da7153c736808885219e073274e52aca6",
+      "src": "f5fe4d900725f7a8ce1671a8882837763eb7bfc80b472118e48f9a878709a646"
+    },
+    "admin.system.germanGroupUnapproved": {
+      "by": "ai",
+      "out": "269328155de48f16edd61f4caff507cb4cc57533752e1fe3fe74214f7f63fe04",
+      "src": "fb63a9606ecd27c9f9f8c5b7199c5a470cdaa59305f22873e477a16f0a702e95"
+    },
+    "admin.system.germanGroupUnapprovedDetail": {
+      "by": "ai",
+      "out": "0a1d0ab7675de9d83d2d564207629d87d81f3692e86552a880ab2260455bd2ec",
+      "src": "3ee898a147cb23577cebe8b9dd67d92100c8464df94ee97416ca796b4a110af0"
+    },
+    "admin.system.germanGroupUnreachable": {
+      "by": "ai",
+      "out": "45ae2d52a85da83baf86ab6b7970c17ede5a7a6f058659c92a2d52fa023470c8",
+      "src": "9dca0c1ce17e9a1c5782a4a79763834d5af45afa16807bc5f7d01d02c986e2d7"
+    },
+    "admin.system.germanGroupUnreachableDetail": {
+      "by": "ai",
+      "out": "1457b84c97c89672c47777b9b49fc7aaa94f85bd0234b94a54cd7006eb87f08f",
+      "src": "dfd07c8b3c7ab25f0106d6c4e5281fe2c3e93e70aa95b780d65524c54e3538da"
+    },
     "admin.system.germanNumbers": {
       "by": "ai",
       "out": "12e1d0ab0e88ca7348c375be7e794faba79d196a800b8ec33326be8e7f33ed20",
       "src": "8fd2fd4ae58b9426b4a318bd20570d384e73878cfc66856eb4f6c017b2d072ce"
     },
+    "admin.system.germanNumbersAreaCode": {
+      "by": "ai",
+      "out": "d986aaf51afc3176270ad5bf4e1cd316677eea9b8760769689f04abe3ef18107",
+      "src": "2cb0c5b5a13174d9eaa725be1ac83bbeea5ffb4279036db4c699a9c3108064c6"
+    },
+    "admin.system.germanNumbersAreaCodeFrom": {
+      "by": "ai",
+      "out": "42d35a64fb6a95a4c1a1eb79391342430347be5b3298e293b481cd44de03e2d5",
+      "src": "93d8a49fda505d7892dd8b2753915624ae1731f745ec815cb42489a9adb5d2c8"
+    },
     "admin.system.germanNumbersAreaCodes": {
       "by": "ai",
       "out": "f28b9e2e25415f03b28939fc1965cf622998d116916fbe95d11a59fd1b1e4a63",
       "src": "8fd2622f9b2e27928945b2dc9045ed889aedbed53f0985a552a9216ecb0adfae"
+    },
+    "admin.system.germanNumbersAreaCodesHelp": {
+      "by": "ai",
+      "out": "b5ed2db02e7473c6ba988e973e6697b54e93a1e2a3c185dc3eee16bfdad712bf",
+      "src": "26b14f851330ec6c1105577addc358546f763c596ead5b6c77e5237aa31df9fc"
     },
     "admin.system.germanNumbersCount": {
       "by": "ai",
@@ -44649,8 +44989,8 @@
     },
     "admin.system.germanNumbersGroupHelp": {
       "by": "ai",
-      "out": "132d3d67cd432e7c3ddb6dae87b93fb02cca132b1b4b0ff8a25fd8765900ea7b",
-      "src": "1cb8002fa29157fb4b8713211dec817d20027e5f7734deb5315851b801e55f4d"
+      "out": "eb2d7c50656dabd3ada659ae2df2bd6f3eed4c3473f67f7a2271184a747370fa",
+      "src": "748a368452de5e0be025ff136f4ccb828118e94d298b0b59c1eecbef5b7dc63f"
     },
     "admin.system.germanNumbersHelp": {
       "by": "ai",
@@ -55507,6 +55847,11 @@
       "out": "de259e3b7d558eae471bf7f4a67f7e6d5f34c44d91883d37ebd01ff63954ed8c",
       "src": "f2e0222809567861721d943b920c3623a3274f2efe980c55ed82300d394718e0"
     },
+    "onboarding.flow.setupError.attachBilled": {
+      "by": "ai",
+      "out": "44eccd3ec9a9da2e37b0bf974bc1758ba01c8c400089477ac95ad96323f5fec7",
+      "src": "5e4a9e2fd45c1f5b259bea34a30c7f9ccc1a83643e776d400416ee6b2abb1d4d"
+    },
     "onboarding.flow.setupError.countryRequirements": {
       "by": "ai",
       "out": "f9d3bcc81d0a885b630c0ea23f18423dfc64ba5058edefaa659890782daf72fe",
@@ -57842,6 +58187,16 @@
       "out": "22977832455ebe90e4e9b1a4c15e02733cab12a0eb2f31ef45ad7ff9ce930622",
       "src": "de9083f4cb265a740622b00ef856775030aefe73159633b770af0ee0f396ffeb"
     },
+    "server.setupAgent.attachInApp": {
+      "by": "ai",
+      "out": "83ba5667988fd91c827b8470c13df88341134ee8f0e2afa22af9ce3df65c3c5d",
+      "src": "a2cce396b619b7e51a352988ab44b309a4f60c1038540951831e8dedb5152fc8"
+    },
+    "server.setupAgent.attachOwnAccount": {
+      "by": "ai",
+      "out": "6c73cfb88eaac3f0a0828a8d98c026cf07cab9e649c952563ebaf2607f1b8381",
+      "src": "a1e8fe26acf0af77cfa3471babc501a6d6b78ae1a056dd96759526ff64f38bc8"
+    },
     "server.setupAgent.clientStep.assistant": {
       "by": "ai",
       "out": "8fd0c9ba0c4c9830b5c9e41748e5cfac8f608aa3dd0ffa580a59d13e19ab37b8",
@@ -58076,6 +58431,11 @@
       "by": "ai",
       "out": "1ec2245abd26083f4cda329ac770da9fa16c9f2671a17d03e6670d7d6472dd44",
       "src": "393d816d9d359bac06a98c5445f60b1d3781c5b2b4b6a4552bb223369715d052"
+    },
+    "server.setupAgent.phoneBeingSetUpInstall": {
+      "by": "ai",
+      "out": "490a1ab6061228bdf867dfbb74f9f7bfb637d3ad35b701f3cc069c37632310af",
+      "src": "2f0d505eb71fd48f27fcaf1279af8093351e541f52373f52865f5b552eb49b96"
     },
     "server.setupAgent.prompt.changeAssistant": {
       "by": "ai",
@@ -58732,10 +59092,15 @@
       "out": "a270dacc679a5a05c5e5716f68e55364ba9b4edf5636f749ba4c65c0a79051c4",
       "src": "7ef7c4415c8ea5dee02a700e54f32a353dde5aec3e2feeaf555111fc3f02272e"
     },
+    "settings.assistant.languages.anyList": {
+      "by": "ai",
+      "out": "f66428c7239ad8c1072275b0ad184ddf08975f8bd79a2ec7aff9764eefe639da",
+      "src": "8bedf7ae9d754e0ac7e4cba271e1f556e7ddfdd06ed54cce1e00df5b5e14eb00"
+    },
     "settings.assistant.languages.anyNote": {
       "by": "ai",
-      "out": "033e0ab2fd88183460f069d0d654a2659dddff54c4d5210d2ef8021f6b510bd8",
-      "src": "28993d8267fc2be314ece9e3dc46e8e47159a75ffb70070fb7f2461d095ce8c8"
+      "out": "ec031ef50d7c2a4f730d7e1cc944f5be2abfd0f02d86a7c932d02b203d138607",
+      "src": "7f704ba54404fa5a37950f516dd06ac211988a2e74334851d3a1105317a23ea0"
     },
     "settings.assistant.languages.description": {
       "by": "ai",
@@ -58777,10 +59142,25 @@
       "out": "948ebee94f4bf6b684cb210f17f0cf543018c8430c198eb1e76d4920ac438054",
       "src": "7a5963732aa0ebc1c0db26af9e78b73d0c228adba28c55f32859014af276b078"
     },
+    "settings.assistant.languages.switch.anyCount": {
+      "by": "ai",
+      "out": "a2ffee3b85305b0ebdf717f0abf2a848449715fe0b5bc3e92b158131f4bbeda2",
+      "src": "6034d12bf0c35864db7b7b5d92612a640f9ea40056be1dafc898ee26196ba7b5"
+    },
+    "settings.assistant.languages.switch.anyCovers": {
+      "by": "ai",
+      "out": "e324634f6d68959cb2f8acc2bfc9fbbdc87898234842fbf8970d39367f9a33d1",
+      "src": "281f6063e65d852a8e9b44aa3468dcc8bb0af541717aa1fd4ba18eed266bd8a9"
+    },
     "settings.assistant.languages.switch.anyDescription": {
       "by": "ai",
       "out": "325c61deacd1eab97e28b6052dc479ac78aacd07f70b1e7ade2940e3b50c96f0",
       "src": "a327d2a1bec1346fccf288b70ef36e49ffb326a0ffee84d5592d7e1d32219fa2"
+    },
+    "settings.assistant.languages.switch.anyMore": {
+      "by": "ai",
+      "out": "22823cae10fcd252b95978d635c039b1d54c6006872c0867c905bfa944b2f15d",
+      "src": "5f4f590acbda8ee3ef5686113938693ce4ea990c751396e88a64d49ed3449460"
     },
     "settings.assistant.languages.switch.label": {
       "by": "ai",
@@ -63859,13 +64239,23 @@
     },
     "settings.phone.connect.back": {
       "by": "ai",
-      "out": "e9db303cd0c41c14b0128cbc512fea02be05b7c41e4d5612f69b72bfdeda4eb2",
-      "src": "d76ec9b700c3088cbe86a182c13e9c8958e65286f5296490c8c85b7366e3d386"
+      "out": "f3d9fb4941167d7e4dc55ea40902048403d30e15e9479bf682b71fcf48f9f2ce",
+      "src": "b4b18fa3276d52bca38e3a06f6b7e235d04d0444a8df892645179f314158f2e1"
     },
     "settings.phone.connect.buy": {
       "by": "ai",
       "out": "6341fb3ee023044154753397801608f2d928754a191dfdbdb5db10c4c090764c",
       "src": "95cdf792e2c21b04f8f80b77c7f8eda200dbde77a4a0953f7fcaded7b3bfe3e3"
+    },
+    "settings.phone.connect.buyHelp": {
+      "by": "ai",
+      "out": "0bf721026959bf12a802b1fd5638fce2744f917462eaa1f35e056430f4a642e4",
+      "src": "e1d1f1aedf19b400305044d586e33236c10f13202773a8e2b8aa789690ffeb86"
+    },
+    "settings.phone.connect.buyTitle": {
+      "by": "ai",
+      "out": "7a16980ffbdcbd6569a092c8381f9f132e21a888409c118bc07f2a90e407201e",
+      "src": "cb21806458ccae6789bba7fe1fbde4ce2d041609d897898e74dbf2faae715bf8"
     },
     "settings.phone.connect.buying": {
       "by": "ai",
@@ -63887,6 +64277,11 @@
       "out": "c713c7c8a1a74ed8e3f72c5b78dd4d1a5fbc086d65dd4608e8bb9c71ad4e00b8",
       "src": "499ba97615e3e68f0abfb9346f44972a4e5af8aa2a93085b2a17ea375e6348b2"
     },
+    "settings.phone.connect.fromBalance": {
+      "by": "ai",
+      "out": "567433c56286034778211987ffcceacde6f548731064b0095361e528e1748efb",
+      "src": "9308ebf7f9d8aeb7b42aa8cbb05b5a0de101abb3194fb9a0d57f9d62f08b4b47"
+    },
     "settings.phone.connect.get": {
       "by": "ai",
       "out": "d34e2dd25a42d782af5c42feb23cec3534e8e95f85bcd10127a41c1f7fc3abe7",
@@ -63901,6 +64296,11 @@
       "by": "ai",
       "out": "e9b573135cb419a4d1990df065bf9369691450585b852b2c98192dd023fd8763",
       "src": "f1a78ccecea181d2802b13f1ad6da83cb6b7179e00b0b078d1ea6c47e9f3e3f6"
+    },
+    "settings.phone.connect.perMonth": {
+      "by": "ai",
+      "out": "29ced05ed5ffab82f9cc71d252370fbcf58c023c0535ba0c6461d430474569f7",
+      "src": "0a772ab2a2b91bae6a570738d28ebb6c02eed0ae7cb5df5dae125f7bb3eb7a3a"
     },
     "settings.phone.disconnect.busy": {
       "by": "ai",
@@ -63951,6 +64351,36 @@
       "by": "ai",
       "out": "ece00320f26094549fb376b27cb0f6d07a824d501643559f57526d27a25c036f",
       "src": "d920b60b80b0502d45f5750318808cd98e4801d14c544e2d484e71f021c2178a"
+    },
+    "settings.phone.forwardStep.added": {
+      "by": "ai",
+      "out": "9a8811e0b0d9f1d3bcb93f997075f08e032f5df53e2587e2ab23268f5d79a183",
+      "src": "5a977cefd024070fd9fd6113006d44cc7596f1f9181ed7289159a93dc1eb9fbd"
+    },
+    "settings.phone.forwardStep.no.description": {
+      "by": "ai",
+      "out": "c207779e8b33a892868d090d4e776e7d22b0e3cd1d3ff2f17f4f16bf0d7a8c40",
+      "src": "f304312009b0b6306e33200691d8876359c1a7619a96c482ad9afb0cae26e93f"
+    },
+    "settings.phone.forwardStep.no.title": {
+      "by": "ai",
+      "out": "6b9cd1023f488cd77462d7cf9db456dff8b5d162d5c078ee0692d40543cdb2c9",
+      "src": "22a40c8068a5f267ac5c9eb6f53398ccb7d1f3cd197c3198e9f50cace682a977"
+    },
+    "settings.phone.forwardStep.title": {
+      "by": "ai",
+      "out": "518ffba466b0bae01e3ed414ebfb64e34864d825486c2bebc59ae491c48610ad",
+      "src": "f6ef912eab5ac8108a0b4eba6e281ad75b8a4513474b6d9376692c816cca79df"
+    },
+    "settings.phone.forwardStep.yes.description": {
+      "by": "ai",
+      "out": "0352b4069bdcee7c5388122b925e697ca6a37652abff6f81eaf19eb0643ff8ac",
+      "src": "fa9cc1a59ef57c00fd76c506c905ad42df62d64c2cc7bcb1f48ac81a346b6bc1"
+    },
+    "settings.phone.forwardStep.yes.title": {
+      "by": "ai",
+      "out": "2b0ec788a7c3741a084f435e13e7ad304b43725097d48db9199b97cfef7a45f1",
+      "src": "746e07a76e6d1a515e4f0da946a11d23c4b49188fb702fda65cd276ee175d7ac"
     },
     "settings.phone.forwarding.carrier": {
       "by": "ai",
@@ -79704,15 +80134,140 @@
       "out": "868ce25c0936be935a50e363993f31697026ccbb1ac759dd09af2890d2e242a8",
       "src": "a7cc671371fa6ba2780cf45e0edd872ee61d4a2aaf95f88c763f990a0e5eea81"
     },
+    "admin.system.germanGroupAddress": {
+      "by": "ai",
+      "out": "f37affda70d7b7d2b7c965e41abfc7c8130aaf634124c4077db3431695bd3b0e",
+      "src": "4ce6465d7157fba92b5e968ecc619d3d57dea406004952a58255d6f7d55f108c"
+    },
+    "admin.system.germanGroupApproved": {
+      "by": "ai",
+      "out": "bdb5f6e721baea4256d12a6c984ad4935a69815872a2f7b17aef165f2b29ad8b",
+      "src": "87b42e40c2a290e01d87b721bf381c3c5e259d1eb0a4660e41fdbf8bc73f7ddd"
+    },
+    "admin.system.germanGroupApprovedDetail": {
+      "by": "ai",
+      "out": "dfbf9b59c0556aa91fecf40b0e40e833237f3464ac57159e6c1f0859beb92d59",
+      "src": "169f922c5469cadd964b75c5ee929d28f9895ad6f9f8350840a0bd593732a000"
+    },
+    "admin.system.germanGroupCheck": {
+      "by": "ai",
+      "out": "72912f6f74e9413baac7291beec3bf3dc7d4cd9deabab425817a6ea50a39d620",
+      "src": "fb7099ad8e818d42eceefe0d97c824fd54ddb0eeef54c263ec72c77d39198ac9"
+    },
+    "admin.system.germanGroupChecking": {
+      "by": "ai",
+      "out": "fbe378e4ce2c66b331ed30e9f859a4f54a2c6be836156e840afe40b9ea43ccf8",
+      "src": "00bd0fe7140cdeccf71aff63b33621b6671e835227eb2fff7274d861ba478f84"
+    },
+    "admin.system.germanGroupDeclined": {
+      "by": "ai",
+      "out": "44a10bad0bb2541c61a153f3ea18ec019d6fefc18d90ad93448b15f5fe6cf6bc",
+      "src": "dce083a2c47ffdc44982315487afb6e121e96cef2df6dc1ec11bac7ab5052142"
+    },
+    "admin.system.germanGroupDeclinedDetail": {
+      "by": "ai",
+      "out": "cbd7b9e6f1686ee6578986ba69ed192a4d00fef48c778dc712fc7923f6ff8809",
+      "src": "ac37eb1d3502aff199995298566fbc660e0ae55ae2ca1e917da68319fd23bdd3"
+    },
+    "admin.system.germanGroupExpired": {
+      "by": "ai",
+      "out": "4479ef3179427ee281a2726995b9bc156ea9db37ce2bdf4003571cbce6fcee5d",
+      "src": "424a2551d356754c882d04ac16c63e6b50b80b159549d23231001f629455756e"
+    },
+    "admin.system.germanGroupExpiredDetail": {
+      "by": "ai",
+      "out": "0e74e7b2b96f09f8679f98cad68844cfb3b9603b162d90d42ac0ac588484c1f5",
+      "src": "3b35d9179567ae88051a4193596d79cc98103cc44184bb9e45071e46e9d07e28"
+    },
+    "admin.system.germanGroupInReview": {
+      "by": "ai",
+      "out": "6c602697d9bd8b42b2aaffbed07bbf10aa5ff4c97599ef256ba4f9c5f9f5870e",
+      "src": "2b203fffd24aa37e99fdb21ca39084c34a47a29c55bcb6cdb29b93ec66aeac0c"
+    },
+    "admin.system.germanGroupInReviewDetail": {
+      "by": "ai",
+      "out": "bd1d2e8017efdad206960e39b8060267e3b41f1fbe867e57d4f64302fcb1cdab",
+      "src": "c81799304be5b1821724bffe0583b43d4303bfa03ebec4c286f8c398488939a0"
+    },
+    "admin.system.germanGroupMismatch": {
+      "by": "ai",
+      "out": "49f37f66856ccbf00fe199722da0aee9ca2e50703439ef631e3e1dea6d01770f",
+      "src": "1fd06719ddada94548791c4fd8f0cbdb49d20234098fa52aa31964c409362303"
+    },
+    "admin.system.germanGroupMismatchDetail": {
+      "by": "ai",
+      "out": "2bee76c442bc9dcc46c50e9dcf139cbf2d7aa59f990791b4ee41abd7815d1835",
+      "src": "f5cc94ba1ea77c551f4623d85cd88a24c83c61aeec6bbddd58666e282a613244"
+    },
+    "admin.system.germanGroupNoCarrier": {
+      "by": "ai",
+      "out": "db18aeaf2110ab958447e2d75eb67bea8a3942ceab83288e7bc89122f399402d",
+      "src": "1bd68550c40f53b39b95bda3c41d2d1422cf92127d4a88f6ef7ed092ddaa6468"
+    },
+    "admin.system.germanGroupNoCarrierDetail": {
+      "by": "ai",
+      "out": "ad4bf9891f346b637391cb1253e77f8871804cb8a808cf0f2851292d4c679582",
+      "src": "c14ff94e8b8c9962c464822ec210194bfa385bd2afffd6f971cdbc9163130c88"
+    },
+    "admin.system.germanGroupNotFound": {
+      "by": "ai",
+      "out": "13d8d8742496cb410e1d791503929ffa483036db376c7c1fe38a12a98ecc979b",
+      "src": "3b84733e4b0943422f28446f5d6a94354a785ba372b08ea79d63b2f9c6a7ceca"
+    },
+    "admin.system.germanGroupNotFoundDetail": {
+      "by": "ai",
+      "out": "ddbf456d1913da5b9976fd5b8ac438f093454e74d338af97b110ac6a1cbb7d98",
+      "src": "ed39d13c059de16db79a652d417049a4fb90c72736878313264c9e742e8afdc7"
+    },
+    "admin.system.germanGroupOpen": {
+      "by": "ai",
+      "out": "3ce31805dc5001bd9e7f5c60d4516c772128a9e375db69b79cf15e9e52eac5da",
+      "src": "f5fe4d900725f7a8ce1671a8882837763eb7bfc80b472118e48f9a878709a646"
+    },
+    "admin.system.germanGroupUnapproved": {
+      "by": "ai",
+      "out": "2f87f382abf8b3b8ec8ab088ad5e60118c91d0c2cbff8a1aa18e5097abe27550",
+      "src": "fb63a9606ecd27c9f9f8c5b7199c5a470cdaa59305f22873e477a16f0a702e95"
+    },
+    "admin.system.germanGroupUnapprovedDetail": {
+      "by": "ai",
+      "out": "39f92563422af72af3415ef65c3a8194508a123b781778d7e64a8bf8efbb0e99",
+      "src": "3ee898a147cb23577cebe8b9dd67d92100c8464df94ee97416ca796b4a110af0"
+    },
+    "admin.system.germanGroupUnreachable": {
+      "by": "ai",
+      "out": "68ba63e0e570f1461b6c3db31419537981b4d3e36827aa60ec3c08e127f3ccdf",
+      "src": "9dca0c1ce17e9a1c5782a4a79763834d5af45afa16807bc5f7d01d02c986e2d7"
+    },
+    "admin.system.germanGroupUnreachableDetail": {
+      "by": "ai",
+      "out": "e5403db6ce91a481b2f6e6684dc3be51ca41abd8e4d8545db5d712acd4eeb94d",
+      "src": "dfd07c8b3c7ab25f0106d6c4e5281fe2c3e93e70aa95b780d65524c54e3538da"
+    },
     "admin.system.germanNumbers": {
       "by": "ai",
       "out": "ee99f6ab7e4ec6275484be5246d07021eaf092769ef87dc75c6b5e399b6fcec2",
       "src": "8fd2fd4ae58b9426b4a318bd20570d384e73878cfc66856eb4f6c017b2d072ce"
     },
+    "admin.system.germanNumbersAreaCode": {
+      "by": "ai",
+      "out": "283ae89f41595c604a12e1c509f79f42f8fcc25d907d9c8145b515f8e2dc07ba",
+      "src": "2cb0c5b5a13174d9eaa725be1ac83bbeea5ffb4279036db4c699a9c3108064c6"
+    },
+    "admin.system.germanNumbersAreaCodeFrom": {
+      "by": "ai",
+      "out": "b37b20cc047504bf9f9ef114271239bf927e87311f2071754074596a289108c7",
+      "src": "93d8a49fda505d7892dd8b2753915624ae1731f745ec815cb42489a9adb5d2c8"
+    },
     "admin.system.germanNumbersAreaCodes": {
       "by": "ai",
       "out": "dc1f8110a431899805547c390b72b44f9eaedfb1e02aeb210b942751414e147b",
       "src": "8fd2622f9b2e27928945b2dc9045ed889aedbed53f0985a552a9216ecb0adfae"
+    },
+    "admin.system.germanNumbersAreaCodesHelp": {
+      "by": "ai",
+      "out": "c788d8bdd7abee2142169c65c2fbe8ede250d1382c1832b1c45589d14e6c3562",
+      "src": "26b14f851330ec6c1105577addc358546f763c596ead5b6c77e5237aa31df9fc"
     },
     "admin.system.germanNumbersCount": {
       "by": "ai",
@@ -79736,8 +80291,8 @@
     },
     "admin.system.germanNumbersGroupHelp": {
       "by": "ai",
-      "out": "eac823028343e5582fbd336f11746f7acb82610bf97fc8b2273ead2051fb1fc5",
-      "src": "1cb8002fa29157fb4b8713211dec817d20027e5f7734deb5315851b801e55f4d"
+      "out": "e277901e7aa911c1f028a42b440427d686c8e0640b7e2fde08da133dfae7b54f",
+      "src": "748a368452de5e0be025ff136f4ccb828118e94d298b0b59c1eecbef5b7dc63f"
     },
     "admin.system.germanNumbersHelp": {
       "by": "ai",
@@ -90594,6 +91149,11 @@
       "out": "65bdfc8f6519c88013483274f7b4a84c7ea1e9a999759f75c6a3d4dd3f1b2157",
       "src": "f2e0222809567861721d943b920c3623a3274f2efe980c55ed82300d394718e0"
     },
+    "onboarding.flow.setupError.attachBilled": {
+      "by": "ai",
+      "out": "9e30e7f11f86ed5be7d5c4c5c5067d26d9752c1b6dab3657525c0b5c413b430d",
+      "src": "5e4a9e2fd45c1f5b259bea34a30c7f9ccc1a83643e776d400416ee6b2abb1d4d"
+    },
     "onboarding.flow.setupError.countryRequirements": {
       "by": "ai",
       "out": "b8075be132728aa1c23b8f7f62ed52d77871e3fc6ba9cd5fa2af0c0b7dd473e5",
@@ -92929,6 +93489,16 @@
       "out": "2d73f7a6c4f41e3642c704d0ed17ed80c923f2718819ea8d4ec9894cfbef9c21",
       "src": "de9083f4cb265a740622b00ef856775030aefe73159633b770af0ee0f396ffeb"
     },
+    "server.setupAgent.attachInApp": {
+      "by": "ai",
+      "out": "f69bd5dce4812eea05979511f5495122f9a49e253d9704bb45c197ef0b40bf61",
+      "src": "a2cce396b619b7e51a352988ab44b309a4f60c1038540951831e8dedb5152fc8"
+    },
+    "server.setupAgent.attachOwnAccount": {
+      "by": "ai",
+      "out": "d4288ecc1d39c84e1101b15be0a303f906e57356ef2ffd2c93ae280f6af064a3",
+      "src": "a1e8fe26acf0af77cfa3471babc501a6d6b78ae1a056dd96759526ff64f38bc8"
+    },
     "server.setupAgent.clientStep.assistant": {
       "by": "ai",
       "out": "e6c14d5659a0ff456836081fb0c838bb3bdf59e35d6c7cad8d40f2a60c1e460b",
@@ -93163,6 +93733,11 @@
       "by": "ai",
       "out": "cddf4b6acfef00a72fca99f3214cb617ab616f61a5c3f702f8c017dad921c79d",
       "src": "393d816d9d359bac06a98c5445f60b1d3781c5b2b4b6a4552bb223369715d052"
+    },
+    "server.setupAgent.phoneBeingSetUpInstall": {
+      "by": "ai",
+      "out": "75b778de806f1ca6c821da8109679be6546a7f623de65db0ab9ed09451da5428",
+      "src": "2f0d505eb71fd48f27fcaf1279af8093351e541f52373f52865f5b552eb49b96"
     },
     "server.setupAgent.prompt.changeAssistant": {
       "by": "ai",
@@ -93819,10 +94394,15 @@
       "out": "1055124127264fe9722f5831cffaeaad9060f087862e6717ef6afb8d2a342737",
       "src": "7ef7c4415c8ea5dee02a700e54f32a353dde5aec3e2feeaf555111fc3f02272e"
     },
+    "settings.assistant.languages.anyList": {
+      "by": "ai",
+      "out": "4acabb4e5883895eaa7bf2ed083361256f21035277af928a820c32c57138a335",
+      "src": "8bedf7ae9d754e0ac7e4cba271e1f556e7ddfdd06ed54cce1e00df5b5e14eb00"
+    },
     "settings.assistant.languages.anyNote": {
       "by": "ai",
-      "out": "3c172f3f4ba2a1a493da8d7d4ef184d1ec8db4eeb2fb72a1e290679a28c6eb23",
-      "src": "28993d8267fc2be314ece9e3dc46e8e47159a75ffb70070fb7f2461d095ce8c8"
+      "out": "2213b78bd746177a5e0ea1d7086e94ea75dd51c91f7442224f3d8c4a22e3c1fb",
+      "src": "7f704ba54404fa5a37950f516dd06ac211988a2e74334851d3a1105317a23ea0"
     },
     "settings.assistant.languages.description": {
       "by": "ai",
@@ -93864,10 +94444,25 @@
       "out": "95847806d71525a9050d194a8d6053d06f98d2d141babafc69803b2d0376f050",
       "src": "7a5963732aa0ebc1c0db26af9e78b73d0c228adba28c55f32859014af276b078"
     },
+    "settings.assistant.languages.switch.anyCount": {
+      "by": "ai",
+      "out": "ddbf5a2e937416f6dfd4b3f999b69185b921797054efc713e18a51da438a690e",
+      "src": "6034d12bf0c35864db7b7b5d92612a640f9ea40056be1dafc898ee26196ba7b5"
+    },
+    "settings.assistant.languages.switch.anyCovers": {
+      "by": "ai",
+      "out": "27f86c092d8bfdfaa00a882359a5586f5071ce0dcf914d8ae6ab700d7aa43d97",
+      "src": "281f6063e65d852a8e9b44aa3468dcc8bb0af541717aa1fd4ba18eed266bd8a9"
+    },
     "settings.assistant.languages.switch.anyDescription": {
       "by": "ai",
       "out": "5dc9d47dc0a438666167563f1efcd14ca5fd36397535d7870e498c06a0880463",
       "src": "a327d2a1bec1346fccf288b70ef36e49ffb326a0ffee84d5592d7e1d32219fa2"
+    },
+    "settings.assistant.languages.switch.anyMore": {
+      "by": "ai",
+      "out": "f825b3f35aa5539b210fb94adea8a6fedc39fabac6545550a05791e8a63a690e",
+      "src": "5f4f590acbda8ee3ef5686113938693ce4ea990c751396e88a64d49ed3449460"
     },
     "settings.assistant.languages.switch.label": {
       "by": "ai",
@@ -98946,13 +99541,23 @@
     },
     "settings.phone.connect.back": {
       "by": "ai",
-      "out": "a61a6cdf541824f8748c133a38e1ae6715d10fd35a84ded3bfe3cffedfad7f7c",
-      "src": "d76ec9b700c3088cbe86a182c13e9c8958e65286f5296490c8c85b7366e3d386"
+      "out": "f43b20d9f2fc8d0e7976f990db079598dbc8fbb544e0d57d60e695c3d351e9da",
+      "src": "b4b18fa3276d52bca38e3a06f6b7e235d04d0444a8df892645179f314158f2e1"
     },
     "settings.phone.connect.buy": {
       "by": "ai",
       "out": "79ac999b6c001a2a2ae9506ab95e6b5aad25832d6edc584a7e0520969058d4ec",
       "src": "95cdf792e2c21b04f8f80b77c7f8eda200dbde77a4a0953f7fcaded7b3bfe3e3"
+    },
+    "settings.phone.connect.buyHelp": {
+      "by": "ai",
+      "out": "4309311d916635a561b9d49cc6dd03ffd644fbdc46f71730e50f06c5c412e138",
+      "src": "e1d1f1aedf19b400305044d586e33236c10f13202773a8e2b8aa789690ffeb86"
+    },
+    "settings.phone.connect.buyTitle": {
+      "by": "ai",
+      "out": "53e9d71f0b79e331f0c141c5553d76e415fd94683a05a1622901009e97722145",
+      "src": "cb21806458ccae6789bba7fe1fbde4ce2d041609d897898e74dbf2faae715bf8"
     },
     "settings.phone.connect.buying": {
       "by": "ai",
@@ -98974,6 +99579,11 @@
       "out": "b18c8c7eac8c52fe7aaa86b3d712099b96eaaf35034577921b485d62c55bb098",
       "src": "499ba97615e3e68f0abfb9346f44972a4e5af8aa2a93085b2a17ea375e6348b2"
     },
+    "settings.phone.connect.fromBalance": {
+      "by": "ai",
+      "out": "e80ffceb99bbbacd79945431dcb844e17209008fa9dd09fcc3544c0eaf8618bd",
+      "src": "9308ebf7f9d8aeb7b42aa8cbb05b5a0de101abb3194fb9a0d57f9d62f08b4b47"
+    },
     "settings.phone.connect.get": {
       "by": "ai",
       "out": "aee7e9bc3862d0f11b7393263221ec584f6960923e80c655e8aeeedb15239cce",
@@ -98988,6 +99598,11 @@
       "by": "ai",
       "out": "0db0e06da8b378ddeccfd2d38f8959fb49b77c52d713fe49a263e9714ee04678",
       "src": "f1a78ccecea181d2802b13f1ad6da83cb6b7179e00b0b078d1ea6c47e9f3e3f6"
+    },
+    "settings.phone.connect.perMonth": {
+      "by": "ai",
+      "out": "7518647c3314f88012ae268560ee0163b4b51423a9382f83a177e4ff344fb602",
+      "src": "0a772ab2a2b91bae6a570738d28ebb6c02eed0ae7cb5df5dae125f7bb3eb7a3a"
     },
     "settings.phone.disconnect.busy": {
       "by": "ai",
@@ -99038,6 +99653,36 @@
       "by": "ai",
       "out": "d2431a7e968c9ab5478db3e77d88bbe3473c962a377439d3645cf149c079ab52",
       "src": "d920b60b80b0502d45f5750318808cd98e4801d14c544e2d484e71f021c2178a"
+    },
+    "settings.phone.forwardStep.added": {
+      "by": "ai",
+      "out": "f1f21b2ee1d863e8b5a89a498be1e4a7fb65cdb397bfb905a2227717974bea89",
+      "src": "5a977cefd024070fd9fd6113006d44cc7596f1f9181ed7289159a93dc1eb9fbd"
+    },
+    "settings.phone.forwardStep.no.description": {
+      "by": "ai",
+      "out": "7069eaa36e56588edc211c3aed949e96a5c49e5fbc93136871367557ceaa5203",
+      "src": "f304312009b0b6306e33200691d8876359c1a7619a96c482ad9afb0cae26e93f"
+    },
+    "settings.phone.forwardStep.no.title": {
+      "by": "ai",
+      "out": "a6b3ff81862d2ec63a5b706103f45c63bc63cf93c5d060f46cf03107b467d88e",
+      "src": "22a40c8068a5f267ac5c9eb6f53398ccb7d1f3cd197c3198e9f50cace682a977"
+    },
+    "settings.phone.forwardStep.title": {
+      "by": "ai",
+      "out": "363b993ecdf8a5422428d0232e1f52a6483b35d0568244789f14115742ba6d55",
+      "src": "f6ef912eab5ac8108a0b4eba6e281ad75b8a4513474b6d9376692c816cca79df"
+    },
+    "settings.phone.forwardStep.yes.description": {
+      "by": "ai",
+      "out": "cf98cb46d4c49eeb5b8d55a5253e4624185b473a4d3fba14017f08b4bd4722c7",
+      "src": "fa9cc1a59ef57c00fd76c506c905ad42df62d64c2cc7bcb1f48ac81a346b6bc1"
+    },
+    "settings.phone.forwardStep.yes.title": {
+      "by": "ai",
+      "out": "a3c3ebcdfa729970b4fd9c52558b25c5d3c64d8e2858b3f08f16b78d0a7257a0",
+      "src": "746e07a76e6d1a515e4f0da946a11d23c4b49188fb702fda65cd276ee175d7ac"
     },
     "settings.phone.forwarding.carrier": {
       "by": "ai",
@@ -114791,15 +115436,140 @@
       "out": "01df365c24982c0ad421127a7ddbaf03071c4c315de8b33b0bba1f7226975a28",
       "src": "a7cc671371fa6ba2780cf45e0edd872ee61d4a2aaf95f88c763f990a0e5eea81"
     },
+    "admin.system.germanGroupAddress": {
+      "by": "ai",
+      "out": "0c1e71032d0e3d3d954f634090387b55527f4b2d83781ceebe58f99eb957031b",
+      "src": "4ce6465d7157fba92b5e968ecc619d3d57dea406004952a58255d6f7d55f108c"
+    },
+    "admin.system.germanGroupApproved": {
+      "by": "ai",
+      "out": "9dfb9cda9c928087f481fb8866b9b968e9eff1e8f298c936d11f54f8cf49326a",
+      "src": "87b42e40c2a290e01d87b721bf381c3c5e259d1eb0a4660e41fdbf8bc73f7ddd"
+    },
+    "admin.system.germanGroupApprovedDetail": {
+      "by": "ai",
+      "out": "a5fcaae0c64361894c74f1172fac3c47105c05d5b7539e724f51624fadad1c9a",
+      "src": "169f922c5469cadd964b75c5ee929d28f9895ad6f9f8350840a0bd593732a000"
+    },
+    "admin.system.germanGroupCheck": {
+      "by": "ai",
+      "out": "fff83a1f8c0c9f03ca9cae35ee7f4e8018acc788b7a65000dac835b5d02210a4",
+      "src": "fb7099ad8e818d42eceefe0d97c824fd54ddb0eeef54c263ec72c77d39198ac9"
+    },
+    "admin.system.germanGroupChecking": {
+      "by": "ai",
+      "out": "edb84b3a87dc75a5f518cec6a8d4508e1d04530d6b8d308d382395a896d29ecf",
+      "src": "00bd0fe7140cdeccf71aff63b33621b6671e835227eb2fff7274d861ba478f84"
+    },
+    "admin.system.germanGroupDeclined": {
+      "by": "ai",
+      "out": "70ff42aaefe685b49b3241a218bc5976dc2a132569b4d573f07886c432f7fc69",
+      "src": "dce083a2c47ffdc44982315487afb6e121e96cef2df6dc1ec11bac7ab5052142"
+    },
+    "admin.system.germanGroupDeclinedDetail": {
+      "by": "ai",
+      "out": "83a2d4badf451d33daed4eba0609d101bb67e050842804e264439c0f7f8ba408",
+      "src": "ac37eb1d3502aff199995298566fbc660e0ae55ae2ca1e917da68319fd23bdd3"
+    },
+    "admin.system.germanGroupExpired": {
+      "by": "ai",
+      "out": "eb14c73551b33db0b6ed703c740db27cf243e23477e1a14d3ab8c38874e6618f",
+      "src": "424a2551d356754c882d04ac16c63e6b50b80b159549d23231001f629455756e"
+    },
+    "admin.system.germanGroupExpiredDetail": {
+      "by": "ai",
+      "out": "8fa4e40f6b94f1fcd9656e357bccc3c50075a689fd9c1c96eb55706ce1864faf",
+      "src": "3b35d9179567ae88051a4193596d79cc98103cc44184bb9e45071e46e9d07e28"
+    },
+    "admin.system.germanGroupInReview": {
+      "by": "ai",
+      "out": "da1dde17cc67b73fb6928d5afa708ae15e6269c9509d4b2da9809f0991e6b6c1",
+      "src": "2b203fffd24aa37e99fdb21ca39084c34a47a29c55bcb6cdb29b93ec66aeac0c"
+    },
+    "admin.system.germanGroupInReviewDetail": {
+      "by": "ai",
+      "out": "b8e9fcd01a6880a16d3b0d55747b78353032c361d42be8ef9f860d97d24ef4d8",
+      "src": "c81799304be5b1821724bffe0583b43d4303bfa03ebec4c286f8c398488939a0"
+    },
+    "admin.system.germanGroupMismatch": {
+      "by": "ai",
+      "out": "ebae6064ec9a7a8cda810947357376ae67ea7fd4d2e49caaae5b2bd72b03d884",
+      "src": "1fd06719ddada94548791c4fd8f0cbdb49d20234098fa52aa31964c409362303"
+    },
+    "admin.system.germanGroupMismatchDetail": {
+      "by": "ai",
+      "out": "80ce828d405378a02d9cd580c931548d36ba63be30c2652ee2c2af5099a23597",
+      "src": "f5cc94ba1ea77c551f4623d85cd88a24c83c61aeec6bbddd58666e282a613244"
+    },
+    "admin.system.germanGroupNoCarrier": {
+      "by": "ai",
+      "out": "1e40b2c9282b0c360a4876e424ce808821048c25c87595d1f9436664f217d6bc",
+      "src": "1bd68550c40f53b39b95bda3c41d2d1422cf92127d4a88f6ef7ed092ddaa6468"
+    },
+    "admin.system.germanGroupNoCarrierDetail": {
+      "by": "ai",
+      "out": "efe79fcd0e0fbe09d7792703b92287d77b022eed23ce476e77bc54545f510f34",
+      "src": "c14ff94e8b8c9962c464822ec210194bfa385bd2afffd6f971cdbc9163130c88"
+    },
+    "admin.system.germanGroupNotFound": {
+      "by": "ai",
+      "out": "388a80e1c479524da99d1da8de3c41c9c3ebc12a7e195afe51df07d156089981",
+      "src": "3b84733e4b0943422f28446f5d6a94354a785ba372b08ea79d63b2f9c6a7ceca"
+    },
+    "admin.system.germanGroupNotFoundDetail": {
+      "by": "ai",
+      "out": "8dc2d7650085513afd0cd13b119a8bf284e9161ef8287175adc57f5d057da12f",
+      "src": "ed39d13c059de16db79a652d417049a4fb90c72736878313264c9e742e8afdc7"
+    },
+    "admin.system.germanGroupOpen": {
+      "by": "ai",
+      "out": "ecb86e261b42cf4e4dc240c777dd44236b77c60ab610f6a0b531564d1ad1b739",
+      "src": "f5fe4d900725f7a8ce1671a8882837763eb7bfc80b472118e48f9a878709a646"
+    },
+    "admin.system.germanGroupUnapproved": {
+      "by": "ai",
+      "out": "4d308e52d1bed1bb53e567deae9c1365525ffa1da8babda921c892c937bec898",
+      "src": "fb63a9606ecd27c9f9f8c5b7199c5a470cdaa59305f22873e477a16f0a702e95"
+    },
+    "admin.system.germanGroupUnapprovedDetail": {
+      "by": "ai",
+      "out": "3cfdff8a26342a0df92075441c356bebea2f5e170201c6404a9913a24b350731",
+      "src": "3ee898a147cb23577cebe8b9dd67d92100c8464df94ee97416ca796b4a110af0"
+    },
+    "admin.system.germanGroupUnreachable": {
+      "by": "ai",
+      "out": "13e318283364dc9c7026988f38264f5e6a961968cb7681df8582db583c98fb4f",
+      "src": "9dca0c1ce17e9a1c5782a4a79763834d5af45afa16807bc5f7d01d02c986e2d7"
+    },
+    "admin.system.germanGroupUnreachableDetail": {
+      "by": "ai",
+      "out": "7e3227b42332e558fd74bb7f420c34e5390a857449b6c7ecf63002ac16c310f4",
+      "src": "dfd07c8b3c7ab25f0106d6c4e5281fe2c3e93e70aa95b780d65524c54e3538da"
+    },
     "admin.system.germanNumbers": {
       "by": "ai",
       "out": "0bde2c98422398f21cfe4fa84be3c11e8fc816ed5f6abc33ef8168a7ef697c9f",
       "src": "8fd2fd4ae58b9426b4a318bd20570d384e73878cfc66856eb4f6c017b2d072ce"
     },
+    "admin.system.germanNumbersAreaCode": {
+      "by": "ai",
+      "out": "40d02fdd90aa0054eb77a2dc29a5072e2f8588504a1d7d597be5f0a738fe077c",
+      "src": "2cb0c5b5a13174d9eaa725be1ac83bbeea5ffb4279036db4c699a9c3108064c6"
+    },
+    "admin.system.germanNumbersAreaCodeFrom": {
+      "by": "ai",
+      "out": "cabc9407a898368e7bf07933e66d11b4e4c152e0165aa44ff43b130a60d48513",
+      "src": "93d8a49fda505d7892dd8b2753915624ae1731f745ec815cb42489a9adb5d2c8"
+    },
     "admin.system.germanNumbersAreaCodes": {
       "by": "ai",
       "out": "40d02fdd90aa0054eb77a2dc29a5072e2f8588504a1d7d597be5f0a738fe077c",
       "src": "8fd2622f9b2e27928945b2dc9045ed889aedbed53f0985a552a9216ecb0adfae"
+    },
+    "admin.system.germanNumbersAreaCodesHelp": {
+      "by": "ai",
+      "out": "9ae61b166001a29e4e15b696c13c17f0a4245c69f7d71c524183511bb0f8305f",
+      "src": "26b14f851330ec6c1105577addc358546f763c596ead5b6c77e5237aa31df9fc"
     },
     "admin.system.germanNumbersCount": {
       "by": "ai",
@@ -114823,8 +115593,8 @@
     },
     "admin.system.germanNumbersGroupHelp": {
       "by": "ai",
-      "out": "19f96b55b93f383894beed2bef8ae8821f13f9bde751959f202bd837f196cd86",
-      "src": "1cb8002fa29157fb4b8713211dec817d20027e5f7734deb5315851b801e55f4d"
+      "out": "0ea3e37e8e7cd1feced6add6fc307caa9076ac8573e46bae3a2380959e53b9b0",
+      "src": "748a368452de5e0be025ff136f4ccb828118e94d298b0b59c1eecbef5b7dc63f"
     },
     "admin.system.germanNumbersHelp": {
       "by": "ai",
@@ -125681,6 +126451,11 @@
       "out": "90e2b8b945400b3e43ef65878816ad3203e877a174c6bd15863bd4d55df57ccd",
       "src": "f2e0222809567861721d943b920c3623a3274f2efe980c55ed82300d394718e0"
     },
+    "onboarding.flow.setupError.attachBilled": {
+      "by": "ai",
+      "out": "4c6253db0b66755e2ab140e8ae298f86780ffe94c9a9a72da90c6d1da1671675",
+      "src": "5e4a9e2fd45c1f5b259bea34a30c7f9ccc1a83643e776d400416ee6b2abb1d4d"
+    },
     "onboarding.flow.setupError.countryRequirements": {
       "by": "ai",
       "out": "b1af0843c8da3bb240dddd0d7f5bbca7be51d1cdd5fbf800c299641a382b13fe",
@@ -128016,6 +128791,16 @@
       "out": "ee9383ce27f5272b555f96dc8c5b235dad5b15b40f9ce17338d0106212f96866",
       "src": "de9083f4cb265a740622b00ef856775030aefe73159633b770af0ee0f396ffeb"
     },
+    "server.setupAgent.attachInApp": {
+      "by": "ai",
+      "out": "384e63ddbd039f2e220fd130bc720cce4648de8cecdd80b86709c58700102c28",
+      "src": "a2cce396b619b7e51a352988ab44b309a4f60c1038540951831e8dedb5152fc8"
+    },
+    "server.setupAgent.attachOwnAccount": {
+      "by": "ai",
+      "out": "4626d944cd2b6ab6a29d0f40f50c3ebe183bffb88c52bade43390d1a0be4cb9f",
+      "src": "a1e8fe26acf0af77cfa3471babc501a6d6b78ae1a056dd96759526ff64f38bc8"
+    },
     "server.setupAgent.clientStep.assistant": {
       "by": "ai",
       "out": "6da230403e3cb42c81cd28c6db3f39f80e3399987e1887718fc340d8b6a6ab67",
@@ -128250,6 +129035,11 @@
       "by": "ai",
       "out": "b7a801c1d92794a35ff31a8e172c5bb74c6c663d7b3a3b96370b020860208bd9",
       "src": "393d816d9d359bac06a98c5445f60b1d3781c5b2b4b6a4552bb223369715d052"
+    },
+    "server.setupAgent.phoneBeingSetUpInstall": {
+      "by": "ai",
+      "out": "e0514a02026eaf4ef8da3c75e483d79ee4873fab9b8b6635883fdb3effdfdd75",
+      "src": "2f0d505eb71fd48f27fcaf1279af8093351e541f52373f52865f5b552eb49b96"
     },
     "server.setupAgent.prompt.changeAssistant": {
       "by": "ai",
@@ -128906,10 +129696,15 @@
       "out": "b9e18e1a0ccf9fc2cff8df82cfd11653be83e87c65bdd358fdb443ad11327918",
       "src": "7ef7c4415c8ea5dee02a700e54f32a353dde5aec3e2feeaf555111fc3f02272e"
     },
+    "settings.assistant.languages.anyList": {
+      "by": "ai",
+      "out": "4bedf003f4fbbd521ddea0d7d42000ea35e228ec4fddfca2d63a81dd74263fb4",
+      "src": "8bedf7ae9d754e0ac7e4cba271e1f556e7ddfdd06ed54cce1e00df5b5e14eb00"
+    },
     "settings.assistant.languages.anyNote": {
       "by": "ai",
-      "out": "db964e1b87b629c7f7bcbe90210da2b30a99d2c5f8139aa53b34be41f0b302c4",
-      "src": "28993d8267fc2be314ece9e3dc46e8e47159a75ffb70070fb7f2461d095ce8c8"
+      "out": "88468f99aa3f29446eb6168c7e5895ecf55c4b11b698035edacf0ec252f4b7ca",
+      "src": "7f704ba54404fa5a37950f516dd06ac211988a2e74334851d3a1105317a23ea0"
     },
     "settings.assistant.languages.description": {
       "by": "ai",
@@ -128951,10 +129746,25 @@
       "out": "c9f0a6c4b1fb7393254e5a7f2343f72191a707a184b5ae8d043edb7d1e3786eb",
       "src": "7a5963732aa0ebc1c0db26af9e78b73d0c228adba28c55f32859014af276b078"
     },
+    "settings.assistant.languages.switch.anyCount": {
+      "by": "ai",
+      "out": "55dae3fcde5adcd942ab4aa810e7f21896872d84c367a30290f84a8b321ce774",
+      "src": "6034d12bf0c35864db7b7b5d92612a640f9ea40056be1dafc898ee26196ba7b5"
+    },
+    "settings.assistant.languages.switch.anyCovers": {
+      "by": "ai",
+      "out": "ea2e5372c7bc7dbec8bef037769999bae06ae784b2cfbbd086f8cb23d51c14d7",
+      "src": "281f6063e65d852a8e9b44aa3468dcc8bb0af541717aa1fd4ba18eed266bd8a9"
+    },
     "settings.assistant.languages.switch.anyDescription": {
       "by": "ai",
       "out": "cce289851221b99fd6e83e1380b31c477723f86fc456424d55ca0bf4dd468273",
       "src": "a327d2a1bec1346fccf288b70ef36e49ffb326a0ffee84d5592d7e1d32219fa2"
+    },
+    "settings.assistant.languages.switch.anyMore": {
+      "by": "ai",
+      "out": "38abfca71f7094c15123e945f42aa1ee85d4a83cb9f398811474dd53bd11eb94",
+      "src": "5f4f590acbda8ee3ef5686113938693ce4ea990c751396e88a64d49ed3449460"
     },
     "settings.assistant.languages.switch.label": {
       "by": "ai",
@@ -134033,13 +134843,23 @@
     },
     "settings.phone.connect.back": {
       "by": "ai",
-      "out": "99b781cf6d4cbd1d5eefcee57cd4e4babd37254d0163e98a88ccdb13685104b1",
-      "src": "d76ec9b700c3088cbe86a182c13e9c8958e65286f5296490c8c85b7366e3d386"
+      "out": "a21cfe5f5a4e0bf265884ce1ab0ab0dc344cf3e40494312133b37fedf839c843",
+      "src": "b4b18fa3276d52bca38e3a06f6b7e235d04d0444a8df892645179f314158f2e1"
     },
     "settings.phone.connect.buy": {
       "by": "ai",
       "out": "7f4ac6b95b463dd8201bd0f48a841aa77f881b7a9f0c633beb2c89acc595b2a7",
       "src": "95cdf792e2c21b04f8f80b77c7f8eda200dbde77a4a0953f7fcaded7b3bfe3e3"
+    },
+    "settings.phone.connect.buyHelp": {
+      "by": "ai",
+      "out": "c6a7a70d275a007761f5968b45cc4f276241c6aa0cae59a7f37073b30bec8632",
+      "src": "e1d1f1aedf19b400305044d586e33236c10f13202773a8e2b8aa789690ffeb86"
+    },
+    "settings.phone.connect.buyTitle": {
+      "by": "ai",
+      "out": "cbdd3e75fb93a726ee65a9c9200f8116dbad16fd4bde0c125c4b03a894e43a01",
+      "src": "cb21806458ccae6789bba7fe1fbde4ce2d041609d897898e74dbf2faae715bf8"
     },
     "settings.phone.connect.buying": {
       "by": "ai",
@@ -134061,6 +134881,11 @@
       "out": "9b745cfff0b63c2800e6ae50713634cbb558346814ff95d8c5ba311b8c5ef6bc",
       "src": "499ba97615e3e68f0abfb9346f44972a4e5af8aa2a93085b2a17ea375e6348b2"
     },
+    "settings.phone.connect.fromBalance": {
+      "by": "ai",
+      "out": "13e3d9349c4f84b51340101c06fb2a1504cc4b1eec702b26a38cc38b60bee09a",
+      "src": "9308ebf7f9d8aeb7b42aa8cbb05b5a0de101abb3194fb9a0d57f9d62f08b4b47"
+    },
     "settings.phone.connect.get": {
       "by": "ai",
       "out": "0ed38344a1796a6dcbe19b74c5082fcd069210fea17494d834f6612bc1763c70",
@@ -134075,6 +134900,11 @@
       "by": "ai",
       "out": "748b10ea6f8db5d1b2b564a1129b41756829116fecf9e1318876df7e576d76de",
       "src": "f1a78ccecea181d2802b13f1ad6da83cb6b7179e00b0b078d1ea6c47e9f3e3f6"
+    },
+    "settings.phone.connect.perMonth": {
+      "by": "ai",
+      "out": "0fdbf6be447d79020320e7e88166819df4a7015fa5233120ae8c4643f5e25876",
+      "src": "0a772ab2a2b91bae6a570738d28ebb6c02eed0ae7cb5df5dae125f7bb3eb7a3a"
     },
     "settings.phone.disconnect.busy": {
       "by": "ai",
@@ -134125,6 +134955,36 @@
       "by": "ai",
       "out": "215edc12b687422f8fd3f4d6f48ac6df4049e8185dcc877bb28f681efcc4fcd6",
       "src": "d920b60b80b0502d45f5750318808cd98e4801d14c544e2d484e71f021c2178a"
+    },
+    "settings.phone.forwardStep.added": {
+      "by": "ai",
+      "out": "82c20df2f40d1b2951904db40503db575eb2465f192dce1f71d8ad0847a8d716",
+      "src": "5a977cefd024070fd9fd6113006d44cc7596f1f9181ed7289159a93dc1eb9fbd"
+    },
+    "settings.phone.forwardStep.no.description": {
+      "by": "ai",
+      "out": "1b9fc38acae6aae50c46d5e90adcb3f6113c3f26116f728150bf24f06e23fdfa",
+      "src": "f304312009b0b6306e33200691d8876359c1a7619a96c482ad9afb0cae26e93f"
+    },
+    "settings.phone.forwardStep.no.title": {
+      "by": "ai",
+      "out": "31ef11071052f4b6b939af09d5d260bda367ac08f8669a67bf75c5a6b20da182",
+      "src": "22a40c8068a5f267ac5c9eb6f53398ccb7d1f3cd197c3198e9f50cace682a977"
+    },
+    "settings.phone.forwardStep.title": {
+      "by": "ai",
+      "out": "bfee714dc4145192b048886994d89255415bc77756dcb8b6fa41529b30558949",
+      "src": "f6ef912eab5ac8108a0b4eba6e281ad75b8a4513474b6d9376692c816cca79df"
+    },
+    "settings.phone.forwardStep.yes.description": {
+      "by": "ai",
+      "out": "206ba4388b75353ba0547feae5b1ea2379d33c79c4c57c8cee26f43936e14709",
+      "src": "fa9cc1a59ef57c00fd76c506c905ad42df62d64c2cc7bcb1f48ac81a346b6bc1"
+    },
+    "settings.phone.forwardStep.yes.title": {
+      "by": "ai",
+      "out": "43af872ec8f8ed81274142aa5ae9aa682a4f315c72e4847c8eb5bec24022d080",
+      "src": "746e07a76e6d1a515e4f0da946a11d23c4b49188fb702fda65cd276ee175d7ac"
     },
     "settings.phone.forwarding.carrier": {
       "by": "ai",
@@ -149878,15 +150738,140 @@
       "out": "9fc586de004e4fcc71156a25821753c70f527cd72d200e382a7b3183d5fa8a0f",
       "src": "a7cc671371fa6ba2780cf45e0edd872ee61d4a2aaf95f88c763f990a0e5eea81"
     },
+    "admin.system.germanGroupAddress": {
+      "by": "ai",
+      "out": "ea6938fa44b8b7266b8fe29e8077d27998e9ffd813695a6b25e5d993834d6634",
+      "src": "4ce6465d7157fba92b5e968ecc619d3d57dea406004952a58255d6f7d55f108c"
+    },
+    "admin.system.germanGroupApproved": {
+      "by": "ai",
+      "out": "0799ca82312449f3e9459544d78d3f0e75964a2387081787624f51cea297f56a",
+      "src": "87b42e40c2a290e01d87b721bf381c3c5e259d1eb0a4660e41fdbf8bc73f7ddd"
+    },
+    "admin.system.germanGroupApprovedDetail": {
+      "by": "ai",
+      "out": "d920ec01b62c78490c47c4cb5309e5c29ab39533eb7fc893ca46cf7f1fb400c4",
+      "src": "169f922c5469cadd964b75c5ee929d28f9895ad6f9f8350840a0bd593732a000"
+    },
+    "admin.system.germanGroupCheck": {
+      "by": "ai",
+      "out": "c60993e713f8a67a7d9b1697d008074c524fd647332c422e0f2bdb54000d9490",
+      "src": "fb7099ad8e818d42eceefe0d97c824fd54ddb0eeef54c263ec72c77d39198ac9"
+    },
+    "admin.system.germanGroupChecking": {
+      "by": "ai",
+      "out": "abfa4dce8d9cabead8c26f7053dc642e3f85b8520adc41eecaead835a821796f",
+      "src": "00bd0fe7140cdeccf71aff63b33621b6671e835227eb2fff7274d861ba478f84"
+    },
+    "admin.system.germanGroupDeclined": {
+      "by": "ai",
+      "out": "4de9ce4f658eb6d35f6838c6f3cc15f9856e8db3766efca5678c328cb46aec65",
+      "src": "dce083a2c47ffdc44982315487afb6e121e96cef2df6dc1ec11bac7ab5052142"
+    },
+    "admin.system.germanGroupDeclinedDetail": {
+      "by": "ai",
+      "out": "a3ee7e8053557f5d3c8a22972fa14751c426ee3e841ff3282af3a7bc9f1959f0",
+      "src": "ac37eb1d3502aff199995298566fbc660e0ae55ae2ca1e917da68319fd23bdd3"
+    },
+    "admin.system.germanGroupExpired": {
+      "by": "ai",
+      "out": "5f282d5ca7a91a1b09f60aec18e55aefbe5688de3af264d2b06f216ec37cdaa0",
+      "src": "424a2551d356754c882d04ac16c63e6b50b80b159549d23231001f629455756e"
+    },
+    "admin.system.germanGroupExpiredDetail": {
+      "by": "ai",
+      "out": "f8214a79f61a500a7e5d375730cf2d15185028926ad0b9f913027d6730bc16b2",
+      "src": "3b35d9179567ae88051a4193596d79cc98103cc44184bb9e45071e46e9d07e28"
+    },
+    "admin.system.germanGroupInReview": {
+      "by": "ai",
+      "out": "290f14f4f753ae45224c08d25d7c55249cd78c9e1e2613a42ded9c7069d17f66",
+      "src": "2b203fffd24aa37e99fdb21ca39084c34a47a29c55bcb6cdb29b93ec66aeac0c"
+    },
+    "admin.system.germanGroupInReviewDetail": {
+      "by": "ai",
+      "out": "870313ee35400952f76abf20135e6037a31e394c05e2f873caf981f2c23e95c3",
+      "src": "c81799304be5b1821724bffe0583b43d4303bfa03ebec4c286f8c398488939a0"
+    },
+    "admin.system.germanGroupMismatch": {
+      "by": "ai",
+      "out": "438759a539690e822d8fc93ea30b458665cb60bcfb9d03f4135ad14f0e9eb439",
+      "src": "1fd06719ddada94548791c4fd8f0cbdb49d20234098fa52aa31964c409362303"
+    },
+    "admin.system.germanGroupMismatchDetail": {
+      "by": "ai",
+      "out": "86c07acd77808f5323b40fd41b241d9af22fbec195a7f4f72a6d1b865fa04db1",
+      "src": "f5cc94ba1ea77c551f4623d85cd88a24c83c61aeec6bbddd58666e282a613244"
+    },
+    "admin.system.germanGroupNoCarrier": {
+      "by": "ai",
+      "out": "a9c636485976bf46cd75b326ce6f99dfb38dfa138caa9dbd0495c2d7f3352265",
+      "src": "1bd68550c40f53b39b95bda3c41d2d1422cf92127d4a88f6ef7ed092ddaa6468"
+    },
+    "admin.system.germanGroupNoCarrierDetail": {
+      "by": "ai",
+      "out": "b7953e8e11c3a7b8c52fa383200b3eea943162b429690c98befc3516b23541bc",
+      "src": "c14ff94e8b8c9962c464822ec210194bfa385bd2afffd6f971cdbc9163130c88"
+    },
+    "admin.system.germanGroupNotFound": {
+      "by": "ai",
+      "out": "0a461a7be64a5ff0062c45d5d737fa7503eb6222143b3c5015b9994704416083",
+      "src": "3b84733e4b0943422f28446f5d6a94354a785ba372b08ea79d63b2f9c6a7ceca"
+    },
+    "admin.system.germanGroupNotFoundDetail": {
+      "by": "ai",
+      "out": "60d780cb86d7ecc123f6426ec56f5dc18632833c3463f4b01c0a360995a8595f",
+      "src": "ed39d13c059de16db79a652d417049a4fb90c72736878313264c9e742e8afdc7"
+    },
+    "admin.system.germanGroupOpen": {
+      "by": "ai",
+      "out": "b9c5dda942dc63f82aedfe9001f2014a25fd83a911462d45a8b1977376dc6b10",
+      "src": "f5fe4d900725f7a8ce1671a8882837763eb7bfc80b472118e48f9a878709a646"
+    },
+    "admin.system.germanGroupUnapproved": {
+      "by": "ai",
+      "out": "f9bab647774ae70eae8ee211cf6b697333afe2550b61f952f2f5c37b937908bc",
+      "src": "fb63a9606ecd27c9f9f8c5b7199c5a470cdaa59305f22873e477a16f0a702e95"
+    },
+    "admin.system.germanGroupUnapprovedDetail": {
+      "by": "ai",
+      "out": "52e9b5e7395c81f94eb67df4862f3bb6448b0eec77a295b03baad1ee12667e6d",
+      "src": "3ee898a147cb23577cebe8b9dd67d92100c8464df94ee97416ca796b4a110af0"
+    },
+    "admin.system.germanGroupUnreachable": {
+      "by": "ai",
+      "out": "01ab8a44ea0d0c042365b1b1322d7ae746812b11d4a100a4553ed758555b6353",
+      "src": "9dca0c1ce17e9a1c5782a4a79763834d5af45afa16807bc5f7d01d02c986e2d7"
+    },
+    "admin.system.germanGroupUnreachableDetail": {
+      "by": "ai",
+      "out": "d0179b93fb9e9c574f53586bfea3862cdda812cfcf9c0af3a69642044ba7c0d6",
+      "src": "dfd07c8b3c7ab25f0106d6c4e5281fe2c3e93e70aa95b780d65524c54e3538da"
+    },
     "admin.system.germanNumbers": {
       "by": "ai",
       "out": "5ae65804d57dbc611f21ddfd86f631793a90f456c69c1af740cc9dfb2d1f387a",
       "src": "8fd2fd4ae58b9426b4a318bd20570d384e73878cfc66856eb4f6c017b2d072ce"
     },
+    "admin.system.germanNumbersAreaCode": {
+      "by": "ai",
+      "out": "d986aaf51afc3176270ad5bf4e1cd316677eea9b8760769689f04abe3ef18107",
+      "src": "2cb0c5b5a13174d9eaa725be1ac83bbeea5ffb4279036db4c699a9c3108064c6"
+    },
+    "admin.system.germanNumbersAreaCodeFrom": {
+      "by": "ai",
+      "out": "d36b4de77dd651457a32428b07f7714352931fd03205eb1e74e5e4c7d9fa8cc0",
+      "src": "93d8a49fda505d7892dd8b2753915624ae1731f745ec815cb42489a9adb5d2c8"
+    },
     "admin.system.germanNumbersAreaCodes": {
       "by": "ai",
       "out": "f28b9e2e25415f03b28939fc1965cf622998d116916fbe95d11a59fd1b1e4a63",
       "src": "8fd2622f9b2e27928945b2dc9045ed889aedbed53f0985a552a9216ecb0adfae"
+    },
+    "admin.system.germanNumbersAreaCodesHelp": {
+      "by": "ai",
+      "out": "9f5a2b1183124bbbca0a44464a0204df8cf172221712162d84ee8c097efe6cd4",
+      "src": "26b14f851330ec6c1105577addc358546f763c596ead5b6c77e5237aa31df9fc"
     },
     "admin.system.germanNumbersCount": {
       "by": "ai",
@@ -149910,8 +150895,8 @@
     },
     "admin.system.germanNumbersGroupHelp": {
       "by": "ai",
-      "out": "dd9cac5ea6a9c3521dd5a59ca08bc53b494aaae5e785e5075bdd913d3c49a2d5",
-      "src": "1cb8002fa29157fb4b8713211dec817d20027e5f7734deb5315851b801e55f4d"
+      "out": "177540b43fd8258b328c7a85c1c8decac9206b6557dfb8dc7ce8d0d02b760496",
+      "src": "748a368452de5e0be025ff136f4ccb828118e94d298b0b59c1eecbef5b7dc63f"
     },
     "admin.system.germanNumbersHelp": {
       "by": "ai",
@@ -160768,6 +161753,11 @@
       "out": "1ce8fc80104300c10c4d71f99828b699237de605b40414167ca186072c912fed",
       "src": "f2e0222809567861721d943b920c3623a3274f2efe980c55ed82300d394718e0"
     },
+    "onboarding.flow.setupError.attachBilled": {
+      "by": "ai",
+      "out": "5a20307c48ba173f64a55640975f0864e559211df37fda2eda1f1f4f9105d81e",
+      "src": "5e4a9e2fd45c1f5b259bea34a30c7f9ccc1a83643e776d400416ee6b2abb1d4d"
+    },
     "onboarding.flow.setupError.countryRequirements": {
       "by": "ai",
       "out": "282771af06436b53a4a83cabbf83ef79065ac106aa23f5c1bd0afd52c526d799",
@@ -163103,6 +164093,16 @@
       "out": "b70102b0ba4751df4cc5671e3f4f29472f764c0717517b1ea7bb4cc8dccbd27d",
       "src": "de9083f4cb265a740622b00ef856775030aefe73159633b770af0ee0f396ffeb"
     },
+    "server.setupAgent.attachInApp": {
+      "by": "ai",
+      "out": "5acb9754627a63dd62d0f0a4753fdbbcab74bc1b1018769bde58d5c8f86ffa94",
+      "src": "a2cce396b619b7e51a352988ab44b309a4f60c1038540951831e8dedb5152fc8"
+    },
+    "server.setupAgent.attachOwnAccount": {
+      "by": "ai",
+      "out": "3bd95577ded7afaaaa1c4d00a4540dcaec80a9942a5f15e3ff4c12b8dfa23242",
+      "src": "a1e8fe26acf0af77cfa3471babc501a6d6b78ae1a056dd96759526ff64f38bc8"
+    },
     "server.setupAgent.clientStep.assistant": {
       "by": "ai",
       "out": "5afa5844b8ecd1b38045cd7ce001ccd182dbed24bd8499406d2f8c4ea496a189",
@@ -163337,6 +164337,11 @@
       "by": "ai",
       "out": "fe9a1b55a117ed423483cb743c9d002c5171d43ddf45f1ec31be692ae9606687",
       "src": "393d816d9d359bac06a98c5445f60b1d3781c5b2b4b6a4552bb223369715d052"
+    },
+    "server.setupAgent.phoneBeingSetUpInstall": {
+      "by": "ai",
+      "out": "e8ebe840fe72a8f4bdeec63cda5526d16754d81b9d85ebd8041101b7b890af24",
+      "src": "2f0d505eb71fd48f27fcaf1279af8093351e541f52373f52865f5b552eb49b96"
     },
     "server.setupAgent.prompt.changeAssistant": {
       "by": "ai",
@@ -163993,10 +164998,15 @@
       "out": "79a25137c8531ee1789f7938b7397759e54346f713812775e1b3be37255adccd",
       "src": "7ef7c4415c8ea5dee02a700e54f32a353dde5aec3e2feeaf555111fc3f02272e"
     },
+    "settings.assistant.languages.anyList": {
+      "by": "ai",
+      "out": "5df533a0e6031e763e2af733447e5b60f3e1b0ab299705df9bf42d83645d1c0a",
+      "src": "8bedf7ae9d754e0ac7e4cba271e1f556e7ddfdd06ed54cce1e00df5b5e14eb00"
+    },
     "settings.assistant.languages.anyNote": {
       "by": "ai",
-      "out": "7f1fb20263ced07f9d4f84361f92d952d21f5fe032dee8619a03f65d525d6218",
-      "src": "28993d8267fc2be314ece9e3dc46e8e47159a75ffb70070fb7f2461d095ce8c8"
+      "out": "9c107f046c6aae0c4e835bb4fe67612efb5f54767e4f1a2af3c60b74634a24d6",
+      "src": "7f704ba54404fa5a37950f516dd06ac211988a2e74334851d3a1105317a23ea0"
     },
     "settings.assistant.languages.description": {
       "by": "ai",
@@ -164038,10 +165048,25 @@
       "out": "847b44f0d2613febb7c99180d2ecc19b209167a82246f7313f48b55170d2372b",
       "src": "7a5963732aa0ebc1c0db26af9e78b73d0c228adba28c55f32859014af276b078"
     },
+    "settings.assistant.languages.switch.anyCount": {
+      "by": "ai",
+      "out": "a2ffee3b85305b0ebdf717f0abf2a848449715fe0b5bc3e92b158131f4bbeda2",
+      "src": "6034d12bf0c35864db7b7b5d92612a640f9ea40056be1dafc898ee26196ba7b5"
+    },
+    "settings.assistant.languages.switch.anyCovers": {
+      "by": "ai",
+      "out": "e324634f6d68959cb2f8acc2bfc9fbbdc87898234842fbf8970d39367f9a33d1",
+      "src": "281f6063e65d852a8e9b44aa3468dcc8bb0af541717aa1fd4ba18eed266bd8a9"
+    },
     "settings.assistant.languages.switch.anyDescription": {
       "by": "ai",
       "out": "2798d1816469714a97c19c55ee1873a5a98736b65f8495270a8001788c1cdf30",
       "src": "a327d2a1bec1346fccf288b70ef36e49ffb326a0ffee84d5592d7e1d32219fa2"
+    },
+    "settings.assistant.languages.switch.anyMore": {
+      "by": "ai",
+      "out": "0318e74b73f5698553363e23262f3d4b2d3b17d080c4b4713f53b43f464520d6",
+      "src": "5f4f590acbda8ee3ef5686113938693ce4ea990c751396e88a64d49ed3449460"
     },
     "settings.assistant.languages.switch.label": {
       "by": "ai",
@@ -169120,13 +170145,23 @@
     },
     "settings.phone.connect.back": {
       "by": "ai",
-      "out": "8c9450bedb0ba98f7d10c365816c7edfad55657554ccd9ec44e2ec03fe5f3176",
-      "src": "d76ec9b700c3088cbe86a182c13e9c8958e65286f5296490c8c85b7366e3d386"
+      "out": "1e978f4db2293d1e4591ff2fb84cc59b345554c01b275b2aa2891f0bcdfe509c",
+      "src": "b4b18fa3276d52bca38e3a06f6b7e235d04d0444a8df892645179f314158f2e1"
     },
     "settings.phone.connect.buy": {
       "by": "ai",
       "out": "6341fb3ee023044154753397801608f2d928754a191dfdbdb5db10c4c090764c",
       "src": "95cdf792e2c21b04f8f80b77c7f8eda200dbde77a4a0953f7fcaded7b3bfe3e3"
+    },
+    "settings.phone.connect.buyHelp": {
+      "by": "ai",
+      "out": "b9e794ff4c5deca594d068dd781763c6b0a84336c28365b70d824758c5c1944a",
+      "src": "e1d1f1aedf19b400305044d586e33236c10f13202773a8e2b8aa789690ffeb86"
+    },
+    "settings.phone.connect.buyTitle": {
+      "by": "ai",
+      "out": "d7ea8dc9424d16b269317b94e0646a7e394afad5fa3758c3146551bbb0ad8e35",
+      "src": "cb21806458ccae6789bba7fe1fbde4ce2d041609d897898e74dbf2faae715bf8"
     },
     "settings.phone.connect.buying": {
       "by": "ai",
@@ -169148,6 +170183,11 @@
       "out": "8c45ff8850cd0fe5a3fb3bc5ea3435d43e778fc561df5283e05adf235c080f95",
       "src": "499ba97615e3e68f0abfb9346f44972a4e5af8aa2a93085b2a17ea375e6348b2"
     },
+    "settings.phone.connect.fromBalance": {
+      "by": "ai",
+      "out": "4d2fb4cb99c0128926a9b6dbbe884171b886d575eb2e048cb1cdff074848b02f",
+      "src": "9308ebf7f9d8aeb7b42aa8cbb05b5a0de101abb3194fb9a0d57f9d62f08b4b47"
+    },
     "settings.phone.connect.get": {
       "by": "ai",
       "out": "7ce55a372cd004e78c1823fb1d74f321e0e3383e38b02ed4ec4d7a1e6cf0a2d7",
@@ -169162,6 +170202,11 @@
       "by": "ai",
       "out": "4f173fe5b2131745a624728a37aabb389dc0e58d2e6b89fe44d9c344d5f4504c",
       "src": "f1a78ccecea181d2802b13f1ad6da83cb6b7179e00b0b078d1ea6c47e9f3e3f6"
+    },
+    "settings.phone.connect.perMonth": {
+      "by": "ai",
+      "out": "aac369b4e9851e03c83257a4e93c741bab9378ea30532025c9040b6c6c6872c6",
+      "src": "0a772ab2a2b91bae6a570738d28ebb6c02eed0ae7cb5df5dae125f7bb3eb7a3a"
     },
     "settings.phone.disconnect.busy": {
       "by": "ai",
@@ -169212,6 +170257,36 @@
       "by": "ai",
       "out": "f4b050680e2241df6fcf0f90619f5fbf65a3afca76f2beeb99d958d890f72dfe",
       "src": "d920b60b80b0502d45f5750318808cd98e4801d14c544e2d484e71f021c2178a"
+    },
+    "settings.phone.forwardStep.added": {
+      "by": "ai",
+      "out": "940beb4a6cd8116367c592e9363f3199175246d8dae91ebae4108154499d35aa",
+      "src": "5a977cefd024070fd9fd6113006d44cc7596f1f9181ed7289159a93dc1eb9fbd"
+    },
+    "settings.phone.forwardStep.no.description": {
+      "by": "ai",
+      "out": "acac105d22b77103c000f2e4bed5da28932d37f2b7ca4d7d1c9764f7f2f9614e",
+      "src": "f304312009b0b6306e33200691d8876359c1a7619a96c482ad9afb0cae26e93f"
+    },
+    "settings.phone.forwardStep.no.title": {
+      "by": "ai",
+      "out": "23ea8ede92ba63a7628c4e8c77b968a1ef549107106a3eb9dc42b5994fa2947e",
+      "src": "22a40c8068a5f267ac5c9eb6f53398ccb7d1f3cd197c3198e9f50cace682a977"
+    },
+    "settings.phone.forwardStep.title": {
+      "by": "ai",
+      "out": "723cd078af2e854e104eda92401121d5e7c7db1d490fbf9b0dd8577e883492af",
+      "src": "f6ef912eab5ac8108a0b4eba6e281ad75b8a4513474b6d9376692c816cca79df"
+    },
+    "settings.phone.forwardStep.yes.description": {
+      "by": "ai",
+      "out": "3c710bd7b8b721d728752830257ee743178db4b630a64140ca68c7ec9aa81a7a",
+      "src": "fa9cc1a59ef57c00fd76c506c905ad42df62d64c2cc7bcb1f48ac81a346b6bc1"
+    },
+    "settings.phone.forwardStep.yes.title": {
+      "by": "ai",
+      "out": "dcb7c93d47768fe13f84d8752fbaba9ba692aff3140f978ea3feed0bf2263e50",
+      "src": "746e07a76e6d1a515e4f0da946a11d23c4b49188fb702fda65cd276ee175d7ac"
     },
     "settings.phone.forwarding.carrier": {
       "by": "ai",

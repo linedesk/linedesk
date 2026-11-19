@@ -328,6 +328,7 @@
   "flow.problem.pickAreaCode": "Elige de la lista un código de área para el número nuevo.",
   "flow.setupError.alreadyConnected": "Ese número ya está conectado a {brand}.",
   "flow.setupError.areaCodeCountry": "Ese código de área es de otro país que el de este espacio de trabajo. Elige uno de la lista.",
+  "flow.setupError.attachBilled": "Solo quien administra este servidor puede conectar números que ya están en la cuenta del operador. Obtén un número nuevo en su lugar.",
   "flow.setupError.countryRequirements": "Todavía no se pueden comprar números de este país aquí. Conecta un número que el negocio ya tenga.",
   "flow.setupError.failed": "No se pudo conectar el número. Vuelve a intentarlo en un momento.",
   "flow.setupError.noneFree": "No hay ningún número libre con ese código de área en este momento. Prueba uno cercano.",

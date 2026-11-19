@@ -328,6 +328,7 @@
   "flow.problem.pickAreaCode": "Wähle eine Vorwahl für die neue Nummer aus der Liste.",
   "flow.setupError.alreadyConnected": "Diese Nummer ist schon mit {brand} verbunden.",
   "flow.setupError.areaCodeCountry": "Diese Vorwahl liegt in einem anderen Land als dieser Workspace. Wähle eine aus der Liste.",
+  "flow.setupError.attachBilled": "Nummern, die schon im Konto beim Telefonanbieter sind, kann nur die Person verbinden, die diesen Server betreibt. Hol dir stattdessen eine neue Nummer.",
   "flow.setupError.countryRequirements": "Nummern in diesem Land können hier noch nicht gekauft werden. Verbinde eine Nummer, die das Unternehmen schon hat.",
   "flow.setupError.failed": "Die Nummer konnte nicht verbunden werden. Versuch es gleich noch einmal.",
   "flow.setupError.noneFree": "Mit dieser Vorwahl ist gerade keine Nummer frei. Versuch eine in der Nähe.",

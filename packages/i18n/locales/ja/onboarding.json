@@ -328,6 +328,7 @@
   "flow.problem.pickAreaCode": "新しい番号の市外局番をリストから選んでください。",
   "flow.setupError.alreadyConnected": "その番号はすでに{brand}に接続されています。",
   "flow.setupError.areaCodeCountry": "その市外局番は、このワークスペースとは別の国のものです。リストから選んでください。",
+  "flow.setupError.attachBilled": "通信事業者のアカウントにすでにある番号は、このサーバーの管理者しか接続できません。代わりに新しい番号を取得してください。",
   "flow.setupError.countryRequirements": "この国の番号はまだここでは購入できません。ビジネスがすでに持っている番号を接続してください。",
   "flow.setupError.failed": "番号を接続できませんでした。少し待ってからもう一度お試しください。",
   "flow.setupError.noneFree": "その市外局番で現在空いている番号はありません。近くの市外局番をお試しください。",

@@ -328,6 +328,7 @@
   "flow.problem.pickAreaCode": "Choisissez dans la liste un indicatif pour le nouveau numéro.",
   "flow.setupError.alreadyConnected": "Ce numéro est déjà connecté à {brand}.",
   "flow.setupError.areaCodeCountry": "Cet indicatif se trouve dans un autre pays que celui de cet espace de travail. Choisissez-en un dans la liste.",
+  "flow.setupError.attachBilled": "Seule la personne qui gère ce serveur peut connecter des numéros déjà présents dans le compte de l'opérateur. Obtenez plutôt un nouveau numéro.",
   "flow.setupError.countryRequirements": "Les numéros de ce pays ne peuvent pas encore être achetés ici. Connectez un numéro que l'entreprise possède déjà.",
   "flow.setupError.failed": "Le numéro n'a pas pu être connecté. Réessayez dans un instant.",
   "flow.setupError.noneFree": "Aucun numéro n'est libre avec cet indicatif pour le moment. Essayez-en un proche.",
