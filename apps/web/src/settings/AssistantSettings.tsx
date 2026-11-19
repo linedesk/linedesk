@@ -35,7 +35,7 @@ import {
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { languageInSentence, languageLabel, type MessageKey, msg } from '@linedesk/i18n'
 import { T, useFormat, useLocale, useT } from '@linedesk/i18n/react'
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { i18n } from '../i18n/index.tsx'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useOutboundCountries } from '../onboarding/outbound-number.ts'
@@ -54,6 +54,7 @@ import { AgentChangeNote } from './AgentChange.tsx'
 import { AssistantHeader } from './AssistantHeader.tsx'
 import {
   addableLanguages,
+  anyModeOthers,
   behavioursToSave,
   type Draft,
   draftOf,
@@ -498,6 +499,9 @@ const SWITCH_MODES: { value: AssistantLanguages['mode']; title: MessageKey; desc
   },
 ]
 
+/** How many languages "Switch to the caller's language" names before "and N more"; all of them show once it is picked. */
+const ANY_NAMES_SHOWN = 3
+
 export function Languages({
   draft,
   set,
@@ -521,6 +525,7 @@ export function Languages({
 }) {
   const ui = useLocale()
   const t = useT()
+  const format = useFormat()
   const { mode } = draft.languages
   const main = mainOf(draft)
   const mainName = languageInSentence(main, ui)
@@ -533,8 +538,27 @@ export function Languages({
     country ? countryLanguage : undefined,
     t,
   )
-  // With a Flux model "any" keeps Flux's languages; the others only when picked (coordinator decision on LIN-268).
-  const anyLimited = mode === 'any' && !!anyCovers && offered.some(code => !anyCovers.includes(code))
+  // What "Switch to the caller's language" switches to. With a Flux model only Flux's languages; the others only when
+  // picked (coordinator decision on LIN-268), so it is named, not left to read as the whole pick list.
+  const anyOthers = anyModeOthers(anyCovers, offered, main)
+  const anyLimited = !!anyCovers && offered.some(code => code !== main && !anyOthers.includes(code))
+  const anyNames = anyOthers.map(code => languageInSentence(code, ui))
+  // Picked, the list under it names them all; else the count and the first few, so the choice is clear before it.
+  const anyDescription = !anyNames.length
+    ? t('settings.assistant.languages.switch.anyDescription')
+    : mode === 'any'
+      ? t('settings.assistant.languages.switch.anyCount', { count: anyNames.length })
+      : t('settings.assistant.languages.switch.anyCovers', {
+          count: anyNames.length,
+          languages: format.list(
+            anyNames.length > ANY_NAMES_SHOWN + 1
+              ? [
+                  ...anyNames.slice(0, ANY_NAMES_SHOWN),
+                  t('settings.assistant.languages.switch.anyMore', { count: anyNames.length - ANY_NAMES_SHOWN }),
+                ]
+              : anyNames,
+          ),
+        })
   const problem = languagesProblem(draft)
   return (
     <Section
@@ -576,19 +600,36 @@ export function Languages({
       </div>
       <fieldset className="as-languages-switch">
         <legend className="as-languages-q">{t('settings.assistant.languages.switch.label')}</legend>
-        <div className="as-languages-modes" role="radiogroup" aria-label={t('settings.assistant.languages.switch.label')}>
+        <div
+          className="as-languages-modes"
+          role="radiogroup"
+          aria-label={t('settings.assistant.languages.switch.label')}
+        >
           {SWITCH_MODES.map(m => (
-            <RadioCard
-              key={m.value}
-              name="as-languages-mode"
-              checked={mode === m.value}
-              onPick={() => set('languages', { ...draft.languages, mode: m.value })}
-              title={t(m.title, { language: mainName })}
-              description={m.description && t(m.description)}
-            />
+            <Fragment key={m.value}>
+              <RadioCard
+                name="as-languages-mode"
+                checked={mode === m.value}
+                onPick={() => set('languages', { ...draft.languages, mode: m.value })}
+                title={t(m.title, { language: mainName })}
+                description={m.value === 'any' ? anyDescription : m.description && t(m.description)}
+              />
+              {/* Right under its answer, read-only: what it switches to, and how to get a language it leaves out. */}
+              {m.value === 'any' && mode === 'any' && anyOthers.length > 0 && (
+                <div className="as-languages-covered">
+                  <ul className="as-languages-picked" aria-label={t('settings.assistant.languages.anyList')}>
+                    {anyOthers.map(code => (
+                      <li key={code} className="as-languages-chip">
+                        {languageLabel(code, ui)}
+                      </li>
+                    ))}
+                  </ul>
+                  {anyLimited && <p className="k-field-desc">{t('settings.assistant.languages.anyNote')}</p>}
+                </div>
+              )}
+            </Fragment>
           ))}
         </div>
-        {anyLimited && <p className="k-field-desc as-languages-note">{t('settings.assistant.languages.anyNote')}</p>}
         {mode === 'allowed' && (
           <PickedLanguages
             offered={offered}

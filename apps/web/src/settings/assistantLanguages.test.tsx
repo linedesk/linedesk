@@ -1,6 +1,6 @@
 // Settings › Assistant › Languages: one question for callers in another language (stay, switch to theirs, switch only
-// to picked ones), only languages a connected voice speaks, and with a Flux model "Switch to the caller's language"
-// covers Flux's 10 and says so (coordinator decision on LIN-268).
+// to picked ones), only languages a connected voice speaks, and "Switch to the caller's language" names the languages it
+// switches to: with a Flux model only Flux's 10, not the whole pick list (coordinator decision on LIN-268; LIN-624).
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test, vi } from 'vitest'
 
@@ -11,11 +11,13 @@ vi.mock('../cachedQuery.ts', () => ({
 vi.mock('./settings-api.ts', () => ({ readAction: vi.fn(), useWriteAction: () => vi.fn() }))
 
 const { Languages } = await import('./AssistantSettings.tsx')
-const { addableLanguages, offeredLanguages, withLanguage, withoutLanguage } = await import('./assistantDraft.ts')
+const { addableLanguages, anyModeOthers, offeredLanguages, withLanguage, withoutLanguage } = await import(
+  './assistantDraft.ts'
+)
 
 const FLUX = ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja']
 const installed = [...FLUX, 'pl', 'sv', 'tr']
-const NOTE = 'Covers the 10 core languages'
+const NOTE = 'For any other language, choose'
 
 function render(
   languages: { main: 'en'; mode: 'any' | 'allowed' | 'english'; allowed: string[] },
@@ -42,17 +44,64 @@ test("one question with three answers, worded from the owner's view; one of them
   expect(pickedMode(render({ main: 'en', mode: 'english', allowed: [] }))).toBe('Stay in English')
 })
 
-test('"any" with a Flux model says it covers the 10 core languages and how to get the others', () => {
+/** The read-only list under "Switch to the caller's language": each language as listed there. */
+const covered = (html: string) =>
+  [
+    ...(
+      html.match(/<ul class="as-languages-picked" aria-label="Languages it switches to">(.*?)<\/ul>/)?.[1] ?? ''
+    ).matchAll(/<li class="as-languages-chip">([^<]*)<\/li>/g),
+  ].map(m => m[1])
+
+test('"any" with a Flux model names its 9 other languages, lists them read-only once picked, and how to get others', () => {
   const html = render({ main: 'en', mode: 'any', allowed: [] }, FLUX)
+  expect(html).toContain('<b>Switch to the caller’s language</b><span>9 languages</span>')
+  expect(covered(html)).toEqual([
+    'Español · Spanish',
+    'Français · French',
+    'Deutsch · German',
+    'Italiano · Italian',
+    'Português · Portuguese',
+    'Nederlands · Dutch',
+    'Русский · Russian',
+    'हिन्दी · Hindi',
+    '日本語 · Japanese',
+  ])
+  expect(html).not.toContain('Polski')
   expect(html).toContain(NOTE)
-  // No list to pick from: that is only for "Switch only to languages I pick".
+  // Read-only: nothing to remove or add; that is only for "Switch only to languages I pick".
   expect(html).not.toContain('Add language')
-  expect(html).not.toContain('as-languages-chip')
+  expect(html).not.toContain('as-languages-chip-x')
 })
 
-test('"any" that covers every offered language has no note', () => {
-  expect(render({ main: 'en', mode: 'any', allowed: [] }, installed)).not.toContain(NOTE)
-  expect(render({ main: 'en', mode: 'allowed', allowed: ['pl'] }, FLUX)).not.toContain(NOTE)
+test('not picked, "any" names the count and the first languages, so it does not read as the whole pick list', () => {
+  for (const mode of ['english', 'allowed'] as const) {
+    const html = render({ main: 'en', mode, allowed: ['pl'] }, FLUX)
+    expect(html).toContain('<span>9 languages: Spanish, French, German, and 6 more</span>')
+    expect(covered(html)).toEqual([])
+    expect(html).not.toContain(NOTE)
+  }
+  // Few enough: all of them by name. Unknown (an older API): every language offered.
+  expect(render({ main: 'en', mode: 'english', allowed: [] }, ['en', 'es', 'fr'])).toContain(
+    '<span>2 languages: Spanish and French</span>',
+  )
+  expect(render({ main: 'en', mode: 'english', allowed: [] })).toContain(
+    '12 languages: Spanish, French, German, and 9 more',
+  )
+})
+
+test('"any" that covers every offered language lists them all, without the note', () => {
+  const html = render({ main: 'en', mode: 'any', allowed: [] }, installed)
+  expect(html).toContain('<span>12 languages</span>')
+  expect(covered(html)).toHaveLength(12)
+  expect(html).not.toContain(NOTE)
+})
+
+test('what "any" switches to: what it covers, in the pickers\' order, never the main language', () => {
+  const offered = installed as never
+  expect(anyModeOthers(FLUX, offered, 'de')).toEqual(['en', 'es', 'fr', 'it', 'pt', 'nl', 'ru', 'hi', 'ja'])
+  // A main language outside what it covers: still only the covered ones.
+  expect(anyModeOthers(FLUX, offered, 'pl')).toEqual(FLUX)
+  expect(anyModeOthers(undefined, ['en', 'pl', 'sv'], 'en')).toEqual(['pl', 'sv'])
 })
 
 test('"Switch only to languages I pick": the picked ones as removable chips, then Add language', () => {

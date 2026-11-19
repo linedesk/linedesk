@@ -214,6 +214,17 @@ export function offeredLanguages(installed: readonly string[] | undefined, d: Pi
   )
 }
 
+/**
+ * The languages "Switch to the caller's language" switches to: what it covers on this install (`anyCovers`,
+ * voice.options anyLanguages: with a Deepgram Flux model only Flux's 10; missing: every one offered), in the order the
+ * pickers list them, without the main language. The same list the agent uses for `mode: 'any'` (anyModeLanguages).
+ */
+export const anyModeOthers = (
+  anyCovers: readonly string[] | undefined,
+  offered: readonly Language[],
+  main: Language,
+): Language[] => languageCodes.filter(code => code !== main && (anyCovers ?? offered).includes(code))
+
 /** What "Add language" offers: the languages offered that are neither the main language nor picked yet. */
 export const addableLanguages = (
   offered: readonly Language[],
