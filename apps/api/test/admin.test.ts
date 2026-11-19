@@ -210,6 +210,7 @@ describe('access', () => {
       'callQuality.get',
       'callQuality.set',
       'germanNumbers.get',
+      'germanNumbers.group',
       'germanNumbers.set',
       'impersonationEmails.get',
       'impersonationEmails.set',
@@ -2506,6 +2507,7 @@ describe('impersonation', () => {
       'evaluation.listQuestions',
       // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
       'germanNumbers.get',
+      'germanNumbers.group',
       'holidays.lookup',
       'impersonation.stop',
       // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.

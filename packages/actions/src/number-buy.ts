@@ -66,13 +66,56 @@ export type GermanNumbersData = {
   /** German workspaces on the install's carrier account buy a number held in the install's name. */
   on: boolean
   numberType: BuyNumberType
-  /** The area codes offered for a local number (without the trunk 0). */
+  /**
+   * The area codes offered for a local number (without the trunk 0): the one of the requirement group's address
+   * (`areaCodeCity` says where), else `savedAreaCodes`.
+   */
   areaCodes: string[]
+  /** The town of the group's address the offered area code was found for; null: `savedAreaCodes` are offered. */
+  areaCodeCity: string | null
+  /** The area codes typed in Server admin, offered only while none was found for the group's address (default 6221). */
+  savedAreaCodes: string[]
   /** The carrier's requirement group the numbers are ordered with (Telnyx); empty: not set up yet. */
   requirementGroupId: string
   /** The German numbers set up on the install's carrier account now, and the count that warns the admin. */
   numbers: number
   alertAt: number
+}
+
+/**
+ * The requirement group's state at the carrier, for Server admin › System › German numbers. `none`: no group set;
+ * `no_carrier`: the server has no carrier that orders with requirement groups; `not_found`: the carrier has no such
+ * group; `unreachable`: the carrier did not answer; `mismatch`: the group is not for local German numbers to order
+ * (see `mismatch`); else the carrier's status. Never blocks buying: a group in review still orders.
+ */
+export const GERMAN_GROUP_STATES = [
+  'none',
+  'no_carrier',
+  'not_found',
+  'unreachable',
+  'mismatch',
+  'approved',
+  'in_review',
+  'unapproved',
+  'declined',
+  'expired',
+] as const
+export type GermanGroupState = (typeof GERMAN_GROUP_STATES)[number]
+
+/** `data` of germanNumbers.group. */
+export type GermanGroupData = {
+  id: string
+  state: GermanGroupState
+  /** What the group is for at the carrier, when it is not what German numbers need (DE, the number type, ordering). */
+  mismatch: { country: string; numberType: string; action: string } | null
+  /** The group's address (the seat the numbers are held at); null when the carrier has none for it. */
+  address: { street: string; postalCode: string; city: string } | null
+  /** The group's page in the carrier's portal; null without a carrier that has one. */
+  portalUrl: string | null
+  /** The area code found for the address's town (without the trunk 0); null: none found, the saved ones are offered. */
+  areaCode: string | null
+  /** When the carrier was asked (ISO). */
+  checkedAt: string
 }
 
 export const germanNumbersGet = defineAction({
@@ -85,11 +128,21 @@ export const germanNumbersGet = defineAction({
   readOnly: true,
 })
 
+export const germanNumbersGroup = defineAction({
+  name: 'germanNumbers.group',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "The state of the carrier's requirement group German numbers are ordered with (approved, in review, declined, not found, …), its address and the area code of the address's town, which German numbers are then offered in. Read from the carrier at most every 5 minutes; refresh: true reads it now. Only reads at the carrier.",
+  input: z.object({ refresh: z.boolean().optional() }).strict(),
+  permission: 'instance:admin',
+  readOnly: true,
+})
+
 export const germanNumbersSet = defineAction({
   name: 'germanNumbers.set',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
-    "Turn German numbers held in the install's name on or off, pick the kind (local or national 032) and the area codes of a local one, and set the carrier's requirement group they are ordered with (the install's own, approved by the carrier). Numbers already set up are kept.",
+    "Turn German numbers held in the install's name on or off, pick the kind (local or national 032) and the area codes of a local one, and set the carrier's requirement group they are ordered with (the install's own, approved by the carrier). The area code is the one of the group's address; areaCodes are offered only while none is found for it. Numbers already set up are kept.",
   input: z
     .object({
       on: z.boolean().optional(),

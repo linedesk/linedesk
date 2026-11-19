@@ -1,8 +1,13 @@
 // Telnyx adapter, REST API v2 with plain fetch. https://developers.telnyx.com/api
 import { createPublicKey, verify } from 'node:crypto'
-import { installCarrierName, TelephonyError, type TelephonyErrorCode, type AvailableNumber, type CallStatus, type CallStatusEvent, type LineType, type NumberLookup, type OwnedNumber, type TelephonyProvider } from './provider.ts'
+import { installCarrierName, TelephonyError, type TelephonyErrorCode, type AvailableNumber, type CallStatus, type CallStatusEvent, type LineType, type NumberLookup, type OwnedNumber, type RequirementGroup, type RequirementGroupAddress, type TelephonyProvider } from './provider.ts'
 
 const API = 'https://api.telnyx.com/v2'
+/** A requirement group's page in the Telnyx portal. */
+export const telnyxRequirementGroupUrl = (id: string) =>
+  `https://portal.telnyx.com/#/numbers/requirements/requirement-groups/edit/${encodeURIComponent(id)}`
+/** The lengths a German geographic area code (without the trunk 0) can have: 30 (Berlin) to 33203. */
+const AREA_CODE_LENGTHS = [2, 3, 4, 5]
 const CONNECTION_NAME = 'linedesk-livekit'
 const WEBHOOK_TOLERANCE_SEC = 300
 const ORDER_LOOKUPS = 10
@@ -214,6 +219,34 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
     return fail(`number order ${order.id} for ${e164} ${why}`, undefined, 'not_activated')
   }
 
+  /** The address behind a requirement group's address requirement; null when it has none or it cannot be read. */
+  async function groupAddress(requirements: Json[]): Promise<RequirementGroupAddress | null> {
+    const id = requirements.find(r => r.field_type === 'address' && r.field_value)?.field_value
+    if (!id) return null
+    try {
+      const { data } = await request('GET', `/addresses/${encodeURIComponent(String(id))}`)
+      if (!data) return null
+      const street = [data.street_address, data.extended_address].filter(Boolean).join(', ')
+      return { street, postalCode: String(data.postal_code ?? ''), city: String(data.locality ?? ''), country: String(data.country_code ?? '') }
+    } catch (e) {
+      console.warn(`telnyx: the address of a requirement group could not be read: ${e instanceof Error ? e.message : String(e)}`)
+      return null
+    }
+  }
+
+  /** Local numbers in stock (e164), by locality or area code; none in stock: []. */
+  async function localStock(country: string, filter: { locality?: string; areaCode?: string }, limit: number): Promise<string[]> {
+    const query = new URLSearchParams({ 'filter[country_code]': country, 'filter[phone_number_type]': 'local', 'filter[features][]': 'voice', 'filter[limit]': String(limit) })
+    if (filter.locality) query.set('filter[locality]', filter.locality)
+    if (filter.areaCode) query.set('filter[national_destination_code]', filter.areaCode)
+    // A prefix that is no area code may be refused as a bad filter rather than found empty: none there either.
+    const answer = await request('GET', `/available_phone_numbers?${query}`).catch((e: unknown) => {
+      if (isNoInventory(e) || (e instanceof TelnyxApiError && (e.status === 400 || e.status === 422))) return null
+      throw e
+    })
+    return ((answer?.data ?? []) as Json[]).filter(n => n.best_effort !== true).map(n => String(n.phone_number ?? ''))
+  }
+
   return {
     name: 'telnyx',
 
@@ -305,6 +338,47 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
       const lineType = telnyxLineType(carrier.type) !== 'unknown' ? telnyxLineType(carrier.type) : telnyxLineType(data?.portability?.line_type)
       const name = carrier.name || data?.portability?.spid_carrier_name || null
       return { e164, lineType, carrier: typeof name === 'string' && name.trim() ? name.trim() : null }
+    },
+
+    async requirementGroup(id): Promise<RequirementGroup | null> {
+      let data: Json
+      try {
+        ;({ data } = await request('GET', `/requirement_groups/${encodeURIComponent(id)}`))
+      } catch (e) {
+        if (e instanceof TelephonyError && e.status === 404) return null
+        throw e
+      }
+      if (!data) return null
+      return {
+        id: String(data.id ?? id),
+        country: String(data.country_code ?? ''),
+        numberType: String(data.phone_number_type ?? ''),
+        action: String(data.action ?? ''),
+        status: String(data.status ?? ''),
+        address: await groupAddress((data.regulatory_requirements ?? []) as Json[]),
+        portalUrl: telnyxRequirementGroupUrl(String(data.id ?? id)),
+      }
+    },
+
+    // Telnyx's search answers no area code: it is the one prefix of a number in the locality that, searched as an
+    // area code, finds numbers. German area codes are prefix-free (no code starts another), so exactly one of a
+    // number's 2- to 5-digit prefixes does; more than one (a search that matched loosely) is not sure: null.
+    async localAreaCode(country, locality) {
+      const callingCode = country === 'DE' ? '49' : null
+      if (!callingCode || !locality.trim()) return null
+      const found = await localStock(country, { locality: locality.trim() }, 5)
+      const national = found[0]?.startsWith(`+${callingCode}`) ? found[0].slice(callingCode.length + 1) : null
+      if (!national) return null
+      const candidates = AREA_CODE_LENGTHS.map(n => national.slice(0, n)).filter(c => c.length < national.length)
+      const hits: string[] = []
+      for (const code of candidates) {
+        const stock = await localStock(country, { areaCode: code }, 1)
+        if (stock.some(e164 => e164.startsWith(`+${callingCode}${code}`))) hits.push(code)
+      }
+      const [code] = hits
+      if (hits.length !== 1 || !code) return null
+      // Numbers of the locality in another area code: it spans more than one, not sure either.
+      return found.every(e164 => e164.startsWith(`+${callingCode}${code}`)) ? code : null
     },
 
     parseWebhook({ headers, rawBody }): CallStatusEvent {

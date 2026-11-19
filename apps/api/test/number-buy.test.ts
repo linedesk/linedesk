@@ -1,19 +1,20 @@
 // German numbers held in the install's name, bought through the US buy flow (LIN-619, docs/decisions.md 2026-11-19):
 // the buy offers (numberBuyOffers), phoneNumber.setup for a German workspace with a carrier in memory, the calm
 // fallback with an ALERT while the requirement group is missing or the carrier has none in stock, the forwarding
-// path, the ALERT from 8 held numbers, and germanNumbers.get/set. Instance-wide (INSTANCE_WIDE_FILES): it writes the
+// path, the ALERT from 8 held numbers, germanNumbers.get/set, and the requirement group's state at the carrier with the
+// area code of its address (germanNumbers.group, LIN-623; the carrier mocked). Instance-wide (INSTANCE_WIDE_FILES): it writes the
 // instance setting `number_buy.de`, inside transactions that are rolled back.
 import { actions, BASE_BUY_OFFERS, HELD_NUMBERS_ALERT_AT, rolePermissions } from '@linedesk/actions'
 import { instance_settings, number_purchases, phone_numbers, type Tx, workspace_settings } from '@linedesk/db'
-import { devProvider, type TelephonyProvider } from '@linedesk/telephony'
+import { devProvider, type RequirementGroup, TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { AUDITED_ACTIONS } from '../src/audit.ts'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { Reject, runHandler, type Undo } from '../src/handlers.ts'
-import { NUMBERS_BEING_SET_UP, numberBuyOffers } from '../src/number-buy.ts'
-import { BUY_COUNTRIES_ONLY } from '../src/number-purchases.ts'
+import { forgetGroupReads, GROUP_CACHE_MS, NUMBERS_BEING_SET_UP, numberBuyOffers } from '../src/number-buy.ts'
+import { BUY_COUNTRIES_ONLY, NUMBER_NOT_ACTIVATED } from '../src/number-purchases.ts'
 
 const WORKSPACE = `ws_test_${crypto.randomUUID().slice(0, 8)}`
 const owner: Actor = { actorId: 'user_test', role: 'owner', workspaceId: WORKSPACE, permissions: rolePermissions.owner }
@@ -272,5 +273,212 @@ describe('German numbers through the US buy flow (LIN-619)', () => {
       expect(() => input.parse({ areaCodes: ['06221'] })).toThrow()
       expect(() => input.parse({ requirementGroupId: 'a b' })).toThrow()
       expect(() => input.parse({ other: 1 })).toThrow()
+    }))
+})
+
+/** A requirement group as the carrier answers it: approved, for local German numbers, with its address in Dossenheim. */
+const GROUP: RequirementGroup = {
+  id: 'rg_test_1',
+  country: 'DE',
+  numberType: 'local',
+  action: 'ordering',
+  status: 'approved',
+  address: { street: 'Musterstraße 1', postalCode: '69221', city: 'Dossenheim', country: 'DE' },
+  portalUrl: 'https://portal.example/rg_test_1',
+}
+
+/** The carrier with the group (or none, or a failure) and the area code of the address's town, with spies. */
+function groupCarrier(group: RequirementGroup | null | Error = GROUP, areaCode: string | null | Error = '6221') {
+  return carrier({
+    requirementGroup: vi.fn(async () => {
+      if (group instanceof Error) throw group
+      return group
+    }),
+    localAreaCode: vi.fn(async () => {
+      if (areaCode instanceof Error) throw areaCode
+      return areaCode
+    }),
+  })
+}
+
+const readGroup = (tx: Tx, telephony: TelephonyProvider, input: { refresh?: boolean } = {}, now = new Date()) =>
+  runHandler(
+    { tx, actor: admin, now: now.toISOString(), telephony },
+    actions.get('germanNumbers.group')!,
+    actions.get('germanNumbers.group')!.input.parse(input),
+  )
+
+describe("The requirement group's state and the area code of its address (LIN-623)", () => {
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    forgetGroupReads()
+    await db.delete(number_purchases).where(eq(number_purchases.workspace_id, WORKSPACE))
+  })
+
+  test('instance admins only, a read; no group set: none, the carrier is not asked', () =>
+    inRollback(async tx => {
+      const def = actions.get('germanNumbers.group')!
+      expect(def.permission).toBe('instance:admin')
+      expect(def.readOnly).toBe(true)
+      expect(AUDITED_ACTIONS['germanNumbers.group']).toBeUndefined()
+      await germanNumbers(tx, { on: true })
+      const account = groupCarrier()
+      expect((await readGroup(tx, account)).data).toMatchObject({ id: '', state: 'none', areaCode: null })
+      expect(account.requirementGroup).not.toHaveBeenCalled()
+    }))
+
+  test('approved: the address, the portal link, and the area code of its town, which German numbers are offered in', () =>
+    inRollback(async tx => {
+      await germanNumbers(tx, { ...ON, areaCodes: ['30'] })
+      const account = groupCarrier()
+      expect((await readGroup(tx, account)).data).toMatchObject({
+        id: 'rg_test_1',
+        state: 'approved',
+        mismatch: null,
+        address: { street: 'Musterstraße 1', postalCode: '69221', city: 'Dossenheim' },
+        portalUrl: 'https://portal.example/rg_test_1',
+        areaCode: '6221',
+      })
+      expect(account.localAreaCode).toHaveBeenCalledWith('DE', 'Dossenheim')
+      // Kept for buying: the derived code wins over the saved one, with no carrier request while buying.
+      expect((await numberBuyOffers(tx, { account: 'install', provider: 'telnyx' })).at(-1)).toMatchObject({
+        country: 'DE',
+        areaCodes: ['6221'],
+        ready: true,
+      })
+      expect((await run(tx, admin, 'germanNumbers.get', {})).data).toMatchObject({
+        areaCodes: ['6221'],
+        areaCodeCity: 'Dossenheim',
+        savedAreaCodes: ['30'],
+      })
+    }))
+
+  test.each([
+    ['pending-approval', 'in_review'],
+    ['unapproved', 'unapproved'],
+    ['declined', 'declined'],
+    ['expired', 'expired'],
+  ])('the carrier says %s: %s, and German numbers stay ready (never blocks buying)', (status, state) =>
+    inRollback(async tx => {
+      await germanNumbers(tx, ON)
+      expect((await readGroup(tx, groupCarrier({ ...GROUP, status }))).data).toMatchObject({ state })
+      expect((await numberBuyOffers(tx, { account: 'install', provider: 'telnyx' })).at(-1)?.ready).toBe(true)
+    }),
+  )
+
+  test('a group for something else (US, porting): mismatch, said with what it is for; no area code from it', () =>
+    inRollback(async tx => {
+      await germanNumbers(tx, ON)
+      const account = groupCarrier({ ...GROUP, country: 'US', action: 'porting' })
+      expect((await readGroup(tx, account)).data).toMatchObject({
+        state: 'mismatch',
+        mismatch: { country: 'US', numberType: 'local', action: 'porting' },
+        areaCode: null,
+      })
+      expect(account.localAreaCode).not.toHaveBeenCalled()
+    }))
+
+  test('no such group at the carrier: not_found, and a code kept from before is dropped for the saved ones', () =>
+    inRollback(async tx => {
+      await germanNumbers(tx, { ...ON, areaCodes: ['30'] })
+      await readGroup(tx, groupCarrier())
+      expect((await readGroup(tx, groupCarrier(null), { refresh: true })).data).toMatchObject({
+        state: 'not_found',
+        address: null,
+        areaCode: null,
+      })
+      expect((await numberBuyOffers(tx, { account: 'install', provider: 'telnyx' })).at(-1)?.areaCodes).toEqual(['30'])
+    }))
+
+  test('no area code found for the town: null, the saved area codes are offered', () =>
+    inRollback(async tx => {
+      await germanNumbers(tx, { ...ON, areaCodes: ['30'] })
+      expect((await readGroup(tx, groupCarrier(GROUP, null))).data).toMatchObject({ state: 'approved', areaCode: null })
+      expect((await run(tx, admin, 'germanNumbers.get', {})).data).toMatchObject({
+        areaCodes: ['30'],
+        areaCodeCity: null,
+      })
+    }))
+
+  test('a carrier that does not answer: unreachable, never thrown, not cached, the kept area code stays', () =>
+    inRollback(async tx => {
+      await germanNumbers(tx, ON)
+      await readGroup(tx, groupCarrier())
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const down = groupCarrier(new TelephonyError('telnyx', 'GET /requirement_groups: timed out'))
+      expect((await readGroup(tx, down, { refresh: true })).data).toMatchObject({
+        state: 'unreachable',
+        areaCode: '6221',
+      })
+      await readGroup(tx, down)
+      expect(down.requirementGroup).toHaveBeenCalledTimes(2)
+      expect((await numberBuyOffers(tx, { account: 'install', provider: 'telnyx' })).at(-1)?.areaCodes).toEqual([
+        '6221',
+      ])
+      // The area code lookup failing keeps the kept one too.
+      const noSearch = groupCarrier(GROUP, new Error('search failed'))
+      expect((await readGroup(tx, noSearch, { refresh: true })).data).toMatchObject({
+        state: 'approved',
+        areaCode: '6221',
+      })
+    }))
+
+  test('no carrier with requirement groups: no_carrier', () =>
+    inRollback(async tx => {
+      await germanNumbers(tx, ON)
+      const { requirementGroup: _, localAreaCode: __, ...plain } = devProvider
+      expect((await readGroup(tx, plain)).data).toMatchObject({ state: 'no_carrier' })
+    }))
+
+  test('read at most every 5 minutes; refresh and a new group id read again', () =>
+    inRollback(async tx => {
+      await germanNumbers(tx, ON)
+      const account = groupCarrier()
+      const start = new Date()
+      await readGroup(tx, account, {}, start)
+      await readGroup(tx, account, {}, new Date(start.getTime() + GROUP_CACHE_MS - 1000))
+      expect(account.requirementGroup).toHaveBeenCalledTimes(1)
+      await readGroup(tx, account, {}, new Date(start.getTime() + GROUP_CACHE_MS + 1000))
+      expect(account.requirementGroup).toHaveBeenCalledTimes(2)
+      await readGroup(tx, account, { refresh: true }, start)
+      expect(account.requirementGroup).toHaveBeenCalledTimes(3)
+      await run(tx, admin, 'germanNumbers.set', { requirementGroupId: 'rg_test_2' })
+      expect((await readGroup(tx, account, {}, start)).data).toMatchObject({ id: 'rg_test_2' })
+      expect(account.requirementGroup).toHaveBeenLastCalledWith('rg_test_2')
+      // The area code found for the old group is not the new one's until it is read for it.
+      expect((await run(tx, admin, 'germanNumbers.get', {})).data).toMatchObject({ areaCodeCity: 'Dossenheim' })
+    }))
+
+  test('a code found for another group id is not offered', () =>
+    inRollback(async tx => {
+      await germanNumbers(tx, { ...ON, areaCodes: ['30'] })
+      await readGroup(tx, groupCarrier())
+      await germanNumbers(tx, { ...ON, requirementGroupId: 'rg_other', areaCodes: ['30'] })
+      expect((await numberBuyOffers(tx, { account: 'install', provider: 'telnyx' })).at(-1)?.areaCodes).toEqual(['30'])
+    }))
+
+  test("the operator's ALERTs name the group's state: none in stock, an order not activated", () =>
+    inRollback(async tx => {
+      await germanNumbers(tx, ON)
+      await inCountry(tx, 'DE')
+      const alert = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const pending = { ...GROUP, status: 'pending-approval' }
+      const empty = { ...groupCarrier(pending), searchNumbers: vi.fn(async () => []) }
+      await expect(setup(tx, { areaCode: '6221', purchase: true }, empty)).rejects.toThrow(NUMBERS_BEING_SET_UP)
+      expect(alert).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /^ALERT German number .*no free number in 6221; requirement group rg_test_1 is in_review at dev/,
+        ),
+      )
+      const refused = groupCarrier(pending)
+      refused.buyNumber.mockRejectedValue(
+        new TelephonyError('dev', 'order waits for requirements', undefined, 'not_activated'),
+      )
+      await expect(setup(tx, { areaCode: '6221', purchase: true }, refused)).rejects.toThrow(NUMBER_NOT_ACTIVATED)
+      expect(alert).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /^ALERT German number .*was not activated; requirement group rg_test_1 is in_review at dev/,
+        ),
+      )
     }))
 })

@@ -231,6 +231,8 @@ import { partnerDomainHandlers, partnerDomainPreparers } from './partner-domain.
 import { partnerSetupHandlers } from './partner-setup.ts'
 import {
   alertNumbersNotReady,
+  buyHeldNumber,
+  requirementGroupNote,
   germanNumbersHandlers,
   germanRequirementGroup,
   NUMBERS_BEING_SET_UP,
@@ -1976,7 +1978,7 @@ const handlers: Record<string, Handler> = {
       // i18n-ignore: an operator log line (ALERT), never shown in the app
       alertNumbersNotReady(
         workspace_id,
-        `the carrier has no free number${input.areaCode ? ` in ${input.areaCode}` : ''}`,
+        `the carrier has no free number${input.areaCode ? ` in ${input.areaCode}` : ''}${await requirementGroupNote(tx, provider)}`,
       )
       throw new Reject(NUMBERS_BEING_SET_UP)
     }
@@ -2021,7 +2023,9 @@ const handlers: Record<string, Handler> = {
     const number =
       existing ??
       (await atCarrier(() =>
-        requirementGroupRef ? provider.buyNumber(e164, { requirementGroupRef }) : provider.buyNumber(e164),
+        requirementGroupRef
+          ? buyHeldNumber(tx, provider, e164, requirementGroupRef, workspace_id)
+          : provider.buyNumber(e164),
       ))
     if (buying) onRollback?.(releaseBought(provider, number))
 

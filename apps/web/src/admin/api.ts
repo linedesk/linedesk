@@ -312,6 +312,7 @@ export type AdminInputs = {
   'voiceCloning.set': { on: boolean }
   'germanNumbers.get': Record<string, never>
   'germanNumbers.set': { on?: boolean; requirementGroupId?: string; areaCodes?: string[] }
+  'germanNumbers.group': { refresh?: boolean }
   'callQuality.get': Record<string, never>
   'callQuality.set': {
     premium?: boolean

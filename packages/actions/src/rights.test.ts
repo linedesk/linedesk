@@ -211,6 +211,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'voiceCloning.set',
     // German numbers held in the install's name (number-buy.ts).
     'germanNumbers.get',
+    'germanNumbers.group',
     'germanNumbers.set',
     'callQuality.get',
     'callQuality.set',

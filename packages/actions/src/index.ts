@@ -206,6 +206,7 @@ const all = [
   forwarding.phoneNumberForwardingCheck,
   numberBuy.germanNumbersGet,
   numberBuy.germanNumbersSet,
+  numberBuy.germanNumbersGroup,
   carrier.carrierSet,
   carrier.carrierGet,
   carrier.carrierTest,

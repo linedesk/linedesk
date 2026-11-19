@@ -22,6 +22,34 @@ export interface BuyOptions {
   requirementGroupRef?: string
 }
 
+/** The carrier's state of a requirement group (Telnyx's words). */
+export type RequirementGroupStatus = 'approved' | 'unapproved' | 'pending-approval' | 'declined' | 'expired'
+
+/** The address a requirement group was approved for (the seat the numbers are held at). */
+export interface RequirementGroupAddress {
+  street: string
+  postalCode: string
+  city: string
+  country: string
+}
+
+/** A requirement group at the carrier, as read for Server admin (never changed by Linedesk). */
+export interface RequirementGroup {
+  id: string
+  /** ISO 3166-1 alpha-2 the group is for. */
+  country: string
+  /** "local", "national", … as the carrier names them. */
+  numberType: string
+  /** "ordering" for a group numbers are bought with. */
+  action: string
+  /** The carrier's status; a value it adds later passes through as it is. */
+  status: RequirementGroupStatus | (string & {})
+  /** Its address requirement, read from the carrier's address book; null when it has none or it cannot be read. */
+  address: RequirementGroupAddress | null
+  /** The group's page in the carrier's portal. */
+  portalUrl: string
+}
+
 export interface AvailableNumber {
   e164: string
   locality?: string
@@ -127,4 +155,14 @@ export interface TelephonyProvider {
   lookupNumber(e164: string): Promise<NumberLookup>
   /** Verifies and parses a status webhook. Throws TelephonyError if the signature is not valid. */
   parseWebhook(request: WebhookRequest): CallStatusEvent
+  /**
+   * Reads a requirement group, null when the carrier has none with this id. Only reads. Only carriers that order with
+   * requirement groups (Telnyx; `dev` for development).
+   */
+  requirementGroup?(id: string): Promise<RequirementGroup | null>
+  /**
+   * The area code (national destination code, without the trunk 0) of the local numbers the carrier has in stock in
+   * `locality`, or null when it has none there or cannot tell it for sure. Only reads (a number search).
+   */
+  localAreaCode?(country: string, locality: string): Promise<string | null>
 }

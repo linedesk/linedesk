@@ -1970,3 +1970,65 @@
 .adm-access-list li + li {
   border-top: 1px solid var(--line);
 }
+/* German numbers (System.tsx): the fields one under the other; the requirement group's state at the carrier right
+   under its field (its mark on the first line, the address and the links in quiet lines), the area code read-only. */
+.adm-german-numbers {
+  display: grid;
+  gap: 16px;
+}
+.adm-german-numbers > p {
+  margin: 0;
+}
+.adm-de-group {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  margin-top: 2px;
+}
+.adm-de-group > .k-mark {
+  align-self: start;
+  margin-top: 2px;
+}
+.adm-de-group-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.adm-de-group-text p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.adm-de-group-text b {
+  font-weight: 600;
+  color: var(--ink);
+}
+.adm-de-group-text b.adm-status-bad {
+  color: var(--danger);
+}
+.adm-de-group-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.adm-de-area-label {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.adm-de-area {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin: 0;
+  font-size: 13.5px;
+}
+.adm-de-area b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

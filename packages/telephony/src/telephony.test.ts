@@ -531,3 +531,118 @@ describe('telephonyProviderFromEnv', () => {
     expect(() => telephonyProviderFromEnv({ TELEPHONY_PROVIDER: 'plivo' })).toThrow('unknown TELEPHONY_PROVIDER')
   })
 })
+
+describe('telnyx requirement groups (LIN-623): read only', () => {
+  const GROUP_ID = '015b6441-3931-4a2b-9bfd-0da5d092bda1'
+  const group = (status = 'pending-approval') => ({
+    data: {
+      id: GROUP_ID,
+      country_code: 'DE',
+      phone_number_type: 'local',
+      action: 'ordering',
+      status,
+      record_type: 'requirement_group',
+      regulatory_requirements: [
+        { requirement_id: 'req_name', field_type: 'textual', field_value: 'Linedesk', status: 'approved' },
+        { requirement_id: 'req_addr', field_type: 'address', field_value: 'addr_1', status: 'pending-approval' },
+      ],
+    },
+  })
+  const address = {
+    data: {
+      id: 'addr_1',
+      street_address: 'Musterstraße 1',
+      extended_address: '',
+      locality: 'Dossenheim',
+      postal_code: '69221',
+      country_code: 'DE',
+    },
+  }
+  const groups: Route = ({ method, path }) => {
+    if (method === 'GET' && path === `/requirement_groups/${GROUP_ID}`) return { json: group() }
+    if (method === 'GET' && path === '/addresses/addr_1') return { json: address }
+    return undefined
+  }
+
+  test('reads the group, its status, its address and the portal link, with GETs only and the key only in the header', async () => {
+    const { provider, calls } = mockTelnyx(groups)
+    expect(await provider.requirementGroup!(GROUP_ID)).toEqual({
+      id: GROUP_ID,
+      country: 'DE',
+      numberType: 'local',
+      action: 'ordering',
+      status: 'pending-approval',
+      address: { street: 'Musterstraße 1', postalCode: '69221', city: 'Dossenheim', country: 'DE' },
+      portalUrl: `https://portal.telnyx.com/#/numbers/requirements/requirement-groups/edit/${GROUP_ID}`,
+    })
+    expect(calls.map(c => `${c.method} ${c.path}`)).toEqual([
+      `GET /requirement_groups/${GROUP_ID}`,
+      'GET /addresses/addr_1',
+    ])
+    expect(calls.every(c => c.auth === 'Bearer KEY')).toBe(true)
+  })
+
+  test('a group Telnyx does not know is null; an address that cannot be read leaves only the address out', async () => {
+    const { provider } = mockTelnyx(() => undefined)
+    expect(await provider.requirementGroup!('rg_missing')).toBeNull()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const noAddress = mockTelnyx(c =>
+      c.path.startsWith('/addresses') ? { status: 500, json: { errors: [{ detail: 'down' }] } } : groups(c),
+    )
+    expect(await noAddress.provider.requirementGroup!(GROUP_ID)).toMatchObject({
+      status: 'pending-approval',
+      address: null,
+    })
+    warn.mockRestore()
+  })
+
+  test('another failure is thrown, with the status and never the key', async () => {
+    const { provider } = mockTelnyx(() => ({ status: 401, json: { errors: [{ detail: 'Authentication failed' }] } }))
+    const error = await provider.requirementGroup!(GROUP_ID).catch(e => e)
+    expect(error).toMatchObject({ status: 401 })
+    expect(String(error.message)).not.toContain('KEY')
+  })
+
+  /** Telnyx's stock: Dossenheim's numbers are filed under 06221; an area code filter matches exactly. */
+  const stock =
+    (exact = true): Route =>
+    ({ method, path }) => {
+      if (method !== 'GET' || !path.startsWith('/available_phone_numbers?')) return undefined
+      const query = new URLSearchParams(path.split('?')[1])
+      const numbers = ['+4962217234160', '+4962217234161']
+      if (query.get('filter[locality]') === 'Dossenheim')
+        return { json: { data: numbers.map(phone_number => ({ phone_number })) } }
+      const code = query.get('filter[national_destination_code]')
+      if (code && (exact ? code === '6221' : '62217234'.startsWith(code)))
+        return { json: { data: [{ phone_number: numbers[0] }] } }
+      if (code) return { status: 400, json: { errors: [{ code: '10031', detail: 'No numbers found' }] } }
+      return { status: 400, json: { errors: [{ code: '10031', detail: 'No numbers found' }] } }
+    }
+
+  test('the area code of a town: the one prefix of its numbers that is an area code (06221 for Dossenheim)', async () => {
+    const { provider, calls } = mockTelnyx(stock())
+    expect(await provider.localAreaCode!('DE', 'Dossenheim')).toBe('6221')
+    expect(calls.every(c => c.method === 'GET')).toBe(true)
+    expect(calls[0]!.path).toContain('filter[locality]=Dossenheim')
+    expect(calls[0]!.path).toContain('filter[phone_number_type]=local')
+  })
+
+  test('not sure is null: a town without stock, an area code filter that matches loosely, a country other than DE', async () => {
+    expect(await mockTelnyx(stock()).provider.localAreaCode!('DE', 'Kleinhausen')).toBeNull()
+    expect(await mockTelnyx(stock(false)).provider.localAreaCode!('DE', 'Dossenheim')).toBeNull()
+    const other = mockTelnyx(stock())
+    expect(await other.provider.localAreaCode!('US', 'Portland')).toBeNull()
+    expect(other.calls).toEqual([])
+  })
+})
+
+describe('dev requirement groups', () => {
+  test('a word in the id picks the state, for trying every state without a carrier', async () => {
+    expect(await devProvider.requirementGroup!('rg_ok')).toMatchObject({ status: 'approved', country: 'DE' })
+    expect(await devProvider.requirementGroup!('rg_pending')).toMatchObject({ status: 'pending-approval' })
+    expect(await devProvider.requirementGroup!('rg_missing')).toBeNull()
+    await expect(devProvider.requirementGroup!('rg_fail')).rejects.toBeInstanceOf(TelephonyError)
+    expect(await devProvider.localAreaCode!('DE', 'Dossenheim')).toBe('6221')
+    expect(await devProvider.localAreaCode!('DE', 'Kleinhausen')).toBeNull()
+  })
+})

@@ -1,5 +1,12 @@
 // Provider for local development and tests: no carrier, no network, nothing to pay.
-import type { CallStatusEvent, NumberLookup, TelephonyProvider } from './provider.ts'
+import {
+  TelephonyError,
+  type CallStatusEvent,
+  type NumberLookup,
+  type RequirementGroup,
+  type TelephonyProvider,
+} from './provider.ts'
+import { telnyxRequirementGroupUrl } from './telnyx.ts'
 
 /** Country calling codes of the countries `dev` hands out numbers in outside the NANP (Germany; GB and IE for tests). */
 const DEV_CALLING_CODES: Record<string, string> = { DE: '49', GB: '44', IE: '353' }
@@ -16,6 +23,36 @@ export const devNoFreeAreaCodes = (setting = process.env.LINEDESK_DEV_NO_FREE_AR
     .split(',')
     .map(code => code.trim())
     .filter(Boolean)
+
+/**
+ * What `dev` says a requirement group is, so every state of Server admin › System › German numbers can be tried
+ * without a carrier: a word in the id picks it. "pending": in review; "unapproved", "declined", "expired": that status;
+ * "missing": no such group; "fail": the carrier does not answer; "us": a group for US numbers; "noarea": its town has
+ * no local numbers in stock; anything else: approved. The address is in Heidelberg's area code 06221.
+ */
+export function devRequirementGroup(id: string): RequirementGroup | null {
+  const has = (word: string) => id.toLowerCase().includes(word)
+  if (has('missing')) return null
+  if (has('fail')) throw new TelephonyError('dev', 'the carrier did not answer (dev: "fail" in the id)')
+  const status = ['pending', 'unapproved', 'declined', 'expired'].find(has)
+  return {
+    id,
+    country: has('us') ? 'US' : 'DE',
+    numberType: 'local',
+    action: 'ordering',
+    status: status === 'pending' ? 'pending-approval' : (status ?? 'approved'),
+    address: {
+      street: 'Musterstraße 1',
+      postalCode: '69221',
+      city: has('noarea') ? 'Kleinhausen' : 'Dossenheim',
+      country: 'DE',
+    },
+    portalUrl: telnyxRequirementGroupUrl(id),
+  }
+}
+
+/** The area codes `dev` knows towns of (Heidelberg's 06221 and its neighbours); any other town: none in stock. */
+const DEV_AREA_CODES: Record<string, string> = { heidelberg: '6221', dossenheim: '6221' }
 
 export const devProvider: TelephonyProvider = {
   name: 'dev',
@@ -46,6 +83,12 @@ export const devProvider: TelephonyProvider = {
   },
   parseWebhook({ rawBody }) {
     return JSON.parse(rawBody) as CallStatusEvent
+  },
+  async requirementGroup(id) {
+    return devRequirementGroup(id)
+  },
+  async localAreaCode(country, locality) {
+    return country === 'DE' ? (DEV_AREA_CODES[locality.trim().toLowerCase()] ?? null) : null
   },
 }
 

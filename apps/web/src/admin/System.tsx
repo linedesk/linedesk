@@ -5,8 +5,12 @@
 // (off by default), who may sign up in which country (open, only invited emails or off; Germany once German numbers
 // are on: SignupAccess.tsx), and what Zapier needs from this server.
 import {
+  areaCodeShown,
+  type GermanGroupData,
+  type GermanGroupState,
   type ImpersonationEmailsData,
   type GermanNumbersData,
+  type StatusState,
   type VoiceCloningData,
   ZAPIER_APP_URL,
   ZAPIER_HOOKS_HOST,
@@ -17,7 +21,7 @@ import { useState } from 'react'
 import { brandName } from '../brand.ts'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { externalLink } from '../settings/ZapierGuide.tsx'
-import { appLink } from '../ui/AppLink.tsx'
+import { appLink, ExternalLink, LinkButton } from '../ui/AppLink.tsx'
 import { Switch } from '../ui/controls.tsx'
 import { Field } from '../settings/fields.tsx'
 import { Card, Input } from '../ui/form.tsx'
@@ -206,34 +210,156 @@ function VoiceCloning() {
 }
 
 const GERMAN_NUMBERS = 'admin.germanNumbers'
+const GERMAN_GROUP = 'admin.germanNumbers.group'
 const loadGermanNumbers = async () => (await runAdmin('germanNumbers.get', {})) as GermanNumbersData
+const loadGermanGroup = async () => (await runAdmin('germanNumbers.group', {})) as GermanGroupData
+
+const NO_GROUP_READ: GermanGroupData = {
+  id: '',
+  state: 'none',
+  mismatch: null,
+  address: null,
+  portalUrl: null,
+  areaCode: null,
+  checkedAt: '',
+}
+
+/** How each state of the requirement group is marked: the shape says it, colour never alone. */
+const GROUP_MARK: Record<GermanGroupState, StatusState> = {
+  none: 'missing',
+  no_carrier: 'not_needed',
+  not_found: 'failing',
+  unreachable: 'untested',
+  mismatch: 'failing',
+  approved: 'works',
+  in_review: 'partly',
+  unapproved: 'partly',
+  declined: 'failing',
+  expired: 'failing',
+}
+const GROUP_BAD: ReadonlySet<GermanGroupState> = new Set(['not_found', 'mismatch', 'declined', 'expired'])
+
+/**
+ * The requirement group's state at the carrier, under its field: the state in a word, what it means for buying, the
+ * address the group was approved for, and its page in the carrier's portal. Never blocks the card: a carrier that
+ * does not answer is said calmly, with Check again.
+ */
+function GroupStatus({
+  group,
+  loading,
+  numberType,
+  onCheck,
+}: {
+  group: GermanGroupData | undefined
+  loading: boolean
+  numberType: string
+  onCheck: () => void
+}) {
+  const t = useT()
+  if (!group)
+    return (
+      <div className="adm-de-group" role="status">
+        <StatusMark state="checking" />
+        <div className="adm-de-group-text">
+          <p>{t('admin.system.germanGroupChecking')}</p>
+        </div>
+      </div>
+    )
+  if (group.state === 'none') return null
+  const words: Record<Exclude<GermanGroupState, 'none'>, { title: string; detail: string }> = {
+    approved: { title: t('admin.system.germanGroupApproved'), detail: t('admin.system.germanGroupApprovedDetail') },
+    in_review: { title: t('admin.system.germanGroupInReview'), detail: t('admin.system.germanGroupInReviewDetail') },
+    unapproved: {
+      title: t('admin.system.germanGroupUnapproved'),
+      detail: t('admin.system.germanGroupUnapprovedDetail'),
+    },
+    declined: { title: t('admin.system.germanGroupDeclined'), detail: t('admin.system.germanGroupDeclinedDetail') },
+    expired: { title: t('admin.system.germanGroupExpired'), detail: t('admin.system.germanGroupExpiredDetail') },
+    not_found: { title: t('admin.system.germanGroupNotFound'), detail: t('admin.system.germanGroupNotFoundDetail') },
+    unreachable: {
+      title: t('admin.system.germanGroupUnreachable'),
+      detail: t('admin.system.germanGroupUnreachableDetail'),
+    },
+    no_carrier: {
+      title: t('admin.system.germanGroupNoCarrier'),
+      detail: t('admin.system.germanGroupNoCarrierDetail'),
+    },
+    mismatch: {
+      title: t('admin.system.germanGroupMismatch'),
+      detail: t('admin.system.germanGroupMismatchDetail', {
+        country: group.mismatch?.country || '?',
+        numberType: group.mismatch?.numberType || '?',
+        action: group.mismatch?.action || '?',
+        wanted: numberType,
+      }),
+    },
+  }
+  const { title, detail } = words[group.state]
+  const address = group.address
+    ? [group.address.street, [group.address.postalCode, group.address.city].filter(Boolean).join(' ')]
+        .filter(Boolean)
+        .join(', ')
+    : ''
+  return (
+    <div className="adm-de-group" role="status" aria-busy={loading}>
+      <StatusMark state={loading ? 'checking' : GROUP_MARK[group.state]} label={title} />
+      <div className="adm-de-group-text">
+        <p>
+          <b className={cx(GROUP_BAD.has(group.state) && 'adm-status-bad')}>{title}</b> <span>{detail}</span>
+        </p>
+        {address && <p>{t('admin.system.germanGroupAddress', { address })}</p>}
+        <p className="adm-de-group-links">
+          {group.portalUrl && <ExternalLink href={group.portalUrl}>{t('admin.system.germanGroupOpen')}</ExternalLink>}
+          <LinkButton onClick={onCheck}>{t('admin.system.germanGroupCheck')}</LinkButton>
+        </p>
+      </div>
+    </div>
+  )
+}
 
 /**
  * German numbers held in this server's name (apps/api/src/number-buy.ts): on, German workspaces on this server's
  * carrier account buy a number like a US one, ordered with the server's own requirement group at the carrier (its
  * one-time KYC), so the business hands in no documents. Off by default. Workspaces on their own carrier account are
- * never affected.
+ * never affected. The area code is the one of the group's address (read from the carrier); only while none is found
+ * for it does the card ask for one.
  */
 function GermanNumbers() {
   const t = useT()
   const query = useQuery(GERMAN_NUMBERS, loadGermanNumbers)
+  const data = query.data
+  const groupQuery = useQuery(data?.requirementGroupId ? GERMAN_GROUP : null, loadGermanGroup)
   const [problem, setProblem] = useState<string | null>(null)
   const [group, setGroup] = useState<string | null>(null)
   const [codes, setCodes] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const data = query.data
+  const [checking, setChecking] = useState(false)
+  /** Reads the group at the carrier now (after a save, or Check again), then what is offered with it. */
+  async function checkGroup() {
+    setChecking(true)
+    try {
+      setQueryData<GermanGroupData | undefined>(
+        GERMAN_GROUP,
+        (await runAdmin('germanNumbers.group', { refresh: true })) as GermanGroupData,
+      )
+      setQueryData<GermanNumbersData | undefined>(GERMAN_NUMBERS, await loadGermanNumbers())
+    } catch {
+      // The card stays as it was; the status line keeps its last answer.
+    } finally {
+      setChecking(false)
+    }
+  }
   async function save(change: { on?: boolean; requirementGroupId?: string; areaCodes?: string[] }) {
     if (!data) return
     setProblem(null)
     setSaving(true)
     if (change.on !== undefined) setQueryData<GermanNumbersData | undefined>(GERMAN_NUMBERS, { ...data, ...change })
     try {
-      setQueryData<GermanNumbersData | undefined>(
-        GERMAN_NUMBERS,
-        (await runAdmin('germanNumbers.set', change)) as GermanNumbersData,
-      )
+      const saved = (await runAdmin('germanNumbers.set', change)) as GermanNumbersData
+      setQueryData<GermanNumbersData | undefined>(GERMAN_NUMBERS, saved)
       setGroup(null)
       setCodes(null)
+      if (saved.requirementGroupId && change.on === undefined) void checkGroup()
     } catch (e) {
       setQueryData<GermanNumbersData | undefined>(GERMAN_NUMBERS, data)
       setProblem(e instanceof Error ? e.message : t('admin.system.germanNumbersFailed'))
@@ -241,14 +367,33 @@ function GermanNumbers() {
       setSaving(false)
     }
   }
+  // A read that failed in the app (offline) is said like a carrier that did not answer: calmly, with Check again.
+  const groupData: GermanGroupData | undefined = !data?.requirementGroupId
+    ? undefined
+    : (groupQuery.data ??
+      (groupQuery.error ? { ...NO_GROUP_READ, id: data.requirementGroupId, state: 'unreachable' } : undefined))
+  const groupLoading = !!data?.requirementGroupId && !groupData
+  // The area code found for the group's address: the carrier's latest answer, else the one the server keeps.
+  const found = groupData
+    ? groupData.areaCode
+      ? { code: groupData.areaCode, city: groupData.address?.city ?? data?.areaCodeCity ?? '' }
+      : null
+    : data?.areaCodeCity
+      ? { code: data.areaCodes[0] ?? '', city: data.areaCodeCity }
+      : null
+  const local = data?.numberType === 'local'
+  // The typed area codes only while none is found for the group's address (and not while it is being read).
+  const askCodes = !!data && local && !!data.requirementGroupId && !found && !groupLoading
   const groupValue = group ?? data?.requirementGroupId ?? ''
-  const codesValue = codes ?? (data?.areaCodes ?? []).map(c => `0${c}`).join(', ')
+  const codesValue = codes ?? (data?.savedAreaCodes ?? []).map(c => `0${c}`).join(', ')
   const typedCodes = codesValue
     .split(/[\s,]+/)
     .map(c => c.replace(/^0/, ''))
     .filter(Boolean)
   const changed =
-    !!data && (groupValue.trim() !== data.requirementGroupId || typedCodes.join(',') !== data.areaCodes.join(','))
+    !!data &&
+    (groupValue.trim() !== data.requirementGroupId ||
+      (askCodes && typedCodes.join(',') !== data.savedAreaCodes.join(',')))
   return (
     <Card title={t('admin.system.germanNumbers')} help={t('admin.system.germanNumbersHelp')}>
       <div className="swrow">
@@ -278,7 +423,8 @@ function GermanNumbers() {
           className="adm-german-numbers"
           onSubmit={e => {
             e.preventDefault()
-            if (changed) void save({ requirementGroupId: groupValue.trim(), areaCodes: typedCodes })
+            if (changed)
+              void save({ requirementGroupId: groupValue.trim(), ...(askCodes ? { areaCodes: typedCodes } : {}) })
           }}
         >
           <Field
@@ -287,9 +433,36 @@ function GermanNumbers() {
             help={t('admin.system.germanNumbersGroupHelp')}
           >
             <Input id="adm-de-group" value={groupValue} onChange={e => setGroup(e.target.value)} autoComplete="off" />
+            {data.requirementGroupId && (
+              <GroupStatus
+                group={groupData}
+                loading={checking || groupLoading}
+                numberType={data.numberType}
+                onCheck={() => void checkGroup()}
+              />
+            )}
           </Field>
-          {data.numberType === 'local' && (
-            <Field id="adm-de-codes" label={t('admin.system.germanNumbersAreaCodes')}>
+          {local && found && (
+            <div className="k-field" role="group" aria-labelledby="adm-de-area">
+              <div className="k-field-label">
+                <span id="adm-de-area" className="adm-de-area-label">
+                  {t('admin.system.germanNumbersAreaCode')}
+                </span>
+              </div>
+              <p className="adm-de-area">
+                <b>{areaCodeShown(found.code, 'DE')}</b>
+                {found.city && (
+                  <span className="help">{t('admin.system.germanNumbersAreaCodeFrom', { city: found.city })}</span>
+                )}
+              </p>
+            </div>
+          )}
+          {askCodes && (
+            <Field
+              id="adm-de-codes"
+              label={t('admin.system.germanNumbersAreaCodes')}
+              help={t('admin.system.germanNumbersAreaCodesHelp')}
+            >
               <Input id="adm-de-codes" value={codesValue} onChange={e => setCodes(e.target.value)} autoComplete="off" />
             </Field>
           )}
