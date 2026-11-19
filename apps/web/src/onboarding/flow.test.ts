@@ -511,6 +511,18 @@ test('done says live only when calls are really answered', () => {
   expect(
     doneState({ ...base, admin: true, number: { ...forwarded, mode: 'new' }, voiceMissing: true }).left[0]!.to,
   ).toEqual({ admin: '#admin/providers/answering' })
+  // A number requested with documents (Germany) and under review: the review is what is left, shown in place.
+  expect(doneState({ ...base, number: null, reviewedNumber: 'Berlin' })).toMatchObject({
+    live: false,
+    lede: 'Maya answers your calls once your Berlin number is approved.',
+    left: [
+      {
+        label: 'Your Berlin number is under review (usually 1–3 business days)',
+        to: { step: 'phone' },
+        action: 'Show',
+      },
+    ],
+  })
 })
 
 test("a partner's team reads the client's words on the last step and in the phone options", () => {

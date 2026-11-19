@@ -1,12 +1,13 @@
-// The pieces of a number request form (docs/numbers-kyc.md), shared by Settings › Phone numbers (NumberRequests.tsx)
-// and the onboarding phone step: the city picker, the business profile fields (who holds the number, the address,
-// a contact person) and the documents the carrier wants, listed by name with upload and delete. Each piece is
-// controlled by its screen, which decides when the profile is saved and the request is sent.
+// The pieces of a number request form (docs/numbers-kyc.md), the one set shared by Settings › Phone numbers
+// (settings/NumberRequests.tsx) and the onboarding phone step (NumberRequestFlow.tsx): the area search (the area of
+// the business address picked first, never locked), the business profile fields (who holds the number, the address, a contact
+// person) and the documents the carrier wants, listed by name with upload and delete, the BNetzA form downloadable
+// filled in. Each piece is controlled by its screen, which decides when the profile is saved and the request is sent.
 import {
   KYC_COUNTRIES,
   type KycCountry,
   NUMBER_COUNTRIES,
-  type NumberCity,
+  type NumberArea,
   type RegulatoryDocumentKind,
   type RegulatoryDocumentSummary,
   type RegulatoryEntityType,
@@ -15,24 +16,32 @@ import {
 } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
 import { useFormat, useT } from '@linedesk/i18n/react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { fmt } from '../i18n/format.ts'
 import { i18n } from '../i18n/index.tsx'
-import { Select } from '../ui/controls.tsx'
-import { Badge, Button, Icon } from '../ui/kit.tsx'
+import { CountrySelect } from '../settings/CountrySelect.tsx'
+import { Field, TextInput } from '../settings/fields.tsx'
+import { RadioCard, Select } from '../ui/controls.tsx'
+import { Input } from '../ui/form.tsx'
+import { Badge, Button, Icon, Note } from '../ui/kit.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
-import { CountrySelect } from './CountrySelect.tsx'
-import { Field, TextInput } from './fields.tsx'
+import { downloadBnetzaForm } from './bnetzaForm.ts'
 import {
+  ADDRESS_ORDER,
+  areaAwayFromAddress,
   type DraftField,
   type DraftProblem,
   documentProblem,
   documentsByKind,
   fileSize,
+  listedAreas,
   nationalPrefix,
   type ProfileDraft,
+  type RequestRow,
+  rejectionReason,
 } from './numberRequestModel.ts'
-import { deleteDocument, uploadDocument } from './numberRequestQueries.ts'
-import './number-requests.css'
+import { deleteDocument, uploadDocument, useNumberAreas } from './numberRequestQueries.ts'
+import './number-request.css'
 
 const KNOWN_CITIES = new Set(KYC_COUNTRIES.flatMap(c => NUMBER_COUNTRIES[c].cities.map(city => city.id)))
 
@@ -43,38 +52,134 @@ export const cityName = (city: string) =>
       i18n().t(`settings.phone.request.city.${city}` as MessageKey)
     : city
 
-/** The city picker: "Berlin (030)", major cities first, as the country lists them. */
-export function CityPicker({
+/** An area's name: a popular city in the reader's language ("Munich"), else the area's own ("Heidelberg"). */
+export const areaTitle = (area: Pick<NumberArea, 'city' | 'name'>) => (area.city ? cityName(area.city) : area.name)
+
+/** The area of a request: its popular city's name, else the area's own name, else the area code (06221). */
+export const requestAreaName = (request: Pick<RequestRow, 'city' | 'areaName' | 'prefix'>) =>
+  request.city ? cityName(request.city) : (request.areaName ?? nationalPrefix(request.prefix))
+
+/** Why the server would not send a request, in calm words for the codes the app knows; else the server's own. */
+export function createProblemText(error: unknown): string {
+  const code = (error as { code?: string } | null)?.code
+  const known: Record<string, MessageKey> = {
+    number_request_unknown_area: 'settings.phone.request.problem.unknownArea',
+    number_request_no_local_numbers: 'settings.phone.request.problem.noLocalNumbers',
+    number_request_no_numbers: 'settings.phone.request.problem.noNumbers',
+  }
+  if (code && known[code]) return i18n().t(known[code])
+  return error instanceof Error ? error.message : String(error)
+}
+
+/** The value once it stopped changing for a moment (typing): one search, not one per key. */
+function useSettled(value: string, ms = 250): string {
+  const [settled, setSettled] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), ms)
+    return () => clearTimeout(timer)
+  }, [value, ms])
+  return settled
+}
+
+/**
+ * The area search: a place, an area code or a postcode finds the areas a number can be asked for
+ * (numberRequest.areas); empty, the available ones, popular first. The area of the business address is listed first
+ * and picked while nothing else is. An area without local numbers yet stays in the list, greyed, and cannot be
+ * picked. Another area than the address's can be picked; a calm line says what the proof of address then needs.
+ */
+export function AreaPicker({
   id,
-  cities,
+  country,
+  address,
   value,
   onChange,
   disabled,
 }: {
   id: string
-  cities: readonly NumberCity[]
-  /** The picked city's prefix (`30`), '' for none. */
-  value: string
-  onChange: (prefix: string) => void
+  country: KycCountry
+  /** The business address, for the suggestion (its city and postal code). */
+  address: { city: string; postal_code: string }
+  value: NumberArea | null
+  onChange: (area: NumberArea) => void
   disabled?: boolean
 }) {
   const t = useT()
+  const [typed, setTyped] = useState('')
+  const query = useSettled(typed)
+  const place = useSettled(`${address.postal_code.trim()}\n${address.city.trim()}`)
+  const [postal_code = '', city = ''] = place.split('\n')
+  const at = { postal_code, city }
+  const base = useNumberAreas(country, '', at)
+  const search = useNumberAreas(country, query, at)
+  // While a new search runs, the last answer stays (no flicker to empty).
+  const last = useRef(search.data)
+  if (search.data) last.current = search.data
+  const found = search.data ?? last.current
+  const suggested = base.data?.suggested ?? []
+  const first = suggested.find(a => a.available)
+  useEffect(() => {
+    if (!value && first) onChange(first)
+  }, [value, first, onChange])
+
+  const areas = found ? listedAreas(found.areas, suggested, value, query) : []
+  const greyed = areas.some(a => !a.available)
+  const away = value ? areaAwayFromAddress(value.prefix, suggested) : false
+  const describe = (area: NumberArea) =>
+    [
+      nationalPrefix(area.prefix),
+      area.place && area.place !== area.name ? t('settings.phone.request.area.includes', { place: area.place }) : null,
+      suggested.some(s => s.prefix === area.prefix) ? t('settings.phone.request.area.yourAddress') : null,
+      area.available ? null : t('settings.phone.request.area.notYet'),
+    ]
+      .filter(Boolean)
+      .join(' · ')
+
   return (
-    <Select
-      id={id}
-      label={t('settings.phone.request.city')}
-      value={value}
-      disabled={disabled}
-      options={[
-        ...(value ? [] : [{ value: '', label: t('settings.phone.request.cityPick'), disabled: true }]),
-        ...cities.map(c => ({
-          value: c.prefix,
-          label: t('settings.phone.request.cityOption', { city: cityName(c.id), code: nationalPrefix(c.prefix) }),
-        })),
-      ]}
-      onChange={onChange}
-    />
+    <div className="nr-area">
+      <Input
+        id={id}
+        type="search"
+        value={typed}
+        disabled={disabled}
+        placeholder={t('settings.phone.request.area.search')}
+        aria-label={t('settings.phone.request.area.search')}
+        autoComplete="off"
+        onChange={e => setTyped(e.target.value)}
+      />
+      {!found ? (
+        <p className="help">{search.error ?? t('settings.phone.request.area.loading')}</p>
+      ) : areas.length === 0 ? (
+        <p className="help">{t('settings.phone.request.area.none', { query: query.trim() })}</p>
+      ) : (
+        <div className="k-radios nr-areas" role="radiogroup" aria-label={t('settings.phone.request.area.label')}>
+          {areas.map(area => (
+            <RadioCard
+              key={area.prefix}
+              name={`${id}-area`}
+              checked={value?.prefix === area.prefix}
+              disabled={disabled || !area.available}
+              onPick={() => onChange(area)}
+              title={areaTitle(area)}
+              description={describe(area)}
+            />
+          ))}
+        </div>
+      )}
+      {greyed && <p className="help nr-hint">{t('settings.phone.request.area.greyed')}</p>}
+      {away && value && (
+        <Note tone="info" role="status">
+          {t('settings.phone.request.area.away', { area: areaTitle(value) })}
+        </Note>
+      )}
+    </div>
   )
+}
+
+/** A rejection's reason in the reader's words, or the carrier's own. */
+export function reasonText(reason: string | null) {
+  const r = rejectionReason(reason)
+  // i18n-dynamic: settings.phone.request.reason.*
+  return 'key' in r ? i18n().t(`settings.phone.request.reason.${r.key}` as MessageKey) : r.text
 }
 
 /** A field's problem in words. */
@@ -122,28 +227,31 @@ export function BusinessProfileFields({ idPrefix, draft, onChange, shown, proble
       <fieldset className="nr-group">
         <legend>{t('settings.phone.request.business')}</legend>
         {text('legal_name', t('settings.phone.request.legalName'), { help: t('settings.phone.request.legalNameHelp') })}
-        <div className="nr-pair">
-          <Field id={id('entity_type')} label={t('settings.phone.request.entityType')}>
-            <div>
-              <Select
-                id={id('entity_type')}
-                label={t('settings.phone.request.entityType')}
-                value={draft.entity_type}
-                disabled={disabled}
-                options={regulatoryEntityTypes.map((type: RegulatoryEntityType) => ({
-                  value: type,
-                  // i18n-dynamic: settings.phone.request.entity.*
-                  label: t(`settings.phone.request.entity.${type}`),
-                }))}
-                onChange={entity_type => onChange({ entity_type })}
-              />
-            </div>
-          </Field>
-          {shown.has('registration_number') &&
-            text('registration_number', t('settings.phone.request.registrationNumber'))}
-        </div>
+        <Field id={id('entity_type')} label={t('settings.phone.request.entityType')}>
+          <div>
+            <Select
+              id={id('entity_type')}
+              label={t('settings.phone.request.entityType')}
+              value={draft.entity_type}
+              disabled={disabled}
+              options={regulatoryEntityTypes.map((type: RegulatoryEntityType) => ({
+                value: type,
+                // i18n-dynamic: settings.phone.request.entity.*
+                label: t(`settings.phone.request.entity.${type}`),
+              }))}
+              onChange={entity_type => onChange({ entity_type })}
+            />
+          </div>
+        </Field>
         {shown.has('registration_number') && (
-          <p className="help nr-hint">{t('settings.phone.request.registrationNumberHelp')}</p>
+          <>
+            <div className="nr-pair">
+              {text('registration_number', t('settings.phone.request.registrationNumber'))}
+              {shown.has('register_court') &&
+                text('register_court', t('settings.phone.request.registerCourt'), { optional: true })}
+            </div>
+            <p className="help nr-hint">{t('settings.phone.request.registrationNumberHelp')}</p>
+          </>
         )}
         {shown.has('website') && text('website', t('settings.phone.request.website'))}
         {shown.has('use_case') &&
@@ -151,12 +259,22 @@ export function BusinessProfileFields({ idPrefix, draft, onChange, shown, proble
       </fieldset>
       <fieldset className="nr-group">
         <legend>{t('settings.phone.request.address')}</legend>
+        {NUMBER_COUNTRIES[country].addressInArea && (
+          <p className="help nr-hint">{t('settings.phone.request.addressHelp')}</p>
+        )}
         {text('street', t('settings.phone.request.street'))}
         {text('extended', t('settings.phone.request.extended'), { optional: true })}
-        <div className="nr-pair nr-pair-postal">
-          {text('postal_code', t('settings.phone.request.postalCode'))}
-          {text('city', t('settings.phone.request.addressCity'))}
-        </div>
+        {ADDRESS_ORDER[country] === 'postcode_first' ? (
+          <div className="nr-pair nr-pair-postal">
+            {text('postal_code', t('settings.phone.request.postalCode'))}
+            {text('city', t('settings.phone.request.addressCity'))}
+          </div>
+        ) : (
+          <div className="nr-pair nr-pair-postal-last">
+            {text('city', t('settings.phone.request.addressCity'))}
+            {text('postal_code', t('settings.phone.request.postalCode'))}
+          </div>
+        )}
         <Field
           id={id('country')}
           label={t('settings.phone.request.addressCountry')}
@@ -202,10 +320,11 @@ type DocumentsProps = {
   disabled?: boolean
   /** Owners and admins only; members see the names. */
   canEdit?: boolean
+  /** The business as typed so far: the BNetzA form downloads filled in with it. */
+  draft: ProfileDraft
+  /** Without the group's own heading and help (the onboarding step says it in its title). */
+  plain?: boolean
 }
-
-/** The carrier's blank form for the Bundesnetzagentur (Telnyx, help article 1311450 "Germany DID Requirements"). */
-const BNETZA_FORM_URL = 'https://github.com/user-attachments/files/32972910/Telnyx.Germany.Registration.Form.pdf'
 
 /**
  * One row per document the country needs: its name and what it is, the files uploaded for it (by name; the newest is
@@ -219,6 +338,8 @@ export function RequiredDocuments({
   showMissing,
   disabled,
   canEdit = true,
+  draft,
+  plain,
 }: DocumentsProps) {
   const t = useT()
   const format = useFormat()
@@ -270,9 +391,9 @@ export function RequiredDocuments({
   }
 
   return (
-    <fieldset className="nr-group">
-      <legend>{t('settings.phone.request.documents.title')}</legend>
-      <p className="help nr-hint">{t('settings.phone.request.documents.help')}</p>
+    <fieldset className={plain ? 'nr-group nr-group-plain' : 'nr-group'}>
+      <legend className={plain ? 'sr-only' : undefined}>{t('settings.phone.request.documents.title')}</legend>
+      {!plain && <p className="help nr-hint">{t('settings.phone.request.documents.help')}</p>}
       <input
         ref={input}
         type="file"
@@ -291,14 +412,7 @@ export function RequiredDocuments({
                   {/* i18n-dynamic: settings.phone.request.documents.kind.* */}
                   <b>{t(`settings.phone.request.documents.kind.${kind}.title`)}</b>
                   <span className="help">{t(`settings.phone.request.documents.kind.${kind}.help`)}</span>
-                  {kind === 'bnetza_form' && (
-                    <span className="help">
-                      <a href={BNETZA_FORM_URL} target="_blank" rel="noreferrer">
-                        {t('settings.phone.request.documents.bnetzaForm.download')}
-                      </a>{' '}
-                      {t('settings.phone.request.documents.bnetzaForm.hint')}
-                    </span>
-                  )}
+                  {kind === 'bnetza_form' && <FormDownload draft={draft} />}
                 </span>
                 {missing && <Badge tone="danger">{t('settings.phone.request.documents.missing')}</Badge>}
                 {canEdit && (
@@ -356,5 +470,45 @@ export function RequiredDocuments({
         })}
       </ul>
     </fieldset>
+  )
+}
+
+/** The BNetzA form, filled in with the business's details in the browser, to sign and upload. */
+function FormDownload({ draft }: { draft: ProfileDraft }) {
+  const t = useT()
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+  async function download() {
+    setBusy(true)
+    setFailed(false)
+    try {
+      await downloadBnetzaForm(
+        {
+          legalName: draft.legal_name.trim(),
+          register: [draft.registration_number.trim(), draft.register_court.trim()].filter(Boolean).join(', '),
+          signer: `${draft.first_name.trim()} ${draft.last_name.trim()}`.trim(),
+          place: draft.city.trim(),
+          date: fmt().date(new Date(), { dateStyle: 'medium' }),
+          entityType: draft.entity_type,
+        },
+        t('settings.phone.request.documents.bnetzaForm.file'),
+      )
+    } catch {
+      setFailed(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <span className="nr-doc-extra">
+      <Button size="sm" variant="secondary" busy={busy} onClick={() => void download()}>
+        {t('settings.phone.request.documents.bnetzaForm.download')}
+      </Button>
+      {failed && (
+        <span className="k-field-msg" role="alert">
+          {t('settings.phone.request.documents.bnetzaForm.failed')}
+        </span>
+      )}
+    </span>
   )
 }

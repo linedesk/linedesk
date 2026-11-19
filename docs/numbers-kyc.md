@@ -35,7 +35,8 @@ Three tables, not synced to browsers (`packages/db/src/schema.ts`, migrations `0
   `regulatory_document:<id>`) and is moved by `rotate-secrets-key.ts`. The app lists documents by name only; the
   content never goes back to a browser, only to the carrier. Upload input is redacted in the command log.
   The blank BNetzA form is Telnyx's "German Registration Form Template" (help article 1311450, Germany DID
-  Requirements); the request dialog links it (`BNETZA_FORM_URL` in apps/web/src/settings/NumberRequestForm.tsx).
+  Requirements), shipped in apps/web/src/numbers/assets/. Settings and the onboarding phone step offer it filled in
+  with the business's details (pdf-lib, in the browser: apps/web/src/numbers/bnetzaForm.ts) to sign and upload.
 - `number_requests`: one per requested number, with its state, the carrier's refs and the reason of a rejection.
 
 Access: owners and admins (`settings:write`). Members, the voice agent and API keys get nothing (the actions are not
@@ -256,28 +257,27 @@ Sources and licences (named in the generated file):
   (open source), confirm with the BNetzA that the derived municipality → Ortsnetz list may be published, or leave that
   list (`DE_GEMEINDEN`) out of the export and generate it at install time.
 
-## Price during the beta
+## Price
 
-Billing rule `regulatedNumberFeeWaived` (Server admin › Billing › rules, "Numbers with documents are free"; on by
-default, the value of Linedesk Cloud during the beta, decision of 2026-11-18): numbers in the KYC countries (by calling
-code: +49, +44, +353) cost the workspace nothing a month. They are left out of the extra numbers (`feeNumbers` in
-`apps/api/src/ledger.ts`): no monthly fee is posted when one is set up or by the hourly run, they never count as the
-number a workspace includes (a US number next to a free German one is the included one), they add nothing to the
-recharge cap, and a request needs no balance for a first month (`billingNumberRefusal` with `feeWaived`; the bill must
-still be active, and the trial's number limit applies). Linedesk pays Telnyx for them. `numberRequest.requirements`
-says `monthlyFeeWaived`, so the app can say "free during the beta". Turned off, the next hourly run charges them like
-any extra number. A self-hosted install that bills its own workspaces sets the rule as it likes; on a workspace's own
-carrier account Linedesk never charged for the number.
+A German (UK, Irish) number is priced like a US one (Janik, 2026-11-18: no beta, Germany goes live directly): the
+first number of a workspace is the one its plan includes, more numbers are extra numbers (`extraNumberCents`). The
+billing rule `regulatedNumberFeeWaived` (Server admin › Billing › rules, "Numbers with documents are free") is off by
+default. Turned on, numbers in the KYC countries (by calling code: +49, +44, +353) cost the workspace nothing a month:
+they are left out of the extra numbers (`feeNumbers` in `apps/api/src/ledger.ts`), never count as the number a
+workspace includes, add nothing to the recharge cap, and a request needs no balance for a first month
+(`billingNumberRefusal` with `feeWaived`; the bill must still be active, and the trial's number limit applies); the
+operator pays the carrier. `numberRequest.requirements` says `monthlyFeeWaived`, so the app says "included in your
+plan" or "no monthly fee". On a workspace's own carrier account Linedesk never charges for the number.
 
 ## Before a country goes live
 
-- UI: a "Phone numbers" request form in settings and the onboarding phone step (profile, documents, city picker,
+- UI: a "Phone numbers" request form in settings and the onboarding phone step (profile, documents, area search,
   request status), with the texts in every locale.
 - A real test purchase in Germany with real documents on the install's Telnyx account, and the Telnyx notification
   set (see Webhook).
 - The privacy page (linedesk.ai/privacy): the documents, their purpose, Telnyx as the processor that receives them.
-- Billing stays in USD (decision of 2026-11-18); the price of a German number at Telnyx differs from a US one. Free
-  during the beta (`regulatedNumberFeeWaived`); decide the price before the rule is turned off.
+- Billing stays in USD (decision of 2026-11-18); the price of a German number at Telnyx differs from a US one. Priced
+  like a US number (the included number, then `extraNumberCents`); `regulatedNumberFeeWaived` is off by default.
 
 Open legal and tax points (a telecom lawyer and a tax advisor before go-live):
 

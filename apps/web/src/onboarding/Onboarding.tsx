@@ -40,6 +40,8 @@ import {
 import { InstanceSetupNotice, isInstanceAdmin, useHash } from './InstanceSetup.tsx'
 import { NotifyStep } from './NotifyStep.tsx'
 import { PhoneStep } from './PhoneStep.tsx'
+import { requestAreaName } from '../numbers/NumberRequestForm.tsx'
+import { useKycCountry, useRequestView } from '../numbers/numberRequestQueries.ts'
 import { PickupStep } from './PickupStep.tsx'
 import { PARTNER_CLIENTS_HASH } from './setup-choice.ts'
 import { ForClient, useClientWord } from './clientWords.tsx'
@@ -324,6 +326,7 @@ export function StepScreen(p: StepScreenProps) {
           setupError={p.saves.setupError}
           clearError={p.saves.clearSetupError}
           admin={admin}
+          businessName={p.me.workspace?.unnamed ? '' : (p.me.workspace?.name ?? '')}
           oldForwarding={p.pickupMemory.oldForwarding}
           onBack={p.onBack}
           onNext={p.onNext}
@@ -458,6 +461,10 @@ function Done({
   const word = useClientWord()
   const name = useAssistantName()
   const number = useRows('phone_numbers')[0] ?? null
+  // A number requested with documents (Germany): the carrier's review is what is left, not connecting a number.
+  const kyc = useKycCountry()
+  const requests = useRequestView(number ? null : kyc.country)
+  const reviewed = kyc.country && requests.view?.kind === 'review' ? requestAreaName(requests.view.request) : null
   const presence = usePresence()
   // "Open my calls" (or Enter) opens the inbox, whatever page the address still named (one from before signing up).
   const openCalls = () => open('#calls')
@@ -475,6 +482,7 @@ function Done({
       forwardingVerified: false,
       admin,
       assistant: name,
+      reviewedNumber: reviewed,
     },
     word,
   )

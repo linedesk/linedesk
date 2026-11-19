@@ -107,6 +107,7 @@ describe('calendar.findSlots', () => {
       'records.list',
       'setupEmails.get',
       'signup.getSelfServe',
+      'signupAccess.get',
       'systemPrompt.get',
       'team.getMember',
       'team.list',

@@ -250,6 +250,8 @@ describe('access', () => {
       'signup.getSelfServe',
       'signup.setRules',
       'signup.setSelfServe',
+      'signupAccess.get',
+      'signupAccess.set',
       'systemPrompt.get',
       'systemPrompt.resetPart',
       'systemPrompt.setPart',
@@ -2561,6 +2563,8 @@ describe('impersonation', () => {
       'setupEmails.get',
       // Read-only and instance:admin, as above.
       'signup.getSelfServe',
+      // Read-only and instance:admin, as above.
+      'signupAccess.get',
       // Read-only and instance:admin, like setupEmails.get: an impersonation never has instance:admin.
       'systemPrompt.get',
       // A teammate's profile and notifications as the Edit dialog shows them; changing them stays refused.

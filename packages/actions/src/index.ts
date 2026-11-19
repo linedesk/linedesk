@@ -11,6 +11,7 @@ import * as assistantVersions from './assistant-versions.ts'
 import * as billing from './billing.ts'
 import * as billingAdmin from './billing-admin.ts'
 import * as signup from './signup.ts'
+import * as signupAccess from './signup-access.ts'
 import * as billingCheckout from './billing-checkout.ts'
 import * as billingPage from './billing-page.ts'
 import * as branding from './branding.ts'
@@ -58,6 +59,7 @@ export * from './area-codes.ts'
 export * from './nearby-area-codes.ts'
 export * from './number-countries.ts'
 export * from './number-requests.ts'
+export * from './signup-access.ts'
 export * from './client.ts'
 export * from './input-errors.ts'
 export * from './admin.ts'
@@ -400,6 +402,8 @@ const all = [
   billingPage.billingWorkspaceUsage,
   admin.impersonationEmailsGet,
   admin.impersonationEmailsSet,
+  signupAccess.signupAccessGet,
+  signupAccess.signupAccessSet,
   workspaceCreation.workspaceCreate,
   team.teamList,
   team.teamInvite,

@@ -1,14 +1,16 @@
 // What the number request screens show (docs/numbers-kyc.md), without React: where a request stands, which requests
 // still need a line under the numbers, the requested number as people write it, the carrier's reason, and the
-// business profile as a form (a draft of plain strings) and back. Shared by Settings › Phone numbers
-// (NumberRequests.tsx) and the onboarding phone step.
+// business profile as a form (a draft of plain strings) and back, and the area picked against the business address
+// (the server suggests it: numberRequest.areas). The one model of a request: Settings › Phone numbers
+// (NumberRequests.tsx) and the onboarding phone step (NumberRequestFlow.tsx) both use it. What is only the app's per
+// country (how an address is written) is here as data, so the UK and Ireland add rows, not code.
 import {
-  cityMatches,
   type KycCountry,
   NUMBER_COUNTRIES,
+  type NumberArea,
   type NumberRequestStatus,
   type NumberRequestSummary,
-  numberCity,
+  OPEN_NUMBER_REQUEST_STATUSES,
   REGULATORY_DOCUMENT_MAX_BYTES,
   type RegulatoryDocumentKind,
   type RegulatoryDocumentSummary,
@@ -33,6 +35,29 @@ export function requestStage(status: RequestStatus): RequestStage {
   if (status === 'needs_operator') return 'onHold'
   if (status === 'rejected' || status === 'active' || status === 'cancelled') return status
   return 'review'
+}
+
+/**
+ * Where the workspace's newest request of the country stands, for the onboarding phone step: `none` (nothing asked
+ * yet, or cancelled), `review` (the carrier still decides, or approved and being set up), `rejected`, `active`.
+ */
+export type RequestView =
+  | { kind: 'none' }
+  | { kind: 'review'; request: RequestRow }
+  | { kind: 'rejected'; request: RequestRow }
+  | { kind: 'active'; request: RequestRow }
+
+export function requestView(country: KycCountry, requests: readonly RequestRow[]): RequestView {
+  const latest = requests.find(r => r.country === country)
+  if (!latest || latest.status === 'cancelled') return { kind: 'none' }
+  if (
+    OPEN_NUMBER_REQUEST_STATUSES.includes(latest.status) ||
+    latest.status === 'approved' ||
+    latest.status === 'needs_operator'
+  )
+    return { kind: 'review', request: latest }
+  if (latest.status === 'rejected') return { kind: 'rejected', request: latest }
+  return { kind: 'active', request: latest }
 }
 
 /**
@@ -98,6 +123,8 @@ export function rejectionReason(reason: string | null): { key: string } | { text
 export type ProfileDraft = {
   legal_name: string
   entity_type: RegulatoryEntityType
+  /** The court that keeps the register (Germany: Amtsgericht Mannheim); optional. */
+  register_court: string
   registration_number: string
   website: string
   use_case: string
@@ -129,6 +156,7 @@ export function draftOf(profile: RegulatoryProfileInput | null, defaults: DraftD
     return {
       legal_name: profile.legal_name,
       entity_type: profile.entity_type,
+      register_court: profile.register_court ?? '',
       registration_number: profile.registration_number ?? '',
       website: profile.website ?? '',
       use_case: profile.use_case ?? '',
@@ -147,6 +175,7 @@ export function draftOf(profile: RegulatoryProfileInput | null, defaults: DraftD
   return {
     legal_name: defaults.legalName?.trim() ?? '',
     entity_type: 'business',
+    register_court: '',
     registration_number: '',
     website: '',
     use_case: '',
@@ -181,9 +210,21 @@ const OPTIONAL: readonly (RegulatoryField & DraftField)[] = ['registration_numbe
 
 /** The fields the form shows for a country: the optional ones only where the country asks for them. */
 export const shownFields = (fields: readonly RegulatoryField[]) =>
-  new Set<DraftField>([...ALWAYS, 'entity_type', 'extended', ...OPTIONAL.filter(f => fields.includes(f))])
+  new Set<DraftField>([
+    ...ALWAYS,
+    'entity_type',
+    'extended',
+    ...OPTIONAL.filter(f => fields.includes(f)),
+    // The court goes with the register number wherever the country asks for it (optional).
+    ...(fields.includes('registration_number') || fields.includes('register_court')
+      ? (['register_court'] as const)
+      : []),
+  ])
 
-export type DraftProblem = 'required' | 'email' | 'website' | 'phone'
+export type DraftProblem = 'required' | 'email' | 'website' | 'phone' | 'postcode'
+
+/** How a country's postcode looks, where the app checks it (Germany: five digits). */
+const POSTCODE: Partial<Record<string, RegExp>> = { DE: /^\d{5}$/ }
 
 /** "example.com" is a web address too: https:// is added; '' stays ''. */
 export function websiteOf(text: string): string {
@@ -215,6 +256,8 @@ export function profileFromDraft(
     if (!value(field)) problems[field] = 'required'
   if (value('email') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value('email'))) problems.email = 'email'
   if (value('phone') && !/^\+[1-9]\d{6,14}$/.test(value('phone'))) problems.phone = 'phone'
+  const postcode = POSTCODE[value('country').toUpperCase()]
+  if (postcode && value('postal_code') && !postcode.test(value('postal_code'))) problems.postal_code = 'postcode'
   const website = websiteOf(draft.website)
   if (website && !isUrl(website)) problems.website = 'website'
   if (Object.keys(problems).length) return { problems }
@@ -224,6 +267,7 @@ export function profileFromDraft(
       legal_name: value('legal_name'),
       entity_type: draft.entity_type,
       ...optional('registration_number'),
+      ...optional('register_court'),
       ...optional('website', website),
       ...optional('use_case'),
       address: {
@@ -282,14 +326,30 @@ export const missingDocuments = (
   documents: readonly Pick<RegulatoryDocumentSummary, 'kind'>[],
 ) => kinds.filter(kind => !documents.some(d => d.kind === kind))
 
+/** How the country writes an address: the postcode before the city (Germany, "69221 Dossenheim") or after it. */
+export const ADDRESS_ORDER: Record<KycCountry, 'postcode_first' | 'city_first'> = {
+  DE: 'postcode_first',
+  GB: 'city_first',
+  IE: 'city_first',
+}
+
 /**
- * Whether the address is outside the number's city where the country wants it inside (Germany, Ireland): the app only
- * says so, the carrier decides (a suburb may be fine).
+ * Whether the picked area is not one the business address is in (numberRequest.areas `suggested`): then the proof of
+ * address has to show a site of the business in that area. Only said, never a lock; unknown (no suggestion) says nothing.
  */
-export function addressOutsideCity(country: KycCountry, prefix: string, addressCity: string): boolean {
-  const city = numberCity(country, prefix)
-  if (!city || !NUMBER_COUNTRIES[country].addressInArea || !addressCity.trim()) return false
-  return !cityMatches(city, addressCity)
+export const areaAwayFromAddress = (prefix: string, suggested: readonly Pick<NumberArea, 'prefix'>[]) =>
+  suggested.length > 0 && !suggested.some(a => a.prefix === prefix)
+
+/** The areas to list: the picked one and the address's first, then what the search found, each once. */
+export function listedAreas(
+  found: readonly NumberArea[],
+  suggested: readonly NumberArea[],
+  picked: NumberArea | null,
+  query: string,
+): NumberArea[] {
+  const head = [...(picked ? [picked] : []), ...(query.trim() ? [] : suggested)]
+  const seen = new Set<string>()
+  return [...head, ...found].filter(a => !seen.has(a.prefix) && !!seen.add(a.prefix))
 }
 
 /** The file's bytes as base64, for numberRequest.uploadDocument. */

@@ -116,7 +116,7 @@ export type NumberRequirementsData = {
   anyArea: boolean
   /**
    * The monthly number fee is waived for numbers in this country (the instance's billing rule
-   * `regulatedNumberFeeWaived`, on by default: free during the beta). False on a workspace's own carrier account,
+   * `regulatedNumberFeeWaived`, off by default: then the number is the one the plan includes, or an extra number). False on a workspace's own carrier account,
    * where Linedesk never charged for the number.
    */
   monthlyFeeWaived: boolean

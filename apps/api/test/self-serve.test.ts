@@ -1424,3 +1424,112 @@ describe('the daily sign-up sweep', () => {
     expect(await db.select().from(user).where(eq(user.id, kept.userId))).toHaveLength(1)
   })
 })
+
+describe('sign-up countries: a mode per country, Germany by invitation by default (signup-access.ts)', () => {
+  const inWorkspace = (who: { headers: Record<string, string> }, workspaceId: string) => ({
+    headers: { ...who.headers, 'x-workspace-id': workspaceId },
+  })
+  const served = async (who: { headers: Record<string, string> }) =>
+    (await act(who, 'workspace.getSettings', {})).body.data.servedCountries
+  let admin: Awaited<ReturnType<typeof signUp>>
+  const access = (input: Record<string, unknown>) => asServerAdmin(admin, () => act(admin, 'signupAccess.set', input))
+
+  beforeEach(async () => {
+    admin = await signUp()
+    await setting('signup_access.modes', null)
+    await setting('signup_access.invites', null)
+  })
+
+  test('off by default: without NUMBER_KYC_COUNTRIES nobody gets Germany, invited or not', async () => {
+    vi.stubEnv('NUMBER_KYC_COUNTRIES', '')
+    const email = address('tester')
+    await access({ invites: [email] })
+    const { who, made } = await signUpThroughPage(email, NAME_ONLY, FROM_COUNTRY('DE'))
+    const inWs = inWorkspace(who, made.body.data.workspace.id)
+    expect(await served(inWs)).toEqual(['US', 'CA', 'PR'])
+    expect(await act(inWs, 'workspace.updateSettings', { country: 'DE' })).toMatchObject({
+      status: 409,
+      body: { code: COUNTRY_NOT_SERVED },
+    })
+  })
+
+  test('with DE open on the server: only an invited address (any case) may pick Germany', async () => {
+    vi.stubEnv('NUMBER_KYC_COUNTRIES', 'DE,GB')
+    const invited = address('invited')
+    await access({ invites: [`  ${invited.toUpperCase()} `] })
+    const stranger = await signUpThroughPage(address('stranger'), NAME_ONLY, FROM_COUNTRY('DE'))
+    const strangerWs = inWorkspace(stranger.who, stranger.made.body.data.workspace.id)
+    expect(await served(strangerWs)).toEqual(['US', 'CA', 'PR'])
+    expect((await act(strangerWs, 'workspace.updateSettings', { country: 'DE' })).status).toBe(409)
+
+    const tester = await signUpThroughPage(invited, NAME_ONLY, FROM_COUNTRY('DE'))
+    const workspaceId = tester.made.body.data.workspace.id
+    const testerWs = inWorkspace(tester.who, workspaceId)
+    // The UK is open for number requests but not a sign-up country (yet): only Germany joins.
+    expect(await served(testerWs)).toEqual(['US', 'CA', 'PR', 'DE'])
+    expect((await act(testerWs, 'workspace.updateSettings', { country: 'DE' })).status).toBe(200)
+    const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
+    // The time zone follows the country; billing stays USD (the appointment value only follows the country).
+    expect(row).toMatchObject({ country: 'DE', timezone: 'Europe/Berlin', job_value_currency: 'EUR' })
+  })
+
+  test('open to everyone: every sign-up may pick Germany, also an older page that sends it', async () => {
+    vi.stubEnv('NUMBER_KYC_COUNTRIES', 'DE')
+    await access({ modes: { DE: 'open' } })
+    const { who, made } = await signUpThroughPage(address('anyone'), { ...DETAILS, country: 'DE' })
+    expect(made).toMatchObject({ status: 200, body: { ok: true } })
+    expect(await served(inWorkspace(who, made.body.data.workspace.id))).toEqual(['US', 'CA', 'PR', 'DE'])
+    // Back to invited only: an older page that sends Germany is refused.
+    await access({ modes: { DE: 'invited' } })
+    const late = await signUpThroughPage(address('late'), { ...DETAILS, country: 'DE' })
+    expect(late.made).toMatchObject({ status: 409, body: { code: COUNTRY_NOT_SERVED } })
+  })
+
+  test('every country has a mode: a sign-up country can be set to invited only or off as well', async () => {
+    vi.stubEnv('NUMBER_KYC_COUNTRIES', '')
+    const invited = address('invited-ca')
+    await access({ modes: { CA: 'invited', PR: 'off' }, invites: [invited] })
+    const stranger = await signUpThroughPage(address('stranger-ca'), NAME_ONLY, FROM_COUNTRY('US'))
+    expect(await served(inWorkspace(stranger.who, stranger.made.body.data.workspace.id))).toEqual(['US'])
+    const guest = await signUpThroughPage(invited, NAME_ONLY, FROM_COUNTRY('US'))
+    expect(await served(inWorkspace(guest.who, guest.made.body.data.workspace.id))).toEqual(['US', 'CA'])
+    // The public sign-up page lists only the countries open to everyone.
+    expect((await request(anonymous, 'GET', '/v1/signup/config')).body.countries).toEqual(['US'])
+  })
+
+  test('Server admin › System: instance admins only; the list is kept trimmed, lower case, sorted and once', async () => {
+    vi.stubEnv('NUMBER_KYC_COUNTRIES', 'DE')
+    const { owner } = await createWorkspace('Access Owner')
+    expect((await act(owner, 'signupAccess.get', {})).status).toBe(403)
+    expect((await act(owner, 'signupAccess.set', { modes: { DE: 'open' } })).status).toBe(403)
+    const country = (code: string, mode: string, defaultMode: string) => ({ country: code, mode, defaultMode })
+    expect(await access({ invites: ['b@x.test', 'A@x.test', 'a@x.test'] })).toMatchObject({
+      status: 200,
+      body: {
+        data: {
+          countries: [
+            country('US', 'open', 'open'),
+            country('CA', 'open', 'open'),
+            country('PR', 'open', 'open'),
+            country('DE', 'invited', 'invited'),
+          ],
+          invites: ['a@x.test', 'b@x.test'],
+        },
+      },
+    })
+    expect((await access({ invites: ['not an address'] })).status).toBe(422)
+    expect((await access({ modes: { DE: 'maybe' } })).status).toBe(422)
+    // Only what is sent changes; a country the server cannot serve is left out.
+    const after = (await access({ modes: { DE: 'open', FR: 'open' } })).body.data
+    expect(after.countries.map((c: { country: string; mode: string }) => `${c.country}:${c.mode}`)).toEqual([
+      'US:open',
+      'CA:open',
+      'PR:open',
+      'DE:open',
+    ])
+    expect(after.invites).toEqual(['a@x.test', 'b@x.test'])
+    vi.stubEnv('NUMBER_KYC_COUNTRIES', '')
+    const off = (await asServerAdmin(admin, () => act(admin, 'signupAccess.get', {}))).body.data
+    expect(off.countries.map((c: { country: string }) => c.country)).toEqual(['US', 'CA', 'PR'])
+  })
+})

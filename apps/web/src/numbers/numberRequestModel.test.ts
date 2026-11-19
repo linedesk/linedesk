@@ -3,19 +3,21 @@
 import type { RegulatoryProfileInput } from '@linedesk/actions'
 import { describe, expect, test } from 'vitest'
 import {
-  addressOutsideCity,
+  areaAwayFromAddress,
   canCancel,
   canCheck,
   documentProblem,
   documentsByKind,
   draftOf,
   holdReason,
+  listedAreas,
   missingDocuments,
   profileFromDraft,
   type RequestRow,
   rejectionReason,
   requestedNumber,
   requestStage,
+  requestView,
   sameProfile,
   shownFields,
   shownRequests,
@@ -132,11 +134,61 @@ describe('the profile form', () => {
     expect(shownFields(['website', 'use_case']).has('use_case')).toBe(true)
   })
 
-  test('the address city outside the number city is only told where the country wants it inside', () => {
-    expect(addressOutsideCity('DE', '30', 'Hamburg')).toBe(true)
-    expect(addressOutsideCity('DE', '89', 'München')).toBe(false)
-    expect(addressOutsideCity('GB', '20', 'Manchester')).toBe(false)
-    expect(addressOutsideCity('DE', '30', '')).toBe(false)
+  test('the register court is its own field next to the register number, shown where the number is asked for', () => {
+    const saved = { ...profile, registration_number: 'HRB 751915', register_court: 'Amtsgericht Mannheim' }
+    const draft = draftOf(saved, { country: 'DE' })
+    expect(draft).toMatchObject({ register_court: 'Amtsgericht Mannheim', registration_number: 'HRB 751915' })
+    expect(profileFromDraft(draft, ['registration_number'])).toEqual({ input: saved })
+    // Optional: left empty, it is not sent.
+    expect(profileFromDraft({ ...draft, register_court: '' }, ['registration_number'])).toEqual({
+      input: { ...profile, registration_number: 'HRB 751915' },
+    })
+    expect(shownFields(['registration_number']).has('register_court')).toBe(true)
+    expect(shownFields(['use_case']).has('register_court')).toBe(false)
+  })
+
+  test('a German postcode has five digits', () => {
+    const bad = profileFromDraft({ ...draftOf(profile, { country: 'DE' }), postal_code: '1011' }, [])
+    expect('problems' in bad && bad.problems.postal_code).toBe('postcode')
+    expect(
+      'input' in
+        profileFromDraft({ ...draftOf(profile, { country: 'GB' }), postal_code: 'SW1A 1AA', country: 'GB' }, []),
+    ).toBe(true)
+  })
+})
+
+describe('the area list', () => {
+  const area = (prefix: string, name: string, available = true) => ({ prefix, name, popular: false, available })
+  const heidelberg = area('6221', 'Heidelberg')
+  const berlin = area('30', 'Berlin')
+  const ulm = area('731', 'Ulm', false)
+
+  test('the picked area and, with nothing typed, the address areas come first, each once', () => {
+    expect(listedAreas([berlin, heidelberg], [heidelberg], null, '').map(a => a.prefix)).toEqual(['6221', '30'])
+    expect(listedAreas([berlin, ulm], [heidelberg], ulm, '').map(a => a.prefix)).toEqual(['731', '6221', '30'])
+    // A search lists what it found; the picked area stays visible on top.
+    expect(listedAreas([ulm], [heidelberg], berlin, 'ulm').map(a => a.prefix)).toEqual(['30', '731'])
+  })
+
+  test('another area than the address is only told, and only when the address has an area', () => {
+    expect(areaAwayFromAddress('30', [heidelberg])).toBe(true)
+    expect(areaAwayFromAddress('6221', [heidelberg])).toBe(false)
+    expect(areaAwayFromAddress('30', [])).toBe(false)
+  })
+})
+
+describe("where the country's newest request stands (onboarding)", () => {
+  test('none, in review (also while approved and set up), rejected, active', () => {
+    const r = (status: RequestRow['status'], country: RequestRow['country'] = 'DE') =>
+      row({ id: status, status, country })
+    expect(requestView('DE', []).kind).toBe('none')
+    expect(requestView('DE', [r('pending_review', 'GB')]).kind).toBe('none')
+    expect(requestView('DE', [r('cancelled'), r('rejected')]).kind).toBe('none')
+    expect(requestView('DE', [r('pending_review')]).kind).toBe('review')
+    expect(requestView('DE', [r('approved')]).kind).toBe('review')
+    expect(requestView('DE', [r('needs_operator')]).kind).toBe('review')
+    expect(requestView('DE', [r('rejected')]).kind).toBe('rejected')
+    expect(requestView('DE', [r('active')]).kind).toBe('active')
   })
 })
 

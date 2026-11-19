@@ -1918,3 +1918,55 @@
   padding-top: 0;
   border-top: 0;
 }
+
+/* System › Sign-up countries (SignupAccess.tsx): a country with its mode per line, the invited addresses below. */
+.adm-access-countries {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  max-width: 440px;
+}
+.adm-access-countries li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 14px;
+}
+.adm-access-countries .k-select-btn {
+  min-width: 190px;
+}
+.adm-access-countries li + li {
+  border-top: 1px solid var(--line);
+}
+.adm-access-invites {
+  display: grid;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.adm-access-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  max-width: 440px;
+  margin-top: 4px;
+}
+.adm-access-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 440px;
+}
+.adm-access-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.adm-access-list li + li {
+  border-top: 1px solid var(--line);
+}

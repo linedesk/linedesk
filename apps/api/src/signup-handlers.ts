@@ -26,7 +26,7 @@ import { billingProvider } from './billing-settings.ts'
 import type { Actor } from './context.ts'
 import { Forbidden, type Handler, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
-import { COUNTRY_NOT_SERVED, countryNotYet, isServedCountry, placeholderWorkspaceName } from './served-countries.ts'
+import { COUNTRY_NOT_SERVED, countryNotYet, placeholderWorkspaceName, signupCountriesFor } from './served-countries.ts'
 import { type LegalTerms, legalTerms, recordAcceptance, TERMS_CHANGED } from './legal-terms.ts'
 
 export { TERMS_CHANGED }
@@ -121,8 +121,9 @@ const signUp: Handler = async (ctx, input: SignUpInput) => {
   // The country gate (docs/billing.md §3.2): only a country picked (an older page) outside the sign-up countries is
   // refused. Where the request comes from (the hint) never is: someone abroad may run a business in a served country
   // (2026-11-18). The onboarding's Business step asks for the business's own country, served ones only, and Checkout
-  // refuses a workspace whose country is another one (served-countries.ts).
-  if (input.country && !isServedCountry(input.country)) throw countryNotYet()
+  // refuses a workspace whose country is another one (served-countries.ts). Each country's sign-up mode (open, only
+  // invited addresses, off) decides (signup-access.ts).
+  if (input.country && !(await signupCountriesFor(tx, me.email)).includes(input.country)) throw countryNotYet()
   // The terms the page showed must still be the ones in effect (A9): changed while the page was open, it reloads them.
   const { terms } = legalTerms()
   if (!terms) throw new Forbidden(SIGNUP_CLOSED)

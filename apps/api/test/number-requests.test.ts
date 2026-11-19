@@ -415,9 +415,9 @@ describe('any German area code (Ortsnetz), suggested from the address', () => {
     expect(uk.body.data.areas).toEqual([
       { prefix: '161', name: 'Manchester', city: 'manchester', popular: true, available: true },
     ])
-    // Requirements: any area can be asked for, and the number is free during the beta (the default rule).
+    // Requirements: any area can be asked for, and the number is priced like any other (the default rule).
     const requirements = await act(ws.owner, 'numberRequest.requirements', { country: 'DE' })
-    expect(requirements.body.data).toMatchObject({ anyArea: true, monthlyFeeWaived: true, carrierBlocksOnly: false })
+    expect(requirements.body.data).toMatchObject({ anyArea: true, monthlyFeeWaived: false, carrierBlocksOnly: false })
     expect((await act(ws.owner, 'numberRequest.requirements', { country: 'GB' })).body.data.anyArea).toBe(false)
   })
 

@@ -1,4 +1,5 @@
-/* Number requests (NumberRequests.tsx, NumberRequestForm.tsx): the requests under the numbers and the request form. */
+/* Number requests: the requests under the numbers (settings/NumberRequests.tsx), the request form's pieces
+   (NumberRequestForm.tsx) and the onboarding phone step around them (NumberRequestFlow.tsx). */
 .nr-requests {
   display: grid;
   gap: 6px;
@@ -60,6 +61,14 @@
 }
 .nr-pair-postal {
   grid-template-columns: minmax(110px, 1fr) minmax(160px, 2fr);
+}
+.nr-pair-postal-last {
+  grid-template-columns: minmax(160px, 2fr) minmax(110px, 1fr);
+}
+/* Under a step's own title (onboarding): no heading line above the documents. */
+.nr-group-plain {
+  padding-top: 0;
+  border-top: 0;
 }
 .nr-hint {
   margin: -6px 0 0;
@@ -139,4 +148,66 @@
 .k-dialog:has(.nr-group) .k-dialog-head {
   padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
+}
+
+/* The BNetzA form's download, under its document. */
+.nr-doc-extra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* Onboarding: "Step 1 of 3 · Your company", a quiet line over the step's title. */
+.nr-stage {
+  margin: 0 0 -10px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--ink-muted);
+}
+
+/* Onboarding, under review: the request's facts, label and value per line. */
+.nr-facts {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.nr-facts > div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+}
+.nr-facts dt {
+  color: var(--ink-muted);
+}
+.nr-facts dd {
+  margin: 0;
+}
+
+/* The area search (AreaPicker): the field, then one calm column of areas that scrolls on its own, then the notes. */
+.nr-area {
+  display: grid;
+  gap: 10px;
+}
+.k-radios.nr-areas {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 2px;
+  margin: -2px;
+}
+.nr-area > .help {
+  margin: 0;
+}
+/* In a dialog the area list is shorter: the dialog scrolls as a whole. */
+.k-dialog .k-radios.nr-areas {
+  max-height: 232px;
+}
+/* "Optional" next to a label keeps the label's line, so the two inputs of a pair stay level. */
+.nr-pair .k-field-aside {
+  line-height: 18px;
 }

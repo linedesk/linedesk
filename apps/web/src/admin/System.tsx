@@ -2,7 +2,8 @@
 // read-only status, loaded on its own because a server that is down takes seconds to say so), and
 // whether workspaces may clone voices (off until an instance admin turns it on), where transfers may call (InternationalTransfers.tsx), and
 // whether users are emailed when an admin signs in as them (off by default), where German numbers are offered (only
-// the carrier's own number blocks, on by default with Telnyx), and what Zapier needs from this server.
+// the carrier's own number blocks, on by default with Telnyx), who may sign up in which country (open, only invited
+// emails or off; Germany once the server takes its number requests: SignupAccess.tsx), and what Zapier needs from this server.
 import {
   type ImpersonationEmailsData,
   type NumberBlocksData,
@@ -24,6 +25,7 @@ import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { type LivekitStatus, loadLivekitStatus, runAdmin, type ServiceStatus } from './api.ts'
 import { InternationalTransfers } from './InternationalTransfers.tsx'
+import { SignupAccess } from './SignupAccess.tsx'
 
 const LIVEKIT = 'admin.livekit'
 
@@ -307,6 +309,7 @@ export function System() {
       <VoiceCloning />
       <InternationalTransfers />
       <NumberBlocks />
+      <SignupAccess />
       <ImpersonationEmails />
       <Zapier />
     </>

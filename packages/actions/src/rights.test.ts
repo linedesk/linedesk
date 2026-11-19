@@ -269,6 +269,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'setupEmails.set',
     'impersonationEmails.get',
     'impersonationEmails.set',
+    'signupAccess.get',
+    'signupAccess.set',
     'outboundCountries.get',
     'outboundCountries.set',
     'billing.reprocessEvent',

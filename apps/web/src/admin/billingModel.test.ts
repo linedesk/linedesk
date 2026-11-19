@@ -86,14 +86,14 @@ test('the Stripe Tax switch: on by default; off is stored as false, back at the 
   expect(rulesFromForm(form, BILLING_DEFAULTS)).toEqual({ rules: RESETS, problems: [] })
 })
 
-test('the free numbers with documents switch: on by default; off is stored as false, back at the default it is reset', () => {
+test('the free numbers with documents switch: off by default; on is stored as true, back at the default it is reset', () => {
   const form = rulesForm(BILLING_DEFAULTS)
-  expect(form.regulatedNumberFeeWaived).toBe('on')
-  expect(rulesFromForm({ ...form, regulatedNumberFeeWaived: 'off' }, BILLING_DEFAULTS)).toEqual({
-    rules: { ...RESETS, regulatedNumberFeeWaived: false },
+  expect(form.regulatedNumberFeeWaived).toBe('off')
+  expect(rulesFromForm({ ...form, regulatedNumberFeeWaived: 'on' }, BILLING_DEFAULTS)).toEqual({
+    rules: { ...RESETS, regulatedNumberFeeWaived: true },
     problems: [],
   })
-  expect(rulesForm({ ...BILLING_DEFAULTS, regulatedNumberFeeWaived: false }).regulatedNumberFeeWaived).toBe('off')
+  expect(rulesForm({ ...BILLING_DEFAULTS, regulatedNumberFeeWaived: true }).regulatedNumberFeeWaived).toBe('on')
 })
 
 test('only what differs from the defaults is stored (the rest reset), in the units the server takes; a changed level whole', () => {
@@ -268,7 +268,7 @@ test("the install's own values are the filled fields that differ from the defaul
     trialDays: '21',
     workspaceMonthlyCents: '',
     automaticTax: 'on',
-    regulatedNumberFeeWaived: 'on',
+    regulatedNumberFeeWaived: 'off',
   }
   expect(customFields(form, defaults)).toEqual(['trialDays'])
   // An emptied factor is a value of its own (the level uses none of the included minutes).

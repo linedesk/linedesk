@@ -10,7 +10,7 @@ import {
 } from '@linedesk/actions'
 import { localeForUser } from '@linedesk/i18n/server'
 import { requestCountryHint } from './country-hint.ts'
-import { isPlaceholderWorkspaceName } from './served-countries.ts'
+import { isPlaceholderWorkspaceName, signupCountriesFor } from './served-countries.ts'
 import {
   member,
   organization,
@@ -476,7 +476,7 @@ app.get('/v1/signup/config', async c => {
     ok: true,
     open: state.open,
     turnstileSiteKey: siteKey,
-    countries: SIGNUP_COUNTRIES,
+    countries: state.open ? await signupCountriesFor(db, null) : SIGNUP_COUNTRIES,
     plan,
     partnerPlan,
     terms,

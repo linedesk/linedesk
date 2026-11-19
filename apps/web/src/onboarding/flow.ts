@@ -895,10 +895,12 @@ export function doneState(
     forwardingVerified: boolean
     admin: boolean
     assistant: string
+    /** The city of a number requested with documents that the carrier still reviews (numbers/), if any. */
+    reviewedNumber?: string | null
   },
   word: Words = same,
 ): { live: boolean; title: string; lede: string; left: DoneLeft[] } {
-  const { number, voiceMissing, forwardingVerified, admin, assistant } = facts
+  const { number, voiceMissing, forwardingVerified, admin, assistant, reviewedNumber } = facts
   const { t } = i18n()
   const voice: DoneLeft = admin
     ? {
@@ -907,6 +909,21 @@ export function doneState(
         action: t('onboarding.flow.done.open'),
       }
     : { label: t('onboarding.flow.done.voiceMember'), to: null, action: null }
+  // Requested and under review: nothing to connect now, the number sets itself up once approved.
+  if (!number && reviewedNumber)
+    return {
+      live: false,
+      title: t('onboarding.flow.done.almost'),
+      lede: t('onboarding.flow.done.answersOnceApproved', { assistant, city: reviewedNumber }),
+      left: [
+        {
+          label: t('onboarding.flow.done.numberInReview', { city: reviewedNumber }),
+          to: { step: 'phone' },
+          action: t('onboarding.flow.done.showReview'),
+        },
+        ...(voiceMissing ? [voice] : []),
+      ],
+    }
   if (!number)
     return {
       live: false,

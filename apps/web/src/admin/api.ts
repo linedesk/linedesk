@@ -21,6 +21,7 @@ import {
   type ProviderName,
   type ProviderTestData,
   providerCategoryKeys,
+  type SignupMode,
   type StatusGroups,
   type StatusInput,
   type StoredTest,
@@ -336,6 +337,8 @@ export type AdminInputs = {
   'billingEnabled.set': { on: boolean }
   'impersonationEmails.get': Record<string, never>
   'impersonationEmails.set': { on: boolean }
+  'signupAccess.get': Record<string, never>
+  'signupAccess.set': { modes?: Record<string, SignupMode>; invites?: string[] }
   'workspace.create': {
     name: string
     timeZone?: string

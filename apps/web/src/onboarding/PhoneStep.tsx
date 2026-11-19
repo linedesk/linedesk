@@ -13,6 +13,9 @@ import { NearbyAreaCodes } from '../settings/NearbyAreaCodes.tsx'
 import { useWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
 import { useAssistant, useAssistantName, useRows, useRun } from '../store.tsx'
 import { useWorkspaceCountry } from '../workspaceLocale.ts'
+import { NumberRequestFlow } from '../numbers/NumberRequestFlow.tsx'
+import { useKycCountry } from '../numbers/numberRequestQueries.ts'
+import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { RadioCard } from '../ui/controls.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { ForwardingCheck } from './ForwardingCheck.tsx'
@@ -53,6 +56,8 @@ type Props = {
   clearError: () => void
   /** An instance admin: hints about the server link to Server admin › Providers; everyone else is told whom to ask. */
   admin: boolean
+  /** The business's name: prefills a number request's details (a country that checks documents). */
+  businessName?: string
   onBack: () => void
   onNext: () => void
 }
@@ -85,7 +90,40 @@ export function PhoneStep(p: Props) {
     )
   if (!p.status.available)
     return <Unavailable detail={p.status.detail} admin={p.admin} onBack={p.onBack} onNext={p.onNext} />
-  return <Choose {...p} firstAreaCode={areaCodeOf(null, businessPhone, mobile)} />
+  return (
+    <ChooseOrRequest {...p} firstAreaCode={areaCodeOf(null, businessPhone, mobile)} businessPhone={businessPhone} />
+  )
+}
+
+/**
+ * In a country whose carrier checks documents first (Germany, when the server takes requests there), the number is
+ * requested (NumberRequestFlow); elsewhere it is bought or connected at once (Choose). A number already in the
+ * carrier account (instance admins) can still be connected from the request's first step.
+ */
+function ChooseOrRequest(p: Props & { firstAreaCode: string; businessPhone: string | null }) {
+  const t = useT()
+  const kyc = useKycCountry()
+  const [existing, setExisting] = useState(false)
+  if (kyc.loading)
+    return (
+      <>
+        <div className="ob-body">
+          <Loading what={t('onboarding.numberRequest.loading')} loading skeleton={<SkeletonFields fields={3} />} />
+        </div>
+        <Foot onBack={p.onBack} onSkipStep={p.onNext} canContinue={false} />
+      </>
+    )
+  if (kyc.country && !existing)
+    return (
+      <NumberRequestFlow
+        country={kyc.country}
+        known={{ businessName: p.businessName ?? '', phone: p.businessPhone ?? '' }}
+        onExisting={p.status.canAttach !== false ? () => setExisting(true) : undefined}
+        onBack={p.onBack}
+        onNext={p.onNext}
+      />
+    )
+  return <Choose {...p} />
 }
 
 function Unavailable({

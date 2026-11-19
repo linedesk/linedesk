@@ -3,9 +3,9 @@
 // asks for one (city, business details, documents). Nothing shows while the server has no such country switched on
 // (numberRequest.countries is empty). An approved request's number arrives in the list above like any number.
 import {
-  cityMatches,
   type KycCountry,
   NUMBER_COUNTRIES,
+  type NumberArea,
   nameInSentence,
   type RegulatoryProfileInput,
 } from '@linedesk/actions'
@@ -13,17 +13,15 @@ import type { MessageKey } from '@linedesk/i18n'
 import { useFormat, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { i18n } from '../i18n/index.tsx'
-import { useStore } from '../store.tsx'
-import { useTeam } from '../team/team-api.ts'
-import { Select } from '../ui/controls.tsx'
-import { Dialog } from '../ui/form.tsx'
-import { Badge, Button, Note } from '../ui/kit.tsx'
-import { List, ListRow, MenuButton } from '../ui/list.tsx'
-import { StatusMark } from '../ui/StatusMark.tsx'
-import { Field } from './fields.tsx'
-import { BusinessProfileFields, CityPicker, cityName, RequiredDocuments } from './NumberRequestForm.tsx'
 import {
-  addressOutsideCity,
+  AreaPicker,
+  BusinessProfileFields,
+  createProblemText,
+  RequiredDocuments,
+  reasonText,
+  requestAreaName,
+} from '../numbers/NumberRequestForm.tsx'
+import {
   canCancel,
   canCheck,
   type DraftField,
@@ -34,13 +32,12 @@ import {
   type ProfileDraft,
   profileFromDraft,
   type RequestRow,
-  rejectionReason,
   requestedNumber,
   requestStage,
   sameProfile,
   shownFields,
   shownRequests,
-} from './numberRequestModel.ts'
+} from '../numbers/numberRequestModel.ts'
 import {
   cancelRequest,
   createRequest,
@@ -50,7 +47,15 @@ import {
   useNumberRequests,
   useNumberRequirements,
   useRegulatoryProfile,
-} from './numberRequestQueries.ts'
+} from '../numbers/numberRequestQueries.ts'
+import { useStore } from '../store.tsx'
+import { useTeam } from '../team/team-api.ts'
+import { Select } from '../ui/controls.tsx'
+import { Dialog } from '../ui/form.tsx'
+import { Badge, Button, Note } from '../ui/kit.tsx'
+import { List, ListRow, MenuButton } from '../ui/list.tsx'
+import { StatusMark } from '../ui/StatusMark.tsx'
+import { Field } from './fields.tsx'
 
 /** "Germany", "the United Kingdom": the country as it goes into a sentence, in the reader's language. */
 export const countryInSentence = (country: string) => nameInSentence(country, i18n())
@@ -58,13 +63,6 @@ export const countryInSentence = (country: string) => nameInSentence(country, i1
 /** The open countries, for the section's button; empty while the server has none (or for a member). */
 export function useRequestCountries(canEdit: boolean): KycCountry[] {
   return useNumberRequestCountries(canEdit).data?.countries ?? []
-}
-
-/** The rejection's reason in the reader's words, or the carrier's own. */
-function reasonText(reason: string | null) {
-  const r = rejectionReason(reason)
-  // i18n-dynamic: settings.phone.request.reason.*
-  return 'key' in r ? i18n().t(`settings.phone.request.reason.${r.key}` as MessageKey) : r.text
 }
 
 type Props = {
@@ -146,7 +144,7 @@ export function NumberRequests({ canEdit, requesting, onRequesting, countries }:
                 key={r.id}
                 title={<span className="st-mono">{requestedNumber(r.country, r.prefix, r.e164)}</span>}
                 sub={t('settings.phone.request.row.sub', {
-                  city: cityName(r.city),
+                  city: requestAreaName(r),
                   country: countryInSentence(r.country),
                   date: format.date(new Date(r.createdAt)),
                 })}
@@ -172,7 +170,17 @@ export function NumberRequests({ canEdit, requesting, onRequesting, countries }:
         <RequestDialog
           countries={countries.length ? countries : [dialogCountry]}
           initialCountry={dialogCountry}
-          initialPrefix={again?.prefix ?? ''}
+          initialArea={
+            again
+              ? {
+                  prefix: again.prefix,
+                  name: requestAreaName(again),
+                  ...(again.city ? { city: again.city } : {}),
+                  popular: false,
+                  available: true,
+                }
+              : null
+          }
           onClose={() => {
             setAgain(null)
             onRequesting(null)
@@ -253,7 +261,7 @@ function RequestActions({
   onAgain: () => void
 }) {
   const t = useT()
-  const city = cityName(request.city)
+  const city = requestAreaName(request)
   if (requestStage(request.status) === 'rejected')
     return (
       <Button size="sm" variant="primary" onClick={onAgain}>
@@ -292,7 +300,7 @@ function CancelDialog({ request, onClose }: { request: RequestRow; onClose: () =
   return (
     <Dialog
       size="sm"
-      title={t('settings.phone.request.cancel.title', { city: cityName(request.city) })}
+      title={t('settings.phone.request.cancel.title', { city: requestAreaName(request) })}
       description={t('settings.phone.request.cancel.help')}
       onClose={onClose}
       footer={
@@ -314,8 +322,8 @@ function CancelDialog({ request, onClose }: { request: RequestRow; onClose: () =
 type DialogProps = {
   countries: readonly KycCountry[]
   initialCountry: KycCountry
-  /** The city to start on (sent again after a rejection); '' for none. */
-  initialPrefix: string
+  /** The area to start on (sent again after a rejection); null: the area of the business address. */
+  initialArea: NumberArea | null
   onClose: () => void
 }
 
@@ -323,12 +331,12 @@ type DialogProps = {
  * Asks for a number: the city, the business details (prefilled from the saved profile) and the documents. Sending
  * saves the profile when it changed, then sends the request; the dialog closes on the request's line under the numbers.
  */
-function RequestDialog({ countries, initialCountry, initialPrefix, onClose }: DialogProps) {
+function RequestDialog({ countries, initialCountry, initialArea, onClose }: DialogProps) {
   const t = useT()
   const team = useTeam().data
   const me = team?.members.find(m => m.userId === team.me)
   const [country, setCountry] = useState<KycCountry>(initialCountry)
-  const [prefix, setPrefix] = useState(initialPrefix)
+  const [area, setArea] = useState<NumberArea | null>(initialArea)
   const requirements = useNumberRequirements(country).data
   const profileQuery = useRegulatoryProfile(true)
   const saved = profileQuery.data
@@ -350,23 +358,11 @@ function RequestDialog({ countries, initialCountry, initialPrefix, onClose }: Di
     )
   }, [draft, saved, initialCountry, me])
 
-  // A suggestion, never a lock: the city of the business address when numbers there can be requested, until a city
-  // is picked by hand.
-  const [pickedCity, setPickedCity] = useState(!!initialPrefix)
-  const addressCity = draft?.city ?? ''
-  useEffect(() => {
-    if (pickedCity || !addressCity.trim()) return
-    const match = NUMBER_COUNTRIES[country].cities.find(c => cityMatches(c, addressCity))
-    if (match) setPrefix(match.prefix)
-  }, [pickedCity, addressCity, country])
-
   const fields = requirements?.fields ?? NUMBER_COUNTRIES[country].fields
   const kinds = requirements?.documents ?? NUMBER_COUNTRIES[country].documents
-  const cities = requirements?.cities ?? NUMBER_COUNTRIES[country].cities
   const shown = useMemo(() => shownFields(fields), [fields])
   const documents = saved?.documents ?? []
   const missing = missingDocuments(kinds, documents)
-  const outside = draft && prefix ? addressOutsideCity(country, prefix, draft.city) : false
 
   function change(next: Partial<ProfileDraft>) {
     setDraft(d => (d ? { ...d, ...next } : d))
@@ -381,17 +377,17 @@ function RequestDialog({ countries, initialCountry, initialPrefix, onClose }: Di
     const result = profileFromDraft(draft, fields)
     const formProblems = 'problems' in result ? result.problems : {}
     setProblems(formProblems)
-    if (!prefix) return setProblem(t('settings.phone.request.problem.city'))
+    if (!area) return setProblem(t('settings.phone.request.problem.city'))
     if ('problems' in result) return setProblem(t('settings.phone.request.problem.fields'))
     if (missing.length) return setProblem(t('settings.phone.request.problem.documents'))
     setSending(true)
     setProblem(null)
     try {
       if (!sameProfile(saved?.profile ?? null, result.input as RegulatoryProfileInput)) await saveProfile(result.input)
-      await createRequest(country, prefix)
+      await createRequest(country, area.prefix)
       onClose()
     } catch (err) {
-      setProblem(err instanceof Error ? err.message : String(err))
+      setProblem(createProblemText(err))
       setSending(false)
     }
   }
@@ -425,30 +421,12 @@ function RequestDialog({ countries, initialCountry, initialPrefix, onClose }: Di
               options={countries.map(c => ({ value: c, label: countryInSentence(c) }))}
               onChange={next => {
                 setCountry(next)
-                setPrefix('')
+                setArea(null)
               }}
             />
           </div>
         </Field>
       )}
-      <Field
-        id="nr-number-city"
-        label={t('settings.phone.request.city')}
-        error={tried && !prefix ? t('settings.phone.request.problem.required') : null}
-      >
-        <div>
-          <CityPicker
-            id="nr-number-city"
-            cities={cities}
-            value={prefix}
-            onChange={next => {
-              setPickedCity(true)
-              setPrefix(next)
-            }}
-            disabled={sending}
-          />
-        </div>
-      </Field>
       {!draft ? (
         <p className="help">{profileQuery.error ?? t('settings.phone.request.dialog.loading')}</p>
       ) : (
@@ -462,15 +440,28 @@ function RequestDialog({ countries, initialCountry, initialPrefix, onClose }: Di
             country={country}
             disabled={sending}
           />
-          {outside && (
-            <Note tone="warning">
-              {t('settings.phone.request.outsideArea', {
-                city: cityName(cities.find(c => c.prefix === prefix)?.id ?? ''),
-                addressCity: draft.city.trim(),
-              })}
-            </Note>
-          )}
-          <RequiredDocuments idPrefix="nr" kinds={kinds} documents={documents} showMissing={tried} disabled={sending} />
+          <Field
+            id="nr-number-area"
+            label={t('settings.phone.request.area.label')}
+            error={tried && !area ? t('settings.phone.request.problem.required') : null}
+          >
+            <AreaPicker
+              id="nr-number-area"
+              country={country}
+              address={draft}
+              value={area}
+              onChange={setArea}
+              disabled={sending}
+            />
+          </Field>
+          <RequiredDocuments
+            idPrefix="nr"
+            kinds={kinds}
+            documents={documents}
+            showMissing={tried}
+            disabled={sending}
+            draft={draft}
+          />
         </>
       )}
       {problem && <Note tone="danger">{problem}</Note>}

@@ -210,6 +210,8 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'systemPrompt.resetPart': 'admin',
   'afterCallTranscript.set': 'admin',
   'setupEmails.set': 'admin',
+  // Who may sign up in which country: open to everyone, only invited addresses, or off (signup-access.ts).
+  'signupAccess.set': 'admin',
   // Billing through Stripe on or off for the whole install (docs/billing.md §7).
   'billingEnabled.set': 'admin',
   // A stored Stripe event processed again by an instance admin (docs/billing.md §5.1).

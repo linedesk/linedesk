@@ -1,17 +1,20 @@
 // The reads and writes of number requests (docs/numbers-kyc.md): none of it is synced (the profile and documents never
 // reach a browser's store), so each read is a cached query and each write puts its answer into it at once (CLAUDE.md
 // rule 3). Shared by Settings › Phone numbers and the onboarding phone step.
-import type {
-  KycCountry,
-  NumberRequestCountriesData,
-  NumberRequirementsData,
-  RegulatoryDocumentKind,
-  RegulatoryProfileData,
-  RegulatoryProfileInput,
+import {
+  isKycCountry,
+  type KycCountry,
+  type NumberAreasData,
+  type NumberRequestCountriesData,
+  type NumberRequirementsData,
+  type RegulatoryDocumentKind,
+  type RegulatoryProfileData,
+  type RegulatoryProfileInput,
 } from '@linedesk/actions'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
-import { fileBase64, type RequestRow } from './numberRequestModel.ts'
-import { callAction, readAction } from './settings-api.ts'
+import { callAction, readAction } from '../settings/settings-api.ts'
+import { useWorkspaceCountry } from '../workspaceLocale.ts'
+import { fileBase64, type RequestRow, requestView } from './numberRequestModel.ts'
 
 const COUNTRIES = 'numberRequest.countries'
 const LIST = 'numberRequest.list'
@@ -31,6 +34,26 @@ export const useNumberRequests = (enabled: boolean) =>
     async () => (await readAction<{ requests: RequestRow[] }>('numberRequest.list')).requests,
   )
 
+/**
+ * The workspace's country when a number there is requested with documents and the server takes requests for it
+ * (the onboarding phone step); null otherwise (a US workspace, the flag off, or a member who may not ask).
+ * `loading` until that is known.
+ */
+export function useKycCountry(): { country: KycCountry | null; loading: boolean } {
+  const place = useWorkspaceCountry()
+  const candidate = place && isKycCountry(place.country) ? place.country : null
+  const open = useNumberRequestCountries(!!candidate)
+  if (!candidate) return { country: null, loading: false }
+  if (!open.data) return { country: null, loading: !open.error }
+  return { country: open.data.countries.includes(candidate) ? candidate : null, loading: false }
+}
+
+/** Where the workspace's newest request of the country stands (requestView); null while loading or without a country. */
+export function useRequestView(country: KycCountry | null) {
+  const query = useNumberRequests(!!country)
+  return { ...query, view: country && query.data ? requestView(country, query.data) : null }
+}
+
 /** The business profile and the documents by name. */
 export const useRegulatoryProfile = (enabled: boolean) =>
   useQuery(enabled ? PROFILE : null, () => readAction<RegulatoryProfileData>('numberRequest.getProfile'))
@@ -40,6 +63,35 @@ export const useNumberRequirements = (country: KycCountry | null) =>
   useQuery(country ? requirementsKey(country) : null, () =>
     readAction<NumberRequirementsData>('numberRequest.requirements', { country }),
   )
+
+/**
+ * The areas a number can be asked for (numberRequest.areas): what `query` finds (the available ones, popular first,
+ * when it is empty) and the areas of the business address, best first. Each search is kept for a while, so typing
+ * back finds it at once.
+ */
+export const useNumberAreas = (
+  country: KycCountry | null,
+  query: string,
+  address: { city: string; postal_code: string } | null,
+) => {
+  const city = address?.city.trim() ?? ''
+  const postal_code = address?.postal_code.trim() ?? ''
+  return useQuery(
+    country
+      ? `numberRequest.areas:${country}:${query.trim().toLowerCase()}:${postal_code}:${city.toLowerCase()}`
+      : null,
+    () =>
+      readAction<NumberAreasData>('numberRequest.areas', {
+        country,
+        query: query.trim(),
+        ...(city || postal_code
+          ? { address: { ...(city ? { city } : {}), ...(postal_code ? { postal_code } : {}) } }
+          : {}),
+        limit: 20,
+      }),
+    { freshMs: 10 * 60_000 },
+  )
+}
 
 /** A request as the server answered it, in place in the list (a new one first). */
 export function putRequest(request: RequestRow) {
@@ -95,7 +147,7 @@ export async function deleteDocument(documentId: string, documents: RegulatoryPr
   putProfile({ documents: documents.filter(d => d.id !== documentId) })
 }
 
-/** Sends the request. `addressOutsideArea`: the server's own check of the address against the number's city. */
+/** Sends the request. `addressOutsideArea`: the server's own check of the address against the number's area. */
 export async function createRequest(country: KycCountry, prefix: string) {
   const data = await callAction<{ request: RequestRow; addressOutsideArea: boolean }>('numberRequest.create', {
     country,
