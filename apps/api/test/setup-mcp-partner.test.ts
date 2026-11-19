@@ -161,7 +161,7 @@ describe('who makes a partner setup link', () => {
         .where(eq(user.id, a.owner.userId))
         .then(() => {}),
     )
-    expect(await label()).toBe('Marke')
+    expect(await label()).toBe('Deine Marke')
   })
 })
 
