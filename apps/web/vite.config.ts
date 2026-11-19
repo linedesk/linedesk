@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type ServerOptions } from 'vite'
@@ -32,6 +32,25 @@ function sentrySourceMaps(env: NodeJS.ProcessEnv) {
   })
 }
 
+/**
+ * The boot line index.html shows before the app's code has loaded, in every UI language (LIN-371): the catalogs' own
+ * "Opening…" (`shell.newWorkspace.opening`, the same words), written into the page as `data-lines`; public/boot-line.js
+ * picks the language this browser last used, else its own. No text of its own, so the translations stay in the catalogs.
+ */
+function bootLines() {
+  const locales = new URL('../../packages/i18n/locales/', import.meta.url)
+  const lines: Record<string, string> = {}
+  for (const locale of readdirSync(locales)) {
+    const shell = JSON.parse(readFileSync(new URL(`${locale}/shell.json`, locales), 'utf8')) as Record<string, string>
+    if (shell['newWorkspace.opening']) lines[locale] = shell['newWorkspace.opening']
+  }
+  const attribute = JSON.stringify(lines).replace(/&/g, '&amp;').replace(/'/g, '&#39;')
+  return {
+    name: 'linedesk-boot-lines',
+    transformIndexHtml: (html: string) => html.replace('data-lines=""', `data-lines='${attribute}'`),
+  }
+}
+
 /** The framing rules Caddy sends in production (docker/Caddyfile), for the dev and preview servers too. */
 const NO_FRAMING = { 'Content-Security-Policy': "frame-ancestors 'none'", 'X-Frame-Options': 'DENY' }
 
@@ -42,7 +61,7 @@ export default defineConfig(({ mode }) => {
   // From the build's own environment only, never from .env: a token kept there for the Sentry API must not upload.
   const sentry = sentrySourceMaps(process.env)
   return {
-    plugins: sentry ? [react(), sentry] : [react()],
+    plugins: sentry ? [react(), bootLines(), sentry] : [react(), bootLines()],
     build: { sourcemap: sentry ? 'hidden' : false },
     // The build's version: names the service worker's cache (src/serviceWorker.ts), one per deploy.
     // The schema: when a deploy brings a migration, the local store loads every table once more (storeCache.ts).

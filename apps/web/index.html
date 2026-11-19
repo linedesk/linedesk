@@ -25,7 +25,9 @@
     <link rel="stylesheet" href="/boot.css" />
   </head>
   <body>
-    <div id="root"><div class="boot-static" role="status">Opening…</div></div>
+    <!-- The line in the reader's language: vite.config.ts fills data-lines from the catalogs, boot-line.js picks one. -->
+    <div id="root"><div class="boot-static" role="status" data-lines="">Opening…</div></div>
+    <script src="/boot-line.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
