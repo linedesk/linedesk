@@ -119,6 +119,7 @@
   "language.help": "El idioma en que {brand} se te muestra. Cada persona del espacio de trabajo elige el suyo. Automático sigue a tu navegador.",
   "language.missing": "{brand} todavía no está disponible en {language}.",
   "language.saveFailed": "No se pudo guardar tu idioma.",
+  "legal.label": "Términos y privacidad",
   "load.methodsFailed": "No se pudieron cargar tus métodos de inicio de sesión.",
   "load.signedOut": "No tienes la sesión iniciada.",
   "mainHost.open": "Abrir {host}",

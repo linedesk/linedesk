@@ -94,6 +94,7 @@
   "evaluation.testCalls": "テスト通話は個別には評価されません。",
   "evaluation.title": "この通話の{review}",
   "evaluation.unanswered": "回答できなかった質問",
+  "evaluation.whoStaff": "サーバー管理者だけが表示できます。",
   "header.addNameFor": "{number}に名前を追加",
   "header.copied": "コピーしました",
   "header.copyNumber": "番号をコピー",

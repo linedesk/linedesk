@@ -94,6 +94,7 @@
   "evaluation.testCalls": "Las llamadas de prueba no se evalúan por separado.",
   "evaluation.title": "{review} en esta llamada",
   "evaluation.unanswered": "No pudo responder",
+  "evaluation.whoStaff": "Solo los administradores del servidor ven esto.",
   "header.addNameFor": "Agregar un nombre para {number}",
   "header.copied": "Copiado",
   "header.copyNumber": "Copiar número",

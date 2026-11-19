@@ -119,6 +119,7 @@
   "language.help": "La langue dans laquelle {brand} s'affiche pour vous. Chaque membre de l'espace de travail choisit la sienne. Automatique suit votre navigateur.",
   "language.missing": "{brand} n'est pas encore disponible en {language}.",
   "language.saveFailed": "Impossible d'enregistrer votre langue.",
+  "legal.label": "Conditions et confidentialité",
   "load.methodsFailed": "Impossible de charger vos méthodes de connexion.",
   "load.signedOut": "Vous êtes déconnecté.",
   "mainHost.open": "Ouvrir {host}",

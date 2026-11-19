@@ -119,6 +119,7 @@
   "language.help": "{brand}の表示言語です。ワークスペースのメンバーはそれぞれ自分で選べます。「自動」はブラウザの設定に従います。",
   "language.missing": "{brand}はまだ{language}に対応していません。",
   "language.saveFailed": "言語を保存できませんでした。",
+  "legal.label": "利用規約とプライバシー",
   "load.methodsFailed": "サインイン方法を読み込めませんでした。",
   "load.signedOut": "サインアウトしています。",
   "mainHost.open": "{host}を開く",

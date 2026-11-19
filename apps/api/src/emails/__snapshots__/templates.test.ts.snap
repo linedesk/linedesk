@@ -2724,91 +2724,91 @@ Linedesk · desk.example.com
   ],
   [
     "number-request-active",
-    "Your German number +49 30 23125678 is live",
-    "Phone numbers
+    "Tu número alemán +49 30 23125678 está activo",
+    "Números de teléfono
 
-Your German number +49 30 23125678 is live
+Tu número alemán +49 30 23125678 está activo
 
-The carrier approved your documents, and your number in Berlin is set up.
+El operador aprobó tus documentos y tu número en Berlín está configurado.
 
-Your assistant answers it from now on. Which assistant answers it and how it is used can be changed in Settings › Phone numbers.
+Tu asistente contesta en él a partir de ahora. Qué asistente contesta y cómo se usa se puede cambiar en Configuración › Números de teléfono.
 
-Open phone numbers:
+Abrir números de teléfono:
 https://desk.example.com/#workspace/phone?ws=ws_demo
 
 --
 
-You got this email because you asked for a phone number on desk.example.com or own the workspace.
+Recibes este correo porque pediste un número de teléfono en desk.example.com o eres propietario del espacio de trabajo.
 
 Linedesk · desk.example.com
 ",
   ],
   [
     "number-request-rejected",
-    "Your number request for Berlin was not approved",
-    "Phone numbers
+    "Tu solicitud de número para Berlín no se aprobó",
+    "Números de teléfono
 
-Your number request for Berlin was not approved
+Tu solicitud de número para Berlín no se aprobó
 
-The carrier reviewed the documents for your German number in Berlin and did not approve them.
+El operador revisó los documentos de tu número alemán en Berlín y no los aprobó.
 
-Reason: Proof of address must show the business at an address in Berlin.
+Motivo: Proof of address must show the business at an address in Berlin.
 
-Check your business details and documents in Settings › Phone numbers, replace what the carrier objected to, and send the request again.
+Revisa los datos de tu negocio y tus documentos en Configuración › Números de teléfono, reemplaza lo que el operador objetó y vuelve a enviar la solicitud.
 
-Nothing was charged for this request.
+No se cobró nada por esta solicitud.
 
-Upload new documents:
+Subir documentos nuevos:
 https://desk.example.com/#workspace/phone?ws=ws_demo
 
 --
 
-You got this email because you asked for a phone number on desk.example.com or own the workspace.
+Recibes este correo porque pediste un número de teléfono en desk.example.com o eres propietario del espacio de trabajo.
 
 Linedesk · desk.example.com
 ",
   ],
   [
     "number-request-rejected-code",
-    "Your number request for Munich was not approved",
-    "Phone numbers
+    "Tu solicitud de número para Múnich no se aprobó",
+    "Números de teléfono
 
-Your number request for Munich was not approved
+Tu solicitud de número para Múnich no se aprobó
 
-The carrier reviewed the documents for your German number in Munich and did not approve them.
+El operador revisó los documentos de tu número alemán en Múnich y no los aprobó.
 
-Reason: The documents were not reviewed in time and expired.
+Motivo: Los documentos no se revisaron a tiempo y vencieron.
 
-Check your business details and documents in Settings › Phone numbers, replace what the carrier objected to, and send the request again.
+Revisa los datos de tu negocio y tus documentos en Configuración › Números de teléfono, reemplaza lo que el operador objetó y vuelve a enviar la solicitud.
 
-Nothing was charged for this request.
+No se cobró nada por esta solicitud.
 
-Upload new documents:
+Subir documentos nuevos:
 https://desk.example.com/#workspace/phone?ws=ws_demo
 
 --
 
-You got this email because you asked for a phone number on desk.example.com or own the workspace.
+Recibes este correo porque pediste un número de teléfono en desk.example.com o eres propietario del espacio de trabajo.
 
 Linedesk · desk.example.com
 ",
   ],
   [
     "admin-number-request-needs-operator",
-    "An approved number could not be set up: +493023125678",
+    "No se pudo configurar un número aprobado: +493023125678",
     "Alerta de administración
 
-An approved number could not be set up: +493023125678
+No se pudo configurar un número aprobado: +493023125678
 
-The carrier approved this number request and the number is on the carrier account (paid from now on), but it could not be set up for the workspace.
+El operador aprobó esta solicitud de número y el número está en la cuenta del operador (se paga a partir de ahora), pero no se pudo configurar para el espacio de trabajo.
 
-Workspace: Brightwater Plumbing & Heating (ws_demo)
-Number: +493023125678
-Request: nr_demo
-Reason: routing_failed
-Carrier account: This server's
+Espacio de trabajo: Brightwater Plumbing & Heating (ws_demo)
+Número: +493023125678
+Solicitud: nr_demo
+Motivo: routing_failed
+Cuenta de operador: La de este servidor
 
-Calls to the number go nowhere until it is set up. Fix what stopped it (the reason above; the API log has an ALERT line with the details), then check the request again, or release the number at the carrier.
+Las llamadas al número no llegan a ningún lado hasta que esté configurado. Corrige lo que lo detuvo (el motivo de arriba; el registro de la API tiene una línea ALERT con los detalles) y luego vuelve a revisar la solicitud, o libera el número en el operador.
 
 Abrir el registro de auditoría:
 https://desk.example.com/#admin/audit

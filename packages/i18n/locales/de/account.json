@@ -119,6 +119,7 @@
   "language.help": "Die Sprache, in der {brand} für dich erscheint. Alle im Workspace wählen ihre eigene. Automatisch folgt deinem Browser.",
   "language.missing": "{brand} gibt es noch nicht auf {language}.",
   "language.saveFailed": "Deine Sprache konnte nicht gespeichert werden.",
+  "legal.label": "AGB und Datenschutz",
   "load.methodsFailed": "Deine Anmeldemethoden konnten nicht geladen werden.",
   "load.signedOut": "Du bist abgemeldet.",
   "mainHost.open": "{host} öffnen",
