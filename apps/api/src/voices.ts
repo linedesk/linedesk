@@ -14,6 +14,7 @@ import {
   CLONE_CONSENT_TEXT,
   cloningProviders,
   curatedVoices,
+  curatedVoicesIn,
   isCuratedVoice,
   isLanguageDefaultVoice,
   followLanguageDefault,
@@ -54,7 +55,7 @@ import { and, eq, isNull, notInArray, sql } from 'drizzle-orm'
 import { assistantIn } from './assistants.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
-import { type Handler, type Preparer, Reject } from './handler-context.ts'
+import { type Handler, type Preparer, Reject, wordsOf } from './handler-context.ts'
 import { queueVoiceDeletion } from './jobs.ts'
 import { problemOfStatus } from './provider-errors.ts'
 import { audienceOf, noteProviderFailure, noteProviderOk } from './provider-failures.ts'
@@ -391,7 +392,7 @@ export const voiceHandlers: Record<string, Handler> = {
       provider,
       realtime: pipelines.realtime,
       pipelines,
-      voices: provider ? (curatedVoices[provider] ?? []) : [],
+      voices: provider ? curatedVoicesIn(provider, wordsOf(actor)) : [],
       clones: clones.map(c => ({ id: c.voice_id, name: c.name })),
       canClone: !!provider && cloningProviders.includes(provider) && (await cloningOn(tx)),
       defaultVoice: fallback && {

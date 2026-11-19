@@ -1,12 +1,14 @@
 // The assistant's voice: a short list of curated voices per text-to-speech provider (English, US),
 // and voices the workspace cloned, where the provider clones over its API and an instance admin
 // turned cloning on. Previews are served by GET /v1/voices/preview/<voiceId> and generated once per voice.
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 import type { Language } from './languages.ts'
 import type { ProviderFailureReason } from './provider-health.ts'
 import type { PipelinesSetUp } from './settings.ts'
 import type { CallQualityOptions } from './usage-level.ts'
+import { english, type Words } from './words.ts'
 
 /**
  * A language a voice speaks, as its provider describes it. `code`: the language without region (`de`). `native`: the
@@ -25,38 +27,60 @@ export type CuratedVoice = {
   languages?: readonly VoiceLanguage[]
 }
 
+/** A curated voice as written here: its description is a key, read in the reader's language (curatedVoicesIn). */
+type CuratedVoiceEntry = Omit<CuratedVoice, 'description'> & { description: MessageKey }
+
 const AMERICAN_ENGLISH: readonly VoiceLanguage[] = [{ code: 'en', accent: 'american', native: true }]
 
 /**
  * Picked for a phone line: clear, natural, American English. ElevenLabs default voices, available on
  * every account. Cartesia has none listed yet: there the assistant keeps the default voice.
  */
-export const curatedVoices: Record<string, readonly CuratedVoice[]> = {
+export const curatedVoices: Record<string, readonly CuratedVoiceEntry[]> = {
   elevenlabs: [
     {
       id: 'cgSgspJ2msm6clMCkdW9',
       name: 'Jessica',
-      description: 'Warm and bright, female',
+      description: msg('settings.voice.curated.warmBright'),
       languages: AMERICAN_ENGLISH,
     },
     {
       id: 'EXAVITQu4vr4xnSDxMaL',
       name: 'Sarah',
-      description: 'Calm and reassuring, female',
+      description: msg('settings.voice.curated.calmReassuring'),
       languages: AMERICAN_ENGLISH,
     },
-    { id: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda', description: 'Professional, female', languages: AMERICAN_ENGLISH },
+    {
+      id: 'XrExE9yKIg1WjnnlVkGX',
+      name: 'Matilda',
+      description: msg('settings.voice.curated.professional'),
+      languages: AMERICAN_ENGLISH,
+    },
     {
       id: 'cjVigY5qzO86Huf0OWal',
       name: 'Eric',
-      description: 'Smooth and trustworthy, male',
+      description: msg('settings.voice.curated.smoothTrustworthy'),
       languages: AMERICAN_ENGLISH,
     },
-    { id: 'iP95p4xoKVk53GoZ742B', name: 'Chris', description: 'Down-to-earth, male', languages: AMERICAN_ENGLISH },
-    { id: 'SAz9YHcvj6GT2YYXdXww', name: 'River', description: 'Relaxed and neutral', languages: AMERICAN_ENGLISH },
+    {
+      id: 'iP95p4xoKVk53GoZ742B',
+      name: 'Chris',
+      description: msg('settings.voice.curated.downToEarth'),
+      languages: AMERICAN_ENGLISH,
+    },
+    {
+      id: 'SAz9YHcvj6GT2YYXdXww',
+      name: 'River',
+      description: msg('settings.voice.curated.relaxedNeutral'),
+      languages: AMERICAN_ENGLISH,
+    },
   ],
   cartesia: [],
 }
+
+/** The curated voices of a provider as people read them: each description in `words` (the reader's language). */
+export const curatedVoicesIn = (provider: string, words: Words = english): CuratedVoice[] =>
+  (curatedVoices[provider] ?? []).map(voice => ({ ...voice, description: words.t(voice.description) }))
 
 /**
  * The voice each provider speaks with when the assistant sets none (decisions.md 2026-11-18: no install default voice):
