@@ -15,6 +15,9 @@ import {
   cloningProviders,
   curatedVoices,
   isCuratedVoice,
+  isLanguageDefaultVoice,
+  followLanguageDefault,
+  mainLanguageOf,
   isRealtimeVoice,
   type Language,
   languageCodes,
@@ -189,6 +192,29 @@ export async function realtimeDefaultVoice(tx: Tx): Promise<string | null> {
   return active ? realtimeVoiceFor(null, null) : null
 }
 
+/**
+ * The workspace's language moved from `from` to `to` (its country changed): an assistant that speaks it (no main language
+ * of its own) and still has the old language's default voice gets the new language's (followLanguageDefault). A voice
+ * picked by name stays. Returns the assistants changed.
+ */
+export async function followWorkspaceLanguage(tx: Tx, workspaceId: string, from: string, to: string) {
+  if (from === to) return []
+  const rows = await tx.select().from(assistants).where(eq(assistants.workspace_id, workspaceId))
+  const changed = []
+  for (const row of rows) {
+    // An assistant with a main language of its own speaks the same before and after: nothing follows.
+    const voice = followLanguageDefault(
+      row.voice,
+      mainLanguageOf(row.languages, from),
+      mainLanguageOf(row.languages, to),
+    )
+    if (!voice) continue
+    const [updated] = await tx.update(assistants).set({ voice }).where(eq(assistants.id, row.id)).returning()
+    if (updated) changed.push(updated)
+  }
+  return changed
+}
+
 /** The workspace's clones at this provider. */
 const clonesOf = (tx: Tx, workspaceId: string, provider: string) =>
   tx
@@ -209,6 +235,8 @@ const clonesOf = (tx: Tx, workspaceId: string, provider: string) =>
  */
 export async function checkAssistantVoice(tx: Tx, workspaceId: string, voice: { provider: string; voice_id: string }) {
   if (!voice.voice_id || isCuratedVoice(voice.provider, voice.voice_id)) return
+  // A language's default voice (languageDefaultVoices): a call speaks with it anyway when the assistant picks none.
+  if (isLanguageDefaultVoice(voice.provider, voice.voice_id)) return
   if (await catalogVoice(tx, workspaceId, voice.provider, voice.voice_id)) return
   const [own] = await tx
     .select({ id: voice_clones.id })
@@ -651,7 +679,8 @@ export async function servePreview(actor: Actor, rawVoiceId: string, options: Pr
     : options.catalogEntry !== undefined
       ? options.catalogEntry
       : await catalogVoice(db, actor.workspaceId, provider.name, voiceId, { doFetch: options.doFetch })
-  if (!ownOrCurated && !listed)
+  // A language's default voice may be outside the catalog's few per language: synthesized then.
+  if (!ownOrCurated && !listed && !isLanguageDefaultVoice(provider.name, voiceId))
     return error(404, "not one of the voice providers' voices or this workspace's cloned voices")
   return cachedSample(actor, actor.workspaceId, provider, voiceId, language, listed?.previewUrl ?? null, options)
 }

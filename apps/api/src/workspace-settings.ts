@@ -20,6 +20,7 @@ import { derivedDaysOf, syncDerivedDays } from './public-holidays.ts'
 import { activeProvider } from './provider-settings.ts'
 import { levelCentsPerMinute, usageLevelsBilled } from './usage-levels.ts'
 import { deleteOwn, deletePreview } from './workspace-delete-own.ts'
+import { followWorkspaceLanguage } from './voices.ts'
 import { workspaceLocale } from './workspace-locale.ts'
 import { applyCountryDefaults } from './country-defaults.ts'
 import { refuseUnservedCountry, servedCountriesOf } from './served-countries.ts'
@@ -150,6 +151,9 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       ...(input.country !== undefined ? { country: input.country } : {}),
     }
     if (!Object.keys(set).length) return { rows: {} }
+    // The language calls are answered in before the country changes: an untouched default voice follows it (below).
+    const languageBefore =
+      input.country !== undefined ? (await workspaceLocale(tx, actor.workspaceId)).resolvedLanguage : null
     const [upserted] = await tx
       .insert(workspace_settings)
       .values({ workspace_id: actor.workspaceId, timezone: DEFAULT_TIME_ZONE, ...set })
@@ -164,8 +168,13 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
     const [row] = follow
       ? await tx.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, actor.workspaceId))
       : [upserted]
+    const locale = input.country !== undefined ? await workspaceLocale(tx, actor.workspaceId, row!) : null
+    const followed =
+      locale && languageBefore
+        ? await followWorkspaceLanguage(tx, actor.workspaceId, languageBefore, locale.resolvedLanguage)
+        : []
     return {
-      rows: {},
+      rows: followed.length ? { assistants: followed } : {},
       data: {
         recordingRetentionDays: row!.recording_retention_days,
         businessHoursOn: row!.business_hours_on,
@@ -178,7 +187,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
         jobValueCurrency: row!.job_value_currency,
         jobValueCurrencyFollowsCountry: row!.job_value_currency_follows_country,
         pickupMode: row!.pickup_mode,
-        ...(input.country !== undefined ? await workspaceLocale(tx, actor.workspaceId, row!) : {}),
+        ...(locale ?? {}),
       } satisfies Pick<
         WorkspaceSettingsData,
         | 'recordingRetentionDays'

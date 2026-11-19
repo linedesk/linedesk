@@ -1,6 +1,6 @@
 // Step 2, "Meet your assistant": its name, the greeting callers hear and its voice (with the realtime model, one of the
 // model's own voices), then a test call in the browser, before anything about phones. Talking is encouraged, not required: Continue is always there.
-import { localizedDefault, mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
+import { followLanguageDefault, localizedDefault, mainLanguageOf, otherLanguagesOf } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { T, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
@@ -59,10 +59,12 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
   // The language arrived or changed after the step opened (the settings loading, the country set a moment before): an
   // untouched default greeting follows it, as it would have opened in it.
   const [greetingLanguage, setGreetingLanguage] = useState(main)
+  // An untouched default voice follows too (the old language's default becomes the new one's); a voice picked stays.
   if (greetingLanguage !== main) {
     setGreetingLanguage(main)
     if (!assistant.languages?.main)
       setDraft(d => ({ ...d, greeting: greetingInLanguage(d.greeting, assistant.greeting, greetingLanguage, main) }))
+    setDraft(d => ({ ...d, voice: followLanguageDefault(d.voice, greetingLanguage, main) ?? d.voice }))
   }
   // The test call's lines ("Maya can't take calls yet") use the name on screen, not the saved one.
   const session = useTestCall(true, { id: assistant.id, name: draft.name.trim() || assistant.name }, operator)
@@ -170,6 +172,7 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
               onPick={voice => setDraft(d => ({ ...d, voice }))}
               canEdit
               toast={setMessage}
+              adoptLanguageDefault
               language={main}
               otherLanguages={otherLanguagesOf(assistant.languages, workspaceLanguage)}
               assistantName={name || assistant.name}

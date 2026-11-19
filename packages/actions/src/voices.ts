@@ -3,6 +3,7 @@
 // turned cloning on. Previews are served by GET /v1/voices/preview/<voiceId> and generated once per voice.
 import { z } from 'zod'
 import { defineAction } from './define.ts'
+import type { Language } from './languages.ts'
 import type { ProviderFailureReason } from './provider-health.ts'
 import type { PipelinesSetUp } from './settings.ts'
 import type { CallQualityOptions } from './usage-level.ts'
@@ -68,6 +69,101 @@ export const providerDefaultVoices: Record<string, string> = {
 
 export const isCuratedVoice = (provider: string, voiceId: string) =>
   (curatedVoices[provider] ?? []).some(v => v.id === voiceId)
+
+/** A voice recorded in one language: the default for an assistant that speaks it and picked no voice. */
+export type LanguageDefaultVoice = {
+  id: string
+  /** The voice's first name at the provider (a name, not English text to translate). */
+  name: string
+  /** None of its own: the picker describes it by its gender and language, or by the provider's list. */
+  description: null
+  language: string
+  gender: string
+  languages: readonly VoiceLanguage[]
+}
+
+const native = (code: string, id: string, name: string, gender = 'female'): LanguageDefaultVoice => ({
+  id,
+  name,
+  description: null,
+  language: code,
+  gender,
+  languages: [{ code, accent: null, native: true }],
+})
+
+/**
+ * The voice an assistant speaks with when it picked none and its main language is not English (Janik, 2026-11-19: a
+ * German workspace speaks with a German voice, in onboarding's test call and on real calls). One voice per language,
+ * recorded in it (its own language, not an English voice verified in it): from ElevenLabs' Voice Library list as the
+ * voice catalog reads it (conversational, by use over a year, standard rate, no live moderation; voice-provider.ts),
+ * the first female voice made for calls (a support, assistant or conversational voice), else the first female one, else
+ * the first; read on 2026-11-19. Fixed here so the default is the same on every call and every install, and the agent
+ * needs no list. Library voices need a paid ElevenLabs plan: the agent keeps the provider's default voice as the
+ * backup (pipeline.ts). Cartesia: none yet (no key to read its list); its default voice speaks the language.
+ * English, and a language without an entry: providerDefaultVoices.
+ */
+export const languageDefaultVoices: Record<string, Readonly<Partial<Record<Language, LanguageDefaultVoice>>>> = {
+  elevenlabs: {
+    es: native('es', 'CaJslL1xziwefCeTNzHv', 'Cristina'),
+    fr: native('fr', 'YxrwjAKoUKULGd0g8K9Y', 'Lucie'),
+    de: native('de', 'v3V1d2rk6528UrLKRuy8', 'Susi'),
+    it: native('it', '8KInRSd4DtD5L5gK7itu', 'Giusy'),
+    pt: native('pt', 'GDzHdQOi6jjf8zaXhCYD', 'Raquel'),
+    nl: native('nl', '94W4cf0CMSgymY1uoRiX', 'Noa'),
+    ru: native('ru', '0ArNnoIAWKlT4WweaVMY', 'Elena'),
+    hi: native('hi', 'diwmCoikrXSjiTKbIHz9', 'Devi'),
+    ja: native('ja', '8EkOjt4xTPGMclNlh1pk', 'Morioki'),
+    zh: native('zh', 'kGjJqO6wdwRN9iJsoeIC', 'Yui'),
+    ko: native('ko', 'sf8Bpb1IU97NI9BHSMRf', 'Rosa'),
+    pl: native('pl', '8EWWaNTDrqObI22Gvo1q', 'Aleksandra'),
+    tr: native('tr', 'aEJD8mYP0nuof1XHShVY', 'Gözde'),
+    vi: native('vi', 'foH7s9fX31wFFH2yqrFa', 'Huyen'),
+    id: native('id', 'TrU3igk19A4aIUi2GAA2', 'Velora'),
+    sv: native('sv', '4xkUqaR9MYOJHoaC1Nak', 'Sanna'),
+    ar: native('ar', 'L10lEremDiJfPicq5CPh', 'Yasmine'),
+    uk: native('uk', 'yMBZR4SLoc24wOJLWAB2', 'Solomiya'),
+    ro: native('ro', 'neZC2DQ42NvDV1SyoMxN', 'Mirela'),
+    cs: native('cs', 'mRIjyrAJVCSOEK5tjUFq', 'Michaela'),
+    el: native('el', '4hx4668A4ljDTKS4m5oV', 'Chrysa'),
+    da: native('da', 'gIfqD5jrnhkFu8ENVbXC', 'Isabella'),
+    fi: native('fi', 'RiWFFlzYFZuu4lPMig3i', 'Soili'),
+    no: native('no', 'BRY5wALXFkJsxVM6sEOH', 'Nadia'),
+    hu: native('hu', 'bR5q7kmoRqfc9k9PnpVd', 'Martin', 'male'),
+  },
+  cartesia: {},
+}
+
+/** The language's own default voice at this provider (languageDefaultVoices), or null (English, none listed). */
+export const languageDefaultOf = (provider: string, language: string | null | undefined): LanguageDefaultVoice | null =>
+  (language && language !== 'en' ? languageDefaultVoices[provider]?.[language as Language] : undefined) ?? null
+
+/** Whether the voice is one of the language defaults of this provider (an assistant may use it like a curated one). */
+export const isLanguageDefaultVoice = (provider: string, voiceId: string) =>
+  Object.values(languageDefaultVoices[provider] ?? {}).some(v => v?.id === voiceId)
+
+/**
+ * The voice id a call speaks with when the assistant picked none: its main language's default voice at the provider
+ * (languageDefaultVoices), else the provider's default (providerDefaultVoices).
+ */
+export const defaultVoiceFor = (provider: string, language?: string | null): string | undefined =>
+  languageDefaultOf(provider, language)?.id ?? providerDefaultVoices[provider]
+
+/**
+ * The voice after the assistant's main language changed from `from` to `to`, or null to keep it. Only an untouched
+ * default moves: the default voice of the old language (languageDefaultVoices) becomes the new language's, or the
+ * provider's default ('') when it has none. A voice picked by name, a clone and '' (which follows the language on its
+ * own, defaultVoiceFor) stay. The voice model stays with it.
+ */
+export function followLanguageDefault<V extends { provider: string; voice_id: string }>(
+  voice: V,
+  from: string | null | undefined,
+  to: string | null | undefined,
+): V | null {
+  if (!voice.voice_id || from === to) return null
+  if (languageDefaultOf(voice.provider, from)?.id !== voice.voice_id) return null
+  const next = languageDefaultOf(voice.provider, to)?.id ?? ''
+  return next === voice.voice_id ? null : { ...voice, voice_id: next }
+}
 
 /** The realtime model's provider, as the voice picker and the preview route name it. */
 export const REALTIME_VOICE_PROVIDER = 'openai_realtime'

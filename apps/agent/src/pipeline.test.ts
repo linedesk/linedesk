@@ -2,7 +2,7 @@ import { initializeLogger } from '@livekit/agents'
 import { readFileSync } from 'node:fs'
 import { beforeAll, expect, test, vi } from 'vitest'
 import { type AgentConfig, configFromEnv, type RealtimeCallConfig, withAssistantRealtimeVoice } from './config.ts'
-import { assemblyAiChoice, callLanguagesOf, createStt, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TRUNCATION, REALTIME_TURNS, realtimeRepliesEvent, sendRealtimeTruncation, withRealtimeTruncation, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
+import { assemblyAiChoice, callLanguagesOf, createStt, createTts, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TRUNCATION, REALTIME_TURNS, realtimeRepliesEvent, sendRealtimeTruncation, withRealtimeTruncation, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
 
@@ -180,6 +180,32 @@ test("the realtime model's replies are turned off and on with its input settings
     turn_detection: { ...REALTIME_TURNS, create_response: false },
   })
   expect(realtimeRepliesEvent(true).session.audio.input.turn_detection.create_response).toBe(true)
+})
+
+test("an assistant without a voice of its own speaks with its main language's default voice (a German one in German)", () => {
+  const eleven = { provider: 'elevenlabs' as const, apiKey: 'k' }
+  const SUSI = 'v3V1d2rk6528UrLKRuy8'
+  expect(voiceFor(eleven, { provider: 'elevenlabs', voice_id: '' }, 'de')).toBe(SUSI)
+  expect(voiceFor(eleven, null, 'de')).toBe(SUSI)
+  expect(voiceFor(eleven, null, 'fr')).toBe('YxrwjAKoUKULGd0g8K9Y') // Lucie
+  expect(voiceFor(eleven, null, 'en')).toBe('cgSgspJ2msm6clMCkdW9') // Jessica
+  // A voice picked by name stays, whatever the language.
+  expect(voiceFor(eleven, { provider: 'elevenlabs', voice_id: 'maya' }, 'de')).toBe('maya')
+  // Cartesia has no language defaults yet: its own default voice, which is told the language.
+  expect(voiceFor({ provider: 'cartesia', apiKey: 'k' }, null, 'de')).toBe('f786b574-daa5-4673-aa0c-cbe3e8534c02')
+  // The cached greeting is keyed by the voice of the assistant's main language.
+  expect(greetingVoice({ tts: eleven } as never, { assistant: { voice: { provider: 'elevenlabs', voice_id: '' }, languages: { main: 'de', mode: 'english', allowed: [] } } })).toMatchObject({ voiceId: SUSI })
+  expect(greetingVoice({ tts: eleven } as never, { assistant: { voice: { provider: 'elevenlabs', voice_id: '' } } })).toMatchObject({ voiceId: 'cgSgspJ2msm6clMCkdW9' })
+})
+
+test("a language's default voice has the provider's default voice as its first backup (a free plan can't use it)", () => {
+  const eleven = { provider: 'elevenlabs' as const, apiKey: 'k' }
+  const voices = (tts: ReturnType<typeof createTts>) => (tts as unknown as { ttsInstances: { provider: string; opts?: { voiceId?: string } }[] }).ttsInstances
+  const german = voices(createTts(eleven, null, 'de'))
+  expect(german.map(t => t.provider)).toEqual(['ElevenLabs', 'ElevenLabs'])
+  // The English default and a voice picked by name have no such backup.
+  expect(voices(createTts(eleven, null, 'en'))).toHaveLength(1)
+  expect(voices(createTts(eleven, { provider: 'elevenlabs', voice_id: 'maya' }, 'de'))).toHaveLength(1)
 })
 
 test('a fixed line is given to the realtime model word for word', () => {

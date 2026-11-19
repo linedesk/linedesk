@@ -56,23 +56,34 @@ describe('Suggested voices for a German assistant', () => {
   it('once it is read: the native German voices first', () => {
     catalog.data = SWITCH_CATALOG
     const { html, names } = card('de')
-    expect(names.slice(0, 3).sort()).toEqual(['Alexandra', 'Jonas', 'Lena - Customer Support'])
+    // The language's default voice (languageDefaultVoices) on top, then the voices recorded in German.
+    expect(names[0]).toBe('Susi')
+    expect(names.slice(1, 4).sort()).toEqual(['Alexandra', 'Jonas', 'Lena - Customer Support'])
     expect(html).toContain('Native German')
     expect(html).not.toContain('American accent')
   })
 
-  it("the install's default voice, when it speaks German too, is the checked one of an assistant without its own", () => {
-    catalog.data = {
-      ...SWITCH_CATALOG,
-      voices: SWITCH_CATALOG.voices.map(v =>
-        v.name === 'Jessica'
-          ? { ...v, languages: [...(v.languages ?? []), { code: 'de', accent: null, native: true }] }
-          : v,
-      ),
-    }
-    const { html } = card('de')
-    const checked = [...html.matchAll(/<div class="vp-row on">.*?<span class="vp-name">(.*?)<\/span>/g)].map(m => m[1])
-    expect(checked).toEqual(['Jessica'])
+  const germanJessica = (freePlan: boolean): VoiceCatalogData => ({
+    providers: SWITCH_CATALOG.providers.map(p => (p.active && freePlan ? { ...p, freePlan } : p)),
+    voices: SWITCH_CATALOG.voices.map(v =>
+      v.name === 'Jessica'
+        ? { ...v, languages: [...(v.languages ?? []), { code: 'de', accent: null, native: true }] }
+        : v,
+    ),
+  })
+  const checkedOf = (html: string) =>
+    [...html.matchAll(/<div class="vp-row on">.*?<span class="vp-name">(.*?)<\/span>/g)].map(m => m[1])
+
+  it("the language's default voice is the checked one of an assistant without its own: the voice its calls speak with", () => {
+    catalog.data = germanJessica(false)
+    expect(checkedOf(card('de').html)).toEqual(['Susi'])
+  })
+
+  it("on a free plan (no Voice Library voices) the install's default voice, when it speaks German too, is the checked one", () => {
+    catalog.data = germanJessica(true)
+    const { html, names } = card('de')
+    expect(names).not.toContain('Susi')
+    expect(checkedOf(html)).toEqual(['Jessica'])
   })
 
   it('when it could not be read: the curated voices, each saying how it speaks German', () => {

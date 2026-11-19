@@ -131,6 +131,8 @@ describe('switching the assistant’s languages several times in a row', () => {
     expect(step.notice).toBe('Voice changed to Lena - Customer Support: speaks German natively.')
     expect(suggested(voice, 'de')).toEqual({
       rows: [
+        // German's default voice (languageDefaultVoices) is always offered on top.
+        { name: 'Susi', facts: 'Female · Native German', checked: false },
         { name: 'Lena - Customer Support', facts: 'Female · Native German', checked: true },
         { name: 'Alexandra', facts: 'Female · Austrian · Native German', checked: false },
         { name: 'Jonas', facts: 'Male · Native German', checked: false },
@@ -146,10 +148,12 @@ describe('switching the assistant’s languages several times in a row', () => {
     voice = step.voice
     expect(voice).toEqual({ provider: 'elevenlabs', voice_id: 'alexandra' })
     expect(step.notice).toBe('Voice changed to Alexandra: speaks Dutch natively.')
+    // Suggested: Dutch's default voice, then the voices recorded in Dutch, then Alexandra (recorded in German).
     expect(suggested(voice, 'nl').rows).toEqual([
-      { name: 'Alexandra', facts: 'Female · Dutch', checked: true },
+      { name: 'Noa', facts: 'Female · Native Dutch', checked: false },
       { name: 'Daan', facts: 'Male · Native Dutch', checked: false },
       { name: 'Sanne', facts: 'Female · Native Dutch', checked: false },
+      { name: 'Alexandra', facts: 'Female · Dutch', checked: true },
     ])
     const dutch = more('nl')
     expect(dutch.html).toContain('>Dutch<')
@@ -165,8 +169,9 @@ describe('switching the assistant’s languages several times in a row', () => {
     step = change(voice, 'pt')
     expect(step).toEqual({ voice, notice: null })
     expect(suggested(voice, 'pt').rows).toEqual([
-      { name: 'Alexandra', facts: 'Female · Portuguese', checked: true },
+      { name: 'Raquel', facts: 'Female · Native Portuguese', checked: false },
       { name: 'Beatriz', facts: 'Female · Brazilian · Native Portuguese', checked: false },
+      { name: 'Alexandra', facts: 'Female · Portuguese', checked: true },
     ])
     expect(more('pt').html).not.toMatch(/Dutch|German/)
 

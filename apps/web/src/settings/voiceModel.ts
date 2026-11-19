@@ -8,8 +8,10 @@ import {
   cloneAudioTypes,
   LANGUAGES,
   type Language,
+  languageDefaultOf,
   REALTIME_VOICE_PROVIDER,
   realtimeVoices,
+  type VoiceCatalogData,
   type VoiceLanguage,
 } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -409,10 +411,36 @@ export function voiceForLanguages(
 }
 
 /**
+ * The main language's own default voice (languageDefaultVoices) as the picker shows it, described by the provider's
+ * list where it has the voice; null for English, a language without one, or until the list says the provider in use
+ * can use it (a free ElevenLabs plan can't use Voice Library voices; then calls fall back to the provider's default).
+ */
+export function usableLanguageDefault(
+  provider: string | null,
+  language: string,
+  catalog: Pick<VoiceCatalogData, 'providers'> | undefined,
+  listed: readonly PickerVoice[] = [],
+): PickerVoice | null {
+  const own = provider ? languageDefaultOf(provider, language) : null
+  const state = catalog?.providers.find(p => p.provider === provider)
+  if (!own || !provider || !state?.configured || state.freePlan) return null
+  return listed.find(v => v.provider === provider && v.id === own.id) ?? { provider, ...own }
+}
+
+/**
+ * The voice onboarding picks for an assistant without one of its own: its main language's default voice (saved with
+ * the step, so the test call speaks with the voice shown checked), or null when it has one or there is none.
+ */
+export const languageDefaultPick = (voice: VoiceChoice, usable: PickerVoice | null): VoiceChoice | null =>
+  voice.voice_id || !usable ? null : { provider: usable.provider, voice_id: usable.id }
+
+/**
  * What Suggested lists for the assistant's languages, at most `limit`: the voices that perform the main language, the
- * ones that perform all the others first (languageGap), each group by the provider in use, the curated voices, a voice
- * made for calls, then name. null for English alone (Suggested keeps the default and curated voices), and when no voice
- * performs the main language: then Suggested keeps those, each saying its accent, and missingNativeNote says why.
+ * ones that perform all the others first (languageGap); among those the main language's default voice (`first`,
+ * languageDefaultVoices), then the voices recorded in the main language (ownLanguage: a German voice before an English
+ * one verified in German), each group by the provider in use, the curated voices, a voice made for calls, then name.
+ * null for English alone (Suggested keeps the default and curated voices), and when no voice performs the main
+ * language: then Suggested keeps those, each saying its accent, and missingNativeNote says why.
  */
 export function suggestedForLanguage(
   voices: readonly PickerVoice[],
@@ -421,13 +449,17 @@ export function suggestedForLanguage(
   others: readonly string[],
   activeProvider: string | null,
   limit: number,
+  first: PickerVoice | null = null,
 ): PickerVoice[] | null {
   if (main === 'en' && !others.some(code => code !== 'en')) return null
   const isCurated = (v: PickerVoice) => curated.some(c => c.provider === v.provider && c.id === v.id)
-  const pool = oncePerVoice([...voices, ...curated]).filter(v => canPerform(v, main))
+  const isFirst = (v: PickerVoice) => !!first && v.provider === first.provider && v.id === first.id
+  const pool = oncePerVoice([...voices, ...curated, ...(first ? [first] : [])]).filter(v => canPerform(v, main))
   if (!pool.length) return null
   const rank = (v: PickerVoice) =>
-    languageGap(v, main, others) * 8 +
+    languageGap(v, main, others) * 64 +
+    Number(!isFirst(v)) * 32 +
+    Number(ownLanguage(v) !== main) * 16 +
     Number(v.provider !== activeProvider) * 4 +
     Number(!isCurated(v)) * 2 +
     Number(!madeForCalls(v))

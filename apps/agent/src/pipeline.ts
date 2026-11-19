@@ -4,7 +4,7 @@
 // voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
 // Or, when an admin picked one, a realtime model alone: it hears the caller and answers in its own voice.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
-import { DEFAULT_VOICE_MODELS, noPrivateEndpointText, noTrainingFields, voiceModelFor, anyModeLanguages, fluxRecognizes, type HearingModel, type Language, mainLanguageOf, otherLanguagesOf, providerLanguageCode, type SpeakingVoice, spokenLanguages, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
+import { DEFAULT_VOICE_MODELS, noPrivateEndpointText, noTrainingFields, voiceModelFor, anyModeLanguages, fluxRecognizes, type HearingModel, type Language, mainLanguageOf, otherLanguagesOf, providerLanguageCode, type SpeakingVoice, spokenLanguages, defaultVoiceFor, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
 import { tts as ttsTypes, type voice } from '@livekit/agents'
 import * as assemblyai from '@livekit/agents-plugin-assemblyai'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
@@ -40,11 +40,13 @@ const EAGER_END_OF_TURN = 0.5
 
 /**
  * The voice provider and voice a call uses: the assistant's own voice with its provider when that one
- * is set up (the one in use or another with a key), else the provider's default voice (providerDefaultVoices).
+ * is set up (the one in use or another with a key), else the default voice for the call's main language
+ * (defaultVoiceFor: a voice recorded in that language, languageDefaultVoices; English and a language without one: the
+ * provider's default voice, providerDefaultVoices).
  * The model: the assistant's own voice model when it is one of that provider's (voiceModelFor; call.start sends the
  * level's), else the provider's default.
  */
-export function ttsFor(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null): TtsConfig & { voiceId?: string } {
+export function ttsFor(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null, language: Language = 'en'): TtsConfig & { voiceId?: string } {
   const own = assistantVoice?.voice_id
   const modelOf = (c: TtsConfig) => voiceModelFor(c.provider, assistantVoice?.provider === c.provider ? assistantVoice.model : undefined, c.model) || undefined
   if (own && assistantVoice.provider === tts.provider) return { provider: tts.provider, apiKey: tts.apiKey, model: modelOf(tts), voiceId: own }
@@ -54,17 +56,17 @@ export function ttsFor(tts: AgentConfig['tts'], assistantVoice?: AssistantVoice 
     provider: tts.provider,
     apiKey: tts.apiKey,
     model: modelOf(tts),
-    voiceId: providerDefaultVoices[tts.provider],
+    voiceId: defaultVoiceFor(tts.provider, language),
   }
 }
 
 /** The voice id a call uses (see ttsFor). */
-export const voiceFor = (tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null): string | undefined =>
-  ttsFor(tts, assistantVoice).voiceId
+export const voiceFor = (tts: AgentConfig['tts'], assistantVoice?: AssistantVoice | null, language: Language = 'en'): string | undefined =>
+  ttsFor(tts, assistantVoice, language).voiceId
 
 /** What a cached line in the assistant's voice is keyed by (with its text): provider, model, voice and speed. */
-export function greetingVoice(config: AgentConfig, call: { assistant?: ({ voice?: AssistantVoice | null } & TalkingSpeedFields) | null }) {
-  const tts = ttsFor(config.tts, call.assistant?.voice)
+export function greetingVoice(config: AgentConfig, call: { assistant?: ({ voice?: AssistantVoice | null; languages?: Parameters<typeof mainLanguageOf>[0] } & TalkingSpeedFields) | null }) {
+  const tts = ttsFor(config.tts, call.assistant?.voice, mainLanguageOf(call.assistant?.languages))
   return { provider: tts.provider, model: ttsModelOf(tts), voiceId: tts.voiceId, speed: talkingSpeedOf(call.assistant) }
 }
 
@@ -220,10 +222,15 @@ export const ttsModelOf = (tts: TtsConfig) => tts.model || DEFAULT_VOICE_MODELS[
  * way, so a voice that gives no audio is an error the session reports (voice-failures.ts) instead of a silent call.
  */
 export function createTts(config: AgentConfig['tts'], assistantVoice?: AssistantVoice | null, language: Language = 'en', speedPct = TALKING_SPEED_PCT_DEFAULT): CallVoice {
-  const own = ttsFor(config, assistantVoice)
+  const own = ttsFor(config, assistantVoice, language)
   const primary = providerTts(own, language, speedPct)
   const others = [config, ...(config.others ?? [])].filter(other => other.provider !== own.provider)
+  // A language's default voice is a Voice Library voice, which a free ElevenLabs plan can't use: the provider's own
+  // default voice is the first backup then, before any other provider.
+  const providerDefault = providerDefaultVoices[own.provider]
+  const sameProvider = !!providerDefault && own.voiceId !== providerDefault && own.voiceId === defaultVoiceFor(own.provider, language)
   const backups = [
+    ...(sameProvider ? [providerTts({ ...own, voiceId: providerDefault }, language, speedPct)] : []),
     ...(config.openAiBackup ? [createRealtimeLineTts(config.openAiBackup, speedPct)] : []),
     ...others.map(other => providerTts({ ...other, voiceId: providerDefaultVoices[other.provider] }, language, speedPct)),
   ]

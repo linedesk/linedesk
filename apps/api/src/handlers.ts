@@ -13,6 +13,8 @@ import {
   type CallerAttestation,
   english,
   isPickable,
+  followLanguageDefault,
+  mainLanguageOf,
   spokenLanguages,
   unspokenLanguages,
   isActiveContact,
@@ -1044,6 +1046,19 @@ const handlers: Record<string, Handler> = {
     // payer change take it before they move the assistants: everything read below is what the save writes over.
     await lockAssistantVersion(ctx.tx, input.assistantId)
     if (input.voice) await checkAssistantVoice(ctx.tx, ctx.actor.workspaceId, input.voice)
+    // A new main language moves an untouched default voice along (followLanguageDefault); a voice picked by name stays.
+    if (input.languages && !input.voice) {
+      const stored = await assistantIn(ctx.tx, ctx.actor.workspaceId, input.assistantId)
+      const workspaceLanguage = (await workspaceLocale(ctx.tx, ctx.actor.workspaceId)).resolvedLanguage
+      const followed =
+        stored &&
+        followLanguageDefault(
+          stored.voice,
+          mainLanguageOf(stored.languages, workspaceLanguage),
+          mainLanguageOf(input.languages, workspaceLanguage),
+        )
+      if (followed) input = { ...input, voice: followed }
+    }
     // The languages against the voice the calls speak with: again when the voice or the level changes.
     if (input.languages || input.voice || input.call_quality !== undefined) {
       const languages =

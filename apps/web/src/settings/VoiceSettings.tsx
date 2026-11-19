@@ -45,6 +45,7 @@ import {
   filterVoices,
   followedNotice,
   followLanguages,
+  languageDefaultPick,
   languageLabel,
   languageName,
   missingNativeNote,
@@ -54,6 +55,7 @@ import {
   previewUrl,
   realtimePickerVoices,
   suggestedForLanguage,
+  usableLanguageDefault,
   type VoiceFilter,
   voiceFacts,
   voiceInEffect,
@@ -559,6 +561,12 @@ type Props = {
   otherLanguages: readonly string[]
   /** The assistant's name, for the line under the default voice ("Maya speaks with it unless you pick another"). */
   assistantName: string
+  /**
+   * Onboarding: an assistant without a voice of its own takes its main language's default voice (languageDefaultVoices)
+   * as a pick, so it is saved with the step and the test call speaks with it. Elsewhere the default stays '' (calls
+   * speak with that voice anyway).
+   */
+  adoptLanguageDefault?: boolean
 }
 
 /** How long the notice of a voice switched for the languages stays, with its Undo. */
@@ -656,6 +664,7 @@ export function VoiceSettings({
   language,
   otherLanguages,
   assistantName,
+  adoptLanguageDefault = false,
 }: Props) {
   const t = useT()
   const { data: options } = useVoiceOptions()
@@ -700,11 +709,21 @@ export function VoiceSettings({
   // A suggested voice as the provider's list describes it (its languages), where the list has it.
   const described = (v: PickerVoice): PickerVoice =>
     catalogVoices.find(c => c.provider === v.provider && c.id === v.id) ?? v
-  // Another main language: the voices native in it first (suggestedForLanguage), else the curated ones, each saying
-  // its accent, with a note why there is no native voice.
+  // The main language's own default voice (languageDefaultVoices): what calls speak with when the assistant picked none.
+  const usableDefault = usableLanguageDefault(provider, language, catalog, catalogVoices)
+  // Another main language: the voices native in it first (suggestedForLanguage), its default voice on top, else the
+  // curated ones, each saying its accent, with a note why there is no native voice.
   const forLanguage =
     (catalog &&
-      suggestedForLanguage(catalogVoices, curated, language, otherLanguages, provider, SUGGESTED_FOR_LANGUAGE)) ||
+      suggestedForLanguage(
+        catalogVoices,
+        curated,
+        language,
+        otherLanguages,
+        provider,
+        SUGGESTED_FOR_LANGUAGE,
+        usableDefault,
+      )) ||
     []
   const nativeNote =
     catalog && !forLanguage.length
@@ -738,9 +757,13 @@ export function VoiceSettings({
     !forLanguage.length && provider && options?.defaultVoice ? voiceKey(provider, options.defaultVoice.id) : null
   const listed =
     defaultKey && current !== defaultKey ? suggested.filter(v => voiceKey(v.provider, v.id) !== defaultKey) : suggested
-  // For another language there is no default row: the install's default voice, when it is listed, is the checked one
-  // while the assistant has none of its own ('' is the default voice).
-  const installDefaultKey = provider && options?.defaultVoice ? voiceKey(provider, options.defaultVoice.id) : null
+  // For another language there is no default row: the language's default voice (else the install's default voice),
+  // when it is listed, is the checked one while the assistant has none of its own ('' is the default voice).
+  const installDefaultKey = usableDefault
+    ? voiceKey(usableDefault.provider, usableDefault.id)
+    : provider && options?.defaultVoice
+      ? voiceKey(provider, options.defaultVoice.id)
+      : null
   const isChecked = (v: PickerVoice) =>
     current === voiceKey(v.provider, v.id) ||
     (current === '' && forLanguage.length > 0 && voiceKey(v.provider, v.id) === installDefaultKey)
@@ -753,9 +776,11 @@ export function VoiceSettings({
           description: voice.voice_id,
         })
       : null
-  // The voice "Default voice" stands for, with its languages where they are known.
-  const defaultVoice =
-    provider && options?.defaultVoice
+  // The voice "Default voice" stands for, with its languages where they are known: the language's own for another
+  // language (calls speak with it, defaultVoiceFor).
+  const defaultVoice = usableDefault
+    ? usableDefault
+    : provider && options?.defaultVoice
       ? described(
           curated.find(v => v.id === options.defaultVoice?.id) ?? {
             provider,
@@ -789,6 +814,12 @@ export function VoiceSettings({
     if (!next) return setFollowed(null)
     onPick(next.voice)
     setFollowed({ ...next, from: voice })
+  })
+  // Onboarding: no voice of its own yet, and the main language has a default voice: that one is picked (and saved with
+  // the step), so the test call speaks with the voice shown checked.
+  useEffect(() => {
+    const adopted = adoptLanguageDefault && canEdit ? languageDefaultPick(voice, usableDefault) : null
+    if (adopted) onPick(adopted)
   })
 
   if (options && !provider)
