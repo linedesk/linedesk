@@ -324,6 +324,8 @@ export function StepScreen(p: StepScreenProps) {
           setupError={p.saves.setupError}
           clearError={p.saves.clearSetupError}
           admin={admin}
+          extraNumberCents={p.me.workspace?.extraNumberCents ?? null}
+          partnerManaged={p.me.workspace?.partnerManaged === true}
           oldForwarding={p.pickupMemory.oldForwarding}
           onBack={p.onBack}
           onNext={p.onNext}

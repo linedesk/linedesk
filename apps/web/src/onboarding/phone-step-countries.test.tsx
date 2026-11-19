@@ -34,7 +34,10 @@ type Offer = (typeof BASE_BUY_OFFERS)[number]
 const GERMANY: Offer = { country: 'DE', numberType: 'local', areaCodes: ['6221'], ready: true }
 const offers = vi.hoisted(() => ({ extra: [] as unknown[] }))
 
-const render = (setupError: string | null = null) =>
+const render = (
+  setupError: string | null = null,
+  bill: { extraNumberCents?: number | null; partnerManaged?: boolean } = {},
+) =>
   renderToStaticMarkup(
     <PhoneStep
       status={{
@@ -48,6 +51,7 @@ const render = (setupError: string | null = null) =>
       setupError={setupError}
       clearError={() => {}}
       admin={false}
+      {...bill}
       onBack={() => {}}
       onNext={() => {}}
     />,
@@ -146,5 +150,29 @@ describe('the phone step by country', () => {
     expect(phoneSetupErrorText('Numbers in this country are being set up on this server')).toBe(
       'Numbers in your country are being set up. Continue for now and connect your number later.',
     )
+  })
+})
+
+describe('the price line on a bill', () => {
+  beforeEach(() => {
+    place.country = 'US'
+    place.businessPhone = undefined
+    offers.extra = []
+  })
+
+  test('on a bill: the first number is in the plan, not the carrier price', () => {
+    const html = render(null, { extraNumberCents: 300 })
+    expect(html).toContain('Your first number is included in your plan.')
+    expect(html).not.toContain('billed by Telnyx')
+  })
+
+  test('off billing: the carrier price as before', () => {
+    expect(render(null, { extraNumberCents: null })).toContain('billed by Telnyx')
+  })
+
+  test('a white-label client sees no price', () => {
+    const html = render(null, { extraNumberCents: 300, partnerManaged: true })
+    expect(html).not.toContain('Your first number is included')
+    expect(html).not.toContain('billed by Telnyx')
   })
 })

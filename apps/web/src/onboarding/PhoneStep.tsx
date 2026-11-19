@@ -41,6 +41,7 @@ import {
   phoneOptionText,
   pickupNumberMode,
   priceCountry,
+  billedNumberNote,
   priceNote,
   turnOffFirst,
   URGENT_CONTACT_ID,
@@ -57,6 +58,10 @@ type Props = {
   clearError: () => void
   /** An instance admin: hints about the server link to Server admin › Providers; everyone else is told whom to ask. */
   admin: boolean
+  /** On a bill: what each number beyond the included one costs a month (`me.workspace.extraNumberCents`); null off
+   * billing and on a comped bill. A white-label client passes `partnerManaged`: its people see no prices. */
+  extraNumberCents?: number | null
+  partnerManaged?: boolean
   onBack: () => void
   onNext: () => void
 }
@@ -130,7 +135,16 @@ function Unavailable({
   )
 }
 
-function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode }: Props & { firstAreaCode: string }) {
+function Choose({
+  status,
+  setupError,
+  clearError,
+  onBack,
+  onNext,
+  firstAreaCode,
+  extraNumberCents = null,
+  partnerManaged = false,
+}: Props & { firstAreaCode: string }) {
   const t = useT()
   const word = useClientWord()
   const later = useLater()
@@ -170,6 +184,7 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
   const forwarding = pickupNumberMode(pickup)
   const buying = option !== 'existing'
   const dev = status.provider === 'dev'
+  const boughtNumbers = useRows('phone_numbers').filter(n => n.purchased && n.carrier_account === 'install').length
 
   // A rejection ends the wait; success shows up as the new phone_numbers row (this screen then unmounts).
   useEffect(() => {
@@ -321,7 +336,13 @@ function Choose({ status, setupError, clearError, onBack, onNext, firstAreaCode 
                 />
               </Field>
             )}
-            <p className="ob2-note">{priceNote(status.provider, priceCountry(areaCode, country))}</p>
+            {!partnerManaged && (
+              <p className="ob2-note">
+                {/* The same note as Settings › Phone numbers: on a bill the first number is in the plan. */}
+                {billedNumberNote(extraNumberCents, status.provider, boughtNumbers) ??
+                  priceNote(status.provider, priceCountry(areaCode, country))}
+              </p>
+            )}
             {/* The question right above the footer, whose primary button does it; Back (Esc) cancels. */}
             {confirming && (
               <p className="ob-confirm" role="alert">
