@@ -26,7 +26,9 @@ import {
   BILLING_PAGE_CODES,
   billingPageHandlers,
   EXTRA_CALLS_CHANGES_PER_HOUR,
+  INTERVAL_CHANGES_PER_HOUR,
   resetExtraCallsLimit,
+  resetIntervalLimit,
 } from '../src/billing-page.ts'
 import { DEFAULT_TIME_ZONE } from '../src/bookings.ts'
 import { liveCallLimit } from '../src/handlers.ts'
@@ -71,6 +73,14 @@ const cloud = vi.hoisted(() => ({
   }[],
   refuseExtraCalls: false,
   cardRefused: false,
+  /** The interval switches Stripe was asked for; `intervalAnswer`: what Stripe answers (it may have ended the trial). */
+  intervals: [] as {
+    subscriptionId: string
+    interval: string
+    priceIds: Record<string, string>
+    idempotencyKey: string
+  }[],
+  intervalAnswer: 'updated' as 'updated' | 'unchanged' | 'not_trialing' | 'unknown_item',
   /** Runs while Stripe "answers" an extra-calls change. */
   onExtraCalls: null as null | (() => Promise<void>),
   /** The price ids the last catalog sync stored. */
@@ -110,6 +120,10 @@ vi.mock('../src/billing-settings.ts', async original => {
       cloud.extraCalls.push(input)
       return 'updated'
     },
+    setPlanInterval: async (input: (typeof cloud.intervals)[number]) => {
+      cloud.intervals.push(input)
+      return cloud.intervalAnswer
+    },
     rechargeInvoicePage: async (id: string) => {
       cloud.invoicePages.push(id)
       await cloud.onInvoicePage?.()
@@ -141,7 +155,10 @@ beforeEach(() => {
   cloud.extraCalls.length = 0
   cloud.refuseExtraCalls = false
   cloud.cardRefused = false
+  cloud.intervals.length = 0
+  cloud.intervalAnswer = 'updated'
   resetExtraCallsLimit()
+  resetIntervalLimit()
   setJobQueue({
     send: async (name: string, data: Record<string, unknown>) => {
       queued.push({ name, data })
@@ -1220,6 +1237,110 @@ describe('billing.setExtraCalls (LIN-450)', () => {
     const member = await addMember(b.ws.id, 'member')
     expect((await set(member, b.ws.id, 0)).status).toBe(403)
     expect(notes()).toHaveLength(1)
+  })
+})
+
+describe('billing.setInterval: monthly or yearly in the free trial (2026-11-19)', () => {
+  const trialEnd = () => at(Date.now() + 10 * DAY)
+  const inTrial = (over: Partial<typeof billing_accounts.$inferInsert> = {}) =>
+    billed({ status: 'trialing', trial_ends_at: trialEnd(), interval: 'year', ...over }, 0)
+  const switchTo = (who: Caller, interval: 'month' | 'year', key?: string) =>
+    act(who, 'billing.setInterval', { interval }, key)
+
+  test('in the trial: Stripe moves the plan with the trial end kept, the bill stores it, nothing is charged', async () => {
+    const b = await inTrial()
+    const before = await billNow(b.billId)
+    expect((await overview(b.owner)).bill.intervalSwitch).toEqual({ interval: 'month', seatCents: 1100 })
+    const res = await switchTo(b.owner, 'month')
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ interval: 'month', trialEndsAt: before.trial_ends_at })
+    expect(cloud.intervals).toEqual([
+      {
+        subscriptionId: before.stripe_subscription_id,
+        interval: 'month',
+        priceIds: cloud.prices,
+        idempotencyKey: expect.stringContaining(`interval:${b.billId}:`),
+      },
+    ])
+    const after = await billNow(b.billId)
+    expect(after.interval).toBe('month')
+    // The trial keeps its end and its status; no invoice and no charge on the bill.
+    expect(after.status).toBe('trialing')
+    expect(after.trial_ends_at).toBe(before.trial_ends_at)
+    expect(await db.select().from(billing_invoices).where(eq(billing_invoices.billing_account_id, b.billId))).toEqual(
+      [],
+    )
+    expect(rechargesQueued()).toEqual([])
+    // The page offers the way back now.
+    expect((await overview(b.owner)).bill.intervalSwitch).toEqual({ interval: 'year', seatCents: 10800 })
+    // The same interval again asks Stripe nothing.
+    expect((await switchTo(b.owner, 'month')).status).toBe(200)
+    expect(cloud.intervals).toHaveLength(1)
+  })
+
+  test('only in the trial: a paid plan, a pending sign-up or a partner bill is refused and Stripe is not asked', async () => {
+    for (const over of [
+      { status: 'active' as const, trial_ends_at: null },
+      { status: 'pending_payment' as const, stripe_subscription_id: null },
+      { status: 'trialing' as const, stripe_subscription_id: null },
+      // A partner bill has its own plan (base fee and client seats) and no trial: never switched here.
+      { kind: 'partner' as const },
+    ]) {
+      const b = await inTrial(over)
+      const res = await switchTo(b.owner, 'month')
+      expect(res).toMatchObject({ status: 409, body: { code: BILLING_PAGE_CODES.intervalTrialOnly } })
+      expect((await overview(b.owner)).bill?.intervalSwitch ?? null).toBeNull()
+    }
+    expect(cloud.intervals).toEqual([])
+  })
+
+  test('Stripe ended the trial meanwhile: refused, the bill keeps its interval', async () => {
+    const b = await inTrial()
+    cloud.intervalAnswer = 'not_trialing'
+    expect(await switchTo(b.owner, 'month')).toMatchObject({
+      status: 409,
+      body: { code: BILLING_PAGE_CODES.intervalTrialOnly },
+    })
+    expect((await billNow(b.billId)).interval).toBe('year')
+  })
+
+  test('who may: the owner and an admin of its only workspace (the owner hears of it); never a member', async () => {
+    const b = await inTrial()
+    const notes = () => queued.filter(j => j.name === BILLING_LIFECYCLE_EMAIL).map(j => j.data)
+    const member = await addMember(b.ws.id, 'member')
+    expect((await switchTo(member, 'month')).status).toBe(403)
+    expect(cloud.intervals).toEqual([])
+    const admin = await addMember(b.ws.id, 'admin')
+    expect((await switchTo(admin, 'month')).status).toBe(200)
+    expect(notes()).toEqual([
+      {
+        bill: b.billId,
+        email: {
+          kind: 'manager_changed',
+          change: 'interval',
+          actorId: admin.userId,
+          at: expect.any(String),
+          to: 'month',
+        },
+      },
+    ])
+    // The owner's own switch sends nothing.
+    expect((await switchTo(b.owner, 'year')).status).toBe(200)
+    expect(notes()).toHaveLength(1)
+    // A bill of several workspaces is its owner's alone.
+    const { payer } = await shareBill(b)
+    expect((await switchTo(admin, 'month')).status).toBe(403)
+    expect((await switchTo(payer, 'month')).status).toBe(200)
+  })
+
+  test('at most a few switches an hour per bill', async () => {
+    const b = await inTrial()
+    for (let i = 0; i < INTERVAL_CHANGES_PER_HOUR; i++)
+      expect((await switchTo(b.owner, i % 2 ? 'year' : 'month')).status).toBe(200)
+    expect(await switchTo(b.owner, 'month')).toMatchObject({
+      status: 409,
+      body: { code: BILLING_PAGE_CODES.intervalTooOften },
+    })
   })
 })
 

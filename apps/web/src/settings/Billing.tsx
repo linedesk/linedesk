@@ -15,6 +15,7 @@ import type {
   BillingUsageRow,
   CancelData,
   ExtraCallsData,
+  IntervalData,
   PortalData,
   RechargeCapData,
   RetryRechargeData,
@@ -39,6 +40,7 @@ import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { PlanCard, usePlanPrice } from '../ui/PlanCard.tsx'
 import { PriceLine, usePrice } from '../ui/price.tsx'
+import { readTrialLink, takeAlreadyRunning } from '../trialLink.ts'
 import {
   AMOUNT_CHOICES,
   amountFits,
@@ -393,6 +395,12 @@ function BillPlan({
   const prices = usePrice()
   // "Cancel my trial" in the trial emails links here with `cancel=1`: the cancel dialog opens at once (once).
   const [cancelOpen, setCancelOpen] = useState(() => takeCancelRequest() && canCancel(bill))
+  // The Start your free trial link (trialLink.ts) opened on a bill whose trial or plan runs already: said once here.
+  const [fromTrialLink] = useState(
+    () => takeAlreadyRunning() || (typeof window !== 'undefined' && readTrialLink(window.location.hash) !== null),
+  )
+  const [switching, setSwitching] = useState(false)
+  const intervalSwitch = !bill.cancelAtPeriodEnd ? (bill.intervalSwitch ?? null) : null
   const [resuming, setResuming] = useState(false)
   const supportEmail = useLegalLinks()?.supportEmail ?? null
   const date = (iso: string) => format.date(new Date(iso))
@@ -490,8 +498,26 @@ function BillPlan({
           ))}
         </Note>
       )}
-      {(canCancel(bill) || canResume(bill)) && (
+      {fromTrialLink && (bill.status === 'trialing' || bill.status === 'active') && (
+        <Note>
+          {bill.status === 'trialing'
+            ? t('settings.billing.plan.trialLinkTrial')
+            : t('settings.billing.plan.trialLinkPlan')}
+        </Note>
+      )}
+      {(canCancel(bill) || canResume(bill) || intervalSwitch) && (
         <div className="billing-actions">
+          {intervalSwitch && (
+            <Button
+              variant="secondary"
+              title={t('settings.billing.interval.buttonTip')}
+              onClick={() => setSwitching(true)}
+            >
+              {intervalSwitch.interval === 'month'
+                ? t('settings.billing.interval.toMonth')
+                : t('settings.billing.interval.toYear')}
+            </Button>
+          )}
           {canCancel(bill) && (
             <Button
               variant="danger-outline"
@@ -509,7 +535,98 @@ function BillPlan({
         </div>
       )}
       {cancelOpen && <CancelDialog bill={bill} onClose={() => setCancelOpen(false)} toast={toast} />}
+      {switching && intervalSwitch && (
+        <IntervalDialog bill={bill} to={intervalSwitch} onClose={() => setSwitching(false)} toast={toast} />
+      )}
     </Section>
+  )
+}
+
+/**
+ * Monthly or yearly in the free trial (Janik, 2026-11-19): the new price (a month first, a yearly total as the grey
+ * note) and that nothing is charged before the trial ends; the switch keeps the trial's end and charges nothing now.
+ */
+export function IntervalDialog({
+  bill,
+  to,
+  onClose,
+  toast,
+}: {
+  bill: BillingOverviewBill
+  to: { interval: 'month' | 'year'; seatCents: number }
+  onClose: () => void
+  toast: (text: string) => void
+}) {
+  const t = useT()
+  const calls = useBillCalls()
+  const format = useFormat()
+  const prices = usePrice()
+  const planPrice = usePlanPrice()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const title = to.interval === 'month' ? t('settings.billing.interval.toMonth') : t('settings.billing.interval.toYear')
+  const note = prices.yearNote(to.seatCents, to.interval) ?? t('common.price.billedMonthly')
+  async function run() {
+    setBusy(true)
+    setError(null)
+    try {
+      const done = await calls.write<IntervalData>('billing.setInterval', { interval: to.interval })
+      // The page shows the new interval at once; the overview read after it brings the rest.
+      setQueryData<BillingOverviewData | undefined>(calls.overview, d =>
+        d?.bill
+          ? {
+              ...d,
+              bill: {
+                ...d.bill,
+                interval: done.interval,
+                seatCents: to.seatCents,
+                intervalSwitch: { interval: d.bill.interval, seatCents: d.bill.seatCents },
+              },
+            }
+          : d,
+      )
+      toast(
+        done.interval === 'month' ? t('settings.billing.interval.doneMonth') : t('settings.billing.interval.doneYear'),
+      )
+      void calls.reload()
+      onClose()
+    } catch (err) {
+      setBusy(false)
+      setError(errorMessage(err))
+    }
+  }
+  return (
+    <Dialog
+      title={title}
+      onClose={onClose}
+      onSubmit={e => {
+        e.preventDefault()
+        void run()
+      }}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            {t('common.action.cancel')}
+          </Button>
+          <Button variant="primary" type="submit" busy={busy} shortcut={['⏎']}>
+            {title}
+          </Button>
+        </>
+      }
+    >
+      <div className="billing-plan">
+        <PriceLine note={note}>
+          {planPrice(prices.perMonth(to.seatCents, to.interval))}{' '}
+          <span className="help">{t('common.plan.perWorkspace')}</span>
+        </PriceLine>
+        <span className="help">
+          {bill.trialEndsAt
+            ? t('settings.billing.interval.noCharge', { date: format.date(new Date(bill.trialEndsAt)) })
+            : t('settings.billing.interval.noChargeNoDate')}
+        </span>
+      </div>
+      {error && <Note tone="danger">{error}</Note>}
+    </Dialog>
   )
 }
 

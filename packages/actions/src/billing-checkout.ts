@@ -17,7 +17,7 @@ export const TOPUP_CENTS = { min: 500, max: 50_000 } as const
 export const billingStartCheckout = defineAction({
   name: 'billing.startCheckout',
   description:
-    "Start Checkout for this workspace's bill: the plan with a 14-day free trial (or without one when this card had a trial), with any extra calls at the same time added (`extraCalls`). Answers the Checkout link to open. The terms are accepted once, at sign-up: neither this nor Checkout asks for them again. While the bill's owner has not accepted the terms in effect (they changed since sign-up), it is refused with `terms_changed` until the owner accepts them in the app. A business's start records the consent to the trial and its first charge with what the activation step showed.",
+    "Start Checkout for this workspace's bill: the plan with a 14-day free trial (or without one when this card had a trial), with any extra calls at the same time added (`extraCalls`), billed monthly or yearly (`interval`, default the bill's). Answers the Checkout link to open. The terms are accepted once, at sign-up: neither this nor Checkout asks for them again. While the bill's owner has not accepted the terms in effect (they changed since sign-up), it is refused with `terms_changed` until the owner accepts them in the app. A business's start records the consent to the trial and its first charge with what the activation step showed.",
   input: z.object({
     ...billTarget,
     /**
@@ -26,6 +26,11 @@ export const billingStartCheckout = defineAction({
      * plan at its end.
      */
     extraCalls: z.number().int().min(0).max(1000).multipleOf(EXTRA_CALLS_STEP).optional(),
+    /**
+     * Monthly or yearly, as picked in the Start your free trial dialog; absent: the bill's interval (the sign-up's).
+     * Stored on the bill once Checkout opens; nothing was charged before it, so switching is free.
+     */
+    interval: z.enum(['month', 'year']).optional(),
   }),
   permission: 'billing:manage',
   // The Checkout link pays this bill: in the answer only, never in the command log.

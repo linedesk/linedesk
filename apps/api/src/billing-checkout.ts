@@ -369,12 +369,16 @@ type Started = {
   customerId: string
   billId: string
   accepted: { terms: LegalTerms; disclosure: ActivationDisclosure } | null
+  /** The interval this Checkout sells; stored on the bill when the owner picked another one than it had. */
+  interval: 'month' | 'year'
 }
 
 type StartInput = {
   partnerId?: string
   /** Extra calls at the same time added on the activation step (LIN-450); a business's bill only. */
   extraCalls?: number
+  /** Monthly or yearly, as the owner picked it in the Start your free trial dialog; absent: the bill's interval. */
+  interval?: 'month' | 'year'
 }
 
 /**
@@ -433,8 +437,14 @@ export function activationDisclosure(
 export async function activationFacts(tx: Tx, bill: Bill, rules: BillingRules, now: string): Promise<ActivationFacts> {
   const items = await planItems(tx, bill)
   const trial = await trialOffered(tx, bill)
+  // Both intervals' prices: the Start your free trial dialog switches between monthly and yearly before Checkout.
+  const planCentsByInterval = {
+    month: itemsCents(await planItems(tx, { ...bill, interval: 'month' }), rules),
+    year: itemsCents(await planItems(tx, { ...bill, interval: 'year' }), rules),
+  }
   return {
     ...activationDisclosure({ planCents: itemsCents(items, rules), interval: bill.interval, trial }, rules, now),
+    planCentsByInterval,
     includedMinutes: Math.floor(rules.includedStandardSeconds / 60),
     standardMicrosPerMinute: rules.levels.standard.microsPerMinute,
     calls: {
@@ -493,8 +503,11 @@ const itemsCents = (items: { lookupKey: string; quantity: number }[], rules: Bil
  * asked before the transaction (the customer, the configuration, the session); the transaction stores the customer.
  */
 const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput) => {
-  const bill = await db.transaction(tx => ownBill(tx, actor, { partnerId: input.partnerId }))
-  if (bill.status !== 'pending_payment') throw Reject.t('server.api.checkout.alreadyFinished')
+  const stored = await db.transaction(tx => ownBill(tx, actor, { partnerId: input.partnerId }))
+  if (stored.status !== 'pending_payment') throw Reject.t('server.api.checkout.alreadyFinished')
+  // Monthly or yearly as picked in the dialog (the sign-up's choice until then): everything below sells that one, and
+  // the handler stores it on the bill. Before the first Checkout nothing was charged, so the switch is free.
+  const bill: Bill = input.interval ? { ...stored, interval: input.interval } : stored
   const terms = await termsInEffect(bill)
   refuseCheckoutFlood(bill.id)
   const items = await db.transaction(tx => planItems(tx, bill))
@@ -538,7 +551,7 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
       successUrl: returnUrl(input.partnerId),
       cancelUrl: cancelUrl(input.partnerId),
       // A double click within a second makes one session; a later start makes a new one (the open one was expired).
-      idempotencyKey: `${bill.id}:checkout:${trial ? 'trial' : 'plan'}:${now.slice(0, 19)}`,
+      idempotencyKey: `${bill.id}:checkout:${trial ? 'trial' : 'plan'}:${bill.interval}:${now.slice(0, 19)}`,
       expiresAt: checkoutExpiresAt(),
     })
     .catch(setupFailed)
@@ -558,7 +571,14 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
           ),
         }
       : null
-  return { url: started.url, sessionId: started.id, customerId, billId: bill.id, accepted } satisfies Started
+  return {
+    url: started.url,
+    sessionId: started.id,
+    customerId,
+    billId: bill.id,
+    accepted,
+    interval: bill.interval,
+  } satisfies Started
 }
 
 /** Stores the bill's customer the first time (a second start finds it). */
@@ -1249,6 +1269,13 @@ export const checkoutHandlers: Record<string, Handler> = {
     const bill = await ownBill(tx, actor, { lock: true, partnerId: input.partnerId })
     if (bill.id !== started.billId) throw new Reject('the bill changed; try again')
     await storeCustomer(tx, started, now)
+    // Another interval than the sign-up's, picked in the dialog: the bill says what this Checkout sells (the Checkout
+    // confirmation stores the subscription's own interval again).
+    if (bill.interval !== started.interval)
+      await tx
+        .update(billing_accounts)
+        .set({ interval: started.interval, updated_at: now })
+        .where(and(eq(billing_accounts.id, bill.id), eq(billing_accounts.status, 'pending_payment')))
     // The consent to the trial and its automatic charge, recorded before Checkout opens (A9): what the activation step
     // said next to its button, with the terms in effect (accepted at sign-up; the step does not ask for them again).
     if (started.accepted)

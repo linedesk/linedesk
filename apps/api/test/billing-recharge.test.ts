@@ -82,6 +82,7 @@ function fakeProvider(charge: (input: RechargeInvoiceInput) => Awaited<ReturnTyp
     checkoutInvoice: async () => null,
     setSeatQuantity: async () => 'unchanged',
     setExtraCallsQuantity: async () => 'unchanged',
+    setPlanInterval: async () => 'unchanged',
     // Trial Checkout (PR 8) is not used here.
     createCustomer: async () => {
       throw new Error('not used')

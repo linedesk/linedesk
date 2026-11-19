@@ -3,6 +3,7 @@
 // the transaction that queued it; call-billing.ts). Every word comes from packages/i18n/locales/en/email.json.
 import { getT } from '@linedesk/i18n/server'
 import { brandName } from '../branding.ts'
+import { trialStartUrl } from '../trial-link.ts'
 import { type Block, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
 import { BILLING_PATH } from './billing-lifecycle.ts'
 import { appLink, type EmailLocale, emailSafeName, WEB_ORIGIN } from './templates.ts'
@@ -261,12 +262,12 @@ function activationNudgeEmail(
     : t('email.billing.activationNudge.textPlan', values)
   const blocks: Block[] = [{ kind: 'text', text: lead }]
   if (trial) blocks.push({ kind: 'text', text: t('email.billing.activationNudge.noCharge', values) })
-  // The app opens on the onboarding where the owner left it; its last step starts the trial.
+  // The trial link (trial-link.ts): the app opens the Start your free trial dialog at once, over the setup.
   if (email.workspaceId)
     blocks.push({
       kind: 'button',
       label: trial ? t('email.billing.activationNudge.button') : t('email.billing.activationNudge.buttonPlan'),
-      url: appLink(origin, email.workspaceId, 'calls'),
+      url: trialStartUrl(origin, email.workspaceId),
     })
   blocks.push({ kind: 'text', text: t('email.billing.activationNudge.deleted', values) })
   return renderEmail({

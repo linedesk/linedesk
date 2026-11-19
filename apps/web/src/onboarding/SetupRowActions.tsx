@@ -277,20 +277,29 @@ export function SetupStartTrial({ me, onTermsChanged }: { me: Me; onTermsChanged
   )
 }
 
-function StartTrialDialog({
+/**
+ * The Start your free trial dialog: the plan with its Monthly / Yearly switch, the timeline, and Stripe Checkout. Opened
+ * from the agent setup page's row, or at once by the trial link (TrialLink.tsx, `interval` from its address).
+ * `byHand`: the owner set up by hand, so back from Checkout the onboarding goes on (else the agent setup page opens).
+ */
+export function StartTrialDialog({
   me,
   activation,
   onTermsChanged,
   onClose,
+  interval = null,
+  byHand = false,
 }: {
   me: Me
   activation: Activation
   onTermsChanged: () => void
   onClose: () => void
+  interval?: 'month' | 'year' | null
+  byHand?: boolean
 }) {
   const t = useT()
   // Back from Checkout: this page again (the owner did not choose by hand).
-  const trial = useStartTrial(me, activation, onTermsChanged, { byHand: false })
+  const trial = useStartTrial(me, activation, onTermsChanged, { byHand, interval })
   const canStart = Boolean(activation.terms) && !trial.busy
   // Enter starts it, as on the onboarding's step (⏎ on the button); a focused button or link keeps its own Enter.
   const startRef = useRef(trial.start)

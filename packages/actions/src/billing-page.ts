@@ -69,6 +69,12 @@ export type BillingOverviewBill = {
   trialEndsAt: string | null
   currentPeriodEnd: string | null
   cancelAtPeriodEnd: boolean
+  /**
+   * While a Linedesk Cloud bill is in its trial: the other interval the owner can switch to (`billing.setInterval`),
+   * with its price per workspace per that interval before tax; null otherwise (a partner bill, a paid plan). Absent
+   * from an older server.
+   */
+  intervalSwitch?: { interval: 'month' | 'year'; seatCents: number } | null
   /** The balance (it can be below zero) and what is free of running calls' reservations, in micro-dollars. */
   balanceMicros: number
   availableMicros: number
@@ -213,6 +219,17 @@ export const billingSetExtraCalls = defineAction({
 })
 /** `data` of `billing.setExtraCalls`: what is stored now, and the workspace's calls at once with it. */
 export type ExtraCallsData = { workspaceId: string; extraCalls: number; limit: number }
+
+export const billingSetInterval = defineAction({
+  name: 'billing.setInterval',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Switch the plan between monthly and yearly payment while the free trial runs: nothing is charged now, the trial keeps its end, and the first charge at the trial's end is at the new interval. A Linedesk Cloud bill only, in its trial only. For whoever manages the bill.",
+  input: z.object({ interval: z.enum(['month', 'year']), ...billTarget }),
+  permission: 'billing:manage',
+})
+/** `data` of `billing.setInterval`: the interval now, and the trial's end (the first charge, at that interval). */
+export type IntervalData = { interval: 'month' | 'year'; trialEndsAt: string | null }
 
 export const billingOpenPortal = defineAction({
   name: 'billing.openPortal',

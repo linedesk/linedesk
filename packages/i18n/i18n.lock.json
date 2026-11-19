@@ -12540,6 +12540,26 @@
       "out": "84f439e1b807b65325f59df80e0da626e4575888e3c7393c4cabbd226ccbf7ba",
       "src": "51d79ea89a8d8b1d2dddd357c470951b000e2bd9c0c37e0871f88b2e3a307f1c"
     },
+    "common.plan.interval.label": {
+      "by": "ai",
+      "out": "1c865fd342654c82d9fdde77b6a3935aeffdb2dbf0165c5bb0a981499cbe83e7",
+      "src": "b0c48b3dc812605437f99029901f1147f28595b62ec73d38a8ffeb5a4d92de8a"
+    },
+    "common.plan.interval.month": {
+      "by": "ai",
+      "out": "fd0039eccd62fd0d470bf47c0a57df6fe066f6d4112c63b84c7d73409975cd99",
+      "src": "9b11f6b707d2a03e0265465f32520bc1bc213de121de958539662d0ec1453fcb"
+    },
+    "common.plan.interval.save": {
+      "by": "ai",
+      "out": "ea83d1132a2384e4f1dbef727be1764c9d4ccf8efdc164cad5cddb6a831024fc",
+      "src": "a9d08a144ee8f0d3d6489dcef9f96faeb7854c40d52cf49887b0dc3b3c6276a6"
+    },
+    "common.plan.interval.year": {
+      "by": "ai",
+      "out": "71c2c31bbc342a9fd1a2174cd002254e485bae97cae02b4338765ba44dd002a3",
+      "src": "6e69b59ed34d42ef337ccc1910152d2cfa4b6ff831c21c5af5ef0f3bc84cbe89"
+    },
     "common.plan.minutes": {
       "by": "ai",
       "out": "1de6544629f3e5430016420d4a56855bfc93e2340d1b4f12f736127b7abeba60",
@@ -12634,6 +12654,11 @@
       "by": "ai",
       "out": "a8bec2facac8528964a60c773a737f00a0085d33c3850b1c1daa3d9923129bfc",
       "src": "9f7c91a045632f16016eb0e051396364d25f1ee4a320cb8ce32b515f98d1245f"
+    },
+    "common.price.billedMonthly": {
+      "by": "human",
+      "out": "31a6bbbaf43d8bd279cf4d43fc967b615f3d56c0a0e49255ab622e98958e2e70",
+      "src": "35d9ba72e6a705264005b6e7a14bad547172c61edd030b868843e18b0def573c"
     },
     "common.price.billedYearly": {
       "by": "ai",
@@ -14675,6 +14700,16 @@
       "out": "deceaf2a6ae95c65dd8c670a993499fae489260f21543b948bd5ee7241ed19c6",
       "src": "4e0e9e4198d4f50259d2511b69a90dc6a0b7e470bff0059ceb53328cc67ffe81"
     },
+    "email.billing.managerChanged.intervalMonth": {
+      "by": "human",
+      "out": "5d915e7c42cb50939be7b89b9eddd39c235d29be71e02162c3eecdfbf8af8f48",
+      "src": "9c9f424ef8d78d3b08982eb736b9c2c3b016f4e9fe450a96a38ea8a87ab44c35"
+    },
+    "email.billing.managerChanged.intervalYear": {
+      "by": "human",
+      "out": "6a47b128cfbcb6a754e7f1027a21e5af460c9d5d42aaabde6045ff1ab1d65646",
+      "src": "363a016710b0f8905d3fe0bedeea89f3a3b0197e97ecf397ce170c3fc32499f9"
+    },
     "email.billing.managerChanged.notExpected": {
       "by": "ai",
       "out": "4c92a43fefe945f642bdca0455ba53c1f066ff94985c9bde2572599bd79be7a1",
@@ -14694,6 +14729,11 @@
       "by": "ai",
       "out": "cdaccfe35b12a57099e0577298fa66807c4b85ff1a19274944f8b540a3ea8689",
       "src": "c2d5db8e1c2b57ffd890ede2e7cd270fbe08c171f22806170171641a44c5310a"
+    },
+    "email.billing.managerChanged.subject.interval": {
+      "by": "human",
+      "out": "66c992456d6801e47a626999c3000b9dd531dccf1ff1feb0def9b1591601724b",
+      "src": "d62bb1d89e9c2a67723cbc55a46b6daa46e65df90b8f510a5816114a26723802"
     },
     "email.billing.managerChanged.subject.paymentMethod": {
       "by": "ai",
@@ -21915,6 +21955,21 @@
       "out": "a56041f354899b37e36cd59c4e2af1a050e676a0de739145bd2ef8316f3472f1",
       "src": "7800f951a5188edd3643bdccb2960693ee7bdaff65e3f7e5d0cbad4703d6ebdc"
     },
+    "onboarding.trialLink.notOwner": {
+      "by": "human",
+      "out": "e763346300c19087609e1134b4f06df9c1394001b35f8e644e9cdfc2909414eb",
+      "src": "39a8054bbe25d39e1952f1cdd7f9877b20e284599b160952ddd3be4b1870e2b3"
+    },
+    "onboarding.trialLink.notOwnerUnknown": {
+      "by": "human",
+      "out": "bfac38739fffc85df4784ce05dd8eb72ffdb9ae3ea82347730d5bfb1f22fac25",
+      "src": "9a8ee18876d74c357db22b51a70a06b7396c28f094b5958e9b6b8fbb282104a7"
+    },
+    "onboarding.trialLink.title": {
+      "by": "human",
+      "out": "cff66eb1bcd1fa17d7fe81d66c84892bc9207e14c520fa9134a9ba2ef412d9cb",
+      "src": "09d6c31d8dd154d33f43275c360cf882e05843a5f405bd80c06ba34b4244211c"
+    },
     "server.api.accountDisabled": {
       "by": "ai",
       "out": "e134778520ddf614dfdf08abdc35433317365d13160c1f072cede432205fe788",
@@ -24750,6 +24805,16 @@
       "out": "e77c5e9385740899056f7565950dd34490ec9abcb4dd6f5adb89a106fda0c565",
       "src": "d38eba7d0144f41a9bc8b622ad8b95483c11e387e0c60d093cbb2cbb7934135d"
     },
+    "settings.billing.error.intervalTooOften": {
+      "by": "human",
+      "out": "565a3643470e1d68edcb6298088cae25de6d082d07c84cd62ef0d7b109d6616a",
+      "src": "79f455ac03099270b13e2c0a15576b8b91284baab613e5b76fed8a3a3e48d1c5"
+    },
+    "settings.billing.error.intervalTrialOnly": {
+      "by": "human",
+      "out": "a44b11633d8a6edefbdd1b774157cd393acde405e0f468a071dc8e3d246cdec6",
+      "src": "0b6bf24f1d39239a2f2cca7a4af3789e0bd72f880e3d44a1e69cc06e9d149495"
+    },
     "settings.billing.error.invoicePageUnavailable": {
       "by": "ai",
       "out": "78f439ac934f4b26f95d5af950eb8057b8fc83750415c35cc2bbe11a55289c91",
@@ -24799,6 +24864,41 @@
       "by": "ai",
       "out": "1f582e2d96b9b58af6d663b90b04cce028001f44b8762aaaa7949b048f051817",
       "src": "5d52ca9bed43d0ab2bc15c833900d18f0dca23d32957d23dac7e45f3e3c67d92"
+    },
+    "settings.billing.interval.buttonTip": {
+      "by": "human",
+      "out": "ba0be65c6cb07e807ac119a487a0198e79d68032e67c2f7abcddb46326d04365",
+      "src": "37c58cfc88497a20e300899af6ad779fec63a870e9b1962dc7b401d9d4f9b8bc"
+    },
+    "settings.billing.interval.doneMonth": {
+      "by": "human",
+      "out": "5abe254014508c25b6914ac3681f16e7f60aae7efcf0fec3b7e967a1745790f1",
+      "src": "e0794a7949d05640c8c4c46b80991b7e42793d5652e461c6216fa934a5a2fe2b"
+    },
+    "settings.billing.interval.doneYear": {
+      "by": "human",
+      "out": "c5b6a54db2c1165abfee6588431f257670c78f4b4b8c81b58824ff183ab63a65",
+      "src": "461fbf93773919e75b1301e6d8de579917195b05dc96e7cd3078015cd8253f59"
+    },
+    "settings.billing.interval.noCharge": {
+      "by": "human",
+      "out": "dee553910aad08f9490e29dda024ef90e34b621771a0e4ecbc1383a1c3b5239e",
+      "src": "02b064e6223ff508359c1c9ea2c9086033b84fe15a6673dea74de59ce3800094"
+    },
+    "settings.billing.interval.noChargeNoDate": {
+      "by": "human",
+      "out": "d4c7f8891ba0f9e00ed3ce2ddbc446a5ab856de55acdbd7a212517fb506a8505",
+      "src": "a902c05e1ef7e8b465a6ec3e0e164e75fbc3c1b6f3b0ca271c18977fae56d596"
+    },
+    "settings.billing.interval.toMonth": {
+      "by": "human",
+      "out": "69f29197276889d061d454f9e0b0843731daf5ce15288774d579223c5d9fb34b",
+      "src": "1ade98edd84a93a59181ad58abc6f2d4a3c62fca2a429bea6868cbf7cbce047d"
+    },
+    "settings.billing.interval.toYear": {
+      "by": "human",
+      "out": "2a7df76b88b09cbe0eebcefa626e45d0a4d118b514dcaf40220ca0d55773e978",
+      "src": "015b8cf3dfed86f38fec7f1fafb7cc58e5e9a069c8cbb2e2e5b70ff99024ec1a"
     },
     "settings.billing.invoices.description": {
       "by": "ai",
@@ -24959,6 +25059,16 @@
       "by": "ai",
       "out": "2ce6897a211757c02fd8801372dd09e17329296f0066c872084cabf5d610a998",
       "src": "1655c7ec8be4d8a47019607c64cd50432aa0cd24b54fc1dfb79efbd0c70ad8fc"
+    },
+    "settings.billing.plan.trialLinkPlan": {
+      "by": "human",
+      "out": "f14fb8e1813452ec8bafcbe804bb615d50d10d55a19b8c5d7733f732e3dbc563",
+      "src": "2b99c58785b8b53ba73820643dc520680cf7319678dbdf3016da39be27baa845"
+    },
+    "settings.billing.plan.trialLinkTrial": {
+      "by": "human",
+      "out": "e214da0bbe1d92e2cd1f4771803db508676caad4c54dd86a6ee21ecae3e70bea",
+      "src": "e0cd5ea9fb2b73713ed485e36eafe04977333cc68123fd44dd0e23fa3b7020d4"
     },
     "settings.billing.plan.trialNote": {
       "by": "ai",

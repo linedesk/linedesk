@@ -624,5 +624,8 @@
   "steps.done": "Done",
   "steps.notify": "Who hears about calls",
   "steps.phone": "Phone number",
-  "steps.pickup": "When to pick up"
+  "steps.pickup": "When to pick up",
+  "trialLink.notOwner": "{count, plural, one {{names} can start the free trial for this workspace. Ask them to open this link.} other {{names} can start the free trial for this workspace. Ask one of them to open this link.}}",
+  "trialLink.notOwnerUnknown": "Only the owner of this workspace can start the free trial.",
+  "trialLink.title": "Start your free trial"
 }

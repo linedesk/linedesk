@@ -36,7 +36,7 @@ vi.mock('./settings-api.ts', () => ({
   patchWorkspaceSettings: vi.fn(),
 }))
 
-const { Billing, CancelDialog } = await import('./Billing.tsx')
+const { Billing, CancelDialog, IntervalDialog } = await import('./Billing.tsx')
 
 const DAY = 86_400_000
 const bill = (over: Partial<BillingOverviewBill> = {}): BillingOverviewBill => ({
@@ -687,4 +687,50 @@ test('no bill on an install that bills: one calm line, no plan, no payment contr
   expect(html).not.toContain('Cancel plan')
   expect(html).not.toContain('Voices and models')
   expect(primaries(html)).toBe(0)
+})
+
+test('in the trial: Switch to monthly or yearly next to Cancel; not on a paid plan, a canceled trial or a partner bill', () => {
+  const trialEndsAt = new Date(Date.now() + 10 * DAY).toISOString()
+  const trialing = (over: Partial<BillingOverviewBill> = {}) =>
+    render(
+      {
+        billingOn: true,
+        bill: bill({ status: 'trialing', trialEndsAt, interval: 'year', seatCents: 10800, ...over }),
+      },
+      state({ status: 'trialing' }),
+    )
+  const toMonthly = trialing({ intervalSwitch: { interval: 'month', seatCents: 1100 } })
+  expect(toMonthly).toContain('Switch to monthly')
+  expect(toMonthly).toContain('Cancel plan')
+  // Not a second primary button: the switch is a secondary action like Cancel.
+  expect(toMonthly).toMatch(/k-btn-secondary[^"]*"[^>]*><span>Switch to monthly/)
+  expect(
+    trialing({ interval: 'month', seatCents: 1100, intervalSwitch: { interval: 'year', seatCents: 10800 } }),
+  ).toContain('Switch to yearly')
+  // The server offers it only in the trial; canceled, nothing will be charged, so nothing to switch.
+  expect(trialing({ intervalSwitch: null })).not.toContain('Switch to')
+  expect(trialing({ cancelAtPeriodEnd: true, intervalSwitch: { interval: 'month', seatCents: 1100 } })).not.toContain(
+    'Switch to',
+  )
+  expect(render({ billingOn: true, bill: bill({ intervalSwitch: null }) })).not.toContain('Switch to')
+})
+
+test('the switch dialog: the new price a month first, a yearly total as the grey note, nothing charged before the trial ends', () => {
+  vi.stubGlobal('document', { activeElement: null })
+  onTestFinished(() => {
+    vi.unstubAllGlobals()
+  })
+  const trialEndsAt = new Date(Date.UTC(2026, 11, 3, 12)).toISOString()
+  const dialog = (to: { interval: 'month' | 'year'; seatCents: number }) =>
+    renderToStaticMarkup(
+      <IntervalDialog bill={bill({ status: 'trialing', trialEndsAt })} to={to} onClose={() => {}} toast={() => {}} />,
+    )
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+  const yearly = dialog({ interval: 'year', seatCents: 10800 })
+  expect(yearly).toContain('Switch to yearly')
+  expect(yearly).toContain('$9 a month per workspace $108 billed yearly')
+  expect(yearly).toContain('Nothing is charged until your free trial ends on Dec 3, 2026.')
+  const monthly = dialog({ interval: 'month', seatCents: 1100 })
+  expect(monthly).toContain('$11 a month per workspace Billed monthly')
 })

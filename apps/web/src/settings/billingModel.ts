@@ -236,6 +236,10 @@ export function refusalKey(code: string | undefined): MessageKey | null {
       return msg('settings.billing.error.extraCallsTooOften')
     case 'billing_extra_calls_renewing':
       return msg('settings.billing.error.extraCallsRenewing')
+    case 'billing_interval_trial_only':
+      return msg('settings.billing.error.intervalTrialOnly')
+    case 'billing_interval_too_often':
+      return msg('settings.billing.error.intervalTooOften')
     case 'SIGN_IN_AGAIN':
       return msg('settings.billing.error.signInAgain')
     default:

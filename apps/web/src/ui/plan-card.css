@@ -149,3 +149,50 @@
   line-height: 17px;
   color: var(--ink-muted);
 }
+/* Monthly / Yearly (ui/IntervalSwitch.tsx): one quiet segmented control above the plan card. */
+.interval-switch {
+  display: inline-flex;
+  align-self: start;
+  justify-self: start;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface-hover);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.interval-switch-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 2px);
+  cursor: pointer;
+}
+.interval-switch-option:hover:not(:disabled) {
+  color: var(--ink);
+}
+.interval-switch-option.on {
+  color: var(--ink);
+  font-weight: 500;
+  background: var(--surface-raised);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+}
+.interval-switch-option:focus-visible {
+  outline: 2px solid var(--focus, var(--ink));
+  outline-offset: 1px;
+}
+.interval-switch-option:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.interval-switch-save {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-muted);
+}

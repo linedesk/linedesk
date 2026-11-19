@@ -23,6 +23,8 @@ export type {
   CustomerPurchases,
   ExtraCallsAnswer,
   ExtraCallsQuantityInput,
+  PlanIntervalAnswer,
+  PlanIntervalInput,
   InvoiceItemInput,
   InvoiceRefund,
   InvoiceRefundInput,

@@ -661,6 +661,39 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
       }
     },
 
+    async setPlanInterval(input) {
+      try {
+        const sub = await stripe.subscriptions.retrieve(input.subscriptionId)
+        // Only in the trial: a paid period would be prorated or charged, which this never does.
+        if (sub.status !== 'trialing') return 'not_trialing'
+        const changes: Stripe.SubscriptionUpdateParams.Item[] = []
+        for (const item of sub.items.data) {
+          const key = item.price.lookup_key ?? item.price.metadata?.linedesk ?? ''
+          const plan = /^(.+)_(monthly|yearly)$/.exec(key)
+          if (!plan) return 'unknown_item'
+          const target = `${plan[1]}_${input.interval}ly`
+          if (target === key) continue
+          const price = input.priceIds[target]
+          if (!price) return 'unknown_item'
+          changes.push({ id: item.id, price })
+        }
+        if (!changes.length) return 'unchanged'
+        await stripe.subscriptions.update(
+          input.subscriptionId,
+          {
+            items: changes,
+            // Nothing charged or credited now; the trial keeps its end, and the first charge follows at it.
+            proration_behavior: 'none',
+            ...(sub.trial_end ? { trial_end: sub.trial_end } : {}),
+          },
+          { idempotencyKey: input.idempotencyKey },
+        )
+        return 'updated'
+      } catch (error) {
+        throw setupError(error) ?? error
+      }
+    },
+
     async dispute(id) {
       let dispute: Stripe.Dispute
       try {

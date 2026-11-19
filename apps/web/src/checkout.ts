@@ -27,12 +27,14 @@ export function readCheckoutPartner(search: string = window.location.search): st
  * Starts Checkout for the bill (the trial, or the plan after a refused trial) and goes there. `partnerId`: the
  * partner's bill (its owner) instead of the workspace's. No terms: they were accepted at sign-up (A9), and the server
  * refuses with `terms_changed` while the owner has not accepted the ones in effect. `extraCalls`: calls at the same
- * time the activation step added (LIN-450), sold as a line of the plan.
+ * time the activation step added (LIN-450), sold as a line of the plan. `interval`: monthly or yearly as picked in the
+ * Start your free trial dialog (absent: the bill's).
  */
-export async function goToCheckout(partnerId?: string | null, extraCalls = 0) {
+export async function goToCheckout(partnerId?: string | null, extraCalls = 0, interval?: 'month' | 'year') {
   const { url } = await callAction<CheckoutStartData>('billing.startCheckout', {
     ...(partnerId ? { partnerId } : {}),
     ...(extraCalls ? { extraCalls } : {}),
+    ...(interval ? { interval } : {}),
   })
   window.location.assign(url)
 }

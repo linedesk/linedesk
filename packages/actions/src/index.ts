@@ -82,6 +82,7 @@ export * from './billing-admin.ts'
 export * from './signup.ts'
 export * from './billing-checkout.ts'
 export * from './billing-page.ts'
+export * from './trial-link.ts'
 export * from './branding.ts'
 export * from './business.ts'
 export * from './calendar.ts'
@@ -398,6 +399,7 @@ const all = [
   billingPage.billingSetAutoRecharge,
   billingPage.billingSetRechargeCap,
   billingPage.billingSetExtraCalls,
+  billingPage.billingSetInterval,
   billingPage.billingOpenPortal,
   billingPage.billingRetryRecharge,
   billingPage.billingWorkspaceUsage,

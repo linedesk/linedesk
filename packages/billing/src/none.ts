@@ -44,6 +44,7 @@ export const noneBillingProvider: BillingProvider = {
   checkoutInvoice: off,
   setSeatQuantity: off,
   setExtraCallsQuantity: off,
+  setPlanInterval: off,
   dispute: async () => null,
   earlyFraudWarning: async () => null,
   charge: async () => null,

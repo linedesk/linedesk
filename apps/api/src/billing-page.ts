@@ -22,6 +22,7 @@ import type {
   BillingUsageRow,
   BillingWorkspaceUsageData,
   ExtraCallsData,
+  IntervalData,
   PortalData,
   RechargeCapData,
   RetryRechargeData,
@@ -52,7 +53,7 @@ import { getT } from '@linedesk/i18n/server'
 import { and, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
-import { syncBillingCatalog } from './billing-catalog.ts'
+import { syncBillingCatalog, syncedPrices } from './billing-catalog.ts'
 import { managesBill, tellBillOwner } from './bill-manager.ts'
 import {
   activationFacts,
@@ -107,6 +108,8 @@ export const BILLING_PAGE_CODES = {
   extraCallsPaymentFailed: 'billing_extra_calls_payment_failed',
   extraCallsTooOften: 'billing_extra_calls_too_often',
   extraCallsRenewing: 'billing_extra_calls_renewing',
+  intervalTrialOnly: 'billing_interval_trial_only',
+  intervalTooOften: 'billing_interval_too_often',
 } as const
 type BillingPageCode = keyof typeof BILLING_PAGE_CODES
 
@@ -128,6 +131,8 @@ const REFUSALS: Record<BillingPageCode, string> = {
   extraCallsPaymentFailed: 'The card was refused, so no calls were added. Update the card and try again.',
   extraCallsTooOften: 'Calls at the same time were changed many times in the last hour. Try again later.',
   extraCallsRenewing: 'The plan is renewing right now. Try again in a few minutes.',
+  intervalTrialOnly: 'Monthly or yearly can be switched here while the free trial runs.',
+  intervalTooOften: 'How you pay was changed many times in the last hour. Try again later.',
 }
 const refuse = (code: BillingPageCode) => new Reject(REFUSALS[code], BILLING_PAGE_CODES[code])
 
@@ -424,6 +429,7 @@ async function overview(
     trialEndsAt: bill.status === 'trialing' ? bill.trial_ends_at : null,
     currentPeriodEnd: bill.current_period_end,
     cancelAtPeriodEnd: bill.cancel_at_period_end,
+    intervalSwitch: switchesInterval(bill) ? intervalSwitchOf(bill, rules) : null,
     balanceMicros,
     availableMicros: balanceMicros - reservedMicros,
     autoRecharge: {
@@ -768,6 +774,75 @@ async function setExtraCalls(
   return { rows: {}, data: done }
 }
 
+// ---- Monthly or yearly in the trial ------------------------------------------------------------------------------
+
+/**
+ * Whether the bill can switch between monthly and yearly now (Janik, 2026-11-19): a Linedesk Cloud bill in its free
+ * trial, with its subscription. Only in the trial (nothing was charged yet, so nothing is prorated); a partner bill
+ * has no trial and its own plan (base fee and client seats), so never. Kept apart so a paid plan can join later.
+ */
+export const switchesInterval = (bill: Pick<Bill, 'kind' | 'status' | 'stripe_subscription_id'>) =>
+  bill.kind === 'cloud' && bill.status === 'trialing' && !!bill.stripe_subscription_id
+
+/** The other interval and its price per workspace (the install's price now: a new interval is a new price). */
+function intervalSwitchOf(bill: Pick<Bill, 'interval'>, rules: BillingRules) {
+  const interval: 'month' | 'year' = bill.interval === 'year' ? 'month' : 'year'
+  return { interval, seatCents: planPrice(`ws_${interval}ly`, rules)?.cents ?? 0 }
+}
+
+/** How often one bill may switch in an hour: each switch asks Stripe twice. */
+export const INTERVAL_CHANGES_PER_HOUR = 10
+let allowIntervalChange = createRateLimiter({ max: INTERVAL_CHANGES_PER_HOUR, windowMs: 3_600_000 })
+/** Forgets every bill's switches (tests). */
+export function resetIntervalLimit() {
+  allowIntervalChange = createRateLimiter({ max: INTERVAL_CHANGES_PER_HOUR, windowMs: 3_600_000 })
+}
+
+/**
+ * `billing.setInterval`: whoever manages the bill switches the trial between monthly and yearly. Stripe moves every plan
+ * item (the seats, the extra calls) to the other interval's price with no proration and the trial's end kept, so
+ * nothing is charged now and the first charge at the trial's end is at the new interval; then the bill stores it.
+ * Under the bill's extra-calls lock (never the balance lock: Stripe answers slowly), so it never crosses a change of
+ * the extra calls' item. Someone else than the owner: the owner gets the usual short email.
+ */
+async function setBillInterval(
+  { tx, actor, now }: HandlerCtx,
+  input: { interval: 'month' | 'year'; partnerId?: string | undefined },
+): Promise<{ rows: Record<string, never>; data: IntervalData }> {
+  const owned = await ownBill(tx, actor, { partnerId: input.partnerId })
+  await lockExtraCalls(tx, owned.id)
+  const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, owned.id))
+  if (!bill || !switchesInterval(bill)) throw refuse('intervalTrialOnly')
+  const done = { interval: input.interval, trialEndsAt: bill.trial_ends_at }
+  if (bill.interval === input.interval) return { rows: {}, data: done }
+  if (!allowIntervalChange(bill.id)) throw refuse('intervalTooOften')
+  const priceIds = await syncedPrices(tx)
+  if (!priceIds) {
+    void syncBillingCatalog().catch(e => console.error('billing: the catalog sync for an interval switch failed:', e))
+    return setupFailed(new BillingSetupError('stripe_catalog_not_synced'))
+  }
+  const provider = await billingProvider(tx)
+  const answer = await provider
+    .setPlanInterval({
+      subscriptionId: bill.stripe_subscription_id!,
+      interval: input.interval,
+      priceIds,
+      // The same switch from the same state (a retried command) has the same key; a committed change moves updated_at.
+      idempotencyKey: `interval:${bill.id}:${bill.updated_at}:${input.interval}`,
+    })
+    .catch(setupFailed)
+  // Stripe ended the trial meanwhile (the webhook has not reached us): nothing changed there.
+  if (answer === 'not_trialing') throw refuse('intervalTrialOnly')
+  if (answer === 'unknown_item') return setupFailed(new BillingSetupError('stripe_catalog_not_synced'))
+  await tx
+    .update(billing_accounts)
+    .set({ interval: input.interval, updated_at: now })
+    .where(eq(billing_accounts.id, bill.id))
+  forgetSeatPrices()
+  await tellBillOwner(tx, actor, bill, { change: 'interval', to: input.interval }, now)
+  return { rows: {}, data: done }
+}
+
 /** A usage row with its minutes and no amounts. */
 const withoutAmounts = (row: BillingUsageRow): BillingUsageRow => ({
   ...row,
@@ -987,6 +1062,7 @@ export const billingPageHandlers: Record<string, Handler> = {
   'billing.setAutoRecharge': setAutoRecharge,
   'billing.setRechargeCap': setRechargeCap,
   'billing.setExtraCalls': setExtraCalls,
+  'billing.setInterval': setBillInterval,
   'billing.openPortal': openPortal,
   'billing.retryRecharge': retryRecharge,
   'billing.workspaceUsage': workspaceUsage,

@@ -326,6 +326,8 @@ export const trialGraceMicros = (rules: BillingRules = BILLING_DEFAULTS) =>
  * includes (the included minutes per workspace and period, the Standard price of a minute after them, in micros).
  */
 export type ActivationFacts = ActivationDisclosure & {
+  /** The plan's price before tax per interval, for the dialog's Monthly / Yearly switch (`planCents` is the bill's). */
+  planCentsByInterval: { month: number; year: number }
   includedMinutes: number
   standardMicrosPerMinute: number
   /**

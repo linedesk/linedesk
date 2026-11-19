@@ -43,6 +43,7 @@ import { AddPasskeyPage } from './AddPasskey.tsx'
 import { ConnectAgent, isConnectAgentHash } from './integrations/ConnectAgent.tsx'
 import { SignInLink, takeSignInLinkToken } from './SignInLink.tsx'
 import { Signup } from './Signup.tsx'
+import { TrialLink } from './onboarding/TrialLink.tsx'
 import { CheckoutReturn } from './CheckoutReturn.tsx'
 import { isCheckoutReturnPath, readCheckoutPartner } from './checkout.ts'
 import { afterSignupAddress, isSignupPath, signupCameFrom } from './signup.ts'
@@ -581,6 +582,13 @@ export function App() {
         readOnly={session.me.workspace?.disabled ? disabledWorkspaceText() : undefined}
       >
         <TabWorkspaceGuard me={session.me}>
+          {/* The Start your free trial link (trialLink.ts), once the link's workspace is settled (the boot screen above
+              waits for it): first, so its note is marked before the page under it renders. */}
+          <TrialLink
+            me={session.me}
+            byHand={ownerChoseByHand(session.me.workspace!.id, ownerByHand)}
+            onTermsChanged={() => void refresh()}
+          />
           {ownerSetup ? (
             <OwnerAgentSetup
               active={{ id: session.me.workspace!.id, account: session.me.actorId }}

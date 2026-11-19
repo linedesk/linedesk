@@ -63,6 +63,11 @@ export type OnboardingState = {
 export type Activation = {
   planCents: number
   interval: 'month' | 'year'
+  /**
+   * The plan's price per interval, for the Monthly / Yearly switch before Checkout (`planCents` is the bill's
+   * interval's). Absent from an older server: no switch.
+   */
+  planCentsByInterval?: { month: number; year: number }
   trialDays: number | null
   firstChargeAt: string | null
   reminderDays: number[]

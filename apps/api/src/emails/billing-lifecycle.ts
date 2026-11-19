@@ -149,6 +149,8 @@ export type ManagerChange =
   | { change: 'cancel'; endsAt: string | null }
   | { change: 'resume' }
   | { change: 'extraCalls'; from: number; to: number }
+  /** Monthly or yearly switched in the free trial (`billing.setInterval`): what the plan is paid by from now on. */
+  | { change: 'interval'; to: 'month' | 'year' }
   | { change: 'paymentMethod'; card: { brand: string | null; last4: string | null } | null }
 
 /** The bill owner's note about a change by someone else who manages the bill, as the job queues it. */
@@ -192,6 +194,14 @@ export function managerChangedEmail(
     blocks.push({
       kind: 'text',
       text: t('email.billing.managerChanged.extraCalls', { from: String(view.from), to: String(view.to) }),
+    })
+  else if (view.change === 'interval')
+    blocks.push({
+      kind: 'text',
+      text:
+        view.to === 'month'
+          ? t('email.billing.managerChanged.intervalMonth')
+          : t('email.billing.managerChanged.intervalYear'),
     })
   else
     blocks.push({

@@ -75,6 +75,7 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   ['billing.setAutoRecharge', OWNER_IN_APP],
   ['billing.setRechargeCap', OWNER_IN_APP],
   ['billing.setExtraCalls', OWNER_IN_APP],
+  ['billing.setInterval', OWNER_IN_APP],
   ['billing.openPortal', OWNER_IN_APP],
   ['billing.retryRecharge', OWNER_IN_APP],
   // A workspace admin's usage view (billing tour G3, security review of #1098, L-2): billing stays in the app, like the

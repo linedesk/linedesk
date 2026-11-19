@@ -243,6 +243,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'billing.setAutoRecharge': 'account',
   'billing.setRechargeCap': 'account',
   'billing.setExtraCalls': 'account',
+  'billing.setInterval': 'account',
   'billing.openPortal': 'account',
   'billing.retryRecharge': 'account',
   // Bill ownership and port-outs (docs/billing.md §3.4, §8; PR 11). Reads that reveal a secret are audited too.

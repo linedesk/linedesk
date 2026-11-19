@@ -281,6 +281,7 @@ function fakeStripe(invoices: Map<string, BillingInvoice>, blockers: string[] = 
       extraCalls.push(input)
       return 'updated'
     },
+    setPlanInterval: async () => 'unchanged',
   }
   return { provider, refunds, seats, extraCalls, stopped, notes }
 }

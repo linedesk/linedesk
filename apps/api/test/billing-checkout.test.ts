@@ -2116,7 +2116,8 @@ describe('"one step left": the day-3 email to a sign-up that has not started its
       timeZone: 'UTC',
     })
     expect(mail.text).toContain(`If you don't start by ${deleteOn}`)
-    expect(mail.html).toContain(`#calls?ws=${encodeURIComponent(ws.id)}`)
+    // The trial link (trial-link.ts): the app opens the Start your free trial dialog at once.
+    expect(mail.html).toContain(`/#workspace/billing?start-trial=1&amp;ws=${encodeURIComponent(ws.id)}`)
   })
 
   test('nothing for a sign-up that started its trial, was deleted, is disabled, or is a partner', async () => {
@@ -2934,6 +2935,42 @@ describe('"Keep calls answered" in the trial (docs/billing.md §3.2 step 7)', ()
     })
     expect((await balance(t.bill.id)).balance_micros).toBe(left.balance_micros + 25_000_000)
     expect(await billRow(t.bill.id)).toMatchObject({ status: 'trialing' })
+  })
+})
+
+describe('monthly or yearly in the Start your free trial dialog (2026-11-19)', () => {
+  test('the activation facts carry both prices; Checkout sells the interval picked and the bill stores it', async () => {
+    const { bill, owner } = await pendingSignUp({ interval: 'month' })
+    const me = await request(owner, 'GET', '/v1/me')
+    expect(me.body.workspace.activation).toMatchObject({
+      interval: 'month',
+      planCents: 1100,
+      planCentsByInterval: { month: 1100, year: 10800 },
+    })
+    expect((await act(owner, 'billing.startCheckout', { interval: 'year' })).status).toBe(200)
+    const made = checkoutsMade().at(-1)!
+    expect(made.body.get('line_items[0][price]')).toMatch(/^price_ws_yearly/)
+    expect(made.body.get('subscription_data[trial_period_days]')).toBe('14')
+    expect(made.body.get('custom_text[submit][message]')).toContain('billed yearly')
+    expect((await billRow(bill.id)).interval).toBe('year')
+    // What the step showed is recorded at the interval picked.
+    const [row] = await db
+      .select()
+      .from(terms_acceptances)
+      .where(and(eq(terms_acceptances.billing_account_id, bill.id), eq(terms_acceptances.source, 'activation')))
+    expect(row!.disclosure).toMatchObject({ interval: 'year', planCents: 10800 })
+    // Back to monthly before paying: the next Checkout sells monthly again.
+    expect((await act(owner, 'billing.startCheckout', { interval: 'month' })).status).toBe(200)
+    expect(checkoutsMade().at(-1)!.body.get('line_items[0][price]')).toMatch(/^price_ws_monthly/)
+    expect((await billRow(bill.id)).interval).toBe('month')
+  })
+
+  test('without an interval the bill keeps its own; anything else than month or year is refused', async () => {
+    const { bill, owner } = await pendingSignUp({ interval: 'year' })
+    await startCheckout(owner)
+    expect(checkoutsMade().at(-1)!.body.get('line_items[0][price]')).toMatch(/^price_ws_yearly/)
+    expect((await billRow(bill.id)).interval).toBe('year')
+    expect((await act(owner, 'billing.startCheckout', { interval: 'week' })).status).toBe(422)
   })
 })
 

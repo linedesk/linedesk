@@ -13,8 +13,9 @@ import { askTermsAgain } from '../shell/TermsUpdate.tsx'
 import { useAssistantName } from '../store.tsx'
 import { Icon, Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
+import { IntervalSwitch } from '../ui/IntervalSwitch.tsx'
 import { PlanCard, usePlanPrice } from '../ui/PlanCard.tsx'
-import { usePrice } from '../ui/price.tsx'
+import { type BillingInterval, usePrice } from '../ui/price.tsx'
 import { useExtraCalls } from './ExtraCalls.tsx'
 import { activationTimeline, type TimelineEntry } from './flow.ts'
 import { Foot, useStepKeys } from './Frame.tsx'
@@ -101,11 +102,21 @@ export function ActivatedStep({ trial, onBack, onNext }: { trial: boolean; onBac
 /**
  * Starting the trial (or the plan, after a refused trial) through Stripe Checkout, from this step or from the owner's
  * agent setup page (its Start your free trial row, SetupRowActions.tsx). `byHand`: back from Checkout the onboarding goes on
- * by hand (this step); from the agent setup page it opens that page again.
+ * by hand (this step); from the agent setup page it opens that page again. `interval`: monthly or yearly to start with
+ * (the trial link's `interval=`), else the bill's; the dialog's switch changes it, and Checkout sells the one picked.
  */
-export function useStartTrial(me: Me, a: Activation, onTermsChanged: () => void, { byHand }: { byHand: boolean }) {
+export function useStartTrial(
+  me: Me,
+  a: Activation,
+  onTermsChanged: () => void,
+  { byHand, interval: preset }: { byHand: boolean; interval?: BillingInterval | null },
+) {
   const t = useT()
   const [busy, setBusy] = useState(false)
+  // Only an interval the server can price is offered (an older server sends one price: the bill's interval only).
+  const [interval, setInterval] = useState<BillingInterval>(() =>
+    preset && a.planCentsByInterval ? preset : a.interval,
+  )
   const [error, setError] = useState<string | null>(null)
   // Extra calls at the same time (LIN-450), picked on the pick-up step; here only sold with the plan.
   const [extraCalls] = useExtraCalls(me.workspace!.id, a.calls)
@@ -125,7 +136,8 @@ export function useStartTrial(me: Me, a: Activation, onTermsChanged: () => void,
     setError(null)
     if (byHand) rememberOwnerByHand(me.workspace!.id, true)
     try {
-      await goToCheckout(null, extraCalls)
+      // The bill's interval goes along only when the owner picked another one (an older server takes none).
+      await goToCheckout(null, extraCalls, interval !== a.interval ? interval : undefined)
     } catch (e) {
       setBusy(false)
       // Changed since this page loaded: /v1/me is read again, and its dialog asks for the new terms.
@@ -141,6 +153,8 @@ export function useStartTrial(me: Me, a: Activation, onTermsChanged: () => void,
     error,
     extraCalls,
     trial,
+    interval,
+    setInterval,
     title: trial ? t('onboarding.activate.title') : t('onboarding.activate.titleNoTrial'),
     label: trial ? t('onboarding.activate.startTrial') : t('onboarding.activate.startPlan'),
   }
@@ -157,20 +171,33 @@ export function ActivatePlan({ activation: a, trial: s }: { activation: Activati
   const prices = usePrice()
   const planPrice = usePlanPrice()
   const usd = prices.money
-  const yearly = a.interval === 'year'
+  // Monthly or yearly as picked on the switch (the bill's interval until then): price, note and charge follow it.
+  const interval = s.interval
+  const planCents = a.planCentsByInterval?.[interval] ?? a.planCents
+  const yearly = interval === 'year'
   // What the first charge is with the extra calls: they are billed at the plan's interval (a year is 12 months).
   const extraMonthlyCents = s.extraCalls * (a.calls?.extraCallCents ?? 0)
-  const totalCents = a.planCents + extraMonthlyCents * (yearly ? 12 : 1)
+  const totalCents = planCents + extraMonthlyCents * (yearly ? 12 : 1)
   const timeline = activationTimeline(a, now)
   return (
     <>
+      {/* Monthly / Yearly before the card, so a yearly plan nobody noticed can still be monthly (Janik, 2026-11-19). */}
+      {a.planCentsByInterval && (
+        <IntervalSwitch
+          value={interval}
+          onChange={s.setInterval}
+          centsByInterval={a.planCentsByInterval}
+          disabled={s.busy}
+        />
+      )}
       {/* The shared plan card (ui/PlanCard.tsx): "14 days free" first, the price after it; the dates,
           reminders and cancelling are the timeline's, not repeated there. */}
       <PlanCard
         trialDays={s.trial ? a.trialDays : null}
-        price={planPrice(prices.perMonth(a.planCents, a.interval))}
+        price={planPrice(prices.perMonth(planCents, interval))}
         unit={t('common.plan.perWorkspace')}
-        note={prices.yearNote(a.planCents, a.interval)}
+        // With the switch, a monthly plan says so too; a yearly plan's total stays the grey note.
+        note={prices.yearNote(planCents, interval) ?? (a.planCentsByInterval ? t('common.price.billedMonthly') : null)}
         prices={a.prices}
         calls={a.calls}
       >

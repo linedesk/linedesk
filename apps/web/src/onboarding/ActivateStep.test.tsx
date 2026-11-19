@@ -10,7 +10,7 @@ import type { Activation, Me } from '../auth.ts'
 vi.mock('../store.tsx', () => ({ useAssistantName: () => 'Maya' }))
 vi.mock('../checkout.ts', () => ({ goToCheckout: vi.fn() }))
 vi.mock('../shell/TermsUpdate.tsx', () => ({ askTermsAgain: vi.fn() }))
-const { ActivateStep, useStartTrial } = await import('./ActivateStep.tsx')
+const { ActivatePlan, ActivateStep, useStartTrial } = await import('./ActivateStep.tsx')
 const { goToCheckout } = await import('../checkout.ts')
 const { askTermsAgain } = await import('../shell/TermsUpdate.tsx')
 
@@ -117,7 +117,7 @@ describe('starting', () => {
   test('goes to Checkout without any terms (accepted at sign-up)', async () => {
     vi.mocked(goToCheckout).mockResolvedValue(undefined)
     await starter(me(activation))()
-    expect(goToCheckout).toHaveBeenCalledWith(null, 0)
+    expect(goToCheckout).toHaveBeenCalledWith(null, 0, undefined)
   })
 
   test('terms changed since sign-up and not accepted yet: the app’s terms dialog asks first, no Checkout', async () => {
@@ -184,4 +184,67 @@ test('calls at the same time (LIN-450): picked on the pick-up step; here one qui
   } finally {
     vi.unstubAllGlobals()
   }
+})
+
+/** The activation step's plan with its Monthly / Yearly switch, rendered once. */
+function PlanView({ a, interval }: { a: Activation; interval: 'month' | 'year' | null }) {
+  const trial = useStartTrial(me(a), a, () => {}, { byHand: false, interval })
+  return <ActivatePlan activation={a} trial={trial} />
+}
+
+/** Hands out the hook's start for the interval picked. */
+function IntervalProbe({
+  a,
+  interval,
+  got,
+}: {
+  a: Activation
+  interval: 'month' | 'year' | null
+  got: (s: () => Promise<void>) => void
+}) {
+  got(useStartTrial(me(a), a, () => {}, { byHand: false, interval }).start)
+  return null
+}
+
+describe('Monthly / Yearly before Checkout (the trial link and the dialog, 2026-11-19)', () => {
+  const both = { ...activation, planCentsByInterval: { month: 1100, year: 10800 } }
+  const plan = (interval: 'month' | 'year' | null) => renderToStaticMarkup(<PlanView a={both} interval={interval} />)
+  const words = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
+
+  test('the switch shows both, with what a year saves; the bill’s interval is picked without a link', () => {
+    const html = plan(null)
+    expect(html).toContain('role="radiogroup"')
+    expect(html).toMatch(/aria-checked="true"[^>]*>Monthly/)
+    expect(words(html)).toContain('Yearly Save 18%')
+    // Monthly: the price a month, and the grey note says it is billed monthly.
+    expect(words(html)).toContain('Then $11 a month per workspace Billed monthly')
+    expect(words(html)).toMatch(/First charge \$11\./)
+  })
+
+  test('the link’s interval=year: yearly is picked, the price a month and the yearly total follow', () => {
+    const html = plan('year')
+    expect(html).toMatch(/aria-checked="true"[^>]*>Yearly/)
+    expect(words(html)).toContain('Then $9 a month per workspace $108 billed yearly')
+    expect(words(html)).toMatch(/First charge \$108\./)
+  })
+
+  test('an older server without both prices: no switch, the bill’s interval only', () => {
+    const html = renderToStaticMarkup(<PlanView a={activation} interval="year" />)
+    expect(html).not.toContain('radiogroup')
+    expect(words(html)).toContain('Then $11 a month per workspace')
+  })
+
+  test('Checkout sells the interval picked; the bill’s own goes without one', async () => {
+    vi.mocked(goToCheckout).mockReset()
+    vi.mocked(goToCheckout).mockResolvedValue(undefined)
+    const startWith = (interval: 'month' | 'year' | null) => {
+      let start: (() => Promise<void>) | null = null
+      renderToStaticMarkup(<IntervalProbe a={both} interval={interval} got={s => (start = s)} />)
+      return start!
+    }
+    await startWith('year')()
+    expect(goToCheckout).toHaveBeenLastCalledWith(null, 0, 'year')
+    await startWith('month')()
+    expect(goToCheckout).toHaveBeenLastCalledWith(null, 0, undefined)
+  })
 })

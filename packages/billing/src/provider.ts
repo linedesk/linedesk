@@ -480,6 +480,21 @@ export type ExtraCallsQuantityInput = {
 }
 export type ExtraCallsAnswer = 'updated' | 'unchanged' | 'payment_failed'
 
+/**
+ * A subscription's plan moved to another interval (docs/billing.md §3.2, Janik 2026-11-19): every plan item (the seat,
+ * the partner base fee, the extra calls) to the same item at `interval`, its price from `priceIds` (by lookup key:
+ * `ws_monthly`, `extra_calls_yearly`, …). Only in the trial: the trial's end stays as it is, nothing is prorated or
+ * charged now, and the first charge at the trial's end is at the new interval. Another status answers `not_trialing`
+ * and changes nothing; an item that is not ours, or a price missing from `priceIds`, answers `unknown_item`.
+ */
+export type PlanIntervalInput = {
+  subscriptionId: string
+  interval: 'month' | 'year'
+  priceIds: Readonly<Record<string, string>>
+  idempotencyKey: string
+}
+export type PlanIntervalAnswer = 'updated' | 'unchanged' | 'not_trialing' | 'unknown_item'
+
 /** Stripe's default: a signature older than five minutes is refused (replays). */
 export const WEBHOOK_TOLERANCE_SECONDS = 300
 
@@ -631,6 +646,8 @@ export type BillingProvider = {
   setSeatQuantity(input: SeatQuantityInput): Promise<'updated' | 'unchanged' | 'no_seat_item'>
   /** Sets the extra-calls item's quantity (see `ExtraCallsQuantityInput`): adds it, changes it, or removes it at 0. */
   setExtraCallsQuantity(input: ExtraCallsQuantityInput): Promise<ExtraCallsAnswer>
+  /** Moves a trialing subscription's plan items to another interval (see `PlanIntervalInput`), charging nothing. */
+  setPlanInterval(input: PlanIntervalInput): Promise<PlanIntervalAnswer>
   /** The dispute as it is now, with what its charge paid for; null when the service does not know it. */
   dispute(id: string): Promise<BillingDispute | null>
   /** The early fraud warning as it is now, with what its charge paid for; null when the service does not know it. */

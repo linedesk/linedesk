@@ -1153,7 +1153,7 @@ Maya is almost ready to answer calls for Brightwater Plumbing & Heating. Start y
 Nothing is charged when you start. We email you before the first charge, and you can cancel any time before it.
 
 Start my free trial:
-https://desk.example.com/#calls?ws=ws_demo
+https://desk.example.com/#workspace/billing?start-trial=1&ws=ws_demo
 
 If you don't start by December 1, 2026, we delete this sign-up and what you set up.
 
@@ -2575,7 +2575,7 @@ Falta poco para que Maya conteste las llamadas de Brightwater Plumbing & Heating
 No se cobra nada al empezar. Te enviamos un correo antes del primer cobro y puedes cancelar en cualquier momento antes.
 
 Empezar mi prueba gratuita:
-https://desk.example.com/#calls?ws=ws_demo
+https://desk.example.com/#workspace/billing?start-trial=1&ws=ws_demo
 
 Si no empiezas a más tardar el 1 de diciembre de 2026, eliminamos este registro y lo que configuraste.
 

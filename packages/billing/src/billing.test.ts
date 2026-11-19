@@ -1084,6 +1084,56 @@ describe('stripe refunds and seats (Server admin › Billing, PR 13)', () => {
     expect(Object.fromEntries(calls.at(-1)!.body)).toMatchObject({ proration_behavior: 'none' })
   })
 
+  test('monthly or yearly in the trial: every plan item to the other interval, no proration, the trial end kept', async () => {
+    let status = 'trialing'
+    const trialEnd = 1_800_000_000
+    const sub = () => ({
+      id: 'sub_t',
+      object: 'subscription',
+      status,
+      trial_end: trialEnd,
+      items: list([
+        { id: 'si_seat', object: 'subscription_item', quantity: 1, price: { lookup_key: 'ws_yearly' } },
+        { id: 'si_xc', object: 'subscription_item', quantity: 5, price: { lookup_key: 'extra_calls_yearly' } },
+      ]),
+    })
+    const { doFetch, calls } = stripeRoutes({
+      'GET /v1/subscriptions/sub_t': () => [200, sub()],
+      'POST /v1/subscriptions/sub_t': () => [200, sub()],
+    })
+    const stripe = await stripeWith(doFetch)
+    const input = {
+      subscriptionId: 'sub_t',
+      interval: 'month' as const,
+      priceIds: { ws_monthly: 'price_ws_m', extra_calls_monthly: 'price_xc_m', ws_yearly: 'price_ws_y' },
+      idempotencyKey: 'interval_1',
+    }
+    expect(await stripe.setPlanInterval(input)).toBe('updated')
+    expect(calls[1]!.key).toBe('interval_1')
+    const body = Object.fromEntries(calls[1]!.body)
+    expect(body).toMatchObject({
+      'items[0][id]': 'si_seat',
+      'items[0][price]': 'price_ws_m',
+      'items[1][id]': 'si_xc',
+      'items[1][price]': 'price_xc_m',
+      proration_behavior: 'none',
+      trial_end: String(trialEnd),
+    })
+    // Never an invoice now: nothing asks Stripe to invoice or charge.
+    expect(body.payment_behavior).toBeUndefined()
+    expect(calls.some(c => c.route.includes('/v1/invoices'))).toBe(false)
+    // Already at that interval: nothing asked.
+    expect(await stripe.setPlanInterval({ ...input, interval: 'year' })).toBe('unchanged')
+    expect(calls).toHaveLength(3)
+    // A price the catalog does not have: nothing changed.
+    expect(await stripe.setPlanInterval({ ...input, priceIds: { ws_monthly: 'price_ws_m' } })).toBe('unknown_item')
+    expect(calls).toHaveLength(4)
+    // After the trial: never changed here (a paid period would be prorated or charged).
+    status = 'active'
+    expect(await stripe.setPlanInterval(input)).toBe('not_trialing')
+    expect(calls).toHaveLength(5)
+  })
+
   test('seats: a partner subscription without a seat item gets one with the seat price; none without a price', async () => {
     const baseOnly = {
       id: 'sub_2',

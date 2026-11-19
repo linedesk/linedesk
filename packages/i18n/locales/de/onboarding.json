@@ -598,5 +598,8 @@
   "steps.done": "Fertig",
   "steps.notify": "Wer von Anrufen erfährt",
   "steps.phone": "Telefonnummer",
-  "steps.pickup": "Wann rangehen"
+  "steps.pickup": "Wann rangehen",
+  "trialLink.notOwner": "{count, plural, one {{names} kann die kostenlose Testphase für diesen Workspace starten. Bitte sie oder ihn, diesen Link zu öffnen.} other {{names} können die kostenlose Testphase für diesen Workspace starten. Bitte eine dieser Personen, diesen Link zu öffnen.}}",
+  "trialLink.notOwnerUnknown": "Nur die Inhaberin oder der Inhaber dieses Workspaces kann die kostenlose Testphase starten.",
+  "trialLink.title": "Kostenlose Testphase starten"
 }
