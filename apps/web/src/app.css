@@ -618,6 +618,10 @@ a.auth-switch {
   color: var(--ink);
   text-decoration: underline;
 }
+/* The same quiet line at the foot of Account settings (settings/account), under the open section's card. */
+.ac-legal {
+  padding: 4px 2px 0;
+}
 /* The sign-up page's clickwrap notice right above "Continue to payment" (Signup.tsx, A9): quiet text; its links are the
    shared underlined ExternalLink, so they read as links (a clear notice is what makes the acceptance count). */
 .auth-card .auth-terms {

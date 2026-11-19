@@ -1,7 +1,8 @@
 // The workspace button at the top of the navigation: the current workspace's icon (or initial) and name. It opens
 // the one menu of the navigation (like Resend's): your workspaces to switch between and invitations
 // (WorkspaceSwitcher), New workspace…, then you (name and email), Account settings, Keyboard shortcuts, this
-// install's help and legal links and Sign out. Workspace settings are not in it: they are in the sidebar, once.
+// install's Help and Sign out. Workspace settings are not in it: they are in the sidebar, once. Terms and Privacy are
+// not rows of their own (2026-11-18): they are a quiet line at the foot of Account settings (settings/account).
 // The open menu is in the top layer (ui/floating.ts), so the navigation's scrolling never cuts it off.
 // While the workspace is open its icon is also the browser tab's.
 import type { MyInvitation } from '@linedesk/actions'
@@ -21,11 +22,11 @@ import { refreshWorkspaces, useWorkspaces, type Workspace, WorkspaceSwitcher } f
 import { useT } from '@linedesk/i18n/react'
 import { openPartnerArea, useMyPartners } from '../partner/partner-api.ts'
 
-export type WorkspaceMenuItem = 'switcher' | 'new' | 'account' | 'shortcuts' | 'help' | 'terms' | 'privacy' | 'sign-out'
+export type WorkspaceMenuItem = 'switcher' | 'new' | 'account' | 'shortcuts' | 'help' | 'sign-out'
 
 /**
  * What the workspace menu lists, in order. `canCreate`: POST /v1/workspaces would allow a new workspace;
- * `links`: this install's support email, terms and privacy (null while unknown, none that are not set).
+ * `links`: this install's support email (null while unknown, none when not set): Help.
  * The workspaces always lead (the current one checked); Account settings, Keyboard shortcuts and Sign out
  * are always there. Nothing about managing the workspace: that is Workspace settings in the sidebar.
  */
@@ -40,8 +41,6 @@ export function workspaceMenuItems({
   if (canCreate) items.push('new')
   items.push('account', 'shortcuts')
   if (links?.supportEmail) items.push('help')
-  if (links?.terms) items.push('terms')
-  if (links?.privacy) items.push('privacy')
   items.push('sign-out')
   return items
 }
@@ -81,7 +80,8 @@ export function YouRowSkeleton({ lines, reserved }: { lines: 1 | 2; reserved: bo
 
 /**
  * This install's terms, privacy and support links: the last known ones at once, none that are not set. In a white-label
- * partner's client workspace the partner's instead (brand.ts), never the install's.
+ * partner's client workspace the partner's instead (brand.ts), never the install's. Help in this menu; Terms and Privacy
+ * at the foot of Account settings.
  */
 export const loadAuthMethods = () => fetchAuthMethods({ attempts: 1 })
 export function useLegalLinks(): LegalLinks | null {
@@ -112,7 +112,17 @@ type Props = {
 }
 
 /** One row of the menu (also the setup pages' account menu, SetupAccountMenu.tsx). */
-export function Item({ label, icon, keys, onClick }: { label: string; icon: IconName; keys?: string[]; onClick: () => void }) {
+export function Item({
+  label,
+  icon,
+  keys,
+  onClick,
+}: {
+  label: string
+  icon: IconName
+  keys?: string[]
+  onClick: () => void
+}) {
   return (
     <button type="button" role="menuitem" className="nav-item" title={label} onClick={onClick}>
       <Icon name={icon} size={15} />
@@ -268,12 +278,6 @@ export function WorkspaceMenu({
             <Item label={t('shell.help.title')} icon="keyboard" keys={['?']} onClick={menu.choose(onShortcuts)} />
             {items.includes('help') && links?.supportEmail && (
               <LinkItem label={t('common.legal.help')} icon="mail" href={`mailto:${links.supportEmail}`} />
-            )}
-            {items.includes('terms') && links?.terms && (
-              <LinkItem label={t('common.legal.terms')} icon="globe" href={links.terms} />
-            )}
-            {items.includes('privacy') && links?.privacy && (
-              <LinkItem label={t('common.legal.privacy')} icon="globe" href={links.privacy} />
             )}
           </div>
           <hr />

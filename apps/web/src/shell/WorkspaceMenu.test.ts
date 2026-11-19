@@ -37,21 +37,24 @@ describe('workspaceMenuItems', () => {
     expect(workspaceMenuItems({ canCreate: false, links: noLinks })).not.toContain('new')
   })
 
-  test('Help, Terms and Privacy only where the install has them, before Sign out', () => {
+  test('Help only where the install has a support email, before Sign out', () => {
     expect(workspaceMenuItems({ canCreate: false, links: allLinks })).toEqual([
       'switcher',
       'account',
       'shortcuts',
       'help',
-      'terms',
-      'privacy',
       'sign-out',
     ])
+  })
+
+  test('never Terms or Privacy rows: those are at the foot of Account settings', () => {
+    const items: string[] = workspaceMenuItems({ canCreate: true, links: allLinks })
+    expect(items).not.toContain('terms')
+    expect(items).not.toContain('privacy')
     expect(workspaceMenuItems({ canCreate: false, links: { ...noLinks, terms: 'https://example.com/t' } })).toEqual([
       'switcher',
       'account',
       'shortcuts',
-      'terms',
       'sign-out',
     ])
   })

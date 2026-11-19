@@ -10,6 +10,7 @@ import { ConfirmEmail } from '../../ConfirmEmail.tsx'
 import { refreshQuery, useQuery } from '../../cachedQuery.ts'
 import { signInAgain } from '../../localData.ts'
 import { CODE_LENGTH, normalizeCode, RESEND_AFTER_S } from '../../sign-in-code.ts'
+import { useLegalLinks } from '../../shell/WorkspaceMenu.tsx'
 import { useSupportAccess } from '../../supportAccess.ts'
 import { refreshTeam } from '../../team/team-api.ts'
 import { changedByLabel } from '../../team/team-model.ts'
@@ -1004,6 +1005,34 @@ export function AccountSettings({ hasWorkspace, workspaceName = '' }: Props) {
   )
 }
 
+/**
+ * Terms · Privacy at the foot of the page (2026-11-18): not rows of the workspace menu, but always one click away in the
+ * app. The same links as the sign-in page: this install's, or a white-label partner's in its client workspace
+ * (useLegalLinks); nothing while they are not known or not set.
+ */
+export function AccountLegalLine() {
+  const t = useT()
+  const links = useLegalLinks()
+  const items = [
+    links?.terms && (
+      <a key="terms" href={links.terms} target="_blank" rel="noreferrer">
+        {t('common.legal.terms')}
+      </a>
+    ),
+    links?.privacy && (
+      <a key="privacy" href={links.privacy} target="_blank" rel="noreferrer">
+        {t('common.legal.privacy')}
+      </a>
+    ),
+  ].filter(Boolean)
+  if (!items.length) return null
+  return (
+    <nav className="auth-legal ac-legal" aria-label={t('account.legal.label')}>
+      {items}
+    </nav>
+  )
+}
+
 /** Account settings during support access: the sections, each saying it is the person's own. */
 function SupportAccessAccount({ hasWorkspace }: Pick<Props, 'hasWorkspace'>) {
   const t = useT()
@@ -1108,6 +1137,7 @@ function OwnAccount({ hasWorkspace, workspaceName = '' }: Props) {
             {current === 'apiKeys' && <PersonalKeys />}
           </>
         )}
+        <AccountLegalLine />
       </SettingsLayout>
     </div>
   )
