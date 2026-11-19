@@ -522,6 +522,9 @@ export function phoneSetupErrorText(error: string, audience: ProviderAudience = 
     return t('onboarding.flow.setupError.countryRequirements')
   if (/^This number could not be activated/i.test(error)) return t('onboarding.flow.setupError.notActivated')
   if (/is not in the .* account/i.test(error)) return t('onboarding.flow.setupError.notInAccount')
+  // A number already in the server's carrier account, on a workspace that pays for its numbers (attachRefused).
+  if (/can only be connected by whoever runs this server/i.test(error))
+    return t('onboarding.flow.setupError.attachBilled')
   if (/no number available in area code/i.test(error)) return t('onboarding.flow.setupError.noneFree')
   // The limits on buying through the install's carrier account (apps/api/src/number-purchases.ts) are written for people: shown as they are.
   if (/(on|through) this server|this server has given|numbers today/i.test(error)) return error
@@ -591,10 +594,24 @@ export function billedNumberNote(
   numbersBought: number,
 ): string | null {
   if (extraNumberCents === null || provider === 'dev') return null
-  const { t, format } = i18n()
-  if (numbersBought < 1) return t('onboarding.flow.price.included')
-  return t('onboarding.flow.price.extra', {
-    price: format.currency(extraNumberCents / 100, 'USD', { minimumFractionDigits: extraNumberCents % 100 ? 2 : 0 }),
+  const price = billedNumberPrice(extraNumberCents, provider, numbersBought)
+  if (!price) return i18n().t('onboarding.flow.price.included')
+  return i18n().t('onboarding.flow.price.extra', { price })
+}
+
+/**
+ * What the next number costs a month from the bill's balance, formatted ("$3"), for Settings › Phone numbers to show
+ * large: `extraNumberCents` from the install's billing rules. Null where billedNumberNote says something else (no bill,
+ * comped, own carrier account, development mode) or the number is the included first one.
+ */
+export function billedNumberPrice(
+  extraNumberCents: number | null,
+  provider: string | null,
+  numbersBought: number,
+): string | null {
+  if (extraNumberCents === null || provider === 'dev' || numbersBought < 1) return null
+  return i18n().format.currency(extraNumberCents / 100, 'USD', {
+    minimumFractionDigits: extraNumberCents % 100 ? 2 : 0,
   })
 }
 

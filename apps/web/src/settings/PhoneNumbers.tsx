@@ -1,8 +1,8 @@
 // Settings, Phone numbers: a short list of the workspace's numbers; Manage opens one (which assistant answers it,
-// how it is used, forwarding codes, disconnecting), Add number connects another with the onboarding phone step's
-// choices and words (keep my number, a new number; a number already in the carrier account behind a quiet link).
-// Connecting runs phoneNumber.setup through the outbox; the new row arrives by sync. Where a number can be bought comes
-// from the install's buy offers (the phone setup status), the same list as onboarding's.
+// how it is used, forwarding codes, disconnecting), Add number connects another in two steps: get a new number (its
+// monthly price; a number already in the carrier account behind a quiet link), then whether the current number forwards
+// to it. Connecting runs phoneNumber.setup through the outbox; the new row arrives by sync. Where a number can be bought
+// comes from the install's buy offers (the phone setup status), the same list as onboarding's.
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { useT } from '@linedesk/i18n/react'
 import { type ReactNode, useEffect, useState } from 'react'
@@ -15,6 +15,7 @@ import {
   areaCodeOf,
   beingSetUpText,
   billedNumberNote,
+  billedNumberPrice,
   buyOffersOf,
   buyQuestion,
   buyingCountry,
@@ -220,12 +221,7 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
             status={status}
             // The workspace's own carrier account is not billed by us: its numbers cost what that carrier charges.
             extraNumberCents={carrier && carrier.carrier !== 'default' ? null : extraNumberCents}
-            onDone={added => {
-              setAdding(false)
-              // A number the business phone forwards to: its forwarding codes are the next thing to do.
-              if (added.mode === 'forward_conditional' || added.mode === 'forward_all')
-                setManaging({ id: added.id, release: false })
-            }}
+            onDone={() => setAdding(false)}
             onCancel={() => setAdding(false)}
           />
         </Dialog>
@@ -567,10 +563,18 @@ function Forwarding({
   )
 }
 
-/** The cards everyone sees: the same as the onboarding phone step (#517): keep my number first, a new number second. */
-const connectOptions: readonly PhoneOption[] = ['forward', 'new']
+/** Add number's two steps: get the number (or connect one already in the carrier account), then how calls reach it. */
+type ConnectStep = 'buy' | 'existing'
 
-function ConnectNumber({
+/**
+ * Add number, in two steps. Step 1 gets a new number for the assistant: the area code and what it costs a month (from
+ * the bill: `extraNumberCents`; else the carrier's list price), with the quiet link to a number already in the carrier
+ * account where the member may connect one (canAttach). Buying asks once more and then runs phoneNumber.setup, so the
+ * number is bought and saved before step 2: closing the dialog later loses nothing. It is bought as the business's
+ * forwarding target (the pick-up choice's mode, the recommended way, as before). Step 2 (ForwardStep) asks whether the
+ * business's current number forwards here and saves the answer as the number's mode.
+ */
+export function ConnectNumber({
   status,
   extraNumberCents = null,
   onDone,
@@ -579,8 +583,8 @@ function ConnectNumber({
   status: PhoneSetupStatus | null
   /** On a bill and the install's carrier account: the extra number's monthly price, said instead of the carrier's. */
   extraNumberCents?: number | null
-  /** The number just connected, once its row has arrived. */
-  onDone: (added: PhoneNumber) => void
+  /** Step 2 finished (Done). */
+  onDone: () => void
   onCancel?: () => void
 }) {
   const t = useT()
@@ -588,7 +592,8 @@ function ConnectNumber({
   const name = useAssistantName()
   const numbers = useRows('phone_numbers')
   const count = numbers.length
-  // Numbers already in the install's carrier account are for instance admins only: only they see the link to it.
+  // Numbers already in the carrier account: the server says who may connect one (canAttach: the workspace's own
+  // account; the install's for an instance admin, or for anyone while the workspace pays no bill for its numbers).
   const canAttach = status?.canAttach !== false
   // Outside the countries numbers can be bought in (the install's buy offers), only a number the business already has
   // (offersBuying). Unknown yet: every buyable area code, and the one picked names the country (buyingCountry).
@@ -598,9 +603,9 @@ function ConnectNumber({
   const buyable = offersBuying(country, offers)
   const settingUp = numbersBeingSetUp(country, offers)
   const noAreaCode = !offerHasAreaCode(offer)
-  const [chosen, setOption] = useState<PhoneOption>(connectOptions[0]!)
-  const option: PhoneOption = buyable ? chosen : 'existing'
-  // Nothing to connect here: no buying, and the install's carrier account is for instance admins only.
+  const [chosen, setStep] = useState<ConnectStep>('buy')
+  const step: ConnectStep = buyable ? chosen : 'existing'
+  // Nothing to connect here: no buying, and the carrier account's numbers are not this member's to connect.
   const nothingToConnect = !buyable && !canAttach
   // E.164 as far as typed (PhoneInput).
   const [typed, setTyped] = useState('')
@@ -614,6 +619,9 @@ function ConnectNumber({
   const [confirming, setConfirming] = useState(false)
   const [sentAt, setSentAt] = useState<number | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
+  /** The number just connected: step 2. */
+  const [addedId, setAddedId] = useState<string | null>(null)
+  const added = numbers.find(n => n.id === addedId)
   const carrier = carrierName(status?.provider ?? null)
   // A refusal while this waits is shown here, not also as a toast.
   const { rejection, clearRejection } = useClaimedRejection('phoneNumber.setup', sentAt !== null)
@@ -621,25 +629,23 @@ function ConnectNumber({
   const settings = useWorkspaceSettings().data ?? null
   const forwarding = pickupNumberMode(firstPickup(settings))
   const partnerManaged = settings?.partnerManaged === true
-  const buying = option !== 'existing'
+  const buying = step === 'buy'
   const dev = status?.provider === 'dev'
-  const price =
-    // A white-label client's people see no prices (docs/white-label.md): its partner pays for the number.
-    partnerManaged
-      ? undefined
-      : (billedNumberNote(
-          extraNumberCents,
-          status?.provider ?? null,
-          numbers.filter(n => n.purchased && n.carrier_account === 'install').length,
-        ) ?? priceNote(status?.provider ?? null, priceCountry(areaCode, country)))
+  const bought = numbers.filter(n => n.purchased && n.carrier_account === 'install').length
+  // A white-label client's people see no prices (docs/white-label.md): its partner pays for the number.
+  const monthly = partnerManaged ? null : billedNumberPrice(extraNumberCents, status?.provider ?? null, bought)
+  const price = partnerManaged
+    ? undefined
+    : (billedNumberNote(extraNumberCents, status?.provider ?? null, bought) ??
+      priceNote(status?.provider ?? null, priceCountry(areaCode, country)))
 
-  // Success is the new row arriving by sync; a refusal ends the wait with its reason.
+  // Success is the new row arriving by sync (then step 2); a refusal ends the wait with its reason.
   useEffect(() => {
     if (sentAt === null || count <= sentAt) return
     setSentAt(null)
-    const added = [...numbers].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
-    if (added) onDone(added)
-  }, [count, sentAt, numbers, onDone])
+    const newest = [...numbers].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+    if (newest) setAddedId(newest.id)
+  }, [count, sentAt, numbers])
   useEffect(() => {
     if (!rejection || sentAt === null) return
     setSentAt(null)
@@ -648,6 +654,10 @@ function ConnectNumber({
     clearRejection()
   }, [rejection, sentAt, clearRejection])
 
+  if (added) return <ForwardStep number={added} name={name} forwarding={forwarding} onDone={onDone} />
+
+  // Step 1 buys as the forwarding target (the `forward` option); the number's mode is settled in step 2.
+  const option: PhoneOption = buying ? 'forward' : 'existing'
   function send(confirmed: boolean) {
     const result = phoneOptionSetup(
       option,
@@ -672,53 +682,45 @@ function ConnectNumber({
     setProblem(null)
     setConfirming(true)
   }
-  const pick = (next: PhoneOption) => {
-    setOption(next)
+  const go = (next: ConnectStep) => {
+    setStep(next)
     setConfirming(false)
     setProblem(null)
   }
   const busy = sentAt !== null
   const existing = phoneOptionText('existing', name, carrier)
+  // On a bill the monthly price stands out under the area code; otherwise the carrier's price is the field's help line
+  // (or the only line, for a number without an area code).
+  const billedLine = monthly && (
+    <p className="pn-price">
+      <span className="pn-price-amount">{monthly}</span>
+      <span className="pn-price-per">{t('settings.phone.connect.perMonth')}</span>
+      <span className="help">{t('settings.phone.connect.fromBalance')}</span>
+    </p>
+  )
 
   return (
     <form
-      className="st-connect"
+      className="st-connect pn-connect"
       onSubmit={e => {
         e.preventDefault()
         submit()
       }}
     >
-      {option === 'existing' ? (
+      {buying ? (
+        <div className="st-pn-t">
+          <b>{t('settings.phone.connect.buyTitle', { name })}</b>
+          <span className="help">{t('settings.phone.connect.buyHelp', { name })}</span>
+        </div>
+      ) : (
         <div className="st-pn-t">
           <b>{existing.title}</b>
           <span className="help">
             {buyable ? existing.description : settingUp ? beingSetUpText() : buyUnavailableText(carrier, canAttach)}
           </span>
         </div>
-      ) : (
-        <>
-          {/* Stacked full width, like every radio card group (UI cleanup O22): long descriptions read side by side. */}
-          <div className="k-radios st-pn-kinds" role="radiogroup" aria-label={t('settings.phone.connect.kind')}>
-            {connectOptions.map(o => (
-              <RadioCard
-                key={o}
-                name="st-pn-kind"
-                checked={option === o}
-                onPick={() => pick(o)}
-                {...phoneOptionText(o, name, carrier)}
-              />
-            ))}
-          </div>
-          {canAttach && (
-            <div>
-              <Button size="sm" variant="ghost" onClick={() => pick('existing')}>
-                {existingLinkText(carrier)}
-              </Button>
-            </div>
-          )}
-        </>
       )}
-      {nothingToConnect ? null : option === 'existing' ? (
+      {nothingToConnect ? null : !buying ? (
         <>
           <Field
             id="st-pn-number"
@@ -737,7 +739,7 @@ function ConnectNumber({
           {dev && <p className="help">{t('settings.phone.connect.dev')}</p>}
           {buyable && (
             <div>
-              <Button size="sm" variant="ghost" onClick={() => pick(connectOptions[0]!)}>
+              <Button size="sm" variant="ghost" onClick={() => go('buy')}>
                 {t('settings.phone.connect.back')}
               </Button>
             </div>
@@ -745,21 +747,11 @@ function ConnectNumber({
         </>
       ) : (
         <>
-          {/* The price line: under the area code, or alone for a number without one (a national number). */}
-          {noAreaCode ? (
-            price && <p className="help">{price}</p>
-          ) : (
-            <Field
-              id="st-pn-area"
-              label={
-                option === 'forward'
-                  ? t('settings.phone.connect.areaCodeFor', { name })
-                  : t('settings.phone.connect.areaCode')
-              }
-              help={price}
-            >
+          {!noAreaCode && (
+            <Field id="st-pn-area" label={t('settings.phone.connect.areaCode')} help={monthly ? undefined : price}>
               <AreaCodeInput
                 id="st-pn-area"
+                openOnFocus={false}
                 country={country}
                 codes={offer?.areaCodes ? offerAreaCodes(offer) : undefined}
                 value={areaCode}
@@ -770,6 +762,14 @@ function ConnectNumber({
                 }}
               />
             </Field>
+          )}
+          {billedLine || (noAreaCode && price && <p className="help">{price}</p>)}
+          {canAttach && (
+            <div>
+              <Button size="sm" variant="ghost" onClick={() => go('existing')}>
+                {existingLinkText(carrier)}
+              </Button>
+            </div>
           )}
           {confirming && (
             <div className="ob-prompt" role="alert">
@@ -823,5 +823,91 @@ function ConnectNumber({
         </div>
       )}
     </form>
+  )
+}
+
+/** Step 2's answers: the business's current number forwards to the new one, or callers use the new one only. */
+export type ForwardAnswer = 'forward' | 'none'
+
+/** The number's mode for a step 2 answer: forwarding as the pick-up choice says, or a number of its own (`new`). */
+export const modeForAnswer = (answer: ForwardAnswer, forwarding: 'forward_conditional' | 'forward_all') =>
+  answer === 'forward' ? forwarding : ('new' as const)
+
+/** The step 2 answer a number's mode stands for (a forwarding mode: forward; anything else: none). */
+export const answerForMode = (mode: PhoneNumber['mode']): ForwardAnswer =>
+  mode === 'forward_conditional' || mode === 'forward_all' ? 'forward' : 'none'
+
+/**
+ * Add number, step 2: "Forward your current number here?" Each answer is saved on the number at once (phoneNumber.update,
+ * its mode); forwarding shows the same check and short codes as the number's Manage dialog.
+ */
+function ForwardStep({
+  number,
+  name,
+  forwarding,
+  onDone,
+}: {
+  number: PhoneNumber
+  name: string
+  /** The forwarding mode of the workspace's pick-up choice. */
+  forwarding: 'forward_conditional' | 'forward_all'
+  onDone: () => void
+}) {
+  const t = useT()
+  const run = useRun()
+  const pick = useForwardingPick(number)
+  const answer = answerForMode(number.mode)
+  const formatted = formatNumber(number.e164)
+  const choose = (next: ForwardAnswer) => {
+    if (next === answer) return
+    void run('phoneNumber.update', { phoneNumberId: number.id, mode: modeForAnswer(next, forwarding) })
+  }
+  const mode = number.mode === 'forward_all' ? 'forward_all' : 'forward_conditional'
+  return (
+    <div className="st-connect pn-connect">
+      <p className="pn-added" role="status">
+        <StatusMark state="works" label={t('settings.phone.forwardStep.added', { number: formatted, name })} />
+        {t('settings.phone.forwardStep.added', { number: formatted, name })}
+      </p>
+      <div className="st-pn-t">
+        <b>{t('settings.phone.forwardStep.title')}</b>
+      </div>
+      <div className="k-radios st-pn-kinds" role="radiogroup" aria-label={t('settings.phone.forwardStep.title')}>
+        <RadioCard
+          name="st-pn-forward"
+          checked={answer === 'forward'}
+          onPick={() => choose('forward')}
+          title={t('settings.phone.forwardStep.yes.title')}
+          description={t('settings.phone.forwardStep.yes.description', { name })}
+        />
+        <RadioCard
+          name="st-pn-forward"
+          checked={answer === 'none'}
+          onPick={() => choose('none')}
+          title={t('settings.phone.forwardStep.no.title')}
+          description={t('settings.phone.forwardStep.no.description', { name, number: formatted })}
+        />
+      </div>
+      {answer === 'forward' && (
+        <CheckWhenEditing number={number} canEdit onCarrier={pick.setGuide} pickedByOwner={pick.pickedByOwner}>
+          <Field
+            id="pn-codes"
+            label={t('settings.phone.manage.forwarding')}
+            tip={
+              mode === 'forward_all'
+                ? t('settings.phone.manage.forwardingAllTip')
+                : t('settings.phone.manage.forwardingConditionalTip')
+            }
+          >
+            <Forwarding pick={pick} e164={number.e164} mode={mode} />
+          </Field>
+        </CheckWhenEditing>
+      )}
+      <div className="st-connect-foot">
+        <Button size="sm" variant="primary" onClick={onDone}>
+          {t('settings.phone.manage.done')}
+        </Button>
+      </div>
+    </div>
   )
 }

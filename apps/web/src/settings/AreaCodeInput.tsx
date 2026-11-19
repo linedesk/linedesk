@@ -55,9 +55,15 @@ type Props = {
   country?: string | null
   /** The codes of the country's buy offer when it lists its own (offerAreaCodes); else the country's AREA_CODES. */
   codes?: readonly AreaCode[]
+  /**
+   * Whether focus alone opens the list (default). False where the field is a dialog's first field (Settings › Phone
+   * numbers › Add number): the dialog focuses it on opening, and the list would cover the step; a click, typing or an
+   * arrow key still opens it.
+   */
+  openOnFocus?: boolean
 }
 
-export function AreaCodeInput({ id, value, onChange, label, country, codes: listed }: Props) {
+export function AreaCodeInput({ id, value, onChange, label, country, codes: listed, openOnFocus = true }: Props) {
   const t = useT()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(() => areaCodeText(value, listed))
@@ -132,7 +138,7 @@ export function AreaCodeInput({ id, value, onChange, label, country, codes: list
         aria-autocomplete="list"
         aria-activedescendant={open && matches[active] ? `${listId}-${active}` : undefined}
         onFocus={e => {
-          show()
+          if (openOnFocus) show()
           e.currentTarget.select()
         }}
         onClick={show}

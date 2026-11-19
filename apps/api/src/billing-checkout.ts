@@ -1379,6 +1379,16 @@ export async function billOfWorkspaceForNumbers(tx: Tx, workspaceId: string) {
 }
 
 /**
+ * Whether the workspace pays for its numbers through a bill (billing runs through Stripe and the bill is not comped):
+ * then numbers on the install's carrier account are bought and paid through the bill, and a number already in that
+ * account is connected only by an instance admin (attachRefusal in handlers.ts; the app hides the link, canAttach).
+ */
+export async function workspaceBillPaysNumbers(tx: Tx, workspaceId: string): Promise<boolean> {
+  const found = await billOfWorkspaceForNumbers(tx, workspaceId)
+  return !!found && !found.comped
+}
+
+/**
  * Why a workspace on a bill may not buy a number now, or null (docs/billing.md §3.2 step 6): runs before the install's
  * purchase limits. Only for workspaces on a bill while billing runs through Stripe (with billing off, as on a self-hosted
  * install, only the install's purchase limits apply); a number on the workspace's own carrier account is not limited by

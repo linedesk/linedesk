@@ -1481,6 +1481,39 @@ a.k-btn {
 .st-connect .auth-error {
   margin: 0;
 }
+/* Add number: inside its dialog, no rule above; the monthly price large, what it is paid from small beside it. */
+.pn-connect {
+  padding-top: 0;
+  border-top: 0;
+}
+.pn-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  margin: 0;
+}
+.pn-price-amount {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.pn-price-per {
+  font-size: 13px;
+  color: var(--ink);
+}
+.pn-price .help {
+  flex-basis: 100%;
+}
+.pn-added {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
 /* Settings, Phone numbers: one list row per number (ui/list.css), Manage opens the rest. */
 .pn-status {
   display: inline-flex;

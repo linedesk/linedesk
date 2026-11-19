@@ -8,7 +8,6 @@ import { afterEach, describe, expect, onTestFinished, test, vi } from 'vitest'
 import type { Actor } from '../src/context.ts'
 import { db } from '../src/db.ts'
 import { Reject, runHandler, type Undo } from '../src/handlers.ts'
-import { INSTALL_NUMBER_ADMIN_ONLY } from '../src/workspace-carrier.ts'
 import {
   BUY_COUNTRIES_ONLY, BY_AREA_CODE_ONLY, INSTALL_CAP_REACHED, INSTALL_NUMBERS_PER_WORKSPACE, INSTALL_PURCHASES_PER_HOUR, INSTALL_PURCHASES_PER_USER_PER_DAY, installPurchaseCaps, NOT_WITH_API_KEY, NUMBER_NOT_ACTIVATED, NUMBER_SETUP_BUSY, NUMBERS_NEED_DOCUMENTS,
 } from '../src/number-purchases.ts'
@@ -79,15 +78,15 @@ describe('telephony handlers', () => {
     expect((await setup(tx, { e164: '+15035550990', mode: 'ported' }, carrier(['+15035550990']))).rows.phone_numbers?.[0]?.mode).toBe('ported')
   }))
 
-  test("a number already in the install's account is attached by instance admins only", () => inRollback(async tx => {
+  // On a bill that pays for numbers only instance admins may (billing-checkout.test.ts, "numbers on a billed workspace").
+  test("a number already in the install's account: anyone may attach it while the workspace pays no bill", () => inRollback(async tx => {
     vi.stubEnv('LIVEKIT_SIP_ENDPOINT', 'sip.linedesk.test')
     try {
-      const install = { ...carrier(['+15035550977', '+15035550978']), name: 'telnyx' as const }
-      for (const input of [{ e164: '+15035550977' }, { e164: '+15035550977', purchase: true }]) {
-        const error = await setup(tx, input, install).catch(e => e)
-        expect(error.message).toBe(INSTALL_NUMBER_ADMIN_ONLY)
-      }
-      expect(install.routeToSip).not.toHaveBeenCalled()
+      const install = { ...carrier(['+15035550977', '+15035550978', '+15035550976']), name: 'telnyx' as const }
+      expect((await setup(tx, { e164: '+15035550977' }, install)).rows.phone_numbers?.[0]).toMatchObject({ e164: '+15035550977', purchased: false, carrier_account: 'install' })
+      // Named with purchase: true, a number already in the account is attached, never bought.
+      expect((await setup(tx, { e164: '+15035550976', purchase: true }, install)).rows.phone_numbers?.[0]?.purchased).toBe(false)
+      expect(install.buyNumber).not.toHaveBeenCalled()
       const admin: Actor = { ...owner, permissions: [...rolePermissions.owner, 'instance:admin'] }
       expect((await setup(tx, { e164: '+15035550978' }, install, admin)).rows.phone_numbers?.[0]?.e164).toBe('+15035550978')
       // Buying a new number stays open to owners, by US area code.

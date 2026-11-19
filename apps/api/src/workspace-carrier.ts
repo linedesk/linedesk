@@ -32,7 +32,8 @@ const LIST_LIMIT = 20
 const MAX_MESSAGE = 200
 
 /** The slot (secrets.ts) of a workspace's own carrier credential. */
-export const carrierSlot = (workspaceId: string, carrier: string, field: string) => `workspace:${workspaceId}:${carrier}.${field}`
+export const carrierSlot = (workspaceId: string, carrier: string, field: string) =>
+  `workspace:${workspaceId}:${carrier}.${field}`
 const slot = (workspaceId: string, carrier: OwnCarrier, field: string) => carrierSlot(workspaceId, carrier, field)
 const newId = () => `ps_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 const lastFour = (value: string) => (value.length >= 12 ? value.slice(-4) : null)
@@ -127,12 +128,15 @@ export const lockWorkspaceCarrier = (tx: Tx, workspaceId: string) =>
 
 /** The same lock without waiting: false when another transaction holds it (then nothing is locked). */
 export async function tryLockWorkspaceCarrier(tx: Tx, workspaceId: string) {
-  const { rows } = await tx.execute<{ locked: boolean }>(sql`select pg_try_advisory_xact_lock(hashtext(${`carrier:${workspaceId}`})) as locked`)
+  const { rows } = await tx.execute<{ locked: boolean }>(
+    sql`select pg_try_advisory_xact_lock(hashtext(${`carrier:${workspaceId}`})) as locked`,
+  )
   return rows[0]?.locked === true
 }
 
+/** A number already in the install's carrier account, on a workspace that pays for its numbers (attachRefused). */
 export const INSTALL_NUMBER_ADMIN_ONLY =
-  "Numbers already in this server's carrier account can only be connected by whoever runs this server. Get a new number, or use your own carrier account."
+  "This workspace pays for its numbers through its plan: numbers already in this server's carrier account can only be connected by whoever runs this server. Get a new number, or use your own carrier account."
 
 export type CarrierAccount = 'install' | 'workspace'
 

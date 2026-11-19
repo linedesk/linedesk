@@ -155,10 +155,27 @@ describe('phone setup status', () => {
 
   test('only instance admins see what the server lacks; owners get available or not', () => {
     const missing = { provider: 'twilio', problem: 'LIVEKIT_SIP_ENDPOINT is not set' }
-    expect(phoneSetupView(missing, { permissions: ['settings:write'] })).toEqual({ provider: 'twilio', available: false, detail: null, canAttach: false, buy: [...BASE_BUY_OFFERS] })
+    expect(phoneSetupView(missing, { permissions: ['settings:write'] })).toEqual({ provider: 'twilio', available: false, detail: null, canAttach: true, buy: [...BASE_BUY_OFFERS] })
     expect(phoneSetupView(missing, { permissions: ['settings:write', 'instance:admin'] })).toEqual({ provider: 'twilio', available: false, detail: 'LIVEKIT_SIP_ENDPOINT is not set', canAttach: true, buy: [...BASE_BUY_OFFERS] })
     expect(phoneSetupView({ provider: 'dev', problem: null }, { permissions: [] })).toEqual({ provider: 'dev', available: true, detail: null, canAttach: true, buy: [...BASE_BUY_OFFERS] })
     expect(phoneSetupView(missing, { permissions: ['settings:write'] }, 'workspace').canAttach).toBe(true)
+  })
+
+  test("a number already in the install's account: an instance admin, or anyone while the workspace pays no bill for numbers", () => {
+    const ready = { provider: 'telnyx', problem: null }
+    const owner = { permissions: ['settings:write'] } as const
+    const admin = { permissions: ['settings:write', 'instance:admin'] } as const
+    const canAttach = (actor: { permissions: readonly ('settings:write' | 'instance:admin')[] }, account: 'install' | 'workspace', billed: boolean, status = ready) =>
+      phoneSetupView(status, actor, account, [...BASE_BUY_OFFERS], billed).canAttach
+    // Billing off, no bill or a comped bill (billed false): the link for everyone who sets numbers up.
+    expect(canAttach(owner, 'install', false)).toBe(true)
+    expect(canAttach(admin, 'install', false)).toBe(true)
+    // On a bill that pays for numbers: only the instance admin.
+    expect(canAttach(owner, 'install', true)).toBe(false)
+    expect(canAttach(admin, 'install', true)).toBe(true)
+    // The workspace's own carrier account and the development carrier are never limited.
+    expect(canAttach(owner, 'workspace', true)).toBe(true)
+    expect(canAttach(owner, 'install', true, { provider: 'dev', problem: null })).toBe(true)
   })
 
   test('/v1/me tells owners whether phone setup works, members get nothing', async () => {

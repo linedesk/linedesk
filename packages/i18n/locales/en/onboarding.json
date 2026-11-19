@@ -328,6 +328,7 @@
   "flow.problem.pickAreaCode": "Pick an area code for the new number from the list.",
   "flow.setupError.alreadyConnected": "That number is already connected to {brand}.",
   "flow.setupError.areaCodeCountry": "That area code is in another country than this workspace. Pick one from the list.",
+  "flow.setupError.attachBilled": "Numbers already in the carrier account can only be connected by whoever runs this server. Get a new number instead.",
   "flow.setupError.countryRequirements": "Numbers in this country can't be bought here yet. Connect a number the business already has.",
   "flow.setupError.failed": "The number couldn't be connected. Try again in a moment.",
   "flow.setupError.noneFree": "No number is free in that area code right now. Try a nearby one.",

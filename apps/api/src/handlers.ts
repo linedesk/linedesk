@@ -215,7 +215,12 @@ import { PENDING_PAYMENT, refusePendingPayment, waitsForOwnTrial } from './self-
 import { selfServeHandlers } from './signup-handlers.ts'
 import { termsUpdateHandlers } from './terms-update.ts'
 import { partnerHandlers } from './partners.ts'
-import { billingNumberRefusal, checkoutHandlers, checkoutPreparers } from './billing-checkout.ts'
+import {
+  billingNumberRefusal,
+  checkoutHandlers,
+  checkoutPreparers,
+  workspaceBillPaysNumbers,
+} from './billing-checkout.ts'
 import { matchLocale, type Translator } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
 import { partnerBrandHandlers } from './partner-brand.ts'
@@ -1052,6 +1057,23 @@ async function nameCaller(tx: Tx, contactId: string | null, name: string | undef
 export const teamNotesOf = (stored: ActionItem[], finished: { text: string }[]) =>
   stored.filter(item => item.kind !== 'message' && !finished.some(f => f.text === item.text))
 
+/**
+ * Whether connecting a number that is already in the carrier account is refused for this actor. The install's account
+ * is shared by every workspace: while the workspace pays for its numbers through a bill (workspaceBillPaysNumbers), only
+ * an instance admin may hand one of its numbers to it, others buy a new one or bring their own account; without such a
+ * bill (billing off, no bill, comped) anyone who may set numbers up may. The workspace's own account and `dev` (no
+ * account) are never refused. The app shows the link by the same rule (canAttach, onboarding.ts).
+ */
+async function attachRefused(
+  tx: Tx,
+  actor: Actor,
+  workspaceId: string,
+  { account, provider }: { account: 'install' | 'workspace'; provider: string },
+): Promise<boolean> {
+  if (account !== 'install' || provider === 'dev' || actor.permissions.includes('instance:admin')) return false
+  return workspaceBillPaysNumbers(tx, workspaceId)
+}
+
 const handlers: Record<string, Handler> = {
   // The patch, plus: a voice must be one the workspace may use, and a clone it stops using is released.
   'assistant.update': async (ctx, input) => {
@@ -1861,8 +1883,8 @@ const handlers: Record<string, Handler> = {
   'phoneNumber.listCarrierNumbers': async ({ tx, actor, telephony }) => {
     if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     const { provider, account } = await setupCarrier(tx, actor.workspaceId, telephony)
-    // Same rule as attaching (phoneNumber.setup): the install's account is shared, only instance admins see it.
-    if (account === 'install' && provider.name !== 'dev' && !actor.permissions.includes('instance:admin')) {
+    // Same rule as attaching (phoneNumber.setup, attachRefused): on a bill only instance admins see the install's account.
+    if (await attachRefused(tx, actor, actor.workspaceId, { account, provider: provider.name })) {
       return { rows: {}, data: { numbers: [], more: false } satisfies CarrierNumbersData }
     }
     const owned = await atCarrier(() => provider.listNumbers(CARRIER_NUMBERS_PAGE))
@@ -1925,6 +1947,10 @@ const handlers: Record<string, Handler> = {
       const billRefusal = await billingNumberRefusal(tx, actor, workspace_id)
       if (billRefusal) throw new Reject(billRefusal)
     }
+    // Attaching names a number already in the account: refused before the carrier is asked (attachRefused).
+    const attachRule = { account: carrier_account, provider: provider.name }
+    if (!input.purchase && (await attachRefused(tx, actor, workspace_id, attachRule)))
+      throw new Forbidden(INSTALL_NUMBER_ADMIN_ONLY)
     // Only workspaces in a country of the install's buy offers may buy (numberBuyOffers: the US, Canada, Puerto Rico;
     // Germany where the server has it on), and by area code only in their own country and its offered codes
     // (LIN-300). Asked once, when a purchase is allowed by the input; refused before the carrier is searched.
@@ -1992,16 +2018,9 @@ const handlers: Record<string, Handler> = {
         `${e164} is not in the ${provider.name} account. Check the number; to buy it, pass purchase: true`,
       )
     }
-    // The install's account is shared by every workspace: only an instance admin may hand one of its
-    // numbers to a workspace. Others buy a new one, or bring their own account. (`dev` has no account.)
-    if (
-      existing &&
-      carrier_account === 'install' &&
-      provider.name !== 'dev' &&
-      !actor.permissions.includes('instance:admin')
-    ) {
+    // A number typed with purchase: true that is already in the account is attached too: the same rule.
+    if (existing && (await attachRefused(tx, actor, workspace_id, attachRule)))
       throw new Forbidden(INSTALL_NUMBER_ADMIN_ONLY)
-    }
     const buying = !existing
     // A number typed in that is not in the account would be bought: the same country rules, also its own country.
     if (buying && countryRefusal) throw new Reject(countryRefusal)

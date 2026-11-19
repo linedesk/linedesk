@@ -47,8 +47,10 @@ export type PhoneSetupView = {
   available: boolean
   detail: string | null
   /**
-   * Whether this member may attach a number that is already in the carrier account: always in the
-   * workspace's own account and without a real carrier (dev), in the install's account only instance admins.
+   * Whether this member may attach a number that is already in the carrier account: always in the workspace's own
+   * account and without a real carrier (dev); in the install's account an instance admin, or anyone while the workspace
+   * does not pay for its numbers through a bill (billing off, no bill, a comped bill). The same rule as
+   * phoneNumber.setup (attachRefusal in handlers.ts).
    */
   canAttach: boolean
   /** Where a number can be bought on this workspace's carrier account (numberBuyOffers): one list for app, API and MCP. */
@@ -75,9 +77,11 @@ export function phoneSetupView(
   actor: Pick<Actor, 'permissions'>,
   account: 'install' | 'workspace' = 'install',
   buy: BuyOffer[] = [...BASE_BUY_OFFERS],
+  /** The workspace pays for its numbers through a bill (workspaceBillPaysNumbers). */
+  billed = false,
 ): PhoneSetupView {
   const isAdmin = actor.permissions.includes('instance:admin')
-  const canAttach = account === 'workspace' || status.provider === 'dev' || isAdmin
+  const canAttach = account === 'workspace' || status.provider === 'dev' || isAdmin || !billed
   return {
     provider: status.provider,
     available: !status.problem,
@@ -99,7 +103,10 @@ export async function phoneSetupFor(actor: Actor): Promise<PhoneSetupView | null
     return resolved.provider
   })
   const buy = await numberBuyOffers(db, { account, provider: status.provider })
-  return phoneSetupView(status, actor, account, buy)
+  // Loaded here, not at the top: billing-checkout.ts reaches far, and this file is imported early (LIN-493).
+  const { workspaceBillPaysNumbers } = await import('./billing-checkout.ts')
+  const billed = await db.transaction(tx => workspaceBillPaysNumbers(tx, workspaceId))
+  return phoneSetupView(status, actor, account, buy, billed)
 }
 
 const FALLBACK_TIME_ZONE = 'America/New_York'
