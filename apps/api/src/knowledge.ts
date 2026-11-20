@@ -31,13 +31,9 @@ type ImportInput = { assistantId: string; url?: string } & OwnerInput
 
 async function importProposal(input: ImportInput): Promise<KnowledgeImportData> {
   const site = input.url ? await readSite(input.url) : { website: null, pages: [] as SitePage[] }
-  if (input.url && !site.pages.some(p => p.text.trim()))
-    throw new ImportRefused('The website has no text we could read. Describe the business instead.')
+  if (input.url && !site.pages.some(p => p.text.trim())) throw Reject.t('server.api.knowledge.noText')
   const model = await evaluationModel(db, fetch, { maxTokens: 3000, timeoutMs: 60_000 })
-  if (!model)
-    throw new ImportRefused(
-      'Writing with help needs a language model. An admin adds one under Server admin › Providers.',
-    )
+  if (!model) throw Reject.t('server.api.knowledge.noModel')
   let proposal: ReturnType<typeof parseProposal>
   try {
     proposal = parseProposal(await model.complete(IMPORT_SYSTEM, importPrompt(site.pages, input)))
@@ -45,10 +41,10 @@ async function importProposal(input: ImportInput): Promise<KnowledgeImportData> 
     console.warn(`knowledge import: ${e instanceof Error ? e.message : String(e)}`)
     // A provider failure (quota, key) is recorded for the admins (evaluations.ts); the member hears it is not a timeout.
     if (e instanceof ChatRequestError && e.status >= 300)
-      throw new ImportRefused(
-        `The language model is not working right now (${providerFailureReasonLabel(reasonOf(e.status, e.body)).toLowerCase()}). An admin can see it under Server admin › Providers.`,
-      )
-    throw new ImportRefused('The language model did not answer in time. Try again.')
+      throw Reject.t('server.api.knowledge.modelFailing', {
+        reason: reader => providerFailureReasonLabel(reasonOf(e.status, e.body), reader).toLowerCase(),
+      })
+    throw Reject.t('server.api.knowledge.modelTimeout')
   }
   return { ...proposal, pages: site.pages.map(p => ({ url: p.url, title: p.title })), website: site.website }
 }
@@ -56,10 +52,10 @@ async function importProposal(input: ImportInput): Promise<KnowledgeImportData> 
 export const knowledgeHandlers: Record<string, Handler> = {
   /** Read-only: reads the site and asks the model outside any transaction; nothing is saved. */
   'knowledge.import': async ({ actor }, input: ImportInput) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
+    if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     await assistantIn(db, actor.workspaceId, input.assistantId)
     if (importBudget.blocked(actor.workspaceId))
-      throw new Reject(`At most ${IMPORTS_PER_HOUR} drafts an hour. Try again later.`)
+      throw Reject.t('server.api.knowledge.tooManyDrafts', { count: IMPORTS_PER_HOUR })
     importBudget.fail(actor.workspaceId)
     try {
       return { rows: {}, data: await importProposal(input) }

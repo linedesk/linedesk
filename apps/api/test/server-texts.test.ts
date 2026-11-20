@@ -10,6 +10,7 @@ import { detailText, tryAgain } from '../src/forwarding-check.ts'
 import { Forbidden, Reject, rejectionText, said, sayIn } from '../src/handler-context.ts'
 import { testAnswer } from '../src/provider-test.ts'
 import { runAction } from '../src/run-action.ts'
+import { urlProblemSaid } from '../src/webhooks.ts'
 import { act, createWorkspace } from './helpers.ts'
 
 /** The pseudo-locale: every translated word is accented and inside ⟦ ⟧, so English left over shows. */
@@ -51,6 +52,18 @@ describe('refusals in the reader’s language', () => {
       .from(commands)
       .where(and(eq(commands.workspace_id, ws.id), eq(commands.action, 'call.assign')))
     expect(row?.result).toMatchObject({ error: english.t('server.api.notAMember') })
+  })
+
+  test('team, webhook and calendar refusals answer in the caller’s language (LIN-371)', async () => {
+    const ws = await createWorkspace('Texts team')
+    const member = await personActor(ws.owner.userId, ws.id, [], ['account:own'], { sessionId: 's' })
+    const reader = { ...member!, locale: 'en-XA' as never }
+    const res = await runAction('team.transferOwnership', { memberId: 'nobody' }, reader, crypto.randomUUID())
+    expect(res.body).toMatchObject({ ok: false, error: expect.stringMatching(/^⟦.*⟧$/) })
+    // A webhook address's reason, with a list written in the reader's words.
+    const port = await urlProblemSaid('https://93.184.215.14:22/hook', {})
+    expect(sayIn(port!)).toBe('Use port 443 or 8443.')
+    expect(sayIn(port!, pseudo)).toMatch(/^⟦.*443.*8443.*⟧$/)
   })
 })
 

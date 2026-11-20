@@ -43,7 +43,7 @@ import { and, asc, eq, lt, ne } from 'drizzle-orm'
 import { ensureAppointmentType, timeZoneOf } from './bookings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
-import { type Handler, type HandlerCtx, Forbidden, Reject } from './handler-context.ts'
+import { type Handler, type HandlerCtx, Forbidden, Reject, type Said, said } from './handler-context.ts'
 import { audienceOf, noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import { createFailureLimiter } from './rate-limit.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey, SecretsKeyError } from './secrets.ts'
@@ -102,19 +102,15 @@ const PASSWORD_LOGIN_EXPIRES = '1970-01-01T00:00:00.000Z'
 const LOGIN_SCOPE = 'login'
 
 /** What the member reads when a password provider refuses the login while connecting. */
-const REFUSED_LOGIN: Record<PasswordCalendarProviderName, (host: string) => string> = {
-  caldav: host =>
-    `${host} did not accept that user name and password. Check both; for iCloud, use an app-specific password, not your Apple ID password.`,
-  calcom: () => 'Cal.com did not accept that API key. Copy it again from Cal.com (Settings, Developer, API keys).',
-  calendly: () =>
-    'Calendly did not accept that token. Create a personal access token in Calendly (Integrations, API and webhooks) and paste it.',
+const REFUSED_LOGIN: Record<PasswordCalendarProviderName, (host: string) => Said> = {
+  caldav: host => said('server.api.calendar.refusedLogin.caldav', { host }),
+  calcom: () => said('server.api.calendar.refusedLogin.calcom'),
+  calendly: () => said('server.api.calendar.refusedLogin.calendly'),
 }
-const NO_CALENDARS: Record<PasswordCalendarProviderName, (host: string, account: string) => string> = {
-  caldav: (host, account) => `${host} shows no calendars for ${account}.`,
-  calcom: (_host, account) =>
-    `${account} has no event type in Cal.com yet. Add one there (for example a 1-hour visit), then connect again.`,
-  calendly: (_host, account) =>
-    `${account} has no active event type in Calendly yet. Add one there, then connect again.`,
+const NO_CALENDARS: Record<PasswordCalendarProviderName, (host: string, account: string) => Said> = {
+  caldav: (host, account) => said('server.api.calendar.noCalendars.caldav', { host, account }),
+  calcom: (_host, account) => said('server.api.calendar.noCalendars.calcom', { account }),
+  calendly: (_host, account) => said('server.api.calendar.noCalendars.calendly', { account }),
 }
 /** Where the member deletes the key they made for Linedesk, after disconnecting. */
 const DELETE_KEY_AT: Record<PasswordCalendarProviderName, string> = {
@@ -124,8 +120,7 @@ const DELETE_KEY_AT: Record<PasswordCalendarProviderName, string> = {
   calendly: 'its personal access token in Calendly (Integrations, API and webhooks)',
 }
 
-const NO_SECRETS_KEY =
-  'SECRETS_KEY is not set, so calendar access cannot be stored. Generate one with `openssl rand -base64 32`, set it in the environment of the API and restart.'
+const NO_SECRETS_KEY = said('server.api.calendar.noSecretsKey')
 
 /** A started connect is good for this long: enough to pick an account and consent. */
 const STATE_TTL_MS = 10 * 60_000
@@ -164,13 +159,13 @@ export const PASSWORD_CONNECTS_PER_HOUR = 10
 export const passwordConnectBudget = createFailureLimiter({ max: PASSWORD_CONNECTS_PER_HOUR, windowMs: 3600_000 })
 
 function workspaceOf(actor: Actor) {
-  if (!actor.workspaceId) throw new Reject('no workspace')
+  if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
   return actor.workspaceId
 }
 
 function oauthOrReject(ctx: Pick<HandlerCtx, 'calendars'>, provider: OAuthCalendarProviderId) {
   const oauth = servicesOf(ctx).oauth(provider)
-  if (!oauth) throw new Reject(`${LABEL[provider]} calendars are not set up on this server (${ENV[provider]})`)
+  if (!oauth) throw Reject.t('server.api.calendar.notSetUp', { provider: LABEL[provider], env: ENV[provider] })
   return oauth
 }
 
@@ -256,9 +251,10 @@ export function tokenSource(
       .from(calendar_credentials)
       .where(eq(calendar_credentials.connection_id, connection.id))
     if (!credentials)
-      throw new Reject(
-        `the ${LABEL[connection.provider]} account ${connection.account_email} has no stored access: connect it again`,
-      )
+      throw Reject.t('server.api.calendar.noStoredAccess', {
+        provider: LABEL[connection.provider],
+        account: connection.account_email,
+      })
     if (!forceRefresh && Date.parse(credentials.expires_at) - Date.now() > REFRESH_MARGIN_MS) {
       return decryptSecret(credentials.access_token_encrypted, slot(connection, 'access'))
     }
@@ -313,12 +309,13 @@ async function loginOf(tx: Tx, connection: CalendarConnection): Promise<Calendar
     .from(calendar_credentials)
     .where(eq(calendar_credentials.connection_id, connection.id))
   if (!credentials)
-    throw new Reject(
-      `the ${LABEL[connection.provider]} account ${connection.account_email} has no stored login: connect it again`,
-    )
+    throw Reject.t('server.api.calendar.noStoredLogin', {
+      provider: LABEL[connection.provider],
+      account: connection.account_email,
+    })
   const login = JSON.parse(decryptSecret(credentials.access, slot(connection, 'access'))) as Partial<CalendarLogin>
   if (typeof login.serverUrl !== 'string' || typeof login.username !== 'string' || typeof login.password !== 'string') {
-    throw new Reject(`the stored login of ${connection.account_email} is unreadable: connect it again`)
+    throw Reject.t('server.api.calendar.loginUnreadable', { account: connection.account_email })
   }
   return { serverUrl: login.serverUrl, username: login.username, password: login.password }
 }
@@ -365,7 +362,7 @@ export async function providerFor(
     .select()
     .from(calendar_connections)
     .where(and(eq(calendar_connections.id, connectionId), eq(calendar_connections.workspace_id, workspaceId)))
-  if (!connection) throw new Reject('calendar account not found')
+  if (!connection) throw Reject.t('server.api.calendar.accountNotFound')
   // A tool switched off in Server admin is not read or booked into (its accounts stay, to be disconnected).
   await assertToolWay(tx, connection.provider, 'use')
   const services = servicesOf(ctx)
@@ -447,7 +444,7 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
   'calendar.connectStart': async ({ tx, actor, now, ...ctx }, input: { provider: OAuthCalendarProviderId }) => {
     const workspace_id = workspaceOf(actor)
     // A calendar connected while signed in as someone else would put the admin's account into the user's workspace.
-    if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
+    if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
     await assertToolWay(tx, input.provider, 'oauth')
     const oauth = oauthOrReject(ctx, input.provider)
     if (!hasSecretsKey()) throw new Reject(NO_SECRETS_KEY)
@@ -473,7 +470,7 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
     input: { provider: OAuthCalendarProviderId; state: string; code: string },
   ) => {
     const workspace_id = workspaceOf(actor)
-    if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
+    if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
     // The state is single use and only good for the member who started the connect, in that workspace.
     const [started] = await tx
       .delete(calendar_oauth_states)
@@ -485,10 +482,9 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
       started.provider !== input.provider ||
       Date.parse(started.expires_at) < Date.parse(now)
     ) {
-      throw new Reject('This connect link has expired or is not yours. Start again from Settings.')
+      throw Reject.t('server.api.calendar.connectExpired')
     }
-    if (started.workspace_id !== workspace_id)
-      throw new Reject('You switched workspace while connecting. Start again from Settings.')
+    if (started.workspace_id !== workspace_id) throw Reject.t('server.api.calendar.switchedWorkspace')
     const oauth = oauthOrReject(ctx, input.provider)
     let tokens: OAuthTokens
     try {
@@ -507,12 +503,9 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
         ? 'the new access was revoked'
         : 'the new access could not be revoked',
     )
-    if (!tokens.refreshToken)
-      throw new Reject(`${LABEL[input.provider]} did not grant lasting access. Start again and allow access.`)
+    if (!tokens.refreshToken) throw Reject.t('server.api.calendar.noLastingAccess', { provider: LABEL[input.provider] })
     if (missingScope(input.provider, tokens.scope))
-      throw new Reject(
-        `${brandName()} needs to see and edit your calendar events. Start again and allow every calendar permission.`,
-      )
+      throw Reject.t('server.api.calendar.missingScope', { brand: brandName() })
     const account_email = (
       await oauth.accountEmail(tokens.accessToken).catch(e => rejectCalendarError(e))
     ).toLowerCase()
@@ -552,18 +545,16 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
     input: { provider: PasswordCalendarProviderName; serverUrl?: string; username?: string; password: string },
   ) => {
     const workspace_id = workspaceOf(actor)
-    if (actor.impersonation) throw new Forbidden('Not possible while signed in as another user.')
+    if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
     if (!hasSecretsKey()) throw new Reject(NO_SECRETS_KEY)
     await assertToolWay(tx, input.provider, 'key')
     const services = servicesOf(ctx)
     const label = LABEL[input.provider]
     // CalDAV needs the member's server and user name; Calendly and Cal.com are always their own API (Cal.com's cloud only).
     if (input.provider === 'caldav' && (!input.serverUrl || !input.username))
-      throw new Reject('A CalDAV account needs the server address and the user name.')
+      throw Reject.t('server.api.calendar.caldavNeedsServer')
     if (passwordConnectBudget.blocked(workspace_id))
-      throw new Reject(
-        `At most ${PASSWORD_CONNECTS_PER_HOUR} connects with a key or password an hour. Try again later.`,
-      )
+      throw Reject.t('server.api.calendar.tooManyConnects', { count: PASSWORD_CONNECTS_PER_HOUR })
     passwordConnectBudget.fail(workspace_id)
     const typed = DEFAULT_SERVER_URL[input.provider] ?? input.serverUrl!
     const server = await (services.serverUrl ?? defaultCalendarServices.serverUrl!)(typed)
@@ -586,7 +577,7 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
       if (e instanceof CalendarError && e.kind === 'auth') throw new Reject(REFUSED_LOGIN[input.provider](server.host))
       return rejectCalendarError(e)
     }
-    if (!account_email) throw new Reject(`${label} did not say which account this is.`)
+    if (!account_email) throw Reject.t('server.api.calendar.noAccount', { provider: label })
     if (!calendars.length) throw new Reject(NO_CALENDARS[input.provider](server.host, account_email))
 
     const [existing] = await tx
@@ -602,9 +593,10 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
     // The same account on another server is another account: its calendars must not be read from the new one.
     const stored = existing && (await loginOf(tx, existing).catch(() => null))
     if (stored && stored.serverUrl !== login.serverUrl)
-      throw new Reject(
-        `${account_email} is connected on ${new URL(stored.serverUrl).host} already. Disconnect it there first.`,
-      )
+      throw Reject.t('server.api.calendar.connectedElsewhere', {
+        account: account_email,
+        host: new URL(stored.serverUrl).host,
+      })
     const [connection] = existing
       ? await tx
           .update(calendar_connections)
@@ -659,7 +651,7 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
       .delete(calendar_connections)
       .where(and(eq(calendar_connections.id, input.connectionId), eq(calendar_connections.workspace_id, workspace_id)))
       .returning()
-    if (!connection) throw new Reject('calendar account not found')
+    if (!connection) throw Reject.t('server.api.calendar.accountNotFound')
     const data: DisconnectData = await revokeGrant(
       ctx,
       connection,
@@ -682,15 +674,13 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
       .select({ id: assistants.id })
       .from(assistants)
       .where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspace_id)))
-    if (!assistant) throw new Reject('assistant not found')
+    if (!assistant) throw Reject.t('server.api.assistantNotFound')
     const { connection, provider } = await providerFor(tx, ctx, workspace_id, input.connectionId)
     // The calendar must be one this account can write to; its name comes from the provider.
     const calendar = (await listAt(provider, connection, audienceOf(actor))).find(c => c.id === input.externalId)
-    if (!calendar) throw new Reject(`no such calendar in ${connection.account_email}`)
+    if (!calendar) throw Reject.t('server.api.calendar.noSuchCalendar', { account: connection.account_email })
     if (!calendar.canWrite)
-      throw new Reject(
-        `${calendar.name} is read-only for ${connection.account_email}: pick a calendar you can add events to`,
-      )
+      throw Reject.t('server.api.calendar.readOnly', { calendar: calendar.name, account: connection.account_email })
     const [taken] = await tx
       .select({ id: assistant_calendars.id })
       .from(assistant_calendars)
@@ -701,7 +691,7 @@ export const calendarConnectionHandlers: Record<string, Handler> = {
           eq(assistant_calendars.external_id, calendar.id),
         ),
       )
-    if (taken) throw new Reject(`${calendar.name} is already one of the assistant's calendars`)
+    if (taken) throw Reject.t('server.api.calendar.alreadyAdded', { calendar: calendar.name })
     const existing = await tx
       .select({ connection_id: assistant_calendars.connection_id, duration_min: assistant_calendars.duration_min })
       .from(assistant_calendars)
@@ -789,20 +779,15 @@ function refuseOtherBookingMode(
 ) {
   const tool = existing.find(r => r.duration_min !== null)
   if (!isEventType && tool) {
-    throw new Reject(
-      'this assistant books with the event types of a scheduling tool: remove them before adding a calendar',
-      BOOKING_MODE_REFUSED,
-    )
+    throw Reject.t('server.api.calendar.bookingMode.hasEventTypes', undefined, BOOKING_MODE_REFUSED)
   }
   if (isEventType && existing.some(r => r.duration_min === null)) {
-    throw new Reject(
-      "this assistant books into its own calendars: remove them before adding a scheduling tool's event type",
-      BOOKING_MODE_REFUSED,
-    )
+    throw Reject.t('server.api.calendar.bookingMode.hasCalendars', undefined, BOOKING_MODE_REFUSED)
   }
   if (isEventType && tool && tool.connection_id !== connection.id) {
-    throw new Reject(
-      `this assistant books with the event types of another account: remove them before adding one of ${connection.account_email}`,
+    throw Reject.t(
+      'server.api.calendar.bookingMode.otherAccount',
+      { account: connection.account_email },
       BOOKING_MODE_REFUSED,
     )
   }
@@ -819,7 +804,7 @@ async function loadAssistantCalendar(tx: Tx, workspaceId: string, id: string) {
     .select()
     .from(assistant_calendars)
     .where(and(eq(assistant_calendars.id, id), eq(assistant_calendars.workspace_id, workspaceId)))
-  if (!row) throw new Reject('calendar not found')
+  if (!row) throw Reject.t('server.api.calendar.calendarNotFound')
   return row
 }
 

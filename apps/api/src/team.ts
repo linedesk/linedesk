@@ -24,8 +24,7 @@ import { emailSender } from './email.ts'
 import { refuseAdminFromPartner, refusePartnerMembership } from './partner-refusals.ts'
 import { invitationLocale } from './email-locale.ts'
 import { addedToWorkspaceEmail, emailSafeName, invitationEmail } from './emails/templates.ts'
-import { Forbidden, type Handler, Reject } from './handler-context.ts'
-import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
+import { Forbidden, type Handler, Reject, said } from './handler-context.ts'
 import { queueWorkspaceDeletedEmails } from './jobs.ts'
 import { forgetMember, ownerJoined } from './memberships.ts'
 import {
@@ -55,7 +54,7 @@ const newInvitationId = () => randomBytes(24).toString('base64url')
 export const invitationLink = (id: string, origin: string) => `${origin}/?invite=${encodeURIComponent(id)}`
 
 function workspaceOf(actor: Actor) {
-  if (!actor.workspaceId) throw new Reject('no workspace')
+  if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
   return actor.workspaceId
 }
 
@@ -106,14 +105,10 @@ export async function sendInvitation(
   invite: { id: string; email: string; organizationId: string; inviterId: string },
   addedAs?: string,
 ) {
-  if (emailSender.kind === 'none')
-    throw new Reject(
-      'email is not set up, so invitations cannot be sent (connect it in Server admin › Providers › Email)',
-    )
-  if (!allowEmailFor(invite.organizationId)) throw new Reject('too many invitations in the last hour; try again later')
+  if (emailSender.kind === 'none') throw Reject.t('server.api.team.emailNotSetUp')
+  if (!allowEmailFor(invite.organizationId)) throw Reject.t('server.api.team.tooManyInvitations')
   // The same answer whether or not the address has an account anywhere.
-  if (!allowEmailTo(invite.email.toLowerCase()))
-    throw new Reject('too many invitations to this address in the last hour; try again later')
+  if (!allowEmailTo(invite.email.toLowerCase())) throw Reject.t('server.api.team.tooManyInvitationsTo')
   const [ws] = await tx
     .select({ name: organization.name })
     .from(organization)
@@ -144,7 +139,7 @@ export async function sendInvitation(
     )
   } catch (err) {
     console.error('invitation email failed', err)
-    throw new Reject('could not send the invitation email; try again in a moment')
+    throw Reject.t('server.api.team.invitationEmailFailed')
   }
 }
 
@@ -160,7 +155,7 @@ async function loadPendingInvitation(tx: Tx, workspaceId: string, invitationId: 
       ),
     )
     .for('update')
-  if (!row) throw new Reject('invitation not found')
+  if (!row) throw Reject.t('server.api.team.invitationNotFound')
   return row
 }
 
@@ -171,7 +166,7 @@ async function loadMember(tx: Tx, workspaceId: string, memberId: string) {
     .from(member)
     .where(and(eq(member.id, memberId), eq(member.organizationId, workspaceId)))
     .for('update')
-  if (!row) throw new Reject('member not found')
+  if (!row) throw Reject.t('server.api.team.memberNotFound')
   return row
 }
 
@@ -202,12 +197,10 @@ async function lockInviter(tx: Tx, workspaceId: string, actorId: string) {
 }
 
 /** team.leave from the last workspace without deleteAccount: the request must say whether the account goes too. */
-export const LEAVE_SAY_ACCOUNT =
-  'this is your only workspace: say whether to delete your account too (deleteAccount true or false). In the app, reload the page and leave again'
+export const LEAVE_SAY_ACCOUNT = said('server.api.team.leaveSayAccount')
 
 /** team.removeMember with deleteAccount from someone who is not the workspace's owner (Janik, 2026-11-15; LIN-264). */
-export const ONLY_OWNER_DELETES_ACCOUNTS =
-  "only the workspace's owner can delete a removed member's account; remove them without deleteAccount (their account stays)"
+export const ONLY_OWNER_DELETES_ACCOUNTS = said('server.api.team.onlyOwnerDeletesAccounts')
 
 /**
  * Tells someone whose account a removal deleted (team.removeMember, membership.remove), queued in the removal's
@@ -283,8 +276,7 @@ async function removerLabel(tx: Tx, actorId: string) {
 }
 
 /** A workspace has exactly one owner (docs/architecture.md, "Workspace rights"): their role only changes by a transfer. */
-export const OWNER_STAYS =
-  "the owner's role only changes when they hand the workspace over: they make someone else the owner (Workspace settings › Team)"
+export const OWNER_STAYS = said('server.api.team.ownerStays')
 
 /** The owner cannot be changed or removed by team.setRole and team.removeMember, not even by themselves. */
 function guardOwner(target: { role: string }) {
@@ -416,9 +408,9 @@ export const teamHandlers: Record<string, Handler> = {
       .from(member)
       .innerJoin(user, eq(user.id, member.userId))
       .where(and(eq(member.organizationId, workspaceId), sql`lower(${user.email}) = ${input.email}`))
-    if (already) throw new Reject(`${input.email} is already on the team`)
+    if (already) throw Reject.t('server.api.team.alreadyOnTeam', { email: input.email })
     if (await pendingInvitationTo(tx, workspaceId, input.email))
-      throw new Reject(`${input.email} is already invited; resend the invitation instead`)
+      throw Reject.t('server.api.team.alreadyInvited', { email: input.email })
     const row = await insertInvitation(
       tx,
       { organizationId: workspaceId, email: input.email, role: input.role, inviterId: actor.actorId },
@@ -447,13 +439,13 @@ export const teamHandlers: Record<string, Handler> = {
   },
 
   'team.setRole': async ({ tx, actor }, input: { memberId: string; role: string }) => {
-    if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
+    if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
     const workspaceId = workspaceOf(actor)
     const target = await loadMember(tx, workspaceId, input.memberId)
     guardOwner(target)
     refusePartnerMembership(target)
     // Never owner here (the input allows admin and member): that is team.transferOwnership.
-    if (input.role !== 'admin' && input.role !== 'member') throw new Reject('a role change gives admin or member')
+    if (input.role !== 'admin' && input.role !== 'member') throw Reject.t('server.api.team.roleAdminOrMember')
     await refuseAdminFromPartner(tx, workspaceId, actor.actorId, input.role)
     await tx.update(member).set({ role: input.role }).where(eq(member.id, target.id))
     // Their workspace setup links act with the role they were made with: another role ends them for good.
@@ -465,22 +457,21 @@ export const teamHandlers: Record<string, Handler> = {
   },
 
   'team.transferOwnership': async ({ tx, actor, now }, input: { memberId: string }) => {
-    if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
+    if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
     const workspaceId = workspaceOf(actor)
     const owner = await lockedOwner(tx, workspaceId)
-    if (!owner || owner.userId !== actor.actorId) throw new Forbidden('only the owner can hand the workspace over')
+    if (!owner || owner.userId !== actor.actorId) throw Forbidden.t('server.api.team.onlyOwnerHandsOver')
     const target = await loadMember(tx, workspaceId, input.memberId)
-    if (target.id === owner.id) throw new Reject('you are the owner already')
+    if (target.id === owner.id) throw Reject.t('server.api.team.ownerAlready')
     // A partner's admin is never the owner of a client workspace (member_partner_admin in the database too).
     refusePartnerMembership(target)
     const [account] = await tx
       .select({ emailVerified: user.emailVerified, disabledAt: user.disabledAt, email: user.email })
       .from(user)
       .where(eq(user.id, target.userId))
-    if (!account || account.disabledAt) throw new Reject('this account is disabled')
+    if (!account || account.disabledAt) throw Reject.t('server.api.accountDisabled')
     // The owner decides who may delete the workspace: only a proven address (as for owner and admin elsewhere).
-    if (!account.emailVerified)
-      throw new Reject(`${account.email} must confirm their email address before they can be the owner`)
+    if (!account.emailVerified) throw Reject.t('server.api.team.confirmEmailToOwn', { email: account.email })
     // The bill goes with the only workspace on it; with several, the bill is handed over first (docs/billing.md §8).
     await billOnWorkspaceHandOver(tx, actor, workspaceId, owner.userId, target.userId, now)
     await makeOwner(tx, target, owner.id)
@@ -488,7 +479,7 @@ export const teamHandlers: Record<string, Handler> = {
   },
 
   'team.leave': async ({ tx, actor, now }, input: { deleteAccount?: boolean }) => {
-    if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
+    if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
     const workspaceId = workspaceOf(actor)
     // Locked: a hand-over to this member at the same moment waits, and the owner check then sees the new role.
     const [me] = await tx
@@ -496,11 +487,10 @@ export const teamHandlers: Record<string, Handler> = {
       .from(member)
       .where(and(eq(member.organizationId, workspaceId), eq(member.userId, actor.actorId)))
       .for('update')
-    if (!me) throw new Reject('member not found')
+    if (!me) throw Reject.t('server.api.team.memberNotFound')
     // A partner's admin leaves its client workspaces only by leaving the partner team.
     refusePartnerMembership(me)
-    if (me.role === 'owner')
-      throw new Reject('you are the owner: make someone else the owner first (Workspace settings › Team)')
+    if (me.role === 'owner') throw Reject.t('server.api.team.ownerLeaves')
     await tx.delete(member).where(eq(member.id, me.id))
     // The unassigned calls are not returned: the one leaving no longer sees the workspace's calls.
     await forgetMember(tx, workspaceId, actor.actorId, now)

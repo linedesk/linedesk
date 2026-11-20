@@ -51,7 +51,7 @@ import {
   recognizedOn,
   type DeliveryOutcome,
   sendWebhook,
-  urlProblem,
+  urlProblemSaid,
   WEBHOOK_ATTEMPTS,
   WEBHOOK_DISABLE_AFTER,
 } from './webhooks.ts'
@@ -350,7 +350,7 @@ export async function sampleEvents(tx: Tx, workspaceId: string, event: Integrati
 /** Subscriptions are an API key's: a person signed in uses Integrations › Zapier to remove them. */
 function keyOf(actor: Actor) {
   if (!actor.apiKeyId || !actor.workspaceId)
-    throw new Reject('Only a workspace API key subscribes (Authorization: Bearer ld_…).')
+    throw Reject.t('server.api.integration.keyOnly')
   return { apiKeyId: actor.apiKeyId, workspaceId: actor.workspaceId }
 }
 
@@ -367,7 +367,7 @@ export const integrationHandlers: Record<string, Handler> = {
     const { apiKeyId, workspaceId } = keyOf(actor)
     const problem =
       integrationUrlProblem(input.source, input.targetUrl, allowAnyHost(process.env)) ??
-      (await urlProblem(input.targetUrl))
+      (await urlProblemSaid(input.targetUrl))
     if (problem) throw new Reject(problem)
     // Two subscribes at once would both count 24 and both insert: one workspace's subscribes take turns.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`integration_subscriptions:${workspaceId}`}))`)
@@ -376,9 +376,7 @@ export const integrationHandlers: Record<string, Handler> = {
       .from(integration_subscriptions)
       .where(eq(integration_subscriptions.workspace_id, workspaceId))
     if (count >= INTEGRATION_SUBSCRIPTIONS_PER_WORKSPACE)
-      throw new Reject(
-        `At most ${INTEGRATION_SUBSCRIPTIONS_PER_WORKSPACE} integration subscriptions per workspace. Turn off a Zap you no longer use.`,
-      )
+      throw Reject.t('server.api.integration.tooMany', { count: INTEGRATION_SUBSCRIPTIONS_PER_WORKSPACE })
     const id = newId('isub')
     await tx.insert(integration_subscriptions).values({
       id,
@@ -410,7 +408,7 @@ export const integrationHandlers: Record<string, Handler> = {
   },
 
   'integration.list': async ({ tx, actor }) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
+    if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     const rows = await tx
       .select({ subscription: integration_subscriptions, keyName: api_keys.name, keyPrefix: api_keys.prefix })
       .from(integration_subscriptions)
@@ -435,7 +433,7 @@ export const integrationHandlers: Record<string, Handler> = {
   },
 
   'integration.remove': async ({ tx, actor }, input: { subscriptionId: string }) => {
-    if (!actor.workspaceId) throw new Reject('no workspace')
+    if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     const [removed] = await tx
       .delete(integration_subscriptions)
       .where(
@@ -445,7 +443,7 @@ export const integrationHandlers: Record<string, Handler> = {
         ),
       )
       .returning({ id: integration_subscriptions.id })
-    if (!removed) throw new Reject('subscription not found')
+    if (!removed) throw Reject.t('server.api.integration.notFound')
     return { rows: {}, data: { subscriptionId: removed.id } }
   },
 }

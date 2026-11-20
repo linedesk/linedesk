@@ -10,6 +10,7 @@ import { personActor } from '../src/context.ts'
 import { runAction } from '../src/run-action.ts'
 import { db } from '../src/db.ts'
 import { LEAVE_SAY_ACCOUNT, ONLY_OWNER_DELETES_ACCOUNTS, OWNER_STAYS } from '../src/team.ts'
+import { sayIn } from '../src/handler-context.ts'
 import { LEAVE_SIGN_IN_AGAIN, REMOVE_SIGN_IN_AGAIN, removeNeedsFreshSignIn } from '../src/owner-step-up.ts'
 import { setJobQueue, WORKSPACE_DELETED_EMAIL, type WorkspaceDeletedJob } from '../src/jobs.ts'
 import { workspaceDeletedEmail } from '../src/emails/templates.ts'
@@ -246,7 +247,7 @@ describe('roles', () => {
 
   test('nobody demotes or removes the owner, not even the owner (exactly one owner: only a transfer changes it)', async () => {
     const ownerMemberId = await memberIdOf(ws.id, ws.owner)
-    const stays = { status: 403, body: { error: OWNER_STAYS, code: 'forbidden' } }
+    const stays = { status: 403, body: { error: sayIn(OWNER_STAYS), code: 'forbidden' } }
     for (const who of [ws.owner, admin]) {
       expect(await act(who, 'team.setRole', { memberId: ownerMemberId, role: 'admin' })).toMatchObject(stays)
       expect(await act(who, 'team.setRole', { memberId: ownerMemberId, role: 'member' })).toMatchObject(stays)
@@ -566,7 +567,7 @@ describe('leaving', () => {
 
   test('the only workspace: the request must say whether the account goes; a request that does not is refused and changes nothing', async () => {
     const leaving = await addMember(ws.id, 'member')
-    expect(await act(leaving, 'team.leave', {})).toMatchObject({ status: 409, body: { error: LEAVE_SAY_ACCOUNT } })
+    expect(await act(leaving, 'team.leave', {})).toMatchObject({ status: 409, body: { error: sayIn(LEAVE_SAY_ACCOUNT) } })
     expect(await db.select().from(member).where(eq(member.userId, leaving.userId))).toHaveLength(1)
     expect(await db.select().from(user).where(eq(user.id, leaving.userId))).toHaveLength(1)
     // With another workspace left the field is not needed: the account stays anyway.
@@ -673,7 +674,7 @@ describe('deleting accounts (LIN-264)', () => {
       const anAdmin = await addMember(shop.id, 'admin')
       const target = await addMember(shop.id, 'admin')
       const res = await act(anAdmin, 'team.removeMember', { memberId: await memberIdOf(shop.id, target), deleteAccount: true })
-      expect(res).toMatchObject({ status: 403, body: { error: ONLY_OWNER_DELETES_ACCOUNTS, code: 'forbidden' } })
+      expect(res).toMatchObject({ status: 403, body: { error: sayIn(ONLY_OWNER_DELETES_ACCOUNTS), code: 'forbidden' } })
       expect(await db.select().from(member).where(eq(member.userId, target.userId))).toHaveLength(1)
       expect(await exists(target)).toBe(true)
     })
@@ -684,7 +685,7 @@ describe('deleting accounts (LIN-264)', () => {
       const target = await addMember(shop.id, 'member')
       expect((await act(shop.owner, 'team.transferOwnership', { memberId: await memberIdOf(shop.id, next) })).status).toBe(200)
       const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, target), deleteAccount: true })
-      expect(res).toMatchObject({ status: 403, body: { error: ONLY_OWNER_DELETES_ACCOUNTS } })
+      expect(res).toMatchObject({ status: 403, body: { error: sayIn(ONLY_OWNER_DELETES_ACCOUNTS) } })
       expect(await exists(target)).toBe(true)
     })
 
@@ -901,7 +902,7 @@ describe('deleting accounts (LIN-264)', () => {
       await signedInAgo(anAdmin, 30)
       const other = await addMember(shop.id, 'member')
       const refused = await act(anAdmin, 'team.removeMember', { memberId: await memberIdOf(shop.id, other), deleteAccount: true })
-      expect(refused).toMatchObject({ status: 403, body: { error: ONLY_OWNER_DELETES_ACCOUNTS } })
+      expect(refused).toMatchObject({ status: 403, body: { error: sayIn(ONLY_OWNER_DELETES_ACCOUNTS) } })
       const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, kept), deleteAccount: false })
       expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: false } } })
       expect(await exists(kept)).toBe(true)

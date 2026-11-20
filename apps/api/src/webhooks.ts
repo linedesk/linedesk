@@ -33,7 +33,7 @@ import type { Assistant, Call, WebhookEndpoint, WebhookHook, WebhookLookup } fro
 import { and, asc, desc, eq, isNotNull, isNull, lt, ne, sql } from 'drizzle-orm'
 import { Agent, fetch as undiciFetch } from 'undici'
 import { WEB_ORIGIN } from './auth.ts'
-import { type Handler, Reject } from './handler-context.ts'
+import { type Handler, Reject, type Said, said, sayIn } from './handler-context.ts'
 import { checkedLookup, isLinkLocalAddress, isPrivateAddress, type Resolve, resolveAll } from './ip-address.ts'
 import { queueWebhookDelivery } from './jobs.ts'
 import { appOrigin } from './partner-brand.ts'
@@ -78,14 +78,15 @@ export const WEBHOOK_ENDPOINTS_PER_WORKSPACE = 10
  * https, and not a private address written as such; never a link-local one, also where private addresses are allowed.
  * Names are checked when they are resolved (publicLookup, lanLookup).
  */
-function addressProblem(url: string, env: Env): string | null {
+function addressProblem(url: string, env: Env): Said | null {
   const { protocol, hostname, port } = new URL(url)
   const host = hostname.replace(/^\[|\]$/g, '')
-  if (isIP(host) && isLinkLocalAddress(host)) return LINK_LOCAL
+  if (isIP(host) && isLinkLocalAddress(host)) return said('server.api.webhook.linkLocal')
   if (allowPrivate(env)) return null
-  if (protocol !== 'https:') return 'Use an https address.'
-  if (port && !WEBHOOK_PORTS.includes(port)) return `Use port ${WEBHOOK_PORTS.join(' or ')}.`
-  return isIP(host) && isPrivateAddress(host) ? PRIVATE : null
+  if (protocol !== 'https:') return said('server.api.webhook.https')
+  if (port && !WEBHOOK_PORTS.includes(port))
+    return said('server.api.webhook.port', { ports: reader => reader.format.list(WEBHOOK_PORTS, { type: 'disjunction' }) })
+  return isIP(host) && isPrivateAddress(host) ? said('server.api.webhook.private') : null
 }
 
 /**
@@ -105,10 +106,10 @@ const publicAgent = new Agent({ connect: { lookup: publicLookup() as never, time
 const lanAgent = new Agent({ connect: { lookup: lanLookup() as never, timeout: TIMEOUT_MS } })
 
 /**
- * Why events must not go to this URL, or null: shown when an endpoint is saved. Sending checks again
- * on its own (addressProblem and publicLookup), since the name may point elsewhere by then.
+ * Why events must not go to this URL, or null: shown when an endpoint is saved, in the reader's words. Sending checks
+ * again on its own (addressProblem and publicLookup), since the name may point elsewhere by then.
  */
-export async function urlProblem(url: string, env: Env = process.env, resolve: Resolve = resolveAll): Promise<string | null> {
+export async function urlProblemSaid(url: string, env: Env = process.env, resolve: Resolve = resolveAll): Promise<Said | null> {
   const problem = addressProblem(url, env)
   if (problem) return problem
   const host = new URL(url).hostname
@@ -116,9 +117,16 @@ export async function urlProblem(url: string, env: Env = process.env, resolve: R
   const addresses = await new Promise<LookupAddress[] | null>(done => resolve(host, (err, list) => done(err ? null : list)))
   const lan = allowPrivate(env)
   // Where private addresses are allowed, a name only the API's network knows may not resolve here; sending checks it again.
-  if (!addresses?.length) return lan ? null : `${host} could not be found.`
+  if (!addresses?.length) return lan ? null : said('server.api.webhook.hostNotFound', { host })
   const refused = lan ? isLinkLocalAddress : isPrivateAddress
-  return addresses.some(a => refused(a.address)) ? `${host}: ${lan ? LINK_LOCAL : PRIVATE}.` : null
+  if (!addresses.some(a => refused(a.address))) return null
+  return said(lan ? 'server.api.webhook.hostLinkLocal' : 'server.api.webhook.hostPrivate', { host })
+}
+
+/** urlProblemSaid in English. */
+export async function urlProblem(url: string, env: Env = process.env, resolve: Resolve = resolveAll): Promise<string | null> {
+  const problem = await urlProblemSaid(url, env, resolve)
+  return problem && sayIn(problem)
 }
 
 // --- Signing and sending ---------------------------------------------------------------------
@@ -173,7 +181,8 @@ export async function sendWebhook(url: string, secret: string | null, deliveryId
   const { env = process.env, timeoutMs = TIMEOUT_MS } = options
   const problem = (() => {
     try {
-      return addressProblem(url, env)
+      const found = addressProblem(url, env)
+      return found && sayIn(found)
     } catch {
       return 'invalid address'
     }
@@ -461,12 +470,12 @@ async function countFailure(tx: Tx, endpointId: string, error: string | null) {
 const allowTestSend = createRateLimiter({ max: WEBHOOK_TESTS_PER_MINUTE, windowMs: 60_000 })
 
 function workspaceOf(actor: { workspaceId: string | null }) {
-  if (!actor.workspaceId) throw new Reject('no workspace')
+  if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
   return actor.workspaceId
 }
 
 async function checkUrl(url: string) {
-  const problem = await urlProblem(url)
+  const problem = await urlProblemSaid(url)
   if (problem) throw new Reject(problem)
 }
 
@@ -474,7 +483,7 @@ async function checkUrl(url: string) {
 async function endpointIn(tx: Tx, workspaceId: string, endpointId: string) {
   const [endpoint] = await tx.select().from(webhook_endpoints)
     .where(and(eq(webhook_endpoints.id, endpointId), eq(webhook_endpoints.workspace_id, workspaceId), isNotNull(webhook_endpoints.assistant_id)))
-  if (!endpoint) throw new Reject('webhook not found')
+  if (!endpoint) throw Reject.t('server.api.webhook.notFound')
   return endpoint
 }
 
@@ -504,21 +513,21 @@ function testRequest(endpoint: WebhookEndpoint, hook: WebhookHook, assistant: { 
 export const webhookHandlers: Record<string, Handler> = {
   'webhook.create': async ({ tx, actor }, input: { endpointId: string; assistantId: string; url: string; hooks: WebhookHook[]; secret: string }) => {
     const workspace_id = workspaceOf(actor)
-    if (!hasSecretsKey()) throw new Reject('Webhooks need SECRETS_KEY on the server to store their secret.')
+    if (!hasSecretsKey()) throw Reject.t('server.api.webhook.needsSecretsKey')
     const [assistant] = await tx.select({ id: assistants.id }).from(assistants)
       .where(and(eq(assistants.id, input.assistantId), eq(assistants.workspace_id, workspace_id)))
-    if (!assistant) throw new Reject('assistant not found')
+    if (!assistant) throw Reject.t('server.api.assistantNotFound')
     await checkUrl(input.url)
     const [taken] = await tx.select({ id: webhook_endpoints.id }).from(webhook_endpoints).where(eq(webhook_endpoints.id, input.endpointId))
-    if (taken) throw new Reject('that endpoint id is taken')
+    if (taken) throw Reject.t('server.api.webhook.idTaken')
     // Two creates at once would both find no webhook (or both count 9) and both insert: one workspace's creates take turns.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`webhook_endpoints:${workspace_id}`}))`)
     const [existing] = await tx.select({ id: webhook_endpoints.id }).from(webhook_endpoints)
       .where(eq(webhook_endpoints.assistant_id, assistant.id))
-    if (existing) throw new Reject('This assistant has a webhook already. Change or delete it instead.')
+    if (existing) throw Reject.t('server.api.webhook.oneAlready')
     const [{ endpoints } = { endpoints: 0 }] = await tx.select({ endpoints: sql<number>`count(*)::int` }).from(webhook_endpoints).where(eq(webhook_endpoints.workspace_id, workspace_id))
     if (endpoints >= WEBHOOK_ENDPOINTS_PER_WORKSPACE)
-      throw new Reject(`At most ${WEBHOOK_ENDPOINTS_PER_WORKSPACE} webhooks per workspace. Delete one you no longer use.`)
+      throw Reject.t('server.api.webhook.tooMany', { count: WEBHOOK_ENDPOINTS_PER_WORKSPACE })
     const [endpoint] = await tx.insert(webhook_endpoints).values({
       id: input.endpointId, workspace_id, assistant_id: assistant.id, hooks: hooksOf(input.hooks), url: input.url, events: [], created_by: actor.actorId,
     }).returning()
@@ -552,10 +561,10 @@ export const webhookHandlers: Record<string, Handler> = {
     const workspaceId = workspaceOf(actor)
     const endpoint = await endpointIn(tx, workspaceId, input.endpointId)
     const lookup = input.hook === 'during_call' ? (endpoint.lookups.find(l => l.name === input.lookup) ?? (input.lookup ? null : endpoint.lookups[0] ?? null)) : null
-    if (input.hook === 'during_call' && !lookup) throw new Reject(input.lookup ? `this webhook has no lookup ${input.lookup}` : 'Add a lookup first: the test asks one of them.')
-    if (!allowTestSend(workspaceId)) throw new Reject(`At most ${WEBHOOK_TESTS_PER_MINUTE} test requests a minute. Try again shortly.`)
+    if (input.hook === 'during_call' && !lookup) throw input.lookup ? Reject.t('server.api.webhook.noSuchLookup', { lookup: input.lookup }) : Reject.t('server.api.webhook.addLookupFirst')
+    if (!allowTestSend(workspaceId)) throw Reject.t('server.api.webhook.tooManyTests', { count: WEBHOOK_TESTS_PER_MINUTE })
     const [stored] = await tx.select().from(webhook_secrets).where(eq(webhook_secrets.endpoint_id, endpoint.id))
-    if (!stored) throw new Reject('this webhook has no secret; add it again')
+    if (!stored) throw Reject.t('server.api.webhook.noSecret')
     const id = newId('whd')
     const payload = testRequest(endpoint, input.hook, await assistantOf(tx, endpoint.assistant_id!), now, lookup, await appOrigin(workspaceId, tx))
     // The hooks the call waits for are tested with their own time limit and their answer read, as on a call.
