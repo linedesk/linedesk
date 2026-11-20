@@ -26,8 +26,8 @@
     },
     "support": {
       "supportEmail": "support@linedesk.ai",
-      "documentationUrl": "https://linedesk.ai/contact",
-      "supportUrl": "https://linedesk.ai/contact"
+      "documentationUrl": "https://linedesk.ai/integrations/hubspot",
+      "supportUrl": "https://linedesk.ai/support"
     },
     "isUserLevel": false
   }
