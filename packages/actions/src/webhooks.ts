@@ -12,6 +12,7 @@ import {
   webhookEvents,
   webhookHooks,
 } from '@linedesk/db/types'
+import { msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
@@ -91,7 +92,7 @@ export const lookupSchema = z
       .describe('When the assistant asks, e.g. "The caller asks where their order is".'),
     fields: z.array(lookupFieldSchema).max(LOOKUP_FIELDS_MAX),
   })
-  .refine(l => new Set(l.fields.map(f => f.name)).size === l.fields.length, 'each field of a lookup needs its own name')
+  .refine(l => new Set(l.fields.map(f => f.name)).size === l.fields.length, msg('server.input.lookupFieldNames'))
 const lookups = z
   .array(lookupSchema)
   .max(LOOKUPS_MAX)

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { actions } from './index.ts'
 import { DESTRUCTIVE_ACTIONS, droppedFields, fieldLabel, inputErrorText, unknownFieldsText } from './input-errors.ts'
 import { providerNames } from './admin.ts'
+import { english, type Words } from './words.ts'
 
 const textFor = (name: string, input: unknown) => {
   const parsed = actions.get(name)!.input.safeParse(input)
@@ -29,12 +30,18 @@ describe('invalid input as plain sentences', () => {
     expect(text).toBe('The Account SID starts with AC followed by 32 letters and digits.')
     const schema = z.object({ hours: z.array(z.object({ startTime: z.string() })), apiKeyId: z.string().email() })
     const sent = { hours: [{ startTime: 1 }], apiKeyId: 'x' }
-    expect(inputErrorText(schema.safeParse(sent).error!, sent)).toBe('Start time must be a string. API key ID must be an email address.')
+    expect(inputErrorText(schema.safeParse(sent).error!, sent)).toBe(
+      'Start time must be a string. API key ID must be an email address.',
+    )
     expect(fieldLabel(['values', 'account_sid'])).toBe('account SID')
   })
 
   it('finds the fields Zod dropped, at any depth, but not the keys of a record', () => {
-    const schema = z.object({ name: z.string(), voice: z.object({ id: z.string() }).optional(), tags: z.record(z.string(), z.string()) })
+    const schema = z.object({
+      name: z.string(),
+      voice: z.object({ id: z.string() }).optional(),
+      tags: z.record(z.string(), z.string()),
+    })
     const sent = { name: 'Maya', voice_provider: 'x', voice: { id: 'v', speed: 2 }, tags: { any: 'key' } }
     expect(droppedFields(sent, schema.parse(sent))).toEqual(['voice_provider', 'voice.speed'])
     expect(droppedFields({ name: 'Maya', tags: {} }, schema.parse({ name: 'Maya', tags: {} }))).toEqual([])
@@ -47,7 +54,10 @@ describe('invalid input as plain sentences', () => {
     const text = inputErrorText(parsed.error!)
     expect(text).toBe('Name must not be empty. Tags takes at most 2. This action does not take the field extra.')
     expect(text).not.toMatch(/[[{]/)
-    const custom = z.string().refine(() => false, { message: 'that provider belongs to another category' }).safeParse('x')
+    const custom = z
+      .string()
+      .refine(() => false, { message: 'that provider belongs to another category' })
+      .safeParse('x')
     expect(inputErrorText(custom.error!)).toBe('That provider belongs to another category.')
   })
 })
@@ -82,6 +92,38 @@ describe('destructive actions take no field they do not know (security review F2
     const parsed = def!.input.safeParse({ ...valid, keepUsers: true })
     expect(parsed.success).toBe(false)
     expect(parsed.error!.issues).toEqual([expect.objectContaining({ code: 'unrecognized_keys', keys: ['keepUsers'] })])
-    expect(inputErrorText(parsed.error!, { ...valid, keepUsers: true })).toBe('This action does not take the field keepUsers.')
+    expect(inputErrorText(parsed.error!, { ...valid, keepUsers: true })).toBe(
+      'This action does not take the field keepUsers.',
+    )
+  })
+})
+
+describe('invalid input in the caller’s language', () => {
+  // Another language: every sentence from the catalogs is marked, what is not from them is not.
+  const pseudo: Words = { t: (key, values) => `⟦${english.t(key, values)}⟧`, format: english.format }
+
+  it('writes every sentence from the catalogs, the field names and values as they are', () => {
+    const parsed = actions.get('team.invite')!.input.safeParse({ email: 'a@b.co', role: 'owner' })
+    const text = inputErrorText(parsed.error!, { email: 'a@b.co', role: 'owner' }, pseudo)
+    expect(text).toMatch(/^⟦.*⟧\.?$/)
+    expect(text).toContain('admin, member')
+    expect(unknownFieldsText(['extra'], pseudo)).toMatch(/^⟦.*extra.*⟧\.?$/)
+  })
+
+  it('writes a schema’s own message given as a key in the same language', () => {
+    const input = { memberId: 'mem_1', avatar: 'data:image/jpeg;base64,AAAA' }
+    const parsed = actions.get('team.setMemberAvatar')!.input.safeParse(input)
+    expect(inputErrorText(parsed.error!, input)).toBe('The picture must be a PNG.')
+    expect(inputErrorText(parsed.error!, input, pseudo)).toMatch(/^⟦.*⟧\.?$/)
+  })
+})
+
+describe('a schema’s own message with params', () => {
+  it('writes the key with the issue’s params, the English as before', () => {
+    const input = { from: '2010-01-01', to: '2026-12-31' }
+    const parsed = actions.get('call.export')!.input.safeParse(input)
+    expect(inputErrorText(parsed.error!, input)).toBe('To: An export covers at most 3,660 days.')
+    const pseudo: Words = { t: (key, values) => `⟦${english.t(key, values)}⟧`, format: english.format }
+    expect(inputErrorText(parsed.error!, input, pseudo)).toMatch(/⟦.*3,660 days.*⟧/)
   })
 })

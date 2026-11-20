@@ -1,5 +1,6 @@
 // Team: who belongs to a workspace and with which role. Members and invitations live in Better
 // Auth's tables (not synced to the browser), so every action has a server handler and no patch.
+import { msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { LOGO_MAX_BYTES } from './branding.ts'
 import { defineAction } from './define.ts'
@@ -198,7 +199,7 @@ export const teamUpdateMemberProfile = defineAction({
     "Change a teammate's name. The name belongs to their account: it changes in every workspace they are in, so only when you manage the team in each of them. Only an owner changes an owner's.",
   input: z.object({
     memberId,
-    name: z.string().transform(cleanPersonName).pipe(z.string().min(1, 'Enter a name.').max(MEMBER_NAME_MAX)),
+    name: z.string().transform(cleanPersonName).pipe(z.string().min(1).max(MEMBER_NAME_MAX)),
   }),
   permission: 'team:write',
 })
@@ -213,8 +214,8 @@ export const teamSetMemberAvatar = defineAction({
     memberId,
     avatar: z
       .string()
-      .startsWith(AVATAR_PREFIX, 'The picture must be a PNG.')
-      .max(AVATAR_PREFIX.length + Math.ceil(LOGO_MAX_BYTES / 3) * 4, 'The picture is too large.'),
+      .startsWith(AVATAR_PREFIX, msg('server.input.pictureNotPng'))
+      .max(AVATAR_PREFIX.length + Math.ceil(LOGO_MAX_BYTES / 3) * 4),
   }),
   permission: 'team:write',
   // The command log notes that a picture was sent, not the image.

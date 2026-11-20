@@ -1,4 +1,5 @@
 // The CSV export of a date range of calls (apps/api/src/call-export.ts).
+import { msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
@@ -15,9 +16,10 @@ const exportInput = z
       .default('csv')
       .describe('csv: the file as text (default); table: the same header and cells as lists, for a spreadsheet.'),
   })
-  .refine(i => i.from <= i.to, { message: 'The first day comes before the last', path: ['to'] })
+  .refine(i => i.from <= i.to, { message: msg('server.input.firstDayBeforeLast'), path: ['to'] })
   .refine(i => (Date.parse(i.to) - Date.parse(i.from)) / 86_400_000 < EXPORT_MAX_DAYS, {
-    message: `An export covers at most ${EXPORT_MAX_DAYS} days`,
+    message: msg('server.input.exportTooLong'),
+    params: { days: EXPORT_MAX_DAYS },
     path: ['to'],
   })
 export const callExport = defineAction({

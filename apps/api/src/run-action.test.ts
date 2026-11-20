@@ -108,6 +108,15 @@ describe('runAction: read-only actions', () => {
     expect(fake.runHandler).not.toHaveBeenCalled()
   })
 
+  it('says what is wrong with the input in the caller’s language', async () => {
+    const english = await runAction('calendar.findSlots', {}, member)
+    expect(english.body).toEqual({ ok: false, error: 'Appointment type ID is required.' })
+    // The pseudo-language (getT marks every catalog sentence ⟦…⟧); no member has it, so the type does not offer it.
+    const pseudo = await runAction('calendar.findSlots', {}, { ...member, locale: 'en-XA' as never })
+    expect(pseudo.status).toBe(422)
+    expect((pseudo.body as { error: string }).error).toMatch(/^⟦.*appointment type ID.*⟧\.?$/i)
+  })
+
   it('refuses fields an action does not take from API keys, and drops them with a warning for our own clients', async () => {
     const input = { appointmentTypeId: 'at_1', voice_provider: 'x' }
     expect(await runAction('calendar.findSlots', input, { ...member, apiKeyId: 'key_1' })).toEqual({

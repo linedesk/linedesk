@@ -82,13 +82,13 @@ function unknownFieldsRefusal(name: string, rawInput: unknown, parsed: unknown, 
     console.warn(`${name}: ignored input fields it does not take: ${dropped.join(', ')}`)
     return null
   }
-  return unknownFieldsRejection(dropped)
+  return unknownFieldsRejection(dropped, wordsOf(actor))
 }
 
 /** 422 for fields an action does not take, with its code, from the strict schemas and the check above alike. */
-const unknownFieldsRejection = (fields: readonly string[]): RunResult => ({
+const unknownFieldsRejection = (fields: readonly string[], words: Reader): RunResult => ({
   status: 422,
-  body: { ok: false, error: unknownFieldsText(fields), code: UNKNOWN_FIELDS },
+  body: { ok: false, error: unknownFieldsText(fields, words), code: UNKNOWN_FIELDS },
 })
 
 /** The unknown fields when they are all that is wrong with the input (a strict schema, DESTRUCTIVE_ACTIONS), else null. */
@@ -360,7 +360,9 @@ export async function runAction(
   const parsed = def.input.safeParse(rawInput)
   if (!parsed.success) {
     const unknown = onlyUnknownFields(parsed.error)
-    return unknown ? unknownFieldsRejection(unknown) : rejection(422, inputErrorText(parsed.error, rawInput))
+    return unknown
+      ? unknownFieldsRejection(unknown, wordsOf(actor))
+      : rejection(422, inputErrorText(parsed.error, rawInput, wordsOf(actor)))
   }
   const agentRefused = agentRefusal(def, parsed.data, actor)
   if (agentRefused) return forbidden(agentRefused)

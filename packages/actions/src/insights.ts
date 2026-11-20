@@ -2,6 +2,7 @@
 // 12 months or everything since the first call), counted on the server from the workspace's calls and
 // bookings (nothing is stored for it). Members see it; the value of a booked appointment
 // (workspace.updateSettings, jobValueCents) is set by owners and admins.
+import { msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
@@ -203,12 +204,13 @@ export const insightsGet = defineAction({
       days: z.union([z.literal(7), z.literal(30), z.literal(90)]).optional(),
     })
     .refine(i => i.period !== 'custom' || (i.from && i.to), {
-      message: 'A custom period needs from and to',
+      message: msg('server.input.customPeriodNeedsDays'),
       path: ['from'],
     })
-    .refine(i => !i.from || !i.to || i.from <= i.to, { message: 'The first day comes before the last', path: ['to'] })
+    .refine(i => !i.from || !i.to || i.from <= i.to, { message: msg('server.input.firstDayBeforeLast'), path: ['to'] })
     .refine(i => !i.from || !i.to || (Date.parse(i.to) - Date.parse(i.from)) / 86_400_000 < INSIGHTS_MAX_DAYS, {
-      message: `A period covers at most ${INSIGHTS_MAX_DAYS} days`,
+      message: msg('server.input.periodTooLong'),
+      params: { days: INSIGHTS_MAX_DAYS },
       path: ['to'],
     }),
   permission: 'call:read',

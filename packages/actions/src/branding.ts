@@ -3,6 +3,7 @@
 // GitHub star prompt shows. An install that keeps the defaults looks like Linedesk; one with its own name or
 // logo shows a small "Powered by Linedesk" line in emails and on the sign-in page unless an admin hides it.
 // Read by anyone (GET /v1/branding, before sign-in), changed only by instance admins.
+import { msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
@@ -14,7 +15,7 @@ const LOGO_PREFIX = 'data:image/png;base64,'
 
 const hexColor = z
   .string()
-  .regex(/^#[0-9a-fA-F]{6}$/, 'Use a color like #1c1917.')
+  .regex(/^#[0-9a-fA-F]{6}$/, msg('server.input.colorFormat'))
   .transform(value => value.toLowerCase())
 
 /**
@@ -30,8 +31,8 @@ export const brandingInput = z.object({
   name: z
     .string()
     .trim()
-    .min(1, 'Give the product a name.')
-    .max(40, 'At most 40 characters.')
+    .min(1)
+    .max(40)
     .refine(
       name => !NAME_CONTROL_CHARACTERS.test(name),
       // i18n-ignore: the API's validation message for API clients; the web app checks first (admin.branding.nameCharacters)
@@ -42,8 +43,8 @@ export const brandingInput = z.object({
   /** A PNG as a data URL; null removes the logo; left out keeps the current one. */
   logo: z
     .string()
-    .startsWith(LOGO_PREFIX, 'The logo must be a PNG.')
-    .max(LOGO_PREFIX.length + Math.ceil(LOGO_MAX_BYTES / 3) * 4, 'The logo is too large.')
+    .startsWith(LOGO_PREFIX, msg('server.input.logoNotPng'))
+    .max(LOGO_PREFIX.length + Math.ceil(LOGO_MAX_BYTES / 3) * 4)
     .nullable()
     .optional(),
   /** The "Star on GitHub" prompt for members (on by default; apps/api/src/star-prompt.ts). */

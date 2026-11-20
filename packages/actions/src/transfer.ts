@@ -2,6 +2,7 @@
 // (a name, a number and a plain-language condition, in order; assistant.update `transfers`). The voice
 // agent dials the contact that fits and reports how it went with call.transfer.
 import { type TransferContact, transferFallbacks } from '@linedesk/db/types'
+import { msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 import { onCallNumberProblem } from './outbound.ts'
@@ -46,10 +47,15 @@ export const transferContacts = z
   .superRefine((list, ctx) => {
     const seen = { id: new Set<string>(), name: new Set<string>() }
     list.forEach((c, i) => {
-      if (seen.id.has(c.id)) ctx.addIssue({ code: 'custom', path: [i, 'id'], message: 'Two transfer contacts have the same id.' })
+      if (seen.id.has(c.id)) ctx.addIssue({ code: 'custom', path: [i, 'id'], message: msg('server.input.transferSameId') })
       const name = c.name.toLowerCase()
       if (seen.name.has(name))
-        ctx.addIssue({ code: 'custom', path: [i, 'name'], message: `Two transfer contacts are called "${c.name}".` })
+        ctx.addIssue({
+          code: 'custom',
+          path: [i, 'name'],
+          message: msg('server.input.transferSameName'),
+          params: { name: c.name },
+        })
       seen.id.add(c.id)
       seen.name.add(name)
     })

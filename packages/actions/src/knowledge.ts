@@ -1,6 +1,7 @@
 // Knowledge (docs/architecture.md, Knowledge): what an assistant knows about the business is its
 // "About the business" text (`business_profile.instructions`), saved with assistant.update. The "Write with
 // help" proposal and the questions callers asked that the assistant could not answer have their own actions.
+import { msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
@@ -65,7 +66,7 @@ export const knowledgeImport = defineAction({
       goalsNote: z.string().trim().max(1_000).optional(),
       url: z.string().trim().max(2000).optional(),
     })
-    .refine(i => i.business || i.url, { message: 'say what the business does, or give its website' }),
+    .refine(i => i.business || i.url, { message: msg('server.input.describeBusiness') }),
   permission: 'settings:write',
   readOnly: true,
   // A read is logged only in some cases (run-action.ts runReadOnly); then the website keeps only its host (LIN-507).
@@ -88,7 +89,7 @@ export const knowledgeQuestionAnswer = defineAction({
     questionId: z.string().min(1),
     /** The question as the owner wants it in the text (defaults to the caller's wording). */
     question: z.string().trim().min(1).max(QUESTION_MAX).optional(),
-    answer: z.string().trim().min(1, 'Write the answer.').max(ANSWER_MAX),
+    answer: z.string().trim().min(1).max(ANSWER_MAX),
     /** The other open questions of its group (evaluation.listQuestions' `questionIds`): answered with it. */
     alsoIds,
   }),

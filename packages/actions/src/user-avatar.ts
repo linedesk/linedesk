@@ -4,6 +4,7 @@
 // is drawn to pixels before it leaves the browser and the server only ever stores and serves a checked PNG. Without one
 // the initials show. It belongs to the account, not to a workspace: every workspace the person is in shows the same
 // picture (workspace_members.avatar_version).
+import { msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { LOGO_MAX_BYTES } from './branding.ts'
 import { defineAction } from './define.ts'
@@ -31,8 +32,8 @@ export const accountSetAvatar = defineAction({
   input: z.object({
     avatar: z
       .string()
-      .startsWith(AVATAR_PREFIX, 'The picture must be a PNG.')
-      .max(AVATAR_PREFIX.length + Math.ceil(LOGO_MAX_BYTES / 3) * 4, 'The picture is too large.'),
+      .startsWith(AVATAR_PREFIX, msg('server.input.pictureNotPng'))
+      .max(AVATAR_PREFIX.length + Math.ceil(LOGO_MAX_BYTES / 3) * 4),
   }),
   permission: 'call:read',
   // Not a secret, but up to half a megabyte: the command log notes that a picture was sent, not the image.

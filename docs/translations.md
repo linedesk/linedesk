@@ -202,8 +202,9 @@ steps, field labels, country names, voice pipeline labels, refusals the web app 
   - the web app never loads `server.json` (its glob leaves it out): only the API writes these texts.
 - Done: provider status and health (Server admin › Providers, the overview and the install walkthrough), LiveKit and
   service health, provider and voice failures, phone-number checks and country names, the onboarding business
-  templates and install steps; the refusals of `handlers.ts`, Checkout and the forwarding check, and the provider
-  tests (`provider-test.ts`). Left, in `server-text-baseline.json`: the providers' setup guides and costs
+  templates and install steps; the refusals of `handlers.ts`, Checkout and the forwarding check, the provider
+  tests (`provider-test.ts`) and invalid action input (`input-errors.ts`, `server.input.*`: a schema's own message is a
+  key, `msg('server.input.…')`). Left, in `server-text-baseline.json`: the providers' setup guides and costs
   (`admin.ts`), carrier forwarding guides, the other refusals and the rest of the API.
 
 ## Emails and notifications

@@ -1,4 +1,5 @@
 import type { AssistantCalendar } from '@linedesk/db/types'
+import { msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { CALLER_NAME_MAX } from './calls.ts'
 import { defineAction } from './define.ts'
@@ -235,13 +236,13 @@ export const calendarConnectWithPassword = defineAction({
       .trim()
       .min(1)
       .max(254)
-      .regex(/^[^:\p{Cc}]+$/u, 'The user name cannot contain a colon or control characters.')
+      .regex(/^[^:\p{Cc}]+$/u, msg('server.input.calendarUserName'))
       .optional(),
     password: z
       .string()
       .min(1)
       .max(500)
-      .regex(/^[^\p{Cc}]+$/u, 'The password cannot contain control characters.'),
+      .regex(/^[^\p{Cc}]+$/u, msg('server.input.calendarPassword')),
   }),
   permission: 'settings:write',
   sensitive: ['password'],
