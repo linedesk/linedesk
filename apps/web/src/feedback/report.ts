@@ -141,6 +141,9 @@ async function takeScreenshot(): Promise<string | null> {
       backgroundColor: getComputedStyle(document.body).backgroundColor || '#ffffff',
       filter: (node: Node) => !skipInShot(node),
       timeout: 8000,
+      // No web-font embedding: it reads the page's style sheets through an inline <style>, which the Content
+      // Security Policy (style-src 'self') blocks, and the whole picture failed. The picture uses the fallback font.
+      font: false as const,
     }
     let url = await domToJpeg(root, { ...options, scale, quality: 0.8 })
     if (dataUrlBytes(url) > MAX_SHOT_BYTES) url = await domToJpeg(root, { ...options, scale: 1, quality: 0.6 })
