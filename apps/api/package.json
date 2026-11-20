@@ -39,7 +39,7 @@
     "better-auth": "^1.7.25",
     "date-holidays": "3.39.1",
     "drizzle-orm": "^0.45.4",
-    "hono": "^4.13.18",
+    "hono": "^4.13.19",
     "nodemailer": "^10.6.0",
     "pg-boss": "^12.38.2",
     "tldts": "7.4.19",

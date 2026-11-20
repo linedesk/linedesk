@@ -151,7 +151,7 @@ importers:
         specifier: ^0.45.4
         version: 0.45.4(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(kysely@0.29.9)(pg@8.23.1)
       hono:
-        specifier: ^4.13.18
+        specifier: ^4.13.19
         version: 4.13.19
       nodemailer:
         specifier: ^10.6.0
@@ -377,7 +377,7 @@ importers:
         version: 12.1.7(@types/react@19.3.0)(react@19.3.1)
     devDependencies:
       '@anthropic-ai/sdk':
-        specifier: ^1.8.0
+        specifier: ^1.9.0
         version: 1.9.0(zod@4.6.7)
       '@types/node':
         specifier: ^26.6.6
