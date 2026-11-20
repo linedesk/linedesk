@@ -34,8 +34,11 @@ test('behind Cloudflare: only its ranges are trusted, the visitor comes from CF-
 })
 
 test('the public site removes X-Linedesk-Voice-Node: only the voice link names a voice server (internal listener)', () => {
+  // The public sites (the install's own and the partner site) serve the routes of the app-routes snippet.
+  const routes = caddyfile.slice(caddyfile.indexOf('(app-routes) {'), caddyfile.indexOf('{$SITE_ADDRESS::80} {'))
+  expect(routes).toContain('request_header -X-Linedesk-Voice-Node')
   const site = caddyfile.slice(caddyfile.indexOf('{$SITE_ADDRESS::80} {'))
-  expect(site).toContain('request_header -X-Linedesk-Voice-Node')
-  const internal = caddyfile.slice(caddyfile.indexOf(':3100 {'), caddyfile.indexOf('{$SITE_ADDRESS::80} {'))
+  expect(site.slice(0, site.indexOf('\n}\n'))).toContain('import app-routes')
+  const internal = caddyfile.slice(caddyfile.indexOf(':3100 {'), caddyfile.indexOf('(app-routes) {'))
   expect(internal).not.toContain('X-Linedesk-Voice-Node')
 })
