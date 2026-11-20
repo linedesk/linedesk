@@ -440,7 +440,7 @@ test('caller ID: a known number is in the prompt and not asked for, a saved name
   expect(callerIdInstructions(known)).toMatch(/It is the callback number: never ask the caller to say a number\./)
   // LIN-386: one short question instead of reading the digits; another number goes through the phone step.
   expect(callerIdInstructions(known)).toContain(
-    'Before you tell the caller someone will get back to them, or book, ask once, without saying its digits, whether this number is the best one to reach them. Only if they want another number, get it with get_phone_number.',
+    'Before you tell the caller someone will get back to them, or book, ask once, without saying its digits, whether this number is the best one to reach them; skip that question when they already gave another number. If they say yes, you have their number: do not call get_phone_number. Only if they want another number, get it with get_phone_number, and then use that number.',
   )
   expect(callerIdInstructions(known)).not.toMatch(/saved contact|can be faked/)
   expect(callerIdInstructions({ ...known, name: 'Linda Park' })).toMatch(
@@ -710,7 +710,7 @@ test('the prompt says only what the assistant cannot do on this call, never what
 
 test('cancel or move: the privacy core stays in the prompt, the rest is with the tools', () => {
   expect(CHANGE_BOOKING_INSTRUCTIONS).toContain('never say whether they have any')
-  expect(CHANGE_BOOKING_INSTRUCTIONS).toContain('ask which day it is on and get their full name with get_name')
+  expect(CHANGE_BOOKING_INSTRUCTIONS).toContain('ask which day it is on, then call get_name: it asks the caller for their full name, so never ask for it yourself.')
   // What the tools already say: they refuse without a confirmed name, and their errors say not to guess.
   expect(CHANGE_BOOKING_INSTRUCTIONS).not.toMatch(/do not guess|the tools use the name/)
 })

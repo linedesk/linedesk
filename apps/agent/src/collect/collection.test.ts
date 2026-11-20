@@ -75,9 +75,13 @@ test('with caller ID the phone step is only for another number the caller wants'
   const tools = (callerId: string | null) => collectTools({ log: {} as CallLog, today: () => '2026-11-17', callerId })
   expect(tools('+15035550142').get_phone_number.description).toBe(PHONE_TOOL_WITH_CALLER_ID)
   expect(PHONE_TOOL_WITH_CALLER_ID).toMatch(
-    /^Only when the caller wants to be reached on a different number.*Never to ask for a number otherwise\.$/,
+    /^The number the caller is calling from is already their callback number\. Only when the caller says they want to be reached on a different number.*Never call it otherwise, also not to take a message\.$/,
   )
   expect(tools(null).get_phone_number.description).toBe(PHONE_TOOL)
+  // LIN-670: with caller ID the model must quote the caller's words asking for another number, or the call is refused.
+  expect(tools('+15035550142').get_phone_number.parameters.safeParse({ what: 'callback number' }).success).toBe(false)
+  expect(tools('+15035550142').get_phone_number.parameters.safeParse({ caller_asked: 'call my cell instead' }).success).toBe(true)
+  expect(tools(null).get_phone_number.parameters.safeParse({ what: 'callback number' }).success).toBe(true)
 })
 
 test('a declined callback number on a test call: noted as test call, no caller ID, and not asked for again', () => {

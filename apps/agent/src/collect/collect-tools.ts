@@ -153,21 +153,26 @@ export function phoneStep(ctx: Pick<CollectContext, 'callerId' | 'testCall' | 'c
 export const PHONE_TOOL = 'Get a phone number from the caller and confirm it.'
 /** With caller ID: never to ask for the number the caller is calling from (LIN-99), only for another one. */
 export const PHONE_TOOL_WITH_CALLER_ID =
-  'Only when the caller wants to be reached on a different number than the one they are calling from: get that number and confirm it. Never to ask for a number otherwise.'
+  'The number the caller is calling from is already their callback number. Only when the caller says they want to be reached on a different number: get that number and confirm it. Never call it otherwise, also not to take a message.'
 
 export function collectTools(ctx: CollectContext) {
   return {
     get_name: llm.tool({
-      description: "Get the caller's first and last name.",
+      description: "Get the caller's first and last name: it asks the caller itself, so call it instead of asking for the name yourself, also before you cancel or move an appointment.",
       execute: async (_args, opts) => runStep(ctx, opts, nameCollectorFor(ctx.language?.())),
     }),
     // With caller ID that number is the callback number (call.callerId): the step is only for another number the
     // caller wants to be called on, read back and confirmed like any other (LIN-386).
     get_phone_number: llm.tool({
       description: ctx.callerId ? PHONE_TOOL_WITH_CALLER_ID : PHONE_TOOL,
-      parameters: z.object({
-        what: z.string().nullish().describe('What the number is for, in English, e.g. "callback number". Default: callback number.'),
-      }),
+      parameters: ctx.callerId
+        ? z.object({
+            caller_asked: z.string().min(1).describe("The caller's own words asking to be reached on a different number than the one they are calling from."),
+            what: z.string().nullish().describe('What the other number is for, in English. Default: callback number.'),
+          })
+        : z.object({
+            what: z.string().nullish().describe('What the number is for, in English, e.g. "callback number". Default: callback number.'),
+          }),
       execute: async ({ what }, opts) => runStep(ctx, opts, phoneStep(ctx, what?.trim() || 'callback number')),
     }),
     get_address: llm.tool({

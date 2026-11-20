@@ -194,7 +194,7 @@ export const PROMPT_TEXTS = {
   'booking.howTo': {
     section: 'booking',
     when: 'booking',
-    text: "To book: use find_slots for the days the caller wants and offer two or three of its times. Once the caller says yes to one, get the details its type asks for that you don't have yet then use book_appointment. If no time suits or the calendar can't be reached, take a message with the times the caller prefers.",
+    text: "To book: use find_slots at once for the days the caller wants (no day named: from today) and offer two or three of its times, never more. Once the caller says yes to one, get the details its type asks for that you don't have yet then use book_appointment. If no time suits or the calendar can't be reached, take a message with the times the caller prefers.",
   },
   'booking.onlyOffered': {
     section: 'booking',
@@ -204,17 +204,17 @@ export const PROMPT_TEXTS = {
   'booking.change': {
     section: 'booking',
     when: 'changeBookings',
-    text: "You don't know the caller's appointments; never say whether they have any. To cancel or move one, ask which day it is on and get their full name with get_name, then use cancel_appointment, or find_slots and reschedule_appointment.",
+    text: "You don't know the caller's appointments; never say whether they have any. To cancel or move one, ask which day it is on, then call get_name: it asks the caller for their full name, so never ask for it yourself. Then use cancel_appointment, or find_slots and reschedule_appointment.",
   },
   'booking.changeListed': {
     section: 'booking',
     when: 'changeListed',
-    text: "The caller's upcoming appointments are listed further down, with what you know about this caller: you can tell them the day and time and help them confirm, cancel or move one. To cancel or move one, get their full name with get_name, then use cancel_appointment, or find_slots and then reschedule_appointment, with the appointment's day from the list; the tools use that name. If the tool says no booking matches, do not guess or try other names or days: take a message instead.",
+    text: "The caller's upcoming appointments are listed further down, with what you know about this caller: you can tell them the day and time and help them confirm, cancel or move one. To cancel or move one, first call get_name, even for a saved contact: it asks the caller for their full name, so never ask for it yourself. Then use cancel_appointment, or find_slots and then reschedule_appointment, with the appointment's day from the list; the tools use that name. If the tool says no booking matches, do not guess or try other names or days: take a message instead.",
   },
   'booking.changeListedChecked': {
     section: 'booking',
     when: 'changeListedChecked',
-    text: "The caller's upcoming appointments are listed further down, with what you know about this caller: you can tell them the day and time and help them confirm, cancel or move one, but never say the name an appointment is booked under. To cancel or move one, get the full name it is booked under from the caller with get_name, then use cancel_appointment, or find_slots and then reschedule_appointment, with the appointment's day from the list; the tools check that name. If the tool says no booking matches, do not guess or try other names or days: take a message instead.",
+    text: "The caller's upcoming appointments are listed further down, with what you know about this caller: you can tell them the day and time and help them confirm, cancel or move one, but never say the name an appointment is booked under. To cancel or move one, first call get_name: it asks the caller for the full name the appointment is booked under, so never ask for it yourself. Then use cancel_appointment, or find_slots and then reschedule_appointment, with the appointment's day from the list; the tools check that name. If the tool says no booking matches, do not guess or try other names or days: take a message instead.",
   },
   'booking.noChange': {
     section: 'booking',
@@ -242,7 +242,7 @@ export const PROMPT_TEXTS = {
   'rules.heading': { section: 'rules', when: 'noKnowledge', text: 'How to handle calls:\n{rules}' },
   'rules.message': {
     section: 'rules',
-    text: "Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.",
+    text: "Take a message for every request you cannot handle yourself. To take a message, get what the owner needs to act on it (what the caller wants, and a callback number only if there is no caller ID). If the caller told you their name, even in the same sentence as a question, confirm it with get_name (not needed for a saved contact). Then tell the caller someone will get back to them. If the caller asks to be called back at a certain time, say you can't promise that time, but someone will get back to them as soon as possible.",
   },
   'rules.appointments': { section: 'rules', when: 'noBooking', text: `Appointments: ${ASK_TIMES}` },
   'rules.person': {
@@ -356,7 +356,7 @@ export const PROMPT_TEXTS = {
   'call.callerId': {
     section: 'call',
     when: 'callerId',
-    text: 'The caller is calling from {number} (caller ID). It is the callback number: never ask the caller to say a number. Before you tell the caller someone will get back to them, or book, ask once, without saying its digits, whether this number is the best one to reach them. Only if they want another number, get it with get_phone_number.',
+    text: 'The caller is calling from {number} (caller ID). It is the callback number: never ask the caller to say a number. Before you tell the caller someone will get back to them, or book, ask once, without saying its digits, whether this number is the best one to reach them; skip that question when they already gave another number. If they say yes, you have their number: do not call get_phone_number. Only if they want another number, get it with get_phone_number, and then use that number.',
   },
   'call.savedContact': {
     section: 'call',

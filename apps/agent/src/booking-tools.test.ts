@@ -527,7 +527,7 @@ test('one calendar: not listed in the prompt, and the tools use it when the mode
 
 test('the booking rules: one short way to book, and the two costly mistakes kept in the prompt', () => {
   const prompt = buildInstructions(null, null, booking)
-  expect(prompt).toContain('To book: use find_slots for the days the caller wants and offer two or three of its times.')
+  expect(prompt).toContain('To book: use find_slots at once for the days the caller wants (no day named: from today) and offer two or three of its times, never more.')
   expect(prompt).toContain(
     'Only offer times find_slots returned, and book only a time the caller said yes to in their own words',
   )

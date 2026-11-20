@@ -131,7 +131,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
         offeredSlots.set(key, slot)
         return `- ${slot.label} [${key}]`
       })
-      return `Free times (offer two or three; book with the key in brackets):\n${listed.join('\n')}\n${SLOT_RULES}\n${zoneRule((data as FindSlotsData).timeZone ?? call.booking?.timeZone ?? "local")}`
+      return `Free times (say only two or three of them; book with the key in brackets):\n${listed.join('\n')}\n${SLOT_RULES}\n${zoneRule((data as FindSlotsData).timeZone ?? call.booking?.timeZone ?? "local")}`
     } catch (e) {
       log.record('system', 'Could not check availability', calendarFindSlots.name)
       return `Checking the calendar failed (${failure(e)}). Apologize and take a message with the times the caller prefers.`

@@ -1230,6 +1230,8 @@ export const CASES: Case[] = [
       'My water heater is leaking. Could someone come Thursday?',
       'Thursday at 9 in the morning works.',
       'Great, thanks.',
+      // The caller-ID rule (LIN-386) asks once whether this number is the best one before it books.
+      'Yes, this number is fine.',
     ]),
     checks: [
       { type: 'tool', tool: 'find_slots' },
@@ -1322,6 +1324,8 @@ export const CASES: Case[] = [
     turns: english([
       'I want to book a repair visit for tomorrow, my kitchen drain is clogged.',
       'Any time in the morning.',
+      // The caller-ID rule (LIN-386) asks once whether this number is the best one before "someone will get back".
+      'Yes, this number is fine.',
     ]),
     sim: { slots: 'fail' },
     checks: [
@@ -1340,6 +1344,8 @@ export const CASES: Case[] = [
     turns: english([
       'Can I book an appointment for tomorrow morning? My water heater needs a check.',
       'Around 9 would be great.',
+      // The caller-ID rule (LIN-386) asks once whether this number is the best one before "someone will confirm".
+      'Yes, this number is fine.',
     ]),
     checks: [
       {
