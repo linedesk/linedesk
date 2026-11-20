@@ -1745,6 +1745,7 @@
   "system.zapierReachable": "{address}: Zapier kann sie erreichen.",
   "system.zapierSteps": "Workspaces finden <app>Linedesk auf Zapier</app> und die Schritte unter <link>Integrationen › Zapier</link>. Deine Firewall muss Zapier diese Adresse erreichen lassen und dem Server erlauben, an {host} zu senden.",
   "system.zapierUnreachable": "{address}: Zapier kann sie nicht erreichen. Stell Linedesk unter einer https-Adresse im Internet bereit.",
+  "tryOut.areaCodeIn": "Vorwahl ({countries})",
   "tryOut.callerQuestion": "Anrufer: Hallo, mein Warmwasserboiler leckt. Kann heute noch jemand vorbeikommen?",
   "tryOut.codeLabel": "Der Code aus der E-Mail",
   "tryOut.codePlaceholder": "6-stelliger Code",
