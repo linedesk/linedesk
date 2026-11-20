@@ -603,6 +603,7 @@
   "danger.list.calls": "{count, plural, one {# call} other {# calls}}, with their transcripts and recordings",
   "danger.list.contacts": "{count, plural, one {# contact} other {# contacts}}",
   "danger.list.members": "The access of {count, plural, one {# other member} other {# other members}}; each of them gets an email that it was deleted",
+  "danger.list.plan": "Its plan, which ends now: nothing more is charged, and the rest of the period is not refunded",
   "danger.list.rest": "Its bookings, settings and invitations",
   "danger.numbers.admin": "{count, plural, one {# phone number} other {# phone numbers}}: numbers bought through {brand} are released at the carrier, the others stop reaching {brand}",
   "danger.numbers.attached": "{count, plural, one {# phone number you brought or connected: it stops reaching {brand} and stays yours} other {# phone numbers you brought or connected: they stop reaching {brand} and stay yours}}",

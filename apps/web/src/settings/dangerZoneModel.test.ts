@@ -10,6 +10,7 @@ const preview: WorkspaceDeletePreviewData = {
   otherMembers: 3,
   accountsDeleted: 2,
   ownAccountDeleted: true,
+  planEnds: false,
   stepUp: null,
 }
 
@@ -51,11 +52,17 @@ test('one of each, and nothing to say about members or numbers when there are no
 
 test('the name is typed to confirm; a keep box (off: the accounts are deleted) only when an account would go', () => {
   const confirm = deleteOwnConfirmation(preview, 'Linedesk')
-  expect(confirm).toMatchObject({ typed: 'Zz Delete Test', action: 'Delete workspace', option: 'Keep these accounts, yours included' })
+  expect(confirm).toMatchObject({
+    typed: 'Zz Delete Test',
+    action: 'Delete workspace',
+    option: 'Keep these accounts, yours included',
+  })
   expect(confirm.after).toBe('This cannot be undone.')
   expect(deleteOwnConfirmation({ ...preview, ownAccountDeleted: false }, 'Linedesk').option).toBe('Keep their accounts')
   expect(deleteOwnConfirmation({ ...preview, accountsDeleted: 0 }, 'Linedesk').option).toBe('Keep my account')
-  expect(deleteOwnConfirmation({ ...preview, accountsDeleted: 0, ownAccountDeleted: false }, 'Linedesk').option).toBeUndefined()
+  expect(
+    deleteOwnConfirmation({ ...preview, accountsDeleted: 0, ownAccountDeleted: false }, 'Linedesk').option,
+  ).toBeUndefined()
 })
 
 test('a separate danger warning for the own account, gone quiet once it is kept', () => {
@@ -66,4 +73,10 @@ test('a separate danger warning for the own account, gone quiet once it is kept'
   expect(ownAccountWarning(preview, false)?.text).toMatch(/signed out and can't sign in again/)
   expect(ownAccountWarning(preview, true)).toMatchObject({ tone: 'neutral', title: 'Your account stays.' })
   expect(ownAccountWarning({ ownAccountDeleted: false }, false)).toBeNull()
+})
+
+test('a workspace that alone pays for a running plan says the plan ends with it (LIN-647)', () => {
+  expect(deleteOwnList({ ...preview, planEnds: true }, 'Linedesk').at(-1)).toBe(
+    'Its plan, which ends now: nothing more is charged, and the rest of the period is not refunded',
+  )
 })

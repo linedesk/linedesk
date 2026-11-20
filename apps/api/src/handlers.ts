@@ -220,6 +220,7 @@ import { selfServeHandlers } from './signup-handlers.ts'
 import { termsUpdateHandlers } from './terms-update.ts'
 import { partnerHandlers } from './partners.ts'
 import { billingNumberRefusal, checkoutHandlers, checkoutPreparers } from './billing-checkout.ts'
+import { workspaceDeletePreparers } from './workspace-delete-plan.ts'
 import { matchLocale, type Translator } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
 import { partnerBrandHandlers } from './partner-brand.ts'
@@ -1034,6 +1035,7 @@ export const preparers: Record<string, Preparer> = {
   ...partnerKeyPreparers,
   ...partnerSenderPreparers,
   ...partnerDomainPreparers,
+  ...workspaceDeletePreparers,
 }
 
 /**

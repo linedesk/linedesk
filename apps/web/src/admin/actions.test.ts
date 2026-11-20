@@ -105,6 +105,10 @@ test('the toast after a delete counts the accounts and names the numbers left at
   expect(deletedWorkspaceText('Brightwater', { usersDeleted: ['u1'] })).toBe(
     'Brightwater is deleted. 1 account deleted with it.',
   )
+  // The plan it alone paid for ended with it (LIN-647).
+  expect(deletedWorkspaceText('Brightwater', { usersDeleted: [], planCanceled: true })).toBe(
+    'Brightwater is deleted. Its plan ended with it, and nothing more is charged.',
+  )
   expect(
     deletedWorkspaceText('Brightwater', {
       usersDeleted: ['u1', 'u2'],

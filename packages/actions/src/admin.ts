@@ -1418,6 +1418,8 @@ export type WorkspaceDeleteData = {
   /** Accounts deleted with it (members without another workspace), by email. */
   usersDeleted: string[]
   numbers: { e164: string; carrier: 'released' | 'unrouted' | 'none' | 'left'; note?: string }[]
+  /** The plan the workspace alone paid for ended with it (canceled at once in Stripe, the bill closed; LIN-647). */
+  planCanceled?: boolean
 }
 /** The most a monthly spending cap can be, in USD: a typo should not lift it to nothing. */
 export const SPENDING_CAP_MAX_USD = 100_000

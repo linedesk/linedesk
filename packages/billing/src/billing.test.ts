@@ -1271,6 +1271,43 @@ describe('stripe trial Checkout', () => {
     expect(calls.map(c => c.route)).toEqual(['POST /v1/checkout/sessions'])
   })
 
+  test("the workspace's country goes on a customer without an address, never over a saved one (LIN-647)", async () => {
+    const plan = { ...base, kind: 'plan' as const, items: [{ lookupKey: 'ws_yearly', quantity: 1 }], country: 'DE' }
+    // No address yet: the country is set before the session, and nothing else of the customer.
+    const fresh = stripeRoutes({
+      'GET /v1/customers/cus_1': () => [200, customer(null, { address: null })],
+      'POST /v1/customers/cus_1': () => [200, customer(null, { address: { country: 'DE' } })],
+      'POST /v1/checkout/sessions': () => [200, session],
+    })
+    await (await stripeWith(fresh.doFetch)).startCheckout(plan)
+    expect(fresh.calls.map(c => c.route)).toEqual([
+      'GET /v1/customers/cus_1',
+      'POST /v1/customers/cus_1',
+      'POST /v1/checkout/sessions',
+    ])
+    expect(Object.fromEntries(fresh.calls[1]!.body)).toEqual({ 'address[country]': 'DE' })
+    // A saved address (the owner typed it at an earlier Checkout) is never written over, whatever its country.
+    const saved = stripeRoutes({
+      'GET /v1/customers/cus_1': () => [
+        200,
+        customer(null, { address: { country: 'FR', line1: '1 Rue de Rivoli', city: 'Paris', postal_code: '75001' } }),
+      ],
+      'POST /v1/checkout/sessions': () => [200, session],
+    })
+    await (await stripeWith(saved.doFetch)).startCheckout(plan)
+    expect(saved.calls.map(c => c.route)).toEqual(['GET /v1/customers/cus_1', 'POST /v1/checkout/sessions'])
+    // A customer Stripe cannot read: Checkout starts all the same, on the IP's guess.
+    const warn = console.warn
+    console.warn = () => {}
+    try {
+      const down = stripeRoutes({ 'POST /v1/checkout/sessions': () => [200, session] })
+      expect(await (await stripeWith(down.doFetch)).startCheckout(plan)).toEqual({ id: 'cs_test_1', url: session.url })
+      expect(down.calls.map(c => c.route)).not.toContain('POST /v1/customers/cus_1')
+    } finally {
+      console.warn = warn
+    }
+  })
+
   test('with the install’s Stripe Tax off: no automatic tax and no tax IDs; Stripe asks for the address only if needed', async () => {
     for (const kind of ['plan', 'topup'] as const) {
       const { doFetch, calls } = stripeRoutes({

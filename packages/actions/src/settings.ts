@@ -908,6 +908,8 @@ export type WorkspaceDeletePreviewData = {
   otherMembers: number
   accountsDeleted: number
   ownAccountDeleted: boolean
+  /** The workspace is the only one on a running Cloud plan: deleting it ends the plan at once, no refund (LIN-647). */
+  planEnds: boolean
   stepUp: OwnerStepUp | null
 }
 

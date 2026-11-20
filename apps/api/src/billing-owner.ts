@@ -41,7 +41,7 @@ import {
   workspace_settings,
   workspaceCallLimit,
 } from '@linedesk/db'
-import { and, count, eq, inArray, isNotNull } from 'drizzle-orm'
+import { and, count, eq, inArray, isNotNull, ne } from 'drizzle-orm'
 import { lifecycleDates } from './billing-lifecycle.ts'
 import { balanceFlags } from './billing-page.ts'
 import { canAddCallsStep } from './extra-calls.ts'
@@ -423,14 +423,21 @@ export async function billOnWorkspaceHandOver(
 
 /**
  * Deleting accounts (team.leave with deleteAccount, a workspace delete, the account sweep): refused for the owner of a
- * bill that is trialing, active or past_due: hand the bill over or cancel it first.
+ * bill that is trialing, active or past_due: hand the bill over or cancel it first. `except`: a bill the caller ends in the
+ * same delete (workspace-delete-plan.ts), checked before its plan is canceled.
  */
-export async function refuseDeletingBillOwners(tx: Tx, userIds: string[]) {
+export async function refuseDeletingBillOwners(tx: Tx, userIds: string[], except?: string) {
   if (!userIds.length) return
   const [running] = await tx
     .select({ id: billing_accounts.id })
     .from(billing_accounts)
-    .where(and(inArray(billing_accounts.owner_user_id, userIds), inArray(billing_accounts.status, [...RUNNING])))
+    .where(
+      and(
+        inArray(billing_accounts.owner_user_id, userIds),
+        inArray(billing_accounts.status, [...RUNNING]),
+        except ? ne(billing_accounts.id, except) : undefined,
+      ),
+    )
     .limit(1)
   if (running)
     throw new Reject(

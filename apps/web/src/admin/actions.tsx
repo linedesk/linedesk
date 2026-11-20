@@ -292,10 +292,12 @@ export function deletedWorkspaceText(name: string, data: unknown): string {
     )
     .join('; ')
   const users = (data as { usersDeleted?: string[] } | null)?.usersDeleted?.length ?? 0
+  const planCanceled = (data as { planCanceled?: boolean } | null)?.planCanceled === true
   // Whole sentences, one after the other.
   return [
     t('admin.actions.workspace.deleted.done', { name }),
     ...(users ? [t('admin.actions.workspace.deleted.accounts', { count: users })] : []),
+    ...(planCanceled ? [t('admin.actions.workspace.deleted.planCanceled')] : []),
     ...(left ? [t('admin.actions.workspace.deleted.atCarrier', { numbers: left })] : []),
   ].join(' ')
 }

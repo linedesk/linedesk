@@ -18,11 +18,12 @@ import { ownerStepUpNeeded, ownerStepUpRefusal } from './owner-step-up.ts'
 import { seatsFollowDelete } from './partner-billing.ts'
 import { emailBrandOf } from './partner-brand.ts'
 import { deleteWorkspace, membersOnlyHere } from './workspace-delete.ts'
+import { type EndingPlan, endPlanWithDelete, planEndingWith } from './workspace-delete-plan.ts'
 
 export const ONLY_OWNER = 'Only an owner can delete this workspace.'
 
 /** The caller's workspace, when they own it; refuses everyone else. */
-async function ownedWorkspace(tx: Tx, actor: Actor): Promise<string> {
+export async function ownedWorkspace(tx: Tx, actor: Actor): Promise<string> {
   if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
   if (!actor.workspaceId || actor.role === 'agent') throw new Forbidden(ONLY_OWNER)
   const [me] = await tx
@@ -66,13 +67,14 @@ export async function deletePreview({ tx, actor }: HandlerCtx) {
     ),
     accountsDeleted: (await membersOnlyHere(tx, workspaceId, actor.actorId)).length,
     ownAccountDeleted: await ownAccountGoes(tx, workspaceId, actor.actorId),
+    planEnds: !!(await planEndingWith(tx, workspaceId)),
     stepUp: await ownerStepUpNeeded(tx, actor),
   }
   return { rows: {}, data }
 }
 
 export async function deleteOwn(
-  { tx, actor, now, telephony, onCommit }: HandlerCtx,
+  { tx, actor, now, telephony, onCommit, prepared }: HandlerCtx,
   input: { name: string; keepOwnAccount?: boolean; keepAccounts?: boolean },
 ) {
   const workspaceId = await ownedWorkspace(tx, actor)
@@ -98,6 +100,8 @@ export async function deleteOwn(
 
   // Read before the workspace goes: a white-label partner's client hears it under the partner's name.
   const brand = await emailBrandOf(workspaceId, tx)
+  // The plan this workspace alone paid for ends with it (canceled in Stripe by the preparer; LIN-647).
+  const planCanceled = await endPlanWithDelete(tx, workspaceId, prepared as EndingPlan | null, now)
   await seatsFollowDelete(tx, onCommit, workspaceId)
   const result = await deleteWorkspace(
     tx,
@@ -132,6 +136,11 @@ export async function deleteOwn(
         .where(eq(member.userId, actor.actorId))
         .orderBy(asc(member.createdAt))
         .limit(1)
-  const data: WorkspaceDeleteOwnData = { ...result, nextWorkspaceId: next?.id ?? null, ownAccountDeleted: ownGoes }
+  const data: WorkspaceDeleteOwnData = {
+    ...result,
+    nextWorkspaceId: next?.id ?? null,
+    ownAccountDeleted: ownGoes,
+    planCanceled,
+  }
   return { rows: {}, data }
 }

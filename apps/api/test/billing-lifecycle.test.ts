@@ -582,6 +582,8 @@ describe('bill ownership', () => {
     await expect(db.transaction(tx => refuseDeletingBillOwners(tx, [running.ws.owner.userId]))).rejects.toThrow(
       /hand the bill/,
     )
+    // Deleting the bill's only workspace ends its plan first (LIN-647, workspace-delete-plan.test.ts); Stripe cannot be
+    // asked here, so nothing is deleted.
     const deleted = await act(running.ws.owner, 'workspace.deleteOwn', { name: 'Brightwater Plumbing & Heating' })
     expect(deleted.status).toBe(409)
     expect(await db.select().from(organization).where(eq(organization.id, running.ws.id))).toHaveLength(1)

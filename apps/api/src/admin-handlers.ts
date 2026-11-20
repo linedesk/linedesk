@@ -61,6 +61,7 @@ import {
   setProviderKeys,
 } from './provider-settings.ts'
 import { seatsFollowDelete } from './partner-billing.ts'
+import { type EndingPlan, endPlanWithDelete } from './workspace-delete-plan.ts'
 import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import {
   billingOffWithKeys,
@@ -547,18 +548,18 @@ export const adminHandlers: Record<string, Handler> = {
 
   'workspace.disable': ({ tx, now }, input) => setWorkspaceDisabled(tx, input.workspaceId, new Date(now)),
   'workspace.enable': ({ tx }, input) => setWorkspaceDisabled(tx, input.workspaceId, null),
-  'workspace.delete': async ({ tx, now, actor, telephony, onCommit }, input) => {
+  'workspace.delete': async ({ tx, now, actor, telephony, onCommit, prepared }, input) => {
+    // The plan this workspace alone paid for ends with it, whatever happens to the accounts (LIN-647).
+    const planCanceled = await endPlanWithDelete(tx, input.workspaceId, prepared as EndingPlan | null, now)
     await seatsFollowDelete(tx, onCommit, input.workspaceId)
-    return {
-      rows: {},
-      data: await deleteWorkspaceAndTell(
-        tx,
-        { workspaceId: input.workspaceId, name: input.name, keepAccounts: input.keepAccounts === true },
-        now,
-        actor.actorId,
-        telephony,
-      ),
-    }
+    const deleted = await deleteWorkspaceAndTell(
+      tx,
+      { workspaceId: input.workspaceId, name: input.name, keepAccounts: input.keepAccounts === true },
+      now,
+      actor.actorId,
+      telephony,
+    )
+    return { rows: {}, data: { ...deleted, planCanceled } }
   },
   'workspace.setSpendingCap': ({ tx, now }, input) => setSpendingCap(tx, input.workspaceId, input.capUsd, now),
 

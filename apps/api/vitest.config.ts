@@ -42,6 +42,8 @@ const INSTANCE_WIDE_FILES = [
   'test/authenticator.test.ts',
   'test/admin-subjects.test.ts',
   'test/workspace-delete-own.test.ts',
+  // Makes server admins (workspace.delete) and mocks the billing provider.
+  'test/workspace-delete-plan.test.ts',
   'test/setup-checklist.test.ts',
   'test/provider-failures.test.ts',
   // A refused Slack client secret is recorded as the Slack provider failing (provider_failures).

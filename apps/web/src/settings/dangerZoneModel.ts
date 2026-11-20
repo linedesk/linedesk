@@ -16,6 +16,8 @@ export type WorkspaceDeleteFacts = {
   numbers: string[]
   otherMembers: number
   accountsDeleted: number
+  /** The workspace is the only one on a running plan, which ends with it (LIN-647). */
+  planEnds?: boolean
 }
 
 export function workspaceDeleteList(f: WorkspaceDeleteFacts): string[] {
@@ -27,6 +29,7 @@ export function workspaceDeleteList(f: WorkspaceDeleteFacts): string[] {
     t('settings.danger.list.rest'),
     ...(f.otherMembers ? [t('settings.danger.list.members', { count: f.otherMembers })] : []),
     ...(f.accountsDeleted ? [t('settings.danger.list.accounts', { count: f.accountsDeleted })] : []),
+    ...(f.planEnds ? [t('settings.danger.list.plan')] : []),
   ]
 }
 
@@ -53,6 +56,7 @@ export function deleteOwnList(p: WorkspaceDeletePreviewData, brand: string): str
     numbers,
     otherMembers: p.otherMembers,
     accountsDeleted: p.accountsDeleted,
+    planEnds: p.planEnds,
   })
 }
 
