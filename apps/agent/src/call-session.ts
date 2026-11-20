@@ -104,6 +104,8 @@ export interface CallSession {
   businessHours: BusinessHours | null
   /** What the assistant can book; null: no appointment type or no calendar, so it only takes messages. */
   booking: BookingContext | null
+  /** The clock the booking tools take "today" from (the LLM test's fixed day); missing: the real clock. */
+  now?: () => number
   /** What the assistant can ask the business's system during the call (its webhook's lookups); none: no such tools. */
   lookups: WebhookLookup[]
   /** false: the workspace keeps no recordings (Settings, Recordings: Don't keep), so the call is not recorded. Missing: record. */

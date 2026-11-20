@@ -102,7 +102,7 @@ export function bookingTools(api: ApiClient, call: CallSession, log: CallLog) {
     `That is not a time find_slots offered. Use the key in brackets of one of these: ${[...offeredSlots].slice(-6).map(([key, s]) => `${s.label} [${key}]`).join(', ') || 'none yet, call find_slots first'}.`
 
   /** The day the caller named, worked out from today where the business is; a question or a miss is said back as is. */
-  const today = () => todayIn(call.booking?.timeZone ?? 'America/New_York')
+  const today = () => todayIn(call.booking?.timeZone ?? 'America/New_York', call.now?.() ?? Date.now())
   const dayOf = (said: string | null | undefined, end = false): Day | null => (said?.trim() ? resolveDay(said, today(), { end }) : null)
   /** The calendar the model named, else the default one (the prompt lists calendars only when there are several). */
   const calendarOf = (id: string | null | undefined) =>

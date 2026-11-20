@@ -1,12 +1,12 @@
 // The LLM test suite's own tests (LIN-391), without a model: the deterministic checks, the case catalogue, and the
 // tools built from the real definitions.
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PHONE_TOOL, PHONE_TOOL_WITH_CALLER_ID } from '../collect/collect-tools.ts'
 import { CASES, CATEGORIES, neededPasses } from './cases.ts'
 import { globalProblems, languageOf, runCheck, sentencesOf } from './checks.ts'
 import type { CallEvent, Transcript } from './conversation.ts'
 import { JOB_STATUS_LOOKUP, MIKE, setup } from './setups.ts'
-import { buildTools, openAiTools, parseArgs } from './tools.ts'
+import { buildTools, fakeToolOptions, openAiTools, parseArgs } from './tools.ts'
 
 const transcript = (events: CallEvent[], over: Partial<Transcript> = {}): Transcript => ({
   events,
@@ -165,6 +165,18 @@ describe('tools', () => {
   it('gives get_phone_number with caller ID only for another number (LIN-386)', () => {
     expect(buildTools(setup({ caller: 'withheld' })).tools.get_phone_number?.description).toBe(PHONE_TOOL)
     expect(buildTools(setup()).tools.get_phone_number?.description).toBe(PHONE_TOOL_WITH_CALLER_ID)
+  })
+
+  afterEach(() => vi.useRealTimers())
+
+  it("reads a day the caller names from the case's day, not the clock", async () => {
+    // A week after the cases' Tuesday, November 17: "Thursday" is still November 19, where the free times are.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-24T20:00:00Z'))
+    const { tools } = buildTools(setup({ booking: true }))
+    const args = { appointment_type_id: 'at_repair', from_date: 'Thursday', to_date: 'Thursday' }
+    const result = String(await tools.find_slots!.execute(args, fakeToolOptions('t1')))
+    expect(result).toContain('November 19 at 9:00 AM')
   })
 
   it('reads arguments with the tool schema', () => {

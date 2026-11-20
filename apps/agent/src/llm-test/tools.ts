@@ -220,6 +220,8 @@ export function buildTools(setup: Setup, sim: SimOptions = {}): SimTools {
     workspaceId: setup.assistant.workspace_id,
     assistant: setup.assistant,
     booking: setup.booking,
+    // The case's fixed day: "Thursday" or "tomorrow" must resolve to the week the fake free times are in.
+    now: () => setup.now,
     lookups: setup.lookups,
     caller: setup.caller,
     contact: setup.caller?.phone ? { name: setup.caller.name, phone: setup.caller.phone } : null,
