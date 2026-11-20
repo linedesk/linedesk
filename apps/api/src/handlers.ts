@@ -108,6 +108,7 @@ import {
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
 import { appConnectionHandlers } from './app-connections.ts'
+import { shopifyCallHandlers, shopifyCallSetup } from './shopify-calls.ts'
 import { mailAnalysisHandlers } from './mail-analysis.ts'
 import { mailConnectionHandlers } from './mail-connections.ts'
 import { appPushHandlers } from './app-pushes.ts'
@@ -641,6 +642,8 @@ async function openCall(
       : null
   // What the assistant can ask the business's system during the call (its webhook's during-call lookups).
   const lookups = blocked ? [] : await duringCallLookups(tx, assistant?.id)
+  // The business's Shopify store: the changes the assistant may offer and the checks they need (shopify-calls.ts).
+  const shopify = blocked ? null : await shopifyCallSetup(tx, workspace_id)
   // What answers: the level the call runs on (Ultra: the realtime model), with the models named (assistantForCall).
   const answeredBy = forCall?.assistant
   return {
@@ -663,6 +666,7 @@ async function openCall(
       callerHistory: history,
       timeZone,
       lookups,
+      shopify,
       workspaceCountry: locale.resolvedCountry,
       workspaceLanguage: locale.resolvedLanguage,
       usageLevel: forCall?.level ?? null,
@@ -1302,6 +1306,7 @@ const handlers: Record<string, Handler> = {
   ...pushHandlers,
   ...calendarConnectionHandlers,
   ...appConnectionHandlers,
+  ...shopifyCallHandlers,
   ...mailConnectionHandlers,
   ...mailAnalysisHandlers(queueMailAnalysis),
   ...appPushHandlers,

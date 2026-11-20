@@ -479,6 +479,15 @@ const guides = {
     ],
     costKey: msg('admin.provider.guide.jobber.cost'),
   },
+  shopify: {
+    url: 'https://dev.shopify.com/dashboard',
+    stepKeys: [
+      msg('admin.provider.guide.shopify.step1'),
+      msg('admin.provider.guide.shopify.step2'),
+      msg('admin.provider.guide.shopify.step3'),
+    ],
+    costKey: msg('admin.provider.guide.shopify.cost'),
+  },
   turnstile: {
     url: 'https://dash.cloudflare.com/?to=/:account/turnstile',
     steps: [
@@ -1142,6 +1151,17 @@ export const providers = {
       client_secret: { labelKey: msg('admin.provider.field.clientSecret'), env: 'JOBBER_CLIENT_SECRET', secret: true },
     },
     helpKey: msg('admin.provider.help.jobber'),
+  },
+  shopify: {
+    // i18n-ignore: a product name in the English-only provider registry, like every other provider label here
+    label: 'Shopify',
+    category: 'apps',
+    guide: guides.shopify,
+    fields: {
+      client_id: { labelKey: msg('admin.provider.field.clientId'), env: 'SHOPIFY_CLIENT_ID', secret: false },
+      client_secret: { labelKey: msg('admin.provider.field.clientSecret'), env: 'SHOPIFY_CLIENT_SECRET', secret: true },
+    },
+    helpKey: msg('admin.provider.help.shopify'),
   },
   // Support mailboxes: Gmail's read-only scope is restricted, so it has an OAuth app of its own, apart from
   // the sign-in and calendar app (`google`), whose verification it would otherwise hold up. Microsoft 365 mailboxes

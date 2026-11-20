@@ -1,7 +1,14 @@
 export * from './types.ts'
 export * from './crm.ts'
 export { appConnector, appOAuth } from './apps.ts'
-export { createHubSpotConnector, createHubSpotCrm, createHubSpotOAuth, HUBSPOT_API, HUBSPOT_SCOPES, phoneFilterGroups } from './hubspot.ts'
+export {
+  createHubSpotConnector,
+  createHubSpotCrm,
+  createHubSpotOAuth,
+  HUBSPOT_API,
+  HUBSPOT_SCOPES,
+  phoneFilterGroups,
+} from './hubspot.ts'
 export {
   callNoteText,
   createJobberConnector,
@@ -14,4 +21,32 @@ export {
   phoneSearchTerms,
   throttleWaitSec,
 } from './jobber.ts'
-export { createSlackConnector, createSlackOAuth, retryAfter, SLACK_API, SLACK_SCOPES, slackMessage, webhookError } from './slack.ts'
+export {
+  createSlackConnector,
+  createSlackOAuth,
+  retryAfter,
+  SLACK_API,
+  SLACK_SCOPES,
+  slackMessage,
+  webhookError,
+} from './slack.ts'
+export {
+  createShopifyConnector,
+  createShopifyCrm,
+  createShopifyOAuth,
+  createShopifyStore,
+  quoteTerm,
+  samePhone,
+  SHOPIFY_API_VERSION,
+  SHOPIFY_SCOPES,
+  SHOPIFY_TAG,
+  type ShopifyAddress,
+  type ShopifyCustomer,
+  type ShopifyOrder,
+  type ShopifyPolicy,
+  type ShopifyProduct,
+  type ShopifyStore,
+  shopDomain,
+  verifyShopifyQuery,
+  verifyShopifyWebhook,
+} from './shopify.ts'

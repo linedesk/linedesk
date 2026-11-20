@@ -335,7 +335,7 @@ async function sendClaimed(database: Tx, claim: Claimed, services?: AppServices)
   }
   // The switches as they are now (read under the lock when the push was claimed).
   const options = {
-    createContacts: appSettingOn(connection.settings, 'create_contacts'),
+    createContacts: appSettingOn(connection.settings, 'create_contacts', connection.provider),
     fillFields: appSettingOn(connection.settings, 'fill_fields'),
   }
   let result: PushResult

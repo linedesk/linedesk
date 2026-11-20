@@ -1,6 +1,6 @@
 // Integrations (#integrations, G O): everything Linedesk connects to, as cards by category, with a search and one
-// key per category. A card opens its detail view here (#integrations/zapier, /hubspot, /slack, /jobber, /support-email,
-// /api-keys, /rest-api, /mcp) or
+// key per category. A card opens its detail view here (#integrations/zapier, /hubspot, /slack, /jobber, /shopify,
+// /support-email, /api-keys, /rest-api, /mcp) or
 // the place where it is set up (the assistant's webhooks and booking; #integrations/make and the like go there too); one not
 // built yet shows "Coming soon", and an address with nothing behind it says so. The catalog itself is catalog.ts; API keys and
 // Zapier were Workspace settings › Developers (old links are rewritten, useRoute.ts).
@@ -188,7 +188,7 @@ function useFacts(canManageKeys: boolean): Facts {
   ])
 }
 
-/** The keys that pick a category: 0 shows all, 1 to 6 one category each (as in the chips' tooltips). */
+/** The keys that pick a category: 0 shows all, 1 to 7 one category each (as in the chips' tooltips). */
 const categoryKey = (i: number) => String(i + 1)
 
 function Catalog({ canManageKeys }: { canManageKeys: boolean }) {
@@ -396,6 +396,7 @@ function Detail({ id, canManageKeys, toast }: { id: DetailId; canManageKeys: boo
       {id === 'hubspot' && <ConnectedApp app="hubspot" canEdit={canManageKeys} toast={toast} />}
       {id === 'slack' && <ConnectedApp key="slack" app="slack" canEdit={canManageKeys} toast={toast} />}
       {id === 'jobber' && <ConnectedApp key="jobber" app="jobber" canEdit={canManageKeys} toast={toast} />}
+      {id === 'shopify' && <ConnectedApp key="shopify" app="shopify" canEdit={canManageKeys} toast={toast} />}
       {id === 'support-email' && <SupportEmailPage canEdit={canManageKeys} toast={toast} />}
       {id === 'api-keys' && <ApiKeys canEdit={canManageKeys} toast={toast} />}
       {id === 'rest-api' && <RestApi toast={toast} />}

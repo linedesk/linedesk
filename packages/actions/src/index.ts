@@ -4,6 +4,7 @@ import * as authenticator from './authenticator.ts'
 import * as installSetup from './install-setup.ts'
 import * as apiKeys from './api-keys.ts'
 import * as apps from './apps.ts'
+import * as shopify from './shopify.ts'
 import * as personalKeys from './personal-keys.ts'
 import * as oauth from './oauth.ts'
 import * as records from './records.ts'
@@ -71,6 +72,7 @@ export * from './authenticator.ts'
 export * from './install-setup.ts'
 export * from './api-keys.ts'
 export * from './apps.ts'
+export * from './shopify.ts'
 export * from './personal-keys.ts'
 export * from './oauth.ts'
 export * from './records.ts'
@@ -265,6 +267,10 @@ const all = [
   apps.appDisconnect,
   apps.appUpdateSettings,
   apps.appPushes,
+  shopify.shopifyCallContext,
+  shopify.shopifyFindOrders,
+  shopify.shopifyFindProducts,
+  shopify.shopifyChangeOrder,
   mail.mailConnectStart,
   mail.mailConnectFinish,
   mail.mailDisconnect,

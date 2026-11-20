@@ -37,6 +37,7 @@ import {
   VOICE_PIPELINES,
   type VoiceFailure,
   type VoicePipeline,
+  type ShopifyCallSetup,
 } from '@linedesk/actions'
 import {
   type Assistant,
@@ -108,6 +109,8 @@ export interface CallSession {
   now?: () => number
   /** What the assistant can ask the business's system during the call (its webhook's lookups); none: no such tools. */
   lookups: WebhookLookup[]
+  /** The business's Shopify store: the changes the assistant may make and their checks; null: no store connected. */
+  shopify?: ShopifyCallSetup | null
   /** false: the workspace keeps no recordings (Settings, Recordings: Don't keep), so the call is not recorded. Missing: record. */
   keepRecording?: boolean
   /**
@@ -191,6 +194,8 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
   timeZone?: string | null
   /** The webhook's during-call lookups; missing from an older API. */
   lookups?: WebhookLookup[]
+  /** The business's Shopify store; missing from an older API. */
+  shopify?: ShopifyCallSetup | null
   /** The workspace's country and language as they apply (workspace-locale.ts); missing from an older API: US, English. */
   workspaceCountry?: string
   workspaceLanguage?: string
@@ -206,7 +211,10 @@ type StartData = Pick<CallSession, 'callId' | 'workspaceId' | 'assistant' | 'con
  * The assistant with its main language: the one it has; without one, the workspace language when calls can be answered
  * in it (a German workspace greets in German), else English as before.
  */
-export function withWorkspaceLanguage(assistant: Assistant | null, workspaceLanguage: string | null | undefined): Assistant | null {
+export function withWorkspaceLanguage(
+  assistant: Assistant | null,
+  workspaceLanguage: string | null | undefined,
+): Assistant | null {
   if (!assistant || assistant.languages?.main) return assistant
   const main = mainLanguageOf(assistant.languages, workspaceLanguage)
   if (main === 'en') return assistant
@@ -275,7 +283,8 @@ export function callLimitOf(
   call: Pick<CallSession, 'demo' | 'businessNumber' | 'assistant'>,
   lines: Pick<SpokenLines, 'callLimit' | 'testCallLimit'>,
 ): { ms: number; line: string } {
-  if (call.demo) return { ms: DEMO_CALL_MAX_SECONDS * 1000, line: demoLines(mainLanguageOf(call.assistant?.languages)).limit }
+  if (call.demo)
+    return { ms: DEMO_CALL_MAX_SECONDS * 1000, line: demoLines(mainLanguageOf(call.assistant?.languages)).limit }
   if (call.businessNumber === null) return { ms: TEST_CALL_LIMIT_MS, line: lines.testCallLimit }
   const minutes = Math.min(
     call.assistant?.max_call_minutes ?? ASSISTANT_CALL_DEFAULT_MINUTES,
@@ -318,7 +327,15 @@ export function announceRecording(call: CallSession, canRecord: boolean): CallSe
  * (the call test sets "closed" for its after-hours scenario without touching the real settings).
  */
 export type CallOrigin =
-  | { kind: 'phone'; from: string; to: string; room?: string; simulated?: boolean; attestation?: CallerAttestation; spamLikely?: boolean }
+  | {
+      kind: 'phone'
+      from: string
+      to: string
+      room?: string
+      simulated?: boolean
+      attestation?: CallerAttestation
+      spamLikely?: boolean
+    }
   | ({ kind: 'test'; room: string } & TestMetadata)
 
 /**
@@ -393,7 +410,9 @@ export type TestCaller = { name: string; note?: string; phone: string; history?:
 /** Behaviour switches from job metadata: only known ids with true or false. */
 function testBehaviours(value: unknown): Record<string, boolean> | undefined {
   if (!value || typeof value !== 'object') return undefined
-  const entries = Object.entries(value).filter(([id, on]) => (BEHAVIOUR_IDS as readonly string[]).includes(id) && typeof on === 'boolean')
+  const entries = Object.entries(value).filter(
+    ([id, on]) => (BEHAVIOUR_IDS as readonly string[]).includes(id) && typeof on === 'boolean',
+  )
   return entries.length ? (Object.fromEntries(entries) as Record<string, boolean>) : undefined
 }
 
@@ -402,8 +421,14 @@ function parseTestCaller(value: unknown): TestCaller | undefined {
   const c = value as Partial<TestCaller> | undefined
   if (!c || typeof c.name !== 'string' || !c.name.trim() || typeof c.phone !== 'string') return undefined
   const h = c.history as Partial<CallerHistory> | undefined
-  const history = h && Array.isArray(h.recentCalls) && Array.isArray(h.upcomingBookings) ? (h as CallerHistory) : undefined
-  return { name: c.name, phone: c.phone, ...(typeof c.note === 'string' ? { note: c.note } : {}), ...(history ? { history } : {}) }
+  const history =
+    h && Array.isArray(h.recentCalls) && Array.isArray(h.upcomingBookings) ? (h as CallerHistory) : undefined
+  return {
+    name: c.name,
+    phone: c.phone,
+    ...(typeof c.note === 'string' ? { note: c.note } : {}),
+    ...(history ? { history } : {}),
+  }
 }
 
 /** An OpenAI realtime model id a test call may ask for: gpt-realtime, gpt-realtime-mini, a dated one. */
@@ -414,7 +439,9 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   const { data } =
     origin.kind === 'phone'
       ? await api.run(callStart, {
-          from: origin.from, to: origin.to, room: origin.room,
+          from: origin.from,
+          to: origin.to,
+          room: origin.room,
           ...(origin.simulated ? { source: 'simulated' as const } : {}),
           ...(origin.attestation ? { attestation: origin.attestation } : {}),
           ...(origin.spamLikely ? { spamLikely: true } : {}),
@@ -425,7 +452,15 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
           { workspaceId: origin.workspaceId },
         )
   const started = data as StartData
-  const { callId, workspaceId, contact, blocked = false, forwardingCheck = false, busy = false, overCap = false } = started
+  const {
+    callId,
+    workspaceId,
+    contact,
+    blocked = false,
+    forwardingCheck = false,
+    busy = false,
+    overCap = false,
+  } = started
   const scope = { workspaceId, ...(started.callToken ? { token: started.callToken } : {}) }
   if (started.usageLevel) console.log(`call ${callId}: usage level ${started.usageLevel}`)
   const businessHours = (origin.kind === 'test' && origin.businessHours) || started.businessHours || null
@@ -438,7 +473,9 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
   // install that bills usage: the call's level was decided by the API for the assistant's own choice, and is its price.
   const billed = !!started.usageLevel
   if (billed && origin.kind === 'test' && (origin.pipeline || origin.realtimeModel))
-    console.warn(`call ${callId}: the call test's pipeline or realtime model is ignored (usage level ${started.usageLevel})`)
+    console.warn(
+      `call ${callId}: the call test's pipeline or realtime model is ignored (usage level ${started.usageLevel})`,
+    )
   const pipeline = origin.kind === 'test' && !billed ? origin.pipeline : undefined
   const behaviours = origin.kind === 'test' ? origin.behaviours : undefined
   const own = withWorkspaceLanguage(started.assistant, started.workspaceLanguage)
@@ -449,7 +486,15 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
           ...(behaviours ? { behaviours: { ...(own.behaviours ?? {}), ...behaviours } } : {}),
           ...(outsideGreeting ? { greeting_outside: outsideGreeting } : {}),
           ...(onCall ? { transfers: simulatedContacts(onCall) } : {}),
-          ...(languages ? { languages: { ...(own.languages?.main ? { main: own.languages.main } : {}), mode: 'allowed' as const, allowed: languages } } : {}),
+          ...(languages
+            ? {
+                languages: {
+                  ...(own.languages?.main ? { main: own.languages.main } : {}),
+                  mode: 'allowed' as const,
+                  allowed: languages,
+                },
+              }
+            : {}),
           ...(mainLanguage ? { languages: { main: mainLanguage, mode: 'english' as const, allowed: [] } } : {}),
           ...(pipeline ? { call_quality: pipeline === 'realtime' ? ('ultra' as const) : ('standard' as const) } : {}),
         }
@@ -488,6 +533,7 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     keepRecording: started.keepRecording !== false,
     recordingNotice: started.recordingNotice?.trim() || null,
     lookups: started.lookups ?? [],
+    shopify: started.shopify ?? null,
     country: started.workspaceCountry ?? 'US',
     teamLanguage: callLanguageOf(assistant, started.workspaceLanguage),
     promptOverrides: started.promptOverrides ?? {},
@@ -553,7 +599,14 @@ export function callOrigin(jobMetadata: string, attributes: Record<string, strin
   const from = attributes['sip.phoneNumber'] || 'anonymous'
   warnIfNoSipHeaders(attributes)
   const attestation = callerAttestation(attributes)
-  return { kind: 'phone', from, to, room, ...(attestation ? { attestation } : {}), ...(spamLikely(attributes) ? { spamLikely: true } : {}) }
+  return {
+    kind: 'phone',
+    from,
+    to,
+    room,
+    ...(attestation ? { attestation } : {}),
+    ...(spamLikely(attributes) ? { spamLikely: true } : {}),
+  }
 }
 
 /** The workspace (and the assistant picked in the web app) of a test room the API signed, or null for any other room. */
@@ -599,7 +652,9 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
       ...(parsed.simulateTransfer === true ? { simulateTransfer: true } : {}),
       ...(parsed.demo === true ? { demo: true } : {}),
       ...(languages.length ? { languages } : {}),
-      ...((languageCodes as readonly unknown[]).includes(parsed.mainLanguage) ? { mainLanguage: parsed.mainLanguage as Language } : {}),
+      ...((languageCodes as readonly unknown[]).includes(parsed.mainLanguage)
+        ? { mainLanguage: parsed.mainLanguage as Language }
+        : {}),
       ...((VOICE_PIPELINES as readonly unknown[]).includes(parsed.pipeline)
         ? { pipeline: parsed.pipeline as VoicePipeline }
         : {}),

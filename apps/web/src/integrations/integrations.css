@@ -249,3 +249,37 @@
   margin-top: 6px;
   gap: 14px;
 }
+
+/* Integrations › Shopify, not connected: the store's address and Connect on one line. */
+.ig-shop {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  max-width: 480px;
+}
+.ig-shop > .k-field {
+  flex: 1;
+  min-width: 0;
+}
+.ig-shop > .k-btn {
+  margin-top: 22px;
+}
+
+/* A connected app's switches in groups with a short heading (Shopify). */
+.ig-swgroups {
+  display: grid;
+  gap: 20px;
+}
+.ig-swgroup > h3 {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.ig-swgroup > .help {
+  margin: 0 0 10px;
+}
+.ig-swgroup > h3 + .st-swlist {
+  margin-top: 8px;
+}

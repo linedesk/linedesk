@@ -637,7 +637,7 @@ async function describingCaller(
 }
 
 /** Whether the call's caller ID names the caller (callerRecognized), with the switch of the assistant that answered. */
-async function recognizedCaller(tx: Tx, call: CallRow): Promise<boolean> {
+export async function recognizedCaller(tx: Tx, call: CallRow): Promise<boolean> {
   const [assistant] = call.assistant_id
     ? await tx
         .select({ behaviours: assistants.behaviours })

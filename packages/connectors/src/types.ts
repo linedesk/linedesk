@@ -3,10 +3,15 @@
  * (docs/crm-sync.md). Every app has an OAuth side and a connector that does the work; vendor HTTP lives
  * only in the app's own file.
  */
-export const APP_IDS = ['hubspot', 'slack', 'jobber'] as const
+export const APP_IDS = ['hubspot', 'slack', 'jobber', 'shopify'] as const
 export type AppId = (typeof APP_IDS)[number]
 
-export const APP_LABEL: Record<AppId, string> = { hubspot: 'HubSpot', slack: 'Slack', jobber: 'Jobber' }
+export const APP_LABEL: Record<AppId, string> = {
+  hubspot: 'HubSpot',
+  slack: 'Slack',
+  jobber: 'Jobber',
+  shopify: 'Shopify',
+}
 
 export const isAppId = (value: string): value is AppId => (APP_IDS as readonly string[]).includes(value)
 
@@ -39,8 +44,14 @@ export interface AppOAuth {
    * no other connection uses the account.
    */
   readonly grantPerAccount?: boolean
-  authorizeUrl(params: { redirectUri: string; state: string }): string
-  exchangeCode(params: { code: string; redirectUri: string }): Promise<OAuthTokens>
+  /** `shop`: the store the member named (Shopify: its consent page is on the shop's own domain). */
+  authorizeUrl(params: { redirectUri: string; state: string; shop?: string }): string
+  /** `params`: the callback's whole query, for an app that signs it (Shopify: `hmac`, `shop`). */
+  exchangeCode(params: {
+    code: string
+    redirectUri: string
+    params?: Readonly<Record<string, string>>
+  }): Promise<OAuthTokens>
   refresh(refreshToken: string): Promise<OAuthTokens>
   /** Withdraws the grant at the app. Returns false when that did not work. */
   revoke(refreshToken: string): Promise<boolean>

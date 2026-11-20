@@ -528,6 +528,14 @@ const jobber: Check = async (values, http) => {
   return warning('unknown', said('server.api.providerTest.answered', { provider: label, status: res.status }))
 }
 
+// Shopify's token endpoint lives on each shop's own domain, so without a shop nothing can test the client secret: only
+// the client ID's form is checked here, the keys themselves when the first business connects.
+const shopify: Check = async values => {
+  if (!/^[0-9a-f]{32}$/i.test(values.client_id!.trim()))
+    return error('auth', said('server.api.providerTest.shopify.clientIdFormat'))
+  return warning('unknown', said('server.api.providerTest.shopify.atConnect'))
+}
+
 type HttpProvider = Exclude<ProviderName, RecordingStoreName | OAuthApp | 'smtp' | MailService | 'stripe'>
 /** How to test each provider of the registry (packages/actions/src/admin.ts) that answers over HTTP. */
 const checks: Record<HttpProvider, Check> = {
@@ -549,6 +557,7 @@ const checks: Record<HttpProvider, Check> = {
   google_places: googlePlaces,
   slack,
   jobber,
+  shopify,
   openai_transcript: openaiTranscript,
   deepgram_transcript: deepgram,
   assemblyai,

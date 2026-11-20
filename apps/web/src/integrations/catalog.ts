@@ -2,7 +2,7 @@
 // works today opens something: Zapier, Make and n8n (through the assistant's webhooks), the assistant's webhooks, the
 // calendar providers (Booking & calendar; one this server does not offer says so), API keys, the REST API and the MCP
 // server. Each opens its detail view here (`#integrations/<id>`) or the place where it is set up, also as a link
-// (`#integrations/make` goes to the webhooks). HubSpot, Slack and Jobber are connected apps (OAuth, docs/crm-sync.md):
+// (`#integrations/make` goes to the webhooks). HubSpot, Slack, Jobber and Shopify are connected apps (OAuth, docs/crm-sync.md):
 // their detail view connects them. Support email connects the business's support mailboxes, read only (LIN-637).
 // One that is not built (ServiceTitan) shows as "Coming soon" and opens nothing.
 // Phone carriers are not here: they are Server admin's (provider keys).
@@ -25,13 +25,22 @@ import {
 import type { AppConnection, AppErrorCode } from '@linedesk/db/types'
 import type { ProviderId } from '../settings/calendarModel.ts'
 
-export type CategoryId = 'automation' | 'calendars' | 'crm' | 'chat' | 'email' | 'developers'
-export const CATEGORIES: readonly CategoryId[] = ['automation', 'calendars', 'crm', 'chat', 'email', 'developers']
+export type CategoryId = 'automation' | 'calendars' | 'crm' | 'commerce' | 'chat' | 'email' | 'developers'
+export const CATEGORIES: readonly CategoryId[] = [
+  'automation',
+  'calendars',
+  'crm',
+  'commerce',
+  'chat',
+  'email',
+  'developers',
+]
 
 export const CATEGORY_LABEL: Record<CategoryId, MessageKey> = {
   automation: msg('settings.integrations.category.automation'),
   calendars: msg('settings.integrations.category.calendars'),
   crm: msg('settings.integrations.category.crm'),
+  commerce: msg('settings.integrations.category.commerce'),
   chat: msg('settings.integrations.category.chat'),
   email: msg('settings.integrations.category.email'),
   developers: msg('settings.integrations.category.developers'),
@@ -43,6 +52,7 @@ export const DETAIL_IDS = [
   'hubspot',
   'slack',
   'jobber',
+  'shopify',
   'support-email',
   'api-keys',
   'rest-api',
@@ -62,7 +72,11 @@ export type IntegrationId = DetailId | 'make' | 'n8n' | 'webhooks' | ProviderId 
  */
 export type Mark =
   | { kind: 'brand'; brand: 'google' | 'microsoft' | 'calcom' | 'calendly' | 'icloud' }
-  | { kind: 'logo'; logo: 'zapier' | 'make' | 'n8n' | 'hubspot' | 'slack' | 'modelcontextprotocol'; color: string }
+  | {
+      kind: 'logo'
+      logo: 'zapier' | 'make' | 'n8n' | 'hubspot' | 'slack' | 'shopify' | 'modelcontextprotocol'
+      color: string
+    }
   | { kind: 'icon'; icon: 'globe' | 'server' | 'shield' | 'mail' }
   | { kind: 'monogram'; text: string; color: string }
 
@@ -164,6 +178,13 @@ export const CATALOG: readonly Integration[] = [
     mark: { kind: 'monogram', text: 'ST', color: '#0B57D0' },
     opens: null,
     keywords: 'field service jobs bookings customers hvac plumbing',
+  },
+  {
+    id: 'shopify',
+    category: 'commerce',
+    mark: { kind: 'logo', logo: 'shopify', color: '#7AB55C' },
+    opens: detail('shopify'),
+    keywords: 'store shop ecommerce online orders products returns customers',
   },
   {
     id: 'slack',
@@ -305,7 +326,8 @@ export function statusOf(id: IntegrationId, facts: Facts): Status {
       return { kind: 'ready' }
     case 'hubspot':
     case 'slack':
-    case 'jobber': {
+    case 'jobber':
+    case 'shopify': {
       if (facts.apps === undefined) return { kind: 'loading' }
       const state = facts.apps[id]
       return state === 'connected'
@@ -386,6 +408,8 @@ const CONNECT_ERROR: Record<AppConnectError, MessageKey> = {
   not_set_up: msg('settings.integrations.app.error.notSetUp'),
   no_secrets_key: msg('settings.integrations.app.error.noSecretsKey'),
   not_connected: msg('settings.integrations.app.error.notConnected'),
+  shop: msg('settings.integrations.app.error.shop'),
+  verify: msg('settings.integrations.app.error.verify'),
   failed: msg('settings.integrations.app.connectFailed'),
 }
 
@@ -422,18 +446,23 @@ export const appSettingsWith = (
   id: AppSettingId,
   on: boolean,
 ): Record<AppSettingId, boolean> =>
-  Object.fromEntries(APP_SETTINGS[app].map(s => [s, s === id ? on : appSettingOn(stored, s)])) as Record<
+  Object.fromEntries(APP_SETTINGS[app].map(s => [s, s === id ? on : appSettingOn(stored, s, app)])) as Record<
     AppSettingId,
     boolean
   >
 
 /** The text (with `{name}`) for why a call did not go to a connected app; an unknown code is `internal`'s. */
-/** Codes whose words differ per app: Jobber calls a contact a client. */
+/** Codes whose words differ per app: Jobber calls a contact a client, Shopify a customer. */
 const APP_PUSH_ERROR: Partial<Record<ConnectableApp, Partial<Record<AppErrorCode, MessageKey>>>> = {
   jobber: {
     not_found: msg('settings.integrations.app.jobber.pushError.notFound'),
     no_caller_id: msg('settings.integrations.app.jobber.pushError.noCallerId'),
     no_contact: msg('settings.integrations.app.jobber.pushError.noContact'),
+  },
+  shopify: {
+    not_found: msg('settings.integrations.app.shopify.pushError.notFound'),
+    no_caller_id: msg('settings.integrations.app.shopify.pushError.noCallerId'),
+    no_contact: msg('settings.integrations.app.shopify.pushError.noContact'),
   },
 }
 

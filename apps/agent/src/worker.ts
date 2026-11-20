@@ -24,6 +24,7 @@ import {
   templateNames,
 } from '@linedesk/actions'
 import type { CallerDetails } from '@linedesk/db/types'
+import type { ShopifyCallContextData } from '@linedesk/actions'
 import { cli, defineAgent, ServerOptions, voice, type JobContext } from '@livekit/agents'
 import { type RemoteParticipant, type Room, TrackKind } from '@livekit/rtc-node'
 import { RoomServiceClient } from 'livekit-server-sdk'
@@ -134,6 +135,7 @@ import { lineAudio, playLine, unansweredLine } from './busy-line.ts'
 import { realtimeLineSpeaker, type SayFixedLine } from './realtime-lines.ts'
 import { promisesUrgent, urgentFlagger } from './urgent-promise.ts'
 import { buildInstructions, collectLanguageRule, spokenLanguageRule } from './prompt.ts'
+import { shopifyContext, shopifyInstructions } from './shopify-tools.ts'
 import {
   describeRecording,
   livekitRecorder,
@@ -673,6 +675,8 @@ async function converse(
   const transfer = transferFrom(ctx, api, call, config, callerJoined, stopRecordingForTransfer, lines)
   // The instructions change when the call-start webhook answers.
   const known: { details: CallerDetails | null } = { details: null }
+  // What the business's Shopify store knows about the caller: added to the instructions once it arrives.
+  const store: { context: ShopifyCallContextData | null } = { context: null }
   // A realtime model says the greeting itself; the voice provider says it before the model's first turn otherwise.
   // Once the caller switched to another allowed language, the assistant is told to reply in it (spokenLanguageRule).
   const callAssistant = withCallLanguages(call.assistant, languages)
@@ -695,6 +699,7 @@ async function converse(
         call.promptOverrides,
       ),
       spokenLanguageRule(callAssistant, spokenNow()),
+      shopifyInstructions(call.shopify ?? null, store.context),
       notes?.current(),
     ]
       .filter(Boolean)
@@ -727,6 +732,17 @@ async function converse(
     void collect.step?.languageChanged(collect.languageRule?.()).catch(failed)
   }
   if (stages) void warmUpLlm(stages.llm, instructions)
+  // The store is asked once, beside the greeting; a slow or failed answer only means the assistant knows less.
+  if (call.shopify)
+    void shopifyContext(api, call)
+      .then(async context => {
+        if (!context?.connected) return
+        store.context = context
+        await agent.updateInstructions(instructionsNow())
+      })
+      .catch(e =>
+        console.warn(`call ${call.callId}: store context not added: ${e instanceof Error ? e.message : String(e)}`),
+      )
   if (notes && realtimeUsage) keepRealtimeHistory(session, agent, notes, realtimeUsage, call.callId)
   await session.start({
     agent,

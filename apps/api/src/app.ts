@@ -96,6 +96,7 @@ import { isInstanceAdmin } from './instance-admin.ts'
 import { previewInvitation } from './invitations.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { registerJobberWebhookRoute } from './jobber-webhook.ts'
+import { registerShopifyWebhookRoute } from './shopify-webhook.ts'
 import { registerSlackEventsRoute } from './slack-events.ts'
 import { ADMIN_CHECK_FIRST, mayCreateWorkspace, WORKSPACE_CREATION_CLOSED } from './workspace-creation.ts'
 import { businessSetupFor, onboardingFor, phoneSetupFor } from './onboarding.ts'
@@ -223,6 +224,8 @@ app.use(
 registerStripeWebhookRoute(app)
 // Public: Jobber's webhook (APP_DISCONNECT), checked by its signature, 404 while Jobber is not set up (jobber-webhook.ts).
 registerJobberWebhookRoute(app)
+// Public: Shopify's webhooks (uninstall and the privacy topics), checked by their signature (shopify-webhook.ts).
+registerShopifyWebhookRoute(app)
 // Public: the Slack app's Events API URL (app_uninstalled, tokens_revoked), checked by its signature, 404 without a
 // signing secret (slack-events.ts).
 registerSlackEventsRoute(app)

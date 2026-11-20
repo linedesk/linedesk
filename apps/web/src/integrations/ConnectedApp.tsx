@@ -1,8 +1,10 @@
-// Integrations › HubSpot, Slack and Jobber (connected apps, docs/crm-sync.md): connect the app with its consent page, see
+// Integrations › HubSpot, Slack, Jobber and Shopify (connected apps, docs/crm-sync.md): connect the app with its consent page, see
 // which account (Slack: which channel in which workspace) it is and whether calls still go through, the last calls sent, and disconnect. The connection is a
 // synced row (app_connections); connecting is an OAuth round trip, so the page names the table to read again on
 // return (refreshOnReturn), and the callback's result comes back in the hash (`?app=connected` or `?app=error`).
-// While connected, "What Linedesk does" holds the connection's switches (app.updateSettings, local-first).
+// While connected, "What Linedesk does" holds the connection's switches (app.updateSettings, local-first). Shopify is
+// connected per store: the member types the store's address first, and its switches come in three groups (after each
+// call, what the assistant may change, what the caller must give first).
 import {
   APP_SETTINGS,
   type AppConnectStartData,
@@ -12,6 +14,8 @@ import {
   type AppSettingId,
   appSettingOn,
   type ConnectableApp,
+  SHOP_CHANGE_SETTINGS,
+  SHOP_VERIFY_SETTINGS,
 } from '@linedesk/actions'
 import type { AppConnection } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -19,7 +23,7 @@ import { useFormat, useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { refreshOnReturn } from '../refreshOnReturn.ts'
-import { Section, SwitchRow } from '../settings/fields.tsx'
+import { Field, Section, SwitchRow, TextInput } from '../settings/fields.tsx'
 import { callAction, readAction, useWriteAction } from '../settings/settings-api.ts'
 import { useRows, useRun } from '../store.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
@@ -36,7 +40,7 @@ type Props = {
 
 const pushesKey = (app: ConnectableApp) => `app.pushes.${app}`
 
-/** The texts that differ per app: HubSpot is a CRM (contacts), Slack posts to a channel, Jobber has clients. */
+/** The texts that differ per app: HubSpot is a CRM (contacts), Slack posts to a channel, Jobber has clients, Shopify customers. */
 type AppText = { help: MessageKey; notConnected: MessageKey; disconnectConfirmTip: MessageKey; scope: MessageKey }
 const APP_TEXT: Record<ConnectableApp, AppText> = {
   hubspot: {
@@ -56,6 +60,12 @@ const APP_TEXT: Record<ConnectableApp, AppText> = {
     notConnected: msg('settings.integrations.app.jobber.notConnected'),
     disconnectConfirmTip: msg('settings.integrations.app.jobber.disconnectConfirmTip'),
     scope: msg('settings.integrations.app.jobber.scope'),
+  },
+  shopify: {
+    help: msg('settings.integrations.app.shopify.help'),
+    notConnected: msg('settings.integrations.app.shopify.notConnected'),
+    disconnectConfirmTip: msg('settings.integrations.app.shopify.disconnectConfirmTip'),
+    scope: msg('settings.integrations.app.shopify.scope'),
   },
 }
 
@@ -107,19 +117,25 @@ function useConnectResult(app: ConnectableApp, toast: Props['toast']) {
 /** The `code` an action's rejection carries (settings-api.ts), which the page words itself. */
 const codeOf = (e: unknown) => (e as { code?: unknown }).code
 
-/** Opens the app's consent page; the callback brings the browser back here. */
-function useConnect(app: ConnectableApp, toast: Props['toast']) {
+/**
+ * Opens the app's consent page; the callback brings the browser back here. `shop`: Shopify's store (its consent page is
+ * on the store's own domain). A store the server can't read (code `shop`) goes to `onShopError` when given, so the page
+ * shows it under the field instead of in a toast.
+ */
+function useConnect(app: ConnectableApp, toast: Props['toast'], onShopError?: () => void) {
   const t = useT()
   const [opening, setOpening] = useState(false)
-  async function connect() {
+  async function connect(shop?: string) {
     setOpening(true)
     try {
-      const { url } = await callAction<AppConnectStartData>('app.connectStart', { app })
+      const { url } = await callAction<AppConnectStartData>('app.connectStart', shop ? { app, shop } : { app })
       refreshOnReturn(['app_connections'])
       window.location.assign(url)
     } catch (e) {
       // Not set up on this server (no client id in Server admin), no SECRETS_KEY: the code says what is missing.
-      toast(t(connectErrorKey(app, codeOf(e)), { name: t(nameKey(app)) }))
+      const code = codeOf(e)
+      if (code === 'shop' && onShopError) onShopError()
+      else toast(t(connectErrorKey(app, code), { name: t(nameKey(app)) }))
       setOpening(false)
     }
   }
@@ -131,6 +147,7 @@ function NotConnected({ app, canEdit, toast }: Props) {
   const name = t(nameKey(app))
   const { opening, connect } = useConnect(app, toast)
   if (!canEdit) return <p className="help">{t('settings.integrations.app.onlyAdmins', { name })}</p>
+  if (app === 'shopify') return <ConnectShop toast={toast} />
   return (
     <div className="ig-app-connect">
       <p className="help">{t(APP_TEXT[app].notConnected, { name })}</p>
@@ -142,6 +159,60 @@ function NotConnected({ app, canEdit, toast }: Props) {
       >
         {opening ? t('settings.integrations.app.opening', { name }) : t('settings.integrations.app.connect', { name })}
       </Button>
+    </div>
+  )
+}
+
+/**
+ * Shopify, not connected: the store's address (its myshopify.com domain, or only its first part), then Connect. The
+ * server reads the address; one it can't read shows under the field.
+ */
+function ConnectShop({ toast }: { toast: Props['toast'] }) {
+  const t = useT()
+  const name = t(nameKey('shopify'))
+  const [shop, setShop] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const { opening, connect } = useConnect('shopify', toast, () => setError(t('settings.integrations.app.error.shop')))
+  function submit() {
+    if (!shop.trim()) return setError(t('settings.integrations.app.shopify.shopMissing'))
+    setError(null)
+    void connect(shop.trim())
+  }
+  return (
+    <div className="ig-app-connect">
+      <p className="help">{t(APP_TEXT.shopify.notConnected, { name })}</p>
+      <form
+        className="ig-shop"
+        noValidate
+        onSubmit={e => {
+          e.preventDefault()
+          submit()
+        }}
+      >
+        <Field id="ig-shop" label={t('settings.integrations.app.shopify.shop')} error={error}>
+          <TextInput
+            id="ig-shop"
+            value={shop}
+            onChange={value => {
+              setShop(value)
+              setError(null)
+            }}
+            placeholder={t('settings.integrations.app.shopify.shopPlaceholder')}
+            invalid={!!error}
+            disabled={opening}
+          />
+        </Field>
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={opening}
+          title={t('settings.integrations.app.connectTip', { name })}
+        >
+          {opening
+            ? t('settings.integrations.app.opening', { name })
+            : t('settings.integrations.app.connect', { name })}
+        </Button>
+      </form>
     </div>
   )
 }
@@ -214,7 +285,7 @@ function Connection({ app, connection, canEdit, toast }: Props & { connection: A
                 <Button
                   size="sm"
                   disabled={opening || busy}
-                  onClick={() => void connect()}
+                  onClick={() => void connect(app === 'shopify' ? connection.account_id : undefined)}
                   title={t('settings.integrations.app.reconnectTip', { name })}
                 >
                   {t('settings.integrations.app.reconnect')}
@@ -244,7 +315,9 @@ function Connection({ app, connection, canEdit, toast }: Props & { connection: A
   )
 }
 
-const SETTING_TEXT: Record<AppSettingId, { title: MessageKey; help: MessageKey; tip: MessageKey }> = {
+type SettingText = { title: MessageKey; help: MessageKey; tip: MessageKey }
+
+const SETTING_TEXT: Record<AppSettingId, SettingText> = {
   log_calls: {
     title: msg('settings.integrations.app.settings.logCalls'),
     help: msg('settings.integrations.app.settings.logCallsHelp'),
@@ -265,11 +338,51 @@ const SETTING_TEXT: Record<AppSettingId, { title: MessageKey; help: MessageKey; 
     help: msg('settings.integrations.app.settings.onlyUrgentHelp'),
     tip: msg('settings.integrations.app.settings.onlyUrgentTip'),
   },
+  shop_returns: {
+    title: msg('settings.integrations.app.shopify.settings.returns'),
+    help: msg('settings.integrations.app.shopify.settings.returnsHelp'),
+    tip: msg('settings.integrations.app.shopify.settings.returnsTip'),
+  },
+  shop_address: {
+    title: msg('settings.integrations.app.shopify.settings.address'),
+    help: msg('settings.integrations.app.shopify.settings.addressHelp'),
+    tip: msg('settings.integrations.app.shopify.settings.addressTip'),
+  },
+  shop_cancel: {
+    title: msg('settings.integrations.app.shopify.settings.cancel'),
+    help: msg('settings.integrations.app.shopify.settings.cancelHelp'),
+    tip: msg('settings.integrations.app.shopify.settings.cancelTip'),
+  },
+  verify_name: {
+    title: msg('settings.integrations.app.shopify.settings.verifyName'),
+    help: msg('settings.integrations.app.shopify.settings.verifyNameHelp'),
+    tip: msg('settings.integrations.app.shopify.settings.verifyNameTip'),
+  },
+  verify_postcode: {
+    title: msg('settings.integrations.app.shopify.settings.verifyPostcode'),
+    help: msg('settings.integrations.app.shopify.settings.verifyPostcodeHelp'),
+    tip: msg('settings.integrations.app.shopify.settings.verifyPostcodeTip'),
+  },
+  verify_email: {
+    title: msg('settings.integrations.app.shopify.settings.verifyEmail'),
+    help: msg('settings.integrations.app.shopify.settings.verifyEmailHelp'),
+    tip: msg('settings.integrations.app.shopify.settings.verifyEmailTip'),
+  },
+  verify_order_number: {
+    title: msg('settings.integrations.app.shopify.settings.verifyOrderNumber'),
+    help: msg('settings.integrations.app.shopify.settings.verifyOrderNumberHelp'),
+    tip: msg('settings.integrations.app.shopify.settings.verifyOrderNumberTip'),
+  },
+  verify_caller_number: {
+    title: msg('settings.integrations.app.shopify.settings.verifyCallerNumber'),
+    help: msg('settings.integrations.app.shopify.settings.verifyCallerNumberHelp'),
+    tip: msg('settings.integrations.app.shopify.settings.verifyCallerNumberTip'),
+  },
 }
 
 /**
  * A switch whose words differ per app: Slack posts the call to a channel instead of logging it on a contact; Jobber
- * adds it as a note on the client.
+ * adds it as a note on the client, Shopify on the customer.
  */
 const APP_SETTING_TEXT: Partial<Record<ConnectableApp, Partial<typeof SETTING_TEXT>>> = {
   slack: {
@@ -296,13 +409,58 @@ const APP_SETTING_TEXT: Partial<Record<ConnectableApp, Partial<typeof SETTING_TE
       tip: msg('settings.integrations.app.jobber.settings.fillFieldsTip'),
     },
   },
+  shopify: {
+    log_calls: {
+      title: msg('settings.integrations.app.shopify.settings.logCalls'),
+      help: msg('settings.integrations.app.shopify.settings.logCallsHelp'),
+      tip: msg('settings.integrations.app.settings.logCallsTip'),
+    },
+    create_contacts: {
+      title: msg('settings.integrations.app.shopify.settings.createContacts'),
+      help: msg('settings.integrations.app.shopify.settings.createContactsHelp'),
+      tip: msg('settings.integrations.app.settings.createContactsTip'),
+    },
+    fill_fields: {
+      title: msg('settings.integrations.app.shopify.settings.fillFields'),
+      help: msg('settings.integrations.app.shopify.settings.fillFieldsHelp'),
+      tip: msg('settings.integrations.app.shopify.settings.fillFieldsTip'),
+    },
+  },
 }
 const settingText = (app: ConnectableApp, id: AppSettingId) => APP_SETTING_TEXT[app]?.[id] ?? SETTING_TEXT[id]
+
+/** The switches that only matter while calls are logged: shown nested under log_calls, greyed out while it is off. */
+const AFTER_LOG_CALLS: readonly AppSettingId[] = ['create_contacts', 'fill_fields', 'only_urgent']
+
+/** A group of switches under a short heading; an app without groups shows its switches as one list. */
+type SettingGroup = { title: MessageKey; help?: MessageKey; ids: readonly AppSettingId[] }
+const SETTING_GROUPS: Partial<Record<ConnectableApp, readonly SettingGroup[]>> = {
+  shopify: [
+    {
+      title: msg('settings.integrations.app.shopify.group.afterCall'),
+      ids: ['log_calls', 'create_contacts', 'fill_fields'],
+    },
+    {
+      title: msg('settings.integrations.app.shopify.group.changes'),
+      help: msg('settings.integrations.app.shopify.group.changesHelp'),
+      ids: SHOP_CHANGE_SETTINGS,
+    },
+    {
+      title: msg('settings.integrations.app.shopify.group.verify'),
+      help: msg('settings.integrations.app.shopify.group.verifyHelp'),
+      ids: SHOP_VERIFY_SETTINGS,
+    },
+  ],
+}
+
+const isVerify = (id: AppSettingId) => (SHOP_VERIFY_SETTINGS as readonly AppSettingId[]).includes(id)
 
 /**
  * What Linedesk does in the app: one switch per setting, applied locally at once and sent through the outbox. Every
  * switch is sent, so the optimistic row is whole. The others only matter while calls are logged: nested, greyed out
- * when that is off. Members see them; owners and admins change them.
+ * when that is off. Members see them; owners and admins change them. Shopify: the checks a caller must pass only
+ * matter while the assistant may change an order (greyed out and locked until one change is on), and one check always
+ * stays on (the server refuses none): the last one that is on is locked.
  */
 function AppSettings({
   app,
@@ -316,31 +474,67 @@ function AppSettings({
   const t = useT()
   const run = useRun()
   const name = t(nameKey(app))
-  const ids = APP_SETTINGS[app]
-  const logging = appSettingOn(connection.settings, 'log_calls')
-  const set = (id: AppSettingId, on: boolean) =>
-    void run('app.updateSettings', { id: connection.id, settings: appSettingsWith(app, connection.settings, id, on) })
+  const on = (id: AppSettingId) => appSettingOn(connection.settings, id, app)
+  const logging = on('log_calls')
+  const changing = SHOP_CHANGE_SETTINGS.some(on)
+  // The order number only names the order: it never counts as the one check that must stay on.
+  const checksOn = SHOP_VERIFY_SETTINGS.filter(id => id !== 'verify_order_number' && on(id)).length
+  const set = (id: AppSettingId, value: boolean) =>
+    void run('app.updateSettings', {
+      id: connection.id,
+      settings: appSettingsWith(app, connection.settings, id, value),
+    })
+
+  function row(id: AppSettingId) {
+    const text = settingText(app, id)
+    const last = isVerify(id) && id !== 'verify_order_number' && on(id) && checksOn <= 1
+    const idle = isVerify(id) && !changing
+    return (
+      <SwitchRow
+        key={id}
+        title={t(text.title)}
+        description={t(text.help, { name })}
+        note={
+          last && changing ? (
+            <span className="help">{t('settings.integrations.app.shopify.lastCheck')}</span>
+          ) : undefined
+        }
+        tip={
+          last
+            ? t('settings.integrations.app.shopify.lastCheckTip')
+            : idle
+              ? t('settings.integrations.app.shopify.checksIdleTip')
+              : t(text.tip, { name })
+        }
+        on={on(id)}
+        onChange={value => set(id, value)}
+        disabled={!canEdit || last || idle}
+        nested={AFTER_LOG_CALLS.includes(id)}
+        dimmed={(AFTER_LOG_CALLS.includes(id) && !logging) || idle}
+      />
+    )
+  }
+
+  const groups = SETTING_GROUPS[app]
   return (
     <Section
       id="ig-app-settings"
       title={t('settings.integrations.app.settings.title')}
       help={t('settings.integrations.app.settings.help', { name })}
     >
-      <div className="st-swlist">
-        {ids.map(id => (
-          <SwitchRow
-            key={id}
-            title={t(settingText(app, id).title)}
-            description={t(settingText(app, id).help, { name })}
-            tip={t(settingText(app, id).tip, { name })}
-            on={appSettingOn(connection.settings, id)}
-            onChange={on => set(id, on)}
-            disabled={!canEdit}
-            nested={id !== 'log_calls'}
-            dimmed={id !== 'log_calls' && !logging}
-          />
-        ))}
-      </div>
+      {groups ? (
+        <div className="ig-swgroups">
+          {groups.map(g => (
+            <section key={g.title} className="ig-swgroup" aria-label={t(g.title)}>
+              <h3>{t(g.title)}</h3>
+              {g.help && <p className="help">{t(g.help, { name })}</p>}
+              <div className="st-swlist">{g.ids.map(row)}</div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div className="st-swlist">{APP_SETTINGS[app].map(row)}</div>
+      )}
     </Section>
   )
 }

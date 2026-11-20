@@ -7,6 +7,8 @@
 import { randomBytes } from 'node:crypto'
 import {
   APP_SETTINGS,
+  appSettingOn,
+  SHOP_VERIFY_SETTINGS,
   type AppConnectError,
   type AppConnectStartData,
   type AppDisconnectData,
@@ -25,6 +27,8 @@ import {
   appOAuth,
   GrantRevoked,
   type OAuthTokens,
+  type ShopifyStore,
+  shopDomain,
   type TokenSource,
 } from '@linedesk/connectors'
 import {
@@ -52,6 +56,8 @@ export type AppServices = {
   /** The app's OAuth with the install's client ID and secret; null when an instance admin has not set them. */
   oauth(tx: Tx, app: AppId): Promise<AppOAuth | null>
   connector(app: AppId): AppConnector
+  /** Shopify's store reads and changes during calls (shopify-calls.ts); tests pass a fake. */
+  shopify?(): ShopifyStore
 }
 
 export const defaultAppServices: AppServices = {
@@ -94,6 +100,8 @@ const REQUIRED_SCOPES: Record<AppId, readonly string[]> = {
   slack: ['incoming-webhook'],
   // Jobber sets scopes on the app (Developer Center); checked only when its token answer names them.
   jobber: ['read_clients', 'write_clients'],
+  // Shopify names only the write scope when both were granted (write includes read).
+  shopify: ['write_customers', 'write_orders', 'read_products'],
 }
 /** An access token that does not run out (Slack without token rotation) is stored with this expiry. */
 const NEVER = '9999-12-31T00:00:00.000Z'
@@ -404,12 +412,17 @@ export async function dropAppAccount(
 }
 
 export const appConnectionHandlers: Record<string, Handler> = {
-  'app.connectStart': async ({ tx, actor, now, ...ctx }, input: { app: AppId }) => {
+  'app.connectStart': async ({ tx, actor, now, ...ctx }, input: { app: AppId; shop?: string }) => {
     const workspace_id = workspaceOf(actor)
     // An app connected while signed in as someone else would put the admin's account into the user's workspace.
     if (actor.impersonation) throw new Forbidden(IMPERSONATING)
     const oauth = await oauthOrReject(tx, ctx, input.app)
     if (!hasSecretsKey()) throw rejectApp('no_secrets_key', NO_SECRETS_KEY)
+    // Shopify's consent page is on the store's own domain: the member names the store.
+    const shop = input.app === 'shopify' ? shopDomain(input.shop ?? '') : undefined
+    if (shop === null)
+      // i18n-ignore: the API error body for logs and API clients; the web app shows the key of the code
+      throw rejectApp('shop', 'Enter the store as its myshopify.com address, like brightwater.myshopify.com.')
     const state = randomBytes(32).toString('base64url')
     await tx.delete(app_oauth_states).where(lt(app_oauth_states.expires_at, now))
     await tx.insert(app_oauth_states).values({
@@ -419,13 +432,15 @@ export const appConnectionHandlers: Record<string, Handler> = {
       provider: input.app,
       expires_at: new Date(Date.parse(now) + STATE_TTL_MS).toISOString(),
     })
-    const data: AppConnectStartData = { url: oauth.authorizeUrl({ redirectUri: appRedirectUri(input.app), state }) }
+    const data: AppConnectStartData = {
+      url: oauth.authorizeUrl({ redirectUri: appRedirectUri(input.app), state, ...(shop ? { shop } : {}) }),
+    }
     return { rows: {}, data }
   },
 
   'app.connectFinish': async (
     { tx, actor, now, onRollback, onCommit, ...ctx },
-    input: { app: AppId; state: string; code: string },
+    input: { app: AppId; state: string; code: string; params?: Record<string, string> },
   ) => {
     const workspace_id = workspaceOf(actor)
     if (actor.impersonation) throw new Forbidden(IMPERSONATING)
@@ -449,7 +464,7 @@ export const appConnectionHandlers: Record<string, Handler> = {
     const oauth = await oauthOrReject(tx, ctx, input.app)
     const label = APP_LABEL[input.app]
     const tokens = await oauth
-      .exchangeCode({ code: input.code, redirectUri: appRedirectUri(input.app) })
+      .exchangeCode({ code: input.code, redirectUri: appRedirectUri(input.app), params: input.params })
       .catch(rejectAppError)
     onCommit?.(async () => void (await noteProviderOk(input.app)))
     // The lasting grant: the refresh token; an app without one (Slack) has an access token that does not run out.
@@ -539,13 +554,21 @@ export const appConnectionHandlers: Record<string, Handler> = {
     const workspace_id = workspaceOf(actor)
     if (actor.impersonation) throw new Forbidden(IMPERSONATING)
     const [existing] = await tx
-      .select({ provider: app_connections.provider })
+      .select({ provider: app_connections.provider, settings: app_connections.settings })
       .from(app_connections)
       .where(and(eq(app_connections.id, input.id), eq(app_connections.workspace_id, workspace_id)))
     if (!existing) throw rejectApp('not_connected', 'the app is not connected')
     const allowed: readonly string[] = APP_SETTINGS[existing.provider]
     const unknown = Object.keys(input.settings).filter(id => !allowed.includes(id))
     if (unknown.length) throw new Reject(`${APP_LABEL[existing.provider]} has no setting ${unknown.join(', ')}`)
+    // A change to an order always needs at least one check of the caller besides the order number, which only names the
+    // order (Integrations › Shopify).
+    if (existing.provider === 'shopify') {
+      const merged = { ...existing.settings, ...input.settings }
+      if (!SHOP_VERIFY_SETTINGS.some(id => id !== 'verify_order_number' && appSettingOn(merged, id, 'shopify')))
+        // i18n-ignore: the API error body for logs and API clients; the web app shows the key of the code
+        throw rejectApp('verify', 'Keep at least one check the caller must pass before an order is changed.')
+    }
     const [connection] = await tx
       .update(app_connections)
       .set({ settings: sql`${app_connections.settings} || ${JSON.stringify(input.settings)}::jsonb` })

@@ -262,6 +262,8 @@
   "api.providerTest.s3.region": "Wrong region or endpoint",
   "api.providerTest.s3.timeout": "No answer within {seconds} seconds",
   "api.providerTest.s3.unreachable": "Could not reach the storage: {error}",
+  "api.providerTest.shopify.atConnect": "Shopify checks the client ID and secret only when a business connects its store: if they are wrong, connecting fails and Shopify shows as failing here.",
+  "api.providerTest.shopify.clientIdFormat": "This is not a Shopify client ID: it has 32 letters and digits (0–9, a–f), from the app's overview at dev.shopify.com.",
   "api.providerTest.slack.clientIdForm": "This is not a Slack client ID (digits, a dot, digits): copy it from Basic Information › App Credentials.",
   "api.providerTest.slack.rateLimited": "Slack asked to slow down: try again in a minute",
   "api.providerTest.slack.secretAtConnect": "Slack knows the client ID. Slack checks the client secret only when a business connects: if it is wrong, connecting fails and Slack shows as failing here.",

@@ -937,7 +937,7 @@ function redirectUris(provider: ProviderName): string[] {
   if (provider === 'github') return [`${app}/api/auth/callback/github`]
   if (provider === 'oidc') return [`${app}/api/auth/oauth2/callback/oidc`]
   if (provider === 'calendly' || provider === 'calcom') return [`${app}/v1/calendar/callback/${provider}`]
-  if (provider === 'hubspot' || provider === 'slack' || provider === 'jobber')
+  if (provider === 'hubspot' || provider === 'slack' || provider === 'jobber' || provider === 'shopify')
     return [`${app}/v1/apps/callback/${provider}`]
   return []
 }

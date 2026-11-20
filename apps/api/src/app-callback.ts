@@ -27,7 +27,13 @@ export async function appCallback(
   if (!code || !state) return fail('failed')
   const actor = await resolveActor(headers)
   if (!actor) return fail('signed_out')
-  const { body } = await runAction('app.connectFinish', { app: app.data, state, code }, actor)
+  // Shopify signs the whole query (hmac over shop, code, state, timestamp, host): it goes along to be checked.
+  const params = app.data === 'shopify' ? Object.fromEntries(query) : undefined
+  const { body } = await runAction(
+    'app.connectFinish',
+    { app: app.data, state, code, ...(params ? { params } : {}) },
+    actor,
+  )
   if (!body.ok) {
     console.warn(`app connect ${app.data}: ${body.error}`)
     return fail(isAppConnectError(body.code) ? body.code : 'failed')

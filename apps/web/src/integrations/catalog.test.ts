@@ -84,11 +84,20 @@ describe('the catalog', () => {
 
   it('groups the cards in catalog order and leaves empty categories out', () => {
     const groups = byCategory(CATALOG)
-    expect(groups.map(g => g.category)).toEqual(['automation', 'calendars', 'crm', 'chat', 'email', 'developers'])
+    expect(groups.map(g => g.category)).toEqual([
+      'automation',
+      'calendars',
+      'crm',
+      'commerce',
+      'chat',
+      'email',
+      'developers',
+    ])
     expect(ids(groups[0]!.items)).toEqual(['zapier', 'make', 'n8n', 'webhooks'])
     expect(ids(groups[2]!.items)).toEqual(['hubspot', 'jobber', 'servicetitan'])
-    expect(ids(groups[4]!.items)).toEqual(['support-email'])
-    expect(ids(groups[5]!.items)).toEqual(['api-keys', 'rest-api', 'mcp'])
+    expect(ids(groups[3]!.items)).toEqual(['shopify'])
+    expect(ids(groups[5]!.items)).toEqual(['support-email'])
+    expect(ids(groups[6]!.items)).toEqual(['api-keys', 'rest-api', 'mcp'])
     expect(byCategory(CATALOG, 'chat').map(g => g.category)).toEqual(['chat'])
     expect(byCategory(searchIntegrations(CATALOG, 'outlook', text)).map(g => g.category)).toEqual([
       'calendars',
@@ -190,6 +199,11 @@ describe('statusOf', () => {
     expect(statusOf('jobber', { ...NOTHING, apps: { hubspot: 'connected' } })).toEqual({ kind: 'notConnected' })
     expect(statusOf('jobber', { ...NOTHING, apps: { jobber: 'connected' } })).toEqual({ kind: 'connected' })
     expect(statusOf('jobber', { ...NOTHING, apps: { jobber: 'needs_attention' } })).toEqual({ kind: 'needsAttention' })
+    expect(statusOf('shopify', NOTHING)).toEqual({ kind: 'notConnected' })
+    expect(statusOf('shopify', { ...NOTHING, apps: { shopify: 'connected' } })).toEqual({ kind: 'connected' })
+    expect(statusOf('shopify', { ...NOTHING, apps: { shopify: 'needs_attention' } })).toEqual({
+      kind: 'needsAttention',
+    })
   })
 
   it('says when this server does not offer a calendar provider, and loading while that is not known', () => {
@@ -340,6 +354,22 @@ describe('What Linedesk does (app switches, LIN-367)', () => {
     })
   })
 
+  it('Shopify: changes, adding customers and most checks are off until turned on', () => {
+    expect(appSettingsWith('shopify', {}, 'shop_cancel', true)).toEqual({
+      log_calls: true,
+      create_contacts: false,
+      fill_fields: true,
+      shop_returns: false,
+      shop_address: false,
+      shop_cancel: true,
+      verify_name: true,
+      verify_postcode: true,
+      verify_email: false,
+      verify_order_number: false,
+      verify_caller_number: false,
+    })
+  })
+
   it('each switch is a keyboard-reachable button with its tooltip; the options under logging are nested', () => {
     const html = renderToStaticMarkup(
       createElement(SwitchRow, {
@@ -365,5 +395,11 @@ describe('What Linedesk does (app switches, LIN-367)', () => {
     expect(appPushErrorKey('not_found', 'jobber')).toBe('settings.integrations.app.jobber.pushError.notFound')
     expect(appPushErrorKey('no_contact', 'hubspot')).toBe('settings.integrations.app.pushError.noContact')
     expect(appPushErrorKey('auth', 'jobber')).toBe('settings.integrations.app.pushError.auth')
+  })
+
+  it('Shopify says customer where the others say contact', () => {
+    expect(appPushErrorKey('no_contact', 'shopify')).toBe('settings.integrations.app.shopify.pushError.noContact')
+    expect(appPushErrorKey('not_found', 'shopify')).toBe('settings.integrations.app.shopify.pushError.notFound')
+    expect(appPushErrorKey('no_caller_id', 'shopify')).toBe('settings.integrations.app.shopify.pushError.noCallerId')
   })
 })
