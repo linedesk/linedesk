@@ -2300,7 +2300,7 @@ describe("the install's own prices, trial and name", () => {
       product: 'linedesk_workspace',
       'metadata[linedesk]': 'ws_monthly',
     })
-    expect(stripe.products.get('linedesk_workspace')).toMatchObject({ name: 'Front Desk workspace' })
+    expect(stripe.products.get('linedesk_workspace')).toMatchObject({ name: 'Front Desk' })
     // The old price stays for the subscriptions on it, still known as a seat by its metadata.
     expect(stripe.prices.find(p => p.id === 'price_ws_monthly')).toMatchObject({ active: true, lookup_key: null })
   })

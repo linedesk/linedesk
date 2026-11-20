@@ -36,7 +36,7 @@ export type PlanPrice = { lookupKey: string; product: PlanProduct; cents: number
  * price: a recharge invoice item and a top-up Checkout line give the amount.
  */
 export const planProducts = (brand: string): Record<PlanProduct, string> => ({
-  workspace: `${brand} workspace`,
+  workspace: brand,
   partner: 'White-label Cloud',
   extra_calls: `${brand} extra calls at the same time`,
   balance_recharge: 'Balance recharge',

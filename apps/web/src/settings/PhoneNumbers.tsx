@@ -776,7 +776,8 @@ export function ConnectNumber({
               />
             </Field>
           )}
-          {billedLine || (noAreaCode && price && <p className="help">{price}</p>)}
+          {/* While the question shows, it says the cost itself: the line would say it twice. */}
+          {!confirming && (billedLine || (noAreaCode && price && <p className="help">{price}</p>))}
           {canAttach && (
             <div>
               <Button size="sm" variant="ghost" onClick={() => go('existing')}>

@@ -210,7 +210,7 @@ export function filterVoices<V extends PickerVoice>(
     const one = filter.language !== ASSISTANT_LANGUAGES && filter.language
     if (one && !languages.some(l => l.code === one)) return false
     if (filter.gender && norm(v.gender) !== filter.gender) return false
-    if (filter.accent && norm(v.accent) !== filter.accent) return false
+    if (filter.accent && shownAccent(v.accent) !== filter.accent) return false
     const names = languages.map(l => norm(languageName(l.code))).join(' ')
     const text = `${norm(v.name)} ${norm(v.description)} ${norm(v.accent)} ${names}`
     return words.every(w => text.includes(w))
@@ -222,9 +222,9 @@ export function facetValues(voices: readonly PickerVoice[], field: 'language' | 
   const values = new Set(
     field === 'language'
       ? voices.flatMap(v => languagesOf(v).map(l => l.code))
-      : voices.map(v => norm(v[field])).filter(Boolean),
+      : voices.map(v => (field === 'accent' ? shownAccent(v.accent) : norm(v.gender))).filter(Boolean),
   )
-  const label = field === 'language' ? languageName : field === 'gender' ? genderName : capitalize
+  const label = field === 'language' ? languageName : field === 'gender' ? genderName : titleCase
   const locale = intlLocale()
   return [...values]
     .map(value => ({ value, label: label(value) }))
@@ -267,16 +267,25 @@ export function languageName(code: string | null | undefined): string {
   }
 }
 
-/** Accent names that say nothing about how a voice sounds ("standard German"). */
-const PLAIN_ACCENTS = new Set(['standard', 'neutral', 'native', 'general', 'default'])
+/** Accent names that say nothing about how a voice sounds ("standard German", a provider's "other"). */
+const PLAIN_ACCENTS = new Set(['standard', 'neutral', 'native', 'general', 'default', 'other', 'unknown', 'none'])
+
+/**
+ * The accent as a word worth showing, or '' when it says nothing: providers write some with a language code in front
+ * ("de standard", "en-us american"), which is dropped first.
+ */
+export function shownAccent(accent: string | null | undefined): string {
+  const word = norm(accent).replace(/^[a-z]{2}(?:[-_][a-z]{2})?\s+/, '')
+  return word && !PLAIN_ACCENTS.has(word) ? word : ''
+}
 
 /** The accent a voice speaks `main` with, as a word for "with a … accent", or null when it can't be told. */
 function accentFor(v: PickerVoice, main: string): string | null {
   const languages = languagesOf(v)
   const named = (accent: string | null | undefined) => {
-    const word = norm(accent)
+    const word = shownAccent(accent)
     // "German with a German accent" says nothing: the voice's own accent tells more.
-    return word && !PLAIN_ACCENTS.has(word) && word !== norm(languageName(main)) ? titleCase(word) : null
+    return word && word !== norm(languageName(main)) ? titleCase(word) : null
   }
   // The accent the provider gives for this language (Cartesia), else the one of the voice's own language.
   const own = named(languages.find(l => l.code === main && !l.native)?.accent)
@@ -330,10 +339,10 @@ export function voiceFacts(
   others: readonly string[] = [],
   providerLabel?: string,
 ): string {
-  const accent = canPerform(v, main) ? norm(languagesOf(v).find(l => l.code === main)?.accent) : ''
+  const accent = canPerform(v, main) ? shownAccent(languagesOf(v).find(l => l.code === main)?.accent) : ''
   return [
     v.gender && genderName(v.gender),
-    accent && !PLAIN_ACCENTS.has(accent) ? titleCase(accent) : null,
+    accent ? titleCase(accent) : null,
     languageLabel(v, main, others),
     providerLabel,
   ]

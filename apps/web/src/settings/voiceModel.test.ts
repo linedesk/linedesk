@@ -15,6 +15,7 @@ import {
   type PickerVoice,
   previewProblem,
   previewUrl,
+  shownAccent,
   suggestedForLanguage,
   voiceFacts,
   voiceForLanguages,
@@ -109,7 +110,7 @@ describe('voice picker', () => {
       { value: 'en', label: 'English' },
       { value: 'de', label: 'German' },
     ])
-    expect(facetValues(voices, 'accent').map(f => f.label)).toEqual(['American', 'British', 'Standard'])
+    expect(facetValues(voices, 'accent').map(f => f.label)).toEqual(['American', 'British'])
     expect(voiceFacts(voices[3]!, 'en', [], 'Cartesia')).toBe('Male · British · Native English · Cartesia')
     expect(voiceFacts(voices[2]!, 'en')).toBe('Female · Native English')
     expect(voiceFacts(voices[1]!, 'en')).toBe('Female · English with a German accent')
@@ -396,5 +397,28 @@ describe('voices and the assistant’s languages', () => {
     })
     expect(missingNativeNote('en', { label: 'ElevenLabs', freePlan: true })).toBeNull()
     expect(missingNativeNote('de', null)).toBeNull()
+  })
+})
+
+describe('accents providers write that say nothing', () => {
+  test('a language code in front is dropped; standard and other are not shown', () => {
+    expect(shownAccent('de standard')).toBe('')
+    expect(shownAccent('Other')).toBe('')
+    expect(shownAccent('en-us american')).toBe('american')
+    expect(shownAccent('British')).toBe('british')
+    expect(shownAccent(null)).toBe('')
+  })
+  test('the accent filter offers only accents worth naming', () => {
+    const voice = (id: string, accent: string): PickerVoice => ({
+      provider: 'elevenlabs',
+      id,
+      name: id,
+      description: '',
+      gender: 'female',
+      language: 'de',
+      accent,
+    })
+    const values = facetValues([voice('a', 'de standard'), voice('b', 'other'), voice('c', 'swiss')], 'accent')
+    expect(values).toEqual([{ value: 'swiss', label: 'Swiss' }])
   })
 })

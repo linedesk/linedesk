@@ -348,7 +348,8 @@ function Choose({
                 />
               </Field>
             )}
-            {!partnerManaged && (
+            {/* While the question shows, it says the cost itself: the note would say it twice. */}
+            {!partnerManaged && !confirming && (
               <p className="ob2-note">
                 {/* The same note as Settings › Phone numbers: on a bill the first number is in the plan. */}
                 {billedNumberNote(extraNumberCents, status.provider, boughtNumbers) ??
