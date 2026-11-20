@@ -19,9 +19,27 @@ import {
   voiceFacts,
   voiceForLanguages,
   voiceInEffect,
+  voiceWords,
 } from './voiceModel.ts'
 
 describe('voice picker', () => {
+  it("names and describes a voice in the reader's language (LIN-648)", () => {
+    const susi: PickerVoice = {
+      provider: 'elevenlabs',
+      id: 'v3V1d2rk6528UrLKRuy8',
+      name: 'Susi - Effortless and Confident',
+      description: 'Imagine the voice of the telemarketing assistant',
+      providerWords: true,
+    }
+    expect(voiceWords(susi, 'en')).toEqual({ name: susi.name, description: susi.description })
+    expect(voiceWords(susi, 'de')).toEqual({ name: 'Susi', description: null })
+    // A clone: the workspace's own name, kept for every reader.
+    const clone = { ...susi, name: 'Mike - shop', description: 'Cloned', providerWords: false }
+    expect(voiceWords(clone, 'de')).toEqual({ name: 'Mike - shop', description: 'Cloned' })
+    // A curated voice: described by its key, whatever the provider's list says.
+    const jessica = { ...susi, id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica - Playful', description: 'Young' }
+    expect(voiceWords(jessica, 'de')).toEqual({ name: 'Jessica', description: 'Warm and bright, female' })
+  })
   it('a voice of a provider without a key does not apply: the default is shown', () => {
     const jessica = { provider: 'elevenlabs', voice_id: 'cgSgspJ2msm6clMCkdW9' }
     expect(voiceInEffect(jessica, ['elevenlabs'])).toBe('elevenlabs:cgSgspJ2msm6clMCkdW9')

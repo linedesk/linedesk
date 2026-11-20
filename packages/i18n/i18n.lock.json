@@ -24212,7 +24212,7 @@
     },
     "server.setupAgent.command.changeAssistant": {
       "by": "ai",
-      "out": "11f4ce480d82282854c5aaee2ddd9f717f218ca6e8f7c7627538789c5a0ac3c9",
+      "out": "168e1e5f6a84d2ff531a26a85eb2abe39810ff7ac1bfab28d78abe3d0a505eb1",
       "src": "5d84d1ae7b89b31092e0907f347037f756c1f3ead5e743015735ec7fdde096cf"
     },
     "server.setupAgent.command.changeWorkspace": {
@@ -24437,7 +24437,7 @@
     },
     "server.setupAgent.prompt.install": {
       "by": "ai",
-      "out": "1ae7400b8e864ee77f9f68ec0d64a5611d9599fbc20146b0a050827a7f7f8a77",
+      "out": "052333fc6eb15a92fcf092b36765acd9f10fd5fa0e02ee188cbfd1248ac2d240",
       "src": "3b39ab6c51cc7f148147a18c391e037ff76ee71607ae19510df8bc2bab32c1ca"
     },
     "server.setupAgent.prompt.toolsConnector": {
@@ -24452,7 +24452,7 @@
     },
     "server.setupAgent.prompt.workspace": {
       "by": "ai",
-      "out": "9b364f74fc43b843269d735b5ecaa779568a104702e1574268c4826767d8b0f0",
+      "out": "742937ccb48c99c6d25872f929de28d04838a9fcf4b760656c3f291bc9bd7a11",
       "src": "9b3124e07807717a6bb4589c153fa10fa6503c35fd3426fb89237fb88c2526c8"
     },
     "server.setupAgent.step.answering": {
@@ -24532,7 +24532,7 @@
     },
     "server.setupAgent.step.phoneHint": {
       "by": "ai",
-      "out": "1a7280f50f921c01429c81943fc2247b71f15348b19e35a9e898accc979ff98d",
+      "out": "271c0af789b1aa8e9b236e25260a16bd8f720fe14623a8d557da55b7316912c0",
       "src": "a72d00c3aee88b935e51e491076bea0ab7c33bcc14ee42e858c62ca1ce4ce14e"
     },
     "server.setupAgent.step.pickup": {

@@ -6,6 +6,7 @@ import {
   CLONE_AUDIO_MAX_BYTES,
   type CatalogProvider,
   cloneAudioTypes,
+  curatedVoices,
   LANGUAGES,
   type Language,
   languageDefaultOf,
@@ -31,6 +32,24 @@ export type PickerVoice = {
   language?: string | null
   gender?: string | null
   accent?: string | null
+  /**
+   * Its name and description are the provider's own words (ElevenLabs' library writes them in English, "Susi -
+   * Effortless and Confident"), not ours: shown in full only to an English reader (voiceWords).
+   */
+  providerWords?: boolean
+}
+
+/**
+ * What a voice row shows, in the reader's language (LIN-648): a curated voice is described by its key; a voice the
+ * provider describes in its own (English) words keeps them for an English reader, any other reader sees its first
+ * name alone, with the row's facts (gender, languages) in their language beside it. Search and the picks still read
+ * the provider's words (filterVoices, madeForCalls), the same for every reader.
+ */
+export function voiceWords(v: PickerVoice, locale: string): { name: string; description: string | null } {
+  const curated = (curatedVoices[v.provider] ?? []).find(c => c.id === v.id)
+  if (curated) return { name: curated.name, description: i18n().t(curated.description) }
+  if (!v.providerWords || locale === 'en') return { name: v.name, description: v.description }
+  return { name: v.name.split(' - ')[0]?.trim() || v.name, description: null }
 }
 
 /**

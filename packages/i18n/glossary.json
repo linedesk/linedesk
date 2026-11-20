@@ -37,7 +37,7 @@
       "es": "asistente",
       "pt-BR": "assistente",
       "fr": "assistant",
-      "de": "Assistent",
+      "de": "Assistent (always the masculine form with er/sein, also for a female-named assistant such as Maya; never Assistentin. What the assistant says on calls is spoken-lines.ts, not this)",
       "ja": "アシスタント"
     },
     "Workspace": {

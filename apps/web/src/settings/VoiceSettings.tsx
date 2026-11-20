@@ -18,7 +18,7 @@ import {
   type VoiceCloneData,
   type VoiceOptionsData,
 } from '@linedesk/actions'
-import { T, useFormat, useT } from '@linedesk/i18n/react'
+import { T, useFormat, useLocale, useT } from '@linedesk/i18n/react'
 import { adminLink } from '../ui/AppLink.tsx'
 import { i18n } from '../i18n/index.tsx'
 import { providerAudience } from '../providerAudience.ts'
@@ -60,6 +60,7 @@ import {
   voiceFacts,
   voiceInEffect,
   voiceKey,
+  voiceWords,
 } from './voiceModel.ts'
 
 const VOICE_OPTIONS = 'voice.options'
@@ -264,17 +265,19 @@ type RowProps = {
 
 function VoiceRow({ voice, defaultSample, defaultNote, checked, onPick, disabled, preview, facts }: RowProps) {
   const t = useT()
+  const locale = useLocale()
   const defaultName = defaultSample?.name
     ? t('settings.voice.defaultNamed', { name: defaultSample.name })
     : t('settings.voice.default')
-  const description = voice ? voice.description : (defaultNote ?? null)
+  const shown = voice ? voiceWords(voice, locale) : null
+  const description = shown ? shown.description : (defaultNote ?? null)
   return (
     <div className={cx('vp-row', checked && 'on')}>
       <label className="vp-pick">
         <input type="radio" name="voice" className="vp-radio" checked={checked} disabled={disabled} onChange={onPick} />
         <span className="vp-dot" aria-hidden="true" />
         <span className="vp-text">
-          <span className="vp-name">{voice ? voice.name : defaultName}</span>
+          <span className="vp-name">{shown ? shown.name : defaultName}</span>
           {description && (
             <span className="vp-desc" title={description.length > 60 ? description : undefined}>
               {description}
@@ -284,7 +287,7 @@ function VoiceRow({ voice, defaultSample, defaultNote, checked, onPick, disabled
         {facts && <span className="vp-facts">{facts}</span>}
       </label>
       {voice ? (
-        <PlayButton voice={voice} preview={preview} />
+        <PlayButton voice={voice} label={shown?.name} preview={preview} />
       ) : (
         <PlayButton
           voice={defaultSample ? { ...defaultSample, name: defaultName, description: null } : null}
@@ -705,7 +708,12 @@ export function VoiceSettings({
     persist: true,
   })
   // Each voice once: a catalog kept from an older API lists a library voice once per language it is verified in.
-  const catalogVoices = useMemo(() => oncePerVoice(catalog?.voices ?? []), [catalog])
+  // The provider's own words name and describe its voices (voiceWords), not the workspace's clones.
+  const cloneIds = (options?.clones ?? []).map(v => v.id).join(',')
+  const catalogVoices = useMemo(() => {
+    const own = new Set(cloneIds.split(','))
+    return oncePerVoice(catalog?.voices ?? []).map(v => ({ ...v, providerWords: !own.has(v.id) }))
+  }, [catalog, cloneIds])
   // A suggested voice as the provider's list describes it (its languages), where the list has it.
   const described = (v: PickerVoice): PickerVoice =>
     catalogVoices.find(c => c.provider === v.provider && c.id === v.id) ?? v
