@@ -225,6 +225,21 @@ test('maskIpAddresses: IPv6 with 8 colon groups and ::, digit-less IPv6, IPv4 af
     expect(maskIpAddresses(plain)).toBe(plain)
 })
 
+test('maskIpAddresses: zero-padded IPv4 and a 5-digit port after a full IPv6 address', () => {
+  expect(maskIpAddresses('gateway 192.168.001.010 and 010.000.000.001')).toBe('gateway [ip] and [ip]')
+  expect(maskIpAddresses('wg 2001:db8:0:0:0:0:0:1:51820 up')).toBe('wg [ip]:51820 up')
+  expect(maskIpAddresses('wg 2001:db8::1:51820 and fe80::abcd:51820')).toBe('wg [ip]:51820 and [ip]:51820')
+  for (const plain of [
+    '256.001.1.1 and 1.2.3.0004',
+    'at 12:30:45 or 10:30:45678',
+    'MAC 00:1a:2b:3c:4d:5e',
+    'Node 22.11.0, v1.2.3.4, version 1.02.003.4.5',
+    'fe80::12345 is not an address',
+    'a:b:c:d:e:f:1:2:3:12345',
+  ])
+    expect(maskIpAddresses(plain)).toBe(plain)
+})
+
 test('maskIpAddresses stays linear on 16 KB of hostile input', () => {
   const size = 16 * 1024
   const fill = (unit: string) => unit.repeat(Math.ceil(size / unit.length)).slice(0, size)
@@ -241,6 +256,9 @@ test('maskIpAddresses stays linear on 16 KB of hostile input', () => {
     fill('1:2:3:4:5:6:7:8:'),
     fill(' 1:2:3:4:5:6:7::x'),
     `${fill('0')}:`,
+    fill('001.'),
+    fill('1:2:3:4:5:6:7:8:12345'),
+    fill(' 1:2:3:4:5:6:7:8:123456'),
   ]
   for (const text of hostile) {
     const start = performance.now()

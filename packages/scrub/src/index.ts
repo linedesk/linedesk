@@ -51,7 +51,8 @@ export const scrubText = (text: string) =>
       .replace(TOKEN_RUN, replaceToken),
   )
 
-const OCTET = '(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)'
+/** One IPv4 part, 0 to 255, also zero-padded (192.168.001.010). */
+const OCTET = '(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)'
 /**
  * An IPv4 address on its own (not inside a longer dotted number such as a version 1.2.3.4.5, nor next to a letter or
  * digit as in v1.2.3.4); next to `_` it is one (DB_HOST_10.0.0.5, 10.0.0.5_backup).
@@ -59,10 +60,11 @@ const OCTET = '(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)'
 const IPV4 = new RegExp(`(?<![A-Za-z0-9.])(?:${OCTET}\\.){3}${OCTET}(?!\\.?[A-Za-z0-9])`, 'g')
 /**
  * An IPv6 candidate: hex groups and colons, up to 8 colons (1:2:3:4:5:6:7::, ::2:3:4:5:6:7:8, a full address with a
- * :port), also right after `_` (HOST_2001:db8::5); isIpv6 decides (times like 12:30:45 and MAC addresses are not).
+ * :port, up to 5 digits), also right after `_` (HOST_2001:db8::5); isIpv6 decides (times like 12:30:45 and MAC
+ * addresses are not).
  * Each group ends at its colon, so it runs in linear time on any input.
  */
-const IPV6_CANDIDATE = /(?<![A-Za-z0-9:.])(?:[0-9a-f]{0,4}:){2,8}[0-9a-f]{0,4}(?![\w:])/gi
+const IPV6_CANDIDATE = /(?<![A-Za-z0-9:.])(?:[0-9a-f]{0,4}:){2,8}(?:\d{5}|[0-9a-f]{0,4})(?![\w:])/gi
 /** Addresses that say nothing about an install: loopback and unspecified. */
 const NOT_IDENTIFYING = new Set(['127.0.0.1', '0.0.0.0', '::1', '::'])
 
@@ -70,6 +72,7 @@ function isIpv6(candidate: string): boolean {
   const compressed = candidate.split('::').length - 1
   if (compressed > 1) return false
   const groups = candidate.split(':').filter(Boolean)
+  if (groups.some(group => group.length > 4)) return false
   // Full form has eight groups. A compressed one (2001:db8::1, 1:2:3:4:5:6:7::) stands for at least one zero group, so
   // at most seven, and has a digit or at least three groups (dead::beef:cafe; not std::map, nor a lone dead::beef).
   if (compressed === 0) return groups.length === 8
@@ -87,8 +90,12 @@ export const maskIpAddresses = (text: string) =>
     .replace(IPV4, ip => (NOT_IDENTIFYING.has(ip) ? ip : '[ip]'))
     .replace(IPV6_CANDIDATE, ip => {
       // A full address with its port and no brackets (2001:db8:0:0:0:0:0:1:443): the address goes, the port stays.
-      const port = /^((?:[0-9a-f]{1,4}:){8})(\d{1,4})$/i.exec(ip)
+      const port = /^((?:[0-9a-f]{1,4}:){8})(\d{1,5})$/i.exec(ip)
       if (port) return isIpv6(port[1]!.slice(0, -1)) ? `[ip]:${port[2]}` : ip
+      // Any other address followed by a 5-digit port (2001:db8::1:51820): a group is at most 4 characters, so it is a port.
+      const longPort = /^(.+):(\d{5})$/.exec(ip)
+      if (longPort)
+        return isIpv6(longPort[1]!) && !NOT_IDENTIFYING.has(longPort[1]!.toLowerCase()) ? `[ip]:${longPort[2]}` : ip
       return NOT_IDENTIFYING.has(ip.toLowerCase()) || !isIpv6(ip) ? ip : '[ip]'
     })
 
