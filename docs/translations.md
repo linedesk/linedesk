@@ -203,9 +203,13 @@ steps, field labels, country names, voice pipeline labels, refusals the web app 
 - Done: provider status and health (Server admin › Providers, the overview and the install walkthrough), LiveKit and
   service health, provider and voice failures, phone-number checks and country names, the onboarding business
   templates and install steps; the refusals of `handlers.ts`, Checkout and the forwarding check, the provider
-  tests (`provider-test.ts`) and invalid action input (`input-errors.ts`, `server.input.*`: a schema's own message is a
-  key, `msg('server.input.…')`). Left, in `server-text-baseline.json`: the providers' setup guides and costs
-  (`admin.ts`), carrier forwarding guides, the other refusals and the rest of the API.
+  tests (`provider-test.ts`); invalid action input (`input-errors.ts`, `server.input.*`: a schema's own message is a
+  key, `msg('server.input.…')`, with the issue's `params` when it has numbers or names); the refusals of Server admin
+  › Billing, appointment types, the team, webhooks, integrations, calendar connections and Write with help; calendar
+  listing problems (`calendarProblem`), the partner bill refusals and "not while signed in as another user" in the
+  registry. Left, in `server-text-baseline.json`: the providers' setup guides and costs (`admin.ts`), the admin and
+  carrier schema messages, carrier forwarding guides, the booking refusals the assistant reads (rule 11) and the rest
+  of the API.
 
 ## Emails and notifications
 
