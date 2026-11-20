@@ -26,6 +26,14 @@ const tool = (
 ): CallEvent => ({ kind: 'tool', turn, name, args, raw: JSON.stringify(args), result, response })
 
 describe('checks', () => {
+  it('notSay with beforeTool looks only at the replies before that tool', () => {
+    const check = { type: 'notSay', pattern: /Dana/, beforeTool: 'get_name' } as const
+    const after = transcript([tool(1, 'get_name', {}, 1, 'The caller confirmed the name: Dana Ruiz.'), say(1, 'Thanks, Dana.')])
+    expect(runCheck(check, after)).toBeNull()
+    expect(runCheck(check, transcript([say(1, 'Hi Dana.'), tool(1, 'get_name')]))).toMatch(/turn 1 matches/)
+    expect(runCheck(check, transcript([say(1, 'Hi Dana.')]))).toMatch(/turn 1 matches/)
+  })
+
   it('splits spoken sentences, not abbreviations or times', () => {
     expect(sentencesOf('Sure. We open at 7 a.m. tomorrow. Mr. Brennan will call!')).toHaveLength(3)
     expect(sentencesOf('Hi there')).toEqual(['Hi there'])

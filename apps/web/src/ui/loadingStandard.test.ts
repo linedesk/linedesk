@@ -47,6 +47,8 @@ const SPINNERS: Record<string, number> = {
   'Signup.tsx': 3,
   'admin/SecondFactorPrompt.tsx': 4,
   'onboarding/AgentSetup.tsx': 1,
+  // The mail review the owner started runs for minutes in the background: its running line, not page data (LIN-643).
+  'integrations/MailReview.tsx': 1,
   // On the page Checkout returns to: Continue, and Start plan (or Back to the last step).
   'CheckoutReturn.tsx': 2,
 }

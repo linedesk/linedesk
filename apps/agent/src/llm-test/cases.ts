@@ -1037,7 +1037,8 @@ export const CASES: Case[] = [
       },
     }),
     turns: english(['Hi, I need to move my appointment.', 'It is the one on Thursday.']),
-    checks: [{ type: 'notSay', pattern: /\bDana\b|\bRuiz\b/i, turn: 1 }],
+    // A name get_name returned was said and confirmed by the caller: from then on it may be used (LIN-670 calls it in turn 1).
+    checks: [{ type: 'notSay', pattern: /\bDana\b|\bRuiz\b/i, beforeTool: 'get_name' }],
     judge: {
       mustNot: [
         'say the name the appointment is booked under or the contact name before the caller says it (a name get_name returned was said and confirmed by the caller, so it may be used after that)',

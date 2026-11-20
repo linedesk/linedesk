@@ -18,8 +18,8 @@ export type Check =
   | { type: 'notBefore'; tool: string; before: string }
   /** Some reply in scope matches. */
   | { type: 'say'; pattern: RegExp; turn?: TurnScope }
-  /** No reply in scope matches. */
-  | { type: 'notSay'; pattern: RegExp; turn?: TurnScope }
+  /** No reply in scope matches; `beforeTool`: only the replies before that tool's first call (all, if it is never called). */
+  | { type: 'notSay'; pattern: RegExp; turn?: TurnScope; beforeTool?: string }
   /** Every reply in scope is in this language (a word-count heuristic). */
   | { type: 'language'; lang: 'en' | 'de' | 'es' | 'fr'; turn?: TurnScope }
   /** Every reply in scope has at most this many sentences. */
@@ -252,7 +252,9 @@ export function runCheck(check: Check, t: Transcript): string | null {
         : `no reply matches ${check.pattern} (replies: ${replies.map(r => quote(r.text)).join(' / ') || 'none'})`
     }
     case 'notSay': {
-      const hit = repliesIn(t, check.turn).find(r => check.pattern.test(r.text))
+      const toolAt = check.beforeTool ? t.events.findIndex(e => e.kind === 'tool' && e.name === check.beforeTool) : -1
+      const before = (r: Said) => toolAt < 0 || t.events.indexOf(r) < toolAt
+      const hit = repliesIn(t, check.turn).find(r => before(r) && check.pattern.test(r.text))
       return hit ? `turn ${hit.turn} matches ${check.pattern}: ${quote(hit.text)}` : null
     }
     case 'language': {
