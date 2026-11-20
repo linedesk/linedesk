@@ -19,6 +19,8 @@ export type RoomCall = {
   persona?: string | undefined
   pipeline?: VoicePipeline | undefined
   realtimeModel?: string | undefined
+  /** The realtime model cannot be reached on this call (call-test --realtime-unreachable, LIN-634). */
+  realtimeUnreachable?: boolean
 }
 
 function roomService() {
@@ -83,7 +85,7 @@ async function waitForParticipant(room: string, timeoutMs = 20_000) {
 
 /** Both agents in one room: the test caller (on `callerAgent`), and the business's as a test call of its workspace. */
 export async function startInRoom(
-  { name, room, to, since, api, persona, pipeline, realtimeModel }: RoomCall,
+  { name, room, to, since, api, persona, pipeline, realtimeModel, realtimeUnreachable }: RoomCall,
   callerAgent = AGENT_NAME,
 ) {
   const { workspaceId } = (await api.run(callFindForTest, { to, since, room })).data as CallTestFinding
@@ -100,6 +102,7 @@ export async function startInRoom(
     workspaceId,
     ...(pipeline ? { pipeline } : {}),
     ...(realtimeModel ? { realtimeModel } : {}),
+    ...(realtimeUnreachable ? { realtimeUnreachable: true } : {}),
     ...(businessHours ? { businessHours } : {}),
     ...(outsideGreeting ? { outsideGreeting } : {}),
     ...(onCall ? { onCall } : {}),
@@ -114,7 +117,7 @@ export async function startInRoom(
   await waitForParticipant(room)
   await dispatch.createDispatch(room, AGENT_NAME, { metadata: JSON.stringify(metadata) })
   console.log(
-    `Test call in room ${room} with workspace ${workspaceId} (scenario ${name}, no phone${pipeline ? `, ${VOICE_PIPELINE_LABELS[pipeline].toLowerCase()}` : ''}${realtimeModel ? `, ${realtimeModel}` : ''})…`,
+    `Test call in room ${room} with workspace ${workspaceId} (scenario ${name}, no phone${pipeline ? `, ${VOICE_PIPELINE_LABELS[pipeline].toLowerCase()}` : ''}${realtimeModel ? `, ${realtimeModel}` : ''}${realtimeUnreachable ? ', realtime model unreachable' : ''})…`,
   )
 }
 

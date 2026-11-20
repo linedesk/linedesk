@@ -2,7 +2,8 @@ import { initializeLogger } from '@livekit/agents'
 import { readFileSync } from 'node:fs'
 import { beforeAll, expect, test, vi } from 'vitest'
 import { type AgentConfig, configFromEnv, type RealtimeCallConfig, withAssistantRealtimeVoice } from './config.ts'
-import { assemblyAiChoice, callLanguagesOf, createStt, createTts, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TRUNCATION, REALTIME_TURNS, realtimeRepliesEvent, sendRealtimeTruncation, withRealtimeTruncation, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
+import { assemblyAiChoice, callLanguagesOf, createStt, createTts, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TRUNCATION, REALTIME_TURNS, realtimeRepliesEvent, REALTIME_UNREACHABLE_URL, sendRealtimeTruncation, withRealtimeTruncation, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
+import { REALTIME_CONNECT_TIMEOUT_MS } from './realtime-connect.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
 
@@ -115,6 +116,12 @@ test('a realtime call has only the model: no speech to text, no voice provider',
   expect(options.llm).toMatchObject({ _options: { model: 'gpt-realtime-mini', voice: 'marin', speed: 1.1 } })
   // Phone audio is near-field; one language: the caller's transcript is told which.
   expect(options.llm).toMatchObject({ _options: { inputAudioNoiseReduction: { type: 'near_field' }, inputAudioTranscription: { language: 'en' } } })
+  // A connection that does not open is given up after 4 s, not LiveKit's 10 s (LIN-634); the model's own address.
+  expect(options.llm).toMatchObject({ _options: { connOptions: { timeoutMs: REALTIME_CONNECT_TIMEOUT_MS, maxRetry: 3 } } })
+  expect((options.llm as unknown as { _options: { baseURL: string } })._options.baseURL).not.toBe(REALTIME_UNREACHABLE_URL)
+  // The call test's --realtime-unreachable points it where nothing answers.
+  const unreachable = createRealtimePipeline(realtime, 7, 100, undefined, undefined, true)
+  expect(unreachable.llm).toMatchObject({ _options: { baseURL: REALTIME_UNREACHABLE_URL } })
   const spanishOrEnglish = createRealtimePipeline(realtime, 7, 100, { main: 'es', others: ['en'] })
   expect((spanishOrEnglish.llm as unknown as { _options: { inputAudioTranscription: { language?: string } } })._options.inputAudioTranscription.language).toBeUndefined()
 })

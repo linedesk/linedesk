@@ -65,6 +65,7 @@ On staging and production, live tests use the three stages only (`--pipeline thr
 - `--phone`: a real call over Telnyx from `CALL_TEST_FROM` to `CALL_TEST_TO` (run `setup-test-caller` once; a few cents).
 - `--external`: `CALL_TEST_TO` is another install's number (e.g. production called from staging's test caller): no checks, only what the caller heard.
 - `--pipeline` (no phone only): the business answers with the realtime model or the three stages instead of what its assistant's call quality picks (Ultra: the realtime model; over the phone the call quality applies).
+- `--realtime-unreachable` (no phone only): a realtime call's model is pointed at an address that never answers, to check that the call goes on without it (the three stages answer after 4 s when the install has them).
 - Needs the worker running and `CALL_TEST_TO` (names the workspace).
 
 Scenarios: `apps/agent/src/test-caller/scenarios.ts`.

@@ -25,7 +25,7 @@ import {
 } from '@linedesk/actions'
 import type { CallerDetails } from '@linedesk/db/types'
 import { cli, defineAgent, ServerOptions, voice, type JobContext } from '@livekit/agents'
-import type { RemoteParticipant, Room } from '@livekit/rtc-node'
+import { type RemoteParticipant, type Room, TrackKind } from '@livekit/rtc-node'
 import { RoomServiceClient } from 'livekit-server-sdk'
 import { apiClientFromEnv, type ApiClient } from './api-client.ts'
 import { initErrorReporting } from './error-reporting.ts'
@@ -103,6 +103,7 @@ import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
 import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
 import { describeRealtimeUsage, type RealtimeUsageMetrics, realtimeUsageCounter } from './realtime-usage.ts'
 import { realtimeHistoryCompactor } from './realtime-history.ts'
+import { firstConnection, REALTIME_CONNECT_TIMEOUT_MS } from './realtime-connect.ts'
 import { callNotesKeeper } from './call-notes.ts'
 import { followCallerLanguage } from './caller-language.ts'
 import { skipQuietToolReplies } from './tool-replies.ts'
@@ -319,6 +320,21 @@ function roomEnder(ctx: JobContext, callId: string) {
   }
 }
 
+/** Longest the closing realtime session is waited for before the three stages take over (LIN-634). */
+const SESSION_CLOSE_WAIT_MS = 2_000
+
+/**
+ * The agent's own audio tracks taken off the call: the closed realtime session's (silent, but still in the room)
+ * before the three stages publish theirs (LIN-634).
+ */
+async function unpublishOwnAudio(room: Room) {
+  const own = room.localParticipant
+  if (!own) return
+  for (const publication of [...own.trackPublications.values()])
+    if (publication.kind === TrackKind.KIND_AUDIO && publication.sid)
+      await own.unpublishTrack(publication.sid).catch(() => {})
+}
+
 /** The realtime model of a call, for its fixed lines: its session (once open) and how many turns the caller finished. */
 type RealtimeLines = { model: () => RealtimeEvents | null; callerTurns: () => number; languages: CallLanguages }
 
@@ -392,16 +408,27 @@ async function converse(
   // The realtime session (again after a reconnect), and the caller's finished turns in it, for the fixed lines.
   let realtimeSession: RealtimeEvents | null = null
   let callerTurns = 0
+  // Whether the realtime model's first connection opens in time (LIN-634, realtime-connect.ts).
+  const connection = realtime ? firstConnection() : null
   const session = new voice.AgentSession(
     realtime
-      ? createRealtimePipeline(realtime, silence.firstGapS, speed, languages, events => {
-          realtimeSession = events
-          events.on('openai_client_event_queued', event => timer?.sent(event))
-          events.on('openai_server_event_received', event => {
-            if (event.type === 'input_audio_buffer.committed') callerTurns++
-            timer?.received(event)
-          })
-        })
+      ? createRealtimePipeline(
+          realtime,
+          silence.firstGapS,
+          speed,
+          languages,
+          events => {
+            realtimeSession = events
+            connection?.start()
+            events.on('openai_client_event_queued', event => timer?.sent(event))
+            events.on('openai_server_event_received', event => {
+              if (event.type === 'session.created') connection?.connected()
+              if (event.type === 'input_audio_buffer.committed') callerTurns++
+              timer?.received(event)
+            })
+          },
+          call.realtimeUnreachable === true,
+        )
       : pipeline!,
   )
   // Any stage that fails marks the call and shows on a test call, instead of silence.
@@ -411,13 +438,14 @@ async function converse(
   const failedStages = new Set<VoiceStage>()
   // Races in the call's own conversation (two replies at once): logged and counted, the provider stays OK (LIN-249).
   let callErrors = 0
+  const reportFailure = onceEachStage(failure => {
+    failedStages.add(failure.stage)
+    reportVoiceFailure(ctx.room, call, log, failure)
+  })
   watchVoicePipeline(
     session,
     stageProviders,
-    onceEachStage(failure => {
-      failedStages.add(failure.stage)
-      reportVoiceFailure(ctx.room, call, log, failure)
-    }),
+    reportFailure,
     stages ? [stages.stt.apiKey, stages.llm.apiKey, stages.tts.apiKey] : [realtime!.apiKey],
     failure => {
       callErrors++
@@ -499,7 +527,17 @@ async function converse(
     readyReplies: pipeline !== null,
     callerId: callerIdOf(call) !== null,
   })
-  session.on(voice.AgentSessionEventTypes.Close, onClose)
+  // The realtime model failed before it ever connected (LiveKit's connect timeout, REALTIME_CONNECT_TIMEOUT_MS).
+  if (connection)
+    session.on(voice.AgentSessionEventTypes.Error, ({ error }) => {
+      if (error.type === 'realtime_model_error') connection.failed()
+    })
+  // Closed for the three stages to take over (LIN-634): the call goes on, so this session's end does not end it.
+  let replaced = false
+  session.on(voice.AgentSessionEventTypes.Close, () => {
+    connection?.closed()
+    if (!replaced) onClose()
+  })
   const deleteRoom = roomEnder(ctx, call.callId)
   // The assistant always says something before the call ends: the goodbye line, the closing line after silence, or the
   // goodbye at its time limit.
@@ -703,6 +741,50 @@ async function converse(
     },
   })
   setup.mark('session')
+  connection?.start()
+  if (connection && realtime) {
+    const first = await connection.first
+    if (first === 'closed') return setup.note('the call ended before the realtime model connected')
+    if (first === 'failed') {
+      // Reported once (onceEachStage): LiveKit's own timeout error usually came first.
+      reportFailure({
+        stage: 'realtime',
+        provider: realtime.provider,
+        reason: 'timeout',
+        message: 'OpenAI Realtime API connection timed out',
+      })
+      if (isRealtime(config) && config.stages) {
+        console.warn(
+          `call ${call.callId}: the realtime model did not connect within ${REALTIME_CONNECT_TIMEOUT_MS / 1000} s, the three stages answer the call`,
+        )
+        replaced = true
+        await within(
+          session.close().catch(() => {}),
+          SESSION_CLOSE_WAIT_MS,
+          undefined,
+        )
+        await unpublishOwnAudio(ctx.room)
+        return converse(
+          ctx,
+          callerJoined,
+          api,
+          config.stages,
+          call,
+          log,
+          onClose,
+          setup,
+          stopRecordingForTransfer,
+          callerDetails,
+        )
+      }
+      // No three stages on this install: LiveKit tries again at once; the greeting is asked for once it is connected
+      // (asked before, it timed out with the connection and the caller heard nothing for a minute).
+      console.warn(
+        `call ${call.callId}: the realtime model did not connect within ${REALTIME_CONNECT_TIMEOUT_MS / 1000} s, waiting for its next try`,
+      )
+      if (!(await connection.later)) return setup.note('the call ended before the realtime model connected')
+    }
+  }
   // A member can take the call over from the web app at any point now (call.takeOver).
   const stopWatching = watchTakeOver({
     room: ctx.room,

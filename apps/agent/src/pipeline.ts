@@ -5,7 +5,7 @@
 // Or, when an admin picked one, a realtime model alone: it hears the caller and answers in its own voice.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
 import { DEFAULT_VOICE_MODELS, noPrivateEndpointText, noTrainingFields, voiceModelFor, anyModeLanguages, fluxRecognizes, type HearingModel, type Language, mainLanguageOf, otherLanguagesOf, providerLanguageCode, type SpeakingVoice, spokenLanguages, defaultVoiceFor, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
-import { tts as ttsTypes, type voice } from '@livekit/agents'
+import { DEFAULT_API_CONNECT_OPTIONS, tts as ttsTypes, type voice } from '@livekit/agents'
 import * as assemblyai from '@livekit/agents-plugin-assemblyai'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
 import * as deepgram from '@livekit/agents-plugin-deepgram'
@@ -17,6 +17,7 @@ import type { GreetingVoice } from './greeting-cache.ts'
 import { quotedData } from './prompt.ts'
 import type { CompleteJson } from './summary.ts'
 import { type GatedSession, gateReplies, type RealtimeReplyGate } from './realtime-replies.ts'
+import { REALTIME_CONNECT_TIMEOUT_MS } from './realtime-connect.ts'
 
 const SUMMARY_TIMEOUT_MS = 15_000
 /**
@@ -465,14 +466,24 @@ export const REALTIME_TURNS = {
 } as const
 
 /**
+ * An address no connection opens to (TEST-NET-1, RFC 5737): a call test's `--realtime-unreachable` points the model
+ * there, so its connection hangs as it did on staging (LIN-634) and the call has to go on without it.
+ */
+export const REALTIME_UNREACHABLE_URL = 'https://192.0.2.1/v1'
+
+/**
  * Session options for a call answered by a realtime model: no speech to text and no voice provider. The model
  * detects the end of a turn itself (server VAD, REALTIME_TURNS) and transcribes the caller for the call log and summary.
  * `speedPct`: the talking speed in percent, sent as a factor (OpenAI Realtime takes 0.25–1.5); at 100 nothing is sent.
+ * `unreachable`: the model is pointed at REALTIME_UNREACHABLE_URL (call-test --realtime-unreachable).
  */
-export function createRealtimePipeline({ apiKey, model, voice: voiceName }: RealtimeConfig, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, speedPct = TALKING_SPEED_PCT_DEFAULT, languages: CallLanguages = ENGLISH_CALL, onSession?: (session: RealtimeEvents) => void): voice.AgentSessionOptions {
+export function createRealtimePipeline({ apiKey, model, voice: voiceName }: RealtimeConfig, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, speedPct = TALKING_SPEED_PCT_DEFAULT, languages: CallLanguages = ENGLISH_CALL, onSession?: (session: RealtimeEvents) => void, unreachable = false): voice.AgentSessionOptions {
   return {
     llm: new ObservedRealtimeModel(onSession, {
       apiKey, model, voice: voiceName, turnDetection: REALTIME_TURNS,
+      // A connection that does not open in time is given up sooner than LiveKit's 10 s (LIN-634, realtime-connect.ts).
+      connOptions: { ...DEFAULT_API_CONNECT_OPTIONS, timeoutMs: REALTIME_CONNECT_TIMEOUT_MS },
+      ...(unreachable ? { baseURL: REALTIME_UNREACHABLE_URL } : {}),
       inputAudioNoiseReduction: REALTIME_NOISE_REDUCTION,
       inputAudioTranscription: realtimeTranscription(languages),
       ...(speedPct !== TALKING_SPEED_PCT_DEFAULT ? { speed: speedPct / 100 } : {}),

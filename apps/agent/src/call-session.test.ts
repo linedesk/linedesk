@@ -159,6 +159,20 @@ test("on an install that bills usage, the call test's pipeline and realtime mode
   }
 })
 
+test("the call test's unreachable realtime model (LIN-634) holds on any install, and only on a test call", async () => {
+  const row = { id: 'as_1', greeting: 'Hello.', business_profile: {}, call_quality: 'ultra' }
+  const api = { run: async () => ({ data: { callId: 'c', workspaceId: 'ws_1', assistant: row, contact: {}, usageLevel: 'ultra' } }) } as never
+  vi.spyOn(console, 'log').mockImplementation(() => {})
+  try {
+    const test = callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', realtimeUnreachable: true }), {}, 'r')
+    expect((await startCall(api, test)).realtimeUnreachable).toBe(true)
+    const plain = callOrigin(JSON.stringify({ source: 'test', workspaceId: 'ws_1', realtimeUnreachable: 'yes' }), {}, 'r')
+    expect((await startCall(api, plain)).realtimeUnreachable).toBeUndefined()
+  } finally {
+    vi.restoreAllMocks()
+  }
+})
+
 test('outside business hours the call uses the outside greeting; the call test may set one', async () => {
   const closed = { openNow: false, summary: 'Closed now.' }
   const row = { id: 'as_1', greeting: 'Hello, this is Maya.', greeting_outside: 'We are closed.', business_profile: {} }

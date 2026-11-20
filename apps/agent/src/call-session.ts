@@ -128,6 +128,8 @@ export interface CallSession {
   simulatedOnCallLine?: string
   /** A call test's realtime model instead of the install's (call-test --realtime-model); missing on every other call. */
   realtimeModel?: string
+  /** A call test whose realtime model cannot be reached (call-test --realtime-unreachable, LIN-634); missing otherwise. */
+  realtimeUnreachable?: boolean
   /**
    * A public demo call from a website (apps/api/src/demo-call.ts): it ends after DEMO_CALL_MAX_SECONDS with the demo's
    * limit line, and its opening says it is a demo (demoLines, in the call's main language). Missing on every other call.
@@ -375,6 +377,8 @@ type TestMetadata = {
   pipeline?: VoicePipeline
   /** The realtime model this test call uses instead of the install's (call-test --realtime-model). */
   realtimeModel?: string
+  /** The realtime model cannot be reached on this test call (call-test --realtime-unreachable). */
+  realtimeUnreachable?: boolean
   /** A returning caller this test call plays (call-test returning-caller): a saved contact with a note and history. */
   caller?: TestCaller
   /** Behaviour switches this test call uses instead of the assistant's (call-test spoofed-cancel). */
@@ -487,6 +491,8 @@ export async function startCall(api: ApiClient, origin: CallOrigin): Promise<Cal
     promptOverrides: started.promptOverrides ?? {},
     businessNumber: origin.kind === 'phone' ? origin.to : null,
     ...(origin.kind === 'test' && origin.realtimeModel && !billed ? { realtimeModel: origin.realtimeModel } : {}),
+    // Changes no price: the call keeps its level, only the model's connection never opens.
+    ...(origin.kind === 'test' && origin.realtimeUnreachable ? { realtimeUnreachable: true } : {}),
     ...(demo ? { demo: true } : {}),
     ...simulatedOnCallOf(origin),
     async append(speaker, text, toolEvent) {
@@ -565,6 +571,7 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
       mainLanguage?: unknown
       pipeline?: unknown
       realtimeModel?: unknown
+      realtimeUnreachable?: unknown
       caller?: unknown
       behaviours?: unknown
     }
@@ -595,6 +602,7 @@ export function parseTestMetadata(metadata: string): TestMetadata | null {
         ? { pipeline: parsed.pipeline as VoicePipeline }
         : {}),
       ...(isRealtimeModelId(parsed.realtimeModel) ? { realtimeModel: parsed.realtimeModel } : {}),
+      ...(parsed.realtimeUnreachable === true ? { realtimeUnreachable: true } : {}),
       ...(parseTestCaller(parsed.caller) ? { caller: parseTestCaller(parsed.caller) } : {}),
       ...(testBehaviours(parsed.behaviours) ? { behaviours: testBehaviours(parsed.behaviours) } : {}),
     }
