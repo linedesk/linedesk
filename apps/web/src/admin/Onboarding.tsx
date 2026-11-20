@@ -11,6 +11,7 @@ import { Select, Switch } from '../ui/controls.tsx'
 import { Card } from '../ui/form.tsx'
 import { Loading, Skeleton, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type AtRiskWorkspace, loadAtRisk, runAdmin } from './api.ts'
+import { Funnel } from './Funnel.tsx'
 import { day, when } from './parts.tsx'
 
 const SETUP_EMAILS = 'admin.setupEmails'
@@ -209,8 +210,9 @@ function AtRisk() {
 export function Onboarding() {
   return (
     <>
-      <SetupEmails />
+      <Funnel />
       <AtRisk />
+      <SetupEmails />
     </>
   )
 }

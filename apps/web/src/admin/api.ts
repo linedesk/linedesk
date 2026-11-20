@@ -527,6 +527,12 @@ export type AtRiskWorkspace = {
 export const loadAtRisk = (days: number) =>
   get<{ days: number; oldEnough: number; workspaces: AtRiskWorkspace[] }>(`/v1/admin/onboarding?days=${days}`)
 
+/** GET /v1/admin/funnel (apps/api/src/admin-funnel.ts): per sign-up week, how far its workspaces got. */
+export type FunnelCounts = { signed_up: number; set_up: number; first_call: number; paid: number }
+export type FunnelWeek = FunnelCounts & { week_start: string }
+export type Funnel = { weeks: number; rows: FunnelWeek[]; total: FunnelCounts }
+export const loadFunnel = (weeks: number) => get<Funnel>(`/v1/admin/funnel?weeks=${weeks}`)
+
 /** GET /v1/admin/latency (apps/api/src/reply-latency.ts): reply delay per pipeline, split by where the time goes. */
 export type Percentiles = { p50: number | null; p90: number | null }
 export type PipelineLatency = {

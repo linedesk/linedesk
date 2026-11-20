@@ -125,6 +125,7 @@ const adminRoutes = [
   '/v1/admin/overview',
   '/v1/admin/health',
   '/v1/admin/onboarding',
+  '/v1/admin/funnel',
   '/v1/admin/install-setup',
   '/v1/admin/call-reviews',
 ] as const

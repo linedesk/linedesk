@@ -25,6 +25,8 @@ async function testDatabaseBase(): Promise<string | null> {
  */
 const INSTANCE_WIDE_FILES = [
   'test/admin.test.ts',
+  // Counts sign-ups across workspaces and makes an instance admin (the funnel).
+  'test/admin-funnel.test.ts',
   'test/billing-schema.test.ts',
   'test/after-call-transcript.test.ts',
   // Stripe keys and the billing switch (provider_settings, instance_settings).

@@ -8,6 +8,7 @@ import { sql } from 'drizzle-orm'
 import type { Context, Hono, Next } from 'hono'
 import { getT } from '@linedesk/i18n/server'
 import { z } from 'zod'
+import { adminFunnel, funnelWeeks } from './admin-funnel.ts'
 import { adminHealth, adminOverview, costEstimate, noteAgentSeen } from './admin-overview.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
@@ -295,6 +296,8 @@ export function registerAdminRoutes(app: Hono<Env>) {
     ])
     return c.json({ days, oldEnough, workspaces })
   })
+  // The sign-up funnel per sign-up week (admin-funnel.ts): `weeks` is 4, 8 (default), 12 or 26.
+  app.get('/v1/admin/funnel', async c => c.json(await adminFunnel(db, funnelWeeks(c.req.query('weeks')))))
   // Health of the parts of the install; can take a few seconds (LiveKit, SMTP).
   app.get('/v1/admin/health', async c => c.json(await adminHealth(await readerWords(c))))
 
