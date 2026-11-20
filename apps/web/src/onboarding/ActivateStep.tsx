@@ -1,5 +1,5 @@
 // The last step before a number: the business set everything up without a card; here it sees
-// what it set up, what the plan costs a month (a yearly plan's total in a grey note under it, and at its first charge),
+// what the plan costs a month (a yearly plan's total in a grey note under it, and at its first charge),
 // when the first charge comes and that reminder emails come before it, and goes to Stripe Checkout for the card. No
 // terms here: they were accepted once, at sign-up (A9, decision of 2026-11-18); starting records the consent to the
 // trial and its charge with what this step showed. Changed since sign-up, the app's "We updated our terms" dialog asks
@@ -11,7 +11,7 @@ import type { Activation, Me } from '../auth.ts'
 import { goToCheckout } from '../checkout.ts'
 import { askTermsAgain } from '../shell/TermsUpdate.tsx'
 import { useAssistantName } from '../store.tsx'
-import { Icon, Note } from '../ui/kit.tsx'
+import { Note } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { IntervalSwitch } from '../ui/IntervalSwitch.tsx'
 import { PlanCard, usePlanPrice } from '../ui/PlanCard.tsx'
@@ -55,16 +55,6 @@ function Activate({ me, activation: a, onBack, onTermsChanged }: Props & { activ
             ? t('onboarding.activate.lede', { assistant, days: a.trialDays })
             : t('onboarding.activate.ledeNoTrial', { assistant })}
         </p>
-        <section className="ob-points" aria-label={t('onboarding.activate.summaryLabel')}>
-          <SummaryRow icon="globe" label={t('onboarding.activate.business')} value={me.workspace!.name} />
-          <SummaryRow icon="headset" label={t('onboarding.activate.assistant')} value={assistant} />
-          <SummaryRow
-            icon="phone"
-            label={t('onboarding.activate.number')}
-            value={t('onboarding.activate.numberNext')}
-            muted
-          />
-        </section>
         <ActivatePlan activation={a} trial={trial} />
       </div>
       <Foot
@@ -219,30 +209,6 @@ export function ActivatePlan({ activation: a, trial: s }: { activation: Activati
       {/* No renewal line here: Stripe Checkout's own note says what is charged and when; the terms were accepted at sign-up. */}
       {!a.terms && <Note tone="danger">{t('auth.checkout.startFailed')}</Note>}
     </>
-  )
-}
-
-function SummaryRow({
-  icon,
-  label,
-  value,
-  muted,
-}: {
-  icon: 'globe' | 'headset' | 'phone'
-  label: string
-  value: string
-  muted?: boolean
-}) {
-  return (
-    <div className="ob-point">
-      <span className="ob-pi">
-        <Icon name={muted ? icon : 'check'} size={16} />
-      </span>
-      <div>
-        <b>{label}</b>
-        <span>{value}</span>
-      </div>
-    </div>
   )
 }
 

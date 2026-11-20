@@ -823,12 +823,6 @@ body { font-size: 13px; }
 .ob-body { display: grid; gap: 18px; }
 .ob h1 { margin: 0; font-size: 28px; line-height: 34px; font-weight: 600; letter-spacing: -0.025em; text-wrap: balance; }
 .ob-lede { margin: 0; font-size: 15px; line-height: 23px; color: var(--ink-muted); max-width: 52ch; }
-.ob-points { display: grid; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 6px; }
-.ob-point { display: flex; gap: 12px; align-items: center; padding: 10px; }
-.ob-pi { flex: none; width: 32px; height: 32px; border-radius: var(--radius-sm); display: grid; place-items: center; background: var(--highlight); color: var(--highlight-ink); }
-.ob-point div { display: grid; line-height: 18px; }
-.ob-point b { font-size: 13.5px; font-weight: 600; }
-.ob-point span { font-size: 12.5px; color: var(--ink-muted); }
 .ob-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
 .ob-choices.three { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 .ob-choice { display: flex; gap: 10px; align-items: flex-start; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-card); cursor: pointer; }
@@ -979,12 +973,12 @@ body { font-size: 13px; }
 
 /* ---- Level 1: raised cards (shadow, no border) ---- */
 .vn, .sumcard, .sec, .k-tl, .k-summary,
-.ob-points, .ob-choice, .ob-demo, .ob-newnum, .opt { border: 0; box-shadow: var(--shadow-1); }
+.ob-choice, .ob-demo, .ob-newnum, .opt { border: 0; box-shadow: var(--shadow-1); }
 .vn { background: var(--surface); }
 .vn-knob, .vn .vn-knob { box-shadow: 0 0 0 3px var(--surface); }
 .vn-speed { background: var(--surface-hover); border: 0; box-shadow: none; }
 .vn-speed:hover { background: var(--surface-strong); }
-.sumcard, .sec, .opt, .ob-choice, .ob-newnum, .ob-points, .ob-demo { background: var(--surface); }
+.sumcard, .sec, .opt, .ob-choice, .ob-newnum, .ob-demo { background: var(--surface); }
 .sumcard, .sec { padding: 16px; gap: 12px; }
 .opt.on, .ob-choice.on { background: var(--highlight); box-shadow: var(--ring-action), var(--shadow-1); }
 .ob-prompt { border: 0; box-shadow: var(--ring-action), var(--shadow-1); }
@@ -1046,10 +1040,10 @@ body { font-size: 13px; }
 span.mono, .facts dd.mono, .ib-tab .n, .ib-mode .n, .nav-n, .cv-who .sub, .k-meta, .cv .k-meta, .k-event-in time { font-size: 11px; }
 .sum-h small, .tr-h span, .compose small, .cv .k-event, .r-quiet, .sc-sub, .ib-search-n { font-size: 11px; }
 /* 12: secondary text */
-.help, .page-head p, .sec > p, .opt span, .side-who span, .ob-choice span, .ob-point span, .ws-me small,
+.help, .page-head p, .sec > p, .opt span, .side-who span, .ob-choice span, .ws-me small,
 .k-cmd-foot, .help-foot, .side-facts, .sc-top, .ob-newnum span { font-size: 12px; }
 /* 13: body / UI */
-.row, .facts, .field label, .swrow b, .opt b, .help-row, .ib-mode, .side-who b, .ob-point b, .ob-choice b,
+.row, .facts, .field label, .swrow b, .opt b, .help-row, .ib-mode, .side-who b, .ob-choice b,
 .ob-foot .k-btn, .empty, .ws-me b, .cv .k-bubble, .ob-row, .ob-open-h { font-size: 13px; }
 .sum-h > b, .tr-h b { font-size: 13px; font-weight: 600; }
 /* 14: titles */
