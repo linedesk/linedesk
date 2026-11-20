@@ -5,6 +5,7 @@ import {
   connectMark,
   connectResult,
   durationLabel,
+  needsCalendar,
   pickChanges,
   requiredLabel,
   rulesLabel,
@@ -103,4 +104,10 @@ test("Appointment types show all of a tool's event types, the added ones with th
   ])
   // Before the tool's list loads: the added ones.
   expect(toolTypeRows(added, null)).toEqual([{ added: added[0] }, { added: added[1] }])
+})
+
+test('Booking & calendar needs the person while no calendar account works', () => {
+  expect(needsCalendar([])).toBe(true)
+  expect(needsCalendar([{ status: 'needs_reconnect' }])).toBe(true)
+  expect(needsCalendar([{ status: 'needs_reconnect' }, { status: 'connected' }])).toBe(false)
 })

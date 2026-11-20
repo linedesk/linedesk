@@ -137,6 +137,7 @@
   "assistant.section.advanced.label": "Advanced",
   "assistant.section.booking.description": "Calendars and appointment types",
   "assistant.section.booking.label": "Booking & calendar",
+  "assistant.section.booking.needsCalendar": "Connect a calendar so {name} can book appointments",
   "assistant.section.business.description": "What you do and your prices",
   "assistant.section.business.label": "Business info",
   "assistant.section.emails.description": "Who gets the email about which call",

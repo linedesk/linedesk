@@ -237,6 +237,13 @@ export function calendarsOf(rows: AssistantCalendar[], assistantId: string): Ass
 /** Scheduling tools (Cal.com, Calendly): their calendars are event types, listed with the appointment types. */
 export const isSchedulingTool = (provider: ProviderId): boolean => provider === 'calcom' || provider === 'calendly'
 
+/**
+ * No calendar account works yet (none connected, or every one needs connecting again): the assistant cannot book, so
+ * Booking & calendar is flagged in the assistant's nav as something to do.
+ */
+export const needsCalendar = (connections: readonly Pick<CalendarConnection, 'status'>[]): boolean =>
+  !connections.some(c => c.status === 'connected')
+
 /** The mark of a calendar account: the brand, iCloud for a CalDAV login at Apple, else a neutral calendar. */
 export type AccountMark = Exclude<ProviderId, 'caldav'> | 'icloud' | 'caldav'
 

@@ -21,8 +21,8 @@ import {
   type Language,
   mainLanguageOf,
   otherLanguagesOf,
-  phoneCountryName,
   type PipelinesSetUp,
+  phoneCountryName,
   TALKING_SPEED_PCT_DEFAULT,
   TALKING_SPEED_PCT_MAX,
   TALKING_SPEED_PCT_MIN,
@@ -49,6 +49,7 @@ import { Button, Icon, Note } from '../ui/kit.tsx'
 import { Loading, LoadProblem, Skeleton, useLoading, useLoadState } from '../ui/LoadStates.tsx'
 import { SearchSelect } from '../ui/SearchSelect.tsx'
 import { type PageSection, SettingsLayout, sectionHash, sectionParts, useSection } from '../ui/SettingsLayout.tsx'
+import { StatusMark } from '../ui/StatusMark.tsx'
 import { useWorkspaceCountry, useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { AgentChangeNote } from './AgentChange.tsx'
 import { AssistantHeader } from './AssistantHeader.tsx'
@@ -88,16 +89,16 @@ import {
   withoutLanguage,
   withPickedVoice,
 } from './assistantDraft.ts'
+import { canonicalAssistantHash, OLD_SECTIONS, WEBHOOK_ITEM } from './assistantLinks.ts'
 import { BusinessHours } from './BusinessHours.tsx'
 import { EditBusinessHours } from './BusinessHoursDialog.tsx'
 import { CalendarSettings } from './Calendar.tsx'
 import { CallEmails, emailRuleWhenId, type Undoable } from './CallEmails.tsx'
 import { CallQualitySettings, levelSavedNote } from './CallQuality.tsx'
-import { canonicalAssistantHash, OLD_SECTIONS, WEBHOOK_ITEM } from './assistantLinks.ts'
-import { CONNECT_RETURN_KEY } from './calendarModel.ts'
+import { CONNECT_RETURN_KEY, needsCalendar } from './calendarModel.ts'
 import {
-  Field,
   countryDefaultOptions,
+  Field,
   FollowsLine,
   ReadOnlyNote,
   Section,
@@ -148,10 +149,28 @@ function sectionsFor(
   sections: readonly PageSection<SectionId>[],
   canEdit: boolean,
   openItems: number,
+  /** The words of the to-do mark on Booking & calendar; null without one. */
+  bookingTodo: string | null = null,
 ): readonly PageSection<SectionId>[] {
   return sections
     .filter(s => s.id !== REVIEW_SECTION || canEdit)
-    .map(s => (s.id === REVIEW_SECTION ? { ...s, label: questionsLabel(), count: openItems } : s))
+    .map(s =>
+      s.id === REVIEW_SECTION
+        ? { ...s, label: questionsLabel(), count: openItems }
+        : s.id === 'booking'
+          ? { ...s, mark: bookingTodo ? <StatusMark state="partly" label={bookingTodo} /> : undefined }
+          : s,
+    )
+}
+
+/**
+ * Whether Booking & calendar gets its to-do mark: no calendar account works, so the assistant cannot book. Only for
+ * those who can connect one, and only once the accounts are loaded (no flash before).
+ */
+function useNeedsCalendar(canEdit: boolean): boolean {
+  const loaded = useLoadState('calendar_connections') === 'ready'
+  const connections = useRows('calendar_connections')
+  return canEdit && loaded && needsCalendar(connections)
 }
 
 /**
@@ -878,7 +897,13 @@ function Form({
   // The page follows the level picked here at once, before it is saved: Ultra answers with the realtime model's voices.
   const realtime = draft.call_quality === 'ultra'
   const openItems = openGroupCount(useRows('knowledge_questions'), assistant.id)
-  const shown = useMemo(() => sectionsFor(sectionsIn(t), canEdit, openItems), [t, canEdit, openItems])
+  const bookingTodo = useNeedsCalendar(canEdit)
+    ? t('settings.assistant.section.booking.needsCalendar', { name: assistantName(saved, t) })
+    : null
+  const shown = useMemo(
+    () => sectionsFor(sectionsIn(t), canEdit, openItems, bookingTodo),
+    [t, canEdit, openItems, bookingTodo],
+  )
   const current = useSection(page, shown)
   // `#assistant/<id>/advanced/webhook` (also where the old Webhook section's links land): Advanced, at the webhook.
   const item = sectionParts(page, window.location.hash).item
