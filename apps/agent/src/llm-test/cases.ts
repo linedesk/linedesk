@@ -688,6 +688,35 @@ export const CASES: Case[] = [
     severity: 'should',
   },
 
+  {
+    id: 'emergency-not-small-problems',
+    category: 'emergency',
+    title: 'Low water pressure and a running toilet: not urgent, no transfer',
+    why: "flag_urgent: only the owner's urgent cases or when the caller says so; small problems that can wait are not urgent (LIN-635)",
+    setup: setup({ transfers: [{ ...MIKE, condition: URGENT_ONLY }] }),
+    turns: english([
+      'Hi, the water pressure in my upstairs shower has been pretty weak lately. Is that something you look at?',
+      "Also, my toilet keeps running all the time. Nothing is leaking, I'm just worried about wasting water. Could someone come by next week?",
+    ]),
+    checks: [{ type: 'noTool', tool: ['flag_urgent', 'transfer_call'] }],
+    severity: 'should',
+  },
+  {
+    id: 'emergency-caller-says-urgent',
+    category: 'emergency',
+    title: 'The caller says it is urgent for them: flagged',
+    why: 'flag_urgent: the caller says it is urgent (LIN-635: the stricter description must keep this)',
+    setup: setup(),
+    turns: english([
+      'Hi, our only bathroom sink is clogged and we have twenty guests coming tomorrow morning. This is urgent for us, please treat it as urgent.',
+    ]),
+    checks: [
+      { type: 'tool', tool: 'flag_urgent' },
+      { type: 'notSay', pattern: EMERGENCY_SERVICES },
+    ],
+    severity: 'should',
+  },
+
   // ── Urgent and transfer ──────────────────────────────────────────────────────────────────────────────────────────
   {
     id: 'transfer-urgent-early',

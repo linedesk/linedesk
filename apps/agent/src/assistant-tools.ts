@@ -97,7 +97,7 @@ export function assistantTools(api: ApiClient, call: CallSession, log: CallLog, 
       execute: async (_, { ctx }) => endCall(ctx.speechHandle),
     }),
     flag_urgent: llm.tool({
-      description: 'Flag this call as urgent: when it is urgent by what the owner wants you to know, or the caller says it is. Call it in the same response in which you tell the caller.',
+      description: "Flag this call as urgent: only when the caller's problem is one the owner's instructions call urgent, or the caller says it is urgent. Call it in the same response in which you tell the caller.",
       execute: async (_, opts) => {
         saving(opts)
         await flagUrgent()
