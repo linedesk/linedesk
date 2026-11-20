@@ -6,12 +6,20 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 const place = vi.hoisted(() => ({
   country: 'US' as string | null,
-  known: true,
+  /** Where the workspace's country came from: `explicit` (set), a hint (`sign_up_location`), or `default` (the US). */
+  source: 'explicit' as string,
   businessPhone: undefined as string | undefined,
 }))
 
 vi.mock('../workspaceLocale.ts', () => ({
-  useWorkspaceCountry: () => (place.country ? { country: place.country, known: place.known } : null),
+  useWorkspaceCountry: () =>
+    place.country
+      ? {
+          country: place.country,
+          known: !['default', 'sign_up_location', 'time_zone', 'browser_language'].includes(place.source),
+          source: place.source,
+        }
+      : null,
 }))
 vi.mock('../phoneCountry.ts', () => ({ useDefaultPhoneCountry: () => place.country ?? 'US' }))
 vi.mock('../settings/settings-api.ts', () => ({
@@ -37,6 +45,7 @@ const offers = vi.hoisted(() => ({ extra: [] as unknown[] }))
 const render = (
   setupError: string | null = null,
   bill: { extraNumberCents?: number | null; partnerManaged?: boolean } = {},
+  canAttach = true,
 ) =>
   renderToStaticMarkup(
     <PhoneStep
@@ -44,7 +53,7 @@ const render = (
         provider: 'telnyx',
         available: true,
         detail: null,
-        canAttach: true,
+        canAttach,
         buy: [...BASE_BUY_OFFERS, ...(offers.extra as Offer[])],
       }}
       oldForwarding={null}
@@ -66,7 +75,7 @@ const areaField = (html: string) =>
 describe('the phone step by country', () => {
   beforeEach(() => {
     place.country = 'US'
-    place.known = true
+    place.source = 'explicit'
     place.businessPhone = undefined
     offers.extra = []
   })
@@ -98,7 +107,7 @@ describe('the phone step by country', () => {
   })
 
   test('no country set yet (the US by default): a Puerto Rico business finds its own code, at its price', () => {
-    place.known = false
+    place.source = 'default'
     place.businessPhone = '+17875550100'
     const html = render()
     expect(areaField(html)).toBe('787 · San Juan, PR')
@@ -123,8 +132,55 @@ describe('the phone step by country', () => {
     const html = render()
     expect(html).not.toContain('id="ob-area"')
     expect(html).toContain(
-      'Buying numbers is available in the US, Canada and Puerto Rico for now. Connect a number you already have in Telnyx.',
+      'Buying numbers is available in United States, Canada, and Puerto Rico for now. Connect a number you already have in Telnyx.',
     )
+  })
+
+  test('Germany only hinted (the sign-up location, left as shown): the German offer, never US area codes (LIN-645)', () => {
+    place.country = 'DE'
+    place.source = 'sign_up_location'
+    offers.extra = [GERMANY]
+    const html = render()
+    expect(html).toContain('id="ob-area"')
+    expect(areaField(html)).toBe('06221 · Heidelberg')
+    expect(html).not.toContain('Portland')
+    expect(html).not.toContain('503')
+  })
+
+  test('Germany only hinted while German numbers are off: the being-set-up note, no US area codes (LIN-645)', () => {
+    place.country = 'DE'
+    place.source = 'time_zone'
+    offers.extra = [{ ...GERMANY, ready: false }]
+    const html = render()
+    expect(html).not.toContain('id="ob-area"')
+    expect(html).toContain('Numbers in your country are being set up. Continue for now and connect your number later.')
+  })
+
+  test('a hint of a country without an offer, or nothing known: every buyable area code, as before', () => {
+    place.country = 'FR'
+    place.source = 'sign_up_location'
+    place.businessPhone = '+17875550100'
+    expect(areaField(render())).toBe('787 · San Juan, PR')
+  })
+
+  test('nothing this member can connect (canAttach false): only the note and Connect later, no carrier, no dead button', () => {
+    place.country = 'DE'
+    place.source = 'sign_up_location'
+    offers.extra = [{ ...GERMANY, ready: false }]
+    const html = render(null, {}, false)
+    expect(html).toContain('Numbers in your country are being set up. Continue for now and connect your number later.')
+    expect(html).not.toContain('Telnyx')
+    expect(html).not.toContain('Use a number you have')
+    expect(html).not.toContain('Connect number')
+    expect(html).not.toMatch(/<button[^>]*disabled/)
+    expect(html).toContain('Connect later')
+    // Outside the buying countries the same: where buying works, and Connect later.
+    place.country = 'AT'
+    place.source = 'explicit'
+    const elsewhere = render(null, {}, false)
+    expect(elsewhere).toContain('Buying numbers is available in United States, Canada, and Puerto Rico for now.')
+    expect(elsewhere).not.toContain('Use a number you have')
+    expect(elsewhere).not.toMatch(/<button[^>]*disabled/)
   })
 
   test('Germany with German numbers on: buys like the US, in the offered area code 06221, no documents', () => {

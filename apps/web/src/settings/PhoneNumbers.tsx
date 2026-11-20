@@ -14,6 +14,7 @@ import {
   areaCodeIn,
   areaCodeOf,
   beingSetUpText,
+  billedExtraNumberCents,
   billedNumberNote,
   billedNumberPrice,
   buyOffersOf,
@@ -30,6 +31,7 @@ import {
   phoneOptionSetup,
   phoneOptionText,
   isNoneFreeText,
+  numberCharge,
   numbersBeingSetUp,
   phoneSetupErrorText,
   pickupNumberMode,
@@ -95,6 +97,7 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
           available: carrier.sipReady,
           detail: null,
           canAttach: true,
+          account: 'workspace',
           // A workspace's own carrier account buys where every install does (Germany only on the install's).
           buy: [...BASE_BUY_OFFERS],
         }
@@ -220,7 +223,7 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
           <ConnectNumber
             status={status}
             // The workspace's own carrier account is not billed by us: its numbers cost what that carrier charges.
-            extraNumberCents={carrier && carrier.carrier !== 'default' ? null : extraNumberCents}
+            extraNumberCents={billedExtraNumberCents(extraNumberCents, status)}
             onDone={() => setAdding(false)}
             onCancel={() => setAdding(false)}
           />
@@ -597,8 +600,9 @@ export function ConnectNumber({
   const canAttach = status?.canAttach === true
   // Outside the countries numbers can be bought in (the install's buy offers), only a number the business already has
   // (offersBuying). Unknown yet: every buyable area code, and the one picked names the country (buyingCountry).
-  const country = buyingCountry(useWorkspaceCountry())
   const offers = buyOffersOf(status)
+  // The country the owner was shown (picked, the listing's, the workspace's, else its hint) when it has a buy offer.
+  const country = buyingCountry(useWorkspaceCountry(), offers)
   const offer = buyOfferIn(offers, country)
   const buyable = offersBuying(country, offers)
   const settingUp = numbersBeingSetUp(country, offers)
@@ -707,7 +711,12 @@ export function ConnectNumber({
         submit()
       }}
     >
-      {buying ? (
+      {nothingToConnect ? (
+        // Nothing this member can connect here: only why, and Cancel; no carrier name, no button that does nothing.
+        <p className="help" role="status">
+          {settingUp ? beingSetUpText() : buyUnavailableText(carrier, canAttach, offers)}
+        </p>
+      ) : buying ? (
         <div className="st-pn-t">
           <b>{t('settings.phone.connect.buyTitle', { name })}</b>
           <span className="help">{t('settings.phone.connect.buyHelp', { name })}</span>
@@ -716,7 +725,11 @@ export function ConnectNumber({
         <div className="st-pn-t">
           <b>{existing.title}</b>
           <span className="help">
-            {buyable ? existing.description : settingUp ? beingSetUpText() : buyUnavailableText(carrier, canAttach)}
+            {buyable
+              ? existing.description
+              : settingUp
+                ? beingSetUpText()
+                : buyUnavailableText(carrier, canAttach, offers)}
           </span>
         </div>
       )}
@@ -773,7 +786,13 @@ export function ConnectNumber({
           )}
           {confirming && (
             <div className="ob-prompt" role="alert">
-              <span>{buyQuestion(status?.provider ?? null, noAreaCode ? '' : areaCodeShown(areaCode, country))}</span>
+              <span>
+                {buyQuestion(
+                  status?.provider ?? null,
+                  noAreaCode ? '' : areaCodeShown(areaCode, country),
+                  partnerManaged ? null : numberCharge(extraNumberCents, status?.provider ?? null, bought),
+                )}
+              </span>
               <span className="ob2-row">
                 <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={busy}>
                   {t('common.action.cancel')}
@@ -811,15 +830,17 @@ export function ConnectNumber({
               {t('common.action.cancel')}
             </Button>
           )}
-          <Button busy={busy} type="submit" size="sm" variant="primary" disabled={busy || nothingToConnect}>
-            {busy
-              ? t('settings.phone.connect.connecting')
-              : buying
-                ? dev
-                  ? t('settings.phone.connect.addATest')
-                  : t('settings.phone.connect.get')
-                : t('settings.phone.connect.connect')}
-          </Button>
+          {!nothingToConnect && (
+            <Button busy={busy} type="submit" size="sm" variant="primary" disabled={busy}>
+              {busy
+                ? t('settings.phone.connect.connecting')
+                : buying
+                  ? dev
+                    ? t('settings.phone.connect.addATest')
+                    : t('settings.phone.connect.get')
+                  : t('settings.phone.connect.connect')}
+            </Button>
+          )}
         </div>
       )}
     </form>

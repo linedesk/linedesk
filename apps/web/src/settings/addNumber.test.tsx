@@ -2,13 +2,16 @@
 // extra-number price, or the carrier's list price without a bill), and the quiet link to a number already in the
 // carrier account only where the server allows it (canAttach: instance admins, any carrier). Step 2's answers map to the number's mode.
 import type { PhoneNumber } from '@linedesk/db/types'
-import { BASE_BUY_OFFERS } from '@linedesk/actions'
+import { BASE_BUY_OFFERS, type BuyOffer } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const state = vi.hoisted(() => ({ numbers: [] as unknown[] }))
+const state = vi.hoisted(() => ({
+  numbers: [] as unknown[],
+  place: { country: 'US', known: true, source: 'explicit' } as { country: string; known: boolean; source: string },
+}))
 
-vi.mock('../workspaceLocale.ts', () => ({ useWorkspaceCountry: () => ({ country: 'US', known: true }) }))
+vi.mock('../workspaceLocale.ts', () => ({ useWorkspaceCountry: () => state.place }))
 vi.mock('../phoneCountry.ts', () => ({ useDefaultPhoneCountry: () => 'US' }))
 vi.mock('./settings-api.ts', () => ({
   useWorkspaceSettings: () => ({ data: null }),
@@ -31,22 +34,27 @@ const render = ({
   extraNumberCents = null,
   canAttach = true,
   provider = 'telnyx',
+  buy = [...BASE_BUY_OFFERS],
 }: {
   extraNumberCents?: number | null
   canAttach?: boolean
   provider?: string
+  buy?: BuyOffer[]
 }) =>
   renderToStaticMarkup(
     <ConnectNumber
-      status={{ provider, available: true, detail: null, canAttach, buy: [...BASE_BUY_OFFERS] }}
+      status={{ provider, available: true, detail: null, canAttach, buy }}
       extraNumberCents={extraNumberCents}
       onDone={() => {}}
     />,
   )
 
+const GERMANY: BuyOffer = { country: 'DE', numberType: 'local', areaCodes: ['6221'], ready: true }
+
 describe('step 1: a new number', () => {
   beforeEach(() => {
     state.numbers = [boughtNumber]
+    state.place = { country: 'US', known: true, source: 'explicit' }
   })
 
   test('asks for a new number for the assistant, with the area code', () => {
@@ -88,6 +96,48 @@ describe('step 1: a new number', () => {
     // Any install carrier: the link names it, and is hidden the same way for whoever is not an instance admin.
     expect(render({ provider: 'twilio', canAttach: true })).toContain('Already have a number in Twilio? Use it')
     expect(render({ provider: 'twilio', canAttach: false })).not.toContain('Use it')
+  })
+})
+
+describe('a German workspace whose country is only hinted (LIN-645)', () => {
+  beforeEach(() => {
+    state.numbers = []
+    state.place = { country: 'DE', known: false, source: 'sign_up_location' }
+  })
+
+  test('German numbers on: the 06221 offer, no US area codes', () => {
+    const html = render({ buy: [...BASE_BUY_OFFERS, GERMANY] })
+    expect(html).toContain('id="st-pn-area"')
+    expect(html).toMatch(/value="06221 · Heidelberg"/)
+    expect(html).not.toContain('Portland')
+  })
+
+  test('German numbers off, for a member who cannot attach: only the being-set-up note and Cancel', () => {
+    const html = renderToStaticMarkup(
+      <ConnectNumber
+        status={{
+          provider: 'telnyx',
+          available: true,
+          detail: null,
+          canAttach: false,
+          buy: [...BASE_BUY_OFFERS, { ...GERMANY, ready: false }],
+        }}
+        onDone={() => {}}
+        onCancel={() => {}}
+      />,
+    )
+    expect(html).toContain('Numbers in your country are being set up. Continue for now and connect your number later.')
+    expect(html).not.toContain('id="st-pn-area"')
+    expect(html).not.toContain('Telnyx')
+    expect(html).not.toContain('Connect number')
+    expect(html).not.toMatch(/<button[^>]*disabled/)
+    expect(html).toContain('Cancel')
+  })
+
+  test('the German offer missing (own carrier account): every buyable area code, as with nothing known', () => {
+    const html = render({})
+    expect(html).toContain('id="st-pn-area"')
+    expect(html).toMatch(/value="503 · Portland, OR"/)
   })
 })
 

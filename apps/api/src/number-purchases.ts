@@ -7,9 +7,9 @@ import { number_purchases, phone_numbers, type Tx } from '@linedesk/db'
 import {
   type BuyOffer,
   buyableAreaCode,
+  buyingCountryOf,
   buyOfferIn,
   canBuyNumbersIn,
-  countryNamed,
   countryOfNumber,
   english,
   nameInSentence,
@@ -70,18 +70,22 @@ export const NUMBER_NOT_ACTIVATED = 'This number could not be activated: try ano
 export const BUY_COUNTRIES_ONLY = 'Buying numbers is not available in this country on this server'
 
 /**
- * The country a purchase is in: the workspace's, as set or worked out (a number, the business phone, holidays). When
- * nothing names it yet (only a hint or the US fallback, countryNamed), the area code or the number being bought does: a new business in Puerto
- * Rico buys a 787 number and the number then sets the workspace's country (workspaceCountryOf). `wanted` is that area
- * code or number; one outside the buying countries names nothing. LIN-300.
+ * The country a purchase is in: the country the owner was shown (buyingCountryOf, LIN-645): the workspace's as set or
+ * worked out (a number, the business phone, holidays), or its hint when the install has a buy offer there, so a
+ * German business left on its hint is refused a US area code instead of becoming a US workspace by the number. When
+ * nothing is known (the US fallback) or the hint's country has no offer, the area code or the number being bought
+ * names it: a new business in Puerto Rico buys a 787 number and the number then sets the workspace's country
+ * (workspaceCountryOf). `wanted` is that area code or number; one outside the buying countries names nothing. LIN-300.
  */
 export async function purchaseCountry(
   tx: Tx,
   workspaceId: string,
   wanted: { areaCode?: string; e164?: string },
+  offers: readonly BuyOffer[],
 ): Promise<string> {
   const locale = await workspaceLocale(tx, workspaceId)
-  if (countryNamed(locale.countrySource)) return locale.resolvedCountry
+  const shown = buyingCountryOf({ country: locale.resolvedCountry, source: locale.countrySource }, offers)
+  if (shown) return shown
   const named = wanted.e164
     ? countryOfNumber(wanted.e164)
     : wanted.areaCode

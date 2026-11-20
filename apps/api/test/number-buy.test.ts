@@ -47,6 +47,21 @@ const inCountry = (tx: Tx, country: string) =>
     .values({ workspace_id: WORKSPACE, timezone: 'Europe/Berlin', country })
     .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { country } })
 
+/** Nothing of the business names the country: only the hint it was made with (country left as prefilled). */
+const hinted = (tx: Tx, country: string) =>
+  tx
+    .insert(workspace_settings)
+    .values({
+      workspace_id: WORKSPACE,
+      timezone: 'Europe/Berlin',
+      country_hint: country,
+      country_hint_source: 'sign_up_location',
+    })
+    .onConflictDoUpdate({
+      target: workspace_settings.workspace_id,
+      set: { country: null, country_hint: country, country_hint_source: 'sign_up_location' },
+    })
+
 /** A carrier in memory on the `dev` adapter whose account holds nothing yet, with spies on searching and buying. */
 function carrier(overrides: Partial<TelephonyProvider> = {}) {
   const base: TelephonyProvider = { ...devProvider, findNumber: async () => null, ...overrides }
@@ -206,6 +221,41 @@ describe('German numbers through the US buy flow (LIN-619)', () => {
         'The area code is its digits without the leading 0, such as 503 or 6221',
       )
       expect(account.searchNumbers).not.toHaveBeenCalled()
+    }))
+
+  test('a German business left on its hint buys in Germany: a US area code is refused, the country never flips (LIN-645)', () =>
+    inRollback(async tx => {
+      await germanNumbers(tx, ON)
+      await hinted(tx, 'DE')
+      const account = carrier()
+      await expect(setup(tx, { areaCode: '503', purchase: true }, account)).rejects.toThrow(
+        'Area code 503 is not offered in Germany on this server: pick one of 6221.',
+      )
+      expect(account.searchNumbers).not.toHaveBeenCalled()
+      expect(account.buyNumber).not.toHaveBeenCalled()
+      const { rows } = await setup(tx, { areaCode: '6221', purchase: true }, account)
+      expect(rows.phone_numbers?.[0]?.e164).toMatch(/^\+496221/)
+    }))
+
+  test('German numbers off and only a German hint: the calm being-set-up refusal, no US number either (LIN-645)', () =>
+    inRollback(async tx => {
+      await germanNumbers(tx, null)
+      await hinted(tx, 'DE')
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      const account = carrier()
+      await expect(setup(tx, { areaCode: '6221', purchase: true }, account)).rejects.toThrow(NUMBERS_BEING_SET_UP)
+      await expect(setup(tx, { areaCode: '503', purchase: true }, account)).rejects.toThrow(
+        /^Area code 503 is not offered/,
+      )
+      expect(account.buyNumber).not.toHaveBeenCalled()
+    }))
+
+  test('a hint of a country without a buy offer still lets the area code decide, as with nothing known (LIN-300)', () =>
+    inRollback(async tx => {
+      await hinted(tx, 'FR')
+      const account = carrier()
+      const { rows } = await setup(tx, { areaCode: '503', purchase: true }, account)
+      expect(rows.phone_numbers?.[0]?.e164).toMatch(/^\+1503/)
     }))
 
   test('in the US: toll-free, N11, 555 and unknown area codes are refused in a plain sentence', () =>

@@ -429,8 +429,8 @@ app.post('/v1/workspaces', async c => {
   const name = (body.name as string).trim()
   // A time zone that is not one falls back to the default, as before (onboarding.ts, workspaceTimeZone).
   const timeZone = typeof body.timeZone === 'string' && body.timeZone.length <= 64 ? body.timeZone : undefined
-  // The country only when picked in New workspace (workspace.create checks it; left as prefilled it stays Automatic),
-  // and the hint it was prefilled with: from this request (country-hint.ts), as GET /v1/workspaces/country-hint gave it.
+  // The country set in New workspace, the server admin's choice whether picked or left as prefilled (LIN-645;
+  // workspace.create checks it), and the hint it was prefilled with: from this request (country-hint.ts), as GET /v1/workspaces/country-hint gave it.
   const country = typeof body.country === 'string' && body.country ? body.country : undefined
   const countryHint = requestCountryHint(headers, { timeZone, locale: body.locale })
   const made = await runAction(

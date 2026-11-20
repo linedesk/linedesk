@@ -33,6 +33,7 @@ import {
   formatNumber,
   forwardingOffer,
   isNoneFreeText,
+  numberCharge,
   numbersBeingSetUp,
   type PhoneOption,
   phoneOptionSetup,
@@ -154,8 +155,9 @@ function Choose({
   const canAttach = status?.canAttach === true
   // Outside the countries numbers can be bought in (the install's buy offers), only a number the business already has
   // (offersBuying). Unknown yet: every buyable area code, and the one picked names the country (buyingCountry).
-  const country = buyingCountry(useWorkspaceCountry())
   const offers = buyOffersOf(status)
+  // The country the owner was shown (picked, the listing's, the workspace's, else its hint) when it has a buy offer.
+  const country = buyingCountry(useWorkspaceCountry(), offers)
   const offer = buyOfferIn(offers, country)
   const buyable = offersBuying(country, offers)
   const settingUp = numbersBeingSetUp(country, offers)
@@ -236,7 +238,7 @@ function Choose({
   }
   const toChoices = () => pick(phoneOptions[0]!)
   useStepKeys({
-    onEnter: () => (confirming && !enterBuys() ? undefined : primary()),
+    onEnter: () => (nothingToConnect ? onNext() : confirming && !enterBuys() ? undefined : primary()),
     onEscape: () => (confirming ? setConfirming(false) : option === 'existing' && buyable ? toChoices() : onBack()),
   })
 
@@ -255,11 +257,21 @@ function Choose({
             ? t('onboarding.phone.choose.ledeAll', { name })
             : t(word('onboarding.phone.choose.ledeMissed'), { name })}
         </p>
-        {option === 'existing' ? (
+        {nothingToConnect ? (
+          // Nothing this member can connect here: only why (numbers are being set up, or where they can be bought)
+          // and "Connect later"; no carrier name, no button that cannot do anything.
+          <p className="ob2-note" role="status">
+            {settingUp ? beingSetUpText() : buyUnavailableText(carrier, canAttach, offers)}
+          </p>
+        ) : option === 'existing' ? (
           <div className="ob-existing">
             <b>{existing.title}</b>
             <span className="ob2-note">
-              {buyable ? existing.description : settingUp ? beingSetUpText() : buyUnavailableText(carrier, canAttach)}
+              {buyable
+                ? existing.description
+                : settingUp
+                  ? beingSetUpText()
+                  : buyUnavailableText(carrier, canAttach, offers)}
             </span>
           </div>
         ) : (
@@ -346,7 +358,11 @@ function Choose({
             {/* The question right above the footer, whose primary button does it; Back (Esc) cancels. */}
             {confirming && (
               <p className="ob-confirm" role="alert">
-                {buyQuestion(status.provider, noAreaCode ? '' : areaCodeShown(areaCode, country))}
+                {buyQuestion(
+                  status.provider,
+                  noAreaCode ? '' : areaCodeShown(areaCode, country),
+                  partnerManaged ? null : numberCharge(extraNumberCents, status.provider, boughtNumbers),
+                )}
               </p>
             )}
           </>
@@ -367,26 +383,29 @@ function Choose({
           error && <Note tone="danger">{error}</Note>
         )}
       </div>
-      <Foot
-        onBack={confirming && !sending ? () => setConfirming(false) : onBack}
-        onContinue={primary}
-        onSkipStep={confirming ? undefined : onNext}
-        {...later}
-        canContinue={!nothingToConnect}
-        busy={sending}
-        // Nothing to connect here: the primary stays off, only "Connect later" goes on.
-        label={
-          confirming
-            ? dev
-              ? t('onboarding.phone.choose.addTestNumber')
-              : t('onboarding.phone.choose.buyNumber')
-            : buying
+      {nothingToConnect ? (
+        // Nothing to connect here: "Connect later" is the step's only way on.
+        <Foot onBack={onBack} onContinue={onNext} label={later.laterLabel} />
+      ) : (
+        <Foot
+          onBack={confirming && !sending ? () => setConfirming(false) : onBack}
+          onContinue={primary}
+          onSkipStep={confirming ? undefined : onNext}
+          {...later}
+          busy={sending}
+          label={
+            confirming
               ? dev
-                ? t('onboarding.phone.choose.addATestNumber')
-                : t('onboarding.phone.choose.getNumber')
-              : t('onboarding.phone.choose.connectNumber')
-        }
-      />
+                ? t('onboarding.phone.choose.addTestNumber')
+                : t('onboarding.phone.choose.buyNumber')
+              : buying
+                ? dev
+                  ? t('onboarding.phone.choose.addATestNumber')
+                  : t('onboarding.phone.choose.getNumber')
+                : t('onboarding.phone.choose.connectNumber')
+          }
+        />
+      )}
     </>
   )
 }

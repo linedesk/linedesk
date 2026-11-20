@@ -1747,7 +1747,6 @@
   "system.zapierReachable": "{address}：Zapierから接続できます。",
   "system.zapierSteps": "各ワークスペースは<app>Zapier上のLinedesk</app>と、<link>連携 › Zapier</link>の手順を参照します。ファイアウォールで、Zapierがこのアドレスに接続できるようにし、サーバーが{host}に送信できるようにしてください。",
   "system.zapierUnreachable": "{address}：Zapierから接続できません。インターネット上のhttpsアドレスでLinedeskを公開してください。",
-  "tryOut.areaCode": "市外局番（米国、カナダ、プエルトリコ）",
   "tryOut.callerQuestion": "発信者：もしもし、給湯器から水が漏れています。今日来てもらえますか？",
   "tryOut.codeLabel": "メールに記載されたコード",
   "tryOut.codePlaceholder": "6桁のコード",

@@ -14,6 +14,7 @@ import {
   doneState,
   rejectionStep,
   urgentCasesFrom,
+  billedExtraNumberCents,
   buyQuestion,
   buyingCountry,
   buyUnavailableText,
@@ -35,6 +36,7 @@ import {
   NO_PICKUP_MEMORY,
   nextStep,
   onboardingSteps,
+  numberCharge,
   numbersBeingSetUp,
   offersBuying,
   oldForwardingAfter,
@@ -308,6 +310,36 @@ test('the buy question does not speak of a bill in development mode', () => {
   expect(buyQuestion('dev', '503')).not.toMatch(/billed every month/)
 })
 
+test('the buy question agrees with the price note: an included first number has no monthly charge (LIN-645)', () => {
+  // On a bill, the first number: included, said once, and no "billed every month" after it.
+  expect(numberCharge(300, 'telnyx', 0)).toBe('included')
+  expect(billedNumberNote(300, 'telnyx', 0)).toBe('Your first number is included in your plan.')
+  expect(buyQuestion('telnyx', '503', numberCharge(300, 'telnyx', 0))).toBe(
+    'Buy a number in area code 503? It is included in your plan.',
+  )
+  expect(buyQuestion('telnyx', '', 'included')).toBe('Buy a new number? It is included in your plan.')
+  // An extra number: the bill's price, from the balance.
+  expect(numberCharge(300, 'telnyx', 1)).toBe('$3')
+  expect(buyQuestion('telnyx', '06221', numberCharge(300, 'telnyx', 1))).toBe(
+    'Buy a number in area code 06221? It costs $3 a month from your balance until you release it.',
+  )
+  expect(buyQuestion('telnyx', '', '$3')).toBe(
+    'Buy a new number? It costs $3 a month from your balance until you release it.',
+  )
+  // No bill, a comped bill, the workspace's own carrier account: the carrier bills it, as before.
+  expect(numberCharge(null, 'telnyx', 0)).toBeNull()
+  expect(buyQuestion('telnyx', '503', null)).toMatch(/billed every month/)
+  expect(numberCharge(300, 'dev', 0)).toBeNull()
+})
+
+test("the bill's extra-number price only on the install's carrier account, in onboarding as in Settings (LIN-645)", () => {
+  expect(billedExtraNumberCents(300, { account: 'install' })).toBe(300)
+  expect(billedExtraNumberCents(300, { account: 'workspace' })).toBeNull()
+  // An older server sends no account: the install's, as before.
+  expect(billedExtraNumberCents(300, {})).toBe(300)
+  expect(billedExtraNumberCents(undefined, null)).toBeNull()
+})
+
 describe('dialPath', () => {
   const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148'
   const ipad = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.1 Safari/605.1.15'
@@ -575,8 +607,15 @@ test('buying a number is offered in the US, Canada and Puerto Rico, and as befor
   expect(offersBuying('DE', [...BASE_BUY_OFFERS, { ...de, ready: false }])).toBe(false)
   expect(numbersBeingSetUp('DE', [...BASE_BUY_OFFERS, { ...de, ready: false }])).toBe(true)
   expect(numbersBeingSetUp('DE', BASE_BUY_OFFERS)).toBe(false)
+  // The countries come from the buy offers that are ready, named in the reader's language (LIN-645).
   expect(buyUnavailableText('Telnyx', true)).toBe(
-    'Buying numbers is available in the US, Canada and Puerto Rico for now. Connect a number you already have in Telnyx.',
+    'Buying numbers is available in United States, Canada, and Puerto Rico for now. Connect a number you already have in Telnyx.',
+  )
+  expect(buyUnavailableText('Telnyx', true, [...BASE_BUY_OFFERS, de])).toMatch(
+    /^Buying numbers is available in United States, Canada, Puerto Rico, and Germany for now\./,
+  )
+  expect(buyUnavailableText('Telnyx', true, [...BASE_BUY_OFFERS, { ...de, ready: false }])).toMatch(
+    /^Buying numbers is available in United States, Canada, and Puerto Rico for now\./,
   )
   expect(buyUnavailableText(null, true)).toMatch(/Connect a number you already have with your carrier\.$/)
   expect(buyUnavailableText('Telnyx', false)).toMatch(/connect your own carrier account in Settings › Phone numbers\.$/)
@@ -609,10 +648,24 @@ test('buying a number is offered in the US, Canada and Puerto Rico, and as befor
 
 test('with no country set yet, the picker offers every buyable area code and the picked one sets the price', () => {
   expect(buyingCountry(null)).toBeNull()
-  expect(buyingCountry({ country: 'US', known: false })).toBeNull()
-  expect(buyingCountry({ country: 'CA', known: true })).toBe('CA')
-  expect(areaCodeIn('787', buyingCountry({ country: 'US', known: false }))).toBe(true)
-  expect(areaCodeIn('787', buyingCountry({ country: 'US', known: true }))).toBe(false)
+  expect(buyingCountry({ country: 'US', source: 'default' })).toBeNull()
+  expect(buyingCountry({ country: 'CA', source: 'explicit' })).toBe('CA')
+  expect(areaCodeIn('787', buyingCountry({ country: 'US', source: 'default' }))).toBe(true)
+  expect(areaCodeIn('787', buyingCountry({ country: 'US', source: 'assistant_number' }))).toBe(false)
+})
+
+test('a country only hinted is bought in when it has a buy offer: the country the owner was shown (LIN-645)', () => {
+  const de = { country: 'DE', numberType: 'local' as const, areaCodes: ['6221'], ready: false }
+  const offers = [...BASE_BUY_OFFERS, de]
+  // The Business step showed Germany (the sign-up location): Germany, with or without its numbers ready.
+  expect(buyingCountry({ country: 'DE', source: 'sign_up_location' }, offers)).toBe('DE')
+  expect(buyingCountry({ country: 'DE', source: 'time_zone' }, [...BASE_BUY_OFFERS, { ...de, ready: true }])).toBe('DE')
+  expect(areaCodeIn('503', buyingCountry({ country: 'DE', source: 'sign_up_location' }, offers), offers)).toBe(false)
+  // A hinted US or Canada: its own codes.
+  expect(buyingCountry({ country: 'CA', source: 'browser_language' }, offers)).toBe('CA')
+  // A hint of a country without an offer (France), or no German offer at all (own carrier account): as unknown.
+  expect(buyingCountry({ country: 'FR', source: 'sign_up_location' }, offers)).toBeNull()
+  expect(buyingCountry({ country: 'DE', source: 'sign_up_location' }, BASE_BUY_OFFERS)).toBeNull()
   expect(priceCountry('787', null)).toBe('PR')
   expect(priceCountry('416', 'US')).toBe('CA')
   expect(priceCountry('', 'CA')).toBe('CA')

@@ -155,9 +155,9 @@ describe('phone setup status', () => {
 
   test('only instance admins see what the server lacks; owners get available or not', () => {
     const missing = { provider: 'twilio', problem: 'LIVEKIT_SIP_ENDPOINT is not set' }
-    expect(phoneSetupView(missing, { permissions: ['settings:write'] })).toEqual({ provider: 'twilio', available: false, detail: null, canAttach: false, buy: [...BASE_BUY_OFFERS] })
-    expect(phoneSetupView(missing, { permissions: ['settings:write', 'instance:admin'] })).toEqual({ provider: 'twilio', available: false, detail: 'LIVEKIT_SIP_ENDPOINT is not set', canAttach: true, buy: [...BASE_BUY_OFFERS] })
-    expect(phoneSetupView({ provider: 'dev', problem: null }, { permissions: [] })).toEqual({ provider: 'dev', available: true, detail: null, canAttach: true, buy: [...BASE_BUY_OFFERS] })
+    expect(phoneSetupView(missing, { permissions: ['settings:write'] })).toEqual({ provider: 'twilio', available: false, detail: null, canAttach: false, buy: [...BASE_BUY_OFFERS], account: 'install' })
+    expect(phoneSetupView(missing, { permissions: ['settings:write', 'instance:admin'] })).toEqual({ provider: 'twilio', available: false, detail: 'LIVEKIT_SIP_ENDPOINT is not set', canAttach: true, buy: [...BASE_BUY_OFFERS], account: 'install' })
+    expect(phoneSetupView({ provider: 'dev', problem: null }, { permissions: [] })).toEqual({ provider: 'dev', available: true, detail: null, canAttach: true, buy: [...BASE_BUY_OFFERS], account: 'install' })
     expect(phoneSetupView(missing, { permissions: ['settings:write'] }, 'workspace').canAttach).toBe(true)
   })
 

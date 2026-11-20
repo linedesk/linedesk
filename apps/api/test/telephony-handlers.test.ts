@@ -435,10 +435,11 @@ describe('telephony handlers', () => {
       await expect(setup(tx, { areaCode: '503', purchase: true }, account)).rejects.toThrow(/^Area code 503 is in the United States, but this workspace is in Puerto Rico/)
     }))
 
-    test('only a hint names the country (left as prefilled at creation): the area code decides, as with nothing known', () => inRollback(async tx => {
-      // A US owner who made the workspace from Germany: Automatic on a German sign-up hint (#826) must not block buying.
-      await tx.insert(workspace_settings).values({ workspace_id: WORKSPACE, timezone: 'Europe/Berlin', country_hint: 'DE', country_hint_source: 'sign_up_location' })
-        .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { country: null, country_hint: 'DE', country_hint_source: 'sign_up_location' } })
+    test('only a hint of a country without a buy offer: the area code decides, as with nothing known', () => inRollback(async tx => {
+      // A US owner who made the workspace from France: Automatic on a French sign-up hint (#826) must not block buying.
+      // A hint of a country with an offer (Germany) buys there instead (LIN-645, number-buy.test.ts).
+      await tx.insert(workspace_settings).values({ workspace_id: WORKSPACE, timezone: 'Europe/Paris', country_hint: 'FR', country_hint_source: 'sign_up_location' })
+        .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { country: null, country_hint: 'FR', country_hint_source: 'sign_up_location' } })
       const account = carrier()
       const search = vi.spyOn(account, 'searchNumbers')
       expect((await setup(tx, { areaCode: '503', purchase: true }, account)).rows.phone_numbers?.[0]).toMatchObject({ purchased: true })

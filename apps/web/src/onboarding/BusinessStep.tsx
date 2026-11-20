@@ -584,7 +584,12 @@ function ReviewProfile({
         <div className="ob-body">
           <h1>{heading}</h1>
           <Note tone="info" title={t('auth.signup.notYetTitle')} role="status">
-            {t('onboarding.business.notServed', { brand: brandName(), country: phoneCountryName(country, i18n()) })}
+            {t('onboarding.business.notServedIn', {
+              brand: brandName(),
+              country: phoneCountryName(country, i18n()),
+              // The countries it is served in (servedCountries), named in the reader's language.
+              countries: i18n().format.list((served ?? []).map(c => phoneCountryName(c, i18n()))),
+            })}
           </Note>
           <Field
             id="ob-biz-country"

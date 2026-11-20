@@ -5,9 +5,10 @@
 // owner, who becomes it at once (an existing confirmed account) or after confirming the emailed invitation; the admin
 // does not join it and stays where they are. Refused because the session's passkey check ran out meanwhile (403
 // `admin_second_factor`): the dialog offers the passkey prompt (Server admin opens on it) instead of an error line.
-// Country: required, prefilled from the country hint (countryHint.ts). Saved as the workspace's country only when
-// picked; left as prefilled it stays Automatic on that hint, so a number connected later still decides it. For another
-// owner the prefill is this browser's own hint (time zone, language), never the admin's sign-up location.
+// Country: required, prefilled from the country hint (countryHint.ts). Only server admins see this dialog, so the
+// country in the field is their choice: it is saved as the workspace's country, picked or left as prefilled (LIN-645),
+// as for a partner's client; phone numbers are then bought there. For another owner the prefill is this browser's own
+// hint (time zone, language), never the admin's sign-up location.
 // Time zone: this browser's is sent; workspace.create keeps it when it is in that country (picked, else the hint), else
 // uses the country's main zone (LIN-433). Onboarding step 1 shows it with a Change.
 import type { WorkspaceCreateData } from '@linedesk/actions'
@@ -116,7 +117,8 @@ export function NewWorkspaceDialog({ onClose, returnTo = '', ownerChoice = !retu
         const data = (await runAdmin('workspace.create', {
           name: form.name.trim(),
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          ...(pickedCountry ? { country: pickedCountry } : {}),
+          // The admin's choice in the field, as set (LIN-645).
+          ...(country ? { country } : {}),
           ...(hint ? { countryHint: hint } : {}),
           owner: ownerInput(form),
         })) as unknown as WorkspaceCreateData
@@ -131,7 +133,7 @@ export function NewWorkspaceDialog({ onClose, returnTo = '', ownerChoice = !retu
         return
       }
       // The new workspace is the session's active one now; reloading opens it with its own local store.
-      await createWorkspace(form.name.trim(), pickedCountry)
+      await createWorkspace(form.name.trim(), country || null)
       // The page stays on screen until the reload has loaded the app again: say so meanwhile.
       setPhase('opening')
       window.location.hash = returnTo

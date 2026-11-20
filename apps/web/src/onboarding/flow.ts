@@ -5,6 +5,7 @@ import {
   type BusinessHoursSpan,
   type BuyOffer,
   buyableAreaCode,
+  buyingCountryOf,
   buyOfferIn,
   completePhone,
   emergencyNumberOf,
@@ -22,6 +23,7 @@ import {
   type PickupMode,
   type ProviderAudience,
   type ProviderName,
+  phoneCountryName,
   phoneNumberProblem,
   providerFailureReasonOfText,
   providerFailureText,
@@ -31,6 +33,7 @@ import {
   TRANSFER_CONDITION_MAX,
   TRANSFER_CONTACTS_MAX,
   TRANSFER_NAME_MAX,
+  type WorkspaceCountrySource,
   type WorkspaceSettingsData,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber, TransferContact } from '@linedesk/db/types'
@@ -399,28 +402,46 @@ export const numbersBeingSetUp = (country: string | null, offers: readonly BuyOf
 export const beingSetUpText = (): string => i18n().t('onboarding.flow.numbersBeingSetUp')
 
 /**
- * The country the number picker buys in: the workspace's, once something names it (country, a number, the business
- * phone, holidays). Before that, null: every buyable area code is offered and the one picked names the country, as on
- * the server (purchaseCountry); the bought number then sets the workspace's country. Not the US by default, so a
+ * The country the number picker buys in: the country the owner was shown (buyingCountryOf, the same rule as the
+ * server's purchaseCountry, LIN-645): the workspace's once something names it (country, a number, the business phone,
+ * holidays), or the hint it was made with when the install has a buy offer there (a German business left on its hint
+ * sees 06221 or that numbers are being set up, never US area codes). Else null: every buyable area code is offered and
+ * the one picked names the country; the bought number then sets the workspace's country. Not the US by default, so a
  * business in Puerto Rico or Canada with nothing set yet still finds its own codes.
  */
-export const buyingCountry = (place: { country: string; known: boolean } | null): string | null =>
-  place?.known ? place.country : null
+export const buyingCountry = (
+  place: { country: string; source: WorkspaceCountrySource } | null,
+  offers: readonly BuyOffer[] = BASE_BUY_OFFERS,
+): string | null => buyingCountryOf(place, offers)
 
 /** The country whose price the note shows: that of the picked (North American) area code, else the workspace's. */
 export const priceCountry = (areaCode: string, country: string | null): string | null =>
   buyableAreaCode(areaCode)?.country ?? country
 
 /**
+ * The countries numbers can be bought in now (the ready buy offers), named in the reader's language as a list
+ * ("the United States, Canada and Puerto Rico" reads "United States, Canada, and Puerto Rico").
+ */
+export function buyCountriesText(offers: readonly BuyOffer[] = BASE_BUY_OFFERS): string {
+  const words = i18n()
+  return words.format.list(offers.filter(o => o.ready).map(o => phoneCountryName(o.country, words)))
+}
+
+/**
  * The line shown instead of buying outside those countries. `canAttach` false: the install's carrier account is for
  * instance admins only, so a number the business has needs its own carrier account first.
  */
-export function buyUnavailableText(carrier: string | null, canAttach: boolean): string {
+export function buyUnavailableText(
+  carrier: string | null,
+  canAttach: boolean,
+  offers: readonly BuyOffer[] = BASE_BUY_OFFERS,
+): string {
   const { t } = i18n()
-  if (!canAttach) return t('onboarding.flow.buyUnavailable.ownCarrier')
+  const countries = buyCountriesText(offers)
+  if (!canAttach) return t('onboarding.flow.buyOnlyIn.ownCarrier', { countries })
   return carrier
-    ? t('onboarding.flow.buyUnavailable.inCarrier', { carrier })
-    : t('onboarding.flow.buyUnavailable.withCarrier')
+    ? t('onboarding.flow.buyOnlyIn.inCarrier', { carrier, countries })
+    : t('onboarding.flow.buyOnlyIn.withCarrier', { countries })
 }
 
 /** The link under the cards to the `existing` option, naming the install's carrier when it has one. */
@@ -616,17 +637,55 @@ export function billedNumberPrice(
 }
 
 /**
- * The question before buying. In development mode nothing is bought or billed; the note under the field says so once
- * (priceNote), so the question doesn't repeat it.
+ * What the number about to be bought costs, for the question before buying: `included` (the first number on a bill),
+ * the extra number's monthly price from the bill's balance ("$3"), or null where the carrier bills it (no bill, a
+ * comped bill, the workspace's own carrier account) or nothing is billed (development mode). The same inputs as
+ * billedNumberNote, so the note and the question never disagree.
  */
-export function buyQuestion(provider: string | null, areaCode: string): string {
+export function numberCharge(
+  extraNumberCents: number | null,
+  provider: string | null,
+  numbersBought: number,
+): 'included' | string | null {
+  if (extraNumberCents === null || provider === 'dev') return null
+  return billedNumberPrice(extraNumberCents, provider, numbersBought) ?? 'included'
+}
+
+/**
+ * The question before buying. In development mode nothing is bought or billed; the note under the field says so once
+ * (priceNote), so the question doesn't repeat it. `charge` (numberCharge): the included first number says so instead
+ * of a monthly charge; an extra one names its price from the balance; null keeps the carrier's monthly charge.
+ */
+export function buyQuestion(
+  provider: string | null,
+  areaCode: string,
+  charge: 'included' | string | null = null,
+): string {
   const { t } = i18n()
   // A national number has no area code (noAreaCode): the question names none.
   if (!areaCode)
-    return provider === 'dev' ? t('onboarding.flow.buyQuestionDevNoArea') : t('onboarding.flow.buyQuestionNoArea')
+    return provider === 'dev'
+      ? t('onboarding.flow.buyQuestionDevNoArea')
+      : charge === 'included'
+        ? t('onboarding.flow.buyQuestionIncludedNoArea')
+        : charge
+          ? t('onboarding.flow.buyQuestionExtraNoArea', { price: charge })
+          : t('onboarding.flow.buyQuestionNoArea')
   if (provider === 'dev') return t('onboarding.flow.buyQuestionDev', { areaCode })
+  if (charge === 'included') return t('onboarding.flow.buyQuestionIncluded', { areaCode })
+  if (charge) return t('onboarding.flow.buyQuestionExtra', { areaCode, price: charge })
   return t('onboarding.flow.buyQuestion', { areaCode })
 }
+
+/**
+ * The bill's extra-number price applies only to numbers bought on the install's carrier account: a workspace on its
+ * own carrier account pays its carrier (the carrier's price shows instead), in onboarding as in Settings › Phone
+ * numbers. `status.account` from the phone setup status; absent (an older server) counts as the install's.
+ */
+export const billedExtraNumberCents = (
+  extraNumberCents: number | null | undefined,
+  status: { account?: 'install' | 'workspace' } | null | undefined,
+): number | null => (status?.account === 'workspace' ? null : (extraNumberCents ?? null))
 
 /**
  * The line that asks to turn an earlier forwarding off before the new one (the pick-up choice changed after the code

@@ -54,6 +54,8 @@ export type PhoneSetupView = {
   canAttach: boolean
   /** Where a number can be bought on this workspace's carrier account (numberBuyOffers): one list for app, API and MCP. */
   buy: BuyOffer[]
+  /** Whose carrier account numbers are set up on: the install's (billed numbers on a bill), or the workspace's own. */
+  account: 'install' | 'workspace'
 }
 /**
  * `businessLookup`: the install can look businesses up (Google Places): the first step searches by name and city.
@@ -85,6 +87,7 @@ export function phoneSetupView(
     detail: isAdmin ? status.problem : null,
     canAttach,
     buy,
+    account,
   }
 }
 

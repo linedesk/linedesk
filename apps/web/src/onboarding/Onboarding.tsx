@@ -22,6 +22,7 @@ import { Foot, Frame, useStepKeys } from './Frame.tsx'
 import {
   type DoneLeft,
   doneState,
+  billedExtraNumberCents,
   mobileErrorText,
   NO_PICKUP_MEMORY,
   nextStep,
@@ -324,7 +325,8 @@ export function StepScreen(p: StepScreenProps) {
           setupError={p.saves.setupError}
           clearError={p.saves.clearSetupError}
           admin={admin}
-          extraNumberCents={p.me.workspace?.extraNumberCents ?? null}
+          // The bill's price only on the install's carrier account, as in Settings › Phone numbers › Add number.
+          extraNumberCents={billedExtraNumberCents(p.me.workspace?.extraNumberCents, p.phone)}
           partnerManaged={p.me.workspace?.partnerManaged === true}
           oldForwarding={p.pickupMemory.oldForwarding}
           onBack={p.onBack}

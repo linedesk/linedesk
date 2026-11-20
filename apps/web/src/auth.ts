@@ -39,6 +39,8 @@ export type PhoneSetupStatus = {
   detail: string | null
   canAttach: boolean
   buy?: BuyOffer[]
+  /** Whose carrier account numbers are set up on: the install's, or the workspace's own; absent from an older server. */
+  account?: 'install' | 'workspace'
 }
 /** Present while the workspace is in onboarding and this member may finish it. */
 /**

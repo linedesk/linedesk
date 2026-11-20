@@ -1747,7 +1747,6 @@
   "system.zapierReachable": "{address}: Zapier puede acceder.",
   "system.zapierSteps": "Los espacios de trabajo encuentran <app>Linedesk en Zapier</app> y los pasos en <link>Integraciones › Zapier</link>. Tu firewall debe permitir que Zapier acceda a esta dirección y que el servidor envíe a {host}.",
   "system.zapierUnreachable": "{address}: Zapier no puede acceder. Publica Linedesk en una dirección https en internet.",
-  "tryOut.areaCode": "Código de área (EE. UU., Canadá o Puerto Rico)",
   "tryOut.callerQuestion": "Quien llama: Hola, mi calentador de agua tiene una fuga. ¿Puede venir alguien hoy?",
   "tryOut.codeLabel": "El código del correo",
   "tryOut.codePlaceholder": "Código de 6 dígitos",

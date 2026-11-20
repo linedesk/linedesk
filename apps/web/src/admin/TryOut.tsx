@@ -2,10 +2,18 @@
 // the install walkthrough): a code emailed to the admin and typed back, a caller's question to the model, a sample call
 // transcribed, the voice played, numbers listed without buying. It costs a little (a few tokens, a second of speech),
 // unlike Test again, the free key check.
-import { type ProviderCategory, type TryOutData, type TryOutKind, buyableAreaCode } from '@linedesk/actions'
+import {
+  buyableAreaCode,
+  NUMBER_BUY_COUNTRIES,
+  phoneCountryName,
+  type ProviderCategory,
+  type TryOutData,
+  type TryOutKind,
+} from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useId, useState } from 'react'
+import { i18n } from '../i18n/index.tsx'
 import { AreaCodeInput } from '../settings/AreaCodeInput.tsx'
 import { Input } from '../ui/form.tsx'
 import { Button, cx } from '../ui/kit.tsx'
@@ -107,7 +115,18 @@ export function TryOut({
             // code there; otherwise it runs Try it here.
             // biome-ignore lint/a11y/noStaticElementInteractions: only passes Enter on from the field inside
             <div className="adm-try-area" onKeyDown={e => onEnter(e, startTry)}>
-              <AreaCodeInput id={areaId} label={t('admin.tryOut.areaCode')} value={areaCode} onChange={setAreaCode} />
+              <AreaCodeInput
+                id={areaId}
+                // The countries its area codes are in (AREA_CODES), named in the reader's language.
+                label={t('admin.tryOut.areaCodeIn', {
+                  countries: i18n().format.list(
+                    NUMBER_BUY_COUNTRIES.map(c => phoneCountryName(c, i18n())),
+                    { type: 'disjunction' },
+                  ),
+                })}
+                value={areaCode}
+                onChange={setAreaCode}
+              />
             </div>
           )}
           <Button

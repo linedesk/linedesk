@@ -1949,7 +1949,7 @@ const handlers: Record<string, Handler> = {
     // Germany where the server has it on), and by area code only in their own country and its offered codes
     // (LIN-300). Asked once, when a purchase is allowed by the input; refused before the carrier is searched.
     const offers = await numberBuyOffers(tx, { account: carrier_account, provider: provider.name })
-    const country = input.purchase ? await purchaseCountry(tx, workspace_id, input) : null
+    const country = input.purchase ? await purchaseCountry(tx, workspace_id, input, offers) : null
     const offer = country ? buyOfferIn(offers, country) : undefined
     const countryRefusal = country ? buyCountryRefusal(country, offers) : null
     if (countryRefusal && !input.e164) throw new Reject(countryRefusal)

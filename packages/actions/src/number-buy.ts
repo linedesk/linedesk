@@ -7,6 +7,7 @@
 import { z } from 'zod'
 import { type AreaCode, areaCodesIn, NUMBER_BUY_COUNTRIES } from './area-codes.ts'
 import { defineAction } from './define.ts'
+import { countryNamed, type WorkspaceCountrySource } from './workspace-locale.ts'
 
 /** The kind of number bought: local (by area code) or national (Germany 032, no area code). */
 export const BUY_NUMBER_TYPES = ['local', 'national'] as const
@@ -35,6 +36,26 @@ export const DEFAULT_DE_AREA_CODES: readonly string[] = ['6221']
 export const buyOfferIn = (offers: readonly BuyOffer[], country: string | null | undefined): BuyOffer | undefined => {
   const code = country?.trim().toUpperCase()
   return code ? offers.find(o => o.country === code) : undefined
+}
+
+/**
+ * The country a number is bought in, the same rule in the phone step, Settings › Phone numbers › Add number, the
+ * server (purchaseCountry) and the setup agent (LIN-645): the country the owner was shown, as the Business step shows
+ * it. A country something of the business names (set, a number, the business phone, holidays: countryNamed) always;
+ * a country only worked out (the hint from where the workspace was made) when it has a buy offer, so a German
+ * business left on its hint buys in Germany (or reads that numbers there are being set up), never a US number that
+ * would then make it a US workspace. Null when nothing is known (the US fallback) or the hinted country has no offer:
+ * every buyable area code is offered and the one picked names the country (LIN-300). `place`: the workspace's country
+ * and where it came from (workspaceCountryOf); null while it loads.
+ */
+export function buyingCountryOf(
+  place: { country: string; source: WorkspaceCountrySource } | null | undefined,
+  offers: readonly BuyOffer[],
+): string | null {
+  if (!place) return null
+  if (countryNamed(place.source)) return place.country
+  if (place.source === 'default') return null
+  return buyOfferIn(offers, place.country) ? place.country.toUpperCase() : null
 }
 
 /** The names of the German area codes an install offers by default (others show as the code alone). */
