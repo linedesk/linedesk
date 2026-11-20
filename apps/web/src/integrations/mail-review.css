@@ -1,0 +1,277 @@
+/* What your support mail shows (MailReview.tsx): start, status and the review of the topics found. */
+.mr-start {
+  display: grid;
+  gap: var(--space-2);
+}
+.mr-lead {
+  margin: 0;
+}
+.mr-start-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.mr-seg {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+}
+.mr-seg-btn {
+  height: calc(var(--control-h) - 4px);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.mr-seg-btn.is-on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-xs);
+}
+.mr-seg-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.mr-running {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.mr-running > div {
+  display: grid;
+  gap: 2px;
+}
+.mr-running b {
+  font-weight: 500;
+}
+.mr-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  color: var(--ink-muted);
+  font-size: 13px;
+  margin-bottom: var(--space-3);
+}
+.mr-target {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  font-size: 13px;
+}
+.mr-again {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.mr-start.is-compact .k-btn-secondary {
+  height: var(--control-h-sm);
+}
+
+/* One topic: the head and the fields. */
+.mr-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.mr-card-head b {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.mr-step-pos {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.mr-editor {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.mr-field {
+  display: grid;
+  gap: 4px;
+}
+.mr-field > span {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.mr-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.mr-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 4px 0 10px;
+  border-radius: var(--radius-full);
+  background: var(--surface-hover);
+  font-size: 13px;
+}
+.mr-fact button {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.mr-fact button:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+.mr-fact-add {
+  height: 26px;
+  min-width: 120px;
+  padding: 0 10px;
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius-full);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+}
+.mr-preview {
+  display: grid;
+  gap: 4px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+}
+.mr-preview > span {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.mr-preview code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mr-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-3);
+}
+.mr-folded {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  color: var(--ink-muted);
+}
+.mr-folded b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.mr-folded.is-dropped b {
+  color: var(--ink-muted);
+  text-decoration: line-through;
+}
+.mr-folded .kn-sub a {
+  color: inherit;
+}
+/* All topics reviewed. */
+.mr-all-done {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.mr-all-done b {
+  font-weight: 500;
+}
+
+/* The review: the topics on the left, the chosen one on the right; stacked on a phone. */
+.mr-split {
+  display: grid;
+  grid-template-columns: minmax(0, 34%) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.mr-split-list {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mr-split-list li {
+  min-width: 0;
+}
+.mr-split-item {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 6px var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mr-split-item:hover {
+  background: var(--surface-hover);
+}
+.mr-split-item.is-at {
+  background: var(--highlight);
+}
+.mr-split-item.is-dropped .mr-split-title {
+  color: var(--ink-muted);
+  text-decoration: line-through;
+}
+.mr-split-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.mr-split-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mr-split-count {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.mr-split-detail {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+}
+@media (max-width: 720px) {
+  .mr-split {
+    grid-template-columns: 1fr;
+  }
+}

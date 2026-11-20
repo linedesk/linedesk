@@ -35,7 +35,11 @@ export type MailTopic = {
   answer: string
   /** What support needs to know from the customer to help (address, model, photos, preferred time). */
   factsNeeded: string[]
+  /** The owner's review (LIN-643): accepted into an assistant's About the business, or dropped. Missing: not yet. */
+  review?: MailTopicReview
 }
+/** `assistantId`: the assistant whose About the business got it (accepted only). */
+export type MailTopicReview = { decision: 'accepted' | 'dropped'; at: string; by: string; assistantId?: string }
 
 /**
  * Why an analysis did not finish (`error` of mail_analyses), worded by the page: `no_model` (no language model set up),

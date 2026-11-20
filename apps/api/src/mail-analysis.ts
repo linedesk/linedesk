@@ -4,13 +4,15 @@
 // effect, in batches, for the most common kinds of requests, how support answers each and what it needs to know from
 // the customer; a last request merges the batches. Only that result is stored (mail_analyses), never a message.
 import {
+  INSTRUCTIONS_MAX,
   MAIL_ANALYSES_PER_DAY,
   MAIL_TOPICS_MAX,
   type MailAnalysis,
   type MailAnalysisError,
   type MailTopic,
+  mailTopicLine,
 } from '@linedesk/actions'
-import { mail_analyses, mail_connections, type Tx } from '@linedesk/db'
+import { assistants, mail_analyses, mail_connections, type Tx } from '@linedesk/db'
 import {
   addressOf,
   type MailMessage,
@@ -302,6 +304,16 @@ export const toMailAnalysis = (row: typeof mail_analyses.$inferSelect): MailAnal
   finishedAt: row.finished_at,
 })
 
+type ReviewInput = {
+  analysisId: string
+  index: number
+  decision: 'accept' | 'drop' | 'reopen'
+  assistantId?: string
+  question?: string
+  answer?: string
+  factsNeeded: string[]
+}
+
 type QueueAnalysis = (tx: Tx, analysisId: string) => Promise<void>
 
 function workspaceOf(actor: { workspaceId?: string | null }) {
@@ -350,6 +362,53 @@ export const mailAnalysisHandlers = (queue: QueueAnalysis): Record<string, Handl
       .returning()
     await queue(tx, row!.id)
     return { rows: {}, data: { analysis: toMailAnalysis(row!) } }
+  },
+
+  // The owner's review of one topic of the latest finished analysis (LIN-643). Accept adds one line to the assistant's
+  // About the business, as an answered caller question does (knowledgeQuestion.answer).
+  'mail.reviewTopic': async ({ tx, actor, now }, input: ReviewInput) => {
+    const workspace_id = workspaceOf(actor)
+    const [latest] = await tx
+      .select()
+      .from(mail_analyses)
+      .where(eq(mail_analyses.workspace_id, workspace_id))
+      .orderBy(desc(mail_analyses.created_at))
+      .limit(1)
+      .for('update')
+    if (!latest || latest.id !== input.analysisId || latest.status !== 'done')
+      throw Reject.t('server.api.mail.analysisNotFound', undefined, 'stale')
+    const topic = latest.topics[input.index]
+    if (!topic) throw Reject.t('server.api.mail.topicNotFound', undefined, 'not_found')
+    if (topic.review?.decision === 'accepted') throw Reject.t('server.api.mail.topicAccepted', undefined, 'accepted')
+    const rows: { assistants?: (typeof assistants.$inferSelect)[] } = {}
+    let review: MailTopic['review']
+    if (input.decision === 'accept') {
+      // Locks the assistant row, so two lines added at once both land in the text.
+      const [assistant] = await tx
+        .select()
+        .from(assistants)
+        .where(and(eq(assistants.id, input.assistantId!), eq(assistants.workspace_id, workspace_id)))
+        .for('update')
+      if (!assistant) throw Reject.t('server.api.mail.assistantNotFound', undefined, 'not_found')
+      const line = mailTopicLine(input.question!, input.answer!, input.factsNeeded)
+      const about = assistant.business_profile.instructions?.trim() ?? ''
+      const instructions = [about, line].filter(Boolean).join('\n')
+      if (instructions.length > INSTRUCTIONS_MAX) throw Reject.t('server.api.mail.aboutFull', undefined, 'full')
+      const [updated] = await tx
+        .update(assistants)
+        .set({ business_profile: { ...assistant.business_profile, instructions } })
+        .where(eq(assistants.id, assistant.id))
+        .returning()
+      rows.assistants = [updated!]
+      review = { decision: 'accepted', at: now, by: actor.actorId, assistantId: assistant.id }
+    } else if (input.decision === 'drop') review = { decision: 'dropped', at: now, by: actor.actorId }
+    const topics = latest.topics.map((t, i) => {
+      if (i !== input.index) return t
+      const { review: _old, ...rest } = t
+      return review ? { ...rest, review } : rest
+    })
+    const [row] = await tx.update(mail_analyses).set({ topics }).where(eq(mail_analyses.id, latest.id)).returning()
+    return { rows, data: { analysis: toMailAnalysis(row!) } }
   },
 
   'mail.getAnalysis': async ({ tx, actor }) => {

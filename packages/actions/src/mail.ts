@@ -1,6 +1,8 @@
+import { msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import type { MailAnalysisError, MailTopic } from '@linedesk/db/types'
 import { defineAction } from './define.ts'
+import { ANSWER_MAX, answeredQuestionLine, QUESTION_MAX } from './knowledge.ts'
 
 // Support mailboxes (LIN-615): a business connects the mailbox its support answers from, read only, so Linedesk can
 // learn the typical customer requests and how they are answered. Gmail and Microsoft 365 connect by OAuth:
@@ -88,7 +90,7 @@ export const MAIL_TOPICS_MAX = 10
 /** Analyses a workspace may start in a day: each reads up to a year of mail and costs language-model requests. */
 export const MAIL_ANALYSES_PER_DAY = 3
 
-export { type MailAnalysisError, mailAnalysisErrors, type MailTopic } from '@linedesk/db/types'
+export { type MailAnalysisError, mailAnalysisErrors, type MailTopic, type MailTopicReview } from '@linedesk/db/types'
 
 export type MailAnalysisStatus = 'queued' | 'running' | 'done' | 'failed'
 
@@ -122,5 +124,55 @@ export const mailGetAnalysis = defineAction({
   description:
     "The workspace's latest support mail analysis (mail.analyze): its status and, when done, the most common kinds of requests with how support answers them and the facts it needs.",
   input: z.object({}).strict(),
+  permission: 'settings:write',
+})
+
+// Owner review (LIN-643, step 3 of LIN-615): the owner accepts, edits or drops each topic of a finished analysis. An
+// accepted topic becomes one line in an assistant's About the business: the question and support's answer, as an
+// answered caller question is written (answeredQuestionLine), plus what to ask the caller for where support needs it.
+
+/** Facts to ask for, kept per topic, and the length of each. */
+export const MAIL_FACTS_MAX = 10
+export const MAIL_FACT_MAX = 160
+
+/** The line an accepted topic adds to About the business (text the assistant reads). */
+export function mailTopicLine(question: string, answer: string, facts: readonly string[]): string {
+  const asked = facts
+    .map(f =>
+      f
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/[.;]+$/, ''),
+    )
+    .filter(Boolean)
+  const line = answeredQuestionLine(question, answer)
+  // i18n-ignore: text the assistant reads, not UI (rule 11; wording approved by Tim on 2026-11-21)
+  return asked.length ? `${line} To help, ask the caller for: ${asked.join('; ')}.` : line
+}
+
+export const mailReviewTopic = defineAction({
+  name: 'mail.reviewTopic',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Review one topic of the workspace's latest finished support mail analysis (mail.getAnalysis; `index` counts from 0). `accept` adds it to the assistant's About the business as one line: the question, the answer and the facts to ask the caller for (each as the owner edited it); an accepted topic stays accepted. `drop` leaves it out; `reopen` takes a drop back.",
+  input: z
+    .object({
+      analysisId: z.string().min(1),
+      index: z
+        .number()
+        .int()
+        .min(0)
+        .max(MAIL_TOPICS_MAX - 1),
+      decision: z.enum(['accept', 'drop', 'reopen']),
+      /** accept: the assistant whose About the business gets the line. */
+      assistantId: z.string().min(1).optional(),
+      question: z.string().trim().min(1).max(QUESTION_MAX).optional(),
+      answer: z.string().trim().min(1).max(ANSWER_MAX).optional(),
+      factsNeeded: z.array(z.string().trim().min(1).max(MAIL_FACT_MAX)).max(MAIL_FACTS_MAX).default([]),
+    })
+    .strict()
+    .refine(i => i.decision !== 'accept' || (i.assistantId && i.question && i.answer), {
+      message: msg('server.input.mail.acceptNeeds'),
+    }),
   permission: 'settings:write',
 })

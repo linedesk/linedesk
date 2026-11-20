@@ -3,7 +3,7 @@
 // round trip (mail.connectStart, then the provider's consent page, then GET /v1/mail/callback/<provider>), so the page
 // names the table to read again on return (refreshOnReturn); the callback's result comes back in the hash
 // (`?mail=connected` or `?mail=error&reason=<code>`). The mailboxes are synced rows (mail_connections). Nothing is
-// read from a mailbox yet: connecting stores no mail.
+// read when connecting: connecting stores no mail. Below them, the analysis of their support mail (MailReview.tsx).
 import type { MailConnectStartData, MailDisconnectData, MailProviderId } from '@linedesk/actions'
 import type { MailConnection } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -18,6 +18,7 @@ import { Badge, Button } from '../ui/kit.tsx'
 import { Loading, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { mailConnectErrorKey, mailConnectResult } from './catalog.ts'
+import { MailReview } from './MailReview.tsx'
 
 type Props = {
   /** Owners and admins (settings:write): connect and disconnect. */
@@ -81,6 +82,17 @@ export function SupportEmail({ canEdit, toast }: Props) {
         <p className="help">{t('settings.integrations.mail.readOnly')}</p>
       </Loading>
     </Section>
+  )
+}
+
+/** The mailboxes, then what their support mail shows (once one is connected or an analysis exists). */
+export function SupportEmailPage({ canEdit, toast }: Props) {
+  const connected = useRows('mail_connections').length > 0
+  return (
+    <>
+      <SupportEmail canEdit={canEdit} toast={toast} />
+      {connected && <MailReview canEdit={canEdit} toast={toast} />}
+    </>
   )
 }
 

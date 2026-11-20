@@ -270,6 +270,7 @@ const all = [
   mail.mailDisconnect,
   mail.mailAnalyze,
   mail.mailGetAnalysis,
+  mail.mailReviewTopic,
   calendar.assistantCalendarAdd,
   calendar.assistantCalendarUpdate,
   calendar.assistantCalendarSetDefault,

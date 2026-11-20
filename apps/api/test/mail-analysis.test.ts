@@ -1,8 +1,8 @@
 // Support mail analysis (LIN-642): the job reads the demo mailbox (packages/mail, Brightwater Plumbing's made-up
 // support mail), keeps the answered support conversations, takes personal data out before the model sees anything,
 // and stores only the generalized topics. The model is a fake that records what it was sent.
-import { MAIL_ANALYSES_PER_DAY, rolePermissions } from '@linedesk/actions'
-import { mail_analyses, mail_connections, type Tx } from '@linedesk/db'
+import { MAIL_ANALYSES_PER_DAY, mailTopicLine, rolePermissions } from '@linedesk/actions'
+import { assistants, mail_analyses, mail_connections, type Tx } from '@linedesk/db'
 import { createDemoMail, DEMO_MAILBOX, MailError, type MailProvider } from '@linedesk/mail'
 import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test, vi } from 'vitest'
@@ -291,5 +291,96 @@ describe('mail.analyze and mail.getAnalysis', () => {
       expect((await act(member, name, {})).status, name).toBe(403)
       expect((await act(agent(ws.id), name, {})).status, name).toBe(403)
     }
+  })
+})
+
+describe('mail.reviewTopic (owner review, LIN-643)', () => {
+  async function finished() {
+    const other = await createWorkspace('Review Plumbing')
+    const actor: Actor = { ...owner, actorId: other.owner.userId, workspaceId: other.id }
+    const [row] = await db
+      .insert(mail_analyses)
+      .values({
+        id: `mana_${crypto.randomUUID().slice(0, 8)}`,
+        workspace_id: other.id,
+        months: 12,
+        requested_by: 'u',
+        status: 'done',
+        topics: TOPICS.topics,
+      })
+      .returning()
+    return { other, actor, analysisId: row!.id }
+  }
+  const aboutOf = async (assistantId: string) =>
+    (await db.select().from(assistants).where(eq(assistants.id, assistantId)))[0]!.business_profile.instructions ?? ''
+
+  test('the line: the question and answer as an answered caller question, then the facts to ask for', () => {
+    expect(mailTopicLine('Do you come to Hillsboro?', 'Yes.', [])).toBe('If a caller asks "Do you come to Hillsboro?": Yes.')
+    expect(mailTopicLine('Leak?', 'Same day.', ['address.', ' age  of the heater '])).toBe(
+      'If a caller asks "Leak?": Same day. To help, ask the caller for: address; age of the heater.',
+    )
+  })
+
+  test('accept adds the edited line to About the business once; the topic is marked', async () => {
+    const { other, actor, analysisId } = await finished()
+    const input = {
+      analysisId,
+      index: 0,
+      decision: 'accept',
+      assistantId: other.assistant.id,
+      question: 'Can you fix a leaking water heater today?',
+      answer: 'Yes, same day. Call-out fee $89.',
+      factsNeeded: ['address', 'age of the heater'],
+    }
+    const result = await db.transaction(tx => run(tx, actor, 'mail.reviewTopic', input))
+    const about = await aboutOf(other.assistant.id)
+    expect(about.endsWith(mailTopicLine(input.question, input.answer, input.factsNeeded))).toBe(true)
+    expect(result.rows.assistants).toHaveLength(1)
+    const analysis = result.data!.analysis as { topics: { review?: { decision: string; assistantId?: string } }[] }
+    expect(analysis.topics[0]!.review).toMatchObject({ decision: 'accepted', assistantId: other.assistant.id })
+    expect(analysis.topics[1]!.review).toBeUndefined()
+    // Accepted stays accepted: not added twice, not dropped.
+    await expect(db.transaction(tx => run(tx, actor, 'mail.reviewTopic', input))).rejects.toMatchObject({
+      code: 'accepted',
+    })
+    await expect(
+      db.transaction(tx => run(tx, actor, 'mail.reviewTopic', { analysisId, index: 0, decision: 'drop' })),
+    ).rejects.toMatchObject({ code: 'accepted' })
+    expect(await aboutOf(other.assistant.id)).toBe(about)
+  })
+
+  test('drop and reopen change only the mark, never About the business', async () => {
+    const { other, actor, analysisId } = await finished()
+    const before = await aboutOf(other.assistant.id)
+    const dropped = await db.transaction(tx => run(tx, actor, 'mail.reviewTopic', { analysisId, index: 1, decision: 'drop' }))
+    expect((dropped.data!.analysis as { topics: { review?: { decision: string } }[] }).topics[1]!.review?.decision).toBe(
+      'dropped',
+    )
+    const reopened = await db.transaction(tx =>
+      run(tx, actor, 'mail.reviewTopic', { analysisId, index: 1, decision: 'reopen' }),
+    )
+    expect((reopened.data!.analysis as { topics: { review?: unknown }[] }).topics[1]!.review).toBeUndefined()
+    expect(await aboutOf(other.assistant.id)).toBe(before)
+  })
+
+  test('refused: an older analysis, a topic that is not there, an assistant of another workspace', async () => {
+    const { actor, analysisId } = await finished()
+    await expect(
+      db.transaction(tx => run(tx, actor, 'mail.reviewTopic', { analysisId: 'mana_old', index: 0, decision: 'drop' })),
+    ).rejects.toMatchObject({ code: 'stale' })
+    await expect(
+      db.transaction(tx => run(tx, actor, 'mail.reviewTopic', { analysisId, index: 5, decision: 'drop' })),
+    ).rejects.toMatchObject({ code: 'not_found' })
+    const accept = { analysisId, index: 0, decision: 'accept', assistantId: ws.assistant.id, question: 'Q?', answer: 'A.' }
+    await expect(db.transaction(tx => run(tx, actor, 'mail.reviewTopic', accept))).rejects.toMatchObject({
+      code: 'not_found',
+    })
+    expect(() => actions.get('mail.reviewTopic')!.input.parse({ analysisId, index: 0, decision: 'accept' })).toThrow()
+  })
+
+  test('members and the agent may not review', async () => {
+    const input = { analysisId: 'mana_x', index: 0, decision: 'drop' }
+    expect((await act(member, 'mail.reviewTopic', input)).status).toBe(403)
+    expect((await act(agent(ws.id), 'mail.reviewTopic', input)).status).toBe(403)
   })
 })

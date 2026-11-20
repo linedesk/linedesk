@@ -63,7 +63,7 @@ import {
   ZapierSubscriptions,
 } from './Developers.tsx'
 import { IntegrationMark } from './IntegrationMark.tsx'
-import { SupportEmail } from './SupportEmail.tsx'
+import { SupportEmailPage } from './SupportEmail.tsx'
 import './integrations.css'
 
 const SEARCH_ID = 'integrations-search'
@@ -396,7 +396,7 @@ function Detail({ id, canManageKeys, toast }: { id: DetailId; canManageKeys: boo
       {id === 'hubspot' && <ConnectedApp app="hubspot" canEdit={canManageKeys} toast={toast} />}
       {id === 'slack' && <ConnectedApp key="slack" app="slack" canEdit={canManageKeys} toast={toast} />}
       {id === 'jobber' && <ConnectedApp key="jobber" app="jobber" canEdit={canManageKeys} toast={toast} />}
-      {id === 'support-email' && <SupportEmail canEdit={canManageKeys} toast={toast} />}
+      {id === 'support-email' && <SupportEmailPage canEdit={canManageKeys} toast={toast} />}
       {id === 'api-keys' && <ApiKeys canEdit={canManageKeys} toast={toast} />}
       {id === 'rest-api' && <RestApi toast={toast} />}
       {id === 'mcp' && <Mcp toast={toast} />}
