@@ -12,6 +12,10 @@
   display: grid;
   gap: 12px;
 }
+/* "Can be booked" fills its column, so "During business hours" is not cut on a phone. */
+.cal-type-form .bh-with {
+  display: flex;
+}
 .cal-type-fields {
   display: flex;
   flex-wrap: wrap;
@@ -26,6 +30,9 @@
 @media (max-width: 559px) {
   .cal-type-rules {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cal-type-rules > :nth-child(3) {
+    grid-column: 1 / -1;
   }
 }
 

@@ -697,6 +697,14 @@ a.auth-switch {
   align-items: center;
   gap: 12px;
 }
+/* Phone: what the step does at full width, its button under it (beside it the text was a narrow column). */
+@media (max-width: 560px) {
+  .team-leave {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
 .team-inv-actions {
   display: flex;
   gap: 2px;
@@ -711,6 +719,33 @@ a.auth-switch {
 }
 .team-role > .st-role {
   padding: 0 11px;
+}
+/* Phone: the role goes on its own line under the name and address (beside them the address was cut after a few
+   letters); avatar and ⋯ stay on the first line. */
+@media (max-width: 560px) {
+  .k-row-line:has(> .k-row-actions > .team-role) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 10px;
+    row-gap: 4px;
+  }
+  .k-row-line:has(> .k-row-actions > .team-role) > .k-row-actions {
+    display: contents;
+  }
+  .k-row-line:has(> .k-row-actions > .team-role) > :is(.k-row-lead, .k-row-main) {
+    grid-row: 1;
+  }
+  .k-row-line > .k-row-actions > .team-role {
+    grid-area: 2 / 2;
+    width: auto;
+    justify-self: start;
+  }
+  .k-row-line > .k-row-actions > .team-role > .st-role {
+    padding: 0;
+  }
+  .k-row-line:has(> .k-row-actions > .team-role) > .k-row-actions > :not(.team-role) {
+    grid-area: 1 / 3;
+  }
 }
 /* Team, invite: email, role and Invite in one row, all at the one control height; stacked on a phone. */
 .team-invite {
@@ -2576,6 +2611,14 @@ button.k-link {
 @media (hover: none) and (pointer: coarse) {
   .k-cmd .k-kbds,
   .k-cmd-foot {
+    display: none;
+  }
+  /* Same for the keys on buttons (Save ⌘S), menu items, Undo and the search field: nothing to press there.
+     Keys inside a sentence (the help sheet) stay. */
+  .k-btn .k-kbds,
+  .nav-item .k-kbds,
+  .toast-undo .k-kbds,
+  .k-input .k-kbds {
     display: none;
   }
 }

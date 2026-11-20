@@ -15,6 +15,12 @@
 .ig-search input {
   min-width: 0;
 }
+/* Phone: the search takes the whole line, like the chips under it. */
+@media (max-width: 560px) {
+  .ig-search {
+    max-width: none;
+  }
+}
 .ig-chips {
   display: flex;
   flex-wrap: wrap;
@@ -183,6 +189,17 @@
 .ig-copy-block .ig-code {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+/* Phone: a command gets the card's full width, Copy goes under it at the right (beside it the command broke
+   every few words). */
+@media (max-width: 560px) {
+  .ig-copy-block {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ig-copy-block > .k-btn {
+    align-self: flex-end;
+  }
 }
 .ig-code {
   flex: 1;

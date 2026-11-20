@@ -49,6 +49,28 @@
   min-height: var(--control-h-sm);
   margin: -4px 0;
 }
+/* Phone: the actions share only the title's line; the description below takes the card's full width instead of a
+   narrow column beside an Add button. */
+@media (max-width: 560px) {
+  .k-card-head:has(> .k-card-actions) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 2px 12px;
+  }
+  .k-card-head:has(> .k-card-actions) > .k-card-title {
+    display: contents;
+  }
+  .k-card-head:has(> .k-card-actions) > .k-card-title > h2 {
+    grid-area: 1 / 1;
+  }
+  .k-card-head:has(> .k-card-actions) > .k-card-title > p {
+    grid-column: 1 / -1;
+  }
+  .k-card-head > .k-card-actions {
+    grid-area: 1 / 2;
+  }
+}
 
 /* Field */
 .k-field {
