@@ -15,6 +15,12 @@
 .fg-pickers .fg-picker {
   min-width: 0;
 }
+/* Phone: the fields use 16px there, so side by side both were cut ("United Sta", "Search carriers and"): one per line. */
+@media (max-width: 560px) {
+  .fg-pickers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .fg-abroad {
   margin: 0;
   max-width: 420px;

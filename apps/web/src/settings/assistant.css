@@ -213,6 +213,12 @@ a.as-chip:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Phone: a voice's line wraps instead of ending in "…" ("unless you pick anot…"). */
+@media (max-width: 560px) {
+  .vp-desc {
+    white-space: normal;
+  }
+}
 .vp-facts {
   flex: none;
   max-width: 45%;
