@@ -86,6 +86,7 @@ import { signupRules } from './self-serve.ts'
 import { refuseUnservedWorkspaces } from './served-countries.ts'
 import { billsToReaccept } from './terms-update.ts'
 import { refuseBillingActor } from './usage-levels.ts'
+import { workspaceLocale } from './workspace-locale.ts'
 
 /**
  * How long a Checkout Session can be completed (Stripe allows 30 minutes to 24 hours): well under a day, so the sign-up
@@ -498,6 +499,23 @@ const itemsCents = (items: { lookupKey: string; quantity: number }[], rules: Bil
   items.reduce((sum, i) => sum + (planPrice(i.lookupKey, rules)?.cents ?? 0) * i.quantity, 0)
 
 /**
+ * The country Checkout's billing address starts at (LIN-647): the workspace's, as Workspace settings shows it (set, else
+ * from its numbers, holidays or the hint saved when it was made). The caller's workspace when it is on the bill, else the
+ * bill's first. Null when nothing of the workspace names one (the US fallback): then Stripe guesses from the IP.
+ */
+async function checkoutCountry(tx: Tx, billId: string, actor: Actor): Promise<string | null> {
+  const [workspace] = await tx
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.billingAccountId, billId))
+    .orderBy(sql`${organization.id} = ${actor.workspaceId ?? ''} desc`, asc(organization.createdAt))
+    .limit(1)
+  if (!workspace) return null
+  const locale = await workspaceLocale(tx, workspace.id)
+  return locale.countrySource === 'default' ? null : locale.resolvedCountry
+}
+
+/**
  * `billing.startCheckout`: a business's plan with a 14-day trial, or without one after a refused trial;
  * a partner's plan always without (trialOffered). Stripe is
  * asked before the transaction (the customer, the configuration, the session); the transaction stores the customer.
@@ -530,6 +548,7 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
   const prices = await pricesForCheckout(provider).catch(setupFailed)
   // The seats first, then the extra calls the step added.
   const sold = withExtraCalls(bill, items, input.extraCalls, rules)
+  const country = bill.kind === 'cloud' ? await db.transaction(tx => checkoutCountry(tx, bill.id, actor)) : null
   const started = await provider
     .startCheckout({
       kind: trial ? 'trial' : 'plan',
@@ -548,6 +567,7 @@ const prepareStartCheckout: Preparer = async ({ actor, now }, input: StartInput)
         price: { cents: itemsCents(sold, rules), interval: bill.interval },
       }),
       branding: checkoutBranding(),
+      ...(country ? { country } : {}),
       successUrl: returnUrl(input.partnerId),
       cancelUrl: cancelUrl(input.partnerId),
       // A double click within a second makes one session; a later start makes a new one (the open one was expired).

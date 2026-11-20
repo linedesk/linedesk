@@ -113,6 +113,11 @@ export type CheckoutInput = {
    * account's, and its color on the button. The rest (receipts, the statement descriptor, the portal) is the account's.
    */
   branding?: { displayName: string; buttonColor?: string | null }
+  /**
+   * The workspace's country (ISO 3166-1 alpha-2), so Checkout's billing address starts there instead of where the
+   * browser's IP is: set on the customer when it has no address yet (a saved address stays as it is).
+   */
+  country?: string
   successUrl: string
   cancelUrl: string
   /** One per attempt: a retried request never makes a second session. */

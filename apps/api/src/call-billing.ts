@@ -35,6 +35,7 @@ import { busyLineRef } from './billing-recharge.ts'
 import { billingState } from './billing-settings.ts'
 import { queueBillingAlert, queueRecharge } from './jobs.ts'
 import {
+  includedMinutesLeft,
   type PostOutcome,
   periodAt,
   type RechargeOutcome,
@@ -240,13 +241,13 @@ export async function callsPastTheirLimit(tx: Tx, now: string): Promise<{ id: st
 /**
  * What follows a debit or a gate check, in the same transaction: a new recharge attempt is charged by a job; the
  * monthly cap reached the first time this month emails the owner; and with auto-recharge off a balance below the
- * threshold emails the owner once per low stretch.
+ * threshold emails the owner once per low stretch, once a workspace used up its included minutes.
  */
 export async function afterDebit(tx: Tx, billId: string, recharge: RechargeOutcome, now: string) {
   if (recharge.kind === 'recharge') await queueRecharge(tx, recharge.rechargeId)
   if (recharge.kind === 'cap_reached' && recharge.firstThisMonth)
     await queueBillingAlert(tx, { kind: 'recharge_cap_reached', bill: billId, ref: now.slice(0, 7) })
-  await lowBalanceAlert(tx, billId)
+  await lowBalanceAlert(tx, billId, now)
 }
 
 /**
@@ -254,7 +255,7 @@ export async function afterDebit(tx: Tx, billId: string, recharge: RechargeOutco
  * only after "Keep calls answered"): the stretch
  * is named by the last credit before it (a recharge, top-up, credit or write-off), so the next one starts a new one.
  */
-async function lowBalanceAlert(tx: Tx, billId: string) {
+async function lowBalanceAlert(tx: Tx, billId: string, now: string) {
   const [bill] = await tx
     .select({
       auto: billing_accounts.auto_recharge,
@@ -271,6 +272,8 @@ async function lowBalanceAlert(tx: Tx, billId: string) {
   if (!bill || bill.auto || !['trialing', 'active', 'past_due'].includes(bill.status)) return
   if (bill.status === 'trialing' && !bill.trialRecharge) return
   if (bill.balance - bill.reserved >= bill.threshold * 10_000) return
+  // Not while every workspace still has included minutes left: its next call is free (LIN-647), as in the banner.
+  if (await includedMinutesLeft(tx, billId, now)) return
   const [lastCredit] = await tx
     .select({ id: ledger_entries.id })
     .from(ledger_entries)

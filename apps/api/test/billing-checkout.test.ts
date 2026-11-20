@@ -570,6 +570,17 @@ describe('billing.startCheckout', () => {
     expect(stripe.requests.filter(r => r.path === '/v1/customers')).toHaveLength(1)
   })
 
+  test("Checkout's billing address starts at the workspace's country, not the IP's (LIN-647)", async () => {
+    const { ws, bill, owner } = await pendingSignUp()
+    await db.update(workspace_settings).set({ country: 'CA' }).where(eq(workspace_settings.workspace_id, ws.id))
+    await startCheckout(owner)
+    const customer = (await billRow(bill.id)).stripe_customer_id!
+    // A customer without an address gets the country before the session is made; nothing else of it changes.
+    const update = stripe.requests.find(r => r.method === 'POST' && r.path === `/v1/customers/${customer}`)
+    expect(update && Object.fromEntries(update.body)).toEqual({ 'address[country]': 'CA' })
+    expect(stripe.requests.indexOf(update!)).toBeLessThan(stripe.requests.indexOf(checkoutsMade().at(-1)!))
+  })
+
   test('a business worked out to be abroad is refused before any card; set to the US (owner in Germany) it starts', async () => {
     const { ws, owner } = await pendingSignUp()
     // Signed up from Germany (the proxy's country): worked out as Germany until the Business step sets a country.

@@ -839,11 +839,27 @@ export function checkoutTax(automaticTax: boolean) {
 }
 
 /**
+ * Checkout starts the billing address at the customer's saved address, else at the country of the browser's IP (a
+ * test server in France showed France): a customer without an address gets the workspace's country first (LIN-647).
+ * A saved address is never changed. Only a convenience: a failure leaves the IP's guess, never stops the Checkout.
+ */
+async function prefillCountry(stripe: Stripe, customerId: string, country: string) {
+  try {
+    const customer = await stripe.customers.retrieve(customerId)
+    if (('deleted' in customer && customer.deleted) || (customer as Stripe.Customer).address?.country) return
+    await stripe.customers.update(customerId, { address: { country } })
+  } catch (error) {
+    console.warn(`billing: the country of customer ${customerId} was not set for Checkout:`, error)
+  }
+}
+
+/**
  * A Checkout Session: the card-only configuration and never
  * `payment_method_types` (§2.4), our exclusive prices with the install's tax fields (`checkoutTax`). No terms checkbox:
  * the terms are accepted once, at sign-up. A plan saves its card on the subscription; no `setup_future_usage` in subscription mode.
  */
 async function startCheckout(stripe: Stripe, input: CheckoutInput) {
+  if (input.country) await prefillCountry(stripe, input.customerId, input.country)
   const metadata = { [BILL_METADATA]: input.billId, [CHECKOUT_METADATA]: input.kind }
   const common = {
     customer: input.customerId,

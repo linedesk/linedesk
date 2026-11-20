@@ -815,6 +815,13 @@ describe('alerts', () => {
     ).toHaveLength(2)
   })
 
+  test('no low-balance email while the included minutes last (LIN-647)', async () => {
+    // A plan that just started: $0 balance, auto-recharge off, its included minutes not used yet.
+    const b = await billed('active', { autoRecharge: false, creditMicros: 0 })
+    await start(b.ws)
+    expect(jobs('billing.alert')).toEqual([])
+  })
+
   test('the monthly cap reached emails the owner once a month', async () => {
     const b = await billed('active', { allowanceUsed: true })
     // $50 of recharges this month already: the cap is used up.

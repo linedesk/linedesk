@@ -392,6 +392,29 @@ describe('billing.overview', () => {
     ])
   })
 
+  test("a refused trial's $0 plan invoice is not listed; a trial's own $0 invoices are (LIN-647, LIN-632)", async () => {
+    const invoice = (billId: string, totalCents: number, number: string) => ({
+      stripe_invoice_id: rid('in'),
+      billing_account_id: billId,
+      kind: 'subscription' as const,
+      number,
+      status: 'paid' as const,
+      total_cents: totalCents,
+    })
+    // The trial was refused (the card had one): Stripe's $0 invoice of that trial, then the plan paid today.
+    const refused = await billed({ trial_refused: 'card_used' })
+    await db
+      .insert(billing_invoices)
+      .values([invoice(refused.billId, 0, 'LD-0101'), invoice(refused.billId, 1100, 'LD-0102')])
+    expect((await overview(refused.owner)).bill.invoices.map((i: { number: string }) => i.number)).toEqual(['LD-0102'])
+    // A bill that had its trial keeps the $0 invoices (its start, a monthly/yearly switch in it).
+    const trial = await billed({ status: 'trialing' })
+    await db.insert(billing_invoices).values(invoice(trial.billId, 0, 'LD-0201'))
+    expect((await overview(trial.owner)).bill.invoices).toEqual([
+      expect.objectContaining({ number: 'LD-0201', totalCents: 0 }),
+    ])
+  })
+
   test('only through the bill: another bill, its usage and invoices never show (tenancy)', async () => {
     const mine = await billed()
     const other = await billed()
@@ -872,14 +895,24 @@ describe('billing.retryRecharge', () => {
 
 describe('billing.state: the banner flags (review of #1007, I-4)', () => {
   const stateOf = async (who: Caller) => (await act(who, 'billing.state', {})).body.data.bill
+  /** The workspace used `seconds` of its included Standard seconds this period (3000 is all of them). */
+  const usedIncluded = (b: Billed, seconds = 3000) =>
+    db.insert(usage_counters).values({
+      billing_account_id: b.billId,
+      period_id: b.periodId,
+      workspace_id: b.ws.id,
+      included_seconds_used: seconds,
+    })
 
   test('a recharge to confirm, a low balance with auto-recharge off, the cap reached; nothing while it runs normally', async () => {
     const fine = await billed({}, 1000)
     expect(await stateOf(fine.owner)).toMatchObject({ rechargeNeedsAction: false, lowBalance: null })
     const off = await billed({ auto_recharge: false }, 100)
+    await usedIncluded(off)
     expect((await stateOf(off.owner)).lowBalance).toBe('auto_recharge_off')
     // A trial's balance is $0 by design: no low-balance line before "Keep calls answered" (auto-recharge starts off).
     const trial = await billed({ status: 'trialing', auto_recharge: false }, 0)
+    await usedIncluded(trial)
     expect((await stateOf(trial.owner)).lowBalance).toBeNull()
     await db
       .update(billing_accounts)
@@ -887,6 +920,7 @@ describe('billing.state: the banner flags (review of #1007, I-4)', () => {
       .where(eq(billing_accounts.id, trial.billId))
     expect((await stateOf(trial.owner)).lowBalance).toBe('auto_recharge_off')
     const capped = await billed({}, 100)
+    await usedIncluded(capped)
     await db.insert(billing_recharges).values({
       id: rid('rc'),
       billing_account_id: capped.billId,
@@ -914,6 +948,20 @@ describe('billing.state: the banner flags (review of #1007, I-4)', () => {
       .set({ recharge_failed_at: new Date().toISOString() })
       .where(eq(billing_accounts.id, confirm.billId))
     expect(await stateOf(confirm.owner)).toMatchObject({ rechargeFailed: true, rechargeNeedsAction: true })
+  })
+  test('a plan that just started shows no low balance while its included minutes last (LIN-647)', async () => {
+    // A plan started without a trial: $0 balance, auto-recharge off, nothing used yet.
+    const fresh = await billed({ auto_recharge: false }, 0)
+    expect((await stateOf(fresh.owner)).lowBalance).toBeNull()
+    // Most of the included minutes used: the next call is still free.
+    await usedIncluded(fresh, 2999)
+    expect((await stateOf(fresh.owner)).lowBalance).toBeNull()
+    // All of them used: calls are paid from the balance now, and it is low.
+    await db
+      .update(usage_counters)
+      .set({ included_seconds_used: 3000 })
+      .where(eq(usage_counters.billing_account_id, fresh.billId))
+    expect((await stateOf(fresh.owner)).lowBalance).toBe('auto_recharge_off')
   })
 })
 

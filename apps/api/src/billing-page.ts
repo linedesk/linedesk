@@ -50,7 +50,7 @@ import {
 } from '@linedesk/db'
 import { msg } from '@linedesk/i18n'
 import { getT } from '@linedesk/i18n/server'
-import { and, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, not, sql } from 'drizzle-orm'
 import { SIGN_IN_AGAIN } from './account.ts'
 import { PASSKEY_STEP_UP_REQUIRED } from './admin-step-up.ts'
 import { syncBillingCatalog, syncedPrices } from './billing-catalog.ts'
@@ -83,7 +83,7 @@ import {
   syncExtraCallsItem,
 } from './extra-calls.ts'
 import { Forbidden, type Handler, type HandlerCtx, type Preparer, Reject } from './handler-context.ts'
-import { decideRecharge, periodAt } from './ledger.ts'
+import { decideRecharge, includedMinutesLeft, periodAt } from './ledger.ts'
 import { type LegalTerms, legalTerms, recordAcceptance } from './legal-terms.ts'
 import { ownerStepUpNeeded } from './owner-step-up.ts'
 import { createRateLimiter } from './rate-limit.ts'
@@ -170,6 +170,9 @@ async function workspacesOf(tx: Reader, billId: string) {
     .orderBy(organization.name)
 }
 
+/** A $0 plan invoice: on a bill whose trial was refused, the one Stripe made for the trial that never ran. */
+const trialArtifact = and(eq(billing_invoices.kind, 'subscription'), eq(billing_invoices.total_cents, 0))!
+
 /** Pending, failed-but-payable and paid recharges created this month: what counts towards the cap. */
 async function usedThisMonthCents(tx: Reader, billId: string, now: string) {
   const [row] = await tx
@@ -239,7 +242,8 @@ async function lastFailedAttempt(tx: Reader, billId: string) {
 
 /**
  * The banner's flags about the balance and a failed recharge (`billing.state`): the few rows
- * they need, not the overview (security review of #1007, I-4). `lowBalance` only in the trial or paid.
+ * they need, not the overview (security review of #1007, I-4). `lowBalance` only in the trial or paid, and only once a
+ * workspace of the bill used up its included minutes in the period.
  */
 export async function balanceFlags(tx: Reader, bill: Bill, now: string) {
   const failed = bill.recharge_failed_at ? await lastFailedAttempt(tx, bill.id) : null
@@ -249,7 +253,8 @@ export async function balanceFlags(tx: Reader, bill: Bill, now: string) {
   if ((bill.status === 'trialing' && bill.trial_recharge_at) || bill.status === 'active') {
     const [balance] = await tx.select().from(billing_balances).where(eq(billing_balances.billing_account_id, bill.id))
     const available = exactMicros(balance?.balance_micros) - exactMicros(balance?.reserved_micros)
-    if (available < bill.recharge_threshold_cents * 10_000) {
+    // While every workspace still has included minutes left, its next call is free: no warning yet (LIN-647).
+    if (available < bill.recharge_threshold_cents * 10_000 && !(await includedMinutesLeft(tx as Tx, bill.id, now))) {
       if (!bill.auto_recharge) lowBalance = 'auto_recharge_off'
       else {
         const rules = await billingRules(tx as Tx)
@@ -406,6 +411,9 @@ async function overview(
       and(
         eq(billing_invoices.billing_account_id, bill.id),
         inArray(billing_invoices.status, ['open', 'paid', 'void', 'uncollectible']),
+        // A refused trial's $0 invoice (Stripe made it when the trial started, then we canceled that subscription): no
+        // trial ran, so it is not shown (LIN-647). A bill that had its trial keeps its $0 trial invoices (LIN-632).
+        bill.trial_refused ? not(trialArtifact) : undefined,
       ),
     )
     .orderBy(desc(billing_invoices.created_at))

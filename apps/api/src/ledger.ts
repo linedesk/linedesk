@@ -154,6 +154,18 @@ export async function trialSecondsUsed(tx: Pick<Tx, 'select'>, billId: string, p
   return row?.used ?? 0
 }
 
+/**
+ * Whether no workspace of the bill has used up its included minutes in the period at `at`: the next call of each is
+ * still free, so a low balance does not matter yet (LIN-647: a plan that just started has a $0 balance by design). False
+ * without a period (fails the caller's warning open).
+ */
+export async function includedMinutesLeft(tx: Tx, billId: string, at: string): Promise<boolean> {
+  const period = await periodAt(tx, billId, at)
+  if (!period) return false
+  const rules = await billingRules(tx)
+  return (await trialSecondsUsed(tx, billId, period.id)) < rules.includedStandardSeconds
+}
+
 export type NewEntry = Omit<typeof ledger_entries.$inferInsert, 'id' | 'created_at'>
 
 /**
