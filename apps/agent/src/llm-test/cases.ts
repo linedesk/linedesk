@@ -760,6 +760,19 @@ export const CASES: Case[] = [
     severity: 'must',
   },
   {
+    id: 'transfer-urgent-after-flag',
+    category: 'transfer',
+    title: 'Burst pipe, valve already shut, booking on: flag_urgent, then transfer',
+    why: "call.transfer: flag_urgent's result must not send the assistant to a message when a contact's condition fits (LIN-263)",
+    setup: setup({ transfers: [MIKE], booking: true }),
+    turns: english([
+      "Hi Maya, I have a burst pipe under my kitchen sink and water is spraying everywhere. I've already shut off the main valve. Can you send a plumber out right away?",
+    ]),
+    sim: { transfer: 'connected' },
+    checks: [{ type: 'tool', tool: 'transfer_call', byTurn: 1 }],
+    severity: 'must',
+  },
+  {
     id: 'transfer-asks-for-mike',
     category: 'transfer',
     title: 'Caller asks for Mike by name',
@@ -1188,6 +1201,23 @@ export const CASES: Case[] = [
       must: ['offer two or three specific times that find_slots returned'],
       mustNot: ['offer a time find_slots did not return', 'say anything is booked'],
     },
+    severity: 'must',
+  },
+  {
+    id: 'booking-urgent-after-flag',
+    category: 'booking',
+    title: 'Urgent leak, booking on, no transfer: flag_urgent and times, not only a message',
+    why: "rules.emergency + booking.howTo: flag_urgent's result must not send the assistant to a message when it can book the visit (LIN-263)",
+    setup: setup({ booking: true }),
+    turns: english([
+      "Water is coming through my ceiling from the bathroom upstairs. I've shut off the water. Can someone come out as soon as possible?",
+      "It's Dana Ruiz, and yes, this number is fine. The earliest you have, please.",
+      'Yes, that works.',
+    ]),
+    checks: [
+      { type: 'tool', tool: 'flag_urgent' },
+      { type: 'tool', tool: 'find_slots', byTurn: 3 },
+    ],
     severity: 'must',
   },
   {

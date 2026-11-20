@@ -232,8 +232,10 @@ export async function runCall(
     const result = String((await tool.execute(args, fakeToolOptions(call.id))) ?? '')
     if (name === 'flag_urgent') t.urgent = urgent.flagged || t.urgent
     record(result, args)
-    // flag_urgent after words: no extra round (skipQuietToolReplies).
-    return { result, next: !(QUIET_TOOLS.has(name) && text) }
+    // flag_urgent after words: no extra round (skipQuietToolReplies), unless the assistant can put the caller through
+    // or book the visit (worker.ts canAct).
+    const canAct = setup.transfers.length > 0 || setup.booking !== null
+    return { result, next: canAct || !(QUIET_TOOLS.has(name) && text) }
   }
 
   const turns = script.turns ?? []

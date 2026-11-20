@@ -523,7 +523,10 @@ async function converse(
   logTurnMetrics(session, call.callId)
   const realtimeUsage = realtime ? logRealtimeUsage(session, call.callId, realtime.model) : null
   // A realtime model has no voice for the ready lines: it only skips the reply after a turn it already spoke in.
-  skipQuietToolReplies(session, QUIET_TOOLS, lines, {
+  // With a transfer contact or booking the model answers after flag_urgent itself, so it can put the caller through or
+  // book the visit; the ready line (it asks for a callback number) only fits a message (LIN-263).
+  const canAct = transferContactsFor(call.assistant, call.businessHours).length > 0 || call.booking !== null
+  skipQuietToolReplies(session, canAct ? new Set<string>() : QUIET_TOOLS, lines, {
     readyReplies: pipeline !== null,
     callerId: callerIdOf(call) !== null,
   })

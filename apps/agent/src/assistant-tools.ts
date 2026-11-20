@@ -101,7 +101,11 @@ export function assistantTools(api: ApiClient, call: CallSession, log: CallLog, 
       execute: async (_, opts) => {
         saving(opts)
         await flagUrgent()
-        return 'The call is flagged as urgent. Do not promise a response time.'
+        // No "take a message" here: it kept the assistant from putting an urgent caller through or booking the visit
+        // (LIN-263). With transfer_call on the call, the transfer gets named: without it the model did not put through.
+        return transfer
+          ? "The call is flagged as urgent. If a transfer contact's condition fits, put the caller through with transfer_call now; do not promise a response time."
+          : 'The call is flagged as urgent. Do not promise a response time.'
       },
     }),
   }
