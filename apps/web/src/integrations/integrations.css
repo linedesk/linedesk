@@ -244,9 +244,8 @@
 .ig-mcp-key-body > .help {
   margin: 0;
 }
-/* ChatGPT's three steps: numbered, close together. */
-.ig-mcp-step-list {
-  display: grid;
-  gap: 2px;
-  padding-left: 18px;
+/* ChatGPT's steps (AgentForm.tsx): a little air above them, under the label. */
+.ig-chatgpt-steps {
+  margin-top: 6px;
+  gap: 14px;
 }

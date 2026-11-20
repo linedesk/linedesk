@@ -36,7 +36,6 @@ import {
   type SetupWorkspaceSummary,
   setupStepGroups,
   setupStepNames,
-  type StartForm,
   startPlan,
   type StartStep,
   stepsByGroup,
@@ -65,6 +64,7 @@ import { NewWorkspaceDialog } from '../shell/NewWorkspace.tsx'
 import { microphoneAllowed } from '../call/microphone.ts'
 import { switchToWorkspace } from '../shell/invitations.ts'
 import { Select } from '../ui/controls.tsx'
+import { AgentForm, StepNumber } from './AgentForm.tsx'
 import { CopyButton } from './Frame.tsx'
 import { rememberDraftOpenedFrom } from './flow.ts'
 import { SetupFoot } from './SetupFoot.tsx'
@@ -1419,9 +1419,7 @@ export function StartAgent({
       {steps.map((step, i) =>
         step.fallback ? null : (
           <li key={step.text} className="as-step-numbered">
-            <span className="as-step-number" aria-hidden="true">
-              {steps.slice(0, i + 1).filter(s => !s.fallback).length}
-            </span>
+            <StepNumber n={steps.slice(0, i + 1).filter(s => !s.fallback).length} />
             <div className="as-step">
               {body(step, i)}
               {steps[i + 1]?.fallback && fallback(steps[i + 1]!, i + 1)}
@@ -1459,45 +1457,6 @@ export function StartAgent({
         <summary>{otherWay}</summary>
         <div className="as-other-way-body">{stepList}</div>
       </details>
-    </div>
-  )
-}
-
-/**
- * The agent's own form (ChatGPT's Add custom MCP server), drawn filled in: each field with the value to copy or the
- * option to pick, the checkbox ticked and the button that ends it, so the person sees where each value goes.
- */
-export function AgentForm({ form }: { form: StartForm }) {
-  return (
-    <div className="as-form">
-      <div className="as-form-title">{form.title}</div>
-      {form.fields.map(field => (
-        <div key={field.label} className="as-form-field">
-          <span className="as-form-label">{field.label}</span>
-          {field.copy ? (
-            <div className="as-code">
-              <code>{field.value}</code>
-              <CopyButton text={field.value} />
-            </div>
-          ) : (
-            <span className="as-form-pick">
-              <span className="as-form-radio" aria-hidden="true" />
-              {field.value}
-            </span>
-          )}
-        </div>
-      ))}
-      {form.check && (
-        <span className="as-form-check">
-          <span className="as-form-box" aria-hidden="true">
-            <Icon name="check" size={12} />
-          </span>
-          {form.check}
-        </span>
-      )}
-      <div className="as-form-submit">
-        <span className="as-form-button">{form.submit}</span>
-      </div>
     </div>
   )
 }

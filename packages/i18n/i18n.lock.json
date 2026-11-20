@@ -30025,11 +30025,6 @@
       "out": "a71048f2fd483aabe8cbcfeefc91de8e220bec2532451f85ce49f617fb8bef01",
       "src": "6a3dda5bff793d3d6deeaadf7a679cb83bd585ad64bdb23e93b1e11ef6f349a6"
     },
-    "settings.integrations.mcp.chatgptStep2": {
-      "by": "ai",
-      "out": "e0e963d0053fd3301407f2d419cc7be9e70e5a40bf7fcaef88710ca06b507c36",
-      "src": "55785db6d0d5c991465dbc244840d4b108ef30915508c187c97cd6092722db4a"
-    },
     "settings.integrations.mcp.chatgptStep3": {
       "by": "ai",
       "out": "193a4c02262291da0d75d2138fb95b3be94740a1da791cbd060d166db89a198d",
@@ -30064,11 +30059,6 @@
       "by": "ai",
       "out": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "src": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c"
-    },
-    "settings.integrations.mcp.copyAddress": {
-      "by": "ai",
-      "out": "c93285e4769386e0c6a1b4cef947ffbebac339d36ff7dd5df53993fcd03e7747",
-      "src": "7c4e5224f9d457fe63e2a819596585224084adced91bff9c9a79d252178b847a"
     },
     "settings.integrations.mcp.cursor": {
       "by": "ai",
@@ -67442,11 +67432,6 @@
       "out": "86957af0acc183a5c900b07a17576585ff76c9112fd8b22bd182e58e13943518",
       "src": "6a3dda5bff793d3d6deeaadf7a679cb83bd585ad64bdb23e93b1e11ef6f349a6"
     },
-    "settings.integrations.mcp.chatgptStep2": {
-      "by": "ai",
-      "out": "787460b32b8783ba2dcc82a904919d46916346b6fb5e27197c80045f14a452f8",
-      "src": "55785db6d0d5c991465dbc244840d4b108ef30915508c187c97cd6092722db4a"
-    },
     "settings.integrations.mcp.chatgptStep3": {
       "by": "ai",
       "out": "51037c3832a5578970c38a209a9d79479ebe0038053fd00ada600f86f640f1c0",
@@ -67481,11 +67466,6 @@
       "by": "ai",
       "out": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "src": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c"
-    },
-    "settings.integrations.mcp.copyAddress": {
-      "by": "ai",
-      "out": "bcad88219f792a5393f78f34132e3e240d2cc020675f8a92f700b772515d3cc4",
-      "src": "7c4e5224f9d457fe63e2a819596585224084adced91bff9c9a79d252178b847a"
     },
     "settings.integrations.mcp.cursor": {
       "by": "ai",
@@ -104859,11 +104839,6 @@
       "out": "46e03118bf58cbf6d60dd23301d395cd9be4b7535427696625fa8a8cd47c2df6",
       "src": "6a3dda5bff793d3d6deeaadf7a679cb83bd585ad64bdb23e93b1e11ef6f349a6"
     },
-    "settings.integrations.mcp.chatgptStep2": {
-      "by": "ai",
-      "out": "a3c6a6b4f2f120b0166221295d6a0555e454d3e7f2d3ade1fdc5dcc6f6bf60a7",
-      "src": "55785db6d0d5c991465dbc244840d4b108ef30915508c187c97cd6092722db4a"
-    },
     "settings.integrations.mcp.chatgptStep3": {
       "by": "ai",
       "out": "f9856ef3fa22b814daa58bb88d6d071b60f6e870aa00c95ec19990670d440a16",
@@ -104898,11 +104873,6 @@
       "by": "ai",
       "out": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "src": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c"
-    },
-    "settings.integrations.mcp.copyAddress": {
-      "by": "ai",
-      "out": "f8ba0e577cea04c43186c58ca4558b624ec1d8eb121d88eb5cf38828fbd74061",
-      "src": "7c4e5224f9d457fe63e2a819596585224084adced91bff9c9a79d252178b847a"
     },
     "settings.integrations.mcp.cursor": {
       "by": "ai",
@@ -142276,11 +142246,6 @@
       "out": "a1cbda05513b55fbe1e82bde473d0fb047f911068f32475241d9ff17b7865435",
       "src": "6a3dda5bff793d3d6deeaadf7a679cb83bd585ad64bdb23e93b1e11ef6f349a6"
     },
-    "settings.integrations.mcp.chatgptStep2": {
-      "by": "ai",
-      "out": "a91f9231c4931fccdf289a7ae69d57c41d683b9770b37e389fdc6209ca46ae49",
-      "src": "55785db6d0d5c991465dbc244840d4b108ef30915508c187c97cd6092722db4a"
-    },
     "settings.integrations.mcp.chatgptStep3": {
       "by": "ai",
       "out": "4db1933c71fc6b22d3cb7cf2219b3b8c273f8e2ff5a4a21b0eefbb4c94038a22",
@@ -142315,11 +142280,6 @@
       "by": "ai",
       "out": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "src": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c"
-    },
-    "settings.integrations.mcp.copyAddress": {
-      "by": "ai",
-      "out": "9f33e33cfbf1708f31aec1f0d6255b6673b598869e337204ab48dc36abadecca",
-      "src": "7c4e5224f9d457fe63e2a819596585224084adced91bff9c9a79d252178b847a"
     },
     "settings.integrations.mcp.cursor": {
       "by": "ai",
@@ -179693,11 +179653,6 @@
       "out": "d5ca579d6d2ea2226e4b8a9fe47b6d5799bdc7b7fcb5c1c553cb4287d256e9fa",
       "src": "6a3dda5bff793d3d6deeaadf7a679cb83bd585ad64bdb23e93b1e11ef6f349a6"
     },
-    "settings.integrations.mcp.chatgptStep2": {
-      "by": "ai",
-      "out": "5c7923790be5965de93adfa786dbb899ba1f657494cc4a45f9f9394929f29b1f",
-      "src": "55785db6d0d5c991465dbc244840d4b108ef30915508c187c97cd6092722db4a"
-    },
     "settings.integrations.mcp.chatgptStep3": {
       "by": "ai",
       "out": "e763821b96d8adc9c1ea645173ec7c8c26e7448fa2df4b69667801eabd47a7a8",
@@ -179732,11 +179687,6 @@
       "by": "ai",
       "out": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
       "src": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c"
-    },
-    "settings.integrations.mcp.copyAddress": {
-      "by": "ai",
-      "out": "adca1d03fbacd50ba3e583a06267314b79739b1546f407a2895cee264d3632b1",
-      "src": "7c4e5224f9d457fe63e2a819596585224084adced91bff9c9a79d252178b847a"
     },
     "settings.integrations.mcp.cursor": {
       "by": "ai",

@@ -51,6 +51,7 @@ import {
   statusOf,
   vscodeInstallLink,
 } from './catalog.ts'
+import { AgentForm, StepNumber } from '../onboarding/AgentForm.tsx'
 import { ConnectedApp } from './ConnectedApp.tsx'
 import {
   API_KEYS,
@@ -465,23 +466,8 @@ function Mcp({ toast }: { toast: Props['toast'] }) {
             values={{ link: externalLink(claudeInstallLink(origin(), brand, true)) }}
           />
         }
-        toast={toast}
       />
-      <McpSteps
-        label={t('settings.integrations.mcp.chatgpt')}
-        steps={[
-          t('settings.integrations.mcp.chatgptStep1'),
-          t('settings.integrations.mcp.chatgptStep2', { brand }),
-          t('settings.integrations.mcp.chatgptStep3'),
-        ]}
-        open={{
-          href: CHATGPT_PLUGINS_URL,
-          label: t('settings.integrations.mcp.openChatgpt'),
-          tip: t('settings.integrations.mcp.openChatgptTip'),
-        }}
-        copy
-        toast={toast}
-      />
+      <ChatGptSteps brand={brand} />
       <CopyField
         label={t('settings.integrations.mcp.claudeCode')}
         value={claudeCodeCommand(origin())}
@@ -515,54 +501,83 @@ function Mcp({ toast }: { toast: Props['toast'] }) {
 }
 
 /**
- * A client that is set up in its own settings: what to do there (one line, or numbered steps), a button that opens
- * that page in a new tab, `copy`: Copy for the server address to paste there, and a `note` below.
+ * ChatGPT: numbered steps, its Add custom MCP server form drawn filled in (the name and the server address to copy,
+ * OAuth picked; labels from developers.openai.com/api/docs/guides/custom-mcp-server, checked 2026-11-20), as on the
+ * agent setup page (AgentForm).
  */
+export function ChatGptSteps({ brand }: { brand: string }) {
+  const t = useT()
+  return (
+    <div className="ig-copy">
+      <span className="ig-copy-label">{t('settings.integrations.mcp.chatgpt')}</span>
+      <ol className="as-steps ig-chatgpt-steps">
+        <li className="as-step-numbered">
+          <StepNumber n={1} />
+          <div className="as-step">
+            <span>{t('settings.integrations.mcp.chatgptStep1')}</span>
+            <div>
+              <ClientLink
+                href={CHATGPT_PLUGINS_URL}
+                label={t('settings.integrations.mcp.openChatgpt')}
+                title={t('settings.integrations.mcp.openChatgptTip')}
+              />
+            </div>
+          </div>
+        </li>
+        <li className="as-step-numbered">
+          <StepNumber n={2} />
+          <div className="as-step">
+            <span>{t('settings.integrations.mcp.chatgptFill')}</span>
+            <AgentForm
+              form={{
+                title: t('settings.integrations.mcp.chatgptForm.title'),
+                fields: [
+                  { label: t('settings.integrations.mcp.chatgptForm.name'), value: brand, copy: true },
+                  { label: t('settings.integrations.mcp.chatgptForm.url'), value: mcpAddress(origin()), copy: true },
+                  {
+                    label: t('settings.integrations.mcp.chatgptForm.auth'),
+                    value: t('settings.integrations.mcp.chatgptForm.oauth'),
+                  },
+                ],
+                check: t('settings.integrations.mcp.chatgptForm.check'),
+                submit: t('settings.integrations.mcp.chatgptForm.submit'),
+              }}
+            />
+          </div>
+        </li>
+        <li className="as-step-numbered">
+          <StepNumber n={3} />
+          <div className="as-step">
+            <span>{t('settings.integrations.mcp.chatgptStep3')}</span>
+          </div>
+        </li>
+      </ol>
+    </div>
+  )
+}
+
+/** A client that is set up in its own settings: what to do there, a button that opens that page in a new tab, a note. */
 function McpSteps({
   label,
   steps,
   open,
-  copy: withCopy,
   note,
-  toast,
 }: {
   label: string
   steps: string[]
   open: { href: string; label: string; tip: string }
-  copy?: boolean
   note?: ReactNode
-  toast: Props['toast']
 }) {
-  const t = useT()
-  const what = t('settings.integrations.mcp.address')
-  async function copy() {
-    const done = await copyText(mcpAddress(origin()))
-    toast(t(done === 'copied' ? 'settings.integrations.copied' : 'settings.integrations.copyFailed', { what }))
-  }
   return (
     <div className="ig-copy">
       <span className="ig-copy-label">{label}</span>
-      {steps.length === 1 ? (
-        <p className="help ig-mcp-steps">{steps[0]}</p>
-      ) : (
-        <ol className="help ig-mcp-steps ig-mcp-step-list">
-          {steps.map(step => (
-            <li key={step}>{step}</li>
-          ))}
-        </ol>
-      )}
+      {steps.map(step => (
+        <p key={step} className="help ig-mcp-steps">
+          {step}
+        </p>
+      ))}
       <div className="ig-mcp-installs">
         <ClientLink href={open.href} label={open.label} title={open.tip} />
-        {withCopy && (
-          <Button
-            size="sm"
-            icon="copy"
-            onClick={() => void copy()}
-            title={t('settings.integrations.copyTip', { what })}
-          >
-            {t('settings.integrations.mcp.copyAddress')}
-          </Button>
-        )}
       </div>
       {note && <p className="help ig-mcp-steps">{note}</p>}
     </div>
