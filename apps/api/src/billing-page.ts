@@ -802,6 +802,7 @@ export function resetIntervalLimit() {
  * `billing.setInterval`: whoever manages the bill switches the trial between monthly and yearly. Stripe moves every plan
  * item (the seats, the extra calls) to the other interval's price with no proration and the trial's end kept, so
  * nothing is charged now and the first charge at the trial's end is at the new interval; then the bill stores it.
+ * Stripe still makes a $0 invoice for each switch: the new interval resets its billing cycle anchor (LIN-632).
  * Under the bill's extra-calls lock (never the balance lock: Stripe answers slowly), so it never crosses a change of
  * the extra calls' item. Someone else than the owner: the owner gets the usual short email.
  */

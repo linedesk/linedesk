@@ -682,7 +682,8 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
           input.subscriptionId,
           {
             items: changes,
-            // Nothing charged or credited now; the trial keeps its end, and the first charge follows at it.
+            // Nothing charged or credited now; the trial keeps its end, and the first charge follows at it. Stripe still
+            // makes a $0 invoice: another interval resets the billing cycle anchor (no parameter avoids it, LIN-632).
             proration_behavior: 'none',
             ...(sub.trial_end ? { trial_end: sub.trial_end } : {}),
           },
