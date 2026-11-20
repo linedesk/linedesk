@@ -395,7 +395,7 @@ export function buildInstructions(
     `${pt('role.intro', { name })}\n${pt('role.scope')}`,
     languageInstructions(assistant, teamLanguage, pt),
     // When to mention being an AI on its own is the owner's setting; answering truthfully when asked is a fixed rule (last).
-    aiDisclosureInstructions(assistant?.ai_disclosure, pt),
+    aiDisclosureInstructions(assistant?.ai_disclosure, pt, transfer),
     communicationStyleInstructions(assistant?.communication_style, pt),
     // A contact held while the office is closed: the assistant must not say it cannot transfer calls.
     cannotInstructions({ booking: !!booking, transfer: transfer || heldTransferContacts(assistant, hours).length > 0, lookup }, pt),

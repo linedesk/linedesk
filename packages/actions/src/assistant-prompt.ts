@@ -291,6 +291,8 @@ function withLocalDisclosure(greeting: string, name: string, language: Language)
 export function aiDisclosureInstructions(
   mode: AiDisclosure | null | undefined,
   pt: PromptTexts = defaultPromptTexts,
+  /** transfer_call is on this call; without it the consent line names no transfer (LIN-514). */
+  transfer = true,
 ): string | null {
   switch (mode ?? DEFAULT_AI_DISCLOSURE) {
     case 'never_confirm':
@@ -303,7 +305,7 @@ export function aiDisclosureInstructions(
       // The greeting is the owner's own text, said as written: the model says it next if the greeting did not.
       return pt('ai.atStart')
     case 'at_start_consent':
-      return `${pt('ai.atStartConsent')} ${pt('ai.consent')}`
+      return `${pt('ai.atStartConsent')} ${pt(transfer ? 'ai.consent' : 'ai.consentNoTransfer')}`
   }
 }
 

@@ -1196,6 +1196,7 @@
   "prompt.what": "the system prompt",
   "prompt.when.aiAtStart": "When the assistant says at the start that it is an AI",
   "prompt.when.aiConsent": "When the greeting asks for consent to an AI",
+  "prompt.when.aiConsentNoTransfer": "When the greeting asks for consent to an AI and nobody can be put through",
   "prompt.when.aiNever": "When the assistant does not say on its own that it is an AI",
   "prompt.when.aiNeverConfirm": "When the assistant does not say it is an AI, not even when asked",
   "prompt.when.aiTellsWhenAsked": "When the assistant says it is an AI when asked (every AI disclosure but \"Never, not even when asked\")",

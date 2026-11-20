@@ -162,9 +162,18 @@ test('the AI line follows the disclosure setting, and every mode but "not even w
   expect(buildInstructions(assistant({ ai_disclosure: 'at_start_consent' }))).not.toContain(
     'Your greeting told the caller',
   )
-  expect(buildInstructions(assistant({ ai_disclosure: 'at_start_consent' }))).toContain(
+  // With transfer_call on the call the consent line may name it; without it (closed, closure mode, no contacts) it does not (LIN-514).
+  const consenting = assistant({ ai_disclosure: 'at_start_consent' })
+  expect(
+    buildInstructions(consenting, null, null, [{ name: 'Mike', condition: 'The caller asks for a person' }]),
+  ).toContain(
     "If the caller does not want to talk to an AI, don't persuade them: put them through if a transfer contact fits, else take a message",
   )
+  const noTransfer = buildInstructions(consenting)
+  expect(noTransfer).toContain(
+    "If the caller does not want to talk to an AI, don't persuade them: take a message with their name and reason so a person calls back.",
+  )
+  expect(noTransfer).not.toContain('put them through')
   // The owner's choice "not even when asked": no honesty line; the fixed part says only that it never claims to be
   // human, last, where the owner's text cannot change it (A3).
   const hidden = buildInstructions(assistant({ ai_disclosure: 'never_confirm' }))
@@ -486,7 +495,11 @@ test('a contact that takes calls only during business hours: while closed the as
   expect(heldTransferContacts(a, { ...closed, closure: { greeting: '' } }).map(c => c.id)).toEqual(['person', 'oncall']) // vacation: nobody
   const prompt = buildInstructions(a, closed)
   expect(prompt).toContain('- The caller asks to speak to a person\n')
-  expect(prompt).toMatch(/nobody can be reached because it is outside opening hours/)
+  expect(prompt).toMatch(/nobody can be reached because the business is closed right now/)
+  // Vacation or closure mode on an open day: no "outside opening hours" either (LIN-514).
+  expect(
+    buildInstructions(a, { openNow: false, summary: 'Closed for a break.', closure: { greeting: '' } }),
+  ).not.toMatch(/outside opening hours/)
   expect(prompt).toMatch(/never say it is because you are an AI, or that you can't transfer calls/)
   expect(prompt).toMatch(/That is the only reason/)
   // Open, with a contact to put through: the usual transfer instructions, not this.

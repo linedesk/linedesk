@@ -50,6 +50,7 @@ const CONDITIONS: Record<PromptCondition, MessageKey> = {
   aiTellsWhenAsked: msg('admin.prompt.when.aiTellsWhenAsked'),
   aiAtStart: msg('admin.prompt.when.aiAtStart'),
   aiConsent: msg('admin.prompt.when.aiConsent'),
+  aiConsentNoTransfer: msg('admin.prompt.when.aiConsentNoTransfer'),
   toneProfessional: msg('admin.prompt.when.toneProfessional'),
   toneCasual: msg('admin.prompt.when.toneCasual'),
   toneFormal: msg('admin.prompt.when.toneFormal'),

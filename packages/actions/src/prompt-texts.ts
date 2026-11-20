@@ -36,6 +36,7 @@ export const PROMPT_CONDITIONS = [
   'aiTellsWhenAsked',
   'aiAtStart',
   'aiConsent',
+  'aiConsentNoTransfer',
   'toneProfessional',
   'toneCasual',
   'toneFormal',
@@ -140,6 +141,13 @@ export const PROMPT_TEXTS = {
     section: 'ai',
     when: 'aiConsent',
     text: "If the caller does not want to talk to an AI, don't persuade them: put them through if a transfer contact fits, else take a message with their name and reason so a person calls back.",
+  },
+  // In place of ai.consent when transfer_call is not on the call (closed, closure mode, no contacts): no line about a tool it does not have (LIN-514).
+  'ai.consentNoTransfer': {
+    section: 'ai',
+    when: 'aiConsentNoTransfer',
+    // i18n-ignore: instructions for the language model, in English like every part here; not UI text
+    text: "If the caller does not want to talk to an AI, don't persuade them: take a message with their name and reason so a person calls back.",
   },
 
   // Tone
@@ -368,7 +376,7 @@ export const PROMPT_TEXTS = {
   'call.held': {
     section: 'call',
     when: 'held',
-    text: "These calls go to a person, but nobody can be put through outside opening hours:\n{conditions}\nWhen a call fits one, say nobody can be reached because it is outside opening hours, say when it opens again, and offer to take a message. That is the only reason: never say it is because you are an AI, or that you can't transfer calls.",
+    text: "These calls go to a person, but nobody can be put through while the business is closed:\n{conditions}\nWhen a call fits one, say nobody can be reached because the business is closed right now, say when it opens again, and offer to take a message. That is the only reason: never say it is because you are an AI, or that you can't transfer calls.",
   },
   'call.notes': {
     section: 'call',
