@@ -1,4 +1,5 @@
 // The sign-in code: what may be typed or pasted, and what the server's answers mean.
+import { codeCooldownS } from '@linedesk/actions'
 import type { MessageKey } from '@linedesk/i18n'
 import { brandName } from './brand.ts'
 import { i18n } from './i18n/index.tsx'
@@ -7,8 +8,8 @@ import { i18n } from './i18n/index.tsx'
 export const noAccountText = () => i18n().t('auth.error.signupClosed')
 
 export const CODE_LENGTH = 6
-/** Seconds before "Resend code" is offered. */
-export const RESEND_AFTER_S = 30
+/** Seconds before "Resend code" is offered after the first code (CODE_COOLDOWN_STEPS_S, the server's cooldown). */
+export const RESEND_AFTER_S = codeCooldownS(1)
 /** Seconds on the code step before "No email? Check spam…" shows: earlier it is only noise. */
 export const NO_CODE_HINT_AFTER_S = 60
 
@@ -83,6 +84,29 @@ const networkMessages = [
 ]
 
 /**
+ * Seconds until a new code may be asked for, from a refused code request (the server's `retryAfter`, LIN-661); null when
+ * it said none.
+ */
+export function retryAfterOf(error: unknown): number | null {
+  const value = error && typeof error === 'object' ? (error as { retryAfter?: unknown }).retryAfter : undefined
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.ceil(value) : null
+}
+
+/** "You can ask for a new code in N min" (or N s under a minute). */
+export function newCodeWaitText(seconds: number): string {
+  const { t } = i18n()
+  return seconds < 60 ? t('auth.code.wait', { seconds }) : t('auth.code.waitMin', { minutes: Math.ceil(seconds / 60) })
+}
+
+/** The Resend button while it waits: "Resend in N s", from a minute on "Resend in N min". */
+export function resendInText(seconds: number): string {
+  const { t } = i18n()
+  return seconds < 60
+    ? t('auth.code.resendIn', { seconds })
+    : t('auth.code.resendInMin', { minutes: Math.ceil(seconds / 60) })
+}
+
+/**
  * A readable message for a failed sign-in: what happened, then what to do (ui/AuthError.tsx shows
  * the first sentence as the heading). Better Auth sends a code, a status and an English message;
  * the message itself never reaches the page, so no "Invalid origin" or server internals.
@@ -95,6 +119,8 @@ export function authErrorMessage(error: unknown): string {
   const message = typeof detail.message === 'string' ? detail.message.trim().replace(/\.$/, '').toLowerCase() : ''
   const known = Object.hasOwn(authErrors, code) ? code : knownMessages[message]
   const { t } = i18n()
+  const retryAfter = status === 429 ? retryAfterOf(error) : null
+  if (retryAfter) return newCodeWaitText(retryAfter)
   if (known) return authErrorText(known)
   if (status === 429) return authErrorText('TOO_MANY_REQUESTS')
   if (status === 0 || error instanceof TypeError || networkMessages.includes(message))

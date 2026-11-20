@@ -9,10 +9,17 @@
 import { T, useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { auth, signInWithCode } from './auth.ts'
-import { CardFooter, HaveAccount, useAuthMethods } from './Login.tsx'
+import { CardFooter, CodeWait, HaveAccount, useAuthMethods } from './Login.tsx'
 import { browserPlace } from './countryHint.ts'
 import { signOutAndForget } from './localData.ts'
-import { CODE_LENGTH, codeErrorMessage, emailError, normalizeCode, RESEND_AFTER_S } from './sign-in-code.ts'
+import {
+  CODE_LENGTH,
+  codeErrorMessage,
+  emailError,
+  normalizeCode,
+  RESEND_AFTER_S,
+  resendInText,
+} from './sign-in-code.ts'
 import {
   askSignupCode,
   type CodeRefusal,
@@ -51,6 +58,8 @@ export function Signup({
   const [config, setConfig] = useState<SignupConfig | 'unreachable' | null>(null)
   const [step, setStep] = useState<Step>(signedIn ? 'details' : 'email')
   const [email, setEmail] = useState('')
+  // The server's cooldown after the first code (null from an older server: the usual first wait).
+  const [firstWait, setFirstWait] = useState<number | null>(null)
 
   useEffect(() => {
     void loadSignupConfig().then(setConfig)
@@ -78,8 +87,9 @@ export function Signup({
       <EmailStep
         config={config}
         partner={partner}
-        onSent={address => {
+        onSent={(address, retryAfter) => {
           setEmail(address)
+          setFirstWait(retryAfter)
           setStep('code')
         }}
       />
@@ -90,6 +100,7 @@ export function Signup({
         email={email}
         config={config}
         partner={partner}
+        firstWait={firstWait}
         onDone={() => setStep('details')}
         onBack={() => setStep('email')}
       />
@@ -200,6 +211,15 @@ function useTurnstile(siteKey: string | null) {
   return { box, token, failed, collapsed, reset: () => reset.current() }
 }
 
+/** Counts `waitS` down by one a second until 0. */
+function useCountdown(waitS: number, setWaitS: (update: (s: number) => number) => void) {
+  useEffect(() => {
+    if (waitS <= 0) return
+    const timer = setTimeout(() => setWaitS(s => Math.max(0, s - 1)), 1000)
+    return () => clearTimeout(timer)
+  }, [waitS, setWaitS])
+}
+
 /** Where the Turnstile widget renders: centered under the field, whatever its width (app.css `.auth-turnstile`). */
 export function TurnstileBox({ bot }: { bot: Pick<ReturnType<typeof useTurnstile>, 'box' | 'collapsed'> }) {
   return <div ref={bot.box} className={cx('auth-turnstile', bot.collapsed && 'is-collapsed')} />
@@ -213,14 +233,17 @@ export function EmailStep({
 }: {
   config: SignupConfig
   partner: boolean
-  onSent: (email: string) => void
+  onSent: (email: string, retryAfter: number | null) => void
 }) {
   const t = useT()
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Refused for now (too many codes for this address or network): when a new code can be asked for, counting down.
+  const [waitS, setWaitS] = useState(0)
   const bot = useTurnstile(config.turnstileSiteKey)
   const links = useAuthMethods()?.links ?? null
+  useCountdown(waitS, setWaitS)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -232,8 +255,11 @@ export function EmailStep({
     setError(null)
     const answer = await askSignupCode(email.trim(), bot.token ?? '')
     setBusy(false)
-    if (answer.ok) return onSent(email.trim())
-    setError(answer.reason === 'unreachable' ? t('auth.error.server') : refusalText(t, answer.reason))
+    if (answer.ok) return onSent(email.trim(), answer.retryAfter)
+    if (answer.retryAfter && (answer.reason === 'too_many' || answer.reason === 'busy')) {
+      setError(answer.reason === 'busy' ? t('auth.signup.refused.busyFor') : null)
+      setWaitS(answer.retryAfter)
+    } else setError(answer.reason === 'unreachable' ? t('auth.error.server') : refusalText(t, answer.reason))
     // A Turnstile token is good for one check.
     bot.reset()
   }
@@ -255,7 +281,11 @@ export function EmailStep({
             aria-label={t('auth.email')}
             placeholder={t('auth.emailPlaceholder')}
             value={email}
-            onChange={e => setEmail(e.target.value)}
+            onChange={e => {
+              setEmail(e.target.value)
+              // Another address may ask at once (the wait was for the one refused).
+              setWaitS(0)
+            }}
             autoComplete="email"
             autoFocus
             disabled={busy}
@@ -272,6 +302,7 @@ export function EmailStep({
             {t('auth.signup.sendCode')}
           </button>
           {error && <AuthError message={error} />}
+          {waitS > 0 && <CodeWait waitS={waitS} providerNote={t('auth.signup.waitHaveAccount')} />}
         </div>
         <CardFooter links={links} note={<HaveAccount />} />
       </form>
@@ -283,12 +314,15 @@ function CodeStep({
   email,
   config,
   partner,
+  firstWait,
   onDone,
   onBack,
 }: {
   email: string
   config: SignupConfig
   partner: boolean
+  /** The server's cooldown after the first code; null: the usual first wait. */
+  firstWait: number | null
   onDone: () => void
   onBack: () => void
 }) {
@@ -296,15 +330,12 @@ function CodeStep({
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [waitS, setWaitS] = useState(RESEND_AFTER_S)
+  const [waitS, setWaitS] = useState(firstWait ?? RESEND_AFTER_S)
+  // A resend refused for now: when a new code can be asked for, and the other ways in (LIN-661).
+  const [limited, setLimited] = useState(false)
   const bot = useTurnstile(waitS > 0 ? null : config.turnstileSiteKey)
   const links = useAuthMethods()?.links ?? null
-
-  useEffect(() => {
-    if (waitS <= 0) return
-    const timer = setTimeout(() => setWaitS(s => s - 1), 1000)
-    return () => clearTimeout(timer)
-  }, [waitS])
+  useCountdown(waitS, setWaitS)
 
   async function check(value: string) {
     setBusy(true)
@@ -325,11 +356,16 @@ function CodeStep({
   async function resend() {
     if (config.turnstileSiteKey && !bot.token) return setError(t('auth.signup.refused.botCheck'))
     setError(null)
+    setLimited(false)
     const answer = await askSignupCode(email, bot.token ?? '')
     bot.reset()
-    if (!answer.ok)
-      return setError(answer.reason === 'unreachable' ? t('auth.error.server') : refusalText(t, answer.reason))
-    setWaitS(RESEND_AFTER_S)
+    if (answer.ok) return setWaitS(answer.retryAfter ?? RESEND_AFTER_S)
+    if (answer.retryAfter && (answer.reason === 'too_many' || answer.reason === 'busy')) {
+      setWaitS(answer.retryAfter)
+      setLimited(true)
+      return
+    }
+    setError(answer.reason === 'unreachable' ? t('auth.error.server') : refusalText(t, answer.reason))
   }
 
   return (
@@ -368,9 +404,10 @@ function CodeStep({
           {t('auth.signup.continue')}
         </button>
         {waitS <= 0 && config.turnstileSiteKey && <TurnstileBox bot={bot} />}
+        {limited && waitS > 0 && <CodeWait waitS={waitS} providerNote={t('auth.signup.waitHaveAccount')} />}
         <div className="auth-links">
           <button type="button" className="auth-switch" disabled={waitS > 0} onClick={() => void resend()}>
-            {waitS > 0 ? t('auth.code.resendIn', { seconds: waitS }) : t('auth.code.resend')}
+            {waitS > 0 ? resendInText(waitS) : t('auth.code.resend')}
           </button>
           <button type="button" className="auth-switch" onClick={onBack}>
             {t('auth.differentEmail')}

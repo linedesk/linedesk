@@ -4,8 +4,9 @@
 // while self-serve sign-up is open (the footer links there), else from an invitation: an unknown address is told to ask
 // for one; an invited one gets its account on the first sign-in. "Forgot password?" sets a new one with an emailed code.
 import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
+import { codeCooldownS } from '@linedesk/actions'
 import { type AuthMethods, auth, completeSetup, type LegalLinks, passkeySupported, type SsoMethod, fetchAuthMethods, requestPasswordResetCode, requestSignInCode, resetPasswordWithCode, signInWithCode, signInWithPasskey, startSso, takeRedirectError, lostSignInState, providerElsewhereMessage, providerSignInElsewhere } from './auth.ts'
-import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, emailError, newPasswordError, noAccountText, normalizeCode, NO_CODE_HINT_AFTER_S, passwordResetOffer, RESEND_AFTER_S, resetErrorMessage } from './sign-in-code.ts'
+import { authErrorMessage, authFormError, CODE_LENGTH, codeErrorMessage, emailError, newCodeWaitText, newPasswordError, noAccountText, normalizeCode, NO_CODE_HINT_AFTER_S, passwordResetOffer, RESEND_AFTER_S, resendInText, resetErrorMessage, retryAfterOf } from './sign-in-code.ts'
 import { passkeyRequestClosed, readLastUsedMethod, rememberSignInMethod, signInStart } from './sign-in-methods.ts'
 import { emailFieldPasskey } from './passkey-autofill.ts'
 import { useQuery } from './cachedQuery.ts'
@@ -503,6 +504,10 @@ export function CodeStep({ email, links, supportEmail, invited = false, selfServ
   const [busy, setBusy] = useState(false)
   const [signedIn, setSignedIn] = useState(false)
   const [waitS, setWaitS] = useState(RESEND_AFTER_S)
+  // Codes sent to this address from here: each one waits longer before the next (codeCooldownS, LIN-661).
+  const [sent, setSent] = useState(1)
+  // A resend the server refused for now: the page says when a new code can be asked for, and the other ways in.
+  const [limited, setLimited] = useState(false)
   const [late, setLate] = useState(false)
   const input = useRef<HTMLInputElement>(null)
 
@@ -541,10 +546,16 @@ export function CodeStep({ email, links, supportEmail, invited = false, selfServ
 
   async function resend() {
     setError(null)
+    setLimited(false)
     setCode('')
-    setWaitS(RESEND_AFTER_S)
+    setWaitS(codeCooldownS(sent + 1))
     const res = await requestSignInCode(email).catch(error => ({ error }))
-    if (res.error) setError(authErrorMessage(res.error))
+    const retryAfter = res.error ? retryAfterOf(res.error) : null
+    if (retryAfter) {
+      setWaitS(retryAfter)
+      setLimited(true)
+    } else if (res.error) setError(authErrorMessage(res.error))
+    else setSent(n => n + 1)
     input.current?.focus()
   }
 
@@ -566,9 +577,10 @@ export function CodeStep({ email, links, supportEmail, invited = false, selfServ
           {(busy || signedIn) && <Spinner />}
           {t('auth.signup.continue')}
         </button>
+        {limited && waitS > 0 && <CodeWait waitS={waitS} />}
         <div className="auth-links">
           <button type="button" className="auth-switch" disabled={waitS > 0} onClick={() => void resend()}>
-            {waitS > 0 ? t('auth.code.resendIn', { seconds: waitS }) : t('auth.code.resend')}
+            {waitS > 0 ? resendInText(waitS) : t('auth.code.resend')}
           </button>
           <button type="button" className="auth-switch" onClick={onDifferentEmail}>{t('auth.differentEmail')}</button>
         </div>
@@ -594,6 +606,29 @@ export function NoCodeHint({ invited, supportEmail }: Pick<CodeStepProps, 'invit
   )
 }
 
+/**
+ * A code request refused for now (LIN-661): when a new code can be asked for, counting down, and the install's sign-in
+ * providers as another way in now. "Use a different email" is next to Resend.
+ */
+export function CodeWait({ waitS, providerNote }: { waitS: number; providerNote?: string }) {
+  const sso = useAuthMethods()?.sso ?? []
+  const [opening, setOpening] = useState<string | null>(null)
+  return (
+    <div className="auth-notes">
+      <p className="auth-note" role="status">{newCodeWaitText(waitS)}</p>
+      {sso.length > 0 && providerNote && <p className="auth-note">{providerNote}</p>}
+      {sso.map(m => (
+        <ProviderButton key={m.id} method={m.id} label={m.label} lastUsed={false} busy={opening === m.id} disabled={opening !== null}
+          onClick={() => {
+            setOpening(m.id)
+            rememberSignInMethod(m.id)
+            void startSso(m).then(res => { if (res.error) setOpening(null) }, () => setOpening(null))
+          }} />
+      ))}
+    </div>
+  )
+}
+
 type ResetStepProps = { initialEmail: string; links: LegalLinks; onDone: () => Promise<void>; onBack: () => void }
 
 /**
@@ -609,6 +644,8 @@ function ResetStep({ initialEmail, links, onDone, onBack }: ResetStepProps) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<'send' | 'reset' | 'signIn' | null>(null)
   const [waitS, setWaitS] = useState(0)
+  // Codes asked for here: each one waits longer before the next (codeCooldownS, LIN-661).
+  const [codes, setCodes] = useState(0)
 
   useEffect(() => {
     if (waitS <= 0) return
@@ -624,10 +661,13 @@ function ResetStep({ initialEmail, links, onDone, onBack }: ResetStepProps) {
     setError(null)
     const res = await requestPasswordResetCode(email.trim()).catch(error => ({ error }))
     setBusy(null)
+    const retryAfter = res.error ? retryAfterOf(res.error) : null
+    if (retryAfter) setWaitS(retryAfter)
     if (res.error) return setError(authErrorMessage(res.error))
     setSent(true)
     setCode('')
-    setWaitS(RESEND_AFTER_S)
+    setWaitS(codeCooldownS(codes + 1))
+    setCodes(n => n + 1)
   }
 
   async function reset(e: FormEvent) {
@@ -703,7 +743,7 @@ function ResetStep({ initialEmail, links, onDone, onBack }: ResetStepProps) {
         </div>
         <p className="auth-note">{t('auth.reset.signsOut')}</p>
         {waitS > 0
-          ? <p className="auth-note">{t('auth.code.wait', { seconds: waitS })}</p>
+          ? <p className="auth-note">{newCodeWaitText(waitS)}</p>
           : <button type="button" className="auth-switch" disabled={busy !== null} onClick={() => void send()}>{t('auth.code.resend')}</button>}
         <button type="button" className="auth-switch" onClick={() => { setSent(false); setError(null) }}>{t('auth.differentEmail')}</button>
         <CardFooter links={links} />

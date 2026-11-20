@@ -367,8 +367,9 @@ export const CARD_FINGERPRINT_RETENTION_MONTHS = 24
 
 /** Linedesk Cloud's sign-up and trial limits, and the defaults of every install. */
 export const SIGNUP_DEFAULTS: SignupRules = {
-  codesPerAddressHour: 3,
-  codesPerAddressDay: 5,
+  // Outer bounds only: the cooldown between codes (CODE_COOLDOWN_STEPS_S, LIN-661) lets at most 9 through in an hour.
+  codesPerAddressHour: 10,
+  codesPerAddressDay: 10,
   signupsPerIpHour: 3,
   signupsPerIpDay: 10,
   codesPerInstallHour: 200,

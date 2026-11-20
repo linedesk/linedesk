@@ -355,7 +355,7 @@ describe('limits', () => {
     expect(statuses).toEqual([200, 200, 200, 429])
   })
 
-  test('reset codes share the sign-in code limits per address and IP: 5 codes, 10 wrong codes', async () => {
+  test('reset codes share the sign-in code limits per address and IP: the cooldown between codes, 10 wrong codes', async () => {
     const at = (email: string, ip: string, path: string, returned?: unknown) =>
       ({
         path,
@@ -365,8 +365,8 @@ describe('limits', () => {
       }) as never
     const email = address('limits')
     const ip = '203.0.113.31'
-    for (let i = 0; i < 3; i++) await limitSignIns(at(email, ip, '/email-otp/request-password-reset'))
-    for (let i = 0; i < 2; i++) await limitSignIns(at(email, ip, '/email-otp/send-verification-otp'))
+    // A sign-in code, then a reset code at once: it waits the cooldown (LIN-661) the two share.
+    await limitSignIns(at(email, ip, '/email-otp/send-verification-otp'))
     await expect(limitSignIns(at(email, ip, '/email-otp/request-password-reset'))).rejects.toMatchObject({
       statusCode: 429,
     })
@@ -472,7 +472,7 @@ describe('limits', () => {
     let refused = 0
     for (let i = 0; i < 40; i++)
       await limitSignIns(at(email, ip, '/email-otp/send-verification-otp')).catch(() => refused++)
-    expect(refused).toBe(35) // 5 in 10 minutes from one network
+    expect(refused).toBe(39) // the cooldown between codes from one network (LIN-661)
     // The owner, from their own network, still gets a code.
     await expect(limitSignIns(at(email, '198.51.100.41', '/email-otp/send-verification-otp'))).resolves.toBeUndefined()
 

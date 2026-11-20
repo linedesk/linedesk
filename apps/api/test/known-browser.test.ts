@@ -122,10 +122,10 @@ describe('a known browser and the caps across IPs', () => {
     for (let i = 0; i < 10; i++) await countSignInFailures(at(CHECK, email, ip, { cookie, returned: wrong }))
     expect(await outcome(at(CHECK, email, ip, { cookie }))).toMatch(/^429/)
     expect(await outcome(at(CHECK, email, '203.0.113.61', { cookie }))).toBe('allowed')
-    // Codes: 5 in 10 minutes from one network.
+    // Codes: the cooldown between codes from one network (LIN-661).
     const asker = await makeAccount('per-ip-codes')
     const askerCookie = knownCookie(asker.id)
-    for (let i = 0; i < 5; i++) await limitSignIns(at(REQUEST, asker.email, ip, { cookie: askerCookie }))
+    await limitSignIns(at(REQUEST, asker.email, ip, { cookie: askerCookie }))
     expect(await outcome(at(REQUEST, asker.email, ip, { cookie: askerCookie }))).toMatch(/^429/)
   })
 

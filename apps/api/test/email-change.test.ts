@@ -380,7 +380,8 @@ describe('changing the email address', () => {
     await expect(limitSignIns(codeSignIn)).rejects.toMatchObject({ statusCode: 429 })
 
     const asked = address('asked')
-    for (let i = 0; i < 5; i++) await limitSignIns(at('/email-otp/request-email-change', asked, ip))
+    // A second code waits its cooldown (LIN-661), shared with the sign-in codes of that address from there.
+    await limitSignIns(at('/email-otp/request-email-change', asked, ip))
     await expect(limitSignIns(at('/email-otp/request-email-change', asked, ip))).rejects.toMatchObject({
       statusCode: 429,
     })

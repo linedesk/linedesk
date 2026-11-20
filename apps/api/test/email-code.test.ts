@@ -130,12 +130,58 @@ describe('signing in with a code', () => {
     const email = address('rotating')
     const net = `2001:db8:${Math.floor(Math.random() * 65536).toString(16)}:9`
     const send = '/email-otp/send-verification-otp'
-    for (let i = 1; i <= 5; i++) await limitSignIns(at(email, `${net}::${i}`, send))
+    // The second code waits its cooldown (LIN-661) from anywhere in the same /64.
+    await limitSignIns(at(email, `${net}::1`, send))
     await expect(limitSignIns(at(email, `${net}::6`, send))).rejects.toMatchObject({ statusCode: 429 })
     await expect(limitSignIns(at(email, '198.51.100.40', send))).resolves.toBeUndefined()
     const wrong = new APIError('BAD_REQUEST', { code: 'INVALID_OTP' })
     for (let i = 1; i <= 10; i++) await countSignInFailures(at(email, `${net}:ffff::${i}`, '/sign-in/email-otp', wrong))
     await expect(limitSignIns(at(email, `${net}::1234`, '/sign-in/email-otp'))).rejects.toMatchObject({ statusCode: 429 })
+  })
+
+  test('over HTTP, a refused new code says when, in the body and as Retry-After (LIN-661)', async () => {
+    mailbox()
+    const email = address('http-cooldown')
+    const ip = randomIp()
+    expect((await requestCode(email, ip)).status).toBe(200)
+    const refused = await requestCode(email, ip)
+    expect(refused).toMatchObject({ status: 429, body: { code: 'CODE_COOLDOWN' } })
+    expect(refused.body.retryAfter).toBeGreaterThan(25)
+    expect(refused.body.retryAfter).toBeLessThanOrEqual(30)
+  })
+
+  test('a new code waits a cooldown that grows (30 s, 2, 5, 10 min) and says when, as retryAfter (LIN-661)', async () => {
+    const at = (email: string, ip: string, path = '/email-otp/send-verification-otp', returned?: unknown) =>
+      ({ path, body: { email, otp: '000000', type: 'sign-in' }, headers: new Headers({ [CLIENT_IP_HEADER]: ip }), context: { returned } }) as never
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const email = address('cooldown')
+      const ip = randomIp()
+      const refusedFor = async () => {
+        const error = await limitSignIns(at(email, ip)).then(() => null, (e: unknown) => e)
+        expect(error).toMatchObject({ statusCode: 429, body: { code: 'CODE_COOLDOWN' } })
+        const retryAfter = (error as { body: { retryAfter: number } }).body.retryAfter
+        expect((error as { headers: Record<string, string> }).headers['Retry-After']).toBe(String(retryAfter))
+        return retryAfter
+      }
+      await limitSignIns(at(email, ip))
+      expect(await refusedFor()).toBe(30)
+      for (const wait of [30, 120, 300, 600, 600]) {
+        vi.setSystemTime(Date.now() + 10_000)
+        expect(await refusedFor()).toBe(wait - 10)
+        vi.setSystemTime(Date.now() + (wait - 10) * 1000)
+        await limitSignIns(at(email, ip))
+      }
+      // Another network asks at once: its own cooldown (nobody else can hold off someone's codes).
+      await expect(limitSignIns(at(email, randomIp()))).resolves.toBeUndefined()
+      // Resends are no wrong codes: code checks stay open after all of them.
+      await expect(limitSignIns(at(email, ip, '/sign-in/email-otp'))).resolves.toBeUndefined()
+      // A refused resend is no wrong code either.
+      await countSignInFailures(at(email, ip, '/email-otp/send-verification-otp', new APIError('TOO_MANY_REQUESTS')))
+      await expect(limitSignIns(at(email, ip, '/sign-in/email-otp'))).resolves.toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   test('wrong codes count per address and IP, and only failures (security L3)', async () => {

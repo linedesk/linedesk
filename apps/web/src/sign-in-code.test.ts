@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { authErrorMessage, authFormError, codeErrorMessage, noAccountText, newPasswordError, normalizeCode, passwordResetOffer, resetErrorMessage } from './sign-in-code.ts'
+import { authErrorMessage, resendInText, retryAfterOf, authFormError, codeErrorMessage, noAccountText, newPasswordError, normalizeCode, passwordResetOffer, resetErrorMessage } from './sign-in-code.ts'
 import { splitAuthError } from './ui/AuthError.tsx'
 
 test('the code field keeps digits only, at most six, so a pasted code works', () => {
@@ -99,4 +99,17 @@ test('a new password follows the sign-up rules', () => {
   expect(newPasswordError('')).toBe('Enter a new password.')
   expect(newPasswordError('short')).toBe('Use at least 8 characters for the password.')
   expect(newPasswordError('long-enough')).toBeNull()
+})
+
+test('a refused code request says when a new code can be asked for (LIN-661)', () => {
+  const refused = (retryAfter: number) => ({ status: 429, code: 'CODE_COOLDOWN', retryAfter })
+  expect(authErrorMessage(refused(25))).toBe('You can ask for a new code in 25 s.')
+  expect(authErrorMessage(refused(240))).toBe('You can ask for a new code in 4 min.')
+  expect(authErrorMessage(refused(61))).toBe('You can ask for a new code in 2 min.')
+  expect(retryAfterOf(refused(90))).toBe(90)
+  expect(retryAfterOf({ status: 429 })).toBeNull()
+  expect(resendInText(30)).toBe('Resend in 30 s')
+  expect(resendInText(300)).toBe('Resend in 5 min')
+  // Without a time, as before.
+  expect(authErrorMessage({ status: 429 })).toMatch(/Wait a minute/)
 })

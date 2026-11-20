@@ -25,6 +25,7 @@ import {
 import { and, count, eq, gte } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { noteAgentSeen } from '../src/admin-overview.ts'
+import { addressBucket } from '../src/client-ip.ts'
 import { setupActorIn, workspaceSetupActor } from '../src/agent-setup.ts'
 import { WEB_ORIGIN } from '../src/auth.ts'
 import { db } from '../src/db.ts'
@@ -800,10 +801,43 @@ describe('before a code goes out', () => {
     expect((await askCode(address('own', 'spam.example'))).body.code).toBe('blocked_domain')
   })
 
-  test('per address: 3 codes an hour, then too many (the same answer whether it has an account or not)', async () => {
-    const email = address('limit')
-    for (let i = 0; i < 3; i++) expect((await askCode(email)).status).toBe(200)
-    expect(await askCode(email)).toMatchObject({ status: 429, body: { code: 'too_many' }, code: null })
+  /** Code attempts for `email` (default: a fresh hash) from `ip` at the given times (ms ago). */
+  const attempts = (rows: { email?: string; ip?: string; agoMs: number }[]) =>
+    db.insert(signup_attempts).values(
+      rows.map(r => ({
+        id: crypto.randomUUID(),
+        kind: 'code' as const,
+        email_hash: r.email ? emailHash(r.email) : crypto.randomUUID(),
+        ip_bucket: r.ip ?? 'x',
+        created_at: new Date(Date.now() - r.agoMs).toISOString(),
+      })),
+    )
+
+  test('per address: a cooldown between codes that grows (30 s, 2, 5, 10 min), with retryAfter (LIN-661)', async () => {
+    const email = address('cooldown')
+    const first = await askCode(email)
+    expect(first).toMatchObject({ status: 200, body: { ok: true, retryAfter: 30 } })
+    expect(first.code).not.toBeNull()
+    // At once again: refused, saying when (the same answer whether it has an account or not).
+    const again = await askCode(email)
+    expect(again).toMatchObject({ status: 429, body: { code: 'too_many' }, code: null })
+    expect(again.body.retryAfter).toBeGreaterThan(25)
+    expect(again.body.retryAfter).toBeLessThanOrEqual(30)
+    // Three codes, the last a minute ago: the third waits 5 minutes, so about 4 are left.
+    const later = address('cooldown')
+    await attempts([
+      { email: later, agoMs: 10 * 60_000 },
+      { email: later, agoMs: 8 * 60_000 },
+      { email: later, agoMs: 60_000 },
+    ])
+    const third = await askCode(later)
+    expect(third.status).toBe(429)
+    expect(third.body.retryAfter).toBeGreaterThan(235)
+    expect(third.body.retryAfter).toBeLessThanOrEqual(240)
+    // Once the cooldown passed: the next code, and after it the longest wait.
+    const waited = address('cooldown')
+    await attempts([0, 1, 2, 3].map(i => ({ email: waited, agoMs: (50 - 11 * i) * 60_000 })))
+    expect(await askCode(waited)).toMatchObject({ status: 200, body: { retryAfter: 600 } })
     // An existing account's address is counted alike.
     const known = (
       await db
@@ -811,45 +845,61 @@ describe('before a code goes out', () => {
         .from(user)
         .where(eq(user.id, (await signUp()).userId))
     )[0]!.email
-    for (let i = 0; i < 3; i++) expect((await askCode(known)).status).toBe(200)
+    expect((await askCode(known)).status).toBe(200)
     expect((await askCode(known)).status).toBe(429)
   })
 
-  test('per address: 5 a day', async () => {
+  test("per address: the install's day cap, with when it lifts", async () => {
     const email = address('daily')
-    const old = new Date(Date.now() - 2 * HOUR).toISOString()
-    await db.insert(signup_attempts).values(
-      [0, 1, 2, 3, 4].map(() => ({
-        id: crypto.randomUUID(),
-        kind: 'code' as const,
-        email_hash: emailHash(email),
-        ip_bucket: 'x',
-        created_at: old,
-      })),
-    )
-    expect((await askCode(email)).status).toBe(429)
+    await attempts(Array.from({ length: 10 }, (_, i) => ({ email, agoMs: 2 * HOUR + i * 60_000 })))
+    const refused = await askCode(email)
+    expect(refused).toMatchObject({ status: 429, body: { code: 'too_many' } })
+    // Free again once the oldest of the 10 (2 h 9 min old) has left the day: in 21 h 51 min.
+    const expected = 24 * 3600 - (2 * 3600 + 9 * 60)
+    expect(refused.body.retryAfter).toBeGreaterThan(expected - 60)
+    expect(refused.body.retryAfter).toBeLessThanOrEqual(expected)
   })
 
   test('per IP: 3 sign-ups an hour, an IPv6 /64 counted as one', async () => {
     const ip = '2001:db8:1:2::10'
     for (let i = 0; i < 3; i++) expect((await askCode(address('ip'), `2001:db8:1:2::${i + 20}`)).status).toBe(200)
-    expect(await askCode(address('ip'), ip)).toMatchObject({ status: 429, body: { code: 'too_many' } })
+    const refused = await askCode(address('ip'), ip)
+    expect(refused).toMatchObject({ status: 429, body: { code: 'too_many' } })
+    expect(refused.body.retryAfter).toBeGreaterThan(3500)
     // Another /64 is not affected.
     expect((await askCode(address('ip'), '2001:db8:1:3::10')).status).toBe(200)
   })
 
+  test("per IP: a new code for an address the network asked for already doesn't count again (LIN-661)", async () => {
+    const ip = randomIp()
+    const mine = address('resend')
+    await attempts([
+      { email: mine, ip: addressBucket(ip), agoMs: 5 * 60_000 },
+      { ip: addressBucket(ip), agoMs: 4 * 60_000 },
+      { ip: addressBucket(ip), agoMs: 3 * 60_000 },
+    ])
+    // The network is at its 3 sign-ups: a new address waits, the same one gets its code.
+    expect((await askCode(address('other'), ip)).status).toBe(429)
+    expect((await askCode(mine, ip)).status).toBe(200)
+  })
+
+  test('per IP: at most 12 codes an hour in all, resends included (security review of LIN-661)', async () => {
+    const ip = randomIp()
+    const mine = address('resends')
+    await attempts([
+      { email: mine, ip: addressBucket(ip), agoMs: 50 * 60_000 },
+      ...Array.from({ length: 11 }, (_, i) => ({ ip: addressBucket(ip), agoMs: (40 - i) * 60_000 })),
+    ])
+    // Its own address, past its cooldown: refused until the oldest of the 12 leaves the hour (in about 10 min).
+    const refused = await askCode(mine, ip)
+    expect(refused).toMatchObject({ status: 429, body: { code: 'too_many' } })
+    expect(refused.body.retryAfter).toBeGreaterThan(9 * 60)
+    expect(refused.body.retryAfter).toBeLessThanOrEqual(10 * 60)
+  })
+
   test('per IP: 10 a day', async () => {
     const ip = randomIp()
-    const old = new Date(Date.now() - 3 * HOUR).toISOString()
-    await db.insert(signup_attempts).values(
-      Array.from({ length: 10 }, () => ({
-        id: crypto.randomUUID(),
-        kind: 'code' as const,
-        email_hash: 'h',
-        ip_bucket: ip,
-        created_at: old,
-      })),
-    )
+    await attempts(Array.from({ length: 10 }, () => ({ ip: addressBucket(ip), agoMs: 3 * HOUR })))
     expect((await askCode(address('ipday'), ip)).status).toBe(429)
   })
 
@@ -866,7 +916,10 @@ describe('before a code goes out', () => {
     const n = row!.n
     await rules({ turnstile: false, codesPerInstallHour: n + 1 })
     expect((await askCode(address('cap'))).status).toBe(200)
-    expect(await askCode(address('cap'))).toMatchObject({ status: 429, body: { code: 'busy' }, code: null })
+    const busy = await askCode(address('cap'))
+    expect(busy).toMatchObject({ status: 429, body: { code: 'busy' }, code: null })
+    expect(busy.body.retryAfter).toBeGreaterThan(0)
+    expect(busy.body.retryAfter).toBeLessThanOrEqual(3600)
     expect(await askCode(address('cap'))).toMatchObject({ status: 429, body: { code: 'busy' } })
     const alerts = queued.filter(j => j.name === 'billing.alert' && j.data.kind === 'signup_cap')
     expect(alerts).toHaveLength(1)

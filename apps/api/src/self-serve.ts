@@ -11,7 +11,7 @@
 // `pending_payment`; Checkout (PR 8) moves them on. A sign-up that never finishes Checkout is deleted after
 // `pendingDays` by the daily sign-up sweep.
 import { createHash } from 'node:crypto'
-import { RADAR_RISK_LEVELS } from '@linedesk/actions'
+import { codeCooldownLeftMs, RADAR_RISK_LEVELS } from '@linedesk/actions'
 import {
   calls,
   commands,
@@ -25,7 +25,7 @@ import {
   signup_attempts,
   type Tx,
 } from '@linedesk/db'
-import { and, count, eq, gte, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gte, sql } from 'drizzle-orm'
 import { billingState } from './billing-settings.ts'
 import { isBlockedDomain } from './disposable-domains.ts'
 import { legalTerms } from './legal-terms.ts'
@@ -261,18 +261,89 @@ export async function verifyTurnstile(
 
 /** Why no code went out: the page shows each in its own words (never which addresses have an account). */
 export type CodeRefusal = 'closed' | 'invalid_email' | 'blocked_domain' | 'bot_check' | 'too_many' | 'busy'
-export type CodeAnswer = { ok: true } | { ok: false; reason: CodeRefusal }
+/**
+ * `retryAfter`: seconds until this address may ask for a code again (LIN-661): after a code, the cooldown before the
+ * next one; when refused for too many or busy, until a limit lets one through (whole seconds, at least 1). Absent for
+ * the other refusals: waiting does not change them.
+ */
+export type CodeAnswer = { ok: true; retryAfter: number } | { ok: false; reason: CodeRefusal; retryAfter?: number }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-/** Counts `kind` attempts since `since` by one column's value. */
-async function attemptsSince(tx: Tx, where: ReturnType<typeof eq>, since: number): Promise<number> {
-  const [row] = await tx
-    .select({ n: count() })
-    .from(signup_attempts)
-    .where(and(eq(signup_attempts.kind, 'code'), where, gte(signup_attempts.created_at, new Date(since).toISOString())))
-  return row?.n ?? 0
+/** Whole seconds from now until `atMs`, at least 1. */
+const secondsUntil = (atMs: number, now: number) => Math.max(1, Math.ceil((atMs - now) / 1000))
+
+/**
+ * When a sliding-window limit of `max` in `windowMs` lets the next one through: once the `max`-th newest of `times`
+ * (newest first) has left the window. Null while under the limit.
+ */
+function windowFullUntil(timesNewestFirst: readonly number[], max: number, windowMs: number): number | null {
+  if (timesNewestFirst.length < max) return null
+  return timesNewestFirst[max - 1]! + windowMs
 }
+
+const timesNewestFirst = (rows: { at: string }[]) => rows.map(r => Date.parse(r.at)).sort((a, b) => b - a)
+
+/** The times of the code attempts for one address in the last day. */
+async function addressCodeTimes(tx: Tx, hash: string, now: number): Promise<number[]> {
+  const rows = await tx
+    .select({ at: signup_attempts.created_at })
+    .from(signup_attempts)
+    .where(
+      and(
+        eq(signup_attempts.kind, 'code'),
+        eq(signup_attempts.email_hash, hash),
+        gte(signup_attempts.created_at, new Date(now - DAY).toISOString()),
+      ),
+    )
+  return timesNewestFirst(rows)
+}
+
+/**
+ * The addresses a network (IP bucket) asked codes for in the last day, each with its first code then. A network's
+ * sign-up limits count different addresses, so a resend to the same address never uses them up (LIN-661); an address
+ * counts from its first code, so a resend does not move when it leaves the window.
+ */
+async function networkAddresses(
+  tx: Tx,
+  ipBucket: string,
+  now: number,
+): Promise<{ hash: string | null; first: number }[]> {
+  const rows = await tx
+    .select({ hash: signup_attempts.email_hash, at: sql<string>`min(${signup_attempts.created_at})` })
+    .from(signup_attempts)
+    .where(
+      and(
+        eq(signup_attempts.kind, 'code'),
+        eq(signup_attempts.ip_bucket, ipBucket),
+        gte(signup_attempts.created_at, new Date(now - DAY).toISOString()),
+      ),
+    )
+    .groupBy(signup_attempts.email_hash)
+  return rows.map(r => ({ hash: r.hash, first: Date.parse(r.at) }))
+}
+
+/** The times of every code a network (IP bucket) asked for in the last hour, resends included. */
+async function networkCodeTimes(tx: Tx, ipBucket: string, now: number): Promise<number[]> {
+  const rows = await tx
+    .select({ at: signup_attempts.created_at })
+    .from(signup_attempts)
+    .where(
+      and(
+        eq(signup_attempts.kind, 'code'),
+        eq(signup_attempts.ip_bucket, ipBucket),
+        gte(signup_attempts.created_at, new Date(now - HOUR).toISOString()),
+      ),
+    )
+  return timesNewestFirst(rows)
+}
+
+/**
+ * Codes per network (IP bucket) in an hour, resends included: enough for a few people on one network, each with a
+ * resend or two, while resends to its own addresses can not fill the install's hourly cap from a handful of networks
+ * (security review of LIN-661).
+ */
+export const CODES_PER_NETWORK_HOUR = 12
 
 /** Requests to POST /v1/signup/code per IP bucket, counted in memory before the database is asked (F3 of #960). */
 const allowCodeRequest = createRateLimiter({ max: 10, windowMs: 10 * 60_000 })
@@ -284,6 +355,12 @@ const allowCodeRequest = createRateLimiter({ max: 10, windowMs: 10 * 60_000 })
  * `mayCreateUser` sees the attempt). Cloudflare is asked between two short transactions, so no request holds a pool
  * connection while it waits (security review F3 of #960). The answer is the same whether or not the address has an
  * account.
+ *
+ * The limits (LIN-661): per address, a cooldown that grows with each code (CODE_COOLDOWN_STEPS_S: 30 s, 2, 5, then 10
+ * min) instead of a hard hourly stop, under the install's caps per hour and day (`signup.rules`); per network, the
+ * different addresses that asked (a resend to an address it asked for already does not count again) and at most
+ * CODES_PER_NETWORK_HOUR codes in all; the install's
+ * hourly cap. Every refusal for a limit says when another code may go out.
  */
 export async function admitSignupCode(
   database: Db,
@@ -291,7 +368,12 @@ export async function admitSignupCode(
   now = Date.now(),
   verify: typeof verifyTurnstile = verifyTurnstile,
 ): Promise<CodeAnswer> {
-  if (!allowCodeRequest(input.ipBucket, now)) return { ok: false, reason: 'too_many' }
+  if (!allowCodeRequest(input.ipBucket, now))
+    return {
+      ok: false,
+      reason: 'too_many',
+      retryAfter: secondsUntil(allowCodeRequest.freeAt(input.ipBucket, now), now),
+    }
   const email = input.email.trim().toLowerCase()
   const before = await database.transaction(async tx => {
     const state = await selfServeState(tx)
@@ -311,29 +393,55 @@ export async function admitSignupCode(
     !(before.keys && (await verify(before.keys.secretKey, input.token, input.ip, input.turnstile)))
   )
     return { ok: false, reason: 'bot_check' }
-  return database.transaction(async tx => {
+  return database.transaction(async (tx): Promise<CodeAnswer> => {
     // Still open (an admin may have closed it while Cloudflare was asked).
     const state = await selfServeState(tx)
     if (!state.open) return { ok: false, reason: 'closed' }
     const { rules } = state
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('signup.codes'))`)
     const hash = emailHash(email)
-    const byAddress = eq(signup_attempts.email_hash, hash)
-    const byIp = eq(signup_attempts.ip_bucket, input.ipBucket)
-    if (
-      (await attemptsSince(tx, byAddress, now - HOUR)) >= rules.codesPerAddressHour ||
-      (await attemptsSince(tx, byAddress, now - DAY)) >= rules.codesPerAddressDay ||
-      (await attemptsSince(tx, byIp, now - HOUR)) >= rules.signupsPerIpHour ||
-      (await attemptsSince(tx, byIp, now - DAY)) >= rules.signupsPerIpDay
-    )
-      return { ok: false, reason: 'too_many' }
+    const sent = await addressCodeTimes(tx, hash, now)
+    const cooldownLeft = codeCooldownLeftMs(sent, now)
+    const network = await networkAddresses(tx, input.ipBucket, now)
+    // A resend to an address this network asked for already: not another sign-up from it.
+    const newOnNetwork = !network.some(a => a.hash === hash)
+    const firstPerAddress = network.map(a => a.first).sort((x, y) => y - x)
+    const freeAt = [
+      cooldownLeft > 0 ? now + cooldownLeft : null,
+      windowFullUntil(
+        sent.filter(t => t > now - HOUR),
+        rules.codesPerAddressHour,
+        HOUR,
+      ),
+      windowFullUntil(sent, rules.codesPerAddressDay, DAY),
+      newOnNetwork
+        ? windowFullUntil(
+            firstPerAddress.filter(t => t > now - HOUR),
+            rules.signupsPerIpHour,
+            HOUR,
+          )
+        : null,
+      newOnNetwork ? windowFullUntil(firstPerAddress, rules.signupsPerIpDay, DAY) : null,
+      windowFullUntil(await networkCodeTimes(tx, input.ipBucket, now), CODES_PER_NETWORK_HOUR, HOUR),
+    ].filter((t): t is number => t !== null && t > now)
+    if (freeAt.length) return { ok: false, reason: 'too_many', retryAfter: secondsUntil(Math.max(...freeAt), now) }
     const [install] = await tx
       .select({ n: count() })
       .from(signup_attempts)
       .where(and(eq(signup_attempts.kind, 'code'), gte(signup_attempts.created_at, new Date(now - HOUR).toISOString())))
     if ((install?.n ?? 0) >= rules.codesPerInstallHour) {
       await alertCapOncePerHour(tx, now, rules.codesPerInstallHour)
-      return { ok: false, reason: 'busy' }
+      // Once the cap-th newest code of the hour has left it.
+      const [nth] = await tx
+        .select({ at: signup_attempts.created_at })
+        .from(signup_attempts)
+        .where(
+          and(eq(signup_attempts.kind, 'code'), gte(signup_attempts.created_at, new Date(now - HOUR).toISOString())),
+        )
+        .orderBy(desc(signup_attempts.created_at))
+        .offset(rules.codesPerInstallHour - 1)
+        .limit(1)
+      return { ok: false, reason: 'busy', retryAfter: secondsUntil(nth ? Date.parse(nth.at) + HOUR : now + HOUR, now) }
     }
     await tx.insert(signup_attempts).values({
       id: crypto.randomUUID(),
@@ -342,7 +450,7 @@ export async function admitSignupCode(
       ip_bucket: input.ipBucket,
       created_at: new Date(now).toISOString(),
     })
-    return { ok: true }
+    return { ok: true, retryAfter: secondsUntil(now + codeCooldownLeftMs([...sent, now], now), now) }
   })
 }
 

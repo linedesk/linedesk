@@ -101,7 +101,10 @@ export async function askSignupCode(
   email: string,
   token: string,
   { plan, interval }: { plan: string; interval: 'year' | 'month' } = readSignupParams(),
-): Promise<{ ok: true } | { ok: false; reason: CodeRefusal | 'unreachable' }> {
+): Promise<
+  | { ok: true; retryAfter: number | null }
+  | { ok: false; reason: CodeRefusal | 'unreachable'; retryAfter: number | null }
+> {
   try {
     const res = await fetch('/v1/signup/code', {
       method: 'POST',
@@ -109,12 +112,14 @@ export async function askSignupCode(
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ email, token, plan, interval }),
     })
-    if (res.ok) return { ok: true }
-    const body = (await res.json().catch(() => null)) as { code?: string } | null
+    const body = (await res.json().catch(() => null)) as { code?: string; retryAfter?: unknown } | null
+    // When the next code may be asked for (LIN-661): the cooldown after a code, or the wait after a refusal.
+    const retryAfter = typeof body?.retryAfter === 'number' && body.retryAfter > 0 ? Math.ceil(body.retryAfter) : null
+    if (res.ok) return { ok: true, retryAfter }
     const reason = REFUSALS.find(r => r === body?.code)
-    return { ok: false, reason: reason ?? 'unreachable' }
+    return { ok: false, reason: reason ?? 'unreachable', retryAfter }
   } catch {
-    return { ok: false, reason: 'unreachable' }
+    return { ok: false, reason: 'unreachable', retryAfter: null }
   }
 }
 

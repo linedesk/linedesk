@@ -24,6 +24,11 @@ export function createRateLimiter({
   }
   /** Whether the next hit would be refused, without recording one. */
   allow.full = (key: string, now = Date.now()) => recent(key, now).length >= max
+  /** When the next hit would be let through again (ms since the epoch): `now` while it would be already. */
+  allow.freeAt = (key: string, now = Date.now()) => {
+    const times = recent(key, now)
+    return times.length < max ? now : times[times.length - max]! + windowMs
+  }
   return allow
 }
 
@@ -102,5 +107,35 @@ export function createFailureLimiter({
       counting.clear()
       blockedKeys.clear()
     },
+  }
+}
+
+/**
+ * A cooldown per key that grows with each hit (LIN-661): `leftMs` says from the key's recent hits how long the next one
+ * waits. Hits older than `keepMs` are forgotten; at most `maxKeys` keys are kept (the one hit longest ago goes first).
+ */
+export function createCooldown({
+  leftMs,
+  keepMs,
+  maxKeys = 50_000,
+}: {
+  leftMs: (hits: readonly number[], now: number) => number
+  keepMs: number
+  maxKeys?: number
+}) {
+  const hits = new Map<string, number[]>()
+  const recent = (key: string, now: number) => (hits.get(key) ?? []).filter(t => now - t < keepMs)
+  return {
+    /** Milliseconds until the next hit is let through; 0 when it would be now. */
+    left: (key: string, now = Date.now()) => leftMs(recent(key, now), now),
+    /** Records a hit (whether or not it was waited for). */
+    hit(key: string, now = Date.now()) {
+      const times = [...recent(key, now), now].slice(-20)
+      hits.delete(key) // re-inserted last: the map's order is the order of the latest hit
+      hits.set(key, times)
+      dropOldest(hits, maxKeys, t => t.every(x => now - x >= keepMs))
+    },
+    /** Forgets every key (tests). */
+    clear: () => hits.clear(),
   }
 }

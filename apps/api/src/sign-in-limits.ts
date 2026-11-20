@@ -24,6 +24,7 @@
 // does still counts towards the address's and the account's caps (so it never lifts them for anyone else). Only a valid
 // cookie for the account that has the address counts; any other request is answered exactly as before, so nothing
 // tells whether an account exists.
+import { CODE_COOLDOWN_RESET_MS, codeCooldownLeftMs } from '@linedesk/actions'
 import { sign_in_counters, user } from '@linedesk/db'
 import { APIError, type createAuthMiddleware, getSessionFromCtx, isAPIError } from 'better-auth/api'
 import { and, eq, sql } from 'drizzle-orm'
@@ -31,10 +32,17 @@ import { createHash } from 'node:crypto'
 import { addressBucket, CLIENT_IP_HEADER } from './client-ip.ts'
 import { db } from './db.ts'
 import { knownBrowserValues, verifyKnownBrowser } from './known-browser.ts'
-import { createFailureLimiter, createRateLimiter } from './rate-limit.ts'
+import { createCooldown, createFailureLimiter, createRateLimiter } from './rate-limit.ts'
+import { signupPageLinkPath } from './signup-gate.ts'
 
 type Ctx = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0]
 
+/**
+ * Per address and IP, the wait before the next code grows with each one (CODE_COOLDOWN_STEPS_S: 30 s, 2, 5, then 10 min;
+ * LIN-661), so a person who did not get the email can always ask again, a little later each time. The caps below stay
+ * as the outer bound; the cooldown keeps a person well under them.
+ */
+export const codeCooldown = createCooldown({ leftMs: codeCooldownLeftMs, keepMs: CODE_COOLDOWN_RESET_MS })
 /** 5 codes in 10 minutes (a code's lifetime) and 10 in an hour per address and IP. */
 const allowCode = createRateLimiter({ max: 5, windowMs: 10 * 60_000 })
 const allowCodeHourly = createRateLimiter({ max: 10, windowMs: 60 * 60_000 })
@@ -138,6 +146,8 @@ async function lookUpKnownBrowser(cookieHeader: string | null, email: string): P
 async function knownBrowserFloorReached(email: string) {
   return (await accountCounts(email, 'known_browser_failure')).day >= KNOWN_BROWSER_WRONG_CODES_PER_DAY
 }
+
+const HOUR_MS = 60 * 60_000
 
 type CounterKind = (typeof sign_in_counters.kind.enumValues)[number]
 
@@ -243,23 +253,41 @@ export async function limitSignIns(ctx: Ctx) {
       throw new APIError('BAD_REQUEST', { message: 'Only sign-in and confirmation codes are offered.' })
   }
   if (isCodeRequest(ctx.path)) {
-    const tooMany = () =>
-      new APIError('TOO_MANY_REQUESTS', { message: 'Too many codes for this email. Try again in a few minutes.' })
-    if (
-      allowCode.full(addressAndIp(ctx)) ||
-      allowCodeHourly.full(addressAndIp(ctx)) ||
-      (known ? knownBrowserCodes.full(known) : allowCodeAnywhere.full(address(ctx)))
-    )
-      throw tooMany()
+    const now = Date.now()
+    // `retryAfter` (seconds) in the body and Retry-After: the page says when a new code can be asked for (LIN-661).
+    const tooMany = (freeAt: number) => {
+      const retryAfter = Math.max(1, Math.ceil((freeAt - now) / 1000))
+      return new APIError(
+        'TOO_MANY_REQUESTS',
+        { code: 'CODE_COOLDOWN', message: 'Too many codes for this email. Try again in a few minutes.', retryAfter },
+        { 'Retry-After': String(retryAfter) },
+      )
+    }
+    // The caps across IPs are per sliding hour in memory and per clock hour in the database (an account only): the
+    // later of the two for every address, so the wait said does not tell whether an account exists.
+    const anywhereFreeAt = () =>
+      Math.max(
+        known ? knownBrowserCodes.freeAt(known, now) : allowCodeAnywhere.freeAt(address(ctx), now),
+        Math.ceil((now + 1) / HOUR_MS) * HOUR_MS,
+      )
+    // The sign-up page's own send keeps its own cooldown, in the database (self-serve.ts admitSignupCode).
+    const cooldownLeft = signupPageLinkPath() === null ? codeCooldown.left(addressAndIp(ctx), now) : 0
+    if (cooldownLeft > 0) throw tooMany(now + cooldownLeft)
+    if (allowCode.full(addressAndIp(ctx), now) || allowCodeHourly.full(addressAndIp(ctx), now))
+      throw tooMany(Math.max(allowCode.freeAt(addressAndIp(ctx), now), allowCodeHourly.freeAt(addressAndIp(ctx), now)))
+    if (known ? knownBrowserCodes.full(known, now) : allowCodeAnywhere.full(address(ctx), now))
+      throw tooMany(anywhereFreeAt())
     if (countable(ctx)) {
       // Checked and counted in one step before anything waits, so parallel requests can not all slip under a cap. The
       // account's count too: one refused there counts, which keeps the account at its cap until the hour turns. A known
       // browser's code counts there as well, but only its own cap refuses it.
-      allowCode(addressAndIp(ctx))
-      allowCodeHourly(addressAndIp(ctx))
-      allowCodeAnywhere(address(ctx))
-      if (known) knownBrowserCodes(known)
-      if ((await countForAccount(emailOf(ctx), 'code_request')) > CODES_PER_HOUR && !known) throw tooMany()
+      codeCooldown.hit(addressAndIp(ctx), now)
+      allowCode(addressAndIp(ctx), now)
+      allowCodeHourly(addressAndIp(ctx), now)
+      allowCodeAnywhere(address(ctx), now)
+      if (known) knownBrowserCodes(known, now)
+      if ((await countForAccount(emailOf(ctx), 'code_request')) > CODES_PER_HOUR && !known)
+        throw tooMany(anywhereFreeAt())
     }
   }
   if (

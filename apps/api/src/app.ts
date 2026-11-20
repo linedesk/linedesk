@@ -513,16 +513,27 @@ app.post('/v1/signup/code', async c => {
   if (!answer.ok) {
     const status =
       answer.reason === 'too_many' || answer.reason === 'busy' ? 429 : answer.reason === 'closed' ? 404 : 422
-    return c.json({ ok: false, code: answer.reason }, status)
+    // When a new code can be asked for (LIN-661): in the body for the page, and as Retry-After.
+    if (answer.retryAfter) c.header('retry-after', String(answer.retryAfter))
+    return c.json(
+      { ok: false, code: answer.reason, ...(answer.retryAfter ? { retryAfter: answer.retryAfter } : {}) },
+      status,
+    )
   }
   // Committed above, so the sign-in code's own check (signup-gate.ts maySendSignInCode) sees the attempt; only this
   // route sends a code to an address that has no account yet (fromSignupPage, security review F4 of #960).
   // The email's button opens the sign-up page with the same plan, so Continue goes on to the details in any browser.
+  // A send the sign-in limits refuse (sign-in-limits.ts: its caps per network, or an account's cap across networks)
+  // answers like a sent one: a different answer would tell that the address has an account (security review of LIN-661).
   await fromSignupPage(
     () => auth.api.sendVerificationOTP({ body: { email, type: 'sign-in' }, headers: clientIpHeaders(c) }),
     signupLinkPath(body.plan, body.interval),
-  )
-  return c.json({ ok: true })
+  ).catch((e: unknown) => {
+    if ((e as { statusCode?: unknown } | null)?.statusCode !== 429) throw e
+    console.warn('sign-up: the code was not sent, the sign-in code limits refused it')
+  })
+  // The cooldown before the next code (the page counts it down on its Resend button).
+  return c.json({ ok: true, retryAfter: answer.retryAfter })
 })
 
 // account.signUp for the signed-in person (no workspace needed yet): the account's own permission `account`, given
