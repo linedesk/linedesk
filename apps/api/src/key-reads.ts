@@ -25,6 +25,7 @@ export const KEY_READ_ROUTES: readonly KeyReadRoute[] = [
   { path: '/v1/admin/overview', mcp: true },
   { path: '/v1/admin/latency', mcp: true },
   { path: '/v1/admin/onboarding', mcp: true },
+  { path: '/v1/admin/funnel', mcp: true },
   { path: '/v1/admin/health', mcp: true },
   { path: '/v1/admin/providers', mcp: true },
   { path: '/v1/admin/agent-setup', mcp: true },
