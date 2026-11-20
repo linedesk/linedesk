@@ -1,6 +1,6 @@
 // Integrations (#integrations, G O): everything Linedesk connects to, as cards by category, with a search and one
 // key per category. A card opens its detail view here (#integrations/zapier, /hubspot, /slack, /jobber, /shopify,
-// /support-email, /api-keys, /rest-api, /mcp) or
+// /gmail, /outlook-mail, /api-keys, /rest-api, /mcp) or
 // the place where it is set up (the assistant's webhooks and booking; #integrations/make and the like go there too); one not
 // built yet shows "Coming soon", and an address with nothing behind it says so. The catalog itself is catalog.ts; API keys and
 // Zapier were Workspace settings › Developers (old links are rewritten, useRoute.ts).
@@ -138,6 +138,11 @@ function Missing({ section }: { section: string }) {
   )
 }
 
+const mailboxCount = (rows: { status: string }[]) => ({
+  count: rows.length,
+  needsReconnect: rows.filter(m => m.status === 'needs_reconnect').length,
+})
+
 /** What the workspace has set up, from the same cached reads and synced rows as the places that set it up. */
 function useFacts(canManageKeys: boolean): Facts {
   const keys = useQuery(canManageKeys ? API_KEYS : null, loadKeys, { persist: true })
@@ -169,7 +174,10 @@ function useFacts(canManageKeys: boolean): Facts {
       apps: appsLoad === 'ready' ? Object.fromEntries(apps.map(a => [a.provider, a.status])) : undefined,
       mailboxes:
         mailboxesLoad === 'ready'
-          ? { count: mailboxes.length, needsReconnect: mailboxes.filter(m => m.status === 'needs_reconnect').length }
+          ? {
+              google: mailboxCount(mailboxes.filter(m => m.provider === 'google')),
+              microsoft: mailboxCount(mailboxes.filter(m => m.provider === 'microsoft')),
+            }
           : undefined,
     }
   }, [
@@ -325,7 +333,8 @@ const COUNTED: Partial<Record<Integration['id'], MessageKey>> = {
   caldav: msg('settings.integrations.status.accounts'),
   calcom: msg('settings.integrations.status.accounts'),
   calendly: msg('settings.integrations.status.accounts'),
-  'support-email': msg('settings.integrations.status.mailboxes'),
+  gmail: msg('settings.integrations.status.mailboxes'),
+  'outlook-mail': msg('settings.integrations.status.mailboxes'),
 }
 
 function StatusBadge({ id, status }: { id: Integration['id']; status: Status }) {
@@ -397,7 +406,10 @@ function Detail({ id, canManageKeys, toast }: { id: DetailId; canManageKeys: boo
       {id === 'slack' && <ConnectedApp key="slack" app="slack" canEdit={canManageKeys} toast={toast} />}
       {id === 'jobber' && <ConnectedApp key="jobber" app="jobber" canEdit={canManageKeys} toast={toast} />}
       {id === 'shopify' && <ConnectedApp key="shopify" app="shopify" canEdit={canManageKeys} toast={toast} />}
-      {id === 'support-email' && <SupportEmailPage canEdit={canManageKeys} toast={toast} />}
+      {id === 'gmail' && <SupportEmailPage key="google" provider="google" canEdit={canManageKeys} toast={toast} />}
+      {id === 'outlook-mail' && (
+        <SupportEmailPage key="microsoft" provider="microsoft" canEdit={canManageKeys} toast={toast} />
+      )}
       {id === 'api-keys' && <ApiKeys canEdit={canManageKeys} toast={toast} />}
       {id === 'rest-api' && <RestApi toast={toast} />}
       {id === 'mcp' && <Mcp toast={toast} />}

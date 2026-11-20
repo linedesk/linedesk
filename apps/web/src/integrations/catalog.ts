@@ -3,7 +3,8 @@
 // calendar providers (Booking & calendar; one this server does not offer says so), API keys, the REST API and the MCP
 // server. Each opens its detail view here (`#integrations/<id>`) or the place where it is set up, also as a link
 // (`#integrations/make` goes to the webhooks). HubSpot, Slack, Jobber and Shopify are connected apps (OAuth, docs/crm-sync.md):
-// their detail view connects them. Support email connects the business's support mailboxes, read only (LIN-637).
+// their detail view connects them. Gmail and Outlook connect the business's support mailboxes, read only (LIN-637),
+// one card each; both pages show what the support mail shows (all mailboxes together).
 // One that is not built (ServiceTitan) shows as "Coming soon" and opens nothing.
 // Phone carriers are not here: they are Server admin's (provider keys).
 // To add one (a CLI, once it has an install command): one entry in CATALOG, its name and line in
@@ -20,6 +21,7 @@ import {
   isAppConnectError,
   isMailConnectError,
   type MailConnectError,
+  type MailProviderId,
   vscodeMcpInstallLink,
 } from '@linedesk/actions'
 import type { AppConnection, AppErrorCode } from '@linedesk/db/types'
@@ -53,12 +55,20 @@ export const DETAIL_IDS = [
   'slack',
   'jobber',
   'shopify',
-  'support-email',
+  'gmail',
+  'outlook-mail',
   'api-keys',
   'rest-api',
   'mcp',
 ] as const
 export type DetailId = (typeof DETAIL_IDS)[number]
+
+/** The mailbox provider each support email card connects. */
+export const MAIL_CARD_PROVIDER = { gmail: 'google', 'outlook-mail': 'microsoft' } as const satisfies Record<
+  string,
+  MailProviderId
+>
+export const mailCardOf = (provider: MailProviderId) => (provider === 'google' ? 'gmail' : 'outlook-mail')
 
 /** Not built yet: shown as "Coming soon", they open nothing. */
 export const IN_PROGRESS_IDS = ['servicetitan'] as const
@@ -74,7 +84,16 @@ export type Mark =
   | { kind: 'brand'; brand: 'google' | 'microsoft' | 'calcom' | 'calendly' | 'icloud' }
   | {
       kind: 'logo'
-      logo: 'zapier' | 'make' | 'n8n' | 'hubspot' | 'slack' | 'shopify' | 'modelcontextprotocol'
+      logo:
+        | 'zapier'
+        | 'make'
+        | 'n8n'
+        | 'hubspot'
+        | 'slack'
+        | 'shopify'
+        | 'modelcontextprotocol'
+        | 'gmail'
+        | 'microsoftoutlook'
       color: string
     }
   | { kind: 'icon'; icon: 'globe' | 'server' | 'shield' | 'mail' }
@@ -194,11 +213,18 @@ export const CATALOG: readonly Integration[] = [
     keywords: 'team chat channel notify message',
   },
   {
-    id: 'support-email',
+    id: 'gmail',
     category: 'email',
-    mark: { kind: 'icon', icon: 'mail' },
-    opens: detail('support-email'),
-    keywords: 'gmail google workspace outlook microsoft 365 office inbox mailbox support customer service faq',
+    mark: { kind: 'logo', logo: 'gmail', color: '#EA4335' },
+    opens: detail('gmail'),
+    keywords: 'google workspace email inbox mailbox support customer service faq',
+  },
+  {
+    id: 'outlook-mail',
+    category: 'email',
+    mark: { kind: 'logo', logo: 'microsoftoutlook', color: '#0078D4' },
+    opens: detail('outlook-mail'),
+    keywords: 'microsoft 365 office exchange email inbox mailbox support customer service faq',
   },
   {
     id: 'api-keys',
@@ -275,8 +301,8 @@ export type Facts = {
   calendarProviders: readonly ProviderId[] | null
   /** The state of each connected app (synced); an app missing here is not connected. */
   apps: Partial<Record<ConnectableApp, AppConnection['status']>> | undefined
-  /** The support mailboxes (synced): how many, and how many need connecting again. */
-  mailboxes: { count: number; needsReconnect: number } | undefined
+  /** The support mailboxes (synced) per provider: how many, and how many need connecting again. */
+  mailboxes: Record<MailProviderId, { count: number; needsReconnect: number }> | undefined
 }
 
 export type Status =
@@ -336,10 +362,13 @@ export function statusOf(id: IntegrationId, facts: Facts): Status {
           ? { kind: 'needsAttention' }
           : { kind: 'notConnected' }
     }
-    case 'support-email':
+    case 'gmail':
+    case 'outlook-mail': {
       if (facts.mailboxes === undefined) return { kind: 'loading' }
-      if (facts.mailboxes.needsReconnect > 0) return { kind: 'needsAttention' }
-      return counted(facts.mailboxes.count)
+      const own = facts.mailboxes[MAIL_CARD_PROVIDER[id]]
+      if (own.needsReconnect > 0) return { kind: 'needsAttention' }
+      return counted(own.count)
+    }
     case 'webhooks':
       return counted(facts.webhookUrls === null ? null : facts.webhookUrls?.length)
     case 'make':
@@ -376,6 +405,9 @@ export function placeOf(hash: string): IntegrationsPlace {
   const section = [id, ...rest].join('/')
   if (rest.length) return { view: 'missing', section }
   if ((DETAIL_IDS as readonly string[]).includes(id)) return { view: 'detail', id: id as DetailId }
+  // The one Support email card before Gmail and Outlook had a card each: its links (and a connect started then) go to Gmail.
+  if (id === 'support-email')
+    return { view: 'elsewhere', to: `#integrations/gmail${hash.includes('?') ? `?${hash.split('?')[1]}` : ''}` }
   const opens = CATALOG.find(i => i.id === id)?.opens
   return opens ? { view: 'elsewhere', to: opens } : { view: 'missing', section }
 }
@@ -520,7 +552,7 @@ export const curlExample = (origin: string) =>
   `curl ${origin}/v1/api-key \\\n  -H "Authorization: Bearer $${KEY_VARIABLE}"`
 
 /**
- * What the OAuth callback of a mailbox connect put into the hash (`#integrations/support-email?mail=connected` or
+ * What the OAuth callback of a mailbox connect put into the hash (`#integrations/gmail?mail=connected` or
  * `…?mail=error&reason=<code>`), like appConnectResult: only the known codes count.
  */
 export function mailConnectResult(hash: string): { ok: true } | { ok: false; reason: MailConnectError } | null {

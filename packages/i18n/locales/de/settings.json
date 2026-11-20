@@ -952,8 +952,6 @@
   "integrations.card.servicetitan.name": "ServiceTitan",
   "integrations.card.slack.line": "Jeden beendeten Anruf mit Zusammenfassung in einem Slack-Channel deiner Wahl posten.",
   "integrations.card.slack.name": "Slack",
-  "integrations.card.support-email.line": "Verbinde das Gmail- oder Microsoft-365-Postfach, aus dem dein Support antwortet, mit Lesezugriff.",
-  "integrations.card.support-email.name": "Support-E-Mail",
   "integrations.card.webhooks.line": "Signierte HTTP-Anfragen an deine eigene Adresse, wenn ein Anruf beginnt, während des Anrufs und danach.",
   "integrations.card.webhooks.name": "Webhooks",
   "integrations.card.zapier.line": "Zaps starten, wenn ein Anruf eingeht oder endet, und Anrufe aus Tausenden Apps aktualisieren.",

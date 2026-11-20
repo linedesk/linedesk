@@ -382,13 +382,16 @@ describe('through the API', () => {
     expect(actions.get('mail.connectFinish')!.sensitive).toEqual(['code', 'state'])
   })
 
-  test('the callback sends the browser back to Support email, with a reason code when it fails, never text', async () => {
+  test('the callback sends the browser back to the card of its provider (Gmail, Outlook), with a reason code when it fails, never text', async () => {
     const web = 'http://app.test'
     const headers = new Headers(ws.owner.headers)
     const target = (url: string) =>
-      Object.fromEntries(new URLSearchParams(url.split('#integrations/support-email?')[1]))
+      Object.fromEntries(new URLSearchParams(url.split(/#integrations\/(?:gmail|outlook-mail)\?/)[1]))
     expect(await mailCallback('google', new URLSearchParams({ error: 'access_denied' }), headers, web)).toMatch(
-      /^http:\/\/app\.test\/#integrations\/support-email\?/,
+      /^http:\/\/app\.test\/#integrations\/gmail\?/,
+    )
+    expect(await mailCallback('microsoft', new URLSearchParams({ error: 'access_denied' }), headers, web)).toMatch(
+      /^http:\/\/app\.test\/#integrations\/outlook-mail\?/,
     )
     expect(target(await mailCallback('google', new URLSearchParams({ error: 'access_denied' }), headers, web))).toEqual(
       {

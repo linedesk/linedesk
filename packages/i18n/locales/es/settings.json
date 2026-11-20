@@ -952,8 +952,6 @@
   "integrations.card.servicetitan.name": "ServiceTitan",
   "integrations.card.slack.line": "Publica cada llamada terminada, con su resumen, en el canal de Slack que elijas.",
   "integrations.card.slack.name": "Slack",
-  "integrations.card.support-email.line": "Conecta el buzón de Gmail o Microsoft 365 desde el que responde tu soporte, solo lectura.",
-  "integrations.card.support-email.name": "Correo de soporte",
   "integrations.card.webhooks.line": "Solicitudes HTTP firmadas a tu propia dirección cuando empieza una llamada, durante la llamada y después.",
   "integrations.card.webhooks.name": "Webhooks",
   "integrations.card.zapier.line": "Inicia Zaps cuando entra o termina una llamada, y actualiza llamadas desde miles de apps.",

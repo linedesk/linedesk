@@ -1,5 +1,5 @@
-// Integrations › Support email (LIN-637): the business connects the mailboxes its support answers from, Gmail or
-// Microsoft 365, read only, so Linedesk can learn what customers ask and how support answers. Connecting is an OAuth
+// Integrations › Gmail and › Outlook (LIN-637), one page each: the business connects the mailboxes its support answers
+// from, read only, so Linedesk can learn what customers ask and how support answers. Connecting is an OAuth
 // round trip (mail.connectStart, then the provider's consent page, then GET /v1/mail/callback/<provider>), so the page
 // names the table to read again on return (refreshOnReturn); the callback's result comes back in the hash
 // (`?mail=connected` or `?mail=error&reason=<code>`). The mailboxes are synced rows (mail_connections). Nothing is
@@ -21,12 +21,13 @@ import { mailConnectErrorKey, mailConnectResult } from './catalog.ts'
 import { MailReview } from './MailReview.tsx'
 
 type Props = {
+  /** The provider this page connects: Gmail (google) or Outlook / Microsoft 365 (microsoft). */
+  provider: MailProviderId
   /** Owners and admins (settings:write): connect and disconnect. */
   canEdit: boolean
   toast: (text: string) => void
 }
 
-const PROVIDERS: readonly MailProviderId[] = ['google', 'microsoft']
 const PROVIDER_NAME: Record<MailProviderId, MessageKey> = {
   google: msg('settings.integrations.mail.provider.google'),
   microsoft: msg('settings.integrations.mail.provider.microsoft'),
@@ -35,9 +36,9 @@ const PROVIDER_NAME: Record<MailProviderId, MessageKey> = {
 /** The `code` an action's rejection carries (settings-api.ts), which the page words itself. */
 const codeOf = (e: unknown) => (e as { code?: unknown }).code
 
-export function SupportEmail({ canEdit, toast }: Props) {
+export function SupportEmail({ provider: own, canEdit, toast }: Props) {
   const t = useT()
-  const mailboxes = useRows('mail_connections')
+  const mailboxes = useRows('mail_connections').filter(m => m.provider === own)
   const ready = useLoadState('mail_connections') === 'ready'
   const connect = useConnect(toast)
   useConnectResult(toast)
@@ -59,22 +60,16 @@ export function SupportEmail({ canEdit, toast }: Props) {
         )}
         {canEdit ? (
           <div className="ig-app-connect">
-            {PROVIDERS.map(p => {
-              const provider = t(PROVIDER_NAME[p])
-              return (
-                <Button
-                  key={p}
-                  variant={p === 'google' ? 'primary' : undefined}
-                  disabled={connect.opening !== null}
-                  onClick={() => void connect.start(p)}
-                  title={t('settings.integrations.mail.connectTip', { provider })}
-                >
-                  {connect.opening === p
-                    ? t('settings.integrations.mail.opening', { provider })
-                    : t('settings.integrations.mail.connect', { provider })}
-                </Button>
-              )
-            })}
+            <Button
+              variant="primary"
+              disabled={connect.opening !== null}
+              onClick={() => void connect.start(own)}
+              title={t('settings.integrations.mail.connectTip', { provider: t(PROVIDER_NAME[own]) })}
+            >
+              {connect.opening === own
+                ? t('settings.integrations.mail.opening', { provider: t(PROVIDER_NAME[own]) })
+                : t('settings.integrations.mail.connect', { provider: t(PROVIDER_NAME[own]) })}
+            </Button>
           </div>
         ) : (
           <p className="help">{t('settings.integrations.mail.onlyAdmins')}</p>
@@ -85,12 +80,15 @@ export function SupportEmail({ canEdit, toast }: Props) {
   )
 }
 
-/** The mailboxes, then what their support mail shows (once one is connected or an analysis exists). */
-export function SupportEmailPage({ canEdit, toast }: Props) {
+/**
+ * This provider's mailboxes, then what the support mail shows: one analysis over every connected mailbox, Gmail and
+ * Outlook together, so both pages show it once any mailbox is connected.
+ */
+export function SupportEmailPage({ provider, canEdit, toast }: Props) {
   const connected = useRows('mail_connections').length > 0
   return (
     <>
-      <SupportEmail canEdit={canEdit} toast={toast} />
+      <SupportEmail provider={provider} canEdit={canEdit} toast={toast} />
       {connected && <MailReview canEdit={canEdit} toast={toast} />}
     </>
   )

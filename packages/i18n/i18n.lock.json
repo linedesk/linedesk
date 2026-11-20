@@ -29955,16 +29955,6 @@
       "out": "b27fb38ba323745c91fe7fd9021605430d43bdb7d3be765266e29364d103e26f",
       "src": "b27fb38ba323745c91fe7fd9021605430d43bdb7d3be765266e29364d103e26f"
     },
-    "settings.integrations.card.support-email.line": {
-      "by": "ai",
-      "out": "eed11301583b0aa8befaa8025b403f2d277868cfa7ce5bcdaac8e55fa7a59717",
-      "src": "4ea03bbe80cade11a50b853947c06e792f90ee98caa73b4a0d8a44d5b53b2ee0"
-    },
-    "settings.integrations.card.support-email.name": {
-      "by": "ai",
-      "out": "de8bdf13e3b069c6c021b30e5da5ed002c5c5f25ce7b11a8d46c9937e5f3274d",
-      "src": "86700824f25ee58cd8811ada959f8df2da8900ec2032468203578af78da68417"
-    },
     "settings.integrations.card.webhooks.line": {
       "by": "ai",
       "out": "c53fde914c0f705bdad279950fa8c2876685a63ef4778ab445740b5af2d5699f",
@@ -67831,16 +67821,6 @@
       "by": "ai",
       "out": "b27fb38ba323745c91fe7fd9021605430d43bdb7d3be765266e29364d103e26f",
       "src": "b27fb38ba323745c91fe7fd9021605430d43bdb7d3be765266e29364d103e26f"
-    },
-    "settings.integrations.card.support-email.line": {
-      "by": "ai",
-      "out": "76b44bdce01190192c2326574a169e605075a4e077b9c9001dbcbb5896df3fc2",
-      "src": "4ea03bbe80cade11a50b853947c06e792f90ee98caa73b4a0d8a44d5b53b2ee0"
-    },
-    "settings.integrations.card.support-email.name": {
-      "by": "ai",
-      "out": "33dc89a1ab870d5adf430c83ba73a072e99718600bfbe3afdee7bd305611ea29",
-      "src": "86700824f25ee58cd8811ada959f8df2da8900ec2032468203578af78da68417"
     },
     "settings.integrations.card.webhooks.line": {
       "by": "ai",
@@ -105709,16 +105689,6 @@
       "out": "b27fb38ba323745c91fe7fd9021605430d43bdb7d3be765266e29364d103e26f",
       "src": "b27fb38ba323745c91fe7fd9021605430d43bdb7d3be765266e29364d103e26f"
     },
-    "settings.integrations.card.support-email.line": {
-      "by": "ai",
-      "out": "ac0aa2b30aff10fa328ae349116089bc0a8a43cd1f7479030e683fa1d982a8a1",
-      "src": "4ea03bbe80cade11a50b853947c06e792f90ee98caa73b4a0d8a44d5b53b2ee0"
-    },
-    "settings.integrations.card.support-email.name": {
-      "by": "ai",
-      "out": "2e8ec57b8ae35eaba9bd8394296f0d8f1882df3fc689e6a0e73aa6c375fc6a40",
-      "src": "86700824f25ee58cd8811ada959f8df2da8900ec2032468203578af78da68417"
-    },
     "settings.integrations.card.webhooks.line": {
       "by": "ai",
       "out": "70d60c3f19d114315a1fcb73f306d555cc9285167ceffbebf9045af2eae548ae",
@@ -143586,16 +143556,6 @@
       "out": "b27fb38ba323745c91fe7fd9021605430d43bdb7d3be765266e29364d103e26f",
       "src": "b27fb38ba323745c91fe7fd9021605430d43bdb7d3be765266e29364d103e26f"
     },
-    "settings.integrations.card.support-email.line": {
-      "by": "ai",
-      "out": "dd2743a9c90fdc456c700f5e80b0e34358c47142eb94e9daa4914ae51eff40cb",
-      "src": "4ea03bbe80cade11a50b853947c06e792f90ee98caa73b4a0d8a44d5b53b2ee0"
-    },
-    "settings.integrations.card.support-email.name": {
-      "by": "ai",
-      "out": "c6b1e8023f100ead4b41c4f9ded70f744da98afaf8d6f84de00fe9313f9ca981",
-      "src": "86700824f25ee58cd8811ada959f8df2da8900ec2032468203578af78da68417"
-    },
     "settings.integrations.card.webhooks.line": {
       "by": "ai",
       "out": "87ec89c3dac36f07b7484785c34159b514affda5eed0c93eef68286d249832c3",
@@ -181462,16 +181422,6 @@
       "by": "ai",
       "out": "b27fb38ba323745c91fe7fd9021605430d43bdb7d3be765266e29364d103e26f",
       "src": "b27fb38ba323745c91fe7fd9021605430d43bdb7d3be765266e29364d103e26f"
-    },
-    "settings.integrations.card.support-email.line": {
-      "by": "ai",
-      "out": "3a9445d7248b96d4f60d9d84cd7f2efee6e3aca3d2afc42eef7c42202115c5fe",
-      "src": "4ea03bbe80cade11a50b853947c06e792f90ee98caa73b4a0d8a44d5b53b2ee0"
-    },
-    "settings.integrations.card.support-email.name": {
-      "by": "ai",
-      "out": "3af977ec5f2084624116b3b4985c673128fceb38042070a8b7c64edb7a5e40d4",
-      "src": "86700824f25ee58cd8811ada959f8df2da8900ec2032468203578af78da68417"
     },
     "settings.integrations.card.webhooks.line": {
       "by": "ai",

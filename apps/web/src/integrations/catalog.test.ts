@@ -44,7 +44,7 @@ const NOTHING: Facts = {
   calendars: {},
   calendarProviders: PROVIDERS,
   apps: {},
-  mailboxes: { count: 0, needsReconnect: 0 },
+  mailboxes: { google: { count: 0, needsReconnect: 0 }, microsoft: { count: 0, needsReconnect: 0 } },
 }
 const LOADING: Facts = {
   zaps: undefined,
@@ -62,7 +62,7 @@ const MEMBER: Facts = {
   calendars: {},
   calendarProviders: PROVIDERS,
   apps: {},
-  mailboxes: { count: 0, needsReconnect: 0 },
+  mailboxes: { google: { count: 0, needsReconnect: 0 }, microsoft: { count: 0, needsReconnect: 0 } },
 }
 
 describe('the catalog', () => {
@@ -96,7 +96,7 @@ describe('the catalog', () => {
     expect(ids(groups[0]!.items)).toEqual(['zapier', 'make', 'n8n', 'webhooks'])
     expect(ids(groups[2]!.items)).toEqual(['hubspot', 'jobber', 'servicetitan'])
     expect(ids(groups[3]!.items)).toEqual(['shopify'])
-    expect(ids(groups[5]!.items)).toEqual(['support-email'])
+    expect(ids(groups[5]!.items)).toEqual(['gmail', 'outlook-mail'])
     expect(ids(groups[6]!.items)).toEqual(['api-keys', 'rest-api', 'mcp'])
     expect(byCategory(CATALOG, 'chat').map(g => g.category)).toEqual(['chat'])
     expect(byCategory(searchIntegrations(CATALOG, 'outlook', text)).map(g => g.category)).toEqual([
@@ -105,29 +105,38 @@ describe('the catalog', () => {
     ])
   })
 
-  it('counts support mailboxes and flags one that needs connecting again', () => {
-    expect(statusOf('support-email', LOADING)).toEqual({ kind: 'loading' })
-    expect(statusOf('support-email', NOTHING)).toEqual({ kind: 'notConnected' })
-    expect(statusOf('support-email', { ...NOTHING, mailboxes: { count: 2, needsReconnect: 0 } })).toEqual({
-      kind: 'connected',
-      count: 2,
+  it('counts each provider\'s support mailboxes on its own card and flags one that needs connecting again', () => {
+    const none = { count: 0, needsReconnect: 0 }
+    expect(statusOf('gmail', LOADING)).toEqual({ kind: 'loading' })
+    expect(statusOf('gmail', NOTHING)).toEqual({ kind: 'notConnected' })
+    const two = { ...NOTHING, mailboxes: { google: { count: 2, needsReconnect: 0 }, microsoft: none } }
+    expect(statusOf('gmail', two)).toEqual({ kind: 'connected', count: 2 })
+    expect(statusOf('outlook-mail', two)).toEqual({ kind: 'notConnected' })
+    const broken = { ...NOTHING, mailboxes: { google: none, microsoft: { count: 1, needsReconnect: 1 } } }
+    expect(statusOf('outlook-mail', broken)).toEqual({ kind: 'needsAttention' })
+    expect(statusOf('gmail', broken)).toEqual({ kind: 'notConnected' })
+  })
+
+  it('sends the old Support email address to Gmail, with the callback result', () => {
+    expect(placeOf('#integrations/support-email')).toEqual({ view: 'elsewhere', to: '#integrations/gmail' })
+    expect(placeOf('#integrations/support-email?mail=connected')).toEqual({
+      view: 'elsewhere',
+      to: '#integrations/gmail?mail=connected',
     })
-    expect(statusOf('support-email', { ...NOTHING, mailboxes: { count: 2, needsReconnect: 1 } })).toEqual({
-      kind: 'needsAttention',
-    })
+    expect(placeOf('#integrations/outlook-mail')).toEqual({ view: 'detail', id: 'outlook-mail' })
   })
 
   it('reads the mailbox callback result from the hash, known codes only', () => {
-    expect(mailConnectResult('#integrations/support-email?mail=connected')).toEqual({ ok: true })
-    expect(mailConnectResult('#integrations/support-email?mail=error&reason=scope')).toEqual({
+    expect(mailConnectResult('#integrations/gmail?mail=connected')).toEqual({ ok: true })
+    expect(mailConnectResult('#integrations/gmail?mail=error&reason=scope')).toEqual({
       ok: false,
       reason: 'scope',
     })
-    expect(mailConnectResult('#integrations/support-email?mail=error&reason=<b>hi</b>')).toEqual({
+    expect(mailConnectResult('#integrations/gmail?mail=error&reason=<b>hi</b>')).toEqual({
       ok: false,
       reason: 'failed',
     })
-    expect(mailConnectResult('#integrations/support-email')).toBeNull()
+    expect(mailConnectResult('#integrations/gmail')).toBeNull()
   })
 
   it('has a calendar card for every provider, each opening Booking & calendar', () => {
@@ -141,7 +150,7 @@ describe('searchIntegrations', () => {
   it('finds by name, line, category and keywords, any case, every word', () => {
     // API keys says what it is for (Zapier), so it is found too.
     expect(ids(searchIntegrations(CATALOG, 'ZAPIER', text))).toEqual(['zapier', 'api-keys'])
-    expect(ids(searchIntegrations(CATALOG, 'outlook', text))).toEqual(['microsoft', 'support-email'])
+    expect(ids(searchIntegrations(CATALOG, 'outlook', text))).toEqual(['microsoft', 'outlook-mail'])
     expect(ids(searchIntegrations(CATALOG, 'claude', text))).toEqual(['mcp'])
     expect(ids(searchIntegrations(CATALOG, 'hvac', text))).toEqual(['servicetitan'])
     expect(ids(searchIntegrations(CATALOG, 'webhook n8n', text))).toEqual(['n8n'])

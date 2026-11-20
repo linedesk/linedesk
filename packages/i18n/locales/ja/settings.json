@@ -952,8 +952,6 @@
   "integrations.card.servicetitan.name": "ServiceTitan",
   "integrations.card.slack.line": "終了した通話をすべて、要約とともに選んだSlackチャンネルに投稿します。",
   "integrations.card.slack.name": "Slack",
-  "integrations.card.support-email.line": "サポートが返信に使っているGmailまたはMicrosoft 365のメールボックスを、読み取り専用で接続します。",
-  "integrations.card.support-email.name": "サポート用メール",
   "integrations.card.webhooks.line": "通話の開始時、通話中、終了後に、署名付きのHTTPリクエストをあなたのアドレスに送信します。",
   "integrations.card.webhooks.name": "Webhook",
   "integrations.card.zapier.line": "通話が届いたときや終了したときにZapを開始し、何千ものアプリから通話を更新します。",
