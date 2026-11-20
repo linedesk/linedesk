@@ -18,6 +18,10 @@ import {
   mainLanguageOf,
   spokenLanguages,
   unspokenLanguages,
+  heardLanguages,
+  languageCodes,
+  providerSpec,
+  type ProviderName,
   isActiveContact,
   setsTransferNumber,
   ASSISTANT_CALL_MAX_MINUTES,
@@ -137,7 +141,7 @@ import {
   type Undo,
 } from './handler-context.ts'
 import { languageInSentence } from '@linedesk/i18n'
-import { activeProvider, installLanguages, telephonyProvider } from './provider-settings.ts'
+import { activeProvider, installHearing, installLanguages, telephonyProvider } from './provider-settings.ts'
 import { refuseLevelChange } from './level-raise.ts'
 import { assistantForCall, assistantVoiceOf, checkAssistantLevel, picksForLevel } from './usage-levels.ts'
 import { startTestCall } from './test-call.ts'
@@ -914,6 +918,15 @@ async function checkAssistantLanguages(
   if (hidden.length)
     throw Reject.t('server.api.languageHidden', {
       languages: (reader: Reader) => reader.format.list(hidden.map(code => languageInSentence(code, reader.locale))),
+    })
+  // A new language the speech recognition does not hear (AssemblyAI: Polish and five more) is refused; one the
+  // assistant already has is kept (the call leaves it out, callLanguagesOf).
+  const hearing = await installHearing(tx)
+  const unheard = unspokenLanguages(languages, heardLanguages(languageCodes, hearing)).filter(code => !had.includes(code))
+  if (unheard.length && hearing)
+    throw Reject.t('server.api.sttCantHear', {
+      stt: providerSpec(hearing.provider as ProviderName).label,
+      languages: (reader: Reader) => reader.format.list(unheard.map(code => languageInSentence(code, reader.locale))),
     })
   const kept = voiceChanged ? [] : had
   const callVoice = await assistantVoiceOf(tx, {

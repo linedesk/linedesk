@@ -4,7 +4,7 @@
 // voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
 // Or, when an admin picked one, a realtime model alone: it hears the caller and answers in its own voice.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
-import { DEFAULT_VOICE_MODELS, noPrivateEndpointText, noTrainingFields, voiceModelFor, anyModeLanguages, fluxRecognizes, type HearingModel, type Language, mainLanguageOf, otherLanguagesOf, providerLanguageCode, type SpeakingVoice, spokenLanguages, defaultVoiceFor, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
+import { DEFAULT_VOICE_MODELS, noPrivateEndpointText, noTrainingFields, voiceModelFor, anyModeLanguages, fluxRecognizes, sttHears, type HearingModel, type Language, mainLanguageOf, otherLanguagesOf, providerLanguageCode, type SpeakingVoice, spokenLanguages, defaultVoiceFor, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
 import { DEFAULT_API_CONNECT_OPTIONS, tts as ttsTypes, type voice } from '@livekit/agents'
 import * as assemblyai from '@livekit/agents-plugin-assemblyai'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
@@ -99,7 +99,8 @@ export function callLanguagesOf(
   const allowed = any ? anyModeLanguages(spoken, stt) : spoken
   return {
     main: mainLanguageOf(stored),
-    others: otherLanguagesOf(stored).filter(code => allowed.includes(code)),
+    // A language the speech recognition does not hear (AssemblyAI: Polish and five more, sttHears) is left out.
+    others: otherLanguagesOf(stored).filter(code => allowed.includes(code) && sttHears(stt, code)),
     ...(any ? { everyLanguage: true } : {}),
   }
 }

@@ -4,6 +4,8 @@
 import {
   categoryEnv,
   anyModeLanguages,
+  heardLanguages,
+  type HearingModel,
   pickableLanguages,
   categoryNames,
   moneyCategories,
@@ -291,16 +293,31 @@ export async function installLanguages(tx: Tx, env: Env = serverEnv()): Promise<
 }
 
 /**
- * voice.options' languages: those calls can be answered in that may be picked (not HIDDEN_LANGUAGES), and what "any
- * language" covers (anyModeLanguages).
+ * The speech recognition calls are answered with: the install's provider and its Standard model (Server admin ›
+ * Providers › Call quality), as for the voices. None set up: null. Never throws.
+ */
+export async function installHearing(tx: Tx, env: Env = serverEnv()): Promise<HearingModel | null> {
+  const stt = await activeProvider(tx, 'stt', env).catch(() => null)
+  if (!stt) return null
+  const standard = (await callQualitySettings(tx).catch(() => null))?.models.standard.stt
+  return { provider: stt.provider, model: levelSttModel(stt.provider, standard) }
+}
+
+/**
+ * voice.options' languages: those calls can be answered in that may be picked (not HIDDEN_LANGUAGES) and the speech
+ * recognition hears (heardLanguages), what "any language" covers (anyModeLanguages), and the ones left out only because
+ * the speech recognition does not hear them, with its name (LIN-656: AssemblyAI does not hear Polish and five more).
  */
 export async function installLanguageOptions(tx: Tx, env: Env = serverEnv()) {
-  const languages = pickableLanguages(await installLanguages(tx, env))
-  const stt = await activeProvider(tx, 'stt', env).catch(() => null)
-  // Standard's speech recognition model (Server admin › Providers › Call quality), as for the voices above.
-  const standard = (await callQualitySettings(tx).catch(() => null))?.models.standard.stt
-  const hearing = stt && { provider: stt.provider, model: levelSttModel(stt.provider, standard) }
-  return { languages, anyLanguages: anyModeLanguages(languages, hearing) }
+  const spoken = pickableLanguages(await installLanguages(tx, env))
+  const hearing = await installHearing(tx, env)
+  const languages = heardLanguages(spoken, hearing)
+  const unheard = spoken.filter(code => !languages.includes(code))
+  return {
+    languages,
+    anyLanguages: anyModeLanguages(languages, hearing),
+    ...(unheard.length && hearing ? { unheardLanguages: unheard, sttLabel: providerSpec(hearing.provider as ProviderName).label } : {}),
+  }
 }
 
 /** Whether a realtime model is connected: the install default for assistants that chose no pipeline. Never throws. */

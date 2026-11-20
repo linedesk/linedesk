@@ -120,6 +120,7 @@
   "assistant.languages.switch.none": "Stay in {language}",
   "assistant.languages.switch.noneDescription": "Offers to take a message",
   "assistant.languages.title": "Languages",
+  "assistant.languages.unheard": "Not offered on this server: {languages}. {stt}, the speech recognition set up here, can’t understand them, so the assistant never switches to them.",
   "assistant.load": "The assistant",
   "assistant.name.fallback": "The assistant",
   "assistant.name.inSentence": "your assistant",

@@ -168,3 +168,13 @@ test('the main language marks the country default, and says so only once it was 
   expect(readOnly).toContain('Country default: Deutsch')
   expect(readOnly).not.toContain('<button type="button" class="k-link">')
 })
+
+test('languages the speech recognition can\'t understand are named under the question, with its name (LIN-656)', () => {
+  const draft = { name: 'Maya', languages: { main: 'en', mode: 'allowed', allowed: [] } } as never
+  const html = renderToStaticMarkup(
+    <Languages draft={draft} set={() => {}} onMainLanguage={() => {}} installed={installed} unheard={['pl', 'uk']} sttLabel="AssemblyAI" />,
+  )
+  expect(html).toContain('Not offered on this server: Polish and Ukrainian. AssemblyAI, the speech recognition set up here')
+  const none = renderToStaticMarkup(<Languages draft={draft} set={() => {}} onMainLanguage={() => {}} installed={installed} />)
+  expect(none).not.toContain('Not offered on this server')
+})

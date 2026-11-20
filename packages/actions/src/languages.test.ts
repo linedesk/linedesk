@@ -1,6 +1,8 @@
 import { expect, test } from 'vitest'
 import {
   anyModeLanguages,
+  heardLanguages,
+  sttHears,
   callLanguageOf,
   FLUX_LANGUAGES,
   HIDDEN_LANGUAGES,
@@ -88,4 +90,17 @@ test("a call's texts are in the language it is answered in: the assistant's main
   // No assistant: the workspace language as it is.
   expect(callLanguageOf(null, 'de')).toBe('de')
   expect(callLanguageOf(undefined, undefined)).toBe('en')
+})
+
+test('AssemblyAI does not hear Polish and five more: they are not offered, nor part of "any language" (LIN-656)', () => {
+  const aai = { provider: 'assemblyai_stt', model: 'universal-3-6-pro' }
+  const unheard = languageCodes.filter(code => !sttHears(aai, code))
+  expect(unheard).toEqual(['pl', 'id', 'uk', 'cs', 'el', 'hu'])
+  const spoken = spokenLanguages([{ provider: 'elevenlabs' }])
+  expect(heardLanguages(spoken, aai)).toEqual(spoken.filter(code => !unheard.includes(code)))
+  expect(anyModeLanguages(spoken, aai)).not.toContain('pl')
+  // The older multilingual streaming model: its 6 only. Every other provider, or none: all of them.
+  expect(heardLanguages(spoken, { provider: 'assemblyai_stt', model: 'universal-streaming-multilingual' })).toEqual(['en', 'es', 'fr', 'de', 'it', 'pt'])
+  expect(heardLanguages(spoken, { provider: 'deepgram', model: 'nova-3' })).toEqual(spoken)
+  expect(heardLanguages(spoken, null)).toEqual(spoken)
 })

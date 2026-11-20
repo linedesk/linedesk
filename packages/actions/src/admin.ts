@@ -506,7 +506,7 @@ const guides = {
  */
 export const recommendedProviders: Record<ProviderCategory, ProviderName> = {
   telephony: 'telnyx',
-  stt: 'deepgram',
+  stt: 'assemblyai_stt',
   llm: 'openai',
   tts: 'elevenlabs',
   realtime: 'openai_realtime',
@@ -531,7 +531,7 @@ export const pinnedProviders: Partial<Record<ProviderCategory, readonly Provider
   email: ['resend', 'smtp'],
   llm: ['openai', 'openrouter', 'anthropic'],
   sign_in: ['google', 'oidc'],
-  stt: ['deepgram', 'assemblyai_stt'],
+  stt: ['assemblyai_stt', 'deepgram'],
 }
 
 /** The option that runs on your own server or account rather than a hosted service. */

@@ -78,7 +78,7 @@ Linedesk is not tied to one vendor. You use your own accounts and pay their list
 | | Supported |
 | --- | --- |
 | Phone carrier | Telnyx or Twilio; a business can also connect its own carrier account |
-| Speech to text | Deepgram, ElevenLabs Scribe, OpenAI |
+| Speech to text | AssemblyAI, Deepgram, ElevenLabs Scribe, OpenAI |
 | Language model | OpenAI, OpenRouter (any model), Anthropic, Google Gemini, Groq, Mistral |
 | Voice | ElevenLabs, Cartesia |
 | Speech to speech (optional) | OpenAI Realtime, instead of the three stages above |

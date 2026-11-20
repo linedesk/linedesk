@@ -30,8 +30,8 @@ test('the pinned providers come first in their order (recommended first), then t
   ])
   expect(orderProviders(llm, pinnedProvidersOf('llm')).slice(0, 3)).toEqual(['openai', 'openrouter', 'anthropic'])
   expect(orderProviders(providersIn('stt'), pinnedProvidersOf('stt')).slice(0, 2)).toEqual([
-    'deepgram',
     'assemblyai_stt',
+    'deepgram',
   ])
   expect(orderProviders(providersIn('sign_in'), pinnedProvidersOf('sign_in'))).toEqual([
     'google',

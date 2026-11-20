@@ -330,6 +330,8 @@ test("a call's languages keep only those a voice provider of the install speaks"
   // Cartesia's Sonic 2 has no Vietnamese; Eleven Multilingual v2 none either.
   expect(callLanguagesOf({ main: 'en', mode: 'allowed', allowed: ['ko', 'vi'] }, [{ provider: 'cartesia', model: 'sonic-2' }]).others).toEqual(['ko'])
   expect(callLanguagesOf({ main: 'en', mode: 'allowed', allowed: ['vi'] }, [{ provider: 'elevenlabs', model: 'eleven_multilingual_v2' }]).others).toEqual([])
+  // AssemblyAI does not hear Polish (LIN-656): an assistant that already has it does not switch to it on the call.
+  expect(callLanguagesOf({ main: 'en', mode: 'allowed', allowed: ['ko', 'pl'] }, elevenlabs, { provider: 'assemblyai_stt', model: 'universal-3-6-pro' }).others).toEqual(['ko'])
   // Every language with a Flux model: Flux's 10, so the call stays on Flux (coordinator decision on LIN-268).
   const flux = { provider: 'deepgram', model: 'flux-general-en' } as const
   const anyOnFlux = callLanguagesOf({ main: 'en', mode: 'any', allowed: [] }, elevenlabs, flux)

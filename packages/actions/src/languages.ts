@@ -10,6 +10,9 @@ import { z } from 'zod'
  * - `flux`: Deepgram Flux multilingual (`flux-general-multi`) recognizes it; a call whose languages all have it keeps
  *   Flux (its turn detection), any other call uses Deepgram Nova-3 `multi` (pipeline.ts createStt), which
  *   recognizes all of them (developers.deepgram.com/docs/models-languages-overview).
+ * - `assemblyai`: AssemblyAI's Universal-3 Pro streaming hears it (`language_codes` in its API reference, 2026-11-17;
+ *   the same list as ASSEMBLYAI_LANGUAGES in apps/agent/src/pipeline.ts). While AssemblyAI is the install's speech
+ *   recognition, a language without it is not offered (sttHears; LIN-656: the Polish test call came out as Cyrillic).
  * - `elevenlabs`: ElevenLabs Flash v2.5 (and Turbo v2.5) speak it (elevenlabs.io/docs/overview/models).
  * - `cartesia`: Cartesia Sonic 3 speaks it (docs.cartesia.ai/build-with-cartesia/tts-models/latest).
  * - `codes`: the provider's code where it is not ours (none so far; Filipino would be `fil` at ElevenLabs, `tl` at
@@ -20,6 +23,7 @@ import { z } from 'zod'
 type LanguageSupport = {
   name: string
   flux: boolean
+  assemblyai: boolean
   elevenlabs: boolean
   cartesia: boolean
   codes?: Partial<Record<LanguageProvider, string>>
@@ -29,32 +33,32 @@ export type LanguageProvider = 'deepgram' | 'elevenlabs' | 'cartesia'
 
 const all = { elevenlabs: true, cartesia: true } as const
 export const LANGUAGE_SUPPORT = {
-  en: { name: 'English', flux: true, ...all },
-  es: { name: 'Spanish', flux: true, ...all },
-  fr: { name: 'French', flux: true, ...all },
-  de: { name: 'German', flux: true, ...all },
-  it: { name: 'Italian', flux: true, ...all },
-  pt: { name: 'Portuguese', flux: true, ...all },
-  nl: { name: 'Dutch', flux: true, ...all },
-  ru: { name: 'Russian', flux: true, ...all },
-  hi: { name: 'Hindi', flux: true, ...all },
-  ja: { name: 'Japanese', flux: true, ...all },
-  zh: { name: 'Chinese (Mandarin)', flux: false, ...all },
-  ko: { name: 'Korean', flux: false, ...all },
-  pl: { name: 'Polish', flux: false, ...all },
-  tr: { name: 'Turkish', flux: false, ...all },
-  vi: { name: 'Vietnamese', flux: false, ...all },
-  id: { name: 'Indonesian', flux: false, ...all },
-  sv: { name: 'Swedish', flux: false, ...all },
-  ar: { name: 'Arabic', flux: false, ...all },
-  uk: { name: 'Ukrainian', flux: false, ...all },
-  ro: { name: 'Romanian', flux: false, ...all },
-  cs: { name: 'Czech', flux: false, ...all },
-  el: { name: 'Greek', flux: false, ...all },
-  da: { name: 'Danish', flux: false, ...all },
-  fi: { name: 'Finnish', flux: false, ...all },
-  no: { name: 'Norwegian', flux: false, ...all },
-  hu: { name: 'Hungarian', flux: false, ...all },
+  en: { name: 'English', assemblyai: true, flux: true, ...all },
+  es: { name: 'Spanish', assemblyai: true, flux: true, ...all },
+  fr: { name: 'French', assemblyai: true, flux: true, ...all },
+  de: { name: 'German', assemblyai: true, flux: true, ...all },
+  it: { name: 'Italian', assemblyai: true, flux: true, ...all },
+  pt: { name: 'Portuguese', assemblyai: true, flux: true, ...all },
+  nl: { name: 'Dutch', assemblyai: true, flux: true, ...all },
+  ru: { name: 'Russian', assemblyai: true, flux: true, ...all },
+  hi: { name: 'Hindi', assemblyai: true, flux: true, ...all },
+  ja: { name: 'Japanese', assemblyai: true, flux: true, ...all },
+  zh: { name: 'Chinese (Mandarin)', assemblyai: true, flux: false, ...all },
+  ko: { name: 'Korean', assemblyai: true, flux: false, ...all },
+  pl: { name: 'Polish', assemblyai: false, flux: false, ...all },
+  tr: { name: 'Turkish', assemblyai: true, flux: false, ...all },
+  vi: { name: 'Vietnamese', assemblyai: true, flux: false, ...all },
+  id: { name: 'Indonesian', assemblyai: false, flux: false, ...all },
+  sv: { name: 'Swedish', assemblyai: true, flux: false, ...all },
+  ar: { name: 'Arabic', assemblyai: true, flux: false, ...all },
+  uk: { name: 'Ukrainian', assemblyai: false, flux: false, ...all },
+  ro: { name: 'Romanian', assemblyai: true, flux: false, ...all },
+  cs: { name: 'Czech', assemblyai: false, flux: false, ...all },
+  el: { name: 'Greek', assemblyai: false, flux: false, ...all },
+  da: { name: 'Danish', assemblyai: true, flux: false, ...all },
+  fi: { name: 'Finnish', assemblyai: true, flux: false, ...all },
+  no: { name: 'Norwegian', assemblyai: true, flux: false, ...all },
+  hu: { name: 'Hungarian', assemblyai: false, flux: false, ...all },
 } as const satisfies Record<string, LanguageSupport>
 
 /** The languages an assistant can speak: code → English name (LANGUAGE_SUPPORT). */
@@ -192,15 +196,34 @@ export function spokenLanguages(voices: readonly SpeakingVoice[]): Language[] {
 /** The speech recognition in use: provider and model (none set: the provider's default; Deepgram's is Flux). */
 export type HearingModel = { provider: string; model?: string | null }
 
+/** The languages AssemblyAI's older Universal Streaming multilingual model hears (its docs, 2026-11-20). */
+const ASSEMBLYAI_MULTILINGUAL: readonly string[] = ['en', 'es', 'fr', 'de', 'it', 'pt']
+
+/**
+ * Whether the speech recognition in use hears a language: AssemblyAI only those of its column (Universal Streaming
+ * multilingual only its 6); every other provider all of the table (Deepgram through Nova-3 `multi`, ElevenLabs Scribe,
+ * OpenAI transcription). None set up: yes.
+ */
+export function sttHears(stt: HearingModel | null | undefined, code: Language): boolean {
+  if (stt?.provider !== 'assemblyai_stt') return true
+  if (stt.model?.trim() === 'universal-streaming-multilingual') return ASSEMBLYAI_MULTILINGUAL.includes(code)
+  return LANGUAGE_SUPPORT[code]?.assemblyai ?? false
+}
+
+/** The languages of `spoken` the speech recognition hears (sttHears); English always. */
+export const heardLanguages = (spoken: readonly Language[], stt: HearingModel | null | undefined): Language[] =>
+  spoken.filter(code => code === 'en' || sttHears(stt, code))
+
 /**
  * What "any language" (`mode: 'any'`) covers: every language the install speaks (`spoken`), but with a Deepgram Flux
  * model only Flux's 10, so those assistants stay on Flux (coordinator decision on LIN-268). A language outside them is
- * used only when picked as the main language or in the allowed list. A hidden language (HIDDEN_LANGUAGES) never.
+ * used only when picked as the main language or in the allowed list. A hidden language (HIDDEN_LANGUAGES) never, nor one the
+ * speech recognition does not hear (sttHears).
  */
 export function anyModeLanguages(spoken: readonly Language[], stt?: HearingModel | null): Language[] {
   const flux = stt?.provider === 'deepgram' && (stt.model?.trim() || 'flux').startsWith('flux')
   // A hidden language (HIDDEN_LANGUAGES) is never part of "any": only an assistant that picked it speaks it.
-  return spoken.filter(code => isPickable(code) && (!flux || fluxRecognizes(code)))
+  return heardLanguages(spoken, stt).filter(code => isPickable(code) && (!flux || fluxRecognizes(code)))
 }
 
 /** The codes of `languages` (as stored) that the install can't answer calls in (spokenLanguages); none: it can save them. */

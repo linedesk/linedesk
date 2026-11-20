@@ -299,6 +299,7 @@
   "api.signup.termsChanged": "The terms or privacy policy changed while this page was open. Read them again, then continue.",
   "api.signup.termsMissing": "Self-serve sign-up needs the terms and privacy policy: set {vars} in the server's environment and restart it.",
   "api.signupRules.invalid": "These sign-up rules are out of range or unknown: {fields}. Nothing was changed.",
+  "api.sttCantHear": "The speech recognition set up ({stt}) can't understand {languages}: pick another language",
   "api.team.alreadyInvited": "{email} is already invited; resend the invitation instead",
   "api.team.alreadyOnTeam": "{email} is already on the team",
   "api.team.confirmEmailToOwn": "{email} must confirm their email address before they can be the owner",
