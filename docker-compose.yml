@@ -315,6 +315,13 @@ services:
         insecure: true
         redis:
           address: redis:6379
+        # A call recording (audio-only room composite through the SDK) uses about 0.07 CPU, but egress books 1 CPU
+        # for each by default and takes new work only below 80 % CPU. Sharing the voice cores with the agent, it then
+        # refused every recording after the second in a burst of calls (LIN-673).
+        cpu_cost:
+          max_cpu_utilization: 0.95
+          audio_room_composite_cpu_cost: 0.1
+          sdk_audio_room_composite_cpu_cost: 0.1
     volumes: ["recordings:/recordings"]
     depends_on:
       livekit: { condition: service_started }

@@ -1835,8 +1835,15 @@ const handlers: Record<string, Handler> = {
 
   'call.startRecording': async ({ tx, actor }, input) => {
     const call = await loadCall(tx, actor, input.callId)
-    // One start at a time per call, so a retry finds the egress the first one started (recording-egress.ts).
-    const [locked] = await tx.select({ status: calls.status }).from(calls).where(eq(calls.id, call.id)).for('update')
+    // One start at a time per call, so a retry finds the egress the first one started (recording-egress.ts). NO KEY
+    // UPDATE: the transcript lines written meanwhile check their foreign key to this row, which FOR UPDATE would block
+    // while egress answers (LIN-673).
+    // i18n-ignore: 'no key update' is a Postgres lock mode, not text
+    const [locked] = await tx
+      .select({ status: calls.status })
+      .from(calls)
+      .where(eq(calls.id, call.id))
+      .for('no key update')
     if (locked?.status !== 'live') throw Reject.t('server.api.callEnded')
     const assistant = call.assistant_id
       ? await assistantIn(tx, call.workspace_id, call.assistant_id).catch(() => null)
