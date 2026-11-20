@@ -799,6 +799,69 @@
   .adm-list .adm-strong .k-badge {
     margin-left: 0;
   }
+  /* The name stays on one line (cut with …) instead of breaking word by word next to the other columns. */
+  .adm-list .adm-name {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* A row stacks: the first column on its own line at full width, the other columns on one quiet line under it
+     ("Last sign-in Nov 18 · Plan Starter"), the ⋯ at the right. Nothing squeezes the name or the address. */
+  .adm-list > .adm-row:not(.adm-row-head),
+  .adm-list-acts > .adm-row:not(.adm-row-head),
+  .adm-list-acts > .adm-row:not(.adm-row-head):has(> :nth-child(4):not(.adm-cell-acts)) {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 0;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .adm-row:not(.adm-row-head) > .adm-cell:first-child {
+    flex: 0 0 100%;
+  }
+  .adm-list-acts > .adm-row:not(.adm-row-head) {
+    padding-right: calc(12px + var(--adm-acts-w));
+  }
+  .adm-row:not(.adm-row-head) > .adm-cell:not(:first-child):not(.adm-cell-acts) {
+    flex: none;
+    max-width: 100%;
+    font-size: 12px;
+    color: var(--ink-muted);
+  }
+  .adm-row:not(.adm-row-head) > .adm-cell[data-label]:not(:first-child):not(.adm-cell-acts)::before {
+    content: attr(data-label) " ";
+  }
+  .adm-row:not(.adm-row-head)
+    > .adm-cell:not(:first-child):not(.adm-wide)
+    + .adm-cell[data-label]:not(.adm-cell-acts)::before {
+    content: "\00a0· " attr(data-label) " ";
+  }
+  /* In a list of people the line starts under the name, not under the picture (24px + 10px gap). */
+  .adm-row:has(.adm-person):not(.adm-row-head) > .adm-cell:first-child + .adm-cell:not(.adm-wide),
+  .adm-row:has(.adm-person):not(.adm-row-head) > .adm-cell:first-child + .adm-wide + .adm-cell {
+    margin-left: 34px;
+  }
+  .adm-list-acts > .adm-row:not(.adm-row-head) > .adm-cell-acts {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    margin-right: -10px;
+    transform: translateY(-50%);
+  }
+  /* The head keeps only what sorts: its labels side by side. */
+  .adm-row.adm-row-head,
+  .adm-list-acts > .adm-row.adm-row-head,
+  .adm-list-acts > .adm-row.adm-row-head:has(> :nth-child(4):not(.adm-cell-acts)) {
+    display: flex;
+    gap: 16px;
+  }
+  .adm-row-head > .adm-cell-acts {
+    display: none;
+  }
   .adm-facts > div {
     grid-template-columns: minmax(0, 1fr);
     gap: 2px;

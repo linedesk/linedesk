@@ -163,7 +163,12 @@ export function AdminList<T>({
               onClick={() => onOpen(row)}
             >
               {columns.map(c => (
-                <div key={c.key} role="cell" className={cx('adm-cell', c.numeric && 'adm-num', c.wide && 'adm-wide')}>
+                <div
+                  key={c.key}
+                  role="cell"
+                  data-label={c.label}
+                  className={cx('adm-cell', c.numeric && 'adm-num', c.wide && 'adm-wide')}
+                >
                   {c.render(row)}
                 </div>
               ))}

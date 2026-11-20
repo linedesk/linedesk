@@ -30,7 +30,7 @@ const userColumns = (t: Translate): Column<AdminUser>[] => [
         <Avatar name={label(u)} size={24} src={u.avatar_url} />
         <span className="adm-who">
           <span className="adm-strong">
-            {label(u)}
+            <span className="adm-name">{label(u)}</span>
             {u.instance_admin && <Badge>{t('admin.users.badge.serverAdmin')}</Badge>}
             {u.disabled_at && <Badge>{t('admin.users.badge.disabled')}</Badge>}
           </span>
