@@ -167,7 +167,7 @@ export function collectTools(ctx: CollectContext) {
       description: ctx.callerId ? PHONE_TOOL_WITH_CALLER_ID : PHONE_TOOL,
       parameters: ctx.callerId
         ? z.object({
-            caller_asked: z.string().min(1).describe("The caller's own words asking to be reached on a different number than the one they are calling from."),
+            caller_asked: z.string().min(1).describe("The caller's own words asking to be reached on a different number than the one they are calling from, copied from what they said. If they did not ask for that, do not call this tool."),
             what: z.string().nullish().describe('What the other number is for, in English. Default: callback number.'),
           })
         : z.object({
