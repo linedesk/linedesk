@@ -31,6 +31,10 @@ export function serverSentryOptions(service: 'api' | 'agent', env: Env): Sentry.
     // No tracing at all (any tracesSampleRate, even 0, turns it on), and no trace headers on requests to carriers,
     // speech and AI providers, calendars or customer webhooks.
     tracePropagationTargets: [],
+    // No runtime channel injection: module loader hooks (a thread, ~0.5 s of CPU at every start; LIN-569, LIN-638)
+    // that add spans and breadcrumbs to modules as Node loads them. Both images run a bundle, where there are none to
+    // hook, and no spans or breadcrumbs are sent.
+    enableRuntimeChannelInjection: false,
     maxBreadcrumbs: 0,
     integrations: [
       // Logs: console.warn and console.error only (plain console.log can carry transcripts); scrubLog keeps the
