@@ -139,19 +139,21 @@ export function defaultAnsweringWay(group: Pick<GroupStatus, 'answeredWith'>, da
   return !started('realtime') && started('three_stage') ? 'three_stage' : 'realtime'
 }
 
-/** What a tab carries: "In use" while its way answers calls, a check while it works but doesn't, else nothing. */
+/**
+ * What a tab carries: a check while its way works (every part set up and working), and "In use" while it answers
+ * calls. The two are separate facts: the way in use shows both.
+ */
 export function answeringWayMark(
   way: VoicePipeline,
   group: Pick<GroupStatus, 'answeredWith'>,
   data: AdminData,
   lines: Partial<Record<ProviderName, ProviderLine>>,
-): 'in_use' | 'works' | null {
-  if (group.answeredWith?.includes(way)) return 'in_use'
+): { works: boolean; inUse: boolean } {
   const works = categoriesOfWay(way).every(c => {
     const provider = data.activeProviders[c]?.provider
     return !!provider && lines[provider]?.state === 'works'
   })
-  return works ? 'works' : null
+  return { works, inUse: !!group.answeredWith?.includes(way) }
 }
 
 /** The tab an arrow key, Home or End moves to; null for any other key. */

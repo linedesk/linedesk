@@ -147,22 +147,25 @@ export function groupAttention(group: Pick<GroupStatus, 'state' | 'needed'>): St
 }
 
 /**
- * A provider row's status: a working provider shows only its mark, the words are its tooltip and accessible label;
- * a state that needs attention (failing, partly, being tested, not tested) keeps its words next to the mark. `use` is
- * "in_use" or "not_in_use" where there is a choice; only "Not in use" is shown, "In use" goes into the tooltip.
+ * A provider row's status: a working provider shows only its check, the words are its tooltip and accessible label;
+ * a state that needs attention (failing, partly, being tested, not tested) keeps its words next to the mark. `inUse`:
+ * the one a choice picked; the row shows it as its own "In use" badge (next to the check), and it is in the tooltip.
  * `fromServer`: its keys come from the server's settings, said in the tooltip (the dialog shows it per field).
  */
 export function rowStatus(
   line: Pick<ProviderLine, 'state' | 'detail'>,
-  { use = null, fromServer = false }: { use?: 'in_use' | 'not_in_use' | null; fromServer?: boolean } = {},
+  { inUse = false, fromServer = false }: { inUse?: boolean; fromServer?: boolean } = {},
 ): { label: string; words: string | null } {
   const { t } = i18n()
   const text = statusText(line, i18n())
-  const useText =
-    use === 'in_use' ? t('admin.providers.row.inUse') : use === 'not_in_use' ? t('admin.providers.row.notInUse') : null
-  const label = [text, useText, fromServer ? t('admin.providers.row.keysFromServer') : null].filter(Boolean).join(' · ')
-  if (line.state === 'works') return { label, words: use === 'not_in_use' ? useText : null }
-  return { label, words: [text, useText].filter(Boolean).join(' · ') }
+  const label = [
+    text,
+    inUse ? t('admin.providers.row.inUse') : null,
+    fromServer ? t('admin.providers.row.keysFromServer') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  return { label, words: line.state === 'works' ? null : text }
 }
 
 /**

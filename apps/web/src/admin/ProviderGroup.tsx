@@ -67,14 +67,14 @@ const wayPanelId = 'adm-way-panel'
 
 type WayTabsProps = {
   selected: VoicePipeline
-  marks: Record<VoicePipeline, 'in_use' | 'works' | null>
+  marks: Record<VoicePipeline, { works: boolean; inUse: boolean }>
   /** Only changes the view: which way answers is the "Which one answers calls" setting. */
   onSelect: (way: VoicePipeline) => void
 }
 
 /**
- * Answering's two ways as tabs (the inbox's tab style): the one in use says "In use" (ink), one that works but is not
- * used shows its check. Arrow keys, Home and End move between them.
+ * Answering's two ways as tabs (the inbox's tab style): a way that works shows its check, the one that answers calls
+ * also an "In use" badge. Arrow keys, Home and End move between them.
  */
 export function AnsweringWayTabs({ selected, marks, onSelect }: WayTabsProps) {
   const t = useT()
@@ -100,8 +100,8 @@ export function AnsweringWayTabs({ selected, marks, onSelect }: WayTabsProps) {
           }}
         >
           {t(wayLabels[way])}
-          {marks[way] === 'in_use' && <span className="adm-way-use">{t('admin.providers.way.inUse')}</span>}
-          {marks[way] === 'works' && <StatusMark state="works" label={t('admin.providers.way.worksNotInUse')} />}
+          {marks[way].works && <StatusMark state="works" label={t('admin.providers.way.works')} />}
+          {marks[way].inUse && <span className="k-badge adm-in-use">{t('admin.providers.way.inUse')}</span>}
         </button>
       ))}
     </div>
@@ -253,13 +253,12 @@ export function ProviderList({
           const line = lines[name]
           const configured = isConfigured(status)
           // Which one is used, said only where it is a choice: several set up, or recording (off until picked).
-          const use =
-            configured && !isMultiCategory(category) && (setUp.length > 1 || category === 'recording')
-              ? active === name
-                ? 'in_use'
-                : 'not_in_use'
-              : null
-          const shown = line && rowStatus(line, { use, fromServer: providerState(status) === 'env' })
+          const inUse =
+            configured &&
+            !isMultiCategory(category) &&
+            (setUp.length > 1 || category === 'recording') &&
+            active === name
+          const shown = line && rowStatus(line, { inUse, fromServer: providerState(status) === 'env' })
           return (
             <li key={name} className="adm-prov">
               <Logo mark={providerMeta[name].mark} size={28} />
@@ -272,6 +271,7 @@ export function ProviderList({
                   <span className={cx('adm-tile-status', line.state === 'failing' && 'adm-status-bad')}>
                     <StatusMark state={line.state} label={shown.label} />
                     {shown.words}
+                    {inUse && <span className="k-badge adm-in-use">{t('admin.providers.row.inUse')}</span>}
                   </span>
                 )}
                 {configured && line?.state === 'failing' && line.message && (

@@ -13,7 +13,11 @@ const tabsOf = (el: ReactElement<{ children: ReactElement<TabProps>[] }>) => el.
 
 test('the Answering tabs: tablist, the chosen tab selected and focusable, In use and the check', () => {
   const html = renderToStaticMarkup(
-    <AnsweringWayTabs selected="realtime" marks={{ realtime: 'in_use', three_stage: 'works' }} onSelect={() => {}} />,
+    <AnsweringWayTabs
+      selected="realtime"
+      marks={{ realtime: { works: true, inUse: true }, three_stage: { works: true, inUse: false } }}
+      onSelect={() => {}}
+    />,
   )
   expect(html).toContain('role="tablist"')
   const tab = (way: string) => html.match(new RegExp(`<button[^>]*id="adm-way-tab-${way}"[^>]*>`))?.[0] ?? ''
@@ -23,8 +27,12 @@ test('the Answering tabs: tablist, the chosen tab selected and focusable, In use
   expect(tab('three_stage')).toContain('aria-selected="false"')
   expect(tab('three_stage')).toContain('tabindex="-1"')
   expect(html).toContain('aria-controls="adm-way-panel"')
-  expect(html).toContain('<span class="adm-way-use">In use</span>')
-  expect(html).toContain('aria-label="Works, not in use"')
+  // Both ways work: both show the check; only the one that answers calls says "In use", as its own badge.
+  const tabHtml = (way: string) => html.split(`id="adm-way-tab-${way}"`)[1]?.split('</button>')[0] ?? ''
+  expect(tabHtml('realtime')).toContain('aria-label="Works"')
+  expect(tabHtml('realtime')).toContain('<span class="k-badge adm-in-use">In use</span>')
+  expect(tabHtml('three_stage')).toContain('aria-label="Works"')
+  expect(tabHtml('three_stage')).not.toContain('In use')
 })
 
 /** A component's element tree, made inside a render: its hooks (the language) need one. */
@@ -41,7 +49,11 @@ function elementOf(make: () => ReactElement): ReactElement {
 test('switching tabs, by click or arrow key, only changes the view: it does not change which one answers calls', () => {
   const onSelect = vi.fn()
   const el = elementOf(() =>
-    AnsweringWayTabs({ selected: 'realtime', marks: { realtime: 'in_use', three_stage: null }, onSelect }),
+    AnsweringWayTabs({
+      selected: 'realtime',
+      marks: { realtime: { works: true, inUse: true }, three_stage: { works: false, inUse: false } },
+      onSelect,
+    }),
   )
   const [realtime, three] = tabsOf(el as ReactElement<{ children: ReactElement<TabProps>[] }>)
   three!.props.onClick()
@@ -60,7 +72,11 @@ test('the Answering tabs say every word through the catalog (pseudo-locale)', as
   const { createI18n, I18nProvider } = await import('@linedesk/i18n/react')
   const html = renderToStaticMarkup(
     <I18nProvider value={createI18n(PSEUDO_LOCALE, pseudoMessages(enMessages))}>
-      <AnsweringWayTabs selected="realtime" marks={{ realtime: 'in_use', three_stage: 'works' }} onSelect={() => {}} />
+      <AnsweringWayTabs
+        selected="realtime"
+        marks={{ realtime: { works: true, inUse: true }, three_stage: { works: true, inUse: false } }}
+        onSelect={() => {}}
+      />
     </I18nProvider>,
   )
   expect(html).not.toContain('One realtime model')

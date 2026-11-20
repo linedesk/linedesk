@@ -112,18 +112,25 @@ test('the Answering tab that opens is the way that answers calls now, else the o
   expect(defaultAnsweringWay({}, active({ realtime: 'openai_realtime', stt: 'deepgram' }))).toBe('realtime')
 })
 
-test('a tab says "In use" for the way that answers, and shows a check for one that works but is not used', () => {
+test('a tab shows a check while its way works, and "In use" while it answers calls: the way in use shows both', () => {
   const data = active({ realtime: 'openai_realtime', ...three })
   const works = { state: 'works' } as never
   const lines = { openai_realtime: works, deepgram: works, openrouter: works, elevenlabs: works }
   const group = { answeredWith: ['realtime' as const] }
-  expect(answeringWayMark('realtime', group, data, lines)).toBe('in_use')
-  expect(answeringWayMark('three_stage', group, data, lines)).toBe('works')
+  expect(answeringWayMark('realtime', group, data, lines)).toEqual({ works: true, inUse: true })
+  expect(answeringWayMark('three_stage', group, data, lines)).toEqual({ works: true, inUse: false })
   // A part failing or missing: no check.
+  expect(answeringWayMark('three_stage', group, data, { ...lines, openrouter: { state: 'failing' } as never })).toEqual(
+    { works: false, inUse: false },
+  )
+  expect(answeringWayMark('three_stage', group, active({ realtime: 'openai_realtime' }), lines)).toEqual({
+    works: false,
+    inUse: false,
+  })
+  // In use but failing: "In use" without the check.
   expect(
-    answeringWayMark('three_stage', group, data, { ...lines, openrouter: { state: 'failing' } as never }),
-  ).toBeNull()
-  expect(answeringWayMark('three_stage', group, active({ realtime: 'openai_realtime' }), lines)).toBeNull()
+    answeringWayMark('realtime', group, data, { ...lines, openai_realtime: { state: 'failing' } as never }),
+  ).toEqual({ works: false, inUse: true })
 })
 
 test('arrow keys, Home and End move between the two Answering tabs; other keys do nothing', () => {
