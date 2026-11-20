@@ -59,10 +59,11 @@ Our test-caller agent calls the business; transcript, summary, pass/fail and lat
 
 On staging and production, live tests use the three stages only (`--pipeline three_stage`; over the phone the test business's assistant is set to three stages). OpenAI realtime models are costly: run `--pipeline realtime` only when a maintainer asks for it (decision of 2026-11-16).
 
-`pnpm --filter @linedesk/agent call-test <scenario> [--phone [--external]] [--pipeline realtime|three_stage] [--expect-recording]`
+`pnpm --filter @linedesk/agent call-test <scenario> [--phone [--external] [--keep-history]] [--pipeline realtime|three_stage] [--expect-recording]`
 
 - Default: both agents in one LiveKit room, no phone (cheap).
 - `--phone`: a real call over Telnyx from `CALL_TEST_FROM` to `CALL_TEST_TO` (run `setup-test-caller` once; a few cents).
+- `--phone` answers as a call from a new caller: before it dials, the test asks the API (`call.newCallerForTest`) to give the assistant no name, note, earlier calls or bookings of `CALL_TEST_FROM` on its next call to `CALL_TEST_TO` (within 3 minutes). The test number has many earlier test calls, and the assistant would answer from them. `--keep-history`: a returning caller, with all of that.
 - `--external`: `CALL_TEST_TO` is another install's number (e.g. production called from staging's test caller): no checks, only what the caller heard.
 - `--pipeline` (no phone only): the business answers with the realtime model or the three stages instead of what its assistant's call quality picks (Ultra: the realtime model; over the phone the call quality applies).
 - `--realtime-unreachable` (no phone only): a realtime call's model is pointed at an address that never answers, to check that the call goes on without it (the three stages answer after 4 s when the install has them).

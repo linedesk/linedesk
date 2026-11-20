@@ -202,6 +202,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'call.startTest',
     'call.findForTest',
     'call.listNumbers',
+    'call.newCallerForTest',
     'call.startRecording',
     'call.setRecording',
     'call.correctTranscript',

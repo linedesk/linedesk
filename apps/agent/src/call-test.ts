@@ -1,5 +1,7 @@
 // Call test: our test-caller agent calls the business and the result is checked in the inbox.
-//   pnpm --filter @linedesk/agent call-test <scenario> [--phone [--external]] [--pipeline realtime|three_stage] [--expect-recording] [--cancel-booking] [--persona "<who the caller is>"]
+//   pnpm --filter @linedesk/agent call-test <scenario> [--phone [--external] [--keep-history]] [--pipeline realtime|three_stage] [--expect-recording] [--cancel-booking] [--persona "<who the caller is>"]
+// --phone answers as a call from a new caller (LIN-531): the assistant gets no name, note, earlier calls or bookings
+// of the test number, whose many earlier test calls would steer it. --keep-history: as a returning caller, with all that.
 // --persona: the caller plays this instead of the scenario's persona; the scenario's checks stay.
 // --pipeline (no phone only): the business answers this call with it instead of its assistant's choice; over the
 // phone the assistant's own setting applies (Settings › Assistant, "Answered by").
@@ -18,6 +20,7 @@
 import {
   appointmentCancel,
   callFindForTest,
+  callNewCallerForTest,
   callRecordTimings,
   type CallTestFinding,
   VOICE_PIPELINES,
@@ -53,7 +56,7 @@ async function main() {
   const { name, persona, pipeline, realtimeModel } = parseCallTestArgs(args)
   if (!isScenario(name))
     throw new Error(
-      `usage: call-test <scenario> [--phone [--external]] [--pipeline realtime|three_stage] [--expect-recording] [--cancel-booking] [--persona "…"]; scenarios: ${scenarioNames.join(', ')}`,
+      `usage: call-test <scenario> [--phone [--external] [--keep-history]] [--pipeline realtime|three_stage] [--expect-recording] [--cancel-booking] [--persona "…"]; scenarios: ${scenarioNames.join(', ')}`,
     )
   const mode: CallTestMode = args.includes('--phone') ? 'phone' : 'room'
   if (args.includes('--pipeline') && !isPipeline(pipeline))
@@ -96,6 +99,13 @@ async function main() {
     realtimeUnreachable,
   }
 
+  const keepHistory = args.includes('--keep-history')
+  if (keepHistory && (mode !== 'phone' || external))
+    throw new Error('--keep-history works with --phone on this install only (a test call in a room has no caller history)')
+  if (from && !external && !keepHistory) {
+    await run.api.run(callNewCallerForTest, { to, from })
+    console.log('The business answers this call as one from a new caller (no history; --keep-history keeps it).')
+  }
   if (from) {
     console.log(`Calling ${to} from ${from} (scenario ${name}, room ${run.room})…`)
     await startByPhone(run, from, maxCallSeconds)

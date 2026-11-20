@@ -143,9 +143,9 @@ describe('agent-facing actions', () => {
   ]
 
   // carrier.transferTrunk and carrier.provisionTransferTrunk are scoped by the workspace's numbers, not a call: apps/api/test/carrier-routing.test.ts.
-  test('the list above covers every agent-only action except the ones that open or find a call or list the numbers, and the transfer carrier', () => {
+  test("the list above covers every agent-only action except the ones that open or find a call, list the numbers or mark the call test's new caller, and the transfer carrier", () => {
     const agentOnly = [...actions.values()].filter(def => def.permission === 'agent').map(def => def.name)
-    expect([...onCall('x').map(([name]) => name), 'call.start', 'call.startTest', 'call.findForTest', 'call.listNumbers', 'carrier.transferTrunk', 'carrier.provisionTransferTrunk', 'call.reportVoiceFailure', 'provider.reportOk'].sort()).toEqual(agentOnly.sort())
+    expect([...onCall('x').map(([name]) => name), 'call.start', 'call.startTest', 'call.findForTest', 'call.listNumbers', 'call.newCallerForTest', 'carrier.transferTrunk', 'carrier.provisionTransferTrunk', 'call.reportVoiceFailure', 'provider.reportOk'].sort()).toEqual(agentOnly.sort())
   })
 
   test('an agent scoped to one workspace cannot write to a call of another', async () => {

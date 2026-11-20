@@ -158,6 +158,7 @@ const all = [
   calls.callStartTest,
   calls.callFindForTest,
   calls.callListNumbers,
+  calls.callNewCallerForTest,
   calls.callStartRecording,
   calls.callSetRecording,
   calls.callCorrectTranscript,

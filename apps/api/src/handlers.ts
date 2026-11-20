@@ -197,6 +197,7 @@ import {
 import { queueFinishedNews, releaseHeldNews } from './call-news.ts'
 import { recordingStoreCache } from './recording-store.ts'
 import { claimForwardingCheck, forwardingCheckHandlers, forwardingCheckStart } from './forwarding-check.ts'
+import { claimNewCallerForTest, expectNewCallerForTest } from './new-caller-for-test.ts'
 import { queueSpendingAlerts, spendingCap } from './spending-cap.ts'
 import { numberUnpaid, payBoughtNumberMonth } from './billing-periods.ts'
 import { billOfCall, busyLineAlert, type CallRefusal, gateCall, postFinishedCall } from './call-billing.ts'
@@ -450,6 +451,8 @@ type OpenCall = {
   /** What the caller's carrier said about the caller ID (phone calls; missing from an older agent). */
   attestation?: CallerAttestation
   spamLikely?: boolean
+  /** The call test's new caller (call.newCallerForTest): answered as if the number were new. */
+  newCaller?: boolean
 }
 
 /**
@@ -476,7 +479,7 @@ function withCallToken<R extends { data: { callId: string; workspaceId: string }
 async function openCall(
   { tx, now }: Pick<HandlerCtx, 'tx' | 'now'>,
   workspace_id: string,
-  { from, to, room, source = 'phone', label, assistant, attestation, spamLikely }: OpenCall,
+  { from, to, room, source = 'phone', label, assistant, attestation, spamLikely, newCaller = false }: OpenCall,
 ) {
   const [workspace] = await tx
     .select({ disabledAt: organization.disabledAt })
@@ -609,10 +612,13 @@ async function openCall(
   // caller is handled like one from an unknown number (no booking changes, no history, no name or note). The contact
   // stays linked to the call for the team.
   const recognized = callerRecognized(source, attestation, assistant?.behaviours)
+  // What the assistant may know about the caller: a recognized caller's contact, unless the call test asked for a new
+  // caller (LIN-531), whose number's earlier test calls must not steer the assistant.
+  const known = recognized && !newCaller
   const booking = blocked
     ? null
     : await bookingContext(tx, workspace_id, now, {
-        contactId: recognized ? (contact?.row.id ?? null) : null,
+        contactId: known ? (contact?.row.id ?? null) : null,
         assistantId: assistant?.id ?? null,
       })
   // Said right after the greeting; the agent appends it (null: off).
@@ -622,7 +628,7 @@ async function openCall(
   // A returning caller's last calls and upcoming bookings: only a phone caller matched to a contact, and only when the
   // assistant's owner leaves "Know the caller's previous calls" on.
   const history =
-    source !== 'test' && contact && recognized && !blocked && behaviourOn(assistant?.behaviours, 'caller_history')
+    source !== 'test' && contact && known && !blocked && behaviourOn(assistant?.behaviours, 'caller_history')
       ? await callerHistory(tx, workspace_id, contact.row, {
           callId: id,
           now,
@@ -639,7 +645,7 @@ async function openCall(
       callId: id,
       workspaceId: workspace_id,
       isNewContact: contact?.isNew ?? false,
-      contact: contact ? contactForAssistant(contact.row, recognized) : null,
+      contact: contact ? contactForAssistant(contact.row, known) : null,
       callerRecognized: recognized,
       assistant: answeredBy ?? null,
       blocked,
@@ -1377,6 +1383,7 @@ const handlers: Record<string, Handler> = {
     // Our own forwarding check arriving: not answered, not filed, never a real call (forwarding-check.ts).
     const check = await claimForwardingCheck(tx, { from, to, now })
     if (check) return forwardingCheckStart(check)
+    const newCaller = await claimNewCallerForTest(tx, { from, to, now })
     return withCallToken(
       await openCall({ tx, now }, number.workspace_id, {
         from,
@@ -1387,6 +1394,7 @@ const handlers: Record<string, Handler> = {
         assistant,
         attestation: input.attestation,
         spamLikely: input.spamLikely,
+        newCaller,
       }),
     )
   },
@@ -1474,6 +1482,16 @@ const handlers: Record<string, Handler> = {
       bookings: call ? await bookingsForTest(tx, { calendars }, number.workspace_id, call.id) : [],
     }
     return { rows: {}, data }
+  },
+
+  // Only for a number of this install; the caller's number is read like call.start reads it, so the two match.
+  'call.newCallerForTest': async ({ tx, now }, input) => {
+    const to = normalizeCallerId(input.to, { nationalUs: true })
+    const [number] = await tx.select().from(phone_numbers).where(eq(phone_numbers.e164, to))
+    if (!number) throw Reject.t('server.api.numberNotSetUp', { number: input.to })
+    const from = normalizeCallerId(input.from, { nationalUs: to.startsWith('+1') })
+    await expectNewCallerForTest(tx, { from, to, now })
+    return { rows: {}, data: { from, to } }
   },
 
   'call.listNumbers': async ({ tx }) => {

@@ -1,6 +1,6 @@
 // call.start tells the agent about a returning caller: their last calls and upcoming bookings, only for the
 // contact matched in the same workspace, nothing for a withheld number.
-import { appointment_types, assistants, bookings, calls, contacts } from '@linedesk/db'
+import { appointment_types, assistants, bookings, calls, contacts, instance_settings } from '@linedesk/db'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
@@ -211,4 +211,43 @@ test("migration 0075: a named contact without calls was named by the team; with 
     [typed]: 'member',
     [unnamed]: null,
   })
+})
+
+test('the call test asks for a new caller: its next call from the number gets no name, note or history, once', async () => {
+  const ws = await createWorkspace('Brightwater Plumbing & Heating')
+  const number = randomNumber()
+  const first = await finishedCall(ws, number, 'Linda Park')
+  await db.update(contacts).set({ note: 'Prefers mornings' }).where(eq(contacts.id, first.contact.id))
+
+  const marked = await act(agent(), 'call.newCallerForTest', { from: number, to: ws.number })
+  expect(marked.status).toBe(200)
+  const fresh = (await act(agent(), 'call.start', { from: number, to: ws.number })).body.data
+  // Still the contact's call for the team, but the assistant hears of nothing the number did before.
+  expect(fresh.contact).toMatchObject({ id: first.contact.id, name: null, note: null })
+  expect(fresh.callerHistory).toBeNull()
+  expect(fresh.booking?.canChangeBookings ?? false).toBe(false)
+  const [row] = await db.select({ contact_id: calls.contact_id }).from(calls).where(eq(calls.id, fresh.callId))
+  expect(row!.contact_id).toBe(first.contact.id)
+
+  // Only that one call: the next one is a returning caller again.
+  const next = (await act(agent(), 'call.start', { from: number, to: ws.number })).body.data
+  expect(next.contact).toMatchObject({ name: 'Linda Park', note: 'Prefers mornings' })
+  expect(next.callerHistory.recentCalls.map((c: { title: string }) => c.title)).toEqual(['Leaking water heater'])
+
+  // A mark no call claimed in time is gone: the next run's mark clears it, and an expired one never applies.
+  await db
+    .update(instance_settings)
+    .set({ value: new Date(Date.now() - 1000).toISOString() })
+    .where(eq(instance_settings.key, `call_test.new_caller:${number}>${ws.number}`))
+  await act(agent(), 'call.newCallerForTest', { from: number, to: ws.number })
+  await db
+    .update(instance_settings)
+    .set({ value: new Date(Date.now() - 1000).toISOString() })
+    .where(eq(instance_settings.key, `call_test.new_caller:${number}>${ws.number}`))
+  const late = (await act(agent(), 'call.start', { from: number, to: ws.number })).body.data
+  expect(late.contact).toMatchObject({ name: 'Linda Park' })
+
+  // Only for a number of this install, and only with the agent token.
+  expect((await act(agent(), 'call.newCallerForTest', { from: number, to: '+15550000000' })).status).toBe(409)
+  expect((await act(ws.owner, 'call.newCallerForTest', { from: number, to: ws.number })).status).toBe(403)
 })

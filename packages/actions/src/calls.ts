@@ -263,6 +263,27 @@ export const callFindForTest = defineAction({
   permission: 'agent',
   readOnly: true,
 })
+/**
+ * For the phone-to-phone call test (LIN-531): the next call from `from` to `to` within NEW_CALLER_FOR_TEST_MS is answered
+ * as if the caller were new: the assistant gets no contact name, note, earlier calls or bookings. The test number's own
+ * earlier test calls would otherwise steer the assistant ("I see a callback is already scheduled"). Only takes away what
+ * the assistant knows; the call stays linked to the contact for the team.
+ */
+export const callNewCallerForTest = defineAction({
+  name: 'call.newCallerForTest',
+  // i18n-ignore: API docs for the voice agent's call test, not shown in the app
+  description:
+    'Before a call test dials a business number: its next call from the test number is answered as one from a new caller (no name, note, history or bookings).',
+  input: z.object({
+    /** The business number the test dials: it must be one of this install's. */
+    to: z.string().min(3).max(32),
+    /** The test caller's number. */
+    from: z.string().min(3).max(32),
+  }),
+  permission: 'agent',
+})
+/** How long after call.newCallerForTest the test call has to arrive. */
+export const NEW_CALLER_FOR_TEST_MS = 3 * 60_000
 /** For the call simulator: the install's Linedesk numbers (E.164), so it can dial the only one without being told. */
 export const callListNumbers = defineAction({
   name: 'call.listNumbers',
