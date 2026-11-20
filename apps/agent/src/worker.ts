@@ -518,6 +518,18 @@ async function converse(
     closing.assistantSaid(item.id, text, reminders.has(text.trim()))
   })
   skipEndCallReplies(session)
+  // What the caller said since the assistant last spoke, and when they last stopped speaking: the hang-up waits for a
+  // caller who is not done (LIN-635, hangUpWithGoodbye).
+  let callerSince: string | null = null
+  let callerStoppedAt = 0
+  session.on(voice.AgentSessionEventTypes.ConversationItemAdded, ({ item }) => {
+    if (item.type !== 'message' || !item.textContent?.trim()) return
+    if (item.role === 'user') callerSince = item.textContent
+    else if (item.role === 'assistant') callerSince = null
+  })
+  session.on(voice.AgentSessionEventTypes.UserStateChanged, ({ oldState }) => {
+    if (oldState === 'speaking') callerStoppedAt = Date.now()
+  })
   let ending = false
   let asking = false
   const askAnythingElse = async (toolReply: Reply | null) => {
@@ -541,12 +553,16 @@ async function converse(
       sayGoodbye: () => sayLine(goodbyeLine()),
       stopListening: () => session.input.setAudioEnabled(false),
       callerSpeaking: () => session.userState === 'speaking',
+      callerQuietMs: () => (callerStoppedAt ? Date.now() - callerStoppedAt : Number.POSITIVE_INFINITY),
+      callerLastWords: () => callerSince,
       hangUp: deleteRoom,
     }).then(ended => {
       if (ended) return
-      // The assistant asked the caller something in its last words (LIN-341), or the caller is still speaking (LIN-499):
-      // the call goes on.
-      console.log(`call ${call.callId}: end_call after a question or while the caller speaks, the call goes on`)
+      // The assistant asked the caller something in its last words (LIN-341), the caller is still speaking (LIN-499), or
+      // they went on or were not done (LIN-635): the call goes on.
+      console.log(
+        `call ${call.callId}: end_call after a question, while the caller speaks or before they are done, the call goes on`,
+      )
       ending = false
       session.input.setAudioEnabled(true)
     })
