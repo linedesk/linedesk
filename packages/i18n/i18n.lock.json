@@ -8443,7 +8443,7 @@
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
       "out": "6024838c808e12bf641de491a32f465ba35a9c2bbb68311bab79b96d84c3884a",
-      "src": "ac2887fbf4b2c28098afa81d3c4aed49b440a1c8eff115465cedc6abd7000160"
+      "src": "b0b065c14e908304b5794e2d97b5dc252539d07aec882f981291a3095ea9a136"
     },
     "admin.provider.help.cloudflare_saas": {
       "by": "ai",
@@ -29855,6 +29855,16 @@
       "out": "f7b8dd5ece8815a6c0ba49f6f568eae92cfb752307d531496633e22277321be1",
       "src": "f7b8dd5ece8815a6c0ba49f6f568eae92cfb752307d531496633e22277321be1"
     },
+    "settings.integrations.card.gmail.line": {
+      "by": "ai",
+      "out": "e749571d0afb487889496c25211ad6f83c834f6e912e0f75e8f4a891c967a0c6",
+      "src": "3bee8e4d01a3f340b310a04f4d45eacd96caa41ca6bd4c525bbccb49ca4c5881"
+    },
+    "settings.integrations.card.gmail.name": {
+      "by": "ai",
+      "out": "d19a15c70437ed6ea0e4bd1bce2cb335edaf30e47c44bb1b195937dda84ce65f",
+      "src": "d19a15c70437ed6ea0e4bd1bce2cb335edaf30e47c44bb1b195937dda84ce65f"
+    },
     "settings.integrations.card.google.line": {
       "by": "ai",
       "out": "65b6702d80d1591390da019420f9304094ae0a7530c5f2ed43968157029803ec",
@@ -29924,6 +29934,16 @@
       "by": "ai",
       "out": "636396f02b6571e40d8fe91cba550515c0cdc0e7d314c210e00b02256375a796",
       "src": "636396f02b6571e40d8fe91cba550515c0cdc0e7d314c210e00b02256375a796"
+    },
+    "settings.integrations.card.outlook-mail.line": {
+      "by": "ai",
+      "out": "a94b9f0ddff4ba32797c4b8b2b1d0a44e12792720fd31ebc80be8669b7a46a1a",
+      "src": "edb9307731aae5a08d5b72ef05c6211123f8db76162bf98192e4348508c04822"
+    },
+    "settings.integrations.card.outlook-mail.name": {
+      "by": "ai",
+      "out": "709be924400857c9537a1f1377b05e038633bc91e391591dfef5a32c0bb1dada",
+      "src": "709be924400857c9537a1f1377b05e038633bc91e391591dfef5a32c0bb1dada"
     },
     "settings.integrations.card.rest-api.line": {
       "by": "ai",
@@ -46310,7 +46330,7 @@
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
       "out": "6473580bb0a2437b1492a53f327cac1f4a7037e767f0b6bc79dcd97516ee35ef",
-      "src": "ac2887fbf4b2c28098afa81d3c4aed49b440a1c8eff115465cedc6abd7000160"
+      "src": "b0b065c14e908304b5794e2d97b5dc252539d07aec882f981291a3095ea9a136"
     },
     "admin.provider.help.cloudflare_saas": {
       "by": "ai",
@@ -67722,6 +67742,16 @@
       "out": "f7b8dd5ece8815a6c0ba49f6f568eae92cfb752307d531496633e22277321be1",
       "src": "f7b8dd5ece8815a6c0ba49f6f568eae92cfb752307d531496633e22277321be1"
     },
+    "settings.integrations.card.gmail.line": {
+      "by": "ai",
+      "out": "3f31bfc978080bdf0b9483f6415875e45c6ed7a64eba30b99581be41a628f40f",
+      "src": "3bee8e4d01a3f340b310a04f4d45eacd96caa41ca6bd4c525bbccb49ca4c5881"
+    },
+    "settings.integrations.card.gmail.name": {
+      "by": "ai",
+      "out": "d19a15c70437ed6ea0e4bd1bce2cb335edaf30e47c44bb1b195937dda84ce65f",
+      "src": "d19a15c70437ed6ea0e4bd1bce2cb335edaf30e47c44bb1b195937dda84ce65f"
+    },
     "settings.integrations.card.google.line": {
       "by": "ai",
       "out": "d52029b279bbdbaf63472d86a7c8460720216ab047ebea2e9554ba2463b066d6",
@@ -67791,6 +67821,16 @@
       "by": "ai",
       "out": "636396f02b6571e40d8fe91cba550515c0cdc0e7d314c210e00b02256375a796",
       "src": "636396f02b6571e40d8fe91cba550515c0cdc0e7d314c210e00b02256375a796"
+    },
+    "settings.integrations.card.outlook-mail.line": {
+      "by": "ai",
+      "out": "55e675a104b2278ac2156144858a6a6b391ecc497cc2e0fe2815b83452f7306b",
+      "src": "edb9307731aae5a08d5b72ef05c6211123f8db76162bf98192e4348508c04822"
+    },
+    "settings.integrations.card.outlook-mail.name": {
+      "by": "ai",
+      "out": "709be924400857c9537a1f1377b05e038633bc91e391591dfef5a32c0bb1dada",
+      "src": "709be924400857c9537a1f1377b05e038633bc91e391591dfef5a32c0bb1dada"
     },
     "settings.integrations.card.rest-api.line": {
       "by": "ai",
@@ -84177,7 +84217,7 @@
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
       "out": "b7e5d48c416e3bb79c51d48ebe3d282b22943c61333c05416a28df3579262662",
-      "src": "ac2887fbf4b2c28098afa81d3c4aed49b440a1c8eff115465cedc6abd7000160"
+      "src": "b0b065c14e908304b5794e2d97b5dc252539d07aec882f981291a3095ea9a136"
     },
     "admin.provider.help.cloudflare_saas": {
       "by": "ai",
@@ -105589,6 +105629,16 @@
       "out": "f7b8dd5ece8815a6c0ba49f6f568eae92cfb752307d531496633e22277321be1",
       "src": "f7b8dd5ece8815a6c0ba49f6f568eae92cfb752307d531496633e22277321be1"
     },
+    "settings.integrations.card.gmail.line": {
+      "by": "ai",
+      "out": "d0a13a7438294ef866dbc2dea4ccd0a9ede4cb2fd4c72555c34d61fa06db8a44",
+      "src": "3bee8e4d01a3f340b310a04f4d45eacd96caa41ca6bd4c525bbccb49ca4c5881"
+    },
+    "settings.integrations.card.gmail.name": {
+      "by": "ai",
+      "out": "d19a15c70437ed6ea0e4bd1bce2cb335edaf30e47c44bb1b195937dda84ce65f",
+      "src": "d19a15c70437ed6ea0e4bd1bce2cb335edaf30e47c44bb1b195937dda84ce65f"
+    },
     "settings.integrations.card.google.line": {
       "by": "ai",
       "out": "c73a611747dab95ec0f56c9a1128088e9239cacee634084e422c4ef018eb6c83",
@@ -105658,6 +105708,16 @@
       "by": "ai",
       "out": "636396f02b6571e40d8fe91cba550515c0cdc0e7d314c210e00b02256375a796",
       "src": "636396f02b6571e40d8fe91cba550515c0cdc0e7d314c210e00b02256375a796"
+    },
+    "settings.integrations.card.outlook-mail.line": {
+      "by": "ai",
+      "out": "f301e5dd18f5308f4c78263ee5141414f267a39428e6580328a29b16c92cdaf6",
+      "src": "edb9307731aae5a08d5b72ef05c6211123f8db76162bf98192e4348508c04822"
+    },
+    "settings.integrations.card.outlook-mail.name": {
+      "by": "ai",
+      "out": "709be924400857c9537a1f1377b05e038633bc91e391591dfef5a32c0bb1dada",
+      "src": "709be924400857c9537a1f1377b05e038633bc91e391591dfef5a32c0bb1dada"
     },
     "settings.integrations.card.rest-api.line": {
       "by": "ai",
@@ -122044,7 +122104,7 @@
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
       "out": "0cbd11db2f1ccc6d658003f0140c251a1cc4bb8780ba16ed31a602ce2abb7b9d",
-      "src": "ac2887fbf4b2c28098afa81d3c4aed49b440a1c8eff115465cedc6abd7000160"
+      "src": "b0b065c14e908304b5794e2d97b5dc252539d07aec882f981291a3095ea9a136"
     },
     "admin.provider.help.cloudflare_saas": {
       "by": "ai",
@@ -143456,6 +143516,16 @@
       "out": "f7b8dd5ece8815a6c0ba49f6f568eae92cfb752307d531496633e22277321be1",
       "src": "f7b8dd5ece8815a6c0ba49f6f568eae92cfb752307d531496633e22277321be1"
     },
+    "settings.integrations.card.gmail.line": {
+      "by": "ai",
+      "out": "9f024e2a23199e436aa6ed32766b3616c6e99ed914ebbd6d5ce8a38db8c9f887",
+      "src": "3bee8e4d01a3f340b310a04f4d45eacd96caa41ca6bd4c525bbccb49ca4c5881"
+    },
+    "settings.integrations.card.gmail.name": {
+      "by": "ai",
+      "out": "d19a15c70437ed6ea0e4bd1bce2cb335edaf30e47c44bb1b195937dda84ce65f",
+      "src": "d19a15c70437ed6ea0e4bd1bce2cb335edaf30e47c44bb1b195937dda84ce65f"
+    },
     "settings.integrations.card.google.line": {
       "by": "ai",
       "out": "7d421e85ada92c9f7393bf05279ce9827fa9401dc2eeb4b723b6f00845958a65",
@@ -143525,6 +143595,16 @@
       "by": "ai",
       "out": "636396f02b6571e40d8fe91cba550515c0cdc0e7d314c210e00b02256375a796",
       "src": "636396f02b6571e40d8fe91cba550515c0cdc0e7d314c210e00b02256375a796"
+    },
+    "settings.integrations.card.outlook-mail.line": {
+      "by": "ai",
+      "out": "8a191e58b6d40c5091cc05a345a8c2ac8fef8f0a93adc3b92421f4eddd51de7e",
+      "src": "edb9307731aae5a08d5b72ef05c6211123f8db76162bf98192e4348508c04822"
+    },
+    "settings.integrations.card.outlook-mail.name": {
+      "by": "ai",
+      "out": "709be924400857c9537a1f1377b05e038633bc91e391591dfef5a32c0bb1dada",
+      "src": "709be924400857c9537a1f1377b05e038633bc91e391591dfef5a32c0bb1dada"
     },
     "settings.integrations.card.rest-api.line": {
       "by": "ai",
@@ -159911,7 +159991,7 @@
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
       "out": "b424619ba2a6b7e278d51913480662134d8cd97c3f6a5fc883478713493a58ba",
-      "src": "ac2887fbf4b2c28098afa81d3c4aed49b440a1c8eff115465cedc6abd7000160"
+      "src": "b0b065c14e908304b5794e2d97b5dc252539d07aec882f981291a3095ea9a136"
     },
     "admin.provider.help.cloudflare_saas": {
       "by": "ai",
@@ -181323,6 +181403,16 @@
       "out": "f7b8dd5ece8815a6c0ba49f6f568eae92cfb752307d531496633e22277321be1",
       "src": "f7b8dd5ece8815a6c0ba49f6f568eae92cfb752307d531496633e22277321be1"
     },
+    "settings.integrations.card.gmail.line": {
+      "by": "ai",
+      "out": "74472018b22f3e6299d28b26ec42ac07cfacde42408206003d7a3f38921b187d",
+      "src": "3bee8e4d01a3f340b310a04f4d45eacd96caa41ca6bd4c525bbccb49ca4c5881"
+    },
+    "settings.integrations.card.gmail.name": {
+      "by": "ai",
+      "out": "d19a15c70437ed6ea0e4bd1bce2cb335edaf30e47c44bb1b195937dda84ce65f",
+      "src": "d19a15c70437ed6ea0e4bd1bce2cb335edaf30e47c44bb1b195937dda84ce65f"
+    },
     "settings.integrations.card.google.line": {
       "by": "ai",
       "out": "4ccc054b144428ffb85716bf7e1b2b5000dd143af039a4537e5ba48546472681",
@@ -181392,6 +181482,16 @@
       "by": "ai",
       "out": "636396f02b6571e40d8fe91cba550515c0cdc0e7d314c210e00b02256375a796",
       "src": "636396f02b6571e40d8fe91cba550515c0cdc0e7d314c210e00b02256375a796"
+    },
+    "settings.integrations.card.outlook-mail.line": {
+      "by": "ai",
+      "out": "176e94d3d88d333c50644fe5a74d228431f43edf5707dd25c2e1ad3f483540aa",
+      "src": "edb9307731aae5a08d5b72ef05c6211123f8db76162bf98192e4348508c04822"
+    },
+    "settings.integrations.card.outlook-mail.name": {
+      "by": "ai",
+      "out": "709be924400857c9537a1f1377b05e038633bc91e391591dfef5a32c0bb1dada",
+      "src": "709be924400857c9537a1f1377b05e038633bc91e391591dfef5a32c0bb1dada"
     },
     "settings.integrations.card.rest-api.line": {
       "by": "ai",
