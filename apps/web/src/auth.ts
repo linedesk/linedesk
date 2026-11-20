@@ -286,14 +286,37 @@ const back = () => ({
   errorCallbackURL: window.location.origin + window.location.pathname + window.location.hash,
 })
 
+/**
+ * A code request's fetch options that keep the wait Better Auth's own limit per IP sends only as `X-Retry-After`: it is
+ * put on the error as `retryAfter`, like the API's own code limits answer it (LIN-661), so the page says when.
+ */
+function keepRetryAfter() {
+  let retryAfter: number | null = null
+  const fetchOptions = {
+    onError: (context: { response: Response }) => {
+      const header = Number(context.response.headers.get('x-retry-after'))
+      retryAfter = Number.isFinite(header) && header > 0 ? header : null
+    },
+  }
+  const withWait = <R extends { error: unknown }>(res: R): R => {
+    const error = res.error as { retryAfter?: unknown } | null
+    if (error && typeof error === 'object' && error.retryAfter === undefined && retryAfter)
+      error.retryAfter = retryAfter
+    return res
+  }
+  return { fetchOptions, withWait }
+}
+
 /** Emails a sign-in code. The answer is the same whether or not the address has an account. */
-export function requestSignInCode(email: string) {
-  return auth.emailOtp.sendVerificationOtp({ email, type: 'sign-in' })
+export async function requestSignInCode(email: string) {
+  const { fetchOptions, withWait } = keepRetryAfter()
+  return withWait(await auth.emailOtp.sendVerificationOtp({ email, type: 'sign-in', fetchOptions }))
 }
 
 /** "Forgot password?": a code to this address, if it has an account (the answer is the same either way). */
-export function requestPasswordResetCode(email: string) {
-  return auth.emailOtp.requestPasswordReset({ email })
+export async function requestPasswordResetCode(email: string) {
+  const { fetchOptions, withWait } = keepRetryAfter()
+  return withWait(await auth.emailOtp.requestPasswordReset({ email, fetchOptions }))
 }
 
 /** Sets a new password with the emailed code. Every session of the account ends; sign in with it afterwards. */
