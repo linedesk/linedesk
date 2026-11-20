@@ -1,6 +1,15 @@
 // A caller only ever reaches rows of their own workspace, whatever ids or parameters they send.
 import { actions, CLIENT_PROTOCOL, type ActionDef } from '@linedesk/actions'
-import { app_connections, appointment_types, contacts, member, organization, phone_numbers, tableNames, transcript_segments } from '@linedesk/db'
+import {
+  app_connections,
+  appointment_types,
+  contacts,
+  member,
+  organization,
+  phone_numbers,
+  tableNames,
+  transcript_segments,
+} from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { app } from '../src/app.ts'
@@ -46,7 +55,12 @@ async function connectApp(ws: Workspace) {
 }
 
 const getAppConnection = async (ws: Workspace) =>
-  (await db.select().from(app_connections).where(eq(app_connections.id, appConnectionOf.get(ws.id)!)))[0]
+  (
+    await db
+      .select()
+      .from(app_connections)
+      .where(eq(app_connections.id, appConnectionOf.get(ws.id)!))
+  )[0]
 
 beforeAll(async () => {
   a = await createWorkspace('Brightwater Plumbing & Heating')
@@ -105,7 +119,10 @@ describe('patch actions', () => {
     async (name, def) => {
       const before = await snapshot(b)
       const guessed = await act(callerFor(def, a), name, inputFor(def, b))
-      expect(guessed).toMatchObject({ status: 409, body: { ok: false, error: notFound[def.patch!.table] ?? `${def.patch!.table.replace(/s$/, '')} not found` } })
+      expect(guessed).toMatchObject({
+        status: 409,
+        body: { ok: false, error: notFound[def.patch!.table] ?? `${def.patch!.table.replace(/s$/, '')} not found` },
+      })
       // Naming a workspace one is not a member of is refused before the action runs.
       const withHeader = await request(a.owner, 'POST', `/v1/actions/${name}`, inputFor(def, b), {
         'x-workspace-id': b.id,
@@ -140,12 +157,29 @@ describe('agent-facing actions', () => {
     ['call.lookUpCaller', { callId }],
     ['call.askWebhook', { callId, lookup: 'order_status', values: { order_number: '1' } }],
     ['call.recordTimings', { callId, pipeline: 'realtime', replies: [{ at: '2026-01-01T00:00:00Z', totalMs: 900 }] }],
+    ['shopify.callContext', { callId }],
+    ['shopify.findOrders', { callId, callerNumber: true }],
+    ['shopify.findProducts', { callId, query: 'valve' }],
+    ['shopify.changeOrder', { callId, orderNumber: '#1001', change: 'cancel' }],
   ]
 
   // carrier.transferTrunk and carrier.provisionTransferTrunk are scoped by the workspace's numbers, not a call: apps/api/test/carrier-routing.test.ts.
   test("the list above covers every agent-only action except the ones that open or find a call, list the numbers or mark the call test's new caller, and the transfer carrier", () => {
     const agentOnly = [...actions.values()].filter(def => def.permission === 'agent').map(def => def.name)
-    expect([...onCall('x').map(([name]) => name), 'call.start', 'call.startTest', 'call.findForTest', 'call.listNumbers', 'call.newCallerForTest', 'carrier.transferTrunk', 'carrier.provisionTransferTrunk', 'call.reportVoiceFailure', 'provider.reportOk'].sort()).toEqual(agentOnly.sort())
+    expect(
+      [
+        ...onCall('x').map(([name]) => name),
+        'call.start',
+        'call.startTest',
+        'call.findForTest',
+        'call.listNumbers',
+        'call.newCallerForTest',
+        'carrier.transferTrunk',
+        'carrier.provisionTransferTrunk',
+        'call.reportVoiceFailure',
+        'provider.reportOk',
+      ].sort(),
+    ).toEqual(agentOnly.sort())
   })
 
   test('an agent scoped to one workspace cannot write to a call of another', async () => {
@@ -283,7 +317,10 @@ describe('shape proxy', () => {
     const upstream = stubElectric()
     await request(memberOfA, 'GET', '/v1/shape/webhook_endpoints?offset=-1')
     await request(a.owner, 'GET', '/v1/shape/webhook_endpoints?offset=-1')
-    expect(upstream.mock.calls.map(([url]) => url.searchParams.get('where'))).toEqual(['workspace_id = $1 AND false', 'workspace_id = $1'])
+    expect(upstream.mock.calls.map(([url]) => url.searchParams.get('where'))).toEqual([
+      'workspace_id = $1 AND false',
+      'workspace_id = $1',
+    ])
   })
 
   test('the agent reads no workspace: not the one it names, not with a call token', async () => {
@@ -294,7 +331,9 @@ describe('shape proxy', () => {
       expect((await request(agent(a.id), 'GET', `/v1/shape/${table}?offset=-1`)).status).toBe(403)
     }
     const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: a.number })
-    expect((await request(agent(undefined, body.data.callToken), 'GET', '/v1/shape/contacts?offset=-1')).status).toBe(403)
+    expect((await request(agent(undefined, body.data.callToken), 'GET', '/v1/shape/contacts?offset=-1')).status).toBe(
+      403,
+    )
     expect(upstream).not.toHaveBeenCalled()
   })
 
@@ -371,7 +410,12 @@ describe("a tab's workspace (x-workspace-id) must be the session's", () => {
   const contactsNamed = async (workspaceId: string, name: string) =>
     (await db.select().from(contacts).where(eq(contacts.workspace_id, workspaceId))).filter(c => c.name === name)
   const membershipId = async (userId: string, workspaceId: string) =>
-    (await db.select().from(member).where(and(eq(member.userId, userId), eq(member.organizationId, workspaceId))))[0]!.id
+    (
+      await db
+        .select()
+        .from(member)
+        .where(and(eq(member.userId, userId), eq(member.organizationId, workspaceId)))
+    )[0]!.id
 
   test('a tab still on the old workspace after a switch elsewhere is refused, and writes nowhere', async () => {
     expect((await switchTo(home.id)).status).toBe(200)
@@ -379,7 +423,10 @@ describe("a tab's workspace (x-workspace-id) must be the session's", () => {
     // Another tab switches the session to `side`.
     expect((await switchTo(side.id)).status).toBe(200)
     const refused = await inTab(home.id, 'contact.create', { phone: randomNumber(), name: 'Made in the home tab' })
-    expect(refused).toMatchObject({ status: 403, body: { ok: false, code: 'workspace_switched', activeWorkspaceId: side.id } })
+    expect(refused).toMatchObject({
+      status: 403,
+      body: { ok: false, code: 'workspace_switched', activeWorkspaceId: side.id },
+    })
     expect(await contactsNamed(side.id, 'Made in the home tab')).toEqual([])
     expect(await contactsNamed(home.id, 'Made in the home tab')).toEqual([])
     // The tab that switched works in `side`; without the header the session's workspace is used, as before.
@@ -410,7 +457,9 @@ describe("a tab's workspace (x-workspace-id) must be the session's", () => {
     const tab = { 'x-workspace-id': home.id }
     const leaving = await addMember(home.id, 'member')
     // Their only workspace: kept (the default since LIN-264), so the account (and its session) lives on.
-    expect((await act(home.owner, 'team.removeMember', { memberId: await membershipId(leaving.userId, home.id) })).status).toBe(200)
+    expect(
+      (await act(home.owner, 'team.removeMember', { memberId: await membershipId(leaving.userId, home.id) })).status,
+    ).toBe(200)
     expect(await request(leaving, 'POST', '/v1/actions/call.markDone', { callId: home.call.id }, tab)).toMatchObject({
       status: 403,
       body: { code: 'workspace_access_lost' },
@@ -422,14 +471,24 @@ describe("a tab's workspace (x-workspace-id) must be the session's", () => {
     // Removed from one of two workspaces: the other one is never used in its place.
     const twoOf = await addMember(home.id, 'member')
     await auth.api.addMember({ body: { userId: twoOf.userId, organizationId: side.id, role: 'member' } })
-    expect((await act(home.owner, 'team.removeMember', { memberId: await membershipId(twoOf.userId, home.id) })).status).toBe(200)
-    const created = await request(twoOf, 'POST', '/v1/actions/contact.create', { phone: randomNumber(), name: 'Lost tab contact' }, tab)
+    expect(
+      (await act(home.owner, 'team.removeMember', { memberId: await membershipId(twoOf.userId, home.id) })).status,
+    ).toBe(200)
+    const created = await request(
+      twoOf,
+      'POST',
+      '/v1/actions/contact.create',
+      { phone: randomNumber(), name: 'Lost tab contact' },
+      tab,
+    )
     expect(created).toMatchObject({ status: 403, body: { code: 'workspace_access_lost' } })
     expect(await contactsNamed(side.id, 'Lost tab contact')).toEqual([])
   })
 
   test('signed out stays 401 with a header, and says so', async () => {
-    expect(await request(anonymous, 'GET', '/v1/shape/calls?offset=-1', undefined, { 'x-workspace-id': home.id })).toMatchObject({
+    expect(
+      await request(anonymous, 'GET', '/v1/shape/calls?offset=-1', undefined, { 'x-workspace-id': home.id }),
+    ).toMatchObject({
       status: 401,
       body: { code: 'signed_out' },
     })
@@ -439,11 +498,13 @@ describe("a tab's workspace (x-workspace-id) must be the session's", () => {
     expect((await switchTo(home.id)).status).toBe(200)
     vi.stubGlobal('fetch', async () => new Response('[]', { status: 200 }))
     const stateOf = async (path: string, method: 'GET' | 'POST' = 'GET', body?: unknown) =>
-      (await app.request(path, {
-        method,
-        headers: { ...both.headers, 'x-workspace-id': home.id, 'content-type': 'application/json' },
-        body: body === undefined ? undefined : JSON.stringify(body),
-      })).headers.get('x-workspace-state')
+      (
+        await app.request(path, {
+          method,
+          headers: { ...both.headers, 'x-workspace-id': home.id, 'content-type': 'application/json' },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        })
+      ).headers.get('x-workspace-state')
     expect(await stateOf('/v1/shape/calls?offset=-1')).toBe('active')
     await db.update(organization).set({ disabledAt: new Date() }).where(eq(organization.id, home.id))
     expect(await stateOf('/v1/shape/calls?offset=-1')).toBe('disabled')
@@ -456,11 +517,17 @@ describe("a tab's workspace (x-workspace-id) must be the session's", () => {
     expect((await act(agent(home.id), 'call.flagUrgent', { callId: home.call.id })).status).toBe(200)
   })
 
-  test("a page opened for another account (someone else signed in on this browser) is refused, even in a workspace both are in", async () => {
+  test('a page opened for another account (someone else signed in on this browser) is refused, even in a workspace both are in', async () => {
     expect((await switchTo(home.id)).status).toBe(200)
     const name = `Other account ${crypto.randomUUID().slice(0, 6)}`
     const asPage = (account: string) =>
-      request(both, 'POST', '/v1/actions/contact.create', { phone: randomNumber(), name }, { 'x-workspace-id': home.id, 'x-linedesk-account': account })
+      request(
+        both,
+        'POST',
+        '/v1/actions/contact.create',
+        { phone: randomNumber(), name },
+        { 'x-workspace-id': home.id, 'x-linedesk-account': account },
+      )
     expect(await asPage('someone-who-signed-out')).toMatchObject({ status: 403, body: { code: 'account_switched' } })
     expect(await contactsNamed(home.id, name)).toEqual([])
     expect((await asPage(both.userId)).status).toBe(200)
@@ -478,10 +545,15 @@ describe("a tab's workspace (x-workspace-id) must be the session's", () => {
     expect(await create({ ...browser, 'x-workspace-id': home.id })).toMatchObject({ status: 403, body: outdated }) // a workspace but no protocol
     expect(await contactsNamed(home.id, name)).toEqual([])
     vi.stubGlobal('fetch', async () => new Response('[]', { status: 200 }))
-    expect(await request(both, 'GET', '/v1/shape/calls?offset=-1', undefined, browser)).toMatchObject({ status: 403, body: outdated })
+    expect(await request(both, 'GET', '/v1/shape/calls?offset=-1', undefined, browser)).toMatchObject({
+      status: 403,
+      body: outdated,
+    })
     // The current page works; /v1/me (which a page reads before it knows its workspace) is not asked.
     expect((await create(current)).status).toBe(200)
-    expect((await request(both, 'GET', `/v1/shape/calls?offset=-1&workspace=${home.id}`, undefined, current)).status).toBe(200)
+    expect(
+      (await request(both, 'GET', `/v1/shape/calls?offset=-1&workspace=${home.id}`, undefined, current)).status,
+    ).toBe(200)
     expect((await request(both, 'GET', '/v1/me', undefined, browser)).status).toBe(200)
     // Not a browser (API clients, scripts): as before.
     expect((await act(both, 'call.markRead', { callId: home.call.id })).status).toBe(200)

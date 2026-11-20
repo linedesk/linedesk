@@ -91,6 +91,11 @@ const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set([
   'webhook.test',
   'call.lookUpCaller',
   'call.askWebhook',
+  // The caller's Shopify store: each asks the store, and changeOrder changes an order there.
+  'shopify.callContext',
+  'shopify.findOrders',
+  'shopify.findProducts',
+  'shopify.changeOrder',
   'call.correctTranscript',
   'carrier.test',
   'assistant.startTestCall',

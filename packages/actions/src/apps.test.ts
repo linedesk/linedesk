@@ -4,15 +4,26 @@ import { rolePermissions } from './define.ts'
 import { applyLocally, type LocalTables } from './index.ts'
 
 describe('app.updateSettings (LIN-367)', () => {
-  it('every switch is on until a member turns it off, except only urgent calls', () => {
-    for (const id of appSettingIds.filter(id => id !== 'only_urgent')) {
-      expect(appSettingOn({}, id)).toBe(true)
-      expect(appSettingOn(null, id)).toBe(true)
-      expect(appSettingOn({ [id]: false }, id)).toBe(false)
+  it('every switch is on until a member turns it off, except the ones that change more or ask more', () => {
+    const off = [
+      'only_urgent',
+      'shop_returns',
+      'shop_address',
+      'shop_cancel',
+      'verify_email',
+      'verify_order_number',
+      'verify_caller_number',
+    ]
+    for (const id of appSettingIds) {
+      const byDefault = !off.includes(id)
+      expect(appSettingOn({}, id)).toBe(byDefault)
+      expect(appSettingOn(null, id)).toBe(byDefault)
+      expect(appSettingOn({ [id]: !byDefault }, id)).toBe(!byDefault)
     }
-    expect(appSettingOn({}, 'only_urgent')).toBe(false)
-    expect(appSettingOn(null, 'only_urgent')).toBe(false)
-    expect(appSettingOn({ only_urgent: true }, 'only_urgent')).toBe(true)
+    // Shopify adds no new caller as a customer until the business turns it on.
+    expect(appSettingOn({}, 'create_contacts', 'shopify')).toBe(false)
+    expect(appSettingOn({}, 'create_contacts', 'hubspot')).toBe(true)
+    expect(appSettingOn({ create_contacts: true }, 'create_contacts', 'shopify')).toBe(true)
     for (const app of connectableApps) expect(APP_SETTINGS[app].length).toBeGreaterThan(0)
   })
 

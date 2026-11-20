@@ -488,8 +488,13 @@ describe('provider keys', () => {
 
   test('AssemblyAI answering with Deepgram set up too: the agent gets Deepgram as its fallback, and every language is offered (LIN-656)', async () => {
     const config = async () => (await request(agent(), 'GET', AGENT_ROUTE)).body
-    await act(operator, 'provider.setKeys', { provider: 'assemblyai_stt', values: { api_key: 'assemblyai-key-0123456789' } })
-    expect((await act(operator, 'provider.setActive', { category: 'stt', provider: 'assemblyai_stt' })).status).toBe(200)
+    await act(operator, 'provider.setKeys', {
+      provider: 'assemblyai_stt',
+      values: { api_key: 'assemblyai-key-0123456789' },
+    })
+    expect((await act(operator, 'provider.setActive', { category: 'stt', provider: 'assemblyai_stt' })).status).toBe(
+      200,
+    )
     expect((await config()).stt_fallback).toBeUndefined()
     expect((await installLanguageOptions(db)).languages).not.toContain('pl')
     await act(operator, 'provider.setKeys', { provider: 'deepgram', values: { api_key: 'deepgram-key-0123456789' } })
@@ -844,6 +849,7 @@ describe('provider keys', () => {
       'hubspot',
       'slack',
       'jobber',
+      'shopify',
       'google_mail',
       'turnstile',
       'cloudflare_saas',

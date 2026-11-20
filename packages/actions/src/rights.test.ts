@@ -214,6 +214,11 @@ const expectedRights: Record<Right, readonly string[]> = {
     'provider.reportOk',
     'call.lookUpCaller',
     'call.askWebhook',
+    // The caller's Shopify store during a call: orders, products and the changes the business allows.
+    'shopify.callContext',
+    'shopify.findOrders',
+    'shopify.findProducts',
+    'shopify.changeOrder',
   ],
   'server-admin': [
     'voiceCloning.get',

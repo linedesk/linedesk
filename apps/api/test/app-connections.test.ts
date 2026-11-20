@@ -1043,8 +1043,8 @@ describe('through the API', () => {
     expect(await db.select().from(app_connections).where(eq(app_connections.id, connection.id))).toHaveLength(1)
   })
 
-  test('the code and the state are never stored in the command log', () => {
-    expect(actions.get('app.connectFinish')!.sensitive).toEqual(['code', 'state'])
+  test('the code, the state and the callback parameters are never stored in the command log', () => {
+    expect(actions.get('app.connectFinish')!.sensitive).toEqual(['code', 'state', 'params'])
   })
 
   test('the callback sends the browser back to the HubSpot page, with a reason code when it fails, never text', async () => {
