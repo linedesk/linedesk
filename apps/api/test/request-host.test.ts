@@ -259,6 +259,7 @@ describe('on a partner’s live address', () => {
       ['POST', '/v1/setup'],
       ['POST', '/v1/billing/stripe/webhook'],
       ['POST', '/v1/apps/webhook/jobber'],
+      ['POST', '/v1/apps/events/slack'],
       ['POST', '/v1/demo/call'],
       ['POST', '/v1/webhooks/test-lookup'],
     ]

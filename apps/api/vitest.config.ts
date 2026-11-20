@@ -54,6 +54,8 @@ const INSTANCE_WIDE_FILES = [
   'test/app-jobber.test.ts',
   // Stores the Jobber client secret that signs the webhook (provider_settings).
   'test/app-jobber-webhook.test.ts',
+  // Stores the Slack signing secret that signs the Events API requests (provider_settings).
+  'test/app-slack-events.test.ts',
   'test/setup-mcp.test.ts',
   'test/setup-mcp-workspace.test.ts',
   // Makes a server admin, who creates the white-label partners (partner setup links).

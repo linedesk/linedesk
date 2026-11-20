@@ -300,6 +300,7 @@ const MAIN_ONLY_PREFIXES = [
   '/.well-known/',
   '/v1/billing/stripe/',
   '/v1/apps/webhook/',
+  '/v1/apps/events/',
   '/v1/demo/',
   '/v1/webhooks/',
   // The account's password and authenticator app (PR 5.2, security review of #1172 M-2): the password route is

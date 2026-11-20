@@ -96,6 +96,7 @@ import { isInstanceAdmin } from './instance-admin.ts'
 import { previewInvitation } from './invitations.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { registerJobberWebhookRoute } from './jobber-webhook.ts'
+import { registerSlackEventsRoute } from './slack-events.ts'
 import { ADMIN_CHECK_FIRST, mayCreateWorkspace, WORKSPACE_CREATION_CLOSED } from './workspace-creation.ts'
 import { businessSetupFor, onboardingFor, phoneSetupFor } from './onboarding.ts'
 import { firstUse } from './sample-calls.ts'
@@ -222,6 +223,9 @@ app.use(
 registerStripeWebhookRoute(app)
 // Public: Jobber's webhook (APP_DISCONNECT), checked by its signature, 404 while Jobber is not set up (jobber-webhook.ts).
 registerJobberWebhookRoute(app)
+// Public: the Slack app's Events API URL (app_uninstalled, tokens_revoked), checked by its signature, 404 without a
+// signing secret (slack-events.ts).
+registerSlackEventsRoute(app)
 
 // Public: the sign-in screen asks which methods this install offers, whether it still needs its first admin, and
 // whether self-serve sign-up is open (self-serve.ts `selfServeState`: the same check every sign-up step runs), so it

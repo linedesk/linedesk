@@ -462,12 +462,13 @@ const guides = {
   },
   slack: {
     url: 'https://api.slack.com/apps',
-    steps: [
-      'At api.slack.com/apps: Create New App › From a manifest, pick any Slack workspace of yours, and paste integrations/slack/manifest.json of the Linedesk repo (change the redirect URLs to the one shown below).',
-      'Manage Distribution › Activate Public Distribution, so other Slack workspaces can install it.',
-      'Basic Information › App Credentials: copy the client ID and the client secret and paste them here.',
+    stepKeys: [
+      msg('admin.provider.guide.slack.step1'),
+      msg('admin.provider.guide.slack.step2'),
+      msg('admin.provider.guide.slack.step3'),
+      msg('admin.provider.guide.slack.step4'),
     ],
-    cost: 'Free. Each business connects its own Slack, on any Slack plan.',
+    costKey: msg('admin.provider.guide.slack.cost'),
   },
   jobber: {
     url: 'https://developer.getjobber.com/',
@@ -1122,6 +1123,13 @@ export const providers = {
     fields: {
       client_id: { label: 'Client ID', env: 'SLACK_CLIENT_ID', secret: false, hint: '1234567890.1234567890' },
       client_secret: { label: 'Client secret', env: 'SLACK_CLIENT_SECRET', secret: true },
+      // Checks the Events API requests (apps/api/src/slack-events.ts): an uninstall in Slack is seen at once.
+      signing_secret: {
+        labelKey: msg('admin.provider.field.signingSecret'),
+        env: 'SLACK_SIGNING_SECRET',
+        secret: true,
+        optional: true,
+      },
     },
     help: 'A Slack app with the redirect URL below and the incoming-webhook scope. Businesses then connect their Slack under Integrations, pick a channel, and every finished phone call is posted there. Slack checks the client secret only when a business connects.',
   },
