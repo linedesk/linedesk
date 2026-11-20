@@ -52,10 +52,17 @@ export const scrubText = (text: string) =>
   )
 
 const OCTET = '(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)'
-/** An IPv4 address on its own (not inside a longer dotted number such as a version 1.2.3.4.5). */
-const IPV4 = new RegExp(`(?<![\\w.])(?:${OCTET}\\.){3}${OCTET}(?!\\.?\\w)`, 'g')
-/** An IPv6 candidate: hex groups and colons; isIpv6 decides (times like 12:30:45 and MAC addresses are not). */
-const IPV6_CANDIDATE = /(?<![\w:.])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}(?![\w:])/gi
+/**
+ * An IPv4 address on its own (not inside a longer dotted number such as a version 1.2.3.4.5, nor next to a letter or
+ * digit as in v1.2.3.4); next to `_` it is one (DB_HOST_10.0.0.5, 10.0.0.5_backup).
+ */
+const IPV4 = new RegExp(`(?<![A-Za-z0-9.])(?:${OCTET}\\.){3}${OCTET}(?!\\.?[A-Za-z0-9])`, 'g')
+/**
+ * An IPv6 candidate: hex groups and colons, up to 8 colons (1:2:3:4:5:6:7::, ::2:3:4:5:6:7:8, a full address with a
+ * :port), also right after `_` (HOST_2001:db8::5); isIpv6 decides (times like 12:30:45 and MAC addresses are not).
+ * Each group ends at its colon, so it runs in linear time on any input.
+ */
+const IPV6_CANDIDATE = /(?<![A-Za-z0-9:.])(?:[0-9a-f]{0,4}:){2,8}[0-9a-f]{0,4}(?![\w:])/gi
 /** Addresses that say nothing about an install: loopback and unspecified. */
 const NOT_IDENTIFYING = new Set(['127.0.0.1', '0.0.0.0', '::1', '::'])
 
@@ -63,8 +70,11 @@ function isIpv6(candidate: string): boolean {
   const compressed = candidate.split('::').length - 1
   if (compressed > 1) return false
   const groups = candidate.split(':').filter(Boolean)
-  // Full form has eight groups; a compressed one (2001:db8::1) at least one and a digit somewhere (not std::map).
-  return compressed === 1 ? groups.length >= 1 && /\d/.test(candidate) : groups.length === 8
+  // Full form has eight groups. A compressed one (2001:db8::1, 1:2:3:4:5:6:7::) stands for at least one zero group, so
+  // at most seven, and has a digit or at least three groups (dead::beef:cafe; not std::map, nor a lone dead::beef).
+  if (compressed === 0) return groups.length === 8
+  if (candidate.includes(':::') || groups.length > 7) return false
+  return groups.length >= 1 && (/\d/.test(candidate) || groups.length >= 3)
 }
 
 /**
@@ -75,7 +85,12 @@ function isIpv6(candidate: string): boolean {
 export const maskIpAddresses = (text: string) =>
   text
     .replace(IPV4, ip => (NOT_IDENTIFYING.has(ip) ? ip : '[ip]'))
-    .replace(IPV6_CANDIDATE, ip => (NOT_IDENTIFYING.has(ip.toLowerCase()) || !isIpv6(ip) ? ip : '[ip]'))
+    .replace(IPV6_CANDIDATE, ip => {
+      // A full address with its port and no brackets (2001:db8:0:0:0:0:0:1:443): the address goes, the port stays.
+      const port = /^((?:[0-9a-f]{1,4}:){8})(\d{1,4})$/i.exec(ip)
+      if (port) return isIpv6(port[1]!.slice(0, -1)) ? `[ip]:${port[2]}` : ip
+      return NOT_IDENTIFYING.has(ip.toLowerCase()) || !isIpv6(ip) ? ip : '[ip]'
+    })
 
 /** A path or URL without query, fragment, MCP setup key (/mcp/setup/<key>) or other secret-looking segment. */
 export const scrubPath = (path: string) =>

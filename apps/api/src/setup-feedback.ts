@@ -11,7 +11,8 @@
 // and phone numbers, the install's host), IP addresses, then scrubText (keys and tokens, phone numbers, email
 // addresses). The contact address goes only into `contact.email`, and only when the admin gave it for this report.
 // The preview carries a token (an HMAC of the redacted report): the yes must bring it back, and the report built again
-// for sending must be the one the admin saw. Reports are deleted after 90 days and with the account that made them.
+// for sending must be the one the admin saw; a token works once per setup link. Reports are deleted after 90 days and
+// with the account that made them.
 //
 // Sending: 5 s, no redirects; only 200/201 with `ok: true` counts as sent. A 400 is `refused` (never sent again);
 // anything else (offline, timeout, a 404 or HTML page while the endpoint does not exist, 429, 5xx) is `kept` and tried
@@ -47,7 +48,7 @@ import {
   type Tx,
   user,
 } from '@linedesk/db'
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { maskIpAddresses, scrubText } from '@linedesk/scrub'
 import { getDomain } from 'tldts'
 import { and, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm'
@@ -62,6 +63,12 @@ export const SETUP_FEEDBACK_SCHEMA = 'linedesk.setup-feedback/1'
 export const DEFAULT_SETUP_FEEDBACK_URL = 'https://linedesk.ai/api/setup-feedback'
 /** The contract's largest body (LIN-208): a report over it is shortened before it is stored and sent. */
 export const SETUP_REPORT_MAX_BYTES = 16 * 1024
+/**
+ * Room kept in SETUP_REPORT_MAX_BYTES for what the instance fills in at sending time, outside the preview's HMAC
+ * (report_id, sent_at, `setup`: the install's few steps and the minutes). fitReport measures only the signed part, so
+ * those fields moving between the preview and the yes never change how a report is cut.
+ */
+export const SETUP_REPORT_UNSIGNED_BYTES = 1024
 /** How long kept reports are tried again (every hour), counted from the admin's yes. */
 export const SETUP_REPORT_RETRY_DAYS = 7
 const SEND_TIMEOUT_MS = 5_000
@@ -490,11 +497,21 @@ export function redactReport(report: SetupReport, known: readonly Known[]): Setu
 }
 
 /**
+ * What the admin says yes to: the redacted report without what the instance fills in at sending time (report_id,
+ * sent_at, and `setup`, the steps' states and minutes, which may move between the preview and the yes).
+ */
+const consentedPart = (report: SetupReport) => {
+  const { report_id: _id, sent_at: _at, setup: _setup, ...rest } = report
+  return rest
+}
+
+/**
  * A report over the contract's 16 KB: the long texts shortened, then the last items dropped, until it fits. Ten items
- * at their longest are about 25 KB; most reports are far below.
+ * at their longest are about 25 KB; most reports are far below. Measured on the part the preview's HMAC covers, plus
+ * SETUP_REPORT_UNSIGNED_BYTES for the rest, so the preview and the send are always cut the same way.
  */
 export function fitReport(report: SetupReport): SetupReport {
-  const size = (r: SetupReport) => Buffer.byteLength(JSON.stringify(r))
+  const size = (r: SetupReport) => Buffer.byteLength(JSON.stringify(consentedPart(r))) + SETUP_REPORT_UNSIGNED_BYTES
   if (size(report) <= SETUP_REPORT_MAX_BYTES) return report
   const cut = (value: string | undefined, max: number) =>
     value && value.length > max ? `${value.slice(0, max - 1)}…` : value
@@ -619,15 +636,6 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value)
 }
 
-/**
- * What the admin says yes to: the redacted report without what the instance fills in at sending time (report_id,
- * sent_at, and `setup`, the steps' states and minutes, which may move between the preview and the yes).
- */
-const consentedPart = (report: SetupReport) => {
-  const { report_id: _id, sent_at: _at, setup: _setup, ...rest } = report
-  return rest
-}
-
 /** HMAC over the setup link and the expiry and the consented part, keyed from BETTER_AUTH_SECRET (agent-token.ts too). */
 function previewMac(
   setupKeyId: string,
@@ -666,7 +674,8 @@ export function previewTokenMatches(
   env: Record<string, string | undefined> = process.env,
 ): boolean {
   const [prefix, expires, mac, ...rest] = (token ?? '').split('.')
-  if (prefix !== PREVIEW_TOKEN_PREFIX || !expires || !mac || rest.length || !/^\d+$/.test(expires)) return false
+  // The expiry only as previewToken writes it (no leading zero), so one token has one spelling.
+  if (prefix !== PREVIEW_TOKEN_PREFIX || !expires || !mac || rest.length || !/^[1-9]\d*$/.test(expires)) return false
   const expiresAt = Number(expires)
   if (expiresAt < nowMs || expiresAt > nowMs + PREVIEW_TOKEN_TTL_MS) return false
   const want = Buffer.from(previewMac(setupKeyId, expiresAt, report, env))
@@ -674,9 +683,40 @@ export function previewTokenMatches(
   return got.length === want.length && timingSafeEqual(got, want)
 }
 
+/**
+ * What a used preview token is kept as on its report (feedback.preview_token_hash): the SHA-256 of its canonical form
+ * (the expiry as a plain number), never the token, so another spelling of the same token is the same used token.
+ */
+export function previewTokenHash(token: string): string {
+  const [prefix, expires, mac, ...rest] = token.split('.')
+  const canonical =
+    prefix === PREVIEW_TOKEN_PREFIX && expires && /^\d+$/.test(expires) && mac && !rest.length
+      ? `${PREVIEW_TOKEN_PREFIX}.${Number(expires)}.${mac}`
+      : token
+  return createHash('sha256').update(canonical).digest('hex')
+}
+
+/** Holds the setup link's lock until the transaction ends, so two sends on one link are checked one after the other. */
+export const lockSetupLink = (tx: Tx, setupKeyId: string) =>
+  tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`setup-feedback:${setupKeyId}`}))`)
+
+/**
+ * Refuses a yes whose preview_token already went out with a report of this setup link (a token works once). Checked
+ * before the rate limits, and it stores nothing, so a refused send never counts toward them. Call with the link locked.
+ */
+export async function checkPreviewTokenUnused(tx: Tx, setupKeyId: string, token: string | undefined) {
+  if (!token) return
+  const [used] = await tx
+    .select({ id: feedback.id })
+    .from(feedback)
+    .where(and(eq(feedback.setup_key_id, setupKeyId), eq(feedback.preview_token_hash, previewTokenHash(token))))
+    .limit(1)
+  if (used) throw Reject.t('server.api.feedback.setupPreviewUsed')
+}
+
 /** Refuses a setup link's report past its limits (per link: SETUP_REPORTS_PER_DAY, one per SETUP_REPORT_MIN_GAP_SECONDS). */
 export async function checkSetupReportRate(tx: Tx, setupKeyId: string, now: string) {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`setup-feedback:${setupKeyId}`}))`)
+  await lockSetupLink(tx, setupKeyId)
   const dayAgo = new Date(Date.parse(now) - 24 * 3_600_000).toISOString()
   const [recent] = await tx
     .select({ count: sql<number>`count(*)::int`, last: sql<string | null>`max(${feedback.created_at})` })
@@ -886,4 +926,23 @@ export async function pruneOldSetupReports(now = Date.now()) {
     .where(and(eq(feedback.kind, 'setup'), isNull(feedback.workspace_id), lt(feedback.created_at, before)))
     .returning({ id: feedback.id })
   return gone.length
+}
+
+/**
+ * The hourly setup-reports job (jobs.ts): the retry and the 90-day delete run each on their own, so one failing never
+ * skips the other; a failure is logged and the job still finishes.
+ */
+export async function runSetupFeedbackJob({
+  retry = () => retryKeptSetupReports(),
+  prune = () => pruneOldSetupReports(),
+}: {
+  retry?: () => Promise<{ tried: number }>
+  prune?: () => Promise<number>
+} = {}) {
+  const tried = await retry().then(
+    r => r.tried,
+    e => (console.error('setup reports: the retry failed:', e), null),
+  )
+  const pruned = await prune().catch(e => (console.error('setup reports: deleting old ones failed:', e), null))
+  return { tried, pruned }
 }

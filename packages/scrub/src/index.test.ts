@@ -204,3 +204,47 @@ test('maskIpAddresses: IPv4 and IPv6 masked, loopback kept, versions, times and 
   // scrubText itself leaves addresses alone (error reports keep them).
   expect(scrubText('connect ECONNREFUSED 10.0.0.5:5432')).toBe('connect ECONNREFUSED 10.0.0.5:5432')
 })
+
+test('maskIpAddresses: IPv6 with 8 colon groups and ::, digit-less IPv6, IPv4 after _ (second review of #1509)', () => {
+  expect(maskIpAddresses('a 1:2:3:4:5:6:7:: b, c ::2:3:4:5:6:7:8 d')).toBe('a [ip] b, c [ip] d')
+  expect(maskIpAddresses('AAAA dead::beef:cafe; full a:b:c:d:e:f:a:b')).toBe('AAAA [ip]; full [ip]')
+  expect(maskIpAddresses('DB_HOST_10.0.0.5 and HOST_2=192.0.2.10')).toBe('DB_HOST_[ip] and HOST_2=[ip]')
+  // Next to `_` on either side, IPv4 and IPv6 alike.
+  expect(maskIpAddresses('10.0.0.5_backup, HOST_2001:db8::5, ADDR_fe80::1')).toBe('[ip]_backup, HOST_[ip], ADDR_[ip]')
+  // A full IPv6 address with a port and no brackets: the address goes, the port stays.
+  expect(maskIpAddresses('dial 2001:db8:0:0:0:0:0:1:443 now')).toBe('dial [ip]:443 now')
+  for (const plain of [
+    'at 12:30:45 or 10:30:00',
+    'MAC 00:1a:2b:3c:4d:5e',
+    'Node 22.11.0, v1.2.3.4, version 1.2.3.4.5',
+    'std::vector<int>::iterator and std::map',
+    'face::bead (two groups, no digit)',
+    'a:b:c:d:e:f:1:2:3:4 and 1::2::3 and a:::b:c',
+    'MAC 00:1a:2b:3c:4d:5e:443',
+  ])
+    expect(maskIpAddresses(plain)).toBe(plain)
+})
+
+test('maskIpAddresses stays linear on 16 KB of hostile input', () => {
+  const size = 16 * 1024
+  const fill = (unit: string) => unit.repeat(Math.ceil(size / unit.length)).slice(0, size)
+  const hostile = [
+    fill(':'),
+    fill('1:'),
+    fill(' 1:'),
+    fill('a:'),
+    fill(' ::a'),
+    fill('ffff:'),
+    fill('1.'),
+    fill('_1.1.1.1'),
+    fill('_1.1.1.1.'),
+    fill('1:2:3:4:5:6:7:8:'),
+    fill(' 1:2:3:4:5:6:7::x'),
+    `${fill('0')}:`,
+  ]
+  for (const text of hostile) {
+    const start = performance.now()
+    maskIpAddresses(text)
+    expect(performance.now() - start).toBeLessThan(250)
+  }
+})

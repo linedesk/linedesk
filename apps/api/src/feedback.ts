@@ -32,8 +32,11 @@ import {
   agentClientOf,
   CLAIM_GAP_MS,
   buildSetupReport,
+  checkPreviewTokenUnused,
   checkSetupReportRate,
+  lockSetupLink,
   deliverSetupReport,
+  previewTokenHash,
   previewTokenMatches,
   readSetupFeedbackUrl,
   SENDING_OFF,
@@ -174,6 +177,9 @@ const sendSetupReport: Handler = async ({ tx, actor, now, onCommit }, input: Fee
   if (input.kind !== 'setup' || !input.setup) throw Reject.t('server.api.feedback.setupNeedsReport')
   if (input.user_consented !== true) throw Reject.t('server.api.feedback.setupNeedsConsent')
   if (input.screenshot || input.page || input.context) throw Reject.t('server.api.feedback.setupTextOnly')
+  // A preview_token works once per link; refused before the rate limits, so the agent hears why (nothing is counted).
+  await lockSetupLink(tx, actor.setupKeyId!)
+  await checkPreviewTokenUnused(tx, actor.setupKeyId!, input.preview_token)
   await checkRate(tx, actor.actorId, now)
   await checkSetupReportRate(tx, actor.setupKeyId!, now)
   const report = await buildSetupReport(tx, actor, input, { now })
@@ -194,6 +200,7 @@ const sendSetupReport: Handler = async ({ tx, actor, now, onCommit }, input: Fee
     last_error: off ? SENDING_OFF : null,
     setup_key_id: actor.setupKeyId!,
     report,
+    preview_token_hash: previewTokenHash(input.preview_token!),
     created_at: now,
   }
   await tx.insert(feedback).values(row)

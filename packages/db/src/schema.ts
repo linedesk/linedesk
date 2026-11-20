@@ -3138,6 +3138,8 @@ export const feedback = pgTable(
     /** A setup report: how often it was sent to the endpoint, and when last. */
     tries: integer('tries').notNull().default(0),
     tried_at: ts('tried_at'),
+    /** A setup report: SHA-256 of the preview_token its yes brought; a token works once per setup link. */
+    preview_token_hash: text('preview_token_hash'),
   },
   t => [
     // The rate limit counts a sender's recent reports.
@@ -3145,6 +3147,10 @@ export const feedback = pgTable(
     index('feedback_ws').on(t.workspace_id),
     // Setup reports per link (rate limit, setup_status.feedback) and the hourly retry of kept ones.
     index('feedback_setup_key').on(t.setup_key_id),
+    // A preview token is used once per setup link (the yes is to one preview, one report).
+    uniqueIndex('feedback_setup_preview_token')
+      .on(t.setup_key_id, t.preview_token_hash)
+      .where(sql`${t.preview_token_hash} is not null`),
     check('feedback_kind', oneOf(t.kind, FEEDBACK_KINDS)),
     check('feedback_via', oneOf(t.via, FEEDBACK_VIA)),
     check('feedback_status', oneOf(t.status, FEEDBACK_STATUSES)),

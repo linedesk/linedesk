@@ -14,6 +14,7 @@ import { runAction } from '../src/run-action.ts'
 import {
   DEFAULT_SETUP_FEEDBACK_URL,
   deliverSetupReport,
+  fitReport,
   knownValues,
   phonePattern,
   redactText,
@@ -22,10 +23,14 @@ import {
   MAX_ANSWER_BYTES,
   postReport,
   previewToken,
+  previewTokenHash,
   previewTokenMatches,
   pruneOldSetupReports,
   readSetupFeedbackUrl,
   retryKeptSetupReports,
+  runSetupFeedbackJob,
+  SETUP_REPORT_MAX_BYTES,
+  SETUP_REPORT_UNSIGNED_BYTES,
   type SetupReport,
   serverVersion,
 } from '../src/setup-feedback.ts'
@@ -702,8 +707,130 @@ describe('the yes is tied to the preview the admin saw (F7)', () => {
     expect(previewTokenMatches(token, 'ask_1', sample, now, { BETTER_AUTH_SECRET: 'another-secret-value' })).toBe(false)
     const [p, e, mac] = token.split('.')
     expect(previewTokenMatches(`${p}.${Number(e) + 1}.${mac}`, 'ask_1', sample, now, env)).toBe(false)
+    // One spelling only: a zero-padded expiry is refused (it would read as a new token, second review of #1522).
+    expect(previewTokenMatches(`${p}.0${e}.${mac}`, 'ask_1', sample, now, env)).toBe(false)
+    expect(previewTokenMatches(`${p}.00${e}.${mac}`, 'ask_1', sample, now, env)).toBe(false)
     for (const bad of [undefined, '', 'pt1', 'pt1..', `${token}.x`, token.replace(/.$/, c => (c === 'A' ? 'B' : 'A'))])
       expect(previewTokenMatches(bad, 'ask_1', sample, now, env)).toBe(false)
+  })
+})
+
+describe('second review of #1509: one send per preview, the size measured on the signed part', () => {
+  test('a preview_token works once per link; the refusal says so and does not count toward the limits', async () => {
+    mockEndpoint()
+    const { key, keyId } = await makeKey(admin)
+    const { preview_token } = await call(key, 'feedback_send', report())
+    const yes = { ...report(), user_consented: true, preview_token }
+    expect((await call(key, 'feedback_send', yes)).status).toBe('sent')
+    // Right away: the token's own line, not the link's "wait 60 seconds".
+    expect((await call(key, 'feedback_send', yes)).error).toMatch(/already sent; each preview_token works once/)
+    // Later too, while the token would still be good for its hour.
+    await age(keyId, 3700)
+    expect((await call(key, 'feedback_send', yes)).error).toMatch(/already sent/)
+    expect(await rowsOf(keyId)).toHaveLength(1)
+    expect(posted).toHaveLength(1)
+    // Another spelling of the same token (a zero-padded expiry) is the same used token, and never a valid one.
+    const [p, expires, mac] = preview_token.split('.')
+    const padded = `${p}.0${expires}.${mac}`
+    expect(previewTokenHash(padded)).toBe(previewTokenHash(preview_token))
+    expect((await call(key, 'feedback_send', { ...yes, preview_token: padded })).error).toMatch(/already sent/)
+    expect(await rowsOf(keyId)).toHaveLength(1)
+    // Only the token's hash is kept on the report.
+    const [row] = await rowsOf(keyId)
+    expect(row!.preview_token_hash).toBe(previewTokenHash(preview_token))
+    expect(JSON.stringify(row)).not.toContain(preview_token)
+    // The refusals stored nothing: a new preview and yes go out at once (past feedback.send's own 10 s only).
+    await db
+      .update(feedback)
+      .set({ created_at: new Date(Date.now() - 2 * 3_600_000).toISOString() })
+      .where(eq(feedback.actor_id, admin.userId))
+    expect((await consent(key, report())).status).toBe('sent')
+    expect(await rowsOf(keyId)).toHaveLength(2)
+    await db.delete(feedback).where(eq(feedback.setup_key_id, keyId))
+  })
+
+  const sample = (whatHappened: string, setup: SetupReport['setup']): SetupReport => ({
+    schema: 'linedesk.setup-feedback/1',
+    report_id: 'sf_00000000000000000001',
+    sent_at: '2026-01-01T00:00:00.000Z',
+    source: 'agent',
+    install: { install_ref: 'ir_00000000000000000001', version: 'test', install_type: 'dev', public: false },
+    agent: { client: 'claude-code' },
+    setup,
+    outcome: 'partial',
+    summary: 'Made up for the size test.',
+    items: [{ category: 'confusing', what_happened: whatHappened, severity: 'low' }],
+  })
+  const fewSteps: SetupReport['setup'] = { current_step: null, steps: {}, minutes_since_start: 0 }
+  // The most the instance fills in outside the HMAC: every install step, the longest state, the longest minutes.
+  const mostSteps: SetupReport['setup'] = {
+    current_step: 'call-audio',
+    steps: { email: 'failing', answering: 'failing', telephony: 'failing', 'call-audio': 'failing' },
+    minutes_since_start: 1440,
+  }
+  const signedBytes = (r: SetupReport) => {
+    const { report_id: _a, sent_at: _b, setup: _c, ...signed } = r
+    return Buffer.byteLength(JSON.stringify(signed))
+  }
+
+  test('a report at the edge is cut the same way at the preview and the send, whatever the steps say', () => {
+    const base = signedBytes(sample('', fewSteps))
+    const edge = 'x'.repeat(SETUP_REPORT_MAX_BYTES - SETUP_REPORT_UNSIGNED_BYTES - base)
+    const atPreview = fitReport(sample(edge, fewSteps))
+    const atSend = fitReport(sample(edge, mostSteps))
+    expect(atPreview.items[0]!.what_happened).toBe(edge)
+    expect(atSend.items).toEqual(atPreview.items)
+    // So the token of the preview matches the report built again for the send.
+    const env = { BETTER_AUTH_SECRET: ['test', 'only', 'size', 'signing', 'value'].join('-') }
+    const now = Date.parse('2026-01-01T00:00:00.000Z')
+    expect(previewTokenMatches(previewToken('ask_1', atPreview, now, env), 'ask_1', atSend, now, env)).toBe(true)
+    // One byte more is cut, at both.
+    const over = `${edge}x`
+    expect(fitReport(sample(over, fewSteps)).items).toEqual(fitReport(sample(over, mostSteps)).items)
+    expect(fitReport(sample(over, fewSteps)).items[0]!.what_happened.length).toBeLessThan(over.length)
+  })
+
+  test('the whole report stays within 16 KB: the unsigned fields fit in their reserved room', () => {
+    const unsigned = Buffer.byteLength(
+      JSON.stringify({ report_id: 'sf_ffffffffffffffffffff', sent_at: '2026-12-31T23:59:59.999Z', setup: mostSteps }),
+    )
+    expect(unsigned).toBeLessThan(SETUP_REPORT_UNSIGNED_BYTES)
+    const base = signedBytes(sample('', mostSteps))
+    const edge = 'x'.repeat(SETUP_REPORT_MAX_BYTES - SETUP_REPORT_UNSIGNED_BYTES - base)
+    for (const text of [edge, `${edge}x`, 'x'.repeat(40_000)])
+      expect(Buffer.byteLength(JSON.stringify(fitReport(sample(text, mostSteps))))).toBeLessThanOrEqual(
+        SETUP_REPORT_MAX_BYTES,
+      )
+  })
+})
+
+describe('the hourly job runs the retry and the delete on their own (second review of #1509)', () => {
+  test('a failing retry does not skip the delete, nor the other way round; both are logged', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const prune = vi.fn(async () => 3)
+    expect(
+      await runSetupFeedbackJob({
+        retry: async () => {
+          throw new Error('made-up retry failure')
+        },
+        prune,
+      }),
+    ).toEqual({ tried: null, pruned: 3 })
+    expect(prune).toHaveBeenCalledOnce()
+    const retry = vi.fn(async () => ({ tried: 2 }))
+    expect(
+      await runSetupFeedbackJob({
+        retry,
+        prune: async () => {
+          throw new Error('made-up delete failure')
+        },
+      }),
+    ).toEqual({ tried: 2, pruned: null })
+    expect(retry).toHaveBeenCalledOnce()
+    expect(logged.mock.calls.map(c => String(c[0]))).toEqual([
+      'setup reports: the retry failed:',
+      'setup reports: deleting old ones failed:',
+    ])
   })
 })
 
@@ -734,6 +861,10 @@ describe('business words, street lines, short names and IP addresses (F4, F11)',
   test('IP addresses are masked in a report, loopback stays', () => {
     expect(redactText('ssh root@203.0.113.42 timed out; AAAA 2001:db8::7 ok; 127.0.0.1:3100 up', [], 500)).toBe(
       'ssh root@[ip] timed out; AAAA [ip] ok; 127.0.0.1:3100 up',
+    )
+    // The edge forms of the second review: 8 colon groups with ::, digit-less IPv6, IPv4 after _.
+    expect(redactText('DB_HOST_10.0.0.5, AAAA dead::beef:cafe and 1:2:3:4:5:6:7:: at 12:30:45', [], 500)).toBe(
+      'DB_HOST_[ip], AAAA [ip] and [ip] at 12:30:45',
     )
   })
 })

@@ -153,6 +153,7 @@
   "api.feedback.setupNeedsConsent": "Show the admin the preview first and send the report only with their yes (user_consented: true).",
   "api.feedback.setupNeedsReport": "A setup report needs kind setup and the report itself (setup.outcome and setup.items).",
   "api.feedback.setupPreviewMismatch": "This is not the report the admin saw (no preview_token, or the report changed since the preview). Call feedback_send without user_consented for a new preview and ask the admin again.",
+  "api.feedback.setupPreviewUsed": "This preview was already sent; each preview_token works once. For another report, call feedback_send without user_consented for a new preview and ask the admin again.",
   "api.feedback.setupTextOnly": "A setup report has no page, context or screenshot.",
   "api.feedback.setupTooMany": "This setup link sent {count} setup reports today. Please don't send more.",
   "api.feedback.setupTooSoon": "A setup report went out a moment ago. Wait {seconds} seconds before the next one.",

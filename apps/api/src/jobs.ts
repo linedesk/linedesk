@@ -38,7 +38,7 @@ import { runSeatSync, type SeatSyncJob, seatSyncFailed } from './partner-billing
 import { sendUsageLimitAlert, type UsageLimitAlert } from './usage-limit.ts'
 import { deleteClonedVoice } from './voices.ts'
 import { sendDueSetupEmails } from './setup-emails.ts'
-import { pruneOldSetupReports, retryKeptSetupReports } from './setup-feedback.ts'
+import { runSetupFeedbackJob } from './setup-feedback.ts'
 import { sendSpendingAlert, type SpendingAlert } from './spending-cap.ts'
 import { attemptAnyDelivery } from './integrations.ts'
 import { APP_PUSH_ATTEMPTS, attemptAppPush, sweepAppPushes } from './app-pushes.ts'
@@ -336,10 +336,7 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.work(SETUP_EMAILS, async () => sendDueSetupEmails(db, emailSender))
   await instance.schedule(SETUP_FEEDBACK_RETRY, SETUP_FEEDBACK_RETRY_CRON)
   // The same hourly job deletes setup reports past their 90 days (pruneOldSetupReports).
-  await instance.work(SETUP_FEEDBACK_RETRY, async () => ({
-    ...(await retryKeptSetupReports()),
-    pruned: await pruneOldSetupReports(),
-  }))
+  await instance.work(SETUP_FEEDBACK_RETRY, () => runSetupFeedbackJob())
   await instance.schedule(COMMAND_PRUNE, COMMAND_PRUNE_CRON)
   // Daily: the command log's old inputs, expired codes and passkey challenges (verifications.ts), and admin browsers
   // not seen for longer than their cookie lives (admin-devices.ts).
