@@ -1203,13 +1203,18 @@ export const providerSetKeys = defineAction({
     .superRefine(({ provider, values }, ctx) => {
       const fields: Record<string, ProviderField> = providers[provider].fields
       const names = Object.keys(values)
-      if (!names.length) ctx.addIssue({ code: 'custom', message: 'give at least one value' })
+      if (!names.length) ctx.addIssue({ code: 'custom', message: msg('server.input.provider.atLeastOneValue') })
       // Messages name the field, never the value.
       for (const name of names) {
         const field = fields[name]
-        if (!field) ctx.addIssue({ code: 'custom', message: `${provider} has no field ${name}` })
+        if (!field)
+          ctx.addIssue({
+            code: 'custom',
+            message: msg('server.input.provider.noSuchField'),
+            params: { provider, name },
+          })
         else if (field.switch && !['true', 'false'].includes(values[name]!))
-          ctx.addIssue({ code: 'custom', message: `${name} must be true or false` })
+          ctx.addIssue({ code: 'custom', message: msg('server.input.provider.trueOrFalse'), params: { name } })
       }
       if (
         provider === 's3' &&
@@ -1218,27 +1223,27 @@ export const providerSetKeys = defineAction({
       )
         ctx.addIssue({
           code: 'custom',
-          message: 'endpoint must be an http(s) URL, e.g. https://s3.us-east-1.amazonaws.com',
+          message: msg('server.input.provider.s3Endpoint'),
+          params: { example: 'https://s3.us-east-1.amazonaws.com' },
         })
       if (provider === 'smtp' && values.url !== undefined && !/^smtps?:\/\/\S+$/i.test(values.url))
-        ctx.addIssue({ code: 'custom', message: 'the SMTP URL starts with smtp:// or smtps://' })
+        ctx.addIssue({ code: 'custom', message: msg('server.input.provider.smtpUrl') })
       if (provider === 'oidc' && values.discovery_url !== undefined && !/^https:\/\/\S+$/i.test(values.discovery_url))
-        ctx.addIssue({ code: 'custom', message: 'the discovery URL must be an https URL' })
+        ctx.addIssue({ code: 'custom', message: msg('server.input.provider.discoveryUrl') })
       if (provider === 's3' && values.prefix !== undefined && !isRecordingPrefix(values.prefix))
-        ctx.addIssue({ code: 'custom', message: 'prefix may only hold letters, digits, - _ . and /' })
+        ctx.addIssue({ code: 'custom', message: msg('server.input.provider.s3Prefix') })
       if (provider === 'stripe' && values.secret_key !== undefined && !STRIPE_SECRET_KEY.test(values.secret_key))
         ctx.addIssue({
           code: 'custom',
-          message:
-            'the secret key is a Stripe secret key (sk_test_…, sk_live_…) or restricted key (rk_test_…, rk_live_…)',
+          message: msg('server.input.provider.stripeSecretKey'),
         })
       const signingSecrets = {
-        webhook_secret: 'the webhook signing secret',
-        webhook_secret_previous: 'the previous webhook signing secret',
+        webhook_secret: msg('server.input.provider.stripeWebhookSecret'),
+        webhook_secret_previous: msg('server.input.provider.stripeWebhookSecretPrevious'),
       }
-      for (const [field, name] of Object.entries(signingSecrets))
+      for (const [field, message] of Object.entries(signingSecrets))
         if (provider === 'stripe' && values[field] !== undefined && !/^whsec_[A-Za-z0-9]+$/.test(values[field]))
-          ctx.addIssue({ code: 'custom', message: `${name} starts with whsec_` })
+          ctx.addIssue({ code: 'custom', message })
     }),
   permission: 'instance:admin',
   sensitive: ['values'],
@@ -1258,9 +1263,9 @@ export const providerSetActive = defineAction({
   input: z
     .object({ category: z.enum(categoryNames), provider: provider.nullable() })
     .refine(i => i.provider === null || providers[i.provider].category === i.category, {
-      message: 'that provider belongs to another category',
+      message: msg('server.input.provider.otherCategory'),
     })
-    .refine(i => !isMultiCategory(i.category), { message: 'every provider set up in this category is in use' }),
+    .refine(i => !isMultiCategory(i.category), { message: msg('server.input.provider.categoryInUse') }),
   permission: 'instance:admin',
 })
 

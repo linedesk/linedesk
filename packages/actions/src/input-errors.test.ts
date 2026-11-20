@@ -127,3 +127,13 @@ describe('a schema’s own message with params', () => {
     expect(inputErrorText(parsed.error!, input, pseudo)).toMatch(/⟦.*3,660 days.*⟧/)
   })
 })
+
+describe('admin schema messages as keys', () => {
+  it('keeps their English, with the field names and values as params', () => {
+    const input = { provider: 'smtp', values: { nope: 'x', url: 'mail.example.test' } }
+    const parsed = actions.get('provider.setKeys')!.input.safeParse(input)
+    expect(inputErrorText(parsed.error!, input)).toBe(
+      'Smtp has no field nope. The SMTP URL starts with smtp:// or smtps://.',
+    )
+  })
+})

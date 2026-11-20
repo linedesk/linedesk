@@ -5,14 +5,15 @@
 // ask Stripe carry a request id, the idempotency key of every Stripe request it makes.
 import type { BillingRules, SignupRules } from '@linedesk/db/types'
 import type { BillingEnabledData } from './billing.ts'
+import { msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
 const billId = z.string().min(1).max(100)
 /** Why the admin did it: kept in the audit log with the action (the command log's input). */
-const reason = z.string().trim().min(3, 'say why, in a few words').max(500)
+const reason = z.string().trim().min(3).max(500)
 /** Made by the page once per dialog: the same request sent twice moves money once (Stripe's idempotency key). */
-const requestId = z.string().regex(/^[A-Za-z0-9_-]{8,64}$/, 'a request id (8 to 64 letters, digits, - or _)')
+const requestId = z.string().regex(/^[A-Za-z0-9_-]{8,64}$/, msg('server.input.billing.requestId'))
 /** Money in whole cents, at most $100,000 per action. */
 const cents = z.number().int().min(1).max(10_000_000)
 
@@ -118,17 +119,17 @@ export const billingCredit = defineAction({
       rechargeId: z.string().min(1).max(100).optional(),
       reversesEntryId: z.string().min(1).max(100).optional(),
     })
-    .refine(i => i.amountCents !== 0, { message: 'an amount other than 0', path: ['amountCents'] })
+    .refine(i => i.amountCents !== 0, { message: msg('server.input.billing.amountNotZero'), path: ['amountCents'] })
     .refine(i => i.kind === 'adjustment' || i.amountCents > 0, {
-      message: 'a credit or write-off adds to the balance',
+      message: msg('server.input.billing.creditAdds'),
       path: ['amountCents'],
     })
     .refine(i => !i.reversesEntryId || i.kind === 'adjustment', {
-      message: 'only an adjustment corrects an entry',
+      message: msg('server.input.billing.onlyAdjustmentCorrects'),
       path: ['reversesEntryId'],
     })
     .refine(i => !i.rechargeId || i.kind === 'credit', {
-      message: 'a recharge attempt is credited with kind credit',
+      message: msg('server.input.billing.rechargeIsCredit'),
       path: ['rechargeId'],
     }),
   permission: 'instance:admin',

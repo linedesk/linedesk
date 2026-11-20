@@ -1,6 +1,7 @@
 // A workspace's own carrier account: by default a workspace uses the install's telephony provider
 // (Server admin › Providers); an owner or admin can bring their own Telnyx or Twilio account instead. The
 // credentials are stored encrypted per workspace and never come back to the browser.
+import { msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { defineAction } from './define.ts'
 
@@ -40,9 +41,9 @@ const twilioValues = z
   })
   .strict()
   .refine(v => !!v.auth_token !== !!(v.api_key_sid && v.api_key_secret), {
-    message: 'give either an API key (SID and secret) or the auth token',
+    message: msg('server.input.carrier.keyOrToken'),
   })
-  .refine(v => !!v.api_key_sid === !!v.api_key_secret, { message: 'an API key needs its SID and its secret' })
+  .refine(v => !!v.api_key_sid === !!v.api_key_secret, { message: msg('server.input.carrier.sidAndSecret') })
 
 export const carrierSet = defineAction({
   name: 'carrier.set',
@@ -60,7 +61,7 @@ export const carrierSet = defineAction({
             public_key: z
               .string()
               .trim()
-              .regex(/^[A-Za-z0-9+/]{43}=$/, 'the public key is 44 base64 characters')
+              .regex(/^[A-Za-z0-9+/]{43}=$/, msg('server.input.carrier.publicKey'))
               .optional(),
           })
           .strict(),

@@ -1,6 +1,7 @@
 // Billing of an install's workspaces through its own Stripe account (docs/billing.md). The instance switch: billing runs only when Stripe is connected under
 // Server admin › Billing › Stripe and an instance admin turned it on here. Off by default, so a self-hosted install
 // never bills anyone, even with keys stored.
+import { msg } from '@linedesk/i18n'
 import { z } from 'zod'
 import { billTarget } from './billing-checkout.ts'
 import { defineAction } from './define.ts'
@@ -21,7 +22,7 @@ export const billingEnabledSet = defineAction({
   permission: 'instance:admin',
 })
 /** A Stripe event id (`evt_…`), as the webhook inbox stores it. */
-const stripeEventId = z.string().regex(/^evt_[A-Za-z0-9]{1,250}$/, 'a Stripe event id (evt_…)')
+const stripeEventId = z.string().regex(/^evt_[A-Za-z0-9]{1,250}$/, msg('server.input.billing.stripeEventId'))
 
 /**
  * Processes one stored Stripe event (docs/billing.md §5.1): fetches the object from Stripe and acts on it for the bill
@@ -45,10 +46,10 @@ export const billingSettleInvoice = defineAction({
   description:
     'Settle a paid recharge invoice from its state in Stripe: credit it once when it is really paid. Billing jobs only.',
   input: z.object({
-    invoiceId: z.string().regex(/^in_[A-Za-z0-9]{1,250}$/, 'a Stripe invoice id (in_…)'),
+    invoiceId: z.string().regex(/^in_[A-Za-z0-9]{1,250}$/, msg('server.input.billing.stripeInvoiceId')),
     customerId: z
       .string()
-      .regex(/^cus_[A-Za-z0-9]{1,250}$/, 'a Stripe customer id (cus_…)')
+      .regex(/^cus_[A-Za-z0-9]{1,250}$/, msg('server.input.billing.stripeCustomerId'))
       .nullish(),
   }),
   permission: 'billing:system',
@@ -65,7 +66,7 @@ export const billingReprocessEvent = defineAction({
     'Process a stored Stripe event again, for example after it failed five times. Every effect it has (a credit, a status) happens once. Needs the reason, kept in the audit log.',
   input: z.object({
     eventId: stripeEventId,
-    reason: z.string().trim().min(3, 'say why, in a few words').max(500),
+    reason: z.string().trim().min(3).max(500),
   }),
   permission: 'instance:admin',
 })

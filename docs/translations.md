@@ -207,8 +207,8 @@ steps, field labels, country names, voice pipeline labels, refusals the web app 
   key, `msg('server.input.…')`, with the issue's `params` when it has numbers or names); the refusals of Server admin
   › Billing, appointment types, the team, webhooks, integrations, calendar connections and Write with help; calendar
   listing problems (`calendarProblem`), the partner bill refusals and "not while signed in as another user" in the
-  registry. Left, in `server-text-baseline.json`: the providers' setup guides and costs (`admin.ts`), the admin and
-  carrier schema messages, carrier forwarding guides, the booking refusals the assistant reads (rule 11) and the rest
+  registry; the admin, carrier and billing schema messages. Left, in `server-text-baseline.json`: the providers' setup
+  guides and costs (`admin.ts`), carrier forwarding guides, the booking refusals the assistant reads (rule 11) and the rest
   of the API.
 
 ## Emails and notifications
