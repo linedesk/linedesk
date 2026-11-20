@@ -736,11 +736,13 @@ describe('OAuth of the scheduling tools', () => {
     expect(url.searchParams.get('scope')).toBe(
       'PROFILE_READ EVENT_TYPE_READ BOOKING_READ BOOKING_WRITE',
     )
-    expect(url.searchParams.get('code_challenge_method')).toBe('S256')
+    // No PKCE: Cal.com refuses code_verifier for a client without it ("property code_verifier should not exist").
+    expect(url.searchParams.has('code_challenge')).toBe(false)
     const { fetch, sent } = recorder(tokens)
     const oauth = createCalComOAuth(client, { fetch })
     await oauth.exchangeCode({ code: 'c', redirectUri: 'https://app.test/cb', codeVerifier: 'v' })
-    expect(sent[0]).toMatchObject({ url: 'https://api.cal.com/v2/auth/oauth2/token', form: { grant_type: 'authorization_code', client_id: 'cid', client_secret: 'csecret', code_verifier: 'v' } })
+    expect(sent[0]).toMatchObject({ url: 'https://api.cal.com/v2/auth/oauth2/token', form: { grant_type: 'authorization_code', client_id: 'cid', client_secret: 'csecret' } })
+    expect(sent[0]!.form).not.toHaveProperty('code_verifier')
     expect(await oauth.revoke('rt')).toBe(false)
     const me = recorder({ status: 'success', data: { email: 'mike@brightwater.example' } })
     expect(await createCalComOAuth(client, { fetch: me.fetch }).accountEmail('at')).toBe('mike@brightwater.example')

@@ -43,7 +43,9 @@ export function createCalComOAuth({ clientId, clientSecret }: OAuthClient, { fet
   return {
     name: 'calcom',
     scopes: CALCOM_SCOPES,
-    authorizeUrl({ redirectUri, state, codeChallenge }) {
+    // A confidential client (the secret is sent): Cal.com refuses code_verifier unless the client has PKCE on, so
+    // neither the challenge nor the verifier is sent.
+    authorizeUrl({ redirectUri, state }) {
       const url = new URL(CALCOM_AUTHORIZE)
       url.search = new URLSearchParams({
         client_id: clientId,
@@ -51,19 +53,16 @@ export function createCalComOAuth({ clientId, clientSecret }: OAuthClient, { fet
         response_type: 'code',
         scope: CALCOM_SCOPES.join(' '),
         state,
-        code_challenge: codeChallenge,
-        code_challenge_method: 'S256',
       }).toString()
       return url.toString()
     },
-    exchangeCode: ({ code, redirectUri, codeVerifier }) =>
+    exchangeCode: ({ code, redirectUri }) =>
       tokenRequest('calcom', 'connect', CALCOM_TOKEN, {
         grant_type: 'authorization_code',
         code,
         redirect_uri: redirectUri,
         client_id: clientId,
         client_secret: clientSecret,
-        code_verifier: codeVerifier,
       }, doFetch, timeoutMs),
     refresh: refreshToken =>
       tokenRequest('calcom', 'refresh access', CALCOM_TOKEN, {
