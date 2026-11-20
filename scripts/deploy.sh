@@ -320,8 +320,10 @@ call_services() {
 }
 
 # Calls in progress (empty when it cannot be asked, which counts as busy). On the app server: live calls in the
-# database. On voice server 1 (no Postgres there): LiveKit's rooms, read through the agent container, as every call
-# is a room.
+# database. On voice server 1 (no Postgres there): LiveKit's rooms with someone in them, read through the agent
+# container, as every call is a room. A room older than 3 hours is not counted: a call lasts at most about 2 hours (a
+# call put through to a person), and an older one is a leftover in Valkey (a node that crashed, or Valkey's data
+# copied from another server) that LiveKit can no longer close and that would otherwise hold every update back.
 live_calls() {
   if ! grep -qx postgres <<<"$SERVICES"; then
     local agent
@@ -330,7 +332,8 @@ live_calls() {
     docker exec -i "$agent" node -e '
       const { RoomServiceClient } = require("livekit-server-sdk")
       new RoomServiceClient(process.env.LIVEKIT_URL.replace(/^ws/, "http"), process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET)
-        .listRooms().then((rooms) => console.log(rooms.length), () => {})' 2>/dev/null | tr -d '[:space:]'
+        .listRooms().then((rooms) => console.log(rooms.filter((r) => r.numParticipants > 0 &&
+          Date.now() / 1000 - Number(r.creationTime) < 3 * 3600).length), () => {})' 2>/dev/null | tr -d '[:space:]'
     return
   fi
   # shellcheck disable=SC2016 # the variables are the postgres container's own
