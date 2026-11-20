@@ -77,6 +77,9 @@ const DECLINES_SCOPE = {
   ],
 }
 
+/** The condition of the staging assistant's on-call contacts (LIN-509). */
+const URGENT_ONLY = 'Urgent: a burst pipe, flooding, a gas smell or no heat in freezing weather'
+
 const english = (turns: string[]): CallerTurn[] => turns
 
 export const CASES: Case[] = [
@@ -693,6 +696,33 @@ export const CASES: Case[] = [
     why: "call.transfer: when a contact's condition fits, put the caller through, don't take a message (or the name) first",
     setup: setup({ transfers: [MIKE] }),
     turns: english(['A pipe burst in my kitchen and the floor is flooding!']),
+    sim: { transfer: 'connected' },
+    checks: [
+      { type: 'tool', tool: 'transfer_call', byTurn: 1 },
+      { type: 'noTool', tool: ['get_name', 'get_phone_number', 'get_address'] },
+    ],
+    severity: 'must',
+  },
+  {
+    id: 'transfer-urgent-no-callback-first',
+    category: 'transfer',
+    title: 'German test call, burst pipe, caller wants a person: transfer, no callback number first',
+    why: "call.transfer: when a contact's condition fits, put the caller through before taking a message; flag_urgent must not start one (LIN-509)",
+    setup: setup({
+      caller: 'testCall',
+      transfers: [
+        { ...MIKE, condition: URGENT_ONLY, if_no_answer: 'next' },
+        { ...MIKE, id: 'tc_sarah', name: 'Sarah', condition: URGENT_ONLY },
+      ],
+      assistant: { languages: { main: 'de', mode: 'any', allowed: [] } },
+    }),
+    turns: [
+      {
+        say: 'Hallo? Hier ist Dana. Unter meiner Küchenspüle ist gerade ein Rohr geplatzt. Das Wasser läuft überall hin. Ich brauche sofort einen Klempner und möchte direkt mit jemandem sprechen.',
+        lang: 'de',
+      },
+      { say: 'Ja, bitte stellen Sie mich durch.', lang: 'de' },
+    ],
     sim: { transfer: 'connected' },
     checks: [
       { type: 'tool', tool: 'transfer_call', byTurn: 1 },
