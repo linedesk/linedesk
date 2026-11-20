@@ -217,6 +217,8 @@ describe('access', () => {
       'calendarTools.set',
       'callQuality.get',
       'callQuality.set',
+      'feedback.resend',
+      'feedback.setupReports',
       'germanNumbers.get',
       'germanNumbers.group',
       'germanNumbers.set',
@@ -2547,6 +2549,8 @@ describe('impersonation', () => {
       'emailRouting.get',
       // The questions of How <assistant> did, a read; marking an evaluation done or open stays refused.
       'evaluation.listQuestions',
+      // Read-only and instance:admin (Server admin › System › Setup reports), as above.
+      'feedback.setupReports',
       // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
       'germanNumbers.get',
       'germanNumbers.group',

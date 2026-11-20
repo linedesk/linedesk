@@ -3,13 +3,16 @@
 // whether workspaces may clone voices (off until an instance admin turns it on), where transfers may call (InternationalTransfers.tsx), and
 // whether users are emailed when an admin signs in as them (off by default), German numbers held in this server's name
 // (off by default), who may sign up in which country (open, only invited emails or off; Germany once German numbers
-// are on: SignupAccess.tsx), the link to the Linedesk app on Zapier and what Zapier needs from this server.
+// are on: SignupAccess.tsx), the link to the Linedesk app on Zapier and what Zapier needs from this server, and the
+// setup reports AI agents sent the Linedesk team (LIN-210), with Send again for kept ones.
 import {
   areaCodeShown,
   type GermanGroupData,
   type GermanGroupState,
   type ImpersonationEmailsData,
   type GermanNumbersData,
+  type SetupReportRow,
+  type SetupReportsData,
   type StatusState,
   type VoiceCloningData,
   ZAPIER_HOOKS_HOST,
@@ -17,7 +20,8 @@ import {
   zapierAppUrlSchema,
   zapierCanReach,
 } from '@linedesk/actions'
-import { T, useT } from '@linedesk/i18n/react'
+import { type MessageKey, msg } from '@linedesk/i18n'
+import { T, useFormat, useT } from '@linedesk/i18n/react'
 import { type ReactNode, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
@@ -26,10 +30,11 @@ import { appLink, ExternalLink, LinkButton } from '../ui/AppLink.tsx'
 import { Switch } from '../ui/controls.tsx'
 import { Field } from '../settings/fields.tsx'
 import { Card, Input } from '../ui/form.tsx'
-import { Button, cx } from '../ui/kit.tsx'
-import { Loading, Skeleton } from '../ui/LoadStates.tsx'
+import { Badge, Button, cx } from '../ui/kit.tsx'
+import { Loading, Skeleton, SkeletonRows } from '../ui/LoadStates.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { type LivekitStatus, loadLivekitStatus, runAdmin, type ServiceStatus } from './api.ts'
+import { agentLabel } from '../onboarding/AgentPicker.tsx'
 import { InternationalTransfers } from './InternationalTransfers.tsx'
 import { SignupAccess } from './SignupAccess.tsx'
 
@@ -597,6 +602,141 @@ function Zapier() {
   )
 }
 
+const SETUP_REPORTS = 'admin.setupReports'
+const loadSetupReports = async () => (await runAdmin('feedback.setupReports', {})) as SetupReportsData
+
+/** How a setup report's status looks: sent is quiet, kept waits for the next try, refused and failed stand out. */
+const REPORT_STATUS: Record<SetupReportRow['status'], MessageKey> = {
+  sent: msg('admin.system.setupReports.statusSent'),
+  pending: msg('admin.system.setupReports.statusPending'),
+  kept: msg('admin.system.setupReports.statusKept'),
+  failed: msg('admin.system.setupReports.statusFailed'),
+  refused: msg('admin.system.setupReports.statusRefused'),
+}
+const REPORT_REASON: Record<NonNullable<SetupReportRow['reason']>, MessageKey> = {
+  off: msg('admin.system.setupReports.reasonOff'),
+  unreachable: msg('admin.system.setupReports.reasonUnreachable'),
+  refused: msg('admin.system.setupReports.reasonRefused'),
+}
+const REPORT_OUTCOME: Record<string, MessageKey> = {
+  in_progress: msg('admin.system.setupReports.outcomeInProgress'),
+  completed: msg('admin.system.setupReports.outcomeCompleted'),
+  partial: msg('admin.system.setupReports.outcomePartial'),
+  abandoned: msg('admin.system.setupReports.outcomeAbandoned'),
+}
+const REPORT_TONE: Record<SetupReportRow['status'], 'ok' | 'outline' | 'danger'> = {
+  sent: 'ok',
+  pending: 'outline',
+  kept: 'outline',
+  failed: 'danger',
+  refused: 'danger',
+}
+
+/**
+ * Setup reports (LIN-210): what AI agents sent the Linedesk team about this server's setup, each with the admin's yes.
+ * A kept one (the team's server could not be reached) is tried again every hour for 7 days; Send again tries now.
+ */
+function SetupReports() {
+  const t = useT()
+  const format = useFormat()
+  const query = useQuery(SETUP_REPORTS, loadSetupReports)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [problem, setProblem] = useState<string | null>(null)
+  const data = query.data
+  async function resend(id: string) {
+    setBusy(id)
+    setProblem(null)
+    try {
+      await runAdmin('feedback.resend', { id })
+    } catch (e) {
+      setProblem(e instanceof Error ? e.message : t('admin.system.setupReports.resendFailed'))
+    } finally {
+      // The try ran before the answer: the list shows how it went at once.
+      await query.reload()
+      setBusy(null)
+    }
+  }
+  const when = (iso: string) =>
+    format.dateTime(new Date(iso), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  return (
+    <Card title={t('admin.system.setupReports.title')} help={t('admin.system.setupReports.help')}>
+      {data?.sendingOff && <p className="adm-notice">{t('admin.system.setupReports.off')}</p>}
+      <Loading
+        what={t('admin.system.setupReports.title')}
+        loading={!data}
+        error={query.error}
+        onRetry={() => void query.reload()}
+        skeleton={<SkeletonRows rows={2} columns={5} className="adm-sk-rows" />}
+      >
+        {data && data.reports.length === 0 ? (
+          <p className="adm-notice">{t('admin.system.setupReports.empty')}</p>
+        ) : (
+          <div className="adm-scroll">
+            <table className="adm-table adm-stack">
+              <thead>
+                <tr>
+                  <th scope="col">{t('admin.system.setupReports.date')}</th>
+                  <th scope="col">{t('admin.system.setupReports.outcome')}</th>
+                  <th scope="col">{t('admin.system.setupReports.items')}</th>
+                  <th scope="col">{t('admin.system.setupReports.status')}</th>
+                  <th scope="col" aria-label={t('admin.system.setupReports.actions')} />
+                </tr>
+              </thead>
+              <tbody>
+                {data?.reports.map(r => (
+                  <tr key={r.id}>
+                    <th scope="row">
+                      {when(r.createdAt)}
+                      <span className="adm-sub">
+                        {r.agent
+                          ? t('admin.system.setupReports.by', { agent: agentLabel(r.agent, t) })
+                          : t('admin.system.setupReports.byAgent')}
+                      </span>
+                    </th>
+                    <td data-label={t('admin.system.setupReports.outcome')}>
+                      {t(REPORT_OUTCOME[r.outcome] ?? REPORT_OUTCOME.in_progress!)}
+                    </td>
+                    <td data-label={t('admin.system.setupReports.items')}>
+                      {t('admin.system.setupReports.itemCount', { count: r.items })}
+                    </td>
+                    <td data-label={t('admin.system.setupReports.status')}>
+                      <Badge tone={REPORT_TONE[r.status]}>{t(REPORT_STATUS[r.status])}</Badge>
+                      {r.reason && (
+                        <span className="adm-sub" title={r.detail ?? undefined}>
+                          {t(REPORT_REASON[r.reason])}
+                        </span>
+                      )}
+                    </td>
+                    <td className="adm-num">
+                      {(r.status === 'kept' || r.status === 'pending') && !data.sendingOff && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          busy={busy === r.id}
+                          disabled={busy !== null}
+                          title={t('admin.system.setupReports.resendTip')}
+                          onClick={() => void resend(r.id)}
+                        >
+                          {t('admin.system.setupReports.resend')}
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Loading>
+      {problem && (
+        <p className="k-field-msg" role="alert">
+          {problem}
+        </p>
+      )}
+    </Card>
+  )
+}
+
 export function System() {
   return (
     <>
@@ -607,6 +747,7 @@ export function System() {
       <SignupAccess />
       <ImpersonationEmails />
       <Zapier />
+      <SetupReports />
     </>
   )
 }

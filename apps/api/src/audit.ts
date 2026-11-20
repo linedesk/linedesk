@@ -334,6 +334,10 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   // An AI agent acting as an instance admin: its setup link. confirmPasskey and withdrawPasskey (the Allow step, gone
   // since the one-level setup link) stay listed, so their past entries still show.
   'agentSetup.createKey': 'integrations',
+  // Data that leaves the install (LIN-210): feedback to the Linedesk team, a setup report from an agent's setup link
+  // among it, and an admin sending a kept setup report again. Only ids are logged, never the text.
+  'feedback.send': 'integrations',
+  'feedback.resend': 'integrations',
   'agentSetup.confirmPasskey': 'integrations',
   'agentSetup.withdrawPasskey': 'integrations',
   'agentSetup.revoke': 'integrations',

@@ -266,6 +266,9 @@ const expectedRights: Record<Right, readonly string[]> = {
     'setupEmails.set',
     'impersonationEmails.get',
     'impersonationEmails.set',
+    // Setup reports to the Linedesk team (LIN-210): the list in Server admin › System, and Send again.
+    'feedback.setupReports',
+    'feedback.resend',
     'signupAccess.get',
     'signupAccess.set',
     // The link to the Linedesk app on Zapier that workspaces open.

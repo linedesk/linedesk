@@ -61,14 +61,19 @@ const refusal = (error: string): ToolResult => ({ content: [{ type: 'text', text
 /**
  * Runs a tool's work with unexpected errors kept on the server: a database error can carry SQL and
  * its parameters, so the caller only learns "internal error". Refusals (rejected actions, missing
- * permission, not found) are answers the work returns itself and keep their words.
+ * permission, not found) are answers the work returns itself and keep their words. `internalError`: what the caller
+ * reads instead (the setup MCP adds a line about setup reports to it, setup-mcp.ts); "internal error" by default.
  */
-export async function guard(tool: string, work: () => Promise<ToolResult>): Promise<ToolResult> {
+export async function guard(
+  tool: string,
+  work: () => Promise<ToolResult>,
+  internalError = 'internal error',
+): Promise<ToolResult> {
   try {
     return await work()
   } catch (e) {
     console.error(`mcp tool ${tool} failed: ${e instanceof Error ? e.message : e}`)
-    return refusal('internal error')
+    return refusal(internalError)
   }
 }
 

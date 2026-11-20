@@ -6,6 +6,7 @@ import { type MessageKey, msg } from '@linedesk/i18n'
 import { fetchQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
 import {
+  type AgentClient,
   type AgentSetupState,
   type BillingEventFilter,
   type BrandingInput,
@@ -350,7 +351,9 @@ export type AdminInputs = {
     owner: { email: string; name?: string }
   }
   'branding.set': BrandingInput
-  'agentSetup.createKey': Record<string, never>
+  'agentSetup.createKey': { client?: AgentClient }
+  'feedback.resend': { id: string }
+  'feedback.setupReports': Record<string, never>
   'agentSetup.revoke': Record<string, never>
   'install.setProgress': {
     step?: InstallStep

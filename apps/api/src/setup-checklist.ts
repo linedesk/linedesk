@@ -17,6 +17,7 @@ import {
   type ProviderTestData,
   providerNames,
   providerSpec,
+  type GroupStatus,
   type StatusGroups,
   type StoredTest,
   statusGroups,
@@ -29,12 +30,7 @@ import { emailDelivery } from './auth-methods.ts'
 import { restartState, serverEnv } from './instance-env.ts'
 import { type LivekitStatus, livekitStatus } from './livekit-status.ts'
 import { listProviderFailures } from './provider-failures.ts'
-import {
-  configOf,
-  type ProviderConfig,
-  providerStatus,
-  storedProviderValues,
-} from './provider-settings.ts'
+import { configOf, type ProviderConfig, providerStatus, storedProviderValues } from './provider-settings.ts'
 import { hasSecretsKey, SecretsKeyError, signWithSecretsKey } from './secrets.ts'
 
 type Env = Record<string, string | undefined>
@@ -208,6 +204,20 @@ export async function statusContext(
     devCarrier: !telephonyInUse && env.TELEPHONY_PROVIDER === 'dev' ? devCarrierMessage(providers, words) : null,
     signInPending: restart.pending,
   }
+}
+
+/** A setup step's state, as the setup agent reads it (setup_status) and a setup report carries it. */
+export type StepState = 'done' | 'todo' | 'failing' | 'admin_only'
+/** A provider group's status as a setup step's state. */
+export const GROUP_STATE: Record<GroupStatus['state'], StepState> = {
+  works: 'done',
+  failing: 'failing',
+  missing: 'todo',
+  partly: 'todo',
+  checking: 'todo',
+  untested: 'todo',
+  not_needed: 'done',
+  off: 'done',
 }
 
 /** Every group's status, as Server admin › Providers shows it. Asks LiveKit (cheap), never a paid provider. */

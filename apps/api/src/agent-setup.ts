@@ -504,6 +504,7 @@ async function insertKey(
   now: string,
   workspaceId: string | null,
   partnerId: string | null = null,
+  client: string | null = null,
 ): Promise<AgentSetupKeyCreated> {
   // One maker at a time (security review #822 F3): two mints at once would otherwise both see no newer key and both
   // stay working. Held until the transaction ends. Every revoke takes the same lock (passkey-enrolment.ts), so what
@@ -528,6 +529,8 @@ async function insertKey(
       role: workspaceId ? (actor.role as WorkspaceKeyRole) : null,
       session_id: actor.sessionId!,
       expires_at: expiresAt,
+      // The agent picked on the setup page, so a setup report names it (setup-feedback.ts).
+      client,
       // Whether this session passed the passkey check: an install key made without it (the rule off) stops working
       // once the rule is on again (setupKeyAccess). A workspace key never carries it.
       passkey_confirmed_until: !workspaceId && !partnerId && actor.passkeyConfirmed ? expiresAt : null,
@@ -539,12 +542,12 @@ async function insertKey(
 const TOO_MANY_LINKS = 'Too many setup links. Try again in a few minutes.'
 
 export const agentSetupHandlers: Record<string, Handler> = {
-  'agentSetup.createKey': async ({ tx, actor, now }) => {
+  'agentSetup.createKey': async ({ tx, actor, now }, input: { client?: string }) => {
     refuseNonPerson(actor)
     // Checked before the handler too (run-action.ts): only a session that passed the passkey check makes a link.
     if (adminSecondFactorRequired() && !actor.passkeyConfirmed)
       throw new Forbidden('Confirm with your passkey to create a setup link.')
-    return { rows: {}, data: await insertKey(tx, actor, now, null) }
+    return { rows: {}, data: await insertKey(tx, actor, now, null, null, input?.client ?? null) }
   },
 
   // A workspace key for the session's workspace, made by its owner or an admin (settings:write, checked by

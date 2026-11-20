@@ -68,6 +68,7 @@ describe('calendar.findSlots', () => {
       'emailRouting.available',
       'emailRouting.get',
       'evaluation.listQuestions',
+      'feedback.setupReports',
       'germanNumbers.get',
       'germanNumbers.group',
       'holidays.lookup',

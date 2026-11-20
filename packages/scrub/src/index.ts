@@ -23,9 +23,12 @@ function replaceToken(run: string): string {
     .join('/')
 }
 
-/** Phone numbers: international (+…), US (503) 555-0142, 503-555-0142, local 555-0142, and 10–15 bare digits. */
+/**
+ * Phone numbers: international (+… and 00…), US (503) 555-0142, 503-555-0142, local 555-0142, national with a trunk 0
+ * (German 06221 5550147, 06221/5550147, 030-1234567), and 10–15 bare digits.
+ */
 const PHONE =
-  /\+\d[\d\s().-]{6,}\d|\(\d{3}\)\s?\d{3}[\s.-]?\d{4}|\b\d{3}[\s.-]\d{3}[\s.-]\d{4}\b|\b\d{3}[.-]\d{4}\b|\b\d{10,15}\b/g
+  /\+\d[\d\s().-]{6,}\d|\b00[1-9][\d\s()/.-]{6,}\d|\b0\d{2,5}[\s/-]?\d{4,}\b|\(\d{3}\)\s?\d{3}[\s.-]?\d{4}|\b\d{3}[\s.-]\d{3}[\s.-]\d{4}\b|\b\d{3}[.-]\d{4}\b|\b\d{10,15}\b/g
 
 /** Phone numbers in a text, masked to their last two digits. */
 export const maskPhoneNumbers = (text: string) =>

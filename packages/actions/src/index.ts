@@ -243,6 +243,8 @@ const all = [
   notifications.pushUnsubscribe,
   star.starPromptAnswer,
   feedback.feedbackSend,
+  feedback.feedbackResend,
+  feedback.feedbackSetupReports,
   calendar.calendarFindSlots,
   calendar.appointmentBook,
   calendar.appointmentCancel,

@@ -38,6 +38,7 @@ import { runSeatSync, type SeatSyncJob, seatSyncFailed } from './partner-billing
 import { sendUsageLimitAlert, type UsageLimitAlert } from './usage-limit.ts'
 import { deleteClonedVoice } from './voices.ts'
 import { sendDueSetupEmails } from './setup-emails.ts'
+import { retryKeptSetupReports } from './setup-feedback.ts'
 import { sendSpendingAlert, type SpendingAlert } from './spending-cap.ts'
 import { attemptAnyDelivery } from './integrations.ts'
 import { APP_PUSH_ATTEMPTS, attemptAppPush, sweepAppPushes } from './app-pushes.ts'
@@ -182,6 +183,9 @@ export const PARTNER_SEAT_SYNC_FAILED = 'partner.seatSyncFailed'
 export const WORKSPACE_DELETED_EMAIL = 'workspace.deletedEmail'
 export const SETUP_EMAILS = 'setup.emails'
 const SETUP_EMAILS_CRON = '*/15 * * * *'
+/** Hourly: setup reports to the Linedesk team that were kept (endpoint down or missing) are sent again, for 7 days. */
+export const SETUP_FEEDBACK_RETRY = 'setupFeedback.retry'
+const SETUP_FEEDBACK_RETRY_CRON = '41 * * * *'
 
 let boss: PgBoss | null = null
 
@@ -330,6 +334,8 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.work(PARTNER_DOMAIN_RECHECK, async () => recheckPartnerDomains())
   await instance.schedule(SETUP_EMAILS, SETUP_EMAILS_CRON)
   await instance.work(SETUP_EMAILS, async () => sendDueSetupEmails(db, emailSender))
+  await instance.schedule(SETUP_FEEDBACK_RETRY, SETUP_FEEDBACK_RETRY_CRON)
+  await instance.work(SETUP_FEEDBACK_RETRY, async () => retryKeptSetupReports())
   await instance.schedule(COMMAND_PRUNE, COMMAND_PRUNE_CRON)
   // Daily: the command log's old inputs, expired codes and passkey challenges (verifications.ts), and admin browsers
   // not seen for longer than their cookie lives (admin-devices.ts).
@@ -511,6 +517,8 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(FORWARDING_CHECK, { retryLimit: 0, expireInSeconds: 180 })
   await instance.createQueue(WEBHOOK_CLEANUP)
   await instance.createQueue(DEMO_CALL_CLEANUP)
+  // One run at a time, never retried: the next hour's run is the retry.
+  await instance.createQueue(SETUP_FEEDBACK_RETRY, { retryLimit: 0, expireInSeconds: 900 })
   await instance.createQueue(COMMAND_PRUNE)
   await instance.createQueue(HOLIDAY_SYNC)
   await instance.createQueue(LEDGER_CHECK, { retryLimit: 0, expireInSeconds: 600 })

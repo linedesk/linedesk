@@ -6,22 +6,39 @@
 // FEEDBACK_EMAIL is `off` or the install cannot send email. The screenshot is never stored (no file store for it): it
 // goes with the email only, so a kept report has none. At most FEEDBACK_PER_HOUR an hour and one per
 // FEEDBACK_MIN_GAP_SECONDS per sender (a person, or a workspace API key), counted in the table under a per-sender lock.
+//
+// A setup report (`kind: setup` with `setup`, LIN-210) comes only from an install setup link's agent, only with the
+// admin's yes (`user_consented: true`; the setup MCP showed the preview before), and goes to SETUP_FEEDBACK_URL after
+// the commit instead of the email: setup-feedback.ts builds, redacts and sends it. feedback.resend sends a kept one again.
 import {
   FEEDBACK_MIN_GAP_SECONDS,
   FEEDBACK_PER_HOUR,
   FEEDBACK_RATE_LIMITED,
   FEEDBACK_SCREENSHOT_MAX_BYTES,
   type FeedbackKind,
+  type SetupReportRow,
+  type SetupReportsData,
 } from '@linedesk/actions'
 import { api_keys, feedback, organization, personal_keys, type Tx } from '@linedesk/db'
 import { scrubPath, scrubText } from '@linedesk/scrub'
-import { and, eq, gt, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, isNotNull, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { type EmailAttachment, type EmailSender, emailSender } from './email.ts'
 import { emailOrigin } from './email-brand.ts'
 import { feedbackEmail, type FeedbackReport } from './emails/feedback.ts'
-import { type Handler, Reject } from './handler-context.ts'
+import { Forbidden, type Handler, Reject } from './handler-context.ts'
+import {
+  agentClientOf,
+  CLAIM_GAP_MS,
+  buildSetupReport,
+  checkSetupReportRate,
+  deliverSetupReport,
+  readSetupFeedbackUrl,
+  SENDING_OFF,
+  type SetupReportInput,
+  serverVersion,
+} from './setup-feedback.ts'
 
 export const DEFAULT_FEEDBACK_EMAIL = 'support@linedesk.ai'
 
@@ -129,7 +146,7 @@ const setStatus = (id: string, set: Partial<typeof feedback.$inferInsert>) =>
 
 const newId = () => `fb_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
 
-type FeedbackInput = {
+type FeedbackInput = SetupReportInput & {
   kind: FeedbackKind
   text: string
   page?: string
@@ -138,8 +155,55 @@ type FeedbackInput = {
   contact_email?: string
 }
 
+/** The list and Send again are a person's in Server admin, never an AI agent's setup link (which holds instance:admin). */
+function refuseSetupLink(actor: Actor) {
+  if (actor.setupKeyId) throw Forbidden.t('server.api.feedback.notOnSetupLink')
+}
+
+/** An install setup link (not a workspace's or a partner's): the one sender of setup reports. */
+const installSetupLink = (actor: Actor) => Boolean(actor.setupKeyId && !actor.setupWorkspaceId && !actor.setupPartnerId)
+
+/**
+ * A setup report with the admin's yes: stored with its redacted `report` (no workspace: an install link acts in none)
+ * and sent to SETUP_FEEDBACK_URL right after the commit; runAction waits for that (5 s at most), so the setup MCP can
+ * say at once whether it went out.
+ */
+const sendSetupReport: Handler = async ({ tx, actor, now, onCommit }, input: FeedbackInput) => {
+  if (!installSetupLink(actor)) throw Reject.t('server.api.feedback.setupLinkOnly')
+  if (input.kind !== 'setup' || !input.setup) throw Reject.t('server.api.feedback.setupNeedsReport')
+  if (input.user_consented !== true) throw Reject.t('server.api.feedback.setupNeedsConsent')
+  if (input.screenshot || input.page || input.context) throw Reject.t('server.api.feedback.setupTextOnly')
+  await checkRate(tx, actor.actorId, now)
+  await checkSetupReportRate(tx, actor.setupKeyId!, now)
+  const report = await buildSetupReport(tx, actor, input, { now })
+  const off = readSetupFeedbackUrl() === null
+  const row = {
+    id: newId(),
+    workspace_id: null,
+    actor_id: actor.actorId,
+    via: 'setup_link' as const,
+    client: report.agent.client,
+    kind: 'setup' as const,
+    text: report.summary ?? '',
+    contact_email: report.contact?.email ?? null,
+    status: off ? ('kept' as const) : ('pending' as const),
+    last_error: off ? SENDING_OFF : null,
+    setup_key_id: actor.setupKeyId!,
+    report,
+    created_at: now,
+  }
+  await tx.insert(feedback).values(row)
+  if (!off)
+    onCommit?.(async () => {
+      await deliverSetupReport(row.id)
+    })
+  return { rows: {}, data: { id: row.id } }
+}
+
 export const feedbackHandlers: Record<string, Handler> = {
-  'feedback.send': async ({ tx, actor, now, onCommit }, input: FeedbackInput) => {
+  'feedback.send': async (ctx, input: FeedbackInput) => {
+    const { tx, actor, now, onCommit } = ctx
+    if (input.setup || input.user_consented !== undefined || actor.setupKeyId) return sendSetupReport(ctx, input)
     if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
     const screenshot = input.screenshot ? screenshotOf(input.screenshot) : null
     await checkRate(tx, actor.actorId, now)
@@ -184,13 +248,70 @@ export const feedbackHandlers: Record<string, Handler> = {
         workspace: { id: actor.workspaceId, name: workspace?.name ?? null },
         sender: { actorId: row.actor_id, via, client: row.client },
         origin: emailOrigin(),
-        serverVersion: process.env.SENTRY_RELEASE?.trim() || null,
+        serverVersion: serverVersion() === 'unknown' ? null : serverVersion(),
       }
       // In the background: the sender gets their answer at once, whatever the mail server does.
       onCommit?.(async () => {
         void deliverFeedback(report, to, screenshot).catch(e => console.error(`feedback ${row.id}: not delivered`, e))
       })
     }
+    return { rows: {}, data: { id: row.id } }
+  },
+
+  // Server admin › System › Setup reports: the latest 50, newest first; outcome and items from the stored report.
+  'feedback.setupReports': async ({ tx, actor }) => {
+    refuseSetupLink(actor)
+    const rows = await tx
+      .select()
+      .from(feedback)
+      .where(isNotNull(feedback.report))
+      .orderBy(desc(feedback.created_at))
+      .limit(50)
+    const reports: SetupReportRow[] = rows.map(row => {
+      const report = row.report as { outcome?: unknown; items?: unknown[] }
+      return {
+        id: row.id,
+        createdAt: row.created_at,
+        outcome: typeof report.outcome === 'string' ? report.outcome : 'in_progress',
+        items: Array.isArray(report.items) ? report.items.length : 0,
+        agent: agentClientOf(row.client),
+        status: row.status,
+        reason:
+          row.status === 'sent'
+            ? null
+            : row.status === 'refused'
+              ? 'refused'
+              : row.last_error === SENDING_OFF
+                ? 'off'
+                : row.last_error
+                  ? 'unreachable'
+                  : null,
+        detail: row.status === 'sent' ? null : row.last_error,
+        tries: row.tries,
+        sentAt: row.sent_at,
+      }
+    })
+    const data: SetupReportsData = { reports, sendingOff: readSetupFeedbackUrl() === null }
+    return { rows: {}, data }
+  },
+
+  // An instance admin sends a kept setup report again (Server admin › System › Setup reports). It does not count
+  // against the link's limit; the answer is the row as it is after the try.
+  'feedback.resend': async ({ tx, actor, onCommit }, input: { id: string }) => {
+    refuseSetupLink(actor)
+    const [row] = await tx
+      .select({ id: feedback.id, status: feedback.status, report: feedback.report, tried_at: feedback.tried_at })
+      .from(feedback)
+      .where(eq(feedback.id, input.id))
+    if (!row?.report) throw Reject.t('server.api.feedback.notASetupReport')
+    if (row.status === 'sent') throw Reject.t('server.api.feedback.alreadySent')
+    if (row.status === 'refused') throw Reject.t('server.api.feedback.refusedNoResend')
+    if (readSetupFeedbackUrl() === null) throw Reject.t('server.api.feedback.sendingOff')
+    if (row.tried_at && Date.now() - Date.parse(row.tried_at) < CLAIM_GAP_MS)
+      throw Reject.t('server.api.feedback.justTried')
+    onCommit?.(async () => {
+      await deliverSetupReport(row.id)
+    })
     return { rows: {}, data: { id: row.id } }
   },
 }

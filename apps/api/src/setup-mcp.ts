@@ -70,6 +70,7 @@ import {
   rolePermissions,
   SETUP_MCP_INSTRUCTIONS,
   SETUP_MCP_WORKSPACE_INSTRUCTIONS,
+  SETUP_REPORT_SUMMARY_MAX,
   type SetupStepGroup,
   type SetupStepName,
   searchForwardingGuides,
@@ -86,6 +87,7 @@ import {
   type BusinessProfile,
   billing_accounts,
   calls,
+  feedback,
   member,
   member_notification_settings,
   organization,
@@ -95,7 +97,7 @@ import {
 } from '@linedesk/db'
 import { languageInSentence } from '@linedesk/i18n'
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, isNotNull } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   type ManagedWorkspace,
@@ -113,8 +115,9 @@ import { db } from './db.ts'
 import { localeForUserId } from './email-locale.ts'
 import { goLiveChecklist } from './go-live-checklist.ts'
 import { readInstallProgress } from './install-setup.ts'
+import { buildSetupReport, consentText, SENDING_OFF, type SetupReportInput } from './setup-feedback.ts'
 import { withoutHopByHopHeaders } from './keep-alive.ts'
-import { guard, MCP_MAX_BODY_BYTES, takeSlot, toolName } from './mcp.ts'
+import { guard as mcpGuard, MCP_MAX_BODY_BYTES, takeSlot, toolName } from './mcp.ts'
 import { numberBuyOffers } from './number-buy.ts'
 import { newAssistant } from './onboarding.ts'
 import { type PartnerSetupFacts, partnerPast, partnerSetupFacts } from './partner-setup.ts'
@@ -122,7 +125,7 @@ import { pipelinesSetUp, providerStatus } from './provider-settings.ts'
 import { runAction } from './run-action.ts'
 import { isPendingPayment, waitsForOwnTrial } from './self-serve.ts'
 import { isPlaceholderWorkspaceName, servedCountriesOf } from './served-countries.ts'
-import { setupChecklist } from './setup-checklist.ts'
+import { GROUP_STATE, type StepState, setupChecklist } from './setup-checklist.ts'
 import { assistantSpokeIn } from './setup-events.ts'
 import { trialStartPath } from './trial-link.ts'
 import { type CarrierAccount, telephonyForWorkspace } from './workspace-carrier.ts'
@@ -274,6 +277,14 @@ const refusal = (error: string, actor?: Actor): ToolResult => ({
   isError: true,
 })
 
+/**
+ * What an unexpected failure says on an install link: "internal error" plus one line offering a setup report, so a
+ * failure that keeps happening reaches the Linedesk team. Workspace and partner links have no setup reports.
+ */
+export const SETUP_INTERNAL_ERROR = english.t('server.setupAgent.report.internalError')
+const guard = (actor: Actor, tool: string, work: () => Promise<ToolResult>) =>
+  mcpGuard(tool, work, notServerLink(actor) ? undefined : SETUP_INTERNAL_ERROR)
+
 /** How often the agent reads setup_status while it waits for the admin (the test call). */
 const POLL_SECONDS = 10
 
@@ -335,7 +346,7 @@ function registerAction(server: McpServer, def: ActionDef, actor: Actor) {
       annotations: { readOnlyHint: Boolean(def.readOnly), destructiveHint: Boolean(caution) },
     },
     ((raw: unknown) =>
-      guard(def.name, async () => {
+      guard(actor, def.name, async () => {
         let as: Actor | null = actor
         let input = raw ?? {}
         if (!serverAction) {
@@ -387,7 +398,6 @@ const appLinks = (actor: Actor) => {
   }
 }
 
-type StepState = 'done' | 'todo' | 'failing' | 'admin_only'
 /** `alias`: the id the step had before (LIN-158), for agents and notes that still use it. */
 type StepBase = {
   id: string
@@ -418,17 +428,6 @@ const inGroup = (group: SetupStepGroup, steps: StepBase[], names = setupStepName
       ...rest,
     }
   })
-
-const GROUP_STATE: Record<GroupStatus['state'], StepState> = {
-  works: 'done',
-  failing: 'failing',
-  missing: 'todo',
-  partly: 'todo',
-  checking: 'todo',
-  untested: 'todo',
-  not_needed: 'done',
-  off: 'done',
-}
 
 /** One install step from a provider group, with how to do it when it is not done. */
 function groupStep(group: GroupStatus, how: readonly string[], alias?: string): StepBase {
@@ -581,8 +580,37 @@ async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean
     all_done: !next,
     // How to finish, ending this setup link with setup_endAccess.
     wrap_up: wrapUp(!next, waiting),
+    // Whether the admin was asked for a setup report to the Linedesk team yet (feedback_send), and when to ask.
+    feedback: await setupFeedbackStatus(actor, !next),
     optional: optionalSteps(groups),
     app_links: appLinks(actor),
+  }
+}
+
+/**
+ * setup_status.feedback on an install link: no report for this link yet, how to offer one (at the end, ask now); once
+ * one was sent or kept, that it exists, so the agent stops asking.
+ */
+async function setupFeedbackStatus(actor: Actor, allDone: boolean) {
+  const [last] = actor.setupKeyId
+    ? await db
+        .select({ status: feedback.status })
+        .from(feedback)
+        .where(and(eq(feedback.setup_key_id, actor.setupKeyId), isNotNull(feedback.report)))
+        .orderBy(desc(feedback.created_at))
+        .limit(1)
+    : []
+  if (last)
+    return {
+      asked: true,
+      status: last.status,
+      how: english.t(
+        last.status === 'sent' ? 'server.setupAgent.report.statusSent' : 'server.setupAgent.report.statusKept',
+      ),
+    }
+  return {
+    asked: false,
+    how: english.t(allDone ? 'server.setupAgent.report.askNow' : 'server.setupAgent.report.askLater'),
   }
 }
 
@@ -1486,7 +1514,7 @@ function registerTools(server: McpServer, actor: Actor) {
       annotations: read,
     },
     async (input: { read_only?: boolean }) =>
-      guard('setup_status', async () => answer(await setupStatus(actor, { advance: !input?.read_only }), actor)),
+      guard(actor, 'setup_status', async () => answer(await setupStatus(actor, { advance: !input?.read_only }), actor)),
   )
   if (serverTools)
     server.registerTool(
@@ -1504,7 +1532,7 @@ function registerTools(server: McpServer, actor: Actor) {
         annotations: read,
       },
       async ({ category }) =>
-        guard('providers_list', async () => {
+        guard(actor, 'providers_list', async () => {
           const status = await providerStatus(db)
           const rows = status.providers
             .filter(p => (!category || p.category === category) && !moneyCategories.includes(p.category))
@@ -1548,7 +1576,7 @@ function registerTools(server: McpServer, actor: Actor) {
         }),
       },
       async ({ name, timeZone }) =>
-        guard('workspace_create', async () => {
+        guard(actor, 'workspace_create', async () => {
           if (/[\r\n]/.test(name)) return refusal('the name is one line')
           // Only server admins create workspaces (workspace-creation.ts): a setup link is a server admin's.
           if (!mayCreateWorkspace(actor)) return refusal(WORKSPACE_CREATION_CLOSED)
@@ -1601,7 +1629,7 @@ function registerTools(server: McpServer, actor: Actor) {
       annotations: read,
     },
     async ({ carrier, country: asked, mode, workspaceId }) =>
-      guard('forwarding_guide', async () => {
+      guard(actor, 'forwarding_guide', async () => {
         const inWs = await setupActorIn(actor, workspaceId)
         if (!inWs?.workspaceId) return refusal(notYourWorkspace(actor), actor)
         const [number] = await db
@@ -1678,7 +1706,7 @@ function registerTools(server: McpServer, actor: Actor) {
       annotations: { destructiveHint: true, idempotentHint: true },
     },
     async () =>
-      guard('setup_endAccess', async () => {
+      guard(actor, 'setup_endAccess', async () => {
         const { body } = await runAction('agentSetup.endOwnAccess', {}, actor)
         if (!body.ok) return refusal(body.error, actor)
         return answer(
@@ -1691,6 +1719,7 @@ function registerTools(server: McpServer, actor: Actor) {
         )
       }),
   )
+  if (serverTools) registerSetupReport(server, actor)
   // A workspace key is offered only what its role may do (an admin's never an owner-only tool); setupActorIn and
   // runAction refuse the rest anyway.
   const role = actor.setupWorkspaceRole
@@ -1709,6 +1738,82 @@ function registerTools(server: McpServer, actor: Actor) {
     }
 }
 
+/** What the setup report tool says about itself (install links only; the agent reads it). */
+export const SETUP_REPORT_TOOL_DESCRIPTION = english.t('server.setupAgent.report.toolDescription')
+
+/** The setup report's input on the setup MCP: feedback.send's setup fields, `setup` required, the text as its summary. */
+function setupReportInput() {
+  const shape = (actions.get('feedback.send')!.input as z.ZodObject).shape as Record<string, z.ZodType>
+  return z.object({
+    text: z
+      .string()
+      .trim()
+      .min(1)
+      .max(SETUP_REPORT_SUMMARY_MAX)
+      .describe("How the setup went, in one or two sentences (the report's summary)"),
+    setup: (shape.setup as z.ZodOptional<z.ZodObject>).unwrap(),
+    contact_email: shape.contact_email!,
+    user_consented: shape.user_consented!,
+  })
+}
+
+/** What the agent tells the admin after the admin's yes, by how sending went. */
+function sentMessage(row: { status: string; remote_id: string | null; last_error: string | null }) {
+  if (row.status === 'sent') return english.t('server.setupAgent.report.sent', { id: row.remote_id ?? '' })
+  if (row.status === 'refused') return english.t('server.setupAgent.report.refused', { why: row.last_error ?? '' })
+  if (row.last_error === SENDING_OFF) return english.t('server.setupAgent.report.off')
+  return english.t('server.setupAgent.report.kept', { why: row.last_error ?? row.status })
+}
+
+/**
+ * feedback_send on an install link (LIN-210): a setup report to the Linedesk team, feedback.send with kind setup. Without
+ * user_consented it only builds the redacted preview and the consent words; with it, feedback.send stores and sends the
+ * report (runAction waits for the try), and the answer says how that went.
+ */
+function registerSetupReport(server: McpServer, actor: Actor) {
+  server.registerTool(
+    toolName('feedback.send'),
+    {
+      description: SETUP_REPORT_TOOL_DESCRIPTION,
+      inputSchema: setupReportInput() as never,
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    },
+    ((raw: z.infer<ReturnType<typeof setupReportInput>>) =>
+      guard(actor, 'feedback.send', async () => {
+        const input = { ...raw, kind: 'setup' as const } as SetupReportInput
+        if (raw.user_consented !== true) {
+          const preview = await buildSetupReport(db, actor, input)
+          return answer({
+            ok: true,
+            sent: false,
+            preview,
+            ask: consentText(preview),
+            next: english.t('server.setupAgent.report.next'),
+          })
+        }
+        // feedback.send is open to every member (call:read); an install link's actor holds only the admin's rights,
+        // so it gets that one right for this one action.
+        const { body } = await runAction('feedback.send', input, {
+          ...actor,
+          permissions: [...actor.permissions, 'call:read'],
+        })
+        if (!body.ok) return refusal(body.error, actor)
+        const { id } = body.data as { id: string }
+        const [row] = await db
+          .select({ status: feedback.status, remote_id: feedback.remote_id, last_error: feedback.last_error })
+          .from(feedback)
+          .where(eq(feedback.id, id))
+        return answer({
+          ok: true,
+          id,
+          status: row!.status,
+          ...(row!.remote_id ? { remote_id: row!.remote_id } : {}),
+          message: sentMessage(row!),
+        })
+      })) as never,
+  )
+}
+
 /**
  * A partner's own action on a partner owner's link: its partnerId is the link's, filled in here and never asked for,
  * so the agent cannot name another partner (run-action.ts refuses that too, partnerKeyOutOfScope).
@@ -1723,7 +1828,7 @@ function registerPartnerAction(server: McpServer, def: ActionDef, actor: Actor, 
       annotations: { readOnlyHint: Boolean(def.readOnly) },
     },
     ((raw: unknown) =>
-      guard(def.name, async () => {
+      guard(actor, def.name, async () => {
         const { body } = await runAction(def.name, { ...((raw as object) ?? {}), partnerId }, actor)
         if (!body.ok) return refusal(body.error, actor)
         return answer({ ok: true, rows: body.rows, ...(body.data ? { data: body.data } : {}) }, actor)

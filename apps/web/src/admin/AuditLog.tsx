@@ -241,6 +241,10 @@ export function auditLabel(
       return t('admin.audit.agentSetupEndOwnAccess')
     case 'agentSetup.createKey':
       return t('admin.audit.agentSetupCreateKey')
+    case 'feedback.send':
+      return t('admin.audit.feedbackSend')
+    case 'feedback.resend':
+      return t('admin.audit.feedbackResend')
     case 'agentSetup.revoke':
       return t('admin.audit.agentSetupRevoke')
     case 'agentSetup.createWorkspaceKey':

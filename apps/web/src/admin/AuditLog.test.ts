@@ -222,6 +222,8 @@ const AUDITED_ACTION_NAMES = [
   'phoneNumber.setup',
   'phoneNumber.release',
   'agentSetup.createKey',
+  'feedback.send',
+  'feedback.resend',
   'agentSetup.confirmPasskey',
   'agentSetup.withdrawPasskey',
   'agentSetup.revoke',

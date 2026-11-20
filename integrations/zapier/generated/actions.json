@@ -604,6 +604,21 @@
         "label": "Contact_email",
         "type": "string",
         "required": false
+      },
+      {
+        "key": "setup",
+        "label": "Setup",
+        "type": "string",
+        "required": false,
+        "helpText": "Only through a setup link (setup MCP), with kind setup: the structured setup report",
+        "json": true
+      },
+      {
+        "key": "user_consented",
+        "label": "User_consented",
+        "type": "boolean",
+        "required": false,
+        "helpText": "Only through a setup link: true once the admin saw the preview and said yes to sending it"
       }
     ]
   },

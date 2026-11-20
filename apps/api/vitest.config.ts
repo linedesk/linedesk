@@ -115,6 +115,8 @@ const INSTANCE_WIDE_FILES = [
   'test/partner-host-brand.test.ts',
   // Makes a server admin, stores Cloudflare for SaaS settings and sets PARTNER_DOMAINS in process.env (S5).
   'test/partner-domain.test.ts',
+  // Makes a server admin, stores a provider key and the install reference (setup reports, LIN-210).
+  'test/setup-feedback.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

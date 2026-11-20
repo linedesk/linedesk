@@ -1528,6 +1528,11 @@ export const agent_setup_keys = pgTable(
      * the rule is on, a key without it does not work. Rows from #694's Allow step keep their own time.
      */
     passkey_confirmed_until: ts('passkey_confirmed_until'),
+    /**
+     * The AI agent the admin picked on the setup page when making an install key (`claude_code`, `chatgpt`, …; null when
+     * none was sent). A setup report names it (apps/api/src/setup-feedback.ts), so the agent is never asked.
+     */
+    client: text('client'),
   },
   t => [index('agent_setup_keys_creator').on(t.created_by)],
 )
@@ -3065,15 +3070,24 @@ export const partner_providers = pgTable(
 // or setup feedback from a member in the web app, an API key, a personal key, an MCP client or a setup link. Text,
 // page and context are stored masked (keys, phone numbers and email addresses replaced); the screenshot is never
 // stored, it only goes with the email (`has_screenshot` says there was one). Not synced; deleted with the workspace.
+//
+// A setup report (LIN-210, apps/api/src/setup-feedback.ts) is a row too: an install setup link's agent sends it with the
+// admin's yes. It has `report` (the redacted JSON of the setup-feedback contract, LIN-208) and `setup_key_id`, no
+// workspace (an install link acts in none), and goes to SETUP_FEEDBACK_URL instead of the email: `kept` ones are tried
+// again every hour for 7 days (`tries`, `tried_at`), a `refused` one (the endpoint said the report is invalid) never.
 const FEEDBACK_KINDS = ['bug', 'feature', 'setup'] as const
 const FEEDBACK_VIA = ['app', 'api_key', 'personal_key', 'mcp_oauth', 'setup_link'] as const
-/** pending: committed, email not sent yet; sent; kept: no email (FEEDBACK_EMAIL=off or no email set up); failed. */
-const FEEDBACK_STATUSES = ['pending', 'sent', 'kept', 'failed'] as const
+/**
+ * pending: committed, not sent yet; sent; kept: not sent (FEEDBACK_EMAIL=off, no email set up, or a setup report the
+ * endpoint did not take yet); failed: the email failed; refused: the setup report endpoint refused it (400).
+ */
+const FEEDBACK_STATUSES = ['pending', 'sent', 'kept', 'failed', 'refused'] as const
 export const feedback = pgTable(
   'feedback',
   {
     id: id(),
-    workspace_id: workspaceId(),
+    /** Null for a setup report from an install setup link (it acts in no workspace). */
+    workspace_id: text('workspace_id'),
     /** Who sent it: the user's id, or `apikey:<id>` for a workspace API key (as commands.actor_id). */
     actor_id: text('actor_id').notNull(),
     via: text('via', { enum: FEEDBACK_VIA }).notNull(),
@@ -3088,15 +3102,26 @@ export const feedback = pgTable(
     /** Where the sender wants an answer; only when they gave one. */
     contact_email: text('contact_email'),
     status: text('status', { enum: FEEDBACK_STATUSES }).notNull().default('pending'),
-    /** Why the email failed, masked. */
+    /** Why the email or the setup report's sending failed, masked. */
     last_error: text('last_error'),
     sent_at: ts('sent_at'),
     created_at: createdAt(),
+    /** A setup report: the setup link its agent used (agent_setup_keys.id; the rate limit counts per link). */
+    setup_key_id: text('setup_key_id'),
+    /** A setup report: the JSON sent to SETUP_FEEDBACK_URL (linedesk.setup-feedback/1), redacted. */
+    report: jsonb('report').$type<Record<string, unknown>>(),
+    /** A setup report: the id the endpoint answered with, once sent. */
+    remote_id: text('remote_id'),
+    /** A setup report: how often it was sent to the endpoint, and when last. */
+    tries: integer('tries').notNull().default(0),
+    tried_at: ts('tried_at'),
   },
   t => [
     // The rate limit counts a sender's recent reports.
     index('feedback_actor_created').on(t.actor_id, t.created_at),
     index('feedback_ws').on(t.workspace_id),
+    // Setup reports per link (rate limit, setup_status.feedback) and the hourly retry of kept ones.
+    index('feedback_setup_key').on(t.setup_key_id),
     check('feedback_kind', oneOf(t.kind, FEEDBACK_KINDS)),
     check('feedback_via', oneOf(t.via, FEEDBACK_VIA)),
     check('feedback_status', oneOf(t.status, FEEDBACK_STATUSES)),

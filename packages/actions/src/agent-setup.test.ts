@@ -161,6 +161,17 @@ describe('one access level for the setup link (2026-11-15)', () => {
   })
 })
 
+describe('setup reports to the Linedesk team (LIN-210)', () => {
+  test('the instructions and the pasted prompt ask once, preview first; a workspace link has none', () => {
+    expect(SETUP_MCP_INSTRUCTIONS).toMatch(/Feedback to the Linedesk team/)
+    expect(SETUP_MCP_INSTRUCTIONS).toMatch(/feedback_send without user_consented first/)
+    expect(SETUP_MCP_INSTRUCTIONS).toMatch(/only on a clear yes/)
+    for (const text of [agentSetupPrompt(URL), agentSetupPrompt(URL, { connector: true })])
+      expect(text).toMatch(/ask me once whether to send the Linedesk team a short report .* \(I will see it first\)/)
+    expect(agentSetupPrompt(URL, { scope: 'workspace' })).not.toMatch(/Linedesk team a short report/)
+  })
+})
+
 describe('stepsByGroup', () => {
   test('the steps by part of the setup, in its order, leaving out a part without steps', () => {
     const step = (id: string, group: 'server' | 'business') => ({ id, group })

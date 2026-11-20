@@ -10,6 +10,16 @@ test('phone numbers are masked to their last two digits, in every US and interna
   expect(maskPhoneNumbers('+49 151 23456789')).toBe('[phone …89]')
 })
 
+test('national numbers with a trunk 0 and international ones with 00 are masked too', () => {
+  expect(maskPhoneNumbers('call 06221 5550147 now')).toBe('call [phone …47] now')
+  expect(maskPhoneNumbers('call 06221/5550147 now')).toBe('call [phone …47] now')
+  expect(maskPhoneNumbers('call 030-1234567 now')).toBe('call [phone …67] now')
+  expect(maskPhoneNumbers('call 0049 6221 5550147 now')).toBe('call [phone …47] now')
+  expect(maskPhoneNumbers('version 0.1.40, port 05190, at 2026-11-20')).toBe(
+    'version 0.1.40, port 05190, at 2026-11-20',
+  )
+})
+
 test('timestamps, IPs, ports and ids are not phone numbers', () => {
   const text =
     'at 2026-11-14 10:22:33 from 192.168.10.200:5432 for call_19b89a11d2324ebc9a22 and llk_0b4d4e8f9a7b1c2d3e4f5a6b3f2a9c1e'

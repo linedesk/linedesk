@@ -54,6 +54,8 @@ fi
 # Something starts the API again when it exits (Docker's restart policy, dev mode's runner): a change to
 # the sign-in or email settings in the admin area restarts it to apply them (apps/api/src/instance-env.ts).
 export LINEDESK_SELF_RESTART=1
+# How this server is installed, for setup reports to the Linedesk team (apps/api/src/setup-feedback.ts).
+export LINEDESK_INSTALL_TYPE="${LINEDESK_INSTALL_TYPE:-docker}"
 if [ "$LINEDESK_API_BUNDLE" = 1 ]; then
   exec node --enable-source-maps apps/api/dist/server.mjs
 fi
