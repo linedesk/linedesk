@@ -1,0 +1,56 @@
+#!/bin/bash
+# On a voice server (docker-compose.voice.yml): is this server's agent worker taking calls? That is, a running agent
+# container that Docker reports healthy (connected and registered with the main server's LiveKit, docker-compose.voice.yml)
+# and that is not idle (an agent without its token or LiveKit keys starts, answers its health check with "idle" and
+# takes no call). While an update drains the old worker, the new one counts. Every 2 minutes (linedesk-agent-check.timer);
+# a check counts as down after 2 failures in a row, then one email and, with LINEDESK_PUSH_URL (an ntfy topic URL), an
+# urgent phone push; one of each when it is back. The main server's /v1/health does not see this: it is fine as long
+# as any worker checks in.
+set -u
+[ -r /etc/linedesk/ops.env ] && . /etc/linedesk/ops.env
+app=${LINEDESK_APP_DIR:?set LINEDESK_APP_DIR in /etc/linedesk/ops.env}
+label=${LINEDESK_ALERT_LABEL:-$(hostname)}
+dir=${STATE_DIRECTORY:-/var/lib/linedesk-agent-check}
+mkdir -p "$dir"
+
+# Prints why no worker takes calls, or nothing when one does.
+problem() {
+  local ids id health body
+  ids=$(cd "$app" && docker compose ps -q agent 2>/dev/null)
+  [ -n "$ids" ] || { echo "no agent container is running"; return; }
+  for id in $ids; do
+    health=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$id" 2>/dev/null)
+    [ "$health" = healthy ] || continue
+    body=$(docker exec "$id" node -e "fetch('http://127.0.0.1:8081/').then(r => r.text()).then(t => console.log(t), () => {})" 2>/dev/null)
+    [ "$body" = idle ] && { echo "the agent is idle (its token or LiveKit keys are missing: docker compose logs agent)"; return; }
+    return 0
+  done
+  echo "the agent is not healthy (not registered with the main server's LiveKit: docker compose logs agent)"
+}
+push() { # <title> <text> <priority>: the email goes out also when the push fails.
+  [ -n "${LINEDESK_PUSH_URL:-}" ] || return 0
+  curl -sS -m 10 -o /dev/null -H "Title: [Linedesk $label] $1" -H "Priority: $3" -d "$2" "$LINEDESK_PUSH_URL" ||
+    echo "linedesk-agent-check: push failed" >&2
+}
+
+fails=$(cat "$dir/fails" 2>/dev/null || echo 0)
+state=$(cat "$dir/state" 2>/dev/null || echo up)
+why=$(problem)
+if [ -z "$why" ]; then
+  echo 0 > "$dir/fails"
+  if [ "$state" = down ]; then
+    echo up > "$dir/state"
+    text="The agent worker on $(hostname) takes calls again ($(date -u '+%F %T UTC'))."
+    /usr/local/sbin/linedesk-alert-text "Voice server agent is back up" "$text"
+    push "Voice server agent is back up" "$text" default
+  fi
+else
+  fails=$((fails + 1)); echo "$fails" > "$dir/fails"
+  if [ "$fails" -ge 2 ] && [ "$state" = up ]; then
+    echo down > "$dir/state"
+    text="The agent worker on $(hostname) takes no calls: $why. Failed $fails checks in a row. The other workers take the calls while they have room."
+    /usr/local/sbin/linedesk-alert-text "Voice server agent is DOWN" "$text"
+    push "Voice server agent is DOWN" "$text" urgent
+  fi
+fi
+echo "agent: $(cat "$dir/state" 2>/dev/null || echo up) (fails $(cat "$dir/fails"))${why:+: $why}"

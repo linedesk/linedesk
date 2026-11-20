@@ -23,10 +23,15 @@
 # 5. agent: the new worker registers with LiveKit, then the old one gets SIGTERM, takes no new calls and
 #    finishes the ones it has in the background (up to stop_grace_period, 130 minutes: a call put through to
 #    a person lasts up to 2 hours); this script does not wait for it.
-# 6. The services every call runs through (livekit, livekit-sip, livekit-egress, redis, postgres): only when
+# 6. The services every call runs through (livekit, livekit-sip, livekit-egress, redis, postgres, voice-link): only when
 #    they changed, at a moment without live calls (up to LINEDESK_DEPLOY_QUIET_WAIT seconds, else left for the
 #    next deploy; LINEDESK_DEPLOY_DROP_CALLS=1 recreates them at once and cuts off the calls in progress).
 # First start (nothing running yet): a plain `docker compose up -d`.
+# Separate voice servers (docs/hosting.md, "Separate voice servers"): a further voice server
+# (docker-compose.voice.yml) runs only the agent: step 5 alone. Voice server 1 (docker-compose.voice-media.yml) runs the
+# call services and an agent: steps 4 to 6, with "a moment without calls" read from LiveKit's rooms (no database
+# there). On the app server (docker-compose.voice-link.yml) there is no agent; the voice link and the LiveKit forwarder
+# count as call services (step 6): the voice servers' calls run through them.
 #
 # Dev mode (LINEDESK_MODE=dev in .env, docker-compose.dev.yml, docs/dev-mode.md): api, web and agent
 # run from this checkout, so there is nothing to build. scripts/deploy-dev.sh moves the checkout to the
@@ -306,7 +311,7 @@ drain_in_background() {
 
 # Services that every call runs through: recreating one cuts off the calls in progress. They change only
 # with a new version or new settings (rarely), and then wait for a moment without calls.
-CALL_SERVICES=(livekit livekit-sip livekit-egress redis postgres)
+CALL_SERVICES=(livekit livekit-sip livekit-egress redis postgres voice-link)
 QUIET_WAIT=${LINEDESK_DEPLOY_QUIET_WAIT:-1800} # seconds to wait for no live calls before giving up
 
 # The call services this stack runs (livekit-egress only with the recording profile), one per line.
@@ -314,8 +319,20 @@ call_services() {
   grep -xF "${CALL_SERVICES[@]/#/-e}" <<<"$SERVICES" || true
 }
 
-# Calls in progress (empty when the database cannot be asked, which counts as busy).
+# Calls in progress (empty when it cannot be asked, which counts as busy). On the app server: live calls in the
+# database. On voice server 1 (no Postgres there): LiveKit's rooms, read through the agent container, as every call
+# is a room.
 live_calls() {
+  if ! grep -qx postgres <<<"$SERVICES"; then
+    local agent
+    agent=$(containers_of agent | head -1)
+    [ -n "$agent" ] || return 0
+    docker exec -i "$agent" node -e '
+      const { RoomServiceClient } = require("livekit-server-sdk")
+      new RoomServiceClient(process.env.LIVEKIT_URL.replace(/^ws/, "http"), process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET)
+        .listRooms().then((rooms) => console.log(rooms.length), () => {})' 2>/dev/null | tr -d '[:space:]'
+    return
+  fi
   # shellcheck disable=SC2016 # the variables are the postgres container's own
   echo "select count(*) from calls where status = 'live'" |
     docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tA' 2>/dev/null | tr -d '[:space:]'
@@ -462,6 +479,70 @@ elif [ "${1:-}" != --no-build ]; then
   BUILDX_NO_DEFAULT_ATTESTATIONS=1 docker compose build
 fi
 
+# The services of this stack. On its own line, so an invalid compose setup (a variable it requires is missing) stops
+# here, under set -e, instead of being taken for a voice server below.
+stack_services=$(docker compose config --services)
+
+# The voice link publishes this server's part for the other servers on a private address: on the app server
+# (docker-compose.voice-link.yml) the API's internal listener, on voice server 1 (docker-compose.voice-media.yml)
+# LiveKit. Never start or recreate it unless that address is a private IPv4 address of this server on a WireGuard
+# interface (on any other network the agent token would pass in clear; IPv6 has no firewall here), and, on a Linux
+# server, the voice-link firewall is active (only the listed voice servers get in; ops/server/setup.sh installs it).
+if grep -qx voice-link <<<"$stack_services"; then
+  link_ip=${LINEDESK_VOICE_LINK_IP-$(sed -n 's/^LINEDESK_VOICE_LINK_IP=//p' .env 2>/dev/null | tail -1 | sed "s/^[\"']//; s/[\"']\$//")}
+  refuse_link() {
+    echo "The voice link is not started: $*. Not deploying; the running version keeps serving (docs/hosting.md, \"Separate voice servers\")." >&2
+    exit 1
+  }
+  if ! [[ "$link_ip" =~ ^(0|[1-9][0-9]{0,2})(\.(0|[1-9][0-9]{0,2})){3}$ ]] ||
+    ! awk -F. '{ for (i = 1; i <= 4; i++) if ($i > 255) exit 1
+      exit !($1 == 10 || ($1 == 172 && $2 >= 16 && $2 <= 31) || ($1 == 192 && $2 == 168) || ($1 == 100 && $2 >= 64 && $2 <= 127)) }' <<<"$link_ip"; then
+    refuse_link "LINEDESK_VOICE_LINK_IP is '$link_ip', not a private IPv4 address (10/8, 172.16/12, 192.168/16, 100.64/10)"
+  fi
+  if [ "$(uname -s)" = Linux ]; then
+    link_dev=$(ip -4 -o addr show | awk -v ip="$link_ip" '{ split($4, a, "/") } a[1] == ip { print $2; exit }')
+    [ -n "$link_dev" ] || refuse_link "$link_ip is not an address of this server (is WireGuard up?)"
+    ip -d link show dev "$link_dev" | grep -qw wireguard ||
+      refuse_link "$link_ip is on $link_dev, which is not a WireGuard interface: the link is plain HTTP and must run inside WireGuard"
+    systemctl is-active --quiet linedesk-voice-link-firewall.service ||
+      refuse_link "linedesk-voice-link-firewall is not active (run sudo ops/server/setup.sh; journalctl -u linedesk-voice-link-firewall)"
+  else
+    log "not Linux: the voice link's address and firewall are not checked (a server runs Linux)"
+  fi
+fi
+
+# A voice server (no API). Voice servers 2+ (docker-compose.voice.yml): only the agent worker, replaced start-first like
+# on a single server (the old one drains). Voice server 1 (docker-compose.voice-media.yml) also runs LiveKit, SIP and
+# egress: they change only at a moment without calls (update_call_services), as on a single server.
+if ! grep -qx api <<<"$stack_services"; then
+  SERVICES=$stack_services
+  PROJECT=$(docker compose config 2>/dev/null | sed -n '1s/^name: //p')
+  [ -n "$PROJECT" ] || { log "could not read the compose project: not updating; the running version keeps serving." >&2; exit 1; }
+  if [ -n "$release" ]; then SENTRY_RELEASE=$(release_of agent); export SENTRY_RELEASE; fi
+  if grep -qx livekit <<<"$stack_services"; then
+    log "other services: recreating only what changed"
+    # shellcheck disable=SC2046 # one service name per word
+    docker compose up -d --no-build --no-deps --remove-orphans $(others)
+    roll agent
+    update_call_services
+    clean_up
+    if [ -n "${CALL_SERVICES_PENDING:-}" ]; then
+      log "done, except the call services above: exit 75"
+      exit 75
+    fi
+    if [ -n "${SIP_SETUP_LOST:-}" ]; then
+      log "done, but LiveKit lost SIP setup (see the warning above): exit 76"
+      exit 76
+    fi
+    log "done (voice server 1: LiveKit, SIP, egress and the agent)"
+    exit 0
+  fi
+  roll agent
+  clean_up
+  log "done (voice server: agent only)"
+  exit 0
+fi
+
 running_api=$(docker compose ps -q api)
 running_api=${running_api%%$'\n'*} # the first one; no `| head -1`, which pipefail can fail with SIGPIPE
 if [ -z "$running_api" ]; then
@@ -504,8 +585,10 @@ update_proxy
 log "other services: recreating only what changed"
 # shellcheck disable=SC2046 # one service name per word
 docker compose up -d --no-build --no-deps --remove-orphans $(others)
-if [ -n "$release" ]; then SENTRY_RELEASE=$(release_of agent); export SENTRY_RELEASE; fi
-roll agent
+if grep -qx agent <<<"$SERVICES"; then # not on an app server with voice servers (docker-compose.voice-link.yml)
+  if [ -n "$release" ]; then SENTRY_RELEASE=$(release_of agent); export SENTRY_RELEASE; fi
+  roll agent
+fi
 update_call_services
 clean_up
 # Everything else is updated, but a new LiveKit, SIP, Redis or Postgres is not running yet: fail the deploy,

@@ -2,7 +2,7 @@
 // is throttled, it must be long, and the S3 secret never goes to the agent: the API starts S3 recordings.
 import { agentTokenProblem, DEV_AGENT_TOKEN } from '@linedesk/actions'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
-import { agentEntryAllowed, INVALID_AGENT_TOKENS_PER_IP } from '../src/context.ts'
+import { agentEntryAllowed, agentTokenBucket, INVALID_AGENT_TOKENS_PER_IP } from '../src/context.ts'
 import { s3EgressRequest } from '../src/recording-egress.ts'
 import { assistants, calls } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
@@ -49,6 +49,54 @@ describe('where the agent token works', () => {
     expect((await request(from('guess-again'), 'GET', '/v1/agent/provider-config')).status).toBe(429)
     expect((await request(from(), 'GET', '/v1/agent/provider-config')).status).toBe(429)
     expect((await request(agent(), 'GET', '/v1/agent/provider-config')).status).toBe(200)
+  })
+
+  test('behind the voice link each voice server has its own count: one with a stale token locks out no other', async () => {
+    // Every voice server reaches the API from the voice link's one address; the link names the voice server.
+    const link = randomIp()
+    const from = (node: string | null, token?: string) => ({
+      headers: {
+        ...agent(undefined, token).headers,
+        [FROM]: link,
+        'x-linedesk-entry': 'internal',
+        ...(node ? { 'x-linedesk-voice-node': node } : {}),
+      },
+    })
+    for (let i = 1; i < INVALID_AGENT_TOKENS_PER_IP; i++) {
+      expect((await request(from('10.8.0.2', `stale-${i}`), 'GET', '/v1/agent/provider-config')).status).toBe(401)
+    }
+    expect((await request(from('10.8.0.2', 'stale-again'), 'GET', '/v1/agent/provider-config')).status).toBe(429)
+    expect((await request(from('10.8.0.2'), 'GET', '/v1/agent/provider-config')).status).toBe(429)
+    // Another voice server and the main server's own agent, from the same address, keep working.
+    expect((await request(from('10.8.0.3'), 'GET', '/v1/agent/provider-config')).status).toBe(200)
+    expect((await request(from(null), 'GET', '/v1/agent/provider-config')).status).toBe(200)
+  })
+
+  test('the voice server header counts only on the internal listener: changing it elsewhere opens no new count', async () => {
+    const ip = randomIp()
+    // Straight to the API (no entry header; outside production only), a new made-up voice server on every guess.
+    const from = (i: number, token?: string) => ({
+      headers: { ...agent(undefined, token).headers, [FROM]: ip, 'x-linedesk-voice-node': `10.9.0.${i}` },
+    })
+    for (let i = 1; i < INVALID_AGENT_TOKENS_PER_IP; i++) {
+      expect((await request(from(i, `guess-${i}`), 'GET', '/v1/agent/provider-config')).status).toBe(401)
+    }
+    expect((await request(from(100, 'guess-again'), 'GET', '/v1/agent/provider-config')).status).toBe(429)
+    expect((await request(from(101), 'GET', '/v1/agent/provider-config')).status).toBe(429)
+  })
+
+  test('the count: per address, per voice server only on the internal listener and only for an IPv4 address', () => {
+    const headers = (entry: string | null, node?: string) =>
+      new Headers({
+        ...(entry ? { 'x-linedesk-entry': entry } : {}),
+        ...(node ? { 'x-linedesk-voice-node': node } : {}),
+      })
+    expect(agentTokenBucket(headers('internal', '10.8.0.2'), '172.18.0.5')).toBe('172.18.0.5 voice 10.8.0.2')
+    expect(agentTokenBucket(headers('internal'), '172.18.0.5')).toBe('172.18.0.5')
+    expect(agentTokenBucket(headers('public', '10.8.0.2'), '172.18.0.5')).toBe('172.18.0.5')
+    expect(agentTokenBucket(headers(null, '10.8.0.2'), '172.18.0.5')).toBe('172.18.0.5')
+    for (const junk of ['x'.repeat(200), '10.8.0.256', 'fd00::2', '10.8.0.2, 10.8.0.3'])
+      expect(agentTokenBucket(headers('internal', junk), '172.18.0.5')).toBe('172.18.0.5')
   })
 })
 

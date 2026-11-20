@@ -1,5 +1,6 @@
 // Who is calling: a signed-in member (session cookie) or the voice agent (bearer token).
 import { timingSafeEqual } from 'node:crypto'
+import { isIP } from 'node:net'
 import {
   CLIENT_PROTOCOL,
   CLIENT_PROTOCOL_HEADER,
@@ -166,10 +167,31 @@ export function agentEntryAllowed(entry: string | null, production = process.env
   return entry === 'internal' || (entry === null && !production)
 }
 
-/** Refused agent tokens per client address in a window; then the address is refused at once until they age out. */
+/**
+ * The voice server a request came from, set by the voice link on the main server (docker-compose.voice-link.yml) to
+ * the address the voice server connected from, replacing whatever it sent. Every voice server reaches the API through
+ * that one container, so without it they would all share its address and one voice server with a stale token would
+ * lock out the others. Read only on the internal listener (`x-linedesk-entry: internal`), which only the voice link
+ * and the main server's own containers reach; the public site removes it (docker/Caddyfile).
+ */
+export const VOICE_NODE_HEADER = 'x-linedesk-voice-node'
+
+/**
+ * Where refused agent tokens are counted: the client address, and behind the voice link also the voice server's own
+ * address, so each voice server has its own count. A value that is not an IPv4 address is ignored.
+ */
+export function agentTokenBucket(headers: Headers, clientIp: string | null): string {
+  const bucket = addressBucket(clientIp)
+  if (headers.get(ENTRY_HEADER) !== 'internal') return bucket
+  const node = headers.get(VOICE_NODE_HEADER)?.trim()
+  return node && isIP(node) === 4 ? `${bucket} voice ${node}` : bucket
+}
+
+/** Refused agent tokens per client address (and voice server) in a window; then it is refused at once until they age out. */
 export const INVALID_AGENT_TOKENS_PER_IP = 10
 const invalidAgentTokens = createFailureLimiter({ max: INVALID_AGENT_TOKENS_PER_IP, windowMs: 10 * 60_000 })
-export const tooManyInvalidAgentTokens = (ip: string | null) => invalidAgentTokens.blocked(addressBucket(ip))
+export const tooManyInvalidAgentTokens = (headers: Headers, ip: string | null) =>
+  invalidAgentTokens.blocked(agentTokenBucket(headers, ip))
 
 /**
  * The voice agent: with the install-wide token in the workspace it names (x-workspace-id; none
@@ -254,14 +276,14 @@ export async function resolveCaller(
     }
     // The agent reaches the API through the internal listener only; anywhere else its tokens (install-wide
     // and per call) count for nothing. Checked before either token, so a call token never works through the public site.
-    if (!agentEntryAllowed(headers.get(ENTRY_HEADER)) || tooManyInvalidAgentTokens(clientIp)) return signedOut
+    if (!agentEntryAllowed(headers.get(ENTRY_HEADER)) || tooManyInvalidAgentTokens(headers, clientIp)) return signedOut
     if (isCallToken(bearer)) {
       const claims = verifyCallToken(bearer)
-      if (!claims) invalidAgentTokens.fail(addressBucket(clientIp))
+      if (!claims) invalidAgentTokens.fail(agentTokenBucket(headers, clientIp))
       return claims ? { actor: await agentActor(claims.workspaceId, claims.callId) } : signedOut
     }
     if (!process.env.AGENT_API_TOKEN || !sameToken(bearer, process.env.AGENT_API_TOKEN)) {
-      invalidAgentTokens.fail(addressBucket(clientIp))
+      invalidAgentTokens.fail(agentTokenBucket(headers, clientIp))
       return signedOut
     }
     return { actor: await agentActor(headers.get(WORKSPACE_HEADER)) }

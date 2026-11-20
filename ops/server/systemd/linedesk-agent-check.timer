@@ -1,0 +1,7 @@
+[Unit]
+Description=Linedesk voice server agent check every 2 minutes
+[Timer]
+OnCalendar=*:0/2
+Persistent=true
+[Install]
+WantedBy=timers.target

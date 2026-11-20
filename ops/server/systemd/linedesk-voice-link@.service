@@ -1,0 +1,16 @@
+[Unit]
+Description=Linedesk: start the voice link once WireGuard (%i) is up
+# The voice link (docker-compose.voice-link.yml) binds this server's WireGuard address. Docker's restart policy does
+# not retry a port it could not bind, so when WireGuard came up after Docker, or was restarted, this starts the link's
+# container again (PartOf: a restart of wg-quick@%i runs this again). Only with an active voice-link firewall.
+After=docker.service wg-quick@%i.service linedesk-voice-link-firewall.service
+PartOf=wg-quick@%i.service
+Requires=linedesk-voice-link-firewall.service
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=@APP_DIR@
+# Nothing to start before the first deploy created the container.
+ExecStart=/bin/sh -c 'docker compose ps -a -q voice-link | grep -q . || exit 0; exec docker compose start voice-link'
+[Install]
+WantedBy=wg-quick@%i.service

@@ -663,7 +663,7 @@ app.use('/v1/*', async (c, next) => {
       return c.json({ ok: false, error: 'too many invalid API keys from this address; try again later' }, 429)
     }
     // Guessing the agent token: the address is refused for a while (context.ts).
-    if (bearer && !isApiKey(bearer) && !isPersonalKey(bearer) && tooManyInvalidAgentTokens(ip)) {
+    if (bearer && !isApiKey(bearer) && !isPersonalKey(bearer) && tooManyInvalidAgentTokens(c.req.raw.headers, ip)) {
       c.header('retry-after', '600')
       return c.json({ ok: false, error: 'too many invalid tokens from this address; try again later' }, 429)
     }

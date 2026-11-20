@@ -1,0 +1,13 @@
+[Unit]
+Description=Linedesk: voice link only from the voice servers
+# Before Docker starts the containers, so the published ports are never open without the rules.
+After=network-online.target
+Wants=network-online.target
+Before=docker.service
+OnFailure=linedesk-alert@%n.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/linedesk-voice-link-firewall
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target

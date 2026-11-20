@@ -112,6 +112,109 @@ Raise the rate if you allow a country whose mobile numbers cost more (Telnyx's o
 
 **Twilio:** which countries an account may call is the account's own setting, and Linedesk never changes it. Server admin › System shows the allowed countries Twilio still blocks; turn each on in Twilio Console › Voice › Settings › Geo permissions (low-risk numbers are enough). A workspace with its own Twilio account does the same in its account.
 
+## Separate voice servers
+
+One server runs everything until calls at the same moment get close to what its CPU can carry. CPU is the limit, not memory: each call in progress takes about 0.33 vCPU and 0.3 GB, so a 4 vCPU server answers about 9 to 12 calls at once (measured in load tests), fewer when the web app and the database are busy too. Then move the calls off the app server instead of buying a bigger one: Linedesk scales by job, not by customer. Every workspace stays on the one install; only the voice part moves out.
+
+**What runs where**
+
+| App server | Voice server 1 | Voice servers 2, 3, … (optional) |
+| --- | --- | --- |
+| Web app, API, Postgres, Electric, Caddy | LiveKit, the SIP bridge, egress, Valkey | The voice agent only |
+| No SIP or call-audio port open | An agent worker | No published port |
+| The voice link: the API for the agents (3100) | The voice link: LiveKit for the others (7880) | |
+| `docker-compose.voice-link.yml` | `docker-compose.yml` + `docker-compose.voice-media.yml` | `docker-compose.voice.yml` |
+
+The server with your customers' data opens no port to phone traffic, and a deploy or a busy database never takes CPU from a call. The carriers send calls to voice server 1 (`LIVEKIT_SIP_ENDPOINT`). Every agent worker, on any voice server, registers with voice server 1's LiveKit, which hands each new call to a worker below its load threshold, weighted by how idle it is. A worker that reaches `AGENT_LOAD_THRESHOLD` takes no new call, and the call goes to another. Hosted LiveKit keeps media servers, agents and customer data apart the same way.
+
+**A voice server holds install-wide secrets.** Treat it like the app server, not as a throwaway machine: harden it the same way (`--harden-ssh`, `--ufw`, step 5) and run nothing else on it. Its `.env` has `AGENT_API_TOKEN`, which works in every workspace and reads the provider keys (speech, model and voice keys) through the API, and a LiveKit key, which can join and listen to any live call, change SIP trunks and dispatch rules and dial out through your outbound trunks. Give each further voice server its own LiveKit key (step 3), so you can shut one out without changing the main key, and its own SMTP credential for its alerts if your mail provider allows it. Someone who takes over a voice server can still use the agent token until you change it on every server (see "Remove or shut out a voice server").
+
+**WireGuard is required.** The servers talk to each other only through WireGuard tunnels, on ports the voice links publish only on their WireGuard addresses: on the app server 3100, the API's internal listener (the agent's tokens work only there, never on the public site); on voice server 1 7880, LiveKit. Both are plain HTTP and WebSocket and carry the install-wide agent token and LiveKit tokens; WireGuard encrypts them and lets in only the servers whose keys you added. Your provider's private network (same region, no traffic charges) is fine as the path for the tunnels: set `Endpoint` to the other server's address on it. Without WireGuard on that network the tokens would pass in clear to every machine on it: that setup is not supported, and `scripts/deploy.sh` refuses to start a voice link unless `LINEDESK_VOICE_LINK_IP` is a private IPv4 address of a WireGuard interface on that server (IPv6 is refused too: the firewall below covers IPv4 only). Postgres is never published. Call audio and SIP do not use the tunnels: callers, carriers and agent workers reach LiveKit's public address (7881/tcp, 7882/udp, SIP 5060), encrypted like every WebRTC participant's. Put all servers in the same region and provider; the round trip between them adds to every reply.
+
+**What passes the voice links.** On the app server's (3100) only `/v1/agent/*` and `/v1/actions/*` (what the agent calls). On voice server 1's (7880) only the worker's registration (`/agent`), room connections (`/rtc`, also the browser's test calls through the app server's Caddy) and the LiveKit services the API and the agent use (RoomService, SIP, Egress, AgentDispatch). Every other path answers 404. Each server's voice-link firewall lets in only the addresses in its `/etc/linedesk/voice-nodes.txt`, only at the link's address, and drops anything else they send through it (a route into Docker's networks to another container's port), whatever the Docker version. It works with Docker's default iptables firewall backend only: with the nftables backend (`"firewall-backend": "nftables"` in `daemon.json`, opt-in since Docker 29) there is no `DOCKER-USER` chain and neither this firewall nor the SIP firewall has any effect, so keep the default. Use Docker 28 or later.
+
+**Recordings** must go to S3-compatible storage (Server admin › Providers › Recording storage, or `RECORDING_STORE=s3` with `S3_*`): egress runs on voice server 1 and cannot write into the app server's disk.
+
+**Size:** voice server 1 needs about 1 vCPU more than its agent's share for LiveKit, SIP and egress; 4 vCPUs and 8 GB per agent-only voice server take about 10 calls at once. A dedicated (not shared) vCPU plan keeps replies steady under load.
+
+**Steps**
+
+1. **WireGuard.** On each server: `apt install wireguard`, then create the key where only root can read it: `umask 077; wg genkey > /etc/wireguard/wg0.key; wg pubkey < /etc/wireguard/wg0.key`. `/etc/wireguard/wg0.conf` on the app server (`chmod 600`):
+
+   ```ini
+   [Interface]
+   Address = 10.8.0.1/24
+   ListenPort = 51820
+   PostUp = wg set %i private-key /etc/wireguard/wg0.key
+
+   [Peer]
+   # voice server 1
+   PublicKey = <its public key>
+   AllowedIPs = 10.8.0.2/32
+   Endpoint = <its provider-network address>:51820
+   PersistentKeepalive = 25
+   ```
+
+   Voice server 1 the same with the addresses swapped (`Address = 10.8.0.2/24`, a peer for the app server with `AllowedIPs = 10.8.0.1/32`) and one more peer per further voice server (`10.8.0.3/32`, …); a further voice server has peers for the app server and voice server 1. Each peer gets its own `/32` in `AllowedIPs`, so a server can only send from its own address. Name the interface `wg0` (or any name starting with `wg`: the voice-link firewall lets the listed addresses in only through such an interface). Then `systemctl enable --now wg-quick@wg0` everywhere, and open 51820/udp for the other servers' addresses only (with ufw: `ufw allow from <address> to any port 51820 proto udp`). Docker must start after the WireGuard address exists, or a voice link cannot bind it after a reboot: `systemctl edit docker` and add a `[Unit]` section with `After=` and `Wants=` set to WireGuard's unit (`wg-quick@wg0`, with the `.service` suffix). If WireGuard comes up later or is restarted, `setup.sh` installs `linedesk-voice-link@wg0`, which starts the voice link again.
+
+2. **Recordings to S3** (see above), and move the phone setup over: LiveKit keeps the SIP trunks and dispatch rules in Valkey. When you move an existing install, copy Valkey's data (`/data/appendonlydir` of the `redis_data` volume) to voice server 1 before its first start, or run `setup-sip` there again for every number.
+
+3. **Voice server 1.** Install Docker and put the same release of the code in `/opt/linedesk/app`. Its `.env` holds what LiveKit, SIP, egress and the agent need, never the database or auth secrets:
+
+   ```sh
+   COMPOSE_FILE=docker-compose.yml:docker-compose.voice-media.yml
+   COMPOSE_PROFILES=recording        # egress
+   LINEDESK_MAIN_HOST=10.8.0.1       # the app server's WireGuard address
+   LINEDESK_VOICE_LINK_IP=10.8.0.2   # this server's WireGuard address
+   LIVEKIT_NODE_IP=<this server's public IP>
+   LIVEKIT_BIND_IP=0.0.0.0
+   LIVEKIT_SIP_USE_EXTERNAL_IP=true
+   LIVEKIT_API_KEY=... LIVEKIT_API_SECRET=...      # the same as on the app server
+   LINEDESK_VOICE_LIVEKIT_KEYS=voice-2: <secret>   # one per further voice server (openssl rand -hex 32)
+   AGENT_API_TOKEN=<the same as on the app server>
+   AGENT_LOAD_THRESHOLD=0.8          # the same on every voice server: with more than one worker, a full one refuses calls
+   LINEDESK_VOICE_CPUSET=0-3         # the cores for LiveKit, SIP, egress and the agent
+   LINEDESK_AGENT_MEM=4g
+   ELECTRIC_SECRET=unused            # docker-compose.yml requires a value; nothing here uses it
+   SMTP_URL=...                      # for the server's alerts only (ops/server)
+   EMAIL_FROM=...
+   ```
+
+   plus the speech, model and voice keys the agent's variables name, if you keep them in `.env` rather than in Server admin › Providers. `/etc/linedesk/voice-nodes.txt`: the app server's and every further voice server's WireGuard address, one per line (private IPv4 only, a single address or at most a `/16`). `chmod 600 .env`, then `sudo ops/server/setup.sh --alert-to you@example.com --label voice-1 --ufw --harden-ssh` (the SIP firewall, the voice-link firewall, the agent check) and `scripts/deploy.sh`.
+
+4. **App server.** In `.env`: `COMPOSE_FILE` gets `:docker-compose.voice-link.yml`, `LINEDESK_VOICE_LINK_IP=10.8.0.1`, `LINEDESK_LIVEKIT_HOST=10.8.0.2` (voice server 1's WireGuard address), and `LIVEKIT_SIP_ENDPOINT` a name that points at voice server 1 (DNS only, no proxy). `/etc/linedesk/voice-nodes.txt`: every voice server's WireGuard address. Run `sudo ops/server/setup.sh` and `scripts/deploy.sh`: the API and Caddy now reach LiveKit through voice server 1's voice link. The old local call services keep running until you stop them: once the new setup answers calls, `docker compose stop agent` (it drains) and `docker compose rm -sf livekit-sip livekit-egress redis`. Change the carrier's SIP address (the FQDN of your SIP connection) to `LIVEKIT_SIP_ENDPOINT` too.
+
+5. **Further voice servers** (optional). Docker, the code, and an `.env` with only this:
+
+   ```sh
+   COMPOSE_FILE=docker-compose.voice.yml
+   LINEDESK_MAIN_HOST=10.8.0.1       # the app server's WireGuard address
+   LINEDESK_LIVEKIT_HOST=10.8.0.2    # voice server 1's WireGuard address
+   AGENT_API_TOKEN=<the same as on the app server>
+   LIVEKIT_API_KEY=voice-2           # this server's own key from LINEDESK_VOICE_LIVEKIT_KEYS
+   LIVEKIT_API_SECRET=<its secret>
+   AGENT_LOAD_THRESHOLD=0.8
+   LINEDESK_VOICE_CPUSET=0-3         # every core of this server
+   LINEDESK_AGENT_MEM=6g             # about 0.8 GB plus 0.3 GB per call at once
+   AGENT_IDLE_PROCESSES=2
+   SMTP_URL=...
+   EMAIL_FROM=...
+   ```
+
+   It publishes no port: `sudo ops/server/setup.sh --alert-to you@example.com --label voice-2 --ufw --harden-ssh` (with the agent check: an email, and with `--push-url` a phone push, when this server's worker is not registered or idle for two checks in a row; the app server's `/v1/health` cannot see one voice server fail while another worker checks in), then `scripts/deploy.sh`. The agent is healthy once it is registered with voice server 1's LiveKit.
+
+6. **Check.** A real call to one of your numbers: it reaches voice server 1 (`docker compose logs livekit-sip` there), an agent answers, and the recording shows up. A test call from the browser goes through the app server's Caddy to voice server 1.
+
+**Updates.** Update the voice servers to the same commit as the app server, right after it (the API keeps answering the previous release's agent during that time). `scripts/deploy.sh` replaces each worker start-first: the new worker registers, the old one takes no new calls and finishes its own (up to 2 hours) in the background. On voice server 1 LiveKit, SIP, egress, Valkey and the voice link change only at a moment without calls (no LiveKit room open), as on a single server. On the app server the voice link and the LiveKit forwarder wait for a moment without live calls the same way.
+
+**Drain a voice server** before an OS update, a reboot or removing it: `docker compose stop agent` sends SIGTERM; the worker takes no new calls (LiveKit sends them to the other workers) and the command returns once its last call ended (at most `LINEDESK_AGENT_DRAIN`, 130 minutes). Make sure the other workers have room first. Voice server 1 also carries every call's media and SIP: reboot it only at a quiet moment, or add a second voice server first.
+
+**Remove or shut out a voice server** (also at once, when it may be compromised):
+
+1. Take its address out of `/etc/linedesk/voice-nodes.txt` on the app server and on voice server 1 and run `sudo ops/server/setup.sh` on both: the firewalls cut it off at once, open connections included. Remove its `[Peer]` from `/etc/wireguard/wg0.conf` and `systemctl restart wg-quick@wg0`.
+2. Take its key out of `LINEDESK_VOICE_LIVEKIT_KEYS` on voice server 1 and run `scripts/deploy.sh` there: LiveKit stops accepting it at the next moment without calls (`LINEDESK_DEPLOY_DROP_CALLS=1` at once, cutting off the calls in progress).
+3. If it may be compromised: it had the agent token, so set a new `AGENT_API_TOKEN` (at least 32 characters) on the app server and every voice server and deploy each. Change its SMTP credential at your mail provider.
+
 ## Bill your own workspaces
 
 Your install can charge the businesses on it, through your own Stripe account, at your prices and under your product name. It is off until you turn it on.

@@ -1,0 +1,126 @@
+# The app server's side of separate voice servers (docs/hosting.md, "Separate voice servers"). Add it to COMPOSE_FILE
+# on the app server only; a single-server install does not use it.
+#
+# Layout (decision of 2026-11-20): the app server keeps the web app, the API, Postgres, Electric and Caddy, and opens
+# no SIP or call-audio port. Voice server 1 (docker-compose.yml + docker-compose.voice-media.yml) runs LiveKit,
+# SIP, egress and an agent worker; more voice servers (docker-compose.voice.yml alone) run an agent worker only.
+#
+# So this file does two things on the app server:
+# 1. It stops the local call services: livekit-sip, livekit-egress, redis and the agent get a profile that is never
+#    turned on, and `livekit` becomes a small forwarder to voice server 1's LiveKit (LINEDESK_LIVEKIT_HOST, its
+#    WireGuard address, port 7880). The API (test calls, the voice status check, SIP setup) and Caddy (/rtc for the
+#    browser) keep talking to `livekit:7880` as before. No port is published for it.
+# 2. The voice link: the API's internal listener (docker/Caddyfile, where the agent's tokens count; the public site
+#    refuses them) on :3100, only /v1/agent/* and /v1/actions/*, what the agent calls (apps/agent/src/api-client.ts).
+#    Plain HTTP, so it is published only on LINEDESK_VOICE_LINK_IP: this server's WireGuard address (IPv4), never a
+#    public one and never a provider's private network without WireGuard, where the agent token would pass in clear.
+#    scripts/deploy.sh refuses to start it otherwise, and without an active voice-link firewall (ops/server,
+#    linedesk-voice-link-firewall), which lets only the voice servers in /etc/linedesk/voice-nodes.txt reach it.
+#
+# Each voice server has its own count of refused agent tokens: the link tells the API which voice server a request
+# came from (X-Linedesk-Voice-Node, its address here; whatever the voice server sent is replaced).
+#
+# Its own small Caddy, not more ports on the proxy: when the private address is missing (WireGuard not up yet after a
+# reboot), only this container fails to start, never the site (ops/server: linedesk-voice-link@<interface> starts it
+# once WireGuard is up). scripts/deploy.sh treats it like the other call services (recreated only at a moment without
+# calls), because the voice servers' calls run through it.
+
+services:
+  voice-link:
+    image: caddy:2-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+    entrypoint: ["/bin/sh", "-c"]
+    # flush_interval -1: LiveKit signalling and the API's streams are long-lived. No admin endpoint, no certificates,
+    # no saved config: the container is read-only.
+    command:
+      - |
+        cat > /tmp/Caddyfile <<'EOF'
+        {
+          admin off
+          auto_https off
+          persist_config off
+        }
+        :3100 {
+          @agent path /v1/agent/* /v1/actions/*
+          handle @agent {
+            reverse_proxy proxy:3100 {
+              header_up X-Linedesk-Voice-Node {remote_host}
+              flush_interval -1
+            }
+          }
+          handle {
+            respond 404
+          }
+        }
+        EOF
+        exec caddy run --adapter caddyfile --config /tmp/Caddyfile
+    environment:
+      XDG_CONFIG_HOME: /tmp
+      XDG_DATA_HOME: /tmp
+    ports:
+      - "${LINEDESK_VOICE_LINK_IP:?set LINEDESK_VOICE_LINK_IP in .env to this server's private address (docs/hosting.md)}:3100:3100"
+    user: "1000:1000"
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    depends_on:
+      proxy: { condition: service_started }
+    mem_limit: ${LINEDESK_VOICE_LINK_MEM:-48m}
+    cpus: ${LINEDESK_VOICE_LINK_CPUS:-0.1}
+
+  # Voice server 1's LiveKit, under the name the API and Caddy use. A forwarder only: no port published, no keys, no
+  # Redis. Plain HTTP and WebSocket inside WireGuard; voice server 1's firewall lets only this server and the other
+  # voice servers in (its /etc/linedesk/voice-nodes.txt).
+  livekit:
+    image: !override caddy:2-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
+    entrypoint: !override ["/bin/sh", "-c"]
+    command: !override
+      - |
+        cat > /tmp/Caddyfile <<'EOF'
+        {
+          admin off
+          auto_https off
+          persist_config off
+        }
+        :7880 {
+          reverse_proxy {$$LINEDESK_LIVEKIT_HOST}:7880 {
+            flush_interval -1
+          }
+        }
+        EOF
+        exec caddy run --adapter caddyfile --config /tmp/Caddyfile
+    environment: !override
+      XDG_CONFIG_HOME: /tmp
+      XDG_DATA_HOME: /tmp
+      LINEDESK_LIVEKIT_HOST: ${LINEDESK_LIVEKIT_HOST:?set LINEDESK_LIVEKIT_HOST in .env to voice server 1's WireGuard address (docs/hosting.md)}
+    ports: !reset []
+    depends_on: !reset []
+    networks: !override [default]
+    user: "1000:1000"
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    cpuset: !reset null
+    mem_limit: !override ${LINEDESK_VOICE_LINK_MEM:-48m}
+    cpus: 0.1
+
+  # The call services that now run on voice server 1: never started here (no compose command turns this profile on;
+  # scripts/deploy.sh only touches the services `docker compose config --services` lists).
+  livekit-sip:
+    profiles: !override [on-voice-server]
+    depends_on: !reset []
+  livekit-egress:
+    profiles: !override [on-voice-server]
+    depends_on: !reset []
+  recordings-init:
+    profiles: !override [on-voice-server]
+  redis:
+    profiles: !override [on-voice-server]
+  agent:
+    profiles: !override [on-voice-server]
+    depends_on: !reset []

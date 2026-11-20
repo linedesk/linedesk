@@ -103,7 +103,8 @@
 }
 
 # Inside the compose network only (not published): the voice agent reaches the API here
-# (LINEDESK_API_URL=http://proxy:3100), so its calls to the API also ride over an API update.
+# (LINEDESK_API_URL=http://proxy:3100), so its calls to the API also ride over an API update. Voice servers reach it
+# through the voice link (docker-compose.voice-link.yml), which adds X-Linedesk-Voice-Node.
 :3100 {
 	import api internal
 }
@@ -133,6 +134,9 @@
 	# HSTS only where this Caddy serves HTTPS itself (docker-compose.https.yml). Behind your own TLS proxy, set it there.
 	@https protocol https
 	header @https Strict-Transport-Security "max-age=31536000"
+	# Which voice server a request came from is set by the voice link (docker-compose.voice-link.yml) and counts on the
+	# internal listener only (apps/api/src/context.ts, VOICE_NODE_HEADER): from the public site, nobody picks it.
+	request_header -X-Linedesk-Voice-Node
 	# The voice agent's own routes are for the internal listener above only.
 	@agentOnly path /v1/agent /v1/agent/*
 	handle @agentOnly {

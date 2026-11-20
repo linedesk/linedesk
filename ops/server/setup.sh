@@ -10,7 +10,10 @@
 #            --harden-ssh        keys only, no root login, 3 tries (needs a sudo user with an SSH key)
 #            --ufw               ufw on: only SSH reaches host services (Docker's published ports are not affected)
 #            --monitor <host> [--monitor-sip <host>]   check another install every 2 minutes from this server
-#            --push-url <https URL>   with --monitor: also a phone push (ntfy topic URL) when a check goes down or up
+#            --push-url <https URL>   with --monitor (or on a voice server): also a phone push (ntfy topic URL) when a check goes down or up
+# A server with a voice link (the app server with docker-compose.voice-link.yml, voice server 1 with
+# docker-compose.voice-media.yml) also gets the voice-link firewall (only the addresses in /etc/linedesk/voice-nodes.txt);
+# a voice server (an agent and no API) the agent check.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 app_dir=${LINEDESK_APP_DIR:-$(cd "$here/../.." && pwd)}
@@ -26,7 +29,7 @@ while [ $# -gt 0 ]; do
     --monitor) monitor=${2:?--monitor needs a host}; shift ;;
     --monitor-sip) monitor_sip=${2:?--monitor-sip needs a host}; shift ;;
     --push-url) push_url=${2:?--push-url needs a URL}; shift ;;
-    *) sed -n '2,13p' "$0" >&2; exit 2 ;;
+    *) sed -n '2,15p' "$0" >&2; exit 2 ;;
   esac
   shift
 done
@@ -141,6 +144,34 @@ if [ "$cloudflare" = 1 ] || [ -f /etc/linedesk/cloudflare-v4.txt ]; then
 fi
 [ -z "$monitor" ] || units="$units linedesk-monitor.timer"
 
+# Separate voice servers (docs/hosting.md, "Separate voice servers"), as compose resolves COMPOSE_FILE (quotes, ./,
+# the environment): an invalid setup stops here rather than skip the firewall. A server with a voice link (the app
+# server, voice server 1): the link only from the servers listed in voice-nodes.txt (a new list starts empty, which
+# lets none in), and started again once WireGuard is up. A voice server (an agent, no API): an alert when its worker
+# takes no calls.
+compose_services=$(cd "$app_dir" && docker compose config --services) ||
+  { echo "docker compose config fails in $app_dir: fix the compose setup (.env) first" >&2; exit 1; }
+voice_link_unit='' voice_link_wg=''
+if printf '%s\n' "$compose_services" | grep -qx voice-link; then
+  if [ ! -f /etc/linedesk/voice-nodes.txt ]; then
+    printf '%s\n' "# The other servers' WireGuard addresses, one per line: only they reach this server's voice link (linedesk-voice-link-firewall)." > "$tmp/voice-nodes.txt"
+    put "$tmp/voice-nodes.txt" /etc/linedesk/voice-nodes.txt 644
+  fi
+  grep -Eq '^[[:space:]]*[0-9]' /etc/linedesk/voice-nodes.txt 2>/dev/null ||
+    echo "WARNING: no address in /etc/linedesk/voice-nodes.txt yet: no other server reaches the voice link (and scripts/deploy.sh does not start it) until you add them and run this again." >&2
+  voice_link_unit=linedesk-voice-link-firewall.service
+  link_ip=$(sed -n 's/^LINEDESK_VOICE_LINK_IP=//p' "$app_dir/.env" | tail -1 | sed "s/^[\"']//; s/[\"']\$//")
+  link_dev=$(ip -4 -o addr show | awk -v ip="$link_ip" '{ split($4, a, "/") } a[1] == ip { print $2; exit }')
+  if [ -n "$link_dev" ] && ip -d link show dev "$link_dev" | grep -qw wireguard; then
+    voice_link_wg="linedesk-voice-link@$link_dev.service"
+  else
+    echo "WARNING: LINEDESK_VOICE_LINK_IP ($link_ip) is not on a WireGuard interface of this server: scripts/deploy.sh does not start the voice link until it is (docs/hosting.md, step 1)." >&2
+  fi
+fi
+if printf '%s\n' "$compose_services" | grep -qx agent && ! printf '%s\n' "$compose_services" | grep -qx api; then
+  units="$units linedesk-agent-check.timer"
+fi
+
 if [ "$harden_ssh" = 1 ]; then
   # Never lock the last way in: a non-root user with a full SSH key (not a forced-command one like a deploy key) who
   # can use sudo (without a password, or with one set) must exist first.
@@ -184,7 +215,7 @@ if [ "$ufw" = 1 ]; then
 fi
 
 if [ "$dry" = 1 ]; then
-  say "units that would be on: $units"
+  say "units that would be on: $units${voice_link_unit:+ $voice_link_unit}${voice_link_wg:+ $voice_link_wg}"
   [ "$changed" = 1 ] || say "nothing to change"
   exit 0
 fi
@@ -197,5 +228,25 @@ systemctl enable --now $units >/dev/null
 # A changed firewall script only takes effect when it runs again.
 systemctl restart linedesk-sip-firewall.service
 case $units in *linedesk-web-firewall*) systemctl restart linedesk-web-firewall.service ;; esac
+# The voice-link firewall, also after a change to the list of voice servers. While the list is empty or invalid it shuts
+# the link and fails (which sends its alert): a warning only. If the link is not shut either, this stops.
+if [ -n "$voice_link_unit" ]; then
+  systemctl enable "$voice_link_unit" >/dev/null
+  if ! systemctl restart "$voice_link_unit"; then
+    if iptables -w -C DOCKER-USER -m conntrack --ctdir ORIGINAL -j LINEDESK-VOICE-LINK 2>/dev/null &&
+      iptables -w -S LINEDESK-VOICE-LINK | grep -q -- '--ctorigdstport 3100 -j DROP' &&
+      iptables -w -S LINEDESK-VOICE-LINK | grep -q -- '--ctorigdstport 7880 -j DROP'; then
+      echo "WARNING: $voice_link_unit failed, the voice link is shut: check /etc/linedesk/voice-nodes.txt and LINEDESK_VOICE_LINK_IP (journalctl -u $voice_link_unit)" >&2
+    else
+      echo "ERROR: $voice_link_unit failed and the voice link is NOT firewalled. Stop it now (cd $app_dir && docker compose stop voice-link), then see journalctl -u $voice_link_unit" >&2
+      exit 1
+    fi
+  fi
+  units="$units $voice_link_unit"
+  if [ -n "$voice_link_wg" ]; then
+    systemctl enable "$voice_link_wg" >/dev/null
+    units="$units $voice_link_wg"
+  fi
+fi
 say "on: $units"
 say "test the alert email: /usr/local/sbin/linedesk-alert-text 'Test' 'Alerts from $(hostname) work.'"

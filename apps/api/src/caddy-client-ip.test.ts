@@ -32,3 +32,10 @@ test('behind Cloudflare: only its ranges are trusted, the visitor comes from CF-
   // No private or catch-all range, which would let anyone inside it name the client.
   expect(ranges).not.toMatch(/\b(10\.|172\.16\.|192\.168\.|0\.0\.0\.0\/0|::\/0)/)
 })
+
+test('the public site removes X-Linedesk-Voice-Node: only the voice link names a voice server (internal listener)', () => {
+  const site = caddyfile.slice(caddyfile.indexOf('{$SITE_ADDRESS::80} {'))
+  expect(site).toContain('request_header -X-Linedesk-Voice-Node')
+  const internal = caddyfile.slice(caddyfile.indexOf(':3100 {'), caddyfile.indexOf('{$SITE_ADDRESS::80} {'))
+  expect(internal).not.toContain('X-Linedesk-Voice-Node')
+})
