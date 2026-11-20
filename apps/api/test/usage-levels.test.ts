@@ -1,4 +1,4 @@
-// Call quality on Linedesk Cloud (src/usage-levels.ts, src/call-quality.ts, decisions.md 2026-11-17): the assistant's
+// Call quality on Linedesk Cloud (src/usage-levels.ts, src/call-quality.ts, decision of 2026-11-17): the assistant's
 // level (Standard, Premium, Ultra) and its model picks, who may raise it, the install's settings in Server admin, the
 // checks in assistant.update and the level call.start decides. Picking Premium or Ultra is the consent; there are no
 // Allow switches (call quality 4/5). Billing is switched on by replacing billingState (no Stripe keys in tests); the
@@ -198,7 +198,7 @@ describe('call quality on Cloud: the level decides the price', () => {
     })
   })
 
-  test('every workspace admin raises, the owner too, whoever pays; members never; never an API key or impersonation (decisions.md 2026-11-18)', async () => {
+  test('every workspace admin raises, the owner too, whoever pays; members never; never an API key or impersonation (decision of 2026-11-18)', async () => {
     // Bill owner B pays for W, which X owns; A is an admin of W, M a member. Who pays is not asked any more.
     const payerWs = await createWorkspace('Quality Payer Plumbing')
     const ws = await createWorkspace('Quality Paid For Heating')
@@ -371,7 +371,7 @@ describe('call quality on Cloud: the level decides the price', () => {
     expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('premium')
     const created = await act(ws.owner, 'assistant.create', {})
     expect((await getAssistant(created.body.data.assistantId))!.call_quality).toBe('premium')
-    // Any admin raises, so an admin's new assistant and copy keep the paid level too (decisions.md 2026-11-18).
+    // Any admin raises, so an admin's new assistant and copy keep the paid level too (decision of 2026-11-18).
     const admin = await addMember(ws.id, 'admin')
     const byAdmin = await act(admin, 'assistant.create', {})
     expect((await getAssistant(byAdmin.body.data.assistantId))!.call_quality).toBe('premium')
@@ -390,7 +390,7 @@ describe('call quality on Cloud: the level decides the price', () => {
     expect((await getAssistant(ws.assistant.id))!.call_quality).toBe('premium')
   })
 
-  test("a copy of a Premium assistant on someone else's bill keeps its level: who pays is not asked (decisions.md 2026-11-18)", async () => {
+  test("a copy of a Premium assistant on someone else's bill keeps its level: who pays is not asked (decision of 2026-11-18)", async () => {
     const ws = await createWorkspace('Quality Copy Other Bill Plumbing')
     await billOf(ws.owner.userId, [ws.id])
     expect((await setLevel(ws.owner, ws.assistant.id, 'premium')).status).toBe(200)

@@ -1,4 +1,4 @@
-// WORKSPACE_LIMIT is retired (Janik, 2026-11-15, Q2): a server that still sets it (here 2) gets one warning at start
+// WORKSPACE_LIMIT is retired (decision of 2026-11-15, Q2): a server that still sets it (here 2) gets one warning at start
 // and no limit. What still guards creation stays: only a server admin's session with the passkey check, never while
 // impersonating, and one setup link creates at most 10. The env is set before anything is imported, as at a real start.
 import { organization, user } from '@linedesk/db'

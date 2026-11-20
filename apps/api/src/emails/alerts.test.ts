@@ -61,7 +61,7 @@ describe('in the pseudo-locale nothing is left in English', () => {
   const pseudo = PSEUDO_LOCALE
   const utc = getT(pseudo).format.dateTime(new Date(AT), { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
 
-  it('the admin sign-in from a new device (Janik, prod, 日本語 admin)', () => {
+  it('the admin sign-in from a new device (Mike Brennan, prod, 日本語 admin)', () => {
     for (const method of ['passkey', 'authenticator', 'password', 'email_code', 'google', 'other']) {
       const alert = adminSignInAlert({
         who: 'ann@brightwater.example',

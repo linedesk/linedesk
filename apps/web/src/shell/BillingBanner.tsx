@@ -1,10 +1,10 @@
-// The bill owner's billing line above every page (docs/billing.md §3.4, §4.3, §11 PR 9): paused calls, a canceled
+// The bill owner's billing line above every page: paused calls, a canceled
 // plan, a failed payment or recharge, an unpaid number, the monthly cap reached, a low balance with auto-recharge off.
 // One line, the most pressing first (billingBanner), leading to Workspace settings › Billing. It reads `billing.state`
 // only (a few rows, cached with the page's: settings/billingQueries.ts), never the page's overview. Only for the bill
 // owner while the workspace is on a bill; nothing otherwise.
 //
-// In the trial, once most of its minutes are used (docs/billing.md §3.2 step 7), the line offers one button instead:
+// In the trial, once most of its minutes are used, the line offers one button instead:
 // "Keep calls answered" buys the auto-recharge amount with the saved card it names (Buy minutes' path: the owner
 // confirms it is them first) and turns auto-recharge on for the rest of the trial. Its tooltip has the full terms.
 //

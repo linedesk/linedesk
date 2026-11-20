@@ -1,4 +1,4 @@
-// Self-serve sign-up on Linedesk Cloud (docs/billing.md §3.1, §3.2; PR 7). Open only while the billing provider in
+// Self-serve sign-up on Linedesk Cloud. Open only while the billing provider in
 // effect is Stripe, an instance admin turned `signup.selfServe` on, and (by default) Cloudflare Turnstile is set up.
 //
 // The flow: the sign-up page asks POST /v1/signup/code for an email code. Before a code goes out: the address's domain
@@ -165,8 +165,7 @@ export type SelfServeState = {
 }
 
 /**
- * Whether self-serve sign-up is switched on and open now: billing in effect through Stripe (docs/billing.md §3.1,
- * decision 1), the terms and privacy policy with their versions set (legal-terms.ts, A9: nobody starts a plan without
+ * Whether self-serve sign-up is switched on and open now: billing in effect through Stripe, the terms and privacy policy with their versions set (legal-terms.ts, A9: nobody starts a plan without
  * terms to accept) and, while the rules ask for it, Turnstile set up. Checked by every step, never only by the page.
  */
 export async function selfServeState(tx: Tx): Promise<SelfServeState> {
@@ -370,7 +369,7 @@ export const PENDING_PAYMENT = 'Start your free trial first: numbers, invitation
  * (run-action.ts, before the input is read; security review F1 of #960): an anonymous sign-up must not mail arbitrary
  * addresses through invitations, call out through webhooks, take a number, call a phone or spend the install's
  * providers beyond the setup allowance. The owner sets the workspace up meanwhile, with an AI agent (a workspace setup
- * link, agent-first since 2026-11-18) or by hand: the steps up to `activate` (docs/billing.md §3.2). Browser test calls
+ * link, agent-first since 2026-11-18) or by hand: the steps up to `activate`. Browser test calls
  * and business lookups run within the setup allowance of `signup.rules` (startTestCall, chargeSetupLookup).
  * `phoneNumber.setup` also refuses in its handler (refusePendingPayment), `onboarding.setStep` past `activate` in its own.
  */
@@ -445,7 +444,7 @@ export async function refuseSetupTestCall(tx: Tx, workspaceId: string, nowMs: nu
   if ((used?.seconds ?? 0) >= rules.setupTestMinutes * 60) throw Reject.t('server.api.setup.testMinutesUsed')
 }
 
-/** Whether the workspace waits for its first Checkout (docs/billing.md §3.1), and whose: its own or its partner's. */
+/** Whether the workspace waits for its first Checkout, and whose: its own or its partner's. */
 async function pendingPaymentOf(
   tx: Pick<Tx, 'select'>,
   workspaceId: string | null,
@@ -459,7 +458,7 @@ async function pendingPaymentOf(
   return row.partnerId ? 'partner' : 'trial'
 }
 
-/** Whether the workspace waits for its first Checkout (docs/billing.md §3.1): a Cloud sign-up's, or a partner's draft. */
+/** Whether the workspace waits for its first Checkout: a Cloud sign-up's, or a partner's draft. */
 export async function isPendingPayment(tx: Pick<Tx, 'select'>, workspaceId: string | null): Promise<boolean> {
   return (await pendingPaymentOf(tx, workspaceId)) !== null
 }
@@ -487,7 +486,7 @@ export async function pendingPaymentRefusal(
 }
 
 /**
- * Nothing that costs money or reaches outside before Checkout (docs/billing.md §3.1): no number while the workspace
+ * Nothing that costs money or reaches outside before Checkout: no number while the workspace
  * waits for its first Checkout. Checked again in that handler, under its transaction, besides run-action.ts's check of
  * REFUSED_WHILE_PENDING_PAYMENT.
  */

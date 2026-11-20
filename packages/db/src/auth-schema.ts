@@ -123,7 +123,7 @@ export const organization = pgTable(
     // Not Better Auth's: set by an instance admin. The workspace's monthly spending cap in US cents, on the
     // estimated cost (apps/api/src/spending-cap.ts); null: no cap.
     spendingCapCents: integer("spending_cap_cents"),
-    // Not Better Auth's: the bill paying for this workspace (billing_accounts.id; docs/billing.md §4.1). Null:
+    // Not Better Auth's: the bill paying for this workspace (billing_accounts.id). Null:
     // unbilled (self-host, or comped by an instance admin). Its foreign key is in migration 0107 (billing_accounts
     // lives in schema.ts, which imports this file).
     billingAccountId: text("billing_account_id"),

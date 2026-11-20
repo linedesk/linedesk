@@ -6,7 +6,7 @@
 . scripts/backup-settings.sh
 
 for name in BACKUP_S3_ENDPOINT BACKUP_S3_BUCKET BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY; do
-  [ -n "$(setting "$name")" ] || { echo "wal: $name is not set (backup.env, README \"Backups\")" >&2; exit 1; }
+  [ -n "$(setting "$name")" ] || { echo "wal: $name is not set (backup.env, docs/self-hosting.md \"Backups\")" >&2; exit 1; }
 done
 # Encrypted backups would need each segment encrypted too; not built (yet), so it refuses rather than upload plain WAL.
 [ -z "$(setting BACKUP_AGE_RECIPIENT)" ] || {

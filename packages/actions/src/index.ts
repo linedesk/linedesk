@@ -450,6 +450,8 @@ const all = [
   integrations.integrationUnsubscribe,
   integrations.integrationList,
   integrations.integrationRemove,
+  integrations.zapierAppGet,
+  integrations.zapierAppSet,
   webhooks.callLookUpCaller,
   webhooks.callAskWebhook,
   knowledge.knowledgeImport,

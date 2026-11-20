@@ -350,7 +350,7 @@ export const NOT_OVER_MCP: ReadonlySet<string> = new Set(['integration.subscribe
  * into them. The install's provider keys (email, storage, the one OpenAI key), the workspace's carrier account and
  * number setup, server admins, passkey resets and enrolment codes, and the install's system prompt stay with the person
  * in the app, the CLI or a script (LIN-339 security review M4). Webhooks, invites, memberships, where a number's calls
- * go, outbound countries and a calendar signed in with a password are open (Tim, 2026-11-16): every write is marked
+ * go, outbound countries and a calendar signed in with a password are open (decision of 2026-11-16): every write is marked
  * destructive, so the client asks first.
  */
 export const NOT_OVER_MCP_FOR_PERSONAL_KEYS: ReadonlySet<string> = new Set([
@@ -377,7 +377,7 @@ export const NOT_OVER_MCP_FOR_PERSONAL_KEYS: ReadonlySet<string> = new Set([
  * What a key issued by OAuth sign-in (an MCP client from a connector directory: ChatGPT, Claude) offers besides the
  * public actions: the assistant's settings. Directory reviews ask for a small, named tool set, so such a key gets the
  * read tools, the public actions (calls, contacts, appointments, free slots, members) and these, nothing else and no
- * api_get (Tim, 2026-11-17, LIN-469). A personal key made in the app keeps every action its maker may run.
+ * api_get (decision of 2026-11-17, LIN-469). A personal key made in the app keeps every action its maker may run.
  */
 export const OAUTH_EXTRA_ACTIONS: ReadonlySet<string> = new Set(['assistant.update'])
 

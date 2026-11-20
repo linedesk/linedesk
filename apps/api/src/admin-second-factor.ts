@@ -1,4 +1,4 @@
-// Server admin needs a passkey (docs/architecture.md §12, Janik's decision 2026-11-15): two levels.
+// Server admin needs a passkey (docs/architecture.md §12, decision of 2026-11-15): two levels.
 // - Workspace users (owner, admin, member) sign in with any method this install offers; a passkey is optional.
 // - Server admin (`instance:admin`: every Server admin page, provider key and setting, setup links, impersonation,
 //   every instance-admin action and GET /v1/admin/*) only in a session that passed a passkey check in the last
@@ -6,14 +6,14 @@
 //   session.create hook below, server-side and bound to that session; never a client flag). An admin may sign in with
 //   anything and use their workspaces; opening Server admin asks for the passkey once. No email code, password or
 //   provider sign-in counts for the admin level. The one fallback is a code from the admin's authenticator app (TOTP,
-//   authenticator.ts; Tim's decisions 2026-11-15, LIN-275): it marks the session the same way, but the account must
+//   authenticator.ts; decisions of 2026-11-15, LIN-275): it marks the session the same way, but the account must
 //   have a passkey all the same (no passkey: `enrol`, whatever was checked).
 // An admin without a passkey adds one first, with a one-time enrolment code (passkey-enrolment.ts: from another admin,
 // the first-run setup, the API log at start, or `user-passkeys.ts --enrol` / `--remove` on the server).
 // Impersonation sessions never count. Installs that cannot use passkeys at all (no https) turn the rule off with
 // ADMIN_SECOND_FACTOR=off; the API then warns at every start. An install on this machine only (its addresses are
 // localhost, 127.0.0.1, [::1] or a *.localhost name: local development, localOnlyInstall) has it off by itself, for admins and for the
-// owner's step-ups (Tim, 2026-11-15); ADMIN_SECOND_FACTOR=on turns it on there, to try the passkey check.
+// owner's step-ups (decision of 2026-11-15); ADMIN_SECOND_FACTOR=on turns it on there, to try the passkey check.
 import type { Permission } from '@linedesk/actions'
 import { passkeySignInEnabled } from './auth-methods.ts'
 

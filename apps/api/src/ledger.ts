@@ -1,4 +1,4 @@
-// The billing ledger core (docs/billing.md §4): posting entries, rating finished calls, the call gate's reservation
+// The billing ledger core: posting entries, rating finished calls, the call gate's reservation
 // and the recharge decision, on the tables of migrations 0107 and 0110. The math is in @linedesk/db (types.ts), so the
 // browser shows the same numbers; this file reads and locks the rows. No Stripe call happens here: a recharge is a
 // pending `billing_recharges` row, charged by the job of PR 4.
@@ -242,7 +242,7 @@ export type ReserveInput = {
 export type ReserveAnswer = GateAnswer & { reservedMicros?: number; heldSeconds?: number; recharge?: RechargeOutcome }
 
 /**
- * "Can this call start?" (docs/billing.md §4.4): under the bill's balance lock, checks the bill, its concurrency cap
+ * "Can this call start?": under the bill's balance lock, checks the bill, its concurrency cap
  * and the balance, and on yes stores the call's reservation (its paid level, the own-keys forecast, its limit, the
  * money and the allowance it holds). A low balance also runs the recharge decision.
  */
@@ -263,7 +263,7 @@ export async function reserveCall(tx: Tx, input: ReserveInput): Promise<ReserveA
     rules.includedStandardSeconds -
     counter.included_seconds_used -
     (await allowanceHeld(tx, input.billId, input.workspaceId))
-  // A comped bill is debited nothing (docs/billing.md §4.1), so its calls hold neither money nor allowance.
+  // A comped bill is debited nothing, so its calls hold neither money nor allowance.
   const { heldSeconds, reservedMicros } =
     bill.status === 'comped'
       ? { heldSeconds: 0, reservedMicros: 0 }
@@ -315,7 +315,7 @@ export type PostOutcome =
     }
 
 /**
- * Rates a finished call and posts its usage once (docs/billing.md §4.2), at the level and to the bill stored on its
+ * Rates a finished call and posts its usage once, at the level and to the bill stored on its
  * reservation, in the period it started in; releases the reservation. Only a finished call posts: before its status
  * is `completed` with `ended_at` and `duration_sec` set, nothing posts and the reservation stays, so an early or
  * repeated finish never locks in $0 (security review of #857, M1). The billed seconds are capped at the reservation's
@@ -406,7 +406,7 @@ export type RechargeOutcome =
   | { kind: 'cap_reached'; firstThisMonth: boolean }
 
 /**
- * The recharge decision (docs/billing.md §4.3) under the bill's balance lock: a pending `billing_recharges` row when
+ * The recharge decision under the bill's balance lock: a pending `billing_recharges` row when
  * the balance is below the threshold and the monthly cap leaves at least $20, else maybe the cap-reached alert row
  * (once per month). The partial unique index keeps it to one pending attempt even if two decide at once.
  */
@@ -479,7 +479,7 @@ export type LedgerDifference =
   | { kind: 'uncredited'; bill: string; recharge: string }
 
 /**
- * What the nightly check finds wrong (docs/billing.md §5.1): a balance that is not its ledger's sum, a reserved sum
+ * What the nightly check finds wrong: a balance that is not its ledger's sum, a reserved sum
  * that is not its reservations', a counter that is not its usage entries' (allowance at each level's factor, and the
  * money), a paid recharge without its credit. Empty when everything adds up.
  */
@@ -539,7 +539,7 @@ export async function ledgerDifferences(tx: Tx): Promise<LedgerDifference[]> {
 }
 
 /**
- * The nightly billing check (docs/billing.md §5.1): the ledger guards again (a missing one turns billing off until the
+ * The nightly billing check: the ledger guards again (a missing one turns billing off until the
  * next good check), then the sums. Skipped on an install without bills. Returns what it found, for the alert.
  */
 export async function checkLedger(

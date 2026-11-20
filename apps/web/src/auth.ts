@@ -58,7 +58,7 @@ export type OnboardingState = {
 
 /**
  * What starting the trial (or the plan, after a refused trial: `trialDays` null) means, as the activation step shows
- * it and the API records it with the accepted terms (docs/billing.md §3.2): the plan's price before tax, the first
+ * it and the API records it with the accepted terms: the plan's price before tax, the first
  * charge's date (null without a trial: today), the days before it a reminder email goes out, what
  * the plan includes, and the terms in effect (null: the install has none, and Checkout cannot start).
  */

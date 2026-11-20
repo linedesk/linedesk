@@ -1,4 +1,4 @@
-// The install's billing rules (docs/billing.md §7a): the plan prices and the trial, the call prices, the included
+// The install's billing rules: the plan prices and the trial, the call prices, the included
 // allowance and the abuse limits, read from the instance setting `billing.rules` (one JSON row) over
 // `BILLING_DEFAULTS` (Linedesk Cloud's values). Every install that bills its own workspaces sets its own here
 // (Server admin › Billing). Each field is checked against a range; a row that
@@ -32,7 +32,7 @@ const FIELDS = {
   partnerYearlyCents: planCents,
   // At least a day: the sign-up flow always starts with a trial (a bill without one starts on a paid plan).
   trialDays: count(1, 90),
-  // One to three different days before the trial's end, each 1 to 30 (the trial reminders, docs/billing.md §3.2).
+  // One to three different days before the trial's end, each 1 to 30 (the trial reminders).
   trialReminderDays: z
     .array(count(1, 30))
     .min(1)
@@ -84,7 +84,7 @@ export function mergeBillingRules(stored: unknown): { rules: BillingRules; probl
 }
 
 /**
- * The lowest price per minute an admin may set for a level (docs/billing.md §11, PR 13): the server's
+ * The lowest price per minute an admin may set for a level: the server's
  * BILLING_MIN_MICROS_PER_MINUTE (Linedesk Cloud sets it, so a mistyped 0 never gives calls away); 0 without it, so a
  * self-hosted partner may charge nothing.
  */
@@ -218,7 +218,7 @@ export async function billingRules(tx: Pick<Tx, 'select'>): Promise<BillingRules
 }
 
 /**
- * What the install sells in Stripe (docs/billing.md §2.1, §7b): the products named with the install's product name
+ * What the install sells in Stripe: the products named with the install's product name
  * and the plan prices of its rules, in USD. The billing provider makes or finds them in the connected Stripe account
  * before a Checkout (`PlanCatalog`), so any Stripe account works without a setup script for prices.
  */

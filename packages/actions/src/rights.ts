@@ -1,4 +1,4 @@
-// Workspace rights (Janik, 2026-11-15; docs/architecture.md, "Workspace rights"): who in a workspace may run an
+// Workspace rights (decision of 2026-11-15; docs/architecture.md, "Workspace rights"): who in a workspace may run an
 // action, derived from its permission. Owner: everything an admin can, plus deleting the workspace and handing it
 // over (workspace:own; exactly one owner). Admin: every workspace setting and the team except the owner. Member: daily
 // work (inbox, calls, contacts, reminders, their own profile and notifications), no workspace settings.
@@ -38,9 +38,9 @@ export function rightOf(permission: Permission): Right {
   if (permission === 'invitation:respond') return 'account'
   // Personal API keys: every person signed in as themselves (context.ts), never a key.
   if (permission === 'account:own') return 'account'
-  // Self-serve sign-up (account.signUp): only POST /v1/signup grants it, to a session without a workspace (billing.md §3.1).
+  // Self-serve sign-up (account.signUp): only POST /v1/signup grants it, to a session without a workspace.
   if (permission === 'account:signUp') return 'account'
-  // The Stripe webhook's processor and the billing jobs: nobody signed in holds it (docs/billing.md §8).
+  // The Stripe webhook's processor and the billing jobs: nobody signed in holds it.
   if (permission === 'billing:system') return 'system'
   // A white-label partner's team (context.ts gives it to its members' sessions; partners.ts checks which partner).
   if (permission === 'partner') return 'partner'

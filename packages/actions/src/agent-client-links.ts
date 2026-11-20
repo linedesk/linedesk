@@ -13,7 +13,7 @@ export const CLAUDE_CONNECTORS_URL = 'https://claude.ai/customize/connectors'
  * filled in; the person clicks Add, then Connect (claude.com/docs/connectors/building/directory-vs-custom, "Custom
  * connector install link", checked 2026-11-19). `admin`: Claude Team or Enterprise, where only an owner adds a
  * connector for the organization (admin-settings/connectors). The setup server's address carries its short-lived key:
- * it reaches Claude either way, the link adds only the person's own browser history (decisions.md, 2026-11-19).
+ * it reaches Claude either way, the link adds only the person's own browser history (decision of 2026-11-19).
  */
 export const claudeConnectorLink = (name: string, url?: string, admin = false) =>
   `https://claude.ai/${admin ? 'admin-settings' : 'customize'}/connectors?modal=add-custom-connector&connectorName=${encodeURIComponent(

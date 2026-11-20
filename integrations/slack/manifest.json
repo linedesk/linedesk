@@ -12,10 +12,7 @@
     }
   },
   "oauth_config": {
-    "redirect_urls": [
-      "https://app.linedesk.ai/v1/apps/callback/slack",
-      "https://staging.example.com/v1/apps/callback/slack"
-    ],
+    "redirect_urls": ["https://app.linedesk.ai/v1/apps/callback/slack"],
     "scopes": {
       "bot": ["incoming-webhook"]
     }

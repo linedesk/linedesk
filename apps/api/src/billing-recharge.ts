@@ -1,4 +1,4 @@
-// Charging an auto-recharge (docs/billing.md §2.2, §3.4, PR 4) and the bill owner's billing emails. The recharge
+// Charging an auto-recharge and the bill owner's billing emails. The recharge
 // decision (ledger.ts) only makes a pending `billing_recharges` row; this job, queued in the same transaction, makes
 // the Stripe invoice through the billing provider and charges the saved card. It never credits the balance: that
 // happens when `invoice.paid` arrives and the invoice is fetched again (the webhook, PR 5).
@@ -117,7 +117,7 @@ export async function chargeRecharge(
     ...(attempt.manual ? { onSession: true } : {}),
     // Checkout saved the card on the subscription: the adapter makes it the customer's default when there is none (B1).
     subscriptionId: bill.stripe_subscription_id,
-    // Stripe Tax as decided for this attempt: tax is added on top; the balance gets the pre-tax amount only (§2.2).
+    // Stripe Tax as decided for this attempt: tax is added on top; the balance gets the pre-tax amount only.
     tax: { ...invoiceTax(await billingRules(db)), automatic: (await attemptTax(db, provider, attempt, bill)) === 'on' },
     // The invoice's id is kept on the attempt as soon as it exists, before its item, finalize or pay can be refused:
     // a give-up after a refusal then stops that invoice instead of leaving it for Stripe to charge (review #1110, R-1).
@@ -163,7 +163,7 @@ async function attemptTax(
 }
 
 /**
- * A recharge attempt whose charge was refused (docs/billing.md §3.4; also for the `invoice.payment_failed` webhook):
+ * A recharge attempt whose charge was refused (also for the `invoice.payment_failed` webhook):
  * first its invoice's automatic collection is turned off, so it is never charged later behind the owner's back; a
  * decline also voids it (the attempt is `canceled`); `authentication_required` keeps it open for the owner to confirm
  * on the invoice's page (`failed`, still counted in the cap). Then, once: the bill waits for a new card or the owner's
@@ -392,7 +392,7 @@ export type BillingAlertJob =
       session?: string | null
     }
   /**
-   * A trial reminder (`ref`: the trial's end; `daysBefore`: how many days before it, docs/billing.md §3.2 step 8), and
+   * A trial reminder (`ref`: the trial's end; `daysBefore`: how many days before it), and
    * the trial's confirmation when it starts (`ref`: the trial's end).
    */
   | { kind: 'trial_will_end'; bill: string; ref: string; daysBefore: number }
@@ -400,7 +400,7 @@ export type BillingAlertJob =
   /** "One step left" to a sign-up that has not started its trial (billing-checkout.ts sendActivationNudges). */
   | { kind: 'activation_nudge'; bill: string; ref: string }
   /**
-   * The trial prompt (docs/billing.md §3.2 step 7; call-billing.ts trialMinutesAlert): most of the trial's minutes
+   * The trial prompt (call-billing.ts trialMinutesAlert): most of the trial's minutes
    * used, or used up with calls on the trial grace. `ref`: the trial's period.
    */
   | { kind: 'trial_minutes_low' | 'trial_minutes_used'; bill: string; ref: string }
@@ -699,7 +699,7 @@ export async function savedCard(
 
 /**
  * What the subscription charges next, before tax: its items' own prices, which may be older than the install's
- * prices now (a changed price applies to new Checkouts only, docs/billing.md §7b). Null when it cannot be read.
+ * prices now (a changed price applies to new Checkouts only). Null when it cannot be read.
  */
 async function subscriptionCents(db: Db, subscriptionId: string | null, override?: BillingProvider) {
   if (!subscriptionId) return null
@@ -730,7 +730,7 @@ async function invoicePage(db: Db, invoiceId: string, override?: BillingProvider
 
 /**
  * What the recharge cap counts for a UTC month (`YYYY-MM`, the alert's ref): pending, failed-but-payable and paid
- * attempts made in it (docs/billing.md §4.3).
+ * attempts made in it.
  */
 async function rechargedInMonth(db: Db, billId: string, month: string) {
   const start = new Date(`${month}-01T00:00:00.000Z`)

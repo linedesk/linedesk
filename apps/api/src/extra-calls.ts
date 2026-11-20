@@ -1,4 +1,4 @@
-// Calls at the same time (LIN-450, docs/billing.md §2.1c): the bill's extra-calls item on its plan subscription.
+// Calls at the same time (LIN-450): the bill's extra-calls item on its plan subscription.
 //
 // Every change of a bill's extra calls (the owner's `billing.setExtraCalls`, an instance admin's workspace move) runs
 // under the bill's own `extra-calls:<bill>` lock, never the balance lock the call gate waits on (security review of

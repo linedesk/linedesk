@@ -5,8 +5,7 @@ import { defineAction } from './define.ts'
  * The onboarding screens in order. `done` is the last one: reaching it finishes onboarding.
  * A new step goes in here at its place; the web app follows this list for order, progress and the step count.
  * `notify` is "Who hears about calls?": the owner's mobile for urgent calls and where call summaries go.
- * `activate` is only for a self-serve sign-up that has not started its trial (`pending_payment`, docs/billing.md
- * §3.2): everything is set up before, the card is added there, and the number comes after it. Every other workspace
+ * `activate` is only for a self-serve sign-up that has not started its trial (`pending_payment`): everything is set up before, the card is added there, and the number comes after it. Every other workspace
  * goes from `notify` straight to `phone` (stepsFor).
  */
 export const onboardingSteps = ['business', 'assistant', 'pickup', 'notify', 'activate', 'phone', 'done'] as const

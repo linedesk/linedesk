@@ -1,4 +1,4 @@
-// Stripe's webhook (docs/billing.md §5.1; stripe-webhook.ts, stripe-events.ts, billing-reconcile.ts): the route checks
+// Stripe's webhook (stripe-webhook.ts, stripe-events.ts, billing-reconcile.ts): the route checks
 // Stripe's signature scheme over the raw body (built here at run time with HMAC-SHA256, both secrets, the tolerance,
 // the key's mode), stores the event once and answers; the processor fetches the invoice from a fake Stripe before it
 // acts, credits a recharge once and only for a real payment of its amount, makes a paid plan's bill active, and never
@@ -979,7 +979,7 @@ describe('invoice.paid of Checkout’s first invoice, before the bill has its su
   })
 })
 
-describe('a new card after a failed recharge (docs/billing.md §3.4)', () => {
+describe('a new card after a failed recharge', () => {
   const failedAt = new Date(Date.now() - 3_600_000).toISOString()
   /** A bill waiting after a failed recharge; its Stripe customer's invoice default made at `cardMade` (Unix s). */
   async function waitingWithCard(cardMade: number | null) {
@@ -1778,7 +1778,7 @@ test('a recharge on a bill without any period fails and is retried, never credit
   expect((await storedEvent(evt.id as string))!.processed_at).toBeNull()
 })
 
-describe('disputes, fraud warnings and cancellations (docs/billing.md §3.4, M4; PR 11)', () => {
+describe('disputes, fraud warnings and cancellations', () => {
   /** A recharge of `cents` paid by invoice `invoiceId` and credited, its charge `ch_…` through a payment intent. */
   async function creditedRecharge(billId: string, periodId: string, cents = 2000) {
     const invoiceId = rid('in')

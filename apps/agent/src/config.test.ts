@@ -33,7 +33,7 @@ test('env defaults: Deepgram, OpenRouter with a fast live model and a stronger s
   })
 })
 
-test("every stage's provider can be changed by env; the models are the providers' defaults (decisions.md 2026-11-18)", async () => {
+test("every stage's provider can be changed by env; the models are the providers' defaults (decision of 2026-11-18)", async () => {
   const config = await configFromEnv({
     ...keys,
     OPENAI_API_KEY: 'oa',
@@ -333,7 +333,7 @@ test('OPENAI_REALTIME_API_KEY switches the realtime model on from the environmen
     REALTIME_MODEL: 'gpt-realtime-2',
   })
   if (!isRealtime(config)) throw new Error('expected a realtime config')
-  // The model and voice variables are gone (decisions.md 2026-11-18): the level and the assistant decide.
+  // The model and voice variables are gone (decision of 2026-11-18): the level and the assistant decide.
   expect(config.realtime).toMatchObject({ apiKey: 'oa', voice: 'marin', model: 'gpt-realtime' })
 })
 

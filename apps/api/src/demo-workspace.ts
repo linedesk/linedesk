@@ -8,7 +8,7 @@
 // every change goes through the registry as that server admin. Safe to run again: an assistant is found by its
 // business's phone number in the data file and updated; a missing one is added. Nothing is deleted: an assistant,
 // phone number, calendar or webhook the data file does not name is only reported.
-// It prints the DEMO_WORKSPACE_ID and DEMO_ASSISTANTS lines for the API's env (docs/runbook.md, "Put a live demo on your website").
+// It prints the DEMO_WORKSPACE_ID and DEMO_ASSISTANTS lines for the API's env (docs/public-demo.md).
 //   pnpm --filter @linedesk/api demo:workspace --owner you@example.com [--owner-name …] [--as admin@example.com] [--name "Website Demo"] [--data path/to/businesses.json]
 //   in the api container: node apps/api/src/demo-workspace.ts --owner … [--as …] [--data …]
 import { readFile } from 'node:fs/promises'

@@ -1,4 +1,4 @@
-// Server admin › Billing (docs/billing.md §11, PR 13): what an instance admin sees of the bills and does to them.
+// Server admin › Billing: what an instance admin sees of the bills and does to them.
 //
 // Who: `instance:admin` (the registry, with the admin's passkey check for every Server admin action). Every write here
 // also refuses an AI agent's setup link, an API key, a personal key and an impersonation, and needs the
@@ -89,7 +89,7 @@ import {
 import { CLIENT_STAYS_ON_PARTNER_BILL, PARTNER_BILL_STAYS } from './partner-refusals.ts'
 import { STRIPE_EVENT_ATTEMPTS } from './stripe-events.ts'
 
-// The instance setting that opens sign-up to anyone (docs/billing.md §3.1): self-serve.ts, which reads it.
+// The instance setting that opens sign-up to anyone: self-serve.ts, which reads it.
 export { SELF_SERVE_KEY } from './self-serve.ts'
 
 /** How many ledger entries, recharges, invoices and events one page shows. */
@@ -362,7 +362,7 @@ async function billDetail(tx: Tx, billId: string): Promise<AdminBillDetail> {
       createdAt: r.created_at,
       resolvedAt: r.resolved_at,
     })),
-    // The hosted page and PDF are bearer links for the bill owner (docs/billing.md §4.1): the admin opens the
+    // The hosted page and PDF are bearer links for the bill owner: the admin opens the
     // invoice in the Stripe Dashboard instead.
     invoices: invoices.map(i => ({
       invoiceId: i.stripe_invoice_id,
@@ -435,7 +435,7 @@ async function events(tx: Tx, filter: BillingEventFilter, before?: string) {
   return { events: list, next: rows.length > EVENTS_PAGE ? page[page.length - 1]!.received_at : null }
 }
 
-/** How far back the review list shows new trials (docs/billing.md §8, fraud review). */
+/** How far back the review list shows new trials (fraud review). */
 const REVIEW_TRIAL_DAYS = 7
 
 async function reviewList(tx: Tx): Promise<{ held: AdminReviewRow[]; newTrials: AdminReviewRow[] }> {
@@ -799,13 +799,13 @@ async function refund(tx: Tx, actor: Actor, now: string, input: RefundInput) {
   const micros = input.amountCents * MICROS_PER_CENT
   const available = exact(balance.balance_micros) - exact(balance.reserved_micros)
   if (micros > available) throw Reject.t('server.api.billingAdmin.refundAboveAvailable')
-  // Newest payments first (docs/billing.md §4.5): the newest one with something left to refund.
+  // Newest payments first: the newest one with something left to refund.
   const payment = (await refundablePayments(tx, bill.id)).find(p => p.creditedMicros > p.refundedMicros)
   if (!payment) throw Reject.t('server.api.billingAdmin.nothingToRefund')
   if (micros > payment.creditedMicros - payment.refundedMicros)
     throw Reject.t('server.api.billingAdmin.refundOnePayment')
   // The period the entry posts in is known before Stripe is asked (M1): the current one, else the bill's latest (a
-  // refund after the bill ended, docs/billing.md decision 10). A bill without any period is refused here.
+  // refund after the bill ended). A bill without any period is refused here.
   const period = await periodForMoney(tx, bill.id, now)
   if (!period) throw Reject.t('server.api.billingAdmin.refundNoPeriod')
   const [entry] = await tx.select().from(ledger_entries).where(eq(ledger_entries.id, payment.entryId))
@@ -844,7 +844,7 @@ async function refund(tx: Tx, actor: Actor, now: string, input: RefundInput) {
 type MoveInput = { workspaceId: string; toBillingAccountId: string; reason: string; requestId: string }
 
 /**
- * Seats follow the workspaces (docs/billing.md §2.1): the bill's subscription is set to its workspaces as committed now,
+ * Seats follow the workspaces: the bill's subscription is set to its workspaces as committed now,
  * the target grows (yearly: paid now), the source shrinks (no refund). Runs after the move committed (`onCommit`,
  * security review of #919, M2), so Stripe never charges for a move that did not happen; a failure here is logged and
  * the nightly reconciliation reports the bill's seats (`quantity`) until a recount fixes them.

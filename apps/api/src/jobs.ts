@@ -144,7 +144,7 @@ const DATA_PURGE_DELETED_CRON = '27 3 * * *'
 /** Daily: workspaces of a bill canceled 90 or more days ago are deleted (data-purge.ts, A8). */
 export const DATA_PURGE_CANCELED = 'data.purgeCanceled'
 const DATA_PURGE_CANCELED_CRON = '17 4 * * *'
-/** Daily: sign-ups that never finished Checkout, after `pendingDays` (self-serve.ts, docs/billing.md §3.1). */
+/** Daily: sign-ups that never finished Checkout, after `pendingDays` (self-serve.ts). */
 export const SIGNUP_SWEEP = 'signup.sweep'
 const SIGNUP_SWEEP_CRON = '7 4 * * *'
 /** Daily: the public holidays and yearly days of the next twelve months move one day on (public-holidays.ts). */

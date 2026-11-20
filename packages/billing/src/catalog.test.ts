@@ -1,4 +1,4 @@
-// The install's catalog in its own Stripe account (stripe/catalog.ts, docs/billing.md §7b): products and plan prices
+// The install's catalog in its own Stripe account (stripe/catalog.ts): products and plan prices
 // made from the install's settings, found again, renamed, replaced when an amount changed; against a fake Stripe.
 import Stripe from 'stripe'
 import { describe, expect, test } from 'vitest'

@@ -1,4 +1,4 @@
-// Self-serve sign-up on Linedesk Cloud (`/signup?plan=cloud|partner&interval=year|month`, docs/billing.md §3.2): email,
+// Self-serve sign-up on Linedesk Cloud (`/signup?plan=cloud|partner&interval=year|month`): email,
 // then the code, then the person's name. The business's name and country come in the onboarding's first step (Find
 // your business); the API checks where the request comes from and says "not yet" outside the countries served. Plan
 // `partner` (docs/white-label.md): a white-label partner account with its partner bill, no workspace, and its company's

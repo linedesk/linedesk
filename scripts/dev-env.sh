@@ -1,6 +1,6 @@
 #!/bin/sh
 # Per-session dev environment: its own database (the shared dev snapshot if there is one, else seeded) and its own
-# hostname and ports, so parallel sessions never share cookies or data with each other or with Tim.
+# hostname and ports, so parallel sessions never share cookies or data with each other or with the developer's own.
 # Usage: scripts/dev-env.sh <name> <api-port> <web-port>   e.g. scripts/dev-env.sh team 3110 5180
 # Prints the .env lines to append in the session's worktree.
 set -eu

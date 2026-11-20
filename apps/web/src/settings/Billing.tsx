@@ -1,10 +1,10 @@
-// Workspace settings › Billing (docs/billing.md §8, §11 PR 9): the bill's page on Linedesk Cloud. The plan and
+// Workspace settings › Billing: the bill's page on Linedesk Cloud. The plan and
 // its state in plain words (trial countdown, past due, suspended and why, canceled), the balance with "Buy minutes"
 // (Stripe Checkout), a failed recharge with Retry, auto-recharge and the monthly cap (raising it confirms it is them),
 // this period's usage per workspace and level, the latest invoices with Stripe's pages, the Stripe portal for the card
 // and every invoice, and cancel in two clicks (US click-to-cancel). For whoever manages the bill: its owner, or an owner or admin of the only workspace it pays for (decision
 // of 2026-11-17). Other owners and admins (a bill of several workspaces, a partner's) read that someone else pays and
-// see this workspace's usage, read-only (`billing.workspaceUsage`, docs/billing.md §8). On an install that bills, a
+// see this workspace's usage, read-only (`billing.workspaceUsage`). On an install that bills, a
 // workspace on no bill shows its owners and admins one line that says so.
 import type {
   AutoRechargeData,
@@ -189,7 +189,7 @@ function OwnerBilling({ toast, viaPartner }: { toast: (text: string) => void; vi
 }
 
 /**
- * For the workspace's owners and admins who do not manage its bill (docs/billing.md §8: a bill of several workspaces,
+ * For the workspace's owners and admins who do not manage its bill (a bill of several workspaces,
  * or a partner's): who handles billing, and this workspace's usage this period. No plan, balance, invoices or payment
  * controls. `viaPartner`: someone on the partner's team, whose own partner plan pays for this client workspace.
  */
@@ -646,7 +646,7 @@ export function CancelDialog({
   const supportEmail = useLegalLinks()?.supportEmail ?? null
   const end = bill.status === 'trialing' ? bill.trialEndsAt : bill.currentPeriodEnd
   const endText = end ? format.date(new Date(end)) : null
-  // What is refunded on request (the terms' "Refunds", docs/billing.md §4.5): a yearly plan paid in the last 14 days,
+  // What is refunded on request (the terms' "Refunds"): a yearly plan paid in the last 14 days,
   // and the unused balance. Both are asked for, never automatic.
   const refund = yearlyRefundLine(bill, iso => format.date(new Date(iso)))
   const balance = bill.availableMicros > 0 ? format.currency(microsToDollars(bill.availableMicros), 'USD') : null

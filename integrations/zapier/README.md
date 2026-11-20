@@ -2,7 +2,7 @@
 
 A Zapier app (Zapier Platform CLI, `zapier-platform-core` 19) that connects a Linedesk workspace to any app on Zapier: Jobber, Housecall Pro, Clio, HubSpot, Salesforce, Google Sheets and the rest.
 
-One app serves every Linedesk install, Cloud and self-hosted: the Linedesk address is a field of each connection. Integrations › Zapier shows a workspace the steps; Server admin › System › Zapier tells a self-hoster whether Zapier can reach the server (an https address on the internet, and outbound to `hooks.zapier.com`). Nothing else is set up on a server.
+One app serves every Linedesk install, Cloud and self-hosted: the Linedesk address is a field of each connection. Integrations › Zapier shows a workspace the steps; Server admin › System › Zapier holds the link to the app that workspaces open (none by default: then the steps show no link) and tells a self-hoster whether Zapier can reach the server (an https address on the internet, and outbound to `hooks.zapier.com`). Nothing else is set up on a server.
 
 - **Instant triggers (REST hooks):** Call Started (an answered phone call, 3 s in), During-Call Lookup (each lookup the assistant asked its during-call webhook, with the answer), Call Finished (about 20 s after the call: caller, summary, next steps, bookings, transcript, a link and a 24-hour recording link). Turning a Zap on subscribes Zapier's hook URL (`integration.subscribe`), turning it off ends it (`integration.unsubscribe`). Test calls and spam send nothing. Zapier cannot answer in time, so Call Started and During-Call Lookup only notify: the greeting and lookup answers come from the assistant's webhooks (docs/webhooks.md). Samples come from `GET /v1/integrations/samples/<event>`.
 - **Every public action of the API:** one Zapier action or search per public action, generated from the registry into `generated/actions.json` (`pnpm zapier:generate` at the repo root; `lib/generated.js` builds them). Ids are dropdowns (`triggers/options.js`, `GET /v1/integrations/options/<kind>`). Run Any Action runs any public action by name with fields from `GET /v1/openapi.json`.
@@ -27,11 +27,11 @@ The server side has its own tests: `apps/api/test/integrations.test.ts` (needs P
 
 ## Environment
 
-The app has no environment variables on Zapier (`zapier env:set` is not needed): the Linedesk address and the API key are fields of each user's connection. On the Linedesk server nothing new is needed either; `WEBHOOK_ALLOW_PRIVATE_URLS=true` (development only) also lets a subscription point at a host other than `hooks.zapier.com`.
+The app has no environment variables on Zapier (`zapier env:set` is not needed): the Linedesk address and the API key are fields of each user's connection. On the Linedesk server only the link to the app is set, in Server admin › System › Zapier (`zapierApp.set`); `WEBHOOK_ALLOW_PRIVATE_URLS=true` (development only) also lets a subscription point at a host other than `hooks.zapier.com`.
 
 ## Push to Zapier
 
-Each production release that changed this folder pushes, promotes and migrates the app by itself (`.github/workflows/zapier.yml`, docs/ci.md, Zapier); its version is `1.<minor>.<patch>` of the release tag. By hand (a test version, or before the workflow is set up), with a deploy key (Zapier developer platform › Settings › Deploy Keys) from a password manager or the Keychain, put into the environment only for the command, never into a file of this repo:
+The maintainers' release pipeline pushes, promotes and migrates the app when a production release changed this folder; its version is `1.<minor>.<patch>` of the release tag. By hand (a test version, or before the workflow is set up), with a deploy key (Zapier developer platform › Settings › Deploy Keys) from a password manager or the Keychain, put into the environment only for the command, never into a file of this repo:
 
 ```sh
 cd integrations/zapier
@@ -52,7 +52,7 @@ Try it on staging before production: in the Zap editor, connect with the staging
 Until the app is public, people use it by invitation:
 
 - `zapier users:add someone@example.com <version>`, or
-- `zapier users:links` for a link anyone can use to join (good for a first group of customers). The link for all versions is `ZAPIER_APP_URL` in `packages/actions/src/integrations.ts`, which the setup guide in the app opens; after the public listing, point it at the app's page.
+- `zapier users:links` for a link anyone can use to join (good for a first group of customers). Put the link for all versions into Server admin › System › Zapier of each install that offers the app; the setup guide in Integrations › Zapier opens it. After the public listing, change it to the app's page.
 
 ## Public listing
 

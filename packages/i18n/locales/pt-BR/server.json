@@ -163,7 +163,7 @@
   "api.providerTest.stripe.connectedTest": "Conectado, modo de teste{where, select, none {} other { ({where})}}, conta {account}: nada é cobrado",
   "api.providerTest.stripe.keyRejected": "O Stripe recusou a chave secreta (HTTP 401). Copie de novo no Stripe Dashboard, Developers, API keys.",
   "api.providerTest.stripe.notAKey": "A chave secreta não é uma chave secreta do Stripe (sk_…) nem uma chave restrita (rk_…).",
-  "api.providerTest.stripe.permission": "A chave restrita não pode ler a conta (HTTP 403). Dê a ela as permissões de docs/billing.md §7.",
+  "api.providerTest.stripe.permission": "A chave restrita não pode ler a conta (HTTP 403). Dê a ela as permissões do guia do Stripe em Administração do servidor › Provedores.",
   "api.providerTest.stripe.rateLimited": "O Stripe está limitando as solicitações desta chave (HTTP 429). Teste de novo em um minuto.",
   "api.providerTest.stripe.timeout": "O Stripe não respondeu em {seconds} segundos",
   "api.providerTest.stripe.unreachable": "Não foi possível acessar o Stripe. Verifique a conexão do servidor e status.stripe.com.",

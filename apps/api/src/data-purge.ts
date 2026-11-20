@@ -126,7 +126,7 @@ async function eraseCallRows(tx: Tx, ids: string[]) {
 export const ERASE_NOW_ACTION = 'call.erase'
 
 /**
- * "Delete permanently now" (Janik, 2026-11-17): call.delete with `permanent` erases the call of this workspace at once
+ * "Delete permanently now" (decision of 2026-11-17): call.delete with `permanent` erases the call of this workspace at once
  * instead of after DELETED_RESTORE_DAYS, exactly as the daily purge does (eraseCallRows); its recording file is
  * deleted from its store after the commit (the recording.fileDelete job, retried). The caller checks the permission
  * (call:erase, owners and admins). A live call is refused: the assistant is still writing to it. One audit entry,

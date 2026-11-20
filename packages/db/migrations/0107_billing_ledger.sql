@@ -187,7 +187,7 @@ CREATE INDEX "ledger_entries_workspace_period" ON "ledger_entries" USING btree (
 CREATE INDEX "stripe_events_received" ON "stripe_events" USING btree ("received_at");--> statement-breakpoint
 CREATE INDEX "organization_billing_account_idx" ON "organization" USING btree ("billing_account_id");--> statement-breakpoint
 ALTER TABLE "organization" ADD CONSTRAINT "organization_billing_state" CHECK ("organization"."billing_state" is null or "organization"."billing_state" in ('pending_payment', 'active', 'suspended'));--> statement-breakpoint
--- The ledger is append-only (docs/billing.md §4.1): no UPDATE, DELETE or TRUNCATE. This guards against bugs, not
+-- The ledger is append-only: no UPDATE, DELETE or TRUNCATE. This guards against bugs, not
 -- against tampering: the app connects as the role that owns the tables (POSTGRES_USER, a superuser in the
 -- official image), which could disable the trigger, and which a REVOKE would not bind. A separate runtime role
 -- with only SELECT and INSERT on the ledger is a later step. The API checks at start that both triggers exist

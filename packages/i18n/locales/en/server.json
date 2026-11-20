@@ -256,7 +256,7 @@
   "api.providerTest.stripe.connectedTest": "Connected, test mode{where, select, none {} other { ({where})}}, account {account}: nothing is charged",
   "api.providerTest.stripe.keyRejected": "Stripe rejected the secret key (HTTP 401). Copy it again from the Stripe Dashboard, Developers, API keys.",
   "api.providerTest.stripe.notAKey": "The secret key is not a Stripe secret key (sk_…) or restricted key (rk_…).",
-  "api.providerTest.stripe.permission": "The restricted key may not read the account (HTTP 403). Give it the permissions in docs/billing.md §7.",
+  "api.providerTest.stripe.permission": "The restricted key may not read the account (HTTP 403). Give it the permissions in the Stripe guide of Server admin › Providers.",
   "api.providerTest.stripe.rateLimited": "Stripe is rate limiting this key (HTTP 429). Test again in a minute.",
   "api.providerTest.stripe.timeout": "Stripe did not answer within {seconds} seconds",
   "api.providerTest.stripe.unreachable": "Could not reach Stripe. Check the server's connection and status.stripe.com.",

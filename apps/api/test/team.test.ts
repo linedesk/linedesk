@@ -1,5 +1,16 @@
 // Team management: who may invite, who may accept, last owner protection, removal and no open sign-up.
-import { account, api_keys, auth_events, commands, invitation, member, passkey, session, user, webhook_endpoints } from '@linedesk/db'
+import {
+  account,
+  api_keys,
+  auth_events,
+  commands,
+  invitation,
+  member,
+  passkey,
+  session,
+  user,
+  webhook_endpoints,
+} from '@linedesk/db'
 import { dropUnprovenAccess } from '../src/account-linking.ts'
 import type { BetterAuthOptions } from 'better-auth'
 import { createEmailVerificationToken } from 'better-auth/api'
@@ -15,7 +26,21 @@ import { LEAVE_SIGN_IN_AGAIN, REMOVE_SIGN_IN_AGAIN, removeNeedsFreshSignIn } fro
 import { setJobQueue, WORKSPACE_DELETED_EMAIL, type WorkspaceDeletedJob } from '../src/jobs.ts'
 import { workspaceDeletedEmail } from '../src/emails/templates.ts'
 import { type Email, emailSender } from '../src/email.ts'
-import { act, addMember, agent, anonymous, appRequest, asServerAdmin, createWorkspace, FROM, randomIp, request, signUp, type User, type Workspace } from './helpers.ts'
+import {
+  act,
+  addMember,
+  agent,
+  anonymous,
+  appRequest,
+  asServerAdmin,
+  createWorkspace,
+  FROM,
+  randomIp,
+  request,
+  signUp,
+  type User,
+  type Workspace,
+} from './helpers.ts'
 
 const ORIGIN = 'http://localhost:5173'
 const sent: Email[] = []
@@ -34,16 +59,27 @@ async function invite(by: User, email: string, role: 'admin' | 'member' = 'membe
 
 /** Signs in (or up) with an email code, the way the invitation page does; the code proves the address. */
 async function signInWithCode(email: string): Promise<User> {
-  const asked = await request(anonymous, 'POST', '/api/auth/email-otp/send-verification-otp', { email, type: 'sign-in' }, { origin: ORIGIN, [FROM]: randomIp() })
+  const asked = await request(
+    anonymous,
+    'POST',
+    '/api/auth/email-otp/send-verification-otp',
+    { email, type: 'sign-in' },
+    { origin: ORIGIN, [FROM]: randomIp() },
+  )
   expect(asked.status).toBe(200)
   await vi.waitFor(() => expect(sent.some(e => e.to === email && /^\d{6} /.test(e.subject))).toBe(true))
   const otp = sent.findLast(e => e.to === email)!.subject.slice(0, 6)
   const res = await appRequest('/api/auth/sign-in/email-otp', {
-    method: 'POST', headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() }, body: JSON.stringify({ email, otp }),
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
+    body: JSON.stringify({ email, otp }),
   })
   expect(res.status).toBe(200)
   const { user: account } = (await res.json()) as { user: { id: string } }
-  const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
+  const cookie = res.headers
+    .getSetCookie()
+    .map(c => c.split(';')[0])
+    .join('; ')
   return { userId: account.id, headers: { cookie, origin: ORIGIN } }
 }
 
@@ -76,7 +112,8 @@ describe('inviting', () => {
   test('one address gets at most 3 invitation emails an hour, with the same answer whether or not it has an account', async () => {
     const email = newEmail()
     const id = await invite(ws.owner, email)
-    for (let i = 0; i < 2; i++) expect((await act(ws.owner, 'team.resendInvite', { invitationId: id })).status).toBe(200)
+    for (let i = 0; i < 2; i++)
+      expect((await act(ws.owner, 'team.resendInvite', { invitationId: id })).status).toBe(200)
     const limited = await act(ws.owner, 'team.resendInvite', { invitationId: id })
     expect(limited.body.error).toBe('too many invitations to this address in the last hour; try again later')
     expect(sent.filter(e => e.to === email)).toHaveLength(3)
@@ -117,7 +154,10 @@ describe('inviting', () => {
   test('refuses someone already on the team or already invited', async () => {
     const email = newEmail()
     await invite(ws.owner, email)
-    expect(await act(ws.owner, 'team.invite', { email: email.toUpperCase(), role: 'member' })).toMatchObject({ status: 409, body: { error: `${email} is already invited; resend the invitation instead` } })
+    expect(await act(ws.owner, 'team.invite', { email: email.toUpperCase(), role: 'member' })).toMatchObject({
+      status: 409,
+      body: { error: `${email} is already invited; resend the invitation instead` },
+    })
     const joined = await joinAs(ws, 'member')
     const [account] = await db.select().from(user).where(eq(user.id, joined.userId))
     expect((await act(ws.owner, 'team.invite', { email: account!.email, role: 'member' })).status).toBe(409)
@@ -125,7 +165,11 @@ describe('inviting', () => {
 
   test('Better Auth endpoints that change members are switched off', async () => {
     for (const path of ['invite-member', 'cancel-invitation', 'update-member-role', 'remove-member', 'leave']) {
-      const res = await request(ws.owner, 'POST', `/api/auth/organization/${path}`, { email: newEmail(), role: 'admin', organizationId: ws.id })
+      const res = await request(ws.owner, 'POST', `/api/auth/organization/${path}`, {
+        email: newEmail(),
+        role: 'admin',
+        organizationId: ws.id,
+      })
       expect(res.status, path).toBe(404)
     }
   })
@@ -133,12 +177,19 @@ describe('inviting', () => {
   test('resend extends the link and sends again; revoke stops it', async () => {
     const email = newEmail()
     const id = await invite(ws.owner, email)
-    await db.update(invitation).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(invitation.id, id))
+    await db
+      .update(invitation)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(invitation.id, id))
     expect((await request({ headers: {} }, 'GET', `/v1/invitations/${id}`)).body).toEqual({ status: 'expired' })
     sent.length = 0
     expect((await act(admin, 'team.resendInvite', { invitationId: id })).status).toBe(200)
     expect(linkTo(email)).toBe(encodeURIComponent(id))
-    expect((await request({ headers: {} }, 'GET', `/v1/invitations/${id}`)).body).toMatchObject({ status: 'pending', email, workspaceName: 'Brightwater Plumbing & Heating' })
+    expect((await request({ headers: {} }, 'GET', `/v1/invitations/${id}`)).body).toMatchObject({
+      status: 'pending',
+      email,
+      workspaceName: 'Brightwater Plumbing & Heating',
+    })
     expect((await act(admin, 'team.revokeInvite', { invitationId: id })).status).toBe(200)
     expect((await request({ headers: {} }, 'GET', `/v1/invitations/${id}`)).body).toEqual({ status: 'gone' })
     const invitee = await signUp(email)
@@ -149,7 +200,10 @@ describe('inviting', () => {
   test('another workspace cannot resend, revoke or see the invitation', async () => {
     const other = await createWorkspace('Other Business')
     const id = await invite(ws.owner, newEmail())
-    expect(await act(other.owner, 'team.revokeInvite', { invitationId: id })).toMatchObject({ status: 409, body: { error: 'invitation not found' } })
+    expect(await act(other.owner, 'team.revokeInvite', { invitationId: id })).toMatchObject({
+      status: 409,
+      body: { error: 'invitation not found' },
+    })
     expect((await act(other.owner, 'team.resendInvite', { invitationId: id })).status).toBe(409)
     const list = await act(other.owner, 'team.list', {})
     expect(list.body.data.invitations).toEqual([])
@@ -163,7 +217,10 @@ describe('accepting', () => {
 
     const stranger = await signUp()
     await verify(stranger)
-    expect(await accept(stranger, id)).toMatchObject({ status: 403, body: { code: 'YOU_ARE_NOT_THE_RECIPIENT_OF_THE_INVITATION' } })
+    expect(await accept(stranger, id)).toMatchObject({
+      status: 403,
+      body: { code: 'YOU_ARE_NOT_THE_RECIPIENT_OF_THE_INVITATION' },
+    })
 
     const invitee = await signUp(email)
     expect((await accept(invitee, id)).status).toBe(403) // not verified yet
@@ -198,7 +255,10 @@ describe('accepting', () => {
   test('an expired invitation cannot be accepted', async () => {
     const email = newEmail()
     const id = await invite(ws.owner, email)
-    await db.update(invitation).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(invitation.id, id))
+    await db
+      .update(invitation)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(invitation.id, id))
     const invitee = await signUp(email)
     await verify(invitee)
     expect((await accept(invitee, id)).status).toBe(400)
@@ -215,7 +275,9 @@ describe('roles', () => {
     const res = await act(plain, 'team.list', {})
     expect(res.status).toBe(200)
     expect(res.body.data.canManage).toBe(false)
-    expect(res.body.data.members.map((m: { role: string }) => m.role)).toEqual(expect.arrayContaining(['owner', 'admin', 'member']))
+    expect(res.body.data.members.map((m: { role: string }) => m.role)).toEqual(
+      expect.arrayContaining(['owner', 'admin', 'member']),
+    )
     expect((await act(ws.owner, 'team.list', {})).body.data.canManage).toBe(true)
   })
 
@@ -226,7 +288,9 @@ describe('roles', () => {
     const email = newEmail()
     await invite(own.owner, email)
     for (const manager of [own.owner, ownAdmin]) {
-      expect((await act(manager, 'team.list', {})).body.data.invitations.map((i: { email: string }) => i.email)).toContain(email)
+      expect(
+        (await act(manager, 'team.list', {})).body.data.invitations.map((i: { email: string }) => i.email),
+      ).toContain(email)
     }
     expect((await act(ownMember, 'team.list', {})).body.data.invitations).toEqual([])
     for (const path of ['/api/auth/organization/get-full-organization', '/api/auth/organization/list-invitations']) {
@@ -239,9 +303,13 @@ describe('roles', () => {
   test('a role change applies to the next request of an existing session', async () => {
     const joined = await joinAs(ws, 'member')
     expect((await act(joined, 'team.invite', { email: newEmail(), role: 'member' })).status).toBe(403)
-    expect((await act(admin, 'team.setRole', { memberId: await memberIdOf(ws.id, joined), role: 'admin' })).status).toBe(200)
+    expect(
+      (await act(admin, 'team.setRole', { memberId: await memberIdOf(ws.id, joined), role: 'admin' })).status,
+    ).toBe(200)
     expect((await act(joined, 'team.invite', { email: newEmail(), role: 'member' })).status).toBe(200)
-    expect((await act(admin, 'team.setRole', { memberId: await memberIdOf(ws.id, joined), role: 'member' })).status).toBe(200)
+    expect(
+      (await act(admin, 'team.setRole', { memberId: await memberIdOf(ws.id, joined), role: 'member' })).status,
+    ).toBe(200)
     expect((await act(joined, 'assistant.update', { assistantId: ws.assistant.id, greeting: 'x' })).status).toBe(403)
   })
 
@@ -272,13 +340,27 @@ describe('roles', () => {
       status: 403,
       body: { error: 'missing permission workspace:own' },
     })
-    expect((await act(own.owner, 'team.transferOwnership', { memberId: await memberIdOf(own.id, own.owner) })).status).toBe(409)
+    expect(
+      (await act(own.owner, 'team.transferOwnership', { memberId: await memberIdOf(own.id, own.owner) })).status,
+    ).toBe(409)
     expect((await act(own.owner, 'team.transferOwnership', { memberId: secondId })).status).toBe(200)
-    const roles = async () => Object.fromEntries((await db.select().from(member).where(eq(member.organizationId, own.id))).map(m => [m.userId, m.role]))
-    expect(await roles()).toMatchObject({ [own.owner.userId]: 'admin', [second.userId]: 'owner', [third.userId]: 'admin' })
+    const roles = async () =>
+      Object.fromEntries(
+        (await db.select().from(member).where(eq(member.organizationId, own.id))).map(m => [m.userId, m.role]),
+      )
+    expect(await roles()).toMatchObject({
+      [own.owner.userId]: 'admin',
+      [second.userId]: 'owner',
+      [third.userId]: 'admin',
+    })
     // The old owner is an admin now: handing over again is the new owner's call.
-    expect((await act(own.owner, 'team.transferOwnership', { memberId: await memberIdOf(own.id, third) })).status).toBe(403)
-    const logged = await db.select().from(commands).where(and(eq(commands.actor_id, own.owner.userId), eq(commands.action, 'team.transferOwnership')))
+    expect((await act(own.owner, 'team.transferOwnership', { memberId: await memberIdOf(own.id, third) })).status).toBe(
+      403,
+    )
+    const logged = await db
+      .select()
+      .from(commands)
+      .where(and(eq(commands.actor_id, own.owner.userId), eq(commands.action, 'team.transferOwnership')))
     expect(logged).toContainEqual(expect.objectContaining({ input: { memberId: secondId }, rejected: false }))
   })
 
@@ -315,7 +397,10 @@ describe('removing', () => {
     expect((await request(kept, 'GET', '/api/auth/get-session')).body).toMatchObject({ user: { id: kept.userId } })
     // The owner with deleteAccount false: kept too.
     const second = await addMember(ws.id, 'admin')
-    const removed = await act(ws.owner, 'team.removeMember', { memberId: await memberIdOf(ws.id, second), deleteAccount: false })
+    const removed = await act(ws.owner, 'team.removeMember', {
+      memberId: await memberIdOf(ws.id, second),
+      deleteAccount: false,
+    })
     expect(removed.body.data).toMatchObject({ accountDeleted: false })
     expect(await accountExists(second)).toBe(true)
   })
@@ -334,7 +419,8 @@ describe('removing', () => {
 describe('no open sign-up', () => {
   const passwordSignUp = (email: string) =>
     appRequest('/api/auth/sign-up/email', {
-      method: 'POST', headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: ORIGIN, [FROM]: randomIp() },
       body: JSON.stringify({ name: 'Test User', email, password: 'test-password-1234' }),
     })
 
@@ -365,7 +451,13 @@ describe('no open sign-up', () => {
     const email = newEmail()
     const id = await invite(ws.owner, email)
     await act(ws.owner, 'team.revokeInvite', { invitationId: id })
-    const asked = await request(anonymous, 'POST', '/api/auth/email-otp/send-verification-otp', { email, type: 'sign-in' }, { origin: ORIGIN, [FROM]: randomIp() })
+    const asked = await request(
+      anonymous,
+      'POST',
+      '/api/auth/email-otp/send-verification-otp',
+      { email, type: 'sign-in' },
+      { origin: ORIGIN, [FROM]: randomIp() },
+    )
     expect(asked.status).toBe(200)
     await new Promise(resolve => setTimeout(resolve, 200))
     expect(sent.some(e => e.to === email && /^\d{6} /.test(e.subject))).toBe(false)
@@ -378,7 +470,13 @@ describe('no open sign-up', () => {
     // Unconfirmed: Better Auth refuses the invitation until the address is proven.
     expect((await accept(invitee, id)).status).toBe(403)
     sent.length = 0
-    const asked = await request(invitee, 'POST', '/api/auth/send-verification-email', { email, callbackURL: ORIGIN }, { [FROM]: randomIp() })
+    const asked = await request(
+      invitee,
+      'POST',
+      '/api/auth/send-verification-email',
+      { email, callbackURL: ORIGIN },
+      { [FROM]: randomIp() },
+    )
     expect(asked.status).toBe(404)
     expect(sent.filter(e => e.to === email)).toEqual([])
     const confirmed = await signInWithCode(email)
@@ -390,7 +488,10 @@ describe('no open sign-up', () => {
 
 describe('confirming an address (security M1): by code only, the email link is closed', () => {
   const credentialsOf = (userId: string) =>
-    db.select().from(account).where(and(eq(account.userId, userId), eq(account.providerId, 'credential')))
+    db
+      .select()
+      .from(account)
+      .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')))
   const sessionsOf = (userId: string) => db.select().from(session).where(eq(session.userId, userId))
   const verified = async (userId: string) => (await db.select().from(user).where(eq(user.id, userId)))[0]!.emailVerified
 
@@ -399,17 +500,28 @@ describe('confirming an address (security M1): by code only, the email link is c
     const attacker = await signUp(victim)
     sent.length = 0
     // No session needed before: anyone could have the link mailed to an unconfirmed account.
-    const asked = await request(anonymous, 'POST', '/api/auth/send-verification-email', { email: victim, callbackURL: ORIGIN }, { origin: ORIGIN, [FROM]: randomIp() })
+    const asked = await request(
+      anonymous,
+      'POST',
+      '/api/auth/send-verification-email',
+      { email: victim, callbackURL: ORIGIN },
+      { origin: ORIGIN, [FROM]: randomIp() },
+    )
     expect(asked.status).toBe(404)
     expect(sent).toEqual([])
     // A token Better Auth itself would accept: the endpoint is off before it is read.
-    const token = await createEmailVerificationToken((await auth.$context).secret, victim, undefined, 3600, { userId: attacker.userId })
+    const token = await createEmailVerificationToken((await auth.$context).secret, victim, undefined, 3600, {
+      userId: attacker.userId,
+    })
     const before = (await sessionsOf(attacker.userId)).length
     for (const cookie of [undefined, attacker.headers.cookie]) {
-      const opened = await appRequest(`/api/auth/verify-email?token=${token}&callbackURL=${encodeURIComponent(ORIGIN)}`, {
-        headers: { ...(cookie ? { cookie } : {}), [FROM]: randomIp() },
-        redirect: 'manual',
-      })
+      const opened = await appRequest(
+        `/api/auth/verify-email?token=${token}&callbackURL=${encodeURIComponent(ORIGIN)}`,
+        {
+          headers: { ...(cookie ? { cookie } : {}), [FROM]: randomIp() },
+          redirect: 'manual',
+        },
+      )
       expect(opened.status).toBe(404)
       expect(opened.headers.getSetCookie()).toEqual([])
     }
@@ -428,16 +540,65 @@ describe('confirming an address (security M1): by code only, the email link is c
     // What they set up before the owner confirmed: a workspace with an API key, a webhook, an invitation,
     // a passkey (inserted: adding one is refused for an unconfirmed address) and another sign-in account.
     // Only server admins create workspaces now; made as one here to stand for a workspace from before.
-    const made = await asServerAdmin(attacker, () => request(attacker, 'POST', '/v1/workspaces', { name: 'Before Confirmation' }))
+    const made = await asServerAdmin(attacker, () =>
+      request(attacker, 'POST', '/v1/workspaces', { name: 'Before Confirmation' }),
+    )
     expect(made.status).toBe(200)
     // Legacy access from before confirmation was required. New creation is refused.
     expect((await act(attacker, 'apiKey.create', { name: 'Exfil', role: 'admin' })).status).toBe(403)
-    await db.insert(api_keys).values({ id: crypto.randomUUID(), workspace_id: made.body.workspace.id, name: 'Legacy', prefix: 'ldk_legacy', key_hash: crypto.randomUUID(), role: 'admin', created_by: attacker.userId })
-    await db.insert(webhook_endpoints).values({ id: `whe_${crypto.randomUUID().slice(0, 12)}`, workspace_id: made.body.workspace.id, url: 'https://collector.example.com/hook', events: [], created_by: attacker.userId })
+    await db
+      .insert(api_keys)
+      .values({
+        id: crypto.randomUUID(),
+        workspace_id: made.body.workspace.id,
+        name: 'Legacy',
+        prefix: 'ldk_legacy',
+        key_hash: crypto.randomUUID(),
+        role: 'admin',
+        created_by: attacker.userId,
+      })
+    await db
+      .insert(webhook_endpoints)
+      .values({
+        id: `whe_${crypto.randomUUID().slice(0, 12)}`,
+        workspace_id: made.body.workspace.id,
+        url: 'https://collector.example.com/hook',
+        events: [],
+        created_by: attacker.userId,
+      })
     expect((await act(attacker, 'team.invite', { email: newEmail(), role: 'admin' })).status).toBe(403)
-    await db.insert(invitation).values({ id: crypto.randomUUID(), organizationId: made.body.workspace.id, email: newEmail(), role: 'admin', status: 'pending', inviterId: attacker.userId, expiresAt: new Date(Date.now() + 86400000) })
-    await db.insert(passkey).values({ id: `pk_${crypto.randomUUID().slice(0, 12)}`, userId: attacker.userId, publicKey: 'cHVibGlj', credentialID: `cred-${crypto.randomUUID()}`, counter: 0, deviceType: 'singleDevice', backedUp: false })
-    await db.insert(account).values({ id: `acc_${crypto.randomUUID().slice(0, 12)}`, userId: attacker.userId, accountId: 'attacker-sub', providerId: 'github', createdAt: new Date(), updatedAt: new Date() })
+    await db
+      .insert(invitation)
+      .values({
+        id: crypto.randomUUID(),
+        organizationId: made.body.workspace.id,
+        email: newEmail(),
+        role: 'admin',
+        status: 'pending',
+        inviterId: attacker.userId,
+        expiresAt: new Date(Date.now() + 86400000),
+      })
+    await db
+      .insert(passkey)
+      .values({
+        id: `pk_${crypto.randomUUID().slice(0, 12)}`,
+        userId: attacker.userId,
+        publicKey: 'cHVibGlj',
+        credentialID: `cred-${crypto.randomUUID()}`,
+        counter: 0,
+        deviceType: 'singleDevice',
+        backedUp: false,
+      })
+    await db
+      .insert(account)
+      .values({
+        id: `acc_${crypto.randomUUID().slice(0, 12)}`,
+        userId: attacker.userId,
+        accountId: 'attacker-sub',
+        providerId: 'github',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
     // The real owner signs in with a code sent to their own mailbox.
     const owner = await signInWithCode(victim)
     expect(owner.userId).toBe(attacker.userId)
@@ -448,14 +609,26 @@ describe('confirming an address (security M1): by code only, the email link is c
     expect(sessions).toHaveLength(1)
     expect(owner.headers.cookie).toContain(sessions[0]!.token)
     expect((await request(attacker, 'GET', '/v1/me')).status).toBe(401)
-    const again = await request(anonymous, 'POST', '/api/auth/sign-in/email', { email: victim, password: 'test-password-1234' }, { origin: ORIGIN, [FROM]: randomIp() })
+    const again = await request(
+      anonymous,
+      'POST',
+      '/api/auth/sign-in/email',
+      { email: victim, password: 'test-password-1234' },
+      { origin: ORIGIN, [FROM]: randomIp() },
+    )
     expect(again.status).toBeGreaterThanOrEqual(400)
     // No other sign-in account, passkey, live API key, webhook or pending invitation of theirs is left.
     expect(await db.select().from(account).where(eq(account.userId, attacker.userId))).toEqual([])
     expect(await db.select().from(passkey).where(eq(passkey.userId, attacker.userId))).toEqual([])
-    expect((await db.select().from(api_keys).where(eq(api_keys.created_by, attacker.userId))).every(k => k.revoked_at)).toBe(true)
-    expect(await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.created_by, attacker.userId))).toEqual([])
-    expect((await db.select().from(invitation).where(eq(invitation.inviterId, attacker.userId))).map(i => i.status)).toEqual(['canceled'])
+    expect(
+      (await db.select().from(api_keys).where(eq(api_keys.created_by, attacker.userId))).every(k => k.revoked_at),
+    ).toBe(true)
+    expect(await db.select().from(webhook_endpoints).where(eq(webhook_endpoints.created_by, attacker.userId))).toEqual(
+      [],
+    )
+    expect(
+      (await db.select().from(invitation).where(eq(invitation.inviterId, attacker.userId))).map(i => i.status),
+    ).toEqual(['canceled'])
     // The workspace stays, now the owner's.
     expect((await db.select().from(member).where(eq(member.userId, attacker.userId))).length).toBe(1)
   })
@@ -463,10 +636,32 @@ describe('confirming an address (security M1): by code only, the email link is c
   test('a provider proving the address drops the same, but keeps the provider account it links', async () => {
     const victim = newEmail()
     const attacker = await signUp(victim)
-    await db.insert(passkey).values({ id: `pk_${crypto.randomUUID().slice(0, 12)}`, userId: attacker.userId, publicKey: 'cHVibGlj', credentialID: `cred-${crypto.randomUUID()}`, counter: 0, deviceType: 'singleDevice', backedUp: false })
-    const [linked] = await db.insert(account).values({ id: `acc_${crypto.randomUUID().slice(0, 12)}`, userId: attacker.userId, accountId: 'victim-sub', providerId: 'google', createdAt: new Date(), updatedAt: new Date() }).returning()
+    await db
+      .insert(passkey)
+      .values({
+        id: `pk_${crypto.randomUUID().slice(0, 12)}`,
+        userId: attacker.userId,
+        publicKey: 'cHVibGlj',
+        credentialID: `cred-${crypto.randomUUID()}`,
+        counter: 0,
+        deviceType: 'singleDevice',
+        backedUp: false,
+      })
+    const [linked] = await db
+      .insert(account)
+      .values({
+        id: `acc_${crypto.randomUUID().slice(0, 12)}`,
+        userId: attacker.userId,
+        accountId: 'victim-sub',
+        providerId: 'google',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning()
     await dropUnprovenAccess(linked!)
-    expect((await db.select().from(account).where(eq(account.userId, attacker.userId))).map(a => a.providerId)).toEqual(['google'])
+    expect((await db.select().from(account).where(eq(account.userId, attacker.userId))).map(a => a.providerId)).toEqual(
+      ['google'],
+    )
     expect(await db.select().from(passkey).where(eq(passkey.userId, attacker.userId))).toEqual([])
     expect(await sessionsOf(attacker.userId)).toEqual([])
   })
@@ -474,13 +669,17 @@ describe('confirming an address (security M1): by code only, the email link is c
 
 describe('answering an invitation inside the app', () => {
   const mine = async (who: User) =>
-    (await act(who, 'invitation.listMine', {})).body.data.invitations as { invitationId: string; workspaceName: string; role: string }[]
+    (await act(who, 'invitation.listMine', {})).body.data.invitations as {
+      invitationId: string
+      workspaceName: string
+      role: string
+    }[]
   const emailOf = async (who: User) => (await db.select().from(user).where(eq(user.id, who.userId)))[0]!.email
   const statusOf = async (id: string) => (await db.select().from(invitation).where(eq(invitation.id, id)))[0]?.status
 
   /** Someone with a workspace of their own, invited to `ws`. */
   async function invitedOwner(role: 'admin' | 'member' = 'member') {
-    const theirs = await createWorkspace('Janik Electric')
+    const theirs = await createWorkspace('Brennan Electric')
     await verify(theirs.owner)
     const id = await invite(ws.owner, (await emailOf(theirs.owner)).toLowerCase(), role)
     return { who: theirs.owner, id }
@@ -489,14 +688,24 @@ describe('answering an invitation inside the app', () => {
   test('an existing user sees the invitation, accepts it and becomes a member with the invited role; logged as a command', async () => {
     const { who, id } = await invitedOwner('admin')
     expect(await mine(who)).toEqual([
-      expect.objectContaining({ invitationId: id, workspaceId: ws.id, workspaceName: 'Brightwater Plumbing & Heating', role: 'admin' }),
+      expect.objectContaining({
+        invitationId: id,
+        workspaceId: ws.id,
+        workspaceName: 'Brightwater Plumbing & Heating',
+        role: 'admin',
+      }),
     ])
     const res = await act(who, 'invitation.accept', { invitationId: id })
     expect(res).toMatchObject({ status: 200, body: { ok: true, data: { workspaceId: ws.id } } })
-    expect((await db.select().from(member).where(eq(member.userId, who.userId))).find(m => m.organizationId === ws.id)?.role).toBe('admin')
+    expect(
+      (await db.select().from(member).where(eq(member.userId, who.userId))).find(m => m.organizationId === ws.id)?.role,
+    ).toBe('admin')
     expect(await statusOf(id)).toBe('accepted')
     expect(await mine(who)).toEqual([])
-    const [logged] = await db.select().from(commands).where(and(eq(commands.actor_id, who.userId), eq(commands.action, 'invitation.accept')))
+    const [logged] = await db
+      .select()
+      .from(commands)
+      .where(and(eq(commands.actor_id, who.userId), eq(commands.action, 'invitation.accept')))
     // The invitation id opens the invitation: the log keeps it redacted.
     expect(logged).toMatchObject({ input: { invitationId: '[redacted]' }, rejected: false })
     expect((await act(who, 'invitation.accept', { invitationId: id })).body.error).toBe('invitation not found')
@@ -518,7 +727,10 @@ describe('answering an invitation inside the app', () => {
       expect((await mine(stranger)).map(i => i.invitationId)).not.toContain(id)
       // Unverified: asked to confirm first (before any lookup); verified: not found.
       expect((await act(stranger, 'invitation.accept', { invitationId: id })).status).toBe(409)
-      expect(await act(stranger, 'invitation.decline', { invitationId: id })).toMatchObject({ status: 409, body: { error: 'invitation not found' } })
+      expect(await act(stranger, 'invitation.decline', { invitationId: id })).toMatchObject({
+        status: 409,
+        body: { error: 'invitation not found' },
+      })
     }
     expect((await act(verified, 'invitation.accept', { invitationId: id })).body.error).toBe('invitation not found')
     expect(await statusOf(id)).toBe('pending')
@@ -528,19 +740,32 @@ describe('answering an invitation inside the app', () => {
     const theirs = await createWorkspace('Unverified Co', false)
     const id = await invite(ws.owner, (await emailOf(theirs.owner)).toLowerCase())
     expect(await mine(theirs.owner)).toEqual([])
-    expect((await act(theirs.owner, 'invitation.accept', { invitationId: id })).body.error).toBe('confirm your email address first')
+    expect((await act(theirs.owner, 'invitation.accept', { invitationId: id })).body.error).toBe(
+      'confirm your email address first',
+    )
   })
 
   test('an expired invitation is not listed and cannot be accepted', async () => {
     const { who, id } = await invitedOwner()
-    await db.update(invitation).set({ expiresAt: new Date(Date.now() - 60_000) }).where(eq(invitation.id, id))
+    await db
+      .update(invitation)
+      .set({ expiresAt: new Date(Date.now() - 60_000) })
+      .where(eq(invitation.id, id))
     expect(await mine(who)).toEqual([])
-    expect((await act(who, 'invitation.accept', { invitationId: id })).body.error).toBe('this invitation has expired; ask for a new one')
+    expect((await act(who, 'invitation.accept', { invitationId: id })).body.error).toBe(
+      'this invitation has expired; ask for a new one',
+    )
   })
 
   test("Better Auth's own reject endpoint is off: declining goes through the registry", async () => {
     const { who, id } = await invitedOwner()
-    const res = await request(who, 'POST', '/api/auth/organization/reject-invitation', { invitationId: id }, { [FROM]: randomIp() })
+    const res = await request(
+      who,
+      'POST',
+      '/api/auth/organization/reject-invitation',
+      { invitationId: id },
+      { [FROM]: randomIp() },
+    )
     expect(res.status).toBe(404)
     expect(await statusOf(id)).toBe('pending')
   })
@@ -559,9 +784,14 @@ describe('leaving', () => {
     await auth.api.addMember({ body: { userId: leaving.userId, organizationId: own.id, role: 'admin' } })
     const res = await act(leaving, 'team.leave', {})
     expect(res).toMatchObject({ status: 200, body: { ok: true, data: { nextWorkspaceId: own.id } } })
-    expect((await db.select().from(member).where(eq(member.userId, leaving.userId))).map(m => m.organizationId)).toEqual([own.id])
+    expect(
+      (await db.select().from(member).where(eq(member.userId, leaving.userId))).map(m => m.organizationId),
+    ).toEqual([own.id])
     expect((await request(leaving, 'GET', '/v1/me')).body.workspace.id).toBe(own.id)
-    const [logged] = await db.select().from(commands).where(and(eq(commands.actor_id, leaving.userId), eq(commands.action, 'team.leave')))
+    const [logged] = await db
+      .select()
+      .from(commands)
+      .where(and(eq(commands.actor_id, leaving.userId), eq(commands.action, 'team.leave')))
     expect(logged).toMatchObject({ workspace_id: ws.id, rejected: false })
   })
 
@@ -573,30 +803,54 @@ describe('leaving', () => {
     // With another workspace left the field is not needed: the account stays anyway.
     const other = await createWorkspace('Leaver Field Co')
     await auth.api.addMember({ body: { userId: leaving.userId, organizationId: other.id, role: 'member' } })
-    expect((await act(leaving, 'team.leave', {})).body.data).toEqual({ nextWorkspaceId: other.id, accountDeleted: false })
+    expect((await act(leaving, 'team.leave', {})).body.data).toEqual({
+      nextWorkspaceId: other.id,
+      accountDeleted: false,
+    })
   })
 
   test('the only workspace with deleteAccount: the account is deleted, with its sessions, passkeys and API keys', async () => {
     const leaving = await addMember(ws.id, 'admin')
     const key = (await act(leaving, 'apiKey.create', { name: 'Leaver key', role: 'admin' })).body.data.key as string
     expect((await appRequest('/v1/me', { headers: { authorization: `Bearer ${key}` } })).status).toBe(200)
-    await db.insert(passkey).values({ id: `pk_${crypto.randomUUID().slice(0, 12)}`, userId: leaving.userId, publicKey: 'cHVibGlj', credentialID: `cred-${crypto.randomUUID()}`, counter: 0, deviceType: 'singleDevice', backedUp: false })
-    expect((await act(leaving, 'team.leave', { deleteAccount: true })).body.data).toEqual({ nextWorkspaceId: null, accountDeleted: true })
+    await db
+      .insert(passkey)
+      .values({
+        id: `pk_${crypto.randomUUID().slice(0, 12)}`,
+        userId: leaving.userId,
+        publicKey: 'cHVibGlj',
+        credentialID: `cred-${crypto.randomUUID()}`,
+        counter: 0,
+        deviceType: 'singleDevice',
+        backedUp: false,
+      })
+    expect((await act(leaving, 'team.leave', { deleteAccount: true })).body.data).toEqual({
+      nextWorkspaceId: null,
+      accountDeleted: true,
+    })
     expect(await db.select().from(user).where(eq(user.id, leaving.userId))).toEqual([])
     expect(await db.select().from(session).where(eq(session.userId, leaving.userId))).toEqual([])
     expect(await db.select().from(passkey).where(eq(passkey.userId, leaving.userId))).toEqual([])
     expect((await request(leaving, 'GET', '/v1/me')).status).toBe(401)
     expect((await appRequest('/v1/me', { headers: { authorization: `Bearer ${key}` } })).status).toBe(401)
-    const [logged] = await db.select().from(commands).where(and(eq(commands.actor_id, leaving.userId), eq(commands.action, 'team.leave')))
+    const [logged] = await db
+      .select()
+      .from(commands)
+      .where(and(eq(commands.actor_id, leaving.userId), eq(commands.action, 'team.leave')))
     expect(logged).toMatchObject({ workspace_id: ws.id, rejected: false })
   })
 
   test('the only workspace with deleteAccount false: the account stays, signed in, without a workspace', async () => {
     const leaving = await addMember(ws.id, 'member')
-    expect((await act(leaving, 'team.leave', { deleteAccount: false })).body.data).toEqual({ nextWorkspaceId: null, accountDeleted: false })
+    expect((await act(leaving, 'team.leave', { deleteAccount: false })).body.data).toEqual({
+      nextWorkspaceId: null,
+      accountDeleted: false,
+    })
     expect(await db.select().from(user).where(eq(user.id, leaving.userId))).toHaveLength(1)
     expect(await db.select().from(member).where(eq(member.userId, leaving.userId))).toEqual([])
-    expect((await request(leaving, 'GET', '/api/auth/get-session')).body).toMatchObject({ user: { id: leaving.userId } })
+    expect((await request(leaving, 'GET', '/api/auth/get-session')).body).toMatchObject({
+      user: { id: leaving.userId },
+    })
   })
 
   test("deleteAccount never deletes a server admin's account", async () => {
@@ -612,9 +866,13 @@ describe('leaving', () => {
     const ownerId = await memberIdOf(shop.id, shop.owner)
     const nextId = await memberIdOf(shop.id, next)
     let release!: () => void
-    const held = new Promise<void>(resolve => { release = resolve })
+    const held = new Promise<void>(resolve => {
+      release = resolve
+    })
     let locked!: () => void
-    const isLocked = new Promise<void>(resolve => { locked = resolve })
+    const isLocked = new Promise<void>(resolve => {
+      locked = resolve
+    })
     // The hand-over (as team.transferOwnership does it) holds the new owner's row while it runs.
     const handOver = db.transaction(async tx => {
       await tx.select().from(member).where(eq(member.id, nextId)).for('update')
@@ -628,7 +886,10 @@ describe('leaving', () => {
     await new Promise(resolve => setTimeout(resolve, 200))
     release()
     await handOver
-    expect(await leave).toMatchObject({ status: 409, body: { error: 'you are the owner: make someone else the owner first (Workspace settings › Team)' } })
+    expect(await leave).toMatchObject({
+      status: 409,
+      body: { error: 'you are the owner: make someone else the owner first (Workspace settings › Team)' },
+    })
     const [row] = await db.select().from(member).where(eq(member.id, nextId))
     expect(row).toMatchObject({ role: 'owner' })
     expect(await db.select().from(user).where(eq(user.id, next.userId))).toHaveLength(1)
@@ -641,9 +902,13 @@ describe('leaving', () => {
       body: { error: 'you are the owner: make someone else the owner first (Workspace settings › Team)' },
     })
     const second = await addMember(solo.id, 'admin')
-    expect((await act(solo.owner, 'team.transferOwnership', { memberId: await memberIdOf(solo.id, second) })).status).toBe(200)
+    expect(
+      (await act(solo.owner, 'team.transferOwnership', { memberId: await memberIdOf(solo.id, second) })).status,
+    ).toBe(200)
     expect((await act(solo.owner, 'team.leave', { deleteAccount: false })).status).toBe(200)
-    expect((await db.select().from(member).where(eq(member.organizationId, solo.id))).map(m => m.userId)).toEqual([second.userId])
+    expect((await db.select().from(member).where(eq(member.organizationId, solo.id))).map(m => m.userId)).toEqual([
+      second.userId,
+    ])
   })
 
   test('the agent cannot leave a workspace', async () => {
@@ -651,22 +916,27 @@ describe('leaving', () => {
   })
 })
 
-// Janik's decisions of 2026-11-15 on deleting accounts (LIN-264, Q4).
+// decisions of 2026-11-15 on deleting accounts (LIN-264, Q4).
 describe('deleting accounts (LIN-264)', () => {
   const queued: { name: string; data: WorkspaceDeletedJob }[] = []
   function captureJobs() {
     queued.length = 0
     setJobQueue({
-      insert: async (name: string, jobs: { data: WorkspaceDeletedJob }[]) => void queued.push(...jobs.map(j => ({ name, data: j.data }))),
+      insert: async (name: string, jobs: { data: WorkspaceDeletedJob }[]) =>
+        void queued.push(...jobs.map(j => ({ name, data: j.data }))),
     } as never)
   }
   afterEach(() => setJobQueue(null))
 
   const exists = async (who: User) => (await db.select().from(user).where(eq(user.id, who.userId))).length === 1
-  const emailOf = async (who: User) => (await db.select({ email: user.email }).from(user).where(eq(user.id, who.userId)))[0]!.email
+  const emailOf = async (who: User) =>
+    (await db.select({ email: user.email }).from(user).where(eq(user.id, who.userId)))[0]!.email
   /** Moves every session of `who` back by `minutes`: their last sign-in was that long ago. */
   const signedInAgo = (who: User, minutes: number) =>
-    db.update(session).set({ createdAt: new Date(Date.now() - minutes * 60_000) }).where(eq(session.userId, who.userId))
+    db
+      .update(session)
+      .set({ createdAt: new Date(Date.now() - minutes * 60_000) })
+      .where(eq(session.userId, who.userId))
 
   describe('removing: only the owner deletes the account (Q4a), and the person is emailed (Q4b)', () => {
     test('an admin asking to delete the account is refused and nothing changes', async () => {
@@ -694,11 +964,22 @@ describe('deleting accounts (LIN-264)', () => {
       const gone = await addMember(shop.id, 'admin')
       const email = await emailOf(gone)
       captureJobs()
-      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, gone), deleteAccount: true })
+      const res = await act(shop.owner, 'team.removeMember', {
+        memberId: await memberIdOf(shop.id, gone),
+        deleteAccount: true,
+      })
       expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: true } } })
       expect(await exists(gone)).toBe(false)
       expect(queued).toEqual([
-        { name: WORKSPACE_DELETED_EMAIL, data: expect.objectContaining({ to: email, workspace: 'Owner Delete Co', accountDeleted: true, removed: true }) },
+        {
+          name: WORKSPACE_DELETED_EMAIL,
+          data: expect.objectContaining({
+            to: email,
+            workspace: 'Owner Delete Co',
+            accountDeleted: true,
+            removed: true,
+          }),
+        },
       ])
       expect(queued[0]!.data.by).toContain(await emailOf(shop.owner))
     })
@@ -709,7 +990,10 @@ describe('deleting accounts (LIN-264)', () => {
       const both = await addMember(shop.id, 'member')
       await auth.api.addMember({ body: { userId: both.userId, organizationId: elsewhere.id, role: 'member' } })
       captureJobs()
-      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, both), deleteAccount: true })
+      const res = await act(shop.owner, 'team.removeMember', {
+        memberId: await memberIdOf(shop.id, both),
+        deleteAccount: true,
+      })
       expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: false } } })
       expect(await exists(both)).toBe(true)
       expect(queued).toEqual([])
@@ -747,27 +1031,39 @@ describe('deleting accounts (LIN-264)', () => {
       const shop = await createWorkspace('Stale Keep Co')
       const keeping = await addMember(shop.id, 'member')
       await signedInAgo(keeping, 30)
-      expect((await act(keeping, 'team.leave', { deleteAccount: false })).body.data).toEqual({ nextWorkspaceId: null, accountDeleted: false })
+      expect((await act(keeping, 'team.leave', { deleteAccount: false })).body.data).toEqual({
+        nextWorkspaceId: null,
+        accountDeleted: false,
+      })
       const other = await createWorkspace('Stale Other Co')
       const twoOf = await addMember(shop.id, 'member')
       await auth.api.addMember({ body: { userId: twoOf.userId, organizationId: other.id, role: 'member' } })
       await signedInAgo(twoOf, 30)
-      expect((await act(twoOf, 'team.leave', { deleteAccount: true })).body.data).toEqual({ nextWorkspaceId: other.id, accountDeleted: false })
+      expect((await act(twoOf, 'team.leave', { deleteAccount: true })).body.data).toEqual({
+        nextWorkspaceId: other.id,
+        accountDeleted: false,
+      })
     })
 
     test('a sign-in within the last 10 minutes deletes the account', async () => {
       const shop = await createWorkspace('Fresh Leave Co')
       const leaving = await addMember(shop.id, 'member')
       await signedInAgo(leaving, 9)
-      expect((await act(leaving, 'team.leave', { deleteAccount: true })).body.data).toEqual({ nextWorkspaceId: null, accountDeleted: true })
+      expect((await act(leaving, 'team.leave', { deleteAccount: true })).body.data).toEqual({
+        nextWorkspaceId: null,
+        accountDeleted: true,
+      })
       expect(await exists(leaving)).toBe(false)
     })
   })
 
   describe('a removal cancels the pending invitations the removed person sent to that workspace (review F1)', () => {
     const withdrawn = async (who: User) =>
-      (await db.select().from(auth_events).where(eq(auth_events.user_id, who.userId))).filter(e => e.event === 'invitation_withdrawn')
-    const gone = async (id: string) => (await request(anonymous, 'GET', `/v1/invitations/${encodeURIComponent(id)}`)).body
+      (await db.select().from(auth_events).where(eq(auth_events.user_id, who.userId))).filter(
+        e => e.event === 'invitation_withdrawn',
+      )
+    const gone = async (id: string) =>
+      (await request(anonymous, 'GET', `/v1/invitations/${encodeURIComponent(id)}`)).body
 
     test('account kept: canceled, the link is gone, one audit line each; the dialog counts them; other senders untouched', async () => {
       const shop = await createWorkspace('Invite Cancel Kept Co')
@@ -776,13 +1072,25 @@ describe('deleting accounts (LIN-264)', () => {
       const openId = await invite(sender, invitee)
       const ownersId = await invite(shop.owner, newEmail())
       const listed = await act(shop.owner, 'team.list', {})
-      expect(listed.body.data.invitations.find((i: { invitationId: string }) => i.invitationId === openId)).toMatchObject({ invitedById: sender.userId })
-      const removed = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, sender), deleteAccount: false })
+      expect(
+        listed.body.data.invitations.find((i: { invitationId: string }) => i.invitationId === openId),
+      ).toMatchObject({ invitedById: sender.userId })
+      const removed = await act(shop.owner, 'team.removeMember', {
+        memberId: await memberIdOf(shop.id, sender),
+        deleteAccount: false,
+      })
       expect(removed).toMatchObject({ status: 200, body: { data: { accountDeleted: false, invitationsCanceled: 1 } } })
-      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({ status: 'canceled', inviterId: sender.userId })
+      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({
+        status: 'canceled',
+        inviterId: sender.userId,
+      })
       expect(await gone(openId)).toEqual({ status: 'gone' })
-      expect((await db.select().from(invitation).where(eq(invitation.id, ownersId)))[0]).toMatchObject({ status: 'pending' })
-      expect(await withdrawn(sender)).toEqual([expect.objectContaining({ method: invitee, workspace_id: shop.id, email: await emailOf(sender) })])
+      expect((await db.select().from(invitation).where(eq(invitation.id, ownersId)))[0]).toMatchObject({
+        status: 'pending',
+      })
+      expect(await withdrawn(sender)).toEqual([
+        expect.objectContaining({ method: invitee, workspace_id: shop.id, email: await emailOf(sender) }),
+      ])
     })
 
     test('account deleted by the owner: canceled too, never passed to the owner', async () => {
@@ -790,7 +1098,10 @@ describe('deleting accounts (LIN-264)', () => {
       const sender = await addMember(shop.id, 'admin')
       const invitee = newEmail()
       const openId = await invite(sender, invitee)
-      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, sender), deleteAccount: true })
+      const res = await act(shop.owner, 'team.removeMember', {
+        memberId: await memberIdOf(shop.id, sender),
+        deleteAccount: true,
+      })
       expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: true, invitationsCanceled: 1 } } })
       expect(await exists(sender)).toBe(false)
       // Not re-attributed: the invitation went with the account (inviter on delete cascade), its link is gone.
@@ -798,7 +1109,11 @@ describe('deleting accounts (LIN-264)', () => {
       expect(await gone(openId)).toEqual({ status: 'gone' })
       const events = await withdrawn(sender)
       expect(events).toEqual([expect.objectContaining({ method: invitee, workspace_id: shop.id, email: 'deleted' })])
-      expect((await db.select().from(auth_events).where(eq(auth_events.user_id, sender.userId))).some(e => e.event === 'invitation_reassigned')).toBe(false)
+      expect(
+        (await db.select().from(auth_events).where(eq(auth_events.user_id, sender.userId))).some(
+          e => e.event === 'invitation_reassigned',
+        ),
+      ).toBe(false)
       const team = await act(shop.owner, 'team.list', {})
       expect(team.body.data.invitations.map((i: { email: string }) => i.email)).not.toContain(invitee)
     })
@@ -810,9 +1125,13 @@ describe('deleting accounts (LIN-264)', () => {
       const sender = await addMember(shop.id, 'admin')
       const openId = await invite(sender, newEmail())
       const memberId = await memberIdOf(shop.id, sender)
-      const res = await asServerAdmin(operator, () => act(operator, 'membership.remove', { memberId, keepAccount: true }))
+      const res = await asServerAdmin(operator, () =>
+        act(operator, 'membership.remove', { memberId, keepAccount: true }),
+      )
       expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: false, invitationsCanceled: 1 } } })
-      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({ status: 'canceled' })
+      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({
+        status: 'canceled',
+      })
     })
 
     test('an admin demoted to member (team.setRole): their invitations are canceled; admin to admin keeps them (LIN-406)', async () => {
@@ -823,11 +1142,17 @@ describe('deleting accounts (LIN-264)', () => {
       const ownersId = await invite(shop.owner, newEmail())
       const memberId = await memberIdOf(shop.id, sender)
       expect((await act(shop.owner, 'team.setRole', { memberId, role: 'admin' })).status).toBe(200)
-      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({ status: 'pending' })
+      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({
+        status: 'pending',
+      })
       expect((await act(shop.owner, 'team.setRole', { memberId, role: 'member' })).status).toBe(200)
-      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({ status: 'canceled' })
+      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({
+        status: 'canceled',
+      })
       expect(await gone(openId)).toEqual({ status: 'gone' })
-      expect((await db.select().from(invitation).where(eq(invitation.id, ownersId)))[0]).toMatchObject({ status: 'pending' })
+      expect((await db.select().from(invitation).where(eq(invitation.id, ownersId)))[0]).toMatchObject({
+        status: 'pending',
+      })
       expect(await withdrawn(sender)).toEqual([expect.objectContaining({ method: invitee, workspace_id: shop.id })])
     })
 
@@ -840,7 +1165,9 @@ describe('deleting accounts (LIN-264)', () => {
       const memberId = await memberIdOf(shop.id, sender)
       const res = await asServerAdmin(operator, () => act(operator, 'membership.setRole', { memberId, role: 'member' }))
       expect(res.status).toBe(200)
-      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({ status: 'canceled' })
+      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({
+        status: 'canceled',
+      })
       expect(await withdrawn(sender)).toHaveLength(1)
     })
 
@@ -873,11 +1200,19 @@ describe('deleting accounts (LIN-264)', () => {
       const openId = await invite(shop.owner, newEmail())
       await signedInAgo(shop.owner, 11)
       captureJobs()
-      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, target), deleteAccount: true })
-      expect(res).toMatchObject({ status: 403, body: { ok: false, error: REMOVE_SIGN_IN_AGAIN, code: 'SIGN_IN_AGAIN' } })
+      const res = await act(shop.owner, 'team.removeMember', {
+        memberId: await memberIdOf(shop.id, target),
+        deleteAccount: true,
+      })
+      expect(res).toMatchObject({
+        status: 403,
+        body: { ok: false, error: REMOVE_SIGN_IN_AGAIN, code: 'SIGN_IN_AGAIN' },
+      })
       expect(await db.select().from(member).where(eq(member.userId, target.userId))).toHaveLength(1)
       expect(await exists(target)).toBe(true)
-      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({ status: 'pending' })
+      expect((await db.select().from(invitation).where(eq(invitation.id, openId)))[0]).toMatchObject({
+        status: 'pending',
+      })
       expect(queued).toEqual([])
     })
 
@@ -885,12 +1220,19 @@ describe('deleting accounts (LIN-264)', () => {
       const shop = await createWorkspace('Stale Remove Handler Co')
       const target = await addMember(shop.id, 'member')
       await signedInAgo(shop.owner, 11)
-      const [owner] = await db.select().from(member).where(and(eq(member.organizationId, shop.id), eq(member.role, 'owner')))
+      const [owner] = await db
+        .select()
+        .from(member)
+        .where(and(eq(member.organizationId, shop.id), eq(member.role, 'owner')))
       const [own] = await db.select().from(session).where(eq(session.userId, shop.owner.userId))
       const actor = { actorId: owner!.userId, workspaceId: shop.id, sessionId: own!.id } as never
       expect(await removeNeedsFreshSignIn(db, actor, { deleteAccount: true })).toBe(true)
       expect(await removeNeedsFreshSignIn(db, actor, { deleteAccount: false })).toBe(false)
-      expect(await removeNeedsFreshSignIn(db, { ...(actor as object), sessionId: undefined } as never, { deleteAccount: true })).toBe(true)
+      expect(
+        await removeNeedsFreshSignIn(db, { ...(actor as object), sessionId: undefined } as never, {
+          deleteAccount: true,
+        }),
+      ).toBe(true)
       expect(await db.select().from(member).where(eq(member.userId, target.userId))).toHaveLength(1)
     })
 
@@ -912,7 +1254,10 @@ describe('deleting accounts (LIN-264)', () => {
       const shop = await createWorkspace('Fresh Remove Co')
       const gone = await addMember(shop.id, 'member')
       await signedInAgo(shop.owner, 9)
-      const res = await act(shop.owner, 'team.removeMember', { memberId: await memberIdOf(shop.id, gone), deleteAccount: true })
+      const res = await act(shop.owner, 'team.removeMember', {
+        memberId: await memberIdOf(shop.id, gone),
+        deleteAccount: true,
+      })
       expect(res).toMatchObject({ status: 200, body: { data: { accountDeleted: true } } })
       expect(await exists(gone)).toBe(false)
     })
@@ -927,7 +1272,9 @@ describe('deleting accounts (LIN-264)', () => {
       const openId = await invite(inviter, invitee)
       const revokedId = await invite(inviter, newEmail())
       expect((await act(shop.owner, 'team.revokeInvite', { invitationId: revokedId })).status).toBe(200)
-      expect((await act(inviter, 'team.leave', { deleteAccount: true })).body.data).toMatchObject({ accountDeleted: true })
+      expect((await act(inviter, 'team.leave', { deleteAccount: true })).body.data).toMatchObject({
+        accountDeleted: true,
+      })
       const [open] = await db.select().from(invitation).where(eq(invitation.id, openId))
       expect(open).toMatchObject({ status: 'pending', inviterId: shop.owner.userId })
       // The canceled one is not passed on: it goes with the account, as before.
@@ -938,15 +1285,23 @@ describe('deleting accounts (LIN-264)', () => {
       // trigger) and the owner who holds the invitation now (subject_id, review F4).
       const events = await db.select().from(auth_events).where(eq(auth_events.user_id, inviter.userId))
       expect(events.filter(e => e.event === 'invitation_reassigned')).toEqual([
-        expect.objectContaining({ email: 'deleted', method: invitee, workspace_id: shop.id, subject_id: shop.owner.userId }),
+        expect.objectContaining({
+          email: 'deleted',
+          method: invitee,
+          workspace_id: shop.id,
+          subject_id: shop.owner.userId,
+        }),
       ])
       expect(JSON.stringify(events)).not.toContain(inviterEmail)
       // Server admin › Audit log shows the owner as the subject.
       const operator = await signUp()
       await db.update(user).set({ emailVerified: true }).where(eq(user.id, operator.userId))
-      const audit = await asServerAdmin(operator, () => request(operator, 'GET', `/v1/admin/audit?workspaceId=${shop.id}&kind=team`))
+      const audit = await asServerAdmin(operator, () =>
+        request(operator, 'GET', `/v1/admin/audit?workspaceId=${shop.id}&kind=team`),
+      )
       expect(audit.body.entries.find((e: { what: string }) => e.what === 'invitation_reassigned')).toMatchObject({
-        method: invitee, subject: { email: await emailOf(shop.owner) },
+        method: invitee,
+        subject: { email: await emailOf(shop.owner) },
       })
       const team = await act(shop.owner, 'team.list', {})
       expect(team.body.data.invitations.map((i: { email: string }) => i.email)).toContain(invitee)

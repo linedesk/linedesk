@@ -1,4 +1,4 @@
-// The bill owner's emails about the bill's life (docs/billing.md §3.3, §3.4, §4.2): an extra number whose month could
+// The bill owner's emails about the bill's life: an extra number whose month could
 // not be paid, the yearly renewal reminder, dunning (suspended, the reminders, canceled, numbers released) and a
 // port-out request. Each is sent once per occasion (a `billing_alerts`
 // row made in the transaction that queued it; billing-periods.ts, billing-lifecycle.ts). Also the note that someone

@@ -1,4 +1,4 @@
-// Charging an auto-recharge (src/billing-recharge.ts, docs/billing.md §2.2 and §3.4): the job charges a pending
+// Charging an auto-recharge (src/billing-recharge.ts): the job charges a pending
 // attempt through the billing provider (a fake here; the Stripe adapter has its own contract tests), never credits
 // it, and applies the failed-recharge rules: automatic collection off before the attempt is marked, a decline voided
 // (`canceled`), 3DS kept open (`failed`), the bill waiting for a new card, and the owner emailed once per invoice.

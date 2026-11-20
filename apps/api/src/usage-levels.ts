@@ -1,4 +1,4 @@
-// Call quality on Linedesk Cloud (packages/actions/src/usage-level.ts, decisions.md 2026-11-17): every assistant has
+// Call quality on Linedesk Cloud (packages/actions/src/usage-level.ts, decision of 2026-11-17): every assistant has
 // a level (Standard $0.05, Premium $0.10, Ultra $0.20 a minute by default) and the level alone decides the price. What answers
 // its calls: the three stages for Standard and Premium (its own models when they belong to the level, else the server's
 // defaults for it, call-quality.ts), a realtime model for Ultra. Prices and the checks of a level the server admin turned
@@ -151,7 +151,7 @@ export async function checkAssistantLevel(
 }
 
 /**
- * The picks an assistant keeps when its level changes: those that belong to the new level (decisions.md 2026-11-17:
+ * The picks an assistant keeps when its level changes: those that belong to the new level (decision of 2026-11-17:
  * the server clears the others in the same save, they follow the new level's defaults).
  */
 export async function picksForLevel<A extends Pick<Assistant, 'voice' | 'llm_model' | 'realtime_model'>>(

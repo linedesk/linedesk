@@ -10,7 +10,7 @@ export const SOURCE = 'en'
 export const UI_LOCALES = ['en', 'es', 'pt-BR', 'fr', 'de', 'ja'] as const
 export type UiLocale = (typeof UI_LOCALES)[number]
 
-/** Each language's own name, without a region ("Português" for pt-BR, decisions.md 2026-11-17), and writing direction. */
+/** Each language's own name, without a region ("Português" for pt-BR, decision of 2026-11-17), and writing direction. */
 export const LOCALE_INFO: Record<UiLocale, { name: string; dir: 'ltr' | 'rtl' }> = {
   en: { name: 'English', dir: 'ltr' },
   es: { name: 'Español', dir: 'ltr' },

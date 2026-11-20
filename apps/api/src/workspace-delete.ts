@@ -55,7 +55,7 @@ export const KEPT_TABLES: Record<string, string> = {
   auth_events: 'the audit log',
   number_purchases: "the purchase limits of the install's carrier account count them",
   voice_clones: 'the consent records; the voices are deleted at the provider',
-  ledger_entries: 'the billing ledger: append-only, the record of what a bill was charged (docs/billing.md)',
+  ledger_entries: 'the billing ledger: append-only, the record of what a bill was charged',
   usage_counters: 'sums of the billing ledger, which stays',
 }
 
@@ -176,7 +176,7 @@ export async function membersOnlyHere(tx: Tx, workspaceId: string, spareUserId: 
 
 /**
  * The pending invitations these accounts sent pass to their workspace's owner before the accounts go (they would
- * otherwise go with them, `invitation.inviter_id` on delete cascade, and the invitees' links stop working): Janik,
+ * otherwise go with them, `invitation.inviter_id` on delete cascade, and the invitees' links stop working): decision of
  * 2026-11-15, LIN-264. One audit line per invitation (`invitation_reassigned`, naming the owner who holds it now).
  * A removal cancels the removed person's invitations in that workspace first (cancelSentInvitations, team.ts), so
  * this moves those of a leave, a workspace delete and invitations in other workspaces. A workspace without another owner
@@ -212,7 +212,7 @@ async function reassignInvitations(tx: Tx, ids: string[]) {
 /** Deletes these accounts: sessions, sign-in methods and passkeys go with them (on delete cascade); the audit log keeps its ids. */
 export async function deleteAccounts(tx: Tx, ids: string[]) {
   if (!ids.length) return
-  // The owner of a running bill hands it over or cancels first (docs/billing.md §8).
+  // The owner of a running bill hands it over or cancels first.
   await refuseDeletingBillOwners(tx, ids)
   await reassignInvitations(tx, ids)
   await tx.delete(star_prompts).where(inArray(star_prompts.user_id, ids))

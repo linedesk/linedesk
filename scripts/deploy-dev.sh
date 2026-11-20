@@ -2,7 +2,7 @@
 # Dev mode (LINEDESK_MODE=dev, docker-compose.dev.yml): an update is moving this checkout, which the
 # containers run from, to the newest commit of its branch. Their file watchers pick up the change within seconds.
 #   scripts/deploy-dev.sh [<commit>]   default: the newest commit of the branch on origin
-# The branch is LINEDESK_DEV_BRANCH (environment or .env), default master-dev, the trunk (docs/ci.md, "Branches").
+# The branch is LINEDESK_DEV_BRANCH (environment or .env), default the remote's default branch (origin/HEAD), else main.
 # scripts/deploy.sh calls this in dev mode, so the server's deploy command stays the same.
 #
 # Refuses (logs why, exits 1, changes nothing) when the checkout is not on that branch, has local changes
@@ -21,7 +21,8 @@ refuse() {
 main() {
   cd "$(dirname "$0")/.."
   local want=${LINEDESK_DEV_BRANCH:-$(sed -n 's/^LINEDESK_DEV_BRANCH=//p' .env 2>/dev/null | tail -1)}
-  want=${want:-master-dev}
+  [ -n "$want" ] || want=$(git symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+  want=${want:-main}
   git check-ref-format --branch "$want" >/dev/null 2>&1 || refuse "LINEDESK_DEV_BRANCH is not a branch name: $want"
   local target=${1:-origin/$want} branch before
   branch=$(git symbolic-ref --short -q HEAD || echo "a detached HEAD")

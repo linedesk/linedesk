@@ -161,7 +161,7 @@ const recharge = {
 }
 const stripeWith = (doFetch: typeof fetch) =>
   loadBillingProvider({ secretKey: TEST_KEY, webhookSecret: 'whsec_abc' }, doFetch)
-/** An install's catalog (docs/billing.md §7b): its product names and plan prices, made in Stripe before a Checkout. */
+/** An install's catalog: its product names and plan prices, made in Stripe before a Checkout. */
 const CATALOG = {
   products: { workspace: 'Front Desk workspace', balance_topup: 'Prepaid minutes' },
   prices: [{ lookupKey: 'ws_yearly', product: 'workspace', cents: 10_800, interval: 'year' as const }],
@@ -1178,7 +1178,7 @@ describe('stripe refunds and seats (Server admin › Billing, PR 13)', () => {
   })
 })
 
-describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
+describe('stripe trial Checkout', () => {
   const pmcList = (data: unknown[], has_more = false) => [200, { object: 'list', data, has_more }] as [number, unknown]
   const pmc = (id: string, name = 'Linedesk Checkout') => ({
     id,
@@ -1263,7 +1263,7 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
       'metadata[linedesk_checkout]': 'trial',
       expires_at: '1900000000',
     })
-    // No terms checkbox: the terms are accepted once, at sign-up (docs/billing.md §3.1).
+    // No terms checkbox: the terms are accepted once, at sign-up.
     expect(Object.keys(body).some(k => k.startsWith('consent_collection'))).toBe(false)
     expect(Object.keys(body).some(k => k.startsWith('payment_method_types'))).toBe(false)
     expect(Object.keys(body).some(k => k.includes('setup_future_usage'))).toBe(false)
@@ -1639,7 +1639,7 @@ describe('stripe trial Checkout (docs/billing.md §3.2, §2.4)', () => {
   })
 })
 
-describe('stripe customer portal (Settings › Billing, docs/billing.md §2.4)', () => {
+describe('stripe customer portal (Settings › Billing)', () => {
   const configs = (data: unknown[]) => ({
     object: 'list',
     data,

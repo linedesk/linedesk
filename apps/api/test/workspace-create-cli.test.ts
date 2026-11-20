@@ -1,4 +1,4 @@
-// The server CLI workspace-create.ts runs workspace.create as a named server admin (Janik, 2026-11-15, Q9): the same
+// The server CLI workspace-create.ts runs workspace.create as a named server admin (decision of 2026-11-15, Q9): the same
 // audit entry, rights and owner rules as Server admin › Workspaces › New workspace. --as may be left out only while the
 // install has exactly one enabled server admin. user:create makes server admins only. Own database (vitest.config.ts):
 // this file counts the install's server admins.

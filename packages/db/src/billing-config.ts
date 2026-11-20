@@ -1,4 +1,4 @@
-// Billing prices and rules (docs/billing.md §4 and §7a, decisions 14 to 16), in one module: every
+// Billing prices and rules, in one module: every
 // price, allowance, cap and abuse limit billing uses is here, and nowhere else in the code. Amounts in US cents unless
 // the name says micros (1 USD = 1,000,000).
 //
@@ -10,10 +10,10 @@
 // Stripe price and account ids are never in the code: they live in the Stripe account and the provider settings.
 
 /**
- * The plan fees as Stripe prices (docs/billing.md §2.1), found by `lookupKey`. USD, per unit, tax-exclusive. `cents`
+ * The plan fees as Stripe prices, found by `lookupKey`. USD, per unit, tax-exclusive. `cents`
  * here are the defaults: the amounts in effect are the install's rules (`planPrices`, Server admin › Billing), and
  * the app makes the matching prices in the install's own Stripe account before a Checkout (`PlanCatalog`). There are
- * no founding prices (dropped 2026-11-16, docs/billing.md §2.1b).
+ * no founding prices (dropped 2026-11-16).
  * Usage and extra numbers are never Stripe prices: they are paid from the balance (`BILLING_DEFAULTS`).
  */
 export const PLAN_PRICES = [
@@ -31,7 +31,7 @@ export type PlanPrice = { lookupKey: string; product: PlanProduct; cents: number
 /**
  * The Stripe products by their names on invoices and receipts, with the install's product name (Server admin ›
  * Branding) in front of the workspace and extra-calls products. The partner plan keeps its own name, "White-label
- * Cloud", on every install, like the balance products (Janik, 2026-11-18): the catalog sync renames the product
+ * Cloud", on every install, like the balance products (decision of 2026-11-18): the catalog sync renames the product
  * back to these names. English, like every text this install sends to Stripe. The balance products have no fixed
  * price: a recharge invoice item and a top-up Checkout line give the amount.
  */
@@ -42,7 +42,7 @@ export const planProducts = (brand: string): Record<PlanProduct, string> => ({
   balance_recharge: 'Balance recharge',
   balance_topup: 'Prepaid minutes',
 })
-/** Stripe Tax code of every product and the account default: SaaS, business use (docs/billing.md §5.2). */
+/** Stripe Tax code of every product and the account default: SaaS, business use. */
 export const STRIPE_TAX_CODE = 'txcd_10103001'
 
 /**
@@ -70,7 +70,7 @@ export const RECHARGE_LIMITS = {
   thresholdCents: { min: 500, max: 10_000 },
   amountCents: { min: 2000, max: 50_000 },
 } as const
-/** "Buy minutes": what one purchase may be, in cents before tax (docs/billing.md §2.2, L5). */
+/** "Buy minutes": what one purchase may be, in cents before tax. */
 export const TOPUP_LIMITS_CENTS = { min: 500, max: 50_000 } as const
 /** A recharge lifts the balance at least this far above the threshold, so one recharge is enough (no repeats). */
 export const RECHARGE_AMOUNT_OVER_THRESHOLD_CENTS = 500
@@ -86,7 +86,7 @@ export const BALANCE_BUFFER_MICROS = 5_000_000
 export const LEVEL_PRICES = {
   standard: { microsPerMinute: 50_000, allowanceFactor: 1 },
   premium: { microsPerMinute: 100_000, allowanceFactor: 2 },
-  // Speech-to-speech models (Janik, 2026-11-16). The price may change after the realtime cost research.
+  // Speech-to-speech models (decision of 2026-11-16). The price may change after the realtime cost research.
   ultra: { microsPerMinute: 200_000, allowanceFactor: null },
 } as const satisfies Record<string, LevelPrice>
 export type LevelPrice = { microsPerMinute: number; allowanceFactor: number | null }
@@ -97,7 +97,7 @@ export const PAID_LEVELS = Object.keys(LEVEL_PRICES) as [PaidLevel, ...PaidLevel
 export const USAGE_LEVELS = [...PAID_LEVELS, 'own_keys'] as const
 export type UsageLevel = PaidLevel | 'own_keys'
 
-/** What an install may set (docs/billing.md §7a): prices, the included allowance and the abuse limits. */
+/** What an install may set: prices, the included allowance and the abuse limits. */
 export type BillingRules = {
   /** The plan fee per workspace (a seat) a month and a year, in cents before tax. */
   workspaceMonthlyCents: number
@@ -109,7 +109,7 @@ export type BillingRules = {
   trialDays: number
   /**
    * The days before the trial's end that the owner gets a reminder email with the date and the amount of the first
-   * charge and how to cancel (docs/billing.md §3.2): 7 (the card networks' rule for trials) and 1 (the last chance) by
+   * charge and how to cancel: 7 (the card networks' rule for trials) and 1 (the last chance) by
    * default. One to three different days, each 1 to 30; a day that falls before the trial started is not sent.
    */
   trialReminderDays: number[]
@@ -139,7 +139,7 @@ export type BillingRules = {
   /** What each workspace after the first adds to the monthly recharge cap. */
   rechargeCapPerWorkspaceCents: number
   /**
-   * Stripe Tax (docs/billing.md §5.2): automatic tax on every Checkout, subscription and invoice the app makes, with a
+   * Stripe Tax: automatic tax on every Checkout, subscription and invoice the app makes, with a
    * required billing address and tax ID collection at Checkout. On by default, as before the switch existed (security
    * review of #1105, M-1); a self-hoster without Stripe Tax set up in their Stripe account turns it off. A change reaches
    * running subscriptions too (billing-tax.ts).
@@ -178,7 +178,7 @@ export const BILLING_DEFAULTS: BillingRules = {
 }
 
 /**
- * Self-serve sign-up and the trial (docs/billing.md §3.1, §3.2): the abuse limits, set per install with the instance
+ * Self-serve sign-up and the trial: the abuse limits, set per install with the instance
  * setting `signup.rules` (apps/api/src/self-serve.ts) over these defaults, which are Linedesk Cloud's.
  */
 export type SignupRules = {
@@ -206,7 +206,7 @@ export type SignupRules = {
   /** Radar risk levels of the trial's card check that hold number purchase for review. */
   reviewRiskLevels: string[]
   /**
-   * Before the trial starts (the workspace is set up first, the card comes at the last step, docs/billing.md §3.2):
+   * Before the trial starts (the workspace is set up first, the card comes at the last step):
    * the minutes of browser test calls a workspace may use, over all of them, and how many business lookups and
    * website imports it may run (Google Places and the language model: the install's money). 0 turns either off.
    */
@@ -249,8 +249,8 @@ export type ExtraCallsDisclosure = {
 }
 
 /**
- * What "Keep calls answered" showed when the owner pressed it (`terms_acceptances.disclosure`, source `trial_recharge`;
- * docs/billing.md §3.2 step 7): the minutes used of the period's included ones (the trial's, or a paid period's with
+ * What "Keep calls answered" showed when the owner pressed it (`terms_acceptances.disclosure`, source `trial_recharge`):
+ * the minutes used of the period's included ones (the trial's, or a paid period's with
  * auto-recharge off), the purchase now (`amountCents` on `card`, brand and last four), that auto-recharge is on from
  * then (the threshold and the monthly cap), until when the plan stays free (null: a paid plan), and the price of a
  * Standard minute (micros). `rechargeId`: the purchase.
@@ -285,7 +285,7 @@ export type AutoRechargeDisclosure = {
 }
 
 /**
- * The minutes prompt (docs/billing.md §3.2 step 7): at this share of the included minutes the owner is asked once per
+ * The minutes prompt: at this share of the included minutes the owner is asked once per
  * period (banner and email) to "Keep calls answered": in the trial until they did, and on a paid plan with
  * auto-recharge off.
  */
@@ -311,7 +311,7 @@ export const minutesPromptPeriod = (prompt: 'trial' | 'plan') => (prompt === 'tr
 
 /**
  * The trial grace: in the trial, once the balance (less what running calls hold) is gone, new calls are still
- * answered until the bill is this many Standard minutes below zero (docs/billing.md §4.4). Then the refused-call
+ * answered until the bill is this many Standard minutes below zero. Then the refused-call
  * answer as before.
  */
 export const TRIAL_GRACE_STANDARD_MINUTES = 10
@@ -338,11 +338,11 @@ export type ActivationFacts = ActivationDisclosure & {
   prices: PlanPrices
 }
 
-/** Phone numbers every workspace includes (docs/billing.md §2: "every workspace includes one local number"). */
+/** Phone numbers every workspace includes: one local number. */
 export const INCLUDED_NUMBERS_PER_WORKSPACE = 1
 
 /**
- * What the shared plan card shows besides the plan's own price (Janik, 2026-11-18; web ui/PlanCard.tsx), the same facts
+ * What the shared plan card shows besides the plan's own price (decision of 2026-11-18; web ui/PlanCard.tsx), the same facts
  * on the activation step, the partner's Activate step and Settings › Billing: per workspace the included phone numbers,
  * minutes a period and calls at the same time, the Standard price a minute after the minutes, Premium and Ultra a
  * minute (null while the server admin has the level off), all in micros, and an extra phone number a month in cents (0
@@ -360,7 +360,7 @@ export type PlanPrices = {
 
 /**
  * How long a card's fingerprint (`card_fingerprints`, one free trial per card) is kept after its bill was canceled,
- * in months (docs/billing.md §3.2 step 4; Janik, 2026-11-16). Fingerprints of bills that are not canceled stay. The
+ * in months. Fingerprints of bills that are not canceled stay. The
  * daily sign-up sweep deletes the older ones.
  */
 export const CARD_FINGERPRINT_RETENTION_MONTHS = 24
@@ -418,7 +418,7 @@ const PLAN_PRICE_CENTS = {
 
 /**
  * The plan prices in effect on this install: `PLAN_PRICES` with the amounts of the install's rules. A changed amount
- * applies to new Checkouts; a running subscription keeps the Stripe price it was started on (docs/billing.md §7b).
+ * applies to new Checkouts; a running subscription keeps the Stripe price it was started on.
  */
 export const planPrices = (rules: BillingRules = BILLING_DEFAULTS): PlanPrice[] =>
   PLAN_PRICES.map(p => ({ ...p, cents: PLAN_PRICE_CENTS[p.lookupKey](rules) }))
@@ -442,7 +442,7 @@ export function rechargeCapCents(
   return baseCents + rules.rechargeCapPerWorkspaceCents * Math.max(0, workspaces - 1)
 }
 
-// Rating and the call gate (docs/billing.md §2.1a, §4.2 to §4.4). Pure functions on numbers, so the server and the
+// Rating and the call gate. Pure functions on numbers, so the server and the
 // browser compute the same; the ledger code in apps/api/src/ledger.ts supplies the rows and the install's rules.
 
 /** Standard seconds of the allowance one second at `level` uses; 0 for a level that does not use it. */
@@ -511,13 +511,13 @@ export type CallRating = {
 }
 
 /**
- * Rates a finished call (docs/billing.md §4.2): its billed seconds are the inbound leg's duration plus the transfer
+ * Rates a finished call: its billed seconds are the inbound leg's duration plus the transfer
  * leg's, at the level fixed at its start. The included allowance goes first, at the level's allowance factor (a
  * Premium second uses two Standard seconds, so 50 Standard or 25 Premium minutes are included; Ultra never uses it),
  * the rest at the level's price. Only own keys confirmed after the call makes it $0, using no allowance; a comped
  * bill records the seconds at $0, also using none. With `limitSeconds` (the limit stored on its reservation) the
  * billed seconds are capped at the limit plus the stale sweep's grace, so a wrong duration never debits more than the
- * gate reserved for (docs/billing.md §4.2).
+ * gate reserved for.
  */
 export function rateCall(
   call: {
@@ -586,7 +586,7 @@ export type GateReason = 'billing_inactive' | 'too_many_calls' | 'no_balance'
 export type GateAnswer = { allow: true; grace?: true } | { allow: false; reason: GateReason }
 
 /**
- * "Can this call start?" (docs/billing.md §4.4): the bill is in service, below its concurrency cap (an instance admin's
+ * "Can this call start?": the bill is in service, below its concurrency cap (an instance admin's
  * cap, else the rules' cap, in the trial at most `trialConcurrentCalls`), and the balance
  * less every running call's reservation and this one's stays at or above −buffer (0 in the trial). In the trial a
  * call the balance does not cover still starts while the bill (less what running calls hold) is above −the trial grace
@@ -629,7 +629,7 @@ export type RechargeAnswer = { kind: 'none' } | { kind: 'recharge'; amountCents:
 
 /**
  * Whether a bill in this status is recharged automatically: paid (also past due), or in the trial once the owner
- * pressed "Keep calls answered" (`trialRecharge`, docs/billing.md §3.2 step 7).
+ * pressed "Keep calls answered" (`trialRecharge`).
  */
 export const rechargesIn = (status: string, trialRecharge: boolean) =>
   status === 'active' || status === 'past_due' || (status === 'trialing' && trialRecharge)
@@ -639,7 +639,7 @@ export const rechargeCapWithNumbers = (bill: RechargeBill, rules: BillingRules =
   rechargeCapCents(bill.capBaseCents, bill.workspaces, rules) + rules.extraNumberCents * Math.max(0, bill.extraNumbers)
 
 /**
- * The recharge decision (docs/billing.md §4.3): below the threshold, recharge the amount, cut to what the monthly cap
+ * The recharge decision: below the threshold, recharge the amount, cut to what the monthly cap
  * leaves; under the $20 minimum the cap is reached. Not in the trial (no off-session charge before conversion) unless
  * the owner pressed "Keep calls answered" there (`trialRecharge`); never with one pending or a failure waiting for
  * the owner.

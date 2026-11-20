@@ -212,11 +212,13 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'setupEmails.set': 'admin',
   // Who may sign up in which country: open to everyone, only invited addresses, or off (signup-access.ts).
   'signupAccess.set': 'admin',
-  // Billing through Stripe on or off for the whole install (docs/billing.md §7).
+  // The link to the Linedesk app on Zapier that workspaces open (integrations.ts).
+  'zapierApp.set': 'admin',
+  // Billing through Stripe on or off for the whole install.
   'billingEnabled.set': 'admin',
-  // A stored Stripe event processed again by an instance admin (docs/billing.md §5.1).
+  // A stored Stripe event processed again by an instance admin.
   'billing.reprocessEvent': 'admin',
-  // Server admin › Billing (docs/billing.md §8, PR 13): every change to a bill, its money or the install's billing
+  // Server admin › Billing: every change to a bill, its money or the install's billing
   // rules, each with the admin's reason in its input; reads are not listed.
   'billing.credit': 'admin',
   'billing.refund': 'admin',
@@ -229,24 +231,24 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'billingRules.set': 'admin',
   'signup.setSelfServe': 'admin',
   'signup.setRules': 'admin',
-  // Self-serve sign-up (docs/billing.md §3.1): every sign-up.
+  // Self-serve sign-up: every sign-up.
   'account.signUp': 'account',
   // A new terms version accepted by a bill's owner (LIN-420).
   'account.acceptTerms': 'account',
-  // The bill's Checkout, top-ups and its plan cancelled or resumed (docs/billing.md §3.2, §8): the owner's decisions.
+  // The bill's Checkout, top-ups and its plan cancelled or resumed: the owner's decisions.
   'billing.startCheckout': 'account',
   'billing.confirmCheckout': 'account',
   'billing.startTopUp': 'account',
   'billing.cancel': 'account',
   'billing.resume': 'account',
-  // Settings › Billing (docs/billing.md §8, PR 9): auto-recharge, the cap, the portal and Retry; the overview is a read.
+  // Settings › Billing: auto-recharge, the cap, the portal and Retry; the overview is a read.
   'billing.setAutoRecharge': 'account',
   'billing.setRechargeCap': 'account',
   'billing.setExtraCalls': 'account',
   'billing.setInterval': 'account',
   'billing.openPortal': 'account',
   'billing.retryRecharge': 'account',
-  // Bill ownership and port-outs (docs/billing.md §3.4, §8; PR 11). Reads that reveal a secret are audited too.
+  // Bill ownership and port-outs. Reads that reveal a secret are audited too.
   'billing.recordPortOut': 'admin',
   'billing.handOver': 'team',
   'billing.portOutInfo': 'account',

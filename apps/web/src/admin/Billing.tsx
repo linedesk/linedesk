@@ -1,4 +1,4 @@
-// Server admin › Billing (docs/billing.md §11, PR 13): the bills of this install with their ledger, payments and
+// Server admin › Billing (PR 13): the bills of this install with their ledger, payments and
 // invoices; what waits for review; the Stripe event inbox; who may sign up on their own, with the bot check; the
 // install's billing rules; and Stripe with the billing switch (BillingProviders.tsx, LIN-556). Every write asks why (kept in the audit log) and runs through runAdmin, so the server's passkey step-up asks
 // for the admin's passkey first; the ones that reach Stripe send one request id per dialog (its idempotency key).

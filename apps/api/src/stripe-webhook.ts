@@ -1,4 +1,4 @@
-// POST /v1/billing/stripe/webhook (docs/billing.md §5.1): the only billing route outside the registry, and it changes
+// POST /v1/billing/stripe/webhook: the only billing route outside the registry, and it changes
 // nothing by itself. It checks Stripe's signature over the raw body (the signing secret and, during a rotation, the
 // previous one; 300 s tolerance; the key's mode), stores the event with its job in one transaction and answers 200.
 // The job (stripe-events.ts) does the rest. No session, no cookie, no CSRF check (it carries no ambient credential);
@@ -40,7 +40,7 @@ function logRefused(reason: string, now = Date.now()) {
 }
 
 /**
- * An event in another API version than the adapter's is taken (docs/billing.md §5.1: only version-proof fields are
+ * An event in another API version than the adapter's is taken (only version-proof fields are
  * read, every object is fetched again at the pinned version). Noted once an hour per version, so an endpoint that is
  * not pinned (made by hand, `stripe listen`) is visible in the log without filling it.
  */

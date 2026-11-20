@@ -60,7 +60,7 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 /** A pending domain is checked this long, then `stopped` until "Check now". */
 export const SENDER_CHECKS_FOR_MS = 72 * HOUR
-/** A claim that never verified is removed this long after it was added (docs/decisions.md): 72 hours of checks, then
+/** A claim that never verified is removed this long after it was added: 72 hours of checks, then
  * a few days in which "Check now" still works. It frees the domain for its real owner (security review of #1291, L-1). */
 export const SENDER_CLAIM_EXPIRES_MS = 7 * 24 * HOUR
 /** A sender that verified once and then failed is removed this long after it failed. */

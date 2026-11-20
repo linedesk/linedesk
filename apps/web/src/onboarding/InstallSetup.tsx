@@ -1,4 +1,4 @@
-// Install setup by hand (LIN-128, docs/self-host-first-run.md): the small alternative to setting up with an AI agent
+// Install setup by hand (LIN-128): the small alternative to setting up with an AI agent
 // (AgentSetup.tsx). One screen per provider group a first answered call needs, in the order of Server admin ›
 // Providers: each step is its heading, the same group panel as Server admin › Providers (ProviderGroup, embedded: it
 // opens the provider's dialog in place and never navigates away) and the footer. The dialog has Test again and Try it, a real

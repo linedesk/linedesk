@@ -132,7 +132,7 @@ function onCallKey(key: string, call: Call, c: KeyContext): boolean {
 /**
  * Tab switches the inbox views only while nothing has the focus (the page body: the list moves with J and K and never
  * takes it). Once the focus is on a control (a field, a button, a menu, a dialog, a tab clicked with the mouse), Tab is
- * the browser's and walks the focus, so keyboard users reach every control (Janik, Q11 (c)). Also the browser's in an
+ * the browser's and walks the focus, so keyboard users reach every control (Q11 (c)). Also the browser's in an
  * open call and on every other page. ⇧Tab mirrors it.
  */
 export const tabSwitchesViews = (el: Element | null) => !el || el.tagName === 'BODY' || el.tagName === 'HTML'

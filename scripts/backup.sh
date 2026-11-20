@@ -4,7 +4,7 @@
 # (linedesk-<time>.dump.age): only the public key is on the server, so neither the server nor anyone holding the
 # bucket keys can read a backup. Without it, the dump is uploaded as it is (linedesk-<time>.dump), protected only
 # by the bucket's access keys.
-#   scripts/backup.sh          make a backup now (a systemd timer runs this every night, README "Backups")
+#   scripts/backup.sh          make a backup now (a systemd timer runs this every night, docs/self-hosting.md "Backups")
 #   scripts/backup.sh --list   list the backups in the bucket
 # Restore check (download, decrypt, restore into a throwaway Postgres): scripts/restore-backup.sh.
 #

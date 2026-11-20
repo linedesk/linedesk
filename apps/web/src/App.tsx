@@ -438,7 +438,7 @@ export function App() {
         <TermsUpdate terms={session.me.termsUpdate ?? null} onDone={refresh} />
       </>
     )
-  // Back from Stripe Checkout (docs/billing.md §3.2 step 4): confirmed here, then the app opens as the bill now is. A
+  // Back from Stripe Checkout: confirmed here, then the app opens as the bill now is. A
   // partner bill's Checkout (`&partner=`) comes back to someone who may be in no workspace yet, and on to #partner.
   if (checkoutReturn && (session.state === 'ready' || (session.state === 'needsWorkspace' && readCheckoutPartner()))) {
     const leaveReturn = async (toBilling: boolean, partner: boolean) => {

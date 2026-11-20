@@ -147,7 +147,7 @@ test('"any language" covers Flux\'s 10 on Deepgram (its default model, Flux), ev
   const flux = (await act(ws.owner, 'voice.options', {})).body.data
   expect(flux.languages).toContain('pl')
   expect(flux.anyLanguages).toEqual(['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'hi', 'ja'])
-  // No model setting picks Nova any more (decisions.md 2026-11-18): the variable is not read.
+  // No model setting picks Nova any more (decision of 2026-11-18): the variable is not read.
   vi.stubEnv('STT_MODEL', 'nova-3')
   expect((await act(ws.owner, 'voice.options', {})).body.data.anyLanguages).toEqual(flux.anyLanguages)
   vi.stubEnv('STT_PROVIDER', 'elevenlabs_stt')

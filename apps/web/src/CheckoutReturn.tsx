@@ -1,4 +1,4 @@
-// Where Stripe Checkout returns to (/billing/return?session_id=…, docs/billing.md §3.2 step 4): the app confirms the
+// Where Stripe Checkout returns to (/billing/return?session_id=…): the app confirms the
 // session (`billing.confirmCheckout`) and says what came of it. The trial started: on to the phone number. No trial for
 // this card (it had one, or it is prepaid): its subscription was canceled and nothing was charged; a partner can start
 // the plan now, a business goes back to the onboarding's last step, which shows the plan without a trial. Every answer

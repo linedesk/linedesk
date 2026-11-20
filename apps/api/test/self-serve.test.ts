@@ -1,4 +1,4 @@
-// Self-serve sign-up on Linedesk Cloud (src/self-serve.ts, src/signup-handlers.ts, docs/billing.md §3.1, §3.2; PR 7):
+// Self-serve sign-up on Linedesk Cloud (src/self-serve.ts, src/signup-handlers.ts):
 // closed unless billing is in effect and `signup.selfServe` is on; the checks before a code goes out (disposable
 // domains, Turnstile, the per-address, per-IP and install limits with the admin alert); the account made only after a
 // code asked for on the sign-up page; account.signUp making the bill and its one pending_payment workspace (once per
@@ -169,7 +169,7 @@ async function signUpThroughPage(
   return { email, who, made }
 }
 
-/** What the sign-up page sends now: the person's name only (docs/billing.md §3.2). */
+/** What the sign-up page sends now: the person's name only. */
 const NAME_ONLY = {
   name: 'Mike Brennan',
   plan: 'cloud',
@@ -956,7 +956,7 @@ describe('Turnstile', () => {
 })
 
 describe('while pending_payment', () => {
-  test('no number and no forwarding check before the trial (docs/billing.md §3.2)', async () => {
+  test('no number and no forwarding check before the trial', async () => {
     const { who, made } = await signUpThroughPage()
     const workspaceId = made.body.data.workspace.id
     const inWs = { headers: { ...who.headers, 'x-workspace-id': workspaceId } }

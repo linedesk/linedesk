@@ -1,4 +1,4 @@
-// Server admin › Billing (docs/billing.md §11, PR 13; billing-admin.ts): instance admins only; every write refuses a
+// Server admin › Billing (billing-admin.ts): instance admins only; every write refuses a
 // setup link, an API key, an impersonation and a session without the passkey; every write is audited with its reason;
 // ledger entries post once per request id; a refund asks a fake Stripe with the request id as its idempotency key,
 // refunds at most the available balance from the newest payment, never one with a dispute; a comped bill's usage reads
@@ -1337,7 +1337,7 @@ describe("a new bill owner keeps the assistants' levels (LIN-589, replaces LIN-4
     expect(versions).toEqual([])
   })
 
-  test("after a move onto someone else's bill the workspace's owner raises again: who pays is not asked (decisions.md 2026-11-18)", async () => {
+  test("after a move onto someone else's bill the workspace's owner raises again: who pays is not asked (decision of 2026-11-18)", async () => {
     cloud.on = true
     onTestFinished(() => {
       cloud.on = false

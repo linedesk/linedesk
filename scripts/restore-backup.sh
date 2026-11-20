@@ -6,7 +6,7 @@
 #   scripts/restore-backup.sh [linedesk-<time>.dump]
 #   BACKUP_AGE_IDENTITY=/path/to/key.txt scripts/restore-backup.sh [linedesk-<time>.dump.age]
 # The private key is needed only for an encrypted backup; keep it off the server and remove it again after a check.
-# A real restore (replacing the stack's database) is in README, "Backups".
+# A real restore (replacing the stack's database) is in docs/self-hosting.md, "Backups".
 set -euo pipefail
 umask 077 # the decrypted dump: only this user may read it
 cd "$(dirname "$0")/.."

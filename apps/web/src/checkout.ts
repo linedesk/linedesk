@@ -1,4 +1,4 @@
-// Trial Checkout (docs/billing.md §3.2, apps/api/src/billing-checkout.ts): the bill's owner goes to Stripe Checkout
+// Trial Checkout (apps/api/src/billing-checkout.ts): the bill's owner goes to Stripe Checkout
 // and comes back to /billing/return?session_id=…, where the app confirms it. Only the session id travels in the
 // address; the server checks that it is this bill's.
 import type { CheckoutConfirmData, CheckoutStartData } from '@linedesk/actions'

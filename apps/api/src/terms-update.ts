@@ -1,4 +1,4 @@
-// A new terms version for existing customers (LIN-420; docs/billing.md §3.1, "Terms acceptance (A9)"). Sign-up records
+// A new terms version for existing customers (LIN-420). Sign-up records
 // the terms in effect then (the one place they are asked); when TERMS_VERSION changes, every bill's owner accepts the new
 // version once, in the app (`/v1/me` `termsUpdate`, then `account.acceptTerms`). Calls, keys and billing go on while
 // it waits: only the app asks. A new PRIVACY_VERSION alone asks nobody (the policy is acknowledged, not agreed to);

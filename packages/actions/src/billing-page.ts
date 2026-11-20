@@ -1,4 +1,4 @@
-// Settings › Billing (docs/billing.md §8, §11 PR 9): what the bill owner reads and changes about their bill in the app.
+// Settings › Billing: what the bill owner reads and changes about their bill in the app.
 // Cancel, resume and "Buy minutes" are billing-checkout.ts; the status and its dates are `billing.state`. Only the owner
 // of the bill (the handlers check it is the bill's owner, not only the workspace's), signed in to the app: never an API
 // key, a personal key, a setup link or an impersonation, for the overview (its invoice links) as for the writes.
@@ -12,7 +12,7 @@ import { z } from 'zod'
 import { billTarget } from './billing-checkout.ts'
 import { defineAction } from './define.ts'
 
-/** Recharge attempts a bill may have in 24 hours when the owner presses Retry (docs/billing.md §3.4). */
+/** Recharge attempts a bill may have in 24 hours when the owner presses Retry. */
 export const RECHARGE_RETRIES_PER_DAY = 3
 
 export const billingOverview = defineAction({
@@ -93,7 +93,7 @@ export type BillingOverviewBill = {
   rechargePending: { amountCents: number } | null
   /**
    * The bill is held for review (Radar flagged the card): no number can be bought until an instance admin approves
-   * it (docs/billing.md §3.2 step 5).
+   * it.
    */
   heldForReview: boolean
   /** The monthly price of each extra number (paid from the balance), the install's rules; 0 on a comped bill. */
@@ -123,7 +123,7 @@ export const billingWorkspaceUsage = defineAction({
   name: 'billing.workspaceUsage',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
-    "This workspace's call usage in the bill's current period, read-only, for the workspace's owners and admins (docs/billing.md §8: workspace admins see usage only): the included minutes used and the paid minutes per level with their cost. Never other workspaces of the bill, the balance, the plan or invoices. `usage` is null while billing is off or the workspace is not on a bill.",
+    "This workspace's call usage in the bill's current period, read-only, for the workspace's owners and admins (workspace admins see usage only): the included minutes used and the paid minutes per level with their cost. Never other workspaces of the bill, the balance, the plan or invoices. `usage` is null while billing is off or the workspace is not on a bill.",
   input: z.object({}),
   permission: 'settings:write',
   readOnly: true,
@@ -165,7 +165,7 @@ export type BillingCalls = {
   workspaces: { workspaceId: string; name: string; extraCalls: number; limit: number; busyCallers: number }[]
 }
 
-/** Auto-recharge as the owner sets it (docs/billing.md §2.2, §4.3): the amount lifts the balance clear of the threshold. */
+/** Auto-recharge as the owner sets it: the amount lifts the balance clear of the threshold. */
 const autoRechargeInput = z
   .object({
     ...billTarget,

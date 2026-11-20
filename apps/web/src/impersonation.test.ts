@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from 'vitest'
 import { bannerText, confirmText, type Impersonation, minutesLeft, remainingText } from './impersonation.ts'
 
 const imp: Impersonation = {
-  by: { id: 'a', name: 'Tim Admin', email: 'owner@linedesk.test' },
+  by: { id: 'a', name: 'Mike Brennan', email: 'mike@linedesk.test' },
   user: { id: 'u', name: 'Mike Brennan', email: 'mike@brightwater.example' },
   expiresAt: '2026-11-11T12:00:00.000Z',
 }
@@ -12,17 +12,24 @@ describe('impersonation banner', () => {
     expect(bannerText(imp)).toEqual({
       who: 'Signed in as Mike Brennan',
       email: 'mike@brightwater.example',
-      by: 'by Tim Admin',
+      by: 'by Mike Brennan',
     })
     // Without a name the email names them already: it is not repeated.
-    expect(bannerText({ ...imp, user: { ...imp.user, name: '' } })).toMatchObject({ who: 'Signed in as mike@brightwater.example', email: null })
+    expect(bannerText({ ...imp, user: { ...imp.user, name: '' } })).toMatchObject({
+      who: 'Signed in as mike@brightwater.example',
+      email: null,
+    })
   })
 
   test('remaining minutes round up and stop at zero', () => {
     expect(minutesLeft(imp.expiresAt, new Date('2026-11-11T11:00:00Z'))).toBe(60)
     expect(minutesLeft(imp.expiresAt, new Date('2026-11-11T11:59:01Z'))).toBe(1)
     expect(minutesLeft(imp.expiresAt, new Date('2026-11-11T12:00:30Z'))).toBe(0)
-    expect([remainingText(60), remainingText(1), remainingText(0)]).toEqual(['60 minutes left', '1 minute left', 'ending'])
+    expect([remainingText(60), remainingText(1), remainingText(0)]).toEqual([
+      '60 minutes left',
+      '1 minute left',
+      'ending',
+    ])
   })
 
   test('the confirmation says what happens and how long', () => {

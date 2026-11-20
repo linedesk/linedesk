@@ -1,4 +1,4 @@
-// Trial Checkout on an install that bills its workspaces (docs/billing.md §3.2, §2.2, §2.4; billing PR 8): the owner of a bill waiting in
+// Trial Checkout on an install that bills its workspaces: the owner of a bill waiting in
 // `pending_payment` starts a Stripe Checkout (`billing.startCheckout`), comes back to /billing/return and the app
 // confirms it (`billing.confirmCheckout`). Also "Buy minutes" (`billing.startTopUp`), cancel and resume.
 //
@@ -93,12 +93,12 @@ import { refuseBillingActor } from './usage-levels.ts'
  */
 export const CHECKOUT_EXPIRES_SECONDS = 60 * 60
 const checkoutExpiresAt = () => Math.floor(Date.now() / 1000) + CHECKOUT_EXPIRES_SECONDS
-/** "Buy minutes": the amounts the server allows, in cents before tax (docs/billing.md §2.2, L5). */
+/** "Buy minutes": the amounts the server allows, in cents before tax. */
 export const TOPUP_LIMITS = { minCents: 500, maxCents: 50_000 } as const
 
 /**
  * What Checkout shows above its button, as Stripe shows it: in the language of the owner who starts it, with the
- * install's product name, trial length and prices (Server admin › Branding and › Billing). Short (Janik, 2026-11-18):
+ * install's product name, trial length and prices (Server admin › Branding and › Billing). Short (decision of 2026-11-18):
  * the trial, the price a month after it (billed yearly or monthly, plus tax where it applies) and the reminder emails,
  * "Your 14-day free trial starts today. Cancel before it ends and you pay nothing. Then $9 a month, billed yearly, plus
  * tax where it applies. We email you 7 days and 1 day before the first charge." Auto-recharge is not mentioned:
@@ -138,7 +138,7 @@ export function checkoutText(
   if (kind === 'trial' && price)
     parts.push(reader.t('server.api.checkout.text.then', { price: pricePhrase(price, taxed, reader) }))
   if (taxed && !price) parts.push(reader.t('server.api.checkout.text.taxNote'))
-  // The trial's reminder emails, promised where the card is entered too (docs/billing.md §3.2).
+  // The trial's reminder emails, promised where the card is entered too.
   if (kind === 'trial' && reminderDays.length)
     parts.push(reader.t('server.api.checkout.text.reminders', { days: reminderList(reminderDays, reader) }))
   return parts.join(' ')
@@ -164,7 +164,7 @@ export function reminderList(days: readonly number[], reader: Reader): string {
 /**
  * The install's name (and color) at the top of Checkout instead of the Stripe account's (Stripe's per-session
  * `branding_settings`). Everything else Stripe shows (receipts, invoices, the portal) is the account's, shared by every
- * install on that account (docs/billing.md §2.4).
+ * install on that account.
  */
 const checkoutBranding = () => ({ displayName: plainName(brandName()), buttonColor: currentBranding().color })
 
@@ -190,7 +190,7 @@ type TrialRefusal = (typeof TRIAL_REFUSALS)[number]
 // ---- One trial per account -----------------------------------------------------------------------------------
 
 /**
- * Whether the account had its free trial already (decision of 2026-11-17, docs/billing.md §3.1): it owns another
+ * Whether the account had its free trial already (decision of 2026-11-17): it owns another
  * Cloud bill that started a trial or a plan (a confirmed Checkout, a trial end, or a running status). Such an account's
  * next Cloud sign-up gets no trial (`account_used`); the card rule (`card_used`, `prepaid`) applies on top.
  */
@@ -222,7 +222,7 @@ export async function trialRefusalOf(tx: Tx, bill: Bill): Promise<Bill['trial_re
 
 /**
  * Whether a bill waiting for Checkout starts with the free trial: a business's (Cloud) bill unless it was refused one.
- * A partner bill never does: White-label Cloud has no free trial and is paid from its Checkout (Janik, 2026-11-18).
+ * A partner bill never does: White-label Cloud has no free trial and is paid from its Checkout (decision of 2026-11-18).
  */
 export async function trialOffered(tx: Tx, bill: Bill): Promise<boolean> {
   return bill.kind !== 'partner' && !(await trialRefusalOf(tx, bill))
@@ -275,7 +275,7 @@ async function workspaceBillId(tx: Tx, actor: Actor): Promise<string> {
 }
 
 /**
- * The plan's Stripe prices for a bill (docs/billing.md §2.1): a seat per workspace, at the bill's interval. A partner
+ * The plan's Stripe prices for a bill: a seat per workspace, at the bill's interval. A partner
  * bill: the partner base fee (quantity 1), and a seat per client workspace once it has any (Checkout takes no item of
  * quantity 0; the first client adds the seat item, partner-billing.ts).
  */
@@ -383,7 +383,7 @@ type StartInput = {
 
 /**
  * The terms in effect, which the bill's owner accepted once, at sign-up (or since, in the app's "We updated our terms"
- * dialog, LIN-420): Checkout and the activation step ask for none (decision of 2026-11-18, docs/billing.md §3.1). A
+ * dialog, LIN-420): Checkout and the activation step ask for none (decision of 2026-11-18). A
  * start is refused with `terms_changed` while the owner has no acceptance of the version in effect for this bill (the
  * terms changed since sign-up): exactly when `/v1/me` `termsUpdate` asks them (terms-update.ts), so nobody starts
  * paying under terms they never accepted. A business's start records them with what the activation step showed; a
@@ -402,7 +402,7 @@ async function termsInEffect(bill: Bill): Promise<LegalTerms | null> {
 }
 
 /**
- * What the activation step shows next to its button (docs/billing.md §3.2), from the bill and the install's rules: the
+ * What the activation step shows next to its button, from the bill and the install's rules: the
  * plan's price for the workspaces Checkout sells, the trial (none after a refused one), the first charge's date, the
  * reminder days. No auto-recharge: activation never turns it on. The step reads the same through /v1/me
  * (`activationFacts`).
@@ -498,7 +498,7 @@ const itemsCents = (items: { lookupKey: string; quantity: number }[], rules: Bil
   items.reduce((sum, i) => sum + (planPrice(i.lookupKey, rules)?.cents ?? 0) * i.quantity, 0)
 
 /**
- * `billing.startCheckout` (§3.2 step 3): a business's plan with a 14-day trial, or without one after a refused trial;
+ * `billing.startCheckout`: a business's plan with a 14-day trial, or without one after a refused trial;
  * a partner's plan always without (trialOffered). Stripe is
  * asked before the transaction (the customer, the configuration, the session); the transaction stores the customer.
  */
@@ -647,7 +647,7 @@ async function openFirstPeriod(tx: Tx, bill: Bill, start: string, end: string, k
 }
 
 /**
- * One trial per card (§3.2 step 4): the card's fingerprint is stored with the first bill whose trial it started.
+ * One trial per card: the card's fingerprint is stored with the first bill whose trial it started.
  * `card_used` when another bill's trial already had it.
  */
 async function claimTrial(tx: Tx, fingerprint: string, billId: string, now: string) {
@@ -699,7 +699,7 @@ async function dropExtraCheckout(
 
 /**
  * The bill's workspaces left the setup's last step (`activate`, the card): their onboarding goes on at the number,
- * which may now be bought (docs/billing.md §3.2).
+ * which may now be bought.
  */
 async function activated(tx: Tx, billId: string) {
   await tx
@@ -714,7 +714,7 @@ async function activated(tx: Tx, billId: string) {
 }
 
 /**
- * Applies a completed Checkout Session to its bill (§3.2 step 4), in the caller's transaction, the bill locked. The
+ * Applies a completed Checkout Session to its bill, in the caller's transaction, the bill locked. The
  * one place a bill leaves `pending_payment` (M1). Throws NotFound when the session is not this bill's.
  */
 export async function confirmSession(
@@ -726,7 +726,7 @@ export async function confirmSession(
 ): Promise<ConfirmData> {
   await lockBalance(tx, billId)
   const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, billId))
-  // Bound to the caller (§3.2 step 4): our bill id, the bill's own customer, a mode we start.
+  // Bound to the caller: our bill id, the bill's own customer, a mode we start.
   if (
     !bill?.stripe_customer_id ||
     session.clientReferenceId !== bill.id ||
@@ -764,7 +764,7 @@ export async function confirmSession(
   const fingerprint = session.card?.fingerprint
   if (!fingerprint) return refuse(msg('server.api.checkout.noCard'))
 
-  // White-label Cloud has no free trial (Janik, 2026-11-18): a partner bill never takes a trial subscription, also one
+  // White-label Cloud has no free trial (decision of 2026-11-18): a partner bill never takes a trial subscription, also one
   // from a Checkout an older release opened, or one made by hand. It ends at once, nothing charged; the owner's next
   // Checkout is the paid plan (trialOffered).
   if (sub.status === 'trialing' && bill.kind === 'partner') return refuse(msg('server.api.checkout.partnerNoTrial'))
@@ -816,7 +816,7 @@ export async function confirmSession(
 
   if (sub.status !== 'active') throw Reject.t('server.api.checkout.notPaid')
   // A plan paid now (after a refused trial): no trial is used, the card is remembered. Radar's risk level of the charge
-  // holds number purchase for review (§3.2 step 5).
+  // holds number purchase for review.
   await rememberCard(tx, fingerprint, bill.id)
   const rules = await signupRules(tx)
   const held = !!session.riskLevel && rules.reviewRiskLevels.includes(session.riskLevel)
@@ -884,7 +884,7 @@ async function applyCheckoutExtraCalls(
 }
 
 /**
- * A paid top-up (§2.2, L5): credited once with the session's pre-tax amount (`amount_subtotal`, never the total),
+ * A paid top-up: credited once with the session's pre-tax amount (`amount_subtotal`, never the total),
  * only for a real charge in USD of a session we made for this bill. The ledger's source key makes it once.
  */
 async function creditTopUp(tx: Tx, bill: Bill, session: CheckoutSession, now: string): Promise<ConfirmData> {
@@ -1005,7 +1005,7 @@ async function chargedCard(provider: BillingProvider, bill: Bill): Promise<Shown
 const strip = ({ card: _card, ...answer }: Extract<SavedCardStep, { kind: 'paid' | 'pending' }>): TopUpAnswer => answer
 
 /**
- * What "Keep calls answered" showed and the owner agreed to (docs/billing.md §3.2 step 7), for the consent record:
+ * What "Keep calls answered" showed and the owner agreed to, for the consent record:
  * the minutes used of the trial's included ones, the purchase and its card, the automatic top-up after it (threshold,
  * monthly cap) and until when the plan stays free. Read again after the charge, from the bill and the install's rules.
  */
@@ -1036,7 +1036,7 @@ async function trialRechargeConsent(
 }
 
 /**
- * "Buy minutes" with the saved card (docs/billing.md §2.2), in two steps. Without `confirmCard` it only answers which
+ * "Buy minutes" with the saved card, in two steps. Without `confirmCard` it only answers which
  * card would be charged (brand and last four), and the owner confirms that card; with it, the owner's step-up is
  * checked (a recent sign-in or the passkey, as for raising the cap) and the card a recharge charges (`rechargeCard`)
  * is charged at once, on-session, when it is still the confirmed one, with an invoice like a recharge's (tax, receipt,
@@ -1154,7 +1154,7 @@ const prepareTopUp: Preparer = async (
       min: reader => reader.format.currency(TOPUP_LIMITS.minCents / 100, 'USD'),
       max: reader => reader.format.currency(TOPUP_LIMITS.maxCents / 100, 'USD'),
     })
-  // "Keep calls answered" (docs/billing.md §3.2 step 7): the bill's recharge amount on the saved card, offered in the
+  // "Keep calls answered": the bill's recharge amount on the saved card, offered in the
   // trial until pressed there and on a paid plan with auto-recharge off (`minutesPromptFor`); it turns auto-recharge on.
   // The terms in effect are recorded with it, so they must be there before a charge.
   if (input.trialRecharge) {
@@ -1213,7 +1213,7 @@ const prepareTopUp: Preparer = async (
  */
 const CANCELS: readonly Bill['status'][] = ['trialing', 'active', 'past_due', 'suspended']
 
-/** `billing.cancel` and `billing.resume` (§3.2 step 10): the subscription is asked first, the bill mirrors it. */
+/** `billing.cancel` and `billing.resume`: the subscription is asked first, the bill mirrors it. */
 const prepareCancel =
   (resume: boolean): Preparer =>
   async ({ actor }, input: { partnerId?: string }) => {
@@ -1340,7 +1340,7 @@ export const checkoutHandlers: Record<string, Handler> = {
 
 // ---- Numbers on a billed workspace -----------------------------------------------------------------------------
 
-/** Bill states in which a number may be bought (§3.2 step 6). */
+/** Bill states in which a number may be bought. */
 const BUYS_NUMBERS: readonly Bill['status'][] = ['trialing', 'active']
 
 export const NUMBER_NEEDS_CHECKOUT: Said = { key: msg('server.api.checkout.number.needsCheckout') }
@@ -1379,7 +1379,7 @@ export async function billOfWorkspaceForNumbers(tx: Tx, workspaceId: string) {
 }
 
 /**
- * Why a workspace on a bill may not buy a number now, or null (docs/billing.md §3.2 step 6): runs before the install's
+ * Why a workspace on a bill may not buy a number now, or null: runs before the install's
  * purchase limits. Only for workspaces on a bill while billing runs through Stripe (with billing off, as on a self-hosted
  * install, only the install's purchase limits apply); a number on the workspace's own carrier account is not limited by
  * billing. Instance admins buy regardless (they provision by hand). `feeWaived`: the number asked for costs nothing a
@@ -1408,7 +1408,7 @@ export async function billingNumberRefusal(
       ),
     )
   const numbers = held?.n ?? 0
-  // Never through a key or a setup link (docs/billing.md §8): a setup link keeps the actorId of the bill owner who made
+  // Never through a key or a setup link: a setup link keeps the actorId of the bill owner who made
   // it. Nor while an admin is signed in as someone else (LIN-439). The first number may (onboarding buys it).
   const inApp = !(actor.apiKeyId || actor.personalKeyId || actor.setupKeyId || actor.impersonation)
   if (bill.status === 'trialing') {
@@ -1511,7 +1511,7 @@ export function dueReminder(
 export const ACTIVATION_NUDGE_DAYS = 3
 
 /**
- * The "one step left" email (docs/billing.md §3.2 step 2): once per Cloud sign-up still `pending_payment`
+ * The "one step left" email: once per Cloud sign-up still `pending_payment`
  * ACTIVATION_NUDGE_DAYS after it was made, sent within a day of that (a run missed for longer skips it rather than
  * nudging late) and never once the sign-up sweep is due. Marked in `billing_alerts` in the transaction that queues it,
  * so two runs never both send it; the job checks again when it sends (activated, swept, owner or workspace disabled:
@@ -1554,7 +1554,7 @@ export async function sendActivationNudges(now: string, { billId }: { billId?: s
 }
 
 /**
- * The trial reminders (docs/billing.md §3.2 step 8): every bill in its trial gets an email on each of the install's
+ * The trial reminders: every bill in its trial gets an email on each of the install's
  * reminder days before the trial ends (7 and 1 by default), with the first charge's date and amount and a direct way to
  * cancel. Hourly (billing-periods.ts) and on Stripe's `customer.subscription.trial_will_end` for that bill
  * (`billId`). The subscription is fetched first (fetch-before-act): a canceled or converted trial gets nothing, nor a

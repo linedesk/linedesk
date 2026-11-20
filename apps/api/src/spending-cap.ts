@@ -25,7 +25,7 @@ const monthStart = (now: string) => `${monthOf(now)}-01T00:00:00.000Z`
 
 /**
  * The workspace's estimated cost this UTC month, in USD. Deleted calls count (they were paid for); sample, simulated
- * and test calls never count (docs/billing.md decision 5, the same as for billing). A call still live counts once it
+ * and test calls never count (the same as for billing). A call still live counts once it
  * has finished.
  */
 export async function monthlySpend(tx: Tx, workspaceId: string, now: string): Promise<number> {

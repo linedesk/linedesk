@@ -1,4 +1,4 @@
-// The terms and privacy policy a person accepts once, when they make an account on the sign-up page (A9; docs/billing.md
+// The terms and privacy policy a person accepts once, when they make an account on the sign-up page (A9
 // §3.1); the activation step and Checkout do not ask again, and a new version is accepted in the app (terms-update.ts). The links are the install's own (TERMS_URL, PRIVACY_URL, also shown under sign-in); the versions (TERMS_VERSION, PRIVACY_VERSION) name
 // the text behind each link, so a record says which text was accepted, not just which address. Self-serve sign-up
 // stays closed while any of the four is missing (self-serve.ts `selfServeState`): no contract without its terms.
@@ -67,7 +67,7 @@ export function legalTerms(env: Env = process.env): { terms: LegalTerms | null; 
  * Records that this person accepted these terms and this privacy policy now (A9), with the IP address and browser of
  * the session that accepted (Better Auth keeps them on the session; null when it has none). `source`: the sign-up
  * page (`signup`), the activation step before Checkout (`activation`, with what it showed next to its button), or
- * "Keep calls answered" in the trial (`trial_recharge`, with what the banner showed; docs/billing.md §3.2 step 7), or
+ * "Keep calls answered" in the trial (`trial_recharge`, with what the banner showed), or
  * more calls at the same time (`extra_calls`, with what the dialog or the busy-line banner said; LIN-450), or
  * auto-recharge turned on in Settings › Billing (`auto_recharge`, with the line next to the switch), or a new terms
  * version accepted in the app by a bill's owner (`terms_update`, terms-update.ts).

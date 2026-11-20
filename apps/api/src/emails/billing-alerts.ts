@@ -37,7 +37,7 @@ export const stripeEventFailedAlert =
     }
   }
 
-/** Why a paid recharge invoice credited nothing (docs/billing.md §2.2, "Credit only for a real payment"). */
+/** Why a paid recharge invoice credited nothing ("Credit only for a real payment"). */
 export type NotCreditedReason =
   | 'out_of_band'
   | 'not_charged'
@@ -141,7 +141,7 @@ export const rechargeSetupAlert =
   }
 
 /**
- * Checkout could not start because of our own Stripe setup (docs/billing.md §3.2 step 3, security review I2): no
+ * Checkout could not start because of our own Stripe setup (security review I2): no
  * card-only payment method configuration, a key without a permission, a missing price. The owner was told to try later.
  */
 export const checkoutSetupAlert =
@@ -179,7 +179,7 @@ export const catalogSyncAlert =
   }
 
 /**
- * The customer portal configuration could not be kept to the design (docs/billing.md §2.4) with the catalog sync: the
+ * The customer portal configuration could not be kept to the design with the catalog sync: the
  * key may not write it, or there is none yet. Until it is fixed, a portal that offers cancel does not open.
  */
 export const portalSyncAlert =
@@ -257,7 +257,7 @@ export const billingLifecycleFailedAlert =
   }
 
 /**
- * A card dispute or an early fraud warning suspended a bill (docs/billing.md §3.4, M4): the instance admins answer
+ * A card dispute or an early fraud warning suspended a bill: the instance admins answer
  * the dispute or refund the charge. `adjustedCents`: what was taken off the balance (a disputed recharge or top-up).
  */
 export const billingDisputeAlert =

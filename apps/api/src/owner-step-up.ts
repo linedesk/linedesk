@@ -62,7 +62,7 @@ export function ownerStepUpRefusal(stepUp: OwnerStepUp) {
     : { ok: false as const, error: 'Sign in again to delete this workspace.', code: SIGN_IN_AGAIN }
 }
 
-/** team.leave deleting the account without a sign-in in the last 10 minutes (Janik, 2026-11-15; LIN-264). */
+/** team.leave deleting the account without a sign-in in the last 10 minutes (decision of 2026-11-15; LIN-264). */
 export const LEAVE_SIGN_IN_AGAIN =
   'Sign in again to delete your account. Deleting it needs a sign-in from the last 10 minutes.'
 
@@ -113,7 +113,7 @@ export const removeSignInRefusal = { ok: false as const, error: REMOVE_SIGN_IN_A
 
 /**
  * The owner removing someone and deleting their account (team.removeMember with deleteAccount) needs the same recent
- * sign-in as deleting their own (Janik, 2026-11-15, LIN-264 review F3): a session left open must not delete other people's accounts either. Only the owner is held to it here:
+ * sign-in as deleting their own (decision of 2026-11-15, LIN-264 review F3): a session left open must not delete other people's accounts either. Only the owner is held to it here:
  * anyone else is refused by the handler (ONLY_OWNER_DELETES_ACCOUNTS), which checks both again under its lock.
  */
 export async function removeNeedsFreshSignIn(
@@ -160,7 +160,7 @@ export type PersonalKeyStepUp = { stepUp: OwnerStepUp; authenticator: boolean }
 
 /**
  * A personal API key (personalKey.create) acts as its maker in every workspace and never expires, so a session left
- * open or stolen must not make one (security review M2). Someone with a passkey confirms it in place (Tim,
+ * open or stolen must not make one (security review M2). Someone with a passkey confirms it in place (decision of
  * 2026-11-16): their passkey, or an instance admin's authenticator app, within the last 10 minutes (the check sets
  * passkeyVerifiedAt either way). Without a passkey, or with ADMIN_SECOND_FACTOR=off: a sign-in within the last
  * 10 minutes. No session (an API key, the agent) or an impersonation: `signIn`, which they can never satisfy that way.

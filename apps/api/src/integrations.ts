@@ -22,6 +22,8 @@ import {
   type IntegrationSource,
   type IntegrationSubscribed,
   type IntegrationUnsubscribed,
+  ZAPIER_APP_SETTING,
+  type ZapierAppData,
   integrationCall,
   integrationLookup,
   integrationUrlProblem,
@@ -29,6 +31,7 @@ import {
 import {
   api_keys,
   calls,
+  instance_settings,
   integration_subscriptions,
   member,
   organization,
@@ -98,7 +101,13 @@ export const CALL_STARTED_DELAY_SEC = 3
  * Writes `payload` as a delivery for every working subscription of the workspace to `event`, in the transaction of
  * what happened, and queues it `afterSec` later. A payload with only `call_id` is built when it is sent.
  */
-async function queueEvent(tx: Tx, workspaceId: string, event: IntegrationEvent, payload: (id: string) => Record<string, unknown>, afterSec: number) {
+async function queueEvent(
+  tx: Tx,
+  workspaceId: string,
+  event: IntegrationEvent,
+  payload: (id: string) => Record<string, unknown>,
+  afterSec: number,
+) {
   const found = await workingSubscriptions(
     tx,
     and(
@@ -127,13 +136,25 @@ async function queueEvent(tx: Tx, workspaceId: string, event: IntegrationEvent, 
  */
 export async function queueIntegrationDeliveries(tx: Tx, call: Call, afterSec = CALL_END_DELAY_SEC) {
   if (!sendsCall(call)) return
-  await queueEvent(tx, call.workspace_id, 'call_finished', () => ({ event: 'call_finished', call_id: call.id }), afterSec)
+  await queueEvent(
+    tx,
+    call.workspace_id,
+    'call_finished',
+    () => ({ event: 'call_finished', call_id: call.id }),
+    afterSec,
+  )
 }
 
 /** Queues `call_started` in the transaction that opened an answered phone call (openCall). Built when it is sent. */
 export async function queueCallStarted(tx: Tx, call: Call) {
   if (!sendsCall(call)) return
-  await queueEvent(tx, call.workspace_id, 'call_started', () => ({ event: 'call_started', call_id: call.id }), CALL_STARTED_DELAY_SEC)
+  await queueEvent(
+    tx,
+    call.workspace_id,
+    'call_started',
+    () => ({ event: 'call_started', call_id: call.id }),
+    CALL_STARTED_DELAY_SEC,
+  )
 }
 
 /**
@@ -147,8 +168,15 @@ export async function queueLookup(tx: Tx, call: Call, request: DuringCallRequest
 }
 
 /** A phone call as `call_started` sends it; null when it is gone. */
-export async function integrationCallStartedOf(tx: Tx, workspaceId: string, callId: string): Promise<IntegrationCallStarted | null> {
-  const [call] = await tx.select().from(calls).where(and(eq(calls.id, callId), eq(calls.workspace_id, workspaceId), isNull(calls.deleted_at)))
+export async function integrationCallStartedOf(
+  tx: Tx,
+  workspaceId: string,
+  callId: string,
+): Promise<IntegrationCallStarted | null> {
+  const [call] = await tx
+    .select()
+    .from(calls)
+    .where(and(eq(calls.id, callId), eq(calls.workspace_id, workspaceId), isNull(calls.deleted_at)))
   if (!call) return null
   const assistant = call.assistant_id ? await assistantOf(tx, call.assistant_id) : undefined
   // A caller ID the carrier did not vouch for may be faked: no contact then, as with the call-start webhook.
@@ -175,7 +203,13 @@ export async function integrationCallStartedOf(tx: Tx, workspaceId: string, call
 }
 
 /** The payload of a delivery whose row holds only the call's id: built at its first attempt. */
-async function builtPayload(tx: Tx, event: string, workspaceId: string, callId: string, env: Env): Promise<IntegrationPayload | null> {
+async function builtPayload(
+  tx: Tx,
+  event: string,
+  workspaceId: string,
+  callId: string,
+  env: Env,
+): Promise<IntegrationPayload | null> {
   if (event === 'call_started') return integrationCallStartedOf(tx, workspaceId, callId)
   return integrationCallOf(tx, workspaceId, callId, env)
 }
@@ -313,7 +347,15 @@ async function sampleStartedCalls(tx: Tx, workspaceId: string, limit: number): P
   const rows = await tx
     .select({ id: calls.id })
     .from(calls)
-    .where(and(eq(calls.workspace_id, workspaceId), isNull(calls.deleted_at), eq(calls.source, 'phone'), eq(calls.spam_likely, false), or(isNull(calls.outcome), ne(calls.outcome, 'spam'))))
+    .where(
+      and(
+        eq(calls.workspace_id, workspaceId),
+        isNull(calls.deleted_at),
+        eq(calls.source, 'phone'),
+        eq(calls.spam_likely, false),
+        or(isNull(calls.outcome), ne(calls.outcome, 'spam')),
+      ),
+    )
     .orderBy(desc(calls.started_at))
     .limit(limit)
   const out: IntegrationCallStarted[] = []
@@ -327,9 +369,20 @@ async function sampleStartedCalls(tx: Tx, workspaceId: string, limit: number): P
 /** The newest lookups the assistants asked their during-call webhooks, as `during_call_lookup` sends them. */
 async function sampleLookups(tx: Tx, workspaceId: string, limit: number): Promise<IntegrationLookup[]> {
   const rows = await tx
-    .select({ id: webhook_deliveries.id, payload: webhook_deliveries.payload, created_at: webhook_deliveries.created_at })
+    .select({
+      id: webhook_deliveries.id,
+      payload: webhook_deliveries.payload,
+      created_at: webhook_deliveries.created_at,
+    })
     .from(webhook_deliveries)
-    .where(and(eq(webhook_deliveries.workspace_id, workspaceId), eq(webhook_deliveries.event, 'during_call'), isNotNull(webhook_deliveries.payload), sql`(${webhook_deliveries.payload}->>'test') is distinct from 'true'`))
+    .where(
+      and(
+        eq(webhook_deliveries.workspace_id, workspaceId),
+        eq(webhook_deliveries.event, 'during_call'),
+        isNotNull(webhook_deliveries.payload),
+        sql`(${webhook_deliveries.payload}->>'test') is distinct from 'true'`,
+      ),
+    )
     .orderBy(desc(webhook_deliveries.created_at))
     .limit(limit)
   return rows.flatMap(row => {
@@ -340,7 +393,13 @@ async function sampleLookups(tx: Tx, workspaceId: string, limit: number): Promis
 }
 
 /** Samples of an event, newest first, as a subscription gets them: what Zapier shows when a Zap is set up. */
-export async function sampleEvents(tx: Tx, workspaceId: string, event: IntegrationEvent, limit: number, env: Env = process.env): Promise<IntegrationPayload[]> {
+export async function sampleEvents(
+  tx: Tx,
+  workspaceId: string,
+  event: IntegrationEvent,
+  limit: number,
+  env: Env = process.env,
+): Promise<IntegrationPayload[]> {
   const n = Math.min(Math.max(1, limit), INTEGRATION_SAMPLE_CALLS_MAX)
   if (event === 'call_started') return sampleStartedCalls(tx, workspaceId, n)
   if (event === 'during_call_lookup') return sampleLookups(tx, workspaceId, n)
@@ -357,6 +416,12 @@ function keyOf(actor: Actor) {
 /** Deletes the subscriptions a key made: in the transaction that revokes it. */
 export async function dropKeySubscriptions(tx: Tx, apiKeyId: string) {
   await tx.delete(integration_subscriptions).where(eq(integration_subscriptions.api_key_id, apiKeyId))
+}
+
+/** The link to the Linedesk app on Zapier this install shows (Server admin › System); null when it has none. */
+export async function zapierAppUrl(tx: Tx): Promise<string | null> {
+  const [row] = await tx.select().from(instance_settings).where(eq(instance_settings.key, ZAPIER_APP_SETTING))
+  return row?.value || null
 }
 
 export const integrationHandlers: Record<string, Handler> = {
@@ -428,6 +493,7 @@ export const integrationHandlers: Record<string, Handler> = {
         api_key_name: keyName,
         api_key_prefix: keyPrefix,
       })),
+      appUrl: await zapierAppUrl(tx),
     }
     return { rows: {}, data }
   },
@@ -445,5 +511,20 @@ export const integrationHandlers: Record<string, Handler> = {
       .returning({ id: integration_subscriptions.id })
     if (!removed) throw Reject.t('server.api.integration.notFound')
     return { rows: {}, data: { subscriptionId: removed.id } }
+  },
+
+  'zapierApp.get': async ({ tx }) => ({ rows: {}, data: { url: await zapierAppUrl(tx) } satisfies ZapierAppData }),
+
+  'zapierApp.set': async ({ tx, actor, now }, input: { url: string | null }) => {
+    if (input.url === null) await tx.delete(instance_settings).where(eq(instance_settings.key, ZAPIER_APP_SETTING))
+    else
+      await tx
+        .insert(instance_settings)
+        .values({ key: ZAPIER_APP_SETTING, value: input.url, updated_at: now, updated_by: actor.actorId })
+        .onConflictDoUpdate({
+          target: instance_settings.key,
+          set: { value: input.url, updated_at: now, updated_by: actor.actorId },
+        })
+    return { rows: {}, data: { url: input.url } satisfies ZapierAppData }
   },
 }

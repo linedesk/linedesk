@@ -1,4 +1,4 @@
-// Server admin › Billing › Stripe (docs/billing.md §7): the install's billing switch below the Stripe provider.
+// Server admin › Billing › Stripe: the install's billing switch below the Stripe provider.
 // Billing runs only when Stripe has both keys and this switch is on (off by default), so a self-hosted install with
 // keys stored still bills nobody. A dev install (LINEDESK_MODE=dev) refuses live keys; the line under the switch
 // says which mode the stored key is in, or that billing is paused because the ledger's database guards are not intact.
@@ -59,11 +59,7 @@ export function BillingSwitch({ data: admin }: { data: AdminData }) {
       <div>
         <b>{t('admin.billing.switch')}</b>
         <span className="help">
-          {supportAccess
-            ? t('settings.readOnly.supportAccess')
-            : data
-              ? t(stateLine(data))
-              : t('admin.billing.help')}
+          {supportAccess ? t('settings.readOnly.supportAccess') : data ? t(stateLine(data)) : t('admin.billing.help')}
         </span>
         {problem && (
           <span className="k-field-msg" role="alert">

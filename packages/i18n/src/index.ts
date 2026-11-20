@@ -135,7 +135,7 @@ export interface Formatters {
   currency(value: number, currency: string, options?: Intl.NumberFormatOptions): string
   /**
    * A rate, such as a price a minute: an amount in a currency with at least two decimals and up to four for sub-cent
-   * prices ("$0.05", "$0.10", "$0.0085" in en). Never the cent sign (decisions.md 2026-11-16, 2026-11-18).
+   * prices ("$0.05", "$0.10", "$0.0085" in en). Never the cent sign (decision of 2026-11-16, 2026-11-18).
    */
   rate(value: number, currency: string): string
   /** "A, B and C" in the active language. */
@@ -212,13 +212,19 @@ export function createFormatters(active: ActiveLocale): Formatters {
       const DurationFormat = (Intl as unknown as { DurationFormat?: DurationFormatCtor }).DurationFormat
       if (style === 'digital') {
         if (DurationFormat)
-          return cached('df', locale, { style }, () => new DurationFormat(locale, { style, hoursDisplay: 'auto' })).format(
-            { hours, minutes, seconds: secs },
-          )
+          return cached(
+            'df',
+            locale,
+            { style },
+            () => new DurationFormat(locale, { style, hoursDisplay: 'auto' }),
+          ).format({ hours, minutes, seconds: secs })
         const two = (value: number) =>
-          cached('nf', locale, { minimumIntegerDigits: 2 }, () => new Intl.NumberFormat(locale, { minimumIntegerDigits: 2 })).format(
-            value,
-          )
+          cached(
+            'nf',
+            locale,
+            { minimumIntegerDigits: 2 },
+            () => new Intl.NumberFormat(locale, { minimumIntegerDigits: 2 }),
+          ).format(value)
         return [...(hours ? [String(hours)] : []), two(minutes), two(secs)].join(':')
       }
       if (DurationFormat)

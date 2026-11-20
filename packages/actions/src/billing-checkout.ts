@@ -1,4 +1,4 @@
-// Trial Checkout on an install that bills its workspaces (docs/billing.md §3.2, §2.2; billing PR 8). Only the owner of the bill runs these,
+// Trial Checkout on an install that bills its workspaces. Only the owner of the bill runs these,
 // signed in to the app (no API key, no impersonation): they start payments and change what the bill pays.
 import { EXTRA_CALLS_STEP } from '@linedesk/db/types'
 import { z } from 'zod'
@@ -11,7 +11,7 @@ import { defineAction } from './define.ts'
  */
 export const billTarget = { partnerId: z.string().min(1).max(64).optional() }
 
-/** "Buy minutes": the amounts allowed at a time, in cents before tax (docs/billing.md §2.2). */
+/** "Buy minutes": the amounts allowed at a time, in cents before tax. */
 export const TOPUP_CENTS = { min: 500, max: 50_000 } as const
 
 export const billingStartCheckout = defineAction({
@@ -65,7 +65,7 @@ export const billingStartTopUp = defineAction({
       .regex(/^(pm|card|src)_[A-Za-z0-9]{1,250}$/)
       .optional(),
     /**
-     * "Keep calls answered" in the trial (docs/billing.md §3.2 step 7): with `savedCard`, `amountCents` must be the
+     * "Keep calls answered" in the trial: with `savedCard`, `amountCents` must be the
      * bill's auto-recharge amount; charged, the bill's trial recharge is on (auto-recharge in the trial too).
      */
     trialRecharge: z.boolean().optional(),

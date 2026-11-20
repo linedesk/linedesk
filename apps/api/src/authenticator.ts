@@ -1,4 +1,4 @@
-// An instance admin's authenticator app (TOTP, totp.ts): the fallback to the passkey for Server admin (Tim's decisions
+// An instance admin's authenticator app (TOTP, totp.ts): the fallback to the passkey for Server admin (decisions of
 // 2026-11-15, LIN-275; docs/architecture.md §12), for an emergency or a computer without the passkey. The passkey stays
 // required: an admin without one is asked to add one (`enrol`), whether or not they have the app. A code from the app is
 // the check, like a passkey sign-in: it marks this session (session.passkeyVerifiedAt, the one "second factor checked

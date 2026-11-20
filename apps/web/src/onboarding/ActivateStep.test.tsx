@@ -1,4 +1,4 @@
-// The activation step (ActivateStep.tsx, docs/billing.md §3.2): what the owner reads above "Start free trial": the
+// The activation step (ActivateStep.tsx): what the owner reads above "Start free trial": the
 // plan's price a month (a yearly plan's total in the grey note under it, and at the first charge) and its price a
 // minute in cents (value first, the conditions in one grey line), the dated timeline with the reminder emails and the
 // first charge, no auto-recharge, and no terms:

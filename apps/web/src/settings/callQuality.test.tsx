@@ -1,6 +1,6 @@
-// Settings › Assistant › General › Call quality (CallQuality.tsx, decisions.md 2026-11-17): the three levels with their
+// Settings › Assistant › General › Call quality (CallQuality.tsx, decision of 2026-11-17): the three levels with their
 // line and price, the server's default level marked; Premium and Ultra locked for a member who is no admin (with one
-// line why); nothing at all for a partner's client the partner keeps call quality for (decisions.md 2026-11-18); the
+// line why); nothing at all for a partner's client the partner keeps call quality for (decision of 2026-11-18); the
 // models of the level behind "Choose specific models".
 import type { CallQualityLevelOption, CallQualityOptions } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'

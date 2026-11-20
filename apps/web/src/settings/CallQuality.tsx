@@ -1,10 +1,10 @@
-// Settings › Assistant › General: the assistant's call quality (decisions.md 2026-11-17). Standard, Premium or Ultra,
+// Settings › Assistant › General: the assistant's call quality (decision of 2026-11-17). Standard, Premium or Ultra,
 // each with one line and its price a minute (none for a partner's client, a workspace without a bill or a self-hosted
 // install); the level alone decides the price. Under it, collapsed, the models of the level: the language model and the
 // voice model, or the realtime model on Ultra, each on "Default (…)" until picked. A workspace owner or admin raises the
 // level (voice.options `callQuality.mayRaise`); anyone who edits the assistant lowers it. In a white-label client the
 // partner's team decides, and the client's own admins only where the partner lets them: whoever may not change it
-// (`mayChange`) sees no call quality at all (decisions.md 2026-11-18).
+// (`mayChange`) sees no call quality at all (decision of 2026-11-18).
 import {
   type CallQuality,
   type CallQualityLevelOption,

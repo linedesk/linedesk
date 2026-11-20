@@ -1,4 +1,4 @@
-// Dunning and the bill's ownership (src/billing-lifecycle.ts, src/billing-owner.ts; docs/billing.md §3.4, §8, decision
+// Dunning and the bill's ownership (src/billing-lifecycle.ts, src/billing-owner.ts, decision
 // 9; PR 11), step by step in time: past_due → suspended on day 7 (day 3 after a failed first payment) with the fixed
 // line → reminders on day 14 and 21 → canceled on day 30 (our job cancels the subscription) → numbers released 30
 // days later as the billing system. Then the owner's banner data, the port-out PINs behind the step-up, the hand-over
@@ -479,7 +479,7 @@ describe('port-out (billing.portOutInfo, billing.recordPortOut)', () => {
   })
 })
 
-describe('bill ownership (docs/billing.md §8)', () => {
+describe('bill ownership', () => {
   const memberIdOf = async (workspaceId: string, who: User) =>
     (
       await db

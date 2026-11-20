@@ -1,4 +1,4 @@
-// What is left of the per-action passkey step-up for instance admins (#293, #694): nothing per action. Since Janik's
+// What is left of the per-action passkey step-up for instance admins (#293, #694): nothing per action. Since the
 // decision of 2026-11-15 every instance-admin action needs a session that passed the passkey check
 // (admin-second-factor.ts), so the list of actions that needed a passkey "on top", the 5-minute grant for setup links
 // and the private-endpoint exception are gone. Kept here: the refusal code a workspace owner's step-up still uses

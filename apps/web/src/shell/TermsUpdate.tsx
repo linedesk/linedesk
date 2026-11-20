@@ -32,7 +32,7 @@ const ASK_AGAIN = 'linedesk:terms-ask-again'
 
 /**
  * Asks again now, though Later was chosen: starting the trial or the plan needs the terms in effect accepted (the
- * activation step and Checkout do not ask for them; docs/billing.md §3.1), so the dialog opens over the step.
+ * activation step and Checkout do not ask for them), so the dialog opens over the step.
  */
 export function askTermsAgain() {
   try {

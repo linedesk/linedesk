@@ -1,4 +1,4 @@
-// The nightly reconciliation with Stripe (docs/billing.md §5.1), next to the ledger check (ledger.ts `checkLedger`,
+// The nightly reconciliation with Stripe, next to the ledger check (ledger.ts `checkLedger`,
 // which rebuilds and compares the balances and counters). It catches what the webhook missed and what drifted:
 //
 // - the events of the last 3 days (Stripe keeps 30) that never reached the inbox are stored and processed now; when

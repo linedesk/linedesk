@@ -118,7 +118,7 @@ async function callTransfer({ tx, actor, now }: HandlerCtx, input: Input, hoursF
     await checkTransferLimits(tx, workspaceId, call.id, now)
     maxMinutes = await transferMinutesAllowed(tx, workspaceId, now, route)
     // A billed call (it has a reservation, call-billing.ts): the leg, and with it the time the call stays bridged,
-    // lasts at most the billed transfer cap, which its reservation was sized for (docs/billing.md §2.1a, M1). A call
+    // lasts at most the billed transfer cap, which its reservation was sized for. A call
     // whose reservation cannot hold a capped transfer from now (sized without one: the contact was added after the
     // call started) is not put through: billing fails closed (security review of #864).
     const reservation = await reservationOf(tx, call.id)

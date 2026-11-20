@@ -36,7 +36,7 @@ jobs:
               echo "## Missing sign-off (DCO)"
               echo
               echo "Every commit needs a \`Signed-off-by: Name <email>\` line (\`git commit -s\`)."
-              echo "Fix the branch with \`git rebase --signoff master-dev\` and \`git push --force-with-lease\`."
+              echo "Fix the branch with \`git rebase --signoff ${{ github.event.repository.default_branch }}\` and \`git push --force-with-lease\`."
               echo
               echo '```'
               printf '%s\n' "$missing"

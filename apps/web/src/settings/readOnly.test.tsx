@@ -5,7 +5,7 @@ import { SupportAccessContext } from '../supportAccess.ts'
 import { settingsAccess, useReadOnlyNote } from './readOnly.ts'
 
 const imp = {
-  by: { id: 'a', name: 'Tim Admin', email: 'owner@linedesk.test' },
+  by: { id: 'a', name: 'Mike Brennan', email: 'mike@linedesk.test' },
   user: { id: 'u', name: 'Mike Brennan', email: 'mike@brightwater.example' },
   expiresAt: '2100-01-01T00:00:00.000Z',
 }

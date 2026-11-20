@@ -12,7 +12,7 @@ every finished phone call as a note on the caller's Jobber client, and adds new 
    - App name: `Linedesk`. Developer name, description and logo as in the listing.
    - OAuth Callback URL: `<origin>/v1/apps/callback/jobber`, for example
      `https://app.linedesk.ai/v1/apps/callback/jobber`. Server admin › Providers › Jobber shows the exact URL of the
-     install. Use one Jobber app per origin (production, staging, each self-hosted install); see PUBLISHING.md.
+     install. Use one Jobber app per origin (production, staging, each self-hosted install).
    - Scopes: **Clients**, read and write (`read_clients`, `write_clients`). Nothing else: Linedesk finds, adds and
      fills clients and adds notes to them.
    - Refresh token rotation: keep it on. Linedesk stores the new refresh token after every refresh.
@@ -29,8 +29,7 @@ every finished phone call as a note on the caller's Jobber client, and adds new 
 ## Limits
 
 - A draft app (not published) can connect to at most 5 Jobber accounts; Jobber blocks API access above that. More need
-  Jobber's app review and the App Marketplace listing (Developer Center › Manage Apps › Request review). Steps,
-  listing text and checklist: [PUBLISHING.md](PUBLISHING.md).
+  Jobber's app review and the App Marketplace listing (Developer Center › Manage Apps › Request review).
 - Access tokens last 60 minutes. Disconnecting in Linedesk runs Jobber's `appDisconnect`, which removes Linedesk from
   the Jobber account (not while another Linedesk workspace uses the same Jobber account).
 - Disconnecting in Jobber sends APP_DISCONNECT: Linedesk deletes the connection in every workspace that uses that

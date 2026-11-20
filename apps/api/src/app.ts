@@ -452,7 +452,7 @@ app.post('/v1/workspaces', async c => {
 /** The hostnames the sign-up page's Turnstile token may have been solved on: the app's own origins. */
 const SIGNUP_HOSTNAMES = TRUSTED_ORIGINS.map(origin => new URL(origin).hostname.toLowerCase())
 
-// Self-serve sign-up on an install that bills its workspaces (self-serve.ts, docs/billing.md §3.1). Public: whether it is open and the
+// Self-serve sign-up on an install that bills its workspaces (self-serve.ts). Public: whether it is open and the
 // Turnstile site key for the page, and the terms and privacy policy (links and versions) the page shows next to its
 // button (A9). Nothing else (no counts, no reason it is closed).
 app.get('/v1/signup/config', async c => {

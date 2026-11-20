@@ -42,7 +42,7 @@ const callDeleteInput = callId.extend({
 /**
  * A deleted call can be restored for 30 days, then the daily purge erases it (apps/api/src/data-purge.ts). With
  * `permanent` it is erased at once, the same way; that takes `call:erase` (owners and admins), checked by the handler,
- * since a member deletes calls too (Janik, 2026-11-17).
+ * since a member deletes calls too (decision of 2026-11-17).
  */
 export const callDelete = defineAction({
   name: 'call.delete',
@@ -162,7 +162,7 @@ export const missingInfo = z.enum(['reason', 'callback_number'])
 /**
  * The longest the assistant stays on a call: it says goodbye and hangs up then (the agent's timer). The limit is
  * about what the assistant costs, so a call it put through to a person goes on. The same on every usage level:
- * the owner may set up to 30 minutes (decisions.md 2026-11-16), the default is 20.
+ * the owner may set up to 30 minutes (decision of 2026-11-16), the default is 20.
  */
 export const ASSISTANT_CALL_MAX_MINUTES = 30
 /** An assistant's own limit until the owner picks another (assistants.max_call_minutes; at most ASSISTANT_CALL_MAX_MINUTES). */

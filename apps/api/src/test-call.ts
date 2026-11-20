@@ -193,7 +193,7 @@ export async function startTestCall(
     if (refusal) throw new Reject(refusal)
     if ((await spendingCap(t, actor.workspaceId!, new Date(nowMs).toISOString()))?.reached)
       throw new Reject(TEST_CALLS_OVER_CAP)
-    // Before the trial starts, the setup's test-call minutes (docs/billing.md §3.1).
+    // Before the trial starts, the setup's test-call minutes.
     await refuseSetupTestCall(t, actor.workspaceId!, nowMs)
     const nobody = await unanswerable(t, actor, nowMs)
     if (nobody) throw new Reject(nobody)

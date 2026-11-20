@@ -1,4 +1,4 @@
-// Billing of an install's workspaces through its own Stripe account (docs/billing.md). The instance switch: billing runs only when Stripe is connected under
+// Billing of an install's workspaces through its own Stripe account. The instance switch: billing runs only when Stripe is connected under
 // Server admin › Billing › Stripe and an instance admin turned it on here. Off by default, so a self-hosted install
 // never bills anyone, even with keys stored.
 import { msg } from '@linedesk/i18n'
@@ -25,7 +25,7 @@ export const billingEnabledSet = defineAction({
 const stripeEventId = z.string().regex(/^evt_[A-Za-z0-9]{1,250}$/, msg('server.input.billing.stripeEventId'))
 
 /**
- * Processes one stored Stripe event (docs/billing.md §5.1): fetches the object from Stripe and acts on it for the bill
+ * Processes one stored Stripe event: fetches the object from Stripe and acts on it for the bill
  * it belongs to. Only the API's billing jobs run it (`billing:system`); nobody signed in can.
  */
 export const billingProcessStripeEvent = defineAction({
@@ -87,7 +87,7 @@ export type BillingEnabledData = {
   guardsOk: boolean
 }
 
-// ---- The bill's life (docs/billing.md §3.4, §8; PR 11) ----
+// ---- The bill's life ----
 
 /**
  * What the in-app banner shows the bill owner: the bill's status and why it is suspended, the dunning dates, the dates
@@ -124,7 +124,7 @@ export type BillingStateBill = {
    */
   lowBalance: 'auto_recharge_off' | 'cap_reached' | null
   unpaidNumbers: { e164: string; releaseAt: string }[]
-  /** "Keep calls answered" in the trial (docs/billing.md §3.2 step 7); null when it is not offered. */
+  /** "Keep calls answered" in the trial; null when it is not offered. */
   trialMinutes: TrialMinutesPrompt | null
   /** Callers of this workspace heard a busy line today (LIN-450); null when none did. */
   busyLine: BusyLinePrompt | null
@@ -168,7 +168,7 @@ export type TrialMinutesPrompt = {
 }
 
 /**
- * The port-out details of the bill's numbers on Linedesk's carrier account (docs/billing.md §3.4): what another carrier
+ * The port-out details of the bill's numbers on Linedesk's carrier account: what another carrier
  * asks for to move a number away. The bill owner only, signed in as themselves in the app with the owner step-up (a
  * recent sign-in, the passkey when they have one); logged. Without the step-up `stepUp` says what is missing and no
  * code is returned.
@@ -205,7 +205,7 @@ export const billingRecordPortOut = defineAction({
 export type BillingRecordPortOutData = { e164: string; billId: string; pinMatches: boolean | null }
 
 /**
- * The bill owner hands the bill to a member of one of its workspaces (docs/billing.md §8, bill ownership), with the
+ * The bill owner hands the bill to a member of one of its workspaces (bill ownership), with the
  * owner step-up. The new owner must have a confirmed email address.
  */
 export const billingHandOver = defineAction({

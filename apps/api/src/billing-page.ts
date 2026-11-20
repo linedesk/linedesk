@@ -1,14 +1,14 @@
-// Settings › Billing (docs/billing.md §8, §11 PR 9): what the bill owner reads and changes in the app.
+// Settings › Billing: what the bill owner reads and changes in the app.
 //
 // - `billing.overview` (read): the plan, the balance, auto-recharge and the cap, this period's usage per workspace and
 //   level, a failed recharge and the latest invoices. Only for the bill's owner (the workspace owner is not always the
 //   bill owner); anyone else, and every workspace while billing is not in effect, gets `bill: null`. Like the writes,
 //   never answered to an impersonation, an API key, a personal key or a setup link (security review of #1007, M-1:
 //   the invoices' Stripe links work without a login). Every row is read through the bill's id, never the workspace's
-//   alone (tenancy, §8).
-// - `billing.setAutoRecharge`, `billing.setRechargeCap` (raising it needs the owner step-up, §8), `billing.openPortal`
+//   alone (tenancy).
+// - `billing.setAutoRecharge`, `billing.setRechargeCap` (raising it needs the owner step-up), `billing.openPortal`
 //   (the Stripe customer portal: card, details, invoices) and `billing.retryRecharge` (Retry after a failed recharge,
-//   at most 3 attempts in 24 hours, §3.4), `billing.setExtraCalls` (extra calls at the same time per workspace,
+//   at most 3 attempts in 24 hours), `billing.setExtraCalls` (extra calls at the same time per workspace,
 //   LIN-450; billed as the subscription's extra-calls item). The owner, signed in as themselves in the app (`ownBill` refuses API keys,
 //   personal keys, setup links and impersonation), under the bill's lock order (its balance row first).
 //
@@ -144,7 +144,7 @@ const DAY_MS = 86_400_000
 const CHANGES_RECHARGE: readonly Bill['status'][] = ['trialing', 'active', 'past_due']
 
 /**
- * Whether a failed recharge may be retried or confirmed now (§3.4): while the plan is paid or past due, or suspended
+ * Whether a failed recharge may be retried or confirmed now: while the plan is paid or past due, or suspended
  * only for an unpaid plan. Never on a bill held for a dispute, a fraud warning or by an admin, nor a canceled one
  * (security review of #1007, L-1).
  */
@@ -170,7 +170,7 @@ async function workspacesOf(tx: Reader, billId: string) {
     .orderBy(organization.name)
 }
 
-/** Pending, failed-but-payable and paid recharges created this month: what counts towards the cap (§4.3). */
+/** Pending, failed-but-payable and paid recharges created this month: what counts towards the cap. */
 async function usedThisMonthCents(tx: Reader, billId: string, now: string) {
   const [row] = await tx
     .select({ cents: sql<number>`coalesce(sum(${billing_recharges.amount_cents}), 0)::int` })
@@ -238,7 +238,7 @@ async function lastFailedAttempt(tx: Reader, billId: string) {
 }
 
 /**
- * The banner's flags about the balance and a failed recharge (`billing.state`, docs/billing.md §11 PR 9): the few rows
+ * The banner's flags about the balance and a failed recharge (`billing.state`): the few rows
  * they need, not the overview (security review of #1007, I-4). `lowBalance` only in the trial or paid.
  */
 export async function balanceFlags(tx: Reader, bill: Bill, now: string) {
@@ -262,7 +262,7 @@ export async function balanceFlags(tx: Reader, bill: Bill, now: string) {
   return { rechargeNeedsAction: !!failed?.needsAction, lowBalance }
 }
 
-/** The largest base the owner may set alone: the cap in effect stays at most $1,000 (§8). */
+/** The largest base the owner may set alone: the cap in effect stays at most $1,000. */
 const ownerMaxBase = (workspaces: number, perWorkspaceCents: number) =>
   Math.max(0, RECHARGE_CAP_SELF_SERVE_MAX_CENTS - perWorkspaceCents * Math.max(0, workspaces - 1))
 
@@ -453,7 +453,7 @@ async function overview(
       : null,
     rechargePending: await pendingRecharge(tx, bill.id),
     heldForReview: !!bill.held_for_review_at,
-    // A comped bill pays nothing for its numbers either (docs/billing.md §2).
+    // A comped bill pays nothing for its numbers either.
     extraNumberCents: bill.status === 'comped' ? 0 : rules.extraNumberCents,
     prices: await planPrices(tx, rules, { comped: bill.status === 'comped' }),
     canBuyMinutes: !!bill.stripe_customer_id && BUYS_MINUTES.includes(bill.status),
@@ -557,8 +557,8 @@ export async function workspaceBillFacts(workspaceId: string, actorId?: string):
 // ---- billing.workspaceUsage ------------------------------------------------------------------------------------
 
 /**
- * Workspace settings › Billing for the workspace's owners and admins who do not own the bill (docs/billing.md §8:
- * workspace admins see usage only): this workspace's row of the current period, read through the bill the workspace
+ * Workspace settings › Billing for the workspace's owners and admins who do not own the bill (they
+ * see usage only): this workspace's row of the current period, read through the bill the workspace
  * is on. Never another workspace of the bill, the balance, the plan or an invoice link.
  */
 async function workspaceUsage({
@@ -663,7 +663,7 @@ async function extraCallsPrice(tx: Tx, interval: 'month' | 'year') {
 
 /**
  * `billing.setExtraCalls`: the owner sets one workspace's extra calls; the subscription's extra-calls item becomes the
- * sum over the bill's workspaces (docs/billing.md §2.1c). Under the bill's extra-calls lock, never the balance lock the
+ * sum over the bill's workspaces. Under the bill's extra-calls lock, never the balance lock the
  * call gate waits on (security review of #1103, L-2).
  *
  * - More: an active plan that does not end at the period end, a recent sign-in or passkey, at most
@@ -701,7 +701,7 @@ async function setExtraCalls(
     if (bill.cancel_at_period_end) throw refuse('extraCallsCanceling')
     // Until the renewal reached us, what this period paid is not known (security review of #1103, V-1).
     if (periodEnded(bill, now)) throw refuse('extraCallsRenewing')
-    // More calls charge the card without the owner at hand next time: they confirm it is them first (§8).
+    // More calls charge the card without the owner at hand next time: they confirm it is them first.
     const stepUp = await ownerStepUpNeeded(tx, actor)
     if (stepUp === 'passkey')
       // i18n-ignore: the API error body for logs and API clients; the web app opens the passkey dialog for the code
@@ -946,7 +946,7 @@ async function setRechargeCap(
   if (raising) {
     // Above $1,000 in effect only an instance admin raises it (Server admin › Billing); lowering always works.
     if (input.baseCents > ownerMaxBase(workspaces, rules.rechargeCapPerWorkspaceCents)) throw refuse('capAboveOwnerMax')
-    // Raising it lets more be charged to the card without the owner: they confirm it is them first (§8).
+    // Raising it lets more be charged to the card without the owner: they confirm it is them first.
     const stepUp = await ownerStepUpNeeded(tx, actor)
     // The web app answers both codes itself: the passkey dialog, and settings.billing.error.signInAgain.
     if (stepUp === 'passkey')
@@ -996,7 +996,7 @@ const openPortal: Handler = async ({ tx, actor, prepared }, input: { partnerId?:
 // ---- Retry -----------------------------------------------------------------------------------------------------
 
 /**
- * Retry (§3.4): an attempt kept open for 3D Secure is paid on its invoice's page (a new charge would charge twice),
+ * Retry: an attempt kept open for 3D Secure is paid on its invoice's page (a new charge would charge twice),
  * so the page is fetched from Stripe before the transaction; any other failure starts a new attempt in the handler.
  */
 type PreparedRetry = { billId: string; confirm: { rechargeId: string; url: string } | null }

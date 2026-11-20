@@ -510,7 +510,7 @@ test('a contact that takes calls only during business hours: while closed the as
 
 test('the date and time go into the prompt, to answer from, never to say unasked; none without a time zone', () => {
   const at = Date.parse('2026-11-12T21:31:00Z')
-  // "Use this for today's date" made the assistant tell callers the date with no reason (Janik, 2026-11-17).
+  // "Use this for today's date" made the assistant tell callers the date with no reason (decision of 2026-11-17).
   expect(clockInstructions('America/Los_Angeles', at)).toContain('Do not mention the date or the time otherwise.')
   expect(clockInstructions('America/Los_Angeles', at)).not.toContain("Use this for today's date")
   expect(clockInstructions('America/Los_Angeles', at)).toBe(

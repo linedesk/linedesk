@@ -59,8 +59,8 @@ export const restartCategories: readonly ProviderCategory[] = ['sign_in']
  */
 export const signInCategories: readonly ProviderCategory[] = ['email', 'sign_in', 'bot_check']
 /**
- * Categories whose keys control money: whoever holds the Stripe key controls charges, refunds and customers
- * (docs/billing.md §8). A change needs the passkey session like every Server admin action, and every instance admin
+ * Categories whose keys control money: whoever holds the Stripe key controls charges, refunds and customers.
+ * A change needs the passkey session like every Server admin action, and every instance admin
  * is told (admin-alerts.ts), as for sign-in.
  */
 export const moneyCategories: readonly ProviderCategory[] = ['billing']
@@ -445,7 +445,7 @@ const guides = {
   stripe: {
     url: 'https://dashboard.stripe.com/apikeys',
     steps: [
-      'In the Stripe Dashboard, Developers → API keys → Create restricted key, with the permissions in docs/billing.md (§7). A secret key works too.',
+      'In the Stripe Dashboard, Developers → API keys → Create restricted key with write on Customers, Checkout Sessions, Subscriptions, Invoices, Invoice Items, Credit Notes, Refunds, Billing Portal Sessions, the Customer portal, Products and Prices, and read on PaymentMethods, SetupIntents, Charges, Disputes, Radar Early Fraud Warnings, Events and Tax settings. A secret key works too.',
       'Developers → Webhooks → Add endpoint for https://<your server>/v1/billing/stripe/webhook; copy its signing secret (whsec_…).',
       'Paste both here. Use test keys (sk_test_ or rk_test_) until go-live; a dev install refuses live keys.',
     ],
@@ -648,7 +648,7 @@ export function noPrivateEndpointText(
 }
 
 /**
- * A language-model provider's fields: its key only (decisions.md 2026-11-18). The live model is per call quality level
+ * A language-model provider's fields: its key only (decision of 2026-11-18). The live model is per call quality level
  * (Server admin › Providers › Call quality), the summary model the provider's default (llmEndpoints).
  */
 const llmFields = (keyEnv: string): Record<string, ProviderField> => ({ api_key: apiKey(keyEnv) })
@@ -717,7 +717,7 @@ export const providers = {
     fields: {
       api_key: apiKey('ASSEMBLYAI_STT_API_KEY'),
       // On unless "false" (as every switch): `max_accuracy` ends a turn as late as Deepgram Flux; off, `balanced` ends
-      // it sooner but cuts callers off at a short pause (docs/stack.md, LIN-516).
+      // it sooner but cuts callers off at a short pause (LIN-516).
       wait_for_caller: {
         labelKey: msg('admin.provider.field.waitForCaller'),
         env: 'ASSEMBLYAI_STT_WAIT_FOR_CALLER',
@@ -1083,7 +1083,7 @@ export const providers = {
     fields: { api_key: apiKey('GOOGLE_PLACES_API_KEY') },
     help: 'An API key with the Places API (New) enabled, restricted to it. Onboarding uses it to find a business by name and city and prefill its address, phone, hours and website. Google bills each search as Text Search Pro and each picked listing as Place Details Enterprise (the hours and the website are in that tier). BUSINESS_LOOKUP_DAILY_CAP limits the requests per day.',
   },
-  // Billing (docs/billing.md §7b): the install bills its own workspaces through its own Stripe account, at the prices
+  // Billing: the install bills its own workspaces through its own Stripe account, at the prices
   // set in Server admin › Billing. Without keys, or while billing is off (billingEnabled.set), nothing is billed.
   stripe: {
     label: 'Stripe',
@@ -1093,7 +1093,7 @@ export const providers = {
       // `env` is never read for billing keys (provider-settings.ts): they come only from the store.
       secret_key: { label: 'Secret key', env: 'STRIPE_SECRET_KEY', secret: true, hint: 'rk_test_… (a restricted key)' },
       webhook_secret: { label: 'Webhook signing secret', env: 'STRIPE_WEBHOOK_SECRET', secret: true, hint: 'whsec_…' },
-      // Rotation (docs/billing.md §5.1): the old secret is accepted beside the new one until it is removed.
+      // Rotation: the old secret is accepted beside the new one until it is removed.
       webhook_secret_previous: {
         label: 'Previous webhook signing secret',
         env: 'STRIPE_WEBHOOK_SECRET_PREVIOUS',
@@ -1135,7 +1135,7 @@ export const providers = {
     },
     helpKey: msg('admin.provider.help.jobber'),
   },
-  // Support mailboxes (LIN-637): Gmail's read-only scope is restricted, so it has an OAuth app of its own, apart from
+  // Support mailboxes: Gmail's read-only scope is restricted, so it has an OAuth app of its own, apart from
   // the sign-in and calendar app (`google`), whose verification it would otherwise hold up. Microsoft 365 mailboxes
   // use the `microsoft` app (Mail.Read).
   google_mail: {
@@ -1153,7 +1153,7 @@ export const providers = {
     },
     helpKey: msg('admin.provider.help.google_mail'),
   },
-  // Self-serve sign-up's bot check (docs/billing.md §3.1): the sign-up page shows the Turnstile widget,
+  // Self-serve sign-up's bot check: the sign-up page shows the Turnstile widget,
   // and the server checks its answer with the secret before a sign-up code goes out.
   turnstile: {
     label: 'Cloudflare Turnstile',

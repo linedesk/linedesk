@@ -1,4 +1,4 @@
-// The handlers of self-serve sign-up (account.signUp, signup.*) and the daily sign-up sweep (docs/billing.md §3.1).
+// The handlers of self-serve sign-up (account.signUp, signup.*) and the daily sign-up sweep.
 // Apart from self-serve.ts, which the sign-in gate imports, so that the gate does not pull in workspace creation and
 // deletion (and with them the handler registry) while it loads.
 import type { AccountSignUpData, CountryHint } from '@linedesk/actions'
@@ -118,7 +118,7 @@ const signUp: Handler = async (ctx, input: SignUpInput) => {
     const data: AccountSignUpData = { ...waiting, existing: true }
     return { rows: {}, data: { ...data, subject: { email: me.email, workspaceId: waiting.workspace?.id ?? null } } }
   }
-  // The country gate (docs/billing.md §3.2): only a country picked (an older page) outside the sign-up countries is
+  // The country gate: only a country picked (an older page) outside the sign-up countries is
   // refused. Where the request comes from (the hint) never is: someone abroad may run a business in a served country
   // (2026-11-18). The onboarding's Business step asks for the business's own country, served ones only, and Checkout
   // refuses a workspace whose country is another one (served-countries.ts). Each country's sign-up mode (open, only
@@ -291,7 +291,7 @@ export type SweepResult = {
 }
 
 /**
- * Deletes sign-ups that never finished Checkout (docs/billing.md §3.1): bills still `pending_payment` after
+ * Deletes sign-ups that never finished Checkout: bills still `pending_payment` after
  * `pendingDays`, with no ledger rows, no linked Stripe subscription and no confirmed Checkout, and whose customer has
  * no running subscription or completed Checkout in Stripe itself (those are kept and the instance admins told), their
  * workspaces, and their owner's account when it is in no other workspace and not an
@@ -340,7 +340,7 @@ export async function sweepSignUps(
 
 /**
  * A card fingerprint (one trial per card) is kept while its bill runs and for CARD_FINGERPRINT_RETENTION_MONTHS after
- * the bill was canceled (its cancel time, else the end of its last period), then deleted (docs/billing.md §3.2).
+ * the bill was canceled (its cancel time, else the end of its last period), then deleted.
  */
 async function sweepCardFingerprints(tx: Tx, now: number): Promise<number> {
   const before = new Date(now)
@@ -376,7 +376,7 @@ async function sweepBill(tx: Tx, billId: string, before: string, now: string) {
     await queueBillingAlert(tx, { kind: 'signup_kept', bill: billId, subscription: bill.stripe_subscription_id })
     return null
   }
-  // A bill with ledger rows is never deleted: money moved, a person decides (docs/billing.md §3.1).
+  // A bill with ledger rows is never deleted: money moved, a person decides.
   const [entry] = await tx
     .select({ id: ledger_entries.id })
     .from(ledger_entries)

@@ -193,7 +193,7 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
     },
     async taxSetup() {
       // Reads only (GET /v1/tax/settings, GET /v1/tax/registrations): the head office and registrations are set by a
-      // person in the Dashboard (docs/runbook.md, "Stripe account setup"), never by the app.
+      // person in the Stripe Dashboard, never by the app.
       try {
         const settings = await stripe.tax.settings.retrieve()
         let registrations = 0
@@ -411,7 +411,7 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
       try {
         const configuration = await findPortalConfiguration(stripe)
         if (!configuration) throw new BillingSetupError('portal_configuration_missing')
-        // Cancel and plan changes stay in the app (§2.4): switched on in the Dashboard, they are switched off again
+        // Cancel and plan changes stay in the app: switched on in the Dashboard, they are switched off again
         // before the owner sees the portal; a key that may not do that opens no portal at all.
         if (portalAllowsPlanChanges(configuration))
           await stripe.billingPortal.configurations
@@ -448,7 +448,7 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
       }
       if (!event) throw new WebhookRefused('signature')
       if (event.livemode !== (mode === 'live')) throw new WebhookRefused('livemode')
-      // Any API version is taken (docs/billing.md §5.1): the bootstrap pins the endpoint to STRIPE_API_VERSION, but
+      // Any API version is taken: the bootstrap pins the endpoint to STRIPE_API_VERSION, but
       // `stripe listen`, an endpoint made by hand and the reconciliation's list come in the account's default version.
       // eventOf reads only the event's id, type, object id, customer and our own metadata, which every version has,
       // and processing fetches each object again through this adapter, at the pinned version.
@@ -734,14 +734,14 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
   }
 }
 
-/** The seat prices' lookup keys (`ws_monthly`, `ws_yearly`): docs/billing.md §2.1. */
+/** The seat prices' lookup keys (`ws_monthly`, `ws_yearly`). */
 const SEAT_LOOKUP_PREFIX = 'ws_'
 
 /** Dispute statuses after which a refund pays nothing out twice: the business won, or a warning closed. */
 const SETTLED_DISPUTES = new Set(['won', 'warning_closed'])
 
 /**
- * What stops refunding a paid invoice's payment (docs/billing.md §4.5, M4): for each card payment of it, an open or
+ * What stops refunding a paid invoice's payment: for each card payment of it, an open or
  * lost dispute, or an early fraud warning on its charge. No card payment at all: `no_charge`.
  */
 async function refundBlockers(stripe: Stripe, invoiceId: string): Promise<RefundBlocker[]> {
@@ -822,7 +822,7 @@ function refusedSetup(error: unknown): BillingSetupError | null {
 }
 
 /**
- * Checkout's tax fields (docs/billing.md §5.2). With the install's Stripe Tax on: automatic tax (a subscription made by
+ * Checkout's tax fields. With the install's Stripe Tax on: automatic tax (a subscription made by
  * the session keeps it for all its invoices: renewals, seat changes, the trial's first invoice), the full billing
  * address required, and tax IDs collected ("I'm purchasing as a business"); the address and tax ID are saved on the
  * customer (`customer_update`), so the app's own invoices (recharges) are taxed at the same address. Off: no tax, and
@@ -838,9 +838,9 @@ export function checkoutTax(automaticTax: boolean) {
 }
 
 /**
- * A Checkout Session (docs/billing.md §3.2 step 3, §2.2): the card-only configuration and never
+ * A Checkout Session: the card-only configuration and never
  * `payment_method_types` (§2.4), our exclusive prices with the install's tax fields (`checkoutTax`). No terms checkbox:
- * the terms are accepted once, at sign-up (docs/billing.md §3.1). A plan saves its card on the subscription; no `setup_future_usage` in subscription mode.
+ * the terms are accepted once, at sign-up. A plan saves its card on the subscription; no `setup_future_usage` in subscription mode.
  */
 async function startCheckout(stripe: Stripe, input: CheckoutInput) {
   const metadata = { [BILL_METADATA]: input.billId, [CHECKOUT_METADATA]: input.kind }
@@ -921,7 +921,7 @@ const CUSTOM_TEXT_MAX = 1200
  * Checkout's own branding per session (Stripe's `branding_settings`): the install's name at the top instead of the
  * Stripe account's, and its color on the button when it is a hex color. The logo stays the account's: Stripe would
  * fetch a URL at once, and an install's logo is not always reachable from the internet (a server on a private
- * network, dev). Receipts, invoices, the statement descriptor and the portal keep the account's name (§2.4).
+ * network, dev). Receipts, invoices, the statement descriptor and the portal keep the account's name.
  */
 function brandingOf(branding: NonNullable<CheckoutInput['branding']>) {
   const color = branding.buttonColor && /^#[0-9a-f]{6}$/i.test(branding.buttonColor) ? branding.buttonColor : null
@@ -937,7 +937,7 @@ const riskOf = (charge: string | Stripe.Charge | null | undefined) =>
   charge && typeof charge === 'object' ? (charge.outcome?.risk_level ?? null) : null
 
 /**
- * A Checkout Session with what the trial checks read (docs/billing.md §3.2 step 4): the subscription and the card it
+ * A Checkout Session with what the trial checks read: the subscription and the card it
  * charges, or the payment and its card; Radar's risk level where a charge was made.
  */
 async function checkoutSession(stripe: Stripe, id: string): Promise<CheckoutSession | null> {
@@ -1029,7 +1029,7 @@ async function chargeSource(stripe: Stripe, chargeId: string): Promise<BillingCh
 /** Events read per type group: one more must fit Stripe's 10,000-item cap on `autoPagingToArray`. */
 const MAX_EVENTS = 9_999
 
-/** The invoice metadata that names the recharge attempt (docs/billing.md §3.4: found again after 24 hours). */
+/** The invoice metadata that names the recharge attempt (found again after 24 hours). */
 export const RECHARGE_METADATA = 'billing_recharge_id'
 
 /**
@@ -1197,7 +1197,7 @@ async function describeItem(stripe: Stripe, item: Stripe.InvoiceItem, descriptio
 }
 
 /**
- * A recharge (docs/billing.md §2.2): one invoice per attempt, `charge_automatically` with the install's automatic tax
+ * A recharge: one invoice per attempt, `charge_automatically` with the install's automatic tax
  * (the item carries our tax code; tax is computed at the customer's saved address and added on top), holding only
  * its own item (`pending_invoice_items_behavior=exclude`), then finalized and paid with the saved card. Every request
  * carries an idempotency key made from the attempt id, so a retried job never makes a second invoice or charge.

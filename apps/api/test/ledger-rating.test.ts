@@ -1,4 +1,4 @@
-// The billing math (docs/billing.md §4.2 to §4.4): rating at the three levels with the included allowance at each level's
+// The billing math: rating at the three levels with the included allowance at each level's
 // factor, own keys only when confirmed, the reservation a call holds, the gate and the recharge decision. Pure
 // functions, checked by examples and by seeded random properties.
 import {
@@ -407,7 +407,7 @@ describe('the recharge decision', () => {
   })
 })
 
-describe("an install's own rules (docs/billing.md §7a)", () => {
+describe("an install's own rules", () => {
   test('a stored field in range replaces the default; one out of range, or unknown, is ignored and named', () => {
     const { rules, problems } = mergeBillingRules({
       includedStandardSeconds: 0,

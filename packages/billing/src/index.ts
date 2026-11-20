@@ -1,4 +1,4 @@
-// @linedesk/billing: the billing provider behind an interface (docs/billing.md §7). The Stripe SDK is imported only
+// @linedesk/billing: the billing provider behind an interface. The Stripe SDK is imported only
 // by `./stripe/`, through `loadBillingProvider`, never at the top of this module.
 import { noneBillingProvider } from './none.ts'
 import type { BillingProvider, StripeKeys } from './provider.ts'

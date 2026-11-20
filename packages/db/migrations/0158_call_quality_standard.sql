@@ -1,4 +1,4 @@
--- Call quality (decisions.md 2026-11-18, security review H-1): every assistant on Standard with the level's default
+-- Call quality (decision of 2026-11-18, security review H-1): every assistant on Standard with the level's default
 -- models (its own model picks go, its voice stays), and new assistants on Standard. No mapping from earlier model
 -- picks or the old pipeline policy (before go-live, no legacy). For installs that ran 0153 as it first was (staging,
 -- and production from v0.1.24 on); 0153 itself now does the same. Raising again is up to whoever pays, per assistant.

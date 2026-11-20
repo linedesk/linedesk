@@ -1,4 +1,4 @@
-// The customer portal configuration (docs/billing.md §2.4): one per Stripe account, marked `metadata.linedesk=portal`,
+// The customer portal configuration: one per Stripe account, marked `metadata.linedesk=portal`,
 // made by the bootstrap script and kept to the design by the app's catalog sync and before every portal session. The
 // design: invoices, cards and the customer's details; never a cancel or a plan change (those happen in the app only,
 // security review of #1007, M-2). Shared by the adapter (./index.ts) and the bootstrap (./bootstrap.ts).

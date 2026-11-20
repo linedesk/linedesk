@@ -1,4 +1,4 @@
-// The bill owner's billing emails (docs/billing.md §3.2, §3.4, §4.3): a failed auto-recharge, the monthly recharge cap
+// The bill owner's billing emails: a failed auto-recharge, the monthly recharge cap
 // reached, a low balance with auto-recharge off, and the trial ending in three days. Each is sent once per occasion (a `billing_alerts` row, made in
 // the transaction that queued it; call-billing.ts). Every word comes from packages/i18n/locales/en/email.json.
 import { getT } from '@linedesk/i18n/server'
@@ -16,7 +16,7 @@ export type BillingOwnerEmail =
     | { kind: 'recharge_cap_reached'; capCents: number; rechargedCents: number; minimumCents: number }
     | { kind: 'low_balance'; balanceMicros: number }
     /**
-     * A trial reminder (§3.2 step 8), `daysBefore` the trial's end (7 and 1 by default), and the trial's confirmation
+     * A trial reminder, `daysBefore` the trial's end (7 and 1 by default), and the trial's confirmation
      * when it starts (`trial_started`, with the days the reminders go out): the plan's charge then (the plan only:
      * nothing else is charged at the trial's end), its date and how to cancel. `workspaceId`: the bill's oldest
      * workspace, whose Settings › Billing the buttons open (cancel is there); null: no buttons.
@@ -24,7 +24,7 @@ export type BillingOwnerEmail =
     | (TrialFacts & { kind: 'trial_will_end'; daysBefore: number })
     | (TrialFacts & { kind: 'trial_started'; reminderDays: number[] })
     /**
-     * The one "one step left" email to a sign-up that has not started its trial (§3.2 step 2, ACTIVATION_NUDGE_DAYS
+     * The one "one step left" email to a sign-up that has not started its trial (ACTIVATION_NUDGE_DAYS
      * after sign-up): what it set up, that nothing is charged when it starts, and the day the sign-up is deleted
      * (`deleteOn`, the sign-up sweep). `trialDays`: null when the install gives no trial. `workspaceId`: the button's
      * workspace; null: no button.
@@ -38,7 +38,7 @@ export type BillingOwnerEmail =
         deleteOn: string
       }
     /**
-     * The trial prompt (§3.2 step 7): most of the trial's included minutes used (`trial_minutes_low`), or all of them
+     * The trial prompt: most of the trial's included minutes used (`trial_minutes_low`), or all of them
      * with calls answered on the trial grace (`trial_minutes_used`). The purchase "Keep calls answered" makes
      * (`amountCents` on `card`; null: the card could not be read), the automatic top-up below `thresholdCents`, the
      * trial's end (`freeUntil`) and the Standard price of a minute. `workspaceId`: the button's workspace.
@@ -163,7 +163,7 @@ function balanceEmail(
 }
 
 /**
- * The trial's emails (§3.2 step 8): its confirmation when it starts, and a reminder on each reminder day before it
+ * The trial's emails: its confirmation when it starts, and a reminder on each reminder day before it
  * ends. Both say the first charge's date and amount (the plan only), and how to cancel before: a button to
  * Settings › Billing and one that opens the cancel dialog there.
  */
@@ -283,7 +283,7 @@ function activationNudgeEmail(
 }
 
 /**
- * The trial prompt (§3.2 step 7), short: the minutes used (or used up, calls answered for a short time), the one
+ * The trial prompt, short: the minutes used (or used up, calls answered for a short time), the one
  * purchase that keeps every call answered with the saved card and the automatic top-up after it, until when the plan
  * stays free and what a minute costs. The button opens the app's inbox, where the banner has "Keep calls answered".
  */

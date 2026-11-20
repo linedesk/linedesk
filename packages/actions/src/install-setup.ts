@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { defineAction } from './define.ts'
 import type { ProviderGroupId } from './provider-status.ts'
 
-// Install setup by hand (LIN-128, docs/self-host-first-run.md): the small alternative to setting up with an AI agent
+// Install setup by hand (LIN-128): the small alternative to setting up with an AI agent
 // (agent-setup.ts). One screen per group a first answered call needs, in that order, each showing the same group panel
 // as Server admin › Providers (provider-status.ts) and a real round trip in the provider's dialog (`provider.tryOut`).
 // Where the admin got to is one instance setting, so signing in again (or another admin) resumes there.

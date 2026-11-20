@@ -50,7 +50,7 @@ export function countryOfTimeZone(timeZone: string | null | undefined): string |
  * The main time zone of each country with more than one in the tz database (old link names count): the zone where
  * most of its people and businesses are (US: Eastern, Canada: Toronto, Australia: Sydney, Brazil: São Paulo, Russia:
  * Moscow). A country with one zone has that one. Used when a workspace's country and time zone do not match
- * (workspaceTimeZoneFor, decisions.md 2026-11-17, LIN-433).
+ * (workspaceTimeZoneFor, decision of 2026-11-17, LIN-433).
  */
 export const MAIN_TIME_ZONES: Readonly<Record<string, string>> = {
   AQ: 'Antarctica/McMurdo',
@@ -135,7 +135,7 @@ export const timeZoneInCountry = (timeZone: string | null | undefined, country: 
 
 /**
  * The time zone a workspace in `country` gets from `timeZone` (the browser's, or the one it has): kept when it is in
- * that country, else the country's main zone (decisions.md 2026-11-17, LIN-433: a US business set up from a browser in
+ * that country, else the country's main zone (decision of 2026-11-17, LIN-433: a US business set up from a browser in
  * Berlin gets US Eastern, not Berlin). Without a country, or one without a known zone, `timeZone` as given.
  */
 export function workspaceTimeZoneFor(
@@ -289,7 +289,7 @@ export const COUNTRY_LANGUAGES: Readonly<Record<string, string>> = {
 
 /**
  * The workspace's language: the main language of its country (COUNTRY_LANGUAGES), else 'en'. Not a setting (the
- * workspace "Call language" was removed, decisions.md 2026-11-16): what call summaries and messages for the team are
+ * workspace "Call language" was removed, decision of 2026-11-16): what call summaries and messages for the team are
  * written in, and what an assistant without a main language of its own greets in.
  */
 export function resolveWorkspaceLanguage(input: { country: string }): string {

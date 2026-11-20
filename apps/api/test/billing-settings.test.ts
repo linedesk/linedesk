@@ -1,4 +1,4 @@
-// Billing provider and Stripe keys (docs/billing.md §7, billing-settings.ts): billing is `none` until Stripe has both
+// Billing provider and Stripe keys (billing-settings.ts): billing is `none` until Stripe has both
 // keys and an instance admin turned it on; live keys only where the server allows them (BILLING_LIVE_KEYS=1); only an
 // admin as themselves with the passkey changes the keys; keys are not swapped while on; turning on binds billing to
 // one Stripe account; every change emails every instance admin. Instance-wide (provider keys, instance settings): its
@@ -322,7 +322,7 @@ describe('keys', () => {
   })
 })
 
-describe('the billing rules setting (docs/billing.md §7a)', () => {
+describe('the billing rules setting', () => {
   test('without a row the defaults; a stored row over them; a row that does not parse is the defaults', async () => {
     await db.delete(instance_settings).where(eq(instance_settings.key, BILLING_RULES_KEY))
     expect(await billingRules(db)).toEqual(BILLING_DEFAULTS)

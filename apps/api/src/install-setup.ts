@@ -1,4 +1,4 @@
-// Install setup by hand (LIN-128, docs/self-host-first-run.md): where the walkthrough is (`setup.install` in
+// Install setup by hand (LIN-128): where the walkthrough is (`setup.install` in
 // instance_settings) and the round trips that show a part really works (`provider.tryOut`): a code emailed to the
 // admin and typed back, a short question to the live model, a bundled recording transcribed, a sentence spoken, three
 // available numbers listed without buying. Each tries the provider calls use, never returns or logs a key, and records
@@ -193,7 +193,10 @@ async function tryLlm(tx: Tx): Promise<Tried> {
     const text = await res.text().catch(() => '')
     const privacy = noPrivateEndpointText(res.status, text, endpoint.baseUrl, model, zeroDataRetention)
     if (privacy) console.error(privacy)
-    return failed(labelOf(provider), privacy ?? problemOfStatus(provider, res.status, text, `the model ${model}`).message)
+    return failed(
+      labelOf(provider),
+      privacy ?? problemOfStatus(provider, res.status, text, `the model ${model}`).message,
+    )
   }
   const body = (await res.json()) as { choices?: { message?: { content?: string } }[] }
   const reply = body.choices?.[0]?.message?.content?.trim()
@@ -368,16 +371,14 @@ async function tryEmail(tx: Tx, actorId: string): Promise<Tried> {
   // Which settings send it, read before sending (a real mail server only, not the API log).
   const active = emailSender.kind === 'smtp' ? await activeProvider(tx, 'email') : null
   const locale = await localeForUserId(tx, actorId)
-  const sent = await emailSender
-    .send({ to: me.email, ...installTestEmail(code, undefined, locale) })
-    .then(
-      () => true,
-      (e: unknown) => {
-        // The mail server's own words go to the API log only.
-        console.error('install setup: test email not sent:', e instanceof Error ? e.message : e)
-        return false
-      },
-    )
+  const sent = await emailSender.send({ to: me.email, ...installTestEmail(code, undefined, locale) }).then(
+    () => true,
+    (e: unknown) => {
+      // The mail server's own words go to the API log only.
+      console.error('install setup: test email not sent:', e instanceof Error ? e.message : e)
+      return false
+    },
+  )
   if (!sent)
     return failed(null, 'The test email could not be sent. Check the email settings; the API log has the details.')
   // Settings saved meanwhile (another admin): not known which ones sent it, so the checklist records nothing.

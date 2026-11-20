@@ -1091,7 +1091,7 @@ describe('the partner bill (S2)', () => {
     }
     expect(done).toMatchObject({ status: 200, body: { ok: true, data: { workspaceId: c, usersDeleted: [] } } })
     expect(await db.select().from(organization).where(eq(organization.id, c))).toEqual([])
-    // The seat drops after the commit, as for any deleted workspace on the partner bill (docs/billing.md §6).
+    // The seat drops after the commit, as for any deleted workspace on the partner bill.
     expect(queued.filter(j => j.name === PARTNER_SEAT_SYNC)).toEqual([
       { name: PARTNER_SEAT_SYNC, data: { billId: p.billId, key: `delete_${c}`, extraCalls: false } },
     ])
@@ -1498,7 +1498,7 @@ describe('Partner › Clients (S3)', () => {
     expect(ownLevel).toEqual({ level: 'premium' })
   })
 
-  test("call quality in a client: the partner's team always; the client's owner and admins only while the partner lets them (decisions.md 2026-11-18)", async () => {
+  test("call quality in a client: the partner's team always; the client's owner and admins only while the partner lets them (decision of 2026-11-18)", async () => {
     const p = await billedPartner('Level Partner', 'active', true)
     const c = await createClient(p, 'Level Client')
     const owner = await inWorkspace(await giveOwner(p, c), c)
@@ -2415,7 +2415,7 @@ describe('a client that changes partner leaves own keys off (security review of 
   test("a Server admin move to another partner: off, and the new partner's keys never answer until its owner says so", async () => {
     const c = await switchedOn(from, 'Keys Moving Dental')
     expect(await ownKeys(c)).toBe(true)
-    // The old partner also let the client change call quality (decisions.md 2026-11-18): the new partner decides it again.
+    // The old partner also let the client change call quality (decision of 2026-11-18): the new partner decides it again.
     expect(
       await act(from.owner, 'partner.setClientCallQuality', { partnerId: from.id, workspaceId: c, on: true }),
     ).toMatchObject({ status: 200 })

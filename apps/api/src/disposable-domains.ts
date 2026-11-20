@@ -1,4 +1,4 @@
-// Disposable-mail domains refused by self-serve sign-up before a code is sent (docs/billing.md §3.1). Not complete,
+// Disposable-mail domains refused by self-serve sign-up before a code is sent. Not complete,
 // and it need not be: it raises the cost of throwaway trials, while the card check and the trial limits bound what
 // one costs. An install adds its own in `signup.rules` (`blockedDomains`).
 

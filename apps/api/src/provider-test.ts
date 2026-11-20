@@ -443,7 +443,7 @@ const googlePlaces: Check = async (values, http) => {
 }
 
 // --- Bot check ----------------------------------------------------------------------------------
-// Cloudflare Turnstile (self-serve sign-up, docs/billing.md §3.1): siteverify with a token that cannot be valid. A
+// Cloudflare Turnstile (self-serve sign-up): siteverify with a token that cannot be valid. A
 // good secret key answers `invalid-input-response`; a wrong one `invalid-input-secret`. Free, nothing is recorded.
 
 const turnstile: Check = async (values, http) => {
@@ -558,7 +558,7 @@ const checks: Record<HttpProvider, Check> = {
 }
 
 // --- Billing ------------------------------------------------------------------------------------
-// Stripe (docs/billing.md §7): GET /v1/account through the billing adapter, free and readable with a restricted key.
+// Stripe: GET /v1/account through the billing adapter, free and readable with a restricted key.
 // It names the mode, country and default currency; live keys are refused unless the server allows them
 // (BILLING_LIVE_KEYS=1, production only; packages/billing/src/keys.ts).
 

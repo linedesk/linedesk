@@ -52,7 +52,7 @@ export function rememberOwnerByHand(workspaceId: string, on: boolean) {
  * workspace; admins of it keep the step-by-step onboarding), signed in as themselves, with a confirmed address (making
  * the link needs one, like an API key), in a workspace that is not disabled; never for a server admin, who has the
  * install's own agent setup. A sign-up waiting for its trial gets it first too (agent-first, 2026-11-18): the agent does
- * the free steps, the owner starts the trial on the page (docs/billing.md §3.2); only a workspace whose setup was done
+ * the free steps, the owner starts the trial on the page; only a workspace whose setup was done
  * before (`onlyCard`: it left its partner) goes straight to the card by hand. It opens on #setup-agent, and on its own
  * while onboarding is open unless they chose by hand.
  */

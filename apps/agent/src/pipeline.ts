@@ -159,7 +159,7 @@ export function deepgramChoice(model: string, languages: CallLanguages = ENGLISH
 
 /**
  * AssemblyAI's turn setting: `max_accuracy` by default, which ends turns as late as Deepgram Flux and cut as few
- * callers off in the bench (docs/stack.md, LIN-516). `balanced` (Server admin › Providers › AssemblyAI, "Wait for
+ * callers off in the bench (LIN-516). `balanced` (Server admin › Providers › AssemblyAI, "Wait for
  * callers to finish" off) ends a turn after 128 ms of silence when the model is sure, at the latest after 1280 ms: about 0.25 s sooner,
  * but it cut callers off at a short pause in two thirds of the turns. Without a mode the LiveKit plugin ends every
  * turn after 100 ms of silence.

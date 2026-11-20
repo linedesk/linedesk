@@ -199,7 +199,7 @@ async function lockInviter(tx: Tx, workspaceId: string, actorId: string) {
 /** team.leave from the last workspace without deleteAccount: the request must say whether the account goes too. */
 export const LEAVE_SAY_ACCOUNT = said('server.api.team.leaveSayAccount')
 
-/** team.removeMember with deleteAccount from someone who is not the workspace's owner (Janik, 2026-11-15; LIN-264). */
+/** team.removeMember with deleteAccount from someone who is not the workspace's owner (decision of 2026-11-15; LIN-264). */
 export const ONLY_OWNER_DELETES_ACCOUNTS = said('server.api.team.onlyOwnerDeletesAccounts')
 
 /**
@@ -238,7 +238,7 @@ export async function queueRemovedEmail(
 
 /**
  * A removal (team.removeMember, membership.remove) ends the removed person's right to invite to that workspace, so the
- * pending invitations they sent there are canceled with it, one audit line each (`invitation_withdrawn`; Janik,
+ * pending invitations they sent there are canceled with it, one audit line each (`invitation_withdrawn`; decision of
  * 2026-11-15, LIN-264 review F1). Kept or deleted account alike: otherwise their invitations would stay valid, and after
  * a delete pass to the owner and look like the owner's own. Invitations in other workspaces are not touched here (a
  * delete passes them to those owners, workspace-delete.ts). Runs before the account delete. Returns how many.
@@ -472,7 +472,7 @@ export const teamHandlers: Record<string, Handler> = {
     if (!account || account.disabledAt) throw Reject.t('server.api.accountDisabled')
     // The owner decides who may delete the workspace: only a proven address (as for owner and admin elsewhere).
     if (!account.emailVerified) throw Reject.t('server.api.team.confirmEmailToOwn', { email: account.email })
-    // The bill goes with the only workspace on it; with several, the bill is handed over first (docs/billing.md §8).
+    // The bill goes with the only workspace on it; with several, the bill is handed over first.
     await billOnWorkspaceHandOver(tx, actor, workspaceId, owner.userId, target.userId, now)
     await makeOwner(tx, target, owner.id)
     return { rows: {}, data: { subject: await memberSubject(tx, target.userId, target.organizationId) } }
@@ -514,7 +514,7 @@ export const teamHandlers: Record<string, Handler> = {
 
   'team.removeMember': async ({ tx, actor, now }, input: { memberId: string; deleteAccount?: boolean }) => {
     const workspaceId = workspaceOf(actor)
-    // The account stays by default; only the owner may delete it with the removal (Janik, 2026-11-15; LIN-264), read
+    // The account stays by default; only the owner may delete it with the removal (decision of 2026-11-15; LIN-264), read
     // from the member row: an owner who handed the workspace over a moment ago is an admin.
     const deleteAccount = input.deleteAccount === true
     if (deleteAccount) {

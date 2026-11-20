@@ -5,7 +5,14 @@ import { randomBytes } from 'node:crypto'
 import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { actions, PROMPT_OVERRIDE_MAX, PROMPT_TEXTS, REDACTED, recordingKey } from '@linedesk/actions'
+import {
+  actions,
+  PROMPT_OVERRIDE_MAX,
+  PROMPT_TEXTS,
+  REDACTED,
+  recordingKey,
+  ZAPIER_APP_SETTING,
+} from '@linedesk/actions'
 import {
   admin_devices,
   api_keys,
@@ -269,6 +276,8 @@ describe('access', () => {
       'workspace.disable',
       'workspace.enable',
       'workspace.setSpendingCap',
+      'zapierApp.get',
+      'zapierApp.set',
     ])
   })
 
@@ -328,6 +337,37 @@ describe('access', () => {
     } finally {
       await setAdmin(loner, false)
     }
+  })
+})
+
+describe('Zapier app link', () => {
+  const INVITE = 'https://zapier.com/developer/invite/1/abc/'
+  afterAll(() => db.delete(instance_settings).where(eq(instance_settings.key, ZAPIER_APP_SETTING)))
+
+  test('none by default; an instance admin sets and clears it, workspaces read it in integration.list, audited', async () => {
+    expect((await act(operator, 'zapierApp.get', {})).body.data).toEqual({ url: null })
+    expect((await act(other.owner, 'integration.list', {})).body.data.appUrl).toBeNull()
+    expect((await act(other.owner, 'zapierApp.set', { url: INVITE })).status).toBe(403)
+    expect((await act(operator, 'zapierApp.set', { url: INVITE })).body.data).toEqual({ url: INVITE })
+    expect((await act(operator, 'zapierApp.get', {})).body.data).toEqual({ url: INVITE })
+    expect((await act(other.owner, 'integration.list', {})).body.data.appUrl).toBe(INVITE)
+    const audit = (await request(operator, 'GET', '/v1/admin/audit?kind=admin')).body.entries as { what: string }[]
+    expect(audit.some(e => e.what === 'zapierApp.set')).toBe(true)
+    expect((await act(operator, 'zapierApp.set', { url: null })).body.data).toEqual({ url: null })
+    expect((await act(other.owner, 'integration.list', {})).body.data.appUrl).toBeNull()
+  })
+
+  test('only an https link on zapier.com', async () => {
+    for (const url of [
+      'http://zapier.com/x',
+      'https://evil.example/zapier.com',
+      'https://zapier.com.evil.example/',
+      'nope',
+    ])
+      expect((await act(operator, 'zapierApp.set', { url })).status, url).toBe(422)
+    expect(
+      (await act(operator, 'zapierApp.set', { url: 'https://zapier.com/apps/linedesk/integrations' })).status,
+    ).toBe(200)
   })
 })
 
@@ -418,7 +458,7 @@ describe('provider keys', () => {
 
     process.env.OPENAI_API_KEY = 'env-openai-key-0123456789'
     expect(await fieldOf('openai', 'api_key')).toMatchObject({ source: 'env', last4: null, value: null })
-    // A provider holds only its key (decisions.md 2026-11-18): no model, voice or summary model field.
+    // A provider holds only its key (decision of 2026-11-18): no model, voice or summary model field.
     expect(
       (await providers()).providers
         .find((p: { provider: string }) => p.provider === 'openai')
@@ -2206,8 +2246,8 @@ describe('user.invite (Add user)', () => {
   test('without a workspace, a new admin gets the sign-in email: no code or link', async () => {
     const send = spySend()
     const email = address('invitee')
-    await act(operator, 'user.invite', { email, name: 'Tim', admin: true })
-    expect(await accountOf(email)).toMatchObject({ name: 'Tim', emailVerified: false, instanceAdmin: true })
+    await act(operator, 'user.invite', { email, name: 'Mike Brennan', admin: true })
+    expect(await accountOf(email)).toMatchObject({ name: 'Mike Brennan', emailVerified: false, instanceAdmin: true })
     // One email to them; the other admins hear of the new admin separately (admin-alerts.ts).
     const toThem = mailsTo(send, email)
     expect(toThem).toHaveLength(1)
@@ -2572,6 +2612,8 @@ describe('impersonation', () => {
       'voiceCloning.get',
       'webhook.deliveries',
       'workspace.getSettings',
+      // Read-only and instance:admin, as above.
+      'zapierApp.get',
     ])
   })
 
@@ -4528,7 +4570,7 @@ describe('monthly spending cap', () => {
     vi.unstubAllEnvs()
   })
 
-  test('test calls never count (docs/billing.md decision 5)', async () => {
+  test('test calls never count', async () => {
     const ws = await createWorkspace('Tested Plumbing')
     await pastCall(ws.id, 10_000, 0, 'test')
     const set = await act(operator, 'workspace.setSpendingCap', { workspaceId: ws.id, capUsd: 1 })

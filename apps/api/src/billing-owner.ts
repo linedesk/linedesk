@@ -1,4 +1,4 @@
-// What the bill owner sees and decides about the bill's life (docs/billing.md §3.4, §8; PR 11), and the ownership
+// What the bill owner sees and decides about the bill's life, and the ownership
 // rules the rest of the app keeps:
 //
 // - `billing.state`: the banner's data (status, why suspended, the dunning and cancellation dates, unpaid numbers, a
@@ -6,7 +6,7 @@
 // - `billing.portOutInfo`: the port-out PIN of each number bought through Linedesk, made on first view and stored
 //   encrypted (SECRETS_KEY); the bill owner only, in the app (no impersonation, API key or setup link), with the owner
 //   step-up, and only for the workspaces they are a member of now; never kept in the command log. `billing.recordPortOut` (instance admin) checks a request's PIN and emails
-//   the bill owner and the workspace owner. Moving the number at the carrier is not automated (see docs/billing.md).
+//   the bill owner and the workspace owner. Moving the number at the carrier is not automated.
 // - `billing.handOver` (the bill owner, with the step-up) and #919's `billing.transferOwner` (an instance admin) name a new
 //   bill owner: a member of one of the bill's workspaces with a confirmed address.
 // - `team.transferOwnership` of the only workspace on its bill moves the bill with it; with several it is refused
@@ -64,7 +64,7 @@ import { refuseBillingActor } from './usage-levels.ts'
 type Bill = typeof billing_accounts.$inferSelect
 type Reader = Tx | typeof db
 
-/** Bill statuses during which the owner's account cannot be deleted (docs/billing.md §8). */
+/** Bill statuses during which the owner's account cannot be deleted. */
 const RUNNING: readonly Bill['status'][] = ['trialing', 'active', 'past_due']
 
 const DAY_MS = 86_400_000
@@ -181,7 +181,7 @@ const CARD_TTL_MS = 5 * 60_000
 const cards = new Map<string, { card: TrialMinutesPrompt['card']; at: number }>()
 
 /**
- * The minutes prompt of `billing.state` (docs/billing.md §3.2 step 7): offered to a trial bill without "Keep calls
+ * The minutes prompt of `billing.state`: offered to a trial bill without "Keep calls
  * answered" yet, and to a paid plan with auto-recharge off (`minutesPromptFor`), once a workspace used
  * `TRIAL_PROMPT_SHARE` of its included minutes in the period. In the trial the stage follows the minutes and the
  * balance: `low`, then `grace` (used up and no balance: calls on the trial grace), then `paused` (the grace used); a paid
@@ -335,7 +335,7 @@ export async function workspacesOnBill(tx: Tx, billId: string) {
 /**
  * Makes `userId` the bill's owner: a member of one of its workspaces, with a confirmed address and an account that is
  * not disabled. Under the bill's lock order (its balance row first). The assistants keep their call quality: any
- * workspace owner or admin picks it, whoever pays (decisions.md 2026-11-18, LIN-589).
+ * workspace owner or admin picks it, whoever pays (decision of 2026-11-18, LIN-589).
  */
 async function transferBill(tx: Tx, billId: string, userId: string, now: string): Promise<BillingOwnerData> {
   await lockBalance(tx, billId)
@@ -382,7 +382,7 @@ export const billingOwnerHandlers: Record<string, Handler> = {
 }
 
 /**
- * `team.transferOwnership` (docs/billing.md §8, security review of #849, M3): when the owner handing the workspace over
+ * `team.transferOwnership`: when the owner handing the workspace over
  * owns its bill, the bill moves with it if this is the bill's only workspace; with several, the hand-over is refused
  * until the bill has another owner (billing.handOver). Moving the bill hands over its Stripe customer and saved card,
  * so it needs the same owner step-up as billing.handOver (security review of #920, M6): a session left open cannot
@@ -423,7 +423,7 @@ export async function billOnWorkspaceHandOver(
 
 /**
  * Deleting accounts (team.leave with deleteAccount, a workspace delete, the account sweep): refused for the owner of a
- * bill that is trialing, active or past_due (docs/billing.md §8): hand the bill over or cancel it first.
+ * bill that is trialing, active or past_due: hand the bill over or cancel it first.
  */
 export async function refuseDeletingBillOwners(tx: Tx, userIds: string[]) {
   if (!userIds.length) return

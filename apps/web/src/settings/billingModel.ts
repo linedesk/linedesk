@@ -18,7 +18,7 @@ export const ADD_CALLS_PARAM = 'addCalls'
 export const centsToDollars = (cents: number) => cents / 100
 export const microsToDollars = (micros: number) => micros / 1_000_000
 
-/** "Buy minutes" amounts offered at once (docs/billing.md §3.2 step 7), in cents; any other within the limits. */
+/** "Buy minutes" amounts offered at once, in cents; any other within the limits. */
 export const TOP_UP_CHOICES = [500, 1000, 2000] as const
 
 /** Whole dollars typed by the owner → cents, or null when it is not a whole number of dollars in range. */
@@ -36,7 +36,7 @@ export function daysLeft(iso: string, now = Date.now()): number {
 
 /**
  * The status badge's words and tone. A bill held for review says so, not "Active": no number can be bought until the
- * review is done (docs/billing.md §3.2 step 5).
+ * review is done.
  */
 export function statusBadge(
   status: BillingOverviewBill['status'],
@@ -94,7 +94,7 @@ export const canResume = (bill: BillingOverviewBill) => CANCELS.includes(bill.st
 export const changesRecharge = (bill: BillingOverviewBill) => ['trialing', 'active', 'past_due'].includes(bill.status)
 
 /**
- * The state note in plain words (billing.state, docs/billing.md §3.4): why the plan is not running normally and what
+ * The state note in plain words (billing.state): why the plan is not running normally and what
  * happens next. Null while it runs normally.
  */
 export type StateNote = {
@@ -162,11 +162,11 @@ export function stateNote(
 /** Whether the bill pays anything: a comped bill has no plan fee, no balance to recharge and free numbers. */
 export const paysCharges = (bill: Pick<BillingOverviewBill, 'status'>) => bill.status !== 'comped'
 
-/** How long after a payment a yearly plan is refunded in full on request (the terms, docs/billing.md §3.2 step 10). */
+/** How long after a payment a yearly plan is refunded in full on request (the terms). */
 export const YEARLY_REFUND_DAYS = 14
 
 /**
- * The cancel dialog's line about the plan fee already paid (the terms' "Refunds"; docs/billing.md §4.5): a yearly plan
+ * The cancel dialog's line about the plan fee already paid (the terms' "Refunds"): a yearly plan
  * paid in the last 14 days is refunded in full on request, until when; later, the rest of the year is not refunded.
  * Nothing for a monthly plan or in the trial (nothing was charged).
  */
@@ -308,7 +308,7 @@ export const AMOUNT_CHOICES = [2000, 2500, 3000, 5000, 10_000, 20_000, 50_000] a
 export const amountFits = (thresholdCents: number, amountCents: number) => amountCents >= thresholdCents + 500
 
 /**
- * The one-line banner above every page for the bill owner (docs/billing.md §3.4, §4.3, §11 PR 9), from `billing.state`
+ * The one-line banner above every page for the bill owner, from `billing.state`
  * alone (a cheap read; review of #1007, I-4): the most pressing thing about the bill, or null. Paused calls first,
  * then a canceled plan, a failed payment, a card held for review, a failed recharge, an unpaid number, the trial
  * prompt (with its own button), the monthly cap reached, a low balance with auto-recharge off. It leads to Settings ›
@@ -317,7 +317,7 @@ export const amountFits = (thresholdCents: number, amountCents: number) => amoun
 export type BillingBanner = {
   key: MessageKey
   tone: 'warning' | 'danger'
-  /** The trial prompt (docs/billing.md §3.2 step 7): the banner has "Keep calls answered" instead of the link. */
+  /** The trial prompt: the banner has "Keep calls answered" instead of the link. */
   trial?: TrialMinutesPrompt
   /** Callers got a busy line today (LIN-450): the banner offers one step more calls at the same time. */
   busy?: BusyLinePrompt
@@ -335,7 +335,7 @@ export function billingBanner(state: BillingStateBill | null): BillingBanner | n
   if (state.status === 'suspended') return { key: msg('settings.billing.banner.suspended'), tone: 'danger' }
   if (state.status === 'canceled') return { key: msg('settings.billing.banner.canceled'), tone: 'danger' }
   if (state.status === 'past_due') return { key: msg('settings.billing.banner.pastDue'), tone: 'danger' }
-  // Held for review: no number until it is done (docs/billing.md §3.2 step 5).
+  // Held for review: no number until it is done.
   if (state.heldForReview && (state.status === 'active' || state.status === 'trialing'))
     return { key: msg('settings.billing.banner.held'), tone: 'warning' }
   if (state.rechargeFailed)
@@ -361,7 +361,7 @@ export function billingBanner(state: BillingStateBill | null): BillingBanner | n
 }
 
 /**
- * What "Keep calls answered" sends (`billing.startTopUp`, docs/billing.md §3.2 step 7): the bill's recharge amount on
+ * What "Keep calls answered" sends (`billing.startTopUp`): the bill's recharge amount on
  * the saved card, as the trial recharge, naming the card the banner showed (none known: the server names it first and
  * charges nothing).
  */
@@ -375,7 +375,7 @@ export function trialRechargeInput(prompt: Pick<TrialMinutesPrompt, 'amountCents
 }
 
 /**
- * Workspace settings › Billing (docs/billing.md §8): the bill's page for owners and admins (`owner`; the server says
+ * Workspace settings › Billing: the bill's page for owners and admins (`owner`; the server says
  * whether they manage this bill, else they read this workspace's usage), the usage alone for anyone else with
  * settings:write (`usage`), and on an install that bills without a bill for this workspace, the "not on a bill" view
  * (`none`) for owners and admins. Off billing, and for members, no section (a member who owns the bill holds

@@ -1,4 +1,4 @@
-// German numbers held in the install's name, bought through the US buy flow (LIN-619, docs/decisions.md 2026-11-19):
+// German numbers held in the install's name, bought through the US buy flow (LIN-619, decision of 2026-11-19):
 // the buy offers (numberBuyOffers), phoneNumber.setup for a German workspace with a carrier in memory, the calm
 // fallback with an ALERT while the requirement group is missing or the carrier has none in stock, the forwarding
 // path, the ALERT from 8 held numbers, germanNumbers.get/set, and the requirement group's state at the carrier with the

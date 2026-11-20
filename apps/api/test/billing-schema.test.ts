@@ -1,4 +1,4 @@
-// The billing tables (docs/billing.md §4.1): the ledger is append-only in the database, posting the same
+// The billing tables: the ledger is append-only in the database, posting the same
 // source twice is refused, kinds, sources and signs are checked, periods never overlap, the balance and the
 // reservations always add up on the balance row, one recharge at a time per bill, and the API notices a missing,
 // disabled or changed guard.

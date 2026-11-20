@@ -1,4 +1,4 @@
-// The sign-up page's last step (Signup.tsx DetailsStep, docs/billing.md §3.2): only the person's name, the terms
+// The sign-up page's last step (Signup.tsx DetailsStep): only the person's name, the terms
 // and Create account; the business's name and country come in the onboarding's Business step. A partner also gives
 // its company's name.
 import { renderToStaticMarkup } from 'react-dom/server'

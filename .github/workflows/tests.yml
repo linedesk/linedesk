@@ -1,27 +1,27 @@
 # The full test suite, in four parallel parts: the API tests in three shards (they take most of the time), every other
-# package in one. It runs beside the deploys, never in front of them (docs/ci.md, "Tests"):
-#   - every push to master-dev: staging deploys without waiting for it. A red run comments on the PR that was merged
-#     (job `report`), so the person or AI session that merged it sees it and fixes it in a new PR.
-#   - pull requests from autopilot/ branches: the autopilot merges only when this passed (ops/autopilot, wait_ci).
-#   - the release gate releases only when this passed on exactly the release head (ops/autopilot, release gate).
+# package in one (docs/ci.md, "Tests"). It runs:
+#   - on every push to the trunk (`main`), without holding anything up. A red run comments on the PR that was merged
+#     (job `report`), or on the commit, so whoever merged it sees it and fixes it in a new PR.
+#   - on pull requests from automated branches (`autopilot/`), which merge only when this passed.
 #   - by hand (Actions → Tests → Run workflow).
-# Pull requests from people do not run it: they need typecheck, lint and the image build (ci.yml) only.
+# Other pull requests do not run it: they need typecheck, lint and the image build (ci.yml) only.
 name: Tests
 
 on:
   push:
-    branches: [master-dev]
+    branches: [main, master-dev]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# Runners: GitHub-hosted `ubuntu-24.04` in the public repository (linedesk/linedesk), Depot in the maintainers' private
-# copy (docs/ci.md).
+# Runners: GitHub-hosted `ubuntu-24.04`, unless the repository variable `CI_RUNNER` names other runners (a repository
+# with its own runners sets it). A pull request from a fork always runs GitHub-hosted. Never set CI_RUNNER for the
+# whole organization.
 
-# A newer push to master-dev (or to the same pull request) replaces the run of the older one. A run by hand has its
-# own group, so it never cancels the push run the release gate reads.
+# A newer push to the trunk (or to the same pull request) replaces the run of the older one. A run by hand has its
+# own group, so it never cancels the push run.
 concurrency:
   group: tests-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -30,7 +30,7 @@ jobs:
   test:
     name: test (${{ matrix.part }})
     if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'autopilot/')
-    runs-on: ${{ github.repository == 'linedesk/linedesk' && 'ubuntu-24.04' || 'depot-ubuntu-24.04' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -75,12 +75,12 @@ jobs:
             *) pnpm turbo run test --continue --filter='!@linedesk/api' ;;
           esac
 
-  # A red run on master-dev: one comment on the PR the head commit came from (or on the commit, for a direct push),
+  # A red run on the trunk (the repository's default branch): one comment on the PR the head commit came from (or on the commit, for a direct push),
   # written for whoever merged it, a person or an AI session that watches its PR.
   report:
     needs: test
     if: failure() && github.event_name == 'push'
-    runs-on: ${{ github.repository == 'linedesk/linedesk' && 'ubuntu-24.04' || 'depot-ubuntu-24.04' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 5
     permissions:
       contents: write # commit comments
@@ -91,17 +91,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          TRUNK: ${{ github.event.repository.default_branch }}
           SHA: ${{ github.sha }}
           RUN_ID: ${{ github.run_id }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           failed=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" --jq '[.jobs[] | select(.conclusion == "failure") | .name] | join(", ")')
-          body="**Tests failed on master-dev** after this merge (\`${SHA:0:8}\`): ${failed:-see the run}.
+          body="**Tests failed on $TRUNK** after this merge (\`${SHA:0:8}\`): ${failed:-see the run}.
 
           Run: $RUN_URL (failed logs: \`gh run view $RUN_ID --repo $REPO --log-failed\`).
 
-          Whoever merged this, a person or an AI session: please fix it in a new PR into master-dev, or say here why it is not caused by this change. The cause can also be an earlier commit since the last green run of Tests. Staging is already deployed; production is not blocked by this, so fix it before the next release."
-          pr=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.base.ref == "master-dev" and .merged_at != null)][0].number // empty')
+          Whoever merged this, a person or an AI session: please fix it in a new PR into $TRUNK, or say here why it is not caused by this change. The cause can also be an earlier commit since the last green run of Tests. Nothing waits for this run, so fix it before the next release."
+          pr=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.base.ref == "'"$TRUNK"'" and .merged_at != null)][0].number // empty')
           if [ -n "$pr" ]; then
             gh pr comment "$pr" --repo "$REPO" --body "$body"
           else

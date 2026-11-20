@@ -1,4 +1,4 @@
-// Billing on the call path (docs/billing.md §4.2 to §4.4, PR 4): the gate in `openCall`, posting a finished call's
+// Billing on the call path: the gate in `openCall`, posting a finished call's
 // usage at `call.finish` and in the stale sweep, and what follows a debit (the recharge job, the owner's emails). Only
 // a phone call of a workspace on a bill, while billing is in effect (Stripe connected, switched on, the ledger guards
 // intact), is ever billed: on every other install and workspace nothing here changes a call.
@@ -104,7 +104,7 @@ function dearestLevel(rules: BillingRules): PaidLevel {
 }
 
 /**
- * The limit a call of this assistant is reserved for (docs/billing.md §4.4): its max call length, plus with an active
+ * The limit a call of this assistant is reserved for: its max call length, plus with an active
  * transfer contact (and transfers on on this server) the bridged time and the transfer leg, each capped.
  */
 export function limitFor(assistant: Pick<Assistant, 'max_call_minutes' | 'transfers'> | null, rules: BillingRules) {
@@ -220,7 +220,7 @@ export async function postEndedCalls(tx: Tx, now: string): Promise<string[]> {
 }
 
 /**
- * Billed calls still live after their limit plus the grace (docs/billing.md §4.4): the stale sweep ends them at the
+ * Billed calls still live after their limit plus the grace: the stale sweep ends them at the
  * carrier and posts them, so a stuck call never holds the bill's money and concurrency slots for long.
  */
 export async function callsPastTheirLimit(tx: Tx, now: string): Promise<{ id: string; room: string | null }[]> {
@@ -240,7 +240,7 @@ export async function callsPastTheirLimit(tx: Tx, now: string): Promise<{ id: st
 /**
  * What follows a debit or a gate check, in the same transaction: a new recharge attempt is charged by a job; the
  * monthly cap reached the first time this month emails the owner; and with auto-recharge off a balance below the
- * threshold emails the owner once per low stretch (docs/billing.md §4.3).
+ * threshold emails the owner once per low stretch.
  */
 export async function afterDebit(tx: Tx, billId: string, recharge: RechargeOutcome, now: string) {
   if (recharge.kind === 'recharge') await queueRecharge(tx, recharge.rechargeId)
@@ -287,7 +287,7 @@ async function lowBalanceAlert(tx: Tx, billId: string) {
 }
 
 /**
- * The minutes prompt (docs/billing.md §3.2 step 7), once per period each: `trial_minutes_low` when a workspace used
+ * The minutes prompt, once per period each: `trial_minutes_low` when a workspace used
  * `TRIAL_PROMPT_SHARE` of its included minutes, `trial_minutes_used` when a call was answered only on the trial grace
  * after they were all used (the trial only: a paid plan has no grace). For a trial until the owner pressed "Keep calls
  * answered" (the email offers it), and for a paid plan with auto-recharge off (`minutesPromptFor`). The used-up email
@@ -322,7 +322,7 @@ export async function trialMinutesAlert(
 export const BUSY_LINE_NOTICE_DELAY_SECONDS = 15 * 60
 
 /**
- * The busy-line notice (LIN-450, docs/billing.md §2.1c): a caller of a billed workspace heard a busy line because all
+ * The busy-line notice (LIN-450): a caller of a billed workspace heard a busy line because all
  * its calls at the same time were in use (the workspace's limit, or the bill's cap). One `billing_alerts` row per
  * workspace and day (the workspace's own day, `timeZone`) counts that day's busy callers; the first queues the bill
  * owner's one email of the day, and the banner shows the count. A workspace on no bill (self-host), or an install

@@ -24,8 +24,8 @@ import type { z } from 'zod'
  * only: it cannot be undone. Not an action's permission; the call.delete handler checks it.
  */
 /**
- * `billing:manage`: what changes what the workspace pays (the plan, payment method, recharges and the cap;
- * docs/billing.md §8). Owners and admins hold it (decision of 2026-11-17), and so does the
+ * `billing:manage`: what changes what the workspace pays (the plan, payment method, recharges and the cap).
+ * Owners and admins hold it (decision of 2026-11-17), and so does the
  * bill's owner in a workspace on their bill whatever their role (decision of 2026-11-18, LIN-400; ownsBillOf in
  * apps/api/src/context.ts, a session only); the handlers let through only who manages the bill: its owner, or an
  * owner or admin of the only workspace it pays for (managesBill in apps/api), never on a partner bill or a bill of
@@ -33,12 +33,12 @@ import type { z } from 'zod'
  * too: refuseBillingActor in apps/api).
  */
 /**
- * `billing:system`: the Stripe webhook's processor and the billing jobs (docs/billing.md §5.1, §8). No role, no API key,
+ * `billing:system`: the Stripe webhook's processor and the billing jobs. No role, no API key,
  * no setup link and no session has it; only the API's own billing jobs act with it (apps/api/src/stripe-events.ts).
  */
 /**
  * `account`: what a signed-in person does for their own account, with or without a workspace: self-serve sign-up
- * (`account.signUp`, docs/billing.md §3.1). No role has it; the API gives it only on the sign-up route, to a person
+ * (`account.signUp`). No role has it; the API gives it only on the sign-up route, to a person
  * signed in as themselves (never an API key, a setup link, the agent or an impersonation).
  */
 /**

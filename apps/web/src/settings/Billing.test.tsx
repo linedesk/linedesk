@@ -1,4 +1,4 @@
-// Workspace settings › Billing (Billing.tsx, docs/billing.md §11 PR 9): what the bill owner sees for each state of the
+// Workspace settings › Billing (Billing.tsx): what the bill owner sees for each state of the
 // bill. The trial with its countdown, the plan and its one primary button, a failed recharge with Retry (then the
 // primary), past due and suspended in plain words, cancel and resume, the page for someone who does not manage the
 // bill, and the workspace on no bill.

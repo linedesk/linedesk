@@ -163,7 +163,7 @@
   "api.providerTest.stripe.connectedTest": "接続済み、テストモード{where, select, none {} other {（{where}）}}、アカウント{account}：請求は発生しません",
   "api.providerTest.stripe.keyRejected": "Stripeがシークレットキーを拒否しました（HTTP 401）。Stripe DashboardのDevelopers、API keysからもう一度コピーしてください。",
   "api.providerTest.stripe.notAKey": "このシークレットキーは、Stripeのシークレットキー（sk_…）でも制限付きキー（rk_…）でもありません。",
-  "api.providerTest.stripe.permission": "制限付きキーにはアカウントを読み取る権限がありません（HTTP 403）。docs/billing.md §7の権限を付与してください。",
+  "api.providerTest.stripe.permission": "制限付きキーにはアカウントを読み取る権限がありません（HTTP 403）。サーバー管理 › プロバイダーのStripeガイドにある権限を付与してください。",
   "api.providerTest.stripe.rateLimited": "Stripeがこのキーのリクエストを制限しています（HTTP 429）。1分後にもう一度テストしてください。",
   "api.providerTest.stripe.timeout": "Stripeから{seconds}秒以内に応答がありません",
   "api.providerTest.stripe.unreachable": "Stripeに接続できませんでした。サーバーの接続とstatus.stripe.comを確認してください。",

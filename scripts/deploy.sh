@@ -5,7 +5,7 @@
 #   scripts/deploy.sh             build the images, then update
 #   scripts/deploy.sh --no-build  update to the images already built
 # Prebuilt images: when the checkout holds deploy-images.env (the test server's deploys put it into the
-# archive, .github/workflows/deploy-staging.yml), the images of this commit are pulled from that
+# archive), the images of this commit are pulled from that
 # registry instead of built here, so a deploy does not load the machine. Without it (self-hosting,
 # local), the images are built here as before.
 #
@@ -30,7 +30,7 @@
 #
 # Dev mode (LINEDESK_MODE=dev in .env, docker-compose.dev.yml, docs/dev-mode.md): api, web and agent
 # run from this checkout, so there is nothing to build. scripts/deploy-dev.sh moves the checkout to the
-# newest commit of its branch, master-dev by default (it refuses when the checkout has local changes) and comes back
+# newest commit of its branch, the repository's default branch by default (it refuses when the checkout has local changes) and comes back
 # here with --no-build.
 set -euo pipefail
 cd "$(dirname "$0")/.."

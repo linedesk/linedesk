@@ -65,7 +65,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'emailRouting.available',
   ],
   admin: [
-    // Workspace settings › Billing for owners and admins: this workspace's usage only, read-only (docs/billing.md §8).
+    // Workspace settings › Billing for owners and admins: this workspace's usage only, read-only.
     'billing.workspaceUsage',
     'agentSetup.createWorkspaceKey',
     'agentSetup.revokeWorkspace',
@@ -170,7 +170,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'business.import',
     // What the workspace pays (billing:manage, owners and admins since 2026-11-17): the handlers let through only who
     // manages the bill (managesBill: its owner, or an owner or admin of the only workspace it pays for).
-    // The bill's Checkout, Buy minutes, cancel and resume (docs/billing.md §3.2).
+    // The bill's Checkout, Buy minutes, cancel and resume.
     'billing.startCheckout',
     'billing.confirmCheckout',
     'billing.startTopUp',
@@ -226,7 +226,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'systemPrompt.resetPart',
     'afterCallTranscript.get',
     'afterCallTranscript.set',
-    // Billing through Stripe on or off for the install (docs/billing.md §7).
+    // Billing through Stripe on or off for the install.
     'billingEnabled.get',
     'billingEnabled.set',
     'branding.set',
@@ -266,10 +266,13 @@ const expectedRights: Record<Right, readonly string[]> = {
     'impersonationEmails.set',
     'signupAccess.get',
     'signupAccess.set',
+    // The link to the Linedesk app on Zapier that workspaces open.
+    'zapierApp.get',
+    'zapierApp.set',
     'outboundCountries.get',
     'outboundCountries.set',
     'billing.reprocessEvent',
-    // Server admin › Billing (docs/billing.md §11, PR 13).
+    // Server admin › Billing.
     'billing.adminBills',
     'billing.adminBill',
     'billing.adminEvents',
@@ -289,7 +292,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'billing.moveWorkspace',
     'billing.transferOwner',
     'billing.reviewHold',
-    // Bill ownership and port-outs, by an instance admin (docs/billing.md §3.4, §8).
+    // Bill ownership and port-outs, by an instance admin.
     'billing.recordPortOut',
     'workspace.create',
     'membership.add',
@@ -327,7 +330,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'workspace.removePartner',
   ],
   impersonation: ['impersonation.stop'],
-  // The Stripe webhook's processor: the API's billing jobs only (docs/billing.md §8).
+  // The Stripe webhook's processor: the API's billing jobs only.
   system: ['billing.processStripeEvent', 'billing.settleInvoice'],
   // A person's own invitations and personal API keys (personal-keys.ts, LIN-339), and the keys MCP clients get by
   // OAuth sign-in (oauth.ts, LIN-126).

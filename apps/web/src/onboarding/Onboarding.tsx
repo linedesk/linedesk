@@ -81,7 +81,7 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload, onAgentSetup }
     if (offersTour(firstUse)) queueTour(me.workspace!.id)
     onDone()
   }
-  // Waiting for its trial (docs/billing.md §3.2): the setup, then `activate` (the card); the number only after it. Once
+  // Waiting for its trial: the setup, then `activate` (the card); the number only after it. Once
   // it runs, the count goes on over "Start your free trial" as a done step (Step 5 of 7, then 6 of 7, and back again).
   // A white-label partner's draft client workspace (setup before payment): the free steps, then back to where the draft
   // was opened (the partner's setup, the partner area); the number waits for the partner's Checkout.

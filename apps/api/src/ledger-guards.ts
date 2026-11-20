@@ -1,4 +1,4 @@
-// The billing ledger's database guards (migration 0107, docs/billing.md §4.1): the triggers that keep
+// The billing ledger's database guards (migration 0107): the triggers that keep
 // ledger_entries append-only, billing_balances.balance_micros equal to the ledger's sum and reserved_micros equal to
 // the running calls' reservations. They guard against bugs, not against someone with the table owner's SQL, who
 // could disable them; a migration or a script that drops, disables or rewrites one would go unnoticed, so the API

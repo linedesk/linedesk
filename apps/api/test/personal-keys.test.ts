@@ -426,7 +426,7 @@ describe('MCP with a personal key', () => {
     for (const name of NOT_OVER_MCP_FOR_PERSONAL_KEYS) expect(names.has(toolName(name)), name).toBe(false)
     for (const name of ['carrier.set', 'provider.connectOneKey', 'systemPrompt.setPart', 'systemPrompt.resetPart'])
       expect(NOT_OVER_MCP_FOR_PERSONAL_KEYS.has(name), name).toBe(true)
-    // Opened by Tim (2026-11-16): webhooks, invites, memberships, number routing, outbound countries, password calendars.
+    // Opened by decision of 2026-11-16: webhooks, invites, memberships, number routing, outbound countries, password calendars.
     for (const name of [
       'webhook.create',
       'webhook.update',

@@ -445,7 +445,7 @@ export const workspace_settings = pgTable(
     timezone: text('timezone').notNull(),
     /**
      * Where the owner is in onboarding. null: a workspace from before onboarding existed, treated as finished.
-     * `activate`: a self-serve sign-up's last step before its trial starts (docs/billing.md §3.2).
+     * `activate`: a self-serve sign-up's last step before its trial starts.
      * `hours`, `calendar` and `test_call` are steps of the earlier flow, still read (resumeStep maps them).
      */
     onboarding_step: text('onboarding_step', {
@@ -495,7 +495,7 @@ export const workspace_settings = pgTable(
     partner_keys: boolean('partner_keys').notNull().default(false),
     /**
      * A white-label client whose own owner and admins may change its assistants' call quality (partner.setClientCallQuality;
-     * decisions.md 2026-11-18). Off by default: only the partner's team changes it, and the client's people do not see it.
+     * decision of 2026-11-18). Off by default: only the partner's team changes it, and the client's people do not see it.
      */
     client_call_quality: boolean('client_call_quality').notNull().default(false),
     /** Vacation or closure mode: closed on these dates whatever the hours say, with its own greeting; null: off. */
@@ -2008,7 +2008,7 @@ export const profile_changes = pgTable('profile_changes', {
 /** profile_changes.previous. */
 export type ProfileBefore = { name?: string; avatar?: { version: string; png: string } | null }
 
-// --- Billing (Linedesk Cloud; docs/billing.md §4) ---
+// --- Billing (Linedesk Cloud) ---
 // Not synced to browsers; read through read-only actions. Usage and extra numbers are paid from a prepaid
 // balance per bill, recharged automatically (decision 14). Amounts in US micro-dollars (`bigint`, 1 USD =
 // 1,000,000) unless the column says cents. A bill spans workspaces and the ledger is a financial record, so
@@ -2039,14 +2039,14 @@ const ALERT_KINDS = [
   'dunning',
   'numbers_release',
   'numbers_released',
-  // The one "one step left" email to a sign-up that has not started its trial yet (docs/billing.md §3.2 step 2).
+  // The one "one step left" email to a sign-up that has not started its trial yet.
   'activation_nudge',
-  // The trial's included minutes nearly used (TRIAL_PROMPT_SHARE) and used up with calls on the trial grace
-  // (docs/billing.md §3.2 step 7): one email each per trial, until the owner turns on the trial recharge.
+  // The trial's included minutes nearly used (TRIAL_PROMPT_SHARE) and used up with calls on the trial grace:
+  // one email each per trial, until the owner turns on the trial recharge.
   'trial_minutes_low',
   'trial_minutes_used',
   // A caller of one of the bill's workspaces heard a busy line because all its calls at the same time were in use
-  // (LIN-450, docs/billing.md §2.1c): once per workspace and day (`ref`: `<workspace id>:<YYYY-MM-DD>`, its time zone).
+  // (LIN-450): once per workspace and day (`ref`: `<workspace id>:<YYYY-MM-DD>`, its time zone).
   'busy_line',
   // A new card put on a bill in a Stripe portal someone else than its owner opened (bill-manager.ts): the owner's
   // email, once per card (ref `card:<payment method id>`).
@@ -2060,7 +2060,7 @@ export const SUSPEND_REASONS = ['admin', 'payment', 'dispute', 'early_fraud_warn
 /** The most calls at once an instance admin may allow one bill (`billing_accounts.concurrent_calls_cap`). */
 export const CONCURRENT_CALLS_CAP_MAX = 1000
 /**
- * Why a bill gets no trial (docs/billing.md §3.1, §3.2 step 4): the card had one, a prepaid card, or the account had
+ * Why a bill gets no trial: the card had one, a prepaid card, or the account had
  * one on another bill (`account_used`, set at sign-up).
  */
 export const TRIAL_REFUSALS = ['card_used', 'prepaid', 'account_used'] as const
@@ -2103,7 +2103,7 @@ export const billing_accounts = pgTable(
     billing_anchor: ts('billing_anchor'),
     /**
      * Auto-recharge: below the threshold the saved card is charged the amount. Off by default: activation never turns it
-     * on (Janik, 2026-11-17); the owner does, with "Keep calls answered" or in Settings › Billing. Off: "Buy minutes".
+     * on (decision of 2026-11-17); the owner does, with "Keep calls answered" or in Settings › Billing. Off: "Buy minutes".
      */
     auto_recharge: boolean('auto_recharge').notNull().default(false),
     recharge_threshold_cents: integer('recharge_threshold_cents').notNull().default(RECHARGE_DEFAULTS.thresholdCents),
@@ -2111,7 +2111,7 @@ export const billing_accounts = pgTable(
     /** The owner's monthly recharge cap base ($50 default); the cap in effect adds $25 per further workspace. */
     recharge_cap_base_cents: integer('recharge_cap_base_cents').notNull().default(RECHARGE_CAP_BASE_CENTS),
     /**
-     * When the owner pressed "Keep calls answered" in the trial (docs/billing.md §3.2 step 7): a purchase with the saved
+     * When the owner pressed "Keep calls answered" in the trial: a purchase with the saved
      * card, and from then on auto-recharge runs in the trial too (consent in `terms_acceptances`, source
      * `trial_recharge`). Null: auto-recharge waits for the trial's end, as Checkout said.
      */
@@ -2120,15 +2120,15 @@ export const billing_accounts = pgTable(
     recharge_failed_at: ts('recharge_failed_at'),
     held_for_review_at: ts('held_for_review_at'),
     /**
-     * When `billing.confirmCheckout` checked the trial's card (docs/billing.md §3.2 step 4: fingerprint, funding, Radar)
+     * When `billing.confirmCheckout` checked the trial's card (fingerprint, funding, Radar)
      * and moved the bill out of `pending_payment`. Its own fact (security review of #876, M1): a stored subscription is
      * not a confirmed Checkout, since the webhook links one before the checks ran.
      */
     checkout_confirmed_at: ts('checkout_confirmed_at'),
     /**
-     * Why the bill gets no trial (§3.2 step 4): `card_used`, the card already had a trial on another bill; `prepaid`, a
+     * Why the bill gets no trial: `card_used`, the card already had a trial on another bill; `prepaid`, a
      * prepaid card (its trial subscription was canceled at once; the owner starts the plan with a new Checkout);
-     * `account_used`, set at sign-up: the owner had a trial on another Cloud bill (§3.1), so Checkout sells the plan.
+     * `account_used`, set at sign-up: the owner had a trial on another Cloud bill, so Checkout sells the plan.
      */
     trial_refused: text('trial_refused', { enum: TRIAL_REFUSALS }),
     /** Radar's risk level of the trial's card check; anything but `normal` holds number purchase for review. */
@@ -2139,7 +2139,7 @@ export const billing_accounts = pgTable(
     suspended_at: ts('suspended_at'),
     /**
      * Why the bill is suspended (null while it is not): `admin` (Server admin › Billing; only an instance admin lifts
-     * it, never a payment), `payment` (dunning), `dispute`, `early_fraud_warning` (docs/billing.md §3.4, review of #865 N1).
+     * it, never a payment), `payment` (dunning), `dispute`, `early_fraud_warning` (review of #865 N1).
      */
     suspend_reason: text('suspend_reason', { enum: SUSPEND_REASONS }),
     /**
@@ -2147,7 +2147,7 @@ export const billing_accounts = pgTable(
      * it, so a bill waiting for Checkout or past due is not made active by suspend and resume (re-review of #919, R3).
      */
     suspended_from: text('suspended_from', { enum: SUSPENDED_FROM }),
-    /** Calls at once an instance admin set for this bill (Server admin › Billing); null: the rules' cap (§4.4). */
+    /** Calls at once an instance admin set for this bill (Server admin › Billing); null: the rules' cap. */
     concurrent_calls_cap: integer('concurrent_calls_cap'),
     /**
      * Extra calls at once already paid for this subscription period (LIN-450, security review of #1103, M-1): the
@@ -2382,11 +2382,11 @@ export const call_reservations = pgTable(
     reserved_micros: micros('reserved_micros').notNull(),
     /** The level the call pays, fixed when it started (decision 15): its usage entry is rated with it. */
     usage_level: text('usage_level', { enum: PAID_LEVELS }).notNull().default('standard'),
-    /** Every part was to run on the customer's own keys: only a forecast, confirmed after the call (§2.1a). */
+    /** Every part was to run on the customer's own keys: only a forecast, confirmed after the call. */
     own_keys: boolean('own_keys').notNull().default(false),
-    /** The longest the call may last, fixed when it started: max call length plus the capped transfer (§4.4). */
+    /** The longest the call may last, fixed when it started: max call length plus the capped transfer. */
     limit_seconds: integer('limit_seconds').notNull().default(3600),
-    /** The included allowance this call holds while it runs, in Standard seconds (docs/billing.md §4.4). */
+    /** The included allowance this call holds while it runs, in Standard seconds. */
     included_reserved_seconds: integer('included_reserved_seconds').notNull().default(0),
     created_at: createdAt(),
   },
@@ -2420,7 +2420,7 @@ export const billing_recharges = pgTable(
     /** Stripe's decline or error code of a failed attempt (`card_declined`, `authentication_required`). */
     failure_code: text('failure_code'),
     /**
-     * "Buy minutes" with the saved card (docs/billing.md §2.2): the owner chose the amount ($5 to $500) and confirmed
+     * "Buy minutes" with the saved card: the owner chose the amount ($5 to $500) and confirmed
      * it in the app. Charged and credited like a recharge, but never counted in the monthly cap of automatic ones.
      */
     manual: boolean('manual').notNull().default(false),
@@ -2522,7 +2522,7 @@ export const card_fingerprints = pgTable('card_fingerprints', {
 })
 
 /**
- * Self-serve sign-up (docs/billing.md §3.1): one row per sign-up code sent from the sign-up page (`code`) and per
+ * Self-serve sign-up: one row per sign-up code sent from the sign-up page (`code`) and per
  * sign-up started (`signup`), counted for the limits per address, per IP bucket and per install. The address is kept
  * only as a SHA-256 of its lower-case form; the IP only as its limit bucket (an IPv4 address or an IPv6 /64). Rows
  * older than `pendingDays` + 2 days (16 by default) are deleted by the daily sign-up sweep.
@@ -2558,10 +2558,10 @@ export const signup_attempts = pgTable(
  */
 /**
  * Where terms were accepted: the sign-up page, the activation step before Checkout, and "Keep calls answered" in the
- * trial (the trial recharge: auto-recharge before the trial ends, docs/billing.md §3.2 step 7).
+ * trial (the trial recharge: auto-recharge before the trial ends).
  */
 // `extra_calls`: the owner added calls at the same time in Settings › Billing or from the busy-line banner (LIN-450).
-// `auto_recharge`: the owner turned auto-recharge on in Settings › Billing (Janik, 2026-11-18).
+// `auto_recharge`: the owner turned auto-recharge on in Settings › Billing (decision of 2026-11-18).
 // `terms_update`: a bill's owner accepted a new terms version in the app after TERMS_VERSION changed (LIN-420).
 const TERMS_SOURCES = [
   'signup',
@@ -2648,7 +2648,7 @@ export const billing_alerts = pgTable(
 )
 
 /**
- * A bill's state of a number on Linedesk's carrier account (docs/billing.md §3.4, §4.2): an extra number whose month
+ * A bill's state of a number on Linedesk's carrier account: an extra number whose month
  * could not be paid (`unpaid_since`: inbound calls get the fixed line, released after 30 days), and the port-out code
  * shown only to the bill owner (encrypted with SECRETS_KEY). Not synced to browsers; read through billing actions.
  */
@@ -2678,7 +2678,7 @@ export const billing_numbers = pgTable(
 export const DISPUTE_KINDS = ['dispute', 'fraud_warning'] as const
 
 /**
- * Card disputes and early fraud warnings of a bill's charges (docs/billing.md §3.4): what was taken off the balance
+ * Card disputes and early fraud warnings of a bill's charges: what was taken off the balance
  * while a dispute is open (`adjustment_entry_id`) and given back when it was won (`reversal_entry_id`). A refund
  * (PR 13) refuses a charge with an open or lost dispute or a fraud warning here.
  */

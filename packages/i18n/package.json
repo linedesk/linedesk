@@ -1,6 +1,7 @@
 {
   "name": "@linedesk/i18n",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",

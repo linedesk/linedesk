@@ -160,7 +160,7 @@ export async function voiceProviderInUse(tx: Tx, doFetch: typeof fetch = fetch):
   )
 }
 
-/** The voice the install's default stands for: the provider in effect's own default voice (decisions.md 2026-11-18). */
+/** The voice the install's default stands for: the provider in effect's own default voice (decision of 2026-11-18). */
 export async function installDefaultVoice(tx: Tx): Promise<{ provider: string; voiceId: string } | null> {
   const active = await activeProvider(tx, 'tts').catch(() => null)
   if (!active) return null
@@ -185,7 +185,7 @@ async function voiceProviderNamed(tx: Tx, name: string, doFetch: typeof fetch = 
 }
 
 /**
- * The realtime voice an assistant that picks none speaks with: REALTIME_DEFAULT_VOICE (decisions.md 2026-11-18: no
+ * The realtime voice an assistant that picks none speaks with: REALTIME_DEFAULT_VOICE (decision of 2026-11-18: no
  * server default voice). null while no realtime model is set up.
  */
 export async function realtimeDefaultVoice(tx: Tx): Promise<string | null> {

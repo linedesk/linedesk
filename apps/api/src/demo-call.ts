@@ -10,7 +10,7 @@
 // assistantId }`, plus `mainLanguage` when the visitor picked a language other than English (DEMO_LANGUAGES): the
 // call then speaks only that language. The gateway passes the answer on to the browser. The LiveKit key never leaves
 // the API: any key can sign any grant.
-// docs/runbook.md ("Put a live demo on your website") has the whole contract and a minimal gateway.
+// docs/public-demo.md has the whole contract.
 //
 // Every limit is counted in Postgres under one advisory lock, from the command-log rows of the tokens issued
 // (DEMO_CALL_TOKEN) and the live demo calls, so several API processes and a burst of requests see the same counts:
@@ -59,7 +59,7 @@ export const DEMO_ACTOR = 'public-demo'
 /** A shorter gateway secret is not taken: it must not be guessable. */
 export const DEMO_SECRET_MIN_LENGTH = 32
 
-/** Defaults of the limits; each has its env variable (docs/runbook.md). */
+/** Defaults of the limits; each has its env variable (docs/public-demo.md). */
 export const DEMO_DEFAULTS = { maxConcurrent: 3, perIpHour: 3, perIpDay: 6, dailyCalls: 300 } as const
 /**
  * What the daily budget counts per token: a call that runs to the stale-call sweep's backstop (DEMO_ROOM_MAX_MS plus

@@ -2,7 +2,7 @@
 // owner, assistant and settings (onboarding done), and optionally its phone number, attached (never bought) and routed
 // to LiveKit SIP.
 // The workspace is made by the registry action workspace.create, run as a named server admin (--as), exactly like
-// Server admin › Workspaces › New workspace: the same audit entry, rights and owner rules (Janik, 2026-11-15, Q9). An
+// Server admin › Workspaces › New workspace: the same audit entry, rights and owner rules (decision of 2026-11-15, Q9). An
 // existing account with a confirmed address becomes the owner at once; a new address (an account is made for it: give
 // --owner-name) or an unconfirmed one gets the owner invitation by email from that admin and becomes the owner once it
 // confirms the address. So email delivery must be set up unless the owner's account is already confirmed.

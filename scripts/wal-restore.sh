@@ -8,7 +8,7 @@
 #   scripts/wal-restore.sh --yes [...]                      # without asking
 #   WAL_RESTORE_TIMEOUT=3600 scripts/wal-restore.sh         # seconds the replay may take (default 1800)
 # Calls cannot be answered while it runs (minutes for a small database). The nightly pg_dump backups
-# (scripts/backup.sh, README "Backups") stay as a second, independent way back.
+# (scripts/backup.sh, docs/self-hosting.md "Backups") stay as a second, independent way back.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 yes=0

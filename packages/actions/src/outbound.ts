@@ -8,7 +8,7 @@
 // - in every country only landlines and mobiles (and VoIP lines, which many businesses have), never premium rate,
 //   shared cost, toll-free, personal, UAN, pager or voicemail numbers, nor emergency, short or service numbers.
 // One function (outboundNumberProblem) decides it for the settings, the voice agent's dial (call.transfer `dialing`,
-// checked again when it dials) and the forwarding check. docs/decisions.md, "Outbound calls by destination policy".
+// checked again when it dials) and the forwarding check.
 import { parsePhoneNumberFromString } from 'libphonenumber-js/max'
 import { z } from 'zod'
 import { defineAction } from './define.ts'

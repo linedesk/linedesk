@@ -12,7 +12,7 @@ import { english, type Words } from './words.ts'
 export const SETUP_KEY_PREFIX = 'lds_'
 /**
  * How long a setup key works: long enough for a setup session with carrier and model accounts, short if it leaks. One
- * access level for all of it, email and sign-in included (Janik, 2026-11-15; was 24 hours with a 12-hour passkey grant).
+ * access level for all of it, email and sign-in included (decision of 2026-11-15; was 24 hours with a 12-hour passkey grant).
  */
 export const SETUP_KEY_HOURS = 4
 
@@ -165,7 +165,7 @@ const NAMED_STEPS = [
   ['answering', true],
   ['telephony', true],
   ['call-audio', true],
-  // One row for the person's business (Janik, 2026-11-15): its name and time zone together with what the assistant
+  // One row for the person's business (decision of 2026-11-15): its name and time zone together with what the assistant
   // knows about it, never two rows for what is one thing to them.
   ['business', true],
   ['assistant', true],
@@ -291,9 +291,9 @@ export function installPlace(publicUrl: string): 'public' | 'this_computer' | 'n
 }
 
 /** The guide to putting Linedesk on a server (docs/hosting.md) and its one-command install. */
-export const HOSTING_GUIDE_URL = 'https://github.com/linedesk/linedesk/blob/main/docs/hosting.md'
+export const HOSTING_GUIDE_URL = 'https://github.com/linedesk/linedesk/blob/HEAD/docs/hosting.md'
 export const INSTALL_COMMAND =
-  'curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/main/scripts/install.sh | sudo sh'
+  'curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/install.sh | sudo sh'
 
 /** What setup_status tells an agent when the install is not on a public https address (installPlace). */
 export const LOCAL_INSTALL_NOTE = `This install is not on a public https address, so phone carriers cannot reach it. Everything else can be set up and tried here, including test calls in the browser, but real phone calls need Linedesk on a server with a public IP. Tell the admin this once, before the provider steps, and offer to move first: keys and settings stored here do not move to a new install.

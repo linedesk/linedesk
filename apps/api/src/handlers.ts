@@ -559,13 +559,13 @@ async function openCall(
         .returning()
   // Refused by billing (no balance, too many calls on the bill, the plan not active, billing switched on but not
   // working, a voice or model the plan does not allow): the same fixed line as over the spending cap, filed as missed
-  // with "Call back" and the reason (docs/billing.md §4.4). The API refuses these itself, never relying on the agent.
+  // with "Call back" and the reason. The API refuses these itself, never relying on the agent.
   let refused: CallRefusal | null = null
   // A white-label client's monthly usage limit its partner set (usage-limit.ts), read once for the check and the email.
   const limit: UsageLimit | null = bill ? await usageLimit(tx, workspace_id, now) : null
   if (bill && !bill.usable) refused = 'billing_error'
   else if (bill && forCall?.level === 'not_allowed') refused = 'level_not_allowed'
-  // An extra number whose month could not be paid answers with the fixed line until it is paid (docs/billing.md §4.2).
+  // An extra number whose month could not be paid answers with the fixed line until it is paid.
   else if (bill && (await numberUnpaid(tx, workspace_id, to))) refused = 'number_unpaid'
   // A white-label client at the monthly usage limit its partner set (usage-limit.ts): the same fixed line, filed as
   // missed. Checked only here, when a call starts: a running call is never cut.
@@ -997,7 +997,7 @@ type LevelFields = Pick<Assistant, 'voice' | 'llm_model' | 'call_quality'> & { r
  * Whether a save changes what the call quality block picks: the level, the language or realtime model, or a voice model
  * picked for the same voice provider. A voice of another provider without a model (the voice picker) leaves its model
  * to the defaults and is no call quality change, so a white-label client's people still pick a voice where the partner
- * keeps call quality (decisions.md 2026-11-18). One that names a model picks it, and is one.
+ * keeps call quality (decision of 2026-11-18). One that names a model picks it, and is one.
  */
 function changesQualityPicks(stored: LevelFields, after: LevelFields) {
   if (stored.call_quality !== after.call_quality) return true
@@ -1929,12 +1929,12 @@ const handlers: Record<string, Handler> = {
 
     // Everything that can refuse is checked before the carrier is asked anything, and before anything is bought.
     if (actor.workspaceDisabled) throw Reject.t('server.api.workspaceDisabled')
-    // No number before Checkout (docs/billing.md §3.1).
+    // No number before Checkout.
     await refusePendingPayment(tx, workspace_id)
     const assistant = await assistantIn(tx, workspace_id, input.assistantId)
     const onInstallAccount = carrier_account === 'install' && provider.name !== 'dev'
     // A number on our carrier account is paid from the bill: Checkout confirmed, not held, the trial's limit, the
-    // balance for an extra one (docs/billing.md §3.2 step 6).
+    // balance for an extra one.
     if (carrier_account === 'install' && input.purchase) {
       const billRefusal = await billingNumberRefusal(tx, actor, workspace_id)
       if (billRefusal) throw new Reject(billRefusal)

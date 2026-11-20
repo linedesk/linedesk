@@ -1,4 +1,4 @@
--- Billing PR 7 and 8 (docs/billing.md §3.1, §3.2): sign-up attempts for the code and IP limits, the trial_will_end alert
+-- Billing PR 7 and 8: sign-up attempts for the code and IP limits, the trial_will_end alert
 -- kind, and what trial Checkout records on the bill (PR 8: the confirmed Checkout, a refused trial, Radar's risk level,
 -- a cancel at the period end).
 -- Idempotent (IF NOT EXISTS / IF EXISTS), so it can run before or after #879's billing lifecycle migration on any install.

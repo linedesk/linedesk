@@ -652,7 +652,7 @@ describe('in the recipient language', () => {
   })
 })
 
-describe('trial emails (docs/billing.md §3.2)', () => {
+describe('trial emails', () => {
   const byName = (name: string) => previewEmails(ORIGIN).find(e => e.name === name)!.email
   it('the trial-minutes emails: the first sentence adds to the heading, never repeats it; not labelled Billing', () => {
     for (const name of ['trial-minutes-low', 'trial-minutes-used']) {

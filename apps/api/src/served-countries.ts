@@ -1,4 +1,4 @@
-// Where Linedesk Cloud serves businesses (docs/billing.md §3.2): only in the sign-up countries (SIGNUP_COUNTRIES, the
+// Where Linedesk Cloud serves businesses: only in the sign-up countries (SIGNUP_COUNTRIES, the
 // same on every install). The rule holds for a workspace on a Cloud bill (kind `cloud`, made by self-serve sign-up);
 // a workspace a server admin made, a white-label client and every workspace of an install that does not bill keep
 // every country. Sign-up checks where the request comes from, the Business step and Workspace settings › General

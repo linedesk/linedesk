@@ -1,4 +1,4 @@
-// Server admin › Billing (docs/billing.md §11, PR 13): the page's arithmetic, kept out of the components so it is
+// Server admin › Billing: the page's arithmetic, kept out of the components so it is
 // tested on its own. Money crosses the API in cents (actions) and micros (ledger); the page shows and takes dollars.
 import type { AdminBillRow, AdminBillStatus, BillingEventFilter } from '@linedesk/actions'
 import { BILLING_EVENT_FILTERS } from '@linedesk/actions'

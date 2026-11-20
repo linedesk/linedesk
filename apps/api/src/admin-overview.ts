@@ -18,7 +18,7 @@ import { listProviderFailures } from './provider-failures.ts'
 import { activeProvider, realtimeInUse } from './provider-settings.ts'
 
 /**
- * List price per call minute in USD, from docs/stack.md ("US cost per call-minute"). Rough on
+ * List price per call minute in USD, from each provider's US list prices. Rough on
  * purpose: the overview says "about", the real bill is at each provider.
  */
 export const pricePerMinute: Record<ProviderName, number> = {

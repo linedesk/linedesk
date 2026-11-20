@@ -1,10 +1,10 @@
-// No open sign-up (Janik, 2026-11-15): nobody creates an account on their own. Accounts come only from the first-run
+// No open sign-up (decision of 2026-11-15): nobody creates an account on their own. Accounts come only from the first-run
 // setup (setup.ts, or INSTANCE_ADMIN_EMAILS on an empty install), a workspace invitation (the account is made and
 // joins the workspace in one step: joinInvitedWorkspaces), or a server admin (user.invite, workspace.create,
 // user:create). Every way Better Auth creates a user (password sign-up, first email-code sign-in, first SSO sign-in)
 // passes its `user.create` hook, so the gate sits there. Existing users sign in as before.
 // A partner team invitation (partners.ts) lets its address in like a workspace invitation.
-// One more way in on Linedesk Cloud (docs/billing.md §3.1, decision 1): self-serve sign-up, only while billing runs
+// One more way in on Linedesk Cloud: self-serve sign-up, only while billing runs
 // through Stripe and an instance admin opened it, and only for an address that asked for a code on the sign-up page.
 import { invitation, organization, type Tx, user } from '@linedesk/db'
 import { AsyncLocalStorage } from 'node:async_hooks'

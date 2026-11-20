@@ -1,4 +1,4 @@
-# The whole application. Self-hosting: `docker compose up -d --build` (see README).
+# The whole application. Self-hosting: `docker compose up -d --build` (see docs/self-hosting.md).
 # Development adds docker-compose.ports.yml (local ports for the apps running on the host) through
 # `pnpm db:up`, `pnpm voice:up` and `pnpm recording:up`.
 #
@@ -239,7 +239,7 @@ services:
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env (see .env.example)}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env (see .env.example)}
       # Speech, language model and voice providers: keys set in Linedesk under Providers, or here (apps/agent/src/config.ts).
-      # The models come from the call quality levels, the voice from each assistant (decisions.md 2026-11-18).
+      # The models come from the call quality levels, the voice from each assistant (decision of 2026-11-18).
       STT_PROVIDER: ${STT_PROVIDER:-}
       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
       ELEVENLABS_STT_API_KEY: ${ELEVENLABS_STT_API_KEY:-}

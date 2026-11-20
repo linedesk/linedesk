@@ -1,4 +1,4 @@
-// Server admin › Overview: a short note for an instance admin with only one passkey (Janik's decision 2026-11-15:
+// Server admin › Overview: a short note for an instance admin with only one passkey (decision of 2026-11-15:
 // recommended, never enforced). A lost device would lock them out of Server admin until the server prints a new
 // enrolment code, so a second passkey on another device helps. Dismissed per account in this browser; nothing blocks.
 import { useEffect, useState } from 'react'

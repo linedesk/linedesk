@@ -267,5 +267,5 @@ export const tableNames = [
   'mail_connections',
 ] as const satisfies readonly TableName[]
 
-// Billing prices and rules: one module (docs/billing.md §7a).
+// Billing prices and rules: one module.
 export * from './billing-config.ts'

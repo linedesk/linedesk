@@ -1,4 +1,4 @@
-// Cloudflare Turnstile on the sign-up page (docs/billing.md §3.1): its script is loaded only there, once. The CSP
+// Cloudflare Turnstile on the sign-up page: its script is loaded only there, once. The CSP
 // allows it (docker/Caddyfile: script-src and frame-src https://challenges.cloudflare.com).
 export const TURNSTILE_SCRIPT = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
 

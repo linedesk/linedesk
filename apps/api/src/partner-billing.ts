@@ -1,4 +1,4 @@
-// The partner bill (docs/white-label.md "Partner bill", docs/billing.md §6; white-label slice S2): one bill per
+// The partner bill (docs/white-label.md "Partner bill"; white-label slice S2): one bill per
 // white-label partner (`billing_accounts.kind = 'partner'`, `partners.billing_account_id`), owned by the partner's owner.
 // Its subscription has the partner base fee and one seat per client workspace; every client workspace is on it, and
 // all their usage comes from its one balance. Here: which partner bill a caller may manage, whether a new client
@@ -65,7 +65,7 @@ export async function workspacesOnBillCount(tx: Tx | typeof db, billId: string):
  * The partner bill a new client workspace goes on (its balance row locked), or null where billing is off and the
  * partner has no bill (self-host, dev: S1's ceiling applies instead). Refused: a billed install without a partner bill
  * (a partner a server admin made by hand), a bill before its Checkout, and a bill that does not run. No trial and so no
- * trial limit: the partner plan is paid from its Checkout (Janik, 2026-11-18).
+ * trial limit: the partner plan is paid from its Checkout (decision of 2026-11-18).
  *
  * `draft`: a new client workspace the partner prepares (workspace.createForClient). Before the Checkout the partner sets
  * up first (setup before payment, 2026-11-18): at most UNPAID_PARTNER_CLIENTS of them go on the bill waiting for its
@@ -101,7 +101,7 @@ export function mirroredState(status: Bill['status']): 'pending_payment' | 'acti
 }
 
 /**
- * Seats follow the client workspaces (docs/billing.md §2.1): the subscription's seat quantity is set to the workspaces
+ * Seats follow the client workspaces: the subscription's seat quantity is set to the workspaces
  * on the bill now (syncSeats), never inside the request (security review of #1113, L-3). A `partner.seatSync` job is
  * queued in the caller's transaction, so it runs only once the change committed and survives a restart; Stripe being
  * down holds neither the request nor a database connection of it. The job is tried again with backoff and, after its

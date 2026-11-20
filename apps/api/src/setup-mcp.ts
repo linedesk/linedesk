@@ -12,7 +12,7 @@
 // billing keys only in the app, billing-settings.ts); provider_setKeys
 // runs the free provider test right after saving and returns it, and answers with "set" and the last 4 of a secret,
 // never the secret. One access level: the key was made in a session that passed the admin's passkey check, so it sets
-// email and sign-in too, with no second Allow step (Janik, 2026-11-15). The workspace actions run without instance:admin, so buying numbers keeps the caps of number-purchases.ts.
+// email and sign-in too, with no second Allow step (decision of 2026-11-15). The workspace actions run without instance:admin, so buying numbers keeps the caps of number-purchases.ts.
 //
 // A workspace owner's key (agent_setup_keys.workspace_id, agent-setup.ts) gets only that workspace's part: setup_status
 // with that one workspace and no server steps, the business tools, forwarding_guide and setup_endAccess. Never
@@ -831,7 +831,7 @@ async function knownBusiness(ws: ManagedWorkspace): Promise<KnownBusiness> {
 }
 
 /**
- * The workspace steps when a partner (owner or partner admin) sets up a CLIENT workspace (Janik, 2026-11-18): they speak
+ * The workspace steps when a partner (owner or partner admin) sets up a CLIENT workspace (decision of 2026-11-18): they speak
  * about the client, not "your …". The client's own owner keeps setupStepNames.
  */
 function clientStepNamesIn(words: Words): Readonly<Record<string, SetupStepName>> {
@@ -965,7 +965,7 @@ function whereItRuns() {
 }
 
 /**
- * A Cloud sign-up's own trial or plan that started (its Checkout confirmed, docs/billing.md §3.2): `trial` when it got
+ * A Cloud sign-up's own trial or plan that started (its Checkout confirmed): `trial` when it got
  * the free trial. Null for every other workspace (self-hosted, a partner's client, one an instance admin made).
  */
 async function ownStartOf(workspaceId: string): Promise<{ trial: boolean } | null> {
@@ -1145,7 +1145,7 @@ const noWorkspaceSteps = (): StepBase[] => [
 
 /** One workspace's steps; `actor` acts in it as its owner or admin (setupActorIn). */
 /**
- * Learning from the business's emails (Janik, 2026-11-19): right after the business is confirmed the agent offers to
+ * Learning from the business's emails (decision of 2026-11-19): right after the business is confirmed the agent offers to
  * read the customer requests in the person's own mailbox (a mail connector in their AI app) and saves only the general
  * questions and answers in the About text, the place answered caller questions go too (knowledgeQuestion.answer,
  * answeredQuestionLine). Never an email or anyone's personal data.
@@ -1260,7 +1260,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   // The "Who hears about calls?" step saves a member's notifications and its own transfer contact (id "urgent",
   // URGENT_CONTACT_ID in apps/web/src/onboarding/flow.ts).
   const notifyDone = !!notifyRow || !!assistant?.transfers.some(t => t.id === URGENT_CONTACT_ID) || past(step, 'notify')
-  // A Linedesk Cloud sign-up waiting for its trial (docs/billing.md §3.2): the free steps first, then the owner's card
+  // A Linedesk Cloud sign-up waiting for its trial: the free steps first, then the owner's card
   // (`activate`, on the setup page, never the agent's), and only then a number (refused before, self-serve.ts).
   const waitingForTrial = await waitsForOwnTrial(db, workspaceId)
   // A white-label partner's draft client workspace (setup before payment, 2026-11-18): set up like any, but its number

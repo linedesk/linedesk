@@ -85,7 +85,7 @@ describe('partner site (docker/Caddyfile)', () => {
   })
 
   // Staging, 2026-11-18 (D1 test): a host-less `:443` with its own `tls` became the TLS policy for every SNI, so
-  // staging.example.com served the partner certificate and was unreachable for a minute. The certificate belongs to the
+  // the staging site served the partner certificate and was unreachable for a minute. The certificate belongs to the
   // custom origin's SNI only; the host-less site just routes other Hosts on a connection that got through TLS there.
   test('the partner certificate is tied to the custom origin’s SNI, never to a host-less :443', () => {
     const sites = code(caddyfile).filter(line => /^\S*:443 \{$/.test(line) || line === ':443 {')

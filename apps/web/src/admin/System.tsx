@@ -3,7 +3,7 @@
 // whether workspaces may clone voices (off until an instance admin turns it on), where transfers may call (InternationalTransfers.tsx), and
 // whether users are emailed when an admin signs in as them (off by default), German numbers held in this server's name
 // (off by default), who may sign up in which country (open, only invited emails or off; Germany once German numbers
-// are on: SignupAccess.tsx), and what Zapier needs from this server.
+// are on: SignupAccess.tsx), the link to the Linedesk app on Zapier and what Zapier needs from this server.
 import {
   areaCodeShown,
   type GermanGroupData,
@@ -12,12 +12,13 @@ import {
   type GermanNumbersData,
   type StatusState,
   type VoiceCloningData,
-  ZAPIER_APP_URL,
   ZAPIER_HOOKS_HOST,
+  type ZapierAppData,
+  zapierAppUrlSchema,
   zapierCanReach,
 } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { externalLink } from '../settings/ZapierGuide.tsx'
@@ -487,16 +488,88 @@ function GermanNumbers() {
   )
 }
 
+const ZAPIER_APP = 'admin.zapierApp'
+const loadZapierApp = async () => (await runAdmin('zapierApp.get', {})) as ZapierAppData
+
 /**
- * Zapier: one Linedesk app on Zapier serves every install, so a self-hosted server sets up nothing; each workspace
- * connects it with its own key and this address. The server only has to be reachable by Zapier, and reach Zapier.
+ * Zapier: one Linedesk app on Zapier serves every install; each workspace connects it with its own key and this
+ * address. The admin sets the link workspaces open (the app's invite link, or its page in Zapier's directory); without
+ * one, workspaces see no Zapier link. The server has to be reachable by Zapier, and reach Zapier.
  */
 function Zapier() {
   const t = useT()
   const address = window.location.origin
   const reachable = zapierCanReach(address)
+  const query = useQuery(ZAPIER_APP, loadZapierApp)
+  const data = query.data ?? null
+  const [typed, setTyped] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+  const value = (typed ?? data?.url ?? '').trim()
+  const valid = value === '' || zapierAppUrlSchema.safeParse(value).success
+  const changed = !!data && value !== (data.url ?? '')
+  async function save() {
+    setProblem(null)
+    setBusy(true)
+    try {
+      const saved = (await runAdmin('zapierApp.set', { url: value || null })) as ZapierAppData
+      setQueryData<ZapierAppData | undefined>(ZAPIER_APP, saved)
+      setTyped(null)
+    } catch (e) {
+      setProblem(e instanceof Error ? e.message : t('admin.system.zapierAppFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
     <Card title={t('admin.system.zapier')} help={t('admin.system.zapierHelp')}>
+      <Loading
+        what={t('admin.system.zapierApp')}
+        loading={!data}
+        error={query.error}
+        onRetry={() => void query.reload()}
+        skeleton={<Skeleton shape="text" width={240} />}
+      >
+        {data && (
+          <>
+            <label className="k-field-label" htmlFor="adm-zapier-app">
+              {t('admin.system.zapierApp')}
+            </label>
+            <form
+              className="ob2-row"
+              noValidate
+              onSubmit={e => {
+                e.preventDefault()
+                if (changed && valid) void save()
+              }}
+            >
+              <Input
+                id="adm-zapier-app"
+                value={typed ?? data.url ?? ''}
+                placeholder={t('admin.system.zapierAppExample')}
+                disabled={busy}
+                invalid={!valid}
+                onChange={e => setTyped(e.target.value)}
+              />
+              <Button busy={busy} type="submit" disabled={!changed || !valid}>
+                {t('common.action.save')}
+              </Button>
+            </form>
+            <p className="k-field-msg">
+              {!valid
+                ? t('admin.system.zapierAppInvalid')
+                : value
+                  ? t('admin.system.zapierAppSet')
+                  : t('admin.system.zapierAppNone')}
+            </p>
+          </>
+        )}
+      </Loading>
+      {problem && (
+        <p className="k-field-msg" role="alert">
+          {problem}
+        </p>
+      )}
       <dl className="adm-facts">
         <div>
           <dt>{t('admin.system.zapierAddress')}</dt>
@@ -514,7 +587,7 @@ function Zapier() {
         <T
           k="admin.system.zapierSteps"
           values={{
-            app: externalLink(ZAPIER_APP_URL),
+            app: data?.url ? externalLink(data.url) : (chunks: ReactNode[]) => <>{chunks}</>,
             link: appLink('#integrations/zapier'),
             host: ZAPIER_HOOKS_HOST,
           }}

@@ -1,4 +1,4 @@
-// The "Start your free trial" link (trialLink.ts, docs/billing.md §3.2): the owner of a workspace waiting for its trial
+// The "Start your free trial" link (trialLink.ts): the owner of a workspace waiting for its trial
 // lands right in the Start your free trial dialog, over whatever the setup shows, with the interval the link names
 // preselected, so nobody has to look for the row. Someone who cannot start it reads who can. A trial or plan that
 // runs already: Settings › Billing opens as the link says, with a short note there (Billing.tsx). The link's flag is

@@ -1,4 +1,4 @@
--- Billing PR 10/11 (docs/billing.md §3.3, §3.4, §4.2, §4.5): the subscription's billing cycle anchor, the
+-- Billing PR 10/11: the subscription's billing cycle anchor, the
 -- first-payment grace, the unpaid and port-out state of numbers, disputes, and the new alert kinds. Expand-only. No
 -- founding price set: the founding price was dropped (2026-11-16), so no plan_prices or price_locked_until.
 -- Why a bill is suspended is #919's `suspend_reason` (0120: admin, payment, dispute, early_fraud_warning) and its check

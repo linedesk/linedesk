@@ -1,4 +1,4 @@
-// Self-serve sign-up on an install that bills its workspaces (docs/billing.md §3.1, §3.2): open only while the billing provider in effect is
+// Self-serve sign-up on an install that bills its workspaces: open only while the billing provider in effect is
 // Stripe and an instance admin turned `signup.selfServe` on. A person proves their address with an email code on the
 // sign-up page, then `account.signUp` makes their bill and their workspace, waiting for Checkout (`pending_payment`).
 import { z } from 'zod'

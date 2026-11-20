@@ -163,7 +163,7 @@
   "api.providerTest.stripe.connectedTest": "Verbunden, Testmodus{where, select, none {} other { ({where})}}, Konto {account}: Es wird nichts abgebucht",
   "api.providerTest.stripe.keyRejected": "Stripe hat den Secret Key abgelehnt (HTTP 401). Kopiere ihn erneut aus dem Stripe Dashboard unter Developers, API keys.",
   "api.providerTest.stripe.notAKey": "Der Secret Key ist kein Stripe-Secret-Key (sk_…) und kein eingeschränkter Schlüssel (rk_…).",
-  "api.providerTest.stripe.permission": "Der eingeschränkte Schlüssel darf das Konto nicht lesen (HTTP 403). Gib ihm die Berechtigungen aus docs/billing.md §7.",
+  "api.providerTest.stripe.permission": "Der eingeschränkte Schlüssel darf das Konto nicht lesen (HTTP 403). Gib ihm die Berechtigungen aus der Stripe-Anleitung unter Server-Admin › Anbieter.",
   "api.providerTest.stripe.rateLimited": "Stripe begrenzt die Anfragen dieses Schlüssels (HTTP 429). Teste in einer Minute erneut.",
   "api.providerTest.stripe.timeout": "Stripe hat nicht innerhalb von {seconds} Sekunden geantwortet",
   "api.providerTest.stripe.unreachable": "Stripe war nicht erreichbar. Prüfe die Verbindung des Servers und status.stripe.com.",

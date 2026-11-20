@@ -1,4 +1,4 @@
-// The Start your free trial link (trialLink.ts, onboarding/TrialLink.tsx; docs/billing.md §3.2): what it asks for, and
+// The Start your free trial link (trialLink.ts, onboarding/TrialLink.tsx): what it asks for, and
 // that it leaves the address once taken, keeping the rest of the hash.
 import { trialStartHashPath } from '@linedesk/actions'
 import { afterEach, describe, expect, test, vi } from 'vitest'

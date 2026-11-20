@@ -212,7 +212,7 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
 const DAY_MS = 86_400_000
 
 /**
- * The free trial, quietly in the header (docs/billing.md §3.2): the days left and the first charge's date, a link to
+ * The free trial, quietly in the header: the days left and the first charge's date, a link to
  * Workspace settings › Billing. Today counts as a day, as on the activation step ("14 days left" on the first day).
  */
 export function TrialStatus({ endsAt }: { endsAt: string }) {

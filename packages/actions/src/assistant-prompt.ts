@@ -106,7 +106,7 @@ export const BEHAVIOURS = [
   {
     // Not a line: with it on, the prompt keeps the contact's and the booked name back when the caller can cancel or
     // move an appointment (the server checks a change by day and booked name; caller ID can be faked). Off by default:
-    // Tim accepts that risk (2026-11-15).
+    // The maintainers accept that risk (2026-11-15).
     id: 'ask_booking_name',
     label: 'Ask for the booking name before changing an appointment',
     on: false,
@@ -115,7 +115,7 @@ export const BEHAVIOURS = [
   {
     // Not a line: with it on, a phone caller is matched to their contact (name, notes, history, bookings, the
     // business's own caller lookup) only when the caller's carrier vouched for the number (STIR/SHAKEN attestation
-    // A); any other call is handled like one from an unknown number. Caller ID is easy to fake. On by default (Tim, 2026-11-15).
+    // A); any other call is handled like one from an unknown number. Caller ID is easy to fake. On by default (decision of 2026-11-15).
     id: 'verified_caller_only',
     label: 'Recognize callers only when their carrier verified the number',
     on: true,

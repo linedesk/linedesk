@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest'
 import { ConfirmByName, copyName } from './ConfirmByName.tsx'
 import { typedMatches } from './DangerConfirmDialog.tsx'
 
-const NAME = 'Example GmbH - Another Business'
+const NAME = 'Acme Plumbing GmbH - Heating & Hot Water Notdienst für Hausbesitzer'
 // The field as DangerConfirmDialog renders it for a `typed` confirmation (the dialog itself needs a page to render).
 const html = (name: string) =>
   renderToStaticMarkup(<ConfirmByName id="danger-confirm-typed" name={name} value="" onChange={() => {}} />)
@@ -36,7 +36,7 @@ describe('type the name to confirm', () => {
 
   test('the confirming button stays disabled until the name matches (DangerConfirmDialog unlocks it with typedMatches)', () => {
     expect(typedMatches('', NAME)).toBe(false)
-    expect(typedMatches('OtherCo GmbH', NAME)).toBe(false)
+    expect(typedMatches('Acme Plumbing GmbH', NAME)).toBe(false)
     expect(typedMatches(NAME, NAME)).toBe(true)
     // Case and outer spaces aside, as the API checks it (a paste with a trailing space still counts).
     expect(typedMatches(` ${NAME.toUpperCase()} `, NAME)).toBe(true)

@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [master-dev, master-prod]
+    branches: [main, master-dev, master-prod]
   # By hand (Actions → CI → Run workflow).
   workflow_dispatch:
 
@@ -14,15 +14,15 @@ concurrency:
 permissions:
   contents: read
 
-# Runners: GitHub-hosted `ubuntu-24.04` in the public repository (linedesk/linedesk), so pull requests from forks never
-# run on (or bill) the maintainers' Depot organization; Depot runners in the maintainers' private copy (docs/ci.md).
+# Runners: GitHub-hosted `ubuntu-24.04`, unless the repository variable `CI_RUNNER` names other runners (a repository
+# with its own runners sets it). A pull request from a fork always runs GitHub-hosted. Never set CI_RUNNER for the
+# whole organization.
 jobs:
   # master-prod only takes merges of master-dev (docs/ci.md, "Branches"): a pull request into it from any other branch
-  # (or from a fork) turns red. GitHub Free cannot make this check required; the production server refuses such a
-  # commit anyway (scripts/receive-release.sh), this only says so before the merge.
+  # (or from a fork) turns red before the merge.
   release-source:
     if: github.event_name == 'pull_request' && github.base_ref == 'master-prod'
-    runs-on: ${{ github.repository == 'linedesk/linedesk' && 'ubuntu-24.04' || 'depot-ubuntu-24.04' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 2
     steps:
       - name: The pull request must come from master-dev
@@ -37,11 +37,11 @@ jobs:
   # red while any string is untranslated in a language or was translated from older English, or while
   # hardcoded-baseline.json still lists a file with hardcoded English. The failing keys are listed in the log and in
   # the run's summary; `pnpm i18n:changed` lists what the pass has to cover.
-  # Hotfix: a release pull request labelled `hotfix` skips the pass (Janik, 2026-11-15); the next release catches up.
+  # Hotfix: a release pull request labelled `hotfix` skips the pass (decision of 2026-11-15); the next release catches up.
   # The label is read when the job runs, so labelling after the run means re-running this job.
   release-translations:
     if: github.event_name == 'pull_request' && github.base_ref == 'master-prod'
-    runs-on: ${{ github.repository == 'linedesk/linedesk' && 'ubuntu-24.04' || 'depot-ubuntu-24.04' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -88,7 +88,7 @@ jobs:
             {
               echo "## Translations missing or stale, or hardcoded English left"
               echo
-              echo "Run the release translation pass (docs/translations.md) and move any hardcoded English to keys, then push to master-dev."
+              echo "Run the release translation pass (docs/translations.md) and move any hardcoded English to keys, then push to the trunk."
               echo
               echo '```'
               grep '^error:' i18n-check.log | head -300
@@ -97,10 +97,10 @@ jobs:
           fi
           exit "$status"
 
-  # Fast checks only: typecheck, lint, the language check, the scrub tests and the release receiver's tests (~20 s). The
-  # full test suite runs beside the deploys in tests.yml, never in front of them (docs/ci.md, "Tests").
+  # Fast checks only: typecheck, lint, the language check, the scrub tests and the Zapier app's tests (~20 s). The
+  # full test suite runs in tests.yml (docs/ci.md, "Tests").
   check:
-    runs-on: ${{ github.repository == 'linedesk/linedesk' && 'ubuntu-24.04' || 'depot-ubuntu-24.04' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -119,15 +119,14 @@ jobs:
       - run: pnpm i18n:check
       # What error reports and log lines may send to Sentry (packages/scrub; about 2 s, no database needed).
       - run: pnpm --filter @linedesk/scrub test
-      # The production deploy receiver's checks (about 1 s, docs/ci.md). The receiver is not in the public export
-      # (scripts/public-export-exclude.txt), so the step only runs where the script exists.
-      - if: hashFiles('scripts/receive-release.test.sh') != ''
-        run: bash scripts/receive-release.test.sh
+      # Shell script checks (scripts/*.test.sh, about 1 s): the step only runs where there are any.
+      - if: hashFiles('scripts/*.test.sh') != ''
+        run: for f in scripts/*.test.sh; do bash "$f"; done
       # The migrations journal in order: a `when` not after the one before is skipped by the migrator on installs past it
       # (packages/db/scripts/check-journal.ts; about 1 s, no database needed).
       - run: pnpm db:check-journal
       # The Zapier app has every public action of the registry (packages/actions/scripts/zapier.ts): a new or changed
-      # one needs `pnpm zapier:generate`, so it reaches Zapier with the release (zapier.yml). Then the app's own tests
+      # one needs `pnpm zapier:generate`, so it reaches Zapier with the release. Then the app's own tests
       # (no network, no Zapier account; about 2 s).
       - run: pnpm zapier:generate --check
       - run: npm ci --no-audit --no-fund && npm test
@@ -135,7 +134,7 @@ jobs:
 
   # Self-hosting must work at every commit: the images build. (The agent image is not built here; it is large.)
   images:
-    runs-on: ${{ github.repository == 'linedesk/linedesk' && 'ubuntu-24.04' || 'depot-ubuntu-24.04' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -144,7 +143,7 @@ jobs:
       - run: docker build --target api -t linedesk-api .
       - run: docker build --target web -t linedesk-web .
       - run: docker build --target proxy -t linedesk-proxy .
-      # Platforms that build the Dockerfile without a target must get the API (README, Deploy methods).
+      # Platforms that build the Dockerfile without a target must get the API (docs/self-hosting.md, "Deploy methods").
       - name: Default target is the API
         run: |
           docker build -t linedesk-default .
@@ -152,10 +151,10 @@ jobs:
 
   # No secrets in the repo: gitleaks scans the whole history of the commit under test (about 2 s), rules and exceptions
   # in .gitleaks.toml. Only HEAD's history, not every branch (gitleaks' default --all): otherwise one branch with a
-  # finding turns every other pull request and master-dev red until it is deleted.
+  # finding turns every other pull request and the trunk red until it is deleted.
   # The binary is pinned by version and checksum instead of gitleaks-action, which needs a paid licence for organisations.
   secrets:
-    runs-on: ${{ github.repository == 'linedesk/linedesk' && 'ubuntu-24.04' || 'depot-ubuntu-24.04' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 5
     env:
       GITLEAKS_VERSION: 8.30.1

@@ -53,7 +53,7 @@ test('an event keeps the stack and the member, scrubs every exception and the me
     message: 'note from mike@example.com',
     transaction: 'GET /mcp/setup/sk_live_abcdefghijklmnopqrstuvwxyz012345',
     request: { method: 'GET', url: 'https://app.example.com/mcp/setup/sk_live_abc123?x=1' },
-    user: { id: 'u_1', email: 'owner@example.com', username: 'Tim' },
+    user: { id: 'u_1', email: 'mike@example.com', username: 'Mike' },
     exception: {
       values: [
         { value: 'duplicate key value violates unique constraint' },
@@ -72,7 +72,7 @@ test('an event keeps the stack and the member, scrubs every exception and the me
   expect(event.message).toBe('note from [email]')
   expect(event.transaction).toBe('GET /mcp/setup/[key]')
   expect(event.request).toEqual({ method: 'GET', url: 'https://app.example.com/mcp/setup/[key]' })
-  expect(event.user).toEqual({ id: 'u_1', email: 'owner@example.com', username: 'Tim' })
+  expect(event.user).toEqual({ id: 'u_1', email: 'mike@example.com', username: 'Mike' })
   expect(event.breadcrumbs).toBeUndefined()
   expect(event.extra).toBeUndefined()
 })
@@ -92,8 +92,8 @@ test('a log line keeps the scrubbed message, the template and the member, not th
       'sentry.message.template': 'transfer to {} refused',
       'sentry.message.parameter.0': '+15035550167',
       'user.id': '9f86d081884c7d659a2feaa0c55ad015',
-      'user.email': 'owner@example.com',
-      'user.name': 'Tim',
+      'user.email': 'mike@example.com',
+      'user.name': 'Mike',
       caller: 'Dana Ruiz',
     },
   })
@@ -102,8 +102,8 @@ test('a log line keeps the scrubbed message, the template and the member, not th
     'sentry.origin': 'auto.log.console',
     'sentry.message.template': 'transfer to {} refused',
     'user.id': '9f86d081884c7d659a2feaa0c55ad015',
-    'user.email': 'owner@example.com',
-    'user.name': 'Tim',
+    'user.email': 'mike@example.com',
+    'user.name': 'Mike',
   })
 })
 

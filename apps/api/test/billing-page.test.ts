@@ -1,4 +1,4 @@
-// Settings › Billing (src/billing-page.ts; docs/billing.md §8, §11 PR 9): the overview of who manages the bill (its
+// Settings › Billing (src/billing-page.ts): the overview of who manages the bill (its
 // owner, or an owner or admin of its only workspace: managesBill) (plan, balance,
 // auto-recharge, cap, usage per workspace and level, a failed recharge, invoices), read through the bill only; the
 // owner's changes to auto-recharge and the cap (raising it needs the owner step-up and stays at most $1,000 in
@@ -706,7 +706,7 @@ describe('billing.openPortal', () => {
   })
 })
 
-describe('billing.retryRecharge (docs/billing.md §3.4)', () => {
+describe('billing.retryRecharge', () => {
   async function failedRecharge(b: Billed, status: 'failed' | 'canceled', ago = DAY * 2) {
     const id = rid('rc')
     await db.insert(billing_recharges).values({

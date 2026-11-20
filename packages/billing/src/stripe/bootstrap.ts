@@ -1,4 +1,4 @@
-// The Stripe bootstrap (docs/billing.md §9, PR 6): creates or updates, in the account of the key, everything billing
+// The Stripe bootstrap: creates or updates, in the account of the key, everything billing
 // expects to find there: the products and plan prices (by `lookup_key`), the account's default tax code, the customer
 // portal configuration, the payment method configuration "Linedesk Checkout" (card only) and the webhook endpoint,
 // pinned to the adapter's API version. Idempotent: a second run changes nothing. Run by a person with a key that may
@@ -180,7 +180,7 @@ export async function bootstrapStripe(
     prices[want.lookupKey] = made?.id ?? have?.id ?? '(dry run)'
   }
 
-  // The account's default tax code and behavior (docs/billing.md §5.2).
+  // The account's default tax code and behavior.
   const tax = await stripe.tax.settings.retrieve()
   if (tax.defaults.tax_code !== catalog.taxCode || tax.defaults.tax_behavior !== 'exclusive')
     await write('set the account default tax code', () =>
@@ -209,7 +209,7 @@ const idOf = (value: string | { id: string } | null | undefined) =>
   typeof value === 'string' ? value : (value?.id ?? null)
 
 /**
- * "Linedesk Checkout": card only, no wallets and no Link (docs/billing.md §2.4, decision 7). Every other method the
+ * "Linedesk Checkout": card only, no wallets and no Link. Every other method the
  * configuration lists is set off, so methods Stripe adds later and turns on by default are caught on the next run. Same
  * in the sandbox and live (each account has its own; the app finds it by name, `checkoutPaymentMethodConfiguration`).
  * Checkout must pass its id as `payment_method_configuration`: with only `payment_method_types: ['card']` Stripe still
@@ -254,7 +254,7 @@ async function checkoutPaymentMethods(stripe: Stripe, write: Write) {
 }
 
 /**
- * The customer portal (docs/billing.md §2.4): invoices, cards and customer details; no plan changes and no cancel.
+ * The customer portal: invoices, cards and customer details; no plan changes and no cancel.
  * Cancel and "Keep my plan" happen in the app only (`billing.cancel`, `billing.resume`), so the plan state the app shows
  * is the one it set (security review of #1007, M-2); `customer.subscription.updated` mirrors any change made elsewhere.
  */

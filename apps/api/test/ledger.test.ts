@@ -1,4 +1,4 @@
-// The ledger core on the database (docs/billing.md §4.2 to §4.4, §5.1): the gate's reservation with its level, limit
+// The ledger core on the database: the gate's reservation with its level, limit
 // and held allowance, posting a finished call once at the level fixed at its start, test calls never counting, the
 // recharge decision with one pending attempt and the cap alert once a month, and the nightly check of the sums.
 import {

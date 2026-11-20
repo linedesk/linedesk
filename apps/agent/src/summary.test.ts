@@ -171,7 +171,7 @@ test('a call back the summary left without an action item gets one from the summ
 
 test('without a callback number (no caller ID, none given) no action item says "Call back" or that the number is missing', async () => {
   // call_21bd: a test call, no number given, and the summary asked the owner to call back. A missing number is not a
-  // next step either (Tim, 2026-11-16): the items say what the caller wants, and the call is filed as a message.
+  // next step either (decision of 2026-11-16): the items say what the caller wants, and the call is filed as a message.
   const answer = {
     ...llmAnswer,
     action_items: [

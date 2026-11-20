@@ -1,4 +1,4 @@
-// The billing provider (docs/billing.md §7): what the rest of Linedesk asks of a payment service. An install runs
+// The billing provider: what the rest of Linedesk asks of a payment service. An install runs
 // `none` by default; it runs `stripe` once an instance admin connected the install's own Stripe account under Server
 // admin › Billing › Stripe and turned billing on (Linedesk Cloud is one such install). The vendor SDK lives only in its adapter (`./stripe/`), loaded lazily.
 
@@ -17,7 +17,7 @@ export type BillingAccountInfo = {
 
 export type BillingProviderName = 'none' | 'stripe'
 
-/** One auto-recharge (docs/billing.md §2.2): an off-session invoice with one item, charged to the saved card. */
+/** One auto-recharge: an off-session invoice with one item, charged to the saved card. */
 export type RechargeInvoiceInput = {
   customerId: string
   amountCents: number
@@ -28,7 +28,7 @@ export type RechargeInvoiceInput = {
   /** The invoice an earlier try made, when it is known: it is charged instead of a new one. */
   invoiceId?: string | null
   /**
-   * The owner is in the app and confirmed this payment ("Buy minutes" with the saved card, docs/billing.md §2.2): the
+   * The owner is in the app and confirmed this payment ("Buy minutes" with the saved card): the
    * card is charged on-session, so a card that needs 3D Secure fails with `authentication_required` at once (the app
    * then falls back to Checkout) instead of being tried off-session. Auto-recharges leave it out.
    */
@@ -56,7 +56,7 @@ export type RechargeInvoiceInput = {
 export type RechargeInvoiceStop = 'paid' | 'stopped'
 
 /**
- * The card an auto-recharge charges (docs/billing.md §2.2): the customer's invoice default (what the portal sets), else
+ * The card an auto-recharge charges: the customer's invoice default (what the portal sets), else
  * the subscription's default (what Checkout saves), which the recharge then makes the customer's default. `createdAt`
  * (ISO; null for a legacy source) tells a card added after a failed recharge from the one that failed.
  */
@@ -81,7 +81,7 @@ export type RechargeCharge =
   | { status: 'failed'; invoiceId: string | null; failureCode: string }
 
 /**
- * A Checkout Session to start (docs/billing.md §3.2 step 3, §2.2 top-ups). `trial`: the plan with the free trial (a
+ * A Checkout Session to start (also for top-ups). `trial`: the plan with the free trial (a
  * SetupIntent checks the card, nothing is charged); `plan`: the plan paid now, no trial (a card that already had a
  * trial, or a prepaid one); `topup`: "Buy minutes", a one-off payment of `amountCents` (pre-tax), built on the server.
  * Always the card-only payment method configuration (`paymentMethodConfiguration`), never `payment_method_types`.
@@ -122,7 +122,7 @@ export type CheckoutInput = {
 }
 
 /**
- * What an install sells, from its own settings (docs/billing.md §2.1, §7b): products by our key (the Stripe product
+ * What an install sells, from its own settings: products by our key (the Stripe product
  * id is `linedesk_<key>`, never shown to a customer) with their names on invoices, and the plan prices by lookup key.
  * The adapter makes what is missing in the connected account and finds the rest, idempotently: a product whose name
  * changed is renamed; a plan amount that changed is a new price that takes the lookup key over, while running
@@ -134,7 +134,7 @@ export type PlanCatalog = {
   /** The Stripe Tax code of every product (`txcd_10103001`, SaaS business use); set on each product by the sync. */
   taxCode: string
   /**
-   * The install's Stripe Tax switch (`BillingRules.automaticTax`, docs/billing.md §5.2). On: Checkout computes tax
+   * The install's Stripe Tax switch (`BillingRules.automaticTax`). On: Checkout computes tax
    * (`automatic_tax`), needs the full billing address and collects tax IDs, and the subscription it makes keeps
    * automatic tax for its invoices. Off: no tax is computed and the address is asked only when the card needs it.
    */
@@ -163,7 +163,7 @@ export type SubscriptionTaxSync = 'updated' | 'unchanged' | 'no_address' | 'gone
 /** A started Checkout Session: where the owner pays. The URL is a bearer link, never stored. */
 export type CheckoutStarted = { id: string; url: string }
 
-/** The card a Checkout saved or charged, as Stripe has it: what the trial checks read (§3.2 step 4). */
+/** The card a Checkout saved or charged, as Stripe has it: what the trial checks read. */
 export type CheckoutCard = {
   /** The same card number gives the same fingerprint in one Stripe account. */
   fingerprint: string | null
@@ -211,7 +211,7 @@ export type CustomerPurchases = {
   checkoutSessionId: string | null
 }
 
-/** A first recharge added to the trial's first invoice while it is a draft (docs/billing.md §3.2 step 9). */
+/** A first recharge added to the trial's first invoice while it is a draft. */
 export type InvoiceItemInput = {
   customerId: string
   invoiceId: string
@@ -323,7 +323,7 @@ export type BillingSubscription = {
 }
 
 /**
- * What a disputed or fraud-warned charge paid for, as fetched (docs/billing.md §3.4): the customer, and the invoice
+ * What a disputed or fraud-warned charge paid for, as fetched: the customer, and the invoice
  * (a recharge or a plan invoice) or the Checkout session (a top-up) the charge belongs to, found through its payment
  * intent. Ids only: billing finds the bill and the credit through ids it stored.
  */
@@ -364,7 +364,7 @@ export class BillingSetupError extends Error {
 /**
  * Why a webhook delivery was refused. `signature`: not from Stripe (or changed, or too old). `livemode` comes with a
  * valid signature: Stripe sent it, but the endpoint is of the other mode than the key. An event in another API version
- * than the adapter's is not refused (docs/billing.md §5.1): processing reads only fields every version has, and
+ * than the adapter's is not refused: processing reads only fields every version has, and
  * fetches each object again at the pinned version.
  */
 export type WebhookRefusal = 'signature' | 'livemode'
@@ -377,7 +377,7 @@ export class WebhookRefused extends Error {
   }
 }
 
-/** The event types the webhook endpoint subscribes to (docs/billing.md §5.1); the bootstrap script sets them. */
+/** The event types the webhook endpoint subscribes to; the bootstrap script sets them. */
 export const WEBHOOK_EVENTS = [
   'checkout.session.completed',
   'checkout.session.async_payment_succeeded',
@@ -401,11 +401,11 @@ export const WEBHOOK_EVENTS = [
   'setup_intent.succeeded',
 ] as const
 
-/** The metadata that marks the customer portal configuration the bootstrap makes (docs/billing.md §2.4). */
+/** The metadata that marks the customer portal configuration the bootstrap makes. */
 export const PORTAL_METADATA = { linedesk: 'portal' } as const
 
 /**
- * The customer portal as the design has it (docs/billing.md §2.4): invoices, cards and the customer's details; no plan
+ * The customer portal as the design has it: invoices, cards and the customer's details; no plan
  * changes and no cancel (those happen in the app only). `headline`: the install's name at the top of the portal (the
  * rest of the portal's look is the Stripe account's branding, the same for every install on that account).
  */
@@ -418,11 +418,11 @@ export type PortalDesign = {
 /** What `syncPortal` did: made, changed or found as designed. */
 export type PortalSync = { configuration: string; changed: boolean }
 
-/** The name of the card-only payment method configuration the bootstrap makes and Checkout uses (docs/billing.md §2.4). */
+/** The name of the card-only payment method configuration the bootstrap makes and Checkout uses. */
 export const CHECKOUT_PMC_NAME = 'Linedesk Checkout'
 
 /**
- * Why a paid invoice's payment may not be refunded from the balance (docs/billing.md §4.5, M4): a dispute that is open
+ * Why a paid invoice's payment may not be refunded from the balance: a dispute that is open
  * or lost (a refund would pay the money out twice), an early fraud warning (the instance admin refunds that charge
  * itself, PR 11), or no card payment at all (paid out of band or from a credit balance).
  */
@@ -445,7 +445,7 @@ export type InvoiceRefundInput = {
 export type InvoiceRefund = { creditNoteId: string; refundId: string | null; refundedCents: number }
 
 /**
- * The seat quantity of a subscription (docs/billing.md §2.1): `always_invoice` on a yearly bill that grows (paid now),
+ * The seat quantity of a subscription: `always_invoice` on a yearly bill that grows (paid now),
  * `create_prorations` on a monthly one, `none` when it shrinks (no refund for the rest of the period).
  */
 export type SeatQuantityInput = {
@@ -481,7 +481,7 @@ export type ExtraCallsQuantityInput = {
 export type ExtraCallsAnswer = 'updated' | 'unchanged' | 'payment_failed'
 
 /**
- * A subscription's plan moved to another interval (docs/billing.md §3.2, Janik 2026-11-19): every plan item (the seat,
+ * A subscription's plan moved to another interval (decision of 2026-11-19): every plan item (the seat,
  * the partner base fee, the extra calls) to the same item at `interval`, its price from `priceIds` (by lookup key:
  * `ws_monthly`, `extra_calls_yearly`, …). Only in the trial: the trial's end stays as it is, nothing is prorated or
  * charged now, and the first charge at the trial's end is at the new interval. Another status answers `not_trialing`
@@ -529,7 +529,7 @@ export type BillingProvider = {
   /** Starts a Checkout Session (see `CheckoutInput`). A refusal for our setup throws `BillingSetupError`. */
   startCheckout(input: CheckoutInput): Promise<CheckoutStarted>
   /**
-   * Makes the account sell what the catalog says (products named, plan prices at their amounts; docs/billing.md §7b)
+   * Makes the account sell what the catalog says (products named, plan prices at their amounts)
    * and answers the plan price ids by lookup key. Run when an instance admin saves prices or the product name, never
    * on a customer's Checkout. A key that may not write Products or Prices, or a lookup key held by another product,
    * throws `BillingSetupError`.
@@ -597,7 +597,7 @@ export type BillingProvider = {
   /** The invoice a recharge made, found by its metadata (for a retry after the idempotency keys expired); null: none. */
   findRechargeInvoice(rechargeId: string): Promise<string | null>
   /**
-   * A failed recharge is never charged later behind the owner's back (docs/billing.md §3.4): automatic collection
+   * A failed recharge is never charged later behind the owner's back: automatic collection
    * off, so the payment service's retries skip it, and with `void` the invoice is voided too. `paid`: the invoice was
    * paid already (the payment service's own collection got there first), so nothing was stopped and the caller credits
    * it instead of giving the attempt up (security review of #1110, V-1); `stopped` otherwise.
@@ -606,7 +606,7 @@ export type BillingProvider = {
   /** The invoice's own page, where the customer pays it or confirms the payment (a bearer link: never stored). */
   rechargeInvoicePage(invoiceId: string): Promise<string | null>
   /**
-   * A customer portal session (docs/billing.md §2.4): the card, the billing details, invoices and receipts. Always the
+   * A customer portal session: the card, the billing details, invoices and receipts. Always the
    * portal configuration the bootstrap or the catalog sync made (found by its metadata, never an id in the code);
    * without it no session starts and `BillingSetupError('portal_configuration_missing')` is thrown. A configuration
    * that offers cancel or plan changes (switched on in the Dashboard) is switched back first; a key that may not do

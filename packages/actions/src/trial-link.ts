@@ -1,4 +1,4 @@
-// The "Start your free trial" deep link (docs/billing.md §3.2): a link the AI agent setup, the emails and the banners
+// The "Start your free trial" deep link: a link the AI agent setup, the emails and the banners
 // give the owner, which opens the Start your free trial dialog at once instead of making them look for its row. Shared
 // by the API (apps/api/src/trial-link.ts builds it) and the web app (which reads it and then takes it out of the
 // address). Only the flag, the interval and the workspace travel in the address, never personal data.

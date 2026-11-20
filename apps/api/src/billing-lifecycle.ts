@@ -1,4 +1,4 @@
-// The bill's life after a failed plan payment, a dispute or a cancellation (docs/billing.md §3.4, decision 9; PR 11):
+// The bill's life after a failed plan payment, a dispute or a cancellation:
 //
 // - A plan invoice that failed makes the bill `past_due` (calls answered as normal; the balance and the gate apply).
 //   From the event's job (stripe-events.ts), with the invoice and the subscription fetched from Stripe first.

@@ -1,6 +1,7 @@
 {
   "name": "@linedesk/api",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "exports": {
     "./auth-types": "./src/auth-types.ts"

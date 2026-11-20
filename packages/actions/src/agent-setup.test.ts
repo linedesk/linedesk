@@ -95,7 +95,7 @@ describe('startPlan', () => {
       const { steps, prompt } = startPlan(client, URL)
       expect(steps.some(s => s.code === URL)).toBe(true)
       expect(prompt).not.toContain('lds_')
-      // Claude's install link fills in the setup address, key and all (decisions.md, 2026-11-19); no other link has it.
+      // Claude's install link fills in the setup address, key and all (decision of 2026-11-19); no other link has it.
       const isConnectorLink = (href: string) => href.startsWith(claudeConnectorLink('Linedesk setup'))
       for (const step of steps)
         if (!isConnectorLink(step.link?.href ?? '')) expect(step.link?.href ?? '').not.toContain('lds_')

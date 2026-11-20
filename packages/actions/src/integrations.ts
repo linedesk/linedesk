@@ -14,11 +14,17 @@ export const integrationEvents = ['call_finished', 'call_started', 'during_call_
 export type IntegrationEvent = (typeof integrationEvents)[number]
 
 /**
- * The Linedesk app on Zapier (integrations/zapier, id 000000): one app for every install, Cloud and self-hosted; a
- * Zapier user names their install's address when they connect. While the app is not in Zapier's directory yet, this is
- * its invite link (all versions); after the listing, the app's page.
+ * The link to the Linedesk app on Zapier (integrations/zapier): one app for every install, Cloud and self-hosted; a
+ * Zapier user names their install's address when they connect. While the app is not in Zapier's directory, this is
+ * its invite link; after the listing, the app's page. Set per install in Server admin › System (zapierApp.set,
+ * instance_settings `zapier_app_url`); none by default, so an install without one shows no Zapier link.
  */
-export const ZAPIER_APP_URL = 'https://zapier.com/developer/public-invite/1/abc/'
+export const ZAPIER_APP_SETTING = 'zapier_app_url'
+/** A link on Zapier's own site (zapier.com or a subdomain), https. */
+export const zapierAppUrlSchema = z
+  .url({ protocol: /^https$/, hostname: /^([a-z0-9-]+\.)*zapier\.com$/i })
+  .max(500)
+  .describe("The link to the Linedesk app on Zapier: its invite link, or its page in Zapier's directory.")
 /** The host Zapier's REST hooks POST to: a self-hosted server must be able to reach it. */
 export const ZAPIER_HOOKS_HOST = 'hooks.zapier.com'
 
@@ -105,7 +111,28 @@ export type IntegrationSubscriptionSummary = {
   api_key_name: string
   api_key_prefix: string
 }
-export type IntegrationListData = { subscriptions: IntegrationSubscriptionSummary[] }
+/** `appUrl`: the link to the Linedesk app on Zapier (zapierApp.set); null while the install has none. */
+export type IntegrationListData = { subscriptions: IntegrationSubscriptionSummary[]; appUrl: string | null }
+
+export const zapierAppGet = defineAction({
+  name: 'zapierApp.get',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    'Server admin: the link to the Linedesk app on Zapier that workspaces open to connect Zapier (null: none).',
+  input: z.object({}),
+  permission: 'instance:admin',
+  readOnly: true,
+})
+export const zapierAppSet = defineAction({
+  name: 'zapierApp.set',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Server admin: set the link to the Linedesk app on Zapier (an https link on zapier.com: the app's invite link or its directory page), or null to show no Zapier link.",
+  input: z.object({ url: zapierAppUrlSchema.nullable() }),
+  permission: 'instance:admin',
+})
+/** `data` of `zapierApp.get` and `zapierApp.set`. */
+export type ZapierAppData = { url: string | null }
 
 export const integrationRemove = defineAction({
   name: 'integration.remove',

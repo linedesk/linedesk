@@ -132,7 +132,7 @@ export function ZapierSubscriptions({ canEdit, toast }: Props) {
         </Button>
       }
     >
-      <ZapierGuide toast={toast} />
+      <ZapierGuide appUrl={list.data?.appUrl ?? null} toast={toast} />
       {creating && <CreateKey onClose={() => setCreating(false)} toast={toast} />}
       <Loading
         what={t('settings.developers.integrations.title')}
@@ -172,7 +172,7 @@ function SubscriptionRow({
       await callAction('integration.remove', { subscriptionId: subscription.id })
       setQueryData<IntegrationListData | undefined>(
         INTEGRATIONS,
-        d => d && { subscriptions: d.subscriptions.filter(s => s.id !== subscription.id) },
+        d => d && { ...d, subscriptions: d.subscriptions.filter(s => s.id !== subscription.id) },
         { persist: true },
       )
       toast(t('settings.developers.integrations.removed'))
@@ -241,7 +241,7 @@ function KeyRow({ apiKey, toast }: { apiKey: ApiKeySummary; toast: Props['toast'
       // Revoking ends what the key subscribed (Zapier): the list below shows it at once.
       setQueryData<IntegrationListData | undefined>(
         INTEGRATIONS,
-        d => d && { subscriptions: d.subscriptions.filter(s => s.api_key_id !== apiKey.id) },
+        d => d && { ...d, subscriptions: d.subscriptions.filter(s => s.api_key_id !== apiKey.id) },
         { persist: true },
       )
       toast(t('settings.developers.revoked', { name: apiKey.name }))

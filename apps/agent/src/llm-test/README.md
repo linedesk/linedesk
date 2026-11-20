@@ -1,4 +1,4 @@
-# LLM test suite (LIN-391)
+# LLM test suite
 
 Calls with edge cases against the real system prompt and tools, text only, graded by checks and an LLM judge. Command, keys, cost and the report: [docs/commands.md](../../../../docs/commands.md#llm-test-suite).
 

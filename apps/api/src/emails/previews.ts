@@ -520,7 +520,7 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
         locale,
       ),
     },
-    // The trial's emails (docs/billing.md §3.2): its confirmation at activation, then the reminders 7 days and 1 day
+    // The trial's emails: its confirmation at activation, then the reminders 7 days and 1 day
     // before the first charge, and the day-3 nudge to a sign-up that has not started it.
     {
       name: 'trial-started',
@@ -591,7 +591,7 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
         locale,
       ),
     },
-    // In the trial, most of its included minutes used, then all of them (docs/billing.md §3.2 step 7).
+    // In the trial, most of its included minutes used, then all of them.
     {
       name: 'trial-minutes-low',
       email: billingOwnerEmail({ ...trialMinutes, kind: 'trial_minutes_low', usedMinutes: 40 }, origin, locale),

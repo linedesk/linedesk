@@ -1,4 +1,4 @@
-// The "Start your free trial" deep link (docs/billing.md §3.2): where the AI agent setup, the emails and the banners
+// The "Start your free trial" deep link: where the AI agent setup, the emails and the banners
 // send the owner to start the trial. Opening it, the web app shows the Start your free trial dialog at once (signed
 // out: after sign-in, at the same link), preselects the interval when one is given, and takes the flag out of the
 // address. A trial that runs already shows Settings › Billing with a short note; anyone who cannot start it reads who

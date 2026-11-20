@@ -114,6 +114,7 @@ describe('calendar.findSlots', () => {
       'webhook.test',
       'workspace.deletePreview',
       'workspace.getSettings',
+      'zapierApp.get',
     ])
   })
 

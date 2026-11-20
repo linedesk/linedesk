@@ -1,4 +1,4 @@
-// The install's catalog in its Stripe account (docs/billing.md §7b; security review of #1040, M-1): the products and
+// The install's catalog in its Stripe account (security review of #1040, M-1): the products and
 // plan prices are made or updated when an instance admin saves the prices (Server admin › Billing) or the product name
 // (› Branding), and when billing is turned on; never on a customer's Checkout. The price ids that sync answered are
 // stored (`billing.catalog`) with the Stripe account they belong to, and Checkout sells exactly those. So a key that
@@ -57,7 +57,7 @@ export async function syncedPrices(tx: Pick<Tx, 'select'>): Promise<Record<strin
 export type CatalogSync = { synced: true } | { synced: false; code: string } | { synced: 'skipped' }
 
 /**
- * The customer portal kept to the design (docs/billing.md §2.4) with the catalog: no cancel and no plan changes, the
+ * The customer portal kept to the design with the catalog: no cancel and no plan changes, the
  * install's name as its headline, the install's terms and privacy links when it has them. A refusal is told to the
  * instance admins and never stops the catalog; the portal session checks the features again before it opens.
  */

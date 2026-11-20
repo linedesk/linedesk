@@ -1,4 +1,4 @@
-// Trial Checkout on Linedesk Cloud (src/billing-checkout.ts, docs/billing.md §3.2, §2.2, §2.4; billing PR 8): the
+// Trial Checkout on Linedesk Cloud (src/billing-checkout.ts): the
 // owner starts Checkout with the card-only configuration and never `payment_method_types`, or nothing starts (I2);
 // only a confirmed Checkout takes a bill out of pending_payment, with the card checks on every confirmation (M1); a
 // session that is not the caller's is a 404; a card that had a trial, or a prepaid one, gets no trial and its
@@ -520,7 +520,7 @@ beforeEach(() => {
 })
 afterAll(() => setBillingFetch(null))
 
-describe('billing.startCheckout (docs/billing.md §3.2 step 3)', () => {
+describe('billing.startCheckout', () => {
   test('with Stripe Tax off, Checkout has no automatic tax, no required address and no tax ID', async () => {
     const reason = 'no stripe tax'
     expect((await act(operator, 'billingRules.set', { rules: { automaticTax: false }, reason })).status).toBe(200)
@@ -553,7 +553,7 @@ describe('billing.startCheckout (docs/billing.md §3.2 step 3)', () => {
       'subscription_data[trial_settings][end_behavior][missing_payment_method]': 'cancel',
       'line_items[0][price]': 'price_ws_monthly',
       'line_items[0][quantity]': '1',
-      // Stripe Tax is on by default (docs/billing.md §5.2): the address is required, a business gives its tax ID.
+      // Stripe Tax is on by default: the address is required, a business gives its tax ID.
       'automatic_tax[enabled]': 'true',
       billing_address_collection: 'required',
       'customer_update[address]': 'auto',
@@ -615,7 +615,7 @@ describe('billing.startCheckout (docs/billing.md §3.2 step 3)', () => {
   })
 })
 
-describe('billing.confirmCheckout (docs/billing.md §3.2 step 4; security review M1)', () => {
+describe('billing.confirmCheckout (security review M1)', () => {
   test('a new card starts the trial: the bill trialing, Checkout confirmed, the workspace open, its first period', async () => {
     const { ws, bill, sub, sessionId, owner, confirmed } = await trialWith(rid('fp'))
     expect(confirmed).toMatchObject({ status: 200, body: { data: { status: 'trialing', heldForReview: false } } })
@@ -727,7 +727,7 @@ describe('billing.confirmCheckout (docs/billing.md §3.2 step 4; security review
   })
 })
 
-describe('one free trial per account (decision of 2026-11-17, docs/billing.md §3.1)', () => {
+describe('one free trial per account (decision of 2026-11-17)', () => {
   /** A second sign-up of the owner of `first` (its workspace and bill), waiting for Checkout. */
   async function secondOf(
     first: Awaited<ReturnType<typeof pendingSignUp>>,
@@ -853,7 +853,7 @@ describe('the webhook confirms like the return page (checkout.session.completed)
   })
 })
 
-describe('numbers on a billed workspace (docs/billing.md §3.2 step 6)', () => {
+describe('numbers on a billed workspace', () => {
   const ownerOf = (userId: string) => ({ actorId: userId, permissions: [] }) as never
 
   test('none before Checkout, one in the trial, none while held', async () => {
@@ -1031,7 +1031,7 @@ describe('numbers on a billed workspace (docs/billing.md §3.2 step 6)', () => {
   })
 })
 
-describe('billing.cancel and billing.resume (docs/billing.md §3.2 step 10)', () => {
+describe('billing.cancel and billing.resume', () => {
   test('cancel at the end of the trial, then resume; the bill mirrors Stripe', async () => {
     const { bill, sub, owner } = await trialWith(rid('fp'))
     const cancel = await act(owner, 'billing.cancel', {})
@@ -1358,7 +1358,7 @@ describe('a bill owner who is only a member: what does not come with it (securit
   })
 })
 
-describe('billing.startTopUp (docs/billing.md §2.2)', () => {
+describe('billing.startTopUp', () => {
   test('Buy minutes: a payment Checkout of our product and amount, credited once with the pre-tax amount', async () => {
     const { bill, owner } = await trialWith(rid('fp'))
     expect((await act(owner, 'billing.startTopUp', { amountCents: 499 })).status).toBe(422)
@@ -1406,7 +1406,7 @@ describe('billing.startTopUp (docs/billing.md §2.2)', () => {
   })
 })
 
-describe('Buy minutes with the saved card (docs/billing.md §2.2; billing tour G1, security review of #1102)', () => {
+describe('Buy minutes with the saved card (billing tour G1, security review of #1102)', () => {
   const queued: { name: string; data: Record<string, unknown> }[] = []
   beforeEach(() => {
     queued.length = 0
@@ -2159,7 +2159,7 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
 })
 
 // Last in the file: it moves the plan price's lookup key in the fake account to a new price.
-describe('"one step left": the day-3 email to a sign-up that has not started its trial (docs/billing.md §3.2 step 2)', () => {
+describe('"one step left": the day-3 email to a sign-up that has not started its trial', () => {
   const madeAgo = async (billId: string, days: number) =>
     db
       .update(billing_accounts)
@@ -2240,7 +2240,7 @@ describe('"one step left": the day-3 email to a sign-up that has not started its
   })
 })
 
-describe("the install's own prices, trial and name (docs/billing.md §7b)", () => {
+describe("the install's own prices, trial and name", () => {
   const reason = 'our own prices'
   afterAll(async () => {
     await act(operator, 'billingRules.set', { rules: { workspaceMonthlyCents: null, trialDays: null }, reason })
@@ -2497,7 +2497,7 @@ describe('the partner bill (white-label S2, docs/white-label.md)', () => {
       cancel_url: 'http://localhost:5173/#partner',
     })
     expect(made['line_items[1][price]']).toBeUndefined()
-    // White-label Cloud has no free trial (Janik, 2026-11-18): Checkout asks for none, and says so.
+    // White-label Cloud has no free trial (decision of 2026-11-18): Checkout asks for none, and says so.
     expect(made['subscription_data[trial_period_days]']).toBeUndefined()
     // Stripe made the subscription with the base fee, paid; the owner confirms for the partner.
     const sessionId = [...stripe.sessions.keys()].at(-1)!
@@ -2700,7 +2700,7 @@ describe('the Checkout card note (custom_text.submit), short since 2026-11-18', 
   })
 })
 
-describe('the terms once, at sign-up; the activation records the consent to the trial (A9, docs/billing.md §3.1)', () => {
+describe('the terms once, at sign-up; the activation records the consent to the trial (A9)', () => {
   test('recorded with what the step showed: the price, the trial, the first charge, the reminders', async () => {
     const { bill, owner } = await pendingSignUp()
     await startCheckout(owner)
@@ -2780,7 +2780,7 @@ describe('the terms once, at sign-up; the activation records the consent to the 
   })
 })
 
-describe('"Keep calls answered" in the trial (docs/billing.md §3.2 step 7)', () => {
+describe('"Keep calls answered" in the trial', () => {
   const queued: { name: string; data: Record<string, unknown> }[] = []
   // Placeholder values, never sent anywhere: the three stages count as set up, so calls are Standard.
   const STAGES = {

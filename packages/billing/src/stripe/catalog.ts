@@ -1,4 +1,4 @@
-// What the install sells, made or found in its own Stripe account (docs/billing.md §2.1, §7b): the products and the
+// What the install sells, made or found in its own Stripe account: the products and the
 // plan prices of the install's settings (`PlanCatalog`). Synced when an instance admin saves the prices or the product
 // name (and when billing is turned on), never on a customer's Checkout (security review of #1040, M-1): Checkout uses
 // the price ids stored by the last sync, so a key without write on Products and Prices never stops a sign-up or a

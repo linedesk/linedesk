@@ -1,5 +1,5 @@
 // The data moves of migrations 0153 (call quality) and 0158 (everything back on Standard), replayed as the files stand
-// (decisions.md 2026-11-18, security review H-1): every assistant on Standard with the level's default models, whatever
+// (decision of 2026-11-18, security review H-1): every assistant on Standard with the level's default models, whatever
 // it picked or the install's old pipeline policy said, and new assistants on Standard. 0158 does it again on installs
 // that ran 0153 as it first was. `assistants.voice_pipeline` is gone since 0156, so the 0153 replay runs on temporary
 // tables shaped as before 0156; the tables come first in the search path, in a transaction that is rolled back: nothing

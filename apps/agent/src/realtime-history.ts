@@ -11,7 +11,7 @@ import { quotedData } from './prompt.ts'
 export const HISTORY_ITEM_PREFIX = 'ld_history_'
 
 /**
- * The opening of the text item. Text the assistant reads: needs Tim's or Janik's OK on the exact wording (CLAUDE.md
+ * The opening of the text item. Text the assistant reads: needs a maintainer's OK on the exact wording (CLAUDE.md
  * rule 11) before merge.
  */
 export const HISTORY_INTRO =

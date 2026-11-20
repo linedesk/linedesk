@@ -53,7 +53,7 @@ export const onboardingSteps = onboardingStepsFor(false)
 
 /**
  * The steps while the workspace waits for its trial (`pending_payment`): the setup, then `activate` (the card), and no
- * number before it (docs/billing.md §3.2).
+ * number before it.
  */
 export const activationSteps = onboardingStepsFor(true)
 
@@ -65,7 +65,7 @@ export const activationSteps = onboardingStepsFor(true)
 export const partnerDraftSteps: readonly OnboardingStep[] = activationSteps.filter(s => s !== 'activate')
 
 /**
- * The whole way of a trial sign-up as its step counter counts it (docs/billing.md §3.2): the setup, "Start your free trial",
+ * The whole way of a trial sign-up as its step counter counts it: the setup, "Start your free trial",
  * then the number and Done. One count before and after the trial starts ("Step 5 of 7", then "Step 6 of 7").
  */
 export const trialSteps: readonly OnboardingStep[] = [
@@ -172,7 +172,7 @@ export type TimelineEntry =
   | { kind: 'charge'; day: number; at: Date }
 
 /**
- * The activation step's timeline (docs/billing.md §3.2): today the trial starts, the reminder emails `reminderDays`
+ * The activation step's timeline: today the trial starts, the reminder emails `reminderDays`
  * before its end (one line), the first charge when it ends. Without a trial (a refused one): the charge today, nothing
  * else. The dates count from the first charge the server named, so they match what Checkout and the emails say.
  */
@@ -583,7 +583,7 @@ export function priceNote(provider: string | null, country: string | null = null
 
 /**
  * The price line under the area code on a workspace that is on a bill (Linedesk Cloud) and buys on the install's
- * carrier account (docs/billing.md §2, §3.2 step 6): the first number of the workspace is included in the plan, each
+ * carrier account: the first number of the workspace is included in the plan, each
  * further one costs `extraNumberCents` a month from the balance. Null where the carrier's list price applies instead
  * (off billing, a comped bill, the workspace's own carrier account: the caller passes null; development mode).
  * `numbersBought`: the workspace's numbers bought on the install's carrier account.

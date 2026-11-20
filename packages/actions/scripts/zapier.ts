@@ -1,7 +1,7 @@
 // The Zapier app's actions and searches, generated from the registry (integrations/zapier/generated/actions.json).
 // Every public action is in the app with the fields of its Zod input; a new or changed public action changes the file,
 // and CI fails while the committed file is not the one this script writes (`pnpm zapier:generate --check`). The app is
-// pushed to Zapier on each release (.github/workflows/zapier.yml), so Zapier follows the API.
+// pushed to Zapier on each release by the maintainers' release pipeline, so Zapier follows the API.
 //
 //   pnpm zapier:generate           writes the file
 //   pnpm zapier:generate --check   exits 1 when the committed file is out of date

@@ -48,7 +48,7 @@ put() {
 # Everything runs inside main, so a shell reading this script from a pipe (curl | sh) has all of it before it starts.
 main() {
   [ "$(id -u)" = 0 ] || fail "run it as root, e.g. curl -fsSL <this script> | sudo sh"
-  command -v apt-get >/dev/null 2>&1 || fail "this script supports Ubuntu and Debian. Elsewhere, follow the README's Self-hosting steps."
+  command -v apt-get >/dev/null 2>&1 || fail "this script supports Ubuntu and Debian. Elsewhere, follow docs/self-hosting.md."
 
   domain=$(printf '%s' "${1:-}" | sed 's#^https\{0,1\}://##; s#/.*$##')
 

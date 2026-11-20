@@ -1,4 +1,4 @@
-// No open sign-up (Janik, 2026-11-15; signup-gate.ts): accounts come only from the first-run setup, a workspace
+// No open sign-up (decision of 2026-11-15; signup-gate.ts): accounts come only from the first-run setup, a workspace
 // invitation (made and joined in one step) or a server admin. Accounts made by an instance admin (user.invite) are
 // tested in admin.test.ts, which is the only file that creates instance admins.
 import { auth_events, invitation, member, organization, user } from '@linedesk/db'
@@ -10,7 +10,18 @@ import { emailSender } from '../src/email.ts'
 import { maySendSignInCode, NO_ACCOUNT, refuseClosedSignUp } from '../src/signup-gate.ts'
 import { joinOrUndo } from '../src/instance-admin.ts'
 import { WORKSPACE_CREATION_CLOSED } from '../src/app.ts'
-import { anonymous, appRequest, asServerAdmin, createWorkspace, randomIp, request, signUp, type User, type Workspace, FROM } from './helpers.ts'
+import {
+  anonymous,
+  appRequest,
+  asServerAdmin,
+  createWorkspace,
+  randomIp,
+  request,
+  signUp,
+  type User,
+  type Workspace,
+  FROM,
+} from './helpers.ts'
 
 const ORIGIN = { origin: 'http://localhost:5173' }
 const address = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}@linedesk.test`
@@ -38,7 +49,13 @@ beforeAll(async () => {
 async function codeFor(email: string): Promise<string | null> {
   const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined)
   try {
-    const asked = await request(anonymous, 'POST', '/api/auth/email-otp/send-verification-otp', { email, type: 'sign-in' }, { ...ORIGIN, [FROM]: randomIp() })
+    const asked = await request(
+      anonymous,
+      'POST',
+      '/api/auth/email-otp/send-verification-otp',
+      { email, type: 'sign-in' },
+      { ...ORIGIN, [FROM]: randomIp() },
+    )
     expect(asked.status).toBe(200)
     // Sent without waiting (no account enumeration by timing): give it a moment.
     await new Promise(r => setTimeout(r, 50))
@@ -68,7 +85,10 @@ describe('no open sign-up', () => {
       if (value === undefined) delete process.env.AUTH_SIGNUP_ENABLED
       else process.env.AUTH_SIGNUP_ENABLED = value
       const email = address('stranger')
-      expect(await passwordSignUp(email)).toMatchObject({ status: 400, body: { code: 'EMAIL_PASSWORD_SIGN_UP_DISABLED' } })
+      expect(await passwordSignUp(email)).toMatchObject({
+        status: 400,
+        body: { code: 'EMAIL_PASSWORD_SIGN_UP_DISABLED' },
+      })
       expect(await accountOf(email)).toBeUndefined()
     }
     // The endpoint is off before it looks the address up: a known address gets the very same answer, so it cannot
@@ -153,11 +173,17 @@ describe('no open sign-up', () => {
     expect(res.status).toBe(200)
     const account = await accountOf(email)
     expect(account).toMatchObject({ emailVerified: true })
-    const [joined] = await db.select().from(member).where(and(eq(member.userId, account!.id), eq(member.organizationId, shop.id)))
+    const [joined] = await db
+      .select()
+      .from(member)
+      .where(and(eq(member.userId, account!.id), eq(member.organizationId, shop.id)))
     expect(joined).toMatchObject({ role: 'admin' })
     expect((await db.select().from(invitation).where(eq(invitation.email, email)))[0]?.status).toBe('accepted')
     // In the audit log, saved with the join (#734 re-check, R4).
-    const events = await db.select().from(auth_events).where(and(eq(auth_events.user_id, account!.id), eq(auth_events.event, 'invitation_accepted')))
+    const events = await db
+      .select()
+      .from(auth_events)
+      .where(and(eq(auth_events.user_id, account!.id), eq(auth_events.event, 'invitation_accepted')))
     expect(events).toEqual([expect.objectContaining({ workspace_id: shop.id, method: 'invitation', email })])
   })
 
@@ -195,7 +221,9 @@ describe('no open sign-up', () => {
     // A server admin runs the server without a workspace: kept.
     const adminEmail = address('admin-no-ws')
     const adminId = crypto.randomUUID().replaceAll('-', '')
-    await db.insert(user).values({ id: adminId, name: 'Admin', email: adminEmail, emailVerified: true, instanceAdmin: true })
+    await db
+      .insert(user)
+      .values({ id: adminId, name: 'Admin', email: adminEmail, emailVerified: true, instanceAdmin: true })
     await joinOrUndo({ id: adminId, email: adminEmail })
     expect(await accountOf(adminEmail)).toBeDefined()
     await db.delete(user).where(eq(user.id, adminId))
@@ -234,7 +262,9 @@ describe('no open sign-up', () => {
     expect(await db.select().from(organization).where(eq(organization.name, name))).toEqual([])
     expect((await request(anonymous, 'POST', '/v1/workspaces', { name: 'Nobody' })).status).toBe(401)
     process.env.AUTH_SIGNUP_ENABLED = 'false'
-    expect((await asServerAdmin(operator, () => request(operator, 'POST', '/v1/workspaces', { name }))).status).toBe(200)
+    expect((await asServerAdmin(operator, () => request(operator, 'POST', '/v1/workspaces', { name }))).status).toBe(
+      200,
+    )
     process.env.AUTH_SIGNUP_ENABLED = 'true'
   })
 })

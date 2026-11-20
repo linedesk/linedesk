@@ -4,7 +4,9 @@
 // room is closed (which hangs up the on-call phone) and the assistant goes back to the caller.
 // A contact with the briefing off (TransferContact.briefing) is bridged as soon as the phone is answered:
 // no voice session, nothing said to them, no way to decline.
-// Why a bridge and not LiveKit's moveParticipant or SIP REFER: docs/decisions.md (warm transfer).
+// Why a bridge and not LiveKit's moveParticipant or SIP REFER: moveParticipant works only on LiveKit Cloud
+// ("not implemented" on self-hosted LiveKit), and SIP REFER is a cold transfer that depends on the carrier and takes
+// the call out of LiveKit.
 import { type llm, voice } from '@livekit/agents'
 import { type RemoteParticipant, type RemoteTrack, Room, RoomEvent, TrackKind } from '@livekit/rtc-node'
 import { spokenLines, type TransferResult } from '@linedesk/actions'

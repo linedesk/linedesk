@@ -342,6 +342,8 @@ export function auditLabel(
       return t('admin.audit.afterCallTranscriptSet')
     case 'setupEmails.set':
       return t('admin.audit.setupEmailsSet')
+    case 'zapierApp.set':
+      return input.url ? t('admin.audit.zapierAppSet') : t('admin.audit.zapierAppCleared')
     case 'billingEnabled.set':
       return t('admin.audit.billingEnabledSet', { on: input.on === true ? 'yes' : 'no' })
     case 'billing.credit':

@@ -662,7 +662,7 @@ test('on a bill, the price line says the first number is included and what each 
   expect(billedNumberNote(300, 'dev', 1)).toBeNull()
 })
 
-describe('the activation step (docs/billing.md §3.2)', () => {
+describe('the activation step', () => {
   test('before the trial the steps end at activate; once it runs, activate is gone and the number follows', () => {
     expect(activationSteps).toEqual(['business', 'assistant', 'pickup', 'notify', 'activate'])
     expect(onboardingSteps).toEqual(['business', 'assistant', 'pickup', 'notify', 'phone', 'done'])

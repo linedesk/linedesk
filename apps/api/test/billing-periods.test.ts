@@ -1,4 +1,4 @@
-// The hourly billing periods job (src/billing-periods.ts, docs/billing.md §4.5, §4.2, §3.3; PR 10): periods
+// The hourly billing periods job (src/billing-periods.ts): periods
 // opened before they start and closed 3 hours after they end, monthly sub-periods of a yearly bill, the extra numbers'
 // months paid from the balance only when it covers them (else a recharge first, else unpaid with the fixed line and
 // one email, released after 30 days), and the yearly renewal reminder once per renewal. Billing is switched on by replacing billingState, the three stages through the environment, and Stripe is a

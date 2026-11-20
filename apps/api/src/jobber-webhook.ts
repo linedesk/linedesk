@@ -1,4 +1,4 @@
-// POST /v1/apps/webhook/jobber (integrations/jobber/PUBLISHING.md, gap 1; LIN-447): Jobber's webhook for the
+// POST /v1/apps/webhook/jobber (LIN-447): Jobber's webhook for the
 // APP_DISCONNECT topic, which Jobber requires of a published app. A business that removes Linedesk in Jobber has its
 // connections to that Jobber account deleted here with their tokens (app-connections.ts dropAppAccount), in every
 // workspace that uses the account; Jobber is not asked to disconnect again. Other topics are answered 200 and ignored.

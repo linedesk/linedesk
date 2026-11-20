@@ -1,4 +1,4 @@
-// Billing on the call path (src/call-billing.ts, docs/billing.md §4.2 to §4.4, PR 4): the gate in call.start with its
+// Billing on the call path (src/call-billing.ts): the gate in call.start with its
 // reservation and refusals, posting at call.finish and in the stale sweep (which ends calls past their limit), the
 // transfer leg capped on a billed call, the recharge and alert jobs queued in the same transaction, and an install
 // or workspace without billing behaving exactly as before. Billing is switched on by replacing billingState (no
@@ -1008,7 +1008,7 @@ describe('the usage limit a partner sets for a client', () => {
   })
 })
 
-describe('the trial prompt, its grace and the trial recharge (docs/billing.md §3.2 step 7)', () => {
+describe('the trial prompt, its grace and the trial recharge', () => {
   /** A trial bill whose workspace used `usedSeconds` of its 3000 included seconds. */
   const trial = (o: Parameters<typeof billed>[1] = {}) => billed('trialing', { periodKind: 'trial', ...o })
   const alerts = (billId: string) =>

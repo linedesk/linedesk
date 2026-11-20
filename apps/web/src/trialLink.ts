@@ -1,5 +1,5 @@
-// The "Start your free trial" link (`#workspace/billing?start-trial=1[&interval=month|year]&ws=<id>`, docs/billing.md
-// §3.2; built by apps/api/src/trial-link.ts): read once the session and its workspace are settled, then taken out of
+// The "Start your free trial" link (`#workspace/billing?start-trial=1[&interval=month|year]&ws=<id>`
+// built by apps/api/src/trial-link.ts): read once the session and its workspace are settled, then taken out of
 // the address, so a reload or Back does not open the dialog again. Signed out, the address stays as it is, so signing
 // in returns to the same link.
 import { readTrialInterval, TRIAL_INTERVAL_PARAM, TRIAL_START_PARAM, type TrialInterval } from '@linedesk/actions'

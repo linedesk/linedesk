@@ -565,7 +565,7 @@ async function createForClient(ctx: HandlerCtx, input: CreateForClientInput) {
   const bill = await billForNewClient(tx, partner, { draft: true })
   if (!bill) await refuseOverCeiling(tx, partner)
   // Its assistant starts on Standard, whatever the install's default and whoever on the partner team creates it: the
-  // partner pays, and its team raises a client's assistant later (decisions.md 2026-11-18, review L-1).
+  // partner pays, and its team raises a client's assistant later (decision of 2026-11-18, review L-1).
   const org = await insertWorkspace(
     ctx,
     {
@@ -737,7 +737,7 @@ async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: str
  * A workspace that changes partner (a release, a removal by its owner, a Server admin move, in or out) leaves the
  * partner's own keys switched off (S7, security review of #1289/#1290 M-1): the switch was the old partner owner's
  * choice, and only the new one decides whether its provider accounts carry this client's calls. The same for the
- * client's own say over call quality (decisions.md 2026-11-18): the new partner decides it again.
+ * client's own say over call quality (decision of 2026-11-18): the new partner decides it again.
  */
 async function ownKeysOff(tx: Tx, workspaceId: string) {
   await tx
@@ -762,8 +762,8 @@ type AdminMoveInput = { workspaceId: string; toPartnerId: string | null; confirm
  * (syncPartnerMemberships: the old team leaves with its API keys and setup links and the invitations it sent, the new
  * team becomes admin). Where a bill is involved the workspace changes bills, so only an instance admin signed in with
  * their passkey (refuseMoneyChange, as `billing.moveWorkspace`): onto the new partner's bill, with the gates a new
- * client has there (billForNewClient), its seat added and the old bill's dropped after the commit (seatsFollow,
- * docs/billing.md §6), its Premium and Ultra assistants to Standard when someone else pays, its extra calls and usage limit left
+ * client has there (billForNewClient), its seat added and the old bill's dropped after the commit (seatsFollow),
+ * its Premium and Ultra assistants to Standard when someone else pays, its extra calls and usage limit left
  * behind. Taken from its partner it goes the way a release goes (detachClient: a new bill of its owner waiting for
  * their card). Refused for a bill that is past due or suspended, while calls run, and never while impersonating.
  * Lock order: the partner rows (id order), the owner row, the old bill's extra-calls lock, the assistants' version
@@ -1166,7 +1166,7 @@ export const partnerHandlers: Record<string, Handler> = {
    * client made by mistake or never taken up. Once its owner joined it is theirs, and the partner hands it over
    * instead. The delete is the admin's (workspace-delete.ts): every row, the recordings, the numbers at the carrier,
    * the accounts of people who belong to no other workspace (never the partner team's, membersOnlyHere). Its seat
-   * leaves the partner bill after the commit (docs/billing.md §6), and everyone else in it is emailed, as when an owner
+   * leaves the partner bill after the commit, and everyone else in it is emailed, as when an owner
    * deletes their own. Not while impersonated, and with no key (personal-key-scope.ts). No fresh sign-in, like the
    * hand-over: the workspace holds no client of its own yet. Lock order: the partner row, the workspace (an owner
    * accepting their invitation at the same moment either joined before, and the delete is refused, or waits and fails
@@ -1296,7 +1296,7 @@ export const partnerHandlers: Record<string, Handler> = {
     }
   },
 
-  // Whether the client's own owner and admins may change call quality (decisions.md 2026-11-18). Giving it to the
+  // Whether the client's own owner and admins may change call quality (decision of 2026-11-18). Giving it to the
   // client lets them raise what the partner pays: the partner's owner only, like loosening a usage limit; anyone on
   // the team may take it back.
   'partner.setClientCallQuality': async (

@@ -10,7 +10,7 @@
 #   install -m 755 scripts/receive-deploy.sh "$BASE/receive-deploy.sh"
 #   authorized_keys: restrict,command="$BASE/receive-deploy.sh" ssh-ed25519 AAAA... deploy
 # Install a copy outside app/: app/ is replaced by every deploy.
-# Production uses scripts/receive-release.sh instead: the server checks the release itself (docs/ci.md).
+# Linedesk's own production uses a separate receiver that checks the release itself.
 set -euo pipefail
 umask 077 # deploy-images.env holds a registry token until scripts/deploy.sh reads and deletes it
 

@@ -1,4 +1,4 @@
-// Billing for Linedesk Cloud (docs/billing.md §7): which billing provider is in effect. `none` (every self-hosted
+// Billing for Linedesk Cloud: which billing provider is in effect. `none` (every self-hosted
 // install) unless Server admin › Billing › Stripe has Stripe with both keys **and** an instance admin turned billing
 // on (`billing.enabled`, off by default). A live key counts only where the server allows it (BILLING_LIVE_KEYS=1,
 // production only): elsewhere it is refused when stored, by the provider test, and here.
@@ -51,7 +51,7 @@ export async function billingSwitchOn(tx: Tx): Promise<boolean> {
 }
 
 /**
- * How long the previous webhook signing secret is accepted after it was stored (docs/billing.md §5.1): Stripe's
+ * How long the previous webhook signing secret is accepted after it was stored: Stripe's
  * longest overlap when a secret is rolled. After that it is ignored, so a rotation ends without a second step.
  */
 export const WEBHOOK_ROTATION_DAYS = 7

@@ -1,6 +1,7 @@
 {
   "name": "@linedesk/sync",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "typecheck": "tsc -p . --checkers 1", "test": "vitest run" },

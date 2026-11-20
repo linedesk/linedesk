@@ -1,4 +1,4 @@
-// Server admin › Billing (docs/billing.md §11, PR 13): the bills of this install, their ledger and payments, the
+// Server admin › Billing: the bills of this install, their ledger and payments, the
 // Stripe event inbox, the review holds, the install's billing rules and whether anyone may sign up. Instance admins
 // only. Every write that moves money or changes what a bill may spend also needs the admin signed in as themselves
 // with their passkey (no setup link, API key, personal key or impersonation), carries a reason for the audit log, and the ones that
@@ -194,7 +194,7 @@ export const billingReviewHold = defineAction({
 export const billingRulesSet = defineAction({
   name: 'billingRules.set',
   description:
-    "Set the install's billing rules (docs/billing.md §7a). Every field is checked; anything out of range refuses the whole change. Merged over the stored rules: a field left out keeps its value, a field set to null goes back to its default (a level too, inside levels). Plan prices have a floor (the server's BILLING_MIN_PLAN_CENTS, else the included minutes at the Standard price; yearly 12 times it) and a yearly price is at most 12 monthly ones. Every instance admin is emailed.",
+    "Set the install's billing rules. Every field is checked; anything out of range refuses the whole change. Merged over the stored rules: a field left out keeps its value, a field set to null goes back to its default (a level too, inside levels). Plan prices have a floor (the server's BILLING_MIN_PLAN_CENTS, else the included minutes at the Standard price; yearly 12 times it) and a yearly price is at most 12 monthly ones. Every instance admin is emailed.",
   input: z.object({ rules: z.record(z.string(), z.unknown()), reason }),
   permission: 'instance:admin',
 })
@@ -211,7 +211,7 @@ export const signupSetRules = defineAction({
   name: 'signup.setRules',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
-    "Set the install's sign-up limits (`signup.rules`, docs/billing.md §3.1): codes per address and IP, the install's hourly cap, days a sign-up may wait for Checkout, the Turnstile check, blocked domains, trial workspaces and numbers, and the Radar risk levels that hold a bill for review. Every field is checked; anything out of range refuses the whole change. Merged over the stored rules: a field left out keeps its value, null resets it to its default. Every instance admin is emailed.",
+    "Set the install's sign-up limits (`signup.rules`): codes per address and IP, the install's hourly cap, days a sign-up may wait for Checkout, the Turnstile check, blocked domains, trial workspaces and numbers, and the Radar risk levels that hold a bill for review. Every field is checked; anything out of range refuses the whole change. Merged over the stored rules: a field left out keeps its value, null resets it to its default. Every instance admin is emailed.",
   input: z.object({ rules: z.record(z.string(), z.unknown()), reason }),
   permission: 'instance:admin',
 })

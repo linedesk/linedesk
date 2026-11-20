@@ -5,7 +5,7 @@
 # - The visitor's country from CF-IPCountry (Cloudflare › Network › IP Geolocation, on by default) goes to the API as
 #   X-Linedesk-Country: New workspace is prefilled with it. Only the two-letter code, never stored with an IP. Caddy
 #   copies it only from requests that came from Cloudflare's addresses (docker/Caddyfile); still let the origin accept
-#   only Cloudflare (the firewall rules in the README, or Authenticated Origin Pulls).
+#   only Cloudflare (the firewall rules in docs/self-hosting.md, or Authenticated Origin Pulls).
 # - TLS: Cloudflare's SSL mode "Full (strict)", with a Cloudflare Origin CA certificate for PUBLIC_URL's host in
 #   LINEDESK_ORIGIN_CERT_DIR (origin.pem, and origin.key readable by uid 1000, mode 600). It lasts up to 15 years
 #   and needs no renewal; Caddy's own certificates (HTTP-01) would stop renewing once only Cloudflare reaches 80/443.

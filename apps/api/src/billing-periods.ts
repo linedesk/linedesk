@@ -1,4 +1,4 @@
-// The bill's periods and what comes with each (docs/billing.md §4.5, §4.2 "Extra numbers", §3.3; PR 10), in one
+// The bill's periods and what comes with each (extra numbers), in one
 // hourly job (`billing.periods`):
 //
 // - Period close: the next period of every bill in service is opened before its start (so a call always finds the
@@ -66,9 +66,9 @@ const HOUR_MS = 3_600_000
 const DAY_MS = 24 * HOUR_MS
 /** The next period is opened this long before the current one ends, so the hourly run is never late for it. */
 export const OPEN_AHEAD_MS = 2 * HOUR_MS
-/** A period is closed this long after its end (docs/billing.md §4.5): the stale sweep has posted its long calls. */
+/** A period is closed this long after its end: the stale sweep has posted its long calls. */
 export const CLOSE_AFTER_MS = 3 * HOUR_MS
-/** An extra number unpaid this long is released (docs/billing.md §4.2). */
+/** An extra number unpaid this long is released. */
 export const UNPAID_RELEASE_DAYS = 30
 /** The instance setting with the days before a yearly renewal that the reminder goes out (15 to 45, default 30). */
 export const RENEWAL_REMINDER_DAYS_KEY = 'billing.renewalReminderDays'
@@ -247,7 +247,7 @@ export type NumberMonth =
   | { kind: 'unpaid' }
 
 /**
- * Pays one month of one extra number from the balance, under the bill's balance lock (docs/billing.md §4.2): posted
+ * Pays one month of one extra number from the balance, under the bill's balance lock: posted
  * only when the available balance (balance − what running calls hold) covers the price, so a number month never takes
  * the balance below zero, let alone the buffer. Otherwise the recharge decision runs; with a recharge pending the month
  * waits for it, and with none possible (the cap, a failed recharge, auto-recharge off) the number becomes unpaid.
@@ -528,7 +528,7 @@ export async function checkRelease(tx: Tx, numberId: string, now: string): Promi
 }
 
 /**
- * Extra numbers unpaid for UNPAID_RELEASE_DAYS are released (docs/billing.md §4.2), each checked again first
+ * Extra numbers unpaid for UNPAID_RELEASE_DAYS are released, each checked again first
  * (`checkRelease`). Each number on its own: one that fails is logged and returned in `failed` (the run emails the
  * instance admins), and the others are still released.
  */
@@ -595,7 +595,7 @@ function renewalLines(items: { lookupKey: string | null; quantity: number; unitA
 }
 
 /**
- * The yearly renewal reminder (docs/billing.md §3.3): yearly bills whose renewal is within the reminder days, asked
+ * The yearly renewal reminder: yearly bills whose renewal is within the reminder days, asked
  * of Stripe first (fetch-before-act: not set to cancel, still running, and its period end is the renewal). Once per
  * renewal: the `billing_alerts` row (ref = the period end that renews) is made in the transaction that queues the
  * email, so a second run sends nothing.

@@ -125,7 +125,7 @@ test('a field that is not a number in its unit is named, and nothing is sent', (
   })
 })
 
-test('the plan prices and the trial are dollars and days in the form, cents and days stored (docs/billing.md §7b)', () => {
+test('the plan prices and the trial are dollars and days in the form, cents and days stored', () => {
   const form = rulesForm(BILLING_DEFAULTS)
   expect(form.workspaceMonthlyCents).toBe('11')
   expect(form.workspaceYearlyCents).toBe('108')

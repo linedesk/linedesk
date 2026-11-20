@@ -206,7 +206,7 @@ export async function onboardingFor(actor: Actor): Promise<OnboardingState | nul
     .from(organization)
     .leftJoin(workspace_settings, eq(workspace_settings.workspace_id, organization.id))
     .where(eq(organization.id, actor.workspaceId))
-  // A sign-up whose trial has not started always has its last step ahead: the card (docs/billing.md §3.2). Nothing
+  // A sign-up whose trial has not started always has its last step ahead: the card. Nothing
   // else of the app opens before it, also when its setup was finished or set aside (a workspace that left its partner).
   // A partner's draft client workspace waits for the partner's Checkout instead (White-label Cloud): no card step of its
   // own; its number is refused until then (self-serve.ts).

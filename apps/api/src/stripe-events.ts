@@ -1,4 +1,4 @@
-// Stripe's webhook events (docs/billing.md §5.1): the stored inbox, the job that processes one event, the sweeper and
+// Stripe's webhook events: the stored inbox, the job that processes one event, the sweeper and
 // reprocessing. The route (stripe-webhook.ts) only checks the signature and stores the event with its job in one
 // transaction; everything else happens here, as the system actor with `billing:system`, through the registry.
 //
@@ -52,7 +52,7 @@ const STRIPE_EVENT_SWEEP_CRON = '*/5 * * * *'
 export const STRIPE_EVENT_ATTEMPTS = 5
 /** An event still unprocessed this long after it arrived is queued again by the sweeper. */
 export const SWEEP_AFTER_MS = 5 * 60_000
-/** Stored events are kept this long (they hold names, emails and addresses; docs/billing.md §8). */
+/** Stored events are kept this long (they hold names, emails and addresses). */
 export const STRIPE_EVENT_KEEP_DAYS = 90
 /** The longest error text kept on an event (Stripe's messages name no secret, but stay short). */
 const ERROR_MAX = 500
@@ -77,10 +77,10 @@ export const FOREIGN_EVENT = 'skipped: not this install'
 /** `invoice.paid` is applied in a transaction (billing.processStripeEvent); the failures by the job (they ask Stripe). */
 const INVOICE_PAID = 'invoice.paid'
 const INVOICE_FAILURES = ['invoice.payment_failed', 'invoice.voided'] as const
-/** A new card (docs/billing.md §3.4): ends the wait after a failed recharge. By the job too (it asks Stripe). */
+/** A new card: ends the wait after a failed recharge. By the job too (it asks Stripe). */
 const CARD_CHANGES = ['payment_method.attached', 'customer.updated'] as const
 /**
- * Trial Checkout (docs/billing.md §3.2, billing-checkout.ts): a finished Checkout confirmed like the return page does
+ * Trial Checkout (billing-checkout.ts): a finished Checkout confirmed like the return page does
  * (the only way out of `pending_payment` besides the owner's own confirmation, security review M1), the trial's end
  * email. By the job (they ask Stripe).
  */
@@ -129,7 +129,7 @@ export type StoreOutcome = 'stored' | 'requeued' | 'duplicate' | 'foreign'
 type EventIds = Pick<BillingEvent, 'customerId' | 'objectId' | 'billHint' | 'rechargeHint'>
 
 /**
- * Whose an event is, from our own database only (no request to Stripe; docs/billing.md §5.1). `ours`: the customer,
+ * Whose an event is, from our own database only (no request to Stripe). `ours`: the customer,
  * the subscription or the recharge invoice is one we stored, or the object names one of our bills or recharge attempts
  * in its metadata (a bill whose customer is stored a moment later: retried as before, L2). `foreign`: it has a
  * customer, and nothing in it is ours. `unclear`: no customer to tell by (a dispute, a fraud warning): the job finds
@@ -153,7 +153,7 @@ export async function eventOwner(tx: Pick<Tx, 'select'>, ids: EventIds): Promise
 }
 
 /**
- * The inbox (docs/billing.md §5.1): stores the event and queues its job in one transaction, so an event is never
+ * The inbox: stores the event and queues its job in one transaction, so an event is never
  * stored without its job. A redelivery of an event already stored queues it again only while it is unprocessed and not
  * given up on (review of #865, N2: an event at the attempt cap waits for billing.reprocessEvent).
  */
@@ -373,7 +373,7 @@ async function periodForCredit(tx: Tx, billId: string, now: string) {
   return period
 }
 
-/** Credits a paid recharge once (docs/billing.md §2.2): the attempt becomes `paid`, the balance gets the pre-tax amount. */
+/** Credits a paid recharge once: the attempt becomes `paid`, the balance gets the pre-tax amount. */
 async function creditRecharge(tx: Tx, bill: Bill, recharge: Recharge, line: BillingInvoiceLine, now: string) {
   const period = await periodForCredit(tx, bill.id, now)
   const { posted } = await postEntry(tx, {
@@ -439,7 +439,7 @@ async function linkSubscription(
 /** Bill statuses a paid plan invoice makes active again (a trial converted, a late payment); never canceled or comped. */
 const ACTIVATED_BY_PAYMENT: readonly Bill['status'][] = ['trialing', 'active', 'past_due', 'suspended']
 
-/** A paid plan invoice (docs/billing.md §3.2 step 9, §3.4): the bill active, its period from the fetched subscription. */
+/** A paid plan invoice: the bill active, its period from the fetched subscription. */
 async function planPaid(tx: Tx, bill: Bill, subscription: BillingSubscription | null, now: string) {
   if (subscription?.status !== 'active' || !ACTIVATED_BY_PAYMENT.includes(bill.status)) return 'unchanged' as const
   // A payment lifts only a payment suspension: one an instance admin made (or a dispute's) stays (review of #865, N1).
@@ -470,7 +470,7 @@ async function planPaid(tx: Tx, bill: Bill, subscription: BillingSubscription | 
 }
 
 /**
- * The trial converted (its first plan invoice is paid; docs/billing.md §3.2 step 9). When it ended before its planned
+ * The trial converted (its first plan invoice is paid). When it ended before its planned
  * end (ended early in Stripe: `trial_end=now`, or from the Dashboard), the trial period is cut where the paid plan
  * took over and the first month opens there at once, so calls never land in a trial that is over and the bill no
  * longer says "Trial ends" on a date still to come. The bill's `trial_ends_at` becomes the real end.
@@ -555,7 +555,7 @@ async function claimRecharge(tx: Tx, invoice: BillingInvoice, bill: Bill) {
 }
 
 /**
- * `invoice.paid` (docs/billing.md §5.1), for recharges and plans: the recharge attempt the invoice charges is credited
+ * `invoice.paid`, for recharges and plans: the recharge attempt the invoice charges is credited
  * when it is a real payment of its amount; a paid plan invoice makes the bill active with Stripe's period. Both read
  * the invoice and subscription fetched just now, never the event's copy.
  */
@@ -643,7 +643,7 @@ export const stripeEventHandlers: Record<string, Handler> = {
     return { rows: {}, data: outcome }
   },
 
-  // The nightly reconciliation settles a paid recharge pending for more than a day (docs/billing.md §3.4) like
+  // The nightly reconciliation settles a paid recharge pending for more than a day like
   // invoice.paid; a failed or voided one goes through rechargeFailed (billing-reconcile.ts).
   'billing.settleInvoice': async (
     { tx, now, prepared, onCommit },
@@ -703,7 +703,7 @@ async function rechargeOfFailedInvoice(invoice: BillingInvoice, bill: Bill, stor
 }
 
 /**
- * A recharge invoice that failed or was voided (docs/billing.md §3.4, security review of #865, M1): PR 4's
+ * A recharge invoice that failed or was voided (security review of #865, M1): PR 4's
  * failed-recharge rules, the same as when the recharge job sees the decline itself (rechargeFailed: collection off,
  * voided unless the owner must confirm 3DS, the bill waits, the owner is emailed once). The invoice is fetched first;
  * a payment that failed and was then paid, or an attempt already settled, changes nothing. A voided invoice of an
@@ -717,7 +717,7 @@ export async function failRechargeInvoice(
   /** Stripe said the payment failed (the event); the reconciliation passes false and relies on the invoice. */
   reportedFailed: boolean,
 ): Promise<string | null> {
-  // The first recharge on the trial's conversion invoice (docs/billing.md §3.2 step 9) rides on a plan invoice: it is
+  // The first recharge on the trial's conversion invoice rides on a plan invoice: it is
   // never stopped or voided here (that would void the plan's fee). Stripe retries the invoice (dunning, PR 11); its
   // payment credits the recharge (invoice.paid), its void cancels it.
   if (invoice.subscriptionId) {
@@ -769,7 +769,7 @@ function finishEvent(event: StoredEvent, now: string) {
 }
 
 /**
- * `payment_method.attached` and `customer.updated` (docs/billing.md §3.4): after a failed recharge no new one starts
+ * `payment_method.attached` and `customer.updated`: after a failed recharge no new one starts
  * until the card changes or the owner retries. The wait ends when the card the next recharge would charge
  * (`rechargeCard`, fetched now, never the event's copy) was made after the failure: a card the owner added since, made
  * the customer's default (the portal does both). The same card, or one added but not made the default, keeps the wait,
@@ -945,7 +945,7 @@ export async function sweepStripeEvents(now = new Date()) {
 }
 
 /**
- * Removes stored events older than the keep time (docs/billing.md §8); unprocessed ones too. Runs every night, billing
+ * Removes stored events older than the keep time; unprocessed ones too. Runs every night, billing
  * on or off (review of #865, L4).
  */
 export async function pruneStripeEvents(tx: Tx, now = new Date()) {

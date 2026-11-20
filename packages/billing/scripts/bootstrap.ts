@@ -1,9 +1,9 @@
 /**
- * `pnpm --filter @linedesk/billing bootstrap --sandbox --webhook-url <url>` (docs/billing.md §9, runbook "Stripe
- * account setup"): creates or updates the Stripe objects billing expects that the install's own key does not make
- * (tax default, portal, "Linedesk Checkout", webhook endpoint). The products and plan prices are not made here: the
- * app makes them from Server admin › Billing before a Checkout (packages/billing/src/stripe/catalog.ts), so a run
- * never undoes an admin's prices. Idempotent; `--dry-run` only lists the changes.
+ * `pnpm --filter @linedesk/billing bootstrap --sandbox --webhook-url <url>`: creates or updates the Stripe objects
+ * billing expects that the install's own key does not make (tax default, portal, "Linedesk Checkout", webhook
+ * endpoint). The products and plan prices are not made here: the app makes them from Server admin › Billing before
+ * a Checkout (packages/billing/src/stripe/catalog.ts), so a run never undoes an admin's prices.
+ * Idempotent; `--dry-run` only lists the changes.
  *
  * - The portal's terms and privacy links are the install's own: `--terms-url` and `--privacy-url`, else TERMS_URL and
  *   PRIVACY_URL from the environment (the same variables the install reads); without them the script stops.

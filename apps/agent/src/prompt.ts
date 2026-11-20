@@ -1,5 +1,29 @@
 // The assistant's system prompt, built from its configuration.
-import { aiDisclosureInstructions, type BookingContext, CALLER_NAME_MAX, isActiveContact, communicationStyleInstructions, behaviourLines, behaviourOn, type CallerHistory, callRules, defaultPromptTexts, fenceData, fixedRules, isE164, type Language, LANGUAGES, languageNames, mainLanguageOf, otherLanguagesOf, PROMPT_TEXTS, type PromptOverrides, type PromptTexts, promptTexts, workspaceLanguageName } from '@linedesk/actions'
+import {
+  aiDisclosureInstructions,
+  type BookingContext,
+  CALLER_NAME_MAX,
+  isActiveContact,
+  communicationStyleInstructions,
+  behaviourLines,
+  behaviourOn,
+  type CallerHistory,
+  callRules,
+  defaultPromptTexts,
+  fenceData,
+  fixedRules,
+  isE164,
+  type Language,
+  LANGUAGES,
+  languageNames,
+  mainLanguageOf,
+  otherLanguagesOf,
+  PROMPT_TEXTS,
+  type PromptOverrides,
+  type PromptTexts,
+  promptTexts,
+  workspaceLanguageName,
+} from '@linedesk/actions'
 import type { Assistant, CallerDetails, Contact, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
 import { displayNumber } from './transfer.ts'
@@ -10,7 +34,13 @@ const line = (label: string, value?: string) => (value ? `${label}: ${value}` : 
 
 /** The older structured fields (before free-text instructions). */
 function businessFacts({ business_profile: p }: Assistant): string {
-  return [line('About', p.description), line('Services', p.services?.filter(s => s.trim()).join(', ')), line('Service area', p.service_area), line('Address', p.address), line('Hours', p.hours)]
+  return [
+    line('About', p.description),
+    line('Services', p.services?.filter(s => s.trim()).join(', ')),
+    line('Service area', p.service_area),
+    line('Address', p.address),
+    line('Hours', p.hours),
+  ]
     .filter(Boolean)
     .join('\n')
 }
@@ -22,7 +52,10 @@ function businessKnowledge(assistant: Assistant): string {
 }
 
 /** The behaviour checklist's lines; they come after the call rules and win where they differ. */
-export function behavioursInstructions(assistant: Assistant | null, pt: PromptTexts = defaultPromptTexts): string | null {
+export function behavioursInstructions(
+  assistant: Assistant | null,
+  pt: PromptTexts = defaultPromptTexts,
+): string | null {
   const lines = behaviourLines(assistant?.behaviours, pt)
   return lines.length ? pt('owner.heading', { lines: lines.map(l => `- ${l}`).join('\n') }) : null
 }
@@ -39,7 +72,10 @@ export function behavioursInstructions(assistant: Assistant | null, pt: PromptTe
 export function forHours(assistant: Assistant | null, hours: BusinessHours | null | undefined): Assistant | null {
   if (!assistant || !hours || hours.openNow) return assistant
   // Vacation or closure mode has its own greeting; empty: the outside-hours one.
-  return { ...assistant, greeting: hours.closure?.greeting.trim() || assistant.greeting_outside?.trim() || assistant.greeting }
+  return {
+    ...assistant,
+    greeting: hours.closure?.greeting.trim() || assistant.greeting_outside?.trim() || assistant.greeting,
+  }
 }
 
 /** What the assistant says about opening hours: the hours and where now falls; nothing when the workspace does not use hours. */
@@ -56,7 +92,8 @@ function hoursContext(hours: BusinessHours | null | undefined, canBook: boolean,
   if (!hours) return pt('call.noHours')
   if (hours.openNow) return hours.summary
   // find_slots offers no time on closed days, so a booking while closed is one for when the business is back.
-  if (hours.closure) return withSentence(pt('call.closure', { hours: hours.summary }), canBook ? pt('call.closureBooking') : null)
+  if (hours.closure)
+    return withSentence(pt('call.closure', { hours: hours.summary }), canBook ? pt('call.closureBooking') : null)
   return withSentence(pt('call.closed', { hours: hours.summary }), canBook ? pt('call.closedBooking') : null)
 }
 
@@ -64,7 +101,10 @@ function hoursContext(hours: BusinessHours | null | undefined, canBook: boolean,
  * What the assistant cannot do on this call, so it never promises it: only what is missing (the tools it has are
  * described with the tools). null when nothing is missing.
  */
-export function cannotInstructions({ booking, transfer, lookup }: { booking: boolean; transfer: boolean; lookup: boolean }, pt: PromptTexts = defaultPromptTexts): string | null {
+export function cannotInstructions(
+  { booking, transfer, lookup }: { booking: boolean; transfer: boolean; lookup: boolean },
+  pt: PromptTexts = defaultPromptTexts,
+): string | null {
   const missing = [
     ...(booking ? [] : [pt('cannot.book')]),
     ...(transfer ? [] : [pt('cannot.transfer')]),
@@ -91,7 +131,10 @@ export function transferInstructions(pt: PromptTexts = defaultPromptTexts): stri
  * Contacts that take calls, but not now because the business is closed: "only during business hours" ones outside the
  * hours, and every contact in vacation or closure mode (nobody is put through then).
  */
-export function heldTransferContacts(assistant: Pick<Assistant, 'transfers'> | null, hours?: BusinessHours | null): TransferContact[] {
+export function heldTransferContacts(
+  assistant: Pick<Assistant, 'transfers'> | null,
+  hours?: BusinessHours | null,
+): TransferContact[] {
   if (!hours || (hours.openNow && !hours.closure)) return []
   return (assistant?.transfers ?? []).filter(c => isActiveContact(c) && (hours.closure || c.hours_only))
 }
@@ -100,9 +143,14 @@ export function heldTransferContacts(assistant: Pick<Assistant, 'transfers'> | n
  * What the assistant says when a call fits a contact that cannot be reached now: closed, so nobody is put through,
  * never "I am an AI and cannot transfer you".
  */
-export function heldTransferInstructions(held: readonly Pick<TransferContact, 'condition'>[], pt: PromptTexts = defaultPromptTexts): string | null {
+export function heldTransferInstructions(
+  held: readonly Pick<TransferContact, 'condition'>[],
+  pt: PromptTexts = defaultPromptTexts,
+): string | null {
   if (!held.length) return null
-  const conditions = [...new Set(held.map(c => c.condition.trim().replace(/[.!?]+$/, '')))].map(c => `- ${c}`).join('\n')
+  const conditions = [...new Set(held.map(c => c.condition.trim().replace(/[.!?]+$/, '')))]
+    .map(c => `- ${c}`)
+    .join('\n')
   return pt('call.held', { conditions })
 }
 
@@ -135,12 +183,17 @@ const DETAIL_LABEL = { name: 'name', phone: 'phone number', email: 'email addres
  */
 export function typeLine(t: BookingType, callerNumber = false): string {
   const condition = t.instruction?.trim()
-  const wanted: BookingType['required_fields'] = t.instruction === undefined && !t.required_fields.includes('name') ? ['name', ...t.required_fields] : t.required_fields
+  const wanted: BookingType['required_fields'] =
+    t.instruction === undefined && !t.required_fields.includes('name')
+      ? ['name', ...t.required_fields]
+      : t.required_fields
   const fields = callerNumber ? wanted.filter(f => f !== 'phone') : wanted
   return [
     `- ${t.name} (${t.duration_min} min, id ${t.id})`,
     condition ? `: use when ${condition}.` : '.',
-    fields.length ? ` Ask for: ${fields.map(f => DETAIL_LABEL[f]).join(', ')}.` : ' Nothing to ask for beyond the reason.',
+    fields.length
+      ? ` Ask for: ${fields.map(f => DETAIL_LABEL[f]).join(', ')}.`
+      : ' Nothing to ask for beyond the reason.',
   ].join('')
 }
 
@@ -164,7 +217,11 @@ export type BookingPromptOptions = {
   nameChecked?: boolean
 }
 
-export function bookingInstructions(booking: BookingContext, { listed = false, callerNumber = false, nameChecked = false }: BookingPromptOptions = {}, pt: PromptTexts = defaultPromptTexts): string {
+export function bookingInstructions(
+  booking: BookingContext,
+  { listed = false, callerNumber = false, nameChecked = false }: BookingPromptOptions = {},
+  pt: PromptTexts = defaultPromptTexts,
+): string {
   const types = booking.appointmentTypes.map(type => typeLine(type, callerNumber)).join('\n')
   const calendars = booking.calendars.map(calendarLine).join('\n')
   return [
@@ -179,7 +236,9 @@ export function bookingInstructions(booking: BookingContext, { listed = false, c
     canChangeBookings(booking)
       ? pt(listed ? (nameChecked ? 'booking.changeListedChecked' : 'booking.changeListed') : 'booking.change')
       : pt('booking.noChange'),
-  ].filter(Boolean).join('\n\n')
+  ]
+    .filter(Boolean)
+    .join('\n\n')
 }
 
 /** Our delimiters around what callers and the team wrote; removed from that text so it cannot close them. */
@@ -204,25 +263,37 @@ export function callerNoteOf(contact: Pick<Contact, 'note'> | null | undefined):
  * so it cannot close the quote and read as an instruction. `max` cuts it.
  */
 export function quotedData(text: string, max = Number.POSITIVE_INFINITY): string {
-  const line = text.replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, ' ').replace(/["\u201C\u201D\u201E\u00AB\u00BB]/g, "'").replace(/\s+/g, ' ').trim()
+  const line = text
+    .replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, ' ')
+    .replace(/["\u201C\u201D\u201E\u00AB\u00BB]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
   return `"${line.slice(0, max).trim()}"`
 }
 
 /**
- * The team's note on the contact this call matched, if any, always (Tim, 2026-11-15): the assistant takes it into
+ * The team's note on the contact this call matched, if any, always (decision of 2026-11-15): the assistant takes it into
  * account for this caller. Notes also come from imports and API keys, so they are information, never rules that
  * override these instructions; fenced, as one line.
  */
-export function callerNotesInstructions(contact: Pick<CallerContext, 'note'> | null | undefined, pt: PromptTexts = defaultPromptTexts): string | null {
+export function callerNotesInstructions(
+  contact: Pick<CallerContext, 'note'> | null | undefined,
+  pt: PromptTexts = defaultPromptTexts,
+): string | null {
   const note = callerNoteOf(contact)
   if (!note) return null
   return pt('call.notes', { notes: `<caller_notes>${note}</caller_notes>` })
 }
 
 /** What the business's own system said about the caller (the assistant's call-start webhook), as data. */
-export function callerDetailsInstructions(details: CallerDetails | null | undefined, pt: PromptTexts = defaultPromptTexts): string | null {
+export function callerDetailsInstructions(
+  details: CallerDetails | null | undefined,
+  pt: PromptTexts = defaultPromptTexts,
+): string | null {
   if (!details || !Object.keys(details).length) return null
-  const lines = Object.entries(details).map(([name, value]) => `${name}: ${String(value)}`).join('\n')
+  const lines = Object.entries(details)
+    .map(([name, value]) => `${name}: ${String(value)}`)
+    .join('\n')
   return pt('call.details', { details: `<caller_details>\n${fenceData(lines, ['caller_details'])}\n</caller_details>` })
 }
 
@@ -231,10 +302,17 @@ const historyText = (text: string) => text.replace(CALLER_TAGS, ' ').replace(/\s
 
 function historyLines(history: CallerHistory): string[] {
   const calls = history.recentCalls.map(c => {
-    const parts = [c.title, c.summary, c.outcome ? `Outcome: ${c.outcome}.` : null, c.openSteps.length ? `Open next steps: ${c.openSteps.join('; ')}.` : null]
+    const parts = [
+      c.title,
+      c.summary,
+      c.outcome ? `Outcome: ${c.outcome}.` : null,
+      c.openSteps.length ? `Open next steps: ${c.openSteps.join('; ')}.` : null,
+    ]
     return `- Call on ${c.when}: ${historyText(parts.filter(Boolean).join(' ')) || 'no summary'}`
   })
-  const bookings = history.upcomingBookings.map(b => `- Appointment on ${b.when} (day ${b.date})${b.type ? `: ${historyText(b.type)}` : ''}`)
+  const bookings = history.upcomingBookings.map(
+    b => `- Appointment on ${b.when} (day ${b.date})${b.type ? `: ${historyText(b.type)}` : ''}`,
+  )
   return [
     ...(calls.length ? ['Earlier calls, newest first:', ...calls] : []),
     ...(bookings.length ? ['Upcoming appointments booked under the name on file:', ...bookings] : []),
@@ -246,7 +324,11 @@ function historyLines(history: CallerHistory): string[] {
  * "Know the caller's previous calls" switch is on (`enabled`). Summaries partly repeat what callers said, so they go
  * in as data between delimiters. null when there is nothing to tell.
  */
-export function callerHistoryInstructions(caller: CallerContext | null | undefined, enabled = true, pt: PromptTexts = defaultPromptTexts): string | null {
+export function callerHistoryInstructions(
+  caller: CallerContext | null | undefined,
+  enabled = true,
+  pt: PromptTexts = defaultPromptTexts,
+): string | null {
   const lines = enabled && caller?.history ? historyLines(caller.history) : []
   if (!lines.length) return null
   return pt('call.history', { history: `<caller_history>\n${lines.join('\n')}\n</caller_history>` })
@@ -265,7 +347,11 @@ export const TEST_CALL_CALLER_ID = PROMPT_TEXTS['call.testCall'].text
  * can cancel or move an appointment, which the server checks by day and booked name; then the assistant never says
  * the contact's name first.
  */
-export function callerIdInstructions(caller: CallerContext | null | undefined, { keepNameBack = false } = {}, pt: PromptTexts = defaultPromptTexts): string {
+export function callerIdInstructions(
+  caller: CallerContext | null | undefined,
+  { keepNameBack = false } = {},
+  pt: PromptTexts = defaultPromptTexts,
+): string {
   const phone = isE164(caller?.phone) ? caller.phone : null
   if (!phone) return withSentence(pt('call.unknownNumber'), caller?.testCall ? pt('call.testCall') : null)
   const callerId = pt('call.callerId', { number: displayNumber(phone) })
@@ -298,7 +384,11 @@ export type CallerContext = Pick<Contact, 'name' | 'note'> & {
  * `teamLanguage`: the language the call is answered in (callLanguageOf), what it writes messages for the team in
  * (English unless set).
  */
-export function languageInstructions(assistant: Pick<Assistant, 'languages'> | null, teamLanguage = 'en', pt: PromptTexts = defaultPromptTexts): string {
+export function languageInstructions(
+  assistant: Pick<Assistant, 'languages'> | null,
+  teamLanguage = 'en',
+  pt: PromptTexts = defaultPromptTexts,
+): string {
   const main = mainLanguageOf(assistant?.languages)
   const others = otherLanguagesOf(assistant?.languages)
   const mainName = LANGUAGES[main]
@@ -326,7 +416,8 @@ export function collectLanguageRule(assistant: Pick<Assistant, 'languages'> | nu
   const main = mainLanguageOf(assistant?.languages)
   const others = otherLanguagesOf(assistant?.languages)
   if (main === 'en' && !others.length) return null
-  const keep = 'Say what the tools tell you in that language; keep names, numbers, addresses and email addresses exactly as they are.'
+  const keep =
+    'Say what the tools tell you in that language; keep names, numbers, addresses and email addresses exactly as they are.'
   if (!others.length) return `Speak ${LANGUAGES[main]}. ${keep}`
   if (spoken && spoken !== main && others.includes(spoken)) {
     const name = LANGUAGES[spoken]
@@ -350,10 +441,22 @@ export function spokenLanguageRule(assistant: Pick<Assistant, 'languages'> | nul
  * The date and time in the workspace time zone when the call starts ("Thursday, November 12, 2026, 1:31 PM"), so the
  * assistant can say what day it is and work out "tomorrow". null without a time zone (an older API).
  */
-export function clockInstructions(timeZone: string | null | undefined, now: number, pt: PromptTexts = defaultPromptTexts): string | null {
+export function clockInstructions(
+  timeZone: string | null | undefined,
+  now: number,
+  pt: PromptTexts = defaultPromptTexts,
+): string | null {
   if (!timeZone) return null
   try {
-    const at = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(now)
+    const at = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(now)
     // A day the caller names goes to the tools as said ("next Wednesday"); code works out the date (spoken-day.ts).
     return pt('call.clock', { now: at, timeZone })
   } catch {
@@ -398,14 +501,29 @@ export function buildInstructions(
     aiDisclosureInstructions(assistant?.ai_disclosure, pt, transfer),
     communicationStyleInstructions(assistant?.communication_style, pt),
     // A contact held while the office is closed: the assistant must not say it cannot transfer calls.
-    cannotInstructions({ booking: !!booking, transfer: transfer || heldTransferContacts(assistant, hours).length > 0, lookup }, pt),
+    cannotInstructions(
+      { booking: !!booking, transfer: transfer || heldTransferContacts(assistant, hours).length > 0, lookup },
+      pt,
+    ),
     booking
-      ? bookingInstructions(booking, { listed: !!(behaviourOn(assistant?.behaviours, 'caller_history') && caller?.history?.upcomingBookings.length), callerNumber: !!caller, nameChecked }, pt)
+      ? bookingInstructions(
+          booking,
+          {
+            listed: !!(
+              behaviourOn(assistant?.behaviours, 'caller_history') && caller?.history?.upcomingBookings.length
+            ),
+            callerNumber: !!caller,
+            nameChecked,
+          },
+          pt,
+        )
       : null,
     knowledge ? pt('knowledge.heading', { knowledge }) : null,
     pt('knowledge.price'),
     // The owner's own words win over the general rules (what is urgent for them, their way of handling a call).
-    pt(knowledge ? 'rules.headingBusiness' : 'rules.heading', { rules: callRules({ booking: !!booking, transfer }, pt) }),
+    pt(knowledge ? 'rules.headingBusiness' : 'rules.heading', {
+      rules: callRules({ booking: !!booking, transfer }, pt),
+    }),
     behavioursInstructions(assistant, pt),
     pt('tools.collect'),
     pt(transfer ? 'tools.replyTransfer' : 'tools.reply'),

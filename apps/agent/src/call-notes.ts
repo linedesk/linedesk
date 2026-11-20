@@ -9,7 +9,7 @@ import { quotedData } from './prompt.ts'
 export const CALL_NOTE_MAX_CHARS = 200
 
 /**
- * The heading of the block. Text the assistant reads: needs Tim's or Janik's OK on the exact wording (CLAUDE.md rule
+ * The heading of the block. Text the assistant reads: needs a maintainer's OK on the exact wording (CLAUDE.md rule
  * 11) before merge.
  */
 export const CALL_NOTES_HEADING =
