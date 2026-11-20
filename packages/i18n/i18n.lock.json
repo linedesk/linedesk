@@ -5922,8 +5922,8 @@
     },
     "admin.example.ownerEmail": {
       "by": "ai",
-      "out": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0",
-      "src": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0"
+      "out": "678770be4a35429f72a76e83f8360d3c8792de94f8c99449bd6d0afe3fc79a17",
+      "src": "678770be4a35429f72a76e83f8360d3c8792de94f8c99449bd6d0afe3fc79a17"
     },
     "admin.frame.back": {
       "by": "ai",
@@ -8160,6 +8160,11 @@
       "out": "0325158e7fe52a56c8ad8ba1f0e8ac9fc9fba9ced5d37c12ee301e8afd2fc6dc",
       "src": "d8d623f91a618e9ec83788098988c77e2f5eeebcf510d88bf09232ae51870360"
     },
+    "admin.provider.field.signingSecret": {
+      "by": "ai",
+      "out": "f5e81453d0e9a2522d5b520d719a20627c50ce8e401ba168ccc53166b9795ea8",
+      "src": "e7ee22e117a12ad81b796bf298061d9bd0b37a06983101cf01a1ed49e85f1ee0"
+    },
     "admin.provider.field.waitForCaller": {
       "by": "ai",
       "out": "0677c67d53dba536653300b115fd2b950a26fd85e575030166a2862168c65217",
@@ -8410,10 +8415,35 @@
       "out": "734d4fb7342b008f8145d36cb7d6e40e0ea219ca6e2fd5727a529bb8bcda7fc5",
       "src": "80075c12c30115a5615c238d80c737af5370e896502e29c2b06a70aad6b124a3"
     },
+    "admin.provider.guide.slack.cost": {
+      "by": "ai",
+      "out": "80e01118a317e0bde7c84c47d6354c8549b148f766294bd539ec11222afa25bd",
+      "src": "439e9dbfa4ae5e01763d00a9fb23e44d95a10ab907a748ab93452f6e1237cf1d"
+    },
+    "admin.provider.guide.slack.step1": {
+      "by": "ai",
+      "out": "da5dcbcbef1b280677678c797fcad40b5cd1508969704087dfdd5e556c35a134",
+      "src": "793640a1d1884486f38a9e4eb8b1eabf3117297a32ae935f9b867f089ef19420"
+    },
+    "admin.provider.guide.slack.step2": {
+      "by": "ai",
+      "out": "f5dc1fd39d5ad67ee3fa5038705050018902d18b49012fee0519a23a343de330",
+      "src": "2b993ce80ccf02df31e9867be7f678f952f744557fde957062701d13adafdd0c"
+    },
+    "admin.provider.guide.slack.step3": {
+      "by": "ai",
+      "out": "29769e157491d5f45b6d741a89d97e453d41b1c008a307b718eee0f3b245a1d5",
+      "src": "7c301e1fe7d627bb66f356256cfa57344153e1baf38b7d70aac60215238013ac"
+    },
+    "admin.provider.guide.slack.step4": {
+      "by": "ai",
+      "out": "2c6c993430c1d96f281b601301dc8701c772d9dc4d1e9869cb14df361d314faa",
+      "src": "93edabdce81856bdc7f955fa0cb3b716c09c9e0560ed863c8f23be35456a3144"
+    },
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
-      "out": "de55d6bcf2e7ab1b022d85be89bfeeabcff6364d54f1fdc281ba831f6e6ced59",
-      "src": "9d3c3f01c7704968419dd857641c14e7a6b8cc78555ad232658ed4f589dfbdab"
+      "out": "6024838c808e12bf641de491a32f465ba35a9c2bbb68311bab79b96d84c3884a",
+      "src": "ac2887fbf4b2c28098afa81d3c4aed49b440a1c8eff115465cedc6abd7000160"
     },
     "admin.provider.help.cloudflare_saas": {
       "by": "ai",
@@ -23310,6 +23340,11 @@
       "out": "2e9e36cd0478381293abee2b534d2f0e6604c26bd564059f49ea1476617dc446",
       "src": "e9925481360b33c4877d3a4088296f24fd2b668f941d86dc9da93738380d5305"
     },
+    "server.api.feedback.setupPreviewUsed": {
+      "by": "ai",
+      "out": "27ea49b0fb22566102c26b19900fd0bdaa647b2f8de8fdd0a519e7963dde3078",
+      "src": "d15b212881530a9c9ca418bc465aff62efbb5aada0623d5ad2939b2640da89f7"
+    },
     "server.api.feedback.setupTextOnly": {
       "by": "ai",
       "out": "51cccf22411d984552d317cc8c1c2cbc1efe7c31be9a4c3b311a2d76ce9a1abf",
@@ -23500,6 +23535,11 @@
       "out": "e7c393182e7d2676408f17e48ff5b026631d2958d7e84d308487855ab129dd54",
       "src": "b499f776716964cf5b948781d3a5d0bd798bfe6963d58965844a0c87f64d45fa"
     },
+    "server.api.mail.aboutFull": {
+      "by": "ai",
+      "out": "6d4b52de7d495c0b3e12d2e83a2a319d3d1d141539ee82908683b14c51f8048f",
+      "src": "df601b131f2e95f525956d806ae199f3cba4b2e0a34ab5f53c628d43af1d420d"
+    },
     "server.api.mail.accessRefused": {
       "by": "ai",
       "out": "f8f6599e69e5b0bbd7dd9693c524c958a7b707f17756ef7b858d14b2979271a7",
@@ -23515,6 +23555,11 @@
       "out": "276dc88e5847c20e8c5762f0e65793f1f68909d5873f6ee3bda1f418a065a440",
       "src": "5271d03e84b17c93455582c246f98fb293ca093bc2e90608f414f886f5641eff"
     },
+    "server.api.mail.analysisNotFound": {
+      "by": "ai",
+      "out": "ed2c7fb9819b903d7ab27bcf4ccf075b8f4e67489ad78b65add00ad02f48f4b4",
+      "src": "a875c75a77d79c47b8d83c2b4795c2aa75f7ceb9b588284144f16be67db7bb9f"
+    },
     "server.api.mail.apiDisabled": {
       "by": "ai",
       "out": "7ebfcfeb964452b47f6303b1cb1366b25455af4140f68b9d38cbeebe70b60f92",
@@ -23524,6 +23569,11 @@
       "by": "ai",
       "out": "ccbe7cd3b5f8091a9df5181ce001e92543d94d9f6bf5214b427b08cb3cfe9e53",
       "src": "cb6f9e97e72bae3ec8641b637054a17e4729223a3a19d558ae1bd18dd89b529c"
+    },
+    "server.api.mail.assistantNotFound": {
+      "by": "ai",
+      "out": "37c83c91646b67bf6d86b65e65963dc9fc96734f93aeb2d6aa1d9798fa7e4cae",
+      "src": "1b489c2bc00b326463de5ad1d81dbbdd4b6f1b99225f45527df5d2c9dca3e526"
     },
     "server.api.mail.connectExpired": {
       "by": "ai",
@@ -23569,6 +23619,16 @@
       "by": "ai",
       "out": "d66485c2ab1924fbd172a622c8f3517e55639fb13b12f8677b6426fef36f23af",
       "src": "cb15d1a99e2c0905a0458a4ead32c4cb59e7fac4dc3c4e0cd39a4fd9c0ee2d34"
+    },
+    "server.api.mail.topicAccepted": {
+      "by": "ai",
+      "out": "c4c6cee89b79af3cbd171b8fd4897f977fe9f6bac1edfc4187b5e14607086694",
+      "src": "dc98b16d5ab0262693453f21db0e83b74d915081c299eb2032b2120b3866092b"
+    },
+    "server.api.mail.topicNotFound": {
+      "by": "ai",
+      "out": "2ba47487eb64d9b1e053ac7f94babc8cf67e84c4da78f8509801fca6e03d39b6",
+      "src": "7c2bfd81b198b70e43f1c642107c5cb03b84de72ed4701260eebd9f9cb37601f"
     },
     "server.api.mail.unavailable": {
       "by": "ai",
@@ -24010,6 +24070,11 @@
       "out": "a62739292b560c40cd3ef29d0e48b3f73e23c738aa4306be313d882eedec4535",
       "src": "86c5a23b68660e613c97ca5469d797628950f073e5f0210effc6b1ba609f2607"
     },
+    "server.api.sttCantHear": {
+      "by": "ai",
+      "out": "f09896781552c140ebaeac8fdf965dcefa94f8d140078ed7b4c7c8396e87c272",
+      "src": "45750fef2d671b58534a4711b60c99ddd241c0e3549d4cff0c6a79e2c8cb124b"
+    },
     "server.api.team.alreadyInvited": {
       "by": "ai",
       "out": "4dfc08d2904d6e041a68bfdd5a511b61ddd06228c8d209c571a7798045630ae9",
@@ -24374,6 +24439,11 @@
       "by": "ai",
       "out": "0dd19b5f41d99ab102639e5d4e930fcecb179ac32b26494e8238a65fd96e117a",
       "src": "397d456b7e4ba0364cebb1dc2c51ac024cc8ca65b43ba57589a3d6f4af926b18"
+    },
+    "server.input.mail.acceptNeeds": {
+      "by": "ai",
+      "out": "208a87f269521c7b53722e3b7b840fcf9aab49f1f896216079f5a4e39cc565a7",
+      "src": "df5edec0427bf772ea9f16f61f2837374b75ac97af18c370af0ef74d7c867b87"
     },
     "server.input.max": {
       "by": "ai",
@@ -25725,6 +25795,11 @@
       "out": "17d630275f4395eb9d565a326f186f5915c4c90742f481b6c83b53a00b183c00",
       "src": "318655cea4bd2096fbfad433d7c019bac40750d1a456fc34d366df41fcc77197"
     },
+    "settings.assistant.languages.unheard": {
+      "by": "ai",
+      "out": "173e255c9814db087431ee0ac4ab0e6ad339c4f5420b53efe7476fad67c5b806",
+      "src": "eb07da2d66bfac0be15999c73184c46b40c8f7abe14e3073dd3cfa5c6906b3d8"
+    },
     "settings.assistant.load": {
       "by": "ai",
       "out": "0176f375c6acaf2b7f3591f718fd9f2fa5c7c1e0df815670d18007ea903850d0",
@@ -25809,6 +25884,11 @@
       "by": "human",
       "out": "54bbc94b6c3be6e3b7630a4c77f37ee6d3080a023a521dcf71744814a3d038ec",
       "src": "c4715ed4e717e4a9f01a2e388c3f868ff90d8e634aee894e8b64e5c681864414"
+    },
+    "settings.assistant.section.booking.needsCalendar": {
+      "by": "ai",
+      "out": "5b53cdf2bb39d6516117163df073159dc34c909ffd2a1b60e7ea596b43f59f6f",
+      "src": "89701e46c15fc35c26ef739001d37ce3e3cc2fc30334cadcc3e399f4d5dec90e"
     },
     "settings.assistant.section.business.description": {
       "by": "ai",
@@ -30132,8 +30212,8 @@
     },
     "settings.integrations.mail.readOnly": {
       "by": "ai",
-      "out": "8221c1a37455d6bc6c06dcae2654b033f39f57480a7806d9974eb599161d8d7b",
-      "src": "1249121c5ef53661b5b75b07c246f6c59572d754019c34bc575f14c8df5ef8a5"
+      "out": "06d7477f5ce459ff1d108ba3d8215606d409fa54ecbe4a14798ed514fc169cde",
+      "src": "fb906aa76afa5e540d43bcd24e5a28d6f71e3a9b5df4b3d48e41df97a6248fe1"
     },
     "settings.integrations.mail.reconnectTip": {
       "by": "ai",
@@ -30144,6 +30224,226 @@
       "by": "ai",
       "out": "be2ece87882566746f4b290f66d423803fdd5298a926c2e7e2783f4297a923ba",
       "src": "b23105d5c31bb25af64e1d4cfa4d7719fe27168203488eaaf8509b5c97b92b1b"
+    },
+    "settings.integrations.mailReview.aboutTip": {
+      "by": "ai",
+      "out": "180ae345ee12c134959432d4b6edc3461d84db7aa3ee675ba23bcd7baeaed1ea",
+      "src": "38a860d550f55cdf71461f142276f16c43ec6b8f7577a0fca7d57251893079f9"
+    },
+    "settings.integrations.mailReview.accept": {
+      "by": "ai",
+      "out": "0e9e3339490b426998aa5ac2bfd086bb99038346e8214be033d94dd673d630e2",
+      "src": "d073bfc4d605f9a41c55ece7eda0c7472a86bc4bc464ad4b74780fa3d7533774"
+    },
+    "settings.integrations.mailReview.acceptTip": {
+      "by": "ai",
+      "out": "7e6c07a5f873b46438493b50ad8b0da1ab138daa8786c6f574aa01587f37be6a",
+      "src": "d0ac4c2aa84b4fad7404456e8caca6aed16ebd7903569cdeb2bceb90c1fe0c21"
+    },
+    "settings.integrations.mailReview.accepted": {
+      "by": "ai",
+      "out": "8dd8e451cda99adfceb2165da3dbf64dc2c6963f74231df53d8fabb4a638c654",
+      "src": "f7535765b6052b89aad0d81bfe05b6239abea3fb6bdc89b51802bec65f21253b"
+    },
+    "settings.integrations.mailReview.acceptedIn": {
+      "by": "ai",
+      "out": "d2c11068ffdb1e70e1eb70c75e571880c3d05f83b3aaa5e0d16c53ca219fd1f5",
+      "src": "14e3cad7d91178c1424ec83c5272966e5a19af0321fa27dd056531cbbf52b4f5"
+    },
+    "settings.integrations.mailReview.addFact": {
+      "by": "ai",
+      "out": "e6accf00b7dad9a9a4581e18fad4a02ea98a87efc74d779c4249f94b144d823b",
+      "src": "aa2dcdf5626fe2934e19e0dd7c90f901d8a9901774e9eaefedb28c2c50696eaf"
+    },
+    "settings.integrations.mailReview.addTo": {
+      "by": "ai",
+      "out": "19766927f3f3cc9a60b6641a87d9fca4a3136fd8b5fe104ad70308f68ce811c0",
+      "src": "82b9ffd3cec869998fe520c7ec09d1b558e3ddfdf4b4a3c2b22c463a0494593e"
+    },
+    "settings.integrations.mailReview.againNote": {
+      "by": "ai",
+      "out": "a05ccd43d6c1ab93acebc9256b1338d8db1622b234a915d628fb72c2abead404",
+      "src": "1ded493c94805691e95f527c793f8ddb94e6280a6409af116d4162c8794d78d3"
+    },
+    "settings.integrations.mailReview.allDone": {
+      "by": "ai",
+      "out": "3941652c973730bf6d34bba5f1b503720ab25fef298bf81a5051fc5954ea8a6f",
+      "src": "373b810ced945642e910ff84e64e068215d8e13244ec53dc018a19ba20e5091e"
+    },
+    "settings.integrations.mailReview.answer": {
+      "by": "ai",
+      "out": "6513d8838e4917ff7b4e81258eba58d1c7a7db7e09d85c35e0ea6c34baf27393",
+      "src": "61355d0c12b5c7b8ac3e6f85fad55d65070c6b81fec63fc79fd08afd7346846d"
+    },
+    "settings.integrations.mailReview.askFor": {
+      "by": "ai",
+      "out": "4a10c9c968c1188a2bf95d607794c2bd55d136968e71cd895a34bd1a843cef9e",
+      "src": "3f8d9339d11c1652355812fd71f971989b6fcbd2a588bd66dbd427e499cbbdab"
+    },
+    "settings.integrations.mailReview.conversations": {
+      "by": "ai",
+      "out": "cf840aa79defbc701746aa141cf3f6aa860764113ae8b54cf3492bc989918d04",
+      "src": "c155121f931789342f44fb146835bc203b13da7f3513005ffc31482c64dc984c"
+    },
+    "settings.integrations.mailReview.counts": {
+      "by": "ai",
+      "out": "2191c29bfa514c78dd8ae8a193d1eea511856c0e2502015c0b62b301e2132cd2",
+      "src": "deb5a59ef18d85f19db1243a089218addca6aa55daf2b8874c5006c01918b1e4"
+    },
+    "settings.integrations.mailReview.drop": {
+      "by": "ai",
+      "out": "594ca889c4421b8441ab6fe5bb87d98de9fac27785266abb15a9a439264f5a6e",
+      "src": "c8af9ae37a48273f981bc82af63517e3a2195c4076360e73546c306a044dd38b"
+    },
+    "settings.integrations.mailReview.dropTip": {
+      "by": "ai",
+      "out": "80d51dcb32e0e1cf173953659ed140b1fb81c1042e5befd4e7c6891befb5ca0e",
+      "src": "21bdbb265608480e9ab67073473a5693a7e078e777a11adc1ef3d212b6a9ddc0"
+    },
+    "settings.integrations.mailReview.dropped": {
+      "by": "ai",
+      "out": "54730c6647cb8c56fd5dc192dd878b12b46e7d75d3950ba386e582c82d2c2225",
+      "src": "739f68fe97ad306e904725af5f09b1377fcb9aac40e7dceea7f07868fa4e219a"
+    },
+    "settings.integrations.mailReview.error.accountRefused": {
+      "by": "ai",
+      "out": "be0878e0980803687959e7de353e9f310d6253740e98980ed2a3d362f3456cd3",
+      "src": "14720851e364a0676db46f8f4f28458e1da2e2077ce35490b63892daba038140"
+    },
+    "settings.integrations.mailReview.error.failed": {
+      "by": "ai",
+      "out": "d9104d8f048d8451be78f9b9aa7fb533b7b13dcbae412c048dcc84f335187ba3",
+      "src": "a06e3ea057f3b4da50b410874cc23853728ca4f6675a4e9873496a51f53de5d4"
+    },
+    "settings.integrations.mailReview.error.noConversations": {
+      "by": "ai",
+      "out": "f0c45f2ed467c79ce97167635dd09de27e04c10287b38101445306168ecfb11e",
+      "src": "e50be2a0e0e5c936511c146288f706485b46e88920e110dfb1d6a795051ac5c4"
+    },
+    "settings.integrations.mailReview.error.noMailbox": {
+      "by": "ai",
+      "out": "d27437c9c078d125c8be8a0b6b2e22a8cfe61bb9c0053ee7e3334016c9e8eb6f",
+      "src": "5b6f6b052e97b5955376a39100e913c6b80098a55a30eda75c665f0afd15cba3"
+    },
+    "settings.integrations.mailReview.error.noModel": {
+      "by": "ai",
+      "out": "7050eb3b2594bfd3e61908324b5770f14c70e88e99754360e5caa6e067942c11",
+      "src": "c6bd8a4a4304263cb7e1737305937f78c64dcf649054d76e89d08af0a4500fec"
+    },
+    "settings.integrations.mailReview.error.unavailable": {
+      "by": "ai",
+      "out": "c1aff7238c354c6df1ce39a216ac0b84dfbc5604e44c469cbfee755a93f930ed",
+      "src": "76c90e3546eb0439fd8f618f1d0d96b4aecfd1bb9d4294cdf0d0660fd4087f76"
+    },
+    "settings.integrations.mailReview.help": {
+      "by": "ai",
+      "out": "06438022b97443705226c4506abbbca12478d7e33ad45c73e1b4b403ba2be7d6",
+      "src": "bb19357d1386da177d0b9b7594b5a0f43dc81de85ce07b42c0a1b98a8946dec1"
+    },
+    "settings.integrations.mailReview.months": {
+      "by": "ai",
+      "out": "b12a2932f1dc9751534087886bbfcb40e2b853b49ffe145de485033ecc205c3d",
+      "src": "54c70542726ab0616ffe7ba16be8683d33667bddcd57118aa8caff76d6182a77"
+    },
+    "settings.integrations.mailReview.noTopics": {
+      "by": "ai",
+      "out": "46e27ea12e487c67088b4f55c4db85eb7862a82f549ebe7b3aa219e93a62927a",
+      "src": "1ef2df654ca545593a9c3b78d9e174d72001cbbe81fef56953f6a6cf1cc67686"
+    },
+    "settings.integrations.mailReview.pickTip": {
+      "by": "ai",
+      "out": "e49221503d8b42dec47b3c014f00af317506ac1273bf8e69cdd2f41f2d064032",
+      "src": "a4c13c86f545bc5ed378687e72a556cd2c985166079db22c143b4300e0eb2da7"
+    },
+    "settings.integrations.mailReview.position": {
+      "by": "ai",
+      "out": "75cc4669a0c86c4e296e6037fdb0ad017da7fedeaefd65191f6d00557dd11e89",
+      "src": "ebaf527973d35e74e9f598efccb76702fb467882736084738e8c200c0698e4d5"
+    },
+    "settings.integrations.mailReview.preview": {
+      "by": "ai",
+      "out": "b4054e73b8f26f854426beb6d6e690e4cf250e91240d1f9d82b0ec030f8aafaf",
+      "src": "c7bca680161bec14ba83df49f4b0b76ec9d34916e4637bb1347c8fe7457f64d0"
+    },
+    "settings.integrations.mailReview.previewName": {
+      "by": "ai",
+      "out": "b74f9f1af11f6f3a1176c479145f978eac76d78d1da88e3273a08aa61a1bfb9e",
+      "src": "31bfff96f6f2fb94d8614000b1697ba499468265a52e4a2eb3c8335b9292f5e0"
+    },
+    "settings.integrations.mailReview.privacy": {
+      "by": "ai",
+      "out": "7af1a34ffd8b02e60150016b83a591dfe1c1d44c1a9c15a285f4ef64c7a23a1f",
+      "src": "359144af985e2f7c12ebef93a15dcb6eca40b56eb368cc36f6f1464e9a9943c8"
+    },
+    "settings.integrations.mailReview.question": {
+      "by": "ai",
+      "out": "c3220ad9d7b2cfb63a9d7ee1824c666c9eccd83ff43e22c94318a9517e253f42",
+      "src": "a897fdea4b3de9283c92f40f4a7d9b554fe34c095c5de38215979c84139465f8"
+    },
+    "settings.integrations.mailReview.queued": {
+      "by": "ai",
+      "out": "87237539481204668595d80a69b62555849680446f53b8fb0880a3eba19d8737",
+      "src": "7438fef97be71f253b123ab8e29f61b74afdd1e8a553dc91224889f223eeb70b"
+    },
+    "settings.integrations.mailReview.range": {
+      "by": "ai",
+      "out": "f3b9c423b4425538efaa918838ee244f6c2a300b3ef12f6c7a0c3a1003a0df25",
+      "src": "91ffee5908b5336ba197fb1258ba3d220e32d7985f66459e68a6b6308d30cc86"
+    },
+    "settings.integrations.mailReview.removeFact": {
+      "by": "ai",
+      "out": "4ec1b15e52322ac2becf87e4a6adc49707390420b95ae7cc9bc27856b7d23865",
+      "src": "d00751e07bffb05a64cc77f67306eb62eab0efe32a394ee431644d4cc6ccea29"
+    },
+    "settings.integrations.mailReview.runAgain": {
+      "by": "ai",
+      "out": "65e6c9357a67f8151d63c92b1a7e4b590533e3bc40eb6b59c9a2cb91a1a57629",
+      "src": "ea5a4e3ff2f29a438a7079bae13e8a9165972357c3b3478d65eafbe3d864e958"
+    },
+    "settings.integrations.mailReview.running": {
+      "by": "ai",
+      "out": "9f15428a7d71cb9fe4173c8d9090cc6c211c74a9e79f1c4a35cb6957fc858ccb",
+      "src": "5ff0f5419e4b05b5880f0d11925f28e2fda66ee8b286906d78ef7f8a02720ed9"
+    },
+    "settings.integrations.mailReview.runningLine": {
+      "by": "ai",
+      "out": "d39490b8ff4b9d9d07bcf78e2975fa8011b260b14473d71d6be287ccae8bfcd3",
+      "src": "b1972facc3978f5918a3c48dd35ad7810526da54627b6c1834aa1e4db42ea0cd"
+    },
+    "settings.integrations.mailReview.start": {
+      "by": "ai",
+      "out": "f1d5fcbe0ea1115849a26893450739aea89bde837d0daba91c6ddeca1a5cb08b",
+      "src": "01f97a34c290e4b32df073b12ee5d11e285891dd6d857c48a2547865b46356c7"
+    },
+    "settings.integrations.mailReview.startLead": {
+      "by": "ai",
+      "out": "a3424bf068a5dd60ec39998d716c9d524909feb08e8e3001f28eed9d9ae4e884",
+      "src": "7aebd8839fb244fc62f85b7a1fc720b465a9bc402e4236ae166380327dba4889"
+    },
+    "settings.integrations.mailReview.startTip": {
+      "by": "ai",
+      "out": "4cf9e80052d5d076be566f5745d6b76e99771be51b0f026730d7eecaf4bbe923",
+      "src": "1a978f56a9a10d54f2f738191e1e5446ea86e97747861a83a4792b5569a61d0d"
+    },
+    "settings.integrations.mailReview.summary": {
+      "by": "ai",
+      "out": "12da670ea1ea6b2d1f6ad5754b70ad683a9622a345b6054e9e20cc19e4a41cd3",
+      "src": "215c99147efae7909f293f6ac95f986351c389901c1f17e9e1c1471ef5e84b92"
+    },
+    "settings.integrations.mailReview.title": {
+      "by": "ai",
+      "out": "c3b631ed3f1529deac96d7c81c50397d5edee619dfaec021f99eb913977f53c7",
+      "src": "a78bf7f79b5eded89806b74d6c227e750d3fef297630cb962b3deb96bdd3b029"
+    },
+    "settings.integrations.mailReview.undo": {
+      "by": "ai",
+      "out": "dd7bd2f68c4d4dc3808eeff34e092201673cd6a846c2f86f38d6d6e80e8b69d8",
+      "src": "a8283ade31856f71220db0e6f60a257c6889dc4dad0f275f66ad44b9ed9bf8d5"
+    },
+    "settings.integrations.mailReview.undoTip": {
+      "by": "ai",
+      "out": "c9f81d5b6f33bf005fbc00f6a722267c58affbffacba8d27cf6a99dfab191a9d",
+      "src": "f11e0849dfcab5ab5e36d321381a8568a8aedc980ec6b6e4c2dbdacb9f9c637c"
     },
     "settings.integrations.mcp.address": {
       "by": "ai",
@@ -43504,8 +43804,8 @@
     },
     "admin.example.ownerEmail": {
       "by": "ai",
-      "out": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0",
-      "src": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0"
+      "out": "678770be4a35429f72a76e83f8360d3c8792de94f8c99449bd6d0afe3fc79a17",
+      "src": "678770be4a35429f72a76e83f8360d3c8792de94f8c99449bd6d0afe3fc79a17"
     },
     "admin.frame.back": {
       "by": "ai",
@@ -45742,6 +46042,11 @@
       "out": "4cd7741b02b064368c8fea25ee241105fdc0486a276664e7dc0bf8c6ea5c7ff7",
       "src": "d8d623f91a618e9ec83788098988c77e2f5eeebcf510d88bf09232ae51870360"
     },
+    "admin.provider.field.signingSecret": {
+      "by": "ai",
+      "out": "907c133bce404c708f1c2ae54edf6a976610a394c34afeb6f7fff44878c732d2",
+      "src": "e7ee22e117a12ad81b796bf298061d9bd0b37a06983101cf01a1ed49e85f1ee0"
+    },
     "admin.provider.field.waitForCaller": {
       "by": "ai",
       "out": "1d79a43d66d1d1a8ecd7e6bfa8607201dc55adea2f92c8f38e8c5b2a441b83b7",
@@ -45992,10 +46297,35 @@
       "out": "8085169b8b1995768c75b5a619b774e4d5af3dbf2733bca02ec77c5bba3738ee",
       "src": "80075c12c30115a5615c238d80c737af5370e896502e29c2b06a70aad6b124a3"
     },
+    "admin.provider.guide.slack.cost": {
+      "by": "ai",
+      "out": "106f027edfb3ca5c6e73962444cb4563373533ff3e4327efb25fdde3f5c6b52f",
+      "src": "439e9dbfa4ae5e01763d00a9fb23e44d95a10ab907a748ab93452f6e1237cf1d"
+    },
+    "admin.provider.guide.slack.step1": {
+      "by": "ai",
+      "out": "a632f60307e609fb241fd8413bd21c63f78f41f4435e2f9ac9db5af8041e9877",
+      "src": "793640a1d1884486f38a9e4eb8b1eabf3117297a32ae935f9b867f089ef19420"
+    },
+    "admin.provider.guide.slack.step2": {
+      "by": "ai",
+      "out": "ae8e15080f1939c87f25e3ed3670a1267d251079fd48ec525d5640582a2e6480",
+      "src": "2b993ce80ccf02df31e9867be7f678f952f744557fde957062701d13adafdd0c"
+    },
+    "admin.provider.guide.slack.step3": {
+      "by": "ai",
+      "out": "038bb572bb9787e74ce5d90620fdadbd4378c36b02d8d46e22d9d3758a808a76",
+      "src": "7c301e1fe7d627bb66f356256cfa57344153e1baf38b7d70aac60215238013ac"
+    },
+    "admin.provider.guide.slack.step4": {
+      "by": "ai",
+      "out": "ef173ec99711b751b9cbde343ae75a17804075c25c5f326a29cf36e036263648",
+      "src": "93edabdce81856bdc7f955fa0cb3b716c09c9e0560ed863c8f23be35456a3144"
+    },
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
-      "out": "39b93831e03abf9168c15d2ca71ad8c3f519b22995cdc136e88c18b5c86b46eb",
-      "src": "9d3c3f01c7704968419dd857641c14e7a6b8cc78555ad232658ed4f589dfbdab"
+      "out": "6473580bb0a2437b1492a53f327cac1f4a7037e767f0b6bc79dcd97516ee35ef",
+      "src": "ac2887fbf4b2c28098afa81d3c4aed49b440a1c8eff115465cedc6abd7000160"
     },
     "admin.provider.help.cloudflare_saas": {
       "by": "ai",
@@ -60892,6 +61222,11 @@
       "out": "08fd32e8fcea778ed23b8180a46979b86ca2d9f1f890825a7e328c6fda2c732e",
       "src": "e9925481360b33c4877d3a4088296f24fd2b668f941d86dc9da93738380d5305"
     },
+    "server.api.feedback.setupPreviewUsed": {
+      "by": "ai",
+      "out": "5e28f5c9f2b8245ae0ed3a0557219c4d79cb40db9e1ae999f03825a0f096753d",
+      "src": "d15b212881530a9c9ca418bc465aff62efbb5aada0623d5ad2939b2640da89f7"
+    },
     "server.api.feedback.setupTextOnly": {
       "by": "ai",
       "out": "1e020342dccba5e660998977c2c91ae00f73f8fe69e43330f5c318495b5ba2e6",
@@ -61082,6 +61417,11 @@
       "out": "9f5d50ca7010f42c9dc29e943128f3878b4bfac94de369819242a65ea16353a0",
       "src": "b499f776716964cf5b948781d3a5d0bd798bfe6963d58965844a0c87f64d45fa"
     },
+    "server.api.mail.aboutFull": {
+      "by": "ai",
+      "out": "3066e6c12095f5c8d52b388a66e63bca3f1d37b5544c5d50744e779a6ce92952",
+      "src": "df601b131f2e95f525956d806ae199f3cba4b2e0a34ab5f53c628d43af1d420d"
+    },
     "server.api.mail.accessRefused": {
       "by": "ai",
       "out": "3ede516988d55cc3d30be05571f22488c51d81cdb5c0b45d33034eebec912960",
@@ -61097,6 +61437,11 @@
       "out": "9482c84e87a8b6d5f4de81872ec15f81a356cb6f6424a1f1eeb2ebbefd21b1f5",
       "src": "5271d03e84b17c93455582c246f98fb293ca093bc2e90608f414f886f5641eff"
     },
+    "server.api.mail.analysisNotFound": {
+      "by": "ai",
+      "out": "f39a0524de8ffffeb0a2a9114665850b86b90d7a3b887da94303e847bce2b834",
+      "src": "a875c75a77d79c47b8d83c2b4795c2aa75f7ceb9b588284144f16be67db7bb9f"
+    },
     "server.api.mail.apiDisabled": {
       "by": "ai",
       "out": "6af9ce26e3f4824cf5ce75d989c8ca1da54b7ad4dba2707a3acc34f3a34f7ac2",
@@ -61106,6 +61451,11 @@
       "by": "ai",
       "out": "9ef8676e9e979f32c25b4f5ec56e0c6935be2475c5eb7d58959123f23f31c862",
       "src": "cb6f9e97e72bae3ec8641b637054a17e4729223a3a19d558ae1bd18dd89b529c"
+    },
+    "server.api.mail.assistantNotFound": {
+      "by": "ai",
+      "out": "2daee695a1b223204ff8fe7c660899b6072c3465318c4723290752d6c30c4603",
+      "src": "1b489c2bc00b326463de5ad1d81dbbdd4b6f1b99225f45527df5d2c9dca3e526"
     },
     "server.api.mail.connectExpired": {
       "by": "ai",
@@ -61151,6 +61501,16 @@
       "by": "ai",
       "out": "69034f2bd89f770cf414a1e939d0f8c41fb2d718e6b70ee1efe29bff1d1e2074",
       "src": "cb15d1a99e2c0905a0458a4ead32c4cb59e7fac4dc3c4e0cd39a4fd9c0ee2d34"
+    },
+    "server.api.mail.topicAccepted": {
+      "by": "ai",
+      "out": "a246c02c708d4173d28a265e5c5be42ae83be8487cf6b911c2f88b77e4de4b20",
+      "src": "dc98b16d5ab0262693453f21db0e83b74d915081c299eb2032b2120b3866092b"
+    },
+    "server.api.mail.topicNotFound": {
+      "by": "ai",
+      "out": "41a7a78999d61ac479d27ba16ccad9d5ce29d1f72ba54af1cbb5a77aa76e8081",
+      "src": "7c2bfd81b198b70e43f1c642107c5cb03b84de72ed4701260eebd9f9cb37601f"
     },
     "server.api.mail.unavailable": {
       "by": "ai",
@@ -61592,6 +61952,11 @@
       "out": "1e5febb64426455bf57e336c30a1db0f724ac3696b38991a4037627714252b29",
       "src": "86c5a23b68660e613c97ca5469d797628950f073e5f0210effc6b1ba609f2607"
     },
+    "server.api.sttCantHear": {
+      "by": "ai",
+      "out": "1e4d0e2788ffecf143d9f6b70476da1c771662f67e840295441834f5da37144b",
+      "src": "45750fef2d671b58534a4711b60c99ddd241c0e3549d4cff0c6a79e2c8cb124b"
+    },
     "server.api.team.alreadyInvited": {
       "by": "ai",
       "out": "ca07176fc0ed81a6813a5d5a28dc77c435ac2b25e117569a0a0792e649fbc4fc",
@@ -61956,6 +62321,11 @@
       "by": "ai",
       "out": "a6540147eaed90d4f11ea75134d17e09e388609e27a39da6877de8846717af38",
       "src": "397d456b7e4ba0364cebb1dc2c51ac024cc8ca65b43ba57589a3d6f4af926b18"
+    },
+    "server.input.mail.acceptNeeds": {
+      "by": "ai",
+      "out": "d72be982753b8d185526fec1a17ff7a120953546b9b6f593dc6f85faf9c8c449",
+      "src": "df5edec0427bf772ea9f16f61f2837374b75ac97af18c370af0ef74d7c867b87"
     },
     "server.input.max": {
       "by": "ai",
@@ -63307,6 +63677,11 @@
       "out": "dfee336770735631febd62318a933fd66d6462c02e4ecfe0eb88a0638c8d0a2b",
       "src": "318655cea4bd2096fbfad433d7c019bac40750d1a456fc34d366df41fcc77197"
     },
+    "settings.assistant.languages.unheard": {
+      "by": "ai",
+      "out": "757c08a2114428d36cdb0fc901b282c31e2789adeb50726efbf804fe1fbfd2d1",
+      "src": "eb07da2d66bfac0be15999c73184c46b40c8f7abe14e3073dd3cfa5c6906b3d8"
+    },
     "settings.assistant.load": {
       "by": "ai",
       "out": "69879d6077c97154c4e3ae2f065340d4c3bea217885e515920cc0b2c88c96699",
@@ -63391,6 +63766,11 @@
       "by": "ai",
       "out": "eac25d16db7060952cfb503d9f381a5557bbcf205c151f9fa23039dff213bae8",
       "src": "c4715ed4e717e4a9f01a2e388c3f868ff90d8e634aee894e8b64e5c681864414"
+    },
+    "settings.assistant.section.booking.needsCalendar": {
+      "by": "ai",
+      "out": "2b4b457f4006c7cfd9a9ef22eeec5e7f82d71ffa28a25b7a78b017d074badacd",
+      "src": "89701e46c15fc35c26ef739001d37ce3e3cc2fc30334cadcc3e399f4d5dec90e"
     },
     "settings.assistant.section.business.description": {
       "by": "ai",
@@ -67714,8 +68094,8 @@
     },
     "settings.integrations.mail.readOnly": {
       "by": "ai",
-      "out": "6e46e18fef934f6fc5a76acf075eec07dc0a23b14aecceb8fed0d65c213994d4",
-      "src": "1249121c5ef53661b5b75b07c246f6c59572d754019c34bc575f14c8df5ef8a5"
+      "out": "2cfe36f5cb7bacd77e98d93eb413f40aa66c0daf050ef8da02ceea9e9994bf34",
+      "src": "fb906aa76afa5e540d43bcd24e5a28d6f71e3a9b5df4b3d48e41df97a6248fe1"
     },
     "settings.integrations.mail.reconnectTip": {
       "by": "ai",
@@ -67726,6 +68106,226 @@
       "by": "ai",
       "out": "3b4d9dbcc2607771eaf82b816774d1613c213ea5304bb77509605181e548e2b8",
       "src": "b23105d5c31bb25af64e1d4cfa4d7719fe27168203488eaaf8509b5c97b92b1b"
+    },
+    "settings.integrations.mailReview.aboutTip": {
+      "by": "ai",
+      "out": "17fa70379bc4e0189720805a959cbaa54df243d135462edfc9e01165d8cccc5c",
+      "src": "38a860d550f55cdf71461f142276f16c43ec6b8f7577a0fca7d57251893079f9"
+    },
+    "settings.integrations.mailReview.accept": {
+      "by": "ai",
+      "out": "9148c0048843cafa510f09e66858d18a03f326488cc0633956d5c03c5b2386e1",
+      "src": "d073bfc4d605f9a41c55ece7eda0c7472a86bc4bc464ad4b74780fa3d7533774"
+    },
+    "settings.integrations.mailReview.acceptTip": {
+      "by": "ai",
+      "out": "08548c25b8cfc65ab3bb1831e85ad91654ece031d3a24270da166944ce961f7c",
+      "src": "d0ac4c2aa84b4fad7404456e8caca6aed16ebd7903569cdeb2bceb90c1fe0c21"
+    },
+    "settings.integrations.mailReview.accepted": {
+      "by": "ai",
+      "out": "abd5ab9fd32db2460a43c2bb9af195cc9ea6f853ae9573c1e011a67810bfbfe0",
+      "src": "f7535765b6052b89aad0d81bfe05b6239abea3fb6bdc89b51802bec65f21253b"
+    },
+    "settings.integrations.mailReview.acceptedIn": {
+      "by": "ai",
+      "out": "e3b43214fa6503a54ee4d2d5801e948832a8add6c462737b3502777cce1131d2",
+      "src": "14e3cad7d91178c1424ec83c5272966e5a19af0321fa27dd056531cbbf52b4f5"
+    },
+    "settings.integrations.mailReview.addFact": {
+      "by": "ai",
+      "out": "0934cb137f13d239896dc1bb04e7c3cca59ba4ea5303c8b98a2bca8b01eb41be",
+      "src": "aa2dcdf5626fe2934e19e0dd7c90f901d8a9901774e9eaefedb28c2c50696eaf"
+    },
+    "settings.integrations.mailReview.addTo": {
+      "by": "ai",
+      "out": "1765be422cc70278d7022e65a8b674229d43e745f564a0998caea01590fc2715",
+      "src": "82b9ffd3cec869998fe520c7ec09d1b558e3ddfdf4b4a3c2b22c463a0494593e"
+    },
+    "settings.integrations.mailReview.againNote": {
+      "by": "ai",
+      "out": "06073d01df1c022432d0e690b3d47709ccc8b191853c2158c79a00151f3fc605",
+      "src": "1ded493c94805691e95f527c793f8ddb94e6280a6409af116d4162c8794d78d3"
+    },
+    "settings.integrations.mailReview.allDone": {
+      "by": "ai",
+      "out": "4e4a8494ff87aac6c8d9f280b4ef0437e5c3bd21b7605f0c28a335793fa0f81b",
+      "src": "373b810ced945642e910ff84e64e068215d8e13244ec53dc018a19ba20e5091e"
+    },
+    "settings.integrations.mailReview.answer": {
+      "by": "ai",
+      "out": "b58b200315f86dd679924ee970354097a484e0abd4756517af0b1cb1c475c684",
+      "src": "61355d0c12b5c7b8ac3e6f85fad55d65070c6b81fec63fc79fd08afd7346846d"
+    },
+    "settings.integrations.mailReview.askFor": {
+      "by": "ai",
+      "out": "f37a7aca2dd7432767077ea4dd3b7c1e1c5c433e348286785aa80881b2ffbd65",
+      "src": "3f8d9339d11c1652355812fd71f971989b6fcbd2a588bd66dbd427e499cbbdab"
+    },
+    "settings.integrations.mailReview.conversations": {
+      "by": "ai",
+      "out": "8ce52e4040bd7163780456c8d2c72aa162f95a600cc803bc33176384421ee59c",
+      "src": "c155121f931789342f44fb146835bc203b13da7f3513005ffc31482c64dc984c"
+    },
+    "settings.integrations.mailReview.counts": {
+      "by": "ai",
+      "out": "eb034bdb376b532a1e687c418cc3899bf3d07366e58642f61f5a06a00bf5e2b6",
+      "src": "deb5a59ef18d85f19db1243a089218addca6aa55daf2b8874c5006c01918b1e4"
+    },
+    "settings.integrations.mailReview.drop": {
+      "by": "ai",
+      "out": "1a878a55c594b0f72cfeb04a09946e9571edd22d31279df43f8834a69f67d2fc",
+      "src": "c8af9ae37a48273f981bc82af63517e3a2195c4076360e73546c306a044dd38b"
+    },
+    "settings.integrations.mailReview.dropTip": {
+      "by": "ai",
+      "out": "ff14c81ae77c1236cac8c33f9f68303605cfedcec5680d641376a23ccd9a54d8",
+      "src": "21bdbb265608480e9ab67073473a5693a7e078e777a11adc1ef3d212b6a9ddc0"
+    },
+    "settings.integrations.mailReview.dropped": {
+      "by": "ai",
+      "out": "6acb5ec9b457ab363efcadb4ad0efee2fabb96993e3c6991921ac93681dcb6d3",
+      "src": "739f68fe97ad306e904725af5f09b1377fcb9aac40e7dceea7f07868fa4e219a"
+    },
+    "settings.integrations.mailReview.error.accountRefused": {
+      "by": "ai",
+      "out": "bdfb1dc3f3733082d271154d41fe63de8dffcc73c6b0d0351f7b62c5ef46e372",
+      "src": "14720851e364a0676db46f8f4f28458e1da2e2077ce35490b63892daba038140"
+    },
+    "settings.integrations.mailReview.error.failed": {
+      "by": "ai",
+      "out": "ca71838c2e7fcfb8ce06cbd4220b6c68fdedbb94a5155cc68502772db0ea42d7",
+      "src": "a06e3ea057f3b4da50b410874cc23853728ca4f6675a4e9873496a51f53de5d4"
+    },
+    "settings.integrations.mailReview.error.noConversations": {
+      "by": "ai",
+      "out": "24c635e3e6eeb5648c888723e7676241f6e7e2a5a82582c1566f1259ca275510",
+      "src": "e50be2a0e0e5c936511c146288f706485b46e88920e110dfb1d6a795051ac5c4"
+    },
+    "settings.integrations.mailReview.error.noMailbox": {
+      "by": "ai",
+      "out": "28c4ee4e0de9c6094346edd861e55df363eeae844aeee97321daeaac41824881",
+      "src": "5b6f6b052e97b5955376a39100e913c6b80098a55a30eda75c665f0afd15cba3"
+    },
+    "settings.integrations.mailReview.error.noModel": {
+      "by": "ai",
+      "out": "f05e19729ed46d4880d6ffbd8ba8ed3a31d6f34b587cea6bc52b50ac0c1cc93e",
+      "src": "c6bd8a4a4304263cb7e1737305937f78c64dcf649054d76e89d08af0a4500fec"
+    },
+    "settings.integrations.mailReview.error.unavailable": {
+      "by": "ai",
+      "out": "0b698dc3ea7ee4afe43c9a22ebe3e8b6faa8bcf4d9c1212d0205ac23df8a3672",
+      "src": "76c90e3546eb0439fd8f618f1d0d96b4aecfd1bb9d4294cdf0d0660fd4087f76"
+    },
+    "settings.integrations.mailReview.help": {
+      "by": "ai",
+      "out": "1b84fe783a0b10962f0e633e72c24ce6ca3e3a46f0ccefbf127c2624e89e7000",
+      "src": "bb19357d1386da177d0b9b7594b5a0f43dc81de85ce07b42c0a1b98a8946dec1"
+    },
+    "settings.integrations.mailReview.months": {
+      "by": "ai",
+      "out": "90be781b76cab425d201b7c5adc0add173fc360507aa453795bb7b32ae4e79f9",
+      "src": "54c70542726ab0616ffe7ba16be8683d33667bddcd57118aa8caff76d6182a77"
+    },
+    "settings.integrations.mailReview.noTopics": {
+      "by": "ai",
+      "out": "d5e95f3bf5f61fe5187c4171e3780e0faf47f23c37e4abb88c9985108c426a3d",
+      "src": "1ef2df654ca545593a9c3b78d9e174d72001cbbe81fef56953f6a6cf1cc67686"
+    },
+    "settings.integrations.mailReview.pickTip": {
+      "by": "ai",
+      "out": "f59cdfd5bc6b02eed0ce9444599ae264d7214b044f52455bdd144782ccf08b68",
+      "src": "a4c13c86f545bc5ed378687e72a556cd2c985166079db22c143b4300e0eb2da7"
+    },
+    "settings.integrations.mailReview.position": {
+      "by": "ai",
+      "out": "a54c80e0fe0ef6fb6900c273c8b3643076672d84ac5f955e775c78b86c884cf0",
+      "src": "ebaf527973d35e74e9f598efccb76702fb467882736084738e8c200c0698e4d5"
+    },
+    "settings.integrations.mailReview.preview": {
+      "by": "ai",
+      "out": "b23657ff5853d995f9fdb5b083bfeb8b44a2c4ea0b3cabe70834febfb03a60b9",
+      "src": "c7bca680161bec14ba83df49f4b0b76ec9d34916e4637bb1347c8fe7457f64d0"
+    },
+    "settings.integrations.mailReview.previewName": {
+      "by": "ai",
+      "out": "3eef7878020a62569f9263a23afc2b19f379ba465858f730ccda600061e43554",
+      "src": "31bfff96f6f2fb94d8614000b1697ba499468265a52e4a2eb3c8335b9292f5e0"
+    },
+    "settings.integrations.mailReview.privacy": {
+      "by": "ai",
+      "out": "7467ffc9fcf1b3bf18d7624da7d82c6e26a2208634105375744bb88699b1c69b",
+      "src": "359144af985e2f7c12ebef93a15dcb6eca40b56eb368cc36f6f1464e9a9943c8"
+    },
+    "settings.integrations.mailReview.question": {
+      "by": "ai",
+      "out": "d25ad52ceed826274ca7d9c7070e2cf2333e97b48e2991776a4fda31f149ce67",
+      "src": "a897fdea4b3de9283c92f40f4a7d9b554fe34c095c5de38215979c84139465f8"
+    },
+    "settings.integrations.mailReview.queued": {
+      "by": "ai",
+      "out": "7f812f69809a601b56583dfc4b5fdd9fdbc24537af6aa3a45722a1a4d51ec778",
+      "src": "7438fef97be71f253b123ab8e29f61b74afdd1e8a553dc91224889f223eeb70b"
+    },
+    "settings.integrations.mailReview.range": {
+      "by": "ai",
+      "out": "45df342d3e974f76330fac92940ac063c160062909872b574b25c22e5aa3a5d9",
+      "src": "91ffee5908b5336ba197fb1258ba3d220e32d7985f66459e68a6b6308d30cc86"
+    },
+    "settings.integrations.mailReview.removeFact": {
+      "by": "ai",
+      "out": "d25da2809be9402bd773d00f3a906396e94f696477bd9284fed56f3c5e226a4c",
+      "src": "d00751e07bffb05a64cc77f67306eb62eab0efe32a394ee431644d4cc6ccea29"
+    },
+    "settings.integrations.mailReview.runAgain": {
+      "by": "ai",
+      "out": "e9795deee470f7d0ee9665107dc0f31d2189a2ae15da5de037b586d79748fcc1",
+      "src": "ea5a4e3ff2f29a438a7079bae13e8a9165972357c3b3478d65eafbe3d864e958"
+    },
+    "settings.integrations.mailReview.running": {
+      "by": "ai",
+      "out": "2df395c89d9f2177d919d491b09fc8de2c764b4e5c0caa76f66ce1855c0a0086",
+      "src": "5ff0f5419e4b05b5880f0d11925f28e2fda66ee8b286906d78ef7f8a02720ed9"
+    },
+    "settings.integrations.mailReview.runningLine": {
+      "by": "ai",
+      "out": "4592db2518e9dd148afc71b23bb688625dc6004e194d23a08dfc161220fa8871",
+      "src": "b1972facc3978f5918a3c48dd35ad7810526da54627b6c1834aa1e4db42ea0cd"
+    },
+    "settings.integrations.mailReview.start": {
+      "by": "ai",
+      "out": "4ae1f4dda21ea7ea2e28d6277e9c7e37f92598c09a0719b336cb884b4b244be8",
+      "src": "01f97a34c290e4b32df073b12ee5d11e285891dd6d857c48a2547865b46356c7"
+    },
+    "settings.integrations.mailReview.startLead": {
+      "by": "ai",
+      "out": "dcaccaec45bc5a1add723c776e3cfedaef766acdadc3ecf1181c9da938396fa8",
+      "src": "7aebd8839fb244fc62f85b7a1fc720b465a9bc402e4236ae166380327dba4889"
+    },
+    "settings.integrations.mailReview.startTip": {
+      "by": "ai",
+      "out": "48cc4680f8c921b3ffa5448546a6e294495762fdffdf2b46904653258dc7f632",
+      "src": "1a978f56a9a10d54f2f738191e1e5446ea86e97747861a83a4792b5569a61d0d"
+    },
+    "settings.integrations.mailReview.summary": {
+      "by": "ai",
+      "out": "9e8c24f8e30f1be08938035bef5b60eb826adda987b76bf4eda6e11bada882f3",
+      "src": "215c99147efae7909f293f6ac95f986351c389901c1f17e9e1c1471ef5e84b92"
+    },
+    "settings.integrations.mailReview.title": {
+      "by": "ai",
+      "out": "a013aee5d095303614e59e5854d3037f77536d0fb6d00b0e0f2ffc36a378cbae",
+      "src": "a78bf7f79b5eded89806b74d6c227e750d3fef297630cb962b3deb96bdd3b029"
+    },
+    "settings.integrations.mailReview.undo": {
+      "by": "ai",
+      "out": "29fa864fd744397e68662957a145b49ade5c81b023f1e24d8ee693052ff2d6ae",
+      "src": "a8283ade31856f71220db0e6f60a257c6889dc4dad0f275f66ad44b9ed9bf8d5"
+    },
+    "settings.integrations.mailReview.undoTip": {
+      "by": "ai",
+      "out": "16a02dfdb36d72dc5c4a53422a905d9a2b085b72832e4a076e513ecc0181ee60",
+      "src": "f11e0849dfcab5ab5e36d321381a8568a8aedc980ec6b6e4c2dbdacb9f9c637c"
     },
     "settings.integrations.mcp.address": {
       "by": "ai",
@@ -81086,8 +81686,8 @@
     },
     "admin.example.ownerEmail": {
       "by": "ai",
-      "out": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0",
-      "src": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0"
+      "out": "678770be4a35429f72a76e83f8360d3c8792de94f8c99449bd6d0afe3fc79a17",
+      "src": "678770be4a35429f72a76e83f8360d3c8792de94f8c99449bd6d0afe3fc79a17"
     },
     "admin.frame.back": {
       "by": "ai",
@@ -83324,6 +83924,11 @@
       "out": "3eb256e9f567f30a3d0ca58a061efc09fb171dee096e589072d89a90283cc97b",
       "src": "d8d623f91a618e9ec83788098988c77e2f5eeebcf510d88bf09232ae51870360"
     },
+    "admin.provider.field.signingSecret": {
+      "by": "ai",
+      "out": "75bc8104b9a9ce6fa1d858e2f5962b0bf2fb807b20f6a81878e7be14ae2164da",
+      "src": "e7ee22e117a12ad81b796bf298061d9bd0b37a06983101cf01a1ed49e85f1ee0"
+    },
     "admin.provider.field.waitForCaller": {
       "by": "ai",
       "out": "9a1dc923d7ef25837d4383279f928a58b69d65ea44197a28f2f3da93d0cb7dea",
@@ -83574,10 +84179,35 @@
       "out": "1453c6543b7e1fa7da38163df35e1804054b9681497923db266da0cdf9cc4dff",
       "src": "80075c12c30115a5615c238d80c737af5370e896502e29c2b06a70aad6b124a3"
     },
+    "admin.provider.guide.slack.cost": {
+      "by": "ai",
+      "out": "144e6abf2d2ec5bb6974a39c532f2b11ad77dd6292f0da4c1b3841e658454b95",
+      "src": "439e9dbfa4ae5e01763d00a9fb23e44d95a10ab907a748ab93452f6e1237cf1d"
+    },
+    "admin.provider.guide.slack.step1": {
+      "by": "ai",
+      "out": "e5e8e9343f5357f2e11c46eddd74666bb7364bdfb1ba52d95460fe65770e998c",
+      "src": "793640a1d1884486f38a9e4eb8b1eabf3117297a32ae935f9b867f089ef19420"
+    },
+    "admin.provider.guide.slack.step2": {
+      "by": "ai",
+      "out": "a6924f2bde9f62aa88c966072d90b31df4e3d0ad544ff2d809e94e89e6a1257f",
+      "src": "2b993ce80ccf02df31e9867be7f678f952f744557fde957062701d13adafdd0c"
+    },
+    "admin.provider.guide.slack.step3": {
+      "by": "ai",
+      "out": "d77fef0f3c988be08a9bbb5d808333ac21f6e3246f8b87c3a9c4129a30c9394f",
+      "src": "7c301e1fe7d627bb66f356256cfa57344153e1baf38b7d70aac60215238013ac"
+    },
+    "admin.provider.guide.slack.step4": {
+      "by": "ai",
+      "out": "5890c9d48974193e314542a5eab5dc6d67c6fdab82daf2b0b69a73d616f35284",
+      "src": "93edabdce81856bdc7f955fa0cb3b716c09c9e0560ed863c8f23be35456a3144"
+    },
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
-      "out": "d7a434e13e5fff2a97bec816e24e5e36ae0557f2d40fb4afeb691db392565e13",
-      "src": "9d3c3f01c7704968419dd857641c14e7a6b8cc78555ad232658ed4f589dfbdab"
+      "out": "b7e5d48c416e3bb79c51d48ebe3d282b22943c61333c05416a28df3579262662",
+      "src": "ac2887fbf4b2c28098afa81d3c4aed49b440a1c8eff115465cedc6abd7000160"
     },
     "admin.provider.help.cloudflare_saas": {
       "by": "ai",
@@ -98474,6 +99104,11 @@
       "out": "b0c6177185b4ae408af0a8b8aa62e1225ad1cc8ffd9a511e243956f604c2ae1f",
       "src": "e9925481360b33c4877d3a4088296f24fd2b668f941d86dc9da93738380d5305"
     },
+    "server.api.feedback.setupPreviewUsed": {
+      "by": "ai",
+      "out": "0b06d686b6d75dcdffbc1ff9861c08c211ba6130c905da46bed1ece4ff0bca47",
+      "src": "d15b212881530a9c9ca418bc465aff62efbb5aada0623d5ad2939b2640da89f7"
+    },
     "server.api.feedback.setupTextOnly": {
       "by": "ai",
       "out": "d11937f4ff225eee22e092e2b7719e85aef815613be32e6d55b567c7be41285c",
@@ -98664,6 +99299,11 @@
       "out": "1601ccce0d81478f58cec37c458dbd920553e215bfa43eb8141dbc9b93a2fff6",
       "src": "b499f776716964cf5b948781d3a5d0bd798bfe6963d58965844a0c87f64d45fa"
     },
+    "server.api.mail.aboutFull": {
+      "by": "ai",
+      "out": "39af3f00ae1122222d81df84873361c7cd91fb3efdd8aafbb22ee1879d782aa9",
+      "src": "df601b131f2e95f525956d806ae199f3cba4b2e0a34ab5f53c628d43af1d420d"
+    },
     "server.api.mail.accessRefused": {
       "by": "ai",
       "out": "a4b0175109e52f3b1b1064962c1c7883e0a720f2f098d07b6c32306063c79cfe",
@@ -98679,6 +99319,11 @@
       "out": "4b58fa47235b0b1f3292cde496e8e1b5181bb5f73d4a67797e95293ac2cc6b2b",
       "src": "5271d03e84b17c93455582c246f98fb293ca093bc2e90608f414f886f5641eff"
     },
+    "server.api.mail.analysisNotFound": {
+      "by": "ai",
+      "out": "9fba1facfab51b80b50f21b075bee46e73941a15f647bd72a9708bf005eaf87f",
+      "src": "a875c75a77d79c47b8d83c2b4795c2aa75f7ceb9b588284144f16be67db7bb9f"
+    },
     "server.api.mail.apiDisabled": {
       "by": "ai",
       "out": "ba504c7e6d180ce84fea3c0df62385d28adf88f3848ba5f3a475599a682055d5",
@@ -98688,6 +99333,11 @@
       "by": "ai",
       "out": "3dd6b334a18660797f01aeee5b7305e7baa926501216e0e5690318eda993792f",
       "src": "cb6f9e97e72bae3ec8641b637054a17e4729223a3a19d558ae1bd18dd89b529c"
+    },
+    "server.api.mail.assistantNotFound": {
+      "by": "ai",
+      "out": "b3a6e5861423f6f9c746811f3958b93f72be44852916432b950c93a3939200d6",
+      "src": "1b489c2bc00b326463de5ad1d81dbbdd4b6f1b99225f45527df5d2c9dca3e526"
     },
     "server.api.mail.connectExpired": {
       "by": "ai",
@@ -98733,6 +99383,16 @@
       "by": "ai",
       "out": "eb4a25521bd01261beb3c1de343144956de0f5b72921c938abc1e883d51a1448",
       "src": "cb15d1a99e2c0905a0458a4ead32c4cb59e7fac4dc3c4e0cd39a4fd9c0ee2d34"
+    },
+    "server.api.mail.topicAccepted": {
+      "by": "ai",
+      "out": "7043eeac2d0e1b7fe07c4b95e5e6da5848fb2abc2ea0c5cb511c67f13ff9fd1c",
+      "src": "dc98b16d5ab0262693453f21db0e83b74d915081c299eb2032b2120b3866092b"
+    },
+    "server.api.mail.topicNotFound": {
+      "by": "ai",
+      "out": "eb5a496a3597c4850301076e5591db58bc469802768c83037afa0dc840e9ed8f",
+      "src": "7c2bfd81b198b70e43f1c642107c5cb03b84de72ed4701260eebd9f9cb37601f"
     },
     "server.api.mail.unavailable": {
       "by": "ai",
@@ -99174,6 +99834,11 @@
       "out": "7418c1c8db4c9d740706a35f392252cdbd03de142ebe2058dc6ebc280911856b",
       "src": "86c5a23b68660e613c97ca5469d797628950f073e5f0210effc6b1ba609f2607"
     },
+    "server.api.sttCantHear": {
+      "by": "ai",
+      "out": "f0081725c27846d1e8047ce5b4828c903fcb40f303a989cb89faedcd1e099905",
+      "src": "45750fef2d671b58534a4711b60c99ddd241c0e3549d4cff0c6a79e2c8cb124b"
+    },
     "server.api.team.alreadyInvited": {
       "by": "ai",
       "out": "15802a9f0fe9f973ee0f56f3f11c862ca37105cbfaa6cc153b1c25671f3ea1cd",
@@ -99538,6 +100203,11 @@
       "by": "ai",
       "out": "0ae9dcf269e216c5ff4276d357f16d495ca66090e40b0d466c6955a89456c263",
       "src": "397d456b7e4ba0364cebb1dc2c51ac024cc8ca65b43ba57589a3d6f4af926b18"
+    },
+    "server.input.mail.acceptNeeds": {
+      "by": "ai",
+      "out": "a53b37034d7d0d5633c0b8864635c75054e1883de181389d7b30a2f6dd8ac3e9",
+      "src": "df5edec0427bf772ea9f16f61f2837374b75ac97af18c370af0ef74d7c867b87"
     },
     "server.input.max": {
       "by": "ai",
@@ -100889,6 +101559,11 @@
       "out": "2d259f09bf53e3d23c21f7f62db57456ff46cbb3adc027541fb1ef8295bb0f00",
       "src": "318655cea4bd2096fbfad433d7c019bac40750d1a456fc34d366df41fcc77197"
     },
+    "settings.assistant.languages.unheard": {
+      "by": "ai",
+      "out": "556358bac59ab9ba176b2d6103ba6dc113ea705c5c576532264285106d0f7da7",
+      "src": "eb07da2d66bfac0be15999c73184c46b40c8f7abe14e3073dd3cfa5c6906b3d8"
+    },
     "settings.assistant.load": {
       "by": "ai",
       "out": "0e4dcdc32f4f2377bd736e13b96a8a5747b8de1fee6f56ee51f0e0956f0e6ae1",
@@ -100973,6 +101648,11 @@
       "by": "ai",
       "out": "bdd3934296d2d897c1ef1a4323b93d815174e5b2c9b72c905fe31ce1621ab5f2",
       "src": "c4715ed4e717e4a9f01a2e388c3f868ff90d8e634aee894e8b64e5c681864414"
+    },
+    "settings.assistant.section.booking.needsCalendar": {
+      "by": "ai",
+      "out": "dd961743ccde88d192672fe426e9aa7f3bae77e33646dbf7ab85517032bbcd2e",
+      "src": "89701e46c15fc35c26ef739001d37ce3e3cc2fc30334cadcc3e399f4d5dec90e"
     },
     "settings.assistant.section.business.description": {
       "by": "ai",
@@ -105296,8 +105976,8 @@
     },
     "settings.integrations.mail.readOnly": {
       "by": "ai",
-      "out": "f568bdbfde23fd020f49705a9218b60395b1e2808337f8621c123ac3065a4900",
-      "src": "1249121c5ef53661b5b75b07c246f6c59572d754019c34bc575f14c8df5ef8a5"
+      "out": "2b6bc76627dcd1c8b9207c22331e9b98267f9de4257d8143b5ad21288ba231da",
+      "src": "fb906aa76afa5e540d43bcd24e5a28d6f71e3a9b5df4b3d48e41df97a6248fe1"
     },
     "settings.integrations.mail.reconnectTip": {
       "by": "ai",
@@ -105308,6 +105988,226 @@
       "by": "ai",
       "out": "979eabf520bb895bb1ff95ff38fb1545775f8030ab4318073a5ca8eb1489d70d",
       "src": "b23105d5c31bb25af64e1d4cfa4d7719fe27168203488eaaf8509b5c97b92b1b"
+    },
+    "settings.integrations.mailReview.aboutTip": {
+      "by": "ai",
+      "out": "598de0446f6c531bad5a59e2d5b8a782feabe51d17d09e603b1263b304ad7736",
+      "src": "38a860d550f55cdf71461f142276f16c43ec6b8f7577a0fca7d57251893079f9"
+    },
+    "settings.integrations.mailReview.accept": {
+      "by": "ai",
+      "out": "cf229818112475c3dbbed43d8db74cb714260621248c0cb3ee3919fe59a89e5d",
+      "src": "d073bfc4d605f9a41c55ece7eda0c7472a86bc4bc464ad4b74780fa3d7533774"
+    },
+    "settings.integrations.mailReview.acceptTip": {
+      "by": "ai",
+      "out": "6876021fdaf336589f0a8328457036beb4eea6d2a90b0628694a7339e383b6d3",
+      "src": "d0ac4c2aa84b4fad7404456e8caca6aed16ebd7903569cdeb2bceb90c1fe0c21"
+    },
+    "settings.integrations.mailReview.accepted": {
+      "by": "ai",
+      "out": "f816755b229ddc3b32cdaa24cfc310a2c060243ef10cce2761864164ccaf3235",
+      "src": "f7535765b6052b89aad0d81bfe05b6239abea3fb6bdc89b51802bec65f21253b"
+    },
+    "settings.integrations.mailReview.acceptedIn": {
+      "by": "ai",
+      "out": "fe9916a586e56407ffc7ba6fdc299f7b780dab1b3159abd5d091a9071f79438b",
+      "src": "14e3cad7d91178c1424ec83c5272966e5a19af0321fa27dd056531cbbf52b4f5"
+    },
+    "settings.integrations.mailReview.addFact": {
+      "by": "ai",
+      "out": "e8a9d3dbde5615bfe5192bb33079ff6eeca44b88f0dee62bc257bcc7c84eff25",
+      "src": "aa2dcdf5626fe2934e19e0dd7c90f901d8a9901774e9eaefedb28c2c50696eaf"
+    },
+    "settings.integrations.mailReview.addTo": {
+      "by": "ai",
+      "out": "d7d18dc156666e5ac04d3f066e449bf6eef36ade5915727d70f854225cfb5a0e",
+      "src": "82b9ffd3cec869998fe520c7ec09d1b558e3ddfdf4b4a3c2b22c463a0494593e"
+    },
+    "settings.integrations.mailReview.againNote": {
+      "by": "ai",
+      "out": "c4c0ec2e3b8f2dbdac4b09fa32461d02f0992d26995edab1cbf36fbc992481aa",
+      "src": "1ded493c94805691e95f527c793f8ddb94e6280a6409af116d4162c8794d78d3"
+    },
+    "settings.integrations.mailReview.allDone": {
+      "by": "ai",
+      "out": "98b8ca199e8319248e086b6f0c9344ee3307a6ccdb49cc6fad497e0cb49f5513",
+      "src": "373b810ced945642e910ff84e64e068215d8e13244ec53dc018a19ba20e5091e"
+    },
+    "settings.integrations.mailReview.answer": {
+      "by": "ai",
+      "out": "9750d72b5cef4dc512d9d9119bfe462f05293fba97577c3f8d083865fe5a6dbc",
+      "src": "61355d0c12b5c7b8ac3e6f85fad55d65070c6b81fec63fc79fd08afd7346846d"
+    },
+    "settings.integrations.mailReview.askFor": {
+      "by": "ai",
+      "out": "ae8bd3e5f388388bd47fa3f149719a5d22e8b7f3b029c0b32c1dcc986ba7ec63",
+      "src": "3f8d9339d11c1652355812fd71f971989b6fcbd2a588bd66dbd427e499cbbdab"
+    },
+    "settings.integrations.mailReview.conversations": {
+      "by": "ai",
+      "out": "6ed129a41f2de0c34576ddcd6e897e38dc04425138017b67857512ab0eac153a",
+      "src": "c155121f931789342f44fb146835bc203b13da7f3513005ffc31482c64dc984c"
+    },
+    "settings.integrations.mailReview.counts": {
+      "by": "ai",
+      "out": "828c40535e5d164a063346be2b1a68d6164c8cb47b64909585fe03c2e804ee92",
+      "src": "deb5a59ef18d85f19db1243a089218addca6aa55daf2b8874c5006c01918b1e4"
+    },
+    "settings.integrations.mailReview.drop": {
+      "by": "ai",
+      "out": "bd36bfee6876a7580e8aa3c4a9783e4618b0c283eddb8f391f79e1b92cb727cf",
+      "src": "c8af9ae37a48273f981bc82af63517e3a2195c4076360e73546c306a044dd38b"
+    },
+    "settings.integrations.mailReview.dropTip": {
+      "by": "ai",
+      "out": "c721e8eadca235aac7509adc16bee97be2a7d3fb3add8ea824cf7379044cac39",
+      "src": "21bdbb265608480e9ab67073473a5693a7e078e777a11adc1ef3d212b6a9ddc0"
+    },
+    "settings.integrations.mailReview.dropped": {
+      "by": "ai",
+      "out": "9912e688aedd08284b267c44e2ac3bf903ff34a16c6ad78046f87837df888abc",
+      "src": "739f68fe97ad306e904725af5f09b1377fcb9aac40e7dceea7f07868fa4e219a"
+    },
+    "settings.integrations.mailReview.error.accountRefused": {
+      "by": "ai",
+      "out": "b7ca536ed095c9726d1a255254db28e20ce74af047d35ff24550c5665c47b6a0",
+      "src": "14720851e364a0676db46f8f4f28458e1da2e2077ce35490b63892daba038140"
+    },
+    "settings.integrations.mailReview.error.failed": {
+      "by": "ai",
+      "out": "6c3cccd5745a49dec52b347a8ad8f9bf957dcf878b94c352c009d1275a68acff",
+      "src": "a06e3ea057f3b4da50b410874cc23853728ca4f6675a4e9873496a51f53de5d4"
+    },
+    "settings.integrations.mailReview.error.noConversations": {
+      "by": "ai",
+      "out": "53e77ef3e3c78cec8a2ce1be8f0b98d6b82a4895df09c7c7bc0801d8a987c1b5",
+      "src": "e50be2a0e0e5c936511c146288f706485b46e88920e110dfb1d6a795051ac5c4"
+    },
+    "settings.integrations.mailReview.error.noMailbox": {
+      "by": "ai",
+      "out": "bf138f4f6cbb5a5f0b36256e2e2e7a18de093cc1c39f4c549ed50ae78b74c6c2",
+      "src": "5b6f6b052e97b5955376a39100e913c6b80098a55a30eda75c665f0afd15cba3"
+    },
+    "settings.integrations.mailReview.error.noModel": {
+      "by": "ai",
+      "out": "c95e2093459496d549bf977632c4a6dda4fa3b4441cf0528151803efca768e96",
+      "src": "c6bd8a4a4304263cb7e1737305937f78c64dcf649054d76e89d08af0a4500fec"
+    },
+    "settings.integrations.mailReview.error.unavailable": {
+      "by": "ai",
+      "out": "5f3978ed098c3342f8200446dd092a8b02e19e1c8fd3cb2931268e79736c26cb",
+      "src": "76c90e3546eb0439fd8f618f1d0d96b4aecfd1bb9d4294cdf0d0660fd4087f76"
+    },
+    "settings.integrations.mailReview.help": {
+      "by": "ai",
+      "out": "b63637066c2e7aaeb29e891a12a7630c97e32a5ac873eef4a27a88d9dc5c49aa",
+      "src": "bb19357d1386da177d0b9b7594b5a0f43dc81de85ce07b42c0a1b98a8946dec1"
+    },
+    "settings.integrations.mailReview.months": {
+      "by": "ai",
+      "out": "7ef3cec46cf58fd3d98f05f5eb4c4a5aed4518224834af752de094a5d9ffdbc4",
+      "src": "54c70542726ab0616ffe7ba16be8683d33667bddcd57118aa8caff76d6182a77"
+    },
+    "settings.integrations.mailReview.noTopics": {
+      "by": "ai",
+      "out": "4f218003f704d5cd785373c6b3a6dbdfe308168c18f748894b62c49b316026a8",
+      "src": "1ef2df654ca545593a9c3b78d9e174d72001cbbe81fef56953f6a6cf1cc67686"
+    },
+    "settings.integrations.mailReview.pickTip": {
+      "by": "ai",
+      "out": "d44e32d5a3116c6d3852e8ef4d5518c2e005dfdc2a2fc8749e581045a323a9c8",
+      "src": "a4c13c86f545bc5ed378687e72a556cd2c985166079db22c143b4300e0eb2da7"
+    },
+    "settings.integrations.mailReview.position": {
+      "by": "ai",
+      "out": "863acc1449978b6385c76f4bdafca71d38f9c9f840ef3b9a31bbf84697bd65a8",
+      "src": "ebaf527973d35e74e9f598efccb76702fb467882736084738e8c200c0698e4d5"
+    },
+    "settings.integrations.mailReview.preview": {
+      "by": "ai",
+      "out": "2b894785ff694af2afa6915bf42e2e4a4da45750fbabaccdb13f859c0b39b07e",
+      "src": "c7bca680161bec14ba83df49f4b0b76ec9d34916e4637bb1347c8fe7457f64d0"
+    },
+    "settings.integrations.mailReview.previewName": {
+      "by": "ai",
+      "out": "8eca99aa3c21e86fe60bb8a6e758d461aeef496668b6416807254d56d6ca7ab3",
+      "src": "31bfff96f6f2fb94d8614000b1697ba499468265a52e4a2eb3c8335b9292f5e0"
+    },
+    "settings.integrations.mailReview.privacy": {
+      "by": "ai",
+      "out": "5849e67a5299ec0e060e34424c54784086ed2f2b72d114242b147d9688c3cc29",
+      "src": "359144af985e2f7c12ebef93a15dcb6eca40b56eb368cc36f6f1464e9a9943c8"
+    },
+    "settings.integrations.mailReview.question": {
+      "by": "ai",
+      "out": "6c9d36152ccce2766b81f459f10e77a0ee74ba09e7cfa2d7506f9742eaeccd56",
+      "src": "a897fdea4b3de9283c92f40f4a7d9b554fe34c095c5de38215979c84139465f8"
+    },
+    "settings.integrations.mailReview.queued": {
+      "by": "ai",
+      "out": "bbfd84ba74cc38bdf8e5e977f3a125010d2f8fbbaf51b9f40e5463b1c8e0146e",
+      "src": "7438fef97be71f253b123ab8e29f61b74afdd1e8a553dc91224889f223eeb70b"
+    },
+    "settings.integrations.mailReview.range": {
+      "by": "ai",
+      "out": "2171009f4e2a3d1cd6b03751d013884a83d345758370c097dc0833d74ca7b0d7",
+      "src": "91ffee5908b5336ba197fb1258ba3d220e32d7985f66459e68a6b6308d30cc86"
+    },
+    "settings.integrations.mailReview.removeFact": {
+      "by": "ai",
+      "out": "a3f735782ae3292204104170d9952e54eca2a41798731b35ee0a9cddcf9ee598",
+      "src": "d00751e07bffb05a64cc77f67306eb62eab0efe32a394ee431644d4cc6ccea29"
+    },
+    "settings.integrations.mailReview.runAgain": {
+      "by": "ai",
+      "out": "242f6c80f71dc5a8e6edeccb8074adb362400dd848224973b0e3128e5fbf74aa",
+      "src": "ea5a4e3ff2f29a438a7079bae13e8a9165972357c3b3478d65eafbe3d864e958"
+    },
+    "settings.integrations.mailReview.running": {
+      "by": "ai",
+      "out": "e77e3c5bf6856ed277b7378f58d4947a0e817201144ca5e1d54a5261839f1c71",
+      "src": "5ff0f5419e4b05b5880f0d11925f28e2fda66ee8b286906d78ef7f8a02720ed9"
+    },
+    "settings.integrations.mailReview.runningLine": {
+      "by": "ai",
+      "out": "e03774c358d41493c3a4c569e19e894cd49b12699e8ce82e622df75e4a8e4e5d",
+      "src": "b1972facc3978f5918a3c48dd35ad7810526da54627b6c1834aa1e4db42ea0cd"
+    },
+    "settings.integrations.mailReview.start": {
+      "by": "ai",
+      "out": "ebb548036f8a749bf5e92300e96eb7cfde51803e810b3580d05c545dc6782497",
+      "src": "01f97a34c290e4b32df073b12ee5d11e285891dd6d857c48a2547865b46356c7"
+    },
+    "settings.integrations.mailReview.startLead": {
+      "by": "ai",
+      "out": "9a058c0f43d0183694952174fd081c667720212dc589306dc260bdb1e069c536",
+      "src": "7aebd8839fb244fc62f85b7a1fc720b465a9bc402e4236ae166380327dba4889"
+    },
+    "settings.integrations.mailReview.startTip": {
+      "by": "ai",
+      "out": "a3c834a8eadfb2a8fcd8ea3842f73836aec1620edd6a506af7bb11bfa5be03e8",
+      "src": "1a978f56a9a10d54f2f738191e1e5446ea86e97747861a83a4792b5569a61d0d"
+    },
+    "settings.integrations.mailReview.summary": {
+      "by": "ai",
+      "out": "7bdb812365a0456af05ea0bd24ece7c75f27986461e8fbc2e9ceb60059e97ec6",
+      "src": "215c99147efae7909f293f6ac95f986351c389901c1f17e9e1c1471ef5e84b92"
+    },
+    "settings.integrations.mailReview.title": {
+      "by": "ai",
+      "out": "8f51610bf2631b889ebb3fe2380c06fba6b23542e8570345351e173cd7e17c8d",
+      "src": "a78bf7f79b5eded89806b74d6c227e750d3fef297630cb962b3deb96bdd3b029"
+    },
+    "settings.integrations.mailReview.undo": {
+      "by": "ai",
+      "out": "46ad3916f6a0979841df9c4ba6f5310d34434d95024912df97b2eba644d0a60d",
+      "src": "a8283ade31856f71220db0e6f60a257c6889dc4dad0f275f66ad44b9ed9bf8d5"
+    },
+    "settings.integrations.mailReview.undoTip": {
+      "by": "ai",
+      "out": "e9644769126da1fc3a01f23b9694dad35910f3f922c30ecac9f4f9b829ae02ed",
+      "src": "f11e0849dfcab5ab5e36d321381a8568a8aedc980ec6b6e4c2dbdacb9f9c637c"
     },
     "settings.integrations.mcp.address": {
       "by": "ai",
@@ -118668,8 +119568,8 @@
     },
     "admin.example.ownerEmail": {
       "by": "ai",
-      "out": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0",
-      "src": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0"
+      "out": "678770be4a35429f72a76e83f8360d3c8792de94f8c99449bd6d0afe3fc79a17",
+      "src": "678770be4a35429f72a76e83f8360d3c8792de94f8c99449bd6d0afe3fc79a17"
     },
     "admin.frame.back": {
       "by": "ai",
@@ -120906,6 +121806,11 @@
       "out": "18581323527c8d2f87aa69d4ff17440c581c376728d2cfedf4df1aacb397a5b1",
       "src": "d8d623f91a618e9ec83788098988c77e2f5eeebcf510d88bf09232ae51870360"
     },
+    "admin.provider.field.signingSecret": {
+      "by": "ai",
+      "out": "cc1899fdbd120abfd74e76cce938cc14789c4039fd01cad6fd92cc7ce572f348",
+      "src": "e7ee22e117a12ad81b796bf298061d9bd0b37a06983101cf01a1ed49e85f1ee0"
+    },
     "admin.provider.field.waitForCaller": {
       "by": "ai",
       "out": "d91b376d9a7e11b39689ebbb77fe371e3c941256126428980c9bb0e5e9479692",
@@ -121156,10 +122061,35 @@
       "out": "31a52dd57363529632fbb36e147d72de37a546bce3e9960fe969a456cee000bf",
       "src": "80075c12c30115a5615c238d80c737af5370e896502e29c2b06a70aad6b124a3"
     },
+    "admin.provider.guide.slack.cost": {
+      "by": "ai",
+      "out": "c83dee829927a976427b77a7587f3b0ab3f6f8bed5f0463bb2f5c333d0bfd1b9",
+      "src": "439e9dbfa4ae5e01763d00a9fb23e44d95a10ab907a748ab93452f6e1237cf1d"
+    },
+    "admin.provider.guide.slack.step1": {
+      "by": "ai",
+      "out": "753ac4bad5c793ef7c242bd4116c50eb26b253339fb643dbc97ec7ba0058e01b",
+      "src": "793640a1d1884486f38a9e4eb8b1eabf3117297a32ae935f9b867f089ef19420"
+    },
+    "admin.provider.guide.slack.step2": {
+      "by": "ai",
+      "out": "7510f610b76ea5cc818c5a06b8a4990e2f34daaa73ae210219ef4dbf24c18b68",
+      "src": "2b993ce80ccf02df31e9867be7f678f952f744557fde957062701d13adafdd0c"
+    },
+    "admin.provider.guide.slack.step3": {
+      "by": "ai",
+      "out": "e1fed7c3d12fb4cbad39f155924082fbed7e75240e8c62b30f0c66bc42f37f0d",
+      "src": "7c301e1fe7d627bb66f356256cfa57344153e1baf38b7d70aac60215238013ac"
+    },
+    "admin.provider.guide.slack.step4": {
+      "by": "ai",
+      "out": "16923a7bd4da4b5fcc882fd81752fecd602c9886adac9c56fcf3b8164e5815fd",
+      "src": "93edabdce81856bdc7f955fa0cb3b716c09c9e0560ed863c8f23be35456a3144"
+    },
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
-      "out": "151828cd062fc319f91aa383272c01eb6e0abe36b8566df25d584222b6e7ca6b",
-      "src": "9d3c3f01c7704968419dd857641c14e7a6b8cc78555ad232658ed4f589dfbdab"
+      "out": "0cbd11db2f1ccc6d658003f0140c251a1cc4bb8780ba16ed31a602ce2abb7b9d",
+      "src": "ac2887fbf4b2c28098afa81d3c4aed49b440a1c8eff115465cedc6abd7000160"
     },
     "admin.provider.help.cloudflare_saas": {
       "by": "ai",
@@ -136056,6 +136986,11 @@
       "out": "dd1e73179bda3198caac9be88604c137b0379af7418163696904c4218e4f5af7",
       "src": "e9925481360b33c4877d3a4088296f24fd2b668f941d86dc9da93738380d5305"
     },
+    "server.api.feedback.setupPreviewUsed": {
+      "by": "ai",
+      "out": "b8288211baa61af2aa163a12af796cb7db40f859e9e6fefa9ca4df67a311d671",
+      "src": "d15b212881530a9c9ca418bc465aff62efbb5aada0623d5ad2939b2640da89f7"
+    },
     "server.api.feedback.setupTextOnly": {
       "by": "ai",
       "out": "65aaf1402b66834e58aa503e27a7cb4aa2b7ee191aa36fd839da5a14d40f7953",
@@ -136246,6 +137181,11 @@
       "out": "94a490581596a5ea8544f69e72c1210bd1fbe76841fa48fb02a780be2423660a",
       "src": "b499f776716964cf5b948781d3a5d0bd798bfe6963d58965844a0c87f64d45fa"
     },
+    "server.api.mail.aboutFull": {
+      "by": "ai",
+      "out": "09dc44daf80565c12a7bef4cdf27d57d7b8582ed6157f50c2e1986c6205dbb34",
+      "src": "df601b131f2e95f525956d806ae199f3cba4b2e0a34ab5f53c628d43af1d420d"
+    },
     "server.api.mail.accessRefused": {
       "by": "ai",
       "out": "37b6a335dda1f2fec2db4cee98a61f8c5450807f5331a55d0156bcf7e98c6c15",
@@ -136261,6 +137201,11 @@
       "out": "ce9d12b9e3e466b98a36c8d634f3180432f45f4deb03343eccd8c74890414d1a",
       "src": "5271d03e84b17c93455582c246f98fb293ca093bc2e90608f414f886f5641eff"
     },
+    "server.api.mail.analysisNotFound": {
+      "by": "ai",
+      "out": "0c9f6dbfbec695975a9230d3f8883e4813c4921c516856c4404f6d2201243e42",
+      "src": "a875c75a77d79c47b8d83c2b4795c2aa75f7ceb9b588284144f16be67db7bb9f"
+    },
     "server.api.mail.apiDisabled": {
       "by": "ai",
       "out": "172605df7a195d537ad37de6e67f721978d1c56d85e069abe1c8bb271900d3f9",
@@ -136270,6 +137215,11 @@
       "by": "ai",
       "out": "b7373e7d5944bda7bdff2083d12a52475fe1ba8f2cc7ef5520aef258077ca77f",
       "src": "cb6f9e97e72bae3ec8641b637054a17e4729223a3a19d558ae1bd18dd89b529c"
+    },
+    "server.api.mail.assistantNotFound": {
+      "by": "ai",
+      "out": "2c95bd16d96931996da0be302ccd59bc0f4263d95107d214ff583339370e8789",
+      "src": "1b489c2bc00b326463de5ad1d81dbbdd4b6f1b99225f45527df5d2c9dca3e526"
     },
     "server.api.mail.connectExpired": {
       "by": "ai",
@@ -136315,6 +137265,16 @@
       "by": "ai",
       "out": "1c04fc5e241b63cbc2d5c4765835c77f281a9e4c6963e99fbb0b926b84e388ac",
       "src": "cb15d1a99e2c0905a0458a4ead32c4cb59e7fac4dc3c4e0cd39a4fd9c0ee2d34"
+    },
+    "server.api.mail.topicAccepted": {
+      "by": "ai",
+      "out": "b5a506f43c3e0763c964a20340170a72e58b4a4efb22b2b54897c73dc81ae0f9",
+      "src": "dc98b16d5ab0262693453f21db0e83b74d915081c299eb2032b2120b3866092b"
+    },
+    "server.api.mail.topicNotFound": {
+      "by": "ai",
+      "out": "4343dac3eb1c707fd777086fc17d34fa33b28f56afe941e0ca128bed9d52d15a",
+      "src": "7c2bfd81b198b70e43f1c642107c5cb03b84de72ed4701260eebd9f9cb37601f"
     },
     "server.api.mail.unavailable": {
       "by": "ai",
@@ -136756,6 +137716,11 @@
       "out": "856d047ae1f1a9931bde0dc96f5dcda47706e75615c42de2a9b18ffdf53e72db",
       "src": "86c5a23b68660e613c97ca5469d797628950f073e5f0210effc6b1ba609f2607"
     },
+    "server.api.sttCantHear": {
+      "by": "ai",
+      "out": "99f0a6fdc8f4424fc2768dee27f097649f81007154a0a5d6ae46cc0f8cb733d8",
+      "src": "45750fef2d671b58534a4711b60c99ddd241c0e3549d4cff0c6a79e2c8cb124b"
+    },
     "server.api.team.alreadyInvited": {
       "by": "ai",
       "out": "78f9c25f748816257b093b04377e91f8ca77f97bbc9a5f9aae45965b8aaaae81",
@@ -137120,6 +138085,11 @@
       "by": "ai",
       "out": "44ab9e6a6a1b410cb999a94a910c2c2ce76abdaf221a48700be90044ccd03215",
       "src": "397d456b7e4ba0364cebb1dc2c51ac024cc8ca65b43ba57589a3d6f4af926b18"
+    },
+    "server.input.mail.acceptNeeds": {
+      "by": "ai",
+      "out": "f6d9e007b9ed4b0b46136a6eee37a2999e0fb891351a2b3480cfeaf892efdd6c",
+      "src": "df5edec0427bf772ea9f16f61f2837374b75ac97af18c370af0ef74d7c867b87"
     },
     "server.input.max": {
       "by": "ai",
@@ -138471,6 +139441,11 @@
       "out": "9682ba3b92f7a96122201caf4478d6d4c414d7d3bbc16cf10101b8df883621d8",
       "src": "318655cea4bd2096fbfad433d7c019bac40750d1a456fc34d366df41fcc77197"
     },
+    "settings.assistant.languages.unheard": {
+      "by": "ai",
+      "out": "1632742445b61253ac789e521abf31a90158d86e436c9c2bed8d09b7a047bde4",
+      "src": "eb07da2d66bfac0be15999c73184c46b40c8f7abe14e3073dd3cfa5c6906b3d8"
+    },
     "settings.assistant.load": {
       "by": "ai",
       "out": "5b4bd8fa892cfaf0887a465d56f51e887a29bbc903af7fd2656c7190a72c810d",
@@ -138555,6 +139530,11 @@
       "by": "ai",
       "out": "73a22dd5e32565ad45104f2cb29d4d74de092a1814143311cfb7c9a5b16bb046",
       "src": "c4715ed4e717e4a9f01a2e388c3f868ff90d8e634aee894e8b64e5c681864414"
+    },
+    "settings.assistant.section.booking.needsCalendar": {
+      "by": "ai",
+      "out": "b6430f226382b8e8174346548156e767e75f6fd4f0d5ec117200f1127dcc21f5",
+      "src": "89701e46c15fc35c26ef739001d37ce3e3cc2fc30334cadcc3e399f4d5dec90e"
     },
     "settings.assistant.section.business.description": {
       "by": "ai",
@@ -142878,8 +143858,8 @@
     },
     "settings.integrations.mail.readOnly": {
       "by": "ai",
-      "out": "fcc8a1f60c5c441a18356c5c4ee8d43b0eb296f77e182c14e1cb7532178f8c9b",
-      "src": "1249121c5ef53661b5b75b07c246f6c59572d754019c34bc575f14c8df5ef8a5"
+      "out": "c216821a06a4d58996fa109b35ab7b3381fedf455c82390f074a82d2ff4806bc",
+      "src": "fb906aa76afa5e540d43bcd24e5a28d6f71e3a9b5df4b3d48e41df97a6248fe1"
     },
     "settings.integrations.mail.reconnectTip": {
       "by": "ai",
@@ -142890,6 +143870,226 @@
       "by": "ai",
       "out": "94ab7dfefebff37ddad90188abf6675770625aa65e1f488265055a1a0031c225",
       "src": "b23105d5c31bb25af64e1d4cfa4d7719fe27168203488eaaf8509b5c97b92b1b"
+    },
+    "settings.integrations.mailReview.aboutTip": {
+      "by": "ai",
+      "out": "010100cf642fe79078372083869c9a10a8a04735e691d17db6afed575e1559fd",
+      "src": "38a860d550f55cdf71461f142276f16c43ec6b8f7577a0fca7d57251893079f9"
+    },
+    "settings.integrations.mailReview.accept": {
+      "by": "ai",
+      "out": "62400ca3a049b40ffedef2137fa66d1c76327f3a40ed7bc40d299f5a815b329c",
+      "src": "d073bfc4d605f9a41c55ece7eda0c7472a86bc4bc464ad4b74780fa3d7533774"
+    },
+    "settings.integrations.mailReview.acceptTip": {
+      "by": "ai",
+      "out": "95495b36a07f4ecbdbd0563a0f5299cca69489f9c66a0dd07ea5d003e513c1a3",
+      "src": "d0ac4c2aa84b4fad7404456e8caca6aed16ebd7903569cdeb2bceb90c1fe0c21"
+    },
+    "settings.integrations.mailReview.accepted": {
+      "by": "ai",
+      "out": "63b75b6a0cbe3d85ac890105e455d977574faa24afd0a65d5bb4350fa7b7891f",
+      "src": "f7535765b6052b89aad0d81bfe05b6239abea3fb6bdc89b51802bec65f21253b"
+    },
+    "settings.integrations.mailReview.acceptedIn": {
+      "by": "ai",
+      "out": "a4bf45f12f58bfe3025b7250f44101702242bc25be72a28fee2b02497246c8a4",
+      "src": "14e3cad7d91178c1424ec83c5272966e5a19af0321fa27dd056531cbbf52b4f5"
+    },
+    "settings.integrations.mailReview.addFact": {
+      "by": "ai",
+      "out": "9f0622c71e6280ad398e240288cc2a207d00ec159358c854e40b68f7f9fef2e4",
+      "src": "aa2dcdf5626fe2934e19e0dd7c90f901d8a9901774e9eaefedb28c2c50696eaf"
+    },
+    "settings.integrations.mailReview.addTo": {
+      "by": "ai",
+      "out": "914e565f40d6faa7fb33360a1a4181449282965b4292de1442c2281e224f96ab",
+      "src": "82b9ffd3cec869998fe520c7ec09d1b558e3ddfdf4b4a3c2b22c463a0494593e"
+    },
+    "settings.integrations.mailReview.againNote": {
+      "by": "ai",
+      "out": "a51af08ccef5ecc606659c77804633e0a15f55c36de370c0d71333dafa97de91",
+      "src": "1ded493c94805691e95f527c793f8ddb94e6280a6409af116d4162c8794d78d3"
+    },
+    "settings.integrations.mailReview.allDone": {
+      "by": "ai",
+      "out": "f85b843f93f9b7593b2845e2f75cd11be0691c3d7c8e70e75a42625c4fccda65",
+      "src": "373b810ced945642e910ff84e64e068215d8e13244ec53dc018a19ba20e5091e"
+    },
+    "settings.integrations.mailReview.answer": {
+      "by": "ai",
+      "out": "c5681519a5b624c9f1f2c95ee74ddd4406924db79837ee688c7ab1aa2f1203ce",
+      "src": "61355d0c12b5c7b8ac3e6f85fad55d65070c6b81fec63fc79fd08afd7346846d"
+    },
+    "settings.integrations.mailReview.askFor": {
+      "by": "ai",
+      "out": "d39ce9952c954ed35c8b6dffd36aa45f47d5ace558289d999dcbe7d95467db1a",
+      "src": "3f8d9339d11c1652355812fd71f971989b6fcbd2a588bd66dbd427e499cbbdab"
+    },
+    "settings.integrations.mailReview.conversations": {
+      "by": "ai",
+      "out": "fe1d4bf14c5c0cc33e5bedc0e5dcc25961d65b524fde98ede9f951878c9574b6",
+      "src": "c155121f931789342f44fb146835bc203b13da7f3513005ffc31482c64dc984c"
+    },
+    "settings.integrations.mailReview.counts": {
+      "by": "ai",
+      "out": "229c9a030b6c08e8ee67d7740faea5ef385c7e632f6b4a5692fd7a8a7ad382b9",
+      "src": "deb5a59ef18d85f19db1243a089218addca6aa55daf2b8874c5006c01918b1e4"
+    },
+    "settings.integrations.mailReview.drop": {
+      "by": "ai",
+      "out": "766804765a696e05d20903d667d8f0aa023d8baf7258f9326bdc6f66019e60ba",
+      "src": "c8af9ae37a48273f981bc82af63517e3a2195c4076360e73546c306a044dd38b"
+    },
+    "settings.integrations.mailReview.dropTip": {
+      "by": "ai",
+      "out": "8812b883570144834790ce43d4b645196e1cca5a25f2f9d3419162eed9a23caf",
+      "src": "21bdbb265608480e9ab67073473a5693a7e078e777a11adc1ef3d212b6a9ddc0"
+    },
+    "settings.integrations.mailReview.dropped": {
+      "by": "ai",
+      "out": "28003b49957ed6ec76b5e77e6421195a22afbb063af00d4ffd24a1c7ee1e2a18",
+      "src": "739f68fe97ad306e904725af5f09b1377fcb9aac40e7dceea7f07868fa4e219a"
+    },
+    "settings.integrations.mailReview.error.accountRefused": {
+      "by": "ai",
+      "out": "d5caf518f6ea56b932a596b4b27ca8cc68c01127fa13024773606771cb0227f0",
+      "src": "14720851e364a0676db46f8f4f28458e1da2e2077ce35490b63892daba038140"
+    },
+    "settings.integrations.mailReview.error.failed": {
+      "by": "ai",
+      "out": "7c9dc13be438bfe37f062ee4e09768d9eb5dc2bfc8c7e407a2734db63771572b",
+      "src": "a06e3ea057f3b4da50b410874cc23853728ca4f6675a4e9873496a51f53de5d4"
+    },
+    "settings.integrations.mailReview.error.noConversations": {
+      "by": "ai",
+      "out": "2ce5bcaa55162a0cf537d0b50be97da638d0c92cfee8c2c379ec11a1216a32ea",
+      "src": "e50be2a0e0e5c936511c146288f706485b46e88920e110dfb1d6a795051ac5c4"
+    },
+    "settings.integrations.mailReview.error.noMailbox": {
+      "by": "ai",
+      "out": "d59bfcbf7505e49db5a41f47a6178ce963a684acb85f006f576cb3c51ac8f593",
+      "src": "5b6f6b052e97b5955376a39100e913c6b80098a55a30eda75c665f0afd15cba3"
+    },
+    "settings.integrations.mailReview.error.noModel": {
+      "by": "ai",
+      "out": "d472c57e1d645d7f107dda13a9dbbcdfe68d8f19d48aa01257486769cb93f682",
+      "src": "c6bd8a4a4304263cb7e1737305937f78c64dcf649054d76e89d08af0a4500fec"
+    },
+    "settings.integrations.mailReview.error.unavailable": {
+      "by": "ai",
+      "out": "dc4ddfe87c054b66d199ebb8fc97d50ab029b72e55e6a4dff1b94405e53e2158",
+      "src": "76c90e3546eb0439fd8f618f1d0d96b4aecfd1bb9d4294cdf0d0660fd4087f76"
+    },
+    "settings.integrations.mailReview.help": {
+      "by": "ai",
+      "out": "849cd05d1cfcb89675b929230fc39ef2aff5a94bff9a78cdcb919c076c25fc3c",
+      "src": "bb19357d1386da177d0b9b7594b5a0f43dc81de85ce07b42c0a1b98a8946dec1"
+    },
+    "settings.integrations.mailReview.months": {
+      "by": "ai",
+      "out": "e90e042d7c693b79771663506e773f880b4a5369b7cf7b71d6bd90122b82754c",
+      "src": "54c70542726ab0616ffe7ba16be8683d33667bddcd57118aa8caff76d6182a77"
+    },
+    "settings.integrations.mailReview.noTopics": {
+      "by": "ai",
+      "out": "19f5f1088af116cfedaa7c888cc1f89ffd3de329b4bba2e82091acbb3e344884",
+      "src": "1ef2df654ca545593a9c3b78d9e174d72001cbbe81fef56953f6a6cf1cc67686"
+    },
+    "settings.integrations.mailReview.pickTip": {
+      "by": "ai",
+      "out": "6a8016504582d89d97c7cfc1fd006e1e85bba7f0942d61413691562b6e47a2e5",
+      "src": "a4c13c86f545bc5ed378687e72a556cd2c985166079db22c143b4300e0eb2da7"
+    },
+    "settings.integrations.mailReview.position": {
+      "by": "ai",
+      "out": "7ed0b92019427f1aa1afc81896fdf0b191f5756ffda95c984c440ac2bb65b873",
+      "src": "ebaf527973d35e74e9f598efccb76702fb467882736084738e8c200c0698e4d5"
+    },
+    "settings.integrations.mailReview.preview": {
+      "by": "ai",
+      "out": "a0e13e389c3fd09940f1780c5554831af2386ccbb053465b6af6078fe7792c98",
+      "src": "c7bca680161bec14ba83df49f4b0b76ec9d34916e4637bb1347c8fe7457f64d0"
+    },
+    "settings.integrations.mailReview.previewName": {
+      "by": "ai",
+      "out": "a8669bf2139421e2a4062a51229d42d198661a2435d9e0d87fe449af7f8bb833",
+      "src": "31bfff96f6f2fb94d8614000b1697ba499468265a52e4a2eb3c8335b9292f5e0"
+    },
+    "settings.integrations.mailReview.privacy": {
+      "by": "ai",
+      "out": "f0a7d2cb553220a51774c88131f1bcd67a568a94bd59e9b68e7268bd114740a9",
+      "src": "359144af985e2f7c12ebef93a15dcb6eca40b56eb368cc36f6f1464e9a9943c8"
+    },
+    "settings.integrations.mailReview.question": {
+      "by": "ai",
+      "out": "9016d3ac6f66dedc9897357013f243cef46b18f35bade754bff71a0a110f1c48",
+      "src": "a897fdea4b3de9283c92f40f4a7d9b554fe34c095c5de38215979c84139465f8"
+    },
+    "settings.integrations.mailReview.queued": {
+      "by": "ai",
+      "out": "42c96229baee6d33de34a1e8202677333166d9524b80fe9cde2542560f310ffe",
+      "src": "7438fef97be71f253b123ab8e29f61b74afdd1e8a553dc91224889f223eeb70b"
+    },
+    "settings.integrations.mailReview.range": {
+      "by": "ai",
+      "out": "889239936220831f05e8a14d90d44ed5118af1365bbd02871f7bf052bf03603a",
+      "src": "91ffee5908b5336ba197fb1258ba3d220e32d7985f66459e68a6b6308d30cc86"
+    },
+    "settings.integrations.mailReview.removeFact": {
+      "by": "ai",
+      "out": "3112b032bcd5f24d0819b77559d969c58dad46e5e9301f2beacd01f74d536d94",
+      "src": "d00751e07bffb05a64cc77f67306eb62eab0efe32a394ee431644d4cc6ccea29"
+    },
+    "settings.integrations.mailReview.runAgain": {
+      "by": "ai",
+      "out": "9f34c56033b31d7caf138f86a964a9373f8070fb9cfa69b883846530b3de1749",
+      "src": "ea5a4e3ff2f29a438a7079bae13e8a9165972357c3b3478d65eafbe3d864e958"
+    },
+    "settings.integrations.mailReview.running": {
+      "by": "ai",
+      "out": "b52b205f9884573aeed794b68906c706af514a83a243da0c8c3afc9e3ca65ff2",
+      "src": "5ff0f5419e4b05b5880f0d11925f28e2fda66ee8b286906d78ef7f8a02720ed9"
+    },
+    "settings.integrations.mailReview.runningLine": {
+      "by": "ai",
+      "out": "93840e900c4725266b932d3b4f52a76246c2c27d4f5017be94e26c54923f260c",
+      "src": "b1972facc3978f5918a3c48dd35ad7810526da54627b6c1834aa1e4db42ea0cd"
+    },
+    "settings.integrations.mailReview.start": {
+      "by": "ai",
+      "out": "68c373509e15b791bfda536a2d8704c507438fb4f36b74c61840be6a92101488",
+      "src": "01f97a34c290e4b32df073b12ee5d11e285891dd6d857c48a2547865b46356c7"
+    },
+    "settings.integrations.mailReview.startLead": {
+      "by": "ai",
+      "out": "738d70e0e0cf9c697d79d12f640d0b0c36e626263460a8aff120b4c63a0eb8eb",
+      "src": "7aebd8839fb244fc62f85b7a1fc720b465a9bc402e4236ae166380327dba4889"
+    },
+    "settings.integrations.mailReview.startTip": {
+      "by": "ai",
+      "out": "e9b39eb080a4fb2323eda104f49eebd0254388ed10ce8b322230fb7f2f022d44",
+      "src": "1a978f56a9a10d54f2f738191e1e5446ea86e97747861a83a4792b5569a61d0d"
+    },
+    "settings.integrations.mailReview.summary": {
+      "by": "ai",
+      "out": "1495d2e5cec75a89b294ecd18f9429f48ac8ad7f290ddd3434ee46482b88b53a",
+      "src": "215c99147efae7909f293f6ac95f986351c389901c1f17e9e1c1471ef5e84b92"
+    },
+    "settings.integrations.mailReview.title": {
+      "by": "ai",
+      "out": "37b0223f5b663328d2bac1808051d3d6a90f8aa59543ce5a4ab56a27bc8d439b",
+      "src": "a78bf7f79b5eded89806b74d6c227e750d3fef297630cb962b3deb96bdd3b029"
+    },
+    "settings.integrations.mailReview.undo": {
+      "by": "ai",
+      "out": "dc65bd3603e8227e890ea9df05fcbbf5a53b955359dfc244bab3b49b72e8075c",
+      "src": "a8283ade31856f71220db0e6f60a257c6889dc4dad0f275f66ad44b9ed9bf8d5"
+    },
+    "settings.integrations.mailReview.undoTip": {
+      "by": "ai",
+      "out": "1c0c073db2e6f91cb3a51d5cba67f7f9b25a10d9a6539be6bdd859c722fdf39b",
+      "src": "f11e0849dfcab5ab5e36d321381a8568a8aedc980ec6b6e4c2dbdacb9f9c637c"
     },
     "settings.integrations.mcp.address": {
       "by": "ai",
@@ -156250,8 +157450,8 @@
     },
     "admin.example.ownerEmail": {
       "by": "ai",
-      "out": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0",
-      "src": "4c3245965456ec40138ebfd9660a1cb51f37c3e73a84843c1a66f86f516615b0"
+      "out": "678770be4a35429f72a76e83f8360d3c8792de94f8c99449bd6d0afe3fc79a17",
+      "src": "678770be4a35429f72a76e83f8360d3c8792de94f8c99449bd6d0afe3fc79a17"
     },
     "admin.frame.back": {
       "by": "ai",
@@ -158488,6 +159688,11 @@
       "out": "746b3b2f853dba47a6cd4e30d0d46c67a18ecf93f19a2ace3c927ff547c6bc0d",
       "src": "d8d623f91a618e9ec83788098988c77e2f5eeebcf510d88bf09232ae51870360"
     },
+    "admin.provider.field.signingSecret": {
+      "by": "ai",
+      "out": "178398ab65cebe56b81831d2e6a2b24406f1cf361737e4b962159a2507226fdb",
+      "src": "e7ee22e117a12ad81b796bf298061d9bd0b37a06983101cf01a1ed49e85f1ee0"
+    },
     "admin.provider.field.waitForCaller": {
       "by": "ai",
       "out": "d726670b5a5fff1a7bba6249b7591bc21e8c2f808d713c7b7d9fa50c59471b0c",
@@ -158738,10 +159943,35 @@
       "out": "7ff0ce8b697f99de95a5752e2944fd41c031050e29330208a85fa011d051d2ef",
       "src": "80075c12c30115a5615c238d80c737af5370e896502e29c2b06a70aad6b124a3"
     },
+    "admin.provider.guide.slack.cost": {
+      "by": "ai",
+      "out": "1cb017bf212273625d7336621d1314eae26e296bd8f7c36264337c51a9d3193d",
+      "src": "439e9dbfa4ae5e01763d00a9fb23e44d95a10ab907a748ab93452f6e1237cf1d"
+    },
+    "admin.provider.guide.slack.step1": {
+      "by": "ai",
+      "out": "44fa7c1264b57e1e3193b119341de5cd946502954def9f13e76585ca041c30cf",
+      "src": "793640a1d1884486f38a9e4eb8b1eabf3117297a32ae935f9b867f089ef19420"
+    },
+    "admin.provider.guide.slack.step2": {
+      "by": "ai",
+      "out": "d2b9ecb572de29e00fe1cf4b4be2ccc5215d8a2b73aab162e3c76f721a020131",
+      "src": "2b993ce80ccf02df31e9867be7f678f952f744557fde957062701d13adafdd0c"
+    },
+    "admin.provider.guide.slack.step3": {
+      "by": "ai",
+      "out": "2e22ed4beb2e5f9f04b8840ab14bb4803a20288f0b35db07ffcf7f3d62ab94a2",
+      "src": "7c301e1fe7d627bb66f356256cfa57344153e1baf38b7d70aac60215238013ac"
+    },
+    "admin.provider.guide.slack.step4": {
+      "by": "ai",
+      "out": "1fa53d69674170b1d175919b9a79fcb53a5a330a098244549472fab471943684",
+      "src": "93edabdce81856bdc7f955fa0cb3b716c09c9e0560ed863c8f23be35456a3144"
+    },
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
-      "out": "3c1170653d4e2d0393776d375d9c6b5b365d6677b7cd0bf35db1559afa7f6e13",
-      "src": "9d3c3f01c7704968419dd857641c14e7a6b8cc78555ad232658ed4f589dfbdab"
+      "out": "b424619ba2a6b7e278d51913480662134d8cd97c3f6a5fc883478713493a58ba",
+      "src": "ac2887fbf4b2c28098afa81d3c4aed49b440a1c8eff115465cedc6abd7000160"
     },
     "admin.provider.help.cloudflare_saas": {
       "by": "ai",
@@ -173638,6 +174868,11 @@
       "out": "4a6acc7547fc7c9cb54607350e6a5da85831eaef813c1ad9655217813a20a6b2",
       "src": "e9925481360b33c4877d3a4088296f24fd2b668f941d86dc9da93738380d5305"
     },
+    "server.api.feedback.setupPreviewUsed": {
+      "by": "ai",
+      "out": "81ad4cdfb5e3ada3b5937e6ace7eef0bd0643081ce4438a77e413ddfc8360e51",
+      "src": "d15b212881530a9c9ca418bc465aff62efbb5aada0623d5ad2939b2640da89f7"
+    },
     "server.api.feedback.setupTextOnly": {
       "by": "ai",
       "out": "3b743ca0580074b3f9e735803320aec27be84006c57a12cb7389e47701f37b39",
@@ -173828,6 +175063,11 @@
       "out": "fb68c57b696431e53614ff861313e2ba92b1f0d723072552fbf012e193d71144",
       "src": "b499f776716964cf5b948781d3a5d0bd798bfe6963d58965844a0c87f64d45fa"
     },
+    "server.api.mail.aboutFull": {
+      "by": "ai",
+      "out": "cd2e2de1e900cb959940c1e3577001d6fe73af64cea788025feb1b8638d0ee9d",
+      "src": "df601b131f2e95f525956d806ae199f3cba4b2e0a34ab5f53c628d43af1d420d"
+    },
     "server.api.mail.accessRefused": {
       "by": "ai",
       "out": "cc15bd60a6547d42b51fe7565b7e55bb4d63ed2f2d5e0910de9197048f0e4e29",
@@ -173843,6 +175083,11 @@
       "out": "f5d9af5268dd1a61fa694cb6f56de909bad1ffe5b5ce70d01055218777b1b889",
       "src": "5271d03e84b17c93455582c246f98fb293ca093bc2e90608f414f886f5641eff"
     },
+    "server.api.mail.analysisNotFound": {
+      "by": "ai",
+      "out": "f619e0267127a014ff6143862b1c1cecab7805ab230be0839e69036e2b24fea0",
+      "src": "a875c75a77d79c47b8d83c2b4795c2aa75f7ceb9b588284144f16be67db7bb9f"
+    },
     "server.api.mail.apiDisabled": {
       "by": "ai",
       "out": "8aad68793cde81fba39e43654f0bff86f7410c48fde4b63f2337c58bb807837e",
@@ -173852,6 +175097,11 @@
       "by": "ai",
       "out": "6b072abd2896268672053604a923f442299fbbfce526da7ea3b293d8e6342720",
       "src": "cb6f9e97e72bae3ec8641b637054a17e4729223a3a19d558ae1bd18dd89b529c"
+    },
+    "server.api.mail.assistantNotFound": {
+      "by": "ai",
+      "out": "12acee018683c097fafd62db23e291962a8aa59dd052d9d8a9db8f012785cc25",
+      "src": "1b489c2bc00b326463de5ad1d81dbbdd4b6f1b99225f45527df5d2c9dca3e526"
     },
     "server.api.mail.connectExpired": {
       "by": "ai",
@@ -173897,6 +175147,16 @@
       "by": "ai",
       "out": "b1fea10c9014ca40a401044ac03fceafd2416ce1b395efa06543dbd7b7d148dc",
       "src": "cb15d1a99e2c0905a0458a4ead32c4cb59e7fac4dc3c4e0cd39a4fd9c0ee2d34"
+    },
+    "server.api.mail.topicAccepted": {
+      "by": "ai",
+      "out": "3bff84bfc2204f10d68ea765e32c3ea437a7cdbd730dd04cab7a4426f8bc4c1d",
+      "src": "dc98b16d5ab0262693453f21db0e83b74d915081c299eb2032b2120b3866092b"
+    },
+    "server.api.mail.topicNotFound": {
+      "by": "ai",
+      "out": "b4378ebea1a1a2fd261a7a0ecb0f92622cb470afa41db726da7941e4421f148c",
+      "src": "7c2bfd81b198b70e43f1c642107c5cb03b84de72ed4701260eebd9f9cb37601f"
     },
     "server.api.mail.unavailable": {
       "by": "ai",
@@ -174338,6 +175598,11 @@
       "out": "3b3be5fdffdc76ebcd8c0c4a5b5ea6dd7938e750fb95ed11e1adb8b7aed24077",
       "src": "86c5a23b68660e613c97ca5469d797628950f073e5f0210effc6b1ba609f2607"
     },
+    "server.api.sttCantHear": {
+      "by": "ai",
+      "out": "d1687b96f5b1e9305e7c9112c51f335e8e942ced2b782374bacdc37528593c9d",
+      "src": "45750fef2d671b58534a4711b60c99ddd241c0e3549d4cff0c6a79e2c8cb124b"
+    },
     "server.api.team.alreadyInvited": {
       "by": "ai",
       "out": "192eb910e2ebfad206147c1d65b51c5c1da9634028126fb2babdee6ba620e9f7",
@@ -174702,6 +175967,11 @@
       "by": "ai",
       "out": "a8868a4ceef291a2c82ec088dea0280f4fb9f1ce23be8cd29be987f1976db840",
       "src": "397d456b7e4ba0364cebb1dc2c51ac024cc8ca65b43ba57589a3d6f4af926b18"
+    },
+    "server.input.mail.acceptNeeds": {
+      "by": "ai",
+      "out": "b64dcba2e02fcd2bffae924b026c69aed81c8c6eb9e2817265fb0d06ff6129d0",
+      "src": "df5edec0427bf772ea9f16f61f2837374b75ac97af18c370af0ef74d7c867b87"
     },
     "server.input.max": {
       "by": "ai",
@@ -176053,6 +177323,11 @@
       "out": "dfee336770735631febd62318a933fd66d6462c02e4ecfe0eb88a0638c8d0a2b",
       "src": "318655cea4bd2096fbfad433d7c019bac40750d1a456fc34d366df41fcc77197"
     },
+    "settings.assistant.languages.unheard": {
+      "by": "ai",
+      "out": "9a5cf0e624243b56dfb10d214ad8028776c4f5a8fc01b30484ddc1e9941e6b9b",
+      "src": "eb07da2d66bfac0be15999c73184c46b40c8f7abe14e3073dd3cfa5c6906b3d8"
+    },
     "settings.assistant.load": {
       "by": "ai",
       "out": "3159794bf7941fbe95cc345e322001606a325b38884bf2f0571fdc81472c4ddc",
@@ -176137,6 +177412,11 @@
       "by": "ai",
       "out": "4d30c02be67e6475113fb09e8a086b3609882f1d38c61ba4c32ea69a6d20d5a3",
       "src": "c4715ed4e717e4a9f01a2e388c3f868ff90d8e634aee894e8b64e5c681864414"
+    },
+    "settings.assistant.section.booking.needsCalendar": {
+      "by": "ai",
+      "out": "85fc719da25750eef4a5119c15ca4f6b576ba911444d707c9b4237a12d935329",
+      "src": "89701e46c15fc35c26ef739001d37ce3e3cc2fc30334cadcc3e399f4d5dec90e"
     },
     "settings.assistant.section.business.description": {
       "by": "ai",
@@ -180460,8 +181740,8 @@
     },
     "settings.integrations.mail.readOnly": {
       "by": "ai",
-      "out": "d7f84c207bb8de38f8bba8a39a29cdf646df4319c9c8aad142bbb9034dc784e5",
-      "src": "1249121c5ef53661b5b75b07c246f6c59572d754019c34bc575f14c8df5ef8a5"
+      "out": "4ea1a0ed38b01d8e8a93c00a1d8c49064e29ed32ff93a4901b6f09e826a8d2dc",
+      "src": "fb906aa76afa5e540d43bcd24e5a28d6f71e3a9b5df4b3d48e41df97a6248fe1"
     },
     "settings.integrations.mail.reconnectTip": {
       "by": "ai",
@@ -180472,6 +181752,226 @@
       "by": "ai",
       "out": "e3ca31b8e4760a04208cde7cad5b604a39c63c41e9b2ace27c7eaf711bfb934a",
       "src": "b23105d5c31bb25af64e1d4cfa4d7719fe27168203488eaaf8509b5c97b92b1b"
+    },
+    "settings.integrations.mailReview.aboutTip": {
+      "by": "ai",
+      "out": "ddcde160bea768c959eb552c26d6b5a21a48e4f627ccf6c573eef5406c083ba1",
+      "src": "38a860d550f55cdf71461f142276f16c43ec6b8f7577a0fca7d57251893079f9"
+    },
+    "settings.integrations.mailReview.accept": {
+      "by": "ai",
+      "out": "9708e910b403d47bc1bf3e3aa426ee5a6ce660ebe4ab5fbe3b4e86889f4db6a4",
+      "src": "d073bfc4d605f9a41c55ece7eda0c7472a86bc4bc464ad4b74780fa3d7533774"
+    },
+    "settings.integrations.mailReview.acceptTip": {
+      "by": "ai",
+      "out": "c3aea4b3ac98ceb8573795cf8483620ea6a2a129111a9b0840119276a139aa96",
+      "src": "d0ac4c2aa84b4fad7404456e8caca6aed16ebd7903569cdeb2bceb90c1fe0c21"
+    },
+    "settings.integrations.mailReview.accepted": {
+      "by": "ai",
+      "out": "b1eca6d297617094dbfd52709170e486d88f34404615cb4beaecaafe4cd8d0b5",
+      "src": "f7535765b6052b89aad0d81bfe05b6239abea3fb6bdc89b51802bec65f21253b"
+    },
+    "settings.integrations.mailReview.acceptedIn": {
+      "by": "ai",
+      "out": "e234965ac314240b94849c34c15a064980a72b683fc1989097d379de8a7f9ad5",
+      "src": "14e3cad7d91178c1424ec83c5272966e5a19af0321fa27dd056531cbbf52b4f5"
+    },
+    "settings.integrations.mailReview.addFact": {
+      "by": "ai",
+      "out": "a9b376cbc348d5a5e419646594173c6d9ea96926cac4c66d86ce41bb12e48de7",
+      "src": "aa2dcdf5626fe2934e19e0dd7c90f901d8a9901774e9eaefedb28c2c50696eaf"
+    },
+    "settings.integrations.mailReview.addTo": {
+      "by": "ai",
+      "out": "a461c023bc326e434d6ebdcbf78d5f0a816cee7b7b446fe76257f523abf955f0",
+      "src": "82b9ffd3cec869998fe520c7ec09d1b558e3ddfdf4b4a3c2b22c463a0494593e"
+    },
+    "settings.integrations.mailReview.againNote": {
+      "by": "ai",
+      "out": "d4053934c949a1441700e8ec5a9ea7faca615668e1c08f7e66a161d9588d33d3",
+      "src": "1ded493c94805691e95f527c793f8ddb94e6280a6409af116d4162c8794d78d3"
+    },
+    "settings.integrations.mailReview.allDone": {
+      "by": "ai",
+      "out": "8d15c1ad1a18a7430ab8f413de30887bbc57a1ad9c546339225035b29a27deee",
+      "src": "373b810ced945642e910ff84e64e068215d8e13244ec53dc018a19ba20e5091e"
+    },
+    "settings.integrations.mailReview.answer": {
+      "by": "ai",
+      "out": "d854c1d2a34775430df8a840c936405d61dc0dce9cce899247d5a6b6914bd039",
+      "src": "61355d0c12b5c7b8ac3e6f85fad55d65070c6b81fec63fc79fd08afd7346846d"
+    },
+    "settings.integrations.mailReview.askFor": {
+      "by": "ai",
+      "out": "ed7e8956b4ce4c41bc4939b61b08a525a6327c14689e6c8eca03f61d9ca4bb1f",
+      "src": "3f8d9339d11c1652355812fd71f971989b6fcbd2a588bd66dbd427e499cbbdab"
+    },
+    "settings.integrations.mailReview.conversations": {
+      "by": "ai",
+      "out": "f659b84668c8e91e6d1a8dc57d0037e79481b69c294ec5f6dce46f415e2157bd",
+      "src": "c155121f931789342f44fb146835bc203b13da7f3513005ffc31482c64dc984c"
+    },
+    "settings.integrations.mailReview.counts": {
+      "by": "ai",
+      "out": "fa267149d955d4f375a1d08e48963f59e10295dee7b495d9b7990118997a8912",
+      "src": "deb5a59ef18d85f19db1243a089218addca6aa55daf2b8874c5006c01918b1e4"
+    },
+    "settings.integrations.mailReview.drop": {
+      "by": "ai",
+      "out": "1a878a55c594b0f72cfeb04a09946e9571edd22d31279df43f8834a69f67d2fc",
+      "src": "c8af9ae37a48273f981bc82af63517e3a2195c4076360e73546c306a044dd38b"
+    },
+    "settings.integrations.mailReview.dropTip": {
+      "by": "ai",
+      "out": "954b2f0d641f44129a3ed5e68efd097ed2b6e88cecacd58c954fdc9b84fede08",
+      "src": "21bdbb265608480e9ab67073473a5693a7e078e777a11adc1ef3d212b6a9ddc0"
+    },
+    "settings.integrations.mailReview.dropped": {
+      "by": "ai",
+      "out": "6acb5ec9b457ab363efcadb4ad0efee2fabb96993e3c6991921ac93681dcb6d3",
+      "src": "739f68fe97ad306e904725af5f09b1377fcb9aac40e7dceea7f07868fa4e219a"
+    },
+    "settings.integrations.mailReview.error.accountRefused": {
+      "by": "ai",
+      "out": "6fb261e71d971a88c6ded4b2642a79e931613d0d7af1af7f6b866036f35cd4ed",
+      "src": "14720851e364a0676db46f8f4f28458e1da2e2077ce35490b63892daba038140"
+    },
+    "settings.integrations.mailReview.error.failed": {
+      "by": "ai",
+      "out": "e41292094bf22f7a044099de77f2cb33305822f03db3951f7d91d179cb9fa7a0",
+      "src": "a06e3ea057f3b4da50b410874cc23853728ca4f6675a4e9873496a51f53de5d4"
+    },
+    "settings.integrations.mailReview.error.noConversations": {
+      "by": "ai",
+      "out": "c8e04c2c2ea4db7b137b524d3a18ec0585ddc53dab31f172be07cbc44b5eb5ee",
+      "src": "e50be2a0e0e5c936511c146288f706485b46e88920e110dfb1d6a795051ac5c4"
+    },
+    "settings.integrations.mailReview.error.noMailbox": {
+      "by": "ai",
+      "out": "668bbd0923b0cb8ea9e719d836ec002b4edcbfc8fc7a57cd84f5569185def305",
+      "src": "5b6f6b052e97b5955376a39100e913c6b80098a55a30eda75c665f0afd15cba3"
+    },
+    "settings.integrations.mailReview.error.noModel": {
+      "by": "ai",
+      "out": "53f9a925486d6caf501b28029e5ea7ce3d4fdb58f88770a2918f52e03416a890",
+      "src": "c6bd8a4a4304263cb7e1737305937f78c64dcf649054d76e89d08af0a4500fec"
+    },
+    "settings.integrations.mailReview.error.unavailable": {
+      "by": "ai",
+      "out": "0a41d7201a9d8e7113a5d07860e840fe440d6363848d6aa79465f8d494e5c68d",
+      "src": "76c90e3546eb0439fd8f618f1d0d96b4aecfd1bb9d4294cdf0d0660fd4087f76"
+    },
+    "settings.integrations.mailReview.help": {
+      "by": "ai",
+      "out": "691b21ef35774e98c216490a699deae4bdcee0b00fef4c40fb1c5a5bf17d0d8b",
+      "src": "bb19357d1386da177d0b9b7594b5a0f43dc81de85ce07b42c0a1b98a8946dec1"
+    },
+    "settings.integrations.mailReview.months": {
+      "by": "ai",
+      "out": "90be781b76cab425d201b7c5adc0add173fc360507aa453795bb7b32ae4e79f9",
+      "src": "54c70542726ab0616ffe7ba16be8683d33667bddcd57118aa8caff76d6182a77"
+    },
+    "settings.integrations.mailReview.noTopics": {
+      "by": "ai",
+      "out": "53bd78bc7d92c36da66fe5309b7833a4fe2f5e7599185f2b8213ae6df6cfbd50",
+      "src": "1ef2df654ca545593a9c3b78d9e174d72001cbbe81fef56953f6a6cf1cc67686"
+    },
+    "settings.integrations.mailReview.pickTip": {
+      "by": "ai",
+      "out": "9cf976711b8018c1c05766d62791c7001e168ca6225210ce721f2724b7d15563",
+      "src": "a4c13c86f545bc5ed378687e72a556cd2c985166079db22c143b4300e0eb2da7"
+    },
+    "settings.integrations.mailReview.position": {
+      "by": "ai",
+      "out": "a54c80e0fe0ef6fb6900c273c8b3643076672d84ac5f955e775c78b86c884cf0",
+      "src": "ebaf527973d35e74e9f598efccb76702fb467882736084738e8c200c0698e4d5"
+    },
+    "settings.integrations.mailReview.preview": {
+      "by": "ai",
+      "out": "0d54b6476cceec91878e47036b40b9a25ce27cf4cbb55e724b0d66f1c7c28998",
+      "src": "c7bca680161bec14ba83df49f4b0b76ec9d34916e4637bb1347c8fe7457f64d0"
+    },
+    "settings.integrations.mailReview.previewName": {
+      "by": "ai",
+      "out": "de32c629b74e57020f8871b91d687fefbb203989c751ffd0fe7067ab3641fc88",
+      "src": "31bfff96f6f2fb94d8614000b1697ba499468265a52e4a2eb3c8335b9292f5e0"
+    },
+    "settings.integrations.mailReview.privacy": {
+      "by": "ai",
+      "out": "bc15a21aef3dd3574eb4c2d81714fb0bae73e7bfc53184f733e6a3cfb06d4bed",
+      "src": "359144af985e2f7c12ebef93a15dcb6eca40b56eb368cc36f6f1464e9a9943c8"
+    },
+    "settings.integrations.mailReview.question": {
+      "by": "ai",
+      "out": "c8e09ec7ac1c28e039d75752afc67d67cea76cecaa0d5d52402102f8e9d335fb",
+      "src": "a897fdea4b3de9283c92f40f4a7d9b554fe34c095c5de38215979c84139465f8"
+    },
+    "settings.integrations.mailReview.queued": {
+      "by": "ai",
+      "out": "50a8c8be17bcdf47c1de0e3d165e7ad210716b61b17b0228d2c531bb568804dc",
+      "src": "7438fef97be71f253b123ab8e29f61b74afdd1e8a553dc91224889f223eeb70b"
+    },
+    "settings.integrations.mailReview.range": {
+      "by": "ai",
+      "out": "bc7d78d4e28a74fd2c9579ee815690df32967d83ada26b53a6b88442b028107b",
+      "src": "91ffee5908b5336ba197fb1258ba3d220e32d7985f66459e68a6b6308d30cc86"
+    },
+    "settings.integrations.mailReview.removeFact": {
+      "by": "ai",
+      "out": "6e4736f49edcb5b34aec462d4231c46eb4d4f6227ee96f2c888fa26116ee2a61",
+      "src": "d00751e07bffb05a64cc77f67306eb62eab0efe32a394ee431644d4cc6ccea29"
+    },
+    "settings.integrations.mailReview.runAgain": {
+      "by": "ai",
+      "out": "29dfaede589099a741a50d2db40265d5c1a99fe4dcd21b1ea56256f63f1464e9",
+      "src": "ea5a4e3ff2f29a438a7079bae13e8a9165972357c3b3478d65eafbe3d864e958"
+    },
+    "settings.integrations.mailReview.running": {
+      "by": "ai",
+      "out": "0ed7966fc19054b236b28586ddbfda7e447f7bb7331830653406cc2fbf02dd7e",
+      "src": "5ff0f5419e4b05b5880f0d11925f28e2fda66ee8b286906d78ef7f8a02720ed9"
+    },
+    "settings.integrations.mailReview.runningLine": {
+      "by": "ai",
+      "out": "2d0d55ff1e9631eed92d52a9713ae1e77ea79f0b1d7238519d63cb057d0b6da6",
+      "src": "b1972facc3978f5918a3c48dd35ad7810526da54627b6c1834aa1e4db42ea0cd"
+    },
+    "settings.integrations.mailReview.start": {
+      "by": "ai",
+      "out": "a1640ce8dc4c5348d7961d1440ad059a1b18f9dbd8bf2baa6d891afba9cb0684",
+      "src": "01f97a34c290e4b32df073b12ee5d11e285891dd6d857c48a2547865b46356c7"
+    },
+    "settings.integrations.mailReview.startLead": {
+      "by": "ai",
+      "out": "cfd233fdf0b06d99a23624390d8a24517b7d754226ee00e08964dc4dadf295b1",
+      "src": "7aebd8839fb244fc62f85b7a1fc720b465a9bc402e4236ae166380327dba4889"
+    },
+    "settings.integrations.mailReview.startTip": {
+      "by": "ai",
+      "out": "acadf72baf0e322544cc8bce7a51d9460758f8a015e6ee7808fef66ada39dd39",
+      "src": "1a978f56a9a10d54f2f738191e1e5446ea86e97747861a83a4792b5569a61d0d"
+    },
+    "settings.integrations.mailReview.summary": {
+      "by": "ai",
+      "out": "f9d1b79060ceefaccb437a1f8cec5c9345a3e6877aa8310e2319c2d836c42fdd",
+      "src": "215c99147efae7909f293f6ac95f986351c389901c1f17e9e1c1471ef5e84b92"
+    },
+    "settings.integrations.mailReview.title": {
+      "by": "ai",
+      "out": "e899ed7821f632b7b8db305de93cfd37f1fbe2903ede0a17d7d7c77e82f899de",
+      "src": "a78bf7f79b5eded89806b74d6c227e750d3fef297630cb962b3deb96bdd3b029"
+    },
+    "settings.integrations.mailReview.undo": {
+      "by": "ai",
+      "out": "786b4822284896ad39ad35bcc6fe9ea2c7e85a49372be06f2898acd662beacbd",
+      "src": "a8283ade31856f71220db0e6f60a257c6889dc4dad0f275f66ad44b9ed9bf8d5"
+    },
+    "settings.integrations.mailReview.undoTip": {
+      "by": "ai",
+      "out": "ad50e522d81c4d2a516b68d719e41cf84ab66b427ad2eac6724415cfc3f16dd3",
+      "src": "f11e0849dfcab5ab5e36d321381a8568a8aedc980ec6b6e4c2dbdacb9f9c637c"
     },
     "settings.integrations.mcp.address": {
       "by": "ai",
