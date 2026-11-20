@@ -656,6 +656,11 @@ describe('billing.confirmCheckout (security review M1)', () => {
     stripe.requests.length = 0
     const again = await trialWith(fingerprint)
     expect(again.confirmed.body.data).toEqual({ status: 'trial_refused', reason: 'card_used' })
+    // The return page loaded again: the same refusal (LIN-631).
+    expect((await act(again.owner, 'billing.confirmCheckout', { sessionId: again.sessionId })).body.data).toEqual({
+      status: 'trial_refused',
+      reason: 'card_used',
+    })
     const cancel = stripe.requests.find(r => r.method === 'DELETE' && r.path === `/v1/subscriptions/${again.sub.id}`)
     expect(cancel).toBeDefined()
     expect(stripe.subscriptions.get(again.sub.id as string)!.status).toBe('canceled')
@@ -832,6 +837,10 @@ describe('the webhook confirms like the return page (checkout.session.completed)
     expect(refused).toMatchObject({ outcome: 'applied', detail: 'trial_refused' })
     expect(await billRow(other.bill.id)).toMatchObject({ status: 'pending_payment', trial_refused: 'card_used' })
     expect(stripe.subscriptions.get(otherSub.id as string)!.status).toBe('canceled')
+    // The owner's return page comes after the webhook: it reads the same refusal, not "not confirmed" (LIN-631).
+    const returned = await act(other.owner, 'billing.confirmCheckout', { sessionId: otherSession })
+    expect(returned.body.data).toEqual({ status: 'trial_refused', reason: 'card_used' })
+    expect(await billRow(other.bill.id)).toMatchObject({ status: 'pending_payment', trial_refused: 'card_used' })
   })
 
   test("a session naming another bill than its customer's changes nothing", async () => {

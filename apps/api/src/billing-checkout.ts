@@ -814,6 +814,10 @@ export async function confirmSession(
     return { status: 'trialing', heldForReview: false }
   }
 
+  // Refused before (the webhook first, or a reload of the return page): the trial's subscription was canceled then, and
+  // the answer is the same refusal again, not "not paid" (LIN-631).
+  if (bill.trial_refused && sub.trialEnd && !RUNNING.includes(sub.status))
+    return { status: 'trial_refused', reason: bill.trial_refused }
   if (sub.status !== 'active') throw Reject.t('server.api.checkout.notPaid')
   // A plan paid now (after a refused trial): no trial is used, the card is remembered. Radar's risk level of the charge
   // holds number purchase for review.
