@@ -120,7 +120,6 @@
   "assistant.languages.switch.none": "Bei {language} bleiben",
   "assistant.languages.switch.noneDescription": "Bietet an, eine Nachricht aufzunehmen",
   "assistant.languages.title": "Sprachen",
-  "assistant.languages.unheard": "Auf diesem Server nicht angeboten: {languages}. {stt}, die hier eingerichtete Spracherkennung, versteht sie nicht, daher wechselt der Assistent nie in sie.",
   "assistant.load": "Der Assistent",
   "assistant.name.fallback": "Der Assistent",
   "assistant.name.inSentence": "dein Assistent",

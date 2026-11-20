@@ -194,7 +194,20 @@ export function assemblyAiChoice(model: string, languages: CallLanguages = ENGLI
  * (reported with the transcript); else they are told the one. Deepgram gets `mip_opt_out` on every stream, as the
  * after-call transcriber does: it then keeps no call audio for its Model Improvement Program (training).
  */
-export function createStt({ provider, apiKey, model, fastTurnEnd }: AgentConfig['stt'], languages: CallLanguages = ENGLISH_CALL) {
+/**
+ * The speech recognition a call hears with: the install's, except AssemblyAI for a call in a language it can't
+ * understand (sttHears without the fallback: Polish and five more) when Deepgram is set up too: then Deepgram Nova-3,
+ * which hears every language of the table (LIN-656).
+ */
+export function sttForCall(stt: AgentConfig['stt'], { main, others }: CallLanguages): AgentConfig['stt'] {
+  if (stt.provider !== 'assemblyai_stt' || !stt.fallback) return stt
+  const hearing = { provider: stt.provider, model: stt.model }
+  if ([main, ...others].every(code => sttHears(hearing, code))) return stt
+  return { provider: 'deepgram', apiKey: stt.fallback.apiKey, model: 'nova-3' }
+}
+
+export function createStt(config: AgentConfig['stt'], languages: CallLanguages = ENGLISH_CALL) {
+  const { provider, apiKey, model, fastTurnEnd } = sttForCall(config, languages)
   const multi = !englishOnly(languages)
   const { main } = languages
   if (provider === 'elevenlabs_stt') return new elevenlabs.STT({ apiKey, model, useRealtime: true, ...(multi ? {} : { languageCode: main }) })
@@ -337,8 +350,10 @@ function createLlm({ apiKey, baseUrl, model, fallbacks, zeroDataRetention }: Age
  * another Deepgram model (also Nova-3 `multi` for a language outside Flux's 10) the session falls back to its own
  * detection.
  */
-export const sttDetectsTurns = ({ provider, model }: AgentConfig['stt'], languages: CallLanguages = ENGLISH_CALL) =>
-  provider !== 'deepgram' || deepgramChoice(model, languages).protocol === 'flux'
+export const sttDetectsTurns = (stt: AgentConfig['stt'], languages: CallLanguages = ENGLISH_CALL) => {
+  const { provider, model } = sttForCall(stt, languages)
+  return provider !== 'deepgram' || deepgramChoice(model, languages).protocol === 'flux'
+}
 
 /**
  * How many tool rounds in a row one caller turn may take before the model must answer with tools off (LiveKit's

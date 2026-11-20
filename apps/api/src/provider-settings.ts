@@ -266,6 +266,8 @@ type VoiceEntry = { provider: ProviderName } & Record<string, string | null>
 export type VoiceProviderConfig = Record<(typeof agentCategories)[number], VoiceEntry | null> & {
   /** Every voice provider with a key: an assistant may use a voice of another one than `tts`. */
   tts_providers: VoiceEntry[]
+  /** Deepgram while AssemblyAI is `stt`: a call in a language AssemblyAI can't understand hears with it. */
+  stt_fallback?: VoiceEntry | null
 }
 
 /** A provider's values for the agent; without its secret fields when `withSecrets` is false. */
@@ -300,24 +302,30 @@ export async function installHearing(tx: Tx, env: Env = serverEnv()): Promise<He
   const stt = await activeProvider(tx, 'stt', env).catch(() => null)
   if (!stt) return null
   const standard = (await callQualitySettings(tx).catch(() => null))?.models.standard.stt
-  return { provider: stt.provider, model: levelSttModel(stt.provider, standard) }
+  const fallback = stt.provider === 'assemblyai_stt' && (await deepgramFallback(tx, env)) !== null
+  return { provider: stt.provider, model: levelSttModel(stt.provider, standard), ...(fallback ? { fallback } : {}) }
+}
+
+/**
+ * Deepgram when it is set up but not the install's speech recognition: AssemblyAI can't understand six of the
+ * languages (sttHears), so a call in one of them hears with Deepgram Nova-3 instead (the agent's `stt_fallback`).
+ * Never throws.
+ */
+async function deepgramFallback(tx: Tx, env: Env = serverEnv()) {
+  const ready = await setUpProviders(tx, 'stt', env).catch(() => [])
+  return ready.find(p => p.provider === 'deepgram') ?? null
 }
 
 /**
  * voice.options' languages: those calls can be answered in that may be picked (not HIDDEN_LANGUAGES) and the speech
- * recognition hears (heardLanguages), what "any language" covers (anyModeLanguages), and the ones left out only because
- * the speech recognition does not hear them, with its name (LIN-656: AssemblyAI does not hear Polish and five more).
+ * recognition hears (heardLanguages: AssemblyAI without Deepgram leaves out Polish and five more), and what "any
+ * language" covers (anyModeLanguages). Why a language is missing is the server admin's to know (Server admin ›
+ * Providers › AssemblyAI), not the workspace's.
  */
 export async function installLanguageOptions(tx: Tx, env: Env = serverEnv()) {
-  const spoken = pickableLanguages(await installLanguages(tx, env))
   const hearing = await installHearing(tx, env)
-  const languages = heardLanguages(spoken, hearing)
-  const unheard = spoken.filter(code => !languages.includes(code))
-  return {
-    languages,
-    anyLanguages: anyModeLanguages(languages, hearing),
-    ...(unheard.length && hearing ? { unheardLanguages: unheard, sttLabel: providerSpec(hearing.provider as ProviderName).label } : {}),
-  }
+  const languages = heardLanguages(pickableLanguages(await installLanguages(tx, env)), hearing)
+  return { languages, anyLanguages: anyModeLanguages(languages, hearing) }
 }
 
 /** Whether a realtime model is connected: the install default for assistants that chose no pipeline. Never throws. */
@@ -360,6 +368,9 @@ export async function voiceProviderConfig(tx: Tx): Promise<VoiceProviderConfig> 
     config[category] = active && entryOf(active.provider, active.config, category !== 'recording')
   }
   config.tts_providers = (await setUpProviders(tx, 'tts')).map(p => entryOf(p.provider, p.config))
+  // AssemblyAI answers: Deepgram's key too, for a call in a language AssemblyAI can't understand (sttHears).
+  const fallback = config.stt?.provider === 'assemblyai_stt' ? await deepgramFallback(tx) : null
+  if (fallback) config.stt_fallback = entryOf(fallback.provider, fallback.config)
   return config
 }
 

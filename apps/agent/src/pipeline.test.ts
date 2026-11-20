@@ -2,7 +2,7 @@ import { initializeLogger } from '@livekit/agents'
 import { readFileSync } from 'node:fs'
 import { beforeAll, expect, test, vi } from 'vitest'
 import { type AgentConfig, configFromEnv, type RealtimeCallConfig, withAssistantRealtimeVoice } from './config.ts'
-import { assemblyAiChoice, callLanguagesOf, createStt, createTts, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TRUNCATION, REALTIME_TURNS, realtimeRepliesEvent, REALTIME_UNREACHABLE_URL, sendRealtimeTruncation, withRealtimeTruncation, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
+import { assemblyAiChoice, callLanguagesOf, sttForCall, createStt, createTts, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TRUNCATION, REALTIME_TURNS, realtimeRepliesEvent, REALTIME_UNREACHABLE_URL, sendRealtimeTruncation, withRealtimeTruncation, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
 import { REALTIME_CONNECT_TIMEOUT_MS } from './realtime-connect.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
@@ -419,4 +419,19 @@ test("no pipeline uses LiveKit's local end-of-turn model, and the SDK patch that
   // patches/@livekit__agents@*.patch: without it the worker starts the inference process anyway.
   const sdkWorker = readFileSync(new URL('worker.js', import.meta.resolve('@livekit/agents')), 'utf8')
   expect(sdkWorker).toContain('process.env.LIVEKIT_AGENTS_LOCAL_EOT')
+})
+
+test('AssemblyAI with Deepgram set up: a call in a language AssemblyAI can\'t understand hears with Deepgram Nova-3 (LIN-656)', () => {
+  const aai = { provider: 'assemblyai_stt', apiKey: 'a', model: 'universal-3-6-pro' } as const
+  const withDeepgram = { ...aai, fallback: { provider: 'deepgram', apiKey: 'd' } } as const
+  // Only the languages AssemblyAI understands: AssemblyAI.
+  expect(sttForCall(withDeepgram, { main: 'en', others: ['es', 'de'] })).toBe(withDeepgram)
+  // Polish allowed: the whole call on Deepgram Nova-3, which does not detect turns itself.
+  expect(sttForCall(withDeepgram, { main: 'en', others: ['pl'] })).toEqual({ provider: 'deepgram', apiKey: 'd', model: 'nova-3' })
+  expect(sttDetectsTurns(withDeepgram, { main: 'en', others: ['pl'] })).toBe(false)
+  expect(sttDetectsTurns(withDeepgram, { main: 'en', others: ['es'] })).toBe(true)
+  // Without Deepgram: AssemblyAI stays, and the call leaves Polish out (callLanguagesOf).
+  expect(sttForCall(aai, { main: 'en', others: ['pl'] })).toBe(aai)
+  const elevenlabs = [{ provider: 'elevenlabs', model: 'eleven_flash_v2_5' }]
+  expect(callLanguagesOf({ main: 'en', mode: 'allowed', allowed: ['ko', 'pl'] }, elevenlabs, withDeepgram).others).toEqual(['ko', 'pl'])
 })

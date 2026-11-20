@@ -120,7 +120,6 @@
   "assistant.languages.switch.none": "Continuar em {language}",
   "assistant.languages.switch.noneDescription": "Oferece anotar um recado",
   "assistant.languages.title": "Idiomas",
-  "assistant.languages.unheard": "Não oferecido neste servidor: {languages}. {stt}, o reconhecimento de voz configurado aqui, não os entende, então o assistente nunca muda para eles.",
   "assistant.load": "o assistente",
   "assistant.name.fallback": "O assistente",
   "assistant.name.inSentence": "seu assistente",

@@ -94,6 +94,18 @@ test('settings stored in Linedesk win over the environment, stage by stage', () 
   expect(partly.stt.apiKey).toBe('dg-app')
 })
 
+test('AssemblyAI gets Deepgram\'s key as its fallback when the API sends it; another provider never does (LIN-656)', () => {
+  const aai = { ...stored, stt: { provider: 'assemblyai_stt', api_key: 'aa-app' }, stt_fallback: { provider: 'deepgram', api_key: 'dg-app' } }
+  expect(resolveAgentConfig(aai, keys).stt).toEqual({
+    provider: 'assemblyai_stt',
+    apiKey: 'aa-app',
+    model: 'universal-3-6-pro',
+    fallback: { provider: 'deepgram', apiKey: 'dg-app' },
+  })
+  expect(resolveAgentConfig({ ...aai, stt_fallback: null }, keys).stt.fallback).toBeUndefined()
+  expect(resolveAgentConfig({ ...stored, stt_fallback: { provider: 'deepgram', api_key: 'dg-app' } }, keys).stt.fallback).toBeUndefined()
+})
+
 test('names every stage that is missing, and where to set it, without any value', () => {
   const error = (() => { try { resolveAgentConfig(null, {}) } catch (e) { return e as AgentConfigError } })()!
   expect(error).toBeInstanceOf(AgentConfigError)

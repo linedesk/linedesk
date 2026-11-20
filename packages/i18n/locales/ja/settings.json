@@ -120,7 +120,6 @@
   "assistant.languages.switch.none": "{language}のまま",
   "assistant.languages.switch.noneDescription": "伝言を預かると申し出ます",
   "assistant.languages.title": "言語",
-  "assistant.languages.unheard": "このサーバーでは使えません：{languages}。ここで設定されている音声認識の {stt} が理解できないため、アシスタントがこれらの言語に切り替えることはありません。",
   "assistant.load": "アシスタント",
   "assistant.name.fallback": "アシスタント",
   "assistant.name.inSentence": "アシスタント",

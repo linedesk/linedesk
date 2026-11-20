@@ -104,3 +104,9 @@ test('AssemblyAI does not hear Polish and five more: they are not offered, nor p
   expect(heardLanguages(spoken, { provider: 'deepgram', model: 'nova-3' })).toEqual(spoken)
   expect(heardLanguages(spoken, null)).toEqual(spoken)
 })
+
+test('with Deepgram set up too, AssemblyAI keeps every language: such a call hears with Deepgram (LIN-656)', () => {
+  const spoken = spokenLanguages([{ provider: 'elevenlabs' }])
+  expect(heardLanguages(spoken, { provider: 'assemblyai_stt', model: 'universal-3-6-pro', fallback: true })).toEqual(spoken)
+  expect(sttHears({ provider: 'assemblyai_stt', model: 'universal-3-6-pro', fallback: true }, 'pl')).toBe(true)
+})

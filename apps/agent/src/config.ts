@@ -29,7 +29,14 @@ import { type RecordingConfig, recordingSettings, resolveRecording } from './rec
 
 export interface AgentConfig {
   /** `fastTurnEnd`: AssemblyAI only, "Wait for callers to finish" off: its `balanced` turn mode instead of `max_accuracy` (assemblyAiChoice). */
-  stt: { provider: SttProvider; apiKey: string; model: string; fastTurnEnd?: boolean }
+  stt: {
+    provider: SttProvider
+    apiKey: string
+    model: string
+    fastTurnEnd?: boolean
+    /** AssemblyAI only: Deepgram's key, for a call in a language AssemblyAI can't understand (sttForCall). */
+    fallback?: { provider: 'deepgram'; apiKey: string }
+  }
   /**
    * Any OpenAI-compatible chat completions API: `model` for the conversation, `summaryModel` for the call
    * summary. `fallbacks` are tried by OpenRouter when the model fails (a rate limit, a provider outage);
@@ -127,6 +134,8 @@ const providerSettings = z.object({
   llm: entry,
   tts: entry,
   realtime: entry.optional(),
+  // Missing from an API older than the agent: no fallback for AssemblyAI then.
+  stt_fallback: entry.optional(),
   recording: recordingSettings,
   tts_providers: z.array(entry.unwrap()).optional(),
 })
@@ -248,6 +257,9 @@ export function resolveAgentConfig(settings: ProviderSettings | null, env: Env =
       // The provider's default speech model (STT_MODELS, first); a call hears with its level's (withSttModel).
       model: levelSttModel(stt.provider as SttProvider)!,
       ...(stt.provider === 'assemblyai_stt' && stt.wait_for_caller?.trim() === 'false' ? { fastTurnEnd: true } : {}),
+      ...(stt.provider === 'assemblyai_stt' && settings?.stt_fallback?.provider === 'deepgram' && settings.stt_fallback.api_key
+        ? { fallback: { provider: 'deepgram' as const, apiKey: settings.stt_fallback.api_key } }
+        : {}),
     },
     llm: {
       provider: llmProvider,

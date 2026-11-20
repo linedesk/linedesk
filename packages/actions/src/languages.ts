@@ -12,7 +12,8 @@ import { z } from 'zod'
  *   recognizes all of them (developers.deepgram.com/docs/models-languages-overview).
  * - `assemblyai`: AssemblyAI's Universal-3 Pro streaming hears it (`language_codes` in its API reference, 2026-11-17;
  *   the same list as ASSEMBLYAI_LANGUAGES in apps/agent/src/pipeline.ts). While AssemblyAI is the install's speech
- *   recognition, a language without it is not offered (sttHears; LIN-656: the Polish test call came out as Cyrillic).
+ *   recognition, a call in a language without it uses Deepgram Nova-3 when Deepgram is set up too; else the language
+ *   is not offered (sttHears; LIN-656: the Polish test call came out as Cyrillic).
  * - `elevenlabs`: ElevenLabs Flash v2.5 (and Turbo v2.5) speak it (elevenlabs.io/docs/overview/models).
  * - `cartesia`: Cartesia Sonic 3 speaks it (docs.cartesia.ai/build-with-cartesia/tts-models/latest).
  * - `codes`: the provider's code where it is not ours (none so far; Filipino would be `fil` at ElevenLabs, `tl` at
@@ -194,18 +195,23 @@ export function spokenLanguages(voices: readonly SpeakingVoice[]): Language[] {
 }
 
 /** The speech recognition in use: provider and model (none set: the provider's default; Deepgram's is Flux). */
-export type HearingModel = { provider: string; model?: string | null }
+export type HearingModel = {
+  provider: string
+  model?: string | null
+  /** AssemblyAI only: Deepgram is set up too, so a call in a language AssemblyAI can't understand uses Deepgram Nova-3. */
+  fallback?: unknown
+}
 
 /** The languages AssemblyAI's older Universal Streaming multilingual model hears (its docs, 2026-11-20). */
 const ASSEMBLYAI_MULTILINGUAL: readonly string[] = ['en', 'es', 'fr', 'de', 'it', 'pt']
 
 /**
  * Whether the speech recognition in use hears a language: AssemblyAI only those of its column (Universal Streaming
- * multilingual only its 6); every other provider all of the table (Deepgram through Nova-3 `multi`, ElevenLabs Scribe,
- * OpenAI transcription). None set up: yes.
+ * multilingual only its 6), unless Deepgram is set up too (`fallback`: such a call uses Deepgram Nova-3); every other
+ * provider all of the table (Deepgram through Nova-3 `multi`, ElevenLabs Scribe, OpenAI transcription). None set up: yes.
  */
 export function sttHears(stt: HearingModel | null | undefined, code: Language): boolean {
-  if (stt?.provider !== 'assemblyai_stt') return true
+  if (stt?.provider !== 'assemblyai_stt' || stt.fallback) return true
   if (stt.model?.trim() === 'universal-streaming-multilingual') return ASSEMBLYAI_MULTILINGUAL.includes(code)
   return LANGUAGE_SUPPORT[code]?.assemblyai ?? false
 }

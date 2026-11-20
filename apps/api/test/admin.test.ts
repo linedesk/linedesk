@@ -84,7 +84,7 @@ import {
 import { loadInstanceEnv } from '../src/instance-env.ts'
 import { SPENDING_CAP_ALERT, setJobQueue } from '../src/jobs.ts'
 import { issueFirstPasskeyEnrolment, issuePasskeyEnrolment } from '../src/passkey-enrolment.ts'
-import { telephonyProvider } from '../src/provider-settings.ts'
+import { installLanguageOptions, telephonyProvider } from '../src/provider-settings.ts'
 import { deleteExpiredRecordings } from '../src/recording-retention.ts'
 import { recordingStoreCache } from '../src/recording-store.ts'
 import { runAction } from '../src/run-action.ts'
@@ -484,6 +484,23 @@ describe('provider keys', () => {
     expect((await act(operator, 'provider.clearKeys', { provider: 'openai' })).status).toBe(200)
     expect(await fieldOf('openai', 'api_key')).toMatchObject({ source: 'env' })
     expect((await config()).body.llm.api_key).toBe('env-openai-key-0123456789')
+  })
+
+  test('AssemblyAI answering with Deepgram set up too: the agent gets Deepgram as its fallback, and every language is offered (LIN-656)', async () => {
+    const config = async () => (await request(agent(), 'GET', AGENT_ROUTE)).body
+    await act(operator, 'provider.setKeys', { provider: 'assemblyai_stt', values: { api_key: 'assemblyai-key-0123456789' } })
+    expect((await act(operator, 'provider.setActive', { category: 'stt', provider: 'assemblyai_stt' })).status).toBe(200)
+    expect((await config()).stt_fallback).toBeUndefined()
+    expect((await installLanguageOptions(db)).languages).not.toContain('pl')
+    await act(operator, 'provider.setKeys', { provider: 'deepgram', values: { api_key: 'deepgram-key-0123456789' } })
+    expect((await config()).stt_fallback).toEqual({ provider: 'deepgram', api_key: 'deepgram-key-0123456789' })
+    expect((await installLanguageOptions(db)).languages).toContain('pl')
+    // Deepgram itself answering: no fallback.
+    await act(operator, 'provider.setActive', { category: 'stt', provider: 'deepgram' })
+    expect((await config()).stt_fallback).toBeUndefined()
+    await act(operator, 'provider.setActive', { category: 'stt', provider: null })
+    await act(operator, 'provider.clearKeys', { provider: 'assemblyai_stt' })
+    await act(operator, 'provider.clearKeys', { provider: 'deepgram' })
   })
 
   test('per category one provider is active: the first that is set up, or the one the admin picks', async () => {

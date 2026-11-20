@@ -530,8 +530,6 @@ export function Languages({
   countryLanguage,
   installed,
   anyCovers,
-  unheard,
-  sttLabel,
 }: SectionProps & {
   onMainLanguage: (code: Language) => void
   /** Back to following the workspace's country; none: can't change it (a member). */
@@ -543,9 +541,6 @@ export function Languages({
   installed?: readonly string[]
   /** What "Switch to the caller's language" covers on this install (voice.options anyLanguages); missing: every one offered. */
   anyCovers?: readonly string[]
-  /** Languages not offered because the speech recognition can't understand them (voice.options unheardLanguages), and its name. */
-  unheard?: readonly string[]
-  sttLabel?: string
 }) {
   const ui = useLocale()
   const t = useT()
@@ -661,15 +656,6 @@ export function Languages({
             picked={pickedOthers(draft)}
             onChange={allowed => set('languages', { ...draft.languages, allowed })}
           />
-        )}
-        {/* Why some languages are missing from the lists: the server's speech recognition can't understand them (LIN-656). */}
-        {unheard && unheard.length > 0 && sttLabel && (
-          <p className="k-field-desc as-languages-unheard">
-            {t('settings.assistant.languages.unheard', {
-              languages: format.list(unheard.map(code => languageInSentence(code as Language, ui))),
-              stt: sttLabel,
-            })}
-          </p>
         )}
         {/* An error, not a hint: Save is refused until it is fixed. */}
         {problem && (
@@ -1054,8 +1040,6 @@ function Form({
               countryLanguage={mainLanguageOf(null, workspaceLanguage)}
               installed={voiceOptions?.languages}
               anyCovers={voiceOptions?.anyLanguages ?? voiceOptions?.languages}
-              unheard={voiceOptions?.unheardLanguages}
-              sttLabel={voiceOptions?.sttLabel}
             />
             <NotAnswered setUp={setUp} />
             <CallQualitySettings

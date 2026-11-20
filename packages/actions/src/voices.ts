@@ -294,13 +294,6 @@ export type VoiceOptionsData = {
    */
   anyLanguages?: string[]
   /**
-   * The languages left out of `languages` only because the speech recognition set up does not hear them (sttHears:
-   * AssemblyAI lacks Polish and five more), and that speech recognition's name for the note under Languages. Missing
-   * when none are left out.
-   */
-  unheardLanguages?: string[]
-  sttLabel?: string
-  /**
    * Call quality (decision of 2026-11-17): the levels this server has on, with their price and models, the level new
    * assistants start on, and whether this member may raise an assistant to a paid level.
    */
