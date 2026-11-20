@@ -14,12 +14,6 @@ import { voice } from '@livekit/agents'
 const AFTER_SPEECH_MS = 400
 /** Longest the whole goodbye may take before the line is cut anyway. */
 export const GOODBYE_MAX_MS = 20_000
-/**
- * How long the caller must have been quiet before the goodbye starts (LIN-635): a caller who paused for a moment
- * ("I want to-") and goes on is not hung up on. Their pause already counts; usually the reply that ended the call took
- * most of it.
- */
-export const QUIET_BEFORE_GOODBYE_MS = 1_500
 
 /**
  * What end_call returns. The first call asks the caller whether there is anything else (the fixed line, closingFlow);
@@ -133,11 +127,11 @@ export function callerNotDone(text: string): boolean {
  * in all. Never after words that ask the caller something (asksCaller, LIN-341), and never while the caller is still
  * speaking (`callerSpeaking`, LIN-499: "No, that's all. I just want to make sure-" got the goodbye): then nothing is hung
  * up and it resolves false (the call goes on); true once the call ends.
- * LIN-635 (realtime: "Could you explain how to winterize a garden hose bib?", "I want to-", then the goodbye): the
- * goodbye waits until the caller has been quiet for QUIET_BEFORE_GOODBYE_MS (`callerQuietMs`: since they last stopped
- * speaking), and the call goes on when they speak again meanwhile; and a reply with no words of its own never ends the
- * call right after caller words that ask something or broke off (`callerLastWords`: theirs since the assistant last
- * spoke, callerNotDone).
+ * LIN-635 (realtime: "Could you explain how to winterize a garden hose bib?", "I want to-", then the goodbye): a reply
+ * with no words of its own never ends the call right after caller words that ask something or broke off
+ * (`callerLastWords`: theirs since the assistant last spoke, callerNotDone). No wait for the caller to stay quiet: a
+ * "Thank you for your help" in such a wait cancelled the goodbye and the model then said "The call has ended" (staging
+ * call_eabed52e92534fa4be36).
  */
 export async function hangUpWithGoodbye({
   toolReply,
@@ -145,22 +139,18 @@ export async function hangUpWithGoodbye({
   sayGoodbye,
   stopListening = () => {},
   callerSpeaking = () => false,
-  callerQuietMs = () => Number.POSITIVE_INFINITY,
   callerLastWords = () => null,
   hangUp,
   maxMs = GOODBYE_MAX_MS,
-  quietMs = QUIET_BEFORE_GOODBYE_MS,
 }: {
   toolReply: Reply | null
   said?: string
   sayGoodbye: () => Promise<unknown>
   stopListening?: () => void
   callerSpeaking?: () => boolean
-  callerQuietMs?: () => number
   callerLastWords?: () => string | null
   hangUp: () => void
   maxMs?: number
-  quietMs?: number
 }) {
   let words = said
   if (toolReply) {
@@ -168,11 +158,6 @@ export async function hangUpWithGoodbye({
     words = wordsOf(toolReply)
   }
   if ((words && asksCaller(words)) || callerSpeaking()) return false
-  const wait = quietMs - callerQuietMs()
-  if (wait > 0) {
-    await new Promise(resolve => setTimeout(resolve, wait))
-    if (callerSpeaking() || callerQuietMs() < quietMs) return false
-  }
   const callerWords = callerLastWords()
   if (!words && callerWords && callerNotDone(callerWords)) return false
   let done = false

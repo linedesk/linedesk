@@ -6,7 +6,6 @@ import {
   asksAnythingElse,
   asksCaller,
   callerNotDone,
-  QUIET_BEFORE_GOODBYE_MS,
   closingFlow,
   endRoom,
   greetingPlayed,
@@ -186,53 +185,6 @@ test('the caller said no: end_call hangs up; words of the reply that answer a qu
   await vi.advanceTimersByTimeAsync(400)
   await expect(ended).resolves.toBe(true)
   expect(hangUp2).toHaveBeenCalledOnce()
-})
-
-test('the caller stopped a moment ago: the goodbye waits until they were quiet long enough, and not if they go on', async () => {
-  let stoppedAt = Date.now()
-  let speaking = false
-  const quiet = () => Date.now() - stoppedAt
-  const silent = reply()
-  const hangUp = vi.fn()
-  const sayGoodbye = vi.fn(async () => {})
-  const stopListening = vi.fn()
-  const ended = hangUpWithGoodbye({
-    toolReply: silent.reply,
-    sayGoodbye,
-    stopListening,
-    hangUp,
-    callerSpeaking: () => speaking,
-    callerQuietMs: quiet,
-  })
-  await vi.advanceTimersByTimeAsync(500)
-  silent.play()
-  await vi.advanceTimersByTimeAsync(QUIET_BEFORE_GOODBYE_MS - 600)
-  expect(stopListening).not.toHaveBeenCalled()
-  await vi.advanceTimersByTimeAsync(100)
-  expect(stopListening).toHaveBeenCalledOnce()
-  expect(sayGoodbye).toHaveBeenCalledOnce()
-  await expect(ended).resolves.toBe(true)
-
-  // They go on speaking during the wait: the call goes on.
-  stoppedAt = Date.now()
-  const again = reply()
-  const hangUp2 = vi.fn()
-  const goesOn = hangUpWithGoodbye({
-    toolReply: again.reply,
-    sayGoodbye,
-    hangUp: hangUp2,
-    callerSpeaking: () => speaking,
-    callerQuietMs: quiet,
-  })
-  again.play()
-  await vi.advanceTimersByTimeAsync(300)
-  speaking = true
-  await vi.advanceTimersByTimeAsync(300)
-  speaking = false
-  stoppedAt = Date.now()
-  await vi.advanceTimersByTimeAsync(QUIET_BEFORE_GOODBYE_MS)
-  await expect(goesOn).resolves.toBe(false)
-  expect(hangUp2).not.toHaveBeenCalled()
 })
 
 test('skipEndCallReplies: the model says nothing after end_call; other tools keep their reply', () => {
