@@ -431,7 +431,7 @@ test('caller ID: a known number is in the prompt and not asked for, a saved name
   expect(callerIdInstructions(known)).toMatch(/It is the callback number: never ask the caller to say a number\./)
   // LIN-386: one short question instead of reading the digits; another number goes through the phone step.
   expect(callerIdInstructions(known)).toContain(
-    'Before you tell the caller someone will get back to them, or book, ask once: "Is this number the best one to reach you?" Only if they want another number, get it with get_phone_number.',
+    'Before you tell the caller someone will get back to them, or book, ask once, without saying its digits, whether this number is the best one to reach them. Only if they want another number, get it with get_phone_number.',
   )
   expect(callerIdInstructions(known)).not.toMatch(/saved contact|can be faked/)
   expect(callerIdInstructions({ ...known, name: 'Linda Park' })).toMatch(

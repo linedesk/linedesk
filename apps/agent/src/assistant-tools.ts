@@ -101,7 +101,7 @@ export function assistantTools(api: ApiClient, call: CallSession, log: CallLog, 
       execute: async (_, opts) => {
         saving(opts)
         await flagUrgent()
-        return 'The call is flagged as urgent. Take a message now; do not promise a response time.'
+        return 'The call is flagged as urgent. Do not promise a response time.'
       },
     }),
   }
