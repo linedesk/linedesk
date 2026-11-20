@@ -5,7 +5,7 @@
 // trusts the payload's amounts; failures are retried and alerted; the nightly reconciliation stores missed events,
 // settles stuck recharges and reports drift. Instance-wide (Stripe keys, the billing switch): its own database.
 import { createHmac } from 'node:crypto'
-import { BillingSetupError } from '@linedesk/billing'
+import { BillingSetupError, WEBHOOK_EVENTS } from '@linedesk/billing'
 import {
   billing_accounts,
   billing_alerts,
@@ -24,9 +24,9 @@ import {
 } from '@linedesk/db'
 import { and, eq, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
-import { reconcileBilling } from '../src/billing-reconcile.ts'
 import { BILLING_LIFECYCLE_EMAIL, type LifecycleEmailJob, sendLifecycleEmail } from '../src/billing-periods.ts'
 import { rechargeGaveUp, rechargeSetupAlertKey } from '../src/billing-recharge.ts'
+import { reconcileBilling } from '../src/billing-reconcile.ts'
 import { forgetWebhookBillingProvider, setBillingFetch } from '../src/billing-settings.ts'
 import { db } from '../src/db.ts'
 import { emailSender } from '../src/email.ts'
@@ -34,11 +34,13 @@ import { setJobQueue } from '../src/jobs.ts'
 import { decideRecharge, postEntry } from '../src/ledger.ts'
 import { checkLedgerGuards } from '../src/ledger-guards.ts'
 import {
+  FOREIGN_EVENT,
+  HANDLED_EVENTS,
+  NOT_SUBSCRIBED,
   processStripeEventJob,
   pruneStripeEvents,
   sweepStripeEvents,
   UNHANDLED_PLAN,
-  FOREIGN_EVENT,
   UNHANDLED_TYPE,
 } from '../src/stripe-events.ts'
 import { resetStripeWebhookLimits, STRIPE_WEBHOOK_PATH } from '../src/stripe-webhook.ts'
@@ -1448,7 +1450,7 @@ describe('the processor', () => {
 
   test('a type this release does not act on stays unprocessed with its marker; no retry, no alert (M1)', async () => {
     const { bill } = await billWith()
-    const evt = event('invoice.finalized', invoice(rid('in'), bill.stripe_customer_id!))
+    const evt = event('invoice.payment_action_required', invoice(rid('in'), bill.stripe_customer_id!))
     expect(await deliverAndProcess(evt)).toEqual({ outcome: 'unhandled', marker: UNHANDLED_TYPE })
     expect(await storedEvent(evt.id as string)).toMatchObject({
       processed_at: null,
@@ -1463,6 +1465,33 @@ describe('the processor', () => {
     await sweepStripeEvents()
     expect(await storedEvent(evt.id as string)).toMatchObject({ attempts: 5, last_error: UNHANDLED_TYPE })
     expect((await deliver(JSON.stringify(evt))).status).toBe(200)
+    expect(mails).toEqual([])
+  })
+
+  test('every type a job acts on is subscribed', () => {
+    expect(HANDLED_EVENTS.filter(type => !(WEBHOOK_EVENTS as readonly string[]).includes(type))).toEqual([])
+  })
+
+  test('a type the endpoint no longer subscribes to is closed at once, and the sweeper closes stored ones', async () => {
+    const { bill } = await billWith()
+    const evt = event('invoice.finalized', invoice(rid('in'), bill.stripe_customer_id!))
+    expect(await deliverAndProcess(evt)).toEqual({ outcome: 'not_subscribed' })
+    expect(await storedEvent(evt.id as string)).toMatchObject({ last_error: NOT_SUBSCRIBED })
+    expect((await storedEvent(evt.id as string))?.processed_at).not.toBeNull()
+    // As a release before this one left it.
+    const old = event('setup_intent.succeeded', {
+      id: rid('seti'),
+      object: 'setup_intent',
+      customer: bill.stripe_customer_id,
+    })
+    expect((await deliver(JSON.stringify(old))).status).toBe(200)
+    await db
+      .update(stripe_events)
+      .set({ attempts: 5, last_error: UNHANDLED_TYPE })
+      .where(eq(stripe_events.id, old.id as string))
+    await sweepStripeEvents()
+    expect(await storedEvent(old.id as string)).toMatchObject({ last_error: NOT_SUBSCRIBED })
+    expect((await storedEvent(old.id as string))?.processed_at).not.toBeNull()
     expect(mails).toEqual([])
   })
 

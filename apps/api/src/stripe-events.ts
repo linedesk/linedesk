@@ -12,12 +12,13 @@
 // Only what processing reads is stored of an event (security review of #865, L4): its id, type, time, mode and the
 // object's id, kind and customer. A type this release does not act on stays unprocessed with a marker (M1), so the
 // release that handles it processes the stored events too.
-import type {
-  BillingEvent,
-  BillingInvoice,
-  BillingInvoiceLine,
-  BillingProvider,
-  BillingSubscription,
+import {
+  type BillingEvent,
+  type BillingInvoice,
+  type BillingInvoiceLine,
+  type BillingProvider,
+  type BillingSubscription,
+  WEBHOOK_EVENTS,
 } from '@linedesk/billing'
 import {
   billing_accounts,
@@ -28,7 +29,7 @@ import {
   stripe_events,
   type Tx,
 } from '@linedesk/db'
-import { and, eq, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 import { fromDrizzle, type PgBoss } from 'pg-boss'
 import { alertInstanceAdmins } from './admin-alerts.ts'
 import { tellOwnerOfCardChange } from './bill-manager.ts'
@@ -73,6 +74,12 @@ export const UNHANDLED_PLAN = 'unhandled: plan invoice'
  * on one sandbox): such events used to be retried for an hour each and held the queue up for this install's own.
  */
 export const FOREIGN_EVENT = 'skipped: not this install'
+/**
+ * `last_error` of an event closed (processed, no action) because the webhook endpoint no longer subscribes to its type
+ * (`WEBHOOK_EVENTS`): an endpoint made before the type was taken out, or by hand. No release acts on it, so it would
+ * otherwise wait as `unhandled: type` for good.
+ */
+export const NOT_SUBSCRIBED = 'skipped: not subscribed'
 
 /** `invoice.paid` is applied in a transaction (billing.processStripeEvent); the failures by the job (they ask Stripe). */
 const INVOICE_PAID = 'invoice.paid'
@@ -116,6 +123,8 @@ export const billingSystemActor: Actor = {
   workspaceId: null,
   permissions: ['billing:system'],
 }
+
+const subscribed = (type: string) => (WEBHOOK_EVENTS as readonly string[]).includes(type)
 
 const iso = (seconds: number) => new Date(seconds * 1000).toISOString()
 
@@ -303,6 +312,8 @@ async function prepareEvent(eventId: string): Promise<Prepared> {
 export type EventOutcome =
   /** Not acted on in this release: left unprocessed with its marker (UNHANDLED_TYPE, UNHANDLED_PLAN). */
   | { outcome: 'unhandled'; marker: string }
+  /** The endpoint no longer subscribes to this type (`WEBHOOK_EVENTS`): closed with `NOT_SUBSCRIBED`. */
+  | { outcome: 'not_subscribed' }
   /** No bill here has this object or customer (another integration on the same Stripe account). */
   | { outcome: 'unknown' }
   /** No bill has it yet, and the event is young: tried again by the sweeper (review of #865, L2). */
@@ -890,6 +901,13 @@ export async function processStripeEventJob(eventId: string) {
       .where(and(eq(stripe_events.id, eventId), isNull(stripe_events.processed_at)))
     return { outcome: 'unknown' } satisfies EventOutcome
   }
+  if (!subscribed(event.type)) {
+    await db
+      .update(stripe_events)
+      .set({ processed_at: new Date().toISOString(), last_error: NOT_SUBSCRIBED })
+      .where(and(eq(stripe_events.id, eventId), isNull(stripe_events.processed_at)))
+    return { outcome: 'not_subscribed' } satisfies EventOutcome
+  }
   try {
     if ((INVOICE_FAILURES as readonly string[]).includes(event.type)) return await invoiceFailedJob(event)
     if ((CARD_CHANGES as readonly string[]).includes(event.type)) return await cardChangedJob(event)
@@ -916,6 +934,17 @@ export async function processStripeEventJob(eventId: string) {
  */
 export async function sweepStripeEvents(now = new Date()) {
   if ((await billingState(db)).inEffect === 'none') return { requeued: 0 }
+  // Left by a release before this one, of a type no longer subscribed: closed, never acted on.
+  await db
+    .update(stripe_events)
+    .set({ processed_at: now.toISOString(), last_error: NOT_SUBSCRIBED })
+    .where(
+      and(
+        isNull(stripe_events.processed_at),
+        eq(stripe_events.last_error, UNHANDLED_TYPE),
+        notInArray(stripe_events.type, [...WEBHOOK_EVENTS]),
+      ),
+    )
   await db
     .update(stripe_events)
     .set({ attempts: 0, last_error: null })

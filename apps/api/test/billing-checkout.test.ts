@@ -2100,7 +2100,7 @@ describe('the trial ends (customer.subscription.trial_will_end, invoice.created)
       lines: list([], `/v1/invoices/${invoiceId}/lines`),
     })
     const object = { id: invoiceId, object: 'invoice', customer: sub.customer }
-    expect(await processEvent('invoice.created', object)).toMatchObject({ outcome: 'unhandled' })
+    expect(await processEvent('invoice.created', object)).toMatchObject({ outcome: 'not_subscribed' })
     expect(stripe.requests.filter(r => r.path === '/v1/invoiceitems')).toEqual([])
     expect(await db.select().from(billing_recharges).where(eq(billing_recharges.billing_account_id, bill.id))).toEqual(
       [],

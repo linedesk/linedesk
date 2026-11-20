@@ -377,16 +377,19 @@ export class WebhookRefused extends Error {
   }
 }
 
-/** The event types the webhook endpoint subscribes to; the bootstrap script sets them. */
+/**
+ * The event types the webhook endpoint subscribes to; the bootstrap script sets them. Only types a release acts on or
+ * will act on: a type that is never acted on would wait as `unhandled: type` for good (2026-11-20:
+ * `customer.subscription.created`, `invoice.finalized` and `setup_intent.succeeded` taken out; Checkout, `invoice.paid`
+ * and `payment_method.attached` carry what they told). A stored event of a type not listed here is closed at once.
+ */
 export const WEBHOOK_EVENTS = [
   'checkout.session.completed',
   'checkout.session.async_payment_succeeded',
   'checkout.session.async_payment_failed',
-  'customer.subscription.created',
   'customer.subscription.updated',
   'customer.subscription.deleted',
   'customer.subscription.trial_will_end',
-  'invoice.finalized',
   'invoice.finalization_failed',
   'invoice.paid',
   'invoice.payment_failed',
@@ -398,7 +401,6 @@ export const WEBHOOK_EVENTS = [
   'radar.early_fraud_warning.created',
   'customer.updated',
   'payment_method.attached',
-  'setup_intent.succeeded',
 ] as const
 
 /** The metadata that marks the customer portal configuration the bootstrap makes. */
