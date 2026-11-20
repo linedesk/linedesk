@@ -28,6 +28,7 @@ import * as integrations from './integrations.ts'
 import type { ActionDef } from './define.ts'
 import * as knowledge from './knowledge.ts'
 import * as liveCall from './live-call.ts'
+import * as mail from './mail.ts'
 import * as membership from './membership.ts'
 import * as notifications from './notifications.ts'
 import * as numberBuy from './number-buy.ts'
@@ -85,6 +86,7 @@ export * from './trial-link.ts'
 export * from './branding.ts'
 export * from './business.ts'
 export * from './calendar.ts'
+export * from './mail.ts'
 export * from './call-export.ts'
 export * from './carrier.ts'
 export * from './calls.ts'
@@ -256,6 +258,9 @@ const all = [
   apps.appDisconnect,
   apps.appUpdateSettings,
   apps.appPushes,
+  mail.mailConnectStart,
+  mail.mailConnectFinish,
+  mail.mailDisconnect,
   calendar.assistantCalendarAdd,
   calendar.assistantCalendarUpdate,
   calendar.assistantCalendarSetDefault,

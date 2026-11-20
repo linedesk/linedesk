@@ -147,6 +147,10 @@ export function auditLabel(
       const app = appName(e.method)
       return t('admin.audit.appDropped', { app: app ?? '', known: known(app) })
     }
+    case 'mail_dropped': {
+      const mailbox = mailboxName(e.method)
+      return t('admin.audit.mailDropped', { provider: mailbox ?? '', known: known(mailbox) })
+    }
     case 'user.impersonate':
       // Whom it was: kept by the handler since the reason was added; older entries have none.
       return subject ? t('admin.audit.impersonateAs', { who: subject }) : t('admin.audit.impersonate')
@@ -388,6 +392,12 @@ export function auditLabel(
     }
     case 'app.updateSettings':
       return t('admin.audit.appSettingsChanged')
+    case 'mail.connectFinish': {
+      const mailbox = mailboxName(input.provider)
+      return t('admin.audit.mailConnected', { provider: mailbox ?? '', known: known(mailbox) })
+    }
+    case 'mail.disconnect':
+      return t('admin.audit.mailDisconnected')
     case 'phoneNumber.setup':
       return input.purchase ? t('admin.audit.numberBought') : t('admin.audit.numberConnected')
     case 'phoneNumber.release':
@@ -494,6 +504,14 @@ const appNameKeys: Record<string, MessageKey> = {
 }
 const appName = (app: unknown) => {
   const key = appNameKeys[String(app)]
+  return key ? t(key) : undefined
+}
+const mailboxNameKeys: Record<string, MessageKey> = {
+  google: msg('settings.integrations.mail.provider.google'),
+  microsoft: msg('settings.integrations.mail.provider.microsoft'),
+}
+const mailboxName = (provider: unknown) => {
+  const key = mailboxNameKeys[String(provider)]
   return key ? t(key) : undefined
 }
 

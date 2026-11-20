@@ -380,10 +380,20 @@ const guides = {
     url: 'https://entra.microsoft.com/',
     steps: [
       'In Microsoft Entra, App registrations → New registration (Web), with the redirect URIs shown below.',
-      'API permissions: Calendars.ReadWrite, offline_access and User.Read. Certificates & secrets → New client secret.',
+      'API permissions: Calendars.ReadWrite, Mail.Read, offline_access and User.Read. Certificates & secrets → New client secret.',
       'Paste the application ID and the secret here.',
     ],
     cost: 'Free.',
+  },
+  google_mail: {
+    url: 'https://console.cloud.google.com/apis/credentials',
+    stepKeys: [
+      msg('admin.provider.guide.google_mail.step1'),
+      msg('admin.provider.guide.google_mail.step2'),
+      msg('admin.provider.guide.google_mail.step3'),
+      msg('admin.provider.guide.google_mail.step4'),
+    ],
+    costKey: msg('admin.provider.guide.google_mail.cost'),
   },
   calendly: {
     url: 'https://calendly.com/app/developer',
@@ -1001,7 +1011,7 @@ export const providers = {
       client_secret: { label: 'Client secret', env: 'MICROSOFT_CLIENT_SECRET', secret: true },
       tenant_id: { label: 'Tenant', env: 'MICROSOFT_TENANT_ID', secret: false, optional: true, hint: 'common' },
     },
-    help: 'In Microsoft Entra, register an app (Web) with the redirect URIs below and the delegated permissions Calendars.ReadWrite, offline_access and User.Read. Work accounts sign in only with the optional ID-token claims xms_edov and email (Token configuration). Tenant: an ID limits sign-in to one organization.',
+    help: 'In Microsoft Entra, register an app (Web) with the redirect URIs below and the delegated permissions Calendars.ReadWrite, Mail.Read (support mailboxes), offline_access and User.Read. Work accounts sign in only with the optional ID-token claims xms_edov and email (Token configuration). Tenant: an ID limits sign-in to one organization.',
   },
   // Calendar apps of scheduling tools: a business connects by consent page. Without one, it pastes a key.
   calendly: {
@@ -1124,6 +1134,24 @@ export const providers = {
       client_secret: { labelKey: msg('admin.provider.field.clientSecret'), env: 'JOBBER_CLIENT_SECRET', secret: true },
     },
     helpKey: msg('admin.provider.help.jobber'),
+  },
+  // Support mailboxes (LIN-637): Gmail's read-only scope is restricted, so it has an OAuth app of its own, apart from
+  // the sign-in and calendar app (`google`), whose verification it would otherwise hold up. Microsoft 365 mailboxes
+  // use the `microsoft` app (Mail.Read).
+  google_mail: {
+    // i18n-ignore: a product name in the English-only provider registry, like every other provider label here
+    label: 'Gmail API',
+    category: 'apps',
+    guide: guides.google_mail,
+    fields: {
+      client_id: { labelKey: msg('admin.provider.field.clientId'), env: 'GOOGLE_MAIL_CLIENT_ID', secret: false },
+      client_secret: {
+        labelKey: msg('admin.provider.field.clientSecret'),
+        env: 'GOOGLE_MAIL_CLIENT_SECRET',
+        secret: true,
+      },
+    },
+    helpKey: msg('admin.provider.help.google_mail'),
   },
   // Self-serve sign-up's bot check (docs/billing.md §3.1): the sign-up page shows the Turnstile widget,
   // and the server checks its answer with the secret before a sign-up code goes out.

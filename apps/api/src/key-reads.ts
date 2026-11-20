@@ -41,6 +41,7 @@ export const KEY_READ_ROUTES: readonly KeyReadRoute[] = [
 
 const SESSION = 'needs a signed-in browser session'
 const SETUP_LINKS = 'setup links are made and read signed in as yourself'
+const OAUTH_RETURN = 'the provider (calendar, mailbox, app) sends the browser back here'
 /** Routes the web app calls that a personal key does not, with the reason (or the way a key does the same). */
 export const BROWSER_ONLY_ROUTES: ReadonlyMap<string, string> = new Map([
   ['/v1/shape/:table', 'read sync streams tables to the browser; a key reads rows with the records.list action'],
@@ -52,8 +53,9 @@ export const BROWSER_ONLY_ROUTES: ReadonlyMap<string, string> = new Map([
   ['/v1/impersonation/stop', SESSION],
   ['/v1/workspace/agent-setup', SETUP_LINKS],
   ['/v1/partner/agent-setup', SETUP_LINKS],
-  ['/v1/calendar/callback/:provider', 'the calendar provider sends the browser here'],
-  ['/v1/apps/callback/:app', 'the connected app sends the browser here'],
+  ['/v1/calendar/callback/:provider', OAUTH_RETURN],
+  ['/v1/mail/callback/:provider', OAUTH_RETURN],
+  ['/v1/apps/callback/:app', OAUTH_RETURN],
   ['/v1/setup', 'install setup before the first account'],
   ['/v1/sign-in-link/:step', "public, the sign-in email's button"],
   ['/v1/openapi.json', 'public: the API description'],

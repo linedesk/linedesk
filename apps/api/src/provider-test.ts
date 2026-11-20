@@ -720,13 +720,22 @@ async function testResend(values: Values, doFetch: typeof fetch): Promise<Tested
 
 // --- Sign-in and calendar apps ------------------------------------------------------------------
 
-type OAuthApp = 'google' | 'microsoft' | 'github' | 'oidc' | 'calendly' | 'calcom' | 'hubspot'
-const oauthApps: readonly ProviderName[] = ['google', 'microsoft', 'github', 'oidc', 'calendly', 'calcom', 'hubspot']
+type OAuthApp = 'google' | 'google_mail' | 'microsoft' | 'github' | 'oidc' | 'calendly' | 'calcom' | 'hubspot'
+const oauthApps: readonly ProviderName[] = [
+  'google',
+  'google_mail',
+  'microsoft',
+  'github',
+  'oidc',
+  'calendly',
+  'calcom',
+  'hubspot',
+]
 const isOAuthApp = (provider: ProviderName): provider is OAuthApp => oauthApps.includes(provider)
 
 /** Where an OAuth app exchanges a code for tokens. OIDC: from its discovery document. */
 async function tokenEndpoint(provider: OAuthApp, values: Values, doFetch: typeof fetch): Promise<string> {
-  if (provider === 'google') return 'https://oauth2.googleapis.com/token'
+  if (provider === 'google' || provider === 'google_mail') return 'https://oauth2.googleapis.com/token'
   if (provider === 'github') return 'https://github.com/login/oauth/access_token'
   if (provider === 'calendly') return 'https://auth.calendly.com/oauth/token'
   if (provider === 'calcom') return 'https://api.cal.com/v2/auth/oauth2/token'

@@ -11,6 +11,7 @@ import type {
   calls,
   contacts,
   knowledge_questions,
+  mail_connections,
   phone_numbers,
   transcript_segments,
   webhook_endpoints,
@@ -204,6 +205,7 @@ export type IntegrationSubscription = typeof integration_subscriptions.$inferSel
 export type WorkspaceMember = typeof workspace_members.$inferSelect
 export type CallEvent = typeof call_events.$inferSelect
 export type KnowledgeQuestion = typeof knowledge_questions.$inferSelect
+export type MailConnection = typeof mail_connections.$inferSelect
 
 export type Tables = {
   calls: Call
@@ -220,6 +222,7 @@ export type Tables = {
   workspace_members: WorkspaceMember
   call_events: CallEvent
   knowledge_questions: KnowledgeQuestion
+  mail_connections: MailConnection
 }
 export type TableName = keyof Tables
 /**
@@ -261,6 +264,7 @@ export const tableNames = [
   'workspace_members',
   'call_events',
   'knowledge_questions',
+  'mail_connections',
 ] as const satisfies readonly TableName[]
 
 // Billing prices and rules: one module (docs/billing.md §7a).

@@ -784,6 +784,7 @@ describe('provider keys', () => {
       'hubspot',
       'slack',
       'jobber',
+      'google_mail',
       'turnstile',
       'cloudflare_saas',
     ])

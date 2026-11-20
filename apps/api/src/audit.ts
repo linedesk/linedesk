@@ -324,6 +324,9 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'app.disconnect': 'integrations',
   // Whether calls go to it, and whether it may add or change contacts there.
   'app.updateSettings': 'integrations',
+  // A support mailbox (LIN-615): every customer email in it becomes readable.
+  'mail.connectFinish': 'integrations',
+  'mail.disconnect': 'integrations',
   'phoneNumber.setup': 'integrations',
   'phoneNumber.release': 'integrations',
   // An AI agent acting as an instance admin: its setup link. confirmPasskey and withdrawPasskey (the Allow step, gone
@@ -613,6 +616,7 @@ const AUTH_EVENT_KIND: Record<AuthEventName, AuditKind> = {
   webhook_dropped: 'integrations',
   calendar_dropped: 'integrations',
   app_dropped: 'integrations',
+  mail_dropped: 'integrations',
 }
 
 export type AuditEntry = {

@@ -83,5 +83,6 @@ export const IRREVERSIBLE_ACTIONS: ReadonlySet<string> = new Set([
   'assistant.delete',
   'webhook.delete',
   'calendar.disconnect',
+  'mail.disconnect',
   'appointmentType.delete',
 ])

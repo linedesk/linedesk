@@ -362,6 +362,8 @@ test('what an unproven account set up, removed when its address was proven (LIN-
   expect(dropped('calendar_dropped', 'caldav')).toBe('A calendar disconnected when the address was proven')
   expect(dropped('app_dropped', 'hubspot')).toBe('HubSpot disconnected when the address was proven')
   expect(dropped('app_dropped', null)).toBe('An app disconnected when the address was proven')
+  expect(dropped('mail_dropped', 'google')).toBe('The Gmail mailbox disconnected when the address was proven')
+  expect(dropped('mail_dropped', null)).toBe('A support mailbox disconnected when the address was proven')
 })
 
 test('entries without a name, an address or a host still read as a sentence', () => {

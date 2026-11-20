@@ -5,6 +5,7 @@ import { INVITATION_DAYS, type MyInvitation } from '@linedesk/actions'
 import {
   app_oauth_states,
   calendar_oauth_states,
+  mail_oauth_states,
   calls,
   golive_checklist_dismissals,
   golive_checklist_steps,
@@ -139,6 +140,10 @@ export async function forgetMember(tx: Tx, workspaceId: string, userId: string, 
   await tx
     .delete(app_oauth_states)
     .where(and(eq(app_oauth_states.workspace_id, workspaceId), eq(app_oauth_states.user_id, userId)))
+  // Nor a mailbox connect.
+  await tx
+    .delete(mail_oauth_states)
+    .where(and(eq(mail_oauth_states.workspace_id, workspaceId), eq(mail_oauth_states.user_id, userId)))
   return { calls: unassigned }
 }
 

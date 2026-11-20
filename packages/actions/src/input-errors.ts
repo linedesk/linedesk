@@ -127,6 +127,7 @@ export const DESTRUCTIVE_ACTIONS = [
   'webhook.delete',
   'integration.remove',
   'calendar.disconnect',
+  'mail.disconnect',
   'user.resetPasskeys',
   'account.authenticatorRemove',
   'provider.clearKeys',

@@ -78,6 +78,7 @@ const DESTRUCTIVE_INPUTS: Record<(typeof DESTRUCTIVE_ACTIONS)[number], Record<st
   'webhook.delete': { endpointId: 'wh_1' },
   'integration.remove': { subscriptionId: 'sub_1' },
   'calendar.disconnect': { connectionId: 'cal_1' },
+  'mail.disconnect': { connectionId: 'mail_1' },
   'user.resetPasskeys': { userId: 'user_1' },
   'account.authenticatorRemove': {},
   'provider.clearKeys': { provider: providerNames[0] },

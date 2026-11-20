@@ -887,8 +887,14 @@ export function wrapUp(
 /** Where an OAuth app sends people back to: the same list as the provider's dialog (web ProviderLogo.tsx). */
 function redirectUris(provider: ProviderName): string[] {
   const app = webAddress()
-  if (provider === 'google' || provider === 'microsoft')
-    return [`${app}/api/auth/callback/${provider}`, `${app}/v1/calendar/callback/${provider}`]
+  if (provider === 'google') return [`${app}/api/auth/callback/google`, `${app}/v1/calendar/callback/google`]
+  if (provider === 'microsoft')
+    return [
+      `${app}/api/auth/callback/microsoft`,
+      `${app}/v1/calendar/callback/microsoft`,
+      `${app}/v1/mail/callback/microsoft`,
+    ]
+  if (provider === 'google_mail') return [`${app}/v1/mail/callback/google`]
   if (provider === 'github') return [`${app}/api/auth/callback/github`]
   if (provider === 'oidc') return [`${app}/api/auth/oauth2/callback/oidc`]
   if (provider === 'calendly' || provider === 'calcom') return [`${app}/v1/calendar/callback/${provider}`]

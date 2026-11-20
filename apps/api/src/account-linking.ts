@@ -10,6 +10,7 @@ import {
   assistants,
   app_connections,
   calendar_connections,
+  mail_connections,
   integration_subscriptions,
   invitation,
   member,
@@ -158,6 +159,11 @@ export async function dropUnprovenAccessOf(userId: string, keepAccountId?: strin
       .delete(app_connections)
       .where(eq(app_connections.connected_by, userId))
       .returning({ provider: app_connections.provider, workspaceId: app_connections.workspace_id })
+    // And a mailbox it connected: what Linedesk learns from it shapes how the assistant answers callers.
+    const mailboxes = await tx
+      .delete(mail_connections)
+      .where(eq(mail_connections.connected_by, userId))
+      .returning({ provider: mail_connections.provider, workspaceId: mail_connections.workspace_id })
     const withdrawn = await tx
       .update(invitation)
       .set({ status: 'canceled' })
@@ -176,6 +182,7 @@ export async function dropUnprovenAccessOf(userId: string, keepAccountId?: strin
       ...webhooks.map(w => ({ event: 'webhook_dropped' as const, method: urlHost(w.url), workspaceId: w.workspaceId })),
       ...calendars.map(c => ({ event: 'calendar_dropped' as const, method: c.provider, workspaceId: c.workspaceId })),
       ...apps.map(a => ({ event: 'app_dropped' as const, method: a.provider, workspaceId: a.workspaceId })),
+      ...mailboxes.map(m => ({ event: 'mail_dropped' as const, method: m.provider, workspaceId: m.workspaceId })),
     ]
     return { reset: await resetCallRoutingOf(tx, userId), withdrawn, dropped }
   })

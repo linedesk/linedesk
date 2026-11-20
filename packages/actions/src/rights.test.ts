@@ -114,6 +114,9 @@ const expectedRights: Record<Right, readonly string[]> = {
     'app.connectStart',
     'app.connectFinish',
     'app.disconnect',
+    'mail.connectStart',
+    'mail.connectFinish',
+    'mail.disconnect',
     'app.pushes',
     // What Linedesk does in the app (LIN-367): log calls, add new callers, fill empty fields.
     'app.updateSettings',

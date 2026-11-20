@@ -793,6 +793,60 @@ export const calendar_oauth_states = pgTable('calendar_oauth_states', {
   created_at: createdAt(),
 })
 
+// A support mailbox connected to a workspace (LIN-615): Gmail or Microsoft 365, read only, so Linedesk can learn the
+// typical customer requests and how the business answers them. Synced: holds no secret and no mail. Its tokens are in
+// mail_credentials, which is never synced. No message is stored by connecting.
+export const mail_connections = pgTable(
+  'mail_connections',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    provider: text('provider', { enum: ['google', 'microsoft'] }).notNull(),
+    /** The mailbox's address. */
+    account_email: text('account_email').notNull(),
+    /** `needs_reconnect`: the provider refused the grant (revoked, expired); someone has to connect it again. */
+    status: text('status', { enum: ['connected', 'needs_reconnect'] })
+      .notNull()
+      .default('connected'),
+    /** The provider's last refusal, for the settings page. */
+    last_error: text('last_error'),
+    /** The member who connected the mailbox. */
+    connected_by: text('connected_by').notNull(),
+    created_at: createdAt(),
+    version: version(),
+  },
+  t => [
+    index('mail_connections_ws').on(t.workspace_id),
+    unique('mail_connections_account').on(t.workspace_id, t.provider, t.account_email),
+  ],
+)
+
+// OAuth tokens of a mailbox, AES-256-GCM with SECRETS_KEY (apps/api/src/secrets.ts). Never synced.
+export const mail_credentials = pgTable('mail_credentials', {
+  connection_id: text('connection_id')
+    .primaryKey()
+    .references(() => mail_connections.id, { onDelete: 'cascade' }),
+  workspace_id: workspaceId(),
+  access_token_encrypted: text('access_token_encrypted').notNull(),
+  refresh_token_encrypted: text('refresh_token_encrypted').notNull(),
+  expires_at: ts('expires_at').notNull(),
+  /** The scopes the account granted, as the provider reported them. */
+  scope: text('scope'),
+  updated_at: ts('updated_at').notNull().defaultNow(),
+})
+
+// A started mailbox connect: the OAuth `state` (this row's id) and the PKCE verifier, for one member in one workspace,
+// used once and for ten minutes. Never synced.
+export const mail_oauth_states = pgTable('mail_oauth_states', {
+  id: id(),
+  workspace_id: workspaceId(),
+  user_id: text('user_id').notNull(),
+  provider: text('provider', { enum: ['google', 'microsoft'] }).notNull(),
+  code_verifier: text('code_verifier').notNull(),
+  expires_at: ts('expires_at').notNull(),
+  created_at: createdAt(),
+})
+
 // An app connected to a workspace by OAuth (docs/crm-sync.md), one per app. Synced: holds no secret;
 // its tokens are in app_credentials, which is never synced.
 export const app_connections = pgTable(
@@ -1291,7 +1345,7 @@ export const auth_events = pgTable(
         'invitation_withdrawn',
         // What an unproven account set up, removed when its address was proven (account-linking.ts
         // dropUnprovenAccessOf, LIN-523). user: that account. method: the API or personal key's name, the Zapier
-        // subscription's event, the webhook's host, the calendar's or app's provider (none for a setup link).
+        // subscription's event, the webhook's host, the calendar's, app's or mailbox's provider (none for a setup link).
         'api_key_dropped',
         'personal_key_dropped',
         'zapier_subscription_dropped',
@@ -1299,6 +1353,7 @@ export const auth_events = pgTable(
         'webhook_dropped',
         'calendar_dropped',
         'app_dropped',
+        'mail_dropped',
       ],
     }).notNull(),
     /**
@@ -1674,6 +1729,7 @@ export const syncedTables = {
   workspace_members,
   call_events,
   knowledge_questions,
+  mail_connections,
 } as const
 
 /**

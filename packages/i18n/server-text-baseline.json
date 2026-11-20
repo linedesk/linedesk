@@ -56,7 +56,7 @@
   "apps/api/src/integrations.ts": 3,
   "apps/api/src/invitations.ts": 1,
   "apps/api/src/jobs.ts": 1,
-  "apps/api/src/key-reads.ts": 5,
+  "apps/api/src/key-reads.ts": 3,
   "apps/api/src/knowledge-questions.ts": 6,
   "apps/api/src/live-call.ts": 9,
   "apps/api/src/livekit-status.ts": 1,

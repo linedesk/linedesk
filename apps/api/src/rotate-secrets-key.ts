@@ -1,5 +1,5 @@
 // Moves everything stored with SECRETS_KEY to a new key, in one transaction: provider keys (install-wide, a
-// workspace's own carrier and a white-label partner's own keys), webhook signing secrets, calendar and connected-app tokens, the push key pair's private
+// workspace's own carrier and a white-label partner's own keys), webhook signing secrets, calendar, connected-app and mailbox tokens, the push key pair's private
 // half, the port-out PINs of numbers (billing_numbers; security review of #920, L2) and the instance admins'
 // authenticator app secrets (admin_authenticators; LIN-402).
 // Run it in the api container, with the current SECRETS_KEY in its environment and the new key on stdin
@@ -20,6 +20,7 @@ import {
   calendar_connections,
   calendar_credentials,
   instance_settings,
+  mail_credentials,
   partner_providers,
   provider_settings,
   type Tx,
@@ -28,6 +29,7 @@ import {
 import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import { appSlot } from './app-connections.ts'
 import { authenticatorSlot } from './authenticator.ts'
+import { mailSlot } from './mail-connections.ts'
 import { portOutSlot } from './billing-owner.ts'
 import { calendarSlot } from './calendar-connections.ts'
 import { db, pool } from './db.ts'
@@ -99,6 +101,15 @@ export async function reencryptSecrets(tx: Tx, from: Buffer, to: Buffer) {
       })
       .where(eq(app_credentials.connection_id, row.connection_id))
   }
+  const mailboxes = await tx.select().from(mail_credentials)
+  for (const row of mailboxes)
+    await tx
+      .update(mail_credentials)
+      .set({
+        access_token_encrypted: again(row.access_token_encrypted, mailSlot(row.connection_id, 'access')),
+        refresh_token_encrypted: again(row.refresh_token_encrypted, mailSlot(row.connection_id, 'refresh')),
+      })
+      .where(eq(mail_credentials.connection_id, row.connection_id))
   const [push] = await tx.select().from(instance_settings).where(eq(instance_settings.key, VAPID_PRIVATE))
   if (push)
     await tx
@@ -133,6 +144,7 @@ export async function reencryptSecrets(tx: Tx, from: Buffer, to: Buffer) {
     webhook_secrets: webhooks.length,
     calendar_credentials: calendars.length,
     app_credentials: apps.length,
+    mail_credentials: mailboxes.length,
     push_key: push ? 1 : 0,
     port_out_pins: pins.length,
     admin_authenticators: authenticators.length,

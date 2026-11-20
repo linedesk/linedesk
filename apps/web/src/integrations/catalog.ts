@@ -3,7 +3,8 @@
 // calendar providers (Booking & calendar; one this server does not offer says so), API keys, the REST API and the MCP
 // server. Each opens its detail view here (`#integrations/<id>`) or the place where it is set up, also as a link
 // (`#integrations/make` goes to the webhooks). HubSpot, Slack and Jobber are connected apps (OAuth, docs/crm-sync.md):
-// their detail view connects them. One that is not built (ServiceTitan) shows as "Coming soon" and opens nothing.
+// their detail view connects them. Support email connects the business's support mailboxes, read only (LIN-637).
+// One that is not built (ServiceTitan) shows as "Coming soon" and opens nothing.
 // Phone carriers are not here: they are Server admin's (provider keys).
 // To add one (a CLI, once it has an install command): one entry in CATALOG, its name and line in
 // settings.json (settings.integrations.card.<id>.*), and its status in statusOf.
@@ -17,24 +18,36 @@ import {
   claudeConnectorLink,
   cursorMcpInstallLink,
   isAppConnectError,
+  isMailConnectError,
+  type MailConnectError,
   vscodeMcpInstallLink,
 } from '@linedesk/actions'
 import type { AppConnection, AppErrorCode } from '@linedesk/db/types'
 import type { ProviderId } from '../settings/calendarModel.ts'
 
-export type CategoryId = 'automation' | 'calendars' | 'crm' | 'chat' | 'developers'
-export const CATEGORIES: readonly CategoryId[] = ['automation', 'calendars', 'crm', 'chat', 'developers']
+export type CategoryId = 'automation' | 'calendars' | 'crm' | 'chat' | 'email' | 'developers'
+export const CATEGORIES: readonly CategoryId[] = ['automation', 'calendars', 'crm', 'chat', 'email', 'developers']
 
 export const CATEGORY_LABEL: Record<CategoryId, MessageKey> = {
   automation: msg('settings.integrations.category.automation'),
   calendars: msg('settings.integrations.category.calendars'),
   crm: msg('settings.integrations.category.crm'),
   chat: msg('settings.integrations.category.chat'),
+  email: msg('settings.integrations.category.email'),
   developers: msg('settings.integrations.category.developers'),
 }
 
 /** Integrations with a detail view on this page; every other card opens the place where it is set up. */
-export const DETAIL_IDS = ['zapier', 'hubspot', 'slack', 'jobber', 'api-keys', 'rest-api', 'mcp'] as const
+export const DETAIL_IDS = [
+  'zapier',
+  'hubspot',
+  'slack',
+  'jobber',
+  'support-email',
+  'api-keys',
+  'rest-api',
+  'mcp',
+] as const
 export type DetailId = (typeof DETAIL_IDS)[number]
 
 /** Not built yet: shown as "Coming soon", they open nothing. */
@@ -50,7 +63,7 @@ export type IntegrationId = DetailId | 'make' | 'n8n' | 'webhooks' | ProviderId 
 export type Mark =
   | { kind: 'brand'; brand: 'google' | 'microsoft' | 'calcom' | 'calendly' | 'icloud' }
   | { kind: 'logo'; logo: 'zapier' | 'make' | 'n8n' | 'hubspot' | 'slack' | 'modelcontextprotocol'; color: string }
-  | { kind: 'icon'; icon: 'globe' | 'server' | 'shield' }
+  | { kind: 'icon'; icon: 'globe' | 'server' | 'shield' | 'mail' }
   | { kind: 'monogram'; text: string; color: string }
 
 export type Integration = {
@@ -160,6 +173,13 @@ export const CATALOG: readonly Integration[] = [
     keywords: 'team chat channel notify message',
   },
   {
+    id: 'support-email',
+    category: 'email',
+    mark: { kind: 'icon', icon: 'mail' },
+    opens: detail('support-email'),
+    keywords: 'gmail google workspace outlook microsoft 365 office inbox mailbox support customer service faq',
+  },
+  {
     id: 'api-keys',
     category: 'developers',
     mark: { kind: 'icon', icon: 'shield' },
@@ -234,6 +254,8 @@ export type Facts = {
   calendarProviders: readonly ProviderId[] | null
   /** The state of each connected app (synced); an app missing here is not connected. */
   apps: Partial<Record<ConnectableApp, AppConnection['status']>> | undefined
+  /** The support mailboxes (synced): how many, and how many need connecting again. */
+  mailboxes: { count: number; needsReconnect: number } | undefined
 }
 
 export type Status =
@@ -292,6 +314,10 @@ export function statusOf(id: IntegrationId, facts: Facts): Status {
           ? { kind: 'needsAttention' }
           : { kind: 'notConnected' }
     }
+    case 'support-email':
+      if (facts.mailboxes === undefined) return { kind: 'loading' }
+      if (facts.mailboxes.needsReconnect > 0) return { kind: 'needsAttention' }
+      return counted(facts.mailboxes.count)
     case 'webhooks':
       return counted(facts.webhookUrls === null ? null : facts.webhookUrls?.length)
     case 'make':
@@ -463,3 +489,41 @@ export function mcpJson(origin: string): string {
 /** A first REST call: the key's workspace (GET /v1/api-key). */
 export const curlExample = (origin: string) =>
   `curl ${origin}/v1/api-key \\\n  -H "Authorization: Bearer $${KEY_VARIABLE}"`
+
+/**
+ * What the OAuth callback of a mailbox connect put into the hash (`#integrations/support-email?mail=connected` or
+ * `…?mail=error&reason=<code>`), like appConnectResult: only the known codes count.
+ */
+export function mailConnectResult(hash: string): { ok: true } | { ok: false; reason: MailConnectError } | null {
+  const query = hash.split('?')[1]
+  if (!query) return null
+  const params = new URLSearchParams(query)
+  const result = params.get('mail')
+  if (result === 'connected') return { ok: true }
+  if (result === 'error') {
+    const reason = params.get('reason')
+    return { ok: false, reason: isMailConnectError(reason) ? reason : 'failed' }
+  }
+  return null
+}
+
+const MAIL_ERROR: Record<MailConnectError, MessageKey> = {
+  denied: msg('settings.integrations.mail.error.denied'),
+  signed_out: msg('settings.integrations.mail.error.signedOut'),
+  expired: msg('settings.integrations.mail.error.expired'),
+  other_workspace: msg('settings.integrations.mail.error.otherWorkspace'),
+  scope: msg('settings.integrations.mail.error.scope'),
+  no_grant: msg('settings.integrations.mail.error.noGrant'),
+  not_set_up: msg('settings.integrations.mail.error.notSetUp'),
+  no_secrets_key: msg('settings.integrations.mail.error.noSecretsKey'),
+  api_disabled: msg('settings.integrations.mail.error.apiDisabled'),
+  app_refused: msg('settings.integrations.mail.error.appRefused'),
+  account_refused: msg('settings.integrations.mail.error.accountRefused'),
+  unavailable: msg('settings.integrations.mail.error.unavailable'),
+  not_connected: msg('settings.integrations.mail.error.notConnected'),
+  failed: msg('settings.integrations.mail.connectFailed'),
+}
+
+/** The text (with `{provider}`) for why connecting or disconnecting a mailbox did not work; anything else: `fallback`. */
+export const mailConnectErrorKey = (code: unknown, fallback: MessageKey = MAIL_ERROR.failed): MessageKey =>
+  isMailConnectError(code) ? MAIL_ERROR[code] : fallback

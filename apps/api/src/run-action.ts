@@ -130,6 +130,9 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   'phoneNumber.lookupLine',
   'calendar.connectStart',
   'calendar.connectFinish',
+  // A support mailbox: every customer email in it becomes readable (LIN-615).
+  'mail.connectStart',
+  'mail.connectFinish',
   // Where every finished call goes, with the caller's details: a connected app such as HubSpot.
   'app.connectStart',
   'app.connectFinish',

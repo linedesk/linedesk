@@ -148,6 +148,7 @@ describe('runAction: destructive actions refuse unknown fields from everyone (se
     'webhook.delete': { endpointId: 'wh_1' },
     'integration.remove': { subscriptionId: 'sub_1' },
     'calendar.disconnect': { connectionId: 'cal_1' },
+    'mail.disconnect': { connectionId: 'mail_1' },
     'user.resetPasskeys': { userId: 'user_2' },
     'account.authenticatorRemove': {},
     'provider.clearKeys': { provider: providerNames[0] },

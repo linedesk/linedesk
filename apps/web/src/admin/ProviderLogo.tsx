@@ -194,6 +194,11 @@ export const providerMeta: Record<ProviderName, Meta> = {
     blurb: msg('admin.provider.blurb.jobber'),
     keysUrl: 'https://developer.getjobber.com/',
   },
+  google_mail: {
+    mark: { brand: 'gmail' },
+    blurb: msg('admin.provider.blurb.google_mail'),
+    keysUrl: 'https://console.cloud.google.com/apis/credentials',
+  },
   github: {
     mark: { brand: 'github' },
     blurb: msg('admin.provider.blurb.github'),
@@ -204,11 +209,18 @@ export const providerMeta: Record<ProviderName, Meta> = {
 
 /**
  * Where a provider sends people back after they sign in: the addresses to add to its OAuth app
- * (Better Auth's callbacks, and the calendar connection's: calendar-connections.ts).
+ * (Better Auth's callbacks, the calendar connection's: calendar-connections.ts, and the mailbox's: mail-connections.ts).
  */
 export function redirectUris(provider: ProviderName, origin: string): string[] {
-  if (provider === 'google' || provider === 'microsoft')
-    return [`${origin}/api/auth/callback/${provider}`, `${origin}/v1/calendar/callback/${provider}`]
+  if (provider === 'google') return [`${origin}/api/auth/callback/google`, `${origin}/v1/calendar/callback/google`]
+  // Microsoft's app serves support mailboxes too (Mail.Read); Gmail's have an app of their own.
+  if (provider === 'microsoft')
+    return [
+      `${origin}/api/auth/callback/microsoft`,
+      `${origin}/v1/calendar/callback/microsoft`,
+      `${origin}/v1/mail/callback/microsoft`,
+    ]
+  if (provider === 'google_mail') return [`${origin}/v1/mail/callback/google`]
   if (provider === 'github') return [`${origin}/api/auth/callback/github`]
   // Calendly allows exactly one redirect URI per app: the calendar one.
   if (provider === 'calendly' || provider === 'calcom') return [`${origin}/v1/calendar/callback/${provider}`]
