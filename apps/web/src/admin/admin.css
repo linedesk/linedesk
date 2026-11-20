@@ -808,11 +808,10 @@
     white-space: nowrap;
   }
   /* A row stacks: the first column on its own line at full width, the other columns on one quiet line under it
-     ("Last sign-in Nov 18 · Plan Starter"), the ⋯ at the right. Nothing squeezes the name or the address. */
+     ("Last sign-in Nov 18 · Plan Starter"), the ⋯ at the right of the first line. Nothing squeezes the name or the address. */
   .adm-list > .adm-row:not(.adm-row-head),
   .adm-list-acts > .adm-row:not(.adm-row-head),
   .adm-list-acts > .adm-row:not(.adm-row-head):has(> :nth-child(4):not(.adm-cell-acts)) {
-    position: relative;
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
@@ -823,8 +822,9 @@
   .adm-row:not(.adm-row-head) > .adm-cell:first-child {
     flex: 0 0 100%;
   }
-  .adm-list-acts > .adm-row:not(.adm-row-head) {
-    padding-right: calc(12px + var(--adm-acts-w));
+  /* With actions the ⋯ shares the first line (a column of its own, never over the text); the rest wraps under. */
+  .adm-list-acts > .adm-row:not(.adm-row-head) > .adm-cell:first-child {
+    flex-basis: calc(100% - var(--adm-acts-w));
   }
   .adm-row:not(.adm-row-head) > .adm-cell:not(:first-child):not(.adm-cell-acts) {
     flex: none;
@@ -846,11 +846,14 @@
     margin-left: 34px;
   }
   .adm-list-acts > .adm-row:not(.adm-row-head) > .adm-cell-acts {
-    position: absolute;
-    top: 50%;
-    right: 12px;
-    margin-right: -10px;
-    transform: translateY(-50%);
+    order: -1;
+    flex: 0 0 var(--adm-acts-w);
+    align-self: center;
+    /* The 44px hit area reaches into the row's padding instead of making the first line taller. */
+    margin-block: -12px;
+  }
+  .adm-list-acts > .adm-row:not(.adm-row-head) > .adm-cell:first-child {
+    order: -2;
   }
   /* The head keeps only what sorts: its labels side by side. */
   .adm-row.adm-row-head,
