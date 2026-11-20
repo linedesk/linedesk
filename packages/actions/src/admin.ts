@@ -1193,7 +1193,7 @@ export const providers = {
         env: 'CLOUDFLARE_SAAS_CUSTOM_ORIGIN',
         secret: false,
         optional: true,
-        hint: 'saas-origin.linedesk.ai',
+        hint: 'saas-origin.example.com',
       },
     },
     helpKey: msg('admin.provider.help.cloudflare_saas'),

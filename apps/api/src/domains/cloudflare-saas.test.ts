@@ -29,7 +29,7 @@ function recorded(...answers: [status: number, fixture: string][]) {
   return { sent, doFetch }
 }
 
-const provider = (doFetch: typeof fetch, customOrigin: string | null = 'saas-origin.linedesk.ai') =>
+const provider = (doFetch: typeof fetch, customOrigin: string | null = 'saas-origin.example.com') =>
   cloudflareSaas({ token: TOKEN, zoneId: ZONE, cnameTarget: 'partners.linedesk.ai', customOrigin }, doFetch)
 
 describe('Cloudflare for SaaS adapter', () => {
@@ -43,7 +43,7 @@ describe('Cloudflare for SaaS adapter', () => {
       body: {
         hostname: 'app.cascade-it.example',
         ssl: { method: 'http', type: 'dv', settings: { min_tls_version: '1.2' } },
-        custom_origin_server: 'saas-origin.linedesk.ai',
+        custom_origin_server: 'saas-origin.example.com',
       },
     })
     expect(created).toEqual({

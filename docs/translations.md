@@ -27,7 +27,7 @@ improved by people.
 2. Before every release, the release translation pass below translates what is new or changed. Its commit goes to
    the trunk like any other change.
 3. The maintainers' release pull request runs `pnpm i18n:check --complete` in its own job,
-   `release-translations` (`.github/workflows/ci.yml`): every key in every language present and made from the
+   `release-translations` (in the maintainers' copy): every key in every language present and made from the
    current English, and `hardcoded-baseline.json` empty (no web app file with hardcoded English left). It turns red
    otherwise and lists each missing or stale key, and each file still in the baseline, in the log and the run's
    summary. Releases never ship untranslated or hardcoded text; a red release pull request is not merged. The one

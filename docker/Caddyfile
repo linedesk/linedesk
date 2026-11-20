@@ -25,7 +25,7 @@
 		# Read a forwarded chain right to left, skipping trusted hops: a value the client put in front is never taken.
 		trusted_proxies_strict
 		# A partner's address behind Cloudflare for SaaS (docs/white-label.md) arrives with the custom origin's name as SNI
-		# (saas-origin.linedesk.ai) and the partner's name as Host. Caddy would refuse that mismatch (421) as soon as a
+		# (saas-origin.example.com) and the partner's name as Host. Caddy would refuse that mismatch (421) as soon as a
 		# site checks client certificates (LINEDESK_TLS=origin-pull), so it is off here; without client certificates
 		# Caddy does not compare them anyway. With origin-pull every TLS connection needs Cloudflare's certificate, so a
 		# mismatch cannot be used to skip Cloudflare.
@@ -180,7 +180,7 @@
 }
 
 # Partners' own addresses (white-label S5, docs/white-label.md) behind Cloudflare for SaaS. Cloudflare connects with the
-# custom origin's name as SNI (LINEDESK_SAAS_ORIGIN, e.g. saas-origin.linedesk.ai), checks the certificate against that
+# custom origin's name as SNI (LINEDESK_SAAS_ORIGIN, e.g. saas-origin.example.com), checks the certificate against that
 # name (Full (strict), decision D1) and sends the partner's name only as Host. So the certificate is tied to that SNI in
 # a site of its own, and a host-less :443 without tls routes any other Host on a connection that got through TLS here.
 # Never a host-less :443 with its own tls: it becomes the TLS policy for every other SNI and serves its certificate to

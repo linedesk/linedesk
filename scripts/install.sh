@@ -18,10 +18,12 @@
 #      the address and the one-time setup code, also saved to /root/linedesk-setup.txt.
 #
 # Run again, it keeps the code, every secret and all data; it only changes the address when you pass a domain.
-# Updates later: cd /opt/linedesk && git pull && scripts/deploy.sh
+# It installs the newest release (the highest v* tag), not the newest commit on main.
+# Updates later: cd /opt/linedesk && scripts/update.sh (the newest release again, then scripts/deploy.sh)
 #
-# Settings (environment): LINEDESK_DIR (default /opt/linedesk), LINEDESK_REPO (the git URL), LINEDESK_PUBLIC_IP
-# (when the IP cannot be found out by asking api.ipify.org).
+# Settings (environment): LINEDESK_DIR (default /opt/linedesk), LINEDESK_REPO (the git URL), LINEDESK_REF (a tag or
+# branch instead of the newest release, e.g. main), LINEDESK_PUBLIC_IP (when the IP cannot be found out by asking
+# api.ipify.org).
 set -eu
 
 dir=${LINEDESK_DIR:-/opt/linedesk}
@@ -76,8 +78,13 @@ main() {
   if [ -d "$dir/.git" ]; then
     say "Linedesk is already in $dir: keeping its code, secrets and data"
   else
-    say "Downloading Linedesk into $dir"
-    git clone --quiet --depth 1 "$repo" "$dir"
+    ref=${LINEDESK_REF:-$(git ls-remote --tags --refs --sort=-v:refname "$repo" 'v*' | awk -F/ 'NR == 1 { print $3 }')}
+    say "Downloading Linedesk ${ref:-(main)} into $dir"
+    if [ -n "$ref" ]; then
+      git clone --quiet --depth 1 --branch "$ref" "$repo" "$dir"
+    else
+      git clone --quiet --depth 1 "$repo" "$dir"
+    fi
   fi
   cd "$dir"
 
@@ -146,7 +153,7 @@ main() {
     echo "  80 and 443 tcp (web), 7881 tcp and 7882 udp (call audio), 5060 udp and tcp (SIP), 10000-10100 udp (SIP audio)"
     echo
     echo "Next: open the address, enter the setup code, and set up the rest with your AI agent or by hand."
-    echo "Files: $dir   Update: cd $dir && git pull && scripts/deploy.sh"
+    echo "Files: $dir   Update: cd $dir && scripts/update.sh"
   } | tee "$summary"
   chmod 600 "$summary"
 }

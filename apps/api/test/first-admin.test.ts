@@ -89,6 +89,18 @@ describe('the setup code', () => {
     expect(await setupNeeded(db)).toBe(true)
   })
 
+  test('wrong codes from many addresses block it, but a new code from the server starts the count again', async () => {
+    const code = await newSetupCode(true)
+    const wrong = code === 'ABCD-EFGH' ? 'ABCD-EFGJ' : 'ABCD-EFGH'
+    for (let i = 0; i < 20; i++) expect((await setUp(wrong, 'mike@brightwater.test')).status).toBe(403)
+    const blocked = await setUp(wrong, 'mike@brightwater.test')
+    expect(blocked.status).toBe(429)
+    expect(await blocked.text()).toContain('setup-code.ts --new')
+    await newSetupCode(true)
+    expect((await setUp(wrong, 'mike@brightwater.test')).status).toBe(403)
+    expect(await setupNeeded(db)).toBe(true)
+  })
+
   test('after 7 days it no longer works, and the next start prints a new one', async () => {
     const old = await newSetupCode()
     const longAgo = new Date(Date.now() - SETUP_CODE_LIFETIME_MS - 60_000).toISOString()

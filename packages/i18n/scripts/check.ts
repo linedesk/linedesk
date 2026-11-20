@@ -1,6 +1,6 @@
 /**
  * `pnpm i18n:check [--complete] [--update-baseline] [--server-text]` (docs/translations.md, "Checks"). Runs in CI on every pull
- * request; `--complete` on release pull requests (job `release-translations` in ci.yml).
+ * request; `--complete` on release pull requests (job `release-translations` in the maintainers' copy).
  *
  * - English: valid ICU, keys sorted, no duplicate keys, no empty strings.
  * - Code vs catalogs: every key the code uses exists, every English key is used (or under an `// i18n-dynamic` prefix).

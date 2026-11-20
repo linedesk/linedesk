@@ -1,7 +1,9 @@
 Linedesk
 Copyright (c) 2026 Sauerbier & Gutberlet GmbH and contributors
 
-Linedesk is licensed under the MIT License (see LICENSE). Third-party packages
+Linedesk is licensed under the MIT License (see LICENSE). This covers every
+commit in this repository's history, also the commits made before a LICENSE
+file was added and before the switch from AGPL-3.0 to MIT. Third-party packages
 keep their own licenses; see each package's license in node_modules after
 `pnpm install`. The parts below need a note of their own.
 

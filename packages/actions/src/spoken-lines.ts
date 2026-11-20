@@ -1063,7 +1063,6 @@ export const businessOfGreeting = (text: string): string | null =>
 // the browser. The visitor picks one of DEMO_LANGUAGES on the website; English is the default and the demo assistants'
 // own language. The agent says the opening right after the greeting and ends the call after DEMO_CALL_MAX_SECONDS
 // with the limit line, both in the call's language (demoLines).
-// DRAFT – needs the maintainers' OK before prod.
 
 /** The longest a public demo call runs, in seconds: the agent ends it then, and the API tells the website. */
 export const DEMO_CALL_MAX_SECONDS = 120

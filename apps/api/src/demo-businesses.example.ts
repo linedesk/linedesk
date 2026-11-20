@@ -1,6 +1,5 @@
-// DRAFT – needs the maintainers' OK before prod.
 // Every text below is read by the assistant on a public demo call (business profiles, common calls, demo rules):
-// rule 11 in CLAUDE.md applies, so none goes live before the maintainers said yes to the exact wording.
+// rule 11 in CLAUDE.md applies, so a change goes live only after the maintainers said yes to the exact wording.
 //
 // The example data of the demo-workspace script (demo-workspace.ts): one made-up business per industry a website
 // offers. An install points the script at its own file with --data (the same shape, as .ts, .js or .json).

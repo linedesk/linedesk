@@ -6,7 +6,7 @@ always runs GitHub-hosted. Deploys to the hosted service are not part of the pub
 
 | Workflow | Trigger | Jobs |
 | --- | --- | --- |
-| `ci.yml` | every pull request, every push to `main`, by hand (Actions → CI → Run workflow) | `check`: install, typecheck, lint, `pnpm i18n:check` (missing translations allowed), the scrub tests, `pnpm db:check-journal` (the migrations journal's `idx` and `when` strictly increase) and the Zapier app's checks. `images`: builds the api, web and proxy images (self-hosting must work at every commit). `secrets`: gitleaks over the history of the tested commit. Two more jobs, `release-source` and `release-translations`, only run for the maintainers' release pull requests (see "Branches"). |
+| `ci.yml` | every pull request, every push to `main`, by hand (Actions → CI → Run workflow) | `check`: install, typecheck, lint, `pnpm i18n:check` (missing translations allowed), the scrub tests, `pnpm db:check-journal` (the migrations journal's `idx` and `when` strictly increase) and the Zapier app's checks. `images`: builds the api, web and proxy images (self-hosting must work at every commit). `secrets`: gitleaks over the history of the tested commit. The maintainers' release pull requests run two more checks in their own copy (see "Branches"). |
 | `tests.yml` | every push to `main`, by hand (Actions → Tests → Run workflow) | `test`: the full test suite with Postgres, in four parallel parts. `report`: a red run on the default branch comments on the merged pull request (or the commit). |
 | `dco.yml` | every pull request (public repository) | `sign-off`: every commit of the pull request has a `Signed-off-by:` line (CONTRIBUTING.md, "Developer Certificate of Origin"). |
 

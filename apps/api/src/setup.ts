@@ -27,7 +27,9 @@ export const SETUP_CODE_LIFETIME_MS = 7 * 24 * 3_600_000
 /**
  * Wrong codes: 5 per address and 20 in all per 15 minutes, then the endpoint waits. The code itself
  * stays (a new one only after 7 days or from the server's shell), so nobody can rotate it away from the
- * operator; 40 bits at this rate take far longer than anyone waits.
+ * operator; 40 bits at this rate take far longer than anyone waits. Both counts belong to the code: a new code from the
+ * server's shell (setup-code.ts --new) starts them at zero, so wrong guesses from the internet cannot keep the operator
+ * out.
  */
 const wrongPerAddress = createFailureLimiter({ max: 5, windowMs: 15 * 60_000 })
 const wrongInAll = createFailureLimiter({ max: 20, windowMs: 15 * 60_000 })
@@ -107,13 +109,19 @@ const newId = () => crypto.randomUUID().replaceAll('-', '')
 /** Checks the code and creates the first instance admin, with the password they chose, and their passkey enrolment code. */
 export async function completeSetup(db: Db, input: SetupInput, clientIp: string | null) {
   const address = clientIp ?? 'unknown'
-  if (wrongPerAddress.blocked(address) || wrongInAll.blocked(ALL))
-    throw new SetupError('Too many wrong codes. Wait 15 minutes, then try again.', 429)
+  const issued = await codeIssuedAt(db)
+  const all = `${ALL}:${issued}`
+  const from = `${address}:${issued}`
+  if (wrongPerAddress.blocked(from) || wrongInAll.blocked(all))
+    throw new SetupError(
+      'Too many wrong codes. Wait 15 minutes, or make a new code on the server: docker compose exec api node apps/api/src/setup-code.ts --new',
+      429,
+    )
   // Cheap checks first: an install that is set up, or a wrong code, costs no password hash.
   if (!(await setupNeeded(db))) throw new SetupError('This install is set up already. Sign in instead.', 409)
   if (!(await codeMatches(db, input.code))) {
-    wrongPerAddress.fail(address)
-    wrongInAll.fail(ALL)
+    wrongPerAddress.fail(from)
+    wrongInAll.fail(all)
     throw new SetupError(`That setup code is not right. It is in ${WHERE_THE_CODE_IS}.`, 403)
   }
   const hashed = await hashPassword(input.password)
@@ -142,6 +150,12 @@ const setupSignIns = new Set<string>()
 export const markSetupSignIn = (userId: string) => void setupSignIns.add(userId)
 /** True once for a sign-in marked by markSetupSignIn; forgets it. */
 export const takeSetupSignIn = (userId: string) => setupSignIns.delete(userId)
+
+/** When the current setup code was made ('' when there is none): the key of its count of wrong codes in all. */
+async function codeIssuedAt(tx: Pick<Tx, 'select'>) {
+  const [stored] = await tx.select().from(instance_settings).where(eq(instance_settings.key, CODE_KEY))
+  return stored?.updated_at ?? ''
+}
 
 async function codeMatches(tx: Pick<Tx, 'select'>, code: string) {
   const [stored] = await tx.select().from(instance_settings).where(eq(instance_settings.key, CODE_KEY))

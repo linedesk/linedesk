@@ -2,6 +2,8 @@
 
 Thanks for helping. Linedesk is an AI front desk for businesses: an assistant answers calls, sums them up and books appointments, and a keyboard-first inbox shows what needs a person.
 
+> **How pull requests land:** the maintainers develop Linedesk in their own copy of this repository, so we never press "Merge" here. When we accept your pull request, we apply it to our copy with your authorship and sign-off, close it with a comment that says so, and it reaches `main` with the next release. Details: [What happens after review](#what-happens-after-review).
+
 ## Before you start
 
 - Bugs and small fixes: open a pull request directly.

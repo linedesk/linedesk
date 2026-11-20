@@ -6,7 +6,7 @@
     "id": "0d89c70d-ad9f-4843-b99f-6cc0252067e9",
     "hostname": "app.cascade-it.example",
     "created_at": "2026-11-18T10:00:00.000000Z",
-    "custom_origin_server": "saas-origin.linedesk.ai",
+    "custom_origin_server": "saas-origin.example.com",
     "ssl": {
       "id": "0d89c70d-ad9f-4843-b99f-6cc0252067e9",
       "bundle_method": "ubiquitous",
