@@ -734,7 +734,7 @@ describe('OAuth of the scheduling tools', () => {
     const url = new URL(createCalComOAuth(client).authorizeUrl({ redirectUri: 'https://app.test/v1/calendar/callback/calcom', state: 'st', codeChallenge: 'ch' }))
     expect(url.origin + url.pathname).toBe('https://app.cal.com/auth/oauth2/authorize')
     expect(url.searchParams.get('scope')).toBe(
-      'PROFILE_READ EVENT_TYPE_READ BOOKING_READ BOOKING_WRITE TEAM_PROFILE_READ TEAM_EVENT_TYPE_READ TEAM_BOOKING_READ TEAM_BOOKING_WRITE',
+      'PROFILE_READ EVENT_TYPE_READ BOOKING_READ BOOKING_WRITE',
     )
     expect(url.searchParams.get('code_challenge_method')).toBe('S256')
     const { fetch, sent } = recorder(tokens)

@@ -78,6 +78,15 @@ function useConnect(assistantId: string, toast: (text: string) => void, onConnec
   const providers = connectable?.providers ?? null
   const [busy, setBusy] = useState<ProviderId | null>(null)
   const [askKey, setAskKey] = useState<KeyProviderId | null>(null)
+  // Back from the consent page with the browser's Back button: the page comes from the back/forward cache with the
+  // button still "Opening …" and every Connect button disabled. Start fresh.
+  useEffect(() => {
+    const reset = (e: PageTransitionEvent) => {
+      if (e.persisted) setBusy(null)
+    }
+    window.addEventListener('pageshow', reset)
+    return () => window.removeEventListener('pageshow', reset)
+  }, [])
 
   async function connect(provider: ProviderId) {
     // A key form, or the provider's consent page: as Server admin set it up.
