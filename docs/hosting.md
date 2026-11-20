@@ -123,6 +123,10 @@ Your install can charge the businesses on it, through your own Stripe account, a
 
 Prices are in US dollars. A new price applies to new sign-ups; running subscriptions keep theirs. Details: [billing.md](billing.md) section 7b.
 
+## Reports to the Linedesk team
+
+Help › Report a bug and Request a feature (and `feedback_send` over MCP) email the report to the Linedesk team, support@linedesk.ai, through your install's email provider. The report has the text with keys, phone numbers and email addresses masked, the page, the app and server versions, your server's address, the workspace and sender ids and an optional screenshot; never the sender's email address unless they enter one to get an answer. To send reports to your own address instead, set `FEEDBACK_EMAIL=you@example.com` in `.env`; `FEEDBACK_EMAIL=off` sends nothing and only keeps the reports in the database (table `feedback`). Restart the API after a change.
+
 ## Updates and backups
 
 See the README: Update and backup.

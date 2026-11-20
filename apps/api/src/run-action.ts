@@ -114,6 +114,8 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   'agentSetup.createWorkspaceKey',
   // A partner owner's setup link: the partner's team invitations and its client workspaces.
   'agentSetup.createPartnerKey',
+  // Email to the Linedesk team: only from a confirmed address, so free sign-ups cannot flood support.
+  'feedback.send',
   'webhook.create',
   'webhook.update',
   // Sends every finished call to an integration (Zapier).

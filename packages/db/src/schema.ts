@@ -3029,3 +3029,45 @@ export const partner_providers = pgTable(
     check('partner_providers_status', oneOf(t.status, PARTNER_KEY_STATUSES)),
   ],
 )
+
+// Feedback to the Linedesk team (LIN-639, `feedback.send`, apps/api/src/feedback.ts): a bug report, a feature request
+// or setup feedback from a member in the web app, an API key, a personal key, an MCP client or a setup link. Text,
+// page and context are stored masked (keys, phone numbers and email addresses replaced); the screenshot is never
+// stored, it only goes with the email (`has_screenshot` says there was one). Not synced; deleted with the workspace.
+const FEEDBACK_KINDS = ['bug', 'feature', 'setup'] as const
+const FEEDBACK_VIA = ['app', 'api_key', 'personal_key', 'mcp_oauth', 'setup_link'] as const
+/** pending: committed, email not sent yet; sent; kept: no email (FEEDBACK_EMAIL=off or no email set up); failed. */
+const FEEDBACK_STATUSES = ['pending', 'sent', 'kept', 'failed'] as const
+export const feedback = pgTable(
+  'feedback',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    /** Who sent it: the user's id, or `apikey:<id>` for a workspace API key (as commands.actor_id). */
+    actor_id: text('actor_id').notNull(),
+    via: text('via', { enum: FEEDBACK_VIA }).notNull(),
+    /** The key's name (an MCP client's name for an OAuth key), masked; null from the app. */
+    client: text('client'),
+    kind: text('kind', { enum: FEEDBACK_KINDS }).notNull(),
+    text: text('text').notNull(),
+    page: text('page'),
+    /** `{ version?, browser?, errors? }` as the client sent them, masked. */
+    context: jsonb('context').$type<{ version?: string; browser?: string; errors?: string }>(),
+    has_screenshot: boolean('has_screenshot').notNull().default(false),
+    /** Where the sender wants an answer; only when they gave one. */
+    contact_email: text('contact_email'),
+    status: text('status', { enum: FEEDBACK_STATUSES }).notNull().default('pending'),
+    /** Why the email failed, masked. */
+    last_error: text('last_error'),
+    sent_at: ts('sent_at'),
+    created_at: createdAt(),
+  },
+  t => [
+    // The rate limit counts a sender's recent reports.
+    index('feedback_actor_created').on(t.actor_id, t.created_at),
+    index('feedback_ws').on(t.workspace_id),
+    check('feedback_kind', oneOf(t.kind, FEEDBACK_KINDS)),
+    check('feedback_via', oneOf(t.via, FEEDBACK_VIA)),
+    check('feedback_status', oneOf(t.status, FEEDBACK_STATUSES)),
+  ],
+)

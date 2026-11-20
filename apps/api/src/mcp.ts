@@ -119,8 +119,9 @@ function registerAction(server: McpServer, def: ActionDef, actor: Actor, persona
         title: toolTitle(def.name),
         readOnlyHint: Boolean(def.readOnly),
         destructiveHint: def.readOnly ? false : personal ? true : Boolean(def.destructive),
-        // Only this install's data: the tools do not reach out to the open web.
-        openWorldHint: false,
+        // Only this install's data: the tools do not reach out to the open web. feedback.send is the one exception: it
+        // sends the report to the Linedesk team, outside this install.
+        openWorldHint: def.name === 'feedback.send',
       },
     },
     ((raw: unknown) =>

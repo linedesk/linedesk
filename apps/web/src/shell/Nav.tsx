@@ -8,6 +8,8 @@ import { Button, cx, Icon, Kbd } from '../ui/kit.tsx'
 import { useBrand } from '../brand.ts'
 import { pages, type PageRoute, type Route } from './pages.tsx'
 import { useFocusTrap } from '../ui/useFocusTrap.ts'
+import { HelpMenu } from '../feedback/HelpMenu.tsx'
+import { openReport } from '../feedback/report.ts'
 import { WorkspaceMenu } from './WorkspaceMenu.tsx'
 import { useT } from '@linedesk/i18n/react'
 
@@ -113,6 +115,7 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
       {isInstanceAdmin && <NavItem muted label={pages.admin.title} icon="shield" keys={['G', 'D']}
         title={t('shell.nav.adminTip')} onClick={go(() => on.onPage('admin'))} />}
       <div className="nav-foot">
+        <HelpMenu navOpen={open} onReport={kind => go(() => openReport(kind))()} />
         <StarLink />
       </div>
     </nav>

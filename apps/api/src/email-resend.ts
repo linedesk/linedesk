@@ -19,6 +19,7 @@ export type ResendEmail = {
   html?: string
   replyTo?: string
   headers?: Record<string, string>
+  attachments?: { filename: string; content: Buffer; contentType: string }[]
   /**
    * What makes a second try the same email: the job's id when a job sends it (email.ts withEmailJob). With it the
    * request carries an Idempotency-Key, so a retry after a timeout that Resend had accepted does not send it twice.
@@ -151,6 +152,16 @@ export async function resendSend(key: string, email: ResendEmail, ms: number, do
     ...(email.html ? { html: email.html } : {}),
     ...(email.replyTo ? { reply_to: email.replyTo } : {}),
     ...(email.headers && Object.keys(email.headers).length ? { headers: email.headers } : {}),
+    // https://resend.com/docs/api-reference/emails/send-email: each file as base64, with its type.
+    ...(email.attachments?.length
+      ? {
+          attachments: email.attachments.map(a => ({
+            filename: a.filename,
+            content: a.content.toString('base64'),
+            content_type: a.contentType,
+          })),
+        }
+      : {}),
   })
   const headers = email.retryScope ? { 'idempotency-key': idempotencyKeyOf(email.retryScope, body) } : undefined
   const res = await call(key, '/emails', { method: 'POST', body, headers }, ms, doFetch)

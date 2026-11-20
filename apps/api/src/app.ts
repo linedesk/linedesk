@@ -27,6 +27,8 @@ import { bodyLimit } from 'hono/body-limit'
 
 /** The largest action request body, except voice.clone (a recording). */
 const ACTION_BODY_MAX_BYTES = 4 * 1024 * 1024
+/** feedback.send: a screenshot of up to 3 MB, base64 (4 MB), plus the text and context. */
+const FEEDBACK_BODY_MAX_BYTES = 5 * 1024 * 1024
 import { setFirstPassword } from './account.ts'
 import { registerDemoCallRoutes } from './demo-call.ts'
 import { API_KEY_REQUESTS_PER_MINUTE, apiKeyWithinLimit, isApiKey, keyOf, tooManyInvalidApiKeys } from './api-keys.ts'
@@ -1026,8 +1028,16 @@ app.use(
     onError: c => c.json({ ok: false, error: 'the recording is larger than 10 MB' }, 413),
   }),
 )
+// feedback.send may carry a screenshot of up to 3 MB (about 4 MB as base64 in JSON), above the 4 MB of other actions.
+app.use(
+  '/v1/actions/feedback.send',
+  bodyLimit({
+    maxSize: FEEDBACK_BODY_MAX_BYTES,
+    onError: c => c.json({ ok: false, error: 'request body too large' }, 413),
+  }),
+)
 app.use('/v1/actions/:name', async (c, next) =>
-  c.req.param('name') === 'voice.clone'
+  c.req.param('name') === 'voice.clone' || c.req.param('name') === 'feedback.send'
     ? next()
     : bodyLimit({
         maxSize: ACTION_BODY_MAX_BYTES,

@@ -268,6 +268,33 @@ export const icons = {
     ['path', { d: 'M12 2v20M2 12h20' }],
     ['path', { d: 'M9 5l3-3 3 3M15 19l-3 3-3-3M5 9l-3 3 3 3M19 9l3 3-3 3' }],
   ],
+  // bug, bulb and book follow Lucide (ISC license): Help › Report a bug, Request a feature, Documentation.
+  bug: [
+    ['path', { d: 'M8 2l1.9 1.9M14.1 3.9 16 2M9 7.1v-1a3 3 0 1 1 6 0v1' }],
+    ['path', { d: 'M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6zM12 20v-9' }],
+    [
+      'path',
+      {
+        d: 'M6.5 9C4.6 8.8 3 7.1 3 5M6 13H2M3 21c0-2.1 1.7-3.9 3.8-4M21 5c0 2.1-1.6 3.8-3.5 4M22 13h-4M17.2 17c2.1.1 3.8 1.9 3.8 4',
+      },
+    ],
+  ],
+  bulb: [
+    [
+      'path',
+      { d: 'M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5' },
+    ],
+    ['path', { d: 'M9 18h6M10 22h4' }],
+  ],
+  book: [
+    ['path', { d: 'M12 7v14' }],
+    [
+      'path',
+      {
+        d: 'M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z',
+      },
+    ],
+  ],
 } satisfies Record<string, Part[]>
 export type IconName = keyof typeof icons
 export const filledIcons: ReadonlySet<IconName> = new Set(['spark', 'play', 'pause'])

@@ -22,6 +22,7 @@ import * as carrier from './carrier.ts'
 import * as calls from './calls.ts'
 import * as emailRouting from './email-routing.ts'
 import * as evaluations from './evaluations.ts'
+import * as feedback from './feedback.ts'
 import * as forwarding from './forwarding.ts'
 import * as insights from './insights.ts'
 import * as integrations from './integrations.ts'
@@ -92,6 +93,7 @@ export * from './carrier.ts'
 export * from './calls.ts'
 export * from './email-routing.ts'
 export * from './evaluations.ts'
+export * from './feedback.ts'
 export * from './forwarding.ts'
 export * from './forwarding-guides.ts'
 export * from './insights.ts'
@@ -240,6 +242,7 @@ const all = [
   notifications.pushSubscribe,
   notifications.pushUnsubscribe,
   star.starPromptAnswer,
+  feedback.feedbackSend,
   calendar.calendarFindSlots,
   calendar.appointmentBook,
   calendar.appointmentCancel,

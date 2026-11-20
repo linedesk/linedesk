@@ -204,6 +204,7 @@ import { knowledgeHandlers } from './knowledge.ts'
 import { knowledgeQuestionHandlers } from './knowledge-questions.ts'
 import { notificationHandlers } from './notification-settings.ts'
 import { starHandlers } from './star-prompt.ts'
+import { feedbackHandlers } from './feedback.ts'
 import { pushHandlers } from './push.ts'
 import { contactImportHandlers } from './contact-import.ts'
 import { contactMergeHandlers } from './contact-merge.ts'
@@ -1274,6 +1275,7 @@ const handlers: Record<string, Handler> = {
   ...checkoutHandlers,
   ...billingPageHandlers,
   ...starHandlers,
+  ...feedbackHandlers,
   ...pushHandlers,
   ...calendarConnectionHandlers,
   ...appConnectionHandlers,

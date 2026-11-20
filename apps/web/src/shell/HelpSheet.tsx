@@ -87,6 +87,8 @@ const SHORTCUTS: Group[] = [
       ['help.row.commands', ['⌘', 'K']],
       ['help.row.keyboardShortcuts', ['?']],
       ['help.row.openMenu', ['M']],
+      ['help.row.reportBug', ['⇧', 'R']],
+      ['help.row.requestFeature', ['⇧', 'F']],
     ],
   },
 ]

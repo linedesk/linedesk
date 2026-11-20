@@ -555,6 +555,59 @@
     ]
   },
   {
+    "name": "feedback.send",
+    "key": "feedback_send",
+    "kind": "create",
+    "label": "Send Feedback",
+    "noun": "Feedback",
+    "description": "Send feedback to the Linedesk team (the people who make Linedesk, not this workspace's team): a bug report (`kind: bug`), a feature request (`feature`) or feedback on setting Linedesk up (`setup`). `text` says in plain words what happened or what is wanted (at most 5000 characters); `page` can name the app page it is about. Send it only when the user asks you to report something. Never put API keys, passwords, phone numbers, email addresses or details of callers or customers in it: the server masks what it recognises, not everything. Set `contact_email` only when the user wants an answer at that address. Answers with the feedback's `id`. At most 10 an hour.",
+    "permission": "call:read",
+    "fields": [
+      {
+        "key": "kind",
+        "label": "Kind",
+        "type": "string",
+        "required": true,
+        "choices": [
+          "bug",
+          "feature",
+          "setup"
+        ]
+      },
+      {
+        "key": "text",
+        "label": "Text",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "page",
+        "label": "Page",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "context",
+        "label": "Context",
+        "type": "string",
+        "required": false,
+        "json": true
+      },
+      {
+        "key": "screenshot",
+        "label": "Screenshot",
+        "type": "text",
+        "required": false
+      },
+      {
+        "key": "contact_email",
+        "label": "Contact_email",
+        "type": "string",
+        "required": false
+      }
+    ]
+  },
+  {
     "name": "calendar.findSlots",
     "key": "calendar_find_slots",
     "kind": "search",

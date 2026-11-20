@@ -3,6 +3,7 @@
 import type { Call } from '@linedesk/db/types'
 import { SEARCH_INPUT_ID } from '../inbox/InboxHead.tsx'
 import { type InboxTab, splits, viewByKey } from '../inbox-model.ts'
+import { openReport } from '../feedback/report.ts'
 
 /** `pick`: a pick list such as the member picker (A). */
 export type Overlay = 'remind' | 'commands' | 'pick' | 'help' | null
@@ -189,6 +190,12 @@ export function handleKey(e: KeyboardEvent, c: KeyContext): boolean {
   // A held key repeats only moves (J, K, arrows, Tab). Every other shortcut acts once per press: holding
   // Z, E or the picker's key must not fire it dozens of times (undo flipping a call back and forth).
   if (e.repeat && !REPEATING_KEYS.has(k)) return true
+  // ⇧R and ⇧F: Help › Report a bug, Request a feature, from every page (also with the navigation open).
+  if ((k === 'R' || k === 'F') && Date.now() >= chordUntil) {
+    if (c.navOpen) c.setNavOpen(false)
+    openReport(k === 'R' ? 'bug' : 'feature')
+    return true
+  }
   // The open navigation is the topmost layer: list and call keys stay with it (it has its own arrows and Tab).
   if (c.navOpen) {
     if (k === 'm' || k === 'M') c.setNavOpen(false)

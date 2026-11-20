@@ -549,7 +549,10 @@ export function AgentSetup({
                   </Button>
                 </div>
                 {created ? (
-                  <StartAgent client={client} url={created.url} scope={scope} change={change} />
+                  // The setup link is a key: never in a Help report's screenshot (feedback/report.ts).
+                  <div data-no-shot style={{ display: 'contents' }}>
+                    <StartAgent client={client} url={created.url} scope={scope} change={change} />
+                  </div>
                 ) : (
                   <span className="as-small">{t('onboarding.agentSetup.link.otherBrowser')}</span>
                 )}

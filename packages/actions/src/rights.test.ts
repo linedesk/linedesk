@@ -50,6 +50,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'push.subscribe',
     'push.unsubscribe',
     'starPrompt.answer',
+    // Feedback to the Linedesk team (LIN-639): everyone in the workspace, and every key and MCP client.
+    'feedback.send',
     'calendar.findSlots',
     'appointment.book',
     'appointment.cancel',

@@ -14,6 +14,7 @@ import { captureOpenRouterReturn } from './admin/openrouterAuth.ts'
 import { fetchAuthMethods } from './auth.ts'
 import { activate, initialLocale, languageFromAddress, LocaleRoot } from './i18n/index.tsx'
 import { startErrorReporting } from './errorReporting.ts'
+import { startErrorLog } from './feedback/errorLog.ts'
 import { loadBrand } from './brand.ts'
 import { NewVersionBar } from './shell/NewVersionBar.tsx'
 import { registerServiceWorker } from './serviceWorker.ts'
@@ -22,6 +23,8 @@ import { installTooltips } from './ui/tooltips.ts'
 
 // Signed out on any screen: the app goes to the sign-in page (signedOutWatch.ts, App.tsx).
 watchUnauthorized()
+// The last errors on the page, for Help › Report a bug (feedback/errorLog.ts).
+startErrorLog()
 // Sentry only when the install sends a DSN (errorReporting.ts); nothing is loaded otherwise.
 void fetchAuthMethods({ attempts: 3 })
   .then(methods => startErrorReporting(methods.errorReporting))

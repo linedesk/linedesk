@@ -1,5 +1,6 @@
 // ⌘K lists what can be done right now: the actions for the selected call, places to go, app commands.
 import type { Call, WorkspaceMember } from '@linedesk/db/types'
+import { DOCS_URL, openReport, REPORT_KEYS } from '../feedback/report.ts'
 import { i18n } from '../i18n/index.tsx'
 import { hasReminder } from '../inbox-model.ts'
 import { memberAvatar, memberLabel } from '../team/members.ts'
@@ -478,6 +479,26 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
           keywords: 'language locale translation idioma langue sprache 言語',
           icon: 'globe',
           run: () => c.goPage('account', 'preferences'),
+        },
+        {
+          label: t('shell.command.reportBug'),
+          keywords: 'help feedback problem error broken support',
+          icon: 'bug',
+          shortcut: REPORT_KEYS.bug,
+          run: () => openReport('bug'),
+        },
+        {
+          label: t('shell.command.requestFeature'),
+          keywords: 'help feedback idea wish suggestion',
+          icon: 'bulb',
+          shortcut: REPORT_KEYS.feature,
+          run: () => openReport('feature'),
+        },
+        {
+          label: t('shell.command.documentation'),
+          keywords: 'help docs guide manual readme',
+          icon: 'book',
+          run: () => void window.open(DOCS_URL, '_blank', 'noopener'),
         },
         { label: t('shell.command.signOut'), icon: 'arrow-up-right', run: c.signOut },
       ],

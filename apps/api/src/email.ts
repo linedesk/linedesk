@@ -19,7 +19,10 @@ export interface Email {
   headers?: Record<string, string>
   /** Where replies go; left out: the brand's (a partner's support email inside withEmailBrand), else none. */
   replyTo?: string
+  /** Files sent with it (a feedback screenshot): SMTP and Resend send them, the log names them. */
+  attachments?: EmailAttachment[]
 }
+export type EmailAttachment = { filename: string; content: Buffer; contentType: string }
 export interface EmailSender {
   kind: 'smtp' | 'resend' | 'log' | 'none'
   send(email: Email): Promise<void>
@@ -214,7 +217,11 @@ const logSender: EmailSender = {
   kind: 'log',
   send: async email =>
     console.log(
-      `\n[email, not sent: EMAIL_TO_LOG is on]\nTo: ${email.to}\nSubject: ${email.subject}\n\n${email.text}\n`,
+      `\n[email, not sent: EMAIL_TO_LOG is on]\nTo: ${email.to}\nSubject: ${email.subject}\n\n${email.text}\n${(
+        email.attachments ?? []
+      )
+        .map(a => `[attachment: ${a.filename}, ${a.contentType}, ${a.content.length} bytes]\n`)
+        .join('')}`,
     ),
   check: async () => ({
     ok: true,

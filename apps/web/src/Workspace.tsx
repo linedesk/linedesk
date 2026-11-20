@@ -33,6 +33,8 @@ import { NewWorkspaceDialog } from './shell/NewWorkspace.tsx'
 import { newWorkspaceChoice } from './NoWorkspace.tsx'
 import { openSignup } from './signup.ts'
 import { Overlays, type Picker } from './shell/Overlays.tsx'
+import { ReportHost } from './feedback/ReportDialog.tsx'
+import { useOpenReport } from './feedback/report.ts'
 import { rejectionText } from './shell/rejections.ts'
 import { BillingBanner } from './shell/BillingBanner.tsx'
 import { SetupBanner } from './shell/SetupBanner.tsx'
@@ -529,6 +531,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
 
   // Admin mode replaces the whole app; leaving it returns to where the user was.
   const beforeAdmin = useRef('#calls')
+  const reportOpen = useOpenReport() !== null // Help › Report: the passkey and star cards wait
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-read the hash whenever the place in the app changes
   useEffect(() => {
     if (nav.route !== 'admin') beforeAdmin.current = window.location.hash || '#calls'
@@ -739,7 +742,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         onReminder={pickReminder}
       />
       {tourOpen && !page && <Tour onClose={closeTour} canAssign={canAssign} />}
-      {askForPasskey && !(tourOpen || !!page || !!openCall || overlay !== null || newWorkspace) && (
+      {askForPasskey && !(tourOpen || !!page || !!openCall || overlay !== null || newWorkspace || reportOpen) && (
         <PasskeyCard
           account={me.actorId}
           needsEnrolmentCode={Boolean(me.passkeyEnrolment)}
@@ -753,8 +756,9 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
       )}
       <StarPrompt
         prompt={me.starPrompt ?? null}
-        quiet={askForPasskey || tourOpen || !!page || !!openCall || overlay !== null || newWorkspace}
+        quiet={askForPasskey || tourOpen || !!page || !!openCall || overlay !== null || newWorkspace || reportOpen}
       />
+      <ReportHost />
       {newWorkspace && <NewWorkspaceDialog onClose={() => setNewWorkspace(false)} />}
       {deleteFor && (
         <DangerConfirmDialog
