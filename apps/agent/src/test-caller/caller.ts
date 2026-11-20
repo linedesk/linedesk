@@ -10,8 +10,9 @@ import { callerInstructions, callerLanguagesOf, type Scenario, scenarios, type T
 
 /** The SIP participant the call-test command dials; the business's assistant answers on it. */
 export const CALLEE_IDENTITY = 'callee'
-/** A caller line that ends the conversation. */
-export const isGoodbye = (text: string) => /\b(good ?bye|bye|have a (good|nice|great) (day|one))\b|adi[oó]s/i.test(text)
+/** A caller line that ends the conversation, in English and in the languages of the language scenarios. */
+export const isGoodbye = (text: string) =>
+  /\b(good ?bye|bye|have a (good|nice|great) (day|one)|au revoir|auf wiedersehen|tschüss|arrivederci|tchau|adeus|tot ziens|do widzenia)\b|adi[oó]s|до свидания|नमस्ते|अलविदा|失礼します|さようなら|再见|안녕히/i.test(text)
 /** A test call never runs longer than this, whatever the model does. */
 export const TEST_CALLER_LIMIT_MS = 3 * 60_000
 /** How long a silent caller stays on the line before hanging up. */

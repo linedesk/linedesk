@@ -50,7 +50,8 @@ test('every speaking caller is told to end the call, never reveal the test, and 
   expect(scenarioNames).toEqual([
     'callback-message', 'burst-pipe', 'urgent-promise', 'gas-smell', 'price-question', 'booking', 'which-calendar', 'wrong-number', 'robot-question', 'interrupter', 'returning-caller', 'spoofed-cancel',
     'after-hours', 'transfer-accepted', 'transfer-no-answer', 'transfer-declined', 'silence', 'silence-closing', 'silence-mid-call', 'transfer-next', 'transfer-person', 'spanish-caller', 'spanish-only',
-    'mandarin-caller', 'korean-caller', 'polish-caller', 'long-call-recall',
+    'mandarin-caller', 'korean-caller', 'polish-caller', 'french-caller', 'german-caller', 'italian-caller', 'portuguese-caller',
+    'dutch-caller', 'russian-caller', 'hindi-caller', 'japanese-caller', 'long-call-recall',
   ])
   expect(callerInstructions(scenarios.booking, 'Wednesday, November 11, 2026')).toContain('Today is Wednesday, November 11, 2026.')
   expect(callerInstructions(scenarios['spanish-caller'])).toContain('plain spoken Spanish')
@@ -58,6 +59,8 @@ test('every speaking caller is told to end the call, never reveal the test, and 
   expect(callerInstructions(scenarios['mandarin-caller'])).toContain('plain spoken Chinese (Mandarin)')
   expect(callerInstructions(scenarios['korean-caller'])).toContain('plain spoken Korean')
   expect(callerInstructions(scenarios['polish-caller'])).toContain('plain spoken Polish')
+  expect(callerInstructions(scenarios['german-caller'])).toContain('plain spoken German')
+  expect(callerInstructions(scenarios['japanese-caller'])).toContain('plain spoken Japanese')
   for (const name of scenarioNames.filter(n => scenarios[n].persona)) {
     expect(callerInstructions(scenarios[name])).toContain('end_call')
     expect(callerInstructions(scenarios[name])).toContain('Never say that you are an AI')
@@ -172,7 +175,7 @@ test('a dialled call times the greeting from pickup and ignores the ringback bef
 })
 
 test('the test caller may only hang up after saying goodbye', () => {
-  for (const line of ['Thanks, goodbye.', 'Okay, bye!', 'Great, have a good day.', 'Good bye then']) expect(isGoodbye(line)).toBe(true)
+  for (const line of ['Thanks, goodbye.', 'Okay, bye!', 'Great, have a good day.', 'Good bye then', 'Merci, au revoir.', 'Danke, auf Wiedersehen!', 'Спасибо, до свидания.', 'では、失礼します。']) expect(isGoodbye(line)).toBe(true)
   for (const line of ['Hi Maya, a pipe burst under my sink.', 'My number is the one I am calling from.', 'Maybe']) expect(isGoodbye(line)).toBe(false)
 })
 

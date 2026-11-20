@@ -333,6 +333,96 @@ export const scenarios = {
     },
     languages: ['pl'],
   },
+  // LIN-656: speech recognition in Flux's other languages (Deepgram Flux vs AssemblyAI). The language allowed besides
+  // English, the caller speaks only it, gives a hard name in the first sentence and a callback number.
+  'french-caller': {
+    persona:
+      "Tu es Ghislaine Vaucouleurs. Tu parles uniquement français, jamais anglais. Dis ton nom complet dès ta première phrase. Ton chauffe-eau fait un bruit de claquement depuis hier et tu veux qu'un plombier te rappelle cette semaine. Ton numéro est le 503 555 0194. Termine par « au revoir » et raccroche.",
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      actionItems: 1,
+      assistantSays: /\b(merci|nom|aider|rappel\w*|plombi\w*|chauffe-eau|numéro)/i,
+      summarySays: /\bFrench\b/,
+    },
+    languages: ['fr'],
+  },
+  'german-caller': {
+    persona:
+      'Du bist Siegfried Pfannenschmidt. Du sprichst nur Deutsch, kein Englisch. Sag deinen vollen Namen gleich im ersten Satz. Deine Heizung ist heute Morgen ausgefallen, es ist kalt, aber kein Notfall, und du möchtest heute einen Rückruf. Deine Nummer ist 503 555 0194. Verabschiede dich mit „auf Wiedersehen“ und lege auf.',
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      actionItems: 1,
+      assistantSays: /\b(danke|Name\w*|helfen|Rückruf|zurückrufen|Heizung|Nummer)/i,
+      summarySays: /\bGerman\b/,
+    },
+    languages: ['de'],
+  },
+  'italian-caller': {
+    persona:
+      "Sei Gianfranco Scarpellini. Parli solo italiano, niente inglese. Di' il tuo nome completo già nella prima frase. Il lavandino della cucina scarica molto lentamente e vuoi che qualcuno ti richiami questa settimana. Il tuo numero è 503 555 0194. Saluta con «arrivederci» e riattacca.",
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      actionItems: 1,
+      assistantSays: /\b(grazie|nome|aiutar\w*|richiam\w*|idraulic\w*|lavandino|numero)/i,
+      summarySays: /\bItalian\b/,
+    },
+    languages: ['it'],
+  },
+  'portuguese-caller': {
+    persona:
+      'Você é Conceição Gonçalves Magalhães. Você fala só português, nada de inglês. Diga seu nome completo logo na primeira frase. A descarga do seu banheiro não para de correr e você quer que um encanador ligue de volta esta semana. Seu número é 503 555 0194. Despeça-se com "tchau" e desligue.',
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      actionItems: 1,
+      assistantSays: /\b(obrigad\w*|nome|ajudar|ligar|retorno|encanador|descarga|número)/i,
+      summarySays: /\bPortuguese\b/,
+    },
+    languages: ['pt'],
+  },
+  'dutch-caller': {
+    persona:
+      'Je bent Joost van Scheijndel. Je spreekt alleen Nederlands, geen Engels. Zeg je volledige naam meteen in je eerste zin. Je wilt een offerte voor het vervangen van twee radiatoren in een oud huis en wilt teruggebeld worden. Je nummer is 503 555 0194. Neem afscheid met "tot ziens" en hang op.',
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      actionItems: 1,
+      assistantSays: /\b(bedankt|dank|naam|helpen|terugbel\w*|radiator\w*|offerte|nummer)/i,
+      summarySays: /\bDutch\b/,
+    },
+    languages: ['nl'],
+  },
+  'russian-caller': {
+    persona:
+      'Вы Всеволод Ковальчук. Вы говорите только по-русски, без английского. Назовите полное имя уже в первой фразе. У вас в ванной протекает унитаз, и вы хотите, чтобы сантехник перезвонил на этой неделе. Ваш номер 503 555 0194. Попрощайтесь словами «до свидания» и положите трубку.',
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      actionItems: 1,
+      assistantSays: /(спасибо|имя|помочь|перезвон|сантехник|унитаз|номер)/i,
+      summarySays: /\bRussian\b/,
+    },
+    languages: ['ru'],
+  },
+  'hindi-caller': {
+    persona:
+      'आप प्रियंका चतुर्वेदी हैं। आप केवल हिंदी बोलती हैं, अंग्रेज़ी नहीं। पहले ही वाक्य में अपना पूरा नाम बताइए। आपके बाथरूम का नल लगातार टपक रहा है और आप चाहती हैं कि प्लंबर इस हफ़्ते आपको वापस फ़ोन करे। आपका नंबर 503 555 0194 है। आख़िर में "नमस्ते" कहकर फ़ोन रख दीजिए।',
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      actionItems: 1,
+      assistantSays: /(धन्यवाद|नाम|मदद|फ़ोन|फोन|कॉल|प्लंबर|नल|नंबर)/,
+      summarySays: /\bHindi\b/,
+    },
+    languages: ['hi'],
+  },
+  'japanese-caller': {
+    persona:
+      'あなたは勅使河原美智子です。日本語だけを話し、英語は話しません。最初の一言でフルネームを名乗ってください。浴室のトイレの水が止まらないので、今週中に配管業者から折り返し電話がほしいです。電話番号は503 555 0194です。最後に「失礼します」と言って電話を切ってください。',
+    expect: {
+      outcome: MESSAGE_OUTCOMES,
+      actionItems: 1,
+      assistantSays: /(ありがとう|お名前|名前|折り返し|電話|トイレ|配管|番号)/,
+      summarySays: /\bJapanese\b/,
+    },
+    languages: ['ja'],
+  },
   // Ultra, a 25-minute call (research §8.6): the name and the reason come in the first minute and must still be known
   // at minute 24, after the early turns were cut (REALTIME_TRUNCATION) or turned into text (realtime-history.ts). Over
   // the phone on staging, with the assistant on Ultra and its call length at 30 minutes; costs about $5 a run.
