@@ -4,14 +4,14 @@ Linedesk handles phone calls, recordings, transcripts and calendar access for bu
 
 ## Supported versions
 
-Only the latest release gets security fixes. Before you report, check that the issue is still there in the latest release (or on `master-dev`, which becomes the next one). Self-hosters: update to the latest release to get a fix.
+Only the latest release gets security fixes. Before you report, check that the issue is still there in the latest release (or on `main`). Self-hosters: update to the latest release to get a fix.
 
 ## Reporting a vulnerability
 
 Please report privately. Do not open a public issue, pull request or discussion.
 
-- Email **security@linedesk.ai**. It reaches the maintainers directly.
-- Or use GitHub private vulnerability reporting ("Report a vulnerability" on the repository's Security tab), where it is enabled.
+- Use GitHub private vulnerability reporting: "Report a vulnerability" on the repository's [Security tab](https://github.com/linedesk/linedesk/security/advisories/new). The report is visible to the maintainers only.
+- Or email **support@linedesk.ai** with "Security" in the subject. It reaches the maintainers directly.
 
 Include what you found, how to reproduce it, the version or commit you tested, and what an attacker could do with it. Please don't access or change other people's data, and don't test against installs you don't run yourself; your own self-hosted install is the place to try things.
 

@@ -5,7 +5,7 @@ Linedesk runs on your own computer for trying it out: the setup, the inbox and t
 ## What you need
 
 - A Linux server (Ubuntu 22.04 or newer, Debian 12 or newer) with a public IPv4 address.
-- 2 vCPUs and 2 GB of memory at least; 4 GB is recommended (call recordings, several calls at once). Linedesk itself uses about 1 GB at rest (README, Memory and CPU).
+- 2 vCPUs and 2 GB of memory at least; 4 GB is recommended (call recordings, several calls at once). Linedesk itself uses about 1 GB at rest ([self-hosting.md](self-hosting.md#memory-and-cpu)).
 - About $12 to $24 a month. A domain is optional: without one, the install gets a free https name for the server's IP.
 
 ## Where
@@ -45,7 +45,7 @@ curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/inst
 
 The setup code works once and stays the same across restarts of the API for 7 days; after that the next start prints a new one. To see it again, or to replace it with a new one (if someone else saw it): `docker compose exec api node apps/api/src/setup-code.ts [--new]`. It is gone once the first admin exists.
 
-Open the address, enter the setup code, add your passkey when it asks (Server admin needs it; lost it? see docs/self-host-first-run.md "Your passkey"), and set up the rest with your AI agent or by hand.
+Open the address, enter the setup code, add your passkey when it asks (Server admin needs it; lost it? `docker compose exec api node apps/api/src/user-passkeys.ts --remove --email <email>` removes it and prints a code for a new one), and set up the rest with your AI agent or by hand.
 
 **With an AI agent:** Claude Code or Codex on your computer can do the whole move. The Linedesk setup tells your agent when it runs only on your computer; ask it to put Linedesk on a server. It helps you pick a provider, and once it can reach the server over SSH, it runs the install there and reads you the setup code.
 
@@ -57,9 +57,9 @@ Point the domain's DNS A record at the server, then run the install command agai
 curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/install.sh | sudo sh -s -- desk.example.com
 ```
 
-It keeps all data and settings and only changes the address; everyone signs in again once. Behind Cloudflare's proxy, see the README (Three ways to put it on the web).
+It keeps all data and settings and only changes the address; everyone signs in again once. Behind Cloudflare's proxy, see [self-hosting.md](self-hosting.md#three-ways-to-put-it-on-the-web).
 
-Behind Cloudflare (`docker-compose.cloudflare.yml`), with `LINEDESK_PARTNER_SITE=on` and `LINEDESK_SAAS_ORIGIN=saas-origin.example.com` in `.env`, Caddy also answers every other name on 443 with the app: that is how white-label partners' own addresses reach the server through Cloudflare for SaaS. Off by default (only your own address). The API decides which names it serves and answers 421 for any other once the install has a partner address. Cloudflare connects with the custom origin's name as SNI and checks the certificate against it in Full (strict), so the Cloudflare Origin CA certificate must also cover that name; Caddy ties the certificate to it. For Authenticated Origin Pulls (only Cloudflare can connect), turn them on in Cloudflare first, put Cloudflare's CA as `origin-pull-ca.pem` next to `origin.pem`, and set `LINEDESK_ORIGIN_PULL=on`. Linedesk's own steps: [runbook.md](runbook.md#partner-addresses-cloudflare-for-saas-white-label-s5).
+Behind Cloudflare (`docker-compose.cloudflare.yml`), with `LINEDESK_PARTNER_SITE=on` and `LINEDESK_SAAS_ORIGIN=saas-origin.example.com` in `.env`, Caddy also answers every other name on 443 with the app: that is how white-label partners' own addresses reach the server through Cloudflare for SaaS. Off by default (only your own address). The API decides which names it serves and answers 421 for any other once the install has a partner address. Cloudflare connects with the custom origin's name as SNI and checks the certificate against it in Full (strict), so the Cloudflare Origin CA certificate must also cover that name; Caddy ties the certificate to it. For Authenticated Origin Pulls (only Cloudflare can connect), turn them on in Cloudflare first, put Cloudflare's CA as `origin-pull-ca.pem` next to `origin.pem`, and set `LINEDESK_ORIGIN_PULL=on`.
 
 ## Firewall
 
@@ -80,7 +80,7 @@ For a server that runs real calls, [`ops/server/setup.sh`](../ops/server/README.
 sudo /opt/linedesk/app/ops/server/setup.sh --alert-to you@example.com
 ```
 
-Restoring a backup: README, "Backups". (The maintainers' runbook for the hosted service, `docs/runbook.md`, is internal and not in the public repository.)
+Restoring a backup: [self-hosting.md](self-hosting.md#backups).
 
 ## From your computer to the server
 
@@ -116,12 +116,26 @@ Raise the rate if you allow a country whose mobile numbers cost more (Telnyx's o
 
 Your install can charge the businesses on it, through your own Stripe account, at your prices and under your product name. It is off until you turn it on.
 
-1. In Stripe, create a restricted key with the permissions in [billing.md](billing.md) section 7, and store it with the webhook signing secret under Server admin › Billing › Stripe.
-2. Run the bootstrap script once with your webhook URL and your terms and privacy links ([runbook.md](runbook.md), "Stripe account setup"): it sets up the customer portal, card-only Checkout and the webhook.
-3. Set your prices in Server admin › Billing (plan per workspace, free trial, price a minute, included minutes) and your product name in Server admin › Branding. Linedesk makes the matching products and prices in your Stripe account when you save them; if Stripe refuses (the key needs write on Products and Prices), every server admin is emailed at once.
-4. Turn billing on under Server admin › Billing › Stripe.
+1. In Stripe (a sandbox first), create a restricted key with these permissions, and store it with the webhook signing secret under Server admin › Billing › Stripe:
+   - write: Customers, Checkout Sessions, Subscriptions, Invoices, Invoice Items, Credit Notes, Refunds, Billing Portal Sessions, Products, Prices, and the Customer portal (billing portal configurations);
+   - read: PaymentMethods, SetupIntents, Charges, Disputes, Radar Early Fraud Warnings, Events, Tax settings.
 
-Prices are in US dollars. A new price applies to new sign-ups; running subscriptions keep theirs. Details: [billing.md](billing.md) section 7b.
+   The provider test checks the write permissions without writing anything and warns when one is missing. Live keys (`sk_live_…`, `rk_live_…`) are accepted only with `BILLING_LIVE_KEYS=1` in the server environment.
+2. Run the bootstrap script once, with a separate key that may write the customer portal and webhook endpoints (not the install's restricted key). Read the key into the environment of that one command, so it is not in the shell history:
+
+   ```sh
+   read -rs STRIPE_SECRET_KEY && export STRIPE_SECRET_KEY
+   pnpm --filter @linedesk/billing bootstrap --sandbox \
+     --webhook-url https://<host>/v1/billing/stripe/webhook --return-url https://<host>/settings/billing \
+     --terms-url https://<site>/terms --privacy-url https://<site>/privacy
+   ```
+
+   It sets the tax default, the customer portal, card-only Checkout and the webhook endpoint; it makes no products or prices. For a live account use `--live --i-know` instead of `--sandbox`; without the two link flags it reads `TERMS_URL` and `PRIVACY_URL`; `--dry-run` only lists the changes. Run it once more: it must say "nothing to change". If it created the webhook endpoint, paste the secret from `packages/billing/stripe-webhook-secret.<mode>.txt` into Server admin › Billing › Stripe (Webhook signing secret), then delete the file (the script refuses to run while it exists).
+3. In the Stripe Dashboard, set what the script cannot: the Terms of Service URL and Privacy Policy URL under Settings › Business › Public details (Checkout refuses every session without the terms URL), your branding, invoice settings, customer emails, Smart Retries (leave subscriptions past due afterwards; Linedesk suspends and cancels itself), Stripe Tax (head office address) and Radar rules.
+4. Set your prices in Server admin › Billing (plan per workspace, free trial, price a minute, included minutes) and your product name in Server admin › Branding. Linedesk makes the matching products and prices in your Stripe account when you save them; if Stripe refuses (the key needs write on Products and Prices), every server admin is emailed at once.
+5. Turn billing on under Server admin › Billing › Stripe, then check it: the provider test there (account and mode), and a test event from the webhook endpoint's page in the Stripe Dashboard ("Send test event"), which must get 200.
+
+Prices are in US dollars. A new price applies to new sign-ups; running subscriptions keep theirs. Call prices, included minutes and limits apply to calls from the change on.
 
 ## Reports to the Linedesk team
 
@@ -129,4 +143,4 @@ Help › Report a bug and Request a feature (and `feedback_send` over MCP) email
 
 ## Updates and backups
 
-See the README: Update and backup.
+See [self-hosting.md](self-hosting.md#update-and-backup).

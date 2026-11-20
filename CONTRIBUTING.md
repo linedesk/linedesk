@@ -7,6 +7,7 @@ Thanks for helping. Linedesk is an AI front desk for businesses: an assistant an
 - Bugs and small fixes: open a pull request directly.
 - Anything bigger (a new feature, a new provider, a schema change): open an issue first so we can agree on the approach before you spend time on it.
 - Security problems: never in a public issue. See [SECURITY.md](SECURITY.md).
+- Questions and help with an install: see [SUPPORT.md](SUPPORT.md). What we plan next: [ROADMAP.md](ROADMAP.md).
 - Be kind. [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) applies everywhere in the project.
 
 ## Set up
@@ -51,13 +52,17 @@ English is the source; the other languages are translated before each release (w
 
 ## Pull requests
 
-- Branch from `master-dev`; one logical change per pull request. We squash on merge.
-- `pnpm typecheck` and `pnpm lint` must pass (CI runs both and builds the images). Run `pnpm test` (or the files you touched) locally; CI runs the full suite only after the merge ([docs/ci.md](docs/ci.md)). The API tests need Postgres (`pnpm db:up`).
+- Branch from `main` and open the pull request against `main`; one logical change per pull request.
+- `pnpm typecheck` and `pnpm lint` must pass (CI runs both and builds the images). Run `pnpm test` (or the files you touched) locally; CI does not run the full suite on pull requests ([docs/ci.md](docs/ci.md)). The API tests need Postgres (`pnpm db:up`).
 - Sign off every commit (`git commit -s`, see below); the `dco` check fails otherwise.
 - `pnpm format <files>` formats only the files you touched; please don't reformat unrelated code.
 - New actions need tests (handler, `apply` and permission); new adapters need contract tests.
 - UI changes: add a screenshot to the pull request and check the change in the running app, not only in tests.
 - Describe what changed and why, and how you checked it. Product or architecture decisions go in the description under "Decisions".
+
+### What happens after review
+
+The maintainers develop Linedesk in their own copy of the repository. Each release brings that copy's history to `main` by a merge, with every commit and its author. So an accepted pull request is not merged here directly: we apply your change to our copy, keeping your authorship and your sign-off, and close the pull request with a comment that says so. Your change then reaches `main` with the next release, and the release notes credit you.
 
 ## Developer Certificate of Origin
 
@@ -69,7 +74,7 @@ Sign off with `git commit -s` (or `--signoff`). Git adds a line with the name an
 Signed-off-by: Jane Doe <jane@example.com>
 ```
 
-Forgot it? `git commit --amend -s --no-edit` fixes the last commit; `git rebase --signoff master-dev` signs off every commit of the branch. Then `git push --force-with-lease`. The `dco` check on the pull request lists each commit without a sign-off.
+Forgot it? `git commit --amend -s --no-edit` fixes the last commit; `git rebase --signoff main` signs off every commit of the branch. Then `git push --force-with-lease`. The `dco` check on the pull request lists each commit without a sign-off.
 
 ```
 Developer Certificate of Origin

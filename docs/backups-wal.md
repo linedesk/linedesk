@@ -1,6 +1,6 @@
 # WAL archiving: restores that lose minutes, not a day
 
-The nightly `pg_dump` (`scripts/backup.sh`, README "Backups") loses everything since 09:00 UTC when it is needed. WAL archiving keeps Postgres's write-ahead log as well: every change, shipped to the backup bucket within about two minutes. A restore takes the newest base backup and replays the log to the latest moment, or to a chosen moment (just before a mistake). The nightly dumps stay as a second, independent way back.
+The nightly `pg_dump` (`scripts/backup.sh`, [self-hosting.md](self-hosting.md#backups)) loses everything since 09:00 UTC when it is needed. WAL archiving keeps Postgres's write-ahead log as well: every change, shipped to the backup bucket within about two minutes. A restore takes the newest base backup and replays the log to the latest moment, or to a chosen moment (just before a mistake). The nightly dumps stay as a second, independent way back.
 
 ## How it works
 
@@ -16,7 +16,7 @@ Postgres stays on its internal network with no keys and no internet: only the ho
 ## Security
 
 - WAL is every change, nearly as it happens, and not encrypted: sign-in sessions, OAuth tokens of connected calendars and email codes pass through it, as they do through the nightly dumps. Anyone with the bucket key can read it, so the key stays in `backup.env` (mode 600) on the server only.
-- The same key can delete the backups. Recommended, and Tim's decision: an R2 bucket lock (retention rule) on the backup bucket for at least as long as the scripts keep things (7 days for `base/`, 8 for `wal/`, 30 for the dumps), so a leaked key cannot wipe them. Production's backup bucket has it, and WAL archiving is on there (Tim, 2026-11-15).
+- The same key can delete the backups. Recommended: an R2 bucket lock (retention rule) on the backup bucket for at least as long as the scripts keep things (7 days for `base/`, 8 for `wal/`, 30 for the dumps), so a leaked key cannot wipe them. Production's backup bucket has it, and WAL archiving is on there (decided 2026-11-15).
 
 ## Numbers
 
@@ -27,7 +27,7 @@ Postgres stays on its internal network with no keys and no internet: only the ho
 
 ## Turn it on
 
-1. `backup.env` set up and the nightly backup working (README "Backups").
+1. `backup.env` set up and the nightly backup working ([self-hosting.md](self-hosting.md#backups)).
 2. `.env`: append `:docker-compose.wal.yml` to `COMPOSE_FILE`, then `scripts/deploy.sh --no-build`. Postgres is recreated with the new settings at a moment without calls (the deploy waits for one).
 3. `sudo ops/server/setup.sh` (it enables both timers once it sees the file in `COMPOSE_FILE`).
 4. `scripts/wal-base-backup.sh` once, so there is a base backup today; `scripts/backup.sh --list` shows `base/` and `wal/`.

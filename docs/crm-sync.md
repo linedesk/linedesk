@@ -1,6 +1,6 @@
 # CRM sync
 
-How Linedesk connects to a business's CRM. HubSpot first. Phase 1 (push) is built (LIN-303, see "Built in phase 1" below); phase 2 (pull) is not.
+How Linedesk connects to a business's CRM. HubSpot first. Phase 1 (push) is built (see "Built in phase 1" below); phase 2 (pull) is not.
 
 ## What a business wants from it
 
@@ -34,9 +34,9 @@ Two-way contact sync (both sides edit the same fields) is left out: it needs con
 - At `call.start` the CRM is not asked synchronously (the greeting budget is under 1.5 s; the call-start webhook may delay a greeting that uses caller details by up to 1.3 s, which the owner chooses by writing `{{name}}` into it, docs/webhooks.md). Instead the facts are cached per contact: refreshed in the background after each call and when the connection is made (a nightly refresh for contacts called in the last 90 days), and the assistant gets the cached facts with `call.start`'s booking context. A cache miss means no context, never a delay.
 - Only a short, owner-chosen set of fields (e.g. lifecycle stage, last deal, a notes field), not the whole record.
 
-## Built in phase 1 (LIN-303)
+## Built in phase 1
 
-A generic base for **connected apps** (business tools a workspace connects by OAuth), so Slack (LIN-351) and Jobber (LIN-304) reuse it; HubSpot is the first app.
+A generic base for **connected apps** (business tools a workspace connects by OAuth), so Slack and Jobber reuse it; HubSpot is the first app.
 
 - `packages/connectors`: the app interface (`AppConnector`: OAuth, token refresh, revoke, `pushCall`), `CrmProvider` with the phase-1 push (`pushCallToCrm`: stored link, then phone in E.164, then email, else create; fill only empty fields; log the call) and the HubSpot adapter. Vendor HTTP only there (core rule 4). Contract test with HubSpot's HTTP mocked: `src/hubspot.test.ts`.
 - The HubSpot app's client id and secret are an instance provider (Server admin › Providers › Connected apps, `provider_settings`, the secret encrypted and marked sensitive), not `.env`. Redirect URL: `<origin>/v1/apps/callback/hubspot`. Scopes: `oauth crm.objects.contacts.read crm.objects.contacts.write`. No PKCE: HubSpot's OAuth documentation (2026-11) names no `code_challenge`; the code exchange is server-side with the client secret, and the `state` is single use and bound to the member.
@@ -44,11 +44,11 @@ A generic base for **connected apps** (business tools a workspace connects by OA
 - Actions through the registry (owners and admins, `settings:write`): `app.connectStart`, `app.connectFinish` (run by `GET /v1/apps/callback/:app`; `code` and `state` are sensitive; the callback sends back only a reason code, `appConnectErrors`, never text), `app.disconnect` (removes tokens and links, then, once that has committed, uninstalls the HubSpot app from the portal with `DELETE /appinstalls/2026-03/external-install` and revokes the refresh token; when another Linedesk connection uses the same portal, only this connection's refresh token is revoked), `app.updateSettings` (the switches above), `app.pushes` (read-only: the last calls sent). Not during support access (impersonation), except reading `app.pushes`.
 - After a finished phone call (`call.finish` and the stale-call sweep; no test calls, no spam) a pg-boss job `app.push` per connection. No transaction stays open while HubSpot is asked: a try claims the push (`sending`, the try counted) in a short transaction under the connection's advisory lock (`app:<id>`), one push per connection at a time (so one new caller never becomes two records), then saves each step in its own short transaction: the caller's record when found or created, the logged call when it exists, so a retry neither creates nor logs twice. A failure is saved in its own transaction too. A token refresh asks HubSpot first, then saves under the same lock only if the stored grant did not change; connecting again and disconnecting take that lock as well. Token refresh once on 401; retries with backoff (8 tries); a refused grant, or 3 failures in a row, sets `needs_attention`. A refresh HubSpot answers with `BAD_REFRESH_TOKEN` / `invalid_grant` (the app was uninstalled in the portal) removes the connection with its tokens, links and pushes, as a disconnect does, unless the connection was connected again in between; a refused client ID or secret does not. A claim whose worker died is taken over after 10 minutes; a sweep every 15 minutes queues stuck pushes again and gives up those open for a day.
 - UI: Integrations › HubSpot (`#integrations/hubspot`): connect, the account and its state, connect again, disconnect, recent calls with their failures. The card shows Connected, Needs attention or Not connected.
-- What Linedesk does in the app (LIN-367): switches per connection in `app_connections.settings` (jsonb; only switches someone changed are stored, a missing switch is on, so a connection made before behaves as before). The switches an app has: `APP_SETTINGS` in `packages/actions/src/apps.ts`; HubSpot has `log_calls` (off: no push is queued, a queued one ends `skipped`/`calls_off`), `create_contacts` (off: a caller with no matching record is not created, the push ends `skipped`/`no_contact` and does not count as a failure; a caller with a record still gets the call), `fill_fields` (off: an existing record gets no field updates). Changed only through `app.updateSettings` (`settings:write`, merged on the server, audit-logged, not during support access); the push reads them when it claims the call. UI: the "What Linedesk does" card in Integrations › HubSpot, shown while connected.
+- What Linedesk does in the app: switches per connection in `app_connections.settings` (jsonb; only switches someone changed are stored, a missing switch is on, so a connection made before behaves as before). The switches an app has: `APP_SETTINGS` in `packages/actions/src/apps.ts`; HubSpot has `log_calls` (off: no push is queued, a queued one ends `skipped`/`calls_off`), `create_contacts` (off: a caller with no matching record is not created, the push ends `skipped`/`no_contact` and does not count as a failure; a caller with a record still gets the call), `fill_fields` (off: an existing record gets no field updates). Changed only through `app.updateSettings` (`settings:write`, merged on the server, audit-logged, not during support access); the push reads them when it claims the call. UI: the "What Linedesk does" card in Integrations › HubSpot, shown while connected.
 
 Not built yet: `crm.setFields` and phase 2 (pull), a privacy note in the connect step.
 
-## Slack (LIN-351)
+## Slack
 
 Slack is a connected app on the same base, but not a CRM: every finished phone call becomes one message in a channel the business picks.
 
@@ -61,7 +61,7 @@ Slack is a connected app on the same base, but not a CRM: every finished phone c
 - Switches: `log_calls` ("Post every call", on) and `only_urgent` ("Only urgent calls", off by default, `OFF_BY_DEFAULT`). Only urgent is checked when the push is sent, after the summary set the urgency; a call not sent ends `skipped`/`not_urgent`.
 - Disconnect: deletes the tokens and the webhook, then `apps.uninstall` with the bot token after the commit, best effort.
 
-## Jobber (LIN-304)
+## Jobber
 
 Jobber is a CRM on the same base as HubSpot: every finished phone call finds or adds the caller's Jobber client and adds the call as a note on it.
 

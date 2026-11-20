@@ -16,7 +16,7 @@ Notes behind the mock-up. Sources at the end.
 
 | Area | Must have in v1 | Why |
 |---|---|---|
-| Setup | Website import, calendar connect, forwarding codes per carrier, test call, under 10 minutes | Self-serve without sales (product strategy) |
+| Setup | Website import, calendar connect, forwarding codes per carrier, test call, under 10 minutes | Self-serve without sales |
 | Calendar | Conflict calendars vs. booking calendar, working hours, appointment types with duration/buffer/min notice | Without this the agent can't book safely and double-books |
 | Call handling | Returning-caller recognition, emergency escalation with warm transfer, message taking | Covers ~all inbound call types of service businesses |
 | Inbox | Views by who has to act (Needs you / Handled by Maya / Spam, plus Reminders and Done), search over all calls, one-key actions, undo, reminders, command palette | Superhuman model: speed is the product |
@@ -42,4 +42,3 @@ Notes behind the mock-up. Sources at the end.
 - Superhuman: [How to build a remarkable command palette](https://blog.superhuman.com/how-to-build-a-remarkable-command-palette/), [Shortcuts and Cmd+K](https://help.superhuman.com/article/478-superhuman-command)
 - AI receptionist onboarding checklist (vendor): [My AI Front Desk](https://llms.myaifrontdesk.com/ai-front-desk-onboarding-setup-checklist)
 - Transcripts and summaries as standard (vendor): [Picktime AI receptionist](https://picktime.com/features/ai-receptionist)
-- Market context: Linedesk market matrix and one-pager (internal).

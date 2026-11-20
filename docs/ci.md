@@ -1,27 +1,27 @@
 # CI
 
-What runs on a pull request and on the trunk, and how to reproduce it locally. In the public repository every job runs
-on GitHub-hosted runners (`ubuntu-24.04`); the maintainers' own copy runs the same jobs on Depot runners (the
-`runs-on` expression in each workflow picks one by repository). Deploys to the maintainers' servers are not part of the
-public repository.
+What runs on a pull request and on the trunk (`main`), and how to reproduce it locally. Every job runs on GitHub-hosted
+runners (`ubuntu-24.04`) unless the repository variable `CI_RUNNER` names other runners; a pull request from a fork
+always runs GitHub-hosted. Deploys to the hosted service are not part of the public repository.
 
 | Workflow | Trigger | Jobs |
 | --- | --- | --- |
-| `ci.yml` | every pull request, every push to `master-dev` or `master-prod`, by hand (Actions → CI → Run workflow) | `check`: install, typecheck, lint, `pnpm i18n:check` (missing translations allowed), the scrub tests, `pnpm db:check-journal` (the migrations journal's `idx` and `when` strictly increase) and the Zapier app's checks. `images`: builds the api, web and proxy images (self-hosting must work at every commit). `secrets`: gitleaks over the history of the tested commit. Pull requests into `master-prod` also run `release-source` and `release-translations` (releases, see "Branches"). |
-| `tests.yml` | every push to `master-dev`, by hand (Actions → Tests → Run workflow) | `test`: the full test suite with Postgres, in four parallel parts. `report`: a red run on `master-dev` comments on the merged PR. |
+| `ci.yml` | every pull request, every push to `main`, by hand (Actions → CI → Run workflow) | `check`: install, typecheck, lint, `pnpm i18n:check` (missing translations allowed), the scrub tests, `pnpm db:check-journal` (the migrations journal's `idx` and `when` strictly increase) and the Zapier app's checks. `images`: builds the api, web and proxy images (self-hosting must work at every commit). `secrets`: gitleaks over the history of the tested commit. Two more jobs, `release-source` and `release-translations`, only run for the maintainers' release pull requests (see "Branches"). |
+| `tests.yml` | every push to `main`, by hand (Actions → Tests → Run workflow) | `test`: the full test suite with Postgres, in four parallel parts. `report`: a red run on the default branch comments on the merged pull request (or the commit). |
 | `dco.yml` | every pull request (public repository) | `sign-off`: every commit of the pull request has a `Signed-off-by:` line (CONTRIBUTING.md, "Developer Certificate of Origin"). |
 
 ## Branches
 
-- `master-dev` is the trunk. Work on a short-lived branch, open a pull request into `master-dev`; it is squash-merged.
-- `master-prod` is what the hosted service runs. It only takes a pull request from `master-dev` (a release), opened
-  by a maintainer; before it, the release translation pass (docs/translations.md) brings every language up to date.
+- `main` is the trunk. Work on a short-lived branch and open a pull request against `main`
+  (CONTRIBUTING.md, "Pull requests").
+- Each release reaches `main` as a merge of the maintainers' history since the last release. The maintainers develop
+  and release in their own copy of the repository; before each release, the release translation pass (docs/translations.md) brings every language up to date.
 
 ## Tests
 
 Pull requests wait only for `ci.yml` (typecheck, lint, the language check, the scrub tests, the images, secrets; about
-a minute). The full suite runs on every push to `master-dev`; a red run comments on the PR that was merged, and
-whoever merged it fixes it in a new PR. Run the tests that touch your change locally before you open the PR:
+a minute). The full suite runs on every push to `main`; a red run comments on the merged pull request (or on the
+commit), and the maintainers fix it in a new pull request. Run the tests that touch your change locally before you open the PR:
 `pnpm test`, or `pnpm --filter @linedesk/api exec vitest run <file>` (the API tests need `pnpm db:up`).
 
 Postgres for the tests runs with `max_locks_per_transaction=1024`: the API tests' global setup creates and migrates
@@ -35,8 +35,8 @@ pnpm --filter @linedesk/api exec vitest run --shard=1/3`.
 ## Secret scanning
 
 The `secrets` job runs [gitleaks](https://github.com/gitleaks/gitleaks) over the whole history of the tested
-commit on every pull request and push to `master-dev` and `master-prod` (`--log-opts=HEAD`: for a pull request that is
-`master-dev` plus the branch's own commits, never other branches). It uses gitleaks' default rules plus the exception
+commit on every pull request and push to `main` (`--log-opts=HEAD`: for a pull request that is `main` plus the
+branch's own commits, never other branches). It uses gitleaks' default rules plus the exception
 in `.gitleaks.toml`. The binary is pinned by version and SHA-256 in `ci.yml`; to update, change both values from the
 release's `checksums.txt`.
 

@@ -3,3 +3,6 @@ contact_links:
   - name: Report a security vulnerability
     url: https://github.com/linedesk/linedesk/security/advisories/new
     about: Please report security problems privately, never in a public issue.
+  - name: Questions and help
+    url: https://github.com/linedesk/linedesk/blob/HEAD/SUPPORT.md
+    about: Where to ask questions about running Linedesk, and how Linedesk Cloud customers reach support.

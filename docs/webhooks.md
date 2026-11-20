@@ -94,7 +94,7 @@ No answer within 7 s (`DURING_CALL_TIMEOUT_MS`), an error, or no `answer`: the a
 
 ### Testing the during-call hook
 
-An install can answer lookups itself with made-up data, so the whole path (the assistant asks, Linedesk posts, the assistant passes the answer on) can be tried without a server of your own. Off unless `TEST_LOOKUP=on` in the API's environment (then `docker compose up -d api`); never turn it on where assistants answer real callers. Set the assistant's webhook URL to `https://<your install>/v1/webhooks/test-lookup` (staging: `https://staging.example.com/v1/webhooks/test-lookup`), turn on During the call and add a lookup. The API must reach its own public address (on staging a ufw rule lets the Docker network `linedesk_default` reach port 443). It answers at once, or after `?delay_ms=` on the URL (at most 15 s), to hear the filler, the long-wait line and the time-out (`apps/api/src/test-lookup.ts`):
+An install can answer lookups itself with made-up data, so the whole path (the assistant asks, Linedesk posts, the assistant passes the answer on) can be tried without a server of your own. Off unless `TEST_LOOKUP=on` in the API's environment (then `docker compose up -d api`); never turn it on where assistants answer real callers. Set the assistant's webhook URL to `https://<your install>/v1/webhooks/test-lookup`, turn on During the call and add a lookup. The API must reach its own public address (on staging a ufw rule lets the Docker network `linedesk_default` reach port 443). It answers at once, or after `?delay_ms=` on the URL (at most 15 s), to hear the filler, the long-wait line and the time-out (`apps/api/src/test-lookup.ts`):
 
 - a lookup whose name has `order` in it: `Order 1234 shipped on Monday and arrives on Thursday.` (the value of the field named like `order` or `number`, else the first value; without any value: `The order shipped on Monday and arrives on Thursday.`);
 - any other lookup: `Found the record for 1234; everything is up to date.` (without any value: `Found the record; everything is up to date.`).
@@ -146,7 +146,7 @@ A value is said back on one line and cut to 40 characters. The route writes and 
 }
 ```
 
-**The recording link** opens the audio without signing in for 24 hours (`RECORDING_LINK_HOURS`; 7 days before 2026-11-18, LIN-502): the signature is an HMAC with a key derived from `SECRETS_KEY` over the call id and the expiry (`recordingLink`, `apps/api/src/recording-route.ts`), checked before the sign-in check and again by the route. After that, or for any call, `GET /v1/calls/<id>/recording` with a workspace API key (`Authorization: Bearer ld_…`) or a member's session. Null when the call has no recording. The link points at `PUBLIC_URL` (else `WEB_ORIGIN`); `call_url` at `WEB_ORIGIN`.
+**The recording link** opens the audio without signing in for 24 hours (`RECORDING_LINK_HOURS`; 7 days before 2026-11-18): the signature is an HMAC with a key derived from `SECRETS_KEY` over the call id and the expiry (`recordingLink`, `apps/api/src/recording-route.ts`), checked before the sign-in check and again by the route. After that, or for any call, `GET /v1/calls/<id>/recording` with a workspace API key (`Authorization: Bearer ld_…`) or a member's session. Null when the call has no recording. The link points at `PUBLIC_URL` (else `WEB_ORIGIN`); `call_url` at `WEB_ORIGIN`.
 
 ## Delivery
 

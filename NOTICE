@@ -1,4 +1,50 @@
-Linedesk is licensed under the MIT License (see LICENSE).
+Linedesk
+Copyright (c) 2026 Sauerbier & Gutberlet GmbH and contributors
 
-Exception: the audio files in apps/api/assets/voice-previews/ are not covered
-by the MIT license; see the README in that folder.
+Linedesk is licensed under the MIT License (see LICENSE). Third-party packages
+keep their own licenses; see each package's license in node_modules after
+`pnpm install`. The parts below need a note of their own.
+
+Voice previews
+  The audio files in apps/api/assets/voice-previews/ are not covered by the
+  MIT license; see the README in that folder. They were made with ElevenLabs
+  text-to-speech and its default voices on a paid plan. ElevenLabs' Terms of
+  Service leave all rights in the output with the user and allow paid users
+  to use it commercially and outside ElevenLabs; its Prohibited Use Policy
+  allows passing output on to others on terms no more permissive than those
+  that apply to us, which the README in that folder carries over (in
+  particular: no use to develop or train AI or voice models).
+
+LiveKit model weights
+  The voice agent uses LiveKit Agents. LiveKit's local inference models (for
+  example its end-of-turn model) are licensed under LiveKit's own model
+  license, which allows their use only together with LiveKit Agents. They are
+  not part of this repository; LiveKit Agents downloads them when they are used.
+
+Holiday data
+  The API uses the date-holidays package by commenthol and contributors
+  (https://github.com/commenthol/date-holidays), with its date-holidays-parser
+  package. Their code is under the ISC license. The holiday data in
+  date-holidays (data/holidays.json and data/countries/*.yaml), mostly from
+  Wikipedia articles, is under Creative Commons Attribution-ShareAlike: the
+  package declares CC-BY-SA-4.0 (package.json, LICENSE, holidays.json), while
+  its README and the attribution list in its LICENSE file name CC BY-SA 3.0,
+  the license of the Wikipedia text it was taken from. The attribution (the
+  source articles) is in the package's LICENSE file. Linedesk does not include
+  this data in the repository; it comes with the package.
+
+Fonts
+  The web app uses the Geist and Geist Mono fonts by Vercel, through the
+  @fontsource/geist and @fontsource/geist-mono packages, licensed under the
+  SIL Open Font License 1.1.
+
+Third-party logos
+  The Google, Microsoft and GitHub sign-in marks (apps/web/src/ui/brand-logos.tsx)
+  and the brand marks of providers and calendar services, whose SVG paths come
+  from Simple Icons (https://simpleicons.org, CC0 1.0; apps/web/src/admin/logos.ts),
+  remain trademarks of their owners. Linedesk uses them only to name the
+  integration they stand for; their use does not mean the owners endorse
+  Linedesk.
+
+The Linedesk name and logo are trademarks of Sauerbier & Gutberlet GmbH; see
+TRADEMARK.md.

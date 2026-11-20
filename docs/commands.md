@@ -56,7 +56,7 @@ Pick Local disk under Server admin › Providers › Recording storage (or set `
 
 Our test-caller agent calls the business; transcript, summary, pass/fail and latency; in room mode also the business agent's own time from pickup to the greeting, checked against 2.5 s.
 
-On staging and production, live tests use the three stages only (`--pipeline three_stage`; over the phone the test business's assistant is set to three stages). OpenAI realtime models are costly: run `--pipeline realtime` only when Tim asks for it (decision of 2026-11-16, LIN-412).
+On staging and production, live tests use the three stages only (`--pipeline three_stage`; over the phone the test business's assistant is set to three stages). OpenAI realtime models are costly: run `--pipeline realtime` only when a maintainer asks for it (decision of 2026-11-16).
 
 `pnpm --filter @linedesk/agent call-test <scenario> [--phone [--external]] [--pipeline realtime|three_stage] [--expect-recording]`
 
@@ -84,7 +84,7 @@ What calls at once cost the agent (on a dev machine or test server), or how anot
 
 Starts a second agent container that plays the test callers (`linedesk-load-caller`, `AGENT_NAME=linedesk-load-caller`, so the install's own business worker is never a caller), then per level starts N test calls (`apps/agent/src/load-test/calls.ts` in that container) and waits 45 s between levels.
 
-- Default (no phone): both agents in one room. Raises the local agent's limits for the test (`--memory`, `--cpuset`) and puts them back, samples its container; prints memory before, peak, per call and after, CPU, processes, greeting and reply times. Use `--pipeline three_stage`; `realtime` only when Tim asks for it (see Call test).
+- Default (no phone): both agents in one room. Raises the local agent's limits for the test (`--memory`, `--cpuset`) and puts them back, samples its container; prints memory before, peak, per call and after, CPU, processes, greeting and reply times. Use `--pipeline three_stage`; `realtime` only when a maintainer asks for it (see Call test).
 - `--phone`: real calls over the install's test-caller trunk (as `call-test --phone`): from `CALL_TEST_FROM` to `--to` (default `CALL_TEST_TO`), the numbers in turn; the calls of a level start spread over `--spread` seconds. The callers use the three stages only, never OpenAI's realtime voice; the business answers with its assistant's own setting (`--pipeline` is refused). Transfer scenarios are refused.
 - `--remote` (implies `--phone`, needs `--to`): the numbers belong to another install. The local business agent is not changed, restarted or sampled (`--memory`, `--cpuset`, `--container` are refused); only the caller container is started and removed, with `--caller-memory` and `--caller-cpuset`. `--project`: the compose project to start it in.
 - Output: one `LOADTEST {json}` line per call (`level`, `index`, `to`, `answered`, `heardGreetingMs` from the dial to the first business audio the caller heard, `pickupMs`, `replyMs` as the caller heard them, `dialFailed`, `error`, `durationMs`), a summary per level (answered %, greeting heard p50/p95, reply p50/p95, failures) and a table of all levels at the end.
@@ -109,12 +109,12 @@ What `docker compose up` gives a user: `docker-compose.yml` alone is the whole a
 - docker compose needs `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` to be set for every command, so `scripts/setup.sh` (or `cp .env.example .env`) comes before `pnpm db:up`.
 - A new service needs `<<: *service`, `mem_limit` and `cpus`.
 - To try the self-host stack next to a running dev stack, always pass another project name (`docker compose -p linedesk-selfhost ...`, the default name is the dev stack's), its own hostname and port (`PUBLIC_URL=http://selfhost.localhost:8480 LINEDESK_HTTP_BIND=127.0.0.1:8480`; never plain `localhost`: cookies are shared across ports and sign the live app out).
-- The images run the `.ts` sources directly on Node (type stripping): see the erasable-syntax rule in [CLAUDE.md](../CLAUDE.md#code-style). The API image starts from a bundle of them instead (`node apps/api/scripts/bundle.ts`, built in the image; LIN-526), so it loads a few dozen files instead of about 2,650 modules; its scripts still run from the sources. The agent image does the same (`node apps/agent/scripts/bundle.ts`; LIN-569): the worker and every process it keeps warm for a call start from the bundle.
+- The images run the `.ts` sources directly on Node (type stripping): see the erasable-syntax rule in [CLAUDE.md](../CLAUDE.md#code-style). The API image starts from a bundle of them instead (`node apps/api/scripts/bundle.ts`, built in the image), so it loads a few dozen files instead of about 2,650 modules; its scripts still run from the sources. The agent image does the same (`node apps/agent/scripts/bundle.ts`): the worker and every process it keeps warm for a call start from the bundle.
 
 ## Dev mode
 
-Your machine or a test server, never production ([dev-mode.md](dev-mode.md)). `LINEDESK_MODE=dev` in `.env` runs api, web (Vite, hot reload) and agent from the checkout via `docker-compose.dev.yml`; `scripts/deploy.sh` then fast-forwards the checkout instead of building, and refuses while it has local changes. To code on the server, switch its checkout to a branch, edit, commit, push, switch back to master-dev (one session at a time).
+Your machine or a test server, never production ([dev-mode.md](dev-mode.md)). `LINEDESK_MODE=dev` in `.env` runs api, web (Vite, hot reload) and agent from the checkout via `docker-compose.dev.yml`; `scripts/deploy.sh` then fast-forwards the checkout instead of building, and refuses while it has local changes. To code on the server, switch its checkout to a branch, edit, commit, push, switch back to its branch (`LINEDESK_DEV_BRANCH`, one session at a time).
 
 ## Errors and logs
 
-Sentry, on staging and production via `SENTRY_DSN` (off without it; `apps/api/src/error-reporting.ts`, `apps/agent/src/error-reporting.ts`, `apps/web/src/errorReporting.ts`). It gets errors, `console.warn`/`console.error` lines and the member they hit (id, email, name); never transcripts, request bodies, local variables or AI inputs and outputs, and phone numbers are masked. Our Sentry project and how the team works with it: `docs/internal/working.md`, "Sentry" (maintainers, not in the public repository).
+Sentry, on staging and production via `SENTRY_DSN` (off without it; `apps/api/src/error-reporting.ts`, `apps/agent/src/error-reporting.ts`, `apps/web/src/errorReporting.ts`). It gets errors, `console.warn`/`console.error` lines and the member they hit (id, email, name); never transcripts, request bodies, local variables or AI inputs and outputs, and phone numbers are masked.

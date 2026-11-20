@@ -22,11 +22,11 @@ improved by people.
 ### The pipeline
 
 1. A pull request changes only English (`locales/en/`). `pnpm i18n:check` runs in CI on every pull request: valid
-   catalogs, every key used and defined, no new hardcoded English. Missing translations are fine on `master-dev` and
-   staging: the new strings show in English until the next release.
+   catalogs, every key used and defined, no new hardcoded English. Missing translations are fine on the trunk: the
+   new strings show in English until the next release.
 2. Before every release, the release translation pass below translates what is new or changed. Its commit goes to
-   `master-dev` like any other change.
-3. The release pull request (`master-dev` → `master-prod`) runs `pnpm i18n:check --complete` in its own job,
+   the trunk like any other change.
+3. The maintainers' release pull request runs `pnpm i18n:check --complete` in its own job,
    `release-translations` (`.github/workflows/ci.yml`): every key in every language present and made from the
    current English, and `hardcoded-baseline.json` empty (no web app file with hardcoded English left). It turns red
    otherwise and lists each missing or stale key, and each file still in the baseline, in the log and the run's
@@ -35,20 +35,20 @@ improved by people.
 
 ### Hotfixes: no translation pass
 
-A hotfix release skips the release translation pass (Janik, 2026-11-15): a fix for production must not wait for
-translations. The fix still goes to `master-dev` first, like every change; then label the release pull request
-`hotfix` (`gh pr create --base master-prod --head master-dev --label hotfix …`, or add the label on GitHub). The
+A hotfix release skips the release translation pass (decided 2026-11-15): a fix for production must not wait for
+translations. The fix still goes to the trunk first, like every change; then label the release pull request
+`hotfix` (`--label hotfix` on `gh pr create`, or add the label on GitHub). The
 `release-translations` job reads the label when it runs and then passes without checking, with a note in the run's
 summary; if it already ran red before the label was added, re-run that job (`gh run rerun <run id> --failed`, or Re-run
 jobs on GitHub). Everything else on the release pull request still runs. New or changed strings show in English in
 production until the next regular release, whose pass covers them (`pnpm i18n:changed` counts from the newest `v*`
 tag, the hotfix's included, so pass `--since <the last regular release's tag>`). The label exists once in the
-repository (`gh label create hotfix --description "Release without the translation pass"`); only a coordinator adds
+repository (`gh label create hotfix --description "Release without the translation pass"`); only a maintainer adds
 it.
 
 ### The release translation pass (required before every release)
 
-Done by the coordinator who releases (or an AI session for them), on `master-dev`, before opening the release pull
+Done by the maintainer who releases (or an AI session for them), on the trunk, before opening the release pull
 request:
 
 1. `pnpm i18n:changed` lists every English key added or changed since the last release (the newest `v*` tag; or
@@ -63,7 +63,7 @@ request:
 6. Never overwrite a string a person wrote (`i18n:changed` names those languages): when its English changed, propose
    a change in the pull request and leave the decision to a native speaker.
 7. Record the new translations with `pnpm i18n:lock --by ai` (it keeps every unchanged string a person wrote as
-   theirs), run `pnpm i18n:check --complete` until it passes, and merge the change into `master-dev`.
+   theirs), run `pnpm i18n:check --complete` until it passes, and merge the change into the trunk.
 8. Put the screenshots, or a short summary per language (what was translated, what needs a native check), in the
    release pull request.
 
@@ -106,7 +106,7 @@ Then remove it from `BETA_LOCALES` in `packages/i18n/locales.ts`.
 
 ## Add text as a developer
 
-This applies to every pull request and every session: Tim's and Janik's, a person's or an AI's, autopilot pull
+This applies to every pull request and every session: a maintainer's or a contributor's, a person's or an AI's, automated pull
 requests included. `.ts` files count as much as `.tsx`: a label a model or helper builds (`checked ? 'Reopen' : …`),
 a fallback (`name ?? 'Assistant'`) and an error message the page shows are all user-visible text.
 
@@ -184,7 +184,7 @@ steps, field labels, country names, voice pipeline labels, refusals the web app 
   `i18n()`, the API passes `getT(locale)` of the person reading (`localeForUserId`), and the setup MCP and the CLI pass
   nothing, so they get the same keys in English. A label map is `Record<Id, MessageKey>`, never English strings, and
   is read when the screen renders, never at import (a module-level list built from `t()` freezes the first language).
-- Refusals and messages the API writes itself (LIN-385): keys in the `server` namespace (`locales/en/server.json`,
+- Refusals and messages the API writes itself: keys in the `server` namespace (`locales/en/server.json`,
   `server.api.*` for this part; the other parts take their own prefix, such as `server.forwardingGuides.*`). The API
   writes them in the caller's language (`wordsOf(actor)`: a member's language in the web app, else Automatic's,
   else the browser's; an API key's request by its `Accept-Language`; the voice agent and the CLI in English):
@@ -214,7 +214,7 @@ steps, field labels, country names, voice pipeline labels, refusals the web app 
 ## Emails and notifications
 
 Every email, push notification and the page an email's link opens (the setup emails' unsubscribe page) is fully in
-the recipient's language, frame and body alike (Janik, 2026-11-15: an admin alert went out with a Japanese frame and an
+the recipient's language, frame and body alike (decided 2026-11-15: an admin alert went out with a Japanese frame and an
 English body).
 
 - Write their text only in `apps/api/src/emails`: `templates.ts` (account, team, calls, setup), `alerts.ts` (the alerts
