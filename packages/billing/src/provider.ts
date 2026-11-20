@@ -175,6 +175,8 @@ export type CheckoutCard = {
   /** `credit`, `debit`, `prepaid` or `unknown`. */
   funding: string | null
   country: string | null
+  /** The card number's last four digits (Stripe's test cards are known by them in test mode). */
+  last4: string | null
 }
 
 /** A Checkout Session fetched from the service (fetch-before-act): only what billing decides on. */

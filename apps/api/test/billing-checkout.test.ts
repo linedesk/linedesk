@@ -355,10 +355,11 @@ const fakeStripe: typeof fetch = async (input, init) => {
   return notFound()
 }
 
-const card = (fingerprint: string, funding = 'credit') => ({
+/** A card as Stripe has it; not Stripe's test card 4242 unless asked (that one skips the one-trial-per-card rule). */
+const card = (fingerprint: string, funding = 'credit', last4 = '1881') => ({
   id: rid('pm'),
   object: 'payment_method',
-  card: { fingerprint, funding, country: 'US', brand: 'visa', last4: '4242' },
+  card: { fingerprint, funding, country: 'US', brand: 'visa', last4 },
 })
 
 /** A Linedesk plan subscription as Stripe has it after Checkout. */
@@ -462,12 +463,12 @@ async function startCheckout(owner: Caller) {
   return checkoutsMade().at(-1)!
 }
 /** Starts Checkout, completes it in the fake with a trial subscription on `fingerprint`, and confirms it. */
-async function trialWith(fingerprint: string, funding = 'credit') {
+async function trialWith(fingerprint: string, funding = 'credit', last4?: string) {
   const signedUp = await pendingSignUp()
   await startCheckout(signedUp.owner)
   const sessionId = [...stripe.sessions.keys()].at(-1)!
   const customer = (await billRow(signedUp.bill.id)).stripe_customer_id!
-  const sub = subscription(customer, { card: card(fingerprint, funding) })
+  const sub = subscription(customer, { card: card(fingerprint, funding, last4) })
   complete(sessionId, sub)
   const confirmed = await act(signedUp.owner, 'billing.confirmCheckout', { sessionId })
   return { ...signedUp, sessionId, sub, confirmed }
@@ -648,6 +649,15 @@ describe('billing.confirmCheckout (security review M1)', () => {
     expect(await db.select().from(billing_periods).where(eq(billing_periods.billing_account_id, bill.id))).toHaveLength(
       1,
     )
+  })
+
+  test("Stripe's test card 4242 in test mode is the exception: a trial each time, never remembered", async () => {
+    const fingerprint = rid('fp')
+    const first = await trialWith(fingerprint, 'credit', '4242')
+    expect(first.confirmed.body.data).toEqual({ status: 'trialing', heldForReview: false })
+    const again = await trialWith(fingerprint, 'credit', '4242')
+    expect(again.confirmed.body.data).toEqual({ status: 'trialing', heldForReview: false })
+    expect(await db.select().from(card_fingerprints).where(eq(card_fingerprints.fingerprint, fingerprint))).toEqual([])
   })
 
   test("another bill's session, or one Stripe does not know, is a 404 that names nothing", async () => {
@@ -1446,7 +1456,7 @@ describe('Buy minutes with the saved card (billing tour G1, security review of #
   async function shownCard(owner: Caller, amountCents: number) {
     const res = await act(owner, 'billing.startTopUp', { amountCents, savedCard: true })
     expect(res.status).toBe(200)
-    expect(res.body.data).toMatchObject({ kind: 'confirm', card: { brand: 'visa', last4: '4242' } })
+    expect(res.body.data).toMatchObject({ kind: 'confirm', card: { brand: 'visa', last4: '1881' } })
     return res.body.data.card.id as string
   }
 
@@ -2900,7 +2910,7 @@ describe('"Keep calls answered" in the trial', () => {
       thresholdCents: 500,
       capCents: 5000,
       standardMicrosPerMinute: 50_000,
-      card: { brand: 'visa', last4: '4242' },
+      card: { brand: 'visa', last4: '1881' },
     })
     expect(prompt.freeUntil).toBe((await billRow(t.bill.id)).trial_ends_at)
   })
@@ -2930,7 +2940,7 @@ describe('"Keep calls answered" in the trial', () => {
         usedMinutes: 41,
         includedMinutes: 50,
         amountCents: 2500,
-        card: { brand: 'visa', last4: '4242' },
+        card: { brand: 'visa', last4: '1881' },
         thresholdCents: 500,
         capCents: 5000,
         freeUntil: (await billRow(t.bill.id)).trial_ends_at,

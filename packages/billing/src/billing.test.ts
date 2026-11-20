@@ -1562,7 +1562,7 @@ describe('stripe trial Checkout', () => {
           id: 'pm_1',
           object: 'payment_method',
           type: 'card',
-          card: { fingerprint: 'fp_1', funding: 'prepaid', country: 'US' },
+          card: { fingerprint: 'fp_1', funding: 'prepaid', country: 'US', last4: '0341' },
         }),
         status: 'trialing',
         cancel_at_period_end: false,
@@ -1578,7 +1578,7 @@ describe('stripe trial Checkout', () => {
       customerId: 'cus_1',
       clientReferenceId: 'bill_1',
       kind: 'trial',
-      card: { fingerprint: 'fp_1', funding: 'prepaid', country: 'US' },
+      card: { fingerprint: 'fp_1', funding: 'prepaid', country: 'US', last4: '0341' },
       riskLevel: null,
       subscription: { id: 'sub_1', status: 'trialing' },
     })

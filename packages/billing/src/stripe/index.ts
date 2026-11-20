@@ -947,7 +947,12 @@ function brandingOf(branding: NonNullable<CheckoutInput['branding']>) {
 
 const cardOf = (pm: string | Stripe.PaymentMethod | null | undefined): CheckoutCard | null =>
   pm && typeof pm === 'object' && pm.card
-    ? { fingerprint: pm.card.fingerprint ?? null, funding: pm.card.funding ?? null, country: pm.card.country ?? null }
+    ? {
+        fingerprint: pm.card.fingerprint ?? null,
+        funding: pm.card.funding ?? null,
+        country: pm.card.country ?? null,
+        last4: pm.card.last4 ?? null,
+      }
     : null
 
 const riskOf = (charge: string | Stripe.Charge | null | undefined) =>

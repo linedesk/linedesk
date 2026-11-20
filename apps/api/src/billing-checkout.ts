@@ -10,6 +10,7 @@
 // - Every confirmation of a bill in `pending_payment` runs the card checks: the card's fingerprint (one trial per card,
 //   `card_fingerprints`) and its funding (no trial on a prepaid card). A refused trial cancels its subscription at once
 //   (nothing was charged) and clears it from the bill, so the owner's next Checkout, without a trial, is linked.
+//   Stripe's test card 4242 4242 4242 4242 in test mode is the one exception (isStripeTestCard): it is never remembered.
 // - A session is acted on only when it is the caller's: our bill id as `client_reference_id`, the bill's own Stripe
 //   customer, the expected mode. Anything else answers 404, never what the session is.
 // - Checkout always uses the card-only payment method configuration; without it Checkout does not start, and our own
@@ -690,6 +691,12 @@ async function claimTrial(tx: Tx, fingerprint: string, billId: string, now: stri
   return 'ok' as const
 }
 
+/**
+ * Stripe's test card 4242 4242 4242 4242 in a test-mode session: every test of the trial uses it, so the one-trial-per-card
+ * rule skips it and it is never remembered. A live session never has it (Stripe declines test cards in live mode).
+ */
+const isStripeTestCard = (session: CheckoutSession) => !session.livemode && session.card?.last4 === '4242'
+
 /** A paid plan's card is remembered too (no trial is used): a later trial with it on another bill is refused. */
 async function rememberCard(tx: Tx, fingerprint: string, billId: string) {
   await tx.insert(card_fingerprints).values({ fingerprint, first_billing_account_id: billId }).onConflictDoNothing()
@@ -793,7 +800,11 @@ export async function confirmSession(
     // The account had its trial on another bill (a Checkout opened before that, or the rule missed): no trial either.
     const refusal =
       (await trialRefusalOf(tx, bill)) ??
-      (session.card?.funding === 'prepaid' ? ('prepaid' as const) : await claimTrial(tx, fingerprint, bill.id, now))
+      (session.card?.funding === 'prepaid'
+        ? ('prepaid' as const)
+        : isStripeTestCard(session)
+          ? ('ok' as const)
+          : await claimTrial(tx, fingerprint, bill.id, now))
     if (refusal !== 'ok') {
       // Nothing was charged: the trial's subscription ends at once, and the bill lets go of it, so the owner's next
       // Checkout (the plan now, no trial) is linked by invoice.paid or here. A failure rolls everything back.
@@ -841,7 +852,7 @@ export async function confirmSession(
   if (sub.status !== 'active') throw Reject.t('server.api.checkout.notPaid')
   // A plan paid now (after a refused trial): no trial is used, the card is remembered. Radar's risk level of the charge
   // holds number purchase for review.
-  await rememberCard(tx, fingerprint, bill.id)
+  if (!isStripeTestCard(session)) await rememberCard(tx, fingerprint, bill.id)
   const rules = await signupRules(tx)
   const held = !!session.riskLevel && rules.reviewRiskLevels.includes(session.riskLevel)
   const start = sub.currentPeriodStart ?? now
