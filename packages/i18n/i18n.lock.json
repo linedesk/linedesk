@@ -1935,6 +1935,81 @@
       "out": "47c4e3b3e3d0eaf68a3fa9e0323b1df5c4b4afb9764180b0c4cc8547717aeb91",
       "src": "b126a480e559a902fdd95bd8b0ea0aebc4890509f153b0c97f7d1f262d137248"
     },
+    "admin.agentSetupCounts.client": {
+      "by": "ai",
+      "out": "074be6e018ce52eab3ef25372dbbffd09d54766f1654816ded11338ac2e46390",
+      "src": "92c7d7f84c3ecbd938435ccfc4081fd21bd4be849059cec8359c3c732b60447a"
+    },
+    "admin.agentSetupCounts.connected": {
+      "by": "ai",
+      "out": "0338189c985eee9c190291f07c97fdd16bff676256302cf45690b80bb6fcbb9a",
+      "src": "22965568d22a14ee17af055d2870b50afcfe9fd94a83eec3196e266932297bb2"
+    },
+    "admin.agentSetupCounts.description": {
+      "by": "ai",
+      "out": "9f5d1e44df19eace86e98a8d955e226cec70582b9da7979d1e43da40f0931c6e",
+      "src": "352409145cce373bcf07933e117e04c52bb2017ae045bd95e558ccbc11d2871e"
+    },
+    "admin.agentSetupCounts.empty": {
+      "by": "ai",
+      "out": "436dbd7910f80b45f7617ded93ab11b9bbd7e526b36f3533fa4f88d79b7b7998",
+      "src": "a2133063663127206ed7ef340b0f059048d07c56f7a174f7ad74c3e953c09c0b"
+    },
+    "admin.agentSetupCounts.help": {
+      "by": "ai",
+      "out": "b0853b62dbadb5736c30cc0d1c7c06d302a557b03e5097c51c1a879adeb5c453",
+      "src": "9480f51ff479408970f98e38bc702e3ebb4171eaa357f7f453162f42a609b882"
+    },
+    "admin.agentSetupCounts.kind.all": {
+      "by": "ai",
+      "out": "3801a35c5182283990f6c7e7cbe137e58d6d7f750f6ab2522b687dcc9aa1d91d",
+      "src": "da2e5dc515b188dcac1afa88c93f859834ad57dfd921581172c9a74ab190e9f1"
+    },
+    "admin.agentSetupCounts.kind.install": {
+      "by": "ai",
+      "out": "39ebd661314d6ca8006357cc1a41575209fa309e67408bad0b9f23a85c48e6df",
+      "src": "a56462f6da3581e5b6d1952e7e8012a062a85fa6bfa62c879982e786bf44d761"
+    },
+    "admin.agentSetupCounts.kind.partner": {
+      "by": "ai",
+      "out": "29035e784f9305c0eb62aa33662b296306f6a77bedaca7c67f2e3432dd43ace2",
+      "src": "5dab502bfba3c3dfc2c9308a9f5cd3cfccf959852af05b2a430ebd9c12b95b90"
+    },
+    "admin.agentSetupCounts.kind.workspace": {
+      "by": "ai",
+      "out": "51146a57e9d5571d752edab5d3663b5936e3cdf1b2e43a33db66a7ab8d1ff3f2",
+      "src": "1e4ef0ed2a5689f33b2754a4dd1bccaeb359447fe9f79920a2a44443a37f92d2"
+    },
+    "admin.agentSetupCounts.kindLabel": {
+      "by": "ai",
+      "out": "fdc07e271328ee66a9ba455ed0987570700a2125e6fb494a004bb2ff8c6b0e74",
+      "src": "c17b94b8c9394d40151ba4078f384f0bfe77936d258bc2029bd8b857685cd3f1"
+    },
+    "admin.agentSetupCounts.made": {
+      "by": "ai",
+      "out": "0050fe7db008508ceaefae9e862caa71973d6a3ea36993abb4ba3135f5b9ee56",
+      "src": "2467c575aff4670ac4edef30f96a9cb02b165adeaa2706c7c4f98c0d9501a807"
+    },
+    "admin.agentSetupCounts.noClient": {
+      "by": "ai",
+      "out": "9fa052124289486c2a1d040df6882ff6d946c85806911fd1763a2711b8d6f8a4",
+      "src": "185492b8c19e522acfb64d3c22ce820d0e7ce4236510303cf239cee49007f452"
+    },
+    "admin.agentSetupCounts.share": {
+      "by": "ai",
+      "out": "67c0d59f45077f0a282af5010c60444e31fbea5b79bde4b7951f81355bf22a5f",
+      "src": "29887a5ff9846ccc23327565a07e17fa6dcaea6211f1898ae825f84ae38f4223"
+    },
+    "admin.agentSetupCounts.title": {
+      "by": "ai",
+      "out": "1b9aa7c5389be4bb8de614becd229dea59255f7fbbae65979b6f5713bbaf4ecf",
+      "src": "56aa1cf4e24f67f36768c71f9de66d7974302d6010a0b71544b24ff9409f9397"
+    },
+    "admin.agentSetupCounts.total": {
+      "by": "ai",
+      "out": "a36bce47fdac8f55279bd87737960c7d605165bd073ae1e68132389d1f7efd7a",
+      "src": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8"
+    },
     "admin.api.confirmPasskey": {
       "by": "ai",
       "out": "fdff972b5c06e45268310b50e7a80675e92d7fadfc0feac9785fb97271357f17",
@@ -4827,8 +4902,8 @@
     },
     "admin.bills.signupRules.field.codesPerAddressHour.help": {
       "by": "ai",
-      "out": "4f0fb8a329a3931332213a80599cd220d869d1e7bbd8888c43ffb0b9153b7482",
-      "src": "8a00da2ce07d0b4872a8692c9fdc1180c542e122e6bbba3627feda47d4cf51bc"
+      "out": "d6669530898b6fafefed4e215df46931be0513542ba3d3a015326d76e1c43be5",
+      "src": "c2485ba650a5d40006b4116f2647f000f0ebb080717dc275c85403755b863c6b"
     },
     "admin.bills.signupRules.field.codesPerInstallHour": {
       "by": "ai",
@@ -4852,8 +4927,8 @@
     },
     "admin.bills.signupRules.field.signupsPerIpDay": {
       "by": "ai",
-      "out": "f4a0497033be29bd89e0aa59a7611956450b10f4a63460adf492bcbebb0d422d",
-      "src": "aeb6a179032d015bacd3a60a6dc9672f3b1231c0e27ac3096ebf02fbf7dc422f"
+      "out": "f1e9bc7df8586ec66c0c454a8ebdb8bfd41ef268118d32ee70509c999c64e1df",
+      "src": "81fa08931dd471a06805a8356335b2ceb2d81b0df8620bdbb182ce50894711f7"
     },
     "admin.bills.signupRules.field.signupsPerIpDay.help": {
       "by": "ai",
@@ -4862,13 +4937,13 @@
     },
     "admin.bills.signupRules.field.signupsPerIpHour": {
       "by": "ai",
-      "out": "f56fd644c7a80cbb17d6e95ee61c4652d4421593c9e8120d02152d480429773c",
-      "src": "f7c524e1151312a141499076a85c7c61525821f61d0c1c4ac41c72071f13125a"
+      "out": "c9f4a2dab9c446c462a3c9d176c4896c92d2bf217c83d38521dbd05fca66514f",
+      "src": "b4b4714f1791eceec65d9d806dbf4a049dd56067bd7f789cdcdf5658511888ea"
     },
     "admin.bills.signupRules.field.signupsPerIpHour.help": {
       "by": "ai",
-      "out": "b83706eee1b1b00d54c5663a94edf147da43d861a424272b15ab572533e9ad1e",
-      "src": "cb0d6fd8bb1e00995442ee5fdb4ac99e9e45c292f3ec1081b90cdb3339234237"
+      "out": "0e539218bd186c2d457671f6939387e788eef01ac0a5d0e86b04b80864444c88",
+      "src": "1bed48299a912d8ff05a1846ef745d00be098a03ea0e907be67b01a86ba29343"
     },
     "admin.bills.signupRules.field.trialNumbersPerWorkspace": {
       "by": "ai",
@@ -10915,6 +10990,11 @@
       "out": "282a38ccc14c0d25f748f9e6f806e0d13e36f82c285c096147b10557c21bee6b",
       "src": "1fd8ffbacd28e5be339de20842ff3a08a13093d97a9a7f9aa70462e1acb185d6"
     },
+    "auth.code.resendInMin": {
+      "by": "ai",
+      "out": "8bd36518bd42065decc4de20ff156d629995d2f41ee5c2a1a6162cc6421e911e",
+      "src": "110e98f9ed6c38569cd216655e0f671d07fcf35d6697fff37372dd6b149232e8"
+    },
     "auth.code.resendReady": {
       "by": "ai",
       "out": "ab03eedb602c3ecebc0ca2351a0097e3f84798f3b1ec33d634e220862c01f48d",
@@ -10939,6 +11019,11 @@
       "by": "ai",
       "out": "75e6433a3019fbff86ca9c6e142b47bb958e12036f58786a181a4989464161e3",
       "src": "18ae1317eb9bcf5820bc7698baeb7281ae6004c8b5862b9f386339696337a122"
+    },
+    "auth.code.waitMin": {
+      "by": "ai",
+      "out": "59ac023bfe4c947e910726ce5b0d181097f16f5feb2e04922715d1a4a167de29",
+      "src": "a55b9e6ca29b2228b5486984ebabc59ab9458abea72e1347514cf664d6d29b48"
     },
     "auth.confirm.code": {
       "by": "ai",
@@ -11780,6 +11865,11 @@
       "out": "ef13152b087528e56feffe3e2ce2588203facd4117ad441a9b3c30839ef39a46",
       "src": "0c6a0daf7e13bc5fd74ad43252f52d9253e93e9c6e5594783caf52f7e99a2bc8"
     },
+    "auth.signup.refused.busyFor": {
+      "by": "ai",
+      "out": "acb6a70137318033f6d09a27fd8eca436cf88b9aafa0cc28776221a6d887b0d0",
+      "src": "9ac57374b25db32b23a97609cf2d3a8be135804c91cc03c67cfeccafe9331b81"
+    },
     "auth.signup.refused.tooMany": {
       "by": "ai",
       "out": "3ee66b85796bd9bac9147c9dbccc482bc1fb12731e3b8a181c1d1a2b2bfcd18c",
@@ -11819,6 +11909,11 @@
       "by": "ai",
       "out": "7977d98eb11196601f150d468ec41dbc3c9dd21e4711857210ebe04abfced1a2",
       "src": "27a0d553bf2983ca2599f8986b0f7783cd81283097d8cc5854fb81aefd977383"
+    },
+    "auth.signup.waitHaveAccount": {
+      "by": "ai",
+      "out": "c2e42032f86baeb0eccd2147826c41a8d17bd2fe9f23c161689dca6425bb59c3",
+      "src": "b6d374374e27f13eac7884e8245c86d0454177a780d85953eaf9ee01a0669900"
     },
     "auth.signup.yourName": {
       "by": "ai",
@@ -14812,13 +14907,13 @@
     },
     "email.adminAlert.signupRules.field.signupsPerIpDay": {
       "by": "ai",
-      "out": "f4a0497033be29bd89e0aa59a7611956450b10f4a63460adf492bcbebb0d422d",
-      "src": "aeb6a179032d015bacd3a60a6dc9672f3b1231c0e27ac3096ebf02fbf7dc422f"
+      "out": "f1e9bc7df8586ec66c0c454a8ebdb8bfd41ef268118d32ee70509c999c64e1df",
+      "src": "81fa08931dd471a06805a8356335b2ceb2d81b0df8620bdbb182ce50894711f7"
     },
     "email.adminAlert.signupRules.field.signupsPerIpHour": {
       "by": "ai",
-      "out": "f56fd644c7a80cbb17d6e95ee61c4652d4421593c9e8120d02152d480429773c",
-      "src": "f7c524e1151312a141499076a85c7c61525821f61d0c1c4ac41c72071f13125a"
+      "out": "c9f4a2dab9c446c462a3c9d176c4896c92d2bf217c83d38521dbd05fca66514f",
+      "src": "b4b4714f1791eceec65d9d806dbf4a049dd56067bd7f789cdcdf5658511888ea"
     },
     "email.adminAlert.signupRules.field.trialNumbersPerWorkspace": {
       "by": "ai",
@@ -20047,13 +20142,48 @@
     },
     "onboarding.agentSetup.start.chatgpt.add": {
       "by": "ai",
-      "out": "22f78915a9b284b101cccd758c32a66f16d5b902a095cb6799ae2c490cca6210",
-      "src": "877a3bb00ea2454461123c1b6273912eb8673f7dbecc71c370edab118956e374"
+      "out": "8b7762afadb102ee11f2265c14848e6253f5402c3380e0c5572c600de95806bc",
+      "src": "70460fd5b366690802fb6af24eccdc7949694fccfa6e2a5fc1c72090f6200e13"
     },
     "onboarding.agentSetup.start.chatgpt.chat": {
       "by": "ai",
-      "out": "863a3fbbad4828b34dfe664ac7cee99609616ad069a070bde9ed5b9cfe0192f0",
-      "src": "ecad0ced52159c282674b6be7aa400ea4576437a57ebdfd7d07cddadb60b0837"
+      "out": "ddda2b657d96ce278350185588c4053f9ae8a15f4c6edf0175c7f33f90b684a8",
+      "src": "e6b1e9549291ef1644b589141a3653cc219e3a1b85444df0f3eae5fa69f8b4b1"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.auth": {
+      "by": "ai",
+      "out": "78e2638e875defa151319c57bc6d354663d08f953e0975c933b65554d4518e44",
+      "src": "66880d2d8216260d201917a72eb245440ef18ba9b54c070ee39aa4c343ae126f"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.check": {
+      "by": "ai",
+      "out": "3b66343635566d5c787de9ba4e127159bd72de7f23dae0f86dcdc1c7f650494a",
+      "src": "f0c44ab8fea2b22c896433cb940ec96a2cbb779326fc02bf9dc0f67b393b1cea"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.name": {
+      "by": "ai",
+      "out": "dcd1d5223f73b3a965c07e3ff5dbee3eedcfedb806686a05b9b3868a2c3d6d50",
+      "src": "dcd1d5223f73b3a965c07e3ff5dbee3eedcfedb806686a05b9b3868a2c3d6d50"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.noAuth": {
+      "by": "ai",
+      "out": "b56a35e90e026855db5ea28ef7265ce32265e3cf5a7be9ae55137fb84ee95300",
+      "src": "cf205c33359a82fcbac1dff901d9022413fa5b9c21745ba387e09454c65c9737"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.submit": {
+      "by": "ai",
+      "out": "a7f9c385953eda1bc10dd8f2fe1f4fb96a1ca0c0daf5ea4d1241db9771ee553d",
+      "src": "ef3c609ebfda37bc65f50971355af1c92ff8b14a924ef6323670dba0fff44c6d"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.title": {
+      "by": "ai",
+      "out": "b5a7116c039fa01273310e0fa5bfe0ccf829b79fbc5237363cad7e41b68b267c",
+      "src": "aea6b84741505f54848d704e0382d4e692d56304cecfc7d4177cfd7595eb67a3"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.url": {
+      "by": "ai",
+      "out": "6abdb8cffc731d20b182e79bd23bfaded8e9b11b4344348abd42b89480567509",
+      "src": "22f5ebc3ad3ff7638885810bfd9485a3d1b536966124cae45727d4181760f9ba"
     },
     "onboarding.agentSetup.start.chatgpt.openSettings": {
       "by": "ai",
@@ -20062,13 +20192,13 @@
     },
     "onboarding.agentSetup.start.chatgpt.settings": {
       "by": "ai",
-      "out": "b5a6b852ccecd84a92facf5119b1e13314557af84fb1f93d7d24f580d77c5950",
-      "src": "c5e5552bd29526f8c081f1618b21c516f1cd2e0b564c77d926318cc0d4653935"
+      "out": "d8bcb365916d148c46ffd5ecfe75e9a5bbec9dbf92d919d0a59b40c83170f115",
+      "src": "6e43fb7ea649609b2bb54653e02c7236108938f12222fa913fab4e53767cb151"
     },
     "onboarding.agentSetup.start.claude.add": {
       "by": "ai",
-      "out": "51c41f7b5aa818cb85d208acb836f058dc0c75699d1f2316ec30dfdc778c25cc",
-      "src": "8347ce4fe5da9d95987f908f7e527086de781c089e80b8662bc78682963e6e7d"
+      "out": "57126a08d6f8eb09ea478b758ee684ff1a286b76c91c998b3761e3785712baba",
+      "src": "87393cbb8c3257d140ce442307af6c71471fbd1f1b8458499a9dd5fb25f5e2ce"
     },
     "onboarding.agentSetup.start.claude.chat": {
       "by": "ai",
@@ -30020,15 +30150,55 @@
       "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
       "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
     },
+    "settings.integrations.mcp.chatgptFill": {
+      "by": "ai",
+      "out": "8b7762afadb102ee11f2265c14848e6253f5402c3380e0c5572c600de95806bc",
+      "src": "70460fd5b366690802fb6af24eccdc7949694fccfa6e2a5fc1c72090f6200e13"
+    },
+    "settings.integrations.mcp.chatgptForm.auth": {
+      "by": "ai",
+      "out": "78e2638e875defa151319c57bc6d354663d08f953e0975c933b65554d4518e44",
+      "src": "66880d2d8216260d201917a72eb245440ef18ba9b54c070ee39aa4c343ae126f"
+    },
+    "settings.integrations.mcp.chatgptForm.check": {
+      "by": "ai",
+      "out": "3b66343635566d5c787de9ba4e127159bd72de7f23dae0f86dcdc1c7f650494a",
+      "src": "f0c44ab8fea2b22c896433cb940ec96a2cbb779326fc02bf9dc0f67b393b1cea"
+    },
+    "settings.integrations.mcp.chatgptForm.name": {
+      "by": "ai",
+      "out": "dcd1d5223f73b3a965c07e3ff5dbee3eedcfedb806686a05b9b3868a2c3d6d50",
+      "src": "dcd1d5223f73b3a965c07e3ff5dbee3eedcfedb806686a05b9b3868a2c3d6d50"
+    },
+    "settings.integrations.mcp.chatgptForm.oauth": {
+      "by": "ai",
+      "out": "27f8943c6eba9818cd7c216ef06851bf832cf6fe9c0240fa32cb152a484b011f",
+      "src": "27f8943c6eba9818cd7c216ef06851bf832cf6fe9c0240fa32cb152a484b011f"
+    },
+    "settings.integrations.mcp.chatgptForm.submit": {
+      "by": "ai",
+      "out": "a7f9c385953eda1bc10dd8f2fe1f4fb96a1ca0c0daf5ea4d1241db9771ee553d",
+      "src": "ef3c609ebfda37bc65f50971355af1c92ff8b14a924ef6323670dba0fff44c6d"
+    },
+    "settings.integrations.mcp.chatgptForm.title": {
+      "by": "ai",
+      "out": "b5a7116c039fa01273310e0fa5bfe0ccf829b79fbc5237363cad7e41b68b267c",
+      "src": "aea6b84741505f54848d704e0382d4e692d56304cecfc7d4177cfd7595eb67a3"
+    },
+    "settings.integrations.mcp.chatgptForm.url": {
+      "by": "ai",
+      "out": "6abdb8cffc731d20b182e79bd23bfaded8e9b11b4344348abd42b89480567509",
+      "src": "22f5ebc3ad3ff7638885810bfd9485a3d1b536966124cae45727d4181760f9ba"
+    },
     "settings.integrations.mcp.chatgptStep1": {
       "by": "ai",
-      "out": "a71048f2fd483aabe8cbcfeefc91de8e220bec2532451f85ce49f617fb8bef01",
-      "src": "6a3dda5bff793d3d6deeaadf7a679cb83bd585ad64bdb23e93b1e11ef6f349a6"
+      "out": "f499505b31b3d6410a25d9126b07cc1b453b9b80009a07d7cacf571019e5c10d",
+      "src": "9ae841c3b482b1da3841a4e16296a3a432bcc5247bce7c8e6ef34c291c496648"
     },
     "settings.integrations.mcp.chatgptStep3": {
       "by": "ai",
-      "out": "193a4c02262291da0d75d2138fb95b3be94740a1da791cbd060d166db89a198d",
-      "src": "147e66bd7099d35e3f30baab51cb36a2ae812bba40c4fbc16a43d8cf3d3bb6e7"
+      "out": "659fda9eeeb3b56a130b7bc6639b93a048a2bbd832ee16aaa47dd22849463656",
+      "src": "6c17d51c690369bfc999446886dce080227c7c9433e0fdf0fda82c3cae0b7a37"
     },
     "settings.integrations.mcp.claude": {
       "by": "ai",
@@ -39342,6 +39512,81 @@
       "out": "c0df584a9d301a6e4d1c9e7b8b7577aaf06c6f42d6afeb658cde0495660c9f62",
       "src": "b126a480e559a902fdd95bd8b0ea0aebc4890509f153b0c97f7d1f262d137248"
     },
+    "admin.agentSetupCounts.client": {
+      "by": "ai",
+      "out": "c85ae866ddf10a3c0f73f0fd2debaa261aacbd6520b9f0a835d2f8477ba85f13",
+      "src": "92c7d7f84c3ecbd938435ccfc4081fd21bd4be849059cec8359c3c732b60447a"
+    },
+    "admin.agentSetupCounts.connected": {
+      "by": "ai",
+      "out": "1e1a08258a6989dc8725da02dc471c537f73956292aaa286d380fe42a972928c",
+      "src": "22965568d22a14ee17af055d2870b50afcfe9fd94a83eec3196e266932297bb2"
+    },
+    "admin.agentSetupCounts.description": {
+      "by": "ai",
+      "out": "bd8628f4becfc4b5ac7c20f2fe6698ac372b3f2b8fd75c83be9f63cc576ce716",
+      "src": "352409145cce373bcf07933e117e04c52bb2017ae045bd95e558ccbc11d2871e"
+    },
+    "admin.agentSetupCounts.empty": {
+      "by": "ai",
+      "out": "4caa668c16f1dfc4f849e14ddd008dd9990e449ee5e1a21e99c8b1e47079e46a",
+      "src": "a2133063663127206ed7ef340b0f059048d07c56f7a174f7ad74c3e953c09c0b"
+    },
+    "admin.agentSetupCounts.help": {
+      "by": "ai",
+      "out": "c3282b6c593bdfafeb484261f96c6210d362192aa11d451d4d7c8879e5a5af7b",
+      "src": "9480f51ff479408970f98e38bc702e3ebb4171eaa357f7f453162f42a609b882"
+    },
+    "admin.agentSetupCounts.kind.all": {
+      "by": "ai",
+      "out": "bd02b9a7d71dac67a21b2758f11975bc491cc834c22edd9fa598fed97405aaa9",
+      "src": "da2e5dc515b188dcac1afa88c93f859834ad57dfd921581172c9a74ab190e9f1"
+    },
+    "admin.agentSetupCounts.kind.install": {
+      "by": "ai",
+      "out": "68e1c78431b6bfc533c2ad7b9143d4edd0f41abf3caae033e3a4ccb29d255146",
+      "src": "a56462f6da3581e5b6d1952e7e8012a062a85fa6bfa62c879982e786bf44d761"
+    },
+    "admin.agentSetupCounts.kind.partner": {
+      "by": "ai",
+      "out": "5dab502bfba3c3dfc2c9308a9f5cd3cfccf959852af05b2a430ebd9c12b95b90",
+      "src": "5dab502bfba3c3dfc2c9308a9f5cd3cfccf959852af05b2a430ebd9c12b95b90"
+    },
+    "admin.agentSetupCounts.kind.workspace": {
+      "by": "ai",
+      "out": "d5b7a59a7133a066e894eb8768c29ce5eb9b48592cb06fb2e40f788c82a54731",
+      "src": "1e4ef0ed2a5689f33b2754a4dd1bccaeb359447fe9f79920a2a44443a37f92d2"
+    },
+    "admin.agentSetupCounts.kindLabel": {
+      "by": "ai",
+      "out": "aa952cf4a386fd0b0b2d28db8f4fdc0a826355b369dff9d02af89b999238fd21",
+      "src": "c17b94b8c9394d40151ba4078f384f0bfe77936d258bc2029bd8b857685cd3f1"
+    },
+    "admin.agentSetupCounts.made": {
+      "by": "ai",
+      "out": "696a1546f66950574f6852ae17ce812b408305b06e3607440e870f2225ab644b",
+      "src": "2467c575aff4670ac4edef30f96a9cb02b165adeaa2706c7c4f98c0d9501a807"
+    },
+    "admin.agentSetupCounts.noClient": {
+      "by": "ai",
+      "out": "36f8615ff57b80fc07c4b513f90f123b8b189130b4ce3192e558d05bafca4432",
+      "src": "185492b8c19e522acfb64d3c22ce820d0e7ce4236510303cf239cee49007f452"
+    },
+    "admin.agentSetupCounts.share": {
+      "by": "ai",
+      "out": "2d4c5a6fad9a645636ec8f25f274060b5b085a757d0d5e4da488f176fef3afb7",
+      "src": "29887a5ff9846ccc23327565a07e17fa6dcaea6211f1898ae825f84ae38f4223"
+    },
+    "admin.agentSetupCounts.title": {
+      "by": "ai",
+      "out": "749161b55a84ebf0b5f68716235fc1f2b30d362d9061c256544e51e538430a91",
+      "src": "56aa1cf4e24f67f36768c71f9de66d7974302d6010a0b71544b24ff9409f9397"
+    },
+    "admin.agentSetupCounts.total": {
+      "by": "ai",
+      "out": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8",
+      "src": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8"
+    },
     "admin.api.confirmPasskey": {
       "by": "ai",
       "out": "955d42c2a1a5791e2da51b8ca18f644e4affda05df5a5f0f0f495403b384a929",
@@ -42234,8 +42479,8 @@
     },
     "admin.bills.signupRules.field.codesPerAddressHour.help": {
       "by": "ai",
-      "out": "adca7863ccddb85a50ea6d0b72b9d65eff18c5ebc58184435d38ba2a676dc33d",
-      "src": "8a00da2ce07d0b4872a8692c9fdc1180c542e122e6bbba3627feda47d4cf51bc"
+      "out": "8f50277a911d2141e465ced1900d206e0b9c5b5855ae04f361917a88429304d6",
+      "src": "c2485ba650a5d40006b4116f2647f000f0ebb080717dc275c85403755b863c6b"
     },
     "admin.bills.signupRules.field.codesPerInstallHour": {
       "by": "ai",
@@ -42259,8 +42504,8 @@
     },
     "admin.bills.signupRules.field.signupsPerIpDay": {
       "by": "ai",
-      "out": "ba669009b07b6ce612c4fcf06e033d2bc6f94c978adc040f6dca6628035d0098",
-      "src": "aeb6a179032d015bacd3a60a6dc9672f3b1231c0e27ac3096ebf02fbf7dc422f"
+      "out": "7413581d73f365e0fb945f37f12b2f5199620d113d39858e51e061abd61a83fa",
+      "src": "81fa08931dd471a06805a8356335b2ceb2d81b0df8620bdbb182ce50894711f7"
     },
     "admin.bills.signupRules.field.signupsPerIpDay.help": {
       "by": "ai",
@@ -42269,13 +42514,13 @@
     },
     "admin.bills.signupRules.field.signupsPerIpHour": {
       "by": "ai",
-      "out": "5d61a8bf3773521baab44027c4d117accc4137da3aa0e7c5d7e4a5c098f62243",
-      "src": "f7c524e1151312a141499076a85c7c61525821f61d0c1c4ac41c72071f13125a"
+      "out": "9cc82f9bd5590520286e5e35d9c5f7b80a35bf4ddf5aa652ea1d987b8b78c877",
+      "src": "b4b4714f1791eceec65d9d806dbf4a049dd56067bd7f789cdcdf5658511888ea"
     },
     "admin.bills.signupRules.field.signupsPerIpHour.help": {
       "by": "ai",
-      "out": "30db653de0f5fba9ec16c59aa20fb526ac241ce194d9b9605ee3ddfc4285949a",
-      "src": "cb0d6fd8bb1e00995442ee5fdb4ac99e9e45c292f3ec1081b90cdb3339234237"
+      "out": "186473700518bd1c722e83f3b80725a575f0701163ffd130fd321df512e6c751",
+      "src": "1bed48299a912d8ff05a1846ef745d00be098a03ea0e907be67b01a86ba29343"
     },
     "admin.bills.signupRules.field.trialNumbersPerWorkspace": {
       "by": "ai",
@@ -48322,6 +48567,11 @@
       "out": "475cba12c4ec098391d4e6b62d63fd078602af7906adbc2acf54813d0b2246f3",
       "src": "1fd8ffbacd28e5be339de20842ff3a08a13093d97a9a7f9aa70462e1acb185d6"
     },
+    "auth.code.resendInMin": {
+      "by": "ai",
+      "out": "c62f0d5d8c90ad8146f596f635130305b3eb16f7a328f973279c98d811a85263",
+      "src": "110e98f9ed6c38569cd216655e0f671d07fcf35d6697fff37372dd6b149232e8"
+    },
     "auth.code.resendReady": {
       "by": "ai",
       "out": "b6e816bc2e0561160e862736926504e461c590e87e7fce03bfc90320913aef25",
@@ -48346,6 +48596,11 @@
       "by": "ai",
       "out": "4796051ca9caec48577254e4b3c3e62b3ce59fd0b950c397caf897e8b597867f",
       "src": "18ae1317eb9bcf5820bc7698baeb7281ae6004c8b5862b9f386339696337a122"
+    },
+    "auth.code.waitMin": {
+      "by": "ai",
+      "out": "eb48cc8d68a80aa754a77a65c4c6af94a250d00567e179af8988f17c63b6adf0",
+      "src": "a55b9e6ca29b2228b5486984ebabc59ab9458abea72e1347514cf664d6d29b48"
     },
     "auth.confirm.code": {
       "by": "ai",
@@ -49187,6 +49442,11 @@
       "out": "b68fbe612b6457201e29f07ebd18de1fcc093276f34b72b55b1c304f91269fdf",
       "src": "0c6a0daf7e13bc5fd74ad43252f52d9253e93e9c6e5594783caf52f7e99a2bc8"
     },
+    "auth.signup.refused.busyFor": {
+      "by": "ai",
+      "out": "e0896a9eea97df977da443a00c89228cf1ad20d0d0831c7714231f470353c71a",
+      "src": "9ac57374b25db32b23a97609cf2d3a8be135804c91cc03c67cfeccafe9331b81"
+    },
     "auth.signup.refused.tooMany": {
       "by": "ai",
       "out": "3e91376b5ecbb600ef306ba5036dac1db9918747aee1a11027cc57dbe579e5d8",
@@ -49226,6 +49486,11 @@
       "by": "ai",
       "out": "18ab5ce5fc3a86eed7cbede393315a01f66fffbaa64a8d66f7cc535e40effd3d",
       "src": "27a0d553bf2983ca2599f8986b0f7783cd81283097d8cc5854fb81aefd977383"
+    },
+    "auth.signup.waitHaveAccount": {
+      "by": "ai",
+      "out": "6249ab55fde5d35a0773140bffaf594296389a4a50b14b4f2313a693ca0ad8f4",
+      "src": "b6d374374e27f13eac7884e8245c86d0454177a780d85953eaf9ee01a0669900"
     },
     "auth.signup.yourName": {
       "by": "ai",
@@ -52219,13 +52484,13 @@
     },
     "email.adminAlert.signupRules.field.signupsPerIpDay": {
       "by": "ai",
-      "out": "ba669009b07b6ce612c4fcf06e033d2bc6f94c978adc040f6dca6628035d0098",
-      "src": "aeb6a179032d015bacd3a60a6dc9672f3b1231c0e27ac3096ebf02fbf7dc422f"
+      "out": "7413581d73f365e0fb945f37f12b2f5199620d113d39858e51e061abd61a83fa",
+      "src": "81fa08931dd471a06805a8356335b2ceb2d81b0df8620bdbb182ce50894711f7"
     },
     "email.adminAlert.signupRules.field.signupsPerIpHour": {
       "by": "ai",
-      "out": "5d61a8bf3773521baab44027c4d117accc4137da3aa0e7c5d7e4a5c098f62243",
-      "src": "f7c524e1151312a141499076a85c7c61525821f61d0c1c4ac41c72071f13125a"
+      "out": "9cc82f9bd5590520286e5e35d9c5f7b80a35bf4ddf5aa652ea1d987b8b78c877",
+      "src": "b4b4714f1791eceec65d9d806dbf4a049dd56067bd7f789cdcdf5658511888ea"
     },
     "email.adminAlert.signupRules.field.trialNumbersPerWorkspace": {
       "by": "ai",
@@ -57454,13 +57719,48 @@
     },
     "onboarding.agentSetup.start.chatgpt.add": {
       "by": "ai",
-      "out": "45d6af67061a40ac70f3fc879b80d684ca39cde5fdf56c0f761a8e5c0879ff6a",
-      "src": "877a3bb00ea2454461123c1b6273912eb8673f7dbecc71c370edab118956e374"
+      "out": "59cf70b1fa62aa1d73926c6d6f567da0c0a3291e1949afd3c9d1926b4c274df6",
+      "src": "70460fd5b366690802fb6af24eccdc7949694fccfa6e2a5fc1c72090f6200e13"
     },
     "onboarding.agentSetup.start.chatgpt.chat": {
       "by": "ai",
-      "out": "e46d4ad45b5079fc8e371a24b0f4800cf21380b74916137abaea2f4d9d57c876",
-      "src": "ecad0ced52159c282674b6be7aa400ea4576437a57ebdfd7d07cddadb60b0837"
+      "out": "d3110efbeec68520a7de8fe7217c2a4b1ba470112a5d0e579c7a0bd5ba5ad5fd",
+      "src": "e6b1e9549291ef1644b589141a3653cc219e3a1b85444df0f3eae5fa69f8b4b1"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.auth": {
+      "by": "ai",
+      "out": "ec4bc93a273199c6b8921364b26ebdcc3263e8cf7194525f0ff4b76f1a5f2915",
+      "src": "66880d2d8216260d201917a72eb245440ef18ba9b54c070ee39aa4c343ae126f"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.check": {
+      "by": "ai",
+      "out": "2fd018ea1e61bb4d760b4af5a01d60391680205defec9f45638edbf89b9563fc",
+      "src": "f0c44ab8fea2b22c896433cb940ec96a2cbb779326fc02bf9dc0f67b393b1cea"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.name": {
+      "by": "ai",
+      "out": "562bb15757a8b593d6fdc812b0767c0e198bf7d8e19157933110de09c9db9012",
+      "src": "dcd1d5223f73b3a965c07e3ff5dbee3eedcfedb806686a05b9b3868a2c3d6d50"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.noAuth": {
+      "by": "ai",
+      "out": "1da62dc32aac629e7340bbccc15b4af6a51ca29b35293d1a69a4a5e435819931",
+      "src": "cf205c33359a82fcbac1dff901d9022413fa5b9c21745ba387e09454c65c9737"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.submit": {
+      "by": "ai",
+      "out": "78507a6c6eae74e7dd7672eaacfc4eced1407937e4b17d97b15175c37f2efdc0",
+      "src": "ef3c609ebfda37bc65f50971355af1c92ff8b14a924ef6323670dba0fff44c6d"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.title": {
+      "by": "ai",
+      "out": "0a2355849bd9585078e1661cd756c0775d722db403882bc46c91708246eaffad",
+      "src": "aea6b84741505f54848d704e0382d4e692d56304cecfc7d4177cfd7595eb67a3"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.url": {
+      "by": "ai",
+      "out": "1898cffa705ac0b015c582e7bde8d8beb907587c33b8d1f9f4f73b146b535abc",
+      "src": "22f5ebc3ad3ff7638885810bfd9485a3d1b536966124cae45727d4181760f9ba"
     },
     "onboarding.agentSetup.start.chatgpt.openSettings": {
       "by": "ai",
@@ -57469,13 +57769,13 @@
     },
     "onboarding.agentSetup.start.chatgpt.settings": {
       "by": "ai",
-      "out": "334a15238de6629f84046156c333f2e8cd0344b2919e42c48fa8e170f85f9371",
-      "src": "c5e5552bd29526f8c081f1618b21c516f1cd2e0b564c77d926318cc0d4653935"
+      "out": "77ec42966f714f282da6c05f5ed80e332d607d966489f8aec2cdd190fa481d17",
+      "src": "6e43fb7ea649609b2bb54653e02c7236108938f12222fa913fab4e53767cb151"
     },
     "onboarding.agentSetup.start.claude.add": {
       "by": "ai",
-      "out": "178d3dc9c7a05a8b7b6e03e2f88c9d05a25f8cfc70f1a3120b0a164a7f07c339",
-      "src": "8347ce4fe5da9d95987f908f7e527086de781c089e80b8662bc78682963e6e7d"
+      "out": "9858b2c716e890f6efbe7b4c4ed82318e039f97bb6ca957acc0da85ec1d500c7",
+      "src": "87393cbb8c3257d140ce442307af6c71471fbd1f1b8458499a9dd5fb25f5e2ce"
     },
     "onboarding.agentSetup.start.claude.chat": {
       "by": "ai",
@@ -67427,15 +67727,55 @@
       "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
       "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
     },
+    "settings.integrations.mcp.chatgptFill": {
+      "by": "ai",
+      "out": "59cf70b1fa62aa1d73926c6d6f567da0c0a3291e1949afd3c9d1926b4c274df6",
+      "src": "70460fd5b366690802fb6af24eccdc7949694fccfa6e2a5fc1c72090f6200e13"
+    },
+    "settings.integrations.mcp.chatgptForm.auth": {
+      "by": "ai",
+      "out": "ec4bc93a273199c6b8921364b26ebdcc3263e8cf7194525f0ff4b76f1a5f2915",
+      "src": "66880d2d8216260d201917a72eb245440ef18ba9b54c070ee39aa4c343ae126f"
+    },
+    "settings.integrations.mcp.chatgptForm.check": {
+      "by": "ai",
+      "out": "2fd018ea1e61bb4d760b4af5a01d60391680205defec9f45638edbf89b9563fc",
+      "src": "f0c44ab8fea2b22c896433cb940ec96a2cbb779326fc02bf9dc0f67b393b1cea"
+    },
+    "settings.integrations.mcp.chatgptForm.name": {
+      "by": "ai",
+      "out": "562bb15757a8b593d6fdc812b0767c0e198bf7d8e19157933110de09c9db9012",
+      "src": "dcd1d5223f73b3a965c07e3ff5dbee3eedcfedb806686a05b9b3868a2c3d6d50"
+    },
+    "settings.integrations.mcp.chatgptForm.oauth": {
+      "by": "ai",
+      "out": "27f8943c6eba9818cd7c216ef06851bf832cf6fe9c0240fa32cb152a484b011f",
+      "src": "27f8943c6eba9818cd7c216ef06851bf832cf6fe9c0240fa32cb152a484b011f"
+    },
+    "settings.integrations.mcp.chatgptForm.submit": {
+      "by": "ai",
+      "out": "78507a6c6eae74e7dd7672eaacfc4eced1407937e4b17d97b15175c37f2efdc0",
+      "src": "ef3c609ebfda37bc65f50971355af1c92ff8b14a924ef6323670dba0fff44c6d"
+    },
+    "settings.integrations.mcp.chatgptForm.title": {
+      "by": "ai",
+      "out": "0a2355849bd9585078e1661cd756c0775d722db403882bc46c91708246eaffad",
+      "src": "aea6b84741505f54848d704e0382d4e692d56304cecfc7d4177cfd7595eb67a3"
+    },
+    "settings.integrations.mcp.chatgptForm.url": {
+      "by": "ai",
+      "out": "1898cffa705ac0b015c582e7bde8d8beb907587c33b8d1f9f4f73b146b535abc",
+      "src": "22f5ebc3ad3ff7638885810bfd9485a3d1b536966124cae45727d4181760f9ba"
+    },
     "settings.integrations.mcp.chatgptStep1": {
       "by": "ai",
-      "out": "86957af0acc183a5c900b07a17576585ff76c9112fd8b22bd182e58e13943518",
-      "src": "6a3dda5bff793d3d6deeaadf7a679cb83bd585ad64bdb23e93b1e11ef6f349a6"
+      "out": "858e65afa5649d91a9bd191effb12d6c94114009877f90644753dd498420a0b1",
+      "src": "9ae841c3b482b1da3841a4e16296a3a432bcc5247bce7c8e6ef34c291c496648"
     },
     "settings.integrations.mcp.chatgptStep3": {
       "by": "ai",
-      "out": "51037c3832a5578970c38a209a9d79479ebe0038053fd00ada600f86f640f1c0",
-      "src": "147e66bd7099d35e3f30baab51cb36a2ae812bba40c4fbc16a43d8cf3d3bb6e7"
+      "out": "3ca488a8ff4e6c0bd04046e830a98dcf606dbf9c2bfcfcf2de96fd84ce92c8fc",
+      "src": "6c17d51c690369bfc999446886dce080227c7c9433e0fdf0fda82c3cae0b7a37"
     },
     "settings.integrations.mcp.claude": {
       "by": "ai",
@@ -76749,6 +77089,81 @@
       "out": "16088d5542db07a25576a66429741a0003788ea310b38ad9087703d4b6fd00d2",
       "src": "b126a480e559a902fdd95bd8b0ea0aebc4890509f153b0c97f7d1f262d137248"
     },
+    "admin.agentSetupCounts.client": {
+      "by": "ai",
+      "out": "489ce7038bb08ce194b0718ba28eadf683e4df3c1bee3a51e114e7c037f7d95e",
+      "src": "92c7d7f84c3ecbd938435ccfc4081fd21bd4be849059cec8359c3c732b60447a"
+    },
+    "admin.agentSetupCounts.connected": {
+      "by": "ai",
+      "out": "968cff990fbf11fd97d4fb1f506b2efcfadb86dadd36f39df15c18b9f23adc87",
+      "src": "22965568d22a14ee17af055d2870b50afcfe9fd94a83eec3196e266932297bb2"
+    },
+    "admin.agentSetupCounts.description": {
+      "by": "ai",
+      "out": "90abed9492f67b49d7351b8e23877af2fb843c7d8cb2c1823824dc6a4feaaa87",
+      "src": "352409145cce373bcf07933e117e04c52bb2017ae045bd95e558ccbc11d2871e"
+    },
+    "admin.agentSetupCounts.empty": {
+      "by": "ai",
+      "out": "c0a2441d3b7dde770a93f2e1d62d4e7cf7a048675edf093458e4626a061a6330",
+      "src": "a2133063663127206ed7ef340b0f059048d07c56f7a174f7ad74c3e953c09c0b"
+    },
+    "admin.agentSetupCounts.help": {
+      "by": "ai",
+      "out": "585dc7e493fa10d83208d2f906679f75110f5c62910f15c465a68f5b86a377fa",
+      "src": "9480f51ff479408970f98e38bc702e3ebb4171eaa357f7f453162f42a609b882"
+    },
+    "admin.agentSetupCounts.kind.all": {
+      "by": "ai",
+      "out": "579a8582f8de6a59814523f74fd42fae06dc0c456f482ea84668137cd7711c7a",
+      "src": "da2e5dc515b188dcac1afa88c93f859834ad57dfd921581172c9a74ab190e9f1"
+    },
+    "admin.agentSetupCounts.kind.install": {
+      "by": "ai",
+      "out": "c55155f387a1551ee7bcd9cd394f5465c9f97faf899606aeafe16ebd739b99bb",
+      "src": "a56462f6da3581e5b6d1952e7e8012a062a85fa6bfa62c879982e786bf44d761"
+    },
+    "admin.agentSetupCounts.kind.partner": {
+      "by": "ai",
+      "out": "931e76b8df73793557baa6d5b2a4ca4a5e5a679a269647f411b6ca251cd89be2",
+      "src": "5dab502bfba3c3dfc2c9308a9f5cd3cfccf959852af05b2a430ebd9c12b95b90"
+    },
+    "admin.agentSetupCounts.kind.workspace": {
+      "by": "ai",
+      "out": "53ea4f4f085e0d18ddd9c300070f3271618eb0132f9f9cf65419bfb847bf5c69",
+      "src": "1e4ef0ed2a5689f33b2754a4dd1bccaeb359447fe9f79920a2a44443a37f92d2"
+    },
+    "admin.agentSetupCounts.kindLabel": {
+      "by": "ai",
+      "out": "e770ad5796a180bbf53901dadc690ccbed0520f66cc373b9ebe6db6c7f705752",
+      "src": "c17b94b8c9394d40151ba4078f384f0bfe77936d258bc2029bd8b857685cd3f1"
+    },
+    "admin.agentSetupCounts.made": {
+      "by": "ai",
+      "out": "f32f8bfac2bf2bc7ab481e2772ae9a284bb5f224d4f9867d57932a55a9fb5ffe",
+      "src": "2467c575aff4670ac4edef30f96a9cb02b165adeaa2706c7c4f98c0d9501a807"
+    },
+    "admin.agentSetupCounts.noClient": {
+      "by": "ai",
+      "out": "3491948980e7a5519c25d8f50bf36f1540d934b073759f2b3bf197532fc07134",
+      "src": "185492b8c19e522acfb64d3c22ce820d0e7ce4236510303cf239cee49007f452"
+    },
+    "admin.agentSetupCounts.share": {
+      "by": "ai",
+      "out": "8570a2e1669ff057c9f9f64098c35346c82a82b5492982c6a347a36b1eb39f65",
+      "src": "29887a5ff9846ccc23327565a07e17fa6dcaea6211f1898ae825f84ae38f4223"
+    },
+    "admin.agentSetupCounts.title": {
+      "by": "ai",
+      "out": "410b47ba73c91847ff2f8ebf19a379980a30879fd070a5650dacfb49413f797c",
+      "src": "56aa1cf4e24f67f36768c71f9de66d7974302d6010a0b71544b24ff9409f9397"
+    },
+    "admin.agentSetupCounts.total": {
+      "by": "ai",
+      "out": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8",
+      "src": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8"
+    },
     "admin.api.confirmPasskey": {
       "by": "ai",
       "out": "326e646f36c5694e18d0163bab300d1efcb70cfa693cd02e706218c7001cc92c",
@@ -79641,8 +80056,8 @@
     },
     "admin.bills.signupRules.field.codesPerAddressHour.help": {
       "by": "ai",
-      "out": "5ad9d363ab8c5e70bfddf3e052c7d36db2a54fb739b7f881ae1d536eec58df87",
-      "src": "8a00da2ce07d0b4872a8692c9fdc1180c542e122e6bbba3627feda47d4cf51bc"
+      "out": "4a186bb41be3b6ba5c4cba2d59333fb8067c2f10bd1fcceca3b66aadeb6e850d",
+      "src": "c2485ba650a5d40006b4116f2647f000f0ebb080717dc275c85403755b863c6b"
     },
     "admin.bills.signupRules.field.codesPerInstallHour": {
       "by": "ai",
@@ -79666,8 +80081,8 @@
     },
     "admin.bills.signupRules.field.signupsPerIpDay": {
       "by": "ai",
-      "out": "31bc518197256718d4a3facde5fa5778efb5508bd0e819b2fcb84a681b2e817b",
-      "src": "aeb6a179032d015bacd3a60a6dc9672f3b1231c0e27ac3096ebf02fbf7dc422f"
+      "out": "858b1723571d145606acba65b58d62b40aa57528157837dd329abf9eee06a4b9",
+      "src": "81fa08931dd471a06805a8356335b2ceb2d81b0df8620bdbb182ce50894711f7"
     },
     "admin.bills.signupRules.field.signupsPerIpDay.help": {
       "by": "ai",
@@ -79676,13 +80091,13 @@
     },
     "admin.bills.signupRules.field.signupsPerIpHour": {
       "by": "ai",
-      "out": "26e081033431bd7f58c12c10ddc551e152f7abf0208e9035c549013d9c91abd8",
-      "src": "f7c524e1151312a141499076a85c7c61525821f61d0c1c4ac41c72071f13125a"
+      "out": "d1a7a12d95ee643c6ee6251298536b4b0236940d0c506b0a9987facbef892044",
+      "src": "b4b4714f1791eceec65d9d806dbf4a049dd56067bd7f789cdcdf5658511888ea"
     },
     "admin.bills.signupRules.field.signupsPerIpHour.help": {
       "by": "ai",
-      "out": "a63eaae85dadf04891283a94f907c847c6a5a58c3e0d46888443a712204530cc",
-      "src": "cb0d6fd8bb1e00995442ee5fdb4ac99e9e45c292f3ec1081b90cdb3339234237"
+      "out": "ac962e66fabf9f1fe99b1d91c696e67360dc59d5a4748a5675e5e8183fe48908",
+      "src": "1bed48299a912d8ff05a1846ef745d00be098a03ea0e907be67b01a86ba29343"
     },
     "admin.bills.signupRules.field.trialNumbersPerWorkspace": {
       "by": "ai",
@@ -85729,6 +86144,11 @@
       "out": "2b7cca9234050abe83b2a6a6d8a1ab25198f7073ede99bb96b047cc065ccd592",
       "src": "1fd8ffbacd28e5be339de20842ff3a08a13093d97a9a7f9aa70462e1acb185d6"
     },
+    "auth.code.resendInMin": {
+      "by": "ai",
+      "out": "ab8f7743668f3aabd42b397171c03dab739ecdc1f3d75110cb4207bc0583c427",
+      "src": "110e98f9ed6c38569cd216655e0f671d07fcf35d6697fff37372dd6b149232e8"
+    },
     "auth.code.resendReady": {
       "by": "ai",
       "out": "4ced623d15931551bfe4e949832072963bfb678050317e09bb14279577cc996e",
@@ -85753,6 +86173,11 @@
       "by": "ai",
       "out": "aa7f750d17ee41de1d33eae71e8b17ef3d19516548cb0e9904ca52355f9072e4",
       "src": "18ae1317eb9bcf5820bc7698baeb7281ae6004c8b5862b9f386339696337a122"
+    },
+    "auth.code.waitMin": {
+      "by": "ai",
+      "out": "f955ad5f24fc0a25c86d98708c8ef395c8f78a5abad06a58a0c370202f9c7fca",
+      "src": "a55b9e6ca29b2228b5486984ebabc59ab9458abea72e1347514cf664d6d29b48"
     },
     "auth.confirm.code": {
       "by": "ai",
@@ -86594,6 +87019,11 @@
       "out": "5b1e6b6df00d6b37328102b34104269b9003d816d9a76fa8f3b61d457a135f33",
       "src": "0c6a0daf7e13bc5fd74ad43252f52d9253e93e9c6e5594783caf52f7e99a2bc8"
     },
+    "auth.signup.refused.busyFor": {
+      "by": "ai",
+      "out": "f897b810217923d7f3acb7aaa9c8378086bbcdcbf4d09f80b36077a836e962cf",
+      "src": "9ac57374b25db32b23a97609cf2d3a8be135804c91cc03c67cfeccafe9331b81"
+    },
     "auth.signup.refused.tooMany": {
       "by": "ai",
       "out": "deb029c5ff2296b35000fe9134b77f0b3a37e65fdeff5bdf9a08acace00d805f",
@@ -86633,6 +87063,11 @@
       "by": "ai",
       "out": "716349fd5b9355eb99a4c73f2fabbd360a9af30a2ff5f788d4d24f11c3e8e53d",
       "src": "27a0d553bf2983ca2599f8986b0f7783cd81283097d8cc5854fb81aefd977383"
+    },
+    "auth.signup.waitHaveAccount": {
+      "by": "ai",
+      "out": "5f006eb880643ca8ec51ec24546945a9c1ebe01eebb6ec41526c40acb63fd302",
+      "src": "b6d374374e27f13eac7884e8245c86d0454177a780d85953eaf9ee01a0669900"
     },
     "auth.signup.yourName": {
       "by": "ai",
@@ -89626,13 +90061,13 @@
     },
     "email.adminAlert.signupRules.field.signupsPerIpDay": {
       "by": "ai",
-      "out": "31bc518197256718d4a3facde5fa5778efb5508bd0e819b2fcb84a681b2e817b",
-      "src": "aeb6a179032d015bacd3a60a6dc9672f3b1231c0e27ac3096ebf02fbf7dc422f"
+      "out": "858b1723571d145606acba65b58d62b40aa57528157837dd329abf9eee06a4b9",
+      "src": "81fa08931dd471a06805a8356335b2ceb2d81b0df8620bdbb182ce50894711f7"
     },
     "email.adminAlert.signupRules.field.signupsPerIpHour": {
       "by": "ai",
-      "out": "26e081033431bd7f58c12c10ddc551e152f7abf0208e9035c549013d9c91abd8",
-      "src": "f7c524e1151312a141499076a85c7c61525821f61d0c1c4ac41c72071f13125a"
+      "out": "d1a7a12d95ee643c6ee6251298536b4b0236940d0c506b0a9987facbef892044",
+      "src": "b4b4714f1791eceec65d9d806dbf4a049dd56067bd7f789cdcdf5658511888ea"
     },
     "email.adminAlert.signupRules.field.trialNumbersPerWorkspace": {
       "by": "ai",
@@ -94861,13 +95296,48 @@
     },
     "onboarding.agentSetup.start.chatgpt.add": {
       "by": "ai",
-      "out": "e7a1ff4fa471337ace289b91aa20f33d59aac40f7935c8cf5584aefc50cea201",
-      "src": "877a3bb00ea2454461123c1b6273912eb8673f7dbecc71c370edab118956e374"
+      "out": "128d9b28d5719b67bd821efdc0d61ba18abaf9992bf4b6715df3ab9df1c224fc",
+      "src": "70460fd5b366690802fb6af24eccdc7949694fccfa6e2a5fc1c72090f6200e13"
     },
     "onboarding.agentSetup.start.chatgpt.chat": {
       "by": "ai",
-      "out": "cc438a28d2a9a6969ad22eba7257fa9f4fb7ed563c74fae6034f36172e42e9a3",
-      "src": "ecad0ced52159c282674b6be7aa400ea4576437a57ebdfd7d07cddadb60b0837"
+      "out": "b2be4d916af385cca875c8540fc86fa8a61374b8c76a232a0687677cba00dca3",
+      "src": "e6b1e9549291ef1644b589141a3653cc219e3a1b85444df0f3eae5fa69f8b4b1"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.auth": {
+      "by": "ai",
+      "out": "e69f85a59a9e2149aaf51580053fe7564ac549d66a2312c8348d7af4a6e3abc2",
+      "src": "66880d2d8216260d201917a72eb245440ef18ba9b54c070ee39aa4c343ae126f"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.check": {
+      "by": "ai",
+      "out": "8f56827636b5f3fb511d1b9d99f23d700556df9be4b6913d9a55b9621a400936",
+      "src": "f0c44ab8fea2b22c896433cb940ec96a2cbb779326fc02bf9dc0f67b393b1cea"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.name": {
+      "by": "ai",
+      "out": "b2c124536d218059c091750c0a8e7d30b55563164f478147fa4cafdf549545d8",
+      "src": "dcd1d5223f73b3a965c07e3ff5dbee3eedcfedb806686a05b9b3868a2c3d6d50"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.noAuth": {
+      "by": "ai",
+      "out": "257bbeceae3b803fc66ff038b130c4550b25b236f3441fb20349357c052c1b66",
+      "src": "cf205c33359a82fcbac1dff901d9022413fa5b9c21745ba387e09454c65c9737"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.submit": {
+      "by": "ai",
+      "out": "16338f046c7d1cbe5b09d45f7cb2f192215b4bc8a6ef9b7457e14391d50fdb4c",
+      "src": "ef3c609ebfda37bc65f50971355af1c92ff8b14a924ef6323670dba0fff44c6d"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.title": {
+      "by": "ai",
+      "out": "54a61b63060fe1db36b691d10456f609bcbfd582cefd6970fd78f76e4ccafa17",
+      "src": "aea6b84741505f54848d704e0382d4e692d56304cecfc7d4177cfd7595eb67a3"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.url": {
+      "by": "ai",
+      "out": "82f8beecef765991442b59a95307c84cfdfa48d59405de8ec0cb9825cd987bf0",
+      "src": "22f5ebc3ad3ff7638885810bfd9485a3d1b536966124cae45727d4181760f9ba"
     },
     "onboarding.agentSetup.start.chatgpt.openSettings": {
       "by": "ai",
@@ -94876,13 +95346,13 @@
     },
     "onboarding.agentSetup.start.chatgpt.settings": {
       "by": "ai",
-      "out": "392da32c1900afd3d2b52633a7b661fa04cbb62f13d269cfbe24085857fbc508",
-      "src": "c5e5552bd29526f8c081f1618b21c516f1cd2e0b564c77d926318cc0d4653935"
+      "out": "178ba4cb7a1f6da6d42a9ac0c184ff7911471f210c066e1b7ad8ac21cad9f203",
+      "src": "6e43fb7ea649609b2bb54653e02c7236108938f12222fa913fab4e53767cb151"
     },
     "onboarding.agentSetup.start.claude.add": {
       "by": "ai",
-      "out": "74d45c73d32b73fbbb89ecc66979167a8fdbd950532bec654f712099631d24ec",
-      "src": "8347ce4fe5da9d95987f908f7e527086de781c089e80b8662bc78682963e6e7d"
+      "out": "a1870d35eefc468bc130cc4a74f1d4f4b3661db24826110e8c975bdf26603caf",
+      "src": "87393cbb8c3257d140ce442307af6c71471fbd1f1b8458499a9dd5fb25f5e2ce"
     },
     "onboarding.agentSetup.start.claude.chat": {
       "by": "ai",
@@ -104834,15 +105304,55 @@
       "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
       "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
     },
+    "settings.integrations.mcp.chatgptFill": {
+      "by": "ai",
+      "out": "128d9b28d5719b67bd821efdc0d61ba18abaf9992bf4b6715df3ab9df1c224fc",
+      "src": "70460fd5b366690802fb6af24eccdc7949694fccfa6e2a5fc1c72090f6200e13"
+    },
+    "settings.integrations.mcp.chatgptForm.auth": {
+      "by": "ai",
+      "out": "e69f85a59a9e2149aaf51580053fe7564ac549d66a2312c8348d7af4a6e3abc2",
+      "src": "66880d2d8216260d201917a72eb245440ef18ba9b54c070ee39aa4c343ae126f"
+    },
+    "settings.integrations.mcp.chatgptForm.check": {
+      "by": "ai",
+      "out": "8f56827636b5f3fb511d1b9d99f23d700556df9be4b6913d9a55b9621a400936",
+      "src": "f0c44ab8fea2b22c896433cb940ec96a2cbb779326fc02bf9dc0f67b393b1cea"
+    },
+    "settings.integrations.mcp.chatgptForm.name": {
+      "by": "ai",
+      "out": "b2c124536d218059c091750c0a8e7d30b55563164f478147fa4cafdf549545d8",
+      "src": "dcd1d5223f73b3a965c07e3ff5dbee3eedcfedb806686a05b9b3868a2c3d6d50"
+    },
+    "settings.integrations.mcp.chatgptForm.oauth": {
+      "by": "ai",
+      "out": "27f8943c6eba9818cd7c216ef06851bf832cf6fe9c0240fa32cb152a484b011f",
+      "src": "27f8943c6eba9818cd7c216ef06851bf832cf6fe9c0240fa32cb152a484b011f"
+    },
+    "settings.integrations.mcp.chatgptForm.submit": {
+      "by": "ai",
+      "out": "16338f046c7d1cbe5b09d45f7cb2f192215b4bc8a6ef9b7457e14391d50fdb4c",
+      "src": "ef3c609ebfda37bc65f50971355af1c92ff8b14a924ef6323670dba0fff44c6d"
+    },
+    "settings.integrations.mcp.chatgptForm.title": {
+      "by": "ai",
+      "out": "54a61b63060fe1db36b691d10456f609bcbfd582cefd6970fd78f76e4ccafa17",
+      "src": "aea6b84741505f54848d704e0382d4e692d56304cecfc7d4177cfd7595eb67a3"
+    },
+    "settings.integrations.mcp.chatgptForm.url": {
+      "by": "ai",
+      "out": "82f8beecef765991442b59a95307c84cfdfa48d59405de8ec0cb9825cd987bf0",
+      "src": "22f5ebc3ad3ff7638885810bfd9485a3d1b536966124cae45727d4181760f9ba"
+    },
     "settings.integrations.mcp.chatgptStep1": {
       "by": "ai",
-      "out": "46e03118bf58cbf6d60dd23301d395cd9be4b7535427696625fa8a8cd47c2df6",
-      "src": "6a3dda5bff793d3d6deeaadf7a679cb83bd585ad64bdb23e93b1e11ef6f349a6"
+      "out": "113c869deaf3077592ce82db5ecc8a11284657b567210d1229bb28a49457f3c4",
+      "src": "9ae841c3b482b1da3841a4e16296a3a432bcc5247bce7c8e6ef34c291c496648"
     },
     "settings.integrations.mcp.chatgptStep3": {
       "by": "ai",
-      "out": "f9856ef3fa22b814daa58bb88d6d071b60f6e870aa00c95ec19990670d440a16",
-      "src": "147e66bd7099d35e3f30baab51cb36a2ae812bba40c4fbc16a43d8cf3d3bb6e7"
+      "out": "72fc9484e7b959c1056265e7a06f731bfea506687d2426f68bfee50eaee70fe4",
+      "src": "6c17d51c690369bfc999446886dce080227c7c9433e0fdf0fda82c3cae0b7a37"
     },
     "settings.integrations.mcp.claude": {
       "by": "ai",
@@ -114156,6 +114666,81 @@
       "out": "407642942d07991960f488922ed34ce6ff5d8d3773ddffa55c255ff8d9b085b8",
       "src": "b126a480e559a902fdd95bd8b0ea0aebc4890509f153b0c97f7d1f262d137248"
     },
+    "admin.agentSetupCounts.client": {
+      "by": "ai",
+      "out": "ba5858157de142a20cbf66ff9ae8c325840a72c8466f631887eb7be25f64023d",
+      "src": "92c7d7f84c3ecbd938435ccfc4081fd21bd4be849059cec8359c3c732b60447a"
+    },
+    "admin.agentSetupCounts.connected": {
+      "by": "ai",
+      "out": "5f22f0bb58682b4a9bdee8646968d2895f6911055599d5f26cd1d931e78d37ba",
+      "src": "22965568d22a14ee17af055d2870b50afcfe9fd94a83eec3196e266932297bb2"
+    },
+    "admin.agentSetupCounts.description": {
+      "by": "ai",
+      "out": "da441ed3d60bf6b3fd299360cdae7cb42d53d1d3eadd9cbeee620ce05d66c317",
+      "src": "352409145cce373bcf07933e117e04c52bb2017ae045bd95e558ccbc11d2871e"
+    },
+    "admin.agentSetupCounts.empty": {
+      "by": "ai",
+      "out": "78c4baaf37ff1f5221bd7b562ea575c5af8c56bba9e8ce8e5601188fe56e6b57",
+      "src": "a2133063663127206ed7ef340b0f059048d07c56f7a174f7ad74c3e953c09c0b"
+    },
+    "admin.agentSetupCounts.help": {
+      "by": "ai",
+      "out": "1bbd89d949361f4b2d5a800ad3dbdd205b4449b7a544c522e74aa6f82e0f69ee",
+      "src": "9480f51ff479408970f98e38bc702e3ebb4171eaa357f7f453162f42a609b882"
+    },
+    "admin.agentSetupCounts.kind.all": {
+      "by": "ai",
+      "out": "f7af6675ec30c90bea20e2a36c3e0202dc39161743d2d6aae1f0281318ec4f42",
+      "src": "da2e5dc515b188dcac1afa88c93f859834ad57dfd921581172c9a74ab190e9f1"
+    },
+    "admin.agentSetupCounts.kind.install": {
+      "by": "ai",
+      "out": "14e79cea0651c158b18f14b2954458873f038b875688029089ba1b157475c486",
+      "src": "a56462f6da3581e5b6d1952e7e8012a062a85fa6bfa62c879982e786bf44d761"
+    },
+    "admin.agentSetupCounts.kind.partner": {
+      "by": "ai",
+      "out": "a4f44df5bc0e22b95ea0c84e091cd3fdf621995611b6e95ab8dbb9225d12d2fc",
+      "src": "5dab502bfba3c3dfc2c9308a9f5cd3cfccf959852af05b2a430ebd9c12b95b90"
+    },
+    "admin.agentSetupCounts.kind.workspace": {
+      "by": "ai",
+      "out": "798ebc43d21b8977de4f5ce1812794c1f9165d5f9130f8741d4b3c9f458f0045",
+      "src": "1e4ef0ed2a5689f33b2754a4dd1bccaeb359447fe9f79920a2a44443a37f92d2"
+    },
+    "admin.agentSetupCounts.kindLabel": {
+      "by": "ai",
+      "out": "b8e1cf9f8949d8a3956aa15f742a3984fd8329284eca4bad6148bd0125d90026",
+      "src": "c17b94b8c9394d40151ba4078f384f0bfe77936d258bc2029bd8b857685cd3f1"
+    },
+    "admin.agentSetupCounts.made": {
+      "by": "ai",
+      "out": "04f5e4efc0f5a04e58b5a0a24b80b05fdd83a77467c325544f88ec298c0f4072",
+      "src": "2467c575aff4670ac4edef30f96a9cb02b165adeaa2706c7c4f98c0d9501a807"
+    },
+    "admin.agentSetupCounts.noClient": {
+      "by": "ai",
+      "out": "a28710cc667137efa51550fa2080f86bf817a30e58310b839806c491e8b1e3c3",
+      "src": "185492b8c19e522acfb64d3c22ce820d0e7ce4236510303cf239cee49007f452"
+    },
+    "admin.agentSetupCounts.share": {
+      "by": "ai",
+      "out": "56a98bd57afdeee9cc35bc559ad842f008eaa074b625e5a741871734f6f63930",
+      "src": "29887a5ff9846ccc23327565a07e17fa6dcaea6211f1898ae825f84ae38f4223"
+    },
+    "admin.agentSetupCounts.title": {
+      "by": "ai",
+      "out": "33c4538b1c833de1ecc9277ce6422f3cfea9f31777372223e1b686769e04e22a",
+      "src": "56aa1cf4e24f67f36768c71f9de66d7974302d6010a0b71544b24ff9409f9397"
+    },
+    "admin.agentSetupCounts.total": {
+      "by": "ai",
+      "out": "01fc1c55333cf931e1833a19812f1821d0a7daaf650e4a04d25707b8976ba2f5",
+      "src": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8"
+    },
     "admin.api.confirmPasskey": {
       "by": "ai",
       "out": "48e583fad272a9f1467bfa209c1fcc665961e53d162dd1ebee135ec928b267a0",
@@ -117048,8 +117633,8 @@
     },
     "admin.bills.signupRules.field.codesPerAddressHour.help": {
       "by": "ai",
-      "out": "677d31584f584f5d703beb4169e6ceec104b3f80e8e8a62b134a9c4f26652673",
-      "src": "8a00da2ce07d0b4872a8692c9fdc1180c542e122e6bbba3627feda47d4cf51bc"
+      "out": "39c1baf5b98e5edd4b2645e5e959cd5dc3e5edc24c9baa5ac6a4021bcbcd558b",
+      "src": "c2485ba650a5d40006b4116f2647f000f0ebb080717dc275c85403755b863c6b"
     },
     "admin.bills.signupRules.field.codesPerInstallHour": {
       "by": "ai",
@@ -117073,8 +117658,8 @@
     },
     "admin.bills.signupRules.field.signupsPerIpDay": {
       "by": "ai",
-      "out": "ad27a3265e0b1e1ed5e16458906cd7bd06be9827147072bb918fabc9416c9d21",
-      "src": "aeb6a179032d015bacd3a60a6dc9672f3b1231c0e27ac3096ebf02fbf7dc422f"
+      "out": "ac55779a93fb7b429e6b081ba6589144a09380c1d170f46d9099c68baba602de",
+      "src": "81fa08931dd471a06805a8356335b2ceb2d81b0df8620bdbb182ce50894711f7"
     },
     "admin.bills.signupRules.field.signupsPerIpDay.help": {
       "by": "ai",
@@ -117083,13 +117668,13 @@
     },
     "admin.bills.signupRules.field.signupsPerIpHour": {
       "by": "ai",
-      "out": "d0d592c9ce566795d67838f9098d3f01574f54a3ffb9b8ea473d311ff8256d1c",
-      "src": "f7c524e1151312a141499076a85c7c61525821f61d0c1c4ac41c72071f13125a"
+      "out": "bebabf9354b132cbfc13a6eacc49f151ba9b16673860578c69e169d5e16fb234",
+      "src": "b4b4714f1791eceec65d9d806dbf4a049dd56067bd7f789cdcdf5658511888ea"
     },
     "admin.bills.signupRules.field.signupsPerIpHour.help": {
       "by": "ai",
-      "out": "701c422e797c95f301b9617b4bb4ae0fe2220a6c3e2a536594365c9fdea067cf",
-      "src": "cb0d6fd8bb1e00995442ee5fdb4ac99e9e45c292f3ec1081b90cdb3339234237"
+      "out": "0d4cc859f4873af75c43d520b0de6ec1610d4fad094c7f610057e6fee1f09626",
+      "src": "1bed48299a912d8ff05a1846ef745d00be098a03ea0e907be67b01a86ba29343"
     },
     "admin.bills.signupRules.field.trialNumbersPerWorkspace": {
       "by": "ai",
@@ -123136,6 +123721,11 @@
       "out": "a17633148ae97fd972312a44d7446001fdb7ef7ffbf2ddcb1e1c15660dfb27d8",
       "src": "1fd8ffbacd28e5be339de20842ff3a08a13093d97a9a7f9aa70462e1acb185d6"
     },
+    "auth.code.resendInMin": {
+      "by": "ai",
+      "out": "296fb0b9762b3923814da110cc966a7f0ed5bf7a407ae33c406fc61a23d1f814",
+      "src": "110e98f9ed6c38569cd216655e0f671d07fcf35d6697fff37372dd6b149232e8"
+    },
     "auth.code.resendReady": {
       "by": "ai",
       "out": "9149a1712371220f25a1ed9de1fa32451f08778b7308042b919d7bd05f05f06e",
@@ -123160,6 +123750,11 @@
       "by": "ai",
       "out": "835448b410133c6ddee1715796ac7176fdcbd7ba3ba5b531c029e7ace1c91723",
       "src": "18ae1317eb9bcf5820bc7698baeb7281ae6004c8b5862b9f386339696337a122"
+    },
+    "auth.code.waitMin": {
+      "by": "ai",
+      "out": "467de4084e1e9bff725c701102ab90eb013948a8f57b5e3d3f881bb158f8952a",
+      "src": "a55b9e6ca29b2228b5486984ebabc59ab9458abea72e1347514cf664d6d29b48"
     },
     "auth.confirm.code": {
       "by": "ai",
@@ -124001,6 +124596,11 @@
       "out": "acf3b0a3fc0597dfa881604b9d787473475cd82daca41c6057ad6e8b31e8cc95",
       "src": "0c6a0daf7e13bc5fd74ad43252f52d9253e93e9c6e5594783caf52f7e99a2bc8"
     },
+    "auth.signup.refused.busyFor": {
+      "by": "ai",
+      "out": "e643bfc26de16d5212ccfcb5b5a85abdd9dda3a1dc134aac42ddf5396c35b7ce",
+      "src": "9ac57374b25db32b23a97609cf2d3a8be135804c91cc03c67cfeccafe9331b81"
+    },
     "auth.signup.refused.tooMany": {
       "by": "ai",
       "out": "f911def6b712c3f20092dcf86c89e6c8671da9107073eb403048d14f5b84b4b3",
@@ -124040,6 +124640,11 @@
       "by": "ai",
       "out": "35e96bdffc8107c74428d61028544bba618cafcaed4e4b1990d82d67b2292535",
       "src": "27a0d553bf2983ca2599f8986b0f7783cd81283097d8cc5854fb81aefd977383"
+    },
+    "auth.signup.waitHaveAccount": {
+      "by": "ai",
+      "out": "34301fecf89c2959da81d9ed5572befc08b11f7a2d7edf978efefb28f90cff04",
+      "src": "b6d374374e27f13eac7884e8245c86d0454177a780d85953eaf9ee01a0669900"
     },
     "auth.signup.yourName": {
       "by": "ai",
@@ -127033,13 +127638,13 @@
     },
     "email.adminAlert.signupRules.field.signupsPerIpDay": {
       "by": "ai",
-      "out": "ad27a3265e0b1e1ed5e16458906cd7bd06be9827147072bb918fabc9416c9d21",
-      "src": "aeb6a179032d015bacd3a60a6dc9672f3b1231c0e27ac3096ebf02fbf7dc422f"
+      "out": "ac55779a93fb7b429e6b081ba6589144a09380c1d170f46d9099c68baba602de",
+      "src": "81fa08931dd471a06805a8356335b2ceb2d81b0df8620bdbb182ce50894711f7"
     },
     "email.adminAlert.signupRules.field.signupsPerIpHour": {
       "by": "ai",
-      "out": "d0d592c9ce566795d67838f9098d3f01574f54a3ffb9b8ea473d311ff8256d1c",
-      "src": "f7c524e1151312a141499076a85c7c61525821f61d0c1c4ac41c72071f13125a"
+      "out": "bebabf9354b132cbfc13a6eacc49f151ba9b16673860578c69e169d5e16fb234",
+      "src": "b4b4714f1791eceec65d9d806dbf4a049dd56067bd7f789cdcdf5658511888ea"
     },
     "email.adminAlert.signupRules.field.trialNumbersPerWorkspace": {
       "by": "ai",
@@ -132268,13 +132873,48 @@
     },
     "onboarding.agentSetup.start.chatgpt.add": {
       "by": "ai",
-      "out": "9f12ae48ca43f0ca7b07849f9d48a52575d5f8c84178f2dfbffec4a88c793af1",
-      "src": "877a3bb00ea2454461123c1b6273912eb8673f7dbecc71c370edab118956e374"
+      "out": "83689455d3c42928bde6b10ad21eb4fbca46ca800b20c5c3914d2366deb5ec05",
+      "src": "70460fd5b366690802fb6af24eccdc7949694fccfa6e2a5fc1c72090f6200e13"
     },
     "onboarding.agentSetup.start.chatgpt.chat": {
       "by": "ai",
-      "out": "980cbf711ea1587300992efcc5fda5be9ea9934e8f5a3199db73921a18db05cd",
-      "src": "ecad0ced52159c282674b6be7aa400ea4576437a57ebdfd7d07cddadb60b0837"
+      "out": "90b6091e012ffac96ef4034084191eed3871f4394eeb6dfe530bd8d7e83a89a8",
+      "src": "e6b1e9549291ef1644b589141a3653cc219e3a1b85444df0f3eae5fa69f8b4b1"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.auth": {
+      "by": "ai",
+      "out": "f6bad65c512e5226ff3ec790f74c53b2097d88d3bd4a8ae1b38ea230759bd218",
+      "src": "66880d2d8216260d201917a72eb245440ef18ba9b54c070ee39aa4c343ae126f"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.check": {
+      "by": "ai",
+      "out": "c02f4b8642b5931b6712a1f1d0b0bafd7c787075be221002d41895bb28bd8fd3",
+      "src": "f0c44ab8fea2b22c896433cb940ec96a2cbb779326fc02bf9dc0f67b393b1cea"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.name": {
+      "by": "ai",
+      "out": "7ec26292414bccefa35290004928d8cf8f5e19d2bfb8b0c0322ee9e8b2854349",
+      "src": "dcd1d5223f73b3a965c07e3ff5dbee3eedcfedb806686a05b9b3868a2c3d6d50"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.noAuth": {
+      "by": "ai",
+      "out": "f492fe0d135f5d977a7b43ce3bf05c71c3e7d0a3031166552dc93f3e4b35fada",
+      "src": "cf205c33359a82fcbac1dff901d9022413fa5b9c21745ba387e09454c65c9737"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.submit": {
+      "by": "ai",
+      "out": "27f9baa17e4c58b6b99fcbccf250d1904ccafbf142e1d9707f6c73069a633fde",
+      "src": "ef3c609ebfda37bc65f50971355af1c92ff8b14a924ef6323670dba0fff44c6d"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.title": {
+      "by": "ai",
+      "out": "c3dcf07b2d1c3af1add42f4fc09a7cc03dfbc70cd8a28868c472ea4efaf6d06a",
+      "src": "aea6b84741505f54848d704e0382d4e692d56304cecfc7d4177cfd7595eb67a3"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.url": {
+      "by": "ai",
+      "out": "898c0d9b9e798a5a38702995ff43a9dd304fafdf1e0ae4d017fe79cab306e5af",
+      "src": "22f5ebc3ad3ff7638885810bfd9485a3d1b536966124cae45727d4181760f9ba"
     },
     "onboarding.agentSetup.start.chatgpt.openSettings": {
       "by": "ai",
@@ -132283,13 +132923,13 @@
     },
     "onboarding.agentSetup.start.chatgpt.settings": {
       "by": "ai",
-      "out": "8407483d75d082be08ed593dd809a64b3e6048a9de2d226149b9529bc410444e",
-      "src": "c5e5552bd29526f8c081f1618b21c516f1cd2e0b564c77d926318cc0d4653935"
+      "out": "039145fd47cd9cfea0a61aa40878a8c9c7d4d81e8b7df13851bc1010f41abbd9",
+      "src": "6e43fb7ea649609b2bb54653e02c7236108938f12222fa913fab4e53767cb151"
     },
     "onboarding.agentSetup.start.claude.add": {
       "by": "ai",
-      "out": "5670b8dd5bc209c818c184c6db1eae1fcf139154bf887ac70057ba25ab9189e3",
-      "src": "8347ce4fe5da9d95987f908f7e527086de781c089e80b8662bc78682963e6e7d"
+      "out": "b24f2b7fe6dfcf96eebd5371537fbe8ea6cf6747cd9f94b59b9520300e00614b",
+      "src": "87393cbb8c3257d140ce442307af6c71471fbd1f1b8458499a9dd5fb25f5e2ce"
     },
     "onboarding.agentSetup.start.claude.chat": {
       "by": "ai",
@@ -142241,15 +142881,55 @@
       "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
       "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
     },
+    "settings.integrations.mcp.chatgptFill": {
+      "by": "ai",
+      "out": "83689455d3c42928bde6b10ad21eb4fbca46ca800b20c5c3914d2366deb5ec05",
+      "src": "70460fd5b366690802fb6af24eccdc7949694fccfa6e2a5fc1c72090f6200e13"
+    },
+    "settings.integrations.mcp.chatgptForm.auth": {
+      "by": "ai",
+      "out": "f6bad65c512e5226ff3ec790f74c53b2097d88d3bd4a8ae1b38ea230759bd218",
+      "src": "66880d2d8216260d201917a72eb245440ef18ba9b54c070ee39aa4c343ae126f"
+    },
+    "settings.integrations.mcp.chatgptForm.check": {
+      "by": "ai",
+      "out": "c02f4b8642b5931b6712a1f1d0b0bafd7c787075be221002d41895bb28bd8fd3",
+      "src": "f0c44ab8fea2b22c896433cb940ec96a2cbb779326fc02bf9dc0f67b393b1cea"
+    },
+    "settings.integrations.mcp.chatgptForm.name": {
+      "by": "ai",
+      "out": "7ec26292414bccefa35290004928d8cf8f5e19d2bfb8b0c0322ee9e8b2854349",
+      "src": "dcd1d5223f73b3a965c07e3ff5dbee3eedcfedb806686a05b9b3868a2c3d6d50"
+    },
+    "settings.integrations.mcp.chatgptForm.oauth": {
+      "by": "ai",
+      "out": "27f8943c6eba9818cd7c216ef06851bf832cf6fe9c0240fa32cb152a484b011f",
+      "src": "27f8943c6eba9818cd7c216ef06851bf832cf6fe9c0240fa32cb152a484b011f"
+    },
+    "settings.integrations.mcp.chatgptForm.submit": {
+      "by": "ai",
+      "out": "27f9baa17e4c58b6b99fcbccf250d1904ccafbf142e1d9707f6c73069a633fde",
+      "src": "ef3c609ebfda37bc65f50971355af1c92ff8b14a924ef6323670dba0fff44c6d"
+    },
+    "settings.integrations.mcp.chatgptForm.title": {
+      "by": "ai",
+      "out": "c3dcf07b2d1c3af1add42f4fc09a7cc03dfbc70cd8a28868c472ea4efaf6d06a",
+      "src": "aea6b84741505f54848d704e0382d4e692d56304cecfc7d4177cfd7595eb67a3"
+    },
+    "settings.integrations.mcp.chatgptForm.url": {
+      "by": "ai",
+      "out": "898c0d9b9e798a5a38702995ff43a9dd304fafdf1e0ae4d017fe79cab306e5af",
+      "src": "22f5ebc3ad3ff7638885810bfd9485a3d1b536966124cae45727d4181760f9ba"
+    },
     "settings.integrations.mcp.chatgptStep1": {
       "by": "ai",
-      "out": "a1cbda05513b55fbe1e82bde473d0fb047f911068f32475241d9ff17b7865435",
-      "src": "6a3dda5bff793d3d6deeaadf7a679cb83bd585ad64bdb23e93b1e11ef6f349a6"
+      "out": "c37e41f0f75bd64565050df2223455fae04050572a2b7b23cc7710e6ff7739c1",
+      "src": "9ae841c3b482b1da3841a4e16296a3a432bcc5247bce7c8e6ef34c291c496648"
     },
     "settings.integrations.mcp.chatgptStep3": {
       "by": "ai",
-      "out": "4db1933c71fc6b22d3cb7cf2219b3b8c273f8e2ff5a4a21b0eefbb4c94038a22",
-      "src": "147e66bd7099d35e3f30baab51cb36a2ae812bba40c4fbc16a43d8cf3d3bb6e7"
+      "out": "ea23c32cbc082b54093066d5c78935f7a3c596444776ad5ef8fdcb02c38eae05",
+      "src": "6c17d51c690369bfc999446886dce080227c7c9433e0fdf0fda82c3cae0b7a37"
     },
     "settings.integrations.mcp.claude": {
       "by": "ai",
@@ -151563,6 +152243,81 @@
       "out": "77da23cbf893654e15ba8978581a51d8e839eb06598e84203ac1a7f18c7b9182",
       "src": "b126a480e559a902fdd95bd8b0ea0aebc4890509f153b0c97f7d1f262d137248"
     },
+    "admin.agentSetupCounts.client": {
+      "by": "ai",
+      "out": "c85ae866ddf10a3c0f73f0fd2debaa261aacbd6520b9f0a835d2f8477ba85f13",
+      "src": "92c7d7f84c3ecbd938435ccfc4081fd21bd4be849059cec8359c3c732b60447a"
+    },
+    "admin.agentSetupCounts.connected": {
+      "by": "ai",
+      "out": "1e1a08258a6989dc8725da02dc471c537f73956292aaa286d380fe42a972928c",
+      "src": "22965568d22a14ee17af055d2870b50afcfe9fd94a83eec3196e266932297bb2"
+    },
+    "admin.agentSetupCounts.description": {
+      "by": "ai",
+      "out": "6108c26ced92be9db4489590fa7f013600f8866bf809123b37aa8093ffdc1e73",
+      "src": "352409145cce373bcf07933e117e04c52bb2017ae045bd95e558ccbc11d2871e"
+    },
+    "admin.agentSetupCounts.empty": {
+      "by": "ai",
+      "out": "3b7d1129b01f01e094322afc22ce6b9afd9795af949fd4ed0336c9e9206636ea",
+      "src": "a2133063663127206ed7ef340b0f059048d07c56f7a174f7ad74c3e953c09c0b"
+    },
+    "admin.agentSetupCounts.help": {
+      "by": "ai",
+      "out": "a99eac22bed827ba2a7568097a86e4bf269d41abfa4a5da20ceda49cb3355060",
+      "src": "9480f51ff479408970f98e38bc702e3ebb4171eaa357f7f453162f42a609b882"
+    },
+    "admin.agentSetupCounts.kind.all": {
+      "by": "ai",
+      "out": "bd02b9a7d71dac67a21b2758f11975bc491cc834c22edd9fa598fed97405aaa9",
+      "src": "da2e5dc515b188dcac1afa88c93f859834ad57dfd921581172c9a74ab190e9f1"
+    },
+    "admin.agentSetupCounts.kind.install": {
+      "by": "ai",
+      "out": "a2886ca1bbdb478bfd7c888c8628caf9c8ecd93a621986cbab091a75df1516d9",
+      "src": "a56462f6da3581e5b6d1952e7e8012a062a85fa6bfa62c879982e786bf44d761"
+    },
+    "admin.agentSetupCounts.kind.partner": {
+      "by": "ai",
+      "out": "da316a45eb5c6fc2ac2860d5a01d498a2d4aa0785d854e916da8fb86900d7a3a",
+      "src": "5dab502bfba3c3dfc2c9308a9f5cd3cfccf959852af05b2a430ebd9c12b95b90"
+    },
+    "admin.agentSetupCounts.kind.workspace": {
+      "by": "ai",
+      "out": "84357cb26b09611c8736c1140ece73b56c50fede4ec2894b7c6e983b1338ee35",
+      "src": "1e4ef0ed2a5689f33b2754a4dd1bccaeb359447fe9f79920a2a44443a37f92d2"
+    },
+    "admin.agentSetupCounts.kindLabel": {
+      "by": "ai",
+      "out": "ea0be612ab4884ca6ee482d4006e9c7eb207bb59a8e894ad12c3e82c9e3a17cb",
+      "src": "c17b94b8c9394d40151ba4078f384f0bfe77936d258bc2029bd8b857685cd3f1"
+    },
+    "admin.agentSetupCounts.made": {
+      "by": "ai",
+      "out": "055a1431a11021b6eeeb436c86964ed74d8ecb90883684f3691d9a31e3238456",
+      "src": "2467c575aff4670ac4edef30f96a9cb02b165adeaa2706c7c4f98c0d9501a807"
+    },
+    "admin.agentSetupCounts.noClient": {
+      "by": "ai",
+      "out": "37c78a29d601960d3d97fe67cc6246aa3045f775da05ec4ee70ada16c3bceb75",
+      "src": "185492b8c19e522acfb64d3c22ce820d0e7ce4236510303cf239cee49007f452"
+    },
+    "admin.agentSetupCounts.share": {
+      "by": "ai",
+      "out": "cd3f44dc434a698098a29d519937ac5e519ca32d20490eea9ff6b96b7bb85ef4",
+      "src": "29887a5ff9846ccc23327565a07e17fa6dcaea6211f1898ae825f84ae38f4223"
+    },
+    "admin.agentSetupCounts.title": {
+      "by": "ai",
+      "out": "5f2bbfa25dacb868aa023e57c97e9440f21fc1a519be90feb8f4223acf0eb5fe",
+      "src": "56aa1cf4e24f67f36768c71f9de66d7974302d6010a0b71544b24ff9409f9397"
+    },
+    "admin.agentSetupCounts.total": {
+      "by": "ai",
+      "out": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8",
+      "src": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8"
+    },
     "admin.api.confirmPasskey": {
       "by": "ai",
       "out": "d49a1d2d3c5d923edd75f22b14c1ce22fef86346e85f50c049ba228864f638eb",
@@ -154455,8 +155210,8 @@
     },
     "admin.bills.signupRules.field.codesPerAddressHour.help": {
       "by": "ai",
-      "out": "6ea6fb8fe80a9cc717346bf9a91a208ce49a46758264a68b4fdb6daca60fc572",
-      "src": "8a00da2ce07d0b4872a8692c9fdc1180c542e122e6bbba3627feda47d4cf51bc"
+      "out": "49f339e04c7571cf41fa606f70fd4c152d044b01f47d21e5200184d2779711b6",
+      "src": "c2485ba650a5d40006b4116f2647f000f0ebb080717dc275c85403755b863c6b"
     },
     "admin.bills.signupRules.field.codesPerInstallHour": {
       "by": "ai",
@@ -154480,8 +155235,8 @@
     },
     "admin.bills.signupRules.field.signupsPerIpDay": {
       "by": "ai",
-      "out": "7389e5af8fb8c4932561fddc5238ed4207014a3b8f945ab5d6e2e25a96e6ddc5",
-      "src": "aeb6a179032d015bacd3a60a6dc9672f3b1231c0e27ac3096ebf02fbf7dc422f"
+      "out": "1ffcc27a0306f1e105d8f56822a6e17d99cc73e4da0100eef130de8c9632977e",
+      "src": "81fa08931dd471a06805a8356335b2ceb2d81b0df8620bdbb182ce50894711f7"
     },
     "admin.bills.signupRules.field.signupsPerIpDay.help": {
       "by": "ai",
@@ -154490,13 +155245,13 @@
     },
     "admin.bills.signupRules.field.signupsPerIpHour": {
       "by": "ai",
-      "out": "a27ae4023e702237da4c397eb74bc3279267e5cf301de5e9154e99f43e992fbb",
-      "src": "f7c524e1151312a141499076a85c7c61525821f61d0c1c4ac41c72071f13125a"
+      "out": "1653238207ec35b0945ecbf3027398979a73c43851afb97421bcf2df3f1bbf6b",
+      "src": "b4b4714f1791eceec65d9d806dbf4a049dd56067bd7f789cdcdf5658511888ea"
     },
     "admin.bills.signupRules.field.signupsPerIpHour.help": {
       "by": "ai",
-      "out": "d86076f7e3c84499afd704964e7c9f78e1443778cf899173ef7b8f5f0c73f121",
-      "src": "cb0d6fd8bb1e00995442ee5fdb4ac99e9e45c292f3ec1081b90cdb3339234237"
+      "out": "b061ef9ccd0faad4b271a6cf6bc0d029fac7b789dec53be1f80fc0be4e58b785",
+      "src": "1bed48299a912d8ff05a1846ef745d00be098a03ea0e907be67b01a86ba29343"
     },
     "admin.bills.signupRules.field.trialNumbersPerWorkspace": {
       "by": "ai",
@@ -160543,6 +161298,11 @@
       "out": "b361abbebcd03c118f89ae8e807daf7ebc348580642524ca9c331d0ab3db8a16",
       "src": "1fd8ffbacd28e5be339de20842ff3a08a13093d97a9a7f9aa70462e1acb185d6"
     },
+    "auth.code.resendInMin": {
+      "by": "ai",
+      "out": "d38cedc5c54459a35600171671a4d055f156cce63a24e2c74066773ec7107ea4",
+      "src": "110e98f9ed6c38569cd216655e0f671d07fcf35d6697fff37372dd6b149232e8"
+    },
     "auth.code.resendReady": {
       "by": "ai",
       "out": "0ae0bd58d6161bfa26e0651896475bb1ac2e72ce0c5b3847f4db576b1865a8de",
@@ -160567,6 +161327,11 @@
       "by": "ai",
       "out": "58e199536bddfc0876779e24b89db3713d44532891ce23019a889a80d1ca585e",
       "src": "18ae1317eb9bcf5820bc7698baeb7281ae6004c8b5862b9f386339696337a122"
+    },
+    "auth.code.waitMin": {
+      "by": "ai",
+      "out": "cb2ade9d0c7a1923aac7d27a04c4deb7af2fefc8f020875de8ac5b2f201e1c99",
+      "src": "a55b9e6ca29b2228b5486984ebabc59ab9458abea72e1347514cf664d6d29b48"
     },
     "auth.confirm.code": {
       "by": "ai",
@@ -161408,6 +162173,11 @@
       "out": "2bd2162c075bbf00e0b38ed295acaab7de59cb9fa47236721fcb93762f3b46bc",
       "src": "0c6a0daf7e13bc5fd74ad43252f52d9253e93e9c6e5594783caf52f7e99a2bc8"
     },
+    "auth.signup.refused.busyFor": {
+      "by": "ai",
+      "out": "6a586220613b764685f02b7ed6408675ba12b0a01e906ed2ebd98d281802ed01",
+      "src": "9ac57374b25db32b23a97609cf2d3a8be135804c91cc03c67cfeccafe9331b81"
+    },
     "auth.signup.refused.tooMany": {
       "by": "ai",
       "out": "af67dc091868786a0231bea671b51fbbc60ecec517c3a1ace4b4e6872f623a7b",
@@ -161447,6 +162217,11 @@
       "by": "ai",
       "out": "56f343dab3cbb31dd66bf8f9363d00aa17229cb612b8f1ee436c4f1724275cc6",
       "src": "27a0d553bf2983ca2599f8986b0f7783cd81283097d8cc5854fb81aefd977383"
+    },
+    "auth.signup.waitHaveAccount": {
+      "by": "ai",
+      "out": "07a28a9c63bd6267cfa3fbb2584fdd2809e503a8888eff166fdaa4a2aa724a60",
+      "src": "b6d374374e27f13eac7884e8245c86d0454177a780d85953eaf9ee01a0669900"
     },
     "auth.signup.yourName": {
       "by": "ai",
@@ -164440,13 +165215,13 @@
     },
     "email.adminAlert.signupRules.field.signupsPerIpDay": {
       "by": "ai",
-      "out": "7389e5af8fb8c4932561fddc5238ed4207014a3b8f945ab5d6e2e25a96e6ddc5",
-      "src": "aeb6a179032d015bacd3a60a6dc9672f3b1231c0e27ac3096ebf02fbf7dc422f"
+      "out": "1ffcc27a0306f1e105d8f56822a6e17d99cc73e4da0100eef130de8c9632977e",
+      "src": "81fa08931dd471a06805a8356335b2ceb2d81b0df8620bdbb182ce50894711f7"
     },
     "email.adminAlert.signupRules.field.signupsPerIpHour": {
       "by": "ai",
-      "out": "a27ae4023e702237da4c397eb74bc3279267e5cf301de5e9154e99f43e992fbb",
-      "src": "f7c524e1151312a141499076a85c7c61525821f61d0c1c4ac41c72071f13125a"
+      "out": "1653238207ec35b0945ecbf3027398979a73c43851afb97421bcf2df3f1bbf6b",
+      "src": "b4b4714f1791eceec65d9d806dbf4a049dd56067bd7f789cdcdf5658511888ea"
     },
     "email.adminAlert.signupRules.field.trialNumbersPerWorkspace": {
       "by": "ai",
@@ -169675,13 +170450,48 @@
     },
     "onboarding.agentSetup.start.chatgpt.add": {
       "by": "ai",
-      "out": "7aaeb7046aefe7bc48951665ee89cfcdea66b36db5d7e7719f69ad19f0ea570b",
-      "src": "877a3bb00ea2454461123c1b6273912eb8673f7dbecc71c370edab118956e374"
+      "out": "fa9a6fa7a47194bebc82cacaa70a2e2cea3811aeffd8401bc685e3ab4b888a58",
+      "src": "70460fd5b366690802fb6af24eccdc7949694fccfa6e2a5fc1c72090f6200e13"
     },
     "onboarding.agentSetup.start.chatgpt.chat": {
       "by": "ai",
-      "out": "402964ce0e1b14fcefac80601cec15e90753908140ef280ac12a427c3106773e",
-      "src": "ecad0ced52159c282674b6be7aa400ea4576437a57ebdfd7d07cddadb60b0837"
+      "out": "1e39fa6b4445b191c48bcd14f82545e8178ed275bb505082ef9604c05a5b0586",
+      "src": "e6b1e9549291ef1644b589141a3653cc219e3a1b85444df0f3eae5fa69f8b4b1"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.auth": {
+      "by": "ai",
+      "out": "b2fa578a7e695d1aba0ed59afd673b8724becbf48b85b527356002206cec5f71",
+      "src": "66880d2d8216260d201917a72eb245440ef18ba9b54c070ee39aa4c343ae126f"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.check": {
+      "by": "ai",
+      "out": "94632588148cea1a85a3d567d1c8a538b8c1653b9bea01322c43856968a73506",
+      "src": "f0c44ab8fea2b22c896433cb940ec96a2cbb779326fc02bf9dc0f67b393b1cea"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.name": {
+      "by": "ai",
+      "out": "5086900635fec3efdf730450a45b60a3f56059cf37e68369ac7c4b8eeeca3db5",
+      "src": "dcd1d5223f73b3a965c07e3ff5dbee3eedcfedb806686a05b9b3868a2c3d6d50"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.noAuth": {
+      "by": "ai",
+      "out": "22007d597df36e7dec44e959fabf7468b13add4307a9a478e1bdecefae0bd047",
+      "src": "cf205c33359a82fcbac1dff901d9022413fa5b9c21745ba387e09454c65c9737"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.submit": {
+      "by": "ai",
+      "out": "f26e2ee5b1988dff1c8f6a89f50366243c577d8d644c5a655df499987ac8bede",
+      "src": "ef3c609ebfda37bc65f50971355af1c92ff8b14a924ef6323670dba0fff44c6d"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.title": {
+      "by": "ai",
+      "out": "37376cae54cee5656e997e6318b00364c6d79663cdcabe08938cd460f2cd418b",
+      "src": "aea6b84741505f54848d704e0382d4e692d56304cecfc7d4177cfd7595eb67a3"
+    },
+    "onboarding.agentSetup.start.chatgpt.form.url": {
+      "by": "ai",
+      "out": "380634897a7259f9c00ce20e6c6c408ec937d79070763828478bd4df80ead806",
+      "src": "22f5ebc3ad3ff7638885810bfd9485a3d1b536966124cae45727d4181760f9ba"
     },
     "onboarding.agentSetup.start.chatgpt.openSettings": {
       "by": "ai",
@@ -169690,13 +170500,13 @@
     },
     "onboarding.agentSetup.start.chatgpt.settings": {
       "by": "ai",
-      "out": "27602751510191710e1f7796a855d9065c93d045fde1ae5d3743df3467043e97",
-      "src": "c5e5552bd29526f8c081f1618b21c516f1cd2e0b564c77d926318cc0d4653935"
+      "out": "f355d1e8eafe1b211a78026eeb23224e51fa8a60f2532f299bd3b1d911ec601c",
+      "src": "6e43fb7ea649609b2bb54653e02c7236108938f12222fa913fab4e53767cb151"
     },
     "onboarding.agentSetup.start.claude.add": {
       "by": "ai",
-      "out": "410cedab9c45a5874e27e061e049756f598d9c853fc063f1049a6ec6fcddd271",
-      "src": "8347ce4fe5da9d95987f908f7e527086de781c089e80b8662bc78682963e6e7d"
+      "out": "6e86d295f566fce6fe4d84d7dbe2257afee4199a89f66679e65400820636e715",
+      "src": "87393cbb8c3257d140ce442307af6c71471fbd1f1b8458499a9dd5fb25f5e2ce"
     },
     "onboarding.agentSetup.start.claude.chat": {
       "by": "ai",
@@ -179648,15 +180458,55 @@
       "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
       "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
     },
+    "settings.integrations.mcp.chatgptFill": {
+      "by": "ai",
+      "out": "fa9a6fa7a47194bebc82cacaa70a2e2cea3811aeffd8401bc685e3ab4b888a58",
+      "src": "70460fd5b366690802fb6af24eccdc7949694fccfa6e2a5fc1c72090f6200e13"
+    },
+    "settings.integrations.mcp.chatgptForm.auth": {
+      "by": "ai",
+      "out": "b2fa578a7e695d1aba0ed59afd673b8724becbf48b85b527356002206cec5f71",
+      "src": "66880d2d8216260d201917a72eb245440ef18ba9b54c070ee39aa4c343ae126f"
+    },
+    "settings.integrations.mcp.chatgptForm.check": {
+      "by": "ai",
+      "out": "94632588148cea1a85a3d567d1c8a538b8c1653b9bea01322c43856968a73506",
+      "src": "f0c44ab8fea2b22c896433cb940ec96a2cbb779326fc02bf9dc0f67b393b1cea"
+    },
+    "settings.integrations.mcp.chatgptForm.name": {
+      "by": "ai",
+      "out": "5086900635fec3efdf730450a45b60a3f56059cf37e68369ac7c4b8eeeca3db5",
+      "src": "dcd1d5223f73b3a965c07e3ff5dbee3eedcfedb806686a05b9b3868a2c3d6d50"
+    },
+    "settings.integrations.mcp.chatgptForm.oauth": {
+      "by": "ai",
+      "out": "27f8943c6eba9818cd7c216ef06851bf832cf6fe9c0240fa32cb152a484b011f",
+      "src": "27f8943c6eba9818cd7c216ef06851bf832cf6fe9c0240fa32cb152a484b011f"
+    },
+    "settings.integrations.mcp.chatgptForm.submit": {
+      "by": "ai",
+      "out": "f26e2ee5b1988dff1c8f6a89f50366243c577d8d644c5a655df499987ac8bede",
+      "src": "ef3c609ebfda37bc65f50971355af1c92ff8b14a924ef6323670dba0fff44c6d"
+    },
+    "settings.integrations.mcp.chatgptForm.title": {
+      "by": "ai",
+      "out": "37376cae54cee5656e997e6318b00364c6d79663cdcabe08938cd460f2cd418b",
+      "src": "aea6b84741505f54848d704e0382d4e692d56304cecfc7d4177cfd7595eb67a3"
+    },
+    "settings.integrations.mcp.chatgptForm.url": {
+      "by": "ai",
+      "out": "380634897a7259f9c00ce20e6c6c408ec937d79070763828478bd4df80ead806",
+      "src": "22f5ebc3ad3ff7638885810bfd9485a3d1b536966124cae45727d4181760f9ba"
+    },
     "settings.integrations.mcp.chatgptStep1": {
       "by": "ai",
-      "out": "d5ca579d6d2ea2226e4b8a9fe47b6d5799bdc7b7fcb5c1c553cb4287d256e9fa",
-      "src": "6a3dda5bff793d3d6deeaadf7a679cb83bd585ad64bdb23e93b1e11ef6f349a6"
+      "out": "a70f90be92cacc2a6814b0b41de17b037cb387d864ee72a1ad557a06d356ab69",
+      "src": "9ae841c3b482b1da3841a4e16296a3a432bcc5247bce7c8e6ef34c291c496648"
     },
     "settings.integrations.mcp.chatgptStep3": {
       "by": "ai",
-      "out": "e763821b96d8adc9c1ea645173ec7c8c26e7448fa2df4b69667801eabd47a7a8",
-      "src": "147e66bd7099d35e3f30baab51cb36a2ae812bba40c4fbc16a43d8cf3d3bb6e7"
+      "out": "dfaa343d1a91bbe73fa79a48a27e6fda88fe18a97e135180d114b4426ea01795",
+      "src": "6c17d51c690369bfc999446886dce080227c7c9433e0fdf0fda82c3cae0b7a37"
     },
     "settings.integrations.mcp.claude": {
       "by": "ai",
