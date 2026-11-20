@@ -603,6 +603,7 @@
   "danger.list.calls": "{count, plural, other {#件の通話}}（文字起こしと録音を含む）",
   "danger.list.contacts": "{count, plural, other {#件の連絡先}}",
   "danger.list.members": "{count, plural, other {ほかのメンバー#人}}のアクセス権（各メンバーに削除を知らせるメールが届きます）",
+  "danger.list.plan": "プラン（今すぐ終了します。今後の請求はなく、残りの期間分は返金されません）",
   "danger.list.rest": "予約、設定、招待",
   "danger.numbers.admin": "{count, plural, other {#件の電話番号}}：{brand}で購入した番号は通信事業者で解約され、それ以外の番号は{brand}につながらなくなります",
   "danger.numbers.attached": "{count, plural, other {持ち込みまたは接続した電話番号#件：{brand}にはつながらなくなりますが、番号はあなたのものとして残ります}}",

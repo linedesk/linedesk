@@ -1652,7 +1652,7 @@
     },
     "admin.actions.workspace.delete.tip": {
       "by": "ai",
-      "out": "84d049cb49c821a0320ba88f8ae0f51a3a452326d6f038b725c4c75dd3a8438c",
+      "out": "39da2f5761567c9f94c78f7b9249453efae9ded43e9707d245afa64422f325c4",
       "src": "dac2e55c9b3798abbf0311d9d4a23ec382115ec35b93eba54b6c1515bb54d092"
     },
     "admin.actions.workspace.deleted.accounts": {
@@ -1679,6 +1679,11 @@
       "by": "ai",
       "out": "10ec2423024b6d75ba0be6a89235264410de41530d4edef0a2872a22939c59c5",
       "src": "10ec2423024b6d75ba0be6a89235264410de41530d4edef0a2872a22939c59c5"
+    },
+    "admin.actions.workspace.deleted.planCanceled": {
+      "by": "ai",
+      "out": "6360c23c42243e0c464efa1fe9cf45cb125df1189189ba6a50a5e1d88c2e35a6",
+      "src": "f283ce32f969424b162cd23d41917f329a46f55c24d2afe144829f91d4f9f6fb"
     },
     "admin.actions.workspace.disable.action": {
       "by": "ai",
@@ -2454,6 +2459,16 @@
       "by": "ai",
       "out": "6aa9adcfdedd40bde2afdaee4bd308daf4c3df99bce2beb6daaf35f26f93bdd9",
       "src": "feed98ce586a8f2aee6bd01a2082baf039996fb4b026d38516eaf2e9e121e40b"
+    },
+    "admin.audit.feedbackResend": {
+      "by": "ai",
+      "out": "ae5b2c54142e86b3f2c8b68f4d73e9405fe886be3501649b593250929f26e956",
+      "src": "eb59f58aadfe1c0d98bb9089b8752815687ad74905162db911d020db140913ba"
+    },
+    "admin.audit.feedbackSend": {
+      "by": "ai",
+      "out": "4e78313dfecbecdfcc29ae87ab0723ea350760a45d5050d64ae49fbc471389de",
+      "src": "8ccfe5f6415f52763562348966698d78594ff911af1a473dfe723180e9788e30"
     },
     "admin.audit.forwardingChecked": {
       "by": "ai",
@@ -8950,6 +8965,11 @@
       "out": "621e4cb6b190f1329c3e4393ddf6faddd6afc1a262937871fe00f584ee8950c7",
       "src": "864a4209ae2a1ace2ea09dcf54305a4c2240a0da21f4b0941434825f56d77ee5"
     },
+    "admin.providers.way.works": {
+      "by": "ai",
+      "out": "80460ae74e207e1aab12250ab36aa1e257b5c615ef8a88d4ed4417b9d866e5e6",
+      "src": "2b4c8c6d38db43a9b038d256f1b54d9685ecc1578603d82f3f49f2bda9922efe"
+    },
     "admin.replyDelay.barLabel": {
       "by": "ai",
       "out": "1f928e8dea1f5b2c6de99cb5d579933a7f5f3d44280d9bb128c322a270874408",
@@ -9874,6 +9894,141 @@
       "by": "ai",
       "out": "aef7de28d52977f1b5cd0fecfdc151717610adf41e0aa33b4d9f7522a43337ef",
       "src": "aef7de28d52977f1b5cd0fecfdc151717610adf41e0aa33b4d9f7522a43337ef"
+    },
+    "admin.system.setupReports.actions": {
+      "by": "ai",
+      "out": "5656f92db78df688863354be0c8795c8a786d2ee742231e0e8e6d99a430f240d",
+      "src": "ff8059dc6752afdd30d275932b1d5031a2ec854b387a8c57ecc6689915293a43"
+    },
+    "admin.system.setupReports.by": {
+      "by": "ai",
+      "out": "112a282c3cfb0e578e50a6b71fe4b1c6cbb271e22228f2c7407febd168fc27e4",
+      "src": "0b8b277cac6fc71b4d84d5b0d2df3473a146482ee42f23efffbc52ea45a6f387"
+    },
+    "admin.system.setupReports.byAgent": {
+      "by": "ai",
+      "out": "f795072c07fd60a9cb15a12b37c57c1574014ac9aeb44f3fec94f3cf7bcae724",
+      "src": "09b3db4f03c2b3b0584a45db93f45b28a5760882ce75c4d2813351039dda4e42"
+    },
+    "admin.system.setupReports.date": {
+      "by": "ai",
+      "out": "9135882d323cd839a5239648d28440a256c299c08d108c1b09fc4b9872efcc3a",
+      "src": "99c40ab405926cb5ad1def9cff4d7ce624f8f8abfff4e85f655347fcb949d08e"
+    },
+    "admin.system.setupReports.empty": {
+      "by": "ai",
+      "out": "0dc2e19b45702a49b121becce5d484912ccc148c73313256e29a966561d1d7ab",
+      "src": "fd912b9aaf36d41e13879a8da5d4bc1b9e1fe9c5690aa92d58274a5f31124bdc"
+    },
+    "admin.system.setupReports.help": {
+      "by": "ai",
+      "out": "323ff45cbacb7916e8aaea5247967737bc01b08f037363a7f13edadea20764b0",
+      "src": "c4e8f0976665d7cc3e3982948b493852a5b1a97cc5b29be978af4cdd693e29ee"
+    },
+    "admin.system.setupReports.itemCount": {
+      "by": "ai",
+      "out": "57eeedbfe757f430e867663e9929d21881fefddc11f1e8ec2777e50720112580",
+      "src": "f326e8c00a020befb85686554989a7ab47f822f10b2891be4cf0554cd7c091f2"
+    },
+    "admin.system.setupReports.items": {
+      "by": "ai",
+      "out": "867ecbb11273a0c450961e4f4836e13fc620ae0ca4f3ec128981c82acf1bfbff",
+      "src": "fb8e7a1a3cb7b25d262793159145759e97eb540a2b61dbbdf8f58841a81cf1a8"
+    },
+    "admin.system.setupReports.off": {
+      "by": "ai",
+      "out": "9494fcfd1e0d4f3bacc41799ef2233a1abc3d327fbde947cac0e3ede74d1dd05",
+      "src": "af01242d9fc28b9034ccd3986361df4cc82befd79d5f434e2e49ef8d0b9a1dc3"
+    },
+    "admin.system.setupReports.outcome": {
+      "by": "ai",
+      "out": "cd8e22cf7439433dfde45d030f1c37e1e983eaac1e7b5d83da6ea9cb7ba6bec7",
+      "src": "4e80abb5b14656d4eed8fd93705fd4c774d7653b05162763770bd23f1755db1a"
+    },
+    "admin.system.setupReports.outcomeAbandoned": {
+      "by": "ai",
+      "out": "b9731e79a80505b9b3016951f403bd1b112ad7d9e793d0bcfe6062cb82f89444",
+      "src": "1a4f630ac1b69fd00728fa8a672ded71d0eae8516cb23e78f94529113399b79b"
+    },
+    "admin.system.setupReports.outcomeCompleted": {
+      "by": "ai",
+      "out": "38ee859a969e3aa49e7624010a180bf81cd22b78aabfa05932614b6b21604ba1",
+      "src": "22a970d2e5b1cc233e462be7c7b64e135a275bb09d83d87683bf4236c43113a1"
+    },
+    "admin.system.setupReports.outcomeInProgress": {
+      "by": "ai",
+      "out": "f85fd2bc5619c724c70b913e97bb3f515481d7bf6de290c0755d3d8a7ac8c028",
+      "src": "c1f88e9d6c4145cf0530ae020155384d5688d70ed82a07a35d783bbc4b32238c"
+    },
+    "admin.system.setupReports.outcomePartial": {
+      "by": "ai",
+      "out": "14f08a9b525dbb7ad0dbbb63f839bf33bef9d9245bd21e99690a32d5b63b6cd5",
+      "src": "1afdeec8fabc72c325050de43f89e565b7e954d6b2c753ccbbd9d7dde5575463"
+    },
+    "admin.system.setupReports.reasonOff": {
+      "by": "ai",
+      "out": "7d093acbb93c3487e373c39604933cb76b2917261dafb718761404582a7f6866",
+      "src": "898811187ae198835d1b5b49d53d651847e9c68eb30d14851bd23537927ed44a"
+    },
+    "admin.system.setupReports.reasonRefused": {
+      "by": "ai",
+      "out": "d7f694c74c056fb927a7c1b6ee3c2fa7dabe895633f995b340f346f6715d67cf",
+      "src": "9725401e36dcf469ccab693d9cbcfaa0dc5c3cfd20329a17925bafba0efd0054"
+    },
+    "admin.system.setupReports.reasonUnreachable": {
+      "by": "ai",
+      "out": "9890a675c01ca6d1cb6bbc46f26855a460b44aef0819c29712930a6f609299ce",
+      "src": "07b0eec3c939a596ab8ae1339b6b95100a2de64e579236ba3c254495e9785b15"
+    },
+    "admin.system.setupReports.resend": {
+      "by": "ai",
+      "out": "6b1d416765d7532fbb8eb2e0ec3944cb4fa8474bf0482ebafb7e1e5e23171ff1",
+      "src": "feead925e2600648cbe1aaaa284aba30b93de840304bd63277200f4c903082e9"
+    },
+    "admin.system.setupReports.resendFailed": {
+      "by": "ai",
+      "out": "f2284495dc720cb13496aa31cbda3454fe2ffc8c0638a739638d2c8c55c8aff6",
+      "src": "d8d384421e13165ce9ba8abc5d2b26b88dcd416a49cf200100c2e0278c896a31"
+    },
+    "admin.system.setupReports.resendTip": {
+      "by": "ai",
+      "out": "7304f2ad2c531ff04db7aae64b158f0b54e4790a5add9ec597d1a9aece769089",
+      "src": "b8adfaceda6b5ac48a12d1dc042c34cce41999b7090e45b31d7ad5441f463120"
+    },
+    "admin.system.setupReports.status": {
+      "by": "ai",
+      "out": "920e413c7d411b61ef3e8c63b1cb6ad058d5f95f8b481dbafe60248387d8c355",
+      "src": "920e413c7d411b61ef3e8c63b1cb6ad058d5f95f8b481dbafe60248387d8c355"
+    },
+    "admin.system.setupReports.statusFailed": {
+      "by": "ai",
+      "out": "1c47a9734b27dcd7009399a51e22226e7516c0429a81038923e82a7c95c597e9",
+      "src": "031a8f0f659df890dfd53c92e45295b0f14c997185bae46e168831e403b273f7"
+    },
+    "admin.system.setupReports.statusKept": {
+      "by": "ai",
+      "out": "5e2338e21142a56765e158941bd01a019f06c721570bc19de7e894f87ec13ba1",
+      "src": "c159e7465c1ab24cd6efabb03d87f48f72368f560d5d2718edfa9e4a5a670c36"
+    },
+    "admin.system.setupReports.statusPending": {
+      "by": "ai",
+      "out": "9261c3328573b34b10c6d91b8af0d5561505fb054f75e8e55b43d02095f3daac",
+      "src": "e595f17fac1d8384c7287aa20ab48ec05476a9a557a524091c03727732582e76"
+    },
+    "admin.system.setupReports.statusRefused": {
+      "by": "ai",
+      "out": "04d136105b96a3ef8e3ace34a9421bc81706dab580d6eb17d51b6230b54a73ac",
+      "src": "8ba391628be0d7e1c0dde21aeff106331b47c80473ec47ac9e49931145581cc9"
+    },
+    "admin.system.setupReports.statusSent": {
+      "by": "ai",
+      "out": "4b6a7afab7b4c43e5680a7437a7d821ff6cc37225f9a6299aff75d2b787a3f86",
+      "src": "c16bc82bf1f04ede04d1bc0bdf714b1a2e523ac5fa06fee7b9466c6d2d54af1e"
+    },
+    "admin.system.setupReports.title": {
+      "by": "ai",
+      "out": "47c255ab1c24afd9f9b39ba7f065638c422d9566a9740715b7dcb2599bef17a2",
+      "src": "3d4240aec0c19ab214cdd626ae68e5f6f644ead4a3449f90466138243fe4f62f"
     },
     "admin.system.signupAccess.add": {
       "by": "ai",
@@ -20477,7 +20632,7 @@
     },
     "onboarding.business.notServedIn": {
       "by": "ai",
-      "out": "224b3b714eea5598fbc917c4080f05ed9fcca38c1e3cfd2ba14c95ccc7a05be1",
+      "out": "a74723b05b69c8d5e2c2410eef94884dde90e1c12a1ae4a9328f94921c70e1c2",
       "src": "1b63ad8bbf1876eb706c1c2526ec793ae588a37697cd8a2d1943e74cc6d7bfaf"
     },
     "onboarding.business.problem.askAdmin": {
@@ -20632,17 +20787,17 @@
     },
     "onboarding.flow.buyOnlyIn.inCarrier": {
       "by": "ai",
-      "out": "7b27b296ce6479df397f169dd30196214932ee8d90811d0947b4732f2bb95040",
+      "out": "bdc3d0400a829ffbccf8a9c45a780b790fe7353e9583f2d8858cde0e643d3ad0",
       "src": "0d7c4a4ebf8e62a90a9ce99549679185db9da91894fd75abcc85bc324cee9938"
     },
     "onboarding.flow.buyOnlyIn.ownCarrier": {
       "by": "ai",
-      "out": "bf11935058871388434163d032c14e8eb2e9375f88fbccdf17a35a85744f9181",
+      "out": "15559dc72968a8bdb7b389068308ea62e8e7d073e4da3fca4ead2a9d9f2c04eb",
       "src": "b4ace170f505cdf108826210a2923153416673d995e05a7ff09ef77b509178d5"
     },
     "onboarding.flow.buyOnlyIn.withCarrier": {
       "by": "ai",
-      "out": "db57d439feb777b4887ef10a91539e5bc0aa1ca9e46d0e3dd2d0f150ca2dd30a",
+      "out": "bc2985f3e7e5ab6972d6ae0fa11869fa744bf6f4dd0a2a910290f23d78111a7e",
       "src": "14cc2b86357fbe0319fbcda6fe9542edc5eac9c6426542f6902a209ff927dacf"
     },
     "onboarding.flow.buyQuestion": {
@@ -23000,6 +23155,66 @@
       "out": "65c828e00cdb712afd3ec18331069f472b86b9ebd34044e20502acab1d86020a",
       "src": "5ef24429b2f1555a4055aa50571dbc00c884967d614b2e4991fb23c0152761cd"
     },
+    "server.api.feedback.alreadySent": {
+      "by": "ai",
+      "out": "1dd4e8b245653fbbd5a585587ffb7697737d407a91f7247f1313b5cf42ebf7c8",
+      "src": "2daefc27060a98af4de93e9af3ff893526350cc79c9dbf440cd67656af2f2362"
+    },
+    "server.api.feedback.justTried": {
+      "by": "ai",
+      "out": "2a3ac32d944d6b295574a5fb32eb448bdbd70f806d4a85c338a8a739d1d1e851",
+      "src": "62f7804d1ce54c2d4eb4de3c33b3564c0f93a59abd8f4b20bef3d8144aa406d0"
+    },
+    "server.api.feedback.notASetupReport": {
+      "by": "ai",
+      "out": "aa7645ac30aeae7310ca3ebd2eaa7bdda034d05074b1f498f65d629303880050",
+      "src": "5c58effc4fa53c95dc15008de5afa96fc8af4eaa8fe6d3c575003d62e6681af1"
+    },
+    "server.api.feedback.notOnSetupLink": {
+      "by": "ai",
+      "out": "4f120cefe7bb9607b72fa60044cb90fe82f9adc7d570d8a6dc8d34333b5f13c7",
+      "src": "b4145528d1ace9cf5b403696327f0d17ef3c960e5cc692abb46916adad441496"
+    },
+    "server.api.feedback.refusedNoResend": {
+      "by": "ai",
+      "out": "40ba0f2bb9683621523b38d6816099651255d8e3bb849a4e4ecb8ddc7fbc7227",
+      "src": "7681a539d53346d7976ee6d6e6e9669973dcf3ade6104107a4ac87540954e09d"
+    },
+    "server.api.feedback.sendingOff": {
+      "by": "ai",
+      "out": "3ed426f0c9993bbcb0bcbbb2b261329a743add26d8101b38d9236d490e3bb600",
+      "src": "c86662da3617eec14be5f2929a330c20598517b37c7141f189adafbb7714791c"
+    },
+    "server.api.feedback.setupLinkOnly": {
+      "by": "ai",
+      "out": "66c8ef57d633940fe22b19896798748172cea2719f793989e287b3fc6fe51e68",
+      "src": "ca2fc81af18b091922af4a783345804879ceb6707e87be3b296e35e16913e4fd"
+    },
+    "server.api.feedback.setupNeedsConsent": {
+      "by": "ai",
+      "out": "a60aaef6db3d8d9a685f87bc71b63d08c5e61266078226911895aec641659c70",
+      "src": "86997e0f1388cc96a11201aeac6a9fa4eae3a5e153b6e75f7a1487f3646c903e"
+    },
+    "server.api.feedback.setupNeedsReport": {
+      "by": "ai",
+      "out": "75d4926d2e2bb704b7f8278d39e0425f76fa4f9f734064448f7b9147353b3d4f",
+      "src": "cdd242028da57617fe8b171f56fc16a446af816d0691b25c59386ed9ff8af121"
+    },
+    "server.api.feedback.setupTextOnly": {
+      "by": "ai",
+      "out": "51cccf22411d984552d317cc8c1c2cbc1efe7c31be9a4c3b311a2d76ce9a1abf",
+      "src": "f091567177d5338ee872ffb121c4598ee093c3a644582fda19a9f2ce58ee5920"
+    },
+    "server.api.feedback.setupTooMany": {
+      "by": "ai",
+      "out": "d1b5946f2d49e9aec832e3690cb3fd0b9302ee8696ca17d5aa699d27d2d33e47",
+      "src": "087cb787e808ee112086b7eb85ec38e118836dabbf4c12fe0237f92998de11b5"
+    },
+    "server.api.feedback.setupTooSoon": {
+      "by": "ai",
+      "out": "1656767d59bffdd639532ad2b65ff882709b9abe3ac09f66fa4ccb4cc792072f",
+      "src": "10827130e62158d46f4a4cc52579e1951dfa4453b5644ba0d7c220f0a70ff81f"
+    },
     "server.api.feedback.tooMany": {
       "by": "ai",
       "out": "0fb71fd192ac8c2609ef705c166875f73de551bab75585f9d9aad7445234ce6b",
@@ -23890,6 +24105,31 @@
       "out": "86b90eff71d3569d05dd87e7f0bfefc815be2cd3412ca02b1cdc10d657aff1ee",
       "src": "a8d91f81e128bc70f3ed0390a0ee385b5b542012265efc6bfd231331cbc26eeb"
     },
+    "server.api.workspaceDelete.billingPaused": {
+      "by": "ai",
+      "out": "5b69fbef1d50b28d4350c092c94cfec74045adaf3e27220117debcce1642b873",
+      "src": "5d7e71ac9530287aea81dd76c480094b2edf06f452c3d3ddc45733bc1152e479"
+    },
+    "server.api.workspaceDelete.notFound": {
+      "by": "ai",
+      "out": "b2e2d0dc28aea0127dc0e60da2a358bf8f8a5c4d777b7cca91b48d3c9dce394b",
+      "src": "bbccbdd9824a8a10e3c5ed6b6c632c66506997f73562c0b1a5fd5c68ec3dc129"
+    },
+    "server.api.workspaceDelete.planChanged": {
+      "by": "ai",
+      "out": "b62f31f2d13d4221ea55be5439b3c56771acb19e2edcff31789d146a49bb0281",
+      "src": "353c08d39d2156e40222b772e41bd9fea9de0c229a40963df2389ace9a971840"
+    },
+    "server.api.workspaceDelete.planNotCanceled": {
+      "by": "ai",
+      "out": "18d092c5005941f7963bd0ae863531a46822187ef44b95f4e93019ee90f0e807",
+      "src": "0ef632d1a3ecfa4ae144773bc3f5c4cbf8e7fe608271c8d009d0228d4d08c7d0"
+    },
+    "server.api.workspaceDelete.typeName": {
+      "by": "ai",
+      "out": "af2f43c4abf84774087c57d31b45bfcf53ea789c514485e27bff2eb831b91155",
+      "src": "233cc1869ecf10c441a2da83053032af666df074944c930378ace2633b43cb18"
+    },
     "server.api.workspaceDisabled": {
       "by": "ai",
       "out": "6f4f120a43fdf0c480367d75a8853c3368ac273133473c79a6f3edbc4cd990c2",
@@ -24182,8 +24422,13 @@
     },
     "server.setupAgent.activateHow": {
       "by": "ai",
-      "out": "0614f4133e077d7fb173970ea2381499f2cfc10e477c14c3c62724b5a34fb00f",
+      "out": "e76b6f367545d3bbaa67762c6954f59aa28f47e9c582860979f4ff069f8dda12",
       "src": "e12a58f0a676e8721816a65c0a2a76062c089cc8c7f1f2639cfd7e618b9b9f64"
+    },
+    "server.setupAgent.activatePlanHow": {
+      "by": "ai",
+      "out": "181ab896cc443f7aef069d7c23e9ee115335e6606c9eda317f172dccad646b4f",
+      "src": "cb03ab0526d8d0de53f96da43ede6cc8646c973ea2c38877967e41bed2ca9af6"
     },
     "server.setupAgent.attachInApp": {
       "by": "ai",
@@ -24245,10 +24490,65 @@
       "out": "f4607237ec111ce32f6daf71d690737765c5e9b14d5d4dca95befe7757bcbaf3",
       "src": "1d632afc59bd0c9e3149d6650eef63749e6ce5fe745adc2de501b305b88ef8f0"
     },
+    "server.setupAgent.mcp.buyAskFirst": {
+      "by": "ai",
+      "out": "bf6589ebcc2c21438b15da9f6baccc454472f34008f08080168d99286f67ba7e",
+      "src": "e059385ad2accdbbdf600a20526c076b60f7e47969df92802a2697f6e0e48cbe"
+    },
     "server.setupAgent.mcp.emailKnowledge": {
       "by": "ai",
       "out": "740bda2e034ea7d05f2dcfa1d5b2c15ebf67186bed9d9e7ba582e759ad3510ff",
       "src": "3baa9d79d93ff3930e21c0095ca4768f003d441d406dd57dcdca0336c68a925b"
+    },
+    "server.setupAgent.mcp.planLink": {
+      "by": "ai",
+      "out": "b4e81fa0d87f1ef01a059e5a86186cd7d134ffc06301b82f70b4998c15b46aea",
+      "src": "8a7fad90f6ae3d9fd65cdaf363a72a30d63d937f5e2b8b79c6fe3a13300d2a85"
+    },
+    "server.setupAgent.mcp.trialLinkDays": {
+      "by": "ai",
+      "out": "3082260d76d5db0c84da649571779610df6f8c3401f8ed26a338d7dfa616b33a",
+      "src": "e8fd4b9c84ffb83c4eddec32a0d104b4e2151d912de7e643a30f5495b0b56cb5"
+    },
+    "server.setupAgent.numberPrice.carrier": {
+      "by": "ai",
+      "out": "b4e3f62dbb3013285c629de9aaedbacd6e8f6ae84a1371827211f388614aae07",
+      "src": "af5659444eb9500e76b1c60eda4d0af5affa7b0966931da5352f235d9aae17c0"
+    },
+    "server.setupAgent.numberPrice.carrierByCountry": {
+      "by": "ai",
+      "out": "b9972c10df8fe1d49b0386522c8429f83ac2db6464aab619e3d0508440969113",
+      "src": "5277d772f207ba22240ecafee02f27b6b48ea030baa6cf391cf9838016bfd4e0"
+    },
+    "server.setupAgent.numberPrice.carrierUnknown": {
+      "by": "ai",
+      "out": "d7f88758364f9e0c10ca08460b3233673a1738a13532a82cb7f279f07f5a105d",
+      "src": "174f94a4f847cc705d0990351fccea7471cad740ae53a354e306924ffa81cef4"
+    },
+    "server.setupAgent.numberPrice.dev": {
+      "by": "ai",
+      "out": "bf30131d0f3a610885d792a03108078f85e48be4c720b3401b93f4910ca7a517",
+      "src": "cc692346bb7a7adbdbef90c34a7b37d7b9ff65b089b3710b3b6e0132ffbd5526"
+    },
+    "server.setupAgent.numberPrice.extra": {
+      "by": "ai",
+      "out": "c996181393fbf97cb21e24a122d1c0ccf4d76ff30ca7f0fc4f2175c7ce7a27b5",
+      "src": "faf2042e59615b80390797af44c86085027cd0822f330b8618d5ac1c6747d8ad"
+    },
+    "server.setupAgent.numberPrice.included": {
+      "by": "ai",
+      "out": "897473707b89238a0f92e67b1fddca0b2cf54a7623bf695115d5a1704e527d43",
+      "src": "6c50e9f61f9ae630d1dbe6fea743ae58b9d40ea83b199186e3721bd6dffc7047"
+    },
+    "server.setupAgent.numberPrice.partner": {
+      "by": "ai",
+      "out": "faa7d70cca87d18b9caefdc68d4de83bce679c52ed18ef38c8c9b4f4d4e1301c",
+      "src": "eab9753e60429512fa7da8f0ca80465696efa78cd91f4109f25cae0709e7591d"
+    },
+    "server.setupAgent.numberPrice.unknown": {
+      "by": "ai",
+      "out": "de243d83a0bd51c36ac14986529559c367d1c94a84bef6fc30809a8584f5f061",
+      "src": "fd0840e7b5f65c5d6026b6dbcdcb6bdf7bb092b99757db4be176c91252cc45a8"
     },
     "server.setupAgent.optional.domains": {
       "by": "ai",
@@ -24415,9 +24715,14 @@
       "out": "06b96dda0f74fb868ebe9245f49c1aaf68cea24bd8ae89c8747140e3bbafe0f4",
       "src": "efc6df9666b4af889b88ea2b901876aabd764292269028dfaad2a3c0b5e66d79"
     },
+    "server.setupAgent.phoneAfterPlan": {
+      "by": "ai",
+      "out": "5f6b335af611e187315123acf80c5243547e64584c91f90cd2448778a5e96d25",
+      "src": "b1c9b571184c5d2d5b44873a81d2471dcd8beb081c4b2814e7768c88a98ccbba"
+    },
     "server.setupAgent.phoneAfterTrial": {
       "by": "ai",
-      "out": "607e6aa82c811fd3804bf4e5a58b04c05e48c1b3ca42b452cb0e5ea9b6e2f2d4",
+      "out": "43569cbaea2da353b96c63db7992a91b8fa84f9be6ed9bc4ff62b8badc777d8d",
       "src": "bb280b981ad8bca212b7562a04ce70997baedb372aa550b3645bf234ce61bf43"
     },
     "server.setupAgent.phoneBeingSetUp": {
@@ -24429,6 +24734,11 @@
       "by": "ai",
       "out": "ff3b25373f519a3b1354953f1331c3708931dbbb346e3d5476dce116de22a504",
       "src": "2f0d505eb71fd48f27fcaf1279af8093351e541f52373f52865f5b552eb49b96"
+    },
+    "server.setupAgent.phoneCountryGuessed": {
+      "by": "ai",
+      "out": "6d986911c01daf049f41e47ac94c08d04df2c3c3e7035cc7a0532f891096ffd0",
+      "src": "b4c82fc5625dc3cf37294e80839a0f7f50e972494cbf2aeae5c11a5b66d40e79"
     },
     "server.setupAgent.prompt.changeAssistant": {
       "by": "human",
@@ -24442,7 +24752,7 @@
     },
     "server.setupAgent.prompt.install": {
       "by": "ai",
-      "out": "052333fc6eb15a92fcf092b36765acd9f10fd5fa0e02ee188cbfd1248ac2d240",
+      "out": "3f28ee10ad11056f031eb9bf69e28f24a4ef2402ccd9dca1a65990a1de3aa2a0",
       "src": "17ec590aa1b510d457ea8e97a4e9d979cf9e23ea2aa5fe17bddc9b4fc3a28b13"
     },
     "server.setupAgent.prompt.toolsConnector": {
@@ -24457,8 +24767,138 @@
     },
     "server.setupAgent.prompt.workspace": {
       "by": "ai",
-      "out": "742937ccb48c99c6d25872f929de28d04838a9fcf4b760656c3f291bc9bd7a11",
+      "out": "2e3c41f6a496787a04765e001c93ebcf218ea9cfbb59f2b4266cbf289a4a941f",
       "src": "bb2a45b20b66e48981baf016f19e944646b9e225366571e495bc4680ed1d2494"
+    },
+    "server.setupAgent.report.anAgent": {
+      "by": "ai",
+      "out": "9f0aacef5879cd48189880002781ea972848ea1a3c93b7fe436adb3cf08bda99",
+      "src": "0be69abf9af984035aac6d6b6e9eac4464f36021c301b1239e93ebcba8ad48ec"
+    },
+    "server.setupAgent.report.askLater": {
+      "by": "ai",
+      "out": "3b2dffc9321f4b0f9daeedf3103b8e0302b265261a9ed4bf957976bd60b7db08",
+      "src": "a3319aafce0e7b16e04c83d3c6a45f9a28874fce970099fd3cb9732660c72430"
+    },
+    "server.setupAgent.report.askNow": {
+      "by": "ai",
+      "out": "49747668294ecd79442b8ec0dfbd6273b8b3eee7052b585c1296cdfe0489b126",
+      "src": "ff2d173acbc19ceaa542acdc0946c12f80ee5334ac716dc71a5b7f43cd420384"
+    },
+    "server.setupAgent.report.consentIncludes": {
+      "by": "ai",
+      "out": "ffdb25d89a84901ffb885448327888242039c6a33fafd0cdd74f831e91eddbe5",
+      "src": "ed5c711ac380c878e6e6d62b3176bcf84e4eb95689a2abd651ccfdd954cf2995"
+    },
+    "server.setupAgent.report.consentIntro": {
+      "by": "ai",
+      "out": "1b02618415e088e34f472a24f5657b8cd3ac8695922a62c85d82e361830ba9fd",
+      "src": "ac8dbee5f4e39cc73a41f1b8b777427e3ff68e5254239512fa01089f408e93a6"
+    },
+    "server.setupAgent.report.consentItem": {
+      "by": "ai",
+      "out": "e11d8aff16629318c2ca2d29ec378b7162390a5f780d62ab6cf80aa29881c85c",
+      "src": "e11d8aff16629318c2ca2d29ec378b7162390a5f780d62ab6cf80aa29881c85c"
+    },
+    "server.setupAgent.report.consentItemMinutes": {
+      "by": "ai",
+      "out": "38d6b60bb954406a7e22a685729fc6506bbf82313bc922f9a12826377bd31361",
+      "src": "300484b6d37f1ae89f26d8c316cddc492cd6a2ef83ac2e2037fe83c4f749b138"
+    },
+    "server.setupAgent.report.consentSend": {
+      "by": "ai",
+      "out": "46360b837ffbf83cc58b18e0db55c99a0ee200597e325c3cf1495140f4f58bf6",
+      "src": "de67daaffe8739ca0a388fcb6e752d9f653ef24ece3a8809d7eef4f7f6ccb974"
+    },
+    "server.setupAgent.report.consentSendContact": {
+      "by": "ai",
+      "out": "129d07eda7afde8a34e7d6359ebd5aa13c458d80c87b860cd29fa100ea464db2",
+      "src": "879c4b17e0336b549672edf5acbde30c8c4b38d6f68e20ef3d5ce3540450f9ed"
+    },
+    "server.setupAgent.report.consentWentWell": {
+      "by": "ai",
+      "out": "95b7c83f21400478489216fe334e6a4235c4438684c926755cf6d2b1b78e1e67",
+      "src": "a21e15b42c2db49d68c773e3247b1f368fc5c79b94db1bb9db5ddeb38f4907a7"
+    },
+    "server.setupAgent.report.errorConnect": {
+      "by": "ai",
+      "out": "7f2afd570c17fda8f6e1ef40fbee9093d69c6fd2b001b0f6ffeba430928417b4",
+      "src": "4809dff91442a64e52488c022bf3b71666c525e667b47bf725812844c963c0f8"
+    },
+    "server.setupAgent.report.errorHttp": {
+      "by": "ai",
+      "out": "d9df8d88fd764eaa40677f0612d7e4983588c7698a9f43c6a4c76c10112f9b26",
+      "src": "d9df8d88fd764eaa40677f0612d7e4983588c7698a9f43c6a4c76c10112f9b26"
+    },
+    "server.setupAgent.report.errorHttpWith": {
+      "by": "ai",
+      "out": "9b6d9390ff136983098b6d3976c2be552b32e48c898e53f294821ef71f2b79fa",
+      "src": "9b6d9390ff136983098b6d3976c2be552b32e48c898e53f294821ef71f2b79fa"
+    },
+    "server.setupAgent.report.errorNotEndpoint": {
+      "by": "ai",
+      "out": "f9fb262900270c3325beedd580b570956f474783aaee67f52aa74589f765bffe",
+      "src": "8d38be6f57edb17f9afb5891ebbfbde92434b6a00485b2d7ac9a616f4bae8898"
+    },
+    "server.setupAgent.report.errorRedirect": {
+      "by": "ai",
+      "out": "49e831915bb2ea8b48854725ddb0506006727aa3821889db01fba5faecaaca28",
+      "src": "51efab1f4a83be642e591d442d63fc676915238ce2f352ea5eb0bc0e4e6f8eb3"
+    },
+    "server.setupAgent.report.errorRefused": {
+      "by": "ai",
+      "out": "fe1579588d79b90ad1d5da113dc20fc1fbba9c015cf6fde966ab6935ab947c63",
+      "src": "e077f113f38c6a27beeb83d2d2a19ade086fa4bd30a7abe749666b3d757bacfb"
+    },
+    "server.setupAgent.report.errorTimeout": {
+      "by": "ai",
+      "out": "a0892c7b7ad0b9789f6ff3e2a258ffa63e1a276fabad621c6316e0d42be25d10",
+      "src": "7703b8c08ef02eb0df1c02a28baae063b75010f855f2d5d05b1fb9079da5efd9"
+    },
+    "server.setupAgent.report.internalError": {
+      "by": "ai",
+      "out": "304b5e5b42afa89efee0fca006e28243513b87cdc75a0c68345750e81bcc3a67",
+      "src": "99cab6ab51969245dd524ce8eeb19f7ea6b1c494a4e2548b3b242a5b3381c9ce"
+    },
+    "server.setupAgent.report.kept": {
+      "by": "ai",
+      "out": "2024056becc4fac1fe388f0e60a0a5c7e9d3f1bdb94c05ed78da0fdd9b70290a",
+      "src": "72cb3c2cf4ec5c99eb46cc409e8a55e4bf3fd8cf1219f805a727ecf50e3ed2d8"
+    },
+    "server.setupAgent.report.next": {
+      "by": "ai",
+      "out": "d34a8cf98f019d42ecb8fe397dc57b4d325119d47ca3ef25991f12c2e80585b5",
+      "src": "24fa447e4027c0e0270811d25e338d1de4c050ea5809a5af29c237858086b10d"
+    },
+    "server.setupAgent.report.off": {
+      "by": "ai",
+      "out": "5d729773ebb478c686bee06796a27d6bf6fc5feb09b78865d97f89e12d0731fc",
+      "src": "3d51d8fb494882dda75d21efe2f884721bafdac4351623ad4afea51b5483b1df"
+    },
+    "server.setupAgent.report.refused": {
+      "by": "ai",
+      "out": "2d44e0663d289e1ab78548740db0a76b8fd76ba031ee94f767d2d1cd99abccb8",
+      "src": "f0acafa64343bd88d08d59a0fb87a7aaa69c74c88a32b47069ad4216d6cd9e7a"
+    },
+    "server.setupAgent.report.sent": {
+      "by": "ai",
+      "out": "76e5aff0246f135d5e3c2b30241623305a4d0135b0915c463ece1c193b29bd0c",
+      "src": "ef037079dd51ebaa700207347b418c73ebf6bed9de390b3828683935ccccd0ce"
+    },
+    "server.setupAgent.report.statusKept": {
+      "by": "ai",
+      "out": "f13161c1b444c337c480bb3b379ee9620b8518a0f708995fb3d13eb9112a3f0e",
+      "src": "12cc32ac6080ffa52007bcd4b711183299a823ebeb1a76bc3f9e7f10870f42ef"
+    },
+    "server.setupAgent.report.statusSent": {
+      "by": "ai",
+      "out": "036855d329d9542e08240d57a8f0d49e99dfe7a965ee1f3e04328aafec8bea14",
+      "src": "80729d82576fde04267282d184dc2f4f1c9abe138b4bb51656f785f145b9b45c"
+    },
+    "server.setupAgent.report.toolDescription": {
+      "by": "ai",
+      "out": "17beaea0b9d54be788c2879430bfca995ca923a84902e811aa64bcd802ce9610",
+      "src": "dda8e3c1f8dfd1c763b82c1a50f84037a5bb140ab5750339578ecf70f222d6a2"
     },
     "server.setupAgent.step.answering": {
       "by": "ai",
@@ -27589,6 +28029,11 @@
       "by": "ai",
       "out": "3e5341b5adccee2b08ad2f732b147ddae8eb4954ed50df612e377d7eb7cb168d",
       "src": "f2b574215a225ffec01589877896824e02386589c5a4c07ebf254ec15e1308af"
+    },
+    "settings.danger.list.plan": {
+      "by": "ai",
+      "out": "dfca239a3a65a3f029ee4aaa83dfe4ed47021a533c506cd4c8c560dd37fed961",
+      "src": "a4bea73fd0e510052e948ea4578707e4b23ffa943b2f74cf8a81f1f2e9688862"
     },
     "settings.danger.list.rest": {
       "by": "human",
@@ -38649,8 +39094,8 @@
     },
     "admin.actions.workspace.delete.tip": {
       "by": "ai",
-      "out": "9fb563faf4fb27c370cad3f8093798aaff5d4cab2a40b031e5c64b25614fed83",
-      "src": "c16653a33e7f91d9f130f641d77f59ccab64f270eea79c3b695f7299bdf5aad2"
+      "out": "e710421f8fd8aca39cc08b19970cba4e68aaa1b8087ca200110c3fee29d00611",
+      "src": "dac2e55c9b3798abbf0311d9d4a23ec382115ec35b93eba54b6c1515bb54d092"
     },
     "admin.actions.workspace.deleted.accounts": {
       "by": "ai",
@@ -38676,6 +39121,11 @@
       "by": "ai",
       "out": "10ec2423024b6d75ba0be6a89235264410de41530d4edef0a2872a22939c59c5",
       "src": "10ec2423024b6d75ba0be6a89235264410de41530d4edef0a2872a22939c59c5"
+    },
+    "admin.actions.workspace.deleted.planCanceled": {
+      "by": "ai",
+      "out": "d70381d6ee455100cb0be02c92dfba2a3c7a79b1708c6eff23e6f6585a7b9b7a",
+      "src": "f283ce32f969424b162cd23d41917f329a46f55c24d2afe144829f91d4f9f6fb"
     },
     "admin.actions.workspace.disable.action": {
       "by": "ai",
@@ -39451,6 +39901,16 @@
       "by": "ai",
       "out": "cd006760a917413b6aa576ca0eb22800e5d2a62f23cbd9d2531b06b71c6d32c3",
       "src": "feed98ce586a8f2aee6bd01a2082baf039996fb4b026d38516eaf2e9e121e40b"
+    },
+    "admin.audit.feedbackResend": {
+      "by": "ai",
+      "out": "6e891ffb9a371fb456a21f64ee0f8a5d83b98782752d22d56b5a1d7a46bbbf22",
+      "src": "eb59f58aadfe1c0d98bb9089b8752815687ad74905162db911d020db140913ba"
+    },
+    "admin.audit.feedbackSend": {
+      "by": "ai",
+      "out": "ac64d13fc94a978753d40e60c933654ae2ee6c8e25aa7217faabb553893b5cff",
+      "src": "8ccfe5f6415f52763562348966698d78594ff911af1a473dfe723180e9788e30"
     },
     "admin.audit.forwardingChecked": {
       "by": "ai",
@@ -45947,6 +46407,11 @@
       "out": "2cdeec492b369c8555e41d161da23726200d1feff6ae72fe40b43230377f9cae",
       "src": "864a4209ae2a1ace2ea09dcf54305a4c2240a0da21f4b0941434825f56d77ee5"
     },
+    "admin.providers.way.works": {
+      "by": "ai",
+      "out": "5f824dbe001ec732783130f78496ac26fec54988e4435673a62fc74520dd37fd",
+      "src": "2b4c8c6d38db43a9b038d256f1b54d9685ecc1578603d82f3f49f2bda9922efe"
+    },
     "admin.replyDelay.barLabel": {
       "by": "ai",
       "out": "1f928e8dea1f5b2c6de99cb5d579933a7f5f3d44280d9bb128c322a270874408",
@@ -46872,6 +47337,141 @@
       "out": "05e427a291c27fee42ee968ca48e0a92628821c73ae3c1042cdb31da7efbc66b",
       "src": "aef7de28d52977f1b5cd0fecfdc151717610adf41e0aa33b4d9f7522a43337ef"
     },
+    "admin.system.setupReports.actions": {
+      "by": "ai",
+      "out": "fb89a30ba7f64d186e0db2ce65025a75b18ad0699df00935487e19558c56abff",
+      "src": "ff8059dc6752afdd30d275932b1d5031a2ec854b387a8c57ecc6689915293a43"
+    },
+    "admin.system.setupReports.by": {
+      "by": "ai",
+      "out": "e77e7c2994c94d76dacc8f47bf8045c14189ab421143e1fe68f74b698e1620a2",
+      "src": "0b8b277cac6fc71b4d84d5b0d2df3473a146482ee42f23efffbc52ea45a6f387"
+    },
+    "admin.system.setupReports.byAgent": {
+      "by": "ai",
+      "out": "cbab36f96e3524267a25ab7f8564fa426749f0ca4006d0b8d89d8a386bdd0bee",
+      "src": "09b3db4f03c2b3b0584a45db93f45b28a5760882ce75c4d2813351039dda4e42"
+    },
+    "admin.system.setupReports.date": {
+      "by": "ai",
+      "out": "93b2a9ef782cacd671f23432b76f56fefd2c8882329e86306764bfdd4d2a58db",
+      "src": "99c40ab405926cb5ad1def9cff4d7ce624f8f8abfff4e85f655347fcb949d08e"
+    },
+    "admin.system.setupReports.empty": {
+      "by": "ai",
+      "out": "d0ceae0ec30d9a676f1e28593a6ae84b8c1be168c2e9489fd693cc7eccc9fea2",
+      "src": "fd912b9aaf36d41e13879a8da5d4bc1b9e1fe9c5690aa92d58274a5f31124bdc"
+    },
+    "admin.system.setupReports.help": {
+      "by": "ai",
+      "out": "4cc6708b68ed808f46f8a639fa5c6235a43d3b2767826e3a670e4364c9cbf832",
+      "src": "c4e8f0976665d7cc3e3982948b493852a5b1a97cc5b29be978af4cdd693e29ee"
+    },
+    "admin.system.setupReports.itemCount": {
+      "by": "ai",
+      "out": "653e97fff108ccef515cbda8d72a35b59d09925149d05e7239c355e90ea7e617",
+      "src": "f326e8c00a020befb85686554989a7ab47f822f10b2891be4cf0554cd7c091f2"
+    },
+    "admin.system.setupReports.items": {
+      "by": "ai",
+      "out": "55a18e3a79c75dbf84b73a287da110e5efe929d4a9712fc0a5187554e34604d0",
+      "src": "fb8e7a1a3cb7b25d262793159145759e97eb540a2b61dbbdf8f58841a81cf1a8"
+    },
+    "admin.system.setupReports.off": {
+      "by": "ai",
+      "out": "a4d91af71197e08c6ca246149912192e3c731e15554f4fa4e9951da43fd02073",
+      "src": "af01242d9fc28b9034ccd3986361df4cc82befd79d5f434e2e49ef8d0b9a1dc3"
+    },
+    "admin.system.setupReports.outcome": {
+      "by": "ai",
+      "out": "a71bc39fe3f33e42d1164472c83a9a340c52da9718ce3b8114c488647338fdf5",
+      "src": "4e80abb5b14656d4eed8fd93705fd4c774d7653b05162763770bd23f1755db1a"
+    },
+    "admin.system.setupReports.outcomeAbandoned": {
+      "by": "ai",
+      "out": "e5258c63fc56d618aec44f014f87345360b6988880e695477dc70fff9b28c8da",
+      "src": "1a4f630ac1b69fd00728fa8a672ded71d0eae8516cb23e78f94529113399b79b"
+    },
+    "admin.system.setupReports.outcomeCompleted": {
+      "by": "ai",
+      "out": "b148590c0b0b8fd909ee9658ffd5cbbef534e9d214e4cec35f21b6abd355732d",
+      "src": "22a970d2e5b1cc233e462be7c7b64e135a275bb09d83d87683bf4236c43113a1"
+    },
+    "admin.system.setupReports.outcomeInProgress": {
+      "by": "ai",
+      "out": "75f1f75e33377448d6b65adb79d39134213126572011979ccdf4e7230edbbb72",
+      "src": "c1f88e9d6c4145cf0530ae020155384d5688d70ed82a07a35d783bbc4b32238c"
+    },
+    "admin.system.setupReports.outcomePartial": {
+      "by": "ai",
+      "out": "c6c673f89bde25cef76967a55bca0801cdca99192452b553ccc9aa1bbbc694d7",
+      "src": "1afdeec8fabc72c325050de43f89e565b7e954d6b2c753ccbbd9d7dde5575463"
+    },
+    "admin.system.setupReports.reasonOff": {
+      "by": "ai",
+      "out": "2043f19d914aa2e0b7c89e62d77519cebfbab8ca55a4fcc5097a204cfd794661",
+      "src": "898811187ae198835d1b5b49d53d651847e9c68eb30d14851bd23537927ed44a"
+    },
+    "admin.system.setupReports.reasonRefused": {
+      "by": "ai",
+      "out": "df8cd714a3969f80b28ebdae4f33ede7f7de75fbb23c10e8ead217ee3acd9af8",
+      "src": "9725401e36dcf469ccab693d9cbcfaa0dc5c3cfd20329a17925bafba0efd0054"
+    },
+    "admin.system.setupReports.reasonUnreachable": {
+      "by": "ai",
+      "out": "53e7ad566f45b2d38a8d95748b2f69ad07b59c3d4e2d2bddcb058e7f4bea6868",
+      "src": "07b0eec3c939a596ab8ae1339b6b95100a2de64e579236ba3c254495e9785b15"
+    },
+    "admin.system.setupReports.resend": {
+      "by": "ai",
+      "out": "0a6874e5d2b51908a7bf00706bb9442bf443fbd12d3bd61e288cc9921f73993c",
+      "src": "feead925e2600648cbe1aaaa284aba30b93de840304bd63277200f4c903082e9"
+    },
+    "admin.system.setupReports.resendFailed": {
+      "by": "ai",
+      "out": "2d024d51663f15709118759adcda77f482090a5f631e883c93ff95d3a3cb9d70",
+      "src": "d8d384421e13165ce9ba8abc5d2b26b88dcd416a49cf200100c2e0278c896a31"
+    },
+    "admin.system.setupReports.resendTip": {
+      "by": "ai",
+      "out": "229d5dc011508dac89634d53129364eed76c0373f195fc78d40243ac2ae07f8a",
+      "src": "b8adfaceda6b5ac48a12d1dc042c34cce41999b7090e45b31d7ad5441f463120"
+    },
+    "admin.system.setupReports.status": {
+      "by": "ai",
+      "out": "98e5acddb6c46a248f96e8a549b4103a91f47299e1dbf508e436d738912c5cbd",
+      "src": "920e413c7d411b61ef3e8c63b1cb6ad058d5f95f8b481dbafe60248387d8c355"
+    },
+    "admin.system.setupReports.statusFailed": {
+      "by": "ai",
+      "out": "184f9f08775f924d0f5e21d8330412b82f47b43674683e2f7925dc79ce3e7eac",
+      "src": "031a8f0f659df890dfd53c92e45295b0f14c997185bae46e168831e403b273f7"
+    },
+    "admin.system.setupReports.statusKept": {
+      "by": "ai",
+      "out": "3a660ff5fb7c19895be8105b16c1bc2d008da2f9f840cd79113f55dee27cea1f",
+      "src": "c159e7465c1ab24cd6efabb03d87f48f72368f560d5d2718edfa9e4a5a670c36"
+    },
+    "admin.system.setupReports.statusPending": {
+      "by": "ai",
+      "out": "6840b96b4cdc5e8d864822e383b7a45b073a2aa385dd9bf4c361ccce81b16546",
+      "src": "e595f17fac1d8384c7287aa20ab48ec05476a9a557a524091c03727732582e76"
+    },
+    "admin.system.setupReports.statusRefused": {
+      "by": "ai",
+      "out": "5db6cf761fe79f0bf5190a1852f29652e48147ebadef34720912309c1a68296d",
+      "src": "8ba391628be0d7e1c0dde21aeff106331b47c80473ec47ac9e49931145581cc9"
+    },
+    "admin.system.setupReports.statusSent": {
+      "by": "ai",
+      "out": "a96e6d8830f2a7733f2ef2cd12e42abaa15e3d6546b6ae78ae0478d31632ea4e",
+      "src": "c16bc82bf1f04ede04d1bc0bdf714b1a2e523ac5fa06fee7b9466c6d2d54af1e"
+    },
+    "admin.system.setupReports.title": {
+      "by": "ai",
+      "out": "3f11971bd5b45d8cbf235ab7f206a73b3f753b6d22a7e03d4779725dd2337ae6",
+      "src": "3d4240aec0c19ab214cdd626ae68e5f6f644ead4a3449f90466138243fe4f62f"
+    },
     "admin.system.signupAccess.add": {
       "by": "ai",
       "out": "b2bfb1e60b18f71a0b8a842bbc553518dcc3bc36f1432e9849ae98c5a08d40b8",
@@ -47131,6 +47731,11 @@
       "by": "ai",
       "out": "0e2ad9ff0487c27696a74504324f92987c2d61549d99312cd2dcdf622cd7714b",
       "src": "40f1f1d7532aa12281d3df687893cb23b71c7b925731bc20c21a5fa55e533567"
+    },
+    "admin.tryOut.areaCodeIn": {
+      "by": "ai",
+      "out": "e632d305a3addb70c77a44a7b754547809d1ccc73936dee51b9b335d6d050a5d",
+      "src": "b1bf578823682c942a426f294b37ee6ab4798a035fbe1c6b3b9c465d065973ce"
     },
     "admin.tryOut.callerQuestion": {
       "by": "ai",
@@ -48549,8 +49154,8 @@
     },
     "auth.signup.notYetText": {
       "by": "ai",
-      "out": "a82e9a9d2b26a93f1821b96437405af8099e1852a369805cc84b45a6ec7e8b4d",
-      "src": "44b22b5465cf5fcb63de83dddc7cc149d899fcc94d64a45efbf1e1457fc002e1"
+      "out": "6f1daf07843eec748ab3f7a0000f67b900dab6f03c866d5b3963f19fe703c50b",
+      "src": "0b66618ca2c065d6a03f4bd386bb27e9a6a46054b58ae59d6f6fe458e4383ac2"
     },
     "auth.signup.notYetTitle": {
       "by": "ai",
@@ -57467,6 +58072,11 @@
       "out": "0d654e62a60d0708a2904f0927f0dcd18d5625b45d483be88a4f5ac5a747a1c7",
       "src": "5e61198924edcb8aed972a36fa23dbd156ec6065157f2fa881b8f3ac6e2b7153"
     },
+    "onboarding.business.notServedIn": {
+      "by": "ai",
+      "out": "5fad8b6a85eea9c5cff12e0e71e362ef6e6ee617491840fc3665bc55288cf166",
+      "src": "1b63ad8bbf1876eb706c1c2526ec793ae588a37697cd8a2d1943e74cc6d7bfaf"
+    },
     "onboarding.business.problem.askAdmin": {
       "by": "ai",
       "out": "7bbccc14af79f69836bc2d2dfb4250466ef5d8b265daef3cc96afbc4da5b8aaf",
@@ -57617,6 +58227,21 @@
       "out": "9d38ee3205e2fe51306c98ab4f4d2e3af5bbafb13670ceba083dda6136276233",
       "src": "d60f36768a9c47e4ba72f02476b3d0417f8819817473f54d01b7cb60f5b1a67d"
     },
+    "onboarding.flow.buyOnlyIn.inCarrier": {
+      "by": "ai",
+      "out": "8d9fd825ea27be145afb3cc36974e7ea21779731b52c2fd1e850d3b98bc3b03d",
+      "src": "0d7c4a4ebf8e62a90a9ce99549679185db9da91894fd75abcc85bc324cee9938"
+    },
+    "onboarding.flow.buyOnlyIn.ownCarrier": {
+      "by": "ai",
+      "out": "a72da8746a198b8b6bb98bcf199c21ac8c72161086fb8b50db24331f03d4c763",
+      "src": "b4ace170f505cdf108826210a2923153416673d995e05a7ff09ef77b509178d5"
+    },
+    "onboarding.flow.buyOnlyIn.withCarrier": {
+      "by": "ai",
+      "out": "5d61e4acf652b20839dc22e1880324ca3d73fd814536d877e30630f118562301",
+      "src": "14cc2b86357fbe0319fbcda6fe9542edc5eac9c6426542f6902a209ff927dacf"
+    },
     "onboarding.flow.buyQuestion": {
       "by": "ai",
       "out": "242f2590fbee8b308ce2fd26413d40bf6ff6d4c2c3747338d917c7b355e3afc8",
@@ -57631,6 +58256,26 @@
       "by": "ai",
       "out": "53d3cfb1ccc79de2fc2af548cbdff8363f7dc3864dfa8c00a804eeb44a56bdec",
       "src": "24943a3185cb770e13999725d7947186340915c6702a3e85d2d868a30e78df73"
+    },
+    "onboarding.flow.buyQuestionExtra": {
+      "by": "ai",
+      "out": "c24676b216619f51233de503a6e1ab8bed65b353dd2e7829697a8742dba1690a",
+      "src": "b1edc81444f1dd94958553647450a9a01b52a2ae9f156f561472d49350768e4c"
+    },
+    "onboarding.flow.buyQuestionExtraNoArea": {
+      "by": "ai",
+      "out": "b252941dda6ba1b2ba9a868b9d7bf24553e07c353a4db59e548737d984c57419",
+      "src": "e4da63fec468e36629d20713dba80f1c7a62ee8bb95fe7c34a2ffa8908fee68d"
+    },
+    "onboarding.flow.buyQuestionIncluded": {
+      "by": "ai",
+      "out": "21bb5dddcd0cc03d226a936bf23e692b2cd964f889f669cb8cdfb92465011325",
+      "src": "c54d8efe5df1cc515069a641ea224c1abfc8378924bd8d13f8d00045f1e776bd"
+    },
+    "onboarding.flow.buyQuestionIncludedNoArea": {
+      "by": "ai",
+      "out": "2cf34e9a053d7165683a4954cb81e1256b68d32bf974ae0cd1802d600700e22d",
+      "src": "499ce5b7cc44a991a5411eba50b4452b990a4c5e326a901f1f749e84a1c5954f"
     },
     "onboarding.flow.buyQuestionNoArea": {
       "by": "ai",
@@ -59952,6 +60597,66 @@
       "out": "c6779f493a915977887a1b0bec5a1453a03abacf4ddfcd669c44222badeb6138",
       "src": "5ef24429b2f1555a4055aa50571dbc00c884967d614b2e4991fb23c0152761cd"
     },
+    "server.api.feedback.alreadySent": {
+      "by": "ai",
+      "out": "b5ec38bfcb37a85fcde027a8c68136b36737e9f3585cf98099a0162894ceb1eb",
+      "src": "2daefc27060a98af4de93e9af3ff893526350cc79c9dbf440cd67656af2f2362"
+    },
+    "server.api.feedback.justTried": {
+      "by": "ai",
+      "out": "6f76e1cc98deb6f07073823453e5a4956d35bf98c1ae98b2020937dcfd548342",
+      "src": "62f7804d1ce54c2d4eb4de3c33b3564c0f93a59abd8f4b20bef3d8144aa406d0"
+    },
+    "server.api.feedback.notASetupReport": {
+      "by": "ai",
+      "out": "58308108f501199c265758734803809ca966f3e157854d9fec7c167d68d25c7e",
+      "src": "5c58effc4fa53c95dc15008de5afa96fc8af4eaa8fe6d3c575003d62e6681af1"
+    },
+    "server.api.feedback.notOnSetupLink": {
+      "by": "ai",
+      "out": "6ea49e3544d253fd09573f1d895bc69c33730ed1b045c609845e4e8346f486d4",
+      "src": "b4145528d1ace9cf5b403696327f0d17ef3c960e5cc692abb46916adad441496"
+    },
+    "server.api.feedback.refusedNoResend": {
+      "by": "ai",
+      "out": "be14f02606beecacdbaa67d1125c8c0b7af7e8cf83a1a1c23ce2cd899300844a",
+      "src": "7681a539d53346d7976ee6d6e6e9669973dcf3ade6104107a4ac87540954e09d"
+    },
+    "server.api.feedback.sendingOff": {
+      "by": "ai",
+      "out": "73784d125819fff2086dc6481857636bdaff2b63e7aecb38041289cdb710eb01",
+      "src": "c86662da3617eec14be5f2929a330c20598517b37c7141f189adafbb7714791c"
+    },
+    "server.api.feedback.setupLinkOnly": {
+      "by": "ai",
+      "out": "61a0ad4a78dbaf6d186afb995d21c7b80af68874202deab8c6d0bf727bbf1e73",
+      "src": "ca2fc81af18b091922af4a783345804879ceb6707e87be3b296e35e16913e4fd"
+    },
+    "server.api.feedback.setupNeedsConsent": {
+      "by": "ai",
+      "out": "38f8a0cc3b7bb4ffe32395c0154c6198b1e675829fbf56e7d146ebb15c7691d7",
+      "src": "86997e0f1388cc96a11201aeac6a9fa4eae3a5e153b6e75f7a1487f3646c903e"
+    },
+    "server.api.feedback.setupNeedsReport": {
+      "by": "ai",
+      "out": "d3e2d723a1a9d0e74142eee759670f25b37f59d54760daffe57e4d6a2ab1ce08",
+      "src": "cdd242028da57617fe8b171f56fc16a446af816d0691b25c59386ed9ff8af121"
+    },
+    "server.api.feedback.setupTextOnly": {
+      "by": "ai",
+      "out": "1e020342dccba5e660998977c2c91ae00f73f8fe69e43330f5c318495b5ba2e6",
+      "src": "f091567177d5338ee872ffb121c4598ee093c3a644582fda19a9f2ce58ee5920"
+    },
+    "server.api.feedback.setupTooMany": {
+      "by": "ai",
+      "out": "970afd9c5aa0e0325711d55f3468f7da390b55b5f6f7ce30ceb904252725f1ee",
+      "src": "087cb787e808ee112086b7eb85ec38e118836dabbf4c12fe0237f92998de11b5"
+    },
+    "server.api.feedback.setupTooSoon": {
+      "by": "ai",
+      "out": "92b44841356ff0789f21378b9c5953a21467c39c54ce246ef326c3f4cdf418bd",
+      "src": "10827130e62158d46f4a4cc52579e1951dfa4453b5644ba0d7c220f0a70ff81f"
+    },
     "server.api.feedback.tooMany": {
       "by": "ai",
       "out": "2bb9b288a5729e5acdc96483efd8a71a4b998aa72345d3f1e41fdf4f7a816396",
@@ -60842,6 +61547,31 @@
       "out": "543d637a4abfcb213bfb0bd2097c4bc24923acbcc1f12644e75243261a89dd85",
       "src": "a8d91f81e128bc70f3ed0390a0ee385b5b542012265efc6bfd231331cbc26eeb"
     },
+    "server.api.workspaceDelete.billingPaused": {
+      "by": "ai",
+      "out": "7234449c92964b4fde55dcefa38e53d6601a2ea3ace8640b035c33cfa3eeaee8",
+      "src": "5d7e71ac9530287aea81dd76c480094b2edf06f452c3d3ddc45733bc1152e479"
+    },
+    "server.api.workspaceDelete.notFound": {
+      "by": "ai",
+      "out": "7e65c718592e722e369747c4cf087e6fa7b168fc05156bd33e2268ce66e7d9c1",
+      "src": "bbccbdd9824a8a10e3c5ed6b6c632c66506997f73562c0b1a5fd5c68ec3dc129"
+    },
+    "server.api.workspaceDelete.planChanged": {
+      "by": "ai",
+      "out": "ee6cca6a16f9cc96d638e22cea1833e91cb1a5748c797386674ff7b076287c4e",
+      "src": "353c08d39d2156e40222b772e41bd9fea9de0c229a40963df2389ace9a971840"
+    },
+    "server.api.workspaceDelete.planNotCanceled": {
+      "by": "ai",
+      "out": "f3d0c0b19b6e39a44930fff4442323d74c6d0a71f413ae8a4b3903d630611915",
+      "src": "0ef632d1a3ecfa4ae144773bc3f5c4cbf8e7fe608271c8d009d0228d4d08c7d0"
+    },
+    "server.api.workspaceDelete.typeName": {
+      "by": "ai",
+      "out": "859122f8baafaa863a8869a26992b58de19b06d70b2552fca6b6048a08123bfe",
+      "src": "233cc1869ecf10c441a2da83053032af666df074944c930378ace2633b43cb18"
+    },
     "server.api.workspaceDisabled": {
       "by": "ai",
       "out": "c63f192c7b8235a4d37d6acd9f38cce0d09c2d9c8db5e02fe901643819e2002a",
@@ -61134,8 +61864,13 @@
     },
     "server.setupAgent.activateHow": {
       "by": "ai",
-      "out": "22977832455ebe90e4e9b1a4c15e02733cab12a0eb2f31ef45ad7ff9ce930622",
-      "src": "de9083f4cb265a740622b00ef856775030aefe73159633b770af0ee0f396ffeb"
+      "out": "63e9b439e57280f66c7e46602f7ae0760afcdab6ee334b62d7a47c5311f46d31",
+      "src": "e12a58f0a676e8721816a65c0a2a76062c089cc8c7f1f2639cfd7e618b9b9f64"
+    },
+    "server.setupAgent.activatePlanHow": {
+      "by": "ai",
+      "out": "eaa5c711f732170dc07f91672c25db51cd7ad8b2053a09c5766141e23ae686d9",
+      "src": "cb03ab0526d8d0de53f96da43ede6cc8646c973ea2c38877967e41bed2ca9af6"
     },
     "server.setupAgent.attachInApp": {
       "by": "ai",
@@ -61197,10 +61932,65 @@
       "out": "d08f847c2244b6bf25dd023034d4db46db22ec607d181775df1f52cfe6c24368",
       "src": "1d632afc59bd0c9e3149d6650eef63749e6ce5fe745adc2de501b305b88ef8f0"
     },
+    "server.setupAgent.mcp.buyAskFirst": {
+      "by": "ai",
+      "out": "0a2f82ea0c7a8b5a98841b283ef7ce35d89b67b2bd7d1b00639477ab6ba5acf8",
+      "src": "e059385ad2accdbbdf600a20526c076b60f7e47969df92802a2697f6e0e48cbe"
+    },
     "server.setupAgent.mcp.emailKnowledge": {
       "by": "ai",
       "out": "a062eb77fb617070c9d2879453079f1d5cfbcc43619ca38d96e4d85a279c8bb6",
       "src": "3baa9d79d93ff3930e21c0095ca4768f003d441d406dd57dcdca0336c68a925b"
+    },
+    "server.setupAgent.mcp.planLink": {
+      "by": "ai",
+      "out": "5adefde453e6d942d543bedef3d2e35db5166d461c80ecf304b2866b56f0a962",
+      "src": "8a7fad90f6ae3d9fd65cdaf363a72a30d63d937f5e2b8b79c6fe3a13300d2a85"
+    },
+    "server.setupAgent.mcp.trialLinkDays": {
+      "by": "ai",
+      "out": "92b703441bc04d08cafe68003c0ee08133f678366f82ce9eb866baf40a09b015",
+      "src": "e8fd4b9c84ffb83c4eddec32a0d104b4e2151d912de7e643a30f5495b0b56cb5"
+    },
+    "server.setupAgent.numberPrice.carrier": {
+      "by": "ai",
+      "out": "9f50886eb8beb5a36d5b061111e82033466a85bda4b39f3a5aae9a9b523b3bfb",
+      "src": "af5659444eb9500e76b1c60eda4d0af5affa7b0966931da5352f235d9aae17c0"
+    },
+    "server.setupAgent.numberPrice.carrierByCountry": {
+      "by": "ai",
+      "out": "86d1c19dc5d16e91fc8fb1e8bf39c9b039f9e8bdf6eea3c4c169d5af04dd044a",
+      "src": "5277d772f207ba22240ecafee02f27b6b48ea030baa6cf391cf9838016bfd4e0"
+    },
+    "server.setupAgent.numberPrice.carrierUnknown": {
+      "by": "ai",
+      "out": "eab6f7cd699f41b3cd7f9b2c84d56b28bdf8affa3019bfabe941a988cb7bc7f6",
+      "src": "174f94a4f847cc705d0990351fccea7471cad740ae53a354e306924ffa81cef4"
+    },
+    "server.setupAgent.numberPrice.dev": {
+      "by": "ai",
+      "out": "953599a5eb229aa08cac3519bcfe5a2143409395c762baef77e6390e98e397a3",
+      "src": "cc692346bb7a7adbdbef90c34a7b37d7b9ff65b089b3710b3b6e0132ffbd5526"
+    },
+    "server.setupAgent.numberPrice.extra": {
+      "by": "ai",
+      "out": "ad4116647e32b079ba4852a01700337fad0540422a58363e0ef2a7c5809fbe84",
+      "src": "faf2042e59615b80390797af44c86085027cd0822f330b8618d5ac1c6747d8ad"
+    },
+    "server.setupAgent.numberPrice.included": {
+      "by": "ai",
+      "out": "c1e012e90bc7eb492be24f56340517b171d11b3baae96d73ccb5d2464a59f3ee",
+      "src": "6c50e9f61f9ae630d1dbe6fea743ae58b9d40ea83b199186e3721bd6dffc7047"
+    },
+    "server.setupAgent.numberPrice.partner": {
+      "by": "ai",
+      "out": "e405ae827fe06365b438935f340895a81ae052584b6d210167eba507e9a69ae2",
+      "src": "eab9753e60429512fa7da8f0ca80465696efa78cd91f4109f25cae0709e7591d"
+    },
+    "server.setupAgent.numberPrice.unknown": {
+      "by": "ai",
+      "out": "27afe76ba33696b78c19607f7fa8839deac817ad5eb8b817aa6c6c5cbc49a8e9",
+      "src": "fd0840e7b5f65c5d6026b6dbcdcb6bdf7bb092b99757db4be176c91252cc45a8"
     },
     "server.setupAgent.optional.domains": {
       "by": "ai",
@@ -61367,10 +62157,15 @@
       "out": "f962e0780c7b4e4239502f7567d49793a9c15891bb7cdbaa9fc83021a1d143e3",
       "src": "efc6df9666b4af889b88ea2b901876aabd764292269028dfaad2a3c0b5e66d79"
     },
+    "server.setupAgent.phoneAfterPlan": {
+      "by": "ai",
+      "out": "71cfe09b07122e7e6da98479335982c2fde80edfc977c6b00f45308776d3f6a6",
+      "src": "b1c9b571184c5d2d5b44873a81d2471dcd8beb081c4b2814e7768c88a98ccbba"
+    },
     "server.setupAgent.phoneAfterTrial": {
       "by": "ai",
-      "out": "34f1e9240e4e16f18c1028ecaf6120997956aa64fdd71da6aa44e7ed0e729977",
-      "src": "f2019afeb2705a74d0f8ef4a85a6391acd77bdc38c72781d43eb76abdc459707"
+      "out": "e497c97119ca84fcd3c7861b0e2fd9f42043b644500a3880f73ae81884e5246f",
+      "src": "bb280b981ad8bca212b7562a04ce70997baedb372aa550b3645bf234ce61bf43"
     },
     "server.setupAgent.phoneBeingSetUp": {
       "by": "ai",
@@ -61381,6 +62176,11 @@
       "by": "ai",
       "out": "490a1ab6061228bdf867dfbb74f9f7bfb637d3ad35b701f3cc069c37632310af",
       "src": "2f0d505eb71fd48f27fcaf1279af8093351e541f52373f52865f5b552eb49b96"
+    },
+    "server.setupAgent.phoneCountryGuessed": {
+      "by": "ai",
+      "out": "6b5fac6afb0baf5fc432ec887857a2af0606c93c61e4c30bf09ef3377658313d",
+      "src": "b4c82fc5625dc3cf37294e80839a0f7f50e972494cbf2aeae5c11a5b66d40e79"
     },
     "server.setupAgent.prompt.changeAssistant": {
       "by": "ai",
@@ -61394,8 +62194,8 @@
     },
     "server.setupAgent.prompt.install": {
       "by": "ai",
-      "out": "6fa5c4a78553fc699ba1944e36d0198e566f96f685e32f78530b49697f95df15",
-      "src": "3b39ab6c51cc7f148147a18c391e037ff76ee71607ae19510df8bc2bab32c1ca"
+      "out": "734ba49448b73eb99ba7a224183a908649db19841bef6cf4cb6fa867a749bcb9",
+      "src": "17ec590aa1b510d457ea8e97a4e9d979cf9e23ea2aa5fe17bddc9b4fc3a28b13"
     },
     "server.setupAgent.prompt.toolsConnector": {
       "by": "ai",
@@ -61409,8 +62209,138 @@
     },
     "server.setupAgent.prompt.workspace": {
       "by": "ai",
-      "out": "59fe4be67fe28154450b9248c2574dd62327504252e53fe9c3341857def941a9",
-      "src": "9b3124e07807717a6bb4589c153fa10fa6503c35fd3426fb89237fb88c2526c8"
+      "out": "25b1cda70593de5f1143662f81cb3ca65c38ae8ea13a1dd4b692b3218ae13c18",
+      "src": "bb2a45b20b66e48981baf016f19e944646b9e225366571e495bc4680ed1d2494"
+    },
+    "server.setupAgent.report.anAgent": {
+      "by": "ai",
+      "out": "66193c22ac516664f59707b947bc22e2287eda7e8acb6c6360532b5c5198c90d",
+      "src": "0be69abf9af984035aac6d6b6e9eac4464f36021c301b1239e93ebcba8ad48ec"
+    },
+    "server.setupAgent.report.askLater": {
+      "by": "ai",
+      "out": "5730f906dbf59e1974a5ec959b6f25443e30eb5d7c04bf196af254b37d04be26",
+      "src": "a3319aafce0e7b16e04c83d3c6a45f9a28874fce970099fd3cb9732660c72430"
+    },
+    "server.setupAgent.report.askNow": {
+      "by": "ai",
+      "out": "d6ba30ceba17e03d8f81184c170cb910ce6d931a440555764272bc39bdeebab3",
+      "src": "ff2d173acbc19ceaa542acdc0946c12f80ee5334ac716dc71a5b7f43cd420384"
+    },
+    "server.setupAgent.report.consentIncludes": {
+      "by": "ai",
+      "out": "0f09a9f0ef60be6b176971bb5e3b089a70c47811812ecd069b1f1515a1856499",
+      "src": "ed5c711ac380c878e6e6d62b3176bcf84e4eb95689a2abd651ccfdd954cf2995"
+    },
+    "server.setupAgent.report.consentIntro": {
+      "by": "ai",
+      "out": "1f3ec259ddf4be0b52932460dc10d8e635b086e6455a73235792c8d35160f4a1",
+      "src": "ac8dbee5f4e39cc73a41f1b8b777427e3ff68e5254239512fa01089f408e93a6"
+    },
+    "server.setupAgent.report.consentItem": {
+      "by": "ai",
+      "out": "e11d8aff16629318c2ca2d29ec378b7162390a5f780d62ab6cf80aa29881c85c",
+      "src": "e11d8aff16629318c2ca2d29ec378b7162390a5f780d62ab6cf80aa29881c85c"
+    },
+    "server.setupAgent.report.consentItemMinutes": {
+      "by": "ai",
+      "out": "22e988f21b169a7dc1c9007d0608ebbf0a809d0ca0fc175dcfba0fb435e1537f",
+      "src": "300484b6d37f1ae89f26d8c316cddc492cd6a2ef83ac2e2037fe83c4f749b138"
+    },
+    "server.setupAgent.report.consentSend": {
+      "by": "ai",
+      "out": "bf279a0cc42c652c3f6b73a1d0d84d4e7ee3232d0f38cb60d3562a087ea1c144",
+      "src": "de67daaffe8739ca0a388fcb6e752d9f653ef24ece3a8809d7eef4f7f6ccb974"
+    },
+    "server.setupAgent.report.consentSendContact": {
+      "by": "ai",
+      "out": "87b1620165a1d1af4220d45138391aa3078ff5694151a2e0ffd95d8259b08304",
+      "src": "879c4b17e0336b549672edf5acbde30c8c4b38d6f68e20ef3d5ce3540450f9ed"
+    },
+    "server.setupAgent.report.consentWentWell": {
+      "by": "ai",
+      "out": "3fdef805b1077ef876febe38dfb677cdb3c4041e34f4b1404ac49f1cf0e62b2e",
+      "src": "a21e15b42c2db49d68c773e3247b1f368fc5c79b94db1bb9db5ddeb38f4907a7"
+    },
+    "server.setupAgent.report.errorConnect": {
+      "by": "ai",
+      "out": "db707531c9df8beb0288af95da9260ec4d681e30f731ed3e3bf24bab84e8aa05",
+      "src": "4809dff91442a64e52488c022bf3b71666c525e667b47bf725812844c963c0f8"
+    },
+    "server.setupAgent.report.errorHttp": {
+      "by": "ai",
+      "out": "d9df8d88fd764eaa40677f0612d7e4983588c7698a9f43c6a4c76c10112f9b26",
+      "src": "d9df8d88fd764eaa40677f0612d7e4983588c7698a9f43c6a4c76c10112f9b26"
+    },
+    "server.setupAgent.report.errorHttpWith": {
+      "by": "ai",
+      "out": "9b6d9390ff136983098b6d3976c2be552b32e48c898e53f294821ef71f2b79fa",
+      "src": "9b6d9390ff136983098b6d3976c2be552b32e48c898e53f294821ef71f2b79fa"
+    },
+    "server.setupAgent.report.errorNotEndpoint": {
+      "by": "ai",
+      "out": "fc42623cfa63fb55d79c6efba3fdcdfab4334b48d53678a0d42eaa08fa6521e0",
+      "src": "8d38be6f57edb17f9afb5891ebbfbde92434b6a00485b2d7ac9a616f4bae8898"
+    },
+    "server.setupAgent.report.errorRedirect": {
+      "by": "ai",
+      "out": "8ef7cc8e03ef14602c6762d20d16017f0903ca2802125649ec2cc15365c1540e",
+      "src": "51efab1f4a83be642e591d442d63fc676915238ce2f352ea5eb0bc0e4e6f8eb3"
+    },
+    "server.setupAgent.report.errorRefused": {
+      "by": "ai",
+      "out": "bed62c14867fe792484c42717b001755c531c6ff824f131b7396518b7ead400a",
+      "src": "e077f113f38c6a27beeb83d2d2a19ade086fa4bd30a7abe749666b3d757bacfb"
+    },
+    "server.setupAgent.report.errorTimeout": {
+      "by": "ai",
+      "out": "2fb8f3274bac5d54508ad6b7243bcd9ef813d452adf6297f391265d50b6dbdf0",
+      "src": "7703b8c08ef02eb0df1c02a28baae063b75010f855f2d5d05b1fb9079da5efd9"
+    },
+    "server.setupAgent.report.internalError": {
+      "by": "ai",
+      "out": "12f83e274a336f1cabfe56c46a9a2cb52e22098868e818203c6def3b08a2ba17",
+      "src": "99cab6ab51969245dd524ce8eeb19f7ea6b1c494a4e2548b3b242a5b3381c9ce"
+    },
+    "server.setupAgent.report.kept": {
+      "by": "ai",
+      "out": "3833b67b16fc5a1ac16c7f6b4e5bd8bdbd3564a8710819e10f6fb84fd9aa1f11",
+      "src": "72cb3c2cf4ec5c99eb46cc409e8a55e4bf3fd8cf1219f805a727ecf50e3ed2d8"
+    },
+    "server.setupAgent.report.next": {
+      "by": "ai",
+      "out": "36145c5f987c326f49b70320f85ce2c2a7ebdcb9e2cbe20c63bf18adb040e5e7",
+      "src": "24fa447e4027c0e0270811d25e338d1de4c050ea5809a5af29c237858086b10d"
+    },
+    "server.setupAgent.report.off": {
+      "by": "ai",
+      "out": "e76e415b7a4d9ca2e1743de238d5c088b326b571aff8805967c54006e09dea23",
+      "src": "3d51d8fb494882dda75d21efe2f884721bafdac4351623ad4afea51b5483b1df"
+    },
+    "server.setupAgent.report.refused": {
+      "by": "ai",
+      "out": "7b162f488a9f3abc75550d8c1eb14f6196c78354e40c7bfe104aee62fb6580d7",
+      "src": "f0acafa64343bd88d08d59a0fb87a7aaa69c74c88a32b47069ad4216d6cd9e7a"
+    },
+    "server.setupAgent.report.sent": {
+      "by": "ai",
+      "out": "6a627132e7ff577dbe0fc419d82120ffac72bebfcb5ae7f171f08e885ad6980e",
+      "src": "ef037079dd51ebaa700207347b418c73ebf6bed9de390b3828683935ccccd0ce"
+    },
+    "server.setupAgent.report.statusKept": {
+      "by": "ai",
+      "out": "7a9d2108f82f4436f55e6cbb710a371727b658711804400650da03d04b387e8a",
+      "src": "12cc32ac6080ffa52007bcd4b711183299a823ebeb1a76bc3f9e7f10870f42ef"
+    },
+    "server.setupAgent.report.statusSent": {
+      "by": "ai",
+      "out": "ab22803d4e47d32745b6356ba19b35dbd7177fcb80019aeec66c47ef763bf05a",
+      "src": "80729d82576fde04267282d184dc2f4f1c9abe138b4bb51656f785f145b9b45c"
+    },
+    "server.setupAgent.report.toolDescription": {
+      "by": "ai",
+      "out": "96462737c41849ed1c134fa60637fcded4e343d1a5af96927f83e9f402b8bcfe",
+      "src": "dda8e3c1f8dfd1c763b82c1a50f84037a5bb140ab5750339578ecf70f222d6a2"
     },
     "server.setupAgent.step.answering": {
       "by": "ai",
@@ -64541,6 +65471,11 @@
       "by": "ai",
       "out": "f29583f57192015ef5d1145f5952db086a8cd7d927a896d9c5195e973331b4d9",
       "src": "f2b574215a225ffec01589877896824e02386589c5a4c07ebf254ec15e1308af"
+    },
+    "settings.danger.list.plan": {
+      "by": "ai",
+      "out": "5e6e557ea8c0e2358f9fbbb973bdf07b5412e3cc416d08b8e765ee85075d9199",
+      "src": "a4bea73fd0e510052e948ea4578707e4b23ffa943b2f74cf8a81f1f2e9688862"
     },
     "settings.danger.list.rest": {
       "by": "ai",
@@ -75601,8 +76536,8 @@
     },
     "admin.actions.workspace.delete.tip": {
       "by": "ai",
-      "out": "bb835cae563797442746453d52d0fe85ad2bba019dc6c1217b1d24d4037337ca",
-      "src": "c16653a33e7f91d9f130f641d77f59ccab64f270eea79c3b695f7299bdf5aad2"
+      "out": "17dc56b851f3b554a47d6b06c337ca51b00e59a76cedd7a24880ca701947708d",
+      "src": "dac2e55c9b3798abbf0311d9d4a23ec382115ec35b93eba54b6c1515bb54d092"
     },
     "admin.actions.workspace.deleted.accounts": {
       "by": "ai",
@@ -75628,6 +76563,11 @@
       "by": "ai",
       "out": "cc479982ffa2c003862087c1624057f46c10e476437e93c250a3efb888bb5e77",
       "src": "10ec2423024b6d75ba0be6a89235264410de41530d4edef0a2872a22939c59c5"
+    },
+    "admin.actions.workspace.deleted.planCanceled": {
+      "by": "ai",
+      "out": "35197529bd37abdb12fe93238f7a671492be3f6e6e4b3e2f5747b787cfd4e0ef",
+      "src": "f283ce32f969424b162cd23d41917f329a46f55c24d2afe144829f91d4f9f6fb"
     },
     "admin.actions.workspace.disable.action": {
       "by": "ai",
@@ -76403,6 +77343,16 @@
       "by": "ai",
       "out": "c23f9c899f2866fdbe0cda60dea42dff850a86603a5a9fa28e4001dd136ae10f",
       "src": "feed98ce586a8f2aee6bd01a2082baf039996fb4b026d38516eaf2e9e121e40b"
+    },
+    "admin.audit.feedbackResend": {
+      "by": "ai",
+      "out": "016c983b6907457e46d7af52aaa9b07195a7b6bed5a6f1890318d657e45a129d",
+      "src": "eb59f58aadfe1c0d98bb9089b8752815687ad74905162db911d020db140913ba"
+    },
+    "admin.audit.feedbackSend": {
+      "by": "ai",
+      "out": "cda145478b08fe97362245668019f0f23db83a174e19693394649c7e9131f3e3",
+      "src": "8ccfe5f6415f52763562348966698d78594ff911af1a473dfe723180e9788e30"
     },
     "admin.audit.forwardingChecked": {
       "by": "ai",
@@ -82899,6 +83849,11 @@
       "out": "23e542225d91c569e9c5514b5320ebcb67efc58c92afb532e3dec2cde30562ee",
       "src": "864a4209ae2a1ace2ea09dcf54305a4c2240a0da21f4b0941434825f56d77ee5"
     },
+    "admin.providers.way.works": {
+      "by": "ai",
+      "out": "0e0472fdba19162f47891a122aef50fa72e2281bb3b5748d62cf6aa7dc4e9162",
+      "src": "2b4c8c6d38db43a9b038d256f1b54d9685ecc1578603d82f3f49f2bda9922efe"
+    },
     "admin.replyDelay.barLabel": {
       "by": "ai",
       "out": "efe0f1b86b2e4a1388d851bda02ac5939d556a0432bdb0e9e2dbd4f88e0ff6f7",
@@ -83824,6 +84779,141 @@
       "out": "81128e5e28188d625586f9167778ccdd7ab2755c47a24da2dbb876b3f70af6c9",
       "src": "aef7de28d52977f1b5cd0fecfdc151717610adf41e0aa33b4d9f7522a43337ef"
     },
+    "admin.system.setupReports.actions": {
+      "by": "ai",
+      "out": "ff8059dc6752afdd30d275932b1d5031a2ec854b387a8c57ecc6689915293a43",
+      "src": "ff8059dc6752afdd30d275932b1d5031a2ec854b387a8c57ecc6689915293a43"
+    },
+    "admin.system.setupReports.by": {
+      "by": "ai",
+      "out": "703d2644bc563703a8e6e6572ff8c36f5fbdac73d299ff1ca3545a7ce8b821d3",
+      "src": "0b8b277cac6fc71b4d84d5b0d2df3473a146482ee42f23efffbc52ea45a6f387"
+    },
+    "admin.system.setupReports.byAgent": {
+      "by": "ai",
+      "out": "db87845308a7e3977314fa06aac334cf16f8682c462faa49099d7167236a6bdd",
+      "src": "09b3db4f03c2b3b0584a45db93f45b28a5760882ce75c4d2813351039dda4e42"
+    },
+    "admin.system.setupReports.date": {
+      "by": "ai",
+      "out": "99c40ab405926cb5ad1def9cff4d7ce624f8f8abfff4e85f655347fcb949d08e",
+      "src": "99c40ab405926cb5ad1def9cff4d7ce624f8f8abfff4e85f655347fcb949d08e"
+    },
+    "admin.system.setupReports.empty": {
+      "by": "ai",
+      "out": "4a459686934aa02bed9e7d5af3f4ca545097184a8e7331da38ab271bcdc63460",
+      "src": "fd912b9aaf36d41e13879a8da5d4bc1b9e1fe9c5690aa92d58274a5f31124bdc"
+    },
+    "admin.system.setupReports.help": {
+      "by": "ai",
+      "out": "145c77321e0c323fe10819fe5b067f64847ca15842d7d380e5855922d297cd0b",
+      "src": "c4e8f0976665d7cc3e3982948b493852a5b1a97cc5b29be978af4cdd693e29ee"
+    },
+    "admin.system.setupReports.itemCount": {
+      "by": "ai",
+      "out": "89863b5244156d4d7446400f578c9dcba28f53450650a7ff9eea28bfb705061b",
+      "src": "f326e8c00a020befb85686554989a7ab47f822f10b2891be4cf0554cd7c091f2"
+    },
+    "admin.system.setupReports.items": {
+      "by": "ai",
+      "out": "77deabe238de2f6dddc88c17dbe14221918571838d8fc1228843f9387b0b69f7",
+      "src": "fb8e7a1a3cb7b25d262793159145759e97eb540a2b61dbbdf8f58841a81cf1a8"
+    },
+    "admin.system.setupReports.off": {
+      "by": "ai",
+      "out": "4261da6bdfaf4894cefc21f71e4de00445db376401442dca2422d7dc54432abb",
+      "src": "af01242d9fc28b9034ccd3986361df4cc82befd79d5f434e2e49ef8d0b9a1dc3"
+    },
+    "admin.system.setupReports.outcome": {
+      "by": "ai",
+      "out": "f1ed9999c72bae393868a6ff125c929dcde019fb16b765eeaaac2237523a280c",
+      "src": "4e80abb5b14656d4eed8fd93705fd4c774d7653b05162763770bd23f1755db1a"
+    },
+    "admin.system.setupReports.outcomeAbandoned": {
+      "by": "ai",
+      "out": "7957a008be678fcb96cd0c105170ceb7cc465d5391baea8911c0a446660a0953",
+      "src": "1a4f630ac1b69fd00728fa8a672ded71d0eae8516cb23e78f94529113399b79b"
+    },
+    "admin.system.setupReports.outcomeCompleted": {
+      "by": "ai",
+      "out": "13ecee2c319141f65a73bc5a513b2f1be53316727914b9dc1ee56375b52971e6",
+      "src": "22a970d2e5b1cc233e462be7c7b64e135a275bb09d83d87683bf4236c43113a1"
+    },
+    "admin.system.setupReports.outcomeInProgress": {
+      "by": "ai",
+      "out": "797f5dcd0217e2b990184aecacb11d593f1ac3bcbf14b6eae94230d37c38994e",
+      "src": "c1f88e9d6c4145cf0530ae020155384d5688d70ed82a07a35d783bbc4b32238c"
+    },
+    "admin.system.setupReports.outcomePartial": {
+      "by": "ai",
+      "out": "d382b3cb5fb7759b4946725bb0a4294c0b182458e2590c9838d89948fd804133",
+      "src": "1afdeec8fabc72c325050de43f89e565b7e954d6b2c753ccbbd9d7dde5575463"
+    },
+    "admin.system.setupReports.reasonOff": {
+      "by": "ai",
+      "out": "58b3f566f30b268be12f722034e7a8707201412c97d71d750624ca3027da5bd3",
+      "src": "898811187ae198835d1b5b49d53d651847e9c68eb30d14851bd23537927ed44a"
+    },
+    "admin.system.setupReports.reasonRefused": {
+      "by": "ai",
+      "out": "ca45c3ca0ebb37bd411220b32cfd573386007c0a88a0ecd2886fa0f18c398726",
+      "src": "9725401e36dcf469ccab693d9cbcfaa0dc5c3cfd20329a17925bafba0efd0054"
+    },
+    "admin.system.setupReports.reasonUnreachable": {
+      "by": "ai",
+      "out": "bf6fcd762d101b8cacc364958fe8ebf14e196319f75a07a504489333d309ebab",
+      "src": "07b0eec3c939a596ab8ae1339b6b95100a2de64e579236ba3c254495e9785b15"
+    },
+    "admin.system.setupReports.resend": {
+      "by": "ai",
+      "out": "58c0fa009a92774bf44574d37490185411744daab6651ff9e7e2ce67bf151d21",
+      "src": "feead925e2600648cbe1aaaa284aba30b93de840304bd63277200f4c903082e9"
+    },
+    "admin.system.setupReports.resendFailed": {
+      "by": "ai",
+      "out": "2244129229d35646b5afda46c3b262f571a8ef46f0b8b5f4e5662fb319fa8afb",
+      "src": "d8d384421e13165ce9ba8abc5d2b26b88dcd416a49cf200100c2e0278c896a31"
+    },
+    "admin.system.setupReports.resendTip": {
+      "by": "ai",
+      "out": "27fa2764ba8cf7ffc89b610ac8eec9a4b19f45a24d001fa8d6751bad05898d59",
+      "src": "b8adfaceda6b5ac48a12d1dc042c34cce41999b7090e45b31d7ad5441f463120"
+    },
+    "admin.system.setupReports.status": {
+      "by": "ai",
+      "out": "dee377cfd8cddfb8db49d63a6f80174955c594a7cb995d4a70c2f6f305286786",
+      "src": "920e413c7d411b61ef3e8c63b1cb6ad058d5f95f8b481dbafe60248387d8c355"
+    },
+    "admin.system.setupReports.statusFailed": {
+      "by": "ai",
+      "out": "fdf3f6d53c9ea75fe52910d8738306f31c5b3b76c87a7eb7881db854f21f3636",
+      "src": "031a8f0f659df890dfd53c92e45295b0f14c997185bae46e168831e403b273f7"
+    },
+    "admin.system.setupReports.statusKept": {
+      "by": "ai",
+      "out": "8bbedb15d29ee02919571c293ca57272248a75440f13e77d871843227b7a3e09",
+      "src": "c159e7465c1ab24cd6efabb03d87f48f72368f560d5d2718edfa9e4a5a670c36"
+    },
+    "admin.system.setupReports.statusPending": {
+      "by": "ai",
+      "out": "a6725da3ed226167890edcf4fb61212d627ed69cc1000c05a420ca9d23f94889",
+      "src": "e595f17fac1d8384c7287aa20ab48ec05476a9a557a524091c03727732582e76"
+    },
+    "admin.system.setupReports.statusRefused": {
+      "by": "ai",
+      "out": "86b823c7b6c146f57e71494265e7cb97d4482774aefcf09a0a25df69a49644c7",
+      "src": "8ba391628be0d7e1c0dde21aeff106331b47c80473ec47ac9e49931145581cc9"
+    },
+    "admin.system.setupReports.statusSent": {
+      "by": "ai",
+      "out": "e6092b784274e1690a36a3865a4bdf685322877f816195ed4105e9e56784b14b",
+      "src": "c16bc82bf1f04ede04d1bc0bdf714b1a2e523ac5fa06fee7b9466c6d2d54af1e"
+    },
+    "admin.system.setupReports.title": {
+      "by": "ai",
+      "out": "ae3f3b753e671875ff0d5b99237c21a67e5bf728982fb6542daa5457e5981f55",
+      "src": "3d4240aec0c19ab214cdd626ae68e5f6f644ead4a3449f90466138243fe4f62f"
+    },
     "admin.system.signupAccess.add": {
       "by": "ai",
       "out": "e34c091ea60303193f5f335c78eab4364e250dd2a5373679b07cba6e0f2d88c4",
@@ -84083,6 +85173,11 @@
       "by": "ai",
       "out": "f575e4d0b6747f4fc6e116ca10d54f1ac06b272f59da8417eb74497d4b56032c",
       "src": "40f1f1d7532aa12281d3df687893cb23b71c7b925731bc20c21a5fa55e533567"
+    },
+    "admin.tryOut.areaCodeIn": {
+      "by": "ai",
+      "out": "f639e124e4c92a21cd427b20f72f9ded5881233d63d6a6c474e468d65e3ea97b",
+      "src": "b1bf578823682c942a426f294b37ee6ab4798a035fbe1c6b3b9c465d065973ce"
     },
     "admin.tryOut.callerQuestion": {
       "by": "ai",
@@ -85501,8 +86596,8 @@
     },
     "auth.signup.notYetText": {
       "by": "ai",
-      "out": "379ca430385819d85bf7a8d4443b879a5f4fcf963a8cf9ec094a1304cdd1f5c6",
-      "src": "44b22b5465cf5fcb63de83dddc7cc149d899fcc94d64a45efbf1e1457fc002e1"
+      "out": "ae9815013b0f3d68244682eea51d8d2608cf969dd81a610177ba74ba289c518c",
+      "src": "0b66618ca2c065d6a03f4bd386bb27e9a6a46054b58ae59d6f6fe458e4383ac2"
     },
     "auth.signup.notYetTitle": {
       "by": "ai",
@@ -94419,6 +95514,11 @@
       "out": "e67841b18c25aa26d76032e1ee194eac25c54ca8353e20a765f067be6f19b2bb",
       "src": "5e61198924edcb8aed972a36fa23dbd156ec6065157f2fa881b8f3ac6e2b7153"
     },
+    "onboarding.business.notServedIn": {
+      "by": "ai",
+      "out": "e6b27687a8d36344d561f31d927183e0473d10a7c1d462507461f01cb25d547a",
+      "src": "1b63ad8bbf1876eb706c1c2526ec793ae588a37697cd8a2d1943e74cc6d7bfaf"
+    },
     "onboarding.business.problem.askAdmin": {
       "by": "ai",
       "out": "5578b4bcbaa3a6b1e739f1be8ede3d2c5a5443a6cc006d1b40df399dbb0c9702",
@@ -94569,6 +95669,21 @@
       "out": "5100e1ed1eee92666ec5d70a2381b0c836f68915c1fc0f1dbf1034bae4ffeb9a",
       "src": "d60f36768a9c47e4ba72f02476b3d0417f8819817473f54d01b7cb60f5b1a67d"
     },
+    "onboarding.flow.buyOnlyIn.inCarrier": {
+      "by": "ai",
+      "out": "edb1f85b8c3bbcf5498bb751425fed3b78d2ea85192d91e8efc81c991f2e8f90",
+      "src": "0d7c4a4ebf8e62a90a9ce99549679185db9da91894fd75abcc85bc324cee9938"
+    },
+    "onboarding.flow.buyOnlyIn.ownCarrier": {
+      "by": "ai",
+      "out": "ffa7d8ee247894199eebc7f1a0a6c76900c71c37a38defd0aa92b8beb796abcf",
+      "src": "b4ace170f505cdf108826210a2923153416673d995e05a7ff09ef77b509178d5"
+    },
+    "onboarding.flow.buyOnlyIn.withCarrier": {
+      "by": "ai",
+      "out": "21173ce40515fa74804f797197c916d1843486ad0b028c9d1e080707e9c7aa62",
+      "src": "14cc2b86357fbe0319fbcda6fe9542edc5eac9c6426542f6902a209ff927dacf"
+    },
     "onboarding.flow.buyQuestion": {
       "by": "ai",
       "out": "b487b7fe6fb0d43cb2351c943825195b03b2451a56260635bf13ddf172cc9637",
@@ -94583,6 +95698,26 @@
       "by": "ai",
       "out": "525254ff6cf480a87776dc1dc2de06e6a4596ef40affd237aaa67ba35ab620cf",
       "src": "24943a3185cb770e13999725d7947186340915c6702a3e85d2d868a30e78df73"
+    },
+    "onboarding.flow.buyQuestionExtra": {
+      "by": "ai",
+      "out": "38352602d4a1ca154dae8cd51c2eaf5e8f4c2d37c3b57c6440277b10f222861b",
+      "src": "b1edc81444f1dd94958553647450a9a01b52a2ae9f156f561472d49350768e4c"
+    },
+    "onboarding.flow.buyQuestionExtraNoArea": {
+      "by": "ai",
+      "out": "e5ae6a6ffbf6efbebffb1f49ca7a422ef8e809fb73675308db600561df651fd5",
+      "src": "e4da63fec468e36629d20713dba80f1c7a62ee8bb95fe7c34a2ffa8908fee68d"
+    },
+    "onboarding.flow.buyQuestionIncluded": {
+      "by": "ai",
+      "out": "3ecb5c7bc45843af7fd379037d3213651c5afb4d587648ac1b47eb460dbb74fc",
+      "src": "c54d8efe5df1cc515069a641ea224c1abfc8378924bd8d13f8d00045f1e776bd"
+    },
+    "onboarding.flow.buyQuestionIncludedNoArea": {
+      "by": "ai",
+      "out": "449ecd40760f25b84075608d85d2a8350c3bbb10e06d1bcfd1265d4c531d3591",
+      "src": "499ce5b7cc44a991a5411eba50b4452b990a4c5e326a901f1f749e84a1c5954f"
     },
     "onboarding.flow.buyQuestionNoArea": {
       "by": "ai",
@@ -96904,6 +98039,66 @@
       "out": "ab50b116adb6d63c5ed26ee331952f4faada847e2e7e263dc0bca365ca5f2215",
       "src": "5ef24429b2f1555a4055aa50571dbc00c884967d614b2e4991fb23c0152761cd"
     },
+    "server.api.feedback.alreadySent": {
+      "by": "ai",
+      "out": "d4efd3a0d3181a147b27030cc14093108f5f7516e413f86fa5d31e623e244380",
+      "src": "2daefc27060a98af4de93e9af3ff893526350cc79c9dbf440cd67656af2f2362"
+    },
+    "server.api.feedback.justTried": {
+      "by": "ai",
+      "out": "014ee0f3371c90f1e9fe2414f028452c1aba9a39ce8a022bb527f1083b752fdb",
+      "src": "62f7804d1ce54c2d4eb4de3c33b3564c0f93a59abd8f4b20bef3d8144aa406d0"
+    },
+    "server.api.feedback.notASetupReport": {
+      "by": "ai",
+      "out": "3177d8562595b9c7777391e3b257946fde760f11b325c0ff50ae368dd3f2b3d0",
+      "src": "5c58effc4fa53c95dc15008de5afa96fc8af4eaa8fe6d3c575003d62e6681af1"
+    },
+    "server.api.feedback.notOnSetupLink": {
+      "by": "ai",
+      "out": "0dc6b0ff2ce526f2d3793fee569d9181ae14a963cd40b8da994738bb3c87c8f7",
+      "src": "b4145528d1ace9cf5b403696327f0d17ef3c960e5cc692abb46916adad441496"
+    },
+    "server.api.feedback.refusedNoResend": {
+      "by": "ai",
+      "out": "41bdbad0a2e4c8e0582b406ea56a6baef07d3becd0633995577848165313ec11",
+      "src": "7681a539d53346d7976ee6d6e6e9669973dcf3ade6104107a4ac87540954e09d"
+    },
+    "server.api.feedback.sendingOff": {
+      "by": "ai",
+      "out": "0650572e3c680b086fcb85c616ebd3815e3675d2c8b8e6a57826195c2d9f8f0f",
+      "src": "c86662da3617eec14be5f2929a330c20598517b37c7141f189adafbb7714791c"
+    },
+    "server.api.feedback.setupLinkOnly": {
+      "by": "ai",
+      "out": "b77a1527d9018bd30f8d91f1d641016e95c24bce4091015fe60d4e15b847ea99",
+      "src": "ca2fc81af18b091922af4a783345804879ceb6707e87be3b296e35e16913e4fd"
+    },
+    "server.api.feedback.setupNeedsConsent": {
+      "by": "ai",
+      "out": "569d76c96e53a7c5e76dde24faa85c9d5732e1d6821099a384d8982f891b700f",
+      "src": "86997e0f1388cc96a11201aeac6a9fa4eae3a5e153b6e75f7a1487f3646c903e"
+    },
+    "server.api.feedback.setupNeedsReport": {
+      "by": "ai",
+      "out": "681b38dc63bd2c579e1037a24a4c46824524ad0542ab1ca751396a2dc5303f5c",
+      "src": "cdd242028da57617fe8b171f56fc16a446af816d0691b25c59386ed9ff8af121"
+    },
+    "server.api.feedback.setupTextOnly": {
+      "by": "ai",
+      "out": "d11937f4ff225eee22e092e2b7719e85aef815613be32e6d55b567c7be41285c",
+      "src": "f091567177d5338ee872ffb121c4598ee093c3a644582fda19a9f2ce58ee5920"
+    },
+    "server.api.feedback.setupTooMany": {
+      "by": "ai",
+      "out": "7021788a31b916a127b66f2e3390308c3607ca6729446696bd1ea57c4be5bec6",
+      "src": "087cb787e808ee112086b7eb85ec38e118836dabbf4c12fe0237f92998de11b5"
+    },
+    "server.api.feedback.setupTooSoon": {
+      "by": "ai",
+      "out": "6d78ac6d21d772e0d1eaefa3c4f1ac8170d533b6cb30203f6385b5a3ac61bd77",
+      "src": "10827130e62158d46f4a4cc52579e1951dfa4453b5644ba0d7c220f0a70ff81f"
+    },
     "server.api.feedback.tooMany": {
       "by": "ai",
       "out": "e85b9a89a959586595cb20841d7a4b7122ac3d69aeb50527e2c0772b5ee76884",
@@ -97794,6 +98989,31 @@
       "out": "c089f741b6a5191125012ba745bb4c20ba64f3f9804ebbe95cdc6d8bf3b9868c",
       "src": "a8d91f81e128bc70f3ed0390a0ee385b5b542012265efc6bfd231331cbc26eeb"
     },
+    "server.api.workspaceDelete.billingPaused": {
+      "by": "ai",
+      "out": "2dc396e879fc9c535e05be7c579e321bc570e608045e876fbaf6f1480623b6da",
+      "src": "5d7e71ac9530287aea81dd76c480094b2edf06f452c3d3ddc45733bc1152e479"
+    },
+    "server.api.workspaceDelete.notFound": {
+      "by": "ai",
+      "out": "62752ca42bbb8f539161293485eb46859d27d3d03c1f25a2120160b4d54bef79",
+      "src": "bbccbdd9824a8a10e3c5ed6b6c632c66506997f73562c0b1a5fd5c68ec3dc129"
+    },
+    "server.api.workspaceDelete.planChanged": {
+      "by": "ai",
+      "out": "5fdefaf8e93faf4c4fe578cf0d1ab9a5fe2c9c1aa476e31c52fe47542524bfae",
+      "src": "353c08d39d2156e40222b772e41bd9fea9de0c229a40963df2389ace9a971840"
+    },
+    "server.api.workspaceDelete.planNotCanceled": {
+      "by": "ai",
+      "out": "bc46cc3419713c429283375edfcf53ddc16424ae39bbeab25734431ba60a63e2",
+      "src": "0ef632d1a3ecfa4ae144773bc3f5c4cbf8e7fe608271c8d009d0228d4d08c7d0"
+    },
+    "server.api.workspaceDelete.typeName": {
+      "by": "ai",
+      "out": "f93eb4dd2bc09a4d45e83b33089053f563b4f39ba870365725d1c2bcf8535576",
+      "src": "233cc1869ecf10c441a2da83053032af666df074944c930378ace2633b43cb18"
+    },
     "server.api.workspaceDisabled": {
       "by": "ai",
       "out": "aaf88f08459d02c9a6f7943ff7c48af07f97495b6aea3eadda91055b4aa3ab91",
@@ -98086,8 +99306,13 @@
     },
     "server.setupAgent.activateHow": {
       "by": "ai",
-      "out": "2d73f7a6c4f41e3642c704d0ed17ed80c923f2718819ea8d4ec9894cfbef9c21",
-      "src": "de9083f4cb265a740622b00ef856775030aefe73159633b770af0ee0f396ffeb"
+      "out": "2f6961a13e4f763a52682a8c654c72acc9a895d326051c53b0172c4b34e56cd1",
+      "src": "e12a58f0a676e8721816a65c0a2a76062c089cc8c7f1f2639cfd7e618b9b9f64"
+    },
+    "server.setupAgent.activatePlanHow": {
+      "by": "ai",
+      "out": "50ea864e24ad52a26d927f4422cbb5e3327209da4264e846b8d60138586199c6",
+      "src": "cb03ab0526d8d0de53f96da43ede6cc8646c973ea2c38877967e41bed2ca9af6"
     },
     "server.setupAgent.attachInApp": {
       "by": "ai",
@@ -98149,10 +99374,65 @@
       "out": "aba2658dadadc46f8c15abe728db2f079debc2dc8a102862ae9f17bcca97ffdb",
       "src": "1d632afc59bd0c9e3149d6650eef63749e6ce5fe745adc2de501b305b88ef8f0"
     },
+    "server.setupAgent.mcp.buyAskFirst": {
+      "by": "ai",
+      "out": "ee7e0444612691ac00f54fb8bead1cd823d9433ee004bc8e9e06693ed7226e9c",
+      "src": "e059385ad2accdbbdf600a20526c076b60f7e47969df92802a2697f6e0e48cbe"
+    },
     "server.setupAgent.mcp.emailKnowledge": {
       "by": "ai",
       "out": "af58d5dee3b0650207f434f85baaf31707bac9b3c0b52fb82470948db660ff2c",
       "src": "3baa9d79d93ff3930e21c0095ca4768f003d441d406dd57dcdca0336c68a925b"
+    },
+    "server.setupAgent.mcp.planLink": {
+      "by": "ai",
+      "out": "9528d61914985b1bbd6a9bdde0fe08b52b6dd002b304bf9fa8d3d65a3bca48fa",
+      "src": "8a7fad90f6ae3d9fd65cdaf363a72a30d63d937f5e2b8b79c6fe3a13300d2a85"
+    },
+    "server.setupAgent.mcp.trialLinkDays": {
+      "by": "ai",
+      "out": "a7e009b9802d4ed6a8716924e38aaadd3a115ca0312c14c3e3eb20db154d69de",
+      "src": "e8fd4b9c84ffb83c4eddec32a0d104b4e2151d912de7e643a30f5495b0b56cb5"
+    },
+    "server.setupAgent.numberPrice.carrier": {
+      "by": "ai",
+      "out": "528e80c568805b7bab50fc2521666bf7dd11e8a09b8167e1616bbbc45d9e1249",
+      "src": "af5659444eb9500e76b1c60eda4d0af5affa7b0966931da5352f235d9aae17c0"
+    },
+    "server.setupAgent.numberPrice.carrierByCountry": {
+      "by": "ai",
+      "out": "3fb6c544818757e64407c2fab391498609d6a5399b31e16d16c1dc82e7fa0efd",
+      "src": "5277d772f207ba22240ecafee02f27b6b48ea030baa6cf391cf9838016bfd4e0"
+    },
+    "server.setupAgent.numberPrice.carrierUnknown": {
+      "by": "ai",
+      "out": "2e57b97fc7bc0dea9268d2465bcbe6e0e5dc82fd4a08cc0f0ef5934a54420a4e",
+      "src": "174f94a4f847cc705d0990351fccea7471cad740ae53a354e306924ffa81cef4"
+    },
+    "server.setupAgent.numberPrice.dev": {
+      "by": "ai",
+      "out": "8ff188b8adf22b7ea9fc35e3426ca878abe4c91c426149d3eda201a92ef54355",
+      "src": "cc692346bb7a7adbdbef90c34a7b37d7b9ff65b089b3710b3b6e0132ffbd5526"
+    },
+    "server.setupAgent.numberPrice.extra": {
+      "by": "ai",
+      "out": "9a31e7a673d531b2b897b1f585585d0514f6e41fc4f29114aea9cd84cd722589",
+      "src": "faf2042e59615b80390797af44c86085027cd0822f330b8618d5ac1c6747d8ad"
+    },
+    "server.setupAgent.numberPrice.included": {
+      "by": "ai",
+      "out": "78b524464e5b6742b925193fc420cf75539d19a95d6ba5d146446cc12cbecabf",
+      "src": "6c50e9f61f9ae630d1dbe6fea743ae58b9d40ea83b199186e3721bd6dffc7047"
+    },
+    "server.setupAgent.numberPrice.partner": {
+      "by": "ai",
+      "out": "e45b31bab4360fc1f3cb145a6b9207140c1524427f421cc734240699342c5965",
+      "src": "eab9753e60429512fa7da8f0ca80465696efa78cd91f4109f25cae0709e7591d"
+    },
+    "server.setupAgent.numberPrice.unknown": {
+      "by": "ai",
+      "out": "483de21660233547b8294c5bba190e37a0b901c349776287abb64df9764f3b80",
+      "src": "fd0840e7b5f65c5d6026b6dbcdcb6bdf7bb092b99757db4be176c91252cc45a8"
     },
     "server.setupAgent.optional.domains": {
       "by": "ai",
@@ -98319,10 +99599,15 @@
       "out": "e807d8b365fadd0bfc9f8165d1986ac8dceab4a4ea64b3c7415b9dcdafc08def",
       "src": "efc6df9666b4af889b88ea2b901876aabd764292269028dfaad2a3c0b5e66d79"
     },
+    "server.setupAgent.phoneAfterPlan": {
+      "by": "ai",
+      "out": "bc86289c2677bab5a3bf4b99f4542895ba8d5afa70f1e5aef358dc3e61d6c358",
+      "src": "b1c9b571184c5d2d5b44873a81d2471dcd8beb081c4b2814e7768c88a98ccbba"
+    },
     "server.setupAgent.phoneAfterTrial": {
       "by": "ai",
-      "out": "9602ed08bb2131378d64a8a1759f4bb7f76ce263a8bb3ce86bfe58c5778b395f",
-      "src": "f2019afeb2705a74d0f8ef4a85a6391acd77bdc38c72781d43eb76abdc459707"
+      "out": "b9664a344e5ea65b061592657dcfecd6a8a87ac9c84da0c7ae2133e1a85923ec",
+      "src": "bb280b981ad8bca212b7562a04ce70997baedb372aa550b3645bf234ce61bf43"
     },
     "server.setupAgent.phoneBeingSetUp": {
       "by": "ai",
@@ -98333,6 +99618,11 @@
       "by": "ai",
       "out": "75b778de806f1ca6c821da8109679be6546a7f623de65db0ab9ed09451da5428",
       "src": "2f0d505eb71fd48f27fcaf1279af8093351e541f52373f52865f5b552eb49b96"
+    },
+    "server.setupAgent.phoneCountryGuessed": {
+      "by": "ai",
+      "out": "3000c25675ca32e935d57e7de3b3e6f1c717c999f92461a24c107c2b571736ad",
+      "src": "b4c82fc5625dc3cf37294e80839a0f7f50e972494cbf2aeae5c11a5b66d40e79"
     },
     "server.setupAgent.prompt.changeAssistant": {
       "by": "ai",
@@ -98346,8 +99636,8 @@
     },
     "server.setupAgent.prompt.install": {
       "by": "ai",
-      "out": "36dfe77af339e44fbd9c68a968c5f94087dd978c7f7525ee37f5f1b60dd6881d",
-      "src": "3b39ab6c51cc7f148147a18c391e037ff76ee71607ae19510df8bc2bab32c1ca"
+      "out": "b7e790ef1bde1a81545e42a06f1c4fe4e448b96c8b88434a6f9bbb4c05a397d2",
+      "src": "17ec590aa1b510d457ea8e97a4e9d979cf9e23ea2aa5fe17bddc9b4fc3a28b13"
     },
     "server.setupAgent.prompt.toolsConnector": {
       "by": "ai",
@@ -98361,8 +99651,138 @@
     },
     "server.setupAgent.prompt.workspace": {
       "by": "ai",
-      "out": "42ace8ab85e171a40752084f98f37b5cf9aaf88ec5eeccb942ecd822f0790b7d",
-      "src": "9b3124e07807717a6bb4589c153fa10fa6503c35fd3426fb89237fb88c2526c8"
+      "out": "5cf028c1973ad74ea7aa9743563787920e50c24601e2fef5f34f8ce685b17aed",
+      "src": "bb2a45b20b66e48981baf016f19e944646b9e225366571e495bc4680ed1d2494"
+    },
+    "server.setupAgent.report.anAgent": {
+      "by": "ai",
+      "out": "c03517c5c9f78339082b64a6ce4ff60cb41bc6302bedeae2a962e977322ad5dd",
+      "src": "0be69abf9af984035aac6d6b6e9eac4464f36021c301b1239e93ebcba8ad48ec"
+    },
+    "server.setupAgent.report.askLater": {
+      "by": "ai",
+      "out": "e16a49b124fbc9c9ce8bcbde8653a7fcd4f86e1c1341e3b27811e8d4fc686e1b",
+      "src": "a3319aafce0e7b16e04c83d3c6a45f9a28874fce970099fd3cb9732660c72430"
+    },
+    "server.setupAgent.report.askNow": {
+      "by": "ai",
+      "out": "f8d7fcb874713f292b548ab26dcf020db1d8d5ea3dd6c0566cfd22f9447d226c",
+      "src": "ff2d173acbc19ceaa542acdc0946c12f80ee5334ac716dc71a5b7f43cd420384"
+    },
+    "server.setupAgent.report.consentIncludes": {
+      "by": "ai",
+      "out": "76625149c99cdf29aa1343d6693caef04cc156834cd988dbf8987be38ce2cbb8",
+      "src": "ed5c711ac380c878e6e6d62b3176bcf84e4eb95689a2abd651ccfdd954cf2995"
+    },
+    "server.setupAgent.report.consentIntro": {
+      "by": "ai",
+      "out": "22b8756c8588042e00b153b661455d0d92a1d7c85138bd31265833a1837f0e5c",
+      "src": "ac8dbee5f4e39cc73a41f1b8b777427e3ff68e5254239512fa01089f408e93a6"
+    },
+    "server.setupAgent.report.consentItem": {
+      "by": "ai",
+      "out": "e11d8aff16629318c2ca2d29ec378b7162390a5f780d62ab6cf80aa29881c85c",
+      "src": "e11d8aff16629318c2ca2d29ec378b7162390a5f780d62ab6cf80aa29881c85c"
+    },
+    "server.setupAgent.report.consentItemMinutes": {
+      "by": "ai",
+      "out": "a27a57e5aa15351fd3a6bfb501589f86efef7cf0c8089b150ab525458e170743",
+      "src": "300484b6d37f1ae89f26d8c316cddc492cd6a2ef83ac2e2037fe83c4f749b138"
+    },
+    "server.setupAgent.report.consentSend": {
+      "by": "ai",
+      "out": "05208838bf4683a834f2a2598ec257d5edf644beded56a47f3547a03b431f5eb",
+      "src": "de67daaffe8739ca0a388fcb6e752d9f653ef24ece3a8809d7eef4f7f6ccb974"
+    },
+    "server.setupAgent.report.consentSendContact": {
+      "by": "ai",
+      "out": "46312e0d08a19b04dd539105698d62ac865bad2985273c0c5e5300b91566aac2",
+      "src": "879c4b17e0336b549672edf5acbde30c8c4b38d6f68e20ef3d5ce3540450f9ed"
+    },
+    "server.setupAgent.report.consentWentWell": {
+      "by": "ai",
+      "out": "ce30633f2e27a389ba03c395188c10f3dc4b0b07a30be2091b26d461471a7de4",
+      "src": "a21e15b42c2db49d68c773e3247b1f368fc5c79b94db1bb9db5ddeb38f4907a7"
+    },
+    "server.setupAgent.report.errorConnect": {
+      "by": "ai",
+      "out": "5aaf6832a3d0279be4083b424d09ba951a2f6e398736023b3cd029afff9ad01a",
+      "src": "4809dff91442a64e52488c022bf3b71666c525e667b47bf725812844c963c0f8"
+    },
+    "server.setupAgent.report.errorHttp": {
+      "by": "ai",
+      "out": "d9df8d88fd764eaa40677f0612d7e4983588c7698a9f43c6a4c76c10112f9b26",
+      "src": "d9df8d88fd764eaa40677f0612d7e4983588c7698a9f43c6a4c76c10112f9b26"
+    },
+    "server.setupAgent.report.errorHttpWith": {
+      "by": "ai",
+      "out": "3591c091c74a0aae20d1b4129fac8d09ee5185a56ed27e4044550f089e65b473",
+      "src": "9b6d9390ff136983098b6d3976c2be552b32e48c898e53f294821ef71f2b79fa"
+    },
+    "server.setupAgent.report.errorNotEndpoint": {
+      "by": "ai",
+      "out": "aaa7c726b75e6e2422ad02454aff7b6a65aa852fa366ca05659e049c697a36bd",
+      "src": "8d38be6f57edb17f9afb5891ebbfbde92434b6a00485b2d7ac9a616f4bae8898"
+    },
+    "server.setupAgent.report.errorRedirect": {
+      "by": "ai",
+      "out": "b27321d768fdd2f277973986f6a7ca489e3bf818c44f9dc40f380e8f4349d275",
+      "src": "51efab1f4a83be642e591d442d63fc676915238ce2f352ea5eb0bc0e4e6f8eb3"
+    },
+    "server.setupAgent.report.errorRefused": {
+      "by": "ai",
+      "out": "02120cef65ec8ae9bb5e2039bdbcf634af2fe06956e91d11703369ca894fb4dc",
+      "src": "e077f113f38c6a27beeb83d2d2a19ade086fa4bd30a7abe749666b3d757bacfb"
+    },
+    "server.setupAgent.report.errorTimeout": {
+      "by": "ai",
+      "out": "75fa7f5a5f429ee6bba3782bb4ea5c8a41d2255cb0d3e5771b7c068448923945",
+      "src": "7703b8c08ef02eb0df1c02a28baae063b75010f855f2d5d05b1fb9079da5efd9"
+    },
+    "server.setupAgent.report.internalError": {
+      "by": "ai",
+      "out": "8bfc40e7add60f2748d2861419dd3b146ab40ef00042d6fae45b9b20f41ddbde",
+      "src": "99cab6ab51969245dd524ce8eeb19f7ea6b1c494a4e2548b3b242a5b3381c9ce"
+    },
+    "server.setupAgent.report.kept": {
+      "by": "ai",
+      "out": "0a2291e1efb0ba0bfc327de0a8e8b4e54f4db69f4e7ec8e17e901af1ca53a7b4",
+      "src": "72cb3c2cf4ec5c99eb46cc409e8a55e4bf3fd8cf1219f805a727ecf50e3ed2d8"
+    },
+    "server.setupAgent.report.next": {
+      "by": "ai",
+      "out": "6588566a14d56e85a994ed99131f9746a8c0c35c040a62f828dc149c97b533ec",
+      "src": "24fa447e4027c0e0270811d25e338d1de4c050ea5809a5af29c237858086b10d"
+    },
+    "server.setupAgent.report.off": {
+      "by": "ai",
+      "out": "b3cc047fa46a368935dcb97da1e827ee8420854f052b25e8b3ffb6e6695b9260",
+      "src": "3d51d8fb494882dda75d21efe2f884721bafdac4351623ad4afea51b5483b1df"
+    },
+    "server.setupAgent.report.refused": {
+      "by": "ai",
+      "out": "039b25c2004b008a52fa4d2bac537735b65284eab6f001509054537ccffd5708",
+      "src": "f0acafa64343bd88d08d59a0fb87a7aaa69c74c88a32b47069ad4216d6cd9e7a"
+    },
+    "server.setupAgent.report.sent": {
+      "by": "ai",
+      "out": "fda1f7bd3e9d55a57766f452c2caa4d2d0f2236aba3b1e4626f08fbb20c3c2a6",
+      "src": "ef037079dd51ebaa700207347b418c73ebf6bed9de390b3828683935ccccd0ce"
+    },
+    "server.setupAgent.report.statusKept": {
+      "by": "ai",
+      "out": "b4f127ff3ac34b4e280356780f385254e65ef42136cefd62e1868bb55726ae91",
+      "src": "12cc32ac6080ffa52007bcd4b711183299a823ebeb1a76bc3f9e7f10870f42ef"
+    },
+    "server.setupAgent.report.statusSent": {
+      "by": "ai",
+      "out": "7fd3aef244c3f8d316823b47cbaa93b2d113b894e57118816bc39e2e8ebb355d",
+      "src": "80729d82576fde04267282d184dc2f4f1c9abe138b4bb51656f785f145b9b45c"
+    },
+    "server.setupAgent.report.toolDescription": {
+      "by": "ai",
+      "out": "07583132dd224236f081f563dc4cc862fbe21bcf567ed0a08c108df4becb90f9",
+      "src": "dda8e3c1f8dfd1c763b82c1a50f84037a5bb140ab5750339578ecf70f222d6a2"
     },
     "server.setupAgent.step.answering": {
       "by": "ai",
@@ -101493,6 +102913,11 @@
       "by": "ai",
       "out": "717dd06523a49fa6207c3cc1c8b4bab951991e31c18b1dc7c17ab20687f42256",
       "src": "f2b574215a225ffec01589877896824e02386589c5a4c07ebf254ec15e1308af"
+    },
+    "settings.danger.list.plan": {
+      "by": "ai",
+      "out": "204c8405705099bc530d30b5d8d352c48f3735f41a06f5099e0c3f8e5bf5e84e",
+      "src": "a4bea73fd0e510052e948ea4578707e4b23ffa943b2f74cf8a81f1f2e9688862"
     },
     "settings.danger.list.rest": {
       "by": "ai",
@@ -112553,8 +113978,8 @@
     },
     "admin.actions.workspace.delete.tip": {
       "by": "ai",
-      "out": "54614113064ca0fcfad2ebe9b35f333ee3a83b6c532b9029500f445331076d68",
-      "src": "c16653a33e7f91d9f130f641d77f59ccab64f270eea79c3b695f7299bdf5aad2"
+      "out": "3b48ad42680ac83ceacf2998ca0e343302654949b3ef4b726afb9c41edae2f75",
+      "src": "dac2e55c9b3798abbf0311d9d4a23ec382115ec35b93eba54b6c1515bb54d092"
     },
     "admin.actions.workspace.deleted.accounts": {
       "by": "ai",
@@ -112580,6 +114005,11 @@
       "by": "ai",
       "out": "0651399e2ece998f8a917c9e2330be3ecfe75934598195aace183103937c085f",
       "src": "10ec2423024b6d75ba0be6a89235264410de41530d4edef0a2872a22939c59c5"
+    },
+    "admin.actions.workspace.deleted.planCanceled": {
+      "by": "ai",
+      "out": "786a5ebd1873a9d3566f30a35c5d9dbd18d06b5504895d84dd1bf900fb9a2bf8",
+      "src": "f283ce32f969424b162cd23d41917f329a46f55c24d2afe144829f91d4f9f6fb"
     },
     "admin.actions.workspace.disable.action": {
       "by": "ai",
@@ -113355,6 +114785,16 @@
       "by": "ai",
       "out": "cc7583842f0e37d38c418484867d9e5ba31fc4cca25e5982cc82afcbe09cfc7d",
       "src": "feed98ce586a8f2aee6bd01a2082baf039996fb4b026d38516eaf2e9e121e40b"
+    },
+    "admin.audit.feedbackResend": {
+      "by": "ai",
+      "out": "163d8884fde052f2a61355188f9c6cf0f883937f69f97aba6ab87fe598bda75f",
+      "src": "eb59f58aadfe1c0d98bb9089b8752815687ad74905162db911d020db140913ba"
+    },
+    "admin.audit.feedbackSend": {
+      "by": "ai",
+      "out": "b0b347418d4f42917f53d7fd7bd648e4f38eebb731117d7ba45412ddd8f2a64d",
+      "src": "8ccfe5f6415f52763562348966698d78594ff911af1a473dfe723180e9788e30"
     },
     "admin.audit.forwardingChecked": {
       "by": "ai",
@@ -119851,6 +121291,11 @@
       "out": "797751bfd7898e0dd1d5e909b517caeefb7d8a747d6a06941f2649c20955a3f9",
       "src": "864a4209ae2a1ace2ea09dcf54305a4c2240a0da21f4b0941434825f56d77ee5"
     },
+    "admin.providers.way.works": {
+      "by": "ai",
+      "out": "3b8d8df6039c80ec6457323756bdaa4c2981349e7209a6e5f140e84aa0c1c575",
+      "src": "2b4c8c6d38db43a9b038d256f1b54d9685ecc1578603d82f3f49f2bda9922efe"
+    },
     "admin.replyDelay.barLabel": {
       "by": "ai",
       "out": "252614a02213ec017167353e4f53a7960c641bfd6949be69b1e1e55a4519601c",
@@ -120776,6 +122221,141 @@
       "out": "e8b52972d98094ada100b776ea489c116f7a168498e8685c8c8a5caf77d2f81d",
       "src": "aef7de28d52977f1b5cd0fecfdc151717610adf41e0aa33b4d9f7522a43337ef"
     },
+    "admin.system.setupReports.actions": {
+      "by": "ai",
+      "out": "ed31fbb483ee1b0a40f8b15471b0b3c38191fda4034d5cfa18126b82da496c66",
+      "src": "ff8059dc6752afdd30d275932b1d5031a2ec854b387a8c57ecc6689915293a43"
+    },
+    "admin.system.setupReports.by": {
+      "by": "ai",
+      "out": "7705838834f4b27942ce022492a24b44d402b0132af19b8d20f8d4d2fda03681",
+      "src": "0b8b277cac6fc71b4d84d5b0d2df3473a146482ee42f23efffbc52ea45a6f387"
+    },
+    "admin.system.setupReports.byAgent": {
+      "by": "ai",
+      "out": "8cd9258283d9bed0370c67ea6020ad5d1274451a5f1e941c44d325348394111a",
+      "src": "09b3db4f03c2b3b0584a45db93f45b28a5760882ce75c4d2813351039dda4e42"
+    },
+    "admin.system.setupReports.date": {
+      "by": "ai",
+      "out": "11b74db9d1db6b920175e9e0d519a59317d6f5e28093d01e436d61dd79519bc1",
+      "src": "99c40ab405926cb5ad1def9cff4d7ce624f8f8abfff4e85f655347fcb949d08e"
+    },
+    "admin.system.setupReports.empty": {
+      "by": "ai",
+      "out": "e465174f32d187461216b178fe1747b488b31ea1b6880715af09b08238a12416",
+      "src": "fd912b9aaf36d41e13879a8da5d4bc1b9e1fe9c5690aa92d58274a5f31124bdc"
+    },
+    "admin.system.setupReports.help": {
+      "by": "ai",
+      "out": "027f84c227d710266c5c1a124f2f009aa93e1a72aa4d5b24958789f1b378b79f",
+      "src": "c4e8f0976665d7cc3e3982948b493852a5b1a97cc5b29be978af4cdd693e29ee"
+    },
+    "admin.system.setupReports.itemCount": {
+      "by": "ai",
+      "out": "7ec72723e39e506e1a2f478062d30e7db40bd814afc823f5babf1c96313dbe54",
+      "src": "f326e8c00a020befb85686554989a7ab47f822f10b2891be4cf0554cd7c091f2"
+    },
+    "admin.system.setupReports.items": {
+      "by": "ai",
+      "out": "0943908e8c16e6ce0a6175b45cc256f2130c71ec20437094d3b99321c4073b1e",
+      "src": "fb8e7a1a3cb7b25d262793159145759e97eb540a2b61dbbdf8f58841a81cf1a8"
+    },
+    "admin.system.setupReports.off": {
+      "by": "ai",
+      "out": "3c55218308fe38b0e20ae2ac78cf6ec213183c24f5c264a1a70a7d401e71c889",
+      "src": "af01242d9fc28b9034ccd3986361df4cc82befd79d5f434e2e49ef8d0b9a1dc3"
+    },
+    "admin.system.setupReports.outcome": {
+      "by": "ai",
+      "out": "e3bf3a629b893f44d7d35554d545a9c8b92fc294322bfdedbbfbe57c6592b8cb",
+      "src": "4e80abb5b14656d4eed8fd93705fd4c774d7653b05162763770bd23f1755db1a"
+    },
+    "admin.system.setupReports.outcomeAbandoned": {
+      "by": "ai",
+      "out": "f9d19345a067cbe11ff6311c4a4e200c6922207cdac5530e19eabbf5e792f7d1",
+      "src": "1a4f630ac1b69fd00728fa8a672ded71d0eae8516cb23e78f94529113399b79b"
+    },
+    "admin.system.setupReports.outcomeCompleted": {
+      "by": "ai",
+      "out": "1031639454032f27aee34d14d86df41c568e65621bb6b7bd802bde092551b870",
+      "src": "22a970d2e5b1cc233e462be7c7b64e135a275bb09d83d87683bf4236c43113a1"
+    },
+    "admin.system.setupReports.outcomeInProgress": {
+      "by": "ai",
+      "out": "e7e5869de581e0357ef5705abde0a59deded1684d94875b8f8ec40ef810ec2ef",
+      "src": "c1f88e9d6c4145cf0530ae020155384d5688d70ed82a07a35d783bbc4b32238c"
+    },
+    "admin.system.setupReports.outcomePartial": {
+      "by": "ai",
+      "out": "196a03ba739b7112409df1266982f6d17517f876df1b9e92dd0cb52dc900cc7a",
+      "src": "1afdeec8fabc72c325050de43f89e565b7e954d6b2c753ccbbd9d7dde5575463"
+    },
+    "admin.system.setupReports.reasonOff": {
+      "by": "ai",
+      "out": "8386005cfe4cb5d076f06d347a7304c78e22dd2b615ead77805bed7b23d08615",
+      "src": "898811187ae198835d1b5b49d53d651847e9c68eb30d14851bd23537927ed44a"
+    },
+    "admin.system.setupReports.reasonRefused": {
+      "by": "ai",
+      "out": "6167a5e5f410a3f39ad6824017f4a58a6f9f722b303f933bdf530897b1c99dde",
+      "src": "9725401e36dcf469ccab693d9cbcfaa0dc5c3cfd20329a17925bafba0efd0054"
+    },
+    "admin.system.setupReports.reasonUnreachable": {
+      "by": "ai",
+      "out": "745e059eb96c4e8d177e7462427dfbcfe89e2cb7c56c6553da1a4e0c4221439d",
+      "src": "07b0eec3c939a596ab8ae1339b6b95100a2de64e579236ba3c254495e9785b15"
+    },
+    "admin.system.setupReports.resend": {
+      "by": "ai",
+      "out": "2382b93b56b6f5a76b3f131ce2620d6bc17f0afb53036e9af963b2e5a9d41abc",
+      "src": "feead925e2600648cbe1aaaa284aba30b93de840304bd63277200f4c903082e9"
+    },
+    "admin.system.setupReports.resendFailed": {
+      "by": "ai",
+      "out": "6d905c2b76698889bf39198625174222126ac208ed08eb88a6802fc1c66dff13",
+      "src": "d8d384421e13165ce9ba8abc5d2b26b88dcd416a49cf200100c2e0278c896a31"
+    },
+    "admin.system.setupReports.resendTip": {
+      "by": "ai",
+      "out": "de6ec16643b5c1ffc252cdaef7a202589c6bad50075daee367a7e30b7e6159a5",
+      "src": "b8adfaceda6b5ac48a12d1dc042c34cce41999b7090e45b31d7ad5441f463120"
+    },
+    "admin.system.setupReports.status": {
+      "by": "ai",
+      "out": "bc30238ae718342277bb5f578093423884c71fdad429e91a172e60cc997ec80c",
+      "src": "920e413c7d411b61ef3e8c63b1cb6ad058d5f95f8b481dbafe60248387d8c355"
+    },
+    "admin.system.setupReports.statusFailed": {
+      "by": "ai",
+      "out": "37d266e0ab124f44141e5892ea39271b392d87f9d264e5d41f45f3289dc820a8",
+      "src": "031a8f0f659df890dfd53c92e45295b0f14c997185bae46e168831e403b273f7"
+    },
+    "admin.system.setupReports.statusKept": {
+      "by": "ai",
+      "out": "62eb40ecbddc1c9cc021cd9c3aa8ad2a2310d4fba54e9aa872c601475bfccdf0",
+      "src": "c159e7465c1ab24cd6efabb03d87f48f72368f560d5d2718edfa9e4a5a670c36"
+    },
+    "admin.system.setupReports.statusPending": {
+      "by": "ai",
+      "out": "f935fbbddd493e7bc303faa4013b4b344886d5535a735820d5858383eef30820",
+      "src": "e595f17fac1d8384c7287aa20ab48ec05476a9a557a524091c03727732582e76"
+    },
+    "admin.system.setupReports.statusRefused": {
+      "by": "ai",
+      "out": "9149061c382f8696e1c76ee3cc619897ec06d219d8407df2cfc38bd874820764",
+      "src": "8ba391628be0d7e1c0dde21aeff106331b47c80473ec47ac9e49931145581cc9"
+    },
+    "admin.system.setupReports.statusSent": {
+      "by": "ai",
+      "out": "67f9db9af7119c5fce6282cbeb0088721b1793aa87b99c0dbd3d842aaa4da72a",
+      "src": "c16bc82bf1f04ede04d1bc0bdf714b1a2e523ac5fa06fee7b9466c6d2d54af1e"
+    },
+    "admin.system.setupReports.title": {
+      "by": "ai",
+      "out": "b6e531d60c2c801eacf5aa0207abe65984567f43fa16209d020322256035e87f",
+      "src": "3d4240aec0c19ab214cdd626ae68e5f6f644ead4a3449f90466138243fe4f62f"
+    },
     "admin.system.signupAccess.add": {
       "by": "ai",
       "out": "df2c853328f9a08b59282c89e0db629bef9098da0f23f78a5d1e8d5a8e208327",
@@ -121035,6 +122615,11 @@
       "by": "ai",
       "out": "acd3b712d633b469af4c2ae147904f55d878c0663027afda0d0ad47ab26f9a12",
       "src": "40f1f1d7532aa12281d3df687893cb23b71c7b925731bc20c21a5fa55e533567"
+    },
+    "admin.tryOut.areaCodeIn": {
+      "by": "ai",
+      "out": "b082f563ce469f44c4f78f9b8a47e49475f17622d8ae85d46c8dc8405d5d03a0",
+      "src": "b1bf578823682c942a426f294b37ee6ab4798a035fbe1c6b3b9c465d065973ce"
     },
     "admin.tryOut.callerQuestion": {
       "by": "ai",
@@ -122453,8 +124038,8 @@
     },
     "auth.signup.notYetText": {
       "by": "ai",
-      "out": "6dbafc2684f4152e14b14596891fe2f8963a44e12a57eccb387d9dd7d939d528",
-      "src": "44b22b5465cf5fcb63de83dddc7cc149d899fcc94d64a45efbf1e1457fc002e1"
+      "out": "2c4e175dff2a670c908523f4d92ccf2087f199d2bbf1b8d55e8d9bb87c62a664",
+      "src": "0b66618ca2c065d6a03f4bd386bb27e9a6a46054b58ae59d6f6fe458e4383ac2"
     },
     "auth.signup.notYetTitle": {
       "by": "ai",
@@ -131371,6 +132956,11 @@
       "out": "ec02053cc449bf579f61a3e00fd067899df2a2d8eee54c609d06007614dff579",
       "src": "5e61198924edcb8aed972a36fa23dbd156ec6065157f2fa881b8f3ac6e2b7153"
     },
+    "onboarding.business.notServedIn": {
+      "by": "ai",
+      "out": "9f73511c081978b427cb6df9ae92937f2c06120df31d81b893c26a83d8706159",
+      "src": "1b63ad8bbf1876eb706c1c2526ec793ae588a37697cd8a2d1943e74cc6d7bfaf"
+    },
     "onboarding.business.problem.askAdmin": {
       "by": "ai",
       "out": "b9c913fa2cd6816bbf1cf1bb12553386c25d78d6cc77690b2dcecedc2f3a58c7",
@@ -131521,6 +133111,21 @@
       "out": "67bbb8f0a4d2381abc9036e3cb78a6e831e50fd73296b826a8e4dc1cb41cb39d",
       "src": "d60f36768a9c47e4ba72f02476b3d0417f8819817473f54d01b7cb60f5b1a67d"
     },
+    "onboarding.flow.buyOnlyIn.inCarrier": {
+      "by": "ai",
+      "out": "997588c02c2c10641ce24fb1dabcc1f0c1e5ec8fef9043e727e087208f60ebb2",
+      "src": "0d7c4a4ebf8e62a90a9ce99549679185db9da91894fd75abcc85bc324cee9938"
+    },
+    "onboarding.flow.buyOnlyIn.ownCarrier": {
+      "by": "ai",
+      "out": "c5f28f337ab8defcd72f0f487a7a23fe2cf85cb6ff17cd6f52f1aedebc189d71",
+      "src": "b4ace170f505cdf108826210a2923153416673d995e05a7ff09ef77b509178d5"
+    },
+    "onboarding.flow.buyOnlyIn.withCarrier": {
+      "by": "ai",
+      "out": "51bacf6e31e65b85adf688df17cf2774aede7d22ec39dc529f43d77aec35c8ed",
+      "src": "14cc2b86357fbe0319fbcda6fe9542edc5eac9c6426542f6902a209ff927dacf"
+    },
     "onboarding.flow.buyQuestion": {
       "by": "ai",
       "out": "c473e503f92af74d2e20aa0290c79402d1a6b0008685e59a87f036922203cb59",
@@ -131535,6 +133140,26 @@
       "by": "ai",
       "out": "0a78d0f4f34ffc64d5162b462071458a6602eec65ddd2aa4b580e5d52a1cd5da",
       "src": "24943a3185cb770e13999725d7947186340915c6702a3e85d2d868a30e78df73"
+    },
+    "onboarding.flow.buyQuestionExtra": {
+      "by": "ai",
+      "out": "3d2e67c8b19f2760787ffd12afec21eda761ff0049acd6c5fb14ed1c79731cdf",
+      "src": "b1edc81444f1dd94958553647450a9a01b52a2ae9f156f561472d49350768e4c"
+    },
+    "onboarding.flow.buyQuestionExtraNoArea": {
+      "by": "ai",
+      "out": "464ba26ea69c9f3ffd764739008a5fadf3664a109ba32b28e09f01859472bd85",
+      "src": "e4da63fec468e36629d20713dba80f1c7a62ee8bb95fe7c34a2ffa8908fee68d"
+    },
+    "onboarding.flow.buyQuestionIncluded": {
+      "by": "ai",
+      "out": "ec1e08b87fbea0defaeca737bbcffa597ac581105ea8d70c857c7adc1b9707cb",
+      "src": "c54d8efe5df1cc515069a641ea224c1abfc8378924bd8d13f8d00045f1e776bd"
+    },
+    "onboarding.flow.buyQuestionIncludedNoArea": {
+      "by": "ai",
+      "out": "b9c5fc294da5bfff6c48f438e0fe931ec630b6ca3df375b6f245e5f9a71625f3",
+      "src": "499ce5b7cc44a991a5411eba50b4452b990a4c5e326a901f1f749e84a1c5954f"
     },
     "onboarding.flow.buyQuestionNoArea": {
       "by": "ai",
@@ -133856,6 +135481,66 @@
       "out": "2298f8d0ef6568e021602ce92a7b7ce4baa20e97cdf0ea57cfc60272b90c9d97",
       "src": "5ef24429b2f1555a4055aa50571dbc00c884967d614b2e4991fb23c0152761cd"
     },
+    "server.api.feedback.alreadySent": {
+      "by": "ai",
+      "out": "43b75711d76b38d0f63bb00720175e1e3ac65f978a2445e7f4b91f590ef761fe",
+      "src": "2daefc27060a98af4de93e9af3ff893526350cc79c9dbf440cd67656af2f2362"
+    },
+    "server.api.feedback.justTried": {
+      "by": "ai",
+      "out": "fb7e7e1f829ba7799c65e01fe314c3d2c3384c8d76c84a583ada37c77f23780b",
+      "src": "62f7804d1ce54c2d4eb4de3c33b3564c0f93a59abd8f4b20bef3d8144aa406d0"
+    },
+    "server.api.feedback.notASetupReport": {
+      "by": "ai",
+      "out": "bcd1e90196b0def1a990deb6b7c3d4aad6ebc9465a539438e1303f2599df727d",
+      "src": "5c58effc4fa53c95dc15008de5afa96fc8af4eaa8fe6d3c575003d62e6681af1"
+    },
+    "server.api.feedback.notOnSetupLink": {
+      "by": "ai",
+      "out": "d491359a2f3709696c7c039641dfd2ff00a2aaf4b5dbc49d358aad002fb3ecdd",
+      "src": "b4145528d1ace9cf5b403696327f0d17ef3c960e5cc692abb46916adad441496"
+    },
+    "server.api.feedback.refusedNoResend": {
+      "by": "ai",
+      "out": "8464d36814eca6cb3c1d485edbe5dedfa1226e29760c644bfbf8a0753bfcb20c",
+      "src": "7681a539d53346d7976ee6d6e6e9669973dcf3ade6104107a4ac87540954e09d"
+    },
+    "server.api.feedback.sendingOff": {
+      "by": "ai",
+      "out": "bf680c351f8a8e284432de39dc0fe689f376176bf8981a341a4ffaa5beea61b8",
+      "src": "c86662da3617eec14be5f2929a330c20598517b37c7141f189adafbb7714791c"
+    },
+    "server.api.feedback.setupLinkOnly": {
+      "by": "ai",
+      "out": "900f16ec1fd9fec8d440ad865f6dcb07f6781f37727a371c1f615986f7d5bb05",
+      "src": "ca2fc81af18b091922af4a783345804879ceb6707e87be3b296e35e16913e4fd"
+    },
+    "server.api.feedback.setupNeedsConsent": {
+      "by": "ai",
+      "out": "42de92db17d9453cf74df45cfd4c4daea5e63aaff8cbe4b89f1457cc98c09dd4",
+      "src": "86997e0f1388cc96a11201aeac6a9fa4eae3a5e153b6e75f7a1487f3646c903e"
+    },
+    "server.api.feedback.setupNeedsReport": {
+      "by": "ai",
+      "out": "82dd3abf1a1cc0806ac57aa35f3a8b86703d9f73a3bb67577f0da64b87212ce7",
+      "src": "cdd242028da57617fe8b171f56fc16a446af816d0691b25c59386ed9ff8af121"
+    },
+    "server.api.feedback.setupTextOnly": {
+      "by": "ai",
+      "out": "65aaf1402b66834e58aa503e27a7cb4aa2b7ee191aa36fd839da5a14d40f7953",
+      "src": "f091567177d5338ee872ffb121c4598ee093c3a644582fda19a9f2ce58ee5920"
+    },
+    "server.api.feedback.setupTooMany": {
+      "by": "ai",
+      "out": "7d8d19a14e9e19792a44bcf9765a7d578daf988777fb56ff300d14646f7268b9",
+      "src": "087cb787e808ee112086b7eb85ec38e118836dabbf4c12fe0237f92998de11b5"
+    },
+    "server.api.feedback.setupTooSoon": {
+      "by": "ai",
+      "out": "648f5ba11b51d0a3bbe63a789a42a94b38f1f3f11f2ac4b009783157ccc11fae",
+      "src": "10827130e62158d46f4a4cc52579e1951dfa4453b5644ba0d7c220f0a70ff81f"
+    },
     "server.api.feedback.tooMany": {
       "by": "ai",
       "out": "9d409d47e7857bcf632e61f49d66fafdcf7b72ec97d356554a02cc2a8bda0f40",
@@ -134746,6 +136431,31 @@
       "out": "74933a3bfb62a6245fa55b8811f0d0363a53e68d7bec544924a72177a3a2fbdb",
       "src": "a8d91f81e128bc70f3ed0390a0ee385b5b542012265efc6bfd231331cbc26eeb"
     },
+    "server.api.workspaceDelete.billingPaused": {
+      "by": "ai",
+      "out": "5be36178919383f62c8559395226f2c960029ed37721e833171a987d06a1bfd0",
+      "src": "5d7e71ac9530287aea81dd76c480094b2edf06f452c3d3ddc45733bc1152e479"
+    },
+    "server.api.workspaceDelete.notFound": {
+      "by": "ai",
+      "out": "4ca4934f7741871fc22fea6e2f658a7e5233883ace6703e15d2bce203bfa5f9a",
+      "src": "bbccbdd9824a8a10e3c5ed6b6c632c66506997f73562c0b1a5fd5c68ec3dc129"
+    },
+    "server.api.workspaceDelete.planChanged": {
+      "by": "ai",
+      "out": "483da77653dde969cb10b0fa8186dec6a28cbe7142c299ab7258211af5bf95ad",
+      "src": "353c08d39d2156e40222b772e41bd9fea9de0c229a40963df2389ace9a971840"
+    },
+    "server.api.workspaceDelete.planNotCanceled": {
+      "by": "ai",
+      "out": "e274c96e9b16ea265201b3898c561e9674834f0f8c7f8d69cbce6bf6469067b7",
+      "src": "0ef632d1a3ecfa4ae144773bc3f5c4cbf8e7fe608271c8d009d0228d4d08c7d0"
+    },
+    "server.api.workspaceDelete.typeName": {
+      "by": "ai",
+      "out": "e154c579e6846e276fff6b57e22f626f02ea62353cfbfa2b79827cd0296fe7a3",
+      "src": "233cc1869ecf10c441a2da83053032af666df074944c930378ace2633b43cb18"
+    },
     "server.api.workspaceDisabled": {
       "by": "ai",
       "out": "611c7b4b133b01e90bd36ec9895ee56a38bf623a8a733c4b345d085a61d90f7c",
@@ -135038,8 +136748,13 @@
     },
     "server.setupAgent.activateHow": {
       "by": "ai",
-      "out": "ee9383ce27f5272b555f96dc8c5b235dad5b15b40f9ce17338d0106212f96866",
-      "src": "de9083f4cb265a740622b00ef856775030aefe73159633b770af0ee0f396ffeb"
+      "out": "b664a3cf5b0a930d82f2e4946e27cc9a067eea869d9d7b31811b6ca3dc09e6a0",
+      "src": "e12a58f0a676e8721816a65c0a2a76062c089cc8c7f1f2639cfd7e618b9b9f64"
+    },
+    "server.setupAgent.activatePlanHow": {
+      "by": "ai",
+      "out": "771c87f7b48f11d7e443f19bdfde8e472cc3dee38bd0f3e4f81f4cd22f1a97b2",
+      "src": "cb03ab0526d8d0de53f96da43ede6cc8646c973ea2c38877967e41bed2ca9af6"
     },
     "server.setupAgent.attachInApp": {
       "by": "ai",
@@ -135101,10 +136816,65 @@
       "out": "839a13c200299538ddd017219d628078cac08b04fcd95c87e4e2836b2745e9e0",
       "src": "1d632afc59bd0c9e3149d6650eef63749e6ce5fe745adc2de501b305b88ef8f0"
     },
+    "server.setupAgent.mcp.buyAskFirst": {
+      "by": "ai",
+      "out": "81272625f4008d285ee8961f7f279f4ea2dce8cc8156d11909d8d99caeef78d6",
+      "src": "e059385ad2accdbbdf600a20526c076b60f7e47969df92802a2697f6e0e48cbe"
+    },
     "server.setupAgent.mcp.emailKnowledge": {
       "by": "ai",
       "out": "987a9026da94a46ea121c69160b5a6bca035f5de036fdd1a08cbaeffc545d30f",
       "src": "3baa9d79d93ff3930e21c0095ca4768f003d441d406dd57dcdca0336c68a925b"
+    },
+    "server.setupAgent.mcp.planLink": {
+      "by": "ai",
+      "out": "e4b02762c32e26f60269d4abf94939334395f1be08095e24ebd44a85e1cd3fd0",
+      "src": "8a7fad90f6ae3d9fd65cdaf363a72a30d63d937f5e2b8b79c6fe3a13300d2a85"
+    },
+    "server.setupAgent.mcp.trialLinkDays": {
+      "by": "ai",
+      "out": "069b4ddb44da7ddf380b71e39ca6d525205d73c102233085cd392ba25bd69d27",
+      "src": "e8fd4b9c84ffb83c4eddec32a0d104b4e2151d912de7e643a30f5495b0b56cb5"
+    },
+    "server.setupAgent.numberPrice.carrier": {
+      "by": "ai",
+      "out": "da0b1432bfddb3a9424cf160d350ec21d45da221ce542e2a54a5daa0b90c06f8",
+      "src": "af5659444eb9500e76b1c60eda4d0af5affa7b0966931da5352f235d9aae17c0"
+    },
+    "server.setupAgent.numberPrice.carrierByCountry": {
+      "by": "ai",
+      "out": "631297edef01b7406423a9c79ef3c46edb84638a9a60d853b7b547be2bb9baf9",
+      "src": "5277d772f207ba22240ecafee02f27b6b48ea030baa6cf391cf9838016bfd4e0"
+    },
+    "server.setupAgent.numberPrice.carrierUnknown": {
+      "by": "ai",
+      "out": "178255cc5e9f5c8e1ffacd32b3c35804b68c78e8f85587568e18e5607229b6d0",
+      "src": "174f94a4f847cc705d0990351fccea7471cad740ae53a354e306924ffa81cef4"
+    },
+    "server.setupAgent.numberPrice.dev": {
+      "by": "ai",
+      "out": "e4d37e8f8c4657f88f61a613be81684794df28936e12046de0039803cdecbd6a",
+      "src": "cc692346bb7a7adbdbef90c34a7b37d7b9ff65b089b3710b3b6e0132ffbd5526"
+    },
+    "server.setupAgent.numberPrice.extra": {
+      "by": "ai",
+      "out": "368f2385783b07cd43e5b0e7376da974af17bc03b60f84ebbfbca4220354e963",
+      "src": "faf2042e59615b80390797af44c86085027cd0822f330b8618d5ac1c6747d8ad"
+    },
+    "server.setupAgent.numberPrice.included": {
+      "by": "ai",
+      "out": "87a30754b2270400d33103d2b99af4bf14d0588cab48d6d85aeba13dfdd61e36",
+      "src": "6c50e9f61f9ae630d1dbe6fea743ae58b9d40ea83b199186e3721bd6dffc7047"
+    },
+    "server.setupAgent.numberPrice.partner": {
+      "by": "ai",
+      "out": "e5176502b860a6afb7ec9361e25e8870d5dc7a2470850d6626805ed3ee69fdce",
+      "src": "eab9753e60429512fa7da8f0ca80465696efa78cd91f4109f25cae0709e7591d"
+    },
+    "server.setupAgent.numberPrice.unknown": {
+      "by": "ai",
+      "out": "40ede20220f0835efbbc960cdebc0c4f35f9d792446f54f1ea464d3625ae0f6a",
+      "src": "fd0840e7b5f65c5d6026b6dbcdcb6bdf7bb092b99757db4be176c91252cc45a8"
     },
     "server.setupAgent.optional.domains": {
       "by": "ai",
@@ -135271,10 +137041,15 @@
       "out": "b443fc96a9603b309b1a5bd121caade0a65047a83bca172eb447f194a838f348",
       "src": "efc6df9666b4af889b88ea2b901876aabd764292269028dfaad2a3c0b5e66d79"
     },
+    "server.setupAgent.phoneAfterPlan": {
+      "by": "ai",
+      "out": "e9f793a29c70a77372e7695efc520017903e918eef85751d64504a7c33ec2629",
+      "src": "b1c9b571184c5d2d5b44873a81d2471dcd8beb081c4b2814e7768c88a98ccbba"
+    },
     "server.setupAgent.phoneAfterTrial": {
       "by": "ai",
-      "out": "3e1b6adb8d73b82414f2670382d8f9dc8276f5e0c66bcd4f2bd7e3ff4a13d671",
-      "src": "f2019afeb2705a74d0f8ef4a85a6391acd77bdc38c72781d43eb76abdc459707"
+      "out": "728c51afb73f278a0872aa453a76c00b32b527446eaa8a7ccf67a7b3a1f15c50",
+      "src": "bb280b981ad8bca212b7562a04ce70997baedb372aa550b3645bf234ce61bf43"
     },
     "server.setupAgent.phoneBeingSetUp": {
       "by": "ai",
@@ -135285,6 +137060,11 @@
       "by": "ai",
       "out": "e0514a02026eaf4ef8da3c75e483d79ee4873fab9b8b6635883fdb3effdfdd75",
       "src": "2f0d505eb71fd48f27fcaf1279af8093351e541f52373f52865f5b552eb49b96"
+    },
+    "server.setupAgent.phoneCountryGuessed": {
+      "by": "ai",
+      "out": "bd8aff99dd0a01dcd27deb27b02ad469942b8035e314845f256aee89206aeca6",
+      "src": "b4c82fc5625dc3cf37294e80839a0f7f50e972494cbf2aeae5c11a5b66d40e79"
     },
     "server.setupAgent.prompt.changeAssistant": {
       "by": "ai",
@@ -135298,8 +137078,8 @@
     },
     "server.setupAgent.prompt.install": {
       "by": "ai",
-      "out": "a7dca280fbdc011f41f7073906fb68a891a5e4b7ee8b8e883f15d9c0c7e98f02",
-      "src": "3b39ab6c51cc7f148147a18c391e037ff76ee71607ae19510df8bc2bab32c1ca"
+      "out": "4971a2ef8cdcc2716104897ddb9dec07eed4ef7d3515181f782b4b28cff4453f",
+      "src": "17ec590aa1b510d457ea8e97a4e9d979cf9e23ea2aa5fe17bddc9b4fc3a28b13"
     },
     "server.setupAgent.prompt.toolsConnector": {
       "by": "ai",
@@ -135313,8 +137093,138 @@
     },
     "server.setupAgent.prompt.workspace": {
       "by": "ai",
-      "out": "feac6d98623ad406cde21c15b2c166e84933e8bf9c7f9bc8a8343843aae650ef",
-      "src": "9b3124e07807717a6bb4589c153fa10fa6503c35fd3426fb89237fb88c2526c8"
+      "out": "1a76adcde39d50ba812aa10a0f6b9d99cf9dc5caaedb916c66d1014f407cacb9",
+      "src": "bb2a45b20b66e48981baf016f19e944646b9e225366571e495bc4680ed1d2494"
+    },
+    "server.setupAgent.report.anAgent": {
+      "by": "ai",
+      "out": "ba5858157de142a20cbf66ff9ae8c325840a72c8466f631887eb7be25f64023d",
+      "src": "0be69abf9af984035aac6d6b6e9eac4464f36021c301b1239e93ebcba8ad48ec"
+    },
+    "server.setupAgent.report.askLater": {
+      "by": "ai",
+      "out": "74766aa5d7ea0c3f95ad3a167ba867076e060d0ada6ae8bdeb5b3cf8587d3bac",
+      "src": "a3319aafce0e7b16e04c83d3c6a45f9a28874fce970099fd3cb9732660c72430"
+    },
+    "server.setupAgent.report.askNow": {
+      "by": "ai",
+      "out": "d91ce8f1f7dcb5be2b719352c06f12f008fa6461f85c10cfa7f825fabc8532ad",
+      "src": "ff2d173acbc19ceaa542acdc0946c12f80ee5334ac716dc71a5b7f43cd420384"
+    },
+    "server.setupAgent.report.consentIncludes": {
+      "by": "ai",
+      "out": "6e5c7f5558a7511c9d3f5ce34991a156a55c8a2e53dca220045b4d7097a839fb",
+      "src": "ed5c711ac380c878e6e6d62b3176bcf84e4eb95689a2abd651ccfdd954cf2995"
+    },
+    "server.setupAgent.report.consentIntro": {
+      "by": "ai",
+      "out": "afaa916030199a62132550fbe12cfd3da896adbb36e31650d779134ae0972ae7",
+      "src": "ac8dbee5f4e39cc73a41f1b8b777427e3ff68e5254239512fa01089f408e93a6"
+    },
+    "server.setupAgent.report.consentItem": {
+      "by": "ai",
+      "out": "e11d8aff16629318c2ca2d29ec378b7162390a5f780d62ab6cf80aa29881c85c",
+      "src": "e11d8aff16629318c2ca2d29ec378b7162390a5f780d62ab6cf80aa29881c85c"
+    },
+    "server.setupAgent.report.consentItemMinutes": {
+      "by": "ai",
+      "out": "43c11ae7329d94b87da5b254b208ac59759d4736afaf70496bf97c62521b8302",
+      "src": "300484b6d37f1ae89f26d8c316cddc492cd6a2ef83ac2e2037fe83c4f749b138"
+    },
+    "server.setupAgent.report.consentSend": {
+      "by": "ai",
+      "out": "1ebac6e72ec4a153b26bc6988c9b07cce61637abaf6bd130837c9a94a7774156",
+      "src": "de67daaffe8739ca0a388fcb6e752d9f653ef24ece3a8809d7eef4f7f6ccb974"
+    },
+    "server.setupAgent.report.consentSendContact": {
+      "by": "ai",
+      "out": "728166ee4ddbab3f3d05377be0fe89d5b8830d0a080781cbba9138b5d5c6a68b",
+      "src": "879c4b17e0336b549672edf5acbde30c8c4b38d6f68e20ef3d5ce3540450f9ed"
+    },
+    "server.setupAgent.report.consentWentWell": {
+      "by": "ai",
+      "out": "b006c15ee9d25b7bf001f1a876b287b19dbb9c28d7902ee4be08ccfae015090b",
+      "src": "a21e15b42c2db49d68c773e3247b1f368fc5c79b94db1bb9db5ddeb38f4907a7"
+    },
+    "server.setupAgent.report.errorConnect": {
+      "by": "ai",
+      "out": "eacf012838bdfd758c7e5bd165fd6d6a968a865794f65d7a73e221cde9cbb8b4",
+      "src": "4809dff91442a64e52488c022bf3b71666c525e667b47bf725812844c963c0f8"
+    },
+    "server.setupAgent.report.errorHttp": {
+      "by": "ai",
+      "out": "d9df8d88fd764eaa40677f0612d7e4983588c7698a9f43c6a4c76c10112f9b26",
+      "src": "d9df8d88fd764eaa40677f0612d7e4983588c7698a9f43c6a4c76c10112f9b26"
+    },
+    "server.setupAgent.report.errorHttpWith": {
+      "by": "ai",
+      "out": "4e0c5fbd59bc1b6d322752354f4d77c3a68c52b1cffd4d3d6345871e8175b1f1",
+      "src": "9b6d9390ff136983098b6d3976c2be552b32e48c898e53f294821ef71f2b79fa"
+    },
+    "server.setupAgent.report.errorNotEndpoint": {
+      "by": "ai",
+      "out": "d7d1c62b779f11c119ad5c10b1c9048765a043b3318d214d08bedbbfb9809dee",
+      "src": "8d38be6f57edb17f9afb5891ebbfbde92434b6a00485b2d7ac9a616f4bae8898"
+    },
+    "server.setupAgent.report.errorRedirect": {
+      "by": "ai",
+      "out": "ab18df20056692b5cf043a024669c40856cfd9d473f9978dba1ac0adec9a0804",
+      "src": "51efab1f4a83be642e591d442d63fc676915238ce2f352ea5eb0bc0e4e6f8eb3"
+    },
+    "server.setupAgent.report.errorRefused": {
+      "by": "ai",
+      "out": "5e369a25830a86bfc742dd1cc33805185acc2d5816336e18edb2570641d7b75a",
+      "src": "e077f113f38c6a27beeb83d2d2a19ade086fa4bd30a7abe749666b3d757bacfb"
+    },
+    "server.setupAgent.report.errorTimeout": {
+      "by": "ai",
+      "out": "e21330e867f5ad129b788c33efcf0404e321aa4a0dcd8fa875fe6bee0884f428",
+      "src": "7703b8c08ef02eb0df1c02a28baae063b75010f855f2d5d05b1fb9079da5efd9"
+    },
+    "server.setupAgent.report.internalError": {
+      "by": "ai",
+      "out": "35143f971a089b523f05b575b2dd6605efbaf8aade6c5b1aecbb935b9eb9f000",
+      "src": "99cab6ab51969245dd524ce8eeb19f7ea6b1c494a4e2548b3b242a5b3381c9ce"
+    },
+    "server.setupAgent.report.kept": {
+      "by": "ai",
+      "out": "ce5b8051c139208cccfe490e33479b954e399fe43bee3081322335475b5fe007",
+      "src": "72cb3c2cf4ec5c99eb46cc409e8a55e4bf3fd8cf1219f805a727ecf50e3ed2d8"
+    },
+    "server.setupAgent.report.next": {
+      "by": "ai",
+      "out": "88931837b2ac8a38c9c9814acf70578fd0388a3a9ad97cd75c40d3ef2141e5c0",
+      "src": "24fa447e4027c0e0270811d25e338d1de4c050ea5809a5af29c237858086b10d"
+    },
+    "server.setupAgent.report.off": {
+      "by": "ai",
+      "out": "06f40ea411c2ed479f56b13a0f1eccbd69554853fbd8f9795cb963d593edef83",
+      "src": "3d51d8fb494882dda75d21efe2f884721bafdac4351623ad4afea51b5483b1df"
+    },
+    "server.setupAgent.report.refused": {
+      "by": "ai",
+      "out": "3454995e7fc5014d9d966df350d38ffccbe44c155dfacaed40cc6488db70831a",
+      "src": "f0acafa64343bd88d08d59a0fb87a7aaa69c74c88a32b47069ad4216d6cd9e7a"
+    },
+    "server.setupAgent.report.sent": {
+      "by": "ai",
+      "out": "1cdf8c3331107bf8f8d62bbf9eeaa692bb30c65faf415b5b39e7bbc73bc4c9b3",
+      "src": "ef037079dd51ebaa700207347b418c73ebf6bed9de390b3828683935ccccd0ce"
+    },
+    "server.setupAgent.report.statusKept": {
+      "by": "ai",
+      "out": "bd61d6377989648910832514224a13a94eac7e1586aa44043efafe89a1785da2",
+      "src": "12cc32ac6080ffa52007bcd4b711183299a823ebeb1a76bc3f9e7f10870f42ef"
+    },
+    "server.setupAgent.report.statusSent": {
+      "by": "ai",
+      "out": "fbca228ac2687a1fa6a5c7a3606948c8add48819fd90103dcbef6361ae75c6ab",
+      "src": "80729d82576fde04267282d184dc2f4f1c9abe138b4bb51656f785f145b9b45c"
+    },
+    "server.setupAgent.report.toolDescription": {
+      "by": "ai",
+      "out": "0eeb9817b10b03cbb9c83f8648f69822326230131ed91c9adeb88f9bf89be41c",
+      "src": "dda8e3c1f8dfd1c763b82c1a50f84037a5bb140ab5750339578ecf70f222d6a2"
     },
     "server.setupAgent.step.answering": {
       "by": "ai",
@@ -138445,6 +140355,11 @@
       "by": "ai",
       "out": "5648fae34b28806ccf25251bc5e2aa7404e2c46ff0c1e5d27b8fb4608804f9ba",
       "src": "f2b574215a225ffec01589877896824e02386589c5a4c07ebf254ec15e1308af"
+    },
+    "settings.danger.list.plan": {
+      "by": "ai",
+      "out": "4a85cde914ad0f7e347edd45f739baec311363a06b01f15138c802dfec832a34",
+      "src": "a4bea73fd0e510052e948ea4578707e4b23ffa943b2f74cf8a81f1f2e9688862"
     },
     "settings.danger.list.rest": {
       "by": "ai",
@@ -149505,8 +151420,8 @@
     },
     "admin.actions.workspace.delete.tip": {
       "by": "ai",
-      "out": "47df5a2b330cbf40fc802e5ec0d1f7ceaf3f3a79fbf37cd8a719d28b9b126fab",
-      "src": "c16653a33e7f91d9f130f641d77f59ccab64f270eea79c3b695f7299bdf5aad2"
+      "out": "b8ff0483e18861c38398a698fcab0b6ef10ac4ad8cd5f5f9dc2a2216319cfb3c",
+      "src": "dac2e55c9b3798abbf0311d9d4a23ec382115ec35b93eba54b6c1515bb54d092"
     },
     "admin.actions.workspace.deleted.accounts": {
       "by": "ai",
@@ -149532,6 +151447,11 @@
       "by": "ai",
       "out": "10ec2423024b6d75ba0be6a89235264410de41530d4edef0a2872a22939c59c5",
       "src": "10ec2423024b6d75ba0be6a89235264410de41530d4edef0a2872a22939c59c5"
+    },
+    "admin.actions.workspace.deleted.planCanceled": {
+      "by": "ai",
+      "out": "760e78d63d925df41e1eeb5e1fab2d06e2e5516068f16760ae4f40a4730b4d74",
+      "src": "f283ce32f969424b162cd23d41917f329a46f55c24d2afe144829f91d4f9f6fb"
     },
     "admin.actions.workspace.disable.action": {
       "by": "ai",
@@ -150307,6 +152227,16 @@
       "by": "ai",
       "out": "017878aeb692922ffefdaeca6320ac4752634a4f36582ac994ed654058c9ae13",
       "src": "feed98ce586a8f2aee6bd01a2082baf039996fb4b026d38516eaf2e9e121e40b"
+    },
+    "admin.audit.feedbackResend": {
+      "by": "ai",
+      "out": "a9f3cd07110a0ea957a833b6340d98e71def808a17a891179b801e84fcb3a89b",
+      "src": "eb59f58aadfe1c0d98bb9089b8752815687ad74905162db911d020db140913ba"
+    },
+    "admin.audit.feedbackSend": {
+      "by": "ai",
+      "out": "dba762b72a8a96c43929d292eaf5463e3af635c86bc0399d0dff53a62da44f09",
+      "src": "8ccfe5f6415f52763562348966698d78594ff911af1a473dfe723180e9788e30"
     },
     "admin.audit.forwardingChecked": {
       "by": "ai",
@@ -156803,6 +158733,11 @@
       "out": "96652d32f85fe40f6f3788d5f00d325d67bee050c56b8c1a53b797e4385b73fb",
       "src": "864a4209ae2a1ace2ea09dcf54305a4c2240a0da21f4b0941434825f56d77ee5"
     },
+    "admin.providers.way.works": {
+      "by": "ai",
+      "out": "5f824dbe001ec732783130f78496ac26fec54988e4435673a62fc74520dd37fd",
+      "src": "2b4c8c6d38db43a9b038d256f1b54d9685ecc1578603d82f3f49f2bda9922efe"
+    },
     "admin.replyDelay.barLabel": {
       "by": "ai",
       "out": "1f928e8dea1f5b2c6de99cb5d579933a7f5f3d44280d9bb128c322a270874408",
@@ -157728,6 +159663,141 @@
       "out": "05e427a291c27fee42ee968ca48e0a92628821c73ae3c1042cdb31da7efbc66b",
       "src": "aef7de28d52977f1b5cd0fecfdc151717610adf41e0aa33b4d9f7522a43337ef"
     },
+    "admin.system.setupReports.actions": {
+      "by": "ai",
+      "out": "7d3e4d6dc900b59b5d600fbc42b3f95677a8fc35db350267b64a22648b07b00c",
+      "src": "ff8059dc6752afdd30d275932b1d5031a2ec854b387a8c57ecc6689915293a43"
+    },
+    "admin.system.setupReports.by": {
+      "by": "ai",
+      "out": "e77e7c2994c94d76dacc8f47bf8045c14189ab421143e1fe68f74b698e1620a2",
+      "src": "0b8b277cac6fc71b4d84d5b0d2df3473a146482ee42f23efffbc52ea45a6f387"
+    },
+    "admin.system.setupReports.byAgent": {
+      "by": "ai",
+      "out": "cc0357f039ac4ff497f7deb30dd616a0a5a953e4fea8448f9a6d8c018872aa0e",
+      "src": "09b3db4f03c2b3b0584a45db93f45b28a5760882ce75c4d2813351039dda4e42"
+    },
+    "admin.system.setupReports.date": {
+      "by": "ai",
+      "out": "cec3a9b89b2e391393d0f68e4bc12a9fa6cf358b3cdf79496dc442d52b8dd528",
+      "src": "99c40ab405926cb5ad1def9cff4d7ce624f8f8abfff4e85f655347fcb949d08e"
+    },
+    "admin.system.setupReports.empty": {
+      "by": "ai",
+      "out": "48c4912a0acf18edf9e39a7da6355a3d83253e9abfae4c22bf5384f33bfa08cf",
+      "src": "fd912b9aaf36d41e13879a8da5d4bc1b9e1fe9c5690aa92d58274a5f31124bdc"
+    },
+    "admin.system.setupReports.help": {
+      "by": "ai",
+      "out": "53ef5d3bf445e20708670b095c924f69c6f3764429043de71391ead6c185cf89",
+      "src": "c4e8f0976665d7cc3e3982948b493852a5b1a97cc5b29be978af4cdd693e29ee"
+    },
+    "admin.system.setupReports.itemCount": {
+      "by": "ai",
+      "out": "b3ff1fe665de5303ab50a47abc0c8f9db5c6e5e875cdd48259512bf3a21db3da",
+      "src": "f326e8c00a020befb85686554989a7ab47f822f10b2891be4cf0554cd7c091f2"
+    },
+    "admin.system.setupReports.items": {
+      "by": "ai",
+      "out": "770f12228e79261c8c7c0a4f4f90f23b5dda1e0ba71e3260008ae701b09db788",
+      "src": "fb8e7a1a3cb7b25d262793159145759e97eb540a2b61dbbdf8f58841a81cf1a8"
+    },
+    "admin.system.setupReports.off": {
+      "by": "ai",
+      "out": "b49821c290a460be26565a7d0f492d2d6bb24d26e52afb0253150e5ca921f58d",
+      "src": "af01242d9fc28b9034ccd3986361df4cc82befd79d5f434e2e49ef8d0b9a1dc3"
+    },
+    "admin.system.setupReports.outcome": {
+      "by": "ai",
+      "out": "a71bc39fe3f33e42d1164472c83a9a340c52da9718ce3b8114c488647338fdf5",
+      "src": "4e80abb5b14656d4eed8fd93705fd4c774d7653b05162763770bd23f1755db1a"
+    },
+    "admin.system.setupReports.outcomeAbandoned": {
+      "by": "ai",
+      "out": "9ef4f1566d3ebf25b0cdcea7e6626057f726e42d0ccb08162bae986357a26dfe",
+      "src": "1a4f630ac1b69fd00728fa8a672ded71d0eae8516cb23e78f94529113399b79b"
+    },
+    "admin.system.setupReports.outcomeCompleted": {
+      "by": "ai",
+      "out": "734601b1cdc91cf10c4b123bc505c7595f08d023440c1e4f8a3d9f0568f43a62",
+      "src": "22a970d2e5b1cc233e462be7c7b64e135a275bb09d83d87683bf4236c43113a1"
+    },
+    "admin.system.setupReports.outcomeInProgress": {
+      "by": "ai",
+      "out": "d6f779583776b1e7816d95ef8057d506d7ce9136eccf3297e5824fe9a2eb4bec",
+      "src": "c1f88e9d6c4145cf0530ae020155384d5688d70ed82a07a35d783bbc4b32238c"
+    },
+    "admin.system.setupReports.outcomePartial": {
+      "by": "ai",
+      "out": "bdebc0297900563cf528c7600a7a67e6d23e0a6fe632079abfb216b97e5e9373",
+      "src": "1afdeec8fabc72c325050de43f89e565b7e954d6b2c753ccbbd9d7dde5575463"
+    },
+    "admin.system.setupReports.reasonOff": {
+      "by": "ai",
+      "out": "3e18f1146e956c3f65d193ad06fda010b412dd64da541a68bdfc1469db3c4a66",
+      "src": "898811187ae198835d1b5b49d53d651847e9c68eb30d14851bd23537927ed44a"
+    },
+    "admin.system.setupReports.reasonRefused": {
+      "by": "ai",
+      "out": "e14ebbf2d59f32946a84a1caad3a555eb8ce5d07cf475424657113e6b7f4f85b",
+      "src": "9725401e36dcf469ccab693d9cbcfaa0dc5c3cfd20329a17925bafba0efd0054"
+    },
+    "admin.system.setupReports.reasonUnreachable": {
+      "by": "ai",
+      "out": "6580397b86c58751e2ea72a2dd9f630bbd1cedac87ecf975fb68f05a60581cfc",
+      "src": "07b0eec3c939a596ab8ae1339b6b95100a2de64e579236ba3c254495e9785b15"
+    },
+    "admin.system.setupReports.resend": {
+      "by": "ai",
+      "out": "d643face5ca5c86d9f419dc8993d9ebf96337db50e148953fcd4258a179c8bff",
+      "src": "feead925e2600648cbe1aaaa284aba30b93de840304bd63277200f4c903082e9"
+    },
+    "admin.system.setupReports.resendFailed": {
+      "by": "ai",
+      "out": "cd5783278b22bb471fd1eeab3bf158e763c57ef17cd6ade8dfa23ff7a9b7e4d2",
+      "src": "d8d384421e13165ce9ba8abc5d2b26b88dcd416a49cf200100c2e0278c896a31"
+    },
+    "admin.system.setupReports.resendTip": {
+      "by": "ai",
+      "out": "8a58685681f5fa96fbbacb3ed7c40e09a7f681dfa1d56cf3ad1c532440c879c7",
+      "src": "b8adfaceda6b5ac48a12d1dc042c34cce41999b7090e45b31d7ad5441f463120"
+    },
+    "admin.system.setupReports.status": {
+      "by": "ai",
+      "out": "920e413c7d411b61ef3e8c63b1cb6ad058d5f95f8b481dbafe60248387d8c355",
+      "src": "920e413c7d411b61ef3e8c63b1cb6ad058d5f95f8b481dbafe60248387d8c355"
+    },
+    "admin.system.setupReports.statusFailed": {
+      "by": "ai",
+      "out": "253acf999f5d98713b088fe79c070c8d00c344a7f08e6a5ebf9a4894a42c5e1e",
+      "src": "031a8f0f659df890dfd53c92e45295b0f14c997185bae46e168831e403b273f7"
+    },
+    "admin.system.setupReports.statusKept": {
+      "by": "ai",
+      "out": "3a660ff5fb7c19895be8105b16c1bc2d008da2f9f840cd79113f55dee27cea1f",
+      "src": "c159e7465c1ab24cd6efabb03d87f48f72368f560d5d2718edfa9e4a5a670c36"
+    },
+    "admin.system.setupReports.statusPending": {
+      "by": "ai",
+      "out": "6840b96b4cdc5e8d864822e383b7a45b073a2aa385dd9bf4c361ccce81b16546",
+      "src": "e595f17fac1d8384c7287aa20ab48ec05476a9a557a524091c03727732582e76"
+    },
+    "admin.system.setupReports.statusRefused": {
+      "by": "ai",
+      "out": "2eec3f771343bed53ffcc610cf60175bf0e548edb34c7882491e2e399850de2e",
+      "src": "8ba391628be0d7e1c0dde21aeff106331b47c80473ec47ac9e49931145581cc9"
+    },
+    "admin.system.setupReports.statusSent": {
+      "by": "ai",
+      "out": "a96e6d8830f2a7733f2ef2cd12e42abaa15e3d6546b6ae78ae0478d31632ea4e",
+      "src": "c16bc82bf1f04ede04d1bc0bdf714b1a2e523ac5fa06fee7b9466c6d2d54af1e"
+    },
+    "admin.system.setupReports.title": {
+      "by": "ai",
+      "out": "9b0e353f4a2b520d541a507a323f0c1fc515460edb595693c0997c57b369dc70",
+      "src": "3d4240aec0c19ab214cdd626ae68e5f6f644ead4a3449f90466138243fe4f62f"
+    },
     "admin.system.signupAccess.add": {
       "by": "ai",
       "out": "e4634fa30689975e34ec17428e3504ca055c6735ac5618ef1cee71dd758374b7",
@@ -157987,6 +160057,11 @@
       "by": "ai",
       "out": "a66241b797afaeeba21c3d4c1c3a4e70c87ba6d75a2468820291a187713b2da0",
       "src": "40f1f1d7532aa12281d3df687893cb23b71c7b925731bc20c21a5fa55e533567"
+    },
+    "admin.tryOut.areaCodeIn": {
+      "by": "ai",
+      "out": "e632d305a3addb70c77a44a7b754547809d1ccc73936dee51b9b335d6d050a5d",
+      "src": "b1bf578823682c942a426f294b37ee6ab4798a035fbe1c6b3b9c465d065973ce"
     },
     "admin.tryOut.callerQuestion": {
       "by": "ai",
@@ -159405,8 +161480,8 @@
     },
     "auth.signup.notYetText": {
       "by": "ai",
-      "out": "6295f26e2e543f79ff763c1fce756f5864d143f0f05d22406ac64eae1287de34",
-      "src": "44b22b5465cf5fcb63de83dddc7cc149d899fcc94d64a45efbf1e1457fc002e1"
+      "out": "51237fab329f29836b2c63cfb09cacee5724dc7313f1065823b75625ff7f7c87",
+      "src": "0b66618ca2c065d6a03f4bd386bb27e9a6a46054b58ae59d6f6fe458e4383ac2"
     },
     "auth.signup.notYetTitle": {
       "by": "ai",
@@ -168323,6 +170398,11 @@
       "out": "85bf3099b621a9a235dea928d5864384b37a3e3600f4cf0be3130ed01e25afc5",
       "src": "5e61198924edcb8aed972a36fa23dbd156ec6065157f2fa881b8f3ac6e2b7153"
     },
+    "onboarding.business.notServedIn": {
+      "by": "ai",
+      "out": "e13f1a561ac8570bd903f4786c9c187fd7b10a1e1f00523a21339a98202c5e47",
+      "src": "1b63ad8bbf1876eb706c1c2526ec793ae588a37697cd8a2d1943e74cc6d7bfaf"
+    },
     "onboarding.business.problem.askAdmin": {
       "by": "ai",
       "out": "4175972e6397b596d7a4388045af337936cd79501718b6ddec7d925bdb922f4c",
@@ -168473,6 +170553,21 @@
       "out": "11d13a1dbdf103957999fbc2051c1f6f1ea0f38bd1cebbdc25ecdbcad5173def",
       "src": "d60f36768a9c47e4ba72f02476b3d0417f8819817473f54d01b7cb60f5b1a67d"
     },
+    "onboarding.flow.buyOnlyIn.inCarrier": {
+      "by": "ai",
+      "out": "5fbba5e96ab675a471e9f557e0187a68c9e9228f188a69a4fdbfb81292e52893",
+      "src": "0d7c4a4ebf8e62a90a9ce99549679185db9da91894fd75abcc85bc324cee9938"
+    },
+    "onboarding.flow.buyOnlyIn.ownCarrier": {
+      "by": "ai",
+      "out": "2fc06a203a238139b204b221250494dd139c34408c79bdf271717812be6a7e2f",
+      "src": "b4ace170f505cdf108826210a2923153416673d995e05a7ff09ef77b509178d5"
+    },
+    "onboarding.flow.buyOnlyIn.withCarrier": {
+      "by": "ai",
+      "out": "77cdc4db1d95409ec0c496c9d14e8483ab5716708298e313859a904d2f2e62f4",
+      "src": "14cc2b86357fbe0319fbcda6fe9542edc5eac9c6426542f6902a209ff927dacf"
+    },
     "onboarding.flow.buyQuestion": {
       "by": "ai",
       "out": "a913dae1beab0018df9e2b2f3b34a4f9206893ba019b08871fd8b788cd84d368",
@@ -168487,6 +170582,26 @@
       "by": "ai",
       "out": "3afe2bc3fe4c2435d2a8de24f9a83ed96fc3a7e68885a3ce6308e43b38f9a2f4",
       "src": "24943a3185cb770e13999725d7947186340915c6702a3e85d2d868a30e78df73"
+    },
+    "onboarding.flow.buyQuestionExtra": {
+      "by": "ai",
+      "out": "c89f24a568a25d5a308c585824f5e7b6168640a85c34dae6fdac81beecbd0625",
+      "src": "b1edc81444f1dd94958553647450a9a01b52a2ae9f156f561472d49350768e4c"
+    },
+    "onboarding.flow.buyQuestionExtraNoArea": {
+      "by": "ai",
+      "out": "d5b862a97e12e1c68a2e6d7f501059c794a7cc3e1b2054c25c55eb57b81ca75e",
+      "src": "e4da63fec468e36629d20713dba80f1c7a62ee8bb95fe7c34a2ffa8908fee68d"
+    },
+    "onboarding.flow.buyQuestionIncluded": {
+      "by": "ai",
+      "out": "51e3ae7440757aed29cdb91b3b8d274a45a357e1eacebc52d3fe3dded754f53c",
+      "src": "c54d8efe5df1cc515069a641ea224c1abfc8378924bd8d13f8d00045f1e776bd"
+    },
+    "onboarding.flow.buyQuestionIncludedNoArea": {
+      "by": "ai",
+      "out": "e22124c10c1e2aeb22626f0fe4b20f287c8f454273acf3b204b5d81b751610f3",
+      "src": "499ce5b7cc44a991a5411eba50b4452b990a4c5e326a901f1f749e84a1c5954f"
     },
     "onboarding.flow.buyQuestionNoArea": {
       "by": "ai",
@@ -170808,6 +172923,66 @@
       "out": "e6df2387ee52b3b57ef65e40b32e69d7ddfd5b17cef0555fa238fefed685309c",
       "src": "5ef24429b2f1555a4055aa50571dbc00c884967d614b2e4991fb23c0152761cd"
     },
+    "server.api.feedback.alreadySent": {
+      "by": "ai",
+      "out": "24ebc56963d5ac3e832de15e3b601f6dfb4c04a8ee9a66e08457d1331110eb0c",
+      "src": "2daefc27060a98af4de93e9af3ff893526350cc79c9dbf440cd67656af2f2362"
+    },
+    "server.api.feedback.justTried": {
+      "by": "ai",
+      "out": "3d3d230a0bff324f16564084d98a95f4f27f62531b9d0fbcd0326be422877d0e",
+      "src": "62f7804d1ce54c2d4eb4de3c33b3564c0f93a59abd8f4b20bef3d8144aa406d0"
+    },
+    "server.api.feedback.notASetupReport": {
+      "by": "ai",
+      "out": "ca3b39d99e92fb9a912ee17f241a58598c7aa407207c92dd2583d7e8fd8393ae",
+      "src": "5c58effc4fa53c95dc15008de5afa96fc8af4eaa8fe6d3c575003d62e6681af1"
+    },
+    "server.api.feedback.notOnSetupLink": {
+      "by": "ai",
+      "out": "9bfe5978d0c972dbf36d8771dee90e0ae9d9d0c0fc3f77365cd6f0f09894d890",
+      "src": "b4145528d1ace9cf5b403696327f0d17ef3c960e5cc692abb46916adad441496"
+    },
+    "server.api.feedback.refusedNoResend": {
+      "by": "ai",
+      "out": "5eff4d77c290a923d493e117a9afc30a564737ec7ca4922a3e2262aabb543674",
+      "src": "7681a539d53346d7976ee6d6e6e9669973dcf3ade6104107a4ac87540954e09d"
+    },
+    "server.api.feedback.sendingOff": {
+      "by": "ai",
+      "out": "72d3149f64dc751b80c07fec50080165501c3874b5562b05a0924cc97743985e",
+      "src": "c86662da3617eec14be5f2929a330c20598517b37c7141f189adafbb7714791c"
+    },
+    "server.api.feedback.setupLinkOnly": {
+      "by": "ai",
+      "out": "2749e1d492f16495866f9999783b20a6f88f648229167eb9da25f8c8292cc048",
+      "src": "ca2fc81af18b091922af4a783345804879ceb6707e87be3b296e35e16913e4fd"
+    },
+    "server.api.feedback.setupNeedsConsent": {
+      "by": "ai",
+      "out": "32a26983e45a922e2a3db53efacd9e913f5c961af83c8052ef5135a2fef08e10",
+      "src": "86997e0f1388cc96a11201aeac6a9fa4eae3a5e153b6e75f7a1487f3646c903e"
+    },
+    "server.api.feedback.setupNeedsReport": {
+      "by": "ai",
+      "out": "681c41748a3399e73ce67c6ed020af9f9517bbe71c71b5261ebf40ec1c6f3ef3",
+      "src": "cdd242028da57617fe8b171f56fc16a446af816d0691b25c59386ed9ff8af121"
+    },
+    "server.api.feedback.setupTextOnly": {
+      "by": "ai",
+      "out": "3b743ca0580074b3f9e735803320aec27be84006c57a12cb7389e47701f37b39",
+      "src": "f091567177d5338ee872ffb121c4598ee093c3a644582fda19a9f2ce58ee5920"
+    },
+    "server.api.feedback.setupTooMany": {
+      "by": "ai",
+      "out": "0291b2b1bceaa5a31af17429dd17e9595cc11b261fb3d9f65b7b8dc5669722e3",
+      "src": "087cb787e808ee112086b7eb85ec38e118836dabbf4c12fe0237f92998de11b5"
+    },
+    "server.api.feedback.setupTooSoon": {
+      "by": "ai",
+      "out": "8157bc6f182584ab352aa109e964591f2ba2526fde549766e1ff3ab67293a2dd",
+      "src": "10827130e62158d46f4a4cc52579e1951dfa4453b5644ba0d7c220f0a70ff81f"
+    },
     "server.api.feedback.tooMany": {
       "by": "ai",
       "out": "069d5e39849e073386a9449971a12147e961e577ed0cc77806a00491a894d6b5",
@@ -171698,6 +173873,31 @@
       "out": "d2914b18dda528ca228aa9283167a06639eb79b5a7273cf57afe34f6fb31c485",
       "src": "a8d91f81e128bc70f3ed0390a0ee385b5b542012265efc6bfd231331cbc26eeb"
     },
+    "server.api.workspaceDelete.billingPaused": {
+      "by": "ai",
+      "out": "25b99118bf3ec8965e631e02491bde444b46e639525f954e94027fe4ba3b695c",
+      "src": "5d7e71ac9530287aea81dd76c480094b2edf06f452c3d3ddc45733bc1152e479"
+    },
+    "server.api.workspaceDelete.notFound": {
+      "by": "ai",
+      "out": "9d7ea35a51860ed036599ef14421cffc0027a7edc9567e519e469740559eba78",
+      "src": "bbccbdd9824a8a10e3c5ed6b6c632c66506997f73562c0b1a5fd5c68ec3dc129"
+    },
+    "server.api.workspaceDelete.planChanged": {
+      "by": "ai",
+      "out": "5827668ff7f0bc864532cefcf5f301b2086b9f313def30140193633b7d184dd1",
+      "src": "353c08d39d2156e40222b772e41bd9fea9de0c229a40963df2389ace9a971840"
+    },
+    "server.api.workspaceDelete.planNotCanceled": {
+      "by": "ai",
+      "out": "d82d344e2222a8020a799fc25bd01cf800231bddc88d008fac3b00e302c932bf",
+      "src": "0ef632d1a3ecfa4ae144773bc3f5c4cbf8e7fe608271c8d009d0228d4d08c7d0"
+    },
+    "server.api.workspaceDelete.typeName": {
+      "by": "ai",
+      "out": "d1c972494c942594354b0f3637a8eb47a42717ac6dc86d204b2bc04252befcce",
+      "src": "233cc1869ecf10c441a2da83053032af666df074944c930378ace2633b43cb18"
+    },
     "server.api.workspaceDisabled": {
       "by": "ai",
       "out": "1bc56b3445a855ea1864e05a81116a0e868d6eb728e94724bf75cacaf1fcc31f",
@@ -171990,8 +174190,13 @@
     },
     "server.setupAgent.activateHow": {
       "by": "ai",
-      "out": "b70102b0ba4751df4cc5671e3f4f29472f764c0717517b1ea7bb4cc8dccbd27d",
-      "src": "de9083f4cb265a740622b00ef856775030aefe73159633b770af0ee0f396ffeb"
+      "out": "9ffd023dcd7f3ea2a667766c2cfe3af68af6709f549dc3c08a5c0ba2ac64cc92",
+      "src": "e12a58f0a676e8721816a65c0a2a76062c089cc8c7f1f2639cfd7e618b9b9f64"
+    },
+    "server.setupAgent.activatePlanHow": {
+      "by": "ai",
+      "out": "aa280bcea6dc373cef9d31b59df663b217a128ebb3a71c9193d17561fde8c489",
+      "src": "cb03ab0526d8d0de53f96da43ede6cc8646c973ea2c38877967e41bed2ca9af6"
     },
     "server.setupAgent.attachInApp": {
       "by": "ai",
@@ -172053,10 +174258,65 @@
       "out": "bdc40517695009c562d188ccefd27fcdde94ade497f94e7b267521e45eb3a1f8",
       "src": "1d632afc59bd0c9e3149d6650eef63749e6ce5fe745adc2de501b305b88ef8f0"
     },
+    "server.setupAgent.mcp.buyAskFirst": {
+      "by": "ai",
+      "out": "b41ae7da5ddeb1074bc749363736ea22e7563446a967e382ab309e36ec7e6309",
+      "src": "e059385ad2accdbbdf600a20526c076b60f7e47969df92802a2697f6e0e48cbe"
+    },
     "server.setupAgent.mcp.emailKnowledge": {
       "by": "ai",
       "out": "94e5573090acebc53a93203462ca312d5e11213af9de216b1c7ea91cf43480f8",
       "src": "3baa9d79d93ff3930e21c0095ca4768f003d441d406dd57dcdca0336c68a925b"
+    },
+    "server.setupAgent.mcp.planLink": {
+      "by": "ai",
+      "out": "6dde7070afd3e68a6b8c2c9be319eb44c432ff62a705c75d04a2f221a14d87d7",
+      "src": "8a7fad90f6ae3d9fd65cdaf363a72a30d63d937f5e2b8b79c6fe3a13300d2a85"
+    },
+    "server.setupAgent.mcp.trialLinkDays": {
+      "by": "ai",
+      "out": "3b6e7bb79db05cb5d1d7f4735508a09de812ada37e6a08bcbc2f3ccbf60ff2e5",
+      "src": "e8fd4b9c84ffb83c4eddec32a0d104b4e2151d912de7e643a30f5495b0b56cb5"
+    },
+    "server.setupAgent.numberPrice.carrier": {
+      "by": "ai",
+      "out": "07c2619889b0917560271130bff0c2937cfe87c7926daa5117e926f274384bcb",
+      "src": "af5659444eb9500e76b1c60eda4d0af5affa7b0966931da5352f235d9aae17c0"
+    },
+    "server.setupAgent.numberPrice.carrierByCountry": {
+      "by": "ai",
+      "out": "5afc44e2081cd1b3060facd1d794c563bda96b262f74160e9b24552d19f28bcf",
+      "src": "5277d772f207ba22240ecafee02f27b6b48ea030baa6cf391cf9838016bfd4e0"
+    },
+    "server.setupAgent.numberPrice.carrierUnknown": {
+      "by": "ai",
+      "out": "94feea738e2dbf826ac032c86cf67412b991c554a761ddf3072dcbb64df7ece7",
+      "src": "174f94a4f847cc705d0990351fccea7471cad740ae53a354e306924ffa81cef4"
+    },
+    "server.setupAgent.numberPrice.dev": {
+      "by": "ai",
+      "out": "f215b260965832bc2c06029d2f07055bacb9fd2be1d0126532be172abe5cfe9a",
+      "src": "cc692346bb7a7adbdbef90c34a7b37d7b9ff65b089b3710b3b6e0132ffbd5526"
+    },
+    "server.setupAgent.numberPrice.extra": {
+      "by": "ai",
+      "out": "e3f957960f8d3f47dd2e34c20dcc44ab55a2ddb7cbf7d8322962cf351ecaae50",
+      "src": "faf2042e59615b80390797af44c86085027cd0822f330b8618d5ac1c6747d8ad"
+    },
+    "server.setupAgent.numberPrice.included": {
+      "by": "ai",
+      "out": "9b58e752e3c785ff7063cafd0e666a889f498105b59d836336782a373720ea93",
+      "src": "6c50e9f61f9ae630d1dbe6fea743ae58b9d40ea83b199186e3721bd6dffc7047"
+    },
+    "server.setupAgent.numberPrice.partner": {
+      "by": "ai",
+      "out": "f5e4bdb5d5f88e5aaa576b39502bb9dbc6a06cd217d2bdbe433eafaed00f6dd9",
+      "src": "eab9753e60429512fa7da8f0ca80465696efa78cd91f4109f25cae0709e7591d"
+    },
+    "server.setupAgent.numberPrice.unknown": {
+      "by": "ai",
+      "out": "5252d51511506a5dd70cbedbe90839e5b9cf8ec72dba49dd3c594b068d73fdc1",
+      "src": "fd0840e7b5f65c5d6026b6dbcdcb6bdf7bb092b99757db4be176c91252cc45a8"
     },
     "server.setupAgent.optional.domains": {
       "by": "ai",
@@ -172223,10 +174483,15 @@
       "out": "2fc4fd184f10fbe78ae00c3ebd7c2f9df39f906f2280cd09fa0eea7785277681",
       "src": "efc6df9666b4af889b88ea2b901876aabd764292269028dfaad2a3c0b5e66d79"
     },
+    "server.setupAgent.phoneAfterPlan": {
+      "by": "ai",
+      "out": "14926ea52ab6c8f91200baa1f9283a2b56fb1497e069a068a1884fc9b8d9ec62",
+      "src": "b1c9b571184c5d2d5b44873a81d2471dcd8beb081c4b2814e7768c88a98ccbba"
+    },
     "server.setupAgent.phoneAfterTrial": {
       "by": "ai",
-      "out": "5e7fe5371e76f0b6d2f87df6f8be129bc583aa1a8a2103f0e35a94af6c5fcba0",
-      "src": "f2019afeb2705a74d0f8ef4a85a6391acd77bdc38c72781d43eb76abdc459707"
+      "out": "df85dd3b18ac38604c66a14662cec770b6cda655470e1e8d000fd4fcba101937",
+      "src": "bb280b981ad8bca212b7562a04ce70997baedb372aa550b3645bf234ce61bf43"
     },
     "server.setupAgent.phoneBeingSetUp": {
       "by": "ai",
@@ -172237,6 +174502,11 @@
       "by": "ai",
       "out": "e8ebe840fe72a8f4bdeec63cda5526d16754d81b9d85ebd8041101b7b890af24",
       "src": "2f0d505eb71fd48f27fcaf1279af8093351e541f52373f52865f5b552eb49b96"
+    },
+    "server.setupAgent.phoneCountryGuessed": {
+      "by": "ai",
+      "out": "25bb651ff6d9716f90c0a21d029d349aa6365371c38c4b0d65f2921b8642db5b",
+      "src": "b4c82fc5625dc3cf37294e80839a0f7f50e972494cbf2aeae5c11a5b66d40e79"
     },
     "server.setupAgent.prompt.changeAssistant": {
       "by": "ai",
@@ -172250,8 +174520,8 @@
     },
     "server.setupAgent.prompt.install": {
       "by": "ai",
-      "out": "4e4e85dbcfbb2a19786b41ac9b22ddfdbe52d9bbc5161b98b0f4cb9701ba3782",
-      "src": "3b39ab6c51cc7f148147a18c391e037ff76ee71607ae19510df8bc2bab32c1ca"
+      "out": "d82cc64311fd2fc425a0211d7b007b80ba177f8831ef6815588c8b2e44765d91",
+      "src": "17ec590aa1b510d457ea8e97a4e9d979cf9e23ea2aa5fe17bddc9b4fc3a28b13"
     },
     "server.setupAgent.prompt.toolsConnector": {
       "by": "ai",
@@ -172265,8 +174535,138 @@
     },
     "server.setupAgent.prompt.workspace": {
       "by": "ai",
-      "out": "ae922367fa1347145c92973a7ee4c2858bf8e6ba3d214d1d4d0dd73c139111b7",
-      "src": "9b3124e07807717a6bb4589c153fa10fa6503c35fd3426fb89237fb88c2526c8"
+      "out": "8c86162c075c06eb93114d5bd63f1bd7a1baf7904d94a60f89ba3eef01285afd",
+      "src": "bb2a45b20b66e48981baf016f19e944646b9e225366571e495bc4680ed1d2494"
+    },
+    "server.setupAgent.report.anAgent": {
+      "by": "ai",
+      "out": "7e7b88b946416e6c2af83f8767b81fe39e60bbdb72c5e3182372ebfcee3eac46",
+      "src": "0be69abf9af984035aac6d6b6e9eac4464f36021c301b1239e93ebcba8ad48ec"
+    },
+    "server.setupAgent.report.askLater": {
+      "by": "ai",
+      "out": "3d158af011b73b6cff1501964976455c60a82a7b49d01d7502286b80da1ab849",
+      "src": "a3319aafce0e7b16e04c83d3c6a45f9a28874fce970099fd3cb9732660c72430"
+    },
+    "server.setupAgent.report.askNow": {
+      "by": "ai",
+      "out": "b93515eec3baf70d686ef1acca65772855dab8b23324b2ef6137dee3e41d6f3a",
+      "src": "ff2d173acbc19ceaa542acdc0946c12f80ee5334ac716dc71a5b7f43cd420384"
+    },
+    "server.setupAgent.report.consentIncludes": {
+      "by": "ai",
+      "out": "e8517ef110b9ce2173c713c3f0783585a764a5c166acbf8654cf937c1ad8405b",
+      "src": "ed5c711ac380c878e6e6d62b3176bcf84e4eb95689a2abd651ccfdd954cf2995"
+    },
+    "server.setupAgent.report.consentIntro": {
+      "by": "ai",
+      "out": "f43aecad0828d77843ed7ca2753933274bfed92473ae43ff158e2b5be0bd352e",
+      "src": "ac8dbee5f4e39cc73a41f1b8b777427e3ff68e5254239512fa01089f408e93a6"
+    },
+    "server.setupAgent.report.consentItem": {
+      "by": "ai",
+      "out": "e11d8aff16629318c2ca2d29ec378b7162390a5f780d62ab6cf80aa29881c85c",
+      "src": "e11d8aff16629318c2ca2d29ec378b7162390a5f780d62ab6cf80aa29881c85c"
+    },
+    "server.setupAgent.report.consentItemMinutes": {
+      "by": "ai",
+      "out": "c4202125ca669aa3e1ca0d9ea5ddddc52de91b2679ac316680ef5d73a162790c",
+      "src": "300484b6d37f1ae89f26d8c316cddc492cd6a2ef83ac2e2037fe83c4f749b138"
+    },
+    "server.setupAgent.report.consentSend": {
+      "by": "ai",
+      "out": "24be8e9135cbb5c110fad966f767687ce80062393605240c377c0377664cf2c0",
+      "src": "de67daaffe8739ca0a388fcb6e752d9f653ef24ece3a8809d7eef4f7f6ccb974"
+    },
+    "server.setupAgent.report.consentSendContact": {
+      "by": "ai",
+      "out": "9a8b19dc167aa3b6001ec2a16e11c082d6f3ce283f79a1e6d77ec2bd0198b87c",
+      "src": "879c4b17e0336b549672edf5acbde30c8c4b38d6f68e20ef3d5ce3540450f9ed"
+    },
+    "server.setupAgent.report.consentWentWell": {
+      "by": "ai",
+      "out": "299fe86159d515ce46977b162a3f3fdc5053ac528abb56ec73a98627d4dadd8a",
+      "src": "a21e15b42c2db49d68c773e3247b1f368fc5c79b94db1bb9db5ddeb38f4907a7"
+    },
+    "server.setupAgent.report.errorConnect": {
+      "by": "ai",
+      "out": "4328bef9119e96f547fda602096efe2359000bee54af00075fb7b586f8931f8d",
+      "src": "4809dff91442a64e52488c022bf3b71666c525e667b47bf725812844c963c0f8"
+    },
+    "server.setupAgent.report.errorHttp": {
+      "by": "ai",
+      "out": "d9df8d88fd764eaa40677f0612d7e4983588c7698a9f43c6a4c76c10112f9b26",
+      "src": "d9df8d88fd764eaa40677f0612d7e4983588c7698a9f43c6a4c76c10112f9b26"
+    },
+    "server.setupAgent.report.errorHttpWith": {
+      "by": "ai",
+      "out": "9b6d9390ff136983098b6d3976c2be552b32e48c898e53f294821ef71f2b79fa",
+      "src": "9b6d9390ff136983098b6d3976c2be552b32e48c898e53f294821ef71f2b79fa"
+    },
+    "server.setupAgent.report.errorNotEndpoint": {
+      "by": "ai",
+      "out": "7b5d851ba371a85968add5145cb0afc0d3a599987d5cf76a986aff653c252cc5",
+      "src": "8d38be6f57edb17f9afb5891ebbfbde92434b6a00485b2d7ac9a616f4bae8898"
+    },
+    "server.setupAgent.report.errorRedirect": {
+      "by": "ai",
+      "out": "adce3bc2ec39fbf123fe53919cadbf7fa06221d27b3e0e9701a743ba0690eb69",
+      "src": "51efab1f4a83be642e591d442d63fc676915238ce2f352ea5eb0bc0e4e6f8eb3"
+    },
+    "server.setupAgent.report.errorRefused": {
+      "by": "ai",
+      "out": "b016cb1be7bb475f7c2436801ac4c794be4a5f1deba20e4e61a80063bbafe84c",
+      "src": "e077f113f38c6a27beeb83d2d2a19ade086fa4bd30a7abe749666b3d757bacfb"
+    },
+    "server.setupAgent.report.errorTimeout": {
+      "by": "ai",
+      "out": "0ebdebd01a665a3d4864699c8852fb2168e240d256cdd811265a54ee3d7de5a3",
+      "src": "7703b8c08ef02eb0df1c02a28baae063b75010f855f2d5d05b1fb9079da5efd9"
+    },
+    "server.setupAgent.report.internalError": {
+      "by": "ai",
+      "out": "338de8dbf344af52bed38c08d8e73db9056a35cc095d864ec85528b680805ff0",
+      "src": "99cab6ab51969245dd524ce8eeb19f7ea6b1c494a4e2548b3b242a5b3381c9ce"
+    },
+    "server.setupAgent.report.kept": {
+      "by": "ai",
+      "out": "b63de89cef63641a5b358a48b5109e28dbf271e6a2e532e30a22e4f61ad18b6a",
+      "src": "72cb3c2cf4ec5c99eb46cc409e8a55e4bf3fd8cf1219f805a727ecf50e3ed2d8"
+    },
+    "server.setupAgent.report.next": {
+      "by": "ai",
+      "out": "9f5ba08cc93df1bb269906f85f7740e019bb78345eff2b820f4b1f910788a475",
+      "src": "24fa447e4027c0e0270811d25e338d1de4c050ea5809a5af29c237858086b10d"
+    },
+    "server.setupAgent.report.off": {
+      "by": "ai",
+      "out": "97c359bfbed1198d9a7414a5f0c378354a862e54c9cff080c7cf06df1c499a17",
+      "src": "3d51d8fb494882dda75d21efe2f884721bafdac4351623ad4afea51b5483b1df"
+    },
+    "server.setupAgent.report.refused": {
+      "by": "ai",
+      "out": "668e7aae5f2e0f7cfcbed88ac4fabb0bc8fa998df7945740ccde0eba13e2c518",
+      "src": "f0acafa64343bd88d08d59a0fb87a7aaa69c74c88a32b47069ad4216d6cd9e7a"
+    },
+    "server.setupAgent.report.sent": {
+      "by": "ai",
+      "out": "d1ae2c948a867406805c0daf2503d354c803c72461a614c4963768c5109d485a",
+      "src": "ef037079dd51ebaa700207347b418c73ebf6bed9de390b3828683935ccccd0ce"
+    },
+    "server.setupAgent.report.statusKept": {
+      "by": "ai",
+      "out": "66dc3482ee100f1850890f4232c7a5d3eeb125bf13e53e4482baac0ef531cd15",
+      "src": "12cc32ac6080ffa52007bcd4b711183299a823ebeb1a76bc3f9e7f10870f42ef"
+    },
+    "server.setupAgent.report.statusSent": {
+      "by": "ai",
+      "out": "a9598c3421f560a01582e4c026ad440bb28c26a7533dbbdc92a35129cefe5350",
+      "src": "80729d82576fde04267282d184dc2f4f1c9abe138b4bb51656f785f145b9b45c"
+    },
+    "server.setupAgent.report.toolDescription": {
+      "by": "ai",
+      "out": "f2ff73cd1fd5d22501d5f0196a534f2fe66e2bc69414e8ba6d8ac334716c792a",
+      "src": "dda8e3c1f8dfd1c763b82c1a50f84037a5bb140ab5750339578ecf70f222d6a2"
     },
     "server.setupAgent.step.answering": {
       "by": "ai",
@@ -175397,6 +177797,11 @@
       "by": "ai",
       "out": "8a178039f24a0cc9d7ea3c7922213d87ccd90ada1ecb4c056d36362f62d52473",
       "src": "f2b574215a225ffec01589877896824e02386589c5a4c07ebf254ec15e1308af"
+    },
+    "settings.danger.list.plan": {
+      "by": "ai",
+      "out": "6c3bf3056e8bdb65b8c6c4b95c236ea0e9796e9971cad23df4254bf8b4cd3452",
+      "src": "a4bea73fd0e510052e948ea4578707e4b23ffa943b2f74cf8a81f1f2e9688862"
     },
     "settings.danger.list.rest": {
       "by": "ai",

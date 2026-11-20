@@ -603,6 +603,7 @@
   "danger.list.calls": "{count, plural, one {# Anruf} other {# Anrufe}} mit ihren Transkripten und Aufnahmen",
   "danger.list.contacts": "{count, plural, one {# Kontakt} other {# Kontakte}}",
   "danger.list.members": "Der Zugang von {count, plural, one {# anderen Mitglied} other {# anderen Mitgliedern}}; jedes bekommt eine E-Mail, dass der Workspace gelöscht wurde",
+  "danger.list.plan": "Der Tarif, der jetzt endet: Es wird nichts mehr berechnet, und der Rest des Zeitraums wird nicht erstattet",
   "danger.list.rest": "Die Terminbuchungen, Einstellungen und Einladungen",
   "danger.numbers.admin": "{count, plural, one {# Telefonnummer} other {# Telefonnummern}}: Über {brand} gekaufte Nummern werden beim Anbieter freigegeben, die anderen erreichen {brand} nicht mehr",
   "danger.numbers.attached": "{count, plural, one {# Telefonnummer, die du mitgebracht oder verbunden hast: Sie erreicht {brand} nicht mehr und bleibt deine} other {# Telefonnummern, die du mitgebracht oder verbunden hast: Sie erreichen {brand} nicht mehr und bleiben deine}}",
