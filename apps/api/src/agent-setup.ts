@@ -55,6 +55,7 @@ import {
 } from '@linedesk/db'
 import { and, asc, desc, eq, gt, inArray, isNull } from 'drizzle-orm'
 import { adminSecondFactorRequired } from './admin-second-factor.ts'
+import { countLinkMade } from './agent-setup-counts.ts'
 import { mustConfirmEmail } from './auth-methods.ts'
 import { addressBucket } from './client-ip.ts'
 import type { Actor } from './context.ts'
@@ -529,13 +530,15 @@ async function insertKey(
       role: workspaceId ? (actor.role as WorkspaceKeyRole) : null,
       session_id: actor.sessionId!,
       expires_at: expiresAt,
-      // The agent picked on the setup page, so a setup report names it (setup-feedback.ts).
+      // The agent picked on the setup page, so a setup report names it (setup-feedback.ts) and the agent setup counts
+      // (agent-setup-counts.ts) know it when it connects.
       client,
       // Whether this session passed the passkey check: an install key made without it (the rule off) stops working
       // once the rule is on again (setupKeyAccess). A workspace key never carries it.
       passkey_confirmed_until: !workspaceId && !partnerId && actor.passkeyConfirmed ? expiresAt : null,
     })
     .returning()
+  await countLinkMade(tx, partnerId ? 'partner' : workspaceId ? 'workspace' : 'install', client, now)
   return { keyId: row!.id, key, url: `${setupMcpUrl()}/${key}`, prefix: row!.prefix, expiresAt }
 }
 
@@ -553,22 +556,22 @@ export const agentSetupHandlers: Record<string, Handler> = {
   // A workspace key for the session's workspace, made by its owner or an admin (settings:write, checked by
   // run-action.ts; disabled workspaces keep read permissions only). Only a person signed in as themselves: never a
   // key, an agent or impersonation.
-  'agentSetup.createWorkspaceKey': async ({ tx, actor, now }) => {
+  'agentSetup.createWorkspaceKey': async ({ tx, actor, now }, input: { client?: string }) => {
     refuseNonPerson(actor)
     // The owner or an admin (settings:write, checked by run-action.ts); the key acts with that role, never more.
     if (!actor.workspaceId || !isWorkspaceKeyRole(actor.role)) throw new Forbidden(ONLY_OWNER_OR_ADMIN)
     // Also while the workspace waits for its trial (agent-first, 2026-11-18): the agent does the free steps only; the
     // number, a real call and going past `activate` stay refused for it as for everyone (self-serve.ts).
     if (!allowWorkspaceKeyMint(actor.actorId)) throw new Reject(TOO_MANY_LINKS)
-    return { rows: {}, data: await insertKey(tx, actor, now, actor.workspaceId) }
+    return { rows: {}, data: await insertKey(tx, actor, now, actor.workspaceId, null, input?.client ?? null) }
   },
 
   // A partner key, made by the partner's owner signed in as themselves (the partner area's agent page). `partner`
   // (run-action.ts); the owner check is the handler's (stillMayMake, under the person's setup-link lock).
-  'agentSetup.createPartnerKey': async ({ tx, actor, now }, input: { partnerId: string }) => {
+  'agentSetup.createPartnerKey': async ({ tx, actor, now }, input: { partnerId: string; client?: string }) => {
     refuseNonPerson(actor)
     if (!allowWorkspaceKeyMint(actor.actorId)) throw new Reject(TOO_MANY_LINKS)
-    return { rows: {}, data: await insertKey(tx, actor, now, null, input.partnerId) }
+    return { rows: {}, data: await insertKey(tx, actor, now, null, input.partnerId, input.client ?? null) }
   },
 
   // End access on the partner's agent page: the caller's own keys for that partner.

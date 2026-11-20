@@ -114,6 +114,7 @@ import {
   tooManyRefusedSetupKeys,
   webAddress,
 } from './agent-setup.ts'
+import { countLinkConnected } from './agent-setup-counts.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { localeForUserId } from './email-locale.ts'
@@ -1644,7 +1645,11 @@ function registerTools(server: McpServer, actor: Actor) {
       annotations: read,
     },
     async (input: { read_only?: boolean }) =>
-      guard(actor, 'setup_status', async () => answer(await setupStatus(actor, { advance: !input?.read_only }), actor)),
+      guard(actor, 'setup_status', async () => {
+        // The link's agent connected (agent-setup-counts.ts): counted once per link, never in the way of the answer.
+        await countLinkConnected(actor.setupKeyId)
+        return answer(await setupStatus(actor, { advance: !input?.read_only }), actor)
+      }),
   )
   if (serverTools)
     server.registerTool(

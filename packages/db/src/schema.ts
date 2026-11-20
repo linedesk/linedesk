@@ -1529,12 +1529,34 @@ export const agent_setup_keys = pgTable(
      */
     passkey_confirmed_until: ts('passkey_confirmed_until'),
     /**
-     * The AI agent the admin picked on the setup page when making an install key (`claude_code`, `chatgpt`, …; null when
-     * none was sent). A setup report names it (apps/api/src/setup-feedback.ts), so the agent is never asked.
+     * The AI agent picked on the setup page when making the key (`claude_code`, `chatgpt`, …; null when none was sent).
+     * A setup report names it (apps/api/src/setup-feedback.ts), so the agent is never asked.
      */
     client: text('client'),
+    /** The agent's first setup_status call with this key (agent_setup_counts.connected counts it once). */
+    connected_at: ts('connected_at'),
   },
   t => [index('agent_setup_keys_creator').on(t.created_by)],
+)
+
+/**
+ * How agent setup goes, per day, kind of link and AI agent (LIN-657, Server admin › Onboarding): only counts, never a
+ * person, workspace or key, so they stay when keys, people or workspaces go. `made`: setup links made (the day they
+ * were made); `connected`: of those, the links whose agent called setup_status at least once (counted on the link's
+ * day, so a day's connected never exceeds its made). Not synced to browsers.
+ */
+export const agent_setup_counts = pgTable(
+  'agent_setup_counts',
+  {
+    day: date('day', { mode: 'string' }).notNull(),
+    /** 'install' (a server admin's link), 'workspace' (an owner's or admin's) or 'partner'. */
+    kind: text('kind').$type<'install' | 'workspace' | 'partner'>().notNull(),
+    /** One of agentClients, or 'none' when the link was made without one. */
+    client: text('client').notNull(),
+    made: integer('made').notNull().default(0),
+    connected: integer('connected').notNull().default(0),
+  },
+  t => [primaryKey({ columns: [t.day, t.kind, t.client] })],
 )
 
 // Settings of the whole install that are not secret, for example `active_provider.telephony`.

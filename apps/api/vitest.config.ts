@@ -27,6 +27,8 @@ const INSTANCE_WIDE_FILES = [
   'test/admin.test.ts',
   // Counts sign-ups across workspaces and makes an instance admin (the funnel).
   'test/admin-funnel.test.ts',
+  // Reads every agent setup count of the install and makes an instance admin.
+  'test/agent-setup-counts.test.ts',
   'test/billing-schema.test.ts',
   'test/after-call-transcript.test.ts',
   // Stripe keys and the billing switch (provider_settings, instance_settings).

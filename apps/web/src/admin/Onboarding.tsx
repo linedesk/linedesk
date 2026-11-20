@@ -11,6 +11,7 @@ import { Select, Switch } from '../ui/controls.tsx'
 import { Card } from '../ui/form.tsx'
 import { Loading, Skeleton, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type AtRiskWorkspace, loadAtRisk, runAdmin } from './api.ts'
+import { AgentSetupCounts } from './AgentSetupCounts.tsx'
 import { Funnel } from './Funnel.tsx'
 import { day, when } from './parts.tsx'
 
@@ -211,6 +212,7 @@ export function Onboarding() {
   return (
     <>
       <Funnel />
+      <AgentSetupCounts />
       <AtRisk />
       <SetupEmails />
     </>

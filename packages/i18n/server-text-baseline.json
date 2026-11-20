@@ -91,7 +91,7 @@
   "apps/api/src/seed.ts": 10,
   "apps/api/src/self-serve.ts": 2,
   "apps/api/src/setup-code.ts": 1,
-  "apps/api/src/setup-mcp.ts": 83,
+  "apps/api/src/setup-mcp.ts": 82,
   "apps/api/src/setup.ts": 5,
   "apps/api/src/sign-in-limits.ts": 5,
   "apps/api/src/signup-gate.ts": 1,

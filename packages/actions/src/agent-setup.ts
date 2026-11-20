@@ -50,8 +50,8 @@ export const agentSetupCreateKey = defineAction({
 export const agentSetupCreateWorkspaceKey = defineAction({
   name: 'agentSetup.createWorkspaceKey',
   description:
-    'Make a setup key for an AI agent that sets up or changes this workspace with you: business info, assistant, hours, notifications, phone number and forwarding. It acts as you, with your role, in this workspace only, never on the server or in another workspace. For security, the key stops working after 4 hours. Earlier setup keys of yours stop working. The key is returned once.',
-  input: z.object({}),
+    'Make a setup key for an AI agent that sets up or changes this workspace with you: business info, assistant, hours, notifications, phone number and forwarding. It acts as you, with your role, in this workspace only, never on the server or in another workspace. For security, the key stops working after 4 hours. Earlier setup keys of yours stop working. The key is returned once. `client`: the AI agent you picked, kept with the key so a setup report can name it.',
+  input: z.object({ client: z.enum(agentClients).optional() }),
   permission: 'settings:write',
   secretResult: ['key', 'url'],
 })
@@ -73,8 +73,8 @@ export const agentSetupCreatePartnerKey = defineAction({
   name: 'agentSetup.createPartnerKey',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
-    "Make a setup key for an AI agent that sets up your white-label partner with you: company name, brand, team invitations, and each client workspace's business info, assistant, hours and notifications. It acts as you, for this partner and its client workspaces only, never the partner bill, the server or another workspace. For security, the key stops working after 4 hours. Earlier setup keys of yours stop working. The key is returned once. The partner's owner only.",
-  input: z.object({ partnerId: z.string().min(1).max(64) }),
+    "Make a setup key for an AI agent that sets up your white-label partner with you: company name, brand, team invitations, and each client workspace's business info, assistant, hours and notifications. It acts as you, for this partner and its client workspaces only, never the partner bill, the server or another workspace. For security, the key stops working after 4 hours. Earlier setup keys of yours stop working. The key is returned once. The partner's owner only. `client`: the AI agent you picked.",
+  input: z.object({ partnerId: z.string().min(1).max(64), client: z.enum(agentClients).optional() }),
   permission: 'partner',
   secretResult: ['key', 'url'],
 })

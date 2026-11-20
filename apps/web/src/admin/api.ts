@@ -536,6 +536,18 @@ export type FunnelWeek = FunnelCounts & { week_start: string }
 export type Funnel = { weeks: number; rows: FunnelWeek[]; total: FunnelCounts }
 export const loadFunnel = (weeks: number) => get<Funnel>(`/v1/admin/funnel?weeks=${weeks}`)
 
+/** GET /v1/admin/agent-setup-counts (apps/api/src/agent-setup-counts.ts): setup links made and connected per agent. */
+export type SetupLinkKind = 'all' | 'install' | 'workspace' | 'partner'
+export type AgentSetupCountRow = { client: AgentClient | 'none'; made: number; connected: number }
+export type AgentSetupCounts = {
+  weeks: number
+  kind: SetupLinkKind
+  rows: AgentSetupCountRow[]
+  total: { made: number; connected: number }
+}
+export const loadAgentSetupCounts = (weeks: number, kind: SetupLinkKind) =>
+  get<AgentSetupCounts>(`/v1/admin/agent-setup-counts?weeks=${weeks}&kind=${kind}`)
+
 /** GET /v1/admin/latency (apps/api/src/reply-latency.ts): reply delay per pipeline, split by where the time goes. */
 export type Percentiles = { p50: number | null; p90: number | null }
 export type PipelineLatency = {

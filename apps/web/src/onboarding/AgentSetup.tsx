@@ -307,9 +307,9 @@ export function AgentSetup({
     try {
       setCreated(
         partnerId
-          ? await callAction<AgentSetupKeyCreated>('agentSetup.createPartnerKey', { partnerId })
+          ? await callAction<AgentSetupKeyCreated>('agentSetup.createPartnerKey', { partnerId, client })
           : owner
-            ? await callAction<AgentSetupKeyCreated>('agentSetup.createWorkspaceKey')
+            ? await callAction<AgentSetupKeyCreated>('agentSetup.createWorkspaceKey', { client })
             : ((await runAdmin('agentSetup.createKey', { client })) as AgentSetupKeyCreated),
       )
       await load()
