@@ -55,7 +55,6 @@ import { emailSender } from './email.ts'
 import { localeForUserId } from './email-locale.ts'
 import { emailSafeName, partnerInvitationEmail } from './emails/templates.ts'
 import { Forbidden, type Handler, type HandlerCtx } from './handler-context.ts'
-import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { lockExtraCalls } from './extra-calls.ts'
 import { lockBalance, periodAt } from './ledger.ts'
 import { queueWorkspaceDeletedEmails } from './jobs.ts'
@@ -772,7 +771,7 @@ type AdminMoveInput = { workspaceId: string; toPartnerId: string | null; confirm
  */
 async function adminMoveClient(ctx: HandlerCtx, input: AdminMoveInput) {
   const { tx, actor, now } = ctx
-  if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
+  if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
   const [seen] = await tx
     .select({
       id: organization.id,
@@ -1175,7 +1174,7 @@ export const partnerHandlers: Record<string, Handler> = {
    */
   'partner.deleteClient': async (ctx, input: { partnerId: string; workspaceId: string; confirmName: string }) => {
     const { tx, actor, now } = ctx
-    if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
+    if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
     const { partner } = await partnerFor(tx, actor, input.partnerId, { write: true, owner: true })
     const org = await clientOf(tx, partner.id, input.workspaceId)
     refuseUnconfirmed(org.name, input.confirmName)
@@ -1235,7 +1234,7 @@ export const partnerHandlers: Record<string, Handler> = {
    */
   'workspace.removePartner': async (ctx, input: { confirmName: string; removeMemberIds?: string[] }) => {
     const { tx, actor } = ctx
-    if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
+    if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
     if (!actor.workspaceId) throw refusePartner('no_partner')
     const [seen] = await tx
       .select({ name: organization.name, partnerId: organization.partnerId })

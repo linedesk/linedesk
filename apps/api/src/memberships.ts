@@ -20,7 +20,6 @@ import { alias } from 'drizzle-orm/pg-core'
 import { invitationSubject, memberSubject } from './audit.ts'
 import type { Actor } from './context.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
-import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { revokeKeysOfMember } from './api-keys.ts'
 import { revokeMemberSetupKeys } from './passkey-enrolment.ts'
 import { dropWorkspacePush } from './push.ts'
@@ -49,7 +48,7 @@ const newMemberId = () => crypto.randomUUID().replaceAll('-', '')
 
 /** The signed-in person themselves: not an instance admin acting as them, and with a verified address. */
 async function invitee(tx: Tx, actor: Actor) {
-  if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
+  if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
   const [account] = await tx.select().from(user).where(eq(user.id, actor.actorId))
   if (!account) throw new Reject('user not found')
   return account

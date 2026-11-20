@@ -13,7 +13,6 @@ import { and, asc, count, eq, ne } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { emailSafeName } from './emails/templates.ts'
 import { Forbidden, type HandlerCtx, Reject } from './handler-context.ts'
-import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { queueWorkspaceDeletedEmails } from './jobs.ts'
 import { ownerStepUpNeeded, ownerStepUpRefusal } from './owner-step-up.ts'
 import { seatsFollowDelete } from './partner-billing.ts'
@@ -24,7 +23,7 @@ export const ONLY_OWNER = 'Only an owner can delete this workspace.'
 
 /** The caller's workspace, when they own it; refuses everyone else. */
 async function ownedWorkspace(tx: Tx, actor: Actor): Promise<string> {
-  if (actor.impersonation) throw new Forbidden(NOT_WHILE_IMPERSONATING)
+  if (actor.impersonation) throw Forbidden.t('server.api.notWhileImpersonating')
   if (!actor.workspaceId || actor.role === 'agent') throw new Forbidden(ONLY_OWNER)
   const [me] = await tx
     .select({ role: member.role })

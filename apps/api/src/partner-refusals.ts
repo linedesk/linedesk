@@ -3,7 +3,7 @@
 import { type PartnerCode, UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
 import { member, type Tx } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
-import { Reject } from './handler-context.ts'
+import { Reject, said } from './handler-context.ts'
 
 /**
  * A refusal with its code: the web app shows the code's key (PARTNER_CODES, team.partner.error.*); the English stays
@@ -55,12 +55,9 @@ const REFUSALS: Record<PartnerCode, string> = {
 export const refusePartner = (code: PartnerCode) => new Reject(REFUSALS[code], code)
 
 /** A partner bill is the partner owner's (docs/white-label.md): it changes hands only with the partner. */
-// i18n-ignore: API error bodies for logs, API clients and Server admin; the web app words its own refusals
-export const PARTNER_BILL_STAYS = "a partner bill belongs to the partner's owner and is not handed over"
+export const PARTNER_BILL_STAYS = said('server.api.partner.billStays')
 /** A client workspace stays on its partner's bill, and a partner bill pays only for its clients. */
-// i18n-ignore: API error bodies for logs, API clients and Server admin; the web app words its own refusals
-export const CLIENT_STAYS_ON_PARTNER_BILL =
-  "client workspaces are always on their partner's bill, and a partner bill pays only for its clients: the partner releases a client, or its owner removes the partner"
+export const CLIENT_STAYS_ON_PARTNER_BILL = said('server.api.partner.clientStaysOnBill')
 
 /** What a caller who may not do it hears (403). */
 // i18n-ignore: API error bodies for logs and API clients; the web app words a 403 itself

@@ -5,6 +5,7 @@
 import { actions, type ListCalendarsData, rolePermissions } from '@linedesk/actions'
 import type { AccessTokenSource, CalendarLogin, CalendarOAuth, CalendarProvider, OAuthTokens } from '@linedesk/calendar'
 import { CalendarError } from '@linedesk/calendar'
+import { getT } from '@linedesk/i18n/server'
 import {
   appointment_types,
   assistant_calendars,
@@ -1066,5 +1067,18 @@ describe('why calendars could not be listed, in the shared provider-failure word
     ],
   ] as const)('%s (%s)', (error, audience, text) => {
     expect(calendarProblemText(error, account, audience)).toMatch(text)
+  })
+
+  test('in the reader’s language, every part of it, the provider’s own reason as it is', () => {
+    const pseudo = getT('en-XA')
+    const disabled = new CalendarError('google', 'invalid', 'list calendars failed', 403, 'api_disabled')
+    const text = calendarProblemText(disabled, account, 'admin', pseudo)
+    expect(text).toMatch(/^⟦.*⟧$/)
+    expect(text).not.toMatch(/The Google Calendar app/)
+    expect(calendarProblemText(new CalendarError('google', 'auth', 'refused', 401), account, 'member', pseudo)).toMatch(
+      /^⟦.*mike@example\.test.*⟧$/,
+    )
+    const other = new CalendarError('google', 'invalid', 'list calendars failed: insufficient scope')
+    expect(calendarProblemText(other, account, 'member', pseudo)).toBe(other.message)
   })
 })

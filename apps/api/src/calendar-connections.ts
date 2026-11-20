@@ -12,7 +12,8 @@ import {
   type ListCalendarsData,
   type OAuthCalendarProviderId,
   type ProviderAudience,
-  providerFailureText,
+  providerFailureAdvice,
+  type ProviderFailureReason,
 } from '@linedesk/actions'
 import {
   type AccessTokenSource,
@@ -43,7 +44,16 @@ import { and, asc, eq, lt, ne } from 'drizzle-orm'
 import { ensureAppointmentType, timeZoneOf } from './bookings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
-import { type Handler, type HandlerCtx, Forbidden, Reject, type Said, said } from './handler-context.ts'
+import {
+  type Handler,
+  type HandlerCtx,
+  Forbidden,
+  type Reader,
+  Reject,
+  type Said,
+  said,
+  sayIn,
+} from './handler-context.ts'
 import { audienceOf, noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import { createFailureLimiter } from './rate-limit.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey, SecretsKeyError } from './secrets.ts'
@@ -385,26 +395,43 @@ export async function providerFor(
 /**
  * Why the calendars could not be listed, in the shared provider-failure words (LIN-111): the server's calendar app
  * refused (admins: Server admin › Providers, members: whoever runs the server), the account's access withdrawn (connect
- * it again), the provider busy or down (try again). Anything else keeps the provider's reason. Exported for tests.
+ * it again), the provider busy or down (try again). Anything else keeps the provider's reason. Written when the reader
+ * is known (a Said); the provider's own reason stays as it is.
  */
-export function calendarProblemText(
+export function calendarProblem(
   e: CalendarError,
   connection: Pick<CalendarConnection, 'provider' | 'account_email'>,
   audience: ProviderAudience,
-): string {
-  const label = LABEL[connection.provider]
-  if (e.code === 'api_disabled')
-    return providerFailureText('config', `The ${label} Calendar app of this server`, audience)
-  if (isAppFailure(e)) return providerFailureText('auth', `${label} Calendar`, audience)
+): Said | string {
+  const provider = LABEL[connection.provider]
+  const account = connection.account_email
+  // The shared "{problem} {fix}" pair, its label in the reader's words too.
+  const failure = (reason: ProviderFailureReason, label: (r: Reader) => string): Said =>
+    said('errors.provider.problemAndFix', {
+      problem: r => providerFailureAdvice(reason, label(r), audience, r).problem,
+      fix: r => providerFailureAdvice(reason, label(r), audience, r).fix,
+    })
+  const calendar = (r: Reader) => r.t('server.api.calendar.providerCalendar', { provider })
+  if (e.code === 'api_disabled') return failure('config', r => r.t('server.api.calendar.appOfServer', { provider }))
+  if (isAppFailure(e)) return failure('auth', calendar)
   if (e.kind === 'auth' && connection.provider === 'caldav')
-    return `The calendar server no longer accepts the password of ${connection.account_email}. Connect the account again with a new app-specific password.`
+    return said('server.api.calendar.passwordRefused', { account })
   if (e.kind === 'auth' && isPasswordProvider(connection.provider))
-    return `${label} no longer accepts the key of ${connection.account_email}. Connect the account again with a new one.`
-  if (e.kind === 'auth')
-    return `${label} no longer accepts the access to ${connection.account_email}. Connect the account again.`
-  if (e.kind === 'rate_limited' || e.kind === 'unavailable')
-    return providerFailureText('network', `${label} Calendar`, audience)
+    return said('server.api.calendar.keyRefused', { provider, account })
+  if (e.kind === 'auth') return said('server.api.calendar.accessRefused', { provider, account })
+  if (e.kind === 'rate_limited' || e.kind === 'unavailable') return failure('network', calendar)
   return e.message
+}
+
+/** calendarProblem in a reader's words (English by default). Exported for tests. */
+export const calendarProblemText = (
+  e: CalendarError,
+  connection: Pick<CalendarConnection, 'provider' | 'account_email'>,
+  audience: ProviderAudience,
+  reader?: Reader,
+): string => {
+  const problem = calendarProblem(e, connection, audience)
+  return typeof problem === 'string' ? problem : sayIn(problem, reader)
 }
 
 /** The member's calendars on a provider; a refused grant marks the connection and says so. */
@@ -416,7 +443,7 @@ async function listAt(provider: CalendarProvider, connection: CalendarConnection
       await markNeedsReconnect(connection.id, e.message)
     if (e instanceof CalendarError) {
       noteCalendarAppFailure(e)
-      throw new Reject(calendarProblemText(e, connection, audience))
+      throw new Reject(calendarProblem(e, connection, audience))
     }
     return rejectCalendarError(e)
   }

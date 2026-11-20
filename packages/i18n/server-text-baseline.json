@@ -27,7 +27,7 @@
   "apps/api/src/branding.ts": 2,
   "apps/api/src/business-import.ts": 14,
   "apps/api/src/calendar-callback.ts": 5,
-  "apps/api/src/calendar-connections.ts": 8,
+  "apps/api/src/calendar-connections.ts": 6,
   "apps/api/src/calendar-server-fetch.ts": 6,
   "apps/api/src/calendar-tools.ts": 5,
   "apps/api/src/call-export.ts": 11,

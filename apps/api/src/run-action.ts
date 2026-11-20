@@ -41,7 +41,7 @@ import { type Reader, rejectionText, wordsOf } from './handler-context.ts'
 import { Forbidden, NotFound, preparers, Reject, runHandler, type Undo } from './handlers.ts'
 import { personalKeyRefusal } from './personal-key-scope.ts'
 import { chargeSetupLookup, pendingPaymentRefusal, REFUSED_WHILE_PENDING_PAYMENT, SETUP_LOOKUPS } from './self-serve.ts'
-import { impersonatorOf, mayRunWhileImpersonating, NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
+import { impersonatorOf, mayRunWhileImpersonating } from './impersonation-guard.ts'
 import { MAIN_HOST_ONLY, mainHostOnlyAction } from './request-host.ts'
 
 export type RunResult = { status: 200 | 403 | 404 | 409 | 422; body: ActionResult | ActionRejection }
@@ -336,7 +336,8 @@ export async function runAction(
   // A partner owner's setup key: the partner's own actions and its client workspaces' setup only (agent-setup.ts).
   if (actor.setupPartnerId && (await partnerKeyOutOfScope(def, actor, rawInput))) return forbidden(PARTNER_KEY_SCOPE())
   // An instance admin signed in as this user: reads and a short allow-list only (impersonation-guard.ts).
-  if (actor.impersonation && !mayRunWhileImpersonating(def)) return forbidden(NOT_WHILE_IMPERSONATING)
+  if (actor.impersonation && !mayRunWhileImpersonating(def))
+    return forbidden(wordsOf(actor).t('server.api.notWhileImpersonating'))
   // A leaked key must not reach settings: carrier, numbers, transfer number, webhooks, calendars.
   if (actor.apiKeyId && !def.public) return forbidden(API_KEY_PUBLIC_ONLY)
   // A personal key is its maker, except for what needs them signed in or a browser (personal-key-scope.ts).

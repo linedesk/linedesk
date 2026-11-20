@@ -34,7 +34,6 @@ import { alias } from 'drizzle-orm/pg-core'
 import { memberSubject } from './audit.ts'
 import type { Actor } from './context.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
-import { NOT_WHILE_IMPERSONATING } from './impersonation-guard.ts'
 import { loadSettingsOf, type OwnInput, settingsChanges, writeSettings } from './notification-settings.ts'
 import { dropAvatar, storeAvatar } from './user-avatar.ts'
 
@@ -52,7 +51,7 @@ type Target = typeof member.$inferSelect
  */
 async function editableMember(tx: Tx, actor: Actor, memberId: string, lock: boolean): Promise<Target> {
   // Reading is what an impersonation is for (seeing Linedesk as the user does); changing is refused (run-action too).
-  if (actor.impersonation && lock) throw new Forbidden(NOT_WHILE_IMPERSONATING)
+  if (actor.impersonation && lock) throw Forbidden.t('server.api.notWhileImpersonating')
   // A personal key is its maker (personal-keys.ts); a workspace key, a setup link or the agent is nobody's teammate.
   if (actor.role === 'agent' || actor.setupKeyId || actor.apiKeyId || (!actor.sessionId && !actor.personalKeyId))
     throw new Forbidden('only a signed-in owner or admin can change a teammate')

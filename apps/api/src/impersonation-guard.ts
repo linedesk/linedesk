@@ -54,6 +54,7 @@ export const IMPERSONATION_REFUSED_PATHS = [
   '/organization/accept-invitation',
 ] as const
 
+/** English, for the routes outside the registry (app.ts, account.ts) and Better Auth; actions use server.api.notWhileImpersonating. */
 export const NOT_WHILE_IMPERSONATING = 'Not possible while signed in as another user.'
 
 /**
