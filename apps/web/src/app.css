@@ -845,19 +845,24 @@ a.auth-switch {
   }
 }
 
-/* Sign-in code: one field for six digits, large and spaced so it reads like the code in the email. */
+/* Sign-in code: one field for six digits, large and spaced so it reads like the code in the email. The indent of one
+   letter space balances the space after the last digit, so the digits sit in the middle. */
 .auth-card input.auth-code {
   height: 48px;
   font-family: var(--font-mono);
   font-size: 24px;
   letter-spacing: 0.35em;
+  text-indent: 0.35em;
   text-align: center;
 }
-/* "Code from the email" in the empty field: the card's own text, not the code's large spaced digits. */
-.auth-card input.auth-code::placeholder {
+/* "Code from the email" in the empty field: the card's own text, not the code's large spaced digits. Set on the empty
+   field itself, not only on ::placeholder: browsers put a smaller placeholder on the large text's baseline, so it sat
+   off the middle. */
+.auth-card input.auth-code:placeholder-shown {
   font-family: var(--font-sans);
   font-size: 14px;
   letter-spacing: 0;
+  text-indent: 0;
 }
 
 /*
@@ -2624,9 +2629,10 @@ button.k-link {
 }
 
 /* iPhones zoom into a field whose text is under 16px when it is tapped: on touch screens fields use 16px.
-   The sign-in code keeps its larger size. */
+   The sign-in code keeps its larger size once it holds digits. */
 @media (hover: none) and (pointer: coarse) {
   input:not([type="checkbox"], [type="radio"], [type="range"], .auth-code),
+  input.auth-code:placeholder-shown,
   textarea,
   select {
     font-size: 16px !important;
