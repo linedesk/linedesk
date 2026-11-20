@@ -45,7 +45,7 @@ import {
 } from './call-log.ts'
 import { onceEachStage, watchVoicePipeline } from './voice-failures.ts'
 import { retryEmptyReplies } from './empty-reply.ts'
-import { GREETING_WAIT_MS, lookUpCaller, within } from './caller-lookup.ts'
+import { GREETING_WAIT_MS, lookUpCaller, PERSONAL_GREETING_WAIT_MS, within } from './caller-lookup.ts'
 import {
   announceRecording,
   callLimitOf,
@@ -236,20 +236,22 @@ async function greet(
   details: Promise<CallerDetails | null> | null,
   queued: () => void,
 ) {
-  // A greeting with caller details ({{name}}) waits briefly for them and is spoken live: it differs per caller.
-  if (details) {
-    const text = fillTemplate(openingOf(call), await within(details, GREETING_WAIT_MS, null))
+  // A greeting with caller details ({{name}}) waits briefly for them and is spoken live: it differs per caller. Details
+  // that come later (or none) give the greeting without them, stored like any other (`key` is that text's).
+  const found = details ? await within(details, PERSONAL_GREETING_WAIT_MS, null) : null
+  if (found) {
     queued()
-    session.say(text)
+    session.say(fillTemplate(openingOf(call), found))
     return 'personal'
   }
-  const text = openingOf(call)
+  const text = details ? fillTemplate(openingOf(call), null) : openingOf(call)
+  const without = details ? ', without caller details' : ''
   const audio = await cached
   queued()
   if (audio) {
     // Without the silence the voice put before the first word: it would only delay the greeting (LIN-262).
     session.say(text, { audio: audioStream(withoutLeadingSilence(audio)) })
-    return 'cached'
+    return `cached${without}`
   }
   session.say(text)
   const voiceOfGreeting = createTts(
@@ -262,7 +264,7 @@ async function greet(
   void synthesize(voiceOfGreeting, text)
     .then(synthesized => (spokeWithBackup(voiceOfGreeting) ? undefined : greetingCache.put(key, synthesized)))
     .catch(e => console.warn(`could not store the greeting audio: ${e instanceof Error ? e.message : String(e)}`))
-  return 'synthesized'
+  return `synthesized${without}`
 }
 
 /**
@@ -390,9 +392,10 @@ async function converse(
     stages &&
     greetingKey({
       ...greetingVoice(stages, call),
-      text: openingOf(call),
+      // A greeting with caller details is stored without them: what the caller hears when they come too late (greet).
+      text: personalGreeting ? fillTemplate(openingOf(call), null) : openingOf(call),
     })
-  const cachedGreeting = personalGreeting || !key ? Promise.resolve(null) : greetingCache.get(key) // read while the session starts
+  const cachedGreeting = key ? greetingCache.get(key) : Promise.resolve(null) // read while the session starts
   void cachedGreeting.then(audio => audio && setup.mark('greeting read'))
   let callerIdentity: string | undefined
   void callerJoined.then(

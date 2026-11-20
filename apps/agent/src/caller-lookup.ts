@@ -9,13 +9,22 @@ import type { CallSession } from './call-session.ts'
 /** The longest the greeting waits for caller details: the webhook's own time limit and the trip to the API. */
 export const GREETING_WAIT_MS = CALL_START_TIMEOUT_MS + 300
 
+/**
+ * On the three stages, the longest a greeting with caller details ({{name}}) waits for them. Later, the caller hears the
+ * stored greeting without the details at once instead of waiting for the lookup and a live voice (LIN-512: in a burst
+ * of calls both took seconds).
+ */
+export const PERSONAL_GREETING_WAIT_MS = 500
+
 /** The caller details, or null when there is no webhook or it failed; never throws, so the call goes on without them. */
 export async function lookUpCaller(api: ApiClient, call: CallSession): Promise<CallerDetails | null> {
   try {
     const { data } = await api.run(callLookUpCaller, { callId: call.callId }, call)
     return (data as CallLookUpData | undefined)?.details ?? null
   } catch (e) {
-    console.warn(`call ${call.callId}: the call-start webhook could not be asked: ${e instanceof Error ? e.message : String(e)}`)
+    console.warn(
+      `call ${call.callId}: the call-start webhook could not be asked: ${e instanceof Error ? e.message : String(e)}`,
+    )
     return null
   }
 }
