@@ -116,7 +116,7 @@ type Bill = typeof billing_accounts.$inferSelect
 
 async function billOrReject(tx: Tx, billId: string): Promise<Bill> {
   const [bill] = await tx.select().from(billing_accounts).where(eq(billing_accounts.id, billId))
-  if (!bill) throw new Reject('no bill with this id')
+  if (!bill) throw Reject.t('server.api.billingAdmin.noBill')
   return bill
 }
 
@@ -577,7 +577,7 @@ async function writeSetting(tx: Tx, key: string, value: string, actor: Actor, no
 /** The provider that refunds and changes seats: Stripe in effect, or a refusal (nothing is asked of `none`). */
 async function stripeOrReject(tx: Tx, override?: BillingProvider): Promise<BillingProvider> {
   const provider = override ?? (await billingProvider(tx))
-  if (provider.name === 'none') throw new Reject('Billing through Stripe is not in effect on this install.')
+  if (provider.name === 'none') throw Reject.t('server.api.billingAdmin.stripeNotInEffect')
   return provider
 }
 
@@ -606,10 +606,7 @@ async function voidRechargeInvoice(tx: Tx, attempt: typeof billing_recharges.$in
   if (attempt.status === 'paid') return
   const provider = providerOverride ?? (await billingProvider(tx))
   if (provider.name === 'none') {
-    if (attempt.stripe_invoice_id)
-      throw new Reject(
-        'This attempt has an invoice in Stripe, and billing through Stripe is not in effect: void the invoice in the Stripe Dashboard first.',
-      )
+    if (attempt.stripe_invoice_id) throw Reject.t('server.api.billingAdmin.attemptHasInvoice')
     return
   }
   const invoiceId = attempt.stripe_invoice_id ?? (await provider.findRechargeInvoice(attempt.id))
@@ -626,10 +623,9 @@ async function creditRecharge(tx: Tx, bill: Bill, input: CreditInput, periodId: 
     .from(billing_recharges)
     .where(eq(billing_recharges.id, input.rechargeId!))
     .for('update')
-  if (!attempt || attempt.billing_account_id !== bill.id)
-    throw new Reject('no recharge attempt with this id on this bill')
+  if (!attempt || attempt.billing_account_id !== bill.id) throw Reject.t('server.api.billingAdmin.noRechargeAttempt')
   if (attempt.amount_cents !== input.amountCents)
-    throw new Reject(`a recharge attempt is credited with its own amount (${attempt.amount_cents} cents)`)
+    throw Reject.t('server.api.billingAdmin.rechargeOwnAmount', { cents: String(attempt.amount_cents) })
   await voidRechargeInvoice(tx, attempt)
   const posted = await postEntry(tx, {
     billing_account_id: bill.id,
@@ -655,17 +651,17 @@ async function credit(tx: Tx, actor: Actor, now: string, input: CreditInput) {
   const balance = await lockBalance(tx, input.billingAccountId)
   const bill = await billOrReject(tx, input.billingAccountId)
   const period = await periodAt(tx, bill.id, now)
-  if (!period) throw new Reject('This bill has no billing period now: an entry needs one.')
+  if (!period) throw Reject.t('server.api.billingAdmin.entryNoPeriod')
   if (input.rechargeId) return creditRecharge(tx, bill, input, period.id, actor, now)
   const micros = input.amountCents * MICROS_PER_CENT
   if (input.kind === 'writeoff' && micros > -exact(balance.balance_micros))
-    throw new Reject('A write-off forgives at most what the balance is below zero.')
+    throw Reject.t('server.api.billingAdmin.writeoffTooLarge')
   if (input.reversesEntryId) {
     const [corrected] = await tx
       .select({ id: ledger_entries.id })
       .from(ledger_entries)
       .where(and(eq(ledger_entries.id, input.reversesEntryId), eq(ledger_entries.billing_account_id, bill.id)))
-    if (!corrected) throw new Reject('no ledger entry with this id on this bill')
+    if (!corrected) throw Reject.t('server.api.billingAdmin.noLedgerEntry')
   }
   return postEntry(tx, {
     billing_account_id: bill.id,
@@ -772,18 +768,18 @@ async function makeRefund(tx: Tx, provider: BillingProvider, row: RefundRow, now
 /** The same dialog sent again: its own refund finished (posted, or asked of Stripe again), never a second one. */
 async function finishOwnRefund(tx: Tx, provider: BillingProvider, own: RefundRow, input: RefundInput, now: string) {
   if (own.billing_account_id !== input.billingAccountId || own.amount_cents !== input.amountCents)
-    throw new Reject('This request id was used for another refund: open the refund dialog again.')
+    throw Reject.t('server.api.billingAdmin.refundIdReused')
   if (own.status === 'posted') {
     const [entry] = await tx.select().from(ledger_entries).where(eq(ledger_entries.id, own.ledger_entry_id!))
     return { entry: entry!, posted: false, creditNoteId: own.credit_note_id!, refundedCents: own.refunded_cents! }
   }
-  if (own.status === 'void') throw new Reject('Stripe made no refund for this request: open the refund dialog again.')
+  if (own.status === 'void') throw Reject.t('server.api.billingAdmin.refundNotMade')
   const made = await provider.findRefund(own.stripe_invoice_id, refundKey(own.id))
   if (made) return postRefund(tx, own, made, now)
   // Past Stripe's idempotency window the same key could refund twice: an old request is given up, not asked again.
   if (isStale(own, now)) {
     await voidRefund(tx, own, now)
-    throw new Reject('Stripe made no refund for this request: open the refund dialog again.')
+    throw Reject.t('server.api.billingAdmin.refundNotMade')
   }
   return makeRefund(tx, provider, own, now)
 }
@@ -798,37 +794,31 @@ async function refund(tx: Tx, actor: Actor, now: string, input: RefundInput) {
   if (own) return finishOwnRefund(tx, provider, own, input, now)
   // An earlier refund of this bill that did not finish is settled first: what it paid out counts below.
   const { waiting } = await settlePendingRefunds(tx, provider, bill.id, now)
-  if (waiting) throw new Reject('Another refund of this bill is still waiting on Stripe: try again in a few minutes.')
+  if (waiting) throw Reject.t('server.api.billingAdmin.refundWaiting')
   const balance = await lockBalance(tx, bill.id)
   const micros = input.amountCents * MICROS_PER_CENT
   const available = exact(balance.balance_micros) - exact(balance.reserved_micros)
-  if (micros > available) throw new Reject('A refund is at most the available balance (balance less running calls).')
+  if (micros > available) throw Reject.t('server.api.billingAdmin.refundAboveAvailable')
   // Newest payments first (docs/billing.md §4.5): the newest one with something left to refund.
   const payment = (await refundablePayments(tx, bill.id)).find(p => p.creditedMicros > p.refundedMicros)
-  if (!payment) throw new Reject('No payment on this bill has anything left to refund.')
+  if (!payment) throw Reject.t('server.api.billingAdmin.nothingToRefund')
   if (micros > payment.creditedMicros - payment.refundedMicros)
-    throw new Reject(
-      'A refund comes from one payment at a time, the newest first: refund at most what is left of it, then the next.',
-    )
+    throw Reject.t('server.api.billingAdmin.refundOnePayment')
   // The period the entry posts in is known before Stripe is asked (M1): the current one, else the bill's latest (a
   // refund after the bill ended, docs/billing.md decision 10). A bill without any period is refused here.
   const period = await periodForMoney(tx, bill.id, now)
-  if (!period) throw new Reject('This bill has no billing period to post a refund in: nothing was refunded.')
+  if (!period) throw Reject.t('server.api.billingAdmin.refundNoPeriod')
   const [entry] = await tx.select().from(ledger_entries).where(eq(ledger_entries.id, payment.entryId))
   const invoiceId =
     payment.invoiceId ?? (payment.kind === 'topup' ? await provider.checkoutInvoice(entry!.source_id) : null)
-  if (!invoiceId) throw new Reject('The invoice of this payment is not known: refund it in the Stripe Dashboard.')
+  if (!invoiceId) throw Reject.t('server.api.billingAdmin.refundInvoiceUnknown')
   const invoice = await provider.invoice(invoiceId)
   if (invoice?.status !== 'paid' || !bill.stripe_customer_id || invoice.customerId !== bill.stripe_customer_id)
-    throw new Reject("This payment's invoice is not a paid invoice of this bill's Stripe customer.")
+    throw Reject.t('server.api.billingAdmin.refundInvoiceNotPaid')
   const line = paymentLine(invoice, payment, entry!.source_id)
-  if (!line || line.amountCents < input.amountCents)
-    throw new Reject("The payment's invoice line does not cover the amount.")
+  if (!line || line.amountCents < input.amountCents) throw Reject.t('server.api.billingAdmin.refundLineTooSmall')
   const blockers = await provider.refundBlockers(invoiceId)
-  if (blockers.length)
-    throw new Reject(
-      `This payment cannot be refunded from the balance (${blockers.join(', ')}): a dispute or a fraud warning is handled on its own, a payment without a card charge in the Stripe Dashboard.`,
-    )
+  if (blockers.length) throw Reject.t('server.api.billingAdmin.refundBlocked', { blockers: blockers.join(', ') })
   // Committed before Stripe is asked (M2): if anything fails once Stripe refunded, this row is how the refund is found
   // and posted. On ownCommitDb, never the main pool: this transaction keeps the balance lock, and the bill's other
   // transactions queued on it can fill the main pool, which would then wait on this write forever (re-review R2).
@@ -900,7 +890,7 @@ async function moveWorkspace(
     .select({ id: organization.id, bill: organization.billingAccountId, partnerId: organization.partnerId })
     .from(organization)
     .where(eq(organization.id, input.workspaceId))
-  if (!seen) throw new Reject('no workspace with this id')
+  if (!seen) throw Reject.t('server.api.billingAdmin.noWorkspace')
   // A client workspace is always on its partner's bill, and a partner bill pays only for its own clients
   // (docs/white-label.md): those change with the partner (workspace.createForClient, partner.releaseClient,
   // workspace.removePartner), never by a move here.
@@ -910,8 +900,8 @@ async function moveWorkspace(
     .from(billing_accounts)
     .where(eq(billing_accounts.id, input.toBillingAccountId))
   if (target?.kind === 'partner') throw new Reject(CLIENT_STAYS_ON_PARTNER_BILL)
-  if (!seen.bill) throw new Reject('This workspace is on no bill; moving is between bills.')
-  if (seen.bill === input.toBillingAccountId) throw new Reject('The workspace is on this bill already.')
+  if (!seen.bill) throw Reject.t('server.api.billingAdmin.moveNoBill')
+  if (seen.bill === input.toBillingAccountId) throw Reject.t('server.api.billingAdmin.moveSameBill')
   // Both balance rows, in id order (the lock order of every bill path; two moves never deadlock).
   for (const id of [seen.bill, input.toBillingAccountId].sort()) await lockBalance(tx, id)
   // Read again under the locks (security review of #919, L3): a move that ran meanwhile changed it, and this one would
@@ -921,11 +911,10 @@ async function moveWorkspace(
     .from(organization)
     .where(eq(organization.id, input.workspaceId))
     .for('update')
-  if (workspace?.bill !== seen.bill)
-    throw new Reject('The workspace moved to another bill meanwhile: reload and look again.')
+  if (workspace?.bill !== seen.bill) throw Reject.t('server.api.billingAdmin.moveMovedMeanwhile')
   const from = await billOrReject(tx, seen.bill)
   const to = await billOrReject(tx, input.toBillingAccountId)
-  if (to.status === 'canceled') throw new Reject('A workspace cannot move to a canceled bill.')
+  if (to.status === 'canceled') throw Reject.t('server.api.billingAdmin.moveToCanceled')
   // A bill in its trial (or still before Checkout) holds at most the sign-up rules' trial workspaces (security review of
   // #1097, L-3). Moving is the one way a workspace joins a bill after sign-up, so the limit is enforced here; the
   // balance lock above keeps two moves onto the same bill from both passing it.
@@ -942,7 +931,7 @@ async function moveWorkspace(
     .from(call_reservations)
     .innerJoin(calls, eq(calls.id, call_reservations.call_id))
     .where(eq(calls.workspace_id, workspace.id))
-  if ((running?.n ?? 0) > 0) throw new Reject('The workspace has calls running: move it once they ended.')
+  if ((running?.n ?? 0) > 0) throw Reject.t('server.api.billingAdmin.moveCallsRunning')
   const seats = !!from.stripe_subscription_id || !!to.stripe_subscription_id
   const provider = seats ? await stripeOrReject(tx, providerOverride ?? undefined) : null
   if (provider && !onCommit) throw new Error('billing.moveWorkspace changes seats after the commit: no onCommit given')
@@ -980,11 +969,11 @@ async function setStatus(tx: Tx, actor: Actor, now: string, input: StatusInput) 
   refuseMoneyChange(actor)
   await lockBalance(tx, input.billingAccountId)
   const bill = await billOrReject(tx, input.billingAccountId)
-  if (bill.status === 'canceled') throw new Reject('A canceled bill stays canceled.')
+  if (bill.status === 'canceled') throw Reject.t('server.api.billingAdmin.canceledStays')
   // Resume lifts only what an admin can set here (security review of #919, L2): a bill waiting for its first payment
   // goes through Checkout, a past-due one through its unpaid invoice (dunning keeps its clock).
   if (input.status === 'active' && bill.status !== 'suspended' && bill.status !== 'comped')
-    throw new Reject('Only a suspended or comped bill is resumed here.')
+    throw Reject.t('server.api.billingAdmin.resumeOnly')
   if (input.status === 'suspended') {
     await suspendByAdmin(tx, bill, now)
     return { status: 'suspended' as const, previous: bill.status }
@@ -1086,14 +1075,14 @@ export const billingAdminHandlers: Record<string, Handler> = {
     await lockBalance(tx, input.billingAccountId)
     const bill = await billOrReject(tx, input.billingAccountId)
     if (bill.kind === 'partner') throw new Reject(PARTNER_BILL_STAYS)
-    if (bill.owner_user_id === input.userId) throw new Reject('This user owns the bill already.')
+    if (bill.owner_user_id === input.userId) throw Reject.t('server.api.billingAdmin.ownerAlready')
     const [isMember] = await tx
       .select({ id: member.id })
       .from(member)
       .innerJoin(organization, eq(organization.id, member.organizationId))
       .where(and(eq(member.userId, input.userId), eq(organization.billingAccountId, bill.id)))
       .limit(1)
-    if (!isMember) throw new Reject("The new owner must be a member of one of the bill's workspaces.")
+    if (!isMember) throw Reject.t('server.api.billingAdmin.ownerNotMember')
     await tx
       .update(billing_accounts)
       .set({ owner_user_id: input.userId, updated_at: now })
@@ -1108,10 +1097,10 @@ export const billingAdminHandlers: Record<string, Handler> = {
     refuseMoneyChange(actor)
     await lockBalance(tx, input.billingAccountId)
     const bill = await billOrReject(tx, input.billingAccountId)
-    if (!bill.held_for_review_at) throw new Reject('This bill is not held for review.')
+    if (!bill.held_for_review_at) throw Reject.t('server.api.billingAdmin.notHeld')
     // A canceled bill stays canceled (L2): a deny would make it suspended, and a later resume would revive it.
     if (input.decision === 'deny' && bill.status === 'canceled')
-      throw new Reject('A canceled bill stays canceled: approve to clear its hold.')
+      throw Reject.t('server.api.billingAdmin.canceledStaysApprove')
     if (input.decision === 'approve')
       await tx
         .update(billing_accounts)
@@ -1130,7 +1119,7 @@ export const billingAdminHandlers: Record<string, Handler> = {
     refuseMoneyChange(actor)
     const checked = checkBillingRules(withoutResets(input.rules))
     if (checked.problems.length)
-      throw new Reject(`These rules are out of range or unknown: ${checked.problems.join(', ')}. Nothing was changed.`)
+      throw Reject.t('server.api.billingAdmin.rulesInvalid', { fields: checked.problems.join(', ') })
     // Merged over the stored row (I-6): a field left out keeps its value, null resets it to the default.
     const before = (await rulesData(tx)).stored ?? {}
     const next = mergeStoredRules(before, input.rules)
@@ -1162,8 +1151,7 @@ export const billingAdminHandlers: Record<string, Handler> = {
     // On opens the install to anyone: the same check as the money actions. Off is open to every instance admin.
     if (input.on) refuseMoneyChange(actor)
     const before = await selfServe(tx)
-    if (input.on && !before.billingInEffect)
-      throw new Reject('Self-serve sign-up needs billing through Stripe in effect (Server admin › Billing › Stripe).')
+    if (input.on && !before.billingInEffect) throw Reject.t('server.api.billingAdmin.selfServeNeedsStripe')
     // No contract without terms (A9): the links and versions come from the environment, never from this page.
     if (input.on && before.termsMissing.length)
       throw Reject.t('server.api.signup.termsMissing', { vars: before.termsMissing.join(', ') })

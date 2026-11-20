@@ -72,7 +72,7 @@ const earlier = (a: string, b: string) => (Date.parse(a) <= Date.parse(b) ? a : 
 const later = (a: string, b: string) => (Date.parse(a) >= Date.parse(b) ? a : b)
 
 function workspaceOf(actor: Actor) {
-  if (!actor.workspaceId) throw new Reject('no workspace')
+  if (!actor.workspaceId) throw Reject.t('server.api.noWorkspace')
   return actor.workspaceId
 }
 
@@ -1109,7 +1109,7 @@ export const bookingHandlers: Record<string, Handler> = {
       ? and(eq(appointment_types.id, input.appointmentTypeId), eq(appointment_types.workspace_id, workspace_id))
       : undefined
     const [existing] = scope ? await tx.select().from(appointment_types).where(scope) : []
-    if (scope && !existing) throw new Reject('appointment type not found')
+    if (scope && !existing) throw Reject.t('server.api.booking.appointmentTypeNotFound')
     const values = {
       name: input.name,
       duration_min: input.durationMin,
@@ -1144,7 +1144,7 @@ export const bookingHandlers: Record<string, Handler> = {
       eq(appointment_types.workspace_id, workspace_id),
     )
     const [type] = await tx.select().from(appointment_types).where(scope)
-    if (!type) throw new Reject('appointment type not found')
+    if (!type) throw Reject.t('server.api.booking.appointmentTypeNotFound')
     const [used] = await tx
       .select({ id: bookings.id })
       .from(bookings)
