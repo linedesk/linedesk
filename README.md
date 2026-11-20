@@ -28,6 +28,18 @@
   <a href="mailto:hello@linedesk.ai"><b>Contact</b></a>
 </p>
 
+**Set it up with your AI agent.** Paste this into Claude Code, Codex or any coding agent with a shell:
+
+```text
+Please set up Linedesk for me: linedesk.ai/self-host.md
+```
+
+Or run the install script yourself on a new Ubuntu or Debian server ([self-hosting guide](docs/hosting.md)):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/linedesk/linedesk/HEAD/scripts/install.sh | sudo sh
+```
+
 Linedesk picks up the phone for a business: a natural-sounding assistant that knows the business, books appointments into its calendar, takes messages and puts urgent callers through to the right person. Afterwards every call is in one inbox with a summary, next steps, the transcript and the recording. Run it on your own server with your own provider accounts, or use Linedesk Cloud.
 
 ![The Linedesk inbox](docs/images/inbox.png)
