@@ -437,7 +437,7 @@ describe("an install's own rules", () => {
     expect(planCatalog(BILLING_DEFAULTS, 'Front Desk')).toMatchObject({ automaticTax: true, taxCode: 'txcd_10103001' })
     // The partner plan keeps its own name; the catalog sync must not rename the Stripe product back (2026-11-18).
     expect(planCatalog(BILLING_DEFAULTS, 'Front Desk').products).toMatchObject({
-      workspace: 'Front Desk workspace',
+      workspace: 'Front Desk',
       partner: 'White-label Cloud',
     })
     const { rules, problems } = mergeBillingRules({ automaticTax: false })
