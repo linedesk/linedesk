@@ -173,7 +173,7 @@ export const callAudioValues = {
   setup: 'scripts/setup.sh',
   env: '.env',
   port: '5060',
-  command: 'docker compose exec agent node apps/agent/src/setup-sip.ts <number>',
+  command: 'docker compose run --rm agent node src/setup-sip.ts <number>', // as in the README; the agent's working folder is apps/agent
   pnpmCommand: 'pnpm --filter @linedesk/agent setup-sip <number>',
 } as const
 /** One step of the call audio guide in the reader's words. */
