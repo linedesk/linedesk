@@ -329,10 +329,28 @@ export const agentClientLabels: Record<AgentClient, string> = {
 export const cloudClients: readonly AgentClient[] = ['claude', 'chatgpt']
 
 /**
- * One thing to do to start the agent: text, and a command to copy, a link that opens the agent, or (`prompt`) the
- * prompt to copy.
+ * One thing to do to start the agent: text, and a command to copy, a link that opens the agent, (`prompt`) the
+ * prompt to copy, or (`form`) a picture of the agent's own form, filled in the way it should be. `fallback`: only for
+ * when the step before did not work as expected (a link that did not fill something in): folded away, no number.
  */
-export type StartStep = { text: string; code?: string; link?: { label: string; href: string }; prompt?: true }
+export type StartStep = {
+  text: string
+  code?: string
+  link?: { label: string; href: string }
+  prompt?: true
+  form?: StartForm
+  fallback?: true
+}
+/**
+ * The agent's own form as the person sees it there, filled in: its title, each field with the value to put in (`copy`:
+ * a value to copy; otherwise an option to pick, shown as picked), a checkbox to tick and the button that ends it.
+ */
+export type StartForm = {
+  title: string
+  fields: { label: string; value: string; copy?: true }[]
+  check?: string
+  submit: string
+}
 /** The direct way in: a link that opens the agent with the prompt filled in, and one line on what happens. */
 export type OpenLink = { label: string; href: string; text: string }
 /**
@@ -346,13 +364,22 @@ export type OpenLink = { label: string; href: string; text: string }
  * and recommended way; `steps` are then the other way (`otherWay` names it), kept out of sight until asked for.
  * Claude (the web app) has a chat link too, but only after its connector is added, so it stays a step there.
  */
+export type StartPlan = {
+  open: OpenLink | null
+  otherWay?: string
+  steps: StartStep[]
+  prompt: string
+  promptFirst: boolean
+  /** The steps are done one after the other (numbered 1, 2, 3), not alternatives to pick from. */
+  numbered?: true
+}
 export function startPlan(
   client: AgentClient,
   url: string,
   scope: SetupScope = 'install',
   change?: SetupChange,
   words: Words = english,
-): { open: OpenLink | null; otherWay?: string; steps: StartStep[]; prompt: string; promptFirst: boolean } {
+): StartPlan {
   const t = words.t
   const prompt = agentSetupPrompt(url, { scope, change, words })
   const COMMAND_PROMPT = commandPrompt(scope, change, words)
@@ -448,7 +475,7 @@ export function startPlan(
               href: claudeConnectorLink(t('onboarding.agentSetup.start.claude.connectorName'), url),
             },
           },
-          { text: t('onboarding.agentSetup.start.claude.add'), code: url },
+          { text: t('onboarding.agentSetup.start.claude.add'), code: url, fallback: true },
           {
             text: t('onboarding.agentSetup.start.claude.chat'),
             link: {
@@ -459,10 +486,13 @@ export function startPlan(
         ],
         prompt: viaConnector,
         promptFirst: false,
+        numbered: true,
       }
     }
     case 'chatgpt':
-      // The same for ChatGPT: its plugins page, where a custom MCP server is added (CHATGPT_PLUGINS_URL).
+      // The same for ChatGPT: its plugins page, where a custom MCP server is added (CHATGPT_PLUGINS_URL). ChatGPT has
+      // no link that fills the form in, so the form is shown filled in, with the labels ChatGPT uses
+      // (developers.openai.com/api/docs/guides/custom-mcp-server, checked 2026-11-20), each value with its Copy button.
       return {
         open: null,
         steps: [
@@ -470,11 +500,31 @@ export function startPlan(
             text: t('onboarding.agentSetup.start.chatgpt.settings'),
             link: { label: t('onboarding.agentSetup.start.chatgpt.openSettings'), href: CHATGPT_PLUGINS_URL },
           },
-          { text: t('onboarding.agentSetup.start.chatgpt.add'), code: url },
-          { text: t('onboarding.agentSetup.start.chatgpt.chat') },
+          {
+            text: t('onboarding.agentSetup.start.chatgpt.add'),
+            form: {
+              title: t('onboarding.agentSetup.start.chatgpt.form.title'),
+              fields: [
+                {
+                  label: t('onboarding.agentSetup.start.chatgpt.form.name'),
+                  value: t('onboarding.agentSetup.start.claude.connectorName'),
+                  copy: true,
+                },
+                { label: t('onboarding.agentSetup.start.chatgpt.form.url'), value: url, copy: true },
+                {
+                  label: t('onboarding.agentSetup.start.chatgpt.form.auth'),
+                  value: t('onboarding.agentSetup.start.chatgpt.form.noAuth'),
+                },
+              ],
+              check: t('onboarding.agentSetup.start.chatgpt.form.check'),
+              submit: t('onboarding.agentSetup.start.chatgpt.form.submit'),
+            },
+          },
+          { text: t('onboarding.agentSetup.start.chatgpt.chat'), prompt: true },
         ],
         prompt: agentSetupPrompt(url, { connector: true, scope, change, words }),
-        promptFirst: true,
+        promptFirst: false,
+        numbered: true,
       }
     case 'other':
       return {

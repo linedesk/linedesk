@@ -93,7 +93,7 @@ describe('startPlan', () => {
   test("the cloud chat apps connect a connector first; their prompt and links carry no key, but Claude's connector link", () => {
     for (const client of ['claude', 'chatgpt'] as const) {
       const { steps, prompt } = startPlan(client, URL)
-      expect(steps.some(s => s.code === URL)).toBe(true)
+      expect(steps.some(s => s.code === URL || s.form?.fields.some(f => f.value === URL && f.copy))).toBe(true)
       expect(prompt).not.toContain('lds_')
       // Claude's install link fills in the setup address, key and all (decision of 2026-11-19); no other link has it.
       const isConnectorLink = (href: string) => href.startsWith(claudeConnectorLink('Linedesk setup'))
@@ -290,8 +290,10 @@ describe("direct links to the clients' own settings (2026-11-19)", () => {
       `https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Linedesk%20setup&connectorUrl=${encodeURIComponent(URL)}`,
     )
     expect(new globalThis.URL(link.href).searchParams.get('connectorUrl')).toBe(URL)
-    expect(claude.steps[1]!.text).toBe("Link didn't fill it in? Paste this URL:")
+    expect(claude.steps[1]!.text).toBe("Link didn't fill in the URL? Copy it here")
     expect(claude.steps[1]!.code).toBe(URL)
+    expect(claude.steps[1]!.fallback).toBe(true)
+    expect(claude.numbered).toBe(true)
     // Only there: the chat link and the prompt carry no key.
     expect(claude.steps[2]!.link!.href).not.toContain('lds_')
     expect(claude.prompt).not.toContain('lds_')
@@ -300,6 +302,23 @@ describe("direct links to the clients' own settings (2026-11-19)", () => {
     expect(chatgpt.steps[0]!.text).toMatch(/^ChatGPT cannot add the setup server by itself/)
     expect(chatgpt.steps[0]!.link).toEqual({ label: 'Open ChatGPT plugins', href: CHATGPT_PLUGINS_URL })
     expect(CHATGPT_PLUGINS_URL).toBe('https://chatgpt.com/plugins')
+  })
+
+  test('ChatGPT: its form drawn filled in, the name and the URL to copy, No authentication picked; then the prompt', () => {
+    const { steps, numbered, promptFirst } = startPlan('chatgpt', URL)
+    expect(numbered).toBe(true)
+    expect(promptFirst).toBe(false)
+    const form = steps[1]!.form!
+    expect(form.title).toBe('Add custom MCP server')
+    expect(form.fields).toEqual([
+      { label: 'Name', value: 'Linedesk setup', copy: true },
+      { label: 'Server URL', value: URL, copy: true },
+      { label: 'Authentication', value: 'No authentication' },
+    ])
+    expect(form.check).toBe('I understand and want to continue')
+    expect(form.submit).toBe('Create as a plugin')
+    expect(steps[2]!.prompt).toBe(true)
+    expect(steps[2]!.text).toContain('Install')
   })
 
   test("Claude's install link: Add custom connector with the name and the address filled in, or the owner's", () => {

@@ -36,7 +36,9 @@ import {
   type SetupWorkspaceSummary,
   setupStepGroups,
   setupStepNames,
+  type StartForm,
   startPlan,
+  type StartStep,
   stepsByGroup,
   UNPAID_PARTNER_CLIENTS,
 } from '@linedesk/actions'
@@ -1364,7 +1366,7 @@ export function StartAgent({
   const t = useT()
   const format = useFormat()
   // The page's language: the steps and the prompt the agent gets, so it talks to the person in it.
-  const { open, otherWay, steps, prompt, promptFirst } = startPlan(client, url, scope, change, { t, format })
+  const { open, otherWay, steps, prompt, promptFirst, numbered } = startPlan(client, url, scope, change, { t, format })
   const promptToCopy = (primary: boolean) => (
     <>
       <pre className="as-prompt">{prompt}</pre>
@@ -1379,8 +1381,8 @@ export function StartAgent({
   )
   // The first copy or link is the main action, unless the open link above already is.
   const lead = (i: number) => !open && i === 0
-  const stepList = steps.map((step, i) => (
-    <div key={step.text} className="as-step">
+  const body = (step: StartStep, i: number) => (
+    <>
       <span>{step.text}</span>
       {step.code && (
         <div className="as-code">
@@ -1393,9 +1395,52 @@ export function StartAgent({
           <ClientLink href={step.link.href} label={step.link.label} variant={lead(i) ? 'primary' : 'secondary'} />
         </div>
       )}
+      {step.form && <AgentForm form={step.form} />}
       {step.prompt && promptToCopy(false)}
-    </div>
-  ))
+    </>
+  )
+  // Only for when the step before did not work as expected: folded away below it.
+  const fallback = (step: StartStep, i: number) => (
+    <details key={step.text} className="as-other-way as-fallback">
+      <summary>{step.text}</summary>
+      <div className="as-other-way-body">
+        {step.code && (
+          <div className="as-code">
+            <code>{step.code}</code>
+            <CopyButton text={step.code} variant={lead(i) ? 'primary' : 'secondary'} />
+          </div>
+        )}
+      </div>
+    </details>
+  )
+  // Steps done one after the other get their number (1, 2, 3), a fallback goes inside the step it belongs to.
+  const stepList = numbered ? (
+    <ol className="as-steps">
+      {steps.map((step, i) =>
+        step.fallback ? null : (
+          <li key={step.text} className="as-step-numbered">
+            <span className="as-step-number" aria-hidden="true">
+              {steps.slice(0, i + 1).filter(s => !s.fallback).length}
+            </span>
+            <div className="as-step">
+              {body(step, i)}
+              {steps[i + 1]?.fallback && fallback(steps[i + 1]!, i + 1)}
+            </div>
+          </li>
+        ),
+      )}
+    </ol>
+  ) : (
+    steps.map((step, i) =>
+      step.fallback ? (
+        fallback(step, i)
+      ) : (
+        <div key={step.text} className="as-step">
+          {body(step, i)}
+        </div>
+      ),
+    )
+  )
   if (!open)
     return (
       <>
@@ -1414,6 +1459,45 @@ export function StartAgent({
         <summary>{otherWay}</summary>
         <div className="as-other-way-body">{stepList}</div>
       </details>
+    </div>
+  )
+}
+
+/**
+ * The agent's own form (ChatGPT's Add custom MCP server), drawn filled in: each field with the value to copy or the
+ * option to pick, the checkbox ticked and the button that ends it, so the person sees where each value goes.
+ */
+export function AgentForm({ form }: { form: StartForm }) {
+  return (
+    <div className="as-form">
+      <div className="as-form-title">{form.title}</div>
+      {form.fields.map(field => (
+        <div key={field.label} className="as-form-field">
+          <span className="as-form-label">{field.label}</span>
+          {field.copy ? (
+            <div className="as-code">
+              <code>{field.value}</code>
+              <CopyButton text={field.value} />
+            </div>
+          ) : (
+            <span className="as-form-pick">
+              <span className="as-form-radio" aria-hidden="true" />
+              {field.value}
+            </span>
+          )}
+        </div>
+      ))}
+      {form.check && (
+        <span className="as-form-check">
+          <span className="as-form-box" aria-hidden="true">
+            <Icon name="check" size={12} />
+          </span>
+          {form.check}
+        </span>
+      )}
+      <div className="as-form-submit">
+        <span className="as-form-button">{form.submit}</span>
+      </div>
     </div>
   )
 }

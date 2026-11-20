@@ -46,12 +46,12 @@ describe('StartAgent: the open link first where there is one', () => {
     expect(other).toContain('Copy prompt')
   })
 
-  test('agents without an open link keep their steps as the way, unchanged, no disclosure', () => {
+  test('agents without an open link keep their steps as the way, no "Or …" disclosure (only a fallback folded away)', () => {
     const without = agentClients.filter(client => !opens.some(([id]) => id === client))
     expect(without).toEqual(['claude', 'chatgpt', 'codex', 'gemini', 'other'])
     for (const client of without) {
       const html = render(client)
-      expect(html, client).not.toContain('<details')
+      expect(html.replaceAll('<details class="as-other-way as-fallback">', ''), client).not.toContain('<details')
       expect(html, client).not.toContain('as-open')
       // At most one primary: the first step's copy or link (Claude and ChatGPT start with a step to do in their app).
       expect((html.match(/k-btn-primary/g) ?? []).length, client).toBeLessThanOrEqual(1)
@@ -90,8 +90,13 @@ describe("StartAgent: direct links to the cloud apps' own settings", () => {
     )
     expect(settings).toBeGreaterThanOrEqual(0)
     // The address to copy stays, below the link, in case the link did not fill it in.
-    expect(settings).toBeLessThan(at(claude, /Link didn&#x27;t fill it in\? Paste this URL:/))
+    // Folded away: only for when the link did not fill it in.
+    expect(settings).toBeLessThan(
+      at(claude, /<details class="as-other-way as-fallback"><summary>Link didn&#x27;t fill in the URL\? Copy it here</),
+    )
     expect(claude).toContain(`<code>${URL}</code>`)
+    // Numbered: 1 the connector, 2 the chat.
+    expect(claude).toMatch(/<ol class="as-steps">[\s\S]*>1<[\s\S]*>2<\/span>[\s\S]*Open Claude/)
     // The chat link opens claude.ai in a new tab too.
     expect(claude).toMatch(
       /href="https:\/\/claude\.ai\/new\?q=[^"]+" target="_blank" rel="noopener noreferrer">Open Claude</,
@@ -104,6 +109,13 @@ describe("StartAgent: direct links to the cloud apps' own settings", () => {
     expect(chatgpt).toMatch(
       /href="https:\/\/chatgpt\.com\/plugins" target="_blank" rel="noopener noreferrer">Open ChatGPT plugins</,
     )
+    // Three numbered steps; the form drawn filled in, the name and the URL each with a Copy button.
+    expect(chatgpt).toMatch(/<ol class="as-steps">/)
+    expect(chatgpt.match(/class="as-step-number"/g)).toHaveLength(3)
+    expect(chatgpt).toMatch(/class="as-form-label">Name<\/span><div class="as-code"><code>Linedesk setup<\/code><button[^>]*><span>Copy</)
+    expect(chatgpt).toContain(`<code>${URL}</code>`)
+    expect(chatgpt).toMatch(/as-form-pick[\s\S]*No authentication/)
+    expect(chatgpt).toContain('Create as a plugin')
   })
 
   test('links that open an app on this computer stay in this tab', () => {
