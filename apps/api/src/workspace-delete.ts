@@ -24,6 +24,7 @@ import {
   call_events,
   calls,
   commands,
+  feedback,
   invitation,
   member,
   organization,
@@ -216,6 +217,10 @@ export async function deleteAccounts(tx: Tx, ids: string[]) {
   await refuseDeletingBillOwners(tx, ids)
   await reassignInvitations(tx, ids)
   await tx.delete(star_prompts).where(inArray(star_prompts.user_id, ids))
+  // Their setup reports (setup-feedback.ts) have no workspace, so nothing else takes them (security review F10 of #1475).
+  await tx
+    .delete(feedback)
+    .where(and(inArray(feedback.actor_id, ids), eq(feedback.kind, 'setup'), isNull(feedback.workspace_id)))
   await tx.delete(user).where(inArray(user.id, ids))
 }
 

@@ -121,7 +121,7 @@ import { localeForUserId } from './email-locale.ts'
 import { goLiveChecklist } from './go-live-checklist.ts'
 import { readInstallProgress } from './install-setup.ts'
 import { workspaceBillFacts } from './billing-page.ts'
-import { buildSetupReport, consentText, SENDING_OFF, type SetupReportInput } from './setup-feedback.ts'
+import { buildSetupReport, consentText, previewToken, SENDING_OFF, type SetupReportInput } from './setup-feedback.ts'
 import { withoutHopByHopHeaders } from './keep-alive.ts'
 import { guard as mcpGuard, MCP_MAX_BODY_BYTES, takeSlot, toolName } from './mcp.ts'
 import { numberBuyOffers } from './number-buy.ts'
@@ -1889,6 +1889,7 @@ function setupReportInput() {
     setup: (shape.setup as z.ZodOptional<z.ZodObject>).unwrap(),
     contact_email: shape.contact_email!,
     user_consented: shape.user_consented!,
+    preview_token: shape.preview_token!,
   })
 }
 
@@ -1923,6 +1924,7 @@ function registerSetupReport(server: McpServer, actor: Actor) {
             sent: false,
             preview,
             ask: consentText(preview),
+            preview_token: previewToken(actor.setupKeyId!, preview),
             next: english.t('server.setupAgent.report.next'),
           })
         }

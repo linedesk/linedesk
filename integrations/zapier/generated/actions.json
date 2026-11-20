@@ -619,6 +619,13 @@
         "type": "boolean",
         "required": false,
         "helpText": "Only through a setup link: true once the admin saw the preview and said yes to sending it"
+      },
+      {
+        "key": "preview_token",
+        "label": "Preview_token",
+        "type": "string",
+        "required": false,
+        "helpText": "Only through a setup link, with user_consented: the preview's preview_token the admin said yes to"
       }
     ]
   },

@@ -3097,6 +3097,7 @@ export const partner_providers = pgTable(
 // admin's yes. It has `report` (the redacted JSON of the setup-feedback contract, LIN-208) and `setup_key_id`, no
 // workspace (an install link acts in none), and goes to SETUP_FEEDBACK_URL instead of the email: `kept` ones are tried
 // again every hour for 7 days (`tries`, `tried_at`), a `refused` one (the endpoint said the report is invalid) never.
+// Setup reports are deleted after 90 days and with the account that made them (no workspace takes them).
 const FEEDBACK_KINDS = ['bug', 'feature', 'setup'] as const
 const FEEDBACK_VIA = ['app', 'api_key', 'personal_key', 'mcp_oauth', 'setup_link'] as const
 /**

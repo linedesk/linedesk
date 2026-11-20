@@ -51,6 +51,32 @@ export const scrubText = (text: string) =>
       .replace(TOKEN_RUN, replaceToken),
   )
 
+const OCTET = '(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)'
+/** An IPv4 address on its own (not inside a longer dotted number such as a version 1.2.3.4.5). */
+const IPV4 = new RegExp(`(?<![\\w.])(?:${OCTET}\\.){3}${OCTET}(?!\\.?\\w)`, 'g')
+/** An IPv6 candidate: hex groups and colons; isIpv6 decides (times like 12:30:45 and MAC addresses are not). */
+const IPV6_CANDIDATE = /(?<![\w:.])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}(?![\w:])/gi
+/** Addresses that say nothing about an install: loopback and unspecified. */
+const NOT_IDENTIFYING = new Set(['127.0.0.1', '0.0.0.0', '::1', '::'])
+
+function isIpv6(candidate: string): boolean {
+  const compressed = candidate.split('::').length - 1
+  if (compressed > 1) return false
+  const groups = candidate.split(':').filter(Boolean)
+  // Full form has eight groups; a compressed one (2001:db8::1) at least one and a digit somewhere (not std::map).
+  return compressed === 1 ? groups.length >= 1 && /\d/.test(candidate) : groups.length === 8
+}
+
+/**
+ * IP addresses (IPv4 and IPv6) in a text replaced by `[ip]`; loopback and unspecified (127.0.0.1, 0.0.0.0, ::1) kept.
+ * Not part of scrubText: error reports keep addresses (a refused connection to 10.0.0.5 is the error itself); setup
+ * reports to the Linedesk team mask them (apps/api/src/setup-feedback.ts).
+ */
+export const maskIpAddresses = (text: string) =>
+  text
+    .replace(IPV4, ip => (NOT_IDENTIFYING.has(ip) ? ip : '[ip]'))
+    .replace(IPV6_CANDIDATE, ip => (NOT_IDENTIFYING.has(ip.toLowerCase()) || !isIpv6(ip) ? ip : '[ip]'))
+
 /** A path or URL without query, fragment, MCP setup key (/mcp/setup/<key>) or other secret-looking segment. */
 export const scrubPath = (path: string) =>
   (path.split(/[?#]/)[0] ?? '')

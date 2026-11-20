@@ -105,6 +105,12 @@ export const feedbackSend = defineAction({
       .boolean()
       .optional()
       .describe('Only through a setup link: true once the admin saw the preview and said yes to sending it'),
+    // i18n-ignore: field docs for agents (MCP and API), not shown in the app
+    preview_token: z
+      .string()
+      .max(200)
+      .optional()
+      .describe("Only through a setup link, with user_consented: the preview's preview_token the admin said yes to"),
   }),
   // Every workspace member, every workspace API key and every MCP client holds call:read (member.list uses it too).
   permission: 'call:read',

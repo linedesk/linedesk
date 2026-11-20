@@ -1,5 +1,13 @@
 import { expect, test } from 'vitest'
-import { dropLoggedObjects, maskPhoneNumbers, scrubEvent, scrubLog, scrubPath, scrubText } from './index.ts'
+import {
+  dropLoggedObjects,
+  maskIpAddresses,
+  maskPhoneNumbers,
+  scrubEvent,
+  scrubLog,
+  scrubPath,
+  scrubText,
+} from './index.ts'
 
 test('phone numbers are masked to their last two digits, in every US and international form', () => {
   expect(maskPhoneNumbers('call from +15035550142 failed')).toBe('call from [phone …42] failed')
@@ -172,4 +180,27 @@ test("a setup key inside Claude's install link is scrubbed, encoded or not", () 
   const url = `https://desk.example.com/mcp/setup/${key}`
   const link = `https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Linedesk%20setup&connectorUrl=${encodeURIComponent(url)}`
   for (const text of [`opened ${link}`, `copied ${url}`]) expect(scrubText(text)).not.toContain(key.slice(4))
+})
+
+test('maskIpAddresses: IPv4 and IPv6 masked, loopback kept, versions, times and MAC addresses untouched', () => {
+  expect(maskIpAddresses('ssh root@203.0.113.42 failed; then 10.0.0.5:5432 refused.')).toBe(
+    'ssh root@[ip] failed; then [ip]:5432 refused.',
+  )
+  expect(maskIpAddresses('AAAA is 2001:db8:85a3::8a2e:370:7334, full 2001:0db8:0000:0000:0000:ff00:0042:8329')).toBe(
+    'AAAA is [ip], full [ip]',
+  )
+  expect(maskIpAddresses('listen on [fe80::1]:3100 and 127.0.0.1, ::1 and 0.0.0.0')).toBe(
+    'listen on [[ip]]:3100 and 127.0.0.1, ::1 and 0.0.0.0',
+  )
+  for (const plain of [
+    'Node 22.11.0 and Linedesk v0.1.35',
+    'version 1.2.3.4.5',
+    'at 12:30:45 today',
+    'MAC 00:1a:2b:3c:4d:5e',
+    'std::string',
+    '999.1.1.1',
+  ])
+    expect(maskIpAddresses(plain)).toBe(plain)
+  // scrubText itself leaves addresses alone (error reports keep them).
+  expect(scrubText('connect ECONNREFUSED 10.0.0.5:5432')).toBe('connect ECONNREFUSED 10.0.0.5:5432')
 })

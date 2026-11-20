@@ -19,13 +19,18 @@ import {
   redactText,
   secretVariants,
   installType,
+  MAX_ANSWER_BYTES,
   postReport,
+  previewToken,
+  previewTokenMatches,
+  pruneOldSetupReports,
   readSetupFeedbackUrl,
   retryKeptSetupReports,
   type SetupReport,
   serverVersion,
 } from '../src/setup-feedback.ts'
 import { SETUP_INTERNAL_ERROR } from '../src/setup-mcp.ts'
+import { deleteAccounts } from '../src/workspace-delete.ts'
 import {
   act,
   addMember,
@@ -92,6 +97,13 @@ async function mcp(key: string, method: string, params: Record<string, unknown> 
 const call = async (key: string, name: string, args: Record<string, unknown> = {}): Promise<any> => {
   const body = await mcp(key, 'tools/call', { name, arguments: args })
   return body.result.isError ? { error: body.result.content[0].text } : body.result.structuredContent
+}
+
+/** The admin's yes: the preview first, then the send with its preview_token (security review F7). */
+// biome-ignore lint/suspicious/noExplicitAny: tool answers are asserted on in the tests
+const consent = async (key: string, input: Record<string, unknown>): Promise<any> => {
+  const { preview_token } = await call(key, 'feedback_send', input)
+  return call(key, 'feedback_send', { ...input, user_consented: true, preview_token })
 }
 
 const report = (extra: Record<string, unknown> = {}) => ({
@@ -227,6 +239,29 @@ describe('postReport', () => {
     })
   })
 
+  test('an answer over 64 KB is not read: by its content-length, or cut off while it streams (F9)', async () => {
+    const big = JSON.stringify({ ok: true, id: 'fb_big', pad: 'x'.repeat(MAX_ANSWER_BYTES) })
+    const declared = new Response(big, { status: 201, headers: { 'content-length': String(big.length) } })
+    expect(await postReport(ENDPOINT, sample, answering(declared))).toMatchObject({
+      status: 'kept',
+      error: expect.stringMatching(/not the setup report endpoint/),
+    })
+    // No content-length: chunks until it passes the cap, then cancelled.
+    let pulled = 0
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled++
+        controller.enqueue(new TextEncoder().encode('{"pad":"'.padEnd(16 * 1024, 'x')))
+      },
+    })
+    expect((await postReport(ENDPOINT, sample, answering(new Response(endless, { status: 201 })))).status).toBe('kept')
+    expect(pulled).toBeLessThan(10)
+    // A normal answer under the cap still counts.
+    expect(
+      await postReport(ENDPOINT, sample, answering(Response.json({ ok: true, id: 'fb_small' }, { status: 201 }))),
+    ).toEqual({ status: 'sent', remoteId: 'fb_small' })
+  })
+
   test('a 400 is refused', async () => {
     const res = Response.json({ ok: false, error: 'invalid', field: 'items[0].severity' }, { status: 400 })
     expect(await postReport(ENDPOINT, sample, answering(res))).toMatchObject({ status: 'refused' })
@@ -296,7 +331,11 @@ describe('feedback_send on the setup MCP', () => {
     expect(preview.ask).toMatch(/about 10 minutes lost/)
     expect(preview.ask).toMatch(/answer you at owner@example\.com/)
 
-    const sent = await call(key, 'feedback_send', { ...input, user_consented: true })
+    const sent = await call(key, 'feedback_send', {
+      ...input,
+      user_consented: true,
+      preview_token: preview.preview_token,
+    })
     expect(sent).toMatchObject({
       ok: true,
       status: 'sent',
@@ -349,7 +388,7 @@ describe('feedback_send on the setup MCP', () => {
     answerWith = () =>
       new Response('<!doctype html><h1>404</h1>', { status: 404, headers: { 'content-type': 'text/html' } })
     const { key, keyId } = await makeKey(admin, 'chatgpt')
-    const kept = await call(key, 'feedback_send', { ...report(), user_consented: true })
+    const kept = await consent(key, report())
     expect(kept).toMatchObject({ ok: true, status: 'kept', message: expect.stringMatching(/kept on this server/) })
     let [row] = await rowsOf(keyId)
     expect(row).toMatchObject({ status: 'kept', tries: 1 })
@@ -394,7 +433,7 @@ describe('feedback_send on the setup MCP', () => {
     mockEndpoint()
     answerWith = () => Response.json({ ok: false, error: 'invalid', field: 'items[0].severity' }, { status: 400 })
     const { key, keyId } = await makeKey(admin)
-    expect(await call(key, 'feedback_send', { ...report(), user_consented: true })).toMatchObject({ status: 'refused' })
+    expect(await consent(key, report())).toMatchObject({ status: 'refused' })
     const [row] = await rowsOf(keyId)
     await db
       .update(feedback)
@@ -409,7 +448,7 @@ describe('feedback_send on the setup MCP', () => {
     const fetchSpy = mockEndpoint()
     process.env.SETUP_FEEDBACK_URL = 'off'
     const { key, keyId } = await makeKey(admin)
-    expect(await call(key, 'feedback_send', { ...report(), user_consented: true })).toMatchObject({
+    expect(await consent(key, report())).toMatchObject({
       status: 'kept',
       message: expect.stringMatching(/SETUP_FEEDBACK_URL=off/),
     })
@@ -427,20 +466,18 @@ describe('feedback_send on the setup MCP', () => {
   test('at most one report a minute per link, and ten a day', async () => {
     mockEndpoint()
     const { key, keyId } = await makeKey(admin)
-    expect((await call(key, 'feedback_send', { ...report(), user_consented: true })).status).toBe('sent')
+    expect((await consent(key, report())).status).toBe('sent')
     // Past feedback.send's own 10 s, within the link's minute.
     await age(keyId, 30)
-    const again = await call(key, 'feedback_send', { ...report(), user_consented: true })
+    const again = await consent(key, report())
     expect(again.error).toMatch(new RegExp(`Wait ${SETUP_REPORT_MIN_GAP_SECONDS} seconds`))
     // Older than the per-person hour (feedback.send's own limit), still within the link's day.
     for (let i = 0; i < 9; i++) {
       await age(keyId, 3700)
-      expect((await call(key, 'feedback_send', { ...report(), user_consented: true })).status).toBe('sent')
+      expect((await consent(key, report())).status).toBe('sent')
     }
     await age(keyId, 3700)
-    expect((await call(key, 'feedback_send', { ...report(), user_consented: true })).error).toMatch(
-      /10 setup reports today/,
-    )
+    expect((await consent(key, report())).error).toMatch(/10 setup reports today/)
     await db.delete(feedback).where(eq(feedback.setup_key_id, keyId))
   })
 
@@ -571,7 +608,7 @@ describe('Send again and the retry claim the report (F8), only for an admin in t
     }
     process.env.SETUP_FEEDBACK_URL = 'off'
     const { key, keyId } = await makeKey(admin)
-    await call(key, 'feedback_send', { ...report(), user_consented: true })
+    await consent(key, report())
     process.env.SETUP_FEEDBACK_URL = ENDPOINT
     const [row] = await rowsOf(keyId)
     await Promise.all([deliverSetupReport(row!.id), deliverSetupReport(row!.id), deliverSetupReport(row!.id)])
@@ -605,5 +642,135 @@ describe('Send again and the retry claim the report (F8), only for an admin in t
     const tools = (await mcp(key, 'tools/list')).result.tools.map((t: { name: string }) => t.name)
     expect(tools).not.toContain('feedback_resend')
     expect(tools).not.toContain('feedback_setupReports')
+  })
+})
+
+describe('the yes is tied to the preview the admin saw (F7)', () => {
+  test("a send without the preview_token, with another text or with another link's token is refused", async () => {
+    mockEndpoint()
+    const { key, keyId } = await makeKey(admin)
+    const preview = await call(key, 'feedback_send', report())
+    expect(preview.preview_token).toMatch(/^pt1\.\d+\.[\w-]+$/)
+
+    const without = await call(key, 'feedback_send', { ...report(), user_consented: true })
+    expect(without.error).toMatch(/not the report the admin saw/)
+    const changed = await call(key, 'feedback_send', {
+      ...report({ text: 'Something else the admin never saw.' }),
+      user_consented: true,
+      preview_token: preview.preview_token,
+    })
+    expect(changed.error).toMatch(/not the report the admin saw/)
+    // The same report signed for another link (only the newest link works, so it is made here, as the server would).
+    const crossed = await call(key, 'feedback_send', {
+      ...report(),
+      user_consented: true,
+      preview_token: previewToken(`${keyId}x`, preview.preview),
+    })
+    expect(crossed.error).toMatch(/not the report the admin saw/)
+    expect(await rowsOf(keyId)).toHaveLength(0)
+    expect(posted).toHaveLength(0)
+
+    // The right token: sent, and what left is the preview (but for the id, time and steps).
+    const sent = await call(key, 'feedback_send', {
+      ...report(),
+      user_consented: true,
+      preview_token: preview.preview_token,
+    })
+    expect(sent.status).toBe('sent')
+    const { report_id: _a, sent_at: _b, setup: _c, ...shown } = preview.preview
+    expect(posted[0]).toMatchObject(shown)
+  })
+
+  test('the token expires after an hour, and a changed or foreign one never matches', () => {
+    const env = { BETTER_AUTH_SECRET: ['test', 'only', 'preview', 'signing', 'value'].join('-') }
+    const sample = {
+      schema: 'linedesk.setup-feedback/1',
+      report_id: 'sf_1',
+      sent_at: '2026-01-01T00:00:00.000Z',
+      outcome: 'partial',
+      summary: 'It went fine.',
+      items: [],
+    } as unknown as SetupReport
+    const now = Date.parse('2026-01-01T00:00:00.000Z')
+    const token = previewToken('ask_1', sample, now, env)
+    expect(previewTokenMatches(token, 'ask_1', sample, now + 59 * 60_000, env)).toBe(true)
+    // Another report id and time (the send makes new ones) still match: the admin saw the same content.
+    expect(previewTokenMatches(token, 'ask_1', { ...sample, report_id: 'sf_2', sent_at: 'x' }, now, env)).toBe(true)
+    expect(previewTokenMatches(token, 'ask_1', sample, now + 61 * 60_000, env)).toBe(false)
+    expect(previewTokenMatches(token, 'ask_2', sample, now, env)).toBe(false)
+    expect(previewTokenMatches(token, 'ask_1', { ...sample, summary: 'Other.' }, now, env)).toBe(false)
+    expect(previewTokenMatches(token, 'ask_1', sample, now, { BETTER_AUTH_SECRET: 'another-secret-value' })).toBe(false)
+    const [p, e, mac] = token.split('.')
+    expect(previewTokenMatches(`${p}.${Number(e) + 1}.${mac}`, 'ask_1', sample, now, env)).toBe(false)
+    for (const bad of [undefined, '', 'pt1', 'pt1..', `${token}.x`, token.replace(/.$/, c => (c === 'A' ? 'B' : 'A'))])
+      expect(previewTokenMatches(bad, 'ask_1', sample, now, env)).toBe(false)
+  })
+})
+
+describe('business words, street lines, short names and IP addresses (F4, F11)', () => {
+  test("the business name's distinctive words, the street line and a short first name go; ordinary words stay", async () => {
+    await db
+      .update(assistants)
+      .set({ business_profile: { address: '4417 SE Lindqvist Blvd, Portland, OR 97214' } })
+      .where(eq(assistants.workspace_id, ws.id))
+    await db.update(user).set({ name: 'Tim Do Brennan' }).where(eq(user.id, admin.userId))
+    try {
+      const known = await knownValues(db, { actorId: admin.userId })
+      const out = redactText(
+        'Brightwater: the heating step failed at 4417 SE Lindqvist Blvd. Tim said to retry; Do it at the right time, tim.',
+        known,
+        500,
+      )
+      expect(out).toBe(
+        '[business]: the heating step failed at [address]. [name] said to retry; Do it at the right time, tim.',
+      )
+      // Inside a hostname too; never inside a longer word.
+      expect(redactText('ssh brightwater-vps; Brightwaters', known, 200)).toBe('ssh [business]-vps; Brightwaters')
+    } finally {
+      await db.update(user).set({ name: 'Mike Brennan' }).where(eq(user.id, admin.userId))
+    }
+  })
+
+  test('IP addresses are masked in a report, loopback stays', () => {
+    expect(redactText('ssh root@203.0.113.42 timed out; AAAA 2001:db8::7 ok; 127.0.0.1:3100 up', [], 500)).toBe(
+      'ssh root@[ip] timed out; AAAA [ip] ok; 127.0.0.1:3100 up',
+    )
+  })
+})
+
+describe('setup reports are not kept forever (F10)', () => {
+  const row = (actorId: string, daysAgo: number) => ({
+    id: `fb_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
+    workspace_id: null,
+    actor_id: actorId,
+    via: 'setup_link' as const,
+    kind: 'setup' as const,
+    text: 'made up',
+    status: 'sent' as const,
+    report: { schema: 'linedesk.setup-feedback/1' },
+    created_at: new Date(Date.now() - daysAgo * 24 * 3_600_000).toISOString(),
+  })
+
+  test('after 90 days', async () => {
+    const old = row(admin.userId, 91)
+    const recent = row(admin.userId, 89)
+    await db.insert(feedback).values([old, recent])
+    expect(await pruneOldSetupReports()).toBeGreaterThanOrEqual(1)
+    const left = (await db.select({ id: feedback.id }).from(feedback)).map(r => r.id)
+    expect(left).not.toContain(old.id)
+    expect(left).toContain(recent.id)
+    await db.delete(feedback).where(eq(feedback.id, recent.id))
+  })
+
+  test('with the account that made them', async () => {
+    const other = (await createWorkspace('Other Install Admin')).owner
+    const mine = row(other.userId, 1)
+    const someoneElses = row(admin.userId, 1)
+    await db.insert(feedback).values([mine, someoneElses])
+    await db.transaction(tx => deleteAccounts(tx, [other.userId]))
+    const left = (await db.select({ id: feedback.id }).from(feedback)).map(r => r.id)
+    expect(left).not.toContain(mine.id)
+    expect(left).toContain(someoneElses.id)
+    await db.delete(feedback).where(eq(feedback.id, someoneElses.id))
   })
 })

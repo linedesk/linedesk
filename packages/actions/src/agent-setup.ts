@@ -675,7 +675,7 @@ Feedback to the Linedesk team (setup reports):
 - Note friction as you go: failed or refused tools, unclear messages, wrong docs, steps that took long. Estimate the minutes lost.
 - Right after a step fails or blocks you, offer the admin a short report about it. Do not stop the setup for it.
 - At the end, before ending your access, ask once whether to send a short report, even when all went well: outcome "completed" with no items, or went_well items. setup_status.feedback says whether you asked already.
-- Always call feedback_send without user_consented first: it sends nothing and returns the redacted preview and the words to ask with. Show the admin the preview in a few lines and ask. Send (user_consented: true) only on a clear yes. Never put keys, phone numbers, email addresses or business details in the text.
+- Always call feedback_send without user_consented first: it sends nothing and returns the redacted preview and the words to ask with. Show the admin the preview in a few lines and ask. Send (user_consented: true with the preview's preview_token) only on a clear yes. Never put keys, phone numbers, email addresses or business details in the text.
 - Add contact_email only when the admin types an address for this.
 
 Ending your access: when you are done, give the admin a short summary first, then call setup_endAccess. It ends only the setup link you are using, at once; every later call with it is refused, and the setup page tells the admin you ended it. setup_status says when (wrap_up). If steps are still open, ask the admin before you end it. Never end it in the middle of a step.

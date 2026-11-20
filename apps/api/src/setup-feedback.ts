@@ -6,10 +6,12 @@
 // emailed. The instance sends, never the agent, so the redaction always happens and one switch turns it off.
 //
 // Redaction, on the preview and on what is stored and sent: the values this install knows are replaced first (every
-// stored provider secret and the server's own secrets from its environment, setup keys, the admin's name and email,
-// the names of their workspaces (the businesses), their addresses, websites and phone numbers, the install's host), then scrubText
-// (keys and tokens, phone numbers, email addresses). The contact address goes only into `contact.email`, and only when
-// the admin gave it for this report.
+// stored provider secret and the server's own secrets from its environment, setup keys, the admin's name and its parts,
+// the names of their workspaces (the businesses) and their distinctive words, their addresses and street lines, websites
+// and phone numbers, the install's host), IP addresses, then scrubText (keys and tokens, phone numbers, email
+// addresses). The contact address goes only into `contact.email`, and only when the admin gave it for this report.
+// The preview carries a token (an HMAC of the redacted report): the yes must bring it back, and the report built again
+// for sending must be the one the admin saw. Reports are deleted after 90 days and with the account that made them.
 //
 // Sending: 5 s, no redirects; only 200/201 with `ok: true` counts as sent. A 400 is `refused` (never sent again);
 // anything else (offline, timeout, a 404 or HTML page while the endpoint does not exist, 429, 5xx) is `kept` and tried
@@ -45,7 +47,8 @@ import {
   type Tx,
   user,
 } from '@linedesk/db'
-import { scrubText } from '@linedesk/scrub'
+import { createHmac, timingSafeEqual } from 'node:crypto'
+import { maskIpAddresses, scrubText } from '@linedesk/scrub'
 import { getDomain } from 'tldts'
 import { and, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm'
 import { managedWorkspaces, webAddress } from './agent-setup.ts'
@@ -152,6 +155,7 @@ export type SetupReportInput = {
   contact_email?: string
   setup?: { outcome: (typeof SETUP_REPORT_OUTCOMES)[number]; items?: SetupReportItem[]; agent_model?: string }
   user_consented?: boolean
+  preview_token?: string
 }
 /** The JSON that leaves the install (contract v1, LIN-208). */
 export type SetupReport = {
@@ -172,9 +176,51 @@ export type SetupReport = {
  * One value the install knows, and what it becomes in a report. `anywhere`: also inside a longer word (secrets);
  * `pattern`: matched by its own pattern (phone numbers in every way they are written, domains with subdomains).
  */
-type Known = { value: string; as: string; caseSensitive?: boolean; anywhere?: boolean; pattern?: RegExp }
+type Known = {
+  value: string
+  as: string
+  caseSensitive?: boolean
+  anywhere?: boolean
+  pattern?: RegExp
+  /** A name part under MIN_KNOWN_LENGTH ("Tim"): kept down to MIN_NAME_PART_LENGTH. */
+  short?: boolean
+}
 
 const MIN_KNOWN_LENGTH = 4
+/** A part of the admin's name shorter than MIN_KNOWN_LENGTH ("Tim") still goes, as a whole word written as in the name. */
+const MIN_NAME_PART_LENGTH = 2
+/**
+ * Words of a business name (or short name parts) that are not redacted on their own: common English and German words,
+ * business forms and trades, and the setup's own words. "Brightwater" in "Brightwater Plumbing & Heating" goes; "the
+ * heating step" stays. The whole name always goes (`[business]`).
+ */
+const COMMON_WORDS = new Set(
+  // i18n-ignore: a word list for redaction, never shown
+  (
+    'a an and are as at be but by can did do for from get go had has he her him his how if in is it its let me my no ' +
+    'not now of off on one or our out own put run say see set she so the to too two up us use was way we who why yes ' +
+    'yet you all any few got key log new old url api app ' +
+    'also back been best call calls care center centre city club company corp corporation country data design ' +
+    'east first free from full group have here home house into just limited llc ltd main more most much ' +
+    'national north office online over partners plus professional real service services shop solutions south ' +
+    'store studio support systems team test that them then there they this time trust usa very west what when ' +
+    'where which will with work works world your ' +
+    'auto bakery cafe clinic cleaning construction consulting dental dentist electric electrical garden hair ' +
+    'heating health insurance kitchen law legal medical motors painting pest pets plumbing realty repair repairs ' +
+    'restaurant roofing salon spa therapy tours travel ' +
+    'aber auch beim bitte dass dein denn der des die das dem den ein eine einen einer eines für gmbh haus ' +
+    'ich ist mit nach nicht noch oder sich sind und von vom wie wir zum zur ' +
+    'admin agent assistant business calendar carrier email linedesk number phone server setup step workspace'
+  ).split(/\s+/),
+)
+/** The distinctive words of a business name: 4+ letters and not a common word. */
+const businessWords = (name: string) =>
+  name.split(/[^\p{L}\p{N}]+/u).filter(w => w.length >= MIN_KNOWN_LENGTH && !COMMON_WORDS.has(w.toLowerCase()))
+/** The street line of an address: what comes before the first comma ("1234 SE Main St, Portland, OR" → "1234 SE Main St"). */
+const streetLine = (address: string) => {
+  const street = address.split(',')[0]!.trim()
+  return street.length >= MIN_KNOWN_LENGTH && street !== address.trim() ? street : null
+}
 /** A secret shorter than this is not matched on its own: too many ordinary words would go with it. */
 const MIN_SECRET_LENGTH = 8
 /** Environment variables that hold secrets, by name (BETTER_AUTH_SECRET, S3_SECRET_ACCESS_KEY, VAPID_PRIVATE_KEY, …). */
@@ -329,8 +375,13 @@ export async function knownValues(
   if (admin?.email) known.push({ value: admin.email, as: '[email]' })
   if (admin?.name) {
     known.push({ value: admin.name, as: '[name]' })
-    // Each part of the name on its own, as written (so "Mike" goes, "mike" in a sentence about something else stays).
-    for (const part of admin.name.split(/\s+/)) known.push({ value: part, as: '[name]', caseSensitive: true })
+    // Each part of the name on its own, as written and as a whole word (so "Mike" and "Tim" go, "mike" or "tim" in a
+    // sentence about something else stays); a short part that is a common word ("Do", "An") never.
+    for (const part of admin.name.split(/\s+/)) {
+      const short = part.length < MIN_KNOWN_LENGTH
+      if (short && (!/^\p{L}+$/u.test(part) || COMMON_WORDS.has(part.toLowerCase()))) continue
+      known.push({ value: part, as: '[name]', caseSensitive: true, short })
+    }
   }
   // The workspaces the admin may set up (owner or admin; setupWorkspaces in agent-setup.ts).
   const workspaceIds = (await managedWorkspaces(actor.actorId)).map(w => w.id)
@@ -339,14 +390,22 @@ export async function knownValues(
       .select({ name: organization.name })
       .from(organization)
       .where(inArray(organization.id, workspaceIds))
-    for (const org of orgs) known.push({ value: org.name, as: '[business]' })
+    for (const org of orgs) {
+      known.push({ value: org.name, as: '[business]' })
+      // Its distinctive words on their own ("Brightwater"), also when the agent shortened or reordered the name.
+      for (const word of businessWords(org.name)) known.push({ value: word, as: '[business]' })
+    }
     const profiles = await tx
       .select({ profile: assistants.business_profile })
       .from(assistants)
       .where(inArray(assistants.workspace_id, workspaceIds))
     // The business's address, website and own number (business_profile; its name is the workspace's).
     for (const { profile } of profiles) {
-      if (profile?.address) known.push({ value: profile.address, as: '[address]' })
+      if (profile?.address) {
+        known.push({ value: profile.address, as: '[address]' })
+        const street = streetLine(profile.address)
+        if (street) known.push({ value: street, as: '[address]' })
+      }
       known.push(...phoneKnown(profile?.phone))
       known.push(...hostKnown(hostOfUrl(profile?.website)))
     }
@@ -363,17 +422,22 @@ export async function knownValues(
     known.push(...hostKnown(domain))
   known.push(...hostKnown(hostOfUrl(webAddress())))
   // Longest first, so a name inside a longer value does not break the longer one's match.
-  return known.filter(k => k.value.trim().length >= MIN_KNOWN_LENGTH).sort((a, b) => b.value.length - a.value.length)
+  return known
+    .filter(k => k.value.trim().length >= (k.short ? MIN_NAME_PART_LENGTH : MIN_KNOWN_LENGTH))
+    .sort((a, b) => b.value.length - a.value.length)
 }
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-/** A known value as a pattern: its own, or the value as a whole word (secrets anywhere). */
+/**
+ * A known value as a pattern: its own, or the value as a whole word (secrets anywhere). Word edges count letters of
+ * every language ("Jürgen" not inside "Jürgensen"), not only ASCII.
+ */
 const patternOf = ({ value, caseSensitive, anywhere, pattern }: Known) => {
   if (pattern) return pattern
   const body = escapeRegExp(value.trim())
-  const start = !anywhere && /^\w/.test(value.trim()) ? '\\b' : ''
-  const end = !anywhere && /\w$/.test(value.trim()) ? '\\b' : ''
-  return new RegExp(`${start}${body}${end}`, caseSensitive ? 'g' : 'gi')
+  const start = !anywhere && /^[\p{L}\p{N}_]/u.test(value.trim()) ? '(?<![\\p{L}\\p{N}_])' : ''
+  const end = !anywhere && /[\p{L}\p{N}_]$/u.test(value.trim()) ? '(?![\\p{L}\\p{N}_])' : ''
+  return new RegExp(`${start}${body}${end}`, caseSensitive ? 'gu' : 'giu')
 }
 /** Any setup key, also a cut one (the raw key is not stored, so it is matched by its shape). */
 const SETUP_KEY = new RegExp(`${escapeRegExp(SETUP_KEY_PREFIX)}[A-Za-z0-9_-]{8,}`, 'g')
@@ -382,8 +446,8 @@ const replaceKnown = (text: string, known: readonly Known[]) =>
   known.reduce((out, k) => out.replace(patternOf(k), k.as), text)
 
 /**
- * A free text as it may leave, cut to `max`: setup keys and the secrets the install knows first, then the tokens,
- * phone numbers and email addresses scrubText finds, then every known value, then scrubText once more.
+ * A free text as it may leave, cut to `max`: setup keys and the secrets the install knows first, then IP addresses,
+ * then the tokens, phone numbers and email addresses scrubText finds, then every known value, then scrubText once more.
  */
 export function redactText(text: string, known: readonly Known[], max: number): string {
   let out = text.replace(SETUP_KEY, '[key]')
@@ -391,7 +455,7 @@ export function redactText(text: string, known: readonly Known[], max: number): 
     out,
     known.filter(k => k.anywhere),
   )
-  out = scrubText(out)
+  out = scrubText(maskIpAddresses(out))
   out = scrubText(replaceKnown(out, known))
   return out.length > max ? `${out.slice(0, max - 1)}…` : out
 }
@@ -539,6 +603,77 @@ export function consentText(report: SetupReport): string {
   ].join('\n')
 }
 
+/** How long a preview's token is good for: the admin's yes comes right after the preview. */
+export const PREVIEW_TOKEN_TTL_MS = 60 * 60_000
+const PREVIEW_TOKEN_PREFIX = 'pt1'
+
+/** JSON with every object's keys sorted, so the same report always gives the same text. */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (value && typeof value === 'object')
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`)
+      .join(',')}}`
+  return JSON.stringify(value)
+}
+
+/**
+ * What the admin says yes to: the redacted report without what the instance fills in at sending time (report_id,
+ * sent_at, and `setup`, the steps' states and minutes, which may move between the preview and the yes).
+ */
+const consentedPart = (report: SetupReport) => {
+  const { report_id: _id, sent_at: _at, setup: _setup, ...rest } = report
+  return rest
+}
+
+/** HMAC over the setup link and the expiry and the consented part, keyed from BETTER_AUTH_SECRET (agent-token.ts too). */
+function previewMac(
+  setupKeyId: string,
+  expiresAt: number,
+  report: SetupReport,
+  env: Record<string, string | undefined>,
+) {
+  const secret = env.BETTER_AUTH_SECRET
+  if (!secret) throw new Error('BETTER_AUTH_SECRET is not set: setup report previews cannot be signed')
+  const key = createHmac('sha256', secret).update('linedesk setup report preview v1').digest()
+  return createHmac('sha256', key)
+    .update(`${setupKeyId}\n${expiresAt}\n${canonicalJson(consentedPart(report))}`)
+    .digest('base64url')
+}
+
+/**
+ * The preview's token (security review F7): the send with the admin's yes must carry it, and the server builds the
+ * report again and sends it only when it is the one the admin saw. Bound to the setup link, good for an hour.
+ */
+export function previewToken(
+  setupKeyId: string,
+  report: SetupReport,
+  nowMs = Date.now(),
+  env: Record<string, string | undefined> = process.env,
+): string {
+  const expiresAt = nowMs + PREVIEW_TOKEN_TTL_MS
+  return `${PREVIEW_TOKEN_PREFIX}.${expiresAt}.${previewMac(setupKeyId, expiresAt, report, env)}`
+}
+
+/** Whether `token` is this link's unexpired token for exactly this redacted report. Never throws on bad input. */
+export function previewTokenMatches(
+  token: string | undefined,
+  setupKeyId: string,
+  report: SetupReport,
+  nowMs = Date.now(),
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  const [prefix, expires, mac, ...rest] = (token ?? '').split('.')
+  if (prefix !== PREVIEW_TOKEN_PREFIX || !expires || !mac || rest.length || !/^\d+$/.test(expires)) return false
+  const expiresAt = Number(expires)
+  if (expiresAt < nowMs || expiresAt > nowMs + PREVIEW_TOKEN_TTL_MS) return false
+  const want = Buffer.from(previewMac(setupKeyId, expiresAt, report, env))
+  const got = Buffer.from(mac)
+  return got.length === want.length && timingSafeEqual(got, want)
+}
+
 /** Refuses a setup link's report past its limits (per link: SETUP_REPORTS_PER_DAY, one per SETUP_REPORT_MIN_GAP_SECONDS). */
 export async function checkSetupReportRate(tx: Tx, setupKeyId: string, now: string) {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`setup-feedback:${setupKeyId}`}))`)
@@ -565,6 +700,40 @@ export type SendResult =
   | { status: 'refused'; error: string }
 
 const short = (text: string) => scrubText(text).slice(0, 300)
+
+/** The most of the endpoint's answer that is read (security review F9): its JSON is a few fields. */
+export const MAX_ANSWER_BYTES = 64 * 1024
+
+/**
+ * The endpoint's answer as JSON, read up to MAX_ANSWER_BYTES: a larger content-length is not read at all, a body that
+ * grows past it is cancelled. Null when it is too large or not JSON.
+ */
+async function readAnswer(res: Response): Promise<unknown> {
+  const declared = Number(res.headers.get('content-length'))
+  if (Number.isFinite(declared) && declared > MAX_ANSWER_BYTES) {
+    await res.body?.cancel().catch(() => {})
+    return null
+  }
+  if (!res.body) return null
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > MAX_ANSWER_BYTES) {
+        await reader.cancel().catch(() => {})
+        return null
+      }
+      chunks.push(value)
+    }
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  } catch {
+    return null
+  }
+}
 
 /**
  * POSTs a report to the endpoint: 5 s, no redirect followed. Only 200/201 with JSON `ok: true` and an id is sent; a 400
@@ -594,7 +763,8 @@ export async function postReport(
       }),
     }
   }
-  const body = (await res.json().catch(() => null)) as { ok?: unknown; id?: unknown; error?: unknown } | null
+  const answer = await readAnswer(res)
+  const body = answer && typeof answer === 'object' ? (answer as { ok?: unknown; id?: unknown; error?: unknown }) : null
   if ((res.status === 200 || res.status === 201) && body?.ok === true && typeof body.id === 'string')
     return { status: 'sent', remoteId: body.id.slice(0, 80) }
   if (res.status === 400)
@@ -703,4 +873,17 @@ export async function retryKeptSetupReports(now = Date.now(), fetchImpl: typeof 
     .limit(100)
   for (const { id } of due) await deliverSetupReport(id, fetchImpl).catch(e => console.error(`setup report ${id}:`, e))
   return { tried: due.length }
+}
+
+/** How long a setup report is kept on the install (security review F10): sent, kept or refused alike. */
+export const SETUP_REPORT_KEEP_DAYS = 90
+
+/** Hourly (jobs.ts, with the retry): setup reports older than SETUP_REPORT_KEEP_DAYS go. How many went. */
+export async function pruneOldSetupReports(now = Date.now()) {
+  const before = new Date(now - SETUP_REPORT_KEEP_DAYS * 24 * 3_600_000).toISOString()
+  const gone = await db
+    .delete(feedback)
+    .where(and(eq(feedback.kind, 'setup'), isNull(feedback.workspace_id), lt(feedback.created_at, before)))
+    .returning({ id: feedback.id })
+  return gone.length
 }

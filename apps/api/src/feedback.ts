@@ -34,6 +34,7 @@ import {
   buildSetupReport,
   checkSetupReportRate,
   deliverSetupReport,
+  previewTokenMatches,
   readSetupFeedbackUrl,
   SENDING_OFF,
   type SetupReportInput,
@@ -176,6 +177,9 @@ const sendSetupReport: Handler = async ({ tx, actor, now, onCommit }, input: Fee
   await checkRate(tx, actor.actorId, now)
   await checkSetupReportRate(tx, actor.setupKeyId!, now)
   const report = await buildSetupReport(tx, actor, input, { now })
+  // The yes is to the preview the admin saw (security review F7): built again here, it must be that exact report.
+  if (!previewTokenMatches(input.preview_token, actor.setupKeyId!, report, Date.parse(now)))
+    throw Reject.t('server.api.feedback.setupPreviewMismatch')
   const off = readSetupFeedbackUrl() === null
   const row = {
     id: newId(),
