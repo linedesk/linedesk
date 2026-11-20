@@ -63,6 +63,9 @@
 }
 .sl-content {
   display: grid;
+  /* One column that never grows past the page: a wide table or a long word scrolls or wraps inside its card
+     instead of pushing every card off a phone's screen. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   /* Settings read at one width: short lists and forms, not stretched across a wide window. */
   max-width: 680px;
@@ -71,6 +74,7 @@
 /* A page whose sections are one form (Settings › Assistant): the sections keep the same gap inside it. */
 .sl-content > form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   min-width: 0;
 }

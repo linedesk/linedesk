@@ -100,36 +100,38 @@ function PipelineBar({ latency, scale }: { latency: PipelineLatency; scale: numb
           />
         ))}
       </div>
-      <table className="adm-table adm-delay-table">
-        <thead>
-          <tr>
-            <th scope="col">{t('admin.replyDelay.column.part')}</th>
-            <th scope="col" className="adm-num">
-              {t('admin.replyDelay.column.median')}
-            </th>
-            <th scope="col" className="adm-num">
-              {t('admin.replyDelay.column.p90')}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {parts.map(part => (
-            <tr key={part.key}>
-              <th scope="row">
-                <span className={`adm-delay-key adm-series-${part.slot}`} aria-hidden="true" />
-                {part.label}
+      <div className="adm-scroll">
+        <table className="adm-table adm-delay-table">
+          <thead>
+            <tr>
+              <th scope="col">{t('admin.replyDelay.column.part')}</th>
+              <th scope="col" className="adm-num">
+                {t('admin.replyDelay.column.median')}
               </th>
-              <td className="adm-num">{ms(part.value.p50)}</td>
-              <td className="adm-num">{ms(part.value.p90)}</td>
+              <th scope="col" className="adm-num">
+                {t('admin.replyDelay.column.p90')}
+              </th>
             </tr>
-          ))}
-          <tr className="adm-total">
-            <th scope="row">{t('admin.replyDelay.total')}</th>
-            <td className="adm-num">{ms(latency.total.p50)}</td>
-            <td className="adm-num">{ms(latency.total.p90)}</td>
-          </tr>
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {parts.map(part => (
+              <tr key={part.key}>
+                <th scope="row">
+                  <span className={`adm-delay-key adm-series-${part.slot}`} aria-hidden="true" />
+                  {part.label}
+                </th>
+                <td className="adm-num">{ms(part.value.p50)}</td>
+                <td className="adm-num">{ms(part.value.p90)}</td>
+              </tr>
+            ))}
+            <tr className="adm-total">
+              <th scope="row">{t('admin.replyDelay.total')}</th>
+              <td className="adm-num">{ms(latency.total.p50)}</td>
+              <td className="adm-num">{ms(latency.total.p90)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

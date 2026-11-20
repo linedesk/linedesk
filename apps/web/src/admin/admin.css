@@ -244,6 +244,8 @@
 }
 .adm-body {
   display: grid;
+  /* Never wider than the page (see .sl-content): wide content scrolls inside its card. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 .adm-card {
@@ -1192,6 +1194,10 @@
 }
 .adm-delay-seg:only-child {
   border-radius: 4px;
+}
+/* The part's name wraps on a phone, so the median and p90 stay in view without scrolling. */
+.adm-delay-table tbody th {
+  white-space: normal;
 }
 .adm-delay-key {
   display: inline-block;
