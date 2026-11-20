@@ -104,6 +104,7 @@ import {
 import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } from './bookings.ts'
 import { calendarConnectionHandlers } from './calendar-connections.ts'
 import { appConnectionHandlers } from './app-connections.ts'
+import { mailAnalysisHandlers } from './mail-analysis.ts'
 import { mailConnectionHandlers } from './mail-connections.ts'
 import { appPushHandlers } from './app-pushes.ts'
 import { calendarToolHandlers } from './calendar-tools.ts'
@@ -180,6 +181,7 @@ import {
 import {
   queueAssignNotification,
   queueCallEvaluation,
+  queueMailAnalysis,
   queueCallTranscript,
   queueForwardingCheck,
   queueRecordingDeletion,
@@ -1280,6 +1282,7 @@ const handlers: Record<string, Handler> = {
   ...calendarConnectionHandlers,
   ...appConnectionHandlers,
   ...mailConnectionHandlers,
+  ...mailAnalysisHandlers(queueMailAnalysis),
   ...appPushHandlers,
   ...calendarToolHandlers,
   ...carrierHandlers(),

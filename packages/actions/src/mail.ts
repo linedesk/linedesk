@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { MailAnalysisError, MailTopic } from '@linedesk/db/types'
 import { defineAction } from './define.ts'
 
 // Support mailboxes (LIN-615): a business connects the mailbox its support answers from, read only, so Linedesk can
@@ -74,3 +75,52 @@ export const mailDisconnect = defineAction({
 
 /** `data` of mail.disconnect: whether the provider withdrew the grant (Microsoft has no way to). */
 export type MailDisconnectData = { revoked: boolean }
+
+// Support mail analysis (LIN-642, step 2 of LIN-615): a job reads the last months of the connected mailboxes' support
+// conversations (those support answered), takes the personal data out, and asks the language model in effect for the
+// most common kinds of requests, how support answers each and what it needs to know from the customer. Only that
+// result is stored (mail_analyses), never a message.
+
+/** How far back an analysis reads, in months. */
+export const MAIL_ANALYSIS_MONTHS = [6, 12] as const
+/** The kinds of requests an analysis keeps, most common first. */
+export const MAIL_TOPICS_MAX = 10
+/** Analyses a workspace may start in a day: each reads up to a year of mail and costs language-model requests. */
+export const MAIL_ANALYSES_PER_DAY = 3
+
+export { type MailAnalysisError, mailAnalysisErrors, type MailTopic } from '@linedesk/db/types'
+
+export type MailAnalysisStatus = 'queued' | 'running' | 'done' | 'failed'
+
+/** An analysis: `data.analysis` of mail.analyze and mail.getAnalysis (null when there is none). */
+export type MailAnalysis = {
+  id: string
+  status: MailAnalysisStatus
+  months: number
+  /** Conversations read, and of those the support conversations analyzed (answered by the mailbox). */
+  conversationsRead: number
+  conversationsAnalyzed: number
+  topics: MailTopic[]
+  error: MailAnalysisError | null
+  model: string | null
+  createdAt: string
+  finishedAt: string | null
+}
+
+export const mailAnalyze = defineAction({
+  name: 'mail.analyze',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "Analyze the support mail of the workspace's connected mailboxes (last 6 or 12 months) in the background: the most common kinds of customer requests, how support answers each, and what it needs to know from the customer. Personal data is removed before the language model reads the mail; only the result is stored. Read it with mail.getAnalysis.",
+  input: z.object({ months: z.union([z.literal(6), z.literal(12)]).default(12) }).strict(),
+  permission: 'settings:write',
+})
+
+export const mailGetAnalysis = defineAction({
+  name: 'mail.getAnalysis',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "The workspace's latest support mail analysis (mail.analyze): its status and, when done, the most common kinds of requests with how support answers them and the facts it needs.",
+  input: z.object({}).strict(),
+  permission: 'settings:write',
+})

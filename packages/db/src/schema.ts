@@ -34,6 +34,8 @@ import {
   PAID_LEVELS,
   USAGE_LEVELS,
   type ActionItem,
+  type MailAnalysisError,
+  type MailTopic,
   type ActivationDisclosure,
   type TrialRechargeDisclosure,
   type AutoRechargeDisclosure,
@@ -846,6 +848,35 @@ export const mail_oauth_states = pgTable('mail_oauth_states', {
   expires_at: ts('expires_at').notNull(),
   created_at: createdAt(),
 })
+
+// A support mail analysis (LIN-642): the most common kinds of requests in the connected mailboxes' support mail, how
+// support answers them and what it needs to know (apps/api/src/mail-analysis.ts). Holds only that generalized result,
+// never a message. Not synced: read through mail.getAnalysis (owners and admins).
+export const mail_analyses = pgTable(
+  'mail_analyses',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    status: text('status', { enum: ['queued', 'running', 'done', 'failed'] })
+      .notNull()
+      .default('queued'),
+    /** How far back it reads (6 or 12). */
+    months: integer('months').notNull(),
+    /** Conversations read in the range, and of those the support conversations analyzed. */
+    conversations_read: integer('conversations_read').notNull().default(0),
+    conversations_analyzed: integer('conversations_analyzed').notNull().default(0),
+    topics: jsonb('topics').$type<MailTopic[]>().notNull().default([]),
+    /** Why it failed (MailAnalysisError), a code the page words. */
+    error: text('error').$type<MailAnalysisError>(),
+    /** The language model that read the mail. */
+    model: text('model'),
+    requested_by: text('requested_by').notNull(),
+    created_at: createdAt(),
+    started_at: ts('started_at'),
+    finished_at: ts('finished_at'),
+  },
+  t => [index('mail_analyses_ws_created').on(t.workspace_id, t.created_at)],
+)
 
 // An app connected to a workspace by OAuth (docs/crm-sync.md), one per app. Synced: holds no secret;
 // its tokens are in app_credentials, which is never synced.

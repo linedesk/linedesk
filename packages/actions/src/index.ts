@@ -264,6 +264,8 @@ const all = [
   mail.mailConnectStart,
   mail.mailConnectFinish,
   mail.mailDisconnect,
+  mail.mailAnalyze,
+  mail.mailGetAnalysis,
   calendar.assistantCalendarAdd,
   calendar.assistantCalendarUpdate,
   calendar.assistantCalendarSetDefault,

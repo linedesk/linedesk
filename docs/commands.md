@@ -28,6 +28,7 @@ All commands for working on Linedesk. The short list every session needs is in [
 - Simulate a call (no provider keys): `pnpm --filter @linedesk/agent simulate [leak|booking|message|hangup] [--fast] [--to <number>]`; targets `LINEDESK_API_URL`. Dials `--to`, else `SIM_TO_NUMBER`, else the install's only Linedesk number (`call.listNumbers`); the call is filed with `source` `simulated`: shown like a phone call, never counted as a real one (setup milestones, usage, spending cap).
 - Talk to the assistant without a phone: Settings, Assistant, "Start test call" in the web app (needs `pnpm voice:up` and the agent worker; the call is filed in the inbox as a test call). From a phone's browser: `scripts/tunnel.sh [web-port]` (ngrok, `NGROK_AUTHTOKEN` or ngrok's own config; prints the env lines to set). The older `pnpm --filter @linedesk/agent talk` page still works.
 - The docker compose stack on a public HTTPS address like a server (OAuth redirects, passkeys, push, phone test call): `scripts/local-public.sh start|stop|status` ([local.md](local.md)).
+- Support mail analysis on the demo mailbox (no mailbox, nothing stored): `pnpm --filter @linedesk/api mail:demo [--months 6|12]` with the install's language model, or `--provider openrouter [--model <id>]` with `OPENROUTER_API_KEY` (also `openai`, `anthropic`, `gemini`, `groq`, `mistral` with their `*_API_KEY`). Prints the topics.
 
 ## LLM test suite
 

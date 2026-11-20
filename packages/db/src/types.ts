@@ -22,6 +22,37 @@ import type {
   app_connections,
 } from './schema.ts'
 
+// Support mail analysis (LIN-642): mail_analyses.topics and .error; mail.analyze in @linedesk/actions.
+/** One kind of request the mail shows. Generalized: no customer's name, address or number. */
+export type MailTopic = {
+  /** Short name of the kind of request ("Water heater leaking or no hot water"). */
+  title: string
+  /** How many of the analyzed conversations were about it. */
+  conversations: number
+  /** A typical request as a customer writes it, generalized. */
+  example: string
+  /** How support answers it: the steps, prices, rules and offers it gives. */
+  answer: string
+  /** What support needs to know from the customer to help (address, model, photos, preferred time). */
+  factsNeeded: string[]
+}
+
+/**
+ * Why an analysis did not finish (`error` of mail_analyses), worded by the page: `no_model` (no language model set up),
+ * `no_mailbox` (none connected, or all need a reconnect), `account_refused` (a provider refused the access),
+ * `unavailable` (a provider or the model could not be reached), `no_conversations` (no answered support mail in the
+ * range), `failed` (anything else).
+ */
+export const mailAnalysisErrors = [
+  'no_model',
+  'no_mailbox',
+  'account_refused',
+  'unavailable',
+  'no_conversations',
+  'failed',
+] as const
+export type MailAnalysisError = (typeof mailAnalysisErrors)[number]
+
 /** `kind: 'message'`: a message saved during the call (call.takeMessage: a transfer nobody took), counted for MESSAGES_PER_CALL. */
 export type ActionItem = { text: string; done?: boolean; kind?: 'message' }
 export type CallField = { label: string; value: string }

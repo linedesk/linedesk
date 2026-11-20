@@ -17,6 +17,7 @@ import { emailSender, emailsKeyedByJob } from './email.ts'
 import { type WorkspaceDeletedEmail, workspaceDeletedEmail } from './emails/templates.ts'
 import { runForwardingCheck } from './forwarding-check.ts'
 import { evaluateCall, evaluationModel } from './evaluations.ts'
+import { runMailAnalysis } from './mail-analysis.ts'
 import { transcribeCallAgain, transcriberInEffect, transcribesAfterCalls } from './after-call-transcript.ts'
 import { releaseHeldNews } from './call-news.ts'
 import { notifyCallPush, type PushKind, pushSender } from './push.ts'
@@ -83,6 +84,7 @@ const ASSIGNED_DELAY_SECONDS = 10
 export const BOOKING_CONFIRM = 'booking.confirm'
 /** How the assistant handled a finished call, judged by the language model (evaluations.ts). */
 export const CALL_EVALUATE = 'call.evaluate'
+export const MAIL_ANALYZE = 'mail.analyze'
 /** After-call transcription of a call whose recording was saved (after-call-transcript.ts). */
 export const CALL_TRANSCRIBE = 'call.transcribe'
 /** A finished call whose news still waits for its corrected transcript gets it sent now (call-news.ts). */
@@ -251,6 +253,8 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.work<{ callId: string }>(CALL_EVALUATE, async ([job]) =>
     evaluateCall(db, job!.data.callId, await evaluationModel(db)),
   )
+  // The support mail analysis (mail-analysis.ts): never retried, it records its own failure on its row.
+  await instance.work<{ analysisId: string }>(MAIL_ANALYZE, async ([job]) => runMailAnalysis(job!.data.analysisId))
   // A failure (model or bucket down) is logged and tried again; after the last try the live transcript stays. No
   // transaction around it: the model takes seconds; the lines are written in one short transaction at the end.
   await instance.work<{ callId: string }>(CALL_TRANSCRIBE, async ([job]) => {
@@ -496,6 +500,7 @@ export async function startJobs(env: Env = process.env): Promise<PgBoss> {
   await instance.createQueue(WORKSPACE_DELETED_EMAIL, { retryLimit: 6, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(BOOKING_CONFIRM, { retryLimit: 4, retryDelay: 60, retryBackoff: true })
   await instance.createQueue(CALL_EVALUATE, { retryLimit: 2, retryDelay: 120, retryBackoff: true })
+  await instance.createQueue(MAIL_ANALYZE, { retryLimit: 0, expireInSeconds: 1800 })
   await instance.createQueue(CALL_TRANSCRIBE, {
     retryLimit: 3,
     retryDelay: 30,
@@ -656,6 +661,11 @@ export async function queueBookingConfirmation(tx: Tx, bookingId: string) {
 /** Queues the evaluation of a finished call, in the caller's transaction (like the notification). */
 export async function queueCallEvaluation(tx: Tx, callId: string) {
   await boss?.send(CALL_EVALUATE, { callId }, { db: fromDrizzle(tx, sql), singletonKey: callId, singletonSeconds: 60 })
+}
+
+/** Queues a support mail analysis in mail.analyze's transaction. Without a queue (tests) nothing runs. */
+export async function queueMailAnalysis(tx: Tx, analysisId: string) {
+  await boss?.send(MAIL_ANALYZE, { analysisId }, { db: fromDrizzle(tx, sql), singletonKey: analysisId })
 }
 
 /** Queues the after-call transcription of a call in call.setRecording's transaction: it runs once the recording is reported. */
