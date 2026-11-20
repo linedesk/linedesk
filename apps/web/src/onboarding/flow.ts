@@ -7,6 +7,7 @@ import {
   buyableAreaCode,
   buyingCountryOf,
   buyOfferIn,
+  CARRIER_LABELS,
   completePhone,
   emergencyNumberOf,
   type ForwardingGuide,
@@ -15,6 +16,7 @@ import {
   isActiveContact,
   type Language,
   localizedDefault,
+  NUMBER_LIST_PRICES,
   nanpAreaCode,
   type OnboardingStep,
   type OutboundCountries,
@@ -577,23 +579,12 @@ export const numberModeLabel: Record<PhoneNumberMode, string> = {
   },
 }
 
-/**
- * The carriers' list prices for a local number a month, in USD, by country (telnyx.com/phone-numbers, Twilio's
- * pricing pages, 15 Nov 2026; Telnyx's German local numbers from its number search, 19 Nov 2026). A country not
- * listed: the carrier's own price, unnamed.
- */
-const LIST_PRICES: Readonly<Record<string, Readonly<Record<string, number>>>> = {
-  telnyx: { US: 1, CA: 1, PR: 3, DE: 1 },
-  twilio: { US: 1.15, CA: 1.15, PR: 3.25 },
-}
-const CARRIER_LABELS: Readonly<Record<string, string>> = { telnyx: 'Telnyx', twilio: 'Twilio' }
-
 /** What a new number costs, as far as we know it: the carrier's list price for a local number in `country` (default the US). */
 export function priceNote(provider: string | null, country: string | null = null): string {
   const { t, format } = i18n()
   if (provider === 'dev') return t('onboarding.flow.price.dev')
   const carrier = provider ? CARRIER_LABELS[provider] : undefined
-  const amount = provider ? LIST_PRICES[provider]?.[(country ?? 'US').toUpperCase()] : undefined
+  const amount = provider ? NUMBER_LIST_PRICES[provider]?.[(country ?? 'US').toUpperCase()] : undefined
   if (!carrier) return t('onboarding.flow.price.unknown')
   if (amount === undefined) return t('onboarding.flow.price.carrierUnknown', { carrier })
   return t('onboarding.flow.price.carrier', {

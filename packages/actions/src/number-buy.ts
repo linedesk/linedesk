@@ -58,6 +58,20 @@ export function buyingCountryOf(
   return buyOfferIn(offers, place.country) ? place.country.toUpperCase() : null
 }
 
+/**
+ * The carriers' list prices for a local number a month, in USD, by country (telnyx.com/phone-numbers, Twilio's
+ * pricing pages, 15 Nov 2026; Telnyx's German local numbers from its number search, 19 Nov 2026). A country not
+ * listed: the carrier's own price, unnamed. Where no bill pays for the number (off billing, a comped bill, the
+ * workspace's own carrier account), the app and the setup agent name this price.
+ */
+export const NUMBER_LIST_PRICES: Readonly<Record<string, Readonly<Record<string, number>>>> = {
+  telnyx: { US: 1, CA: 1, PR: 3, DE: 1 },
+  twilio: { US: 1.15, CA: 1.15, PR: 3.25 },
+}
+/** The carriers whose list prices are known, by name. */
+// i18n-ignore: brand names, the same in every language
+export const CARRIER_LABELS: Readonly<Record<string, string>> = { telnyx: 'Telnyx', twilio: 'Twilio' }
+
 /** The names of the German area codes an install offers by default (others show as the code alone). */
 // i18n-ignore: a place name, the same in every language
 const DE_AREA_NAMES: Readonly<Record<string, string>> = { '6221': 'Heidelberg' }

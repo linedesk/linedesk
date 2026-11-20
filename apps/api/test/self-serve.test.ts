@@ -1212,11 +1212,44 @@ describe("the owner's agent setup link before the trial (agent-first, 2026-11-18
     expect(steps.find(s => s.id === 'activate')!.how!.join(' ')).toMatch(/Never start it for them/)
     const phone = steps.find(s => s.id === 'phone')!
     expect(phone.state).toBe('todo')
-    expect(phone.how!.join(' ')).toMatch(/Opens once the owner started the trial/)
-    expect(phone.how!.join(' ')).not.toMatch(/purchase: true/)
+    // The next step is the trial's row (LIN-646): the number has no how-to yet, so nothing tells the agent to buy one.
+    expect(phone.how).toBeUndefined()
     // Reading the status never moved the onboarding past `activate`.
     const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId))
     expect(row?.onboarding_step).toBe('activate')
+  })
+
+  test('while the trial waits, the next step is Start your free trial, not the number, with the trial days of the rules (LIN-646)', async () => {
+    const { key, workspaceId, inWs } = await waitingWithLink()
+    expect(errorText(await tool(key, 'onboarding_setStep', { workspaceId, step: 'activate' }))).toBeNull()
+    expect(errorText(await tool(key, 'workspace_updateSettings', { workspaceId, pickupMode: 'no_answer' }))).toBeNull()
+    const status = (await tool(key, 'setup_status', { read_only: true })).body.result.structuredContent
+    expect(status.next_step).toBe('activate')
+    expect(status.all_done).toBe(false)
+    const activate = (status.workspaces[0].steps as Step[]).find(s => s.id === 'activate')!
+    expect(activate).toMatchObject({ label: 'Start your free trial', state: 'admin_only' })
+    const how = activate.how!.join(' ')
+    expect(how).toContain('on the Start your free trial row')
+    expect(how).toContain('opens the page to start your 14-day free trial')
+    // The setup page marks the same row as next.
+    const page = await request(inWs, 'GET', '/v1/workspace/agent-setup')
+    expect(page.body.progress.nextStep).toBe('activate')
+  })
+
+  test('without a trial (refused, or the card had one): Start your plan, in the row, the link and the phone step (LIN-646)', async () => {
+    const { key, workspaceId, billId } = await waitingWithLink()
+    await db.update(billing_accounts).set({ trial_refused: 'card_used' }).where(eq(billing_accounts.id, billId))
+    expect(errorText(await tool(key, 'onboarding_setStep', { workspaceId, step: 'activate' }))).toBeNull()
+    expect(errorText(await tool(key, 'workspace_updateSettings', { workspaceId, pickupMode: 'no_answer' }))).toBeNull()
+    const steps = await stepsOf(key)
+    const activate = steps.find(s => s.id === 'activate')!
+    expect(activate.label).toBe('Start your plan')
+    const how = activate.how!.join(' ')
+    expect(how).toContain('on the Start your plan row (this workspace gets no free trial)')
+    expect(how).toContain('opens the page to start your plan')
+    expect(how).not.toMatch(/free trial;|day free trial/)
+    expect(how).toContain('The phone number follows once it runs')
+    expect(steps.find(s => s.id === 'phone')!.how).toBeUndefined()
   })
 
   test('once the trial (or the plan) started, its row stays as done: the count goes on, never one row fewer', async () => {

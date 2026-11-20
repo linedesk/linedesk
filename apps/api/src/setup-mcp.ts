@@ -31,9 +31,11 @@ import {
   actions,
   BASE_BUY_OFFERS,
   type BuyOffer,
+  buyingCountryOf,
   buyOfferIn,
   CHATGPT_PLUGINS_URL,
   CLAUDE_CONNECTORS_URL,
+  CARRIER_LABELS,
   callAudioGuideIn,
   categoryNames,
   countryNamed,
@@ -52,6 +54,7 @@ import {
   isMultiCategory,
   LOCAL_INSTALL_NOTE,
   moneyCategories,
+  NUMBER_LIST_PRICES,
   OTHER_COUNTRY,
   onboardingSteps,
   oneKey,
@@ -87,6 +90,7 @@ import {
   type BusinessProfile,
   billing_accounts,
   calls,
+  commands,
   feedback,
   member,
   member_notification_settings,
@@ -115,6 +119,7 @@ import { db } from './db.ts'
 import { localeForUserId } from './email-locale.ts'
 import { goLiveChecklist } from './go-live-checklist.ts'
 import { readInstallProgress } from './install-setup.ts'
+import { workspaceBillFacts } from './billing-page.ts'
 import { buildSetupReport, consentText, SENDING_OFF, type SetupReportInput } from './setup-feedback.ts'
 import { withoutHopByHopHeaders } from './keep-alive.ts'
 import { guard as mcpGuard, MCP_MAX_BODY_BYTES, takeSlot, toolName } from './mcp.ts'
@@ -196,7 +201,7 @@ const setupPage = (actor: Pick<Actor, 'setupPartnerId'>) =>
  */
 
 const askFirst = (actor: Actor): Record<string, string> => ({
-  'phoneNumber.setup': `With purchase: true this buys a phone number, only for a workspace in a country the phone step names (about $1 a month${actor.setupWorkspaceId ? '' : ' on Telnyx'} in the US, Canada and Germany, $3 in Puerto Rico): ask the ${personOf(actor)} first and say the cost. With purchase: false it attaches a number the workspace's own carrier account already has (phoneNumber_listCarrierNumbers lists them); a number already in this server's carrier account is refused here, so on this server's carrier buy a new one by area code.`,
+  'phoneNumber.setup': english.t('server.setupAgent.mcp.buyAskFirst', { who: personOf(actor) }),
   'provider.clearKeys': 'Removes the stored keys of a provider: ask the admin first.',
   'provider.tryOut':
     'kind "email" sends one real email with a six-digit code to the admin\'s own address: ask them for the code, then provider_confirmEmail { code }. kind "telephony" lists numbers without buying any.',
@@ -516,8 +521,13 @@ type WorkspaceStatus = {
   steps: Step[]
 }
 
-/** The first step still to do (not done, not the admin's own). */
-const firstOpen = (steps: readonly Step[]) => steps.find(s => s.state !== 'done' && s.state !== 'admin_only') ?? null
+/**
+ * The first step still to do (not done, not the admin's own), or the owner's Start your free trial (or plan) row while it
+ * waits: nothing after it opens before it, as in the app (onboarding.setStep and a number are refused until then), so
+ * the next step is that row, not the phone number.
+ */
+const firstOpen = (steps: readonly Step[]) =>
+  steps.find(s => s.state !== 'done' && (s.state !== 'admin_only' || s.id === 'activate')) ?? null
 
 /** What the agent reads first and after every step. */
 async function setupStatus(actor: Actor, { advance = true }: { advance?: boolean } = {}) {
@@ -1136,6 +1146,33 @@ export const past = (current: string | null | undefined, step: (typeof onboardin
   current === 'done' ||
   onboardingSteps.indexOf(current as (typeof onboardingSteps)[number]) > onboardingSteps.indexOf(step)
 
+/**
+ * How far onboarding got, for `past`: the stored step, and after "Finish later" (`skipped`) the furthest step it was
+ * moved to before (onboarding.setStep, in the command log), so a step passed with its defaults kept (Who hears about
+ * calls saves nothing then) stays done after Finish later. The log keeps a command's input for 90 days (command-log.ts);
+ * a workspace set aside longer counts by its data alone.
+ */
+export async function stepReached(workspaceId: string, step: string | null | undefined) {
+  if (step !== 'skipped') return step
+  const moves = await db
+    .select({ input: commands.input })
+    .from(commands)
+    .where(
+      and(
+        eq(commands.workspace_id, workspaceId),
+        eq(commands.action, 'onboarding.setStep'),
+        eq(commands.rejected, false),
+      ),
+    )
+  let furthest: string | null = null
+  for (const { input } of moves) {
+    const moved = (input as { step?: unknown } | null)?.step
+    const at = onboardingSteps.indexOf(moved as (typeof onboardingSteps)[number])
+    if (at > onboardingSteps.indexOf(furthest as (typeof onboardingSteps)[number])) furthest = moved as string
+  }
+  return furthest
+}
+
 /** With the realtime model the assistant picks one of the model's voices (`realtime_voice`); '' is marin, the default. */
 const REALTIME_VOICE_NOTE = `Voice: one of the realtime model's voices, per assistant (assistant_update realtime_voice: ${REALTIME_VOICE_IDS.join(', ')}; empty for marin, the default)`
 const assistantStepLabel = (realtime: boolean) =>
@@ -1231,18 +1268,67 @@ export function numberSetupHow(
 }
 
 /**
- * Where the workspace can buy a number: its carrier account's buy offers (numberBuyOffers), and that account
- * (numberSetupHow's last two arguments).
+ * Where the workspace can buy a number: its carrier account's buy offers (numberBuyOffers), that account
+ * (numberSetupHow's last two arguments) and its carrier's name (the price: numberPriceHow).
  */
-async function buyOffersOf(workspaceId: string): Promise<[BuyOffer[], CarrierAccount]> {
+async function buyOffersOf(
+  workspaceId: string,
+): Promise<{ offers: BuyOffer[]; account: CarrierAccount; provider: string | null }> {
   try {
     const { account, provider } = await telephonyForWorkspace(db, workspaceId)
-    return [await numberBuyOffers(db, { account, provider: provider.name }), account]
+    return { offers: await numberBuyOffers(db, { account, provider: provider.name }), account, provider: provider.name }
   } catch {
     // No carrier set up (or its keys unreadable): the install's, with the offers every install has; buying fails later
     // with its reason.
-    return [[...BASE_BUY_OFFERS], 'install']
+    return { offers: [...BASE_BUY_OFFERS], account: 'install', provider: null }
   }
+}
+
+/** A carrier's list price in dollars ("$1", "$1.15"). */
+const listPrice = (amount: number) => `$${amount.toFixed(amount % 1 ? 2 : 0)}`
+
+/**
+ * What a new number costs, for the phone step, by the rule of the app's note under the area code (PhoneStep and
+ * Settings, Phone numbers: billedNumberNote, priceNote): a white-label client names no price (its partner pays); on a
+ * bill (`extraNumberCents`, from the billing rules) and the install's carrier account the first number is included in
+ * the plan and each further one costs `extraNumberCents` a month; otherwise the carrier's list price in `country`, or in
+ * each country numbers can be bought in while none is known. `bought`: the workspace's numbers bought on the install's
+ * carrier account.
+ */
+export function numberPriceHow(o: {
+  who: string
+  partnerManaged: boolean
+  extraNumberCents: number | null
+  account: CarrierAccount
+  provider: string | null
+  bought: number
+  country: string | null
+  offers: readonly BuyOffer[]
+}): string {
+  if (o.partnerManaged) return english.t('server.setupAgent.numberPrice.partner')
+  if (o.provider === 'dev') return english.t('server.setupAgent.numberPrice.dev')
+  if (o.extraNumberCents !== null && o.account === 'install')
+    return o.bought < 1
+      ? english.t('server.setupAgent.numberPrice.included', { who: o.who })
+      : english.t('server.setupAgent.numberPrice.extra', { price: dollars(o.extraNumberCents) })
+  const carrier = o.provider ? CARRIER_LABELS[o.provider] : undefined
+  if (!o.provider || !carrier) return english.t('server.setupAgent.numberPrice.unknown')
+  const prices = NUMBER_LIST_PRICES[o.provider] ?? {}
+  const countries = o.country ? [o.country] : o.offers.filter(offer => offer.ready).map(offer => offer.country)
+  // The same price once, with the countries it is for ("$1 in US, CA, DE, $3 in PR"); one country: the price alone.
+  const byPrice = new Map<number, string[]>()
+  for (const country of countries) {
+    const amount = prices[country]
+    if (amount === undefined) return english.t('server.setupAgent.numberPrice.carrierUnknown', { carrier })
+    byPrice.set(amount, [...(byPrice.get(amount) ?? []), country])
+  }
+  if (!byPrice.size) return english.t('server.setupAgent.numberPrice.carrierUnknown', { carrier })
+  if (o.country)
+    return english.t('server.setupAgent.numberPrice.carrier', { price: listPrice(prices[o.country]!), carrier })
+  return english.t('server.setupAgent.numberPrice.carrierByCountry', {
+    prices: [...byPrice].map(([amount, list]) => `${listPrice(amount)} in ${list.join(', ')}`).join(', '),
+    carrier,
+  })
 }
 
 async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[]> {
@@ -1256,7 +1342,13 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   const assistant = await firstAssistant(workspaceId)
   const locale = await workspaceLocale(db, workspaceId, settings ?? null)
   const numbers = await db
-    .select({ id: phone_numbers.id, e164: phone_numbers.e164, mode: phone_numbers.mode })
+    .select({
+      id: phone_numbers.id,
+      e164: phone_numbers.e164,
+      mode: phone_numbers.mode,
+      purchased: phone_numbers.purchased,
+      carrier_account: phone_numbers.carrier_account,
+    })
     .from(phone_numbers)
     .where(eq(phone_numbers.workspace_id, workspaceId))
   const golive = await goLiveChecklist(db, actor)
@@ -1264,30 +1356,31 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   const hasProfile = Object.values(profile).some(v => (Array.isArray(v) ? v.length > 0 : Boolean(v)))
   const forwarding = numbers.find(n => n.mode === 'forward_conditional' || n.mode === 'forward_all')
   // What is done follows the data, so an agent that saves a step without moving onboarding on still sees it done; a
-  // step onboarding went past (not "Finish later") is done too. The assistant and who hears about calls are choices
-  // with defaults: done once changed.
+  // step onboarding went past is done too, also when the owner chose "Finish later" after it (`went`). The assistant
+  // and who hears about calls are choices with defaults: done once changed, or passed.
   const step = settings?.onboarding_step
+  const went = await stepReached(workspaceId, step)
   // A workspace on a Linedesk Cloud bill is served only in the sign-up countries (served-countries.ts): one whose
   // country is another (worked out from where its owner signed up, say) needs a served one set before the business
   // step counts as done, as Checkout refuses it otherwise.
   const served = await servedCountriesOf(db, workspaceId)
   const countryUnserved = !!served && !served.includes(locale.resolvedCountry)
-  const businessDone = (hasProfile || past(step, 'business')) && !countryUnserved
+  const businessDone = (hasProfile || past(went, 'business')) && !countryUnserved
   const phoneDone = numbers.length > 0
   // A workspace set up before the choice was stored answers with the default: done once onboarding went past it.
-  const pickupDone = Boolean(settings?.pickup_mode) || past(step, 'pickup')
+  const pickupDone = Boolean(settings?.pickup_mode) || past(went, 'pickup')
   const fresh = newAssistant(workspaceId, ws?.name ?? '', [], 'standard')
   const assistantChanged =
     !!assistant && (assistant.name !== DEFAULT_ASSISTANT_NAME || assistant.greeting !== fresh.greeting)
-  const assistantDone = assistantChanged || past(step, 'assistant')
+  const assistantDone = assistantChanged || past(went, 'assistant')
   const [notifyRow] = await db
     .select({ user_id: member_notification_settings.user_id })
     .from(member_notification_settings)
     .where(eq(member_notification_settings.workspace_id, workspaceId))
     .limit(1)
   // The "Who hears about calls?" step saves a member's notifications and its own transfer contact (id "urgent",
-  // URGENT_CONTACT_ID in apps/web/src/onboarding/flow.ts).
-  const notifyDone = !!notifyRow || !!assistant?.transfers.some(t => t.id === URGENT_CONTACT_ID) || past(step, 'notify')
+  // URGENT_CONTACT_ID in apps/web/src/onboarding/flow.ts); kept as it was, it saves nothing: then passing it counts.
+  const notifyDone = !!notifyRow || !!assistant?.transfers.some(t => t.id === URGENT_CONTACT_ID) || past(went, 'notify')
   // A Linedesk Cloud sign-up waiting for its trial: the free steps first, then the owner's card
   // (`activate`, on the setup page, never the agent's), and only then a number (refused before, self-serve.ts).
   const waitingForTrial = await waitsForOwnTrial(db, workspaceId)
@@ -1296,6 +1389,10 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   const waitingForPartner = !waitingForTrial && (await isPendingPayment(db, workspaceId))
   // Once that trial (or plan) started, its row stays as done: the count goes on (4 of 7 → 7 of 7), never one row fewer.
   const started = waitingForTrial ? null : await ownStartOf(workspaceId)
+  // The bill as the app reads it (billing-page.ts): the trial's days while it waits (null: no trial, the plan), the
+  // number's price on a bill, a white-label client's partner paying.
+  const bill = await workspaceBillFacts(workspaceId)
+  const trial = waitingForTrial ? bill.trialDays !== null : (started?.trial ?? true)
   const freeStepsDone = businessDone && assistantDone && pickupDone && notifyDone
   // On Ultra the assistant speaks in the realtime model's voices, not one of the voice provider's (like Assistant settings).
   const realtime = assistant?.call_quality === 'ultra' && (await pipelinesSetUp(db)).realtime
@@ -1319,6 +1416,36 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   if (advance && reached && step !== 'skipped' && !past(step, reached) && step !== reached)
     await runAction('onboarding.setStep', { step: reached }, actor)
   const done = (yes: boolean): StepState => (yes ? 'done' : 'todo')
+  // How the phone step gets a number, in the country the owner was shown (buyingCountryOf: the same rule as the app's
+  // phone step and the server's purchaseCountry, so no area code is offered that the server refuses), then what it
+  // costs, by the bill (numberPriceHow).
+  const phoneHow = async () => {
+    const { offers, account, provider } = await buyOffersOf(workspaceId)
+    const named = countryNamed(locale.countrySource)
+    const country = buyingCountryOf({ country: locale.resolvedCountry, source: locale.countrySource }, offers)
+    const ready = offers.filter(o => o.ready)
+    const buying = !country || Boolean(buyOfferIn(ready, country))
+    return [
+      numberSetupHow(w, country, webAddress(), offers, account),
+      ...(country && !named
+        ? [english.t('server.setupAgent.phoneCountryGuessed', { country, source: locale.countrySource, w })]
+        : []),
+      ...(buying
+        ? [
+            numberPriceHow({
+              who,
+              partnerManaged: bill.partnerManaged,
+              extraNumberCents: bill.extraNumberCents,
+              account,
+              provider,
+              bought: numbers.filter(n => n.purchased && n.carrier_account === 'install').length,
+              country,
+              offers,
+            }),
+          ]
+        : []),
+    ]
+  }
   return [
     {
       // The business as the person sees it, one step: the workspace (name, time zone, country) and what
@@ -1385,19 +1512,27 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       ? [
           {
             id: 'activate',
-            label: english.t('onboarding.steps.activate'),
+            // "Start your free trial", or "Start your plan" where none is offered (refused, or the card had one), as the
+            // setup page's row and its button say (AgentSetup, SetupStartTrial).
+            label: english.t(trial ? 'onboarding.steps.activate' : 'onboarding.steps.activatePlan'),
             // The owner's own step, once the free steps are done; the setup page shows it as a row with its button.
             state: freeStepsDone ? 'admin_only' : 'todo',
             how: [
-              english.t('server.setupAgent.activateHow', {
+              english.t(trial ? 'server.setupAgent.activateHow' : 'server.setupAgent.activatePlanHow', {
                 who,
                 page: setupPage(actor),
                 seconds: POLL_SECONDS,
               }),
-              english.t('server.setupAgent.mcp.trialLink', {
-                who,
-                link: `${webAddress()}${trialStartPath(workspaceId)}`,
-              }),
+              trial
+                ? english.t('server.setupAgent.mcp.trialLinkDays', {
+                    who,
+                    days: bill.trialDays ?? 0,
+                    link: `${webAddress()}${trialStartPath(workspaceId)}`,
+                  })
+                : english.t('server.setupAgent.mcp.planLink', {
+                    who,
+                    link: `${webAddress()}${trialStartPath(workspaceId)}`,
+                  }),
             ],
           } satisfies StepBase,
         ]
@@ -1405,7 +1540,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
         ? [
             {
               id: 'activate',
-              label: english.t(started.trial ? 'onboarding.steps.activate' : 'onboarding.steps.activatePlan'),
+              label: english.t(trial ? 'onboarding.steps.activate' : 'onboarding.steps.activatePlan'),
               state: 'done',
               how: [],
             } satisfies StepBase,
@@ -1420,19 +1555,14 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       // The id too: the forwarding tools need it, also while another step is next and this one has no `how`.
       detail: numbers.map(n => `${n.e164} (${n.mode}, phoneNumberId ${n.id})`).join(', ') || null,
       how: waitingForTrial
-        ? [english.t('server.setupAgent.phoneAfterTrial', { who })]
+        ? [english.t(trial ? 'server.setupAgent.phoneAfterTrial' : 'server.setupAgent.phoneAfterPlan', { who })]
         : waitingForPartner
           ? [english.t('server.setupAgent.partner.phoneAfterActivate', { who })]
           : actor.setupPartnerId
             ? [english.t('server.setupAgent.partner.phoneHow', { who, page: setupPage(actor), seconds: POLL_SECONDS })]
             : [
                 'What it is for, in plain words: the assistant needs its own phone number. Most businesses keep their number: calls they miss are forwarded to the new Linedesk number (mode "forward_conditional", or "forward_all" for every call). Or callers use the new number directly (mode "new"). Suggest forwarding and ask only to confirm. For forwarding, forwarding_guide { workspaceId, carrier? } shows how it works for the business line\'s carrier already now, before the number exists.',
-                numberSetupHow(
-                  w,
-                  countryNamed(locale.countrySource) ? locale.resolvedCountry : null,
-                  webAddress(),
-                  ...(await buyOffersOf(workspaceId)),
-                ),
+                ...(await phoneHow()),
                 `Then onboarding_setStep { ${w}, step: "done" }.`,
               ],
     },

@@ -7,6 +7,7 @@ import {
   assistants,
   calls,
   commands,
+  instance_settings,
   member,
   organization,
   passkey,
@@ -32,6 +33,7 @@ import {
   devNumberLine,
   forAgent,
   installPartDone,
+  numberPriceHow,
   numberSetupHow,
   SETUP_ACTIONS,
   SETUP_LINK_WORKSPACE_CAP,
@@ -1713,6 +1715,32 @@ describe('what is done follows the data (B6)', () => {
     expect(settings!.step).toBe('skipped')
   })
 
+  test('"Finish later" after passing Who hears about calls with its defaults: the steps passed stay done (LIN-646)', async () => {
+    const admin = await signUp()
+    await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, admin.userId))
+    const { key } = await makeKey(admin)
+    const made = data(await call(key, 'workspace_create', { name: 'Brightwater Passed', timeZone: 'America/Denver' }))
+    const workspaceId = (made as { workspace: { id: string } }).workspace.id
+    // As the app moves it: on to the number (nothing saved on Who hears about calls), then Finish later.
+    for (const step of ['assistant', 'pickup', 'notify', 'phone', 'skipped'])
+      expect(data(await call(key, 'onboarding_setStep', { workspaceId, step }))).toMatchObject({ ok: true })
+    type Status = { next_step: string; workspaces: { steps: { id: string; state: string }[] }[] }
+    const status = data(await call(key, 'setup_status', { read_only: true })) as Status
+    expect(Object.fromEntries(status.workspaces[0]!.steps.map(s => [s.id, s.state]))).toMatchObject({
+      business: 'done',
+      assistant: 'done',
+      pickup: 'done',
+      notify: 'done',
+      phone: 'todo',
+    })
+    // Finish later stays as it is.
+    const [settings] = await db
+      .select({ step: workspace_settings.onboarding_step })
+      .from(workspace_settings)
+      .where(eq(workspace_settings.workspace_id, workspaceId))
+    expect(settings!.step).toBe('skipped')
+  })
+
   test('a workspace whose onboarding went past "When to pick up" has it done, also with no choice stored', async () => {
     const admin = await signUp()
     await db.update(user).set({ emailVerified: true, instanceAdmin: true }).where(eq(user.id, admin.userId))
@@ -1800,5 +1828,94 @@ describe("the phone step's how-to by the workspace's country (LIN-300)", () => {
 describe("the activate step's trial link (LIN-614)", () => {
   test('the setup agent hands out the shared deep link, by workspace id: the same link the app and emails use', () => {
     expect(trialStartPath('ws_1')).toBe('/#workspace/billing?start-trial=1&ws=ws_1')
+  })
+})
+
+describe("the phone step's price follows the bill, as the app's note does (LIN-646)", () => {
+  const base = {
+    who: 'owner',
+    partnerManaged: false,
+    extraNumberCents: null,
+    account: 'install' as const,
+    provider: 'telnyx',
+    bought: 0,
+    country: 'US',
+    offers: BASE_BUY_OFFERS,
+  }
+
+  test("on a bill: the first number is included in the plan, each further one at the billing rules' price", () => {
+    expect(numberPriceHow({ ...base, extraNumberCents: 300 })).toContain(
+      "the first number is included in the owner's plan, nothing extra",
+    )
+    const extra = numberPriceHow({ ...base, extraNumberCents: 300, bought: 1 })
+    expect(extra).toContain('each extra number is $3 a month')
+    expect(numberPriceHow({ ...base, extraNumberCents: 250, bought: 2 })).toContain('$2.50 a month')
+    expect(extra).not.toMatch(/Telnyx|Puerto Rico/)
+    // On the workspace's own carrier account the bill pays nothing: its carrier's price.
+    expect(numberPriceHow({ ...base, extraNumberCents: 300, account: 'workspace' })).toContain('billed by Telnyx')
+  })
+
+  test("no bill: the carrier's list price where the number is bought, every buying country's while none is known", () => {
+    expect(numberPriceHow({ ...base, country: 'PR' })).toContain('about $3 a month plus call minutes, billed by Telnyx')
+    expect(numberPriceHow({ ...base, provider: 'twilio' })).toContain('about $1.15 a month')
+    expect(numberPriceHow({ ...base, country: null })).toContain(
+      "by the number's country, plus call minutes, billed by Telnyx: about $1 in US, CA, $3 in PR.",
+    )
+    const offers = [...BASE_BUY_OFFERS, { country: 'DE', numberType: 'local' as const, ready: true }]
+    expect(numberPriceHow({ ...base, country: null, offers })).toContain('$1 in US, CA, DE, $3 in PR')
+    expect(numberPriceHow({ ...base, provider: 'plivo' })).toContain('billed by the carrier')
+    expect(numberPriceHow({ ...base, provider: 'dev' })).toContain('development mode')
+  })
+
+  test("a white-label client's: no price, its partner pays", () => {
+    const how = numberPriceHow({ ...base, partnerManaged: true, extraNumberCents: 300 })
+    expect(how).toContain('name no price')
+    expect(how).not.toContain('$')
+  })
+
+  test('the tool tells the agent to say the cost the phone step gives, no countries or prices of its own', async () => {
+    const { key } = await makeKey(ws.owner)
+    const tools = (await mcp(key, 'tools/list')).body.result.tools as { name: string; description: string }[]
+    const setup = tools.find(t => t.name === 'phoneNumber_setup')!.description
+    const caution = setup.slice(setup.indexOf('With purchase: true this buys'))
+    expect(caution).toContain("say the cost the phone step's how gives")
+    expect(caution).not.toMatch(/\$\d|Puerto Rico|Germany/)
+  })
+})
+
+describe('the phone number in the country the owner was shown (LIN-646)', () => {
+  test('a German business whose country is only the sign-up guess gets the German offer, not US area codes', async () => {
+    // The owner's own link (no server steps before it), on a workspace without a number yet.
+    const german = await createWorkspace('Heidelberg Sanitär')
+    const workspaceId = german.id
+    await db.delete(phone_numbers).where(eq(phone_numbers.workspace_id, workspaceId))
+    const link = await act(german.owner, 'agentSetup.createWorkspaceKey', {})
+    expect(link.status).toBe(200)
+    const key = link.body.data.key as string
+    await db
+      .update(workspace_settings)
+      .set({ country: null, country_hint: 'DE', country_hint_source: 'sign_up_location', onboarding_step: 'phone' })
+      .where(eq(workspace_settings.workspace_id, workspaceId))
+    await db
+      .insert(instance_settings)
+      .values({
+        key: 'number_buy.de',
+        value: JSON.stringify({ on: true, requirementGroupId: 'rg_646', areaCodes: ['6221'] }),
+        updated_at: new Date().toISOString(),
+      })
+      .onConflictDoNothing()
+    try {
+      type Status = { next_step: string; workspaces: { steps: { id: string; how?: string[] }[] }[] }
+      const status = data(await call(key, 'setup_status', { read_only: true })) as Status
+      expect(status.next_step).toBe('phone')
+      const how = status.workspaces[0]!.steps.find(s => s.id === 'phone')!.how!.join(' ')
+      expect(how).toContain("in the workspace's country (DE: 6221, digits without the leading 0")
+      expect(how).toContain('The country above (DE) is only worked out, from sign_up_location')
+      expect(how).not.toContain("the workspace's country is not set yet")
+      // The development carrier of the tests: nothing is paid.
+      expect(how).toContain('development mode')
+    } finally {
+      await db.delete(instance_settings).where(eq(instance_settings.key, 'number_buy.de'))
+    }
   })
 })
