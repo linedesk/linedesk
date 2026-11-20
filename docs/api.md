@@ -36,7 +36,7 @@ To publish another action, add `public: true` to its `defineAction` and make sur
 
 ## Feedback to the Linedesk team
 
-`feedback.send` (LIN-639, `packages/actions/src/feedback.ts`, `apps/api/src/feedback.ts`) sends a bug report, a feature request or setup feedback to the people who make Linedesk: from Help in the app, an MCP client (`feedback_send`), a workspace or personal key over `POST /v1/actions/feedback.send`, or the CLI. Every member, key and MCP client may send it (`call:read`, `public`).
+`feedback.send` (`packages/actions/src/feedback.ts`, `apps/api/src/feedback.ts`) sends a bug report, a feature request or setup feedback to the people who make Linedesk: from Help in the app, an MCP client (`feedback_send`), a workspace or personal key over `POST /v1/actions/feedback.send`, or the CLI. Every member, key and MCP client may send it (`call:read`, `public`).
 
 - **Input:** `kind` (`bug`, `feature`, `setup`), `text` (1 to 5000 characters), optional `page` (300), `context` (`version` 100, `browser` 300, `errors` 8000), `screenshot` (a `data:image/png` or `data:image/jpeg` base64 URL, at most 3 MB decoded; this action alone takes a body of up to 5 MB, so it fits over REST, not over MCP with its 256 KB) and `contact_email` (only when the sender wants an answer there). Answers `data: { id: "fb_…" }`.
 - **Masked before it is kept or sent:** text, page and context go through `scrubText` (keys and tokens, phone numbers, email addresses; the page also loses its query and secret-looking path segments). `contact_email` stays as it is. The command log keeps only ids (`logged: 'ids'`), never the text, the screenshot or the address.

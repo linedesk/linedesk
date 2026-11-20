@@ -1,14 +1,10 @@
 # CI, deploy and the secret-scanning rules: a change here can switch off a check or reach the test server or
-# production (the release gate scripts/receive-release.sh, the deploy scripts, the image build, and ops/ with the
-# server setup and the autopilot), so it gets a review from one of us. GitHub requests the review automatically;
-# making it required needs a branch ruleset, which is only available once the repo is public (or on a paid plan).
+# production (the release gate and deploy scripts, the image build, and ops/ with the server setup), so it gets a
+# review from one of us. GitHub requests the review automatically; making it required needs a branch ruleset, which
+# is only available once the repo is public (or on a paid plan).
 /.github/        @janik-sauerbier @timgutberlet
 /.gitleaks.toml  @janik-sauerbier @timgutberlet
-/scripts/receive-release.sh  @janik-sauerbier @timgutberlet
-/scripts/receive-deploy.sh   @janik-sauerbier @timgutberlet
 /scripts/deploy.sh           @janik-sauerbier @timgutberlet
 /docker-bake.hcl             @janik-sauerbier @timgutberlet
 /Dockerfile                  @janik-sauerbier @timgutberlet
 /ops/                        @janik-sauerbier @timgutberlet
-/scripts/public-export.sh    @janik-sauerbier @timgutberlet
-/scripts/public-export-exclude.txt  @janik-sauerbier @timgutberlet

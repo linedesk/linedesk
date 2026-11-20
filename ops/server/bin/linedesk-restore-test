@@ -2,7 +2,7 @@
 # Weekly restore test (linedesk-restore-test.timer). Unencrypted backups: the newest is restored into a throwaway
 # database and compared with the live one (scripts/restore-backup.sh). Encrypted backups (BACKUP_AGE_RECIPIENT in
 # backup.env): the private key stays off the server, so only what can be checked without it: the newest backup is
-# there, not tiny, and starts with an age header. A full restore of those is done by hand with the key (README, Backups).
+# there, not tiny, and starts with an age header. A full restore of those is done by hand with the key (docs/self-hosting.md, Backups).
 set -euo pipefail
 [ -r /etc/linedesk/ops.env ] && . /etc/linedesk/ops.env
 cd "${LINEDESK_APP_DIR:-/opt/linedesk/app}"
@@ -19,4 +19,4 @@ size=${newest%% *} name=${newest#* }
 [ "$size" -gt 10000 ] || { echo "$name is only $size bytes"; exit 1; }
 header=$(rclone cat --count 21 "b:$(setting BACKUP_S3_BUCKET)/${prefix%/}/$name")
 [ "$header" = "age-encryption.org/v1" ] || { echo "$name does not start with an age header"; exit 1; }
-echo "$name: $size bytes, age-encrypted; full restore test needs the private key (README, Backups)"
+echo "$name: $size bytes, age-encrypted; full restore test needs the private key (docs/self-hosting.md, Backups)"

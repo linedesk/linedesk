@@ -113,7 +113,7 @@ units='linedesk-resources.timer linedesk-sip-firewall.service'
 if [ -f "$app_dir/backup.env" ]; then
   units="$units linedesk-backup.timer linedesk-backup-check.timer linedesk-restore-test.timer"
 else
-  say "no $app_dir/backup.env: backup timers stay off (README, Backups)"
+  say "no $app_dir/backup.env: backup timers stay off (docs/self-hosting.md, Backups)"
 fi
 
 # WAL archiving runs once the stack uses docker-compose.wal.yml (docs/backups-wal.md) and the bucket is set up.
