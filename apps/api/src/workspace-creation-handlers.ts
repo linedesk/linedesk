@@ -17,6 +17,7 @@ import type { Handler, HandlerCtx } from './handler-context.ts'
 import { Forbidden, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { newAssistantTransfers } from './default-transfers.ts'
+import { workspaceLocale } from './workspace-locale.ts'
 import { addToWorkspace } from './memberships.ts'
 import { newAssistant, newWorkspaceSettings } from './onboarding.ts'
 import { newAssistantLevel } from './call-quality.ts'
@@ -88,7 +89,10 @@ export async function insertWorkspace(
   // After the settings: the assistant's first contact is named in the workspace's language, which they decide. For
   // another owner, never the admin's own language.
   const transfers = await newAssistantTransfers(tx, org!.id, forOther ? null : actor.locale)
-  await tx.insert(assistants).values(newAssistant(org!.id, name, transfers, level ?? (await newAssistantLevel(tx))))
+  const { resolvedLanguage } = await workspaceLocale(tx, org!.id)
+  await tx
+    .insert(assistants)
+    .values(newAssistant(org!.id, name, transfers, level ?? (await newAssistantLevel(tx)), resolvedLanguage))
   return org!
 }
 

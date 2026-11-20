@@ -1,6 +1,6 @@
 // Write with help's review: what the proposal would change in the draft. Nothing is overwritten without a
 // choice: a different About text shows as a word diff, and only what is picked goes into the draft (saved with Save).
-import type { KnowledgeImportData } from '@linedesk/actions'
+import { aboutLabelsIn, type KnowledgeImportData } from '@linedesk/actions'
 import type { Draft } from './assistantDraft.ts'
 
 export type DiffPart = { kind: 'same' | 'added' | 'removed'; text: string }
@@ -63,13 +63,22 @@ export const defaultPicks = (review: ImportReview, proposal: KnowledgeImportData
   useCases: new Set(proposal.useCases.map((_, i) => i)),
 })
 
-/** The draft with the picked parts of the proposal. */
-export function applyImport(draft: Draft, proposal: KnowledgeImportData, picks: ImportPicks): Draft {
+/**
+ * The draft with the picked parts of the proposal; the common calls under the About label of the workspace's
+ * `language` (aboutLabelsIn: German, else English).
+ */
+export function applyImport(
+  draft: Draft,
+  proposal: KnowledgeImportData,
+  picks: ImportPicks,
+  language: string | null = 'en',
+): Draft {
   const about = picks.about ? proposal.about.trim() : draft.instructions.trim()
   const useCases = proposal.useCases.filter((_, i) => picks.useCases.has(i))
-  // i18n-ignore: the assistant's About text, which it reads (CLAUDE.md rule 11: wording needs Tim's or Janik's OK)
   const instructions = useCases.length
-    ? [about, `Common calls:\n${useCases.map(u => `- ${u}`).join('\n')}`].filter(Boolean).join('\n\n')
+    ? [about, `${aboutLabelsIn(language).commonCalls}\n${useCases.map(u => `- ${u}`).join('\n')}`]
+        .filter(Boolean)
+        .join('\n\n')
     : picks.about
       ? about
       : draft.instructions

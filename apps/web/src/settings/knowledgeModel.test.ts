@@ -3,8 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { Draft } from './assistantDraft.ts'
 import { applyImport, defaultPicks, reviewImport, wordDiff } from './knowledgeModel.ts'
 
-const draft = (over: Partial<Draft> = {}) =>
-  ({ instructions: '', website: '', ...over }) as unknown as Draft
+const draft = (over: Partial<Draft> = {}) => ({ instructions: '', website: '', ...over }) as unknown as Draft
 const proposal = (over: Partial<KnowledgeImportData> = {}): KnowledgeImportData => ({
   about: 'We fix pipes in Portland.',
   useCases: [],
@@ -40,7 +39,18 @@ describe('import review', () => {
     const review = reviewImport(mine, p)
     expect(review.about).toBe('different')
     expect(applyImport(mine, p, defaultPicks(review, p)).instructions).toBe('My own words.')
-    expect(applyImport(mine, p, { about: true, useCases: new Set<number>() }).instructions).toBe('We fix pipes in Portland.')
+    expect(applyImport(mine, p, { about: true, useCases: new Set<number>() }).instructions).toBe(
+      'We fix pipes in Portland.',
+    )
+  })
+
+  it("the common calls under the label of the workspace's language", () => {
+    const p = proposal({ useCases: ['One.'] })
+    const picks = { about: true, useCases: new Set([0]) }
+    expect(applyImport(draft(), p, picks).instructions).toBe('We fix pipes in Portland.\n\nCommon calls:\n- One.')
+    expect(applyImport(draft(), p, picks, 'de').instructions).toBe(
+      'We fix pipes in Portland.\n\nHäufige Anrufe:\n- One.',
+    )
   })
 
   it('the same About is not offered again', () => {

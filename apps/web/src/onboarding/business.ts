@@ -5,14 +5,18 @@ import {
   type BusinessImportData,
   type BusinessLookupFailure,
   type BusinessTemplateId,
+  aboutLabelsIn,
+  allAboutLabels,
   businessPhoneProblem,
   businessTemplateIds,
-  businessTemplates,
   businessWebsiteProblem,
   greetingFor,
   INSTRUCTIONS_MAX,
+  languageCodes,
   phoneNumberProblem,
   templateFor,
+  templateUseCasesAnyLanguage,
+  templateUseCasesIn,
   workspaceNameProblem,
   workspaceTimeZoneFor,
 } from '@linedesk/actions'
@@ -66,6 +70,11 @@ export type ProfileDraft = {
   hoursText: string[]
   /** The listing's time zone (Google): what the step shows as the time zone until the owner changes it. */
   timeZone: string | null
+  /**
+   * The workspace language the default texts are in (the template's common calls, the About labels, the greeting):
+   * the language of the country the step shows (draftInLanguage when that changes).
+   */
+  language: string
 }
 
 const lines = (text: string) =>
@@ -75,12 +84,18 @@ const lines = (text: string) =>
     .filter(Boolean)
 const unique = (list: string[]) => [...new Set(list)]
 
-/** The template's default use cases (none before one is chosen), then the website's that are not already there. */
-export const templateUseCases = (template: BusinessTemplateId | null, fromSite: readonly string[]) =>
-  unique([...(template ? businessTemplates[template].useCases : []), ...fromSite])
+/**
+ * The template's default use cases in the workspace language (none before one is chosen), then the website's (or the
+ * owner's) that are not already there; the template's lines in another language give way to these.
+ */
+export function templateUseCases(template: BusinessTemplateId | null, fromSite: readonly string[], language = 'en') {
+  if (!template) return unique([...fromSite])
+  const any = new Set(templateUseCasesAnyLanguage(template))
+  return unique([...templateUseCasesIn(template, language), ...fromSite.filter(l => !any.has(l))])
+}
 
 /** The draft the review starts from. Hours are offered on (the owner unticks them), only when Google has them. */
-export function draftFrom(proposal: BusinessImportData): ProfileDraft {
+export function draftFrom(proposal: BusinessImportData, language = 'en'): ProfileDraft {
   return {
     name: proposal.name,
     address: proposal.address ?? '',
@@ -90,21 +105,38 @@ export function draftFrom(proposal: BusinessImportData): ProfileDraft {
     template: proposal.template,
     services: proposal.services.join('\n'),
     about: proposal.about,
-    useCases: templateUseCases(proposal.template, proposal.useCases).join('\n'),
+    useCases: templateUseCases(proposal.template, proposal.useCases, language).join('\n'),
     greeting: proposal.greeting,
     greetingFrom: { text: proposal.greeting, name: proposal.name.trim() },
     useHours: !!proposal.hours?.length,
     hours: proposal.hours,
     hoursText: proposal.hoursText,
     timeZone: proposal.timeZone,
+    language,
   }
+}
+
+/**
+ * The draft in another workspace language (the owner picked another country, or the workspace's loaded): the
+ * template's common calls in it, and the greeting when it is still a default one. What the owner wrote stays.
+ */
+export function draftInLanguage(draft: ProfileDraft, language: string, assistantName: string): ProfileDraft {
+  if (draft.language === language) return draft
+  const useCases = draft.template
+    ? templateUseCases(draft.template, lines(draft.useCases), language).join('\n')
+    : draft.useCases
+  const name = draft.name.trim()
+  const isDefault = name && languageCodes.some(l => greetingFor(name, assistantName, l) === draft.greeting.trim())
+  if (!isDefault) return { ...draft, useCases, language }
+  const greeting = greetingFor(name, assistantName, language)
+  return { ...draft, useCases, language, greeting, greetingFrom: { text: greeting, name } }
 }
 
 /**
  * A proposal from the name alone (nothing looked up or read): the owner chooses the kind of business; a website typed
  * is kept as is.
  */
-export function manualProposal(name: string, assistantName: string, website = ''): BusinessImportData {
+export function manualProposal(name: string, assistantName: string, website = '', language = 'en'): BusinessImportData {
   return {
     name: name.trim(),
     address: null,
@@ -118,19 +150,25 @@ export function manualProposal(name: string, assistantName: string, website = ''
     services: [],
     about: '',
     useCases: [],
-    greeting: greetingFor(name, assistantName),
+    greeting: greetingFor(name, assistantName, language),
     pages: [],
     notes: [],
     failures: [],
   }
 }
 
-/** The common calls in saved instructions (instructionsOf writes them as "Common calls:" and one "- " line each). */
+/**
+ * The common calls in saved instructions (instructionsOf writes them as "Common calls:", in German "Häufige Anrufe:",
+ * and one "- " line each), in whichever language they were written.
+ */
 export function commonCallsOf(instructions: string | undefined): string[] {
-  const at = instructions?.indexOf('Common calls:\n') ?? -1
-  if (at < 0) return []
-  const block = instructions!.slice(at + 'Common calls:\n'.length).split('\n\n')[0] ?? ''
-  return lines(block)
+  if (!instructions) return []
+  for (const { commonCalls } of allAboutLabels) {
+    const label = `${commonCalls}\n`
+    const at = instructions.indexOf(label)
+    if (at >= 0) return lines(instructions.slice(at + label.length).split('\n\n')[0] ?? '')
+  }
+  return []
 }
 
 /**
@@ -142,7 +180,7 @@ export function savedTemplate(commonCalls: readonly string[], name: string): Bus
   const saved = new Set(commonCalls)
   let best: { id: BusinessTemplateId; hits: number } | null = null
   for (const id of businessTemplateIds) {
-    const hits = businessTemplates[id].useCases.filter(u => saved.has(u)).length
+    const hits = templateUseCasesAnyLanguage(id).filter(u => saved.has(u)).length
     if (hits > 0 && (!best || hits > best.hits)) best = { id, hits }
   }
   return best?.id ?? templateFor({ name })
@@ -179,9 +217,9 @@ export function savedProposal(profile: BusinessProfile, name: string, greeting: 
  * wrote or the website gave stay.
  */
 export function switchTemplate(draft: ProfileDraft, template: BusinessTemplateId): ProfileDraft {
-  const old = new Set(draft.template ? businessTemplates[draft.template].useCases : [])
+  const old = new Set(draft.template ? templateUseCasesAnyLanguage(draft.template) : [])
   const kept = lines(draft.useCases).filter(l => !old.has(l))
-  return { ...draft, template, useCases: templateUseCases(template, kept).join('\n') }
+  return { ...draft, template, useCases: templateUseCases(template, kept, draft.language).join('\n') }
 }
 
 /**
@@ -194,17 +232,20 @@ export function renameBusiness(draft: ProfileDraft, name: string): ProfileDraft 
   return { ...draft, name, greeting: from.text.split(from.name).join(name.trim() || from.name) }
 }
 
-/** The About text the assistant answers from: the brief, then services, area, address and the common calls. */
+/**
+ * The About text the assistant answers from: the brief, then services, area, address and the common calls, with the
+ * labels in the draft's language (aboutLabelsIn: German, else English).
+ */
 export function instructionsOf(draft: ProfileDraft): string {
   const services = lines(draft.services)
   const useCases = lines(draft.useCases)
-  // i18n-ignore: the assistant's About text, which it reads (CLAUDE.md rule 11: wording needs Tim's or Janik's OK)
+  const label = aboutLabelsIn(draft.language)
   return [
     draft.about.trim(),
-    services.length ? `Services: ${services.join('; ')}.` : null,
-    draft.area.trim() ? `Service area: ${draft.area.trim()}.` : null,
-    draft.address.trim() ? `Address: ${draft.address.trim()}.` : null,
-    useCases.length ? `Common calls:\n${useCases.map(u => `- ${u}`).join('\n')}` : null,
+    services.length ? `${label.services} ${services.join('; ')}.` : null,
+    draft.area.trim() ? `${label.area} ${draft.area.trim()}.` : null,
+    draft.address.trim() ? `${label.address} ${draft.address.trim()}.` : null,
+    useCases.length ? `${label.commonCalls}\n${useCases.map(u => `- ${u}`).join('\n')}` : null,
   ]
     .filter(Boolean)
     .join('\n\n')

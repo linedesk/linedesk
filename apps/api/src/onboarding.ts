@@ -19,6 +19,7 @@ import { newAssistantTransfers } from './default-transfers.ts'
 import { newAssistantLevel } from './call-quality.ts'
 import { numberBuyOffers } from './number-buy.ts'
 import { telephonyForWorkspace } from './workspace-carrier.ts'
+import { workspaceLocale } from './workspace-locale.ts'
 
 // Here, not in handlers.ts: handlers.ts imports admin-handlers.ts, which reaches this file (LIN-493).
 /** Whether `phoneNumber.setup` can work on this server: the carrier it would use, or why it cannot. */
@@ -128,17 +129,19 @@ export const newWorkspaceSettings = (workspaceId: string, timeZone: unknown) => 
 /**
  * The default assistant of a new workspace; `transfers`: its first contact named in the workspace's language
  * (newAssistantTransfers); `callQuality`: the install's level for new assistants (newAssistantLevel). A new workspace's
- * first assistant takes it whatever it costs: the workspace's owner is the one who pays for it.
+ * first assistant takes it whatever it costs: the workspace's owner is the one who pays for it. `language`: the
+ * workspace's (workspaceLocale), the greeting's.
  */
 export const newAssistant = (
   workspaceId: string,
   businessName: string,
   transfers: TransferContact[],
   callQuality: CallQuality,
+  language: string,
 ) => ({
   id: `as_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`,
   workspace_id: workspaceId,
-  greeting: greetingFor(businessName, 'Maya'),
+  greeting: greetingFor(businessName, 'Maya', language),
   ai_disclosure: DEFAULT_AI_DISCLOSURE,
   transfers,
   call_quality: callQuality,
@@ -172,6 +175,7 @@ export async function ensureWorkspaceRows(
           businessName,
           await newAssistantTransfers(db, workspaceId),
           await newAssistantLevel(db),
+          (await workspaceLocale(db, workspaceId)).resolvedLanguage,
         ),
       )
   if (onboardingStep)

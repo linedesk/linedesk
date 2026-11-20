@@ -1369,7 +1369,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   const phoneDone = numbers.length > 0
   // A workspace set up before the choice was stored answers with the default: done once onboarding went past it.
   const pickupDone = Boolean(settings?.pickup_mode) || past(went, 'pickup')
-  const fresh = newAssistant(workspaceId, ws?.name ?? '', [], 'standard')
+  const fresh = newAssistant(workspaceId, ws?.name ?? '', [], 'standard', locale.resolvedLanguage)
   const assistantChanged =
     !!assistant && (assistant.name !== DEFAULT_ASSISTANT_NAME || assistant.greeting !== fresh.greeting)
   const assistantDone = assistantChanged || past(went, 'assistant')

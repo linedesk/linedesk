@@ -1,7 +1,7 @@
 // The workspace's country (workspace_settings.country): set in Workspace settings › General, else worked out when read;
 // its language follows the country (no setting of its own since 2026-11-16). A US workspace reads US and English as
 // before; call.start brings both to the agent.
-import { phone_numbers, workspace_settings } from '@linedesk/db'
+import { assistants, phone_numbers, workspace_settings } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, test } from 'vitest'
 import { COUNTRY_HEADER } from '../src/country-hint.ts'
@@ -104,7 +104,7 @@ async function created(body: Record<string, unknown>, headers: Record<string, st
   expect(res.status).toBe(200)
   const id: string = res.body.workspace.id
   const [row] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, id))
-  return { owner, id, row: row! }
+  return { owner, id, name, row: row! }
 }
 const settingsOf = async (who: User) => (await act(who, 'workspace.getSettings', {})).body.data
 
@@ -138,6 +138,19 @@ describe('the country at sign-up: set in New workspace, with a hint of where it 
       resolvedLanguage: 'de',
       jobValueCurrency: 'EUR',
     })
+  })
+
+  test("the first assistant greets in the workspace's language: German in Germany, English as before elsewhere", async () => {
+    const greetingOf = async (id: string) =>
+      (await db.select().from(assistants).where(eq(assistants.workspace_id, id)))[0]!.greeting
+    const de = await created({ country: 'DE', timeZone: 'Europe/Berlin' })
+    expect(await greetingOf(de.id)).toBe(
+      `Danke für Ihren Anruf bei ${de.name}. Hier ist Maya, die KI-Assistenz. Wie kann ich helfen?`,
+    )
+    const us = await created({ country: 'US', timeZone: 'America/New_York' })
+    expect(await greetingOf(us.id)).toBe(
+      `Thanks for calling ${us.name}. This is Maya, the AI assistant. How can I help?`,
+    )
   })
 
   test('an unknown country is refused and nothing is made', async () => {

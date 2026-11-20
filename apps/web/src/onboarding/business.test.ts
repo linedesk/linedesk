@@ -1,7 +1,9 @@
-import { type BusinessImportData, businessTemplates, templateFor } from '@linedesk/actions'
+import { type BusinessImportData, businessTemplates, templateFor, templateUseCasesIn } from '@linedesk/actions'
 import { describe, expect, test } from 'vitest'
 import {
+  commonCallsOf,
   draftFrom,
+  draftInLanguage,
   draftProblem,
   draftProblems,
   instructionsOf,
@@ -175,6 +177,59 @@ describe('the review draft', () => {
         'Common calls:\n- When a caller is rude, stay calm.',
       ].join('\n\n'),
     )
+  })
+})
+
+describe('a German workspace (texts approved by Janik on 2026-11-20, rule 11)', () => {
+  const de = () => draftFrom(proposal({ greeting: manualProposal(proposal().name, 'Maya').greeting }), 'de')
+
+  test('German About labels and the German template calls', () => {
+    const draft = de()
+    expect(draft.useCases.split('\n')).toEqual([
+      ...templateUseCasesIn('plumbing_hvac', 'de'),
+      'When a caller asks about water heaters, offer a free estimate.',
+    ])
+    expect(instructionsOf({ ...draft, useCases: '- Wenn jemand unhöflich ist, bleib ruhig.' })).toBe(
+      [
+        'We are a family plumbing company.',
+        'Leistungen: Drain cleaning; Water heaters.',
+        'Einsatzgebiet: Portland metro.',
+        'Adresse: 1200 SE Main St, Portland, OR 97214, USA.',
+        'Häufige Anrufe:\n- Wenn jemand unhöflich ist, bleib ruhig.',
+      ].join('\n\n'),
+    )
+  })
+
+  test('a German About text is read back: its common calls and the kind of business', () => {
+    const saved = profileSave(de(), {}, 'Brightwater Plumbing & Heating').assistant.business_profile
+    const calls = commonCallsOf(saved.instructions)
+    expect(calls).toEqual(de().useCases.split('\n'))
+    expect(savedProposal(saved, 'Harbor', 'Hallo').template).toBe('plumbing_hvac')
+    // English labels are still read.
+    expect(commonCallsOf('About.\n\nCommon calls:\n- One.\n- Two.')).toEqual(['One.', 'Two.'])
+  })
+
+  test("switching the kind of business swaps the template's calls in either language", () => {
+    const salon = switchTemplate(de(), 'salon_spa')
+    expect(salon.useCases.split('\n')).toEqual([
+      ...templateUseCasesIn('salon_spa', 'de'),
+      'When a caller asks about water heaters, offer a free estimate.',
+    ])
+  })
+
+  test('another country: the template calls and a default greeting follow its language; own lines stay', () => {
+    const english = draftFrom(proposal({ greeting: manualProposal(proposal().name, 'Maya').greeting }))
+    const german = draftInLanguage(english, 'de', 'Maya')
+    expect(german.useCases).toBe(de().useCases)
+    expect(german.greeting).toBe(
+      'Danke für Ihren Anruf bei Brightwater Plumbing & Heating. Hier ist Maya, die KI-Assistenz. Wie kann ich helfen?',
+    )
+    expect(draftInLanguage(german, 'en', 'Maya')).toMatchObject({
+      useCases: english.useCases,
+      greeting: english.greeting,
+    })
+    // A greeting the owner wrote stays.
+    expect(draftInLanguage({ ...english, greeting: 'Hi there.' }, 'de', 'Maya').greeting).toBe('Hi there.')
   })
 })
 

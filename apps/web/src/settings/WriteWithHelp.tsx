@@ -21,6 +21,7 @@ import {
   wordDiff,
 } from './knowledgeModel.ts'
 import { callAction } from './settings-api.ts'
+import { useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { brandName } from '../brand.ts'
 
 /** The goals in the order the wizard offers them, in plain words. */
@@ -59,7 +60,10 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
     if (!url.trim()) return setStep('business')
     setBusy(true)
     try {
-      const data = await callAction<KnowledgeImportData>('knowledge.import', { assistantId: assistant.id, url: url.trim() })
+      const data = await callAction<KnowledgeImportData>('knowledge.import', {
+        assistantId: assistant.id,
+        url: url.trim(),
+      })
       setSite(data)
       if (!business.trim()) setBusiness(data.about.slice(0, BUSINESS_TEXT_MAX))
     } catch (e) {
@@ -97,10 +101,26 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
         <Button key="cancel" variant="ghost" disabled={busy} onClick={onClose}>
           {t('common.action.cancel')}
         </Button>
-        <Button key="skip" variant="ghost" disabled={busy} onClick={() => { setUrl(''); setSite(null); setStep('business') }} title={t('settings.writeHelp.noWebsiteTip')}>
+        <Button
+          key="skip"
+          variant="ghost"
+          disabled={busy}
+          onClick={() => {
+            setUrl('')
+            setSite(null)
+            setStep('business')
+          }}
+          title={t('settings.writeHelp.noWebsiteTip')}
+        >
           {t('settings.writeHelp.noWebsite')}
         </Button>
-        <Button busy={busy} key="read" variant="primary" disabled={busy || !url.trim()} onClick={() => void readWebsite()}>
+        <Button
+          busy={busy}
+          key="read"
+          variant="primary"
+          disabled={busy || !url.trim()}
+          onClick={() => void readWebsite()}
+        >
           {busy ? t('settings.writeHelp.reading') : t('settings.writeHelp.next')}
         </Button>
       </>
@@ -124,7 +144,8 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
         <Button key="back" variant="ghost" disabled={busy} onClick={() => setStep('business')}>
           {t('settings.writeHelp.back')}
         </Button>
-        <Button busy={busy}
+        <Button
+          busy={busy}
           key="write"
           variant="primary"
           disabled={busy}
@@ -163,7 +184,10 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
               autoFocus
               value={url}
               placeholder={t('settings.writeHelp.websitePlaceholder')}
-              onChange={e => { setUrl(e.target.value); setSite(null) }}
+              onChange={e => {
+                setUrl(e.target.value)
+                setSite(null)
+              }}
               onKeyDown={e => {
                 if (e.key === 'Enter' && url.trim() && !busy) {
                   e.preventDefault()
@@ -223,7 +247,9 @@ export function WriteWithHelp({ assistant, draft, replace, toast, onClose }: Pro
           </Field>
           {busy && (
             <p className="help">
-              {url.trim() && !site ? t('settings.writeHelp.writingAndReading') : t('settings.writeHelp.writingProposal')}
+              {url.trim() && !site
+                ? t('settings.writeHelp.writingAndReading')
+                : t('settings.writeHelp.writingProposal')}
             </p>
           )}
         </div>
@@ -270,6 +296,7 @@ function Result({
   onApply: (next: Draft) => void
 }) {
   const t = useT()
+  const language = useWorkspaceLanguage()
   const [review] = useState<ImportReview>(() => reviewImport(draft, proposal))
   const [picks, setPicks] = useState<ImportPicks>(() => defaultPicks(review, proposal))
   const toggle = (list: 'useCases', i: number) =>
@@ -285,9 +312,7 @@ function Result({
     <div className="ww-result">
       <div className="ww-step ww-scroll">
         {proposal.pages.length > 0 && (
-          <p className="help">
-            {t('settings.writeHelp.pagesRead', { count: proposal.pages.length })}
-          </p>
+          <p className="help">{t('settings.writeHelp.pagesRead', { count: proposal.pages.length })}</p>
         )}
         {nothing && <p className="help">{t('settings.writeHelp.nothingNew')}</p>}
         {review.about !== 'same' && (
@@ -298,11 +323,11 @@ function Result({
                 checked={picks.about}
                 onChange={e => setPicks(p => ({ ...p, about: e.target.checked }))}
               />
-              <b>{review.about === 'empty' ? t('settings.writeHelp.useAbout') : t('settings.writeHelp.replaceAbout')}</b>
+              <b>
+                {review.about === 'empty' ? t('settings.writeHelp.useAbout') : t('settings.writeHelp.replaceAbout')}
+              </b>
             </label>
-            <p className="help kn-about-note">
-              {t('settings.writeHelp.aboutNote', { name })}
-            </p>
+            <p className="help kn-about-note">{t('settings.writeHelp.aboutNote', { name })}</p>
             <p className="kn-about-text">
               {review.about === 'empty'
                 ? proposal.about
@@ -338,7 +363,7 @@ function Result({
         <Button
           variant="primary"
           disabled={!picked}
-          onClick={() => onApply(applyImport(draft, proposal, picks))}
+          onClick={() => onApply(applyImport(draft, proposal, picks, language))}
           title={t('settings.writeHelp.addTip')}
         >
           {t('settings.writeHelp.add')}

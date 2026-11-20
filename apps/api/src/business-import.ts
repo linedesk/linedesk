@@ -31,6 +31,7 @@ import {
   searchPlaces,
 } from './places.ts'
 import { activeProvider } from './provider-settings.ts'
+import { workspaceLocale } from './workspace-locale.ts'
 import { createFailureLimiter } from './rate-limit.ts'
 import { IMPORT_TEXT_MAX, ImportRefused, readSite, type SitePage } from './site-import.ts'
 
@@ -234,6 +235,7 @@ async function proposal(
   model: EvaluationModel | null,
   assistantName: string,
   fallbackName: string,
+  language: string,
 ): Promise<BusinessImportData> {
   const notes: string[] = []
   const failures: BusinessLookupFailure[] = []
@@ -306,7 +308,7 @@ async function proposal(
     services: answer.services,
     about: answer.about,
     useCases: answer.useCases,
-    greeting: greetingFor(name, assistantName),
+    greeting: greetingFor(name, assistantName, language),
     pages: pages.map(p => ({ url: p.url, title: p.title })),
     notes,
     failures,
@@ -361,7 +363,13 @@ export const businessHandlers: Record<string, Handler> = {
     try {
       return {
         rows: {},
-        data: await proposal(input, model, assistant?.name ?? 'Maya', workspace?.name ?? 'your business'),
+        data: await proposal(
+          input,
+          model,
+          assistant?.name ?? 'Maya',
+          workspace?.name ?? 'your business',
+          (await workspaceLocale(db, workspaceId)).resolvedLanguage,
+        ),
       }
     } catch (e) {
       if (e instanceof PlacesError) throw new Reject(e.message)

@@ -9,6 +9,7 @@ import {
   type BusinessTemplateId,
   businessTemplateIds,
   phoneCountryName,
+  resolveWorkspaceLanguage,
 } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import type { WebsiteImport } from '../auth.ts'
@@ -34,6 +35,7 @@ import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import {
   draftFrom,
+  draftInLanguage,
   draftProblem,
   draftProblems,
   looksLikeWebsite,
@@ -100,6 +102,8 @@ function FindBusiness({
 }: Props & { assistant: Assistant }) {
   const t = useT()
   const word = useClientWord()
+  // The workspace's language (its country's), for a greeting proposed from the name alone.
+  const language = resolveWorkspaceLanguage({ country: useDefaultPhoneCountry() })
   // Lookup found off (or its key refused) by a search since the page loaded: not offered again here.
   const [lookupLost, setLookupLost] = useState(false)
   const canSearch = lookup && !lookupLost
@@ -115,7 +119,7 @@ function FindBusiness({
   // nothing more to ask before the review, which starts from that name.
   const namedReview = (): Phase => ({
     kind: 'review',
-    proposal: manualProposal(businessName, assistant.name),
+    proposal: manualProposal(businessName, assistant.name, '', language),
     fromGoogle: false,
   })
   const [phase, setPhase] = useState<Phase>(() =>
@@ -181,7 +185,7 @@ function FindBusiness({
         t('onboarding.business.reading', { site: website.trim() }),
       )
     setError(null)
-    setPhase({ kind: 'review', proposal: manualProposal(name, assistant.name, website), fromGoogle: false })
+    setPhase({ kind: 'review', proposal: manualProposal(name, assistant.name, website, language), fromGoogle: false })
   }
 
   if (phase.kind === 'review')
@@ -511,7 +515,6 @@ function ReviewProfile({
   const run = useRun()
   const phoneCountry = useDefaultPhoneCountry()
   const settings = useWorkspaceSettings().data
-  const [draft, setDraft] = useState<ProfileDraft>(() => draftFrom(proposal))
   // Where the business is: what the workspace has, set when it was made (New workspace) or worked out by the API
   // (workspace-locale.ts, the same order as Workspace settings › General), until the owner picks.
   const [pickedCountry, setPickedCountry] = useState<string | null>(null)
@@ -519,6 +522,11 @@ function ReviewProfile({
   // The listing's country (Google), else the workspace's, until the owner picks.
   const listingCountry = proposal.country ?? null
   const country = businessCountry(pickedCountry, listingCountry, phoneCountry)
+  // The workspace's language once this is saved (its country's): the default texts of the draft are in it.
+  const language = resolveWorkspaceLanguage({ country })
+  const [draft, setDraft] = useState<ProfileDraft>(() => draftFrom(proposal, language))
+  // Another country picked (or the workspace's loaded): the default texts follow its language, during render.
+  if (draft.language !== language) setDraft(draftInLanguage(draft, language, assistant.name))
   // A workspace on a Linedesk Cloud bill is served only in the sign-up countries: a business elsewhere stops here.
   const served = settings?.servedCountries ?? null
   const notServed = countryNotServed(country, served)

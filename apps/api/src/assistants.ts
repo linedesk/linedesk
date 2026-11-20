@@ -4,6 +4,7 @@
 import { assistant_calendars, assistants, organization, phone_numbers, type Tx } from '@linedesk/db'
 import { recordVersion } from './assistant-versions.ts'
 import { newAssistantTransfers } from './default-transfers.ts'
+import { workspaceLocale } from './workspace-locale.ts'
 import { releaseUnusedClones } from './voices.ts'
 import type { Assistant } from '@linedesk/db/types'
 import { DEFAULT_AI_DISCLOSURE, forwardsCalls, greetingFor } from '@linedesk/actions'
@@ -100,7 +101,7 @@ export const assistantHandlers: Record<string, Handler> = {
           id: newId(),
           workspace_id: workspaceId,
           name,
-          greeting: greetingFor(org?.name ?? 'us', name),
+          greeting: greetingFor(org?.name ?? 'us', name, (await workspaceLocale(tx, workspaceId)).resolvedLanguage),
           ai_disclosure: DEFAULT_AI_DISCLOSURE,
           transfers,
           call_quality: level,

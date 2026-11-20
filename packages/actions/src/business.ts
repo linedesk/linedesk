@@ -5,6 +5,8 @@
 import { z } from 'zod'
 import { DEFAULT_AI_DISCLOSURE, greetingWithDisclosure } from './assistant-prompt.ts'
 import { defineAction } from './define.ts'
+import { voiceLanguageOf } from './workspace-locale.ts'
+import { spokenLines } from './spoken-lines.ts'
 import type { BusinessHoursSpan } from './settings.ts'
 
 // --- Industry templates ---------------------------------------------------------------------
@@ -127,6 +129,75 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
   },
 }
 
+// --- German texts ----------------------------------------------------------------------------
+// Text the assistant reads, not UI (CLAUDE.md rule 11): this wording was approved by Janik on 2026-11-20. Kept here
+// like the spoken lines (spoken-lines.ts), not in the i18n files. Only German for now; every other language gets the
+// English texts above.
+
+/** The languages with their own About labels and common-calls templates; every other gets English. */
+export type AboutLanguage = 'en' | 'de'
+export const aboutLanguageOf = (language: string | null | undefined): AboutLanguage => (language === 'de' ? 'de' : 'en')
+
+// i18n-ignore: text the assistant reads, not UI (rule 11; wording approved by Janik on 2026-11-20)
+const urgentDe = (when: string, take: string) =>
+  `Wenn jemand anruft und ${when}, behandle es als dringend: nimm ${take} auf und markiere die Nachricht als dringend.`
+
+// i18n-ignore: text the assistant reads, not UI (rule 11; wording approved by Janik on 2026-11-20)
+const germanUseCases: Record<BusinessTemplateId, readonly string[]> = {
+  plumbing_hvac: [
+    urgentDe('einen Wasserschaden, eine Überschwemmung oder keine Heizung hat', 'Adresse und Telefonnummer'),
+    'Wenn jemand eine Reparatur oder einen Kostenvoranschlag möchte, frag, was nicht funktioniert, nach der Adresse und wann die Person zu Hause ist.',
+    'Wenn jemand nach Preisen fragt, nenne die Preise, die du kennst, und biete sonst einen Rückruf für ein Angebot an.',
+  ],
+  dental_medical: [
+    urgentDe('starke Schmerzen, eine Schwellung oder einen abgebrochenen Zahn hat', 'Name und Telefonnummer'),
+    'Wenn jemand einen Termin möchte, frag, ob die Person neu ist oder schon in der Praxis war und worum es geht, und nimm Name und Telefonnummer auf.',
+    'Wenn jemand nach der Versicherung fragt, nimm die Versicherung auf und biete einen Rückruf der Praxis an. Frag nie nach medizinischen Details über den Grund des Besuchs hinaus und wiederhole keine.',
+  ],
+  salon_spa: [
+    urgentDe('einen Termin heute nicht wahrnehmen kann', 'Name und Uhrzeit des Termins'),
+    'Wenn jemand buchen möchte, frag nach der Leistung, welcher Tag und welche Uhrzeit passen und ob es eine Wunsch-Stylistin oder einen Wunsch-Stylisten gibt.',
+    'Wenn jemand einen Termin absagen oder verschieben möchte, nimm Name, Termin und eine neue passende Zeit auf.',
+  ],
+  law_office: [
+    urgentDe('in den nächsten Tagen eine Gerichtsfrist hat', 'Name, Telefonnummer und die Frist'),
+    'Wenn neue Mandanten anrufen, frag, um welche Art von Angelegenheit es geht, und nimm Name und Telefonnummer für einen Rückruf auf. Gib nie Rechtsberatung.',
+    'Wenn bestehende Mandanten anrufen, nimm Name, Angelegenheit und die Nachricht für die Anwältin oder den Anwalt auf.',
+  ],
+  home_services: [
+    urgentDe('keinen Strom hat, Wasser eindringt oder die Tür nicht abschließen kann', 'Adresse und Telefonnummer'),
+    'Wenn jemand einen Auftrag oder einen Kostenvoranschlag möchte, frag, was gebraucht wird, nach der Adresse und wann die Person Zeit hat.',
+    'Wenn jemand nach Preisen fragt, nenne die Preise, die du kennst, und biete sonst einen Kostenvoranschlag an.',
+  ],
+  other: [
+    urgentDe('etwas hat, das nicht warten kann', 'Name und Telefonnummer'),
+    'Wenn jemand mit einer Person sprechen möchte, nimm Name, Telefonnummer und das Anliegen für einen Rückruf auf.',
+    'Wenn jemand nach Preisen oder Öffnungszeiten fragt, antworte mit dem, was du weißt.',
+  ],
+}
+
+/** A template's default use cases in a workspace language (German, else English). */
+export const templateUseCasesIn = (id: BusinessTemplateId, language: string | null | undefined): readonly string[] =>
+  aboutLanguageOf(language) === 'de' ? germanUseCases[id] : businessTemplates[id].useCases
+
+/** A template's default use cases in every language that has its own: to find them in a saved text, whichever it is. */
+export const templateUseCasesAnyLanguage = (id: BusinessTemplateId): readonly string[] => [
+  ...businessTemplates[id].useCases,
+  ...germanUseCases[id],
+]
+
+/** The labels of the About text (onboarding's instructionsOf, Write with help): what the assistant reads. */
+export type AboutLabels = { services: string; area: string; address: string; commonCalls: string }
+// i18n-ignore: text the assistant reads, not UI (rule 11; wording approved by Janik on 2026-11-20)
+const aboutLabels: Record<AboutLanguage, AboutLabels> = {
+  en: { services: 'Services:', area: 'Service area:', address: 'Address:', commonCalls: 'Common calls:' },
+  de: { services: 'Leistungen:', area: 'Einsatzgebiet:', address: 'Adresse:', commonCalls: 'Häufige Anrufe:' },
+}
+export const aboutLabelsIn = (language: string | null | undefined): AboutLabels =>
+  aboutLabels[aboutLanguageOf(language)]
+/** The labels in every language that has its own, to read back a text written in any of them. */
+export const allAboutLabels: readonly AboutLabels[] = Object.values(aboutLabels)
+
 /**
  * The template for a business that was looked up: its Google category first, then words in its name; null when
  * neither tells (the owner chooses, "Something else" included).
@@ -146,15 +217,19 @@ export function templateFor(business: {
 }
 
 /**
- * The greeting with the business's name, in the shape a new workspace starts with (apps/api/src/onboarding.ts): with
- * the AI note of the default disclosure mode ("This is Maya, the AI assistant."), as the settings write it.
+ * The greeting with the business's name, in the shape a new workspace starts with (apps/api/src/onboarding.ts): in the
+ * workspace's language (the default greeting of spoken-lines.ts; English for a language calls are not answered in),
+ * with the AI note of the default disclosure mode ("This is Maya, the AI assistant."), as the settings write it.
  */
-export const greetingFor = (business: string, assistant: string) =>
-  greetingWithDisclosure(
-    `Thanks for calling ${business.trim()}. This is ${assistant.trim()}. How can I help?`,
+export const greetingFor = (business: string, assistant: string, language: string | null = 'en') => {
+  const lang = voiceLanguageOf(language)
+  return greetingWithDisclosure(
+    spokenLines(lang).greeting(business.trim(), assistant.trim(), false),
     assistant.trim(),
     DEFAULT_AI_DISCLOSURE,
+    lang,
   )
+}
 
 // --- Actions --------------------------------------------------------------------------------
 
