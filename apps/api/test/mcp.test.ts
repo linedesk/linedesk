@@ -278,7 +278,7 @@ describe('caller text and destructive tools', () => {
 
     const adminKey = await createKey(ws.owner, 'admin')
     const { body } = await mcp(adminKey, 'tools/list')
-    const tools = body.result.tools as { name: string; annotations: Record<string, boolean> }[]
+    const tools = body.result.tools as { name: string; annotations: Record<string, boolean | string> }[]
     for (const name of destructive)
       expect(tools.find(t => t.name === name)?.annotations).toMatchObject({
         readOnlyHint: false,
@@ -289,6 +289,8 @@ describe('caller text and destructive tools', () => {
       destructiveHint: false,
     })
     expect(tools.find(t => t.name === 'calendar_findSlots')?.annotations).toMatchObject({ readOnlyHint: true })
+    // The Claude directory flags a tool without annotations.title.
+    for (const tool of tools) expect(tool.annotations, tool.name).toHaveProperty('title')
   })
 
   test('a member key cannot run a destructive tool by name', async () => {

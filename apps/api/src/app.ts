@@ -593,8 +593,16 @@ app.use(
   '/mcp',
   bodyLimit({ maxSize: MCP_MAX_BODY_BYTES, onError: c => c.json({ ok: false, error: 'request too large' }, 413) }),
 )
-// A personal key's api_get tool reads the API as the key, through the same routes and checks (key-reads.ts).
-app.all('/mcp', c => serveMcp(c.req.raw, clientIpOf(c), async (path, headers) => app.request(path, { headers }, c.env)))
+// A personal key's api_get tool reads the API as the key, through the same routes and checks (key-reads.ts). The read
+// carries the Host of the MCP request (a main host: /mcp is main-host only), so the host check resolves it as the outer
+// request; without one it refused the read with unknown_host once the install has a partner address.
+app.all('/mcp', c =>
+  serveMcp(c.req.raw, clientIpOf(c), async (path, headers) => {
+    const host = c.req.header('host')
+    if (host) headers.set('host', host)
+    return app.request(path, { headers }, c.env)
+  }),
+)
 // Setup MCP for an AI agent setting up the install: setup keys only, in the path or as Bearer (setup-mcp.ts).
 const setupMcpLimit = bodyLimit({
   maxSize: MCP_MAX_BODY_BYTES,

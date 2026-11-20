@@ -302,15 +302,31 @@ describe('the flow', () => {
     expect(row).toMatchObject({ name: 'Claude', revoked_at: null })
   })
 
-  test('an OAuth key gets the small tool set: reads, public actions and assistant settings; no api_get, no billing', async () => {
+  test('an OAuth key gets the small tool set: reads, public actions, assistant settings and records; no api_get, no billing', async () => {
     const { key } = await connect(ws.owner)
     const names = (await mcp(key)).body.result.tools.map((t: { name: string }) => t.name) as string[]
     expect(names).toEqual(expect.arrayContaining(['calls_list', 'calls_get', 'contacts_search', 'workspaces_list']))
     expect(names).toEqual(
-      expect.arrayContaining(['call_markDone', 'contact_update', 'appointment_book', 'assistant_update']),
+      expect.arrayContaining([
+        'call_markDone',
+        'contact_update',
+        'appointment_book',
+        'assistant_update',
+        'records_list',
+      ]),
     )
     expect(names).not.toContain('api_get')
     expect(names.filter(n => /^(billing|partner|team|apiKey|personalKey|membership|workspace)_/.test(n))).toEqual([])
+  })
+
+  test('an OAuth key reads bookings with records_list, never webhook URLs', async () => {
+    const { key } = await connect(ws.owner)
+    const call = async (table: string) =>
+      (await mcp(key, 'tools/call', { name: 'records_list', arguments: { table } })).body.result
+    expect((await call('bookings')).isError).toBeFalsy()
+    const webhooks = await call('webhook_endpoints')
+    expect(webhooks.isError).toBe(true)
+    expect(JSON.stringify(webhooks)).toContain('over OAuth only')
   })
 
   test('the token endpoint takes JSON too, and a loopback redirect on another port', async () => {

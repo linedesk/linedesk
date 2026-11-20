@@ -27,11 +27,26 @@ function rowFilter(table: TableName, actor: Actor & { workspaceId: string }): SQ
 /** Tables whose rows belong to one call: `callId` narrows them. */
 const PER_CALL: ReadonlySet<TableName> = new Set(['transcript_segments', 'call_events', 'bookings'])
 
+/**
+ * What a key from OAuth sign-in (a connector directory's AI client) may read: the bookings and what the booking tools
+ * take (appointment types, the assistant's calendars). Calls and contacts it reads with their own tools; webhook URLs
+ * (they can carry a token) and the rest stay with the app and keys made there (security review, LIN-126).
+ */
+export const OAUTH_RECORD_TABLES: ReadonlySet<TableName> = new Set([
+  'bookings',
+  'appointment_types',
+  'assistant_calendars',
+  'calendar_connections',
+  'assistants',
+])
+
 type Input = { table: TableName; id?: string; callId?: string; after?: string; limit: number }
 
 export const recordHandlers: Record<string, Handler> = {
   'records.list': async ({ tx, actor }, input: Input) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
+    if (actor.oauthKey && !OAUTH_RECORD_TABLES.has(input.table))
+      throw new Reject(`over OAuth only ${[...OAUTH_RECORD_TABLES].join(', ')}`)
     if (input.callId && !PER_CALL.has(input.table)) throw new Reject(`callId only narrows ${[...PER_CALL].join(', ')}`)
     const t = syncedTables[input.table] as unknown as Record<string, never>
     const limit = Math.min(input.limit, RECORDS_MAX_LIMIT)
