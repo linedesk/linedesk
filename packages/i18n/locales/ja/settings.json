@@ -546,7 +546,6 @@
   "calendar.whenDialog.type": "{provider}のイベントタイプ、{duration}。長さとルールは{provider}で設定します。",
   "calendar.where.description": "予約は、「いつ」が合うカレンダーに入ります。合うものがなければデフォルトに入ります。",
   "calendar.where.noSource": "Cal.comとCalendlyのイベントタイプは、それぞれのカレンダーに予約されます。自分の種類を使うには、カレンダーアカウントでGoogle、Microsoft、iCloudを接続してください。",
-  "calendar.where.title": "{name}の予約先",
   "calendar.where.toolNote": "{tool}が{name}の予約可能な時間を決め、予約を自身のカレンダーに入れます。",
   "calendar.withdrawnMark": "アクセス権が取り消されました：再接続してください",
   "carrier.choice.default": "もっとも簡単で、設定は不要です。番号は、このサーバーの運用者が設定した通信事業者から提供されます。",

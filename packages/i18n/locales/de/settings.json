@@ -546,7 +546,6 @@
   "calendar.whenDialog.type": "{provider}-Ereignistyp, {duration}. Dauer und Regeln stellst du in {provider} ein.",
   "calendar.where.description": "Eine Buchung kommt in den Kalender, dessen „Wann“ passt, sonst in den Standardkalender.",
   "calendar.where.noSource": "Cal.com- und Calendly-Ereignistypen buchen in ihren eigenen Kalender. Verbinde Google, Microsoft oder iCloud unter Kalenderkonten für deine eigenen Arten.",
-  "calendar.where.title": "Wohin {name} sie legt",
   "calendar.where.toolNote": "{tool} entscheidet, wann {name} buchen kann, und legt die Buchungen in seinen eigenen Kalendern ab.",
   "calendar.withdrawnMark": "Zugriff entzogen: erneut verbinden",
   "carrier.choice.default": "Am einfachsten, nichts einzurichten. Die Nummern kommen vom Anbieter, den der Betreiber dieses Servers eingerichtet hat.",

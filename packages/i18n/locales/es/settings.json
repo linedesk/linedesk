@@ -546,7 +546,6 @@
   "calendar.whenDialog.type": "Tipo de evento de {provider}, {duration}. Su duración y sus reglas se definen en {provider}.",
   "calendar.where.description": "Una reserva va al calendario cuyo “cuándo” encaje; si no, al predeterminado.",
   "calendar.where.noSource": "Los tipos de evento de Cal.com y Calendly reservan en su propio calendario. Conecta Google, Microsoft o iCloud en Cuentas de calendario para tener tipos propios.",
-  "calendar.where.title": "Dónde las pone {name}",
   "calendar.where.toolNote": "{tool} decide cuándo puede reservar {name} y pone las reservas en sus propios calendarios.",
   "calendar.withdrawnMark": "Acceso retirado: vuelve a conectar",
   "carrier.choice.default": "Lo más sencillo, nada que configurar. Los números vienen del operador que configuró quien administra este servidor.",

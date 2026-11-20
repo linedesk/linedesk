@@ -1,8 +1,8 @@
 // Settings › Assistant › Booking & calendar. Each setting has one place: a summary in plain words on top; "How the
 // assistant books" (shown once a Cal.com or Calendly account is connected): with its own calendars, or with the event
-// types of one scheduling tool account, never both (LIN-355; the server refuses a mix); then 1 "What callers can book"
-// (the workspace's own appointment types, or that account's event types, unused ones switched off), 2 "Where the
-// assistant puts them" (own calendars only: on or off, a note on when to use each, one default; "Choose calendars"
+// types of one scheduling tool account, never both (LIN-355; the server refuses a mix); then 1 "Appointment types"
+// (the workspace's own appointment types, or that account's event types, unused ones switched off), 2 "Activated
+// calendars" (own calendars only: on or off, a note on when to use each, one default; "Choose calendars"
 // opens one account's picker; a tool puts bookings in its own calendars), and the calendar accounts folded away at the
 // bottom (add, connect again, disconnect). Changes apply at once (not
 // part of the page's Save): connecting leaves the page for the provider's consent screen anyway (or checks a key in
@@ -681,7 +681,7 @@ function StepWhere({
     <StepCard
       id="as-cal-calendars"
       step={2}
-      title={t('settings.calendar.where.title', { name })}
+      title={t('settings.calendar.where.activeTitle')}
       description={t('settings.calendar.where.description')}
       help={`${t('settings.calendar.calendarsHelp', { name })} ${t('settings.calendar.maxWait', { name, seconds: TOOL_MAX_WAIT_MS / 1000 })}`}
       actions={

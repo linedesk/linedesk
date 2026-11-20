@@ -546,7 +546,6 @@
   "calendar.whenDialog.type": "Tipo de evento do {provider}, {duration}. A duração e as regras são definidas no {provider}.",
   "calendar.where.description": "Um agendamento vai para a agenda cujo “quando” combina; se nenhuma combinar, vai para a padrão.",
   "calendar.where.noSource": "Os tipos de evento do Cal.com e do Calendly agendam na própria agenda deles. Conecte Google, Microsoft ou iCloud em Contas de agenda para ter seus próprios tipos.",
-  "calendar.where.title": "Onde {name} coloca os agendamentos",
   "calendar.where.toolNote": "{tool} decide quando {name} pode agendar e coloca os agendamentos nas próprias agendas.",
   "calendar.withdrawnMark": "Acesso retirado: conecte de novo",
   "carrier.choice.default": "O mais simples, nada para configurar. Os números vêm da operadora configurada por quem administra este servidor.",

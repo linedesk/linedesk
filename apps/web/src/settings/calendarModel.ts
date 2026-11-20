@@ -277,7 +277,7 @@ export function pickChanges(
 }
 
 /**
- * A scheduling tool's event types under "What callers can book": all the tool lists (in its order), each with the assistant
+ * A scheduling tool's event types under "Appointment types": all the tool lists (in its order), each with the assistant
  * calendar when one was added; added ones the tool no longer lists (or before the list loads) at the end.
  */
 export function toolTypeRows<T extends { id: string }>(

@@ -546,7 +546,6 @@
   "calendar.whenDialog.type": "Type d'événement {provider}, {duration}. Sa durée et ses règles se définissent dans {provider}.",
   "calendar.where.description": "Une réservation va dans l'agenda dont le « quand » correspond, sinon dans celui par défaut.",
   "calendar.where.noSource": "Les types d'événement Cal.com et Calendly réservent dans leur propre agenda. Connectez Google, Microsoft ou iCloud sous Comptes d'agenda pour vos propres types.",
-  "calendar.where.title": "Où {name} les place",
   "calendar.where.toolNote": "{tool} décide quand {name} peut réserver et place les réservations dans ses propres agendas.",
   "calendar.withdrawnMark": "Accès retiré : reconnectez",
   "carrier.choice.default": "Le plus simple, rien à configurer. Les numéros viennent de l'opérateur choisi par la personne qui gère ce serveur.",
