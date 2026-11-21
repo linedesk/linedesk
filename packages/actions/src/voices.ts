@@ -131,7 +131,8 @@ const native = (code: string, id: string, name: string, gender = 'female'): Lang
  * recorded in it (its own language, not an English voice verified in it): from ElevenLabs' Voice Library list as the
  * voice catalog reads it (conversational, by use over a year, standard rate, no live moderation; voice-provider.ts),
  * the first female voice made for calls (a support, assistant or conversational voice), else the first female one, else
- * the first; read on 2026-11-19. Fixed here so the default is the same on every call and every install, and the agent
+ * the first; read on 2026-11-19. Vietnamese: the next one, Thanh Ngọc; Huyen speaks at about 70 % of the pace of the
+ * other Vietnamese voices (LIN-714). Fixed here so the default is the same on every call and every install, and the agent
  * needs no list. Library voices need a paid ElevenLabs plan: the agent keeps the provider's default voice as the
  * backup (pipeline.ts). Cartesia: none yet (no key to read its list); its default voice speaks the language.
  * English, and a language without an entry: providerDefaultVoices.
@@ -151,7 +152,8 @@ export const languageDefaultVoices: Record<string, Readonly<Partial<Record<Langu
     ko: native('ko', 'sf8Bpb1IU97NI9BHSMRf', 'Rosa'),
     pl: native('pl', '8EWWaNTDrqObI22Gvo1q', 'Aleksandra'),
     tr: native('tr', 'aEJD8mYP0nuof1XHShVY', 'Gözde'),
-    vi: native('vi', 'foH7s9fX31wFFH2yqrFa', 'Huyen'),
+    // i18n-ignore: the voice's name at ElevenLabs, not text to translate
+    vi: native('vi', 'Na15FlRRkMEDtEW4nVVP', 'Thanh Ngọc'),
     id: native('id', 'TrU3igk19A4aIUi2GAA2', 'Velora'),
     sv: native('sv', '4xkUqaR9MYOJHoaC1Nak', 'Sanna'),
     ar: native('ar', 'L10lEremDiJfPicq5CPh', 'Yasmine'),
