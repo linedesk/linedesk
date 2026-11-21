@@ -173,7 +173,8 @@ const gidNumber = (gid: string) => gid.split('/').at(-1) ?? gid
 
 const STATUS_QUERY: Record<string, string> = {
   open: 'status:open',
-  unshipped: 'fulfillment_status:unshipped',
+  // A cancelled order counts as unshipped at Shopify; the caller means one still on its way.
+  unshipped: 'fulfillment_status:unshipped AND -status:cancelled',
   shipped: 'fulfillment_status:shipped',
   cancelled: 'status:cancelled',
 }
@@ -187,29 +188,91 @@ type OrderSearch = {
   status?: string
 }
 
-/** The orders matching what the caller said, newest first. A postcode narrows the others down; alone it finds none. */
+/**
+ * A phone number as the caller said it, in the form the store keeps (E.164): "(503) 555-0118" and "503-555-0118" find
+ * nothing at Shopify, "+15035550118" does. Ten digits are a North American number while the caller's own number is
+ * one too (or unknown); anything else is passed on as said.
+ */
+export function phoneForSearch(spoken: string, callerNumber?: string | null): string | null {
+  const said = spoken.trim()
+  const digits = said.replace(/\D/g, '')
+  if (!digits) return null
+  if (said.startsWith('+')) return `+${digits}`
+  if (digits.startsWith('00')) return `+${digits.slice(2)}`
+  const northAmerican = !callerNumber || callerNumber.startsWith('+1')
+  if (northAmerican && digits.length === 10) return `+1${digits}`
+  if (northAmerican && digits.length === 11 && digits.startsWith('1')) return `+${digits}`
+  return digits
+}
+
+/**
+ * The searches for a name, most exact first: every word (each quoted: as one phrase "Pat Guest" finds nothing at
+ * Shopify), then the family name alone ("Michael Brennan" for Mike Brennan's orders), then its first four letters
+ * ("Brenan" as speech recognition heard Brennan). Reads need no check, so a near match is fine: the assistant asks
+ * which order the caller means.
+ */
+export function nameQueries(name: string): string[] {
+  const words = name.split(/\s+/).filter(Boolean)
+  if (words.length === 0) return []
+  const queries = [words.map(quoteTerm).join(' AND ')]
+  const family = words.at(-1)!
+  if (words.length > 1) queries.push(quoteTerm(family))
+  const stem = plain(family)
+    .join('')
+    .replace(/[^a-z]/g, '')
+  if (stem.length >= 5) queries.push(`${stem.slice(0, 4)}*`)
+  return [...new Set(queries)]
+}
+
+/** At most this many searches at the store for one lookup. */
+const SEARCHES_PER_LOOKUP = 6
+
+/**
+ * The orders matching what the caller said, newest first. Everything they said together first; when that finds
+ * nothing, each detail alone (order number, email, phone, name, in that order), so one detail the speech recognition
+ * got wrong does not hide the order. A postcode narrows the others down; alone it finds none.
+ */
 export async function searchOrders(
   store: ShopifyStore,
   token: TokenSource,
   search: OrderSearch,
+  callerNumber?: string | null,
 ): Promise<ShopifyOrder[] | null> {
-  const terms: string[] = []
+  // Each detail the caller gave, with its searches, most exact first.
+  const details: string[][] = []
   const digits = search.orderNumber ? orderDigits(search.orderNumber) : null
-  if (digits) terms.push(`(name:${quoteTerm(`#${digits}`)} OR name:${quoteTerm(digits)})`)
-  if (search.email) terms.push(`email:${quoteTerm(search.email)}`)
-  if (search.name) terms.push(quoteTerm(search.name))
-  if (search.phone) {
+  if (digits) details.push([`(name:${quoteTerm(`#${digits}`)} OR name:${quoteTerm(digits)})`])
+  if (search.email?.trim()) details.push([`email:${quoteTerm(search.email.trim())}`])
+  const phone = search.phone ? phoneForSearch(search.phone, callerNumber) : null
+  let phoneKnown = false
+  if (phone) {
     // An order keeps the customer's number on the customer: find them by it, then their orders.
-    const customers = await store.findCustomers(token, `phone:${quoteTerm(search.phone)}`, 3)
-    if (customers.length === 0 && terms.length === 0) return []
-    if (customers.length) terms.push(`(${customers.map(c => `customer_id:${gidNumber(c.id)}`).join(' OR ')})`)
+    const customers = await store.findCustomers(token, `phone:${quoteTerm(phone)}`, 3)
+    if (customers.length) {
+      phoneKnown = true
+      details.push([`(${customers.map(c => `customer_id:${gidNumber(c.id)}`).join(' OR ')})`])
+    }
   }
-  if (terms.length === 0) return null
+  if (search.name?.trim()) details.push(nameQueries(search.name.trim()))
+  if (details.length === 0) return phone && !phoneKnown ? [] : null
   const status = search.status && search.status !== 'any' ? STATUS_QUERY[search.status] : undefined
-  const query = [...terms, status].filter(Boolean).join(' AND ')
-  const found = await store.findOrders(token, query, search.postcode ? 20 : ORDERS_SHOWN)
-  const narrowed = search.postcode ? found.filter(o => samePostcode(o.shippingAddress?.zip, search.postcode)) : found
-  return narrowed.slice(0, ORDERS_SHOWN)
+  const first = search.postcode ? 20 : ORDERS_SHOWN
+  const tried = new Set<string>()
+  const run = async (terms: string[]) => {
+    const query = [...terms, status].filter(Boolean).join(' AND ')
+    if (tried.has(query) || tried.size >= SEARCHES_PER_LOOKUP) return []
+    tried.add(query)
+    const found = await store.findOrders(token, query, first)
+    return search.postcode ? found.filter(o => samePostcode(o.shippingAddress?.zip, search.postcode)) : found
+  }
+  const together = await run(details.map(d => d[0]!))
+  if (together.length) return together.slice(0, ORDERS_SHOWN)
+  for (const searches of details)
+    for (const query of searches) {
+      const found = await run([query])
+      if (found.length) return found.slice(0, ORDERS_SHOWN)
+    }
+  return []
 }
 
 // --- Policies, kept for a while per store -----------------------------------------------------
@@ -289,6 +352,22 @@ async function withStore<T>(
   return run({ call, connection, token, store: storeOf(ctx) })
 }
 
+/**
+ * What to search for a product the caller named, in turn until one finds something: what they said, then with the
+ * last words left out ("Complete Snowboard Powder" finds nothing: the color is a variant, not in the title). At most
+ * three searches, never a single word shorter than three letters.
+ */
+export function productQueries(query: string): string[] {
+  const words = query.trim().split(/\s+/).filter(Boolean)
+  const queries: string[] = []
+  for (let n = words.length; n >= 1 && queries.length < 3; n--) {
+    const candidate = words.slice(0, n).join(' ')
+    if (n === 1 && candidate.length < 3) break
+    queries.push(candidate)
+  }
+  return queries.length ? queries : [query.trim()]
+}
+
 const failed = (what: string, e: unknown) => console.warn(`shopify ${what}: ${errorMessage(e)}`)
 
 export const shopifyCallHandlers: Record<string, Handler> = {
@@ -328,7 +407,7 @@ export const shopifyCallHandlers: Record<string, Handler> = {
     const result = await withStore(ctx, input, async ({ call, token, store }): Promise<ShopifyFindOrdersData> => {
       const phone = input.phone ?? (input.callerNumber && call.from_number ? call.from_number : undefined)
       try {
-        const orders = await searchOrders(store, token, { ...input, phone })
+        const orders = await searchOrders(store, token, { ...input, phone }, call.from_number)
         if (orders === null) return { orders: [], problem: 'nothing' }
         return { orders: orders.map(orderView), problem: null }
       } catch (e) {
@@ -342,7 +421,11 @@ export const shopifyCallHandlers: Record<string, Handler> = {
   'shopify.findProducts': async (ctx, input: { callId: string; query: string }) => {
     const result = await withStore(ctx, input, async ({ token, store }): Promise<ShopifyFindProductsData> => {
       try {
-        const products = await store.findProducts(token, input.query)
+        let products: Awaited<ReturnType<ShopifyStore['findProducts']>> = []
+        for (const query of productQueries(input.query)) {
+          products = await store.findProducts(token, query)
+          if (products.length) break
+        }
         return {
           products: products.map(p => ({
             title: p.title,
