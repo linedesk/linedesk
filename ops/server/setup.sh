@@ -11,13 +11,14 @@
 #            --ufw               ufw on: only SSH reaches host services (Docker's published ports are not affected)
 #            --monitor <host> [--monitor-sip <host>]   check another install every 2 minutes from this server
 #            --push-url <https URL>   with --monitor (or on a voice server): also a phone push (ntfy topic URL) when a check goes down or up
+#            --capacity-push <user@host>   send the capacity samples (linedesk-capacity) there over SSH every 5 minutes
 # A server with a voice link (the app server with docker-compose.voice-link.yml, voice server 1 with
 # docker-compose.voice-media.yml) also gets the voice-link firewall (only the addresses in /etc/linedesk/voice-nodes.txt);
 # a voice server (an agent and no API) the agent check.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 app_dir=${LINEDESK_APP_DIR:-$(cd "$here/../.." && pwd)}
-dry=0 cloudflare=0 harden_ssh=0 ufw=0 alert_to='' label='' monitor='' monitor_sip='' push_url=''
+dry=0 cloudflare=0 harden_ssh=0 ufw=0 alert_to='' label='' monitor='' monitor_sip='' push_url='' capacity_push=''
 while [ $# -gt 0 ]; do
   case $1 in
     --dry-run) dry=1 ;;
@@ -29,7 +30,8 @@ while [ $# -gt 0 ]; do
     --monitor) monitor=${2:?--monitor needs a host}; shift ;;
     --monitor-sip) monitor_sip=${2:?--monitor-sip needs a host}; shift ;;
     --push-url) push_url=${2:?--push-url needs a URL}; shift ;;
-    *) sed -n '2,15p' "$0" >&2; exit 2 ;;
+    --capacity-push) capacity_push=${2:?--capacity-push needs user@host}; shift ;;
+    *) sed -n '2,16p' "$0" >&2; exit 2 ;;
   esac
   shift
 done
@@ -65,6 +67,7 @@ label=${label:-$(current LINEDESK_ALERT_LABEL)}
 monitor=${monitor:-$(current LINEDESK_MONITOR_HOST)}
 monitor_sip=${monitor_sip:-$(current LINEDESK_MONITOR_SIP_HOST)}
 push_url=${push_url:-$(current LINEDESK_PUSH_URL)}
+capacity_push=${capacity_push:-$(current LINEDESK_CAPACITY_PUSH)}
 label=${label:-$(hostname)}
 # ops.env is sourced by scripts that run as root: only plain values go in.
 valid() { printf '%s\n' "$2" | grep -Eq "$3" || { echo "not a valid $1: $2" >&2; exit 1; }; }
@@ -74,6 +77,7 @@ valid "app folder" "$app_dir" '^/[A-Za-z0-9._/-]+$'
 [ -z "$monitor" ] || valid "host name" "$monitor" '^[A-Za-z0-9.-]+$'
 [ -z "$monitor_sip" ] || valid "host name" "$monitor_sip" '^[A-Za-z0-9.-]+$'
 [ -z "$push_url" ] || valid "push URL" "$push_url" '^https://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9._/-]+$'
+[ -z "$capacity_push" ] || valid "user@host" "$capacity_push" '^[a-z_][a-z0-9_-]*@[A-Za-z0-9.-]+$'
 {
   echo "# Settings for the scripts from ops/server (setup.sh writes this file; edit it and run setup.sh again)."
   echo "LINEDESK_APP_DIR=$app_dir"
@@ -82,6 +86,7 @@ valid "app folder" "$app_dir" '^/[A-Za-z0-9._/-]+$'
   [ -z "$monitor" ] || echo "LINEDESK_MONITOR_HOST=$monitor"
   [ -z "$monitor_sip" ] || echo "LINEDESK_MONITOR_SIP_HOST=$monitor_sip"
   [ -z "$push_url" ] || echo "LINEDESK_PUSH_URL=$push_url"
+  [ -z "$capacity_push" ] || echo "LINEDESK_CAPACITY_PUSH=$capacity_push"
 } > "$tmp/ops.env"
 put "$tmp/ops.env" "$ops_env" 644
 
@@ -112,7 +117,7 @@ if [ -e /etc/systemd/system/linedesk-backup.service.d/alert.conf ]; then
 fi
 
 # What runs: always the alerts, disk and memory and the SIP firewall; the backups once backup.env is set up.
-units='linedesk-resources.timer linedesk-sip-firewall.service'
+units='linedesk-resources.timer linedesk-capacity.timer linedesk-sip-firewall.service'
 if [ -f "$app_dir/backup.env" ]; then
   units="$units linedesk-backup.timer linedesk-backup-check.timer linedesk-restore-test.timer"
 else
@@ -218,6 +223,14 @@ if [ "$ufw" = 1 ]; then
   fi
 fi
 
+# The capacity samples' own key: it can only hand samples to the receiver (a forced command there), nothing else.
+capacity_key=/root/.ssh/linedesk_capacity_push
+if [ -n "$capacity_push" ] && [ ! -f "$capacity_key" ]; then
+  changed=1
+  run install -d -m 700 /root/.ssh
+  run ssh-keygen -q -t ed25519 -N '' -C "linedesk-capacity@$label" -f "$capacity_key"
+fi
+
 if [ "$dry" = 1 ]; then
   say "units that would be on: $units${voice_link_unit:+ $voice_link_unit}${voice_link_wg:+ $voice_link_wg}"
   [ "$changed" = 1 ] || say "nothing to change"
@@ -253,4 +266,5 @@ if [ -n "$voice_link_unit" ]; then
   fi
 fi
 say "on: $units"
+[ -z "$capacity_push" ] || say "capacity samples go to $capacity_push with this key (its line there: restrict,from=\"<this server's address>\",command=\"<receiver> <name>\"): $(cat "$capacity_key.pub")"
 say "test the alert email: /usr/local/sbin/linedesk-alert-text 'Test' 'Alerts from $(hostname) work.'"

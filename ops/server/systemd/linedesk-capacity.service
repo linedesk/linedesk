@@ -1,0 +1,8 @@
+[Unit]
+Description=Linedesk: calls at once, CPU, memory and calls lost for capacity (linedesk-capacity)
+OnFailure=linedesk-alert@%n.service
+[Service]
+Type=oneshot
+StateDirectory=linedesk-capacity
+StateDirectoryMode=0700
+ExecStart=/usr/local/sbin/linedesk-capacity
