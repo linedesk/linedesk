@@ -134,7 +134,7 @@ These rules are not saved across reboots (use `iptables-persistent` or your own 
 
 Every service has a hard memory limit, a CPU limit, a restart policy and rotated logs (3 files of 10 MB), so the stack cannot take more than its share of a machine it does not own. In all: 2.2 GB of memory and at most 1.5 CPUs.
 
-CPU is split in two. The call-audio services (LiveKit, the SIP bridge, the agent and egress) share one pinned core, `LINEDESK_VOICE_CPUSET` (default: core `1`, the second core; set `0` on a machine with one core). A CPU quota made the agent stall audio even when idle, a pinned core does not. The other services have quotas that add up to half a core.
+CPU is split in two. The call-audio services (LiveKit, the SIP bridge, the agent and egress) share one pinned core, `LINEDESK_VOICE_CPUSET` (default: core `1`, the second core; set `0` on a machine with one core). A CPU quota made the agent stall audio even when idle, a pinned core does not. After a resize to fewer cores, set `LINEDESK_VOICE_CPUSET` to cores the machine has and run `scripts/deploy.sh --no-build`: a container created for a core that is gone cannot start (it stays down after the reboot), and the deploy creates it again; a cpuset naming missing cores stops the deploy with a message. The other services have quotas that add up to half a core.
 
 | Service | Memory limit | CPU | Measured at rest |
 | --- | --- | --- | --- |

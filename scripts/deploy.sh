@@ -486,6 +486,7 @@ fi
 # here, under set -e, instead of being taken for a voice server below.
 stack_services=$(docker compose config --services)
 
+
 # The voice link publishes this server's part for the other servers on a private address: on the app server
 # (docker-compose.voice-link.yml) the API's internal listener, on voice server 1 (docker-compose.voice-media.yml)
 # LiveKit. Never start or recreate it unless that address is a private IPv4 address of this server on a WireGuard
@@ -512,6 +513,41 @@ if grep -qx voice-link <<<"$stack_services"; then
   else
     log "not Linux: the voice link's address and firewall are not checked (a server runs Linux)"
   fi
+fi
+
+# Cores (LINEDESK_VOICE_CPUSET, a voice server's cores): every cpuset of this configuration must name cores this machine
+# has. After a resize to fewer cores the old setting would make compose refuse to start the containers. And a container
+# created with a cpuset naming a core that is gone cannot start at all: it stays down after the reboot, also when .env
+# was fixed (LIN-413). Such containers are removed here, and the steps below create them again like any missing
+# container. They are not running, so no call is cut off; a running container is never touched, and only services of
+# this configuration count (never an old container of a profile that is off, e.g. the call services on an app server).
+cpus_of() { tr ',' '\n' <<<"$1" | awk -F- 'NF == 1 && $1 != "" { print $1 } NF == 2 { for (i = $1; i <= $2; i++) print i }'; }
+cores=''
+if [ -r /sys/devices/system/cpu/online ]; then
+  cores=$(cpus_of "$(cat /sys/devices/system/cpu/online)")
+else # macOS: Docker Desktop's VM, cores 0 to NCPU-1
+  ncpu=$(docker info -f '{{.NCPU}}' 2>/dev/null || true)
+  [[ "$ncpu" =~ ^[1-9][0-9]*$ ]] && cores=$(seq 0 $((ncpu - 1)))
+fi
+cpuset_fits() { # <cpuset>: every core it names is one this machine has
+  local core
+  for core in $(cpus_of "$1"); do grep -qx "$core" <<<"$cores" || return 1; done
+}
+if [ -n "$cores" ]; then
+  for cpuset in $(docker compose config 2>/dev/null | sed -n 's/^ *cpuset: *"\{0,1\}\([0-9,-]*\)"\{0,1\} *$/\1/p' | sort -u); do
+    cpuset_fits "$cpuset" || {
+      log "a cpuset of this configuration is $cpuset, but this machine's cores are $(tr '\n' ' ' <<<"$cores"): set LINEDESK_VOICE_CPUSET in .env to cores it has (docs/self-hosting.md, \"Memory and CPU\"). Not deploying; the running version keeps serving." >&2
+      exit 1
+    }
+  done
+  while read -r service container; do
+    [ -n "$container" ] && grep -qx "$service" <<<"$stack_services" || continue
+    state=$(docker inspect -f '{{.State.Running}} {{.HostConfig.CpusetCpus}}' "$container" 2>/dev/null) || continue
+    [ "${state%% *}" = false ] && [ -n "${state#* }" ] || continue
+    cpuset_fits "${state#* }" && continue
+    log "$service: container ${container:0:12} was created for cores this machine no longer has (${state#* }), so it cannot start; removing it, the deploy creates it again"
+    docker rm "$container" >/dev/null
+  done < <(docker compose ps -a --format '{{.Service}} {{.ID}}' 2>/dev/null)
 fi
 
 # A voice server (no API). Voice servers 2+ (docker-compose.voice.yml): only the agent worker, replaced start-first like
