@@ -35,7 +35,7 @@ test('a message tag renders the link around its own words, the sentence stays on
     <T k="account.notify.ownLink" values={{ link: appLink('#account/notifications') }} />,
   )
   expect(html).toContain(
-    'Your own notifications: <a class="k-link" href="#account/notifications">Account settings › Notifications</a>',
+    'Your own notifications: <a class="k-link" href="#account/notifications">User settings › Notifications</a>',
   )
 })
 

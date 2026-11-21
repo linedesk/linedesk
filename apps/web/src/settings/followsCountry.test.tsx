@@ -12,7 +12,12 @@ vi.mock('./settings-api.ts', () => ({
   callAction: vi.fn(),
   useWriteAction: () => vi.fn(),
 }))
-vi.mock('../store.tsx', () => ({ useRun: () => vi.fn(), useRows: () => [], useAssistant: () => null }))
+let calendars: { id: string }[] = [{ id: 'cal_1' }]
+vi.mock('../store.tsx', () => ({
+  useRun: () => vi.fn(),
+  useRows: (table: string) => (table === 'calendar_connections' ? calendars : []),
+  useAssistant: () => null,
+}))
 vi.mock('../shell/WorkspaceSwitcher.tsx', () => ({ useWorkspaces: () => [] }))
 
 const { WorkspaceGeneral } = await import('./WorkspaceGeneral.tsx')
@@ -71,4 +76,13 @@ test("the mark goes on the country's option only, and only once the country's va
   ]
   expect(countryDefaultOptions(options, 'USD', t).map(o => o.label)).toEqual(['USD · $ (country default)', 'EUR · €'])
   expect(countryDefaultOptions(options, null, t).map(o => o.label)).toEqual(['USD · $', 'EUR · €'])
+})
+
+test('no calendar and no booking yet: no appointment value', () => {
+  calendars = []
+  try {
+    expect(render({ jobValueCurrency: 'USD' })).not.toContain('ws-appointment-value')
+  } finally {
+    calendars = [{ id: 'cal_1' }]
+  }
 })

@@ -8,6 +8,7 @@ import { useRun } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
 import { AppointmentValue } from './AppointmentValue.tsx'
+import { useAppointmentsInUse } from './appointmentsInUse.ts'
 import { TimeZoneSelect } from './BusinessHours.tsx'
 import { Field, FollowsLine, ReadOnlyNote, Section } from './fields.tsx'
 import { rejectionText } from '../shell/rejections.ts'
@@ -43,6 +44,7 @@ type Props = {
  */
 export function WorkspaceGeneral({ canEdit, name, onRenamed, toast }: Props) {
   const t = useT()
+  const appointments = useAppointmentsInUse()
   return (
     <Section id="ws-general" title={t('settings.workspace.nav.general.label')}>
       {/* Members: why nothing here can change, once at the top, not under every field. */}
@@ -53,7 +55,8 @@ export function WorkspaceGeneral({ canEdit, name, onRenamed, toast }: Props) {
       <Kind canEdit={canEdit} />
       <Country canEdit={canEdit} />
       <TimeZone canEdit={canEdit} />
-      <Value canEdit={canEdit} toast={toast} />
+      {/* No calendar and no booking yet: nothing to multiply the appointment value by. */}
+      {appointments && <Value canEdit={canEdit} toast={toast} />}
     </Section>
   )
 }

@@ -67,6 +67,7 @@ import { memberLabel, useAssignableMembers } from './team/members.ts'
 import { preloadTeam } from './team/team-api.ts'
 import { takeDeleted } from './session.ts'
 import { useAssistantName, useRejection, useRun, useWorkspaceState } from './store.tsx'
+import { useAppointmentsInUse } from './settings/appointmentsInUse.ts'
 import type { SelectVia } from './ui/CommandMenu.tsx'
 import { ErrorBoundary } from './ui/ErrorBoundary.tsx'
 import { useBrand } from './brand.ts'
@@ -160,6 +161,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   const { list, tab, search, openCall, target } = view
   // An instance admin who must sign in again counts (auth.ts): the admin area asks them to sign in first.
   const instanceAdmin = isInstanceAdmin(me)
+  const appointmentsInUse = useAppointmentsInUse()
   // Error texts built without `me` (refusals, toasts) send admins to Server admin › Providers, others to whoever runs it.
   setProviderAudience(instanceAdmin ? 'admin' : 'member')
   // First-use tour (FIRST_USE): queued when onboarding ends in this browser, started once the inbox shows a
@@ -511,6 +513,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
     goPage,
     isInstanceAdmin: instanceAdmin,
     isOwner: me.role === 'owner',
+    appointmentsInUse,
     openSearch,
     signOut: () => void signOut(),
     openHelp: () => setOverlay('help'),

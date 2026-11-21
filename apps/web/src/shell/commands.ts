@@ -53,6 +53,8 @@ export type CommandContext = {
   isInstanceAdmin: boolean
   /** The workspace's owner, who cannot leave it (only hand it over or delete it): no "Leave workspace…" then. */
   isOwner?: boolean
+  /** A calendar is added or an appointment was booked: only then is the appointment value offered. */
+  appointmentsInUse?: boolean
   undo: () => void
   openSearch: () => void
   openHelp: () => void
@@ -391,13 +393,17 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
           searchOnly: true,
           run: () => c.goPage('workspace', 'general'),
         },
-        {
-          label: t('shell.command.appointmentValue'),
-          keywords: 'job value worth money currency insights booked',
-          icon: 'chart',
-          searchOnly: true,
-          run: () => c.goPage('workspace', 'general'),
-        },
+        ...(c.appointmentsInUse
+          ? [
+              {
+                label: t('shell.command.appointmentValue'),
+                keywords: 'job value worth money currency insights booked',
+                icon: 'chart' as const,
+                searchOnly: true,
+                run: () => c.goPage('workspace', 'general'),
+              },
+            ]
+          : []),
         {
           label: t('shell.command.notifications'),
           keywords: 'email push device alerts',

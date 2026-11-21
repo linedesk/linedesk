@@ -68,7 +68,7 @@ describe('⌘K places (LIN-165)', () => {
   })
 
   it('rename, time zone, appointment value, notifications and leave are found by typing, and open their section', () => {
-    const c = context()
+    const c = { ...context(), appointmentsInUse: true }
     const places: [string, ...unknown[]][] = [
       ['Rename workspace', 'workspace', 'general'],
       ['Time zone', 'workspace', 'general'],
@@ -85,6 +85,12 @@ describe('⌘K places (LIN-165)', () => {
     expect(find(c, 'Appointment value').keywords).toContain('job')
   })
 
+  it('offers the appointment value only once a calendar is added or an appointment was booked', () => {
+    const labels = (c: CommandContext) => commandGroups(c).flatMap(g => g.items.map(i => i.label))
+    expect(labels({ ...context(), appointmentsInUse: false })).not.toContain('Appointment value')
+    expect(labels({ ...context(), appointmentsInUse: true })).toContain('Appointment value')
+  })
+
   it('offers "Leave workspace…" to everyone but the owner, who cannot leave (A16)', () => {
     const labels = (c: CommandContext) => commandGroups(c).flatMap(g => g.items.map(i => i.label))
     expect(labels({ ...context(), isOwner: false })).toContain('Leave workspace…')
@@ -93,11 +99,11 @@ describe('⌘K places (LIN-165)', () => {
 
   it('Account is a place like the others, and the old names are gone', () => {
     const c = context()
-    find(c, 'Go to Account settings').run()
+    find(c, 'Go to User settings').run()
     expect(c.goPage).toHaveBeenLastCalledWith('account')
     const labels = commandGroups(c).flatMap(g => g.items.map(i => i.label))
     expect(labels).not.toContain('Go to Settings')
-    expect(labels).not.toContain('Account settings')
+    expect(labels).not.toContain('User settings')
   })
 })
 
@@ -133,7 +139,10 @@ describe('New workspace', () => {
 
 describe('Delete… (A7: delete permanently now)', () => {
   const target = { id: 'c1', status: 'completed', inbox_state: 'open', unread: false, outcome: null } as unknown as Call
-  const labels = (c: CommandContext) => commandGroups(c).flatMap(g => g.items).map(i => i.label)
+  const labels = (c: CommandContext) =>
+    commandGroups(c)
+      .flatMap(g => g.items)
+      .map(i => i.label)
 
   it('is offered to owners and admins (confirmDelete set), next to Delete call', () => {
     const confirmDelete = vi.fn()

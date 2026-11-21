@@ -43,7 +43,7 @@ The recording is in Linedesk.
 
 --
 
-You get one email per call to Brightwater Plumbing & Heating. Change in Account settings › Notifications: https://desk.example.com/#account/notifications?ws=ws_demo
+You get one email per call to Brightwater Plumbing & Heating. Change in User settings › Notifications: https://desk.example.com/#account/notifications?ws=ws_demo
 
 Linedesk · desk.example.com
 ",
@@ -72,7 +72,7 @@ The recording and the transcript are in Linedesk.
 
 --
 
-You get one email per call to Brightwater Plumbing & Heating. Change in Account settings › Notifications: https://desk.example.com/#account/notifications?ws=ws_demo
+You get one email per call to Brightwater Plumbing & Heating. Change in User settings › Notifications: https://desk.example.com/#account/notifications?ws=ws_demo
 
 Linedesk · desk.example.com
 ",
@@ -217,7 +217,7 @@ The recording is in Linedesk.
 
 --
 
-From now on you get one email per call to Brightwater Plumbing & Heating. Change in Account settings › Notifications: https://desk.example.com/#account/notifications?ws=ws_demo
+From now on you get one email per call to Brightwater Plumbing & Heating. Change in User settings › Notifications: https://desk.example.com/#account/notifications?ws=ws_demo
 
 Linedesk · desk.example.com
 ",
@@ -608,7 +608,7 @@ https://desk.example.com/#call/call_demo_01?ws=ws_demo
 
 --
 
-You got this email because a teammate in Brightwater Plumbing & Heating assigned you a call. Change in Account settings › Notifications: https://desk.example.com/#account/notifications?ws=ws_demo
+You got this email because a teammate in Brightwater Plumbing & Heating assigned you a call. Change in User settings › Notifications: https://desk.example.com/#account/notifications?ws=ws_demo
 
 Linedesk · desk.example.com
 ",
@@ -820,7 +820,7 @@ A personal API key was created
 
 A personal API key named "Laptop command line" (starting ldp_AbCd1234) was created for your Linedesk account at desk.example.com. It can do everything you can, in every workspace you belong to. If this was you, there is nothing to do.
 
-If it wasn't you, revoke the key in Account settings › Personal API keys and change your password: that signs out your other sessions and revokes every key.
+If it wasn't you, revoke the key in User settings › Personal API keys and change your password: that signs out your other sessions and revokes every key.
 
 Review your API keys:
 https://desk.example.com/#account/apiKeys
@@ -841,7 +841,7 @@ Your passkeys were removed
 
 A server admin removed every passkey of your Linedesk account and signed you out everywhere.
 
-Sign in with an email code or your password, then add a new passkey under Account settings › Sign-in & security.
+Sign in with an email code or your password, then add a new passkey under User settings › Sign-in & security.
 
 Sign in:
 https://desk.example.com
@@ -908,7 +908,7 @@ Passkey enrolment code issued
 
 ann@brightwater.example issued a one-time code for the first passkey of your Linedesk account. Nothing was removed and you are still signed in.
 
-Get the code from them, then add your passkey under Account settings › Sign-in & security.
+Get the code from them, then add your passkey under User settings › Sign-in & security.
 
 Open Sign-in & security:
 https://desk.example.com/#account/security
@@ -948,7 +948,7 @@ Linedesk · desk.example.com
     "318274 is your Linedesk code to confirm it's you",
     "Confirm it's you
 
-Someone signed in to your Linedesk account on desk.example.com wants to change its email address. Enter this code in Account settings to confirm it's you.
+Someone signed in to your Linedesk account on desk.example.com wants to change its email address. Enter this code in User settings to confirm it's you.
 
     318274
 
@@ -966,7 +966,7 @@ Linedesk · desk.example.com
     "604218 is your Linedesk code to change your email",
     "Confirm your new email address
 
-Enter this code in Account settings on desk.example.com. Your Linedesk account then uses this address to sign in and for its emails.
+Enter this code in User settings on desk.example.com. Your Linedesk account then uses this address to sign in and for its emails.
 
     604218
 

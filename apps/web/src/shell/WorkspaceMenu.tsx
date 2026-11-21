@@ -1,8 +1,9 @@
 // The workspace button at the top of the navigation: the current workspace's icon (or initial) and name. It opens
 // the one menu of the navigation (like Resend's): your workspaces to switch between and invitations
-// (WorkspaceSwitcher), New workspace…, then you (name and email), Account settings, Keyboard shortcuts, this
-// install's Help and Sign out. Workspace settings are not in it: they are in the sidebar, once. Terms and Privacy are
-// not rows of their own (2026-11-18): they are a quiet line at the foot of Account settings (settings/account).
+// (WorkspaceSwitcher), New workspace…, then you (name and email), User settings and Sign out. Workspace settings are
+// not in it: they are in the sidebar, once. Keyboard shortcuts are a small button at the foot of the navigation, and
+// support is in its Help menu (feedback/HelpMenu.tsx). Terms and Privacy are not rows of their own (2026-11-18): they
+// are a quiet line at the foot of User settings (settings/account).
 // The open menu is in the top layer (ui/floating.ts), so the navigation's scrolling never cuts it off.
 // While the workspace is open its icon is also the browser tab's.
 import type { MyInvitation } from '@linedesk/actions'
@@ -22,26 +23,17 @@ import { refreshWorkspaces, useWorkspaces, type Workspace, WorkspaceSwitcher } f
 import { useT } from '@linedesk/i18n/react'
 import { openPartnerArea, useMyPartners } from '../partner/partner-api.ts'
 
-export type WorkspaceMenuItem = 'switcher' | 'new' | 'account' | 'shortcuts' | 'help' | 'sign-out'
+export type WorkspaceMenuItem = 'switcher' | 'new' | 'account' | 'sign-out'
 
 /**
- * What the workspace menu lists, in order. `canCreate`: POST /v1/workspaces would allow a new workspace;
- * `links`: this install's support email (null while unknown, none when not set): Help.
- * The workspaces always lead (the current one checked); Account settings, Keyboard shortcuts and Sign out
- * are always there. Nothing about managing the workspace: that is Workspace settings in the sidebar.
+ * What the workspace menu lists, in order. `canCreate`: POST /v1/workspaces would allow a new workspace.
+ * The workspaces always lead (the current one checked); User settings and Sign out are always there. Nothing about
+ * managing the workspace: that is Workspace settings in the sidebar.
  */
-export function workspaceMenuItems({
-  canCreate,
-  links,
-}: {
-  canCreate: boolean
-  links: LegalLinks | null
-}): WorkspaceMenuItem[] {
+export function workspaceMenuItems({ canCreate }: { canCreate: boolean }): WorkspaceMenuItem[] {
   const items: WorkspaceMenuItem[] = ['switcher']
   if (canCreate) items.push('new')
-  items.push('account', 'shortcuts')
-  if (links?.supportEmail) items.push('help')
-  items.push('sign-out')
+  items.push('account', 'sign-out')
   return items
 }
 
@@ -80,8 +72,8 @@ export function YouRowSkeleton({ lines, reserved }: { lines: 1 | 2; reserved: bo
 
 /**
  * This install's terms, privacy and support links: the last known ones at once, none that are not set. In a white-label
- * partner's client workspace the partner's instead (brand.ts), never the install's. Help in this menu; Terms and Privacy
- * at the foot of Account settings.
+ * partner's client workspace the partner's instead (brand.ts), never the install's. Support in the Help menu (HelpMenu.tsx);
+ * Terms and Privacy at the foot of User settings.
  */
 export const loadAuthMethods = () => fetchAuthMethods({ attempts: 1 })
 export function useLegalLinks(): LegalLinks | null {
@@ -107,7 +99,6 @@ type Props = {
   /** The signed-in member's profile picture as /v1/me had it; their synced member row wins (a picture just changed). */
   avatarUrl?: string | null
   onAccount: () => void
-  onShortcuts: () => void
   onSignOut: () => void
 }
 
@@ -132,22 +123,6 @@ export function Item({
   )
 }
 
-function LinkItem({ label, icon, href }: { label: string; icon: IconName; href: string }) {
-  const external = !href.startsWith('mailto:')
-  return (
-    <a
-      role="menuitem"
-      className="nav-item"
-      href={href}
-      target={external ? '_blank' : undefined}
-      rel={external ? 'noreferrer' : undefined}
-    >
-      <Icon name={icon} size={15} />
-      <span className="lbl">{label}</span>
-    </a>
-  )
-}
-
 export function WorkspaceMenu({
   name,
   id,
@@ -159,7 +134,6 @@ export function WorkspaceMenu({
   newWorkspaceLabel,
   avatarUrl,
   onAccount,
-  onShortcuts,
   onSignOut,
 }: Props) {
   const t = useT()
@@ -173,7 +147,6 @@ export function WorkspaceMenu({
   const workspaces = useWorkspaces() // known with the session; here so the menu never waits for it
   // The white-label partners whose team this person is on: their partner area (docs/white-label.md).
   const partners = useMyPartners()
-  const links = useLegalLinks()
   const user = auth.useSession().data?.user
   const userName = user?.name ?? ''
   const email = user?.email ?? ''
@@ -181,7 +154,7 @@ export function WorkspaceMenu({
   const picture = myRow ? memberAvatar(myRow) : (avatarUrl ?? null)
   // Asked for as soon as the navigation is there, not when the menu opens: by then it is in the browser's cache.
   const pictureState = useImageReady(picture)
-  const items = workspaceMenuItems({ canCreate: !!onNewWorkspace, links })
+  const items = workspaceMenuItems({ canCreate: !!onNewWorkspace })
   const waiting = invitations.length
   const iconUrl = workspaceIconOf(workspaces, id)
   // The tab shows the workspace's icon while it is open; the install's again after (sign-out, no icon).
@@ -275,10 +248,6 @@ export function WorkspaceMenu({
               )
             )}
             <Item label={t('shell.page.account')} icon="user" onClick={menu.choose(onAccount)} />
-            <Item label={t('shell.help.title')} icon="keyboard" keys={['?']} onClick={menu.choose(onShortcuts)} />
-            {items.includes('help') && links?.supportEmail && (
-              <LinkItem label={t('common.legal.help')} icon="mail" href={`mailto:${links.supportEmail}`} />
-            )}
           </div>
           <hr />
           <Item label={t('shell.signOut')} icon="arrow-up-right" onClick={menu.choose(onSignOut)} />

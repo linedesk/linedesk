@@ -10,6 +10,7 @@ import { useAssistantNameOrNull } from '../store.tsx'
 import { Select } from '../ui/controls.tsx'
 import { DateInput, FormMessage } from '../ui/form.tsx'
 import { AppointmentValue } from '../settings/AppointmentValue.tsx'
+import { useAppointmentsInUse } from '../settings/appointmentsInUse.ts'
 import { cx, Icon } from '../ui/kit.tsx'
 import { Loading, Skeleton, SkeletonText } from '../ui/LoadStates.tsx'
 import {
@@ -85,11 +86,13 @@ export function Insights({ canEdit, toast }: Props) {
           <div>
             <h1>{t('insights.title')}</h1>
             <p>
-              {data
-                ? `${spanLabel(data.from, data.to)} · ${timeZoneLabel(data.timeZone)}`
-                : assistant === null
-                  ? <SkeletonText width={180} />
-                  : t('insights.lede', { assistant })}
+              {data ? (
+                `${spanLabel(data.from, data.to)} · ${timeZoneLabel(data.timeZone)}`
+              ) : assistant === null ? (
+                <SkeletonText width={180} />
+              ) : (
+                t('insights.lede', { assistant })
+              )}
             </p>
           </div>
           <div className="in-controls">
@@ -222,13 +225,15 @@ export function showAppointmentValue(cents: number | null, currency: JobValueCur
 function Summary({ data, assistant, canEdit, toast }: { data: InsightsData; assistant: string } & Props) {
   const t = useT()
   const [editing, setEditing] = useState(false)
+  // No calendar and no booking yet: the summary is the sentence alone.
+  const appointments = useAppointmentsInUse()
   const value = data.jobValueCents
   const currency = data.jobValueCurrency ?? 'USD'
   const booked = data.current.booked
   return (
     <section className="k-card in-summary" aria-label={t('insights.summary.label')}>
       <p className="in-sentence">{summarySentence(assistant, data, data.current)}</p>
-      {editing ? (
+      {!appointments ? null : editing ? (
         <AppointmentValue
           id="in-appointment-value-input"
           label={t('insights.value.label')}
@@ -325,9 +330,7 @@ function Numbers({
               onClick={() => onMetric(n.key)}
             >
               <span className="in-tile-l">{t(n.label)}</span>
-              <b className={cx('in-tile-n', n.key === 'missed' && value > 0 && 'in-danger')}>
-                {fmt().number(value)}
-              </b>
+              <b className={cx('in-tile-n', n.key === 'missed' && value > 0 && 'in-danger')}>{fmt().number(value)}</b>
               <span className="in-tile-s">{delta ?? sub ?? ' '}</span>
               {delta && sub && <span className="in-tile-s">{sub}</span>}
             </button>
@@ -562,7 +565,10 @@ function ExportMenu({
     setOpen(false)
     setBusy(true)
     try {
-      const note = t('insights.export.note', { span: spanLabel(data.from, data.to), zone: timeZoneLabel(data.timeZone) })
+      const note = t('insights.export.note', {
+        span: spanLabel(data.from, data.to),
+        zone: timeZoneLabel(data.timeZone),
+      })
       const name = exportName(choice.what, data)
       if (choice.what === 'totals') {
         save(name, choice.format, totalsTable(data), t('insights.export.totals'), note)

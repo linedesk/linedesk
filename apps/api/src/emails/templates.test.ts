@@ -433,7 +433,7 @@ describe('email change', () => {
     const email = emailChangeCodeEmail('604218', ORIGIN)
     expect(email.subject).toBe('604218 is your Linedesk code to change your email')
     expect(email.html).toMatch(/font-size:34px[^>]*>604218</)
-    expect(email.text).toContain('Account settings on desk.example.com')
+    expect(email.text).toContain('User settings on desk.example.com')
     expect(email.text).toContain('expires in 10 minutes')
     expect(email.text).not.toMatch(/https?:\/\//)
     expect(email.html).not.toMatch(/href=/)

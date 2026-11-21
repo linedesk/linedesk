@@ -1,9 +1,10 @@
 // Help at the foot of the navigation (LIN-639): one button that opens a small menu: Report a bug (⇧R), Request a
-// feature (⇧F), Documentation, and this build's version, quiet, at the bottom. Keyboard shortcuts stay in the workspace
-// menu. The menu floats in the top layer (ui/floating.ts), like the workspace menu.
+// feature (⇧F), Documentation, the install's support email (when it has one), and this build's version, quiet, at the
+// bottom. Keyboard shortcuts are the small button next to it (Nav.tsx). The menu floats in the top layer
+// (ui/floating.ts), like the workspace menu.
 import { useT } from '@linedesk/i18n/react'
 import { useRef } from 'react'
-import { Item } from '../shell/WorkspaceMenu.tsx'
+import { Item, useLegalLinks } from '../shell/WorkspaceMenu.tsx'
 import { useMenu } from '../shell/useMenu.ts'
 import { useAnchoredList } from '../ui/floating.ts'
 import { Icon } from '../ui/kit.tsx'
@@ -14,6 +15,7 @@ export function HelpMenu({ navOpen, onReport }: { navOpen: boolean; onReport: (k
   const menu = useMenu(navOpen)
   const list = useRef<HTMLDivElement>(null)
   useAnchoredList(menu.open, menu.trigger, list, { minWidth: 220 })
+  const supportEmail = useLegalLinks()?.supportEmail
   return (
     <div className="help-wrap" ref={menu.root}>
       <button
@@ -62,6 +64,12 @@ export function HelpMenu({ navOpen, onReport }: { navOpen: boolean; onReport: (k
             <span className="lbl">{t('shell.helpMenu.docs')}</span>
             <Icon name="arrow-up-right" size={13} className="help-ext" />
           </a>
+          {supportEmail && (
+            <a role="menuitem" className="nav-item" href={`mailto:${supportEmail}`} onClick={() => menu.setOpen(false)}>
+              <Icon name="mail" size={15} />
+              <span className="lbl">{t('shell.helpMenu.support')}</span>
+            </a>
+          )}
           <hr />
           <div className="help-version" title={appVersion()}>
             {t('shell.helpMenu.version', { version: appVersion() })}

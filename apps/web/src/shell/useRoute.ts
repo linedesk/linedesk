@@ -152,6 +152,8 @@ const MOVED: Record<string, string> = {
   // API keys and Zapier left Workspace settings for their own page (LIN-340).
   'settings/developers': 'integrations/api-keys',
   'workspace/developers': 'integrations/api-keys',
+  // The list of assistants left Workspace settings: the Assistant area in the sidebar has them.
+  'workspace/assistants': 'assistant',
   // Needs review left the inbox: How <assistant> did, in the Assistant area.
   'calls/review': 'assistant/review',
 }

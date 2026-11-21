@@ -9,63 +9,20 @@ import {
   youRowLoading,
 } from './WorkspaceMenu.tsx'
 
-const noLinks = { terms: null, privacy: null, supportEmail: null }
-const allLinks = {
-  terms: 'https://example.com/terms',
-  privacy: 'https://example.com/privacy',
-  supportEmail: 'help@example.com',
-}
-
 describe('workspaceMenuItems', () => {
-  test('one menu: the workspaces first, then the account, Sign out last', () => {
-    expect(workspaceMenuItems({ canCreate: false, links: noLinks })).toEqual([
-      'switcher',
-      'account',
-      'shortcuts',
-      'sign-out',
-    ])
+  test('one menu: the workspaces first, then User settings, Sign out last', () => {
+    expect(workspaceMenuItems({ canCreate: false })).toEqual(['switcher', 'account', 'sign-out'])
   })
 
-  test('never Workspace settings or Invite people: those are in the sidebar', () => {
-    const items: string[] = workspaceMenuItems({ canCreate: true, links: allLinks })
-    expect(items).not.toContain('settings')
-    expect(items).not.toContain('invite')
+  test('never Workspace settings, Invite people, Keyboard shortcuts, Help, Terms or Privacy', () => {
+    const items: string[] = workspaceMenuItems({ canCreate: true })
+    for (const item of ['settings', 'invite', 'shortcuts', 'help', 'terms', 'privacy'])
+      expect(items).not.toContain(item)
   })
 
   test('New workspace… only where a new workspace is allowed, right after the workspaces', () => {
-    expect(workspaceMenuItems({ canCreate: true, links: noLinks }).slice(0, 2)).toEqual(['switcher', 'new'])
-    expect(workspaceMenuItems({ canCreate: false, links: noLinks })).not.toContain('new')
-  })
-
-  test('Help only where the install has a support email, before Sign out', () => {
-    expect(workspaceMenuItems({ canCreate: false, links: allLinks })).toEqual([
-      'switcher',
-      'account',
-      'shortcuts',
-      'help',
-      'sign-out',
-    ])
-  })
-
-  test('never Terms or Privacy rows: those are at the foot of Account settings', () => {
-    const items: string[] = workspaceMenuItems({ canCreate: true, links: allLinks })
-    expect(items).not.toContain('terms')
-    expect(items).not.toContain('privacy')
-    expect(workspaceMenuItems({ canCreate: false, links: { ...noLinks, terms: 'https://example.com/t' } })).toEqual([
-      'switcher',
-      'account',
-      'shortcuts',
-      'sign-out',
-    ])
-  })
-
-  test('links not known yet: Account settings and Sign out are still there', () => {
-    expect(workspaceMenuItems({ canCreate: false, links: null })).toEqual([
-      'switcher',
-      'account',
-      'shortcuts',
-      'sign-out',
-    ])
+    expect(workspaceMenuItems({ canCreate: true }).slice(0, 2)).toEqual(['switcher', 'new'])
+    expect(workspaceMenuItems({ canCreate: false })).not.toContain('new')
   })
 })
 

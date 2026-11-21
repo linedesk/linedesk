@@ -490,7 +490,7 @@
   "notify.emailSummary": "Email me a summary of every call",
   "notify.hearLabel": "How do you want to hear about calls?",
   "notify.hearLabelClient": "How do you want to hear about the client's calls?",
-  "notify.later": "Set this up later in Account settings › Notifications and Assistant settings.",
+  "notify.later": "Set this up later in User settings › Notifications and Assistant settings.",
   "notify.lede": "{name} answers, then tells you what each call was about.",
   "notify.ledeClient": "{name} answers, then sends a summary of each call.",
   "notify.loadingAssistant": "Your assistant",

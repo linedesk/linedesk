@@ -88,7 +88,7 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
     <nav className="nav" aria-label={t('shell.nav.label')} ref={ref} inert={!open}>
       <div className="ws-top">
         <WorkspaceMenu name={workspaceName} id={workspaceId} navOpen={open} invitations={invitations} onInvitationsChanged={onInvitationsChanged} toast={toast} avatarUrl={avatarUrl}
-          onNewWorkspace={onNewWorkspace && go(onNewWorkspace)} newWorkspaceLabel={newWorkspaceLabel} onAccount={go(() => on.onPage('account'))} onShortcuts={go(on.onHelp)} onSignOut={go(on.onSignOut)} />
+          onNewWorkspace={onNewWorkspace && go(onNewWorkspace)} newWorkspaceLabel={newWorkspaceLabel} onAccount={go(() => on.onPage('account'))} onSignOut={go(on.onSignOut)} />
         {!docked && <Button size="sm" variant="ghost" icon="left" aria-label={t('shell.nav.closeMenu')} title={t('common.action.closeWithKey', { key: 'esc' })} onClick={onClose} />}
       </div>
       <NavItem label={t('shell.nav.inbox')} icon="phone" keys={['G', 'I']} current={onCalls && tab !== 'reminders' && tab !== 'done' && !assigneeTabs.includes(tab)} onClick={go(() => on.onInbox('you'))}
@@ -116,9 +116,22 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
         title={t('shell.nav.adminTip')} onClick={go(() => on.onPage('admin'))} />}
       <div className="nav-foot">
         <HelpMenu navOpen={open} onReport={kind => go(() => openReport(kind))()} />
-        <StarLink />
+        <div className="nav-foot-row">
+          <StarLink />
+          <ShortcutsButton onClick={go(on.onHelp)} />
+        </div>
       </div>
     </nav>
+  )
+}
+
+/** Keyboard shortcuts: a small key button in the bottom right corner of the navigation (also ? anywhere). */
+function ShortcutsButton({ onClick }: { onClick: () => void }) {
+  const t = useT()
+  return (
+    <button type="button" className="nav-keys" aria-label={t('shell.help.title')} title={t('shell.help.buttonTip')} onClick={onClick}>
+      <Icon name="keyboard" size={13} />
+    </button>
   )
 }
 

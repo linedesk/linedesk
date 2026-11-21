@@ -146,6 +146,7 @@ describe('old links (LIN-165)', () => {
     ['#settings/developers', '#integrations/api-keys'],
     ['#workspace/developers', '#integrations/api-keys'],
     ['#workspace/developers?ws=w1', '#integrations/api-keys?ws=w1'],
+    ['#workspace/assistants', '#assistant'],
     ['#settings/fields', '#workspace/export'],
     ['#settings/hours', '#assistant/hours'],
     ['#settings/webhooks', '#assistant/advanced/webhook'],
