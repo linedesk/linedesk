@@ -418,8 +418,9 @@ export const appConnectionHandlers: Record<string, Handler> = {
     if (actor.impersonation) throw new Forbidden(IMPERSONATING)
     const oauth = await oauthOrReject(tx, ctx, input.app)
     if (!hasSecretsKey()) throw rejectApp('no_secrets_key', NO_SECRETS_KEY)
-    // Shopify's consent page is on the store's own domain: the member names the store.
-    const shop = input.app === 'shopify' ? shopDomain(input.shop ?? '') : undefined
+    // Shopify's consent page is on the store's own domain: the member names the store, or (none named) Shopify's store
+    // picker asks for it. Either way the store connected is the one Shopify's signed callback names.
+    const shop = input.app === 'shopify' && input.shop?.trim() ? shopDomain(input.shop) : undefined
     if (shop === null)
       // i18n-ignore: the API error body for logs and API clients; the web app shows the key of the code
       throw rejectApp('shop', 'Enter the store as its myshopify.com address, like brightwater.myshopify.com.')

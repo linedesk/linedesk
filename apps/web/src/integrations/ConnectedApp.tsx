@@ -164,12 +164,14 @@ function NotConnected({ app, canEdit, toast }: Props) {
 }
 
 /**
- * Shopify, not connected: the store's address (its myshopify.com domain, or only its first part), then Connect. The
- * server reads the address; one it can't read shows under the field.
+ * Shopify, not connected: Connect opens Shopify's store picker (the member signs in there and picks the store; one store
+ * is picked for them). "Enter the store address instead" shows the field for a store by its myshopify.com address
+ * (or only its first part); the server reads it, and one it can't read shows under the field.
  */
 function ConnectShop({ toast }: { toast: Props['toast'] }) {
   const t = useT()
   const name = t(nameKey('shopify'))
+  const [byAddress, setByAddress] = useState(false)
   const [shop, setShop] = useState('')
   const [error, setError] = useState<string | null>(null)
   const { opening, connect } = useConnect('shopify', toast, () => setError(t('settings.integrations.app.error.shop')))
@@ -178,9 +180,36 @@ function ConnectShop({ toast }: { toast: Props['toast'] }) {
     setError(null)
     void connect(shop.trim())
   }
+  const connectLabel = opening
+    ? t('settings.integrations.app.opening', { name })
+    : t('settings.integrations.app.connect', { name })
+  if (!byAddress)
+    return (
+      <div className="ig-app-connect">
+        <p className="help">{t(APP_TEXT.shopify.notConnected, { name })}</p>
+        <div className="ig-shop-actions">
+          <Button
+            variant="primary"
+            disabled={opening}
+            onClick={() => void connect()}
+            title={t('settings.integrations.app.connectTip', { name })}
+          >
+            {connectLabel}
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={opening}
+            onClick={() => setByAddress(true)}
+            title={t('settings.integrations.app.shopify.byAddressTip')}
+          >
+            {t('settings.integrations.app.shopify.byAddress')}
+          </Button>
+        </div>
+      </div>
+    )
   return (
     <div className="ig-app-connect">
-      <p className="help">{t(APP_TEXT.shopify.notConnected, { name })}</p>
+      <p className="help">{t('settings.integrations.app.shopify.byAddressHelp')}</p>
       <form
         className="ig-shop"
         noValidate
@@ -208,9 +237,7 @@ function ConnectShop({ toast }: { toast: Props['toast'] }) {
           disabled={opening}
           title={t('settings.integrations.app.connectTip', { name })}
         >
-          {opening
-            ? t('settings.integrations.app.opening', { name })
-            : t('settings.integrations.app.connect', { name })}
+          {connectLabel}
         </Button>
       </form>
     </div>

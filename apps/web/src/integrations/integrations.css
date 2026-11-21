@@ -251,6 +251,13 @@
 }
 
 /* Integrations › Shopify, not connected: the store's address and Connect on one line. */
+.ig-shop-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .ig-shop {
   display: flex;
   align-items: flex-start;

@@ -92,6 +92,20 @@ describe('OAuth', () => {
     expect(url.searchParams.get('scope')).toContain('write_orders')
     expect(url.searchParams.has('grant_options[]')).toBe(false)
   })
+  it('without a store, sends the member to Shopify’s store picker with the same consent page', () => {
+    const url = new URL(oauth(fetch).authorizeUrl({ redirectUri: 'https://app.example/cb', state: 's' }))
+    expect(url.origin + url.pathname).toBe('https://accounts.shopify.com/store-login')
+    const next = new URL(url.searchParams.get('redirect')!, 'https://brightwater.myshopify.com')
+    expect(next.pathname).toBe('/admin/oauth/authorize')
+    expect(next.searchParams.get('client_id')).toBe('id123')
+    expect(next.searchParams.get('redirect_uri')).toBe('https://app.example/cb')
+    expect(next.searchParams.get('state')).toBe('s')
+  })
+  it('refuses a store it cannot read', () => {
+    expect(() =>
+      oauth(fetch).authorizeUrl({ redirectUri: 'https://app.example/cb', state: 's', shop: 'not a shop!' }),
+    ).toThrow()
+  })
   it('exchanges a signed code for expiring tokens bound to the shop', async () => {
     const calls: string[] = []
     const fake = (async (url: string, init: RequestInit) => {

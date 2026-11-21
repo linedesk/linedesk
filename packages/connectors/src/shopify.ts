@@ -284,17 +284,24 @@ export function createShopifyOAuth({ clientId, clientSecret }: OAuthClient, opti
     id: 'shopify',
     scopes: SHOPIFY_SCOPES,
     authorizeUrl({ redirectUri, state, shop }) {
-      const domain = shop ? shopDomain(shop) : null
-      if (!domain) throw new AppError('shopify', 'invalid', 'no shop to connect')
-      const url = new URL(`https://${domain}/admin/oauth/authorize`)
       // No grant_options[]=per-user: an offline token, for calls that come in when nobody is signed in.
-      url.search = new URLSearchParams({
+      const query = new URLSearchParams({
         client_id: clientId,
         scope: SHOPIFY_SCOPES.join(','),
         redirect_uri: redirectUri,
         state,
       }).toString()
-      return url.toString()
+      if (shop === undefined) {
+        // No store named: Shopify's store picker. The member signs in to Shopify and picks the store (one store is
+        // picked for them); Shopify then opens the same consent page on that store's domain. The callback names the
+        // store, signed by Shopify (exchangeCode).
+        const picker = new URL('https://accounts.shopify.com/store-login')
+        picker.searchParams.set('redirect', `/admin/oauth/authorize?${query}`)
+        return picker.toString()
+      }
+      const domain = shopDomain(shop)
+      if (!domain) throw new AppError('shopify', 'invalid', 'no shop to connect')
+      return `https://${domain}/admin/oauth/authorize?${query}`
     },
     async exchangeCode({ code, redirectUri, params }) {
       // The shop comes from Shopify's signed callback, never from the member's browser alone.
