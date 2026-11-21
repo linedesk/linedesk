@@ -1,7 +1,7 @@
 // Fixtures for the LLM test suite (LIN-391): one assistant and workspace as a call sees them, built from demo data
 // (Brightwater Plumbing & Heating, Portland; assistant Maya; owner Mike Brennan; 555 test numbers). A case picks
 // knobs (hours, booking, transfers, caller, languages, ...) and gets everything buildInstructions and the tools need.
-import type { BookingContext, CallerHistory } from '@linedesk/actions'
+import type { BookingContext, CallerHistory, ShopifyCallSetup } from '@linedesk/actions'
 import type { Assistant, CallerDetails, TransferContact, WebhookLookup } from '@linedesk/db/types'
 import type { BusinessHours } from '../call-session.ts'
 import { type CallerContext, forHours } from '../prompt.ts'
@@ -161,6 +161,8 @@ export type SetupOptions = {
   callerDetails?: CallerDetails
   lookups?: WebhookLookup[]
   teamLanguage?: string
+  /** A connected Shopify store: the changes the business allows and the checks they need; true: the recommended setup. */
+  shopify?: true | ShopifyCallSetup
 }
 
 /** Everything one simulated call needs: what buildInstructions takes, and what the tools are built from. */
@@ -173,6 +175,8 @@ export type Setup = {
   caller: CallerContext | null
   callerDetails: CallerDetails | null
   lookups: WebhookLookup[]
+  /** The connected Shopify store (call.start's shopify), or null. */
+  shopify: ShopifyCallSetup | null
   timeZone: string
   now: number
   teamLanguage: string
@@ -207,6 +211,10 @@ export function setup(o: SetupOptions = {}): Setup {
     ...o.assistant,
   } as Partial<Assistant>)
   const caller = callerOf(o)
+  const shopify: ShopifyCallSetup | null =
+    o.shopify === true
+      ? { changes: ['return', 'address'], proof: ['verify_name', 'verify_postcode'] }
+      : (o.shopify ?? null)
   const booking = o.booking
     ? bookingContext(now, { canChangeBookings: !!caller?.phone, ...(o.booking === true ? {} : o.booking) })
     : null
@@ -222,6 +230,11 @@ export function setup(o: SetupOptions = {}): Setup {
     `Caller: ${caller?.phone ? `caller ID ${caller.phone}${caller.name ? `, saved contact "${caller.name}"` : ''}` : caller?.testCall ? 'test call from the app, no caller ID' : 'number withheld'}.`,
     `Languages: main ${languages.main ?? 'en'}, mode ${languages.mode ?? 'english'}${languages.allowed?.length ? ` (${languages.allowed.join(', ')})` : ''}. AI disclosure: ${assistant.ai_disclosure}.`,
     ...(o.lookups?.length ? [`Lookups: ${o.lookups.map(l => `lookup_${l.name} (${l.when})`).join('; ')}.`] : []),
+    ...(shopify
+      ? [
+          `Shopify store connected: the assistant may ${shopify.changes.join(', ') || 'change nothing'}, after the caller gives ${shopify.proof.join(' and ')}. Orders: #1042 (Dana Ruiz, The Complete Snowboard, paid, not shipped, ships to Portland 97213); #1038 (Dana Ruiz, Selling Plans Ski Wax, delivered, 97213). Product: The Complete Snowboard, $699.95, colors Ice, Dawn and Powder, in stock.`,
+        ]
+      : []),
     ...(o.notes ? ['The owner has a note about this caller.'] : []),
     ...(o.history ? ["The caller's earlier calls are known."] : []),
   ]
@@ -233,6 +246,7 @@ export function setup(o: SetupOptions = {}): Setup {
     caller,
     callerDetails: o.callerDetails ?? null,
     lookups: o.lookups ?? [],
+    shopify,
     timeZone: TIME_ZONE,
     now,
     teamLanguage: o.teamLanguage ?? 'en',

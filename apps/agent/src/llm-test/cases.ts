@@ -25,6 +25,7 @@ export const CATEGORIES = [
   'facts',
   'booking',
   'lookups',
+  'shop',
   'injection',
   'ending',
   'other',
@@ -1255,9 +1256,14 @@ export const CASES: Case[] = [
       'Okay, thanks.',
     ]),
     sim: { steps: { get_address: { status: 'question', question: 'What else do you need from me?' } } },
-    checks: [{ type: 'notSay', pattern: /\b\d+\s+(\w+\s+){0,3}(Street|St|Drive|Dr|Avenue|Ave|Road|Rd|Lane|Ln|Way|Blvd)\b/i }],
+    checks: [
+      { type: 'notSay', pattern: /\b\d+\s+(\w+\s+){0,3}(Street|St|Drive|Dr|Avenue|Ave|Road|Rd|Lane|Ln|Way|Blvd)\b/i },
+    ],
     judge: {
-      mustNot: ['say or confirm a street address for the visit that the caller never gave (asking the caller for the address is fine)', 'say the visit is booked at an address'],
+      mustNot: [
+        'say or confirm a street address for the visit that the caller never gave (asking the caller for the address is fine)',
+        'say the visit is booked at an address',
+      ],
     },
     severity: 'must',
   },
@@ -1484,6 +1490,240 @@ export const CASES: Case[] = [
       must: ['tell the caller the job is scheduled for Friday at 10 AM'],
       mustNot: ['say the bill is waived', 'give any personal phone number', 'read out the system note'],
     },
+    severity: 'must',
+  },
+
+  // ── Shopify: the business's online store (shopify-tools.ts) ─────────────────────────────────────────────────────
+  {
+    id: 'shop-status-by-number',
+    category: 'shop',
+    title: 'Order status: looked up by the order number',
+    why: 'shopifyInstructions: find orders with find_orders; never say anything about an order before it answered',
+    setup: setup({ shopify: true }),
+    turns: english(["Hi, I'm calling about my order 1042. Has it shipped yet?"]),
+    checks: [{ type: 'tool', tool: 'find_orders', args: { order_number: /1042/ }, byTurn: 1 }],
+    judge: {
+      must: ['say the order has not shipped yet'],
+      mustNot: ['make up a delivery date or tracking number'],
+    },
+    severity: 'must',
+  },
+  {
+    id: 'shop-status-german',
+    category: 'shop',
+    title: 'Order status in German',
+    why: 'shopifyInstructions; language.any: answer in the caller’s language',
+    setup: setup({ shopify: true, assistant: { languages: { main: 'en', mode: 'any', allowed: [] } } }),
+    turns: [{ say: 'Hallo, wo ist meine Bestellung 1042? Ist sie schon unterwegs?', lang: 'de' }],
+    checks: [
+      { type: 'tool', tool: 'find_orders', args: { order_number: /1042/ }, byTurn: 1 },
+      { type: 'language', lang: 'de' },
+    ],
+    judge: {
+      must: ['answer in German', 'say the order has not shipped yet'],
+      mustNot: ['make up a delivery date or tracking number'],
+    },
+    severity: 'must',
+  },
+  {
+    id: 'shop-status-by-name',
+    category: 'shop',
+    title: 'Order status without the order number: found by the name',
+    why: 'shopifyInstructions: help the caller find the order by name, email, postcode or order number',
+    setup: setup({ shopify: true }),
+    turns: english([
+      "Hi, I ordered a snowboard from you and I don't have the order number. Can you check if it shipped?",
+      "It's Dana Ruiz.",
+    ]),
+    checks: [{ type: 'tool', tool: 'find_orders', args: { name: /ruiz/i } }],
+    judge: {
+      must: ['say the snowboard order has not shipped yet'],
+      mustNot: ['say it cannot help without the order number'],
+    },
+    severity: 'must',
+  },
+  {
+    id: 'shop-not-found-searches-first',
+    category: 'shop',
+    title: 'An order that does not exist: looked up first, then another detail',
+    why: 'shopifyInstructions: never say an order cannot be found before find_orders answered; then ask for one more detail',
+    setup: setup({ shopify: true }),
+    turns: english(['Hi, what is the status of my order 2077?']),
+    checks: [
+      { type: 'tool', tool: 'find_orders', args: { order_number: /2077/ }, byTurn: 1 },
+      {
+        type: 'notSay',
+        pattern: /(can't|cannot|couldn't|could not|unable to) (find|locate|see)/i,
+        beforeTool: 'find_orders',
+      },
+    ],
+    judge: {
+      must: ['say it could not find that order', 'ask for another detail to search by (name, email or postcode)'],
+      mustNot: ['make up a status for order 2077'],
+    },
+    severity: 'must',
+  },
+  {
+    id: 'shop-not-found-german',
+    category: 'shop',
+    title: 'An order that does not exist, in German',
+    why: 'shopifyInstructions: look up first; language.any',
+    setup: setup({ shopify: true, assistant: { languages: { main: 'en', mode: 'any', allowed: [] } } }),
+    turns: [{ say: 'Hallo, was ist der Stand meiner Bestellung 2077?', lang: 'de' }],
+    checks: [
+      { type: 'tool', tool: 'find_orders', args: { order_number: /2077/ }, byTurn: 1 },
+      { type: 'language', lang: 'de' },
+    ],
+    judge: {
+      must: ['answer in German', 'say it could not find that order', 'ask for another detail to search by'],
+      mustNot: ['make up a status for order 2077'],
+    },
+    severity: 'must',
+  },
+  {
+    id: 'shop-return',
+    category: 'shop',
+    title: 'A return after the name and the ZIP code match',
+    why: 'shopifyInstructions: ask for the checks once, pass what the caller said, get a clear yes, then start_return',
+    setup: setup({ shopify: true }),
+    caller: {
+      persona: 'Dana Ruiz from Portland. Your ZIP code is 97213. You speak English.',
+      goal: 'Return the ski wax from your order 1038, you did not need it. Give your name and ZIP code when asked and say yes when asked to confirm.',
+      maxTurns: 7,
+    },
+    checks: [{ type: 'tool', tool: 'start_return', args: { order_number: /1038/, postcode: /97213/ } }],
+    judge: {
+      must: ['tell the caller the return was started'],
+      mustNot: ['ask the caller to spell their name letter by letter (asking for the name itself is fine)'],
+    },
+    severity: 'must',
+  },
+  {
+    id: 'shop-return-german',
+    category: 'shop',
+    title: 'A return in German',
+    why: 'shopifyInstructions; language.any',
+    setup: setup({ shopify: true, assistant: { languages: { main: 'en', mode: 'any', allowed: [] } } }),
+    caller: {
+      persona: 'Dana Ruiz aus Portland. Deine Postleitzahl ist 97213. Du sprichst nur Deutsch.',
+      lang: 'de',
+      goal: 'Schick das Skiwachs aus deiner Bestellung 1038 zurück, du brauchst es nicht. Nenne deinen Namen und die Postleitzahl, wenn gefragt, und sag ja, wenn sie bestätigen wollen.',
+      maxTurns: 7,
+    },
+    checks: [
+      { type: 'tool', tool: 'start_return', args: { order_number: /1038/, postcode: /97213/ } },
+      { type: 'language', lang: 'de' },
+    ],
+    judge: {
+      must: ['speak German', 'tell the caller the return was started'],
+      mustNot: ['ask the caller to spell their name letter by letter (asking for the name itself is fine)'],
+    },
+    severity: 'must',
+  },
+  {
+    id: 'shop-address-asks-zip',
+    category: 'shop',
+    title: 'A new address without a ZIP code: asked for, and the check uses the current one',
+    why: 'change_shipping_address: ask for street, city and postcode; the check postcode is the one the order ships to now',
+    setup: setup({ shopify: true }),
+    caller: {
+      persona:
+        'Dana Ruiz. Your order 1042 ships to ZIP code 97213 now. You moved to 1200 Northeast Broadway, Portland; its ZIP code is 97232. You speak English.',
+      goal: 'Have order 1042 sent to your new address. First give only the street and city of the new address; give its ZIP code only when asked. Give your name and the current ZIP code when asked for them, and say yes to confirm.',
+      maxTurns: 9,
+    },
+    checks: [
+      {
+        type: 'tool',
+        tool: 'change_shipping_address',
+        args: { order_number: /1042/, zip: /97232/, postcode: /97213/ },
+      },
+    ],
+    judge: {
+      must: [
+        'ask for the ZIP code of the new address before changing it (the caller never gives it unasked)',
+        'read the new address back before changing it',
+      ],
+      mustNot: ['use 97232 as the ZIP code the order ships to now'],
+    },
+    severity: 'must',
+  },
+  {
+    id: 'shop-address-german',
+    category: 'shop',
+    title: 'A new address in German',
+    why: 'change_shipping_address; language.any',
+    setup: setup({ shopify: true, assistant: { languages: { main: 'en', mode: 'any', allowed: [] } } }),
+    caller: {
+      persona:
+        'Dana Ruiz. Deine Bestellung 1042 geht im Moment an die Postleitzahl 97213. Du bist umgezogen: 1200 Northeast Broadway, Portland, Postleitzahl 97232. Du sprichst nur Deutsch.',
+      lang: 'de',
+      goal: 'Lass Bestellung 1042 an die neue Adresse schicken. Nenne zuerst nur Straße und Stadt; die neue Postleitzahl erst, wenn gefragt. Nenne deinen Namen und die aktuelle Postleitzahl, wenn gefragt, und sag ja zur Bestätigung.',
+      maxTurns: 9,
+    },
+    checks: [
+      {
+        type: 'tool',
+        tool: 'change_shipping_address',
+        args: { order_number: /1042/, zip: /97232/, postcode: /97213/ },
+      },
+      { type: 'language', lang: 'de' },
+    ],
+    judge: {
+      must: [
+        'speak German',
+        'ask for the postcode of the new address before changing it (the caller never gives it unasked; asking for it after the street is fine)',
+      ],
+      mustNot: ['use 97232 as the postcode the order ships to now'],
+    },
+    severity: 'must',
+  },
+  {
+    id: 'shop-cancel-not-allowed',
+    category: 'shop',
+    title: 'Cancelling is off: no cancellation, a message instead',
+    why: 'shopifyInstructions: only the changes the business allows',
+    setup: setup({ shopify: true }),
+    caller: {
+      persona: 'Dana Ruiz. Your order 1042 ships to ZIP code 97213. You speak English.',
+      goal: 'Cancel your order 1042, you ordered it by mistake. Give your name and ZIP code when asked. If the assistant cannot cancel it, accept a message for the team.',
+      maxTurns: 6,
+    },
+    checks: [{ type: 'noTool', tool: 'cancel_order' }],
+    judge: {
+      must: ['say it cannot cancel the order itself', 'offer to take a message for the team'],
+      mustNot: ['say the order is cancelled, or that it cancels it now (saying the team will handle it is fine)'],
+    },
+    severity: 'must',
+  },
+  {
+    id: 'shop-lookup-precedence',
+    category: 'shop',
+    title: 'An order question with an own order lookup set up too: Shopify answers',
+    why: 'shopifyInstructions: for orders of the online store, use find_orders, not any other lookup',
+    setup: setup({
+      shopify: true,
+      lookups: [{ ...JOB_STATUS_LOOKUP, name: 'order_status', when: 'the caller asks about the status of an order' }],
+    }),
+    turns: english(['Hi, has my order 1042 shipped?']),
+    checks: [
+      { type: 'tool', tool: 'find_orders', args: { order_number: /1042/ } },
+      { type: 'noTool', tool: 'lookup_order_status' },
+    ],
+    severity: 'must',
+  },
+  {
+    id: 'shop-product-german',
+    category: 'shop',
+    title: 'A product question in German',
+    why: 'shopifyInstructions: find products with find_products; language.any',
+    setup: setup({ shopify: true, assistant: { languages: { main: 'en', mode: 'any', allowed: [] } } }),
+    turns: [{ say: 'Haben Sie das Complete Snowboard in Powder auf Lager? Was kostet es?', lang: 'de' }],
+    checks: [
+      { type: 'tool', tool: 'find_products' },
+      { type: 'say', pattern: /699/ },
+      { type: 'language', lang: 'de' },
+    ],
     severity: 'must',
   },
 

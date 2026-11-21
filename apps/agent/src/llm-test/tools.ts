@@ -10,11 +10,21 @@ import {
   type BookData,
   type CallAskWebhookData,
   type FindSlotsData,
+  type ShopChange,
+  type ShopifyCallContextData,
+  type ShopifyChangeOrderData,
+  type ShopifyFindOrdersData,
+  type ShopifyFindProductsData,
+  type ShopOrderView,
+  type ShopProductView,
   appointmentBook,
   appointmentCancel,
   appointmentReschedule,
   calendarFindSlots,
   callAskWebhook,
+  shopifyChangeOrder,
+  shopifyFindOrders,
+  shopifyFindProducts,
 } from '@linedesk/actions'
 import { llm } from '@livekit/agents'
 import type { z } from 'zod'
@@ -127,6 +137,96 @@ export function slotLabel(iso: string, timeZone: string): string {
   return `${part('weekday')}, ${part('month')} ${part('day')} at ${part('hour')}:${part('minute')} ${part('dayPeriod')}`
 }
 
+// ── A Shopify store (shopify-tools.ts): two orders of the demo caller and one product ─────────────────────────────
+
+type ShopOrder = ShopOrderView & { name: string; email: string; zip: string; shipped: boolean }
+const SHOP_ORDERS: ShopOrder[] = [
+  {
+    number: '#1042',
+    placedOn: 'November 14, 2026',
+    status: 'not shipped yet',
+    payment: 'paid',
+    total: '$699.95',
+    items: ['The Complete Snowboard (Powder)'],
+    shipTo: 'Portland, Oregon, United States',
+    shipments: [],
+    customer: null,
+    name: 'Dana Ruiz',
+    email: 'dana.ruiz@example.com',
+    zip: '97213',
+    shipped: false,
+  },
+  {
+    number: '#1038',
+    placedOn: 'November 2, 2026',
+    status: 'delivered',
+    payment: 'paid',
+    total: '$24.95',
+    items: ['Selling Plans Ski Wax'],
+    shipTo: 'Portland, Oregon, United States',
+    shipments: ['Delivered on November 6, 2026 (UPS)'],
+    customer: null,
+    name: 'Dana Ruiz',
+    email: 'dana.ruiz@example.com',
+    zip: '97213',
+    shipped: true,
+  },
+]
+const SHOP_PRODUCT: ShopProductView = {
+  title: 'The Complete Snowboard',
+  variants: ['Ice', 'Dawn', 'Powder'].map(title => ({ title, price: '699.95', available: true, inStock: 10 })),
+}
+
+/** What call.start's store context gives an unknown caller: no customer, the store's return policy. */
+export const SHOP_CONTEXT: ShopifyCallContextData = {
+  connected: true,
+  customer: null,
+  orders: [],
+  policies: [
+    { title: 'Refund policy', text: 'Returns within 30 days of delivery, unused and in the original packaging.' },
+  ],
+}
+
+const view = ({ name: _n, email: _e, zip: _z, shipped: _s, ...order }: ShopOrder): ShopOrderView => order
+const family = (name: string) => name.trim().toLowerCase().split(/\s+/).at(-1) ?? ''
+const digits = (value: unknown) => String(value ?? '').replace(/\D/g, '')
+
+/** shopify.findOrders against the two orders: by number, name (family name), email or the caller's number. */
+function findShopOrders(input: Record<string, unknown>): ShopifyFindOrdersData {
+  const number = digits(input.orderNumber)
+  const name = typeof input.name === 'string' ? family(input.name) : ''
+  const email = typeof input.email === 'string' ? input.email.trim().toLowerCase() : ''
+  if (!number && !name && !email && !input.callerNumber && !input.phone) return { orders: [], problem: 'nothing' }
+  const found = SHOP_ORDERS.filter(
+    o =>
+      (number ? digits(o.number) === number : true) &&
+      (name ? family(o.name) === name : true) &&
+      (email ? o.email === email : true),
+  )
+  // The demo caller's number is not on the orders: a search by it alone finds none.
+  const byNumberOnly = !number && !name && !email
+  return { orders: byNumberOnly ? [] : found.map(view), problem: null }
+}
+
+/** shopify.changeOrder as the server decides it: allowed, the order, the checks, then shipped or not. */
+function changeShopOrder(setup: Setup, input: Record<string, unknown>): ShopifyChangeOrderData {
+  const change = input.change as ShopChange
+  if (!setup.shopify?.changes.includes(change)) return { status: 'not_allowed', detail: null }
+  const order = SHOP_ORDERS.find(o => digits(o.number) === digits(input.orderNumber))
+  if (!order) return { status: 'not_found', detail: null }
+  const proof = (input.proof ?? {}) as Record<string, string | undefined>
+  const missing = setup.shopify.proof.filter(id =>
+    id === 'verify_name' ? !proof.name : id === 'verify_postcode' ? !proof.postcode : false,
+  )
+  const mismatch =
+    (!!proof.name && family(proof.name) !== family(order.name)) ||
+    (!!proof.postcode && digits(proof.postcode).slice(0, 5) !== order.zip)
+  if (missing.length || mismatch) return { status: 'not_verified', missing, mismatch }
+  if (change === 'return')
+    return order.shipped ? { status: 'done', detail: '#1038-R1' } : { status: 'too_late', detail: 'not shipped yet' }
+  return order.shipped ? { status: 'too_late', detail: 'shipped' } : { status: 'done', detail: null }
+}
+
 /** The API as far as the booking and lookup tools use it, answering from the case's SimOptions. */
 function fakeApi(setup: Setup, sim: SimOptions): ApiClient {
   const run = async (action: { name: string }, input: Record<string, unknown>) => {
@@ -186,6 +286,16 @@ function fakeApi(setup: Setup, sim: SimOptions): ApiClient {
             }
       return { data }
     }
+    if (action === shopifyFindOrders) return { data: findShopOrders(input) }
+    if (action === shopifyFindProducts) {
+      const query = String(input.query ?? '').toLowerCase()
+      const data: ShopifyFindProductsData = {
+        products: /snowboard|complete/.test(query) ? [SHOP_PRODUCT] : [],
+        problem: null,
+      }
+      return { data }
+    }
+    if (action === shopifyChangeOrder) return { data: changeShopOrder(setup, input) }
     // Recording the transfer, the urgent flag, ...: the fake API takes it.
     return { data: {} }
   }
@@ -193,7 +303,15 @@ function fakeApi(setup: Setup, sim: SimOptions): ApiClient {
 }
 
 /** What the tools record on the call; only what they read back matters here. */
-export type FakeLog = { confirmedName: string | null; confirmedAddress: string | null; bookings: string[]; record: () => void }
+export type FakeLog = {
+  confirmedName: string | null
+  confirmedAddress: string | null
+  bookings: string[]
+  /** What the store-order check reads (storeOrderCall): the caller's lines and whether a Shopify tool ran. */
+  lines: { speaker: string; text: string }[]
+  storeOrder: boolean
+  record: () => void
+}
 
 /** A tool's options as LiveKit passes them, with nothing behind them: the tools only pause interruptions and nudge. */
 export function fakeToolOptions(id: string): llm.ToolOptions {
@@ -213,7 +331,14 @@ export type SimTools = {
 
 /** The real tools of a call with this setup (assistantTools in assistant-tools.ts). */
 export function buildTools(setup: Setup, sim: SimOptions = {}): SimTools {
-  const log: FakeLog = { confirmedName: null, confirmedAddress: null, bookings: [], record() {} }
+  const log: FakeLog = {
+    confirmedName: null,
+    confirmedAddress: null,
+    bookings: [],
+    lines: [],
+    storeOrder: false,
+    record() {},
+  }
   const urgent = { flagged: false }
   const call = {
     callId: 'call_llm_test',
@@ -223,6 +348,7 @@ export function buildTools(setup: Setup, sim: SimOptions = {}): SimTools {
     // The case's fixed day: "Thursday" or "tomorrow" must resolve to the week the fake free times are in.
     now: () => setup.now,
     lookups: setup.lookups,
+    shopify: setup.shopify,
     caller: setup.caller,
     contact: setup.caller?.phone ? { name: setup.caller.name, phone: setup.caller.phone } : null,
   } as unknown as CallSession

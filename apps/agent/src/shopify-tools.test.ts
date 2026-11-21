@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changeReply, findOrdersReply, shopifyInstructions, storeOrderCall } from './shopify-tools.ts'
+import { callerSaid, changeReply, findOrdersReply, shopifyInstructions, storeOrderCall } from './shopify-tools.ts'
 
 const order = {
   number: '#1001',
@@ -21,7 +21,8 @@ describe('store instructions', () => {
     const text = shopifyInstructions({ changes: ['cancel'], proof: ['verify_name', 'verify_postcode'] }, null)
     expect(text).toContain('cancel an order that has not shipped yet')
     expect(text).toContain("the caller's full name as it is on the order and the postcode the order ships to now")
-    expect(text).not.toContain('start a return')
+    expect(text).not.toContain('You can also start a return')
+    expect(text).toContain('You cannot start a return or change a shipping address: do not offer it')
   })
   it('offer a message when no change is allowed', () => {
     expect(shopifyInstructions({ changes: [], proof: ['verify_name'] }, null)).toContain(
@@ -47,7 +48,7 @@ describe('store instructions', () => {
 describe('tool replies', () => {
   it('ask which order when several fit', () => {
     expect(findOrdersReply({ orders: [order, { ...order, number: '#1002' }], problem: null })).toContain(
-      'ask the caller which one they mean',
+      'ask which one they mean only when',
     )
   })
   it('never say which check failed', () => {
@@ -73,5 +74,25 @@ describe('storeOrderCall', () => {
   it('is not one for other calls, nor for the assistant’s own words', () => {
     expect(storeOrderCall({ storeOrder: false, lines: [line('caller', 'My water heater is leaking')] })).toBe(false)
     expect(storeOrderCall({ storeOrder: false, lines: [line('agent', 'Can I help with an order?')] })).toBe(false)
+  })
+})
+
+describe('callerSaid', () => {
+  const said = (...texts: string[]) => ({ lines: texts.map(text => ({ speaker: 'caller', text })) }) as never
+  it('find a postcode the caller said as digits or words', () => {
+    expect(callerSaid(said('My ZIP is 97 213.'), '97213')).toBe(true)
+    expect(callerSaid(said('nine seven two one three'), '97213')).toBe(true)
+    expect(callerSaid(said('Die Postleitzahl ist neun sieben zwei eins null'), '97210')).toBe(true)
+    expect(callerSaid(said('It is SW1A 1AA'), 'SW1A 1AA')).toBe(true)
+  })
+  it('refuse a postcode only the assistant knew', () => {
+    expect(callerSaid(said('I moved to 1200 Northeast Broadway, Portland.'), '97232')).toBe(false)
+    expect(callerSaid({ lines: [{ speaker: 'agent', text: '97232' }] } as never, '97232')).toBe(false)
+    expect(callerSaid(said('97213'), '')).toBe(false)
+  })
+  it('count the address the address step confirmed', () => {
+    expect(
+      callerSaid({ lines: [], confirmedAddress: '4512 NE Fremont St, Portland, OR 97213' } as never, '97213'),
+    ).toBe(true)
   })
 })

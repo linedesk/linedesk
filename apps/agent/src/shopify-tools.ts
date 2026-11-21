@@ -53,6 +53,13 @@ const PROOF_WORDS: Record<ShopVerify, string | null> = {
   verify_caller_number: null,
 }
 
+/** A change the business did not allow, in words for the model. */
+const NOT_ALLOWED_WORDS: Record<ShopChange, string> = {
+  return: 'start a return',
+  address: 'change a shipping address',
+  cancel: 'cancel an order',
+}
+
 const CHANGE_WORDS: Record<ShopChange, string> = {
   return: 'start a return',
   address: 'change the shipping address of an order that has not shipped yet',
@@ -69,9 +76,14 @@ export function shopifyInstructions(setup: ShopifyCallSetup | null, context: Sho
   ]
   if (setup.changes.length)
     lines.push(
-      `You can also ${setup.changes.map(c => CHANGE_WORDS[c]).join(', ')}. Before such a change, ask for ${asks.length ? asks.join(' and ') : 'nothing more'}${setup.proof.includes('verify_caller_number') ? '; the call must also come from the phone number on the order' : ''}. Ask for each once and do not ask the caller to spell their name: the store compares the family name and allows for how it was heard. Pass what the caller said; the store checks it. Tell the caller what will happen and get a clear yes before you make the change.`,
+      `You can also ${setup.changes.map(c => CHANGE_WORDS[c]).join(', ')}. Before such a change, ask for ${asks.length ? asks.join(' and ') : 'nothing more'}${setup.proof.includes('verify_caller_number') ? '; the call must also come from the phone number on the order' : ''}. Ask for each once and do not ask the caller to spell their name: the store compares the family name and allows for how it was heard. Pass only what the caller said in this call, never a detail you filled in yourself; the store checks it. Tell the caller what will happen and get a clear yes before you make the change.`,
     )
   else lines.push('You cannot change, cancel or return orders: offer to take a message for the team instead.')
+  const notAllowed = (Object.keys(NOT_ALLOWED_WORDS) as ShopChange[]).filter(c => !setup.changes.includes(c))
+  if (setup.changes.length && notAllowed.length)
+    lines.push(
+      `You cannot ${notAllowed.map(c => NOT_ALLOWED_WORDS[c]).join(' or ')}: do not offer it, and never say it is done or about to be done; offer to take a message for the team instead.`,
+    )
   if (context?.connected) {
     if (context.customer) {
       const known = [
@@ -102,7 +114,7 @@ export function findOrdersReply(data: ShopifyFindOrdersData | null): string {
   return [
     fenced(data.orders.map(orderText).join('\n')),
     data.orders.length > 1
-      ? 'If more than one order fits, ask the caller which one they mean (by date or items), then answer about that one.'
+      ? 'If more than one order fits, answer about the one the caller already named (by number, date or items); ask which one they mean only when that does not settle it.'
       : 'Tell the caller what it means for them, in your own words.',
   ].join('\n')
 }
@@ -171,6 +183,56 @@ const proofFields = {
   ),
   email: optional('The email address the caller gave for the order.'),
   proof_order_number: optional('The order number again, if the caller was asked for it as a check.'),
+}
+
+/** Digits said as words, in English and German ("nine seven two", "neun sieben zwei"). */
+const DIGIT_WORDS: Record<string, string> = {
+  zero: '0',
+  oh: '0',
+  o: '0',
+  one: '1',
+  two: '2',
+  three: '3',
+  four: '4',
+  five: '5',
+  six: '6',
+  seven: '7',
+  eight: '8',
+  nine: '9',
+  null: '0',
+  eins: '1',
+  ein: '1',
+  zwei: '2',
+  zwo: '2',
+  drei: '3',
+  vier: '4',
+  fünf: '5',
+  sechs: '6',
+  sieben: '7',
+  acht: '8',
+  neun: '9',
+}
+const squash = (text: string) =>
+  text
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .map(word => DIGIT_WORDS[word] ?? word)
+    .join('')
+
+/**
+ * Whether the caller said this value in the call, as digits or as words ("97213", "97 213", "nine seven two one
+ * three"). A postcode the model filled in itself (one it knows for a street, or the old one for a new address) is not
+ * passed to the store: the model asks the caller instead.
+ */
+export function callerSaid(log: Pick<CallLog, 'lines' | 'confirmedAddress'>, value: string): boolean {
+  const wanted = squash(value)
+  if (!wanted) return false
+  // The address step's confirmed address counts: the caller said it and confirmed it there.
+  const said = [
+    ...log.lines.filter(line => line.speaker === 'caller').map(line => line.text),
+    log.confirmedAddress ?? '',
+  ]
+  return squash(said.join(' ')).includes(wanted)
 }
 
 /** find_orders, find_products and the changes the business allows; none without a store. */
@@ -256,6 +318,11 @@ export function shopifyTools(api: ApiClient, call: CallSession, log: CallLog): T
         // A change cannot be interrupted once it started: the caller always hears whether it went through.
         opts.ctx.disallowInterruptions()
         log.storeOrder = true
+        const postcode = args.postcode as string | null | undefined
+        if (postcode && !callerSaid(log, postcode))
+          return `Ask the caller to say ${PROOF_WORDS.verify_postcode} themselves (do not say it for them), then use this tool again.`
+        if (kind === 'address' && !callerSaid(log, String(args.zip ?? '')))
+          return 'Ask the caller to say the postcode of the new address themselves (do not say it for them), then use this tool again.'
         const data = await run<ShopifyChangeOrderData>(api, call, shopifyChangeOrder, {
           orderNumber: args.order_number,
           change: kind,
@@ -286,7 +353,7 @@ export function shopifyTools(api: ApiClient, call: CallSession, log: CallLog): T
   if (setup.changes.includes('return'))
     tools.start_return = change(
       'return',
-      'Start a return for an order the caller received, after the caller said yes to it. The store reviews it and emails the next steps.',
+      'Start a return for an order the caller received, after the caller said yes to it. The store reviews it and emails the next steps. Never use it to cancel an order.',
       {
         items: z
           .array(z.string())
@@ -304,7 +371,11 @@ export function shopifyTools(api: ApiClient, call: CallSession, log: CallLog): T
         address1: z.string().describe('Street and house number.'),
         address2: optional('Apartment, suite or unit.'),
         city: z.string().describe('The city of the new address.'),
-        zip: z.string().describe('The postcode of the new address. Ask for it if the caller did not say it.'),
+        zip: z
+          .string()
+          .describe(
+            'The postcode of the new address, as the caller said it. If the caller did not say it, ask for it; never fill it in yourself.',
+          ),
       },
       args => ({
         address: unset({

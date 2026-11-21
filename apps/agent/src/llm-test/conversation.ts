@@ -9,6 +9,8 @@ import { type Language, spokenLines } from '@linedesk/actions'
 import { asksAnythingElse, asksCaller, closingFlow, END_CALL_ASKED, END_CALL_ENDS, withoutEndCall } from '../hang-up.ts'
 import { MAX_TOOL_STEPS } from '../pipeline.ts'
 import { buildInstructions, spokenLanguageRule } from '../prompt.ts'
+import { shopifyInstructions } from '../shopify-tools.ts'
+import { SHOP_CONTEXT } from './tools.ts'
 import { connectingLine, notConnectedReply } from '../transfer.ts'
 import { promisesUrgent } from '../urgent-promise.ts'
 import type { ChatMessage, Model, ToolCall } from './model.ts'
@@ -55,7 +57,8 @@ export type Transcript = {
 export type CallerTurn = string | { say: string; lang?: Language }
 
 /** An LLM playing the caller, for open-ended cases. */
-export type SimulatedCaller = { persona: string; goal: string; maxTurns?: number }
+/** `lang`: the language the caller speaks, as speech recognition would report it (the worker's language rule). */
+export type SimulatedCaller = { persona: string; goal: string; maxTurns?: number; lang?: Language }
 
 const NUDGE = 'Go on with the call: answer what the caller asked or wanted, or ask for what you still need.'
 /** Tools whose result the caller need not hear when the assistant already spoke (worker.ts QUIET_TOOLS). */
@@ -87,6 +90,8 @@ export async function runCall(
         setup.lookups.length > 0,
         setup.teamLanguage,
       ),
+      // What the worker adds once call.start named a store (shopify-tools.ts): its part of the instructions.
+      setup.shopify ? shopifyInstructions(setup.shopify, SHOP_CONTEXT) : null,
       spoken ? spokenLanguageRule(setup.assistant, spoken) : null,
     ]
       .filter(Boolean)
@@ -254,6 +259,7 @@ export async function runCall(
         break
       }
       say = next
+      lang = script.caller.lang
     } else {
       const entry = turns[i]!
       say = typeof entry === 'string' ? entry : entry.say
@@ -261,6 +267,7 @@ export async function runCall(
     }
     if (lang) spoken = lang === (setup.assistant.languages as { main?: string }).main ? null : lang
     t.events.push({ kind: 'caller', turn, text: say })
+    log.lines.push({ speaker: 'caller', text: say })
     history.push({ role: 'user', content: say })
     await assistantTurn(turn)
   }
