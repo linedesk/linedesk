@@ -7,9 +7,12 @@ on:
   # By hand (Actions → CI → Run workflow).
   workflow_dispatch:
 
+# A newer push to a pull request cancels its older run. A started run on a trunk (master-dev, master-prod) is not
+# cancelled by a newer push: the staging deploy of that commit waits for it and deploys nothing when it was cancelled
+# (LIN-685). A run still waiting for its turn gives way to a newer one, as GitHub keeps one waiting run per group.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
