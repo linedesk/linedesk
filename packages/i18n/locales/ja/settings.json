@@ -1181,8 +1181,6 @@
   "integrations.status.mailboxes": "{count, plural, other {#個のメールボックス}}",
   "integrations.status.needsAttention": "要確認",
   "integrations.status.needsAttentionTip": "通話が送信されていません。開いて原因を確認してください。",
-  "integrations.status.noKeys": "キーはまだありません",
-  "integrations.status.notConnected": "未接続",
   "integrations.status.ready": "APIキーで利用可能",
   "integrations.status.unavailable": "このサーバーでは利用不可",
   "integrations.status.unavailableTip": "このサーバーではまだ接続できません。サーバー管理者がプロバイダーでオンにできます。",

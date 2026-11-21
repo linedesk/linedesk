@@ -67,6 +67,7 @@ import {
 } from './Developers.tsx'
 import { IntegrationMark } from './IntegrationMark.tsx'
 import { SupportEmailPage } from './SupportEmail.tsx'
+import { type DirectConnect, useDirectConnect } from './directConnect.tsx'
 import './integrations.css'
 
 const SEARCH_ID = 'integrations-search'
@@ -99,7 +100,7 @@ export function Integrations({ canManageKeys, toast }: Props) {
         ) : place.view === 'missing' ? (
           <Missing section={place.section} />
         ) : place.view === 'catalog' ? (
-          <Catalog canManageKeys={canManageKeys} />
+          <Catalog canManageKeys={canManageKeys} toast={toast} />
         ) : null}
       </div>
     </div>
@@ -202,8 +203,9 @@ function useFacts(canManageKeys: boolean): Facts {
 /** The keys that pick a category: 0 shows all, 1 to 7 one category each (as in the chips' tooltips). */
 const categoryKey = (i: number) => String(i + 1)
 
-function Catalog({ canManageKeys }: { canManageKeys: boolean }) {
+function Catalog({ canManageKeys, toast }: Props) {
   const t = useT()
+  const connect = useDirectConnect(canManageKeys, toast)
   const [query, setQuery] = useState('')
   const [only, setOnly] = useState<CategoryId | null>(null)
   const facts = useFacts(canManageKeys)
@@ -291,7 +293,7 @@ function Catalog({ canManageKeys }: { canManageKeys: boolean }) {
           </p>
           <div className="k-card ig-list">
             {recommended.map(i => (
-              <Row key={i.id} integration={i} status={statusOf(i.id, facts)} />
+              <Row key={i.id} integration={i} status={statusOf(i.id, facts)} connect={connect} />
             ))}
           </div>
         </section>
@@ -304,12 +306,13 @@ function Catalog({ canManageKeys }: { canManageKeys: boolean }) {
             <h2 id={`ig-cat-${g.category}`}>{t(CATEGORY_LABEL[g.category])}</h2>
             <div className="k-card ig-list">
               {g.items.map(i => (
-                <Row key={i.id} integration={i} status={statusOf(i.id, facts)} />
+                <Row key={i.id} integration={i} status={statusOf(i.id, facts)} connect={connect} />
               ))}
             </div>
           </section>
         ))
       )}
+      {connect.dialog}
     </>
   )
 }
@@ -323,38 +326,47 @@ function Chip({ label, shortcut, on, onClick }: { label: string; shortcut: strin
 }
 
 /**
- * One integration as a line: mark and name on the left, its one line in the middle, its state and what a click does on
- * the right. The name is the link, stretched over the whole line, so a click anywhere opens it; the button only shows it.
+ * One integration as a line: mark and name on the left, its one line in the middle, its state and its button on the
+ * right. Only the button acts: Connect opens the provider's sign-in at once where it can (directConnect.tsx), else the
+ * place where it is set up; Manage, Fix and Open go to its page.
  */
-function Row({ integration, status }: { integration: Integration; status: Status }) {
+function Row({ integration, status, connect }: { integration: Integration; status: Status; connect: DirectConnect }) {
   const t = useT()
   const name = t(nameKey(integration.id))
   const line = t(lineKey(integration.id))
   const action = integration.opens ? ACTION[status.kind] : undefined
+  const direct = status.kind === 'notConnected' && connect.can(integration.id)
+  const opening = connect.opening === integration.id
+  const className = `k-btn ${status.kind === 'notConnected' ? 'k-btn-primary' : 'k-btn-secondary'} k-btn-sm ig-row-action`
   return (
     <article className="ig-row">
       <div className="ig-row-name">
         <IntegrationMark mark={integration.mark} />
-        <h3>
-          {integration.opens ? (
-            <AppLink to={integration.opens} title={line}>
-              {name}
-            </AppLink>
-          ) : (
-            name
-          )}
-        </h3>
+        <h3>{name}</h3>
       </div>
-      <p className="ig-row-line">{line}</p>
+      <p className="ig-row-line" title={line}>
+        {line}
+      </p>
       <div className="ig-row-end">
         <StatusBadge id={integration.id} status={status} />
-        {action && (
-          <span
-            className={`k-btn ${status.kind === 'notConnected' ? 'k-btn-primary' : 'k-btn-secondary'} k-btn-sm ig-row-action`}
-            aria-hidden="true"
+        {direct ? (
+          <button
+            type="button"
+            className={className}
+            disabled={connect.opening !== null}
+            aria-busy={opening || undefined}
+            title={t('settings.integrations.app.connectTip', { name })}
+            onClick={() => connect.start(integration.id)}
           >
-            <span>{t(action)}</span>
-          </span>
+            <span>{t(opening ? 'settings.integrations.action.opening' : 'settings.integrations.action.connect')}</span>
+          </button>
+        ) : (
+          action &&
+          integration.opens && (
+            <a className={className} href={integration.opens} title={line}>
+              <span>{t(action)}</span>
+            </a>
+          )
         )}
       </div>
     </article>
@@ -368,11 +380,6 @@ const ACTION: Partial<Record<Status['kind'], MessageKey>> = {
   needsAttention: msg('settings.integrations.action.fix'),
   ready: msg('settings.integrations.action.open'),
   adminsOnly: msg('settings.integrations.action.open'),
-}
-
-/** "No keys yet": what none means where there is nothing to connect, only something to create. */
-const NONE: Partial<Record<Integration['id'], MessageKey>> = {
-  'api-keys': msg('settings.integrations.status.noKeys'),
 }
 
 /** "3 Zaps", "2 keys", "1 account": what a count means on each card. */
@@ -405,7 +412,8 @@ function StatusBadge({ id, status }: { id: Integration['id']; status: Status }) 
       )
     }
     case 'notConnected':
-      return <Badge tone="outline">{t(NONE[id] ?? 'settings.integrations.status.notConnected')}</Badge>
+      // The black Connect button says it; no badge beside it.
+      return null
     case 'unavailable':
       return (
         <Badge tone="outline" title={t('settings.integrations.status.unavailableTip')}>

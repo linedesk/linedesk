@@ -72,7 +72,7 @@ const APP_TEXT: Record<ConnectableApp, AppText> = {
 }
 
 /** Why connecting did not work, in the app's words where they differ (Slack gave no channel). */
-const connectErrorKey = (app: ConnectableApp, code: unknown, fallback?: MessageKey) =>
+export const connectErrorKey = (app: ConnectableApp, code: unknown, fallback?: MessageKey) =>
   code === 'scope' ? APP_TEXT[app].scope : appConnectErrorKey(code, fallback)
 
 export function ConnectedApp({ app, canEdit, toast }: Props) {

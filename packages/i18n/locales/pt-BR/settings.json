@@ -1181,8 +1181,6 @@
   "integrations.status.mailboxes": "{count, plural, one {# caixa de e-mail} many {# caixas de e-mail} other {# caixas de e-mail}}",
   "integrations.status.needsAttention": "Requer atenção",
   "integrations.status.needsAttentionTip": "As chamadas não estão sendo enviadas. Abra para ver o motivo.",
-  "integrations.status.noKeys": "Ainda sem chaves",
-  "integrations.status.notConnected": "Não conectado",
   "integrations.status.ready": "Pronto com uma chave de API",
   "integrations.status.unavailable": "Não disponível neste servidor",
   "integrations.status.unavailableTip": "Este servidor ainda não consegue conectá-la. Um administrador do servidor pode ativá-la em Provedores.",

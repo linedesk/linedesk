@@ -1181,8 +1181,6 @@
   "integrations.status.mailboxes": "{count, plural, one {# buzón} many {# buzones} other {# buzones}}",
   "integrations.status.needsAttention": "Requiere atención",
   "integrations.status.needsAttentionTip": "Las llamadas no llegan. Ábrela para ver por qué.",
-  "integrations.status.noKeys": "Aún no hay claves",
-  "integrations.status.notConnected": "Sin conectar",
   "integrations.status.ready": "Lista con una clave de API",
   "integrations.status.unavailable": "No disponible en este servidor",
   "integrations.status.unavailableTip": "Este servidor todavía no puede conectarla. Un administrador del servidor puede activarla en Proveedores.",

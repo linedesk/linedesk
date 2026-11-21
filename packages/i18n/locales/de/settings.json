@@ -1181,8 +1181,6 @@
   "integrations.status.mailboxes": "{count, plural, one {# Postfach} other {# Postfächer}}",
   "integrations.status.needsAttention": "Prüfen nötig",
   "integrations.status.needsAttentionTip": "Anrufe kommen nicht durch. Öffne es, um den Grund zu sehen.",
-  "integrations.status.noKeys": "Noch keine Schlüssel",
-  "integrations.status.notConnected": "Nicht verbunden",
   "integrations.status.ready": "Bereit mit API-Schlüssel",
   "integrations.status.unavailable": "Nicht auf diesem Server",
   "integrations.status.unavailableTip": "Dieser Server kann es noch nicht verbinden. Ein Server-Admin kann es unter Anbieter einschalten.",

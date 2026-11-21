@@ -88,13 +88,6 @@
 .ig-row + .ig-row {
   border-top: 1px solid var(--line);
 }
-.ig-row:hover {
-  background: var(--surface-hover);
-}
-.ig-row:focus-within {
-  outline: 2px solid var(--focus);
-  outline-offset: -2px;
-}
 .ig-row-name {
   display: flex;
   align-items: center;
@@ -108,17 +101,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-/* The name is the link, stretched over the whole line, so a click anywhere opens it. */
-.ig-row h3 .k-link {
-  color: var(--ink);
-  text-decoration: none;
-  outline: none;
-}
-.ig-row h3 .k-link::after {
-  content: "";
-  position: absolute;
-  inset: 0;
 }
 /* One line; the whole text is in its tooltip. */
 .ig-row-line {
@@ -138,16 +120,11 @@
   justify-items: end;
   gap: 12px;
 }
-/* The button only shows what a click on the line does; the line itself is the link. */
+/* The one thing on a line that acts. */
 .ig-row-action {
   grid-column: 2;
   width: 100%;
   justify-content: center;
-  pointer-events: none;
-}
-/* Connect is black (primary); Manage, Fix and Open stay light and keep their white on the hovered line. */
-.ig-row:hover .ig-row-action.k-btn-secondary {
-  background: var(--surface);
 }
 /* Narrow: mark and name, state and button on one line; the description under them. */
 @media (max-width: 720px) {

@@ -1181,8 +1181,6 @@
   "integrations.status.mailboxes": "{count, plural, one {# boîte mail} many {# boîtes mail} other {# boîtes mail}}",
   "integrations.status.needsAttention": "À vérifier",
   "integrations.status.needsAttentionTip": "Les appels ne passent pas. Ouvrez-la pour voir pourquoi.",
-  "integrations.status.noKeys": "Pas encore de clés",
-  "integrations.status.notConnected": "Non connecté",
   "integrations.status.ready": "Prêt avec une clé d'API",
   "integrations.status.unavailable": "Pas sur ce serveur",
   "integrations.status.unavailableTip": "Ce serveur ne peut pas encore la connecter. Un administrateur du serveur peut l'activer dans Fournisseurs.",
