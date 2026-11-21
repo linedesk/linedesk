@@ -1,8 +1,6 @@
 {
   "agentChange.agentTip": "Lass Claude, ChatGPT oder einen anderen KI-Agenten diese Einstellungen mit dir ändern",
-  "agentChange.assistant": "Ein KI-Agent kann die Einstellungen von {name} mit dir ändern. Sag ihm, was sich ändern soll, den Rest erledigt er.",
   "agentChange.stepsTip": "Die Einrichtung noch einmal Schritt für Schritt durchgehen, ausgehend vom Gespeicherten",
-  "agentChange.workspace": "Ein KI-Agent kann diese Einstellungen mit dir ändern. Sag ihm, was sich ändern soll, den Rest erledigt er.",
   "areaCode.list": "Vorwahlen",
   "areaCode.nearby.failed": "Die Suche nach Vorwahlen in der Nähe hat nicht funktioniert. Versuche es gleich noch einmal.",
   "areaCode.nearby.found": "Gerade freie Nummern. Wähle eine Vorwahl:",

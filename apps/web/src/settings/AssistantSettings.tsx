@@ -51,7 +51,7 @@ import { SearchSelect } from '../ui/SearchSelect.tsx'
 import { type PageSection, SettingsLayout, sectionHash, sectionParts, useSection } from '../ui/SettingsLayout.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { useWorkspaceCountry, useWorkspaceLanguage } from '../workspaceLocale.ts'
-import { AgentChangeNote } from './AgentChange.tsx'
+import { AgentChangeActions } from './AgentChange.tsx'
 import { AssistantHeader } from './AssistantHeader.tsx'
 import {
   addableLanguages,
@@ -841,7 +841,7 @@ function Advanced({ draft, set }: SectionProps) {
 }
 
 /** `isInstanceAdmin`: the member runs the server (a test call nobody answers says what to fix there). */
-/** `agentChange`: "Change with an AI agent" on top of General (owners and admins, AgentChange.tsx). */
+/** `agentChange`: "Edit with AI" and "Step by step" in the top bar (owners and admins, AgentChange.tsx). */
 /** `undoable`: a toast with Undo for a change the page undoes itself (removing a call email rule). */
 type Props = {
   canEdit: boolean
@@ -1023,12 +1023,6 @@ function Form({
         )}
         {current === 'general' && (
           <>
-            {agentChange && (
-              <AgentChangeNote
-                target={{ kind: 'assistant', assistantId: assistant.id }}
-                assistantName={assistant.name}
-              />
-            )}
             <AssistantNameSection draft={draft} set={set} />
             <Greeting draft={draft} set={set} savedName={assistant.name} hoursOn={hoursOn} canEdit={canEdit} />
             <Languages
@@ -1131,7 +1125,12 @@ function Form({
           toast={toast}
         />
       }
-      actions={<TestCallButton session={testCall} />}
+      actions={
+        <>
+          {agentChange && <AgentChangeActions target={{ kind: 'assistant', assistantId: assistant.id }} />}
+          <TestCallButton session={testCall} />
+        </>
+      }
       banner={<TestCallPanel session={testCall} />}
       sections={shown}
       current={current}

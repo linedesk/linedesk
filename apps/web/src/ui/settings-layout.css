@@ -79,6 +79,16 @@
   min-width: 0;
 }
 @media (max-width: 719px) {
+  /* More buttons than fit beside the context (Assistant: Step by step, Edit with AI, Start test call): they go to a
+     row of their own under it, and wrap there. */
+  .sl-context {
+    flex-wrap: wrap;
+  }
+  .sl-actions {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
   .sl-body {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;

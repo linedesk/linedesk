@@ -7,7 +7,6 @@ import { showAppointmentValue } from '../insights/Insights.tsx'
 import { useRun } from '../store.tsx'
 import { Input } from '../ui/form.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
-import { AgentChangeNote } from './AgentChange.tsx'
 import { AppointmentValue } from './AppointmentValue.tsx'
 import { TimeZoneSelect } from './BusinessHours.tsx'
 import { Field, FollowsLine, ReadOnlyNote, Section } from './fields.tsx'
@@ -38,21 +37,14 @@ type Props = {
 }
 
 /**
- * General: the business name, icon, country, time zone and appointment value. On top, for owners and admins
- * (`agentChange`), the offer to change them with an AI agent (AgentChange.tsx): the section the page opens at, and the
- * one whose settings an agent can change (the team, numbers, recordings, API keys and the danger zone it cannot).
+ * General: the business name, icon, country, time zone and appointment value: the section the page opens at, and the
+ * one whose settings an AI agent can change (the top bar's "Edit with AI", AgentChange.tsx; the team, numbers,
+ * recordings, API keys and the danger zone it cannot).
  */
-export function WorkspaceGeneral({
-  canEdit,
-  agentChange = false,
-  name,
-  onRenamed,
-  toast,
-}: Props & { agentChange?: boolean }) {
+export function WorkspaceGeneral({ canEdit, name, onRenamed, toast }: Props) {
   const t = useT()
   return (
     <Section id="ws-general" title={t('settings.workspace.nav.general.label')}>
-      {agentChange && <AgentChangeNote target={{ kind: 'workspace' }} />}
       {/* Members: why nothing here can change, once at the top, not under every field. */}
       {!canEdit && <ReadOnlyNote />}
       <BusinessName canEdit={canEdit} name={name} onRenamed={onRenamed} toast={toast} />

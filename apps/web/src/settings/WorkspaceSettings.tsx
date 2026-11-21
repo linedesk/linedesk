@@ -12,6 +12,7 @@ import type { PhoneSetupStatus } from '../auth.ts'
 import { TeamSection } from '../team/TeamPage.tsx'
 import { useTeam } from '../team/team-api.ts'
 import { type PageSection, SettingsLayout, useSection } from '../ui/SettingsLayout.tsx'
+import { AgentChangeActions } from './AgentChange.tsx'
 import { Billing } from './Billing.tsx'
 import { DangerZone } from './DangerZone.tsx'
 import { ExportCalls } from './ExportCalls.tsx'
@@ -70,7 +71,7 @@ type Props = {
   canEdit: boolean
   /** Owners and admins, also during support access: what the Danger zone offers (dangerDescription). */
   canManageKeys: boolean
-  /** "Change with an AI agent" on top of General (owners and admins, agentChange.ts). */
+  /** "Edit with AI" and "Step by step" in the top bar (owners and admins, agentChange.ts). */
   agentChange?: boolean
   phoneSetup: PhoneSetupStatus | null
   isInstanceAdmin: boolean
@@ -121,17 +122,12 @@ export function WorkspaceSettings({
         page="workspace"
         title={t('settings.workspace.title')}
         context={<span className="sl-context-text">{workspaceName}</span>}
+        actions={agentChange && <AgentChangeActions target={{ kind: 'workspace' }} />}
         sections={shown}
         current={current}
       >
         {current === 'general' && (
-          <WorkspaceGeneral
-            canEdit={canEdit}
-            agentChange={agentChange}
-            name={workspaceName}
-            onRenamed={onRenamed}
-            toast={toast}
-          />
+          <WorkspaceGeneral canEdit={canEdit} name={workspaceName} onRenamed={onRenamed} toast={toast} />
         )}
         {current === 'assistants' && <WorkspaceAssistants canEdit={canEdit} toast={toast} />}
         {current === 'team' && <TeamSection toast={toast} />}

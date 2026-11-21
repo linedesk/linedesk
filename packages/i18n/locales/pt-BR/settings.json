@@ -1,8 +1,6 @@
 {
   "agentChange.agentTip": "Deixe o Claude, o ChatGPT ou outro agente de IA alterar estas configurações com você",
-  "agentChange.assistant": "Um agente de IA pode alterar as configurações de {name} com você. Diga o que mudar, e ele faz o resto.",
   "agentChange.stepsTip": "Percorrer a configuração de novo, etapa por etapa, a partir do que está salvo",
-  "agentChange.workspace": "Um agente de IA pode alterar estas configurações com você. Diga o que mudar, e ele faz o resto.",
   "areaCode.list": "Códigos de área",
   "areaCode.nearby.failed": "A busca de códigos de área próximos não funcionou. Tente de novo em instantes.",
   "areaCode.nearby.found": "Números livres agora. Escolha um código de área:",

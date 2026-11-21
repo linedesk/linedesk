@@ -1,0 +1,30 @@
+/* "Edit with AI" in the settings top bar (AgentChange.tsx): the agents' marks overlap, each ringed in the button's
+   background, as on linedesk.ai's hero. */
+.ai-edit {
+  --ai-ring: var(--surface-raised);
+  padding-left: 6px;
+}
+.ai-edit:hover {
+  --ai-ring: var(--surface-hover);
+}
+.ai-marks {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+.ai-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--ai-ring);
+}
+.ai-mark + .ai-mark {
+  margin-left: -5px;
+}
+.ai-mark svg {
+  width: 10px;
+  height: 10px;
+  fill: #fff;
+}

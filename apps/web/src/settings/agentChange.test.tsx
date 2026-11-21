@@ -1,5 +1,5 @@
-// "Change with an AI agent" on Workspace settings › General and Assistant settings › General (agentChange.ts,
-// AgentChange.tsx): offered to owners and admins only, the box on top of the form, the address of the page it opens
+// "Edit with AI" in the top bar of Workspace settings and Assistant settings (agentChange.ts, AgentChange.tsx):
+// offered to owners and admins only, the buttons with the agents' marks, the address of the page it opens
 // and the way back; and "Finish later" on the owner's agent setup page (onboarding/AgentSetup.tsx).
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, test, vi } from 'vitest'
@@ -19,7 +19,7 @@ vi.mock('../shell/SetupAccountMenu.tsx', () => ({ SetupAccountMenu: () => null }
 const { changeWithAgentHash, mayChangeWithAgent, parseChangeWithAgent, settingsHashOf } = await import(
   './agentChange.ts'
 )
-const { AgentChangeNote } = await import('./AgentChange.tsx')
+const { AgentChangeActions } = await import('./AgentChange.tsx')
 const { WorkspaceGeneral } = await import('./WorkspaceGeneral.tsx')
 const { AgentSetup } = await import('../onboarding/AgentSetup.tsx')
 
@@ -74,39 +74,21 @@ describe('the page address', () => {
   })
 })
 
-describe('the box on top of the settings', () => {
-  // From the box to the first field below it.
-  const box = (html: string) => html.slice(html.indexOf('k-note-info'), html.indexOf('id="ws-name"'))
-
-  test('Workspace settings › General: the box first, the agent as a secondary button (Save stays the one black button) and step by step beside it', () => {
-    const html = renderToStaticMarkup(
-      <WorkspaceGeneral canEdit agentChange name="Brightwater" onRenamed={() => {}} toast={() => {}} />,
-    )
-    const note = box(html)
-    expect(note).toContain('An AI agent can change these settings with you.')
-    expect(note).toMatch(/k-btn-secondary[^>]*>.*Change with an AI agent/)
-    expect(note).not.toContain('k-btn-primary')
-    expect(note).toContain('Step by step')
-    // Above the form: before the business name.
-    expect(html.indexOf('k-note-info')).toBeLessThan(html.indexOf('id="ws-name"'))
-  })
-
-  test('no box where the page says no (members, and everyone else mayChangeWithAgent turns away)', () => {
-    for (const canEdit of [true, false]) {
-      const html = renderToStaticMarkup(
-        <WorkspaceGeneral canEdit={canEdit} name="Brightwater" onRenamed={() => {}} toast={() => {}} />,
-      )
-      expect(html).not.toContain('Change with an AI agent')
-    }
-  })
-
-  test('Assistant settings: the box names the assistant', () => {
-    const html = renderToStaticMarkup(
-      <AgentChangeNote target={{ kind: 'assistant', assistantId: 'a1' }} assistantName="Ava" />,
-    )
-    expect(html).toContain('An AI agent can change Ava’s settings with you.')
-    expect(html).toContain('Change with an AI agent')
+describe('Edit with AI in the top bar', () => {
+  test('the agent as a secondary button with the agents’ marks (Save stays the one black button), step by step beside it', () => {
+    const html = renderToStaticMarkup(<AgentChangeActions target={{ kind: 'workspace' }} />)
+    expect(html).toMatch(/k-btn-secondary[^"]*ai-edit[\s\S]*Edit with AI/)
+    expect(html.match(/class="ai-mark"/g)).toHaveLength(4)
+    expect(html).not.toContain('k-btn-primary')
     expect(html).toContain('Step by step')
+  })
+
+  test('no longer a box inside General', () => {
+    const html = renderToStaticMarkup(
+      <WorkspaceGeneral canEdit name="Brightwater" onRenamed={() => {}} toast={() => {}} />,
+    )
+    expect(html).not.toContain('Edit with AI')
+    expect(html).not.toContain('k-note-info')
   })
 })
 
