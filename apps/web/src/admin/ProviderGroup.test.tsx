@@ -6,7 +6,7 @@ import { expect, test, vi } from 'vitest'
 const runAdmin = vi.hoisted(() => vi.fn())
 vi.mock('./api.ts', async importOriginal => ({ ...(await importOriginal<object>()), runAdmin }))
 
-const { AnsweringWayTabs } = await import('./ProviderGroup.tsx')
+const { AnsweringWayTabs, showsInUse } = await import('./ProviderGroup.tsx')
 
 type TabProps = { id: string; onClick: () => void; onKeyDown: (e: unknown) => void }
 const tabsOf = (el: ReactElement<{ children: ReactElement<TabProps>[] }>) => el.props.children
@@ -82,4 +82,13 @@ test('the Answering tabs say every word through the catalog (pseudo-locale)', as
   expect(html).not.toContain('One realtime model')
   expect(html).not.toContain('>In use<')
   expect(html).toContain('⟦')
+})
+
+test('"In use" in a list: where it is a choice, and always in the three parts of Answering', () => {
+  // One set up: only the three parts and recording say which one is used.
+  for (const category of ['stt', 'llm', 'tts', 'recording'] as const) expect(showsInUse(category, 1)).toBe(true)
+  expect(showsInUse('email', 1)).toBe(false)
+  expect(showsInUse('telephony', 1)).toBe(false)
+  // Several set up: a choice everywhere.
+  expect(showsInUse('email', 2)).toBe(true)
 })

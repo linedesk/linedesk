@@ -209,6 +209,19 @@ export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, em
   )
 }
 
+/** The lists of Answering's "Three parts" tab: each says which provider is in use, also when it is the only one. */
+const threeStageParts: ReadonlySet<ProviderCategory> = new Set(['stt', 'llm', 'tts'])
+
+/**
+ * Whether a list marks the provider in use with "In use": only where it is a choice (several set up, or recording,
+ * off until picked), and always in the three parts of Answering, as their tab does. Never where several are used at
+ * once.
+ */
+export function showsInUse(category: ProviderCategory, setUpCount: number): boolean {
+  if (isMultiCategory(category)) return false
+  return setUpCount > 1 || category === 'recording' || threeStageParts.has(category)
+}
+
 /** One category's providers, each with Connect or Edit; also on Server admin › Billing › Sign-up (the bot check). */
 export function ProviderList({
   title,
@@ -252,12 +265,7 @@ export function ProviderList({
           if (!status) return null
           const line = lines[name]
           const configured = isConfigured(status)
-          // Which one is used, said only where it is a choice: several set up, or recording (off until picked).
-          const inUse =
-            configured &&
-            !isMultiCategory(category) &&
-            (setUp.length > 1 || category === 'recording') &&
-            active === name
+          const inUse = configured && showsInUse(category, setUp.length) && active === name
           const shown = line && rowStatus(line, { inUse, fromServer: providerState(status) === 'env' })
           return (
             <li key={name} className="adm-prov">
