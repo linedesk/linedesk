@@ -46,7 +46,7 @@ export function orderText(order: ShopOrderView): string {
 /** What the caller must say before a change, in words for the model. */
 const PROOF_WORDS: Record<ShopVerify, string | null> = {
   verify_name: "the caller's full name as it is on the order",
-  verify_postcode: 'the postcode the order ships to',
+  verify_postcode: 'the postcode the order ships to now',
   verify_email: 'the email address on the order',
   verify_order_number: 'the order number',
   // Nothing to ask: the number they call from is compared.
@@ -65,7 +65,7 @@ export function shopifyInstructions(setup: ShopifyCallSetup | null, context: Sho
   const asks = setup.proof.map(id => PROOF_WORDS[id]).filter((w): w is string => !!w)
   const lines = [
     "# The business's online store",
-    'The business sells through an online store. You can find orders with find_orders and products with find_products. Looking up orders and products needs no check: help the caller find the order they mean, by their phone number, name, email, postcode or order number. Never say an order cannot be found, or anything else about an order, before find_orders answered. If it found nothing, ask for one more detail and search once more before you offer to take a message.',
+    'The business sells through an online store. You can find orders with find_orders and products with find_products. Looking up orders and products needs no check: help the caller find the order they mean, by their phone number, name, email, postcode or order number. Never say an order cannot be found, or anything else about an order, before find_orders answered. If it found nothing, ask for one more detail and search once more before you offer to take a message. For orders of the online store, use find_orders, not any other lookup.',
   ]
   if (setup.changes.length)
     lines.push(
@@ -166,7 +166,7 @@ async function run<T>(
 
 const proofFields = {
   name: optional("The caller's full name as they said it."),
-  postcode: optional('The postcode the order ships to, as the caller said it.'),
+  postcode: optional('The postcode the order ships to now, as the caller said it; never the postcode of a new address.'),
   email: optional('The email address the caller gave for the order.'),
   proof_order_number: optional('The order number again, if the caller was asked for it as a check.'),
 }

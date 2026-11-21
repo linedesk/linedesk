@@ -20,7 +20,7 @@ describe('store instructions', () => {
   it('name the changes and the checks the business picked', () => {
     const text = shopifyInstructions({ changes: ['cancel'], proof: ['verify_name', 'verify_postcode'] }, null)
     expect(text).toContain('cancel an order that has not shipped yet')
-    expect(text).toContain("the caller's full name as it is on the order and the postcode the order ships to")
+    expect(text).toContain("the caller's full name as it is on the order and the postcode the order ships to now")
     expect(text).not.toContain('start a return')
   })
   it('offer a message when no change is allowed', () => {
@@ -57,7 +57,7 @@ describe('tool replies', () => {
   })
   it('ask for the missing checks', () => {
     expect(changeReply('return', { status: 'not_verified', missing: ['verify_postcode'], mismatch: false })).toBe(
-      'Ask the caller for the postcode the order ships to first, then use this tool again.',
+      'Ask the caller for the postcode the order ships to now first, then use this tool again.',
     )
   })
 })
