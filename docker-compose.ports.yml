@@ -4,7 +4,7 @@
 services:
   # Also on the default network: Docker publishes no port of a container that is only on an internal network.
   postgres:
-    ports: ["127.0.0.1:5433:5432"]
+    ports: ["127.0.0.1:${LINEDESK_DEV_PG_PORT:-5433}:5432"] # another port per session: scripts/dev-env.sh
     networks: [backend, default]
     # docker-compose.yml's command (keep the first four arguments in step with it), plus more lock slots: the API tests
     # migrate about 26 databases at once, each in one transaction (about 1,250 locks up to migration 0111), which at
@@ -16,7 +16,7 @@ services:
     cpus: ${LINEDESK_POSTGRES_CPUS:-2}
 
   electric:
-    ports: ["127.0.0.1:3001:3000"]
+    ports: ["127.0.0.1:${LINEDESK_DEV_ELECTRIC_PORT:-3001}:3000"]
     networks: [backend, default]
     cpus: ${LINEDESK_ELECTRIC_CPUS:-1}
 
