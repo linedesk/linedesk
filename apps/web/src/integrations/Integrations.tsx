@@ -327,7 +327,10 @@ function Row({ integration, status }: { integration: Integration; status: Status
       <div className="ig-row-end">
         <StatusBadge id={integration.id} status={status} />
         {action && (
-          <span className="k-btn k-btn-secondary k-btn-sm ig-row-action" aria-hidden="true">
+          <span
+            className={`k-btn ${status.kind === 'notConnected' ? 'k-btn-primary' : 'k-btn-secondary'} k-btn-sm ig-row-action`}
+            aria-hidden="true"
+          >
             <span>{t(action)}</span>
           </span>
         )}

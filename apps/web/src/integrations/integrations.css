@@ -140,7 +140,8 @@
   justify-content: center;
   pointer-events: none;
 }
-.ig-row:hover .ig-row-action {
+/* Connect is black (primary); Manage, Fix and Open stay light and keep their white on the hovered line. */
+.ig-row:hover .ig-row-action.k-btn-secondary {
   background: var(--surface);
 }
 /* Narrow: mark and name, state and button on one line; the description under them. */
