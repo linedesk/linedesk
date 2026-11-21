@@ -122,7 +122,8 @@ describe('ElevenLabs Voice Library voices', () => {
       language: 'es',
       gender: 'male',
       accent: 'latin american',
-      previewUrl: sample('es-m1'),
+      // Synthesized with our settings: the hosted sample has the owner's (LIN-715).
+      previewUrl: null,
       clone: false,
     })
   })
@@ -244,14 +245,13 @@ describe('which library voices fit a phone assistant', () => {
     expect(elevenLabsLibraryVoice(shared('a', 'fr', v4Only), 'fr', 'eleven_v4')).not.toBeNull()
     expect(elevenLabsLibraryVoice({ name: 'no id' }, 'fr', MODEL)).toBeNull()
   })
-  it('needs a sample ElevenLabs hosts: a preview made with the key would add the voice to the account', () => {
+  it("never uses the sample ElevenLabs hosts: it has the owner's settings, the preview is synthesized (LIN-715)", () => {
     const elsewhere = { preview_url: 'https://api.us.elevenlabs.io/v1/voices/a/preview' }
-    expect(elevenLabsLibraryVoice(shared('a', 'fr', elsewhere), 'fr', MODEL)).toBeNull()
-    const verifiedSample = {
-      ...elsewhere,
-      verified_languages: [{ language: 'fr', model_id: MODEL, preview_url: sample('fr-a') }],
-    }
-    expect(elevenLabsLibraryVoice(shared('a', 'fr', verifiedSample), 'fr', MODEL)?.previewUrl).toBe(sample('fr-a'))
+    expect(elevenLabsLibraryVoice(shared('a', 'fr', elsewhere), 'fr', MODEL)).toMatchObject({
+      id: 'a',
+      previewUrl: null,
+    })
+    expect(elevenLabsLibraryVoice(shared('a', 'fr'), 'fr', MODEL)?.previewUrl).toBeNull()
   })
 })
 

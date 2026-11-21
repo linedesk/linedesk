@@ -36,7 +36,8 @@ export const ELEVENLABS_SAMPLE_HOST = 'storage.googleapis.com'
 
 export type Audio = { bytes: Buffer; contentType: string }
 /**
- * A voice of the provider's list. `previewUrl`: a public sample the provider hosts (no key needed);
+ * A voice of the provider's list. `previewUrl`: a public sample the provider hosts (no key needed), null when the
+ * preview is synthesized (ElevenLabs Voice Library voices: their hosted sample is not how they sound on a call);
  * `clone`: the account itself cloned it from recordings of a person (ElevenLabs instant or professional
  * clone; not a voice added from the Voice Library).
  */
@@ -222,7 +223,8 @@ export function elevenLabsVoice(v: ElevenLabsVoice): ProviderVoice | null {
     languages,
     ...nativeOf(languages, baseLanguage(labels.language)),
     gender: text(labels.gender),
-    previewUrl: httpsUrl(v.preview_url),
+    // A library voice's hosted sample has its owner's settings, not a call's: synthesized instead (LIN-715).
+    previewUrl: isLibraryVoice(v) ? null : httpsUrl(v.preview_url),
     // A clone this account made (instant or professional): a person's voice, listed only with a
     // Linedesk consent record. Library voices are professional clones too, but of another account.
     clone: ['cloned', 'professional'].includes(v.category ?? '') && !isLibraryVoice(v),
@@ -306,16 +308,11 @@ type LibraryVoice = {
   verified_languages?: VerifiedLanguage[] | null
 }
 
-const sampleOnHost = (value: unknown): string | null => {
-  const url = httpsUrl(value)
-  return url && URL.canParse(url) && new URL(url).hostname === ELEVENLABS_SAMPLE_HOST ? url : null
-}
-
 /**
- * One voice of ElevenLabs' GET /v1/shared-voices for `language`, or null when it does not fit a phone assistant: no
- * sample on ElevenLabs' sample host (a preview made with the key would add the voice to the account), a custom rate
- * (costs more per character), live moderation, or not verified for this language with `model` when it lists verified
- * languages.
+ * One voice of ElevenLabs' GET /v1/shared-voices for `language`, or null when it does not fit a phone assistant: a
+ * custom rate (costs more per character), live moderation, or not verified for this language with `model` when it
+ * lists verified languages. No hosted sample: the sample ElevenLabs hosts is spoken with the owner's saved settings,
+ * often much slower than a call (LIN-715), so its preview is synthesized with our settings like a call.
  */
 export function elevenLabsLibraryVoice(v: LibraryVoice, language: string, model: string): ProviderVoice | null {
   const id = text(v.voice_id)
@@ -324,8 +321,6 @@ export function elevenLabsLibraryVoice(v: LibraryVoice, language: string, model:
   if ((v.rate ?? 1) !== 1 || v.fiat_rate != null || v.live_moderation_enabled) return null
   const verified = (v.verified_languages ?? []).filter(l => l.language === language)
   if (v.verified_languages?.length && !verified.some(l => l.model_id === model)) return null
-  const previewUrl = sampleOnHost(v.preview_url) ?? verified.map(l => sampleOnHost(l.preview_url)).find(Boolean) ?? null
-  if (!previewUrl) return null
   // The voice's own language (the one it was recorded in, `accent` is of it), then `language`, the one it was listed
   // for (verified in it, or the library's filter matched it), then its other verified ones; native in each. The same
   // voice is listed for every language it is verified in: it is the voice's own language only when it says so.
@@ -349,7 +344,7 @@ export function elevenLabsLibraryVoice(v: LibraryVoice, language: string, model:
     language: own,
     gender: text(v.gender)?.toLowerCase() ?? null,
     accent: languages[0]?.accent ?? null,
-    previewUrl,
+    previewUrl: null,
     clone: false,
   }
 }

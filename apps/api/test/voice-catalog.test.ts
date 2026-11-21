@@ -40,7 +40,7 @@ function fakeElevenLabs(tier = 'creator') {
   const fake = vi.fn(async (input: string | URL | Request) => {
     const url = String(input)
     calls.push(url)
-    if (url === SAMPLE_URL || url === SPANISH_SAMPLE_URL)
+    if (url === SAMPLE_URL || url === SPANISH_SAMPLE_URL || url.includes('/v1/text-to-speech/'))
       return new Response(new Uint8Array(MP3), { headers: { 'content-type': 'audio/mpeg' } })
     if (url.includes('/v1/user/subscription')) return Response.json({ tier })
     // The Voice Library, read for each language besides English: one Spanish voice.
@@ -133,6 +133,20 @@ test('provider voices are parsed into one shape', () => {
   expect(
     elevenLabsVoice({ voice_id: 'b2', name: 'Bo', category: 'cloned', preview_url: 'http://insecure' }),
   ).toMatchObject({ clone: true, previewUrl: null, language: null, languages: [] })
+  // A library voice added to the account keeps no hosted sample: it has the owner's settings (LIN-715).
+  const copied = {
+    voice_id: 'c3',
+    name: 'Ela',
+    category: 'professional',
+    preview_url: 'https://storage.googleapis.com/x.mp3',
+  }
+  expect(elevenLabsVoice({ ...copied, sharing: { status: 'copied', original_voice_id: 'o1' } })).toMatchObject({
+    previewUrl: null,
+    clone: false,
+  })
+  expect(elevenLabsVoice({ ...copied, category: 'premade' })).toMatchObject({
+    previewUrl: 'https://storage.googleapis.com/x.mp3',
+  })
   expect(elevenLabsVoice({ name: 'no id' })).toBeNull()
   const library = { voice_id: 'l1', name: 'Lea', category: 'professional', is_owner: false }
   expect(elevenLabsVoice({ ...library, sharing: { status: 'copied', original_voice_id: 'o1' } })?.clone).toBe(false)
@@ -272,12 +286,17 @@ test('a listed voice plays the sample the provider hosts: fetched on the server,
   const res = await servePreview(member, ids.library, options)
   expect(res.status).toBe(200)
   expect(Buffer.from(await res.arrayBuffer()).equals(MP3)).toBe(true)
-  // A Voice Library voice plays ElevenLabs' sample: nothing is synthesized (that would add it to the account).
-  expect((await servePreview(member, ids.spanish, options)).status).toBe(200)
-  expect(elevenlabs.calls).toContain(SPANISH_SAMPLE_URL)
   // A hosted sample is played as it is, whatever the assistant's language.
   expect((await servePreview(member, ids.library, { ...options, language: 'de' })).status).toBe(200)
   expect(elevenlabs.calls.some(url => url.includes('/text-to-speech/'))).toBe(false)
+  // A Voice Library voice is synthesized with our settings, like a call: its hosted sample has the owner's (LIN-715).
+  // So it counts against the hourly limit, and its hosted sample is never fetched.
+  expect((await servePreview(member, ids.spanish, options)).status).toBe(429)
+  expect(
+    (await servePreview(member, ids.spanish, { ...options, budget: previewBudget(1), language: 'es' })).status,
+  ).toBe(200)
+  expect(elevenlabs.calls.some(url => url.includes(`/v1/text-to-speech/${ids.spanish}`))).toBe(true)
+  expect(elevenlabs.calls).not.toContain(SPANISH_SAMPLE_URL)
   expect((await servePreview(member, 'NotListedAnywhere123', options)).status).toBe(404)
   expect((await servePreview(member, ids.premade, { ...options, providerName: 'cartesia' })).status).toBe(409) // no Cartesia key
 })
