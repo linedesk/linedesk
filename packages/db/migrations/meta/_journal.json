@@ -1219,6 +1219,13 @@
       "when": 1795206319958,
       "tag": "0174_setup_preview_token",
       "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1795241971129,
+      "tag": "0175_business_kind",
+      "breakpoints": true
     }
   ]
 }

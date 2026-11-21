@@ -9,6 +9,7 @@ import type { Closure, HolidayCalendar } from '@linedesk/db/types'
 import { z } from 'zod'
 import { ASSISTANT_CALL_MAX_MINUTES } from './calls.ts'
 import { buyableAreaCode } from './area-codes.ts'
+import { type BusinessKind, businessKinds } from './business-kind.ts'
 import { defineAction } from './define.ts'
 import { emailRulesInput } from './email-routing.ts'
 import { english, type Words } from './words.ts'
@@ -569,6 +570,8 @@ export type WorkspaceSettingsData = {
   countryCurrency?: JobValueCurrency | null
   /** When the assistant picks up, as chosen in onboarding; null: never chosen. Missing from an older API. */
   pickupMode?: PickupMode | null
+  /** The kind of business (business-kind.ts); null: never picked (the go-live to-dos of `other`). Missing from an older API. */
+  businessKind?: BusinessKind | null
   /** The country the owner set (ISO 3166-1 alpha-2); null: automatic. Missing from an older API. */
   country?: string | null
   /** The country in use: the one set, else worked out (resolveWorkspaceCountry). Missing from an older API: US. */
@@ -757,7 +760,9 @@ export const workspaceUpdateSettings = defineAction({
   description:
     'Change workspace settings: `recordingRetentionDays` (0: no recordings are kept, calls are not recorded; 30, 60, 90, 180 or 365; null keeps recordings; older recordings are deleted by the daily cleanup), `businessHoursOn` (whether calls use the business hours; off: the assistant says nothing about hours), `recordingNoticeOn` (the assistant says a recording notice right after the greeting when the call is recorded; on by default), `recordingNotice` (that sentence, e.g. "This call may be recorded and transcribed."), `timeZone` (the IANA zone the business hours are in, e.g. "America/Los_Angeles"; set, it stays when the country changes; null: follows the country again, its main zone) and `jobValueCents` (what a booked appointment is worth on average, for Insights, in the minor units of its currency: cents, or whole units for JPY, KRW and CLP; null clears it), `jobValueCurrency` (its currency: ' +
     jobValueCurrencies.join(', ') +
-    '; until picked, the currency of the workspace country, changing with it; null: follows the country again; changed without jobValueCents, the shown amount stays: $350 becomes ¥350); `country` (where the business is, ISO 3166-1 alpha-2 like "US"; null: automatic, from the assistant\'s number, the business phone or the holiday calendar, else US; the default country of phone numbers, the forwarding guide, the holidays and the currency, and the region phone numbers callers say are read in; its main language is what call summaries and messages for the team are written in, and what an assistant without a main language of its own greets in); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off); `pickupMode` (when the assistant picks up, as chosen in onboarding: no_answer, always or after_hours; it decides which forwarding code is shown, the routing itself stays with the number\'s mode and the business hours).',
+    '; until picked, the currency of the workspace country, changing with it; null: follows the country again; changed without jobValueCents, the shown amount stays: $350 becomes ¥350); `country` (where the business is, ISO 3166-1 alpha-2 like "US"; null: automatic, from the assistant\'s number, the business phone or the holiday calendar, else US; the default country of phone numbers, the forwarding guide, the holidays and the currency, and the region phone numbers callers say are read in; its main language is what call summaries and messages for the team are written in, and what an assistant without a main language of its own greets in); `closure` (vacation or closure mode: closed from `from` to `until`, with its own `greeting`, and `transfers` none or urgent only; null: off); `pickupMode` (when the assistant picks up, as chosen in onboarding: no_answer, always or after_hours; it decides which forwarding code is shown, the routing itself stays with the number\'s mode and the business hours); `businessKind` (the kind of business, one of ' +
+    businessKinds.join(', ') +
+    "; business.import proposes one; it decides which setup steps the go-live checklist shows: a calendar for businesses that book appointments, Shopify for online orders, a support mailbox and its FAQ for businesses that get customer email, Jobber for jobs at the customer's address).",
   input: z.object({
     recordingRetentionDays: z.union([z.literal(recordingRetentionChoices), z.null()]).optional(),
     businessHoursOn: z.boolean().optional(),
@@ -777,6 +782,7 @@ export const workspaceUpdateSettings = defineAction({
     jobValueCurrency: z.enum(jobValueCurrencies).nullable().optional(),
     pickupMode: z.enum(pickupModes).optional(),
     country: workspaceCountrySchema.nullable().optional(),
+    businessKind: z.enum(businessKinds).optional(),
   }),
   permission: 'settings:write',
 })

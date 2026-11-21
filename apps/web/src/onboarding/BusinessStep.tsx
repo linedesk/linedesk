@@ -6,8 +6,7 @@ import {
   type BusinessImportData,
   type BusinessLookupFailure,
   type BusinessSearchData,
-  type BusinessTemplateId,
-  businessTemplateIds,
+  type BusinessKind,
   phoneCountryName,
   resolveWorkspaceLanguage,
 } from '@linedesk/actions'
@@ -16,7 +15,6 @@ import type { WebsiteImport } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { i18n } from '../i18n/index.tsx'
 import { type KeyboardEvent, type ReactNode, useState } from 'react'
-import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink, LinkButton } from '../ui/AppLink.tsx'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
@@ -26,6 +24,7 @@ import { preloadVoiceCatalog } from '../settings/VoiceSettings.tsx'
 import { CountrySelect } from '../settings/CountrySelect.tsx'
 import { TimeZoneSelect } from '../settings/BusinessHours.tsx'
 import { timeZoneLabel } from '../settings/timeZones.ts'
+import { kindOptions } from '../settings/businessKind.ts'
 import { useAssistantOf, useRun } from '../store.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
 import { Button, Icon, Note } from '../ui/kit.tsx'
@@ -50,7 +49,7 @@ import {
   zoneForCountry,
   savedProposal,
   sourcesLine,
-  switchTemplate,
+  switchKind,
   websiteChoice,
 } from './business.ts'
 import { Foot, useStepKeys } from './Frame.tsx'
@@ -109,10 +108,11 @@ function FindBusiness({
   const canSearch = lookup && !lookupLost
   // Coming back to this step: the review starts from the profile saved before, so Enter saves it again as it was.
   const profile = assistant.business_profile
+  const savedKind = useWorkspaceSettings().data?.businessKind ?? null
   const saved = !!(profile.instructions?.trim() || profile.phone || profile.website || profile.description)
   const savedReview = (): Phase => ({
     kind: 'review',
-    proposal: savedProposal(profile, businessName, assistant.greeting),
+    proposal: savedProposal(profile, businessName, assistant.greeting, savedKind),
     fromGoogle: false,
   })
   // A business named already (a partner's client draft, a workspace made with its name) and no lookup to search with:
@@ -478,18 +478,8 @@ function FindForm({
   )
 }
 
-const templateLabelKeys: Record<BusinessTemplateId, MessageKey> = {
-  plumbing_hvac: msg('onboarding.business.template.plumbingHvac'),
-  dental_medical: msg('onboarding.business.template.dentalMedical'),
-  salon_spa: msg('onboarding.business.template.salonSpa'),
-  law_office: msg('onboarding.business.template.lawOffice'),
-  home_services: msg('onboarding.business.template.homeServices'),
-  other: msg('onboarding.business.template.other'),
-}
-/** In the active language: built when the step shows, never at import (that would freeze English). */
-const templateOptions = () => businessTemplateIds.map(id => ({ value: id, label: i18n().t(templateLabelKeys[id]) }))
 /** "Choose…" until the owner picks one, when the lookup did not tell the kind of business. */
-const NO_TEMPLATE = ''
+const NO_KIND = ''
 
 function ReviewProfile({
   assistant,
@@ -560,6 +550,11 @@ function ReviewProfile({
       const patch = { ...locale, ...(locale.country ? explicitCountryPatch(locale.country) : {}) }
       patchWorkspaceSettings(patch)
       if (patch.resolvedLanguage && patch.resolvedLanguage !== 'en') void preloadVoiceCatalog()
+    }
+    // The kind of business picks the go-live steps after onboarding (LIN-680).
+    if (draft.kind && draft.kind !== settings?.businessKind) {
+      void run('workspace.updateSettings', { businessKind: draft.kind })
+      patchWorkspaceSettings({ businessKind: draft.kind })
     }
     // The business name is the workspace's name: renamed with it, shown at once in the menu.
     if (rename) {
@@ -636,13 +631,14 @@ function ReviewProfile({
           id="ob-biz-kind"
           label={t('onboarding.business.field.kind')}
           tip={t('onboarding.business.field.kindTip')}
+          error={problems.kind}
         >
-          <Select<BusinessTemplateId | typeof NO_TEMPLATE>
+          <Select<BusinessKind | typeof NO_KIND>
             id="ob-biz-kind"
             label={t('onboarding.business.field.kind')}
-            value={draft.template ?? NO_TEMPLATE}
-            options={templateOptions()}
-            onChange={kind => kind && setDraft(d => switchTemplate(d, kind))}
+            value={draft.kind ?? NO_KIND}
+            options={kindOptions()}
+            onChange={kind => kind && setDraft(d => switchKind(d, kind))}
           />
         </Field>
         <div className="ob-biz-pair">

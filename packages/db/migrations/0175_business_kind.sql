@@ -1,0 +1,1 @@
+ALTER TABLE "workspace_settings" ADD COLUMN "business_kind" text;

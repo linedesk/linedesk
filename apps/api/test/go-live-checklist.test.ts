@@ -1,6 +1,6 @@
 // The go-live checklist's reads, dismissal and reopening (onboarding.goLiveChecklist, onboarding.dismissGoLiveChecklist,
 // onboarding.reopenGoLiveChecklist): owners and admins only, the dismissal per member.
-import { calls, golive_checklist_steps, phone_numbers, setup_events } from '@linedesk/db'
+import { calls, golive_checklist_steps, mail_analyses, phone_numbers, setup_events } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { expect, test } from 'vitest'
 import { db } from '../src/db.ts'
@@ -32,6 +32,8 @@ test('shown once onboarding is over; forwarding comes from the setup number, the
     firstRealCall: false,
     dismissed: false,
     steps: [],
+    businessKind: null,
+    faqReviewed: false,
   })
   await act(ws.owner, 'onboarding.setStep', { step: 'done' })
   expect((await checklist(ws.owner)).shown).toBe(true)
@@ -46,6 +48,8 @@ test('shown once onboarding is over; forwarding comes from the setup number, the
     firstRealCall: true,
     dismissed: false,
     steps: [],
+    businessKind: null,
+    faqReviewed: false,
   })
   // The forwarding_verified milestone alone is only for Server admin › Onboarding; the number's check is what counts.
   await forwardingVerified(ws.id)
@@ -152,6 +156,8 @@ test("another workspace's milestones, calls and dismissals never show", async ()
     firstRealCall: false,
     dismissed: false,
     steps: [],
+    businessKind: null,
+    faqReviewed: false,
   })
 })
 
@@ -260,4 +266,34 @@ test('members can neither skip, put off nor restore a step; another workspace ne
   // B's restore does not touch A's rows.
   await act(b.owner, 'onboarding.restoreGoLiveStep', { step: 'push' })
   expect(((await checklist(a.owner)).steps as unknown[]).length).toBe(2)
+})
+
+test('the kind of business and the reviewed FAQ come with the checklist (LIN-680)', async () => {
+  const ws = await createWorkspace('Kind Tea Shop')
+  await act(ws.owner, 'workspace.updateSettings', { businessKind: 'online_store' })
+  expect(await checklist(ws.owner)).toMatchObject({ businessKind: 'online_store', faqReviewed: false })
+  const analysis = (topics: object[]) =>
+    db.insert(mail_analyses).values({
+      id: `ma_${crypto.randomUUID().slice(0, 8)}`,
+      workspace_id: ws.id,
+      status: 'done',
+      months: 12,
+      topics: topics as never,
+      requested_by: ws.owner.userId,
+    })
+  const topic = (review?: object) => ({
+    title: 'Where is my order?',
+    example: '',
+    answer: 'Tracking link.',
+    factsNeeded: [],
+    conversations: 3,
+    ...(review ? { review } : {}),
+  })
+  await analysis([topic()])
+  expect((await checklist(ws.owner)).faqReviewed).toBe(false)
+  await db.delete(mail_analyses).where(eq(mail_analyses.workspace_id, ws.id))
+  await analysis([topic({ decision: 'dropped', at: new Date().toISOString(), by: ws.owner.userId })])
+  expect((await checklist(ws.owner)).faqReviewed).toBe(true)
+  // Only a kind from the list is stored.
+  expect((await act(ws.owner, 'workspace.updateSettings', { businessKind: 'tea_shop' })).status).toBe(422)
 })

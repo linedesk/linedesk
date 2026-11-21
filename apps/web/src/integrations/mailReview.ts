@@ -7,6 +7,7 @@ import type { Assistant } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useEffect, useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
+import { refreshGoLiveChecklist } from '../inbox/GoLiveChecklist.tsx'
 import { readAction, useWriteAction } from '../settings/settings-api.ts'
 
 export const ANALYSIS_KEY = 'mail.analysis'
@@ -82,6 +83,12 @@ export function useMailReview(toast: (text: string) => void): MailReview {
     return () => clearInterval(timer)
   }, [pending, reload])
 
+  // A finished analysis (and every review below) can tick the go-live checklist's "Review the common questions".
+  const finished = query.data?.status === 'done'
+  useEffect(() => {
+    if (finished) void refreshGoLiveChecklist()
+  }, [finished])
+
   const put = (analysis: MailAnalysis) => setQueryData<MailAnalysis | null>(ANALYSIS_KEY, analysis)
 
   async function start(months: 6 | 12) {
@@ -104,6 +111,7 @@ export function useMailReview(toast: (text: string) => void): MailReview {
         (await write<{ analysis: MailAnalysis }>('mail.reviewTopic', { analysisId: analysis.id, index, ...input }))
           .analysis,
       )
+      void refreshGoLiveChecklist()
       return true
     } catch (e) {
       toast((e as Error).message)

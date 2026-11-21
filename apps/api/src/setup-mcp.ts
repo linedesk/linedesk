@@ -84,6 +84,12 @@ import {
   UNPAID_PARTNER_CLIENTS,
   type Words,
   type WorkspaceCreateData,
+  type BusinessKind,
+  businessKinds,
+  goLiveStepFor,
+  goLiveSteps,
+  goLiveStepTraits,
+  isBusinessKind,
 } from '@linedesk/actions'
 import {
   assistants,
@@ -99,7 +105,7 @@ import {
   user,
   workspace_settings,
 } from '@linedesk/db'
-import { languageInSentence } from '@linedesk/i18n'
+import { languageInSentence, msg } from '@linedesk/i18n'
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { and, asc, desc, eq, isNotNull } from 'drizzle-orm'
 import { z } from 'zod'
@@ -1366,7 +1372,10 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   // step counts as done, as Checkout refuses it otherwise.
   const served = await servedCountriesOf(db, workspaceId)
   const countryUnserved = !!served && !served.includes(locale.resolvedCountry)
-  const businessDone = (hasProfile || past(went, 'business')) && !countryUnserved
+  // The kind of business (LIN-680) is part of it: it picks the go-live steps. A workspace onboarding went past
+  // before kinds existed stays done.
+  const kind = isBusinessKind(settings?.business_kind) ? settings.business_kind : null
+  const businessDone = ((hasProfile && !!kind) || past(went, 'business')) && !countryUnserved
   const phoneDone = numbers.length > 0
   // A workspace set up before the choice was stored answers with the default: done once onboarding went past it.
   const pickupDone = Boolean(settings?.pickup_mode) || past(went, 'pickup')
@@ -1471,6 +1480,13 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
         `Check the name, time zone and country with the ${who}: workspace_rename { ${w}, name }, workspace_updateSettings { ${w}, timeZone, country } (ISO country code, now ${locale.resolvedCountry}; null: automatic). The country is the default for phone numbers, the forwarding guide, holidays and currency, and the region numbers callers say are read in; its main language is what call summaries are written in and what the assistant greets in unless it has its own main language (assistant_update languages.main).`,
         `business_search { ${w}, query: "<name> <city>" } finds the listing (when business lookup is set up); business_import { ${w}, assistantId: "${assistant?.id ?? ''}", placeId?, name?, website? } drafts a profile from the listing and the website. It changes nothing.`,
         `Show the ${who} a short summary (services, area, hours, what to say about prices), fix what they correct, then save it: assistant_update { ${w}, assistantId, business_profile }. Opening hours: businessHours_set { ${w}, … }.`,
+        english.t('server.setupAgent.businessKind', {
+          now: kind ?? english.t('server.setupAgent.businessKindNotSet'),
+          who,
+          call: `workspace_updateSettings { ${w}, businessKind }`,
+          kinds: businessKinds.join(', '),
+          steps: kindStepsLine(kind),
+        }),
         emailKnowledgeHow(who, w),
         `Then onboarding_setStep { ${w}, step: "assistant" }.`,
       ],
@@ -1603,6 +1619,23 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       ],
     },
   ]
+}
+
+/** The go-live steps a kind of business gets beyond every business's (number, forwarding, first call, push, team). */
+const KIND_STEP = {
+  calendar: msg('server.setupAgent.kindStep.calendar'),
+  shopify: msg('server.setupAgent.kindStep.shopify'),
+  jobber: msg('server.setupAgent.kindStep.jobber'),
+  support_email: msg('server.setupAgent.kindStep.support_email'),
+  faq: msg('server.setupAgent.kindStep.faq'),
+} as const
+function kindStepsLine(kind: BusinessKind | null): string {
+  const extra = goLiveSteps.filter(
+    (step): step is keyof typeof KIND_STEP => goLiveStepTraits[step] !== 'all' && goLiveStepFor(step, kind),
+  )
+  return extra.length
+    ? extra.map(step => english.t(KIND_STEP[step])).join(', ')
+    : english.t('server.setupAgent.kindStep.none')
 }
 
 /**

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defineAction } from './define.ts'
+import { type BusinessKind, type BusinessTrait, traitsOf } from './business-kind.ts'
 
 /**
  * The onboarding screens in order. `done` is the last one: reaching it finishes onboarding.
@@ -71,13 +72,34 @@ export const onboardingRecordEvent = defineAction({
  * server can answer calls: speech, language model and voice, or a realtime model, under Server admin › Providers) only
  * on an install where that is not set up.
  */
-export const goLiveSteps = ['voice', 'number', 'forwarding', 'first_call', 'calendar', 'push', 'team'] as const
+export const goLiveSteps = [
+  'voice',
+  'number',
+  'forwarding',
+  'first_call',
+  'calendar',
+  'shopify',
+  'jobber',
+  'support_email',
+  'faq',
+  'push',
+  'team',
+] as const
 export type GoLiveStep = (typeof goLiveSteps)[number]
 /**
  * Steps that can be marked "Not needed": all but the voice service and the number (without either nothing answers)
  * and the first real call (the point of going live). Those can only be put off ("Remind me") and tick themselves once true.
  */
-export const skippableGoLiveSteps = ['forwarding', 'calendar', 'push', 'team'] as const
+export const skippableGoLiveSteps = [
+  'forwarding',
+  'calendar',
+  'shopify',
+  'jobber',
+  'support_email',
+  'faq',
+  'push',
+  'team',
+] as const
 /**
  * Whose each step is, the one place that says so. `workspace`: the business's setup, done once for everyone, and
  * "Not needed" hides it for every owner and admin. `person`: about the viewer's own devices (push on their phone);
@@ -89,10 +111,41 @@ export const goLiveStepScope = {
   forwarding: 'workspace',
   first_call: 'workspace',
   calendar: 'workspace',
+  shopify: 'workspace',
+  jobber: 'workspace',
+  support_email: 'workspace',
+  faq: 'workspace',
   push: 'person',
   team: 'workspace',
 } as const satisfies Record<GoLiveStep, 'workspace' | 'person'>
 export type GoLiveStepScope = (typeof goLiveStepScope)[GoLiveStep]
+
+/**
+ * Which businesses each step is for (LIN-680), the one place that says so: `all`, or the traits (business-kind.ts) of
+ * which the business needs one. A step for an integration names the traits it serves, never kinds: a new kind gets
+ * the right steps from its traits, and a new integration's step is one entry here (the Record makes it required).
+ */
+export const goLiveStepTraits = {
+  voice: 'all',
+  number: 'all',
+  forwarding: 'all',
+  first_call: 'all',
+  calendar: ['appointments'],
+  shopify: ['online_orders'],
+  jobber: ['site_visits'],
+  support_email: ['email_support'],
+  faq: ['email_support'],
+  push: 'all',
+  team: 'all',
+} as const satisfies Record<GoLiveStep, 'all' | readonly BusinessTrait[]>
+
+/** Whether a step is for this kind of business (a workspace without a kind: as `other`, the steps it always had). */
+export function goLiveStepFor(step: GoLiveStep, kind: BusinessKind | null | undefined): boolean {
+  const wanted: 'all' | readonly BusinessTrait[] = goLiveStepTraits[step]
+  if (wanted === 'all') return true
+  const traits = traitsOf(kind)
+  return wanted.some(t => traits.has(t))
+}
 /** "Remind me" brings a step back after this many days. */
 export const goLiveRemindDays = [3, 7, 30] as const
 
@@ -115,6 +168,13 @@ export type GoLiveChecklistData = {
   firstRealCall: boolean
   dismissed: boolean
   steps?: GoLiveStepState[]
+  /** The kind of business (goLiveStepFor picks the steps from it); null: never picked. Missing from an older API. */
+  businessKind?: BusinessKind | null
+  /**
+   * The support mail's FAQ is reviewed: an analysis of the connected mailboxes finished and none of its topics is
+   * still open (each accepted or dropped). Missing from an older API.
+   */
+  faqReviewed?: boolean
 }
 
 export const onboardingGoLiveChecklist = defineAction({

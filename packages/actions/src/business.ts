@@ -3,6 +3,7 @@
 // edits. Nothing here saves anything: the step saves the reviewed profile with assistant.update (and businessHours.set
 // once the owner confirms the hours). The industry templates are data: a few default use cases per trade.
 import { z } from 'zod'
+import { type BusinessKind, kindFor, templateOfKind } from './business-kind.ts'
 import { DEFAULT_AI_DISCLOSURE, greetingWithDisclosure } from './assistant-prompt.ts'
 import { defineAction } from './define.ts'
 import { voiceLanguageOf } from './workspace-locale.ts'
@@ -23,10 +24,6 @@ export type BusinessTemplateId = (typeof businessTemplateIds)[number]
 
 export type BusinessTemplate = {
   label: string
-  /** Google Places types (primaryType or types) that pick this template. */
-  placesTypes: readonly string[]
-  /** Words in the business name that pick it when Google gives no category. */
-  nameWords: RegExp | null
   /** "When a caller …, …" lines the assistant starts from; the owner edits them in the review. */
   useCases: readonly string[]
 }
@@ -42,8 +39,6 @@ const urgent = (when: string, take: string) =>
 export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
   plumbing_hvac: {
     label: 'Plumbing, heating and cooling',
-    placesTypes: ['plumber', 'hvac_contractor', 'heating_contractor', 'air_conditioning_contractor'],
-    nameWords: /plumb|heating|hvac|cooling|air condition|furnace|drain|rooter/i,
     useCases: [
       urgent('has a leak, flooding or no heat', 'their address and number'),
       "When a caller wants a repair or an estimate, ask what is wrong, their address and when they're home.",
@@ -52,16 +47,6 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
   },
   dental_medical: {
     label: 'Dental or medical office',
-    placesTypes: [
-      'dentist',
-      'dental_clinic',
-      'doctor',
-      'medical_clinic',
-      'physiotherapist',
-      'chiropractor',
-      'medical_lab',
-    ],
-    nameWords: /dental|dentist|orthodont|clinic|medical|family practice|pediatric|chiropract|physio/i,
     useCases: [
       urgent('has severe pain, swelling or a broken tooth', 'their name and number'),
       'When a caller wants an appointment, ask whether they are a new or existing patient and what it is for, and take their name and number.',
@@ -70,17 +55,6 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
   },
   salon_spa: {
     label: 'Salon or spa',
-    placesTypes: [
-      'beauty_salon',
-      'hair_salon',
-      'hair_care',
-      'nail_salon',
-      'barber_shop',
-      'spa',
-      'massage',
-      'beautician',
-    ],
-    nameWords: /salon|spa\b|barber|nails?\b|hair|beauty|massage|lash|brow/i,
     useCases: [
       urgent("can't make an appointment today", 'their name and the appointment time'),
       'When a caller wants to book, ask which service, which day and time suit them, and whether they have a favorite stylist.',
@@ -89,8 +63,6 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
   },
   law_office: {
     label: 'Law office',
-    placesTypes: ['lawyer', 'legal_services', 'attorney'],
-    nameWords: /\blaw\b|legal|attorney|lawyer|esq/i,
     useCases: [
       urgent('has a court deadline in the next few days', 'their name, number and the deadline'),
       'When a new client calls, ask what kind of matter it is and take their name and number for a callback; never give legal advice.',
@@ -99,18 +71,6 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
   },
   home_services: {
     label: 'Home services',
-    placesTypes: [
-      'electrician',
-      'roofing_contractor',
-      'general_contractor',
-      'locksmith',
-      'painter',
-      'moving_company',
-      'landscaper',
-      'pest_control_service',
-      'house_cleaning_service',
-    ],
-    nameWords: /electric|roof|locksmith|paint|moving|movers|landscap|lawn|pest|cleaning|handyman|contractor|remodel/i,
     useCases: [
       urgent("has no power, water coming in or can't lock their door", 'their address and number'),
       "When a caller wants a job done or an estimate, ask what they need, their address and when they're available.",
@@ -119,8 +79,6 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
   },
   other: {
     label: 'Something else',
-    placesTypes: [],
-    nameWords: null,
     useCases: [
       urgent("has something that can't wait", 'their name and number'),
       'When a caller wants to speak to someone, take their name, number and what it is about for a callback.',
@@ -199,22 +157,11 @@ export const aboutLabelsIn = (language: string | null | undefined): AboutLabels 
 export const allAboutLabels: readonly AboutLabels[] = Object.values(aboutLabels)
 
 /**
- * The template for a business that was looked up: its Google category first, then words in its name; null when
- * neither tells (the owner chooses, "Something else" included).
+ * The template for a business that was looked up: the one of its kind (kindFor: its Google category first, then words
+ * in its name); null when neither tells (the owner chooses, "Something else" included).
  */
-export function templateFor(business: {
-  primaryType?: string | null
-  types?: readonly string[]
-  name?: string | null
-}): BusinessTemplateId | null {
-  const ids = businessTemplateIds.filter(id => id !== 'other')
-  const byType = (type: string | null | undefined) =>
-    type ? ids.find(id => businessTemplates[id].placesTypes.includes(type)) : undefined
-  const typed = byType(business.primaryType) ?? business.types?.map(byType).find(Boolean)
-  if (typed) return typed
-  const name = business.name ?? ''
-  return ids.find(id => businessTemplates[id].nameWords?.test(name)) ?? null
-}
+export const templateFor = (business: Parameters<typeof kindFor>[0]): BusinessTemplateId | null =>
+  templateOfKind(kindFor(business))
 
 /**
  * The greeting with the business's name, in the shape a new workspace starts with (apps/api/src/onboarding.ts): in the
@@ -281,7 +228,12 @@ export type BusinessImportData = {
   hoursText: string[]
   /** The IANA zone of the listing. */
   timeZone: string | null
-  /** Null when neither the listing nor the name tells the kind of business. */
+  /**
+   * The kind of business (business-kind.ts): from the Google category, else the website (the language model), else
+   * words in the name; null when none tells (the owner chooses). Missing from an older API.
+   */
+  kind?: BusinessKind | null
+  /** The kind's template (templateOfKind); null without a kind. */
   template: BusinessTemplateId | null
   services: string[]
   about: string
@@ -302,7 +254,7 @@ export type BusinessImportData = {
 export const businessImport = defineAction({
   name: 'business.import',
   description:
-    "Propose the business's profile for review: the Google Places listing (`placeId`, from business.search: address, phone, hours, website, category) and/or a `name` and `website`, then the website read like knowledge.import (robots.txt respected). Returns name, address, area, phone, hours, services, a short About text, use cases, a greeting and an industry template. Changes nothing: the owner reviews it and saves with assistant.update and businessHours.set.",
+    "Propose the business's profile for review: the Google Places listing (`placeId`, from business.search: address, phone, hours, website, category) and/or a `name` and `website`, then the website read like knowledge.import (robots.txt respected). Returns name, address, area, phone, hours, services, a short About text, use cases, a greeting, the kind of business (`kind`, one of the fixed list; save it with workspace.updateSettings `businessKind` once the owner confirms it) and its industry template. Changes nothing: the owner reviews it and saves with assistant.update and businessHours.set.",
   input: z
     .object({
       assistantId: z.string().min(1),

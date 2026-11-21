@@ -9,6 +9,7 @@ import {
   DEFAULT_WORKSPACE_DAILY_CAP,
   dailyCap,
   modelProblem,
+  parseBusinessAnswer,
   websiteImportFor,
   workspaceDailyCap,
 } from '../src/business-import.ts'
@@ -324,6 +325,7 @@ describe('business.import', () => {
       phone: '+1 503-555-0142',
       website: null,
       timeZone: 'America/Los_Angeles',
+      kind: 'plumbing_hvac',
       template: 'plumbing_hvac',
       services: ['Drain cleaning', 'Water heaters'],
       about: 'We are a family plumbing company in Portland.',
@@ -347,6 +349,7 @@ describe('business.import', () => {
     expect(res.status).toBe(200)
     expect(res.body.data).toMatchObject({
       name: 'Lakeside Dental',
+      kind: 'dental',
       template: 'dental_medical',
       hours: null,
       about: '',
@@ -362,10 +365,17 @@ describe('business.import', () => {
     expect(listing.body.data).toMatchObject({ name: 'Lakeside Dental', address: null })
     expect(listing.body.data.failures).toEqual([{ provider: 'business', reason: 'config' }])
     expect(calls).toHaveLength(0)
-    expect(
-      (await act(ws.owner, 'business.import', { assistantId: ws.assistant.id, name: 'The Corner Bookshop' })).body.data
-        .template,
-    ).toBeNull()
+    const shop = await act(ws.owner, 'business.import', { assistantId: ws.assistant.id, name: 'The Corner Bookshop' })
+    expect(shop.body.data).toMatchObject({ kind: 'retail_store', template: 'other' })
+    const unknown = await act(ws.owner, 'business.import', { assistantId: ws.assistant.id, name: 'Joe Smith' })
+    expect(unknown.body.data).toMatchObject({ kind: null, template: null })
+  })
+
+  test("the model's kind of business: only one from the list counts", () => {
+    const answer = (kind: unknown) => parseBusinessAnswer(JSON.stringify({ about: 'We sell tea.', kind }))
+    expect(answer('online_store').kind).toBe('online_store')
+    expect(answer('tea_shop').kind).toBeNull()
+    expect(parseBusinessAnswer(JSON.stringify({ about: 'We sell tea.' })).kind).toBeNull()
   })
 
   test('a private website is refused by the SSRF guard and named in the notes, the rest still comes back', async () => {

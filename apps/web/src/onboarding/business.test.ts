@@ -1,4 +1,11 @@
-import { type BusinessImportData, businessTemplates, templateFor, templateUseCasesIn } from '@linedesk/actions'
+import {
+  type BusinessImportData,
+  businessTemplates,
+  kindFor,
+  kindOfTemplate,
+  templateFor,
+  templateUseCasesIn,
+} from '@linedesk/actions'
 import { describe, expect, test } from 'vitest'
 import {
   commonCallsOf,
@@ -16,7 +23,7 @@ import {
   savedTemplate,
   shownTimeZone,
   sourcesLine,
-  switchTemplate,
+  switchKind,
   templateUseCases,
   timeZoneToSave,
   websiteChoice,
@@ -57,7 +64,30 @@ describe('industry templates', () => {
     expect(templateFor({ name: 'Lakeside Dental' })).toBe('dental_medical')
     expect(templateFor({ name: 'Baker & Sons Law' })).toBe('law_office')
     expect(templateFor({ name: 'Northside Electric' })).toBe('home_services')
-    expect(templateFor({ name: 'The Corner Bookshop' })).toBeNull()
+    expect(templateFor({ name: 'The Corner Bookshop' })).toBe('other')
+    expect(templateFor({ name: 'Joe' })).toBeNull()
+  })
+
+  test('the kind of business: Google category, then the name; it picks the template', () => {
+    expect(kindFor({ primaryType: 'dentist' })).toBe('dental')
+    expect(kindFor({ primaryType: 'point_of_interest', types: ['store', 'clothing_store'] })).toBe('retail_store')
+    expect(kindFor({ types: ['store'] })).toBe('retail_store')
+    expect(kindFor({ name: 'Northside Electric' })).toBe('electrical')
+    expect(kindFor({ name: 'Joe' })).toBeNull()
+    expect(kindOfTemplate('dental_medical')).toBe('medical')
+    expect(kindOfTemplate('other')).toBeNull()
+  })
+
+  test('another kind with the same template keeps the calls; one with another template swaps them', () => {
+    const draft = draftFrom(proposal({ kind: 'plumbing_hvac' }))
+    expect(switchKind(draft, 'electrical').useCases).not.toBe(draft.useCases)
+    const electrical = switchKind(draft, 'electrical')
+    expect(switchKind(electrical, 'roofing_construction')).toEqual({ ...electrical, kind: 'roofing_construction' })
+  })
+
+  test('the kind is required before the step saves', () => {
+    expect(draftProblems({ ...draftFrom(proposal()), kind: null }).kind).toBeTruthy()
+    expect(draftProblems(draftFrom(proposal({ kind: 'plumbing_hvac' }))).kind).toBeUndefined()
   })
 
   test('each template is a few lines, what is urgent first; no 911 line (every prompt has it) and no transfer promise', () => {
@@ -82,7 +112,7 @@ describe('industry templates', () => {
       ...draftFrom(proposal()),
       useCases: `${draftFrom(proposal()).useCases}\nWhen a caller asks for Mike, take a message.`,
     }
-    const salon = switchTemplate(draft, 'salon_spa')
+    const salon = switchKind(draft, 'salon_spa')
     const lines = salon.useCases.split('\n')
     expect(lines.slice(0, businessTemplates.salon_spa.useCases.length)).toEqual([
       ...businessTemplates.salon_spa.useCases,
@@ -105,7 +135,7 @@ describe('the review draft', () => {
     const p = manualProposal('  Lakeside Dental ', 'Ava')
     expect(p).toMatchObject({ name: 'Lakeside Dental', template: null, hours: null })
     expect(draftFrom(p).useCases).toBe('')
-    const chosen = switchTemplate(draftFrom(p), 'dental_medical')
+    const chosen = switchKind(draftFrom(p), 'dental')
     expect(chosen.useCases.split('\n')).toEqual([...businessTemplates.dental_medical.useCases])
     expect(p.greeting).toBe('Thanks for calling Lakeside Dental. This is Ava, the AI assistant. How can I help?')
   })
@@ -205,12 +235,15 @@ describe('a German workspace (texts approved by Janik on 2026-11-20, rule 11)', 
     const calls = commonCallsOf(saved.instructions)
     expect(calls).toEqual(de().useCases.split('\n'))
     expect(savedProposal(saved, 'Harbor', 'Hallo').template).toBe('plumbing_hvac')
+    // The kind saved wins; without one, the template's kind is the first guess.
+    expect(savedProposal(saved, 'Harbor', 'Hallo').kind).toBe('plumbing_hvac')
+    expect(savedProposal(saved, 'Harbor', 'Hallo', 'cleaning').kind).toBe('cleaning')
     // English labels are still read.
     expect(commonCallsOf('About.\n\nCommon calls:\n- One.\n- Two.')).toEqual(['One.', 'Two.'])
   })
 
   test("switching the kind of business swaps the template's calls in either language", () => {
-    const salon = switchTemplate(de(), 'salon_spa')
+    const salon = switchKind(de(), 'salon_spa')
     expect(salon.useCases.split('\n')).toEqual([
       ...templateUseCasesIn('salon_spa', 'de'),
       'When a caller asks about water heaters, offer a free estimate.',

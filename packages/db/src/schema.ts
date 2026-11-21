@@ -472,6 +472,11 @@ export const workspace_settings = pgTable(
      * number's mode and the hours. null: never chosen.
      */
     pickup_mode: text('pickup_mode', { enum: ['no_answer', 'always', 'after_hours'] }),
+    /**
+     * The kind of business (businessKinds in @linedesk/actions, business-kind.ts; checked there): picked in onboarding,
+     * changed in Workspace settings › General. It decides which go-live steps show. null: never picked (`other`).
+     */
+    business_kind: text('business_kind'),
     /** Recordings older than this many days are deleted by the daily cleanup job. null: keep them. */
     recording_retention_days: integer('recording_retention_days').default(90),
     /** New-call notifications for members who have not set their own (member_notification_settings). */

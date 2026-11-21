@@ -27,6 +27,11 @@ const none: GoLiveFacts = {
   calendarConnected: false,
   pushOn: false,
   teamInvited: false,
+  businessKind: null,
+  shopifyConnected: false,
+  jobberConnected: false,
+  mailboxConnected: false,
+  faqReviewed: false,
 }
 const all: GoLiveFacts = {
   ...none,
@@ -36,6 +41,10 @@ const all: GoLiveFacts = {
   calendarConnected: true,
   pushOn: true,
   teamInvited: true,
+  shopifyConnected: true,
+  jobberConnected: true,
+  mailboxConnected: true,
+  faqReviewed: true,
 }
 const server = (over: Partial<GoLiveChecklistData> = {}): GoLiveChecklistData => ({
   shown: true,
@@ -292,4 +301,46 @@ test('the header leaves out why the assistant cannot answer while the checklist 
   expect(presenceSaidByChecklist({ kind: 'answering' }, true)).toBe(false)
   expect(presenceSaidByChecklist({ kind: 'offline' }, true)).toBe(false)
   expect(presenceSaidByChecklist({ kind: 'unknown' }, true)).toBe(false)
+})
+
+describe('steps for the kind of business (LIN-680)', () => {
+  const ids = (facts: Partial<GoLiveFacts>) => goLiveItems({ ...none, ...facts }, 'Maya').map(i => i.id)
+
+  test('without a kind: the steps every workspace had, nothing new', () => {
+    expect(ids({})).toEqual(['number', 'forwarding', 'first_call', 'calendar', 'push', 'team'])
+  })
+
+  test('an online store: Shopify, the support mailbox and its FAQ, no calendar', () => {
+    expect(ids({ businessKind: 'online_store' })).toEqual([
+      'number',
+      'forwarding',
+      'first_call',
+      'shopify',
+      'support_email',
+      'faq',
+      'push',
+      'team',
+    ])
+  })
+
+  test('a trade: the calendar and Jobber; a law office: the calendar and the support mailbox', () => {
+    expect(ids({ businessKind: 'plumbing_hvac' })).toContain('jobber')
+    expect(ids({ businessKind: 'plumbing_hvac' })).not.toContain('shopify')
+    expect(ids({ businessKind: 'law_office' })).toEqual(expect.arrayContaining(['calendar', 'support_email', 'faq']))
+    expect(ids({ businessKind: 'restaurant' })).not.toContain('calendar')
+  })
+
+  test('each new step ticks itself from its fact and can be marked not needed', () => {
+    const items = goLiveItems({ ...none, businessKind: 'online_store', shopifyConnected: true }, 'Maya')
+    expect(items.find(i => i.id === 'shopify')).toMatchObject({ done: true, href: '#integrations/shopify' })
+    expect(items.find(i => i.id === 'faq')!.done).toBe(false)
+    for (const id of ['shopify', 'jobber', 'support_email', 'faq'] as const) expect(canSkipGoLiveStep(id)).toBe(true)
+  })
+
+  test('the FAQ keeps the checklist read again only where it shows', () => {
+    const live = { forwardingVerified: true, firstRealCall: true }
+    expect(goLiveSettled(server({ ...live, businessKind: 'online_store', faqReviewed: false }))).toBe(false)
+    expect(goLiveSettled(server({ ...live, businessKind: 'online_store', faqReviewed: true }))).toBe(true)
+    expect(goLiveSettled(server({ ...live, businessKind: 'plumbing_hvac', faqReviewed: false }))).toBe(true)
+  })
 })

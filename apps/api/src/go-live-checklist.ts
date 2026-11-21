@@ -12,6 +12,7 @@ import {
   type GoLiveStepState,
   goLiveStepScope,
   goLiveSteps,
+  isBusinessKind,
   isLive,
   liveMilestones,
   setupNumber,
@@ -20,12 +21,13 @@ import {
 import {
   golive_checklist_dismissals,
   golive_checklist_steps,
+  mail_analyses,
   phone_numbers,
   setup_events,
   type Tx,
   workspace_settings,
 } from '@linedesk/db'
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { type Handler, Reject } from './handler-context.ts'
 
@@ -38,7 +40,7 @@ function memberOf(actor: Actor): { workspaceId: string; userId: string } {
 export async function goLiveChecklist(tx: Tx, actor: Actor): Promise<GoLiveChecklistData> {
   const { workspaceId, userId } = memberOf(actor)
   const [settings] = await tx
-    .select({ step: workspace_settings.onboarding_step })
+    .select({ step: workspace_settings.onboarding_step, kind: workspace_settings.business_kind })
     .from(workspace_settings)
     .where(eq(workspace_settings.workspace_id, workspaceId))
   const events = await tx
@@ -60,7 +62,23 @@ export async function goLiveChecklist(tx: Tx, actor: Actor): Promise<GoLiveCheck
     firstRealCall: isLive(reached, false) || (await realCallArrived(tx, workspaceId)),
     dismissed: Boolean(dismissal),
     steps: await stepStates(tx, workspaceId, userId),
+    businessKind: isBusinessKind(settings?.kind) ? settings.kind : null,
+    faqReviewed: await faqReviewed(tx, workspaceId),
   }
+}
+
+/**
+ * The FAQ from the support mail is reviewed: the latest analysis finished and every topic in it was accepted or
+ * dropped (Integrations › Support email). One that found nothing to review counts as reviewed.
+ */
+async function faqReviewed(tx: Tx, workspaceId: string): Promise<boolean> {
+  const [latest] = await tx
+    .select({ status: mail_analyses.status, topics: mail_analyses.topics })
+    .from(mail_analyses)
+    .where(eq(mail_analyses.workspace_id, workspaceId))
+    .orderBy(desc(mail_analyses.created_at))
+    .limit(1)
+  return latest?.status === 'done' && latest.topics.every(t => !!t.review?.decision)
 }
 
 const DAY_MS = 86_400_000

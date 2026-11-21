@@ -3,13 +3,15 @@
 // it with assistant.update. The listing and the pages are untrusted text: they go to the model fenced as data
 // (fenceData), the website only through public-fetch.ts (readSite).
 import {
+  businessKinds,
   type BusinessImportData,
   type BusinessLookupFailure,
   type BusinessSearchData,
   fenceData,
   greetingFor,
   INSTRUCTIONS_MAX,
-  templateFor,
+  kindFor,
+  templateOfKind,
   USE_CASE_MAX,
   USE_CASES_MAX,
 } from '@linedesk/actions'
@@ -159,7 +161,8 @@ Answer with one JSON object and nothing else:
   "about": a short brief for the assistant, written as the business ("We are…"), plain sentences, at most 150 words: what the business does and for whom, how it handles prices (fixed prices, free estimates, call-out fees) and answers to questions callers often ask, when the pages say so. Only facts from the listing and the pages.
   "services": the services it offers, each a few words, with the price exactly as stated if one is given (at most 12),
   "area": the area it serves in a few words ("Portland and the east side"), or "" when the pages do not say,
-  "use_cases": short lines, each "When a caller …, …", for calls this business gets often that the pages tell how to handle (at most ${USE_CASES_MAX}, each one sentence; [] if the pages say nothing about it)
+  "use_cases": short lines, each "When a caller …, …", for calls this business gets often that the pages tell how to handle (at most ${USE_CASES_MAX}, each one sentence; [] if the pages say nothing about it),
+  "kind": the kind of business, exactly one of: ${businessKinds.join(', ')} ("online_store" when it sells mainly through its website, "other" when none fits)
 }
 Never invent or estimate a price, a service or an area.`
 
@@ -206,6 +209,8 @@ const answerSchema = z.object({
   services: z.array(line(120)).catch([]),
   area: line(120),
   use_cases: z.array(line(USE_CASE_MAX)).catch([]),
+  // Only a kind from the list; anything else (or none, from an older answer) is no kind.
+  kind: z.enum(businessKinds).nullable().catch(null).default(null),
 })
 
 /** The model's answer, checked and cut to the limits. Throws when it is not JSON. */
@@ -217,6 +222,7 @@ export function parseBusinessAnswer(text: string) {
     services: unique(parsed.services, 12),
     area: parsed.area || null,
     useCases: unique(parsed.use_cases, USE_CASES_MAX),
+    kind: parsed.kind,
   }
 }
 
@@ -274,7 +280,13 @@ async function proposal(
     }
   }
 
-  let answer: ReturnType<typeof parseBusinessAnswer> = { about: '', services: [], area: null, useCases: [] }
+  let answer: ReturnType<typeof parseBusinessAnswer> = {
+    about: '',
+    services: [],
+    area: null,
+    useCases: [],
+    kind: null,
+  }
   // A listing or a website and no model to write from them (a website alone is then not even read).
   if (!model && (details || website)) failures.push({ provider: 'llm', reason: 'config' })
   if (pages.length || details) {
@@ -293,8 +305,11 @@ async function proposal(
     }
   }
 
-  const template = templateFor({ primaryType: details?.primaryType, types: details?.types, name })
+  // The kind of business (LIN-680): Google's category, else what the website (the model) says, else words in the name.
+  const kind = kindFor({ primaryType: details?.primaryType, types: details?.types }) ?? answer.kind ?? kindFor({ name })
+  const template = templateOfKind(kind)
   return {
+    kind,
     name,
     address: details?.formattedAddress ?? null,
     area: answer.area ?? (details ? placeArea(details) : null),

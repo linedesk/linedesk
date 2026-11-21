@@ -4,11 +4,13 @@
 // Which number, what counts as live and the order of the steps come from @linedesk/actions (setup-state.ts), the
 // same definition the setup emails and Server admin › Onboarding use.
 import {
+  type BusinessKind,
   forwardsCalls,
   type GoLiveChecklistData,
   type GoLiveStep,
   type GoLiveStepScope,
   type GoLiveStepState,
+  goLiveStepFor,
   goLiveStepScope,
   setupNumber,
   skippableGoLiveSteps,
@@ -59,6 +61,15 @@ export type GoLiveFacts = {
   /** The viewer's own devices; null: push is not set up on this install, so the row is left out. */
   pushOn: boolean | null
   teamInvited: boolean
+  /** The kind of business: which of the steps below are for it (goLiveStepFor); null: never picked. */
+  businessKind: BusinessKind | null
+  /** A Shopify store / a Jobber account is connected (app_connections; one that needs attention counts too). */
+  shopifyConnected: boolean
+  jobberConnected: boolean
+  /** A support mailbox (Gmail or Outlook) is connected (mail_connections). */
+  mailboxConnected: boolean
+  /** The FAQ from the support mail is reviewed (GoLiveChecklistData.faqReviewed). */
+  faqReviewed: boolean
 }
 
 /** The one sentence for a server whose voice service is not set up: the inbox header and the go-live checklist. */
@@ -137,6 +148,36 @@ export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[]
       done: facts.calendarConnected,
       href: '#assistant/booking',
     })
+  items.push(
+    {
+      id: 'shopify',
+      label: t('inbox.goLive.shopify.label'),
+      hint: t('inbox.goLive.shopify.hint', { assistant }),
+      done: facts.shopifyConnected,
+      href: '#integrations/shopify',
+    },
+    {
+      id: 'jobber',
+      label: t('inbox.goLive.jobber.label'),
+      hint: t('inbox.goLive.jobber.hint'),
+      done: facts.jobberConnected,
+      href: '#integrations/jobber',
+    },
+    {
+      id: 'support_email',
+      label: t('inbox.goLive.supportEmail.label'),
+      hint: t('inbox.goLive.supportEmail.hint'),
+      done: facts.mailboxConnected,
+      href: '#integrations/gmail',
+    },
+    {
+      id: 'faq',
+      label: t('inbox.goLive.faq.label'),
+      hint: t('inbox.goLive.faq.hint', { assistant }),
+      done: facts.faqReviewed,
+      href: '#integrations/gmail',
+    },
+  )
   if (facts.pushOn !== null)
     items.push({
       id: 'push',
@@ -152,7 +193,10 @@ export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[]
     done: facts.teamInvited,
     href: '#workspace/team',
   })
-  return items.map(item => ({ ...item, scope: goLiveStepScope[item.id] }))
+  // Only the steps for this kind of business (LIN-680): an online store gets Shopify and no calendar, say.
+  return items
+    .filter(item => goLiveStepFor(item.id, facts.businessKind))
+    .map(item => ({ ...item, scope: goLiveStepScope[item.id] }))
 }
 
 /** Whether "Not needed" is offered: every step but the voice service, the number and the first real call (an old skipped row for them is ignored). */
@@ -211,9 +255,16 @@ export function goLiveShown(
   return pinned || goLiveView(items, server.steps, now).open.length > 0
 }
 
-/** Nothing more to learn from the server: not shown here, closed, or both of its facts true. Then it is not read again on its own. */
+/** Nothing more to learn from the server: not shown here, closed, or its facts true (the FAQ one only where the step shows). Then it is not read again on its own. */
 export const goLiveSettled = (server: GoLiveChecklistData | undefined) =>
-  Boolean(server && (!server.shown || server.dismissed || (server.forwardingVerified && server.firstRealCall)))
+  Boolean(
+    server &&
+      (!server.shown ||
+        server.dismissed ||
+        (server.forwardingVerified &&
+          server.firstRealCall &&
+          (server.faqReviewed !== false || !goLiveStepFor('faq', server.businessKind)))),
+  )
 
 /** The number the forwarding row is about: the setup number (setupNumber) when it forwards; 'none' without numbers, null when none forwards. */
 export function forwardingNumber<N extends Pick<PhoneNumber, 'id' | 'mode' | 'created_at'>>(

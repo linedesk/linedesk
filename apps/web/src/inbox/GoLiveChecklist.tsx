@@ -186,6 +186,8 @@ function useItems(
   const push = useNotificationQuery().data?.push
   const team = useTeam().data
   const calendarConnected = calendarReady(connections, attached)
+  const apps = useRows('app_connections')
+  const mailboxes = useRows('mail_connections')
   return goLiveItems(
     {
       // Only on an install where it is (or was, on this page) not working; unknown yet: no row.
@@ -200,6 +202,11 @@ function useItems(
       // someone here through the workspace's white-label partner: calls on their own phone are not this client's step.
       pushOn: push?.publicKey && !viaPartner(team) ? push.devices.length > 0 : null,
       teamInvited: Boolean(team && teamInvited(team)),
+      businessKind: server?.businessKind ?? null,
+      shopifyConnected: apps.some(a => a.provider === 'shopify'),
+      jobberConnected: apps.some(a => a.provider === 'jobber'),
+      mailboxConnected: mailboxes.length > 0,
+      faqReviewed: Boolean(server?.faqReviewed),
     },
     assistant,
   )

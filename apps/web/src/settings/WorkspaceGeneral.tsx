@@ -1,4 +1,4 @@
-// Workspace settings › General: what is the same for the whole workspace. The business name (workspace.rename),
+// Workspace settings › General: what is the same for the whole workspace. The business name (workspace.rename), the kind of business (LIN-680),
 // the workspace icon (WorkspaceIconField), the country (Automatic until set: workspace-locale.ts), the time zone (moved here from the assistant's Advanced section;
 // Hours & holidays links here) and the value of a booked appointment (also set from the Insights summary). Owners and admins change them; members see them, with one note on top saying why they can't.
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
@@ -24,6 +24,10 @@ import { CountrySelect } from './CountrySelect.tsx'
 import { timeZoneLabel } from './timeZones.ts'
 import { AUTOMATIC, explicitCountryPatch } from './workspaceLocaleModel.ts'
 import { WorkspaceIconField } from './WorkspaceIconField.tsx'
+import type { BusinessKind } from '@linedesk/actions'
+import { refreshGoLiveChecklist } from '../inbox/GoLiveChecklist.tsx'
+import { Select } from '../ui/controls.tsx'
+import { kindOptions } from './businessKind.ts'
 
 type Props = {
   canEdit: boolean
@@ -54,6 +58,7 @@ export function WorkspaceGeneral({
       <BusinessName canEdit={canEdit} name={name} onRenamed={onRenamed} toast={toast} />
       {/* The note above says it for every field: none of its own under the icon. */}
       <WorkspaceIconField canEdit={canEdit} name={name} readOnlyNote="" toast={toast} />
+      <Kind canEdit={canEdit} />
       <Country canEdit={canEdit} />
       <TimeZone canEdit={canEdit} />
       <Value canEdit={canEdit} toast={toast} />
@@ -185,6 +190,52 @@ async function saveFollow(change: { timeZone: null } | { jobValueCurrency: null 
   }
   void refreshWorkspaceSettings()
 }
+
+/**
+ * The kind of business (LIN-680): picked in onboarding; it decides which go-live steps show (a calendar, Shopify, a
+ * support mailbox). Saves at once; the checklist is read again so its steps follow.
+ */
+function Kind({ canEdit }: { canEdit: boolean }) {
+  const t = useT()
+  const write = useWriteAction()
+  const settings = useWorkspaceSettings()
+  const data = settings.data
+  const change = (businessKind: BusinessKind | typeof NO_KIND) => {
+    if (!businessKind || businessKind === data?.businessKind) return
+    patchWorkspaceSettings({ businessKind })
+    // Saved, then the go-live checklist is read again: its steps follow the new kind without a reload.
+    void write('workspace.updateSettings', { businessKind })
+      .then(() => refreshGoLiveChecklist())
+      .catch(e => {
+        console.warn(`could not save the kind of business: ${(e as Error).message}`)
+        void refreshWorkspaceSettings()
+      })
+  }
+  return (
+    <Field id="ws-kind" label={t('settings.general.kind.label')} tip={t('settings.general.kind.tip')}>
+      <Loading
+        what={t('settings.general.kind.what')}
+        loading={!data}
+        error={settings.error}
+        onRetry={() => void settings.reload()}
+        skeleton={<Skeleton shape="field" width="100%" />}
+      >
+        {data && (
+          <Select<BusinessKind | typeof NO_KIND>
+            id="ws-kind"
+            label={t('settings.general.kind.label')}
+            value={data.businessKind ?? NO_KIND}
+            options={kindOptions()}
+            onChange={change}
+            disabled={!canEdit}
+          />
+        )}
+      </Loading>
+    </Field>
+  )
+}
+/** "Choose…" while no kind was ever picked (a workspace from before kinds). */
+const NO_KIND = ''
 
 /**
  * The workspace's time zone: the date and time the assistant is told, and what business hours mean. It follows the

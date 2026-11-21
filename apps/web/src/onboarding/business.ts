@@ -1,6 +1,7 @@
 // "Find your business" without React: what the owner typed, the profile draft from a business.import proposal, the
 // industry template's default use cases, and what saving the reviewed draft writes.
 import {
+  type BusinessKind,
   type BusinessHoursSpan,
   type BusinessImportData,
   type BusinessLookupFailure,
@@ -12,9 +13,11 @@ import {
   businessWebsiteProblem,
   greetingFor,
   INSTRUCTIONS_MAX,
+  kindOfTemplate,
   languageCodes,
   phoneNumberProblem,
   templateFor,
+  templateOfKind,
   templateUseCasesAnyLanguage,
   templateUseCasesIn,
   workspaceNameProblem,
@@ -53,7 +56,12 @@ export type ProfileDraft = {
   area: string
   phone: string
   website: string
-  /** Null until the owner chooses, when the lookup did not tell. */
+  /**
+   * The kind of business (business-kind.ts): null until the owner chooses, when the lookup did not tell. Required to
+   * continue: it picks the setup steps after onboarding (the go-live checklist).
+   */
+  kind: BusinessKind | null
+  /** The kind's template, whose default common calls are in `useCases` (null before a kind is chosen). */
   template: BusinessTemplateId | null
   services: string
   about: string
@@ -102,6 +110,8 @@ export function draftFrom(proposal: BusinessImportData, language = 'en'): Profil
     area: proposal.area ?? '',
     phone: proposal.phone ?? '',
     website: proposal.website ?? '',
+    // An older API names only the template: the kind it stands for, for the owner to confirm.
+    kind: proposal.kind !== undefined ? proposal.kind : kindOfTemplate(proposal.template),
     template: proposal.template,
     services: proposal.services.join('\n'),
     about: proposal.about,
@@ -146,6 +156,7 @@ export function manualProposal(name: string, assistantName: string, website = ''
     hours: null,
     hoursText: [],
     timeZone: null,
+    kind: null,
     template: null,
     services: [],
     about: '',
@@ -172,7 +183,7 @@ export function commonCallsOf(instructions: string | undefined): string[] {
 }
 
 /**
- * The kind of business a saved profile was made with. It is not stored on its own: the template whose default use
+ * The template a saved profile was made with. It is not stored on its own (the kind is): the template whose default use
  * cases are most of the saved common calls (the review put them there when it was chosen), else the one the name
  * points to (templateFor), else null ("Choose…").
  */
@@ -190,9 +201,17 @@ export function savedTemplate(commonCalls: readonly string[], name: string): Bus
  * A proposal from the profile saved before (coming back to this step): the review starts from it, so saving again
  * keeps what was there, the kind of business included (savedTemplate).
  */
-export function savedProposal(profile: BusinessProfile, name: string, greeting: string): BusinessImportData {
+export function savedProposal(
+  profile: BusinessProfile,
+  name: string,
+  greeting: string,
+  kind: BusinessKind | null = null,
+): BusinessImportData {
   const useCases = commonCallsOf(profile.instructions)
+  const template = savedTemplate(useCases, name)
   return {
+    // The kind saved, else the one the template stands for (a workspace from before kinds), for the owner to confirm.
+    kind: kind ?? kindOfTemplate(template),
     name: name.trim(),
     address: profile.address ?? null,
     area: profile.service_area ?? null,
@@ -201,7 +220,7 @@ export function savedProposal(profile: BusinessProfile, name: string, greeting: 
     hours: null,
     hoursText: [],
     timeZone: null,
-    template: savedTemplate(useCases, name),
+    template,
     services: profile.services ?? [],
     about: profile.description ?? '',
     useCases,
@@ -213,13 +232,15 @@ export function savedProposal(profile: BusinessProfile, name: string, greeting: 
 }
 
 /**
- * Another industry: the old template's default use cases leave the list, the new one's come first; lines the owner
- * wrote or the website gave stay.
+ * Another kind of business. When its template is another one, the old template's default use cases leave the list and
+ * the new one's come first; lines the owner wrote or the website gave stay.
  */
-export function switchTemplate(draft: ProfileDraft, template: BusinessTemplateId): ProfileDraft {
+export function switchKind(draft: ProfileDraft, kind: BusinessKind): ProfileDraft {
+  const template = templateOfKind(kind)
+  if (template === draft.template || !template) return { ...draft, kind }
   const old = new Set(draft.template ? templateUseCasesAnyLanguage(draft.template) : [])
   const kept = lines(draft.useCases).filter(l => !old.has(l))
-  return { ...draft, template, useCases: templateUseCases(template, kept, draft.language).join('\n') }
+  return { ...draft, kind, template, useCases: templateUseCases(template, kept, draft.language).join('\n') }
 }
 
 /**
@@ -253,12 +274,13 @@ export function instructionsOf(draft: ProfileDraft): string {
 }
 
 /** What is wrong with the draft, per field (shown under it); empty when it can be saved. */
-export function draftProblems(draft: ProfileDraft): Partial<Record<'name' | 'phone' | 'website', string>> {
-  const problems: Partial<Record<'name' | 'phone' | 'website', string>> = {}
+export function draftProblems(draft: ProfileDraft): Partial<Record<'name' | 'kind' | 'phone' | 'website', string>> {
+  const problems: Partial<Record<'name' | 'kind' | 'phone' | 'website', string>> = {}
   const name = draft.name.trim()
     ? workspaceNameProblem(draft.name, i18n())
     : i18n().t('onboarding.business.nameRequired')
   if (name) problems.name = name
+  if (!draft.kind) problems.kind = i18n().t('onboarding.business.kindRequired')
   // The phone field's value is E.164 as far as typed: an unfinished number says so for its country.
   const phone =
     (draft.phone.trim().startsWith('+') ? phoneNumberProblem(draft.phone, i18n()) : null) ??

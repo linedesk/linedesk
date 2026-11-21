@@ -7,7 +7,9 @@ import {
   JOB_VALUE_MAX_CENTS,
   type JobValueCurrency,
   type PickupMode,
+  type BusinessKind,
   currencyOfCountry,
+  isBusinessKind,
   mainTimeZoneOf,
   rescaleMinorUnits,
   type WorkspaceSettingsData,
@@ -73,6 +75,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       jobValueCurrencyFollowsCountry: row?.job_value_currency_follows_country ?? true,
       countryCurrency: currencyOfCountry(locale.resolvedCountry),
       pickupMode: row?.pickup_mode ?? null,
+      businessKind: isBusinessKind(row?.business_kind) ? row.business_kind : null,
       ...locale,
       servedCountries: await servedCountriesOf(tx, actor.workspaceId),
       usageLevels: await usageLevelsBilled(tx),
@@ -112,6 +115,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       pickupMode?: PickupMode
       country?: string | null
       language?: string | null
+      businessKind?: BusinessKind
     },
   ) => {
     if (!actor.workspaceId) throw new Reject('no workspace')
@@ -149,6 +153,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       ...(typedIn ? { job_value_currency: typedIn } : {}),
       ...(input.pickupMode !== undefined ? { pickup_mode: input.pickupMode } : {}),
       ...(input.country !== undefined ? { country: input.country } : {}),
+      ...(input.businessKind !== undefined ? { business_kind: input.businessKind } : {}),
     }
     if (!Object.keys(set).length) return { rows: {} }
     // The language calls are answered in before the country changes: an untouched default voice follows it (below).
@@ -187,6 +192,7 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
         jobValueCurrency: row!.job_value_currency,
         jobValueCurrencyFollowsCountry: row!.job_value_currency_follows_country,
         pickupMode: row!.pickup_mode,
+        businessKind: isBusinessKind(row!.business_kind) ? row!.business_kind : null,
         ...(locale ?? {}),
       } satisfies Pick<
         WorkspaceSettingsData,
