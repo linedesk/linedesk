@@ -488,6 +488,9 @@ describe('provider keys', () => {
 
   test('AssemblyAI answering with Deepgram set up too: the agent gets Deepgram as its fallback, and every language is offered (LIN-656)', async () => {
     const config = async () => (await request(agent(), 'GET', AGENT_ROUTE)).body
+    // A voice provider that speaks Polish; without one the install offers only Flux's 10 (spokenLanguages).
+    await act(operator, 'provider.setKeys', { provider: 'elevenlabs', values: { api_key: 'elevenlabs-key-0123456789' } })
+    expect((await installLanguageOptions(db)).languages).toContain('pl')
     await act(operator, 'provider.setKeys', {
       provider: 'assemblyai_stt',
       values: { api_key: 'assemblyai-key-0123456789' },
@@ -506,6 +509,7 @@ describe('provider keys', () => {
     await act(operator, 'provider.setActive', { category: 'stt', provider: null })
     await act(operator, 'provider.clearKeys', { provider: 'assemblyai_stt' })
     await act(operator, 'provider.clearKeys', { provider: 'deepgram' })
+    await act(operator, 'provider.clearKeys', { provider: 'elevenlabs' })
   })
 
   test('per category one provider is active: the first that is set up, or the one the admin picks', async () => {
