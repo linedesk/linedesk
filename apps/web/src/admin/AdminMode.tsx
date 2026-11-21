@@ -42,7 +42,7 @@ import {
 } from './route.ts'
 import { Server } from './Server.tsx'
 import { CallSettings, SignupSettings, ToolSettings } from './Settings.tsx'
-import { GermanNumbers, ImpersonationEmails } from './SettingsCards.tsx'
+import { GermanNumbers } from './SettingsCards.tsx'
 import { SystemPrompt } from './SystemPrompt.tsx'
 import { BrandingSettings } from './Branding.tsx'
 import { Usage } from './Usage.tsx'
@@ -286,13 +286,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
           />
         ) : null
       case 'audit':
-        // Support access emails sit next to the log of every sign-in as a user, not under Branding.
-        return (
-          <>
-            <ImpersonationEmails />
-            <AuditLog workspaces={ready.workspaces} />
-          </>
-        )
+        return <AuditLog workspaces={ready.workspaces} />
     }
   }
 

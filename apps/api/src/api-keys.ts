@@ -10,7 +10,6 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { addressBucket } from './client-ip.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
-import { queueApiKeyNotice } from './impersonation-emails.ts'
 import { dropKeySubscriptions } from './integrations.ts'
 import { createFailureLimiter, createRateLimiter } from './rate-limit.ts'
 
@@ -194,20 +193,6 @@ export const apiKeyHandlers: Record<string, Handler> = {
         created_by_impersonator: impersonator,
       })
       .returning()
-    if (impersonator)
-      await queueApiKeyNotice(
-        tx,
-        {
-          userId: actor.actorId,
-          adminId: impersonator,
-          workspaceId: workspace_id,
-          keyName: input.name,
-          prefix: row!.prefix,
-          role: input.role,
-          at: now,
-        },
-        onCommit,
-      )
     const data: ApiKeyCreated = { apiKeyId: row!.id, key, prefix: row!.prefix }
     return { rows: {}, data }
   },

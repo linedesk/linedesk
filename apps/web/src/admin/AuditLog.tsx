@@ -154,8 +154,6 @@ export function auditLabel(
     case 'user.impersonate':
       // Whom it was: kept by the handler since the reason was added; older entries have none.
       return subject ? t('admin.audit.impersonateAs', { who: subject }) : t('admin.audit.impersonate')
-    case 'impersonationEmails.set':
-      return input.on === true ? t('admin.audit.impersonationEmailsOn') : t('admin.audit.impersonationEmailsOff')
     case 'impersonation.stop':
       return t('admin.audit.impersonationStop')
     case 'impersonation.setEdits':

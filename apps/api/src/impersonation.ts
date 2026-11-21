@@ -2,24 +2,13 @@
 // actions (user.impersonate, impersonation.stop); since an action cannot set cookies, two thin
 // routes (impersonation-routes.ts) run them and move Better Auth's session cookie. Sessions are Better Auth's own, created
 // with its internal adapter; cookies are signed the way Better Auth signs them.
-import { IMPERSONATION_MINUTES, type ImpersonationEmailsData, type UserImpersonateData } from '@linedesk/actions'
-import { instance_settings, member, organization, session, user } from '@linedesk/db'
+import { IMPERSONATION_MINUTES, type UserImpersonateData } from '@linedesk/actions'
+import { member, organization, session, user } from '@linedesk/db'
 import { and, asc, eq } from 'drizzle-orm'
 import { auth } from './auth.ts'
 import { db } from './db.ts'
-import { sendNotice } from './email.ts'
-import { securityNoticeBrand, withEmailBrand } from './email-brand.ts'
-import { localeForUserId } from './email-locale.ts'
-import { impersonationStartedEmail } from './emails/templates.ts'
-import {
-  EMAILS_SETTING,
-  emailConnected,
-  impersonationEmailsOn,
-  impersonationNoticesGoOut,
-} from './impersonation-emails.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
-import { emailBrandOf } from './partner-brand.ts'
 
 export const IMPERSONATION_SEC = IMPERSONATION_MINUTES * 60
 
@@ -32,7 +21,7 @@ const NOT_IMPERSONATING = 'you are not signed in as another user'
 type ImpersonateInput = { userId: string; reason: string; workspaceId?: string }
 
 export const impersonationHandlers: Record<string, Handler> = {
-  'user.impersonate': async ({ tx, actor, now, onRollback, onCommit }, input: ImpersonateInput) => {
+  'user.impersonate': async ({ tx, actor, onRollback }, input: ImpersonateInput) => {
     if (actor.impersonation) throw new Reject('return to your own account first')
     if (input.userId === actor.actorId) throw new Reject('you cannot sign in as yourself')
     const [target] = await tx.select().from(user).where(eq(user.id, input.userId))
@@ -65,36 +54,6 @@ export const impersonationHandlers: Record<string, Handler> = {
       await db.delete(session).where(eq(session.id, created.id))
       return 'the session was removed again'
     })
-    // One email to the user at the start, when the install turned it on and email goes out over SMTP (the same check as
-    // impersonationEmails.get); queued here, sent once the command has committed. `notified` means "notice queued".
-    const notified = await impersonationNoticesGoOut(tx)
-    if (notified) {
-      const [admin] = await tx
-        .select({ name: user.name, email: user.email })
-        .from(user)
-        .where(eq(user.id, actor.actorId))
-      const locale = await localeForUserId(tx, target.id)
-      // With the workspace's brand: a white-label partner's client hears it under the partner's name (partner-brand.ts).
-      const brand = securityNoticeBrand(
-        first?.workspaceId ? await emailBrandOf(first.workspaceId, tx).catch(() => null) : null,
-      )
-      onCommit?.(async () =>
-        withEmailBrand(brand, () => {
-          const email = impersonationStartedEmail(
-            {
-              admin: { name: admin?.name ?? '', email: admin?.email ?? '' },
-              reason: input.reason,
-              at: now,
-              workspace: first?.name ?? null,
-              minutes: IMPERSONATION_MINUTES,
-            },
-            undefined,
-            locale,
-          )
-          sendNotice({ to: target.email, ...email }, 'impersonation email')
-        }),
-      )
-    }
     const data: UserImpersonateData = {
       sessionId: created.id,
       userId: target.id,
@@ -102,23 +61,8 @@ export const impersonationHandlers: Record<string, Handler> = {
       expiresAt: expiresAt.toISOString(),
       // Whom it was, in the audit log, filed under the workspace it opened in.
       subject: { email: target.email, workspaceId: first?.workspaceId ?? null },
-      notified,
     }
     return { rows: {}, data }
-  },
-
-  'impersonationEmails.get': async ({ tx }) => ({
-    rows: {},
-    data: { on: await impersonationEmailsOn(tx), emailConnected: emailConnected() } satisfies ImpersonationEmailsData,
-  }),
-
-  'impersonationEmails.set': async ({ tx, actor, now }, input: { on: boolean }) => {
-    const value = input.on ? 'on' : 'off'
-    await tx
-      .insert(instance_settings)
-      .values({ key: EMAILS_SETTING, value, updated_at: now, updated_by: actor.actorId })
-      .onConflictDoUpdate({ target: instance_settings.key, set: { value, updated_at: now, updated_by: actor.actorId } })
-    return { rows: {}, data: { on: input.on, emailConnected: emailConnected() } satisfies ImpersonationEmailsData }
   },
 
   'impersonation.stop': async ({ tx, actor }) => {

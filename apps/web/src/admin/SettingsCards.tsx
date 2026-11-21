@@ -7,7 +7,6 @@ import {
   areaCodeShown,
   type GermanGroupData,
   type GermanGroupState,
-  type ImpersonationEmailsData,
   type GermanNumbersData,
   type SetupReportRow,
   type SetupReportsData,
@@ -37,63 +36,6 @@ import { InternationalTransfers } from './InternationalTransfers.tsx'
 import { SignupAccess } from './SignupAccess.tsx'
 
 const CLONING = 'admin.voiceCloning'
-const IMPERSONATION_EMAILS = 'admin.impersonationEmails'
-const loadImpersonationEmails = async () => (await runAdmin('impersonationEmails.get', {})) as ImpersonationEmailsData
-
-/**
- * Support access: whether a user gets one email when an admin signs in as them (Users or Workspaces, "Sign in as …"),
- * with the admin, the reason, the time and the workspace. Off by default.
- */
-export function ImpersonationEmails() {
-  const t = useT()
-  const query = useQuery(IMPERSONATION_EMAILS, loadImpersonationEmails)
-  const [problem, setProblem] = useState<string | null>(null)
-  const data = query.data
-  const on = data?.on ?? false
-  async function change(next: boolean) {
-    if (!data) return
-    setProblem(null)
-    setQueryData<ImpersonationEmailsData | undefined>(IMPERSONATION_EMAILS, { ...data, on: next })
-    try {
-      await runAdmin('impersonationEmails.set', { on: next })
-    } catch (e) {
-      setQueryData<ImpersonationEmailsData | undefined>(IMPERSONATION_EMAILS, { ...data, on: !next })
-      setProblem(e instanceof Error ? e.message : t('admin.system.impersonationEmailsFailed'))
-    }
-  }
-  return (
-    <Card title={t('admin.system.impersonationEmails')} help={t('admin.system.impersonationEmailsHelp')}>
-      <div className="swrow">
-        <div>
-          <b>{t('admin.system.impersonationEmailsSend')}</b>
-          {data && !data.emailConnected && (
-            <span className="help">{t('admin.system.impersonationEmailsNotConnected')}</span>
-          )}
-        </div>
-        <Loading
-          what={t('admin.system.impersonationEmails')}
-          loading={!data}
-          error={query.error}
-          onRetry={() => void query.reload()}
-          skeleton={<Skeleton width={34} height={20} className="sk-round" />}
-        >
-          <Switch
-            on={on}
-            onChange={v => void change(v)}
-            label={t('admin.system.impersonationEmailsSend')}
-            disabled={!data}
-          />
-        </Loading>
-      </div>
-      {problem && (
-        <p className="k-field-msg" role="alert">
-          {problem}
-        </p>
-      )}
-    </Card>
-  )
-}
-
 const loadCloning = async () => (await runAdmin('voiceCloning.get', {})) as VoiceCloningData
 
 /** Voice cloning for every workspace: off by default; existing clones keep working when it is turned off. */

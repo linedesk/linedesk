@@ -73,7 +73,6 @@ describe('calendar.findSlots', () => {
       'germanNumbers.get',
       'germanNumbers.group',
       'holidays.lookup',
-      'impersonationEmails.get',
       'insights.get',
       'integration.list',
       'invitation.listMine',

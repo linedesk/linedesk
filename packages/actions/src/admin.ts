@@ -1543,20 +1543,19 @@ export const userImpersonate = adminAction(
   `Sign in as a user to see Linedesk as they do, for ${IMPERSONATION_MINUTES} minutes. Not yourself, another instance admin or a disabled user. A reason is required and kept in the audit log; \`workspaceId\` opens the session in that workspace of theirs (else their first).`,
   z.object({
     userId: z.string().min(1),
-    /** Why, in a few words ("Ticket 1234: calls not showing"): kept with the command in the audit log, and in the email to the user when that is on. */
+    /** Why, in a few words ("Ticket 1234: calls not showing"): kept with the command in the audit log. */
     reason: z.string().trim().min(IMPERSONATION_REASON_MIN).max(IMPERSONATION_REASON_MAX),
     /** A workspace the user is a member of: the session opens there. Left out: their first. */
     workspaceId: z.string().min(1).optional(),
   }),
 )
-/** `subject`: whom it was, for the audit log (AuditSubject); `notified`: an email to the user was queued (impersonationEmails on, email over SMTP). */
+/** `subject`: whom it was, for the audit log (AuditSubject). */
 export type UserImpersonateData = {
   sessionId: string
   userId: string
   workspaceId: string | null
   expiresAt: string
   subject: { email: string; workspaceId: string | null }
-  notified: boolean
 }
 
 /** Ends an impersonation. Only through `POST /v1/impersonation/stop`, which restores the admin's own session cookie. */
@@ -1628,22 +1627,3 @@ export const founderEmailSet = adminAction(
 )
 /** `data` of `founderEmail.get` and `.set`. `emailConnected`: email goes out over SMTP; until then none are sent. */
 export type FounderEmailData = { sender: { name: string; email: string } | null; emailConnected: boolean }
-
-/**
- * Whether a user gets an email when an instance admin signs in as them (user.impersonate): one at the start, with the
- * admin, the reason, the time and the workspace. Off by default; a common practice for support access, left to the install.
- */
-export const impersonationEmailsGet = defineAction({
-  name: 'impersonationEmails.get',
-  description: 'Whether users are emailed when an instance admin signs in as them (off by default).',
-  input: z.object({}),
-  permission: 'instance:admin',
-  readOnly: true,
-})
-export const impersonationEmailsSet = adminAction(
-  'impersonationEmails.set',
-  'Turn on or off the email to a user when an instance admin signs in as them (one email at the start, with the admin, the reason and the time).',
-  z.object({ on: z.boolean() }),
-)
-/** `data` of `impersonationEmails.get` and `.set`. `emailConnected`: email goes out over SMTP; until then none are sent. */
-export type ImpersonationEmailsData = { on: boolean; emailConnected: boolean }

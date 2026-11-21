@@ -284,8 +284,6 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'impersonation.stop': 'impersonation',
   // Edits on or off during an impersonation (impersonation-guard.ts, IMPERSONATION_EDIT_WRITES).
   'impersonation.setEdits': 'impersonation',
-  // Whether users are emailed when an admin signs in as them (impersonation.ts).
-  'impersonationEmails.set': 'impersonation',
   'team.invite': 'team',
   'team.resendInvite': 'team',
   'team.revokeInvite': 'team',

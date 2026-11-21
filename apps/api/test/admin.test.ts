@@ -225,8 +225,6 @@ describe('access', () => {
       'germanNumbers.get',
       'germanNumbers.group',
       'germanNumbers.set',
-      'impersonationEmails.get',
-      'impersonationEmails.set',
       'install.setProgress',
       'instanceAdmin.grant',
       'instanceAdmin.revoke',
@@ -2593,8 +2591,6 @@ describe('impersonation', () => {
       'holidays.lookup',
       'impersonation.setEdits',
       'impersonation.stop',
-      // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
-      'impersonationEmails.get',
       'insights.get',
       // The Zapier subscriptions in Settings › Developers, a read like apiKey.list; no hook URLs in it. Remove stays refused.
       'integration.list',
@@ -3051,7 +3047,7 @@ describe('impersonation', () => {
   })
 
   test('the start keeps the reason and whom it was in the audit log, filed under the workspace', async () => {
-    const { as, body } = await start(operator, target.userId, { reason: 'Ticket 77: calls missing' })
+    const { as } = await start(operator, target.userId, { reason: 'Ticket 77: calls missing' })
     await stop(as)
     const { entries } = (await request(operator, 'GET', '/v1/admin/audit?kind=impersonation&limit=20')).body
     const entry = entries.find(
@@ -3063,43 +3059,6 @@ describe('impersonation', () => {
       subject: { email: await emailOf(target) },
       workspace: { id: other.id },
     })
-    expect(body.data.notified).toBe(false)
-  })
-
-  test('the email to the user is off by default; turned on, one email at the start names the admin, the reason and the workspace', async () => {
-    const mails: { to: string; subject: string; text: string }[] = []
-    vi.spyOn(emailSender, 'send').mockImplementation(async e => void mails.push(e as never))
-    vi.spyOn(emailSender, 'kind', 'get').mockReturnValue('smtp')
-    try {
-      expect((await act(operator, 'impersonationEmails.get', {})).body.data).toMatchObject({ on: false })
-      const quiet = await start(operator, target.userId)
-      await stop(quiet.as)
-      expect(mails.filter(m => m.to === (quiet.body.data.subject.email as string))).toEqual([])
-      // Only an instance admin changes it, and the change is audited.
-      expect((await act(other.owner, 'impersonationEmails.set', { on: true })).status).toBe(403)
-      expect(await act(operator, 'impersonationEmails.set', { on: true })).toMatchObject({
-        status: 200,
-        body: { data: { on: true } },
-      })
-      const { entries } = (await request(operator, 'GET', '/v1/admin/audit?kind=impersonation&limit=20')).body
-      expect(entries.some((e: { what: string }) => e.what === 'impersonationEmails.set')).toBe(true)
-      const loud = await start(operator, target.userId, { reason: 'Ticket 99: voicemail https://evil.example' })
-      expect(loud.body.data.notified).toBe(true)
-      const targetEmail = await emailOf(target)
-      const sent = mails.filter(m => m.to === targetEmail)
-      expect(sent).toHaveLength(1)
-      expect(sent[0]!.subject).toBe('A server admin signed in to your Linedesk account')
-      expect(sent[0]!.text).toContain('Ticket 99: voicemail')
-      expect(sent[0]!.text).not.toContain('https://evil.example')
-      expect(sent[0]!.text).toContain('UTC')
-      expect(sent[0]!.text).toContain('Brightwater Plumbing')
-      await stop(loud.as)
-      // Ending it sends nothing more.
-      expect(mails.filter(m => m.to === targetEmail)).toHaveLength(1)
-    } finally {
-      await act(operator, 'impersonationEmails.set', { on: false })
-      vi.restoreAllMocks()
-    }
   })
 
   test('API keys stay possible while signed in as the user: the key and the command name the admin, the list marks it', async () => {
@@ -3266,64 +3225,6 @@ describe('impersonation', () => {
       })
     })
 
-    test('with impersonation emails on, the user is emailed when such a key is made; off, nothing', async () => {
-      const mails: { to: string; subject: string; text: string; html: string }[] = []
-      vi.spyOn(emailSender, 'send').mockImplementation(async e => void mails.push(e as never))
-      vi.spyOn(emailSender, 'kind', 'get').mockReturnValue('smtp')
-      const targetEmail = await emailOf(target)
-      const quiet = await start(operator, target.userId)
-      await act(quiet.as, 'apiKey.create', { name: 'Quiet', role: 'member' })
-      await stop(quiet.as)
-      expect(mails.filter(m => m.to === targetEmail)).toEqual([])
-      try {
-        await act(operator, 'impersonationEmails.set', { on: true })
-        const loud = await start(operator, target.userId)
-        mails.length = 0
-        const made = await act(loud.as, 'apiKey.create', {
-          name: 'Sync to evil.example https://evil.example',
-          role: 'admin',
-        })
-        await stop(loud.as)
-        const sent = mails.filter(m => m.to === targetEmail)
-        expect(sent).toHaveLength(1)
-        expect(sent[0]!.subject).toBe('A server admin created an API key in your Linedesk account')
-        expect(sent[0]!.text).toContain(made.body.data.prefix)
-        expect(sent[0]!.text).toContain('Admin role')
-        expect(sent[0]!.text).toContain('Brightwater Plumbing')
-        expect(sent[0]!.text).not.toContain('https://evil.example')
-        expect(sent[0]!.html).not.toContain('href="https://evil.example')
-        // The user making their own key gets nothing.
-        mails.length = 0
-        await act(target, 'apiKey.create', { name: 'Own', role: 'member' })
-        expect(mails.filter(m => m.to === targetEmail)).toEqual([])
-      } finally {
-        await act(operator, 'impersonationEmails.set', { on: false })
-      }
-    })
-  })
-
-  test('notified means a notice was queued: only with email over SMTP, as impersonationEmails.get reports it', async () => {
-    const send = vi.spyOn(emailSender, 'send').mockResolvedValue(undefined as never)
-    const kind = vi.spyOn(emailSender, 'kind', 'get').mockReturnValue('log')
-    try {
-      await act(operator, 'impersonationEmails.set', { on: true })
-      expect((await act(operator, 'impersonationEmails.get', {})).body.data).toMatchObject({
-        on: true,
-        emailConnected: false,
-      })
-      const logged = await start(operator, target.userId)
-      expect(logged.body.data.notified).toBe(false)
-      await stop(logged.as)
-      kind.mockReturnValue('smtp')
-      const queued = await start(operator, target.userId)
-      expect(queued.body.data.notified).toBe(true)
-      await stop(queued.as)
-      const targetEmail = await emailOf(target)
-      expect(send.mock.calls.filter(([e]) => (e as { to: string }).to === targetEmail)).toHaveLength(1)
-    } finally {
-      await act(operator, 'impersonationEmails.set', { on: false })
-      vi.restoreAllMocks()
-    }
   })
 
   test('the audit log has the start, what was done as the user, and the stop, each naming the admin', async () => {

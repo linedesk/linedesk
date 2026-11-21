@@ -339,8 +339,6 @@ export type AdminInputs = {
   'founderEmail.set': { sender: { name: string; email: string } | null }
   'billingEnabled.get': Record<string, never>
   'billingEnabled.set': { on: boolean }
-  'impersonationEmails.get': Record<string, never>
-  'impersonationEmails.set': { on: boolean }
   'signupAccess.get': Record<string, never>
   'signupAccess.set': { modes?: Record<string, SignupMode>; invites?: string[] }
   'zapierApp.get': Record<string, never>

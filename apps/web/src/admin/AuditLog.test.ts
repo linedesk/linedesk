@@ -187,7 +187,6 @@ const AUDITED_ACTION_NAMES = [
   'branding.set',
   'user.impersonate',
   'impersonation.stop',
-  'impersonationEmails.set',
   'team.invite',
   'team.resendInvite',
   'team.revokeInvite',
@@ -402,9 +401,6 @@ describe('signing in as a user', () => {
     expect(auditReason({ what: 'team.invite', input: { reason: 'x' } })).toBeNull()
     expect(auditReason({ what: 'billing.refund', input: { amountCents: 500, reason: 'Duplicate charge' } })).toBe(
       'Reason: Duplicate charge',
-    )
-    expect(label('impersonationEmails.set', { on: true })).toBe(
-      'Turned on emails to users when an admin signs in as them',
     )
   })
 })

@@ -417,8 +417,6 @@ const all = [
   billingPage.billingOpenPortal,
   billingPage.billingRetryRecharge,
   billingPage.billingWorkspaceUsage,
-  admin.impersonationEmailsGet,
-  admin.impersonationEmailsSet,
   signupAccess.signupAccessGet,
   signupAccess.signupAccessSet,
   workspaceCreation.workspaceCreate,
