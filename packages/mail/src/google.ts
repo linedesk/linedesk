@@ -104,6 +104,8 @@ export function createGmail({
     fetch: doFetch,
     timeoutMs,
     sleep,
+    // 25 reads a second: 7,500 of Gmail's 15,000 units a minute per user (a message read costs 5).
+    minIntervalMs: 40,
     reasonOf,
     forbidden: gmailForbidden,
   })

@@ -260,11 +260,22 @@ describe('Gmail', () => {
     expect(calls).toBe(5)
   })
 
+  test('parallel reads are paced: at most 25 starts a second', async () => {
+    const starts: number[] = []
+    const fetch: typeof globalThis.fetch = async () => {
+      starts.push(Date.now())
+      return json({ messages: [] })
+    }
+    const gmail = createGmail({ accessToken: async () => TOKEN, fetch })
+    await Promise.all(Array.from({ length: 6 }, () => gmail.listMessages()))
+    expect(starts.at(-1)! - starts[0]!).toBeGreaterThanOrEqual(5 * 40 - 5)
+  })
+
   test("the wait honors the provider's Retry-After and grows without one", () => {
     expect(retryWaitMs(0, '3')).toBe(3000)
-    expect(retryWaitMs(0, '120')).toBe(30_000)
-    expect(retryWaitMs(0, null)).toBeGreaterThanOrEqual(2000)
-    expect(retryWaitMs(2, null)).toBeGreaterThanOrEqual(8000)
+    expect(retryWaitMs(0, '120')).toBe(60_000)
+    expect(retryWaitMs(0, null)).toBeGreaterThanOrEqual(15_000)
+    expect(retryWaitMs(2, null)).toBeGreaterThanOrEqual(60_000)
   })
 
   test("the API being off in the app project is the app's failure, not the account's", async () => {

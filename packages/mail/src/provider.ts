@@ -101,17 +101,25 @@ export type HttpOptions = {
   forbidden: (body: Json) => { kind: MailErrorKind; message?: string; code?: string }
   /** Waits between retries of a rate-limited request; tests pass one that does not wait. */
   sleep?: (ms: number) => Promise<void>
+  /**
+   * The least time between the starts of two requests of this adapter. Per-user quotas count per minute (Gmail:
+   * 15,000 units, 5 per message read), so parallel readers must not start faster than the quota allows.
+   */
+  minIntervalMs?: number
 }
 
 /** Retries of a rate-limited request (per-user quotas count per minute), then the request fails. */
 const RATE_LIMIT_RETRIES = 4
-const MAX_RETRY_WAIT_MS = 30_000
+const MAX_RETRY_WAIT_MS = 60_000
 
-/** The wait before retry `attempt` (0-based): the provider's Retry-After when it sends one, else 2, 4, 8, 16 s. */
+/**
+ * The wait before retry `attempt` (0-based): the provider's Retry-After when it sends one, else 15, 30, 60, 60 s
+ * (a per-minute quota frees up only when its minute is over).
+ */
 export function retryWaitMs(attempt: number, retryAfter: string | null): number {
   const seconds = retryAfter === null ? Number.NaN : Number(retryAfter)
   if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1000, MAX_RETRY_WAIT_MS)
-  return Math.min(2000 * 2 ** attempt, MAX_RETRY_WAIT_MS) + Math.floor(Math.random() * 500)
+  return Math.min(15_000 * 2 ** attempt, MAX_RETRY_WAIT_MS) + Math.floor(Math.random() * 1000)
 }
 
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
@@ -129,7 +137,17 @@ export function createHttp({
   reasonOf,
   forbidden,
   sleep = wait,
+  minIntervalMs = 0,
 }: HttpOptions) {
+  // The start time the next request may use: each request takes the next free slot, so parallel callers queue up.
+  let nextStart = 0
+  async function pace() {
+    if (minIntervalMs <= 0) return
+    const now = Date.now()
+    const at = Math.max(now, nextStart)
+    nextStart = at + minIntervalMs
+    if (at > now) await wait(at - now)
+  }
   async function send(what: string, url: string, headers: Record<string, string>, token: string) {
     try {
       return await doFetch(url, {
@@ -147,6 +165,7 @@ export function createHttp({
   }
   return async function get(what: string, url: string, headers: Record<string, string> = {}): Promise<Json> {
     for (let attempt = 0; ; attempt++) {
+      await pace()
       let res = await send(what, url, headers, await accessToken())
       if (res.status === 401) res = await send(what, url, headers, await accessToken(true))
       const body = (await res.json().catch(() => ({}))) as Json

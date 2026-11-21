@@ -55,6 +55,8 @@ export function createGraphMail({
     fetch: doFetch,
     timeoutMs,
     sleep,
+    // About 14 requests a second: under Graph's 10,000 requests per 10 minutes per mailbox.
+    minIntervalMs: 70,
     reasonOf,
     forbidden: graphMailForbidden,
   })
