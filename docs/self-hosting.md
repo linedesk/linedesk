@@ -130,14 +130,14 @@ These rules are not saved across reboots (use `iptables-persistent` or your own 
 
 ## Memory and CPU
 
-Every service has a hard memory limit, a CPU limit, a restart policy and rotated logs (3 files of 10 MB), so the stack cannot take more than its share of a machine it does not own. In all: 2.2 GB of memory and at most 1.5 CPUs, 3.2 GB with recording (egress).
+Every service has a hard memory limit, a CPU limit, a restart policy and rotated logs (3 files of 10 MB), so the stack cannot take more than its share of a machine it does not own. In all: 2.2 GB of memory and at most 2.35 CPUs, 3.2 GB with recording (egress).
 
-CPU is split in two. The call-audio services (LiveKit, the SIP bridge, the agent and egress) share one pinned core, `LINEDESK_VOICE_CPUSET` (default: core `1`, the second core; set `0` on a machine with one core). A CPU quota made the agent stall audio even when idle, a pinned core does not. After a resize to fewer cores, set `LINEDESK_VOICE_CPUSET` to cores the machine has and run `scripts/deploy.sh --no-build`: a container created for a core that is gone cannot start (it stays down after the reboot), and the deploy creates it again; a cpuset naming missing cores stops the deploy with a message. The other services have quotas that add up to half a core.
+CPU is split in two. The call-audio services (LiveKit, the SIP bridge, the agent and egress) share one pinned core, `LINEDESK_VOICE_CPUSET` (default: core `1`, the second core; set `0` on a machine with one core). A CPU quota made the agent stall audio even when idle, a pinned core does not. After a resize to fewer cores, set `LINEDESK_VOICE_CPUSET` to cores the machine has and run `scripts/deploy.sh --no-build`: a container created for a core that is gone cannot start (it stays down after the reboot), and the deploy creates it again; a cpuset naming missing cores stops the deploy with a message. The other services have quotas that add up to 1.35 cores, most of it Electric's: a page's first load asks it for about 20 shapes at once, and at its old 0.2 it was throttled for several seconds of every such load. A quota only caps a burst; at rest these services use a few percent of a core.
 
 | Service | Memory limit | CPU | Measured at rest |
 | --- | --- | --- | --- |
 | agent | 672 MB | voice core | 480 to 495 MB (registered with LiveKit, one process kept warm) |
-| electric | 384 MB | 0.2 | 230 MB |
+| electric | 384 MB | 1 | 230 MB |
 | postgres | 256 MB | 0.1 | 45 to 55 MB |
 | api | 256 MB | 0.1 | 65 to 70 MB |
 | livekit | 256 MB | voice core | 16 to 70 MB (about 4 MB more per room; 96 MB was killed at 12 rooms) |

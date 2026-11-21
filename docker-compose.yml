@@ -54,7 +54,9 @@ services:
       interval: 2s
       retries: 30
     mem_limit: ${LINEDESK_ELECTRIC_MEM:-384m}
-    cpus: ${LINEDESK_ELECTRIC_CPUS:-0.2}
+    # A page's first load asks for about 20 shapes at once and takes Electric about 2 s of CPU: at 0.2 it was throttled
+    # for 7 s of every such load. Idle it uses about 2% of a core, so a full core only caps a burst.
+    cpus: ${LINEDESK_ELECTRIC_CPUS:-1}
 
   api:
     <<: *service
