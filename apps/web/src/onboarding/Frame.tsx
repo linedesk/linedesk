@@ -79,7 +79,7 @@ export function Frame({
   /** No free trial for this workspace's bill (the account or the card had one): `activate` starts the plan. */
   planOnly?: boolean
   /**
-   * Set up by hand after all: "Set up with an AI agent" in the top bar, back to the agent setup page, which goes on from
+   * Set up by hand after all: "Set up with AI" in the top bar, back to the agent setup page, which goes on from
    * what is saved (setup-choice.ts, `agentSetupWayBack`). Only for someone that page is for.
    */
   onAgentSetup?: () => void

@@ -273,7 +273,7 @@ function Welcome({
       <section className="as-card">
         <Parts status={status} />
       </section>
-      {/* The note has its own way to the agent, besides the top bar's "Set up with an AI agent" on every step. */}
+      {/* The note has its own way to the agent, besides the top bar's "Set up with AI" on every step. */}
       <Note
         tone="info"
         action={

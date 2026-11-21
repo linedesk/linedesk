@@ -1,4 +1,4 @@
-// Set up by hand after all (2026-11-18): every step of the step-by-step setup has "Set up with an AI agent" in its top
+// Set up by hand after all (2026-11-18): every step of the step-by-step setup has "Set up with AI" in its top
 // bar, for the people the agent setup page is for (setup-choice.ts, `agentSetupWayBack`). The frame shows it in the
 // same place on every step, the onboarding passes it on every step but the last, and never when the steps are gone
 // through again from the settings (no way back is given there).
@@ -44,22 +44,22 @@ const frame = (p: Partial<ComponentProps<typeof Frame>>) =>
   )
 
 describe('the frame', () => {
-  test('shows "Set up with an AI agent" in the top bar, before Finish later', () => {
+  test('shows "Set up with AI" in the top bar, before Finish later', () => {
     const html = frame({ onAgentSetup: () => {} })
     const top = html.slice(html.indexOf('ob-top'), html.indexOf('ob-bar'))
-    expect(top).toContain('Set up with an AI agent')
+    expect(top).toContain('Set up with AI')
     expect(top).toContain('title="Back to the AI agent setup: what you saved here stays"')
-    expect(top.indexOf('Set up with an AI agent')).toBeLessThan(top.indexOf('Finish later'))
+    expect(top.indexOf('Set up with AI')).toBeLessThan(top.indexOf('Finish later'))
   })
 
   test('without a way back nothing shows', () => {
-    expect(frame({})).not.toContain('Set up with an AI agent')
+    expect(frame({})).not.toContain('Set up with AI')
   })
 
   test('the same place on every step, also the trial card where Finish later is gone', () => {
     for (const step of ['business', 'assistant', 'pickup', 'notify', 'phone'] as const)
-      expect(frame({ step, onAgentSetup: () => {} })).toContain('Set up with an AI agent')
-    expect(frame({ step: 'activate', onSkip: undefined, onAgentSetup: () => {} })).toContain('Set up with an AI agent')
+      expect(frame({ step, onAgentSetup: () => {} })).toContain('Set up with AI')
+    expect(frame({ step: 'activate', onSkip: undefined, onAgentSetup: () => {} })).toContain('Set up with AI')
   })
 })
 

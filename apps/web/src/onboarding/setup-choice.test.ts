@@ -155,7 +155,7 @@ describe("a partner owner's way after the partner Checkout (2026-11-18)", () => 
     expect(partnerChoseByHand('p_1')).toBe(true)
     expect(partnerLanding('p_1')).toBe('#partner')
     expect(partnerLanding('p_2')).toBe('#partner/agent')
-    // "Set up with an AI agent" in the partner area takes the choice back.
+    // "Set up with AI" in the partner area takes the choice back.
     rememberPartnerByHand('p_1', false)
     expect(partnerLanding('p_1')).toBe('#partner/agent')
     // No partner in the return address: the partner area.

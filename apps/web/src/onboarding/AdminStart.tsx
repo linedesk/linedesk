@@ -14,6 +14,7 @@ import { SECOND_FACTOR_BUTTON, SecondFactorPrompt } from '../admin/SecondFactorP
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { CreateWorkspace, LostWorkspace } from '../CreateWorkspace.tsx'
+import { AiButton } from '../settings/AgentChange.tsx'
 import { Button } from '../ui/kit.tsx'
 import { Loading, LoadProblem, SkeletonFields } from '../ui/LoadStates.tsx'
 import { openAgentSetup } from './AgentSetup.tsx'
@@ -91,9 +92,12 @@ export function AdminStart({
             <div className="as-link-step">
               <b>{t('onboarding.adminStart.agent')}</b>
               <span className="as-small">{t('onboarding.adminStart.agentHelp')}</span>
-              <Button variant="primary" onClick={openAgentSetup} title={t('onboarding.adminStart.agentTip')}>
-                {t('onboarding.adminStart.agentButton')}
-              </Button>
+              <AiButton
+                size="md"
+                label={t('onboarding.adminStart.agentButton')}
+                title={t('onboarding.adminStart.agentTip')}
+                onClick={openAgentSetup}
+              />
             </div>
           </section>
           {byHand ? (

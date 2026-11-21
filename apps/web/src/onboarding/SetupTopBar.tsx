@@ -1,12 +1,13 @@
 // The one top bar of every setup page (2026-11-18, docs/design-principles.md): the onboarding's steps (Frame.tsx), the
 // install by hand (InstallSetup.tsx) and the AI agent setup pages (AgentSetup.tsx), also when they are gone through
 // again from the settings (StepByStep.tsx, settings/ChangeWithAgent.tsx). Logo and product name on the left; on the
-// right, in this order: where the person is ("Step n of m · Name", or what the page is), "Set up with an AI agent" where
+// right, in this order: where the person is ("Step n of m · Name", or what the page is), "Set up with AI" (the AI button, settings/AgentChange.tsx) where
 // there is an agent path, the way out ("Finish later" while setting up, "Close" from the settings) and the account
 // menu. Under it a 2 px line: how far the steps got, (n − 1) / (m − 1), the last step full.
 import { useT } from '@linedesk/i18n/react'
 import { useEffect, useRef } from 'react'
 import { brandName, installBrandName } from '../brand.ts'
+import { AiButton } from '../settings/AgentChange.tsx'
 import { SetupAccountMenu } from '../shell/SetupAccountMenu.tsx'
 import { BrandMark, Button } from '../ui/kit.tsx'
 
@@ -35,7 +36,7 @@ type Props = {
   progress?: number
   /** The step is done already (a number bought on the phone step): the line shows the next step's fill. */
   ahead?: boolean
-  /** "Set up with an AI agent": back to the agent setup page, which goes on from what is saved. */
+  /** "Set up with AI": back to the agent setup page, which goes on from what is saved. */
   agentPath?: () => void
   /** The way out; left out only where leaving is impossible (before the trial's checkout). */
   exit?: SetupExit | null
@@ -92,17 +93,12 @@ export function SetupTopBar({
           <span className="ob-count ob-count-label">{label}</span>
         )}
         {agentPath && (
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="spark"
+          <AiButton
             className="ob-agent"
-            onClick={agentPath}
-            aria-label={t('onboarding.frame.agent')}
+            label={t('onboarding.frame.agent')}
             title={t('onboarding.frame.agentTitle')}
-          >
-            {t('onboarding.frame.agent')}
-          </Button>
+            onClick={agentPath}
+          />
         )}
         {exit && (
           <Button

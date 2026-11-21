@@ -30,12 +30,28 @@ function AgentMarks() {
   )
 }
 
-/** The AI button wherever an agent can set up or change something: the agents' marks, then the label. */
-export function AiButton({ label, title, onClick }: { label: string; title: string; onClick: () => void }) {
+/**
+ * The AI button wherever an agent can set up or change something (settings top bar, Server admin › Providers, the setup
+ * pages' top bar, the admin start page): the agents' marks, then the label. `size` "md" where it is a page's main action.
+ */
+export function AiButton({
+  label,
+  title,
+  onClick,
+  size = 'sm',
+  className,
+}: {
+  label: string
+  title: string
+  onClick: () => void
+  size?: 'sm' | 'md'
+  className?: string
+}) {
+  const cls = ['k-btn', 'k-btn-secondary', size === 'sm' && 'k-btn-sm', 'ai-edit', className].filter(Boolean).join(' ')
   return (
-    <button type="button" className="k-btn k-btn-secondary k-btn-sm ai-edit" onClick={onClick} title={title}>
+    <button type="button" className={cls} onClick={onClick} title={title} aria-label={label}>
       <AgentMarks />
-      <span>{label}</span>
+      <span className="ai-label">{label}</span>
     </button>
   )
 }

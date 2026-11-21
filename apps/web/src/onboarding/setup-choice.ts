@@ -151,7 +151,7 @@ export const partnerLanding = (partnerId: string | null) =>
 
 /**
  * Which agent setup page someone setting up by hand can go back to (2026-11-18): every step of the step-by-step setup
- * offers it in its top bar ("Set up with an AI agent"), for the people the page itself is for. An instance admin: the
+ * offers it in its top bar ("Set up with AI"), for the people the page itself is for. An instance admin: the
  * install's page (#setup-agent). A workspace owner: their workspace's page, by the same rules that open it on its own
  * (`ownerAgentSetupDue`). The owner of the white-label partner whose client workspace this is: the partner's page
  * (#partner/agent), as from the partner area's top bar. Nobody while impersonating.

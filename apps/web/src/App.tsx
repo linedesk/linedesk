@@ -489,7 +489,7 @@ export function App() {
   // Onboarding opens before Workspace (which sets it too): its admin-only links need the audience as well.
   setProviderAudience(isInstanceAdmin(session.me) ? 'admin' : 'member')
   const settingUp = session.me.onboarding && !onboarded
-  // Set up by hand after all: every step's "Set up with an AI agent" goes back to the agent setup page, which goes on
+  // Set up by hand after all: every step's "Set up with AI" goes back to the agent setup page, which goes on
   // from what is saved, and the choice to go by hand is forgotten (setup-choice.ts: on the server for an instance admin,
   // in this browser for a workspace's or a partner's owner), as the partner area's top bar does.
   const wayBack = agentSetupWayBack(session.me, { instanceAdmin })

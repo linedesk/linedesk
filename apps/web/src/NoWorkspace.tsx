@@ -122,7 +122,7 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
     if (me.adminSecondFactor) return <SecondFactorPrompt state={me.adminSecondFactor} onExit={leave} />
     return (
       <InstallSetup
-        // "Set up with an AI agent" on its steps: back to the agent setup page, which goes on from what is saved.
+        // "Set up with AI" on its steps: back to the agent setup page, which goes on from what is saved.
         onAgentSetup={() => {
           setManualSetup(false)
           openAgentSetup()
