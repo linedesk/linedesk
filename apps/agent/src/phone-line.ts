@@ -5,7 +5,7 @@
 import { ParticipantKind, RoomEvent, TrackKind, type RemoteParticipant, type Room } from '@livekit/rtc-node'
 
 /** How long after the pickup (the agent's audio subscribed) a phone caller's voice path is open. */
-export const PHONE_LINE_OPEN_MS = 800
+export const PHONE_LINE_OPEN_MS = 1000
 /** The longest the greeting waits for the open line once it is ready to play (a pickup that never comes). */
 export const PHONE_LINE_WAIT_MS = 2500
 
