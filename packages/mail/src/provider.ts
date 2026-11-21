@@ -99,13 +99,37 @@ export type HttpOptions = {
   reasonOf: (body: Json) => string | undefined
   /** A 403's kind (and optionally a clearer message and code) from the provider's body. */
   forbidden: (body: Json) => { kind: MailErrorKind; message?: string; code?: string }
+  /** Waits between retries of a rate-limited request; tests pass one that does not wait. */
+  sleep?: (ms: number) => Promise<void>
 }
 
+/** Retries of a rate-limited request (per-user quotas count per minute), then the request fails. */
+const RATE_LIMIT_RETRIES = 4
+const MAX_RETRY_WAIT_MS = 30_000
+
+/** The wait before retry `attempt` (0-based): the provider's Retry-After when it sends one, else 2, 4, 8, 16 s. */
+export function retryWaitMs(attempt: number, retryAfter: string | null): number {
+  const seconds = retryAfter === null ? Number.NaN : Number(retryAfter)
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1000, MAX_RETRY_WAIT_MS)
+  return Math.min(2000 * 2 ** attempt, MAX_RETRY_WAIT_MS) + Math.floor(Math.random() * 500)
+}
+
+const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
+
 /**
- * One authorized GET for JSON with a timeout; a 401 refreshes the token once and repeats the request.
+ * One authorized GET for JSON with a timeout; a 401 refreshes the token once and repeats the request, and a
+ * rate-limited answer is retried after a wait (Gmail's "Units per minute per user" quota, Graph's 429).
  * `what` names the step in errors ("list messages"). URLs and tokens never go into a message.
  */
-export function createHttp({ provider, accessToken, fetch: doFetch, timeoutMs, reasonOf, forbidden }: HttpOptions) {
+export function createHttp({
+  provider,
+  accessToken,
+  fetch: doFetch,
+  timeoutMs,
+  reasonOf,
+  forbidden,
+  sleep = wait,
+}: HttpOptions) {
   async function send(what: string, url: string, headers: Record<string, string>, token: string) {
     try {
       return await doFetch(url, {
@@ -122,16 +146,20 @@ export function createHttp({ provider, accessToken, fetch: doFetch, timeoutMs, r
     }
   }
   return async function get(what: string, url: string, headers: Record<string, string> = {}): Promise<Json> {
-    let res = await send(what, url, headers, await accessToken())
-    if (res.status === 401) res = await send(what, url, headers, await accessToken(true))
-    const body = (await res.json().catch(() => ({}))) as Json
-    if (!res.ok) {
+    for (let attempt = 0; ; attempt++) {
+      let res = await send(what, url, headers, await accessToken())
+      if (res.status === 401) res = await send(what, url, headers, await accessToken(true))
+      const body = (await res.json().catch(() => ({}))) as Json
+      if (res.ok) return body
       const classified = res.status === 403 ? forbidden(body) : { kind: errorKindOf(res.status) }
+      if (classified.kind === 'rate_limited' && attempt < RATE_LIMIT_RETRIES) {
+        await sleep(retryWaitMs(attempt, res.headers.get('retry-after')))
+        continue
+      }
       const reason = ('message' in classified ? classified.message : undefined) ?? reasonOf(body) ?? res.statusText
       const code = 'code' in classified ? classified.code : undefined
       throw new MailError(provider, classified.kind, `${what} failed${reason ? `: ${reason}` : ''}`, res.status, code)
     }
-    return body
   }
 }
 

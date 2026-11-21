@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest'
 import { createGmail, createGmailOAuth, gmailBodyText } from './google.ts'
 import { createMailProvider } from './index.ts'
 import { createGraphMail, createMicrosoftMailOAuth } from './microsoft.ts'
-import { addressOf, htmlToText, MailError, type MailProvider } from './provider.ts'
+import { addressOf, htmlToText, MailError, type MailProvider, retryWaitMs } from './provider.ts'
 
 const TOKEN = 'secret-access-token'
 const FRESH = 'fresh-access-token'
@@ -223,6 +223,50 @@ describe.each(adapters)('%s mail adapter', (_name, make) => {
 })
 
 describe('Gmail', () => {
+  test('a per-user rate limit is retried after a wait, then the read goes on', async () => {
+    let calls = 0
+    const waits: number[] = []
+    const fetch: typeof globalThis.fetch = async () => {
+      calls++
+      if (calls <= 2)
+        return json(
+          {
+            error: {
+              message: "Quota exceeded for quota metric 'Total Query Cost' and limit 'Units per minute per user'",
+              errors: [{ reason: 'rateLimitExceeded' }],
+            },
+          },
+          429,
+        )
+      return json({ messages: [{ id: 'm1', threadId: 't1' }] })
+    }
+    const gmail = createGmail({ accessToken: async () => TOKEN, fetch, sleep: async ms => void waits.push(ms) })
+    const page = await gmail.listMessages()
+    expect(page.messages).toEqual([{ id: 'm1', threadId: 't1' }])
+    expect(calls).toBe(3)
+    expect(waits).toHaveLength(2)
+  })
+
+  test('a rate limit that does not end fails as rate_limited after the retries', async () => {
+    let calls = 0
+    const fetch: typeof globalThis.fetch = async () => {
+      calls++
+      return json({ error: { message: 'slow down', errors: [{ reason: 'userRateLimitExceeded' }] } }, 403)
+    }
+    const err = await createGmail({ accessToken: async () => TOKEN, fetch, sleep: async () => {} })
+      .listMessages()
+      .catch(e => e)
+    expect(err).toMatchObject({ kind: 'rate_limited' })
+    expect(calls).toBe(5)
+  })
+
+  test("the wait honors the provider's Retry-After and grows without one", () => {
+    expect(retryWaitMs(0, '3')).toBe(3000)
+    expect(retryWaitMs(0, '120')).toBe(30_000)
+    expect(retryWaitMs(0, null)).toBeGreaterThanOrEqual(2000)
+    expect(retryWaitMs(2, null)).toBeGreaterThanOrEqual(8000)
+  })
+
   test("the API being off in the app project is the app's failure, not the account's", async () => {
     const fetch: typeof globalThis.fetch = async () =>
       json({ error: { message: 'Gmail API has not been used', errors: [{ reason: 'accessNotConfigured' }] } }, 403)

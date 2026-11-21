@@ -85,14 +85,25 @@ const header = (payload: Json | undefined, name: string): string => {
   return typeof found?.value === 'string' ? found.value : ''
 }
 
-export type GmailOptions = { accessToken: AccessTokenSource; fetch?: typeof fetch; timeoutMs?: number }
+export type GmailOptions = {
+  accessToken: AccessTokenSource
+  fetch?: typeof fetch
+  timeoutMs?: number
+  sleep?: (ms: number) => Promise<void>
+}
 
-export function createGmail({ accessToken, fetch: doFetch = fetch, timeoutMs = 8000 }: GmailOptions): MailProvider {
+export function createGmail({
+  accessToken,
+  fetch: doFetch = fetch,
+  timeoutMs = 8000,
+  sleep,
+}: GmailOptions): MailProvider {
   const get = createHttp({
     provider: 'google',
     accessToken,
     fetch: doFetch,
     timeoutMs,
+    sleep,
     reasonOf,
     forbidden: gmailForbidden,
   })

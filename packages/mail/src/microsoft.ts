@@ -39,6 +39,7 @@ export type GraphMailOptions = {
   accountEmail: string
   fetch?: typeof fetch
   timeoutMs?: number
+  sleep?: (ms: number) => Promise<void>
 }
 
 export function createGraphMail({
@@ -46,12 +47,14 @@ export function createGraphMail({
   accountEmail,
   fetch: doFetch = fetch,
   timeoutMs = 8000,
+  sleep,
 }: GraphMailOptions): MailProvider {
   const get = createHttp({
     provider: 'microsoft',
     accessToken,
     fetch: doFetch,
     timeoutMs,
+    sleep,
     reasonOf,
     forbidden: graphMailForbidden,
   })
