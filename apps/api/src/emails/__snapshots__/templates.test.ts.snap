@@ -1367,7 +1367,7 @@ La grabación está en Linedesk.
 
 --
 
-Recibes un correo por cada llamada a Brightwater Plumbing & Heating. Cámbialo en Configuración de la cuenta › Notificaciones: https://desk.example.com/#account/notifications?ws=ws_demo
+Recibes un correo por cada llamada a Brightwater Plumbing & Heating. Cámbialo en Configuración de usuario › Notificaciones: https://desk.example.com/#account/notifications?ws=ws_demo
 
 Linedesk · desk.example.com
 ",
@@ -1396,7 +1396,7 @@ La grabación y la transcripción están en Linedesk.
 
 --
 
-Recibes un correo por cada llamada a Brightwater Plumbing & Heating. Cámbialo en Configuración de la cuenta › Notificaciones: https://desk.example.com/#account/notifications?ws=ws_demo
+Recibes un correo por cada llamada a Brightwater Plumbing & Heating. Cámbialo en Configuración de usuario › Notificaciones: https://desk.example.com/#account/notifications?ws=ws_demo
 
 Linedesk · desk.example.com
 ",
@@ -1541,7 +1541,7 @@ La grabación está en Linedesk.
 
 --
 
-A partir de ahora recibes un correo por cada llamada a Brightwater Plumbing & Heating. Cámbialo en Configuración de la cuenta › Notificaciones: https://desk.example.com/#account/notifications?ws=ws_demo
+A partir de ahora recibes un correo por cada llamada a Brightwater Plumbing & Heating. Cámbialo en Configuración de usuario › Notificaciones: https://desk.example.com/#account/notifications?ws=ws_demo
 
 Linedesk · desk.example.com
 ",
@@ -1932,7 +1932,7 @@ https://desk.example.com/#call/call_demo_01?ws=ws_demo
 
 --
 
-Recibes este correo porque un compañero de Brightwater Plumbing & Heating te asignó una llamada. Cámbialo en Configuración de la cuenta › Notificaciones: https://desk.example.com/#account/notifications?ws=ws_demo
+Recibes este correo porque un compañero de Brightwater Plumbing & Heating te asignó una llamada. Cámbialo en Configuración de usuario › Notificaciones: https://desk.example.com/#account/notifications?ws=ws_demo
 
 Linedesk · desk.example.com
 ",
@@ -2144,7 +2144,7 @@ Se creó una clave de API personal
 
 Se creó una clave de API personal llamada "Laptop command line" (empieza con ldp_AbCd1234) para tu cuenta de Linedesk en desk.example.com. Puede hacer todo lo que tú puedes hacer, en cada espacio de trabajo al que perteneces. Si fuiste tú, no tienes que hacer nada.
 
-Si no fuiste tú, revoca la clave en Configuración de la cuenta › Claves de API personales y cambia tu contraseña: eso cierra tus otras sesiones y revoca todas las claves.
+Si no fuiste tú, revoca la clave en Configuración de usuario › Claves de API personales y cambia tu contraseña: eso cierra tus otras sesiones y revoca todas las claves.
 
 Revisar tus claves de API:
 https://desk.example.com/#account/apiKeys
@@ -2165,7 +2165,7 @@ Se quitaron tus llaves de acceso
 
 Un administrador del servidor quitó todas las llaves de acceso de tu cuenta de Linedesk y cerró tu sesión en todas partes.
 
-Inicia sesión con un código por correo o tu contraseña y luego agrega una llave de acceso nueva en Configuración de la cuenta › Inicio de sesión y seguridad.
+Inicia sesión con un código por correo o tu contraseña y luego agrega una llave de acceso nueva en Configuración de usuario › Inicio de sesión y seguridad.
 
 Iniciar sesión:
 https://desk.example.com
@@ -2232,7 +2232,7 @@ Se emitió un código de registro de llave de acceso
 
 ann@brightwater.example emitió un código de un solo uso para la primera llave de acceso de tu cuenta de Linedesk. No se quitó nada y sigues con la sesión iniciada.
 
-Pídele el código y luego agrega tu llave de acceso en Configuración de la cuenta › Inicio de sesión y seguridad.
+Pídele el código y luego agrega tu llave de acceso en Configuración de usuario › Inicio de sesión y seguridad.
 
 Abrir Inicio de sesión y seguridad:
 https://desk.example.com/#account/security
@@ -2272,7 +2272,7 @@ Linedesk · desk.example.com
     "318274 es tu código de Linedesk para confirmar que eres tú",
     "Confirma que eres tú
 
-Alguien con sesión iniciada en tu cuenta de Linedesk en desk.example.com quiere cambiar su dirección de correo. Ingresa este código en Configuración de la cuenta para confirmar que eres tú.
+Alguien con sesión iniciada en tu cuenta de Linedesk en desk.example.com quiere cambiar su dirección de correo. Ingresa este código en Configuración de usuario para confirmar que eres tú.
 
     318274
 
@@ -2290,7 +2290,7 @@ Linedesk · desk.example.com
     "604218 es tu código de Linedesk para cambiar tu correo",
     "Confirma tu nueva dirección de correo
 
-Ingresa este código en Configuración de la cuenta en desk.example.com. Tu cuenta de Linedesk usará entonces esta dirección para iniciar sesión y para sus correos.
+Ingresa este código en Configuración de usuario en desk.example.com. Tu cuenta de Linedesk usará entonces esta dirección para iniciar sesión y para sus correos.
 
     604218
 
