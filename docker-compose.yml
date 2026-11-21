@@ -197,7 +197,8 @@ services:
       - "${LIVEKIT_BIND_IP:-127.0.0.1}:5060:5060/tcp"
       - "${LIVEKIT_BIND_IP:-127.0.0.1}:10000-10100:10000-10100/udp" # SIP media (RTP)
     depends_on: [redis]
-    mem_limit: ${LINEDESK_LIVEKIT_MEM:-96m}
+    # About 55 MB at rest plus about 3.5 MB per room; at 96 MB the kernel killed it at 12 rooms and every call dropped (LIN-413).
+    mem_limit: ${LINEDESK_LIVEKIT_MEM:-256m}
     cpuset: ${LINEDESK_VOICE_CPUSET:-1} # the voice core, shared by LiveKit, SIP, the agent and egress
 
   livekit-sip:
@@ -216,7 +217,7 @@ services:
         # true on a server that carriers reach from the internet: SIP then announces the public IP
         use_external_ip: ${LIVEKIT_SIP_USE_EXTERNAL_IP:-false}
     depends_on: [livekit, redis]
-    mem_limit: ${LINEDESK_SIP_MEM:-96m}
+    mem_limit: ${LINEDESK_SIP_MEM:-256m} # 40 MB at rest; room for many calls at once (LIN-413)
     cpuset: ${LINEDESK_VOICE_CPUSET:-1} # the voice core, shared by LiveKit, SIP, the agent and egress
 
   # The voice agent: answers calls in LiveKit rooms and writes to the API.
