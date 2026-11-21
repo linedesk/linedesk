@@ -79,7 +79,7 @@ ngrok carries HTTP only. Call audio (WebRTC media) and SIP do not go through it:
   machine's LAN address, and the phone sends the audio there directly. After changing networks, run
   `start` again (the LAN address changes). From a phone on mobile data it needs a TURN server or a
   machine with a public IP.
-- **Real phone calls (Telnyx, Twilio):** the carrier sends SIP (UDP 5060) and RTP (UDP 10000–10100) to
+- **Real phone calls (Telnyx, Twilio):** the carrier sends SIP (TCP 5060) and RTP (UDP 10000–10100) to
   a public IP. A tunnel for that would need UDP forwarding with fixed ports (a VPS with a WireGuard
   tunnel to this machine, for example). Use the test server for real calls.
 - Carrier status webhooks: not used today (calls arrive over SIP).

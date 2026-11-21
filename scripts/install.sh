@@ -150,7 +150,7 @@ main() {
     fi
     echo
     echo "If your provider has a firewall (AWS Lightsail has one by default), allow these ports:"
-    echo "  80 and 443 tcp (web), 7881 tcp and 7882 udp (call audio), 5060 udp and tcp (SIP), 10000-10100 udp (SIP audio)"
+    echo "  80 and 443 tcp (web), 7881 tcp and 7882 udp (call audio), 5060 tcp (SIP), 10000-10100 udp (SIP audio)"
     echo
     echo "Next: open the address, enter the setup code, and set up the rest with your AI agent or by hand."
     echo "Files: $dir   Update: cd $dir && scripts/update.sh"

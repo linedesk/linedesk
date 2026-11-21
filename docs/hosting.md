@@ -69,7 +69,7 @@ Linedesk publishes only the ports it needs. DigitalOcean and Vultr have no firew
 | --- | --- |
 | 80 and 443 (tcp) | The web app |
 | 7881 (tcp), 7882 (udp) | Call audio in the browser |
-| 5060 (udp and tcp) | SIP from the phone carrier |
+| 5060 (tcp) | SIP from the phone carrier |
 | 10000-10100 (udp) | Phone call audio |
 
 ## Alerts, backups and firewall on the server

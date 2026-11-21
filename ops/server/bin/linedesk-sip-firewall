@@ -1,5 +1,5 @@
 #!/bin/sh
-# Lets SIP (5060 udp/tcp) reach LiveKit only from the carriers in /etc/linedesk/sip-allow.txt (installed from
+# Lets SIP (5060; published over tcp only, udp is filtered too in case an override publishes it) reach LiveKit only from the carriers in /etc/linedesk/sip-allow.txt (installed from
 # ops/server/etc/sip-allow.txt) and the addresses in /etc/linedesk/sip-allow.local.txt (this server's own extras,
 # e.g. an uptime check). Docker publishes ports past ufw, so the rules sit in DOCKER-USER (via the chain
 # LINEDESK-SIP). Traffic from Docker's own bridges passes: LiveKit SIP's calls out to a carrier come from there.

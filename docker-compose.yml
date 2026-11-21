@@ -137,6 +137,11 @@ services:
     # LiveKit keeps the SIP trunks and dispatch rules here (setup-sip): without a volume, a deploy that recreates
     # Redis loses them and no call reaches the agent until setup-sip runs again. Append-only file, written every second.
     command: ["valkey-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    # As the image's valkey user from the start (its entrypoint drops root only after a chown); a new volume gets
+    # the image's /data owner. No capabilities and no privilege gain, like the other call services.
+    user: "999:1000"
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     volumes:
       - redis_data:/data
     networks: [voice]
@@ -169,6 +174,11 @@ services:
     # The address clients are told to send media to. 127.0.0.1 for local development;
     # the server's public IP when carriers and browsers connect from outside.
     command: ["--node-ip", "${LIVEKIT_NODE_IP:-127.0.0.1}"]
+    # Its ports (and SIP's and egress's, which share this network) are all above 1024: no root, no capabilities.
+    # 7881/7882 and the SIP ports face the internet on a voice server.
+    user: "1000:1000"
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     networks: [default, voice]
     environment:
       LIVEKIT_CONFIG: |
@@ -193,7 +203,8 @@ services:
     ports:
       - "${LIVEKIT_BIND_IP:-127.0.0.1}:7881:7881"       # WebRTC over TCP
       - "${LIVEKIT_BIND_IP:-127.0.0.1}:7882:7882/udp"   # WebRTC over UDP
-      - "${LIVEKIT_BIND_IP:-127.0.0.1}:5060:5060/udp"   # SIP (served by livekit-sip, which shares this network namespace)
+      # SIP over TCP only (served by livekit-sip, which shares this network namespace): every carrier adapter sets
+      # TCP (packages/telephony), and a UDP INVITE with a forged carrier address could start a call (LIN-413 review).
       - "${LIVEKIT_BIND_IP:-127.0.0.1}:5060:5060/tcp"
       - "${LIVEKIT_BIND_IP:-127.0.0.1}:10000-10100:10000-10100/udp" # SIP media (RTP)
     depends_on: [redis]
@@ -205,6 +216,9 @@ services:
     <<: *service
     image: livekit/sip:v1.23.0@sha256:26b5e320482c48d999073dfaf830666b1a312ad0f97d35ae67bd499659b9834e
     network_mode: "service:livekit" # so it reaches LiveKit media on the advertised node IP
+    user: "1000:1000"
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     environment:
       SIP_CONFIG_BODY: |
         api_key: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env (see .env.example)}
@@ -308,6 +322,9 @@ services:
     image: livekit/egress:v1.15.0@sha256:ac244a40268ce1dd1510fbff6eb529609ec68aceff1602343f79be8ca08c355b
     profiles: [recording]
     network_mode: "service:livekit" # same reason as livekit-sip
+    # The image's own user (1001); it records through the SDK, no browser sandbox that would need a capability.
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     environment:
       EGRESS_CONFIG_BODY: |
         api_key: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env (see .env.example)}

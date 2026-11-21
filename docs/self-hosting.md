@@ -98,7 +98,7 @@ Published on the host, and nothing else (Postgres, Electric, Valkey, the API and
 | --- | --- | --- |
 | `LINEDESK_HTTP_BIND` (default 80; 443 too with the HTTPS file) | Web app, API and LiveKit signalling, through Caddy | Yes, unless a reverse proxy in front does it |
 | 7881 (tcp), 7882 (udp) | Call audio (WebRTC) | Yes |
-| 5060 (udp and tcp) | SIP from the carrier | Yes |
+| 5060 (tcp) | SIP from the carrier | Yes |
 | 10000-10100 (udp) | SIP audio (RTP) | Yes |
 
 Call audio and SIP cannot go through an HTTP proxy, which is why they are published directly.
@@ -117,15 +117,13 @@ Optionally close 5060 in the firewall as well, so SIP scanners do not even reach
 docker compose run --rm agent node src/setup-sip.ts --print-allowed-addresses > sip-allow.txt
 ```
 
-With your provider's firewall (e.g. an AWS security group or a DigitalOcean Cloud Firewall), allow 5060 udp and tcp from these sources only. With iptables on the host, use the `DOCKER-USER` chain (Docker's published ports skip ufw's rules); the packets there already have the container's address, so match the original port. Each `-I` goes on top, so the drops come first:
+With your provider's firewall (e.g. an AWS security group or a DigitalOcean Cloud Firewall), allow 5060 tcp from these sources only. With iptables on the host, use the `DOCKER-USER` chain (Docker's published ports skip ufw's rules); the packets there already have the container's address, so match the original port. Each `-I` goes on top, so the drops come first:
 
 ```sh
-for proto in udp tcp; do
-  iptables -I DOCKER-USER -p $proto -m conntrack --ctorigdstport 5060 --ctdir ORIGINAL -j DROP
-  while read -r addr; do
-    iptables -I DOCKER-USER -p $proto -s "$addr" -m conntrack --ctorigdstport 5060 --ctdir ORIGINAL -j RETURN
-  done < sip-allow.txt
-done
+iptables -I DOCKER-USER -p tcp -m conntrack --ctorigdstport 5060 --ctdir ORIGINAL -j DROP
+while read -r addr; do
+  iptables -I DOCKER-USER -p tcp -s "$addr" -m conntrack --ctorigdstport 5060 --ctdir ORIGINAL -j RETURN
+done < sip-allow.txt
 ```
 
 These rules are not saved across reboots (use `iptables-persistent` or your own unit), and they need the same update as the variable when the list changes.
