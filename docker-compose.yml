@@ -328,7 +328,8 @@ services:
       livekit: { condition: service_started }
       redis: { condition: service_started }
       recordings-init: { condition: service_completed_successfully }
-    mem_limit: ${LINEDESK_EGRESS_MEM:-512m}
+    # About 200 MB at rest plus about 25 MB per recording; 512 MB was full at about 12 calls recorded at once (LIN-413).
+    mem_limit: ${LINEDESK_EGRESS_MEM:-1g}
     cpuset: ${LINEDESK_VOICE_CPUSET:-1} # the voice core, shared by LiveKit, SIP, the agent and egress
 
   # Egress runs as uid 1001 and a new volume belongs to root: hand the directory over once. The API runs
