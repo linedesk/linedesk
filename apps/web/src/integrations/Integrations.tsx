@@ -1,5 +1,5 @@
-// Integrations (#integrations, G O): everything Linedesk connects to, as cards by category, with a search and one
-// key per category. A card opens its detail view here (#integrations/zapier, /hubspot, /slack, /jobber, /shopify,
+// Integrations (#integrations, G O): everything Linedesk connects to, as lines by category, with a search and one
+// key per category. A line opens its detail view here (#integrations/zapier, /hubspot, /slack, /jobber, /shopify,
 // /gmail, /outlook-mail, /api-keys, /rest-api, /mcp) or
 // the place where it is set up (the assistant's webhooks and booking; #integrations/make and the like go there too); one not
 // built yet shows "Coming soon", and an address with nothing behind it says so. The catalog itself is catalog.ts; API keys and
@@ -280,9 +280,9 @@ function Catalog({ canManageKeys }: { canManageKeys: boolean }) {
         groups.map(g => (
           <section key={g.category} className="ig-group" aria-labelledby={`ig-cat-${g.category}`}>
             <h2 id={`ig-cat-${g.category}`}>{t(CATEGORY_LABEL[g.category])}</h2>
-            <div className="ig-grid">
+            <div className="k-card ig-list">
               {g.items.map(i => (
-                <Card key={i.id} integration={i} status={statusOf(i.id, facts)} />
+                <Row key={i.id} integration={i} status={statusOf(i.id, facts)} />
               ))}
             </div>
           </section>
@@ -300,22 +300,49 @@ function Chip({ label, shortcut, on, onClick }: { label: string; shortcut: strin
   )
 }
 
-/** One integration: its mark, name (the link over the whole card), one line and its state. */
-function Card({ integration, status }: { integration: Integration; status: Status }) {
+/**
+ * One integration as a line: mark and name on the left, its one line in the middle, its state and what a click does on
+ * the right. The name is the link, stretched over the whole line, so a click anywhere opens it; the button only shows it.
+ */
+function Row({ integration, status }: { integration: Integration; status: Status }) {
   const t = useT()
   const name = t(nameKey(integration.id))
+  const line = t(lineKey(integration.id))
+  const action = integration.opens ? ACTION[status.kind] : undefined
   return (
-    <article className="k-card ig-card">
-      <IntegrationMark mark={integration.mark} />
-      <div className="ig-card-text">
-        <h3>{integration.opens ? <AppLink to={integration.opens}>{name}</AppLink> : name}</h3>
-        <p>{t(lineKey(integration.id))}</p>
+    <article className="ig-row">
+      <div className="ig-row-name">
+        <IntegrationMark mark={integration.mark} />
+        <h3>
+          {integration.opens ? (
+            <AppLink to={integration.opens} title={line}>
+              {name}
+            </AppLink>
+          ) : (
+            name
+          )}
+        </h3>
       </div>
-      <div className="ig-card-status">
+      <p className="ig-row-line">{line}</p>
+      <div className="ig-row-end">
         <StatusBadge id={integration.id} status={status} />
+        {action && (
+          <span className="k-btn k-btn-secondary k-btn-sm ig-row-action" aria-hidden="true">
+            <span>{t(action)}</span>
+          </span>
+        )}
       </div>
     </article>
   )
+}
+
+/** What a click on a line does, as its button says; none while it loads or where there is nothing to do. */
+const ACTION: Partial<Record<Status['kind'], MessageKey>> = {
+  connected: msg('settings.integrations.action.manage'),
+  notConnected: msg('settings.integrations.action.connect'),
+  needsAttention: msg('settings.integrations.action.fix'),
+  ready: msg('settings.integrations.action.open'),
+  adminsOnly: msg('settings.integrations.action.open'),
 }
 
 /** "No keys yet": what none means where there is nothing to connect, only something to create. */

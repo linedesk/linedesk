@@ -1,5 +1,6 @@
-/* Integrations (#integrations): search and category chips, then a grid of cards per category; detail views below. */
-.ig-page {
+/* Integrations (#integrations): search and category chips, then a list of lines per category; detail views below. */
+/* Wider than other settings pages: a line has room for the name, its line and the state side by side. */
+.page-in.ig-page {
   max-width: 960px;
 }
 .ig-tools {
@@ -65,56 +66,98 @@
   font-weight: 600;
   color: var(--ink-muted);
 }
-.ig-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 10px;
+/* One raised card per category, a line per integration: mark and name, its line, state and button. */
+.ig-list {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
 }
-
-/* A card: the name is the link, stretched over the whole card, so a click anywhere opens it. */
-.ig-card {
+.ig-row {
   position: relative;
-  grid-template-columns: auto minmax(0, 1fr);
-  grid-template-rows: 1fr auto;
-  align-items: start;
-  gap: 8px 12px;
-  padding: 14px;
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr) 228px;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
 }
-.ig-card:hover {
+.ig-row + .ig-row {
+  border-top: 1px solid var(--line);
+}
+.ig-row:hover {
   background: var(--surface-hover);
 }
-.ig-card:focus-within {
+.ig-row:focus-within {
   outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
-.ig-card-text {
-  display: grid;
-  gap: 2px;
+.ig-row-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
-.ig-card h3 {
+.ig-row h3 {
   margin: 0;
   font-size: 13.5px;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.ig-card h3 .k-link {
+/* The name is the link, stretched over the whole line, so a click anywhere opens it. */
+.ig-row h3 .k-link {
   color: var(--ink);
   text-decoration: none;
   outline: none;
 }
-.ig-card h3 .k-link::after {
+.ig-row h3 .k-link::after {
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: inherit;
 }
-.ig-card p {
+/* One line; the whole text is in its tooltip. */
+.ig-row-line {
   margin: 0;
   color: var(--ink-muted);
   font-size: 12.5px;
   line-height: 17px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.ig-card-status {
+/* State and button in fixed columns, so they line up from line to line. */
+.ig-row-end {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px;
+  align-items: center;
+  justify-items: end;
+  gap: 12px;
+}
+/* The button only shows what a click on the line does; the line itself is the link. */
+.ig-row-action {
   grid-column: 2;
+  width: 100%;
+  justify-content: center;
+  pointer-events: none;
+}
+.ig-row:hover .ig-row-action {
+  background: var(--surface);
+}
+/* Narrow: mark and name, state and button on one line; the description under them. */
+@media (max-width: 720px) {
+  .ig-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+  }
+  .ig-row-line {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding-left: 44px;
+    white-space: normal;
+  }
+  .ig-row-end {
+    grid-template-columns: auto auto;
+  }
 }
 
 .ig-mark {
