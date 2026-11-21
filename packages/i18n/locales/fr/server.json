@@ -359,6 +359,7 @@
   "input.billing.stripeCustomerId": "un id de client Stripe (cus_…)",
   "input.billing.stripeEventId": "un id d'événement Stripe (evt_…)",
   "input.billing.stripeInvoiceId": "un id de facture Stripe (in_…)",
+  "input.brokenText": "Il contient « � » (U+FFFD), le signe d'une lettre perdue en chemin (souvent ä, ö, ü, ß ou é). Renvoyez le texte avec les bonnes lettres",
   "input.calendarPassword": "Le mot de passe ne peut pas contenir de caractères de contrôle.",
   "input.calendarUserName": "Le nom d'utilisateur ne peut pas contenir de deux-points ni de caractères de contrôle.",
   "input.carrier.keyOrToken": "indiquez soit une clé d'API (SID et secret), soit l'auth token",

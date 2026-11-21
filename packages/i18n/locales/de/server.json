@@ -359,6 +359,7 @@
   "input.billing.stripeCustomerId": "eine Stripe-Kunden-ID (cus_…)",
   "input.billing.stripeEventId": "eine Stripe-Event-ID (evt_…)",
   "input.billing.stripeInvoiceId": "eine Stripe-Rechnungs-ID (in_…)",
+  "input.brokenText": "Er enthält „�“ (U+FFFD), das Zeichen für einen Buchstaben, der unterwegs verloren ging (oft ä, ö, ü, ß oder é). Sende den Text noch einmal mit den richtigen Buchstaben",
   "input.calendarPassword": "Das Passwort darf keine Steuerzeichen enthalten.",
   "input.calendarUserName": "Der Benutzername darf keinen Doppelpunkt und keine Steuerzeichen enthalten.",
   "input.carrier.keyOrToken": "gib entweder einen API-Schlüssel (SID und Secret) oder das Auth-Token an",
