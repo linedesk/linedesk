@@ -38,6 +38,8 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
   // Switches the browser's session to another user and back.
   ['user.impersonate', BROWSER],
   ['impersonation.stop', BROWSER],
+  // Edits during an impersonation belong to that browser session (impersonation-guard.ts).
+  ['impersonation.setEdits', BROWSER],
   // Push subscriptions belong to a browser; listening in and taking over play the call's audio there.
   ['push.subscribe', BROWSER],
   ['push.unsubscribe', BROWSER],

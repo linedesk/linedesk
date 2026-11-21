@@ -1568,6 +1568,20 @@ export const impersonationStop = defineAction({
 })
 
 /**
+ * Turns edits on or off for the running impersonation (LIN-700): read-only by default; with edits on, the admin changes
+ * the assistant's and the workspace's own settings for the user (apps/api/src/impersonation-guard.ts,
+ * IMPERSONATION_EDIT_WRITES). Ends with the impersonation.
+ */
+export const impersonationSetEdits = defineAction({
+  name: 'impersonation.setEdits',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "While signed in as another user: allow changes to the assistant's and the workspace's settings (`on` true), or go back to read-only (`on` false). Team, numbers, billing, webhooks, connections, transfer contacts and call email rules stay read-only. Ends with the impersonation.",
+  input: z.object({ on: z.boolean() }).strict(),
+  permission: 'impersonation:stop',
+})
+
+/**
  * Setup emails (day 0, 1 and 3 until the first real call, the first call, the first week's summary) to the owners of
  * new workspaces. Off by default, so a self-hosted install sends none unless its admin turns them on.
  */

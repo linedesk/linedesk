@@ -473,7 +473,7 @@ export function App() {
   }
   if (session.state === 'needsWorkspace') {
     return (
-      <ImpersonationFrame impersonation={session.impersonation}>
+      <ImpersonationFrame impersonation={session.impersonation} onChanged={refresh}>
         <NoWorkspace
           me={session.me}
           lostWorkspace={session.lostWorkspace}
@@ -575,6 +575,7 @@ export function App() {
     <ImpersonationFrame
       key={`${session.me.actorId}/${session.me.workspace!.id}`}
       impersonation={session.me.impersonation ?? null}
+      onChanged={refresh}
     >
       <StoreProvider
         workspaceId={session.me.workspace!.id}

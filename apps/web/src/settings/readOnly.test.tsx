@@ -1,4 +1,5 @@
-// Settings during support access: read-only like a member's, API keys aside, with a note that says why.
+// Settings during support access: read-only like a member's, API keys aside, with a note that says why; editable once
+// the admin allows edits (LIN-700).
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test } from 'vitest'
 import { SupportAccessContext } from '../supportAccess.ts'
@@ -20,6 +21,19 @@ test('owners and admins change settings in their own session; during support acc
   })
 })
 
+test('support access with edits allowed: the settings are editable for an owner or admin, never for a member', () => {
+  const editing = { ...imp, edits: true }
+  expect(settingsAccess({ permissions: owner, impersonation: editing })).toEqual({ canEdit: true, canManageKeys: true })
+  expect(settingsAccess({ permissions: owner, impersonation: { ...imp, edits: false } })).toEqual({
+    canEdit: false,
+    canManageKeys: true,
+  })
+  expect(settingsAccess({ permissions: ['call:write'], impersonation: editing })).toEqual({
+    canEdit: false,
+    canManageKeys: false,
+  })
+})
+
 function Note() {
   return <p>{useReadOnlyNote()}</p>
 }
@@ -32,5 +46,7 @@ const note = (supportAccess: boolean) =>
 
 test('the read-only note says why: support access, else only admins', () => {
   expect(note(false)).toBe('<p>Only admins can change this.</p>')
-  expect(note(true)).toBe('<p>Read-only while you are signed in as another user.</p>')
+  expect(note(true)).toBe(
+    '<p>Read-only while you are signed in as another user. To change it, use Allow edits in the bar below.</p>',
+  )
 })

@@ -85,5 +85,6 @@ export const useStepByStep = (): ChangeTarget | null => useTargetIn(parseStepByS
  * owner's or admin's own session), in a workspace that is not disabled. The server checks every save again.
  */
 export function mayStepThrough(me: Pick<Me, 'permissions' | 'impersonation' | 'workspace'>): boolean {
-  return settingsAccess(me).canEdit && !me.workspace?.disabled
+  // Never during support access, also with edits on: the flow reaches numbers and connections, which stay refused.
+  return settingsAccess(me).canEdit && !me.impersonation && !me.workspace?.disabled
 }

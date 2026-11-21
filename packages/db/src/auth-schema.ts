@@ -53,6 +53,8 @@ export const session = pgTable(
     activeOrganizationId: text("active_organization_id"),
     // Not Better Auth's admin plugin: set on a session an instance admin started as this user (docs/architecture.md §12).
     impersonatedBy: text("impersonated_by").references(() => user.id, { onDelete: "cascade" }),
+    // During an impersonation: when the admin turned edits on (impersonation.setEdits); null: read-only, the default.
+    impersonationEditsAt: timestamp("impersonation_edits_at"),
     // Set when the session was started by a passkey sign-in; the admin area needs it (apps/api/src/admin-second-factor.ts).
     passkeyVerifiedAt: timestamp("passkey_verified_at"),
     // What set passkeyVerifiedAt: 'passkey' (a passkey sign-in) or 'authenticator' (a code from an instance admin's

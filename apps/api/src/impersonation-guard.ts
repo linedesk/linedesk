@@ -63,9 +63,12 @@ export const NOT_WHILE_IMPERSONATING = 'Not possible while signed in as another 
  * run-action, so no new action can give the admin access that outlasts the hour (invite themselves,
  * point a webhook or a transfer elsewhere, change the carrier or numbers). API keys are the one deliberate
  * exception (they do outlast it, and are marked). Only the inbox triage the user would not mind, API keys (marked as made by the admin), and ending the impersonation.
+ * With edits turned on, IMPERSONATION_EDIT_WRITES as well.
  */
 export const IMPERSONATION_ALLOWED_WRITES: ReadonlySet<string> = new Set([
   'impersonation.stop',
+  // Turning edits on or off for this impersonation (IMPERSONATION_EDIT_WRITES); audited like stop.
+  'impersonation.setEdits',
   // Support is often about exactly this (decision 2026-11-15). A key made now outlasts the hour, so it names the admin
   // (api_keys.created_by_impersonator; its commands record commands.impersonated_by) and is listed with their name.
   // Otherwise it is a key like any other, and the admin revokes keys as the user could (api-keys.ts).
@@ -78,6 +81,49 @@ export const IMPERSONATION_ALLOWED_WRITES: ReadonlySet<string> = new Set([
   'call.remind',
   'call.clearReminder',
 ])
+
+/**
+ * Writes an impersonated session may run only once the admin turned edits on (impersonation.setEdits, LIN-700): the
+ * assistant's and the workspace's own settings, so support can fix them for the customer. Never the team, roles,
+ * phone numbers or the carrier, the bill, webhooks, connections to apps, calendars or mailboxes, deleting the
+ * workspace or the assistant, partner or Server admin actions: those stay refused also with edits on. Each command
+ * still records the admin (commands.impersonated_by). Some fields stay refused also here: IMPERSONATION_EDIT_REFUSED_FIELDS.
+ */
+export const IMPERSONATION_EDIT_WRITES: ReadonlySet<string> = new Set([
+  'assistant.update',
+  'workspace.updateSettings',
+  'workspace.rename',
+  'businessHours.set',
+  'closedDays.set',
+  'holidays.set',
+  'appointmentType.upsert',
+  'appointmentType.delete',
+  'knowledgeQuestion.answer',
+  'knowledgeQuestion.dismiss',
+  'onboarding.setStep',
+  'onboarding.skipGoLiveStep',
+  'onboarding.restoreGoLiveStep',
+  'onboarding.dismissGoLiveChecklist',
+  'onboarding.reopenGoLiveChecklist',
+])
+
+/**
+ * Input fields refused during an impersonation also with edits on: they could send calls (`transfers`) or call
+ * emails (`email_rules`) somewhere else and keep doing so after the hour, or delete the workspace's recordings for
+ * good (`recordingRetentionDays`). The owner changes them in their own session.
+ */
+export const IMPERSONATION_EDIT_REFUSED_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  'assistant.update': ['transfers', 'email_rules', 'record_calls'],
+  // Recording and its notice stay the owner's: an admin must not leave callers recorded without being told.
+  'workspace.updateSettings': ['recordingRetentionDays', 'recordingNoticeOn', 'recordingNotice'],
+}
+
+/** Whether the parsed input of an action run while impersonating sets a field refused then. */
+export function impersonationRefusesInput(name: string, input: unknown): boolean {
+  const fields = IMPERSONATION_EDIT_REFUSED_FIELDS[name]
+  if (!fields || typeof input !== 'object' || input === null) return false
+  return fields.some(field => (input as Record<string, unknown>)[field] !== undefined)
+}
 
 /**
  * Read-only actions refused too: those that still do something outside Linedesk (send a request, start
@@ -111,10 +157,17 @@ const IMPERSONATION_REFUSED_READS: ReadonlySet<string> = new Set([
   'billing.overview',
 ])
 
-/** Whether an impersonated session may run this action. */
-export function mayRunWhileImpersonating(def: { name: string; readOnly?: boolean }): boolean {
+/**
+ * Whether an impersonated session may run this action; `impersonation.edits`: the admin turned edits on, so the
+ * settings in IMPERSONATION_EDIT_WRITES run too (their input is checked in run-action: impersonationRefusesInput).
+ */
+export function mayRunWhileImpersonating(
+  def: { name: string; readOnly?: boolean },
+  impersonation?: { edits?: boolean },
+): boolean {
   if (def.readOnly) return !IMPERSONATION_REFUSED_READS.has(def.name)
-  return IMPERSONATION_ALLOWED_WRITES.has(def.name)
+  if (IMPERSONATION_ALLOWED_WRITES.has(def.name)) return true
+  return Boolean(impersonation?.edits) && IMPERSONATION_EDIT_WRITES.has(def.name)
 }
 
 const refusedPath = (path: string) => IMPERSONATION_REFUSED_PATHS.some(p => path === p || path.startsWith(`${p}/`))

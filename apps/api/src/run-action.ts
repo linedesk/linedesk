@@ -41,7 +41,7 @@ import { type Reader, rejectionText, wordsOf } from './handler-context.ts'
 import { Forbidden, NotFound, preparers, Reject, runHandler, type Undo } from './handlers.ts'
 import { personalKeyRefusal } from './personal-key-scope.ts'
 import { chargeSetupLookup, pendingPaymentRefusal, REFUSED_WHILE_PENDING_PAYMENT, SETUP_LOOKUPS } from './self-serve.ts'
-import { impersonatorOf, mayRunWhileImpersonating } from './impersonation-guard.ts'
+import { impersonationRefusesInput, impersonatorOf, mayRunWhileImpersonating } from './impersonation-guard.ts'
 import { MAIN_HOST_ONLY, mainHostOnlyAction } from './request-host.ts'
 
 export type RunResult = { status: 200 | 403 | 404 | 409 | 422; body: ActionResult | ActionRejection }
@@ -224,7 +224,13 @@ async function runUndos(undos: Undo[]): Promise<string[]> {
  * agent action in any workspace, for agents older than the call token. Remove that by 2026-12-31: then
  * the install-wide token runs only these actions and GET /v1/agent/provider-config.
  */
-const INSTALL_AGENT_ACTIONS = ['call.start', 'call.startTest', 'call.findForTest', 'call.listNumbers', 'call.newCallerForTest']
+const INSTALL_AGENT_ACTIONS = [
+  'call.start',
+  'call.startTest',
+  'call.findForTest',
+  'call.listNumbers',
+  'call.newCallerForTest',
+]
 
 /**
  * Why the voice agent may not run this action with this input, or null. Its role has only `agent`;
@@ -295,7 +301,7 @@ export function runnableBy(def: ActionDef, actor: Actor): boolean {
   if (!allowed) return false
   if (actor.setupWorkspaceId && workspaceKeyOutOfScope(def, actor)) return false
   if (actor.setupPartnerId && partnerKeyRefuses(def, actor)) return false
-  if (actor.impersonation && !mayRunWhileImpersonating(def)) return false
+  if (actor.impersonation && !mayRunWhileImpersonating(def, actor.impersonation)) return false
   if (actor.apiKeyId && !def.public) return false
   if (actor.personalKeyId && personalKeyRefusal(def.name)) return false
   return true
@@ -343,7 +349,7 @@ export async function runAction(
   // A partner owner's setup key: the partner's own actions and its client workspaces' setup only (agent-setup.ts).
   if (actor.setupPartnerId && (await partnerKeyOutOfScope(def, actor, rawInput))) return forbidden(PARTNER_KEY_SCOPE())
   // An instance admin signed in as this user: reads and a short allow-list only (impersonation-guard.ts).
-  if (actor.impersonation && !mayRunWhileImpersonating(def))
+  if (actor.impersonation && !mayRunWhileImpersonating(def, actor.impersonation))
     return forbidden(wordsOf(actor).t('server.api.notWhileImpersonating'))
   // A leaked key must not reach settings: carrier, numbers, transfer number, webhooks, calendars.
   if (actor.apiKeyId && !def.public) return forbidden(API_KEY_PUBLIC_ONLY)
@@ -372,6 +378,9 @@ export async function runAction(
       ? unknownFieldsRejection(unknown, wordsOf(actor))
       : rejection(422, inputErrorText(parsed.error, rawInput, wordsOf(actor)))
   }
+  // With edits on, still no transfer contacts, call email rules or recording deletion as the user (impersonation-guard.ts).
+  if (actor.impersonation && impersonationRefusesInput(name, parsed.data))
+    return forbidden(wordsOf(actor).t('server.api.notWhileImpersonating'))
   const agentRefused = agentRefusal(def, parsed.data, actor)
   if (agentRefused) return forbidden(agentRefused)
   const unknown = unknownFieldsRefusal(name, rawInput, parsed.data, actor)

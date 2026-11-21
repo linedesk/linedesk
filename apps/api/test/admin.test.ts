@@ -16,6 +16,7 @@ import {
 import {
   admin_devices,
   api_keys,
+  assistants,
   auth_events,
   call_evaluations,
   calls,
@@ -491,7 +492,10 @@ describe('provider keys', () => {
   test('AssemblyAI answering with Deepgram set up too: the agent gets Deepgram as its fallback, and every language is offered (LIN-656)', async () => {
     const config = async () => (await request(agent(), 'GET', AGENT_ROUTE)).body
     // A voice provider that speaks Polish; without one the install offers only Flux's 10 (spokenLanguages).
-    await act(operator, 'provider.setKeys', { provider: 'elevenlabs', values: { api_key: 'elevenlabs-key-0123456789' } })
+    await act(operator, 'provider.setKeys', {
+      provider: 'elevenlabs',
+      values: { api_key: 'elevenlabs-key-0123456789' },
+    })
     expect((await installLanguageOptions(db)).languages).toContain('pl')
     await act(operator, 'provider.setKeys', {
       provider: 'assemblyai_stt',
@@ -2529,7 +2533,7 @@ describe('impersonation', () => {
 
   test('what an impersonated session may run is pinned: a new read-only action or allowed write needs a look here', () => {
     const allowed = [...actions.values()]
-      .filter(mayRunWhileImpersonating)
+      .filter(def => mayRunWhileImpersonating(def))
       .map(def => def.name)
       .sort()
     expect(allowed).toEqual([
@@ -2587,6 +2591,7 @@ describe('impersonation', () => {
       'germanNumbers.get',
       'germanNumbers.group',
       'holidays.lookup',
+      'impersonation.setEdits',
       'impersonation.stop',
       // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
       'impersonationEmails.get',
@@ -2652,6 +2657,131 @@ describe('impersonation', () => {
       // Read-only and instance:admin, as above.
       'zapierApp.get',
     ])
+  })
+
+  test('with edits allowed, only the assistant and workspace settings join them: pinned too (LIN-700)', () => {
+    const extra = [...actions.values()]
+      .filter(def => mayRunWhileImpersonating(def, { edits: true }) && !mayRunWhileImpersonating(def))
+      .map(def => def.name)
+      .sort()
+    expect(extra).toEqual([
+      'appointmentType.delete',
+      'appointmentType.upsert',
+      'assistant.update',
+      'businessHours.set',
+      'closedDays.set',
+      'holidays.set',
+      'knowledgeQuestion.answer',
+      'knowledgeQuestion.dismiss',
+      'onboarding.dismissGoLiveChecklist',
+      'onboarding.reopenGoLiveChecklist',
+      'onboarding.restoreGoLiveStep',
+      'onboarding.setStep',
+      'onboarding.skipGoLiveStep',
+      'workspace.rename',
+      'workspace.updateSettings',
+    ])
+  })
+
+  test('Allow edits: per impersonation session, settings only, never transfers, call emails, team or webhooks (LIN-700)', async () => {
+    const targetMember = and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, target.userId))
+    // One owner per workspace: `other`'s owner steps aside for the test and gets it back after.
+    const otherOwner = and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, other.owner.userId))
+    await db.update(memberTable).set({ role: 'admin' }).where(otherOwner)
+    await db.update(memberTable).set({ role: 'owner' }).where(targetMember)
+    const [before] = await db.select().from(assistants).where(eq(assistants.id, other.assistant.id))
+    const refusedText = { status: 403, body: { error: 'Not possible while signed in as another user.' } }
+    try {
+      // Only an impersonated session has it: not the user, not the admin in their own session.
+      for (const who of [target, operator]) {
+        expect(await act(who, 'impersonation.setEdits', { on: true })).toMatchObject({
+          status: 403,
+          body: { error: 'missing permission impersonation:stop' },
+        })
+      }
+      const { as } = await start(operator, target.userId)
+      const rename = (name: string, key?: string) =>
+        act(as, 'assistant.update', { assistantId: other.assistant.id, name }, key)
+      // Read-only by default.
+      expect((await request(as, 'GET', '/v1/me')).body.impersonation).toMatchObject({ edits: false })
+      expect(await rename('Edited by support')).toMatchObject(refusedText)
+
+      const switched = crypto.randomUUID()
+      expect(await act(as, 'impersonation.setEdits', { on: true }, switched)).toMatchObject({
+        status: 200,
+        body: { data: { on: true } },
+      })
+      expect((await request(as, 'GET', '/v1/me')).body.impersonation).toMatchObject({ edits: true })
+      // The switch is in the audit trail, done as the user by the admin.
+      expect((await db.select().from(commands).where(eq(commands.id, switched)))[0]).toMatchObject({
+        action: 'impersonation.setEdits',
+        actor_id: target.userId,
+        impersonated_by: operator.userId,
+      })
+
+      // With edits on: the assistant's settings change, and the command names the admin.
+      const key = crypto.randomUUID()
+      expect((await rename('Edited by support', key)).status).toBe(200)
+      expect((await db.select().from(assistants).where(eq(assistants.id, other.assistant.id)))[0]!.name).toBe(
+        'Edited by support',
+      )
+      expect((await db.select().from(commands).where(eq(commands.id, key)))[0]).toMatchObject({
+        action: 'assistant.update',
+        actor_id: target.userId,
+        impersonated_by: operator.userId,
+      })
+      expect((await act(as, 'workspace.updateSettings', { businessHoursOn: true })).status).toBe(200)
+
+      // Transfer contacts and call email rules stay refused, also next to an allowed field; recordings are not deleted.
+      const refused: [string, unknown][] = [
+        ['assistant.update', { assistantId: other.assistant.id, transfers: [] }],
+        [
+          'assistant.update',
+          { assistantId: other.assistant.id, name: 'Sneaky', email_rules: { always: [], rules: [] } },
+        ],
+        ['workspace.updateSettings', { recordingRetentionDays: 0 }],
+        // Recording and its notice stay the owner's: callers are never recorded without being told.
+        ['workspace.updateSettings', { recordingNoticeOn: false }],
+        ['workspace.updateSettings', { recordingNotice: 'Hi.' }],
+        ['assistant.update', { assistantId: other.assistant.id, record_calls: true }],
+        // Never on the list, edits or not.
+        ['team.invite', { email: 'admin-backdoor@linedesk.test', role: 'owner' }],
+        [
+          'webhook.create',
+          { assistantId: other.assistant.id, hooks: ['call_end'], url: 'https://collector.example.com/hook' },
+        ],
+        ['carrier.set', {}],
+        ['phoneNumber.release', { phoneNumberId: 'any' }],
+        ['calendar.connectStart', { provider: 'google' }],
+        ['workspace.deleteOwn', { name: 'any' }],
+        ['assistant.delete', { assistantId: other.assistant.id }],
+        ['assistant.restoreVersion', { assistantId: other.assistant.id, version: 1 }],
+      ]
+      for (const [name, input] of refused) expect(await act(as, name, input), name).toMatchObject(refusedText)
+      expect(await db.select().from(invitation).where(eq(invitation.email, 'admin-backdoor@linedesk.test'))).toEqual([])
+      expect((await db.select().from(assistants).where(eq(assistants.id, other.assistant.id)))[0]!.name).toBe(
+        'Edited by support',
+      )
+
+      // Per session: another impersonation of the same user starts read-only, while the first keeps its edits.
+      const second = await start(operator, target.userId)
+      expect((await request(second.as, 'GET', '/v1/me')).body.impersonation).toMatchObject({ edits: false })
+      expect(
+        await act(second.as, 'assistant.update', { assistantId: other.assistant.id, name: 'Second' }),
+      ).toMatchObject(refusedText)
+      expect((await rename('Edited again')).status).toBe(200)
+      await stop(second.as)
+
+      // Back to read-only.
+      expect((await act(as, 'impersonation.setEdits', { on: false })).status).toBe(200)
+      expect((await request(as, 'GET', '/v1/me')).body.impersonation).toMatchObject({ edits: false })
+      expect(await rename('Not any more')).toMatchObject(refusedText)
+      await stop(as)
+    } finally {
+      await db.update(assistants).set({ name: before!.name }).where(eq(assistants.id, other.assistant.id))
+      await db.update(memberTable).set({ role: 'member' }).where(targetMember)
+      await db.update(memberTable).set({ role: 'owner' }).where(otherOwner)
+    }
   })
 
   test('setupEmails.get passes the impersonation guard (an on/off flag, nothing sensitive), yet needs instance:admin', async () => {

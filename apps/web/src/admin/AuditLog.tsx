@@ -158,6 +158,8 @@ export function auditLabel(
       return input.on === true ? t('admin.audit.impersonationEmailsOn') : t('admin.audit.impersonationEmailsOff')
     case 'impersonation.stop':
       return t('admin.audit.impersonationStop')
+    case 'impersonation.setEdits':
+      return input.on === true ? t('admin.audit.impersonationEditsOn') : t('admin.audit.impersonationEditsOff')
     case 'provider.setKeys':
       return t('admin.audit.providerSetKeys', provider)
     case 'provider.clearKeys':

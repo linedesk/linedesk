@@ -11,7 +11,12 @@ import { sendNotice } from './email.ts'
 import { securityNoticeBrand, withEmailBrand } from './email-brand.ts'
 import { localeForUserId } from './email-locale.ts'
 import { impersonationStartedEmail } from './emails/templates.ts'
-import { EMAILS_SETTING, emailConnected, impersonationEmailsOn, impersonationNoticesGoOut } from './impersonation-emails.ts'
+import {
+  EMAILS_SETTING,
+  emailConnected,
+  impersonationEmailsOn,
+  impersonationNoticesGoOut,
+} from './impersonation-emails.ts'
 import { type Handler, Forbidden, Reject } from './handler-context.ts'
 import { isInstanceAdmin } from './instance-admin.ts'
 import { emailBrandOf } from './partner-brand.ts'
@@ -20,6 +25,9 @@ export const IMPERSONATION_SEC = IMPERSONATION_MINUTES * 60
 
 /** The actions that only run through the routes in impersonation-routes.ts: they need cookies set. */
 export const COOKIE_ACTIONS: readonly string[] = ['user.impersonate', 'impersonation.stop']
+
+/** Only an impersonated session has impersonation:stop (context.ts), so this is a safety net. */
+const NOT_IMPERSONATING = 'you are not signed in as another user'
 
 type ImpersonateInput = { userId: string; reason: string; workspaceId?: string }
 
@@ -61,14 +69,25 @@ export const impersonationHandlers: Record<string, Handler> = {
     // impersonationEmails.get); queued here, sent once the command has committed. `notified` means "notice queued".
     const notified = await impersonationNoticesGoOut(tx)
     if (notified) {
-      const [admin] = await tx.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, actor.actorId))
+      const [admin] = await tx
+        .select({ name: user.name, email: user.email })
+        .from(user)
+        .where(eq(user.id, actor.actorId))
       const locale = await localeForUserId(tx, target.id)
       // With the workspace's brand: a white-label partner's client hears it under the partner's name (partner-brand.ts).
-      const brand = securityNoticeBrand(first?.workspaceId ? await emailBrandOf(first.workspaceId, tx).catch(() => null) : null)
+      const brand = securityNoticeBrand(
+        first?.workspaceId ? await emailBrandOf(first.workspaceId, tx).catch(() => null) : null,
+      )
       onCommit?.(async () =>
         withEmailBrand(brand, () => {
           const email = impersonationStartedEmail(
-            { admin: { name: admin?.name ?? '', email: admin?.email ?? '' }, reason: input.reason, at: now, workspace: first?.name ?? null, minutes: IMPERSONATION_MINUTES },
+            {
+              admin: { name: admin?.name ?? '', email: admin?.email ?? '' },
+              reason: input.reason,
+              at: now,
+              workspace: first?.name ?? null,
+              minutes: IMPERSONATION_MINUTES,
+            },
             undefined,
             locale,
           )
@@ -103,8 +122,18 @@ export const impersonationHandlers: Record<string, Handler> = {
   },
 
   'impersonation.stop': async ({ tx, actor }) => {
-    if (!actor.impersonation) throw new Reject('you are not signed in as another user')
+    if (!actor.impersonation) throw new Reject(NOT_IMPERSONATING)
     await tx.delete(session).where(eq(session.id, actor.impersonation.sessionId))
     return { rows: {}, data: { userId: actor.actorId, impersonatedBy: actor.impersonation.by } }
+  },
+
+  // Edits on or off for this impersonation only: its own session row, never another (impersonation-guard.ts).
+  'impersonation.setEdits': async ({ tx, actor, now }, input: { on: boolean }) => {
+    if (!actor.impersonation) throw new Reject(NOT_IMPERSONATING)
+    await tx
+      .update(session)
+      .set({ impersonationEditsAt: input.on ? new Date(now) : null })
+      .where(and(eq(session.id, actor.impersonation.sessionId), eq(session.impersonatedBy, actor.impersonation.by)))
+    return { rows: {}, data: { on: input.on, impersonatedBy: actor.impersonation.by } }
   },
 }

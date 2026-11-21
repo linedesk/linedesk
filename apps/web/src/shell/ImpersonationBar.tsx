@@ -1,6 +1,7 @@
 // While an instance admin is signed in as another user: a bar under every page saying whose
-// session this is, how long it lasts, and the way back. The app sits above it, so nothing of the
-// app (hints, offline bar, toasts) is covered.
+// session this is, how long it lasts, the switch that allows edits of the settings (read-only by default,
+// impersonation.setEdits), and the way back. The app sits above it, so nothing of the app (hints, offline bar, toasts)
+// is covered.
 import { type ReactNode, useEffect, useState } from 'react'
 import {
   bannerText,
@@ -10,16 +11,20 @@ import {
   stopImpersonation,
   UnsentChanges,
 } from '../impersonation.ts'
+import { callAction } from '../settings/settings-api.ts'
 import { SupportAccessContext } from '../supportAccess.ts'
 import { Button } from '../ui/kit.tsx'
 import { useNow } from './useNow.ts'
 import { useT } from '@linedesk/i18n/react'
 
+/** `onChanged`: loads /v1/me again, so the pages follow the edits switch at once. */
 export function ImpersonationFrame({
   impersonation,
+  onChanged,
   children,
 }: {
   impersonation: Impersonation | null
+  onChanged?: () => Promise<void>
   children: ReactNode
 }) {
   if (!impersonation) return <SupportAccessContext.Provider value={false}>{children}</SupportAccessContext.Provider>
@@ -27,13 +32,19 @@ export function ImpersonationFrame({
     <SupportAccessContext.Provider value>
       <div className="imp-frame">
         <div className="imp-content">{children}</div>
-        <ImpersonationBar impersonation={impersonation} />
+        <ImpersonationBar impersonation={impersonation} onChanged={onChanged} />
       </div>
     </SupportAccessContext.Provider>
   )
 }
 
-function ImpersonationBar({ impersonation }: { impersonation: Impersonation }) {
+function ImpersonationBar({
+  impersonation,
+  onChanged,
+}: {
+  impersonation: Impersonation
+  onChanged?: () => Promise<void>
+}) {
   const t = useT()
   const now = useNow(15_000)
   const left = minutesLeft(impersonation.expiresAt, now)
@@ -58,7 +69,26 @@ function ImpersonationBar({ impersonation }: { impersonation: Impersonation }) {
     } catch (err) {
       const unsent = err instanceof UnsentChanges
       setDiscardUnsent(unsent)
-      setWarning(unsent ? err.message : t('shell.impersonation.returnFailed', { reason: err instanceof Error ? err.message : String(err) }))
+      setWarning(
+        unsent
+          ? err.message
+          : t('shell.impersonation.returnFailed', { reason: err instanceof Error ? err.message : String(err) }),
+      )
+      setBusy(false)
+    }
+  }
+
+  const edits = impersonation.edits === true
+  async function toggleEdits() {
+    if (busy) return
+    setBusy(true)
+    setWarning(null)
+    try {
+      await callAction('impersonation.setEdits', { on: !edits })
+      await onChanged?.()
+    } catch (err) {
+      setWarning(t('shell.impersonation.editsFailed', { reason: err instanceof Error ? err.message : String(err) }))
+    } finally {
       setBusy(false)
     }
   }
@@ -70,12 +100,23 @@ function ImpersonationBar({ impersonation }: { impersonation: Impersonation }) {
         {text.email && <span className="imp-wide"> ({text.email})</span>}
         <span className="imp-wide"> · {text.by}</span>
         <span className="imp-left"> · {remainingText(left)}</span>
+        {edits && <span className="imp-edits-on"> · {t('shell.impersonation.editsOn')}</span>}
       </span>
       {warning && (
         <span className="imp-warning" role="alert">
           {warning}
         </span>
       )}
+      <Button
+        size="sm"
+        className="imp-edits"
+        disabled={busy}
+        aria-pressed={edits}
+        title={edits ? t('shell.impersonation.readOnlyTip') : t('shell.impersonation.allowEditsTip')}
+        onClick={() => void toggleEdits()}
+      >
+        {edits ? t('shell.impersonation.readOnly') : t('shell.impersonation.allowEdits')}
+      </Button>
       <Button
         size="sm"
         className="imp-back"

@@ -114,7 +114,8 @@ export interface Actor {
   partnerHost?: { partnerId: string; domainId: string; hostname: string }
 }
 
-export type Impersonation = { by: string; sessionId: string; expiresAt: Date }
+/** `edits`: the admin turned edits on in this session (impersonation.setEdits): IMPERSONATION_EDIT_WRITES run too. */
+export type Impersonation = { by: string; sessionId: string; expiresAt: Date; edits?: boolean }
 
 /**
  * The impersonation a session stands for, or null when it must not be used any more: past its
@@ -125,12 +126,18 @@ async function checkImpersonation(s: {
   createdAt: Date
   expiresAt: Date
   impersonatedBy: string
+  impersonationEditsAt?: Date | string | null
 }): Promise<Impersonation | null> {
   const endsAt = impersonationEndsAt(s.createdAt)
   if (endsAt.getTime() <= Date.now()) return null
   const [admin] = await db.select().from(user).where(eq(user.id, s.impersonatedBy))
   if (!admin || admin.disabledAt || !isInstanceAdmin(admin)) return null
-  return { by: admin.id, sessionId: s.id, expiresAt: new Date(Math.min(s.expiresAt.getTime(), endsAt.getTime())) }
+  return {
+    by: admin.id,
+    sessionId: s.id,
+    expiresAt: new Date(Math.min(s.expiresAt.getTime(), endsAt.getTime())),
+    edits: Boolean(s.impersonationEditsAt),
+  }
 }
 
 /**

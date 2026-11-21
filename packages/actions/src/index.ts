@@ -321,6 +321,7 @@ const all = [
   admin.instanceAdminRevoke,
   admin.userImpersonate,
   admin.impersonationStop,
+  admin.impersonationSetEdits,
   admin.setupEmailsGet,
   admin.setupEmailsSet,
   admin.founderEmailGet,

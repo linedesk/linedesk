@@ -355,6 +355,8 @@ export const auth = betterAuth({
     updateAge: 24 * 60 * 60,
     additionalFields: {
       impersonatedBy: { type: 'string', required: false, input: false },
+      // When the impersonating admin turned edits on (impersonation.setEdits; impersonation-guard.ts).
+      impersonationEditsAt: { type: 'date', required: false, input: false },
       passkeyVerifiedAt: { type: 'date', required: false, input: false },
       // 'passkey' or 'authenticator': what set passkeyVerifiedAt (admin-second-factor.ts passkeySignedIn).
       secondFactorMethod: { type: 'string', required: false, input: false },

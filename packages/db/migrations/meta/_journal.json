@@ -1226,6 +1226,13 @@
       "when": 1795241971129,
       "tag": "0175_business_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1795293068440,
+      "tag": "0176_impersonation_edits",
+      "breakpoints": true
     }
   ]
 }

@@ -2085,6 +2085,10 @@ button.k-link {
 .imp-left {
   color: #d6d3d1;
 }
+.imp-edits-on {
+  color: #fafaf8;
+  font-weight: 600;
+}
 .imp-warning {
   color: #fafaf8;
   font-size: 12.5px;
@@ -2095,6 +2099,17 @@ button.k-link {
   color: #1c1917;
   border-color: transparent;
 }
+/* Allow edits / Back to read-only: quieter than the way back, outlined on the dark bar. */
+.imp-bar .imp-edits {
+  flex: none;
+  background: transparent;
+  color: #fafaf8;
+  border-color: rgba(250, 250, 248, 0.45);
+}
+.imp-bar .imp-edits:hover:not(:disabled) {
+  background: rgba(250, 250, 248, 0.12);
+}
+.imp-bar .imp-edits:focus-visible,
 .imp-bar .imp-back:focus-visible {
   outline: 2px solid #fafaf8;
   outline-offset: 2px;

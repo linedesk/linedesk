@@ -237,6 +237,8 @@
   "audit.impersonate": "Signed in as a user",
   "audit.impersonateAs": "Signed in as {who}",
   "audit.impersonatedBy": "{known, select, yes {by {email}} other {by an admin}}",
+  "audit.impersonationEditsOff": "Turned edits off while signed in as a user",
+  "audit.impersonationEditsOn": "Turned edits on while signed in as a user",
   "audit.impersonationEmailsOff": "Turned off emails to users when an admin signs in as them",
   "audit.impersonationEmailsOn": "Turned on emails to users when an admin signs in as them",
   "audit.impersonationStop": "Returned to admin",

@@ -10,8 +10,11 @@ import { brandName } from './brand.ts'
 import { i18n } from './i18n/index.tsx'
 
 type Person = { id: string; name: string; email: string }
-/** From `/v1/me`: who is signed in as this user, and until when. */
-export type Impersonation = { by: Person; user: Person; expiresAt: string }
+/**
+ * From `/v1/me`: who is signed in as this user, and until when. `edits`: the admin allowed edits of the assistant's and
+ * workspace's settings (impersonation.setEdits); otherwise everything but inbox triage and API keys is read-only.
+ */
+export type Impersonation = { by: Person; user: Person; expiresAt: string; edits?: boolean }
 
 /** Whole minutes left, rounded up; 0 once it has ended. */
 export const minutesLeft = (expiresAt: string, now: Date) =>
@@ -30,8 +33,7 @@ export const bannerText = (imp: Impersonation) => ({
   by: i18n().t('shell.impersonation.by', { name: nameOf(imp.by) }),
 })
 
-export const confirmText = (name: string) =>
-  i18n().t('admin.impersonation.confirm', { brand: brandName(), name })
+export const confirmText = (name: string) => i18n().t('admin.impersonation.confirm', { brand: brandName(), name })
 
 /** The reason the start asks for (user.impersonate): kept in the audit log, and in the email to the user when that is on. */
 export const reasonField = () => ({
@@ -52,7 +54,13 @@ async function post(path: string, body: unknown = {}) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
-  const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; resumed?: boolean; code?: unknown; stepUp?: unknown } | null
+  const json = (await res.json().catch(() => null)) as {
+    ok?: boolean
+    error?: string
+    resumed?: boolean
+    code?: unknown
+    stepUp?: unknown
+  } | null
   const stepUp = stepUpOf(json)
   if (stepUp) throw new StepUpRequired(json?.error ?? i18n().t('admin.api.confirmPasskey'), stepUp)
   if (!res.ok || !json?.ok) throw new Error(json?.error ?? i18n().t('admin.api.serverAnswered', { status: res.status }))

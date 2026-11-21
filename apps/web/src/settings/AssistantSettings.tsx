@@ -50,6 +50,7 @@ import { Loading, LoadProblem, Skeleton, useLoading, useLoadState } from '../ui/
 import { SearchSelect } from '../ui/SearchSelect.tsx'
 import { type PageSection, SettingsLayout, sectionHash, sectionParts, useSection } from '../ui/SettingsLayout.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
+import { useSupportAccess } from '../supportAccess.ts'
 import { useWorkspaceCountry, useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { AgentChangeActions, type AgentChangeMode, AgentSetupStrip } from './AgentChange.tsx'
 import { AssistantHeader } from './AssistantHeader.tsx'
@@ -877,6 +878,11 @@ function Form({
   const voiceOptions = useVoiceOptions().data
   const setUp = pipelinesOf(voiceOptions)
   const testCall = useTestCall(canEdit, assistant, isInstanceAdmin)
+  /**
+   * Support access with edits allowed: transfer contacts and call emails stay read-only, they could send calls or call
+   * emails elsewhere beyond the hour (apps/api/src/impersonation-guard.ts, IMPERSONATION_EDIT_REFUSED_FIELDS).
+   */
+  const keptReadOnly = useSupportAccess()
   /** A save was refused over a transfer contact: its errors show from then on. */
   const [transferSaveTried, setTransferSaveTried] = useState(false)
   const [emailSaveTried, setEmailSaveTried] = useState(false)
@@ -1078,8 +1084,11 @@ function Form({
             <Behaviours draft={draft} set={set} />
           </>
         )}
+        {(current === 'transfers' || current === 'emails') && canEdit && keptReadOnly && (
+          <Note tone="info">{t('settings.readOnly.supportAccessKept')}</Note>
+        )}
         {current === 'transfers' && (
-          <>
+          <fieldset className="st-fields" disabled={keptReadOnly}>
             <TransfersSummary name={assistantName(draft, t)} transfers={draft.transfers} hoursOn={hoursOn} />
             <TransferContacts
               transfers={draft.transfers}
@@ -1088,17 +1097,19 @@ function Form({
               assistantName={assistantName(draft, t)}
               showErrors={transferSaveTried}
             />
-          </>
+          </fieldset>
         )}
         {current === 'emails' && (
-          <CallEmails
-            name={assistantName(draft, t)}
-            rules={draft.email_rules}
-            onChange={update => setDraft(d => ({ ...d, email_rules: update(d.email_rules) }))}
-            canEdit={canEdit}
-            undoable={undoable}
-            showErrors={emailSaveTried}
-          />
+          <fieldset className="st-fields" disabled={keptReadOnly}>
+            <CallEmails
+              name={assistantName(draft, t)}
+              rules={draft.email_rules}
+              onChange={update => setDraft(d => ({ ...d, email_rules: update(d.email_rules) }))}
+              canEdit={canEdit && !keptReadOnly}
+              undoable={undoable}
+              showErrors={emailSaveTried}
+            />
+          </fieldset>
         )}
         {current === 'advanced' && (
           <>

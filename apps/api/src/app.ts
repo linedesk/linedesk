@@ -1000,7 +1000,10 @@ async function impersonationOf({ actorId, impersonation }: Actor) {
   const person = (id: string) =>
     db.select({ id: user.id, name: user.name, email: user.email }).from(user).where(eq(user.id, id))
   const [[by], [as]] = await Promise.all([person(impersonation.by), person(actorId)])
-  return by && as ? { by, user: as, expiresAt: impersonation.expiresAt.toISOString() } : null
+  // `edits`: the admin turned edits on (impersonation.setEdits): the settings pages are editable then.
+  return by && as
+    ? { by, user: as, expiresAt: impersonation.expiresAt.toISOString(), edits: Boolean(impersonation.edits) }
+    : null
 }
 
 // For the inbox header: can the assistant answer calls at all? Members see whether, never which key is missing or
