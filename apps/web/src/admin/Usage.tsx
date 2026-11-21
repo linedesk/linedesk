@@ -19,14 +19,19 @@ type Props = { workspaces: AdminWorkspace[]; usage: UsageRow[]; months: number }
 
 /**
  * Answered minutes, calls and, with billing, the dollars charged per workspace and calendar month (UTC). Only months
- * back to the first usage get a column; workspaces without calls in them wait behind a button.
+ * back to the first usage get a column; workspaces without calls in them wait behind a button. The dollar note shows
+ * only when a listed workspace has a dollar amount.
  */
 export function Usage({ workspaces, usage, months }: Props) {
   const t = useT()
   const { sort, toggle } = useSort<Column>({ key: 'month', dir: 'desc' })
   const [showIdle, setShowIdle] = useState(false)
-  const columns = monthsWithUsage(recentMonths(months), usage)
-  const grid = usageByWorkspace(usage)
+  // Only usage of the workspaces listed here: a deleted workspace's calls or charges would change the months, the
+  // total and the dollar note without a row to show them.
+  const ids = new Set(workspaces.map(w => w.id))
+  const listed = usage.filter(u => ids.has(u.workspace_id))
+  const columns = monthsWithUsage(recentMonths(months), listed)
+  const grid = usageByWorkspace(listed)
   const used = (w: AdminWorkspace) => columns.some(month => grid.get(w.id)?.has(month))
   const current = (w: AdminWorkspace) => grid.get(w.id)?.get(columns[0]!)?.minutes ?? 0
   const byName = (w: AdminWorkspace) => w.name
@@ -38,7 +43,7 @@ export function Usage({ workspaces, usage, months }: Props) {
   )
   const idleShown = showIdle || active.length === 0
   const totals = usageTotals(grid, columns)
-  const billed = usage.some(u => u.charged_micros !== null)
+  const billed = listed.some(u => u.charged_micros !== null)
 
   return (
     <div className="adm-card">
