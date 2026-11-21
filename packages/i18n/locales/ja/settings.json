@@ -1033,6 +1033,8 @@
   "integrations.card.webhooks.name": "Webhook",
   "integrations.card.zapier.line": "通話が届いたときや終了したときにZapを開始し、何千ものアプリから通話を更新します。",
   "integrations.card.zapier.name": "Zapier",
+  "integrations.card.zoho.line": "すべての通話を要約付きで Zoho CRM の連絡先に記録し、新しい発信者を連絡先として追加します。",
+  "integrations.card.zoho.name": "Zoho CRM",
   "integrations.category.all": "すべて",
   "integrations.category.automation": "自動化",
   "integrations.category.calendars": "カレンダーと予約",

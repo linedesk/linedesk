@@ -8055,6 +8055,11 @@
       "out": "2a190ac9da26e74462dbbbab1907593e185ec9aad0f15cd6a234ed15d835bcc2",
       "src": "b49ea42cc11d748563553f90024c343bbe3a6b00c93b9f97bcb6bd92d7e162b1"
     },
+    "admin.provider.blurb.zoho": {
+      "by": "ai",
+      "out": "bc6de31b4babb4eb5fc824f75bf32df271f84bd6a3555a641d2c407ab0dc7710",
+      "src": "7cbbb72a8d2ff93d2e1f97a5802a67fdc397995105e2c25e99bc53d2538c5f0d"
+    },
     "admin.provider.callAudio.both": {
       "by": "ai",
       "out": "693cb233061c0120979d6c0eb82668b5f6f76c3a9ec6864743131134dcb7b8ae",
@@ -8515,6 +8520,26 @@
       "out": "2c6c993430c1d96f281b601301dc8701c772d9dc4d1e9869cb14df361d314faa",
       "src": "93edabdce81856bdc7f955fa0cb3b716c09c9e0560ed863c8f23be35456a3144"
     },
+    "admin.provider.guide.zoho.cost": {
+      "by": "ai",
+      "out": "482f94c1f188c9f40d52d7e0f0186466765858c05ab39e6ef6b56359140f716b",
+      "src": "2053072563175bc17dcefdacada4a0c0f15e68dc761730e026dd491964e96d2a"
+    },
+    "admin.provider.guide.zoho.step1": {
+      "by": "ai",
+      "out": "d2a183f1526f76e030d19a73dd4224939cb5b6f5b95354d6fef0767277a3c5ec",
+      "src": "c2e7d283248194847e829b39564c51a532248fbd5e47b56152b9c2e5bcc6880b"
+    },
+    "admin.provider.guide.zoho.step2": {
+      "by": "ai",
+      "out": "9b2536236fcdcebec23ca9acf5c906e2aac06cf9c46c5382d87c59862759d867",
+      "src": "33bf6ef41f8bd8ec370e5cc6231646b00ea55b5d1b169c7ffbccced084c2888d"
+    },
+    "admin.provider.guide.zoho.step3": {
+      "by": "ai",
+      "out": "bb504829575b1241e096a545e5dad2cfbd9f4ff1489cdb6db83d64aeea86e757",
+      "src": "07a2135b26b2d3233eb6945f5d57a81d92f81531b9c1e9160aa5ab9ac5b077e1"
+    },
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
       "out": "6024838c808e12bf641de491a32f465ba35a9c2bbb68311bab79b96d84c3884a",
@@ -8544,6 +8569,11 @@
       "by": "ai",
       "out": "dbe19dfe8f3ce864b8ea40d66f1a82e62a138b523507facd98edcba7da955367",
       "src": "057f381f86923eed4930765a8d98fd2bdf045395d793fb48fa7c4f1d8782f18f"
+    },
+    "admin.provider.help.zoho": {
+      "by": "ai",
+      "out": "50e96ac0f3ae8a5e9436f9741cdc7cd0b9f59cc9c4a07dc749f88d82ede33d06",
+      "src": "cad77271d5ca4819c35665554ae1f8683d5a5484d97d2aab7edaa421c1637a2a"
     },
     "admin.provider.keyAccepted": {
       "by": "ai",
@@ -30730,6 +30760,16 @@
       "out": "e39202c32277f548a2c4bbe69c8a6c484618d8f76dfd0ab11271d7463b5bbd6b",
       "src": "e39202c32277f548a2c4bbe69c8a6c484618d8f76dfd0ab11271d7463b5bbd6b"
     },
+    "settings.integrations.card.zoho.line": {
+      "by": "ai",
+      "out": "49d3f100745f2d40da63f989355ad2f08360a2f72bb2664701f29f4e3a49f8f1",
+      "src": "67a1f81be6ebdabf9bef05ac84a8ad1f373a4246b2f1cca62991d597e6317c10"
+    },
+    "settings.integrations.card.zoho.name": {
+      "by": "ai",
+      "out": "462068cf8c4b7410fa5bf5ddb99de0ec9ce3ed183a63c8381e980fca9f015f09",
+      "src": "462068cf8c4b7410fa5bf5ddb99de0ec9ce3ed183a63c8381e980fca9f015f09"
+    },
     "settings.integrations.category.all": {
       "by": "ai",
       "out": "3801a35c5182283990f6c7e7cbe137e58d6d7f750f6ab2522b687dcc9aa1d91d",
@@ -46672,6 +46712,11 @@
       "out": "11628dd4fb4c17a232105c41a24b5269c353b0173523c739c3667be1e639bc03",
       "src": "b49ea42cc11d748563553f90024c343bbe3a6b00c93b9f97bcb6bd92d7e162b1"
     },
+    "admin.provider.blurb.zoho": {
+      "by": "ai",
+      "out": "007bbaf6b34ecc1aaf3a7d258ed4ebfc6c6cf40c133828a805407327f8a9c834",
+      "src": "7cbbb72a8d2ff93d2e1f97a5802a67fdc397995105e2c25e99bc53d2538c5f0d"
+    },
     "admin.provider.callAudio.both": {
       "by": "ai",
       "out": "693cb233061c0120979d6c0eb82668b5f6f76c3a9ec6864743131134dcb7b8ae",
@@ -47132,6 +47177,26 @@
       "out": "ef173ec99711b751b9cbde343ae75a17804075c25c5f326a29cf36e036263648",
       "src": "93edabdce81856bdc7f955fa0cb3b716c09c9e0560ed863c8f23be35456a3144"
     },
+    "admin.provider.guide.zoho.cost": {
+      "by": "ai",
+      "out": "abfe20f32038c86017c47c2ee15e17b41f3ff5742952a74126155031ca86148d",
+      "src": "2053072563175bc17dcefdacada4a0c0f15e68dc761730e026dd491964e96d2a"
+    },
+    "admin.provider.guide.zoho.step1": {
+      "by": "ai",
+      "out": "320c1b21abfa712727f635faf2ba206c0a8e3672ebf001a531e0f652b90a6ff5",
+      "src": "c2e7d283248194847e829b39564c51a532248fbd5e47b56152b9c2e5bcc6880b"
+    },
+    "admin.provider.guide.zoho.step2": {
+      "by": "ai",
+      "out": "99de007643da90ea5fc6b81412c9561dfecddce09583f159578ec5cd912da759",
+      "src": "33bf6ef41f8bd8ec370e5cc6231646b00ea55b5d1b169c7ffbccced084c2888d"
+    },
+    "admin.provider.guide.zoho.step3": {
+      "by": "ai",
+      "out": "e83a6d9cca73cb9678a7e0dccf379a1332badd4b67299e6bd6ac85323d764224",
+      "src": "07a2135b26b2d3233eb6945f5d57a81d92f81531b9c1e9160aa5ab9ac5b077e1"
+    },
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
       "out": "6473580bb0a2437b1492a53f327cac1f4a7037e767f0b6bc79dcd97516ee35ef",
@@ -47161,6 +47226,11 @@
       "by": "ai",
       "out": "066e5a5456a8cb40337a91c285ee2d4f4f0f97ac9f929f73cfa0c5cd023d5f5d",
       "src": "057f381f86923eed4930765a8d98fd2bdf045395d793fb48fa7c4f1d8782f18f"
+    },
+    "admin.provider.help.zoho": {
+      "by": "ai",
+      "out": "ebcfcf38cff142ca4d7c97a6c010cf4b04a318f3391f305620787039b03749e3",
+      "src": "cad77271d5ca4819c35665554ae1f8683d5a5484d97d2aab7edaa421c1637a2a"
     },
     "admin.provider.keyAccepted": {
       "by": "ai",
@@ -69347,6 +69417,16 @@
       "out": "e39202c32277f548a2c4bbe69c8a6c484618d8f76dfd0ab11271d7463b5bbd6b",
       "src": "e39202c32277f548a2c4bbe69c8a6c484618d8f76dfd0ab11271d7463b5bbd6b"
     },
+    "settings.integrations.card.zoho.line": {
+      "by": "ai",
+      "out": "fb87502e82fa6a7a78b09b702519fb10d40107e1203087031bc13fb1cead0059",
+      "src": "67a1f81be6ebdabf9bef05ac84a8ad1f373a4246b2f1cca62991d597e6317c10"
+    },
+    "settings.integrations.card.zoho.name": {
+      "by": "ai",
+      "out": "462068cf8c4b7410fa5bf5ddb99de0ec9ce3ed183a63c8381e980fca9f015f09",
+      "src": "462068cf8c4b7410fa5bf5ddb99de0ec9ce3ed183a63c8381e980fca9f015f09"
+    },
     "settings.integrations.category.all": {
       "by": "ai",
       "out": "aff4d19d6ee43b204bc26edea7c9b2e21d0ca188641d656ad0610ffee541cad1",
@@ -85289,6 +85369,11 @@
       "out": "08648c03ecfc0c44502cbb8322b5a7cf4ea234603ffee96fa6389bb9794c3590",
       "src": "b49ea42cc11d748563553f90024c343bbe3a6b00c93b9f97bcb6bd92d7e162b1"
     },
+    "admin.provider.blurb.zoho": {
+      "by": "ai",
+      "out": "aa5fd75c0b9b253f1ef42f4d587972b9d0d56936a36e0d8b68fcdf56af121488",
+      "src": "7cbbb72a8d2ff93d2e1f97a5802a67fdc397995105e2c25e99bc53d2538c5f0d"
+    },
     "admin.provider.callAudio.both": {
       "by": "ai",
       "out": "a781382fd59980089ff64fdcff95638d247ff25d4a18ba28986d0a671ecbd372",
@@ -85749,6 +85834,26 @@
       "out": "5890c9d48974193e314542a5eab5dc6d67c6fdab82daf2b0b69a73d616f35284",
       "src": "93edabdce81856bdc7f955fa0cb3b716c09c9e0560ed863c8f23be35456a3144"
     },
+    "admin.provider.guide.zoho.cost": {
+      "by": "ai",
+      "out": "4a336c285b2ebfdb38e0fdc3949997babfaaa5b01d96d19d4bb82c1df396765c",
+      "src": "2053072563175bc17dcefdacada4a0c0f15e68dc761730e026dd491964e96d2a"
+    },
+    "admin.provider.guide.zoho.step1": {
+      "by": "ai",
+      "out": "bb5f0c32a80bd488367cad5923cac528e4cd844b11a11ee9169122af8073ff3c",
+      "src": "c2e7d283248194847e829b39564c51a532248fbd5e47b56152b9c2e5bcc6880b"
+    },
+    "admin.provider.guide.zoho.step2": {
+      "by": "ai",
+      "out": "b6ee930f4e2fa3277ecef4da05b95eae8129337f76fc0e7bf818d374c4beb0d3",
+      "src": "33bf6ef41f8bd8ec370e5cc6231646b00ea55b5d1b169c7ffbccced084c2888d"
+    },
+    "admin.provider.guide.zoho.step3": {
+      "by": "ai",
+      "out": "bbc556d1a89fd3a1aba4b0e4a060745cf42d4cfd240cab9da731cce455cfe5af",
+      "src": "07a2135b26b2d3233eb6945f5d57a81d92f81531b9c1e9160aa5ab9ac5b077e1"
+    },
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
       "out": "b7e5d48c416e3bb79c51d48ebe3d282b22943c61333c05416a28df3579262662",
@@ -85778,6 +85883,11 @@
       "by": "ai",
       "out": "71682a7227636520fc9e837d4162b3324f8cf7bf96542756afdb44a6607cfd3e",
       "src": "057f381f86923eed4930765a8d98fd2bdf045395d793fb48fa7c4f1d8782f18f"
+    },
+    "admin.provider.help.zoho": {
+      "by": "ai",
+      "out": "c4cdeb4192e05a51eca18a64f07e9696b1d26b26520ba6bca0db353274e5d847",
+      "src": "cad77271d5ca4819c35665554ae1f8683d5a5484d97d2aab7edaa421c1637a2a"
     },
     "admin.provider.keyAccepted": {
       "by": "ai",
@@ -107964,6 +108074,16 @@
       "out": "e39202c32277f548a2c4bbe69c8a6c484618d8f76dfd0ab11271d7463b5bbd6b",
       "src": "e39202c32277f548a2c4bbe69c8a6c484618d8f76dfd0ab11271d7463b5bbd6b"
     },
+    "settings.integrations.card.zoho.line": {
+      "by": "ai",
+      "out": "eaa8cabc0a20574c755b5b5d8bd5a85388a15801b3471213503c07cf2746ef77",
+      "src": "67a1f81be6ebdabf9bef05ac84a8ad1f373a4246b2f1cca62991d597e6317c10"
+    },
+    "settings.integrations.card.zoho.name": {
+      "by": "ai",
+      "out": "462068cf8c4b7410fa5bf5ddb99de0ec9ce3ed183a63c8381e980fca9f015f09",
+      "src": "462068cf8c4b7410fa5bf5ddb99de0ec9ce3ed183a63c8381e980fca9f015f09"
+    },
     "settings.integrations.category.all": {
       "by": "ai",
       "out": "42623b97b4815a8a5520e24ab0f2cfaf8639cef7bc9213d782ac9c56b8dd28c5",
@@ -123906,6 +124026,11 @@
       "out": "fa5a482ea70aa5847d429b59ebee7fb97665622599557cc0a8d0ab5f37ad3309",
       "src": "b49ea42cc11d748563553f90024c343bbe3a6b00c93b9f97bcb6bd92d7e162b1"
     },
+    "admin.provider.blurb.zoho": {
+      "by": "ai",
+      "out": "4684684b38aa22e651c40b181e1414fc76d73ddc25dcf34bc95dc8d1a53bf9be",
+      "src": "7cbbb72a8d2ff93d2e1f97a5802a67fdc397995105e2c25e99bc53d2538c5f0d"
+    },
     "admin.provider.callAudio.both": {
       "by": "ai",
       "out": "16e2460145636252385a7019b7ce313e4fe0b41ac4f38bafa462c98a63766cda",
@@ -124366,6 +124491,26 @@
       "out": "16923a7bd4da4b5fcc882fd81752fecd602c9886adac9c56fcf3b8164e5815fd",
       "src": "93edabdce81856bdc7f955fa0cb3b716c09c9e0560ed863c8f23be35456a3144"
     },
+    "admin.provider.guide.zoho.cost": {
+      "by": "ai",
+      "out": "e9125d74b2c86fc2a0296036582e5a88a21bb75738bb7b5e572a27dc37c8ffde",
+      "src": "2053072563175bc17dcefdacada4a0c0f15e68dc761730e026dd491964e96d2a"
+    },
+    "admin.provider.guide.zoho.step1": {
+      "by": "ai",
+      "out": "b01318b481f0ede1f4e50c74c1734527dd7cf80ba0228d33288eb038c98987b9",
+      "src": "c2e7d283248194847e829b39564c51a532248fbd5e47b56152b9c2e5bcc6880b"
+    },
+    "admin.provider.guide.zoho.step2": {
+      "by": "ai",
+      "out": "d0e14eb742167ed4aaaa5f718bb1f8cd5885f3938f803643ac8e4badaf07857b",
+      "src": "33bf6ef41f8bd8ec370e5cc6231646b00ea55b5d1b169c7ffbccced084c2888d"
+    },
+    "admin.provider.guide.zoho.step3": {
+      "by": "ai",
+      "out": "aea0168d0064a820b4b79055c81f89fc703385c6d598f87670c4bb6c8723214d",
+      "src": "07a2135b26b2d3233eb6945f5d57a81d92f81531b9c1e9160aa5ab9ac5b077e1"
+    },
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
       "out": "0cbd11db2f1ccc6d658003f0140c251a1cc4bb8780ba16ed31a602ce2abb7b9d",
@@ -124395,6 +124540,11 @@
       "by": "ai",
       "out": "d80c2349260c36550320aee15f94342cd1e9b06153c889ab1293ede88b9219e4",
       "src": "057f381f86923eed4930765a8d98fd2bdf045395d793fb48fa7c4f1d8782f18f"
+    },
+    "admin.provider.help.zoho": {
+      "by": "ai",
+      "out": "1747b393b038f19949335ffa0dca0179f4f60550ab3fa9085f97283ed36587e5",
+      "src": "cad77271d5ca4819c35665554ae1f8683d5a5484d97d2aab7edaa421c1637a2a"
     },
     "admin.provider.keyAccepted": {
       "by": "ai",
@@ -146581,6 +146731,16 @@
       "out": "e39202c32277f548a2c4bbe69c8a6c484618d8f76dfd0ab11271d7463b5bbd6b",
       "src": "e39202c32277f548a2c4bbe69c8a6c484618d8f76dfd0ab11271d7463b5bbd6b"
     },
+    "settings.integrations.card.zoho.line": {
+      "by": "ai",
+      "out": "bbd77e4f7eaaae92f9b49998bac1b47e21de550a85d5caba7d38a55eec3ed3aa",
+      "src": "67a1f81be6ebdabf9bef05ac84a8ad1f373a4246b2f1cca62991d597e6317c10"
+    },
+    "settings.integrations.card.zoho.name": {
+      "by": "ai",
+      "out": "462068cf8c4b7410fa5bf5ddb99de0ec9ce3ed183a63c8381e980fca9f015f09",
+      "src": "462068cf8c4b7410fa5bf5ddb99de0ec9ce3ed183a63c8381e980fca9f015f09"
+    },
     "settings.integrations.category.all": {
       "by": "ai",
       "out": "b55eb06d25e14a36c179b5ab27d5f570f0f32d7ed970dffcdd8997ec022d0f9a",
@@ -162523,6 +162683,11 @@
       "out": "d434a3bfef8fae8cd497f1b7852145b6dfee1e37a752275d9c88ddd8394a9cb8",
       "src": "b49ea42cc11d748563553f90024c343bbe3a6b00c93b9f97bcb6bd92d7e162b1"
     },
+    "admin.provider.blurb.zoho": {
+      "by": "ai",
+      "out": "0fe572ca9522f4b66693385dd8262fe0c4843c04a44a8faf89ca0ebf8ce7ef31",
+      "src": "7cbbb72a8d2ff93d2e1f97a5802a67fdc397995105e2c25e99bc53d2538c5f0d"
+    },
     "admin.provider.callAudio.both": {
       "by": "ai",
       "out": "693cb233061c0120979d6c0eb82668b5f6f76c3a9ec6864743131134dcb7b8ae",
@@ -162983,6 +163148,26 @@
       "out": "1fa53d69674170b1d175919b9a79fcb53a5a330a098244549472fab471943684",
       "src": "93edabdce81856bdc7f955fa0cb3b716c09c9e0560ed863c8f23be35456a3144"
     },
+    "admin.provider.guide.zoho.cost": {
+      "by": "ai",
+      "out": "6c293f91e3862c073f32b5ef4213b5b11446aeca01b94c7c735878d39e250f7f",
+      "src": "2053072563175bc17dcefdacada4a0c0f15e68dc761730e026dd491964e96d2a"
+    },
+    "admin.provider.guide.zoho.step1": {
+      "by": "ai",
+      "out": "62217eeac615f1bea980e9f3e3f5d8da0453d872d6e3121b72148315f4fbc8fd",
+      "src": "c2e7d283248194847e829b39564c51a532248fbd5e47b56152b9c2e5bcc6880b"
+    },
+    "admin.provider.guide.zoho.step2": {
+      "by": "ai",
+      "out": "5383590d892e20d39344eacb1ccc7edb46adc8d8741c0cad7be635a67890a41e",
+      "src": "33bf6ef41f8bd8ec370e5cc6231646b00ea55b5d1b169c7ffbccced084c2888d"
+    },
+    "admin.provider.guide.zoho.step3": {
+      "by": "ai",
+      "out": "c9d9a278522a42eba75deff9ae1077a934da75a65ea0882fb4888f737858678d",
+      "src": "07a2135b26b2d3233eb6945f5d57a81d92f81531b9c1e9160aa5ab9ac5b077e1"
+    },
     "admin.provider.help.assemblyai_stt": {
       "by": "ai",
       "out": "b424619ba2a6b7e278d51913480662134d8cd97c3f6a5fc883478713493a58ba",
@@ -163012,6 +163197,11 @@
       "by": "ai",
       "out": "c3544b98fbcd6c708e896bdc4d54e78aa2d168d8fa5fe9443ff18006658e9bc2",
       "src": "057f381f86923eed4930765a8d98fd2bdf045395d793fb48fa7c4f1d8782f18f"
+    },
+    "admin.provider.help.zoho": {
+      "by": "ai",
+      "out": "f4fd038ed156a8e5a96e0c1e3a95ce4112304433427671027917fd9515906f0f",
+      "src": "cad77271d5ca4819c35665554ae1f8683d5a5484d97d2aab7edaa421c1637a2a"
     },
     "admin.provider.keyAccepted": {
       "by": "ai",
@@ -185197,6 +185387,16 @@
       "by": "ai",
       "out": "e39202c32277f548a2c4bbe69c8a6c484618d8f76dfd0ab11271d7463b5bbd6b",
       "src": "e39202c32277f548a2c4bbe69c8a6c484618d8f76dfd0ab11271d7463b5bbd6b"
+    },
+    "settings.integrations.card.zoho.line": {
+      "by": "ai",
+      "out": "64e0e6d8d4dba50e1e0672b157c077c3148be097fef8058def79405a8bb3de7d",
+      "src": "67a1f81be6ebdabf9bef05ac84a8ad1f373a4246b2f1cca62991d597e6317c10"
+    },
+    "settings.integrations.card.zoho.name": {
+      "by": "ai",
+      "out": "462068cf8c4b7410fa5bf5ddb99de0ec9ce3ed183a63c8381e980fca9f015f09",
+      "src": "462068cf8c4b7410fa5bf5ddb99de0ec9ce3ed183a63c8381e980fca9f015f09"
     },
     "settings.integrations.category.all": {
       "by": "ai",

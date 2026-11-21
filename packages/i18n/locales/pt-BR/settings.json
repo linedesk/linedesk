@@ -1033,6 +1033,8 @@
   "integrations.card.webhooks.name": "Webhooks",
   "integrations.card.zapier.line": "Inicie Zaps quando uma chamada chega ou termina, e atualize chamadas a partir de milhares de apps.",
   "integrations.card.zapier.name": "Zapier",
+  "integrations.card.zoho.line": "Registra cada ligação com o resumo no contato do Zoho CRM e adiciona quem liga pela primeira vez como contato.",
+  "integrations.card.zoho.name": "Zoho CRM",
   "integrations.category.all": "Todas",
   "integrations.category.automation": "Automação",
   "integrations.category.calendars": "Agendas e agendamento",
