@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changeReply, findOrdersReply, shopifyInstructions } from './shopify-tools.ts'
+import { changeReply, findOrdersReply, shopifyInstructions, storeOrderCall } from './shopify-tools.ts'
 
 const order = {
   number: '#1001',
@@ -59,5 +59,19 @@ describe('tool replies', () => {
     expect(changeReply('return', { status: 'not_verified', missing: ['verify_postcode'], mismatch: false })).toBe(
       'Ask the caller for the postcode the order ships to now first, then use this tool again.',
     )
+  })
+})
+
+describe('storeOrderCall', () => {
+  const line = (speaker: 'caller' | 'agent', text: string) => ({ speaker, text })
+  it('is a store call once a Shopify tool ran, or the caller spoke of an order, a return or a delivery', () => {
+    expect(storeOrderCall({ storeOrder: true, lines: [] })).toBe(true)
+    expect(storeOrderCall({ storeOrder: false, lines: [line('caller', 'Where is my order?')] })).toBe(true)
+    expect(storeOrderCall({ storeOrder: false, lines: [line('caller', 'I want to return a snowboard')] })).toBe(true)
+    expect(storeOrderCall({ storeOrder: false, lines: [line('caller', 'Wo ist mein Paket?')] })).toBe(true)
+  })
+  it('is not one for other calls, nor for the assistant’s own words', () => {
+    expect(storeOrderCall({ storeOrder: false, lines: [line('caller', 'My water heater is leaking')] })).toBe(false)
+    expect(storeOrderCall({ storeOrder: false, lines: [line('agent', 'Can I help with an order?')] })).toBe(false)
   })
 })

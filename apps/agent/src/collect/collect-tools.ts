@@ -5,7 +5,14 @@ import { z } from 'zod'
 import type { CallLog } from '../call-log.ts'
 import { CollectTask, type CollectTaskOptions } from './collect-task.ts'
 import { describeOutcome, noCallerIdRule, outcomeEvent } from './collection.ts'
-import { addressCollector, emailCollector, nameCollectorFor, phoneCollector, todayFact } from './collectors.ts'
+import {
+  addressCollector,
+  emailCollector,
+  nameCollectorFor,
+  phoneCollector,
+  todayFact,
+  unspelledNameCollector,
+} from './collectors.ts'
 
 type AnyCollector = CollectTaskOptions['collector']
 
@@ -30,14 +37,33 @@ export type CollectContext = {
   facts?: () => string
   /** The workspace's country: phone numbers are read as written there (CallSession.country); missing: US. */
   country?: string
+  /**
+   * Whether the call is about an order of the business's online store (storeOrderCall in shopify-tools.ts): the name is
+   * then taken as heard, not spelled; the store compares only the family name and allows for how it was heard.
+   */
+  storeOrder?: () => boolean
 }
 
 /**
  * What a step may answer a caller's short question from, without handing back: the next two weeks with weekday and
  * date, and the business hours and address when known. Anything else goes back to the assistant (hand_back).
  */
-export function stepFacts({ today, hours, address }: { today: string; hours?: string | null; address?: string | null }): string {
-  return [todayFact(today), hours && `Opening hours: ${hours}`, address?.trim() && `Business address: ${address.trim()}`].filter(Boolean).join('\n')
+export function stepFacts({
+  today,
+  hours,
+  address,
+}: {
+  today: string
+  hours?: string | null
+  address?: string | null
+}): string {
+  return [
+    todayFact(today),
+    hours && `Opening hours: ${hours}`,
+    address?.trim() && `Business address: ${address.trim()}`,
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 /**
@@ -46,7 +72,8 @@ export function stepFacts({ today, hours, address }: { today: string; hours?: st
  */
 export const SAME_RESPONSE_MS = 300
 /** What a step returns when the caller is on hold for a transfer: it asks nothing. */
-export const ON_HOLD_REPLY = 'The caller is on hold while you put them through to a person: do not ask them anything now.'
+export const ON_HOLD_REPLY =
+  'The caller is on hold while you put them through to a person: do not ask them anything now.'
 
 async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, collector: AnyCollector) {
   await new Promise(resolve => setTimeout(resolve, SAME_RESPONSE_MS))
@@ -73,12 +100,18 @@ async function runStep(ctx: CollectContext, { ctx: run }: llm.ToolOptions, colle
     ctx.log.record('system', outcomeEvent(outcome))
     if (collector.kind === 'name' && outcome.status === 'confirmed') ctx.log.confirmedName = outcome.value
     if (collector.kind === 'address' && outcome.status === 'confirmed') ctx.log.confirmedAddress = outcome.value
-    if (collector.kind === 'phone_number' && outcome.status === 'confirmed') ctx.log.confirmedNumbers.push(outcome.value)
+    if (collector.kind === 'phone_number' && outcome.status === 'confirmed')
+      ctx.log.confirmedNumbers.push(outcome.value)
     // What the summary writes the team's next step from (there is no tool to save a message during the call).
-    if (outcome.status === 'confirmed') ctx.log.details.push({ label: outcome.label, value: outcome.value, confirmed: true })
-    if (outcome.status === 'incomplete' && outcome.partial) ctx.log.details.push({ label: outcome.label, value: outcome.partial, confirmed: false })
+    if (outcome.status === 'confirmed')
+      ctx.log.details.push({ label: outcome.label, value: outcome.value, confirmed: true })
+    if (outcome.status === 'incomplete' && outcome.partial)
+      ctx.log.details.push({ label: outcome.label, value: outcome.partial, confirmed: false })
     nudgeIfQuiet(run.session)
-    return describeOutcome(outcome, { callerId: ctx.callerId ?? null, testCall: ctx.testCall === true }) + saidMeanwhile(task.chatCtx.items.slice(chatCtx.items.length))
+    return (
+      describeOutcome(outcome, { callerId: ctx.callerId ?? null, testCall: ctx.testCall === true }) +
+      saidMeanwhile(task.chatCtx.items.slice(chatCtx.items.length))
+    )
   } catch (e) {
     console.warn(`collection step ${collector.kind} ended early: ${e instanceof Error ? e.message : String(e)}`)
     return `Getting the ${collector.label} did not work. Note what you have and tell the caller someone will call them back.`
@@ -122,7 +155,9 @@ export function nudgeIfQuiet(session: Quiet, waitMs = QUIET_AFTER_STEP_MS) {
     // The call may have ended meanwhile: a closing session throws, and a throw in a timer would end the whole job
     // before the call is finished (no summary, the call left live).
     try {
-      session.generateReply({ instructions: 'Go on with the call: answer what the caller asked or wanted, or ask for what you still need.' })
+      session.generateReply({
+        instructions: 'Go on with the call: answer what the caller asked or wanted, or ask for what you still need.',
+      })
     } catch {}
   }, waitMs).unref?.()
 }
@@ -136,7 +171,9 @@ const MEANWHILE_LINES = 4
  */
 export function saidMeanwhile(items: readonly llm.ChatItem[]): string {
   const lines = items
-    .flatMap(item => (item.type === 'message' && item.role === 'user' && item.textContent ? [item.textContent.trim()] : []))
+    .flatMap(item =>
+      item.type === 'message' && item.role === 'user' && item.textContent ? [item.textContent.trim()] : [],
+    )
     .filter(Boolean)
     .slice(-MEANWHILE_LINES)
   if (!lines.length) return ''
@@ -158,8 +195,16 @@ export const PHONE_TOOL_WITH_CALLER_ID =
 export function collectTools(ctx: CollectContext) {
   return {
     get_name: llm.tool({
-      description: "Get the caller's first and last name: it asks the caller itself, so call it instead of asking for the name yourself, also before you cancel or move an appointment.",
-      execute: async (_args, opts) => runStep(ctx, opts, nameCollectorFor(ctx.language?.())),
+      description:
+        "Get the caller's first and last name: it asks the caller itself, so call it instead of asking for the name yourself, also before you cancel or move an appointment.",
+      execute: async (_args, opts) =>
+        runStep(
+          ctx,
+          opts,
+          ctx.storeOrder?.()
+            ? (unspelledNameCollector(ctx.language?.() ?? 'en') as AnyCollector)
+            : nameCollectorFor(ctx.language?.()),
+        ),
     }),
     // With caller ID that number is the callback number (call.callerId): the step is only for another number the
     // caller wants to be called on, read back and confirmed like any other (LIN-386).
@@ -167,11 +212,19 @@ export function collectTools(ctx: CollectContext) {
       description: ctx.callerId ? PHONE_TOOL_WITH_CALLER_ID : PHONE_TOOL,
       parameters: ctx.callerId
         ? z.object({
-            caller_asked: z.string().min(1).describe("The caller's own words asking to be reached on a different number than the one they are calling from, copied from what they said. If they did not ask for that, do not call this tool."),
+            caller_asked: z
+              .string()
+              .min(1)
+              .describe(
+                "The caller's own words asking to be reached on a different number than the one they are calling from, copied from what they said. If they did not ask for that, do not call this tool.",
+              ),
             what: z.string().nullish().describe('What the other number is for, in English. Default: callback number.'),
           })
         : z.object({
-            what: z.string().nullish().describe('What the number is for, in English, e.g. "callback number". Default: callback number.'),
+            what: z
+              .string()
+              .nullish()
+              .describe('What the number is for, in English, e.g. "callback number". Default: callback number.'),
           }),
       execute: async ({ what }, opts) => runStep(ctx, opts, phoneStep(ctx, what?.trim() || 'callback number')),
     }),
@@ -180,7 +233,8 @@ export function collectTools(ctx: CollectContext) {
       execute: async (_args, opts) => runStep(ctx, opts, addressCollector),
     }),
     get_email: llm.tool({
-      description: "Get the caller's email address: only when the appointment type asks for one, or the caller wants a confirmation by email.",
+      description:
+        "Get the caller's email address: only when the appointment type asks for one, or the caller wants a confirmation by email.",
       execute: async (_args, opts) => runStep(ctx, opts, emailCollector),
     }),
   }

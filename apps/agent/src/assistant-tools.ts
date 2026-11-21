@@ -10,7 +10,7 @@ import { type CollectContext, collectTools, nudgeIfQuiet } from './collect/colle
 import type { Reply } from './hang-up.ts'
 import { lookupTools } from './lookup-tools.ts'
 import { canChangeBookings } from './prompt.ts'
-import { shopifyTools } from './shopify-tools.ts'
+import { shopifyTools, storeOrderCall } from './shopify-tools.ts'
 import { type ToolStarted, withFillers } from './tool-filler.ts'
 import { transferTool } from './transfer-tool.ts'
 
@@ -136,7 +136,7 @@ export function assistantTools(
       { ...bookingToolset(api, call, log), ...lookupTools(api, call, log), ...shopifyTools(api, call, log) },
       filler,
     ),
-    ...collectTools(collect),
+    ...collectTools(call.shopify ? { ...collect, storeOrder: () => storeOrderCall(log) } : collect),
     ...(transfer ? { transfer_call: transferTool({ ...transfer, api, call, log }) } : {}),
     end_call: llm.tool({
       description:

@@ -23,7 +23,7 @@ import { useFormat, useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { refreshOnReturn } from '../refreshOnReturn.ts'
-import { Field, Section, SwitchRow, TextInput } from '../settings/fields.tsx'
+import { Section, SwitchRow } from '../settings/fields.tsx'
 import { callAction, readAction, useWriteAction } from '../settings/settings-api.ts'
 import { useRows, useRun } from '../store.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
@@ -118,11 +118,10 @@ function useConnectResult(app: ConnectableApp, toast: Props['toast']) {
 const codeOf = (e: unknown) => (e as { code?: unknown }).code
 
 /**
- * Opens the app's consent page; the callback brings the browser back here. `shop`: Shopify's store (its consent page is
- * on the store's own domain). A store the server can't read (code `shop`) goes to `onShopError` when given, so the page
- * shows it under the field instead of in a toast.
+ * Opens the app's consent page; the callback brings the browser back here. Shopify: with `shop` (Connect again on a
+ * connected store) its consent page, else Shopify's store picker asks which store.
  */
-function useConnect(app: ConnectableApp, toast: Props['toast'], onShopError?: () => void) {
+function useConnect(app: ConnectableApp, toast: Props['toast']) {
   const t = useT()
   const [opening, setOpening] = useState(false)
   async function connect(shop?: string) {
@@ -134,8 +133,7 @@ function useConnect(app: ConnectableApp, toast: Props['toast'], onShopError?: ()
     } catch (e) {
       // Not set up on this server (no client id in Server admin), no SECRETS_KEY: the code says what is missing.
       const code = codeOf(e)
-      if (code === 'shop' && onShopError) onShopError()
-      else toast(t(connectErrorKey(app, code), { name: t(nameKey(app)) }))
+      toast(t(connectErrorKey(app, code), { name: t(nameKey(app)) }))
       setOpening(false)
     }
   }
@@ -147,7 +145,6 @@ function NotConnected({ app, canEdit, toast }: Props) {
   const name = t(nameKey(app))
   const { opening, connect } = useConnect(app, toast)
   if (!canEdit) return <p className="help">{t('settings.integrations.app.onlyAdmins', { name })}</p>
-  if (app === 'shopify') return <ConnectShop toast={toast} />
   return (
     <div className="ig-app-connect">
       <p className="help">{t(APP_TEXT[app].notConnected, { name })}</p>
@@ -159,87 +156,6 @@ function NotConnected({ app, canEdit, toast }: Props) {
       >
         {opening ? t('settings.integrations.app.opening', { name }) : t('settings.integrations.app.connect', { name })}
       </Button>
-    </div>
-  )
-}
-
-/**
- * Shopify, not connected: Connect opens Shopify's store picker (the member signs in there and picks the store; one store
- * is picked for them). "Enter the store address instead" shows the field for a store by its myshopify.com address
- * (or only its first part); the server reads it, and one it can't read shows under the field.
- */
-function ConnectShop({ toast }: { toast: Props['toast'] }) {
-  const t = useT()
-  const name = t(nameKey('shopify'))
-  const [byAddress, setByAddress] = useState(false)
-  const [shop, setShop] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const { opening, connect } = useConnect('shopify', toast, () => setError(t('settings.integrations.app.error.shop')))
-  function submit() {
-    if (!shop.trim()) return setError(t('settings.integrations.app.shopify.shopMissing'))
-    setError(null)
-    void connect(shop.trim())
-  }
-  const connectLabel = opening
-    ? t('settings.integrations.app.opening', { name })
-    : t('settings.integrations.app.connect', { name })
-  if (!byAddress)
-    return (
-      <div className="ig-app-connect">
-        <p className="help">{t(APP_TEXT.shopify.notConnected, { name })}</p>
-        <div className="ig-shop-actions">
-          <Button
-            variant="primary"
-            disabled={opening}
-            onClick={() => void connect()}
-            title={t('settings.integrations.app.connectTip', { name })}
-          >
-            {connectLabel}
-          </Button>
-          <Button
-            variant="ghost"
-            disabled={opening}
-            onClick={() => setByAddress(true)}
-            title={t('settings.integrations.app.shopify.byAddressTip')}
-          >
-            {t('settings.integrations.app.shopify.byAddress')}
-          </Button>
-        </div>
-      </div>
-    )
-  return (
-    <div className="ig-app-connect">
-      <p className="help">{t('settings.integrations.app.shopify.byAddressHelp')}</p>
-      <form
-        className="ig-shop"
-        noValidate
-        onSubmit={e => {
-          e.preventDefault()
-          submit()
-        }}
-      >
-        <Field id="ig-shop" label={t('settings.integrations.app.shopify.shop')} error={error}>
-          <TextInput
-            id="ig-shop"
-            value={shop}
-            onChange={value => {
-              setShop(value)
-              setError(null)
-            }}
-            placeholder={t('settings.integrations.app.shopify.shopPlaceholder')}
-            invalid={!!error}
-            disabled={opening}
-          />
-        </Field>
-        <Button
-          type="submit"
-          variant="primary"
-          disabled={opening}
-          title={t('settings.integrations.app.connectTip', { name })}
-        >
-          {connectLabel}
-        </Button>
-      </form>
     </div>
   )
 }

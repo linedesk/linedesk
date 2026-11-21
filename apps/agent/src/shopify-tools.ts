@@ -166,12 +166,27 @@ async function run<T>(
 
 const proofFields = {
   name: optional("The caller's full name as they said it."),
-  postcode: optional('The postcode the order ships to now, as the caller said it; never the postcode of a new address.'),
+  postcode: optional(
+    'The postcode the order ships to now, as the caller said it; never the postcode of a new address.',
+  ),
   email: optional('The email address the caller gave for the order.'),
   proof_order_number: optional('The order number again, if the caller was asked for it as a check.'),
 }
 
 /** find_orders, find_products and the changes the business allows; none without a store. */
+/** What a caller says when their call is about an order of an online store (English and German). */
+const STORE_ORDER_WORDS =
+  /\b(orders?|ordered|return(ing|ed)?|refund(ed)?|ship(ping|ped|ment)?|deliver(y|ed)?|package|parcel|tracking|bestell\w*|rücksend\w*|retour\w*|liefer\w*|paket\w*|sendung\w*|storn\w*)\b/i
+
+/**
+ * Whether this call is about an order of the business's online store: a Shopify tool ran, or the caller spoke of an
+ * order, a return, a delivery. The name step then takes the name as heard (collect-tools.ts): the store compares only
+ * the family name and allows for how it was heard, so spelling it out only makes the caller wait.
+ */
+export function storeOrderCall(log: Pick<CallLog, 'storeOrder' | 'lines'>): boolean {
+  return log.storeOrder || log.lines.some(line => line.speaker === 'caller' && STORE_ORDER_WORDS.test(line.text))
+}
+
 export function shopifyTools(api: ApiClient, call: CallSession, log: CallLog): Tools {
   const setup = call.shopify
   if (!setup) return {}
@@ -192,6 +207,7 @@ export function shopifyTools(api: ApiClient, call: CallSession, log: CallLog): T
           .describe('Only orders in this state; leave it out for all.'),
       }),
       execute: async (args, opts) => {
+        log.storeOrder = true
         const data = await run<ShopifyFindOrdersData>(api, call, shopifyFindOrders, {
           ...unset({
             orderNumber: args.order_number,
@@ -239,11 +255,14 @@ export function shopifyTools(api: ApiClient, call: CallSession, log: CallLog): T
       execute: async (args: Record<string, unknown>, opts: llm.ToolOptions) => {
         // A change cannot be interrupted once it started: the caller always hears whether it went through.
         opts.ctx.disallowInterruptions()
+        log.storeOrder = true
         const data = await run<ShopifyChangeOrderData>(api, call, shopifyChangeOrder, {
           orderNumber: args.order_number,
           change: kind,
           proof: unset({
-            name: args.name as string | null,
+            // The name the caller gave for the order (a gift is under another name); else the one get_name confirmed,
+            // so the caller is not asked twice.
+            name: (args.name as string | null) || log.confirmedName || null,
             postcode: args.postcode as string | null,
             email: args.email as string | null,
             orderNumber: args.proof_order_number as string | null,
