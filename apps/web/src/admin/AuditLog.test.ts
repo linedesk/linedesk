@@ -23,6 +23,16 @@ describe('audit labels', () => {
     expect(label('workspace.updateSettings', { recordingNotice: '[omitted]' })).toBe(
       'Changed the recording notice callers hear',
     )
+    // Since LIN-710 a setting of each assistant.
+    expect(label('assistant.update', { assistantId: 'a', recording_notice_on: false })).toBe(
+      'Turned off the recording notice callers hear',
+    )
+    expect(label('assistant.update', { assistantId: 'a', recording_notice_on: true })).toBe(
+      'Turned on the recording notice callers hear',
+    )
+    expect(label('assistant.update', { assistantId: 'a', recording_notice: '[omitted]' })).toBe(
+      'Changed the recording notice callers hear',
+    )
   })
   test('changes of transfer contacts say whom; the countries say which', () => {
     expect(transfers('assistant.update', { added: ['Sarah', 'Ana'], removed: ['Mike'] })).toBe(

@@ -1,21 +1,20 @@
-// Settings, Recordings: how long call recordings are kept, and the notice the assistant says after the
-// greeting. Older recordings are deleted by a daily job on the server; the call itself, its transcript
-// and summary stay. With recording off on the server (no recording store) both stay as saved but greyed out: nothing
-// is recorded and the assistant does not say the notice, until recording is turned on. Below it, a caller privacy notice
-// template the business can copy (callerPrivacyNotice.ts).
+// Settings, Recordings: how long call recordings are kept. Older recordings are deleted by a daily job on the server;
+// the call itself, its transcript and summary stay. With recording off on the server (no recording store) the choice
+// stays as saved but greyed out: nothing is recorded until recording is turned on. The notice the assistant says after
+// the greeting is each assistant's own (Assistant › Rules, LIN-710). Below it, a caller privacy notice template the
+// business can copy (callerPrivacyNotice.ts).
 import { useReadOnlyNote } from './readOnly.ts'
-import { inEeaOrUk, RECORDING_NOTICE_MAX, RECORDINGS_NOT_KEPT, recordingRetentionChoices } from '@linedesk/actions'
+import { inEeaOrUk, RECORDINGS_NOT_KEPT, recordingRetentionChoices } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink } from '../ui/AppLink.tsx'
 import { useState } from 'react'
 import { providerAudience } from '../providerAudience.ts'
 import { useRun } from '../store.tsx'
 import { Select, type SelectOption } from '../ui/controls.tsx'
-import { Dialog } from '../ui/form.tsx'
 import { copyText } from '../ui/HelpTip.tsx'
 import { Button, Icon, Note } from '../ui/kit.tsx'
 import { Loading, Skeleton } from '../ui/LoadStates.tsx'
-import { Field, Section, SkeletonSwitchRows, SwitchRow, TextInput } from './fields.tsx'
+import { Field, Section } from './fields.tsx'
 import { patchWorkspaceSettings, useWorkspaceSettings } from './settings-api.ts'
 import { brandName } from '../brand.ts'
 import { callerPrivacyNotice, type NoticeRecording } from './callerPrivacyNotice.ts'
@@ -113,12 +112,9 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
           error={error}
           onRetry={() => void settings.reload()}
           skeleton={
-            <>
-              <Field label={t('settings.recordings.keepFor')}>
-                <Skeleton shape="field" width={260} />
-              </Field>
-              <SkeletonSwitchRows rows={1} />
-            </>
+            <Field label={t('settings.recordings.keepFor')}>
+              <Skeleton shape="field" width={260} />
+            </Field>
           }
         >
           {days !== undefined && (
@@ -139,53 +135,12 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
               </div>
             </Field>
           )}
-          {settings.data && (
-            <RecordingNotice
-              on={settings.data.recordingNoticeOn}
-              saved={settings.data.recordingNotice}
-              canEdit={editable}
-              inEffect={recordingOn}
-              recorded={recorded}
-              eu={eu}
-              toast={toast}
-            />
-          )}
         </Loading>
       </Section>
       {settings.data && days !== undefined && (
         <CallerPrivacyNotice recording={{ on: recordingOn, days }} toast={toast} />
       )}
     </>
-  )
-}
-
-/**
- * Assistant › Rules: the same recording notice as Workspace settings › Recordings (one workspace setting, LIN-693), so
- * what the assistant says right after the greeting is found next to its other rules.
- */
-export function RecordingNoticeSection({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => void }) {
-  const t = useT()
-  const settings = useWorkspaceSettings()
-  const data = settings.data
-  const recordingOn = data?.recordingOn ?? true
-  const days = data?.recordingRetentionDays
-  return (
-    <Section id="st-rules-notice" title={t('settings.recordings.noticeTitle')}>
-      <p className="help">
-        <T k="settings.recordings.noticeWhere" values={{ link: appLink('#workspace/recordings') }} />
-      </p>
-      {data && (
-        <RecordingNotice
-          on={data.recordingNoticeOn}
-          saved={data.recordingNotice}
-          canEdit={canEdit && recordingOn}
-          inEffect={recordingOn}
-          recorded={recordingOn && days !== undefined && days !== RECORDINGS_NOT_KEPT}
-          eu={inEeaOrUk(data.resolvedCountry)}
-          toast={toast}
-        />
-      )}
-    </Section>
   )
 }
 
@@ -232,127 +187,5 @@ function CallerPrivacyNotice({ recording, toast }: { recording: NoticeRecording;
         </div>
       </details>
     </Section>
-  )
-}
-
-/**
- * `inEffect` false: recording is off on the server, so the assistant does not say it (greyed out, kept as saved).
- * `recorded`: calls are recorded (on the server and kept), so a notice turned off gets a warning; `eu`: the workspace
- * is in the EEA or the UK, for its wording.
- */
-type NoticeProps = {
-  on: boolean
-  saved: string
-  canEdit: boolean
-  inEffect: boolean
-  recorded: boolean
-  eu: boolean
-  toast: (text: string) => void
-}
-
-/** The switch and the sentence the assistant says right after the greeting. */
-function RecordingNotice({ on, saved, canEdit, inEffect, recorded, eu, toast }: NoticeProps) {
-  const t = useT()
-  const run = useRun()
-  const [draft, setDraft] = useState(saved)
-  const [confirmOff, setConfirmOff] = useState(false)
-  const text = draft.trim()
-  const problem = !text
-    ? t('settings.recordings.noticeEmpty')
-    : text.length > RECORDING_NOTICE_MAX
-      ? t('settings.recordings.noticeTooLong', { max: RECORDING_NOTICE_MAX })
-      : null
-
-  // Turning it off asks first, with a short legal hint (A4); the change is in the audit log (audit.ts).
-  function toggle(next: boolean) {
-    if (!next) return setConfirmOff(true)
-    apply(next)
-  }
-
-  function apply(next: boolean) {
-    patchWorkspaceSettings({ recordingNoticeOn: next })
-    void run('workspace.updateSettings', { recordingNoticeOn: next })
-    toast(next ? t('settings.recordings.noticeOn') : t('settings.recordings.noticeOff'))
-  }
-
-  function save() {
-    if (problem || text === saved) return
-    setDraft(text)
-    patchWorkspaceSettings({ recordingNotice: text })
-    void run('workspace.updateSettings', { recordingNotice: text })
-    toast(t('settings.recordings.noticeSaved'))
-  }
-
-  return (
-    <>
-      <SwitchRow
-        title={t('settings.recordings.noticeSwitch')}
-        description={t('settings.recordings.noticeSwitchHelp')}
-        on={on}
-        onChange={toggle}
-        disabled={!canEdit}
-        dimmed={!inEffect}
-      />
-      {!on && recorded && (
-        <Note tone="warning">
-          {eu ? t('settings.recordings.noticeOffWarningEu') : t('settings.recordings.noticeOffWarning')}
-        </Note>
-      )}
-      {confirmOff && (
-        <Dialog
-          title={t('settings.recordings.noticeOffTitle')}
-          description={t('settings.recordings.noticeOffHint')}
-          size="sm"
-          onClose={() => setConfirmOff(false)}
-          footer={
-            <>
-              <Button variant="ghost" onClick={() => setConfirmOff(false)}>
-                {t('common.action.cancel')}
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  setConfirmOff(false)
-                  apply(false)
-                }}
-              >
-                {t('settings.recordings.noticeOffConfirm')}
-              </Button>
-            </>
-          }
-        />
-      )}
-      {on && (
-        <Field id="st-notice" label={t('settings.recordings.noticeLabel')} error={problem}>
-          <form
-            className="st-notice"
-            onSubmit={e => {
-              e.preventDefault()
-              save()
-            }}
-          >
-            <TextInput
-              id="st-notice"
-              value={draft}
-              onChange={setDraft}
-              label={t('settings.recordings.noticeLabel')}
-              invalid={Boolean(problem)}
-              disabled={!canEdit}
-            />
-            {canEdit && text !== saved && (
-              <Button
-                type="submit"
-                size="sm"
-                variant="primary"
-                title={t('settings.recordings.noticeSaveTip')}
-                disabled={Boolean(problem)}
-              >
-                {t('common.action.save')}
-              </Button>
-            )}
-          </form>
-        </Field>
-      )}
-    </>
   )
 }

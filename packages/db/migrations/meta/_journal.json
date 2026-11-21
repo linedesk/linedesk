@@ -1233,6 +1233,13 @@
       "when": 1795293068440,
       "tag": "0176_impersonation_edits",
       "breakpoints": true
+    },
+    {
+      "idx": 176,
+      "version": "7",
+      "when": 1795299793732,
+      "tag": "0177_recording_notice_per_assistant",
+      "breakpoints": true
     }
   ]
 }

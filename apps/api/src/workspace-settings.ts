@@ -2,7 +2,6 @@
 // through the registry. One row per workspace; a workspace without one gets it on the first change.
 import {
   type ClosedDay,
-  DEFAULT_RECORDING_NOTICE,
   DEFAULT_RECORDING_RETENTION_DAYS,
   JOB_VALUE_MAX_CENTS,
   type JobValueCurrency,
@@ -57,8 +56,6 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
     const data: WorkspaceSettingsData = {
       recordingRetentionDays: row ? row.recording_retention_days : DEFAULT_RECORDING_RETENTION_DAYS,
       businessHoursOn: row?.business_hours_on ?? false,
-      recordingNoticeOn: row?.recording_notice_on ?? true,
-      recordingNotice: row?.recording_notice ?? DEFAULT_RECORDING_NOTICE,
       timeZone: row?.timezone ?? DEFAULT_TIME_ZONE,
       timeZoneFollowsCountry: row?.timezone_follows_country ?? true,
       countryTimeZone: mainTimeZoneOf(locale.resolvedCountry),
@@ -106,8 +103,6 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
     input: {
       recordingRetentionDays?: number | null
       businessHoursOn?: boolean
-      recordingNoticeOn?: boolean
-      recordingNotice?: string
       timeZone?: string | null
       closure?: Closure | null
       jobValueCents?: number | null
@@ -139,8 +134,6 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
     const set = {
       ...(input.recordingRetentionDays !== undefined ? { recording_retention_days: input.recordingRetentionDays } : {}),
       ...(input.businessHoursOn !== undefined ? { business_hours_on: input.businessHoursOn } : {}),
-      ...(input.recordingNoticeOn !== undefined ? { recording_notice_on: input.recordingNoticeOn } : {}),
-      ...(input.recordingNotice !== undefined ? { recording_notice: input.recordingNotice } : {}),
       // A time zone picked is set by hand and stays when the country changes; null follows the country again.
       ...(input.timeZone ? { timezone: input.timeZone, timezone_follows_country: false } : {}),
       ...(input.timeZone === null ? { timezone_follows_country: true } : {}),
@@ -183,8 +176,6 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
       data: {
         recordingRetentionDays: row!.recording_retention_days,
         businessHoursOn: row!.business_hours_on,
-        recordingNoticeOn: row!.recording_notice_on,
-        recordingNotice: row!.recording_notice ?? DEFAULT_RECORDING_NOTICE,
         timeZone: row!.timezone,
         timeZoneFollowsCountry: row!.timezone_follows_country,
         closure: row!.closure,
@@ -198,8 +189,6 @@ export const workspaceSettingsHandlers: Record<string, Handler> = {
         WorkspaceSettingsData,
         | 'recordingRetentionDays'
         | 'businessHoursOn'
-        | 'recordingNoticeOn'
-        | 'recordingNotice'
         | 'timeZone'
         | 'timeZoneFollowsCountry'
         | 'closure'
@@ -284,16 +273,6 @@ async function closedDaysOf(tx: Tx, workspaceId: string): Promise<ClosedDay[]> {
       yearly: r.yearly,
     }))
     .sort((a, b) => a.date.localeCompare(b.date))
-}
-
-/** What the assistant says right after the greeting: the workspace's recording notice (on until the owner turns it off), or null when it is off. */
-export async function recordingNoticeFor(tx: Tx, workspaceId: string): Promise<string | null> {
-  const [row] = await tx
-    .select({ on: workspace_settings.recording_notice_on, text: workspace_settings.recording_notice })
-    .from(workspace_settings)
-    .where(eq(workspace_settings.workspace_id, workspaceId))
-  if (row && !row.on) return null
-  return row?.text?.trim() || DEFAULT_RECORDING_NOTICE
 }
 
 /**

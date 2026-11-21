@@ -118,6 +118,10 @@ export const assistants = pgTable(
       .notNull()
       .default('standard'),
     record_calls: boolean('record_calls').notNull().default(true),
+    /** The assistant says a recording notice right after the greeting, when its calls are recorded (on by default). */
+    recording_notice_on: boolean('recording_notice_on').notNull().default(true),
+    /** The sentence it says; null: DEFAULT_RECORDING_NOTICE in the assistant's main language. */
+    recording_notice: text('recording_notice'),
     /** No longer used: greeting saved contacts by name was removed (0061 turned it off); dropped in a later release. */
     greet_by_name: boolean('greet_by_name').notNull().default(false),
     /** No longer used, like `greet_by_name` (0061 emptied it); dropped in a later release. */
@@ -484,9 +488,9 @@ export const workspace_settings = pgTable(
     notify_browser_default: boolean('notify_browser_default').notNull().default(true),
     /** The workspace uses its business hours (availability_rules) for calls. Off: the assistant says nothing about hours. */
     business_hours_on: boolean('business_hours_on').notNull().default(false),
-    /** The assistant says a recording notice right after the greeting (on by default; no per-state rules). */
+    /** No longer used: the recording notice is a setting of each assistant (assistants.recording_notice_on, 0177); dropped in a later release. */
     recording_notice_on: boolean('recording_notice_on').notNull().default(true),
-    /** The sentence it says; null: DEFAULT_RECORDING_NOTICE. */
+    /** No longer used, like `recording_notice_on` (assistants.recording_notice); dropped in a later release. */
     recording_notice: text('recording_notice'),
     /**
      * The carrier account the workspace's numbers use: `default` is the install's (Admin, Providers), `twilio`

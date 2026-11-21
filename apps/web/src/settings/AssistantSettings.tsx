@@ -31,6 +31,8 @@ import {
   withDisclosure,
   withoutConsentQuestion,
   withoutDisclosure,
+  inEeaOrUk,
+  RECORDINGS_NOT_KEPT,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { languageInSentence, languageLabel, type MessageKey, msg } from '@linedesk/i18n'
@@ -88,6 +90,8 @@ import {
   withMainLanguage,
   withoutLanguage,
   withPickedVoice,
+  recordingNoticeProblem,
+  recordingNoticeToSave,
 } from './assistantDraft.ts'
 import { canonicalAssistantHash, OLD_SECTIONS, WEBHOOK_ITEM } from './assistantLinks.ts'
 import { BusinessHours } from './BusinessHours.tsx'
@@ -112,7 +116,6 @@ import { Holidays, VacationMode } from './Holidays.tsx'
 import { Knowledge } from './Knowledge.tsx'
 import { MissingProviderNote } from './MissingProviderNote.tsx'
 import { HoursSummary, RulesSummary, TransfersSummary } from './Summaries.tsx'
-import { RecordingNoticeSection } from './Recordings.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
@@ -212,7 +215,7 @@ const sectionFields: Record<Exclude<SectionId, OwnSection>, (keyof Draft)[]> = {
     'realtime_voice',
     'realtime_model',
   ],
-  rules: ['ai_disclosure', 'communication_style', 'behaviours'],
+  rules: ['ai_disclosure', 'communication_style', 'behaviours', 'recording_notice_on', 'recording_notice'],
   transfers: ['transfers'],
   emails: ['email_rules'],
   advanced: [
@@ -391,7 +394,7 @@ function CallerDetailsHint({ greeting }: { greeting: string }) {
 }
 
 /** The behaviour checklist: plain-language switches that add a line to the assistant's instructions. */
-function Behaviours({ draft, set }: SectionProps) {
+function Behaviours({ draft, set, recordCalls }: SectionProps & { recordCalls: boolean }) {
   const t = useT()
   return (
     <Section
@@ -419,10 +422,60 @@ function Behaviours({ draft, set }: SectionProps) {
             onChange={on => set('behaviours', { ...draft.behaviours, [b.id]: on })}
           />
         ))}
+        <RecordingNoticeRow draft={draft} set={set} recordCalls={recordCalls} />
       </div>
     </Section>
   )
 }
+
+/**
+ * The recording notice, the last row of the checklist: a switch, and under it the sentence said right after the
+ * greeting. Said only while the assistant's calls are recorded (the server records, the workspace keeps recordings, the
+ * assistant records its calls); otherwise the row is greyed out and says why. Off while calls are recorded: a
+ * warning (legal review 2026-11-17, A4).
+ */
+function RecordingNoticeRow({ draft, set, recordCalls }: SectionProps & { recordCalls: boolean }) {
+  const t = useT()
+  const settings = useWorkspaceSettings().data
+  const recorded =
+    recordCalls && (settings?.recordingOn ?? true) && settings?.recordingRetentionDays !== RECORDINGS_NOT_KEPT
+  const problem = recordingNoticeProblem(draft)
+  return (
+    <>
+      <SwitchRow
+        title={t('settings.recordings.noticeSwitch')}
+        aside={recorded ? undefined : t('settings.assistant.notice.notRecorded')}
+        dimmed={!recorded}
+        on={draft.recording_notice_on}
+        onChange={on => set('recording_notice_on', on)}
+      />
+      {draft.recording_notice_on && (
+        <div className="as-notice">
+          <TextInput
+            id="as-recording-notice"
+            size="sm"
+            value={draft.recording_notice}
+            onChange={v => set('recording_notice', v)}
+            label={t('settings.recordings.noticeLabel')}
+            invalid={Boolean(problem)}
+          />
+          {problem && <span className="help as-notice-error">{problem}</span>}
+        </div>
+      )}
+      {!draft.recording_notice_on && recorded && (
+        <Note tone="warning">
+          {inEeaOrUk(settings?.resolvedCountry)
+            ? t('settings.recordings.noticeOffWarningEu')
+            : t('settings.recordings.noticeOffWarning')}
+        </Note>
+      )}
+    </>
+  )
+}
+
+/** The fields of `next` that differ from `before`. */
+const changedFields = <T extends Record<string, unknown>>(next: T, before: T): Partial<T> =>
+  Object.fromEntries(Object.entries(next).filter(([k, v]) => v !== before[k])) as Partial<T>
 
 /** The checklist's switches as the page names them. */
 const BEHAVIOUR_LABELS: Record<BehaviourId, MessageKey> = {
@@ -943,6 +996,7 @@ function Form({
     }
     if (silenceProblem(draft)) return goTo('advanced', 'as-silence-gap')
     if (languagesProblem(draft)) return goTo('general', 'as-languages-mode')
+    if (recordingNoticeProblem(draft)) return goTo('rules', 'as-recording-notice')
     const noTopic = draft.email_rules.rules.findIndex(r => !r.when.trim())
     if (noTopic >= 0) {
       setEmailSaveTried(true)
@@ -975,6 +1029,8 @@ function Form({
         // Only when changed: an API of the release before does not know it.
         ...(clean.realtime_voice !== normalized(saved).realtime_voice ? { realtime_voice: clean.realtime_voice } : {}),
         talking_speed_pct: clean.talking_speed_pct,
+        // Only what changed: each change is listed in the audit log.
+        ...changedFields(recordingNoticeToSave(clean), recordingNoticeToSave(normalized(saved))),
         // Only when changed: an API of the release before does not know it.
         ...(JSON.stringify(clean.email_rules) !== JSON.stringify(normalized(saved).email_rules)
           ? { email_rules: clean.email_rules }
@@ -1075,7 +1131,7 @@ function Form({
         {current === 'rules' && (
           <>
             <RulesSummary name={assistantName(draft, t)} draft={draft} />
-            <Behaviours draft={draft} set={set} />
+            <Behaviours draft={draft} set={set} recordCalls={assistant.record_calls !== false} />
           </>
         )}
         {current === 'transfers' && (
@@ -1176,8 +1232,6 @@ function Form({
           </form>
           {/* The webhook saves on its own, so it sits outside the draft's form, last in Advanced. */}
           {current === 'advanced' && <Webhooks assistantId={assistant.id} canEdit={canEdit} toast={toast} />}
-          {/* The notice saves on its own (a workspace setting, its own form), so it sits outside the draft's form. */}
-          {current === 'rules' && <RecordingNoticeSection canEdit={canEdit} toast={toast} />}
         </>
       )}
     </SettingsLayout>

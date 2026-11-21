@@ -38,7 +38,7 @@ Why a gateway: the LiveKit key must never leave the server (any LiveKit key can 
    # in the api container: node apps/api/src/demo-workspace.ts --owner … --as … [--data …]
    ```
 
-   Without `--data` it uses the example data (eight made-up businesses). Your own file has the same shape (`DemoWorkspaceData` in `demo-workspace.ts`; `.json`, `.ts` or `.js`). Every assistant is set to take messages only: not recorded, recordings not kept, at most 2 minutes, English as their language (a visitor may still pick another one per call, below), saying at the start that it is an AI, nobody to put through. The workspace gets the monthly spending cap from the data file, no recording notice and no notification emails by default. Safe to run again: assistants are found again by their business's phone number. It prints the `DEMO_WORKSPACE_ID` and `DEMO_ASSISTANTS` lines last.
+   Without `--data` it uses the example data (eight made-up businesses). Your own file has the same shape (`DemoWorkspaceData` in `demo-workspace.ts`; `.json`, `.ts` or `.js`). Every assistant is set to take messages only: not recorded, no recording notice, recordings not kept, at most 2 minutes, English as their language (a visitor may still pick another one per call, below), saying at the start that it is an AI, nobody to put through. The workspace gets the monthly spending cap from the data file and no notification emails by default. Safe to run again: assistants are found again by their business's phone number. It prints the `DEMO_WORKSPACE_ID` and `DEMO_ASSISTANTS` lines last.
 2. Set the API's env (below) and restart the API.
 3. Deploy your gateway with the same secret and test it against a staging install first.
 

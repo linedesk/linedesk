@@ -11,6 +11,8 @@ import {
   outboundNumberProblem,
   phoneNumberProblem,
   DEFAULT_GOODBYE_LINE,
+  DEFAULT_RECORDING_NOTICE,
+  RECORDING_NOTICE_MAX,
   DEFAULT_SILENCE_CLOSING,
   DEFAULT_SILENCE_REMINDER,
   localizedDefault,
@@ -80,6 +82,10 @@ export type Draft = {
   silence_reminder: string
   /** Said when the caller has nothing else and the call ends; the default (in the main language) is saved as null. */
   goodbye_line: string
+  /** Says the recording notice right after the greeting, when its calls are recorded. */
+  recording_notice_on: boolean
+  /** That sentence; the default (in the main language) is saved as null. */
+  recording_notice: string
   /** How fast the assistant talks, in percent of the voice's own pace. */
   talking_speed_pct: number
   /** The behaviour checklist, every switch with its value (the default where the owner set none). */
@@ -155,6 +161,9 @@ export function draftOf(a: Assistant, workspaceLanguage?: string | null): Draft 
     silence_closing: a.silence_closing ? local(a.silence_closing) : localizedDefault(DEFAULT_SILENCE_CLOSING, main),
     silence_reminder: a.silence_reminder ?? localizedDefault(DEFAULT_SILENCE_REMINDER, main),
     goodbye_line: a.goodbye_line ?? localizedDefault(DEFAULT_GOODBYE_LINE, main),
+    // A row synced before the columns existed has none: on, with the default sentence.
+    recording_notice_on: a.recording_notice_on ?? true,
+    recording_notice: a.recording_notice ? local(a.recording_notice) : localizedDefault(DEFAULT_RECORDING_NOTICE, main),
     talking_speed_pct: talkingSpeedPctOf(a),
     behaviours: behavioursOf(a.behaviours),
     languages: languagesOf(a.languages, workspaceLanguage),
@@ -274,6 +283,7 @@ export function withMainLanguage(d: Draft, main: Language, follows = false): Dra
     silence_closing: swap(d.silence_closing),
     silence_reminder: swap(d.silence_reminder),
     goodbye_line: swap(d.goodbye_line),
+    recording_notice: swap(d.recording_notice),
   }
 }
 
@@ -336,6 +346,7 @@ export const normalized = (d: Draft): Draft => ({
   silence_closing: d.silence_closing.trim(),
   silence_reminder: d.silence_reminder.trim(),
   goodbye_line: d.goodbye_line.trim(),
+  recording_notice: d.recording_notice.trim(),
   // As saved: no picked languages unless "Switch only to languages I pick", so switching back to "Stay in …" is clean
   // after Save. The main language in use stays in the draft also while it follows the country (it is not saved then).
   languages: { ...languagesToSave(d).languages, main: mainOf(d) },
@@ -429,6 +440,23 @@ export const silenceToSave = (d: Draft) => {
     silence_closing: closing && !defaultClosing ? closing : null,
     goodbye_line: goodbye && !defaultGoodbye ? goodbye : null,
   }
+}
+
+/** Why the recording notice cannot be saved, or null. Off, its sentence is kept as it is and not checked. */
+export function recordingNoticeProblem(d: Pick<Draft, 'recording_notice_on' | 'recording_notice'>): string | null {
+  if (!d.recording_notice_on) return null
+  const { t } = i18n()
+  const text = d.recording_notice.trim()
+  if (!text) return t('settings.recordings.noticeEmpty')
+  if (text.length > RECORDING_NOTICE_MAX) return t('settings.recordings.noticeTooLong', { max: RECORDING_NOTICE_MAX })
+  return null
+}
+
+/** The recording notice to save: the sentence is null when it is the default (or empty), so a call says it in its language. */
+export const recordingNoticeToSave = (d: Draft) => {
+  const text = d.recording_notice.trim()
+  const isDefault = text === DEFAULT_RECORDING_NOTICE || text === localizedDefault(DEFAULT_RECORDING_NOTICE, mainOf(d))
+  return { recording_notice_on: d.recording_notice_on, recording_notice: text && !isDefault ? text : null }
 }
 
 /** When the assistant asks whether the caller is still there, in words for the help line. */

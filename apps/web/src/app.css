@@ -2216,15 +2216,6 @@ button.k-link {
   padding: 6px 8px;
 }
 
-/* Settings, Recordings: the notice sentence with its Save button on one line. */
-.st-notice {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.st-notice > :first-child {
-  flex: 1;
-}
 /* Settings, Recordings: the caller privacy notice template, folded away by default ("Show text"), then as it will be
    pasted (paragraphs, wrapped). */
 .st-privacy-disclaimer {

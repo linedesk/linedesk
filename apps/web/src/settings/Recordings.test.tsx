@@ -8,8 +8,6 @@ const settings = vi.hoisted(() => ({
   data: {
     recordingOn: false,
     recordingRetentionDays: 0,
-    recordingNoticeOn: true,
-    recordingNotice: 'This call may be recorded.',
   } as Record<string, unknown>,
 }))
 vi.mock('./settings-api.ts', () => ({
@@ -35,11 +33,9 @@ test('recording off on the server: a note says so, the saved choices stay but ca
   expect(html).toContain('Recording is off on this server.')
   expect(html).toContain('Ask your server admin to turn on recording.')
   expect(html).not.toContain('#admin/providers/recording')
-  // Kept as saved: the switch is still on and the sentence still there, greyed out.
-  expect(html).toContain('This call may be recorded.')
-  expect(html).toContain('is-dimmed')
-  // The retention select, the notice switch and the sentence.
-  expect(disabledControls(html)).toBe(3)
+  // The retention select, kept as saved. The recording notice is each assistant's (Assistant › Rules, LIN-710).
+  expect(disabledControls(html)).toBe(1)
+  expect(html).not.toContain('Say that the call may be recorded')
 })
 
 test('an instance admin gets the link to the place that turns recording on', () => {
@@ -52,10 +48,9 @@ test('an instance admin gets the link to the place that turns recording on', () 
 test('recording on: no note, the controls work as before', () => {
   const html = render(true)
   expect(html).not.toContain('Recording is off on this server.')
-  expect(html).not.toContain('is-dimmed')
   expect(disabledControls(html)).toBe(0)
-  // A member still reads them only.
-  expect(disabledControls(render(true, false))).toBe(3)
+  // A member still reads it only.
+  expect(disabledControls(render(true, false))).toBe(1)
 })
 
 test('the caller privacy notice template follows the recording settings and can be copied by anyone', () => {
@@ -120,14 +115,13 @@ test('the caller privacy notice is folded away by default, opens to the whole te
 test('law hints by setting and country: only notes, every control stays usable (A4, A5)', () => {
   const eu = "In the EU and the UK, recording a call usually needs the caller's consent"
   const long = 'Privacy laws such as the GDPR'
-  const noticeOff = 'Calls are recorded and transcribed without telling callers.'
   const at = (data: Record<string, unknown>) => {
-    settings.data = { ...settings.data, recordingNoticeOn: true, ...data }
+    settings.data = { ...settings.data, ...data }
     return render(true).replaceAll('&#x27;', "'")
   }
   // The US, 90 days, notice on: nothing.
   let html = at({ resolvedCountry: 'US', recordingRetentionDays: 90 })
-  for (const hint of [eu, long, noticeOff]) expect(html).not.toContain(hint)
+  for (const hint of [eu, long]) expect(html).not.toContain(hint)
   // Germany: the consent hint; kept forever: the retention hint too.
   expect(at({ resolvedCountry: 'DE', recordingRetentionDays: 90 })).toContain(eu)
   html = at({ resolvedCountry: 'DE', recordingRetentionDays: null })
@@ -135,12 +129,7 @@ test('law hints by setting and country: only notes, every control stays usable (
   expect(html).toContain(long)
   expect(at({ resolvedCountry: 'US', recordingRetentionDays: 365 })).toContain(long)
   // Don't keep: nothing is recorded, so no hint.
-  html = at({ resolvedCountry: 'DE', recordingRetentionDays: 0, recordingNoticeOn: false })
-  for (const hint of [eu, long, noticeOff]) expect(html).not.toContain(hint)
-  // The notice off while calls are recorded: a warning, worded by country.
-  html = at({ resolvedCountry: 'US', recordingRetentionDays: 30, recordingNoticeOn: false })
-  expect(html).toContain(`${noticeOff} In many US states, such as California, callers must be told first.`)
-  html = at({ resolvedCountry: 'FR', recordingRetentionDays: 30, recordingNoticeOn: false })
-  expect(html).toContain(`${noticeOff} In the EU and the UK, callers must be told`)
+  html = at({ resolvedCountry: 'DE', recordingRetentionDays: 0 })
+  for (const hint of [eu, long]) expect(html).not.toContain(hint)
   expect(disabledControls(html)).toBe(0)
 })

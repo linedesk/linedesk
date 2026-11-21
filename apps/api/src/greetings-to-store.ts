@@ -1,7 +1,8 @@
 // The greetings the voice agent stores before the first call (LIN-679): for every assistant a phone number answers
 // with, what call.start would send for it now (openCall: the assistant as the call's level answers, the workspace's
-// language, recording notice and hours). The agent builds each greeting text from it as a call would, and stores the
+// language, the assistant's recording notice and hours). The agent builds each greeting text from it as a call would, and stores the
 // ones it does not have yet, so no call of a burst waits for a voice made live (LIN-512).
+import { recordingNoticeOf } from '@linedesk/actions'
 import { organization, phone_numbers, type Tx } from '@linedesk/db'
 import { asc, eq, isNull } from 'drizzle-orm'
 import { assistantForNumber } from './assistants.ts'
@@ -9,7 +10,6 @@ import { businessHoursFor } from './handlers.ts'
 import { keepsRecordings } from './recording-retention.ts'
 import { assistantForCall } from './usage-levels.ts'
 import { workspaceLocale } from './workspace-locale.ts'
-import { recordingNoticeFor } from './workspace-settings.ts'
 
 /** Only what the agent needs to build and voice a greeting (review of LIN-679: not the assistant's instructions). */
 const GREETING_FIELDS = [
@@ -46,7 +46,7 @@ export async function greetingsToStore(tx: Tx, now: string) {
     out.push({
       assistant: Object.fromEntries(GREETING_FIELDS.map(field => [field, answering[field]])),
       workspaceLanguage: (await workspaceLocale(tx, number.workspace_id)).resolvedLanguage,
-      recordingNotice: await recordingNoticeFor(tx, number.workspace_id),
+      recordingNotice: recordingNoticeOf(assistant),
       keepRecording: await keepsRecordings(tx, number.workspace_id),
       businessHours: await businessHoursFor(tx, number.workspace_id, now),
     })

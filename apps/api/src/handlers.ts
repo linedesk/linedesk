@@ -47,6 +47,7 @@ import {
   languageModelLevel,
   realtimeModelLevel,
   voiceModelLevel,
+  recordingNoticeOf,
 } from '@linedesk/actions'
 import { addDays, businessHoursContext, type BusinessHoursContext, dateLabel, localDate } from '@linedesk/calendar'
 import {
@@ -169,7 +170,7 @@ import { insightsHandlers } from './insights.ts'
 import { userAvatarHandlers } from './user-avatar.ts'
 import { authenticatorHandlers, authenticatorPreparers } from './authenticator.ts'
 import { workspaceIconHandlers } from './workspace-icon.ts'
-import { recordingNoticeFor, workspaceSettingsHandlers } from './workspace-settings.ts'
+import { workspaceSettingsHandlers } from './workspace-settings.ts'
 import { workspaceLocale } from './workspace-locale.ts'
 import { applyCountryDefaults } from './country-defaults.ts'
 import { publicHolidayHandlers } from './public-holidays.ts'
@@ -627,8 +628,8 @@ async function openCall(
         contactId: known ? (contact?.row.id ?? null) : null,
         assistantId: assistant?.id ?? null,
       })
-  // Said right after the greeting; the agent appends it (null: off).
-  const recordingNotice = blocked ? null : await recordingNoticeFor(tx, workspace_id)
+  // Said right after the greeting, the assistant's own notice; the agent appends it (null: off).
+  const recordingNotice = blocked || !assistant ? null : recordingNoticeOf(assistant)
   // "Don't keep" recordings: the agent does not record at all (the transcript comes from live speech recognition).
   const keepRecording = await keepsRecordings(tx, workspace_id)
   // A returning caller's last calls and upcoming bookings: only a phone caller matched to a contact, and only when the

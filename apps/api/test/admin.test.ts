@@ -2717,8 +2717,12 @@ describe('impersonation', () => {
           .status,
       ).toBe(200)
       expect(
-        (await act(as, 'workspace.updateSettings', { recordingNotice: 'Dieses Gespräch kann aufgezeichnet werden.' }))
-          .status,
+        (
+          await act(as, 'assistant.update', {
+            assistantId: other.assistant.id,
+            recording_notice: 'Dieses Gespräch kann aufgezeichnet werden.',
+          })
+        ).status,
       ).toBe(200)
       // Nobody can be invited, also with edits on: the admin could invite their own address and keep the workspace.
       expect(await act(as, 'team.invite', { email: 'admin-backdoor@linedesk.test', role: 'admin' })).toMatchObject(

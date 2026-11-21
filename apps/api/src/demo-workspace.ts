@@ -113,6 +113,7 @@ export function demoAssistantUpdate(assistantId: string, b: DemoBusiness, demoRu
     greeting: greetingFor(b.business, b.assistant),
     ai_disclosure: 'at_start' as const,
     record_calls: false,
+    recording_notice_on: false,
     max_call_minutes: DEMO_MAX_CALL_MINUTES,
     transfers: [],
     languages: ENGLISH_ONLY,
@@ -197,7 +198,6 @@ export async function setUpDemoWorkspace(input: DemoWorkspaceInput): Promise<str
     'workspace.updateSettings',
     {
       recordingRetentionDays: RECORDINGS_NOT_KEPT,
-      recordingNoticeOn: false,
       businessHoursOn: false,
       timeZone: data.workspace.timeZone,
       country: data.workspace.country,

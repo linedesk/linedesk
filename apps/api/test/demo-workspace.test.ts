@@ -88,7 +88,6 @@ test('sets up the workspace and its assistants for demo calls, and a second run 
   const [settings] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, ws!.id))
   expect(settings).toMatchObject({
     recording_retention_days: 0,
-    recording_notice_on: false,
     business_hours_on: false,
     notify_email_default: false,
     notify_browser_default: false,
@@ -103,6 +102,7 @@ test('sets up the workspace and its assistants for demo calls, and a second run 
     greeting: 'Thanks for calling Ridgeline Auto Care. This is Maya, the AI assistant. How can I help?',
     ai_disclosure: 'at_start',
     record_calls: false,
+    recording_notice_on: false,
     max_call_minutes: 2,
     transfers: [],
     languages: { main: 'en', mode: 'english', allowed: [] },

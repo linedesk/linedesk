@@ -13,7 +13,9 @@ describe('AI disclosure (A1, A2)', () => {
     const ws = await createWorkspace('Disclosure Default Plumbing')
     const [row] = await db.select().from(assistants).where(eq(assistants.id, ws.assistant.id))
     expect(row!.ai_disclosure).toBe('at_start')
-    expect(row!.greeting).toBe('Thanks for calling Disclosure Default Plumbing. This is Maya, the AI assistant. How can I help?')
+    expect(row!.greeting).toBe(
+      'Thanks for calling Disclosure Default Plumbing. This is Maya, the AI assistant. How can I help?',
+    )
   })
 
   test('a German workspace can pick every mode, and calls get the mode as saved', async () => {
@@ -49,19 +51,22 @@ describe('recording (A5)', () => {
 describe('recording notice changes in the audit log (A4)', () => {
   test('turning it off, on, and changing its text are listed; other settings are not', async () => {
     const ws = await createWorkspace('Notice Audit Plumbing')
-    await act(ws.owner, 'workspace.updateSettings', { recordingNoticeOn: false })
-    await act(ws.owner, 'workspace.updateSettings', { recordingNoticeOn: true })
-    await act(ws.owner, 'workspace.updateSettings', { recordingNotice: 'Calls are recorded for training.' })
+    const assistantId = ws.assistant.id
+    await act(ws.owner, 'assistant.update', { assistantId, recording_notice_on: false })
+    await act(ws.owner, 'assistant.update', { assistantId, recording_notice_on: true })
+    await act(ws.owner, 'assistant.update', { assistantId, recording_notice: 'Calls are recorded for training.' })
+    await act(ws.owner, 'assistant.update', { assistantId, greeting: 'Hi, Brightwater Plumbing.' })
     await act(ws.owner, 'workspace.updateSettings', { businessHoursOn: true })
     const { entries } = await listAudit(db, { workspaceId: ws.id, limit: 50 })
-    const notices = entries.filter(e => e.what === 'workspace.updateSettings')
+    const notices = entries.filter(e => e.kind === 'team' && e.what === 'assistant.update')
     expect(notices.map(e => e.input)).toEqual([
-      { recordingNotice: 'Calls are recorded for training.' },
-      { recordingNoticeOn: true },
-      { recordingNoticeOn: false },
+      { assistantId, recording_notice: 'Calls are recorded for training.' },
+      { assistantId, recording_notice_on: true },
+      { assistantId, recording_notice_on: false },
     ])
-    expect(notices.every(e => e.kind === 'team')).toBe(true)
     const team = await listAudit(db, { kind: 'team', workspaceId: ws.id, limit: 50 })
-    expect(team.entries.filter(e => e.what === 'workspace.updateSettings')).toHaveLength(3)
+    expect(
+      team.entries.filter(e => e.what === 'assistant.update' || e.what === 'workspace.updateSettings'),
+    ).toHaveLength(3)
   })
 })

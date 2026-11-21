@@ -33,6 +33,8 @@ import {
   silenceSummary,
   silenceToSave,
   withMainLanguage,
+  recordingNoticeProblem,
+  recordingNoticeToSave,
 } from './assistantDraft.ts'
 
 const oldProfile = {
@@ -394,6 +396,35 @@ describe('silence on the line', () => {
     expect(silenceToSave(german).goodbye_line).toBeNull()
     expect(silenceToSave({ ...german, goodbye_line: ' Bis bald! ' }).goodbye_line).toBe('Bis bald!')
     expect(draftOf(assistant({ goodbye_line: 'Take care!' } as Partial<Assistant>)).goodbye_line).toBe('Take care!')
+  })
+})
+
+describe('recording notice (LIN-710)', () => {
+  it('on by default with the default sentence in the main language, saved as null', () => {
+    const english = draftOf(assistant())
+    expect(english).toMatchObject({
+      recording_notice_on: true,
+      recording_notice: 'This call may be recorded and transcribed.',
+    })
+    expect(recordingNoticeToSave(english)).toEqual({ recording_notice_on: true, recording_notice: null })
+    const german = draftOf(assistant({ languages: { main: 'de', mode: 'english', allowed: [] } } as Partial<Assistant>))
+    expect(german.recording_notice).toBe('Dieser Anruf wird möglicherweise aufgezeichnet und transkribiert.')
+    expect(recordingNoticeToSave(german).recording_notice).toBeNull()
+  })
+  it('keeps an own sentence and the switch as saved', () => {
+    const own = draftOf(assistant({ recording_notice_on: false, recording_notice: 'Recorded.' } as Partial<Assistant>))
+    expect(own).toMatchObject({ recording_notice_on: false, recording_notice: 'Recorded.' })
+    expect(recordingNoticeToSave({ ...own, recording_notice: ' Recorded for training. ' })).toEqual({
+      recording_notice_on: false,
+      recording_notice: 'Recorded for training.',
+    })
+  })
+  it('on, the sentence must not be empty or too long; off, it is not checked', () => {
+    const d = draftOf(assistant())
+    expect(recordingNoticeProblem(d)).toBeNull()
+    expect(recordingNoticeProblem({ ...d, recording_notice: '  ' })).toBe('Write the sentence the assistant says.')
+    expect(recordingNoticeProblem({ ...d, recording_notice: 'x'.repeat(201) })).toContain('200')
+    expect(recordingNoticeProblem({ ...d, recording_notice_on: false, recording_notice: '' })).toBeNull()
   })
 })
 

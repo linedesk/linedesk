@@ -15,7 +15,10 @@ import {
 } from './settings.ts'
 import { CALL_QUALITY_LABELS } from './usage-level.ts'
 
-/** The assistant's columns a version keeps: everything that changes a call. */
+/**
+ * The assistant's columns a version keeps: everything that changes a call. Not the recording notice: a restore must
+ * not turn it off unseen (it is listed in the audit log only as an assistant.update, LIN-710).
+ */
 export const VERSIONED_FIELDS = [
   'name',
   'greeting',

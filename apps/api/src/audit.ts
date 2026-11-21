@@ -575,13 +575,13 @@ export const LEVEL_RAISE_REFUSED_TEXT =
 const usageLevelChangeSql = sql`(c.action in (${transferChangeActions}) and (jsonb_typeof(c.result->'data'->'usageLevelChange') = 'object' or (c.rejected and (c.input ? 'call_quality' or c.result->>'reason' in (${LEVEL_RAISE_REFUSED}, ${LEVEL_CHANGE_REFUSED}) or (c.action = 'assistant.restoreVersion' and starts_with(c.result->>'error', ${LEVEL_RAISE_REFUSED_TEXT}))))))`
 
 /**
- * A change of the recording notice (workspace.updateSettings with `recordingNoticeOn` or `recordingNotice`): turned
- * off or on, or its text changed (legal review 2026-11-17, A4: callers in all-party-consent states must be told).
+ * A change of the recording notice (assistant.update with `recording_notice_on` or `recording_notice`; before LIN-710
+ * workspace.updateSettings with `recordingNoticeOn` or `recordingNotice`): turned off or on, or its text changed (legal review 2026-11-17, A4: callers in all-party-consent states must be told).
  * Read from the input, whose keys and booleans the 90-day prune keeps (command-log.ts), so the entry stays listed.
  * Kind `team`, like the owner's other decisions about the workspace.
  */
 export const RECORDING_NOTICE_CHANGE_KIND: AuditKind = 'team'
-const recordingNoticeChangeSql = sql`(c.action = 'workspace.updateSettings' and (c.input ? 'recordingNoticeOn' or c.input ? 'recordingNotice'))`
+const recordingNoticeChangeSql = sql`((c.action = 'assistant.update' and (c.input ? 'recording_notice_on' or c.input ? 'recording_notice')) or (c.action = 'workspace.updateSettings' and (c.input ? 'recordingNoticeOn' or c.input ? 'recordingNotice')))`
 
 /**
  * Whom a team or membership change was about, put in the action's result (`data.subject`) by its

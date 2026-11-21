@@ -1214,3 +1214,13 @@ a.as-chip:hover {
 .cq-foot {
   margin: 0;
 }
+
+/* Rules: the recording notice's sentence, right under its switch */
+.as-notice {
+  display: grid;
+  gap: 4px;
+  margin-top: -4px;
+}
+.as-notice-error {
+  color: var(--danger);
+}
