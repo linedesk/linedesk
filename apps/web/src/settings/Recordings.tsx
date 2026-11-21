@@ -159,6 +159,36 @@ export function Recordings({ canEdit, toast }: { canEdit: boolean; toast: (text:
   )
 }
 
+/**
+ * Assistant › Rules: the same recording notice as Workspace settings › Recordings (one workspace setting, LIN-693), so
+ * what the assistant says right after the greeting is found next to its other rules.
+ */
+export function RecordingNoticeSection({ canEdit, toast }: { canEdit: boolean; toast: (text: string) => void }) {
+  const t = useT()
+  const settings = useWorkspaceSettings()
+  const data = settings.data
+  const recordingOn = data?.recordingOn ?? true
+  const days = data?.recordingRetentionDays
+  return (
+    <Section id="st-rules-notice" title={t('settings.recordings.noticeTitle')}>
+      <p className="help">
+        <T k="settings.recordings.noticeWhere" values={{ link: appLink('#workspace/recordings') }} />
+      </p>
+      {data && (
+        <RecordingNotice
+          on={data.recordingNoticeOn}
+          saved={data.recordingNotice}
+          canEdit={canEdit && recordingOn}
+          inEffect={recordingOn}
+          recorded={recordingOn && days !== undefined && days !== RECORDINGS_NOT_KEPT}
+          eu={inEeaOrUk(data.resolvedCountry)}
+          toast={toast}
+        />
+      )}
+    </Section>
+  )
+}
+
 /** Copies the whole notice, also while it is folded away; says whether it worked. */
 export const copyCallerPrivacyNotice = (recording: NoticeRecording, clipboard?: Pick<Clipboard, 'writeText'>) => {
   const text = callerPrivacyNotice(recording, brandName())

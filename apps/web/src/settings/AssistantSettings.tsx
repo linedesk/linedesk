@@ -112,6 +112,7 @@ import { Holidays, VacationMode } from './Holidays.tsx'
 import { Knowledge } from './Knowledge.tsx'
 import { MissingProviderNote } from './MissingProviderNote.tsx'
 import { HoursSummary, RulesSummary, TransfersSummary } from './Summaries.tsx'
+import { RecordingNoticeSection } from './Recordings.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
 import { TestCallPanel } from './TestCallPanel.tsx'
@@ -1171,6 +1172,8 @@ function Form({
           </form>
           {/* The webhook saves on its own, so it sits outside the draft's form, last in Advanced. */}
           {current === 'advanced' && <Webhooks assistantId={assistant.id} canEdit={canEdit} toast={toast} />}
+          {/* The notice saves on its own (a workspace setting, its own form), so it sits outside the draft's form. */}
+          {current === 'rules' && <RecordingNoticeSection canEdit={canEdit} toast={toast} />}
         </>
       )}
     </SettingsLayout>
