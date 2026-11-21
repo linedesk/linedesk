@@ -82,10 +82,10 @@ export function SupportEmail({ provider: own, canEdit, toast }: Props) {
 
 /**
  * This provider's mailboxes, then what the support mail shows: one analysis over every connected mailbox, Gmail and
- * Outlook together, so both pages show it once any mailbox is connected.
+ * Outlook together, shown on the page of each provider that has a connected mailbox (Tim, 2026-11-21).
  */
 export function SupportEmailPage({ provider, canEdit, toast }: Props) {
-  const connected = useRows('mail_connections').length > 0
+  const connected = useRows('mail_connections').some(m => m.provider === provider)
   return (
     <>
       <SupportEmail provider={provider} canEdit={canEdit} toast={toast} />
