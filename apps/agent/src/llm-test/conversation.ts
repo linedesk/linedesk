@@ -109,6 +109,7 @@ export async function runCall(
   const said = (turn: number, text: string, response: number) => {
     const id = `m${++ids}`
     t.events.push({ kind: 'assistant', turn, text, response })
+    log.lines.push({ speaker: 'agent', text })
     closing.assistantSaid(id, withoutEndCall(text))
     if (promisesUrgent(text)) t.urgent = true
     return id

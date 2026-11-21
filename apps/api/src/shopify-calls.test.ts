@@ -153,11 +153,17 @@ describe('finding orders', () => {
         ],
       }),
     )
-    expect(view.status).toBe('fulfilled')
+    expect(view.status).toBe('shipped')
     expect(view.shipments).toEqual(['in transit, with UPS, tracking number 1Z9, expected 2026-11-22'])
     // Never the name, street or postcode: the checks before a change compare those.
     expect(view.shipTo).toBe('Portland, Oregon, United States')
     expect(view.customer).toBeNull()
+  })
+  it('says store states as plain words, not Shopify jargon', () => {
+    expect(orderView(order({ fulfillmentStatus: 'UNFULFILLED', shipments: [] })).status).toBe('not shipped yet')
+    expect(orderView(order({ fulfillmentStatus: 'PARTIALLY_FULFILLED', shipments: [] })).status).toBe('partly shipped')
+    // A state Shopify adds later keeps its own words.
+    expect(orderView(order({ fulfillmentStatus: 'NEW_STATE', shipments: [] })).status).toBe('new state')
   })
 })
 

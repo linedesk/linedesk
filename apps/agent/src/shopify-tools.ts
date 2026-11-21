@@ -143,7 +143,7 @@ export function changeReply(change: ShopChange, data: ShopifyChangeOrderData | n
   if (data.status === 'done')
     return {
       return: `The return is started${data.detail ? ` (${data.detail})` : ''}. Tell the caller the store will review it and send the next steps by email.`,
-      address: 'The shipping address is changed. Read the new address back to the caller.',
+      address: 'The shipping address is changed. Tell the caller it is done.',
       cancel:
         'The order is cancelled and will be refunded to the original payment method. Tell the caller they get an email confirmation.',
     }[change]
@@ -235,6 +235,22 @@ export function callerSaid(log: Pick<CallLog, 'lines' | 'confirmedAddress'>, val
   return squash(said.join(' ')).includes(wanted)
 }
 
+/**
+ * Whether the assistant read the new postcode back after the caller said it (the read-back before an address change),
+ * or the address step confirmed this address (that step reads the whole address back itself).
+ */
+export function readBack(log: Pick<CallLog, 'lines' | 'confirmedAddress'>, zip: string, street: string): boolean {
+  const wanted = squash(zip)
+  if (!wanted) return false
+  const confirmed = squash(log.confirmedAddress ?? '')
+  const house = squash(street.trim().split(/\s+/)[0] ?? '')
+  if (house && confirmed.includes(wanted) && confirmed.includes(house)) return true
+  const spoke = (speaker: string) => (line: { speaker: string; text: string }) =>
+    line.speaker === speaker && squash(line.text).includes(wanted)
+  const heard = log.lines.findLastIndex(spoke('caller'))
+  return heard >= 0 && log.lines.slice(heard + 1).some(spoke('agent'))
+}
+
 /** find_orders, find_products and the changes the business allows; none without a store. */
 /** What a caller says when their call is about an order of an online store (English and German). */
 const STORE_ORDER_WORDS =
@@ -323,6 +339,8 @@ export function shopifyTools(api: ApiClient, call: CallSession, log: CallLog): T
           return `Ask the caller to say ${PROOF_WORDS.verify_postcode} themselves (do not say it for them), then use this tool again.`
         if (kind === 'address' && !callerSaid(log, String(args.zip ?? '')))
           return 'Ask the caller to say the postcode of the new address themselves (do not say it for them), then use this tool again.'
+        if (kind === 'address' && !readBack(log, String(args.zip ?? ''), String(args.address1 ?? '')))
+          return 'Read the whole new address back to the caller and get a clear yes first, then use this tool again.'
         const data = await run<ShopifyChangeOrderData>(api, call, shopifyChangeOrder, {
           orderNumber: args.order_number,
           change: kind,

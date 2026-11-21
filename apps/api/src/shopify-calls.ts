@@ -84,6 +84,42 @@ export async function shopifyCallSetup(tx: Tx, workspaceId: string): Promise<Sho
 // --- How the assistant sees it -----------------------------------------------------------------
 
 const words = (value: string) => value.toLowerCase().replaceAll('_', ' ')
+
+/**
+ * Shopify's order and shipment states in plain words the assistant can say in any language (rule 11): "unfulfilled"
+ * is store jargon, and a caller hears it as is. A state not listed here keeps its own words.
+ */
+// i18n-ignore: text the voice assistant reads (rule 11), not shown in the app
+const ORDER_STATE_WORDS: Record<string, string> = {
+  UNFULFILLED: 'not shipped yet',
+  OPEN: 'not shipped yet',
+  REQUEST_DECLINED: 'not shipped yet',
+  RESTOCKED: 'not shipped, the items went back to stock',
+  IN_PROGRESS: 'being prepared, not shipped yet',
+  PENDING_FULFILLMENT: 'being prepared, not shipped yet',
+  ON_HOLD: 'on hold, not shipped yet',
+  SCHEDULED: 'scheduled to ship later',
+  PARTIALLY_FULFILLED: 'partly shipped',
+  FULFILLED: 'shipped',
+  FULFILLMENT_NOT_REQUIRED: 'nothing to ship',
+}
+// Shopify's FulfillmentDisplayStatus: one shipment, from the label to the door.
+// i18n-ignore: text the voice assistant reads (rule 11), not shown in the app
+const SHIPMENT_STATE_WORDS: Record<string, string> = {
+  SUBMITTED: 'sent to the warehouse, not shipped yet',
+  LABEL_PURCHASED: 'label created, not with the carrier yet',
+  LABEL_PRINTED: 'label created, not with the carrier yet',
+  CONFIRMED: 'label created, not with the carrier yet',
+  LABEL_VOIDED: 'shipping label cancelled',
+  FULFILLED: 'shipped',
+  MARKED_AS_FULFILLED: 'shipped',
+  CARRIER_PICKED_UP: 'picked up by the carrier',
+  ATTEMPTED_DELIVERY: 'delivery attempted, not delivered yet',
+  CANCELED: 'shipment cancelled',
+  FAILURE: 'no tracking information',
+}
+const orderState = (value: string) => ORDER_STATE_WORDS[value] ?? words(value)
+const shipmentState = (value: string) => SHIPMENT_STATE_WORDS[value] ?? words(value)
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : null)
 
 /**
@@ -102,7 +138,7 @@ export function orderView(order: ShopifyOrder): ShopOrderView {
     ? // i18n-ignore: text the voice assistant reads (rule 11), not shown in the app
       `cancelled on ${day(order.cancelledAt)}`
     : order.fulfillmentStatus
-      ? words(order.fulfillmentStatus)
+      ? orderState(order.fulfillmentStatus)
       : 'unknown'
   return {
     number: order.name,
@@ -114,7 +150,7 @@ export function orderView(order: ShopifyOrder): ShopOrderView {
     shipTo: addressLine(order.shippingAddress),
     shipments: order.shipments.map(s =>
       [
-        s.status ? words(s.status) : 'shipment',
+        s.status ? shipmentState(s.status) : 'shipment',
         s.carrier ? `with ${s.carrier}` : null,
         s.tracking ? `tracking number ${s.tracking}` : null,
         s.deliveredAt
@@ -508,7 +544,7 @@ export const shopifyCallHandlers: Record<string, Handler> = {
           // An address or a cancellation only before anything left the warehouse.
           if (order.cancelledAt) return { status: 'too_late', detail: 'cancelled already' }
           if (order.fulfillmentStatus && order.fulfillmentStatus !== 'UNFULFILLED')
-            return { status: 'too_late', detail: words(order.fulfillmentStatus) }
+            return { status: 'too_late', detail: orderState(order.fulfillmentStatus) }
           if (input.change === 'address') {
             // i18n-ignore: text the voice assistant reads (rule 11), not shown in the app
             if (!input.address?.address1) return { status: 'failed', detail: 'no new address' }

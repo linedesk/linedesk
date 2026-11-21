@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { callerSaid, changeReply, findOrdersReply, shopifyInstructions, storeOrderCall } from './shopify-tools.ts'
+import {
+  callerSaid,
+  readBack,
+  changeReply,
+  findOrdersReply,
+  shopifyInstructions,
+  storeOrderCall,
+} from './shopify-tools.ts'
 
 const order = {
   number: '#1001',
@@ -93,6 +100,40 @@ describe('callerSaid', () => {
   it('count the address the address step confirmed', () => {
     expect(
       callerSaid({ lines: [], confirmedAddress: '4512 NE Fremont St, Portland, OR 97213' } as never, '97213'),
+    ).toBe(true)
+  })
+})
+
+describe('readBack', () => {
+  const call = (...lines: [string, string][]) =>
+    ({ lines: lines.map(([speaker, text]) => ({ speaker, text })), confirmedAddress: undefined }) as never
+  it('needs the new postcode read back after the caller said it', () => {
+    expect(
+      readBack(
+        call(['caller', 'It is 97232.'], ['agent', '1200 NE Broadway, Portland 97232. Is that right?']),
+        '97232',
+        '1200 NE Broadway',
+      ),
+    ).toBe(true)
+    expect(readBack(call(['caller', 'nine seven two three two']), '97232', '1200 NE Broadway')).toBe(false)
+    expect(readBack(call(['agent', 'Is it 97232?'], ['caller', 'Yes, 97232.']), '97232', '1200 NE Broadway')).toBe(
+      false,
+    )
+  })
+  it('count the address the address step confirmed, only when it is the new one', () => {
+    expect(
+      readBack(
+        { lines: [], confirmedAddress: '4512 NE Fremont St, Portland, OR 97213' } as never,
+        '97213',
+        '1200 NE Broadway',
+      ),
+    ).toBe(false)
+    expect(
+      readBack(
+        { lines: [], confirmedAddress: '1200 NE Broadway, Portland, OR 97232' } as never,
+        '97232',
+        '1200 NE Broadway',
+      ),
     ).toBe(true)
   })
 })
