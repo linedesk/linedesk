@@ -837,6 +837,7 @@
   "integrations.action.fix": "修正",
   "integrations.action.manage": "管理",
   "integrations.action.open": "開く",
+  "integrations.action.opening": "開いています…",
   "integrations.app.attentionFallback": "{name}が直近の通話を拒否しました。もう一度接続してください。",
   "integrations.app.channelIn": "{account}の{channel}",
   "integrations.app.connect": "{name}を接続",

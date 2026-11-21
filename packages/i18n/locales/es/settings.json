@@ -837,6 +837,7 @@
   "integrations.action.fix": "Corregir",
   "integrations.action.manage": "Administrar",
   "integrations.action.open": "Abrir",
+  "integrations.action.opening": "Abriendo…",
   "integrations.app.attentionFallback": "{name} rechazó las últimas llamadas. Vuelve a conectarlo.",
   "integrations.app.channelIn": "{channel} en {account}",
   "integrations.app.connect": "Conectar {name}",

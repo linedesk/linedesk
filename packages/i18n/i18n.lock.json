@@ -397,8 +397,8 @@
     },
     "account.connectAgent.problem.tooManyKeys": {
       "by": "ai",
-      "out": "6330f7715ca1f5371707ab6c5ba619e6ecd63c3444d3fa3db709c34730470872",
-      "src": "cb6fde49ca7c2a4e9f2fc48ba29a48d7eb566ff05e103ee7d1f13545a45389a3"
+      "out": "bcedcbe1b5bedde463cfcbb763d5a5b160670cfce97df00ba2219745d858a6f6",
+      "src": "ddb1350039407a93faf1e1420517f74214de3c72f334af2196d500571d7f9192"
     },
     "account.connectAgent.publishedBy": {
       "by": "ai",
@@ -437,8 +437,8 @@
     },
     "account.connectAgent.revokeNote": {
       "by": "ai",
-      "out": "b2baa656a3d9f0c47049cf1fa7fe0cfb84b4cb9e4d4aa25bd928cc120dbcc252",
-      "src": "2adac1f26467c8775178c31b260e2052b81c6b5f976ca22d9cdc10406d42b741"
+      "out": "86a7ed209509ccd0d0e0c463c97bd9e232921634b34805a419e12faa75450e5d",
+      "src": "1772a2c0d6872f4e6056482961f572058f455e8288173f5fb41706f6839cd545"
     },
     "account.connectAgent.signInFirst": {
       "by": "ai",
@@ -807,8 +807,8 @@
     },
     "account.notify.ownLink": {
       "by": "ai",
-      "out": "df029881f1a46d8a202e05a6db5d9bed1835be53941c7f532cdd7306f0620c06",
-      "src": "6f953ceecee85cfc2c0f8c0749ae4af0080887b1cd65c8fc2d5e9d3c58781379"
+      "out": "5004e021e95a21b6c98c2487ff76f6593f5d4d354985e1ddc1aa7b3de3c99be0",
+      "src": "b83b2ce0c783330f3ad35b7d4068a6fefae9a2250ff2ff656ed45e34c4c0cd26"
     },
     "account.notify.perWorkspace": {
       "by": "ai",
@@ -1397,8 +1397,8 @@
     },
     "account.title": {
       "by": "ai",
-      "out": "7d7df1411409e94dcf625fa3e4e7a3ee90def0ffb54ab7992644e03e784e8f52",
-      "src": "a587aa1f4ffc501682f3874f8fae815e39a88739eb6f95830120cf4efe1d1621"
+      "out": "3ef6f6ffaab5d23ea86c38533c0c619fcc024b7cc9df79befea162f69a8fa1bd",
+      "src": "2b363e8753b8a54b695106b388b16d9877a0f13540de789c6ba9f7f63ddd2f67"
     },
     "account.yourAccount": {
       "by": "ai",
@@ -10912,8 +10912,8 @@
     },
     "auth.addPasskey.enrolmentTitle": {
       "by": "ai",
-      "out": "278a4cf4541811339cc2cca6b4200fe202d2cbbd0b2a91c60ea4812c151905a7",
-      "src": "143df0e4c0bd95104ba77cee0355f826c679cf10afcb2a3bf1eec3491026616c"
+      "out": "71a6dcd57d8c96a03de8705e6b70cb51a3246f37803f45896a7334d4a923b216",
+      "src": "ccfaf84c7070491132737028b4dc8a402803b0dee92fef0f3177ce32b4a87196"
     },
     "auth.addPasskey.help": {
       "by": "ai",
@@ -11367,8 +11367,8 @@
     },
     "auth.error.passkeyNotFound": {
       "by": "ai",
-      "out": "dadd7051e0e1d24d95f4c41f6be2436fc31a9e00b513807951376c7bb4e2b0c7",
-      "src": "f912b85ac27edd4ef5314abb01fab3102e66f9d1478d6138dabe8517ce0f22b5"
+      "out": "3ccafb59a926b871148bd147bc32bf0396158efd390654cf691f218de51601f6",
+      "src": "98e0f7aa9a01d2f58e5e9f77d977609b1e062b5a0f8d15eaad95d779f6bf593f"
     },
     "auth.error.passkeyOtherAccount": {
       "by": "ai",
@@ -16207,8 +16207,8 @@
     },
     "email.emailChangeCode.preheader": {
       "by": "ai",
-      "out": "288c135ca9d81b5fde54644d06bda70ed6b2995fe8452dfc9a5342a94bc315ed",
-      "src": "a2738f523a783bcb201bd810532199d68128c97627b3f4efd077598aa4d113ee"
+      "out": "ca1651578d147a1021c165a404c239c72880849bf502cbc7cffb9e01b2de8c25",
+      "src": "f3ccf62d8170e0ee4d7fd4f767537042e9ddb28b9737a5f4bcae6532a6b9ade3"
     },
     "email.emailChangeCode.reason": {
       "by": "ai",
@@ -16222,8 +16222,8 @@
     },
     "email.emailChangeCode.text": {
       "by": "ai",
-      "out": "f6a6f471b21b854d76561f214f30c3f25d664baf7137ae62fa52d0dbf5e99b9e",
-      "src": "0513d3c33b52986f01c7b85b3cff61bcf710aee0eeef98a58ba329c0f979fefd"
+      "out": "1cd00a5609af3cc3f449dc8cc949a13ad82b950feaff29c4f109fc00bdc586ee",
+      "src": "fb148443525bf91b3de22510a3109f68147af49e87d6eec33ef639f3fb5f36dc"
     },
     "email.emailChangeConfirm.heading": {
       "by": "ai",
@@ -16247,8 +16247,8 @@
     },
     "email.emailChangeConfirm.text": {
       "by": "ai",
-      "out": "ea05282b31bc1432733b0f33579101f8d8c265ca33735af885ac660fa0dbcbd9",
-      "src": "f32775ab86a0076415155e72bcbec7b37a9c7ebc51a80c7e6eac2f40b9f225eb"
+      "out": "172b67bb043a00f2c7387ca90927e7baa38250cc2568bdb91eccaf75b2df7b4d",
+      "src": "758676b11a198108a089c2f111b7c3f5be9bd574502af1c713817203d55eda86"
     },
     "email.emailChangeRefused.heading": {
       "by": "ai",
@@ -16737,8 +16737,8 @@
     },
     "email.notificationSettings": {
       "by": "ai",
-      "out": "f9a0b67ed14b861087543847061829c8ca4164f9c8a27dce155fd4f21ddd0d83",
-      "src": "8a4034f01ffc80e1540da15f47237d753a9d9300f0c72f7c391d63decca66ac0"
+      "out": "697dd927a540172814afd57d8f114885d0d725208d9bd9a039e104455433f27f",
+      "src": "84b033434e65a56c72c1d8e73215478a1eaa7b23432036a1675519183543be95"
     },
     "email.open": {
       "by": "ai",
@@ -17052,8 +17052,8 @@
     },
     "email.passkeyEnrolment.next": {
       "by": "ai",
-      "out": "a4b93b4aaefda808e9e0892fa029a5f15e4f70bf38d59df2fbe07e5c06395fb2",
-      "src": "46ad99d17fd52bf9dcd0fcc5a7e39927438f3f143597260bcdde98b16ba0086b"
+      "out": "78d92bbdae6b4e8cfbeabf3bd3297fcf5b6477d938de80e1a58d60707c84826d",
+      "src": "9c10396fe6d5af399062b3f3bed68d4896ced739cb9cee31812ae2693b4ba60d"
     },
     "email.passkeyEnrolment.preheader": {
       "by": "ai",
@@ -17077,8 +17077,8 @@
     },
     "email.passkeysReset.next": {
       "by": "ai",
-      "out": "9541a41a81c94ccdda393bd6480e8adda719c804b15afa9ef760d7859f845222",
-      "src": "68254af99920ef99453fc3bea99bd66fd8350d43425a82434d0f3267d7e679d7"
+      "out": "cfc7ad63e0656f78c2befcec116373358b69ca447177d8979e6ff41219199251",
+      "src": "4ef3f7c8849b76d9ea1450ac0fd6f161961f8f5c3b575400d6434fa1fb8097c0"
     },
     "email.passkeysReset.preheader": {
       "by": "ai",
@@ -17152,8 +17152,8 @@
     },
     "email.personalKeyCreated.notYou": {
       "by": "ai",
-      "out": "23eeb8129ba649c4f7ede307a6a7b3d95b3320575aba01ff7b739ed09db6dddc",
-      "src": "d50e6e1951a336a3fe847bd74161a6b05a99abaa13b9177dd9183cffcc2a9276"
+      "out": "e87a36740ea4d36dd6ef1a44964113b15af92a547eb366d90bf881d9d6262caa",
+      "src": "79b57183c03f9f9058009d19a727ab148a49d80263840fe9efefa3a6088154a5"
     },
     "email.personalKeyCreated.reason": {
       "by": "ai",
@@ -17552,8 +17552,8 @@
     },
     "email.unsubscribe.invalidText": {
       "by": "ai",
-      "out": "e606d1c8e3c509a34c6154f484067b264360081df29c106d0923e2df4f8e9739",
-      "src": "8ba582b677dce732faeb3314a947e9e183363ce3a87de6019bb1bd927ac8f65d"
+      "out": "6ca727b46b25bb5b86a688cca75e2d5aafb2f36d75334835401031479408ab62",
+      "src": "ee1337b3b9c3271522ee5f2e8dc84b71c46d66e58f9f1d1950305c90ceb19860"
     },
     "email.unsubscribe.invalidTitle": {
       "by": "ai",
@@ -20007,8 +20007,8 @@
     },
     "onboarding.adminStart.agentButton": {
       "by": "ai",
-      "out": "728a96d603d925f7f848f05dffbbce52eba9dacddd61372018962824e31f383c",
-      "src": "8c7c38ba207d37efe1cb507245882b32185f1cb39fb9fb9ffe9b7398fa384fd7"
+      "out": "3aed4e172f21081b9b938362381726e948500574498161222ba512550eb0bbdf",
+      "src": "28b41b5cec1905826a47cecb169c9a555f4634549a3ffe8b3140f7352182819e"
     },
     "onboarding.adminStart.agentHelp": {
       "by": "ai",
@@ -21977,8 +21977,8 @@
     },
     "onboarding.frame.agent": {
       "by": "ai",
-      "out": "728a96d603d925f7f848f05dffbbce52eba9dacddd61372018962824e31f383c",
-      "src": "8c7c38ba207d37efe1cb507245882b32185f1cb39fb9fb9ffe9b7398fa384fd7"
+      "out": "3aed4e172f21081b9b938362381726e948500574498161222ba512550eb0bbdf",
+      "src": "28b41b5cec1905826a47cecb169c9a555f4634549a3ffe8b3140f7352182819e"
     },
     "onboarding.frame.agentTitle": {
       "by": "ai",
@@ -22332,8 +22332,8 @@
     },
     "onboarding.notify.later": {
       "by": "ai",
-      "out": "27bb49cea9ff17153ed70a3b18e2732275071e783330ec080ffde607937c8f52",
-      "src": "02a7b88ca2a3ce23be72e863d0aa8b08054d3e29380c8745244eb506622af4ed"
+      "out": "c3fa6dca9b3b61a72849a7b252efbc11bb6bbd3fac13f1402e30d942138d4c83",
+      "src": "10d94ead101486f6eff978568530fb4d197b905168b403857a404826de5cccb1"
     },
     "onboarding.notify.lede": {
       "by": "ai",
@@ -29750,6 +29750,11 @@
       "out": "bc385a30b5378841099b66c2c42ded6f46ab144f586be608f541661721776859",
       "src": "ed077f3d8125d60dca1979c7133601bd187d47c73ed9975028f677e49e709942"
     },
+    "settings.integrations.action.opening": {
+      "by": "ai",
+      "out": "a5228bbc719b02cf6c090501dc59b0caee5c6eb74ddee3f8d5836b202e77098e",
+      "src": "c926c2c50e65d5a5799f548604472ee8554b53c376e45be580b3a06a484d8fc0"
+    },
     "settings.integrations.app.attentionFallback": {
       "by": "ai",
       "out": "9a07ddb6e03de8cde6837793e54d27e4f0227d3ae1b090bb7baa83ef028327ff",
@@ -31469,16 +31474,6 @@
       "by": "ai",
       "out": "1344a4acf170401875c9a2627a01f90d31111bea0e8ac425f346976d8b9a4019",
       "src": "2002f3ab1ce8d8d982699ab4f4a1b447e60fa655902f8483cdb88ffe998b4687"
-    },
-    "settings.integrations.status.noKeys": {
-      "by": "ai",
-      "out": "1c8d9af18bb276833f15a0ef1cbd0f3fc567b929a4a679db219a4c5cda545941",
-      "src": "3e5039d12acddb2e949411dc48dae9efc042e3afdc6389e33f4aa714303435ee"
-    },
-    "settings.integrations.status.notConnected": {
-      "by": "ai",
-      "out": "a0b9c89e98f8e7f6431033695756d9141d173759f875370979d6f2f6c0bc340d",
-      "src": "0303e182467081801f8b614862519a3b174c0ae84ff08b70e7d126080c3f4b95"
     },
     "settings.integrations.status.ready": {
       "by": "ai",
@@ -34290,36 +34285,6 @@
       "out": "4814f62c108d82de42a65c515d56fc220b7fe8521510fd128919664daaa167bb",
       "src": "4814f62c108d82de42a65c515d56fc220b7fe8521510fd128919664daaa167bb"
     },
-    "settings.workspace.assistants.description": {
-      "by": "ai",
-      "out": "8f9c57c1a3a6f3f0f81575bf016a66eaabebba1090dec5c5c57b32e6534c6676",
-      "src": "1636d8900a04c955bd864338dba93174fe1e590756883347c1fe56f2965fa2bd"
-    },
-    "settings.workspace.assistants.empty": {
-      "by": "ai",
-      "out": "e1988abf77c3e772d7494d37b3bdfb48b54eaf589ab0b14f921d5980cd408a16",
-      "src": "e974f679dea1abe93c1bd0d43465ca1643b6f28c28f7d7de07868eafa3f3b5e5"
-    },
-    "settings.workspace.assistants.noNumber": {
-      "by": "ai",
-      "out": "952ea70b677995d03ccff6d9f52178d259089b823f1e2962551d093b5b8ad931",
-      "src": "37c78f9ffa23e2a3c817c9160fd5d332b18ab7ae67ac804759cf9164367e4e3d"
-    },
-    "settings.workspace.assistants.open": {
-      "by": "ai",
-      "out": "c76f0f37bdeb7d5add27de2fbb635ec0413dca5cfbdb71cc4055c92227f15933",
-      "src": "a266c010f498fc9881dafbf9a9b457a52fa0d6facd107e54351063851679fca4"
-    },
-    "settings.workspace.nav.assistants.description": {
-      "by": "ai",
-      "out": "f24edf39c5bed2764422a44fa329795f853fbd140d4292b72fa1a753e6d57637",
-      "src": "66ffabda78f20eae1a3b7dccf03cc063b3f03ed87b06879def9696f1ae46d419"
-    },
-    "settings.workspace.nav.assistants.label": {
-      "by": "ai",
-      "out": "6365e96ddfbfe8812a54009eea29a1a8976fce210172ed4b7a529c4dd398821c",
-      "src": "913101023d6a833008346268868589eed4a838d0758124d7bddc57514f91eda8"
-    },
     "settings.workspace.nav.billing.description": {
       "by": "ai",
       "out": "1a533255a9e09ce81f9c9441555902d0f9127501ae6bc32c2670ce855cce1d74",
@@ -34732,8 +34697,8 @@
     },
     "shell.command.goToAccountSettings": {
       "by": "ai",
-      "out": "87382005899a99763a8fc8ecd5be7003be7c4464c7474612e6feb577f6aa7372",
-      "src": "b5c8fbb93de5714cfd42cee4587a8b5ea95d346acb50ac9d0d21a126151ff1cc"
+      "out": "b9d594dec11f00ce3ddfc372816230cf717fbb2777a77e830a16abe3c6cc7630",
+      "src": "2be54ec760b3f952e03fc3184004ea3af537b3c04b14e7664f49bb612915d0cd"
     },
     "shell.command.goToAssignedToMe": {
       "by": "ai",
@@ -35080,6 +35045,11 @@
       "out": "8056478c84b6ae6ad6f655cada19e5b1ba52c4aa99e656ce509b475eb2cbe2d1",
       "src": "78e99a2a9817f3dfe33295d3fbc7f989c1bbc95fd1a75c27e08fdcef195dad81"
     },
+    "shell.help.buttonTip": {
+      "by": "ai",
+      "out": "b9a216181b9806db0338d25d125fa4f6b529e21814169b7a587f9836bdc5a218",
+      "src": "161c9d3237f0fc950dbbaed8e5cf39b505e33a951e52c80b71b4d3599b2b4fe5"
+    },
     "shell.help.everyAction": {
       "by": "ai",
       "out": "31e666c3ba28ca8419fa89997c9deacf8f36fe61a2910317f691a2e731dfe1de",
@@ -35405,10 +35375,15 @@
       "out": "385850d77401e17ee0e73040b3282f080762a561d1bc74bde64ec1e79a22850b",
       "src": "5f5c5baf8fbc063def44db6f24aaf55282ed62e181e63c6d17a7d8852859f9a0"
     },
+    "shell.helpMenu.support": {
+      "by": "ai",
+      "out": "da46851ba8fdbfe14cd919216516cbd77fb2212dd1817769fcd7bab54d565c67",
+      "src": "403151089cb1cbbd1fb0698b2815cafd80199a7a702afdf2a0421656e4232090"
+    },
     "shell.helpMenu.tip": {
       "by": "ai",
-      "out": "dc55aae5b3fb8b537ef0a38bdc4899ba6e5386e741c138179fa2679f7173eb97",
-      "src": "44b62367b5a021f9df9505ff0d84a42d9afd5b3835aa3318d7a104353b16e205"
+      "out": "731ea38b60a9f4ee1741517ff7e03c0b4da41946ed0109e3fdd1917df9af86ff",
+      "src": "42592140f6d50377f1c4c99a29f5ab8c7b5ebc4aa6de9da94253542c9445cff3"
     },
     "shell.helpMenu.version": {
       "by": "ai",
@@ -35752,8 +35727,8 @@
     },
     "shell.page.account": {
       "by": "ai",
-      "out": "7d7df1411409e94dcf625fa3e4e7a3ee90def0ffb54ab7992644e03e784e8f52",
-      "src": "a587aa1f4ffc501682f3874f8fae815e39a88739eb6f95830120cf4efe1d1621"
+      "out": "3ef6f6ffaab5d23ea86c38533c0c619fcc024b7cc9df79befea162f69a8fa1bd",
+      "src": "2b363e8753b8a54b695106b388b16d9877a0f13540de789c6ba9f7f63ddd2f67"
     },
     "shell.page.admin": {
       "by": "ai",
@@ -36227,8 +36202,8 @@
     },
     "shell.tour.settings.text": {
       "by": "ai",
-      "out": "2916b48bab399b1fbdc021592eae0350cb14de32735f5a87f9bd8137ba63eaec",
-      "src": "3728f8a13afbe3016e68e9d8574b312aa9453199593ce2b3a01c8ca11763bb01"
+      "out": "4ef3084abda5fce27c38f713c33bbf6558958ca00688eb794aac80ffdeb24c83",
+      "src": "c82c7411c2de5e3eb7aaba04cb1741a15baf8c5d00f2cffb39c91b86a92d8ac2"
     },
     "shell.tour.settings.title": {
       "by": "ai",
@@ -39039,8 +39014,8 @@
     },
     "account.connectAgent.problem.tooManyKeys": {
       "by": "ai",
-      "out": "9b2fdb05184b9f7af40cab3884c8ef90efcd0ff84fe445baba8cff5724b49145",
-      "src": "cb6fde49ca7c2a4e9f2fc48ba29a48d7eb566ff05e103ee7d1f13545a45389a3"
+      "out": "639a64ca1659368c4ebf490af1afd0f9db0836d8ea64ee524bcbfad0c20c472d",
+      "src": "ddb1350039407a93faf1e1420517f74214de3c72f334af2196d500571d7f9192"
     },
     "account.connectAgent.publishedBy": {
       "by": "ai",
@@ -39079,8 +39054,8 @@
     },
     "account.connectAgent.revokeNote": {
       "by": "ai",
-      "out": "58f268028586fa48533148d58642136682b4a1de021f015da63ddcde02ad938c",
-      "src": "2adac1f26467c8775178c31b260e2052b81c6b5f976ca22d9cdc10406d42b741"
+      "out": "74f3b19cecfffec24b2036a7f769cea532bfc793c72a9de9962fd8b92d515dea",
+      "src": "1772a2c0d6872f4e6056482961f572058f455e8288173f5fb41706f6839cd545"
     },
     "account.connectAgent.signInFirst": {
       "by": "ai",
@@ -39449,8 +39424,8 @@
     },
     "account.notify.ownLink": {
       "by": "ai",
-      "out": "9b04a19bce1059bca55392ecf8029488759d4ff747a17e9861be88845bf42e10",
-      "src": "6f953ceecee85cfc2c0f8c0749ae4af0080887b1cd65c8fc2d5e9d3c58781379"
+      "out": "af2107d6724510d563cd8233a09fae51491f932cda8929fbc8faacfbaac05b10",
+      "src": "b83b2ce0c783330f3ad35b7d4068a6fefae9a2250ff2ff656ed45e34c4c0cd26"
     },
     "account.notify.perWorkspace": {
       "by": "ai",
@@ -40039,8 +40014,8 @@
     },
     "account.title": {
       "by": "ai",
-      "out": "50f67c2e9d040b6e5599defec1d41e17a4807f0c160a18cfa28f0070f04775c6",
-      "src": "a587aa1f4ffc501682f3874f8fae815e39a88739eb6f95830120cf4efe1d1621"
+      "out": "e5905cd5294982547d9d20d89a5ae403efddd27570f80044c50b748857705105",
+      "src": "2b363e8753b8a54b695106b388b16d9877a0f13540de789c6ba9f7f63ddd2f67"
     },
     "account.yourAccount": {
       "by": "ai",
@@ -49554,8 +49529,8 @@
     },
     "auth.addPasskey.enrolmentTitle": {
       "by": "ai",
-      "out": "c10ed884a03101f0d172ddf69a2d5abb5f1ebf0a1547b4c052b227478dcb3c86",
-      "src": "143df0e4c0bd95104ba77cee0355f826c679cf10afcb2a3bf1eec3491026616c"
+      "out": "9eca041640f227e90be37c26c5fd3dd9f7182faa4b72f33f457077c6b935bf79",
+      "src": "ccfaf84c7070491132737028b4dc8a402803b0dee92fef0f3177ce32b4a87196"
     },
     "auth.addPasskey.help": {
       "by": "ai",
@@ -50009,8 +49984,8 @@
     },
     "auth.error.passkeyNotFound": {
       "by": "ai",
-      "out": "fbf2eade987e697e807b61b15df0e9447fec3161096103c3f856aced5cb7cf03",
-      "src": "f912b85ac27edd4ef5314abb01fab3102e66f9d1478d6138dabe8517ce0f22b5"
+      "out": "ff5118453d2e264c71d070fe084ba5aa634c28375f846a83211b0f6382cd1bd6",
+      "src": "98e0f7aa9a01d2f58e5e9f77d977609b1e062b5a0f8d15eaad95d779f6bf593f"
     },
     "auth.error.passkeyOtherAccount": {
       "by": "ai",
@@ -54849,8 +54824,8 @@
     },
     "email.emailChangeCode.preheader": {
       "by": "ai",
-      "out": "c60e26c335102a05c7dde97500ef5c5c729f2fef8ced1e31550af47510862a6c",
-      "src": "a2738f523a783bcb201bd810532199d68128c97627b3f4efd077598aa4d113ee"
+      "out": "e51a1d86a79f953978dd81e2fd77c18ccfe0aa5559b7a14d14f7491f08b62060",
+      "src": "f3ccf62d8170e0ee4d7fd4f767537042e9ddb28b9737a5f4bcae6532a6b9ade3"
     },
     "email.emailChangeCode.reason": {
       "by": "ai",
@@ -54864,8 +54839,8 @@
     },
     "email.emailChangeCode.text": {
       "by": "ai",
-      "out": "b46447953ea34cafeae594d3af033a4846abcde03878a8da0dbcf732a05e87d0",
-      "src": "0513d3c33b52986f01c7b85b3cff61bcf710aee0eeef98a58ba329c0f979fefd"
+      "out": "dc7e7a99b9ed4ec633ce6217fba1c070a9b1c1286459284ee9fa3c796498f695",
+      "src": "fb148443525bf91b3de22510a3109f68147af49e87d6eec33ef639f3fb5f36dc"
     },
     "email.emailChangeConfirm.heading": {
       "by": "ai",
@@ -54889,8 +54864,8 @@
     },
     "email.emailChangeConfirm.text": {
       "by": "ai",
-      "out": "8f9ef1caf809ec0efaee675c9bde3d65c6c6512635f29fefd198c005d8efb9bc",
-      "src": "f32775ab86a0076415155e72bcbec7b37a9c7ebc51a80c7e6eac2f40b9f225eb"
+      "out": "06fc299a6e108f33ec22e4e28157b7f98518ed7db4584ff12835bdaffdc7cbb6",
+      "src": "758676b11a198108a089c2f111b7c3f5be9bd574502af1c713817203d55eda86"
     },
     "email.emailChangeRefused.heading": {
       "by": "ai",
@@ -55379,8 +55354,8 @@
     },
     "email.notificationSettings": {
       "by": "ai",
-      "out": "da9d740a53f5879ea1d3107efed809127bfdbb29fbf77fc273d644ebc7b49398",
-      "src": "8a4034f01ffc80e1540da15f47237d753a9d9300f0c72f7c391d63decca66ac0"
+      "out": "c471ce124767ac2e2afc90e307f23dfceb45d941dce48230e7e99565dac7812a",
+      "src": "84b033434e65a56c72c1d8e73215478a1eaa7b23432036a1675519183543be95"
     },
     "email.open": {
       "by": "ai",
@@ -55694,8 +55669,8 @@
     },
     "email.passkeyEnrolment.next": {
       "by": "ai",
-      "out": "9255025a877241c1ea0957129a9f089118a37d727f4be74f33f681e2ac8056fd",
-      "src": "46ad99d17fd52bf9dcd0fcc5a7e39927438f3f143597260bcdde98b16ba0086b"
+      "out": "5fab4b8aa3f1a4e4240d4b64f9b9ea8063853df62244eb93b5f70395fa3d2685",
+      "src": "9c10396fe6d5af399062b3f3bed68d4896ced739cb9cee31812ae2693b4ba60d"
     },
     "email.passkeyEnrolment.preheader": {
       "by": "ai",
@@ -55719,8 +55694,8 @@
     },
     "email.passkeysReset.next": {
       "by": "ai",
-      "out": "58f34a2051fb616c18e5f9489eff0583f7779399d4818cbe4bce5c6d582f6989",
-      "src": "68254af99920ef99453fc3bea99bd66fd8350d43425a82434d0f3267d7e679d7"
+      "out": "29a68a6330bc89304fdac12d5850b962500c8c8cc5317a7746e1723fda17abd7",
+      "src": "4ef3f7c8849b76d9ea1450ac0fd6f161961f8f5c3b575400d6434fa1fb8097c0"
     },
     "email.passkeysReset.preheader": {
       "by": "ai",
@@ -55794,8 +55769,8 @@
     },
     "email.personalKeyCreated.notYou": {
       "by": "ai",
-      "out": "b4fae879a00ccff40343fbe8f7327286b65b049a68c42376a29404cd0b1e71fd",
-      "src": "d50e6e1951a336a3fe847bd74161a6b05a99abaa13b9177dd9183cffcc2a9276"
+      "out": "836b6e9fe8861033e5e20d7330e5bf01f19ee485d3e764e355355c3e0bc7717d",
+      "src": "79b57183c03f9f9058009d19a727ab148a49d80263840fe9efefa3a6088154a5"
     },
     "email.personalKeyCreated.reason": {
       "by": "ai",
@@ -56194,8 +56169,8 @@
     },
     "email.unsubscribe.invalidText": {
       "by": "ai",
-      "out": "97d6f37f82e7ce1f98c6472ec37a33a44340bb1f8ef73729f668a5674041af19",
-      "src": "8ba582b677dce732faeb3314a947e9e183363ce3a87de6019bb1bd927ac8f65d"
+      "out": "4ceb0979b22fa0ce067be26a1be2f64e5c42731af8000d7a4ef3ec4f838d8f29",
+      "src": "ee1337b3b9c3271522ee5f2e8dc84b71c46d66e58f9f1d1950305c90ceb19860"
     },
     "email.unsubscribe.invalidTitle": {
       "by": "ai",
@@ -58649,8 +58624,8 @@
     },
     "onboarding.adminStart.agentButton": {
       "by": "ai",
-      "out": "2aff3827b2044f675e38f7163ecd456d973a4c668099508ac2177bb88784d8eb",
-      "src": "8c7c38ba207d37efe1cb507245882b32185f1cb39fb9fb9ffe9b7398fa384fd7"
+      "out": "a9054ad2e29f5865b9354400c071f757fed3217500a5937a36347dc698c6989a",
+      "src": "28b41b5cec1905826a47cecb169c9a555f4634549a3ffe8b3140f7352182819e"
     },
     "onboarding.adminStart.agentHelp": {
       "by": "ai",
@@ -60619,8 +60594,8 @@
     },
     "onboarding.frame.agent": {
       "by": "ai",
-      "out": "2aff3827b2044f675e38f7163ecd456d973a4c668099508ac2177bb88784d8eb",
-      "src": "8c7c38ba207d37efe1cb507245882b32185f1cb39fb9fb9ffe9b7398fa384fd7"
+      "out": "a9054ad2e29f5865b9354400c071f757fed3217500a5937a36347dc698c6989a",
+      "src": "28b41b5cec1905826a47cecb169c9a555f4634549a3ffe8b3140f7352182819e"
     },
     "onboarding.frame.agentTitle": {
       "by": "ai",
@@ -60974,8 +60949,8 @@
     },
     "onboarding.notify.later": {
       "by": "ai",
-      "out": "6ed0f35bdca926b84e40e6f8266f041445b0f7348191c81f000446170ac0ec2d",
-      "src": "02a7b88ca2a3ce23be72e863d0aa8b08054d3e29380c8745244eb506622af4ed"
+      "out": "8eb52aef56041b606e49ba77ec56f7e1523f3e98dd024e2720f6105ec8c230e0",
+      "src": "10d94ead101486f6eff978568530fb4d197b905168b403857a404826de5cccb1"
     },
     "onboarding.notify.lede": {
       "by": "ai",
@@ -68392,6 +68367,11 @@
       "out": "a01a5fce396edb612052db25ebeb325a72134c8369eb9c771d47ab18d8124247",
       "src": "ed077f3d8125d60dca1979c7133601bd187d47c73ed9975028f677e49e709942"
     },
+    "settings.integrations.action.opening": {
+      "by": "ai",
+      "out": "2d5bf11d9a53dfa0e4accbc4967a7e872406023638704c045e5e769a273589ad",
+      "src": "c926c2c50e65d5a5799f548604472ee8554b53c376e45be580b3a06a484d8fc0"
+    },
     "settings.integrations.app.attentionFallback": {
       "by": "ai",
       "out": "66b18194ded2a28bec56627925b682197234a8c0210ab5641eedc5c4bef2ce21",
@@ -70111,16 +70091,6 @@
       "by": "ai",
       "out": "dd16e5b45aa5e6bd2ad26270225aab19ecf713450def8f7a134bb965d4a8dcc1",
       "src": "2002f3ab1ce8d8d982699ab4f4a1b447e60fa655902f8483cdb88ffe998b4687"
-    },
-    "settings.integrations.status.noKeys": {
-      "by": "ai",
-      "out": "cfce81cfa30ea2eb339706040da15aa4332f5f8e0cfb740eb5a9b30226b5c9a7",
-      "src": "3e5039d12acddb2e949411dc48dae9efc042e3afdc6389e33f4aa714303435ee"
-    },
-    "settings.integrations.status.notConnected": {
-      "by": "ai",
-      "out": "48e64302cbfeaf1b116cc79adffe377adec26dc6e103c7f4a5bc2aa5a34b03e4",
-      "src": "0303e182467081801f8b614862519a3b174c0ae84ff08b70e7d126080c3f4b95"
     },
     "settings.integrations.status.ready": {
       "by": "ai",
@@ -72932,36 +72902,6 @@
       "out": "4814f62c108d82de42a65c515d56fc220b7fe8521510fd128919664daaa167bb",
       "src": "4814f62c108d82de42a65c515d56fc220b7fe8521510fd128919664daaa167bb"
     },
-    "settings.workspace.assistants.description": {
-      "by": "ai",
-      "out": "0d65ee810c976119b7cda114207dd1ff3c6d599edc854ce33ccc981188326e40",
-      "src": "1636d8900a04c955bd864338dba93174fe1e590756883347c1fe56f2965fa2bd"
-    },
-    "settings.workspace.assistants.empty": {
-      "by": "ai",
-      "out": "0c7ca9b37d8c77693f77b4602ddf91b459789cc6749c6c8dc7707fda94298f0b",
-      "src": "e974f679dea1abe93c1bd0d43465ca1643b6f28c28f7d7de07868eafa3f3b5e5"
-    },
-    "settings.workspace.assistants.noNumber": {
-      "by": "ai",
-      "out": "a363037c31379d5008fd47c89df9de2f619f4bc0c61223cfe6a76ea23d88ece3",
-      "src": "37c78f9ffa23e2a3c817c9160fd5d332b18ab7ae67ac804759cf9164367e4e3d"
-    },
-    "settings.workspace.assistants.open": {
-      "by": "ai",
-      "out": "741e224ba3e1536f537a174c22c2708ce149f89b281cc12b9a4bc9c25414058e",
-      "src": "a266c010f498fc9881dafbf9a9b457a52fa0d6facd107e54351063851679fca4"
-    },
-    "settings.workspace.nav.assistants.description": {
-      "by": "ai",
-      "out": "e655136fa2832fb65c4695a0a7854aa79937a658df3627685420e6edede05bf0",
-      "src": "66ffabda78f20eae1a3b7dccf03cc063b3f03ed87b06879def9696f1ae46d419"
-    },
-    "settings.workspace.nav.assistants.label": {
-      "by": "ai",
-      "out": "21173979f442c61c5f14b6cd4ca1e0521c51ebe472621b5f33cfa72f5ac2da68",
-      "src": "913101023d6a833008346268868589eed4a838d0758124d7bddc57514f91eda8"
-    },
     "settings.workspace.nav.billing.description": {
       "by": "ai",
       "out": "9df9afc0b70f0ca2e182500341e9673891797d7d92ce88725b82cc0581fff727",
@@ -73374,8 +73314,8 @@
     },
     "shell.command.goToAccountSettings": {
       "by": "ai",
-      "out": "f20628d66b35a9fa0cb44d43e2004d5a86a458ec83610b2ed52f0fa030ab9643",
-      "src": "b5c8fbb93de5714cfd42cee4587a8b5ea95d346acb50ac9d0d21a126151ff1cc"
+      "out": "67777f6831795a53c91b45418fd3e3b7dadf260d5c17d3014b99f40a4f7d3f01",
+      "src": "2be54ec760b3f952e03fc3184004ea3af537b3c04b14e7664f49bb612915d0cd"
     },
     "shell.command.goToAssignedToMe": {
       "by": "ai",
@@ -73722,6 +73662,11 @@
       "out": "910361dddbacd5b16a65d0a708bb51e63ef2a8f0f92b18dea3424a78b0224749",
       "src": "78e99a2a9817f3dfe33295d3fbc7f989c1bbc95fd1a75c27e08fdcef195dad81"
     },
+    "shell.help.buttonTip": {
+      "by": "ai",
+      "out": "a9612205a223f7299624076c4f3fe0660dad2c65cf229566148a8fec1631362b",
+      "src": "161c9d3237f0fc950dbbaed8e5cf39b505e33a951e52c80b71b4d3599b2b4fe5"
+    },
     "shell.help.everyAction": {
       "by": "ai",
       "out": "0febcd7fc759f9be3a454faad039ead8427b62176952030e686b3853fb30b746",
@@ -74047,10 +73992,15 @@
       "out": "bccc8528821c82e2fe75558638691d813b465650c13c4a25c6126658bc2f0763",
       "src": "5f5c5baf8fbc063def44db6f24aaf55282ed62e181e63c6d17a7d8852859f9a0"
     },
+    "shell.helpMenu.support": {
+      "by": "ai",
+      "out": "a75024531d6e7aeceef5e5a6ba0607653664248d4d4c3af733bae3dd7c2c6de3",
+      "src": "403151089cb1cbbd1fb0698b2815cafd80199a7a702afdf2a0421656e4232090"
+    },
     "shell.helpMenu.tip": {
       "by": "ai",
-      "out": "8b3f2cc821405e6b84cf0317570cbd2b68b6557255351e23eb597fc3431378f8",
-      "src": "44b62367b5a021f9df9505ff0d84a42d9afd5b3835aa3318d7a104353b16e205"
+      "out": "827da19067f2e6fda7e169e819de4c1e6fdd3f6a43e5058613c9c25c817542bb",
+      "src": "42592140f6d50377f1c4c99a29f5ab8c7b5ebc4aa6de9da94253542c9445cff3"
     },
     "shell.helpMenu.version": {
       "by": "ai",
@@ -74394,8 +74344,8 @@
     },
     "shell.page.account": {
       "by": "ai",
-      "out": "50f67c2e9d040b6e5599defec1d41e17a4807f0c160a18cfa28f0070f04775c6",
-      "src": "a587aa1f4ffc501682f3874f8fae815e39a88739eb6f95830120cf4efe1d1621"
+      "out": "e5905cd5294982547d9d20d89a5ae403efddd27570f80044c50b748857705105",
+      "src": "2b363e8753b8a54b695106b388b16d9877a0f13540de789c6ba9f7f63ddd2f67"
     },
     "shell.page.admin": {
       "by": "ai",
@@ -74869,8 +74819,8 @@
     },
     "shell.tour.settings.text": {
       "by": "ai",
-      "out": "bbd15c64ac21457d33e00272913cc7533cedb377abcb3ebcc7bf699ad405e38c",
-      "src": "3728f8a13afbe3016e68e9d8574b312aa9453199593ce2b3a01c8ca11763bb01"
+      "out": "0072a4e5f0c848044286108bf93d1087cff790ee500a8176dfaee657728590a0",
+      "src": "c82c7411c2de5e3eb7aaba04cb1741a15baf8c5d00f2cffb39c91b86a92d8ac2"
     },
     "shell.tour.settings.title": {
       "by": "ai",
@@ -77681,8 +77631,8 @@
     },
     "account.connectAgent.problem.tooManyKeys": {
       "by": "ai",
-      "out": "3d3bc72143973187e2da3310f0f3161bed4317c112ea2c3ccfc6cd5fa484df5b",
-      "src": "cb6fde49ca7c2a4e9f2fc48ba29a48d7eb566ff05e103ee7d1f13545a45389a3"
+      "out": "5ae354dd40f9a9842bb92d923a52b6a1579274ea4565727bfc0a6476c28fea0a",
+      "src": "ddb1350039407a93faf1e1420517f74214de3c72f334af2196d500571d7f9192"
     },
     "account.connectAgent.publishedBy": {
       "by": "ai",
@@ -77721,8 +77671,8 @@
     },
     "account.connectAgent.revokeNote": {
       "by": "ai",
-      "out": "611daba6e0e436ec3c5c3ed6fd67fb3513e6b359007b4d30aeb5759090987cdf",
-      "src": "2adac1f26467c8775178c31b260e2052b81c6b5f976ca22d9cdc10406d42b741"
+      "out": "7f52144cedba4938cdc07daf15014ea4680b1c787984a8acf680923de89d050b",
+      "src": "1772a2c0d6872f4e6056482961f572058f455e8288173f5fb41706f6839cd545"
     },
     "account.connectAgent.signInFirst": {
       "by": "ai",
@@ -78091,8 +78041,8 @@
     },
     "account.notify.ownLink": {
       "by": "ai",
-      "out": "5bc468e903b8c377cef0d67dc396194bec204df7719a8975fa74c292c3c94a38",
-      "src": "6f953ceecee85cfc2c0f8c0749ae4af0080887b1cd65c8fc2d5e9d3c58781379"
+      "out": "b5c21c0aebf5422a8c7926d326b30f19edfb56d32a9e76b3523f5c49a4b19cb6",
+      "src": "b83b2ce0c783330f3ad35b7d4068a6fefae9a2250ff2ff656ed45e34c4c0cd26"
     },
     "account.notify.perWorkspace": {
       "by": "ai",
@@ -78681,8 +78631,8 @@
     },
     "account.title": {
       "by": "ai",
-      "out": "d712518c2f9cfb09095d3d30b1fb432c5dd6f496ff8f87fa62742b88f6fd603a",
-      "src": "a587aa1f4ffc501682f3874f8fae815e39a88739eb6f95830120cf4efe1d1621"
+      "out": "518d6e5b11a51609ef765e629a408e4458061afb48621c6be93674bbfd7ec834",
+      "src": "2b363e8753b8a54b695106b388b16d9877a0f13540de789c6ba9f7f63ddd2f67"
     },
     "account.yourAccount": {
       "by": "ai",
@@ -88196,8 +88146,8 @@
     },
     "auth.addPasskey.enrolmentTitle": {
       "by": "ai",
-      "out": "ab837368d057d8f12a4b385128e6f620fecb52c0cda1da35554f0ebf2b1233f2",
-      "src": "143df0e4c0bd95104ba77cee0355f826c679cf10afcb2a3bf1eec3491026616c"
+      "out": "172b0ce834c518e8b3c92b8921448e50801c00c4aa9e49c288b976774cc25480",
+      "src": "ccfaf84c7070491132737028b4dc8a402803b0dee92fef0f3177ce32b4a87196"
     },
     "auth.addPasskey.help": {
       "by": "ai",
@@ -88651,8 +88601,8 @@
     },
     "auth.error.passkeyNotFound": {
       "by": "ai",
-      "out": "99f30d8e5a41fd7f9c6daa4d06702d87e145748f77da2cb9ce641cd381159807",
-      "src": "f912b85ac27edd4ef5314abb01fab3102e66f9d1478d6138dabe8517ce0f22b5"
+      "out": "88224cef771b2a70f5d4d77a1273edff4976da8e730de82181fa930a02551378",
+      "src": "98e0f7aa9a01d2f58e5e9f77d977609b1e062b5a0f8d15eaad95d779f6bf593f"
     },
     "auth.error.passkeyOtherAccount": {
       "by": "ai",
@@ -93491,8 +93441,8 @@
     },
     "email.emailChangeCode.preheader": {
       "by": "ai",
-      "out": "2179aa2c23868241ef1dd924a2d9a99e1f437841135119579ed87246611d80d1",
-      "src": "a2738f523a783bcb201bd810532199d68128c97627b3f4efd077598aa4d113ee"
+      "out": "e1b875f7e7f615c4bbddfb13c0b2160fe7329ec0525ffbca41286949fecb58d5",
+      "src": "f3ccf62d8170e0ee4d7fd4f767537042e9ddb28b9737a5f4bcae6532a6b9ade3"
     },
     "email.emailChangeCode.reason": {
       "by": "ai",
@@ -93506,8 +93456,8 @@
     },
     "email.emailChangeCode.text": {
       "by": "ai",
-      "out": "f026419b41a8a8cbc4a269ad27b549b219d742873204b2464b337259555cdd42",
-      "src": "0513d3c33b52986f01c7b85b3cff61bcf710aee0eeef98a58ba329c0f979fefd"
+      "out": "a4a8d4f63370637f5789ac2431f6814f86ebd5668fffc8b17c4713d26e01f587",
+      "src": "fb148443525bf91b3de22510a3109f68147af49e87d6eec33ef639f3fb5f36dc"
     },
     "email.emailChangeConfirm.heading": {
       "by": "ai",
@@ -93531,8 +93481,8 @@
     },
     "email.emailChangeConfirm.text": {
       "by": "ai",
-      "out": "f8d11ab59a953dc3a3a0c52b130c1f567408a8b925f490d427fb06d7b4fb6081",
-      "src": "f32775ab86a0076415155e72bcbec7b37a9c7ebc51a80c7e6eac2f40b9f225eb"
+      "out": "b6d404738958ddeb90656326e16489e152ba027e4e9f4b09680e980b7736d739",
+      "src": "758676b11a198108a089c2f111b7c3f5be9bd574502af1c713817203d55eda86"
     },
     "email.emailChangeRefused.heading": {
       "by": "ai",
@@ -94021,8 +93971,8 @@
     },
     "email.notificationSettings": {
       "by": "ai",
-      "out": "8e9bbe5d9c49cca579b314ca9d46825ac32a0351c1fb089a108bf7e95d0543f6",
-      "src": "8a4034f01ffc80e1540da15f47237d753a9d9300f0c72f7c391d63decca66ac0"
+      "out": "0bab1f39f3f9edf39f8b63c9c8f674fc774cb84bbd09ea2ec2f1d16e79145433",
+      "src": "84b033434e65a56c72c1d8e73215478a1eaa7b23432036a1675519183543be95"
     },
     "email.open": {
       "by": "ai",
@@ -94336,8 +94286,8 @@
     },
     "email.passkeyEnrolment.next": {
       "by": "ai",
-      "out": "ce11a1c8ebb0b26b9f2d9890e54330f46668d49587d49cec274cd213d9aa2fe2",
-      "src": "46ad99d17fd52bf9dcd0fcc5a7e39927438f3f143597260bcdde98b16ba0086b"
+      "out": "27a6efa1b52a31a3a484fac43a347331360849ba6b4b3b920356b53af30bac22",
+      "src": "9c10396fe6d5af399062b3f3bed68d4896ced739cb9cee31812ae2693b4ba60d"
     },
     "email.passkeyEnrolment.preheader": {
       "by": "ai",
@@ -94361,8 +94311,8 @@
     },
     "email.passkeysReset.next": {
       "by": "ai",
-      "out": "2419cbc9a18ac1fe0fe2491a54f99c0124f48cf42c29566ec8c0caf588b4f177",
-      "src": "68254af99920ef99453fc3bea99bd66fd8350d43425a82434d0f3267d7e679d7"
+      "out": "eedae297603fbfbb0c2d3e8485ae59556df33d338e1512c1f90c7b4e5256f032",
+      "src": "4ef3f7c8849b76d9ea1450ac0fd6f161961f8f5c3b575400d6434fa1fb8097c0"
     },
     "email.passkeysReset.preheader": {
       "by": "ai",
@@ -94436,8 +94386,8 @@
     },
     "email.personalKeyCreated.notYou": {
       "by": "ai",
-      "out": "090bea6d0a5d5c14571594c11a3643873ea4da944b64bccef8fbe71ac6c3eb97",
-      "src": "d50e6e1951a336a3fe847bd74161a6b05a99abaa13b9177dd9183cffcc2a9276"
+      "out": "dcb9df9cf0fb43d74f63ba006cbe5de7d3b5749c2a2b397a0ddb9b0e7c7832e6",
+      "src": "79b57183c03f9f9058009d19a727ab148a49d80263840fe9efefa3a6088154a5"
     },
     "email.personalKeyCreated.reason": {
       "by": "ai",
@@ -94836,8 +94786,8 @@
     },
     "email.unsubscribe.invalidText": {
       "by": "ai",
-      "out": "978389babe60d118b2cc71c03cea55dbbcb4cb99f40a2e5224d5a350af0d2377",
-      "src": "8ba582b677dce732faeb3314a947e9e183363ce3a87de6019bb1bd927ac8f65d"
+      "out": "97395e9327952cb94c54ad63bbcd902e697faaf2f29dd521b2fa7f66a8413b00",
+      "src": "ee1337b3b9c3271522ee5f2e8dc84b71c46d66e58f9f1d1950305c90ceb19860"
     },
     "email.unsubscribe.invalidTitle": {
       "by": "ai",
@@ -97291,8 +97241,8 @@
     },
     "onboarding.adminStart.agentButton": {
       "by": "ai",
-      "out": "e73c94fc0ec7b41e50cba55673126fd5f3c315128e31c1193a9c1fddb5f5b6f9",
-      "src": "8c7c38ba207d37efe1cb507245882b32185f1cb39fb9fb9ffe9b7398fa384fd7"
+      "out": "620789458342bf47f78f816847d30373c7e8607cc20084fedd325b89e52ccb10",
+      "src": "28b41b5cec1905826a47cecb169c9a555f4634549a3ffe8b3140f7352182819e"
     },
     "onboarding.adminStart.agentHelp": {
       "by": "ai",
@@ -99261,8 +99211,8 @@
     },
     "onboarding.frame.agent": {
       "by": "ai",
-      "out": "e73c94fc0ec7b41e50cba55673126fd5f3c315128e31c1193a9c1fddb5f5b6f9",
-      "src": "8c7c38ba207d37efe1cb507245882b32185f1cb39fb9fb9ffe9b7398fa384fd7"
+      "out": "620789458342bf47f78f816847d30373c7e8607cc20084fedd325b89e52ccb10",
+      "src": "28b41b5cec1905826a47cecb169c9a555f4634549a3ffe8b3140f7352182819e"
     },
     "onboarding.frame.agentTitle": {
       "by": "ai",
@@ -99616,8 +99566,8 @@
     },
     "onboarding.notify.later": {
       "by": "ai",
-      "out": "0daf6cdb906eb06426d16452f80dc87be6cf0f6ce7815052d0b1c8b7335367c2",
-      "src": "02a7b88ca2a3ce23be72e863d0aa8b08054d3e29380c8745244eb506622af4ed"
+      "out": "943f0572bc310665be375b09c432cda7575e2c4e2b054ef588746c300a40d8ba",
+      "src": "10d94ead101486f6eff978568530fb4d197b905168b403857a404826de5cccb1"
     },
     "onboarding.notify.lede": {
       "by": "ai",
@@ -107034,6 +106984,11 @@
       "out": "9fb440435a0466471535fbd53edeba3bfb5abf47f12a7890ef30b67606558a7e",
       "src": "ed077f3d8125d60dca1979c7133601bd187d47c73ed9975028f677e49e709942"
     },
+    "settings.integrations.action.opening": {
+      "by": "ai",
+      "out": "3806c054832bfea92b3709316d178d0d997c269bdfe4fd2ae152be558cac7ab7",
+      "src": "c926c2c50e65d5a5799f548604472ee8554b53c376e45be580b3a06a484d8fc0"
+    },
     "settings.integrations.app.attentionFallback": {
       "by": "ai",
       "out": "2ecd63baa42c0016da519eaad5481536c423e033a5dc7921fae5d75a47408848",
@@ -108753,16 +108708,6 @@
       "by": "ai",
       "out": "09f19105f923307c0c7278e4128f22d0306a56bb010f7d81c8f2052bc9c31c62",
       "src": "2002f3ab1ce8d8d982699ab4f4a1b447e60fa655902f8483cdb88ffe998b4687"
-    },
-    "settings.integrations.status.noKeys": {
-      "by": "ai",
-      "out": "f063c589520c144cd310b2523ad3d1440bb070b6ad1893541b73c93f4670909c",
-      "src": "3e5039d12acddb2e949411dc48dae9efc042e3afdc6389e33f4aa714303435ee"
-    },
-    "settings.integrations.status.notConnected": {
-      "by": "ai",
-      "out": "28329b3e03268ef6c2abc5bfa71326378dad4155efb7846d65c3104baf62afb2",
-      "src": "0303e182467081801f8b614862519a3b174c0ae84ff08b70e7d126080c3f4b95"
     },
     "settings.integrations.status.ready": {
       "by": "ai",
@@ -111574,36 +111519,6 @@
       "out": "4814f62c108d82de42a65c515d56fc220b7fe8521510fd128919664daaa167bb",
       "src": "4814f62c108d82de42a65c515d56fc220b7fe8521510fd128919664daaa167bb"
     },
-    "settings.workspace.assistants.description": {
-      "by": "ai",
-      "out": "b64d2f228b71e96bd9854e8a82c851223d907de9a334baef07d8ba97997326fa",
-      "src": "1636d8900a04c955bd864338dba93174fe1e590756883347c1fe56f2965fa2bd"
-    },
-    "settings.workspace.assistants.empty": {
-      "by": "ai",
-      "out": "b4b727a3f49194041e28f10431b25aefa7cfb7fb01ef43969d39b48003789f1c",
-      "src": "e974f679dea1abe93c1bd0d43465ca1643b6f28c28f7d7de07868eafa3f3b5e5"
-    },
-    "settings.workspace.assistants.noNumber": {
-      "by": "ai",
-      "out": "e9cb0e6d61e8af9b0912cc117530901ace56bf6621c128b75ca3fbc560fa31cb",
-      "src": "37c78f9ffa23e2a3c817c9160fd5d332b18ab7ae67ac804759cf9164367e4e3d"
-    },
-    "settings.workspace.assistants.open": {
-      "by": "ai",
-      "out": "502110de34f39abb4f788ad1aaf7da5c2790840feb272cd87c54c18bfffa761b",
-      "src": "a266c010f498fc9881dafbf9a9b457a52fa0d6facd107e54351063851679fca4"
-    },
-    "settings.workspace.nav.assistants.description": {
-      "by": "ai",
-      "out": "3c5c76384f3138ee87011c2c36c1b8596e0a4c98e6c9111d4034d3e3bee15635",
-      "src": "66ffabda78f20eae1a3b7dccf03cc063b3f03ed87b06879def9696f1ae46d419"
-    },
-    "settings.workspace.nav.assistants.label": {
-      "by": "ai",
-      "out": "913101023d6a833008346268868589eed4a838d0758124d7bddc57514f91eda8",
-      "src": "913101023d6a833008346268868589eed4a838d0758124d7bddc57514f91eda8"
-    },
     "settings.workspace.nav.billing.description": {
       "by": "ai",
       "out": "19d37c9b9c0ff9b7720607c3796ecfa92e3bcb89192936a2f9fba19f78cf95cb",
@@ -112016,8 +111931,8 @@
     },
     "shell.command.goToAccountSettings": {
       "by": "ai",
-      "out": "9c82d542ce89fde230c1d64f6dd53bba354ed32ec47601a88dd09933f81d779b",
-      "src": "b5c8fbb93de5714cfd42cee4587a8b5ea95d346acb50ac9d0d21a126151ff1cc"
+      "out": "d3bec75c137c0561713413519987eb4ea282a90c3812f1379bcc6a722bdcedad",
+      "src": "2be54ec760b3f952e03fc3184004ea3af537b3c04b14e7664f49bb612915d0cd"
     },
     "shell.command.goToAssignedToMe": {
       "by": "ai",
@@ -112364,6 +112279,11 @@
       "out": "b2196b93a7b827970d3efde5e94d875229e7eed305787143c4b680c78d896719",
       "src": "78e99a2a9817f3dfe33295d3fbc7f989c1bbc95fd1a75c27e08fdcef195dad81"
     },
+    "shell.help.buttonTip": {
+      "by": "ai",
+      "out": "d64cc8bc13ffb59f0bcfca6a1768459e5f74c0e7cd48a4ee1dd1901f7cfe1768",
+      "src": "161c9d3237f0fc950dbbaed8e5cf39b505e33a951e52c80b71b4d3599b2b4fe5"
+    },
     "shell.help.everyAction": {
       "by": "ai",
       "out": "42ba01a82df3c1535638e8370e8be32ce2c07e14cdec445fef69d73613105652",
@@ -112689,10 +112609,15 @@
       "out": "be081dcd374ffe9aac03c6bf903a12473b3b2a41381b47d9e6231fcb7f5e9bf9",
       "src": "5f5c5baf8fbc063def44db6f24aaf55282ed62e181e63c6d17a7d8852859f9a0"
     },
+    "shell.helpMenu.support": {
+      "by": "ai",
+      "out": "fa1aabc469457857cf4a75bf25c7f03466b4f6a57bdc017bb7e311d8461b9fc7",
+      "src": "403151089cb1cbbd1fb0698b2815cafd80199a7a702afdf2a0421656e4232090"
+    },
     "shell.helpMenu.tip": {
       "by": "ai",
-      "out": "597d9d7e02f6308f88469fbeee5c75d8dbe73c715540297f82aca7823be9541f",
-      "src": "44b62367b5a021f9df9505ff0d84a42d9afd5b3835aa3318d7a104353b16e205"
+      "out": "063deedc33a436e9979686d36dd34c15cb15bab86308b3f6153972cc58403193",
+      "src": "42592140f6d50377f1c4c99a29f5ab8c7b5ebc4aa6de9da94253542c9445cff3"
     },
     "shell.helpMenu.version": {
       "by": "ai",
@@ -113036,8 +112961,8 @@
     },
     "shell.page.account": {
       "by": "ai",
-      "out": "d712518c2f9cfb09095d3d30b1fb432c5dd6f496ff8f87fa62742b88f6fd603a",
-      "src": "a587aa1f4ffc501682f3874f8fae815e39a88739eb6f95830120cf4efe1d1621"
+      "out": "518d6e5b11a51609ef765e629a408e4458061afb48621c6be93674bbfd7ec834",
+      "src": "2b363e8753b8a54b695106b388b16d9877a0f13540de789c6ba9f7f63ddd2f67"
     },
     "shell.page.admin": {
       "by": "ai",
@@ -113511,8 +113436,8 @@
     },
     "shell.tour.settings.text": {
       "by": "ai",
-      "out": "ecc2ddf387d9f187d79cc04320c87130c51b880992b88b9f7986fc571207bca9",
-      "src": "3728f8a13afbe3016e68e9d8574b312aa9453199593ce2b3a01c8ca11763bb01"
+      "out": "d3a08a28f9e879a434da8d3460b3b1d1931ee28bbc4ce792acef4e05f54fda3e",
+      "src": "c82c7411c2de5e3eb7aaba04cb1741a15baf8c5d00f2cffb39c91b86a92d8ac2"
     },
     "shell.tour.settings.title": {
       "by": "ai",
@@ -116323,8 +116248,8 @@
     },
     "account.connectAgent.problem.tooManyKeys": {
       "by": "ai",
-      "out": "e92d07b777fb6343973fc3c9f49e65b9c7b6f06d2be820e966c93b83995b27c7",
-      "src": "cb6fde49ca7c2a4e9f2fc48ba29a48d7eb566ff05e103ee7d1f13545a45389a3"
+      "out": "547187de977495fc8e757afd66cf13dd3dc1855ccd7b3acb17a941e9150bb423",
+      "src": "ddb1350039407a93faf1e1420517f74214de3c72f334af2196d500571d7f9192"
     },
     "account.connectAgent.publishedBy": {
       "by": "ai",
@@ -116363,8 +116288,8 @@
     },
     "account.connectAgent.revokeNote": {
       "by": "ai",
-      "out": "57d306aa4093625bc99f8eb3aef1a5b969f95286837447c9e183cf20e1dbaa40",
-      "src": "2adac1f26467c8775178c31b260e2052b81c6b5f976ca22d9cdc10406d42b741"
+      "out": "81c8840c4d5e71a4f8f1642a321b106167a2ded29591c209bdc57d296cf6b354",
+      "src": "1772a2c0d6872f4e6056482961f572058f455e8288173f5fb41706f6839cd545"
     },
     "account.connectAgent.signInFirst": {
       "by": "ai",
@@ -116733,8 +116658,8 @@
     },
     "account.notify.ownLink": {
       "by": "ai",
-      "out": "11d5ba7f698e6f52af09858424b5772562b097e955837576f30a7c124ee36b5d",
-      "src": "6f953ceecee85cfc2c0f8c0749ae4af0080887b1cd65c8fc2d5e9d3c58781379"
+      "out": "0d048def14e88743c3ac18b15dfc2a2f0c0eab1338a3ce364ea1de9956e8ce74",
+      "src": "b83b2ce0c783330f3ad35b7d4068a6fefae9a2250ff2ff656ed45e34c4c0cd26"
     },
     "account.notify.perWorkspace": {
       "by": "ai",
@@ -117323,8 +117248,8 @@
     },
     "account.title": {
       "by": "ai",
-      "out": "11d27257f1bf5a0d0a86334910d260510c71344258aa4f99d9198322a6ba7643",
-      "src": "a587aa1f4ffc501682f3874f8fae815e39a88739eb6f95830120cf4efe1d1621"
+      "out": "865b628281834c21094fc0c5a5c5df39e95a1071b052bb40936cbc81fd31d010",
+      "src": "2b363e8753b8a54b695106b388b16d9877a0f13540de789c6ba9f7f63ddd2f67"
     },
     "account.yourAccount": {
       "by": "ai",
@@ -126838,8 +126763,8 @@
     },
     "auth.addPasskey.enrolmentTitle": {
       "by": "ai",
-      "out": "f14e0ebdc22fa7c117a17e4e09fc2e3fec5495d4389c645b0c6dfde5cdace46c",
-      "src": "143df0e4c0bd95104ba77cee0355f826c679cf10afcb2a3bf1eec3491026616c"
+      "out": "0909ae63009bb0bf601854a7b35ac9bc87789a82a4388499f62499c9fd29709d",
+      "src": "ccfaf84c7070491132737028b4dc8a402803b0dee92fef0f3177ce32b4a87196"
     },
     "auth.addPasskey.help": {
       "by": "ai",
@@ -127293,8 +127218,8 @@
     },
     "auth.error.passkeyNotFound": {
       "by": "ai",
-      "out": "a5efb1d1da7cdac0e2e96e296827cdcdbdb6fbb20cde602150e41d6a017a5047",
-      "src": "f912b85ac27edd4ef5314abb01fab3102e66f9d1478d6138dabe8517ce0f22b5"
+      "out": "44348bacc8adb89e1b1c4da169f4e78cde5d2e8af1ccf60913828359ad683cce",
+      "src": "98e0f7aa9a01d2f58e5e9f77d977609b1e062b5a0f8d15eaad95d779f6bf593f"
     },
     "auth.error.passkeyOtherAccount": {
       "by": "ai",
@@ -132133,8 +132058,8 @@
     },
     "email.emailChangeCode.preheader": {
       "by": "ai",
-      "out": "2ad1776712d429ca3dcfa3453949a2f64dac5507f208b075a2825958f10df78e",
-      "src": "a2738f523a783bcb201bd810532199d68128c97627b3f4efd077598aa4d113ee"
+      "out": "750a9faf1c504a71d39801dd7e1afc5c8c367264e937b314107a869242c26e44",
+      "src": "f3ccf62d8170e0ee4d7fd4f767537042e9ddb28b9737a5f4bcae6532a6b9ade3"
     },
     "email.emailChangeCode.reason": {
       "by": "ai",
@@ -132148,8 +132073,8 @@
     },
     "email.emailChangeCode.text": {
       "by": "ai",
-      "out": "fbc20e6272aaf9fcc70a6f168b99ce47f6c871173046127c5d05d634b6ad9096",
-      "src": "0513d3c33b52986f01c7b85b3cff61bcf710aee0eeef98a58ba329c0f979fefd"
+      "out": "283e87264d6338893c44d537db33d2dc12677665979b1f9aa9418ae3e26b3112",
+      "src": "fb148443525bf91b3de22510a3109f68147af49e87d6eec33ef639f3fb5f36dc"
     },
     "email.emailChangeConfirm.heading": {
       "by": "ai",
@@ -132173,8 +132098,8 @@
     },
     "email.emailChangeConfirm.text": {
       "by": "ai",
-      "out": "3556e29c9fb154b4b267607d3f13c5576e455595b3ae92ada8d4ddae4e7890fe",
-      "src": "f32775ab86a0076415155e72bcbec7b37a9c7ebc51a80c7e6eac2f40b9f225eb"
+      "out": "f2469e36ac8fac19e1a90495dc6f2995224d9160e937da49487228c0ac211d0a",
+      "src": "758676b11a198108a089c2f111b7c3f5be9bd574502af1c713817203d55eda86"
     },
     "email.emailChangeRefused.heading": {
       "by": "ai",
@@ -132663,8 +132588,8 @@
     },
     "email.notificationSettings": {
       "by": "ai",
-      "out": "eb152ed360e28cd778dfc9877871e54316db668523c538239fdc35b717ed887b",
-      "src": "8a4034f01ffc80e1540da15f47237d753a9d9300f0c72f7c391d63decca66ac0"
+      "out": "bfc41bfa994a68bcd84fbcb152f67831d412795b4d86a68c5316bc6fcf8a72a5",
+      "src": "84b033434e65a56c72c1d8e73215478a1eaa7b23432036a1675519183543be95"
     },
     "email.open": {
       "by": "ai",
@@ -132978,8 +132903,8 @@
     },
     "email.passkeyEnrolment.next": {
       "by": "ai",
-      "out": "7e08ef0a32e6692e49d6bc00318a277cf23790ed07449a8128e167d4acc77540",
-      "src": "46ad99d17fd52bf9dcd0fcc5a7e39927438f3f143597260bcdde98b16ba0086b"
+      "out": "0e4892a1900d46f7d23c2db55c495eb67a159aa17526d3da5a817f02326d98b0",
+      "src": "9c10396fe6d5af399062b3f3bed68d4896ced739cb9cee31812ae2693b4ba60d"
     },
     "email.passkeyEnrolment.preheader": {
       "by": "ai",
@@ -133003,8 +132928,8 @@
     },
     "email.passkeysReset.next": {
       "by": "ai",
-      "out": "2d93f960e9be7189d47179c7eba316278b9cf4f2f19307cbfe4628f3505ee1e4",
-      "src": "68254af99920ef99453fc3bea99bd66fd8350d43425a82434d0f3267d7e679d7"
+      "out": "4c26ce9d6c4c25dd7a5e79071a7c64898e0da92d9aa73952cc483e3b4f2dde2e",
+      "src": "4ef3f7c8849b76d9ea1450ac0fd6f161961f8f5c3b575400d6434fa1fb8097c0"
     },
     "email.passkeysReset.preheader": {
       "by": "ai",
@@ -133078,8 +133003,8 @@
     },
     "email.personalKeyCreated.notYou": {
       "by": "ai",
-      "out": "d269ec5add3bed65545722286de1d004708f491f61daec88717329b1bb393bc9",
-      "src": "d50e6e1951a336a3fe847bd74161a6b05a99abaa13b9177dd9183cffcc2a9276"
+      "out": "87c3b12abffe09dacaf90a4b456b10f1c9c209285366dee66141806a08612919",
+      "src": "79b57183c03f9f9058009d19a727ab148a49d80263840fe9efefa3a6088154a5"
     },
     "email.personalKeyCreated.reason": {
       "by": "ai",
@@ -133478,8 +133403,8 @@
     },
     "email.unsubscribe.invalidText": {
       "by": "ai",
-      "out": "dca93f26b5eb80b3ba0bb236022c62e3ecc20d24bb37d189bfae8167a00ce4ee",
-      "src": "8ba582b677dce732faeb3314a947e9e183363ce3a87de6019bb1bd927ac8f65d"
+      "out": "8e36eb5e2be6c1099075d1c0c72401fffb271690fb44d2ddd0f746e9ddf5b547",
+      "src": "ee1337b3b9c3271522ee5f2e8dc84b71c46d66e58f9f1d1950305c90ceb19860"
     },
     "email.unsubscribe.invalidTitle": {
       "by": "ai",
@@ -135933,8 +135858,8 @@
     },
     "onboarding.adminStart.agentButton": {
       "by": "ai",
-      "out": "0bedaa530e6af9786eb715202b43f3a42ea9c8d039d7f28befbd45dc3b640d39",
-      "src": "8c7c38ba207d37efe1cb507245882b32185f1cb39fb9fb9ffe9b7398fa384fd7"
+      "out": "93ab9bf2e9bd8f5c9ed2328fcaea952117e34dcc245e1c191966ea164d9b87a0",
+      "src": "28b41b5cec1905826a47cecb169c9a555f4634549a3ffe8b3140f7352182819e"
     },
     "onboarding.adminStart.agentHelp": {
       "by": "ai",
@@ -137903,8 +137828,8 @@
     },
     "onboarding.frame.agent": {
       "by": "ai",
-      "out": "0bedaa530e6af9786eb715202b43f3a42ea9c8d039d7f28befbd45dc3b640d39",
-      "src": "8c7c38ba207d37efe1cb507245882b32185f1cb39fb9fb9ffe9b7398fa384fd7"
+      "out": "93ab9bf2e9bd8f5c9ed2328fcaea952117e34dcc245e1c191966ea164d9b87a0",
+      "src": "28b41b5cec1905826a47cecb169c9a555f4634549a3ffe8b3140f7352182819e"
     },
     "onboarding.frame.agentTitle": {
       "by": "ai",
@@ -138258,8 +138183,8 @@
     },
     "onboarding.notify.later": {
       "by": "ai",
-      "out": "3ef7134c1a8ee6b2330ea77335b901845a30e487e2f0b82c685bb7620fb0e63e",
-      "src": "02a7b88ca2a3ce23be72e863d0aa8b08054d3e29380c8745244eb506622af4ed"
+      "out": "ebb38793b2bf6cfcf28c4abb7d938ef1b4cb89fbb29e8165acbf807087d89ccb",
+      "src": "10d94ead101486f6eff978568530fb4d197b905168b403857a404826de5cccb1"
     },
     "onboarding.notify.lede": {
       "by": "ai",
@@ -145676,6 +145601,11 @@
       "out": "3aa692fcaae417d44b41e4a0b7794cd62239768343a425c68887d6de0f45b13e",
       "src": "ed077f3d8125d60dca1979c7133601bd187d47c73ed9975028f677e49e709942"
     },
+    "settings.integrations.action.opening": {
+      "by": "ai",
+      "out": "d4f923bce01974bc9f6a04d9c32e63e5c470f228c2657002b35ed394753ee79d",
+      "src": "c926c2c50e65d5a5799f548604472ee8554b53c376e45be580b3a06a484d8fc0"
+    },
     "settings.integrations.app.attentionFallback": {
       "by": "ai",
       "out": "9d0faeeb9da466336b16a6b25a570f8a52aed9de4490b38cdf409c80f5235366",
@@ -147395,16 +147325,6 @@
       "by": "ai",
       "out": "7a15865b01dd79ed5f9f581b7177fcd57457048fc30e03e6d42972173ab777ce",
       "src": "2002f3ab1ce8d8d982699ab4f4a1b447e60fa655902f8483cdb88ffe998b4687"
-    },
-    "settings.integrations.status.noKeys": {
-      "by": "ai",
-      "out": "b05c23619614c493c49c0bb4c91469ca46e93ab283b37084389f88ecb6db038a",
-      "src": "3e5039d12acddb2e949411dc48dae9efc042e3afdc6389e33f4aa714303435ee"
-    },
-    "settings.integrations.status.notConnected": {
-      "by": "ai",
-      "out": "2303507cc0a35e6ed75b83fa7d82340a63234c41c65799c7fdbf0c4feeaf9a95",
-      "src": "0303e182467081801f8b614862519a3b174c0ae84ff08b70e7d126080c3f4b95"
     },
     "settings.integrations.status.ready": {
       "by": "ai",
@@ -150216,36 +150136,6 @@
       "out": "4814f62c108d82de42a65c515d56fc220b7fe8521510fd128919664daaa167bb",
       "src": "4814f62c108d82de42a65c515d56fc220b7fe8521510fd128919664daaa167bb"
     },
-    "settings.workspace.assistants.description": {
-      "by": "ai",
-      "out": "80ea04847b5772e1350b50699bd6ff7910f781979efb785e05de5a8425cacb06",
-      "src": "1636d8900a04c955bd864338dba93174fe1e590756883347c1fe56f2965fa2bd"
-    },
-    "settings.workspace.assistants.empty": {
-      "by": "ai",
-      "out": "cb78c2e3621b7e79065de1a24e2e30473d66e72225a7a63227f3615585b003a5",
-      "src": "e974f679dea1abe93c1bd0d43465ca1643b6f28c28f7d7de07868eafa3f3b5e5"
-    },
-    "settings.workspace.assistants.noNumber": {
-      "by": "ai",
-      "out": "1b0f75f1b0a4375199f8d7143ecb9af0681b015060695b74e8fcac5c8a4030b8",
-      "src": "37c78f9ffa23e2a3c817c9160fd5d332b18ab7ae67ac804759cf9164367e4e3d"
-    },
-    "settings.workspace.assistants.open": {
-      "by": "ai",
-      "out": "45da7145dcb557b8a502db538e40576e78227a82498a2b0056e7f7e774998222",
-      "src": "a266c010f498fc9881dafbf9a9b457a52fa0d6facd107e54351063851679fca4"
-    },
-    "settings.workspace.nav.assistants.description": {
-      "by": "ai",
-      "out": "3e2ee7d6c930d43b440dac1bbd120543a712ff628e5335c471b3cc986d4591b4",
-      "src": "66ffabda78f20eae1a3b7dccf03cc063b3f03ed87b06879def9696f1ae46d419"
-    },
-    "settings.workspace.nav.assistants.label": {
-      "by": "ai",
-      "out": "5b4bd8fa892cfaf0887a465d56f51e887a29bbc903af7fd2656c7190a72c810d",
-      "src": "913101023d6a833008346268868589eed4a838d0758124d7bddc57514f91eda8"
-    },
     "settings.workspace.nav.billing.description": {
       "by": "ai",
       "out": "19a0ae51971da087d0cc6a86cd4c8c9d3109b5bbf72b16a2f0e7c370c7c90f07",
@@ -150658,8 +150548,8 @@
     },
     "shell.command.goToAccountSettings": {
       "by": "ai",
-      "out": "61ec044c6b4e569e4f7efa2d502f4d90b06896c3ceb0bba086d03b5fd2a042a6",
-      "src": "b5c8fbb93de5714cfd42cee4587a8b5ea95d346acb50ac9d0d21a126151ff1cc"
+      "out": "57fef2f799b155fd54ef3290e5235bd90f77d7fb5ce551026d00e49f9b27b65c",
+      "src": "2be54ec760b3f952e03fc3184004ea3af537b3c04b14e7664f49bb612915d0cd"
     },
     "shell.command.goToAssignedToMe": {
       "by": "ai",
@@ -151006,6 +150896,11 @@
       "out": "8c5a5878857c95ca5bf6602d22da21bb2eb6fb8e0d7dc0b164545e76108a0508",
       "src": "78e99a2a9817f3dfe33295d3fbc7f989c1bbc95fd1a75c27e08fdcef195dad81"
     },
+    "shell.help.buttonTip": {
+      "by": "ai",
+      "out": "ef85e855cfb0380cd4df357cb25739ac091d9d83197b5a0336aecd828c5cb71d",
+      "src": "161c9d3237f0fc950dbbaed8e5cf39b505e33a951e52c80b71b4d3599b2b4fe5"
+    },
     "shell.help.everyAction": {
       "by": "ai",
       "out": "58b285b31e50c64f5eded34e58e4b0875804d11e2b06881bea9e1e1cb218b0c3",
@@ -151331,10 +151226,15 @@
       "out": "3c2440f4e04c921e290ea66fcf69243ca1017bfcdcf86e3514a8809524e0f0bd",
       "src": "5f5c5baf8fbc063def44db6f24aaf55282ed62e181e63c6d17a7d8852859f9a0"
     },
+    "shell.helpMenu.support": {
+      "by": "ai",
+      "out": "1fea003fdc354572e191327b150ed6e70f174540b5303f22cb6d48165aafe37a",
+      "src": "403151089cb1cbbd1fb0698b2815cafd80199a7a702afdf2a0421656e4232090"
+    },
     "shell.helpMenu.tip": {
       "by": "ai",
-      "out": "26afefa206c5544a7b8affa6ac2746c5890ebc68a4c9b050103c08efe81d3814",
-      "src": "44b62367b5a021f9df9505ff0d84a42d9afd5b3835aa3318d7a104353b16e205"
+      "out": "a73f54e7f858dade1d8418c1936fd4c724bb933fc497e49e1f7a88fd91c2df78",
+      "src": "42592140f6d50377f1c4c99a29f5ab8c7b5ebc4aa6de9da94253542c9445cff3"
     },
     "shell.helpMenu.version": {
       "by": "ai",
@@ -151678,8 +151578,8 @@
     },
     "shell.page.account": {
       "by": "ai",
-      "out": "11d27257f1bf5a0d0a86334910d260510c71344258aa4f99d9198322a6ba7643",
-      "src": "a587aa1f4ffc501682f3874f8fae815e39a88739eb6f95830120cf4efe1d1621"
+      "out": "865b628281834c21094fc0c5a5c5df39e95a1071b052bb40936cbc81fd31d010",
+      "src": "2b363e8753b8a54b695106b388b16d9877a0f13540de789c6ba9f7f63ddd2f67"
     },
     "shell.page.admin": {
       "by": "ai",
@@ -152153,8 +152053,8 @@
     },
     "shell.tour.settings.text": {
       "by": "ai",
-      "out": "878b8844ab06378f596303b8046901015b8decc39c8a37a1af1054655bab9171",
-      "src": "3728f8a13afbe3016e68e9d8574b312aa9453199593ce2b3a01c8ca11763bb01"
+      "out": "496b498e0e997c89ef3edb90012d81ce260a0a22c2ca8c004a3b638e5a488589",
+      "src": "c82c7411c2de5e3eb7aaba04cb1741a15baf8c5d00f2cffb39c91b86a92d8ac2"
     },
     "shell.tour.settings.title": {
       "by": "ai",
@@ -154965,8 +154865,8 @@
     },
     "account.connectAgent.problem.tooManyKeys": {
       "by": "ai",
-      "out": "322953558fe57fcdd4486f301d210794e3548b88532f5fc0e1b5aae63d278e4a",
-      "src": "cb6fde49ca7c2a4e9f2fc48ba29a48d7eb566ff05e103ee7d1f13545a45389a3"
+      "out": "ceaf5924c679b0f1ac246f4d785e90d64e9e4871165e0ea44c1d83f62e3c118f",
+      "src": "ddb1350039407a93faf1e1420517f74214de3c72f334af2196d500571d7f9192"
     },
     "account.connectAgent.publishedBy": {
       "by": "ai",
@@ -155005,8 +154905,8 @@
     },
     "account.connectAgent.revokeNote": {
       "by": "ai",
-      "out": "c4d06ed38fbff5086b1307c771a75b195839fcac325333110eb620733916898d",
-      "src": "2adac1f26467c8775178c31b260e2052b81c6b5f976ca22d9cdc10406d42b741"
+      "out": "bf5748e14d800ea9df3630a16d9a11adbd491cdc0d5a2387b78bc5ed119e30b5",
+      "src": "1772a2c0d6872f4e6056482961f572058f455e8288173f5fb41706f6839cd545"
     },
     "account.connectAgent.signInFirst": {
       "by": "ai",
@@ -155375,8 +155275,8 @@
     },
     "account.notify.ownLink": {
       "by": "ai",
-      "out": "295b5ded18408217115c6c111644c0d29519fe26f3527c66666fb2c0f9d82fd8",
-      "src": "6f953ceecee85cfc2c0f8c0749ae4af0080887b1cd65c8fc2d5e9d3c58781379"
+      "out": "78b34c9d3483b18bba97a8499387b0cf643c797dd60af60d4cfa6355be3358e6",
+      "src": "b83b2ce0c783330f3ad35b7d4068a6fefae9a2250ff2ff656ed45e34c4c0cd26"
     },
     "account.notify.perWorkspace": {
       "by": "ai",
@@ -155965,8 +155865,8 @@
     },
     "account.title": {
       "by": "ai",
-      "out": "0173efe9c84402517038df14f95cf06df523f12d87febe51deb410a99d8a62f8",
-      "src": "a587aa1f4ffc501682f3874f8fae815e39a88739eb6f95830120cf4efe1d1621"
+      "out": "b9411d22b3919fc2408c694a9cd034529474bedab0e3f18f33e1411ac370cfea",
+      "src": "2b363e8753b8a54b695106b388b16d9877a0f13540de789c6ba9f7f63ddd2f67"
     },
     "account.yourAccount": {
       "by": "ai",
@@ -165480,8 +165380,8 @@
     },
     "auth.addPasskey.enrolmentTitle": {
       "by": "ai",
-      "out": "dee2732d151d01a9285e2eb054e76e35735c80ff707f9647052e853365736471",
-      "src": "143df0e4c0bd95104ba77cee0355f826c679cf10afcb2a3bf1eec3491026616c"
+      "out": "435b53c09e0afe1529d673cb8617488db6c99798daae9df7556f96e732f91286",
+      "src": "ccfaf84c7070491132737028b4dc8a402803b0dee92fef0f3177ce32b4a87196"
     },
     "auth.addPasskey.help": {
       "by": "ai",
@@ -165935,8 +165835,8 @@
     },
     "auth.error.passkeyNotFound": {
       "by": "ai",
-      "out": "82b742403e4db7a74089c6b8f8a3d387c46da8b1ebece1e696ebe565952fac0a",
-      "src": "f912b85ac27edd4ef5314abb01fab3102e66f9d1478d6138dabe8517ce0f22b5"
+      "out": "e7813249a6c79b6864809cfa3fb445be5f86b31cf6dba29f561b714d14c5b458",
+      "src": "98e0f7aa9a01d2f58e5e9f77d977609b1e062b5a0f8d15eaad95d779f6bf593f"
     },
     "auth.error.passkeyOtherAccount": {
       "by": "ai",
@@ -170775,8 +170675,8 @@
     },
     "email.emailChangeCode.preheader": {
       "by": "ai",
-      "out": "51664f1e490418db0f395d1476c647f4139dc22ebda3582f0cb3f58217855d88",
-      "src": "a2738f523a783bcb201bd810532199d68128c97627b3f4efd077598aa4d113ee"
+      "out": "de7eed2a6d9fd73f6fa3ab748de94ce1b9f2afa848b571801f33fc1711716018",
+      "src": "f3ccf62d8170e0ee4d7fd4f767537042e9ddb28b9737a5f4bcae6532a6b9ade3"
     },
     "email.emailChangeCode.reason": {
       "by": "ai",
@@ -170790,8 +170690,8 @@
     },
     "email.emailChangeCode.text": {
       "by": "ai",
-      "out": "f7a112e0e55b4d5f7fd60c44fbc489560923ce4187ca37da119dbc1f90a104bc",
-      "src": "0513d3c33b52986f01c7b85b3cff61bcf710aee0eeef98a58ba329c0f979fefd"
+      "out": "f050ba23b25bbd6e0fdfa48cb02ac17e6ebb3027cbc0f04f9093b0a900d4a734",
+      "src": "fb148443525bf91b3de22510a3109f68147af49e87d6eec33ef639f3fb5f36dc"
     },
     "email.emailChangeConfirm.heading": {
       "by": "ai",
@@ -170815,8 +170715,8 @@
     },
     "email.emailChangeConfirm.text": {
       "by": "ai",
-      "out": "6847bd2acc4f8e7a58909ac7252d385220cb41af62a75c35bb4ec9db0ba71a9d",
-      "src": "f32775ab86a0076415155e72bcbec7b37a9c7ebc51a80c7e6eac2f40b9f225eb"
+      "out": "5224d70ef52cb81a21e4c02ba28c2e7a2d483a5df940b8515d2968366c408185",
+      "src": "758676b11a198108a089c2f111b7c3f5be9bd574502af1c713817203d55eda86"
     },
     "email.emailChangeRefused.heading": {
       "by": "ai",
@@ -171305,8 +171205,8 @@
     },
     "email.notificationSettings": {
       "by": "ai",
-      "out": "1ccc891f9e0ef9cbdcd8dd9bb47cb6f263162ac6b3c0527fc44d411998572648",
-      "src": "8a4034f01ffc80e1540da15f47237d753a9d9300f0c72f7c391d63decca66ac0"
+      "out": "9c800cc1b146390f1b65c78ee5d5a16fcee564f325f4ee4b3504e226012909f9",
+      "src": "84b033434e65a56c72c1d8e73215478a1eaa7b23432036a1675519183543be95"
     },
     "email.open": {
       "by": "ai",
@@ -171620,8 +171520,8 @@
     },
     "email.passkeyEnrolment.next": {
       "by": "ai",
-      "out": "48bf6b8605ce0acbe8821da7f7126970fd5bbfd58f4ec751e78a0549aa9c89bc",
-      "src": "46ad99d17fd52bf9dcd0fcc5a7e39927438f3f143597260bcdde98b16ba0086b"
+      "out": "efd9e9c63c1fd5471ca2a6d0901ef103537a5680030b626694a8612c1622ef0c",
+      "src": "9c10396fe6d5af399062b3f3bed68d4896ced739cb9cee31812ae2693b4ba60d"
     },
     "email.passkeyEnrolment.preheader": {
       "by": "ai",
@@ -171645,8 +171545,8 @@
     },
     "email.passkeysReset.next": {
       "by": "ai",
-      "out": "1801b77a112f88e2249c2fae67f4f9a8528105a646f5da9528b81bd5b46a097e",
-      "src": "68254af99920ef99453fc3bea99bd66fd8350d43425a82434d0f3267d7e679d7"
+      "out": "34847e68a9fdfa7d59e4186d428192f47b5ea660e08fa13469a5309358967264",
+      "src": "4ef3f7c8849b76d9ea1450ac0fd6f161961f8f5c3b575400d6434fa1fb8097c0"
     },
     "email.passkeysReset.preheader": {
       "by": "ai",
@@ -171720,8 +171620,8 @@
     },
     "email.personalKeyCreated.notYou": {
       "by": "ai",
-      "out": "c5f7d5487e19ab86372a9677fe9097b2600523fd53977c46ca35afe4247d68fd",
-      "src": "d50e6e1951a336a3fe847bd74161a6b05a99abaa13b9177dd9183cffcc2a9276"
+      "out": "af37e880f128c90720988e91bf0636b8cefe38c744e8bac9231f0f1b6a8da14d",
+      "src": "79b57183c03f9f9058009d19a727ab148a49d80263840fe9efefa3a6088154a5"
     },
     "email.personalKeyCreated.reason": {
       "by": "ai",
@@ -172120,8 +172020,8 @@
     },
     "email.unsubscribe.invalidText": {
       "by": "ai",
-      "out": "e5c6cbfddde85b683d1436524f1f96d590a002a0b9c1b15018287f36aaecca0b",
-      "src": "8ba582b677dce732faeb3314a947e9e183363ce3a87de6019bb1bd927ac8f65d"
+      "out": "c09045c9e60df272c481ba4cabf3561f968196859246bdfd624092137ce5c992",
+      "src": "ee1337b3b9c3271522ee5f2e8dc84b71c46d66e58f9f1d1950305c90ceb19860"
     },
     "email.unsubscribe.invalidTitle": {
       "by": "ai",
@@ -174575,8 +174475,8 @@
     },
     "onboarding.adminStart.agentButton": {
       "by": "ai",
-      "out": "027966ee91804743562fe4a377496fe19b2b612e499f1962dc226e4e75fd6ee1",
-      "src": "8c7c38ba207d37efe1cb507245882b32185f1cb39fb9fb9ffe9b7398fa384fd7"
+      "out": "c394d90547632b2564705a2740576fd28350be8f4adc35fedec72bc2973a8da8",
+      "src": "28b41b5cec1905826a47cecb169c9a555f4634549a3ffe8b3140f7352182819e"
     },
     "onboarding.adminStart.agentHelp": {
       "by": "ai",
@@ -176545,8 +176445,8 @@
     },
     "onboarding.frame.agent": {
       "by": "ai",
-      "out": "027966ee91804743562fe4a377496fe19b2b612e499f1962dc226e4e75fd6ee1",
-      "src": "8c7c38ba207d37efe1cb507245882b32185f1cb39fb9fb9ffe9b7398fa384fd7"
+      "out": "c394d90547632b2564705a2740576fd28350be8f4adc35fedec72bc2973a8da8",
+      "src": "28b41b5cec1905826a47cecb169c9a555f4634549a3ffe8b3140f7352182819e"
     },
     "onboarding.frame.agentTitle": {
       "by": "ai",
@@ -176900,8 +176800,8 @@
     },
     "onboarding.notify.later": {
       "by": "ai",
-      "out": "2fdd9faa41d06c196c6c58c634dccd09c770241c2032722e9e5a05e105f1c84e",
-      "src": "02a7b88ca2a3ce23be72e863d0aa8b08054d3e29380c8745244eb506622af4ed"
+      "out": "ed973529e96f85700025ca22ec59e0e92e57e1005e378c08363728cfb162bfb5",
+      "src": "10d94ead101486f6eff978568530fb4d197b905168b403857a404826de5cccb1"
     },
     "onboarding.notify.lede": {
       "by": "ai",
@@ -184318,6 +184218,11 @@
       "out": "a01a5fce396edb612052db25ebeb325a72134c8369eb9c771d47ab18d8124247",
       "src": "ed077f3d8125d60dca1979c7133601bd187d47c73ed9975028f677e49e709942"
     },
+    "settings.integrations.action.opening": {
+      "by": "ai",
+      "out": "0911dfa616da4c003896fe70cdfe965c573a932c57dc35633cb90cc3591b8d7b",
+      "src": "c926c2c50e65d5a5799f548604472ee8554b53c376e45be580b3a06a484d8fc0"
+    },
     "settings.integrations.app.attentionFallback": {
       "by": "ai",
       "out": "64d799e0f4a3ac65c3d44bc7eeb3c4b3ff876872b0810ce1bc4a89aa2ffe014a",
@@ -186037,16 +185942,6 @@
       "by": "ai",
       "out": "2759767cf5e232c273f467f141bf799bc195facb82577302adf71b733b6bd277",
       "src": "2002f3ab1ce8d8d982699ab4f4a1b447e60fa655902f8483cdb88ffe998b4687"
-    },
-    "settings.integrations.status.noKeys": {
-      "by": "ai",
-      "out": "ac15937302154632b3e06eebcb2a0d90f6835908b2451f1edde60813164a09ed",
-      "src": "3e5039d12acddb2e949411dc48dae9efc042e3afdc6389e33f4aa714303435ee"
-    },
-    "settings.integrations.status.notConnected": {
-      "by": "ai",
-      "out": "f55447e36c3b364222fcd5889641b9ab26f9849deb23392cf0a1f764e3c7a9b1",
-      "src": "0303e182467081801f8b614862519a3b174c0ae84ff08b70e7d126080c3f4b95"
     },
     "settings.integrations.status.ready": {
       "by": "ai",
@@ -188858,36 +188753,6 @@
       "out": "4814f62c108d82de42a65c515d56fc220b7fe8521510fd128919664daaa167bb",
       "src": "4814f62c108d82de42a65c515d56fc220b7fe8521510fd128919664daaa167bb"
     },
-    "settings.workspace.assistants.description": {
-      "by": "ai",
-      "out": "e66b4adc4841eb5a7fd9f6fc6e9ecf227d5172a16af2e50db4f191bf6f412233",
-      "src": "1636d8900a04c955bd864338dba93174fe1e590756883347c1fe56f2965fa2bd"
-    },
-    "settings.workspace.assistants.empty": {
-      "by": "ai",
-      "out": "828fa06615df16e92b1befdde366ebc0196327f4bcc0da68d4699f877bbbe1bd",
-      "src": "e974f679dea1abe93c1bd0d43465ca1643b6f28c28f7d7de07868eafa3f3b5e5"
-    },
-    "settings.workspace.assistants.noNumber": {
-      "by": "ai",
-      "out": "d0100946df35b61a94141440522438cfaf4cee22aea20e90b13f9f9399591057",
-      "src": "37c78f9ffa23e2a3c817c9160fd5d332b18ab7ae67ac804759cf9164367e4e3d"
-    },
-    "settings.workspace.assistants.open": {
-      "by": "ai",
-      "out": "70573195eb3f102d2a8818de060b39199b68c3f34daece3abf9456caf583ed97",
-      "src": "a266c010f498fc9881dafbf9a9b457a52fa0d6facd107e54351063851679fca4"
-    },
-    "settings.workspace.nav.assistants.description": {
-      "by": "ai",
-      "out": "983dc91389b1f5112ce8bd03881367da5706268b412c7df9b884265457456b6c",
-      "src": "66ffabda78f20eae1a3b7dccf03cc063b3f03ed87b06879def9696f1ae46d419"
-    },
-    "settings.workspace.nav.assistants.label": {
-      "by": "ai",
-      "out": "62e088b6fa434447c7cc2d478e9cad437eb5b11561e9b1c674ba1cead2a18345",
-      "src": "913101023d6a833008346268868589eed4a838d0758124d7bddc57514f91eda8"
-    },
     "settings.workspace.nav.billing.description": {
       "by": "ai",
       "out": "c80e7bc27acd4c2040e7628246b1b0c7406601948df5e186ac05fa2897353eab",
@@ -189300,8 +189165,8 @@
     },
     "shell.command.goToAccountSettings": {
       "by": "ai",
-      "out": "3c9e72d5f0c08797bcca913beab48520b9afa29f53a8d7ff5eff218d3ef59319",
-      "src": "b5c8fbb93de5714cfd42cee4587a8b5ea95d346acb50ac9d0d21a126151ff1cc"
+      "out": "e9b8901a2d7c8a26553a39bc84efa6b1d8de4d4fb801d0a62f5a4a94d8b0c0f3",
+      "src": "2be54ec760b3f952e03fc3184004ea3af537b3c04b14e7664f49bb612915d0cd"
     },
     "shell.command.goToAssignedToMe": {
       "by": "ai",
@@ -189648,6 +189513,11 @@
       "out": "f3aa38796449ef67ee1b971528ae881047bc5f16fdd196b139062bdcae22c4ee",
       "src": "78e99a2a9817f3dfe33295d3fbc7f989c1bbc95fd1a75c27e08fdcef195dad81"
     },
+    "shell.help.buttonTip": {
+      "by": "ai",
+      "out": "4c42e278db10759dba1a738894484c1d9e1191746be1067ea826dc6ed78b1c41",
+      "src": "161c9d3237f0fc950dbbaed8e5cf39b505e33a951e52c80b71b4d3599b2b4fe5"
+    },
     "shell.help.everyAction": {
       "by": "ai",
       "out": "2e0014217fbcd3a5d3347e6fa9e6c2a844d5d1eba17ad3802633a6f7bfc89f4c",
@@ -189973,10 +189843,15 @@
       "out": "5c603c6f0830b61e18731e22042e792645fc6df22cbc466d7ad6cc8cbeb1aaa1",
       "src": "5f5c5baf8fbc063def44db6f24aaf55282ed62e181e63c6d17a7d8852859f9a0"
     },
+    "shell.helpMenu.support": {
+      "by": "ai",
+      "out": "adb63c38a15585a07731711ef918097a8485454e349f2532834360d8eedc6d63",
+      "src": "403151089cb1cbbd1fb0698b2815cafd80199a7a702afdf2a0421656e4232090"
+    },
     "shell.helpMenu.tip": {
       "by": "ai",
-      "out": "c1a0857eb06c3a09844d6960e0b32769f5757d39ef47a472464228432e1c4483",
-      "src": "44b62367b5a021f9df9505ff0d84a42d9afd5b3835aa3318d7a104353b16e205"
+      "out": "bdfbe0f21726b5131a4eddc3a74af80781e9c1afb38b4945d21eb5c78699db00",
+      "src": "42592140f6d50377f1c4c99a29f5ab8c7b5ebc4aa6de9da94253542c9445cff3"
     },
     "shell.helpMenu.version": {
       "by": "ai",
@@ -190320,8 +190195,8 @@
     },
     "shell.page.account": {
       "by": "ai",
-      "out": "0173efe9c84402517038df14f95cf06df523f12d87febe51deb410a99d8a62f8",
-      "src": "a587aa1f4ffc501682f3874f8fae815e39a88739eb6f95830120cf4efe1d1621"
+      "out": "b9411d22b3919fc2408c694a9cd034529474bedab0e3f18f33e1411ac370cfea",
+      "src": "2b363e8753b8a54b695106b388b16d9877a0f13540de789c6ba9f7f63ddd2f67"
     },
     "shell.page.admin": {
       "by": "ai",
@@ -190795,8 +190670,8 @@
     },
     "shell.tour.settings.text": {
       "by": "ai",
-      "out": "ed2872bf41c398dcd3ad02cc11ed6ab40159144bf84342cc3c4e4c7445784332",
-      "src": "3728f8a13afbe3016e68e9d8574b312aa9453199593ce2b3a01c8ca11763bb01"
+      "out": "78edcd6dce43afcc964c744686ccf3cab4a1773387e908e00a91171302c1f378",
+      "src": "c82c7411c2de5e3eb7aaba04cb1741a15baf8c5d00f2cffb39c91b86a92d8ac2"
     },
     "shell.tour.settings.title": {
       "by": "ai",
