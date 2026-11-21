@@ -28,7 +28,7 @@ import { refreshOnReturn } from '../refreshOnReturn.ts'
 import { Section, SwitchRow } from '../settings/fields.tsx'
 import { callAction, readAction, useWriteAction } from '../settings/settings-api.ts'
 import { useRows, useRun } from '../store.tsx'
-import { Badge, Button } from '../ui/kit.tsx'
+import { Badge, Button, Icon } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
 import { appConnectErrorKey, appConnectResult, appPushErrorKey, appSettingsWith, nameKey } from './catalog.ts'
@@ -579,26 +579,40 @@ function ShopifySetupSummary({
       : t(settingText('shopify', id).title)
   return (
     <div className="ig-setup">
-      <div className="ig-setup-head">{badge}</div>
+      <div className="ig-setup-head">
+        {badge}
+        <span className="help">
+          {t(
+            recommended
+              ? 'settings.integrations.app.shopify.setup.recommendedHelp'
+              : 'settings.integrations.app.shopify.setup.customHelp',
+          )}
+        </span>
+      </div>
       <div className="ig-setup-cols">
-        {[true, false].map(state => (
-          <div key={String(state)}>
-            <h3>
-              {t(
-                state
-                  ? 'settings.integrations.app.shopify.setup.onCol'
-                  : 'settings.integrations.app.shopify.setup.offCol',
-              )}
-            </h3>
-            <ul>
-              {ids
-                .filter(id => on(id) === state)
-                .map(id => (
-                  <li key={id}>{label(id)}</li>
+        {[true, false].map(state => {
+          const items = ids.filter(id => on(id) === state)
+          return (
+            <section key={String(state)} className={`ig-setup-col ${state ? 'is-on' : 'is-off'}`}>
+              <h3>
+                {t(
+                  state
+                    ? 'settings.integrations.app.shopify.setup.onCol'
+                    : 'settings.integrations.app.shopify.setup.offCol',
+                )}
+                <span className="ig-setup-count">{items.length}</span>
+              </h3>
+              <ul>
+                {items.map(id => (
+                  <li key={id}>
+                    <Icon name={state ? 'check' : 'close'} size={14} />
+                    <span>{label(id)}</span>
+                  </li>
                 ))}
-            </ul>
-          </div>
-        ))}
+              </ul>
+            </section>
+          )
+        })}
       </div>
       {actions}
     </div>
