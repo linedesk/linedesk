@@ -1,6 +1,5 @@
 {
   "agentChange.agentTip": "Lass Claude, ChatGPT oder einen anderen KI-Agenten diese Einstellungen mit dir ändern",
-  "agentChange.edit": "Mit KI bearbeiten",
   "agentChange.setupLede": "Lass deinen KI-Agenten das erledigen oder geh die Schritte selbst durch.",
   "agentChange.setupTitle": "{name} fertig einrichten",
   "agentChange.stepsTip": "Die Einrichtung noch einmal Schritt für Schritt durchgehen, ausgehend vom Gespeicherten",

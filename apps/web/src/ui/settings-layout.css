@@ -96,33 +96,6 @@
   .sl-actions {
     flex-wrap: wrap;
   }
-  /* Workspace and Assistant settings (Step by step, Edit with AI, Start test call): one row of their own under the
-     context, from the left edge like the tabs below it, Edit with AI first; the test call keeps only its icon (its name stays for screen
-     readers and in the tooltip). */
-  .sl-context:has(.ai-edit) .sl-actions {
-    flex: 1 1 100%;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-  }
-  .sl-context:has(.ai-edit) .sl-actions > .ai-edit {
-    order: -1;
-  }
-  .sl-context:has(.ai-edit) .tc-btn-wrap {
-    margin-left: auto;
-  }
-  .sl-context:has(.ai-edit) .tc-btn-wrap .k-btn {
-    width: var(--control-h);
-    padding: 0;
-    justify-content: center;
-  }
-  .sl-context:has(.ai-edit) .tc-btn-wrap .k-btn > span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
   .sl-body {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;

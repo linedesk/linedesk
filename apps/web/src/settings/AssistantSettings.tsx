@@ -52,7 +52,7 @@ import { type PageSection, SettingsLayout, sectionHash, sectionParts, useSection
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { useSupportAccess } from '../supportAccess.ts'
 import { useWorkspaceCountry, useWorkspaceLanguage } from '../workspaceLocale.ts'
-import { AgentChangeActions, type AgentChangeMode, AgentSetupStrip } from './AgentChange.tsx'
+import { AgentSetupStrip } from './AgentChange.tsx'
 import { AssistantHeader } from './AssistantHeader.tsx'
 import {
   addableLanguages,
@@ -849,7 +849,7 @@ type Props = {
   canEdit: boolean
   toast: (text: string) => void
   isInstanceAdmin?: boolean
-  agentChange?: AgentChangeMode | false
+  agentChange?: boolean
   undoable?: Undoable
 }
 
@@ -1137,15 +1137,10 @@ function Form({
           toast={toast}
         />
       }
-      actions={
-        <>
-          {agentChange === 'change' && <AgentChangeActions target={{ kind: 'assistant', assistantId: assistant.id }} />}
-          <TestCallButton session={testCall} />
-        </>
-      }
+      actions={<TestCallButton session={testCall} />}
       banner={
         <>
-          {agentChange === 'setup' && (
+          {agentChange && (
             <AgentSetupStrip target={{ kind: 'assistant', assistantId: assistant.id }} name={assistant.name} />
           )}
           <TestCallPanel session={testCall} />

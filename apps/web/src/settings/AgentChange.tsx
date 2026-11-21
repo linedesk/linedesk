@@ -1,7 +1,6 @@
-// The two ways to set up or change Workspace settings and Assistant settings, on every section (agentChange.ts): with
-// an AI agent or step by step. Until go-live a strip under the context line says they finish the setup
-// (AgentSetupStrip, SettingsLayout's `banner`); after it, "Edit with AI" and "Step by step" sit in the top bar
-// (AgentChangeActions, `actions`). The agents' marks as on linedesk.ai's hero. The pages they open: ChangeWithAgent.tsx and the setup flow, step by step (onboarding/StepByStep.tsx).
+// The two ways to finish setting up a workspace from Workspace settings and Assistant settings, on every section
+// (agentChange.ts): with an AI agent or step by step. Until go-live a strip under the context line offers both
+// (AgentSetupStrip, SettingsLayout's `banner`); once a real caller reached the assistant it is gone (Tim, 2026-11-21). The agents' marks as on linedesk.ai's hero. The pages they open: ChangeWithAgent.tsx and the setup flow, step by step (onboarding/StepByStep.tsx).
 // Server admin › Providers (admin/Providers.tsx, AgentFirst) uses the same AiButton, in the same order.
 import { useT } from '@linedesk/i18n/react'
 import { CLAUDE, CLAUDE_ORANGE, CURSOR, GEMINI, GEMINI_PURPLE, OPENAI } from '../onboarding/AgentPicker.tsx'
@@ -57,37 +56,13 @@ export function AiButton({
   )
 }
 
-/** Owners and admins: `setup` until a real caller reached the assistant (the strip), then `change` (the top bar). */
-export type AgentChangeMode = 'setup' | 'change'
-
 const go = (hash: string) => () => {
   window.location.hash = hash
 }
 
 /**
- * After go-live, the top bar's "Edit with AI" (secondary: the page's own Save stays the one black button) opens the
- * agent page for this workspace or assistant; "Step by step" opens the setup flow the workspace was set up with, filled
- * in with what is saved. Shown only to those who may change the settings (the page decides, mayChangeWithAgent).
- */
-export function AgentChangeActions({ target }: { target: ChangeTarget }) {
-  const t = useT()
-  return (
-    <>
-      <Button size="sm" variant="ghost" onClick={go(stepByStepHash(target))} title={t('settings.agentChange.stepsTip')}>
-        {t('admin.providers.agent.steps')}
-      </Button>
-      <AiButton
-        label={t('settings.agentChange.edit')}
-        title={t('settings.agentChange.agentTip')}
-        onClick={go(changeWithAgentHash(target))}
-      />
-    </>
-  )
-}
-
-/**
- * Until go-live, a strip under the context line in place of the top bar's buttons: "Finish setting up <name>", what
- * the two ways are, then both (the agent first). The same two pages as AgentChangeActions.
+ * Until go-live, a strip under the context line: "Finish setting up <name>", what
+ * the two ways are, then both (the agent first). Shown only to those who may change the settings (mayChangeWithAgent).
  */
 export function AgentSetupStrip({ target, name }: { target: ChangeTarget; name: string }) {
   const t = useT()

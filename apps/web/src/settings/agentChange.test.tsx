@@ -1,5 +1,4 @@
-// "Edit with AI" in the top bar of Workspace settings and Assistant settings, and the strip to finish the setup before
-// it until go-live (agentChange.ts, AgentChange.tsx):
+// The strip to finish the setup on Workspace settings and Assistant settings until go-live (agentChange.ts, AgentChange.tsx):
 // offered to owners and admins only, the buttons with the agents' marks, the address of the page it opens
 // and the way back; and "Finish later" on the owner's agent setup page (onboarding/AgentSetup.tsx).
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -20,7 +19,7 @@ vi.mock('../shell/SetupAccountMenu.tsx', () => ({ SetupAccountMenu: () => null }
 const { changeWithAgentHash, mayChangeWithAgent, parseChangeWithAgent, settingsHashOf } = await import(
   './agentChange.ts'
 )
-const { AgentChangeActions, AgentSetupStrip } = await import('./AgentChange.tsx')
+const { AgentSetupStrip } = await import('./AgentChange.tsx')
 const { WorkspaceGeneral } = await import('./WorkspaceGeneral.tsx')
 const { AgentSetup } = await import('../onboarding/AgentSetup.tsx')
 
@@ -86,20 +85,12 @@ describe('until go-live: the strip to finish the setup', () => {
   })
 })
 
-describe('Edit with AI in the top bar', () => {
-  test('the agent as a secondary button with the agents’ marks (Save stays the one black button), step by step beside it', () => {
-    const html = renderToStaticMarkup(<AgentChangeActions target={{ kind: 'workspace' }} />)
-    expect(html).toMatch(/k-btn-secondary[^"]*ai-edit[\s\S]*Edit with AI/)
-    expect(html.match(/class="ai-mark"/g)).toHaveLength(4)
-    expect(html).not.toContain('k-btn-primary')
-    expect(html).toContain('Step by step')
-  })
-
-  test('no longer a box inside General', () => {
+describe('General has no box of its own', () => {
+  test('the strip is the one place', () => {
     const html = renderToStaticMarkup(
       <WorkspaceGeneral canEdit name="Brightwater" onRenamed={() => {}} toast={() => {}} />,
     )
-    expect(html).not.toContain('Edit with AI')
+    expect(html).not.toContain('Finish setting up')
     expect(html).not.toContain('k-note-info')
   })
 })

@@ -11,7 +11,7 @@ import type { PhoneSetupStatus } from '../auth.ts'
 import { TeamSection } from '../team/TeamPage.tsx'
 import { useTeam } from '../team/team-api.ts'
 import { type PageSection, SettingsLayout, useSection } from '../ui/SettingsLayout.tsx'
-import { AgentChangeActions, type AgentChangeMode, AgentSetupStrip } from './AgentChange.tsx'
+import { AgentSetupStrip } from './AgentChange.tsx'
 import { Billing } from './Billing.tsx'
 import { DangerZone } from './DangerZone.tsx'
 import { ExportCalls } from './ExportCalls.tsx'
@@ -61,7 +61,7 @@ type Props = {
   /** Owners and admins, also during support access: what the Danger zone offers (dangerDescription). */
   canManageKeys: boolean
   /** Owners and admins: the strip to finish the setup until go-live, then "Edit with AI" and "Step by step" (AgentChange.tsx). */
-  agentChange?: AgentChangeMode | false
+  agentChange?: boolean
   phoneSetup: PhoneSetupStatus | null
   isInstanceAdmin: boolean
   /**
@@ -111,8 +111,7 @@ export function WorkspaceSettings({
         page="workspace"
         title={t('settings.workspace.title')}
         context={<span className="sl-context-text">{workspaceName}</span>}
-        actions={agentChange === 'change' && <AgentChangeActions target={{ kind: 'workspace' }} />}
-        banner={agentChange === 'setup' && <AgentSetupStrip target={{ kind: 'workspace' }} name={workspaceName} />}
+        banner={agentChange && <AgentSetupStrip target={{ kind: 'workspace' }} name={workspaceName} />}
         sections={shown}
         current={current}
       >

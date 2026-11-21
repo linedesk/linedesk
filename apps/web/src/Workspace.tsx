@@ -623,7 +623,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
                 toast: toaster.show,
                 canEditSettings,
                 canManageKeys,
-                agentChange: mayChangeWithAgent(me) && (hadRealCall ? 'change' : 'setup'),
+                agentChange: mayChangeWithAgent(me) && !hadRealCall,
                 isInstanceAdmin: instanceAdmin,
                 billing: billingView,
                 viaPartner: !!me.workspace?.viaPartner,
