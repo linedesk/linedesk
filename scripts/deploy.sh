@@ -320,10 +320,11 @@ call_services() {
 }
 
 # Calls in progress (empty when it cannot be asked, which counts as busy). On the app server: live calls in the
-# database. On voice server 1 (no Postgres there): LiveKit's rooms with someone in them, read through the agent
-# container, as every call is a room. A room older than 3 hours is not counted: a call lasts at most about 2 hours (a
-# call put through to a person), and an older one is a leftover in Valkey (a node that crashed, or Valkey's data
-# copied from another server) that LiveKit can no longer close and that would otherwise hold every update back.
+# database. On voice server 1 (no Postgres there): LiveKit's rooms with a caller in them (a phone leg or a browser; not
+# the agent or egress), read through the agent container, as every call is a room. Not counted, as leftovers in Valkey
+# that LiveKit can no longer close and that would otherwise hold every update back: a room older than 3 hours (a call
+# lasts at most about 2 hours, a call put through to a person) and a room made before the running LiveKit started (a
+# restart ends every call; such rooms held a staging deploy for its whole 30 minutes, LIN-413).
 # Runs a short Node script (stdin) with the LiveKit SDK and the agent's LiveKit settings: in the running agent, or, on a
 # media server without an agent (docker-compose.no-agent.yml), in a one-off container of the agent's image, which
 # every deploy brings anyway. Prints what the script prints; nothing when it cannot run (a failure never stops the
@@ -341,12 +342,23 @@ agent_node() {
 
 live_calls() {
   if ! grep -qx postgres <<<"$SERVICES"; then
-    agent_node <<'JS' | tr -d '[:space:]'
+    # The running LiveKit's start (Unix seconds); unknown: 0, so no room is dropped for it.
+    local id started=0
+    id=$(containers_of livekit | head -1)
+    # Only with a container: `date -d ""` would give today's midnight and drop every call that started before it.
+    [ -z "$id" ] || started=$(date -d "$(docker inspect -f '{{.State.StartedAt}}' "$id" 2>/dev/null)" +%s 2>/dev/null) || started=0
+    { echo "const LIVEKIT_STARTED = ${started:-0}"; cat <<'JS'; } | agent_node | tr -d '[:space:]'
 setTimeout(() => process.exit(0), 20000).unref()
 const { RoomServiceClient } = require("livekit-server-sdk")
-new RoomServiceClient(process.env.LIVEKIT_URL.replace(/^ws/, "http"), process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET)
-  .listRooms().then((rooms) => console.log(rooms.filter((r) => r.numParticipants > 0 &&
-    Date.now() / 1000 - Number(r.creationTime) < 3 * 3600).length), () => {})
+const rooms = new RoomServiceClient(process.env.LIVEKIT_URL.replace(/^ws/, "http"), process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET)
+const CALLER_KINDS = new Set([0, 3]) // ParticipantInfo_Kind STANDARD (browser), SIP (phone)
+const now = Date.now() / 1000
+// Any error rejects the whole count, so nothing is printed and the deploy treats it as busy: never a 0 by mistake.
+rooms.listRooms()
+  .then((all) => all.filter((r) => r.numParticipants > 0 && now - Number(r.creationTime) < 3 * 3600 &&
+    Number(r.creationTime) >= LIVEKIT_STARTED))
+  .then((open) => Promise.all(open.map((r) => rooms.listParticipants(r.name).then((ps) => ps.some((p) => CALLER_KINDS.has(p.kind))))))
+  .then((live) => console.log(live.filter(Boolean).length), () => {})
 JS
     return
   fi
