@@ -4,9 +4,17 @@
 // credentials (OutboundSip).
 import { ListUpdate, type SIPDispatchRuleInfo, SIPHeaderOptions, SIPInboundTrunkInfo, SIPTransport } from '@livekit/protocol'
 import { CALL_MAX_MINUTES } from '@linedesk/actions'
-import { TRANSFER_OUTBOUND_NAME, type OutboundSip } from '@linedesk/telephony'
+import { sipTlsFromEnv, srtpRequiredFromEnv, TRANSFER_OUTBOUND_NAME, type OutboundSip } from '@linedesk/telephony'
 import { SipClient } from 'livekit-server-sdk'
 import { livekitHttpUrl, requireLivekitEnv } from './env.ts'
+
+/** The inbound trunk's audio encryption: off (plain RTP), on (SRTP when the carrier offers it), require (SRTP only). */
+export type SrtpPolicy = 'off' | 'on' | 'require'
+const SRTP_SETTING = { off: 'SIP_MEDIA_ENCRYPT_DISABLE', on: 'SIP_MEDIA_ENCRYPT_ALLOW', require: 'SIP_MEDIA_ENCRYPT_REQUIRE' } as const
+
+/** What LIVEKIT_SIP_TLS asks of the inbound trunk (packages/telephony sipTlsFromEnv). */
+export const srtpPolicyFromEnv = (env: Record<string, string | undefined> = process.env): SrtpPolicy =>
+  srtpRequiredFromEnv(env) ? 'require' : sipTlsFromEnv(env) ? 'on' : 'off'
 
 export const INBOUND_TRUNK_NAME = 'linedesk-inbound'
 export const OUTBOUND_TRUNK_NAME = 'linedesk-test-caller'
@@ -54,7 +62,8 @@ export const MAX_CALL_MINUTES = CALL_MAX_MINUTES
  * Returns the trunk's id.
  */
 export async function ensureInboundTrunk(
-  sip: InboundSip, numbers: string[], allowedAddresses: string[], name = INBOUND_TRUNK_NAME, { maxCallMinutes }: { maxCallMinutes?: number } = {},
+  sip: InboundSip, numbers: string[], allowedAddresses: string[], name = INBOUND_TRUNK_NAME,
+  { maxCallMinutes, encryption = 'off' }: { maxCallMinutes?: number; encryption?: SrtpPolicy } = {},
 ): Promise<string> {
   const [existing, ...duplicates] = (await sip.listSipInboundTrunk()).filter(trunk => trunk.name === name)
   for (const duplicate of duplicates) await sip.deleteSipTrunk(duplicate.sipTrunkId)
@@ -67,18 +76,19 @@ export async function ensureInboundTrunk(
     })
     trunkId = existing.sipTrunkId
   } else trunkId = (await sip.createSipInboundTrunk(name, numbers, { allowedAddresses })).sipTrunkId
-  await writeTrunkSettings(sip, trunkId, numbers, allowedAddresses, maxCallMinutes)
+  await writeTrunkSettings(sip, trunkId, numbers, allowedAddresses, maxCallMinutes, encryption)
   return trunkId
 }
 
 /**
  * Sets what only a whole new trunk (a replace) takes: every SIP header of the INVITE copied into the caller's
  * attributes (`sip.h.*`: the carrier's caller-ID attestation and spam flag, caller-attestation.ts), and the maximum
- * call length when given. The trunk as it is now is written back with them, carrying exactly the numbers and
+ * call length when given, and the audio encryption (LIVEKIT_SIP_TLS): SRTP allowed (`on`), required (`require`) or off.
+ * The trunk as it is now is written back with them, carrying exactly the numbers and
  * addresses just set: a replace with fewer numbers would take the missing ones offline, so it is refused before
  * anything is sent.
  */
-async function writeTrunkSettings(sip: InboundSip, trunkId: string, numbers: string[], allowedAddresses: string[], minutes?: number) {
+async function writeTrunkSettings(sip: InboundSip, trunkId: string, numbers: string[], allowedAddresses: string[], minutes?: number, encryption: SrtpPolicy = 'off') {
   const current = (await sip.listSipInboundTrunk()).find(trunk => trunk.sipTrunkId === trunkId)
   if (!current) throw new Error(`inbound trunk ${trunkId} is gone: its settings were not written`)
   const replacement = SIPInboundTrunkInfo.fromJson({
@@ -86,6 +96,7 @@ async function writeTrunkSettings(sip: InboundSip, trunkId: string, numbers: str
     numbers, allowedAddresses,
     includeHeaders: SIPHeaderOptions[SIPHeaderOptions.SIP_ALL_HEADERS],
     ...(minutes ? { maxCallDuration: `${minutes * 60}s` } : {}),
+    media: { ...((current.toJson() as { media?: object }).media ?? {}), encryption: SRTP_SETTING[encryption] },
   })
   const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && [...a].sort().every((v, i) => v === [...b].sort()[i])
   if (!same(replacement.numbers, numbers) || !same(replacement.allowedAddresses, allowedAddresses)) {

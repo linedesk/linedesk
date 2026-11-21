@@ -290,6 +290,8 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       # Which carriers' signaling addresses the SIP trunk accepts (setup-sip.ts, inbound-allowlist.ts).
       LIVEKIT_SIP_ALLOWED_ADDRESSES: ${LIVEKIT_SIP_ALLOWED_ADDRESSES:-}
+      # on: setup-sip makes the inbound trunk require SRTP (carriers send TLS and SRTP, docker-compose.sip-tls.yml).
+      LIVEKIT_SIP_TLS: ${LIVEKIT_SIP_TLS:-}
       # Through the proxy, which retries while the API is updated (docker/Caddyfile), not to api:3100.
       LINEDESK_API_URL: http://proxy:3100
       LIVEKIT_URL: ws://livekit:7880

@@ -18,7 +18,7 @@ import { RoomAgentDispatch, RoomConfiguration, SipClient } from 'livekit-server-
 import { AGENT_NAME, livekitHttpUrl, requireLivekitEnv, runScript } from './env.ts'
 import { inboundAllowlistFromEnv } from './inbound-allowlist.ts'
 import { parseSetupSipArgs } from './setup-args.ts'
-import { ensureInboundTrunk, INBOUND_TRUNK_NAME, MAX_CALL_MINUTES, openInboundWarnings, replaceOutboundTrunk, TRANSFER_TRUNK_NAME } from './sip-trunks.ts'
+import { ensureInboundTrunk, INBOUND_TRUNK_NAME, MAX_CALL_MINUTES, openInboundWarnings, replaceOutboundTrunk, srtpPolicyFromEnv, TRANSFER_TRUNK_NAME } from './sip-trunks.ts'
 
 const NAME = INBOUND_TRUNK_NAME
 
@@ -34,7 +34,13 @@ async function main() {
   const { outbound, numbers } = args
   const sip = new SipClient(livekitHttpUrl(env.LIVEKIT_URL), env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET)
 
-  const trunkId = await ensureInboundTrunk(sip, numbers, allowlist.addresses, NAME, { maxCallMinutes: MAX_CALL_MINUTES })
+  const encryption = srtpPolicyFromEnv()
+  const before = (await sip.listSipInboundTrunk()).find(trunk => trunk.name === NAME)?.toJson() as { media?: { encryption?: string } } | undefined
+  const trunkId = await ensureInboundTrunk(sip, numbers, allowlist.addresses, NAME, { maxCallMinutes: MAX_CALL_MINUTES, encryption })
+  const was = before?.media?.encryption
+  if (encryption === 'off' && was && was !== 'SIP_MEDIA_ENCRYPT_DISABLE') {
+    console.warn(`  WARNING: the inbound trunk took SRTP (${was}); LIVEKIT_SIP_TLS is not set here, so it is plain RTP only now. Calls a carrier sends with SRTP are refused until setup-sip runs where LIVEKIT_SIP_TLS is on.`)
+  }
   for (const rule of await sip.listSipDispatchRule())
     if (rule.name === NAME) await sip.deleteSipDispatchRule(rule.sipDispatchRuleId)
   const rule = await sip.createSipDispatchRule(
@@ -45,7 +51,7 @@ async function main() {
       roomConfig: new RoomConfiguration({ agents: [new RoomAgentDispatch({ agentName: AGENT_NAME })] }),
     },
   )
-  console.log(`inbound trunk ${trunkId} accepts ${numbers.join(', ')}; calls end after ${MAX_CALL_MINUTES} minutes`)
+  console.log(`inbound trunk ${trunkId} accepts ${numbers.join(', ')}; calls end after ${MAX_CALL_MINUTES} minutes; audio: ${{ off: 'plain RTP', on: 'SRTP or plain RTP (LIVEKIT_SIP_TLS=on)', require: 'SRTP only (LIVEKIT_SIP_TLS=require)' }[encryption]}`)
   if (allowlist.addresses.length) {
     console.log(`  only from ${allowlist.sources.join(' + ')} signaling addresses (${allowlist.addresses.length}): ${allowlist.addresses.join(' ')}`)
   } else {

@@ -27,7 +27,10 @@ function mockTelnyx(routes: Route) {
   return { provider, calls }
 }
 
-type Account = { owned?: boolean; connection?: boolean; routedTo?: string | null; fqdns?: { id: string; connection_id: string; fqdn: string }[]; screening?: string }
+type Account = {
+  owned?: boolean; connection?: boolean; routedTo?: string | null; fqdns?: { id: string; connection_id: string; fqdn: string; port?: number }[]; screening?: string
+  transport?: string; media?: string | null
+}
 
 /** A Telnyx account in memory: the order puts the number on the account, connections and FQDNs persist. */
 const telnyxAccount = (account: Account = {}): Route => ({ method, path, body }) => {
@@ -43,14 +46,25 @@ const telnyxAccount = (account: Account = {}): Route => ({ method, path, body })
   }
   if (method === 'GET' && path.startsWith('/phone_numbers?page')) return { json: { data: account.owned ? [{ id: 'num_1', phone_number: NUMBER }] : [] } }
   if (method === 'GET' && path.startsWith('/phone_numbers?')) return { json: { data: account.owned ? [{ id: 'num_1', phone_number: NUMBER }] : [] } }
-  if (method === 'GET' && path.startsWith('/fqdn_connections')) return { json: { data: account.connection ? [{ id: 'conn_1', connection_name: 'linedesk-livekit' }] : [] } }
+  if (method === 'GET' && path.startsWith('/fqdn_connections')) {
+    return { json: { data: account.connection ? [{ id: 'conn_1', connection_name: 'linedesk-livekit', transport_protocol: account.transport ?? 'TCP', encrypted_media: account.media ?? null }] : [] } }
+  }
+  if (method === 'PATCH' && path === '/fqdn_connections/conn_1') {
+    // As Telnyx: SRTP only with TLS signalling.
+    const transport = body.transport_protocol ?? account.transport ?? 'TCP'
+    const media = 'encrypted_media' in body ? body.encrypted_media : (account.media ?? null)
+    if (media && transport !== 'TLS') return { status: 422, json: { errors: [{ detail: 'SRTP needs TLS' }] } }
+    account.transport = transport
+    account.media = media
+    return { json: { data: { id: 'conn_1' } } }
+  }
   if (method === 'POST' && path === '/fqdn_connections') {
     account.connection = true
     return { json: { data: { id: 'conn_1' } } }
   }
   if (method === 'GET' && path.startsWith('/fqdns?')) return { json: { data: account.fqdns ?? [] } }
   if (method === 'POST' && path === '/fqdns') {
-    account.fqdns = [...(account.fqdns ?? []), { id: `fqdn_${body.fqdn}`, connection_id: body.connection_id, fqdn: body.fqdn }]
+    account.fqdns = [...(account.fqdns ?? []), { id: `fqdn_${body.fqdn}_${body.port}`, connection_id: body.connection_id, fqdn: body.fqdn, port: body.port }]
     return { json: { data: account.fqdns.at(-1) } }
   }
   if (method === 'DELETE' && path.startsWith('/fqdns/')) {
@@ -431,12 +445,12 @@ describe('telnyx adapter', () => {
   test('repairs a connection that has no FQDN and replaces a changed endpoint', async () => {
     const account: Account = { owned: true, connection: true }
     await mockTelnyx(telnyxAccount(account)).provider.routeToSip(routed, SIP)
-    expect(account.fqdns).toEqual([{ id: `fqdn_${SIP}`, connection_id: 'conn_1', fqdn: SIP }])
+    expect(account.fqdns).toEqual([{ id: `fqdn_${SIP}_5060`, connection_id: 'conn_1', fqdn: SIP, port: 5060 }])
 
     const moved = mockTelnyx(telnyxAccount(account))
     await moved.provider.routeToSip(routed, 'sip.new.test')
     expect(account.fqdns?.map(f => f.fqdn)).toEqual(['sip.new.test'])
-    expect(steps(moved.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'POST /fqdns', `DELETE /fqdns/fqdn_${SIP}`, 'PATCH /phone_numbers/num_1', 'GET /phone_numbers/num_1/voice'])
+    expect(steps(moved.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'POST /fqdns', `DELETE /fqdns/fqdn_${SIP}_5060`, 'PATCH /phone_numbers/num_1', 'GET /phone_numbers/num_1/voice'])
   })
 
   test("spam screening in flag mode: turned on when off, an owner's own choice kept, a failure never fails routing", async () => {
@@ -451,6 +465,34 @@ describe('telnyx adapter', () => {
     const refused = mockTelnyx(c => (c.path.endsWith('/voice') ? { status: 403, json: { errors: [{ detail: 'no' }] } } : base(c)))
     await expect(refused.provider.routeToSip(routed, SIP)).resolves.toBeUndefined()
     expect(account.routedTo).toBe('conn_1')
+  })
+
+  test('secure: TLS to 5061 with SRTP, switched over in the order Telnyx accepts, and back again', async () => {
+    const account: Account = { owned: true }
+    await mockTelnyx(telnyxAccount(account)).provider.routeToSip(routed, SIP)
+    expect([account.transport ?? 'TCP', account.media ?? null, account.fqdns?.map(f => f.port)]).toEqual(['TCP', null, [5060]])
+
+    const secure = mockTelnyx(telnyxAccount(account))
+    await secure.provider.routeToSip(routed, SIP, { secure: true })
+    expect([account.transport, account.media, account.fqdns?.map(f => f.port)]).toEqual(['TLS', 'SRTP', [5061]])
+    expect(steps(secure.calls).slice(0, 6)).toEqual([
+      'GET /fqdn_connections', 'PATCH /fqdn_connections/conn_1', 'PATCH /fqdn_connections/conn_1', 'GET /fqdns', 'POST /fqdns', `DELETE /fqdns/fqdn_${SIP}_5060`,
+    ])
+    expect(secure.calls[4]!.body).toEqual({ connection_id: 'conn_1', fqdn: SIP, port: 5061, dns_record_type: 'a' })
+
+    const again = mockTelnyx(telnyxAccount(account))
+    await again.provider.routeToSip(routed, SIP, { secure: true })
+    expect(steps(again.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'PATCH /phone_numbers/num_1', 'GET /phone_numbers/num_1/voice'])
+
+    await mockTelnyx(telnyxAccount(account)).provider.routeToSip(routed, SIP)
+    expect([account.transport, account.media, account.fqdns?.map(f => f.port)]).toEqual(['TCP', null, [5060]])
+  })
+
+  test('secure on a new account: the connection is made, then set to TLS and SRTP', async () => {
+    const account: Account = { owned: true }
+    const fresh = mockTelnyx(telnyxAccount(account))
+    await fresh.provider.routeToSip(routed, SIP, { secure: true })
+    expect([account.transport, account.media, account.fqdns?.map(f => f.port)]).toEqual(['TLS', 'SRTP', [5061]])
   })
 
   test('a failed FQDN request fails routing and the next run completes it', async () => {

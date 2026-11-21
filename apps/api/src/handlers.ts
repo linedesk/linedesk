@@ -71,7 +71,7 @@ import {
   workspaceCallLimit,
 } from '@linedesk/db'
 import type { ActionItem, Assistant, AssistantVoice, Closure, PhoneNumber, TransferContact } from '@linedesk/db/types'
-import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
+import { sipTlsFromEnv, TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import { setupEmailHandlers } from './setup-emails.ts'
@@ -2086,7 +2086,7 @@ const handlers: Record<string, Handler> = {
       ))
     if (buying) onRollback?.(releaseBought(provider, number))
 
-    await atCarrier(() => provider.routeToSip(number, sipEndpoint))
+    await atCarrier(() => provider.routeToSip(number, sipEndpoint, { secure: sipTlsFromEnv() }))
     const rows = await tx
       .insert(phone_numbers)
       .values({

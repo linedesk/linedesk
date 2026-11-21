@@ -1,7 +1,7 @@
 // Twilio adapter: phone numbers through the REST API, inbound calls through Elastic SIP Trunking.
 // Plain fetch. https://www.twilio.com/docs/sip-trunking/api
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { installCarrierName, TelephonyError, type AvailableNumber, type CallStatus, type CallStatusEvent, type LineType, type NumberLookup, type OwnedNumber, type TelephonyProvider } from './provider.ts'
+import { installCarrierName, TelephonyError, type AvailableNumber, type CallStatus, type CallStatusEvent, type LineType, type NumberLookup, type OwnedNumber, type SipRouteOptions, type TelephonyProvider } from './provider.ts'
 
 const TRUNKING = 'https://trunking.twilio.com/v1'
 const LOOKUPS = 'https://lookups.twilio.com/v2'
@@ -45,8 +45,9 @@ export function twilioLineType(type: unknown): LineType {
   return 'unknown'
 }
 
-/** Twilio forwards to this URI; TCP is what LiveKit SIP expects from Twilio. */
-const originationUrl = (sipEndpoint: string) => `sip:${sipEndpoint};transport=tcp`
+/** Twilio forwards to this URI: TCP to 5060, or with `secure` TLS to 5061 (and the trunk's Secure setting: SRTP). */
+const originationUrl = (sipEndpoint: string, { secure = false }: SipRouteOptions = {}) =>
+  secure ? `sip:${sipEndpoint}:5061;transport=tls` : `sip:${sipEndpoint};transport=tcp`
 
 /** How long one Twilio API call may take before it fails (like Telnyx's). */
 export const TWILIO_TIMEOUT_MS = 15_000
@@ -94,20 +95,28 @@ export function createTwilioProvider(options: TwilioOptions): TelephonyProvider 
   }
 
   /** Linedesk's Elastic SIP trunk to LiveKit SIP, if the account has one. */
-  async function findTrunk(): Promise<string | undefined> {
+  async function findTrunkInfo(): Promise<Json | undefined> {
     const { trunks } = await request('list trunks', 'GET', `${TRUNKING}/Trunks?PageSize=1000`)
-    return (trunks as Json[] | undefined)?.find(t => t.friendly_name === installCarrierName(TRUNK_NAME))?.sid
+    return (trunks as Json[] | undefined)?.find(t => t.friendly_name === installCarrierName(TRUNK_NAME))
   }
+  const findTrunk = async (): Promise<string | undefined> => (await findTrunkInfo())?.sid
 
-  /** The Elastic SIP trunk that forwards to LiveKit SIP, looked up by name and created if missing. */
-  async function ensureTrunk(): Promise<string> {
-    return (await findTrunk()) ?? (await request('create trunk', 'POST', `${TRUNKING}/Trunks`, { FriendlyName: installCarrierName(TRUNK_NAME) })).sid
+  /**
+   * The Elastic SIP trunk that forwards to LiveKit SIP, looked up by name and created if missing. Its Secure setting
+   * (TLS signalling, SRTP audio; Twilio refuses unencrypted calls on such a trunk) follows `secure`.
+   */
+  async function ensureTrunk({ secure = false }: SipRouteOptions = {}): Promise<string> {
+    const found = await findTrunkInfo()
+    const sid: string = found?.sid ?? (await request('create trunk', 'POST', `${TRUNKING}/Trunks`, { FriendlyName: installCarrierName(TRUNK_NAME) })).sid
+    // A new trunk is not secure; a listed one says so in `secure`.
+    if (Boolean(found?.secure) !== secure) await request('set trunk security', 'POST', `${TRUNKING}/Trunks/${sid}`, { Secure: String(secure) })
+    return sid
   }
 
   /** Makes the trunk forward to exactly this endpoint: adds it if missing, removes any other. */
-  async function ensureOrigination(trunkSid: string, sipEndpoint: string) {
+  async function ensureOrigination(trunkSid: string, sipEndpoint: string, options?: SipRouteOptions) {
     const urls = `${TRUNKING}/Trunks/${trunkSid}/OriginationUrls`
-    const wanted = originationUrl(sipEndpoint)
+    const wanted = originationUrl(sipEndpoint, options)
     const existing = ((await request('list origination URIs', 'GET', `${urls}?PageSize=1000`)).origination_urls ?? []) as Json[]
     if (!existing.some(o => o.sip_url === wanted)) {
       await request('add origination URI', 'POST', urls, { FriendlyName: 'LiveKit SIP', SipUrl: wanted, Weight: '1', Priority: '1', Enabled: 'true' })
@@ -161,9 +170,9 @@ export function createTwilioProvider(options: TwilioOptions): TelephonyProvider 
       return { e164, providerRef: sid }
     },
 
-    async routeToSip(number, sipEndpoint) {
-      const trunkSid = await ensureTrunk()
-      await ensureOrigination(trunkSid, sipEndpoint)
+    async routeToSip(number, sipEndpoint, options) {
+      const trunkSid = await ensureTrunk(options)
+      await ensureOrigination(trunkSid, sipEndpoint, options)
       await attachNumber(trunkSid, number.providerRef)
     },
 

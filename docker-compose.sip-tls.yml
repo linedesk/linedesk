@@ -1,0 +1,102 @@
+# SIP over TLS with encrypted call audio (SRTP) between the carrier and LiveKit SIP. Add it to COMPOSE_FILE on the server
+# that runs LiveKit SIP and whose port 80 is free (voice server 1 of docs/hosting.md; on a single server Caddy holds 80),
+# set LIVEKIT_SIP_TLS=on (or require) in .env there and on the app server (the API sets the carrier to TLS and SRTP when a number is
+# set up; setup-sip lets the inbound trunk take SRTP, or with require only SRTP). Docs: docs/hosting.md, "Encrypted calls".
+#
+# sip-cert: a small Caddy that only gets and renews the certificate for LIVEKIT_SIP_ENDPOINT from Let's Encrypt
+# (HTTP challenge on port 80; every other request is redirected to an HTTPS port that is not published). LiveKit SIP reads the certificate from the same volume
+# when it starts, so a renewed one is in use after its next restart: scripts/deploy.sh does that at a moment without
+# calls (--sip-cert, daily from ops/server's linedesk-sip-cert timer, and on every deploy).
+#
+# The listener on 5061 takes TLS only; 5060 stays for TCP (calls of a carrier not switched yet, and SIP's own calls out).
+
+services:
+  # A new volume belongs to root; Caddy and LiveKit SIP run as 1000.
+  sip-cert-init:
+    image: busybox:1.38@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
+    command: ["chown", "1000:1000", "/data"]
+    volumes: ["sip_cert:/data"]
+    network_mode: none
+    cap_drop: [ALL]
+    cap_add: [CHOWN]
+    security_opt: [no-new-privileges:true]
+
+  sip-cert:
+    image: caddy:2-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+    entrypoint: ["/bin/sh", "-c"]
+    # Only Let's Encrypt (one known path for the files below). No admin endpoint; 8080 and 8443 inside the container,
+    # so it needs no capability; only 8080 is published (as 80), for the challenge.
+    command:
+      - |
+        cat > /tmp/Caddyfile <<'EOF'
+        {
+          admin off
+          persist_config off
+          http_port 8080
+          https_port 8443
+          cert_issuer acme https://acme-v02.api.letsencrypt.org/directory {
+            disable_tlsalpn_challenge
+          }
+        }
+        {$$SIP_HOST} {
+          respond 404
+        }
+        EOF
+        exec caddy run --adapter caddyfile --config /tmp/Caddyfile
+    environment:
+      SIP_HOST: ${LIVEKIT_SIP_ENDPOINT:?set LIVEKIT_SIP_ENDPOINT in .env to the SIP host name (no port), e.g. sip.example.com}
+      XDG_CONFIG_HOME: /tmp
+      XDG_DATA_HOME: /data
+    ports:
+      - "${LIVEKIT_BIND_IP:-127.0.0.1}:80:8080" # the HTTP challenge of Let's Encrypt
+    volumes: ["sip_cert:/data"]
+    user: "1000:1000"
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    # Healthy once the certificate is there; LiveKit SIP waits for it.
+    healthcheck:
+      test: ["CMD-SHELL", "test -s \"/data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/$$SIP_HOST/$$SIP_HOST.crt\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 300s
+      start_interval: 2s
+    depends_on:
+      sip-cert-init: { condition: service_completed_successfully }
+    mem_limit: ${LINEDESK_SIP_CERT_MEM:-64m}
+    cpus: 0.1
+
+  livekit:
+    ports:
+      - "${LIVEKIT_BIND_IP:-127.0.0.1}:5061:5061" # SIP over TLS (served by livekit-sip, which shares this network namespace)
+
+  livekit-sip:
+    environment:
+      # docker-compose.yml's settings plus the TLS listener.
+      SIP_CONFIG_BODY: |
+        api_key: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env (see .env.example)}
+        api_secret: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env (see .env.example)}
+        ws_url: ws://localhost:7880
+        redis:
+          address: redis:6379
+        sip_port: 5060
+        rtp_port: 10000-10100
+        use_external_ip: ${LIVEKIT_SIP_USE_EXTERNAL_IP:-false}
+        tls:
+          port: 5061
+          min_version: tls1.2
+          certs:
+            - cert_file: /certs/caddy/certificates/acme-v02.api.letsencrypt.org-directory/${LIVEKIT_SIP_ENDPOINT}/${LIVEKIT_SIP_ENDPOINT}.crt
+              key_file: /certs/caddy/certificates/acme-v02.api.letsencrypt.org-directory/${LIVEKIT_SIP_ENDPOINT}/${LIVEKIT_SIP_ENDPOINT}.key
+    volumes: ["sip_cert:/certs:ro"]
+    depends_on:
+      sip-cert: { condition: service_healthy }
+
+volumes:
+  sip_cert:

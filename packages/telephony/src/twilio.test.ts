@@ -7,7 +7,7 @@ import { createTwilioProvider, TelephonyError, twilioLineType } from './index.ts
 type Call = { method: string; host: string; path: string; form?: Record<string, string>; auth: string }
 type Account = {
   numbers?: { sid: string; phone_number: string }[]
-  trunks?: { sid: string; friendly_name: string }[]
+  trunks?: { sid: string; friendly_name: string; secure?: boolean }[]
   originations?: { sid: string; sip_url: string }[]
   attached?: string[]
 }
@@ -59,6 +59,11 @@ function mockTwilio(
     if (method === 'POST' && path === '/v1/Trunks') {
       state.trunks.push({ sid: 'TK1', friendly_name: form!.FriendlyName! })
       return json(state.trunks.at(-1), 201)
+    }
+    if (method === 'POST' && path === '/v1/Trunks/TK1') {
+      const trunk = state.trunks.find(t => t.sid === 'TK1')!
+      trunk.secure = form!.Secure === 'true'
+      return json(trunk)
     }
     if (method === 'GET' && path === '/v1/Trunks/TK1/OriginationUrls') return json({ origination_urls: state.originations })
     if (method === 'POST' && path === '/v1/Trunks/TK1/OriginationUrls') {
@@ -183,6 +188,24 @@ describe('twilio adapter', () => {
     expect(state.originations).toEqual([{ sid: 'OU2', sip_url: `sip:${SIP};transport=tcp` }])
     expect(steps(calls)).toContain('DELETE /v1/Trunks/TK1/OriginationUrls/OU1')
     expect(state.attached).toEqual(['PN1'])
+  })
+
+  test('secure: the trunk turns Secure on and the origination goes to 5061 over TLS; and back', async () => {
+    const state = mockTwilio({ numbers: [{ sid: 'PN1', phone_number: NUMBER }] }).state
+    const secure = mockTwilio(state)
+    await secure.provider.routeToSip(routed, SIP, { secure: true })
+    expect(secure.state.trunks[0]!.secure).toBe(true)
+    expect(secure.state.originations.map(o => o.sip_url)).toEqual([`sip:${SIP}:5061;transport=tls`])
+    expect(secure.calls.find(c => c.method === 'POST' && c.path === '/v1/Trunks/TK1')!.form).toEqual({ Secure: 'true' })
+
+    const again = mockTwilio(secure.state)
+    await again.provider.routeToSip(routed, SIP, { secure: true })
+    expect(again.calls.every(c => c.method === 'GET')).toBe(true)
+
+    const back = mockTwilio(again.state)
+    await back.provider.routeToSip(routed, SIP)
+    expect(back.state.trunks[0]!.secure).toBe(false)
+    expect(back.state.originations.map(o => o.sip_url)).toEqual([`sip:${SIP};transport=tcp`])
   })
 
   test('a failed step fails routing; the next run completes it', async () => {

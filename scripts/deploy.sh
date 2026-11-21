@@ -4,6 +4,8 @@
 # (.env, COMPOSE_PROJECT_NAME, COMPOSE_FILE, COMPOSE_PROFILES):
 #   scripts/deploy.sh             build the images, then update
 #   scripts/deploy.sh --no-build  update to the images already built
+#   scripts/deploy.sh --sip-cert  on the server with LiveKit SIP and docker-compose.sip-tls.yml: only restart LiveKit SIP
+#                                 when its certificate was renewed, at a moment without calls (ops/server runs it daily)
 # Prebuilt images: when the checkout holds deploy-images.env (the test server's deploys put it into the
 # archive), the images of this commit are pulled from that
 # registry instead of built here, so a deploy does not load the machine. Without it (self-hosting,
@@ -401,6 +403,26 @@ check_sip_setup() {
   fi
 }
 
+# LiveKit SIP reads its TLS certificate (docker-compose.sip-tls.yml, renewed by sip-cert) only when it starts: true when
+# the certificate on the volume is newer than the running LiveKit SIP.
+sip_cert_renewed() {
+  grep -qx sip-cert <<<"$SERVICES" || return 1
+  local sip cert started
+  sip=$(containers_of livekit-sip | head -1)
+  [ -n "$sip" ] || return 1
+  # shellcheck disable=SC2016 # SIP_HOST is the sip-cert container's own
+  cert=$(docker compose exec -T sip-cert sh -c 'stat -c %Y "/data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/$SIP_HOST/$SIP_HOST.crt"' 2>/dev/null) || return 1
+  started=$(date -d "$(docker inspect -f '{{.State.StartedAt}}' "$sip" 2>/dev/null)" +%s 2>/dev/null) || return 1
+  [[ "$cert" =~ ^[0-9]+$ ]] && [ "$cert" -gt "$started" ]
+}
+
+# The TLS certificate LiveKit SIP needs is on the volume (docker-compose.sip-tls.yml). Without it LiveKit SIP does not
+# start at all, also not for TCP: the call services are not changed until it is there.
+sip_cert_ready() {
+  # shellcheck disable=SC2016 # SIP_HOST is the sip-cert container's own
+  docker compose exec -T sip-cert sh -c 'test -s "/data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/$SIP_HOST/$SIP_HOST.crt"' 2>/dev/null
+}
+
 # The call services that are running but would be recreated (new image or settings), one per line.
 changed_call_services() {
   local service running=()
@@ -424,9 +446,28 @@ update_call_services() {
     return
   fi
   read -r -a changed <<<"$(tr '\n' ' ' <<<"$plan")"
+  local new_sip_cert=''
+  if sip_cert_renewed; then
+    new_sip_cert=1
+    log "call services: LiveKit SIP's certificate was renewed; it is restarted to read it"
+    grep -qx livekit-sip <<<"$plan" || changed+=(livekit-sip)
+  fi
   if [ ${#changed[@]} -eq 0 ]; then
     log "call services: unchanged"
     return
+  fi
+  if grep -qx sip-cert <<<"$SERVICES"; then
+    local tries=0
+    until sip_cert_ready || [ $tries -ge 36 ]; do # a first certificate takes about a minute
+      [ $tries -gt 0 ] || log "call services: waiting for LiveKit SIP's certificate (sip-cert, Let's Encrypt)"
+      sleep 5
+      tries=$((tries + 1))
+    done
+    if ! sip_cert_ready; then
+      log "call services: no certificate for LiveKit SIP yet (docker compose logs sip-cert: port 80 open? LIVEKIT_SIP_ENDPOINT pointing here?); ${changed[*]} left as they are. The next deploy tries again."
+      CALL_SERVICES_PENDING=1
+      return
+    fi
   fi
   docker compose pull --quiet "${changed[@]}" 2>/dev/null || true # new images ready before the quiet moment
   if [ "${LINEDESK_DEPLOY_DROP_CALLS:-}" != 1 ]; then
@@ -446,6 +487,8 @@ update_call_services() {
   sip_before=$(sip_setup)
   log "call services: recreating ${changed[*]}"
   docker compose up -d --no-build --no-deps "${changed[@]}"
+  # Unchanged settings leave the container as it is: the certificate needs a restart.
+  [ -z "$new_sip_cert" ] || docker compose restart livekit-sip
   # livekit-sip and livekit-egress run in livekit's network: a new livekit container needs them recreated too.
   if ! plan=$(changed_call_services); then
     log "call services: could not check the ones that depend on what was just recreated (docker compose dry run failed, above). Check livekit-sip and livekit-egress; the next deploy tries again."
@@ -492,7 +535,10 @@ update_proxy() {
   done
 }
 
-if [ -n "$prebuilt_registry" ] || [ "${1:-}" != --no-build ]; then
+no_build=''
+case "${1:-}" in --no-build | --sip-cert) no_build=1 ;; esac
+[ "${1:-}" != --sip-cert ] || prebuilt_registry='' # never pulls: it only restarts LiveKit SIP
+if [ -n "$prebuilt_registry" ] || [ -z "$no_build" ]; then
   free=$(docker_free_mb)
   if [ "$free" -lt "$MIN_FREE_MB" ]; then
     log "only ${free} MB free on Docker's disk (need ${MIN_FREE_MB}): not updating. Free space (docker builder prune, docker image prune) and deploy again; the running version keeps serving."
@@ -501,7 +547,7 @@ if [ -n "$prebuilt_registry" ] || [ "${1:-}" != --no-build ]; then
 fi
 if [ -n "$prebuilt_registry" ]; then
   pull_prebuilt
-elif [ "${1:-}" != --no-build ]; then
+elif [ -z "$no_build" ]; then
   log "building images (the running version keeps serving)"
   # Without build attestations a rebuild from cache keeps the image id, so an unchanged service is
   # recognised as unchanged (Docker Desktop adds them by default and they differ on every build).
@@ -511,6 +557,19 @@ fi
 # The services of this stack. On its own line, so an invalid compose setup (a variable it requires is missing) stops
 # here, under set -e, instead of being taken for a voice server below.
 stack_services=$(docker compose config --services)
+if [ "${1:-}" = --sip-cert ] && grep -qx api <<<"$stack_services"; then
+  log "--sip-cert: only for the server with LiveKit SIP and docker-compose.sip-tls.yml (not one with the API); nothing to do"
+  exit 0
+fi
+# SIP over TLS: Caddy keeps the certificate under the lower-case host name, and the name goes into its config and the
+# path LiveKit SIP reads: a plain host name only.
+if grep -qx sip-cert <<<"$stack_services"; then
+  sip_host=${LIVEKIT_SIP_ENDPOINT-$(sed -n 's/^LIVEKIT_SIP_ENDPOINT=//p' .env 2>/dev/null | tail -1 | sed "s/^[\"']//; s/[\"']\$//")}
+  if ! [[ "$sip_host" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]]; then
+    echo "LIVEKIT_SIP_ENDPOINT is '$sip_host': with docker-compose.sip-tls.yml it is a host name in lower case without a port (e.g. sip.example.com). Not deploying; the running version keeps serving." >&2
+    exit 1
+  fi
+fi
 
 
 # The voice link publishes this server's part for the other servers on a private address: on the app server
@@ -584,6 +643,27 @@ if ! grep -qx api <<<"$stack_services"; then
   PROJECT=$(docker compose config 2>/dev/null | sed -n '1s/^name: //p')
   [ -n "$PROJECT" ] || { log "could not read the compose project: not updating; the running version keeps serving." >&2; exit 1; }
   if [ -n "$release" ]; then SENTRY_RELEASE=$(release_of agent); export SENTRY_RELEASE; fi
+  if [ "${1:-}" = --sip-cert ]; then
+    grep -qx sip-cert <<<"$stack_services" || { log "--sip-cert: this configuration has no docker-compose.sip-tls.yml; nothing to do"; exit 0; }
+    # Caddy renews about a month before the end; still close to it means the renewal fails (port 80, DNS): alert.
+    command -v openssl >/dev/null || { log "--sip-cert: openssl is missing on this server: the certificate's end date cannot be checked"; exit 1; }
+    # shellcheck disable=SC2016 # SIP_HOST is the sip-cert container's own
+    if ! docker compose exec -T sip-cert sh -c 'cat "/data/caddy/certificates/acme-v02.api.letsencrypt.org-directory/$SIP_HOST/$SIP_HOST.crt"' 2>/dev/null |
+      openssl x509 -noout -checkend $((14 * 86400)) >/dev/null 2>&1; then
+      log "--sip-cert: LiveKit SIP's certificate is missing or ends within 14 days: check sip-cert's log (docker compose logs sip-cert; port 80 open, LIVEKIT_SIP_ENDPOINT pointing here)"
+      exit 1
+    fi
+    update_call_services
+    if [ -n "${CALL_SERVICES_PENDING:-}" ]; then
+      log "--sip-cert: not restarted (calls kept running); the next run tries again: exit 75"
+      exit 75
+    fi
+    if [ -n "${SIP_SETUP_LOST:-}" ]; then
+      log "--sip-cert: LiveKit lost SIP setup (see the warning above): exit 76"
+      exit 76
+    fi
+    exit 0
+  fi
   if grep -qx livekit <<<"$stack_services"; then
     log "other services: recreating only what changed"
     # shellcheck disable=SC2046 # one service name per word

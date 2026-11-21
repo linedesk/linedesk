@@ -72,6 +72,8 @@ Linedesk publishes only the ports it needs. DigitalOcean and Vultr have no firew
 | 5060 (tcp) | SIP from the phone carrier |
 | 10000-10100 (udp) | Phone call audio |
 
+With encrypted calls (below), the server with LiveKit SIP also needs 5061 (tcp) for SIP over TLS and 80 (tcp) for its certificate.
+
 ## Alerts, backups and firewall on the server
 
 For a server that runs real calls, [`ops/server/setup.sh`](../ops/server/README.md) adds what `docker compose` does not: email alerts, disk and memory checks, the nightly backup with a freshness check and a weekly restore test, SIP only from the carriers, and optionally SSH hardening and ufw.
@@ -217,6 +219,18 @@ The server with your customers' data opens no port to phone traffic, and a deplo
 1. Take its address out of `/etc/linedesk/voice-nodes.txt` on the app server and on voice server 1 and run `sudo ops/server/setup.sh` on both: the firewalls cut it off at once, open connections included. Remove its `[Peer]` from `/etc/wireguard/wg0.conf` and `systemctl restart wg-quick@wg0`.
 2. Take its key out of `LINEDESK_VOICE_LIVEKIT_KEYS` on voice server 1 and run `scripts/deploy.sh` there: LiveKit stops accepting it at the next moment without calls (`LINEDESK_DEPLOY_DROP_CALLS=1` at once, cutting off the calls in progress).
 3. If it may be compromised: it had the agent token, so set a new `AGENT_API_TOKEN` (at least 32 characters) on the app server and every voice server and deploy each. Change its SMTP credential at your mail provider.
+
+## Encrypted calls (SIP over TLS, SRTP)
+
+By default the carrier sends calls to LiveKit SIP over TCP (5060) and the call audio as plain RTP. With `LIVEKIT_SIP_TLS=on` the signalling goes over TLS (5061) and the audio is encrypted (SRTP), from the carrier to your server; LiveKit SIP still takes plain RTP from a carrier account not switched yet. `LIVEKIT_SIP_TLS=require` refuses it, once every carrier account with numbers on the install is switched (the install's own and each workspace's own Telnyx or Twilio account). It needs a server whose port 80 is free for the certificate: voice server 1 of "Separate voice servers" (on a single server, Caddy holds port 80).
+
+1. `LIVEKIT_SIP_ENDPOINT` is a host name in lower case without a port (DNS only, no proxy) that points at the server with LiveKit SIP. Open 80 and 5061 (tcp) there, besides 5060 (with `ops/server/setup.sh --cloudflare` on that server, port 80 would take only Cloudflare: leave that option off there).
+2. On that server: `COMPOSE_FILE` gets `:docker-compose.sip-tls.yml`, `.env` gets `LIVEKIT_SIP_TLS=on`; `scripts/deploy.sh` and `sudo ops/server/setup.sh` (its SIP firewall then covers 5061 too, and the timer `linedesk-sip-cert` restarts LiveKit SIP at a moment without calls once the certificate was renewed, and alerts when it is missing or ends within 14 days). `sip-cert` gets the certificate from Let's Encrypt within a minute; the deploy changes LiveKit SIP only once it is there (without it LiveKit SIP would not start at all).
+3. Run `setup-sip` again for every number (where `LIVEKIT_SIP_TLS` is set): the inbound trunk then takes SRTP.
+4. On the app server: `LIVEKIT_SIP_TLS=on` in `.env` and `scripts/deploy.sh`. The next number set up switches the carrier's connection (Telnyx: the FQDN connection to TLS, SRTP and port 5061; Twilio: the trunk to Secure and the origination URI to `sip:<host>:5061;transport=tls`), which every number on it follows. To switch at once, make the same change in the carrier's portal. A number setup that fails halfway can leave the connection half switched (calls refused): set the number up again, which repairs it. Do the switch at a quiet moment: calls are refused for the seconds between the carrier's two changes.
+5. Once every carrier account is switched: `LIVEKIT_SIP_TLS=require` on both servers and `setup-sip` again: plain RTP is refused from then on.
+
+Calls placed by LiveKit SIP itself (a warm transfer, the phone call test) still go out over TCP.
 
 ## Bill your own workspaces
 

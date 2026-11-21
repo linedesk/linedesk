@@ -1,8 +1,8 @@
-import { SIPDispatchRuleInfo, SIPHeaderOptions, SIPInboundTrunkInfo } from '@livekit/protocol'
-import { CARRIER_SIGNALING_ADDRESSES } from '@linedesk/telephony'
+import { SIPDispatchRuleInfo, SIPHeaderOptions, SIPInboundTrunkInfo, SIPMediaEncryption } from '@livekit/protocol'
+import { CARRIER_SIGNALING_ADDRESSES, sipTlsFromEnv } from '@linedesk/telephony'
 import { describe, expect, test } from 'vitest'
 import { ALLOWED_ADDRESSES_ENV, inboundAllowlistFromEnv, isAddressOrRange, parseInboundAllowlist } from './inbound-allowlist.ts'
-import { ensureInboundTrunk, INBOUND_TRUNK_NAME, MAX_CALL_MINUTES, openInboundWarnings } from './sip-trunks.ts'
+import { ensureInboundTrunk, INBOUND_TRUNK_NAME, MAX_CALL_MINUTES, openInboundWarnings, srtpPolicyFromEnv } from './sip-trunks.ts'
 
 const telnyx = CARRIER_SIGNALING_ADDRESSES.telnyx.addresses
 const twilio = CARRIER_SIGNALING_ADDRESSES.twilio.addresses
@@ -192,4 +192,25 @@ test('openInboundWarnings names open trunks and rules bound to no trunk, not our
     'inbound trunk ST_open ("old-pbx") accepts calls from any address',
     'dispatch rule SDR_any ("catch-all") is bound to no trunk, so it also takes calls from addresses no trunk allows',
   ])
+})
+
+describe('audio encryption (LIVEKIT_SIP_TLS)', () => {
+  test('on: SRTP allowed; require: SRTP only; off: plain RTP again', async () => {
+    const sip = fakeSip()
+    const encryption = (id: string) => sip.trunks().find(t => t.sipTrunkId === id)!.media?.encryption
+    const id = await ensureInboundTrunk(sip as never, ['+15035550142'], [...telnyx], INBOUND_TRUNK_NAME, { encryption: 'on' })
+    expect(encryption(id)).toBe(SIPMediaEncryption.SIP_MEDIA_ENCRYPT_ALLOW)
+    await ensureInboundTrunk(sip as never, ['+15035550142'], [...telnyx], INBOUND_TRUNK_NAME, { encryption: 'require' })
+    expect(encryption(id)).toBe(SIPMediaEncryption.SIP_MEDIA_ENCRYPT_REQUIRE)
+    await ensureInboundTrunk(sip as never, ['+15035550142'], [...telnyx])
+    expect(encryption(id)).toBe(SIPMediaEncryption.SIP_MEDIA_ENCRYPT_DISABLE)
+  })
+
+  test('LIVEKIT_SIP_TLS: "on" and "require" turn TLS on; only "require" requires SRTP', () => {
+    expect([sipTlsFromEnv({ LIVEKIT_SIP_TLS: 'on' }), srtpPolicyFromEnv({ LIVEKIT_SIP_TLS: ' on ' })]).toEqual([true, 'on'])
+    expect([sipTlsFromEnv({ LIVEKIT_SIP_TLS: 'require' }), srtpPolicyFromEnv({ LIVEKIT_SIP_TLS: 'require' })]).toEqual([true, 'require'])
+    for (const value of [undefined, '', 'off', 'true', 'ON']) {
+      expect([sipTlsFromEnv({ LIVEKIT_SIP_TLS: value }), srtpPolicyFromEnv({ LIVEKIT_SIP_TLS: value })]).toEqual([false, 'off'])
+    }
+  })
 })

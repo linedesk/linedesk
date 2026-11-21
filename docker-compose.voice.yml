@@ -69,6 +69,7 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       # Which carriers' signaling addresses the SIP trunk accepts (setup-sip.ts, inbound-allowlist.ts).
       LIVEKIT_SIP_ALLOWED_ADDRESSES: ${LIVEKIT_SIP_ALLOWED_ADDRESSES:-}
+      LIVEKIT_SIP_TLS: ${LIVEKIT_SIP_TLS:-}
       # The app server's voice link (docker-compose.voice-link.yml): its Caddy hands this to the proxy's internal
       # listener (which retries while the API is updated).
       LINEDESK_API_URL: http://${LINEDESK_MAIN_HOST:?set LINEDESK_MAIN_HOST in .env to the app server's WireGuard address}:3100

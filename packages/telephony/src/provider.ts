@@ -126,6 +126,23 @@ export class TelephonyError extends Error {
   }
 }
 
+/**
+ * LIVEKIT_SIP_TLS=on: carriers reach LiveKit SIP over TLS (5061) with SRTP audio (docker-compose.sip-tls.yml holds the
+ * certificate and the listener); the API sets each carrier account so when a number is set up (routeToSip), and the
+ * inbound trunk takes SRTP and still plain RTP (setup-sip): an account not switched yet keeps working. `require`: the
+ * same, and the trunk refuses plain RTP, once every carrier account with numbers on this install is switched.
+ */
+export const sipTlsFromEnv = (env: Record<string, string | undefined> = process.env): boolean =>
+  ['on', 'require'].includes(env.LIVEKIT_SIP_TLS?.trim() ?? '')
+/** LIVEKIT_SIP_TLS=require: the inbound trunk refuses calls without SRTP (sipTlsFromEnv). */
+export const srtpRequiredFromEnv = (env: Record<string, string | undefined> = process.env): boolean => env.LIVEKIT_SIP_TLS?.trim() === 'require'
+
+/** How the carrier reaches LiveKit SIP (routeToSip). */
+export interface SipRouteOptions {
+  /** TLS signalling (5061) and SRTP audio instead of TCP (5060) and plain RTP. */
+  secure?: boolean
+}
+
 export interface TelephonyProvider {
   readonly name: ProviderName
   searchNumbers(search: NumberSearch): Promise<AvailableNumber[]>
@@ -139,8 +156,12 @@ export interface TelephonyProvider {
    * cancelled and refused (`not_activated`), never left pending.
    */
   buyNumber(e164: string, options?: BuyOptions): Promise<OwnedNumber>
-  /** Sends the number's inbound calls to a SIP endpoint (host of LiveKit SIP). Safe to repeat; a changed endpoint replaces the old one. */
-  routeToSip(number: OwnedNumber, sipEndpoint: string): Promise<void>
+  /**
+   * Sends the number's inbound calls to a SIP endpoint (host of LiveKit SIP). Safe to repeat; a changed endpoint replaces
+   * the old one. `secure`: signalling over TLS to port 5061 and the audio as SRTP (LIVEKIT_SIP_TLS, docker-compose.sip-tls.yml);
+   * else TCP to 5060 and plain RTP. The setting is the carrier's for the whole connection or trunk, so every number on it follows.
+   */
+  routeToSip(number: OwnedNumber, sipEndpoint: string, options?: SipRouteOptions): Promise<void>
   /**
    * Stops sending the number's calls to LiveKit, for a number that stays with the business (an attached
    * number). Only undoes Linedesk's own routing (its connection or trunk); a number routed elsewhere is left

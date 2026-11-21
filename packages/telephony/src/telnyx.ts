@@ -1,6 +1,6 @@
 // Telnyx adapter, REST API v2 with plain fetch. https://developers.telnyx.com/api
 import { createPublicKey, verify } from 'node:crypto'
-import { installCarrierName, TelephonyError, type TelephonyErrorCode, type AvailableNumber, type CallStatus, type CallStatusEvent, type LineType, type NumberLookup, type OwnedNumber, type RequirementGroup, type RequirementGroupAddress, type TelephonyProvider } from './provider.ts'
+import { installCarrierName, TelephonyError, type TelephonyErrorCode, type AvailableNumber, type CallStatus, type CallStatusEvent, type LineType, type NumberLookup, type OwnedNumber, type RequirementGroup, type RequirementGroupAddress, type SipRouteOptions, type TelephonyProvider } from './provider.ts'
 
 const API = 'https://api.telnyx.com/v2'
 /** A requirement group's page in the Telnyx portal. */
@@ -131,15 +131,34 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
   }
 
   /** Linedesk's FQDN connection to LiveKit SIP, if the account has one. */
-  async function findConnection(): Promise<string | undefined> {
+  async function findConnectionInfo(): Promise<Json | undefined> {
     const { data } = await request('GET', `/fqdn_connections?filter[connection_name][contains]=${connectionName}`)
-    return (data as Json[] | undefined)?.find(c => c.connection_name === connectionName)?.id
+    return (data as Json[] | undefined)?.find(c => c.connection_name === connectionName)
   }
+  const findConnection = async (): Promise<string | undefined> => (await findConnectionInfo())?.id
 
-  /** The FQDN connection that forwards to LiveKit SIP, looked up by name and created if missing. */
-  async function ensureConnection(): Promise<string> {
-    const existing = await findConnection()
-    if (existing) return existing
+  /**
+   * The FQDN connection that forwards to LiveKit SIP, looked up by name and created if missing; its transport set to
+   * what `secure` asks for. Telnyx takes SRTP (`encrypted_media`) only with TLS signalling.
+   */
+  async function ensureConnection({ secure = false }: SipRouteOptions = {}): Promise<string> {
+    const transport = { transport_protocol: secure ? 'TLS' : 'TCP', encrypted_media: secure ? 'SRTP' : null }
+    const found = await findConnectionInfo()
+    const existing: string | undefined = found?.id
+    if (existing) {
+      // Linedesk creates its connection with TCP; a listing without the fields is that.
+      if ((found!.transport_protocol ?? 'TCP') !== transport.transport_protocol || (found!.encrypted_media ?? null) !== transport.encrypted_media) {
+        // From TLS back to TCP the SRTP setting must go first (Telnyx refuses SRTP without TLS); the other way, TLS first.
+        if (secure) {
+          await request('PATCH', `/fqdn_connections/${existing}`, { transport_protocol: 'TLS' })
+          await request('PATCH', `/fqdn_connections/${existing}`, { encrypted_media: 'SRTP' })
+        } else {
+          await request('PATCH', `/fqdn_connections/${existing}`, { encrypted_media: null })
+          await request('PATCH', `/fqdn_connections/${existing}`, { transport_protocol: 'TCP' })
+        }
+      }
+      return existing
+    }
     const created = await request('POST', '/fqdn_connections', {
       active: true,
       anchorsite_override: 'Latency',
@@ -147,17 +166,26 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
       transport_protocol: 'TCP',
       inbound: { ani_number_format: '+E.164', dnis_number_format: '+e164' },
     })
+    if (secure) {
+      await request('PATCH', `/fqdn_connections/${created.data.id}`, { transport_protocol: 'TLS' })
+      await request('PATCH', `/fqdn_connections/${created.data.id}`, { encrypted_media: 'SRTP' })
+    }
     return created.data.id
   }
 
-  /** Makes the connection forward to exactly this endpoint: adds it if missing, removes any other. */
-  async function ensureFqdn(connectionId: string, sipEndpoint: string) {
+  /**
+   * Makes the connection forward to exactly this endpoint and port (5061 for TLS, else 5060): adds it if missing, removes
+   * any other. The new record goes in before the old one is removed, so the connection never has none.
+   */
+  async function ensureFqdn(connectionId: string, sipEndpoint: string, { secure = false }: SipRouteOptions = {}) {
+    const port = secure ? 5061 : 5060
     const { data } = await request('GET', `/fqdns?filter[connection_id]=${connectionId}`)
     const fqdns = ((data ?? []) as Json[]).filter(f => sameTelnyxId(f.connection_id, connectionId))
-    if (!fqdns.some(f => f.fqdn === sipEndpoint)) {
-      await request('POST', '/fqdns', { connection_id: connectionId, fqdn: sipEndpoint, port: 5060, dns_record_type: 'a' })
+    const wanted = (f: Json) => f.fqdn === sipEndpoint && Number(f.port ?? 5060) === port
+    if (!fqdns.some(wanted)) {
+      await request('POST', '/fqdns', { connection_id: connectionId, fqdn: sipEndpoint, port, dns_record_type: 'a' })
     }
-    for (const stale of fqdns.filter(f => f.fqdn !== sipEndpoint)) await request('DELETE', `/fqdns/${stale.id}`)
+    for (const stale of fqdns.filter(f => !wanted(f))) await request('DELETE', `/fqdns/${stale.id}`)
   }
 
   /**
@@ -311,9 +339,9 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
       throw error
     },
 
-    async routeToSip(number, sipEndpoint) {
-      const connection_id = await ensureConnection()
-      await ensureFqdn(connection_id, sipEndpoint)
+    async routeToSip(number, sipEndpoint, options) {
+      const connection_id = await ensureConnection(options)
+      await ensureFqdn(connection_id, sipEndpoint, options)
       await request('PATCH', `/phone_numbers/${number.providerRef}`, { connection_id })
       await flagSpamCalls(number.providerRef)
     },

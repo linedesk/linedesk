@@ -171,6 +171,10 @@ fi
 if printf '%s\n' "$compose_services" | grep -qx agent && ! printf '%s\n' "$compose_services" | grep -qx api; then
   units="$units linedesk-agent-check.timer"
 fi
+# SIP over TLS (docker-compose.sip-tls.yml): LiveKit SIP reads a renewed certificate after a restart at a quiet moment.
+if printf '%s\n' "$compose_services" | grep -qx sip-cert; then
+  units="$units linedesk-sip-cert.timer"
+fi
 
 if [ "$harden_ssh" = 1 ]; then
   # Never lock the last way in: a non-root user with a full SSH key (not a forced-command one like a deploy key) who
