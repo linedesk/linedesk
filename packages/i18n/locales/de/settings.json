@@ -679,7 +679,7 @@
   "developers.zapier.copied": "Adresse kopiert.",
   "developers.zapier.copyFailed": "Kopieren fehlgeschlagen. Markiere die Adresse stattdessen.",
   "developers.zapier.key": "Erstelle oben mit „Schlüssel erstellen“ einen API-Schlüssel. Mitglieder-Zugriff reicht für jeden Linedesk-Trigger und jede Aktion.",
-  "developers.zapier.notAvailable": "Dieser Server hat noch keinen Link zur Linedesk-App auf Zapier. Bitte deinen Server-Admin, ihn unter Server-Admin › System zu setzen.",
+  "developers.zapier.notAvailable": "Dieser Server hat noch keinen Link zur Linedesk-App auf Zapier. Bitte deinen Server-Admin, ihn unter Server-Admin › Einstellungen › Integrationen zu setzen.",
   "developers.zapier.open": "Öffne <link>Linedesk auf Zapier</link>.",
   "developers.zapier.pick": "Wähle einen Trigger (Call Started, During-Call Lookup oder Call Finished) oder eine Aktion. Run Any Action erreicht jede Aktion der API.",
   "developers.zapier.title": "Zapier verbinden",

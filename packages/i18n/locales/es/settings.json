@@ -679,7 +679,7 @@
   "developers.zapier.copied": "Dirección copiada.",
   "developers.zapier.copyFailed": "No se pudo copiar. Selecciona la dirección.",
   "developers.zapier.key": "Crea una clave de API con Crear clave, arriba. El acceso de miembro basta para todos los disparadores y acciones de Linedesk.",
-  "developers.zapier.notAvailable": "Este servidor aún no tiene un enlace a la app de Linedesk en Zapier. Pide al administrador del servidor que lo defina en Administración del servidor › Sistema.",
+  "developers.zapier.notAvailable": "Este servidor aún no tiene un enlace a la app de Linedesk en Zapier. Pide al administrador del servidor que lo defina en Administración del servidor › Configuración › Integraciones.",
   "developers.zapier.open": "Abre <link>Linedesk en Zapier</link>.",
   "developers.zapier.pick": "Elige un disparador (Call Started, During-Call Lookup o Call Finished) o una acción. Run Any Action llega a todas las acciones de la API.",
   "developers.zapier.title": "Conectar Zapier",
