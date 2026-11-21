@@ -532,5 +532,6 @@
   "setupAgent.step.telephony": "Phone carrier",
   "setupAgent.step.telephonyHint": "Telnyx or Twilio",
   "setupAgent.step.test_call": "Test call",
+  "setupAgent.writeInLanguage": "Write everything the assistant reads or says in {language}, the workspace language: the About the business text, services, common calls, the greeting and other lines. Also when the website, the listing or the {who} use another language; you may talk with the {who} in theirs.",
   "signup.workspaceName": "My business"
 }

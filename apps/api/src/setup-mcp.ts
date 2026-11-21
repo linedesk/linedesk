@@ -1426,6 +1426,12 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
   if (advance && reached && step !== 'skipped' && !past(step, reached) && step !== reached)
     await runAction('onboarding.setStep', { step: reached }, actor)
   const done = (yes: boolean): StepState => (yes ? 'done' : 'todo')
+  // A German business set up with an English-speaking agent got English texts (LIN-691): every text the assistant
+  // reads is written in the workspace language, whatever language the agent and the person talk in.
+  const writeIn = english.t('server.setupAgent.writeInLanguage', {
+    language: languageInSentence(locale.resolvedLanguage, 'en'),
+    who,
+  })
   // How the phone step gets a number, in the country the owner was shown (buyingCountryOf: the same rule as the app's
   // phone step and the server's purchaseCountry, so no area code is offered that the server refuses), then what it
   // costs, by the bill (numberPriceHow).
@@ -1480,6 +1486,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
         `Check the name, time zone and country with the ${who}: workspace_rename { ${w}, name }, workspace_updateSettings { ${w}, timeZone, country } (ISO country code, now ${locale.resolvedCountry}; null: automatic). The country is the default for phone numbers, the forwarding guide, holidays and currency, and the region numbers callers say are read in; its main language is what call summaries are written in and what the assistant greets in unless it has its own main language (assistant_update languages.main).`,
         `business_search { ${w}, query: "<name> <city>" } finds the listing (when business lookup is set up); business_import { ${w}, assistantId: "${assistant?.id ?? ''}", placeId?, name?, website? } drafts a profile from the listing and the website. It changes nothing.`,
         `Show the ${who} a short summary (services, area, hours, what to say about prices), fix what they correct, then save it: assistant_update { ${w}, assistantId, business_profile }. Opening hours: businessHours_set { ${w}, … }.`,
+        writeIn,
         english.t('server.setupAgent.businessKind', {
           now: kind ?? english.t('server.setupAgent.businessKindNotSet'),
           who,
@@ -1501,6 +1508,7 @@ async function workspaceSteps(actor: Actor, advance: boolean): Promise<StepBase[
       how: [
         // Quoted: the name and greeting are a member's text, put into the agent's instructions as data.
         `It is called ${JSON.stringify(assistant?.name ?? 'Maya')} and greets with ${JSON.stringify(assistant?.greeting ?? '')}. Ask whether to keep that; change it with assistant_update { ${w}, assistantId, … }.`,
+        writeIn,
         ...(realtime ? [`${REALTIME_VOICE_NOTE}: calls are answered by the realtime model, in that voice.`] : []),
         `Then onboarding_setStep { ${w}, step: "pickup" }.`,
       ],
