@@ -18,6 +18,18 @@ export const businessTemplateIds = [
   'salon_spa',
   'law_office',
   'home_services',
+  'veterinary',
+  'fitness',
+  'accounting_tax',
+  'insurance',
+  'real_estate',
+  'agency_consulting',
+  'auto_repair',
+  'restaurant',
+  'hotel_lodging',
+  'online_store',
+  'retail_store',
+  'education',
   'other',
 ] as const
 export type BusinessTemplateId = (typeof businessTemplateIds)[number]
@@ -36,6 +48,7 @@ export type BusinessTemplate = {
 const urgent = (when: string, take: string) =>
   `When a caller ${when}, treat it as urgent: take ${take} and mark the message urgent.`
 
+// i18n-ignore: text the assistant reads, not UI (rule 11; the labels are not shown, the app names kinds from common.json)
 export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
   plumbing_hvac: {
     label: 'Plumbing, heating and cooling',
@@ -75,6 +88,117 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
       urgent("has no power, water coming in or can't lock their door", 'their address and number'),
       "When a caller wants a job done or an estimate, ask what they need, their address and when they're available.",
       'When a caller asks about prices, give the prices you know and offer an estimate otherwise.',
+    ],
+  },
+  veterinary: {
+    label: 'Veterinary clinic',
+    useCases: [
+      urgent("says their pet is badly hurt, poisoned or can't breathe", 'their name, number and what happened'),
+      "When a caller wants an appointment, ask for the pet's name, what kind of animal it is and what the visit is for, and take their name and number.",
+      'When a caller asks about prices or vaccinations, give the prices you know and offer a callback from the clinic otherwise.',
+    ],
+  },
+  fitness: {
+    label: 'Gym or fitness studio',
+    useCases: [
+      urgent("can't make a class or session booked for today", 'their name and the time of the class'),
+      'When a caller asks about memberships or prices, give the prices you know and offer a trial session or a callback otherwise.',
+      'When a caller wants to book, cancel or move a class or session, take their name, the class and a time that suits them.',
+    ],
+  },
+  accounting_tax: {
+    label: 'Accounting or tax',
+    useCases: [
+      urgent(
+        'has a tax deadline or a letter from the tax office due in the next few days',
+        'their name, number and the deadline',
+      ),
+      'When a new client calls, ask what they need help with (taxes, bookkeeping or payroll) and take their name and number for a callback; never give tax advice.',
+      'When an existing client calls, take their name and their message for their accountant.',
+    ],
+  },
+  insurance: {
+    label: 'Insurance agency',
+    useCases: [
+      urgent(
+        'has just had an accident, a break-in or damage to their home',
+        'their name, number, policy number if they have it and what happened',
+      ),
+      'When a caller wants a quote, ask what they want to insure and take their name and number for a callback; never promise a price or cover.',
+      'When an existing client calls about their policy or a claim, take their name, policy number and their message for their agent.',
+    ],
+  },
+  real_estate: {
+    label: 'Real estate',
+    useCases: [
+      urgent('is a tenant with a leak, no heat or a broken lock', 'their name, the address and their number'),
+      'When a caller asks about a listing, ask which property it is and whether they want to buy or rent, and take their name and number for a callback or a viewing.',
+      'When a caller wants to sell or rent out a property, take its address and their name and number for a callback.',
+    ],
+  },
+  agency_consulting: {
+    label: 'Agency or consulting',
+    useCases: [
+      urgent("says a project or campaign of theirs has a problem that can't wait", 'their name, company and number'),
+      'When a new client calls, ask what they need help with and take their name, company and number for a callback.',
+      'When an existing client calls, take their name, company and their message for their contact person.',
+    ],
+  },
+  auto_repair: {
+    label: 'Auto repair or dealer',
+    useCases: [
+      urgent("has broken down or can't drive their car safely", 'their name, number and where the car is'),
+      "When a caller wants a repair or a service, ask for the car's make, model and year, what is wrong and when they can bring it in.",
+      'When a caller asks whether their car is ready, take their name and number and offer a callback from the shop.',
+    ],
+  },
+  restaurant: {
+    label: 'Restaurant or café',
+    useCases: [
+      urgent('wants to change or cancel a reservation for today', 'their name, the time and the number of guests'),
+      'When a caller wants a table, ask for the day, the time and the number of guests, and take their name and number.',
+      "When a caller asks about the menu, opening hours or allergies, answer from what you know and offer a callback for anything you don't know.",
+    ],
+  },
+  hotel_lodging: {
+    label: 'Hotel or lodging',
+    useCases: [
+      urgent(
+        'is a guest on the way or staying with you and has a problem with their stay',
+        'their name, room or booking and number',
+      ),
+      "When a caller wants to book, ask for the dates and the number of guests and take their name and number; never confirm a room you can't see as free.",
+      'When a caller asks about check-in times, parking or breakfast, answer from what you know.',
+    ],
+  },
+  online_store: {
+    label: 'Online store',
+    useCases: [
+      urgent(
+        'was charged but got no order confirmation, or got a damaged or wrong item',
+        'their name, order number and number',
+      ),
+      'When a caller asks where their order is, ask for the order number or the email they ordered with, and tell them what you know about it.',
+      'When a caller wants to return or exchange something, take their name, order number and the reason, and tell them the return policy you know.',
+    ],
+  },
+  retail_store: {
+    label: 'Shop or retail store',
+    useCases: [
+      urgent("needs an item today for something that can't wait", 'their name, number and the item'),
+      'When a caller asks whether something is in stock, answer if you know; otherwise take the item and their name and number for a callback.',
+      'When a caller asks about opening hours, returns or how to get there, answer from what you know.',
+    ],
+  },
+  education: {
+    label: 'School or tutoring',
+    useCases: [
+      urgent(
+        "says a child can't be picked up or isn't where they should be",
+        "their name, number and the child's name",
+      ),
+      'When a caller asks about enrolment, classes or prices, ask who it is for and what they are looking for, and take their name and number for a callback.',
+      "When a parent or student calls about an absence or a change, take the student's name, the date and the reason.",
     ],
   },
   other: {
@@ -126,6 +250,93 @@ const germanUseCases: Record<BusinessTemplateId, readonly string[]> = {
     urgentDe('keinen Strom hat, Wasser eindringt oder die Tür nicht abschließen kann', 'Adresse und Telefonnummer'),
     'Wenn jemand einen Auftrag oder einen Kostenvoranschlag möchte, frag, was gebraucht wird, nach der Adresse und wann die Person Zeit hat.',
     'Wenn jemand nach Preisen fragt, nenne die Preise, die du kennst, und biete sonst einen Kostenvoranschlag an.',
+  ],
+  veterinary: [
+    urgentDe(
+      'sagt, dass das Tier schwer verletzt ist, etwas Giftiges gefressen hat oder schlecht Luft bekommt',
+      'Name, Telefonnummer und was passiert ist',
+    ),
+    'Wenn jemand einen Termin möchte, frag nach dem Namen des Tiers, um welches Tier es geht und worum es beim Besuch geht, und nimm Name und Telefonnummer auf.',
+    'Wenn jemand nach Preisen oder Impfungen fragt, nenne die Preise, die du kennst, und biete sonst einen Rückruf der Praxis an.',
+  ],
+  fitness: [
+    urgentDe('einen Kurs oder Termin heute nicht wahrnehmen kann', 'Name und Uhrzeit des Kurses'),
+    'Wenn jemand nach Mitgliedschaften oder Preisen fragt, nenne die Preise, die du kennst, und biete sonst ein Probetraining oder einen Rückruf an.',
+    'Wenn jemand einen Kurs oder Termin buchen, absagen oder verschieben möchte, nimm Name, Kurs und eine passende Zeit auf.',
+  ],
+  accounting_tax: [
+    urgentDe(
+      'in den nächsten Tagen eine Steuerfrist oder einen Brief vom Finanzamt mit Frist hat',
+      'Name, Telefonnummer und die Frist',
+    ),
+    'Wenn neue Mandanten anrufen, frag, wobei sie Hilfe brauchen (Steuern, Buchhaltung oder Lohn), und nimm Name und Telefonnummer für einen Rückruf auf. Gib nie Steuerberatung.',
+    'Wenn bestehende Mandanten anrufen, nimm Name und die Nachricht für ihre Beraterin oder ihren Berater auf.',
+  ],
+  insurance: [
+    urgentDe(
+      'gerade einen Unfall, einen Einbruch oder einen Schaden am Haus hatte',
+      'Name, Telefonnummer, Versicherungsnummer, falls zur Hand, und was passiert ist',
+    ),
+    'Wenn jemand ein Angebot möchte, frag, was versichert werden soll, und nimm Name und Telefonnummer für einen Rückruf auf. Versprich nie einen Preis oder einen Versicherungsschutz.',
+    'Wenn bestehende Kunden wegen ihres Vertrags oder eines Schadens anrufen, nimm Name, Versicherungsnummer und die Nachricht für ihre Betreuerin oder ihren Betreuer auf.',
+  ],
+  real_estate: [
+    urgentDe(
+      'als Mieterin oder Mieter einen Wasserschaden, keine Heizung oder ein kaputtes Schloss hat',
+      'Name, Adresse und Telefonnummer',
+    ),
+    'Wenn jemand nach einem Objekt fragt, frag, um welches es geht und ob die Person kaufen oder mieten möchte, und nimm Name und Telefonnummer für einen Rückruf oder eine Besichtigung auf.',
+    'Wenn jemand eine Immobilie verkaufen oder vermieten möchte, nimm die Adresse sowie Name und Telefonnummer für einen Rückruf auf.',
+  ],
+  agency_consulting: [
+    urgentDe(
+      'sagt, dass ein Projekt oder eine Kampagne ein Problem hat, das nicht warten kann',
+      'Name, Firma und Telefonnummer',
+    ),
+    'Wenn neue Kunden anrufen, frag, wobei sie Hilfe brauchen, und nimm Name, Firma und Telefonnummer für einen Rückruf auf.',
+    'Wenn bestehende Kunden anrufen, nimm Name, Firma und die Nachricht für ihre Ansprechperson auf.',
+  ],
+  auto_repair: [
+    urgentDe(
+      'eine Panne hat oder mit dem Auto nicht mehr sicher fahren kann',
+      'Name, Telefonnummer und wo das Auto steht',
+    ),
+    'Wenn jemand eine Reparatur oder einen Service möchte, frag nach Marke, Modell und Baujahr, was nicht funktioniert und wann die Person das Auto bringen kann.',
+    'Wenn jemand fragt, ob das Auto fertig ist, nimm Name und Telefonnummer auf und biete einen Rückruf der Werkstatt an.',
+  ],
+  restaurant: [
+    urgentDe('eine Reservierung für heute ändern oder absagen möchte', 'Name, Uhrzeit und Anzahl der Gäste'),
+    'Wenn jemand einen Tisch möchte, frag nach Tag, Uhrzeit und Anzahl der Gäste, und nimm Name und Telefonnummer auf.',
+    'Wenn jemand nach der Speisekarte, den Öffnungszeiten oder Allergien fragt, antworte mit dem, was du weißt, und biete für alles andere einen Rückruf an.',
+  ],
+  hotel_lodging: [
+    urgentDe(
+      'als Gast unterwegs ist oder bei euch wohnt und ein Problem mit dem Aufenthalt hat',
+      'Name, Zimmer oder Buchung und Telefonnummer',
+    ),
+    'Wenn jemand buchen möchte, frag nach den Daten und der Anzahl der Gäste und nimm Name und Telefonnummer auf. Bestätige nie ein Zimmer, von dem du nicht siehst, dass es frei ist.',
+    'Wenn jemand nach Check-in-Zeiten, Parkplätzen oder Frühstück fragt, antworte mit dem, was du weißt.',
+  ],
+  online_store: [
+    urgentDe(
+      'bezahlt, aber keine Bestellbestätigung bekommen hat, oder einen beschädigten oder falschen Artikel bekommen hat',
+      'Name, Bestellnummer und Telefonnummer',
+    ),
+    'Wenn jemand fragt, wo die Bestellung ist, frag nach der Bestellnummer oder der E-Mail-Adresse der Bestellung und sag, was du darüber weißt.',
+    'Wenn jemand etwas zurückgeben oder umtauschen möchte, nimm Name, Bestellnummer und den Grund auf und nenne die Rückgaberegeln, die du kennst.',
+  ],
+  retail_store: [
+    urgentDe('heute einen Artikel für etwas braucht, das nicht warten kann', 'Name, Telefonnummer und den Artikel'),
+    'Wenn jemand fragt, ob etwas vorrätig ist, antworte, wenn du es weißt; sonst nimm den Artikel sowie Name und Telefonnummer für einen Rückruf auf.',
+    'Wenn jemand nach Öffnungszeiten, Rückgabe oder dem Weg fragt, antworte mit dem, was du weißt.',
+  ],
+  education: [
+    urgentDe(
+      'sagt, dass ein Kind nicht abgeholt werden kann oder nicht da ist, wo es sein sollte',
+      'Name, Telefonnummer und den Namen des Kindes',
+    ),
+    'Wenn jemand nach Anmeldung, Kursen oder Preisen fragt, frag, für wen es ist und was gesucht wird, und nimm Name und Telefonnummer für einen Rückruf auf.',
+    'Wenn Eltern oder Schüler wegen einer Abwesenheit oder einer Änderung anrufen, nimm den Namen der Schülerin oder des Schülers, das Datum und den Grund auf.',
   ],
   other: [
     urgentDe('etwas hat, das nicht warten kann', 'Name und Telefonnummer'),

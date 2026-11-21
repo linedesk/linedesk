@@ -64,7 +64,7 @@ describe('industry templates', () => {
     expect(templateFor({ name: 'Lakeside Dental' })).toBe('dental_medical')
     expect(templateFor({ name: 'Baker & Sons Law' })).toBe('law_office')
     expect(templateFor({ name: 'Northside Electric' })).toBe('home_services')
-    expect(templateFor({ name: 'The Corner Bookshop' })).toBe('other')
+    expect(templateFor({ name: 'The Corner Bookshop' })).toBe('retail_store')
     expect(templateFor({ name: 'Joe' })).toBeNull()
   })
 

@@ -366,7 +366,7 @@ describe('business.import', () => {
     expect(listing.body.data.failures).toEqual([{ provider: 'business', reason: 'config' }])
     expect(calls).toHaveLength(0)
     const shop = await act(ws.owner, 'business.import', { assistantId: ws.assistant.id, name: 'The Corner Bookshop' })
-    expect(shop.body.data).toMatchObject({ kind: 'retail_store', template: 'other' })
+    expect(shop.body.data).toMatchObject({ kind: 'retail_store', template: 'retail_store' })
     const unknown = await act(ws.owner, 'business.import', { assistantId: ws.assistant.id, name: 'Joe Smith' })
     expect(unknown.body.data).toMatchObject({ kind: null, template: null })
   })
