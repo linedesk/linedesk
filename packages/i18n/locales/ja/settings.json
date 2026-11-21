@@ -682,7 +682,7 @@
   "developers.zapier.copied": "アドレスをコピーしました。",
   "developers.zapier.copyFailed": "コピーできませんでした。アドレスを選択してコピーしてください。",
   "developers.zapier.key": "上の「キーを作成」でAPIキーを作成します。Linedeskのすべてのトリガーと操作は、メンバーのアクセス権で使えます。",
-  "developers.zapier.notAvailable": "このサーバーには、ZapierのLinedeskアプリへのリンクがまだありません。サーバー管理 › 設定 › 連携で設定するよう、サーバー管理者に依頼してください。",
+  "developers.zapier.notAvailable": "このサーバーには Zapier の Linedesk アプリへのリンクがまだありません。サーバー管理者に、サーバー管理 › ツールで設定するよう依頼してください。",
   "developers.zapier.open": "<link>ZapierのLinedesk</link>を開きます。",
   "developers.zapier.pick": "トリガー（Call Started、During-Call Lookup、Call Finished）または操作を選びます。Run Any ActionではAPIのすべての操作を使えます。",
   "developers.zapier.title": "Zapierを接続",
