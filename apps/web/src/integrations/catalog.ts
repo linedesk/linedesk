@@ -2,7 +2,7 @@
 // works today opens something: Zapier, Make and n8n (through the assistant's webhooks), the assistant's webhooks, the
 // calendar providers (Booking & calendar; one this server does not offer says so), API keys, the REST API and the MCP
 // server. Each opens its detail view here (`#integrations/<id>`) or the place where it is set up, also as a link
-// (`#integrations/make` goes to the webhooks). HubSpot, Slack, Jobber and Shopify are connected apps (OAuth, docs/crm-sync.md):
+// (`#integrations/make` goes to the webhooks). HubSpot, Zoho CRM, Slack, Jobber and Shopify are connected apps (OAuth, docs/crm-sync.md):
 // their detail view connects them. Gmail and Outlook connect the business's support mailboxes, read only (LIN-637),
 // one card each; both pages show what the support mail shows (all mailboxes together).
 // One that is not built (ServiceTitan) shows as "Coming soon" and opens nothing.
@@ -58,6 +58,7 @@ export const DETAIL_IDS = [
   'slack',
   'jobber',
   'shopify',
+  'zoho',
   'gmail',
   'outlook-mail',
   'api-keys',
@@ -92,6 +93,7 @@ export type Mark =
         | 'make'
         | 'n8n'
         | 'hubspot'
+        | 'zoho'
         | 'slack'
         | 'shopify'
         | 'modelcontextprotocol'
@@ -186,6 +188,13 @@ export const CATALOG: readonly Integration[] = [
     mark: { kind: 'logo', logo: 'hubspot', color: '#FF7A59' },
     opens: detail('hubspot'),
     keywords: 'crm contacts call log sync',
+  },
+  {
+    id: 'zoho',
+    category: 'crm',
+    mark: { kind: 'logo', logo: 'zoho', color: '#E42527' },
+    opens: detail('zoho'),
+    keywords: 'zoho crm contacts call log sync',
   },
   {
     id: 'jobber',
@@ -291,6 +300,7 @@ export const INTEGRATION_TRAITS: Record<IntegrationId, readonly BusinessTrait[]>
   calcom: ['appointments'],
   calendly: ['appointments'],
   hubspot: [],
+  zoho: [],
   jobber: ['site_visits'],
   servicetitan: ['site_visits'],
   shopify: ['online_orders'],
@@ -393,7 +403,8 @@ export function statusOf(id: IntegrationId, facts: Facts): Status {
     case 'hubspot':
     case 'slack':
     case 'jobber':
-    case 'shopify': {
+    case 'shopify':
+    case 'zoho': {
       if (facts.apps === undefined) return { kind: 'loading' }
       const state = facts.apps[id]
       return state === 'connected'

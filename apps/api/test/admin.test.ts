@@ -855,6 +855,7 @@ describe('provider keys', () => {
       'hubspot',
       'slack',
       'jobber',
+      'zoho',
       'shopify',
       'google_mail',
       'turnstile',

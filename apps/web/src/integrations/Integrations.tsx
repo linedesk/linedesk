@@ -1,5 +1,5 @@
 // Integrations (#integrations, G O): everything Linedesk connects to, as lines by category, with a search and one
-// key per category. A line opens its detail view here (#integrations/zapier, /hubspot, /slack, /jobber, /shopify,
+// key per category. A line opens its detail view here (#integrations/zapier, /hubspot, /zoho, /slack, /jobber, /shopify,
 // /gmail, /outlook-mail, /api-keys, /rest-api, /mcp) or
 // the place where it is set up (the assistant's webhooks and booking; #integrations/make and the like go there too); one not
 // built yet shows "Coming soon", and an address with nothing behind it says so. The catalog itself is catalog.ts; API keys and
@@ -463,6 +463,7 @@ function Detail({ id, canManageKeys, toast }: { id: DetailId; canManageKeys: boo
       </div>
       {id === 'zapier' && <ZapierSubscriptions canEdit={canManageKeys} toast={toast} />}
       {id === 'hubspot' && <ConnectedApp app="hubspot" canEdit={canManageKeys} toast={toast} />}
+      {id === 'zoho' && <ConnectedApp key="zoho" app="zoho" canEdit={canManageKeys} toast={toast} />}
       {id === 'slack' && <ConnectedApp key="slack" app="slack" canEdit={canManageKeys} toast={toast} />}
       {id === 'jobber' && <ConnectedApp key="jobber" app="jobber" canEdit={canManageKeys} toast={toast} />}
       {id === 'shopify' && <ConnectedApp key="shopify" app="shopify" canEdit={canManageKeys} toast={toast} />}

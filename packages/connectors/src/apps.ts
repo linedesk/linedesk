@@ -2,6 +2,7 @@ import { createHubSpotConnector, createHubSpotOAuth } from './hubspot.ts'
 import { createJobberConnector, createJobberOAuth } from './jobber.ts'
 import { createShopifyConnector, createShopifyOAuth } from './shopify.ts'
 import { createSlackConnector, createSlackOAuth } from './slack.ts'
+import { createZohoConnector, createZohoOAuth } from './zoho.ts'
 import type { AppConnector, AppId, AppOAuth, OAuthClient } from './types.ts'
 
 /**
@@ -14,6 +15,7 @@ const APPS: Record<AppId, { oauth: (client: OAuthClient) => AppOAuth; connector:
   slack: { oauth: client => createSlackOAuth(client), connector: () => createSlackConnector() },
   jobber: { oauth: client => createJobberOAuth(client), connector: () => createJobberConnector() },
   shopify: { oauth: client => createShopifyOAuth(client), connector: () => createShopifyConnector() },
+  zoho: { oauth: client => createZohoOAuth(client), connector: () => createZohoConnector() },
 }
 
 export const appOAuth = (id: AppId, client: OAuthClient): AppOAuth => APPS[id].oauth(client)

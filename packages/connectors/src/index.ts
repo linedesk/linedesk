@@ -50,3 +50,18 @@ export {
   verifyShopifyQuery,
   verifyShopifyWebhook,
 } from './shopify.ts'
+export {
+  createZohoConnector,
+  createZohoCrm,
+  createZohoOAuth,
+  splitDc,
+  ZOHO_API_VERSION,
+  ZOHO_CLIENT_REFUSED,
+  ZOHO_DATA_CENTERS,
+  ZOHO_SCOPES,
+  type ZohoDataCenter,
+  zohoDataCenter,
+  zohoDateTime,
+  zohoDuration,
+  zohoPhoneSearchTerms,
+} from './zoho.ts'

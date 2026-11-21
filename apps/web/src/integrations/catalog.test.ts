@@ -95,7 +95,7 @@ describe('the catalog', () => {
       'developers',
     ])
     expect(ids(groups[0]!.items)).toEqual(['zapier', 'make', 'n8n', 'webhooks'])
-    expect(ids(groups[2]!.items)).toEqual(['hubspot', 'jobber', 'servicetitan'])
+    expect(ids(groups[2]!.items)).toEqual(['hubspot', 'zoho', 'jobber', 'servicetitan'])
     expect(ids(groups[3]!.items)).toEqual(['shopify'])
     expect(ids(groups[5]!.items)).toEqual(['gmail', 'outlook-mail'])
     expect(ids(groups[6]!.items)).toEqual(['api-keys', 'rest-api', 'mcp'])
@@ -209,6 +209,9 @@ describe('statusOf', () => {
     expect(statusOf('jobber', { ...NOTHING, apps: { hubspot: 'connected' } })).toEqual({ kind: 'notConnected' })
     expect(statusOf('jobber', { ...NOTHING, apps: { jobber: 'connected' } })).toEqual({ kind: 'connected' })
     expect(statusOf('jobber', { ...NOTHING, apps: { jobber: 'needs_attention' } })).toEqual({ kind: 'needsAttention' })
+    expect(statusOf('zoho', NOTHING)).toEqual({ kind: 'notConnected' })
+    expect(statusOf('zoho', { ...NOTHING, apps: { hubspot: 'connected' } })).toEqual({ kind: 'notConnected' })
+    expect(statusOf('zoho', { ...NOTHING, apps: { zoho: 'connected' } })).toEqual({ kind: 'connected' })
     expect(statusOf('shopify', NOTHING)).toEqual({ kind: 'notConnected' })
     expect(statusOf('shopify', { ...NOTHING, apps: { shopify: 'connected' } })).toEqual({ kind: 'connected' })
     expect(statusOf('shopify', { ...NOTHING, apps: { shopify: 'needs_attention' } })).toEqual({

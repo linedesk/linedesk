@@ -479,6 +479,15 @@ const guides = {
     ],
     costKey: msg('admin.provider.guide.jobber.cost'),
   },
+  zoho: {
+    url: 'https://api-console.zoho.com/',
+    stepKeys: [
+      msg('admin.provider.guide.zoho.step1'),
+      msg('admin.provider.guide.zoho.step2'),
+      msg('admin.provider.guide.zoho.step3'),
+    ],
+    costKey: msg('admin.provider.guide.zoho.cost'),
+  },
   shopify: {
     url: 'https://dev.shopify.com/dashboard',
     stepKeys: [
@@ -1151,6 +1160,17 @@ export const providers = {
       client_secret: { labelKey: msg('admin.provider.field.clientSecret'), env: 'JOBBER_CLIENT_SECRET', secret: true },
     },
     helpKey: msg('admin.provider.help.jobber'),
+  },
+  zoho: {
+    // i18n-ignore: a product name in the English-only provider registry, like every other provider label here
+    label: 'Zoho CRM',
+    category: 'apps',
+    guide: guides.zoho,
+    fields: {
+      client_id: { labelKey: msg('admin.provider.field.clientId'), env: 'ZOHO_CLIENT_ID', secret: false },
+      client_secret: { labelKey: msg('admin.provider.field.clientSecret'), env: 'ZOHO_CLIENT_SECRET', secret: true },
+    },
+    helpKey: msg('admin.provider.help.zoho'),
   },
   shopify: {
     // i18n-ignore: a product name in the English-only provider registry, like every other provider label here

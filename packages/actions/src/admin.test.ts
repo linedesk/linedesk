@@ -95,7 +95,7 @@ test('every provider has a category, and the first of each category is the defau
     ['transcript', ['openai_transcript', 'deepgram_transcript', 'assemblyai', 'elevenlabs_transcript']],
     ['business', ['google_places']],
     ['billing', ['stripe']],
-    ['apps', ['hubspot', 'slack', 'jobber', 'shopify', 'google_mail']],
+    ['apps', ['hubspot', 'slack', 'jobber', 'zoho', 'shopify', 'google_mail']],
     ['bot_check', ['turnstile']],
     ['domains', ['cloudflare_saas']],
   ])

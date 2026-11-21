@@ -102,6 +102,8 @@ const REQUIRED_SCOPES: Record<AppId, readonly string[]> = {
   jobber: ['read_clients', 'write_clients'],
   // Shopify names only the write scope when both were granted (write includes read).
   shopify: ['write_customers', 'write_orders', 'read_products'],
+  // Zoho names no scopes in its token answer; checked only if it ever does.
+  zoho: ['ZohoCRM.modules.contacts.ALL', 'ZohoCRM.modules.calls.CREATE', 'ZohoSearch.securesearch.READ'],
 }
 /** An access token that does not run out (Slack without token rotation) is stored with this expiry. */
 const NEVER = '9999-12-31T00:00:00.000Z'

@@ -510,6 +510,7 @@ const appNameKeys: Record<string, MessageKey> = {
   slack: msg('settings.integrations.card.slack.name'),
   jobber: msg('settings.integrations.card.jobber.name'),
   shopify: msg('settings.integrations.card.shopify.name'),
+  zoho: msg('settings.integrations.card.zoho.name'),
 }
 const appName = (app: unknown) => {
   const key = appNameKeys[String(app)]

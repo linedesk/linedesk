@@ -21,7 +21,7 @@ import {
   zeroDataRetentionOn,
 } from '@linedesk/actions'
 import { LIVE_KEYS_REFUSED, liveKeysAllowed, loadBillingProvider, stripeKeyMode } from '@linedesk/billing'
-import { JOBBER_API, JOBBER_CLIENT_REFUSED } from '@linedesk/connectors'
+import { JOBBER_API, JOBBER_CLIENT_REFUSED, ZOHO_CLIENT_REFUSED, ZOHO_DATA_CENTERS } from '@linedesk/connectors'
 import { msg } from '@linedesk/i18n'
 import { smtpCheck } from './email.ts'
 import { ResendError, resendKeyCheck } from './email-resend.ts'
@@ -528,6 +528,34 @@ const jobber: Check = async (values, http) => {
   return warning('unknown', said('server.api.providerTest.answered', { provider: label, status: res.status }))
 }
 
+// Zoho's token endpoint checks the client ID and secret before the grant, and answers with HTTP 200 and an `error`:
+// a made-up refresh token gets `invalid_client` for an unknown client ID or one not on for the US data centre (seen
+// live 2026-11-21), `invalid_client_secret` for a wrong secret, and `invalid_code` once past that check (Zoho's OAuth
+// docs). The US accounts server, where every connect starts. Free, nothing is changed at Zoho (the token does not exist).
+const ZOHO_TOKEN_URL = `${ZOHO_DATA_CENTERS.us.accounts}/oauth/v2/token`
+
+const zoho: Check = async (values, http) => {
+  const res = await http.send(ZOHO_TOKEN_URL, {
+    method: 'POST',
+    headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: 'linedesk-connection-test',
+      client_id: values.client_id!.trim(),
+      client_secret: values.client_secret!.trim(),
+    }),
+  })
+  const body = (await res.json().catch(() => ({}))) as { error?: unknown }
+  const code = typeof body.error === 'string' ? body.error : ''
+  const { label } = providerSpec('zoho')
+  if (ZOHO_CLIENT_REFUSED.test(code)) return error('auth', `${label} ${OAUTH_CLIENT_REJECTED}`)
+  if (res.status === 429 || res.status >= 500)
+    return error('network', said('server.api.providerTest.answered', { provider: label, status: res.status }))
+  // Past the client check: Zoho refused only the made-up refresh token.
+  if (code === 'invalid_code') return ok()
+  return warning('unknown', said('server.api.providerTest.answered', { provider: label, status: res.status }))
+}
+
 // Shopify's token endpoint lives on each shop's own domain, so without a shop nothing can test the client secret: only
 // the client ID's form is checked here, the keys themselves when the first business connects.
 const shopify: Check = async values => {
@@ -558,6 +586,7 @@ const checks: Record<HttpProvider, Check> = {
   slack,
   jobber,
   shopify,
+  zoho,
   openai_transcript: openaiTranscript,
   deepgram_transcript: deepgram,
   assemblyai,

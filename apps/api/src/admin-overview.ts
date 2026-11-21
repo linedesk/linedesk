@@ -53,6 +53,7 @@ export const pricePerMinute: Record<ProviderName, number> = {
   hubspot: 0,
   slack: 0,
   jobber: 0,
+  zoho: 0,
   shopify: 0,
   google_mail: 0,
   smtp: 0,

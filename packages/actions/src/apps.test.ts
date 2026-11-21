@@ -71,6 +71,7 @@ describe('app.updateSettings (LIN-367)', () => {
 
   it('Jobber has the CRM switches: a note on the client, new callers as clients, empty fields (LIN-304)', () => {
     expect(APP_SETTINGS.jobber).toEqual(['log_calls', 'create_contacts', 'fill_fields'])
+    expect(APP_SETTINGS.zoho).toEqual(['log_calls', 'create_contacts', 'fill_fields'])
   })
 
   it('takes only known switches, each true or false', () => {

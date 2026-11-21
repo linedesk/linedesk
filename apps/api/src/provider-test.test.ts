@@ -826,6 +826,36 @@ describe('apps: Jobber', () => {
   })
 })
 
+describe('apps: Zoho CRM', () => {
+  const keys = config({ client_id: '1000.ZOHOCLIENT', client_secret: 'zoho-secret' })
+
+  test.each([['invalid_client'], ['invalid_client_secret']])(
+    'Zoho refusing the client (%s, with HTTP 200) fails',
+    async code => {
+      const fake = provider({ 'POST /oauth/v2/token': [200, { error: code }] })
+      const result = await testProvider('zoho', keys, fake.doFetch)
+      expect(result).toMatchObject({ ok: false, status: 'error', reason: 'auth' })
+      expect(result.message).toBe('Zoho CRM rejected the client ID or secret')
+      expect(fake.calls).toEqual(['POST https://accounts.zoho.com/oauth/v2/token'])
+      const sent = new URLSearchParams(String(fake.requests[0]!.init.body))
+      expect(sent.get('grant_type')).toBe('refresh_token')
+      expect(sent.get('client_id')).toBe('1000.ZOHOCLIENT')
+    },
+  )
+
+  test('a known client passes: Zoho refused only the made-up refresh token', async () => {
+    const fake = provider({ 'POST /oauth/v2/token': [200, { error: 'invalid_code' }] })
+    expect(await testProvider('zoho', keys, fake.doFetch)).toMatchObject({ ok: true, status: 'ok' })
+  })
+
+  test('an answer that proves nothing is a warning, Zoho down is an error', async () => {
+    const odd = provider({ 'POST /oauth/v2/token': [400, { error: 'invalid_request' }] })
+    expect(await testProvider('zoho', keys, odd.doFetch)).toMatchObject({ ok: true, status: 'warning' })
+    const down = provider({ 'POST /oauth/v2/token': [503, {}] })
+    expect(await testProvider('zoho', keys, down.doFetch)).toMatchObject({ ok: false, reason: 'network' })
+  })
+})
+
 describe('email: Resend over its HTTPS API', () => {
   const values = { api_key: KEY, from: 'Desk <desk@example.com>' }
 

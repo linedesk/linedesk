@@ -194,6 +194,11 @@ export const providerMeta: Record<ProviderName, Meta> = {
     blurb: msg('admin.provider.blurb.jobber'),
     keysUrl: 'https://developer.getjobber.com/',
   },
+  zoho: {
+    mark: { brand: 'zoho' },
+    blurb: msg('admin.provider.blurb.zoho'),
+    keysUrl: 'https://api-console.zoho.com/',
+  },
   shopify: {
     mark: { brand: 'shopify' },
     blurb: msg('admin.provider.blurb.shopify'),
@@ -230,7 +235,7 @@ export function redirectUris(provider: ProviderName, origin: string): string[] {
   // Calendly allows exactly one redirect URI per app: the calendar one.
   if (provider === 'calendly' || provider === 'calcom') return [`${origin}/v1/calendar/callback/${provider}`]
   if (provider === 'oidc') return [`${origin}/api/auth/oauth2/callback/oidc`]
-  if (provider === 'hubspot' || provider === 'slack' || provider === 'jobber' || provider === 'shopify')
+  if (provider === 'hubspot' || provider === 'slack' || provider === 'jobber' || provider === 'shopify' || provider === 'zoho')
     return [`${origin}/v1/apps/callback/${provider}`]
   return []
 }

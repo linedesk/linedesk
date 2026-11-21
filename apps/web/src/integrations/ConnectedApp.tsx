@@ -1,4 +1,4 @@
-// Integrations › HubSpot, Slack, Jobber and Shopify (connected apps, docs/crm-sync.md): connect the app with its consent page, see
+// Integrations › HubSpot, Zoho CRM, Slack, Jobber and Shopify (connected apps, docs/crm-sync.md): connect the app with its consent page, see
 // which account (Slack: which channel in which workspace) it is and whether calls still go through, the last calls sent, and disconnect. The connection is a
 // synced row (app_connections); connecting is an OAuth round trip, so the page names the table to read again on
 // return (refreshOnReturn), and the callback's result comes back in the hash (`?app=connected` or `?app=error`).
@@ -68,6 +68,13 @@ const APP_TEXT: Record<ConnectableApp, AppText> = {
     notConnected: msg('settings.integrations.app.shopify.notConnected'),
     disconnectConfirmTip: msg('settings.integrations.app.shopify.disconnectConfirmTip'),
     scope: msg('settings.integrations.app.shopify.scope'),
+  },
+  // A CRM with contacts, like HubSpot: the same words.
+  zoho: {
+    help: msg('settings.integrations.app.help'),
+    notConnected: msg('settings.integrations.app.notConnected'),
+    disconnectConfirmTip: msg('settings.integrations.app.disconnectConfirmTip'),
+    scope: msg('settings.integrations.app.error.scope'),
   },
 }
 

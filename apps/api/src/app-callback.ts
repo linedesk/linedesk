@@ -27,8 +27,14 @@ export async function appCallback(
   if (!code || !state) return fail('failed')
   const actor = await resolveActor(headers)
   if (!actor) return fail('signed_out')
-  // Shopify signs the whole query (hmac over shop, code, state, timestamp, host): it goes along to be checked.
-  const params = app.data === 'shopify' ? Object.fromEntries(query) : undefined
+  // Shopify signs the whole query (hmac over shop, code, state, timestamp, host): it goes along to be checked. Zoho
+  // names the data centre of the member's account (`accounts-server`), checked against Zoho's own list.
+  const params =
+    app.data === 'shopify'
+      ? Object.fromEntries(query)
+      : app.data === 'zoho' && query.get('accounts-server')
+        ? { 'accounts-server': query.get('accounts-server')! }
+        : undefined
   const { body } = await runAction(
     'app.connectFinish',
     { app: app.data, state, code, ...(params ? { params } : {}) },

@@ -6,7 +6,7 @@ import { defineAction } from './define.ts'
  * Connected apps (docs/crm-sync.md): business tools a workspace connects by OAuth, so every finished
  * phone call goes to them. Same list as APP_IDS in @linedesk/connectors (the API checks they match).
  */
-export const connectableApps = ['hubspot', 'slack', 'jobber', 'shopify'] as const
+export const connectableApps = ['hubspot', 'slack', 'jobber', 'shopify', 'zoho'] as const
 export type ConnectableApp = (typeof connectableApps)[number]
 const app = z.enum(connectableApps)
 
@@ -36,7 +36,7 @@ export const isAppConnectError = (value: unknown): value is AppConnectError =>
 export const appConnectStart = defineAction({
   name: 'app.connectStart',
   description:
-    "Start connecting an app (HubSpot, Slack, Jobber, Shopify) to the workspace. Returns the URL of the app's consent page; Slack's lets the member pick the channel calls are posted to. Shopify needs `shop`: the store's myshopify.com domain or its first part.",
+    "Start connecting an app (HubSpot, Slack, Jobber, Shopify, Zoho CRM) to the workspace. Returns the URL of the app's consent page; Slack's lets the member pick the channel calls are posted to. Shopify needs `shop`: the store's myshopify.com domain or its first part.",
   input: z.object({ app, shop: z.string().trim().min(1).max(200).optional() }),
   permission: 'settings:write',
 })
@@ -109,6 +109,7 @@ export const APP_SETTINGS: Record<ConnectableApp, readonly AppSettingId[]> = {
   hubspot: ['log_calls', 'create_contacts', 'fill_fields'],
   slack: ['log_calls', 'only_urgent'],
   jobber: ['log_calls', 'create_contacts', 'fill_fields'],
+  zoho: ['log_calls', 'create_contacts', 'fill_fields'],
   shopify: [
     'log_calls',
     'create_contacts',
