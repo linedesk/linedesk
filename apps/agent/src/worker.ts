@@ -99,6 +99,7 @@ import {
   warmUpLlm,
   REALTIME_TURNS,
 } from './pipeline.ts'
+import { CALLER_AUDIO_WAIT_MS, callerAudioOpen } from './caller-audio.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize, withoutLeadingSilence } from './greeting-cache.ts'
 import { keepGreetingsStored, openingOf as openingOfAssistant, storedGreetingText } from './greeting-prewarm.ts'
 import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
@@ -235,11 +236,13 @@ async function greet(
   key: string,
   details: Promise<CallerDetails | null> | null,
   queued: () => void,
+  heard: () => Promise<void>,
 ) {
   // A greeting with caller details ({{name}}) waits briefly for them and is spoken live: it differs per caller. Details
   // that come later (or none) give the greeting without them, stored like any other (`key` is that text's).
   const found = details ? await within(details, PERSONAL_GREETING_WAIT_MS, null) : null
   if (found) {
+    await heard()
     queued()
     session.say(fillTemplate(openingOf(call), found))
     return 'personal'
@@ -247,6 +250,7 @@ async function greet(
   const text = details ? fillTemplate(openingOf(call), null) : openingOf(call)
   const without = details ? ', without caller details' : ''
   const audio = await cached
+  await heard()
   queued()
   if (audio) {
     // Without the silence the voice put before the first word: it would only delay the greeting (LIN-262).
@@ -383,7 +387,10 @@ async function converse(
   setup: SetupTimer,
   stopRecordingForTransfer: () => Promise<void>,
   callerDetails: Promise<CallerDetails | null>,
+  callerAudio: Promise<void>,
 ) {
+  // The phone caller hears the greeting from its first word: it starts once their voice path is open (caller-audio.ts).
+  const heard = () => within(callerAudio, CALLER_AUDIO_WAIT_MS, undefined)
   // The three stages answer the call, or a realtime model alone (then: no cached greeting, no quick tool replies).
   const stages = isRealtime(config) ? null : config
   const realtime = isRealtime(config) ? config.realtime : null
@@ -792,6 +799,7 @@ async function converse(
           setup,
           stopRecordingForTransfer,
           callerDetails,
+          callerAudio,
         )
       }
       // No three stages on this install: LiveKit tries again at once; the greeting is asked for once it is connected
@@ -829,6 +837,7 @@ async function converse(
     // them (at most GREETING_WAIT_MS) and goes to the model filled in; its instructions never hold that greeting (prompt.ts).
     const details = personalGreeting ? await within(callerDetails, GREETING_WAIT_MS, null) : null
     const replies = realtimeLines?.model()?.replies
+    await heard()
     if (replies?.serverReplies()) return setup.note('dropped: the realtime model already answered the caller')
     const askedBefore = replies?.asked() ?? 0
     setup.mark('greeting queued')
@@ -845,8 +854,15 @@ async function converse(
     return setup.note('spoken by the realtime model')
   }
   setup.note(
-    await greet(session, stages, call, cachedGreeting, key, personalGreeting ? callerDetails : null, () =>
-      setup.mark('greeting queued'),
+    await greet(
+      session,
+      stages,
+      call,
+      cachedGreeting,
+      key,
+      personalGreeting ? callerDetails : null,
+      () => setup.mark('greeting queued'),
+      heard,
     ),
   )
 }
@@ -959,6 +975,8 @@ async function entry(ctx: JobContext) {
     setup.mark('caller')
     return caller
   })
+  // A phone caller's first audio: their voice path is open, the greeting can start (caller-audio.ts).
+  const callerAudio = callerAudioOpen(ctx.room, callerJoined).then(() => setup.mark('caller audio'))
   callerJoined.catch(() => {}) // a caller who never comes: the session closes with the room; awaited below where needed
   const registered =
     (await early) ??
@@ -1074,6 +1092,7 @@ async function entry(ctx: JobContext) {
       setup,
       stopRecordingForTransfer,
       callerDetails,
+      callerAudio,
     )
   } catch (e) {
     await finishOnce()
