@@ -100,6 +100,7 @@ import {
   REALTIME_TURNS,
 } from './pipeline.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize, withoutLeadingSilence } from './greeting-cache.ts'
+import { keepGreetingsStored, openingOf as openingOfAssistant, storedGreetingText } from './greeting-prewarm.ts'
 import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
 import { describeRealtimeReply, realtimeTurnTimer } from './realtime-timing.ts'
 import { describeRealtimeUsage, type RealtimeUsageMetrics, realtimeUsageCounter } from './realtime-usage.ts'
@@ -220,8 +221,7 @@ const QUIET_TOOLS = new Set(['flag_urgent'])
 const greetingCache = createGreetingCache()
 
 /** What the assistant opens the call with: its greeting, else the fallback in its main language. */
-const openingOf = (call: CallSession) =>
-  call.assistant?.greeting || spokenLines(mainLanguageOf(call.assistant?.languages)).fallbackGreeting
+const openingOf = (call: CallSession) => openingOfAssistant(call.assistant)
 
 /**
  * Starts the greeting: the stored audio when there is some for this text and voice, else the voice
@@ -393,7 +393,7 @@ async function converse(
     greetingKey({
       ...greetingVoice(stages, call),
       // A greeting with caller details is stored without them: what the caller hears when they come too late (greet).
-      text: personalGreeting ? fillTemplate(openingOf(call), null) : openingOf(call),
+      text: storedGreetingText(openingOf(call)),
     })
   const cachedGreeting = key ? greetingCache.get(key) : Promise.resolve(null) // read while the session starts
   void cachedGreeting.then(audio => audio && setup.mark('greeting read'))
@@ -1219,6 +1219,9 @@ async function main() {
   // The API counts the agent as running by its last settings read (Server admin › Overview, the test call's check):
   // read them on a timer too, not only when a call comes, so a test call is not refused after the API restarts.
   setInterval(() => void loadAgentConfig().catch(() => {}), SETTINGS_TTL_MS + 1000).unref()
+  // The greetings of every assistant a phone number answers with, stored before their first call and within a minute
+  // of a save (greeting-prewarm.ts): no call of a burst waits for a greeting made live.
+  if (readiness.ready) keepGreetingsStored(apiClientFromEnv(), loadAgentConfig)
   // Processes kept warm for the next call: a call takes one, and a phone call test two (the test caller and the
   // business), while the next one starts (a new process needs ~2 s of CPU). The SDK loads up to one new process per CPU at
   // once (at most four; our patch, LIN-226), so calls beyond the warm ones that start together wait for those (LIN-465).

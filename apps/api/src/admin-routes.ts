@@ -20,6 +20,7 @@ import { livekitStatus } from './livekit-status.ts'
 import { listProviderFailures } from './provider-failures.ts'
 import { providerStatus, voiceProviderConfig } from './provider-settings.ts'
 import { partnerKeysForCall } from './partner-keys.ts'
+import { GREETINGS_CACHE_MS, greetingsToStore } from './greetings-to-store.ts'
 import { SecretsKeyError } from './secrets.ts'
 import { agentSetupState, partnerSetupActor, setupActor, workspaceSetupActor } from './agent-setup.ts'
 import { PARTNER_OWNER_ONLY } from './partner-refusals.ts'
@@ -28,6 +29,9 @@ import { setupProgress } from './setup-mcp.ts'
 import { providerFacts, setupChecklist, storedTests, statusContext } from './setup-checklist.ts'
 import { LATENCY_DAYS_DEFAULT, LATENCY_DAYS_MAX, replyLatency } from './reply-latency.ts'
 import { AT_RISK_MAX_DAYS, atRiskWorkspaces, workspacesOldEnough } from './setup-emails.ts'
+
+/** The last answer of GET /v1/agent/greetings (GREETINGS_CACHE_MS). */
+let greetingsCache: { at: number; greetings: unknown[] } | undefined
 
 type Env = { Variables: { actor: Actor } }
 // biome-ignore lint/suspicious/noExplicitAny: rows of hand-written aggregate queries
@@ -395,6 +399,20 @@ export function registerAdminRoutes(app: Hono<Env>) {
       if (e instanceof SecretsKeyError) return c.json({ ok: false, error: e.message }, 409)
       throw e
     }
+  })
+
+  // For the voice agent: what each assistant a phone number answers with would greet with now, so the agent stores the
+  // greeting audio before the first call (greetings-to-store.ts, LIN-679). The agent asks every minute. The install-wide
+  // agent token only, never a call token: it covers every workspace, as call.start does for any number.
+  app.get('/v1/agent/greetings', requirePermission('agent'), async c => {
+    if (c.get('actor').callId) return c.json({ ok: false, error: 'a call token cannot read the greetings' }, 403)
+    c.header('cache-control', 'no-store')
+    if (!greetingsCache || Date.now() - greetingsCache.at > GREETINGS_CACHE_MS)
+      greetingsCache = {
+        at: Date.now(),
+        greetings: await db.transaction(tx => greetingsToStore(tx, new Date().toISOString())),
+      }
+    return c.json({ greetings: greetingsCache.greetings })
   })
 
   // White-label own keys (S7, partner-keys.ts): the partner's working keys for one running call that call.start

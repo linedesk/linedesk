@@ -2,7 +2,7 @@
 // at once when a call is answered instead of waiting for the voice provider. A changed greeting or
 // voice has another key, so it is synthesized anew; the old file is simply no longer used.
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, rename, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -13,12 +13,26 @@ import { AudioFrame } from '@livekit/rtc-node'
 export type GreetingAudio = { sampleRate: number; channels: number; samples: Int16Array }
 
 /** What makes the greeting sound the way it does. */
-export type GreetingVoice = { provider: string; model?: string; voiceId?: string; /** Percent of the voice's own pace; 100 or none: its own pace. */ speed?: number; text: string }
+export type GreetingVoice = {
+  provider: string
+  model?: string
+  voiceId?: string /** Percent of the voice's own pace; 100 or none: its own pace. */
+  speed?: number
+  text: string
+}
 
 /** At normal speed the key stays what it was before speeds existed, so stored greetings are still found. */
 export const greetingKey = (voice: GreetingVoice) =>
   createHash('sha256')
-    .update(JSON.stringify([voice.provider, voice.model ?? '', voice.voiceId ?? '', voice.text, ...(voice.speed && voice.speed !== 100 ? [voice.speed] : [])]))
+    .update(
+      JSON.stringify([
+        voice.provider,
+        voice.model ?? '',
+        voice.voiceId ?? '',
+        voice.text,
+        ...(voice.speed && voice.speed !== 100 ? [voice.speed] : []),
+      ]),
+    )
     .digest('hex')
     .slice(0, 32)
 
@@ -60,7 +74,10 @@ export function withoutLeadingSilence(audio: GreetingAudio): GreetingAudio {
 }
 
 /** The audio as a stream of 20 ms frames, the way `session.say(text, { audio })` takes it. */
-export function audioStream({ sampleRate, channels, samples }: GreetingAudio, frameMs = 20): ReadableStream<AudioFrame> {
+export function audioStream(
+  { sampleRate, channels, samples }: GreetingAudio,
+  frameMs = 20,
+): ReadableStream<AudioFrame> {
   const perFrame = Math.round((sampleRate * frameMs) / 1000) * channels
   let offset = 0
   return new ReadableStream<AudioFrame>({
@@ -112,6 +129,10 @@ export function createGreetingCache(dir = GREETING_CACHE_DIR) {
       } catch {
         return null
       }
+    },
+    /** Whether audio is stored under `key` (greeting-prewarm.ts), without reading it. */
+    has(key: string): boolean {
+      return existsSync(file(key))
     },
     /** Stores the audio; written to a temporary file first, so a reader never sees half a file. */
     async put(key: string, audio: GreetingAudio): Promise<void> {

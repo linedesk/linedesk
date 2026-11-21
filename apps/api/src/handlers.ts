@@ -397,7 +397,7 @@ export function closureNow(closure: Closure | null | undefined, timeZone: string
  * sentence it can use ("Closed now; opens tomorrow at 7:00 AM"), holidays included. Vacation or
  * closure mode wins over the hours, also when the workspace does not use hours. null: nothing to say.
  */
-async function businessHoursFor(tx: Tx, workspace_id: string, now: string): Promise<CallHours | null> {
+export async function businessHoursFor(tx: Tx, workspace_id: string, now: string): Promise<CallHours | null> {
   const [settings] = await tx
     .select({
       timezone: workspace_settings.timezone,
@@ -926,7 +926,9 @@ async function checkAssistantLanguages(
   // A new language the speech recognition does not hear (AssemblyAI: Polish and five more) is refused; one the
   // assistant already has is kept (the call leaves it out, callLanguagesOf).
   const hearing = await installHearing(tx)
-  const unheard = unspokenLanguages(languages, heardLanguages(languageCodes, hearing)).filter(code => !had.includes(code))
+  const unheard = unspokenLanguages(languages, heardLanguages(languageCodes, hearing)).filter(
+    code => !had.includes(code),
+  )
   if (unheard.length && hearing)
     throw Reject.t('server.api.sttCantHear', {
       stt: providerSpec(hearing.provider as ProviderName).label,

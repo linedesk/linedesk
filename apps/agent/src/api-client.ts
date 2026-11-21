@@ -11,7 +11,12 @@ const REQUEST_TIMEOUT_MS = 5000
  * Actions that wait on a calendar provider: the API gives each provider request 8 s and makes up to three. Cut off
  * sooner, a booking the API still made reached the caller as failed (Cal.com, LIN-204).
  */
-const CALENDAR_ACTIONS = new Set(['calendar.findSlots', 'appointment.book', 'appointment.reschedule', 'appointment.cancel'])
+const CALENDAR_ACTIONS = new Set([
+  'calendar.findSlots',
+  'appointment.book',
+  'appointment.reschedule',
+  'appointment.cancel',
+])
 const CALENDAR_TIMEOUT_MS = 25_000
 /**
  * A during-call lookup: the API waits DURING_CALL_TIMEOUT_MS (7 s) for the business's system, plus its own work, which
@@ -21,7 +26,10 @@ const LOOKUP_ACTION = 'call.askWebhook'
 const LOOKUP_TIMEOUT_MS = TOOL_MAX_WAIT_MS + 1000
 /** call.correctTranscript waits while a transcription model hears the whole recording again. */
 const TRANSCRIPT_TIMEOUT_MS = 30_000
-const SLOW_ACTIONS: Record<string, number> = { [LOOKUP_ACTION]: LOOKUP_TIMEOUT_MS, 'call.correctTranscript': TRANSCRIPT_TIMEOUT_MS }
+const SLOW_ACTIONS: Record<string, number> = {
+  [LOOKUP_ACTION]: LOOKUP_TIMEOUT_MS,
+  'call.correctTranscript': TRANSCRIPT_TIMEOUT_MS,
+}
 const timeoutOf = (name: string) =>
   CALENDAR_ACTIONS.has(name) ? CALENDAR_TIMEOUT_MS : (SLOW_ACTIONS[name] ?? REQUEST_TIMEOUT_MS)
 
@@ -58,6 +66,8 @@ export interface ApiClient {
    * only, like providerSettings). The body is never put into an error, and never cached.
    */
   callProviderSettings?(callId: string): Promise<unknown>
+  /** What each assistant a phone number answers with would greet with now (greeting-prewarm.ts; install token only). */
+  greetings?(): Promise<unknown>
 }
 
 export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiClientOptions): ApiClient {
@@ -75,7 +85,8 @@ export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiC
         signal: AbortSignal.timeout(timeoutOf(def.name)),
       })
       const body = (await res.json().catch(() => null)) as ActionResult | ActionRejection | null
-      if (!res.ok || !body?.ok) throw new ActionError(def.name, res.status, body && !body.ok ? body.error : res.statusText)
+      if (!res.ok || !body?.ok)
+        throw new ActionError(def.name, res.status, body && !body.ok ? body.error : res.statusText)
       return body
     },
     async providerSettings() {
@@ -84,7 +95,12 @@ export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiC
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
       const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
-      if (!res.ok) throw new ActionError('provider-config', res.status, typeof body?.error === 'string' ? body.error : res.statusText)
+      if (!res.ok)
+        throw new ActionError(
+          'provider-config',
+          res.status,
+          typeof body?.error === 'string' ? body.error : res.statusText,
+        )
       return body
     },
     async callProviderSettings(callId) {
@@ -95,7 +111,22 @@ export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiC
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
       const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
-      if (!res.ok) throw new ActionError('call-provider-config', res.status, typeof body?.error === 'string' ? body.error : res.statusText)
+      if (!res.ok)
+        throw new ActionError(
+          'call-provider-config',
+          res.status,
+          typeof body?.error === 'string' ? body.error : res.statusText,
+        )
+      return body
+    },
+    async greetings() {
+      const res = await doFetch(new URL('/v1/agent/greetings', baseUrl), {
+        headers: { authorization: `Bearer ${token}`, accept: 'application/json' },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
+      const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
+      if (!res.ok)
+        throw new ActionError('greetings', res.status, typeof body?.error === 'string' ? body.error : res.statusText)
       return body
     },
   }
