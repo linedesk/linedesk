@@ -38,6 +38,7 @@ import { runSeatSync, type SeatSyncJob, seatSyncFailed } from './partner-billing
 import { sendUsageLimitAlert, type UsageLimitAlert } from './usage-limit.ts'
 import { deleteClonedVoice } from './voices.ts'
 import { sendDueSetupEmails } from './setup-emails.ts'
+import { sendDueFounderEmails } from './founder-email.ts'
 import { runSetupFeedbackJob } from './setup-feedback.ts'
 import { sendSpendingAlert, type SpendingAlert } from './spending-cap.ts'
 import { attemptAnyDelivery } from './integrations.ts'
@@ -333,7 +334,11 @@ async function runJobs(instance: PgBoss, env: Env) {
   await instance.schedule(PARTNER_DOMAIN_RECHECK, PARTNER_DOMAIN_RECHECK_CRON)
   await instance.work(PARTNER_DOMAIN_RECHECK, async () => recheckPartnerDomains())
   await instance.schedule(SETUP_EMAILS, SETUP_EMAILS_CRON)
-  await instance.work(SETUP_EMAILS, async () => sendDueSetupEmails(db, emailSender))
+  // The same job sends the personal email from a founder (founder-email.ts), on its own switch.
+  await instance.work(SETUP_EMAILS, async () => ({
+    setup: await sendDueSetupEmails(db, emailSender),
+    founder: await sendDueFounderEmails(db, emailSender),
+  }))
   await instance.schedule(SETUP_FEEDBACK_RETRY, SETUP_FEEDBACK_RETRY_CRON)
   // The same hourly job deletes setup reports past their 90 days (pruneOldSetupReports).
   await instance.work(SETUP_FEEDBACK_RETRY, () => runSetupFeedbackJob())

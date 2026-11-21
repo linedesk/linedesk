@@ -210,6 +210,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'systemPrompt.resetPart': 'admin',
   'afterCallTranscript.set': 'admin',
   'setupEmails.set': 'admin',
+  'founderEmail.set': 'admin',
   // Who may sign up in which country: open to everyone, only invited addresses, or off (signup-access.ts).
   'signupAccess.set': 'admin',
   // The link to the Linedesk app on Zapier that workspaces open (integrations.ts).

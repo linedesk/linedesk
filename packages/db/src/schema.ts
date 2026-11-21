@@ -1872,8 +1872,18 @@ export const setup_events = pgTable(
   ],
 )
 
-/** The setup emails (apps/api/src/setup-emails.ts): days after sign-up, the first real call, the first week. */
-export const setupEmailKinds = ['setup_day0', 'setup_day1', 'setup_day3', 'first_call', 'week_summary'] as const
+/**
+ * The setup emails (apps/api/src/setup-emails.ts): days after sign-up, the first real call, the first week; and the
+ * personal email from a founder (founder_hello, apps/api/src/founder-email.ts).
+ */
+export const setupEmailKinds = [
+  'setup_day0',
+  'setup_day1',
+  'setup_day3',
+  'first_call',
+  'week_summary',
+  'founder_hello',
+] as const
 export type SetupEmailKind = (typeof setupEmailKinds)[number]
 
 // Setup emails a workspace got: each goes out at most once per workspace. Not synced to browsers.

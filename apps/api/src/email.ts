@@ -19,6 +19,11 @@ export interface Email {
   headers?: Record<string, string>
   /** Where replies go; left out: the brand's (a partner's support email inside withEmailBrand), else none. */
   replyTo?: string
+  /**
+   * Its own From line ("Name <address>"), for the one email a person sends in their own name (founder-email.ts); the
+   * address must be on a domain the mail provider sends for. Left out: the install's or the brand's (senderLine).
+   */
+  from?: string
   /** Files sent with it (a feedback screenshot): SMTP and Resend send them, the log names them. */
   attachments?: EmailAttachment[]
 }
@@ -100,10 +105,10 @@ export function senderLine(configured: string | undefined): string {
   return `${emailBrandName().replace(/["<>]/g, '')} <${value || 'no-reply@localhost'}>`
 }
 
-/** From and Reply-To of an email sent now: the brand's (email-brand.ts) unless the email names its own Reply-To. */
-export function envelopeOf(email: Pick<Email, 'replyTo'>, configuredFrom: string | undefined) {
+/** From and Reply-To of an email sent now: the brand's (email-brand.ts) unless the email names its own. */
+export function envelopeOf(email: Pick<Email, 'replyTo' | 'from'>, configuredFrom: string | undefined) {
   const replyTo = email.replyTo ?? emailReplyTo()
-  return { from: senderLine(configuredFrom), ...(replyTo ? { replyTo } : {}) }
+  return { from: email.from ?? senderLine(configuredFrom), ...(replyTo ? { replyTo } : {}) }
 }
 
 /** How each sent or failed email ended, for the provider failure record (provider-failures.ts). */

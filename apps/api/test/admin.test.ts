@@ -219,6 +219,8 @@ describe('access', () => {
       'callQuality.set',
       'feedback.resend',
       'feedback.setupReports',
+      'founderEmail.get',
+      'founderEmail.set',
       'germanNumbers.get',
       'germanNumbers.group',
       'germanNumbers.set',
@@ -2578,6 +2580,8 @@ describe('impersonation', () => {
       'evaluation.listQuestions',
       // Read-only and instance:admin (Server admin › System › Setup reports), as above.
       'feedback.setupReports',
+      // Read-only and instance:admin, like setupEmails.get: an impersonation never has instance:admin.
+      'founderEmail.get',
       // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
       'germanNumbers.get',
       'germanNumbers.group',

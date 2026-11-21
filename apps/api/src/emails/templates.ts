@@ -1319,3 +1319,33 @@ export function weekSummaryEmail(
     origin,
   })
 }
+
+// ---------------------------------------------------------------- founder email (founder-email.ts)
+
+/** The first name to greet: the first word of the account's name, when it looks like a name. */
+export function firstNameOf(name: string | null | undefined): string | null {
+  const first = (name ?? '').trim().split(/\s+/)[0] ?? ''
+  if (!first || first.length > 40 || /[@<>{}\d]/.test(first)) return null
+  return first
+}
+
+/** Who the founder email comes from (founder-email.ts). */
+export type FounderSender = { name: string; email: string }
+
+export type FounderEmail = {
+  /** The owner's first name, or null ("Hey there,"). */
+  firstName: string | null
+  founder: FounderSender
+  /** The one-click unsubscribe link (setup-unsubscribe.ts), else the signed-in notification settings. */
+  unsubscribeUrl: string
+}
+
+/** The email itself: plain text only, as a person writes it. */
+export function founderEmail(e: FounderEmail, locale?: EmailLocale): { subject: string; text: string } {
+  const { t } = getT(locale)
+  const founder = firstNameOf(e.founder.name) ?? e.founder.name
+  const greeting = e.firstName ? t('email.founder.greeting', { name: e.firstName }) : t('email.founder.greetingNoName')
+  const body = t('email.founder.body', { founder, brand: emailBrandName() })
+  const unsubscribe = t('email.founder.unsubscribe', { url: e.unsubscribeUrl })
+  return { subject: t('email.founder.subject'), text: `${greeting}\n\n${body}\n\n${unsubscribe}\n` }
+}

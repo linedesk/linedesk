@@ -84,7 +84,7 @@ export const setupEmailHandlers: Record<string, Handler> = {
 
 // ---------------------------------------------------------------- when
 
-type ScheduledKind = Exclude<SetupEmailKind, 'first_call'>
+type ScheduledKind = Exclude<SetupEmailKind, 'first_call' | 'founder_hello'>
 
 /**
  * Hours after the owner joined (the `signup` milestone) in which each email may go out. The windows do not overlap, so at most one is due at a
@@ -127,7 +127,7 @@ export async function setupRecipients(tx: Tx, workspaceId: string): Promise<stri
 }
 
 /** The owners who get setup emails, with their user id (for their own unsubscribe link); one per address. */
-async function setupRecipientRows(tx: Tx, workspaceId: string): Promise<{ email: string; userId: string }[]> {
+export async function setupRecipientRows(tx: Tx, workspaceId: string): Promise<{ email: string; userId: string }[]> {
   const rows = await tx
     .select({ email: user.email, userId: member.userId, own: member_notification_settings.setup_emails })
     .from(member)

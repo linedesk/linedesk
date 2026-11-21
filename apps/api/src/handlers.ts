@@ -75,6 +75,7 @@ import { TelephonyError, type TelephonyProvider } from '@linedesk/telephony'
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { adminHandlers } from './admin-handlers.ts'
 import { setupEmailHandlers } from './setup-emails.ts'
+import { founderEmailHandlers } from './founder-email.ts'
 import { billingSettingsHandlers } from './billing-settings.ts'
 import { billingAdminHandlers } from './billing-admin.ts'
 import { billingRules } from './billing-rules.ts'
@@ -1287,6 +1288,7 @@ const handlers: Record<string, Handler> = {
   ...goLiveChecklistHandlers,
   ...notificationHandlers,
   ...setupEmailHandlers,
+  ...founderEmailHandlers,
   ...billingSettingsHandlers,
   ...billingAdminHandlers,
   ...stripeEventHandlers,

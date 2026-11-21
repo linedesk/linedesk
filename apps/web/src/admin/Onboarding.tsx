@@ -2,13 +2,14 @@
 // self-hosted install sends none), and the workspaces at risk: added a while ago and no real call has reached
 // their assistant yet. Each shows the setup milestones it reached and when, so we see where it stopped, and the owner to write to. Read-only: hands-on
 // help comes from partners, not from us.
-import type { SetupEmailsData } from '@linedesk/actions'
+import type { FounderEmailData, SetupEmailsData } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Select, Switch } from '../ui/controls.tsx'
-import { Card } from '../ui/form.tsx'
+import { Card, Input } from '../ui/form.tsx'
+import { Button } from '../ui/kit.tsx'
 import { Loading, Skeleton, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type AtRiskWorkspace, loadAtRisk, runAdmin } from './api.ts'
 import { AgentSetupCounts } from './AgentSetupCounts.tsx'
@@ -78,6 +79,111 @@ function SetupEmails() {
   )
 }
 
+const FOUNDER_EMAIL = 'admin.founderEmail'
+const loadFounderEmail = async () => (await runAdmin('founderEmail.get', {})) as FounderEmailData
+const looksLikeAddress = (v: string) => /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(v)
+
+/**
+ * The personal email from a founder (apps/api/src/founder-email.ts): the name and address it comes from, and the
+ * switch. Turning it on saves what is typed; while on, Save changes the sender.
+ */
+function FounderEmail() {
+  const t = useT()
+  const query = useQuery(FOUNDER_EMAIL, loadFounderEmail)
+  const data = query.data
+  const [name, setName] = useState<string | null>(null)
+  const [address, setAddress] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+  const on = !!data?.sender
+  const typed = {
+    name: (name ?? data?.sender?.name ?? '').trim(),
+    email: (address ?? data?.sender?.email ?? '').trim(),
+  }
+  const valid = typed.name.length > 0 && looksLikeAddress(typed.email)
+  const changed = on && (typed.name !== data?.sender?.name || typed.email !== data?.sender?.email)
+  async function save(sender: FounderEmailData['sender']) {
+    if (!data) return
+    setProblem(null)
+    setBusy(true)
+    setQueryData<FounderEmailData | undefined>(FOUNDER_EMAIL, { ...data, sender })
+    try {
+      setQueryData(FOUNDER_EMAIL, (await runAdmin('founderEmail.set', { sender })) as FounderEmailData)
+      setName(null)
+      setAddress(null)
+    } catch (e) {
+      setQueryData<FounderEmailData | undefined>(FOUNDER_EMAIL, data)
+      setProblem(e instanceof Error ? e.message : t('admin.onboarding.founderEmailFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Card title={t('admin.onboarding.founderEmail')} help={t('admin.onboarding.founderEmailHelp')}>
+      <Loading
+        what={t('admin.onboarding.founderEmail')}
+        loading={!data}
+        error={query.error}
+        onRetry={() => void query.reload()}
+        skeleton={<Skeleton shape="text" width={240} />}
+      >
+        {data && (
+          <>
+            <form
+              className="ob2-row"
+              noValidate
+              onSubmit={e => {
+                e.preventDefault()
+                if (changed && valid) void save(typed)
+              }}
+            >
+              <Input
+                aria-label={t('admin.onboarding.founderName')}
+                placeholder={t('admin.onboarding.founderName')}
+                value={name ?? data.sender?.name ?? ''}
+                disabled={busy}
+                onChange={e => setName(e.target.value)}
+              />
+              <Input
+                aria-label={t('admin.onboarding.founderAddress')}
+                placeholder={t('admin.onboarding.founderAddress')}
+                type="email"
+                value={address ?? data.sender?.email ?? ''}
+                disabled={busy}
+                invalid={!!typed.email && !looksLikeAddress(typed.email)}
+                onChange={e => setAddress(e.target.value)}
+              />
+              {on && (
+                <Button busy={busy} type="submit" disabled={!changed || !valid}>
+                  {t('common.action.save')}
+                </Button>
+              )}
+            </form>
+            <p className="help">{t('admin.onboarding.founderAddressHelp')}</p>
+            <div className="swrow">
+              <div>
+                <b>{t('admin.onboarding.sendFounderEmail')}</b>
+                {!data.emailConnected && <span className="help">{t(notConnectedLine(on))}</span>}
+              </div>
+              <Switch
+                on={on}
+                onChange={v => void save(v ? typed : null)}
+                label={t('admin.onboarding.sendFounderEmail')}
+                disabled={busy || (!on && (!valid || !data.emailConnected))}
+              />
+            </div>
+          </>
+        )}
+      </Loading>
+      {problem && (
+        <p className="k-field-msg" role="alert">
+          {problem}
+        </p>
+      )}
+    </Card>
+  )
+}
+
 /**
  * Setup milestones in the order a business reaches them (setup_events). The number and forwarding ones are the go-live
  * checklist's first steps ("Connect your number", "Turn on call forwarding"). number_connected comes with #488 (LIN-85).
@@ -99,6 +205,7 @@ const emailLabels: Record<string, MessageKey> = {
   setup_day3: msg('admin.onboarding.email.day3'),
   first_call: msg('admin.onboarding.email.firstCall'),
   week_summary: msg('admin.onboarding.email.week'),
+  founder_hello: msg('admin.onboarding.email.founder'),
 }
 
 /** The milestones reached, oldest first. */
@@ -215,6 +322,7 @@ export function Onboarding() {
       <AgentSetupCounts />
       <AtRisk />
       <SetupEmails />
+      <FounderEmail />
     </>
   )
 }

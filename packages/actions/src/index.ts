@@ -323,6 +323,8 @@ const all = [
   admin.impersonationStop,
   admin.setupEmailsGet,
   admin.setupEmailsSet,
+  admin.founderEmailGet,
+  admin.founderEmailSet,
   billing.billingEnabledGet,
   billing.billingEnabledSet,
   billing.billingProcessStripeEvent,

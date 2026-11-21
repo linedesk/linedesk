@@ -335,6 +335,8 @@ export type AdminInputs = {
   'calendarTools.set': { tool: CalendarTool; mode: CalendarToolMode }
   'setupEmails.get': Record<string, never>
   'setupEmails.set': { on: boolean }
+  'founderEmail.get': Record<string, never>
+  'founderEmail.set': { sender: { name: string; email: string } | null }
   'billingEnabled.get': Record<string, never>
   'billingEnabled.set': { on: boolean }
   'impersonationEmails.get': Record<string, never>

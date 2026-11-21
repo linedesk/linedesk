@@ -1571,6 +1571,31 @@ export const setupEmailsSet = adminAction(
 export type SetupEmailsData = { on: boolean; emailConnected: boolean; partnerDirectoryUrl: string | null }
 
 /**
+ * A short personal email from a founder to the owner of each new self-made workspace, a few hours after sign-up
+ * (apps/api/src/founder-email.ts): plain text, from the founder's own address, replies go to them. Off by default
+ * (`sender` null); independent of the setup emails, but an owner who turned setup emails off does not get it either.
+ */
+export const founderEmailGet = defineAction({
+  name: 'founderEmail.get',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    'Whether owners of new workspaces get a personal email from a founder a few hours after sign-up, and from whom (off by default).',
+  input: z.object({}),
+  permission: 'instance:admin',
+  readOnly: true,
+})
+export const founderEmailSet = adminAction(
+  'founderEmail.set',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  'Turn the personal email from a founder on (with the name and address it comes from) or off (sender null). Each workspace gets it at most once.',
+  z.object({
+    sender: z.object({ name: z.string().trim().min(1).max(80), email: z.email().max(254) }).nullable(),
+  }),
+)
+/** `data` of `founderEmail.get` and `.set`. `emailConnected`: email goes out over SMTP; until then none are sent. */
+export type FounderEmailData = { sender: { name: string; email: string } | null; emailConnected: boolean }
+
+/**
  * Whether a user gets an email when an instance admin signs in as them (user.impersonate): one at the start, with the
  * admin, the reason, the time and the workspace. Off by default; a common practice for support access, left to the install.
  */
