@@ -99,7 +99,7 @@ import {
   warmUpLlm,
   REALTIME_TURNS,
 } from './pipeline.ts'
-import { CALLER_AUDIO_WAIT_MS, callerAudioOpen } from './caller-audio.ts'
+import { PHONE_LINE_WAIT_MS, phoneLineOpen } from './phone-line.ts'
 import { audioStream, createGreetingCache, greetingKey, synthesize, withoutLeadingSilence } from './greeting-cache.ts'
 import { keepGreetingsStored, openingOf as openingOfAssistant, storedGreetingText } from './greeting-prewarm.ts'
 import { cascadedReplyTimer, logTurnMetrics } from './turn-metrics.ts'
@@ -387,10 +387,10 @@ async function converse(
   setup: SetupTimer,
   stopRecordingForTransfer: () => Promise<void>,
   callerDetails: Promise<CallerDetails | null>,
-  callerAudio: Promise<void>,
+  lineOpen: Promise<void>,
 ) {
-  // The phone caller hears the greeting from its first word: it starts once their voice path is open (caller-audio.ts).
-  const heard = () => within(callerAudio, CALLER_AUDIO_WAIT_MS, undefined)
+  // The phone caller hears the greeting from its first word: it starts once their voice path is open (phone-line.ts).
+  const heard = () => within(lineOpen, PHONE_LINE_WAIT_MS, undefined)
   // The three stages answer the call, or a realtime model alone (then: no cached greeting, no quick tool replies).
   const stages = isRealtime(config) ? null : config
   const realtime = isRealtime(config) ? config.realtime : null
@@ -799,7 +799,7 @@ async function converse(
           setup,
           stopRecordingForTransfer,
           callerDetails,
-          callerAudio,
+          lineOpen,
         )
       }
       // No three stages on this install: LiveKit tries again at once; the greeting is asked for once it is connected
@@ -975,8 +975,8 @@ async function entry(ctx: JobContext) {
     setup.mark('caller')
     return caller
   })
-  // A phone caller's first audio: their voice path is open, the greeting can start (caller-audio.ts).
-  const callerAudio = callerAudioOpen(ctx.room, callerJoined).then(() => setup.mark('caller audio'))
+  // A phone caller's voice path opens a moment after the pickup; the greeting waits for it (phone-line.ts).
+  const lineOpen = phoneLineOpen(ctx.room, callerJoined).then(() => setup.mark('line open'))
   callerJoined.catch(() => {}) // a caller who never comes: the session closes with the room; awaited below where needed
   const registered =
     (await early) ??
@@ -1092,7 +1092,7 @@ async function entry(ctx: JobContext) {
       setup,
       stopRecordingForTransfer,
       callerDetails,
-      callerAudio,
+      lineOpen,
     )
   } catch (e) {
     await finishOnce()
