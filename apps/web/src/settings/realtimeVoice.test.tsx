@@ -122,7 +122,7 @@ describe('the realtime voice picker', () => {
 
   it('asks for samples of the realtime model by name, in the main language', () => {
     expect(previewUrl('cedar', 'openai_realtime', 'de')).toBe(
-      '/v1/voices/preview/cedar?provider=openai_realtime&language=de',
+      '/v1/voices/preview/cedar?provider=openai_realtime&language=de&v=2',
     )
     expect(
       realtimePickerVoices('Recommended')

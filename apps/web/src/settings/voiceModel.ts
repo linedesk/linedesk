@@ -79,16 +79,22 @@ export const voiceInEffect = (voice: VoiceChoice, usable: readonly string[]): st
   voice.voice_id && usable.includes(voice.provider) ? voiceKey(voice.provider, voice.voice_id) : ''
 
 /**
+ * Bumped when the samples the server makes change: the browser keeps a sample for a week by its address. 2: Voice
+ * Library voices are synthesized with a call's settings, no longer the owner's slower hosted sample (LIN-715).
+ */
+export const PREVIEW_VERSION = '2'
+
+/**
  * The sample of a voice, made once on the server and cached by the browser too. `provider` only when
  * it is not the one in effect; `language`, the assistant's main language, only when it is not English (the
- * server's default): a voice without a sample of the provider's own is spoken in it.
+ * server's default): a voice without a sample of the provider's own is spoken in it. `v`: PREVIEW_VERSION.
  */
 export function previewUrl(voiceId: string, provider?: string | null, language?: string | null) {
   const query = new URLSearchParams()
   if (provider) query.set('provider', provider)
   if (language && language !== 'en') query.set('language', language)
-  const rest = query.size ? `?${query}` : ''
-  return `/v1/voices/preview/${encodeURIComponent(voiceId)}${rest}`
+  query.set('v', PREVIEW_VERSION)
+  return `/v1/voices/preview/${encodeURIComponent(voiceId)}?${query}`
 }
 
 /**

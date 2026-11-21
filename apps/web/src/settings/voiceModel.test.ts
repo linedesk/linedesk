@@ -51,13 +51,13 @@ describe('voice picker', () => {
     expect(voiceInEffect({ provider: 'elevenlabs', voice_id: '' }, ['elevenlabs'])).toBe('')
   })
   it('previews name the provider only when it is not the one in effect', () => {
-    expect(previewUrl('cgSgspJ2msm6clMCkdW9')).toBe('/v1/voices/preview/cgSgspJ2msm6clMCkdW9')
-    expect(previewUrl('abc-123', 'cartesia')).toBe('/v1/voices/preview/abc-123?provider=cartesia')
+    expect(previewUrl('cgSgspJ2msm6clMCkdW9')).toBe('/v1/voices/preview/cgSgspJ2msm6clMCkdW9?v=2')
+    expect(previewUrl('abc-123', 'cartesia')).toBe('/v1/voices/preview/abc-123?provider=cartesia&v=2')
   })
   it('previews name the main language when it is not English', () => {
-    expect(previewUrl('v1', null, 'en')).toBe('/v1/voices/preview/v1')
-    expect(previewUrl('v1', null, 'de')).toBe('/v1/voices/preview/v1?language=de')
-    expect(previewUrl('v1', 'cartesia', 'ja')).toBe('/v1/voices/preview/v1?provider=cartesia&language=ja')
+    expect(previewUrl('v1', null, 'en')).toBe('/v1/voices/preview/v1?v=2')
+    expect(previewUrl('v1', null, 'de')).toBe('/v1/voices/preview/v1?language=de&v=2')
+    expect(previewUrl('v1', 'cartesia', 'ja')).toBe('/v1/voices/preview/v1?provider=cartesia&language=ja&v=2')
   })
   it('more voices: search by name, description, accent or language, and filters', () => {
     const voices = [
