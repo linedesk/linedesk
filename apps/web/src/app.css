@@ -2648,35 +2648,40 @@ button.k-link {
   top: max(10px, env(safe-area-inset-top, 0px));
   right: max(12px, env(safe-area-inset-right, 0px));
 }
-/* The foot's last row: Star on GitHub, and Keyboard shortcuts as a small key button in the bottom right corner (Nav.tsx). */
-.nav-foot-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.nav-foot-row > a.nav-item {
-  flex: 1;
-  min-width: 0;
-}
-.nav-keys {
+/* Keyboard shortcuts: a small key button in the bottom right corner of the window (Nav.tsx ShortcutsButton). Not on a
+   phone (no keyboard there); under dialogs, the navigation and toasts. */
+.keys-corner {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  z-index: 30;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  margin-left: auto;
+  width: 24px;
+  height: 24px;
   padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--surface);
   color: var(--ink-muted);
   cursor: pointer;
-  flex: none;
+  opacity: 0.75;
 }
-.nav-keys:hover {
-  background: var(--surface-hover);
+.keys-corner:hover {
+  opacity: 1;
   color: var(--ink);
 }
-.nav-keys:focus-visible {
+.keys-corner:focus-visible {
+  opacity: 1;
   outline: 2px solid var(--focus);
   outline-offset: 1px;
+}
+@media (max-width: 719px), (pointer: coarse) {
+  .keys-corner {
+    display: none;
+  }
+}
+/* Away while something else holds the corner: the star or passkey card, or the test call panel. */
+body:has(.tour.star-card, .tcp) .keys-corner {
+  display: none;
 }

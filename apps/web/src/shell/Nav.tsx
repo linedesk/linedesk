@@ -116,20 +116,17 @@ export function Nav({ open, docked = false, route, tab, unreadCount, reminderCou
         title={t('shell.nav.adminTip')} onClick={go(() => on.onPage('admin'))} />}
       <div className="nav-foot">
         <HelpMenu navOpen={open} onReport={kind => go(() => openReport(kind))()} />
-        <div className="nav-foot-row">
-          <StarLink />
-          <ShortcutsButton onClick={go(on.onHelp)} />
-        </div>
+        <StarLink />
       </div>
     </nav>
   )
 }
 
-/** Keyboard shortcuts: a small key button in the bottom right corner of the navigation (also ? anywhere). */
-function ShortcutsButton({ onClick }: { onClick: () => void }) {
+/** Keyboard shortcuts: a small key button in the bottom right corner of the window (also ? anywhere). Not on a phone. */
+export function ShortcutsButton({ onClick }: { onClick: () => void }) {
   const t = useT()
   return (
-    <button type="button" className="nav-keys" aria-label={t('shell.help.title')} title={t('shell.help.buttonTip')} onClick={onClick}>
+    <button type="button" className="keys-corner" aria-label={t('shell.help.title')} title={t('shell.help.buttonTip')} onClick={onClick}>
       <Icon name="keyboard" size={13} />
     </button>
   )

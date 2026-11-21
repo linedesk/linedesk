@@ -28,7 +28,7 @@ import { commandGroups, type Command } from './shell/commands.ts'
 import type { Overlay } from './shell/keys.ts'
 import { invitationNotice, switchToWorkspace, unannounced, useMyInvitations } from './shell/invitations.ts'
 import { AskName, asksNameIn } from './shell/AskName.tsx'
-import { MenuButton, Nav } from './shell/Nav.tsx'
+import { MenuButton, Nav, ShortcutsButton } from './shell/Nav.tsx'
 import { NewWorkspaceDialog } from './shell/NewWorkspace.tsx'
 import { newWorkspaceChoice } from './NoWorkspace.tsx'
 import { openSignup } from './signup.ts'
@@ -596,6 +596,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         tabIndex={-1}
         onClick={() => setNavOpen(false)}
       />
+      <ShortcutsButton onClick={() => setOverlay('help')} />
       <main className="main">
         {nav.route !== 'workspace' && !goLiveVisible && <SetupBanner canEdit={canManageKeys} />}
         {nav.route !== 'workspace' && billingOwner && <BillingBanner toast={toaster.show} />}
