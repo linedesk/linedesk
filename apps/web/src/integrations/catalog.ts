@@ -12,6 +12,9 @@
 import { type MessageKey, msg } from '@linedesk/i18n'
 import {
   APP_SETTINGS,
+  type BusinessKind,
+  type BusinessTrait,
+  traitsOf,
   type AppConnectError,
   type AppSettingId,
   appSettingOn,
@@ -272,6 +275,43 @@ export function searchIntegrations(
 }
 
 /** The cards by category, in catalog order; `only` keeps one category; empty categories are left out. */
+/**
+ * Which businesses each integration is for (LIN-687): the traits of business-kind.ts it serves, [] for every business
+ * alike (automation, chat, developer tools). Required for every integration, so a new one says it once; the page shows
+ * the ones for the workspace's kind of business on top ("Recommended for your business").
+ */
+export const INTEGRATION_TRAITS: Record<IntegrationId, readonly BusinessTrait[]> = {
+  zapier: [],
+  make: [],
+  n8n: [],
+  webhooks: [],
+  google: ['appointments'],
+  microsoft: ['appointments'],
+  caldav: ['appointments'],
+  calcom: ['appointments'],
+  calendly: ['appointments'],
+  hubspot: [],
+  jobber: ['site_visits'],
+  servicetitan: ['site_visits'],
+  shopify: ['online_orders'],
+  slack: [],
+  gmail: ['email_support'],
+  'outlook-mail': ['email_support'],
+  'api-keys': [],
+  'rest-api': [],
+  mcp: [],
+}
+
+/**
+ * The integrations recommended for a kind of business, in catalog order: those for one of its traits that open
+ * something (not "Coming soon"). None without a kind: then the page has no such section.
+ */
+export function recommendedFor(kind: BusinessKind | null | undefined, list: readonly Integration[] = CATALOG) {
+  if (!kind) return []
+  const traits = traitsOf(kind)
+  return list.filter(i => i.opens !== null && INTEGRATION_TRAITS[i.id].some(t => traits.has(t)))
+}
+
 export function byCategory(
   list: readonly Integration[],
   only: CategoryId | null = null,

@@ -60,6 +60,11 @@
   display: grid;
   gap: 8px;
 }
+.ig-group-line {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
 .ig-group h2 {
   margin: 4px 0 0;
   font-size: 12px;

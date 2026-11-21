@@ -14,6 +14,8 @@ import { useCalendarProviders } from '../settings/calendar-providers.ts'
 import { externalLink } from '../settings/ZapierGuide.tsx'
 import type { ProviderId } from '../settings/calendarModel.ts'
 import { Section } from '../settings/fields.tsx'
+import { kindLabel } from '../settings/businessKind.ts'
+import { useWorkspaceSettings } from '../settings/settings-api.ts'
 import { setPageKeys } from '../shell/keys.ts'
 import { useRows } from '../store.tsx'
 import { AppLink, appLink } from '../ui/AppLink.tsx'
@@ -44,6 +46,7 @@ import {
   mcpAddress,
   mcpJson,
   nameKey,
+  recommendedFor,
   openApiAddress,
   placeOf,
   type Status,
@@ -208,6 +211,9 @@ function Catalog({ canManageKeys }: { canManageKeys: boolean }) {
     searchIntegrations(CATALOG, query, k => t(k)),
     only,
   )
+  // On top, the ones for this kind of business (LIN-687); not while searching or filtering by category.
+  const kind = useWorkspaceSettings().data?.businessKind ?? null
+  const recommended = query || only ? [] : recommendedFor(kind)
 
   const keys = useRef<(key: string) => boolean>(() => false)
   keys.current = key => {
@@ -274,6 +280,22 @@ function Catalog({ canManageKeys }: { canManageKeys: boolean }) {
           ))}
         </div>
       </div>
+      {kind && recommended.length > 0 && (
+        <section className="ig-group ig-recommended" aria-labelledby="ig-cat-recommended">
+          <h2 id="ig-cat-recommended">{t('settings.integrations.recommended.title')}</h2>
+          <p className="ig-group-line">
+            <T
+              k="settings.integrations.recommended.line"
+              values={{ kind: kindLabel(kind), link: appLink('#workspace/general') }}
+            />
+          </p>
+          <div className="k-card ig-list">
+            {recommended.map(i => (
+              <Row key={i.id} integration={i} status={statusOf(i.id, facts)} />
+            ))}
+          </div>
+        </section>
+      )}
       {groups.length === 0 ? (
         <p className="ig-empty">{t('settings.integrations.search.none', { query })}</p>
       ) : (

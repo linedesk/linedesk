@@ -1161,6 +1161,8 @@
   "integrations.mcp.withKeyHelp": "For an agent that cannot sign in with OAuth: it sends an API key in the Authorization header.",
   "integrations.missing.text": "See <link>all integrations</link>.",
   "integrations.missing.title": "No integration at “{section}”",
+  "integrations.recommended.line": "Your kind of business: {kind}. <link>Change</link>",
+  "integrations.recommended.title": "Recommended for your business",
   "integrations.rest.base": "Server address",
   "integrations.rest.first": "First request: which workspace the key belongs to",
   "integrations.rest.help": "Every request sends the key in the Authorization header. The OpenAPI file lists every action, with its input.",

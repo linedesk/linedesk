@@ -2,9 +2,10 @@ import { appConnectErrors } from '@linedesk/actions'
 import { appErrorCodes } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import en from '@linedesk/i18n/locales/en/settings.json'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, test } from 'vitest'
 import {
   appConnectErrorKey,
+  recommendedFor,
   appConnectResult,
   appPushErrorKey,
   appSettingsWith,
@@ -410,5 +411,19 @@ describe('What Linedesk does (app switches, LIN-367)', () => {
     expect(appPushErrorKey('no_contact', 'shopify')).toBe('settings.integrations.app.shopify.pushError.noContact')
     expect(appPushErrorKey('not_found', 'shopify')).toBe('settings.integrations.app.shopify.pushError.notFound')
     expect(appPushErrorKey('no_caller_id', 'shopify')).toBe('settings.integrations.app.shopify.pushError.noCallerId')
+  })
+})
+
+describe('recommended for the kind of business (LIN-687)', () => {
+  const ids = (kind: Parameters<typeof recommendedFor>[0]) => recommendedFor(kind).map(i => i.id)
+  test('an online store: Shopify and the support mailboxes', () => {
+    expect(ids('online_store')).toEqual(['shopify', 'gmail', 'outlook-mail'])
+  })
+  test('a plumber: calendars and Jobber, never one that is coming soon', () => {
+    expect(ids('plumbing_hvac')).toEqual(expect.arrayContaining(['google', 'microsoft', 'jobber']))
+    expect(ids('plumbing_hvac')).not.toContain('servicetitan')
+  })
+  test('no kind: nothing recommended', () => {
+    expect(ids(null)).toEqual([])
   })
 })
