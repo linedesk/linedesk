@@ -184,8 +184,9 @@ export function BusinessHours({ canEdit }: { canEdit: boolean }) {
           </>
         }
       >
-        {on ? <p className="bh-summary">{weekSummary(days)}</p> : <p className="help">{t('settings.hours.notUsed')}</p>}
-        {timeZone && <TimeZoneLine zone={timeZone} canEdit={canEdit} />}
+        {/* Off: only "Off" and its button (LIN-692); the week and the time zone matter once hours are used. */}
+        {on && <p className="bh-summary">{weekSummary(days)}</p>}
+        {on && timeZone && <TimeZoneLine zone={timeZone} canEdit={canEdit} />}
       </Loading>
     </Section>
   )

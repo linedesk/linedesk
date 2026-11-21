@@ -803,7 +803,6 @@
   "hours.help": "Votre assistant indique aux appelants quand vous êtes ouvert et, quand vous êtes fermé, quand attendre un rappel. Les rendez-vous ne sont réservés que pendant ces horaires, sauf indication contraire d'un type, et l'accueil peut être différent en dehors.",
   "hours.midnight": "Minuit",
   "hours.noon": "Midi",
-  "hours.notUsed": "Non utilisé : les réservations se font du lundi au vendredi, de 9 h à 17 h, et les accueils et transferts ne dépendent pas de l'heure.",
   "hours.off": "Désactivé",
   "hours.offNote": "Désactivé : les réservations se font du lundi au vendredi, de 9 h à 17 h ; les transferts et accueils ne dépendent pas de l'heure.",
   "hours.openOn": "Ouvert le {day}",

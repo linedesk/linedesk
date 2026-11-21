@@ -151,8 +151,8 @@ export function draftOf(a: Assistant, workspaceLanguage?: string | null): Draft 
     silence_reminders: String(a.silence_reminders ?? SILENCE_REMINDERS_DEFAULT),
     silence_hang_up_s: String(a.silence_hang_up_s ?? SILENCE_HANG_UP_DEFAULT_S),
     max_call_minutes: String(a.max_call_minutes ?? ASSISTANT_CALL_DEFAULT_MINUTES),
-    // None stored: the default line, shown so it can be edited.
-    silence_closing: local(a.silence_closing ?? DEFAULT_SILENCE_CLOSING),
+    // None stored: the default line in the main language (what a call says, inMainLanguage), shown so it can be edited.
+    silence_closing: a.silence_closing ? local(a.silence_closing) : localizedDefault(DEFAULT_SILENCE_CLOSING, main),
     silence_reminder: a.silence_reminder ?? localizedDefault(DEFAULT_SILENCE_REMINDER, main),
     goodbye_line: a.goodbye_line ?? localizedDefault(DEFAULT_GOODBYE_LINE, main),
     talking_speed_pct: talkingSpeedPctOf(a),
@@ -415,6 +415,8 @@ export const silenceToSave = (d: Draft) => {
   const reminder = d.silence_reminder.trim()
   const defaultReminder =
     reminder === DEFAULT_SILENCE_REMINDER || reminder === localizedDefault(DEFAULT_SILENCE_REMINDER, mainOf(d))
+  const defaultClosing =
+    closing === DEFAULT_SILENCE_CLOSING || closing === localizedDefault(DEFAULT_SILENCE_CLOSING, mainOf(d))
   const goodbye = d.goodbye_line.trim()
   const defaultGoodbye =
     goodbye === DEFAULT_GOODBYE_LINE || goodbye === localizedDefault(DEFAULT_GOODBYE_LINE, mainOf(d))
@@ -424,7 +426,7 @@ export const silenceToSave = (d: Draft) => {
     silence_hang_up_s: Number(d.silence_hang_up_s),
     max_call_minutes: Number(d.max_call_minutes),
     silence_reminder: reminder && !defaultReminder ? reminder : null,
-    silence_closing: closing && closing !== DEFAULT_SILENCE_CLOSING ? closing : null,
+    silence_closing: closing && !defaultClosing ? closing : null,
     goodbye_line: goodbye && !defaultGoodbye ? goodbye : null,
   }
 }

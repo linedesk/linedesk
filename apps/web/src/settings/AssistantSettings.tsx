@@ -1160,7 +1160,8 @@ function Form({
             outsideGreeting={!!draft.greeting_outside.trim()}
           />
           <BusinessHours canEdit={canEdit} />
-          <Holidays canEdit={canEdit} toast={toast} />
+          {/* Holidays close days only while hours are used (businessHoursFor); vacation mode works either way. */}
+          {hoursOn && <Holidays canEdit={canEdit} toast={toast} />}
           <VacationMode canEdit={canEdit} toast={toast} />
         </>
       ) : (

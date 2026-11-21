@@ -82,7 +82,8 @@ export function hoursSummary({ name, on, days, upcoming, closure, today, outside
     sentences.push({ k: msg('settings.summary.hours.open'), values: { hours: groups } })
     if (outsideGreeting) sentences.push({ k: msg('settings.summary.hours.outsideGreeting') })
   }
-  const next = nextClosedDay(upcoming, today)
+  // Closed days count only while hours are used (businessHoursFor), so they are named only then (LIN-692).
+  const next = on && groups.length ? nextClosedDay(upcoming, today) : null
   if (next) sentences.push(closedDaySentence(next, today))
   if (vacation && !sentences.includes(vacation)) sentences.push(vacation)
   // No business hours is a choice, not a problem: the assistant answers every call the same way (Janik, 2026-11-18).

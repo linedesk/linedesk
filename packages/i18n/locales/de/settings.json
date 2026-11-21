@@ -803,7 +803,6 @@
   "hours.help": "Dein Assistent sagt Anrufern, wann du geöffnet hast und, wenn du geschlossen hast, wann sie mit einem Rückruf rechnen können. Termine werden nur innerhalb dieser Zeiten gebucht, sofern eine Terminart nichts anderes vorgibt, und außerhalb kann die Begrüßung anders sein.",
   "hours.midnight": "Mitternacht",
   "hours.noon": "Mittag",
-  "hours.notUsed": "Nicht genutzt: Terminbuchungen gelten Montag bis Freitag, 9 bis 17 Uhr, und Begrüßungen und das Weiterverbinden hängen nicht von der Uhrzeit ab.",
   "hours.off": "Aus",
   "hours.offNote": "Aus: Terminbuchungen gelten Montag bis Freitag, 9 bis 17 Uhr; Weiterverbinden und Begrüßungen hängen nicht von der Uhrzeit ab.",
   "hours.openOn": "Am {day} geöffnet",

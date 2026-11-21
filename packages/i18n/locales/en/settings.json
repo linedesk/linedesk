@@ -807,7 +807,6 @@
   "hours.help": "Your assistant tells callers when you are open and, when you are closed, when to expect a call back. Appointments are only booked inside these hours unless a type says otherwise, and the greeting can be different outside them.",
   "hours.midnight": "Midnight",
   "hours.noon": "Noon",
-  "hours.notUsed": "Not used: bookings use Monday to Friday, 9 to 5, and greetings and transfers do not depend on the time.",
   "hours.off": "Off",
   "hours.offNote": "Off: bookings use Monday to Friday, 9 to 5; transfers and greetings do not depend on the time.",
   "hours.openOn": "Open on {day}",

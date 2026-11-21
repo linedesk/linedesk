@@ -382,6 +382,12 @@ describe('silence on the line', () => {
     expect(german.silence_reminder).not.toBe('Are you still there?')
     expect(silenceToSave(german).silence_reminder).toBeNull()
   })
+  it('the closing line before hanging up: the default in the main language is shown and saved as null', () => {
+    const german = draftOf(assistant({ languages: { main: 'de', mode: 'english', allowed: [] } } as Partial<Assistant>))
+    expect(german.silence_closing).not.toBe(DEFAULT_SILENCE_CLOSING)
+    expect(silenceToSave(german).silence_closing).toBeNull()
+    expect(silenceToSave({ ...german, silence_closing: ' Tschüss! ' }).silence_closing).toBe('Tschüss!')
+  })
   it('the goodbye: the default in the main language is shown and saved as null; an own line is kept', () => {
     const german = draftOf(assistant({ languages: { main: 'de', mode: 'english', allowed: [] } } as Partial<Assistant>))
     expect(german.goodbye_line).not.toBe('Thanks for calling. Goodbye!')

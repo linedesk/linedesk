@@ -803,7 +803,6 @@
   "hours.help": "Tu asistente le dice a quien llama cuándo abres y, si estás cerrado, cuándo esperar que le devuelvan la llamada. Las citas solo se reservan dentro de este horario, salvo que un tipo diga otra cosa, y fuera de él el saludo puede ser distinto.",
   "hours.midnight": "Medianoche",
   "hours.noon": "Mediodía",
-  "hours.notUsed": "Sin usar: las reservas son de lunes a viernes, de 9 a 17, y los saludos y transferencias no dependen de la hora.",
   "hours.off": "Desactivado",
   "hours.offNote": "Desactivado: las reservas son de lunes a viernes, de 9 a 17; las transferencias y los saludos no dependen de la hora.",
   "hours.openOn": "Abierto el {day}",

@@ -87,6 +87,10 @@ test('hours: none set is fine, never "Needs you"; off says so', () => {
   const off = hoursSummary({ ...hours, on: false })
   expect(all(off)).toBe('Business hours are off: Maya answers every call the same way, at any time.')
   expect(off.needsYou).toBeNull()
+  // Closed days count only while hours are used: off names none, even with one coming up (LIN-692).
+  expect(all(hoursSummary({ ...hours, on: false, upcoming: [day('2026-11-26', 'Thanksgiving Day')] }))).not.toMatch(
+    /closed day/i,
+  )
 })
 
 const contact = (name: string, more: Partial<TransferDraft> = {}): TransferDraft => ({
@@ -201,9 +205,9 @@ test('rules: the AI disclosure modes that do not say it on their own', () => {
     ask_booking_name: false,
     verified_caller_only: false,
   }
-  expect(all(rulesSummary({ name: 'Maya', style: 'standard', disclosure: 'never_confirm', behaviours: off }))).toContain(
-    'never says it is an AI, not even when asked',
-  )
+  expect(
+    all(rulesSummary({ name: 'Maya', style: 'standard', disclosure: 'never_confirm', behaviours: off })),
+  ).toContain('never says it is an AI, not even when asked')
   expect(all(rulesSummary({ name: 'Maya', style: 'standard', disclosure: 'never', behaviours: off }))).toContain(
     "doesn't bring up that it is an AI",
   )
