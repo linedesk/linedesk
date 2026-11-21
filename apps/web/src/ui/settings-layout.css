@@ -104,7 +104,7 @@
     flex-wrap: nowrap;
     justify-content: flex-start;
   }
-  .sl-context:has(.ai-edit) .ai-edit {
+  .sl-context:has(.ai-edit) .sl-actions > .ai-edit {
     order: -1;
   }
   .sl-context:has(.ai-edit) .tc-btn-wrap {

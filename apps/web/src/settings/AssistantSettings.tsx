@@ -51,7 +51,7 @@ import { SearchSelect } from '../ui/SearchSelect.tsx'
 import { type PageSection, SettingsLayout, sectionHash, sectionParts, useSection } from '../ui/SettingsLayout.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { useWorkspaceCountry, useWorkspaceLanguage } from '../workspaceLocale.ts'
-import { AgentChangeActions } from './AgentChange.tsx'
+import { AgentChangeActions, type AgentChangeMode, AgentSetupStrip } from './AgentChange.tsx'
 import { AssistantHeader } from './AssistantHeader.tsx'
 import {
   addableLanguages,
@@ -842,13 +842,13 @@ function Advanced({ draft, set }: SectionProps) {
 }
 
 /** `isInstanceAdmin`: the member runs the server (a test call nobody answers says what to fix there). */
-/** `agentChange`: "Edit with AI" and "Step by step" in the top bar (owners and admins, AgentChange.tsx). */
+/** `agentChange`: owners and admins; the strip to finish the setup until go-live, then the top bar's buttons (AgentChange.tsx). */
 /** `undoable`: a toast with Undo for a change the page undoes itself (removing a call email rule). */
 type Props = {
   canEdit: boolean
   toast: (text: string) => void
   isInstanceAdmin?: boolean
-  agentChange?: boolean
+  agentChange?: AgentChangeMode | false
   undoable?: Undoable
 }
 
@@ -1128,11 +1128,18 @@ function Form({
       }
       actions={
         <>
-          {agentChange && <AgentChangeActions target={{ kind: 'assistant', assistantId: assistant.id }} />}
+          {agentChange === 'change' && <AgentChangeActions target={{ kind: 'assistant', assistantId: assistant.id }} />}
           <TestCallButton session={testCall} />
         </>
       }
-      banner={<TestCallPanel session={testCall} />}
+      banner={
+        <>
+          {agentChange === 'setup' && (
+            <AgentSetupStrip target={{ kind: 'assistant', assistantId: assistant.id }} name={assistant.name} />
+          )}
+          <TestCallPanel session={testCall} />
+        </>
+      }
       sections={shown}
       current={current}
       unsaved={unsaved}

@@ -1,4 +1,5 @@
-// "Edit with AI" in the top bar of Workspace settings and Assistant settings (agentChange.ts, AgentChange.tsx):
+// "Edit with AI" in the top bar of Workspace settings and Assistant settings, and the strip to finish the setup before
+// it until go-live (agentChange.ts, AgentChange.tsx):
 // offered to owners and admins only, the buttons with the agents' marks, the address of the page it opens
 // and the way back; and "Finish later" on the owner's agent setup page (onboarding/AgentSetup.tsx).
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -19,7 +20,7 @@ vi.mock('../shell/SetupAccountMenu.tsx', () => ({ SetupAccountMenu: () => null }
 const { changeWithAgentHash, mayChangeWithAgent, parseChangeWithAgent, settingsHashOf } = await import(
   './agentChange.ts'
 )
-const { AgentChangeActions } = await import('./AgentChange.tsx')
+const { AgentChangeActions, AgentSetupStrip } = await import('./AgentChange.tsx')
 const { WorkspaceGeneral } = await import('./WorkspaceGeneral.tsx')
 const { AgentSetup } = await import('../onboarding/AgentSetup.tsx')
 
@@ -71,6 +72,17 @@ describe('the page address', () => {
     expect(parseChangeWithAgent('#change-with-agent/assistant/')).toBeNull()
     expect(parseChangeWithAgent('#change-with-agent/assistant/a1/more')).toBeNull()
     expect(parseChangeWithAgent('#change-with-agent/workspace/x')).toBeNull()
+  })
+})
+
+describe('until go-live: the strip to finish the setup', () => {
+  test('names what it sets up and offers both ways, the agent first', () => {
+    const html = renderToStaticMarkup(<AgentSetupStrip target={{ kind: 'assistant', assistantId: 'a1' }} name="Maya" />)
+    expect(html).toContain('Finish setting up Maya')
+    expect(html).toContain('Let your AI agent do it, or go through the steps yourself.')
+    expect(html.indexOf('With your AI agent')).toBeLessThan(html.indexOf('Step by step'))
+    expect(html.match(/class="ai-mark"/g)).toHaveLength(4)
+    expect(html).not.toContain('k-btn-primary')
   })
 })
 

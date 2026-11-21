@@ -9,6 +9,7 @@ import { Insights } from '../insights/Insights.tsx'
 import { Integrations } from '../integrations/Integrations.tsx'
 import { AccountSettings } from '../settings/account/index.tsx'
 import type { PhoneSetupStatus } from '../auth.ts'
+import type { AgentChangeMode } from '../settings/AgentChange.tsx'
 import { AssistantSettings } from '../settings/AssistantSettings.tsx'
 import { WorkspaceSettings } from '../settings/WorkspaceSettings.tsx'
 import { i18n } from '../i18n/index.tsx'
@@ -19,8 +20,11 @@ export type PageProps = {
   canEditSettings: boolean
   /** API keys and Zapier (Integrations): owners and admins, also during support access. */
   canManageKeys: boolean
-  /** Owners and admins: "Change with an AI agent" on top of the workspace's and the assistant's settings. */
-  agentChange: boolean
+  /**
+   * Owners and admins, on the workspace's and the assistant's settings: `setup` (the strip to finish the setup) until a
+   * real caller reached the assistant, then `change` ("Edit with AI" in the top bar); false for everyone else.
+   */
+  agentChange: AgentChangeMode | false
   isInstanceAdmin: boolean
   /**
    * Workspace settings › Billing (Linedesk Cloud): `owner` for the person who manages the bill, `usage` for the

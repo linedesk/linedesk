@@ -624,7 +624,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
                 toast: toaster.show,
                 canEditSettings,
                 canManageKeys,
-                agentChange: mayChangeWithAgent(me),
+                agentChange: mayChangeWithAgent(me) && (hadRealCall ? 'change' : 'setup'),
                 isInstanceAdmin: instanceAdmin,
                 billing: billingView,
                 viaPartner: !!me.workspace?.viaPartner,

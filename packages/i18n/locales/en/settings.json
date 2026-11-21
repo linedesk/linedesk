@@ -1,7 +1,10 @@
 {
   "agentChange.agentTip": "Let Claude, ChatGPT or another AI agent change these settings with you",
   "agentChange.edit": "Edit with AI",
+  "agentChange.setupLede": "Let your AI agent do it, or go through the steps yourself.",
+  "agentChange.setupTitle": "Finish setting up {name}",
   "agentChange.stepsTip": "Go through the setup again, step by step, starting from what is saved",
+  "agentChange.withAgent": "With your AI agent",
   "areaCode.list": "Area codes",
   "areaCode.nearby.failed": "The search for nearby area codes didn't work. Try again in a moment.",
   "areaCode.nearby.found": "Free numbers right now. Pick an area code:",
