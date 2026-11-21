@@ -779,7 +779,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
       {!error && entries && entries.length === 0 && <p className="adm-notice">{t('admin.audit.empty')}</p>}
       {!error && entries && entries.length > 0 && (
         <div className="adm-scroll">
-          <table className="adm-table adm-stack">
+          <table className="adm-table adm-stack adm-audit-table">
             <thead>
               <tr>
                 <th scope="col">{t('admin.audit.column.when')}</th>
@@ -811,7 +811,7 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
                     )}
                     {e.viaSetupKey && <span className="adm-sub">{t('admin.audit.viaSetupKey')}</span>}
                   </th>
-                  <td data-label={t('admin.audit.column.what')}>
+                  <td className="adm-audit-what" data-label={t('admin.audit.column.what')}>
                     {auditLabel(e)}
                     {e.refused && (
                       <>
@@ -823,7 +823,13 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
                     {e.ipAddress && <span className="adm-sub">{e.ipAddress}</span>}
                   </td>
                   <td data-label={t('admin.audit.column.workspace')}>
-                    {e.workspace ? (e.workspace.name ?? e.workspace.id) : EMPTY}
+                    {e.workspace ? (
+                      <span className="adm-audit-workspace" title={e.workspace.name ?? e.workspace.id}>
+                        {e.workspace.name ?? e.workspace.id}
+                      </span>
+                    ) : (
+                      EMPTY
+                    )}
                   </td>
                 </tr>
               ))}

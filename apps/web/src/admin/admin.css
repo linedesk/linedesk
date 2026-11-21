@@ -2205,3 +2205,20 @@
 .k-card > .adm-after-call > .help:first-child {
   margin-top: 0;
 }
+
+/* Audit log: what happened wraps (workspace and owner names can be long); the workspace stays one line and is cut
+   with … (a deleted workspace shows its long id), the full name in its tooltip. So the row stays inside the card.
+   On a phone the table stacks and every cell wraps already (above). */
+@media (min-width: 560px) {
+  .adm-audit-table .adm-audit-what {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    min-width: 160px;
+  }
+  .adm-audit-table .adm-audit-workspace {
+    display: block;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
