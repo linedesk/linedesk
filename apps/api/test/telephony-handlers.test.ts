@@ -72,7 +72,7 @@ describe('telephony handlers', () => {
     const twilio = carrier(['+15035550999'])
     const { rows } = await setup(tx, { e164: '+15035550999' }, twilio)
     expect(rows.phone_numbers).toMatchObject([{ workspace_id: WORKSPACE, e164: '+15035550999', provider: 'dev', mode: 'forward_conditional', provider_ref: 'ref_+15035550999', verified_at: null }])
-    expect(twilio.routeToSip).toHaveBeenCalledWith({ e164: '+15035550999', providerRef: 'ref_+15035550999' }, expect.any(String))
+    expect(twilio.routeToSip).toHaveBeenCalledWith({ e164: '+15035550999', providerRef: 'ref_+15035550999' }, expect.any(String), { secure: false })
     expect(twilio.buyNumber).not.toHaveBeenCalled()
 
     await expect(setup(tx, { e164: '+15035550999' }, twilio)).rejects.toThrow('already set up')
