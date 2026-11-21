@@ -410,7 +410,7 @@ const guides = {
     steps: [
       'Sign in to Cal.com and open Settings → Developer → OAuth → New OAuth client.',
       'Redirect URI: the calendar one shown below (up to 10 per client, so staging and production can share one).',
-      'Scopes: PROFILE_READ, EVENT_TYPE_READ, BOOKING_READ and BOOKING_WRITE.',
+      'Scopes: PROFILE_READ, EVENT_TYPE_READ, BOOKING_READ and BOOKING_WRITE, and the same four for teams (TEAM_PROFILE_READ, TEAM_EVENT_TYPE_READ, TEAM_BOOKING_READ, TEAM_BOOKING_WRITE).',
       'Cal.com reviews the client before it works for others (you get an email). Then paste the client ID and the secret here.',
     ],
     cost: 'Free. Cal.com cloud only (cal.com), not a self-hosted Cal.com.',

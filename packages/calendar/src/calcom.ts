@@ -32,11 +32,14 @@ const CALCOM_API = 'https://api.cal.com/'
 const CALCOM_AUTHORIZE = 'https://app.cal.com/auth/oauth2/authorize'
 const CALCOM_TOKEN = 'https://api.cal.com/v2/auth/oauth2/token'
 /**
- * The account's address, its event types and bookings; slots and booking, moving and cancelling need no scope. Only
- * the scopes the install's Cal.com client is approved for (Server admin guide): Cal.com refuses the whole consent when
- * one more is asked for. Team event types are read best effort, so an OAuth grant lists the account's own types.
+ * The account's address, its event types and bookings, and the same for the teams it is in (a team's round-robin or
+ * collective event types); slots and booking, moving and cancelling need no scope. Exactly the scopes the install's
+ * Cal.com client has (Server admin guide): Cal.com refuses the whole consent when one more is asked for.
  */
-export const CALCOM_SCOPES = ['PROFILE_READ', 'EVENT_TYPE_READ', 'BOOKING_READ', 'BOOKING_WRITE'] as const
+export const CALCOM_SCOPES = [
+  'PROFILE_READ', 'EVENT_TYPE_READ', 'BOOKING_READ', 'BOOKING_WRITE',
+  'TEAM_PROFILE_READ', 'TEAM_EVENT_TYPE_READ', 'TEAM_BOOKING_READ', 'TEAM_BOOKING_WRITE',
+] as const
 
 /** Cal.com's OAuth: consent at app.cal.com, tokens at api.cal.com. The client must be approved by Cal.com first. */
 export function createCalComOAuth({ clientId, clientSecret }: OAuthClient, { fetch: doFetch = fetch, timeoutMs = 8000 } = {}): CalendarOAuth {
