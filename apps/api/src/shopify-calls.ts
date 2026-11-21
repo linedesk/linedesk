@@ -430,9 +430,11 @@ export const shopifyCallHandlers: Record<string, Handler> = {
             // i18n-ignore: text the voice assistant reads (rule 11), not shown in the app
             if (!input.address?.address1) return { status: 'failed', detail: 'no new address' }
             await store.updateShippingAddress(token, order.id, input.address)
+            changesDone.add(call.id)
             return { status: 'done', detail: null }
           }
           await store.cancelOrder(token, order.id, note)
+          changesDone.add(call.id)
           return { status: 'done', detail: null }
         } catch (e) {
           failed(`change ${input.change}`, e)
