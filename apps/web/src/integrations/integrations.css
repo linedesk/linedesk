@@ -269,3 +269,32 @@
 .ig-swgroup > h3 + .st-swlist {
   margin-top: 8px;
 }
+
+/* Shopify: the setup as a short summary (ShopifySetupSummary). */
+.ig-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ig-setup-actions,
+.ig-setup-done {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ig-setup-done {
+  justify-content: flex-end;
+}
+.ig-setup-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.ig-setup-cols h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.ig-setup-cols ul {
+  margin: 0;
+  padding-left: 18px;
+}

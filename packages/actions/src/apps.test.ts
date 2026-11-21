@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { APP_SETTINGS, appSettingIds, appSettingOn, appUpdateSettings, connectableApps } from './apps.ts'
+import {
+  APP_SETTINGS,
+  appSettingIds,
+  appSettingOn,
+  appUpdateSettings,
+  connectableApps,
+  isShopifyRecommended,
+  SHOPIFY_RECOMMENDED,
+} from './apps.ts'
 import { rolePermissions } from './define.ts'
 import { applyLocally, type LocalTables } from './index.ts'
 
@@ -25,6 +33,15 @@ describe('app.updateSettings (LIN-367)', () => {
     expect(appSettingOn({}, 'create_contacts', 'hubspot')).toBe(true)
     expect(appSettingOn({ create_contacts: true }, 'create_contacts', 'shopify')).toBe(true)
     for (const app of connectableApps) expect(APP_SETTINGS[app].length).toBeGreaterThan(0)
+  })
+
+  it('starts a Shopify connection with the recommended setup', () => {
+    for (const id of APP_SETTINGS.shopify) expect(appSettingOn({}, id, 'shopify')).toBe(SHOPIFY_RECOMMENDED[id])
+    expect(appSettingOn({}, 'shop_returns', 'shopify')).toBe(true)
+    expect(appSettingOn({}, 'shop_cancel', 'shopify')).toBe(false)
+    expect(isShopifyRecommended({})).toBe(true)
+    expect(isShopifyRecommended({ shop_cancel: true })).toBe(false)
+    expect(isShopifyRecommended({ shop_cancel: false, log_calls: true })).toBe(true)
   })
 
   it('is applied to the connection locally at once', () => {

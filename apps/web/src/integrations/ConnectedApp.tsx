@@ -14,8 +14,10 @@ import {
   type AppSettingId,
   appSettingOn,
   type ConnectableApp,
+  isShopifyRecommended,
   SHOP_CHANGE_SETTINGS,
   SHOP_VERIFY_SETTINGS,
+  SHOPIFY_RECOMMENDED,
 } from '@linedesk/actions'
 import type { AppConnection } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -459,12 +461,38 @@ function AppSettings({
   }
 
   const groups = SETTING_GROUPS[app]
+  const [editing, setEditing] = useState(false)
+  if (app === 'shopify' && !editing)
+    return (
+      <Section
+        id="ig-app-settings"
+        title={t('settings.integrations.app.settings.title')}
+        help={t('settings.integrations.app.settings.help', { name })}
+      >
+        <ShopifySetupSummary
+          on={on}
+          canEdit={canEdit}
+          onEdit={() => setEditing(true)}
+          onRecommended={() =>
+            void run('app.updateSettings', { id: connection.id, settings: { ...SHOPIFY_RECOMMENDED } })
+          }
+          recommended={isShopifyRecommended(connection.settings)}
+        />
+      </Section>
+    )
   return (
     <Section
       id="ig-app-settings"
       title={t('settings.integrations.app.settings.title')}
       help={t('settings.integrations.app.settings.help', { name })}
     >
+      {app === 'shopify' && (
+        <div className="ig-setup-done">
+          <Button variant="ghost" onClick={() => setEditing(false)}>
+            {t('settings.integrations.app.shopify.setup.done')}
+          </Button>
+        </div>
+      )}
       {groups ? (
         <div className="ig-swgroups">
           {groups.map(g => (
@@ -479,6 +507,101 @@ function AppSettings({
         <div className="st-swlist">{APP_SETTINGS[app].map(row)}</div>
       )}
     </Section>
+  )
+}
+
+const CHECK_WORDS: Record<(typeof SHOP_VERIFY_SETTINGS)[number], MessageKey> = {
+  verify_name: msg('settings.integrations.app.shopify.setup.check.name'),
+  verify_postcode: msg('settings.integrations.app.shopify.setup.check.postcode'),
+  verify_email: msg('settings.integrations.app.shopify.setup.check.email'),
+  verify_order_number: msg('settings.integrations.app.shopify.setup.check.orderNumber'),
+  verify_caller_number: msg('settings.integrations.app.shopify.setup.check.callerNumber'),
+}
+
+/**
+ * Shopify's switches in two short columns, what is on and what is off: "Recommended setup" when they are the setup Linedesk
+ * recommends for most online stores (SHOPIFY_RECOMMENDED), else "Custom setup" with a way back to it. Edit setup shows
+ * every switch.
+ */
+function ShopifySetupSummary({
+  on,
+  canEdit,
+  recommended,
+  onEdit,
+  onRecommended,
+}: {
+  on: (id: AppSettingId) => boolean
+  canEdit: boolean
+  recommended: boolean
+  onEdit: () => void
+  onRecommended: () => void
+}) {
+  const t = useT()
+  const changes = SHOP_CHANGE_SETTINGS.filter(on)
+  const checks = SHOP_VERIFY_SETTINGS.filter(on)
+  const badge = (
+    <Badge tone={recommended ? 'ok' : 'outline'}>
+      {t(
+        recommended
+          ? 'settings.integrations.app.shopify.setup.recommended'
+          : 'settings.integrations.app.shopify.setup.custom',
+      )}
+    </Badge>
+  )
+  const actions = canEdit && (
+    <div className="ig-setup-actions">
+      <Button onClick={onEdit} title={t('settings.integrations.app.shopify.setup.editTip')}>
+        {t('settings.integrations.app.shopify.setup.edit')}
+      </Button>
+      {!recommended && (
+        <Button
+          variant="ghost"
+          onClick={onRecommended}
+          title={t('settings.integrations.app.shopify.setup.useRecommendedTip')}
+        >
+          {t('settings.integrations.app.shopify.setup.useRecommended')}
+        </Button>
+      )}
+    </div>
+  )
+  const ids: AppSettingId[] = [
+    'log_calls',
+    'fill_fields',
+    'create_contacts',
+    ...SHOP_CHANGE_SETTINGS,
+    ...(changes.length ? SHOP_VERIFY_SETTINGS.filter(on) : []),
+  ]
+  const label = (id: AppSettingId) =>
+    isVerify(id)
+      ? t('settings.integrations.app.shopify.setup.checkLine', {
+          check: t(CHECK_WORDS[id as (typeof SHOP_VERIFY_SETTINGS)[number]]),
+        })
+      : t(settingText('shopify', id).title)
+  return (
+    <div className="ig-setup">
+      <div className="ig-setup-head">{badge}</div>
+      <div className="ig-setup-cols">
+        {[true, false].map(state => (
+          <div key={String(state)}>
+            <h3>
+              {t(
+                state
+                  ? 'settings.integrations.app.shopify.setup.onCol'
+                  : 'settings.integrations.app.shopify.setup.offCol',
+              )}
+            </h3>
+            <ul>
+              {ids
+                .filter(id => on(id) === state)
+                .map(id => (
+                  <li key={id}>{label(id)}</li>
+                ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      {actions}
+    </div>
   )
 }
 

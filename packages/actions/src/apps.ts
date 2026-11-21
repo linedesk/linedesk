@@ -137,6 +137,30 @@ export const SHOP_VERIFY_SETTINGS = [
 export type ShopVerify = (typeof SHOP_VERIFY_SETTINGS)[number]
 
 /** Switches that are off until a member turns them on. */
+/**
+ * The setup Linedesk recommends for most online stores (Integrations › Shopify shows it as a short summary): every call
+ * as a note on the customer with empty details filled in, no new customers; returns and address changes after the
+ * name and the postcode match; no cancellations (a refund cannot be taken back).
+ */
+export const SHOPIFY_RECOMMENDED: Readonly<Record<AppSettingId, boolean>> = {
+  log_calls: true,
+  create_contacts: false,
+  fill_fields: true,
+  only_urgent: false,
+  shop_returns: true,
+  shop_address: true,
+  shop_cancel: false,
+  verify_name: true,
+  verify_postcode: true,
+  verify_email: false,
+  verify_order_number: false,
+  verify_caller_number: false,
+}
+
+/** Whether a Shopify connection's switches are the recommended setup. */
+export const isShopifyRecommended = (stored: Readonly<Record<string, boolean>> | null | undefined): boolean =>
+  APP_SETTINGS.shopify.every(id => appSettingOn(stored, id, 'shopify') === SHOPIFY_RECOMMENDED[id])
+
 const OFF_BY_DEFAULT: readonly AppSettingId[] = [
   'only_urgent',
   'shop_returns',
@@ -147,19 +171,20 @@ const OFF_BY_DEFAULT: readonly AppSettingId[] = [
   'verify_caller_number',
 ]
 /** Per app: a shop owner decides themselves who becomes a Shopify customer (Tim, 2026-11-20). */
-const OFF_BY_DEFAULT_FOR: Partial<Record<ConnectableApp, readonly AppSettingId[]>> = { shopify: ['create_contacts'] }
-
-/** Whether a switch is on for a connection: its own choice, else its default (on, except OFF_BY_DEFAULT). */
+/**
+ * Whether a switch is on for a connection: its own choice, else its default: for Shopify the recommended setup
+ * (SHOPIFY_RECOMMENDED, Tim 2026-11-21), for the other apps on, except OFF_BY_DEFAULT.
+ */
 export const appSettingOn = (
   stored: Readonly<Record<string, boolean>> | null | undefined,
   id: AppSettingId,
   app?: ConnectableApp,
-): boolean => stored?.[id] ?? !(OFF_BY_DEFAULT.includes(id) || (app ? OFF_BY_DEFAULT_FOR[app]?.includes(id) : false))
+): boolean => stored?.[id] ?? (app === 'shopify' ? SHOPIFY_RECOMMENDED[id] : !OFF_BY_DEFAULT.includes(id))
 
 export const appUpdateSettings = defineAction({
   name: 'app.updateSettings',
   description:
-    "Turn what Linedesk does in a connected app on or off. `id`: the connection (app_connections). `settings`: the switches to set, each true or false; a switch left out keeps its value. log_calls: send every finished phone call to the app; create_contacts: add a caller with no contact in the app as a new contact (off: such a call is skipped); fill_fields: fill empty fields of the caller's contact (off: an existing contact is never changed); only_urgent (Slack): post only calls marked urgent. Shopify: shop_returns, shop_address, shop_cancel let the assistant start a return, change the shipping address or cancel an order not shipped yet; verify_name, verify_postcode, verify_email, verify_order_number, verify_caller_number are what the caller must match first. All are on until changed, except only_urgent, the shop_* switches, verify_email, verify_order_number, verify_caller_number, and create_contacts for Shopify.",
+    "Turn what Linedesk does in a connected app on or off. `id`: the connection (app_connections). `settings`: the switches to set, each true or false; a switch left out keeps its value. log_calls: send every finished phone call to the app; create_contacts: add a caller with no contact in the app as a new contact (off: such a call is skipped); fill_fields: fill empty fields of the caller's contact (off: an existing contact is never changed); only_urgent (Slack): post only calls marked urgent. Shopify: shop_returns, shop_address, shop_cancel let the assistant start a return, change the shipping address or cancel an order not shipped yet; verify_name, verify_postcode, verify_email, verify_order_number, verify_caller_number are what the caller must match first. All are on until changed, except only_urgent; Shopify starts with the recommended setup: log_calls, fill_fields, shop_returns, shop_address, verify_name and verify_postcode on, the others off.",
   input: z.object({
     id: z.string().min(1).max(100),
     settings: z

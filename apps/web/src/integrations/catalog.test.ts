@@ -105,7 +105,7 @@ describe('the catalog', () => {
     ])
   })
 
-  it('counts each provider\'s support mailboxes on its own card and flags one that needs connecting again', () => {
+  it("counts each provider's support mailboxes on its own card and flags one that needs connecting again", () => {
     const none = { count: 0, needsReconnect: 0 }
     expect(statusOf('gmail', LOADING)).toEqual({ kind: 'loading' })
     expect(statusOf('gmail', NOTHING)).toEqual({ kind: 'notConnected' })
@@ -363,13 +363,13 @@ describe('What Linedesk does (app switches, LIN-367)', () => {
     })
   })
 
-  it('Shopify: changes, adding customers and most checks are off until turned on', () => {
+  it('Shopify starts with the recommended setup: returns and address changes on, cancelling and adding customers off', () => {
     expect(appSettingsWith('shopify', {}, 'shop_cancel', true)).toEqual({
       log_calls: true,
       create_contacts: false,
       fill_fields: true,
-      shop_returns: false,
-      shop_address: false,
+      shop_returns: true,
+      shop_address: true,
       shop_cancel: true,
       verify_name: true,
       verify_postcode: true,
