@@ -324,16 +324,30 @@ call_services() {
 # container, as every call is a room. A room older than 3 hours is not counted: a call lasts at most about 2 hours (a
 # call put through to a person), and an older one is a leftover in Valkey (a node that crashed, or Valkey's data
 # copied from another server) that LiveKit can no longer close and that would otherwise hold every update back.
+# Runs a short Node script (stdin) with the LiveKit SDK and the agent's LiveKit settings: in the running agent, or, on a
+# media server without an agent (docker-compose.no-agent.yml), in a one-off container of the agent's image, which
+# every deploy brings anyway. Prints what the script prints; nothing when it cannot run (a failure never stops the
+# deploy: the callers treat no answer as busy or unknown). Each script ends itself after 20 s.
+agent_node() {
+  local agent
+  agent=$(containers_of agent | head -1)
+  if [ -n "$agent" ]; then
+    docker exec -i "$agent" node - 2>/dev/null || true
+  else
+    # --pull never: never fetch or build an image on the server for this; no image means no answer.
+    docker compose run --rm --no-deps --pull never -T --entrypoint node agent - 2>/dev/null || true
+  fi
+}
+
 live_calls() {
   if ! grep -qx postgres <<<"$SERVICES"; then
-    local agent
-    agent=$(containers_of agent | head -1)
-    [ -n "$agent" ] || return 0
-    docker exec -i "$agent" node -e '
-      const { RoomServiceClient } = require("livekit-server-sdk")
-      new RoomServiceClient(process.env.LIVEKIT_URL.replace(/^ws/, "http"), process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET)
-        .listRooms().then((rooms) => console.log(rooms.filter((r) => r.numParticipants > 0 &&
-          Date.now() / 1000 - Number(r.creationTime) < 3 * 3600).length), () => {})' 2>/dev/null | tr -d '[:space:]'
+    agent_node <<'JS' | tr -d '[:space:]'
+setTimeout(() => process.exit(0), 20000).unref()
+const { RoomServiceClient } = require("livekit-server-sdk")
+new RoomServiceClient(process.env.LIVEKIT_URL.replace(/^ws/, "http"), process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET)
+  .listRooms().then((rooms) => console.log(rooms.filter((r) => r.numParticipants > 0 &&
+    Date.now() / 1000 - Number(r.creationTime) < 3 * 3600).length), () => {})
+JS
     return
   fi
   # shellcheck disable=SC2016 # the variables are the postgres container's own
@@ -344,15 +358,15 @@ live_calls() {
 # LiveKit's SIP setup (setup-sip, setup-test-caller): "<inbound trunks> <outbound trunks> <dispatch rules>", read through
 # the agent container (it has the SDK and LiveKit's keys); empty when it cannot be read.
 sip_setup() {
-  local agent
-  agent=$(containers_of agent | head -1)
-  [ -n "$agent" ] || return 0
-  docker exec -i "$agent" node -e '
-    const { SipClient } = require("livekit-server-sdk")
-    const sip = new SipClient(process.env.LIVEKIT_URL.replace(/^ws/, "http"), process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET)
-    Promise.all([sip.listSipInboundTrunk(), sip.listSipOutboundTrunk(), sip.listSipDispatchRule()])
-      .then(([inbound, outbound, rules]) => console.log(inbound.length, outbound.length, rules.length))
-      .catch(() => {})' 2>/dev/null | tr -d '\r'
+  grep -qx agent <<<"$(docker compose config --services 2>/dev/null; docker compose --profile on-agent-server config --services 2>/dev/null)" || return 0
+  agent_node <<'JS' | tr -d '\r'
+setTimeout(() => process.exit(0), 20000).unref()
+const { SipClient } = require("livekit-server-sdk")
+const sip = new SipClient(process.env.LIVEKIT_URL.replace(/^ws/, "http"), process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET)
+Promise.all([sip.listSipInboundTrunk(), sip.listSipOutboundTrunk(), sip.listSipDispatchRule()])
+  .then(([inbound, outbound, rules]) => console.log(inbound.length, outbound.length, rules.length))
+  .catch(() => {})
+JS
 }
 
 # After LiveKit or Redis was recreated: the SIP setup must still be there (Redis keeps it on its volume). A trunk or rule
@@ -562,7 +576,11 @@ if ! grep -qx api <<<"$stack_services"; then
     log "other services: recreating only what changed"
     # shellcheck disable=SC2046 # one service name per word
     docker compose up -d --no-build --no-deps --remove-orphans $(others)
-    roll agent
+    if grep -qx agent <<<"$stack_services"; then
+      roll agent
+    elif [ -n "$(containers_of agent)" ]; then # a media server that had an agent (docs/hosting.md)
+      log "WARNING: an agent still runs here, but this configuration has none (docker-compose.no-agent.yml): it keeps taking calls on its old version. Stop it: docker compose stop agent (it drains), then docker compose rm -f agent"
+    fi
     update_call_services
     clean_up
     if [ -n "${CALL_SERVICES_PENDING:-}" ]; then
@@ -573,7 +591,7 @@ if ! grep -qx api <<<"$stack_services"; then
       log "done, but LiveKit lost SIP setup (see the warning above): exit 76"
       exit 76
     fi
-    log "done (voice server 1: LiveKit, SIP, egress and the agent)"
+    log "done (voice server 1: LiveKit, SIP and egress$(grep -qx agent <<<"$stack_services" && echo ", and the agent"))"
     exit 0
   fi
   roll agent

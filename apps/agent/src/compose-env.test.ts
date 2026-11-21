@@ -126,3 +126,9 @@ test("voice server 1's LiveKit keys keep the main key and add the further voice 
     `LIVEKIT_KEYS: '{"\${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env (see .env.example)}": "\${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env (see .env.example)}"\${LINEDESK_VOICE_LIVEKIT_KEYS:+, \${LINEDESK_VOICE_LIVEKIT_KEYS}}}'`,
   )
 })
+
+test('a media server (docker-compose.no-agent.yml) never starts the agent: its profile is never turned on', () => {
+  const noAgent = readFileSync(new URL('../../../docker-compose.no-agent.yml', import.meta.url), 'utf8')
+  expect(noAgent).toContain('  agent:\n    profiles: !override [on-agent-server]\n    depends_on: !reset []\n')
+  expect([...noAgent.matchAll(/^ {2}([a-z-]+):$/gm)].map(m => m[1])).toEqual(['agent'])
+})

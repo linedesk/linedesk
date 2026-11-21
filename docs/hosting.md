@@ -185,7 +185,9 @@ The server with your customers' data opens no port to phone traffic, and a deplo
 
 4. **App server.** In `.env`: `COMPOSE_FILE` gets `:docker-compose.voice-link.yml`, `LINEDESK_VOICE_LINK_IP=10.8.0.1`, `LINEDESK_LIVEKIT_HOST=10.8.0.2` (voice server 1's WireGuard address), and `LIVEKIT_SIP_ENDPOINT` a name that points at voice server 1 (DNS only, no proxy). `/etc/linedesk/voice-nodes.txt`: every voice server's WireGuard address. Run `sudo ops/server/setup.sh` and `scripts/deploy.sh`: the API and Caddy now reach LiveKit through voice server 1's voice link. The old local call services keep running until you stop them: once the new setup answers calls, `docker compose stop agent` (it drains) and `docker compose rm -sf livekit-sip livekit-egress redis`. Change the carrier's SIP address (the FQDN of your SIP connection) to `LIVEKIT_SIP_ENDPOINT` too.
 
-5. **Further voice servers** (optional). Docker, the code, and an `.env` with only this:
+   **Media server without an agent:** add `:docker-compose.no-agent.yml` to voice server 1's `COMPOSE_FILE`. It then runs LiveKit, SIP, egress and Valkey only (about 0.2 vCPU and 30 MB per call), and every call's agent runs on the further voice servers below, so calls grow those, not voice server 1. A media server with 2 vCPU takes about 8 calls at once, 4 vCPU about 16. When a voice server 1 that ran an agent becomes a media server, stop that agent once the agent servers take calls: `docker compose stop agent` (it drains), then `docker compose rm -f agent`; compose does not remove it by itself.
+
+5. **Further voice servers** (optional; required with a media server without an agent). Docker, the code, and an `.env` with only this:
 
    ```sh
    COMPOSE_FILE=docker-compose.voice.yml
