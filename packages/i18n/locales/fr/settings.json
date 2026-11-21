@@ -1,7 +1,10 @@
 {
   "agentChange.agentTip": "Laissez Claude, ChatGPT ou un autre agent IA modifier ces réglages avec vous",
   "agentChange.edit": "Modifier avec l'IA",
+  "agentChange.setupLede": "Laissez votre agent IA s'en charger, ou suivez les étapes vous-même.",
+  "agentChange.setupTitle": "Terminer la configuration de {name}",
   "agentChange.stepsTip": "Repasser par la configuration, étape par étape, à partir de ce qui est enregistré",
+  "agentChange.withAgent": "Avec votre agent IA",
   "areaCode.list": "Indicatifs régionaux",
   "areaCode.nearby.failed": "La recherche d'indicatifs à proximité n'a pas fonctionné. Réessayez dans un instant.",
   "areaCode.nearby.found": "Numéros libres en ce moment. Choisissez un indicatif :",

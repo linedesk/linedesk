@@ -1,7 +1,10 @@
 {
   "agentChange.agentTip": "Claude、ChatGPTなどのAIエージェントと一緒にこの設定を変更します",
   "agentChange.edit": "AIで編集",
+  "agentChange.setupLede": "AIエージェントに任せるか、自分で手順を進めてください。",
+  "agentChange.setupTitle": "{name}の設定を完了",
   "agentChange.stepsTip": "保存済みの内容から、設定をもう一度手順に沿って進めます",
+  "agentChange.withAgent": "AIエージェントで",
   "areaCode.list": "市外局番",
   "areaCode.nearby.failed": "近くの市外局番を検索できませんでした。しばらくしてからもう一度お試しください。",
   "areaCode.nearby.found": "現在空いている番号があります。市外局番を選んでください：",
