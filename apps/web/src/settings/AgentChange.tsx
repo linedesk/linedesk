@@ -1,6 +1,7 @@
 // "Edit with AI" in the top bar of Workspace settings and Assistant settings (SettingsLayout's `actions`,
 // agentChange.ts), on every section: the agents' marks as on linedesk.ai's hero, then the label. Next to it "Step by
 // step". The pages they open: ChangeWithAgent.tsx and the setup flow, step by step (onboarding/StepByStep.tsx).
+// Server admin › Providers (admin/Providers.tsx, AgentFirst) uses the same AiButton, in the same order.
 import { useT } from '@linedesk/i18n/react'
 import { CLAUDE, CLAUDE_ORANGE, CURSOR, GEMINI, GEMINI_PURPLE, OPENAI } from '../onboarding/AgentPicker.tsx'
 import { Button } from '../ui/kit.tsx'
@@ -29,6 +30,16 @@ function AgentMarks() {
   )
 }
 
+/** The AI button wherever an agent can set up or change something: the agents' marks, then the label. */
+export function AiButton({ label, title, onClick }: { label: string; title: string; onClick: () => void }) {
+  return (
+    <button type="button" className="k-btn k-btn-secondary k-btn-sm ai-edit" onClick={onClick} title={title}>
+      <AgentMarks />
+      <span>{label}</span>
+    </button>
+  )
+}
+
 /**
  * The top bar's "Edit with AI" (secondary: the page's own Save stays the one black button) opens the agent page for
  * this workspace or assistant; "Step by step" opens the setup flow the workspace was set up with, filled in with what
@@ -48,17 +59,13 @@ export function AgentChangeActions({ target }: { target: ChangeTarget }) {
       >
         {t('admin.providers.agent.steps')}
       </Button>
-      <button
-        type="button"
-        className="k-btn k-btn-secondary k-btn-sm ai-edit"
+      <AiButton
+        label={t('settings.agentChange.edit')}
+        title={t('settings.agentChange.agentTip')}
         onClick={() => {
           window.location.hash = changeWithAgentHash(target)
         }}
-        title={t('settings.agentChange.agentTip')}
-      >
-        <AgentMarks />
-        <span>{t('settings.agentChange.edit')}</span>
-      </button>
+      />
     </>
   )
 }

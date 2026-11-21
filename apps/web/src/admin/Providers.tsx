@@ -21,11 +21,12 @@ import { useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
 import { openAgentSetup } from '../onboarding/AgentSetup.tsx'
 import { type InstallSetupFrom, openInstallSetup } from '../onboarding/InstallSetup.tsx'
+import { AiButton } from '../settings/AgentChange.tsx'
 import { HelpTip } from '../ui/form.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { type AdminData, keyUsersOf, loadInstallSetup, runAdmin } from './api.ts'
-import { isConfigured, selectsOnConnect } from './model.ts'
 import { CallQualityCard } from './CallQuality.tsx'
+import { isConfigured, selectsOnConnect } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
 import { clearOpenRouterReturn, type OpenRouterReturn, peekOpenRouterReturn } from './openrouterAuth.ts'
 import { ProviderDialog } from './ProviderDialog.tsx'
@@ -38,12 +39,13 @@ import { providersTarget } from './route.ts'
 export const ADMIN_INSTALL_SETUP = 'admin.installSetup'
 
 /**
- * The two ways to set up or change the install, always offered: "Set up with an AI agent" first (once everything is set
- * up, "Change with an AI agent": the agent setup page gives it a new link), and "Step by step", the install
- * walkthrough, next to it: "Step by step" always opens at its first part, "Continue step by step" (started, not
- * finished, not everything set up) where the admin left it; nothing saved is reset. On Cloud the walkthrough is off
- * (`enabled` false, it would only open Server admin › Providers), so only the agent is offered there. On top of Server
- * admin › Providers as a note; on the overview's card as a quiet line.
+ * The two ways to set up or change the install, always offered, looking and ordered as in the settings top bar
+ * (settings/AgentChange.tsx): "Step by step", the install walkthrough, then the AI button with the agents' marks, "Set
+ * up with AI" ("Edit with AI" once everything is set up; the agent setup page gives it a new link). "Step by step"
+ * always opens at its first part, "Continue step by step" (started, not finished, not everything set up) where the
+ * admin left it; nothing saved is reset. On Cloud the walkthrough is off (`enabled` false, it would only open Server
+ * admin › Providers), so only the agent is offered there. On top of Server admin › Providers as a note; on the
+ * overview's card as a quiet line.
  */
 export function AgentFirst({ lead, quiet, complete }: { lead: string; quiet?: boolean; complete?: boolean }) {
   const t = useT()
@@ -51,15 +53,6 @@ export function AgentFirst({ lead, quiet, complete }: { lead: string; quiet?: bo
   const label = agentFirstLabels(install, complete)
   const buttons = (
     <>
-      <Button
-        size="sm"
-        variant="primary"
-        icon="spark"
-        onClick={openAgentSetup}
-        title={complete ? t('admin.providers.agent.changeTip') : t('admin.providers.agent.setUpTip')}
-      >
-        {label.agent}
-      </Button>
       {label.steps && (
         <Button
           size="sm"
@@ -70,6 +63,11 @@ export function AgentFirst({ lead, quiet, complete }: { lead: string; quiet?: bo
           {label.steps}
         </Button>
       )}
+      <AiButton
+        label={label.agent}
+        title={complete ? t('admin.providers.agent.changeTip') : t('admin.providers.agent.setUpTip')}
+        onClick={openAgentSetup}
+      />
     </>
   )
   if (quiet)

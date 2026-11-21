@@ -11,21 +11,21 @@ const install = (
 })
 
 describe('AgentFirst: both ways, also once everything is set up', () => {
-  test('not set up: set up with an AI agent, step by step next to it', () => {
+  test('not set up: set up with AI, step by step next to it', () => {
     expect(agentFirstLabels(install(true))).toEqual({
-      agent: 'Set up with an AI agent',
+      agent: 'Set up with AI',
       steps: 'Step by step',
       stepsFrom: 'start',
     })
     expect(agentFirstLabels(install(true, { step: 'telephony' }))).toEqual({
-      agent: 'Set up with an AI agent',
+      agent: 'Set up with AI',
       steps: 'Continue step by step',
       stepsFrom: 'left',
     })
   })
 
-  test('everything set up: change with an AI agent, step by step still there (walkthrough finished or not)', () => {
-    const changed = { agent: 'Change with an AI agent', steps: 'Step by step', stepsFrom: 'start' }
+  test('everything set up: edit with AI, step by step still there (walkthrough finished or not)', () => {
+    const changed = { agent: 'Edit with AI', steps: 'Step by step', stepsFrom: 'start' }
     expect(agentFirstLabels(install(true, { step: 'done', finishedAt: '2026-11-01T00:00:00Z' }), true)).toEqual(changed)
     expect(agentFirstLabels(install(true, { step: 'telephony', setAsideAt: '2026-11-01T00:00:00Z' }), true)).toEqual(
       changed,
@@ -34,8 +34,8 @@ describe('AgentFirst: both ways, also once everything is set up', () => {
   })
 
   test('walkthrough off (Cloud) or not read yet: the agent only', () => {
-    expect(agentFirstLabels(install(false), true)).toMatchObject({ agent: 'Change with an AI agent', steps: null })
-    expect(agentFirstLabels(undefined)).toMatchObject({ agent: 'Set up with an AI agent', steps: null })
+    expect(agentFirstLabels(install(false), true)).toMatchObject({ agent: 'Edit with AI', steps: null })
+    expect(agentFirstLabels(undefined)).toMatchObject({ agent: 'Set up with AI', steps: null })
   })
 })
 
