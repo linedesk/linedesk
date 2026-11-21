@@ -175,6 +175,7 @@ The server with your customers' data opens no port to phone traffic, and a deplo
    AGENT_LOAD_THRESHOLD=0.8          # the same on every voice server: with more than one worker, a full one refuses calls
    LINEDESK_VOICE_CPUSET=0-3         # the cores for LiveKit, SIP, egress and the agent
    LINEDESK_AGENT_MEM=4g
+   AGENT_IDLE_PROCESSES=4            # warm processes: the calls that may start at the same moment (each ~160 MB, ~3 s CPU to start)
    ELECTRIC_SECRET=unused            # docker-compose.yml requires a value; nothing here uses it
    SMTP_URL=...                      # for the server's alerts only (ops/server)
    EMAIL_FROM=...
@@ -196,7 +197,7 @@ The server with your customers' data opens no port to phone traffic, and a deplo
    AGENT_LOAD_THRESHOLD=0.8
    LINEDESK_VOICE_CPUSET=0-3         # every core of this server
    LINEDESK_AGENT_MEM=6g             # about 0.8 GB plus 0.3 GB per call at once
-   AGENT_IDLE_PROCESSES=2
+   AGENT_IDLE_PROCESSES=4            # warm processes: the calls that may start at the same moment (each ~160 MB, ~3 s CPU to start)
    SMTP_URL=...
    EMAIL_FROM=...
    ```

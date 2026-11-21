@@ -1,3 +1,37 @@
+diff --git a/dist/audio.cjs b/dist/audio.cjs
+index 254fc8402cb3ff460da83fcbcf6886d65975a68b..50bc42cac1728fa651160799cf7a299871670728 100644
+--- a/dist/audio.cjs
++++ b/dist/audio.cjs
+@@ -61,7 +61,11 @@ class AudioByteStream {
+   }
+   write(data) {
+     const bytes = ArrayBuffer.isView(data) ? new Int8Array(data.buffer, data.byteOffset, data.byteLength) : new Int8Array(data);
+-    this.#buf = new Int8Array([...this.#buf, ...bytes]);
++    // Linedesk (LIN-413): join with set(), not a byte-by-byte spread through a JavaScript array (CPU on every TTS chunk).
++    const joined = new Int8Array(this.#buf.length + bytes.length);
++    joined.set(this.#buf, 0);
++    joined.set(bytes, this.#buf.length);
++    this.#buf = joined;
+     const frames = [];
+     while (this.#buf.length >= this.#bytesPerFrame) {
+       const frameData = this.#buf.slice(0, this.#bytesPerFrame);
+diff --git a/dist/audio.js b/dist/audio.js
+index 7322b820aad8dc33c9bc640dedb11350eea6db02..9643f04583173f2605186d166fe12ac139690eab 100644
+--- a/dist/audio.js
++++ b/dist/audio.js
+@@ -25,7 +25,11 @@ class AudioByteStream {
+   }
+   write(data) {
+     const bytes = ArrayBuffer.isView(data) ? new Int8Array(data.buffer, data.byteOffset, data.byteLength) : new Int8Array(data);
+-    this.#buf = new Int8Array([...this.#buf, ...bytes]);
++    // Linedesk (LIN-413): join with set(), not a byte-by-byte spread through a JavaScript array (CPU on every TTS chunk).
++    const joined = new Int8Array(this.#buf.length + bytes.length);
++    joined.set(this.#buf, 0);
++    joined.set(bytes, this.#buf.length);
++    this.#buf = joined;
+     const frames = [];
+     while (this.#buf.length >= this.#bytesPerFrame) {
+       const frameData = this.#buf.slice(0, this.#bytesPerFrame);
 diff --git a/dist/ipc/proc_pool.cjs b/dist/ipc/proc_pool.cjs
 index a9472fec9e254b0ea4f7e6d52cbd68f2b8d02c66..4446e443b291fe9daf523d460e3c1cc9211b219d 100644
 --- a/dist/ipc/proc_pool.cjs
@@ -268,6 +302,68 @@ index 71d7fb7c1ad8e44e05ae8b736f7cfabd8935bff0..fcf872578ed8688d3daea178fe3354b3
          if (error instanceof APIError) {
            const shouldRetry = error.retryable && this._connOptions.maxRetry > 0 && i < this._connOptions.maxRetry;
            if (!shouldRetry) {
+diff --git a/dist/utils.cjs b/dist/utils.cjs
+index 283765d34a86573e5dc984eed48b507e8a395543..d806af5c34a2e3137f974ff8bbc29d842c4e7de8 100644
+--- a/dist/utils.cjs
++++ b/dist/utils.cjs
+@@ -133,7 +133,7 @@ const mergeFrames = (buffer) => {
+     const sampleRate = buffer[0].sampleRate;
+     const channels = buffer[0].channels;
+     let samplesPerChannel = 0;
+-    let data = new Int16Array();
++    let length = 0;
+     for (const frame of buffer) {
+       if (frame.sampleRate !== sampleRate) {
+         throw new TypeError("sample rate mismatch");
+@@ -141,9 +141,16 @@ const mergeFrames = (buffer) => {
+       if (frame.channels !== channels) {
+         throw new TypeError("channel count mismatch");
+       }
+-      data = new Int16Array([...data, ...frame.data]);
++      length += frame.data.length;
+       samplesPerChannel += frame.samplesPerChannel;
+     }
++    // Linedesk (LIN-413): one allocation and set(), not a spread of everything so far for every frame (quadratic).
++    const data = new Int16Array(length);
++    let offset = 0;
++    for (const frame of buffer) {
++      data.set(frame.data, offset);
++      offset += frame.data.length;
++    }
+     return new import_rtc_node.AudioFrame(data, sampleRate, channels, samplesPerChannel);
+   }
+   return buffer;
+diff --git a/dist/utils.js b/dist/utils.js
+index 047893c809b6f2b1c6760b49f5a1548b45dab34a..dfd31255cf65012a17b6b237aaa6caa6c0c2fc50 100644
+--- a/dist/utils.js
++++ b/dist/utils.js
+@@ -71,7 +71,7 @@ const mergeFrames = (buffer) => {
+     const sampleRate = buffer[0].sampleRate;
+     const channels = buffer[0].channels;
+     let samplesPerChannel = 0;
+-    let data = new Int16Array();
++    let length = 0;
+     for (const frame of buffer) {
+       if (frame.sampleRate !== sampleRate) {
+         throw new TypeError("sample rate mismatch");
+@@ -79,9 +79,16 @@ const mergeFrames = (buffer) => {
+       if (frame.channels !== channels) {
+         throw new TypeError("channel count mismatch");
+       }
+-      data = new Int16Array([...data, ...frame.data]);
++      length += frame.data.length;
+       samplesPerChannel += frame.samplesPerChannel;
+     }
++    // Linedesk (LIN-413): one allocation and set(), not a spread of everything so far for every frame (quadratic).
++    const data = new Int16Array(length);
++    let offset = 0;
++    for (const frame of buffer) {
++      data.set(frame.data, offset);
++      offset += frame.data.length;
++    }
+     return new AudioFrame(data, sampleRate, channels, samplesPerChannel);
+   }
+   return buffer;
 diff --git a/dist/worker.cjs b/dist/worker.cjs
 index 360da761381211c8012e6d5f636977e46d99b4fd..09e43576e4e287d0ec92981aa36002ed2e4c2171 100644
 --- a/dist/worker.cjs

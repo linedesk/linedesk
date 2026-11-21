@@ -124,8 +124,10 @@ COPY --from=agent-bundle --chown=node:node /app/apps/agent/dist ./apps/agent/dis
 RUN node apps/agent/scripts/bundle.ts --check
 USER node
 WORKDIR /app/apps/agent
-# The job processes the worker starts inherit --enable-source-maps.
-CMD ["node", "--enable-source-maps", "dist/worker.mjs", "start"]
+# The job processes the worker starts inherit both flags. --experimental-async-context-frame: AsyncLocalStorage without
+# async_hooks (Node 24's default), which otherwise run a hook on every Promise of a call, about a tenth of the agent's
+# JavaScript CPU per call (LIN-413).
+CMD ["node", "--enable-source-maps", "--experimental-async-context-frame", "dist/worker.mjs", "start"]
 
 # --- live: the runtime for dev mode (docker-compose.dev.yml). No code inside: api, web and agent run
 # from the source checkout mounted at /app and their node_modules live in a volume (docker/dev-run.mjs),
