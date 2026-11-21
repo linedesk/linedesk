@@ -12,7 +12,7 @@ import {
   UnsentChanges,
 } from '../impersonation.ts'
 import { callAction } from '../settings/settings-api.ts'
-import { SupportAccessContext } from '../supportAccess.ts'
+import { ImpersonatingContext, SupportAccessContext } from '../supportAccess.ts'
 import { Button } from '../ui/kit.tsx'
 import { useNow } from './useNow.ts'
 import { useT } from '@linedesk/i18n/react'
@@ -28,13 +28,16 @@ export function ImpersonationFrame({
   children: ReactNode
 }) {
   if (!impersonation) return <SupportAccessContext.Provider value={false}>{children}</SupportAccessContext.Provider>
+  // With edits allowed the app works as the user (LIN-708): only the person's own account stays read-only.
   return (
-    <SupportAccessContext.Provider value>
-      <div className="imp-frame">
-        <div className="imp-content">{children}</div>
-        <ImpersonationBar impersonation={impersonation} onChanged={onChanged} />
-      </div>
-    </SupportAccessContext.Provider>
+    <ImpersonatingContext.Provider value>
+      <SupportAccessContext.Provider value={!impersonation.edits}>
+        <div className="imp-frame">
+          <div className="imp-content">{children}</div>
+          <ImpersonationBar impersonation={impersonation} onChanged={onChanged} />
+        </div>
+      </SupportAccessContext.Provider>
+    </ImpersonatingContext.Provider>
   )
 }
 

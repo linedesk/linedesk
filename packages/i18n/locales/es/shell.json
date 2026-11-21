@@ -160,7 +160,7 @@
   "hostNotSetUp.link": "Ir a la página de inicio de sesión",
   "hostNotSetUp.title": "Esta dirección no está configurada.",
   "impersonation.allowEdits": "Permitir edición",
-  "impersonation.allowEditsTip": "Cambia los ajustes del asistente y del workspace de este usuario. El equipo, los números, la facturación, las conexiones, los contactos de transferencia y los correos de llamadas siguen siendo de solo lectura.",
+  "impersonation.allowEditsTip": "Trabaja como este usuario: cambia todo lo que él puede cambiar. Su propio inicio de sesión, contraseña y perfil siguen siendo suyos. Cada cambio queda registrado con tu nombre.",
   "impersonation.by": "por {name}",
   "impersonation.editsFailed": "No se pudo cambiar la edición: {reason}",
   "impersonation.editsOn": "edición permitida",

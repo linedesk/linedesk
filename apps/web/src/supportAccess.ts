@@ -7,10 +7,15 @@ import { createContext, useContext } from 'react'
 import { i18n } from './i18n/index.tsx'
 import { CHANGE_WITH_AGENT_HASH } from './settings/agentChange.ts'
 
+/** Support access that is read-only: an instance admin signed in as another user, edits not allowed (LIN-708). */
 export const SupportAccessContext = createContext(false)
+/** Any support access, also with edits allowed: the person's own account (sign-in, profile) stays theirs. */
+export const ImpersonatingContext = createContext(false)
 
-/** Whether this tab is an instance admin's support access (signed in as another user). */
+/** Whether this tab is an instance admin's read-only support access; with edits allowed it works as the user. */
 export const useSupportAccess = () => useContext(SupportAccessContext)
+/** Whether this tab is an instance admin's support access at all, with or without edits. */
+export const useImpersonating = () => useContext(ImpersonatingContext)
 
 /**
  * Pages that open only in the person's own session, never during support access (the server refuses their setup links

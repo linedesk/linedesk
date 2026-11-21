@@ -1399,7 +1399,6 @@
   "readOnly.section": "Seuls les administrateurs peuvent modifier ces réglages.",
   "readOnly.supportAccess": "En lecture seule tant que vous êtes connecté en tant qu'un autre utilisateur.",
   "readOnly.supportAccessEdits": "Lecture seule tant que vous êtes connecté en tant qu'un autre utilisateur. Pour le modifier, utilisez « Autoriser les modifications » dans la barre ci-dessous.",
-  "readOnly.supportAccessKept": "Lecture seule tant que vous êtes connecté en tant qu'un autre utilisateur, même avec les modifications autorisées.",
   "recordings.days": "{days, plural, one {# jour} many {# jours} other {# jours}}",
   "recordings.dontKeep": "Ne pas conserver (supprimer après le résumé)",
   "recordings.forever": "Conserver indéfiniment",

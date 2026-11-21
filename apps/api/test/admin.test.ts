@@ -2655,31 +2655,14 @@ describe('impersonation', () => {
     ])
   })
 
-  test('with edits allowed, only the assistant and workspace settings join them: pinned too (LIN-700)', () => {
-    const extra = [...actions.values()]
-      .filter(def => mayRunWhileImpersonating(def, { edits: true }) && !mayRunWhileImpersonating(def))
-      .map(def => def.name)
-      .sort()
-    expect(extra).toEqual([
-      'appointmentType.delete',
-      'appointmentType.upsert',
-      'assistant.update',
-      'businessHours.set',
-      'closedDays.set',
-      'holidays.set',
-      'knowledgeQuestion.answer',
-      'knowledgeQuestion.dismiss',
-      'onboarding.dismissGoLiveChecklist',
-      'onboarding.reopenGoLiveChecklist',
-      'onboarding.restoreGoLiveStep',
-      'onboarding.setStep',
-      'onboarding.skipGoLiveStep',
-      'workspace.rename',
-      'workspace.updateSettings',
-    ])
+  test('with edits allowed, the session works as the user: every action passes the guard but invitations (LIN-708)', () => {
+    const refused = [...actions.values()]
+      .filter(def => !mayRunWhileImpersonating(def, { edits: true }))
+      .map(d => d.name)
+    expect(refused.sort()).toEqual(['invitation.accept', 'team.invite'])
   })
 
-  test('Allow edits: per impersonation session, settings only, never transfers, call emails, team or webhooks (LIN-700)', async () => {
+  test('Allow edits: per impersonation session, then as the user, own sign-in never (LIN-700, LIN-708)', async () => {
     const targetMember = and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, target.userId))
     // One owner per workspace: `other`'s owner steps aside for the test and gets it back after.
     const otherOwner = and(eq(memberTable.organizationId, other.id), eq(memberTable.userId, other.owner.userId))
@@ -2728,33 +2711,24 @@ describe('impersonation', () => {
       })
       expect((await act(as, 'workspace.updateSettings', { businessHoursOn: true })).status).toBe(200)
 
-      // Transfer contacts and call email rules stay refused, also next to an allowed field; recordings are not deleted.
-      const refused: [string, unknown][] = [
-        ['assistant.update', { assistantId: other.assistant.id, transfers: [] }],
-        [
-          'assistant.update',
-          { assistantId: other.assistant.id, name: 'Sneaky', email_rules: { always: [], rules: [] } },
-        ],
-        ['workspace.updateSettings', { recordingRetentionDays: 0 }],
-        // Recording and its notice stay the owner's: callers are never recorded without being told.
-        ['workspace.updateSettings', { recordingNoticeOn: false }],
-        ['workspace.updateSettings', { recordingNotice: 'Hi.' }],
-        ['assistant.update', { assistantId: other.assistant.id, record_calls: true }],
-        // Never on the list, edits or not.
-        ['team.invite', { email: 'admin-backdoor@linedesk.test', role: 'owner' }],
-        [
-          'webhook.create',
-          { assistantId: other.assistant.id, hooks: ['call_end'], url: 'https://collector.example.com/hook' },
-        ],
-        ['carrier.set', {}],
-        ['phoneNumber.release', { phoneNumberId: 'any' }],
-        ['calendar.connectStart', { provider: 'google' }],
-        ['workspace.deleteOwn', { name: 'any' }],
-        ['assistant.delete', { assistantId: other.assistant.id }],
-        ['assistant.restoreVersion', { assistantId: other.assistant.id, version: 1 }],
-      ]
-      for (const [name, input] of refused) expect(await act(as, name, input), name).toMatchObject(refusedText)
-      expect(await db.select().from(invitation).where(eq(invitation.email, 'admin-backdoor@linedesk.test'))).toEqual([])
+      // As the user (LIN-708): call emails and the recording notice too.
+      expect(
+        (await act(as, 'assistant.update', { assistantId: other.assistant.id, email_rules: { always: [], rules: [] } }))
+          .status,
+      ).toBe(200)
+      expect(
+        (await act(as, 'workspace.updateSettings', { recordingNotice: 'Dieses Gespräch kann aufgezeichnet werden.' }))
+          .status,
+      ).toBe(200)
+      // Nobody can be invited, also with edits on: the admin could invite their own address and keep the workspace.
+      expect(await act(as, 'team.invite', { email: 'admin-backdoor@linedesk.test', role: 'admin' })).toMatchObject(
+        refusedText,
+      )
+      // The person's own sign-in stays theirs, also with edits on (Better Auth, IMPERSONATION_REFUSED_PATHS).
+      expect(
+        (await request(as, 'POST', '/api/auth/change-password', { currentPassword: 'x', newPassword: 'y'.repeat(12) }))
+          .status,
+      ).toBe(403)
       expect((await db.select().from(assistants).where(eq(assistants.id, other.assistant.id)))[0]!.name).toBe(
         'Edited by support',
       )

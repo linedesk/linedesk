@@ -11,14 +11,14 @@ vi.mock('../../auth.ts', async original => ({
 }))
 
 const { AccountSettings } = await import('./index.tsx')
-const { SupportAccessContext } = await import('../../supportAccess.ts')
+const { ImpersonatingContext } = await import('../../supportAccess.ts')
 
 test('nothing of the account loads; a note says it is the person’s own', () => {
   vi.stubGlobal('window', { location: { hash: '#account/profile' }, addEventListener: () => {}, removeEventListener: () => {} })
   const html = renderToStaticMarkup(
-    <SupportAccessContext.Provider value>
+    <ImpersonatingContext.Provider value>
       <AccountSettings hasWorkspace workspaceName="Brightwater Plumbing & Heating" />
-    </SupportAccessContext.Provider>,
+    </ImpersonatingContext.Provider>,
   )
   expect(useQuery).not.toHaveBeenCalled()
   expect(html).toContain('Not available while you are signed in as another user')

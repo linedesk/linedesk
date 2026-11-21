@@ -1399,7 +1399,6 @@
   "readOnly.section": "Só administradores podem alterar essas configurações.",
   "readOnly.supportAccess": "Somente leitura enquanto você está conectado como outro usuário.",
   "readOnly.supportAccessEdits": "Somente leitura enquanto você está conectado como outro usuário. Para alterar, use “Permitir edição” na barra abaixo.",
-  "readOnly.supportAccessKept": "Somente leitura enquanto você está conectado como outro usuário, mesmo com a edição permitida.",
   "recordings.days": "{days, plural, one {# dia} many {# dias} other {# dias}}",
   "recordings.dontKeep": "Não guardar (excluir depois do resumo)",
   "recordings.forever": "Guardar para sempre",

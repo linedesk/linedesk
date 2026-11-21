@@ -160,7 +160,7 @@
   "hostNotSetUp.link": "Go to the sign-in page",
   "hostNotSetUp.title": "This address is not set up.",
   "impersonation.allowEdits": "Allow edits",
-  "impersonation.allowEditsTip": "Change the assistant's and workspace's settings for this user. Team, numbers, billing, connections, transfer contacts and call emails stay read-only.",
+  "impersonation.allowEditsTip": "Work as this user: change everything they can. Their own sign-in, password and profile stay theirs. Every change is logged with your name.",
   "impersonation.by": "by {name}",
   "impersonation.editsFailed": "Could not change edits: {reason}",
   "impersonation.editsOn": "edits allowed",

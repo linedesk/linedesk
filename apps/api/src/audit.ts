@@ -282,7 +282,7 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'calendarTools.set': 'admin',
   'user.impersonate': 'impersonation',
   'impersonation.stop': 'impersonation',
-  // Edits on or off during an impersonation (impersonation-guard.ts, IMPERSONATION_EDIT_WRITES).
+  // Edits on or off during an impersonation (impersonation-guard.ts: with edits on it works as the user).
   'impersonation.setEdits': 'impersonation',
   'team.invite': 'team',
   'team.resendInvite': 'team',

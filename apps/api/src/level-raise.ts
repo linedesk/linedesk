@@ -1,7 +1,8 @@
 // Who may change an assistant's call quality (decision of 2026-11-18, replacing "only the person who pays"):
 // - Raising it to Premium or Ultra where levels are billed: a workspace owner or admin, signed in to the app as
-//   themselves (refuseBillingActor: never an API key, a personal key, a setup link or an impersonation). Who pays is
-//   not asked; the bill of the workspace pays the level, as before.
+//   themselves (refuseBillingActor: never an API key, a personal key or a setup link). An instance admin's
+//   impersonation of such an owner or admin raises only with edits on (LIN-708: it then works as the user). Who pays
+//   is not asked; the bill of the workspace pays the level, as before.
 // - Lowering it, or changing the models within it: anyone who edits the assistant.
 // - In a white-label client (docs/white-label.md): the partner's team always (they are admins there); the client's own
 //   owner and admins only while the partner lets them (`workspace_settings.client_call_quality`, partner.setClientCallQuality,
@@ -44,12 +45,14 @@ async function partnerClientAllows(tx: Tx, actor: Actor): Promise<boolean | null
 }
 
 /**
- * Whether the caller may raise where levels are billed: an owner or admin, signed in to the app as themselves (as
- * refuseBillingActor: never an API key, a personal key, a setup link or an instance admin's impersonation).
+ * Whether the caller may raise where levels are billed: an owner or admin, signed in to the app (as
+ * refuseBillingActor: never an API key, a personal key or a setup link). An instance admin's impersonation of them
+ * only with edits on (LIN-708); read-only support access never raises.
  */
 function raisesAsSelf(actor: Actor) {
   if (!isAdmin(actor)) return false
-  return !(actor.impersonation || actor.apiKeyId || actor.personalKeyId || actor.setupKeyId)
+  if (actor.impersonation && !actor.impersonation.edits) return false
+  return !(actor.apiKeyId || actor.personalKeyId || actor.setupKeyId)
 }
 
 /** What the assistant editor offers this caller (read without locks). */

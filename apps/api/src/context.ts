@@ -114,7 +114,7 @@ export interface Actor {
   partnerHost?: { partnerId: string; domainId: string; hostname: string }
 }
 
-/** `edits`: the admin turned edits on in this session (impersonation.setEdits): IMPERSONATION_EDIT_WRITES run too. */
+/** `edits`: the admin turned edits on in this session (impersonation.setEdits): it then works as the user (LIN-708). */
 export type Impersonation = { by: string; sessionId: string; expiresAt: Date; edits?: boolean }
 
 /**

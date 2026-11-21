@@ -1575,7 +1575,7 @@ export const impersonationSetEdits = defineAction({
   name: 'impersonation.setEdits',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
   description:
-    "While signed in as another user: allow changes to the assistant's and the workspace's settings (`on` true), or go back to read-only (`on` false). Team, numbers, billing, webhooks, connections, transfer contacts and call email rules stay read-only. Ends with the impersonation.",
+    "While signed in as another user: work as that user, with everything their permissions allow (`on` true), or go back to read-only (`on` false). The person's own sign-in, profile and invitations stay theirs, and nobody can be invited. Every change names the admin. Ends with the impersonation.",
   input: z.object({ on: z.boolean() }).strict(),
   permission: 'impersonation:stop',
 })

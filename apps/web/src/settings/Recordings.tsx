@@ -4,7 +4,6 @@
 // is recorded and the assistant does not say the notice, until recording is turned on. Below it, a caller privacy notice
 // template the business can copy (callerPrivacyNotice.ts).
 import { useReadOnlyNote } from './readOnly.ts'
-import { useSupportAccess } from '../supportAccess.ts'
 import { inEeaOrUk, RECORDING_NOTICE_MAX, RECORDINGS_NOT_KEPT, recordingRetentionChoices } from '@linedesk/actions'
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink } from '../ui/AppLink.tsx'
@@ -252,11 +251,8 @@ type NoticeProps = {
 }
 
 /** The switch and the sentence the assistant says right after the greeting. */
-function RecordingNotice({ on, saved, canEdit: mayEdit, inEffect, recorded, eu, toast }: NoticeProps) {
+function RecordingNotice({ on, saved, canEdit, inEffect, recorded, eu, toast }: NoticeProps) {
   const t = useT()
-  // During support access the notice stays the owner's, also with edits allowed (IMPERSONATION_EDIT_REFUSED_FIELDS).
-  const supportAccess = useSupportAccess()
-  const canEdit = mayEdit && !supportAccess
   const run = useRun()
   const [draft, setDraft] = useState(saved)
   const [confirmOff, setConfirmOff] = useState(false)

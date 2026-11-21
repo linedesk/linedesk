@@ -1399,7 +1399,6 @@
   "readOnly.section": "Only admins can change these settings.",
   "readOnly.supportAccess": "Read-only while you are signed in as another user.",
   "readOnly.supportAccessEdits": "Read-only while you are signed in as another user. To change it, use Allow edits in the bar below.",
-  "readOnly.supportAccessKept": "Read-only while you are signed in as another user, also with edits allowed.",
   "recordings.days": "{days, plural, one {# day} other {# days}}",
   "recordings.dontKeep": "Don't keep (delete after the summary)",
   "recordings.forever": "Keep forever",

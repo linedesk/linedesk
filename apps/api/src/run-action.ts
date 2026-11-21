@@ -41,7 +41,7 @@ import { type Reader, rejectionText, wordsOf } from './handler-context.ts'
 import { Forbidden, NotFound, preparers, Reject, runHandler, type Undo } from './handlers.ts'
 import { personalKeyRefusal } from './personal-key-scope.ts'
 import { chargeSetupLookup, pendingPaymentRefusal, REFUSED_WHILE_PENDING_PAYMENT, SETUP_LOOKUPS } from './self-serve.ts'
-import { impersonationRefusesInput, impersonatorOf, mayRunWhileImpersonating } from './impersonation-guard.ts'
+import { impersonatorOf, mayRunWhileImpersonating } from './impersonation-guard.ts'
 import { MAIN_HOST_ONLY, mainHostOnlyAction } from './request-host.ts'
 
 export type RunResult = { status: 200 | 403 | 404 | 409 | 422; body: ActionResult | ActionRejection }
@@ -378,9 +378,6 @@ export async function runAction(
       ? unknownFieldsRejection(unknown, wordsOf(actor))
       : rejection(422, inputErrorText(parsed.error, rawInput, wordsOf(actor)))
   }
-  // With edits on, still no transfer contacts, call email rules or recording deletion as the user (impersonation-guard.ts).
-  if (actor.impersonation && impersonationRefusesInput(name, parsed.data))
-    return forbidden(wordsOf(actor).t('server.api.notWhileImpersonating'))
   const agentRefused = agentRefusal(def, parsed.data, actor)
   if (agentRefused) return forbidden(agentRefused)
   const unknown = unknownFieldsRefusal(name, rawInput, parsed.data, actor)

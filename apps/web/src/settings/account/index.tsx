@@ -11,7 +11,7 @@ import { refreshQuery, useQuery } from '../../cachedQuery.ts'
 import { signInAgain } from '../../localData.ts'
 import { CODE_LENGTH, normalizeCode, RESEND_AFTER_S } from '../../sign-in-code.ts'
 import { useLegalLinks } from '../../shell/WorkspaceMenu.tsx'
-import { useSupportAccess } from '../../supportAccess.ts'
+import { useImpersonating } from '../../supportAccess.ts'
 import { refreshTeam } from '../../team/team-api.ts'
 import { changedByLabel } from '../../team/team-model.ts'
 import { dateTimeLabel } from '../../time.ts'
@@ -995,8 +995,8 @@ type Props = {
 }
 
 export function AccountSettings({ hasWorkspace, workspaceName = '' }: Props) {
-  const supportAccess = useSupportAccess()
-  // The person's profile, sign-in, sessions and own notifications are theirs alone: the server refuses them during
+  const supportAccess = useImpersonating()
+  // The person's profile, sign-in, sessions and own notifications are theirs alone, also with edits allowed: the server refuses them during
   // support access (impersonation-guard.ts), so nothing is loaded and the page says so calmly.
   return supportAccess ? (
     <SupportAccessAccount hasWorkspace={hasWorkspace} />

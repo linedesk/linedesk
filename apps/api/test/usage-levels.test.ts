@@ -198,7 +198,7 @@ describe('call quality on Cloud: the level decides the price', () => {
     })
   })
 
-  test('every workspace admin raises, the owner too, whoever pays; members never; never an API key or impersonation (decision of 2026-11-18)', async () => {
+  test('every workspace admin raises, the owner too, whoever pays; members never; never an API key, an impersonation only with edits on (decision of 2026-11-18, LIN-708)', async () => {
     // Bill owner B pays for W, which X owns; A is an admin of W, M a member. Who pays is not asked any more.
     const payerWs = await createWorkspace('Quality Payer Plumbing')
     const ws = await createWorkspace('Quality Paid For Heating')
@@ -239,8 +239,16 @@ describe('call quality on Cloud: the level decides the price', () => {
     try {
       expect((await setLevel(admin, ws.assistant.id, 'premium')).status).toBe(403)
       expect((await rights(admin)).mayRaise).toBe(false)
+      // With edits on (LIN-708) the impersonation works as the admin: it raises.
+      await db.update(session).set({ impersonationEditsAt: new Date() }).where(eq(session.userId, admin.userId))
+      expect((await rights(admin)).mayRaise).toBe(true)
+      expect((await setLevel(admin, ws.assistant.id, 'premium')).status).toBe(200)
+      expect((await setLevel(admin, ws.assistant.id, 'standard')).status).toBe(200)
     } finally {
-      await db.update(session).set({ impersonatedBy: null }).where(eq(session.userId, admin.userId))
+      await db
+        .update(session)
+        .set({ impersonatedBy: null, impersonationEditsAt: null })
+        .where(eq(session.userId, admin.userId))
     }
   })
 

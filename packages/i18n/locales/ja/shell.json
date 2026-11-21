@@ -160,7 +160,7 @@
   "hostNotSetUp.link": "サインインページへ",
   "hostNotSetUp.title": "このアドレスは設定されていません。",
   "impersonation.allowEdits": "編集を許可",
-  "impersonation.allowEditsTip": "このユーザーのアシスタントとワークスペースの設定を変更します。チーム、番号、請求、連携、転送先、通話メールは読み取り専用のままです。",
+  "impersonation.allowEditsTip": "このユーザーとして作業します：このユーザーが変更できるものはすべて変更できます。本人のサインイン、パスワード、プロフィールは本人のままです。すべての変更はあなたの名前で記録されます。",
   "impersonation.by": "{name}による",
   "impersonation.editsFailed": "編集を切り替えられませんでした：{reason}",
   "impersonation.editsOn": "編集を許可中",
