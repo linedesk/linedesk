@@ -40,11 +40,12 @@ import {
   provider_settings,
   type Tx,
 } from '@linedesk/db'
-import { and, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 import type { Actor } from './context.ts'
 import { type Handler, type HandlerCtx, Forbidden, Reject } from './handler-context.ts'
 import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import { resolveProvider } from './provider-settings.ts'
+import { carrierSlot } from './workspace-carrier.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey, SecretsKeyError } from './secrets.ts'
 
 // The action's list of apps and the connectors' are the same.
@@ -53,15 +54,70 @@ void sameApps
 
 /** How the API reaches connected apps; tests pass fakes through the handler context. */
 export type AppServices = {
-  /** The app's OAuth with the install's client ID and secret; null when an instance admin has not set them. */
-  oauth(tx: Tx, app: AppId): Promise<AppOAuth | null>
+  /**
+   * The app's OAuth: the workspace's own app when it has one (workspaceAppKeys), else the install's client ID and
+   * secret; null when neither is set.
+   */
+  oauth(tx: Tx, app: AppId, workspaceId?: string | null): Promise<AppOAuth | null>
   connector(app: AppId): AppConnector
   /** Shopify's store reads and changes during calls (shopify-calls.ts); tests pass a fake. */
   shopify?(): ShopifyStore
 }
 
+/**
+ * The slot (secrets.ts) of a workspace's own app key: bound to the workspace, the app and the field. The same slot as a
+ * workspace's own carrier key (carrierSlot), which rotate-secrets-key.ts uses for every row with a workspace.
+ */
+export const workspaceAppSlot = (workspaceId: string, app: AppId, field: string) => carrierSlot(workspaceId, app, field)
+
+/**
+ * A workspace's own app, stored for that workspace alone (provider_settings with its workspace_id): a Shopify custom
+ * app, which Shopify lets only one store install, for a pilot store while the install's public app is in review
+ * (LIN-709). Null when the workspace has none.
+ */
+export async function workspaceAppKeys(
+  tx: Tx,
+  app: AppId,
+  workspaceId: string,
+): Promise<{ clientId: string; clientSecret: string } | null> {
+  const rows = await tx
+    .select()
+    .from(provider_settings)
+    .where(and(eq(provider_settings.workspace_id, workspaceId), eq(provider_settings.provider, app)))
+  const value = (field: string) => {
+    const row = rows.find(r => r.field === field)
+    return row ? decryptSecret(row.value_encrypted, workspaceAppSlot(workspaceId, app, field)) : null
+  }
+  const clientId = value('client_id')
+  const clientSecret = value('client_secret')
+  return clientId && clientSecret ? { clientId, clientSecret } : null
+}
+
+/** Every workspace's own app of this kind: for a webhook signed by one of them (shopify-webhook.ts). */
+export async function workspaceApps(tx: Tx, app: AppId): Promise<{ workspaceId: string; clientSecret: string }[]> {
+  const rows = await tx
+    .select({ workspace_id: provider_settings.workspace_id })
+    .from(provider_settings)
+    .where(and(eq(provider_settings.provider, app), eq(provider_settings.field, 'client_secret')))
+  const out: { workspaceId: string; clientSecret: string }[] = []
+  for (const row of rows) {
+    if (!row.workspace_id) continue
+    try {
+      const keys = await workspaceAppKeys(tx, app, row.workspace_id)
+      if (keys) out.push({ workspaceId: row.workspace_id, clientSecret: keys.clientSecret })
+    } catch (error) {
+      // One key that no longer decrypts (SECRETS_KEY changed) leaves out that workspace only, never the others.
+      if (!(error instanceof SecretsKeyError)) throw error
+      console.warn(`workspace ${row.workspace_id}: its own ${app} app key cannot be decrypted`)
+    }
+  }
+  return out
+}
+
 export const defaultAppServices: AppServices = {
-  async oauth(tx, app) {
+  async oauth(tx, app, workspaceId) {
+    const own = workspaceId ? await workspaceAppKeys(tx, app, workspaceId) : null
+    if (own) return appOAuth(app, own)
     const config = await resolveProvider(tx, app)
     const clientId = config.client_id?.value
     const clientSecret = config.client_secret?.value
@@ -128,8 +184,8 @@ function workspaceOf(actor: Actor) {
   return actor.workspaceId
 }
 
-async function oauthOrReject(tx: Tx, ctx: Pick<HandlerCtx, 'apps'>, app: AppId) {
-  const oauth = await appServicesOf(ctx).oauth(tx, app)
+async function oauthOrReject(tx: Tx, ctx: Pick<HandlerCtx, 'apps'>, app: AppId, workspaceId: string) {
+  const oauth = await appServicesOf(ctx).oauth(tx, app, workspaceId)
   if (!oauth)
     throw rejectApp(
       'not_set_up',
@@ -203,7 +259,7 @@ export function appTokenSource(database: Tx, services: AppServices, connection: 
     if (!credentials) throw new AppError(connection.provider, 'auth', 'no stored access: connect it again')
     if (!forceRefresh && good(credentials.expires_at))
       return decryptSecret(credentials.access_token_encrypted, appSlot(connection, 'access'))
-    const oauth = await appServicesOf({ apps: services }).oauth(database, connection.provider)
+    const oauth = await appServicesOf({ apps: services }).oauth(database, connection.provider, connection.workspace_id)
     if (!oauth) throw new AppError(connection.provider, 'unavailable', 'the app is no longer set up on this server')
     const refreshToken = decryptSecret(credentials.refresh_token_encrypted, appSlot(connection, 'refresh'))
     let tokens: OAuthTokens
@@ -238,14 +294,17 @@ export function appTokenSource(database: Tx, services: AppServices, connection: 
 /** How long after a change of an app's client ID or secret a refused grant is not taken as an uninstall. */
 export const KEYS_SETTLE_MS = 24 * 60 * 60_000
 
-/** Whether the install's keys of an app (Server admin › Providers) were changed after `since`. */
-async function appKeysChangedSince(database: Tx, app: AppId, since: number) {
+/**
+ * Whether the keys a connection uses were changed after `since`: the install's (Server admin › Providers), or its
+ * workspace's own app (workspaceAppKeys).
+ */
+async function appKeysChangedSince(database: Tx, app: AppId, workspaceId: string, since: number) {
   const [changed] = await database
     .select({ field: provider_settings.field })
     .from(provider_settings)
     .where(
       and(
-        isNull(provider_settings.workspace_id),
+        or(isNull(provider_settings.workspace_id), eq(provider_settings.workspace_id, workspaceId)),
         eq(provider_settings.provider, app),
         gt(provider_settings.updated_at, new Date(since).toISOString()),
       ),
@@ -292,7 +351,8 @@ async function grantHeldElsewhere(
 export async function dropRevokedConnection(database: Tx, connection: AppConnection, refusedRefresh: string) {
   // Another app's valid keys entered under Server admin › Providers would have every grant refused like this: right
   // after a key change nothing is removed; the refusal marks the connection as any refused grant does.
-  if (await appKeysChangedSince(database, connection.provider, Date.now() - KEYS_SETTLE_MS)) return false
+  if (await appKeysChangedSince(database, connection.provider, connection.workspace_id, Date.now() - KEYS_SETTLE_MS))
+    return false
   const deleted = await database.transaction(async tx => {
     await lockAccount(tx, connection.provider, connection.account_id)
     await lockConnection(tx, connection.id)
@@ -374,18 +434,40 @@ async function connectionOf(tx: Tx, workspaceId: string, app: AppId) {
  * event (connected again after a disconnect, or a late or replayed delivery). Returns the ids of the deleted
  * connections.
  */
+/** The connections a webhook may act on (dropAppAccount): one workspace, those without an own app, or all. */
+export const workspaceScope = (app: AppId, workspaceId: string | null | 'install') =>
+  workspaceId === 'install'
+    ? notInArray(
+        app_connections.workspace_id,
+        sql`(select ${provider_settings.workspace_id} from ${provider_settings} where ${provider_settings.provider} = ${app} and ${provider_settings.workspace_id} is not null)`,
+      )
+    : workspaceId
+      ? eq(app_connections.workspace_id, workspaceId)
+      : undefined
+
 export async function dropAppAccount(
   tx: Tx,
   app: AppId,
   accountIds: readonly string[],
   grantedBefore: string | null = null,
+  /**
+   * Only this workspace's connections: a webhook signed by a workspace's own app speaks for that workspace alone.
+   * `install`: signed by the install's app, which never speaks for a workspace with its own app.
+   */
+  workspaceId: string | null | 'install' = null,
 ): Promise<string[]> {
   if (!accountIds.length) return []
   const matching = () =>
     tx
       .select({ id: app_connections.id, account_id: app_connections.account_id })
       .from(app_connections)
-      .where(and(eq(app_connections.provider, app), inArray(app_connections.account_id, [...accountIds])))
+      .where(
+        and(
+          eq(app_connections.provider, app),
+          inArray(app_connections.account_id, [...accountIds]),
+          workspaceScope(app, workspaceId),
+        ),
+      )
   const found = await matching()
   if (!found.length) return []
   // Sorted, so two deliveries naming the same account take the locks in the same order.
@@ -418,7 +500,7 @@ export const appConnectionHandlers: Record<string, Handler> = {
     const workspace_id = workspaceOf(actor)
     // An app connected while signed in as someone else would put the admin's account into the user's workspace.
     if (actor.impersonation) throw new Forbidden(IMPERSONATING)
-    const oauth = await oauthOrReject(tx, ctx, input.app)
+    const oauth = await oauthOrReject(tx, ctx, input.app, workspace_id)
     if (!hasSecretsKey()) throw rejectApp('no_secrets_key', NO_SECRETS_KEY)
     // Shopify's consent page is on the store's own domain: the member names the store, or (none named) Shopify's store
     // picker asks for it. Either way the store connected is the one Shopify's signed callback names.
@@ -464,7 +546,7 @@ export const appConnectionHandlers: Record<string, Handler> = {
     if (started.workspace_id !== workspace_id)
       throw rejectApp('not_yours', 'You switched workspace while connecting. Start again from Integrations.')
     if (!hasSecretsKey()) throw rejectApp('no_secrets_key', NO_SECRETS_KEY)
-    const oauth = await oauthOrReject(tx, ctx, input.app)
+    const oauth = await oauthOrReject(tx, ctx, input.app, workspace_id)
     const label = APP_LABEL[input.app]
     const tokens = await oauth
       .exchangeCode({ code: input.code, redirectUri: appRedirectUri(input.app), params: input.params })
@@ -599,7 +681,7 @@ export const appConnectionHandlers: Record<string, Handler> = {
       .from(app_credentials)
       .where(eq(app_credentials.connection_id, existing.id))
     await tx.delete(app_connections).where(eq(app_connections.id, existing.id))
-    const oauth = credentials ? await appServicesOf(ctx).oauth(tx, input.app) : null
+    const oauth = credentials ? await appServicesOf(ctx).oauth(tx, input.app, workspace_id) : null
     // An account another workspace's connection still uses keeps the app: a grant one per account stays (Slack:
     // uninstalling the app would stop that workspace's posts too), and an app that can be uninstalled from the whole
     // account (HubSpot) only has this connection's own grant revoked.

@@ -9,10 +9,11 @@ import {
   billing_accounts,
   billing_numbers,
   phone_numbers,
+  provider_settings,
 } from '@linedesk/db'
 import { eq } from 'drizzle-orm'
 import { expect, test } from 'vitest'
-import { appSlot } from '../src/app-connections.ts'
+import { appSlot, workspaceAppSlot } from '../src/app-connections.ts'
 import { authenticatorSlot } from '../src/authenticator.ts'
 import { portOutSlot } from '../src/billing-owner.ts'
 import { db } from '../src/db.ts'
@@ -103,4 +104,27 @@ test('a Slack webhook URL is re-encrypted with the new key, next to the tokens',
     .catch((e: { stored: string }) => e)
   expect(decryptSecret(rotated.stored, appSlot(connection, 'webhook'), to)).toBe(url)
   expect(() => decryptSecret(rotated.stored, appSlot(connection, 'webhook'), from)).toThrow()
+})
+
+test("a workspace's own app key is re-encrypted with the new key and still reads under its own slot (LIN-709)", async () => {
+  const ws = await createWorkspace('Pilot store')
+  const id = rid('ps')
+  await db.insert(provider_settings).values({
+    id,
+    workspace_id: ws.id,
+    provider: 'shopify',
+    field: 'client_secret',
+    value_encrypted: encryptSecret('pilot-secret', workspaceAppSlot(ws.id, 'shopify', 'client_secret')),
+  })
+  const from = parseSecretsKey(process.env.SECRETS_KEY!)
+  const to = randomBytes(32)
+  const rotated = await db
+    .transaction(async tx => {
+      await reencryptSecrets(tx, from, to)
+      const [row] = await tx.select().from(provider_settings).where(eq(provider_settings.id, id))
+      throw Object.assign(new Error('rollback'), { stored: row!.value_encrypted })
+    })
+    .catch((e: { stored: string }) => e)
+  expect(decryptSecret(rotated.stored, workspaceAppSlot(ws.id, 'shopify', 'client_secret'), to)).toBe('pilot-secret')
+  await db.delete(provider_settings).where(eq(provider_settings.id, id))
 })

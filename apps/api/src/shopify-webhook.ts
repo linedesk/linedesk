@@ -8,12 +8,14 @@
 // No session: Shopify signs the raw body with the app's client secret (Server admin › Providers › Shopify), base64
 // HMAC-SHA256 in X-Shopify-Hmac-SHA256; a missing or wrong signature is 401, as Shopify's review checks. The topic and
 // the store come from X-Shopify-Topic and X-Shopify-Shop-Domain. Delivery is at least once: a repeat finds nothing.
+// A workspace with its own app (a custom app for one pilot store, app-connections.ts workspaceAppKeys) gets that app's
+// webhooks here too: signed with its secret, they act on that workspace's connections only.
 import { shopDomain, verifyShopifyWebhook } from '@linedesk/connectors'
 import { app_connections, crm_links } from '@linedesk/db'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
-import { dropAppAccount } from './app-connections.ts'
+import { dropAppAccount, workspaceApps, workspaceScope } from './app-connections.ts'
 import { db } from './db.ts'
 import { resolveProvider } from './provider-settings.ts'
 import { SecretsKeyError } from './secrets.ts'
@@ -32,14 +34,24 @@ function logRefused(reason: string, now = Date.now()) {
   refusedLog.count = 0
 }
 
-async function shopifyClientSecret() {
+/** The secrets a delivery may be signed with: the install's app, then each workspace's own app (workspace set). */
+async function shopifySecrets(): Promise<{ secret: string; workspaceId: string | null }[]> {
+  const out: { secret: string; workspaceId: string | null }[] = []
   try {
-    return (await resolveProvider(db, 'shopify')).client_secret?.value ?? null
+    const install = (await resolveProvider(db, 'shopify')).client_secret?.value
+    if (install) out.push({ secret: install, workspaceId: null })
   } catch (error) {
     if (!(error instanceof SecretsKeyError)) throw error
     logRefused('the stored Shopify client secret cannot be decrypted')
-    return null
   }
+  try {
+    for (const own of await workspaceApps(db, 'shopify'))
+      out.push({ secret: own.clientSecret, workspaceId: own.workspaceId })
+  } catch (error) {
+    if (!(error instanceof SecretsKeyError)) throw error
+    logRefused("a workspace's own Shopify client secret cannot be decrypted")
+  }
+  return out
 }
 
 /** The Shopify customer ids of a customers/redact body (`customer.id`, a number), as the gids the links store. */
@@ -73,10 +85,17 @@ export function registerShopifyWebhookRoute(app: Hono<any>) {
         logRefused(signature ? 'malformed signature header' : 'missing signature')
         return c.json({ ok: false, error: 'bad signature' }, 401)
       }
-      const clientSecret = await shopifyClientSecret()
-      if (!clientSecret) return c.notFound()
+      const secrets = await shopifySecrets()
+      if (!secrets.length) return c.notFound()
       const raw = await c.req.text()
-      if (!(await verifyShopifyWebhook(raw, signature, clientSecret))) {
+      let signer: { workspaceId: string | null } | null = null
+      for (const candidate of secrets) {
+        if (await verifyShopifyWebhook(raw, signature, candidate.secret)) {
+          signer = candidate
+          break
+        }
+      }
+      if (!signer) {
         logRefused('bad signature')
         return c.json({ ok: false, error: 'bad signature' }, 401)
       }
@@ -93,7 +112,9 @@ export function registerShopifyWebhookRoute(app: Hono<any>) {
         // A grant made after the event stays: a late or replayed delivery never removes a store connected again.
         const at = Date.parse(c.req.header('x-shopify-triggered-at') ?? '')
         const grantedBefore = Number.isFinite(at) ? new Date(at - 60_000).toISOString() : null
-        const deleted = await db.transaction(tx => dropAppAccount(tx, 'shopify', [shop], grantedBefore))
+        const deleted = await db.transaction(tx =>
+          dropAppAccount(tx, 'shopify', [shop], grantedBefore, signer.workspaceId ?? 'install'),
+        )
         if (deleted.length) console.log(`shopify webhook: ${topic} removed ${deleted.length} connection(s)`)
         return c.json({ ok: true })
       }
@@ -103,7 +124,13 @@ export function registerShopifyWebhookRoute(app: Hono<any>) {
           const connections = db
             .select({ id: app_connections.id })
             .from(app_connections)
-            .where(and(eq(app_connections.provider, 'shopify'), eq(app_connections.account_id, shop)))
+            .where(
+              and(
+                eq(app_connections.provider, 'shopify'),
+                eq(app_connections.account_id, shop),
+                workspaceScope('shopify', signer.workspaceId ?? 'install'),
+              ),
+            )
           await db
             .delete(crm_links)
             .where(and(inArray(crm_links.connection_id, connections), inArray(crm_links.external_id, customers)))

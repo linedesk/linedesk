@@ -24,7 +24,17 @@ import {
 import { and, eq, sql } from 'drizzle-orm'
 import { beforeAll, describe, expect, test, vi } from 'vitest'
 import { appCallback } from '../src/app-callback.ts'
-import { type AppServices, appRedirectUri, appSlot, appTokenSource, lockConnection } from '../src/app-connections.ts'
+import {
+  type AppServices,
+  appRedirectUri,
+  appSlot,
+  appTokenSource,
+  defaultAppServices,
+  dropAppAccount,
+  lockConnection,
+  workspaceAppSlot,
+  workspaceApps,
+} from '../src/app-connections.ts'
 import {
   APP_PUSH_ATTEMPTS,
   attemptAppPush,
@@ -295,6 +305,67 @@ describe('connecting HubSpot', () => {
     expect(status).toBe(409)
     expect(body).toMatchObject({ ok: false, code: 'not_set_up' })
     expect(body.error).toMatch(/Server admin › Providers/)
+  })
+})
+
+describe("a workspace's own app (LIN-709)", () => {
+  const ownKeys = (tx: Tx, workspaceId: string, clientId: string, secret: string) =>
+    tx.insert(provider_settings).values(
+      Object.entries({ client_id: clientId, client_secret: secret }).map(([field, value]) => ({
+        id: `ps_test_${workspaceId.slice(0, 6)}_${field}`,
+        workspace_id: workspaceId,
+        provider: 'shopify',
+        field,
+        value_encrypted: encryptSecret(value, workspaceAppSlot(workspaceId, 'shopify', field)),
+        last4: null,
+      })),
+    )
+  const clientOf = (url: string) =>
+    new URL(new URL(url).searchParams.get('redirect')!, 'https://x.test').searchParams.get('client_id')
+
+  test('the workspace with its own app connects with it; others do not see it', async () => {
+    const pilot = await createWorkspace('Pilot store')
+    const other = await createWorkspace('Other store')
+    await inRollback(async tx => {
+      await ownKeys(tx, pilot.id, 'pilot-client', 'pilot-secret')
+      const own = await defaultAppServices.oauth(tx, 'shopify', pilot.id)
+      expect(clientOf(own!.authorizeUrl({ redirectUri: 'https://x.test/cb', state: 's' }))).toBe('pilot-client')
+      // Without an install app the other workspace has none: the pilot's keys never serve it.
+      const theirs = await defaultAppServices.oauth(tx, 'shopify', other.id)
+      if (theirs)
+        expect(clientOf(theirs.authorizeUrl({ redirectUri: 'https://x.test/cb', state: 's' }))).not.toBe('pilot-client')
+      expect(await workspaceApps(tx, 'shopify')).toEqual([{ workspaceId: pilot.id, clientSecret: 'pilot-secret' }])
+    })
+  })
+
+  test("a webhook of a workspace's own app removes only that workspace's connection", async () => {
+    const pilot = await createWorkspace('Pilot store 2')
+    const other = await createWorkspace('Other store 2')
+    await inRollback(async tx => {
+      const connect = (workspace: Workspace, id: string) =>
+        tx.insert(app_connections).values({
+          id,
+          workspace_id: workspace.id,
+          provider: 'shopify',
+          account_id: 'pilot.myshopify.com',
+          account_name: 'Pilot',
+          status: 'connected',
+          connected_by: workspace.owner.userId,
+        })
+      await connect(pilot, 'appc_test_pilot')
+      await connect(other, 'appc_test_other')
+      const deleted = await dropAppAccount(tx, 'shopify', ['pilot.myshopify.com'], null, pilot.id)
+      expect(deleted).toEqual(['appc_test_pilot'])
+      const left = await tx
+        .select({ id: app_connections.id })
+        .from(app_connections)
+        .where(eq(app_connections.account_id, 'pilot.myshopify.com'))
+      expect(left.map(r => r.id)).toEqual(['appc_test_other'])
+      // The install's app never speaks for a workspace with its own app: its uninstall leaves the pilot's connection.
+      await ownKeys(tx, pilot.id, 'pilot-client', 'pilot-secret')
+      await connect(pilot, 'appc_test_pilot2')
+      expect(await dropAppAccount(tx, 'shopify', ['pilot.myshopify.com'], null, 'install')).toEqual(['appc_test_other'])
+    })
   })
 })
 
