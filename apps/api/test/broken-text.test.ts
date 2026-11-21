@@ -1,7 +1,7 @@
 // Text in any language arrives whole on every write path, and text that lost a letter (U+FFFD) is refused
 // before it is stored (packages/actions/src/broken-text.ts). The frischluft case of 2026-11-19: an AI agent sent
 // "Gespr\uFFFDch" through the setup MCP, and it was kept for good.
-import { contacts, workspace_settings } from '@linedesk/db'
+import { assistants, contacts } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
@@ -21,9 +21,11 @@ const TEXTS = [
 let ws: Workspace
 let id = 0
 
+/** The recording notice of the workspace's first assistant (a setting of each assistant). */
 const notice = async (workspaceId: string) =>
-  (await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, workspaceId)))[0]
-    ?.recording_notice
+  (await db.select().from(assistants).where(eq(assistants.workspace_id, workspaceId)))[0]?.recording_notice
+const assistantOf = async (workspaceId: string) =>
+  (await db.select().from(assistants).where(eq(assistants.workspace_id, workspaceId)))[0]!.id
 
 async function mcp(path: string, args: Record<string, unknown>, tool: string, headers: Record<string, string> = {}) {
   const res = await appRequest(path, {
@@ -54,7 +56,7 @@ beforeAll(async () => {
 describe('POST /v1/actions (the web app, its outbox and the REST API)', () => {
   test('every script is stored as sent', async () => {
     for (const text of TEXTS) {
-      const res = await act(ws.owner, 'workspace.updateSettings', { recordingNotice: text })
+      const res = await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, recording_notice: text })
       expect(res.status).toBe(200)
       expect(await notice(ws.id)).toBe(text)
     }
@@ -62,7 +64,7 @@ describe('POST /v1/actions (the web app, its outbox and the REST API)', () => {
 
   test('the body is read as UTF-8 bytes, whatever charset its header names, and in tiny chunks', async () => {
     const text = 'Gespräch über Größe 日本語'
-    const bytes = new TextEncoder().encode(JSON.stringify({ recordingNotice: text }))
+    const bytes = new TextEncoder().encode(JSON.stringify({ assistantId: ws.assistant.id, recording_notice: text }))
     // A stream of one byte per chunk: a letter split across chunks still arrives whole.
     const body = new ReadableStream<Uint8Array>({
       start(c) {
@@ -70,7 +72,7 @@ describe('POST /v1/actions (the web app, its outbox and the REST API)', () => {
         c.close()
       },
     })
-    const res = await appRequest('/v1/actions/workspace.updateSettings', {
+    const res = await appRequest('/v1/actions/assistant.update', {
       method: 'POST',
       headers: { ...ws.owner.headers, 'content-type': 'application/json; charset=iso-8859-1' },
       body,
@@ -81,8 +83,9 @@ describe('POST /v1/actions (the web app, its outbox and the REST API)', () => {
   })
 
   test('U+FFFD is refused with a clear error and nothing is stored', async () => {
-    await act(ws.owner, 'workspace.updateSettings', { recordingNotice: TEXTS[0] })
-    const res = await act(ws.owner, 'workspace.updateSettings', { recordingNotice: `Dieses Gespr${R}ch kann …` })
+    const assistantId = ws.assistant.id
+    await act(ws.owner, 'assistant.update', { assistantId, recording_notice: TEXTS[0] })
+    const res = await act(ws.owner, 'assistant.update', { assistantId, recording_notice: `Dieses Gespr${R}ch kann …` })
     expect(res.status).toBe(422)
     expect(res.body.error).toMatch(/^Recording notice: it holds "\uFFFD" \(U\+FFFD\)/)
     expect(await notice(ws.id)).toBe(TEXTS[0])
@@ -117,13 +120,14 @@ describe('MCP (API keys) and the setup MCP (AI agents)', () => {
     const made = await act(own.owner, 'agentSetup.createWorkspaceKey', {})
     expect(made.status).toBe(200)
     const path = `/mcp/setup/${made.body.data.key}`
-    const ok = await mcp(path, { workspaceId: own.id, recordingNotice: TEXTS[0] }, 'workspace_updateSettings')
+    const assistantId = await assistantOf(own.id)
+    const ok = await mcp(path, { workspaceId: own.id, assistantId, recording_notice: TEXTS[0] }, 'assistant_update')
     expect(ok.result.isError).toBeFalsy()
     expect(await notice(own.id)).toBe(TEXTS[0])
     const bad = await mcp(
       path,
-      { workspaceId: own.id, recordingNotice: `Dieses Gespr${R}ch kann aufgezeichnet werden.` },
-      'workspace_updateSettings',
+      { workspaceId: own.id, assistantId, recording_notice: `Dieses Gespr${R}ch kann aufgezeichnet werden.` },
+      'assistant_update',
     )
     expect(bad.result.isError).toBe(true)
     expect(JSON.stringify(bad.result.content)).toContain('U+FFFD')

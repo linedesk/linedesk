@@ -23,11 +23,14 @@ test('text in any script passes; U+FFFD anywhere is found, also deep and in a ke
 })
 
 test('the registry boundary refuses broken text with a clear error, and keeps umlauts', () => {
-  const def = actions.get('workspace.updateSettings')!
+  const def = actions.get('assistant.update')!
   const schema = guardedInput(def.input)
   expect(guardedInput(def.input)).toBe(schema) // cached
-  for (const text of WHOLE) expect(schema.safeParse({ recordingNotice: text }).success).toBe(true)
-  const bad = schema.safeParse({ recordingNotice: `Dieses Gespr${R}ch kann aufgezeichnet werden.` })
+  for (const text of WHOLE) expect(schema.safeParse({ assistantId: 'as_1', recording_notice: text }).success).toBe(true)
+  const bad = schema.safeParse({
+    assistantId: 'as_1',
+    recording_notice: `Dieses Gespr${R}ch kann aufgezeichnet werden.`,
+  })
   expect(bad.success).toBe(false)
   expect(inputErrorText(bad.error!, {})).toMatch(/^Recording notice: it holds "\uFFFD" \(U\+FFFD\).*right letters\.$/)
   // The plain schema stays extendable for the MCP servers.
