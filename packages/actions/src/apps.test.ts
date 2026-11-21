@@ -7,6 +7,7 @@ import {
   connectableApps,
   isShopifyRecommended,
   SHOPIFY_RECOMMENDED,
+  shopifyRecommendedSettings,
 } from './apps.ts'
 import { rolePermissions } from './define.ts'
 import { applyLocally, type LocalTables } from './index.ts'
@@ -42,6 +43,13 @@ describe('app.updateSettings (LIN-367)', () => {
     expect(isShopifyRecommended({})).toBe(true)
     expect(isShopifyRecommended({ shop_cancel: true })).toBe(false)
     expect(isShopifyRecommended({ shop_cancel: false, log_calls: true })).toBe(true)
+  })
+
+  it('sets the recommended Shopify setup with only the switches Shopify has', () => {
+    expect(Object.keys(shopifyRecommendedSettings()).sort()).toEqual([...APP_SETTINGS.shopify].sort())
+    expect(appUpdateSettings.input.safeParse({ id: 'appc_1', settings: shopifyRecommendedSettings() }).success).toBe(
+      true,
+    )
   })
 
   it('is applied to the connection locally at once', () => {

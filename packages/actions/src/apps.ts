@@ -157,6 +157,10 @@ export const SHOPIFY_RECOMMENDED: Readonly<Record<AppSettingId, boolean>> = {
   verify_caller_number: false,
 }
 
+/** The recommended setup as app.updateSettings takes it: only the switches Shopify has (not only_urgent). */
+export const shopifyRecommendedSettings = (): Record<AppSettingId, boolean> =>
+  Object.fromEntries(APP_SETTINGS.shopify.map(id => [id, SHOPIFY_RECOMMENDED[id]])) as Record<AppSettingId, boolean>
+
 /** Whether a Shopify connection's switches are the recommended setup. */
 export const isShopifyRecommended = (stored: Readonly<Record<string, boolean>> | null | undefined): boolean =>
   APP_SETTINGS.shopify.every(id => appSettingOn(stored, id, 'shopify') === SHOPIFY_RECOMMENDED[id])

@@ -17,7 +17,7 @@ import {
   isShopifyRecommended,
   SHOP_CHANGE_SETTINGS,
   SHOP_VERIFY_SETTINGS,
-  SHOPIFY_RECOMMENDED,
+  shopifyRecommendedSettings,
 } from '@linedesk/actions'
 import type { AppConnection } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'
@@ -474,7 +474,7 @@ function AppSettings({
           canEdit={canEdit}
           onEdit={() => setEditing(true)}
           onRecommended={() =>
-            void run('app.updateSettings', { id: connection.id, settings: { ...SHOPIFY_RECOMMENDED } })
+            void run('app.updateSettings', { id: connection.id, settings: shopifyRecommendedSettings() })
           }
           recommended={isShopifyRecommended(connection.settings)}
         />
