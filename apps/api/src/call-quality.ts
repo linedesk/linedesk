@@ -223,7 +223,7 @@ async function lockVersionsOfAssistants(tx: Tx, assistantIds: string[]) {
 }
 
 /**
- * Undo of a level turned off (Server admin › Providers › Call quality): the assistants it moved go back to `level`,
+ * Undo of a level turned off (Server admin › Settings › Calls › Call quality): the assistants it moved go back to `level`,
  * only those still on Standard, each with a version by `by`. Their own model picks were dropped by the move and stay
  * on the defaults. Returns the rows it changed.
  */

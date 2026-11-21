@@ -1,7 +1,7 @@
-// Onboarding: how new workspaces get to their first real call. Whether they get setup emails (off by default, so a
-// self-hosted install sends none), and the workspaces at risk: added a while ago and no real call has reached
+// Onboarding: how new workspaces get to their first real call, read-only: the funnel, the workspaces at risk: added a while ago and no real call has reached
 // their assistant yet. Each shows the setup milestones it reached and when, so we see where it stopped, and the owner to write to. Read-only: hands-on
-// help comes from partners, not from us.
+// help comes from partners, not from us. The setup reports AI agents sent us are at the end. The setup emails and the
+// founder's email are set under Settings › Sign-up (LIN-693) and live here, next to the funnel they feed.
 import type { FounderEmailData, SetupEmailsData } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
@@ -14,6 +14,7 @@ import { Loading, Skeleton, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type AtRiskWorkspace, loadAtRisk, runAdmin } from './api.ts'
 import { AgentSetupCounts } from './AgentSetupCounts.tsx'
 import { Funnel } from './Funnel.tsx'
+import { SetupReports } from './SettingsCards.tsx'
 import { day, when } from './parts.tsx'
 
 const SETUP_EMAILS = 'admin.setupEmails'
@@ -27,7 +28,7 @@ function notConnectedLine(on: boolean): MessageKey {
   return on ? msg('admin.onboarding.emailNotConnectedOn') : msg('admin.onboarding.emailNotConnectedOff')
 }
 
-function SetupEmails() {
+export function SetupEmails() {
   const t = useT()
   const query = useQuery(SETUP_EMAILS, loadSetupEmails)
   const [problem, setProblem] = useState<string | null>(null)
@@ -87,7 +88,7 @@ const looksLikeAddress = (v: string) => /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(
  * The personal email from a founder (apps/api/src/founder-email.ts): the name and address it comes from, and the
  * switch. Turning it on saves what is typed; while on, Save changes the sender.
  */
-function FounderEmail() {
+export function FounderEmail() {
   const t = useT()
   const query = useQuery(FOUNDER_EMAIL, loadFounderEmail)
   const data = query.data
@@ -321,8 +322,7 @@ export function Onboarding() {
       <Funnel />
       <AgentSetupCounts />
       <AtRisk />
-      <SetupEmails />
-      <FounderEmail />
+      <SetupReports />
     </>
   )
 }

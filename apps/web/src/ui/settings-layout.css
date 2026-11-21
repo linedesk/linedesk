@@ -50,6 +50,16 @@
   display: grid;
   gap: 1px;
 }
+.sl-group {
+  padding: 14px 10px 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  letter-spacing: 0.02em;
+}
+.sl-group:first-child {
+  padding-top: 0;
+}
 .sl-item {
   text-decoration: none;
   justify-content: space-between;
@@ -139,6 +149,10 @@
   }
   .sl-nav[data-fade="both"] {
     mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+  }
+  /* On a phone the row has no room for group labels: the sections follow each other. */
+  .sl-group {
+    display: none;
   }
   .sl-nav .sl-item {
     width: auto;

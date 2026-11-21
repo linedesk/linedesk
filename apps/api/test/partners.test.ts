@@ -1455,7 +1455,7 @@ describe('Partner › Clients (S3)', () => {
   test("a new client workspace's assistant starts on Standard, whatever the install's default and whoever on the team creates it (review L-1)", async () => {
     const p = await billedPartner('Default Level Partner', 'active', true)
     const padmin = await addPartnerAdmin(p)
-    // The install's level for new assistants is Premium (Server admin › Providers › Call quality).
+    // The install's level for new assistants is Premium (Server admin › Settings › Calls › Call quality).
     const [before] = await db.select().from(instance_settings).where(eq(instance_settings.key, 'call_quality'))
     const premiumDefault = {
       premium: true,

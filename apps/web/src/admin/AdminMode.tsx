@@ -36,10 +36,14 @@ import {
   placeUp,
   sectionIndexOfKey,
   sectionKey,
+  settingsTab,
+  adminGroups,
   tabSwitchesSection,
   useAdminPlace,
 } from './route.ts'
-import { System } from './System.tsx'
+import { Server } from './Server.tsx'
+import { Settings } from './Settings.tsx'
+import { ImpersonationEmails } from './SettingsCards.tsx'
 import { SystemPrompt } from './SystemPrompt.tsx'
 import { BrandingSettings } from './Branding.tsx'
 import { Usage } from './Usage.tsx'
@@ -208,18 +212,18 @@ export function AdminMode({ currentUserId, onExit }: Props) {
     if (place.section === 'onboarding') return <Onboarding />
     // Billing loads its own rows (the bills, the Stripe events), and says itself when a bill is not found.
     if (place.section === 'billing')
-      return (
-        <Billing
-          id={place.id}
-          onOpen={open}
-          notify={notify}
-          keysRef={listKeys}
-          providers={{ data, status, error: providersError, reload, notify }}
-        />
-      )
+      return <Billing id={place.id} onOpen={open} notify={notify} keysRef={listKeys} data={data} />
     // Pages that load their own data never wait for the lists or the providers.
-    if (place.section === 'branding') return <BrandingSettings />
-    if (place.section === 'system') return <System />
+    if (place.section === 'branding')
+      return (
+        <>
+          <BrandingSettings />
+          <ImpersonationEmails />
+        </>
+      )
+    if (place.section === 'settings')
+      return <Settings tab={settingsTab(place.id)} data={data} status={status} reload={reload} notify={notify} />
+    if (place.section === 'server') return <Server status={status} />
     if (place.section === 'prompt') return <SystemPrompt />
     if (place.section === 'partners') return <Partners notify={notify} waiting={place.id === 'waiting'} />
     if (place.section === 'call-reviews') return <CallReviews />
@@ -297,6 +301,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const sections = adminSections.map((s, i) => ({
     id: s.id,
     label: t(s.label),
+    group: 'group' in s ? t(adminGroups[s.group]) : undefined,
     shortcut: sectionKey(i),
     mark:
       s.id === 'overview' && problems.length > 0 ? (

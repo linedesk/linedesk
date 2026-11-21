@@ -18,6 +18,8 @@ export type PageSection<T extends string = string> = {
   shortcut?: string
   /** Something to flag next to the label (Server admin › Overview: a part of the install needs attention). */
   mark?: ReactNode
+  /** The nav's group this section opens (Server admin: Watch, People, Settings, Connections): a small label above it. */
+  group?: string
 }
 
 /** The page's part of the hash: `#<page>/<section>`; `page` may have a part of its own (`assistant/<id>`). */
@@ -158,7 +160,7 @@ export function SettingsLayout<T extends string>(props: Props<T>) {
         <nav ref={nav} className="sl-nav" data-fade={fade} aria-label={t('common.settingsLayout.sections', { title })}>
           {sections.map(s => {
             const dirty = unsaved?.has(s.id)
-            return (
+            const item = (
               <a
                 key={s.id}
                 href={sectionHash(page, s.id)}
@@ -176,6 +178,13 @@ export function SettingsLayout<T extends string>(props: Props<T>) {
                 {dirty && <span className="sl-dot" role="img" aria-label={t('common.unsaved')} />}
               </a>
             )
+            if (!s.group) return item
+            return [
+              <span key={`group-${s.id}`} className="sl-group" aria-hidden="true">
+                {s.group}
+              </span>,
+              item,
+            ]
           })}
         </nav>
         <div className="sl-content">{children}</div>

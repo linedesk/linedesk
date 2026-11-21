@@ -2197,3 +2197,11 @@
 .adm-usage .adm-total td[data-label]::before {
   font-weight: 400;
 }
+
+/* After-call transcription as its own card (Settings › Calls): the card head spaces it already. */
+.k-card > .adm-after-call {
+  margin-top: 0;
+}
+.k-card > .adm-after-call > .help:first-child {
+  margin-top: 0;
+}

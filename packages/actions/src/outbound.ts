@@ -3,7 +3,7 @@
 // or mistyped setting is the classic way to run up a phone bill (toll fraud: premium-rate and far-away numbers). So:
 // - only countries the call's route may reach. A call from a number in the install's carrier account (and every
 //   forwarding check) goes out on the operator's bill: the countries of the workspace's install-account numbers plus the
-//   countries the server admin allows for the whole install (Server admin › System, `outboundCountries`). A call from a
+//   countries the server admin allows for the whole install (Server admin › Settings › Calls, `outboundCountries`). A call from a
 //   number in the workspace's own carrier account goes out on its bill: the countries of those numbers only;
 // - in every country only landlines and mobiles (and VoIP lines, which many businesses have), never premium rate,
 //   shared cost, toll-free, personal, UAN, pager or voicemail numbers, nor emergency, short or service numbers.

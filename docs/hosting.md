@@ -90,7 +90,7 @@ Settings and keys do not move with the install: set the server up again (the age
 
 ## Calls to other countries
 
-Linedesk calls out for warm transfers and the forwarding check. A workspace may call the countries of its own Linedesk numbers: a workspace with US numbers calls US landlines and mobiles, nothing else. To let calls through this server's carrier account reach more countries (for example a business with a US number whose owner has a Canadian mobile), add them in Server admin › System, "International transfers" (pick each country by name), or set them in `.env`. A business that connected its own carrier account calls its own numbers' countries from those numbers; your list never widens its account. Countries often used for toll fraud (Cuba, Somalia, Latvia and others) ask for a second confirmation. The settings in `.env`:
+Linedesk calls out for warm transfers and the forwarding check. A workspace may call the countries of its own Linedesk numbers: a workspace with US numbers calls US landlines and mobiles, nothing else. To let calls through this server's carrier account reach more countries (for example a business with a US number whose owner has a Canadian mobile), add them in Server admin › Settings › Calls, "International transfers" (pick each country by name), or set them in `.env`. A business that connected its own carrier account calls its own numbers' countries from those numbers; your list never widens its account. Countries often used for toll fraud (Cuba, Somalia, Latvia and others) ask for a second confirmation. The settings in `.env`:
 
 ```sh
 OUTBOUND_COUNTRIES=CA,MX                  # ISO country codes; while set, the list in Server admin is read-only
@@ -103,7 +103,7 @@ The per-workspace minutes count every transferred call of the workspace, also th
 
 Premium-rate, shared-cost, toll-free, personal, emergency and service numbers are never called, in any country.
 
-**Telnyx:** Linedesk keeps its voice profiles (`linedesk-*`) limited to the allowed countries itself, and puts two of Telnyx's own cost ceilings on each: a max destination rate (destinations that cost more per minute are refused) and a daily spend limit (once reached, the profile takes no new calls until the next day). Both are set when a profile is created, on every set-up and country change, and again each time the API starts, so an update brings older profiles to them. When Telnyx does not confirm them at start, the API tries again in the background (after 30 s, 2, 10 and 30 minutes), logs `ALERT outbound` lines, and Server admin › System shows "Spend limits not confirmed" with the voice profiles until a retry or the next set-up confirms them. Values above $1/min or $500 a day are applied, with a warning in the log:
+**Telnyx:** Linedesk keeps its voice profiles (`linedesk-*`) limited to the allowed countries itself, and puts two of Telnyx's own cost ceilings on each: a max destination rate (destinations that cost more per minute are refused) and a daily spend limit (once reached, the profile takes no new calls until the next day). Both are set when a profile is created, on every set-up and country change, and again each time the API starts, so an update brings older profiles to them. When Telnyx does not confirm them at start, the API tries again in the background (after 30 s, 2, 10 and 30 minutes), logs `ALERT outbound` lines, and Server admin › Settings › Calls shows "Spend limits not confirmed" with the voice profiles until a retry or the next set-up confirms them. Values above $1/min or $500 a day are applied, with a warning in the log:
 
 ```sh
 TELNYX_MAX_DESTINATION_RATE=0.10   # USD per minute (default): US/Canada about $0.01, most mobile in Europe and Latin America a few cents
@@ -112,7 +112,7 @@ TELNYX_DAILY_SPEND_LIMIT=50        # USD per voice profile and day (default): 20
 
 Raise the rate if you allow a country whose mobile numbers cost more (Telnyx's outbound rate deck shows them); the transfer then fails with a carrier refusal until you do.
 
-**Twilio:** which countries an account may call is the account's own setting, and Linedesk never changes it. Server admin › System shows the allowed countries Twilio still blocks; turn each on in Twilio Console › Voice › Settings › Geo permissions (low-risk numbers are enough). A workspace with its own Twilio account does the same in its account.
+**Twilio:** which countries an account may call is the account's own setting, and Linedesk never changes it. Server admin › Settings › Calls shows the allowed countries Twilio still blocks; turn each on in Twilio Console › Voice › Settings › Geo permissions (low-risk numbers are enough). A workspace with its own Twilio account does the same in its account.
 
 ## Separate voice servers
 
@@ -236,7 +236,7 @@ Calls LiveKit SIP places itself (a warm transfer, the phone call test, the forwa
 
 Your install can charge the businesses on it, through your own Stripe account, at your prices and under your product name. It is off until you turn it on.
 
-1. In Stripe (a sandbox first), create a restricted key with these permissions, and store it with the webhook signing secret under Server admin › Billing › Stripe:
+1. In Stripe (a sandbox first), create a restricted key with these permissions, and store it with the webhook signing secret under Server admin › Providers › Stripe:
    - write: Customers, Checkout Sessions, Subscriptions, Invoices, Invoice Items, Credit Notes, Refunds, Billing Portal Sessions, Products, Prices, and the Customer portal (billing portal configurations);
    - read: PaymentMethods, SetupIntents, Charges, Disputes, Radar Early Fraud Warnings, Events, Tax settings.
 
@@ -250,10 +250,10 @@ Your install can charge the businesses on it, through your own Stripe account, a
      --terms-url https://<site>/terms --privacy-url https://<site>/privacy
    ```
 
-   It sets the tax default, the customer portal, card-only Checkout and the webhook endpoint; it makes no products or prices. For a live account use `--live --i-know` instead of `--sandbox`; without the two link flags it reads `TERMS_URL` and `PRIVACY_URL`; `--dry-run` only lists the changes. Run it once more: it must say "nothing to change". If it created the webhook endpoint, paste the secret from `packages/billing/stripe-webhook-secret.<mode>.txt` into Server admin › Billing › Stripe (Webhook signing secret), then delete the file (the script refuses to run while it exists).
+   It sets the tax default, the customer portal, card-only Checkout and the webhook endpoint; it makes no products or prices. For a live account use `--live --i-know` instead of `--sandbox`; without the two link flags it reads `TERMS_URL` and `PRIVACY_URL`; `--dry-run` only lists the changes. Run it once more: it must say "nothing to change". If it created the webhook endpoint, paste the secret from `packages/billing/stripe-webhook-secret.<mode>.txt` into Server admin › Providers › Stripe (Webhook signing secret), then delete the file (the script refuses to run while it exists).
 3. In the Stripe Dashboard, set what the script cannot: the Terms of Service URL and Privacy Policy URL under Settings › Business › Public details (Checkout refuses every session without the terms URL), your branding, invoice settings, customer emails, Smart Retries (leave subscriptions past due afterwards; Linedesk suspends and cancels itself), Stripe Tax (head office address) and Radar rules.
 4. Set your prices in Server admin › Billing (plan per workspace, free trial, price a minute, included minutes) and your product name in Server admin › Branding. Linedesk makes the matching products and prices in your Stripe account when you save them; if Stripe refuses (the key needs write on Products and Prices), every server admin is emailed at once.
-5. Turn billing on under Server admin › Billing › Stripe, then check it: the provider test there (account and mode), and a test event from the webhook endpoint's page in the Stripe Dashboard ("Send test event"), which must get 200.
+5. Turn billing on under Server admin › Billing › Stripe, then check it: the provider test under Server admin › Providers › Stripe (account and mode), and a test event from the webhook endpoint's page in the Stripe Dashboard ("Send test event"), which must get 200.
 
 Prices are in US dollars. A new price applies to new sign-ups; running subscriptions keep theirs. Call prices, included minutes and limits apply to calls from the change on.
 
@@ -261,7 +261,7 @@ Prices are in US dollars. A new price applies to new sign-ups; running subscript
 
 Help › Report a bug and Request a feature (and `feedback_send` over MCP) email the report to the Linedesk team, support@linedesk.ai, through your install's email provider. The report has the text with keys, phone numbers and email addresses masked, the page, the app and server versions, your server's address, the workspace and sender ids and an optional screenshot; never the sender's email address unless they enter one to get an answer. To send reports to your own address instead, set `FEEDBACK_EMAIL=you@example.com` in `.env`; `FEEDBACK_EMAIL=off` sends nothing and only keeps the reports in the database (table `feedback`). Restart the API after a change.
 
-Setup reports are separate: when an AI agent sets your server up through a setup link, it offers you a short report of what failed, was slow or went well, shows you exactly what would be sent, and sends it only with your yes. Your server sends it (never the agent) to `https://linedesk.ai/api/setup-feedback`: the outcome and items, the Linedesk version, how it is installed, the setup steps' states, the agent's name and a random install reference, with every key, phone number, email address and business detail your server knows removed; a contact address only if you give one. Server admin › System › Setup reports lists them; one that could not be sent is tried again every hour for 7 days and has Send again. `SETUP_FEEDBACK_URL=off` in `.env` sends nothing and only keeps them; another `https://` address sends them there.
+Setup reports are separate: when an AI agent sets your server up through a setup link, it offers you a short report of what failed, was slow or went well, shows you exactly what would be sent, and sends it only with your yes. Your server sends it (never the agent) to `https://linedesk.ai/api/setup-feedback`: the outcome and items, the Linedesk version, how it is installed, the setup steps' states, the agent's name and a random install reference, with every key, phone number, email address and business detail your server knows removed; a contact address only if you give one. Server admin › Onboarding › Setup reports lists them; one that could not be sent is tried again every hour for 7 days and has Send again. `SETUP_FEEDBACK_URL=off` in `.env` sends nothing and only keeps them; another `https://` address sends them there.
 
 ## Updates and backups
 

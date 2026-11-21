@@ -1,7 +1,7 @@
-// Who may sign up in which country (Server admin › System › Sign-up countries; decisions of 2026-11-18): each country
+// Who may sign up in which country (Server admin › Settings › Sign-up › Sign-up countries; decisions of 2026-11-18): each country
 // the install can serve has a sign-up mode, open to everyone, only invited email addresses, or off. The countries are
 // the sign-up countries (SIGNUP_COUNTRIES: the US, Canada, Puerto Rico; open by default, so nothing changes for them)
-// and the countries the server sells numbers in once an admin turned them on (Germany: Server admin › System › German
+// and the countries the server sells numbers in once an admin turned them on (Germany: Server admin › Settings › Phone
 // numbers, apps/api/src/number-buy.ts), invited addresses only by default. One invite list serves every country set to "only invited". Each change is audited.
 import { z } from 'zod'
 import { defineAction } from './define.ts'

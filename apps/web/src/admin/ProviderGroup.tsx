@@ -1,5 +1,6 @@
 // One provider group (provider-status.ts): its providers, each with Connect or Edit (the
-// provider's dialog, ProviderDialog, is the one editor). Server admin › Providers shows every group; the install
+// provider's dialog, ProviderDialog, is the one editor). Server admin › Providers shows every group but call audio (a
+// status, under Server since LIN-693); the install
 // walkthrough embeds the same panel one group per step, and the embedded panel never navigates away (design rule 14):
 // it opens dialogs in place. Call audio is read-only: LiveKit and its SIP bridge are set in .env on the server.
 // Status stays quiet: a working provider shows only its mark (the words are its tooltip), words only for a state that
@@ -29,9 +30,6 @@ import { StatusMark } from '../ui/StatusMark.tsx'
 import type { AdminData, AdminHealth } from './api.ts'
 import { isConfigured, providerState } from './model.ts'
 import { OneKey } from './OneKey.tsx'
-import { AfterCallTranscript } from './AfterCallTranscript.tsx'
-import { BillingSwitch } from './BillingSwitch.tsx'
-import { CalendarTools } from './CalendarTools.tsx'
 import { ProviderError } from './ProviderError.tsx'
 import { Logo, providerMeta } from './ProviderLogo.tsx'
 import {
@@ -111,6 +109,10 @@ export function AnsweringWayTabs({ selected, marks, onSelect }: WayTabsProps) {
 /** Which lists are open ("Show more"), when the page holds it for every group ("Show all providers"). */
 export type ListFolds = { isOpen: (key: string) => boolean; setOpen: (key: string, open: boolean) => void }
 
+/** A list's own title: only in a group of several lists, and never the group's name again (Billing › Billing). */
+const listTitle = (lists: number, label: string, groupLabel: string) =>
+  lists > 1 && label !== groupLabel ? label : null
+
 /** A group's section on the page: `#admin/providers/<group>` scrolls here. */
 export const groupAnchor = (id: GroupStatus['id']) => `adm-group-${id}`
 
@@ -126,19 +128,15 @@ type Props = {
   embedded?: boolean
   /** Server admin › Providers: the page holds which lists are open. Left out: each list keeps its own. */
   folds?: ListFolds
-  /** Only this category's list (Server admin › Billing › Stripe shows the Billing group without its bot check). */
-  only?: ProviderCategory
 }
 
-export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, embedded, folds, only }: Props) {
+export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, embedded, folds }: Props) {
   const t = useT()
   // Answering shows one of its two ways at a time (tabs); the other groups all their lists.
   const [pickedWay, setPickedWay] = useState<VoicePipeline | null>(null)
   const answering = group.id === 'answering'
   const way = pickedWay ?? defaultAnsweringWay(group, data)
-  const lists = listsOfGroup(group.id).filter(
-    l => (!answering || wayOfCategory(l.category) === way) && (!only || l.category === only),
-  )
+  const lists = listsOfGroup(group.id).filter(l => !answering || wayOfCategory(l.category) === way)
   const note = groupNote(group)
   const help = groupHelp(group, embedded)
   const detail = groupProblem(group)?.detail
@@ -172,7 +170,6 @@ export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, em
         </div>
       )}
       {group.id === 'call-audio' && <CallAudio group={group} health={health} />}
-      {group.id === 'calendar' && <CalendarTools />}
       {answering && (
         <AnsweringWayTabs
           selected={way}
@@ -183,8 +180,7 @@ export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, em
           onSelect={setPickedWay}
         />
       )}
-      {group.id === 'transcript' && <AfterCallTranscript data={data} onOpen={onOpen} />}
-      {group.id !== 'call-audio' && group.id !== 'transcript' && (
+      {group.id !== 'call-audio' && (
         <div
           className="adm-provlists"
           {...(answering ? { id: wayPanelId, role: 'tabpanel', 'aria-labelledby': wayTabId(way) } : {})}
@@ -192,7 +188,7 @@ export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, em
           {lists.map(({ key, category, providers }) => (
             <ProviderList
               key={key}
-              title={lists.length > 1 ? providerCategoryLabel(category, i18n()) : null}
+              title={listTitle(lists.length, providerCategoryLabel(category, i18n()), group.label)}
               category={category}
               providers={providers}
               data={data}
@@ -204,7 +200,6 @@ export function ProviderGroup({ group, data, lines, health, onOpen, onOneKey, em
           ))}
         </div>
       )}
-      {group.id === 'billing' && <BillingSwitch data={data} />}
     </section>
   )
 }
@@ -222,7 +217,7 @@ export function showsInUse(category: ProviderCategory, setUpCount: number): bool
   return setUpCount > 1 || category === 'recording' || threeStageParts.has(category)
 }
 
-/** One category's providers, each with Connect or Edit; also on Server admin › Billing › Sign-up (the bot check). */
+/** One category's providers, each with Connect or Edit. */
 export function ProviderList({
   title,
   category,
@@ -348,25 +343,31 @@ function CallAudio({ group, health }: { group: GroupStatus; health: AdminHealth 
           </li>
         ))}
       </ul>
-      {group.state !== 'works' && (
-        <details className="adm-guide" open={group.state === 'missing'}>
-          <summary>{t('admin.providers.callAudio.howTo')}</summary>
-          <ol className="adm-guide-steps">
-            {callAudioGuide.stepKeys
-              .map(key => callAudioStep(key, i18n()))
-              .map(step => (
-                <li key={step}>{step}</li>
-              ))}
-          </ol>
-          <p className="help">
-            <a href={callAudioGuide.url} target="_blank" rel="noreferrer">
-              {t('admin.providers.callAudio.ports')}
-            </a>
-            {' · '}
-            {t(callAudioGuide.costKey)}
-          </p>
-        </details>
-      )}
+      {group.state !== 'works' && <CallAudioGuide open={group.state === 'missing'} />}
     </>
+  )
+}
+
+/** How to set up LiveKit and its SIP bridge: under call audio's rows here, and on Server admin › Server. */
+export function CallAudioGuide({ open }: { open: boolean }) {
+  const t = useT()
+  return (
+    <details className="adm-guide" open={open}>
+      <summary>{t('admin.providers.callAudio.howTo')}</summary>
+      <ol className="adm-guide-steps">
+        {callAudioGuide.stepKeys
+          .map(key => callAudioStep(key, i18n()))
+          .map(step => (
+            <li key={step}>{step}</li>
+          ))}
+      </ol>
+      <p className="help">
+        <a href={callAudioGuide.url} target="_blank" rel="noreferrer">
+          {t('admin.providers.callAudio.ports')}
+        </a>
+        {' · '}
+        {t(callAudioGuide.costKey)}
+      </p>
+    </details>
   )
 }

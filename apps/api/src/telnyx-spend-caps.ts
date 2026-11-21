@@ -1,7 +1,7 @@
 // Whether Linedesk's Telnyx voice profiles have the spend limits (TELNYX_MAX_DESTINATION_RATE, TELNYX_DAILY_SPEND_LIMIT):
 // one instance_settings row per profile whose limits could not be confirmed (key `telnyx.spendCaps:<profile name>`,
 // value JSON with the problem and when), written by the startup sync and the set-ups (outbound-policy.ts,
-// transfer-trunk.ts, forwarding-check.ts). A confirmation deletes the row. Server admin › System warns while one exists.
+// transfer-trunk.ts, forwarding-check.ts). A confirmation deletes the row. Server admin › Settings › Calls warns while one exists.
 import { instance_settings, type Tx } from '@linedesk/db'
 import { and, eq, like, notInArray } from 'drizzle-orm'
 import { db } from './db.ts'
@@ -53,7 +53,7 @@ export async function pruneSpendCaps(keep: string[]) {
   }
 }
 
-/** The profiles whose spend limits are not confirmed, oldest first (Server admin › System). */
+/** The profiles whose spend limits are not confirmed, oldest first (Server admin › Settings › Calls). */
 export async function unconfirmedSpendCaps(tx: Tx): Promise<UnconfirmedSpendCaps[]> {
   const rows = await tx
     .select()

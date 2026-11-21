@@ -81,7 +81,7 @@ export const serverRows = (health: AdminHealth | null): Row[] =>
       value: failing || (status?.ok && quietWhenOk.includes(key)) ? null : (status?.message ?? null),
       problem: failing ? providerErrorLine(status.message) : null,
       help: failing && providerErrorLine(status.message) !== status.message.trim() ? status.message : null,
-      href: '#admin/system',
+      href: '#admin/server',
     }
   })
 

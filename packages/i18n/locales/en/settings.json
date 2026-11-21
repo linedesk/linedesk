@@ -679,7 +679,7 @@
   "developers.zapier.copied": "Address copied.",
   "developers.zapier.copyFailed": "Copy failed. Select the address instead.",
   "developers.zapier.key": "Create an API key with Create key above. Member access is enough for every Linedesk trigger and action.",
-  "developers.zapier.notAvailable": "This server has no link to the Linedesk app on Zapier yet. Ask your server admin to set it in Server admin › System.",
+  "developers.zapier.notAvailable": "This server has no link to the Linedesk app on Zapier yet. Ask your server admin to set it in Server admin › Settings › Integrations.",
   "developers.zapier.open": "Open <link>Linedesk on Zapier</link>.",
   "developers.zapier.pick": "Pick a trigger (Call Started, During-Call Lookup or Call Finished) or an action. Run Any Action reaches every action of the API.",
   "developers.zapier.title": "Connect Zapier",

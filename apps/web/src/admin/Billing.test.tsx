@@ -13,7 +13,7 @@ const useQuery = vi.fn((key: string | null) => ({
 }))
 vi.mock('../cachedQuery.ts', async original => ({ ...(await original<object>()), useQuery }))
 
-const { Billing } = await import('./Billing.tsx')
+const { Billing, SelfServeCard, SignupRulesCard } = await import('./Billing.tsx')
 
 const bill: AdminBillDetail = {
   id: 'bill_1',
@@ -62,18 +62,9 @@ const bill: AdminBillDetail = {
   otherBills: [],
 }
 
-// Stripe and the bot check wait for the admin data (BillingProviders): not read yet here.
-const providers = {
-  data: null,
-  status: { status: null, health: null },
-  error: null,
-  reload: async () => {},
-  notify: () => {},
-} as never
-
 const render = () =>
   renderToStaticMarkup(
-    <Billing id="bill_1" onOpen={() => {}} notify={() => {}} keysRef={{ current: null }} providers={providers} />,
+    <Billing id="bill_1" onOpen={() => {}} notify={() => {}} keysRef={{ current: null }} data={null} />,
   )
 
 test("a bill's page: paid from the ledger, invoices in the Stripe Dashboard, only the actions that can run", () => {
@@ -118,9 +109,15 @@ const selfServe = (over: Partial<SelfServeData>): SelfServeData => ({
   termsMissing: [],
   ...over,
 })
-const renderList = (tab: string | null = 'signup') =>
+const renderList = (tab: string | null) =>
+  renderToStaticMarkup(<Billing id={tab} onOpen={() => {}} notify={() => {}} keysRef={{ current: null }} data={null} />)
+/** Self-serve sign-up and its limits: on Server admin › Settings › Sign-up since LIN-693. */
+const renderSignup = () =>
   renderToStaticMarkup(
-    <Billing id={tab} onOpen={() => {}} notify={() => {}} keysRef={{ current: null }} providers={providers} />,
+    <>
+      <SelfServeCard notify={() => {}} />
+      <SignupRulesCard notify={() => {}} />
+    </>,
   )
 
 test('sign-up switched on without Turnstile keys says plainly that it is closed, and why', () => {
@@ -129,13 +126,11 @@ test('sign-up switched on without Turnstile keys says plainly that it is closed,
     closedBecause: 'bot_check_missing',
     turnstileReady: false,
   })
-  const html = renderList()
+  const html = renderSignup()
   expect(html).toContain('Closed')
   expect(html).toContain('Sign-up is switched on but closed: the bot check (Cloudflare Turnstile) has no keys.')
-  // The bot check's keys are on this page, right below (BillingProviders).
-  expect(html).toContain('href="#admin/billing/signup"')
-  expect(html).toContain('Loading Bot check')
-  expect(html).toContain('Turnstile has no keys yet')
+  // The bot check's keys are connected under Providers, like every service's (LIN-693).
+  expect(html).toContain('href="#admin/providers/bot_check"')
   // Adding the keys is the fix; the page never points to switching the bot check off.
   expect(html).not.toContain('turn the bot check off')
   expect(html).not.toContain('The bot check is off.')
@@ -147,20 +142,20 @@ test('sign-up switched on without the terms in the environment is closed and nam
     closedBecause: 'terms_missing',
     termsMissing: ['TERMS_VERSION', 'PRIVACY_URL'],
   })
-  const html = renderList()
+  const html = renderSignup()
   expect(html).toContain('Closed')
   expect(html).toContain('Sign-up is switched on but closed: set TERMS_VERSION, PRIVACY_URL in the server')
 })
 
 test('with the bot check off, the sign-up limits warn that only the limits protect the server', () => {
   data['admin.billing.selfServe'] = selfServe({ rules: { ...SIGNUP_DEFAULTS, turnstile: false } })
-  const html = renderList()
+  const html = renderSignup()
   expect(html).toContain('The bot check is off. Anyone, bots included, can ask for sign-up codes')
 })
 
 test('open sign-up says so, and its limits are editable with plain labels', () => {
   data['admin.billing.selfServe'] = selfServe({})
-  const html = renderList()
+  const html = renderSignup()
   expect(html).toContain('Open')
   expect(html).toContain('Anyone can sign up and start a trial now.')
   expect(html).not.toContain('switched on but closed')
@@ -199,7 +194,7 @@ test("Billing's own page is one card of part rows, each with its state and the p
   expect(html).toContain('href="#admin/billing/bills?status=')
   expect(html).toContain('2 need a look')
   expect(html).toContain('href="#admin/billing/events')
-  expect(html).toContain('href="#admin/billing/signup"')
+  expect(html).toContain('href="#admin/settings/signup"')
   // Prices and rules has no state, but a row like the others.
   expect(html).toContain('href="#admin/billing/rules"')
   expect(html).toContain('adm-status-nomark')

@@ -2,7 +2,7 @@
 // install can serve: the sign-up countries (SIGNUP_COUNTRIES, open by default) and SIGNUP_ACCESS_COUNTRIES (Germany,
 // only invited addresses by default). Whether German numbers can be bought yet does not change who may sign up
 // (number-buy.ts: until then German workspaces read that numbers are being set up). Each has a mode,
-// open / only invited / off, set by a server admin (Server admin › System); one invite list serves every country set
+// open / only invited / off, set by a server admin (Server admin › Settings › Sign-up); one invite list serves every country set
 // to "only invited". Both are instance settings; an install that sets nothing behaves as before. The mode gates new
 // choices of a country (sign-up, the Business step, Workspace settings, Checkout; served-countries.ts).
 import {
@@ -92,7 +92,7 @@ async function store(tx: Tx, key: string, value: string, actorId: string, now: s
 export const signupAccessHandlers: Record<string, Handler> = {
   'signupAccess.get': async ({ tx }) => ({ rows: {}, data: await data(tx) }),
 
-  /** Server admin › System: a country's sign-up mode, or who is invited. Audited (audit.ts). */
+  /** Server admin › Settings › Sign-up: a country's sign-up mode, or who is invited. Audited (audit.ts). */
   'signupAccess.set': async ({ tx, actor, now }, input: { modes?: Record<string, SignupMode>; invites?: string[] }) => {
     if (input.modes !== undefined) {
       const servable = new Set((await servableCountries(tx)).map(c => c.country))

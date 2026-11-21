@@ -1,4 +1,4 @@
-// Server admin › Providers › Calendar: which calendar tools members may connect, and how. Off by default; CalDAV with
+// Server admin › Settings › Integrations › Calendar tools: which calendar tools members may connect, and how. Off by default; CalDAV with
 // the member's own app-specific password; Calendly and Cal.com with the member's own key, or with one click through
 // the install's OAuth app (set up in the list below).
 import type { CalendarTool, CalendarToolMode, CalendarToolsData } from '@linedesk/actions'

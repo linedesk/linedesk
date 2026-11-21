@@ -72,7 +72,7 @@ export interface CallSession {
   assistant: Assistant | null
   /** Linedesk Cloud: the call's usage level from call.start (`not_allowed`: not answered); null or missing: not billed. */
   usageLevel?: UsageLevel | null
-  /** The speech recognition model of the call's level (Server admin › Providers › Call quality); null: the provider's default. */
+  /** The speech recognition model of the call's level (Server admin › Settings › Calls › Call quality); null: the provider's default. */
   sttModel?: string | null
   /**
    * White-label own keys (S7): call.start forecast that the call runs on the partner's own provider keys; the agent

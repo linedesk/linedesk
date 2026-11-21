@@ -1,10 +1,8 @@
-// System: LiveKit, part of the install (its keys are set in env at install time, so this is a
-// read-only status, loaded on its own because a server that is down takes seconds to say so), and
-// whether workspaces may clone voices (off until an instance admin turns it on), where transfers may call (InternationalTransfers.tsx), and
-// whether users are emailed when an admin signs in as them (off by default), German numbers held in this server's name
-// (off by default), who may sign up in which country (open, only invited emails or off; Germany once German numbers
-// are on: SignupAccess.tsx), the link to the Linedesk app on Zapier and what Zapier needs from this server, and the
-// setup reports AI agents sent the Linedesk team (LIN-210), with Send again for kept ones.
+// The settings cards of Server admin that were under System until LIN-693, each now on the page it belongs to:
+// voice cloning (Settings › Calls; off until an instance admin turns it on), German numbers held in this server's name
+// (Settings › Phone numbers; off by default), the link to the Linedesk app on Zapier and what Zapier needs from this
+// server (Settings › Integrations), whether users are emailed when an admin signs in as them (Branding; off by
+// default), and the setup reports AI agents sent the Linedesk team (Onboarding; LIN-210), with Send again for kept ones.
 import {
   areaCodeShown,
   type GermanGroupData,
@@ -38,77 +36,6 @@ import { agentLabel } from '../onboarding/AgentPicker.tsx'
 import { InternationalTransfers } from './InternationalTransfers.tsx'
 import { SignupAccess } from './SignupAccess.tsx'
 
-const LIVEKIT = 'admin.livekit'
-
-function Service({ name, status }: { name: string; status: ServiceStatus | null }) {
-  const t = useT()
-  return (
-    <div>
-      <dt>{name}</dt>
-      <dd>
-        <span className={cx('adm-tile-status', status && !status.ok && 'adm-status-bad')}>
-          <StatusMark state={!status ? 'checking' : status.ok ? 'works' : 'failing'} label={status?.message} />
-          {!status
-            ? t('admin.system.checking')
-            : status.ok
-              ? status.message
-              : t('admin.system.problem', { message: status.message })}
-        </span>
-      </dd>
-    </div>
-  )
-}
-
-function Livekit() {
-  const t = useT()
-  const query = useQuery(LIVEKIT, loadLivekitStatus)
-  const status = query.data ?? null
-  const error = status ? null : query.error
-  /** The operator pressed Check again: only then does the button spin (page data never does). */
-  const [asked, setAsked] = useState(false)
-  const check = async () => {
-    setAsked(true)
-    setQueryData<LivekitStatus | undefined>(LIVEKIT, undefined) // a check the operator asked for shows as checking
-    try {
-      await query.reload()
-    } finally {
-      setAsked(false)
-    }
-  }
-
-  return (
-    <Card
-      title="LiveKit"
-      actions={
-        <Button busy={asked} size="sm" variant="ghost" disabled={!status && !error} onClick={() => void check()}>
-          {asked ? t('admin.system.checking') : t('admin.system.checkAgain')}
-        </Button>
-      }
-    >
-      {error ? (
-        <p className="k-field-msg" role="alert">
-          {t('admin.system.couldNotCheck', { error })}
-        </p>
-      ) : (
-        <dl className="adm-facts" aria-live="polite">
-          <div>
-            <dt>{t('admin.system.url')}</dt>
-            <dd className="adm-mono">
-              {status ? (
-                (status.url ?? t('admin.system.notSet'))
-              ) : (
-                <Loading what={t('admin.system.urlWhat')} loading skeleton={<Skeleton shape="text" width={180} />} />
-              )}
-            </dd>
-          </div>
-          <Service name={t('admin.system.server')} status={status?.server ?? null} />
-          <Service name={t('admin.system.sipTrunks')} status={status?.sip ?? null} />
-        </dl>
-      )}
-    </Card>
-  )
-}
-
 const CLONING = 'admin.voiceCloning'
 const IMPERSONATION_EMAILS = 'admin.impersonationEmails'
 const loadImpersonationEmails = async () => (await runAdmin('impersonationEmails.get', {})) as ImpersonationEmailsData
@@ -117,7 +44,7 @@ const loadImpersonationEmails = async () => (await runAdmin('impersonationEmails
  * Support access: whether a user gets one email when an admin signs in as them (Users or Workspaces, "Sign in as …"),
  * with the admin, the reason, the time and the workspace. Off by default.
  */
-function ImpersonationEmails() {
+export function ImpersonationEmails() {
   const t = useT()
   const query = useQuery(IMPERSONATION_EMAILS, loadImpersonationEmails)
   const [problem, setProblem] = useState<string | null>(null)
@@ -170,7 +97,7 @@ function ImpersonationEmails() {
 const loadCloning = async () => (await runAdmin('voiceCloning.get', {})) as VoiceCloningData
 
 /** Voice cloning for every workspace: off by default; existing clones keep working when it is turned off. */
-function VoiceCloning() {
+export function VoiceCloning() {
   const t = useT()
   const query = useQuery(CLONING, loadCloning)
   const [problem, setProblem] = useState<string | null>(null)
@@ -330,7 +257,7 @@ function GroupStatus({
  * never affected. The area code is the one of the group's address (read from the carrier); only while none is found
  * for it does the card ask for one.
  */
-function GermanNumbers() {
+export function GermanNumbers() {
   const t = useT()
   const query = useQuery(GERMAN_NUMBERS, loadGermanNumbers)
   const data = query.data
@@ -501,7 +428,7 @@ const loadZapierApp = async () => (await runAdmin('zapierApp.get', {})) as Zapie
  * address. The admin sets the link workspaces open (the app's invite link, or its page in Zapier's directory); without
  * one, workspaces see no Zapier link. The server has to be reachable by Zapier, and reach Zapier.
  */
-function Zapier() {
+export function Zapier() {
   const t = useT()
   const address = window.location.origin
   const reachable = zapierCanReach(address)
@@ -636,7 +563,7 @@ const REPORT_TONE: Record<SetupReportRow['status'], 'ok' | 'outline' | 'danger'>
  * Setup reports (LIN-210): what AI agents sent the Linedesk team about this server's setup, each with the admin's yes.
  * A kept one (the team's server could not be reached) is tried again every hour for 7 days; Send again tries now.
  */
-function SetupReports() {
+export function SetupReports() {
   const t = useT()
   const format = useFormat()
   const query = useQuery(SETUP_REPORTS, loadSetupReports)
@@ -734,20 +661,5 @@ function SetupReports() {
         </p>
       )}
     </Card>
-  )
-}
-
-export function System() {
-  return (
-    <>
-      <Livekit />
-      <VoiceCloning />
-      <InternationalTransfers />
-      <GermanNumbers />
-      <SignupAccess />
-      <ImpersonationEmails />
-      <Zapier />
-      <SetupReports />
-    </>
   )
 }

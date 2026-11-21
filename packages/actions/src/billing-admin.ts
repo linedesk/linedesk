@@ -396,7 +396,7 @@ export type SelfServeData = {
   /** Whether a new person can sign up right now: the switch is on and nothing it needs is missing. */
   open: boolean
   closedBecause: SignupClosedBecause | null
-  /** Whether the Turnstile keys are set up (Server admin › Billing › Sign-up). */
+  /** Whether the Turnstile keys are set up (Server admin › Settings › Sign-up). */
   turnstileReady: boolean
   /** The sign-up limits in effect: the stored `signup.rules` over the defaults. */
   rules: SignupRules

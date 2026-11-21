@@ -1582,7 +1582,7 @@ describe('sign-up countries: a mode per country, Germany by invitation by defaul
     expect((await request(anonymous, 'GET', '/v1/signup/config')).body.countries).toEqual(['US'])
   })
 
-  test('Server admin › System: instance admins only; the list is kept trimmed, lower case, sorted and once', async () => {
+  test('Server admin › Settings › Sign-up: instance admins only; the list is kept trimmed, lower case, sorted and once', async () => {
     const { owner } = await createWorkspace('Access Owner')
     expect((await act(owner, 'signupAccess.get', {})).status).toBe(403)
     expect((await act(owner, 'signupAccess.set', { modes: { DE: 'open' } })).status).toBe(403)

@@ -2579,7 +2579,7 @@ describe('impersonation', () => {
       'emailRouting.get',
       // The questions of How <assistant> did, a read; marking an evaluation done or open stays refused.
       'evaluation.listQuestions',
-      // Read-only and instance:admin (Server admin › System › Setup reports), as above.
+      // Read-only and instance:admin (Server admin › Onboarding › Setup reports), as above.
       'feedback.setupReports',
       // Read-only and instance:admin, like setupEmails.get: an impersonation never has instance:admin.
       'founderEmail.get',

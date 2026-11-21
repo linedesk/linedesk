@@ -665,7 +665,7 @@ export type BillingProvider = {
   charge(id: string): Promise<BillingChargeSource | null>
 }
 
-/** The keys of the `stripe` adapter, as stored under Server admin › Billing › Stripe. */
+/** The keys of the `stripe` adapter, as stored under Server admin › Providers › Stripe. */
 export type StripeKeys = {
   secretKey: string
   webhookSecret: string

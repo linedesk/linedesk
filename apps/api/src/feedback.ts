@@ -269,7 +269,7 @@ export const feedbackHandlers: Record<string, Handler> = {
     return { rows: {}, data: { id: row.id } }
   },
 
-  // Server admin › System › Setup reports: the latest 50, newest first; outcome and items from the stored report.
+  // Server admin › Onboarding › Setup reports: the latest 50, newest first; outcome and items from the stored report.
   'feedback.setupReports': async ({ tx, actor }) => {
     refuseSetupLink(actor)
     const rows = await tx
@@ -306,7 +306,7 @@ export const feedbackHandlers: Record<string, Handler> = {
     return { rows: {}, data }
   },
 
-  // An instance admin sends a kept setup report again (Server admin › System › Setup reports). It does not count
+  // An instance admin sends a kept setup report again (Server admin › Onboarding › Setup reports). It does not count
   // against the link's limit; the answer is the row as it is after the try.
   'feedback.resend': async ({ tx, actor, onCommit }, input: { id: string }) => {
     refuseSetupLink(actor)

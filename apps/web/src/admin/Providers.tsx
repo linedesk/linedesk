@@ -1,10 +1,10 @@
-// Server admin › Providers (LIN-158): every provider group in one place, in the same order and words as the overview's
+// Server admin › Providers (LIN-158): only connecting services (LIN-693): every provider group in one place, in the same order and words as the overview's
 // "Ready for calls" card and the install walkthrough (provider-status.ts): each group with its status, why it is
 // there and its providers. Connect and Edit open the provider's dialog (ProviderDialog), the one editor. While a group
 // calls need is not set up, the agent setup leads on top; once all are, the same note offers to change them.
 // `#admin/providers/<group>` scrolls to the group, `#admin/providers/<provider>` opens its dialog; old category links
-// (`#admin/providers/stt`) land on their group. The Billing group (Stripe, the billing switch, the bot check) is on
-// Server admin › Billing instead (BillingProviders.tsx); its old links go there (route.ts `movedPlace`).
+// (`#admin/providers/stt`) land on their group. Settings that use a provider (call quality, after-call transcription,
+// calendar tools, the billing switch) are under Settings and Billing; call audio, a status, is under Server.
 // "Show all providers" at the right of the heading opens every group's short list at once (and "Show fewer" folds
 // them again); each list's own "Show more" still works, and the top button follows what the lists show.
 import {
@@ -25,7 +25,6 @@ import { AiButton } from '../settings/AgentChange.tsx'
 import { HelpTip } from '../ui/form.tsx'
 import { Button, Note } from '../ui/kit.tsx'
 import { type AdminData, keyUsersOf, loadInstallSetup, runAdmin } from './api.ts'
-import { CallQualityCard } from './CallQuality.tsx'
 import { isConfigured, selectsOnConnect } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
 import { clearOpenRouterReturn, type OpenRouterReturn, peekOpenRouterReturn } from './openrouterAuth.ts'
@@ -217,7 +216,7 @@ export function Providers({ data, status, id, onClearId, notify, reload, headAct
     if (group) document.getElementById(groupAnchor(group))?.scrollIntoView({ block: 'start' })
   }, [group])
 
-  const groups = (status.status?.groups ?? []).filter(g => g.id !== 'billing')
+  const groups = (status.status?.groups ?? []).filter(g => g.id !== 'call-audio')
   const missing = groups.filter(g => g.needed && g.state === 'missing')
 
   // Which provider lists are open: held here, so one button opens or folds them all.
@@ -266,7 +265,6 @@ export function Providers({ data, status, id, onClearId, notify, reload, headAct
         ) : (
           <AgentFirst lead={t('admin.providers.allSetLead')} complete />
         ))}
-      {status.status && <CallQualityCard notify={notify} />}
       {status.status &&
         groups.map(g => (
           <ProviderGroup

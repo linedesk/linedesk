@@ -1,5 +1,5 @@
 // Billing for Linedesk Cloud: which billing provider is in effect. `none` (every self-hosted
-// install) unless Server admin › Billing › Stripe has Stripe with both keys **and** an instance admin turned billing
+// install) unless Server admin › Providers › Stripe has both keys **and** an instance admin turned billing
 // on (`billing.enabled`, off by default). A live key counts only where the server allows it (BILLING_LIVE_KEYS=1,
 // production only): elsewhere it is refused when stored, by the provider test, and here.
 //
