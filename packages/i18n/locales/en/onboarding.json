@@ -434,6 +434,7 @@
   "frame.stepShort": "{step}/{total}",
   "frame.title": "Set up {brand}",
   "install.agentNote": "An AI agent can do this in <b>about 10 minutes</b> and check the server for you.",
+  "install.agentNoteAction": "Set up with AI",
   "install.count": "By hand",
   "install.done.almost": "The server is almost set up",
   "install.done.almostLede": "The remaining parts are in Server admin › Providers. Next: your business, its assistant and its number.",

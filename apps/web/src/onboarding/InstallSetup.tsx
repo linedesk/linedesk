@@ -198,7 +198,7 @@ export function InstallSetup({ onExit, onAgentSetup }: Props) {
             skeleton={<SkeletonFields fields={2} />}
           />
         ) : step === 'welcome' ? (
-          <Welcome status={status} onStart={() => go('email')} />
+          <Welcome status={status} onStart={() => go('email')} onAgent={onAgentSetup ?? openAgentSetup} />
         ) : step === 'done' ? (
           <Done
             status={status}
@@ -252,7 +252,15 @@ function useWalkKeys(onEnter: (() => void) | null, onEscape: (() => void) | null
 const groupOfStep = (status: ProviderStatusState, step: PartStepId) =>
   status.status!.groups.find(g => g.id === installStepGroups[step])!
 
-function Welcome({ status, onStart }: { status: ProviderStatusState; onStart: () => void }) {
+function Welcome({
+  status,
+  onStart,
+  onAgent,
+}: {
+  status: ProviderStatusState
+  onStart: () => void
+  onAgent: () => void
+}) {
   const t = useT()
   useWalkKeys(onStart, null)
   return (
@@ -265,8 +273,15 @@ function Welcome({ status, onStart }: { status: ProviderStatusState; onStart: ()
       <section className="as-card">
         <Parts status={status} />
       </section>
-      {/* The way to the agent is the top bar's "Set up with an AI agent", as on every step. */}
-      <Note tone="info">
+      {/* The note has its own way to the agent, besides the top bar's "Set up with an AI agent" on every step. */}
+      <Note
+        tone="info"
+        action={
+          <Button size="sm" variant="secondary" icon="spark" onClick={onAgent}>
+            {t('onboarding.install.agentNoteAction')}
+          </Button>
+        }
+      >
         <T k="onboarding.install.agentNote" values={BOLD} />
       </Note>
       <SetupFoot onContinue={onStart} label={t('onboarding.install.welcome.start')} />
