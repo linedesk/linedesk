@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { ProviderField, ProviderStatus } from './api.ts'
+import type { ProviderField, ProviderStatus, UsageRow } from './api.ts'
 import {
   afterTest,
   changedValues,
@@ -15,7 +15,9 @@ import {
   providerState,
   recentMonths,
   sortRows,
+  monthsWithUsage,
   usageByWorkspace,
+  usageTotals,
 } from './model.ts'
 
 test('sorting: text without case, numbers by value, empty values last either way', () => {
@@ -177,4 +179,32 @@ test('after the key test: a pass closes the dialog with a toast, a failure or a 
   })
   expect(afterTest({ ok: false }, fresh)).toEqual({ close: false })
   expect(afterTest({ ok: true, status: 'warning' }, fresh)).toEqual({ close: false })
+})
+
+test('usage months: back to the oldest used month, at least three', () => {
+  const months = ['2026-11', '2026-10', '2026-09', '2026-08', '2026-07', '2026-06']
+  const row = (month: string) => ({
+    workspace_id: 'w',
+    workspace_name: null,
+    month,
+    calls: 1,
+    minutes: 1,
+    charged_micros: null,
+  })
+  expect(monthsWithUsage(months, [row('2026-11'), row('2026-09')])).toEqual(['2026-11', '2026-10', '2026-09'])
+  expect(monthsWithUsage(months, [row('2026-07')])).toEqual(months.slice(0, 5))
+  expect(monthsWithUsage(months, [])).toEqual(months.slice(0, 3))
+  expect(monthsWithUsage(months.slice(0, 2), [])).toEqual(months.slice(0, 2))
+})
+
+test('usage totals: summed per month, dollars only where charged', () => {
+  const grid = usageByWorkspace([
+    { workspace_id: 'a', month: '2026-11', calls: 2, minutes: 3, charged_micros: null },
+    { workspace_id: 'b', month: '2026-11', calls: 1, minutes: 1.5, charged_micros: 500_000 },
+    { workspace_id: 'a', month: '2026-10', calls: 4, minutes: 6, charged_micros: null },
+  ] as UsageRow[])
+  const totals = usageTotals(grid, ['2026-11', '2026-10', '2026-09'])
+  expect(totals.get('2026-11')).toEqual({ calls: 3, minutes: 4.5, chargedMicros: 500_000 })
+  expect(totals.get('2026-10')).toEqual({ calls: 4, minutes: 6, chargedMicros: null })
+  expect(totals.has('2026-09')).toBe(false)
 })

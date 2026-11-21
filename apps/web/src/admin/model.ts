@@ -45,6 +45,37 @@ export function usageByWorkspace(usage: readonly UsageRow[]): Map<string, Map<st
   return grid
 }
 
+/**
+ * The months worth a column: newest first, down to the oldest month with any usage (older empty months only add
+ * dashes), but never fewer than `min`.
+ */
+export function monthsWithUsage(months: readonly string[], usage: readonly UsageRow[], min = 3): string[] {
+  const used = new Set(usage.map(u => u.month))
+  let last = -1
+  months.forEach((month, i) => {
+    if (used.has(month)) last = i
+  })
+  return months.slice(0, Math.max(last + 1, Math.min(min, months.length)))
+}
+
+/** All workspaces together per month: minutes and calls summed; dollars summed where any month has them, else null. */
+export function usageTotals(grid: Map<string, Map<string, UsageCell>>, months: readonly string[]) {
+  const totals = new Map<string, UsageCell>()
+  for (const cells of grid.values()) {
+    for (const month of months) {
+      const cell = cells.get(month)
+      if (!cell) continue
+      const sum = totals.get(month) ?? { calls: 0, minutes: 0, chargedMicros: null }
+      totals.set(month, {
+        calls: sum.calls + cell.calls,
+        minutes: sum.minutes + cell.minutes,
+        chargedMicros: cell.chargedMicros === null ? sum.chargedMicros : (sum.chargedMicros ?? 0) + cell.chargedMicros,
+      })
+    }
+  }
+  return totals
+}
+
 /** Answered minutes; a month with calls but under a tenth of a minute says so instead of a dash. */
 export function formatMinutes(minutes: number) {
   const inMinutes = (value: number) =>

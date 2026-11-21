@@ -2155,3 +2155,45 @@
   font-weight: 600;
   border-top: 1px solid var(--line);
 }
+
+/* ---- Usage: names stay in view while the months scroll; empty months stay quiet. ---- */
+.adm-usage-name {
+  display: block;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.adm-usage-empty {
+  color: var(--ink-disabled);
+}
+.adm-usage td {
+  min-width: 96px;
+}
+@media (min-width: 560px) {
+  .adm-usage tbody th,
+  .adm-usage thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface);
+    padding-right: 24px;
+  }
+}
+.adm-usage-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.adm-usage-foot .k-btn-ghost {
+  margin-left: -10px;
+}
+.adm-usage-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.adm-usage .adm-total td[data-label]::before {
+  font-weight: 400;
+}
