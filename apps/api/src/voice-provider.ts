@@ -3,6 +3,7 @@
 // recording. Vendor HTTP lives only here; the voice agent has its own pipeline (apps/agent).
 import {
   cloningProviders,
+  ELEVENLABS_VOICE_SETTINGS,
   type Language,
   languageCodes,
   providerLanguageCode,
@@ -477,7 +478,13 @@ function elevenlabs({ api_key, model }: Values, doFetch: typeof fetch): VoicePro
         {
           method: 'POST',
           headers: { ...headers, 'content-type': 'application/json', accept: 'audio/mpeg' },
-          body: JSON.stringify({ text, model_id: previewModel, ...languageCode }),
+          // Our settings at normal speed, as on a call: else a library voice speaks as its owner saved it (LIN-712).
+          body: JSON.stringify({
+            text,
+            model_id: previewModel,
+            ...languageCode,
+            voice_settings: { ...ELEVENLABS_VOICE_SETTINGS, speed: 1 },
+          }),
           signal: AbortSignal.timeout(TIMEOUT_MS),
         },
       )

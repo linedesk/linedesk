@@ -446,9 +446,11 @@ describe('samples in a language', () => {
     const flash = capture()
     await createVoiceProvider('elevenlabs', { api_key: KEY }, flash.doFetch)!.synthesize('v', 'Hallo', 'de')
     await createVoiceProvider('elevenlabs', { api_key: KEY }, flash.doFetch)!.synthesize('v', 'Hi')
+    // Always our settings at normal speed, as on a call: never the library voice owner's (LIN-712).
+    const voice_settings = { stability: 0.5, similarity_boost: 0.75, speed: 1 }
     expect(flash.bodies).toEqual([
-      { text: 'Hallo', model_id: MODEL, language_code: 'de' },
-      { text: 'Hi', model_id: MODEL },
+      { text: 'Hallo', model_id: MODEL, language_code: 'de', voice_settings },
+      { text: 'Hi', model_id: MODEL, voice_settings },
     ])
     const other = capture()
     await createVoiceProvider(
@@ -456,7 +458,8 @@ describe('samples in a language', () => {
       { api_key: KEY, model: 'eleven_multilingual_v2' },
       other.doFetch,
     )!.synthesize('v', 'Hallo', 'de')
-    expect(other.bodies[0]).toEqual({ text: 'Hallo', model_id: 'eleven_multilingual_v2' })
+    expect(other.bodies[0]).toMatchObject({ text: 'Hallo', model_id: 'eleven_multilingual_v2' })
+    expect(other.bodies[0]).not.toHaveProperty('language_code')
   })
   it('Cartesia gets language', async () => {
     const fake = capture()

@@ -4,7 +4,7 @@
 // voice-activity model: that saves the CPU a small server does not have, and the endpointing delay.
 // Or, when an admin picked one, a realtime model alone: it hears the caller and answers in its own voice.
 // The worker only sees LiveKit's interfaces and `CompleteJson`.
-import { DEFAULT_VOICE_MODELS, noPrivateEndpointText, noTrainingFields, voiceModelFor, anyModeLanguages, fluxRecognizes, sttHears, type HearingModel, type Language, mainLanguageOf, otherLanguagesOf, providerLanguageCode, type SpeakingVoice, spokenLanguages, defaultVoiceFor, providerDefaultVoices, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
+import { DEFAULT_VOICE_MODELS, noPrivateEndpointText, noTrainingFields, voiceModelFor, anyModeLanguages, fluxRecognizes, sttHears, type HearingModel, type Language, mainLanguageOf, otherLanguagesOf, providerLanguageCode, type SpeakingVoice, spokenLanguages, defaultVoiceFor, providerDefaultVoices, ELEVENLABS_VOICE_SETTINGS, SILENCE_FIRST_GAP_DEFAULT_S, TALKING_SPEED_PCT_DEFAULT, type TalkingSpeed, talkingSpeedPctOf } from '@linedesk/actions'
 import { DEFAULT_API_CONNECT_OPTIONS, tts as ttsTypes, type voice } from '@livekit/agents'
 import * as assemblyai from '@livekit/agents-plugin-assemblyai'
 import * as cartesia from '@livekit/agents-plugin-cartesia'
@@ -227,8 +227,8 @@ export const ttsModelOf = (tts: TtsConfig) => tts.model || DEFAULT_VOICE_MODELS[
 /** `language`: what the voice speaks at first (Cartesia reads every text as English unless told); English is the providers' default. */
 /**
  * `speedPct`: the talking speed in percent of the voice's own pace, sent as a factor (both providers take 0.8–1.2).
- * ElevenLabs' voice settings come as a whole, so a speed also sets stability and similarity, to ElevenLabs' defaults;
- * at the voice's own pace nothing is sent and the voice's own settings apply.
+ * ElevenLabs always gets its default settings with the speed (elevenLabsVoiceSettings), also at 100: else a Voice
+ * Library voice speaks with the settings its owner saved, often much slower (LIN-712).
  */
 /**
  * The voice of a call. With a backup (VoiceWithBackup: OpenAI's speech model when an OpenAI key is set up, else another
@@ -257,9 +257,11 @@ function providerTts({ voiceId, ...tts }: TtsConfig & { voiceId?: string }, lang
   const speed = speedPct !== TALKING_SPEED_PCT_DEFAULT ? speedPct / 100 : undefined
   if (tts.provider === 'cartesia')
     return new cartesia.TTS({ apiKey: tts.apiKey, model: ttsModelOf(tts), ...(voiceId ? { voice: voiceId } : {}), ...spoken, ...(speed ? { speed } : {}) })
-  const paced = speed ? { voiceSettings: { stability: 0.5, similarity_boost: 0.75, speed } } : {}
-  return new elevenlabs.TTS({ apiKey: tts.apiKey, model: ttsModelOf(tts), ...(voiceId ? { voiceId } : {}), ...spoken, ...paced, preferredAlignment: ELEVENLABS_ALIGNMENT })
+  return new elevenlabs.TTS({ apiKey: tts.apiKey, model: ttsModelOf(tts), ...(voiceId ? { voiceId } : {}), ...spoken, voiceSettings: elevenLabsVoiceSettings(speedPct), preferredAlignment: ELEVENLABS_ALIGNMENT })
 }
+
+/** What ElevenLabs is sent on every call: its default settings with the talking speed (LIN-712). */
+export const elevenLabsVoiceSettings = (speedPct: number) => ({ ...ELEVENLABS_VOICE_SETTINGS, speed: speedPct / 100 })
 
 /**
  * Which of ElevenLabs' word timings the reply's text is taken from. LiveKit takes the text the voice speaks along with

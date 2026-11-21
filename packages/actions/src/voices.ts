@@ -91,6 +91,16 @@ export const providerDefaultVoices: Record<string, string> = {
   cartesia: 'f786b574-daa5-4673-aa0c-cbe3e8534c02',
 }
 
+/**
+ * The voice settings every ElevenLabs request sends (calls and previews), with the talking speed as `speed`: ElevenLabs'
+ * own defaults. Without them ElevenLabs uses the settings the voice's owner saved, and many Voice Library voices are
+ * saved slower (Ela "Cheerful and Happy" took 43 % longer for the same sentence; LIN-712). Premade voices such as
+ * Jessica have these settings already, so they sound the same.
+ */
+export const ELEVENLABS_VOICE_SETTINGS = { stability: 0.5, similarity_boost: 0.75 } as const
+/** Bumped when ELEVENLABS_VOICE_SETTINGS change: it is part of the keys of cached ElevenLabs audio (greetings, lines, previews). */
+export const ELEVENLABS_SETTINGS_VERSION = 'settings-1'
+
 export const isCuratedVoice = (provider: string, voiceId: string) =>
   (curatedVoices[provider] ?? []).some(v => v.id === voiceId)
 

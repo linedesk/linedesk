@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -16,7 +17,17 @@ test('a changed greeting text, voice or model gets another key', () => {
   // A talking speed other than normal is another sound; normal keeps the key stored greetings have.
   expect(greetingKey({ ...voice, speed: 100 })).toBe(key)
   expect(greetingKey({ ...voice, speed: 108 })).not.toBe(key)
+  // ElevenLabs greetings carry the version of the voice settings: ones made before LIN-712 may be slower.
+  expect(key).not.toBe(greetingKeyBefore712(voice))
+  const cartesia = { ...voice, provider: 'cartesia' }
+  expect(greetingKey(cartesia)).toBe(greetingKeyBefore712(cartesia))
 })
+
+const greetingKeyBefore712 = (v: typeof voice) =>
+  createHash('sha256')
+    .update(JSON.stringify([v.provider, v.model, v.voiceId, v.text]))
+    .digest('hex')
+    .slice(0, 32)
 
 test('stores and reads back the audio; nothing stored is null', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'greetings-'))

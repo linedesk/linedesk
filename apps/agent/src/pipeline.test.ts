@@ -2,7 +2,7 @@ import { initializeLogger } from '@livekit/agents'
 import { readFileSync } from 'node:fs'
 import { beforeAll, expect, test, vi } from 'vitest'
 import { type AgentConfig, configFromEnv, type RealtimeCallConfig, withAssistantRealtimeVoice } from './config.ts'
-import { assemblyAiChoice, callLanguagesOf, sttForCall, createStt, createTts, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TRUNCATION, REALTIME_TURNS, realtimeRepliesEvent, REALTIME_UNREACHABLE_URL, sendRealtimeTruncation, withRealtimeTruncation, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
+import { assemblyAiChoice, callLanguagesOf, sttForCall, createStt, createTts, elevenLabsVoiceSettings, callVoicesOf, withCallLanguages, chatJson, createPipeline, deepgramChoice, NOVA_MULTI_ENDPOINTING_MS, createRealtimePipeline, lineVoiceOf, MAX_TOOL_STEPS, REALTIME_LINE_TTS, REALTIME_TRUNCATION, REALTIME_TURNS, realtimeRepliesEvent, REALTIME_UNREACHABLE_URL, sendRealtimeTruncation, withRealtimeTruncation, transferSpeechOf, REPLY_MAX_TOKENS, replyRequestFields, sttDetectsTurns, greetingVoice, realtimeLine, SUMMARY_MAX_TOKENS, summaryLlm, ttsFor, voiceFor, warmUpLlm } from './pipeline.ts'
 import { REALTIME_CONNECT_TIMEOUT_MS } from './realtime-connect.ts'
 
 const openrouter = { apiKey: 'sk-or-test', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4.1-mini' }
@@ -213,6 +213,12 @@ test("a language's default voice has the provider's default voice as its first b
   // The English default and a voice picked by name have no such backup.
   expect(voices(createTts(eleven, null, 'en'))).toHaveLength(1)
   expect(voices(createTts(eleven, { provider: 'elevenlabs', voice_id: 'maya' }, 'de'))).toHaveLength(1)
+})
+
+test('ElevenLabs always gets its default settings with the talking speed, also at normal speed (LIN-712)', () => {
+  // Without them a Voice Library voice speaks with its owner's saved settings, often much slower.
+  expect(elevenLabsVoiceSettings(100)).toEqual({ stability: 0.5, similarity_boost: 0.75, speed: 1 })
+  expect(elevenLabsVoiceSettings(110)).toEqual({ stability: 0.5, similarity_boost: 0.75, speed: 1.1 })
 })
 
 test('a fixed line is given to the realtime model word for word', () => {

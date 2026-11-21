@@ -9,6 +9,7 @@ import { join } from 'node:path'
 import { ReadableStream } from 'node:stream/web'
 import type { tts as ttsTypes } from '@livekit/agents'
 import { AudioFrame } from '@livekit/rtc-node'
+import { ELEVENLABS_SETTINGS_VERSION } from '@linedesk/actions'
 
 export type GreetingAudio = { sampleRate: number; channels: number; samples: Int16Array }
 
@@ -21,7 +22,10 @@ export type GreetingVoice = {
   text: string
 }
 
-/** At normal speed the key stays what it was before speeds existed, so stored greetings are still found. */
+/**
+ * At normal speed the key stays what it was before speeds existed, so stored greetings are still found; ElevenLabs keys
+ * carry the version of the voice settings it is sent (ELEVENLABS_SETTINGS_VERSION).
+ */
 export const greetingKey = (voice: GreetingVoice) =>
   createHash('sha256')
     .update(
@@ -31,6 +35,8 @@ export const greetingKey = (voice: GreetingVoice) =>
         voice.voiceId ?? '',
         voice.text,
         ...(voice.speed && voice.speed !== 100 ? [voice.speed] : []),
+        // ElevenLabs audio made before it always got our settings may be slower (LIN-712): not used again.
+        ...(voice.provider === 'elevenlabs' ? [ELEVENLABS_SETTINGS_VERSION] : []),
       ]),
     )
     .digest('hex')

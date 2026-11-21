@@ -13,6 +13,7 @@ import {
   CLONE_AUDIO_MAX_BYTES,
   CLONE_CONSENT_TEXT,
   cloningProviders,
+  ELEVENLABS_SETTINGS_VERSION,
   curatedVoices,
   curatedVoicesIn,
   isCuratedVoice,
@@ -528,16 +529,18 @@ export function previewCache(
 
 /**
  * A synthesized sample's cache key: provider, model, voice, language and text. English keeps the key it had before
- * samples had a language, so the samples cached then are still used.
+ * samples had a language, so the samples cached then are still used. ElevenLabs samples carry the version of the voice
+ * settings (ELEVENLABS_SETTINGS_VERSION): one made before may be slower (LIN-712).
  */
 export const previewKey = (provider: VoiceProvider, voiceId: string, language: Language = 'en') =>
   createHash('sha256')
     .update(
-      JSON.stringify(
-        language === 'en'
+      JSON.stringify([
+        ...(language === 'en'
           ? [provider.name, provider.model, voiceId, PREVIEW_TEXTS.en]
-          : [provider.name, provider.model, voiceId, PREVIEW_TEXTS[language], language],
-      ),
+          : [provider.name, provider.model, voiceId, PREVIEW_TEXTS[language], language]),
+        ...(provider.name === 'elevenlabs' ? [ELEVENLABS_SETTINGS_VERSION] : []),
+      ]),
     )
     .digest('hex')
     .slice(0, 32)
