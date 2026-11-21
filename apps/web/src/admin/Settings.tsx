@@ -1,10 +1,7 @@
-// Server admin › Settings (LIN-693): what this server does, in four tabs, each its own address
-// (`#admin/settings/<tab>`, route.ts): Calls (the call quality levels, after-call transcription, international
-// transfers, voice cloning), Phone numbers (German numbers), Sign-up (self-serve sign-up, the countries, its limits and
-// the emails new workspaces get) and Integrations (which calendar tools members may connect, the Zapier link).
-// Services are connected under Providers; a setting that needs one links there.
+// Server admin's setting pages (LIN-693), each a section of its own in the nav (route.ts): Calls and Tools under
+// Assistant, Sign-up under Customers. Phone numbers is GermanNumbers (SettingsCards.tsx). They were the tabs of one
+// Settings page before. Services are connected under Providers; a setting that needs one links there.
 import { type ProviderName } from '@linedesk/actions'
-import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { appLink } from '../ui/AppLink.tsx'
@@ -20,32 +17,8 @@ import type { Notify } from './notify.ts'
 import { FounderEmail, SetupEmails } from './Onboarding.tsx'
 import { ProviderDialogFor } from './Providers.tsx'
 import type { ProviderStatusState } from './providerStatus.ts'
-import { SETTINGS_TABS, type SettingsTab } from './route.ts'
-import { GermanNumbers, VoiceCloning, Zapier } from './SettingsCards.tsx'
+import { VoiceCloning, Zapier } from './SettingsCards.tsx'
 import { SignupAccess } from './SignupAccess.tsx'
-
-const TAB_LABELS: Record<SettingsTab, MessageKey> = {
-  calls: msg('admin.settings.tab.calls'),
-  numbers: msg('admin.settings.tab.numbers'),
-  signup: msg('admin.settings.tab.signup'),
-  integrations: msg('admin.settings.tab.integrations'),
-}
-
-/** The tabs as links: each has its own address, so Back, reload and a link from elsewhere land on it. */
-function SettingsTabs({ tab }: { tab: SettingsTab }) {
-  const t = useT()
-  return (
-    <nav className="adm-billtabs" aria-label={t('admin.settings.tabs')}>
-      <div className="ib-tabs">
-        {SETTINGS_TABS.map(id => (
-          <a key={id} href={`#admin/settings/${id}`} className="ib-tab" aria-current={id === tab ? 'page' : undefined}>
-            {t(TAB_LABELS[id])}
-          </a>
-        ))}
-      </div>
-    </nav>
-  )
-}
 
 type ProvidersProps = {
   /** The admin data (null until it is read) and the providers' status, as AdminMode holds them for every page. */
@@ -93,36 +66,37 @@ function CalendarToolsCard() {
   )
 }
 
-type Props = ProvidersProps & { tab: SettingsTab }
-
-export function Settings({ tab, ...providers }: Props) {
+/** Calls: the call quality levels, after-call transcription, international transfers and voice cloning. */
+export function CallSettings(providers: ProvidersProps) {
   return (
     <>
-      <SettingsTabs tab={tab} />
-      {tab === 'calls' && (
-        <>
-          <CallQualityCard notify={providers.notify} />
-          <TranscriptCard {...providers} />
-          <InternationalTransfers />
-          <VoiceCloning />
-        </>
-      )}
-      {tab === 'numbers' && <GermanNumbers />}
-      {tab === 'signup' && (
-        <>
-          <SelfServeCard notify={providers.notify} />
-          <SignupAccess />
-          <SignupRulesCard notify={providers.notify} />
-          <SetupEmails />
-          <FounderEmail />
-        </>
-      )}
-      {tab === 'integrations' && (
-        <>
-          <CalendarToolsCard />
-          <Zapier />
-        </>
-      )}
+      <CallQualityCard notify={providers.notify} />
+      <TranscriptCard {...providers} />
+      <InternationalTransfers />
+      <VoiceCloning />
+    </>
+  )
+}
+
+/** Sign-up: self-serve sign-up, who may sign up and from where, its limits, and the emails new workspaces get. */
+export function SignupSettings({ notify }: { notify: Notify }) {
+  return (
+    <>
+      <SelfServeCard notify={notify} />
+      <SignupAccess />
+      <SignupRulesCard notify={notify} />
+      <SetupEmails />
+      <FounderEmail />
+    </>
+  )
+}
+
+/** Tools: which calendar tools members may connect, and the link to the app on Zapier. */
+export function ToolSettings() {
+  return (
+    <>
+      <CalendarToolsCard />
+      <Zapier />
     </>
   )
 }

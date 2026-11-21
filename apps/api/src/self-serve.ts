@@ -148,7 +148,7 @@ export async function signupRules(tx: Pick<Tx, 'select'>): Promise<SignupRules> 
 
 // --- Whether sign-up is open -----------------------------------------------------------------------
 
-/** The Turnstile keys in effect (Server admin › Settings › Sign-up), or null while one is missing. */
+/** The Turnstile keys in effect (Server admin › Sign-up), or null while one is missing. */
 export async function turnstileKeys(tx: Tx): Promise<{ siteKey: string; secretKey: string } | null> {
   const config = await resolveProvider(tx, 'turnstile')
   const siteKey = config.site_key?.value

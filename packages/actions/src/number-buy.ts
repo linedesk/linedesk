@@ -1,6 +1,6 @@
 // The countries a number can be bought in, and which kind of number (decision of 2026-11-19). One list for the API,
 // the app, MCP and the agent's texts: the US, Canada and Puerto Rico (local numbers by area code) always; Germany once
-// an instance admin turned it on (Server admin › Settings › Phone numbers) with the carrier's approved requirement
+// an instance admin turned it on (Server admin › Phone numbers) with the carrier's approved requirement
 // group: a number held in the install's own name (Linedesk Cloud: Heidelberg 06221), so the business hands in no
 // documents. The API answers an install's list with `numberBuyOffers` (apps/api/src/number-buy.ts); the app reads it
 // from the phone setup status (`buy`).
@@ -96,7 +96,7 @@ export const offerHasAreaCode = (offer: BuyOffer | undefined): boolean => !offer
  */
 export const HELD_NUMBERS_ALERT_AT = 8
 
-/** `data` of germanNumbers.get and germanNumbers.set (Server admin › Settings › Phone numbers). */
+/** `data` of germanNumbers.get and germanNumbers.set (Server admin › Phone numbers). */
 export type GermanNumbersData = {
   /** German workspaces on the install's carrier account buy a number held in the install's name. */
   on: boolean
@@ -118,7 +118,7 @@ export type GermanNumbersData = {
 }
 
 /**
- * The requirement group's state at the carrier, for Server admin › Settings › Phone numbers. `none`: no group set;
+ * The requirement group's state at the carrier, for Server admin › Phone numbers. `none`: no group set;
  * `no_carrier`: the server has no carrier that orders with requirement groups; `not_found`: the carrier has no such
  * group; `unreachable`: the carrier did not answer; `mismatch`: the group is not for local German numbers to order
  * (see `mismatch`); else the carrier's status. Never blocks buying: a group in review still orders.

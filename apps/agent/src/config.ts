@@ -407,7 +407,7 @@ export function withAssistantModel(config: CallConfig, llmModel: string | null |
 }
 
 /**
- * The config with the speech recognition model of the call's level (Server admin › Settings › Calls › Call quality; call.start
+ * The config with the speech recognition model of the call's level (Server admin › Calls › Call quality; call.start
  * `sttModel`), when the install's speech recognition provider streams it (STT_MODELS); else the provider's default.
  */
 export function withSttModel(config: CallConfig, sttModel: string | null | undefined): CallConfig {

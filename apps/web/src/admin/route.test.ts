@@ -5,7 +5,6 @@ import {
   adminSections,
   billingTab,
   isListPlace,
-  settingsTab,
   movedPlace,
   nextSection,
   parseAdminHash,
@@ -42,11 +41,11 @@ test('Providers: a group scrolls, a provider opens its dialog, old category and 
 
 test('old addresses land where their things moved (LIN-693)', () => {
   const providers = (id: string | null) => ({ section: 'providers' as const, id })
-  // Stripe and the bot check are connected under Providers again; Billing › Sign-up is Settings › Sign-up.
+  // Stripe and the bot check are connected under Providers again; Billing › Sign-up is the Sign-up section.
   expect(movedPlace(providers('billing'))).toBeNull()
   expect(movedPlace(providers('stripe'))).toBeNull()
   expect(movedPlace(providers('bot_check'))).toBeNull()
-  expect(movedPlace({ section: 'billing', id: 'signup' })).toEqual({ section: 'settings', id: 'signup' })
+  expect(movedPlace({ section: 'billing', id: 'signup' })).toEqual({ section: 'signup', id: null })
   expect(movedPlace({ section: 'billing', id: 'stripe' })).toBeNull()
   // Call audio is a status: under Server.
   expect(movedPlace(providers('call-audio'))).toEqual({ section: 'server', id: null })
@@ -57,19 +56,21 @@ test('old addresses land where their things moved (LIN-693)', () => {
   expect(billingTab('signup')).toBeNull()
 })
 
-test('Settings: one section, a tab per address, the first for none; Esc leaves from every tab', () => {
-  expect(settingsTab(null)).toBe('calls')
-  expect(settingsTab('signup')).toBe('signup')
-  expect(settingsTab('nothing')).toBe('calls')
-  expect(isListPlace({ section: 'settings', id: 'numbers' })).toBe(true)
-  expect(placeUp({ section: 'settings', id: 'numbers' })).toBeNull()
+test("Settings' old tab addresses open the sections they became", () => {
+  expect(parseAdminHash('#admin/settings')).toEqual({ section: 'calls', id: null })
+  expect(parseAdminHash('#admin/settings/numbers')).toEqual({ section: 'numbers', id: null })
+  expect(parseAdminHash('#admin/settings/signup')).toEqual({ section: 'signup', id: null })
+  expect(parseAdminHash('#admin/settings/integrations')).toEqual({ section: 'tools', id: null })
+  expect(parseAdminHash('#admin/settings/constructor')).toEqual({ section: 'calls', id: null })
+  expect(isListPlace({ section: 'signup', id: null })).toBe(true)
 })
 
 test('Tab and Shift-Tab go round the sections', () => {
   expect(nextSection('overview', false)).toBe('usage')
   expect(nextSection('overview', true)).toBe('audit')
-  expect(nextSection('partners', false)).toBe('settings')
-  expect(nextSection('billing', false)).toBe('providers')
+  expect(nextSection('partners', false)).toBe('signup')
+  expect(nextSection('billing', false)).toBe('prompt')
+  expect(nextSection('tools', false)).toBe('branding')
   expect(nextSection('audit', false)).toBe('overview')
 })
 
@@ -92,10 +93,10 @@ test('section names and descriptions are message keys, so every language shows i
   expect(enMessages[adminSections.find(s => s.id === 'audit')!.label]).toBe('Audit log')
   // The nav's groups: each opens with its first section, in order.
   expect(adminSections.filter(s => 'group' in s).map(s => [s.id, enMessages[adminGroups[s.group]]])).toEqual([
-    ['overview', 'Watch'],
-    ['workspaces', 'People'],
-    ['settings', 'Configuration'],
-    ['providers', 'Connections'],
+    ['overview', 'Activity'],
+    ['workspaces', 'Customers'],
+    ['prompt', 'Assistant'],
+    ['branding', 'System'],
   ])
 })
 
@@ -104,7 +105,7 @@ test('digits 1 to 9, then 0, open the first ten sections in order; the ones afte
   expect(keys).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'])
   for (const [i] of keys.entries()) expect(sectionIndexOfKey(sectionKey(i)!)).toBe(i)
   expect(adminSections[9]!.id).toBe('prompt')
-  expect(adminSections[10]!.id).toBe('billing')
+  expect(adminSections[10]!.id).toBe('calls')
   expect(sectionKey(10)).toBeUndefined()
   expect(parseAdminHash('#admin/billing/bill_1')).toEqual({ section: 'billing', id: 'bill_1' })
 })

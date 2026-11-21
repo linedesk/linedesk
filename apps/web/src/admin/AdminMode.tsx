@@ -36,14 +36,13 @@ import {
   placeUp,
   sectionIndexOfKey,
   sectionKey,
-  settingsTab,
   adminGroups,
   tabSwitchesSection,
   useAdminPlace,
 } from './route.ts'
 import { Server } from './Server.tsx'
-import { Settings } from './Settings.tsx'
-import { ImpersonationEmails } from './SettingsCards.tsx'
+import { CallSettings, SignupSettings, ToolSettings } from './Settings.tsx'
+import { GermanNumbers, ImpersonationEmails } from './SettingsCards.tsx'
 import { SystemPrompt } from './SystemPrompt.tsx'
 import { BrandingSettings } from './Branding.tsx'
 import { Usage } from './Usage.tsx'
@@ -215,8 +214,10 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       return <Billing id={place.id} onOpen={open} notify={notify} keysRef={listKeys} data={data} />
     // Pages that load their own data never wait for the lists or the providers.
     if (place.section === 'branding') return <BrandingSettings />
-    if (place.section === 'settings')
-      return <Settings tab={settingsTab(place.id)} data={data} status={status} reload={reload} notify={notify} />
+    if (place.section === 'calls') return <CallSettings data={data} status={status} reload={reload} notify={notify} />
+    if (place.section === 'numbers') return <GermanNumbers />
+    if (place.section === 'signup') return <SignupSettings notify={notify} />
+    if (place.section === 'tools') return <ToolSettings />
     if (place.section === 'server') return <Server status={status} />
     if (place.section === 'prompt') return <SystemPrompt />
     if (place.section === 'partners') return <Partners notify={notify} waiting={place.id === 'waiting'} />

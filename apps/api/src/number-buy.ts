@@ -1,6 +1,6 @@
 // The countries a number can be bought in on this install, and which kind of number (packages/actions/src/number-buy.ts,
 // decision of 2026-11-19). The US, Canada and Puerto Rico always (local numbers by area code); Germany always on the
-// install's carrier account, ready once an instance admin turned it on (Server admin › Settings › Phone numbers, key
+// install's carrier account, ready once an instance admin turned it on (Server admin › Phone numbers, key
 // `number_buy.de`) with the carrier's requirement group: a number held in the install's own name, so the business hands
 // in no documents. Until then German workspaces read that numbers are being set up (and the operator gets an ALERT);
 // sign-up does not depend on it (signup-access.ts). Linedesk Cloud offers
@@ -295,9 +295,9 @@ export async function numberBuyOffers(
 export async function germanNumbersNotReadyWhy(tx: Reader, provider: string): Promise<string> {
   const s = await setting(tx)
   // i18n-ignore: part of an operator log line (ALERT), never shown in the app
-  if (!s.on) return 'German numbers are off (Server admin › Settings › Phone numbers)'
+  if (!s.on) return 'German numbers are off (Server admin › Phone numbers)'
   // i18n-ignore: part of an operator log line (ALERT), never shown in the app
-  if (!s.requirementGroupId) return 'the requirement group is not set (Server admin › Settings › Phone numbers)'
+  if (!s.requirementGroupId) return 'the requirement group is not set (Server admin › Phone numbers)'
   // i18n-ignore: part of an operator log line (ALERT), never shown in the app
   return `the carrier ${provider} cannot order with a requirement group`
 }
@@ -323,13 +323,13 @@ export async function warnAtHeldNumbersLimit(tx: Reader, e164: string) {
 export const germanNumbersHandlers: Record<string, Handler> = {
   'germanNumbers.get': async ({ tx }) => ({ rows: {}, data: await germanNumbersData(tx) }),
 
-  /** Server admin › Settings › Phone numbers: the group's state at the carrier. Read-only there; keeps the area code. */
+  /** Server admin › Phone numbers: the group's state at the carrier. Read-only there; keeps the area code. */
   'germanNumbers.group': async ({ tx, telephony, now }, input: { refresh?: boolean }) => {
     const provider = telephony ?? (await telephonyProvider(tx).catch(() => null))
     return { rows: {}, data: await germanGroup(tx, provider, { refresh: input.refresh, now }) }
   },
 
-  /** Server admin › Settings › Phone numbers. Audited (audit.ts). */
+  /** Server admin › Phone numbers. Audited (audit.ts). */
   'germanNumbers.set': async ({ tx, actor, now }, input: Partial<Setting>) => {
     const current = await setting(tx)
     const next: Setting = {

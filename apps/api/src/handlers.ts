@@ -673,7 +673,7 @@ async function openCall(
       usageLevel: forCall?.level ?? null,
       // White-label own keys (S7): the agent reads the partner's keys for this call (GET /v1/agent/call-provider-config).
       keys: call!.partner_keys && !blocked ? ('partner' as const) : null,
-      // The speech recognition model of the level that answers (Server admin › Settings › Calls › Call quality).
+      // The speech recognition model of the level that answers (Server admin › Calls › Call quality).
       sttModel: forCall?.sttModel ?? null,
       // The instance admin's wording for parts of the system prompt (Server admin › System prompt; LIN-346).
       promptOverrides: blocked ? {} : await promptOverridesForCall(tx),

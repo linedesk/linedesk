@@ -252,7 +252,7 @@ export const VOICE_PIPELINE_DESCRIPTIONS: Record<VoicePipeline, string> = {
 export type PipelinesSetUp = Record<VoicePipeline, boolean>
 
 /**
- * Call quality (decision of 2026-11-17, Server admin › Settings › Calls › Call quality): which levels assistants can pick
+ * Call quality (decision of 2026-11-17, Server admin › Calls › Call quality): which levels assistants can pick
  * (Standard always; Ultra needs a realtime model), the level new assistants start on, and the models per level an
  * assistant without its own pick uses.
  */
@@ -294,7 +294,7 @@ export const callQualitySet = defineAction({
   }),
   permission: 'instance:admin',
 })
-/** One level as Server admin › Settings › Calls › Call quality shows it: what belongs to it and what its default stands for. */
+/** One level as Server admin › Calls › Call quality shows it: what belongs to it and what its default stands for. */
 export type CallQualityAdminLevel = {
   level: CallQuality
   /** The server admin has it on and it can answer (Ultra: a realtime model is connected). */
@@ -321,7 +321,7 @@ export type CallQualityAdminData = {
 
 /**
  * After-call transcription (apps/api/src/after-call-transcript.ts): once a call's recording is saved, it is uploaded
- * to the transcription provider an instance admin selected (Server admin › Settings › Calls › After-call transcription) and
+ * to the transcription provider an instance admin selected (Server admin › Calls › After-call transcription) and
  * the caller's lines are replaced with what it heard. Off until an admin selects one.
  */
 export const transcriptProviders = [

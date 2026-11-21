@@ -25,7 +25,7 @@ export const devNoFreeAreaCodes = (setting = process.env.LINEDESK_DEV_NO_FREE_AR
     .filter(Boolean)
 
 /**
- * What `dev` says a requirement group is, so every state of Server admin › Settings › Phone numbers can be tried
+ * What `dev` says a requirement group is, so every state of Server admin › Phone numbers can be tried
  * without a carrier: a word in the id picks it. "pending": in review; "unapproved", "declined", "expired": that status;
  * "missing": no such group; "fail": the carrier does not answer; "us": a group for US numbers; "noarea": its town has
  * no local numbers in stock; anything else: approved. The address is in Heidelberg's area code 06221.

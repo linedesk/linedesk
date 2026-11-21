@@ -418,7 +418,7 @@ export async function dropKeySubscriptions(tx: Tx, apiKeyId: string) {
   await tx.delete(integration_subscriptions).where(eq(integration_subscriptions.api_key_id, apiKeyId))
 }
 
-/** The link to the Linedesk app on Zapier this install shows (Server admin › Settings › Integrations); null when it has none. */
+/** The link to the Linedesk app on Zapier this install shows (Server admin › Tools); null when it has none. */
 export async function zapierAppUrl(tx: Tx): Promise<string | null> {
   const [row] = await tx.select().from(instance_settings).where(eq(instance_settings.key, ZAPIER_APP_SETTING))
   return row?.value || null

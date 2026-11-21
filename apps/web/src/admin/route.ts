@@ -13,19 +13,23 @@ import {
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useEffect, useState } from 'react'
 
-/** The nav's groups, in order: what to watch, who uses the server, what it does, and what it is connected to. */
+/**
+ * The nav's groups, in order, each named for what its pages are about: what is happening, who uses the server, what
+ * callers get from the assistant, and the install itself.
+ */
 export const adminGroups = {
-  watch: msg('admin.groups.watch'),
-  people: msg('admin.groups.people'),
-  configuration: msg('admin.groups.configuration'),
-  connections: msg('admin.groups.connections'),
+  activity: msg('admin.groups.activity'),
+  customers: msg('admin.groups.customers'),
+  assistant: msg('admin.groups.assistant'),
+  system: msg('admin.groups.system'),
 } as const
 export type AdminGroup = keyof typeof adminGroups
 
-// One place for each thing (LIN-693): Providers only connects services, every setting is under Settings, the server's
-// own state under Server. The number keys follow this order (1 to 9, then 0); the last sections have none.
+// One place for each thing (LIN-693), each a section of its own (no tabs behind a "Settings" item): Providers only
+// connects services, a setting is on the page of what it is about, the server's own state under Server status. The
+// number keys follow this order (1 to 9, then 0); the last sections have none.
 export const adminSections = [
-  { id: 'overview', group: 'watch', label: msg('admin.sections.overview.label'), description: null },
+  { id: 'overview', group: 'activity', label: msg('admin.sections.overview.label'), description: null },
   { id: 'usage', label: msg('admin.sections.usage.label'), description: msg('admin.sections.usage.description') },
   {
     id: 'onboarding',
@@ -39,7 +43,7 @@ export const adminSections = [
   },
   {
     id: 'workspaces',
-    group: 'people',
+    group: 'customers',
     label: msg('admin.sections.workspaces.label'),
     description: msg('admin.sections.workspaces.description'),
   },
@@ -49,22 +53,25 @@ export const adminSections = [
     label: msg('admin.sections.partners.label'),
     description: msg('admin.sections.partners.description'),
   },
+  { id: 'signup', label: msg('admin.sections.signup.label'), description: msg('admin.sections.signup.description') },
+  { id: 'billing', label: msg('admin.sections.billing.label'), description: msg('admin.sections.billing.description') },
   {
-    id: 'settings',
-    group: 'configuration',
-    label: msg('admin.sections.settings.label'),
-    description: msg('admin.sections.settings.description'),
+    id: 'prompt',
+    group: 'assistant',
+    label: msg('admin.sections.prompt.label'),
+    description: msg('admin.sections.prompt.description'),
   },
+  { id: 'calls', label: msg('admin.sections.calls.label'), description: msg('admin.sections.calls.description') },
+  { id: 'numbers', label: msg('admin.sections.numbers.label'), description: msg('admin.sections.numbers.description') },
+  { id: 'tools', label: msg('admin.sections.tools.label'), description: msg('admin.sections.tools.description') },
   {
     id: 'branding',
+    group: 'system',
     label: msg('admin.sections.branding.label'),
     description: msg('admin.sections.branding.description'),
   },
-  { id: 'prompt', label: msg('admin.sections.prompt.label'), description: msg('admin.sections.prompt.description') },
-  { id: 'billing', label: msg('admin.sections.billing.label'), description: msg('admin.sections.billing.description') },
   {
     id: 'providers',
-    group: 'connections',
     label: msg('admin.sections.providers.label'),
     description: msg('admin.sections.providers.description'),
   },
@@ -107,6 +114,9 @@ export function parseAdminHash(hash: string): AdminPlace {
   const [, section = '', id = ''] = hash.replace(/^#/, '').split('?')[0]!.split('/')
   // System was split up (LIN-693): its address opens Server, which says where its settings went.
   if (section === 'system') return { section: 'server', id: null }
+  // Settings' tabs are sections of their own now: its old addresses open them.
+  if (section === 'settings')
+    return { section: Object.hasOwn(SETTINGS_TABS, id) ? SETTINGS_TABS[id]! : 'calls', id: null }
   if (!isSection(section)) return { section: 'overview', id: null }
   return { section, id: id ? decodeURIComponent(id) : null }
 }
@@ -152,20 +162,17 @@ export function billingTab(id: string | null): BillingTab | null {
   return id !== 'overview' && (BILLING_TABS as readonly string[]).includes(id) ? (id as BillingTab) : null
 }
 
-/**
- * Server admin › Settings' tabs (`#admin/settings/<tab>`; `#admin/settings` is the first): what the server does for
- * calls, which phone numbers it offers, who may sign up, and which tools workspaces may connect.
- */
-export const SETTINGS_TABS = ['calls', 'numbers', 'signup', 'integrations'] as const
-export type SettingsTab = (typeof SETTINGS_TABS)[number]
-
-/** The tab `#admin/settings/<id>` shows: the first for none or an unknown one. */
-export const settingsTab = (id: string | null): SettingsTab =>
-  (SETTINGS_TABS as readonly string[]).includes(id ?? '') ? (id as SettingsTab) : 'calls'
+/** Where Settings' old tabs (`#admin/settings/<tab>`, LIN-693) are now: each is a section of its own. */
+const SETTINGS_TABS: Record<string, AdminSection> = {
+  calls: 'calls',
+  numbers: 'numbers',
+  signup: 'signup',
+  integrations: 'tools',
+}
 
 /** The place's own list or section page, when it shows one: a list that the list keys (J, K, Enter, /) move in. */
 export const isListPlace = (place: AdminPlace) =>
-  !place.id || place.section === 'settings' || (place.section === 'billing' && billingTab(place.id) !== null)
+  !place.id || (place.section === 'billing' && billingTab(place.id) !== null)
 
 /**
  * One step up from a place (Esc and the crumb): a bill to Billing's list of bills, a Billing section to its overview,
@@ -174,21 +181,19 @@ export const isListPlace = (place: AdminPlace) =>
 export function placeUp(place: AdminPlace): AdminPlace | null {
   if (!place.id) return null
   if (place.section === 'billing' && billingTab(place.id) === null) return { section: 'billing', id: 'bills' }
-  // Settings' tabs are one page: Esc leaves admin mode from any of them, as from a section's own page.
-  if (place.section === 'settings') return null
   return { section: place.section, id: null }
 }
 
 /**
  * Where an old address goes now; null for every other place. Links from before (emails, the setup agent's links, the
  * overview's card) keep working:
- * - Billing › Sign-up is Settings › Sign-up (LIN-693); its bot check is connected under Providers again.
+ * - Billing › Sign-up is its own section, Sign-up (LIN-693); its bot check is connected under Providers again.
  * - Providers' call audio (LiveKit and the SIP trunk) is a status, shown under Server (LIN-693).
  * Stripe and the bot check are connected under Providers again (LIN-693, before under Billing since LIN-556); the
  * billing switch stays under Billing › Stripe.
  */
 export function movedPlace(place: AdminPlace): AdminPlace | null {
-  if (place.section === 'billing' && place.id === 'signup') return { section: 'settings', id: 'signup' }
+  if (place.section === 'billing' && place.id === 'signup') return { section: 'signup', id: null }
   if (place.section !== 'providers' || !place.id) return null
   const target = providersTarget(place.id)
   if (target && 'group' in target && target.group === 'call-audio') return { section: 'server', id: null }

@@ -111,7 +111,7 @@ const selfServe = (over: Partial<SelfServeData>): SelfServeData => ({
 })
 const renderList = (tab: string | null) =>
   renderToStaticMarkup(<Billing id={tab} onOpen={() => {}} notify={() => {}} keysRef={{ current: null }} data={null} />)
-/** Self-serve sign-up and its limits: on Server admin › Settings › Sign-up since LIN-693. */
+/** Self-serve sign-up and its limits: on Server admin › Sign-up since LIN-693. */
 const renderSignup = () =>
   renderToStaticMarkup(
     <>
@@ -194,7 +194,7 @@ test("Billing's own page is one card of part rows, each with its state and the p
   expect(html).toContain('href="#admin/billing/bills?status=')
   expect(html).toContain('2 need a look')
   expect(html).toContain('href="#admin/billing/events')
-  expect(html).toContain('href="#admin/settings/signup"')
+  expect(html).toContain('href="#admin/signup"')
   // Prices and rules has no state, but a row like the others.
   expect(html).toContain('href="#admin/billing/rules"')
   expect(html).toContain('adm-status-nomark')

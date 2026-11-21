@@ -1,4 +1,4 @@
-// Server admin › Settings › Calls › After-call transcription (apps/api/src/after-call-transcript.ts): once a call's recording
+// Server admin › Calls › After-call transcription (apps/api/src/after-call-transcript.ts): once a call's recording
 // is saved, the selected provider transcribes the recording file again and the caller's lines of the transcript are
 // corrected. Off until an admin selects a provider here. A provider with its own key is selected with "Use"; one whose
 // service already has a key stored for an active provider (OpenAI as language model, say) with "Use <provider> key",

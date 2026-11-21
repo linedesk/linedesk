@@ -285,7 +285,7 @@ function signupRow(t: Translate, s: AdminBillingSummary): PartRow {
     value,
     problem: closedBecause ? t(CLOSED_BECAUSE[closedBecause]) : t('admin.bills.selfServe.openNow'),
     help: null,
-    href: '#admin/settings/signup',
+    href: '#admin/signup',
   }
 }
 
@@ -510,8 +510,7 @@ function BillsList({ onOpen, keysRef }: { onOpen: (id: string) => void; keysRef:
       empty={
         filter === 'all' ? (
           <>
-            {t('admin.bills.empty')}{' '}
-            <T k="admin.bills.emptyHint" values={{ link: appLink('#admin/settings/signup') }} />
+            {t('admin.bills.empty')} <T k="admin.bills.emptyHint" values={{ link: appLink('#admin/signup') }} />
           </>
         ) : (
           <>

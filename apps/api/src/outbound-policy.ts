@@ -325,7 +325,7 @@ const INSTALL_PROFILES = [TRANSFER_OUTBOUND_NAME, CHECK_TRUNK_NAME]
  * number, no install list) only the limits are set. Twilio: nothing is changed (account-wide Geo permissions). Runs
  * after the change committed (`onCommit`), with its own short read, so no carrier request holds a transaction. Logs and
  * never throws: a carrier that is down never undoes the change that caused this; the ALERT line says the carrier's
- * ceiling may now be wider than Linedesk's list (Linedesk still checks every dial), and Server admin › Settings › Calls warns
+ * ceiling may now be wider than Linedesk's list (Linedesk still checks every dial), and Server admin › Calls warns
  * until the limits are confirmed.
  */
 export async function syncInstallDestinations(deps: Deps = {}): Promise<void> {
@@ -420,7 +420,7 @@ type SyncDeps = Deps & { retryMs?: number[]; sleep?: (ms: number) => Promise<voi
  * At the API's start, in the background: the allowed countries and the spend limits on every Linedesk voice profile
  * that exists, the install's (syncInstallDestinations) and the one in each workspace's own Telnyx account, so an
  * update brings profiles made before the limits (or changed by hand) back to them, without a new SIP password
- * anywhere. A profile that fails is recorded (Server admin › Settings › Calls shows "Spend limits not confirmed" until a later
+ * anywhere. A profile that fails is recorded (Server admin › Calls shows "Spend limits not confirmed" until a later
  * sync or set-up confirms it) and the whole sync is tried again after each wait in SPEND_CAPS_RETRY_MS. Warns when a
  * configured limit is so high it barely limits. Logs and never throws; true once every profile is confirmed.
  */
@@ -446,7 +446,7 @@ export async function syncTelnyxProfiles(deps: SyncDeps = {}): Promise<boolean> 
     const wait = waits[attempt]
     if (wait === undefined) {
       console.error(
-        `ALERT outbound: Telnyx spend limits not confirmed after ${attempt + 1} tries; Server admin › Settings › Calls lists the voice profiles`,
+        `ALERT outbound: Telnyx spend limits not confirmed after ${attempt + 1} tries; Server admin › Calls lists the voice profiles`,
       )
       return false
     }

@@ -1,4 +1,4 @@
-// Server admin › Settings › Calls › International transfers: countries by name as chips (no typed codes), the empty state, a list
+// Server admin › Calls › International transfers: countries by name as chips (no typed codes), the empty state, a list
 // set in the server's env without remove or add, and the last 24 hours and limits as short rows.
 import type { OutboundCountriesData } from '@linedesk/actions'
 import { renderToStaticMarkup } from 'react-dom/server'
