@@ -5,6 +5,7 @@
 import { isIP } from 'node:net'
 import { Agent, fetch as undiciFetch } from 'undici'
 import { isLinkLocalAddress, isPrivateAddress } from './ip-address.ts'
+import { decodePage } from './page-text.ts'
 import { LINK_LOCAL, lanLookup, publicLookup } from './webhooks.ts'
 
 type Env = Record<string, string | undefined>
@@ -51,12 +52,12 @@ export function websiteUrl(typed: string, env: Env = process.env): URL {
 
 export type FetchedPage = { url: string; status: number; contentType: string; body: string; truncated: boolean }
 
-/** The body as text, at most `maxBytes`; the rest is not downloaded. */
+/** The body's bytes, at most `maxBytes`; the rest is not downloaded. */
 async function readCapped(
   body: ReadableStream<Uint8Array> | null,
   maxBytes: number,
-): Promise<{ text: string; truncated: boolean }> {
-  if (!body) return { text: '', truncated: false }
+): Promise<{ bytes: Uint8Array; truncated: boolean }> {
+  if (!body) return { bytes: new Uint8Array(), truncated: false }
   const reader = body.getReader()
   const chunks: Uint8Array[] = []
   let size = 0
@@ -72,7 +73,7 @@ async function readCapped(
       break
     }
   }
-  return { text: new TextDecoder().decode(Buffer.concat(chunks).subarray(0, maxBytes)), truncated }
+  return { bytes: Buffer.concat(chunks).subarray(0, maxBytes), truncated }
 }
 
 /**
@@ -107,12 +108,13 @@ export async function fetchPublic(
       url = new URL(location, url)
       continue
     }
-    const { text, truncated } = await readCapped(res.body as ReadableStream<Uint8Array> | null, maxBytes)
+    const { bytes, truncated } = await readCapped(res.body as ReadableStream<Uint8Array> | null, maxBytes)
+    const contentType = res.headers.get('content-type') ?? ''
     return {
       url: url.toString(),
       status: res.status,
-      contentType: res.headers.get('content-type') ?? '',
-      body: text,
+      contentType,
+      body: decodePage(bytes, contentType, truncated),
       truncated,
     }
   }

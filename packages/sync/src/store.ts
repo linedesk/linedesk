@@ -2,7 +2,7 @@
 // response); pending commands live in a durable outbox and are re-applied on top of the
 // confirmed rows on every change, so the UI is instant and survives reloads and offline.
 // With several tabs open, one tab leads: it sends the outbox and runs read sync (see tabs.ts).
-import { actions, applyLocally, type ActionResult, type LocalTables } from '@linedesk/actions'
+import { actions, applyLocally, guardedInput, type ActionResult, type LocalTables } from '@linedesk/actions'
 import { tableNames, type TableName, type Tables } from '@linedesk/db/types'
 import type { ReadSyncAdapter, RefreshOptions, TableSink } from './adapter.ts'
 import { type LocalDb, openLocalDb } from './idb.ts'
@@ -541,7 +541,7 @@ export async function createStore(opts: StoreOptions) {
     const command: Command = {
       id: crypto.randomUUID(),
       name,
-      input: def.input.parse(input),
+      input: guardedInput(def.input).parse(input),
       at: new Date(now).toISOString(),
       seq: lastSeq,
     }

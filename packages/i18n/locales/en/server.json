@@ -359,6 +359,7 @@
   "input.billing.stripeCustomerId": "a Stripe customer id (cus_…)",
   "input.billing.stripeEventId": "a Stripe event id (evt_…)",
   "input.billing.stripeInvoiceId": "a Stripe invoice id (in_…)",
+  "input.brokenText": "it holds \"\ufffd\" (U+FFFD), the sign for a letter that was lost on the way (often ä, ö, ü, ß or é). Send the text again with the right letters",
   "input.calendarPassword": "The password cannot contain control characters.",
   "input.calendarUserName": "The user name cannot contain a colon or control characters.",
   "input.carrier.keyOrToken": "give either an API key (SID and secret) or the auth token",

@@ -300,6 +300,19 @@ describe('Gmail', () => {
     expect(gmailBodyText(payload)).toBe('plain ü')
   })
 
+  test('the body is read in its own charset: ISO-8859-1 mail keeps its umlauts', () => {
+    const latin1 = (s: string) => btoa(s).replaceAll('+', '-').replaceAll('/', '_') // btoa reads each letter as one byte
+    const part = (charset: string) => ({
+      mimeType: 'text/plain',
+      headers: [{ name: 'Content-Type', value: `text/plain; charset="${charset}"` }],
+      body: { data: latin1('Ihr Gespräch über die Größe') },
+    })
+    expect(gmailBodyText(part('iso-8859-1'))).toBe('Ihr Gespräch über die Größe')
+    expect(gmailBodyText(part('windows-1252'))).toBe('Ihr Gespräch über die Größe')
+    const html = { mimeType: 'text/html', body: { data: b64url('<p>日本語 Grüße</p>') } }
+    expect(gmailBodyText(html)).toBe('日本語 Grüße')
+  })
+
   test('OAuth asks for read-only mail with a refresh token and checks the granted scope', () => {
     const oauth = createGmailOAuth({ clientId: 'id', clientSecret: 'secret' })
     const url = new URL(

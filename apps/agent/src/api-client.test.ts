@@ -16,16 +16,37 @@ test('providerSettings reads the agent endpoint with the agent token', async () 
 })
 
 test('providerSettings errors carry the status and the API error text, never the body', async () => {
-  const forbidden = await client(() => Response.json({ ok: false, error: 'missing permission agent' }, { status: 403 })).api.providerSettings().catch((e: Error) => e) as Error
+  const forbidden = (await client(() =>
+    Response.json({ ok: false, error: 'missing permission agent' }, { status: 403 }),
+  )
+    .api.providerSettings()
+    .catch((e: Error) => e)) as Error
   expect(forbidden).toBeInstanceOf(ActionError)
   expect(forbidden.message).toBe('provider-config failed (403): missing permission agent')
 
-  const conflict = await client(() => Response.json({ ok: false, error: 'stored keys cannot be decrypted: check SECRETS_KEY' }, { status: 409 })).api.providerSettings().catch((e: Error) => e) as Error
+  const conflict = (await client(() =>
+    Response.json({ ok: false, error: 'stored keys cannot be decrypted: check SECRETS_KEY' }, { status: 409 }),
+  )
+    .api.providerSettings()
+    .catch((e: Error) => e)) as Error
   expect(conflict.message).toBe('provider-config failed (409): stored keys cannot be decrypted: check SECRETS_KEY')
 
-  const notJson = await client(() => new Response('<html>Bad Gateway</html>', { status: 502, statusText: 'Bad Gateway' })).api.providerSettings().catch((e: Error) => e) as Error
+  const notJson = (await client(
+    () => new Response('<html>Bad Gateway</html>', { status: 502, statusText: 'Bad Gateway' }),
+  )
+    .api.providerSettings()
+    .catch((e: Error) => e)) as Error
   expect(notJson.message).toBe('provider-config failed (502): Bad Gateway')
 
   // A 200 whose body is not JSON comes back as null; the config check rejects it without echoing anything.
   expect(await client(() => new Response('not json')).api.providerSettings()).toBeNull()
+})
+
+test('run drops U+FFFD from speech text and keeps every other letter, so the API never refuses a call write', async () => {
+  const { api, fakeFetch } = client(() => Response.json({ ok: true, rows: [] }))
+  const R = String.fromCharCode(0xfffd)
+  const def = { name: 'call.note' } as never
+  await api.run(def, { text: `Gespr${R}ch über 日本語`, list: [`a${R}`] } as never)
+  const [, init] = fakeFetch.mock.calls[0]!
+  expect(JSON.parse(String(init!.body))).toEqual({ text: 'Gesprch über 日本語', list: ['a'] })
 })

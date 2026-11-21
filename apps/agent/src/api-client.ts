@@ -2,7 +2,13 @@
 // GET /v1/agent/provider-config. The install-wide agent token opens a call (`call.start`,
 // `call.startTest`) and reads the providers; everything for a call then goes with the call token
 // the API returned for it, which is bound to that call and its workspace.
-import { type ActionDef, type ActionRejection, type ActionResult, TOOL_MAX_WAIT_MS } from '@linedesk/actions'
+import {
+  type ActionDef,
+  type ActionRejection,
+  type ActionResult,
+  TOOL_MAX_WAIT_MS,
+  withoutBrokenText,
+} from '@linedesk/actions'
 import type { z } from 'zod'
 
 /** No action takes long; a hung request must not hold up a call or its hang-up. */
@@ -81,7 +87,8 @@ export function createApiClient({ baseUrl, token, fetch: doFetch = fetch }: ApiC
           'idempotency-key': crypto.randomUUID(),
           ...(scope ? { 'x-workspace-id': scope.workspaceId } : {}),
         },
-        body: JSON.stringify(input),
+        // Speech and model text can hold U+FFFD; the API refuses it (broken-text.ts), and a call must not lose a write for it.
+        body: JSON.stringify(withoutBrokenText(input)),
         signal: AbortSignal.timeout(timeoutOf(def.name)),
       })
       const body = (await res.json().catch(() => null)) as ActionResult | ActionRejection | null

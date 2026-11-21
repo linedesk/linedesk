@@ -55,11 +55,25 @@ export function gmailForbidden(body: Json): { kind: MailErrorKind; message?: str
 
 const reasonOf = (body: Json) => body.error?.message as string | undefined
 
-/** Gmail's base64url body data as UTF-8 text. */
-function decode(data: string): string {
-  const base64 = data.replaceAll('-', '+').replaceAll('_', '/')
+/** The charset a MIME part's Content-Type names (`text/plain; charset="iso-8859-1"`), or '' when it names none. */
+export function partCharset(part: Json | undefined): string {
+  const type = header(part, 'content-type')
+  return /charset\s*=\s*"?([^";\s]+)/i.exec(type)?.[1] ?? ''
+}
+
+/**
+ * A part's base64url body data as text. Gmail gives the bytes in the part's own charset (often ISO-8859-1 or
+ * Windows-1252 in German mail), so read them in it: as UTF-8 every "ä" would become "\uFFFD". UTF-8 when it names none
+ * or one Node does not know.
+ */
+function decode(part: Json): string {
+  const base64 = String(part.body.data).replaceAll('-', '+').replaceAll('_', '/')
   const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
-  return new TextDecoder().decode(bytes)
+  try {
+    return new TextDecoder(partCharset(part) || 'utf-8').decode(bytes)
+  } catch {
+    return new TextDecoder().decode(bytes)
+  }
 }
 
 /** The first part of this MIME type, depth first (attachments skipped: they have a filename). */
@@ -75,9 +89,9 @@ function findPart(part: Json | undefined, mimeType: string): Json | undefined {
 
 export function gmailBodyText(payload: Json | undefined): string {
   const plain = findPart(payload, 'text/plain')
-  if (plain) return decode(plain.body.data).trim()
+  if (plain) return decode(plain).trim()
   const html = findPart(payload, 'text/html')
-  return html ? htmlToText(decode(html.body.data)) : ''
+  return html ? htmlToText(decode(html)) : ''
 }
 
 const header = (payload: Json | undefined, name: string): string => {

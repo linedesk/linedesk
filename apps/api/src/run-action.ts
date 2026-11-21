@@ -22,6 +22,7 @@ import {
   rolePermissions,
   setsTransferNumber,
   inputErrorText,
+  guardedInput,
   redactInput,
   UNKNOWN_FIELDS,
   unknownFieldsText,
@@ -371,7 +372,7 @@ export async function runAction(
       return { status: 409, body: rejectionBody(e, [], wordsOf(actor)) }
     }
   }
-  const parsed = def.input.safeParse(rawInput)
+  const parsed = guardedInput(def.input).safeParse(rawInput)
   if (!parsed.success) {
     const unknown = onlyUnknownFields(parsed.error)
     return unknown
