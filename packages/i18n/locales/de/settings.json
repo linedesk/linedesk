@@ -1399,6 +1399,8 @@
   "readOnly.onlyAdmins": "Nur Admins können das ändern.",
   "readOnly.section": "Nur Admins können diese Einstellungen ändern.",
   "readOnly.supportAccess": "Nur Lesezugriff, solange du als anderer Nutzer angemeldet bist.",
+  "readOnly.supportAccessEdits": "Nur lesbar, solange du als andere Person angemeldet bist. Zum Ändern nutze „Bearbeiten erlauben“ in der Leiste unten.",
+  "readOnly.supportAccessKept": "Nur lesbar, solange du als andere Person angemeldet bist, auch mit erlaubtem Bearbeiten.",
   "recordings.days": "{days, plural, one {# Tag} other {# Tage}}",
   "recordings.dontKeep": "Nicht behalten (nach der Zusammenfassung löschen)",
   "recordings.forever": "Für immer behalten",

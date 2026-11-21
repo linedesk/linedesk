@@ -1399,6 +1399,8 @@
   "readOnly.onlyAdmins": "変更できるのは管理者だけです。",
   "readOnly.section": "これらの設定を変更できるのは管理者だけです。",
   "readOnly.supportAccess": "他のユーザーとしてサインインしている間は閲覧のみです。",
+  "readOnly.supportAccessEdits": "別のユーザーとしてサインインしている間は読み取り専用です。変更するには、下のバーの「編集を許可」を使ってください。",
+  "readOnly.supportAccessKept": "別のユーザーとしてサインインしている間は、編集を許可していても読み取り専用です。",
   "recordings.days": "{days, plural, other {#日}}",
   "recordings.dontKeep": "保存しない（要約後に削除）",
   "recordings.forever": "無期限に保存",

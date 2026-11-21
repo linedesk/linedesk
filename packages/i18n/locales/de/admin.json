@@ -237,6 +237,8 @@
   "audit.impersonate": "Als Nutzer angemeldet",
   "audit.impersonateAs": "Als {who} angemeldet",
   "audit.impersonatedBy": "{known, select, yes {durch {email}} other {durch einen Admin}}",
+  "audit.impersonationEditsOff": "Bearbeiten ausgeschaltet, während als Benutzer angemeldet",
+  "audit.impersonationEditsOn": "Bearbeiten eingeschaltet, während als Benutzer angemeldet",
   "audit.impersonationEmailsOff": "E-Mails an Nutzer ausgeschaltet, wenn sich ein Admin als sie anmeldet",
   "audit.impersonationEmailsOn": "E-Mails an Nutzer eingeschaltet, wenn sich ein Admin als sie anmeldet",
   "audit.impersonationStop": "Zurück zum Admin",

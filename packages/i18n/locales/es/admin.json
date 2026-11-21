@@ -237,6 +237,8 @@
   "audit.impersonate": "Inició sesión como un usuario",
   "audit.impersonateAs": "Inició sesión como {who}",
   "audit.impersonatedBy": "{known, select, yes {por {email}} other {por un administrador}}",
+  "audit.impersonationEditsOff": "Edición desactivada con la sesión iniciada como usuario",
+  "audit.impersonationEditsOn": "Edición activada con la sesión iniciada como usuario",
   "audit.impersonationEmailsOff": "Desactivó los correos a los usuarios cuando un administrador inicia sesión como ellos",
   "audit.impersonationEmailsOn": "Activó los correos a los usuarios cuando un administrador inicia sesión como ellos",
   "audit.impersonationStop": "Volvió a la administración",

@@ -237,6 +237,8 @@
   "audit.impersonate": "ユーザーとしてサインインしました",
   "audit.impersonateAs": "{who}としてサインインしました",
   "audit.impersonatedBy": "{known, select, yes {実行者：{email}} other {実行者：管理者}}",
+  "audit.impersonationEditsOff": "ユーザーとしてサインイン中に編集をオフにしました",
+  "audit.impersonationEditsOn": "ユーザーとしてサインイン中に編集をオンにしました",
   "audit.impersonationEmailsOff": "管理者がユーザーとしてサインインしたときのユーザーへのメールをオフにしました",
   "audit.impersonationEmailsOn": "管理者がユーザーとしてサインインしたときのユーザーへのメールをオンにしました",
   "audit.impersonationStop": "管理者に戻りました",

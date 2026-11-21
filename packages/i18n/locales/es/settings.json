@@ -1399,6 +1399,8 @@
   "readOnly.onlyAdmins": "Solo los administradores pueden cambiar esto.",
   "readOnly.section": "Solo los administradores pueden cambiar esta configuración.",
   "readOnly.supportAccess": "Solo lectura mientras usas la cuenta de otra persona.",
+  "readOnly.supportAccessEdits": "Solo lectura mientras tienes la sesión iniciada como otro usuario. Para cambiarlo, usa «Permitir edición» en la barra de abajo.",
+  "readOnly.supportAccessKept": "Solo lectura mientras tienes la sesión iniciada como otro usuario, también con la edición permitida.",
   "recordings.days": "{days, plural, one {# día} many {# días} other {# días}}",
   "recordings.dontKeep": "No conservar (eliminar tras el resumen)",
   "recordings.forever": "Conservar para siempre",

@@ -237,6 +237,8 @@
   "audit.impersonate": "Connecté en tant qu'utilisateur",
   "audit.impersonateAs": "Connecté en tant que {who}",
   "audit.impersonatedBy": "{known, select, yes {par {email}} other {par un administrateur}}",
+  "audit.impersonationEditsOff": "Modifications désactivées en étant connecté en tant qu'utilisateur",
+  "audit.impersonationEditsOn": "Modifications activées en étant connecté en tant qu'utilisateur",
   "audit.impersonationEmailsOff": "E-mails aux utilisateurs désactivés quand un administrateur se connecte en tant qu'eux",
   "audit.impersonationEmailsOn": "E-mails aux utilisateurs activés quand un administrateur se connecte en tant qu'eux",
   "audit.impersonationStop": "Retour à l'administration",
