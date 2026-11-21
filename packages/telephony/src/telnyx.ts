@@ -117,6 +117,15 @@ export function telnyxRequest(apiKey: string, doFetch: typeof fetch = fetch, tim
 const sameTelnyxId = (value: unknown, id: string) =>
   String(value) === id || (typeof value === 'number' && value === Number(id))
 
+/** `LIVEKIT_SIP_ENDPOINT` as host and port: "sip.example.com:5070" gives port 5070; without a port, `port` is undefined. */
+export function splitSipEndpoint(endpoint: string): { host: string; port?: number } {
+  const m = /^(.+):(\d{1,5})$/.exec(endpoint.trim())
+  if (!m) return { host: endpoint.trim() }
+  const port = Number(m[2])
+  if (port < 1 || port > 65535) throw fail(`invalid port in LIVEKIT_SIP_ENDPOINT: ${endpoint}`)
+  return { host: m[1]!, port }
+}
+
 export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider {
   const { apiKey, publicKey, fetch: doFetch = fetch, now = Date.now } = options
   const wait = options.wait ?? ((ms: number) => new Promise(resolve => setTimeout(resolve, ms)))
@@ -174,16 +183,18 @@ export function createTelnyxProvider(options: TelnyxOptions): TelephonyProvider 
   }
 
   /**
-   * Makes the connection forward to exactly this endpoint and port (5061 for TLS, else 5060): adds it if missing, removes
-   * any other. The new record goes in before the old one is removed, so the connection never has none.
+   * Makes the connection forward to exactly this endpoint and port: the endpoint's own port (`host:port`), else 5061 for
+   * TLS and 5060 otherwise. Adds it if missing, removes any other. The new record goes in before the old one is removed,
+   * so the connection never has none.
    */
   async function ensureFqdn(connectionId: string, sipEndpoint: string, { secure = false }: SipRouteOptions = {}) {
-    const port = secure ? 5061 : 5060
+    const { host, port: own } = splitSipEndpoint(sipEndpoint)
+    const port = own ?? (secure ? 5061 : 5060)
     const { data } = await request('GET', `/fqdns?filter[connection_id]=${connectionId}`)
     const fqdns = ((data ?? []) as Json[]).filter(f => sameTelnyxId(f.connection_id, connectionId))
-    const wanted = (f: Json) => f.fqdn === sipEndpoint && Number(f.port ?? 5060) === port
+    const wanted = (f: Json) => f.fqdn === host && Number(f.port ?? 5060) === port
     if (!fqdns.some(wanted)) {
-      await request('POST', '/fqdns', { connection_id: connectionId, fqdn: sipEndpoint, port, dns_record_type: 'a' })
+      await request('POST', '/fqdns', { connection_id: connectionId, fqdn: host, port, dns_record_type: 'a' })
     }
     for (const stale of fqdns.filter(f => !wanted(f))) await request('DELETE', `/fqdns/${stale.id}`)
   }

@@ -453,6 +453,17 @@ describe('telnyx adapter', () => {
     expect(steps(moved.calls)).toEqual(['GET /fqdn_connections', 'GET /fqdns', 'POST /fqdns', `DELETE /fqdns/fqdn_${SIP}_5060`, 'PATCH /phone_numbers/num_1', 'GET /phone_numbers/num_1/voice'])
   })
 
+  test('routes to the port given in the endpoint (host:port), and back to 5060 without one', async () => {
+    const account: Account = { owned: true, connection: true }
+    await mockTelnyx(telnyxAccount(account)).provider.routeToSip(routed, 'sip.dev.test:5170')
+    expect(account.fqdns).toEqual([{ id: 'fqdn_sip.dev.test_5170', connection_id: 'conn_1', fqdn: 'sip.dev.test', port: 5170 }])
+    const again = mockTelnyx(telnyxAccount(account))
+    await again.provider.routeToSip(routed, 'sip.dev.test:5170')
+    expect(steps(again.calls)).not.toContain('POST /fqdns')
+    await mockTelnyx(telnyxAccount(account)).provider.routeToSip(routed, 'sip.dev.test')
+    expect(account.fqdns).toEqual([{ id: 'fqdn_sip.dev.test_5060', connection_id: 'conn_1', fqdn: 'sip.dev.test', port: 5060 }])
+  })
+
   test("spam screening in flag mode: turned on when off, an owner's own choice kept, a failure never fails routing", async () => {
     const off: Account = { owned: true, connection: true }
     await mockTelnyx(telnyxAccount(off)).provider.routeToSip(routed, SIP)
