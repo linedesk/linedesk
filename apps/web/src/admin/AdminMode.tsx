@@ -214,13 +214,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
     if (place.section === 'billing')
       return <Billing id={place.id} onOpen={open} notify={notify} keysRef={listKeys} data={data} />
     // Pages that load their own data never wait for the lists or the providers.
-    if (place.section === 'branding')
-      return (
-        <>
-          <BrandingSettings />
-          <ImpersonationEmails />
-        </>
-      )
+    if (place.section === 'branding') return <BrandingSettings />
     if (place.section === 'settings')
       return <Settings tab={settingsTab(place.id)} data={data} status={status} reload={reload} notify={notify} />
     if (place.section === 'server') return <Server status={status} />
@@ -291,7 +285,13 @@ export function AdminMode({ currentUserId, onExit }: Props) {
           />
         ) : null
       case 'audit':
-        return <AuditLog workspaces={ready.workspaces} />
+        // Support access emails sit next to the log of every sign-in as a user, not under Branding.
+        return (
+          <>
+            <ImpersonationEmails />
+            <AuditLog workspaces={ready.workspaces} />
+          </>
+        )
     }
   }
 
