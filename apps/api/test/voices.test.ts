@@ -5,7 +5,14 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { actions, CLONE_CONSENT_TEXT, curatedVoices, rolePermissions, voiceClone } from '@linedesk/actions'
+import {
+  actions,
+  CLONE_CONSENT_TEXT,
+  curatedVoices,
+  ELEVENLABS_SETTINGS_VERSION,
+  rolePermissions,
+  voiceClone,
+} from '@linedesk/actions'
 import { assistants, commands, instance_settings, voice_clones } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { afterEach, beforeAll, expect, test, vi } from 'vitest'
@@ -92,12 +99,14 @@ test('in another main language a sample is spoken in it: also a curated voice, s
 
 test('the preview cache key has the language; English keeps the key it had before languages', () => {
   const { provider } = fakeProvider()
-  const before = createHash('sha256')
-    .update(JSON.stringify([provider.name, provider.model, JESSICA, PREVIEW_TEXT]))
-    .digest('hex')
-    .slice(0, 32)
-  expect(previewKey(provider, JESSICA)).toBe(before)
-  expect(previewKey(provider, JESSICA, 'en')).toBe(before)
+  const keyOf = (parts: unknown[]) => createHash('sha256').update(JSON.stringify(parts)).digest('hex').slice(0, 32)
+  const english = [provider.name, provider.model, JESSICA, PREVIEW_TEXT]
+  // ElevenLabs samples also carry the voice settings' version: ones made before LIN-712 may be slower.
+  expect(previewKey(provider, JESSICA)).toBe(keyOf([...english, ELEVENLABS_SETTINGS_VERSION]))
+  expect(previewKey(provider, JESSICA, 'en')).toBe(keyOf([...english, ELEVENLABS_SETTINGS_VERSION]))
+  // Other providers keep the key they had before.
+  const other: VoiceProvider = { ...provider, name: 'cartesia' }
+  expect(previewKey(other, JESSICA)).toBe(keyOf([other.name, provider.model, JESSICA, PREVIEW_TEXT]))
   const keys = new Set(['en', 'de', 'es', 'fr', 'ja'].map(l => previewKey(provider, JESSICA, l as 'en')))
   expect(keys.size).toBe(5)
   expect(PREVIEW_TEXT).toBe(PREVIEW_TEXTS.en)
@@ -245,7 +254,11 @@ test('ElevenLabs: preview with the fast model; clone sends the recording as a fi
   const eleven = createVoiceProvider('elevenlabs', { api_key: 'KEY' }, fakeFetch)!
   expect((await eleven.synthesize(JESSICA, 'Hello')).bytes).toHaveLength(3)
   expect(sent[0]!.url).toBe(`https://api.elevenlabs.io/v1/text-to-speech/${JESSICA}?output_format=mp3_44100_64`)
-  expect(JSON.parse(String(sent[0]!.init.body))).toEqual({ text: 'Hello', model_id: 'eleven_flash_v2_5' })
+  expect(JSON.parse(String(sent[0]!.init.body))).toEqual({
+    text: 'Hello',
+    model_id: 'eleven_flash_v2_5',
+    voice_settings: { stability: 0.5, similarity_boost: 0.75, speed: 1 },
+  })
   expect(await eleven.cloneVoice!({ name: "Mike's voice", audio: WAV, mimeType: 'audio/wav' })).toBe('cloned_voice_1')
   expect(((sent[1]!.init.body as FormData).get('files') as File).type).toBe('audio/wav')
   await eleven.deleteVoice!('cloned_voice_1') // already gone (404) is fine
