@@ -1,5 +1,5 @@
 import { devProvider } from './dev.ts'
-import { installCarrierName, type TelephonyProvider } from './provider.ts'
+import { installCarrierName, sipTlsFromEnv, type TelephonyProvider } from './provider.ts'
 import { createTelnyxProvider } from './telnyx.ts'
 import { createTelnyxOutbound, type OutboundSip, TRANSFER_OUTBOUND_NAME, telnyxSpendLimits } from './telnyx-outbound.ts'
 import { createTwilioProvider } from './twilio.ts'
@@ -79,6 +79,7 @@ export async function transferOutboundSipFromEnv(
     name: installCarrierName(TRANSFER_OUTBOUND_NAME),
     destinations,
     spendLimits: telnyxSpendLimits(env),
+    secure: sipTlsFromEnv(env),
     fetch: doFetch,
   }).ensureOutboundSip()
 }

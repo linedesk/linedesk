@@ -44,6 +44,7 @@ import {
   devForwardingOutcome,
   installCarrierName,
   type OutboundSip,
+  sipTlsFromEnv,
   TelephonyError,
   telnyxSpendLimits,
 } from '@linedesk/telephony'
@@ -553,6 +554,7 @@ export async function installCheckLine(env: Env = process.env, doFetch: typeof f
         destinations: destinations.length ? destinations : undefined,
         spendLimits: telnyxSpendLimits(env),
         onSpendCaps: problem => recordSpendCaps(name, problem),
+        secure: sipTlsFromEnv(env),
         fetch: timed,
       }).ensureOutboundSip()
     }
@@ -560,12 +562,16 @@ export async function installCheckLine(env: Env = process.env, doFetch: typeof f
       accountSid: values.account_sid!,
       authToken: values.auth_token!,
       name,
+      secure: sipTlsFromEnv(env),
       fetch: timed,
     }).ensureOutboundSip()
   }
   const caller = callerNumber
+  // A trunk made before LIVEKIT_SIP_TLS changed dials the old way: it is set up again (TLS and SRTP follow the setting).
+  const secure = sipTlsFromEnv(env)
   const existingTrunk = async () =>
-    (await sip.outboundTrunks()).find(t => t.name === name && t.numbers?.includes(caller))?.sipTrunkId ?? null
+    (await sip.outboundTrunks()).find(t => t.name === name && t.numbers?.includes(caller) && Boolean(t.tls) === secure)
+      ?.sipTrunkId ?? null
   /**
    * A new password at the carrier and a new LiveKit trunk with it; the old trunks go after. One at a time in this
    * process, and under a Postgres lock across processes, so one API never rotates the password under another's dial.

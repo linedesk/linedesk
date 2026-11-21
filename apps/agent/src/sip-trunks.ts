@@ -2,7 +2,7 @@
 // limited to the carriers' signaling addresses. Outbound: one for the phone call test
 // ("linedesk-test-caller") and one for warm transfers ("linedesk-outbound"), each through the carrier's
 // credentials (OutboundSip).
-import { ListUpdate, type SIPDispatchRuleInfo, SIPHeaderOptions, SIPInboundTrunkInfo, SIPTransport } from '@livekit/protocol'
+import { ListUpdate, type SIPDispatchRuleInfo, SIPHeaderOptions, SIPInboundTrunkInfo, SIPMediaConfig, SIPMediaEncryption, SIPTransport } from '@livekit/protocol'
 import { CALL_MAX_MINUTES } from '@linedesk/actions'
 import { sipTlsFromEnv, srtpRequiredFromEnv, TRANSFER_OUTBOUND_NAME, type OutboundSip } from '@linedesk/telephony'
 import { SipClient } from 'livekit-server-sdk'
@@ -35,7 +35,10 @@ export async function replaceOutboundTrunk(
   for (const trunk of await sip.listSipOutboundTrunk())
     if (trunk.name === name) await sip.deleteSipTrunk(trunk.sipTrunkId)
   const trunk = await sip.createSipOutboundTrunk(name, outbound.address, numbers, {
-    transport: SIPTransport.SIP_TRANSPORT_TCP,
+    // Over TLS (5061) with SRTP when the carrier's side was set up for it (LIVEKIT_SIP_TLS); else TCP and plain RTP.
+    transport: outbound.secure ? SIPTransport.SIP_TRANSPORT_TLS : SIPTransport.SIP_TRANSPORT_TCP,
+    // SRTP only: the carrier side refuses plain audio on a secure connection anyway, and nothing falls back silently.
+    ...(outbound.secure ? { media: new SIPMediaConfig({ encryption: SIPMediaEncryption.SIP_MEDIA_ENCRYPT_REQUIRE }) } : {}),
     authUsername: outbound.username,
     authPassword: outbound.password,
     headers: outbound.headers,

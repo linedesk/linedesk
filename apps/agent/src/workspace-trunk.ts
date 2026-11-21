@@ -9,6 +9,8 @@ import {
   carrierProvisionTransferTrunk,
   carrierTransferTrunk,
 } from '@linedesk/actions'
+import { SIPTransport } from '@livekit/protocol'
+import { sipTlsFromEnv } from '@linedesk/telephony'
 import type { SipClient } from 'livekit-server-sdk'
 import type { ApiClient, CallScope } from './api-client.ts'
 import { type DialRequest, NotAnsweredError, type OnCallDialer } from './on-call-dialer.ts'
@@ -24,16 +26,20 @@ export async function reprovisionTrunk(api: ApiClient, call: CallScope): Promise
   return trunkId
 }
 
-/** The workspace's trunk by its exact name (which carries the account) with `from` as a caller ID, else set up anew. */
+/**
+ * The workspace's trunk by its exact name (which carries the account) with `from` as a caller ID and the transport
+ * LIVEKIT_SIP_TLS asks for (a trunk made before the setting changed dials the old way), else set up anew.
+ */
 export async function ownTransferTrunk(
   api: ApiClient,
   sip: SipClient,
   call: CallScope,
   trunkName: string,
   from: string,
+  secure = sipTlsFromEnv(),
 ): Promise<string> {
   const trunk = (await sip.listSipOutboundTrunk()).find(t => t.name === trunkName)
-  if (trunk?.numbers.includes(from)) return trunk.sipTrunkId
+  if (trunk?.numbers.includes(from) && (trunk.transport === SIPTransport.SIP_TRANSPORT_TLS) === secure) return trunk.sipTrunkId
   return reprovisionTrunk(api, call)
 }
 

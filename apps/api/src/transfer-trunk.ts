@@ -15,6 +15,7 @@ import {
   createTelnyxOutbound,
   createTwilioOutbound,
   type OutboundSip,
+  sipTlsFromEnv,
   TelephonyError,
   telnyxSpendLimits,
 } from '@linedesk/telephony'
@@ -66,16 +67,18 @@ function ownOutboundSip(
       destinations,
       spendLimits: telnyxSpendLimits(env),
       onSpendCaps: problem => recordSpendCaps(name, problem),
+      secure: sipTlsFromEnv(env),
       fetch: doFetch,
     }).ensureOutboundSip()
   const auth =
     values.api_key_sid && values.api_key_secret
       ? { apiKeySid: values.api_key_sid, apiKeySecret: values.api_key_secret }
       : { authToken: values.auth_token! }
-  return createTwilioOutbound({ accountSid: values.account_sid!, ...auth, name, fetch: doFetch }).ensureOutboundSip()
+  return createTwilioOutbound({ accountSid: values.account_sid!, ...auth, name, secure: sipTlsFromEnv(env), fetch: doFetch }).ensureOutboundSip()
 }
 
-type TrunkInfo = { sipTrunkId: string; name: string; numbers?: string[] }
+/** `tls`: the trunk dials over TLS (SIP_TRANSPORT_TLS). */
+type TrunkInfo = { sipTrunkId: string; name: string; numbers?: string[]; tls?: boolean }
 
 /**
  * A trunk as LiveKit answers it. LiveKit's Twirp server writes protobuf JSON with the proto field names
@@ -83,7 +86,7 @@ type TrunkInfo = { sipTrunkId: string; name: string; numbers?: string[] }
  * (as the SDK sends them) and answers are read here. A trunk without an id is never used as one.
  */
 function trunkInfo(raw: unknown): TrunkInfo {
-  const t = (raw ?? {}) as { sip_trunk_id?: unknown; sipTrunkId?: unknown; name?: unknown; numbers?: unknown }
+  const t = (raw ?? {}) as { sip_trunk_id?: unknown; sipTrunkId?: unknown; name?: unknown; numbers?: unknown; transport?: unknown }
   const id = t.sip_trunk_id ?? t.sipTrunkId
   // i18n-ignore: an internal error for the API's log (an ALERT line), never shown in the web app
   if (typeof id !== 'string' || !id) throw new Error('LiveKit answered a SIP trunk without an id')
@@ -92,6 +95,7 @@ function trunkInfo(raw: unknown): TrunkInfo {
     name: typeof t.name === 'string' ? t.name : '',
     // Protobuf JSON may leave an empty list out.
     numbers: Array.isArray(t.numbers) ? t.numbers.map(String) : [],
+    tls: t.transport === 'SIP_TRANSPORT_TLS' || t.transport === 3,
   }
 }
 const trunkList = (json: Record<string, unknown>) => (Array.isArray(json.items) ? json.items : []).map(trunkInfo)
@@ -130,7 +134,10 @@ export function livekitSip(env: Env = process.env, doFetch: typeof fetch = fetch
           authUsername: sip.username,
           authPassword: sip.password,
           headers: sip.headers,
-          transport: 'SIP_TRANSPORT_TCP',
+          // Over TLS (5061) with SRTP when the carrier's side was set up for it (LIVEKIT_SIP_TLS); else TCP and plain RTP.
+          transport: sip.secure ? 'SIP_TRANSPORT_TLS' : 'SIP_TRANSPORT_TCP',
+          // SRTP only: the carrier side refuses plain audio on a secure connection anyway, and nothing falls back silently.
+          ...(sip.secure ? { media: { encryption: 'SIP_MEDIA_ENCRYPT_REQUIRE' } } : {}),
         },
       })
       return trunkInfo(trunk).sipTrunkId

@@ -11,7 +11,7 @@ import { AGENT_NAME, runScript } from './env.ts'
 import { inboundAllowlistFromEnv } from './inbound-allowlist.ts'
 import { ONCALL_RESPONDER_SOURCE, type OnCallResponderMetadata } from './oncall-responder.ts'
 import { parseSetupOnCallTestArgs } from './setup-args.ts'
-import { ensureInboundTrunk, INBOUND_TRUNK_NAME, sipClient } from './sip-trunks.ts'
+import { ensureInboundTrunk, INBOUND_TRUNK_NAME, sipClient, srtpPolicyFromEnv } from './sip-trunks.ts'
 
 const ONCALL_TEST_NAME = 'linedesk-oncall-test'
 
@@ -41,7 +41,7 @@ async function main() {
       `${number} is on ${INBOUND_TRUNK_NAME}: run setup-sip without it first, a number belongs to one trunk`,
     )
 
-  const trunkId = await ensureInboundTrunk(sip, [number], allowlist.addresses, ONCALL_TEST_NAME)
+  const trunkId = await ensureInboundTrunk(sip, [number], allowlist.addresses, ONCALL_TEST_NAME, { encryption: srtpPolicyFromEnv() })
   for (const rule of await sip.listSipDispatchRule())
     if (rule.name === ONCALL_TEST_NAME) await sip.deleteSipDispatchRule(rule.sipDispatchRuleId)
   const metadata: OnCallResponderMetadata = { source: ONCALL_RESPONDER_SOURCE, answer }

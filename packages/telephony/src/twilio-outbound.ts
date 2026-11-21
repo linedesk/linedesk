@@ -6,7 +6,7 @@
 // console, never changed by Linedesk); Linedesk checks the number before it dials (its destination policy), and
 // twilioBlockedCountries tells which allowed countries the account still blocks, for Server admin.
 import { randomBytes } from 'node:crypto'
-import { TelephonyError } from './provider.ts'
+import { sipTlsFromEnv, TelephonyError } from './provider.ts'
 import type { OutboundSip } from './telnyx-outbound.ts'
 import { sipUserName } from './telnyx-outbound.ts'
 import { TWILIO_TRUNKING, type TwilioOptions, twilioAccountUrl, twilioRequest } from './twilio.ts'
@@ -24,9 +24,10 @@ const newPassword = () => `Ld7${randomBytes(18).toString('base64url')}`
 const newDomain = (name: string) =>
   `${name.slice(0, 17).toLowerCase()}-${randomBytes(6).toString('hex')}.pstn.twilio.com`
 
-export type TwilioOutboundOptions = TwilioOptions & { name?: string }
+/** `secure`: the trunk's Secure setting (TLS and SRTP; default LIVEKIT_SIP_TLS, sipTlsFromEnv). */
+export type TwilioOutboundOptions = TwilioOptions & { name?: string; secure?: boolean }
 
-export function createTwilioOutbound({ name = TWILIO_OUTBOUND_NAME, ...options }: TwilioOutboundOptions) {
+export function createTwilioOutbound({ name = TWILIO_OUTBOUND_NAME, secure = sipTlsFromEnv(), ...options }: TwilioOutboundOptions) {
   if (!name.startsWith(OWN_PREFIX)) {
     throw new TelephonyError('twilio', `refusing to manage "${name}": only objects named ${OWN_PREFIX}* are Linedesk's`)
   }
@@ -35,15 +36,15 @@ export function createTwilioOutbound({ name = TWILIO_OUTBOUND_NAME, ...options }
   const named = (items: Json[] | undefined) => items?.find(item => item.friendly_name === name)
 
   /** The trunk with its termination domain; created if missing, given a domain if it has none. */
-  async function ensureTrunk(): Promise<{ sid: string; domain: string }> {
+  async function ensureTrunk(): Promise<{ sid: string; domain: string; secure?: boolean }> {
     const existing = named((await request('list trunks', 'GET', `${TWILIO_TRUNKING}/Trunks?PageSize=1000`)).trunks)
-    if (existing?.domain_name) return { sid: existing.sid, domain: existing.domain_name }
+    if (existing?.domain_name) return { sid: existing.sid, domain: existing.domain_name, secure: existing.secure }
     const domain = newDomain(name)
     if (existing) {
       await request('set termination domain', 'POST', `${TWILIO_TRUNKING}/Trunks/${existing.sid}`, {
         DomainName: domain,
       })
-      return { sid: existing.sid, domain }
+      return { sid: existing.sid, domain, secure: existing.secure }
     }
     const created = await request('create trunk', 'POST', `${TWILIO_TRUNKING}/Trunks`, {
       FriendlyName: name,
@@ -87,7 +88,9 @@ export function createTwilioOutbound({ name = TWILIO_OUTBOUND_NAME, ...options }
       const listSid = await ensureCredentialList()
       await setCredential(listSid, username, password)
       await attachCredentialList(trunk.sid, listSid)
-      return { address: trunk.domain, username, password, headers: {} }
+      if (Boolean(trunk.secure) !== secure)
+        await request('set trunk security', 'POST', `${TWILIO_TRUNKING}/Trunks/${trunk.sid}`, { Secure: String(secure) })
+      return { address: trunk.domain, username, password, headers: {}, secure }
     },
   }
 }

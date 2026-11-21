@@ -6,7 +6,7 @@ const SID = `AC${'1'.repeat(32)}`
 const ACCOUNT = `/2010-04-01/Accounts/${SID}`
 
 type State = {
-  trunks: { sid: string; friendly_name: string; domain_name: string | null }[]
+  trunks: { sid: string; friendly_name: string; domain_name: string | null; secure?: boolean }[]
   lists: { sid: string; friendly_name: string }[]
   credentials: { sid: string; username: string; password: string }[]
   attached: string[]
@@ -35,7 +35,8 @@ function mockTwilio(initial: Partial<State> = {}) {
     }
     if (method === 'POST' && path.startsWith('/v1/Trunks/') && path.split('/').length === 4) {
       const trunk = state.trunks.find(t => path.endsWith(t.sid))!
-      trunk.domain_name = form!.DomainName!
+      if (form!.DomainName) trunk.domain_name = form!.DomainName
+      if (form!.Secure) trunk.secure = form!.Secure === 'true'
       return json(trunk)
     }
     if (method === 'GET' && path === `${ACCOUNT}/SIP/CredentialLists.json`)
@@ -86,6 +87,20 @@ describe('twilio outbound SIP', () => {
     expect(calls.every(c => c.auth === `Basic ${Buffer.from(`SK${'2'.repeat(32)}:secret`).toString('base64')}`)).toBe(
       true,
     )
+  })
+
+  test('secure (LIVEKIT_SIP_TLS): the trunk is set to Secure once, and the trunk settings say so', async () => {
+    const first = mockTwilio()
+    const options = { accountSid: SID, authToken: 'token', secure: true }
+    const sip = await createTwilioOutbound({ ...options, fetch: first.fakeFetch }).ensureOutboundSip()
+    expect(sip.secure).toBe(true)
+    expect(first.state.trunks[0]!.secure).toBe(true)
+    const again = mockTwilio(first.state)
+    await createTwilioOutbound({ ...options, fetch: again.fakeFetch }).ensureOutboundSip()
+    expect(again.calls.some(c => c.form?.Secure)).toBe(false)
+    const off = mockTwilio(first.state)
+    expect((await createTwilioOutbound({ ...options, secure: false, fetch: off.fakeFetch }).ensureOutboundSip()).secure).toBe(false)
+    expect(off.state.trunks[0]!.secure).toBe(false)
   })
 
   test('repeating keeps the trunk, domain and list, and only sets a new password', async () => {

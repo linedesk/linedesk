@@ -1,8 +1,8 @@
-import { SIPDispatchRuleInfo, SIPHeaderOptions, SIPInboundTrunkInfo, SIPMediaEncryption } from '@livekit/protocol'
+import { SIPDispatchRuleInfo, SIPHeaderOptions, SIPInboundTrunkInfo, SIPMediaEncryption, SIPTransport } from '@livekit/protocol'
 import { CARRIER_SIGNALING_ADDRESSES, sipTlsFromEnv } from '@linedesk/telephony'
 import { describe, expect, test } from 'vitest'
 import { ALLOWED_ADDRESSES_ENV, inboundAllowlistFromEnv, isAddressOrRange, parseInboundAllowlist } from './inbound-allowlist.ts'
-import { ensureInboundTrunk, INBOUND_TRUNK_NAME, MAX_CALL_MINUTES, openInboundWarnings, srtpPolicyFromEnv } from './sip-trunks.ts'
+import { ensureInboundTrunk, INBOUND_TRUNK_NAME, MAX_CALL_MINUTES, openInboundWarnings, replaceOutboundTrunk, srtpPolicyFromEnv } from './sip-trunks.ts'
 
 const telnyx = CARRIER_SIGNALING_ADDRESSES.telnyx.addresses
 const twilio = CARRIER_SIGNALING_ADDRESSES.twilio.addresses
@@ -212,5 +212,26 @@ describe('audio encryption (LIVEKIT_SIP_TLS)', () => {
     for (const value of [undefined, '', 'off', 'true', 'ON']) {
       expect([sipTlsFromEnv({ LIVEKIT_SIP_TLS: value }), srtpPolicyFromEnv({ LIVEKIT_SIP_TLS: value })]).toEqual([false, 'off'])
     }
+  })
+})
+
+describe('outbound trunks (LIVEKIT_SIP_TLS)', () => {
+  test('a secure carrier side gets a TLS trunk that requires SRTP; else TCP with no media setting', async () => {
+    const made: { address: string; options: { transport: number; media?: { encryption?: number } } }[] = []
+    const sip = {
+      listSipOutboundTrunk: async () => [],
+      deleteSipTrunk: async () => {},
+      createSipOutboundTrunk: async (_name: string, address: string, _numbers: string[], options: never) => {
+        made.push({ address, options })
+        return { sipTrunkId: `ST_${made.length}` }
+      },
+    }
+    const base = { address: 'sip.telnyx.com', username: 'u', password: 'p', headers: {} }
+    await replaceOutboundTrunk(sip as never, ['+15035550142'], { ...base, secure: true })
+    await replaceOutboundTrunk(sip as never, ['+15035550142'], base)
+    expect(made[0]!.options.transport).toBe(SIPTransport.SIP_TRANSPORT_TLS)
+    expect(made[0]!.options.media?.encryption).toBe(SIPMediaEncryption.SIP_MEDIA_ENCRYPT_REQUIRE)
+    expect(made[1]!.options.transport).toBe(SIPTransport.SIP_TRANSPORT_TCP)
+    expect(made[1]!.options.media).toBeUndefined()
   })
 })

@@ -30,7 +30,7 @@ const DEFAULT_SPEND_BODY = { max_destination_rate: 0.1, daily_spend_limit: '50.0
 
 const CALLER = '+19715550188'
 
-function mockTelnyx(account: Account) {
+function mockTelnyx(account: Account, secure = false) {
   const calls: Call[] = []
   const fakeFetch: typeof fetch = async (url, init) => {
     const path = decodeURIComponent(String(url).replace('https://api.telnyx.com/v2', ''))
@@ -67,7 +67,7 @@ function mockTelnyx(account: Account) {
     }
     return Response.json({ errors: [{ detail: `no mock for ${method} ${path}` }] }, { status: 404 })
   }
-  return { outbound: createTelnyxOutbound({ apiKey: 'KEY', fetch: fakeFetch }), calls, fetch: fakeFetch, account }
+  return { outbound: createTelnyxOutbound({ apiKey: 'KEY', fetch: fakeFetch, secure }), calls, fetch: fakeFetch, account }
 }
 
 const freshAccount = (): Account => ({
@@ -86,6 +86,22 @@ describe('telnyx outbound for the call test', () => {
     const created = calls.find(c => c.method === 'POST' && c.path === '/credential_connections')!
     expect(created.body).toMatchObject({ connection_name: 'linedesk-test-caller', user_name: 'cflinedesktestcaller', password: sip.password, outbound: { outbound_voice_profile_id: 'ovp_1' } })
     expect(account.numbers.find(n => n.id === 'num_b')?.connection_id).toBe('conn_test')
+  })
+
+  test('secure (LIVEKIT_SIP_TLS): SRTP on the connection, and the trunk settings say so; else SRTP off', async () => {
+    const secure = mockTelnyx(freshAccount(), true)
+    const sip = await secure.outbound.ensureOutboundSip(CALLER)
+    expect(sip.secure).toBe(true)
+    expect(secure.calls.find(c => c.method === 'POST' && c.path === '/credential_connections')!.body).toMatchObject({ encrypted_media: 'SRTP' })
+    const plain = mockTelnyx(freshAccount())
+    expect((await plain.outbound.ensureOutboundSip(CALLER)).secure).toBe(false)
+    expect(plain.calls.find(c => c.method === 'POST' && c.path === '/credential_connections')!.body).toMatchObject({ encrypted_media: null })
+    // An existing connection is switched back the same way (a PATCH with null turns SRTP off).
+    const account = freshAccount()
+    await mockTelnyx(account, true).outbound.ensureOutboundSip(CALLER)
+    const back = mockTelnyx(account)
+    await back.outbound.ensureOutboundSip(CALLER)
+    expect(back.calls.find(c => c.method === 'PATCH' && c.path.startsWith('/credential_connections'))!.body).toMatchObject({ encrypted_media: null })
   })
 
   test('a second run reuses both and only sets a new password', async () => {

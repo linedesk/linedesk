@@ -19,7 +19,7 @@ function fakeApi() {
   return { api: { run, providerSettings: async () => ({}) } as unknown as ApiClient, run }
 }
 
-const fakeSip = (trunks: { sipTrunkId: string; name: string; numbers: string[] }[]) =>
+const fakeSip = (trunks: { sipTrunkId: string; name: string; numbers: string[]; transport?: number }[]) =>
   ({ listSipOutboundTrunk: vi.fn(async () => trunks) }) as unknown as SipClient
 
 const request = () => ({ room: 'r', identity: 'oncall', signal: new AbortController().signal })
@@ -46,6 +46,14 @@ describe('workspace transfer trunk', () => {
     ])
     expect(await ownTransferTrunk(api, sip, WS, NAME, FROM)).toBe('ST_new')
     expect(run).toHaveBeenCalledWith(expect.objectContaining({ name: 'carrier.provisionTransferTrunk' }), {}, WS)
+  })
+
+  test('a trunk with the other transport (made before LIVEKIT_SIP_TLS changed) is set up again', async () => {
+    const tls = fakeSip([{ sipTrunkId: 'ST_tls', name: NAME, numbers: [FROM], transport: 3 }])
+    expect(await ownTransferTrunk(fakeApi().api, tls, WS, NAME, FROM, true)).toBe('ST_tls')
+    expect(await ownTransferTrunk(fakeApi().api, tls, WS, NAME, FROM, false)).toBe('ST_new')
+    const tcp = fakeSip([{ sipTrunkId: 'ST_tcp', name: NAME, numbers: [FROM], transport: 2 }])
+    expect(await ownTransferTrunk(fakeApi().api, tcp, WS, NAME, FROM, true)).toBe('ST_new')
   })
 
   test('finds the trunk only when it dials; a credential refusal re-provisions once, other failures do not', async () => {

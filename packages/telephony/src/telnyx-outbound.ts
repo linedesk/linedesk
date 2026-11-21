@@ -5,7 +5,7 @@
 // Only objects with the given name are created or changed; other connections in the account (for
 // example one that serves another product) are never touched.
 import { randomBytes } from 'node:crypto'
-import { TelephonyError } from './provider.ts'
+import { sipTlsFromEnv, TelephonyError } from './provider.ts'
 import { telnyxRequest } from './telnyx.ts'
 
 /** What a LiveKit SIP outbound trunk needs to send calls through Telnyx. */
@@ -15,6 +15,11 @@ export interface OutboundSip {
   password: string
   /** Telnyx matches the INVITE to this connection by this header, not by source IP. */
   headers: Record<string, string>
+  /**
+   * TLS signalling (5061) and SRTP audio (LIVEKIT_SIP_TLS): the carrier's side is set for it, and the LiveKit trunk made
+   * from this must use them too (sip-trunks.ts, transfer-trunk.ts).
+   */
+  secure?: boolean
 }
 
 export interface TelnyxOutboundOptions {
@@ -33,6 +38,8 @@ export interface TelnyxOutboundOptions {
    * then fails). The API records it for Server admin (telnyx-spend-caps.ts).
    */
   onSpendCaps?: (problem: string | null) => void | Promise<void>
+  /** SRTP on the connection, for LiveKit's calls over TLS (default: LIVEKIT_SIP_TLS, sipTlsFromEnv). */
+  secure?: boolean
   fetch?: typeof fetch
 }
 
@@ -201,6 +208,7 @@ export function createTelnyxOutbound({
   destinations = DEFAULT_DESTINATIONS,
   spendLimits = DEFAULT_SPEND_LIMITS,
   onSpendCaps,
+  secure = sipTlsFromEnv(),
   fetch: doFetch = fetch,
 }: TelnyxOutboundOptions) {
   if (!name.startsWith(OWN_PREFIX))
@@ -236,7 +244,8 @@ export function createTelnyxOutbound({
   async function ensureConnection(profileId: string, username: string, password: string): Promise<string> {
     const { data } = await request('GET', `/credential_connections?filter[connection_name][contains]=${encodeURIComponent(name)}`)
     const existing = byExactName(data, 'connection_name')
-    const body = { active: true, connection_name: name, user_name: username, password, outbound: { outbound_voice_profile_id: profileId } }
+    // SRTP: the calls LiveKit places over TLS offer encrypted audio; Telnyx takes it only with this set (null: plain RTP).
+    const body = { active: true, connection_name: name, user_name: username, password, outbound: { outbound_voice_profile_id: profileId }, encrypted_media: secure ? 'SRTP' : null }
     if (existing) {
       await request('PATCH', `/credential_connections/${existing.id}`, body)
       return existing.id
@@ -264,7 +273,7 @@ export function createTelnyxOutbound({
       const profileId = await ensureVoiceProfile()
       const connectionId = await ensureConnection(profileId, username, password)
       if (callerE164) await attachCallerNumber(connectionId, callerE164)
-      return { address: 'sip.telnyx.com', username, password, headers: { 'X-Telnyx-Username': username } }
+      return { address: 'sip.telnyx.com', username, password, headers: { 'X-Telnyx-Username': username }, secure }
     },
   }
 }
