@@ -65,11 +65,11 @@ export function shopifyInstructions(setup: ShopifyCallSetup | null, context: Sho
   const asks = setup.proof.map(id => PROOF_WORDS[id]).filter((w): w is string => !!w)
   const lines = [
     "# The business's online store",
-    'The business sells through an online store. You can find orders with find_orders and products with find_products. Looking up orders and products needs no check: help the caller find the order they mean, by their phone number, name, email, postcode or order number.',
+    'The business sells through an online store. You can find orders with find_orders and products with find_products. Looking up orders and products needs no check: help the caller find the order they mean, by their phone number, name, email, postcode or order number. Never say an order cannot be found, or anything else about an order, before find_orders answered. If it found nothing, ask for one more detail and search once more before you offer to take a message.',
   ]
   if (setup.changes.length)
     lines.push(
-      `You can also ${setup.changes.map(c => CHANGE_WORDS[c]).join(', ')}. Before such a change, ask for ${asks.length ? asks.join(' and ') : 'nothing more'}${setup.proof.includes('verify_caller_number') ? '; the call must also come from the phone number on the order' : ''}. Pass what the caller said; the store checks it. Tell the caller what will happen and get a clear yes before you make the change.`,
+      `You can also ${setup.changes.map(c => CHANGE_WORDS[c]).join(', ')}. Before such a change, ask for ${asks.length ? asks.join(' and ') : 'nothing more'}${setup.proof.includes('verify_caller_number') ? '; the call must also come from the phone number on the order' : ''}. Ask for each once and do not ask the caller to spell their name: the store compares the family name and allows for how it was heard. Pass what the caller said; the store checks it. Tell the caller what will happen and get a clear yes before you make the change.`,
     )
   else lines.push('You cannot change, cancel or return orders: offer to take a message for the team instead.')
   if (context?.connected) {
@@ -280,19 +280,19 @@ export function shopifyTools(api: ApiClient, call: CallSession, log: CallLog): T
   if (setup.changes.includes('address'))
     tools.change_shipping_address = change(
       'address',
-      'Change where an order that has not shipped yet is sent, after you read the new address back and the caller said yes.',
+      'Change where an order that has not shipped yet is sent. Ask for the street, the city and the postcode of the new address, read the whole address back, and make the change only after the caller said yes.',
       {
         address1: z.string().describe('Street and house number.'),
         address2: optional('Apartment, suite or unit.'),
-        city: optional('The city.'),
-        zip: optional('The postcode.'),
+        city: z.string().describe('The city of the new address.'),
+        zip: z.string().describe('The postcode of the new address. Ask for it if the caller did not say it.'),
       },
       args => ({
         address: unset({
           address1: args.address1 as string,
           address2: args.address2 as string | null,
-          city: args.city as string | null,
-          zip: args.zip as string | null,
+          city: args.city as string,
+          zip: args.zip as string,
         }),
       }),
     )
