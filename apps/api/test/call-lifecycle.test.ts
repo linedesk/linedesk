@@ -30,7 +30,7 @@ beforeAll(async () => {
 
 test('call.start resolves the workspace from the dialled number and creates a contact for a new caller', async () => {
   const from = randomNumber()
-  const { status, body } = await act(agent(), 'call.start', { from, to: ws.number })
+  const { status, body } = await act(agent(), 'call.start', { attestation: 'A', from, to: ws.number })
   expect(status).toBe(200)
   expect(body.data).toMatchObject({ workspaceId: ws.id, isNewContact: true, assistant: { id: ws.assistant.id } })
   expect(body.rows.calls).toMatchObject([
@@ -49,33 +49,33 @@ test('call.start resolves the workspace from the dialled number and creates a co
 })
 
 test('call.start reuses the contact of a known caller', async () => {
-  const { body } = await act(agent(), 'call.start', { from: ws.contact.phone, to: ws.number })
+  const { body } = await act(agent(), 'call.start', { attestation: 'A', from: ws.contact.phone, to: ws.number })
   expect(body.data).toMatchObject({ isNewContact: false, contact: { id: ws.contact.id, name: 'Known Caller' } })
   expect((await getCall(body.data.callId))?.contact_id).toBe(ws.contact.id)
   expect(await db.select().from(contacts).where(eq(contacts.phone, ws.contact.phone))).toHaveLength(1)
 })
 
 test('contacts are per workspace: the same caller dialling another business is a new contact there', async () => {
-  const { body } = await act(agent(), 'call.start', { from: ws.contact.phone, to: other.number })
+  const { body } = await act(agent(), 'call.start', { attestation: 'A', from: ws.contact.phone, to: other.number })
   expect(body.data).toMatchObject({ workspaceId: other.id, isNewContact: true })
   expect(body.data.contact.id).not.toBe(ws.contact.id)
 })
 
 test('the dialled number decides the workspace, not the x-workspace-id header', async () => {
-  const { body } = await act(agent(other.id), 'call.start', { from: randomNumber(), to: ws.number })
+  const { body } = await act(agent(other.id), 'call.start', { attestation: 'A', from: randomNumber(), to: ws.number })
   expect(body.rows.calls).toMatchObject([{ workspace_id: ws.id }])
 })
 
 test('call.start is rejected for a number no workspace owns', async () => {
   const to = randomNumber()
-  const res = await act(agent(), 'call.start', { from: randomNumber(), to })
+  const res = await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to })
   expect(res).toMatchObject({ status: 409, body: { ok: false, error: `no workspace for number ${to}` } })
   expect(await db.select().from(calls).where(eq(calls.to_number, to))).toEqual([])
 })
 
 test('a call from start to finish: transcript rows, summary, caller name, rising versions', async () => {
   const from = randomNumber()
-  const started = await act(agent(), 'call.start', { from, to: ws.number })
+  const started = await act(agent(), 'call.start', { attestation: 'A', from, to: ws.number })
   const { callId, contact } = started.body.data
   const versions = [started.body.rows.calls[0].version as number]
 
@@ -146,7 +146,7 @@ test('a call from start to finish: transcript rows, summary, caller name, rising
 })
 
 test('call.finish keeps what it is not given and never renames a known contact', async () => {
-  const { body } = await act(agent(), 'call.start', { from: ws.contact.phone, to: ws.number })
+  const { body } = await act(agent(), 'call.start', { attestation: 'A', from: ws.contact.phone, to: ws.number })
   const callId: string = body.data.callId
   await db
     .update(calls)
@@ -172,7 +172,7 @@ test('call.finish keeps what it is not given and never renames a known contact',
 })
 
 test('call.finish stores what the after-call check found missing; a retried finish without it keeps it (LIN-513)', async () => {
-  const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+  const { body } = await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: ws.number })
   const callId: string = body.data.callId
   const finish = { callId, outcome: 'message', title: 'Leak', summary: 'A leak under the sink.' }
   const res = await act(agent(ws.id), 'call.finish', { ...finish, missing: ['callback_number'] })
@@ -195,7 +195,7 @@ test('transcript and finish are rejected for a call that does not exist', async 
 })
 
 test('after call.start the agent has to name the workspace of the call', async () => {
-  const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+  const { body } = await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: ws.number })
   const res = await act(agent(), 'call.finish', { callId: body.data.callId })
   expect(res).toMatchObject({ status: 409, body: { error: 'no workspace (send x-workspace-id)' } })
   expect((await getCall(body.data.callId))?.status).toBe('live')
@@ -204,7 +204,7 @@ test('after call.start the agent has to name the workspace of the call', async (
 test('call.transfer records the number and the result and leaves the urgency as it is; members cannot write it', async () => {
   // Its own workspace: the calls of the tests above are still live and count toward the calls at once.
   const ws = await createWorkspace('Transfer Plumbing')
-  const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+  const { body } = await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: ws.number })
   const callId: string = body.data.callId
   const refused = await act(ws.owner, 'call.transfer', { callId, to: '+15035550199', result: 'connected' })
   expect(refused.status).toBe(403)
@@ -221,7 +221,8 @@ test('call.transfer records the number and the result and leaves the urgency as 
   })
   // `urgent` from an older agent changes nothing either, and the call shows the contact's name.
   await saveTransferContacts(ws.assistant.id, ['+15035550187'])
-  const billing = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data.callId
+  const billing = (await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: ws.number })).body
+    .data.callId
   await act(agent(ws.id), 'call.transfer', {
     callId: billing,
     to: '+15035550187',
@@ -241,7 +242,8 @@ test('call.transfer limits per workspace: one leg at a time, six started an hour
   await saveTransferContacts(limited.assistant.id, ['+15035550199'])
   await saveTransferContacts(other.assistant.id, ['+15035550199'])
   const startCall = async () =>
-    (await act(agent(), 'call.start', { from: randomNumber(), to: limited.number })).body.data.callId as string
+    (await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: limited.number })).body.data
+      .callId as string
   const transfer = (callId: string, result: string) =>
     act(agent(limited.id), 'call.transfer', { callId, to: '+15035550199', result })
 
@@ -260,7 +262,8 @@ test('call.transfer limits per workspace: one leg at a time, six started an hour
   expect((await transfer(second, 'dialing')).status).toBe(200)
   await transfer(second, 'declined')
   // Another workspace is not affected.
-  const elsewhere = (await act(agent(), 'call.start', { from: randomNumber(), to: other.number })).body.data.callId
+  const elsewhere = (await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: other.number }))
+    .body.data.callId
   expect(
     (await act(agent(other.id), 'call.transfer', { callId: elsewhere, to: '+15035550199', result: 'dialing' })).status,
   ).toBe(200)
@@ -291,8 +294,8 @@ test('call.transfer: transfers of test calls do not count toward the limits', as
       .callId as string
     expect((await transfer(testCall, 'dialing')).status).toBe(200) // one still dialing does not hold up the next either
   }
-  const phoneCall = (await act(agent(), 'call.start', { from: randomNumber(), to: tested.number })).body.data
-    .callId as string
+  const phoneCall = (await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: tested.number }))
+    .body.data.callId as string
   expect((await transfer(phoneCall, 'dialing')).status).toBe(200)
 })
 
@@ -359,7 +362,7 @@ test('assistant.update stores the transfer contacts in order; an invalid or Line
     status: 409,
     body: { error: expect.stringContaining('forwards its calls to Linedesk') },
   })
-  const started = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+  const started = await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: ws.number })
   expect(started.body.data.assistant).toMatchObject({ transfers: list })
 })
 
@@ -376,7 +379,7 @@ test("assistant.update keeps each contact's briefing switch: on unless sent as f
   ])
   expect(row?.transfers[1]).toMatchObject({ briefing: false })
   // The agent gets it with the call.
-  const started = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+  const started = await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: ws.number })
   expect(started.body.data.assistant.transfers).toMatchObject([{ id: 'oncall' }, { id: 'owner', briefing: false }])
   const on = await act(ws.owner, 'assistant.update', { assistantId, transfers: [contact({ briefing: true })] })
   expect(on.status).toBe(200)
@@ -481,7 +484,7 @@ test('migration 0046: the old on-call number becomes the first contact, before t
 test(`the assistant takes at most ${MESSAGES_PER_CALL} messages on one call`, async () => {
   // A workspace of its own: the calls this file leaves live count toward the calls at once (LIVE_CALLS_PER_WORKSPACE).
   const ws = await createWorkspace('Message Plumbing')
-  const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+  const { body } = await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: ws.number })
   const callId: string = body.data.callId
   // A next step that is no message (the note after failed booking changes) takes no slot.
   const note = { text: 'Several tries on the phone to change a booking did not match.' }
@@ -505,7 +508,7 @@ test(`the assistant takes at most ${MESSAGES_PER_CALL} messages on one call`, as
 
 test('a call flagged urgent while it ran stays urgent and out of Spam, whatever the summary says', async () => {
   const ws = await createWorkspace('Urgent Plumbing')
-  const { body } = await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })
+  const { body } = await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: ws.number })
   const callId: string = body.data.callId
   expect((await act(agent(ws.id), 'call.flagUrgent', { callId })).status).toBe(200)
   expect(
@@ -514,7 +517,8 @@ test('a call flagged urgent while it ran stays urgent and out of Spam, whatever 
   expect(await getCall(callId)).toMatchObject({ outcome: 'callback', urgency: 'urgent', title: 'Prank' })
 
   // A call that was not urgent takes the summary's verdict.
-  const plain = (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data.callId
+  const plain = (await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: ws.number })).body.data
+    .callId
   await act(agent(ws.id), 'call.finish', { callId: plain, outcome: 'spam', urgency: 'low' })
   expect(await getCall(plain)).toMatchObject({ outcome: 'spam', urgency: 'low' })
   expect(keptUrgent('urgent', 'booked', 'normal')).toEqual({ outcome: 'booked', urgency: 'urgent' })
@@ -542,7 +546,9 @@ test(`at most ${LIVE_CALLS_PER_WORKSPACE} calls at once per workspace: the next 
   expect(tests.every(t => t.status === 200 && !t.body.data.busy)).toBe(true)
   // Ten callers at once (the workspace has one live call already): no two see room for the same last line.
   const started = await Promise.all(
-    Array.from({ length: 10 }, () => act(agent(), 'call.start', { from: randomNumber(), to: busy.number })),
+    Array.from({ length: 10 }, () =>
+      act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: busy.number }),
+    ),
   )
   expect(started.every(s => s.status === 200)).toBe(true)
   expect(await live()).toBe(LIVE_CALLS_PER_WORKSPACE)
@@ -573,7 +579,7 @@ test(`at most ${LIVE_CALLS_PER_WORKSPACE} calls at once per workspace: the next 
   // One call ends: the next caller is answered.
   const answered = started.find(s => !s.body.data.busy)!
   expect((await act(agent(busy.id), 'call.finish', { callId: answered.body.data.callId })).status).toBe(200)
-  const next = await act(agent(), 'call.start', { from: randomNumber(), to: busy.number })
+  const next = await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: busy.number })
   expect(next.body.data).toMatchObject({ busy: false, blocked: false })
 
   // A live call older than the longest call has no agent any more and does not count.
@@ -581,7 +587,11 @@ test(`at most ${LIVE_CALLS_PER_WORKSPACE} calls at once per workspace: the next 
     .update(calls)
     .set({ started_at: new Date(Date.now() - 36 * 60_000).toISOString() })
     .where(and(eq(calls.workspace_id, busy.id), eq(calls.status, 'live')))
-  expect((await act(agent(), 'call.start', { from: randomNumber(), to: busy.number })).body.data.busy).toBe(false)
+  expect(
+    (await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: busy.number })).body.data.busy,
+  ).toBe(false)
   // Another workspace is not affected.
-  expect((await act(agent(), 'call.start', { from: randomNumber(), to: other.number })).body.data.busy).toBe(false)
+  expect(
+    (await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: other.number })).body.data.busy,
+  ).toBe(false)
 })

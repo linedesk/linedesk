@@ -75,7 +75,7 @@ test("the last three calls and the upcoming bookings under the contact's name, c
   await booking(ws.id, contactId, typeId, 4, 'Linda Park', 'cancelled')
   await booking(ws.id, contactId, typeId, -2, 'Linda Park') // past
 
-  const { body } = await act(agent(), 'call.start', { from: ws.contact.phone, to: ws.number })
+  const { body } = await act(agent(), 'call.start', { attestation: 'A', from: ws.contact.phone, to: ws.number })
   const history = body.data.callerHistory
   expect(history.recentCalls.map((c: { title: string }) => c.title)).toEqual([
     'Call 1 days ago',
@@ -96,18 +96,21 @@ test("the last three calls and the upcoming bookings under the contact's name, c
   }
 
   // Another workspace's call from the same number: nothing of this workspace's history.
-  const elsewhere = await act(agent(), 'call.start', { from: ws.contact.phone, to: other.number })
+  const elsewhere = await act(agent(), 'call.start', { attestation: 'A', from: ws.contact.phone, to: other.number })
   expect(elsewhere.body.data.callerHistory).toEqual({ recentCalls: [], upcomingBookings: [] })
   // A new caller: empty; a withheld number: none at all.
   expect(
-    (await act(agent(), 'call.start', { from: randomNumber(), to: ws.number })).body.data.callerHistory.recentCalls,
+    (await act(agent(), 'call.start', { attestation: 'A', from: randomNumber(), to: ws.number })).body.data
+      .callerHistory.recentCalls,
   ).toEqual([])
-  expect((await act(agent(), 'call.start', { from: 'anonymous', to: ws.number })).body.data.callerHistory).toBeNull()
+  expect(
+    (await act(agent(), 'call.start', { attestation: 'A', from: 'anonymous', to: ws.number })).body.data.callerHistory,
+  ).toBeNull()
 })
 
 /** One finished phone call from `from`, in which the summary found the caller's name `callerName`. */
 async function finishedCall(ws: { id: string; number: string }, from: string, callerName?: string) {
-  const { body } = await act(agent(), 'call.start', { from, to: ws.number })
+  const { body } = await act(agent(), 'call.start', { attestation: 'A', from, to: ws.number })
   await act(agent(ws.id), 'call.finish', {
     callId: body.data.callId,
     title: 'Leaking water heater',
@@ -124,7 +127,7 @@ test("any matched contact gets its history, also one named only by a caller; the
   const first = await finishedCall(ws, number, 'Linda Park')
   expect(await getContact(first.contact.id)).toMatchObject({ name: 'Linda Park', name_source: 'caller' })
   // The next call from that number: its earlier call reaches the assistant (no name check, decision of 2026-11-15).
-  const { body } = await act(agent(), 'call.start', { from: number, to: ws.number })
+  const { body } = await act(agent(), 'call.start', { attestation: 'A', from: number, to: ws.number })
   expect(body.data.contact).toMatchObject({ id: first.contact.id, name: 'Linda Park', name_source: 'caller' })
   expect(body.data.callerHistory.recentCalls.map((c: { title: string }) => c.title)).toEqual(['Leaking water heater'])
   // A later caller's name never replaces it.
@@ -136,7 +139,7 @@ test("any matched contact gets its history, also one named only by a caller; the
     .update(assistants)
     .set({ behaviours: { caller_history: false } })
     .where(eq(assistants.workspace_id, ws.id))
-  const off = await act(agent(), 'call.start', { from: number, to: ws.number })
+  const off = await act(agent(), 'call.start', { attestation: 'A', from: number, to: ws.number })
   expect(off.body.data.callerHistory).toBeNull()
 })
 
@@ -153,7 +156,7 @@ test("a name a member typed is the team's: contact.create, contact.update, conta
   await finishedCall(ws, typed)
   await finishedCall(ws, imported)
   for (const from of [typed, renamed, imported]) {
-    const { body } = await act(agent(), 'call.start', { from, to: ws.number })
+    const { body } = await act(agent(), 'call.start', { attestation: 'A', from, to: ws.number })
     expect(body.data.contact.name_source).toBe('member')
     expect(body.data.callerHistory.recentCalls).toHaveLength(1)
   }
@@ -221,7 +224,7 @@ test('the call test asks for a new caller: its next call from the number gets no
 
   const marked = await act(agent(), 'call.newCallerForTest', { from: number, to: ws.number })
   expect(marked.status).toBe(200)
-  const fresh = (await act(agent(), 'call.start', { from: number, to: ws.number })).body.data
+  const fresh = (await act(agent(), 'call.start', { attestation: 'A', from: number, to: ws.number })).body.data
   // Still the contact's call for the team, but the assistant hears of nothing the number did before.
   expect(fresh.contact).toMatchObject({ id: first.contact.id, name: null, note: null })
   expect(fresh.callerHistory).toBeNull()
@@ -230,7 +233,7 @@ test('the call test asks for a new caller: its next call from the number gets no
   expect(row!.contact_id).toBe(first.contact.id)
 
   // Only that one call: the next one is a returning caller again.
-  const next = (await act(agent(), 'call.start', { from: number, to: ws.number })).body.data
+  const next = (await act(agent(), 'call.start', { attestation: 'A', from: number, to: ws.number })).body.data
   expect(next.contact).toMatchObject({ name: 'Linda Park', note: 'Prefers mornings' })
   expect(next.callerHistory.recentCalls.map((c: { title: string }) => c.title)).toEqual(['Leaking water heater'])
 
@@ -244,7 +247,7 @@ test('the call test asks for a new caller: its next call from the number gets no
     .update(instance_settings)
     .set({ value: new Date(Date.now() - 1000).toISOString() })
     .where(eq(instance_settings.key, `call_test.new_caller:${number}>${ws.number}`))
-  const late = (await act(agent(), 'call.start', { from: number, to: ws.number })).body.data
+  const late = (await act(agent(), 'call.start', { attestation: 'A', from: number, to: ws.number })).body.data
   expect(late.contact).toMatchObject({ name: 'Linda Park' })
 
   // Only for a number of this install, and only with the agent token.

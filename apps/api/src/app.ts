@@ -34,7 +34,7 @@ import { registerDemoCallRoutes } from './demo-call.ts'
 import { API_KEY_REQUESTS_PER_MINUTE, apiKeyWithinLimit, isApiKey, keyOf, tooManyInvalidApiKeys } from './api-keys.ts'
 import { shapeFilter } from './records.ts'
 import { isPersonalKey } from './personal-keys.ts'
-import { personalKeyMayRequest } from './key-reads.ts'
+import { oauthKeyMayRequest, personalKeyMayRequest } from './key-reads.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
 import { publicHealth } from './admin-overview.ts'
 import { registerSetupUnsubscribeRoutes } from './setup-unsubscribe.ts'
@@ -686,6 +686,12 @@ app.use('/v1/*', async (c, next) => {
   // A personal key runs actions and reads the routes listed in key-reads.ts; the rest is the browser's.
   if (actor.personalKeyId && !personalKeyMayRequest(c.req.method, c.req.path))
     return c.json({ ok: false, error: 'a personal key cannot use this route (docs/api.md)', code: 'forbidden' }, 403)
+  // A key from an OAuth sign-in reads only what its MCP client's tools read (key-reads.ts).
+  if (actor.oauthKey && !oauthKeyMayRequest(c.req.method, c.req.path))
+    return c.json(
+      { ok: false, error: 'a key from an OAuth sign-in cannot use this route (docs/api.md)', code: 'forbidden' },
+      403,
+    )
   // The tab's workspace must be the session's: never read or write another one (a switch in another tab).
   const refusal =
     accountRefusal(actor, c.req.header(ACCOUNT_HEADER) ?? null) ??

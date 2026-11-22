@@ -127,3 +127,19 @@ export const PERSONAL_KEY_REFUSED: ReadonlyMap<string, string> = new Map([
 
 /** Why a personal key may not run `name`, or null when it may (if its maker may). */
 export const personalKeyRefusal = (name: string) => PERSONAL_KEY_REFUSED.get(name) ?? null
+
+/**
+ * What a key issued by OAuth sign-in (an MCP client from a connector directory: ChatGPT, Claude) may run besides the
+ * public actions: the assistant's settings, and the rows the web app shows (records.list), so a client finds the
+ * bookings and the appointment type and calendar ids the booking tools take. Directory reviews ask for a small, named
+ * tool set. The same set holds over MCP (mcp.ts offeredOverMcp) and over POST /v1/actions (run-action.ts), so the key
+ * reaches nothing more by calling the REST API directly.
+ */
+export const OAUTH_EXTRA_ACTIONS: ReadonlySet<string> = new Set(['assistant.update', 'records.list'])
+
+export const OAUTH_KEY_SCOPE =
+  'a key from an OAuth sign-in runs only the tools its client offers; for more, sign in to the app or make a personal key there'
+
+/** Why a key from an OAuth sign-in may not run this action, or null when it may (if its maker may). */
+export const oauthKeyRefusal = (def: { name: string; public?: boolean }) =>
+  def.public || OAUTH_EXTRA_ACTIONS.has(def.name) ? null : OAUTH_KEY_SCOPE

@@ -21,6 +21,7 @@ import { type Actor, WORKSPACE_HEADER } from './context.ts'
 import { db } from './db.ts'
 import { KEY_READ_ROUTES, keyReadRoute } from './key-reads.ts'
 import { mcpChallenge } from './oauth.ts'
+import { oauthKeyRefusal } from './personal-key-scope.ts'
 import { actorForPersonalKey, isPersonalKey } from './personal-keys.ts'
 import { runAction, runnableBy } from './run-action.ts'
 import { withoutHopByHopHeaders } from './keep-alive.ts'
@@ -380,19 +381,9 @@ export const NOT_OVER_MCP_FOR_PERSONAL_KEYS: ReadonlySet<string> = new Set([
  * only with an admin key: an assistant that reads caller text is the client most easily steered,
  * so a member key's assistant cannot be talked into them. Over REST they follow the role as before.
  */
-/**
- * What a key issued by OAuth sign-in (an MCP client from a connector directory: ChatGPT, Claude) offers besides the
- * public actions: the assistant's settings, and the rows the web app shows (records.list), so a client finds the
- * bookings and the appointment type and calendar ids the booking tools take. Directory reviews ask for a small, named
- * tool set, so such a key gets the read tools, the public actions (calls, contacts, appointments, free slots, members)
- * and these, nothing else and no api_get (decisions of 2026-11-17, LIN-469, and 2026-11-20, LIN-126). A personal key
- * made in the app keeps every action its maker may run.
- */
-export const OAUTH_EXTRA_ACTIONS: ReadonlySet<string> = new Set(['assistant.update', 'records.list'])
-
 export const offeredOverMcp = (def: ActionDef, actor: Actor) =>
   actor.oauthKey
-    ? (Boolean(def.public) || OAUTH_EXTRA_ACTIONS.has(def.name)) &&
+    ? !oauthKeyRefusal(def) &&
       !NOT_OVER_MCP.has(def.name) &&
       !NOT_OVER_MCP_FOR_PERSONAL_KEYS.has(def.name) &&
       runnableBy(def, actor)

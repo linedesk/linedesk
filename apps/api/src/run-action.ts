@@ -40,7 +40,7 @@ import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { type Reader, rejectionText, wordsOf } from './handler-context.ts'
 import { Forbidden, NotFound, preparers, Reject, runHandler, type Undo } from './handlers.ts'
-import { personalKeyRefusal } from './personal-key-scope.ts'
+import { oauthKeyRefusal, personalKeyRefusal } from './personal-key-scope.ts'
 import { chargeSetupLookup, pendingPaymentRefusal, REFUSED_WHILE_PENDING_PAYMENT, SETUP_LOOKUPS } from './self-serve.ts'
 import { impersonatorOf, mayRunWhileImpersonating } from './impersonation-guard.ts'
 import { MAIN_HOST_ONLY, mainHostOnlyAction } from './request-host.ts'
@@ -305,6 +305,7 @@ export function runnableBy(def: ActionDef, actor: Actor): boolean {
   if (actor.impersonation && !mayRunWhileImpersonating(def, actor.impersonation)) return false
   if (actor.apiKeyId && !def.public) return false
   if (actor.personalKeyId && personalKeyRefusal(def.name)) return false
+  if (actor.oauthKey && oauthKeyRefusal(def)) return false
   return true
 }
 
@@ -357,6 +358,9 @@ export async function runAction(
   // A personal key is its maker, except for what needs them signed in or a browser (personal-key-scope.ts).
   const personalRefused = actor.personalKeyId ? personalKeyRefusal(name) : null
   if (personalRefused) return forbidden(personalRefused)
+  // A key from an OAuth sign-in: the small set its MCP client offers, also over the REST API (personal-key-scope.ts).
+  const oauthRefused = actor.oauthKey ? oauthKeyRefusal(def) : null
+  if (oauthRefused) return forbidden(oauthRefused)
   if (actor.emailUnverified && needsConfirmedEmail(name, rawInput)) return emailNotVerified
   // A sign-up waiting for Checkout reaches nothing outside and spends nothing (self-serve.ts; security review F1).
   const pendingRefusal = REFUSED_WHILE_PENDING_PAYMENT.has(name)

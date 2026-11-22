@@ -21,8 +21,18 @@ import {
   redirectKind,
   redirectMatches,
 } from '../src/oauth.ts'
+import { OAUTH_KEY_SCOPE } from '../src/personal-key-scope.ts'
 import { actorForPersonalKey } from '../src/personal-keys.ts'
-import { act, appRequest, createWorkspace, FROM, randomIp, type User, type Workspace } from './helpers.ts'
+import {
+  act,
+  appRequest,
+  createWorkspace,
+  FROM,
+  randomIp,
+  request as get,
+  type User,
+  type Workspace,
+} from './helpers.ts'
 
 let ws: Workspace
 
@@ -317,6 +327,28 @@ describe('the flow', () => {
     )
     expect(names).not.toContain('api_get')
     expect(names.filter(n => /^(billing|partner|team|apiKey|personalKey|membership|workspace)_/.test(n))).toEqual([])
+  })
+
+  test('an OAuth key runs the same small set over POST /v1/actions: no webhooks, team, keys or settings', async () => {
+    const { key } = await connect(ws.owner)
+    const as = { headers: { authorization: `Bearer ${key}` } }
+    const scoped = { status: 403, body: { ok: false, error: OAUTH_KEY_SCOPE, code: 'forbidden' } }
+    // What a leaked or misbehaving client could otherwise do with the owner's rights: copy every call out, add itself.
+    expect(
+      await act(as, 'webhook.create', { url: 'https://example.com/hook', events: ['call.finished'] }),
+    ).toMatchObject(scoped)
+    expect(await act(as, 'team.invite', { email: 'x@example.com', role: 'admin' })).toMatchObject(scoped)
+    expect(await act(as, 'apiKey.list', {})).toMatchObject({ status: 403 })
+    expect(await act(as, 'carrier.get', {})).toMatchObject(scoped)
+    // What the client offers works over REST too.
+    expect((await act(as, 'call.markDone', { callId: ws.call.id })).status).toBe(200)
+    expect(
+      (await act(as, 'assistant.update', { assistantId: ws.assistant.id, greeting: 'Hi, Brightwater here.' })).status,
+    ).toBe(200)
+    // Reads: only what workspaces_list needs, never the recordings or the other key reads (no api_get).
+    expect((await get(as, 'GET', '/v1/me/workspaces')).status).toBe(200)
+    expect((await get(as, 'GET', `/v1/calls/${ws.call.id}/recording`)).status).toBe(403)
+    expect((await get(as, 'GET', '/v1/assistant/status')).status).toBe(403)
   })
 
   test('an OAuth key reads bookings with records_list, never webhook URLs', async () => {

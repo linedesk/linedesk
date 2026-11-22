@@ -165,15 +165,13 @@ describe('free slots', () => {
   test('business hours count only when they are switched on', async () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
-      await tx
-        .insert(availability_rules)
-        .values({
-          id: `ar_${crypto.randomUUID().slice(0, 8)}`,
-          workspace_id: ws.id,
-          weekday: 1,
-          start_time: '13:00',
-          end_time: '15:00',
-        })
+      await tx.insert(availability_rules).values({
+        id: `ar_${crypto.randomUUID().slice(0, 8)}`,
+        workspace_id: ws.id,
+        weekday: 1,
+        start_time: '13:00',
+        end_time: '15:00',
+      })
       const starts = async () =>
         (
           (
@@ -200,15 +198,13 @@ describe('free slots', () => {
         .update(workspace_settings)
         .set({ business_hours_on: true })
         .where(eq(workspace_settings.workspace_id, ws.id))
-      await tx
-        .insert(availability_rules)
-        .values({
-          id: `ar_${crypto.randomUUID().slice(0, 8)}`,
-          workspace_id: ws.id,
-          weekday: 1,
-          start_time: '08:00',
-          end_time: '13:00',
-        })
+      await tx.insert(availability_rules).values({
+        id: `ar_${crypto.randomUUID().slice(0, 8)}`,
+        workspace_id: ws.id,
+        weekday: 1,
+        start_time: '08:00',
+        end_time: '13:00',
+      })
       const { data } = await run(tx, owner, services, 'calendar.findSlots', {
         ...day(),
         calendarId: ws.assistantCalendar.id,
@@ -232,15 +228,13 @@ describe('free slots', () => {
         .update(workspace_settings)
         .set({ business_hours_on: true })
         .where(eq(workspace_settings.workspace_id, ws.id))
-      await tx
-        .insert(availability_rules)
-        .values({
-          id: `ar_${crypto.randomUUID().slice(0, 8)}`,
-          workspace_id: ws.id,
-          weekday: 1,
-          start_time: '08:00',
-          end_time: '14:00',
-        })
+      await tx.insert(availability_rules).values({
+        id: `ar_${crypto.randomUUID().slice(0, 8)}`,
+        workspace_id: ws.id,
+        weekday: 1,
+        start_time: '08:00',
+        end_time: '14:00',
+      })
       const starts = async () =>
         (
           (
@@ -276,15 +270,13 @@ describe('free slots', () => {
         .update(workspace_settings)
         .set({ business_hours_on: true })
         .where(eq(workspace_settings.workspace_id, ws.id))
-      await tx
-        .insert(availability_rules)
-        .values({
-          id: `ar_${crypto.randomUUID().slice(0, 8)}`,
-          workspace_id: ws.id,
-          weekday: 1,
-          start_time: '08:00',
-          end_time: '13:00',
-        })
+      await tx.insert(availability_rules).values({
+        id: `ar_${crypto.randomUUID().slice(0, 8)}`,
+        workspace_id: ws.id,
+        weekday: 1,
+        start_time: '08:00',
+        end_time: '13:00',
+      })
       await run(tx, owner, services, 'appointmentType.upsert', {
         appointmentTypeId: typeId,
         name: 'Repair visit',
@@ -1074,7 +1066,11 @@ describe('booking', () => {
     const { services } = fakeCalendar()
     await inRollback(async tx => {
       await run(tx, owner, services, 'appointment.book', book(at('09:00')))
-      const known = await run(tx, agent_(null), services, 'call.start', { from: ws.call.from_number, to: ws.number })
+      const known = await run(tx, agent_(null), services, 'call.start', {
+        attestation: 'A',
+        from: ws.call.from_number,
+        to: ws.number,
+      })
       expect(known.data!.booking).toMatchObject({ upcoming: [], canChangeBookings: true })
       expect(JSON.stringify(known.data)).not.toContain('Sam Patel')
     })
@@ -1085,7 +1081,7 @@ describe('booking', () => {
     await inRollback(async tx => {
       for (const from of ['anonymous', 'Restricted', '12345', '+0123456789', 'sip:alice@example.test']) {
         await endLiveCalls(tx, ws.id)
-        const started = await run(tx, agent_(null), services, 'call.start', { from, to: ws.number })
+        const started = await run(tx, agent_(null), services, 'call.start', { attestation: 'A', from, to: ws.number })
         expect(started.data, from).toMatchObject({
           contact: null,
           isNewContact: false,
@@ -1110,7 +1106,11 @@ describe('booking', () => {
       // Anonymous callers do not share a contact (there is none).
       expect(await tx.select().from(contacts).where(eq(contacts.phone, 'anonymous'))).toEqual([])
 
-      const anonymous = await run(tx, agent_(null), services, 'call.start', { from: 'anonymous', to: ws.number })
+      const anonymous = await run(tx, agent_(null), services, 'call.start', {
+        attestation: 'A',
+        from: 'anonymous',
+        to: ws.number,
+      })
       await run(tx, agent_(ws.id), services, 'appointment.book', book(at('11:00'), { callId: anonymous.data!.callId }))
       const event = [...events.values()][0]!
       expect(event.description).not.toContain('Phone:')
@@ -1130,7 +1130,11 @@ describe('booking', () => {
         `00${e164.slice(1)}`,
       ]) {
         await endLiveCalls(tx, ws.id)
-        const started = await run(tx, agent_(null), services, 'call.start', { from, to: ws.number.slice(1) })
+        const started = await run(tx, agent_(null), services, 'call.start', {
+          attestation: 'A',
+          from,
+          to: ws.number.slice(1),
+        })
         expect(started.data, from).toMatchObject({
           isNewContact: false,
           contact: { id: ws.contact.id },
@@ -1153,7 +1157,7 @@ describe('booking', () => {
         .insert(phone_numbers)
         .values({ id: `pn_${crypto.randomUUID().slice(0, 8)}`, workspace_id: ws.id, e164: uk, provider: 'dev' })
       const national = ws.call.from_number.slice(2)
-      const started = await run(tx, agent_(null), services, 'call.start', { from: national, to: uk })
+      const started = await run(tx, agent_(null), services, 'call.start', { attestation: 'A', from: national, to: uk })
       const [call] = await tx
         .select()
         .from(calls)
@@ -1201,7 +1205,7 @@ const shiftDay = (date: string, days: number) =>
 const searched = () => ({ appointmentTypeId: typeId, calendarId: ws.assistantCalendar.id })
 
 async function callFrom(tx: Tx, services: CalendarServices, from: string) {
-  const started = await run(tx, agent_(null), services, 'call.start', { from, to: ws.number })
+  const started = await run(tx, agent_(null), services, 'call.start', { attestation: 'A', from, to: ws.number })
   return { callId: started.data!.callId as string, booking: started.data!.booking }
 }
 
@@ -1550,7 +1554,7 @@ describe('appointment types', () => {
 
 describe('through the API', () => {
   test('call.start tells the agent what it can book: types, calendars with their notes, today in the business time zone', async () => {
-    const started = await act(agent(), 'call.start', { from: '+15035550177', to: ws.number })
+    const started = await act(agent(), 'call.start', { attestation: 'A', from: '+15035550177', to: ws.number })
     expect(started.body.data.booking).toMatchObject({
       timeZone: ZONE,
       todayDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
@@ -1561,7 +1565,10 @@ describe('through the API', () => {
       calendars: [{ id: ws.assistantCalendar.id, name: 'Office', is_default: true }],
     })
     // No appointment type: nothing to book, the assistant takes messages.
-    expect((await act(agent(), 'call.start', { from: '+15035550177', to: other.number })).body.data.booking).toBeNull()
+    expect(
+      (await act(agent(), 'call.start', { attestation: 'A', from: '+15035550177', to: other.number })).body.data
+        .booking,
+    ).toBeNull()
   })
 
   test('members and the agent (for its call) may book; types are for owners and admins', async () => {

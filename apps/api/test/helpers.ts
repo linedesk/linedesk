@@ -163,6 +163,8 @@ export async function createWorkspace(name: string, emailVerified = true) {
       contact_id: contact!.id,
       from_number: contact!.phone,
       to_number: number,
+      // A phone call whose carrier vouched for the number (callerRecognized).
+      caller_attestation: 'A',
     })
     .returning()
   // A connected calendar account (no tokens: nothing reaches a provider) and one calendar of the assistant.

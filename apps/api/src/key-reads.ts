@@ -84,3 +84,11 @@ export function keyReadRoute(path: string): KeyReadRoute | null {
 /** Whether a personal key may make this /v1 request: an action, or a GET of a key-readable route. */
 export const personalKeyMayRequest = (method: string, path: string) =>
   (method === 'POST' && /^\/v1\/actions\/[A-Za-z.]+$/.test(path)) || (method === 'GET' && keyReadRoute(path) !== null)
+
+/** The GET routes a key from an OAuth sign-in reads (its MCP client's workspaces_list); it has no api_get (mcp.ts). */
+export const OAUTH_KEY_READ_PATHS: ReadonlySet<string> = new Set(['/v1/me', '/v1/me/workspaces'])
+
+/** Whether a key from an OAuth sign-in may make this /v1 request: an action (run-action.ts narrows it), or one of its reads. */
+export const oauthKeyMayRequest = (method: string, path: string) =>
+  (method === 'POST' && /^\/v1\/actions\/[A-Za-z.]+$/.test(path)) ||
+  (method === 'GET' && OAUTH_KEY_READ_PATHS.has(path.split('?')[0]!))

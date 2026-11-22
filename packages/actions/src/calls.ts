@@ -176,10 +176,10 @@ export type CallerAttestation = (typeof CALLER_ATTESTATIONS)[number]
 
 /**
  * Whether a call's caller ID is trusted to name the caller (their contact's name, notes, history and bookings, the
- * business's caller lookup). Calls without a phone line (test, simulated) always. A phone call unless the carrier
- * said explicitly that it did not vouch for the number (an attestation other than A) and the assistant's owner left
- * "Recognize callers only when their carrier verified the number" on. No attestation at all (a trunk that passes no
- * SIP headers, an older agent) is handled as before the check; headers without a verstat arrive as `none`.
+ * business's caller lookup). Calls without a phone line (test, simulated) always. A phone call when the carrier
+ * vouched for the number (attestation A) or the assistant's owner turned "Recognize callers only when their carrier
+ * verified the number" off. No attestation at all (a trunk that passes no SIP headers) counts as not verified: anyone
+ * who reaches such a trunk can set any caller ID, so with the switch on such a caller is handled like an unknown number.
  */
 export function callerRecognized(
   source: 'phone' | 'test' | 'sample' | 'simulated',
@@ -187,7 +187,7 @@ export function callerRecognized(
   behaviours: Readonly<Record<string, boolean>> | null | undefined,
 ): boolean {
   if (source !== 'phone') return true
-  return attestation == null || attestation === 'A' || !behaviourOn(behaviours, 'verified_caller_only')
+  return attestation === 'A' || !behaviourOn(behaviours, 'verified_caller_only')
 }
 
 export const callStart = defineAction({

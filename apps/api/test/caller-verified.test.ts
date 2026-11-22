@@ -88,13 +88,24 @@ test('a carrier that says it did not vouch for the number: like an unknown numbe
   })
 })
 
-test('no attestation at all (a trunk without SIP headers, an older agent): the caller is named as before the check', async () => {
+test('no attestation at all (a trunk without SIP headers): not verified, the caller is handled like an unknown number', async () => {
   const ws = await knownCaller()
+  const data = await start(ws)
+  expect(data.callerRecognized).toBe(false)
+  expect(data.contact).toEqual(expect.objectContaining({ id: ws.contact.id, name: null, note: null }))
+  expect(data.callerHistory).toBeNull()
+  expect(await callRow(data.callId)).toMatchObject({ caller_attestation: null, contact_id: ws.contact.id })
+})
+
+test('no attestation with the switch off: the caller is named by the number', async () => {
+  const ws = await knownCaller()
+  await db
+    .update(assistants)
+    .set({ behaviours: { verified_caller_only: false } })
+    .where(eq(assistants.workspace_id, ws.id))
   const data = await start(ws)
   expect(data.callerRecognized).toBe(true)
   expect(data.contact).toMatchObject({ name: 'Linda Park', note: 'Gate code 4411' })
-  expect(data.callerHistory).not.toBeNull()
-  expect(await callRow(data.callId)).toMatchObject({ caller_attestation: null })
 })
 
 test("the owner's switch off: every caller is named by the number, as before", async () => {
