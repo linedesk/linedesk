@@ -48,6 +48,17 @@ describe('requests', () => {
     expect(init.signal).toBeInstanceOf(AbortSignal)
   })
 
+  test("Place Details and Text Search ask in the workspace's language", async () => {
+    const details = answer(200, { id: 'ChIJbrightwater0001' })
+    await placeDetails(KEY, 'ChIJbrightwater0001', details, 'de')
+    expect(requestOf(details).url).toBe(
+      'https://places.googleapis.com/v1/places/ChIJbrightwater0001?languageCode=de&regionCode=us',
+    )
+    const search = answer(200, { places: [] })
+    await searchPlaces(KEY, 'Brightwater Plumbing, Portland', search, 'de')
+    expect(JSON.parse(requestOf(search).init.body as string).languageCode).toBe('de')
+  })
+
   test('Place Details: GET of the listing with the details field mask', async () => {
     const fetchMock = answer(200, { id: 'ChIJbrightwater0001', displayName: { text: 'Brightwater' } })
     expect((await placeDetails(KEY, 'ChIJbrightwater0001', fetchMock)).displayName?.text).toBe('Brightwater')

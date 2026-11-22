@@ -14,6 +14,7 @@ import {
   templateOfKind,
   USE_CASE_MAX,
   USE_CASES_MAX,
+  languageNames,
 } from '@linedesk/actions'
 import { business_lookup_usage, organization, type Tx } from '@linedesk/db'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -166,6 +167,15 @@ Answer with one JSON object and nothing else:
 }
 Never invent or estimate a price, a service or an area.`
 
+/**
+ * The system prompt with the language to write in: the workspace's (the one the assistant speaks with callers), also
+ * when the listing or the website is in another one. Rule 11: wording approved by Janik on 2026-11-22.
+ */
+// i18n-ignore: text the language model reads, not UI
+export const businessSystem = (language: string) =>
+  `${BUSINESS_SYSTEM}
+Write "about", "services", "area" and "use_cases" in ${languageNames([language])}, the language the assistant speaks with callers, also when the listing or the pages are in another language. Keep the names of the business, its products and places as they are.`
+
 /** The listing as data for the model: only what Google said, one fact per line. */
 export function listingText(details: PlaceDetails | null, name: string): string {
   if (!details) return `Name: ${name}`
@@ -252,7 +262,7 @@ async function proposal(
     if (!key) failures.push({ provider: 'business', reason: 'config' })
     else
       try {
-        details = await placeDetails(key, input.placeId)
+        details = await placeDetails(key, input.placeId, fetch, language)
       } catch (e) {
         if (!(e instanceof PlacesError && e.reason === 'auth')) throw e
         // LIN-111: report the Places provider failure (reason auth) here, so Server admin › Providers shows it.
@@ -294,7 +304,7 @@ async function proposal(
     if (model) {
       try {
         answer = parseBusinessAnswer(
-          await model.complete(BUSINESS_SYSTEM, businessPrompt(listingText(details, name), pages)),
+          await model.complete(businessSystem(language), businessPrompt(listingText(details, name), pages)),
         )
       } catch (e) {
         // Only the kind of error: a parse error's message quotes the model's text, which comes from the website.
@@ -346,7 +356,15 @@ export const businessHandlers: Record<string, Handler> = {
     try {
       return {
         rows: {},
-        data: { lookup: true, results: await searchPlaces(key, input.query) } satisfies BusinessSearchData,
+        data: {
+          lookup: true,
+          results: await searchPlaces(
+            key,
+            input.query,
+            fetch,
+            (await workspaceLocale(db, workspaceId)).resolvedLanguage,
+          ),
+        } satisfies BusinessSearchData,
       }
     } catch (e) {
       if (e instanceof PlacesError && e.reason === 'auth') {

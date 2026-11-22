@@ -102,16 +102,17 @@ async function placesRequest(
   })
 }
 
-/** Text Search (New): up to five listings for "Business name, city", US first, in English. */
+/** Text Search (New): up to five listings for "Business name, city", US first, in the workspace's language. */
 export async function searchPlaces(
   apiKey: string,
   query: string,
   doFetch: Fetch = fetch,
+  language = 'en',
 ): Promise<BusinessCandidate[]> {
   const body = (await placesRequest(doFetch, apiKey, `${BASE}/places:searchText`, SEARCH_FIELD_MASK, {
     textQuery: query,
     pageSize: BUSINESS_SEARCH_RESULTS,
-    languageCode: 'en',
+    languageCode: language,
     regionCode: 'us',
   })) as { places?: PlaceDetails[] } | null
   return (body?.places ?? [])
@@ -123,9 +124,17 @@ export async function searchPlaces(
     .slice(0, BUSINESS_SEARCH_RESULTS)
 }
 
-/** Place Details (New) for one listing. The ID was checked by the action's input (letters, digits, - and _). */
-export async function placeDetails(apiKey: string, placeId: string, doFetch: Fetch = fetch): Promise<PlaceDetails> {
-  const url = `${BASE}/places/${encodeURIComponent(placeId)}?languageCode=en&regionCode=us`
+/**
+ * Place Details (New) for one listing, in the workspace's language (address, hours). The ID was checked by the action's
+ * input (letters, digits, - and _).
+ */
+export async function placeDetails(
+  apiKey: string,
+  placeId: string,
+  doFetch: Fetch = fetch,
+  language = 'en',
+): Promise<PlaceDetails> {
+  const url = `${BASE}/places/${encodeURIComponent(placeId)}?languageCode=${encodeURIComponent(language)}&regionCode=us`
   return ((await placesRequest(doFetch, apiKey, url, DETAILS_FIELD_MASK)) ?? {}) as PlaceDetails
 }
 
