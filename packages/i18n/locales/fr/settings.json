@@ -682,7 +682,7 @@
   "developers.zapier.copied": "Adresse copiée.",
   "developers.zapier.copyFailed": "Échec de la copie. Sélectionnez plutôt l'adresse.",
   "developers.zapier.key": "Créez une clé d'API avec Créer une clé ci-dessus. L'accès Membre suffit pour tous les déclencheurs et actions Linedesk.",
-  "developers.zapier.notAvailable": "Ce serveur n'a pas encore de lien vers l'app Linedesk sur Zapier. Demandez à l'administrateur du serveur de le définir dans Administration du serveur › Outils.",
+  "developers.zapier.notAvailable": "Ce serveur n'a pas encore de lien vers l'app Linedesk sur Zapier. Demandez à l'administrateur du serveur de le définir dans Administration du serveur › Fonctionnalités.",
   "developers.zapier.open": "Ouvrez <link>Linedesk sur Zapier</link>.",
   "developers.zapier.pick": "Choisissez un déclencheur (Call Started, During-Call Lookup ou Call Finished) ou une action. Run Any Action donne accès à toutes les actions de l'API.",
   "developers.zapier.title": "Connecter Zapier",
