@@ -25,7 +25,6 @@ import {
   agentClients,
   cloudClients,
   HOSTING_GUIDE_URL,
-  installParts,
   installPlace,
   type MyPartner,
   SETUP_KEY_HOURS,
@@ -34,8 +33,6 @@ import {
   type SetupStepGroup,
   type SetupWorkspaceSummary,
   type StartStep,
-  setupStepGroups,
-  setupStepNames,
   startPlan,
   stepsByGroup,
   UNPAID_PARTNER_CLIENTS,
@@ -62,7 +59,7 @@ import { ClientLink } from '../ui/ClientLink.tsx'
 import { Select } from '../ui/controls.tsx'
 import { HelpTip } from '../ui/HelpTip.tsx'
 import { Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
-import { LoadProblem, Skeleton, SkeletonChecklist, SkeletonPart, useLoading } from '../ui/LoadStates.tsx'
+import { LoadProblem, Skeleton, SkeletonPart, useLoading } from '../ui/LoadStates.tsx'
 import { MarkGlyph } from '../ui/StatusMark.tsx'
 import { AgentForm, StepNumber } from './AgentForm.tsx'
 import { AgentPicker, agentLabel } from './AgentPicker.tsx'
@@ -333,6 +330,15 @@ export function AgentSetup({
   }
 
   const connected = Boolean(state?.key?.lastUsedAt)
+  // Once the agent is connected the page is about its progress: the title and the agent card fold to one line each
+  // (the link and how to start stay one click away, `linkOpen`), the progress card is the page. Before that the
+  // progress is not shown at all: the first step is only connecting the agent.
+  const focus = connected
+  const [linkOpen, setLinkOpen] = useState(false)
+  // A new connection folds the card again, whatever it was before.
+  useEffect(() => {
+    if (connected) setLinkOpen(false)
+  }, [connected])
   const stepDone = (id: string, group?: SetupStepGroup) =>
     state?.progress.steps.some(s => s.id === id && (!group || s.group === group) && s.state === 'done') ?? false
   // A partner after its Checkout: White-label Cloud runs; what is left for the owner is numbers and invitations.
@@ -346,6 +352,12 @@ export function AgentSetup({
     if (state.key?.prefix !== created.prefix || !unexpired(created)) setCreated(null)
   }, [state, created, setCreated])
   const hasLink = state ? Boolean(state.key) : Boolean(created)
+  // The checklist shows once there is progress to watch: the agent connected (or ended its access after working),
+  // everything is set up (the page then is the way to change it), or settings are changed (what the agent can change).
+  // The title alone (no kicker, no lede, a size smaller) once the way is chosen: a link is made, or the agent works.
+  // Changing settings keeps its lede (it names the workspace).
+  const compactHead = !change && (focus || (hasLink && !allDone))
+  const showProgress = Boolean(state && (connected || state.progress.allDone || state.endedByAgentAt || change))
   const cloudBlocked = state !== null && !state.reachableFromCloud && cloudClients.includes(client)
   // Until the first read of the setup state, everything on the page that depends on it is a skeleton of its shape
   // (docs/design-principles.md rule 15): the title, the link step's button, the checklist and the way by hand. A
@@ -389,7 +401,7 @@ export function AgentSetup({
       className={cx('as', scope === 'partner' && 'k-install-brand')}
       label={t('onboarding.agentSetup.ariaLabel', { brand: product })}
       busy={skeleton}
-      mainClassName="as-main"
+      mainClassName={cx('as-main', focus && 'as-main-focus')}
       bar={
         <SetupTopBar
           label={t('onboarding.agentSetup.topLabel')}
@@ -417,9 +429,9 @@ export function AgentSetup({
           {t('onboarding.agentSetup.loading')}
         </span>
       )}
-      <div className={cx('ob-body', view.fadeIn && 'ld-in')}>
+      <div className={cx('ob-body', compactHead && 'as-head-compact', view.fadeIn && 'ld-in')}>
         {/* "Recommended" is about choosing a way; once everything is set up there is nothing to choose. */}
-        {!allDone && (
+        {!allDone && !compactHead && (
           <span className="as-kicker">
             <Icon name="spark" size={14} /> {t('onboarding.agentSetup.kicker')}
           </span>
@@ -465,7 +477,11 @@ export function AgentSetup({
           </>
         ) : (
           <>
-            <h1>{t('onboarding.agentSetup.title', { brand: brandName() })}</h1>
+            <h1>
+              {focus
+                ? t('onboarding.agentSetup.connected.title', { brand: brandName() })
+                : t('onboarding.agentSetup.title', { brand: brandName() })}
+            </h1>
             <p className="ob-lede">
               {preparedByPartner ? (
                 t('onboarding.agentSetup.owner.ledePrepared', {
@@ -484,105 +500,132 @@ export function AgentSetup({
 
       {/* Before the state is read, this page's own address stands for the server's: the note shows at once. Where
             the server runs is its admin's business, not a workspace owner's. */}
-      {!personal && <HostingNote address={state?.mcpUrl ?? `${globalThis.location?.origin ?? ''}/mcp/setup`} />}
+      {!personal && !focus && (
+        <HostingNote address={state?.mcpUrl ?? `${globalThis.location?.origin ?? ''}/mcp/setup`} />
+      )}
 
-      <section className="as-card" aria-label={t('onboarding.agentSetup.yourAgent')}>
-        <div className="as-link-step">
-          <b className="as-step-title">
-            {t('onboarding.agentSetup.link.title')}
-            <HelpTip
-              label={t('onboarding.agentSetup.link.helpLabel')}
-              text={t(
-                partnerId
-                  ? 'onboarding.agentSetup.partner.linkHelp'
-                  : owner
-                    ? 'onboarding.agentSetup.owner.linkHelp'
-                    : 'onboarding.agentSetup.link.help',
-                { hours: SETUP_KEY_HOURS },
-              )}
-            />
-          </b>
-          <AgentPicker client={client} onPick={pick} />
-          {cloudBlocked && (
-            <Note
-              tone="warning"
-              title={t('onboarding.agentSetup.cloudBlocked.title', { agent: agentLabel(client, t) })}
-            >
-              {t('onboarding.agentSetup.cloudBlocked.body', {
-                agent: agentLabel(client, t),
-                address: state?.mcpUrl.replace(/\/mcp\/setup$/, '') ?? '',
-                brand: product,
-              })}
-            </Note>
-          )}
-          {hasLink ? (
-            <>
-              <div className="as-link">
-                <span className="as-small">
-                  {t('onboarding.agentSetup.link.ready', {
-                    until: timeOf(created?.expiresAt ?? state?.key?.expiresAt ?? ''),
-                  })}
-                </span>
+      {focus && !linkOpen ? (
+        <AgentConnectedBar
+          until={timeOf(created?.expiresAt ?? state?.key?.expiresAt ?? '')}
+          onOpen={() => setLinkOpen(true)}
+        />
+      ) : (
+        <section className="as-card" aria-label={t('onboarding.agentSetup.yourAgent')}>
+          <div className="as-link-step">
+            <b className="as-step-title">
+              {t('onboarding.agentSetup.link.title')}
+              <HelpTip
+                label={t('onboarding.agentSetup.link.helpLabel')}
+                text={t(
+                  partnerId
+                    ? 'onboarding.agentSetup.partner.linkHelp'
+                    : owner
+                      ? 'onboarding.agentSetup.owner.linkHelp'
+                      : 'onboarding.agentSetup.link.help',
+                  { hours: SETUP_KEY_HOURS },
+                )}
+              />
+              {focus && (
                 <Button
                   size="sm"
-                  busy={busy === 'end'}
-                  onClick={() => void endAccess()}
-                  title={t('onboarding.agentSetup.link.endTitle')}
+                  variant="ghost"
+                  className="as-fold"
+                  title={t('onboarding.agentSetup.connected.hideTitle')}
+                  aria-expanded
+                  onClick={() => setLinkOpen(false)}
                 >
-                  {t('onboarding.agentSetup.link.end')}
+                  {t('onboarding.agentSetup.connected.hide')} <Icon name="up" size={14} />
                 </Button>
-              </div>
-              {created ? (
-                // The setup link is a key: never in a Help report's screenshot (feedback/report.ts).
-                <div data-no-shot style={{ display: 'contents' }}>
-                  <StartAgent client={client} url={created.url} scope={scope} change={change} />
-                </div>
-              ) : (
-                <span className="as-small">{t('onboarding.agentSetup.link.otherBrowser')}</span>
               )}
-            </>
-          ) : skeleton ? (
-            <div className="as-step">
-              <SkeletonPart reserved={reserved}>
-                <Skeleton width={148} height={32} />
-              </SkeletonPart>
-            </div>
-          ) : (
-            <div className="as-step">
-              {state?.endedByAgentAt && <AgentEndedNote at={state.endedByAgentAt} />}
-              <div>
-                <Button
-                  variant={allDone ? 'secondary' : 'primary'}
-                  busy={busy === 'create'}
-                  shortcut={createIsMain ? ['⏎'] : undefined}
-                  className="as-enter"
-                  onClick={() => void createKey()}
-                >
-                  {t('onboarding.agentSetup.link.create')}
-                </Button>
+            </b>
+            <AgentPicker client={client} onPick={pick} />
+            {cloudBlocked && (
+              <Note
+                tone="warning"
+                title={t('onboarding.agentSetup.cloudBlocked.title', { agent: agentLabel(client, t) })}
+              >
+                {t('onboarding.agentSetup.cloudBlocked.body', {
+                  agent: agentLabel(client, t),
+                  address: state?.mcpUrl.replace(/\/mcp\/setup$/, '') ?? '',
+                  brand: product,
+                })}
+              </Note>
+            )}
+            {hasLink ? (
+              <>
+                <div className="as-link">
+                  <span className="as-small">
+                    {t('onboarding.agentSetup.link.ready', {
+                      until: timeOf(created?.expiresAt ?? state?.key?.expiresAt ?? ''),
+                    })}
+                  </span>
+                  <Button
+                    size="sm"
+                    busy={busy === 'end'}
+                    onClick={() => void endAccess()}
+                    title={t('onboarding.agentSetup.link.endTitle')}
+                  >
+                    {t('onboarding.agentSetup.link.end')}
+                  </Button>
+                </div>
+                {created ? (
+                  // The setup link is a key: never in a Help report's screenshot (feedback/report.ts).
+                  <div data-no-shot style={{ display: 'contents' }}>
+                    <StartAgent client={client} url={created.url} scope={scope} change={change} />
+                  </div>
+                ) : (
+                  <span className="as-small">{t('onboarding.agentSetup.link.otherBrowser')}</span>
+                )}
+                {/* The checklist waits until the agent connects; meanwhile this says the page is watching for it. */}
+                {!connected && state?.key && (
+                  <span className="as-small as-waiting-line" role="status">
+                    <Spinner /> {t('onboarding.agentSetup.progress.waiting')}
+                  </span>
+                )}
+              </>
+            ) : skeleton ? (
+              <div className="as-step">
+                <SkeletonPart reserved={reserved}>
+                  <Skeleton width={148} height={32} />
+                </SkeletonPart>
               </div>
-            </div>
+            ) : (
+              <div className="as-step">
+                {state?.endedByAgentAt && <AgentEndedNote at={state.endedByAgentAt} />}
+                <div>
+                  <Button
+                    variant={allDone ? 'secondary' : 'primary'}
+                    busy={busy === 'create'}
+                    shortcut={createIsMain ? ['⏎'] : undefined}
+                    className="as-enter"
+                    onClick={() => void createKey()}
+                  >
+                    {t('onboarding.agentSetup.link.create')}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+          {signInFirst && (
+            <Note
+              tone="warning"
+              title={t('onboarding.agentSetup.owner.signInFirst.title')}
+              action={
+                <Button size="sm" title={t('account.signInAgain.title')} onClick={() => void signOutAndSignIn()}>
+                  {t('account.signInAgain.button')}
+                </Button>
+              }
+            >
+              {partnerId
+                ? t('onboarding.agentSetup.partner.signInFirst', { hours: SETUP_KEY_HOURS })
+                : t('onboarding.agentSetup.owner.signInFirst.text', { hours: SETUP_KEY_HOURS })}
+            </Note>
           )}
-        </div>
-        {signInFirst && (
-          <Note
-            tone="warning"
-            title={t('onboarding.agentSetup.owner.signInFirst.title')}
-            action={
-              <Button size="sm" title={t('account.signInAgain.title')} onClick={() => void signOutAndSignIn()}>
-                {t('account.signInAgain.button')}
-              </Button>
-            }
-          >
-            {partnerId
-              ? t('onboarding.agentSetup.partner.signInFirst', { hours: SETUP_KEY_HOURS })
-              : t('onboarding.agentSetup.owner.signInFirst.text', { hours: SETUP_KEY_HOURS })}
-          </Note>
-        )}
-        {error && <Note tone="danger">{error}</Note>}
-      </section>
+          {error && <Note tone="danger">{error}</Note>}
+        </section>
+      )}
 
-      {byHand && !skeleton && (
+      {byHand && !skeleton && !focus && (
         <SetUpYourself
           text={t(partnerId ? 'onboarding.agentSetup.partner.noAgent' : 'onboarding.agentSetup.noAgent')}
           label={t(partnerId ? 'onboarding.agentSetup.partner.byHand' : 'onboarding.agentSetup.manual')}
@@ -592,22 +635,23 @@ export function AgentSetup({
       )}
 
       {state ? (
-        <Progress
-          state={state}
-          connected={connected}
-          change={Boolean(change)}
-          active={active ?? null}
-          reload={load}
-          fadeIn={view.fadeIn}
-          single={owner}
-          trial={trial}
-          partner={partner ?? null}
-          partnerScope={partnerId !== null}
-          onFirstWorkspace={onFirstWorkspace}
-        />
-      ) : skeleton ? (
-        <ProgressSkeleton reserved={reserved} single={owner} scope={scope} />
-      ) : (
+        showProgress && (
+          <Progress
+            state={state}
+            connected={connected}
+            focus={focus}
+            change={Boolean(change)}
+            active={active ?? null}
+            reload={load}
+            fadeIn={view.fadeIn}
+            single={owner}
+            trial={trial}
+            partner={partner ?? null}
+            partnerScope={partnerId !== null}
+            onFirstWorkspace={onFirstWorkspace}
+          />
+        )
+      ) : skeleton ? null : (
         <LoadProblem
           what={t('onboarding.agentSetup.progressWhat')}
           message={loadError ?? undefined}
@@ -654,73 +698,11 @@ export const NEW_WORKSPACE = '__new'
 /** Its value while the admin has no workspace yet. */
 const NO_WORKSPACE = ''
 
-/**
- * The steps the setup checklist shows while its first state is read, in the server's order (setup-mcp.ts): the
- * server's, then a workspace's. The rows with a button on this page (forwarding, the test call) are as tall as it.
- */
-const SKELETON_GROUPS: Record<(typeof setupStepGroups)[number]['id'], readonly string[]> = {
-  partner: ['company', 'brand', 'team', 'clients', 'plan'],
-  server: installParts,
-  business: ['business', 'assistant', 'pickup', 'notify', 'phone', 'forwarding', 'test_call'],
-}
-const SKELETON_ACTIONS: Record<string, number> = { forwarding: 124, test_call: 132, clients: 104, plan: 178 }
-
-/** A step's row width: its name (13px) and, after " · ", its hint (12px), about as long as the words. */
-export function stepSkeletonRow(id: string): { label: number; action?: number } {
-  const name = setupStepNames[id] ?? { label: id }
-  const label = Math.round(name.label.length * 7 + (name.hint ? 12 + name.hint.length * 6 : 0))
-  return SKELETON_ACTIONS[id] ? { label, action: SKELETON_ACTIONS[id] } : { label }
-}
-
-/** The setup checklist while its first state is read: its card, head, group headings, dropdown and rows. */
-export function ProgressSkeleton({
-  reserved,
-  single = false,
-  scope = 'install',
-}: {
-  reserved: boolean
-  single?: boolean
-  scope?: SetupScope
-}) {
-  const t = useT()
-  // A workspace owner's page: the workspace's part only; a partner's: the partner's and a client workspace's; an
-  // instance admin's: the server's and a workspace's.
-  const groups = setupStepGroups.filter(g =>
-    single ? g.id === 'business' : scope === 'partner' ? g.id !== 'server' : g.id !== 'partner',
-  )
-  return (
-    <section className="as-card as-progress" aria-label={t('onboarding.agentSetup.progress.label')}>
-      <SkeletonPart reserved={reserved}>
-        <div className="as-progress-head">
-          <Skeleton shape="text" width={176} />
-          <Skeleton shape="text" width={72} />
-        </div>
-        {groups.map(group => (
-          <div key={group.id} className={cx('as-group', group.id === 'business' && 'as-group-ws')}>
-            {group.id === 'business' ? (
-              <div className="as-ws-head">
-                <span className="as-group-label">{t('onboarding.agentSetup.workspace.label')}</span>
-                <Skeleton width={184} height={28} />
-              </div>
-            ) : (
-              <h3 className="as-group-label">{groupLabel(group, t)}</h3>
-            )}
-            <SkeletonChecklist
-              rows={SKELETON_GROUPS[group.id].map(stepSkeletonRow)}
-              listClassName="as-list"
-              rowClassName="as-item"
-            />
-          </div>
-        ))}
-      </SkeletonPart>
-    </section>
-  )
-}
-
 /** What the agent has set up so far, live. */
 function Progress({
   state,
   connected,
+  focus = false,
   change = false,
   active,
   reload,
@@ -733,6 +715,8 @@ function Progress({
 }: {
   state: AgentSetupState
   connected: boolean
+  /** The agent is connected and the card is the page: the count leads, with a bar (the connection is said above it). */
+  focus?: boolean
   /** Changing settings (AgentSetup's `change`): what the agent can change, with no "set up" words and no count. */
   change?: boolean
   active: SetupWorkspace | null
@@ -819,7 +803,9 @@ function Progress({
       aria-label={t('onboarding.agentSetup.progress.label')}
       aria-live="polite"
     >
-      {change && !connected && !state.key ? null : (
+      {change && !connected && !state.key ? null : focus && !change ? (
+        <ProgressHead done={done} total={steps.length} allDone={allDone} />
+      ) : (
         <div className="as-progress-head">
           {change ? null : allDone ? (
             <b>{t('onboarding.agentSetup.progress.allDone')}</b>
@@ -1109,6 +1095,53 @@ export function WorkspaceHeading({ name, unnamed = false }: { name: string; unna
 }
 
 /** The agent ended its own access at the end of the setup (setup_endAccess): when, in this browser's time. */
+/**
+ * The agent card once the agent is connected: one line that says so and how long the link works, and a button that
+ * unfolds the card (the agent picker, the link, how to start it, End access).
+ */
+export function AgentConnectedBar({ until, onOpen }: { until: string; onOpen: () => void }) {
+  const t = useT()
+  return (
+    <section className="as-card as-connected" aria-label={t('onboarding.agentSetup.yourAgent')}>
+      <b className="as-connected-what">
+        <span className="as-dot" aria-hidden /> {t('onboarding.agentSetup.progress.connected')}
+      </b>
+      <span className="as-small as-connected-until">{t('onboarding.agentSetup.connected.until', { until })}</span>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="as-fold"
+        title={t('onboarding.agentSetup.connected.showTitle')}
+        aria-expanded={false}
+        onClick={onOpen}
+      >
+        {t('onboarding.agentSetup.connected.show')} <Icon name="down" size={14} />
+      </Button>
+    </section>
+  )
+}
+
+/** The progress card's head while the agent works: how far it got, in words and as a bar. */
+function ProgressHead({ done, total, allDone }: { done: number; total: number; allDone: boolean }) {
+  const t = useT()
+  return (
+    <div className="as-progress-head as-progress-focus">
+      <b>{allDone ? t('onboarding.agentSetup.progress.allDone') : t('onboarding.agentSetup.progress.label')}</b>
+      <span className="as-small">{t('onboarding.agentSetup.progress.count', { done, total })}</span>
+      <span
+        className="as-bar"
+        role="progressbar"
+        aria-label={t('onboarding.agentSetup.progress.label')}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={done}
+      >
+        <span style={{ width: `${total ? Math.round((done / total) * 100) : 0}%` }} />
+      </span>
+    </div>
+  )
+}
+
 export function AgentEndedNote({ at }: { at: string }) {
   const t = useT()
   return (

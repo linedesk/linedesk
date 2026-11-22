@@ -2,6 +2,10 @@
 .as-main {
   gap: 20px;
 }
+/* The agent page starts a little higher than the other setup pages (8vh), so connecting the agent fits on one screen. */
+.ob-main.as-main {
+  padding-top: 6vh;
+}
 .as-kicker {
   display: inline-flex;
   align-items: center;
@@ -380,4 +384,83 @@
   border-radius: var(--radius-lg);
   color: var(--ink-muted);
   font-size: 14px;
+}
+/* The way is chosen (AgentSetup `compactHead`: a link is made, or the agent works): the title without its kicker and lede, a size smaller, so the progress
+   card is the page and the whole page fits without scrolling. */
+.ob .as-head-compact h1 {
+  font-size: 22px;
+  line-height: 28px;
+}
+.ob .as-head-compact .ob-lede {
+  display: none;
+}
+/* The agent card folded to one line: connected, how long the link works, and the button that unfolds it. */
+.as-connected {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 10px 12px 10px 18px;
+}
+.as-connected-what {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.as-connected .as-fold {
+  margin-left: auto;
+}
+/* Fold or unfold the agent card: quiet, at the right end of its line. */
+.as-step-title .as-fold {
+  margin-left: auto;
+}
+.as-fold {
+  gap: 4px;
+  color: var(--ink-muted);
+}
+/* The progress card's head while the agent works: the label and count on one line, the bar under them. */
+.as-progress-focus {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+.as-bar {
+  flex: 1 0 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--line);
+}
+.as-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--action);
+  transition: width 0.4s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .as-bar > span {
+    transition: none;
+  }
+}
+/* Connected: less room above the title (the page's 8vh is for the hero before), so the checklist fits on one screen. */
+.ob-main.as-main-focus {
+  padding-top: 4vh;
+  gap: 16px;
+}
+/* Under the link's steps until the agent connects: the page is watching for it. */
+.as-waiting-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+/* Connected: the checklist's rows a little closer, so all its steps fit on a laptop screen too. */
+.as-main-focus .as-item {
+  padding: 3px 0;
+}
+.as-main-focus .as-progress {
+  gap: 12px;
 }

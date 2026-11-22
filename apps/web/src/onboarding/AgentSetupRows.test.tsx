@@ -6,7 +6,6 @@ import {
   NEW_WORKSPACE,
   openWorkspaceFromHere,
   partnerOrder,
-  ProgressSkeleton,
   StepAction,
   WorkspacePicker,
   withTestCallMade,
@@ -163,9 +162,6 @@ test("a workspace owner's page names its one workspace: no dropdown, no New work
   )
   expect(heading).not.toContain('k-select')
   expect(heading).not.toContain('New workspace')
-  const skeleton = renderToStaticMarkup(<ProgressSkeleton reserved={false} single />)
-  expect(skeleton).not.toContain('This server')
-  expect(renderToStaticMarkup(<ProgressSkeleton reserved={false} />)).toContain('This server')
 })
 
 test("Start your free trial: the owner's own row once the free steps are done, never before and never without the trial", () => {
