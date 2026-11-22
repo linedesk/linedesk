@@ -201,6 +201,9 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'provider.connectOneKey': 'keys',
   'carrier.set': 'keys',
   'carrier.provisionTransferTrunk': 'keys',
+  // A store's own Shopify app stored for a workspace (LIN-719), or its setup marked failed.
+  'shopifySetup.ready': 'keys',
+  'shopifySetup.failed': 'admin',
   // Install-wide switches a server admin sets for every workspace.
   'voiceCloning.set': 'admin',
   'germanNumbers.set': 'admin',

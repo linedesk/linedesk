@@ -111,6 +111,7 @@ import { bookingContext, bookingHandlers, bookingsForTest, DEFAULT_TIME_ZONE } f
 import { calendarConnectionHandlers } from './calendar-connections.ts'
 import { appConnectionHandlers } from './app-connections.ts'
 import { shopifyCallHandlers, shopifyCallSetup } from './shopify-calls.ts'
+import { shopifySetupHandlers } from './shopify-setup.ts'
 import { mailAnalysisHandlers } from './mail-analysis.ts'
 import { mailConnectionHandlers } from './mail-connections.ts'
 import { appPushHandlers } from './app-pushes.ts'
@@ -1313,6 +1314,7 @@ const handlers: Record<string, Handler> = {
   ...calendarConnectionHandlers,
   ...appConnectionHandlers,
   ...shopifyCallHandlers,
+  ...shopifySetupHandlers,
   ...mailConnectionHandlers,
   ...mailAnalysisHandlers(queueMailAnalysis),
   ...appPushHandlers,

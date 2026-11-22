@@ -694,6 +694,56 @@ Linedesk · desk.example.com
 ",
   ],
   [
+    "admin-alert-shopify-setup",
+    "Set up Shopify for brightwater.myshopify.com",
+    "Admin alert
+
+Set up Shopify for brightwater.myshopify.com
+
+Brightwater Plumbing & Heating wants to connect their Shopify store. Make the store's own app, then hand over its keys and install link.
+
+Store: brightwater.myshopify.com
+Workspace: Brightwater Plumbing & Heating (ws_demo)
+Asked by: mike@brightwater.example
+
+Until the app is ready, the business sees that their store is being set up. Then they get an email with the install link.
+
+Open Server admin:
+https://desk.example.com/#admin/overview
+
+Open the audit log:
+https://desk.example.com/#admin/audit
+
+--
+
+You got this email because you are a server admin of desk.example.com. Every server admin gets these alerts.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "shopify-setup-ready",
+    "Your Shopify store is ready to connect to Linedesk",
+    "Your Shopify app is ready
+
+We set up the Linedesk app for brightwater.myshopify.com. Install it on your store: Shopify asks you to confirm, then brings you back to Linedesk to finish connecting.
+
+Install in Shopify:
+https://admin.shopify.com/store/brightwater/oauth/install_custom_app?client_id=a1b2c3d4e5f6&no_redirect=true
+
+Open Integrations:
+https://desk.example.com/#integrations/shopify?ws=ws_demo
+
+After that, the assistant finds orders and products during calls, and every call is added as a note on the Shopify customer.
+
+--
+
+You get this email because you asked to connect Shopify on desk.example.com.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
     "partner-domain-live",
     "app.cascade-it.example is live",
     "Your address
@@ -1969,6 +2019,56 @@ https://desk.example.com/#admin/audit
 --
 
 Recibes este correo porque eres administrador del servidor de desk.example.com. Todos los administradores del servidor reciben estas alertas.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "admin-alert-shopify-setup",
+    "Set up Shopify for brightwater.myshopify.com",
+    "Alerta de administración
+
+Set up Shopify for brightwater.myshopify.com
+
+Brightwater Plumbing & Heating wants to connect their Shopify store. Make the store's own app, then hand over its keys and install link.
+
+Store: brightwater.myshopify.com
+Workspace: Brightwater Plumbing & Heating (ws_demo)
+Asked by: mike@brightwater.example
+
+Until the app is ready, the business sees that their store is being set up. Then they get an email with the install link.
+
+Open Server admin:
+https://desk.example.com/#admin/overview
+
+Abrir el registro de auditoría:
+https://desk.example.com/#admin/audit
+
+--
+
+Recibes este correo porque eres administrador del servidor de desk.example.com. Todos los administradores del servidor reciben estas alertas.
+
+Linedesk · desk.example.com
+",
+  ],
+  [
+    "shopify-setup-ready",
+    "Your Shopify store is ready to connect to Linedesk",
+    "Your Shopify app is ready
+
+We set up the Linedesk app for brightwater.myshopify.com. Install it on your store: Shopify asks you to confirm, then brings you back to Linedesk to finish connecting.
+
+Install in Shopify:
+https://admin.shopify.com/store/brightwater/oauth/install_custom_app?client_id=a1b2c3d4e5f6&no_redirect=true
+
+Open Integrations:
+https://desk.example.com/#integrations/shopify?ws=ws_demo
+
+After that, the assistant finds orders and products during calls, and every call is added as a note on the Shopify customer.
+
+--
+
+You get this email because you asked to connect Shopify on desk.example.com.
 
 Linedesk · desk.example.com
 ",

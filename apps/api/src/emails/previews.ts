@@ -12,6 +12,7 @@ import {
 import { billingOwnerEmail } from './billing.ts'
 import { managerChangedEmail } from './billing-lifecycle.ts'
 import { partnerDomainAddedAlert, partnerDomainEmail } from './partner.ts'
+import { shopifySetupReadyEmail, shopifySetupRequestedAlert } from './shopify-setup.ts'
 import type { RenderedEmail } from './layout.ts'
 import {
   addedNoticeEmail,
@@ -423,6 +424,33 @@ export function previewEmails(origin: string, locale?: string | null): Preview[]
           brandName: 'Cascade Desk',
           reviewUrl: `${origin}/#admin/partners`,
         })(locale),
+        origin,
+        locale,
+      ),
+    },
+    {
+      name: 'admin-alert-shopify-setup',
+      email: adminAlertEmail(
+        shopifySetupRequestedAlert({
+          workspace: 'Brightwater Plumbing & Heating',
+          workspaceId: WORKSPACE_ID,
+          shop: 'brightwater.myshopify.com',
+          by: 'mike@brightwater.example',
+          reviewUrl: `${origin}/#admin/overview`,
+        })(locale),
+        origin,
+        locale,
+      ),
+    },
+    {
+      name: 'shopify-setup-ready',
+      email: shopifySetupReadyEmail(
+        {
+          workspaceId: WORKSPACE_ID,
+          shop: 'brightwater.myshopify.com',
+          installUrl:
+            'https://admin.shopify.com/store/brightwater/oauth/install_custom_app?client_id=a1b2c3d4e5f6&no_redirect=true',
+        },
         origin,
         locale,
       ),

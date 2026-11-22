@@ -35,6 +35,7 @@ import { Badge, Button, Icon } from '../ui/kit.tsx'
 import { Loading, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { appConnectErrorKey, appConnectResult, appPushErrorKey, appSettingsWith, nameKey } from './catalog.ts'
+import { SHOPIFY_SETUP, ShopifyNotConnected, shopToConnect, withoutConnect } from './ShopifySetup.tsx'
 
 type Props = {
   app: ConnectableApp
@@ -91,6 +92,7 @@ export function ConnectedApp({ app, canEdit, toast }: Props) {
   const connection = useRows('app_connections').find(c => c.provider === app)
   const ready = useLoadState('app_connections') === 'ready'
   useConnectResult(app, toast)
+  const openShop = useOpenShop(app)
   return (
     <>
       <Section id="ig-app" title={t('settings.integrations.app.title')} help={t(APP_TEXT[app].help, { name })}>
@@ -102,7 +104,7 @@ export function ConnectedApp({ app, canEdit, toast }: Props) {
           {connection ? (
             <Connection app={app} connection={connection} canEdit={canEdit} toast={toast} />
           ) : (
-            <NotConnected app={app} canEdit={canEdit} toast={toast} />
+            <NotConnected app={app} canEdit={canEdit} toast={toast} openShop={openShop} />
           )}
         </Loading>
       </Section>
@@ -126,6 +128,18 @@ function useConnectResult(app: ConnectableApp, toast: Props['toast']) {
   }, [result, toast, app, t])
 }
 
+/**
+ * Shopify: the store the installed app opened with (`?connect=<shop>`, shopify-setup.ts on the API), read once; the
+ * hash loses it at once, so a reload or Back does not connect again.
+ */
+function useOpenShop(app: ConnectableApp) {
+  const [shop] = useState(() => (app === 'shopify' ? shopToConnect(window.location.hash) : null))
+  useEffect(() => {
+    if (shop) history.replaceState(null, '', withoutConnect(window.location.hash))
+  }, [shop])
+  return shop
+}
+
 /** The `code` an action's rejection carries (settings-api.ts), which the page words itself. */
 const codeOf = (e: unknown) => (e as { code?: unknown }).code
 
@@ -136,6 +150,7 @@ const codeOf = (e: unknown) => (e as { code?: unknown }).code
 function useConnect(app: ConnectableApp, toast: Props['toast']) {
   const t = useT()
   const [opening, setOpening] = useState(false)
+  // A Shopify store that needs its own app first: the page shows the request (shopify.setupStatus read again).
   async function connect(shop?: string) {
     setOpening(true)
     try {
@@ -146,16 +161,21 @@ function useConnect(app: ConnectableApp, toast: Props['toast']) {
       // Not set up on this server (no client id in Server admin), no SECRETS_KEY: the code says what is missing.
       const code = codeOf(e)
       toast(t(connectErrorKey(app, code), { name: t(nameKey(app)) }))
+      if (code === 'setup_needed') void refreshQuery(SHOPIFY_SETUP)
       setOpening(false)
     }
   }
   return { opening, connect }
 }
 
-function NotConnected({ app, canEdit, toast }: Props) {
+function NotConnected({ app, canEdit, toast, openShop }: Props & { openShop: string | null }) {
   const t = useT()
   const name = t(nameKey(app))
   const { opening, connect } = useConnect(app, toast)
+  if (app === 'shopify')
+    return (
+      <ShopifyNotConnected canEdit={canEdit} toast={toast} connect={connect} opening={opening} openShop={openShop} />
+    )
   if (!canEdit) return <p className="help">{t('settings.integrations.app.onlyAdmins', { name })}</p>
   return (
     <div className="ig-app-connect">

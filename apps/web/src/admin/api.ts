@@ -414,6 +414,8 @@ export type AdminInputs = {
   'partnerSender.adminRemove': { partnerId: string; reason: string }
   // A partner's own address (S5, partner-domain.ts): removed at once with a reason.
   'partnerDomain.adminRemove': { partnerId: string; reason: string }
+  // Stores waiting for their own Shopify app (LIN-719, shopify-setup.ts): read only here.
+  'shopifySetup.list': Record<string, never>
 }
 
 /**

@@ -46,6 +46,7 @@ import { type Handler, type HandlerCtx, Forbidden, Reject } from './handler-cont
 import { noteProviderFailure, noteProviderOk } from './provider-failures.ts'
 import { resolveProvider } from './provider-settings.ts'
 import { carrierSlot } from './workspace-carrier.ts'
+import { markShopifySetupConnected, shopifyConnectOpen } from './shopify-setup.ts'
 import { decryptSecret, encryptSecret, hasSecretsKey, SecretsKeyError } from './secrets.ts'
 
 // The action's list of apps and the connectors' are the same.
@@ -500,6 +501,10 @@ export const appConnectionHandlers: Record<string, Handler> = {
     const workspace_id = workspaceOf(actor)
     // An app connected while signed in as someone else would put the admin's account into the user's workspace.
     if (actor.impersonation) throw new Forbidden(IMPERSONATING)
+    // Shopify connects with the workspace's own app, or the install's once Shopify approved it; otherwise the store's
+    // own app is set up on request first (shopify-setup.ts), and the page offers that.
+    if (input.app === 'shopify' && !(await shopifyConnectOpen(tx, workspace_id)))
+      throw Reject.t('server.api.shopifySetup.needed', undefined, 'setup_needed' satisfies AppConnectError)
     const oauth = await oauthOrReject(tx, ctx, input.app, workspace_id)
     if (!hasSecretsKey()) throw rejectApp('no_secrets_key', NO_SECRETS_KEY)
     // Shopify's consent page is on the store's own domain: the member names the store, or (none named) Shopify's store
@@ -627,6 +632,8 @@ export const appConnectionHandlers: Record<string, Handler> = {
         .returning()) as [AppConnection]
     }
     await saveTokens(tx, connection, tokens, grant)
+    // A store set up on request is connected now: its request is done (Integrations › Shopify stops showing it).
+    if (input.app === 'shopify') await markShopifySetupConnected(tx, workspace_id, account.id, now)
     return { rows: { app_connections: [connection] }, data: { connectionId: connection.id } }
   },
 

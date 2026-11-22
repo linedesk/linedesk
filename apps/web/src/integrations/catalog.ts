@@ -489,6 +489,7 @@ const CONNECT_ERROR: Record<AppConnectError, MessageKey> = {
   scope: msg('settings.integrations.app.error.scope'),
   no_grant: msg('settings.integrations.app.error.noGrant'),
   not_set_up: msg('settings.integrations.app.error.notSetUp'),
+  setup_needed: msg('settings.integrations.app.error.setupNeeded'),
   no_secrets_key: msg('settings.integrations.app.error.noSecretsKey'),
   not_connected: msg('settings.integrations.app.error.notConnected'),
   shop: msg('settings.integrations.app.error.shop'),

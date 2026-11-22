@@ -5,6 +5,7 @@ import * as installSetup from './install-setup.ts'
 import * as apiKeys from './api-keys.ts'
 import * as apps from './apps.ts'
 import * as shopify from './shopify.ts'
+import * as shopifySetup from './shopify-setup.ts'
 import * as personalKeys from './personal-keys.ts'
 import * as oauth from './oauth.ts'
 import * as records from './records.ts'
@@ -74,6 +75,7 @@ export * from './install-setup.ts'
 export * from './api-keys.ts'
 export * from './apps.ts'
 export * from './shopify.ts'
+export * from './shopify-setup.ts'
 export * from './personal-keys.ts'
 export * from './oauth.ts'
 export * from './records.ts'
@@ -273,6 +275,11 @@ const all = [
   shopify.shopifyFindOrders,
   shopify.shopifyFindProducts,
   shopify.shopifyChangeOrder,
+  shopifySetup.shopifySetupStatus,
+  shopifySetup.shopifyRequestSetup,
+  shopifySetup.shopifySetupList,
+  shopifySetup.shopifySetupReady,
+  shopifySetup.shopifySetupFailed,
   mail.mailConnectStart,
   mail.mailConnectFinish,
   mail.mailDisconnect,

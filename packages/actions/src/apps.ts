@@ -27,6 +27,8 @@ export const appConnectErrors = [
   'not_connected',
   'shop',
   'verify',
+  /** Shopify: the store needs its own app first (shopify.requestSetup), until the install's public app is approved. */
+  'setup_needed',
   'failed',
 ] as const
 export type AppConnectError = (typeof appConnectErrors)[number]

@@ -958,6 +958,38 @@ export const app_oauth_states = pgTable('app_oauth_states', {
   created_at: createdAt(),
 })
 
+// A workspace's request for its own Shopify app (LIN-719): until the install's public app is approved in Shopify's App
+// Store, a store connects through a custom app made for it alone. A member asks with the store's address (`requested`),
+// the install's team makes the app and stores its keys as the workspace's own (`ready`, with Shopify's install link), and
+// the store's install brings the member back to connect (`connected`). `failed`: the agent could not make it (a short
+// code); the team then contacts the business. One open request (not `connected`) per workspace and app. Never synced:
+// the page reads it with shopify.setupStatus, Server admin with shopifySetup.list (apps/api/src/shopify-setup.ts).
+export const app_setup_requests = pgTable(
+  'app_setup_requests',
+  {
+    id: id(),
+    workspace_id: workspaceId(),
+    provider: text('provider', { enum: ['shopify'] }).notNull(),
+    /** The store's myshopify.com domain. */
+    shop: text('shop').notNull(),
+    /** The member who asked; the email that it is ready goes to them (else the workspace's owner). */
+    requested_by: text('requested_by').notNull(),
+    status: text('status', { enum: ['requested', 'ready', 'connected', 'failed'] })
+      .notNull()
+      .default('requested'),
+    /** Shopify's link that installs the custom app on the store (set with `ready`). */
+    install_url: text('install_url'),
+    /** Why the setup failed, a short code (set with `failed`). */
+    failure: text('failure'),
+    created_at: createdAt(),
+    updated_at: ts('updated_at').notNull().defaultNow(),
+  },
+  t => [
+    uniqueIndex('app_setup_requests_open').on(t.workspace_id, t.provider).where(sql`${t.status} <> 'connected'`),
+    index('app_setup_requests_shop').on(t.shop),
+  ],
+)
+
 // A Linedesk contact's record in a connected CRM (the HubSpot contact id), set by the first push. Never synced.
 export const crm_links = pgTable(
   'crm_links',

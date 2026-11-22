@@ -260,6 +260,9 @@ describe('access', () => {
       'provider.tryOut',
       'setupEmails.get',
       'setupEmails.set',
+      'shopifySetup.failed',
+      'shopifySetup.list',
+      'shopifySetup.ready',
       'signup.getSelfServe',
       'signup.setRules',
       'signup.setSelfServe',
@@ -2638,6 +2641,10 @@ describe('impersonation', () => {
       'records.list',
       // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
       'setupEmails.get',
+      // The workspace's Shopify setup request as the page shows it (LIN-719); asking for one stays refused.
+      'shopify.setupStatus',
+      // Read-only and instance:admin, as above.
+      'shopifySetup.list',
       // Read-only and instance:admin, as above.
       'signup.getSelfServe',
       // Read-only and instance:admin, as above.

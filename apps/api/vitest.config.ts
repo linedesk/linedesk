@@ -125,6 +125,8 @@ const INSTANCE_WIDE_FILES = [
   'test/partner-domain.test.ts',
   // Makes a server admin, stores a provider key and the install reference (setup reports, LIN-210).
   'test/setup-feedback.test.ts',
+  // Stores a workspace's own Shopify app, sets the install's Shopify switch and makes an instance admin (LIN-719).
+  'test/shopify-setup.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

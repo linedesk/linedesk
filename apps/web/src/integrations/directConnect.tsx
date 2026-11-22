@@ -116,7 +116,9 @@ export function useDirectConnect(canEdit: boolean, toast: (text: string) => void
       }}
     />
   )
+  // Shopify opens its page: it asks for the store's address first, and may need the store's own app set up.
   const can = (id: IntegrationId) =>
-    canEdit && (isApp(id) || isMail(id) || (isCalendar(id) && (ways?.providers.includes(id) ?? false)))
+    canEdit &&
+    ((isApp(id) && id !== 'shopify') || isMail(id) || (isCalendar(id) && (ways?.providers.includes(id) ?? false)))
   return { can, start, opening, dialog }
 }

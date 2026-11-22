@@ -9,6 +9,7 @@ import { cx } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton, SkeletonRows, useLoading } from '../ui/LoadStates.tsx'
 import { type AdminOverview, loadOverview } from './api.ts'
 import { ReplyDelay } from './ReplyDelay.tsx'
+import { ShopifySetups } from './ShopifySetups.tsx'
 import { fmt } from '../i18n/format.ts'
 import { i18n } from '../i18n/index.tsx'
 import { EMPTY } from './parts.tsx'
@@ -167,6 +168,7 @@ export function Overview({ onOpen }: Props) {
           ))
         )}
       </div>
+      <ShopifySetups />
       <ReplyDelay />
       {o ? (
         <Costs overview={o} />

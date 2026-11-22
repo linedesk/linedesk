@@ -110,6 +110,8 @@ describe('calendar.findSlots', () => {
       'shopify.changeOrder',
       'shopify.findOrders',
       'shopify.findProducts',
+      'shopify.setupStatus',
+      'shopifySetup.list',
       'signup.getSelfServe',
       'signupAccess.get',
       'systemPrompt.get',

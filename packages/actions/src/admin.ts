@@ -80,7 +80,7 @@ export const categoryNames = Object.keys(providerCategoryKeys) as [ProviderCateg
 /**
  * `env` is the variable used when nothing is stored in the app. `optional` fields are not needed for a
  * connection. `hint` says what an empty field means (shown in the empty input). `switch` fields hold
- * "true" or "false" and show as a checkbox. `phone` fields hold a phone number and show as the phone field
+ * "true" or "false" and show as a checkbox: on unless "false", or with `defaultOff` off unless "true". `phone` fields hold a phone number and show as the phone field
  * (country picker, value in E.164). The label is English written here (`label`), or a key in admin.json (`labelKey`,
  * the newer providers) read in the reader's words where it is shown (providerFieldLabel; docs/translations.md,
  * "Server-side text").
@@ -91,6 +91,7 @@ type ProviderField = ({ label: string } | { labelKey: MessageKey }) & {
   optional?: true
   hint?: string
   switch?: true
+  defaultOff?: true
   phone?: true
 }
 /** Values the edit form can fill in for a known service (`<...>` parts are the operator's to replace). */
@@ -643,6 +644,11 @@ export const noTrainingFields = (baseUrl: string, zeroDataRetention = true) =>
 /** The OpenRouter `zero_data_retention` switch's stored value: on unless it says "false" (empty: the default, on). */
 export const zeroDataRetentionOn = (value: string | null | undefined) => value?.trim() !== 'false'
 /**
+ * Whether the install's Shopify app is approved in Shopify's App Store (Server admin › Providers › Shopify): only then
+ * does any store connect with it. Off unless "true".
+ */
+export const shopifyPublicAppApproved = (value: string | null | undefined) => value?.trim() === 'true'
+/**
  * The clear error when OpenRouter has no endpoint for a model under openRouterPrivacy (a 404 "No endpoints found
  * ..."), naming the model and the fix, in the reader's words (English for logs); null for any other answer. Logged by
  * the agent and the API, shown by the provider test.
@@ -1180,6 +1186,16 @@ export const providers = {
     fields: {
       client_id: { labelKey: msg('admin.provider.field.clientId'), env: 'SHOPIFY_CLIENT_ID', secret: false },
       client_secret: { labelKey: msg('admin.provider.field.clientSecret'), env: 'SHOPIFY_CLIENT_SECRET', secret: true },
+      // Off until Shopify approved the app in its App Store (shopifyPublicAppApproved): until then a store connects
+      // through a custom app of its own, set up on request (LIN-719, shopify-setup.ts), and Connect asks for that.
+      public_app_approved: {
+        labelKey: msg('admin.provider.field.publicAppApproved'),
+        env: 'SHOPIFY_PUBLIC_APP_APPROVED',
+        secret: false,
+        optional: true,
+        switch: true,
+        defaultOff: true,
+      },
     },
     helpKey: msg('admin.provider.help.shopify'),
   },

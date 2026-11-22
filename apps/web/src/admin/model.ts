@@ -108,12 +108,15 @@ export function providerState(provider: ProviderStatus): ProviderState {
   return provider.fields.some(f => f.source === 'env') ? 'env' : 'none'
 }
 
-type FieldSpec = { optional?: true; switch?: true; phone?: true }
+type FieldSpec = { optional?: true; switch?: true; defaultOff?: true; phone?: true }
 const fieldSpecOf = (provider: ProviderStatus, field: string): FieldSpec | undefined =>
   (providerSpecs[provider.provider].fields as Record<string, FieldSpec>)[field]
 export const isOptional = (provider: ProviderStatus, field: ProviderField) =>
   !!fieldSpecOf(provider, field.field)?.optional
 export const isSwitch = (provider: ProviderStatus, field: ProviderField) => !!fieldSpecOf(provider, field.field)?.switch
+/** A switch that is off until it is turned on (Shopify's "Public app approved"). */
+export const isDefaultOff = (provider: ProviderStatus, field: ProviderField) =>
+  !!fieldSpecOf(provider, field.field)?.defaultOff
 /** A phone number field (the carriers' forwarding check number): the phone field, its value in E.164. */
 export const isPhone = (provider: ProviderStatus, field: ProviderField) => !!fieldSpecOf(provider, field.field)?.phone
 

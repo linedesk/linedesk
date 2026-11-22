@@ -34,6 +34,7 @@ import {
   isConfigured,
   isOptional,
   isPhone,
+  isDefaultOff,
   isSwitch,
   providerState,
   selectsOnConnect,
@@ -573,7 +574,7 @@ function ProviderInput(props: InputProps) {
   const aside =
     fromServer || shared || getKey || (isOptional(provider, field) ? t('admin.providerDialog.optional') : undefined)
   if (isSwitch(provider, field)) {
-    const on = (value || field.value || 'true') !== 'false'
+    const on = (value || field.value || (isDefaultOff(provider, field) ? 'false' : 'true')) !== 'false'
     return (
       <div className="adm-switch-field">
         <label htmlFor={id}>{label}</label>

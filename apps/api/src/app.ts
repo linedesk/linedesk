@@ -68,6 +68,7 @@ import { refuseCrossSite } from './csrf.ts'
 import { calendarCallback } from './calendar-callback.ts'
 import { mailCallback } from './mail-callback.ts'
 import { appCallback } from './app-callback.ts'
+import { registerShopifyOpenRoute } from './shopify-setup.ts'
 import { calendarToolModes, connectWays } from './calendar-tools.ts'
 import {
   ACCOUNT_HEADER,
@@ -640,6 +641,8 @@ app.get('/v1/mail/callback/:provider', async c =>
     await mailCallback(c.req.param('provider'), new URL(c.req.url).searchParams, c.req.raw.headers, WEB_ORIGIN),
   ),
 )
+// A store's own Shopify app opens here after its install (its app URL, shopify-setup.ts): to Integrations › Shopify.
+registerShopifyOpenRoute(app, WEB_ORIGIN)
 
 // Public demo calls from the install's own website, asked for by its gateway with a Bearer secret; 404 unless
 // DEMO_CALLS=on (demo-call.ts). Before the guard: nobody is signed in.

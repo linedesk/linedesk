@@ -28,6 +28,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'call.takeOver',
     'contact.update',
     'contact.block',
+    // Whether the store is being set up for Shopify (LIN-719): every member sees the status.
+    'shopify.setupStatus',
     'contact.unblock',
     'contact.create',
     'contact.delete',
@@ -116,6 +118,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'app.connectStart',
     'app.connectFinish',
     'app.disconnect',
+    // A store's own Shopify app, asked for before connecting (LIN-719).
+    'shopify.requestSetup',
     'mail.connectStart',
     'mail.connectFinish',
     'mail.disconnect',
@@ -299,6 +303,10 @@ const expectedRights: Record<Right, readonly string[]> = {
     'signup.getSelfServe',
     'signup.setSelfServe',
     'signup.setRules',
+    // Stores' own Shopify apps, set up on request (LIN-719): the list, ready with the keys, failed.
+    'shopifySetup.list',
+    'shopifySetup.ready',
+    'shopifySetup.failed',
     'billing.credit',
     'billing.adminSetStatus',
     'billing.refund',
