@@ -46,7 +46,9 @@ const SPINNERS: Record<string, number> = {
   // Send code, Continue, Continue to payment: each the button pressed.
   'Signup.tsx': 3,
   'admin/SecondFactorPrompt.tsx': 4,
-  'onboarding/AgentSetup.tsx': 1,
+  // "Waiting for your agent" (under the link's steps, and in the progress card): the page watching for the agent, a
+  // running line like the mail review's, not page data (LIN-762).
+  'onboarding/AgentSetup.tsx': 2,
   // The mail review the owner started runs for minutes in the background: its running line, not page data (LIN-643).
   'integrations/MailReview.tsx': 1,
   // On the page Checkout returns to: Continue, and Start plan (or Back to the last step).

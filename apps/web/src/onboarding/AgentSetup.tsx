@@ -22,7 +22,6 @@ import {
   type AgentClient,
   type AgentSetupKeyCreated,
   type AgentSetupState,
-  agentClients,
   cloudClients,
   HOSTING_GUIDE_URL,
   installPlace,
@@ -32,7 +31,6 @@ import {
   type SetupScope,
   type SetupStepGroup,
   type SetupWorkspaceSummary,
-  type StartStep,
   startPlan,
   stepsByGroup,
   UNPAID_PARTNER_CLIENTS,
@@ -55,16 +53,14 @@ import { switchToWorkspace } from '../shell/invitations.ts'
 import { NewWorkspaceDialog } from '../shell/NewWorkspace.tsx'
 import { tabWorkspace } from '../tabWorkspace.ts'
 import { dateTimeLabel, untilLabel } from '../time.ts'
-import { ClientLink } from '../ui/ClientLink.tsx'
 import { Select } from '../ui/controls.tsx'
 import { HelpTip } from '../ui/HelpTip.tsx'
 import { Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
 import { LoadProblem, Skeleton, SkeletonPart, useLoading } from '../ui/LoadStates.tsx'
 import { MarkGlyph } from '../ui/StatusMark.tsx'
-import { AgentForm, StepNumber } from './AgentForm.tsx'
-import { AgentPicker, agentLabel } from './AgentPicker.tsx'
+import { AgentSteps } from './AgentForm.tsx'
+import { AgentPicker, agentLabel, saveClient, savedClient } from './AgentPicker.tsx'
 import { installPartsMissing } from './agent-setup-passkey.ts'
-import { CopyButton } from './Frame.tsx'
 import { rememberDraftOpenedFrom } from './flow.ts'
 import { openInstallSetup } from './InstallSetup.tsx'
 import { clearResume, peekResume, type ResumeAction, saveResume } from './resume-after-switch.ts'
@@ -81,16 +77,9 @@ import { PARTNER_AGENT_HASH, rememberManual } from './setup-choice.ts'
 import { loadPartnerAgentSetup, loadWorkspaceAgentSetup } from './workspace-agent-setup.ts'
 import './agent-setup.css'
 import { useSetupKeys } from './setup-keys.ts'
-import { readStored, readStoredJson, writeStored, writeStoredJson } from '../safeStorage.ts'
+import { readStoredJson, writeStored, writeStoredJson } from '../safeStorage.ts'
 
 export { choseManualSetup, rememberManual } from './setup-choice.ts'
-
-const CLIENT_KEY = 'linedesk.setup.client'
-
-function savedClient(): AgentClient {
-  const saved = readStored('local', CLIENT_KEY)
-  return (agentClients as readonly string[]).includes(saved ?? '') ? (saved as AgentClient) : 'claude_code'
-}
 
 /** The address of the setup page (#setup-agent): opened from Server admin › Overview, or after choosing the manual way. */
 export { AGENT_SETUP_HASH, isAgentSetupHash } from '@linedesk/actions'
@@ -276,7 +265,7 @@ export function AgentSetup({
 
   const pick = (next: AgentClient) => {
     setClient(next)
-    writeStored('local', CLIENT_KEY, next)
+    saveClient(next)
   }
   const createKey = async () => {
     setBusy('create')
@@ -1391,136 +1380,7 @@ export function StartAgent({
   const t = useT()
   const format = useFormat()
   // The page's language: the steps and the prompt the agent gets, so it talks to the person in it.
-  const { open, otherWay, steps, prompt, promptFirst, numbered } = startPlan(client, url, scope, change, { t, format })
-  const promptToCopy = (primary: boolean) => (
-    <>
-      <pre className="as-prompt">{prompt}</pre>
-      <div>
-        <CopyButton
-          text={prompt}
-          label={t('onboarding.agentSetup.copyPrompt')}
-          variant={primary ? 'primary' : 'secondary'}
-        />
-      </div>
-    </>
-  )
-  // The first copy or link is the main action, unless the open link above already is.
-  const lead = (i: number) => !open && i === 0
-  const body = (step: StartStep, i: number) => (
-    <>
-      {/* A step whose one action is a link: the button beside its text (below it on a narrow screen). */}
-      {step.link && !step.code ? (
-        <div className="as-step-inline">
-          <span>{step.text}</span>
-          <ClientLink href={step.link.href} label={step.link.label} variant={lead(i) ? 'primary' : 'secondary'} />
-        </div>
-      ) : (
-        <span>{step.text}</span>
-      )}
-      {step.code && (
-        <div className="as-code">
-          <code>{step.code}</code>
-          <CopyButton text={step.code} variant={lead(i) ? 'primary' : 'secondary'} />
-        </div>
-      )}
-      {step.link && step.code && (
-        <div>
-          <ClientLink href={step.link.href} label={step.link.label} variant={lead(i) ? 'primary' : 'secondary'} />
-        </div>
-      )}
-      {step.form && <AgentForm form={step.form} />}
-      {step.prompt && <FoldedPrompt prompt={prompt} />}
-    </>
-  )
-  // Only for when the step before did not work as expected: folded away below it.
-  const fallback = (step: StartStep, i: number) => (
-    <details key={step.text} className="as-other-way as-fallback">
-      <summary>{step.summary ?? step.text}</summary>
-      <div className="as-other-way-body">
-        {step.summary && <span>{step.text}</span>}
-        {step.code && (
-          <div className="as-code">
-            <code>{step.code}</code>
-            <CopyButton text={step.code} variant={lead(i) ? 'primary' : 'secondary'} />
-          </div>
-        )}
-      </div>
-    </details>
-  )
-  // Steps done one after the other get their number (1, 2, 3), a fallback goes inside the step it belongs to.
-  const stepList = numbered ? (
-    <ol className="as-steps">
-      {steps.map((step, i) =>
-        step.fallback ? null : (
-          <li key={step.text} className="as-step-numbered">
-            <StepNumber n={steps.slice(0, i + 1).filter(s => !s.fallback).length} />
-            <div className="as-step">
-              {body(step, i)}
-              {steps[i + 1]?.fallback && fallback(steps[i + 1]!, i + 1)}
-            </div>
-          </li>
-        ),
-      )}
-    </ol>
-  ) : (
-    steps.map((step, i) =>
-      step.fallback ? (
-        fallback(step, i)
-      ) : (
-        <div key={step.text} className="as-step">
-          {body(step, i)}
-        </div>
-      ),
-    )
-  )
-  if (!open)
-    return (
-      <>
-        {stepList}
-        {/* The prompt to copy leads, unless the first step already has the main button (ChatGPT's settings). */}
-        {promptFirst && <div className="as-step">{promptToCopy(!steps[0]?.link && !steps[0]?.code)}</div>}
-      </>
-    )
-  return (
-    <div className="as-start">
-      <div className="as-open">
-        <ClientLink href={open.href} label={open.label} variant="primary" size="md" />
-        <span className="as-small">{open.text}</span>
-      </div>
-      <details className="as-other-way">
-        <summary>{otherWay}</summary>
-        <div className="as-other-way-body">{stepList}</div>
-      </details>
-    </div>
-  )
-}
-
-/**
- * The prompt inside a step (ChatGPT's last step, Cursor's other way): Copy prompt is the action, the text itself stays
- * folded behind "Show prompt", so the steps fit on one screen before the agent connects.
- */
-function FoldedPrompt({ prompt }: { prompt: string }) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-  return (
-    <>
-      <div className="as-prompt-row">
-        <CopyButton text={prompt} label={t('onboarding.agentSetup.copyPrompt')} variant="secondary" />
-        <Button
-          size="sm"
-          variant="ghost"
-          className="as-fold"
-          title={t(open ? 'onboarding.agentSetup.hidePromptTitle' : 'onboarding.agentSetup.showPromptTitle')}
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-        >
-          {t(open ? 'onboarding.agentSetup.hidePrompt' : 'onboarding.agentSetup.showPrompt')}{' '}
-          <Icon name={open ? 'up' : 'down'} size={14} />
-        </Button>
-      </div>
-      {open && <pre className="as-prompt">{prompt}</pre>}
-    </>
-  )
+  return <AgentSteps plan={startPlan(client, url, scope, change, { t, format })} />
 }
 
 /**

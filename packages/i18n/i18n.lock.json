@@ -31835,11 +31835,6 @@
       "out": "39b634488de4d95781c5d84db97d52dc13b640da676e0ad639a253a1fb7c91ee",
       "src": "337118c6215d6795461b6aca983208c700df498194e6d36855a93106e94c53f4"
     },
-    "settings.integrations.mcp.chatgpt": {
-      "by": "ai",
-      "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
-      "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
-    },
     "settings.integrations.mcp.chatgptFill": {
       "by": "ai",
       "out": "8b7762afadb102ee11f2265c14848e6253f5402c3380e0c5572c600de95806bc",
@@ -31890,16 +31885,6 @@
       "out": "659fda9eeeb3b56a130b7bc6639b93a048a2bbd832ee16aaa47dd22849463656",
       "src": "6c17d51c690369bfc999446886dce080227c7c9433e0fdf0fda82c3cae0b7a37"
     },
-    "settings.integrations.mcp.claude": {
-      "by": "ai",
-      "out": "816af7935146fb5d8b35f2f53eb271e0ddc583327627ceb384d3703389286546",
-      "src": "cb91642d3b5d5782f79d279e2f2c994f385b3c6b875c8780b321395879d0aea9"
-    },
-    "settings.integrations.mcp.claudeCode": {
-      "by": "ai",
-      "out": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373",
-      "src": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373"
-    },
     "settings.integrations.mcp.claudeCodeKey": {
       "by": "ai",
       "out": "7001ac3819507efe63becd769f7b0a0db0ad7171c87f76df6d4e591da4fbe094",
@@ -31909,16 +31894,6 @@
       "by": "ai",
       "out": "be221e91e08199c8e7c7248562031bde24aead4948a983a1a5f78f510c4c53ee",
       "src": "73f86430f161dc2e922373dff6959cdcdb2d0cb6cea8106080cb8dd32501c8b7"
-    },
-    "settings.integrations.mcp.claudeTeam": {
-      "by": "ai",
-      "out": "4db838c199c77eec7db296f21c8f9be044d6425b78748697e5c3b77a41efe99e",
-      "src": "74ff3b2c8a0c87a7b55b7cdb833f9c095ff29ba2ea7849c677ae1df6eed66e4c"
-    },
-    "settings.integrations.mcp.codex": {
-      "by": "ai",
-      "out": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
-      "src": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c"
     },
     "settings.integrations.mcp.cursor": {
       "by": "ai",
@@ -31935,11 +31910,6 @@
       "out": "27eea598b6e9041507c346acf131f625c7e447cc2457cbd69e628fb436eb9ec3",
       "src": "9ea2a35e7e3bee0c066772628d41698fc0c56239cf334d225fc756e6e226bcd3"
     },
-    "settings.integrations.mcp.gemini": {
-      "by": "ai",
-      "out": "731732835cd76be60beb737ac8a4903b5bbc79388008bfc4ba5191d1edfa7073",
-      "src": "731732835cd76be60beb737ac8a4903b5bbc79388008bfc4ba5191d1edfa7073"
-    },
     "settings.integrations.mcp.help": {
       "by": "ai",
       "out": "937a93cc1b738911e1d357ae0453cc5dcde05fa1801998cab0d80e29a09a24c7",
@@ -31949,11 +31919,6 @@
       "by": "ai",
       "out": "15a9f2c684893fe4327038aa5cf2a283df3bb1f2adcfb77a9e905f6ae9ef4174",
       "src": "89cefb864c91deb7dadb49ce69f203f179b3475a9c0119596a56c787e1111128"
-    },
-    "settings.integrations.mcp.oneClick": {
-      "by": "ai",
-      "out": "af79cef065da762da3206510e159ada037000cb05885bebc0efba6b06a716d6e",
-      "src": "226d6bb3f6e798a8133e6def3d9d89f7a897b4d605393f5e5853d8f5358994a0"
     },
     "settings.integrations.mcp.openChatgpt": {
       "by": "ai",
@@ -71452,11 +71417,6 @@
       "out": "ddb2453d06a625cc8c9fb65d8a07d3f16e0ce7c1648cad8cd9cbc18f8413dc8f",
       "src": "337118c6215d6795461b6aca983208c700df498194e6d36855a93106e94c53f4"
     },
-    "settings.integrations.mcp.chatgpt": {
-      "by": "ai",
-      "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
-      "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
-    },
     "settings.integrations.mcp.chatgptFill": {
       "by": "ai",
       "out": "59cf70b1fa62aa1d73926c6d6f567da0c0a3291e1949afd3c9d1926b4c274df6",
@@ -71507,16 +71467,6 @@
       "out": "3ca488a8ff4e6c0bd04046e830a98dcf606dbf9c2bfcfcf2de96fd84ce92c8fc",
       "src": "6c17d51c690369bfc999446886dce080227c7c9433e0fdf0fda82c3cae0b7a37"
     },
-    "settings.integrations.mcp.claude": {
-      "by": "ai",
-      "out": "e1b6d870cf0829834de33f16b11bb3a5af72a8a826bff1c1c92d5546751f33c9",
-      "src": "cb91642d3b5d5782f79d279e2f2c994f385b3c6b875c8780b321395879d0aea9"
-    },
-    "settings.integrations.mcp.claudeCode": {
-      "by": "ai",
-      "out": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373",
-      "src": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373"
-    },
     "settings.integrations.mcp.claudeCodeKey": {
       "by": "ai",
       "out": "2b7dda4f1d00320a24ac93a81dacff62b12ec3fd34c6227933ffac04d9603d4d",
@@ -71526,16 +71476,6 @@
       "by": "ai",
       "out": "c5d20a1686e1f6d24cea03093270f37053386642f5ac2c4615301ac214705f0e",
       "src": "73f86430f161dc2e922373dff6959cdcdb2d0cb6cea8106080cb8dd32501c8b7"
-    },
-    "settings.integrations.mcp.claudeTeam": {
-      "by": "ai",
-      "out": "1f8a0e25fefa173f5b895b248b0f30018e31da6eaeb01e68fb92d0b37586955e",
-      "src": "74ff3b2c8a0c87a7b55b7cdb833f9c095ff29ba2ea7849c677ae1df6eed66e4c"
-    },
-    "settings.integrations.mcp.codex": {
-      "by": "ai",
-      "out": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
-      "src": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c"
     },
     "settings.integrations.mcp.cursor": {
       "by": "ai",
@@ -71552,11 +71492,6 @@
       "out": "6b2f5b31e2ee58ee64d5cff88019efcb6a58110d57e7c56189eb406f0f38dad1",
       "src": "9ea2a35e7e3bee0c066772628d41698fc0c56239cf334d225fc756e6e226bcd3"
     },
-    "settings.integrations.mcp.gemini": {
-      "by": "ai",
-      "out": "731732835cd76be60beb737ac8a4903b5bbc79388008bfc4ba5191d1edfa7073",
-      "src": "731732835cd76be60beb737ac8a4903b5bbc79388008bfc4ba5191d1edfa7073"
-    },
     "settings.integrations.mcp.help": {
       "by": "ai",
       "out": "841afaa89622478525e75bce5b598b498a5565892212ad1841147b9baa4c44cb",
@@ -71566,11 +71501,6 @@
       "by": "ai",
       "out": "b9709a2bb247c7c95cb117c688e5c81b910fdd4d2593b28d0f1bdf39a830b78b",
       "src": "89cefb864c91deb7dadb49ce69f203f179b3475a9c0119596a56c787e1111128"
-    },
-    "settings.integrations.mcp.oneClick": {
-      "by": "ai",
-      "out": "23514345f92b59fa876f0f8b764f526b9b2ad5b6cb8f47611a19b4499a330e84",
-      "src": "226d6bb3f6e798a8133e6def3d9d89f7a897b4d605393f5e5853d8f5358994a0"
     },
     "settings.integrations.mcp.openChatgpt": {
       "by": "ai",
@@ -111069,11 +110999,6 @@
       "out": "eacbbe8c66c6dbf8dd222da6db01e61441af5e22d6dfa9e823875daacd454ed4",
       "src": "337118c6215d6795461b6aca983208c700df498194e6d36855a93106e94c53f4"
     },
-    "settings.integrations.mcp.chatgpt": {
-      "by": "ai",
-      "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
-      "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
-    },
     "settings.integrations.mcp.chatgptFill": {
       "by": "ai",
       "out": "128d9b28d5719b67bd821efdc0d61ba18abaf9992bf4b6715df3ab9df1c224fc",
@@ -111124,16 +111049,6 @@
       "out": "72fc9484e7b959c1056265e7a06f731bfea506687d2426f68bfee50eaee70fe4",
       "src": "6c17d51c690369bfc999446886dce080227c7c9433e0fdf0fda82c3cae0b7a37"
     },
-    "settings.integrations.mcp.claude": {
-      "by": "ai",
-      "out": "9bffdf16957d968b75b3bc7dc268f5c59d03e1aa8035b2152e34fccdb896c30c",
-      "src": "cb91642d3b5d5782f79d279e2f2c994f385b3c6b875c8780b321395879d0aea9"
-    },
-    "settings.integrations.mcp.claudeCode": {
-      "by": "ai",
-      "out": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373",
-      "src": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373"
-    },
     "settings.integrations.mcp.claudeCodeKey": {
       "by": "ai",
       "out": "2ccb5b759826c53d4188a19de1e6e5a43707cee0d5280f74ad86f437425635d3",
@@ -111143,16 +111058,6 @@
       "by": "ai",
       "out": "331db6031bd073229cceea89c73791ff9244162cc520234646f1b75dead47fdb",
       "src": "73f86430f161dc2e922373dff6959cdcdb2d0cb6cea8106080cb8dd32501c8b7"
-    },
-    "settings.integrations.mcp.claudeTeam": {
-      "by": "ai",
-      "out": "0ccb5f431bd0d0680899b9612b39a5a3d642e9b92714b08e5f845509ca493e56",
-      "src": "74ff3b2c8a0c87a7b55b7cdb833f9c095ff29ba2ea7849c677ae1df6eed66e4c"
-    },
-    "settings.integrations.mcp.codex": {
-      "by": "ai",
-      "out": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
-      "src": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c"
     },
     "settings.integrations.mcp.cursor": {
       "by": "ai",
@@ -111169,11 +111074,6 @@
       "out": "aaba6fdbee07bde86bdc7e9f0ab67a047eb212bcbfe22af803a79bce59630499",
       "src": "9ea2a35e7e3bee0c066772628d41698fc0c56239cf334d225fc756e6e226bcd3"
     },
-    "settings.integrations.mcp.gemini": {
-      "by": "ai",
-      "out": "731732835cd76be60beb737ac8a4903b5bbc79388008bfc4ba5191d1edfa7073",
-      "src": "731732835cd76be60beb737ac8a4903b5bbc79388008bfc4ba5191d1edfa7073"
-    },
     "settings.integrations.mcp.help": {
       "by": "ai",
       "out": "499c2a45bedacf1aa78d50d16268a90ab196e53ca8582b3e4b90cf4ee39eb24a",
@@ -111183,11 +111083,6 @@
       "by": "ai",
       "out": "a0c4eeb440a3cf7fd1cba36dce28ff6bb0c0010f98f502154e13a922ad19b632",
       "src": "89cefb864c91deb7dadb49ce69f203f179b3475a9c0119596a56c787e1111128"
-    },
-    "settings.integrations.mcp.oneClick": {
-      "by": "ai",
-      "out": "f71388c8d0007614e94470be52d41bc90da2c08a862d5534aec376b9f0f5fe59",
-      "src": "226d6bb3f6e798a8133e6def3d9d89f7a897b4d605393f5e5853d8f5358994a0"
     },
     "settings.integrations.mcp.openChatgpt": {
       "by": "ai",
@@ -150686,11 +150581,6 @@
       "out": "8c0aa27b7012e4de89b144a59e5d6ac5ef30b9ff997be9d11aa83f7192a66fb6",
       "src": "337118c6215d6795461b6aca983208c700df498194e6d36855a93106e94c53f4"
     },
-    "settings.integrations.mcp.chatgpt": {
-      "by": "ai",
-      "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
-      "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
-    },
     "settings.integrations.mcp.chatgptFill": {
       "by": "ai",
       "out": "83689455d3c42928bde6b10ad21eb4fbca46ca800b20c5c3914d2366deb5ec05",
@@ -150741,16 +150631,6 @@
       "out": "ea23c32cbc082b54093066d5c78935f7a3c596444776ad5ef8fdcb02c38eae05",
       "src": "6c17d51c690369bfc999446886dce080227c7c9433e0fdf0fda82c3cae0b7a37"
     },
-    "settings.integrations.mcp.claude": {
-      "by": "ai",
-      "out": "c94839f51f81b793bbe7b1fba8d9eb9e93efa989e9e8878839dd9007fa737b83",
-      "src": "cb91642d3b5d5782f79d279e2f2c994f385b3c6b875c8780b321395879d0aea9"
-    },
-    "settings.integrations.mcp.claudeCode": {
-      "by": "ai",
-      "out": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373",
-      "src": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373"
-    },
     "settings.integrations.mcp.claudeCodeKey": {
       "by": "ai",
       "out": "9c56920762a4603e3df6c51f8785564eea458939bc3019f8c997fcd18d4858ca",
@@ -150760,16 +150640,6 @@
       "by": "ai",
       "out": "ff251f732380b097efe02363277571d0b35fa2c8a76d8579e55567c3150d97dd",
       "src": "73f86430f161dc2e922373dff6959cdcdb2d0cb6cea8106080cb8dd32501c8b7"
-    },
-    "settings.integrations.mcp.claudeTeam": {
-      "by": "ai",
-      "out": "5d4c9fb9fa59a87661552f634b25df06894abc9e1f1454e1cd4916442f742661",
-      "src": "74ff3b2c8a0c87a7b55b7cdb833f9c095ff29ba2ea7849c677ae1df6eed66e4c"
-    },
-    "settings.integrations.mcp.codex": {
-      "by": "ai",
-      "out": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
-      "src": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c"
     },
     "settings.integrations.mcp.cursor": {
       "by": "ai",
@@ -150786,11 +150656,6 @@
       "out": "353331dfaf61abad4532322612072cf966531e327a477c2e9e2e0dc628193536",
       "src": "9ea2a35e7e3bee0c066772628d41698fc0c56239cf334d225fc756e6e226bcd3"
     },
-    "settings.integrations.mcp.gemini": {
-      "by": "ai",
-      "out": "731732835cd76be60beb737ac8a4903b5bbc79388008bfc4ba5191d1edfa7073",
-      "src": "731732835cd76be60beb737ac8a4903b5bbc79388008bfc4ba5191d1edfa7073"
-    },
     "settings.integrations.mcp.help": {
       "by": "ai",
       "out": "c5582b61e205b89617fc0badc002d782bea2ca6fc062ee1cbcc954fa212b6938",
@@ -150800,11 +150665,6 @@
       "by": "ai",
       "out": "563bb80caf3a59ea8f849be71a4f62b920e3722de68b3d53db15a7598601cbc1",
       "src": "89cefb864c91deb7dadb49ce69f203f179b3475a9c0119596a56c787e1111128"
-    },
-    "settings.integrations.mcp.oneClick": {
-      "by": "ai",
-      "out": "21c3bd58afddc67e14f66086eb88ec30039a7543add194e8d16cc5331933b5e2",
-      "src": "226d6bb3f6e798a8133e6def3d9d89f7a897b4d605393f5e5853d8f5358994a0"
     },
     "settings.integrations.mcp.openChatgpt": {
       "by": "ai",
@@ -190303,11 +190163,6 @@
       "out": "5310939283a2bdb3e2888b30972ad22a3cac45ee2c46f09ba03536e7c55054af",
       "src": "337118c6215d6795461b6aca983208c700df498194e6d36855a93106e94c53f4"
     },
-    "settings.integrations.mcp.chatgpt": {
-      "by": "ai",
-      "out": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463",
-      "src": "50a4122943273ad2f00ea92bff9c7cb6235e199f745321cb4272aa1857840463"
-    },
     "settings.integrations.mcp.chatgptFill": {
       "by": "ai",
       "out": "fa9a6fa7a47194bebc82cacaa70a2e2cea3811aeffd8401bc685e3ab4b888a58",
@@ -190358,16 +190213,6 @@
       "out": "dfaa343d1a91bbe73fa79a48a27e6fda88fe18a97e135180d114b4426ea01795",
       "src": "6c17d51c690369bfc999446886dce080227c7c9433e0fdf0fda82c3cae0b7a37"
     },
-    "settings.integrations.mcp.claude": {
-      "by": "ai",
-      "out": "6fc42dbcc883f2115f83c30e8e4a0e2f1f0f03bb563f4094f64284d9e4e5718c",
-      "src": "cb91642d3b5d5782f79d279e2f2c994f385b3c6b875c8780b321395879d0aea9"
-    },
-    "settings.integrations.mcp.claudeCode": {
-      "by": "ai",
-      "out": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373",
-      "src": "246ef8c1130d56f5d9df740a4b26c033a8b9c064daba9bb0a052d18993e87373"
-    },
     "settings.integrations.mcp.claudeCodeKey": {
       "by": "ai",
       "out": "d0a652d3f75cef6756e072644e5e71371840ff29c6876458b789c0d842cd8c45",
@@ -190377,16 +190222,6 @@
       "by": "ai",
       "out": "a28de4527001031a53b2ec38a07bb173b39bd3babed5e5cfd3e9b9c83d3f3593",
       "src": "73f86430f161dc2e922373dff6959cdcdb2d0cb6cea8106080cb8dd32501c8b7"
-    },
-    "settings.integrations.mcp.claudeTeam": {
-      "by": "ai",
-      "out": "3771d52e5519870a436ffd0856a4305f908b819b334d2b95f0d80d5e29a42776",
-      "src": "74ff3b2c8a0c87a7b55b7cdb833f9c095ff29ba2ea7849c677ae1df6eed66e4c"
-    },
-    "settings.integrations.mcp.codex": {
-      "by": "ai",
-      "out": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c",
-      "src": "616efbe96852d8c957d6be5634ed41e871cf1ecf134c9b9693f614daeb15137c"
     },
     "settings.integrations.mcp.cursor": {
       "by": "ai",
@@ -190403,11 +190238,6 @@
       "out": "6ec613605c48f722d2b3a09751c4c5c41dde838a3dea8f062f39ff9b918a6151",
       "src": "9ea2a35e7e3bee0c066772628d41698fc0c56239cf334d225fc756e6e226bcd3"
     },
-    "settings.integrations.mcp.gemini": {
-      "by": "ai",
-      "out": "731732835cd76be60beb737ac8a4903b5bbc79388008bfc4ba5191d1edfa7073",
-      "src": "731732835cd76be60beb737ac8a4903b5bbc79388008bfc4ba5191d1edfa7073"
-    },
     "settings.integrations.mcp.help": {
       "by": "ai",
       "out": "cb828bd0e8c39ae106fb7a254d99e0c44e143464d22a6b7c1f61e1693d754bb4",
@@ -190417,11 +190247,6 @@
       "by": "ai",
       "out": "92da7d8a6b18e7f2500e566971f21a02bfc65427cb2c9ded1f7083171253f06b",
       "src": "89cefb864c91deb7dadb49ce69f203f179b3475a9c0119596a56c787e1111128"
-    },
-    "settings.integrations.mcp.oneClick": {
-      "by": "ai",
-      "out": "9b9a750903ea1947076d64a49d20a0cc1705df8dc08e99a009439fc4f9c82147",
-      "src": "226d6bb3f6e798a8133e6def3d9d89f7a897b4d605393f5e5853d8f5358994a0"
     },
     "settings.integrations.mcp.openChatgpt": {
       "by": "ai",

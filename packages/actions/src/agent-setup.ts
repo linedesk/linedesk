@@ -336,7 +336,7 @@ export const cloudClients: readonly AgentClient[] = ['claude', 'chatgpt']
 export type StartStep = {
   text: string
   code?: string
-  link?: { label: string; href: string }
+  link?: { label: string; href: string; title?: string }
   prompt?: true
   form?: StartForm
   fallback?: true
@@ -354,7 +354,7 @@ export type StartForm = {
   submit: string
 }
 /** The direct way in: a link that opens the agent with the prompt filled in, and one line on what happens. */
-export type OpenLink = { label: string; href: string; text: string }
+export type OpenLink = { label: string; href: string; text: string; title?: string }
 /**
  * How to start each agent with the setup, with the key in the URL (`url` from agentSetup.createKey): as few steps as
  * the agent allows. Agents that run commands connect themselves (one command, or a link that opens them with the

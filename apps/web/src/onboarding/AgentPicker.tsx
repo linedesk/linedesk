@@ -13,7 +13,9 @@
 // "Other" (any MCP client) has no brand: it gets the app's plug icon, muted.
 import { type AgentClient, agentClientLabels, agentClients } from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
+import { readStored, writeStored } from '../safeStorage.ts'
 import { cx, Icon } from '../ui/kit.tsx'
+import './agent-form.css'
 
 const brandSvg = (d: string, fill: string) => (
   <svg className="as-agent-mark" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -66,6 +68,15 @@ export function AgentMark({ client }: { client: AgentClient }) {
 export function agentLabel(id: AgentClient, t: ReturnType<typeof useT>): string {
   return id === 'other' ? t('onboarding.agentPicker.other') : agentClientLabels[id]
 }
+
+const CLIENT_KEY = 'linedesk.setup.client'
+
+/** The agent last picked in this browser (setup page and Settings › Integrations › MCP share it), else Claude Code. */
+export function savedClient(): AgentClient {
+  const saved = readStored('local', CLIENT_KEY)
+  return (agentClients as readonly string[]).includes(saved ?? '') ? (saved as AgentClient) : 'claude_code'
+}
+export const saveClient = (client: AgentClient) => writeStored('local', CLIENT_KEY, client)
 
 /** One option per agent, recommended first; the chosen one shows its steps below. */
 export function AgentPicker({ client, onPick }: { client: AgentClient; onPick: (client: AgentClient) => void }) {

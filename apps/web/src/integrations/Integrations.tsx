@@ -4,23 +4,22 @@
 // the place where it is set up (the assistant's webhooks and booking; #integrations/make and the like go there too); one not
 // built yet shows "Coming soon", and an address with nothing behind it says so. The catalog itself is catalog.ts; API keys and
 // Zapier were Workspace settings › Developers (old links are rewritten, useRoute.ts).
-import { CHATGPT_PLUGINS_URL } from '@linedesk/actions'
+import type { AgentClient } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
-import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { pollWhileVisible, useQuery } from '../cachedQuery.ts'
-import { AgentForm, StepNumber } from '../onboarding/AgentForm.tsx'
+import { AgentSteps } from '../onboarding/AgentForm.tsx'
+import { AgentPicker, saveClient, savedClient } from '../onboarding/AgentPicker.tsx'
 import { kindLabel } from '../settings/businessKind.ts'
 import { useCalendarProviders } from '../settings/calendar-providers.ts'
 import type { ProviderId } from '../settings/calendarModel.ts'
 import { Section } from '../settings/fields.tsx'
 import { useWorkspaceSettings } from '../settings/settings-api.ts'
-import { externalLink } from '../settings/ZapierGuide.tsx'
 import { setPageKeys } from '../shell/keys.ts'
 import { useRows } from '../store.tsx'
 import { AppLink, appLink } from '../ui/AppLink.tsx'
-import { ClientLink, ClientLinks } from '../ui/ClientLink.tsx'
 import { Input } from '../ui/form.tsx'
 import { copyText } from '../ui/HelpTip.tsx'
 import { Badge, Button, Kbd, Note } from '../ui/kit.tsx'
@@ -32,15 +31,10 @@ import {
   CATEGORIES,
   CATEGORY_LABEL,
   type CategoryId,
-  claudeCodeCommand,
   claudeCodeKeyCommand,
-  claudeInstallLink,
-  codexCommand,
   curlExample,
-  cursorInstallLink,
   type DetailId,
   type Facts,
-  geminiCommand,
   type Integration,
   type IntegrationsPlace,
   KEY_VARIABLE,
@@ -54,7 +48,6 @@ import {
   type Status,
   searchIntegrations,
   statusOf,
-  vscodeInstallLink,
 } from './catalog.ts'
 import {
   API_KEYS,
@@ -69,6 +62,7 @@ import { type DirectConnect, useDirectConnect } from './directConnect.tsx'
 import { markFromIntegrations } from './fromIntegrations.tsx'
 import { IntegrationMark } from './IntegrationMark.tsx'
 import { SupportEmailPage } from './SupportEmail.tsx'
+import { connectPlan } from './connectPlan.ts'
 import './integrations.css'
 
 const SEARCH_ID = 'integrations-search'
@@ -514,58 +508,28 @@ function RestApi({ toast }: { toast: Props['toast'] }) {
   )
 }
 
+/**
+ * Connecting an AI agent for everyday use: the same picker and steps as the agent setup page (AgentPicker, AgentSteps),
+ * with this install's MCP address and the OAuth sign-in instead of a setup link (connectPlan).
+ */
 function Mcp({ toast }: { toast: Props['toast'] }) {
   const t = useT()
   const brand = brandName()
+  const [client, setClient] = useState<AgentClient>(savedClient)
+  const pick = (next: AgentClient) => {
+    setClient(next)
+    saveClient(next)
+  }
   return (
     <Section id="ig-mcp" title={t('settings.integrations.mcp.title')} help={t('settings.integrations.mcp.help')}>
       <CopyField label={t('settings.integrations.mcp.address')} value={mcpAddress(origin())} toast={toast} />
       <div className="ig-copy">
-        <span className="ig-copy-label">{t('settings.integrations.mcp.oneClick')}</span>
-        <ClientLinks
-          links={[
-            {
-              href: cursorInstallLink(origin()),
-              label: t('settings.integrations.mcp.cursor'),
-              title: t('settings.integrations.mcp.cursorTip', { brand }),
-            },
-            {
-              href: vscodeInstallLink(origin()),
-              label: t('settings.integrations.mcp.vscode'),
-              title: t('settings.integrations.mcp.vscodeTip', { brand }),
-            },
-            {
-              href: vscodeInstallLink(origin(), true),
-              label: t('settings.integrations.mcp.vscodeInsiders'),
-              title: t('settings.integrations.mcp.vscodeTip', { brand }),
-            },
-          ]}
-        />
+        <span className="ig-copy-label">{t('settings.integrations.mcp.agent')}</span>
+        <AgentPicker client={client} onPick={pick} />
       </div>
-      <McpSteps
-        label={t('settings.integrations.mcp.claude')}
-        steps={[t('settings.integrations.mcp.claudeSteps')]}
-        open={{
-          href: claudeInstallLink(origin(), brand),
-          label: t('settings.integrations.mcp.openClaude'),
-          tip: t('settings.integrations.mcp.openClaudeTip'),
-        }}
-        note={
-          <T
-            k="settings.integrations.mcp.claudeTeam"
-            values={{ link: externalLink(claudeInstallLink(origin(), brand, true)) }}
-          />
-        }
-      />
-      <ChatGptSteps brand={brand} />
-      <CopyField
-        label={t('settings.integrations.mcp.claudeCode')}
-        value={claudeCodeCommand(origin())}
-        toast={toast}
-        block
-      />
-      <CopyField label={t('settings.integrations.mcp.codex')} value={codexCommand(origin())} toast={toast} block />
-      <CopyField label={t('settings.integrations.mcp.gemini')} value={geminiCommand(origin())} toast={toast} block />
+      <div className="ig-mcp-agent">
+        <AgentSteps plan={connectPlan(client, origin(), brand, t)} />
+      </div>
       <p className="help">{t('settings.integrations.mcp.firstUse')}</p>
       <details className="ig-mcp-key">
         <summary>{t('settings.integrations.mcp.withKey')}</summary>
@@ -587,90 +551,6 @@ function Mcp({ toast }: { toast: Props['toast'] }) {
         </div>
       </details>
     </Section>
-  )
-}
-
-/**
- * ChatGPT: numbered steps, its Add custom MCP server form drawn filled in (the name and the server address to copy,
- * OAuth picked; labels from developers.openai.com/api/docs/guides/custom-mcp-server, checked 2026-11-20), as on the
- * agent setup page (AgentForm).
- */
-export function ChatGptSteps({ brand }: { brand: string }) {
-  const t = useT()
-  return (
-    <div className="ig-copy">
-      <span className="ig-copy-label">{t('settings.integrations.mcp.chatgpt')}</span>
-      <ol className="as-steps ig-chatgpt-steps">
-        <li className="as-step-numbered">
-          <StepNumber n={1} />
-          <div className="as-step">
-            <span>{t('settings.integrations.mcp.chatgptStep1')}</span>
-            <div>
-              <ClientLink
-                href={CHATGPT_PLUGINS_URL}
-                label={t('settings.integrations.mcp.openChatgpt')}
-                title={t('settings.integrations.mcp.openChatgptTip')}
-              />
-            </div>
-          </div>
-        </li>
-        <li className="as-step-numbered">
-          <StepNumber n={2} />
-          <div className="as-step">
-            <span>{t('settings.integrations.mcp.chatgptFill')}</span>
-            <AgentForm
-              form={{
-                title: t('settings.integrations.mcp.chatgptForm.title'),
-                fields: [
-                  { label: t('settings.integrations.mcp.chatgptForm.name'), value: brand, copy: true },
-                  { label: t('settings.integrations.mcp.chatgptForm.url'), value: mcpAddress(origin()), copy: true },
-                  {
-                    label: t('settings.integrations.mcp.chatgptForm.auth'),
-                    value: t('settings.integrations.mcp.chatgptForm.oauth'),
-                  },
-                ],
-                check: t('settings.integrations.mcp.chatgptForm.check'),
-                submit: t('settings.integrations.mcp.chatgptForm.submit'),
-              }}
-            />
-          </div>
-        </li>
-        <li className="as-step-numbered">
-          <StepNumber n={3} />
-          <div className="as-step">
-            <span>{t('settings.integrations.mcp.chatgptStep3')}</span>
-          </div>
-        </li>
-      </ol>
-    </div>
-  )
-}
-
-/** A client that is set up in its own settings: what to do there, a button that opens that page in a new tab, a note. */
-function McpSteps({
-  label,
-  steps,
-  open,
-  note,
-}: {
-  label: string
-  steps: string[]
-  open: { href: string; label: string; tip: string }
-  note?: ReactNode
-}) {
-  return (
-    <div className="ig-copy">
-      <span className="ig-copy-label">{label}</span>
-      {steps.map(step => (
-        <p key={step} className="help ig-mcp-steps">
-          {step}
-        </p>
-      ))}
-      <div className="ig-mcp-installs">
-        <ClientLink href={open.href} label={open.label} title={open.tip} />
-      </div>
-      {note && <p className="help ig-mcp-steps">{note}</p>}
-    </div>
   )
 }
 

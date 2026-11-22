@@ -1,4 +1,5 @@
-/* AgentForm.tsx: numbered steps, a value to copy, and an AI client's own form drawn filled in. */
+/* AgentForm.tsx and AgentPicker.tsx, shared by the agent setup page and Settings › Integrations › MCP: the agent picker,
+   an agent's steps (open link, numbered steps, a value to copy, the prompt), and an AI client's own form drawn filled in. */
 .as-code {
   display: flex;
   align-items: flex-start;
@@ -148,4 +149,131 @@
   .as-code-line + .as-form-label {
     margin-top: 6px;
   }
+}
+/* The agent picker (AgentPicker). */
+.as-agents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.as-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.as-agent:hover {
+  background: var(--surface-hover);
+}
+/* The chosen agent: the selected outline of every choice in setup (.ob-choice.on), never a second black button. */
+.as-agent.on {
+  border-color: var(--action);
+  background: var(--highlight);
+  box-shadow: var(--ring-action);
+}
+/* The agent's own mark left of its name, the same size for every agent; "Other" (no brand) muted until chosen. */
+.as-agent-mark {
+  flex: none;
+  display: block;
+}
+.as-agent-mark.is-muted {
+  color: var(--ink-muted);
+}
+.as-agent.on .as-agent-mark.is-muted {
+  color: var(--ink);
+}
+.as-agent:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.as-step {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 19px;
+}
+.as-prompt {
+  margin: 0;
+  max-height: 120px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 17px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+/* A step whose one action is a link: the button beside the text, below it when there is no room. */
+.as-step-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.as-step-inline > span {
+  flex: 1 1 260px;
+}
+/* A prompt inside a step: Copy prompt, and beside it the fold that shows the text. */
+.as-prompt-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.as-small {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+/* Starting the agent: the open link first (button, then what it does), the other way behind a quiet "Or …". */
+.as-start {
+  display: grid;
+  gap: 12px;
+}
+.as-open {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+.as-other-way > summary {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--ink-muted);
+  cursor: pointer;
+  list-style: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.as-other-way > summary::-webkit-details-marker {
+  display: none;
+}
+.as-other-way > summary:hover {
+  color: var(--ink);
+}
+.as-other-way > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.as-other-way-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
+/* A quiet fold (Show prompt, Hide). */
+.as-fold {
+  gap: 4px;
+  color: var(--ink-muted);
 }

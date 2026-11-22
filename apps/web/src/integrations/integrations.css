@@ -253,11 +253,10 @@
   gap: 12px;
 }
 
-/* Integrations › MCP: the one-click install links side by side; the API key way folded away below. */
-.ig-mcp-installs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+/* Integrations › MCP: the chosen agent's steps (AgentSteps, as on the setup page); the API key way folded away below. */
+.ig-mcp-agent {
+  display: grid;
+  gap: 12px;
 }
 .ig-mcp-key-body {
   display: grid;
@@ -270,14 +269,8 @@
   font-weight: 500;
   width: fit-content;
 }
-.ig-mcp-steps,
 .ig-mcp-key-body > .help {
   margin: 0;
-}
-/* ChatGPT's steps (AgentForm.tsx): a little air above them, under the label. */
-.ig-chatgpt-steps {
-  margin-top: 6px;
-  gap: 14px;
 }
 
 /* Integrations › Shopify, not connected: the store's address and Connect on one line. */
