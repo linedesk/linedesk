@@ -53,7 +53,8 @@ export const evaluationsLeft = (workspaceId: string) => !evaluationBudget.blocke
  * How long an answer may be (tokens) and how long to wait for it; `zeroDataRetention` (OpenRouter, default on): only
  * endpoints that keep nothing (noTrainingFields).
  */
-export type ChatOptions = { maxTokens?: number; timeoutMs?: number; zeroDataRetention?: boolean }
+/** `json: false`: a plain text answer (Try a question gets the call prompt, which asks for no JSON). */
+export type ChatOptions = { maxTokens?: number; timeoutMs?: number; zeroDataRetention?: boolean; json?: boolean }
 
 /**
  * One chat request that must answer JSON. Errors name the status, never the key. To OpenRouter it carries the rule to
@@ -65,7 +66,7 @@ export function chatJson(
   baseUrl: string,
   model: string,
   doFetch: typeof fetch = fetch,
-  { maxTokens = 400, timeoutMs = TIMEOUT_MS, zeroDataRetention = true }: ChatOptions = {},
+  { maxTokens = 400, timeoutMs = TIMEOUT_MS, zeroDataRetention = true, json = true }: ChatOptions = {},
 ): CompleteJson {
   return async (system, user) => {
     const res = await doFetch(`${baseUrl}/chat/completions`, {
@@ -74,7 +75,7 @@ export function chatJson(
       body: JSON.stringify({
         model,
         ...noTrainingFields(baseUrl, zeroDataRetention),
-        response_format: { type: 'json_object' },
+        ...(json ? { response_format: { type: 'json_object' } } : {}),
         // OpenAI's own API wants max_completion_tokens (its gpt-5 models refuse max_tokens).
         ...(/^https:\/\/api\.openai\.com\//.test(baseUrl)
           ? { max_completion_tokens: maxTokens }

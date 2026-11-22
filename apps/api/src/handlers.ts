@@ -211,6 +211,7 @@ import { billOfCall, busyLineAlert, type CallRefusal, gateCall, postFinishedCall
 import { evaluationHandlers } from './evaluations.ts'
 import { businessHandlers } from './business-import.ts'
 import { knowledgeHandlers } from './knowledge.ts'
+import { knowledgeTryHandlers } from './knowledge-try.ts'
 import { knowledgeQuestionHandlers } from './knowledge-questions.ts'
 import { notificationHandlers } from './notification-settings.ts'
 import { starHandlers } from './star-prompt.ts'
@@ -1333,6 +1334,7 @@ const handlers: Record<string, Handler> = {
   ...webhookHandlers,
   ...integrationHandlers,
   ...knowledgeHandlers,
+  ...knowledgeTryHandlers(businessHoursFor),
   ...businessHandlers,
   ...knowledgeQuestionHandlers,
   ...callExportHandlers,

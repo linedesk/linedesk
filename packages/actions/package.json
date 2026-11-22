@@ -4,7 +4,8 @@
   "license": "MIT",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./call-prompt": "./src/call-prompt.ts"
   },
   "scripts": {
     "typecheck": "tsc -p . --checkers 1",

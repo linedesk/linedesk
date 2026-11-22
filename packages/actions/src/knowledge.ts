@@ -73,6 +73,59 @@ export const knowledgeImport = defineAction({
   loggedHostOnly: ['url'],
 })
 
+// --- Business info: Try a question and help with one answer (LIN-724) --------------------------
+
+/** A question the owner tries, as a caller would ask it. */
+export const TRY_QUESTION_MAX = 300
+
+export const knowledgeTry = defineAction({
+  name: 'knowledge.try',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    'Try a question: what the assistant would answer a caller who asks it, from its real call prompt with `instructions` (the About text as drafted, not yet saved) in place of the saved one. Changes nothing. Returns `{ answer }`.',
+  input: z.object({
+    assistantId: z.string().min(1),
+    question: z.string().trim().min(1).max(TRY_QUESTION_MAX),
+    /** The About the business text as drafted; the saved one when left out. */
+    instructions: z.string().max(20_000).optional(),
+  }),
+  permission: 'settings:write',
+  readOnly: true,
+})
+
+/** How a question and answer can be improved with help: two near-duplicates merged, a long one shortened, one translated. */
+export const improveKinds = ['merge', 'shorten', 'translate'] as const
+export type ImproveKind = (typeof improveKinds)[number]
+/** A proposal for one question and answer; nothing is saved until the owner takes it and saves the assistant. */
+export type KnowledgeImproveData = { question: string; answer: string }
+
+const improveItem = z.object({
+  question: z.string().trim().min(1).max(QUESTION_MAX),
+  answer: z.string().trim().min(1).max(4_000),
+})
+
+export const knowledgeImprove = defineAction({
+  name: 'knowledge.improve',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    'Help with one question and answer of About the business: `merge` two that ask almost the same into one, `shorten` a long answer, or `translate` one into `language`. Changes nothing: returns `{ question, answer }` for the owner to take or not.',
+  input: z
+    .object({
+      assistantId: z.string().min(1),
+      kind: z.enum(improveKinds),
+      /** One item; two for `merge`. */
+      items: z.array(improveItem).min(1).max(2),
+      /** For `translate`: the language code to write it in. */
+      language: z.string().trim().min(2).max(10).optional(),
+    })
+    .refine(i => (i.kind === 'merge' ? i.items.length === 2 : i.items.length === 1), {
+      message: msg('server.input.improveItems'),
+    })
+    .refine(i => i.kind !== 'translate' || !!i.language, { message: msg('server.input.improveLanguage') }),
+  permission: 'settings:write',
+  readOnly: true,
+})
+
 // --- Questions the assistant could not answer ----------------------------------------------
 
 /** Open questions kept per assistant; older ones beyond it are not added. */

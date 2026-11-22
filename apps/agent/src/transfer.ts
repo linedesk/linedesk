@@ -1,9 +1,18 @@
 // Warm transfer, the decisions without any audio: which transfer contacts the assistant may put
 // callers through to on this call, in which order it tries them and what happens when nobody accepts,
 // what the person hears, and how their answer is read. The call itself is in transfer-call.ts.
-import { isActiveContact, RING_SECONDS_DEFAULT, type SpokenLines, spokenLines, type TransferResult } from '@linedesk/actions'
+import {
+  isActiveContact,
+  RING_SECONDS_DEFAULT,
+  type SpokenLines,
+  spokenLines,
+  type TransferResult,
+} from '@linedesk/actions'
 import type { Assistant, TransferContact } from '@linedesk/db/types'
 import type { BusinessHours } from './call-session.ts'
+import { displayNumber, spokenNumber } from '@linedesk/actions/call-prompt'
+
+export { displayNumber, spokenNumber }
 
 /** How long a phone rings when the contact does not say (older settings). */
 export const RING_SECONDS = RING_SECONDS_DEFAULT
@@ -22,17 +31,19 @@ export function transferContactsFor(assistant: Assistant | null, hours: Business
   const closed = !!hours && !hours.openNow
   // Vacation or closure mode: nobody is put through.
   if (hours?.closure) return []
-  return (assistant?.transfers ?? []).filter(
-    (c): c is Dialable =>
-      isActiveContact(c) && !(c.hours_only && closed),
-  )
+  return (assistant?.transfers ?? []).filter((c): c is Dialable => isActiveContact(c) && !(c.hours_only && closed))
 }
 
 /** A call never tries more contacts than this, so the caller does not wait on hold for minutes. */
 export const MAX_TRANSFER_TRIES = 3
 
 /** A condition as written, without case, extra spaces or a closing full stop: two contacts with the same one fit the same calls. */
-const conditionKey = (condition: string) => condition.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.!?]+$/, '')
+const conditionKey = (condition: string) =>
+  condition
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[.!?]+$/, '')
 
 /**
  * Whom to try, in order, for the contacts the assistant said fit this call (by name). A named contact stands for
@@ -42,7 +53,9 @@ const conditionKey = (condition: string) => condition.trim().toLowerCase().repla
  */
 export function transferPlan(contacts: Dialable[], picked: readonly string[]): { tries: Dialable[] } | null {
   const names = new Set(picked.map(n => n.trim().toLowerCase()))
-  const conditions = new Set(contacts.filter(c => names.has(c.name.trim().toLowerCase())).map(c => conditionKey(c.condition)))
+  const conditions = new Set(
+    contacts.filter(c => names.has(c.name.trim().toLowerCase())).map(c => conditionKey(c.condition)),
+  )
   const fitting = contacts.filter(c => conditions.has(conditionKey(c.condition)))
   if (!fitting.length) return null
   const tries: Dialable[] = []
@@ -53,20 +66,16 @@ export function transferPlan(contacts: Dialable[], picked: readonly string[]): {
   return { tries }
 }
 
-/** +15035550142 → "503 555 0142", the way a voice reads a number digit group by digit group. */
-export function spokenNumber(e164: string): string {
-  const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(e164)
-  return m ? `${m[1]} ${m[2]} ${m[3]}` : e164.replace(/^\+/, '')
-}
-
-/** +15035550142 → "+1 503 555 0142", the way the app shows numbers. */
-export const displayNumber = (e164: string) => (/^\+1\d{10}$/.test(e164) ? `+1 ${spokenNumber(e164)}` : e164)
-
 /**
  * `nameConfirmed`: the name is the one the team gave or confirmed on the contact (contacts.name_source `member`). Any other
  * name only says who the caller says they are: caller ID can be faked, and so can a name.
  */
-export type Briefing = { callerName?: string | null; nameConfirmed?: boolean; callerNumber?: string | null; about: string }
+export type Briefing = {
+  callerName?: string | null
+  nameConfirmed?: boolean
+  callerNumber?: string | null
+  about: string
+}
 
 /** The lines the on-call person hears and the answers understood from them, in the business's language (spokenLines). */
 export type OnCallLines = Pick<
@@ -91,7 +100,10 @@ export function briefingText(
  * argument, else the one confirmed with get_name), else the contact's. Confirmed only when it is the contact's name and
  * the team gave or confirmed that (`nameConfirmed`).
  */
-export function transferCallerName(said: string | null | undefined, contact: { name?: string | null; nameConfirmed?: boolean } | null | undefined) {
+export function transferCallerName(
+  said: string | null | undefined,
+  contact: { name?: string | null; nameConfirmed?: boolean } | null | undefined,
+) {
   const own = contact?.name?.trim() || null
   const name = said?.trim() || own
   const confirmed = !!(name && own && contact?.nameConfirmed && name.toLowerCase() === own.toLowerCase())
@@ -142,14 +154,27 @@ export function transferLabel(result: TransferResult, to: string, name?: string)
  * What the caller hears right before a contact's ringback, in the language spoken now (spokenLines): whom the
  * assistant is trying to reach, and after a contact who did not take the call, that it tries the next one.
  */
-export const connectingLine = (lines: Pick<SpokenLines, 'transferConnecting' | 'transferNext'>, next: string, previous: string | null) =>
-  previous ? lines.transferNext(previous, next) : lines.transferConnecting(next)
+export const connectingLine = (
+  lines: Pick<SpokenLines, 'transferConnecting' | 'transferNext'>,
+  next: string,
+  previous: string | null,
+) => (previous ? lines.transferNext(previous, next) : lines.transferConnecting(next))
 
 /**
  * The message the team gets when nobody took the call, saved by the transfer itself: the assistant does not always
  * take one afterwards, and without it the call has nothing to do for the team.
  */
-export function notConnectedMessage({ callerName, nameConfirmed = false, about, tried }: { callerName?: string | null; nameConfirmed?: boolean; about: string; tried: string[] }): string {
+export function notConnectedMessage({
+  callerName,
+  nameConfirmed = false,
+  about,
+  tried,
+}: {
+  callerName?: string | null
+  nameConfirmed?: boolean
+  about: string
+  tried: string[]
+}): string {
   const name = callerName?.trim()
   const who = name && nameConfirmed ? name : name ? `A caller who says they are ${name}` : 'The caller'
   const topic = about.trim().replace(/[.!?]+$/, '')
@@ -158,7 +183,9 @@ export function notConnectedMessage({ callerName, nameConfirmed = false, about, 
 
 /** What the assistant is told when nobody took the call; it then talks to the caller again. */
 export function notConnectedReply(): string {
-  const saved = 'A message that they wanted to be put through is saved already; anything the caller adds reaches the owner with the call.'
-  const noPromises = 'Nothing else has happened: nobody is on the way and no visit or time is set. Never say or suggest otherwise.'
+  const saved =
+    'A message that they wanted to be put through is saved already; anything the caller adds reaches the owner with the call.'
+  const noPromises =
+    'Nothing else has happened: nobody is on the way and no visit or time is set. Never say or suggest otherwise.'
   return `Nobody took the call. Tell the caller you could not reach anyone right now, that their message is passed on, and that someone will get back to them. ${noPromises} ${saved}`
 }

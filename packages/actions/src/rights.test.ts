@@ -167,6 +167,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'webhook.test',
     'webhook.deliveries',
     'knowledge.import',
+    'knowledge.improve',
+    'knowledge.try',
     'knowledgeQuestion.answer',
     'knowledgeQuestion.dismiss',
     'business.search',

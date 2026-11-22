@@ -62,7 +62,8 @@ export type FinalResult = Omit<z.input<typeof callFinalize.input>, 'callId'>
  * The business's hours as `call.start` reports them: `summary` is a ready sentence for the assistant.
  * `closure`: vacation or closure mode is on today (its greeting); nobody is put through then.
  */
-export type BusinessHours = { openNow: boolean; summary: string; closure?: { greeting: string } }
+import type { BusinessHours } from '@linedesk/actions/call-prompt'
+export type { BusinessHours }
 
 export interface CallSession {
   callId: string

@@ -189,3 +189,277 @@ a.kn-sub:hover {
   overflow-y: auto;
   padding-right: 4px;
 }
+
+/* Business info as two parts (LIN-724): the business's own text and the questions and answers, with Try a question,
+   a list to search and filter, and one question in a panel beside the page. */
+.kn-block {
+  display: grid;
+  gap: var(--space-2);
+}
+.kn-block + .kn-block {
+  margin-top: var(--space-4);
+}
+.kn-block-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.kn-block-head .kn-sub {
+  flex: 1;
+  min-width: 160px;
+}
+.kn-read {
+  display: grid;
+  gap: 4px;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.kn-read p {
+  margin: 0;
+}
+.kn-read b {
+  font-weight: 500;
+}
+.kn-bullet {
+  position: relative;
+  padding-left: 14px;
+}
+.kn-bullet::before {
+  content: "•";
+  position: absolute;
+  left: 3px;
+  color: var(--ink-muted);
+}
+.kn-total {
+  display: block;
+  margin-top: var(--space-2);
+}
+.kn-empty {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+}
+.kn-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.kn-search {
+  flex: 1 1 220px;
+}
+.kn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.kn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.kn-chip span {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+.kn-chip.is-on {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--surface);
+}
+.kn-chip.is-warn:not(.is-on) {
+  border-color: var(--warning-soft);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.kn-chip:focus-visible,
+.kn-qrow:focus-visible,
+.kn-try-from:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.kn-qlist {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.kn-qrow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 10px var(--space-3);
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.kn-qrow:first-child {
+  border-top: 0;
+}
+.kn-qrow:hover,
+.kn-qrow.is-at {
+  background: var(--surface-hover);
+}
+.kn-qrow.is-at {
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+.kn-qrow-main {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+}
+.kn-qrow-main b {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.kn-qrow-answer {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 13px;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+.kn-qrow-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.kn-qrow-src {
+  padding-top: 2px;
+  color: var(--ink-muted);
+}
+.kn-panel {
+  position: fixed;
+  z-index: 40;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  width: min(440px, 100vw);
+  padding: var(--space-4);
+  overflow: auto;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+.kn-panel-head,
+.kn-panel-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.kn-panel-foot .kn-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.kn-pfield {
+  display: grid;
+  gap: 4px;
+}
+.kn-pfield > label {
+  font-size: 13px;
+  font-weight: 500;
+}
+.kn-chars {
+  justify-self: end;
+}
+.kn-issue,
+.kn-helped {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+.kn-issue {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.kn-helped {
+  background: var(--surface-hover);
+}
+.kn-issue > span,
+.kn-helped > span {
+  flex: 1;
+}
+.kn-try {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+}
+.kn-try-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+}
+.kn-try-row input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+.kn-try-answer {
+  display: grid;
+  gap: 4px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  font-size: 13.5px;
+}
+.kn-try-answer p {
+  margin: 0;
+  white-space: pre-line;
+}
+.kn-try-from {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 12.5px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+@media (min-width: 1100px) {
+  body.kn-panel-open {
+    padding-right: min(440px, 100vw);
+  }
+}
+@media (max-width: 640px) {
+  .kn-panel {
+    width: 100vw;
+  }
+}

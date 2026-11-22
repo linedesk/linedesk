@@ -78,6 +78,8 @@ describe('calendar.findSlots', () => {
       'integration.list',
       'invitation.listMine',
       'knowledge.import',
+      'knowledge.improve',
+      'knowledge.try',
       'member.list',
       'notifications.get',
       'oauth.describe',

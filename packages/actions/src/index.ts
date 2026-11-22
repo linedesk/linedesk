@@ -472,6 +472,8 @@ const all = [
   webhooks.callLookUpCaller,
   webhooks.callAskWebhook,
   knowledge.knowledgeImport,
+  knowledge.knowledgeTry,
+  knowledge.knowledgeImprove,
   knowledge.knowledgeQuestionAnswer,
   knowledge.knowledgeQuestionDismiss,
   business.businessSearch,
