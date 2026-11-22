@@ -325,8 +325,6 @@
   "tour.next": "Siguiente",
   "tour.rest.text": "{commands} encuentra cualquier acción, {shortcuts} muestra todos los atajos. Eso es todo el recorrido.",
   "tour.rest.title": "Todo lo demás",
-  "tour.settings.text": "{g} y luego {s} abre la configuración del espacio de trabajo: nombre, equipo, números de teléfono. Las notificaciones están en la configuración de usuario, en el menú bajo el nombre de tu espacio de trabajo. {g} y luego {a} configura a {assistant}, incluido el horario de atención.",
-  "tour.settings.title": "Configuración",
   "tour.skip": "Omitir",
   "tour.stepOf": "Paso {step} de {steps}: {title}",
   "unreachable.text": "Reintentando… Esta página sigue sola cuando vuelva la conexión.",

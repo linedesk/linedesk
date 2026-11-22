@@ -325,8 +325,6 @@
   "tour.next": "Suivant",
   "tour.rest.text": "{commands} trouve n'importe quelle action, {shortcuts} liste tous les raccourcis. La visite est terminée.",
   "tour.rest.title": "Tout le reste",
-  "tour.settings.text": "{g} puis {s} ouvre les réglages de l'espace de travail : nom, équipe, numéros de téléphone. Les notifications sont dans les réglages utilisateur, dans le menu sous le nom de votre espace de travail. {g} puis {a} configure {assistant}, horaires d'ouverture compris.",
-  "tour.settings.title": "Réglages",
   "tour.skip": "Passer",
   "tour.stepOf": "Étape {step} sur {steps} : {title}",
   "unreachable.text": "Nouvelle tentative… Cette page reprendra d'elle-même dès le retour de la connexion.",

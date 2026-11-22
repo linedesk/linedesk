@@ -1,7 +1,8 @@
-// The first-use tour: five steps, each a small card next to what it explains, with an arrow pointing at it
+// The first-use tour: four steps, each a small card next to what it explains, with an arrow pointing at it
 // and the rest of the screen dimmed around it. With nothing to point at (phones hide some of it) the card
 // is centred. → or Enter next, ← back, Esc closes; every other key still works, so the shortcuts it names
-// can be tried at once, and clicks go through to the app. While a dialog is open over it, the tour waits.
+// can be tried at once. Clicks reach only the card: a click elsewhere (another call, the menu) would leave the
+// tour pointing at what is no longer there. While a dialog is open over it, the tour waits.
 import { arrow, autoUpdate, flip, hide, offset, shift, useFloating } from '@floating-ui/react-dom'
 import { type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useAssistantName } from '../store.tsx'
@@ -31,6 +32,7 @@ export function Tour({ onClose, canAssign }: { onClose: () => void; canAssign: b
   if (paused) return null
   return (
     <>
+      <ClickShield />
       <Spotlight target={target} />
       <TourCard step={step} target={target} labelledBy={titleId} describedBy={textId}>
         <h2 id={titleId}>{step.title}</h2>
@@ -128,6 +130,11 @@ function TourCard({
       {children}
     </section>
   )
+}
+
+/** Takes every click outside the card while the tour runs, and keeps focus on the card (no mousedown focus). */
+function ClickShield() {
+  return <div className="tour-shield" aria-hidden="true" onMouseDown={e => e.preventDefault()} />
 }
 
 /** Dims the screen except for a rounded window around the target; the whole screen when there is none. */

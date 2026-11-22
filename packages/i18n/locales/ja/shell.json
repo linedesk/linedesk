@@ -325,8 +325,6 @@
   "tour.next": "次へ",
   "tour.rest.text": "{commands}であらゆる操作を検索、{shortcuts}ですべてのショートカットを一覧表示します。ツアーは以上です。",
   "tour.rest.title": "その他",
-  "tour.settings.text": "{g}に続けて{s}でワークスペースの設定（名前、チーム、電話番号）を開きます。通知はワークスペース名の下のメニューにあるユーザー設定にあります。{g}に続けて{a}で、営業時間を含む{assistant}の設定を行います。",
-  "tour.settings.title": "設定",
   "tour.skip": "スキップ",
   "tour.stepOf": "ステップ{step} / {steps}：{title}",
   "unreachable.text": "再試行しています…接続が戻ると、このページは自動的に続行します。",

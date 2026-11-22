@@ -2442,8 +2442,13 @@ button.k-link {
 .tour[data-side="left"] .tour-arrow {
   right: -5px;
 }
-/* The spotlight: a rounded window around the target, the rest of the screen dimmed by its huge shadow.
-   Clicks go through it to the app. */
+/* Under the card, over everything else: clicks outside the card do nothing while the tour runs. */
+.tour-shield {
+  position: fixed;
+  inset: 0;
+  z-index: 59;
+}
+/* The spotlight: a rounded window around the target, the rest of the screen dimmed by its huge shadow. */
 .tour-spot {
   position: fixed;
   z-index: 59;

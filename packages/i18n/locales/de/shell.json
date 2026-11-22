@@ -325,8 +325,6 @@
   "tour.next": "Weiter",
   "tour.rest.text": "{commands} findet jede Aktion, {shortcuts} zeigt alle Tastenkürzel. Das war die Tour.",
   "tour.rest.title": "Alles andere",
-  "tour.settings.text": "{g} und dann {s} öffnet die Workspace-Einstellungen: Name, Team, Telefonnummern. Benachrichtigungen findest du in den Benutzereinstellungen, im Menü unter deinem Workspace-Namen. {g} und dann {a} richtet {assistant} ein, inklusive Öffnungszeiten.",
-  "tour.settings.title": "Einstellungen",
   "tour.skip": "Überspringen",
   "tour.stepOf": "Schritt {step} von {steps}: {title}",
   "unreachable.text": "Neuer Versuch… Diese Seite macht von selbst weiter, sobald die Verbindung wieder da ist.",

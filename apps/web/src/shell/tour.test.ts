@@ -12,15 +12,9 @@ import {
   tourSteps,
 } from './tour.ts'
 
-test('five short steps: inbox, a call, assign and finish, settings, the rest', () => {
+test('four short steps: inbox, a call, assign and finish, the rest', () => {
   const steps = tourSteps('Ava')
-  expect(steps.map(s => s.title)).toEqual([
-    'Your inbox',
-    'Open a call',
-    'Assign and finish',
-    'Settings',
-    'Everything else',
-  ])
+  expect(steps.map(s => s.title)).toEqual(['Your inbox', 'Open a call', 'Assign and finish', 'Everything else'])
   expect(steps[0]!.text).toContain('Ava')
 })
 

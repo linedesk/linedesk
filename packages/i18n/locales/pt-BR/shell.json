@@ -325,8 +325,6 @@
   "tour.next": "Próximo",
   "tour.rest.text": "{commands} encontra qualquer ação, {shortcuts} lista todos os atalhos. Esse é o tour.",
   "tour.rest.title": "Todo o resto",
-  "tour.settings.text": "{g} e depois {s} abre as configurações do espaço de trabalho: nome, equipe, números de telefone. As notificações ficam nas configurações do usuário, no menu abaixo do nome do seu espaço de trabalho. {g} e depois {a} configura {assistant}, incluindo o horário de atendimento.",
-  "tour.settings.title": "Configurações",
   "tour.skip": "Pular",
   "tour.stepOf": "Etapa {step} de {steps}: {title}",
   "unreachable.text": "Tentando novamente… Esta página continua sozinha quando a conexão voltar.",

@@ -47,12 +47,6 @@ export function tourSteps(assistant: string, canAssign = true): TourStep[] {
       placement: 'bottom-end',
     },
     {
-      title: t('shell.tour.settings.title'),
-      text: t('shell.tour.settings.text', { assistant, g: 'G', s: 'S', a: 'A' }),
-      targets: ['.menu-btn'],
-      placement: 'bottom-start',
-    },
-    {
       title: t('shell.tour.rest.title'),
       text: t('shell.tour.rest.text', { commands: '⌘K', shortcuts: '?' }),
       targets: ['.ib-hint > span:nth-last-child(2)'], // "⌘K commands", next to "? all shortcuts"

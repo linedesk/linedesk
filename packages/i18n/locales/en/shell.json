@@ -325,8 +325,6 @@
   "tour.next": "Next",
   "tour.rest.text": "{commands} finds any action, {shortcuts} lists every shortcut. That is the tour.",
   "tour.rest.title": "Everything else",
-  "tour.settings.text": "{g} then {s} opens Workspace settings: name, team, phone numbers. Notifications are in User settings, from the menu under your workspace name. {g} then {a} sets up {assistant}, business hours included.",
-  "tour.settings.title": "Settings",
   "tour.skip": "Skip",
   "tour.stepOf": "Step {step} of {steps}: {title}",
   "unreachable.text": "Trying again… This page continues on its own once the connection is back.",
