@@ -248,8 +248,9 @@ function FindBusiness({
     <FindForm
       phase={phase}
       onEnter={phase.kind === 'find' ? () => void search() : phase.kind === 'manual' ? manualContinue : undefined}
-      onBack={saved ? () => setPhase(savedReview()) : undefined}
       // Naming the business by hand: Continue (or Read my website) is the footer's primary, as on every other step.
+      // Searching with a profile saved before: Continue goes on to it, so the step is one chain (search, then the
+      // review) and Back always leaves the step (Janik, 2026-11-22).
       primary={
         phase.kind === 'manual'
           ? {
@@ -259,7 +260,9 @@ function FindBusiness({
                   ? t('onboarding.business.manual.readWebsite')
                   : t('onboarding.action.continue'),
             }
-          : undefined
+          : phase.kind === 'find' && saved
+            ? { onClick: () => setPhase(savedReview()), label: t('onboarding.action.continue') }
+            : undefined
       }
       saved={saved}
       readsWebsite={site === 'field'}
@@ -526,7 +529,6 @@ function ImportProgress({ what, stages }: { what: string; stages: readonly Impor
 function FindForm({
   phase,
   onEnter,
-  onBack,
   primary,
   saved,
   readsWebsite,
@@ -535,13 +537,14 @@ function FindForm({
 }: {
   phase: Phase
   onEnter?: () => void
-  /** Back to the profile saved before (coming back to this step and looking it up again). */
-  onBack?: () => void
-  /** The footer's primary button (naming the business by hand); none while searching (the search leads on). */
+  /**
+   * The footer's primary button: naming the business by hand, or going on to the profile saved before; none while
+   * searching a first time (the search leads on).
+   */
   primary?: { onClick: () => void; label: string }
   saved: boolean
   readsWebsite: boolean
-  /** Back to the agent setup page, in the footer's back slot (when there is no saved profile to go back to). */
+  /** Back to the agent setup page, in the footer's back slot: the step's first page has no other way back. */
   onAgentSetup?: () => void
   children: ReactNode
 }) {
@@ -567,11 +570,10 @@ function FindForm({
         </p>
         {children}
       </div>
-      {/* While searching, the search leads on (the one primary action); the saved profile is one Back away. */}
       {/* The first step: no step to go back to, so the back slot leads to the AI agent setup (set up by hand after all). */}
       <Foot
-        onBack={phase.kind === 'loading' ? undefined : (onBack ?? onAgentSetup)}
-        {...(!onBack && onAgentSetup
+        onBack={phase.kind === 'loading' ? undefined : onAgentSetup}
+        {...(onAgentSetup
           ? {
               backLabel: t('onboarding.business.agentBack'),
               backIcon: 'spark' as const,
