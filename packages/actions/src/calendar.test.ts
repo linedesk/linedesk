@@ -109,6 +109,7 @@ describe('calendar.findSlots', () => {
       'setupEmails.get',
       'shopify.callContext',
       'shopify.changeOrder',
+      'shopify.describeLink',
       'shopify.findOrders',
       'shopify.findProducts',
       'shopify.setupStatus',

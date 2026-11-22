@@ -330,6 +330,8 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'app.disconnect': 'integrations',
   // Whether calls go to it, and whether it may add or change contacts there.
   'app.updateSettings': 'integrations',
+  // A store installed from Shopify's App Store, linked to the workspace: a Shopify connection like app.connectFinish.
+  'shopify.linkInstall': 'integrations',
   // A support mailbox (LIN-615): every customer email in it becomes readable.
   'mail.connectFinish': 'integrations',
   'mail.disconnect': 'integrations',

@@ -112,6 +112,7 @@ import { calendarConnectionHandlers } from './calendar-connections.ts'
 import { appConnectionHandlers } from './app-connections.ts'
 import { shopifyCallHandlers, shopifyCallSetup } from './shopify-calls.ts'
 import { shopifySetupHandlers } from './shopify-setup.ts'
+import { shopifyEmbeddedHandlers } from './shopify-embedded.ts'
 import { mailAnalysisHandlers } from './mail-analysis.ts'
 import { mailConnectionHandlers } from './mail-connections.ts'
 import { appPushHandlers } from './app-pushes.ts'
@@ -1315,6 +1316,7 @@ const handlers: Record<string, Handler> = {
   ...appConnectionHandlers,
   ...shopifyCallHandlers,
   ...shopifySetupHandlers,
+  ...shopifyEmbeddedHandlers,
   ...mailConnectionHandlers,
   ...mailAnalysisHandlers(queueMailAnalysis),
   ...appPushHandlers,

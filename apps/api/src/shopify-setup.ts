@@ -13,6 +13,7 @@
 //    app.connectStart for that store, Shopify answers at once (the app is installed), and app.connectFinish marks the
 //    request connected (markShopifySetupConnected).
 import {
+  isShopifyAppStoreUrl,
   isShopifyInstallUrl,
   shopifyPublicAppApproved,
   type ShopifySetupListData,
@@ -105,12 +106,24 @@ export async function shopifyConnectOpen(tx: Tx, workspaceId: string): Promise<b
   return (await hasOwnApp(tx, workspaceId)) || (await publicAppApproved(tx))
 }
 
+/**
+ * The App Store listing Connect opens instead of Shopify's consent page: when the public app is approved, its listing is
+ * set (Server admin › Providers › Shopify) and the workspace has no app of its own. A public app is installed from
+ * Shopify (App Store rule 2.3.1: never by naming a store here); the store is then linked from the app in its admin.
+ */
+async function appStoreListing(tx: Tx, workspaceId: string): Promise<string | null> {
+  const config = await resolveProvider(tx, 'shopify')
+  const url = config.app_store_url?.value?.trim()
+  if (!url || !isShopifyAppStoreUrl(url) || !shopifyPublicAppApproved(config.public_app_approved?.value)) return null
+  return (await hasOwnApp(tx, workspaceId)) ? null : url
+}
+
 async function statusData(tx: Tx, workspaceId: string): Promise<ShopifySetupStatusData> {
   const row = await openRequest(tx, workspaceId)
-  return {
-    way: (await shopifyConnectOpen(tx, workspaceId)) ? 'connect' : 'request',
-    request: row ? shown(row) : null,
-  }
+  const request = row ? shown(row) : null
+  const appStoreUrl = await appStoreListing(tx, workspaceId)
+  if (appStoreUrl) return { way: 'app_store', request, appStoreUrl }
+  return { way: (await shopifyConnectOpen(tx, workspaceId)) ? 'connect' : 'request', request }
 }
 
 /** The connect of this store finished: the workspace's open request for it is done (app.connectFinish). */

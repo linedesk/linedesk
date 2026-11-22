@@ -67,6 +67,16 @@ describe('security headers (docker/Caddyfile)', () => {
     expect(headerValue('Permissions-Policy')).toBe('microphone=(self), camera=(), geolocation=()')
   })
 
+  test('only the Shopify app’s embedded page may be framed, by its own CSP from the API', () => {
+    // The site's CSP and X-Frame-Options sit under a matcher that leaves out that one path, which goes to the API.
+    expect(siteBlock).toMatch(/^\s*@notShopifyEmbedded not path \/shopify\/app$/m)
+    const framed = siteBlock.slice(siteBlock.indexOf('header @notShopifyEmbedded {'))
+    const block = framed.slice(0, framed.indexOf('\n\t}'))
+    expect(block).toMatch(/^\s*X-Frame-Options DENY$/m)
+    expect(block).toMatch(/^\s*Content-Security-Policy "/m)
+    expect(siteBlock).toMatch(/^\s*@api path [^\n]*\/shopify\/app /m)
+  })
+
   test('HSTS only on HTTPS', () => {
     expect(siteBlock).toMatch(/^\s*@https protocol https$/m)
     expect(siteBlock).toMatch(/^\s*header @https Strict-Transport-Security "max-age=\d+"$/m)

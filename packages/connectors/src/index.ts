@@ -45,9 +45,12 @@ export {
   type ShopifyOrder,
   type ShopifyPolicy,
   type ShopifyProduct,
+  type ShopifySessionClaims,
   type ShopifyStore,
+  SESSION_TOKEN_LEEWAY_SEC,
   shopDomain,
   verifyShopifyQuery,
+  verifyShopifySessionToken,
   verifyShopifyWebhook,
 } from './shopify.ts'
 export {

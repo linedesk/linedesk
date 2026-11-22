@@ -9,6 +9,7 @@ import {
   type Json,
   type OAuthClient,
   type OAuthTokens,
+  type SessionUser,
   type TokenSource,
 } from './types.ts'
 
@@ -120,6 +121,57 @@ export async function verifyShopifyWebhook(
 ) {
   const given = signature ? fromBase64(signature) : null
   return !!given && sameBytes(given, await hmacSha256(clientSecret, rawBody))
+}
+
+const fromBase64Url = (value: string) =>
+  /^[A-Za-z0-9_-]*$/.test(value) ? fromBase64(value.replace(/-/g, '+').replace(/_/g, '/')) : null
+
+function jsonPart(part: string): Record<string, unknown> | null {
+  const bytes = fromBase64Url(part)
+  if (!bytes) return null
+  try {
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as unknown
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
+
+/** What a checked session token says: the shop whose admin the embedded page is open in, and the staff member. */
+export type ShopifySessionClaims = { shop: string; user: string | null }
+
+/** How far a session token's `exp` and `nbf` may be off the server's clock (Shopify's tokens last one minute). */
+export const SESSION_TOKEN_LEEWAY_SEC = 10
+
+/**
+ * Checks a session token App Bridge gave the embedded page (a JWT, HS256 with the app's client secret): the signature
+ * (compared in constant time), `aud` the app's client ID, `exp` and `nbf` within SESSION_TOKEN_LEEWAY_SEC of `nowMs`,
+ * `dest` a shop's own https://<shop>.myshopify.com and `iss` that shop's /admin. Null for anything else: another
+ * algorithm, a token of another app, an expired one, a shop that is not one.
+ */
+export async function verifyShopifySessionToken(
+  token: string,
+  { clientId, clientSecret }: OAuthClient,
+  nowMs: number = Date.now(),
+): Promise<ShopifySessionClaims | null> {
+  if (!token || token.length > 4096) return null
+  const parts = token.split('.')
+  if (parts.length !== 3) return null
+  const [headerPart, payloadPart, signaturePart] = parts as [string, string, string]
+  const header = jsonPart(headerPart)
+  if (header?.alg !== 'HS256') return null
+  const signature = fromBase64Url(signaturePart)
+  if (!signature || !sameBytes(signature, await hmacSha256(clientSecret, `${headerPart}.${payloadPart}`))) return null
+  const claims = jsonPart(payloadPart)
+  if (!claims || claims.aud !== clientId) return null
+  const now = nowMs / 1000
+  if (typeof claims.exp !== 'number' || claims.exp < now - SESSION_TOKEN_LEEWAY_SEC) return null
+  if (typeof claims.nbf !== 'number' || claims.nbf > now + SESSION_TOKEN_LEEWAY_SEC) return null
+  if (typeof claims.dest !== 'string' || typeof claims.iss !== 'string') return null
+  const match = /^https:\/\/([^/?#]+)$/.exec(claims.dest)
+  const shop = match ? shopDomain(match[1]!) : null
+  if (!shop || claims.dest !== `https://${shop}` || claims.iss !== `https://${shop}/admin`) return null
+  return { shop, user: typeof claims.sub === 'string' && claims.sub ? claims.sub : null }
 }
 
 type Options = { fetch?: typeof fetch; timeoutMs?: number }
@@ -245,6 +297,21 @@ export function createShopifyOAuth({ clientId, clientSecret }: OAuthClient, opti
   const graphql = graphqlClient({ ...options, timeoutMs })
 
   async function tokens(shop: string, fields: Json, what: string): Promise<OAuthTokens> {
+    const body = await tokenBody(shop, fields, what)
+    const accessToken = body.access_token
+    if (typeof accessToken !== 'string' || !accessToken)
+      throw new AppError('shopify', 'invalid', `${what} returned no access token`)
+    const expiresIn = Number(body.expires_in)
+    return {
+      accessToken: withShop(shop, accessToken),
+      refreshToken: typeof body.refresh_token === 'string' ? withShop(shop, body.refresh_token) : null,
+      expiresAt: expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
+      scope: typeof body.scope === 'string' ? body.scope : null,
+    }
+  }
+
+  /** The token endpoint's answer, or the AppError for its refusal. */
+  async function tokenBody(shop: string, fields: Json, what: string): Promise<Json> {
     let res: Response
     try {
       res = await doFetch(`https://${shop}/admin/oauth/access_token`, {
@@ -268,16 +335,7 @@ export function createShopifyOAuth({ clientId, clientSecret }: OAuthClient, opti
         throw new AppError('shopify', 'client', message, res.status)
       throw new AppError('shopify', 'auth', message, res.status)
     }
-    const accessToken = body.access_token
-    if (typeof accessToken !== 'string' || !accessToken)
-      throw new AppError('shopify', 'invalid', `${what} returned no access token`)
-    const expiresIn = Number(body.expires_in)
-    return {
-      accessToken: withShop(shop, accessToken),
-      refreshToken: typeof body.refresh_token === 'string' ? withShop(shop, body.refresh_token) : null,
-      expiresAt: expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000).toISOString() : null,
-      scope: typeof body.scope === 'string' ? body.scope : null,
-    }
+    return body
   }
 
   return {
@@ -344,6 +402,51 @@ export function createShopifyOAuth({ clientId, clientSecret }: OAuthClient, opti
     // One install per shop: uninstalling ends it for every workspace connected to the shop.
     grantPerAccount: true,
     account: accessToken => readAccount(graphql, accessToken),
+    /**
+     * The App Store install (Shopify-managed): the embedded page's session token, checked by the caller, is exchanged
+     * for the shop's offline access, expiring like a connect's (`expiring: 1`). The shop's uninstall webhook comes from
+     * the app's configuration, so nothing is subscribed here.
+     */
+    async tokenExchange({ shop, sessionToken }) {
+      if (shopDomain(shop) !== shop) throw new AppError('shopify', 'invalid', 'no shop for the token exchange')
+      const granted = await tokens(
+        shop,
+        {
+          grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+          subject_token: sessionToken,
+          subject_token_type: 'urn:ietf:params:oauth:token-type:id_token',
+          requested_token_type: 'urn:shopify:params:oauth:token-type:offline-access-token',
+          expiring: 1,
+        },
+        'token exchange',
+      )
+      const account = await readAccount(graphql, granted.accessToken).catch(() => null)
+      return { ...granted, account }
+    },
+    /**
+     * An online token exchange for the same session token, only to read who it is for (`associated_user`): the token
+     * itself is never returned or kept.
+     */
+    async sessionUser({ shop, sessionToken }): Promise<SessionUser> {
+      if (shopDomain(shop) !== shop) throw new AppError('shopify', 'invalid', 'no shop for the token exchange')
+      const body = await tokenBody(
+        shop,
+        {
+          grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+          subject_token: sessionToken,
+          subject_token_type: 'urn:ietf:params:oauth:token-type:id_token',
+          requested_token_type: 'urn:shopify:params:oauth:token-type:online-access-token',
+        },
+        'reading the staff member',
+      )
+      const user = (body.associated_user ?? null) as Json | null
+      if (!user || typeof user !== 'object') throw new AppError('shopify', 'invalid', 'the token names no staff member')
+      return {
+        email: typeof user.email === 'string' && user.email ? user.email : null,
+        emailVerified: user.email_verified === true,
+        accountOwner: user.account_owner === true,
+      }
+    },
   }
 }
 

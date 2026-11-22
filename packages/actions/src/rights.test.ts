@@ -30,6 +30,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'contact.block',
     // Whether the store is being set up for Shopify (LIN-719): every member sees the status.
     'shopify.setupStatus',
+    // What a link from the Shopify app is for: shown to whoever opens it, refused to link by members.
+    'shopify.describeLink',
     'contact.unblock',
     'contact.create',
     'contact.delete',
@@ -120,6 +122,8 @@ const expectedRights: Record<Right, readonly string[]> = {
     'app.disconnect',
     // A store's own Shopify app, asked for before connecting (LIN-719).
     'shopify.requestSetup',
+    // A store installed from Shopify's App Store, linked to the workspace: a Shopify connection.
+    'shopify.linkInstall',
     'mail.connectStart',
     'mail.connectFinish',
     'mail.disconnect',

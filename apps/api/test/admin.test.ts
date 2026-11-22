@@ -2641,6 +2641,8 @@ describe('impersonation', () => {
       'records.list',
       // Read-only and instance:admin: the guard lets it through, but an impersonation never has instance:admin.
       'setupEmails.get',
+      // Which store a link from the Shopify app is for; linking it stays refused (shopify.linkInstall).
+      'shopify.describeLink',
       // The workspace's Shopify setup request as the page shows it (LIN-719); asking for one stays refused.
       'shopify.setupStatus',
       // Read-only and instance:admin, as above.

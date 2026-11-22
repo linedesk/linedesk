@@ -69,7 +69,7 @@ function devAutoSignIn(login: string | undefined, api: string, webOrigin: string
       server.middlewares.use(async (req, res, next) => {
         const page = req.method === 'GET' && (req.headers.accept ?? '').includes('text/html')
         // Not on what the proxy forwards to the API (an OAuth callback must keep its own session or none).
-        if (!page || /^\/(api|v1|mcp|oauth|\.well-known)(\/|\?|$)/.test(req.url ?? '')) return next()
+        if (!page || /^\/(api|v1|mcp|oauth|\.well-known|shopify\/app)(\/|\?|$)/.test(req.url ?? '')) return next()
         try {
           const cookie = req.headers.cookie ?? ''
           const session = await fetch(`${api}/api/auth/get-session`, { headers: { cookie } })
@@ -122,7 +122,8 @@ export default defineConfig(({ mode }) => {
       // Marked public, as Caddy does: a request through the dev server (or a tunnel to it) never counts as the
       // agent's internal one, so the agent token is refused on it (apps/api/src/context.ts).
       proxy: Object.fromEntries(
-        ['/api', '/v1', '/mcp', '/oauth', '/.well-known'].map(path => [
+        // /shopify/app: the Shopify app's embedded page, which the API serves (apps/api/src/shopify-embedded.ts).
+        ['/api', '/v1', '/mcp', '/oauth', '/.well-known', '/shopify/app'].map(path => [
           path,
           { target: api, headers: { 'x-linedesk-entry': 'public' } },
         ]),

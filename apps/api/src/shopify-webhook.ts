@@ -9,7 +9,8 @@
 // HMAC-SHA256 in X-Shopify-Hmac-SHA256; a missing or wrong signature is 401, as Shopify's review checks. The topic and
 // the store come from X-Shopify-Topic and X-Shopify-Shop-Domain. Delivery is at least once: a repeat finds nothing.
 // A workspace with its own app (a custom app for one pilot store, app-connections.ts workspaceAppKeys) gets that app's
-// webhooks here too: signed with its secret, they act on that workspace's connections only.
+// webhooks here too: signed with its secret, they act on that workspace's connections only. Signed by the install's
+// app, an uninstall also marks the store's App Store install uninstalled (shopify-embedded.ts markShopifyUninstalled).
 import { shopDomain, verifyShopifyWebhook } from '@linedesk/connectors'
 import { app_connections, crm_links } from '@linedesk/db'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -17,6 +18,7 @@ import type { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { dropAppAccount, workspaceApps, workspaceScope } from './app-connections.ts'
 import { db } from './db.ts'
+import { markShopifyUninstalled } from './shopify-embedded.ts'
 import { resolveProvider } from './provider-settings.ts'
 import { SecretsKeyError } from './secrets.ts'
 
@@ -112,9 +114,12 @@ export function registerShopifyWebhookRoute(app: Hono<any>) {
         // A grant made after the event stays: a late or replayed delivery never removes a store connected again.
         const at = Date.parse(c.req.header('x-shopify-triggered-at') ?? '')
         const grantedBefore = Number.isFinite(at) ? new Date(at - 60_000).toISOString() : null
-        const deleted = await db.transaction(tx =>
-          dropAppAccount(tx, 'shopify', [shop], grantedBefore, signer.workspaceId ?? 'install'),
-        )
+        const deleted = await db.transaction(async tx => {
+          const dropped = await dropAppAccount(tx, 'shopify', [shop], grantedBefore, signer.workspaceId ?? 'install')
+          // An install from the App Store (shopify-embedded.ts): its stored access and its workspace go too.
+          if (!signer.workspaceId) await markShopifyUninstalled(tx, shop, grantedBefore, new Date().toISOString())
+          return dropped
+        })
         if (deleted.length) console.log(`shopify webhook: ${topic} removed ${deleted.length} connection(s)`)
         return c.json({ ok: true })
       }

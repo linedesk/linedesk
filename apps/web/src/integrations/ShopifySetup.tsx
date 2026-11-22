@@ -2,7 +2,8 @@
 // a store connects through a custom app made for it alone: the member asks with the store's address (Request), sees
 // that the store is being set up, gets Shopify's install link when it is ready (by email and here), and Shopify's open
 // of the installed app brings them back with `connect=<shop>` in the hash, which connects that store at once. With the
-// workspace's own app or an approved public app, Connect opens Shopify's consent page as for every app.
+// workspace's own app or an approved public app, Connect opens Shopify's consent page as for every app; with the public
+// app listed in Shopify's App Store, Connect opens its listing instead (the store installs it there).
 import type { ShopifySetupRequest, ShopifySetupStatusData } from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
 import { type FormEvent, useEffect, useRef, useState } from 'react'
@@ -10,6 +11,7 @@ import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { Field } from '../settings/fields.tsx'
 import { callAction, readAction } from '../settings/settings-api.ts'
 import { Dialog, Input } from '../ui/form.tsx'
+import { brandName } from '../brand.ts'
 import { Button, Note } from '../ui/kit.tsx'
 import { nameKey } from './catalog.ts'
 
@@ -97,6 +99,23 @@ export function ShopifyNotConnected({ canEdit, toast, connect, opening, openShop
       </>
     )
   if (!canEdit) return <p className="help">{t('settings.integrations.app.onlyAdmins', { name })}</p>
+  // The public app is listed in Shopify's App Store: installed from there (never by naming a store here); the app in the
+  // store's Shopify admin then links the store to a workspace.
+  if (data.way === 'app_store' && data.appStoreUrl)
+    return (
+      <div className="ig-app-connect">
+        <p className="help">{t('settings.integrations.app.shopify.appStore.text', { brand: brandName() })}</p>
+        <a
+          className="k-btn k-btn-primary k-btn-md"
+          href={data.appStoreUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={t('settings.integrations.app.shopify.appStore.buttonTip', { brand: brandName() })}
+        >
+          <span>{t('settings.integrations.app.shopify.appStore.button')}</span>
+        </a>
+      </div>
+    )
   const direct = data.way === 'connect'
   return (
     <div className="ig-app-connect">

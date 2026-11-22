@@ -170,6 +170,8 @@ const INSTANCE_WIDE_FILES = [
   'test/setup-feedback.test.ts',
   // Stores a workspace's own Shopify app, sets the install's Shopify switch and makes an instance admin (LIN-719).
   'test/shopify-setup.test.ts',
+  // Stores the install's Shopify app keys and its App Store listing, and makes an instance admin.
+  'test/shopify-embedded.test.ts',
 ]
 
 // The API tests run against a real Postgres, in databases of their own (never the dev database): one

@@ -1354,6 +1354,7 @@
   "provider.devCarrierLine": "Development carrier ({setting}): numbers and calls are simulated",
   "provider.emailToLog": "Sign-in codes go to the API log ({name}): for development only",
   "provider.field.apiToken": "API token",
+  "provider.field.appStoreUrl": "App Store listing (https://apps.shopify.com/…)",
   "provider.field.clientId": "Client ID",
   "provider.field.clientSecret": "Client secret",
   "provider.field.cnameTarget": "CNAME target",

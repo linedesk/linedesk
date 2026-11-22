@@ -144,7 +144,7 @@ export const lockConnection = (tx: Tx, connectionId: string) =>
   tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`app:${connectionId}`}))`)
 
 /** Connect and disconnect of one account of an app, one at a time: the "shared" check below sees the other's row. */
-const lockAccount = (tx: Tx, app: AppId, accountId: string) =>
+export const lockAccount = (tx: Tx, app: AppId, accountId: string) =>
   tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`app-account:${app}:${accountId}`}))`)
 
 /** A started connect is good for this long: enough to sign in and consent. */
@@ -496,6 +496,78 @@ export async function dropAppAccount(
   return deleted.map(row => row.id)
 }
 
+/**
+ * Stores a grant as the workspace's connection of the app (app.connectFinish, and shopify.linkInstall for a store
+ * installed from Shopify's App Store): the connection is made, or its grant replaced; connected to another account,
+ * its links go and its old grant is withdrawn once this one is stored (unless another connection still uses it). The
+ * caller holds the account's lock where the app needs it.
+ */
+export async function storeConnection(
+  tx: Tx,
+  params: {
+    workspaceId: string
+    app: AppId
+    account: { id: string; name: string }
+    tokens: OAuthTokens
+    grant: string
+    oauth: AppOAuth
+    actorId: string
+    onCommit?: HandlerCtx['onCommit']
+  },
+): Promise<AppConnection> {
+  const { workspaceId: workspace_id, app, account, tokens, grant, oauth, actorId, onCommit } = params
+  const existing = await connectionOf(tx, workspace_id, app)
+  let connection: AppConnection
+  if (existing) {
+    // Not while a push of the old grant is being bookkept or a refreshed token saved (app-pushes.ts).
+    await lockConnection(tx, existing.id)
+    const otherAccount = existing.account_id !== account.id
+    if (otherAccount) {
+      // Another portal: the links point at records there. The old grant is withdrawn once this one is stored.
+      await tx.delete(crm_links).where(eq(crm_links.connection_id, existing.id))
+      const [old] = await tx
+        .select({ refresh: app_credentials.refresh_token_encrypted })
+        .from(app_credentials)
+        .where(eq(app_credentials.connection_id, existing.id))
+      const oldGrant = old ? decryptSecret(old.refresh, appSlot(existing, 'refresh')) : null
+      const oldShared = oldGrant
+        ? oauth.grantPerAccount
+          ? await accountShared(tx, app, existing.account_id, existing.id)
+          : await grantHeldElsewhere(tx, app, oldGrant, existing.id, existing.account_id)
+        : false
+      if (oldGrant && !oldShared) onCommit?.(async () => void (await oauth.revoke(oldGrant).catch(() => false)))
+    }
+    ;[connection] = (await tx
+      .update(app_connections)
+      .set({
+        account_id: account.id,
+        account_name: account.name,
+        channel: tokens.webhook?.channel || null,
+        status: 'connected',
+        error_code: null,
+        failures: 0,
+        connected_by: actorId,
+      })
+      .where(eq(app_connections.id, existing.id))
+      .returning()) as [AppConnection]
+  } else {
+    ;[connection] = (await tx
+      .insert(app_connections)
+      .values({
+        id: newId('appc'),
+        workspace_id,
+        provider: app,
+        account_id: account.id,
+        account_name: account.name,
+        channel: tokens.webhook?.channel || null,
+        connected_by: actorId,
+      })
+      .returning()) as [AppConnection]
+  }
+  await saveTokens(tx, connection, tokens, grant)
+  return connection
+}
+
 export const appConnectionHandlers: Record<string, Handler> = {
   'app.connectStart': async ({ tx, actor, now, ...ctx }, input: { app: AppId; shop?: string }) => {
     const workspace_id = workspaceOf(actor)
@@ -583,55 +655,16 @@ export const appConnectionHandlers: Record<string, Handler> = {
     // decides whether the account is still used. The account first, then the connection, as everywhere.
     if (oauth.uninstall && !oauth.grantPerAccount) await lockAccount(tx, input.app, account.id)
 
-    const existing = await connectionOf(tx, workspace_id, input.app)
-    let connection: AppConnection
-    if (existing) {
-      // Not while a push of the old grant is being bookkept or a refreshed token saved (app-pushes.ts).
-      await lockConnection(tx, existing.id)
-      const otherAccount = existing.account_id !== account.id
-      if (otherAccount) {
-        // Another portal: the links point at records there. The old grant is withdrawn once this one is stored.
-        await tx.delete(crm_links).where(eq(crm_links.connection_id, existing.id))
-        const [old] = await tx
-          .select({ refresh: app_credentials.refresh_token_encrypted })
-          .from(app_credentials)
-          .where(eq(app_credentials.connection_id, existing.id))
-        const oldGrant = old ? decryptSecret(old.refresh, appSlot(existing, 'refresh')) : null
-        const oldShared = oldGrant
-          ? oauth.grantPerAccount
-            ? await accountShared(tx, input.app, existing.account_id, existing.id)
-            : await grantHeldElsewhere(tx, input.app, oldGrant, existing.id, existing.account_id)
-          : false
-        if (oldGrant && !oldShared) onCommit?.(async () => void (await oauth.revoke(oldGrant).catch(() => false)))
-      }
-      ;[connection] = (await tx
-        .update(app_connections)
-        .set({
-          account_id: account.id,
-          account_name: account.name,
-          channel: tokens.webhook?.channel || null,
-          status: 'connected',
-          error_code: null,
-          failures: 0,
-          connected_by: actor.actorId,
-        })
-        .where(eq(app_connections.id, existing.id))
-        .returning()) as [AppConnection]
-    } else {
-      ;[connection] = (await tx
-        .insert(app_connections)
-        .values({
-          id: newId('appc'),
-          workspace_id,
-          provider: input.app,
-          account_id: account.id,
-          account_name: account.name,
-          channel: tokens.webhook?.channel || null,
-          connected_by: actor.actorId,
-        })
-        .returning()) as [AppConnection]
-    }
-    await saveTokens(tx, connection, tokens, grant)
+    const connection = await storeConnection(tx, {
+      workspaceId: workspace_id,
+      app: input.app,
+      account,
+      tokens,
+      grant,
+      oauth,
+      actorId: actor.actorId,
+      onCommit,
+    })
     // A store set up on request is connected now: its request is done (Integrations › Shopify stops showing it).
     if (input.app === 'shopify') await markShopifySetupConnected(tx, workspace_id, account.id, now)
     return { rows: { app_connections: [connection] }, data: { connectionId: connection.id } }

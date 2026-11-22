@@ -990,6 +990,58 @@ export const app_setup_requests = pgTable(
   ],
 )
 
+// A store that installed the install's own Shopify app from Shopify's App Store (apps/api/src/shopify-embedded.ts):
+// Shopify installs it and opens the embedded page in the store's admin, whose session token is exchanged for the shop's
+// offline access, kept here (encrypted with SECRETS_KEY, the slot bound to the shop) until a member links the store
+// to a workspace (shopify.linkInstall). Linking moves the access into the workspace's Shopify connection
+// (app_connections) and keeps only the workspace here; the access is never in two places. `app/uninstalled` sets
+// `uninstalled_at` and drops the access and the workspace; a new install of the same store uses the same row. Never
+// synced.
+export const shopify_installs = pgTable(
+  'shopify_installs',
+  {
+    id: id(),
+    /** The store's myshopify.com domain. */
+    shop: text('shop').notNull().unique(),
+    /** The store's name as Shopify gives it, for the pages. */
+    shop_name: text('shop_name'),
+    /** The workspace the store is linked to (its Shopify connection holds the access then); null until linked. */
+    workspace_id: text('workspace_id').references(() => organization.id, { onDelete: 'set null' }),
+    /** `<shop>|<token>` (secrets.ts slot shopifyInstallSlot), as app_credentials stores them; null once linked. */
+    access_token_encrypted: text('access_token_encrypted'),
+    refresh_token_encrypted: text('refresh_token_encrypted'),
+    expires_at: ts('expires_at'),
+    scope: text('scope'),
+    installed_at: ts('installed_at').notNull().defaultNow(),
+    /**
+     * When the store last granted access (a token exchange, or the link that moved it into a connection): an
+     * `app/uninstalled` from before it leaves the install as it is.
+     */
+    exchanged_at: ts('exchanged_at'),
+    uninstalled_at: ts('uninstalled_at'),
+    updated_at: ts('updated_at').notNull().defaultNow(),
+  },
+  t => [index('shopify_installs_ws').on(t.workspace_id)],
+)
+
+// The single-use link from the embedded Shopify page to Linedesk (`#shopify/link?t=<token>`): only the SHA-256 of the
+// token is stored, good for 15 minutes, used once by shopify.linkInstall; one live link per store. Made only for the
+// store's owner, whose Shopify address it names (`started_by`). Never synced.
+export const shopify_link_tokens = pgTable(
+  'shopify_link_tokens',
+  {
+    token_hash: text('token_hash').primaryKey(),
+    shop: text('shop')
+      .notNull()
+      .references(() => shopify_installs.shop, { onDelete: 'cascade' }),
+    /** The store owner's address in Shopify, who opened the app and started the link: shown on the link page. */
+    started_by: text('started_by'),
+    expires_at: ts('expires_at').notNull(),
+    created_at: createdAt(),
+  },
+  t => [index('shopify_link_tokens_shop').on(t.shop)],
+)
+
 // A Linedesk contact's record in a connected CRM (the HubSpot contact id), set by the first push. Never synced.
 export const crm_links = pgTable(
   'crm_links',

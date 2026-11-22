@@ -63,7 +63,20 @@ export interface AppOAuth {
    */
   uninstall?(refreshToken: string): Promise<boolean>
   account(accessToken: string): Promise<AppAccount>
+  /**
+   * Shopify's token exchange (an app installed from the App Store, opened in the store's admin): the session token
+   * App Bridge gave the embedded page, already checked (verifyShopifySessionToken), for the shop's offline access.
+   */
+  tokenExchange?(params: { shop: string; sessionToken: string }): Promise<OAuthTokens>
+  /**
+   * Who the session token is for (Shopify: an online token exchange, whose token is dropped at once): the staff
+   * member's address, whether Shopify confirmed it, and whether they own the store.
+   */
+  sessionUser?(params: { shop: string; sessionToken: string }): Promise<SessionUser>
 }
+
+/** The person behind an embedded app's session token (AppOAuth.sessionUser). */
+export type SessionUser = { email: string | null; emailVerified: boolean; accountOwner: boolean }
 
 /**
  * auth: the grant is gone or lacks a scope, someone must connect again (no retry).

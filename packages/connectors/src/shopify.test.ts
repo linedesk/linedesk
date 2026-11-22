@@ -7,6 +7,7 @@ import {
   shopDomain,
   splitShop,
   verifyShopifyQuery,
+  verifyShopifySessionToken,
   verifyShopifyWebhook,
   withShop,
 } from './shopify.ts'
@@ -151,6 +152,157 @@ describe('OAuth', () => {
     await expect(
       oauth(fake).exchangeCode({ code: 'c', redirectUri: 'x', params: { shop: 'evil.myshopify.com', code: 'c' } }),
     ).rejects.toThrow(/not signed/)
+  })
+})
+
+describe('session tokens of the embedded app', () => {
+  const NOW = 1_795_300_000_000
+  const at = NOW / 1000
+  const app = { clientId: 'id123', clientSecret: SECRET }
+  const b64url = (bytes: Uint8Array) =>
+    btoa(String.fromCharCode(...bytes))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '')
+  const part = (value: unknown) => b64url(new TextEncoder().encode(JSON.stringify(value)))
+  async function token(
+    claims: Record<string, unknown> = {},
+    secret = SECRET,
+    header: unknown = { alg: 'HS256', typ: 'JWT' },
+  ) {
+    const body = {
+      iss: 'https://brightwater.myshopify.com/admin',
+      dest: 'https://brightwater.myshopify.com',
+      aud: 'id123',
+      sub: '42',
+      exp: at + 60,
+      nbf: at - 5,
+      iat: at - 5,
+      jti: 'j',
+      sid: 's',
+      ...claims,
+    }
+    const signing = `${part(header)}.${part(body)}`
+    const enc = new TextEncoder()
+    const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
+      'sign',
+    ])
+    return `${signing}.${b64url(new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(signing))))}`
+  }
+  const check = async (value: string) => verifyShopifySessionToken(value, app, NOW)
+
+  it('reads the shop and the staff member of a good token', async () => {
+    expect(await check(await token())).toEqual({ shop: 'brightwater.myshopify.com', user: '42' })
+  })
+  it('allows a few seconds of clock difference', async () => {
+    expect(await check(await token({ exp: at - 5, nbf: at + 5 }))).not.toBeNull()
+  })
+  it.each([
+    ['another secret', () => token({}, 'shpss_other')],
+    ['another app', () => token({ aud: 'other-app' })],
+    ['an expired token', () => token({ exp: at - 30 })],
+    ['a token not valid yet', () => token({ nbf: at + 30 })],
+    ['no expiry', () => token({ exp: undefined })],
+    ['no not-before', () => token({ nbf: undefined })],
+    [
+      'dest on another domain',
+      () => token({ dest: 'https://evil.example.com', iss: 'https://evil.example.com/admin' }),
+    ],
+    ['iss of another shop', () => token({ iss: 'https://other.myshopify.com/admin' })],
+    [
+      'dest over http',
+      () => token({ dest: 'http://brightwater.myshopify.com', iss: 'http://brightwater.myshopify.com/admin' }),
+    ],
+    [
+      'dest with a path',
+      () => token({ dest: 'https://brightwater.myshopify.com/x', iss: 'https://brightwater.myshopify.com/x/admin' }),
+    ],
+    ['another algorithm', () => token({}, SECRET, { alg: 'none' })],
+  ])('refuses %s', async (_what, make) => {
+    expect(await check(await make())).toBeNull()
+  })
+  it('refuses what is no token', async () => {
+    const good = await token()
+    for (const bad of ['', 'abc', 'a.b', `${good}.x`, good.replace(/\.[^.]+$/, '.'), good.replace(/\.[^.]+$/, '.!!!')])
+      expect(await check(bad)).toBeNull()
+  })
+
+  it('exchanges the token for the shop’s expiring offline access', async () => {
+    const bodies: string[] = []
+    const fake = (async (url: string, init: RequestInit) => {
+      bodies.push(`${url} ${init.body}`)
+      if (String(url).endsWith('/access_token'))
+        return new Response(
+          JSON.stringify({
+            access_token: 'shpat_2',
+            refresh_token: 'shprt_2',
+            expires_in: 3600,
+            scope: 'write_orders',
+          }),
+        )
+      return new Response(
+        JSON.stringify({ data: { shop: { name: 'Brightwater', myshopifyDomain: 'brightwater.myshopify.com' } } }),
+      )
+    }) as unknown as typeof fetch
+    const oauth = createShopifyOAuth(app, { fetch: fake })
+    const tokens = await oauth.tokenExchange!({ shop: 'brightwater.myshopify.com', sessionToken: 'session-token' })
+    expect(tokens.accessToken).toBe('brightwater.myshopify.com|shpat_2')
+    expect(tokens.refreshToken).toBe('brightwater.myshopify.com|shprt_2')
+    expect(tokens.account).toEqual({ id: 'brightwater.myshopify.com', name: 'Brightwater' })
+    const sent = JSON.parse(bodies[0]!.slice(bodies[0]!.indexOf(' ') + 1))
+    expect(bodies[0]).toMatch(/^https:\/\/brightwater\.myshopify\.com\/admin\/oauth\/access_token /)
+    expect(sent).toMatchObject({
+      grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+      subject_token: 'session-token',
+      subject_token_type: 'urn:ietf:params:oauth:token-type:id_token',
+      requested_token_type: 'urn:shopify:params:oauth:token-type:offline-access-token',
+      expiring: 1,
+      client_id: 'id123',
+    })
+    // No per-shop webhook: the app's configuration subscribes app/uninstalled for every shop.
+    expect(bodies.some(b => b.includes('webhookSubscriptionCreate'))).toBe(false)
+  })
+  it('reads the staff member with an online exchange and keeps no token', async () => {
+    const bodies: string[] = []
+    const fake = (async (_url: string, init: RequestInit) => {
+      bodies.push(String(init.body))
+      return new Response(
+        JSON.stringify({
+          access_token: 'shpua_online',
+          scope: 'write_orders',
+          expires_in: 86399,
+          associated_user: { id: 1, email: 'mike@brightwater.example', email_verified: true, account_owner: true },
+        }),
+      )
+    }) as unknown as typeof fetch
+    const user = await createShopifyOAuth(app, { fetch: fake }).sessionUser!({
+      shop: 'brightwater.myshopify.com',
+      sessionToken: 'session-token',
+    })
+    expect(user).toEqual({ email: 'mike@brightwater.example', emailVerified: true, accountOwner: true })
+    expect(JSON.stringify(user)).not.toContain('shpua')
+    expect(JSON.parse(bodies[0]!).requested_token_type).toBe('urn:shopify:params:oauth:token-type:online-access-token')
+    expect(bodies).toHaveLength(1)
+  })
+  it('a staff member who is not the owner, or no user at all', async () => {
+    const answer = (body: unknown) =>
+      createShopifyOAuth(app, {
+        fetch: (async () => new Response(JSON.stringify(body))) as unknown as typeof fetch,
+      }).sessionUser!({ shop: 'brightwater.myshopify.com', sessionToken: 't' })
+    expect(await answer({ access_token: 'x', associated_user: { email: 'staff@example.com' } })).toEqual({
+      email: 'staff@example.com',
+      emailVerified: false,
+      accountOwner: false,
+    })
+    await expect(answer({ access_token: 'x' })).rejects.toThrow(/no staff member/)
+  })
+  it('refuses a shop that is not one before asking anyone', async () => {
+    const fake = (async () => {
+      throw new Error('must not be called')
+    }) as unknown as typeof fetch
+    await expect(
+      createShopifyOAuth(app, { fetch: fake }).tokenExchange!({ shop: 'evil.example.com', sessionToken: 't' }),
+    ).rejects.toThrow(/no shop/)
   })
 })
 

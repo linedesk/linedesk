@@ -6,6 +6,7 @@ import { isRecordingPrefix } from './calls.ts'
 import { defineAction } from './define.ts'
 import { type MembershipRole, membershipRoles } from './membership.ts'
 import type { ProviderCheckStatus, ProviderFailureReason } from './provider-health.ts'
+import { isShopifyAppStoreUrl } from './shopify-app.ts'
 import { SUMMARY_MODEL_DEFAULTS } from './usage-level.ts'
 import { english, type Words } from './words.ts'
 
@@ -1196,6 +1197,15 @@ export const providers = {
         switch: true,
         defaultOff: true,
       },
+      // The app's listing in the App Store (https://apps.shopify.com/…): with the public app approved, Integrations ›
+      // Shopify › Connect opens it, since a public app is installed from Shopify, never by naming a store here.
+      app_store_url: {
+        labelKey: msg('admin.provider.field.appStoreUrl'),
+        env: 'SHOPIFY_APP_STORE_URL',
+        secret: false,
+        optional: true,
+        hint: 'https://apps.shopify.com/linedesk',
+      },
     },
     helpKey: msg('admin.provider.help.shopify'),
   },
@@ -1322,6 +1332,8 @@ export const providerSetKeys = defineAction({
         ctx.addIssue({ code: 'custom', message: msg('server.input.provider.smtpUrl') })
       if (provider === 'oidc' && values.discovery_url !== undefined && !/^https:\/\/\S+$/i.test(values.discovery_url))
         ctx.addIssue({ code: 'custom', message: msg('server.input.provider.discoveryUrl') })
+      if (provider === 'shopify' && values.app_store_url !== undefined && !isShopifyAppStoreUrl(values.app_store_url))
+        ctx.addIssue({ code: 'custom', message: msg('server.input.provider.shopifyAppStoreUrl') })
       if (provider === 's3' && values.prefix !== undefined && !isRecordingPrefix(values.prefix))
         ctx.addIssue({ code: 'custom', message: msg('server.input.provider.s3Prefix') })
       if (provider === 'stripe' && values.secret_key !== undefined && !STRIPE_SECRET_KEY.test(values.secret_key))

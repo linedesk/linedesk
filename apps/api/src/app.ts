@@ -98,6 +98,7 @@ import { previewInvitation } from './invitations.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { registerJobberWebhookRoute } from './jobber-webhook.ts'
 import { registerShopifyWebhookRoute } from './shopify-webhook.ts'
+import { registerShopifyEmbeddedRoutes } from './shopify-embedded.ts'
 import { registerSlackEventsRoute } from './slack-events.ts'
 import { ADMIN_CHECK_FIRST, mayCreateWorkspace, WORKSPACE_CREATION_CLOSED } from './workspace-creation.ts'
 import { businessSetupFor, onboardingFor, phoneSetupFor } from './onboarding.ts'
@@ -227,6 +228,8 @@ registerStripeWebhookRoute(app)
 registerJobberWebhookRoute(app)
 // Public: Shopify's webhooks (uninstall and the privacy topics), checked by their signature (shopify-webhook.ts).
 registerShopifyWebhookRoute(app)
+// Public: the Shopify app's embedded page in a store's admin, and its session-token sign-in (shopify-embedded.ts).
+registerShopifyEmbeddedRoutes(app)
 // Public: the Slack app's Events API URL (app_uninstalled, tokens_revoked), checked by its signature, 404 without a
 // signing secret (slack-events.ts).
 registerSlackEventsRoute(app)

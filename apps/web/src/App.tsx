@@ -41,6 +41,14 @@ import { BootScreen } from './ui/BootScreen.tsx'
 import { AppLink } from './ui/AppLink.tsx'
 import { AddPasskeyPage } from './AddPasskey.tsx'
 import { ConnectAgent, isConnectAgentHash } from './integrations/ConnectAgent.tsx'
+import {
+  isShopifyLinkHash,
+  pendingShopifyLink,
+  rememberShopifyLink,
+  ShopifyLink,
+  shopifyLinkHash,
+  shopifyLinkToken,
+} from './integrations/ShopifyLink.tsx'
 import { SignInLink, takeSignInLinkToken } from './SignInLink.tsx'
 import { Signup } from './Signup.tsx'
 import { TrialLink } from './onboarding/TrialLink.tsx'
@@ -178,6 +186,8 @@ export function App() {
   const installSetupHash = useHashIs(INSTALL_SETUP_HASH)
   // An MCP client's OAuth sign-in (#connect-agent?…, ConnectAgent.tsx): its consent page comes before the app.
   const connectAgentHash = useHashIs(isConnectAgentHash)
+  // A store installed from Shopify's App Store, linked from its Shopify admin (#shopify/link?t=…, ShopifyLink.tsx).
+  const shopifyLinkOpen = useHashIs(isShopifyLinkHash)
   // A white-label partner's area (#partner, docs/white-label.md) and its team invitation link (#partner-invite=…).
   const partnerHash = useHashIs(isPartnerHash)
   const partnerAgentHash = useHashIs(PARTNER_AGENT_HASH)
@@ -255,6 +265,18 @@ export function App() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+  // The Shopify link is kept in this tab from the first moment (also signed out): a sign-up or a new workspace on the
+  // way does not lose it, and once a workspace is open the link page shows again.
+  const shopifyToken = shopifyLinkOpen ? shopifyLinkToken(window.location.hash) : null
+  useEffect(() => {
+    if (shopifyToken) rememberShopifyLink(shopifyToken)
+  }, [shopifyToken])
+  const workspaceOpen = session.state === 'ready' && !session.offline
+  useEffect(() => {
+    if (!workspaceOpen || isShopifyLinkHash(window.location.hash)) return
+    const kept = pendingShopifyLink()
+    if (kept) window.location.hash = shopifyLinkHash(kept)
+  }, [workspaceOpen])
   // A member who has a passkey is never asked for one: a sign-in another way just now needs no page.
   const hasPasskey = session.state === 'ready' && session.me.hasPasskey === true
   useEffect(() => {
@@ -415,6 +437,7 @@ export function App() {
     if (!sessionMe) return <Unreachable />
     return <ConnectAgent onLeave={() => (window.location.hash = '')} />
   }
+  if (shopifyLinkOpen && sessionMe) return <ShopifyLink me={sessionMe} onLeave={() => (window.location.hash = '')} />
   if (target)
     return (
       <BootScreen

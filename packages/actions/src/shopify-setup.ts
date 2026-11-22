@@ -31,10 +31,16 @@ export type ShopifySetupRequest = {
 
 /**
  * `data` of shopify.setupStatus and shopify.requestSetup. `way`: `connect` when Connect opens Shopify's consent page (the
- * workspace has its own app, or the install's public app is approved), `request` when the store must be set up first.
+ * workspace has its own app, or the install's public app is approved), `request` when the store must be set up first,
+ * `app_store` when the public app is approved and listed: Connect opens its listing in Shopify's App Store
+ * (`appStoreUrl`), where the store installs it, and the store is then linked from the app in its Shopify admin.
  * `request`: the workspace's open request (not yet connected), or null.
  */
-export type ShopifySetupStatusData = { way: 'connect' | 'request'; request: ShopifySetupRequest | null }
+export type ShopifySetupStatusData = {
+  way: 'connect' | 'request' | 'app_store'
+  request: ShopifySetupRequest | null
+  appStoreUrl?: string
+}
 
 export const shopifySetupStatus = defineAction({
   name: 'shopify.setupStatus',

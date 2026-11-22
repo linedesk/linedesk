@@ -141,6 +141,8 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   // Where every finished call goes, with the caller's details: a connected app such as HubSpot.
   'app.connectStart',
   'app.connectFinish',
+  // The same for a store installed from Shopify's App Store, linked from its embedded page (shopify-embedded.ts).
+  'shopify.linkInstall',
   // Every call of a range in one answer.
   'call.export',
   // Call emails to an address outside the team (email routing): the confirmation email goes out to it.

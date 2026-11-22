@@ -1,7 +1,8 @@
 // Moves everything stored with SECRETS_KEY to a new key, in one transaction: provider keys (install-wide, a
 // workspace's own carrier and a white-label partner's own keys), webhook signing secrets, calendar, connected-app and mailbox tokens, the push key pair's private
-// half, the port-out PINs of numbers (billing_numbers; security review of #920, L2) and the instance admins'
-// authenticator app secrets (admin_authenticators; LIN-402).
+// half, the port-out PINs of numbers (billing_numbers; security review of #920, L2), the instance admins'
+// authenticator app secrets (admin_authenticators; LIN-402) and the access of Shopify stores not linked yet
+// (shopify_installs).
 // Run it in the api container, with the current SECRETS_KEY in its environment and the new key on stdin
 // (never as an argument, which `ps` shows):
 //   openssl rand -base64 32 > new-key.txt
@@ -23,6 +24,7 @@ import {
   mail_credentials,
   partner_providers,
   provider_settings,
+  shopify_installs,
   type Tx,
   webhook_secrets,
 } from '@linedesk/db'
@@ -37,6 +39,7 @@ import { VAPID_PRIVATE } from './instance-env.ts'
 import { partnerKeySlot } from './partner-keys.ts'
 import { providerSlot } from './provider-settings.ts'
 import { decryptSecret, parseSecretsKey, reencryptSecret } from './secrets.ts'
+import { shopifyInstallSlot } from './shopify-embedded.ts'
 import { secretSlot } from './webhooks.ts'
 import { carrierSlot } from './workspace-carrier.ts'
 
@@ -135,6 +138,17 @@ export async function reencryptSecrets(tx: Tx, from: Buffer, to: Buffer) {
       .update(admin_authenticators)
       .set({ secret: again(row.secret, authenticatorSlot(row.userId)) })
       .where(eq(admin_authenticators.user_id, row.userId))
+  // A store installed from Shopify's App Store and not linked yet: its access, bound to the store.
+  const installs = await tx.select().from(shopify_installs).where(isNotNull(shopify_installs.refresh_token_encrypted))
+  for (const row of installs)
+    await tx
+      .update(shopify_installs)
+      .set({
+        access_token_encrypted:
+          row.access_token_encrypted && again(row.access_token_encrypted, shopifyInstallSlot(row.shop, 'access')),
+        refresh_token_encrypted: again(row.refresh_token_encrypted!, shopifyInstallSlot(row.shop, 'refresh')),
+      })
+      .where(eq(shopify_installs.id, row.id))
   // Read back under the new key before the commit.
   const [check] = await tx.select().from(provider_settings).where(isNull(provider_settings.workspace_id)).limit(1)
   if (check) decryptSecret(check.value_encrypted, providerSlot(check.provider, check.field), to)
@@ -148,6 +162,7 @@ export async function reencryptSecrets(tx: Tx, from: Buffer, to: Buffer) {
     push_key: push ? 1 : 0,
     port_out_pins: pins.length,
     admin_authenticators: authenticators.length,
+    shopify_installs: installs.length,
   }
 }
 
