@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
 import react from '@vitejs/plugin-react'
-import { defineConfig, loadEnv, type ServerOptions } from 'vite'
+import { defineConfig, loadEnv, type Plugin, type ServerOptions } from 'vite'
 
 /** The newest database migration: synced rows kept from an older schema may miss its columns. */
 function latestMigration(): string {
@@ -51,6 +51,46 @@ function bootLines() {
   }
 }
 
+/**
+ * Local development only (`LINEDESK_DEV_AUTO_SIGN_IN=email:password`, e.g. the seeded demo login): a page load without a
+ * session signs in as that person on the dev server, so a local stack is always signed in. Only `vite serve` has it; a
+ * build never does, nor dev mode on a test server (docker-compose.dev.yml gives its web container
+ * LINEDESK_DEV_PUBLIC_URL in the environment; a devbox preview has it only in .env). Signing out signs in again on the
+ * next page load; remove the line to see the sign-in screen.
+ */
+function devAutoSignIn(login: string | undefined, api: string, webOrigin: string | undefined): Plugin | null {
+  const at = login?.indexOf(':') ?? -1
+  if (!login || at < 1) return null
+  const [email, password] = [login.slice(0, at), login.slice(at + 1)]
+  return {
+    name: 'linedesk-dev-auto-sign-in',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const page = req.method === 'GET' && (req.headers.accept ?? '').includes('text/html')
+        // Not on what the proxy forwards to the API (an OAuth callback must keep its own session or none).
+        if (!page || /^\/(api|v1|mcp|oauth|\.well-known)(\/|\?|$)/.test(req.url ?? '')) return next()
+        try {
+          const cookie = req.headers.cookie ?? ''
+          const session = await fetch(`${api}/api/auth/get-session`, { headers: { cookie } })
+          if (!session.ok || (await session.json()) !== null) return next() // signed in, or the API is not ready
+          const origin = webOrigin || `http://${req.headers.host}`
+          const signIn = await fetch(`${api}/api/auth/sign-in/email`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', origin, 'x-linedesk-entry': 'public' },
+            body: JSON.stringify({ email, password }),
+          })
+          if (signIn.ok) res.setHeader('set-cookie', signIn.headers.getSetCookie())
+          else server.config.logger.warn(`LINEDESK_DEV_AUTO_SIGN_IN: sign-in refused (${signIn.status})`)
+        } catch (error) {
+          server.config.logger.warn(`LINEDESK_DEV_AUTO_SIGN_IN: ${String(error)}`)
+        }
+        next()
+      })
+    },
+  }
+}
+
 /** The framing rules Caddy sends in production (docker/Caddyfile), for the dev and preview servers too. */
 const NO_FRAMING = { 'Content-Security-Policy': "frame-ancestors 'none'", 'X-Frame-Options': 'DENY' }
 
@@ -61,7 +101,12 @@ export default defineConfig(({ mode }) => {
   // From the build's own environment only, never from .env: a token kept there for the Sentry API must not upload.
   const sentry = sentrySourceMaps(process.env)
   return {
-    plugins: sentry ? [react(), bootLines(), sentry] : [react(), bootLines()],
+    plugins: [
+      react(),
+      bootLines(),
+      process.env.LINEDESK_DEV_PUBLIC_URL ? null : devAutoSignIn(env.LINEDESK_DEV_AUTO_SIGN_IN, api, env.WEB_ORIGIN),
+      sentry,
+    ].filter(p => p !== null),
     build: { sourcemap: sentry ? 'hidden' : false },
     // The build's version: names the service worker's cache (src/serviceWorker.ts), one per deploy.
     // The schema: when a deploy brings a migration, the local store loads every table once more (storeCache.ts).
