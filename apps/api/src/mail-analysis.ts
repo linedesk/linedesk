@@ -368,8 +368,11 @@ export type AnalysisDeps = {
   now?: () => number
 }
 
-/** A language model call over a year of mail takes longer than a call evaluation. */
-export const MODEL_OPTIONS = { maxTokens: 4000, timeoutMs: 120_000 }
+/**
+ * A language model call over a year of mail takes longer than a call evaluation. Room for 15 topics of up to 60 words
+ * each with their ids: at 4,000 tokens a batch answer was cut off and its JSON did not parse (2026-11-22).
+ */
+export const MODEL_OPTIONS = { maxTokens: 16_000, timeoutMs: 180_000 }
 
 const monthsAgo = (now: number, months: number) => {
   const d = new Date(now)
