@@ -2025,20 +2025,20 @@ Linedesk · desk.example.com
   ],
   [
     "admin-alert-shopify-setup",
-    "Set up Shopify for brightwater.myshopify.com",
+    "Configurar Shopify para brightwater.myshopify.com",
     "Alerta de administración
 
-Set up Shopify for brightwater.myshopify.com
+Configurar Shopify para brightwater.myshopify.com
 
-Brightwater Plumbing & Heating wants to connect their Shopify store. Make the store's own app, then hand over its keys and install link.
+Brightwater Plumbing & Heating quiere conectar su tienda de Shopify. Crea la app propia de la tienda y luego entrega sus claves y su enlace de instalación.
 
-Store: brightwater.myshopify.com
-Workspace: Brightwater Plumbing & Heating (ws_demo)
-Asked by: mike@brightwater.example
+Tienda: brightwater.myshopify.com
+Espacio de trabajo: Brightwater Plumbing & Heating (ws_demo)
+Solicitado por: mike@brightwater.example
 
-Until the app is ready, the business sees that their store is being set up. Then they get an email with the install link.
+Hasta que la app esté lista, el negocio ve que su tienda se está configurando. Luego recibe un correo con el enlace de instalación.
 
-Open Server admin:
+Abrir Administración del servidor:
 https://desk.example.com/#admin/overview
 
 Abrir el registro de auditoría:
@@ -2053,22 +2053,22 @@ Linedesk · desk.example.com
   ],
   [
     "shopify-setup-ready",
-    "Your Shopify store is ready to connect to Linedesk",
-    "Your Shopify app is ready
+    "Tu tienda de Shopify está lista para conectarse a Linedesk",
+    "Tu app de Shopify está lista
 
-We set up the Linedesk app for brightwater.myshopify.com. Install it on your store: Shopify asks you to confirm, then brings you back to Linedesk to finish connecting.
+Configuramos la app de Linedesk para brightwater.myshopify.com. Instálala en tu tienda: Shopify te pide que confirmes y luego te lleva de vuelta a Linedesk para terminar la conexión.
 
-Install in Shopify:
+Instalar en Shopify:
 https://admin.shopify.com/store/brightwater/oauth/install_custom_app?client_id=a1b2c3d4e5f6&no_redirect=true
 
-Open Integrations:
+Abrir Integraciones:
 https://desk.example.com/#integrations/shopify?ws=ws_demo
 
-After that, the assistant finds orders and products during calls, and every call is added as a note on the Shopify customer.
+Después, el asistente encuentra pedidos y productos durante las llamadas, y cada llamada se agrega como nota en el cliente de Shopify.
 
 --
 
-You get this email because you asked to connect Shopify on desk.example.com.
+Recibes este correo porque pediste conectar Shopify en desk.example.com.
 
 Linedesk · desk.example.com
 ",

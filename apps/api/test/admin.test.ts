@@ -2600,6 +2600,11 @@ describe('impersonation', () => {
       // The Zapier subscriptions in Settings › Developers, a read like apiKey.list; no hook URLs in it. Remove stays refused.
       'integration.list',
       'invitation.listMine',
+      // About the business: try a question, help with one question and answer (LIN-724); both return text and save nothing.
+      'knowledge.improve',
+      'knowledge.try',
+      // The support mail analysis loads while signed in as the user (LIN-745).
+      'mail.getAnalysis',
       'member.list',
       'notifications.get',
       // The go-live checklist's facts, so the inbox looks as the user sees it. Closing or reopening it stays refused.

@@ -164,7 +164,7 @@ describe('setup keys', () => {
     // Named like the app's own places, with the industry term where it helps (setupStepNames).
     expect(step('notify')).toMatchObject({
       label: 'Urgent calls',
-      hint: expect.stringMatching(/email after every call/),
+      hint: expect.stringMatching(/put through to a phone number/),
     })
     expect(step('telephony')).toMatchObject({ label: 'Phone carrier', hint: 'Telnyx or Twilio' })
     expect(step('call-audio').hint).toMatch(/LiveKit/)
