@@ -157,7 +157,10 @@ a.as-chip:hover {
 .vp-row.on {
   background: var(--highlight);
 }
+/* position: relative keeps the hidden radio inside its row: placed relative to <body>, its focus scrolled the whole
+   app shell up and left the screen white (LIN-726). */
 .vp-pick {
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
