@@ -260,9 +260,10 @@ describe('asking the model', () => {
   })
 
   test('answers stay short for the phone: cut at a sentence end', () => {
-    const long = `${'First sentence is here. '.repeat(20)}`.trim()
+    const long = `${'First sentence is here. '.repeat(30)}`.trim()
     const [topic] = parseTopics(JSON.stringify({ topics: [{ title: 'T', answer: long, ids: [1] }] }))
-    expect(topic!.answer.length).toBeLessThanOrEqual(320)
+    expect(topic!.answer.length).toBeLessThanOrEqual(500)
+    expect(topic!.answer.length).toBeGreaterThan(320)
     expect(topic!.answer.endsWith('.')).toBe(true)
     expect(clipSentences('One. Two.', 100)).toBe('One. Two.')
   })
