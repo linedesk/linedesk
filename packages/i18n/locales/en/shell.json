@@ -324,6 +324,7 @@
   "tour.inbox.title": "Your inbox",
   "tour.next": "Next",
   "tour.rest.text": "{commands} finds any action, {shortcuts} lists every shortcut. That is the tour.",
+  "tour.rest.textSamples": "{commands} finds any action, {shortcuts} lists every shortcut. Done removes the sample calls, so your inbox is ready for real calls.",
   "tour.rest.title": "Everything else",
   "tour.skip": "Skip",
   "tour.stepOf": "Step {step} of {steps}: {title}",

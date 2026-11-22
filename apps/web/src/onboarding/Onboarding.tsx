@@ -293,14 +293,7 @@ export function StepScreen(p: StepScreenProps) {
         />
       )
     case 'pickup':
-      return (
-        <PickupStep
-          onBack={p.onBack}
-          onNext={p.onNext}
-          memory={p.pickupMemory}
-          onMemory={p.onPickupMemory}
-        />
-      )
+      return <PickupStep onBack={p.onBack} onNext={p.onNext} memory={p.pickupMemory} onMemory={p.onPickupMemory} />
     case 'notify':
       return (
         <NotifyStep
@@ -456,9 +449,8 @@ function Done({
   const name = useAssistantName()
   const number = useRows('phone_numbers')[0] ?? null
   const presence = usePresence()
-  // "Open my calls" (or Enter) opens the inbox, whatever page the address still named (one from before signing up).
+  // The inbox, whatever page the address still named (one from before signing up).
   const openCalls = () => open('#calls')
-  useStepKeys({ onEnter: openCalls, onEscape: onBack })
   const write = useWriteAction()
   const hasCalls = useRows('calls').length > 0
   const [adding, setAdding] = useState(false)
@@ -475,14 +467,15 @@ function Done({
     },
     word,
   )
-  // Sample calls land in the inbox at once (the answer carries the rows), then the inbox opens.
-  async function trySamples() {
+  // One way in (Janik, 2026-11-22): the sample calls are the tour's material, added with it, never a choice. They land in
+  // the inbox at once (the answer carries the rows); the tour's end removes them again (Workspace.tsx).
+  async function openApp() {
+    if (!offerSamples || hasCalls) return openCalls()
     setAdding(true)
     setSampleError(null)
     try {
       await write('sample.add', {})
-      window.history.replaceState(null, '', '#calls')
-      onDone()
+      open('#calls')
     } catch (e) {
       setSampleError(t('onboarding.main.samplesFailed', { reason: rejectionReason((e as Error).message) }))
       setAdding(false)
@@ -492,6 +485,7 @@ function Done({
     window.history.replaceState(null, '', href)
     onDone()
   }
+  useStepKeys({ onEnter: () => void openApp(), onEscape: onBack })
   // What is left opens in place (design-principles.md rule 14): the phone step, or Server admin, which comes back here.
   function follow(to: NonNullable<DoneLeft['to']>) {
     if ('step' in to) onOpenStep(to.step)
@@ -516,22 +510,16 @@ function Done({
             ))}
           </ul>
         )}
-        {offerSamples && !hasCalls && (
-          <p className="ob2-row ob-tight">
-            <Button
-              variant="secondary"
-              busy={adding}
-              onClick={() => void trySamples()}
-              title={t('onboarding.main.samplesTip')}
-            >
-              {t('onboarding.main.samples')}
-            </Button>
-          </p>
-        )}
         {sampleError && <Note tone="danger">{sampleError}</Note>}
         {askForStar && <StarLine />}
       </div>
-      <Foot onBack={onBack} onContinue={openCalls} canContinue label={t('onboarding.main.openCalls')} />
+      <Foot
+        onBack={onBack}
+        onContinue={() => void openApp()}
+        busy={adding}
+        canContinue={!adding}
+        label={t('onboarding.main.openApp', { brand: brandName() })}
+      />
     </>
   )
 }

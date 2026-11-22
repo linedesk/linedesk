@@ -5,7 +5,8 @@
 // tour pointing at what is no longer there. While a dialog is open over it, the tour waits.
 import { arrow, autoUpdate, flip, hide, offset, shift, useFloating } from '@floating-ui/react-dom'
 import { type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useAssistantName } from '../store.tsx'
+import { useWriteAction } from '../settings/settings-api.ts'
+import { useAssistantName, useRows } from '../store.tsx'
 import { Button } from '../ui/kit.tsx'
 import { dialogOpen, findTarget, onScreen, spotlightBox, type TourStep, tourKey, tourSteps } from './tour.ts'
 import { useT } from '@linedesk/i18n/react'
@@ -13,10 +14,18 @@ import { useT } from '@linedesk/i18n/react'
 const GAP = 12 // between the target and the card's arrow tip
 const EDGE = 12 // the card keeps this far from the window's edges
 
-export function Tour({ onClose, canAssign }: { onClose: () => void; canAssign: boolean }) {
+export function Tour({ onClose: close, canAssign }: { onClose: () => void; canAssign: boolean }) {
   const t = useT()
   const assistant = useAssistantName()
-  const steps = useMemo(() => tourSteps(assistant, canAssign), [assistant, canAssign])
+  // The sample calls are the tour's material (added with the last onboarding step): its end removes them, done or
+  // skipped, so the inbox starts clean for real calls (Janik, 2026-11-22). Removing them in the inbox stays possible.
+  const samples = useRows('calls').some(c => c.source === 'sample' && !c.deleted_at)
+  const write = useWriteAction()
+  const onClose = () => {
+    if (samples) void write('sample.remove', {}).catch(() => {})
+    close()
+  }
+  const steps = useMemo(() => tourSteps(assistant, canAssign, samples), [assistant, canAssign, samples])
   const [at, setAt] = useState(0)
   const step = steps[at]!
   const last = at === steps.length - 1

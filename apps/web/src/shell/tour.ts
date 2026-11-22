@@ -22,8 +22,11 @@ export type TourStep = {
 const CURSOR_ROW = '.ib-list .row.is-cursor'
 const FIRST_ROW = '.ib-list .row'
 
-/** `canAssign`: the workspace has someone else to assign calls to; alone, A does nothing, so the tour skips it. */
-export function tourSteps(assistant: string, canAssign = true): TourStep[] {
+/**
+ * `canAssign`: the workspace has someone else to assign calls to; alone, A does nothing, so the tour skips it.
+ * `samples`: the inbox shows sample calls, which the tour's end removes; its last step says so.
+ */
+export function tourSteps(assistant: string, canAssign = true, samples = false): TourStep[] {
   const { t } = i18n()
   return [
     {
@@ -48,7 +51,7 @@ export function tourSteps(assistant: string, canAssign = true): TourStep[] {
     },
     {
       title: t('shell.tour.rest.title'),
-      text: t('shell.tour.rest.text', { commands: '⌘K', shortcuts: '?' }),
+      text: t(samples ? 'shell.tour.rest.textSamples' : 'shell.tour.rest.text', { commands: '⌘K', shortcuts: '?' }),
       targets: ['.ib-hint > span:nth-last-child(2)'], // "⌘K commands", next to "? all shortcuts"
       placement: 'top',
     },
