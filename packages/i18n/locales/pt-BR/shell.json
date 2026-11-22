@@ -69,6 +69,7 @@
   "feedback.bug.question": "O que deu errado?",
   "feedback.bug.title": "Relatar um bug",
   "feedback.closeZoom": "Fechar a captura de tela",
+  "feedback.destination": "Os relatos vão para a equipe do Linedesk, a menos que o administrador deste servidor tenha definido outro endereço ou desativado o envio.",
   "feedback.errors.none": "Nenhum erro nesta página",
   "feedback.failed": "Não enviado. {reason}",
   "feedback.feature.placeholder": "O que você quer fazer e o que atrapalha hoje?",

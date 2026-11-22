@@ -1354,6 +1354,7 @@
   "provider.devCarrierLine": "Opérateur de développement ({setting}) : les numéros et les appels sont simulés",
   "provider.emailToLog": "Les codes de connexion vont dans le journal de l'API ({name}) : pour le développement uniquement",
   "provider.field.apiToken": "Jeton d'API",
+  "provider.field.appStoreUrl": "Fiche sur le Shopify App Store (https://apps.shopify.com/…)",
   "provider.field.clientId": "ID client",
   "provider.field.clientSecret": "Secret client",
   "provider.field.cnameTarget": "Cible CNAME",

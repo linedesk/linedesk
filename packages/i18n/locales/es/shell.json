@@ -69,6 +69,7 @@
   "feedback.bug.question": "¿Qué salió mal?",
   "feedback.bug.title": "Informar de un error",
   "feedback.closeZoom": "Cerrar la captura de pantalla",
+  "feedback.destination": "Los informes van al equipo de Linedesk, salvo que el administrador de este servidor haya definido otra dirección o desactivado el envío.",
   "feedback.errors.none": "No hay errores en esta página",
   "feedback.failed": "No se envió. {reason}",
   "feedback.feature.placeholder": "¿Qué quieres hacer y qué te lo impide hoy?",

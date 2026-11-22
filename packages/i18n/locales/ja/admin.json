@@ -1354,6 +1354,7 @@
   "provider.devCarrierLine": "開発用キャリア（{setting}）：番号と通話はシミュレーションです",
   "provider.emailToLog": "サインインコードはAPIログに出力されます（{name}）：開発専用",
   "provider.field.apiToken": "APIトークン",
+  "provider.field.appStoreUrl": "App Storeの掲載ページ（https://apps.shopify.com/…）",
   "provider.field.clientId": "クライアントID",
   "provider.field.clientSecret": "クライアントシークレット",
   "provider.field.cnameTarget": "CNAMEのターゲット",

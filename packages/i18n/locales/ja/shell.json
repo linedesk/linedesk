@@ -69,6 +69,7 @@
   "feedback.bug.question": "何が問題でしたか？",
   "feedback.bug.title": "バグを報告",
   "feedback.closeZoom": "スクリーンショットを閉じる",
+  "feedback.destination": "報告はLinedeskチームに届きます。このサーバーの管理者が別のアドレスを設定したか、送信をオフにした場合を除きます。",
   "feedback.errors.none": "このページにエラーはありません",
   "feedback.failed": "送信できませんでした。{reason}",
   "feedback.feature.placeholder": "何をしたいか、今は何がそれを妨げているかを書いてください。",

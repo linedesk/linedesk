@@ -1354,6 +1354,7 @@
   "provider.devCarrierLine": "Entwicklungsanbieter ({setting}): Nummern und Anrufe werden simuliert",
   "provider.emailToLog": "Anmeldecodes landen im API-Log ({name}): nur für die Entwicklung",
   "provider.field.apiToken": "API-Token",
+  "provider.field.appStoreUrl": "App-Store-Eintrag (https://apps.shopify.com/…)",
   "provider.field.clientId": "Client-ID",
   "provider.field.clientSecret": "Client-Secret",
   "provider.field.cnameTarget": "CNAME-Ziel",

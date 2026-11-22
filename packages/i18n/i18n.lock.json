@@ -8180,6 +8180,11 @@
       "out": "5efaaeeee66eff5f15f61e0a53341c86d83a8e1b2afd501d5a28d911b073ffa0",
       "src": "63a6d0f6114496787a137d3180339f73ec3493fa4292130199cdf8011a3cf164"
     },
+    "admin.provider.field.appStoreUrl": {
+      "by": "ai",
+      "out": "3aefd219f3d1bd13f56d90a8b80bda4720900e445d6a2f5bb06670c70e781806",
+      "src": "cd85a25fa83b14b1572037beda407ccfff7c90f48fe5113f294ba9e64c4cf07f"
+    },
     "admin.provider.field.clientId": {
       "by": "ai",
       "out": "2fb2cd9295fab1a7f3b7f0cbdd9f5bc002683cb99e9eb4295f613a2b05c9f201",
@@ -16565,6 +16570,11 @@
       "out": "6824f5524b1aa5cd58e91e70f06bdfdf4aa5ac7d8453b94abaa9161759486660",
       "src": "be0b527db2c8d444a6b31bcdf61a871ad714d02be5af048fac62e0cdebbd1628"
     },
+    "email.founder.unsubscribeLink": {
+      "by": "ai",
+      "out": "545f8be33bf06a1cb6eaa138814f3530c78354caf5f2edcec690c2cf8f9251bc",
+      "src": "3e92efb7664f0255ffce2ed60d7eb423059101cbca4b2e2d55e3871aba70ae63"
+    },
     "email.installTest.heading": {
       "by": "ai",
       "out": "22f0f9361a80c8b578a770461ca069837b3ce8a9c274a95db9951ec208a0dfba",
@@ -17269,6 +17279,71 @@
       "by": "ai",
       "out": "ab52512f4185f56a2d1a38f4c85f354bb244347d95b264a0915f85eec7dcf694",
       "src": "c16615d64a1225032326bc0cb8c59d5969c9277cbc2229efccacc9cde079da59"
+    },
+    "email.shopifyApp.failed": {
+      "by": "ai",
+      "out": "f0aec1b76985222b8375f288c2ab0704fb37424fb09462b57515592f158f21b9",
+      "src": "cfddbafada25a94de72ac98811de6e1db37595c019fda9cfb5d63f2dd9bbfb44"
+    },
+    "email.shopifyApp.link.button": {
+      "by": "ai",
+      "out": "74e2f8d9810faacf9567cd4531010b7c27b4731468c42cce0cdf80933e334505",
+      "src": "e855c5556d11f18e3f4f2241487ed3efc3c43f9b38b9c464a22606a346842b47"
+    },
+    "email.shopifyApp.link.buttonTip": {
+      "by": "ai",
+      "out": "8e7e17c2ff51c0553ec2f3018fd39ac173a85ea3f6db31bf88673042dde9ca24",
+      "src": "031516704016369407612f631587ee68cd5d0622b0f912954b118f8493f55045"
+    },
+    "email.shopifyApp.link.text": {
+      "by": "ai",
+      "out": "5f50f013455f9a73da9dc91ca77534f05d851ced530a7217fe928b81640dc3e5",
+      "src": "cdf77f769a82f67db7725017634c9fd73f46cf1134716f23d48c60a12d023310"
+    },
+    "email.shopifyApp.link.title": {
+      "by": "ai",
+      "out": "1c68f637239c3e6b8995b3ccb39d5f3f8e945ae9bec21e0449bb629b42c499b6",
+      "src": "e619c9de035397500af7f18d0aca4439e1fcadbdc2ef90f1fd577f56be667f09"
+    },
+    "email.shopifyApp.link.waiting": {
+      "by": "ai",
+      "out": "8149704c50bf90064bdbf7998cd4d14eaa11a789340fe58af301354d60cd25d2",
+      "src": "c65804fba7a4d10df3b56ae0b8614c969280f84263600305b295702559a7c898"
+    },
+    "email.shopifyApp.linked.open": {
+      "by": "ai",
+      "out": "c0e57efef7a9d1cfceecb93ad1907ae0e721882fb2295efdb145605432c583d1",
+      "src": "f07b9c3288afc97c51f3e014bcc83f931bfe28f3a6028a2c2bcc3c8dbdd9f900"
+    },
+    "email.shopifyApp.linked.openTip": {
+      "by": "ai",
+      "out": "f9b11c2944e9e41c7d06a9e4580caebf4d2e6392fd5c02261402b14aea892502",
+      "src": "4e1b65d9fac5f6e368f087dfeac245f73bc244049a1d7d699d5f87dfed1a9a51"
+    },
+    "email.shopifyApp.linked.text": {
+      "by": "ai",
+      "out": "c02c9b26c512cf96ea85356b18d538a1d873bcb0a870b52a6d88f1b4e9e8823b",
+      "src": "c241f11064f6a121fb50977ca53fbc0ba21dc23f300f8698907e566454e517ac"
+    },
+    "email.shopifyApp.linked.title": {
+      "by": "ai",
+      "out": "275d8c4247cc63b3baf5de87e3702e3763a8deb8d1cb4965c4a0ac5177d99ef9",
+      "src": "ae000b2d226de10c53cfdca24d89c06f6ca3abafc5bbe5ab1a2c2e25af152f33"
+    },
+    "email.shopifyApp.loading": {
+      "by": "ai",
+      "out": "2c77a1a44f0a8a973a9ff180a67d4d058258f470d46fc0f2d176447c5e16e357",
+      "src": "cf14e299f859f56823a8a4d37455849431812d844761da9f09ec50107d13522c"
+    },
+    "email.shopifyApp.notSetUp": {
+      "by": "ai",
+      "out": "b56fd773fde84b1a612ada62b987fc1fdf0d6fd3bce275e083f608d291745587",
+      "src": "0f0897e6effa3fe37273f7f5323fe40970b0bb2c7b2fcb523b69bc8513abf122"
+    },
+    "email.shopifyApp.ownerOnly": {
+      "by": "ai",
+      "out": "4fdb418bbc0d046b2ebdafd9a677406db1a05a8aca062c5c09a85011ddd779c2",
+      "src": "92ff1720d781282349742c95e439556cf739760423ac71968c1b9895130214b5"
     },
     "email.shopifySetup.ready.after": {
       "by": "ai",
@@ -24300,6 +24375,41 @@
       "out": "aa04dcc7092d474fc25650c9820f17a29fcb5a4ddc6296d8db5eee4ee3ee1bb0",
       "src": "10c38130206efb29d7fc5fe59b647990fcc921a4157e125879cbb5f47377ba73"
     },
+    "server.api.shopifyApp.linkExpired": {
+      "by": "ai",
+      "out": "827bf4d38f8b713ba751697f0bb62ef2d8c996700864cd2e0668b8b6b6623da4",
+      "src": "01eb6913fa27e99d7b0f569c85521a566ba0481c2314e6587e7b5b836f6c6258"
+    },
+    "server.api.shopifyApp.linkInvalid": {
+      "by": "ai",
+      "out": "03862f6d1975dd7385b5044f4966599b9115767ae81cf0b8ceb55b9894bc326e",
+      "src": "c311db0779b8455e8be614f1467b685ea0930df5bb17c021c1aae0a32a33a0a2"
+    },
+    "server.api.shopifyApp.linkedElsewhere": {
+      "by": "ai",
+      "out": "eaa3b895a3c99637e152d656b2e76883c99dc1499cb8f8789a27b946330aae33",
+      "src": "7f551919074f2a83097dfc7cc97fa3fda49e26e0ac560fef15ba318db6dedd56"
+    },
+    "server.api.shopifyApp.notInstalled": {
+      "by": "ai",
+      "out": "aa49fb59715189e43f7cd06665ffb1dd2a429a63c0934579718c5088b75502b5",
+      "src": "cf936aee5afc8eb4c65813d9501c60c3f519eab5a16862777093893cab533f2c"
+    },
+    "server.api.shopifyApp.otherStore": {
+      "by": "ai",
+      "out": "cfdcfb7f016a46a6d3ae04400fd12b31d8482313a5e89ba7917db5e0ca379dc8",
+      "src": "b58d6d09e399740e9969e92d2f6db277027164a657fc62296e6df30453f0d757"
+    },
+    "server.api.shopifyApp.ownApp": {
+      "by": "ai",
+      "out": "f858949c498a180377f2fb6532b601ebcb17c21bec7dc7e6d14310dc6644c8f9",
+      "src": "ce08264776c2dbfaac6444d4baaf6642765605c20002f38ccb618a5b295d3a20"
+    },
+    "server.api.shopifyApp.scope": {
+      "by": "ai",
+      "out": "b836f64d55a7fac191947e06d54b712b8caa1b4bdff678e085a7d380e2b820b4",
+      "src": "2c2a19cad16a35eff3bb440ffd2bd035cc27897bd6a9d40816666543cc7ee61e"
+    },
     "server.api.shopifySetup.alreadyConnected": {
       "by": "ai",
       "out": "4a361682607fa871bb59ad19c030eb8dc28be9e1e081ff2891c6ce788c649de5",
@@ -24854,6 +24964,11 @@
       "by": "ai",
       "out": "9132c6ced424a8293c4d1a540a1feb01e23524ea1640a7e8f1b040cb13088dc0",
       "src": "215485c93e41bc02cb2775751c8a2b1b58ed7925e7c63ec43042cb821ab28288"
+    },
+    "server.input.provider.shopifyAppStoreUrl": {
+      "by": "ai",
+      "out": "e1d48bdbfcd83ece0ada7bf915e636cf796785a299d00a06f33915de1465c212",
+      "src": "6df620348a578829da6d7e9504e479b4a9ffead3e028f4f0b8c54ab84c903e59"
     },
     "server.input.provider.smtpUrl": {
       "by": "ai",
@@ -25782,13 +25897,13 @@
     },
     "server.setupAgent.step.notify": {
       "by": "ai",
-      "out": "5bf09c69a9c1dbbd6e706bfd729f4bbde581c544beea949e9a5f7e7cd18f4e55",
-      "src": "ee8c7187e6e9663945bf7e6d4c6d194872518cf97bde43cab6947df13634098a"
+      "out": "358074c83d3b35336f672aa775e164710fd6149d26a61b804342a4ed1e4d31df",
+      "src": "4603cab200659a8d8606cb048c8c6606fdccf93646a519180574bb1d05ee9a35"
     },
     "server.setupAgent.step.notifyHint": {
       "by": "ai",
-      "out": "165dcb7f4fa49400ba27070fcad27460197388a7eccf7c857fe93726cc9219b2",
-      "src": "0dea782b91e241e7c3967531bea793dc343d8e2dbf99c368135554475ea72948"
+      "out": "9a67bb4b0eb054e86a5797d2a2ef68be3e8f17d9b3588d4b227db34e23d940f5",
+      "src": "81a325635b1252a02758012d123dea9cefe8d2d1500ae7207d7275af49be09cc"
     },
     "server.setupAgent.step.phone": {
       "by": "ai",
@@ -30485,6 +30600,21 @@
       "out": "93360581377980d35517ae93722acafe4a315e97b137ba566a5a33383e050337",
       "src": "aa3e97df9b65fa50cf575e06c452caf48b6a973a2e3a4a57577bee56311f8e88"
     },
+    "settings.integrations.app.shopify.appStore.button": {
+      "by": "ai",
+      "out": "f9fc3d706dd235f4f3e264be9de68537bb0d0f625baea69d5c388efad715bc68",
+      "src": "a32adba4d226d2dd80ac16a11f1bf1155da080453aa7fbb2ded570cd8131cfd7"
+    },
+    "settings.integrations.app.shopify.appStore.buttonTip": {
+      "by": "ai",
+      "out": "88aace42e9617b1e75e6ec01e79e955fb169742f9dcc013815cd636927696d5c",
+      "src": "caca05fd8279c56ce7a876f9baf3920157dff862b9ce75e5b35b0ab83ef4a8f2"
+    },
+    "settings.integrations.app.shopify.appStore.text": {
+      "by": "ai",
+      "out": "8618834c2dc54fd791396aa1f0565178a0d4f1092f8a9bbaabcc5ef1a2871fde",
+      "src": "ca5df83dc7a5fdb47a762a5f059f3d6f377e7cb93e3f965b76d5af4f36072d22"
+    },
     "settings.integrations.app.shopify.checksIdleTip": {
       "by": "ai",
       "out": "8d9928611ac89b89953d4e01a73ff65b8b413ff347b6bc2e48f1cb7dd5db36ab",
@@ -31934,6 +32064,146 @@
       "by": "ai",
       "out": "984191daa3cf19b9a2d629660ce271e8ba71a3fb386824ad3e1a925ea8bec51f",
       "src": "a0adfe9abe764c048b92c102ee8872628b69033a0b7b08c8d9394bbb0722bdae"
+    },
+    "settings.integrations.shopifyLink.back": {
+      "by": "ai",
+      "out": "a4625d865d69b7260a42e7e7dacccacf89c3edcf1a75fb28d1ba7b90069c4479",
+      "src": "688daef45886595d80834d59304505aaf82116d5b285a7b35cd8e5dbc9d83114"
+    },
+    "settings.integrations.shopifyLink.backTip": {
+      "by": "ai",
+      "out": "fc9930f1788e8f94cdfff21a545c910df4f6e4549b3b353f1d9131e43e31b188",
+      "src": "47b5d0764d82d48e40f165001e15cc483e3b25b1fb8843e7559735b3e67abc98"
+    },
+    "settings.integrations.shopifyLink.cancelTip": {
+      "by": "ai",
+      "out": "4497c89dcd90864266342088f24a74cae1b3b2a31d45ba38329f6ee0ea3a40d5",
+      "src": "59629ab84b5f019be5340fb8c4cb0f8094dca046a90c3654f444eaf923ca26cd"
+    },
+    "settings.integrations.shopifyLink.confirm": {
+      "by": "ai",
+      "out": "099702e48618033302d2fa10e8f4854a774b0ec63f4bcaad3bb992f00ecaa74f",
+      "src": "233b6c8ab486bc0f6e568f1542a0282094ff3534f3b1a3dee9a82f28b48f2372"
+    },
+    "settings.integrations.shopifyLink.confirmTip": {
+      "by": "ai",
+      "out": "d4c3f6c9f96ad8ff15061c7381cc9889e7b8f0effb12b73b8b440a05bf578fad",
+      "src": "af31fd6bf6990a539a0552a1269de9aeb76bddc7e0ebba4b9998e0309c7ae865"
+    },
+    "settings.integrations.shopifyLink.confirmWhy": {
+      "by": "ai",
+      "out": "e91209c264102ec58dd32195470c80a2524e02b88e3edf717260c6f7d8a01f37",
+      "src": "9929616a2c0256a9cd5518bd49d2900005c4b11b17796c6d13e84512c1b30688"
+    },
+    "settings.integrations.shopifyLink.createWorkspace": {
+      "by": "ai",
+      "out": "ab8ea6e04382a076486195de3c33b1805b1cc87f00d54ef892f39dbb2abf1d11",
+      "src": "954bd1fe66b41f789ea7597923fbb7f5819ef5db33401075f7a2fe2729613beb"
+    },
+    "settings.integrations.shopifyLink.createWorkspaceTip": {
+      "by": "ai",
+      "out": "b0112e3c05596d3a5afa424af944129c2db9ffecd75320bebb0e7a3f20ffbf17",
+      "src": "b52feee36021620b016be930cd67dac5fc79e01dbfbb7d9ef7377b71957e3ca0"
+    },
+    "settings.integrations.shopifyLink.error.linkExpired": {
+      "by": "ai",
+      "out": "827bf4d38f8b713ba751697f0bb62ef2d8c996700864cd2e0668b8b6b6623da4",
+      "src": "01eb6913fa27e99d7b0f569c85521a566ba0481c2314e6587e7b5b836f6c6258"
+    },
+    "settings.integrations.shopifyLink.error.linkInvalid": {
+      "by": "ai",
+      "out": "03862f6d1975dd7385b5044f4966599b9115767ae81cf0b8ceb55b9894bc326e",
+      "src": "c311db0779b8455e8be614f1467b685ea0930df5bb17c021c1aae0a32a33a0a2"
+    },
+    "settings.integrations.shopifyLink.error.linkedElsewhere": {
+      "by": "ai",
+      "out": "eaa3b895a3c99637e152d656b2e76883c99dc1499cb8f8789a27b946330aae33",
+      "src": "7f551919074f2a83097dfc7cc97fa3fda49e26e0ac560fef15ba318db6dedd56"
+    },
+    "settings.integrations.shopifyLink.error.noSecretsKey": {
+      "by": "ai",
+      "out": "e29a62d841f99ae99bef84fdc5ad8ab16e536be9658e69fd98c7c43b4fed1ee3",
+      "src": "812ba3ecbf82b9eee99d57d0b3674b0fc68a9d369927fd63e6637a9f0aac35b0"
+    },
+    "settings.integrations.shopifyLink.error.notInstalled": {
+      "by": "ai",
+      "out": "aa49fb59715189e43f7cd06665ffb1dd2a429a63c0934579718c5088b75502b5",
+      "src": "cf936aee5afc8eb4c65813d9501c60c3f519eab5a16862777093893cab533f2c"
+    },
+    "settings.integrations.shopifyLink.error.otherStore": {
+      "by": "ai",
+      "out": "6a2c5f8a93228dc3173224a858ba95e223f416df736f510756c6b45cc62823ab",
+      "src": "0f552faa5679452a7a6165adcc2b33dfb8515ff310ea4f8bc7d7ad38ff50b7de"
+    },
+    "settings.integrations.shopifyLink.error.ownApp": {
+      "by": "ai",
+      "out": "96f82d8584b41ea7bcde2bcf41bb869eaf0c0f1649fde733e6e1c7422a453ea5",
+      "src": "1d6512f3c5e4b761accc77362bf193db8420f72d2fdc393e686015d84147a689"
+    },
+    "settings.integrations.shopifyLink.error.scope": {
+      "by": "ai",
+      "out": "b836f64d55a7fac191947e06d54b712b8caa1b4bdff678e085a7d380e2b820b4",
+      "src": "2c2a19cad16a35eff3bb440ffd2bd035cc27897bd6a9d40816666543cc7ee61e"
+    },
+    "settings.integrations.shopifyLink.failed": {
+      "by": "ai",
+      "out": "495d851868fe034d504e1d8d654f46b2a26c7e40212c4c646c201ebc1ab6206f",
+      "src": "1b1ab1fd14c6423d1e47987acaffe3d1636c645f62bc512ae6c1045f3f500021"
+    },
+    "settings.integrations.shopifyLink.noWorkspace": {
+      "by": "ai",
+      "out": "fefa787863d0b9dacfbac1fb72f730f5c8cf7ac41b2902016e00b56d247f4f7a",
+      "src": "8dbcb5c021f484481b3945599a19e8ee7169aebc7b04c03567f7acdc53cde049"
+    },
+    "settings.integrations.shopifyLink.noWorkspaceTitle": {
+      "by": "ai",
+      "out": "c2f4d2ac4bace18a8a1b299a7352b251cbf32d4d51d639df7d70e4ac22cdb4bf",
+      "src": "c642a35b1a34dcd10ee53a3307b07a87b7a290f5ed00c4bcc1b9ea8cbb45e60a"
+    },
+    "settings.integrations.shopifyLink.notAdmin": {
+      "by": "ai",
+      "out": "7a612eada695b0266674c4de80a95eb24f09dc359e53046ecc4b5e115f428a74",
+      "src": "f14b45cc66f4932b39dd063c7087884556092431f862f0cf6e6ad64b34401128"
+    },
+    "settings.integrations.shopifyLink.otherStore": {
+      "by": "ai",
+      "out": "a765b1795f66b14f55522e389c269d68ae55c047a6b94c78bf80ad9fcb013bfd",
+      "src": "0983e0ae0db3eabd68b24d74dc5dc96c72996b31d1370f690e73387d17b3a18f"
+    },
+    "settings.integrations.shopifyLink.otherWorkspace": {
+      "by": "ai",
+      "out": "a44c3104038f1721f21b39a12abfadd502bd7ecbba50ff68b65447bba3ac09df",
+      "src": "445c2dd49772636200ee1848504fa42c5d0f0424646c4bc024034ffae5d26459"
+    },
+    "settings.integrations.shopifyLink.problemTitle": {
+      "by": "ai",
+      "out": "3489c16ad058250b0882b38503c88b0f3e31a6720e6e8b09008e007b97dbbd10",
+      "src": "8fb8ff23cedaa445227eb538a04d08390683101e7ea349c433be39d190a8f30c"
+    },
+    "settings.integrations.shopifyLink.startedBy": {
+      "by": "ai",
+      "out": "03aa5559c41f79c4ec41df0c79f882724abe4fe802d8a251674df42011d28397",
+      "src": "de9593dc5cf1d504eb6c8e9dcc0fc20fc6baa6b0f2e90752755e1bd16fd63b70"
+    },
+    "settings.integrations.shopifyLink.startedIn": {
+      "by": "ai",
+      "out": "10c8d7b6c8a0406ff859b728e7a6b72fe60bdbb91af736f5e87dbab10b6c5dcb",
+      "src": "d6914f428cd0ae8b2d8b8e0b4f633ea453047bb7a896f42d95e66adbefb5841f"
+    },
+    "settings.integrations.shopifyLink.text": {
+      "by": "ai",
+      "out": "6bfc0f6afc408857ecd64f112ed74ef32246f264e126f9e805421725acd451b9",
+      "src": "6db699756fbb1c0e987fdd5469b16bcfbcada67b4943477042a4ea529bb739a0"
+    },
+    "settings.integrations.shopifyLink.title": {
+      "by": "ai",
+      "out": "389486a1fa19682e557c44fd1787d3990c10d2a35640d7aef0b4538bb04c8d99",
+      "src": "cc11de6fff9dc09338425baf5ce101eb43bf5caa21a4fd69f466cf8703e57d05"
+    },
+    "settings.integrations.shopifyLink.warning": {
+      "by": "ai",
+      "out": "37085ec3acb5aa320335bc7a5cd0cf37d4f4dacdb15ff28a17e306659c8c1ba1",
+      "src": "7dce4d97099874e7ad3efca2b924288b28daed65b088cd9624c19b8f6b4c7e4e"
     },
     "settings.integrations.status.accounts": {
       "by": "ai",
@@ -35649,6 +35919,11 @@
       "by": "ai",
       "out": "07d160bb284047249fb95db9e089f21bf0243c1ca22cb22a0852d079b0e08f2d",
       "src": "1d465f26942e360ed34eb4741cbf58291a1848b337c52d5c5a92a04bed0a0c35"
+    },
+    "shell.feedback.destination": {
+      "by": "ai",
+      "out": "b1ef596d341524891134f380132d9f899f3314744c42877d7ba9c694687c6390",
+      "src": "59152fe65eb8bfc54481af4a794807576f5f489fbd1732b117abacb410823e96"
     },
     "shell.feedback.errors.none": {
       "by": "ai",
@@ -47522,6 +47797,11 @@
       "out": "141c348fed47e6e29371b1e40109360dc92641c110a34c831041385808e60c3f",
       "src": "63a6d0f6114496787a137d3180339f73ec3493fa4292130199cdf8011a3cf164"
     },
+    "admin.provider.field.appStoreUrl": {
+      "by": "ai",
+      "out": "b7becdd43c3bd0bccae51bafe70dbed7689f6a8135dc3268fabcb16cd924a8c4",
+      "src": "cd85a25fa83b14b1572037beda407ccfff7c90f48fe5113f294ba9e64c4cf07f"
+    },
     "admin.provider.field.clientId": {
       "by": "ai",
       "out": "781c49a115c08d1ae589518bf4cfdb4b4162059482a1baa9a36b46123924460b",
@@ -55907,6 +56187,11 @@
       "out": "913df25c4add63e3b05773ce66b5d144c714f9afaf3327cbe264982cab050494",
       "src": "be0b527db2c8d444a6b31bcdf61a871ad714d02be5af048fac62e0cdebbd1628"
     },
+    "email.founder.unsubscribeLink": {
+      "by": "ai",
+      "out": "bb20756524ee4acf32953f8f8ecf1b3e4ff4ddc38b6abaa587b79ec605ec68ab",
+      "src": "3e92efb7664f0255ffce2ed60d7eb423059101cbca4b2e2d55e3871aba70ae63"
+    },
     "email.installTest.heading": {
       "by": "ai",
       "out": "df916474776fbf38f1a938b63fcc279d5ee3e4e91a1abdc3afd9d3c3480dd6cf",
@@ -56611,6 +56896,71 @@
       "by": "ai",
       "out": "6375fede3ab126bc00710a436f6c15902195d6d1777234ba12a9aeb5e5e17ba2",
       "src": "c16615d64a1225032326bc0cb8c59d5969c9277cbc2229efccacc9cde079da59"
+    },
+    "email.shopifyApp.failed": {
+      "by": "ai",
+      "out": "a20660d4aa7a12b77548fb838f1bd38cb65021fc1c83715b40159c50548ae536",
+      "src": "cfddbafada25a94de72ac98811de6e1db37595c019fda9cfb5d63f2dd9bbfb44"
+    },
+    "email.shopifyApp.link.button": {
+      "by": "ai",
+      "out": "74bf975f6ce8631aa5c73d7fc448005bbe552ea7b5276007be91d38a3bf23f93",
+      "src": "e855c5556d11f18e3f4f2241487ed3efc3c43f9b38b9c464a22606a346842b47"
+    },
+    "email.shopifyApp.link.buttonTip": {
+      "by": "ai",
+      "out": "429b17ce15aba685291252740d14353a5a9d6c00640fd17680dd306ee3031ac4",
+      "src": "031516704016369407612f631587ee68cd5d0622b0f912954b118f8493f55045"
+    },
+    "email.shopifyApp.link.text": {
+      "by": "ai",
+      "out": "8d64d3792bbc755a537296de8a6e0fde5e3b62bf33eccb4b3bae17da8c0231cb",
+      "src": "cdf77f769a82f67db7725017634c9fd73f46cf1134716f23d48c60a12d023310"
+    },
+    "email.shopifyApp.link.title": {
+      "by": "ai",
+      "out": "5eda63e85cda433930fca99542b7517c250009256892946739369aab7240a3b9",
+      "src": "e619c9de035397500af7f18d0aca4439e1fcadbdc2ef90f1fd577f56be667f09"
+    },
+    "email.shopifyApp.link.waiting": {
+      "by": "ai",
+      "out": "39bd80f810c9c04fe4bf0317b6b0240ebb2d2645d414eef1ee492c3e9d061820",
+      "src": "c65804fba7a4d10df3b56ae0b8614c969280f84263600305b295702559a7c898"
+    },
+    "email.shopifyApp.linked.open": {
+      "by": "ai",
+      "out": "f7ebdb9eb87a39b80e83d99c8de0e40353aede1223bc24a0b5a501bbdc0bd13c",
+      "src": "f07b9c3288afc97c51f3e014bcc83f931bfe28f3a6028a2c2bcc3c8dbdd9f900"
+    },
+    "email.shopifyApp.linked.openTip": {
+      "by": "ai",
+      "out": "3e2b2d22e127c58119fac24b4453cdc1bc2f4d2a6fb8bc430aa1f1234b4670dc",
+      "src": "4e1b65d9fac5f6e368f087dfeac245f73bc244049a1d7d699d5f87dfed1a9a51"
+    },
+    "email.shopifyApp.linked.text": {
+      "by": "ai",
+      "out": "d0185aab19a56548da12d1c392f73164d1645bdd72eb435945c247ab1d96fed2",
+      "src": "c241f11064f6a121fb50977ca53fbc0ba21dc23f300f8698907e566454e517ac"
+    },
+    "email.shopifyApp.linked.title": {
+      "by": "ai",
+      "out": "88e62cc21bf6fb8151a9c8fa8171fbc4f2941bfba510f098c8d9a7c461a3ad64",
+      "src": "ae000b2d226de10c53cfdca24d89c06f6ca3abafc5bbe5ab1a2c2e25af152f33"
+    },
+    "email.shopifyApp.loading": {
+      "by": "ai",
+      "out": "5b04e23eb4182daef5f6b2514f188de45ff0d91b985b19fd5211cfa8f50fbe71",
+      "src": "cf14e299f859f56823a8a4d37455849431812d844761da9f09ec50107d13522c"
+    },
+    "email.shopifyApp.notSetUp": {
+      "by": "ai",
+      "out": "dc6847a8154076950bfea0a30f7f91b42bf58257e3397618a71c411a65800f28",
+      "src": "0f0897e6effa3fe37273f7f5323fe40970b0bb2c7b2fcb523b69bc8513abf122"
+    },
+    "email.shopifyApp.ownerOnly": {
+      "by": "ai",
+      "out": "efca65eba6edd1aad66837303e2363423e7351d9ed939abef1ffa3d834bc0e78",
+      "src": "92ff1720d781282349742c95e439556cf739760423ac71968c1b9895130214b5"
     },
     "email.shopifySetup.ready.after": {
       "by": "ai",
@@ -63642,6 +63992,41 @@
       "out": "1179e6bdb52cf11a674692717a6c0ba388610e6de03484368fdf3404130b9a91",
       "src": "10c38130206efb29d7fc5fe59b647990fcc921a4157e125879cbb5f47377ba73"
     },
+    "server.api.shopifyApp.linkExpired": {
+      "by": "ai",
+      "out": "c111638da6e0e7cde5b1c5099b94aa21de8f9fe7930addcf9c8cc7dadfb3b67b",
+      "src": "01eb6913fa27e99d7b0f569c85521a566ba0481c2314e6587e7b5b836f6c6258"
+    },
+    "server.api.shopifyApp.linkInvalid": {
+      "by": "ai",
+      "out": "3cdcc137a558e39e6cb9c37580ec38d94eb0425c9e2dabaec56296978a4d4c1f",
+      "src": "c311db0779b8455e8be614f1467b685ea0930df5bb17c021c1aae0a32a33a0a2"
+    },
+    "server.api.shopifyApp.linkedElsewhere": {
+      "by": "ai",
+      "out": "2f830724d903576077d5a557db27c2262524a50444d84772f270f6aefa988036",
+      "src": "7f551919074f2a83097dfc7cc97fa3fda49e26e0ac560fef15ba318db6dedd56"
+    },
+    "server.api.shopifyApp.notInstalled": {
+      "by": "ai",
+      "out": "65db71957e63c8f9fd850c4f2bad171768fc7b72b40109139a28eb853f420a02",
+      "src": "cf936aee5afc8eb4c65813d9501c60c3f519eab5a16862777093893cab533f2c"
+    },
+    "server.api.shopifyApp.otherStore": {
+      "by": "ai",
+      "out": "2ad2971225b9afc765f619a168f2446f52a31bb56af922daae5fa27d43b6a04b",
+      "src": "b58d6d09e399740e9969e92d2f6db277027164a657fc62296e6df30453f0d757"
+    },
+    "server.api.shopifyApp.ownApp": {
+      "by": "ai",
+      "out": "0ed977a6b9b264cda25ffb51da6f316ba01697299cad2c20f63a6ff3d5083eeb",
+      "src": "ce08264776c2dbfaac6444d4baaf6642765605c20002f38ccb618a5b295d3a20"
+    },
+    "server.api.shopifyApp.scope": {
+      "by": "ai",
+      "out": "ce362c6885118f5c6d77fc62d77d9bffbd2e547f83bc9f2de53f4a0a04d9b4f6",
+      "src": "2c2a19cad16a35eff3bb440ffd2bd035cc27897bd6a9d40816666543cc7ee61e"
+    },
     "server.api.shopifySetup.alreadyConnected": {
       "by": "ai",
       "out": "97cf2836f7f9036d8fd40a023eb1d4b3d51346914e4b29fd9a17b5989a1e08e6",
@@ -64196,6 +64581,11 @@
       "by": "ai",
       "out": "4e221869e3d2427b5760b0bacd8bc927f6b7e1d0a13b8a3d8f6e82e2e13162df",
       "src": "215485c93e41bc02cb2775751c8a2b1b58ed7925e7c63ec43042cb821ab28288"
+    },
+    "server.input.provider.shopifyAppStoreUrl": {
+      "by": "ai",
+      "out": "7d380eaed828dc108133aefa58c33e9ea6575f9105964ad578e89c374e3633be",
+      "src": "6df620348a578829da6d7e9504e479b4a9ffead3e028f4f0b8c54ab84c903e59"
     },
     "server.input.provider.smtpUrl": {
       "by": "ai",
@@ -65124,13 +65514,13 @@
     },
     "server.setupAgent.step.notify": {
       "by": "ai",
-      "out": "bcbf0eee4b74ea20392e6df0d48936091804080a4ad215d8fca8e48aa4fe7346",
-      "src": "ee8c7187e6e9663945bf7e6d4c6d194872518cf97bde43cab6947df13634098a"
+      "out": "0738292c46502c6904c4d7da3f20654e9124789bf45ff5633e01a66d2c26f81d",
+      "src": "4603cab200659a8d8606cb048c8c6606fdccf93646a519180574bb1d05ee9a35"
     },
     "server.setupAgent.step.notifyHint": {
       "by": "ai",
-      "out": "c4a39b709de010f4ebce13d084ae24f9b6149d452392661c651b0dea62bd8e7b",
-      "src": "0dea782b91e241e7c3967531bea793dc343d8e2dbf99c368135554475ea72948"
+      "out": "9494969889a00a29e23a83dc88a4386664cb3479eb3bc7d152719254591226ea",
+      "src": "81a325635b1252a02758012d123dea9cefe8d2d1500ae7207d7275af49be09cc"
     },
     "server.setupAgent.step.phone": {
       "by": "ai",
@@ -69827,6 +70217,21 @@
       "out": "6d98a13df639eff6974ffd592a58f0a5b9bb62d2dd2467cdd9b1b81e9b909d72",
       "src": "aa3e97df9b65fa50cf575e06c452caf48b6a973a2e3a4a57577bee56311f8e88"
     },
+    "settings.integrations.app.shopify.appStore.button": {
+      "by": "ai",
+      "out": "29c508d7f3585e2f6a821b23b758adebf29b9c4be5106a2c1d4530bed5f48ef9",
+      "src": "a32adba4d226d2dd80ac16a11f1bf1155da080453aa7fbb2ded570cd8131cfd7"
+    },
+    "settings.integrations.app.shopify.appStore.buttonTip": {
+      "by": "ai",
+      "out": "d3033253793a0d9348d1e406a0456e3410742a0c841dad3a7586dbe913c4b1bd",
+      "src": "caca05fd8279c56ce7a876f9baf3920157dff862b9ce75e5b35b0ab83ef4a8f2"
+    },
+    "settings.integrations.app.shopify.appStore.text": {
+      "by": "ai",
+      "out": "eec77e5e3dd419196f5f8ad619c94166c9c95e1065bbe47442898f281716d51e",
+      "src": "ca5df83dc7a5fdb47a762a5f059f3d6f377e7cb93e3f965b76d5af4f36072d22"
+    },
     "settings.integrations.app.shopify.checksIdleTip": {
       "by": "ai",
       "out": "06e02511732efe6343f0276b7b2a38e79d6da6d6fd447658c9512de2a1c7df25",
@@ -71276,6 +71681,146 @@
       "by": "ai",
       "out": "53af81599a796a5b38a61ffcee039fc00aa99fe31282fbfefcfe5793fa6af17b",
       "src": "a0adfe9abe764c048b92c102ee8872628b69033a0b7b08c8d9394bbb0722bdae"
+    },
+    "settings.integrations.shopifyLink.back": {
+      "by": "ai",
+      "out": "49df3c772a08fc169c3e85d1a0b47ff6b259128e55769e428333e007a3001c5b",
+      "src": "688daef45886595d80834d59304505aaf82116d5b285a7b35cd8e5dbc9d83114"
+    },
+    "settings.integrations.shopifyLink.backTip": {
+      "by": "ai",
+      "out": "ac9a6c002bb19708c3f17923384f2b174fdf4fbac06e1c781a26837adbdeae1d",
+      "src": "47b5d0764d82d48e40f165001e15cc483e3b25b1fb8843e7559735b3e67abc98"
+    },
+    "settings.integrations.shopifyLink.cancelTip": {
+      "by": "ai",
+      "out": "4a0bb019b5c185f1e991095bf55843e76253b8c35122473b4b5314219279b82e",
+      "src": "59629ab84b5f019be5340fb8c4cb0f8094dca046a90c3654f444eaf923ca26cd"
+    },
+    "settings.integrations.shopifyLink.confirm": {
+      "by": "ai",
+      "out": "975f98f73d526ab03642b0d8a287f5ded4c53f15cfdd95473199fd84de466d54",
+      "src": "233b6c8ab486bc0f6e568f1542a0282094ff3534f3b1a3dee9a82f28b48f2372"
+    },
+    "settings.integrations.shopifyLink.confirmTip": {
+      "by": "ai",
+      "out": "2e7007ef718bd1a8836484a5a68a57da61c204f885c2713ffa8d18c7542d7536",
+      "src": "af31fd6bf6990a539a0552a1269de9aeb76bddc7e0ebba4b9998e0309c7ae865"
+    },
+    "settings.integrations.shopifyLink.confirmWhy": {
+      "by": "ai",
+      "out": "cdf96c39b77b63470d01dfa97228a2ee96d7953364998abe9dac824f202ee31c",
+      "src": "9929616a2c0256a9cd5518bd49d2900005c4b11b17796c6d13e84512c1b30688"
+    },
+    "settings.integrations.shopifyLink.createWorkspace": {
+      "by": "ai",
+      "out": "ebd4fb6cde791bd5bdf9bd08b081145d954ca4d93fc6c0f2eeea32b1bab5d4fa",
+      "src": "954bd1fe66b41f789ea7597923fbb7f5819ef5db33401075f7a2fe2729613beb"
+    },
+    "settings.integrations.shopifyLink.createWorkspaceTip": {
+      "by": "ai",
+      "out": "8b73d1501abb46f6185f70b9c4217e06d84f7fddf695ca90f64f4f1f64eb656a",
+      "src": "b52feee36021620b016be930cd67dac5fc79e01dbfbb7d9ef7377b71957e3ca0"
+    },
+    "settings.integrations.shopifyLink.error.linkExpired": {
+      "by": "ai",
+      "out": "c111638da6e0e7cde5b1c5099b94aa21de8f9fe7930addcf9c8cc7dadfb3b67b",
+      "src": "01eb6913fa27e99d7b0f569c85521a566ba0481c2314e6587e7b5b836f6c6258"
+    },
+    "settings.integrations.shopifyLink.error.linkInvalid": {
+      "by": "ai",
+      "out": "3cdcc137a558e39e6cb9c37580ec38d94eb0425c9e2dabaec56296978a4d4c1f",
+      "src": "c311db0779b8455e8be614f1467b685ea0930df5bb17c021c1aae0a32a33a0a2"
+    },
+    "settings.integrations.shopifyLink.error.linkedElsewhere": {
+      "by": "ai",
+      "out": "2f830724d903576077d5a557db27c2262524a50444d84772f270f6aefa988036",
+      "src": "7f551919074f2a83097dfc7cc97fa3fda49e26e0ac560fef15ba318db6dedd56"
+    },
+    "settings.integrations.shopifyLink.error.noSecretsKey": {
+      "by": "ai",
+      "out": "a7385028ff4c10830f26c4ea2903bb5049e995a49b3ca2584f9b708ad1b34bb5",
+      "src": "812ba3ecbf82b9eee99d57d0b3674b0fc68a9d369927fd63e6637a9f0aac35b0"
+    },
+    "settings.integrations.shopifyLink.error.notInstalled": {
+      "by": "ai",
+      "out": "65db71957e63c8f9fd850c4f2bad171768fc7b72b40109139a28eb853f420a02",
+      "src": "cf936aee5afc8eb4c65813d9501c60c3f519eab5a16862777093893cab533f2c"
+    },
+    "settings.integrations.shopifyLink.error.otherStore": {
+      "by": "ai",
+      "out": "b644e69769d35fa1ba0b9eedff5e5eddf35a0e35fca093fb258b9add830610d6",
+      "src": "0f552faa5679452a7a6165adcc2b33dfb8515ff310ea4f8bc7d7ad38ff50b7de"
+    },
+    "settings.integrations.shopifyLink.error.ownApp": {
+      "by": "ai",
+      "out": "0efc0a59b45c7a9392a616ba627d81464058291ea68a8669858088967049da10",
+      "src": "1d6512f3c5e4b761accc77362bf193db8420f72d2fdc393e686015d84147a689"
+    },
+    "settings.integrations.shopifyLink.error.scope": {
+      "by": "ai",
+      "out": "ce362c6885118f5c6d77fc62d77d9bffbd2e547f83bc9f2de53f4a0a04d9b4f6",
+      "src": "2c2a19cad16a35eff3bb440ffd2bd035cc27897bd6a9d40816666543cc7ee61e"
+    },
+    "settings.integrations.shopifyLink.failed": {
+      "by": "ai",
+      "out": "a9f1a76caa18d28f6bf22fe2f69a3832e9887179365b29d0533a7517502cd82d",
+      "src": "1b1ab1fd14c6423d1e47987acaffe3d1636c645f62bc512ae6c1045f3f500021"
+    },
+    "settings.integrations.shopifyLink.noWorkspace": {
+      "by": "ai",
+      "out": "0242502ddfd0a8284a05ed67aae9567de18e73f3681ef81e1d61addf2dbe5a5d",
+      "src": "8dbcb5c021f484481b3945599a19e8ee7169aebc7b04c03567f7acdc53cde049"
+    },
+    "settings.integrations.shopifyLink.noWorkspaceTitle": {
+      "by": "ai",
+      "out": "28e2fe2dc90fb19b1fdb8dedf43e21202bdea389550cdec4f082bd28c60d32a2",
+      "src": "c642a35b1a34dcd10ee53a3307b07a87b7a290f5ed00c4bcc1b9ea8cbb45e60a"
+    },
+    "settings.integrations.shopifyLink.notAdmin": {
+      "by": "ai",
+      "out": "e5378ab4a3a22351fb91548919debcc0e30b0fd8f39c95fa0ed8ea53976f3360",
+      "src": "f14b45cc66f4932b39dd063c7087884556092431f862f0cf6e6ad64b34401128"
+    },
+    "settings.integrations.shopifyLink.otherStore": {
+      "by": "ai",
+      "out": "2d8e72cc370a6b25a760c2b94d319ab89800f3dc116894e378e2727a07159b50",
+      "src": "0983e0ae0db3eabd68b24d74dc5dc96c72996b31d1370f690e73387d17b3a18f"
+    },
+    "settings.integrations.shopifyLink.otherWorkspace": {
+      "by": "ai",
+      "out": "d9f2d33bc261a5dcfe7b02a95b3cc7c5f8c786251cb2814c43e7cbda1c5e5511",
+      "src": "445c2dd49772636200ee1848504fa42c5d0f0424646c4bc024034ffae5d26459"
+    },
+    "settings.integrations.shopifyLink.problemTitle": {
+      "by": "ai",
+      "out": "e999b1ecbcfc6ce0e12523074009e07dc1aceb52c45bf0db41dbebea503b070a",
+      "src": "8fb8ff23cedaa445227eb538a04d08390683101e7ea349c433be39d190a8f30c"
+    },
+    "settings.integrations.shopifyLink.startedBy": {
+      "by": "ai",
+      "out": "979617b717d80b86b7fd173d829d039665ac7f7c40cc41590a12264c0413c719",
+      "src": "de9593dc5cf1d504eb6c8e9dcc0fc20fc6baa6b0f2e90752755e1bd16fd63b70"
+    },
+    "settings.integrations.shopifyLink.startedIn": {
+      "by": "ai",
+      "out": "0ab8eb41f1fd74ac45447d5eaf66016ffd720edc795aae8cfe4401ac033019c3",
+      "src": "d6914f428cd0ae8b2d8b8e0b4f633ea453047bb7a896f42d95e66adbefb5841f"
+    },
+    "settings.integrations.shopifyLink.text": {
+      "by": "ai",
+      "out": "ee0c4d3a72db6667bf00a2ae6af271b41cee65b9c78c6f796aa768f36d941297",
+      "src": "6db699756fbb1c0e987fdd5469b16bcfbcada67b4943477042a4ea529bb739a0"
+    },
+    "settings.integrations.shopifyLink.title": {
+      "by": "ai",
+      "out": "aee681f0a77d45616c3297e2adc4600590aac99b818241a9471895c10a32bc9e",
+      "src": "cc11de6fff9dc09338425baf5ce101eb43bf5caa21a4fd69f466cf8703e57d05"
+    },
+    "settings.integrations.shopifyLink.warning": {
+      "by": "ai",
+      "out": "7c5b74135bbd80c7bd72ccaed52c0d86961c4c1e9d7a5d21e8490989760c95cb",
+      "src": "7dce4d97099874e7ad3efca2b924288b28daed65b088cd9624c19b8f6b4c7e4e"
     },
     "settings.integrations.status.accounts": {
       "by": "ai",
@@ -74991,6 +75536,11 @@
       "by": "ai",
       "out": "8c98e7f0c99b0872ca8ca01c2e6faa9e83ccf34f398234a8fa96f8462d99909b",
       "src": "1d465f26942e360ed34eb4741cbf58291a1848b337c52d5c5a92a04bed0a0c35"
+    },
+    "shell.feedback.destination": {
+      "by": "ai",
+      "out": "042d15429b868394609854286e48ef771f9cb9fcacc29bd685372974b0c3c88c",
+      "src": "59152fe65eb8bfc54481af4a794807576f5f489fbd1732b117abacb410823e96"
     },
     "shell.feedback.errors.none": {
       "by": "ai",
@@ -86864,6 +87414,11 @@
       "out": "3b6ffd52743198d788c24d12bec3a49ae793e2a34745e283530376ee7df1f752",
       "src": "63a6d0f6114496787a137d3180339f73ec3493fa4292130199cdf8011a3cf164"
     },
+    "admin.provider.field.appStoreUrl": {
+      "by": "ai",
+      "out": "434828c08f51a38400b362eac7c46d87b2c329960d77cd37dacc3833dd739f37",
+      "src": "cd85a25fa83b14b1572037beda407ccfff7c90f48fe5113f294ba9e64c4cf07f"
+    },
     "admin.provider.field.clientId": {
       "by": "ai",
       "out": "798716c7f964904afa04afdb19df97af3894fbcdd4908fea39e4a61cfedbdec9",
@@ -95249,6 +95804,11 @@
       "out": "f02a33f6d8d60077f1802c40a1ddc53af3b285564e0f143d8bbbba5ea37dfdae",
       "src": "be0b527db2c8d444a6b31bcdf61a871ad714d02be5af048fac62e0cdebbd1628"
     },
+    "email.founder.unsubscribeLink": {
+      "by": "ai",
+      "out": "9bbb9051b9dd051211da3cc57b32c3379a409d318822918683e6141f54924168",
+      "src": "3e92efb7664f0255ffce2ed60d7eb423059101cbca4b2e2d55e3871aba70ae63"
+    },
     "email.installTest.heading": {
       "by": "ai",
       "out": "2b54c310ffe82edb371b6e13648cd713d477eee7252dd27bd5653be33121ef02",
@@ -95953,6 +96513,71 @@
       "by": "ai",
       "out": "4adbaff97811ada5439853450b0f7f20753384dc8f902ee9f03a07204a87540f",
       "src": "c16615d64a1225032326bc0cb8c59d5969c9277cbc2229efccacc9cde079da59"
+    },
+    "email.shopifyApp.failed": {
+      "by": "ai",
+      "out": "557b9c43865bb43a0c8d3eaa059b0cdcd44eb865b99344107cc330c9e117cb3b",
+      "src": "cfddbafada25a94de72ac98811de6e1db37595c019fda9cfb5d63f2dd9bbfb44"
+    },
+    "email.shopifyApp.link.button": {
+      "by": "ai",
+      "out": "868c42919ce06fb8c97260b657034a3ae665022e207edc7bfb374634a64fe352",
+      "src": "e855c5556d11f18e3f4f2241487ed3efc3c43f9b38b9c464a22606a346842b47"
+    },
+    "email.shopifyApp.link.buttonTip": {
+      "by": "ai",
+      "out": "91796200aed9d7e4a13d9ff71bdc81e4238fb578ab829a978ac52ccd337bb137",
+      "src": "031516704016369407612f631587ee68cd5d0622b0f912954b118f8493f55045"
+    },
+    "email.shopifyApp.link.text": {
+      "by": "ai",
+      "out": "aca172bc5c7396ee8852c4070948792df4bebce4ea2f113f88f59c88a754c2bf",
+      "src": "cdf77f769a82f67db7725017634c9fd73f46cf1134716f23d48c60a12d023310"
+    },
+    "email.shopifyApp.link.title": {
+      "by": "ai",
+      "out": "7a80d10e6db99fa0222b2be716e122cc569197f6cf155b74a22f3e2377fb8345",
+      "src": "e619c9de035397500af7f18d0aca4439e1fcadbdc2ef90f1fd577f56be667f09"
+    },
+    "email.shopifyApp.link.waiting": {
+      "by": "ai",
+      "out": "110e5c665c9a7ebee165b1195bbf8f64a3f5e0befb0758ef8729ac271b68ab94",
+      "src": "c65804fba7a4d10df3b56ae0b8614c969280f84263600305b295702559a7c898"
+    },
+    "email.shopifyApp.linked.open": {
+      "by": "ai",
+      "out": "3c69e9478d092ee2d734c7778f0cce3eaa2d018a7b3912d2e4ae440276f75793",
+      "src": "f07b9c3288afc97c51f3e014bcc83f931bfe28f3a6028a2c2bcc3c8dbdd9f900"
+    },
+    "email.shopifyApp.linked.openTip": {
+      "by": "ai",
+      "out": "841c62f012d967fea07aab86645eb1e502f8ba76c066bcecbb9001628f088f40",
+      "src": "4e1b65d9fac5f6e368f087dfeac245f73bc244049a1d7d699d5f87dfed1a9a51"
+    },
+    "email.shopifyApp.linked.text": {
+      "by": "ai",
+      "out": "8467899d0c75050de84a0698126eea2915396eebf977c6ec942983caded39ac5",
+      "src": "c241f11064f6a121fb50977ca53fbc0ba21dc23f300f8698907e566454e517ac"
+    },
+    "email.shopifyApp.linked.title": {
+      "by": "ai",
+      "out": "1fa639e2996fd620d3c12e5cf1599ba633c5ea4f63a85ee1c0acf32453341f80",
+      "src": "ae000b2d226de10c53cfdca24d89c06f6ca3abafc5bbe5ab1a2c2e25af152f33"
+    },
+    "email.shopifyApp.loading": {
+      "by": "ai",
+      "out": "755b58b816c145feb8cde927774b9cd374e475e9583083d5577f0a8a26be6a0f",
+      "src": "cf14e299f859f56823a8a4d37455849431812d844761da9f09ec50107d13522c"
+    },
+    "email.shopifyApp.notSetUp": {
+      "by": "ai",
+      "out": "a0ceb75cb04b28229e67eb7c5cbc2feaaefda6d414a9e660a127475c1f1f55c5",
+      "src": "0f0897e6effa3fe37273f7f5323fe40970b0bb2c7b2fcb523b69bc8513abf122"
+    },
+    "email.shopifyApp.ownerOnly": {
+      "by": "ai",
+      "out": "9113bdfd454e134cfd404971459ac491398bce1beaf0c4390ceb8f9668f78a36",
+      "src": "92ff1720d781282349742c95e439556cf739760423ac71968c1b9895130214b5"
     },
     "email.shopifySetup.ready.after": {
       "by": "ai",
@@ -102984,6 +103609,41 @@
       "out": "4aec7546571a0f8ae00d8c0764681c74f7ba6d4a979fb8c79cd2bdb0bdc3b007",
       "src": "10c38130206efb29d7fc5fe59b647990fcc921a4157e125879cbb5f47377ba73"
     },
+    "server.api.shopifyApp.linkExpired": {
+      "by": "ai",
+      "out": "9d93f4be13ad368163273e0f4708080685e40cfc0f20ea0d5ebaaa9aca1077a5",
+      "src": "01eb6913fa27e99d7b0f569c85521a566ba0481c2314e6587e7b5b836f6c6258"
+    },
+    "server.api.shopifyApp.linkInvalid": {
+      "by": "ai",
+      "out": "d316c1236bccc27bdadffca047081a9f5b05f7198a46a30c487a1d2ec205633e",
+      "src": "c311db0779b8455e8be614f1467b685ea0930df5bb17c021c1aae0a32a33a0a2"
+    },
+    "server.api.shopifyApp.linkedElsewhere": {
+      "by": "ai",
+      "out": "8b7efff3675cdf055a6666076a92e86d23049da0fcab3a84c3163c91b6a36382",
+      "src": "7f551919074f2a83097dfc7cc97fa3fda49e26e0ac560fef15ba318db6dedd56"
+    },
+    "server.api.shopifyApp.notInstalled": {
+      "by": "ai",
+      "out": "3808b85afe5549d14db4d818afec36b3b21437e8c8251087a70eef8a05ddb557",
+      "src": "cf936aee5afc8eb4c65813d9501c60c3f519eab5a16862777093893cab533f2c"
+    },
+    "server.api.shopifyApp.otherStore": {
+      "by": "ai",
+      "out": "72371b5035dcd73eeacc55086389362508aa43ee578c6c9660c712d54b2b7ad9",
+      "src": "b58d6d09e399740e9969e92d2f6db277027164a657fc62296e6df30453f0d757"
+    },
+    "server.api.shopifyApp.ownApp": {
+      "by": "ai",
+      "out": "2955c291737322365cf34ebb378826b70a87aa34d57e084b4933504a5b40585d",
+      "src": "ce08264776c2dbfaac6444d4baaf6642765605c20002f38ccb618a5b295d3a20"
+    },
+    "server.api.shopifyApp.scope": {
+      "by": "ai",
+      "out": "47fc7c0e0093269bb45e2702a402091719cee7fb41991496940d0740f80b4b11",
+      "src": "2c2a19cad16a35eff3bb440ffd2bd035cc27897bd6a9d40816666543cc7ee61e"
+    },
     "server.api.shopifySetup.alreadyConnected": {
       "by": "ai",
       "out": "270b3a7162b00b3253f256b6372d39fdb23a3db05e630e458f6581a014ecbb32",
@@ -103538,6 +104198,11 @@
       "by": "ai",
       "out": "fac93731bb7a81c4df280c239ea3c07a2c4c1a10ca7edd44c8e82b85d6da9df9",
       "src": "215485c93e41bc02cb2775751c8a2b1b58ed7925e7c63ec43042cb821ab28288"
+    },
+    "server.input.provider.shopifyAppStoreUrl": {
+      "by": "ai",
+      "out": "a26a06314921e21a501f18de0ab427c0ebe43961f833414314445eeb5b8a3ffa",
+      "src": "6df620348a578829da6d7e9504e479b4a9ffead3e028f4f0b8c54ab84c903e59"
     },
     "server.input.provider.smtpUrl": {
       "by": "ai",
@@ -104466,13 +105131,13 @@
     },
     "server.setupAgent.step.notify": {
       "by": "ai",
-      "out": "b5e932598f6540ffc1136a8b8c53a41bd7c39c29347edb777db409fba103452c",
-      "src": "ee8c7187e6e9663945bf7e6d4c6d194872518cf97bde43cab6947df13634098a"
+      "out": "8f218452f7aff6ce3c3d15ab94e37eb1dc0322cc9d1131d228137a4b79d8b033",
+      "src": "4603cab200659a8d8606cb048c8c6606fdccf93646a519180574bb1d05ee9a35"
     },
     "server.setupAgent.step.notifyHint": {
       "by": "ai",
-      "out": "99c4020e4b5165a4b11def85427c73b074c5fd37a51cd819aacff31e352fdee6",
-      "src": "0dea782b91e241e7c3967531bea793dc343d8e2dbf99c368135554475ea72948"
+      "out": "e7df808cd00d8d3f9095622427c7b69b5e7e50458ebf7e5a5f08e9409888c727",
+      "src": "81a325635b1252a02758012d123dea9cefe8d2d1500ae7207d7275af49be09cc"
     },
     "server.setupAgent.step.phone": {
       "by": "ai",
@@ -109169,6 +109834,21 @@
       "out": "18eaaf2ebc4991365ecc4eb0d634927ccb8f29bd719b6e35c20563e8b0fa94ce",
       "src": "aa3e97df9b65fa50cf575e06c452caf48b6a973a2e3a4a57577bee56311f8e88"
     },
+    "settings.integrations.app.shopify.appStore.button": {
+      "by": "ai",
+      "out": "f3cb2ac4949a83348c2416bdcb1b0cece59a801366007b694048686ff448c3f7",
+      "src": "a32adba4d226d2dd80ac16a11f1bf1155da080453aa7fbb2ded570cd8131cfd7"
+    },
+    "settings.integrations.app.shopify.appStore.buttonTip": {
+      "by": "ai",
+      "out": "a163ed0f9ebcafe932c72d1c746d58ee78cedd4e8da662cc77d38ad0f75359dd",
+      "src": "caca05fd8279c56ce7a876f9baf3920157dff862b9ce75e5b35b0ab83ef4a8f2"
+    },
+    "settings.integrations.app.shopify.appStore.text": {
+      "by": "ai",
+      "out": "fb3202c7a40fcbbec844b11e746139af3c91351e4e62c10fdcc4eb72441f6baf",
+      "src": "ca5df83dc7a5fdb47a762a5f059f3d6f377e7cb93e3f965b76d5af4f36072d22"
+    },
     "settings.integrations.app.shopify.checksIdleTip": {
       "by": "ai",
       "out": "812de8ffdb6f6052f1337285ab216b766ca168181694d59b87080f93be2fd4cf",
@@ -110618,6 +111298,146 @@
       "by": "ai",
       "out": "7dda64ef2e0ecaf7c07f24cfbbc218b14a4e7dbc9c7516d85d018bdec20069bb",
       "src": "a0adfe9abe764c048b92c102ee8872628b69033a0b7b08c8d9394bbb0722bdae"
+    },
+    "settings.integrations.shopifyLink.back": {
+      "by": "ai",
+      "out": "1dfa69aec672047bbf194476f4554fb41071f26a3bfe476d6645bdce938e29b0",
+      "src": "688daef45886595d80834d59304505aaf82116d5b285a7b35cd8e5dbc9d83114"
+    },
+    "settings.integrations.shopifyLink.backTip": {
+      "by": "ai",
+      "out": "487d75b280e1049825271c7cf01d1cbb51fbaa7d09c1005fb055630d78916b5b",
+      "src": "47b5d0764d82d48e40f165001e15cc483e3b25b1fb8843e7559735b3e67abc98"
+    },
+    "settings.integrations.shopifyLink.cancelTip": {
+      "by": "ai",
+      "out": "d3db06918c1f816d8b8ee8988c500f34461b0934282834ce97d4318755389036",
+      "src": "59629ab84b5f019be5340fb8c4cb0f8094dca046a90c3654f444eaf923ca26cd"
+    },
+    "settings.integrations.shopifyLink.confirm": {
+      "by": "ai",
+      "out": "b6c170ca4f05fec67dbcaebaa16d2bdc501007c1504670f3e284475a4f80d714",
+      "src": "233b6c8ab486bc0f6e568f1542a0282094ff3534f3b1a3dee9a82f28b48f2372"
+    },
+    "settings.integrations.shopifyLink.confirmTip": {
+      "by": "ai",
+      "out": "5e3d201398ae6a30449b2024baba7291b14ef65d06c0de465c1e0b905695df52",
+      "src": "af31fd6bf6990a539a0552a1269de9aeb76bddc7e0ebba4b9998e0309c7ae865"
+    },
+    "settings.integrations.shopifyLink.confirmWhy": {
+      "by": "ai",
+      "out": "dff88810fe6aad983c54926a0d67a6d9dcef8e253dd7854f01544ced6ce0343e",
+      "src": "9929616a2c0256a9cd5518bd49d2900005c4b11b17796c6d13e84512c1b30688"
+    },
+    "settings.integrations.shopifyLink.createWorkspace": {
+      "by": "ai",
+      "out": "dfa5b020181f76c88ee4b647be49e6485fee4af05f45fb1cea43f1fe7f46c572",
+      "src": "954bd1fe66b41f789ea7597923fbb7f5819ef5db33401075f7a2fe2729613beb"
+    },
+    "settings.integrations.shopifyLink.createWorkspaceTip": {
+      "by": "ai",
+      "out": "7fda03ee7a13d464bb64c965ba42469b9728e5b813caea3a99d217e50e48dd2b",
+      "src": "b52feee36021620b016be930cd67dac5fc79e01dbfbb7d9ef7377b71957e3ca0"
+    },
+    "settings.integrations.shopifyLink.error.linkExpired": {
+      "by": "ai",
+      "out": "9d93f4be13ad368163273e0f4708080685e40cfc0f20ea0d5ebaaa9aca1077a5",
+      "src": "01eb6913fa27e99d7b0f569c85521a566ba0481c2314e6587e7b5b836f6c6258"
+    },
+    "settings.integrations.shopifyLink.error.linkInvalid": {
+      "by": "ai",
+      "out": "d316c1236bccc27bdadffca047081a9f5b05f7198a46a30c487a1d2ec205633e",
+      "src": "c311db0779b8455e8be614f1467b685ea0930df5bb17c021c1aae0a32a33a0a2"
+    },
+    "settings.integrations.shopifyLink.error.linkedElsewhere": {
+      "by": "ai",
+      "out": "8b7efff3675cdf055a6666076a92e86d23049da0fcab3a84c3163c91b6a36382",
+      "src": "7f551919074f2a83097dfc7cc97fa3fda49e26e0ac560fef15ba318db6dedd56"
+    },
+    "settings.integrations.shopifyLink.error.noSecretsKey": {
+      "by": "ai",
+      "out": "c6785ffd581e0dbd13bc87b8dc12dc295ab3003b628dcabf6b31fdeb0d5490dd",
+      "src": "812ba3ecbf82b9eee99d57d0b3674b0fc68a9d369927fd63e6637a9f0aac35b0"
+    },
+    "settings.integrations.shopifyLink.error.notInstalled": {
+      "by": "ai",
+      "out": "3808b85afe5549d14db4d818afec36b3b21437e8c8251087a70eef8a05ddb557",
+      "src": "cf936aee5afc8eb4c65813d9501c60c3f519eab5a16862777093893cab533f2c"
+    },
+    "settings.integrations.shopifyLink.error.otherStore": {
+      "by": "ai",
+      "out": "3f6086e2fac7183241e1f7be874103dd0bb79e5926fc5943acf24f4ddb27a341",
+      "src": "0f552faa5679452a7a6165adcc2b33dfb8515ff310ea4f8bc7d7ad38ff50b7de"
+    },
+    "settings.integrations.shopifyLink.error.ownApp": {
+      "by": "ai",
+      "out": "4a16e6a326827e87bc8f927ee04146b4cb47a58129abd735ae458fbbd8e69c20",
+      "src": "1d6512f3c5e4b761accc77362bf193db8420f72d2fdc393e686015d84147a689"
+    },
+    "settings.integrations.shopifyLink.error.scope": {
+      "by": "ai",
+      "out": "47fc7c0e0093269bb45e2702a402091719cee7fb41991496940d0740f80b4b11",
+      "src": "2c2a19cad16a35eff3bb440ffd2bd035cc27897bd6a9d40816666543cc7ee61e"
+    },
+    "settings.integrations.shopifyLink.failed": {
+      "by": "ai",
+      "out": "5434ef72502ccf6860b07584fd8fd87832b1f4570380b15eb9dd68a286f663a5",
+      "src": "1b1ab1fd14c6423d1e47987acaffe3d1636c645f62bc512ae6c1045f3f500021"
+    },
+    "settings.integrations.shopifyLink.noWorkspace": {
+      "by": "ai",
+      "out": "5295f50f16076b225e0972f9e4521d3b4481e7336d3053d7ce4e040aa43b48ce",
+      "src": "8dbcb5c021f484481b3945599a19e8ee7169aebc7b04c03567f7acdc53cde049"
+    },
+    "settings.integrations.shopifyLink.noWorkspaceTitle": {
+      "by": "ai",
+      "out": "1dbd053bc942fad7a819a75d6cabc9ac81681d2d3a8ac948eec2d6ce38d08c25",
+      "src": "c642a35b1a34dcd10ee53a3307b07a87b7a290f5ed00c4bcc1b9ea8cbb45e60a"
+    },
+    "settings.integrations.shopifyLink.notAdmin": {
+      "by": "ai",
+      "out": "520e9bc4d9dd4d82574b5535a29ae7295868b27c9be8d368d8baf972f651c492",
+      "src": "f14b45cc66f4932b39dd063c7087884556092431f862f0cf6e6ad64b34401128"
+    },
+    "settings.integrations.shopifyLink.otherStore": {
+      "by": "ai",
+      "out": "e579c65ec6c7c97b94b448baf1bc6ad1ef4d8be72437b6a45779626c149f9ea0",
+      "src": "0983e0ae0db3eabd68b24d74dc5dc96c72996b31d1370f690e73387d17b3a18f"
+    },
+    "settings.integrations.shopifyLink.otherWorkspace": {
+      "by": "ai",
+      "out": "94b1d267dbb33c17ac625a4abd269611d5ac974574565b7eaa18f77a74c2f4cd",
+      "src": "445c2dd49772636200ee1848504fa42c5d0f0424646c4bc024034ffae5d26459"
+    },
+    "settings.integrations.shopifyLink.problemTitle": {
+      "by": "ai",
+      "out": "85ceb8b0c49d319f11763c594c5ce01e363927732b18c79bb0d10745628ece33",
+      "src": "8fb8ff23cedaa445227eb538a04d08390683101e7ea349c433be39d190a8f30c"
+    },
+    "settings.integrations.shopifyLink.startedBy": {
+      "by": "ai",
+      "out": "7f765361d1d95801acc4ea184e3e1e82a0c6e6ff048926860be086deafc5f8b5",
+      "src": "de9593dc5cf1d504eb6c8e9dcc0fc20fc6baa6b0f2e90752755e1bd16fd63b70"
+    },
+    "settings.integrations.shopifyLink.startedIn": {
+      "by": "ai",
+      "out": "ba98401ba17cc44d46a8fc165e4fb16b6a44f600b724137b9863e80ddd36f797",
+      "src": "d6914f428cd0ae8b2d8b8e0b4f633ea453047bb7a896f42d95e66adbefb5841f"
+    },
+    "settings.integrations.shopifyLink.text": {
+      "by": "ai",
+      "out": "41e2ad66965eadc5d0eac33439d1f3e2d9356a0a2c19f11411c428b8df8f7a6e",
+      "src": "6db699756fbb1c0e987fdd5469b16bcfbcada67b4943477042a4ea529bb739a0"
+    },
+    "settings.integrations.shopifyLink.title": {
+      "by": "ai",
+      "out": "c7df4ec20db99d5c06e169dc949f55433a4221eda8953a564a524f01d5547fc6",
+      "src": "cc11de6fff9dc09338425baf5ce101eb43bf5caa21a4fd69f466cf8703e57d05"
+    },
+    "settings.integrations.shopifyLink.warning": {
+      "by": "ai",
+      "out": "b0652995b8330c57cd80bb8a73f84e283095445635027fcfe5b809dbafc29182",
+      "src": "7dce4d97099874e7ad3efca2b924288b28daed65b088cd9624c19b8f6b4c7e4e"
     },
     "settings.integrations.status.accounts": {
       "by": "ai",
@@ -114333,6 +115153,11 @@
       "by": "ai",
       "out": "4a8823c850ef66c407defe4c76b4d4025bc3765a6d4790d882ed1467bc27d316",
       "src": "1d465f26942e360ed34eb4741cbf58291a1848b337c52d5c5a92a04bed0a0c35"
+    },
+    "shell.feedback.destination": {
+      "by": "ai",
+      "out": "9e89f1f49132ebb6ea05fbb8e0cd833485e35137424e8199134df083c7c5ef5f",
+      "src": "59152fe65eb8bfc54481af4a794807576f5f489fbd1732b117abacb410823e96"
     },
     "shell.feedback.errors.none": {
       "by": "ai",
@@ -126206,6 +127031,11 @@
       "out": "f4ab047617ad8e5f3f96510ca71c0f5da5f1759d5df820b708ba00da4e7c52d1",
       "src": "63a6d0f6114496787a137d3180339f73ec3493fa4292130199cdf8011a3cf164"
     },
+    "admin.provider.field.appStoreUrl": {
+      "by": "ai",
+      "out": "43d599858a752e14cb231e61819d5cd7c72259b248536c56fbb80eb2603aec68",
+      "src": "cd85a25fa83b14b1572037beda407ccfff7c90f48fe5113f294ba9e64c4cf07f"
+    },
     "admin.provider.field.clientId": {
       "by": "ai",
       "out": "ba93b4310ea087c9f8696dd35114611cdd14a4befe0597dcd44c5c65b0b062cf",
@@ -134591,6 +135421,11 @@
       "out": "f2ce7f0dd259de94ea9c1cd35b2644fa42c89ca0305eae19306ed059d90dcff5",
       "src": "be0b527db2c8d444a6b31bcdf61a871ad714d02be5af048fac62e0cdebbd1628"
     },
+    "email.founder.unsubscribeLink": {
+      "by": "ai",
+      "out": "3490fd33394980716fbd0c79c9e7d9b508f1e03611e0d3bca921c097a98f8e39",
+      "src": "3e92efb7664f0255ffce2ed60d7eb423059101cbca4b2e2d55e3871aba70ae63"
+    },
     "email.installTest.heading": {
       "by": "ai",
       "out": "17c6f37855923de65b65c3aa3302a9536cbb9f5fca2391045d8db578cedee14c",
@@ -135295,6 +136130,71 @@
       "by": "ai",
       "out": "9a1beb7b70ada8f469fdeec8cb9c3439d050d62b05d6e1916b84882050364883",
       "src": "c16615d64a1225032326bc0cb8c59d5969c9277cbc2229efccacc9cde079da59"
+    },
+    "email.shopifyApp.failed": {
+      "by": "ai",
+      "out": "1c035902ca15fc396c9e3cf3e1474ffa64ba57609c58b6b36137f34b565f38c3",
+      "src": "cfddbafada25a94de72ac98811de6e1db37595c019fda9cfb5d63f2dd9bbfb44"
+    },
+    "email.shopifyApp.link.button": {
+      "by": "ai",
+      "out": "891f74f1d54ff19afe4a04600a86a9939f6cd504bfcfd3c9fb90ac0b0d7aa43d",
+      "src": "e855c5556d11f18e3f4f2241487ed3efc3c43f9b38b9c464a22606a346842b47"
+    },
+    "email.shopifyApp.link.buttonTip": {
+      "by": "ai",
+      "out": "9d6b4f845db52fd5993dac32e8b44cb4da63d296eeffd1a597fcd8ad9dc57cc7",
+      "src": "031516704016369407612f631587ee68cd5d0622b0f912954b118f8493f55045"
+    },
+    "email.shopifyApp.link.text": {
+      "by": "ai",
+      "out": "ba7debc11f728b2e42d70359bc3ad268e62614a923f78d1cb44268fd080e49ad",
+      "src": "cdf77f769a82f67db7725017634c9fd73f46cf1134716f23d48c60a12d023310"
+    },
+    "email.shopifyApp.link.title": {
+      "by": "ai",
+      "out": "2bc3697de6a3d366e10a685b400638ac6cd160c176ba0fb3db4830f093be2d44",
+      "src": "e619c9de035397500af7f18d0aca4439e1fcadbdc2ef90f1fd577f56be667f09"
+    },
+    "email.shopifyApp.link.waiting": {
+      "by": "ai",
+      "out": "a71ae7aed75004cbc04f15dc57f78baa57c3952195fdc4f483283223f5de6847",
+      "src": "c65804fba7a4d10df3b56ae0b8614c969280f84263600305b295702559a7c898"
+    },
+    "email.shopifyApp.linked.open": {
+      "by": "ai",
+      "out": "becb2d650f46b49c166201a24ff93b50767906cac6201f67524023141f6156f8",
+      "src": "f07b9c3288afc97c51f3e014bcc83f931bfe28f3a6028a2c2bcc3c8dbdd9f900"
+    },
+    "email.shopifyApp.linked.openTip": {
+      "by": "ai",
+      "out": "6c3197e1e41ecff259ba296524c2eecf50f151c6d57dfd68df60bfdc52857642",
+      "src": "4e1b65d9fac5f6e368f087dfeac245f73bc244049a1d7d699d5f87dfed1a9a51"
+    },
+    "email.shopifyApp.linked.text": {
+      "by": "ai",
+      "out": "e668ebdca503f2a703580b1c65877d43194d9fcc5ea91594e1c383aed3723850",
+      "src": "c241f11064f6a121fb50977ca53fbc0ba21dc23f300f8698907e566454e517ac"
+    },
+    "email.shopifyApp.linked.title": {
+      "by": "ai",
+      "out": "b333bf1ee5b5262b640adb73a824ecdceb7b299a5c302b40617fffc841126e01",
+      "src": "ae000b2d226de10c53cfdca24d89c06f6ca3abafc5bbe5ab1a2c2e25af152f33"
+    },
+    "email.shopifyApp.loading": {
+      "by": "ai",
+      "out": "8d55d68de90312b8c7535ff25d5b74930eccbed089902c0c2aaf5343680d1c21",
+      "src": "cf14e299f859f56823a8a4d37455849431812d844761da9f09ec50107d13522c"
+    },
+    "email.shopifyApp.notSetUp": {
+      "by": "ai",
+      "out": "028e3009f1dd492f61192e032336627620093935b9964b6a31e0deac3ebfd3ab",
+      "src": "0f0897e6effa3fe37273f7f5323fe40970b0bb2c7b2fcb523b69bc8513abf122"
+    },
+    "email.shopifyApp.ownerOnly": {
+      "by": "ai",
+      "out": "246ef1c93e771b014e5cbc3e27994cfc29292af768768882fa98180de78d994a",
+      "src": "92ff1720d781282349742c95e439556cf739760423ac71968c1b9895130214b5"
     },
     "email.shopifySetup.ready.after": {
       "by": "ai",
@@ -142326,6 +143226,41 @@
       "out": "d56b988de9b9683053f6dca85ffc2421053e0fa2eec3c5d48016a7b4ba73f5ed",
       "src": "10c38130206efb29d7fc5fe59b647990fcc921a4157e125879cbb5f47377ba73"
     },
+    "server.api.shopifyApp.linkExpired": {
+      "by": "ai",
+      "out": "2c729041988a5a094437a04f1991b6eae7d6875aba27a366abb045a7944db541",
+      "src": "01eb6913fa27e99d7b0f569c85521a566ba0481c2314e6587e7b5b836f6c6258"
+    },
+    "server.api.shopifyApp.linkInvalid": {
+      "by": "ai",
+      "out": "dd4034bf5c55a3427ed6e4840d5d229737425455366f382ccf40ad3080f71b89",
+      "src": "c311db0779b8455e8be614f1467b685ea0930df5bb17c021c1aae0a32a33a0a2"
+    },
+    "server.api.shopifyApp.linkedElsewhere": {
+      "by": "ai",
+      "out": "e4e94dbff9d85c21c9fcddfe92bc8f39bb5eecc54075a4bb23145fb9a9bd60f1",
+      "src": "7f551919074f2a83097dfc7cc97fa3fda49e26e0ac560fef15ba318db6dedd56"
+    },
+    "server.api.shopifyApp.notInstalled": {
+      "by": "ai",
+      "out": "7b311c1f8e8c2b3382b979a3fa395aa0d8b89ed02ee1ff553ffe9ef37246e426",
+      "src": "cf936aee5afc8eb4c65813d9501c60c3f519eab5a16862777093893cab533f2c"
+    },
+    "server.api.shopifyApp.otherStore": {
+      "by": "ai",
+      "out": "cac8721488db3e51d78ce50bddee369ed7893667d6a3171bd4766f65f23f8c2a",
+      "src": "b58d6d09e399740e9969e92d2f6db277027164a657fc62296e6df30453f0d757"
+    },
+    "server.api.shopifyApp.ownApp": {
+      "by": "ai",
+      "out": "eb9d29a9ba18ba004e1e53668c8686e133d938fcc9beb6382e8b475224b9f39a",
+      "src": "ce08264776c2dbfaac6444d4baaf6642765605c20002f38ccb618a5b295d3a20"
+    },
+    "server.api.shopifyApp.scope": {
+      "by": "ai",
+      "out": "3cf2f1b9751ee18dc9ee56da6170e58c520c232710a58861b68594b7a4b31f7f",
+      "src": "2c2a19cad16a35eff3bb440ffd2bd035cc27897bd6a9d40816666543cc7ee61e"
+    },
     "server.api.shopifySetup.alreadyConnected": {
       "by": "ai",
       "out": "8da399797d1976ae45b593491a117566155f7076236ee879bc46127390bc541d",
@@ -142880,6 +143815,11 @@
       "by": "ai",
       "out": "18a39a1ad594ccc307da8e21169c36cbfe7f791407713a38a35620183ba48b95",
       "src": "215485c93e41bc02cb2775751c8a2b1b58ed7925e7c63ec43042cb821ab28288"
+    },
+    "server.input.provider.shopifyAppStoreUrl": {
+      "by": "ai",
+      "out": "980f18dc9577b886668f97ea3ccec8cbf0ea9687b7c00a58ea5b671a59aebb55",
+      "src": "6df620348a578829da6d7e9504e479b4a9ffead3e028f4f0b8c54ab84c903e59"
     },
     "server.input.provider.smtpUrl": {
       "by": "ai",
@@ -143808,13 +144748,13 @@
     },
     "server.setupAgent.step.notify": {
       "by": "ai",
-      "out": "b200dea8c98c7aee0d9cef73ad69f7c6ea6a197da3be987bb53073d250109311",
-      "src": "ee8c7187e6e9663945bf7e6d4c6d194872518cf97bde43cab6947df13634098a"
+      "out": "8b98ef289f5b16b3ef2c5fdd0079e18785efd84cef2919ec85083f5128beedc9",
+      "src": "4603cab200659a8d8606cb048c8c6606fdccf93646a519180574bb1d05ee9a35"
     },
     "server.setupAgent.step.notifyHint": {
       "by": "ai",
-      "out": "c9986baa4c7039fa484c075e5f9265fdca5b91d6501fafd5f198f6b15223e7b2",
-      "src": "0dea782b91e241e7c3967531bea793dc343d8e2dbf99c368135554475ea72948"
+      "out": "9756b57328ff71e78b92abcf83530d226bd13a71c72fa325db3b7fe994a75f83",
+      "src": "81a325635b1252a02758012d123dea9cefe8d2d1500ae7207d7275af49be09cc"
     },
     "server.setupAgent.step.phone": {
       "by": "ai",
@@ -148511,6 +149451,21 @@
       "out": "1872b3e7c9f17be1504ded1c210e61daffdf3ac361e46abec3eb351bee3c063d",
       "src": "aa3e97df9b65fa50cf575e06c452caf48b6a973a2e3a4a57577bee56311f8e88"
     },
+    "settings.integrations.app.shopify.appStore.button": {
+      "by": "ai",
+      "out": "e6b1745d138251ded2b7bb8ee0254e644783252ae3308ee00e9397ebe628b167",
+      "src": "a32adba4d226d2dd80ac16a11f1bf1155da080453aa7fbb2ded570cd8131cfd7"
+    },
+    "settings.integrations.app.shopify.appStore.buttonTip": {
+      "by": "ai",
+      "out": "0d4e0be1300681ccb8788debb6878d12fb5e091217202b081dfc5bed57f8e3fe",
+      "src": "caca05fd8279c56ce7a876f9baf3920157dff862b9ce75e5b35b0ab83ef4a8f2"
+    },
+    "settings.integrations.app.shopify.appStore.text": {
+      "by": "ai",
+      "out": "e83ccfe2243063a69d6244cbd0d46c1c43f18020dc88701a096492830220ae7f",
+      "src": "ca5df83dc7a5fdb47a762a5f059f3d6f377e7cb93e3f965b76d5af4f36072d22"
+    },
     "settings.integrations.app.shopify.checksIdleTip": {
       "by": "ai",
       "out": "302db27258946ba5b7c43525c7c18953b3d6c056b0a147a96fb8b9e23f20f089",
@@ -149960,6 +150915,146 @@
       "by": "ai",
       "out": "c74649e2e2213d180c5855d1aa575b00a71c6d5a884f9313a89d39f2ca497a78",
       "src": "a0adfe9abe764c048b92c102ee8872628b69033a0b7b08c8d9394bbb0722bdae"
+    },
+    "settings.integrations.shopifyLink.back": {
+      "by": "ai",
+      "out": "3f80aab76f3b4e6fbed695e31fae6879dd19ce73d70c729ec13c929a24f5c231",
+      "src": "688daef45886595d80834d59304505aaf82116d5b285a7b35cd8e5dbc9d83114"
+    },
+    "settings.integrations.shopifyLink.backTip": {
+      "by": "ai",
+      "out": "50d87d9d3d7f5c3f4ae5fbd14467564f5d16136ee8f323c049029e9760ecfaa8",
+      "src": "47b5d0764d82d48e40f165001e15cc483e3b25b1fb8843e7559735b3e67abc98"
+    },
+    "settings.integrations.shopifyLink.cancelTip": {
+      "by": "ai",
+      "out": "6f42b098272f365f74847a87161fc7127d2e386ac7f1f023fbc21b76c4c7161b",
+      "src": "59629ab84b5f019be5340fb8c4cb0f8094dca046a90c3654f444eaf923ca26cd"
+    },
+    "settings.integrations.shopifyLink.confirm": {
+      "by": "ai",
+      "out": "bbc187048c674b38467d314f9db47876320f9f2532a838583ec2ec15934965d9",
+      "src": "233b6c8ab486bc0f6e568f1542a0282094ff3534f3b1a3dee9a82f28b48f2372"
+    },
+    "settings.integrations.shopifyLink.confirmTip": {
+      "by": "ai",
+      "out": "31aeede20b208cb967faaced11386788cf056744b7ebb12745d81a0cb6103af7",
+      "src": "af31fd6bf6990a539a0552a1269de9aeb76bddc7e0ebba4b9998e0309c7ae865"
+    },
+    "settings.integrations.shopifyLink.confirmWhy": {
+      "by": "ai",
+      "out": "56180e0de36d4606c470252612698a670162315e5c45d3ccfbad540ca1945bdc",
+      "src": "9929616a2c0256a9cd5518bd49d2900005c4b11b17796c6d13e84512c1b30688"
+    },
+    "settings.integrations.shopifyLink.createWorkspace": {
+      "by": "ai",
+      "out": "c1d38ed0136e6c0f680a6aa8256f5e1263abfc85b8497f020f7bc1e938c89572",
+      "src": "954bd1fe66b41f789ea7597923fbb7f5819ef5db33401075f7a2fe2729613beb"
+    },
+    "settings.integrations.shopifyLink.createWorkspaceTip": {
+      "by": "ai",
+      "out": "dba9d5748ac8f3af9f569a402d87fd598b1fda0bac7ce59d4016f6bf8398e97a",
+      "src": "b52feee36021620b016be930cd67dac5fc79e01dbfbb7d9ef7377b71957e3ca0"
+    },
+    "settings.integrations.shopifyLink.error.linkExpired": {
+      "by": "ai",
+      "out": "2c729041988a5a094437a04f1991b6eae7d6875aba27a366abb045a7944db541",
+      "src": "01eb6913fa27e99d7b0f569c85521a566ba0481c2314e6587e7b5b836f6c6258"
+    },
+    "settings.integrations.shopifyLink.error.linkInvalid": {
+      "by": "ai",
+      "out": "dd4034bf5c55a3427ed6e4840d5d229737425455366f382ccf40ad3080f71b89",
+      "src": "c311db0779b8455e8be614f1467b685ea0930df5bb17c021c1aae0a32a33a0a2"
+    },
+    "settings.integrations.shopifyLink.error.linkedElsewhere": {
+      "by": "ai",
+      "out": "e4e94dbff9d85c21c9fcddfe92bc8f39bb5eecc54075a4bb23145fb9a9bd60f1",
+      "src": "7f551919074f2a83097dfc7cc97fa3fda49e26e0ac560fef15ba318db6dedd56"
+    },
+    "settings.integrations.shopifyLink.error.noSecretsKey": {
+      "by": "ai",
+      "out": "d16e051bb087aeb59614450f20fc727fd861e0019956c992aeeb15c249620493",
+      "src": "812ba3ecbf82b9eee99d57d0b3674b0fc68a9d369927fd63e6637a9f0aac35b0"
+    },
+    "settings.integrations.shopifyLink.error.notInstalled": {
+      "by": "ai",
+      "out": "7b311c1f8e8c2b3382b979a3fa395aa0d8b89ed02ee1ff553ffe9ef37246e426",
+      "src": "cf936aee5afc8eb4c65813d9501c60c3f519eab5a16862777093893cab533f2c"
+    },
+    "settings.integrations.shopifyLink.error.otherStore": {
+      "by": "ai",
+      "out": "98d664d7fbf855241e6eea61930de3ff3c39024e456d708cc36dea7b6afc4b8d",
+      "src": "0f552faa5679452a7a6165adcc2b33dfb8515ff310ea4f8bc7d7ad38ff50b7de"
+    },
+    "settings.integrations.shopifyLink.error.ownApp": {
+      "by": "ai",
+      "out": "7c844e3cdcc6bc49c2eb3cc2945b222182685a425c8d030524deb1bb718f086c",
+      "src": "1d6512f3c5e4b761accc77362bf193db8420f72d2fdc393e686015d84147a689"
+    },
+    "settings.integrations.shopifyLink.error.scope": {
+      "by": "ai",
+      "out": "3cf2f1b9751ee18dc9ee56da6170e58c520c232710a58861b68594b7a4b31f7f",
+      "src": "2c2a19cad16a35eff3bb440ffd2bd035cc27897bd6a9d40816666543cc7ee61e"
+    },
+    "settings.integrations.shopifyLink.failed": {
+      "by": "ai",
+      "out": "eafbaa782db4a9327cbd9af6c36900f4ff1f75b68e37c64cdda9d08d133394bf",
+      "src": "1b1ab1fd14c6423d1e47987acaffe3d1636c645f62bc512ae6c1045f3f500021"
+    },
+    "settings.integrations.shopifyLink.noWorkspace": {
+      "by": "ai",
+      "out": "4eda3b6920d25b60a81cabff74854e32ba66a60f0141373f99961233f297cda6",
+      "src": "8dbcb5c021f484481b3945599a19e8ee7169aebc7b04c03567f7acdc53cde049"
+    },
+    "settings.integrations.shopifyLink.noWorkspaceTitle": {
+      "by": "ai",
+      "out": "9fc44e1ecaa64fdcd74b369f8e61f1c3e5c64e93669c93cb5bb21d793fe19587",
+      "src": "c642a35b1a34dcd10ee53a3307b07a87b7a290f5ed00c4bcc1b9ea8cbb45e60a"
+    },
+    "settings.integrations.shopifyLink.notAdmin": {
+      "by": "ai",
+      "out": "7c881af36d1f03d342fda5e0f5c6b472e64ce3e16fecc610608a4e602156e3de",
+      "src": "f14b45cc66f4932b39dd063c7087884556092431f862f0cf6e6ad64b34401128"
+    },
+    "settings.integrations.shopifyLink.otherStore": {
+      "by": "ai",
+      "out": "bb81c169ac83b54bbc8fa60b7bf595b6eba1149235568c927b494cd5601706dc",
+      "src": "0983e0ae0db3eabd68b24d74dc5dc96c72996b31d1370f690e73387d17b3a18f"
+    },
+    "settings.integrations.shopifyLink.otherWorkspace": {
+      "by": "ai",
+      "out": "b19f86c6585cacce65f6d8de9069fb8d341e8e87db6edb7b9d50ad2ecc238e56",
+      "src": "445c2dd49772636200ee1848504fa42c5d0f0424646c4bc024034ffae5d26459"
+    },
+    "settings.integrations.shopifyLink.problemTitle": {
+      "by": "ai",
+      "out": "7c7071fe7ef5f4efc6295543341c3d94d54825470b0070d4a5e41d4ab3a6c771",
+      "src": "8fb8ff23cedaa445227eb538a04d08390683101e7ea349c433be39d190a8f30c"
+    },
+    "settings.integrations.shopifyLink.startedBy": {
+      "by": "ai",
+      "out": "208abbb95b3fbdd0fb37dc89c919f456284c3691ca7e7027d9f4ca5de2eca6ff",
+      "src": "de9593dc5cf1d504eb6c8e9dcc0fc20fc6baa6b0f2e90752755e1bd16fd63b70"
+    },
+    "settings.integrations.shopifyLink.startedIn": {
+      "by": "ai",
+      "out": "6282e9a84dda7da66411185f2f434c915ce9ae6eae3eccb186b24be306d43e66",
+      "src": "d6914f428cd0ae8b2d8b8e0b4f633ea453047bb7a896f42d95e66adbefb5841f"
+    },
+    "settings.integrations.shopifyLink.text": {
+      "by": "ai",
+      "out": "40becb7fb83ee78940fccef9ca8db00c8412c68cd30efc2c9c7ed55c484f2297",
+      "src": "6db699756fbb1c0e987fdd5469b16bcfbcada67b4943477042a4ea529bb739a0"
+    },
+    "settings.integrations.shopifyLink.title": {
+      "by": "ai",
+      "out": "5191fabdde566e796b34c30f45c97adfa01847be70d15e63f0444558fa9661d6",
+      "src": "cc11de6fff9dc09338425baf5ce101eb43bf5caa21a4fd69f466cf8703e57d05"
+    },
+    "settings.integrations.shopifyLink.warning": {
+      "by": "ai",
+      "out": "b9ea156f99e99ea33f471bbe4735b0ef25818014a1d214350e4c2f65919c646a",
+      "src": "7dce4d97099874e7ad3efca2b924288b28daed65b088cd9624c19b8f6b4c7e4e"
     },
     "settings.integrations.status.accounts": {
       "by": "ai",
@@ -153675,6 +154770,11 @@
       "by": "ai",
       "out": "f8a944ee7c269fd9e072d84231873767ce533d4c2566ab21b8c0b01ed3994093",
       "src": "1d465f26942e360ed34eb4741cbf58291a1848b337c52d5c5a92a04bed0a0c35"
+    },
+    "shell.feedback.destination": {
+      "by": "ai",
+      "out": "1783f6dcc15d1b0c0d41cd3e1e334bda7cef8714a30ac51821f38471d6f7ddb7",
+      "src": "59152fe65eb8bfc54481af4a794807576f5f489fbd1732b117abacb410823e96"
     },
     "shell.feedback.errors.none": {
       "by": "ai",
@@ -165548,6 +166648,11 @@
       "out": "141c348fed47e6e29371b1e40109360dc92641c110a34c831041385808e60c3f",
       "src": "63a6d0f6114496787a137d3180339f73ec3493fa4292130199cdf8011a3cf164"
     },
+    "admin.provider.field.appStoreUrl": {
+      "by": "ai",
+      "out": "203700ccff54bf37f4aeb8229622093804d750b2b50b218fedae7a9ba8f6f72c",
+      "src": "cd85a25fa83b14b1572037beda407ccfff7c90f48fe5113f294ba9e64c4cf07f"
+    },
     "admin.provider.field.clientId": {
       "by": "ai",
       "out": "90da7b515726396a8953e60d244ae41aef66586ce024189fcd8e7459c729f893",
@@ -173933,6 +175038,11 @@
       "out": "f6706006e42052bd0c187c7ef06ae2861436bc331f90a37cca490aeec7362bd9",
       "src": "be0b527db2c8d444a6b31bcdf61a871ad714d02be5af048fac62e0cdebbd1628"
     },
+    "email.founder.unsubscribeLink": {
+      "by": "ai",
+      "out": "21499f631d065f5e82ca4cc410b056b4e5dce3addc98eab746d218262799efe5",
+      "src": "3e92efb7664f0255ffce2ed60d7eb423059101cbca4b2e2d55e3871aba70ae63"
+    },
     "email.installTest.heading": {
       "by": "ai",
       "out": "3ca1d255f35c9581c51bcdd9988fcc09b077ba94b28b10b63ec4f1d389082c21",
@@ -174637,6 +175747,71 @@
       "by": "ai",
       "out": "adfa62934fdab7ce70236ab2b8ef183a2f8e5b9f872c970e8528538d5356caa8",
       "src": "c16615d64a1225032326bc0cb8c59d5969c9277cbc2229efccacc9cde079da59"
+    },
+    "email.shopifyApp.failed": {
+      "by": "ai",
+      "out": "768c9e7b6a9b9e6cf9065d658c1109260c58351532ddac04e36c98197f6e25ce",
+      "src": "cfddbafada25a94de72ac98811de6e1db37595c019fda9cfb5d63f2dd9bbfb44"
+    },
+    "email.shopifyApp.link.button": {
+      "by": "ai",
+      "out": "a6dd29b0f0594c9f50ec023c8801986b430fc3747e8c7215a4b607f896d09dc6",
+      "src": "e855c5556d11f18e3f4f2241487ed3efc3c43f9b38b9c464a22606a346842b47"
+    },
+    "email.shopifyApp.link.buttonTip": {
+      "by": "ai",
+      "out": "0799de15f6dafb7a9bf34266a0844a886236141b3662990eae447ab7d7bbe8e1",
+      "src": "031516704016369407612f631587ee68cd5d0622b0f912954b118f8493f55045"
+    },
+    "email.shopifyApp.link.text": {
+      "by": "ai",
+      "out": "cd57245076b1af7f568a8098cb9b3038e5b144093eefb4ff2139a6aed40629cd",
+      "src": "cdf77f769a82f67db7725017634c9fd73f46cf1134716f23d48c60a12d023310"
+    },
+    "email.shopifyApp.link.title": {
+      "by": "ai",
+      "out": "ba49a02231816a885618154a262149b2e0b3e411d361181a703b8b6bab93ceeb",
+      "src": "e619c9de035397500af7f18d0aca4439e1fcadbdc2ef90f1fd577f56be667f09"
+    },
+    "email.shopifyApp.link.waiting": {
+      "by": "ai",
+      "out": "91a488d5a7c7102d86e18d6d8943cb5936f407a03b1dfc26ce4adcab13cd4b22",
+      "src": "c65804fba7a4d10df3b56ae0b8614c969280f84263600305b295702559a7c898"
+    },
+    "email.shopifyApp.linked.open": {
+      "by": "ai",
+      "out": "728a543e80a06a90070617b711d8a164d5993a390dd3c450c2707c755076f3cd",
+      "src": "f07b9c3288afc97c51f3e014bcc83f931bfe28f3a6028a2c2bcc3c8dbdd9f900"
+    },
+    "email.shopifyApp.linked.openTip": {
+      "by": "ai",
+      "out": "5c9e0c8145ae5c6e4c84ed44a1bb73747dcc8e758142918dc69f96c506c9fbd4",
+      "src": "4e1b65d9fac5f6e368f087dfeac245f73bc244049a1d7d699d5f87dfed1a9a51"
+    },
+    "email.shopifyApp.linked.text": {
+      "by": "ai",
+      "out": "793c8273039886e56a402fb3f25ed07843554e9c41aa390aa88203fcf8f182fa",
+      "src": "c241f11064f6a121fb50977ca53fbc0ba21dc23f300f8698907e566454e517ac"
+    },
+    "email.shopifyApp.linked.title": {
+      "by": "ai",
+      "out": "88e62cc21bf6fb8151a9c8fa8171fbc4f2941bfba510f098c8d9a7c461a3ad64",
+      "src": "ae000b2d226de10c53cfdca24d89c06f6ca3abafc5bbe5ab1a2c2e25af152f33"
+    },
+    "email.shopifyApp.loading": {
+      "by": "ai",
+      "out": "f7453d55b5debf9dcf157b38b8e850790bf030d0aa7ffbe0f27ecf89bf626550",
+      "src": "cf14e299f859f56823a8a4d37455849431812d844761da9f09ec50107d13522c"
+    },
+    "email.shopifyApp.notSetUp": {
+      "by": "ai",
+      "out": "1fa9eb6e4d94094736d397e78f2e9be93d0a1d7e96e24583ed3ef8b72c3bf9e1",
+      "src": "0f0897e6effa3fe37273f7f5323fe40970b0bb2c7b2fcb523b69bc8513abf122"
+    },
+    "email.shopifyApp.ownerOnly": {
+      "by": "ai",
+      "out": "b35f096e824e78bf62c90b41cce06f6a9f0d18f77dfb343b8d90f317824729a7",
+      "src": "92ff1720d781282349742c95e439556cf739760423ac71968c1b9895130214b5"
     },
     "email.shopifySetup.ready.after": {
       "by": "ai",
@@ -181668,6 +182843,41 @@
       "out": "0ace09fd3d2cab8ab2864c73846897f9c237df1948caeae6862e4d5a87eb6131",
       "src": "10c38130206efb29d7fc5fe59b647990fcc921a4157e125879cbb5f47377ba73"
     },
+    "server.api.shopifyApp.linkExpired": {
+      "by": "ai",
+      "out": "afcb26d4ef3f3167fcf34a948a9c3fdf54a4daf33db215b0e21ecaeda6c9d48f",
+      "src": "01eb6913fa27e99d7b0f569c85521a566ba0481c2314e6587e7b5b836f6c6258"
+    },
+    "server.api.shopifyApp.linkInvalid": {
+      "by": "ai",
+      "out": "15255fb91b41cdba9e8c4576b95f095a0a68b1f6247a4edaeef4e0af2613b994",
+      "src": "c311db0779b8455e8be614f1467b685ea0930df5bb17c021c1aae0a32a33a0a2"
+    },
+    "server.api.shopifyApp.linkedElsewhere": {
+      "by": "ai",
+      "out": "8e9bce2d2911f2bac26c8480099f4fb99dfd124279c8925869af9b2eda5a9582",
+      "src": "7f551919074f2a83097dfc7cc97fa3fda49e26e0ac560fef15ba318db6dedd56"
+    },
+    "server.api.shopifyApp.notInstalled": {
+      "by": "ai",
+      "out": "12b7780ec261dd901f81921c9222c82b6d8f347d66ffac2c321da920af97fef6",
+      "src": "cf936aee5afc8eb4c65813d9501c60c3f519eab5a16862777093893cab533f2c"
+    },
+    "server.api.shopifyApp.otherStore": {
+      "by": "ai",
+      "out": "99d26631f715d7c7ca3312d8e080218529a1ba25f08fffaa04a9148ebec64606",
+      "src": "b58d6d09e399740e9969e92d2f6db277027164a657fc62296e6df30453f0d757"
+    },
+    "server.api.shopifyApp.ownApp": {
+      "by": "ai",
+      "out": "536a99d15941d6b6ee6ee622e1b7082c4a0097b40a7e51ab76a9348b003f3358",
+      "src": "ce08264776c2dbfaac6444d4baaf6642765605c20002f38ccb618a5b295d3a20"
+    },
+    "server.api.shopifyApp.scope": {
+      "by": "ai",
+      "out": "4173022c523b10dd137ffc49bfbe5688833d3131bd66b194c565131fc789c6e3",
+      "src": "2c2a19cad16a35eff3bb440ffd2bd035cc27897bd6a9d40816666543cc7ee61e"
+    },
     "server.api.shopifySetup.alreadyConnected": {
       "by": "ai",
       "out": "263970ca5254621b2102d0800f310f9ed60b4b89a5d3140affdc5ed7c97a1ecc",
@@ -182222,6 +183432,11 @@
       "by": "ai",
       "out": "819d8757c847c2561891767da31e9af1dd9424986f06e44e127ae3e8a8b24756",
       "src": "215485c93e41bc02cb2775751c8a2b1b58ed7925e7c63ec43042cb821ab28288"
+    },
+    "server.input.provider.shopifyAppStoreUrl": {
+      "by": "ai",
+      "out": "4d276576450f76b76000aa5edf8a1834f982d27a4a270951cc3e0241e957019c",
+      "src": "6df620348a578829da6d7e9504e479b4a9ffead3e028f4f0b8c54ab84c903e59"
     },
     "server.input.provider.smtpUrl": {
       "by": "ai",
@@ -183150,13 +184365,13 @@
     },
     "server.setupAgent.step.notify": {
       "by": "ai",
-      "out": "6c28e1dc8c95a8d229a63963976ac8d69346416ad9ff53aaa35c1e57866ffbce",
-      "src": "ee8c7187e6e9663945bf7e6d4c6d194872518cf97bde43cab6947df13634098a"
+      "out": "2846fcc129440e6b07df85c3c2b21d6717e4a748282b716f65b09d08d68b4a97",
+      "src": "4603cab200659a8d8606cb048c8c6606fdccf93646a519180574bb1d05ee9a35"
     },
     "server.setupAgent.step.notifyHint": {
       "by": "ai",
-      "out": "dd7d6d6175d1d69bfab3803e834c8d49c576d1581283fa810fab27fa5e56cfd6",
-      "src": "0dea782b91e241e7c3967531bea793dc343d8e2dbf99c368135554475ea72948"
+      "out": "650699a10d3c5d5b31e092e431eddd65d29fbcf56822fd9e7c3a8c3daa0e33f1",
+      "src": "81a325635b1252a02758012d123dea9cefe8d2d1500ae7207d7275af49be09cc"
     },
     "server.setupAgent.step.phone": {
       "by": "ai",
@@ -187853,6 +189068,21 @@
       "out": "34d48145d5626459aa1a9c9c7baac74a94c2092b45a2f4110982545279c91d0e",
       "src": "aa3e97df9b65fa50cf575e06c452caf48b6a973a2e3a4a57577bee56311f8e88"
     },
+    "settings.integrations.app.shopify.appStore.button": {
+      "by": "ai",
+      "out": "49a68a85af839f6bfc6c9a338966ed9722fef64c2be30839dfb7b8b3deae32da",
+      "src": "a32adba4d226d2dd80ac16a11f1bf1155da080453aa7fbb2ded570cd8131cfd7"
+    },
+    "settings.integrations.app.shopify.appStore.buttonTip": {
+      "by": "ai",
+      "out": "f2e251e60e38c87d54807a67cf826b0224ab7c96ec2f8999abbec37a6a884b0c",
+      "src": "caca05fd8279c56ce7a876f9baf3920157dff862b9ce75e5b35b0ab83ef4a8f2"
+    },
+    "settings.integrations.app.shopify.appStore.text": {
+      "by": "ai",
+      "out": "3944d62cbc11f716b69e594ba4674d67e7dee30ef5f8506d9cad7b48dd7fcdfd",
+      "src": "ca5df83dc7a5fdb47a762a5f059f3d6f377e7cb93e3f965b76d5af4f36072d22"
+    },
     "settings.integrations.app.shopify.checksIdleTip": {
       "by": "ai",
       "out": "dd4ac05b93310e7cab80a9b267cc931b8dd54d5058ab50db3e349670e32fc08f",
@@ -189302,6 +190532,146 @@
       "by": "ai",
       "out": "042c7d7639aae8e2a6e35e4d0ec328de18c3068576482b93411e3d07b08718a8",
       "src": "a0adfe9abe764c048b92c102ee8872628b69033a0b7b08c8d9394bbb0722bdae"
+    },
+    "settings.integrations.shopifyLink.back": {
+      "by": "ai",
+      "out": "333bc4823c7dee10478db014cf23dad3cd2a8cb4fa4fbdfd65fd45141a94ef5d",
+      "src": "688daef45886595d80834d59304505aaf82116d5b285a7b35cd8e5dbc9d83114"
+    },
+    "settings.integrations.shopifyLink.backTip": {
+      "by": "ai",
+      "out": "0211ae98d745a0e2e2a0f7798dc552990c52d9de5e4e50f30211104b3a7e4915",
+      "src": "47b5d0764d82d48e40f165001e15cc483e3b25b1fb8843e7559735b3e67abc98"
+    },
+    "settings.integrations.shopifyLink.cancelTip": {
+      "by": "ai",
+      "out": "ac0c32ce723583e2d2d21e2ad05e19e9a72a50caf10fcc663e74f23568c30a90",
+      "src": "59629ab84b5f019be5340fb8c4cb0f8094dca046a90c3654f444eaf923ca26cd"
+    },
+    "settings.integrations.shopifyLink.confirm": {
+      "by": "ai",
+      "out": "975f98f73d526ab03642b0d8a287f5ded4c53f15cfdd95473199fd84de466d54",
+      "src": "233b6c8ab486bc0f6e568f1542a0282094ff3534f3b1a3dee9a82f28b48f2372"
+    },
+    "settings.integrations.shopifyLink.confirmTip": {
+      "by": "ai",
+      "out": "2e7007ef718bd1a8836484a5a68a57da61c204f885c2713ffa8d18c7542d7536",
+      "src": "af31fd6bf6990a539a0552a1269de9aeb76bddc7e0ebba4b9998e0309c7ae865"
+    },
+    "settings.integrations.shopifyLink.confirmWhy": {
+      "by": "ai",
+      "out": "d2081219facbef5abada856023b9cc64431aa924e1175e38ab8404658fe82d2e",
+      "src": "9929616a2c0256a9cd5518bd49d2900005c4b11b17796c6d13e84512c1b30688"
+    },
+    "settings.integrations.shopifyLink.createWorkspace": {
+      "by": "ai",
+      "out": "6d0cebbf36b9bdd08a0c69ad430f07deb75ba9e5aca4c1bd6b52cd380418ee69",
+      "src": "954bd1fe66b41f789ea7597923fbb7f5819ef5db33401075f7a2fe2729613beb"
+    },
+    "settings.integrations.shopifyLink.createWorkspaceTip": {
+      "by": "ai",
+      "out": "0652c138cc6482e97b19918064918e47664cb653f11f17fa28eaf90296629798",
+      "src": "b52feee36021620b016be930cd67dac5fc79e01dbfbb7d9ef7377b71957e3ca0"
+    },
+    "settings.integrations.shopifyLink.error.linkExpired": {
+      "by": "ai",
+      "out": "afcb26d4ef3f3167fcf34a948a9c3fdf54a4daf33db215b0e21ecaeda6c9d48f",
+      "src": "01eb6913fa27e99d7b0f569c85521a566ba0481c2314e6587e7b5b836f6c6258"
+    },
+    "settings.integrations.shopifyLink.error.linkInvalid": {
+      "by": "ai",
+      "out": "15255fb91b41cdba9e8c4576b95f095a0a68b1f6247a4edaeef4e0af2613b994",
+      "src": "c311db0779b8455e8be614f1467b685ea0930df5bb17c021c1aae0a32a33a0a2"
+    },
+    "settings.integrations.shopifyLink.error.linkedElsewhere": {
+      "by": "ai",
+      "out": "8e9bce2d2911f2bac26c8480099f4fb99dfd124279c8925869af9b2eda5a9582",
+      "src": "7f551919074f2a83097dfc7cc97fa3fda49e26e0ac560fef15ba318db6dedd56"
+    },
+    "settings.integrations.shopifyLink.error.noSecretsKey": {
+      "by": "ai",
+      "out": "f2f6a072513095085ee1ea8957907af0167af2fbf9be04eeeafcec8e74b15af5",
+      "src": "812ba3ecbf82b9eee99d57d0b3674b0fc68a9d369927fd63e6637a9f0aac35b0"
+    },
+    "settings.integrations.shopifyLink.error.notInstalled": {
+      "by": "ai",
+      "out": "12b7780ec261dd901f81921c9222c82b6d8f347d66ffac2c321da920af97fef6",
+      "src": "cf936aee5afc8eb4c65813d9501c60c3f519eab5a16862777093893cab533f2c"
+    },
+    "settings.integrations.shopifyLink.error.otherStore": {
+      "by": "ai",
+      "out": "55ea8c4f31ae92d788ba8ad5402fd5b5373a1a732e0f6b9fdc6ed3fb4bccf536",
+      "src": "0f552faa5679452a7a6165adcc2b33dfb8515ff310ea4f8bc7d7ad38ff50b7de"
+    },
+    "settings.integrations.shopifyLink.error.ownApp": {
+      "by": "ai",
+      "out": "bc3eab2fa56a45c98cb663dece33783cd14a82255a09cca35a27ebce5e632036",
+      "src": "1d6512f3c5e4b761accc77362bf193db8420f72d2fdc393e686015d84147a689"
+    },
+    "settings.integrations.shopifyLink.error.scope": {
+      "by": "ai",
+      "out": "4173022c523b10dd137ffc49bfbe5688833d3131bd66b194c565131fc789c6e3",
+      "src": "2c2a19cad16a35eff3bb440ffd2bd035cc27897bd6a9d40816666543cc7ee61e"
+    },
+    "settings.integrations.shopifyLink.failed": {
+      "by": "ai",
+      "out": "bcb66a31705035f6e4fc13f212c733f11bd58150fcb3da2057d53ab2ce0ef2c0",
+      "src": "1b1ab1fd14c6423d1e47987acaffe3d1636c645f62bc512ae6c1045f3f500021"
+    },
+    "settings.integrations.shopifyLink.noWorkspace": {
+      "by": "ai",
+      "out": "059d7c099f9c2d5d008f3a2687f5019c17cc3a02bd63de8c7f3d38b71e52ac8a",
+      "src": "8dbcb5c021f484481b3945599a19e8ee7169aebc7b04c03567f7acdc53cde049"
+    },
+    "settings.integrations.shopifyLink.noWorkspaceTitle": {
+      "by": "ai",
+      "out": "d878ce526597960f84117de849831249a56ab068e798af85fac8bb265e90760b",
+      "src": "c642a35b1a34dcd10ee53a3307b07a87b7a290f5ed00c4bcc1b9ea8cbb45e60a"
+    },
+    "settings.integrations.shopifyLink.notAdmin": {
+      "by": "ai",
+      "out": "5dac7b7fdc991e897e620a9e6f3f11db2feb024c0c088407fec848b7200a9784",
+      "src": "f14b45cc66f4932b39dd063c7087884556092431f862f0cf6e6ad64b34401128"
+    },
+    "settings.integrations.shopifyLink.otherStore": {
+      "by": "ai",
+      "out": "8df81f6c6d695ecd399f89eaa428fb29a9a15a426ac971cd7256e61b54f340b7",
+      "src": "0983e0ae0db3eabd68b24d74dc5dc96c72996b31d1370f690e73387d17b3a18f"
+    },
+    "settings.integrations.shopifyLink.otherWorkspace": {
+      "by": "ai",
+      "out": "e1283837f16bbde76df371ace24e15936cc387437d3b788999e2cedc12692fed",
+      "src": "445c2dd49772636200ee1848504fa42c5d0f0424646c4bc024034ffae5d26459"
+    },
+    "settings.integrations.shopifyLink.problemTitle": {
+      "by": "ai",
+      "out": "4bb62478b767c82e3e91d613549ae20dd7f9d00f7431af235e530fdac55f3c58",
+      "src": "8fb8ff23cedaa445227eb538a04d08390683101e7ea349c433be39d190a8f30c"
+    },
+    "settings.integrations.shopifyLink.startedBy": {
+      "by": "ai",
+      "out": "bdb836f43fda3d5211d552513e4d6e47b88ae5bcfc3f9c64501c652f8c21e93c",
+      "src": "de9593dc5cf1d504eb6c8e9dcc0fc20fc6baa6b0f2e90752755e1bd16fd63b70"
+    },
+    "settings.integrations.shopifyLink.startedIn": {
+      "by": "ai",
+      "out": "45f44e79fe6a5136913c4344e3ae120a890920e6b8814b008e6b1b01873f7380",
+      "src": "d6914f428cd0ae8b2d8b8e0b4f633ea453047bb7a896f42d95e66adbefb5841f"
+    },
+    "settings.integrations.shopifyLink.text": {
+      "by": "ai",
+      "out": "f8fb0a50d46f0e1dfb4a011c028652efb4e2096d61ba23d170ab523fefc05ce9",
+      "src": "6db699756fbb1c0e987fdd5469b16bcfbcada67b4943477042a4ea529bb739a0"
+    },
+    "settings.integrations.shopifyLink.title": {
+      "by": "ai",
+      "out": "aee681f0a77d45616c3297e2adc4600590aac99b818241a9471895c10a32bc9e",
+      "src": "cc11de6fff9dc09338425baf5ce101eb43bf5caa21a4fd69f466cf8703e57d05"
+    },
+    "settings.integrations.shopifyLink.warning": {
+      "by": "ai",
+      "out": "2c40a525b2b7cb2aa0e35aa4ea6e4d76a5b6450acf15418a3240412b9a56ae32",
+      "src": "7dce4d97099874e7ad3efca2b924288b28daed65b088cd9624c19b8f6b4c7e4e"
     },
     "settings.integrations.status.accounts": {
       "by": "ai",
@@ -193017,6 +194387,11 @@
       "by": "ai",
       "out": "0b311b97fd4f6f932f9f95407098533a7029f87379f5a62ea12494a45920305c",
       "src": "1d465f26942e360ed34eb4741cbf58291a1848b337c52d5c5a92a04bed0a0c35"
+    },
+    "shell.feedback.destination": {
+      "by": "ai",
+      "out": "0397ea310ee98bf5790e6edb79c98afcad5ad2b32aea16e5bb9ab2dc532c7d30",
+      "src": "59152fe65eb8bfc54481af4a794807576f5f489fbd1732b117abacb410823e96"
     },
     "shell.feedback.errors.none": {
       "by": "ai",

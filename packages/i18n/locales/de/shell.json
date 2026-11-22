@@ -69,6 +69,7 @@
   "feedback.bug.question": "Was ist schiefgelaufen?",
   "feedback.bug.title": "Fehler melden",
   "feedback.closeZoom": "Screenshot schließen",
+  "feedback.destination": "Meldungen gehen an das Linedesk-Team, außer der Admin dieses Servers hat eine andere Adresse festgelegt oder das Senden ausgeschaltet.",
   "feedback.errors.none": "Keine Fehler auf dieser Seite",
   "feedback.failed": "Nicht gesendet. {reason}",
   "feedback.feature.placeholder": "Was möchtest du tun, und was steht dir heute im Weg?",

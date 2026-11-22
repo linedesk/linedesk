@@ -69,6 +69,7 @@
   "feedback.bug.question": "Qu'est-ce qui n'a pas marché ?",
   "feedback.bug.title": "Signaler un bug",
   "feedback.closeZoom": "Fermer la capture d'écran",
+  "feedback.destination": "Les signalements sont envoyés à l'équipe Linedesk, sauf si l'administrateur de ce serveur a défini une autre adresse ou désactivé l'envoi.",
   "feedback.errors.none": "Aucune erreur sur cette page",
   "feedback.failed": "Non envoyé. {reason}",
   "feedback.feature.placeholder": "Que voulez-vous faire, et qu'est-ce qui vous en empêche aujourd'hui ?",
