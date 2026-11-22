@@ -50,12 +50,15 @@
   display: grid;
   gap: 1px;
 }
+/* A group label reads as a heading, not as one more item: small uppercase with wide spacing, more room above
+   than below, so the items under it read as its points (Server admin, 2026-11-22). */
 .sl-group {
-  padding: 14px 10px 4px;
-  font-size: 11.5px;
-  font-weight: 500;
+  padding: 20px 8px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
   color: var(--ink-muted);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .sl-group:first-child {
   padding-top: 0;
