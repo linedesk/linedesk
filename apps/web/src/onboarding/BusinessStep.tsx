@@ -89,6 +89,28 @@ export function BusinessStep(p: Props) {
   )
 }
 
+const REVIEW_KEY = 'linedesk.businessReview.'
+type Review = Extract<Phase, { kind: 'review' }>
+
+/** The looked-up proposal this tab has not saved yet (sessionStorage: this tab only, gone when it closes). */
+function keptReview(key: string): Review | null {
+  try {
+    const kept = JSON.parse(sessionStorage.getItem(key) ?? 'null') as Review | null
+    return kept?.kind === 'review' && kept.proposal ? kept : null
+  } catch {
+    return null // storage blocked or an old shape: the step starts as usual
+  }
+}
+
+function keepReview(key: string, review: Review | null) {
+  try {
+    if (review) sessionStorage.setItem(key, JSON.stringify(review))
+    else sessionStorage.removeItem(key)
+  } catch {
+    // Storage blocked or full: a reload starts the step as usual.
+  }
+}
+
 type Phase =
   | { kind: 'find' }
   | { kind: 'manual' }
@@ -128,8 +150,12 @@ function FindBusiness({
     proposal: manualProposal(businessName, assistant.name, '', language),
     fromGoogle: false,
   })
-  const [phase, setPhase] = useState<Phase>(() =>
-    saved ? savedReview() : lookup ? { kind: 'find' } : businessName.trim() ? namedReview() : { kind: 'manual' },
+  // A proposal not saved yet (looked up, then the page reloaded) opens again as it came, before anything saved.
+  const reviewKey = REVIEW_KEY + assistant.id
+  const [phase, setPhase] = useState<Phase>(
+    () =>
+      keptReview(reviewKey) ??
+      (saved ? savedReview() : lookup ? { kind: 'find' } : businessName.trim() ? namedReview() : { kind: 'manual' }),
   )
   // The search starts from the name the business has.
   const [query, setQuery] = useState(businessName)
@@ -153,7 +179,9 @@ function FindBusiness({
       const proposal = await callAction<BusinessImportData>('business.import', { assistantId: assistant.id, ...input })
       const googleLost = proposal.failures.some(isGoogle)
       if (googleLost) setLookupLost(true)
-      setPhase({ kind: 'review', proposal, fromGoogle: !!input.placeId && !googleLost })
+      const review = { kind: 'review' as const, proposal, fromGoogle: !!input.placeId && !googleLost }
+      keepReview(reviewKey, review)
+      setPhase(review)
     } catch (e) {
       setError((e as Error).message)
       if (input.website && !input.placeId) setWebsiteFailed(true)
@@ -205,8 +233,14 @@ function FindBusiness({
         proposal={phase.proposal}
         fromGoogle={phase.fromGoogle}
         admin={admin}
-        onBack={() => setPhase({ kind: canSearch ? 'find' : 'manual' })}
-        onNext={onNext}
+        onBack={() => {
+          keepReview(reviewKey, null)
+          setPhase({ kind: canSearch ? 'find' : 'manual' })
+        }}
+        onNext={() => {
+          keepReview(reviewKey, null)
+          onNext()
+        }}
       />
     )
 

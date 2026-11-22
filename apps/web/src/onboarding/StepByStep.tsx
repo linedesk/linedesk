@@ -22,6 +22,26 @@ type Props = {
   onRenamed: (name: string) => void
 }
 
+const STEP_KEY = 'linedesk.stepByStep.'
+
+/** The step this tab last showed for these steps (sessionStorage: this tab only, gone when it closes). */
+function keptStep(key: string): OnboardingStep | null {
+  try {
+    return sessionStorage.getItem(key) as OnboardingStep | null
+  } catch {
+    return null // storage blocked: a reload starts at the first step
+  }
+}
+
+function keepStep(key: string, step: OnboardingStep | null) {
+  try {
+    if (step) sessionStorage.setItem(key, step)
+    else sessionStorage.removeItem(key)
+  } catch {
+    // Storage blocked: nothing kept.
+  }
+}
+
 /** What a member without a phone setup status sees there; the steps gone through again never ask for a number. */
 const NO_PHONE_SETUP = { provider: null, available: false, detail: null, canAttach: false }
 
@@ -30,7 +50,10 @@ export function StepByStep({ target, me, onRenamed }: Props) {
   const assistantId = target.kind === 'assistant' ? target.assistantId : undefined
   // An assistant that is not (or no longer) in this workspace: back to the settings, which say so.
   const unknown = assistantId !== undefined && assistants.length > 0 && !assistants.some(a => a.id === assistantId)
+  // The step gone to is kept in this tab, so a reload opens it again; Close (or Done) forgets it.
+  const stepKey = STEP_KEY + settingsHashOf(target)
   const close = () => {
+    keepStep(stepKey, null)
     window.location.hash = settingsHashOf(target)
   }
   useEffect(() => {
@@ -45,7 +68,14 @@ export function StepByStep({ target, me, onRenamed }: Props) {
   // adds the number's step, with the code to dial.
   const [pickupMemory, setPickupMemory] = useState<PickupMemory>(NO_PICKUP_MEMORY)
   const steps = stepByStepSteps(target.kind, pickupMemory.oldForwarding !== null)
-  const [step, setStep] = useState<OnboardingStep>(steps[0]!)
+  const [step, setStepNow] = useState<OnboardingStep>(() => {
+    const kept = keptStep(stepKey)
+    return kept && steps.includes(kept) ? kept : steps[0]!
+  })
+  const setStep = (to: OnboardingStep) => {
+    setStepNow(to)
+    keepStep(stepKey, to)
+  }
   const move = (way: 'next' | 'back') => {
     const to = stepByStepMove(steps, step, way)
     if (to === 'close') close()
