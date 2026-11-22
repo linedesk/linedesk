@@ -195,6 +195,7 @@ describe('access', () => {
       'agentSetup.createKey',
       'billing.adminBill',
       'billing.adminBills',
+      'billing.adminCustomer',
       'billing.adminEvents',
       'billing.adminReview',
       'billing.adminSetStatus',
@@ -2548,6 +2549,7 @@ describe('impersonation', () => {
       // Read-only and instance:admin, as above (Server admin › Billing too).
       'billing.adminBill',
       'billing.adminBills',
+      'billing.adminCustomer',
       'billing.adminEvents',
       'billing.adminReview',
       'billing.adminSummary',
@@ -3202,7 +3204,6 @@ describe('impersonation', () => {
         created_during_support_by: null,
       })
     })
-
   })
 
   test('the audit log has the start, what was done as the user, and the stop, each naming the admin', async () => {

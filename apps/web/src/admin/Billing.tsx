@@ -8,6 +8,7 @@
 // opens like a workspace from its list, with a crumb back, so only the part on screen loads its rows. The rows are one
 // read (billing.adminSummary), kept between visits.
 import type {
+  AdminBillCustomer,
   AdminBillDetail,
   AdminBillingSummary,
   AdminBillRow,
@@ -33,7 +34,7 @@ import { Checkbox, Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Card, Dialog, FormField, FormMessage, HelpTip, Input, onSaveKey, SaveBar, Textarea } from '../ui/form.tsx'
 import { Badge, Button, cx, Note } from '../ui/kit.tsx'
 import { List } from '../ui/list.tsx'
-import { Loading, Skeleton, SkeletonRows } from '../ui/LoadStates.tsx'
+import { Loading, Skeleton, SkeletonRows, SkeletonText } from '../ui/LoadStates.tsx'
 import { AdminList, type Column, type ListKeys } from './AdminList.tsx'
 import { ActionBar, type AdminAction } from './actions.tsx'
 import { BillingSwitch } from './BillingSwitch.tsx'
@@ -99,6 +100,9 @@ const eventsKey = (filter: BillingEventFilter) => `admin.billing.events.${filter
 const loadBills = async () => ((await runAdmin('billing.adminBills', {})) as { bills: AdminBillRow[] }).bills
 const loadBill = (id: string) => async () =>
   (await runAdmin('billing.adminBill', { billingAccountId: id })) as unknown as AdminBillDetail
+const customerKey = (id: string) => `admin.billing.customer.${id}`
+const loadCustomer = (id: string) => async () =>
+  ((await runAdmin('billing.adminCustomer', { billingAccountId: id })) as unknown as AdminBillCustomer).customer
 const loadReview = async () =>
   (await runAdmin('billing.adminReview', {})) as unknown as { held: AdminReviewRow[]; newTrials: AdminReviewRow[] }
 const loadSummary = async () => (await runAdmin('billing.adminSummary', {})) as unknown as AdminBillingSummary
@@ -1495,11 +1499,31 @@ const LEDGER_KIND: Record<AdminBillDetail['ledger'][number]['kind'], MessageKey>
   writeoff: msg('admin.bills.ledger.kind.writeoff'),
 }
 
+/** The Stripe customer's name (else its email) with the email under it; nothing when Stripe did not say. */
+function StripeCustomer({
+  contact,
+  loading,
+}: {
+  contact: AdminBillCustomer['customer'] | undefined
+  loading: boolean
+}) {
+  if (loading) return <SkeletonText width={140} className="adm-line" />
+  if (!contact || (!contact.name && !contact.email)) return null
+  return (
+    <>
+      <span className="adm-line">{contact.name ?? contact.email}</span>
+      {contact.name && contact.email && <span className="adm-sub">{contact.email}</span>}
+    </>
+  )
+}
+
 function BillDetail({ id, notify }: { id: string; notify: Notify }) {
   const t = useT()
   const query = useQuery(billKey(id), loadBill(id))
   const [open, setOpen] = useState<Open | null>(null)
   const bill = query.data
+  // The Stripe customer's name and email, asked of Stripe on its own so the page never waits for it.
+  const customer = useQuery(bill?.stripeCustomerId ? customerKey(id) : null, loadCustomer(id))
   if (!bill)
     return (
       <div className="adm-card">
@@ -1686,6 +1710,9 @@ function BillDetail({ id, notify }: { id: string; notify: Notify }) {
             )}
           </Fact>
           <Fact label={t('admin.bills.fact.stripe')}>
+            {bill.stripeCustomerId && (
+              <StripeCustomer contact={customer.data} loading={customer.data === undefined && !customer.error} />
+            )}
             {bill.stripeCustomerId && stripe(`customers/${bill.stripeCustomerId}`) ? (
               <span className="adm-line">
                 <a href={stripe(`customers/${bill.stripeCustomerId}`)!} target="_blank" rel="noreferrer">

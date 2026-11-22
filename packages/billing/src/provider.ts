@@ -207,6 +207,9 @@ export type CheckoutSession = {
   charged: boolean
 }
 
+/** A customer's name and email at the service (`customerContact`); either may be unset there. */
+export type CustomerContact = { name: string | null; email: string | null }
+
 /** What a customer bought at the service (`customerPurchases`): the first of each found, else null. */
 export type CustomerPurchases = {
   /** A subscription that still runs (not `canceled` or `incomplete_expired`). */
@@ -592,6 +595,11 @@ export type BillingProvider = {
    * before it deletes a bill, so a Checkout whose webhook is late is never undone (security verification of #961, V-1).
    */
   customerPurchases(customerId: string): Promise<CustomerPurchases>
+  /**
+   * The customer's name and email as the service has them now (the owner may change them in the portal), for Server
+   * admin › Billing; null when the service does not know the customer or it was deleted.
+   */
+  customerContact(customerId: string): Promise<CustomerContact | null>
   /** Deletes the customer (which cancels its subscriptions at once); a customer the service does not know is fine. */
   deleteCustomer(customerId: string): Promise<void>
   /**

@@ -89,6 +89,18 @@ test("a bill's page: paid from the ledger, invoices in the Stripe Dashboard, onl
   expect(html).toContain('Elevated')
 })
 
+test("a bill's page shows its Stripe customer's name and email, once Stripe answered", () => {
+  data['admin.billing.bill.bill_1'] = bill
+  data['admin.billing.customer.bill_1'] = {
+    name: 'Brightwater Plumbing & Heating',
+    email: 'billing@brightwater.example',
+  }
+  const html = render()
+  expect(html).toContain('Brightwater Plumbing &amp; Heating')
+  expect(html).toContain('billing@brightwater.example')
+  delete data['admin.billing.customer.bill_1']
+})
+
 test('without Stripe in effect a refund says it needs Stripe, and the bill links nowhere outside', () => {
   data['admin.billing.bill.bill_1'] = { ...bill, dashboardUrl: null }
   const html = render()

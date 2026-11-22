@@ -329,6 +329,18 @@ export function createStripeBillingProvider(keys: StripeKeys, doFetch: typeof fe
       }
       return found
     },
+    async customerContact(customerId) {
+      let customer: Stripe.Customer | Stripe.DeletedCustomer
+      try {
+        customer = await stripe.customers.retrieve(customerId)
+      } catch (error) {
+        if (missing(error)) return null
+        throw setupError(error) ?? error
+      }
+      if ('deleted' in customer && customer.deleted) return null
+      const { name, email } = customer as Stripe.Customer
+      return { name: name || null, email: email || null }
+    },
     async deleteCustomer(customerId) {
       try {
         await stripe.customers.del(customerId)

@@ -16,6 +16,7 @@
 // committed (M2). Reports read `amount_micros` for what was paid, never `billable_seconds` (a comped call records
 // billable seconds at $0).
 import type {
+  AdminBillCustomer,
   AdminBillDetail,
   AdminBillingSummary,
   AdminBillRow,
@@ -192,6 +193,24 @@ async function billRows(tx: Tx, ids?: string[]): Promise<AdminBillRow[]> {
     cardRiskLevel: bill.card_risk_level,
     createdAt: bill.created_at,
   }))
+}
+
+/**
+ * The bill's Stripe customer (name and email) as Stripe has it now, for the bill's page. Through the pool, never the
+ * caller's connection: Stripe is asked with no transaction open. Null when there is none, billing through Stripe is
+ * off or Stripe did not answer (logged): the page shows the bill without it.
+ */
+async function billCustomer(billId: string, override?: BillingProvider): Promise<AdminBillCustomer> {
+  const bill = await billOrReject(db, billId)
+  if (!bill.stripe_customer_id) return { customer: null }
+  const provider = override ?? (await billingProvider(db))
+  if (provider.name === 'none') return { customer: null }
+  try {
+    return { customer: await provider.customerContact(bill.stripe_customer_id) }
+  } catch (error) {
+    console.error('billing: the Stripe customer of a bill could not be read:', error)
+    return { customer: null }
+  }
 }
 
 /**
@@ -1001,6 +1020,10 @@ export const billingAdminHandlers: Record<string, Handler> = {
   'billing.adminBill': async ({ tx }, input: { billingAccountId: string }) => ({
     rows: {},
     data: await billDetail(tx, input.billingAccountId),
+  }),
+  'billing.adminCustomer': async (_ctx, input: { billingAccountId: string }) => ({
+    rows: {},
+    data: await billCustomer(input.billingAccountId, providerOverride ?? undefined),
   }),
   'billing.adminEvents': async ({ tx }, input: { filter?: BillingEventFilter; before?: string }) => ({
     rows: {},

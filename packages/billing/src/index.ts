@@ -20,6 +20,7 @@ export type {
   CheckoutInput,
   CheckoutSession,
   CheckoutStarted,
+  CustomerContact,
   CustomerPurchases,
   ExtraCallsAnswer,
   ExtraCallsQuantityInput,

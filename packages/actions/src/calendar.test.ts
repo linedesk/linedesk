@@ -37,6 +37,7 @@ describe('calendar.findSlots', () => {
       'assistant.versions',
       'billing.adminBill',
       'billing.adminBills',
+      'billing.adminCustomer',
       'billing.adminEvents',
       'billing.adminReview',
       'billing.adminSummary',

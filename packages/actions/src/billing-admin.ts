@@ -80,6 +80,16 @@ export const billingRulesGet = defineAction({
   readOnly: true,
 })
 
+export const billingAdminCustomer = defineAction({
+  name: 'billing.adminCustomer',
+  // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
+  description:
+    "The name and email of a bill's Stripe customer, asked of Stripe now. Null when the bill has no customer, billing through Stripe is off or Stripe did not answer. Instance admins only.",
+  input: z.object({ billingAccountId: billId }),
+  permission: 'instance:admin',
+  readOnly: true,
+})
+
 export const billingAdminTaxAddressMissing = defineAction({
   name: 'billing.adminTaxAddressMissing',
   // i18n-ignore: API and MCP docs for agents and developers, not shown in the app
@@ -378,6 +388,9 @@ export type BillingRulesData = {
  * Stripe not answering).
  */
 export type TaxAddressMissingData = { taxAddressMissing: number | null }
+
+/** billing.adminCustomer: the bill's Stripe customer as Stripe has it now; null: not known (no customer, billing off, no answer). */
+export type AdminBillCustomer = { customer: { name: string | null; email: string | null } | null }
 
 /** billingRules.set's refusal code when a plan fee is below the floor or a yearly fee above 12 monthly ones. */
 export const PLAN_PRICE_FLOOR = 'plan_price_floor'

@@ -263,6 +263,8 @@ function fakeStripe(invoices: Map<string, BillingInvoice>, blockers: string[] = 
     customerPurchases: async () => {
       throw new Error('not used')
     },
+    customerContact: async id =>
+      id.startsWith('cus_gone') ? null : { name: 'Mike Brennan', email: 'mike@example.com' },
     deleteCustomer: async () => {
       throw new Error('not used')
     },
@@ -327,6 +329,7 @@ describe('who may', () => {
     ]
     for (const name of reads) expect((await act(ws.owner, name, {})).status).toBe(403)
     expect((await act(ws.owner, 'billing.adminBill', { billingAccountId: billId })).status).toBe(403)
+    expect((await act(ws.owner, 'billing.adminCustomer', { billingAccountId: billId })).status).toBe(403)
     const writes: [string, unknown][] = [
       ['billing.credit', { billingAccountId: billId, kind: 'credit', amountCents: 500, reason, requestId: rid('req') }],
       ['billing.refund', { billingAccountId: billId, amountCents: 500, reason, requestId: rid('req') }],
@@ -1763,6 +1766,24 @@ test('the usage page shows what was charged per workspace and month', async () =
 test('an unknown bill is refused', async () => {
   const answer = await act(operator, 'billing.adminBill', { billingAccountId: 'bill_nope' })
   expect(answer.status).toBe(409)
+  expect((await act(operator, 'billing.adminCustomer', { billingAccountId: 'bill_nope' })).status).toBe(409)
+})
+
+// The bill's page shows its Stripe customer's name and email, asked of Stripe on their own read.
+test("the bill's Stripe customer: name and email from Stripe, null without a customer or billing", async () => {
+  const { billId } = await billWith()
+  const customer = async (id: string) =>
+    (await act(operator, 'billing.adminCustomer', { billingAccountId: id })).body.data.customer
+  // Billing through Stripe is not in effect here: not known.
+  expect(await customer(billId)).toBeNull()
+  setBillingAdminProvider(fakeStripe(new Map()).provider)
+  try {
+    expect(await customer(billId)).toEqual({ name: 'Mike Brennan', email: 'mike@example.com' })
+    expect(await customer((await billWith({ stripe_customer_id: rid('cus_gone') })).billId)).toBeNull()
+    expect(await customer((await billWith({ stripe_customer_id: null })).billId)).toBeNull()
+  } finally {
+    setBillingAdminProvider(null)
+  }
 })
 
 // The refund writes its pending row while its transaction holds the bill's balance lock. Everything else on the bill

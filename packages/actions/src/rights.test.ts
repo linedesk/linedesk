@@ -287,6 +287,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     // Server admin › Billing.
     'billing.adminBills',
     'billing.adminBill',
+    'billing.adminCustomer',
     'billing.adminEvents',
     'billing.adminReview',
     'billing.adminSummary',

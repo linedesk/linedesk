@@ -334,6 +334,7 @@ const all = [
   billing.billingReprocessEvent,
   billingAdmin.billingAdminBills,
   billingAdmin.billingAdminBill,
+  billingAdmin.billingAdminCustomer,
   billingAdmin.billingAdminEvents,
   billingAdmin.billingAdminReview,
   billingAdmin.billingAdminSummary,

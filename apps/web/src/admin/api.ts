@@ -368,6 +368,7 @@ export type AdminInputs = {
   // request id (one per dialog).
   'billing.adminBills': Record<string, never>
   'billing.adminBill': { billingAccountId: string }
+  'billing.adminCustomer': { billingAccountId: string }
   'billing.adminEvents': { filter?: BillingEventFilter; before?: string }
   'billing.adminReview': Record<string, never>
   'billing.adminSummary': Record<string, never>
