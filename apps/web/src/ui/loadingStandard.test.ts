@@ -69,7 +69,9 @@ const NO_SKELETON_NEEDED: Record<string, string> = {
   'Login.tsx': 'the sign-in page has its own connecting state before the methods are known (boot)',
   'admin/NeedsYou.tsx': 'the card shows only when something waits for an admin; the overview below works at once',
   'admin/Providers.tsx': 'the walkthrough button is off on Cloud, so it is not always shown; the agent button is',
+  'admin/ShopifySetups.tsx': 'shown only while a Shopify store waits for its own app',
   'call/EvaluationCard.tsx': 'shown only when the call has an evaluation, or for a test call',
+  'integrations/ShopifySetup.tsx': 'the not-connected Shopify card shows a short busy line until the request is read',
   'onboarding/InstanceSetup.tsx': 'the notice shows only when a part of the server is missing or failing',
   'partner/ClientSettingsDialog.tsx':
     'the AI keys switch shows only once the partner connected a key; the limit works at once',

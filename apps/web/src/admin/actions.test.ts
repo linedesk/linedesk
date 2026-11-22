@@ -90,8 +90,12 @@ test('the passkey dialog comes last in admin, so it opens over a confirm dialog 
 test('in the install setup too, the passkey dialog comes after the steps, so it opens over a provider dialog', () => {
   // Before, it came first: saving email keys without a passkey opened "Add a passkey first" under the
   // provider dialog, whose Save then spun forever with Cancel disabled.
+  // Since LIN-750 the host goes in SetupPage's `after`, which it renders after the steps' column.
   const source = readFileSync(new URL('../onboarding/InstallSetup.tsx', import.meta.url), 'utf8')
-  expect(source.indexOf('<PasskeyStepUpHost />')).toBeGreaterThan(source.indexOf('<PartStep'))
+  expect(source.indexOf('<PasskeyStepUpHost />')).toBeGreaterThan(source.indexOf('after={'))
+  expect(source.indexOf('after={')).toBeGreaterThan(-1)
+  const page = readFileSync(new URL('../onboarding/SetupTopBar.tsx', import.meta.url), 'utf8')
+  expect(page.indexOf('{after}')).toBeGreaterThan(page.indexOf('{children}</div>'))
 })
 
 test('an admin without a passkey is told how to add one, not a raw refusal', () => {

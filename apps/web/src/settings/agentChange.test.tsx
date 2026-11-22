@@ -111,7 +111,8 @@ describe('the owner’s agent setup page: finish later', () => {
     const html = page(() => {})
     const top = html.match(/<div class="ob-top">[\s\S]*?<\/div>/)?.[0] ?? ''
     expect(top).toMatch(
-      /title="Finish setup later[^"]*\(Shift\+Esc\)" class="[^"]*k-btn-ghost[^"]*"><span>Finish later</,
+      // The full label, and "Later" for narrow windows (LIN-735).
+      /title="Finish setup later[^"]*\(Shift\+Esc\)" class="[^"]*k-btn-ghost[^"]*"><span><span class="ob-exit-full">Finish later<\/span><span class="ob-exit-short">Later</,
     )
   })
 
