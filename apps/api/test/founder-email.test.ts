@@ -70,6 +70,18 @@ describe('the text', () => {
     expect(text.trimEnd().endsWith('Unsubscribe: https://app.example/unsub')).toBe(true)
   })
 
+  test('HTML part: the same text, "Unsubscribe" as a word link, the URL not shown', () => {
+    const { html } = founderEmail({
+      firstName: 'Mike',
+      founder: FOUNDER,
+      unsubscribeUrl: 'https://app.example/unsub?t=a&b',
+    })
+    expect(html).toContain('<p>Hey Mike,</p>')
+    expect(html).toContain('<p>By the way, I read every reply :)</p>')
+    expect(html).toContain('<a href="https://app.example/unsub?t=a&amp;b">Unsubscribe</a>')
+    expect(html.replace(/href="[^"]*"/g, '')).not.toContain('app.example')
+  })
+
   test('no name: "Hey there,"', () => {
     expect(founderEmail({ firstName: null, founder: FOUNDER, unsubscribeUrl: 'u' }).text).toMatch(/^Hey there,/)
   })
@@ -122,7 +134,7 @@ describe('sending', () => {
     const mine = await toOwner(sent, ws)
     expect(mine).toHaveLength(1)
     expect(mine[0]).toMatchObject({ from: '"Alex Example" <alex@founder.test>', replyTo: 'alex@founder.test' })
-    expect(mine[0]!.html).toBeUndefined()
+    expect(mine[0]!.html).toContain('>Unsubscribe</a>')
     expect(mine[0]!.text).toMatch(/^Hey Mike,/)
     expect(mine[0]!.headers?.['List-Unsubscribe']).toBeTruthy()
     expect(await founderSent(ws)).toBe(true)

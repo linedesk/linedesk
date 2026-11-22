@@ -9,7 +9,15 @@
 import { isE164, type SetupStep, setupStepPath } from '@linedesk/actions'
 import { getT } from '@linedesk/i18n/server'
 import { emailBrandName, emailOrigin, partnerEmailBrand } from '../email-brand.ts'
-import { type Block, defuseLinks, type EmailContent, type RenderedEmail, renderEmail, siteHost } from './layout.ts'
+import {
+  type Block,
+  defuseLinks,
+  type EmailContent,
+  escapeHtml,
+  type RenderedEmail,
+  renderEmail,
+  siteHost,
+} from './layout.ts'
 
 /** The recipient's language: a UI language, or null/undefined for English. */
 export type EmailLocale = string | null | undefined
@@ -1232,12 +1240,24 @@ export type FounderEmail = {
   unsubscribeUrl: string
 }
 
-/** The email itself: plain text only, as a person writes it. */
-export function founderEmail(e: FounderEmail, locale?: EmailLocale): { subject: string; text: string } {
+/**
+ * The email itself, as a person writes it: no layout, no styles. The HTML part is the same text with "Unsubscribe" as a
+ * word link (the long one-click URL shows only in the text part, for mail apps without HTML).
+ */
+export function founderEmail(e: FounderEmail, locale?: EmailLocale): { subject: string; text: string; html: string } {
   const { t } = getT(locale)
   const founder = firstNameOf(e.founder.name) ?? e.founder.name
   const greeting = e.firstName ? t('email.founder.greeting', { name: e.firstName }) : t('email.founder.greetingNoName')
   const body = t('email.founder.body', { founder, brand: emailBrandName() })
   const unsubscribe = t('email.founder.unsubscribe', { url: e.unsubscribeUrl })
-  return { subject: t('email.founder.subject'), text: `${greeting}\n\n${body}\n\n${unsubscribe}\n` }
+  const paragraphs = `${greeting}\n\n${body}`
+    .split(/\n{2,}/)
+    .map(p => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`)
+    .join('')
+  const link = `<p><a href="${escapeHtml(e.unsubscribeUrl)}">${escapeHtml(t('email.founder.unsubscribeLink'))}</a></p>`
+  return {
+    subject: t('email.founder.subject'),
+    text: `${greeting}\n\n${body}\n\n${unsubscribe}\n`,
+    html: `<!doctype html><html><head><meta charset="utf-8"></head><body><div dir="ltr">${paragraphs}${link}</div></body></html>`,
+  }
 }

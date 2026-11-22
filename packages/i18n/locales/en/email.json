@@ -458,6 +458,7 @@
   "founder.greetingNoName": "Hey there,",
   "founder.subject": "Quick question",
   "founder.unsubscribe": "Unsubscribe: {url}",
+  "founder.unsubscribeLink": "Unsubscribe",
   "installTest.heading": "Your email works",
   "installTest.note": "It expires in {minutes} minutes.",
   "installTest.preheader": "Enter the code in the setup to finish the test. It expires in {minutes} minutes.",
