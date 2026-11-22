@@ -3,8 +3,9 @@
 // synced row (app_connections); connecting is an OAuth round trip, so the page names the table to read again on
 // return (refreshOnReturn), and the callback's result comes back in the hash (`?app=connected` or `?app=error`).
 // While connected, "What Linedesk does" holds the connection's switches (app.updateSettings, local-first). Shopify is
-// connected per store: the member types the store's address first, and its switches come in three groups (after each
-// call, what the assistant may change, what the caller must give first).
+// connected per store: the member types the store's address first, and its switches come in two groups (after each
+// call, what the assistant may change), with the caller verification apart (checkboxes, not switches). Every switch
+// gives Linedesk more when on (LIN-733): a setting that holds it back (Slack's only_urgent) shows inverted.
 import {
   APP_SETTINGS,
   type AppConnectStartData,
@@ -15,6 +16,7 @@ import {
   appSettingOn,
   type ConnectableApp,
   isShopifyRecommended,
+  type ShopVerify,
   SHOP_CHANGE_SETTINGS,
   SHOP_VERIFY_SETTINGS,
   shopifyRecommendedSettings,
@@ -28,6 +30,7 @@ import { refreshOnReturn } from '../refreshOnReturn.ts'
 import { Section, SwitchRow } from '../settings/fields.tsx'
 import { callAction, readAction, useWriteAction } from '../settings/settings-api.ts'
 import { useRows, useRun } from '../store.tsx'
+import { Checkbox } from '../ui/controls.tsx'
 import { Badge, Button, Icon } from '../ui/kit.tsx'
 import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
@@ -286,9 +289,9 @@ const SETTING_TEXT: Record<AppSettingId, SettingText> = {
     tip: msg('settings.integrations.app.settings.fillFieldsTip'),
   },
   only_urgent: {
-    title: msg('settings.integrations.app.settings.onlyUrgent'),
-    help: msg('settings.integrations.app.settings.onlyUrgentHelp'),
-    tip: msg('settings.integrations.app.settings.onlyUrgentTip'),
+    title: msg('settings.integrations.app.settings.notUrgent'),
+    help: msg('settings.integrations.app.settings.notUrgentHelp'),
+    tip: msg('settings.integrations.app.settings.notUrgentTip'),
   },
   shop_returns: {
     title: msg('settings.integrations.app.shopify.settings.returns'),
@@ -381,6 +384,12 @@ const APP_SETTING_TEXT: Partial<Record<ConnectableApp, Partial<typeof SETTING_TE
 }
 const settingText = (app: ConnectableApp, id: AppSettingId) => APP_SETTING_TEXT[app]?.[id] ?? SETTING_TEXT[id]
 
+/**
+ * Settings that hold Linedesk back when on: their switch shows the opposite, so turning a switch on always lets
+ * Linedesk do more (LIN-733). Slack's only_urgent shows as "Also post calls that are not urgent".
+ */
+const INVERTED: readonly AppSettingId[] = ['only_urgent']
+
 /** The switches that only matter while calls are logged: shown nested under log_calls, greyed out while it is off. */
 const AFTER_LOG_CALLS: readonly AppSettingId[] = ['create_contacts', 'fill_fields', 'only_urgent']
 
@@ -390,6 +399,7 @@ const SETTING_GROUPS: Partial<Record<ConnectableApp, readonly SettingGroup[]>> =
   shopify: [
     {
       title: msg('settings.integrations.app.shopify.group.afterCall'),
+      help: msg('settings.integrations.app.shopify.group.afterCallHelp'),
       ids: ['log_calls', 'create_contacts', 'fill_fields'],
     },
     {
@@ -397,15 +407,8 @@ const SETTING_GROUPS: Partial<Record<ConnectableApp, readonly SettingGroup[]>> =
       help: msg('settings.integrations.app.shopify.group.changesHelp'),
       ids: SHOP_CHANGE_SETTINGS,
     },
-    {
-      title: msg('settings.integrations.app.shopify.group.verify'),
-      help: msg('settings.integrations.app.shopify.group.verifyHelp'),
-      ids: SHOP_VERIFY_SETTINGS,
-    },
   ],
 }
-
-const isVerify = (id: AppSettingId) => (SHOP_VERIFY_SETTINGS as readonly AppSettingId[]).includes(id)
 
 /**
  * What Linedesk does in the app: one switch per setting, applied locally at once and sent through the outbox. Every
@@ -439,31 +442,43 @@ function AppSettings({
 
   function row(id: AppSettingId) {
     const text = settingText(app, id)
-    const last = isVerify(id) && id !== 'verify_order_number' && on(id) && checksOn <= 1
-    const idle = isVerify(id) && !changing
+    const inverted = INVERTED.includes(id)
     return (
       <SwitchRow
         key={id}
         title={t(text.title)}
         description={t(text.help, { name })}
-        note={
-          last && changing ? (
-            <span className="help">{t('settings.integrations.app.shopify.lastCheck')}</span>
-          ) : undefined
-        }
-        tip={
-          last
-            ? t('settings.integrations.app.shopify.lastCheckTip')
-            : idle
-              ? t('settings.integrations.app.shopify.checksIdleTip')
-              : t(text.tip, { name })
-        }
-        on={on(id)}
-        onChange={value => set(id, value)}
-        disabled={!canEdit || last || idle}
+        tip={t(text.tip, { name })}
+        on={inverted ? !on(id) : on(id)}
+        onChange={value => set(id, inverted ? !value : value)}
+        disabled={!canEdit}
         nested={AFTER_LOG_CALLS.includes(id)}
-        dimmed={(AFTER_LOG_CALLS.includes(id) && !logging) || idle}
+        dimmed={AFTER_LOG_CALLS.includes(id) && !logging}
       />
+    )
+  }
+
+  /** One caller check as a checkbox: it adds a step for the caller, it gives the assistant nothing. */
+  function check(id: ShopVerify) {
+    const text = settingText(app, id)
+    const last = id !== 'verify_order_number' && on(id) && checksOn <= 1
+    return (
+      <div key={id} className={`ig-check${changing ? '' : ' is-dimmed'}`}>
+        <Checkbox checked={on(id)} onChange={value => set(id, value)} disabled={!canEdit || last || !changing}>
+          <span
+            title={
+              last
+                ? t('settings.integrations.app.shopify.lastCheckTip')
+                : changing
+                  ? t(text.tip, { name })
+                  : t('settings.integrations.app.shopify.checksIdleTip')
+            }
+          >
+            <b>{t(text.title)}</b>
+            <span className="help">{t(text.help, { name })}</span>
+          </span>
+        </Checkbox>
+      </div>
     )
   }
 
@@ -509,6 +524,19 @@ function AppSettings({
               <div className="st-swlist">{g.ids.map(row)}</div>
             </section>
           ))}
+          {app === 'shopify' && (
+            <section className="ig-verify" aria-label={t('settings.integrations.app.shopify.group.verify')}>
+              <h3>
+                <Icon name="shield" size={14} />
+                {t('settings.integrations.app.shopify.group.verify')}
+                <Badge tone="outline">{t('settings.integrations.app.shopify.verify.badge')}</Badge>
+              </h3>
+              <p className="help">{t('settings.integrations.app.shopify.group.verifyHelp')}</p>
+              {!changing && <p className="help">{t('settings.integrations.app.shopify.verify.idle')}</p>}
+              {changing && checksOn <= 1 && <p className="help">{t('settings.integrations.app.shopify.lastCheck')}</p>}
+              <div className="ig-checks">{SHOP_VERIFY_SETTINGS.map(check)}</div>
+            </section>
+          )}
         </div>
       ) : (
         <div className="st-swlist">{APP_SETTINGS[app].map(row)}</div>
@@ -544,6 +572,7 @@ function ShopifySetupSummary({
   onRecommended: () => void
 }) {
   const t = useT()
+  const format = useFormat()
   const changes = SHOP_CHANGE_SETTINGS.filter(on)
   const checks = SHOP_VERIFY_SETTINGS.filter(on)
   const badge = (
@@ -571,19 +600,9 @@ function ShopifySetupSummary({
       )}
     </div>
   )
-  const ids: AppSettingId[] = [
-    'log_calls',
-    'fill_fields',
-    'create_contacts',
-    ...SHOP_CHANGE_SETTINGS,
-    ...(changes.length ? SHOP_VERIFY_SETTINGS.filter(on) : []),
-  ]
-  const label = (id: AppSettingId) =>
-    isVerify(id)
-      ? t('settings.integrations.app.shopify.setup.checkLine', {
-          check: t(CHECK_WORDS[id as (typeof SHOP_VERIFY_SETTINGS)[number]]),
-        })
-      : t(settingText('shopify', id).title)
+  // The columns hold only what the assistant may do; the caller checks give nothing and get their own line.
+  const ids: AppSettingId[] = ['log_calls', 'fill_fields', 'create_contacts', ...SHOP_CHANGE_SETTINGS]
+  const label = (id: AppSettingId) => t(settingText('shopify', id).title)
   return (
     <div className="ig-setup">
       <div className="ig-setup-head">
@@ -621,6 +640,16 @@ function ShopifySetupSummary({
           )
         })}
       </div>
+      <p className="ig-setup-verify">
+        <Icon name="shield" size={14} />
+        <span>
+          {changes.length
+            ? t('settings.integrations.app.shopify.setup.verifyLine', {
+                checks: format.list(checks.map(id => t(CHECK_WORDS[id]))),
+              })
+            : t('settings.integrations.app.shopify.setup.verifyNone')}
+        </span>
+      </p>
       {actions}
     </div>
   )

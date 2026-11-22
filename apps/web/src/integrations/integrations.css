@@ -369,3 +369,50 @@
 .ig-setup-col.is-off li {
   color: var(--ink-muted);
 }
+
+/* Shopify: the caller verification, apart from the switches: checkboxes in a box of its own, since it gives the
+   assistant no rights, it only adds steps for the caller (LIN-733). */
+.ig-verify {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  padding: 12px 14px;
+}
+.ig-verify > h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.ig-verify > .help {
+  margin: 0 0 6px;
+}
+.ig-checks {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+.ig-check.is-dimmed {
+  opacity: 0.55;
+}
+.ig-check .k-check {
+  align-items: flex-start;
+}
+.ig-check .k-check-text > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ig-check .k-check-text .help {
+  font-weight: 400;
+}
+.ig-setup-verify {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink-muted);
+}
