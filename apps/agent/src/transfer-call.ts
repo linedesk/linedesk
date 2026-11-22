@@ -16,7 +16,7 @@ import { ALL_PARTICIPANT_KINDS } from './counterpart.ts'
 import { livekitHttpUrl } from './env.ts'
 import { audioStream, type GreetingAudio, synthesize } from './greeting-cache.ts'
 import { NotAnsweredError, type OnCallDialer } from './on-call-dialer.ts'
-import { createStt, sttDetectsTurns, type TransferSpeech } from './pipeline.ts'
+import { createStt, sttDetectsTurns, type TransferSpeech, TTS_TEXT_TRANSFORMS } from './pipeline.ts'
 import { type Answer, answerOf, answerOfDigit, DECISION_MS, type OnCallLines } from './transfer.ts'
 
 export const ON_CALL_IDENTITY = 'on-call'
@@ -330,6 +330,7 @@ export async function warmTransfer(
       vad: null,
       stt: createStt(setup.consult.stt, { main: setup.consult.language, others: [] }),
       tts,
+      ttsTextTransforms: TTS_TEXT_TRANSFORMS,
       turnHandling: {
         turnDetection: sttDetectsTurns(setup.consult.stt, { main: setup.consult.language, others: [] })
           ? 'stt'

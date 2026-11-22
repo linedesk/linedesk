@@ -12,6 +12,7 @@ import * as deepgram from '@livekit/agents-plugin-deepgram'
 import * as elevenlabs from '@livekit/agents-plugin-elevenlabs'
 import * as openai from '@livekit/agents-plugin-openai'
 import type { AssistantVoice } from '@linedesk/db/types'
+import { spellCodesTransform } from './spoken-codes.ts'
 import { type AgentConfig, type CallConfig, isRealtime, llmDefaults, type RealtimeConfig, type TtsConfig } from './config.ts'
 import type { GreetingVoice } from './greeting-cache.ts'
 import { quotedData } from './prompt.ts'
@@ -257,8 +258,15 @@ function providerTts({ voiceId, ...tts }: TtsConfig & { voiceId?: string }, lang
   const speed = speedPct !== TALKING_SPEED_PCT_DEFAULT ? speedPct / 100 : undefined
   if (tts.provider === 'cartesia')
     return new cartesia.TTS({ apiKey: tts.apiKey, model: ttsModelOf(tts), ...(voiceId ? { voice: voiceId } : {}), ...spoken, ...(speed ? { speed } : {}) })
-  return new elevenlabs.TTS({ apiKey: tts.apiKey, model: ttsModelOf(tts), ...(voiceId ? { voiceId } : {}), ...spoken, voiceSettings: elevenLabsVoiceSettings(speedPct), preferredAlignment: ELEVENLABS_ALIGNMENT })
+  return new elevenlabs.TTS({ apiKey: tts.apiKey, model: ttsModelOf(tts), ...(voiceId ? { voiceId } : {}), ...spoken, voiceSettings: elevenLabsVoiceSettings(speedPct), preferredAlignment: ELEVENLABS_ALIGNMENT, applyTextNormalization: ELEVENLABS_NORMALIZATION })
 }
+
+/**
+ * ElevenLabs turns numbers, dates and amounts into words only when asked: its fast models (Flash v2.5, the default)
+ * skip it on "auto", and read "14. November 2026" as "… zweitausendzweiundzwanzig" and "49,90 €" as "neun fünf euro"
+ * (German call, 2026-11-22). "on" costs about 160 ms to the first sound, only in sentences with digits in them.
+ */
+export const ELEVENLABS_NORMALIZATION = 'on'
 
 /** What ElevenLabs is sent on every call: its default settings with the talking speed (LIN-712). */
 export const elevenLabsVoiceSettings = (speedPct: number) => ({ ...ELEVENLABS_VOICE_SETTINGS, speed: speedPct / 100 })
@@ -365,6 +373,9 @@ export const sttDetectsTurns = (stt: AgentConfig['stt'], languages: CallLanguage
 export const MAX_TOOL_STEPS = 8
 
 /** Session options for one call. */
+/** LiveKit's own two (markdown, emoji) and codes said one character at a time (spoken-codes.ts), for every voice provider. */
+export const TTS_TEXT_TRANSFORMS: NonNullable<voice.AgentSessionOptions['ttsTextTransforms']> = ['filter_markdown', 'filter_emoji', spellCodesTransform]
+
 export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVoice | null, silenceFirstGapS = SILENCE_FIRST_GAP_DEFAULT_S, languages: CallLanguages = ENGLISH_CALL, speedPct = TALKING_SPEED_PCT_DEFAULT): voice.AgentSessionOptions & { tts: CallVoice } {
   const sttTurns = sttDetectsTurns(config.stt, languages)
   return {
@@ -377,6 +388,7 @@ export function createPipeline(config: AgentConfig, assistantVoice?: AssistantVo
     // there, and in the end says goodbye and hangs up (remindOnSilence in hang-up.ts).
     userAwayTimeout: silenceFirstGapS,
     maxToolSteps: MAX_TOOL_STEPS,
+    ttsTextTransforms: TTS_TEXT_TRANSFORMS,
   }
 }
 
