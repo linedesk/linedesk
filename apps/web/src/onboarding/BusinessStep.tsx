@@ -64,6 +64,11 @@ type Props = {
   admin: boolean
   onRenamed: (name: string) => void
   onNext: () => void
+  /**
+   * Back to the agent setup page (setup-choice.ts, `agentSetupWayBack`): set up by hand after all, the first step offers
+   * the way back in the page itself too, since narrow windows show only the logos of the top bar's "Set up with AI".
+   */
+  onAgentSetup?: () => void
   /** The assistant whose business profile this is (step by step from its settings); else the default one. */
   assistantId?: string
 }
@@ -98,6 +103,7 @@ function FindBusiness({
   admin,
   onRenamed,
   onNext,
+  onAgentSetup,
 }: Props & { assistant: Assistant }) {
   const t = useT()
   const word = useClientWord()
@@ -221,6 +227,7 @@ function FindBusiness({
       }
       saved={saved}
       readsWebsite={site === 'field'}
+      onAgentSetup={phase.kind === 'loading' ? undefined : onAgentSetup}
     >
       {phase.kind === 'loading' && (
         <div className="ob-biz-loading" role="status">
@@ -433,6 +440,7 @@ function FindForm({
   primary,
   saved,
   readsWebsite,
+  onAgentSetup,
   children,
 }: {
   phase: Phase
@@ -443,6 +451,8 @@ function FindForm({
   primary?: { onClick: () => void; label: string }
   saved: boolean
   readsWebsite: boolean
+  /** Back to the agent setup page, under the form. */
+  onAgentSetup?: () => void
   children: ReactNode
 }) {
   const t = useT()
@@ -467,6 +477,18 @@ function FindForm({
         </p>
         {children}
       </div>
+      {onAgentSetup && (
+        <Note
+          tone="info"
+          action={
+            <Button size="sm" variant="secondary" icon="spark" onClick={onAgentSetup}>
+              {t('onboarding.business.agentBack')}
+            </Button>
+          }
+        >
+          {t('onboarding.business.agentBackNote')}
+        </Note>
+      )}
       {/* While searching, the search leads on (the one primary action); the saved profile is one Back away. */}
       <Foot
         onBack={phase.kind === 'loading' ? undefined : onBack}

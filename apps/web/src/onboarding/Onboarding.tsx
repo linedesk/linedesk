@@ -181,6 +181,7 @@ function OnboardingFlow({ me, state, onDone, onRenamed, onReload, onAgentSetup }
             pickupMemory={pickupMemory}
             onPickupMemory={setPickupMemory}
             onRenamed={onRenamed}
+            onAgentSetup={onAgentSetup}
             onBack={back}
             onNext={forward}
           />
@@ -255,6 +256,8 @@ type StepScreenProps = {
   pickupMemory: PickupMemory
   onPickupMemory: (memory: PickupMemory) => void
   onRenamed: (name: string) => void
+  /** Back to the agent setup page (the first setup only): the business step offers it while nothing is filled in yet. */
+  onAgentSetup?: () => void
   onBack: () => void
   onNext: () => void
 }
@@ -276,6 +279,7 @@ export function StepScreen(p: StepScreenProps) {
           admin={admin}
           assistantId={p.assistantId}
           onRenamed={p.onRenamed}
+          onAgentSetup={p.onAgentSetup}
           onNext={p.onNext}
         />
       )
