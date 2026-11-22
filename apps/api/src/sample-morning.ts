@@ -1,132 +1,151 @@
 // The sample calls a new workspace can try ("Try with sample calls"). Unlike the demo morning
 // (demo-calls.ts, a plumber's), they fit any trade: no pipes, no owner's name, nothing a
-// salon, an electrician or a dental office would not hear. sample.add renames the business and
-// the assistant (`renamed`), so the greeting is the workspace's own.
-import { GREETING, type SeedCall } from './demo-calls.ts'
+// salon, an electrician or a dental office would not hear. Their words are keys in the server
+// catalog (`server.sample.*`), so sample.add files them in the language of the person who adds them,
+// with the workspace's own business and assistant names in the greeting.
+import type { MessageKey } from '@linedesk/i18n'
+import type { SeedCall } from './demo-calls.ts'
 
-const greet: SeedCall['lines'][number] = ['agent', GREETING]
+// i18n-dynamic: server.sample.*
+type Speaker = SeedCall['lines'][number][0]
 
-export const sampleMorning: SeedCall[] = [
+/** One sample call: the facts here, every word a catalog key. */
+export type SampleCall = Omit<SeedCall, 'name' | 'title' | 'summary' | 'next' | 'fields' | 'lines'> & {
+  /** The caller's name; null for a caller who never said it. Calls from the same phone share it. */
+  name: MessageKey | null
+  title: MessageKey
+  summary: MessageKey
+  next?: MessageKey
+  /** A field the assistant took down: its label, and its value (written in the same language, such as an email address that fits the name). */
+  fields?: { label: MessageKey; value: MessageKey }[]
+  /** `greeting` is the assistant's greeting with the workspace's business and assistant names. */
+  lines: ([speaker: Speaker, text: MessageKey] | 'greeting')[]
+}
+
+const URGENT: MessageKey = 'server.sample.event.urgent'
+const MESSAGE: MessageKey = 'server.sample.event.message'
+
+export const sampleMorning: SampleCall[] = [
   {
-    name: 'Sarah Whitfield',
+    name: 'server.sample.urgent.caller',
     phone: '+15035550117',
     minutesAgo: 22,
     durationSec: 128,
     outcome: 'callback',
     urgency: 'urgent',
-    title: 'Needs someone today',
-    summary: 'Something stopped working this morning and she cannot wait. Wants a call back right away.',
-    next: 'Call Sarah back right away',
+    title: 'server.sample.urgent.title',
+    summary: 'server.sample.urgent.summary',
+    next: 'server.sample.urgent.next',
     lines: [
-      greet,
-      ['caller', 'Hi, I really need someone today. Something stopped working this morning and I cannot wait.'],
-      ['agent', 'I am sorry to hear that. I will make sure the team sees this first.'],
-      ['system', 'Flagged as urgent'],
-      ['agent', 'I have flagged this as urgent. Is this the best number to reach you?'],
-      ['caller', 'Yes, this one.'],
-      ['system', 'Took a message'],
-      ['agent', 'Thank you, Sarah. The team has your message and will call you back on this number.'],
+      'greeting',
+      ['caller', 'server.sample.urgent.line1'],
+      ['agent', 'server.sample.urgent.line2'],
+      ['system', URGENT],
+      ['agent', 'server.sample.urgent.line3'],
+      ['caller', 'server.sample.urgent.line4'],
+      ['system', MESSAGE],
+      ['agent', 'server.sample.urgent.line5'],
     ],
   },
   {
-    name: 'Daniel Okafor',
+    name: 'server.sample.appointment.caller',
     phone: '+15035550163',
     minutesAgo: 95,
     durationSec: 96,
     outcome: 'message',
-    title: 'Wants an appointment next week',
-    summary: 'Looking for a time next week. Mornings suit him best, ideally Thursday.',
-    next: 'Call Daniel to set a time',
+    title: 'server.sample.appointment.title',
+    summary: 'server.sample.appointment.summary',
+    next: 'server.sample.appointment.next',
     lines: [
-      greet,
-      ['caller', 'I would like to set up an appointment for next week.'],
-      ['agent', 'Of course. Which days and times suit you best?'],
-      ['caller', 'Mornings, ideally Thursday.'],
-      ['system', 'Took a message'],
-      ['agent', 'Got it. I have noted Thursday morning, and the team will call you back to set a time.'],
+      'greeting',
+      ['caller', 'server.sample.appointment.line1'],
+      ['agent', 'server.sample.appointment.line2'],
+      ['caller', 'server.sample.appointment.line3'],
+      ['system', MESSAGE],
+      ['agent', 'server.sample.appointment.line4'],
     ],
   },
   {
-    name: 'Priya Raman',
+    name: 'server.sample.quote.caller',
     phone: '+15035550188',
     minutesAgo: 140,
     durationSec: 88,
     outcome: 'message',
-    title: 'Asks for a quote',
-    summary: 'Wants a rough quote for a larger job. Prefers email.',
-    next: 'Send Priya a quote by email',
-    fields: [{ label: 'Email', value: 'priya.raman@example.com' }],
+    title: 'server.sample.quote.title',
+    summary: 'server.sample.quote.summary',
+    next: 'server.sample.quote.next',
+    fields: [{ label: 'server.sample.quote.emailLabel', value: 'server.sample.quote.email' }],
     lines: [
-      greet,
-      ['caller', 'I am planning a bigger job and would like a rough quote.'],
-      ['agent', 'Happy to pass that on. What is the best way to reach you with the quote?'],
-      ['caller', 'Email is best: priya.raman@example.com.'],
-      ['system', 'Took a message'],
-      ['agent', 'Thank you, Priya. The team will email you about the quote.'],
+      'greeting',
+      ['caller', 'server.sample.quote.line1'],
+      ['agent', 'server.sample.quote.line2'],
+      ['caller', 'server.sample.quote.line3'],
+      ['system', MESSAGE],
+      ['agent', 'server.sample.quote.line4'],
     ],
   },
   {
-    name: 'Linda Park',
+    name: 'server.sample.dropped.caller',
     phone: '+15035550134',
     minutesAgo: 190,
     durationSec: 41,
     outcome: 'callback',
-    title: 'Call dropped, wants a call back',
-    summary: 'Her phone kept cutting out. She has a question about an earlier visit and asked to be called back.',
-    next: 'Call Linda back',
+    title: 'server.sample.dropped.title',
+    summary: 'server.sample.dropped.summary',
+    next: 'server.sample.dropped.next',
     lines: [
-      greet,
-      ['caller', 'Sorry, my phone keeps cutting out. I have a question about your last visit.'],
-      ['agent', 'No problem. Shall I have someone call you back on this number?'],
-      ['caller', 'Yes please.'],
-      ['system', 'Took a message'],
-      ['agent', 'Thanks, Linda. I have noted it, and the team will call you back on this number.'],
+      'greeting',
+      ['caller', 'server.sample.dropped.line1'],
+      ['agent', 'server.sample.dropped.line2'],
+      ['caller', 'server.sample.dropped.line3'],
+      ['system', MESSAGE],
+      ['agent', 'server.sample.dropped.line4'],
     ],
   },
   {
-    name: 'Linda Park',
+    name: 'server.sample.dropped.caller',
     phone: '+15035550134',
     minutesAgo: 186,
     durationSec: 18,
     outcome: 'hangup',
-    title: 'Hung up',
-    summary: 'Called again right after; the line dropped before she said anything.',
+    title: 'server.sample.hungUp.title',
+    summary: 'server.sample.hungUp.summary',
     unread: false,
-    lines: [greet],
+    lines: ['greeting'],
   },
   {
-    name: 'Tom Alvarez',
+    name: 'server.sample.price.caller',
     phone: '+15035550152',
     minutesAgo: 60 * 24 + 30,
     durationSec: 73,
     outcome: 'callback',
-    title: 'Price question',
-    summary: 'Asked what a visit costs. The assistant does not quote prices and took a message.',
-    next: 'Call Tom back with a price',
+    title: 'server.sample.price.title',
+    summary: 'server.sample.price.summary',
+    next: 'server.sample.price.next',
     unread: false,
     lines: [
-      greet,
-      ['caller', 'Hi, roughly what would a visit cost?'],
-      ['agent', 'I cannot quote prices, but the team can give you one. Shall I take a message?'],
-      ['caller', 'Sure.'],
-      ['system', 'Took a message'],
-      ['agent', 'Done. The team will call you back with a price.'],
+      'greeting',
+      ['caller', 'server.sample.price.line1'],
+      ['agent', 'server.sample.price.line2'],
+      ['caller', 'server.sample.price.line3'],
+      ['system', MESSAGE],
+      ['agent', 'server.sample.price.line4'],
     ],
   },
   {
-    name: 'Rachel Kim',
+    name: 'server.sample.hours.caller',
     phone: '+15035550171',
     minutesAgo: 60 * 24 + 200,
     durationSec: 35,
     outcome: 'answered',
-    title: 'Opening hours',
-    summary: 'Asked when the business is open. The assistant told her.',
+    title: 'server.sample.hours.title',
+    summary: 'server.sample.hours.summary',
     unread: false,
     lines: [
-      greet,
-      ['caller', 'Hi, when are you open?'],
-      ['agent', 'We are open Monday to Friday during business hours. Is there anything else I can help with?'],
-      ['caller', 'No, that is all, thanks.'],
+      'greeting',
+      ['caller', 'server.sample.hours.line1'],
+      ['agent', 'server.sample.hours.line2'],
+      ['caller', 'server.sample.hours.line3'],
     ],
   },
   {
@@ -135,9 +154,9 @@ export const sampleMorning: SeedCall[] = [
     minutesAgo: 60 * 24 * 2,
     durationSec: 22,
     outcome: 'spam',
-    title: 'Sales call: business listing',
-    summary: 'Automated pitch about a business listing upgrade.',
+    title: 'server.sample.spam.title',
+    summary: 'server.sample.spam.summary',
     unread: false,
-    lines: [greet, ['caller', 'This is an important message about your business listing.']],
+    lines: ['greeting', ['caller', 'server.sample.spam.line1']],
   },
 ]

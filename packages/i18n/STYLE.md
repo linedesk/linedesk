@@ -17,6 +17,9 @@ for meaning and tone.
 - Keyboard keys (`E`, `Esc`, `⌘K`) and code (`{brand}`, URLs, file names) stay untranslated.
 - Terms: follow `glossary.json`. "Never translate" terms stay as they are (Linedesk, brand names, demo names). Product
   terms use the fixed word for the language every time (Assistant, never "receptionist"; Reminder, never "snooze").
+- Sample calls (`server.sample.*`): the example calls a new workspace can fill its inbox with. Write them as such a
+  call sounds in that language's main country: local first and last names for the callers (the email address in
+  `server.sample.quote.email` matching the caller's name, at `example.com`), everyday wording, nothing tied to one trade.
 - `_context.json` notes say where a string appears and how long it may be. Keep to the limit.
 
 ## es: Spanish

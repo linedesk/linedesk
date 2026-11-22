@@ -2,7 +2,7 @@ import { calls, contacts, transcript_segments } from '@linedesk/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, test } from 'vitest'
 import { db } from '../src/db.ts'
-import { firstUse, renamed } from '../src/sample-calls.ts'
+import { firstUse, renamed, sampleHandlers } from '../src/sample-calls.ts'
 import { act, addMember, createWorkspace } from './helpers.ts'
 
 const countOf = async (workspaceId: string) => ({
@@ -33,6 +33,25 @@ describe('sample calls', () => {
     const once = await countOf(ws.id)
     expect((await act(ws.owner, 'sample.add', {})).body.rows).toEqual({})
     expect(await countOf(ws.id)).toEqual(once)
+  })
+
+  test("in the language of the person who adds them, with the workspace's names in the greeting", async () => {
+    const ws = await createWorkspace('Lindenhof Elektro')
+    // The pseudo-language marks every catalog sentence ⟦…⟧: text without it was not written in the reader's language.
+    const actor = { workspaceId: ws.id, locale: 'en-XA' }
+    const { rows } = await db.transaction(tx => sampleHandlers['sample.add']!({ tx, actor } as never, {}))
+    const added = rows as {
+      calls: { title: string; summary: string }[]
+      transcript_segments: { text: string }[]
+      contacts: { name: string | null }[]
+    }
+    for (const text of [
+      ...added.calls.flatMap(c => [c.title, c.summary]),
+      ...added.transcript_segments.map(s => s.text),
+      ...added.contacts.flatMap(c => (c.name ? [c.name] : [])),
+    ])
+      expect(text).toMatch(/^⟦.*⟧$/s)
+    expect(added.transcript_segments[0]!.text).toContain('Lindenhof Elektro')
   })
 
   test('removed in one go: calls, transcripts and sample callers; other workspaces keep theirs', async () => {

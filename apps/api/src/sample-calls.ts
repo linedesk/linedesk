@@ -1,6 +1,6 @@
 // Sample calls for a new workspace ("Try with sample calls"): a trade-neutral morning (sample-morning.ts),
-// renamed to the workspace's business and assistant, filed with source `sample` so the inbox marks them, and removed
-// again in one go. Sample callers are contacts whose id starts with SAMPLE_ID_PREFIX.
+// written in the language of the person who adds them, with the workspace's business and assistant in the greeting,
+// filed with source `sample` so the inbox marks them, and removed again in one go. Sample callers are contacts whose id starts with SAMPLE_ID_PREFIX.
 import { type FirstUse, firstUseVariants, SAMPLE_ID_PREFIX } from '@linedesk/actions'
 import {
   assistants,
@@ -13,9 +13,9 @@ import {
   type Tx,
 } from '@linedesk/db'
 import { and, asc, eq, inArray, like, notExists } from 'drizzle-orm'
-import { DEMO_ASSISTANT, DEMO_BUSINESS, type SeedCall } from './demo-calls.ts'
-import { type Handler, Reject } from './handler-context.ts'
-import { sampleMorning } from './sample-morning.ts'
+import { DEMO_ASSISTANT, DEMO_BUSINESS } from './demo-calls.ts'
+import { type Handler, type Reader, Reject, wordsOf } from './handler-context.ts'
+import { type SampleCall, sampleMorning } from './sample-morning.ts'
 
 /** FIRST_USE: how a new workspace is introduced (tour, sample, both, off); both when unset or unknown. */
 export function firstUse(env: Record<string, string | undefined> = process.env): FirstUse {
@@ -28,19 +28,25 @@ const sampleId = (kind: string) => `${SAMPLE_ID_PREFIX}${kind}_${crypto.randomUU
 /** The demo's words with this workspace's business and assistant names in them. */
 export function renamed(text: string, business: string, assistant: string): string {
   // One pass: a business name that itself contains "Brightwater" is not replaced twice.
-  return text
-    .replace(/Brightwater Plumbing & Heating|Brightwater/g, business)
-    .replaceAll(DEMO_ASSISTANT, assistant)
+  return text.replace(/Brightwater Plumbing & Heating|Brightwater/g, business).replaceAll(DEMO_ASSISTANT, assistant)
 }
 
 type Names = { business: string; assistant: string; number: string }
 
-/** The rows one sample call needs, its caller included (shared by calls from the same number). */
-function sampleRows(c: SeedCall, workspace_id: string, contact_id: string, names: Names, now: number) {
+/** The rows one sample call needs, its caller included (shared by calls from the same number), in the reader's words. */
+function sampleRows(c: SampleCall, workspace_id: string, contact_id: string, names: Names, words: Reader, now: number) {
   const call_id = sampleId('call')
   const started = new Date(now - c.minutesAgo * 60_000)
-  const say = (text: string) => renamed(text, names.business, names.assistant)
-  const step = Math.floor((c.durationSec * 1000) / (c.lines.length + 1))
+  const email = words.t('server.sample.quote.email')
+  const lines = c.lines.map(line => {
+    if (line === 'greeting')
+      return [
+        'agent',
+        words.t('server.sample.greeting', { business: names.business, assistant: names.assistant }),
+      ] as const
+    return [line[0], words.t(line[1], { email })] as const
+  })
+  const step = Math.floor((c.durationSec * 1000) / (lines.length + 1))
   return {
     call: {
       id: call_id,
@@ -55,20 +61,20 @@ function sampleRows(c: SeedCall, workspace_id: string, contact_id: string, names
       status: 'completed' as const,
       outcome: c.outcome,
       urgency: c.urgency ?? 'normal',
-      title: say(c.title),
-      summary: say(c.summary),
-      action_items: c.next ? [{ text: say(c.next) }] : [],
-      fields: c.fields ?? [],
+      title: words.t(c.title),
+      summary: words.t(c.summary),
+      action_items: c.next ? [{ text: words.t(c.next) }] : [],
+      fields: (c.fields ?? []).map(f => ({ label: words.t(f.label), value: words.t(f.value) })),
       unread: c.unread ?? true,
     },
-    segments: c.lines.map(([speaker, text], n) => ({
+    segments: lines.map(([speaker, text], n) => ({
       id: `${call_id}_${n}`,
       workspace_id,
       call_id,
       speaker,
-      text: say(text),
+      text,
       at_ms: n * step,
-      tool_event: speaker === 'system' ? { tool: 'system', label: say(text) } : null,
+      tool_event: speaker === 'system' ? { tool: 'system', label: text } : null,
     })),
   }
 }
@@ -102,6 +108,7 @@ export const sampleHandlers: Record<string, Handler> = {
     const [already] = await tx.select({ id: calls.id }).from(calls).where(sampleCallsOf(workspace_id)).limit(1)
     if (already) return { rows: {} }
     const names = await namesOf(tx, workspace_id)
+    const words = wordsOf(actor)
     const now = Date.now()
     const callers = new Map<string, string>()
     const newContacts: (typeof contacts.$inferInsert)[] = []
@@ -110,9 +117,9 @@ export const sampleHandlers: Record<string, Handler> = {
       if (!contact_id) {
         contact_id = sampleId('ct')
         callers.set(c.phone, contact_id)
-        newContacts.push({ id: contact_id, workspace_id, name: c.name, phone: c.phone })
+        newContacts.push({ id: contact_id, workspace_id, name: c.name && words.t(c.name), phone: c.phone })
       }
-      return sampleRows(c, workspace_id, contact_id, names, now)
+      return sampleRows(c, workspace_id, contact_id, names, words, now)
     })
     const insertedContacts = await tx.insert(contacts).values(newContacts).returning()
     const insertedCalls = await tx
