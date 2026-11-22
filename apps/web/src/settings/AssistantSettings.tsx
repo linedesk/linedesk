@@ -51,7 +51,7 @@ import { RadioCard } from '../ui/controls.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Button, Icon, Note } from '../ui/kit.tsx'
 import { Loading, LoadProblem, Skeleton, useLoading, useLoadState } from '../ui/LoadStates.tsx'
-import { SearchSelect } from '../ui/SearchSelect.tsx'
+import { type SearchOption, SearchSelect } from '../ui/SearchSelect.tsx'
 import { type PageSection, SettingsLayout, sectionHash, sectionParts, useSection } from '../ui/SettingsLayout.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { useWorkspaceCountry, useWorkspaceLanguage } from '../workspaceLocale.ts'
@@ -117,6 +117,7 @@ import {
 import { Holidays, VacationMode } from './Holidays.tsx'
 import { Knowledge } from './Knowledge.tsx'
 import { MissingProviderNote } from './MissingProviderNote.tsx'
+import { countryNames, searchLanguages } from './languageSearch.ts'
 import { HoursSummary, RulesSummary, TransfersSummary } from './Summaries.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
@@ -644,6 +645,12 @@ export function Languages({
     country ? countryLanguage : undefined,
     t,
   )
+  // Searchable by a country too: "Mexico" finds Spanish (countries named in the UI language).
+  const countries = useMemo(() => countryNames([format.region]), [format])
+  const searchMain = useCallback(
+    (options: readonly SearchOption[], query: string) => searchLanguages(options, query, countries, format.region),
+    [countries, format],
+  )
   // What "Switch to the caller's language" switches to. With a Flux model only Flux's languages; the others only when
   // picked (coordinator decision on LIN-268), so it is named, not left to read as the whole pick list.
   const anyOthers = anyModeOthers(anyCovers, offered, main)
@@ -692,6 +699,7 @@ export function Languages({
             label={t('settings.assistant.languages.main')}
             value={main}
             options={languageOptions}
+            search={searchMain}
             listWidth={280}
             onChange={code => onMainLanguage(code as Language)}
           />
