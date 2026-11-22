@@ -23,7 +23,6 @@ export const CLIENT_WORDS: ReadonlyMap<MessageKey, MessageKey> = new Map([
   [msg('onboarding.pickup.afterHours.description'), msg('onboarding.pickup.afterHours.descriptionClient')],
   // Who hears about calls: the summaries are the signed-in member's own (the partner's), the urgent calls the client's.
   [msg('onboarding.notify.lede'), msg('onboarding.notify.ledeClient')],
-  [msg('onboarding.notify.hearLabel'), msg('onboarding.notify.hearLabelClient')],
   [msg('onboarding.notify.message.title'), msg('onboarding.notify.message.titleClient')],
   [msg('onboarding.notify.message.description'), msg('onboarding.notify.message.descriptionClient')],
   [msg('onboarding.notify.transfer.title'), msg('onboarding.notify.transfer.titleClient')],

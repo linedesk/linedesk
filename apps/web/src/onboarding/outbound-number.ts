@@ -8,7 +8,7 @@ import { readAction } from '../settings/settings-api.ts'
 import type { WhoHearsDraft, WhoHearsProblem } from './flow.ts'
 
 /**
- * What is wrong with the owner's mobile in "Who hears about calls?" (NotifyStep.tsx), for a value of the phone
+ * What is wrong with the owner's mobile in the "Urgent calls" step (NotifyStep.tsx), for a value of the phone
  * field: unfinished says so for its country ("This number doesn't look complete for Canada."). Otherwise the step's
  * own problem (whoHearsProblem, which knows the countries the workspace may call).
  */

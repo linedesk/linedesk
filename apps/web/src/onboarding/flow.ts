@@ -756,7 +756,7 @@ export function assistantChanges(
   return Object.keys(changes).length ? changes : null
 }
 
-/** The transfer contact the "Who hears about calls?" step owns: the owner's mobile for urgent calls. */
+/** The transfer contact the "Urgent calls" step owns: the owner's mobile for urgent calls. */
 export const URGENT_CONTACT_ID = 'urgent'
 /** The contact every new assistant has for callers who ask for a person (DEFAULT_TRANSFERS). */
 const PERSON_CONTACT_ID = 'person'

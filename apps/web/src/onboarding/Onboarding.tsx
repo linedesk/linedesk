@@ -306,8 +306,6 @@ export function StepScreen(p: StepScreenProps) {
         <NotifyStep
           actorId={p.me.actorId}
           emailConfirmed={p.emailConfirmed}
-          admin={admin}
-          serverNotes={!p.me.workspace?.billingState}
           assistantId={p.assistantId}
           onBack={p.onBack}
           onNext={p.onNext}

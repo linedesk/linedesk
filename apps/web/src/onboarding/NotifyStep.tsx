@@ -1,25 +1,22 @@
-// Step 4, "Who hears about calls?": first where call summaries go (email and push for this member,
-// notifications.*), then what happens when a caller has an urgent matter: put through to the owner's mobile (a transfer
-// contact of the assistant, assistant.update) or a message with an alert right away. A first visit starts at the
+// Step 4, "Urgent calls": what happens when a caller has an urgent matter: put through to the owner's mobile (a transfer
+// contact of the assistant, assistant.update) or a message with an alert right away. Where call summaries go is not asked
+// here (Janik, 2026-11-22): the defaults hold (email on), the rest is in User settings › Notifications. A first visit starts at the
 // message (it needs no number), and only "put through" asks for a number. No texts yet. Can be done later; it shows what exists (the
 // contact it saved before, the member's notification settings). Continue never waits for the server: the saves are
 // queued, and a refusal comes back as the onboarding's save error for this step (Onboarding.tsx).
-import { type NotificationSettingsData, setsTransferNumber } from '@linedesk/actions'
+import { setsTransferNumber } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
-import { AppLink } from '../ui/AppLink.tsx'
 import { useState } from 'react'
 import { brandName } from '../brand.ts'
 import { Field, TextArea } from '../settings/fields.tsx'
-import { useDeviceNotifications } from '../settings/Notifications.tsx'
-import { setNotificationSettings, useNotificationQuery } from '../shell/useCallNotifications.ts'
 import { useAssistantOf, useRows, useRun } from '../store.tsx'
 import { useMember } from '../team/members.ts'
-import { Checkbox, RadioCard } from '../ui/controls.tsx'
+import { RadioCard } from '../ui/controls.tsx'
 import { Note } from '../ui/kit.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
-import { Loading, Skeleton, SkeletonFields } from '../ui/LoadStates.tsx'
+import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { Foot, useStepKeys } from './Frame.tsx'
 import { useOutboundCountries, withUnfinishedNumber } from './outbound-number.ts'
 import { useClientWord, useForClient } from './clientWords.tsx'
@@ -41,13 +38,6 @@ type Props = {
   actorId: string
   /** False while the address is unconfirmed: the server puts no calls through to a number until it is. */
   emailConfirmed: boolean
-  /** An instance admin: what the server lacks links to Server admin › Providers; everyone else is told whom to ask. */
-  admin: boolean
-  /**
-   * False in a customer's sign-up on a bill (Linedesk Cloud): the server's own setup (email not set up) belongs to
-   * Server admin, never to this step, so it says nothing about it there.
-   */
-  serverNotes?: boolean
   onBack: () => void
   onNext: () => void
   /** The assistant whose calls these are (step by step from its settings); else the workspace's default one. */
@@ -71,15 +61,7 @@ export function NotifyStep(p: Props) {
 
 const LATER = msg('onboarding.notify.later')
 
-function NotifyForm({
-  assistant,
-  actorId,
-  emailConfirmed,
-  admin,
-  serverNotes = true,
-  onBack,
-  onNext,
-}: Props & { assistant: Assistant }) {
+function NotifyForm({ assistant, actorId, emailConfirmed, onBack, onNext }: Props & { assistant: Assistant }) {
   const t = useT()
   const word = useClientWord()
   // A partner's team: urgent calls go to the client's mobile, so the contact is named for the owner, not this member.
@@ -97,17 +79,9 @@ function NotifyForm({
   const [shown, setShown] = useState(false)
   /** What the step itself can tell before saving; `mobile` when it is about the number typed. */
   const [error, setError] = useState<{ message: string; mobile: boolean } | null>(null)
-  const notifications = useNotificationQuery()
-  const [email, setEmail] = useState<boolean | null>(null)
-  const settings = notifications.data ?? null
-  const emailOn = email ?? settings?.effective.email ?? true
   const countries = useOutboundCountries()
   const phoneCountry = useDefaultPhoneCountry()
   const problem = withUnfinishedNumber(draft, whoHearsProblem(draft, assistant.transfers, countries))
-  // "Take a message and alert me" alerts by email or push; with both off nobody hears of an urgent call until they look.
-  // Email that this server cannot send alerts nobody either.
-  const emailWorks = emailOn && (!serverNotes || settings?.emailReady !== false)
-  const nobodyAlerted = draft.urgent === 'message' && !!settings && !emailWorks && settings.push.devices.length === 0
   const name = assistant.name
 
   const set = (change: Partial<WhoHearsDraft>) => {
@@ -125,14 +99,6 @@ function NotifyForm({
     const typed = draft.urgent === 'transfer' ? outboundE164(draft.mobile) : null
     if (typed && numbers.some(n => n.e164 === typed))
       return setError({ message: t('onboarding.notify.ownNumber', { brand: brandName() }), mobile: true })
-    if (settings && emailOn !== settings.effective.email) {
-      setNotificationSettings({
-        ...settings,
-        own: { ...settings.own, email: emailOn },
-        effective: { ...settings.effective, email: emailOn },
-      })
-      void run('notifications.update', { email: emailOn })
-    }
     // Queued, not awaited: a refusal (a number forwarding to us, say) comes back as this step's save error.
     if (transfers) void run('assistant.update', { assistantId: assistant.id, transfers })
     onNext()
@@ -156,30 +122,8 @@ function NotifyForm({
   return (
     <>
       <div className="ob-body">
-        <h1>{t('onboarding.notify.title')}</h1>
+        <h1 id="ob-urgent">{t('onboarding.notify.title')}</h1>
         <p className="ob-lede">{t(word('onboarding.notify.lede'), { name })}</p>
-        <span className="ob-label" id="ob-hear">
-          {t(word('onboarding.notify.hearLabel'))}
-        </span>
-        <Loading
-          what={t('onboarding.notify.loadingSettings')}
-          loading={!settings}
-          error={notifications.error}
-          onRetry={() => void notifications.reload()}
-          skeleton={
-            <div className="ob-summaries">
-              <Skeleton shape="text" width={240} />
-              <Skeleton shape="text" width={280} />
-            </div>
-          }
-        >
-          {settings && (
-            <Summaries settings={settings} email={emailOn} onEmail={setEmail} admin={admin} serverNotes={serverNotes} />
-          )}
-        </Loading>
-        <span className="ob-label" id="ob-urgent">
-          {t('onboarding.notify.urgentLabel')}
-        </span>
         <div className="k-radios ob-choices" role="radiogroup" aria-labelledby="ob-urgent">
           {/* The default first (it needs no number), as on the pick-up step. */}
           <RadioCard
@@ -197,11 +141,6 @@ function NotifyForm({
             description={t(word('onboarding.notify.transfer.description'), { name })}
           />
         </div>
-        {nobodyAlerted && (
-          <Note tone="warning">
-            {emailOn ? t('onboarding.notify.nobodyAlertedNoEmail') : t('onboarding.notify.nobodyAlerted')}
-          </Note>
-        )}
         {draft.urgent === 'transfer' && (
           <div className="ob-urgent">
             <Field
@@ -244,48 +183,5 @@ function NotifyForm({
         laterTitle={t(LATER)}
       />
     </>
-  )
-}
-
-/**
- * Email for every call (saved with Continue) and notifications on this device (at once), the same switch as Settings ›
- * Notifications: turning it on asks the browser for permission.
- */
-function Summaries({
-  settings,
-  email,
-  onEmail,
-  admin,
-  serverNotes,
-}: {
-  settings: NotificationSettingsData
-  email: boolean
-  onEmail: (on: boolean) => void
-  admin: boolean
-  serverNotes: boolean
-}) {
-  const t = useT()
-  const device = useDeviceNotifications(settings)
-  return (
-    <div className="ob-summaries">
-      <Checkbox checked={email} onChange={onEmail}>
-        {t('onboarding.notify.emailSummary')}
-      </Checkbox>
-      {/* The choice is kept either way; it says that nothing arrives until the server sends email. */}
-      {serverNotes && settings.emailReady === false && (
-        <p className="ob2-note ob-push-note" role="status">
-          {t('onboarding.notify.emailMissing')}{' '}
-          {admin ? (
-            <AppLink to="#admin/providers/email">{t('onboarding.notify.emailMissingFix')}</AppLink>
-          ) : (
-            t('onboarding.notify.emailMissingAsk')
-          )}
-        </p>
-      )}
-      <Checkbox checked={device.on} onChange={on => void device.set(on)} disabled={device.disabled}>
-        {t('onboarding.notify.push')}
-      </Checkbox>
-      <p className="ob2-note ob-push-note">{device.note}</p>
-    </div>
   )
 }

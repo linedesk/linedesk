@@ -47,11 +47,6 @@
 .ob .ob-urgent .ta {
   min-height: 64px;
 }
-.ob-summaries {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
 /* The assistant step's test call: the button with a short line beside it (wraps under it on phones). */
 .ob-talk {
   display: flex;
@@ -329,12 +324,6 @@
 .ob-left .ob-link {
   font-size: 13px;
   color: var(--ink);
-}
-
-/* Notify step: the line under each checkbox (email, notifications) sits under its label. */
-.ob-push-note {
-  margin-top: -6px;
-  padding-left: 26px;
 }
 
 /* Business step: the country set when the workspace was made, with Change to pick another (CountrySelect). */
