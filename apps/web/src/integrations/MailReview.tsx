@@ -3,6 +3,7 @@
 // accept (as edited) into an assistant's About the business, or drop (mail.reviewTopic). Data: mailReview.ts.
 import type { MailAnalysis, MailTopic } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useFormat, useT } from '@linedesk/i18n/react'
 import { type KeyboardEvent, useState } from 'react'
 import { Section } from '../settings/fields.tsx'
@@ -20,6 +21,8 @@ import {
   isPending,
   type MailReview as Review,
   previewLine,
+  type RunStepId,
+  runProgress,
   stateOf,
   type TopicDraft,
   useMailReview,
@@ -100,17 +103,95 @@ function StartAnalysis({ review, again, compact }: { review: Review; again?: boo
 
 function Running({ analysis }: { analysis: MailAnalysis }) {
   const t = useT()
+  const f = useFormat()
+  const { steps, percent } = runProgress(analysis)
+  const p = analysis.progress
+  const details: Record<RunStepId, string | null> = {
+    list: p?.listed
+      ? t('settings.integrations.mailReview.step.listDetail', { count: p.listed, months: analysis.months })
+      : null,
+    read:
+      p && p.candidates > 0
+        ? t('settings.integrations.mailReview.step.readDetail', {
+            found: p.found,
+            checked: p.checked,
+            candidates: p.candidates,
+          })
+        : null,
+    analyze:
+      p?.phase === 'merging'
+        ? t('settings.integrations.mailReview.step.merging')
+        : p && p.batchesTotal > 1
+          ? t('settings.integrations.mailReview.step.analyzeDetail', { done: p.batchesDone, total: p.batchesTotal })
+          : null,
+  }
   return (
-    <div className="mr-running" role="status">
-      <Spinner />
-      <div>
+    <div className="mr-run" role="status">
+      <div className="mr-run-head">
+        {analysis.status === 'queued' && <Spinner />}
         <b>
           {analysis.status === 'queued'
             ? t('settings.integrations.mailReview.queued')
             : t('settings.integrations.mailReview.running', { count: analysis.months })}
         </b>
-        <span className="kn-sub">{t('settings.integrations.mailReview.runningLine')}</span>
+        <span className="mr-run-pct">{percent > 0 && f.number(percent / 100, { style: 'percent' })}</span>
       </div>
+      <div
+        className="mr-bar"
+        role="progressbar"
+        aria-label={t('settings.integrations.mailReview.progress')}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+      >
+        <span style={{ width: `${percent}%` }} />
+      </div>
+      <ol className="mr-steps">
+        {(['list', 'read', 'analyze'] as const).map(id => (
+          <li
+            key={id}
+            className={cx('mr-step', `is-${steps[id]}`)}
+            aria-current={steps[id] === 'active' ? 'step' : undefined}
+          >
+            <span className="mr-step-mark" aria-hidden="true">
+              {steps[id] === 'done' && <Icon name="check" size={12} />}
+            </span>
+            <span className="mr-step-text">
+              <span>{t(STEP_LABEL[id])}</span>
+              {steps[id] !== 'todo' && details[id] && <span className="kn-sub">{details[id]}</span>}
+            </span>
+          </li>
+        ))}
+      </ol>
+      {analysis.topics.length > 0 && <SoFar topics={analysis.topics} />}
+      <span className="kn-sub">{t('settings.integrations.mailReview.runningLine')}</span>
+    </div>
+  )
+}
+
+const STEP_LABEL: Record<RunStepId, MessageKey> = {
+  list: msg('settings.integrations.mailReview.step.list'),
+  read: msg('settings.integrations.mailReview.step.read'),
+  analyze: msg('settings.integrations.mailReview.step.analyze'),
+}
+
+/** The topics of the batches read so far (LIN-717): a preview, not yet to review. */
+function SoFar({ topics }: { topics: MailTopic[] }) {
+  const t = useT()
+  return (
+    <div className="mr-sofar">
+      <div className="mr-sofar-head">
+        <b>{t('settings.integrations.mailReview.soFar')}</b>
+        <span className="kn-sub">{t('settings.integrations.mailReview.soFarNote')}</span>
+      </div>
+      <ul>
+        {topics.map(topic => (
+          <li key={topic.title}>
+            <span>{topic.title}</span>
+            <CountBadge topic={topic} />
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

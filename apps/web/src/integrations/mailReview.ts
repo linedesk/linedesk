@@ -18,6 +18,29 @@ const POLL_MS = 4_000
 
 export const isPending = (a: MailAnalysis | null | undefined) => a?.status === 'queued' || a?.status === 'running'
 
+export type RunStepId = 'list' | 'read' | 'analyze'
+export type RunStepState = 'done' | 'active' | 'todo'
+
+/** Conversations an analysis reads at most (CONVERSATIONS_MAX in apps/api/src/mail-analysis.ts). */
+const CONVERSATIONS_MAX = 300
+
+/**
+ * Where a running analysis is (LIN-717): the state of each step and a rough percentage for the bar. Listing takes the
+ * first tenth, reading half, the requests to the model the rest (they are the slow part per item, but few).
+ */
+export function runProgress(a: MailAnalysis): { steps: Record<RunStepId, RunStepState>; percent: number } {
+  const p = a.progress
+  if (a.status === 'queued' || !p) return { steps: { list: 'todo', read: 'todo', analyze: 'todo' }, percent: 0 }
+  const share = (part: number, whole: number) => (whole > 0 ? Math.min(1, part / whole) : 0)
+  if (p.phase === 'listing') return { steps: { list: 'active', read: 'todo', analyze: 'todo' }, percent: 5 }
+  if (p.phase === 'reading') {
+    const read = Math.max(share(p.checked, p.candidates), share(p.found, CONVERSATIONS_MAX))
+    return { steps: { list: 'done', read: 'active', analyze: 'todo' }, percent: Math.round(10 + 50 * read) }
+  }
+  const percent = p.phase === 'merging' ? 95 : Math.round(60 + 35 * share(p.batchesDone, p.batchesTotal))
+  return { steps: { list: 'done', read: 'done', analyze: 'active' }, percent }
+}
+
 /** What the owner edits before accepting: the question as a caller asks it, the answer, the facts to ask for. */
 export type TopicDraft = { question: string; answer: string; facts: string[] }
 

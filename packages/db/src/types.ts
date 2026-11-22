@@ -42,6 +42,24 @@ export type MailTopic = {
 export type MailTopicReview = { decision: 'accepted' | 'dropped'; at: string; by: string; assistantId?: string }
 
 /**
+ * How far a running analysis is (`progress` of mail_analyses, LIN-717), for the page: listing the mail, reading the
+ * threads that may be support conversations, asking the model in batches, merging the batches. Counts over all mailboxes.
+ */
+export type MailAnalysisProgress = {
+  phase: 'listing' | 'reading' | 'analyzing' | 'merging'
+  /** Messages listed in the range. */
+  listed: number
+  /** Threads with two messages or more (could be support conversations), and how many of them were read. */
+  candidates: number
+  checked: number
+  /** Support conversations found (a customer wrote, the mailbox answered). */
+  found: number
+  /** Requests to the language model: done and in all (merging not counted). */
+  batchesDone: number
+  batchesTotal: number
+}
+
+/**
  * Why an analysis did not finish (`error` of mail_analyses), worded by the page: `no_model` (no language model set up),
  * `no_mailbox` (none connected, or all need a reconnect), `account_refused` (a provider refused the access),
  * `unavailable` (a provider or the model could not be reached), `no_conversations` (no answered support mail in the

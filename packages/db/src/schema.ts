@@ -35,6 +35,7 @@ import {
   USAGE_LEVELS,
   type ActionItem,
   type MailAnalysisError,
+  type MailAnalysisProgress,
   type MailTopic,
   type ActivationDisclosure,
   type TrialRechargeDisclosure,
@@ -874,7 +875,10 @@ export const mail_analyses = pgTable(
     /** Conversations read in the range, and of those the support conversations analyzed. */
     conversations_read: integer('conversations_read').notNull().default(0),
     conversations_analyzed: integer('conversations_analyzed').notNull().default(0),
+    /** Done: the topics found. Running: the topics of the batches read so far, preliminary (LIN-717). */
     topics: jsonb('topics').$type<MailTopic[]>().notNull().default([]),
+    /** How far it is while it runs (LIN-717); null before it starts. */
+    progress: jsonb('progress').$type<MailAnalysisProgress>(),
     /** Why it failed (MailAnalysisError), a code the page words. */
     error: text('error').$type<MailAnalysisError>(),
     /** The language model that read the mail. */

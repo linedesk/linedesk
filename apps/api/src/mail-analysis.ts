@@ -9,6 +9,7 @@ import {
   MAIL_TOPICS_MAX,
   type MailAnalysis,
   type MailAnalysisError,
+  type MailAnalysisProgress,
   type MailTopic,
   mailTopicLine,
 } from '@linedesk/actions'
@@ -42,6 +43,8 @@ const CONVERSATION_CHARS = 3000
 const BATCH_CHARS = 40_000
 /** Messages read at the same time. */
 const READ_CONCURRENCY = 5
+/** Progress is written at most this often while the job reads (LIN-717); phase changes and batches always. */
+const PROGRESS_WRITE_MS = 1500
 /** A queued or running analysis this young is the one in effect; an older one died (a restart) and counts as failed. */
 export const ANALYSIS_STALE_MS = 60 * 60_000
 
@@ -70,15 +73,19 @@ async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Prom
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}…` : text)
 
+/** How far one mailbox is read (LIN-717): messages listed, threads that may be support conversations, read, found. */
+export type ReadProgress = { listed: number; candidates: number; checked: number; found: number }
+
 /**
  * The support conversations of one mailbox since `after`, newest first: threads with at least two messages in the
  * range whose first message came from a person outside the mailbox and that the mailbox answered. `read` counts the
- * threads looked at.
+ * threads looked at. `onProgress` hears after every page listed and every slice of threads read.
  */
 export async function supportConversations(
   provider: MailProvider,
   after: string,
   max = CONVERSATIONS_MAX,
+  onProgress?: (progress: ReadProgress) => Promise<void> | void,
 ): Promise<{ conversations: Conversation[]; read: number }> {
   const threads = new Map<string, MailMessageRef[]>()
   let pageToken: string | undefined
@@ -88,6 +95,7 @@ export async function supportConversations(
     for (const ref of page.messages) threads.set(ref.threadId, [...(threads.get(ref.threadId) ?? []), ref])
     listed += page.messages.length
     pageToken = page.nextPageToken ?? undefined
+    await onProgress?.({ listed, candidates: 0, checked: 0, found: 0 })
   } while (pageToken && listed < LIST_MAX)
   // A conversation support answered has two messages at least; the listing is newest first, so the oldest are last.
   const candidates = [...threads.values()].filter(refs => refs.length >= 2)
@@ -100,6 +108,12 @@ export async function supportConversations(
       return toConversation(messages.filter((m): m is MailMessage => m !== null))
     })
     for (const c of read) if (c && conversations.length < max) conversations.push(c)
+    await onProgress?.({
+      listed,
+      candidates: candidates.length,
+      checked: i + slice.length,
+      found: conversations.length,
+    })
   }
   return { conversations, read: threads.size }
 }
@@ -205,14 +219,42 @@ function ranked(topics: MailTopic[], analyzed: number): MailTopic[] {
     .slice(0, MAIL_TOPICS_MAX)
 }
 
+/**
+ * The batches' topics so far as one list, for the page while the job runs (LIN-717): topics with the same title (case
+ * and spaces aside) joined, their conversations added up. Not the model's merge: only a preview.
+ */
+export function preliminaryTopics(parts: MailTopic[][], analyzed: number): MailTopic[] {
+  const byTitle = new Map<string, MailTopic>()
+  for (const topic of parts.flat()) {
+    const key = topic.title.toLowerCase().replace(/\s+/g, ' ').trim()
+    const seen = byTitle.get(key)
+    byTitle.set(key, seen ? { ...seen, conversations: seen.conversations + topic.conversations } : topic)
+  }
+  return ranked([...byTitle.values()], analyzed)
+}
+
+/** How far the requests to the model are: batches done and in all, the topics so far; `merging` before the merge. */
+export type BatchProgress = { done: number; total: number; topics: MailTopic[]; merging?: boolean }
+
 /** The topics of the conversations: one request per batch, then one that merges them (none for a single batch). */
 export async function analyzeConversations(
   model: EvaluationModel,
   conversations: Conversation[],
+  onProgress?: (progress: BatchProgress) => Promise<void> | void,
 ): Promise<MailTopic[]> {
   const parts: MailTopic[][] = []
-  for (const batch of batches(conversations))
+  const all = batches(conversations)
+  await onProgress?.({ done: 0, total: all.length, topics: [] })
+  for (const batch of all) {
     parts.push(parseTopics(await model.complete(BATCH_SYSTEM, batch.join('\n\n'))))
+    const topics = preliminaryTopics(parts, conversations.length)
+    await onProgress?.({
+      done: parts.length,
+      total: all.length,
+      topics,
+      merging: parts.length === all.length && all.length > 1,
+    })
+  }
   if (parts.length === 1) return ranked(parts[0]!, conversations.length)
   const lists = parts.map((topics, i) => `<topics part="${i + 1}">\n${asData(JSON.stringify(topics))}\n</topics>`)
   return ranked(parseTopics(await model.complete(MERGE_SYSTEM, lists.join('\n\n'))), conversations.length)
@@ -243,6 +285,33 @@ const monthsAgo = (now: number, months: number) => {
   return d.toISOString()
 }
 
+/**
+ * Writes a running analysis's progress (and its preliminary topics) to its row: at most every PROGRESS_WRITE_MS, at
+ * once when `force` (a new phase, a batch done). Only while the row is still running.
+ */
+function progressWriter(analysisId: string, now: () => number) {
+  let state: MailAnalysisProgress = {
+    phase: 'listing',
+    listed: 0,
+    candidates: 0,
+    checked: 0,
+    found: 0,
+    batchesDone: 0,
+    batchesTotal: 0,
+  }
+  let written = Number.NEGATIVE_INFINITY
+  return async (patch: Partial<MailAnalysisProgress>, opts: { force?: boolean; topics?: MailTopic[] } = {}) => {
+    const phaseChanged = patch.phase !== undefined && patch.phase !== state.phase
+    state = { ...state, ...patch }
+    if (!opts.force && !phaseChanged && now() - written < PROGRESS_WRITE_MS) return
+    written = now()
+    await db
+      .update(mail_analyses)
+      .set({ progress: state, ...(opts.topics ? { topics: opts.topics } : {}) })
+      .where(and(eq(mail_analyses.id, analysisId), eq(mail_analyses.status, 'running')))
+  }
+}
+
 /** Runs one queued analysis (the `mail.analyze` job) and stores its result or why it failed. */
 export async function runMailAnalysis(analysisId: string, deps: AnalysisDeps = {}): Promise<void> {
   const now = deps.now ?? Date.now
@@ -267,17 +336,44 @@ export async function runMailAnalysis(analysisId: string, deps: AnalysisDeps = {
     if (!connections.length) return void (await finish({ status: 'failed', error: 'no_mailbox' }))
     const after = monthsAgo(now(), analysis.months)
     const conversations: Conversation[] = []
+    const report = progressWriter(analysisId, now)
+    await report({ phase: 'listing' }, { force: true })
     let read = 0
+    /** The mailboxes read before this one, added to its own counts. */
+    const before = { listed: 0, candidates: 0, checked: 0 }
     for (const { id } of connections) {
       const { provider } = await mailboxFor(db as unknown as Tx, { mail: deps.mail }, analysis.workspace_id, id)
-      const found = await supportConversations(provider, after, CONVERSATIONS_MAX - conversations.length)
+      let last: ReadProgress = { listed: 0, candidates: 0, checked: 0, found: 0 }
+      const found = await supportConversations(provider, after, CONVERSATIONS_MAX - conversations.length, p => {
+        last = p
+        return report({
+          phase: p.candidates ? 'reading' : 'listing',
+          listed: before.listed + p.listed,
+          candidates: before.candidates + p.candidates,
+          checked: before.checked + p.checked,
+          found: conversations.length + p.found,
+        })
+      })
       conversations.push(...found.conversations)
       read += found.read
+      before.listed += last.listed
+      before.candidates += last.candidates
+      before.checked += last.checked
       if (conversations.length >= CONVERSATIONS_MAX) break
     }
     if (!conversations.length)
       return void (await finish({ status: 'failed', error: 'no_conversations', conversations_read: read }))
-    const topics = await analyzeConversations(model, conversations)
+    const topics = await analyzeConversations(model, conversations, p =>
+      report(
+        {
+          phase: p.merging ? 'merging' : 'analyzing',
+          found: conversations.length,
+          batchesDone: p.done,
+          batchesTotal: p.total,
+        },
+        { force: true, topics: p.topics },
+      ),
+    )
     await finish({
       status: 'done',
       topics,
@@ -288,7 +384,7 @@ export async function runMailAnalysis(analysisId: string, deps: AnalysisDeps = {
     })
   } catch (e) {
     console.error(`mail analysis ${analysisId} failed: ${e instanceof Error ? e.message : String(e)}`)
-    await finish({ status: 'failed', error: analysisErrorOf(e) })
+    await finish({ status: 'failed', error: analysisErrorOf(e), topics: [] })
   }
 }
 
@@ -299,6 +395,7 @@ export const toMailAnalysis = (row: typeof mail_analyses.$inferSelect): MailAnal
   conversationsRead: row.conversations_read,
   conversationsAnalyzed: row.conversations_analyzed,
   topics: row.topics,
+  progress: row.progress ?? null,
   error: row.error ?? null,
   model: row.model,
   createdAt: row.created_at,

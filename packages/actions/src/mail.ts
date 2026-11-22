@@ -1,6 +1,6 @@
 import { msg } from '@linedesk/i18n'
 import { z } from 'zod'
-import type { MailAnalysisError, MailTopic } from '@linedesk/db/types'
+import type { MailAnalysisError, MailAnalysisProgress, MailTopic } from '@linedesk/db/types'
 import { defineAction } from './define.ts'
 import { ANSWER_MAX, answeredQuestionLine, QUESTION_MAX } from './knowledge.ts'
 
@@ -90,7 +90,13 @@ export const MAIL_TOPICS_MAX = 10
 /** Analyses a workspace may start in a day: each reads up to a year of mail and costs language-model requests. */
 export const MAIL_ANALYSES_PER_DAY = 3
 
-export { type MailAnalysisError, mailAnalysisErrors, type MailTopic, type MailTopicReview } from '@linedesk/db/types'
+export {
+  type MailAnalysisError,
+  type MailAnalysisProgress,
+  mailAnalysisErrors,
+  type MailTopic,
+  type MailTopicReview,
+} from '@linedesk/db/types'
 
 export type MailAnalysisStatus = 'queued' | 'running' | 'done' | 'failed'
 
@@ -102,7 +108,10 @@ export type MailAnalysis = {
   /** Conversations read, and of those the support conversations analyzed (answered by the mailbox). */
   conversationsRead: number
   conversationsAnalyzed: number
+  /** Done: the topics found. Running: the topics found so far, preliminary (they may still merge or change). */
   topics: MailTopic[]
+  /** How far it is while it runs (LIN-717); null before it starts. */
+  progress: MailAnalysisProgress | null
   error: MailAnalysisError | null
   model: string | null
   createdAt: string
