@@ -217,47 +217,6 @@
   font-size: 12.5px;
   color: var(--ink-muted);
 }
-.mr-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-.mr-fact {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 4px 0 10px;
-  border-radius: var(--radius-full);
-  background: var(--surface-hover);
-  font-size: 13px;
-}
-.mr-fact button {
-  display: inline-grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--ink-muted);
-  cursor: pointer;
-}
-.mr-fact button:hover {
-  background: var(--line);
-  color: var(--ink);
-}
-.mr-fact-add {
-  height: 26px;
-  min-width: 120px;
-  padding: 0 10px;
-  border: 1px dashed var(--line-soft);
-  border-radius: var(--radius-full);
-  background: transparent;
-  font: inherit;
-  font-size: 13px;
-}
 .mr-preview {
   display: grid;
   gap: 4px;

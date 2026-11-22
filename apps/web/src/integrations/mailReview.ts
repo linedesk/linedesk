@@ -41,19 +41,18 @@ export function runProgress(a: MailAnalysis): { steps: Record<RunStepId, RunStep
   return { steps: { list: 'done', read: 'done', analyze: 'active' }, percent }
 }
 
-/** What the owner edits before accepting: the question as a caller asks it, the answer, the facts to ask for. */
-export type TopicDraft = { question: string; answer: string; facts: string[] }
+/** What the owner edits before accepting: the question as a caller asks it and the answer. */
+export type TopicDraft = { question: string; answer: string }
 
 export const draftOf = (topic: MailTopic): TopicDraft => ({
   question: (topic.example || topic.title).trim(),
   answer: topic.answer.trim(),
-  facts: topic.factsNeeded,
 })
 
 export const canAccept = (d: TopicDraft) => d.question.trim().length > 0 && d.answer.trim().length > 0
 
 /** The exact line the assistant reads once the topic is accepted. */
-export const previewLine = (d: TopicDraft) => mailTopicLine(d.question.trim(), d.answer.trim(), d.facts)
+export const previewLine = (d: TopicDraft) => mailTopicLine(d.question.trim(), d.answer.trim())
 
 export type TopicState = 'open' | 'accepted' | 'dropped'
 export const stateOf = (topic: MailTopic): TopicState =>
@@ -157,7 +156,6 @@ export function useMailReview(toast: (text: string) => void): MailReview {
         assistantId,
         question: d.question.trim(),
         answer: d.answer.trim(),
-        factsNeeded: d.facts.map(f => f.trim()).filter(Boolean),
       }),
     drop: index => review(index, { decision: 'drop' }),
     reopen: index => review(index, { decision: 'reopen' }),

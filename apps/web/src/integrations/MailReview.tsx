@@ -213,6 +213,12 @@ function Done({ analysis, review }: { analysis: MailAnalysis; review: Review }) 
             months: analysis.months,
             date: analysis.finishedAt ? f.date(new Date(analysis.finishedAt), { month: 'short', day: 'numeric' }) : '',
           })}
+          {analysis.conversationsCovered > 0 && (
+            <span title={t('settings.integrations.mailReview.coveredTip')}>
+              {' · '}
+              {t('settings.integrations.mailReview.covered', { covered: analysis.conversationsCovered })}
+            </span>
+          )}
         </span>
         <span className="mr-counts">
           {t('settings.integrations.mailReview.counts', { accepted: c.accepted, open: c.open, dropped: c.dropped })}
@@ -262,7 +268,7 @@ function CountBadge({ topic }: { topic: MailTopic }) {
   )
 }
 
-/** The fields of one topic: the question as a caller asks it, the answer, the facts to ask for, and the line itself. */
+/** The fields of one topic: the question as a caller asks it, the answer, and the line itself. */
 function TopicEditor({
   id,
   draft,
@@ -277,12 +283,6 @@ function TopicEditor({
   assistant: Assistant | undefined
 }) {
   const t = useT()
-  const [fact, setFact] = useState('')
-  const addFact = () => {
-    const v = fact.trim()
-    if (v && !draft.facts.includes(v)) onChange({ ...draft, facts: [...draft.facts, v] })
-    setFact('')
-  }
   return (
     <div className="mr-editor">
       <label className="mr-field" htmlFor={`${id}-q`}>
@@ -304,40 +304,6 @@ function TopicEditor({
           onChange={e => onChange({ ...draft, answer: e.target.value })}
         />
       </label>
-      <div className="mr-field">
-        <span>{t('settings.integrations.mailReview.askFor')}</span>
-        <div className="mr-facts">
-          {draft.facts.map(f => (
-            <span key={f} className="mr-fact">
-              {f}
-              <button
-                type="button"
-                disabled={disabled}
-                aria-label={t('settings.integrations.mailReview.removeFact', { fact: f })}
-                title={t('settings.integrations.mailReview.removeFact', { fact: f })}
-                onClick={() => onChange({ ...draft, facts: draft.facts.filter(x => x !== f) })}
-              >
-                <Icon name="close" size={12} />
-              </button>
-            </span>
-          ))}
-          <input
-            className="mr-fact-add"
-            value={fact}
-            disabled={disabled}
-            placeholder={t('settings.integrations.mailReview.addFact')}
-            aria-label={t('settings.integrations.mailReview.addFact')}
-            onChange={e => setFact(e.target.value)}
-            onBlur={addFact}
-            onKeyDown={e => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                addFact()
-              }
-            }}
-          />
-        </div>
-      </div>
       <div className="mr-preview">
         <span>
           {assistant

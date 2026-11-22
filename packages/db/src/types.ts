@@ -33,8 +33,6 @@ export type MailTopic = {
   example: string
   /** How support answers it: the steps, prices, rules and offers it gives. */
   answer: string
-  /** What support needs to know from the customer to help (address, model, photos, preferred time). */
-  factsNeeded: string[]
   /** The owner's review (LIN-643): accepted into an assistant's About the business, or dropped. Missing: not yet. */
   review?: MailTopicReview
 }

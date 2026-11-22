@@ -285,7 +285,6 @@ test('the kind of business and the reviewed FAQ come with the checklist (LIN-680
     title: 'Where is my order?',
     example: '',
     answer: 'Tracking link.',
-    factsNeeded: [],
     conversations: 3,
     ...(review ? { review } : {}),
   })

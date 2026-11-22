@@ -1247,6 +1247,13 @@
       "when": 1795307473685,
       "tag": "0178_mail_analysis_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 178,
+      "version": "7",
+      "when": 1795309350543,
+      "tag": "0179_mail_analysis_covered",
+      "breakpoints": true
     }
   ]
 }

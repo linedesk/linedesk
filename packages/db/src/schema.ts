@@ -875,6 +875,8 @@ export const mail_analyses = pgTable(
     /** Conversations read in the range, and of those the support conversations analyzed. */
     conversations_read: integer('conversations_read').notNull().default(0),
     conversations_analyzed: integer('conversations_analyzed').notNull().default(0),
+    /** Of those, the conversations the topics cover (each counted once, LIN-722); 0 for analyses before it. */
+    conversations_covered: integer('conversations_covered').notNull().default(0),
     /** Done: the topics found. Running: the topics of the batches read so far, preliminary (LIN-717). */
     topics: jsonb('topics').$type<MailTopic[]>().notNull().default([]),
     /** How far it is while it runs (LIN-717); null before it starts. */
