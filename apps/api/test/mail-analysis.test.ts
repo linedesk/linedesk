@@ -187,6 +187,33 @@ describe('asking the model', () => {
     expect(steps.at(-1)!.merging).toBe(true)
   })
 
+  test('batches go to the model four at a time; the merge keys keep batch order', async () => {
+    const { conversations } = await supportConversations(createDemoMail(), new Date(0).toISOString())
+    const many = Array.from({ length: 8 }, () => conversations).flat()
+    const big = many.map(c => ({ ...c, turns: c.turns.map(t => ({ ...t, text: t.text.padEnd(1200, '.') })) }))
+    const { model, calls } = fakeModel()
+    let inFlight = 0
+    let most = 0
+    let n = 0
+    const slow: EvaluationModel = {
+      model: model.model,
+      complete: async (system, user) => {
+        inFlight++
+        most = Math.max(most, inFlight)
+        // Later batches answer first, so the order they finish in is not the order they were sent in.
+        await new Promise(r => setTimeout(r, system === MERGE_SYSTEM ? 0 : 40 - 3 * n++))
+        inFlight--
+        return model.complete(system, user)
+      },
+    }
+    const { topics } = await analyzeConversations(slow, big)
+    expect(calls.length - 1).toBeGreaterThan(4)
+    expect(most).toBe(4)
+    const merge = calls.at(-1)!.user
+    expect(merge.indexOf('<topic key="1-1">')).toBeLessThan(merge.indexOf('<topic key="2-1">'))
+    expect(topics.map(t => t.title)).toEqual(['Service area', 'Water heater leaking or no hot water'])
+  })
+
   test('preliminary topics join the same title across batches and unite their conversations', () => {
     const a = parseTopics(
       JSON.stringify({

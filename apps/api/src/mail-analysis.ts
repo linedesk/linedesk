@@ -44,8 +44,10 @@ const CONVERSATION_CHARS = 3000
 const ANSWER_CHARS = 320
 /** One request to the model holds at most this much mail. */
 const BATCH_CHARS = 40_000
-/** Messages read at the same time. */
-const READ_CONCURRENCY = 5
+/** Threads read at the same time (each reads two messages at once); the providers' 429 answers are waited out. */
+const READ_CONCURRENCY = 8
+/** Batches sent to the model at the same time: one after the other, ten batches took several minutes. */
+const MODEL_CONCURRENCY = 4
 /** Progress is written at most this often while the job reads (LIN-717); phase changes and batches always. */
 const PROGRESS_WRITE_MS = 1500
 /** A queued or running analysis this young is the one in effect; an older one died (a restart) and counts as failed. */
@@ -300,21 +302,32 @@ export async function analyzeConversations(
   onProgress?: (progress: BatchProgress) => Promise<void> | void,
   maxChars = BATCH_CHARS,
 ): Promise<AnalysisResult> {
-  const parts: FoundTopic[][] = []
   const all = batches(conversations, maxChars)
   await onProgress?.({ done: 0, total: all.length, topics: [] })
-  let first = 1
-  for (const batch of all) {
-    const valid = new Set(batch.map((_, i) => first + i))
-    first += batch.length
-    parts.push(parseTopics(await model.complete(BATCH_SYSTEM, batch.join('\n\n')), valid))
-    await onProgress?.({
-      done: parts.length,
-      total: all.length,
-      topics: preliminaryTopics(parts),
-      merging: parts.length === all.length && all.length > 1,
-    })
-  }
+  // Each batch's conversation ids, from 1 across all batches.
+  const starts = all.map((_, b) => 1 + all.slice(0, b).reduce((n, batch) => n + batch.length, 0))
+  // Batches finish in any order: `parts` keeps batch order (the merge keys name it); progress is reported one at a time.
+  const done: (FoundTopic[] | undefined)[] = new Array(all.length)
+  let finished = 0
+  let reported: Promise<void> = Promise.resolve()
+  await mapLimited(
+    all.map((batch, b) => ({ batch, b })),
+    MODEL_CONCURRENCY,
+    async ({ batch, b }) => {
+      const valid = new Set(batch.map((_, i) => starts[b]! + i))
+      done[b] = parseTopics(await model.complete(BATCH_SYSTEM, batch.join('\n\n')), valid)
+      finished++
+      const progress: BatchProgress = {
+        done: finished,
+        total: all.length,
+        topics: preliminaryTopics(done.filter((p): p is FoundTopic[] => !!p)),
+        merging: finished === all.length && all.length > 1,
+      }
+      reported = reported.then(() => onProgress?.(progress))
+      await reported
+    },
+  )
+  const parts = done as FoundTopic[][]
   if (parts.length === 1) return { topics: ranked(parts[0]!), covered: coveredBy(parts[0]!) }
   // The merge reads each topic without its ids (the code unites them), under a key that names its batch and place.
   const kinds = parts.flatMap((topics, p) =>
