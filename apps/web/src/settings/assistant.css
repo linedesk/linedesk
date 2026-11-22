@@ -1224,3 +1224,12 @@ a.as-chip:hover {
 .as-notice-error {
   color: var(--danger);
 }
+
+/* Greeting and Rules: "Callers hear: …", the whole opening as a call says it */
+.as-heard {
+  display: block;
+  font-style: italic;
+}
+#as-behaviour .as-heard {
+  margin-top: 12px;
+}

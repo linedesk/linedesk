@@ -32,7 +32,9 @@ import {
   withoutConsentQuestion,
   withoutDisclosure,
   inEeaOrUk,
+  localizedDefault,
   RECORDINGS_NOT_KEPT,
+  withSentenceBeforeQuestion,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
 import { languageInSentence, languageLabel, type MessageKey, msg } from '@linedesk/i18n'
@@ -303,8 +305,10 @@ function Greeting({
   savedName,
   hoursOn,
   canEdit,
-}: SectionProps & { savedName: string; hoursOn: boolean; canEdit: boolean }) {
+  recordCalls,
+}: SectionProps & { savedName: string; hoursOn: boolean; canEdit: boolean; recordCalls: boolean }) {
   const t = useT()
+  const recorded = useCallsRecorded(recordCalls)
   const stale = staleGreetingName(draft.greeting, savedName, draft.name)
   const name = assistantName(draft, t)
   const outsideGreeting = useOptionalGreeting(
@@ -331,6 +335,7 @@ function Greeting({
           invalid={!draft.greeting.trim()}
           placeholder={t('settings.assistant.greeting.placeholder', { name })}
         />
+        <HeardGreeting greeting={heardGreeting(draft.greeting, draft, recorded)} unless={draft.greeting} />
         <CallerDetailsHint greeting={draft.greeting} />
         {stale && (
           <span className="help as-stale">
@@ -369,6 +374,10 @@ function Greeting({
           {!draft.greeting_outside.trim() && (
             <span className="help">{t('settings.assistant.greeting.outsideEmpty')}</span>
           )}
+          <HeardGreeting
+            greeting={heardGreeting(draft.greeting_outside, draft, recorded)}
+            unless={draft.greeting_outside}
+          />
           <CallerDetailsHint greeting={draft.greeting_outside} />
         </Field>
       )}
@@ -396,6 +405,7 @@ function CallerDetailsHint({ greeting }: { greeting: string }) {
 /** The behaviour checklist: plain-language switches that add a line to the assistant's instructions. */
 function Behaviours({ draft, set, recordCalls }: SectionProps & { recordCalls: boolean }) {
   const t = useT()
+  const recorded = useCallsRecorded(recordCalls)
   return (
     <Section
       id="as-behaviour"
@@ -424,8 +434,33 @@ function Behaviours({ draft, set, recordCalls }: SectionProps & { recordCalls: b
         ))}
         <RecordingNoticeRow draft={draft} set={set} recordCalls={recordCalls} />
       </div>
+      {/* The whole opening as a call says it: greeting, AI note and recording notice (below the rules that shape it). */}
+      <HeardGreeting greeting={heardGreeting(draft.greeting, draft, recorded)} />
     </Section>
   )
+}
+
+/** This assistant's calls are recorded: the server records, the workspace keeps recordings, the assistant records. */
+function useCallsRecorded(recordCalls: boolean): boolean {
+  const settings = useWorkspaceSettings().data
+  return recordCalls && (settings?.recordingOn ?? true) && settings?.recordingRetentionDays !== RECORDINGS_NOT_KEPT
+}
+
+/**
+ * What callers hear first: the greeting with the recording notice before its closing question, as a call says it
+ * (withRecordingNotice in apps/agent/src/call-session.ts), while the notice is on and calls are recorded.
+ */
+export function heardGreeting(greeting: string, draft: Draft, recorded: boolean): string {
+  const notice = draft.recording_notice.trim()
+  if (!greeting.trim() || !recorded || !draft.recording_notice_on || !notice) return greeting.trim()
+  return withSentenceBeforeQuestion(greeting, localizedDefault(notice, mainOf(draft)))
+}
+
+/** "Callers hear: …", the whole opening of a call; `unless`: nothing while it is just that text (the field above). */
+function HeardGreeting({ greeting, unless }: { greeting: string; unless?: string }) {
+  const t = useT()
+  if (!greeting || greeting === unless?.trim()) return null
+  return <span className="help as-heard">{t('settings.assistant.disclosure.heard', { greeting })}</span>
 }
 
 /**
@@ -437,8 +472,7 @@ function Behaviours({ draft, set, recordCalls }: SectionProps & { recordCalls: b
 function RecordingNoticeRow({ draft, set, recordCalls }: SectionProps & { recordCalls: boolean }) {
   const t = useT()
   const settings = useWorkspaceSettings().data
-  const recorded =
-    recordCalls && (settings?.recordingOn ?? true) && settings?.recordingRetentionDays !== RECORDINGS_NOT_KEPT
+  const recorded = useCallsRecorded(recordCalls)
   const problem = recordingNoticeProblem(draft)
   return (
     <>
@@ -525,7 +559,6 @@ export function AiDisclosureRow({ draft, set }: SectionProps) {
     )
   }
   const name = nameInSentence(draft, t)
-  const heard = disclosesAtStart(draft.ai_disclosure) && draft.greeting.trim() ? draft.greeting.trim() : null
   const lawHint =
     risk.level === 'law'
       ? risk.eu
@@ -538,7 +571,7 @@ export function AiDisclosureRow({ draft, set }: SectionProps) {
         id="as-ai-disclosure"
         title={t('settings.assistant.disclosure.title')}
         description={t('settings.assistant.disclosure.description', { name })}
-        note={heard ? t('settings.assistant.disclosure.heard', { greeting: heard }) : lawHint}
+        note={lawHint}
         value={draft.ai_disclosure}
         options={AI_DISCLOSURE_MODES.map(mode => ({ value: mode, label: t(DISCLOSURE_LABELS[mode]) }))}
         onChange={pick}
@@ -1081,7 +1114,14 @@ function Form({
         {current === 'general' && (
           <>
             <AssistantNameSection draft={draft} set={set} />
-            <Greeting draft={draft} set={set} savedName={assistant.name} hoursOn={hoursOn} canEdit={canEdit} />
+            <Greeting
+              draft={draft}
+              set={set}
+              savedName={assistant.name}
+              hoursOn={hoursOn}
+              canEdit={canEdit}
+              recordCalls={assistant.record_calls !== false}
+            />
             <Languages
               draft={draft}
               set={set}
