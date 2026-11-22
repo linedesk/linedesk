@@ -11,10 +11,11 @@ import {
   resolveWorkspaceLanguage,
 } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
+import { msg } from '@linedesk/i18n'
 import type { WebsiteImport } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { i18n } from '../i18n/index.tsx'
-import { type KeyboardEvent, type ReactNode, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useEffect, useState } from 'react'
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink, LinkButton } from '../ui/AppLink.tsx'
 import { Field, TextArea, TextInput } from '../settings/fields.tsx'
@@ -91,7 +92,7 @@ export function BusinessStep(p: Props) {
 type Phase =
   | { kind: 'find' }
   | { kind: 'manual' }
-  | { kind: 'loading'; what: string }
+  | { kind: 'loading'; what: string; stages: readonly ImportStage[] }
   | { kind: 'review'; proposal: BusinessImportData; fromGoogle: boolean }
 
 function FindBusiness({
@@ -145,7 +146,9 @@ function FindBusiness({
   async function importBusiness(input: { placeId?: string; name?: string; website?: string }, what: string) {
     const back = phase.kind === 'loading' ? { kind: 'find' as const } : phase
     setError(null)
-    setPhase({ kind: 'loading', what })
+    // What the server does, in its order (business-import.ts): the listing, the website, then one model request.
+    const stages: ImportStage[] = input.placeId ? ['listing', 'website', 'writing'] : ['website', 'writing']
+    setPhase({ kind: 'loading', what, stages })
     try {
       const proposal = await callAction<BusinessImportData>('business.import', { assistantId: assistant.id, ...input })
       const googleLost = proposal.failures.some(isGoogle)
@@ -228,12 +231,7 @@ function FindBusiness({
       readsWebsite={site === 'field'}
       onAgentSetup={phase.kind === 'loading' ? undefined : onAgentSetup}
     >
-      {phase.kind === 'loading' && (
-        <div className="ob-biz-loading" role="status">
-          <span>{phase.what}</span>
-          <Loading what={phase.what} loading skeleton={<SkeletonFields fields={3} />} />
-        </div>
-      )}
+      {phase.kind === 'loading' && <ImportProgress what={phase.what} stages={phase.stages} />}
       {phase.kind === 'find' && (
         <>
           <Field id="ob-biz-q" label={t('onboarding.business.find.label')}>
@@ -425,6 +423,69 @@ function GoogleMapsCredit() {
     <p className="ob-biz-credit" translate="no">
       {GOOGLE_MAPS}
     </p>
+  )
+}
+
+type ImportStage = 'listing' | 'website' | 'writing'
+
+const STAGE_TEXT = {
+  listing: msg('onboarding.business.progress.listing'),
+  website: msg('onboarding.business.progress.website'),
+  writing: msg('onboarding.business.progress.writing'),
+} as const
+
+/** When each stage (but the last) is shown as done, in ms after the start: the server says nothing until it is done. */
+const STAGE_DONE_AT: Record<ImportStage, number> = { listing: 1500, website: 9000, writing: Number.POSITIVE_INFINITY }
+
+/**
+ * The import's progress: one call that can take up to a minute (business-import.ts reads the listing, the website's
+ * pages, then asks the model). The server reports nothing on the way, so the stages move on by time, in the server's
+ * order; the last one runs until the answer is there and is never shown as done.
+ */
+function ImportProgress({ what, stages }: { what: string; stages: readonly ImportStage[] }) {
+  const t = useT()
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    const start = Date.now()
+    const id = setInterval(() => setElapsed(Date.now() - start), 250)
+    return () => clearInterval(id)
+  }, [])
+  // The time of a stage counts from the end of the one before it.
+  let offset = 0
+  let current = stages.length - 1
+  for (const [i, stage] of stages.entries()) {
+    const until = offset + STAGE_DONE_AT[stage]
+    if (elapsed < until) {
+      current = i
+      break
+    }
+    offset = until
+  }
+  return (
+    <div className="ob-imp" role="status" aria-live="polite">
+      <p className="ob-imp-what">{what}</p>
+      <ol className="ob-imp-steps">
+        {stages.map((stage, i) => {
+          const state = i < current ? 'done' : i === current ? 'active' : 'todo'
+          return (
+            <li
+              key={stage}
+              className={`ob-imp-step is-${state}`}
+              aria-current={state === 'active' ? 'step' : undefined}
+            >
+              <span className="ob-imp-mark" aria-hidden="true">
+                {state === 'done' && <Icon name="check" size={12} />}
+              </span>
+              {t(STAGE_TEXT[stage])}
+            </li>
+          )
+        })}
+      </ol>
+      <div className="ob-imp-bar" aria-hidden="true">
+        <span />
+      </div>
+      <p className="ob-imp-hint">{t('onboarding.business.progress.hint')}</p>
+    </div>
   )
 }
 

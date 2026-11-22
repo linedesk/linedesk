@@ -153,11 +153,111 @@
   font-size: 11.5px;
   color: var(--ink-muted);
 }
-.ob-biz-loading {
+/* The import's progress (BusinessStep.tsx, ImportProgress): its stages, a quiet moving bar, how long it can take. */
+.ob-imp {
   display: grid;
-  gap: 8px;
-  font-size: 13px;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+.ob-imp-what {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.ob-imp-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ob-imp-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--ink-disabled);
+  transition: color 0.3s ease;
+}
+.ob-imp-step.is-active {
+  color: var(--ink);
+}
+.ob-imp-step.is-done {
   color: var(--ink-muted);
+}
+.ob-imp-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-soft);
+  color: var(--surface-raised);
+}
+.ob-imp-step.is-done .ob-imp-mark {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+.ob-imp-step.is-active .ob-imp-mark {
+  border-color: var(--ink);
+  border-top-color: transparent;
+}
+.ob-imp-bar {
+  position: relative;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--line);
+}
+.ob-imp-bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  border-radius: 2px;
+  background: var(--ink);
+}
+.ob-imp-hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ob-imp-step.is-active .ob-imp-mark {
+    animation: ob-imp-spin 0.9s linear infinite;
+  }
+  .ob-imp-step.is-done .ob-imp-mark {
+    animation: ob-imp-pop 0.25s ease-out;
+  }
+  .ob-imp-bar span {
+    animation: ob-imp-slide 1.6s ease-in-out infinite;
+  }
+}
+@keyframes ob-imp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ob-imp-pop {
+  from {
+    transform: scale(0.6);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes ob-imp-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
+  }
 }
 .ob-biz-pair {
   display: grid;
