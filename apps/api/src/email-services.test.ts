@@ -41,7 +41,7 @@ test('every SMTP preset: smtp:// on 587 (never 465, blocked on some hosts) and S
     smtp_key: 'k',
     smtp_user: 'u',
     smtp_password: 'p',
-    address: 'desk@gmail.com',
+    address: 'example.desk@gmail.com',
     app_password: 'p',
   }
   for (const provider of ['postmark', 'sendgrid', 'brevo', 'mailgun', 'gmail'] as const) {
@@ -56,18 +56,24 @@ test('every SMTP preset: smtp:// on 587 (never 465, blocked on some hosts) and S
 })
 
 test('Gmail: the app password without its spaces, sent from the address unless From is set', () => {
-  expect(mailConnectionOf('gmail', { address: 'desk@gmail.com', app_password: 'abcd efgh ijkl mnop' })).toEqual({
-    url: 'smtp://desk%40gmail.com:abcdefghijklmnop@smtp.gmail.com:587?requireTLS=true',
-    from: 'desk@gmail.com',
-  })
+  expect(mailConnectionOf('gmail', { address: 'example.desk@gmail.com', app_password: 'abcd efgh ijkl mnop' })).toEqual(
+    {
+      url: 'smtp://example.desk%40gmail.com:abcdefghijklmnop@smtp.gmail.com:587?requireTLS=true',
+      from: 'example.desk@gmail.com',
+    },
+  )
   expect(
-    mailConnectionOf('gmail', { address: 'desk@gmail.com', app_password: 'x', from: 'Desk <desk@gmail.com>' })?.from,
-  ).toBe('Desk <desk@gmail.com>')
+    mailConnectionOf('gmail', {
+      address: 'example.desk@gmail.com',
+      app_password: 'x',
+      from: 'Desk <example.desk@gmail.com>',
+    })?.from,
+  ).toBe('Desk <example.desk@gmail.com>')
 })
 
 test('a missing needed field or a provider that is no mail service gives nothing', () => {
   expect(mailConnectionOf('resend', {})).toBeNull()
-  expect(mailConnectionOf('gmail', { address: 'desk@gmail.com' })).toBeNull()
+  expect(mailConnectionOf('gmail', { address: 'example.desk@gmail.com' })).toBeNull()
   expect(mailConnectionOf('smtp', { url: 'smtps://x' })).toBeNull()
 })
 

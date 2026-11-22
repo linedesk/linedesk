@@ -1,3 +1,11 @@
 packages:
   - apps/*
   - packages/*
+
+# Packages whose install scripts never run (pnpm 10 asks for each one otherwise). Not needed: esbuild's postinstall
+# only checks the binary its platform package (an optional dependency) already brings; the two LiveKit packages'
+# install scripts are empty (prebuilt binaries, also from platform packages).
+ignoredBuiltDependencies:
+  - '@livekit/blingfire'
+  - '@livekit/local-inference'
+  - esbuild

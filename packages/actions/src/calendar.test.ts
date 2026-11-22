@@ -80,6 +80,7 @@ describe('calendar.findSlots', () => {
       'knowledge.import',
       'knowledge.improve',
       'knowledge.try',
+      'mail.getAnalysis',
       'member.list',
       'notifications.get',
       'oauth.describe',

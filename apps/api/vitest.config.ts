@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { dirname, join, relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { parseEnv } from 'node:util'
 import { categoryEnv, providerNames, providers } from '@linedesk/actions'
 import { configDefaults, defineConfig } from 'vitest/config'
@@ -14,9 +16,50 @@ async function testDatabaseBase(): Promise<string | null> {
   if (base && (await isReachable(base))) return base
   const problem = base ? `no Postgres at ${new URL(base).host}` : 'DATABASE_URL is not set'
   if (process.env.CI) throw new Error(`The API tests need Postgres: ${problem}`)
-  console.warn(`\nSkipping the API integration tests: ${problem} (run \`pnpm db:up\`, and \`cp .env.example .env\`).\n`)
+  console.warn(
+    `\nSkipping the API integration tests and the unit tests that load the database: ${problem} (run \`scripts/setup.sh\`, then \`pnpm db:up\`).\n`,
+  )
   return null
 }
+
+const apiRoot = dirname(fileURLToPath(import.meta.url))
+const dbModule = join(apiRoot, 'src/db.ts')
+// Imports that load a module when this one runs: static (not `import type`), side-effect and dynamic ones.
+const relativeImports = [
+  /^\s*(?:import|export)\s+(?!type\s)[\w$*{},\s]*?from\s*['"](\.{1,2}\/[^'"]+)['"]/gm,
+  /^\s*import\s*['"](\.{1,2}\/[^'"]+)['"]/gm,
+  /\bimport\(\s*['"](\.{1,2}\/[^'"]+)['"]\s*\)/g,
+]
+const mockedModules = /\bvi\.mock\(\s*['"](\.{1,2}\/[^'"]+)['"]/g
+const paths = (file: string, source: string, pattern: RegExp) =>
+  [...source.matchAll(pattern)].map(([, path = '']) => resolve(dirname(file), path))
+
+/** Whether a module loads src/db.ts, which throws without DATABASE_URL (relative imports, followed through). */
+function loadsDatabase(file: string, seen: Set<string>): boolean {
+  if (seen.has(file)) return false
+  if (file === dbModule) return true
+  if (!existsSync(file)) return false
+  seen.add(file)
+  const source = readFileSync(file, 'utf8')
+  return relativeImports.some(pattern => paths(file, source, pattern).some(path => loadsDatabase(path, seen)))
+}
+
+/**
+ * The unit tests under src/ that still need Postgres: something they import, and do not mock, opens the database, and
+ * the test does not set a DATABASE_URL of its own for a module that never queries.
+ */
+const srcTestsNeedingDatabase = () =>
+  readdirSync(join(apiRoot, 'src'), { recursive: true, encoding: 'utf8' })
+    .filter(file => file.endsWith('.test.ts'))
+    .map(file => join(apiRoot, 'src', file))
+    .filter(file => {
+      const source = readFileSync(file, 'utf8')
+      return (
+        !/process\.env\.DATABASE_URL\s*(\|\|)?=/.test(source) &&
+        loadsDatabase(file, new Set(paths(file, source, mockedModules)))
+      )
+    })
+    .map(file => relative(apiRoot, file))
 
 /**
  * Files that change what is global to an install (provider keys, instance settings, instance admins, stored provider
@@ -152,7 +195,12 @@ export default defineConfig(async () => {
               withDatabase(`instance:${file.replace(/^test\/|\.test\.ts$/g, '')}`, { include: [file] }),
             ),
           ]
-        : [{ extends: true as const, test: { name: 'api', exclude: [...configDefaults.exclude, 'test/**'] } }],
+        : [
+            {
+              extends: true as const,
+              test: { name: 'api', exclude: [...configDefaults.exclude, 'test/**', ...srcTestsNeedingDatabase()] },
+            },
+          ],
       env: {
         BETTER_AUTH_SECRET: 'test-secret-test-secret-test-secret',
         BETTER_AUTH_URL: 'http://localhost:5173',

@@ -1010,7 +1010,7 @@ export const providers = {
     category: 'email',
     guide: guides.gmail,
     fields: {
-      address: { label: 'Gmail address', env: 'GMAIL_ADDRESS', secret: false, hint: 'desk@gmail.com' },
+      address: { label: 'Gmail address', env: 'GMAIL_ADDRESS', secret: false, hint: 'yourname@gmail.com' },
       app_password: { label: 'App password', env: 'GMAIL_APP_PASSWORD', secret: true },
       from: { ...emailFrom, hint: 'Empty: the Gmail address' },
     },

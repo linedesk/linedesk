@@ -42,10 +42,12 @@ describe('spoken input', () => {
   })
 
   it('turns a spoken email address into an address', () => {
-    expect(spokenEmail('dana dot ruiz at gmail dot com')).toBe('dana.ruiz@gmail.com')
-    expect(spokenEmail('my email is sam underscore patel two two at outlook dot com')).toBe('sam_patel22@outlook.com')
-    expect(spokenEmail('d as in delta a n a at yahoo dot com')).toBe('dana@yahoo.com')
-    expect(spokenEmail('dana.ruiz@gmail.com')).toBe('dana.ruiz@gmail.com')
+    expect(spokenEmail('example dot person at gmail dot com')).toBe('example.person@gmail.com')
+    expect(spokenEmail('my email is example underscore person two two at outlook dot com')).toBe(
+      'example_person22@outlook.com',
+    )
+    expect(spokenEmail('e as in echo x a m p l e at yahoo dot com')).toBe('example@yahoo.com')
+    expect(spokenEmail('example.person@gmail.com')).toBe('example.person@gmail.com')
   })
 
   it('reads digits in groups and letters one by one', () => {
@@ -126,9 +128,9 @@ describe('collectors', () => {
   })
 
   it('emails are checked and spelled back', () => {
-    expect(emailCollector.parse({ email: 'dana dot ruiz at gmail dot com' })).toEqual({
+    expect(emailCollector.parse({ email: 'example dot person at gmail dot com' })).toEqual({
       ok: true,
-      value: 'dana.ruiz@gmail.com',
+      value: 'example.person@gmail.com',
     })
     expect(emailCollector.parse({ email: 'dana ruiz' }).ok).toBe(false)
     expect(emailCollector.readBack('d.r@gmail.com')).toBe('D, dot, R, at, gmail dot com')

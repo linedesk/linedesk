@@ -102,4 +102,14 @@ chmod 600 .env
 
 echo
 echo "Next: docker compose up -d"
-echo "Then open $(current PUBLIC_URL | sed 's/^$/http:\/\/localhost/') and enter the setup code from: docker compose logs api"
+# Without PUBLIC_URL the stack answers on Caddy's port (LINEDESK_HTTP_BIND, default 80) of this machine.
+address=$(current PUBLIC_URL)
+if [ -z "$address" ]; then
+  port=$(current LINEDESK_HTTP_BIND); port=${port##*:}
+  case "$port" in '' | 80) address="http://localhost" ;; *) address="http://localhost:$port" ;; esac
+  address="$address (on this machine; from another one, this server's address)"
+fi
+echo "Then open $address and enter the setup code from: docker compose logs api"
+if [ -d node_modules ]; then
+  echo "For development instead: pnpm db:up && pnpm db:migrate && pnpm dev, then http://localhost:5173"
+fi

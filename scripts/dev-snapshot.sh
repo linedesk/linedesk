@@ -2,10 +2,11 @@
 # Shared local test data: a snapshot of a dev database that every new local stack or worktree starts from.
 #   scripts/dev-snapshot.sh snapshot [-p <compose project>] [--db <name>]   save the database to the snapshot file
 #   scripts/dev-snapshot.sh restore  [-p <compose project>] [--db <name>] [--force]   replace the database with it
-# pnpm dev:snapshot / pnpm dev:restore run these. The project defaults to COMPOSE_PROJECT_NAME or `linedesk`
-# (the `pnpm db:up` stack), the database to `linedesk`. The file is outside every worktree and never in git:
-# LINEDESK_SNAPSHOT_DIR (default ~/.linedesk), file dev-snapshot.dump. A fresh Postgres volume restores it by
-# itself (docker-compose.snapshot.yml); `restore` is for a stack whose database already exists.
+# pnpm dev:snapshot / pnpm dev:restore run these. The project defaults to this checkout's `pnpm db:up` stack
+# (scripts/compose-dev-project.sh: COMPOSE_PROJECT_NAME, else linedesk-dev-<checkout folder>), the database to
+# `linedesk`. The file is outside every worktree and never in git: LINEDESK_SNAPSHOT_DIR (default ~/.linedesk), file
+# dev-snapshot.dump. A fresh Postgres volume restores it by itself (docker-compose.snapshot.yml); `restore` is for a
+# stack whose database already exists.
 # Left out of the snapshot (rows only, the tables stay): sign-in sessions and codes, provider keys and other
 # secrets, push subscriptions, logs and queued jobs. Development data only: never run it against real customers.
 set -eu
@@ -15,7 +16,7 @@ dir=${LINEDESK_SNAPSHOT_DIR:-$HOME/.linedesk}
 file=$dir/dev-snapshot.dump
 cmd=${1:-}
 [ $# -gt 0 ] && shift
-project=${COMPOSE_PROJECT_NAME:-linedesk}
+project=$(sh scripts/compose-dev-project.sh)
 db=linedesk
 force=no
 while [ $# -gt 0 ]; do

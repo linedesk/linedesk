@@ -9,7 +9,7 @@
   },
   "scripts": {
     "generate": "drizzle-kit generate",
-    "migrate": "drizzle-kit migrate",
+    "migrate": "node --env-file-if-exists=../../.env scripts/check-connection.ts && drizzle-kit migrate",
     "typecheck": "tsc -p . --checkers 1"
   },
   "dependencies": {
