@@ -12,8 +12,12 @@ describe('Settings › Integrations › MCP: ChatGPT', () => {
     expect(html).toMatch(/<ol class="as-steps ig-chatgpt-steps">/)
     expect(html.match(/class="as-step-number"/g)).toHaveLength(3)
     expect(html).toMatch(/href="https:\/\/chatgpt\.com\/plugins"[^>]*>Open ChatGPT plugins</)
-    expect(html).toMatch(/class="as-form-label">Name<\/span><div class="as-code"><code>Linedesk<\/code><button[^>]*><span>Copy</)
-    expect(html).toMatch(/class="as-form-label">Server URL<\/span><div class="as-code"><code>https:\/\/desk\.example\/mcp<\/code>/)
+    expect(html).toMatch(
+      /class="as-form-label">Name<\/span><div class="as-code as-code-line"><code title="Linedesk">Linedesk<\/code><button[^>]*><span>Copy</,
+    )
+    expect(html).toMatch(
+      /class="as-form-label">Server URL<\/span><div class="as-code as-code-line"><code title="https:\/\/desk\.example\/mcp">https:\/\/desk\.example\/mcp<\/code>/,
+    )
     expect(html).toMatch(/as-form-pick[\s\S]*OAuth/)
     expect(html).toContain('Create as a plugin')
     expect(html).toContain('Click Install on the new plugin')

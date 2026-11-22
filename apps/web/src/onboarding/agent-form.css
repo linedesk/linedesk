@@ -22,7 +22,7 @@
 /* Steps done one after the other: a number in a circle beside each (1, 2, 3), so it is clear there are several. */
 .as-steps {
   display: grid;
-  gap: 16px;
+  gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -49,27 +49,45 @@
 .as-fallback > summary {
   justify-self: start;
 }
-/* The agent's own form, drawn filled in (AgentForm): a raised card like a dialog, each value where it goes. */
+/* The agent's own form, drawn filled in (AgentForm): a raised card like a dialog, each value where it goes. Dense: one
+   line per field, the label beside the value (above it on a narrow screen), the checkbox and the button on one line. */
 .as-form {
   display: grid;
-  gap: 12px;
-  padding: 14px 16px 16px;
+  gap: 8px;
+  padding: 12px 14px;
   border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: var(--shadow-1);
 }
 .as-form-title {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
 }
-.as-form-field {
+.as-form-fields {
   display: grid;
-  gap: 4px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  align-items: center;
+}
+.as-form-field {
+  display: contents;
 }
 .as-form-label {
   font-size: 12px;
   font-weight: 500;
   color: var(--ink-muted);
+}
+/* A value to copy on one line: cut short with an ellipsis, Copy (and the tooltip) have all of it. */
+.as-code-line {
+  align-items: center;
+  padding: 2px 3px 2px 10px;
+}
+.as-code-line code {
+  padding-top: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
 }
 .as-form-pick,
 .as-form-check {
@@ -79,18 +97,22 @@
   justify-self: start;
 }
 .as-form-pick {
-  padding: 6px 12px 6px 10px;
+  padding: 4px 10px 4px 8px;
   border-radius: var(--radius-sm);
   border: 1.5px solid var(--ink);
+  font-size: 12.5px;
   font-weight: 500;
 }
+.as-form-check {
+  font-size: 12.5px;
+}
 .as-form-radio {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   border: 1.5px solid var(--ink);
   background: var(--ink);
-  box-shadow: inset 0 0 0 2.5px var(--surface);
+  box-shadow: inset 0 0 0 2px var(--surface);
 }
 .as-form-box {
   display: grid;
@@ -103,13 +125,27 @@
 }
 .as-form-submit {
   display: flex;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
 }
 .as-form-button {
-  padding: 6px 14px;
+  margin-left: auto;
+  padding: 5px 14px;
   border-radius: var(--radius-full);
   background: var(--ink);
   color: var(--surface);
   font-size: 12.5px;
   font-weight: 500;
+}
+@media (max-width: 560px) {
+  .as-form-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .as-form-pick + .as-form-label,
+  .as-code-line + .as-form-label {
+    margin-top: 6px;
+  }
 }

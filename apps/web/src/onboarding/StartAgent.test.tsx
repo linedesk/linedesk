@@ -40,10 +40,11 @@ describe('StartAgent: the open link first where there is one', () => {
     expect(at(html, /Run this in a terminal/)).toBeGreaterThan(at(html, /Open in Claude Code/))
   })
 
-  test('Cursor: the prompt to copy is the other way', () => {
+  test('Cursor: the prompt to copy is the other way, its text folded behind Show prompt', () => {
     const other = render('cursor').split('<details')[1]!
-    expect(other).toContain('<pre class="as-prompt">')
     expect(other).toContain('Copy prompt')
+    expect(other).toMatch(/aria-expanded="false"[^>]*>.*Show prompt/)
+    expect(other).not.toContain('<pre class="as-prompt">')
   })
 
   test('agents without an open link keep their steps as the way, no "Or …" disclosure (only a fallback folded away)', () => {
@@ -112,10 +113,20 @@ describe("StartAgent: direct links to the cloud apps' own settings", () => {
     // Three numbered steps; the form drawn filled in, the name and the URL each with a Copy button.
     expect(chatgpt).toMatch(/<ol class="as-steps">/)
     expect(chatgpt.match(/class="as-step-number"/g)).toHaveLength(3)
-    expect(chatgpt).toMatch(/class="as-form-label">Name<\/span><div class="as-code"><code>Linedesk setup<\/code><button[^>]*><span>Copy</)
-    expect(chatgpt).toContain(`<code>${URL}</code>`)
+    expect(chatgpt).toMatch(
+      /class="as-form-label">Name<\/span><div class="as-code as-code-line"><code title="Linedesk setup">Linedesk setup<\/code><button[^>]*><span>Copy</,
+    )
+    // The URL on one line, cut short on screen: the tooltip and Copy have all of it.
+    expect(chatgpt).toContain(`<code title="${URL}">${URL}</code>`)
     expect(chatgpt).toMatch(/as-form-pick[\s\S]*No authentication/)
     expect(chatgpt).toContain('Create as a plugin')
+    // The plugins link beside its step's text; the prompt folded: Copy prompt and Show prompt, no text until asked.
+    expect(chatgpt).toMatch(
+      /<div class="as-step-inline"><span>ChatGPT cannot add[^<]*<\/span><a[^>]*chatgpt\.com\/plugins/,
+    )
+    expect(chatgpt).toContain('Copy prompt')
+    expect(chatgpt).toContain('Show prompt')
+    expect(chatgpt).not.toContain('<pre class="as-prompt">')
   })
 
   test('links that open an app on this computer stay in this tab', () => {

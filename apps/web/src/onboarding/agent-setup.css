@@ -107,6 +107,24 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+/* A step whose one action is a link: the button beside the text, below it when there is no room. */
+.as-step-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.as-step-inline > span {
+  flex: 1 1 260px;
+}
+/* A prompt inside a step: Copy prompt, and beside it the fold that shows the text. */
+.as-prompt-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
 .as-small {
   font-size: 12px;
   color: var(--ink-muted);

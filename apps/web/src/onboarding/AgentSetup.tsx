@@ -1397,20 +1397,28 @@ export function StartAgent({
   const lead = (i: number) => !open && i === 0
   const body = (step: StartStep, i: number) => (
     <>
-      <span>{step.text}</span>
+      {/* A step whose one action is a link: the button beside its text (below it on a narrow screen). */}
+      {step.link && !step.code ? (
+        <div className="as-step-inline">
+          <span>{step.text}</span>
+          <ClientLink href={step.link.href} label={step.link.label} variant={lead(i) ? 'primary' : 'secondary'} />
+        </div>
+      ) : (
+        <span>{step.text}</span>
+      )}
       {step.code && (
         <div className="as-code">
           <code>{step.code}</code>
           <CopyButton text={step.code} variant={lead(i) ? 'primary' : 'secondary'} />
         </div>
       )}
-      {step.link && (
+      {step.link && step.code && (
         <div>
           <ClientLink href={step.link.href} label={step.link.label} variant={lead(i) ? 'primary' : 'secondary'} />
         </div>
       )}
       {step.form && <AgentForm form={step.form} />}
-      {step.prompt && promptToCopy(false)}
+      {step.prompt && <FoldedPrompt prompt={prompt} />}
     </>
   )
   // Only for when the step before did not work as expected: folded away below it.
@@ -1472,6 +1480,34 @@ export function StartAgent({
         <div className="as-other-way-body">{stepList}</div>
       </details>
     </div>
+  )
+}
+
+/**
+ * The prompt inside a step (ChatGPT's last step, Cursor's other way): Copy prompt is the action, the text itself stays
+ * folded behind "Show prompt", so the steps fit on one screen before the agent connects.
+ */
+function FoldedPrompt({ prompt }: { prompt: string }) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <div className="as-prompt-row">
+        <CopyButton text={prompt} label={t('onboarding.agentSetup.copyPrompt')} variant="secondary" />
+        <Button
+          size="sm"
+          variant="ghost"
+          className="as-fold"
+          title={t(open ? 'onboarding.agentSetup.hidePromptTitle' : 'onboarding.agentSetup.showPromptTitle')}
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          {t(open ? 'onboarding.agentSetup.hidePrompt' : 'onboarding.agentSetup.showPrompt')}{' '}
+          <Icon name={open ? 'up' : 'down'} size={14} />
+        </Button>
+      </div>
+      {open && <pre className="as-prompt">{prompt}</pre>}
+    </>
   )
 }
 
