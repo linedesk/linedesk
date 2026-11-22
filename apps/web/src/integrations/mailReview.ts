@@ -2,7 +2,6 @@
 // mail.getAnalysis (not a synced table), started with mail.analyze, each topic reviewed with mail.reviewTopic. The
 // answer of every write replaces the cached one at once (setQueryData), so the page never waits for a reload.
 import type { MailAnalysis, MailAnalysisError, MailTopic } from '@linedesk/actions'
-import { mailTopicLine } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useEffect, useState } from 'react'
@@ -50,9 +49,6 @@ export const draftOf = (topic: MailTopic): TopicDraft => ({
 })
 
 export const canAccept = (d: TopicDraft) => d.question.trim().length > 0 && d.answer.trim().length > 0
-
-/** The exact line the assistant reads once the topic is accepted. */
-export const previewLine = (d: TopicDraft) => mailTopicLine(d.question.trim(), d.answer.trim())
 
 export type TopicState = 'open' | 'accepted' | 'dropped'
 export const stateOf = (topic: MailTopic): TopicState =>

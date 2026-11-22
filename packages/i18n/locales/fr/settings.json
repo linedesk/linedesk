@@ -1148,8 +1148,6 @@
   "integrations.mailReview.noTopics": "Aucune demande fréquente n'a été trouvée dans les e-mails de support.",
   "integrations.mailReview.pickTip": "Ouvrir ce sujet (J et K parcourent la liste)",
   "integrations.mailReview.position": "{at} sur {count}",
-  "integrations.mailReview.preview": "L'assistant lit :",
-  "integrations.mailReview.previewName": "{name} lit :",
   "integrations.mailReview.privacy": "Les noms, adresses e-mail, numéros de téléphone et adresses postales sont retirés avant que le modèle de langage lise quoi que ce soit. Seul le résultat est conservé, jamais un e-mail.",
   "integrations.mailReview.progress": "Progression de l'analyse",
   "integrations.mailReview.question": "Quand un appelant demande",

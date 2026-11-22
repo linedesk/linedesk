@@ -19,7 +19,6 @@ import {
   counts,
   draftOf,
   isPending,
-  previewLine,
   type MailReview as Review,
   type RunStepId,
   runProgress,
@@ -304,14 +303,6 @@ function TopicEditor({
           onChange={e => onChange({ ...draft, answer: e.target.value })}
         />
       </label>
-      <div className="mr-preview">
-        <span>
-          {assistant
-            ? t('settings.integrations.mailReview.previewName', { name: assistant.name })
-            : t('settings.integrations.mailReview.preview')}
-        </span>
-        <code>{previewLine(draft)}</code>
-      </div>
     </div>
   )
 }

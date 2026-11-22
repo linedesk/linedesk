@@ -1148,8 +1148,6 @@
   "integrations.mailReview.noTopics": "No se encontraron solicitudes frecuentes en el correo de soporte.",
   "integrations.mailReview.pickTip": "Abrir este tema (J y K recorren la lista)",
   "integrations.mailReview.position": "{at} de {count}",
-  "integrations.mailReview.preview": "El asistente lee:",
-  "integrations.mailReview.previewName": "{name} lee:",
   "integrations.mailReview.privacy": "Los nombres, correos electrónicos, números de teléfono y direcciones se quitan antes de que el modelo de lenguaje lea nada. Solo se guarda el resultado, nunca un correo.",
   "integrations.mailReview.progress": "Progreso del análisis",
   "integrations.mailReview.question": "Cuando quien llama pregunta",

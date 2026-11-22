@@ -1148,8 +1148,6 @@
   "integrations.mailReview.noTopics": "サポートメールによくある問い合わせは見つかりませんでした。",
   "integrations.mailReview.pickTip": "このトピックを開く（J と K でリストを移動）",
   "integrations.mailReview.position": "{at} / {count}",
-  "integrations.mailReview.preview": "アシスタントが読む内容：",
-  "integrations.mailReview.previewName": "{name}が読む内容：",
   "integrations.mailReview.privacy": "言語モデルが読む前に、名前、メールアドレス、電話番号、住所は取り除かれます。保存されるのは結果だけで、メールは保存されません。",
   "integrations.mailReview.progress": "分析の進行状況",
   "integrations.mailReview.question": "通話相手の質問",

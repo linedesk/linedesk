@@ -1148,8 +1148,6 @@
   "integrations.mailReview.noTopics": "In den Support-Mails wurden keine häufigen Anfragen gefunden.",
   "integrations.mailReview.pickTip": "Dieses Thema öffnen (J und K gehen durch die Liste)",
   "integrations.mailReview.position": "{at} von {count}",
-  "integrations.mailReview.preview": "Der Assistent liest:",
-  "integrations.mailReview.previewName": "{name} liest:",
   "integrations.mailReview.privacy": "Namen, E-Mail-Adressen, Telefonnummern und Straßenadressen werden entfernt, bevor das Sprachmodell etwas liest. Nur das Ergebnis wird gespeichert, nie eine E-Mail.",
   "integrations.mailReview.progress": "Fortschritt der Analyse",
   "integrations.mailReview.question": "Wenn ein Anrufer fragt",

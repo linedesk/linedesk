@@ -464,10 +464,18 @@ function Detail({ id, canManageKeys, toast }: { id: DetailId; canManageKeys: boo
       </p>
       <div className="ig-detail-head">
         <IntegrationMark mark={integration.mark} />
-        <div>
+        <div className="ig-detail-title">
           <h1>{t(nameKey(id))}</h1>
           <p>{t(lineKey(id))}</p>
         </div>
+        <Button
+          variant="primary"
+          shortcut={['esc']}
+          onClick={() => (window.location.hash = HOME)}
+          title={t('settings.integrations.doneTip')}
+        >
+          {t('settings.integrations.done')}
+        </Button>
       </div>
       {id === 'zapier' && <ZapierSubscriptions canEdit={canManageKeys} toast={toast} />}
       {id === 'hubspot' && <ConnectedApp app="hubspot" canEdit={canManageKeys} toast={toast} />}
@@ -482,16 +490,6 @@ function Detail({ id, canManageKeys, toast }: { id: DetailId; canManageKeys: boo
       {id === 'api-keys' && <ApiKeys canEdit={canManageKeys} toast={toast} />}
       {id === 'rest-api' && <RestApi toast={toast} />}
       {id === 'mcp' && <Mcp toast={toast} />}
-      <div className="ig-detail-foot">
-        <Button
-          variant="primary"
-          shortcut={['esc']}
-          onClick={() => (window.location.hash = HOME)}
-          title={t('settings.integrations.doneTip')}
-        >
-          {t('settings.integrations.done')}
-        </Button>
-      </div>
     </>
   )
 }
