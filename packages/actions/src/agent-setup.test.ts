@@ -48,7 +48,16 @@ describe('startPlan', () => {
     )
     expect(gemini.steps[0]!.code).toContain(`'${URL}'`)
     expect(gemini.steps[0]!.code).toContain('setup_status')
-    expect(gemini.steps.some(s => s.code === URL && s.text.includes('Gemini in the browser'))).toBe(true)
+    // The browser way is folded behind its short line, the long text and the URL inside.
+    expect(
+      gemini.steps.some(
+        s =>
+          s.code === URL &&
+          s.fallback &&
+          s.summary === 'Gemini in the browser?' &&
+          s.text.includes('Gemini in the browser'),
+      ),
+    ).toBe(true)
   })
 
   test('GitHub Copilot: the chat link first; adding the setup server in VS Code (MCP: Add Server, HTTP) is the other way', () => {

@@ -340,6 +340,8 @@ export type StartStep = {
   prompt?: true
   form?: StartForm
   fallback?: true
+  /** A folded step's own line to open it, when its text is too long for that (the text then goes inside). */
+  summary?: string
 }
 /**
  * The agent's own form as the person sees it there, filled in: its title, each field with the value to put in (`copy`:
@@ -441,7 +443,12 @@ export function startPlan(
             text: t('onboarding.agentSetup.start.gemini.runCommand'),
             code: `gemini mcp add --scope user --transport http ${MCP_NAME} ${shellQuote(url)} && gemini -i ${shellQuote(COMMAND_PROMPT)}`,
           },
-          { text: t('onboarding.agentSetup.start.gemini.web'), code: url },
+          {
+            summary: t('onboarding.agentSetup.start.gemini.webSummary'),
+            text: t('onboarding.agentSetup.start.gemini.web'),
+            code: url,
+            fallback: true,
+          },
         ],
         prompt,
         promptFirst: false,

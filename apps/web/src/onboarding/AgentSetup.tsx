@@ -571,7 +571,18 @@ export function AgentSetup({
                 {created ? (
                   // The setup link is a key: never in a Help report's screenshot (feedback/report.ts).
                   <div data-no-shot style={{ display: 'contents' }}>
-                    <StartAgent client={client} url={created.url} scope={scope} change={change} />
+                    {cloudBlocked ? (
+                      // A cloud agent cannot reach this install: its steps would not work here, so they wait behind a
+                      // quiet "Show the steps anyway" (for whoever puts a public address in front of it first).
+                      <details className="as-other-way">
+                        <summary>{t('onboarding.agentSetup.cloudBlocked.showSteps')}</summary>
+                        <div className="as-other-way-body">
+                          <StartAgent client={client} url={created.url} scope={scope} change={change} />
+                        </div>
+                      </details>
+                    ) : (
+                      <StartAgent client={client} url={created.url} scope={scope} change={change} />
+                    )}
                   </div>
                 ) : (
                   <span className="as-small">{t('onboarding.agentSetup.link.otherBrowser')}</span>
@@ -1424,8 +1435,9 @@ export function StartAgent({
   // Only for when the step before did not work as expected: folded away below it.
   const fallback = (step: StartStep, i: number) => (
     <details key={step.text} className="as-other-way as-fallback">
-      <summary>{step.text}</summary>
+      <summary>{step.summary ?? step.text}</summary>
       <div className="as-other-way-body">
+        {step.summary && <span>{step.text}</span>}
         {step.code && (
           <div className="as-code">
             <code>{step.code}</code>

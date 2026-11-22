@@ -95,7 +95,7 @@
 }
 .as-prompt {
   margin: 0;
-  max-height: 180px;
+  max-height: 120px;
   overflow: auto;
   padding: 12px;
   border-radius: var(--radius-sm);
