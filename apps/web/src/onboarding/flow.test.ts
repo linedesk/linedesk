@@ -47,7 +47,6 @@ import {
   pickupNumberMode,
   pickupSettings,
   previousStep,
-  progress,
   greetingInLanguage,
   renameInGreeting,
   toE164,
@@ -72,9 +71,6 @@ test('steps run business → assistant → pick-up → who hears → phone → d
   expect(previousStep('notify')).toBe('pickup')
   expect(previousStep('phone')).toBe('notify')
   expect(previousStep('done')).toBe('phone')
-  expect(progress('business', false)).toBe(0)
-  expect(progress('assistant', true)).toBe(33)
-  expect(progress('done', true)).toBe(100)
 })
 
 test('a workspace on a step of the earlier flow resumes at the step that took its place', () => {
@@ -368,7 +364,10 @@ test('who hears: Continue needs a choice; only "put through" needs a valid mobil
   // "Take a message" needs no number, also with an empty or broken one left in the hidden field.
   expect(field({ urgent: 'message', mobile: '', condition: '' })).toBeNull()
   expect(field({ urgent: 'message', mobile: '555', condition: '' })).toBeNull()
-  expect(field({ ...ok, mobile: '' })).toMatchObject({ field: 'mobile', message: expect.stringMatching(/mobile/) })
+  expect(field({ ...ok, mobile: '' })).toMatchObject({
+    field: 'mobile',
+    message: expect.stringMatching(/number urgent calls should ring/),
+  })
   expect(field({ ...ok, mobile: '555-0142' })).toMatchObject({
     field: 'mobile',
     message: expect.stringMatching(/area code/),
@@ -447,7 +446,7 @@ test('who hears: nothing to save without a choice or for a first "take a message
 
 test("who hears: refusals about its own contact read as the step's own words; others as the server says", () => {
   expect(mobileErrorText("Mike's number is a Linedesk number; enter the person's own phone", 'Mike')).toMatch(
-    /Enter your own mobile/,
+    /Enter another number/,
   )
   expect(mobileErrorText("Mike's number forwards its calls to Linedesk; enter the person's own phone", 'Mike')).toMatch(
     /That number forwards its calls/,

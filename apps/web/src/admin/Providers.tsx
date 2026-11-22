@@ -19,7 +19,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '../cachedQuery.ts'
 import { i18n } from '../i18n/index.tsx'
-import { openAgentSetup } from '../onboarding/AgentSetup.tsx'
+import { backToInstallAgent } from '../onboarding/setup-choice.ts'
 import { type InstallSetupFrom, openInstallSetup } from '../onboarding/InstallSetup.tsx'
 import { AiButton } from '../settings/AgentChange.tsx'
 import { HelpTip } from '../ui/form.tsx'
@@ -65,7 +65,7 @@ export function AgentFirst({ lead, quiet, complete }: { lead: string; quiet?: bo
       <AiButton
         label={label.agent}
         title={complete ? t('admin.providers.agent.changeTip') : t('admin.providers.agent.setUpTip')}
-        onClick={openAgentSetup}
+        onClick={backToInstallAgent}
       />
     </>
   )

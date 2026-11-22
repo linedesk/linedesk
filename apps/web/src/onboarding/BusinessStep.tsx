@@ -4,34 +4,33 @@
 import {
   type BusinessCandidate,
   type BusinessImportData,
+  type BusinessKind,
   type BusinessLookupFailure,
   type BusinessSearchData,
-  type BusinessKind,
   phoneCountryName,
   resolveWorkspaceLanguage,
 } from '@linedesk/actions'
 import type { Assistant } from '@linedesk/db/types'
 import { msg } from '@linedesk/i18n'
+import { T, useT } from '@linedesk/i18n/react'
+import { type KeyboardEvent, type ReactNode, useEffect, useState } from 'react'
 import type { WebsiteImport } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { i18n } from '../i18n/index.tsx'
-import { type KeyboardEvent, type ReactNode, useEffect, useState } from 'react'
-import { T, useT } from '@linedesk/i18n/react'
-import { appLink, LinkButton } from '../ui/AppLink.tsx'
-import { Field, TextArea, TextInput } from '../settings/fields.tsx'
-import { callAction, patchWorkspaceSettings, useWorkspaceSettings } from '../settings/settings-api.ts'
-import { explicitCountryPatch } from '../settings/workspaceLocaleModel.ts'
-import { preloadVoiceCatalog } from '../settings/VoiceSettings.tsx'
-import { CountrySelect } from '../settings/CountrySelect.tsx'
+import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { TimeZoneSelect } from '../settings/BusinessHours.tsx'
 import { kindOptions } from '../settings/businessKind.ts'
+import { CountrySelect } from '../settings/CountrySelect.tsx'
+import { Field, TextArea, TextInput } from '../settings/fields.tsx'
+import { callAction, patchWorkspaceSettings, useWorkspaceSettings } from '../settings/settings-api.ts'
+import { preloadVoiceCatalog } from '../settings/VoiceSettings.tsx'
+import { explicitCountryPatch } from '../settings/workspaceLocaleModel.ts'
 import { useAssistantOf, useRun } from '../store.tsx'
+import { appLink, LinkButton } from '../ui/AppLink.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
 import { Button, Icon, Note } from '../ui/kit.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
 import { flagOf } from '../ui/phoneInputModel.ts'
-import { useDefaultPhoneCountry } from '../phoneCountry.ts'
-import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import {
   draftFrom,
   draftInLanguage,
@@ -39,21 +38,24 @@ import {
   draftProblems,
   looksLikeWebsite,
   manualProposal,
+  profileSaved,
   type ProfileDraft,
   type ProviderProblem,
   profileSave,
   providerProblem,
   renameBusiness,
-  shownTimeZone,
-  timeZoneToSave,
-  zoneForCountry,
   savedProposal,
+  shownTimeZone,
   sourcesLine,
   switchKind,
+  timeZoneToSave,
   websiteChoice,
+  zoneForCountry,
 } from './business.ts'
-import { Foot, useStepKeys } from './Frame.tsx'
 import { useClientWord } from './clientWords.tsx'
+import { Foot, StepLoading } from './Frame.tsx'
+import { useSetupKeys } from './setup-keys.ts'
+import { readStoredJson, writeStoredJson } from '../safeStorage.ts'
 
 type Props = {
   businessName: string
@@ -79,13 +81,11 @@ export function BusinessStep(p: Props) {
   const assistant = useAssistantOf(p.assistantId)
   if (assistant) return <FindBusiness assistant={assistant} {...p} />
   return (
-    <>
-      <div className="ob-body">
-        <h1>{t(word('onboarding.business.heading'))}</h1>
-        <Loading what={t('onboarding.assistant.loadingWhat')} loading skeleton={<SkeletonFields fields={2} />} />
-      </div>
-      <Foot canContinue={false} />
-    </>
+    <StepLoading
+      title={t(word('onboarding.business.heading'))}
+      what={t('onboarding.assistant.loadingWhat')}
+      fields={2}
+    />
   )
 }
 
@@ -94,22 +94,11 @@ type Review = Extract<Phase, { kind: 'review' }>
 
 /** The looked-up proposal this tab has not saved yet (sessionStorage: this tab only, gone when it closes). */
 function keptReview(key: string): Review | null {
-  try {
-    const kept = JSON.parse(sessionStorage.getItem(key) ?? 'null') as Review | null
-    return kept?.kind === 'review' && kept.proposal ? kept : null
-  } catch {
-    return null // storage blocked or an old shape: the step starts as usual
-  }
+  const kept = readStoredJson<Review>('session', key)
+  return kept?.kind === 'review' && kept.proposal ? kept : null // an old shape: the step starts as usual
 }
 
-function keepReview(key: string, review: Review | null) {
-  try {
-    if (review) sessionStorage.setItem(key, JSON.stringify(review))
-    else sessionStorage.removeItem(key)
-  } catch {
-    // Storage blocked or full: a reload starts the step as usual.
-  }
-}
+const keepReview = (key: string, review: Review | null) => writeStoredJson('session', key, review)
 
 type Phase =
   | { kind: 'find' }
@@ -137,7 +126,7 @@ function FindBusiness({
   // Coming back to this step: the review starts from the profile saved before, so Enter saves it again as it was.
   const profile = assistant.business_profile
   const savedKind = useWorkspaceSettings().data?.businessKind ?? null
-  const saved = !!(profile.instructions?.trim() || profile.phone || profile.website || profile.description)
+  const saved = profileSaved(profile)
   const savedReview = (): Phase => ({
     kind: 'review',
     proposal: savedProposal(profile, businessName, assistant.greeting, savedKind),
@@ -550,7 +539,7 @@ function FindForm({
 }) {
   const t = useT()
   const word = useClientWord()
-  useStepKeys({ onEnter })
+  useSetupKeys({ onEnter })
   return (
     <>
       <div className="ob-body">
@@ -572,14 +561,7 @@ function FindForm({
       </div>
       {/* The first step: no step to go back to, so the back slot leads to the AI agent setup (set up by hand after all). */}
       <Foot
-        onBack={phase.kind === 'loading' ? undefined : onAgentSetup}
-        {...(onAgentSetup
-          ? {
-              backLabel: t('onboarding.business.agentBack'),
-              backIcon: 'spark' as const,
-              backTitle: t('onboarding.frame.agentTitle'),
-            }
-          : {})}
+        agentBack={phase.kind === 'loading' ? undefined : onAgentSetup}
         onContinue={primary?.onClick}
         canContinue={!!primary}
         label={primary?.label}
@@ -680,7 +662,7 @@ function ReviewProfile({
     }
     onNext()
   }
-  useStepKeys({ onEnter: save, onEscape: onBack })
+  useSetupKeys({ onEnter: save, onEscape: onBack })
 
   const heading = fromGoogle
     ? draft.name.trim()

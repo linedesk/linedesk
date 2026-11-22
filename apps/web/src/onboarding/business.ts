@@ -197,6 +197,14 @@ export function savedTemplate(commonCalls: readonly string[], name: string): Bus
   return best?.id ?? templateFor({ name })
 }
 
+/** Whether the business step was saved for this assistant: the profile has something the owner (or the agent) wrote. */
+export const profileSaved = (profile: {
+  instructions?: string | null
+  phone?: string | null
+  website?: string | null
+  description?: string | null
+}): boolean => !!(profile.instructions?.trim() || profile.phone || profile.website || profile.description)
+
 /**
  * A proposal from the profile saved before (coming back to this step): the review starts from it, so saving again
  * keeps what was there, the kind of business included (savedTemplate).

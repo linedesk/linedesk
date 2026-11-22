@@ -19,7 +19,6 @@
 // steps, then the client workspace picked in the dropdown. The owner's own rows: adding a client workspace (a seat on
 // the partner bill, the partner area's New client dialog), a number, the call forwarding and the test call.
 import {
-  AGENT_SETUP_HASH,
   type AgentClient,
   type AgentSetupKeyCreated,
   type AgentSetupState,
@@ -34,10 +33,10 @@ import {
   type SetupScope,
   type SetupStepGroup,
   type SetupWorkspaceSummary,
+  type StartStep,
   setupStepGroups,
   setupStepNames,
   startPlan,
-  type StartStep,
   stepsByGroup,
   UNPAID_PARTNER_CLIENTS,
 } from '@linedesk/actions'
@@ -49,61 +48,55 @@ import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import type { AdminSecondFactor, Me } from '../auth.ts'
 import { brandName, installBrandName, useBrand } from '../brand.ts'
 import { useQuery } from '../cachedQuery.ts'
+import { microphoneAllowed } from '../call/microphone.ts'
 import { i18n } from '../i18n/index.tsx'
 import { SETUP_LINK_KEY, signInAgain as signOutAndSignIn } from '../localData.ts'
+import { NewClientDialog } from '../partner/PartnerArea.tsx'
+import { loadPartner, PARTNER_QUERY } from '../partner/partner-api.ts'
 import { callAction } from '../settings/settings-api.ts'
+import { switchToWorkspace } from '../shell/invitations.ts'
+import { NewWorkspaceDialog } from '../shell/NewWorkspace.tsx'
+import { tabWorkspace } from '../tabWorkspace.ts'
 import { dateTimeLabel, untilLabel } from '../time.ts'
 import { ClientLink } from '../ui/ClientLink.tsx'
+import { Select } from '../ui/controls.tsx'
 import { HelpTip } from '../ui/HelpTip.tsx'
-import { LoadProblem, Skeleton, SkeletonChecklist, SkeletonPart, useLoading } from '../ui/LoadStates.tsx'
 import { Button, cx, Icon, Note, Spinner } from '../ui/kit.tsx'
+import { LoadProblem, Skeleton, SkeletonChecklist, SkeletonPart, useLoading } from '../ui/LoadStates.tsx'
 import { MarkGlyph } from '../ui/StatusMark.tsx'
+import { AgentForm, StepNumber } from './AgentForm.tsx'
 import { AgentPicker, agentLabel } from './AgentPicker.tsx'
 import { installPartsMissing } from './agent-setup-passkey.ts'
-import { NewWorkspaceDialog } from '../shell/NewWorkspace.tsx'
-import { microphoneAllowed } from '../call/microphone.ts'
-import { switchToWorkspace } from '../shell/invitations.ts'
-import { Select } from '../ui/controls.tsx'
-import { AgentForm, StepNumber } from './AgentForm.tsx'
 import { CopyButton } from './Frame.tsx'
 import { rememberDraftOpenedFrom } from './flow.ts'
-import { SetupFoot } from './SetupFoot.tsx'
-import { SetupTopBar } from './SetupTopBar.tsx'
 import { openInstallSetup } from './InstallSetup.tsx'
 import { clearResume, peekResume, type ResumeAction, saveResume } from './resume-after-switch.ts'
+import { SetupFoot } from './SetupFoot.tsx'
 import {
   SetupActivatePartner,
-  type SetupWorkspace,
   SetupForwarding,
   SetupStartTrial,
   SetupTestCall,
+  type SetupWorkspace,
 } from './SetupRowActions.tsx'
+import { SetupPage, SetupTopBar } from './SetupTopBar.tsx'
 import { PARTNER_AGENT_HASH, rememberManual } from './setup-choice.ts'
 import { loadPartnerAgentSetup, loadWorkspaceAgentSetup } from './workspace-agent-setup.ts'
-import { NewClientDialog } from '../partner/PartnerArea.tsx'
-import { loadPartner, PARTNER_QUERY } from '../partner/partner-api.ts'
-import { tabWorkspace } from '../tabWorkspace.ts'
 import './agent-setup.css'
+import { useSetupKeys } from './setup-keys.ts'
+import { readStored, readStoredJson, writeStored, writeStoredJson } from '../safeStorage.ts'
 
 export { choseManualSetup, rememberManual } from './setup-choice.ts'
 
 const CLIENT_KEY = 'linedesk.setup.client'
 
 function savedClient(): AgentClient {
-  try {
-    const saved = localStorage.getItem(CLIENT_KEY)
-    return (agentClients as readonly string[]).includes(saved ?? '') ? (saved as AgentClient) : 'claude_code'
-  } catch {
-    return 'claude_code'
-  }
+  const saved = readStored('local', CLIENT_KEY)
+  return (agentClients as readonly string[]).includes(saved ?? '') ? (saved as AgentClient) : 'claude_code'
 }
 
 /** The address of the setup page (#setup-agent): opened from Server admin › Overview, or after choosing the manual way. */
 export { AGENT_SETUP_HASH, isAgentSetupHash } from '@linedesk/actions'
-export const openAgentSetup = () => {
-  rememberManual(false)
-  window.location.hash = AGENT_SETUP_HASH
-}
 
 const POLL_MS = 3000
 
@@ -127,23 +120,15 @@ function stillShown(slot: string): AgentSetupKeyCreated | null {
   const inMemory = unexpired(shownKeys.get(slot) ?? null)
   if (inMemory) return inMemory
   shownKeys.delete(slot)
-  try {
-    const saved = unexpired(JSON.parse(localStorage.getItem(slot) ?? 'null') as AgentSetupKeyCreated | null)
-    if (!saved) localStorage.removeItem(slot)
-    return saved
-  } catch {
-    return null
-  }
+  const saved = unexpired(readStoredJson<AgentSetupKeyCreated>('local', slot))
+  if (!saved) writeStored('local', slot, null)
+  return saved
 }
 function keepShown(slot: string, link: AgentSetupKeyCreated | null) {
   if (link) shownKeys.set(slot, link)
   else shownKeys.delete(slot)
-  try {
-    if (link) localStorage.setItem(slot, JSON.stringify(link))
-    else localStorage.removeItem(slot)
-  } catch {
-    // Private windows: the link lasts while this page is open.
-  }
+  // Private windows: the link lasts while this page is open (in memory).
+  writeStoredJson('local', slot, link)
 }
 
 type Props = {
@@ -294,11 +279,7 @@ export function AgentSetup({
 
   const pick = (next: AgentClient) => {
     setClient(next)
-    try {
-      localStorage.setItem(CLIENT_KEY, next)
-    } catch {
-      // Not remembered in private windows.
-    }
+    writeStored('local', CLIENT_KEY, next)
   }
   const createKey = async () => {
     setBusy('create')
@@ -384,7 +365,7 @@ export function AgentSetup({
     (allDone || (connected && !onboardingOpen)) && Boolean(state?.progress.workspace) && !trial && partnerId === null
   // A link to create while none is active: the page's main action, also with Enter (⏎ on its button).
   const createIsMain = state !== null && !state.key && !created && !allDone
-  useEnterKey(createIsMain && busy === null ? () => void createKey() : null)
+  useSetupKeys({ onEnter: createIsMain && busy === null ? () => void createKey() : null }, { fields: 'ignore' })
   // The footer's back slot: step by step once everything is set up. Changing settings has none: the top bar's Close
   // goes back to them. By hand is its own button under the agent card (byHand).
   const foot =
@@ -404,265 +385,265 @@ export function AgentSetup({
   // After signing in, the page loads again at the same address (SecondFactorPrompt).
   if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onDone} />
   return (
-    <div
-      className={cx('ob as', scope === 'partner' && 'k-install-brand')}
-      role="main"
-      aria-label={t('onboarding.agentSetup.ariaLabel', { brand: product })}
-      aria-busy={skeleton || undefined}
+    <SetupPage
+      className={cx('as', scope === 'partner' && 'k-install-brand')}
+      label={t('onboarding.agentSetup.ariaLabel', { brand: product })}
+      busy={skeleton}
+      mainClassName="as-main"
+      bar={
+        <SetupTopBar
+          label={t('onboarding.agentSetup.topLabel')}
+          progress={change ? 0 : checklistDone}
+          exit={
+            change
+              ? { kind: 'close', onExit: () => onManual(false), title: t('onboarding.agentSetup.change.backTitle') }
+              : onLater && !allDone
+                ? {
+                    kind: 'finish-later',
+                    onExit: onLater,
+                    // A partner's setup waits in the partner area, not in a go-live checklist.
+                    title: partnerId ? t('team.partner.setup.finishLaterTitle') : undefined,
+                  }
+                : null
+          }
+          brand={scope === 'partner' ? 'install' : 'app'}
+          workspaceId={active?.id}
+          away={scope === 'partner'}
+        />
+      }
     >
       {skeleton && (
         <span className="sr-only" role="status">
           {t('onboarding.agentSetup.loading')}
         </span>
       )}
-      <SetupTopBar
-        label={t('onboarding.agentSetup.topLabel')}
-        progress={change ? 0 : checklistDone}
-        exit={
-          change
-            ? { kind: 'close', onExit: () => onManual(false), title: t('onboarding.agentSetup.change.backTitle') }
-            : onLater && !allDone
-              ? {
-                  kind: 'finish-later',
-                  onExit: onLater,
-                  // A partner's setup waits in the partner area, not in a go-live checklist.
-                  title: partnerId ? t('team.partner.setup.finishLaterTitle') : undefined,
-                }
-              : null
-        }
-        brand={scope === 'partner' ? 'install' : 'app'}
-        workspaceId={active?.id}
-        away={scope === 'partner'}
-      />
-      <div className="ob-main as-main">
-        <div className={cx('ob-body', view.fadeIn && 'ld-in')}>
-          {/* "Recommended" is about choosing a way; once everything is set up there is nothing to choose. */}
-          {!allDone && (
-            <span className="as-kicker">
-              <Icon name="spark" size={14} /> {t('onboarding.agentSetup.kicker')}
-            </span>
-          )}
-          {skeleton ? (
-            <SkeletonPart reserved={reserved}>
-              <Skeleton className="as-sk-h1" width="74%" />
-              <span className="ob-lede as-sk-lede">
-                <Skeleton shape="text" width="100%" />
-                <Skeleton shape="text" width="98%" />
-                <Skeleton shape="text" width="94%" />
-                <Skeleton shape="text" width="18%" />
-              </span>
-            </SkeletonPart>
-          ) : change ? (
-            <>
-              <h1>
-                {change.assistant
-                  ? t('onboarding.agentSetup.change.assistantTitle', { name: change.assistant.name })
-                  : t('onboarding.agentSetup.change.workspaceTitle')}
-              </h1>
-              <p className="ob-lede">{t('onboarding.agentSetup.change.lede', { workspace: change.workspaceName })}</p>
-            </>
-          ) : partnerId ? (
-            <>
-              <h1>
-                {allDone
-                  ? t('onboarding.agentSetup.partner.changeTitle', { partner: partner?.name ?? '' })
-                  : t('onboarding.agentSetup.partner.title', { partner: partner?.name ?? '' })}
-              </h1>
-              <p className="ob-lede">
-                {partnerPaid ? (
-                  t('onboarding.agentSetup.partner.ledePaid')
-                ) : (
-                  <T k="onboarding.agentSetup.partner.lede" values={{ b: chunks => <b>{chunks}</b> }} />
-                )}
-              </p>
-            </>
-          ) : allDone ? (
-            <>
-              <h1>{t('onboarding.agentSetup.changeTitle', { brand: brandName() })}</h1>
-              <p className="ob-lede">{t('onboarding.agentSetup.changeLede')}</p>
-            </>
-          ) : (
-            <>
-              <h1>{t('onboarding.agentSetup.title', { brand: brandName() })}</h1>
-              <p className="ob-lede">
-                {preparedByPartner ? (
-                  t('onboarding.agentSetup.owner.ledePrepared', {
-                    partner: brand.partner ? brand.name : t('onboarding.agentSetup.owner.yourPartner'),
-                  })
-                ) : (
-                  <T
-                    k={owner ? 'onboarding.agentSetup.owner.lede' : 'onboarding.agentSetup.lede'}
-                    values={{ b: chunks => <b>{chunks}</b> }}
-                  />
-                )}
-              </p>
-            </>
-          )}
-        </div>
-
-        {/* Before the state is read, this page's own address stands for the server's: the note shows at once. Where
-            the server runs is its admin's business, not a workspace owner's. */}
-        {!personal && <HostingNote address={state?.mcpUrl ?? `${globalThis.location?.origin ?? ''}/mcp/setup`} />}
-
-        <section className="as-card" aria-label={t('onboarding.agentSetup.yourAgent')}>
-          <div className="as-link-step">
-            <b className="as-step-title">
-              {t('onboarding.agentSetup.link.title')}
-              <HelpTip
-                label={t('onboarding.agentSetup.link.helpLabel')}
-                text={t(
-                  partnerId
-                    ? 'onboarding.agentSetup.partner.linkHelp'
-                    : owner
-                      ? 'onboarding.agentSetup.owner.linkHelp'
-                      : 'onboarding.agentSetup.link.help',
-                  { hours: SETUP_KEY_HOURS },
-                )}
-              />
-            </b>
-            <AgentPicker client={client} onPick={pick} />
-            {cloudBlocked && (
-              <Note
-                tone="warning"
-                title={t('onboarding.agentSetup.cloudBlocked.title', { agent: agentLabel(client, t) })}
-              >
-                {t('onboarding.agentSetup.cloudBlocked.body', {
-                  agent: agentLabel(client, t),
-                  address: state?.mcpUrl.replace(/\/mcp\/setup$/, '') ?? '',
-                  brand: product,
-                })}
-              </Note>
-            )}
-            {hasLink ? (
-              <>
-                <div className="as-link">
-                  <span className="as-small">
-                    {t('onboarding.agentSetup.link.ready', {
-                      until: timeOf(created?.expiresAt ?? state?.key?.expiresAt ?? ''),
-                    })}
-                  </span>
-                  <Button
-                    size="sm"
-                    busy={busy === 'end'}
-                    onClick={() => void endAccess()}
-                    title={t('onboarding.agentSetup.link.endTitle')}
-                  >
-                    {t('onboarding.agentSetup.link.end')}
-                  </Button>
-                </div>
-                {created ? (
-                  // The setup link is a key: never in a Help report's screenshot (feedback/report.ts).
-                  <div data-no-shot style={{ display: 'contents' }}>
-                    <StartAgent client={client} url={created.url} scope={scope} change={change} />
-                  </div>
-                ) : (
-                  <span className="as-small">{t('onboarding.agentSetup.link.otherBrowser')}</span>
-                )}
-              </>
-            ) : skeleton ? (
-              <div className="as-step">
-                <SkeletonPart reserved={reserved}>
-                  <Skeleton width={148} height={32} />
-                </SkeletonPart>
-              </div>
-            ) : (
-              <div className="as-step">
-                {state?.endedByAgentAt && <AgentEndedNote at={state.endedByAgentAt} />}
-                <div>
-                  <Button
-                    variant={allDone ? 'secondary' : 'primary'}
-                    busy={busy === 'create'}
-                    shortcut={createIsMain ? ['⏎'] : undefined}
-                    className="as-enter"
-                    onClick={() => void createKey()}
-                  >
-                    {t('onboarding.agentSetup.link.create')}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-          {signInFirst && (
-            <Note
-              tone="warning"
-              title={t('onboarding.agentSetup.owner.signInFirst.title')}
-              action={
-                <Button size="sm" title={t('account.signInAgain.title')} onClick={() => void signOutAndSignIn()}>
-                  {t('account.signInAgain.button')}
-                </Button>
-              }
-            >
-              {partnerId
-                ? t('onboarding.agentSetup.partner.signInFirst', { hours: SETUP_KEY_HOURS })
-                : t('onboarding.agentSetup.owner.signInFirst.text', { hours: SETUP_KEY_HOURS })}
-            </Note>
-          )}
-          {error && <Note tone="danger">{error}</Note>}
-        </section>
-
-        {byHand && !skeleton && (
-          <SetUpYourself
-            text={t(partnerId ? 'onboarding.agentSetup.partner.noAgent' : 'onboarding.agentSetup.noAgent')}
-            label={t(partnerId ? 'onboarding.agentSetup.partner.byHand' : 'onboarding.agentSetup.manual')}
-            title={t(partnerId ? 'onboarding.agentSetup.partner.byHandTitle' : 'onboarding.agentSetup.manualTitle')}
-            onClick={manual}
-          />
+      <div className={cx('ob-body', view.fadeIn && 'ld-in')}>
+        {/* "Recommended" is about choosing a way; once everything is set up there is nothing to choose. */}
+        {!allDone && (
+          <span className="as-kicker">
+            <Icon name="spark" size={14} /> {t('onboarding.agentSetup.kicker')}
+          </span>
         )}
-
-        {state ? (
-          <Progress
-            state={state}
-            connected={connected}
-            change={Boolean(change)}
-            active={active ?? null}
-            reload={load}
-            fadeIn={view.fadeIn}
-            single={owner}
-            trial={trial}
-            partner={partner ?? null}
-            partnerScope={partnerId !== null}
-            onFirstWorkspace={onFirstWorkspace}
-          />
-        ) : skeleton ? (
-          <ProgressSkeleton reserved={reserved} single={owner} scope={scope} />
-        ) : (
-          <LoadProblem
-            what={t('onboarding.agentSetup.progressWhat')}
-            message={loadError ?? undefined}
-            onRetry={() => void load()}
-          />
-        )}
-
         {skeleton ? (
-          <div className="ob-foot">
-            <SkeletonPart reserved={reserved}>
-              <Skeleton width={148} height={36} />
-            </SkeletonPart>
-          </div>
+          <SkeletonPart reserved={reserved}>
+            <Skeleton className="as-sk-h1" width="74%" />
+            <span className="ob-lede as-sk-lede">
+              <Skeleton shape="text" width="100%" />
+              <Skeleton shape="text" width="98%" />
+              <Skeleton shape="text" width="94%" />
+              <Skeleton shape="text" width="18%" />
+            </span>
+          </SkeletonPart>
+        ) : change ? (
+          <>
+            <h1>
+              {change.assistant
+                ? t('onboarding.agentSetup.change.assistantTitle', { name: change.assistant.name })
+                : t('onboarding.agentSetup.change.workspaceTitle')}
+            </h1>
+            <p className="ob-lede">{t('onboarding.agentSetup.change.lede', { workspace: change.workspaceName })}</p>
+          </>
+        ) : partnerId ? (
+          <>
+            <h1>
+              {allDone
+                ? t('onboarding.agentSetup.partner.changeTitle', { partner: partner?.name ?? '' })
+                : t('onboarding.agentSetup.partner.title', { partner: partner?.name ?? '' })}
+            </h1>
+            <p className="ob-lede">
+              {partnerPaid ? (
+                t('onboarding.agentSetup.partner.ledePaid')
+              ) : (
+                <T k="onboarding.agentSetup.partner.lede" values={{ b: chunks => <b>{chunks}</b> }} />
+              )}
+            </p>
+          </>
+        ) : allDone ? (
+          <>
+            <h1>{t('onboarding.agentSetup.changeTitle', { brand: brandName() })}</h1>
+            <p className="ob-lede">{t('onboarding.agentSetup.changeLede')}</p>
+          </>
         ) : (
-          <SetupFoot
-            {...foot}
-            primary={
-              openApp ? (
-                <Button variant={allDone && !hasLink ? 'primary' : 'secondary'} onClick={onDone}>
-                  {allDone
-                    ? t('onboarding.agentSetup.open', { brand: brandName() })
-                    : t('onboarding.agentSetup.openNow', { brand: brandName() })}
-                </Button>
-              ) : partnerId && allDone ? (
-                <Button
-                  variant={hasLink ? 'secondary' : 'primary'}
-                  onClick={onDone}
-                  title={t('onboarding.agentSetup.partner.areaTitle')}
-                >
-                  {t('onboarding.agentSetup.partner.area')}
-                </Button>
-              ) : null
-            }
-          />
+          <>
+            <h1>{t('onboarding.agentSetup.title', { brand: brandName() })}</h1>
+            <p className="ob-lede">
+              {preparedByPartner ? (
+                t('onboarding.agentSetup.owner.ledePrepared', {
+                  partner: brand.partner ? brand.name : t('onboarding.agentSetup.owner.yourPartner'),
+                })
+              ) : (
+                <T
+                  k={owner ? 'onboarding.agentSetup.owner.lede' : 'onboarding.agentSetup.lede'}
+                  values={{ b: chunks => <b>{chunks}</b> }}
+                />
+              )}
+            </p>
+          </>
         )}
       </div>
-    </div>
+
+      {/* Before the state is read, this page's own address stands for the server's: the note shows at once. Where
+            the server runs is its admin's business, not a workspace owner's. */}
+      {!personal && <HostingNote address={state?.mcpUrl ?? `${globalThis.location?.origin ?? ''}/mcp/setup`} />}
+
+      <section className="as-card" aria-label={t('onboarding.agentSetup.yourAgent')}>
+        <div className="as-link-step">
+          <b className="as-step-title">
+            {t('onboarding.agentSetup.link.title')}
+            <HelpTip
+              label={t('onboarding.agentSetup.link.helpLabel')}
+              text={t(
+                partnerId
+                  ? 'onboarding.agentSetup.partner.linkHelp'
+                  : owner
+                    ? 'onboarding.agentSetup.owner.linkHelp'
+                    : 'onboarding.agentSetup.link.help',
+                { hours: SETUP_KEY_HOURS },
+              )}
+            />
+          </b>
+          <AgentPicker client={client} onPick={pick} />
+          {cloudBlocked && (
+            <Note
+              tone="warning"
+              title={t('onboarding.agentSetup.cloudBlocked.title', { agent: agentLabel(client, t) })}
+            >
+              {t('onboarding.agentSetup.cloudBlocked.body', {
+                agent: agentLabel(client, t),
+                address: state?.mcpUrl.replace(/\/mcp\/setup$/, '') ?? '',
+                brand: product,
+              })}
+            </Note>
+          )}
+          {hasLink ? (
+            <>
+              <div className="as-link">
+                <span className="as-small">
+                  {t('onboarding.agentSetup.link.ready', {
+                    until: timeOf(created?.expiresAt ?? state?.key?.expiresAt ?? ''),
+                  })}
+                </span>
+                <Button
+                  size="sm"
+                  busy={busy === 'end'}
+                  onClick={() => void endAccess()}
+                  title={t('onboarding.agentSetup.link.endTitle')}
+                >
+                  {t('onboarding.agentSetup.link.end')}
+                </Button>
+              </div>
+              {created ? (
+                // The setup link is a key: never in a Help report's screenshot (feedback/report.ts).
+                <div data-no-shot style={{ display: 'contents' }}>
+                  <StartAgent client={client} url={created.url} scope={scope} change={change} />
+                </div>
+              ) : (
+                <span className="as-small">{t('onboarding.agentSetup.link.otherBrowser')}</span>
+              )}
+            </>
+          ) : skeleton ? (
+            <div className="as-step">
+              <SkeletonPart reserved={reserved}>
+                <Skeleton width={148} height={32} />
+              </SkeletonPart>
+            </div>
+          ) : (
+            <div className="as-step">
+              {state?.endedByAgentAt && <AgentEndedNote at={state.endedByAgentAt} />}
+              <div>
+                <Button
+                  variant={allDone ? 'secondary' : 'primary'}
+                  busy={busy === 'create'}
+                  shortcut={createIsMain ? ['⏎'] : undefined}
+                  className="as-enter"
+                  onClick={() => void createKey()}
+                >
+                  {t('onboarding.agentSetup.link.create')}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+        {signInFirst && (
+          <Note
+            tone="warning"
+            title={t('onboarding.agentSetup.owner.signInFirst.title')}
+            action={
+              <Button size="sm" title={t('account.signInAgain.title')} onClick={() => void signOutAndSignIn()}>
+                {t('account.signInAgain.button')}
+              </Button>
+            }
+          >
+            {partnerId
+              ? t('onboarding.agentSetup.partner.signInFirst', { hours: SETUP_KEY_HOURS })
+              : t('onboarding.agentSetup.owner.signInFirst.text', { hours: SETUP_KEY_HOURS })}
+          </Note>
+        )}
+        {error && <Note tone="danger">{error}</Note>}
+      </section>
+
+      {byHand && !skeleton && (
+        <SetUpYourself
+          text={t(partnerId ? 'onboarding.agentSetup.partner.noAgent' : 'onboarding.agentSetup.noAgent')}
+          label={t(partnerId ? 'onboarding.agentSetup.partner.byHand' : 'onboarding.agentSetup.manual')}
+          title={t(partnerId ? 'onboarding.agentSetup.partner.byHandTitle' : 'onboarding.agentSetup.manualTitle')}
+          onClick={manual}
+        />
+      )}
+
+      {state ? (
+        <Progress
+          state={state}
+          connected={connected}
+          change={Boolean(change)}
+          active={active ?? null}
+          reload={load}
+          fadeIn={view.fadeIn}
+          single={owner}
+          trial={trial}
+          partner={partner ?? null}
+          partnerScope={partnerId !== null}
+          onFirstWorkspace={onFirstWorkspace}
+        />
+      ) : skeleton ? (
+        <ProgressSkeleton reserved={reserved} single={owner} scope={scope} />
+      ) : (
+        <LoadProblem
+          what={t('onboarding.agentSetup.progressWhat')}
+          message={loadError ?? undefined}
+          onRetry={() => void load()}
+        />
+      )}
+
+      {skeleton ? (
+        <div className="ob-foot">
+          <SkeletonPart reserved={reserved}>
+            <Skeleton width={148} height={36} />
+          </SkeletonPart>
+        </div>
+      ) : (
+        <SetupFoot
+          {...foot}
+          primary={
+            openApp ? (
+              <Button variant={allDone && !hasLink ? 'primary' : 'secondary'} onClick={onDone}>
+                {allDone
+                  ? t('onboarding.agentSetup.open', { brand: brandName() })
+                  : t('onboarding.agentSetup.openNow', { brand: brandName() })}
+              </Button>
+            ) : partnerId && allDone ? (
+              <Button
+                variant={hasLink ? 'secondary' : 'primary'}
+                onClick={onDone}
+                title={t('onboarding.agentSetup.partner.areaTitle')}
+              >
+                {t('onboarding.agentSetup.partner.area')}
+              </Button>
+            ) : null
+          }
+        />
+      )}
+    </SetupPage>
   )
 }
 
@@ -1501,26 +1482,4 @@ export function openWorkspaceFromHere(
 ) {
   rememberDraftOpenedFrom(id, hash)
   return open(id, null)
-}
-
-/**
- * Enter runs `onEnter` (the page's main action, its button showing ⏎), except in a field, on a button, link or summary
- * (they take Enter themselves) and while a dialog is open; null: Enter does nothing here.
- */
-export function useEnterKey(onEnter: (() => void) | null) {
-  const ref = useRef(onEnter)
-  ref.current = onEnter
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Enter' || e.isComposing || e.defaultPrevented || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey)
-        return
-      if (!ref.current || document.querySelector('[role="dialog"]')) return
-      const at = document.activeElement as HTMLElement | null
-      if (at?.matches('input, textarea, select, button, a, summary, [contenteditable="true"]')) return
-      e.preventDefault()
-      ref.current()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
 }

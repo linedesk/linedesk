@@ -4,6 +4,7 @@
 // nothing to point at. ⌘K "Show the tour" starts it any time. Kept in this browser only: a convenience,
 // not a record.
 import { i18n } from '../i18n/index.tsx'
+import { readStored, writeStored } from '../safeStorage.ts'
 
 export type TourPlacement = 'top' | 'bottom' | 'bottom-start' | 'bottom-end'
 
@@ -60,21 +61,9 @@ export function tourSteps(assistant: string, canAssign = true, samples = false):
 
 const PENDING_KEY = 'linedesk.tour.pending'
 
-function read(key: string): string | null {
-  try {
-    return localStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-function write(key: string, value: string | null) {
-  try {
-    if (value === null) localStorage.removeItem(key)
-    else localStorage.setItem(key, value)
-  } catch {
-    /* private window: the tour then just does not come back on its own */
-  }
-}
+// Private windows: the tour then just does not come back on its own.
+const read = (key: string) => readStored('local', key)
+const write = (key: string, value: string | null) => writeStored('local', key, value)
 
 /** Onboarding just finished in this browser for `workspaceId`: the tour starts in its inbox. */
 export const queueTour = (workspaceId: string) => write(PENDING_KEY, workspaceId)

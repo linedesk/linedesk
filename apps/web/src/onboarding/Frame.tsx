@@ -2,48 +2,48 @@
 // footer (SetupFoot.tsx, as `Foot`), and the keys (Enter continues, Esc goes back, Shift+Esc leaves). The same frame
 // holds the steps when they are gone through again from the settings ("Step by step", StepByStep.tsx).
 import { useT } from '@linedesk/i18n/react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Button, cx } from '../ui/kit.tsx'
-import { useClientWord } from './clientWords.tsx'
-import { onboardingSteps, stepLabelKeys, type OnboardingStep } from './flow.ts'
+import { type ReactNode, useEffect, useState } from 'react'
 import { brandName, installBrandName } from '../brand.ts'
-import { StepModeContext } from './SetupFoot.tsx'
-import { SetupTopBar } from './SetupTopBar.tsx'
+import { Button } from '../ui/kit.tsx'
+import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
+import { useClientWord } from './clientWords.tsx'
+import { type OnboardingStep, onboardingSteps, stepLabelKeys } from './flow.ts'
+import { SetupFoot, type SetupFootProps, StepModeContext } from './SetupFoot.tsx'
+import { SetupPage, SetupTopBar } from './SetupTopBar.tsx'
 
-type Keys = { onEnter?: () => void; onEscape?: () => void }
+/** The step's footer: the shared setup footer (SetupFoot.tsx), Back, Later and the primary. */
+export { SetupFoot as Foot, useStepMode } from './SetupFoot.tsx'
 
 /**
- * Enter outside buttons, links and text areas (there ⌘/Ctrl+Enter) runs `onEnter`; Esc runs `onEscape`. Shift+Esc is
- * the top bar's own: Finish later (or Close).
+ * A step whose data is not there yet: its heading, the loading placeholder (or the error with Retry) and its footer with
+ * the primary off, the same on every step. `foot`: the step's own Back and Later, never a working primary.
  */
-export function useStepKeys(keys: Keys) {
-  const ref = useRef(keys)
-  ref.current = keys
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.isComposing || e.defaultPrevented) return
-      const { onEnter, onEscape } = ref.current
-      if (e.key === 'Escape' && onEscape && !e.shiftKey) {
-        e.preventDefault()
-        onEscape()
-        return
-      }
-      if (e.key !== 'Enter' || e.shiftKey || !onEnter) return
-      const tag = (e.target as HTMLElement | null)?.tagName
-      // A focused summary opens its details (the activate step's "See all details"), never the step's primary.
-      if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY' || (tag === 'TEXTAREA' && !(e.metaKey || e.ctrlKey)))
-        return
-      e.preventDefault()
-      onEnter()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+export function StepLoading({
+  title,
+  what,
+  fields = 3,
+  error,
+  onRetry,
+  foot,
+}: {
+  title: string
+  /** What is loading, for screen readers and the error line. */
+  what: string
+  fields?: number
+  error?: string | boolean | null
+  onRetry?: () => void
+  foot?: Omit<SetupFootProps, 'canContinue'>
+}) {
+  return (
+    <>
+      <div className="ob-body">
+        <h1>{title}</h1>
+        <Loading what={what} loading error={error} onRetry={onRetry} skeleton={<SkeletonFields fields={fields} />} />
+      </div>
+      <SetupFoot {...foot} canContinue={false} />
+    </>
+  )
 }
-
-export { useStepMode } from './SetupFoot.tsx'
-/** The step's footer: the shared setup footer (SetupFoot.tsx), Back, Later and the primary. */
-export { SetupFoot as Foot } from './SetupFoot.tsx'
 
 export function Frame({
   step,
@@ -100,23 +100,24 @@ export function Frame({
   const install = brand === 'install'
   const name = step === 'activate' && planOnly ? t('onboarding.steps.activatePlan') : t(word(stepLabelKeys[step]))
   return (
-    <div
-      className={cx('ob', install && 'k-install-brand')}
-      role="main"
-      aria-label={t('onboarding.frame.title', { brand: install ? installBrandName() : brandName() })}
-    >
-      <SetupTopBar
-        step={{ n: counted.indexOf(step) + 1, m: counted.length, name }}
-        ahead={complete}
-        agentPath={onAgentSetup}
-        exit={onSkip ? { kind: edit ? 'close' : 'finish-later', onExit: onSkip, title: exitTitle } : null}
-        brand={brand}
-        away={install}
-      />
-      <StepModeContext.Provider value={{ edit, last: index === steps.length - 1, closes }}>
-        <div className="ob-main">{children}</div>
-      </StepModeContext.Provider>
-    </div>
+    <StepModeContext.Provider value={{ edit, last: index === steps.length - 1, closes }}>
+      <SetupPage
+        className={install && 'k-install-brand'}
+        label={t('onboarding.frame.title', { brand: install ? installBrandName() : brandName() })}
+        bar={
+          <SetupTopBar
+            step={{ n: counted.indexOf(step) + 1, m: counted.length, name }}
+            ahead={complete}
+            agentPath={onAgentSetup}
+            exit={onSkip ? { kind: edit ? 'close' : 'finish-later', onExit: onSkip, title: exitTitle } : null}
+            brand={brand}
+            away={install}
+          />
+        }
+      >
+        {children}
+      </SetupPage>
+    </StepModeContext.Provider>
   )
 }
 

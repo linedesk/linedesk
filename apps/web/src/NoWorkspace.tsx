@@ -14,16 +14,10 @@ import { AdminMode } from './admin/AdminMode.tsx'
 import { SecondFactorPrompt } from './admin/SecondFactorPrompt.tsx'
 import { auth, isInstanceAdmin, type Me } from './auth.ts'
 import { AdminStart } from './onboarding/AdminStart.tsx'
-import {
-  AgentSetup,
-  choseManualSetup,
-  isAgentSetupHash,
-  openAgentSetup,
-  rememberManual,
-} from './onboarding/AgentSetup.tsx'
+import { AgentSetup, choseManualSetup, isAgentSetupHash, rememberManual } from './onboarding/AgentSetup.tsx'
 import { INSTALL_SETUP_HASH, InstallSetup } from './onboarding/InstallSetup.tsx'
 import { AccountSettings } from './settings/account/index.tsx'
-import { PARTNER_AGENT_HASH } from './onboarding/setup-choice.ts'
+import { backToInstallAgent, PARTNER_AGENT_HASH } from './onboarding/setup-choice.ts'
 import { PartnerAgentSetup } from './partner/PartnerAgentSetup.tsx'
 import { PartnerArea } from './partner/PartnerArea.tsx'
 import { signOutAndForget } from './localData.ts'
@@ -125,7 +119,7 @@ export function NoWorkspace({ me, lostWorkspace = null, onDone, onOpenInvite }: 
         // "Set up with AI" on its steps: back to the agent setup page, which goes on from what is saved.
         onAgentSetup={() => {
           setManualSetup(false)
-          openAgentSetup()
+          backToInstallAgent()
         }}
         onExit={() => {
           // Opened by its link or from Server admin › Overview: leaving it goes on to naming the business, not the

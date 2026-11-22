@@ -5,7 +5,6 @@ import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
 import { useEffect, useRef, useState } from 'react'
 import { AdminMode } from '../admin/AdminMode.tsx'
-import { ActivatedStep, ActivateStep } from './ActivateStep.tsx'
 import type { Me, OnboardingState, PhoneSetupStatus, WebsiteImport } from '../auth.ts'
 import { brandName, useBrand } from '../brand.ts'
 import { ConfirmEmail } from '../ConfirmEmail.tsx'
@@ -16,21 +15,23 @@ import { rejectionReason } from '../shell/rejections.ts'
 import { queueTour } from '../shell/tour.ts'
 import { useAssistantName, useRejection, useRows, useRun } from '../store.tsx'
 import { Button, Icon, Note } from '../ui/kit.tsx'
+import { ActivatedStep, ActivateStep } from './ActivateStep.tsx'
 import { AssistantStep } from './AssistantStep.tsx'
 import { BusinessStep } from './BusinessStep.tsx'
-import { Foot, Frame, useStepKeys } from './Frame.tsx'
+import { ForClient, useClientWord } from './clientWords.tsx'
+import { Foot, Frame } from './Frame.tsx'
 import {
+  billedExtraNumberCents,
   type DoneLeft,
   doneState,
-  billedExtraNumberCents,
+  draftOpenedFrom,
   mobileErrorText,
   NO_PICKUP_MEMORY,
   nextStep,
   type OnboardingStep,
   onboardingSteps,
-  partnerDraftSteps,
   type PickupMemory,
-  draftOpenedFrom,
+  partnerDraftSteps,
   phoneSetupErrorText,
   previousStep,
   rejectionStep,
@@ -43,8 +44,8 @@ import { NotifyStep } from './NotifyStep.tsx'
 import { PhoneStep } from './PhoneStep.tsx'
 import { PickupStep } from './PickupStep.tsx'
 import { PARTNER_CLIENTS_HASH } from './setup-choice.ts'
-import { ForClient, useClientWord } from './clientWords.tsx'
 import './onboarding.css'
+import { useSetupKeys } from './setup-keys.ts'
 
 type Props = {
   me: Me
@@ -485,7 +486,7 @@ function Done({
     window.history.replaceState(null, '', href)
     onDone()
   }
-  useStepKeys({ onEnter: () => void openApp(), onEscape: onBack })
+  useSetupKeys({ onEnter: () => void openApp(), onEscape: onBack })
   // What is left opens in place (design-principles.md rule 14): the phone step, or Server admin, which comes back here.
   function follow(to: NonNullable<DoneLeft['to']>) {
     if ('step' in to) onOpenStep(to.step)

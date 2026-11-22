@@ -5,11 +5,11 @@
 // there is an agent path, the way out ("Finish later" while setting up, "Close" from the settings) and the account
 // menu. Under it a 2 px line: how far the steps got, (n − 1) / (m − 1), the last step full.
 import { useT } from '@linedesk/i18n/react'
-import { useEffect, useRef } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 import { brandName, installBrandName } from '../brand.ts'
 import { AiButton } from '../settings/AgentChange.tsx'
 import { SetupAccountMenu } from '../shell/SetupAccountMenu.tsx'
-import { BrandMark, Button } from '../ui/kit.tsx'
+import { BrandMark, Button, cx } from '../ui/kit.tsx'
 
 /** Where the person is in a counted walkthrough: step `n` of `m`, named. */
 export type SetupStepCount = { n: number; m: number; name: string }
@@ -27,7 +27,7 @@ export function setupProgress({ n, m }: Pick<SetupStepCount, 'n' | 'm'>, ahead =
   return Math.round((at / (m - 1)) * 100)
 }
 
-type Props = {
+export type SetupTopBarProps = {
   /** A counted walkthrough: "Step n of m · Name" (and "n/m" on a phone), the line filled by setupProgress. */
   step?: SetupStepCount
   /** A page that is no counted walkthrough (the agent pages): what it is, in place of the step count. */
@@ -58,7 +58,7 @@ export function SetupTopBar({
   brand = 'app',
   workspaceId,
   away = false,
-}: Props) {
+}: SetupTopBarProps) {
   const t = useT()
   const install = brand === 'install'
   const fill = progress ?? (step ? setupProgress(step, ahead) : 0)
@@ -129,5 +129,40 @@ export function SetupTopBar({
         <span style={{ width: `${fill}%` }} />
       </div>
     </>
+  )
+}
+
+/**
+ * The page of every setup (the onboarding's Frame, the install by hand, the agent setup, the partner setup, a Checkout's
+ * result, the admin start): the main region named for the screen reader, the shared top bar (`bar`, a SetupTopBar), the
+ * content column (`.ob-main`, its footer inside) and what must come after it (`after`: a dialog host that opens over
+ * the page's own dialogs).
+ */
+export function SetupPage({
+  label,
+  className,
+  mainClassName,
+  busy,
+  bar,
+  after,
+  children,
+}: {
+  /** The page's name for the screen reader. */
+  label: string
+  /** Besides `ob`: the page's own look (`is`, `as`), `k-install-brand` for the install's own brand. */
+  className?: string | false
+  mainClassName?: string
+  /** Loading the page: `aria-busy` while only placeholders show. */
+  busy?: boolean
+  bar: ReactNode
+  after?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <div className={cx('ob', className)} role="main" aria-label={label} aria-busy={busy || undefined}>
+      {bar}
+      <div className={cx('ob-main', mainClassName)}>{children}</div>
+      {after}
+    </div>
   )
 }

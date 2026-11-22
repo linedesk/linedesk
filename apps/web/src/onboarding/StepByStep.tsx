@@ -8,12 +8,22 @@
 import { useEffect, useState } from 'react'
 import type { Me } from '../auth.ts'
 import { type ChangeTarget, settingsHashOf } from '../settings/agentChange.ts'
-import { preloadWorkspaceSettings } from '../settings/settings-api.ts'
-import { useAssistants } from '../store.tsx'
+import { preloadWorkspaceSettings, useWorkspaceSettings } from '../settings/settings-api.ts'
+import { useGoLiveChecklist } from '../inbox/GoLiveChecklist.tsx'
+import { useAssistantOf, useAssistants, useRows } from '../store.tsx'
 import { Frame } from './Frame.tsx'
-import { NO_PICKUP_MEMORY, type OnboardingStep, type PickupMemory, stepByStepMove, stepByStepSteps } from './flow.ts'
+import {
+  firstOpenStep,
+  NO_PICKUP_MEMORY,
+  type OnboardingStep,
+  type PickupMemory,
+  stepByStepMove,
+  stepByStepSteps,
+} from './flow.ts'
+import { profileSaved } from './business.ts'
 import { SaveErrors, StepScreen, useStepSaves } from './Onboarding.tsx'
 import './onboarding.css'
+import { readStored, writeStored } from '../safeStorage.ts'
 
 type Props = {
   target: ChangeTarget
@@ -24,25 +34,11 @@ type Props = {
 
 const STEP_KEY = 'linedesk.stepByStep.'
 
-/** The step this tab last showed for these steps (sessionStorage: this tab only, gone when it closes). */
-function keptStep(key: string): OnboardingStep | null {
-  try {
-    return sessionStorage.getItem(key) as OnboardingStep | null
-  } catch {
-    return null // storage blocked: a reload starts at the first step
-  }
-}
+/** The step this tab last showed for these steps (this tab only, gone when it closes). */
+const keptStep = (key: string) => readStored('session', key) as OnboardingStep | null
+const keepStep = (key: string, step: OnboardingStep | null) => writeStored('session', key, step)
 
-function keepStep(key: string, step: OnboardingStep | null) {
-  try {
-    if (step) sessionStorage.setItem(key, step)
-    else sessionStorage.removeItem(key)
-  } catch {
-    // Storage blocked: nothing kept.
-  }
-}
-
-/** What a member without a phone setup status sees there; the steps gone through again never ask for a number. */
+/** What a member without a phone setup status sees on the number's step. */
 const NO_PHONE_SETUP = { provider: null, available: false, detail: null, canAttach: false }
 
 export function StepByStep({ target, me, onRenamed }: Props) {
@@ -67,10 +63,25 @@ export function StepByStep({ target, me, onRenamed }: Props) {
   // What the pick-up step changed here (hours it turned on, the forwarding a number had before): a changed forwarding
   // adds the number's step, with the code to dial.
   const [pickupMemory, setPickupMemory] = useState<PickupMemory>(NO_PICKUP_MEMORY)
-  const steps = stepByStepSteps(target.kind, pickupMemory.oldForwarding !== null)
+  // Not live yet (no number, or forwarding never verified and no real call): the number is one of the steps.
+  const assistant = useAssistantOf(assistantId)
+  const numbers = useRows('phone_numbers')
+  const checklist = useGoLiveChecklist(me.permissions.includes('settings:write'), me.workspace!.id)
+  const settings = useWorkspaceSettings().data
+  const numberOpen =
+    target.kind === 'workspace' &&
+    (numbers.length === 0 || (!!checklist && !checklist.forwardingVerified && !checklist.firstRealCall))
+  const steps = stepByStepSteps(target.kind, pickupMemory.oldForwarding !== null, numberOpen)
+  // Opens where it was in this tab, else at the first step still open (Janik, 2026-11-22); what is not loaded yet
+  // counts as done.
   const [step, setStepNow] = useState<OnboardingStep>(() => {
     const kept = keptStep(stepKey)
-    return kept && steps.includes(kept) ? kept : steps[0]!
+    if (kept && steps.includes(kept)) return kept
+    return firstOpenStep(steps, {
+      business: !!assistant && !profileSaved(assistant.business_profile),
+      pickup: !!settings && !settings.pickupMode,
+      phone: numberOpen,
+    })
   })
   const setStep = (to: OnboardingStep) => {
     setStepNow(to)

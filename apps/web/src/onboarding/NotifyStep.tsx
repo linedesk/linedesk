@@ -10,18 +10,16 @@ import { msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { brandName } from '../brand.ts'
+import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { Field, TextArea } from '../settings/fields.tsx'
 import { useAssistantOf, useRows, useRun } from '../store.tsx'
 import { useMember } from '../team/members.ts'
 import { RadioCard } from '../ui/controls.tsx'
 import { Note } from '../ui/kit.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
-import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
-import { Foot, useStepKeys } from './Frame.tsx'
-import { useOutboundCountries, withUnfinishedNumber } from './outbound-number.ts'
-import { useClientWord, useForClient } from './clientWords.tsx'
-import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { useWorkspaceCountry } from '../workspaceLocale.ts'
+import { useClientWord, useForClient } from './clientWords.tsx'
+import { Foot, StepLoading } from './Frame.tsx'
 import {
   EMERGENCY_NOTE,
   firstWhoHears,
@@ -32,6 +30,8 @@ import {
   whoHearsProblem,
   whoHearsTransfers,
 } from './flow.ts'
+import { useOutboundCountries, withUnfinishedNumber } from './outbound-number.ts'
+import { useSetupKeys } from './setup-keys.ts'
 
 type Props = {
   /** The member's user id: their name is how the assistant names them to callers. */
@@ -49,13 +49,11 @@ export function NotifyStep(p: Props) {
   const assistant = useAssistantOf(p.assistantId)
   if (assistant) return <NotifyForm assistant={assistant} {...p} />
   return (
-    <>
-      <div className="ob-body">
-        <h1>{t('onboarding.notify.title')}</h1>
-        <Loading what={t('onboarding.notify.loadingAssistant')} loading skeleton={<SkeletonFields fields={3} />} />
-      </div>
-      <Foot onBack={p.onBack} onContinue={p.onNext} canContinue={false} onSkipStep={p.onNext} laterTitle={t(LATER)} />
-    </>
+    <StepLoading
+      title={t('onboarding.notify.title')}
+      what={t('onboarding.notify.loadingAssistant')}
+      foot={{ onBack: p.onBack, onContinue: p.onNext, onSkipStep: p.onNext, laterTitle: t(LATER) }}
+    />
   )
 }
 
@@ -103,7 +101,7 @@ function NotifyForm({ assistant, actorId, emailConfirmed, onBack, onNext }: Prop
     if (transfers) void run('assistant.update', { assistantId: assistant.id, transfers })
     onNext()
   }
-  useStepKeys({ onEnter: next, onEscape: onBack })
+  useSetupKeys({ onEnter: next, onEscape: onBack })
 
   const shownProblem = shown ? problem : null
   const message = error?.message ?? shownProblem?.message ?? null

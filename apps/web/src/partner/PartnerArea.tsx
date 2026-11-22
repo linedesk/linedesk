@@ -17,6 +17,7 @@ import { useCountryHint } from '../countryHint.ts'
 import { rememberDraftOpenedFrom } from '../onboarding/flow.ts'
 import { SetupTopBar } from '../onboarding/SetupTopBar.tsx'
 import {
+  backToPartnerAgent,
   openPartnerActivate,
   PARTNER_AGENT_HASH,
   PARTNER_SETUP_HASH,
@@ -171,12 +172,7 @@ function PartnerConsole({ partner, onExit, onFirstWorkspace }: Props) {
       <SetupTopBar
         label={t('team.partner.page')}
         agentPath={
-          partner.role === 'owner' && status !== 'suspended'
-            ? () => {
-                rememberPartnerByHand(partner.id, false)
-                window.location.hash = PARTNER_AGENT_HASH
-              }
-            : undefined
+          partner.role === 'owner' && status !== 'suspended' ? () => backToPartnerAgent(partner.id) : undefined
         }
         exit={
           onExit

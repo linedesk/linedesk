@@ -6,6 +6,7 @@
 // page ("With an AI agent") or the partner's setup ("Step 3 of 3 · Activate", in the install's brand).
 import { useFormat, useT } from '@linedesk/i18n/react'
 import { useEffect, useState } from 'react'
+import { installBrandName } from './brand.ts'
 import {
   type ConfirmOutcome,
   confirmCheckout,
@@ -13,16 +14,16 @@ import {
   readCheckoutPartner,
   readCheckoutSession,
 } from './checkout.ts'
-import { installBrandName } from './brand.ts'
+import { Foot, Frame } from './onboarding/Frame.tsx'
 import { activationSteps, trialSteps } from './onboarding/flow.ts'
-import { Foot, Frame, useStepKeys } from './onboarding/Frame.tsx'
 import { SetupFoot } from './onboarding/SetupFoot.tsx'
-import { setupProgress, SetupTopBar } from './onboarding/SetupTopBar.tsx'
+import { SetupPage, SetupTopBar, setupProgress } from './onboarding/SetupTopBar.tsx'
 import './onboarding/onboarding.css'
+import { useSetupKeys } from './onboarding/setup-keys.ts'
+import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
 import { AuthError } from './ui/AuthError.tsx'
 import { cx, Note, Spinner } from './ui/kit.tsx'
 import { Loading, SkeletonFields } from './ui/LoadStates.tsx'
-import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
 
 /**
  * `onDone`: leaves the page; the app reads the workspace again (no longer waiting for Checkout). `toBilling`: minutes
@@ -253,7 +254,7 @@ function SetupResult({
 }) {
   const t = useT()
   const started = outcome?.status === 'trialing' || outcome?.status === 'active'
-  useStepKeys({ onEnter: outcome && !busy ? onContinue : undefined })
+  useSetupKeys({ onEnter: outcome && !busy ? onContinue : undefined })
   const content = (
     <div className="ob-body">
       <ResultBody
@@ -280,16 +281,18 @@ function SetupResult({
   )
   if (shell === 'agent')
     return (
-      <div className="ob" role="main" aria-label={t('onboarding.agentSetup.topLabel')}>
-        <SetupTopBar
-          label={t('onboarding.agentSetup.topLabel')}
-          progress={setupProgress({ n: trialSteps.indexOf('activate') + 1, m: trialSteps.length }, started)}
-        />
-        <div className="ob-main">
-          {content}
-          {foot}
-        </div>
-      </div>
+      <SetupPage
+        label={t('onboarding.agentSetup.topLabel')}
+        bar={
+          <SetupTopBar
+            label={t('onboarding.agentSetup.topLabel')}
+            progress={setupProgress({ n: trialSteps.indexOf('activate') + 1, m: trialSteps.length }, started)}
+          />
+        }
+      >
+        {content}
+        {foot}
+      </SetupPage>
     )
   return (
     <Frame
@@ -326,41 +329,42 @@ function PartnerResult({
   const t = useT()
   const refused = outcome?.status === 'trial_refused'
   const started = outcome?.status === 'trialing' || outcome?.status === 'active'
-  useStepKeys({ onEnter: outcome && !busy ? (refused ? onStartPlan : onContinue) : undefined })
+  useSetupKeys({ onEnter: outcome && !busy ? (refused ? onStartPlan : onContinue) : undefined })
   return (
-    <div
-      className="ob k-install-brand"
-      role="main"
-      aria-label={t('onboarding.frame.title', { brand: installBrandName() })}
-    >
-      <SetupTopBar
-        step={{ n: 3, m: 3, name: t('team.partner.setup.step.activate') }}
-        ahead={started}
-        // Not started: Activate waits in the partner's setup, as its own "Finish later" says.
-        exit={
-          refused ? { kind: 'finish-later', onExit: onContinue, title: t('team.partner.setup.finishLaterTitle') } : null
-        }
-        brand="install"
-        away
-      />
-      <div className="ob-main">
-        <div className="ob-body">
-          <ResultBody
-            outcome={outcome}
-            trialTitle={t('auth.checkout.trialTitle')}
-            planTitle={t('auth.checkout.partnerPlanTitle')}
-            planText={t('auth.checkout.partnerPlanText')}
-            refusedNext={t('auth.checkout.refusedNothingCharged')}
-          />
-          {startFailed && <Note tone="danger">{t('auth.checkout.startFailed')}</Note>}
-        </div>
-        <SetupFoot
-          onContinue={refused ? onStartPlan : onContinue}
-          canContinue={!!outcome}
-          busy={busy}
-          label={refused ? t('auth.checkout.startPlan') : t('auth.checkout.continue')}
+    <SetupPage
+      className="k-install-brand"
+      label={t('onboarding.frame.title', { brand: installBrandName() })}
+      bar={
+        <SetupTopBar
+          step={{ n: 3, m: 3, name: t('team.partner.setup.step.activate') }}
+          ahead={started}
+          // Not started: Activate waits in the partner's setup, as its own "Finish later" says.
+          exit={
+            refused
+              ? { kind: 'finish-later', onExit: onContinue, title: t('team.partner.setup.finishLaterTitle') }
+              : null
+          }
+          brand="install"
+          away
         />
+      }
+    >
+      <div className="ob-body">
+        <ResultBody
+          outcome={outcome}
+          trialTitle={t('auth.checkout.trialTitle')}
+          planTitle={t('auth.checkout.partnerPlanTitle')}
+          planText={t('auth.checkout.partnerPlanText')}
+          refusedNext={t('auth.checkout.refusedNothingCharged')}
+        />
+        {startFailed && <Note tone="danger">{t('auth.checkout.startFailed')}</Note>}
       </div>
-    </div>
+      <SetupFoot
+        onContinue={refused ? onStartPlan : onContinue}
+        canContinue={!!outcome}
+        busy={busy}
+        label={refused ? t('auth.checkout.startPlan') : t('auth.checkout.continue')}
+      />
+    </SetupPage>
   )
 }

@@ -26,7 +26,10 @@ test('a whole number goes by the countries the workspace may call', () => {
   expect(problem('+4915112345678', 'any')).toBeNull()
   // Ten digits after another country code are never taken for a US number
   expect(problem('+4930123456')).toMatchObject({ field: 'mobile' })
-  expect(problem('')).toMatchObject({ field: 'mobile', message: expect.stringMatching(/Enter your mobile/) })
+  expect(problem('')).toMatchObject({
+    field: 'mobile',
+    message: expect.stringMatching(/Enter the number urgent calls should ring/),
+  })
 })
 
 test('outboundE164: the phone field’s E.164 in any country, or an older US number without its country code', () => {

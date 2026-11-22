@@ -155,16 +155,27 @@ export const previousStep = (
 
 /**
  * The steps "Step by step" (Workspace or Assistant settings › General) goes through again, with what is saved. The
- * workspace: everything the onboarding asks but the number; one assistant: what is about it (the business it answers
- * for, its name, greeting and voice, who hears about its calls), not the workspace's pick-up choice. Never the number
- * (connecting or buying one is done once, in Workspace settings › Phone numbers) and never the end screen, except the
- * number's forwarding codes when the pick-up choice just changed how a connected number forwards (`forwardingChanged`):
- * the new code must be dialled.
+ * workspace: everything the onboarding asks, the number too while it is not live yet (`numberOpen`: none connected,
+ * or forwarding not verified; Janik, 2026-11-22), or when the pick-up choice just changed how a connected number
+ * forwards (`forwardingChanged`: the new code must be dialled). One assistant: what is about it (the business it
+ * answers for, its name, greeting and voice, what happens with its urgent calls), not the workspace's pick-up choice
+ * or number. Never the end screen.
  */
-export function stepByStepSteps(target: 'workspace' | 'assistant', forwardingChanged: boolean): OnboardingStep[] {
+export function stepByStepSteps(
+  target: 'workspace' | 'assistant',
+  forwardingChanged: boolean,
+  numberOpen = false,
+): OnboardingStep[] {
   if (target === 'assistant') return ['business', 'assistant', 'notify']
-  return ['business', 'assistant', 'pickup', 'notify', ...(forwardingChanged ? (['phone'] as const) : [])]
+  return ['business', 'assistant', 'pickup', 'notify', ...(forwardingChanged || numberOpen ? (['phone'] as const) : [])]
 }
+
+/** What is not set up yet, per step: `true` where the step still needs the owner (unknown counts as done). */
+export type OpenSteps = Partial<Record<OnboardingStep, boolean>>
+
+/** Where "Step by step" opens: the first step that still needs the owner, else the first one. */
+export const firstOpenStep = (steps: readonly OnboardingStep[], open: OpenSteps): OnboardingStep =>
+  steps.find(step => open[step]) ?? steps[0]!
 
 /**
  * One line of the activation step's timeline. `day` counts today as day 1, as the website's "No charge until day 15"
@@ -295,16 +306,6 @@ export function stepByStepMove(
 ): OnboardingStep | 'close' {
   const at = steps.indexOf(step) + (way === 'next' ? 1 : -1)
   return steps[at] ?? 'close'
-}
-
-/** Share of the bar to fill: finished steps, plus the current one once it is complete. */
-export function progress(
-  step: OnboardingStep,
-  complete: boolean,
-  steps: readonly OnboardingStep[] = onboardingSteps,
-): number {
-  const at = steps.indexOf(step) + (complete ? 1 : 0)
-  return Math.round((at / steps.length) * 100)
 }
 
 /** A US number as people type it ("(503) 555-0142", "503.555.0142", "+1 503 …") in E.164, or null. */

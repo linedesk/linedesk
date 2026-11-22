@@ -16,28 +16,30 @@ import {
   type ProviderName,
 } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
-import { T, useT } from '@linedesk/i18n/react'
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { type AdminData, reloadAdminData, loadInstallSetup, runAdmin, watchAdminSignIn } from '../admin/api.ts'
+import { useT } from '@linedesk/i18n/react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { type AdminData, loadInstallSetup, reloadAdminData, runAdmin, watchAdminSignIn } from '../admin/api.ts'
 import { errorText } from '../admin/notify.ts'
 import { PasskeyStepUpHost } from '../admin/PasskeyStepUp.tsx'
 import { ProviderGroup } from '../admin/ProviderGroup.tsx'
 import { ProviderDialogFor } from '../admin/Providers.tsx'
 import { type ProviderStatusState, useProviderStatus } from '../admin/providerStatus.ts'
-import { useAdminData } from '../admin/useAdminData.ts'
 import { SecondFactorPrompt } from '../admin/SecondFactorPrompt.tsx'
 import { TryOut } from '../admin/TryOut.tsx'
+import { useAdminData } from '../admin/useAdminData.ts'
 import type { AdminSecondFactor } from '../auth.ts'
 import { brandName } from '../brand.ts'
 import { Button, cx, Note } from '../ui/kit.tsx'
-import { MarkGlyph } from '../ui/StatusMark.tsx'
-import { leaveInstallSetup } from './leave-install-setup.ts'
 import { Loading, problemText, SkeletonFields } from '../ui/LoadStates.tsx'
-import { HostingNote, openAgentSetup } from './AgentSetup.tsx'
+import { MarkGlyph } from '../ui/StatusMark.tsx'
+import { HostingNote } from './AgentSetup.tsx'
+import { backToInstallAgent } from './setup-choice.ts'
+import { leaveInstallSetup } from './leave-install-setup.ts'
 import { SetupFoot } from './SetupFoot.tsx'
-import { SetupTopBar } from './SetupTopBar.tsx'
+import { SetupPage, SetupTopBar } from './SetupTopBar.tsx'
 import '../admin/admin.css'
 import './agent-setup.css'
+import { useSetupKeys } from './setup-keys.ts'
 
 export const INSTALL_SETUP_HASH = '#setup-install'
 /**
@@ -180,73 +182,55 @@ export function InstallSetup({ onExit, onAgentSetup }: Props) {
   const groups = status.status?.groups ?? null
   const bar = step ? installTopBar(step) : { part: null, progress: 0 }
   return (
-    <div className="ob is" role="main" aria-label={t('onboarding.install.label', { brand: brandName() })}>
-      <SetupTopBar
-        step={bar.part && step ? { ...bar.part, name: t(stepLabelKeys[step]) } : undefined}
-        label={bar.part ? undefined : t('onboarding.install.count')}
-        progress={bar.progress}
-        agentPath={step === 'done' ? undefined : (onAgentSetup ?? openAgentSetup)}
-        // Done is the end of the walkthrough: its own button goes on, there is nothing to finish later.
-        exit={step === 'done' ? null : { kind: 'finish-later', onExit: later, title: t('onboarding.install.laterTip') }}
-      />
-      <div className="ob-main as-main">
-        {!setup || !step || !data || !groups ? (
-          <Loading
-            what={t('onboarding.install.loading')}
-            loading
-            error={loadError}
-            skeleton={<SkeletonFields fields={2} />}
-          />
-        ) : step === 'welcome' ? (
-          <Welcome status={status} onStart={() => go('email')} onAgent={onAgentSetup ?? openAgentSetup} />
-        ) : step === 'done' ? (
-          <Done
-            status={status}
-            onBack={() => go(installSteps[index - 1]!)}
-            onOpen={step => go(step)}
-            onFinish={finish}
-          />
-        ) : (
-          <PartStep
-            key={step}
-            step={step as PartStepId}
-            data={data}
-            status={status}
-            setup={setup}
-            reloadAll={reloadAll}
-            onBack={() => go(installSteps[index - 1]!)}
-            onNext={() => go(installSteps[index + 1]!)}
-            onSkip={() => go(installSteps[index + 1]!, step)}
-          />
-        )}
-      </div>
-      {/* Last, so the passkey dialog opens over the provider dialog that waits for it (same layer, later wins). */}
-      <PasskeyStepUpHost />
-    </div>
-  )
-}
-
-/** Enter continues and Esc goes back, except in a form, a field or an open dialog (they handle their own keys). */
-function useWalkKeys(onEnter: (() => void) | null, onEscape: (() => void) | null) {
-  const ref = useRef({ onEnter, onEscape })
-  ref.current = { onEnter, onEscape }
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.isComposing || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
-      if (document.querySelector('[role="dialog"]')) return
-      const active = document.activeElement as HTMLElement | null
-      if (active?.closest('form') || active?.matches('input, textarea, select, [contenteditable="true"]')) return
-      if (e.key === 'Escape' && ref.current.onEscape) {
-        e.preventDefault()
-        ref.current.onEscape()
-      } else if (e.key === 'Enter' && ref.current.onEnter && !active?.matches('button, a')) {
-        e.preventDefault()
-        ref.current.onEnter()
+    <SetupPage
+      className="is"
+      label={t('onboarding.install.label', { brand: brandName() })}
+      mainClassName="as-main"
+      bar={
+        <SetupTopBar
+          step={bar.part && step ? { ...bar.part, name: t(stepLabelKeys[step]) } : undefined}
+          label={bar.part ? undefined : t('onboarding.install.count')}
+          progress={bar.progress}
+          agentPath={step === 'done' ? undefined : (onAgentSetup ?? backToInstallAgent)}
+          // Done is the end of the walkthrough: its own button goes on, there is nothing to finish later.
+          exit={
+            step === 'done' ? null : { kind: 'finish-later', onExit: later, title: t('onboarding.install.laterTip') }
+          }
+        />
       }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+      after={
+        <>
+          {/* Last, so the passkey dialog opens over the provider dialog that waits for it (same layer, later wins). */}
+          <PasskeyStepUpHost />
+        </>
+      }
+    >
+      {!setup || !step || !data || !groups ? (
+        <Loading
+          what={t('onboarding.install.loading')}
+          loading
+          error={loadError}
+          skeleton={<SkeletonFields fields={2} />}
+        />
+      ) : step === 'welcome' ? (
+        <Welcome status={status} onStart={() => go('email')} onAgent={onAgentSetup ?? backToInstallAgent} />
+      ) : step === 'done' ? (
+        <Done status={status} onBack={() => go(installSteps[index - 1]!)} onOpen={step => go(step)} onFinish={finish} />
+      ) : (
+        <PartStep
+          key={step}
+          step={step as PartStepId}
+          data={data}
+          status={status}
+          setup={setup}
+          reloadAll={reloadAll}
+          onBack={() => go(installSteps[index - 1]!)}
+          onNext={() => go(installSteps[index + 1]!)}
+          onSkip={() => go(installSteps[index + 1]!, step)}
+        />
+      )}
+    </SetupPage>
+  )
 }
 
 const groupOfStep = (status: ProviderStatusState, step: PartStepId) =>
@@ -262,7 +246,7 @@ function Welcome({
   onAgent: () => void
 }) {
   const t = useT()
-  useWalkKeys(onStart, null)
+  useSetupKeys({ onEnter: onStart, onEscape: null }, { fields: 'ignore' })
   return (
     <>
       <div className="ob-body">
@@ -273,24 +257,11 @@ function Welcome({
       <section className="as-card">
         <Parts status={status} />
       </section>
-      {/* The note has its own way to the agent, besides the top bar's "Set up with AI" on every step. */}
-      <Note
-        tone="info"
-        action={
-          <Button size="sm" variant="secondary" icon="spark" onClick={onAgent}>
-            {t('onboarding.install.agentNoteAction')}
-          </Button>
-        }
-      >
-        <T k="onboarding.install.agentNote" values={BOLD} />
-      </Note>
-      <SetupFoot onContinue={onStart} label={t('onboarding.install.welcome.start')} />
+      {/* The first page by hand: its back slot leads to the AI agent setup, as on every setup's first page. */}
+      <SetupFoot onContinue={onStart} label={t('onboarding.install.welcome.start')} agentBack={onAgent} />
     </>
   )
 }
-
-/** `<b>…</b>` in a message. */
-const BOLD = { b: (chunks: ReactNode[]) => <b>{chunks}</b> }
 
 /**
  * The four parts in the agent page's rows (agent-setup.css `.as-list`): a filled mark and the provider in use where a
@@ -348,7 +319,7 @@ function PartStep({ step, data, status, setup, reloadAll, onBack, onNext, onSkip
   const [note, setNote] = useState<string | null>(null)
   const emailByLog = step === 'email' && setup.emailDelivery === 'log'
   const ready = group.state !== 'missing' || emailByLog
-  useWalkKeys(ready ? onNext : null, onBack)
+  useSetupKeys({ onEnter: ready ? onNext : null, onEscape: onBack }, { fields: 'ignore' })
   const skipTitle = t('onboarding.install.skipTip', {
     part: group.label,
     effect: skipEffectKeys[step] ? t(skipEffectKeys[step]) : '',
@@ -419,7 +390,7 @@ function Done({
   onFinish: () => void
 }) {
   const t = useT()
-  useWalkKeys(onFinish, onBack)
+  useSetupKeys({ onEnter: onFinish, onEscape: onBack }, { fields: 'ignore' })
   const open = partSteps.filter(s => groupOfStep(status, s).state !== 'works')
   return (
     <>

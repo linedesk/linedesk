@@ -14,8 +14,8 @@ import { browserTimeZone } from '../settings/timeZones.ts'
 import { useAssistantName, useRows, useRun } from '../store.tsx'
 import { RadioCard } from '../ui/controls.tsx'
 import { Note } from '../ui/kit.tsx'
-import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
-import { Foot, useStepKeys } from './Frame.tsx'
+import { useClientWord } from './clientWords.tsx'
+import { Foot, StepLoading } from './Frame.tsx'
 import {
   firstHoursDraft,
   firstPickup,
@@ -26,7 +26,7 @@ import {
   pickupOrder,
   pickupSettings,
 } from './flow.ts'
-import { useClientWord } from './clientWords.tsx'
+import { useSetupKeys } from './setup-keys.ts'
 
 type StepProps = {
   onBack: () => void
@@ -56,21 +56,15 @@ export function PickupStep(p: StepProps) {
   const settings = useWorkspaceSettings()
   const name = useAssistantName()
   if (settings.data) return <PickupForm saved={settings.data} {...p} />
+  // Not loaded: the step waits for later (the quiet Later), never as the primary.
   return (
-    <>
-      <div className="ob-body">
-        <h1>{t('onboarding.pickup.title', { name })}</h1>
-        <Loading
-          what={t('onboarding.pickup.loading')}
-          loading
-          error={settings.error}
-          onRetry={() => void settings.reload()}
-          skeleton={<SkeletonFields fields={3} />}
-        />
-      </div>
-      {/* Not loaded: the step waits for later (the quiet Later), never as the primary. */}
-      <Foot onBack={onBack} onContinue={onNext} canContinue={false} onSkipStep={settings.error ? onNext : undefined} />
-    </>
+    <StepLoading
+      title={t('onboarding.pickup.title', { name })}
+      what={t('onboarding.pickup.loading')}
+      error={settings.error}
+      onRetry={() => void settings.reload()}
+      foot={{ onBack, onContinue: onNext, onSkipStep: settings.error ? onNext : undefined }}
+    />
   )
 }
 
@@ -113,7 +107,7 @@ function PickupForm({ saved, onBack, onNext, memory, onMemory }: StepProps & { s
     onMemory({ hoursOnBefore, oldForwarding })
     onNext()
   }
-  useStepKeys({ onEnter: next, onEscape: onBack })
+  useSetupKeys({ onEnter: next, onEscape: onBack })
 
   const set = (weekday: number, change: Partial<DayHours>) =>
     setDays(all => all.map(d => (d.weekday === weekday ? { ...d, ...change } : d)))
@@ -149,4 +143,3 @@ function PickupForm({ saved, onBack, onNext, memory, onMemory }: StepProps & { s
     </>
   )
 }
-

@@ -11,15 +11,15 @@ import type { Activation, Me } from '../auth.ts'
 import { goToCheckout } from '../checkout.ts'
 import { askTermsAgain } from '../shell/TermsUpdate.tsx'
 import { useAssistantName } from '../store.tsx'
-import { Note } from '../ui/kit.tsx'
-import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { IntervalSwitch } from '../ui/IntervalSwitch.tsx'
+import { Note } from '../ui/kit.tsx'
 import { PlanCard, usePlanPrice } from '../ui/PlanCard.tsx'
 import { type BillingInterval, usePrice } from '../ui/price.tsx'
+import { Foot, StepLoading } from './Frame.tsx'
 import { activationTimeline, type TimelineEntry } from './flow.ts'
-import { Foot, useStepKeys } from './Frame.tsx'
 import { rememberOwnerByHand } from './setup-choice.ts'
 import './onboarding.css'
+import { useSetupKeys } from './setup-keys.ts'
 
 type Props = { me: Me; onBack: () => void; onTermsChanged: () => void }
 
@@ -28,13 +28,7 @@ export function ActivateStep({ me, onBack, onTermsChanged }: Props) {
   const activation = me.workspace?.activation
   if (activation) return <Activate me={me} activation={activation} onBack={onBack} onTermsChanged={onTermsChanged} />
   return (
-    <>
-      <div className="ob-body">
-        <h1>{t('onboarding.activate.title')}</h1>
-        <Loading what={t('onboarding.activate.loading')} loading skeleton={<SkeletonFields fields={3} />} />
-      </div>
-      <Foot onBack={onBack} canContinue={false} />
-    </>
+    <StepLoading title={t('onboarding.activate.title')} what={t('onboarding.activate.loading')} foot={{ onBack }} />
   )
 }
 
@@ -43,7 +37,7 @@ function Activate({ me, activation: a, onBack, onTermsChanged }: Props & { activ
   const assistant = useAssistantName()
   // Back from Checkout the onboarding goes on to the number, not to the agent setup page: set up by hand here.
   const trial = useStartTrial(me, a, onTermsChanged, { byHand: true })
-  useStepKeys({ onEnter: () => void trial.start(), onEscape: onBack })
+  useSetupKeys({ onEnter: () => void trial.start(), onEscape: onBack })
 
   return (
     <>
@@ -76,7 +70,7 @@ export type StartTrial = ReturnType<typeof useStartTrial>
  */
 export function ActivatedStep({ trial, onBack, onNext }: { trial: boolean; onBack: () => void; onNext: () => void }) {
   const t = useT()
-  useStepKeys({ onEnter: onNext, onEscape: onBack })
+  useSetupKeys({ onEnter: onNext, onEscape: onBack })
   return (
     <>
       <div className="ob-body">

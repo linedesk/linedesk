@@ -5,6 +5,7 @@
 import { AGENT_SETUP_HASH } from '@linedesk/actions'
 import { runAdmin } from '../admin/api.ts'
 import type { Me } from '../auth.ts'
+import { readStored, storedFlag, writeStored } from '../safeStorage.ts'
 
 /**
  * Whether this admin sets up by hand: chosen on this install (`me.setupByHand`, from the server), or just now in this
@@ -25,27 +26,13 @@ export function rememberManual(on: boolean) {
 // link for their one workspace (agentSetup.createWorkspaceKey); setting up by hand leads into the step-by-step
 // onboarding. Their choice is kept per workspace in this browser: the server keeps nothing for it, and a new browser
 // simply offers the agent first again (one click to go by hand).
-const OWNER_BY_HAND = 'linedesk.ownerSetup.byHand.'
+const ownerByHand = storedFlag('linedesk.ownerSetup.byHand.')
 
 /** Whether this owner chose to set up this workspace by hand: in this tab just now, or before in this browser. */
-export function ownerChoseByHand(workspaceId: string, here: boolean): boolean {
-  if (here) return true
-  try {
-    return localStorage.getItem(OWNER_BY_HAND + workspaceId) === '1'
-  } catch {
-    return false
-  }
-}
+export const ownerChoseByHand = (workspaceId: string, here: boolean): boolean => here || ownerByHand.on(workspaceId)
 
 /** Remembers (or forgets, `on` false: back to the agent) the owner's choice for this workspace in this browser. */
-export function rememberOwnerByHand(workspaceId: string, on: boolean) {
-  try {
-    if (on) localStorage.setItem(OWNER_BY_HAND + workspaceId, '1')
-    else localStorage.removeItem(OWNER_BY_HAND + workspaceId)
-  } catch {
-    // Private windows: the choice lasts this page only.
-  }
-}
+export const rememberOwnerByHand = (workspaceId: string, on: boolean) => ownerByHand.set(workspaceId, on)
 
 /**
  * Whether the owner's agent setup page shows instead of the app: for the workspace's owner (only the owner, one per
@@ -93,7 +80,7 @@ export const PARTNER_AGENT_HASH = '#partner/agent'
  * Cloud's Checkout, one full-screen step at a time; `#partner/setup/<step>` opens a step.
  */
 export const PARTNER_SETUP_HASH = '#partner/setup'
-const PARTNER_BY_HAND = 'linedesk.partnerSetup.byHand.'
+const partnerByHand = storedFlag('linedesk.partnerSetup.byHand.')
 
 /**
  * White-label Cloud's one Activate screen (PartnerSetup.tsx, its last step; Janik, 2026-11-18): the agent page's
@@ -106,44 +93,21 @@ const ACTIVATE_FROM = 'linedesk.partnerSetup.activateFrom'
 
 /** Opens the Activate step from the agent page (`#partner/agent`) or the partner area (`#partner`). */
 export function openPartnerActivate(from: typeof PARTNER_AGENT_HASH | '#partner' | null) {
-  try {
-    if (from) sessionStorage.setItem(ACTIVATE_FROM, from)
-    else sessionStorage.removeItem(ACTIVATE_FROM)
-  } catch {
-    // Private windows: Back goes to the Clients step.
-  }
+  writeStored('session', ACTIVATE_FROM, from)
   window.location.hash = PARTNER_ACTIVATE_HASH
 }
 
 /** Where the Activate step's Back leads: the page it was opened from, else the by-hand Clients step. */
 export function partnerActivateBack(): string {
-  try {
-    const from = sessionStorage.getItem(ACTIVATE_FROM)
-    if (from === PARTNER_AGENT_HASH || from === '#partner') return from
-  } catch {
-    // As above.
-  }
-  return PARTNER_CLIENTS_HASH
+  const from = readStored('session', ACTIVATE_FROM)
+  return from === PARTNER_AGENT_HASH || from === '#partner' ? from : PARTNER_CLIENTS_HASH
 }
 
 /** Whether this partner's owner chose the partner area by hand in this browser. */
-export function partnerChoseByHand(partnerId: string): boolean {
-  try {
-    return localStorage.getItem(PARTNER_BY_HAND + partnerId) === '1'
-  } catch {
-    return false
-  }
-}
+export const partnerChoseByHand = (partnerId: string): boolean => partnerByHand.on(partnerId)
 
 /** Remembers (or forgets, `on` false: back to the agent) the owner's choice for this partner in this browser. */
-export function rememberPartnerByHand(partnerId: string, on: boolean) {
-  try {
-    if (on) localStorage.setItem(PARTNER_BY_HAND + partnerId, '1')
-    else localStorage.removeItem(PARTNER_BY_HAND + partnerId)
-  } catch {
-    // Private windows: the choice lasts this page only.
-  }
-}
+export const rememberPartnerByHand = (partnerId: string, on: boolean) => partnerByHand.set(partnerId, on)
 
 /** Where the partner's owner lands after the partner Checkout: the agent setup, unless they chose by hand here. */
 export const partnerLanding = (partnerId: string | null) =>
@@ -176,15 +140,21 @@ export function agentSetupWayBack(
  * from what is saved.
  */
 export function backToAgentSetup(way: Exclude<AgentSetupWayBack, null>, me: Pick<Me, 'workspace' | 'partners'>): void {
-  if (way === 'install') {
-    rememberManual(false)
-    window.location.hash = AGENT_SETUP_HASH
-  } else if (way === 'owner') {
+  if (way === 'install') backToInstallAgent()
+  else if (way === 'owner') {
     if (me.workspace) rememberOwnerByHand(me.workspace.id, false)
     window.location.hash = AGENT_SETUP_HASH
-  } else {
-    const partner = me.partners?.[0]
-    if (partner) rememberPartnerByHand(partner.id, false)
-    window.location.hash = PARTNER_AGENT_HASH
-  }
+  } else if (me.partners?.[0]) backToPartnerAgent(me.partners[0].id)
+}
+
+/** The install's agent setup page, the choice to go by hand forgotten (every way back to it goes through here). */
+export function backToInstallAgent(): void {
+  rememberManual(false)
+  window.location.hash = AGENT_SETUP_HASH
+}
+
+/** The partner's agent setup page, the owner's choice to go by hand forgotten (every way back to it goes through here). */
+export function backToPartnerAgent(partnerId: string): void {
+  rememberPartnerByHand(partnerId, false)
+  window.location.hash = PARTNER_AGENT_HASH
 }

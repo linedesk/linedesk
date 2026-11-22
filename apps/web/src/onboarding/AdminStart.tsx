@@ -17,9 +17,9 @@ import { CreateWorkspace, LostWorkspace } from '../CreateWorkspace.tsx'
 import { AiButton } from '../settings/AgentChange.tsx'
 import { Button } from '../ui/kit.tsx'
 import { Loading, LoadProblem, SkeletonFields } from '../ui/LoadStates.tsx'
-import { openAgentSetup } from './AgentSetup.tsx'
+import { backToInstallAgent } from './setup-choice.ts'
 import { installPartsMissing } from './agent-setup-passkey.ts'
-import { SetupTopBar } from './SetupTopBar.tsx'
+import { SetupPage, SetupTopBar } from './SetupTopBar.tsx'
 import './agent-setup.css'
 
 /** What of the install walkthrough's progress says which server parts it handled (agent-setup-passkey.ts). */
@@ -82,52 +82,54 @@ export function AdminStart({
 
   const progress: InstallWalk | null = installLeft ? { skipped: [], setAsideAt: null, finishedAt: 'left' } : install
   return (
-    <div className="ob as-home" role="main" aria-label={t('onboarding.adminStart.title', { brand: brandName() })}>
-      <SetupTopBar label={t('onboarding.install.count')} />
-      <div className="ob-main as-home-main">
-        <div className="auth-card">
-          {lostWorkspace && <LostWorkspace name={lostWorkspace} />}
-          <h1>{t('onboarding.adminStart.title', { brand: brandName() })}</h1>
-          <section className="as-card">
-            <div className="as-link-step">
-              <b>{t('onboarding.adminStart.agent')}</b>
-              <span className="as-small">{t('onboarding.adminStart.agentHelp')}</span>
-              <AiButton
-                size="md"
-                label={t('onboarding.adminStart.agentButton')}
-                title={t('onboarding.adminStart.agentTip')}
-                onClick={openAgentSetup}
-              />
-            </div>
-          </section>
-          {byHand ? (
-            <div className="as-byhand">
-              <h2 className="as-byhand-title">{t('onboarding.adminStart.byHandTitle')}</h2>
-              <ByHand
-                state={state}
-                install={progress}
-                checkDue={checkDue}
-                loadFailed={loadFailed}
-                onConfirm={() => setPrompting(true)}
-                onRetry={() => void load()}
-                onInstallByHand={onInstallByHand}
-                onDone={onDone}
-                onSecondFactor={due => {
-                  setCheckDue(due)
-                  setPrompting(true)
-                }}
-              />
-            </div>
-          ) : (
-            <Button variant="ghost" onClick={() => setByHand(true)} title={t('onboarding.adminStart.byHandTip')}>
-              {t('onboarding.adminStart.byHand')}
-            </Button>
-          )}
-          {/* Invitations, Open Server admin and Account settings. Sign out is in the top bar's account menu. */}
-          {children}
-        </div>
+    <SetupPage
+      className="as-home"
+      label={t('onboarding.adminStart.title', { brand: brandName() })}
+      mainClassName="as-home-main"
+      bar={<SetupTopBar label={t('onboarding.install.count')} />}
+    >
+      <div className="auth-card">
+        {lostWorkspace && <LostWorkspace name={lostWorkspace} />}
+        <h1>{t('onboarding.adminStart.title', { brand: brandName() })}</h1>
+        <section className="as-card">
+          <div className="as-link-step">
+            <b>{t('onboarding.adminStart.agent')}</b>
+            <span className="as-small">{t('onboarding.adminStart.agentHelp')}</span>
+            <AiButton
+              size="md"
+              label={t('onboarding.adminStart.agentButton')}
+              title={t('onboarding.adminStart.agentTip')}
+              onClick={backToInstallAgent}
+            />
+          </div>
+        </section>
+        {byHand ? (
+          <div className="as-byhand">
+            <h2 className="as-byhand-title">{t('onboarding.adminStart.byHandTitle')}</h2>
+            <ByHand
+              state={state}
+              install={progress}
+              checkDue={checkDue}
+              loadFailed={loadFailed}
+              onConfirm={() => setPrompting(true)}
+              onRetry={() => void load()}
+              onInstallByHand={onInstallByHand}
+              onDone={onDone}
+              onSecondFactor={due => {
+                setCheckDue(due)
+                setPrompting(true)
+              }}
+            />
+          </div>
+        ) : (
+          <Button variant="ghost" onClick={() => setByHand(true)} title={t('onboarding.adminStart.byHandTip')}>
+            {t('onboarding.adminStart.byHand')}
+          </Button>
+        )}
+        {/* Invitations, Open Server admin and Account settings. Sign out is in the top bar's account menu. */}
+        {children}
       </div>
-    </div>
+    </SetupPage>
   )
 }
 

@@ -1,8 +1,9 @@
 // The phone step: connect a number the assistant answers, then (for a number the business keeps) the forwarding code.
 // It leads with keeping the business's number: a new number to give out reaches the assistant only when dialled.
+
+import { buyableAreaCode, buyOfferIn, offerAreaCodes, offerHasAreaCode } from '@linedesk/actions'
 import type { PhoneNumber } from '@linedesk/db/types'
 import { T, useT } from '@linedesk/i18n/react'
-import { appLink } from '../ui/AppLink.tsx'
 import { useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
@@ -12,19 +13,21 @@ import { Field } from '../settings/fields.tsx'
 import { NearbyAreaCodes } from '../settings/NearbyAreaCodes.tsx'
 import { useWorkspaceSettings, useWriteAction } from '../settings/settings-api.ts'
 import { useAssistant, useAssistantName, useRows, useRun } from '../store.tsx'
-import { useWorkspaceCountry } from '../workspaceLocale.ts'
+import { appLink } from '../ui/AppLink.tsx'
 import { RadioCard } from '../ui/controls.tsx'
 import { Button, Note } from '../ui/kit.tsx'
+import { useWorkspaceCountry } from '../workspaceLocale.ts'
+import { useClientWord } from './clientWords.tsx'
 import { ForwardingCheck } from './ForwardingCheck.tsx'
 import { AbroadWarning, ForwardingSteps, GuidePickers, useForwardingPick } from './ForwardingGuide.tsx'
-import { Foot, useStepKeys } from './Frame.tsx'
-import { areaCodeShown, buyableAreaCode, buyOfferIn, offerAreaCodes, offerHasAreaCode } from '@linedesk/actions'
+import { Foot } from './Frame.tsx'
 import {
   areaCodeIn,
   areaCodeOf,
   beingSetUpText,
-  buyOffersOf,
+  billedNumberNote,
   buyingCountry,
+  buyOffersOf,
   buyUnavailableText,
   carrierName,
   existingLinkText,
@@ -33,19 +36,18 @@ import {
   forwardingOffer,
   isNoneFreeText,
   numbersBeingSetUp,
+  offersBuying,
   type PhoneOption,
   phoneOptionSetup,
-  offersBuying,
   phoneOptions,
   phoneOptionText,
   pickupNumberMode,
   priceCountry,
-  billedNumberNote,
   priceNote,
   turnOffFirst,
   URGENT_CONTACT_ID,
 } from './flow.ts'
-import { useClientWord } from './clientWords.tsx'
+import { useSetupKeys } from './setup-keys.ts'
 
 type Props = {
   status: PhoneSetupStatus
@@ -107,7 +109,7 @@ function Unavailable({
   const t = useT()
   const later = useLater()
   // Nothing to connect: Enter does nothing (no primary), Esc goes back.
-  useStepKeys({ onEscape: onBack })
+  useSetupKeys({ onEscape: onBack })
   return (
     <>
       <div className="ob-body">
@@ -210,7 +212,7 @@ function Choose({
     setProblem(null)
   }
   const toChoices = () => pick(phoneOptions[0]!)
-  useStepKeys({
+  useSetupKeys({
     onEnter: () => (nothingToConnect ? onNext() : primary()),
     onEscape: () => (option === 'existing' && buyable ? toChoices() : onBack()),
   })
@@ -353,9 +355,7 @@ function Choose({
           onSkipStep={onNext}
           {...later}
           busy={sending}
-          label={
-buying ? t('onboarding.action.continue') : t('onboarding.phone.choose.connectNumber')
-          }
+          label={buying ? t('onboarding.action.continue') : t('onboarding.phone.choose.connectNumber')}
         />
       )}
     </>
@@ -416,7 +416,7 @@ function Connected({
     forwardingShownSent = true
     void run('onboarding.recordEvent', { event: 'forwarding_instructions_shown' })
   }, [forwards, run])
-  useStepKeys({ onEnter: onNext, onEscape: onBack })
+  useSetupKeys({ onEnter: onNext, onEscape: onBack })
   return (
     <>
       <div className="ob-body">

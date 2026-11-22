@@ -15,11 +15,12 @@ import { useEffect, useState } from 'react'
 import { ColorField, nameProblem, parsedColor } from '../admin/Branding.tsx'
 import { setQueryData, useQuery } from '../cachedQuery.ts'
 import { goToCheckout } from '../checkout.ts'
-import { useStepKeys } from '../onboarding/Frame.tsx'
+
 import { rememberDraftOpenedFrom } from '../onboarding/flow.ts'
 import { SetupFoot } from '../onboarding/SetupFoot.tsx'
-import { SetupTopBar } from '../onboarding/SetupTopBar.tsx'
+import { SetupPage, SetupTopBar } from '../onboarding/SetupTopBar.tsx'
 import {
+  backToPartnerAgent,
   openPartnerActivate,
   PARTNER_AGENT_HASH,
   PARTNER_SETUP_HASH,
@@ -53,6 +54,7 @@ import '../admin/admin.css'
 import '../onboarding/onboarding.css'
 import './partner-brand.css'
 import './partner-setup.css'
+import { useSetupKeys } from '../onboarding/setup-keys.ts'
 
 export type PartnerSetupStep = 'agency' | 'clients' | 'activate'
 
@@ -151,10 +153,6 @@ const goTo = (step: PartnerSetupStep) => {
 const finishLater = () => {
   window.location.hash = '#partner'
 }
-const withAgent = (partnerId: string) => {
-  rememberPartnerByHand(partnerId, false)
-  window.location.hash = PARTNER_AGENT_HASH
-}
 
 export function PartnerSetup({
   partner,
@@ -182,60 +180,60 @@ export function PartnerSetup({
   const label = t(`team.partner.setup.step.${step}` as MessageKey)
   return (
     // A partner's own setup: the install's brand, never its white-label one (brand.ts), even with a client workspace open.
-    <div
-      className="ob k-install-brand"
-      role="main"
-      aria-label={t('team.partner.setup.title', { partner: partner.name })}
+    <SetupPage
+      className="k-install-brand"
+      label={t('team.partner.setup.title', { partner: partner.name })}
+      bar={
+        <SetupTopBar
+          step={{ n: index + 1, m: steps.length, name: label }}
+          // Activate is the end of the setup: no way off to the agent there, only Back (Janik, 2026-11-18).
+          agentPath={step === 'activate' ? undefined : () => backToPartnerAgent(partner.id)}
+          exit={{ kind: 'finish-later', onExit: finishLater, title: t('team.partner.setup.finishLaterTitle') }}
+          brand="install"
+          away
+        />
+      }
     >
-      <SetupTopBar
-        step={{ n: index + 1, m: steps.length, name: label }}
-        // Activate is the end of the setup: no way off to the agent there, only Back (Janik, 2026-11-18).
-        agentPath={step === 'activate' ? undefined : () => withAgent(partner.id)}
-        exit={{ kind: 'finish-later', onExit: finishLater, title: t('team.partner.setup.finishLaterTitle') }}
-        brand="install"
-        away
-      />
-      <div className="ob-main">
-        {!data || !brand.data ? (
-          <Loading
-            what={t('team.partner.page')}
-            loading
-            error={query.error ?? brand.error}
-            onRetry={() => {
-              void query.reload()
-              void brand.reload()
-            }}
-            skeleton={<SkeletonFields fields={3} />}
-          />
-        ) : step === 'agency' ? (
-          <AgencyStep
-            data={data}
-            brand={brand.data}
-            onSaved={next => setQueryData(BRAND_QUERY(partner.id), next)}
-            onNext={() => goTo('clients')}
-          />
-        ) : step === 'clients' ? (
-          <ClientsStep
-            data={data}
-            last={!steps.includes('activate')}
-            onFirstWorkspace={onFirstWorkspace}
-            onBack={() => goTo('agency')}
-            onNext={() => {
-              // Activate's Back from here leads to this step again.
-              if (steps.includes('activate')) openPartnerActivate(null)
-              else finishLater()
-            }}
-          />
-        ) : (
-          <ActivateStep
-            data={data}
-            onBack={() => {
-              window.location.hash = partnerActivateBack()
-            }}
-          />
-        )}
-      </div>
-    </div>
+      {!data || !brand.data ? (
+        <Loading
+          what={t('team.partner.page')}
+          loading
+          error={query.error ?? brand.error}
+          onRetry={() => {
+            void query.reload()
+            void brand.reload()
+          }}
+          skeleton={<SkeletonFields fields={3} />}
+        />
+      ) : step === 'agency' ? (
+        <AgencyStep
+          data={data}
+          brand={brand.data}
+          onSaved={next => setQueryData(BRAND_QUERY(partner.id), next)}
+          onNext={() => goTo('clients')}
+          onAgentSetup={() => backToPartnerAgent(partner.id)}
+        />
+      ) : step === 'clients' ? (
+        <ClientsStep
+          data={data}
+          last={!steps.includes('activate')}
+          onFirstWorkspace={onFirstWorkspace}
+          onBack={() => goTo('agency')}
+          onNext={() => {
+            // Activate's Back from here leads to this step again.
+            if (steps.includes('activate')) openPartnerActivate(null)
+            else finishLater()
+          }}
+        />
+      ) : (
+        <ActivateStep
+          data={data}
+          onBack={() => {
+            window.location.hash = partnerActivateBack()
+          }}
+        />
+      )}
+    </SetupPage>
   )
 }
 
@@ -245,11 +243,14 @@ function AgencyStep({
   brand,
   onSaved,
   onNext,
+  onAgentSetup,
 }: {
   data: PartnerData
   brand: PartnerBrandData
   onSaved: (data: PartnerBrandData) => void
   onNext: () => void
+  /** The first step: its back slot leads to the partner's AI agent setup, as on every setup's first page. */
+  onAgentSetup: () => void
 }) {
   const t = useT()
   const saved = draftOf(brand, data.partner.name)
@@ -275,7 +276,7 @@ function AgencyStep({
       setBusy(false)
     }
   }
-  useStepKeys({ onEnter: () => void next() })
+  useSetupKeys({ onEnter: () => void next() })
 
   return (
     <>
@@ -310,7 +311,7 @@ function AgencyStep({
         {data.partner.status === 'pending' && <p className="ob2-note">{t('team.partner.approvalPending')}</p>}
         {problem && <FormMessage>{problem}</FormMessage>}
       </div>
-      <SetupFoot onContinue={() => void next()} canContinue={!invalid} busy={busy} />
+      <SetupFoot onContinue={() => void next()} canContinue={!invalid} busy={busy} agentBack={onAgentSetup} />
     </>
   )
 }
@@ -372,7 +373,7 @@ export function ClientsStep({
     }
   }
   const empty = clients.length === 0
-  useStepKeys(adding || inviting ? {} : { onEnter: empty ? () => setAdding(true) : onNext, onEscape: onBack })
+  useSetupKeys(adding || inviting ? {} : { onEnter: empty ? () => setAdding(true) : onNext, onEscape: onBack })
 
   const actionsFor = (c: PartnerClient) => {
     const button = (way: 'agent' | 'hand' | 'number', variant: 'ghost' | 'secondary', label: string) => (
@@ -493,7 +494,7 @@ export function ActivateStep({ data, onBack }: { data: PartnerData; onBack: () =
       setBusy(false)
     }
   }
-  useStepKeys(removing ? {} : { onEnter: () => void activate(), onEscape: onBack })
+  useSetupKeys(removing ? {} : { onEnter: () => void activate(), onEscape: onBack })
 
   return (
     <>

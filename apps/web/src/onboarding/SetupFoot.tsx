@@ -24,11 +24,13 @@ export type SetupFootProps = {
   /** The back slot's words where it is no plain "Back" ("Set up by hand instead", "Back to settings"). */
   backLabel?: string
   backTitle?: string
+  /** The chevron of a way back; off for a way that is no step back ("Set up by hand instead"). */
+  backIcon?: boolean
   /**
-   * The chevron of a way back; off for a way that is no step back ("Set up by hand instead"); `spark` for the way back
-   * to the AI agent setup.
+   * The first page of a setup by hand: its back slot leads to the AI agent setup ("✦ Back to AI setup"), the same on
+   * every setup (onboarding, the install, the partner setup). Ignored where the page has a Back of its own.
    */
-  backIcon?: boolean | 'spark'
+  agentBack?: () => void
   onContinue?: () => void
   /** Default true. */
   canContinue?: boolean
@@ -55,6 +57,7 @@ export function SetupFoot({
   backLabel,
   backTitle,
   backIcon = true,
+  agentBack,
   onContinue,
   canContinue = true,
   label,
@@ -77,11 +80,15 @@ export function SetupFoot({
       {onBack ? (
         <Button
           variant="ghost"
-          icon={backIcon === 'spark' ? 'spark' : backIcon ? 'left' : undefined}
+          icon={backIcon ? 'left' : undefined}
           onClick={onBack}
           title={backTitle ?? t('onboarding.frame.backTitle')}
         >
           {backLabel ?? t('onboarding.action.back')}
+        </Button>
+      ) : agentBack ? (
+        <Button variant="ghost" icon="spark" onClick={agentBack} title={t('onboarding.frame.agentTitle')}>
+          {t('onboarding.frame.agentBack')}
         </Button>
       ) : (
         <span />

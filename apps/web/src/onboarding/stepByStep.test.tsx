@@ -20,7 +20,8 @@ vi.mock('../store.tsx', () => ({
     id === undefined ? state.assistants[0] : state.assistants.find(a => (a as Assistant).id === id),
   useAssistantName: () => (state.assistants[0] as Assistant | undefined)?.name ?? 'Assistant',
   useRun: () => state.run,
-  useRows: () => [],
+  // A connected number: the workspace is live enough that the number is no step of its own here.
+  useRows: (table: string) => (table === 'phone_numbers' ? [{ id: 'num_1', e164: '+15035550142' }] : []),
   useRejection: () => ({ rejection: null, clearRejection: () => {} }),
 }))
 vi.mock('../settings/settings-api.ts', () => ({
@@ -30,6 +31,7 @@ vi.mock('../settings/settings-api.ts', () => ({
   callAction: vi.fn(),
   useWriteAction: () => vi.fn(),
 }))
+vi.mock('../inbox/GoLiveChecklist.tsx', () => ({ useGoLiveChecklist: () => undefined }))
 vi.mock('../phoneCountry.ts', () => ({ useDefaultPhoneCountry: () => 'US' }))
 vi.mock('../workspaceLocale.ts', () => ({
   useWorkspaceLanguage: () => 'en',
@@ -71,7 +73,7 @@ vi.mock('./Frame.tsx', async importOriginal => {
   }
 })
 
-const { stepByStepMove, stepByStepSteps } = await import('./flow.ts')
+const { firstOpenStep, stepByStepMove, stepByStepSteps } = await import('./flow.ts')
 const { mayStepThrough, parseStepByStep, stepByStepHash } = await import('../settings/agentChange.ts')
 const { StepByStep } = await import('./StepByStep.tsx')
 const { StepScreen, useStepSaves } = await import('./Onboarding.tsx')
@@ -130,6 +132,18 @@ describe('which steps are gone through again', () => {
   test('one assistant: what is about it, not the workspace’s pick-up choice', () => {
     expect(stepByStepSteps('assistant', false)).toEqual(['business', 'assistant', 'notify'])
     expect(stepByStepSteps('assistant', true)).toEqual(['business', 'assistant', 'notify'])
+    expect(stepByStepSteps('assistant', false, true)).toEqual(['business', 'assistant', 'notify'])
+  })
+
+  test('the number too while the workspace is not live yet (no number, forwarding not verified)', () => {
+    expect(stepByStepSteps('workspace', false, true)).toEqual(['business', 'assistant', 'pickup', 'notify', 'phone'])
+  })
+
+  test('opens at the first step still open, else the first one', () => {
+    const steps = stepByStepSteps('workspace', false, true)
+    expect(firstOpenStep(steps, { business: false, pickup: true, phone: true })).toBe('pickup')
+    expect(firstOpenStep(steps, { phone: true })).toBe('phone')
+    expect(firstOpenStep(steps, {})).toBe('business')
   })
 })
 

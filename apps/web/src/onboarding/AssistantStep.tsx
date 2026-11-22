@@ -11,13 +11,13 @@ import { TestCallButton, useTestCall } from '../settings/TestCall.tsx'
 import { TestCallPanel } from '../settings/TestCallPanel.tsx'
 import { RealtimeVoiceSettings, useVoiceOptions, VoiceLoading, VoiceSettings } from '../settings/VoiceSettings.tsx'
 import { useAssistantOf, useRun } from '../store.tsx'
-import { useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { appLink } from '../ui/AppLink.tsx'
 import { Button, Note } from '../ui/kit.tsx'
-import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
-import { Foot, useStepKeys } from './Frame.tsx'
-import { assistantChanges, type AssistantDraft, greetingInLanguage, renameInGreeting } from './flow.ts'
+import { useWorkspaceLanguage } from '../workspaceLocale.ts'
 import { useClientWord } from './clientWords.tsx'
+import { Foot, StepLoading } from './Frame.tsx'
+import { type AssistantDraft, assistantChanges, greetingInLanguage, renameInGreeting } from './flow.ts'
+import { useSetupKeys } from './setup-keys.ts'
 
 /**
  * `operator`: the member runs the server (a test call nobody answers says what to fix there). `assistantId`: the
@@ -31,13 +31,11 @@ export function AssistantStep(p: Props) {
   const assistant = useAssistantOf(p.assistantId)
   if (assistant) return <AssistantForm assistant={assistant} {...p} />
   return (
-    <>
-      <div className="ob-body">
-        <h1>{t(word('onboarding.assistant.heading'))}</h1>
-        <Loading what={t('onboarding.assistant.loadingWhat')} loading skeleton={<SkeletonFields fields={3} />} />
-      </div>
-      <Foot onBack={p.onBack} canContinue={false} onContinue={p.onNext} />
-    </>
+    <StepLoading
+      title={t(word('onboarding.assistant.heading'))}
+      what={t('onboarding.assistant.loadingWhat')}
+      foot={{ onBack: p.onBack, onContinue: p.onNext }}
+    />
   )
 }
 
@@ -111,7 +109,7 @@ function AssistantForm({ assistant, onBack, onNext, operator = false }: Props & 
       setMessage((e as Error).message)
     }
   }
-  useStepKeys({ onEnter: next, onEscape: back })
+  useSetupKeys({ onEnter: next, onEscape: back })
   // Again from the settings, Continue (Done) is the one primary action here; the test call stands beside it.
 
   return (

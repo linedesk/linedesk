@@ -36,6 +36,7 @@ import { CopyButton } from './Frame.tsx'
 import { dialPath } from './flow.ts'
 import { type GuidePickedBy, ownerPick } from './forwarding-check.ts'
 import './forwarding-guide.css'
+import { readStored, writeStored } from '../safeStorage.ts'
 
 const guideKey = (numberId: string) => `linedesk.forwardingGuide.${numberId}`
 const guideByKey = (numberId: string) => `linedesk.forwardingGuideBy.${numberId}`
@@ -50,23 +51,15 @@ export function useForwardingGuide(
   numberId: string,
 ): [string | null, (guideId: string, by?: GuidePickedBy) => void, string | null] {
   const [state, setState] = useState<{ id: string | null; byOwner: string | null }>(() => {
-    try {
-      const saved = localStorage.getItem(guideKey(numberId))
-      if (!saved || !forwardingGuideById(saved)) return { id: null, byOwner: null }
-      return { id: saved, byOwner: ownerPick(saved, localStorage.getItem(guideByKey(numberId))) }
-    } catch {
-      return { id: null, byOwner: null }
-    }
+    const saved = readStored('local', guideKey(numberId))
+    if (!saved || !forwardingGuideById(saved)) return { id: null, byOwner: null }
+    return { id: saved, byOwner: ownerPick(saved, readStored('local', guideByKey(numberId))) }
   })
   const pick = (id: string, by: GuidePickedBy = 'owner') => {
     setState({ id, byOwner: by === 'owner' ? id : null })
-    try {
-      localStorage.setItem(guideKey(numberId), id)
-      if (by === 'lookup') localStorage.setItem(guideByKey(numberId), 'lookup')
-      else localStorage.removeItem(guideByKey(numberId))
-    } catch {
-      // Not remembered; the pick still applies on this page.
-    }
+    // Not remembered where storage is blocked; the pick still applies on this page.
+    writeStored('local', guideKey(numberId), id)
+    writeStored('local', guideByKey(numberId), by === 'lookup' ? 'lookup' : null)
   }
   return [state.id, pick, state.byOwner]
 }
@@ -86,12 +79,8 @@ const countryKey = (numberId: string) => `linedesk.forwardingCountry.${numberId}
  */
 function useForwardingCountry(numberId: string, e164: string, guideId: string | null): [string, (c: string) => void] {
   const [picked, setPicked] = useState<string | null>(() => {
-    try {
-      const saved = localStorage.getItem(countryKey(numberId))
-      return saved && (saved === OTHER_COUNTRY || hasForwardingCountry(saved)) ? saved : null
-    } catch {
-      return null
-    }
+    const saved = readStored('local', countryKey(numberId))
+    return saved && (saved === OTHER_COUNTRY || hasForwardingCountry(saved)) ? saved : null
   })
   const settings = useWorkspaceSettings().data
   const businessNumber = (useAssistants()[0]?.business_profile as { phone?: string } | undefined)?.phone
@@ -108,11 +97,7 @@ function useForwardingCountry(numberId: string, e164: string, guideId: string | 
     })
   const pick = (code: string) => {
     setPicked(code)
-    try {
-      localStorage.setItem(countryKey(numberId), code)
-    } catch {
-      // Not remembered; the pick still applies on this page.
-    }
+    writeStored('local', countryKey(numberId), code)
   }
   return [country, pick]
 }
