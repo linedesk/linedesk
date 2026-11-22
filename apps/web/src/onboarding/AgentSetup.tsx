@@ -960,7 +960,7 @@ function Progress({
           }}
         />
       ) : newWorkspace ? (
-        <NewWorkspaceDialog onClose={() => setNewWorkspace(false)} returnTo={AGENT_SETUP_HASH} />
+        <NewWorkspaceDialog onClose={() => setNewWorkspace(false)} ownerChoice={false} />
       ) : null}
     </section>
   )

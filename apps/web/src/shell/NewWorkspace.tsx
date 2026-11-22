@@ -1,17 +1,19 @@
 // "New workspace": the one dialog for it, from the workspace menu and from Server admin › Workspaces (decision Q8).
 // Only server admins create workspaces (`mayCreateWorkspace`, the rule from NoWorkspace); the server checks again.
-// Owner "Me": the admin becomes its owner, it becomes the session's active workspace and opens (its onboarding
-// starts); POST /v1/workspaces runs workspace.create without an owner. Owner by email: workspace.create with that
-// owner, who becomes it at once (an existing confirmed account) or after confirming the emailed invitation; the admin
-// does not join it and stays where they are. Refused because the session's passkey check ran out meanwhile (403
-// `admin_second_factor`): the dialog offers the passkey prompt (Server admin opens on it) instead of an error line.
+// Owner "Me": the admin becomes its owner, it becomes the session's active workspace and opens on the AI agent setup
+// page (#setup-agent: agent-first also for an admin who set up the install by hand, LIN-723; "Set it up yourself" there
+// leads into the step-by-step onboarding); POST /v1/workspaces runs workspace.create without an owner. Owner by email:
+// workspace.create with that owner, who becomes it at once (an existing confirmed account) or after confirming the
+// emailed invitation; the admin does not join it and stays where they are. Refused because the session's passkey
+// check ran out meanwhile (403 `admin_second_factor`): the dialog offers the passkey prompt (Server admin opens on it)
+// instead of an error line.
 // Country: required, prefilled from the country hint (countryHint.ts). Only server admins see this dialog, so the
 // country in the field is their choice: it is saved as the workspace's country, picked or left as prefilled (LIN-645),
 // as for a partner's client; phone numbers are then bought there. For another owner the prefill is this browser's own
 // hint (time zone, language), never the admin's sign-up location.
 // Time zone: this browser's is sent; workspace.create keeps it when it is in that country (picked, else the hint), else
 // uses the country's main zone (LIN-433). Onboarding step 1 shows it with a Change.
-import type { WorkspaceCreateData } from '@linedesk/actions'
+import { AGENT_SETUP_HASH, type WorkspaceCreateData } from '@linedesk/actions'
 import { useT } from '@linedesk/i18n/react'
 import { useMemo, useState } from 'react'
 import { runAdmin } from '../admin/api.ts'
@@ -59,11 +61,9 @@ export function formErrors(
 
 type Props = {
   onClose: () => void
-  /** The page the app opens on in the new workspace when it is the admin's own (its onboarding when left out). */
-  returnTo?: string
   /**
-   * Offer an owner by email. Off by default where `returnTo` is given (the setup page): its New workspace continues
-   * the setup in the new workspace, so it is always the admin's own.
+   * Offer an owner by email (on by default). Off on the agent setup page: its New workspace continues the setup in the
+   * new workspace, so it is always the admin's own.
    */
   ownerChoice?: boolean
   /**
@@ -73,7 +73,7 @@ type Props = {
   onCreatedForOwner?: (text: string) => void | Promise<void>
 }
 
-export function NewWorkspaceDialog({ onClose, returnTo = '', ownerChoice = !returnTo, onCreatedForOwner }: Props) {
+export function NewWorkspaceDialog({ onClose, ownerChoice = true, onCreatedForOwner }: Props) {
   const t = useT()
   const signUpHint = useCountryHint()
   const browserHint = useMemo(localCountryHint, [])
@@ -136,7 +136,7 @@ export function NewWorkspaceDialog({ onClose, returnTo = '', ownerChoice = !retu
       await createWorkspace(form.name.trim(), country || null)
       // The page stays on screen until the reload has loaded the app again: say so meanwhile.
       setPhase('opening')
-      window.location.hash = returnTo
+      window.location.hash = AGENT_SETUP_HASH
       window.location.reload()
     } catch (e) {
       const due = await secondFactorDue()
