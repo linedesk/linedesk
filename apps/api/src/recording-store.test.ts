@@ -3,10 +3,25 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, test, vi } from 'vitest'
 import { parseRange } from './recording-route.ts'
-import { createFileRecordingStore, createS3RecordingStore, RecordingConfigError, S3RequestError, s3StoreFromValues } from './recording-store.ts'
+import {
+  createFileRecordingStore,
+  createS3RecordingStore,
+  RecordingConfigError,
+  S3RequestError,
+  s3StoreFromValues,
+} from './recording-store.ts'
 import { fakeS3 } from '../test/fake-s3.ts'
 
-const badKeys = ['../other-bucket/secret.txt', '../../etc/passwd.ogg', '/etc/passwd', 'ws_1/../ws_2/call.ogg', 'ws_1/call_1.txt', 'ws_1/sub/call_1.ogg', 'call_1.ogg', '']
+const badKeys = [
+  '../other-bucket/secret.txt',
+  '../../etc/passwd.ogg',
+  '/etc/passwd',
+  'ws_1/../ws_2/call.ogg',
+  'ws_1/call_1.txt',
+  'ws_1/sub/call_1.ogg',
+  'call_1.ogg',
+  '',
+]
 
 describe('file store', async () => {
   const tmp = await mkdtemp(join(tmpdir(), 'linedesk-recordings-'))
@@ -19,7 +34,10 @@ describe('file store', async () => {
 
   test('finds a recording under the root', async () => {
     expect(await store.exists('ws_1/call_1.ogg')).toBe(true)
-    expect(await store.locate('ws_1/call_1.ogg', 300)).toMatchObject({ path: expect.stringMatching(/recordings\/ws_1\/call_1\.ogg$/), size: 3 })
+    expect(await store.locate('ws_1/call_1.ogg', 300)).toMatchObject({
+      path: expect.stringMatching(/recordings\/ws_1\/call_1\.ogg$/),
+      size: 3,
+    })
     expect(await store.exists('ws_1/call_2.ogg')).toBe(false)
     expect(await store.locate('ws_1/call_2.ogg', 300)).toBeNull()
   })
@@ -52,7 +70,13 @@ describe('file store', async () => {
 })
 
 describe('s3 store (mocked HTTP)', () => {
-  const options = { endpoint: 'https://s3.test/', region: 'us-east-1', bucket: 'recordings', accessKeyId: 'key', secretAccessKey: 'secret' }
+  const options = {
+    endpoint: 'https://s3.test/',
+    region: 'us-east-1',
+    bucket: 'recordings',
+    accessKeyId: 'key',
+    secretAccessKey: 'secret',
+  }
 
   test('locate returns a path-style, query-signed link that expires', async () => {
     const location = await createS3RecordingStore(options).locate('ws_1/call_1.ogg', 300)
@@ -78,14 +102,37 @@ describe('s3 store (mocked HTTP)', () => {
     await createS3RecordingStore({ ...options, fetch: fakeFetch }).delete('ws_1/call_1.ogg')
     const request = fakeFetch.mock.calls[0]![0] as Request
     expect([request.method, request.url]).toEqual(['DELETE', 'https://s3.test/recordings/ws_1/call_1.ogg'])
-    const answer = (status: number) => createS3RecordingStore({ ...options, fetch: vi.fn<typeof fetch>(async () => new Response(null, { status })) })
+    const answer = (status: number) =>
+      createS3RecordingStore({ ...options, fetch: vi.fn<typeof fetch>(async () => new Response(null, { status })) })
     await expect(answer(404).delete('ws_1/call_1.ogg')).resolves.toBeUndefined()
     await expect(answer(403).delete('ws_1/call_1.ogg')).rejects.toThrow('DELETE ws_1/call_1.ogg failed (403)')
     await expect(answer(204).delete('../x/y.ogg')).rejects.toThrow('not a recording key')
   })
 
+  test('a passing server error is tried again; a lasting one fails after three tries (LIN-736)', async () => {
+    const answers = [500, 503, 200]
+    const flaky = vi.fn<typeof fetch>(async () => new Response(null, { status: answers.shift()! }))
+    await createS3RecordingStore({ ...options, fetch: flaky, retryDelaysMs: [0, 0] }).put(
+      'ws_1/call_1.ogg',
+      new Uint8Array([1]),
+      'audio/ogg',
+    )
+    expect(flaky).toHaveBeenCalledTimes(3)
+    const down = vi.fn<typeof fetch>(async () => new Response(null, { status: 500 }))
+    await expect(
+      createS3RecordingStore({ ...options, fetch: down, retryDelaysMs: [0, 0] }).exists('ws_1/call_1.ogg'),
+    ).rejects.toThrow('HEAD ws_1/call_1.ogg failed (500)')
+    expect(down).toHaveBeenCalledTimes(3)
+    const denied = vi.fn<typeof fetch>(async () => new Response(null, { status: 403 }))
+    await expect(
+      createS3RecordingStore({ ...options, fetch: denied, retryDelaysMs: [0, 0] }).exists('ws_1/call_1.ogg'),
+    ).rejects.toThrow('(403)')
+    expect(denied).toHaveBeenCalledTimes(1)
+  })
+
   test('exists is a signed HEAD: 200 yes, 404 no, anything else is an error', async () => {
-    const answer = (status: number) => createS3RecordingStore({ ...options, fetch: vi.fn<typeof fetch>(async () => new Response(null, { status })) })
+    const answer = (status: number) =>
+      createS3RecordingStore({ ...options, fetch: vi.fn<typeof fetch>(async () => new Response(null, { status })) })
     const fakeFetch = vi.fn<typeof fetch>(async () => new Response(null, { status: 200 }))
     expect(await createS3RecordingStore({ ...options, fetch: fakeFetch }).exists('ws_1/call_1.ogg')).toBe(true)
     const request = fakeFetch.mock.calls[0]![0] as Request
@@ -100,8 +147,13 @@ test('s3StoreFromValues: names what is missing (never a value), defaults to us-e
   const values = { endpoint: 'https://s3.test', bucket: 'b' }
   expect(() => s3StoreFromValues(values)).toThrow(RecordingConfigError)
   expect(() => s3StoreFromValues(values)).toThrow('S3 storage is missing: Access key ID, Secret access key')
-  expect(() => s3StoreFromValues({ ...values, endpoint: 'not a url', access_key_id: 'k', secret_access_key: 'topsecret' })).toThrow('the S3 endpoint is not a URL')
-  const location = await s3StoreFromValues({ ...values, access_key_id: 'k', secret_access_key: 's' }).locate('ws_1/a.ogg', 60)
+  expect(() =>
+    s3StoreFromValues({ ...values, endpoint: 'not a url', access_key_id: 'k', secret_access_key: 'topsecret' }),
+  ).toThrow('the S3 endpoint is not a URL')
+  const location = await s3StoreFromValues({ ...values, access_key_id: 'k', secret_access_key: 's' }).locate(
+    'ws_1/a.ogg',
+    60,
+  )
   const url = new URL((location as { url: string }).url)
   expect(url.origin + url.pathname).toBe('https://s3.test/b/ws_1/a.ogg')
   expect(url.searchParams.get('X-Amz-Credential')).toContain('/us-east-1/s3/')
@@ -109,19 +161,38 @@ test('s3StoreFromValues: names what is missing (never a value), defaults to us-e
 
 test('s3: prefix and virtual-hosted style (AWS, Hetzner) as egress writes them', async () => {
   const store = s3StoreFromValues({
-    endpoint: 'https://fsn1.your-objectstorage.com', region: 'fsn1', bucket: 'calls', access_key_id: 'k',
-    secret_access_key: 's', prefix: '/linedesk/recordings/', force_path_style: 'false',
+    endpoint: 'https://fsn1.your-objectstorage.com',
+    region: 'fsn1',
+    bucket: 'calls',
+    access_key_id: 'k',
+    secret_access_key: 's',
+    prefix: '/linedesk/recordings/',
+    force_path_style: 'false',
   })
   const url = new URL(((await store.locate('ws_1/a.ogg', 60)) as { url: string }).url)
   expect(url.origin + url.pathname).toBe('https://calls.fsn1.your-objectstorage.com/linedesk/recordings/ws_1/a.ogg')
-  const bad = s3StoreFromValues({ endpoint: 'https://s3.test', bucket: 'b', access_key_id: 'k', secret_access_key: 's', prefix: '../x' })
+  const bad = s3StoreFromValues({
+    endpoint: 'https://s3.test',
+    bucket: 'b',
+    access_key_id: 'k',
+    secret_access_key: 's',
+    prefix: '../x',
+  })
   await expect(bad.locate('ws_1/a.ogg', 60)).rejects.toThrow('prefix')
 })
 
 describe('probe ("Test connection")', () => {
   test('s3: puts a test object, reads it back and deletes it, all signed', async () => {
     const s3 = fakeS3()
-    await createS3RecordingStore({ endpoint: 'https://s3.test', region: 'auto', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's', prefix: 'pre', fetch: s3.fetch }).probe()
+    await createS3RecordingStore({
+      endpoint: 'https://s3.test',
+      region: 'auto',
+      bucket: 'b',
+      accessKeyId: 'k',
+      secretAccessKey: 's',
+      prefix: 'pre',
+      fetch: s3.fetch,
+    }).probe()
     expect(s3.log.map(([method]) => method)).toEqual(['PUT', 'GET', 'DELETE'])
     expect(s3.log[0]![1]).toMatch(/^https:\/\/s3\.test\/b\/pre\/\.linedesk-probe-[0-9a-f-]+\.txt$/)
     expect(s3.objects.size).toBe(0)
@@ -129,7 +200,14 @@ describe('probe ("Test connection")', () => {
 
   test('s3: a rejected key is an S3RequestError with the status and code, not the message', async () => {
     const s3 = fakeS3({ status: 403, code: 'InvalidAccessKeyId' })
-    const store = createS3RecordingStore({ endpoint: 'https://s3.test', region: 'auto', bucket: 'b', accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 's', fetch: s3.fetch })
+    const store = createS3RecordingStore({
+      endpoint: 'https://s3.test',
+      region: 'auto',
+      bucket: 'b',
+      accessKeyId: 'AKIAEXAMPLE',
+      secretAccessKey: 's',
+      fetch: s3.fetch,
+    })
     const error = await store.probe().catch(e => e)
     expect(error).toBeInstanceOf(S3RequestError)
     expect([error.status, error.code, error.step]).toEqual([403, 'InvalidAccessKeyId', 'writing a test object'])

@@ -103,7 +103,13 @@ export interface S3Options {
   /** `endpoint/bucket/key` (default; works with every S3-compatible server) instead of `bucket.endpoint/key`. */
   forcePathStyle?: boolean
   fetch?: typeof fetch
+  /** Waits before each new try after a server error; replaced in tests. */
+  retryDelaysMs?: readonly number[]
 }
+
+/** Server errors and throttling: worth a new try. */
+const RETRY_STATUSES = [429, 500, 502, 503, 504]
+const RETRY_DELAYS_MS = [250, 1000]
 
 /** S3's error code from an XML error body (`<Code>NoSuchBucket</Code>`); only a plain word, never the message. */
 async function s3ErrorCode(res: Response): Promise<string | null> {
@@ -121,6 +127,7 @@ export function createS3RecordingStore({
   prefix,
   forcePathStyle = true,
   fetch: doFetch = fetch,
+  retryDelaysMs = RETRY_DELAYS_MS,
 }: S3Options): RecordingStore {
   const aws = new AwsClient({ accessKeyId, secretAccessKey, region, service: 's3' })
   const base = new URL(endpoint)
@@ -132,10 +139,18 @@ export function createS3RecordingStore({
   }
   const objectUrl = (key: string) => urlFor(recordingObjectKey(prefix, key))
 
+  // A passing server error (R2 answers HTTP 500 now and then) is tried again, as the AWS SDKs do (LIN-736).
   async function send(step: string, url: string, init: RequestInit, okStatuses: number[] = []) {
-    const res = await doFetch(await aws.sign(url, init))
-    if (res.ok || okStatuses.includes(res.status)) return res
-    throw new S3RequestError(step, res.status, await s3ErrorCode(res))
+    for (let attempt = 0; ; attempt++) {
+      const res = await doFetch(await aws.sign(url, init))
+      if (res.ok || okStatuses.includes(res.status)) return res
+      if (attempt < retryDelaysMs.length && RETRY_STATUSES.includes(res.status)) {
+        await res.body?.cancel()
+        await new Promise(resolve => setTimeout(resolve, retryDelaysMs[attempt]))
+        continue
+      }
+      throw new S3RequestError(step, res.status, await s3ErrorCode(res))
+    }
   }
 
   return {
@@ -149,7 +164,11 @@ export function createS3RecordingStore({
       return { url: signed.url }
     },
     async put(key, body, contentType) {
-      await send(`PUT ${key}`, objectUrl(key), { method: 'PUT', body: new Uint8Array(body), headers: { 'content-type': contentType } })
+      await send(`PUT ${key}`, objectUrl(key), {
+        method: 'PUT',
+        body: new Uint8Array(body),
+        headers: { 'content-type': contentType },
+      })
     },
     async delete(key) {
       await send(`DELETE ${key}`, objectUrl(key), { method: 'DELETE' }, [404])
