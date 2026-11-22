@@ -422,6 +422,7 @@
   "forwardingCheck.verified": "{calls, select, all {Verified: calls to your business number reach {assistant}.} other {Verified: calls you don’t answer reach {assistant}.}}",
   "forwardingCheck.verifiedAfter": "{calls, select, all {Verified: calls to your business number reach {assistant} after about {seconds, plural, one {# second} other {# seconds}}.} other {Verified: calls you don’t answer reach {assistant} after about {seconds, plural, one {# second} other {# seconds}}.}}",
   "frame.agent": "Set up with AI",
+  "frame.agentShort": "AI",
   "frame.agentTitle": "Back to the AI agent setup: what you saved here stays",
   "frame.backTitle": "Back (Esc)",
   "frame.close": "Close",

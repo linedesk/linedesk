@@ -40,8 +40,11 @@ export function AiButton({
   onClick,
   size = 'sm',
   className,
+  shortLabel,
 }: {
   label: string
+  /** Shown in place of `label` where the button is narrow (the setup top bar on a phone), e.g. "AI". */
+  shortLabel?: string
   title: string
   onClick: () => void
   size?: 'sm' | 'md'
@@ -52,6 +55,7 @@ export function AiButton({
     <button type="button" className={cls} onClick={onClick} title={title} aria-label={label}>
       <AgentMarks />
       <span className="ai-label">{label}</span>
+      {shortLabel && <span className="ai-label-short">{shortLabel}</span>}
     </button>
   )
 }

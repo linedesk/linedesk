@@ -96,6 +96,7 @@ export function SetupTopBar({
           <AiButton
             className="ob-agent"
             label={t('onboarding.frame.agent')}
+            shortLabel={t('onboarding.frame.agentShort')}
             title={t('onboarding.frame.agentTitle')}
             onClick={agentPath}
           />

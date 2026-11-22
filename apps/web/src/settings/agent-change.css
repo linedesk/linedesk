@@ -73,3 +73,8 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* The short label (the setup top bar on a phone) only where the full one is hidden (styles.css). */
+.ai-label-short {
+  display: none;
+}
