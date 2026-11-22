@@ -99,6 +99,24 @@ const header = (payload: Json | undefined, name: string): string => {
   return typeof found?.value === 'string' ? found.value : ''
 }
 
+/** One message of the Gmail API (format=full) as a MailMessage. */
+function gmailMessage(body: Json): MailMessage {
+  const payload = body.payload as Json | undefined
+  return {
+    id: String(body.id),
+    threadId: String(body.threadId ?? body.id),
+    from: addressOf(header(payload, 'From')),
+    to: header(payload, 'To')
+      .split(',')
+      .map(addressOf)
+      .filter(a => a.includes('@')),
+    subject: header(payload, 'Subject'),
+    sentAt: new Date(Number(body.internalDate) || Date.parse(header(payload, 'Date')) || 0).toISOString(),
+    fromMailbox: ((body.labelIds ?? []) as string[]).includes('SENT'),
+    text: gmailBodyText(payload),
+  }
+}
+
 export type GmailOptions = {
   accessToken: AccessTokenSource
   fetch?: typeof fetch
@@ -118,8 +136,11 @@ export function createGmail({
     fetch: doFetch,
     timeoutMs,
     sleep,
-    // 25 reads a second: 7,500 of Gmail's 15,000 units a minute per user (a message read costs 5).
-    minIntervalMs: 40,
+    // 20 reads a second: a thread read costs 10 units, so at most 12,000 of Gmail's 15,000 units a minute per user.
+    minIntervalMs: 50,
+    // Gmail answers 429 to more requests at once per user; each such answer cost a 15 s wait (2026-11-22: a
+    // 300-conversation analysis took 10 minutes, almost all of it waiting).
+    maxConcurrent: 4,
     reasonOf,
     forbidden: gmailForbidden,
   })
@@ -151,21 +172,18 @@ export function createGmail({
         if (e instanceof MailError && e.kind === 'not_found') return null
         throw e
       }
-      const payload = body.payload as Json | undefined
-      const message: MailMessage = {
-        id: String(body.id),
-        threadId: String(body.threadId ?? body.id),
-        from: addressOf(header(payload, 'From')),
-        to: header(payload, 'To')
-          .split(',')
-          .map(addressOf)
-          .filter(a => a.includes('@')),
-        subject: header(payload, 'Subject'),
-        sentAt: new Date(Number(body.internalDate) || Date.parse(header(payload, 'Date')) || 0).toISOString(),
-        fromMailbox: ((body.labelIds ?? []) as string[]).includes('SENT'),
-        text: gmailBodyText(payload),
+      return gmailMessage(body)
+    },
+
+    async getThread(threadId) {
+      let body: Json
+      try {
+        body = await get('read a thread', `${API}/threads/${encodeURIComponent(threadId)}?format=full`)
+      } catch (e) {
+        if (e instanceof MailError && e.kind === 'not_found') return []
+        throw e
       }
-      return message
+      return ((body.messages ?? []) as Json[]).map(gmailMessage)
     },
   }
 }

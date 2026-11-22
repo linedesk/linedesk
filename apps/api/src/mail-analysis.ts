@@ -44,7 +44,7 @@ const CONVERSATION_CHARS = 3000
 const ANSWER_CHARS = 500
 /** One request to the model holds at most this much mail. */
 const BATCH_CHARS = 40_000
-/** Threads read at the same time (each reads two messages at once); the providers' 429 answers are waited out. */
+/** Threads read at the same time; the adapters cap the requests in flight and wait out 429 answers. */
 const READ_CONCURRENCY = 8
 /** Batches sent to the model at the same time: one after the other, ten batches took several minutes. */
 const MODEL_CONCURRENCY = 4
@@ -109,8 +109,7 @@ export async function supportConversations(
     const slice = candidates.slice(i, i + READ_CONCURRENCY * 4)
     const read = await mapLimited(slice, READ_CONCURRENCY, async refs => {
       const oldestFirst = [...refs].reverse().slice(0, MESSAGES_PER_CONVERSATION)
-      const messages = await mapLimited(oldestFirst, 2, ref => provider.getMessage(ref.id))
-      return toConversation(messages.filter((m): m is MailMessage => m !== null))
+      return toConversation(await readMessages(provider, oldestFirst))
     })
     for (const c of read) if (c && conversations.length < max) conversations.push(c)
     await onProgress?.({
@@ -121,6 +120,19 @@ export async function supportConversations(
     })
   }
   return { conversations, read: threads.size }
+}
+
+/**
+ * The listed messages of one thread: one request for the whole thread where the provider can (Gmail), keeping only
+ * the listed ones (those in the range); else message by message.
+ */
+async function readMessages(provider: MailProvider, refs: MailMessageRef[]): Promise<MailMessage[]> {
+  if (provider.getThread) {
+    const wanted = new Set(refs.map(r => r.id))
+    return (await provider.getThread(refs[0]!.threadId)).filter(m => wanted.has(m.id))
+  }
+  const messages = await mapLimited(refs, 2, ref => provider.getMessage(ref.id))
+  return messages.filter((m): m is MailMessage => m !== null)
 }
 
 /** A thread as a support conversation, without personal data; null when it is not one. */

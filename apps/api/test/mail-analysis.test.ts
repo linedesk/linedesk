@@ -3,7 +3,14 @@
 // and stores only the generalized topics. The model is a fake that records what it was sent.
 import { MAIL_ANALYSES_PER_DAY, mailTopicLine, rolePermissions } from '@linedesk/actions'
 import { assistants, mail_analyses, mail_connections, type Tx } from '@linedesk/db'
-import { createDemoMail, DEMO_MAILBOX, MailError, type MailProvider } from '@linedesk/mail'
+import {
+  createDemoMail,
+  DEMO_MAILBOX,
+  MailError,
+  type MailMessage,
+  type MailMessageRef,
+  type MailProvider,
+} from '@linedesk/mail'
 import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test, vi } from 'vitest'
 import { actions } from '@linedesk/actions'
@@ -99,6 +106,40 @@ describe('reading the demo mailbox', () => {
     expect(conversations).toHaveLength(18)
     expect(conversations.every(c => c.turns[0]!.support === false && c.turns.some(t => t.support))).toBe(true)
     expect(conversations.map(c => c.subject)).not.toContain('Your November newsletter')
+  })
+
+  test('a provider that reads whole threads gets one request per thread and gives the same conversations', async () => {
+    const demo = createDemoMail()
+    const refs: MailMessageRef[] = []
+    let pageToken: string | undefined
+    do {
+      const page = await demo.listMessages({ pageToken, max: 100 })
+      refs.push(...page.messages)
+      pageToken = page.nextPageToken ?? undefined
+    } while (pageToken)
+    let threadReads = 0
+    let messageReads = 0
+    const byThread: MailProvider = {
+      name: demo.name,
+      listMessages: o => demo.listMessages(o),
+      getMessage: id => {
+        messageReads++
+        return demo.getMessage(id)
+      },
+      getThread: async threadId => {
+        threadReads++
+        const all = await Promise.all(refs.filter(r => r.threadId === threadId).map(r => demo.getMessage(r.id)))
+        return all.filter(m => m !== null).sort((a, b) => a!.sentAt.localeCompare(b!.sentAt)) as MailMessage[]
+      },
+    }
+    const since = new Date(0).toISOString()
+    const viaThreads = await supportConversations(byThread, since)
+    const viaMessages = await supportConversations(createDemoMail(), since)
+    expect(messageReads).toBe(0)
+    const counts = new Map<string, number>()
+    for (const r of refs) counts.set(r.threadId, (counts.get(r.threadId) ?? 0) + 1)
+    expect(threadReads).toBe([...counts.values()].filter(n => n >= 2).length)
+    expect(viaThreads.conversations).toEqual(viaMessages.conversations)
   })
 
   test('six months back reads only the newer half', async () => {

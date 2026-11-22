@@ -97,28 +97,38 @@ function fakeGmail(valid?: string[]) {
         ...(start + max < list.length && { nextPageToken: String(start + max) }),
       })
     }
+    const thread = /^\/threads\/(.+)$/.exec(path)?.[1]
+    if (thread) {
+      const messages = MAIL.filter(x => x.thread === thread).sort((a, b) => a.at.localeCompare(b.at))
+      if (!messages.length) return json({ error: { message: 'Requested entity was not found.' } }, 404)
+      return json({ id: thread, messages: messages.map(gmailJson) })
+    }
     const m = MAIL.find(x => `/messages/${x.id}` === path)
     if (!m) return json({ error: { message: 'Requested entity was not found.' } }, 404)
-    const body = { mimeType: m.html ? 'text/html' : 'text/plain', body: { data: b64url(m.text) } }
-    return json({
-      id: m.id,
-      threadId: m.thread,
-      internalDate: String(Date.parse(m.at)),
-      labelIds: m.from.includes(OWN) ? ['SENT'] : ['INBOX'],
-      payload: {
-        mimeType: 'multipart/mixed',
-        headers: [
-          { name: 'From', value: m.from },
-          { name: 'To', value: m.to },
-          { name: 'Subject', value: m.subject },
-        ],
-        parts: [
-          { mimeType: 'multipart/alternative', parts: [body] },
-          { mimeType: 'text/plain', filename: 'notes.txt', body: { data: b64url('attachment') } },
-        ],
-      },
-    })
+    return json(gmailJson(m))
   }, valid)
+}
+
+function gmailJson(m: (typeof MAIL)[number]) {
+  const body = { mimeType: m.html ? 'text/html' : 'text/plain', body: { data: b64url(m.text) } }
+  return {
+    id: m.id,
+    threadId: m.thread,
+    internalDate: String(Date.parse(m.at)),
+    labelIds: m.from.includes(OWN) ? ['SENT'] : ['INBOX'],
+    payload: {
+      mimeType: 'multipart/mixed',
+      headers: [
+        { name: 'From', value: m.from },
+        { name: 'To', value: m.to },
+        { name: 'Subject', value: m.subject },
+      ],
+      parts: [
+        { mimeType: 'multipart/alternative', parts: [body] },
+        { mimeType: 'text/plain', filename: 'notes.txt', body: { data: b64url('attachment') } },
+      ],
+    },
+  }
 }
 
 function fakeGraph(valid?: string[]) {
@@ -223,6 +233,35 @@ describe.each(adapters)('%s mail adapter', (_name, make) => {
 })
 
 describe('Gmail', () => {
+  test('reads a whole thread in one request, oldest first; a missing thread is empty', async () => {
+    const { fetch, seen } = fakeGmail()
+    const gmail = createGmail({ accessToken: async () => TOKEN, fetch })
+    const messages = await gmail.getThread!('t1')
+    expect(messages.map(m => m.id)).toEqual(['m2', 'm3'])
+    expect(messages[1]).toMatchObject({
+      from: OWN,
+      fromMailbox: true,
+      text: 'We can come Tuesday. The call-out fee is $89.',
+    })
+    expect(seen.filter(s => s.url.pathname.includes('/threads/'))).toHaveLength(1)
+    expect(await gmail.getThread!('gone')).toEqual([])
+  })
+
+  test('at most four requests are in flight at once', async () => {
+    let inFlight = 0
+    let most = 0
+    const fetch: typeof globalThis.fetch = async () => {
+      inFlight++
+      most = Math.max(most, inFlight)
+      await new Promise(r => setTimeout(r, 300))
+      inFlight--
+      return json({ messages: [] })
+    }
+    const gmail = createGmail({ accessToken: async () => TOKEN, fetch })
+    await Promise.all(Array.from({ length: 12 }, () => gmail.listMessages()))
+    expect(most).toBe(4)
+  })
+
   test('a per-user rate limit is retried after a wait, then the read goes on', async () => {
     let calls = 0
     const waits: number[] = []

@@ -50,6 +50,11 @@ export interface MailProvider {
   listMessages(options?: ListOptions): Promise<MailPage>
   /** null when the message does not exist (any more). */
   getMessage(id: string): Promise<MailMessage | null>
+  /**
+   * All messages of a thread in one request, oldest first; [] when it does not exist. Optional: without it the thread
+   * is read message by message (getMessage).
+   */
+  getThread?(threadId: string): Promise<MailMessage[]>
 }
 
 /**
@@ -106,6 +111,8 @@ export type HttpOptions = {
    * 15,000 units, 5 per message read), so parallel readers must not start faster than the quota allows.
    */
   minIntervalMs?: number
+  /** Requests in flight at most; more at once and Gmail answers 429 ("too many concurrent requests for user"). */
+  maxConcurrent?: number
 }
 
 /** Retries of a rate-limited request (per-user quotas count per minute), then the request fails. */
@@ -138,7 +145,22 @@ export function createHttp({
   forbidden,
   sleep = wait,
   minIntervalMs = 0,
+  maxConcurrent = Number.POSITIVE_INFINITY,
 }: HttpOptions) {
+  let inFlight = 0
+  const waiting: (() => void)[] = []
+  async function slot() {
+    if (inFlight < maxConcurrent) {
+      inFlight++
+      return
+    }
+    await new Promise<void>(resolve => waiting.push(resolve))
+  }
+  function release() {
+    const next = waiting.shift()
+    if (next) next()
+    else inFlight--
+  }
   // The start time the next request may use: each request takes the next free slot, so parallel callers queue up.
   let nextStart = 0
   async function pace() {
@@ -165,10 +187,17 @@ export function createHttp({
   }
   return async function get(what: string, url: string, headers: Record<string, string> = {}): Promise<Json> {
     for (let attempt = 0; ; attempt++) {
-      await pace()
-      let res = await send(what, url, headers, await accessToken())
-      if (res.status === 401) res = await send(what, url, headers, await accessToken(true))
-      const body = (await res.json().catch(() => ({}))) as Json
+      await slot()
+      let res: Response
+      let body: Json
+      try {
+        await pace()
+        res = await send(what, url, headers, await accessToken())
+        if (res.status === 401) res = await send(what, url, headers, await accessToken(true))
+        body = (await res.json().catch(() => ({}))) as Json
+      } finally {
+        release()
+      }
       if (res.ok) return body
       const classified = res.status === 403 ? forbidden(body) : { kind: errorKindOf(res.status) }
       if (classified.kind === 'rate_limited' && attempt < RATE_LIMIT_RETRIES) {
