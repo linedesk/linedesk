@@ -1056,6 +1056,7 @@
   "integrations.copyFailed": "Copy failed. Select the text instead.",
   "integrations.copyTip": "Copy {what}",
   "integrations.done": "Done",
+  "integrations.doneBackTip": "Back to all integrations",
   "integrations.doneTip": "Back to all integrations (Esc)",
   "integrations.keyNeeded": "Put an API key in the variable {variable}. Create one in <link>Integrations › API keys</link>.",
   "integrations.keys.title": "Your keys",

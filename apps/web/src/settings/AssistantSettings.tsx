@@ -18,11 +18,14 @@ import {
   DEFAULT_SILENCE_REMINDER,
   disclosesAtStart,
   greetingWithDisclosure,
+  inEeaOrUk,
   type Language,
+  localizedDefault,
   mainLanguageOf,
   otherLanguagesOf,
   type PipelinesSetUp,
   phoneCountryName,
+  RECORDINGS_NOT_KEPT,
   TALKING_SPEED_PCT_DEFAULT,
   TALKING_SPEED_PCT_MAX,
   TALKING_SPEED_PCT_MIN,
@@ -31,9 +34,6 @@ import {
   withDisclosure,
   withoutConsentQuestion,
   withoutDisclosure,
-  inEeaOrUk,
-  localizedDefault,
-  RECORDINGS_NOT_KEPT,
   withSentenceBeforeQuestion,
 } from '@linedesk/actions'
 import type { Assistant, PhoneNumber } from '@linedesk/db/types'
@@ -41,6 +41,7 @@ import { languageInSentence, languageLabel, type MessageKey, msg } from '@linede
 import { T, useFormat, useLocale, useT } from '@linedesk/i18n/react'
 import { type FormEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { i18n } from '../i18n/index.tsx'
+import { BackToIntegrations } from '../integrations/fromIntegrations.tsx'
 import { renameInGreeting } from '../onboarding/flow.ts'
 import { useOutboundCountries } from '../onboarding/outbound-number.ts'
 import { AssistantReview } from '../review/AssistantReview.tsx'
@@ -79,6 +80,8 @@ import {
   outsideToSave,
   pickedOthers,
   profileOf,
+  recordingNoticeProblem,
+  recordingNoticeToSave,
   type SilenceField,
   silenceIssue,
   silenceProblem,
@@ -92,8 +95,6 @@ import {
   withMainLanguage,
   withoutLanguage,
   withPickedVoice,
-  recordingNoticeProblem,
-  recordingNoticeToSave,
 } from './assistantDraft.ts'
 import { canonicalAssistantHash, OLD_SECTIONS, WEBHOOK_ITEM } from './assistantLinks.ts'
 import { BusinessHours } from './BusinessHours.tsx'
@@ -116,8 +117,8 @@ import {
 } from './fields.tsx'
 import { Holidays, VacationMode } from './Holidays.tsx'
 import { Knowledge } from './Knowledge.tsx'
-import { MissingProviderNote } from './MissingProviderNote.tsx'
 import { countryNames, searchLanguages } from './languageSearch.ts'
+import { MissingProviderNote } from './MissingProviderNote.tsx'
 import { HoursSummary, RulesSummary, TransfersSummary } from './Summaries.tsx'
 import { useWorkspaceSettings } from './settings-api.ts'
 import { TestCallButton, useTestCall } from './TestCall.tsx'
@@ -1216,6 +1217,7 @@ function Form({
         )}
       </fieldset>
       {current === 'booking' && <CalendarSettings assistant={assistant} canEdit={canEdit} toast={toast} />}
+      {current === 'booking' && <BackToIntegrations key="booking" />}
       {canEdit && <SaveBar dirty={changed} onCancel={cancel} note={note} />}
     </>
   )
@@ -1282,6 +1284,7 @@ function Form({
           </form>
           {/* The webhook saves on its own, so it sits outside the draft's form, last in Advanced. */}
           {current === 'advanced' && <Webhooks assistantId={assistant.id} canEdit={canEdit} toast={toast} />}
+          {current === 'advanced' && <BackToIntegrations key="advanced" />}
         </>
       )}
     </SettingsLayout>

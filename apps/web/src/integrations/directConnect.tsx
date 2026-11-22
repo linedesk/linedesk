@@ -15,8 +15,9 @@ import { useCalendarConnectWays } from '../settings/calendar-providers.ts'
 import { isPasswordProvider, type KeyProviderId, type ProviderId } from '../settings/calendarModel.ts'
 import { KeyConnectDialog } from '../settings/KeyConnect.tsx'
 import { callAction } from '../settings/settings-api.ts'
-import { type IntegrationId, MAIL_CARD_PROVIDER, mailConnectErrorKey, nameKey } from './catalog.ts'
 import { connectErrorKey } from './ConnectedApp.tsx'
+import { type IntegrationId, MAIL_CARD_PROVIDER, mailConnectErrorKey, nameKey } from './catalog.ts'
+import { markFromIntegrations } from './fromIntegrations.tsx'
 
 const CALENDARS: readonly ProviderId[] = ['google', 'microsoft', 'caldav', 'calcom', 'calendly']
 /** Where the assistant's calendars are picked once an account is connected (the booking settings). */
@@ -92,6 +93,8 @@ export function useDirectConnect(canEdit: boolean, toast: (text: string) => void
     }
     if (isCalendar(id)) {
       if (isPasswordProvider(id) && ways?.ways[id] !== 'oauth') return setAskKey(id)
+      // The sign-in comes back to the booking page: it shows the way back here.
+      markFromIntegrations()
       return void open(
         id,
         () => callAction<ConnectStartData>('calendar.connectStart', { provider: id }),
@@ -108,6 +111,7 @@ export function useDirectConnect(canEdit: boolean, toast: (text: string) => void
       onConnected={() => {
         setAskKey(null)
         toast(t('settings.calendar.connected'))
+        markFromIntegrations()
         window.location.hash = BOOKING
       }}
     />

@@ -66,6 +66,7 @@ import {
   ZapierSubscriptions,
 } from './Developers.tsx'
 import { type DirectConnect, useDirectConnect } from './directConnect.tsx'
+import { markFromIntegrations } from './fromIntegrations.tsx'
 import { IntegrationMark } from './IntegrationMark.tsx'
 import { SupportEmailPage } from './SupportEmail.tsx'
 import './integrations.css'
@@ -120,7 +121,9 @@ function usePlace(): IntegrationsPlace {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
   useEffect(() => {
-    if (place.view === 'elsewhere') window.location.replace(place.to)
+    if (place.view !== 'elsewhere') return
+    if (!place.to.startsWith(HOME)) markFromIntegrations()
+    window.location.replace(place.to)
   }, [place])
   return place
 }
@@ -363,7 +366,12 @@ function Row({ integration, status, connect }: { integration: Integration; statu
         ) : (
           action &&
           integration.opens && (
-            <a className={className} href={integration.opens} title={line}>
+            <a
+              className={className}
+              href={integration.opens}
+              title={line}
+              onClick={() => integration.opens?.startsWith(HOME) || markFromIntegrations()}
+            >
               <span>{t(action)}</span>
             </a>
           )
