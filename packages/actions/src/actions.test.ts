@@ -1,5 +1,16 @@
 import { expect, test } from 'vitest'
-import { actions, applyLocally, isRecordingKey, recordingKey, callFlagUrgent, callTakeMessage, onboardingSetStep, phoneNumberSetup, rolePermissions, type LocalTables } from './index.ts'
+import {
+  actions,
+  applyLocally,
+  isRecordingKey,
+  recordingKey,
+  callFlagUrgent,
+  callTakeMessage,
+  onboardingSetStep,
+  phoneNumberSetup,
+  rolePermissions,
+  type LocalTables,
+} from './index.ts'
 
 test('assistant tools and phone setup are in the registry with the right permission', () => {
   expect(actions.get('call.takeMessage')?.permission).toBe('agent')
@@ -8,6 +19,14 @@ test('assistant tools and phone setup are in the registry with the right permiss
   expect(rolePermissions.agent).toContain('agent')
   expect(rolePermissions.member).not.toContain('settings:write')
   expect(rolePermissions.member).not.toContain('agent')
+})
+
+// A read without readOnly counts as a write: an impersonation without edits refuses it, so its part of the page cannot
+// load for support (mail.getAnalysis on Integrations › Support email, 2026-11-22).
+test('actions named like a read (get, list) are read-only', () => {
+  const reads = [...actions.values()].filter(a => /\.(get|list)[A-Z]/.test(a.name))
+  expect(reads.length).toBeGreaterThan(0)
+  expect(reads.filter(a => !a.readOnly).map(a => a.name)).toEqual([])
 })
 
 test('call.flagUrgent applies locally as urgency urgent', () => {
@@ -40,12 +59,22 @@ test('recordings: the agent only names the call, the key is derived, the setting
   expect(setRecording.permission).toBe('agent')
   expect(setRecording.patch).toBeUndefined()
   expect(setRecording.input.parse({ callId: 'call_1' })).toEqual({ callId: 'call_1', format: 'ogg' })
-  expect(setRecording.input.parse({ callId: 'call_1', recordingKey: '../other/secret.txt' })).toEqual({ callId: 'call_1', format: 'ogg' })
+  expect(setRecording.input.parse({ callId: 'call_1', recordingKey: '../other/secret.txt' })).toEqual({
+    callId: 'call_1',
+    format: 'ogg',
+  })
   expect(setRecording.input.safeParse({ callId: 'call_1', format: 'exe' }).success).toBe(false)
 
   expect(recordingKey('ws_1', 'call_1')).toBe('ws_1/call_1.ogg')
   expect(isRecordingKey(recordingKey('NRopXAq2oDVg6xL3', 'call_61ba36e0'))).toBe(true)
-  for (const key of ['../other-bucket/secret.txt', '/etc/passwd', 'ws_1/../ws_2/call.ogg', 'ws_1/call_1.txt', 'ws_1/a/call.ogg', 'call.ogg']) {
+  for (const key of [
+    '../other-bucket/secret.txt',
+    '/etc/passwd',
+    'ws_1/../ws_2/call.ogg',
+    'ws_1/call_1.txt',
+    'ws_1/a/call.ogg',
+    'call.ogg',
+  ]) {
     expect(isRecordingKey(key)).toBe(false)
   }
 
@@ -57,20 +86,29 @@ test('recordings: the agent only names the call, the key is derived, the setting
   expect(update.input.safeParse({ assistantId: 'as_1', record_calls: 'no' }).success).toBe(false)
   expect(update.patch!.set({ assistantId: 'as_1', record_calls: false }, '')).toEqual({ record_calls: false })
   // call_rules is no longer a setting: a web app of the release before sending it changes nothing.
-  expect(update.input.parse({ assistantId: 'as_1', call_rules: 'Ask for the address.' })).not.toHaveProperty('call_rules')
+  expect(update.input.parse({ assistantId: 'as_1', call_rules: 'Ask for the address.' })).not.toHaveProperty(
+    'call_rules',
+  )
 })
 
 test('onboarding.setStep: registered, owners and admins only, known steps only', () => {
   expect(actions.get('onboarding.setStep')).toBe(onboardingSetStep)
   expect(onboardingSetStep.permission).toBe('settings:write')
   expect(rolePermissions.member).not.toContain(onboardingSetStep.permission)
-  for (const step of ['business', 'phone', 'hours', 'calendar', 'test_call', 'done', 'skipped']) expect(onboardingSetStep.input.safeParse({ step }).success).toBe(true)
+  for (const step of ['business', 'phone', 'hours', 'calendar', 'test_call', 'done', 'skipped'])
+    expect(onboardingSetStep.input.safeParse({ step }).success).toBe(true)
   expect(onboardingSetStep.input.safeParse({ step: 'billing' }).success).toBe(false)
 })
 
 test('How the assistant did: Done, Reopen and the questions are for owners and admins, like reading evaluations', async () => {
-  const { evaluationMarkDone, evaluationReopen, evaluationListQuestions, callListEvaluations, callGetEvaluation, scoreWords } =
-    await import('./evaluations.ts')
+  const {
+    evaluationMarkDone,
+    evaluationReopen,
+    evaluationListQuestions,
+    callListEvaluations,
+    callGetEvaluation,
+    scoreWords,
+  } = await import('./evaluations.ts')
   for (const def of [evaluationMarkDone, evaluationReopen, evaluationListQuestions]) {
     expect(actions.get(def.name)).toBe(def)
     expect(def.permission).toBe(callGetEvaluation.permission)
@@ -86,5 +124,11 @@ test('How the assistant did: Done, Reopen and the questions are for owners and a
   expect(callListEvaluations.input.parse({ needsReview: true, open: true })).toMatchObject({ open: true, limit: 200 })
   expect(callListEvaluations.input.parse({}).open).toBeUndefined()
   expect(callListEvaluations.input.safeParse({ open: 'yes' }).success).toBe(false)
-  expect([5, 4, 3, 2, 1].map(scoreWords)).toEqual(['Handled well', 'Mostly fine', 'Missed something', 'Went wrong', 'Went wrong'])
+  expect([5, 4, 3, 2, 1].map(scoreWords)).toEqual([
+    'Handled well',
+    'Mostly fine',
+    'Missed something',
+    'Went wrong',
+    'Went wrong',
+  ])
 })

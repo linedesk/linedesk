@@ -136,6 +136,7 @@ export const mailGetAnalysis = defineAction({
     "The workspace's latest support mail analysis (mail.analyze): its status and, when done, the most common kinds of requests with how support answers them.",
   input: z.object({}).strict(),
   permission: 'settings:write',
+  readOnly: true,
 })
 
 // Owner review (LIN-643, step 3 of LIN-615): the owner accepts, edits or drops each topic of a finished analysis. An
