@@ -13,6 +13,19 @@ import type { Rubric } from './judge.ts'
 import { BUSINESS_TEXT, JOB_STATUS_LOOKUP, MIKE, OFFICE_HOURS_ONLY, type Setup, setup } from './setups.ts'
 import type { SimOptions } from './tools.ts'
 
+/** Lines as the support mail analysis adds them to About the business (mailTopicLine), for a store. */
+const SHOP_MAIL_TOPICS = [
+  BUSINESS_TEXT,
+  'If a caller asks "Where is my order? It has not arrived yet.": Orders ship within 1 to 2 business days with UPS; delivery takes 3 to 5 business days. The customer gets a tracking link by email when the order ships. If it is late, support checks with UPS and gets back to the customer.',
+  'If a caller asks "Can I send my order back?": Returns are free within 30 days. The customer gets a return label by email; the refund follows within 5 business days after the return arrives.',
+].join('\n')
+
+const SHOP_MAIL_TOPICS_DE = [
+  BUSINESS_TEXT,
+  'If a caller asks "Wo bleibt meine Bestellung? Sie ist noch nicht angekommen.": Bestellungen werden innerhalb von 1 bis 2 Werktagen mit DHL verschickt; die Lieferung dauert 3 bis 5 Werktage. Der Kunde bekommt beim Versand einen Sendungslink per E-Mail. Bei Verzögerungen fragt der Support bei DHL nach und meldet sich.',
+  'If a caller asks "Kann ich meine Bestellung zurückschicken?": Rücksendungen sind innerhalb von 30 Tagen kostenlos. Der Kunde bekommt ein Retourenlabel per E-Mail; die Erstattung folgt innerhalb von 5 Werktagen nach Eingang.',
+].join('\n')
+
 export const CATEGORIES = [
   'scope',
   'ai',
@@ -1577,6 +1590,65 @@ export const CASES: Case[] = [
     judge: {
       must: ['answer in German', 'say it could not find that order', 'ask for another detail to search by'],
       mustNot: ['make up a status for order 2077'],
+    },
+    severity: 'must',
+  },
+  // The support mail analysis (LIN-643) adds lines like these to About the business. They must not stand in for
+  // find_orders: a caller asking about their own order gets the lookup, not the general shipping text.
+  {
+    id: 'shop-status-mail-topics',
+    category: 'shop',
+    title: 'Order status with shipping answers from the support mail in the business text: looked up first',
+    why: 'shopifyInstructions: for orders use find_orders; the business text answers general questions only',
+    setup: setup({ shopify: true, businessText: SHOP_MAIL_TOPICS }),
+    turns: english(["Hi, my order 1042 still hasn't arrived. Where is it?"]),
+    checks: [
+      { type: 'tool', tool: 'find_orders', args: { order_number: /1042/ }, byTurn: 1 },
+      { type: 'notSay', pattern: /(3|three)\s*(to|-|–)\s*(5|five)/i, beforeTool: 'find_orders' },
+    ],
+    judge: {
+      must: ['say the order has not shipped yet'],
+      mustNot: ['answer only with the general delivery times without looking at this order'],
+    },
+    severity: 'must',
+  },
+  {
+    id: 'shop-status-mail-topics-german',
+    category: 'shop',
+    title: 'Order status in German with German support mail answers in the business text: looked up first',
+    why: 'shopifyInstructions; the mail analysis writes the lines in the mailbox language',
+    setup: setup({
+      shopify: true,
+      businessText: SHOP_MAIL_TOPICS_DE,
+      assistant: { languages: { main: 'en', mode: 'any', allowed: [] } },
+    }),
+    turns: [{ say: 'Hallo, meine Bestellung 1042 ist immer noch nicht da. Wo bleibt sie?', lang: 'de' }],
+    checks: [
+      { type: 'tool', tool: 'find_orders', args: { order_number: /1042/ }, byTurn: 1 },
+      { type: 'language', lang: 'de' },
+    ],
+    judge: {
+      must: ['answer in German', 'say the order has not shipped yet'],
+      mustNot: ['answer only with the general delivery times without looking at this order'],
+    },
+    severity: 'must',
+  },
+  {
+    id: 'shop-status-mail-topics-no-number',
+    category: 'shop',
+    title:
+      'A late order without the order number, shipping answers in the business text: searched, not answered from text',
+    why: 'shopifyInstructions: help the caller find the order (caller number, name); the business text does not replace it',
+    setup: setup({ shopify: true, businessText: SHOP_MAIL_TOPICS }),
+    caller: {
+      persona: 'Dana Ruiz from Portland. Your ZIP code is 97213. You speak English. You do not have the order number.',
+      goal: "Your snowboard order from the business's online store has not arrived after a week: find out where it is. Give your name and ZIP code when asked.",
+      maxTurns: 5,
+    },
+    checks: [{ type: 'tool', tool: 'find_orders' }],
+    judge: {
+      must: ['say the snowboard order has not shipped yet'],
+      mustNot: ['answer only with the general delivery times without looking up the order'],
     },
     severity: 'must',
   },
