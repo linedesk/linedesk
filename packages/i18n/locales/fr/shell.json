@@ -324,6 +324,7 @@
   "tour.inbox.title": "Votre boîte de réception",
   "tour.next": "Suivant",
   "tour.rest.text": "{commands} trouve n'importe quelle action, {shortcuts} liste tous les raccourcis. La visite est terminée.",
+  "tour.rest.textSamples": "{commands} trouve n'importe quelle action, {shortcuts} liste tous les raccourcis. Terminé supprime les appels d'exemple, pour que votre boîte de réception soit prête pour de vrais appels.",
   "tour.rest.title": "Tout le reste",
   "tour.skip": "Passer",
   "tour.stepOf": "Étape {step} sur {steps} : {title}",

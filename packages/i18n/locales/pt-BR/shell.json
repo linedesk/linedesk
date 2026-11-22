@@ -324,6 +324,7 @@
   "tour.inbox.title": "Sua caixa de entrada",
   "tour.next": "Próximo",
   "tour.rest.text": "{commands} encontra qualquer ação, {shortcuts} lista todos os atalhos. Esse é o tour.",
+  "tour.rest.textSamples": "{commands} encontra qualquer ação, {shortcuts} lista todos os atalhos. Concluir remove as chamadas de exemplo, para que sua caixa de entrada fique pronta para chamadas reais.",
   "tour.rest.title": "Todo o resto",
   "tour.skip": "Pular",
   "tour.stepOf": "Etapa {step} de {steps}: {title}",

@@ -324,6 +324,7 @@
   "tour.inbox.title": "Dein Posteingang",
   "tour.next": "Weiter",
   "tour.rest.text": "{commands} findet jede Aktion, {shortcuts} zeigt alle Tastenkürzel. Das war die Tour.",
+  "tour.rest.textSamples": "{commands} findet jede Aktion, {shortcuts} zeigt alle Tastenkürzel. „Fertig“ entfernt die Beispielanrufe, damit dein Posteingang für echte Anrufe bereit ist.",
   "tour.rest.title": "Alles andere",
   "tour.skip": "Überspringen",
   "tour.stepOf": "Schritt {step} von {steps}: {title}",

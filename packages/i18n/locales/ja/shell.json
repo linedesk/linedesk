@@ -324,6 +324,7 @@
   "tour.inbox.title": "受信トレイ",
   "tour.next": "次へ",
   "tour.rest.text": "{commands}であらゆる操作を検索、{shortcuts}ですべてのショートカットを一覧表示します。ツアーは以上です。",
+  "tour.rest.textSamples": "{commands}であらゆる操作を検索、{shortcuts}ですべてのショートカットを一覧表示します。「完了」でサンプル通話が削除され、受信トレイで実際の通話を受ける準備が整います。",
   "tour.rest.title": "その他",
   "tour.skip": "スキップ",
   "tour.stepOf": "ステップ{step} / {steps}：{title}",

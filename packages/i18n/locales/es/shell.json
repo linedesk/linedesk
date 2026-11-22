@@ -324,6 +324,7 @@
   "tour.inbox.title": "Tu bandeja de entrada",
   "tour.next": "Siguiente",
   "tour.rest.text": "{commands} encuentra cualquier acción, {shortcuts} muestra todos los atajos. Eso es todo el recorrido.",
+  "tour.rest.textSamples": "{commands} encuentra cualquier acción, {shortcuts} muestra todos los atajos. Listo quita las llamadas de ejemplo, así tu bandeja de entrada queda lista para llamadas reales.",
   "tour.rest.title": "Todo lo demás",
   "tour.skip": "Omitir",
   "tour.stepOf": "Paso {step} de {steps}: {title}",
