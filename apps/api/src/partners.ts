@@ -565,7 +565,7 @@ async function createForClient(ctx: HandlerCtx, input: CreateForClientInput) {
   const bill = await billForNewClient(tx, partner, { draft: true })
   if (!bill) await refuseOverCeiling(tx, partner)
   // Its assistant starts on Standard, whatever the install's default and whoever on the partner team creates it: the
-  // partner pays, and its team raises a client's assistant later (decision of 2026-11-18, review L-1).
+  // partner pays, and its team raises a client's assistant later (review L-1).
   const org = await insertWorkspace(
     ctx,
     {
@@ -737,7 +737,7 @@ async function detachClient(ctx: HandlerCtx, partnerId: string, workspaceId: str
  * A workspace that changes partner (a release, a removal by its owner, a Server admin move, in or out) leaves the
  * partner's own keys switched off (S7, security review of #1289/#1290 M-1): the switch was the old partner owner's
  * choice, and only the new one decides whether its provider accounts carry this client's calls. The same for the
- * client's own say over call quality (decision of 2026-11-18): the new partner decides it again.
+ * client's own say over call quality: the new partner decides it again.
  */
 async function ownKeysOff(tx: Tx, workspaceId: string) {
   await tx
@@ -1296,7 +1296,7 @@ export const partnerHandlers: Record<string, Handler> = {
     }
   },
 
-  // Whether the client's own owner and admins may change call quality (decision of 2026-11-18). Giving it to the
+  // Whether the client's own owner and admins may change call quality. Giving it to the
   // client lets them raise what the partner pays: the partner's owner only, like loosening a usage limit; anyone on
   // the team may take it back.
   'partner.setClientCallQuality': async (

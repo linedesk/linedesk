@@ -1,4 +1,4 @@
-// Call quality on Linedesk (decision of 2026-11-17): every assistant has one level, Standard, Premium or Ultra, and
+// Call quality on Linedesk: every assistant has one level, Standard, Premium or Ultra, and
 // the level alone decides what a call minute costs on Linedesk Cloud ($0.05, $0.10, $0.20 by default, the server's prices).
 // Standard runs on Standard models, Premium on Premium and Standard ones, Ultra on a realtime (speech-to-speech) model.
 // Options in no list run only on the workspace's own provider keys; with own keys there is no usage fee. Self-hosted
@@ -170,7 +170,7 @@ export type CallPart = { provider: string; model: string }
 export type CallParts = { voice: CallPart; model: CallPart }
 
 /**
- * Whether a part of this level belongs to a call quality (decision of 2026-11-17, call quality): Standard holds
+ * Whether a part of this level belongs to a call quality (call quality): Standard holds
  * Standard parts only, Premium Premium and Standard ones (a Premium call may use the fastest Standard voice), Ultra
  * realtime models only. A part in no list belongs to none.
  */
@@ -248,7 +248,7 @@ export type CallQualitySettings = {
 }
 
 /**
- * The one place of the default models per level (decision of 2026-11-17, call quality): what an install uses until
+ * The one place of the default models per level (call quality): what an install uses until
  * a server admin picks others. Language models by their id in LANGUAGE_MODEL_LEVELS (each provider's own id is looked
  * up), voice models per voice provider. Speech recognition defaults to each provider's first model in STT_MODELS (the
  * models calls used before it was a setting), at every level.
@@ -415,7 +415,7 @@ export type CallQualityLevelOption = {
  * What the assistant editor shows of call quality (voice.options `callQuality`): the levels the server admin has on
  * (Standard always), the level new assistants start on, whether this member may change it at all (`mayChange`: false
  * for a white-label client's people while the partner keeps it, and the editor then shows no call quality) and raise
- * an assistant to a paid level (`mayRaise`: a workspace owner or admin, decision of 2026-11-18), and whether the
+ * an assistant to a paid level (`mayRaise`: a workspace owner or admin), and whether the
  * workspace is a white-label client.
  */
 export type CallQualityOptions = {

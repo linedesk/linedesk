@@ -1,4 +1,4 @@
-// The countries a number can be bought in, and which kind of number (decision of 2026-11-19). One list for the API,
+// The countries a number can be bought in, and which kind of number. One list for the API,
 // the app, MCP and the agent's texts: the US, Canada and Puerto Rico (local numbers by area code) always; Germany once
 // an instance admin turned it on (Server admin › Features › German numbers) with the carrier's approved requirement
 // group: a number held in the install's own name (Linedesk Cloud: Heidelberg 06221), so the business hands in no

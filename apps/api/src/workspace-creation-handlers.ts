@@ -75,7 +75,7 @@ export async function insertWorkspace(
     .returning({ id: organization.id, name: organization.name })
   const hint = creationHint(input, forOther)
   // The time zone sent (the browser's) when it is in the country (as picked, else as hinted), else that country's main
-  // zone (decision of 2026-11-17, LIN-433: a US business set up from a browser in Berlin gets US Eastern).
+  // zone (LIN-433: a US business set up from a browser in Berlin gets US Eastern).
   const timeZone = workspaceTimeZoneFor(input.country ?? hint?.country, input.timeZone) ?? undefined
   const settings = newWorkspaceSettings(org!.id, timeZone)
   await tx.insert(workspace_settings).values({

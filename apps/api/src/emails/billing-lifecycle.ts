@@ -142,7 +142,7 @@ export function billingLifecycleEmail(
 }
 
 /**
- * What someone who manages the bill but does not own it did (bill-manager.ts, decision of 2026-11-17): the plan
+ * What someone who manages the bill but does not own it did (bill-manager.ts): the plan
  * canceled or resumed, the extra calls at the same time changed, or a new card made the one the bill is charged to.
  */
 export type ManagerChange =

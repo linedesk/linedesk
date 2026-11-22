@@ -1,3 +1,4 @@
+// Parts adapted from LiveKit Agents (Apache-2.0, Copyright LiveKit, Inc.); changed. See NOTICE.
 // A collection step on a live call: a LiveKit AgentTask that takes over the conversation until the
 // value is confirmed, the caller declines, or the tries run out, then hands back to the assistant.
 import { llm, voice } from '@livekit/agents'

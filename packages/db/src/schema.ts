@@ -506,8 +506,8 @@ export const workspace_settings = pgTable(
      */
     partner_keys: boolean('partner_keys').notNull().default(false),
     /**
-     * A white-label client whose own owner and admins may change its assistants' call quality (partner.setClientCallQuality;
-     * decision of 2026-11-18). Off by default: only the partner's team changes it, and the client's people do not see it.
+     * A white-label client whose own owner and admins may change its assistants' call quality
+     * (partner.setClientCallQuality). Off by default: only the partner's team changes it, and the client's people do not see it.
      */
     client_call_quality: boolean('client_call_quality').notNull().default(false),
     /** Vacation or closure mode: closed on these dates whatever the hours say, with its own greeting; null: off. */
@@ -2218,7 +2218,7 @@ export const billing_accounts = pgTable(
     billing_anchor: ts('billing_anchor'),
     /**
      * Auto-recharge: below the threshold the saved card is charged the amount. Off by default: activation never turns it
-     * on (decision of 2026-11-17); the owner does, with "Keep calls answered" or in Settings › Billing. Off: "Buy minutes".
+     * on; the owner does, with "Keep calls answered" or in Settings › Billing. Off: "Buy minutes".
      */
     auto_recharge: boolean('auto_recharge').notNull().default(false),
     recharge_threshold_cents: integer('recharge_threshold_cents').notNull().default(RECHARGE_DEFAULTS.thresholdCents),
@@ -2676,7 +2676,7 @@ export const signup_attempts = pgTable(
  * trial (the trial recharge: auto-recharge before the trial ends).
  */
 // `extra_calls`: the owner added calls at the same time in Settings › Billing or from the busy-line banner (LIN-450).
-// `auto_recharge`: the owner turned auto-recharge on in Settings › Billing (decision of 2026-11-18).
+// `auto_recharge`: the owner turned auto-recharge on in Settings › Billing.
 // `terms_update`: a bill's owner accepted a new terms version in the app after TERMS_VERSION changed (LIN-420).
 const TERMS_SOURCES = [
   'signup',

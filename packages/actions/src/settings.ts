@@ -252,7 +252,7 @@ export const VOICE_PIPELINE_DESCRIPTIONS: Record<VoicePipeline, string> = {
 export type PipelinesSetUp = Record<VoicePipeline, boolean>
 
 /**
- * Call quality (decision of 2026-11-17, Server admin › Features › Call quality): which levels assistants can pick
+ * Call quality (Server admin › Features › Call quality): which levels assistants can pick
  * (Standard always; Ultra needs a realtime model), the level new assistants start on, and the models per level an
  * assistant without its own pick uses.
  */

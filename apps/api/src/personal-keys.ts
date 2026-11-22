@@ -1,4 +1,4 @@
-// Personal API keys (LIN-339, decision 2026-11-16): a key a person makes for themselves, for the `linedesk` CLI, MCP
+// Personal API keys (LIN-339): a key a person makes for themselves, for the `linedesk` CLI, MCP
 // clients and scripts. It acts exactly as its maker does today (context.ts personActor): every workspace they belong
 // to (x-workspace-id picks one, else their first), their role there, read only in a disabled one, and instance:admin
 // when they are an instance admin and made the key in a session that passed the passkey check (as a session gets it).

@@ -4,7 +4,7 @@ import { PARTNER_AGENT_HASH } from './onboarding/setup-choice.ts'
 
 /** The plan's prices and the trial at the install's rules (Server admin › Billing), in cents before tax. */
 export type SignupPlan = { monthlyCents: number; yearlyCents: number; trialDays: number }
-/** The partner plan (docs/white-label.md): its base fee. No free trial (Janik, 2026-11-18). */
+/** The partner plan (docs/white-label.md): its base fee. No free trial. */
 export type PartnerSignupPlan = Pick<SignupPlan, 'monthlyCents' | 'yearlyCents'>
 /** The terms and privacy policy the details step shows next to its button, and records as accepted (A9). */
 export type SignupTerms = { termsUrl: string; termsVersion: string; privacyUrl: string; privacyVersion: string }

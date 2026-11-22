@@ -212,7 +212,7 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
 }
 
 // --- German texts ----------------------------------------------------------------------------
-// Text the assistant reads, not UI (CLAUDE.md rule 11): this wording was approved by Janik on 2026-11-20. Kept here
+// Text the assistant reads, not UI (CLAUDE.md rule 11): a maintainer approved this wording. Kept here
 // like the spoken lines (spoken-lines.ts), not in the i18n files. Only German for now; every other language gets the
 // English texts above.
 
@@ -220,11 +220,11 @@ export const businessTemplates: Record<BusinessTemplateId, BusinessTemplate> = {
 export type AboutLanguage = 'en' | 'de'
 export const aboutLanguageOf = (language: string | null | undefined): AboutLanguage => (language === 'de' ? 'de' : 'en')
 
-// i18n-ignore: text the assistant reads, not UI (rule 11; wording approved by Janik on 2026-11-20)
+// i18n-ignore: text the assistant reads, not UI (rule 11; a maintainer approved this wording)
 const urgentDe = (when: string, take: string) =>
   `Wenn jemand anruft und ${when}, behandle es als dringend: nimm ${take} auf und markiere die Nachricht als dringend.`
 
-// i18n-ignore: text the assistant reads, not UI (rule 11; wording approved by Janik on 2026-11-20)
+// i18n-ignore: text the assistant reads, not UI (rule 11; a maintainer approved this wording)
 const germanUseCases: Record<BusinessTemplateId, readonly string[]> = {
   plumbing_hvac: [
     urgentDe('einen Wasserschaden, eine Überschwemmung oder keine Heizung hat', 'Adresse und Telefonnummer'),
@@ -357,7 +357,7 @@ export const templateUseCasesAnyLanguage = (id: BusinessTemplateId): readonly st
 
 /** The labels of the About text (onboarding's instructionsOf, Write with help): what the assistant reads. */
 export type AboutLabels = { services: string; area: string; address: string; commonCalls: string }
-// i18n-ignore: text the assistant reads, not UI (rule 11; wording approved by Janik on 2026-11-20)
+// i18n-ignore: text the assistant reads, not UI (rule 11; a maintainer approved this wording)
 const aboutLabels: Record<AboutLanguage, AboutLabels> = {
   en: { services: 'Services:', area: 'Service area:', address: 'Address:', commonCalls: 'Common calls:' },
   de: { services: 'Leistungen:', area: 'Einsatzgebiet:', address: 'Adresse:', commonCalls: 'Häufige Anrufe:' },

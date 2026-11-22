@@ -18,7 +18,7 @@ export function Tour({ onClose: close, canAssign }: { onClose: () => void; canAs
   const t = useT()
   const assistant = useAssistantName()
   // The sample calls are the tour's material (added with the last onboarding step): its end removes them, done or
-  // skipped, so the inbox starts clean for real calls (Janik, 2026-11-22). Removing them in the inbox stays possible.
+  // skipped, so the inbox starts clean for real calls. Removing them in the inbox stays possible.
   const samples = useRows('calls').some(c => c.source === 'sample' && !c.deleted_at)
   const write = useWriteAction()
   const onClose = () => {

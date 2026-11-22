@@ -357,6 +357,8 @@ function Popover({ r }: { r: Report }) {
                 <PartContent r={r} part={shown} />
               </div>
             )}
+            {/* Where it goes: FEEDBACK_EMAIL (apps/api/src/feedback.ts), which the app does not know. */}
+            <p className="fb-muted">{r.t('shell.feedback.destination')}</p>
             <Failure r={r} />
           </div>
           <footer className="fb-pop-foot">

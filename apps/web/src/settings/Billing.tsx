@@ -146,7 +146,7 @@ export function Billing({ toast, view = 'owner', partnerId, viaPartner = false }
   )
 }
 
-/** An install that bills, and this workspace on no bill (decision of 2026-11-17): one calm line. */
+/** An install that bills, and this workspace on no bill: one calm line. */
 function NoBill() {
   const t = useT()
   return (
@@ -543,7 +543,7 @@ function BillPlan({
 }
 
 /**
- * Monthly or yearly in the free trial (Janik, 2026-11-19): the new price (a month first, a yearly total as the grey
+ * Monthly or yearly in the free trial: the new price (a month first, a yearly total as the grey
  * note) and that nothing is charged before the trial ends; the switch keeps the trial's end and charges nothing now.
  */
 export function IntervalDialog({

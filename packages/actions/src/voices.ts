@@ -83,7 +83,7 @@ export const curatedVoicesIn = (provider: string, words: Words = english): Curat
   (curatedVoices[provider] ?? []).map(voice => ({ ...voice, description: words.t(voice.description) }))
 
 /**
- * The voice each provider speaks with when the assistant sets none (decision of 2026-11-18: no install default voice):
+ * The voice each provider speaks with when the assistant sets none (no install default voice):
  * Jessica on ElevenLabs; on Cartesia the LiveKit plugin's own default (`TTSDefaultVoiceId`, keep in sync).
  */
 export const providerDefaultVoices: Record<string, string> = {
@@ -126,7 +126,7 @@ const native = (code: string, id: string, name: string, gender = 'female'): Lang
 })
 
 /**
- * The voice an assistant speaks with when it picked none and its main language is not English (Janik, 2026-11-19: a
+ * The voice an assistant speaks with when it picked none and its main language is not English (a
  * German workspace speaks with a German voice, in onboarding's test call and on real calls). One voice per language,
  * recorded in it (its own language, not an English voice verified in it): from ElevenLabs' Voice Library list as the
  * voice catalog reads it (conversational, by use over a year, standard rate, no live moderation; voice-provider.ts),
@@ -306,7 +306,7 @@ export type VoiceOptionsData = {
    */
   anyLanguages?: string[]
   /**
-   * Call quality (decision of 2026-11-17): the levels this server has on, with their price and models, the level new
+   * Call quality: the levels this server has on, with their price and models, the level new
    * assistants start on, and whether this member may raise an assistant to a paid level.
    */
   callQuality: CallQualityOptions

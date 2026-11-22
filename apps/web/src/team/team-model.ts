@@ -102,7 +102,7 @@ export function changedByLabel(c: ChangedBy, now = new Date()) {
 
 /**
  * Removing someone in Workspace settings › Team: their account stays by default; only the owner gets the box that
- * deletes it too when it is their only workspace (the server refuses it from anyone else; decision of 2026-11-15, LIN-264).
+ * deletes it too when it is their only workspace (the server refuses it from anyone else, LIN-264).
  * `run` gets whether the box is ticked: delete the account. `invitations`: how many pending invitations they sent to
  * this workspace; the removal cancels them (LIN-264 review F1).
  */

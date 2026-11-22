@@ -1029,7 +1029,7 @@ type LevelFields = Pick<Assistant, 'voice' | 'llm_model' | 'call_quality'> & { r
  * Whether a save changes what the call quality block picks: the level, the language or realtime model, or a voice model
  * picked for the same voice provider. A voice of another provider without a model (the voice picker) leaves its model
  * to the defaults and is no call quality change, so a white-label client's people still pick a voice where the partner
- * keeps call quality (decision of 2026-11-18). One that names a model picks it, and is one.
+ * keeps call quality. One that names a model picks it, and is one.
  */
 function changesQualityPicks(stored: LevelFields, after: LevelFields) {
   if (stored.call_quality !== after.call_quality) return true
@@ -1091,7 +1091,7 @@ export const teamNotesOf = (stored: ActionItem[], finished: { text: string }[]) 
  * Whether connecting a number that is already in the carrier account is refused for this actor. The install's account
  * (whatever carrier it is: Telnyx, Twilio, any other adapter) is shared by every workspace: only an instance admin may
  * hand one of its numbers to a workspace, whatever the workspace's bill (none, comped, paying); others buy a new one or
- * bring their own account (Janik, 2026-11-19, LIN-626). The workspace's own account and `dev` (no account) are never
+ * bring their own account (LIN-626). The workspace's own account and `dev` (no account) are never
  * refused. The app shows the link by the same rule (canAttach, onboarding.ts).
  */
 const attachRefused = (actor: Actor, { account, provider }: { account: 'install' | 'workspace'; provider: string }) =>

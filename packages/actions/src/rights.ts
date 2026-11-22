@@ -1,4 +1,4 @@
-// Workspace rights (decision of 2026-11-15; docs/architecture.md, "Workspace rights"): who in a workspace may run an
+// Workspace rights (docs/architecture.md, "Workspace rights"): who in a workspace may run an
 // action, derived from its permission. Owner: everything an admin can, plus deleting the workspace and handing it
 // over (workspace:own; exactly one owner). Admin: every workspace setting and the team except the owner. Member: daily
 // work (inbox, calls, contacts, reminders, their own profile and notifications), no workspace settings.

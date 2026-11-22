@@ -72,7 +72,7 @@ export function StepByStep({ target, me, onRenamed }: Props) {
     target.kind === 'workspace' &&
     (numbers.length === 0 || (!!checklist && !checklist.forwardingVerified && !checklist.firstRealCall))
   const steps = stepByStepSteps(target.kind, pickupMemory.oldForwarding !== null, numberOpen)
-  // Opens where it was in this tab, else at the first step still open (Janik, 2026-11-22); what is not loaded yet
+  // Opens where it was in this tab, else at the first step still open; what is not loaded yet
   // counts as done.
   const [step, setStepNow] = useState<OnboardingStep>(() => {
     const kept = keptStep(stepKey)

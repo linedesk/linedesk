@@ -62,7 +62,7 @@ export function ownerStepUpRefusal(stepUp: OwnerStepUp) {
     : { ok: false as const, error: 'Sign in again to delete this workspace.', code: SIGN_IN_AGAIN }
 }
 
-/** team.leave deleting the account without a sign-in in the last 10 minutes (decision of 2026-11-15; LIN-264). */
+/** team.leave deleting the account without a sign-in in the last 10 minutes (LIN-264). */
 export const LEAVE_SIGN_IN_AGAIN =
   'Sign in again to delete your account. Deleting it needs a sign-in from the last 10 minutes.'
 
@@ -113,7 +113,7 @@ export const removeSignInRefusal = { ok: false as const, error: REMOVE_SIGN_IN_A
 
 /**
  * The owner removing someone and deleting their account (team.removeMember with deleteAccount) needs the same recent
- * sign-in as deleting their own (decision of 2026-11-15, LIN-264 review F3): a session left open must not delete other people's accounts either. Only the owner is held to it here:
+ * sign-in as deleting their own (LIN-264 review F3): a session left open must not delete other people's accounts either. Only the owner is held to it here:
  * anyone else is refused by the handler (ONLY_OWNER_DELETES_ACCOUNTS), which checks both again under its lock.
  */
 export async function removeNeedsFreshSignIn(

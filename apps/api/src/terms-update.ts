@@ -18,7 +18,7 @@ const CONTRACT_STATUSES = ['pending_payment', 'trialing', 'active', 'past_due', 
 
 /**
  * The bills `userId` owns that have no acceptance of this terms version by them. A bill waiting for Checkout counts
- * too: neither the activation step nor Checkout asks for the terms (decision of 2026-11-18), so a sign-up made under an
+ * too: neither the activation step nor Checkout asks for the terms, so a sign-up made under an
  * older version accepts the new one here first; `billing.startCheckout` is refused until then (billing-checkout.ts).
  */
 export async function billsToReaccept(tx: Tx, userId: string, termsVersion: string): Promise<string[]> {

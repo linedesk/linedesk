@@ -369,7 +369,7 @@ export async function resolveCaller(
 
 /**
  * Whether the bill of the actor's workspace (not disabled) is theirs: then they hold billing:manage there whatever their
- * workspace role, since the rights come from the bill (decision of 2026-11-18, LIN-400). A member
+ * workspace role, since the rights come from the bill (LIN-400). A member
  * who owns the bill reaches the billing actions, and each handler still asks managesBill. Only signed in as themselves
  * (never an impersonation; API keys, personal keys and setup links never come through here). A partner bill counts only
  * for the owner of that bill's partner (`partners.billing_account_id`), in a client workspace on that bill: nowhere

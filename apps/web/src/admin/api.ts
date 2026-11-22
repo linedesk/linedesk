@@ -83,7 +83,7 @@ export type AdminUser = {
 
 /**
  * Server admin › Users filter. `noWorkspace`: accounts without a membership (kept on a removal or delete, or older
- * self-signed-up ones), so the admin can decide about each; nothing is deleted on its own (decision of 2026-11-15; A9).
+ * self-signed-up ones), so the admin can decide about each; nothing is deleted on its own (A9).
  */
 export type UserFilter = 'all' | 'noWorkspace'
 export const filterUsers = (users: readonly AdminUser[], filter: UserFilter): AdminUser[] =>

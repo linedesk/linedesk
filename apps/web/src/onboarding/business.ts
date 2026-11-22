@@ -401,7 +401,7 @@ export const shownTimeZone = (picked: string | null, draft: Pick<ProfileDraft, '
 
 /**
  * Another country picked: the time zone shown stays when it is in that country, else it becomes the country's main
- * zone (decision of 2026-11-17, LIN-433).
+ * zone (LIN-433).
  */
 export const zoneForCountry = (country: string, shown: string | null): string | null =>
   workspaceTimeZoneFor(country, shown)

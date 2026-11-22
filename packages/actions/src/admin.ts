@@ -673,7 +673,7 @@ export function noPrivateEndpointText(
 }
 
 /**
- * A language-model provider's fields: its key only (decision of 2026-11-18). The live model is per call quality level
+ * A language-model provider's fields: its key only. The live model is per call quality level
  * (Server admin › Features › Call quality), the summary model the provider's default (llmEndpoints).
  */
 const llmFields = (keyEnv: string): Record<string, ProviderField> => ({ api_key: apiKey(keyEnv) })

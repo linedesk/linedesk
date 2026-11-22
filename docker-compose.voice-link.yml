@@ -1,7 +1,7 @@
 # The app server's side of separate voice servers (docs/hosting.md, "Separate voice servers"). Add it to COMPOSE_FILE
 # on the app server only; a single-server install does not use it.
 #
-# Layout (decision of 2026-11-20): the app server keeps the web app, the API, Postgres, Electric and Caddy, and opens
+# Layout: the app server keeps the web app, the API, Postgres, Electric and Caddy, and opens
 # no SIP or call-audio port. Voice server 1 (docker-compose.yml + docker-compose.voice-media.yml) runs LiveKit,
 # SIP, egress and an agent worker; more voice servers (docker-compose.voice.yml alone) run an agent worker only.
 #

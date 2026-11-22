@@ -66,7 +66,7 @@ const creatorStillAllows = (keyRole: string, creatorRole: string | null, creator
 
 /**
  * Key management is for people: a key never creates, lists or revokes keys. An instance admin signed in as the user
- * may, with everything a key can do (decision 2026-11-15): traceability instead of limits. A key made then names the
+ * may, with everything a key can do: traceability instead of limits. A key made then names the
  * admin (`created_by_impersonator`; every command it runs records them in `commands.impersonated_by`), is listed with
  * the admin's name, and the user is emailed when impersonation emails are on.
  */

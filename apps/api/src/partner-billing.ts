@@ -65,7 +65,7 @@ export async function workspacesOnBillCount(tx: Tx | typeof db, billId: string):
  * The partner bill a new client workspace goes on (its balance row locked), or null where billing is off and the
  * partner has no bill (self-host, dev: S1's ceiling applies instead). Refused: a billed install without a partner bill
  * (a partner a server admin made by hand), a bill before its Checkout, and a bill that does not run. No trial and so no
- * trial limit: the partner plan is paid from its Checkout (decision of 2026-11-18).
+ * trial limit: the partner plan is paid from its Checkout.
  *
  * `draft`: a new client workspace the partner prepares (workspace.createForClient). Before the Checkout the partner sets
  * up first (setup before payment, 2026-11-18): at most UNPAID_PARTNER_CLIENTS of them go on the bill waiting for its

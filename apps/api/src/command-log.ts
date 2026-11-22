@@ -14,7 +14,7 @@ import { and, eq, inArray, isNull, lt, notInArray, or, sql, type SQL } from 'dri
 import { AUDITED_ACTIONS, TRANSFER_CHANGE_ACTIONS, urlHost } from './audit.ts'
 
 export const OMITTED = '[omitted]'
-/** Decision 2026-11-11: inputs and results 90 days, then ids only; when, who and what action stay. */
+/** Inputs and results 90 days, then ids only; when, who and what action stay. */
 export const COMMAND_INPUT_RETENTION_DAYS = 90
 /** Rows pruned per statement, so the job never holds a long lock on the table. */
 const PRUNE_BATCH = 2000

@@ -279,7 +279,7 @@ export function quotedData(text: string, max = Number.POSITIVE_INFINITY): string
 }
 
 /**
- * The team's note on the contact this call matched, if any, always (decision of 2026-11-15): the assistant takes it into
+ * The team's note on the contact this call matched, if any, always: the assistant takes it into
  * account for this caller. Notes also come from imports and API keys, so they are information, never rules that
  * override these instructions; fenced, as one line.
  */

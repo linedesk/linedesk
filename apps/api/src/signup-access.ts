@@ -1,4 +1,4 @@
-// Who may sign up in which country (packages/actions/src/signup-access.ts, decisions of 2026-11-18). The countries an
+// Who may sign up in which country (packages/actions/src/signup-access.ts). The countries an
 // install can serve: the sign-up countries (SIGNUP_COUNTRIES, open by default) and SIGNUP_ACCESS_COUNTRIES (Germany,
 // only invited addresses by default). Whether German numbers can be bought yet does not change who may sign up
 // (number-buy.ts: until then German workspaces read that numbers are being set up). Each has a mode,

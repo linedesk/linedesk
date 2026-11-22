@@ -493,7 +493,7 @@ export type ExtraCallsQuantityInput = {
 export type ExtraCallsAnswer = 'updated' | 'unchanged' | 'payment_failed'
 
 /**
- * A subscription's plan moved to another interval (decision of 2026-11-19): every plan item (the seat,
+ * A subscription's plan moved to another interval: every plan item (the seat,
  * the partner base fee, the extra calls) to the same item at `interval`, its price from `priceIds` (by lookup key:
  * `ws_monthly`, `extra_calls_yearly`, …). Only in the trial: the trial's end stays as it is, nothing is prorated or
  * charged now, and the first charge at the trial's end is at the new interval. Another status answers `not_trialing`

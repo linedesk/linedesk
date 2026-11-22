@@ -1,4 +1,4 @@
-// Monthly / Yearly: the plan's one billing switch (Janik, 2026-11-19), in the Start your free trial dialog and on the
+// Monthly / Yearly: the plan's one billing switch, in the Start your free trial dialog and on the
 // activation step, so an owner who did not notice the plan was yearly can switch before the card. The yearly side
 // says what it saves against twelve monthly payments ("Save 18%"), from the install's own prices; no label when it
 // saves nothing. A radio group: Left and Right move the choice, as in any radio group.

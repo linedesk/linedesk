@@ -115,7 +115,7 @@ export const BEHAVIOURS = [
   {
     // Not a line: with it on, a phone caller is matched to their contact (name, notes, history, bookings, the
     // business's own caller lookup) only when the caller's carrier vouched for the number (STIR/SHAKEN attestation
-    // A); any other call is handled like one from an unknown number. Caller ID is easy to fake. On by default (decision of 2026-11-15).
+    // A); any other call is handled like one from an unknown number. Caller ID is easy to fake. On by default.
     id: 'verified_caller_only',
     label: 'Recognize callers only when their carrier verified the number',
     on: true,

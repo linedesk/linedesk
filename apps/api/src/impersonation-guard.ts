@@ -63,14 +63,14 @@ export const NOT_WHILE_IMPERSONATING = 'Not possible while signed in as another 
  * run-action, so no new action can give the admin access that outlasts the hour (invite themselves,
  * point a webhook or a transfer elsewhere, change the carrier or numbers). API keys are the one deliberate
  * exception (they do outlast it, and are marked). Only the inbox triage the user would not mind, API keys (marked as made by the admin), and ending the impersonation.
- * With edits turned on (impersonation.setEdits), everything the user may run (LIN-708, Tim 2026-11-21: support works
+ * With edits turned on (impersonation.setEdits), everything the user may run (LIN-708: support works
  * as the user). The account's own sign-in data stays refused also then (IMPERSONATION_REFUSED_PATHS, Better Auth).
  */
 export const IMPERSONATION_ALLOWED_WRITES: ReadonlySet<string> = new Set([
   'impersonation.stop',
   // Turning edits on or off for this impersonation (then everything the user may run); audited like stop.
   'impersonation.setEdits',
-  // Support is often about exactly this (decision 2026-11-15). A key made now outlasts the hour, so it names the admin
+  // Support is often about exactly this. A key made now outlasts the hour, so it names the admin
   // (api_keys.created_by_impersonator; its commands record commands.impersonated_by) and is listed with their name.
   // Otherwise it is a key like any other, and the admin revokes keys as the user could (api-keys.ts).
   'apiKey.create',

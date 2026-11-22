@@ -58,16 +58,16 @@ Pick Local disk under Server admin › Providers › Recording storage (or set `
 
 ## Call test
 
-Our test-caller agent calls the business; transcript, summary, pass/fail and latency; in room mode also the business agent's own time from pickup to the greeting, checked against 2.5 s.
+A test-caller agent calls the business; transcript, summary, pass/fail and latency; in room mode also the business agent's own time from pickup to the greeting, checked against 2.5 s.
 
-On staging and production, live tests use the three stages only (`--pipeline three_stage`; over the phone the test business's assistant is set to three stages). OpenAI realtime models are costly: run `--pipeline realtime` only when a maintainer asks for it (decision of 2026-11-16).
+On a live server, test with the three stages (`--pipeline three_stage`; over the phone, set the test business's assistant to three stages). OpenAI realtime models are costly: run `--pipeline realtime` only when you need to test them.
 
 `pnpm --filter @linedesk/agent call-test <scenario> [--phone [--external] [--keep-history]] [--pipeline realtime|three_stage] [--expect-recording]`
 
 - Default: both agents in one LiveKit room, no phone (cheap).
 - `--phone`: a real call over Telnyx from `CALL_TEST_FROM` to `CALL_TEST_TO` (run `setup-test-caller` once; a few cents).
 - `--phone` answers as a call from a new caller: before it dials, the test asks the API (`call.newCallerForTest`) to give the assistant no name, note, earlier calls or bookings of `CALL_TEST_FROM` on its next call to `CALL_TEST_TO` (within 3 minutes). The test number has many earlier test calls, and the assistant would answer from them. `--keep-history`: a returning caller, with all of that.
-- `--external`: `CALL_TEST_TO` is another install's number (e.g. production called from staging's test caller): no checks, only what the caller heard.
+- `--external`: `CALL_TEST_TO` is another install's number (e.g. the server under test, called from a test server's test caller): no checks, only what the caller heard.
 - `--pipeline` (no phone only): the business answers with the realtime model or the three stages instead of what its assistant's call quality picks (Ultra: the realtime model; over the phone the call quality applies).
 - `--realtime-unreachable` (no phone only): a realtime call's model is pointed at an address that never answers, to check that the call goes on without it (the three stages answer after 4 s when the install has them).
 - Needs the worker running and `CALL_TEST_TO` (names the workspace).
@@ -84,13 +84,13 @@ Provision a business without the web app: `node apps/api/src/workspace-create.ts
 
 ## Load test
 
-What calls at once cost the agent (on a dev machine or test server), or how another install's numbers hold up under N calls at once. The business side never runs on production; production can only be the number called (`--remote`).
+What calls at once cost the agent (on a dev machine or test server), or how another install's numbers hold up under N calls at once. The business side never runs on a live server; a live server can only be the number called (`--remote`).
 
 `pnpm --filter @linedesk/agent load-test [--calls 1,5,10] [--to <number>[,<number>…]] [--scenario <name>] [--spread 2] [--pipeline realtime|three_stage] [--memory 4g] [--cpuset 1] [--caller-memory <GB>] [--caller-cpuset 6-13] [--phone] [--remote] [--project linedesk] [--no-abort]`
 
 Starts a second agent container that plays the test callers (`linedesk-load-caller`, `AGENT_NAME=linedesk-load-caller`, so the install's own business worker is never a caller), then per level starts N test calls (`apps/agent/src/load-test/calls.ts` in that container) and waits 45 s between levels.
 
-- Default (no phone): both agents in one room. Raises the local agent's limits for the test (`--memory`, `--cpuset`) and puts them back, samples its container; prints memory before, peak, per call and after, CPU, processes, greeting and reply times. Use `--pipeline three_stage`; `realtime` only when a maintainer asks for it (see Call test).
+- Default (no phone): both agents in one room. Raises the local agent's limits for the test (`--memory`, `--cpuset`) and puts them back, samples its container; prints memory before, peak, per call and after, CPU, processes, greeting and reply times. Use `--pipeline three_stage`; `realtime` only when you need it (costly, see Call test).
 - `--phone`: real calls over the install's test-caller trunk (as `call-test --phone`): from `CALL_TEST_FROM` to `--to` (default `CALL_TEST_TO`), the numbers in turn; the calls of a level start spread over `--spread` seconds. The callers use the three stages only, never OpenAI's realtime voice; the business answers with its assistant's own setting (`--pipeline` is refused). Transfer scenarios are refused.
 - `--remote` (implies `--phone`, needs `--to`): the numbers belong to another install. The local business agent is not changed, restarted or sampled (`--memory`, `--cpuset`, `--container` are refused); only the caller container is started and removed, with `--caller-memory` and `--caller-cpuset`. `--project`: the compose project to start it in.
 - Output: one `LOADTEST {json}` line per call (`level`, `index`, `to`, `answered`, `heardGreetingMs` from the dial to the first business audio the caller heard, `pickupMs`, `replyMs` as the caller heard them, `dialFailed`, `error`, `durationMs`), a summary per level (answered %, greeting heard p50/p95, reply p50/p95, failures) and a table of all levels at the end.
@@ -98,14 +98,14 @@ Starts a second agent container that plays the test callers (`linedesk-load-call
 - The run stops after a level when fewer than 90 % were answered, the greeting heard p50 is over 3.5 s or any call could not be dialled (or was not answered within 30 s); it prints why and exits 1. `--no-abort` goes on.
 - Kill switch: Ctrl-C hangs up every call of the run (deletes its rooms: both legs end) and removes the caller container. Hard stop: `docker rm -f linedesk-load-caller`; a call already dialled then ends when the other install's assistant hangs up.
 
-Capacity check against production, run on staging (the callers on staging, production only the number called):
+Capacity check of a live install, with two installs: a test server and the server under test (the callers on the test server, the server under test only the number called). Run on the test server:
 
-`pnpm --filter @linedesk/agent load-test --remote --to <prod number 1>,<prod number 2>,<prod number 3>,<prod number 4> --calls 1,5,10,20 --caller-cpuset <cores>`
+`pnpm --filter @linedesk/agent load-test --remote --to <number 1>,<number 2>,<number 3>,<number 4> --calls 1,5,10,20 --caller-cpuset <cores>`
 
 - A workspace answers at most 5 phone calls at once (`LIVE_CALLS_PER_WORKSPACE` on a workspace without a bill; on a billed one Server admin › Billing › Calls at once for its bill, or extra calls under Settings › Billing); the others hear the busy line, which counts as answered here (a short `durationMs`). For 20 real calls give 4 or more numbers of different workspaces.
-- Production's test workspaces must have their assistant on the three stages (Settings › Assistant › Answered by).
-- Cost: every call is billed on both sides (speech, model and voice on staging for the caller, on production for the assistant: about a cent a minute per side) plus Telnyx for both legs (staging's outbound, production's inbound). 1+5+10+20 calls of up to 3.5 minutes are 36 calls.
-- The test-caller trunk places all calls from the one `CALL_TEST_FROM` number: Telnyx's channel limit of the staging account must allow 20 at once.
+- The test workspaces on the server under test must have their assistant on the three stages (Settings › Assistant › Answered by).
+- Cost: every call is billed on both sides (speech, model and voice on the test server for the caller, on the server under test for the assistant: about a cent a minute per side) plus the carrier for both legs (the test server's outbound, the other server's inbound). 1+5+10+20 calls of up to 3.5 minutes are 36 calls.
+- The test-caller trunk places all calls from the one `CALL_TEST_FROM` number: the channel limit of the test server's carrier account must allow 20 at once.
 
 ## Self-host stack
 

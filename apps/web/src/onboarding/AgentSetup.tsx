@@ -380,7 +380,7 @@ export function AgentSetup({
           }
         : {}
   // Setting up by hand, for people without an AI agent: a real button right under the agent card, never a small link
-  // at the bottom only (Janik, 2026-11-19). Not while changing settings (Close goes back) or once all is set up.
+  // at the bottom only. Not while changing settings (Close goes back) or once all is set up.
   const byHand = !change && !allDone
   // After signing in, the page loads again at the same address (SecondFactorPrompt).
   if (signInAgain) return <SecondFactorPrompt state={signInAgain} onExit={onDone} />
@@ -948,7 +948,7 @@ function Progress({
 }
 
 /**
- * A partner owner's page before White-label Cloud runs (Janik, 2026-11-18: one flow, agent-first): agency and brand,
+ * A partner owner's page before White-label Cloud runs (one flow, agent-first): agency and brand,
  * the clients (the agent sets each up), then "Activate White-label Cloud" as the very last row, below the picked
  * client's steps. Team invitations go out only after the Checkout, so the Team row waits until then.
  */

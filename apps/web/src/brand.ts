@@ -2,8 +2,8 @@
 // and whether the GitHub star prompt shows. Read before sign-in from GET /v1/branding and kept in
 // localStorage, so the next page load shows the right name and logo at once. Applied to the page
 // itself here (icons, primary color; Workspace.tsx sets the tab title); components read it with useBrand() or brandName().
-// A white-label partner's own screens (its setup and partner area) always show the install's branding, never a partner's
-// (Janik, 2026-11-18): they read it with useInstallBrand(), installBrandName() and BrandMark's `install`.
+// A white-label partner's own screens (its setup and partner area) always show the install's branding, never a
+// partner's: they read it with useInstallBrand(), installBrandName() and BrandMark's `install`.
 // On a white-label partner's own address the server answers with the partner's brand from the first page (S5); the
 // storage is per address, so each keeps its own. Until the first answer on an address never seen before the brand is
 // not known (useBrandKnown): the sign-in page waits rather than showing the install's name there for a moment.

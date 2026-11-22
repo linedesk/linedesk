@@ -70,7 +70,7 @@ const formatTranscript = (lines: TranscriptLine[]) => lines.map(l => `${l.speake
 
 /**
  * What the summary is told when there is no number to call back on (no caller ID, none given): no item asks the owner
- * to call back, and a missing number is not a next step either (decision of 2026-11-16); the summary says it.
+ * to call back, and a missing number is not a next step either; the summary says it.
  */
 const NO_CALLBACK_NOTE =
   'There is no number to call this caller back on (no caller ID, and the caller gave none): never write an action item to call them back. Write the action items about what the caller wants, and say in the summary that the caller left no number.'

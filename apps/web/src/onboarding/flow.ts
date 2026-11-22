@@ -779,7 +779,7 @@ export const FALLBACK_OWNER_NAME = 'the owner'
 /**
  * What happens when a caller has an urgent matter: put through to the owner's mobile (the step's contact, on), or a
  * message the owner is alerted to right away (the contact off, or none). A first visit starts at "Take a message and
- * alert me" (decision of 2026-11-17): it needs no number, so Continue works at once; null only in a draft built by hand.
+ * alert me": it needs no number, so Continue works at once; null only in a draft built by hand.
  */
 export type UrgentChoice = 'transfer' | 'message'
 

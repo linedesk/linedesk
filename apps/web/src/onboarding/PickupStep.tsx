@@ -1,7 +1,7 @@
 // Step 3, "When should Maya pick up?": when the business can't answer (the default), when it is closed,
 // or every call. The choices speak as the business ("we"). Business hours are asked only for "when we're closed". The choice picks the forwarding
 // code on the phone step; routing stays with the number's mode and the hours (no new call routing). Calls at the same
-// time are not asked here: the app offers more when the included ones run out (Janik, 2026-11-22).
+// time are not asked here: the app offers more when the included ones run out.
 import type { PickupMode, WorkspaceSettingsData } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'

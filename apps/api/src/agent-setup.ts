@@ -3,7 +3,7 @@
 // once per server, and each workspace the admin is owner or admin of, named by every business tool (LIN-237). Stored
 // as a SHA-256 hash (256 random bits, so a fast hash is enough), like a workspace API key.
 //
-// One access level (decision of 2026-11-15): making a key is an instance-admin action, so it needs the session's
+// One access level: making a key is an instance-admin action, so it needs the session's
 // passkey check (admin-second-factor.ts); the key then may do everything the setup needs, email and sign-in included,
 // for SETUP_KEY_HOURS (4). There is no second "Allow" step any more (#694's agentSetup.confirmPasskey, withdrawn with
 // it). The key row records whether the session that

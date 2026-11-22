@@ -83,7 +83,7 @@ export const PARTNER_SETUP_HASH = '#partner/setup'
 const partnerByHand = storedFlag('linedesk.partnerSetup.byHand.')
 
 /**
- * White-label Cloud's one Activate screen (PartnerSetup.tsx, its last step; Janik, 2026-11-18): the agent page's
+ * White-label Cloud's one Activate screen (PartnerSetup.tsx, its last step): the agent page's
  * Activate row, the partner area's Activate line and the by-hand steps all open it. Back returns to where it was
  * opened from, kept for this tab (`openPartnerActivate`); without one, to the by-hand Clients step.
  */

@@ -2,7 +2,7 @@
 // https://developers.google.com/gmail/api/reference/rest
 // The app is not the sign-in and calendar app: gmail.readonly is a restricted scope (Google verification and a yearly
 // security assessment for a public app), so it lives in a Google Cloud project of its own (Server admin › Providers ›
-// Gmail mailboxes) and the sign-in and calendar consent screen never asks for it (decision 2026-11-19, LIN-637).
+// Gmail mailboxes) and the sign-in and calendar consent screen never asks for it (LIN-637).
 import {
   type AccessTokenSource,
   addressOf,

@@ -234,8 +234,8 @@ async function cardOf(bill: Bill, now: number): Promise<TrialMinutesPrompt['card
 /**
  * The numbers of a bill's workspaces bought on Linedesk's carrier account (the ones Linedesk can port out), of the
  * workspaces `userId` is a member of now. A bill owner who was removed from a workspace on their bill gets no PIN of its
- * numbers: whoever runs that workspace now must not lose a number to someone outside it (decision of 2026-11-18, Janik;
- * security review of #1235). Those numbers are left out, not listed without a PIN: nothing to act on there.
+ * numbers: whoever runs that workspace now must not lose a number to someone outside it
+ * (security review of #1235). Those numbers are left out, not listed without a PIN: nothing to act on there.
  */
 async function portableNumbers(tx: Reader, billId: string, userId: string) {
   return tx
@@ -335,7 +335,7 @@ export async function workspacesOnBill(tx: Tx, billId: string) {
 /**
  * Makes `userId` the bill's owner: a member of one of its workspaces, with a confirmed address and an account that is
  * not disabled. Under the bill's lock order (its balance row first). The assistants keep their call quality: any
- * workspace owner or admin picks it, whoever pays (decision of 2026-11-18, LIN-589).
+ * workspace owner or admin picks it, whoever pays (LIN-589).
  */
 async function transferBill(tx: Tx, billId: string, userId: string, now: string): Promise<BillingOwnerData> {
   await lockBalance(tx, billId)

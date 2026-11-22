@@ -1,4 +1,4 @@
-// Call quality (decision of 2026-11-17): the install's settings for Standard, Premium and Ultra (Server admin ›
+// Call quality: the install's settings for Standard, Premium and Ultra (Server admin ›
 // Providers › Call quality), kept in instance_settings `call_quality`: whether Premium and Ultra can be picked, the
 // level new assistants start on, and per level the models an assistant without its own pick uses. A missing row or
 // entry reads as CALL_QUALITY_INSTALL_DEFAULT with the default models (CALL_QUALITY_DEFAULTS); Ultra's realtime model
@@ -166,7 +166,7 @@ export async function moveToStandard(tx: Tx, workspaceId: string | null, levels:
   return changed
 }
 
-/** How long after a level was turned off its Undo moves the assistants back (decision of 2026-11-18, review L-2). */
+/** How long after a level was turned off its Undo moves the assistants back (review L-2). */
 export const UNDO_TURN_OFF_MS = 24 * 60 * 60 * 1000
 /** instance_settings key of the last turn-off of `level`: when, and the assistants it moved to Standard. */
 const turnOffKey = (level: 'premium' | 'ultra') => `${CALL_QUALITY_KEY}.turned_off.${level}`

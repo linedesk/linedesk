@@ -17,11 +17,28 @@ Voice previews
   that apply to us, which the README in that folder carries over (in
   particular: no use to develop or train AI or voice models).
 
+LiveKit Agents
+  Parts of the voice agent are adapted from LiveKit Agents
+  (https://github.com/livekit/agents and https://github.com/livekit/agents-js),
+  Copyright LiveKit, Inc., licensed under the Apache License 2.0 (a copy is in
+  licenses/Apache-2.0.txt):
+  - apps/agent/src/collect/collectors.ts and apps/agent/src/collect/collect-task.ts
+    are ported from LiveKit's Python ready-made tasks (GetPhoneNumberTask,
+    GetNameTask, GetEmailTask, GetAddressTask); their prompts and checks are
+    close to LiveKit's.
+  - patches/@livekit__agents@*.patch changes the LiveKit Agents package itself.
+  Linedesk changed these parts. The changes are under the MIT license.
+
 LiveKit model weights
-  The voice agent uses LiveKit Agents. LiveKit's local inference models (for
-  example its end-of-turn model) are licensed under LiveKit's own model
-  license, which allows their use only together with LiveKit Agents. They are
-  not part of this repository; LiveKit Agents downloads them when they are used.
+  The voice agent uses LiveKit Agents, which depends on the
+  @livekit/local-inference package (version 0.3.1 at the time of writing).
+  The native binary of that package contains model weights, among them
+  LiveKit's end-of-turn model. So the weights are not in this repository's
+  source, but they come with that npm package after `pnpm install` and are in
+  the agent image. LiveKit's models are under LiveKit's own model license
+  (MODEL_LICENSE in that package), which allows their use only together with
+  LiveKit Agents. Linedesk turns local inference off by default
+  (apps/agent/src/env.ts), but the package is still installed.
 
 Holiday data
   The API uses the date-holidays package by commenthol and contributors

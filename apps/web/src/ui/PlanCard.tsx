@@ -1,4 +1,4 @@
-// The one plan card (Janik, 2026-11-18: "focus on the value, but the conditions should be clear", "as harmonized as
+// The one plan card ("focus on the value, but the conditions should be clear", "as harmonized as
 // possible"; then "The 14 days free should be big and the money small"): wherever a plan's price is shown before or
 // outside a charge, the same card with the same wording and spacing: the cloud activation step and the agent page's
 // "Start your free trial" dialog (onboarding/ActivateStep.tsx), the partner's Activate step (partner/PartnerSetup.tsx) and

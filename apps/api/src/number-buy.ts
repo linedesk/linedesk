@@ -1,5 +1,6 @@
-// The countries a number can be bought in on this install, and which kind of number (packages/actions/src/number-buy.ts,
-// decision of 2026-11-19). The US, Canada and Puerto Rico always (local numbers by area code); Germany always on the
+// The countries a number can be bought in on this install, and which kind of number
+// (packages/actions/src/number-buy.ts).
+// The US, Canada and Puerto Rico always (local numbers by area code); Germany always on the
 // install's carrier account, ready once an instance admin turned it on (Server admin › Features › German numbers, key
 // `number_buy.de`) with the carrier's requirement group: a number held in the install's own name, so the business hands
 // in no documents. Until then German workspaces read that numbers are being set up (and the operator gets an ALERT);

@@ -199,7 +199,7 @@ async function lockInviter(tx: Tx, workspaceId: string, actorId: string) {
 /** team.leave from the last workspace without deleteAccount: the request must say whether the account goes too. */
 export const LEAVE_SAY_ACCOUNT = said('server.api.team.leaveSayAccount')
 
-/** team.removeMember with deleteAccount from someone who is not the workspace's owner (decision of 2026-11-15; LIN-264). */
+/** team.removeMember with deleteAccount from someone who is not the workspace's owner (LIN-264). */
 export const ONLY_OWNER_DELETES_ACCOUNTS = said('server.api.team.onlyOwnerDeletesAccounts')
 
 /**
@@ -514,7 +514,7 @@ export const teamHandlers: Record<string, Handler> = {
 
   'team.removeMember': async ({ tx, actor, now }, input: { memberId: string; deleteAccount?: boolean }) => {
     const workspaceId = workspaceOf(actor)
-    // The account stays by default; only the owner may delete it with the removal (decision of 2026-11-15; LIN-264), read
+    // The account stays by default; only the owner may delete it with the removal (LIN-264), read
     // from the member row: an owner who handed the workspace over a moment ago is an admin.
     const deleteAccount = input.deleteAccount === true
     if (deleteAccount) {

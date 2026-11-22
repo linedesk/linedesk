@@ -69,6 +69,7 @@
   "feedback.bug.question": "What went wrong?",
   "feedback.bug.title": "Report a bug",
   "feedback.closeZoom": "Close the screenshot",
+  "feedback.destination": "Reports go to the Linedesk team, unless the admin of this server set another address or turned sending off.",
   "feedback.errors.none": "No errors on this page",
   "feedback.failed": "Not sent. {reason}",
   "feedback.feature.placeholder": "What do you want to do, and what is in the way today?",

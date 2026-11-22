@@ -1,5 +1,5 @@
 // An instance admin's authenticator app (TOTP: Google Authenticator, 1Password, Authy …): the fallback to the passkey
-// for Server admin (decisions of 2026-11-15, LIN-275; apps/api/src/authenticator.ts), for an emergency or a computer
+// for Server admin (LIN-275; apps/api/src/authenticator.ts), for an emergency or a computer
 // without the passkey. A code from the app counts like a passkey check: 12 hours in that session. The passkey stays
 // required: only an admin with one adds the app, after confirming with it.
 import { z } from 'zod'

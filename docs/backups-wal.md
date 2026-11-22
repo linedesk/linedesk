@@ -36,7 +36,7 @@ Encrypted backups (`BACKUP_AGE_RECIPIENT`) are not supported yet: the scripts re
 
 ## Tested
 
-A drill on the staging server, with a throwaway Postgres 17 (the stack's image) and an S3 stand-in (`rclone serve s3`). 100 rows went in before the base backup, 100 after it, then a timestamp T1, then 100 more:
+A drill on a test server, with a throwaway Postgres 17 (the stack's image) and an S3 stand-in (`rclone serve s3`). 100 rows went in before the base backup, 100 after it, then a timestamp T1, then 100 more:
 
 - a restore to the latest moment had all 300 rows, and the new timeline's history reached the bucket;
 - after deleting every row, a restore to T1 had exactly 200 (Postgres: "recovery stopping before commit … 12:13:58");

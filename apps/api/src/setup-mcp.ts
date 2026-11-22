@@ -12,7 +12,7 @@
 // billing keys only in the app, billing-settings.ts); provider_setKeys
 // runs the free provider test right after saving and returns it, and answers with "set" and the last 4 of a secret,
 // never the secret. One access level: the key was made in a session that passed the admin's passkey check, so it sets
-// email and sign-in too, with no second Allow step (decision of 2026-11-15). The workspace actions run without instance:admin, so buying numbers keeps the caps of number-purchases.ts.
+// email and sign-in too, with no second Allow step. The workspace actions run without instance:admin, so buying numbers keeps the caps of number-purchases.ts.
 //
 // A workspace owner's key (agent_setup_keys.workspace_id, agent-setup.ts) gets only that workspace's part: setup_status
 // with that one workspace and no server steps, the business tools, forwarding_guide and setup_endAccess. Never
@@ -876,7 +876,7 @@ async function knownBusiness(ws: ManagedWorkspace): Promise<KnownBusiness> {
 }
 
 /**
- * The workspace steps when a partner (owner or partner admin) sets up a CLIENT workspace (decision of 2026-11-18): they speak
+ * The workspace steps when a partner (owner or partner admin) sets up a CLIENT workspace: they speak
  * about the client, not "your …". The client's own owner keeps setupStepNames.
  */
 function clientStepNamesIn(words: Words): Readonly<Record<string, SetupStepName>> {
@@ -1223,7 +1223,7 @@ const noWorkspaceSteps = (): StepBase[] => [
 
 /** One workspace's steps; `actor` acts in it as its owner or admin (setupActorIn). */
 /**
- * Learning from the business's emails (decision of 2026-11-19): right after the business is confirmed the agent offers to
+ * Learning from the business's emails: right after the business is confirmed the agent offers to
  * read the customer requests in the person's own mailbox (a mail connector in their AI app) and saves only the general
  * questions and answers in the About text, the place answered caller questions go too (knowledgeQuestion.answer,
  * answeredQuestionLine). Never an email or anyone's personal data.

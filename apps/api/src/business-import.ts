@@ -169,7 +169,7 @@ Never invent or estimate a price, a service or an area.`
 
 /**
  * The system prompt with the language to write in: the workspace's (the one the assistant speaks with callers), also
- * when the listing or the website is in another one. Rule 11: wording approved by Janik on 2026-11-22.
+ * when the listing or the website is in another one. Rule 11: a maintainer approved this wording.
  */
 // i18n-ignore: text the language model reads, not UI
 export const businessSystem = (language: string) =>

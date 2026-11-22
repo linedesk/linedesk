@@ -72,7 +72,7 @@ const languageCode = z.enum(languageCodes as [Language, ...Language[]])
 
 /**
  * Languages the pickers do not offer for now. Empty since Mandarin and Korean passed their test calls on LIN-268
- * (2026-11-19, room mode, three stages; Janik's decision); they were hidden since LIN-461. To hide one again, add it
+ * (room mode, three stages); they were hidden since LIN-461. To hide one again, add it
  * here. Hidden is only about new choices: an assistant that already has one keeps it, on calls and in its settings
  * (offeredLanguages in the web app, checkAssistantLanguages in the API), and the spoken lines stay.
  */

@@ -1,6 +1,6 @@
 // The assistant and the business's Shopify store during a call (LIN-666, docs/crm-sync.md "Shopify"): the caller's
 // customer and last orders at call start, order and product search, and the changes the business allows (a return,
-// a new shipping address, a cancellation). Reading needs no check (Tim, 2026-11-20: be as helpful as possible); a
+// a new shipping address, a cancellation). Reading needs no check (be as helpful as possible); a
 // change runs only after the caller gave what the business picked (Integrations › Shopify, "Before a change") and it
 // matched the order. The comparison is here, never left to the model. Shopify's HTTP is in @linedesk/connectors.
 import {

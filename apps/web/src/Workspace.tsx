@@ -181,7 +181,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
   // An instance admin who must sign in again still finds the admin area; it asks them to sign in.
   const canOpenAdmin = instanceAdmin
   // New workspace…: a server admin's dialog (the same rule as the screen without a workspace), or a Cloud customer's own
-  // sign-up without the email step, or the one of theirs still waiting for Checkout (decision of 2026-11-17).
+  // sign-up without the email step, or the one of theirs still waiting for Checkout.
   const newWorkspaceKind = newWorkspaceChoice(me)
   const startNewWorkspace = !newWorkspaceKind
     ? undefined
@@ -201,7 +201,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         }
       : undefined
   // On a bill (Linedesk Cloud) and allowed to manage it: Workspace settings › Billing and the billing line above pages.
-  // billing:manage is the owner's and the admins' (decision of 2026-11-17); the server answers only who manages the
+  // billing:manage is the owner's and the admins'; the server answers only who manages the
   // bill (its owner, or an owner or admin of the only workspace it pays for), anyone else gets the usage view.
   const billingOwner = !!me.workspace?.billingState && me.permissions.includes('billing:manage')
   const billingView = workspaceBillingView(me)

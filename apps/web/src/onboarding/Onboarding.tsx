@@ -468,7 +468,7 @@ function Done({
     },
     word,
   )
-  // One way in (Janik, 2026-11-22): the sample calls are the tour's material, added with it, never a choice. They land in
+  // One way in: the sample calls are the tour's material, added with it, never a choice. They land in
   // the inbox at once (the answer carries the rows); the tour's end removes them again (Workspace.tsx).
   async function openApp() {
     if (!offerSamples || hasCalls) return openCalls()

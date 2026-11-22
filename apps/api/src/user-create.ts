@@ -1,5 +1,5 @@
 // Creates a server admin by hand and emails them how to sign in, for installs with closed sign-up. Only server admins
-// (decision of 2026-11-15, Q9): a business owner comes with their workspace (Server admin › Workspaces › New workspace, or
+// (Q9): a business owner comes with their workspace (Server admin › Workspaces › New workspace, or
 // workspace-create.ts --owner, which runs workspace.create as a server admin); Add user in the admin area puts people
 // into a workspace.
 // pnpm --filter @linedesk/api user:create --email ann@example.com --name "Ann Lee" --admin

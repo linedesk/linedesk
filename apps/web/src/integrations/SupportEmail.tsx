@@ -82,7 +82,7 @@ export function SupportEmail({ provider: own, canEdit, toast }: Props) {
 
 /**
  * This provider's mailboxes, then what the support mail shows: one analysis over every connected mailbox, Gmail and
- * Outlook together, shown on the page of each provider that has a connected mailbox (Tim, 2026-11-21).
+ * Outlook together, shown on the page of each provider that has a connected mailbox.
  */
 export function SupportEmailPage({ provider, canEdit, toast }: Props) {
   const connected = useRows('mail_connections').some(m => m.provider === provider)

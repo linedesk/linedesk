@@ -31,7 +31,7 @@ export type PlanPrice = { lookupKey: string; product: PlanProduct; cents: number
 /**
  * The Stripe products by their names on invoices and receipts, with the install's product name (Server admin ›
  * Branding) in front of the workspace and extra-calls products. The partner plan keeps its own name, "White-label
- * Cloud", on every install, like the balance products (decision of 2026-11-18): the catalog sync renames the product
+ * Cloud", on every install, like the balance products: the catalog sync renames the product
  * back to these names. English, like every text this install sends to Stripe. The balance products have no fixed
  * price: a recharge invoice item and a top-up Checkout line give the amount.
  */
@@ -86,7 +86,7 @@ export const BALANCE_BUFFER_MICROS = 5_000_000
 export const LEVEL_PRICES = {
   standard: { microsPerMinute: 50_000, allowanceFactor: 1 },
   premium: { microsPerMinute: 100_000, allowanceFactor: 2 },
-  // Speech-to-speech models (decision of 2026-11-16). The price may change after the realtime cost research.
+  // Speech-to-speech models. The price may change after the realtime cost research.
   ultra: { microsPerMinute: 200_000, allowanceFactor: null },
 } as const satisfies Record<string, LevelPrice>
 export type LevelPrice = { microsPerMinute: number; allowanceFactor: number | null }
@@ -148,7 +148,7 @@ export type BillingRules = {
   /**
    * Numbers in regulated countries (Germany, the UK, Ireland) cost the workspace nothing a month: they are left out of
    * the extra numbers (no monthly fee), and the operator pays the carrier. Off by default: a German number is the number a workspace includes like a US one, more numbers are extra
-   * numbers (`extraNumberCents`; decision of 2026-11-18, no beta). An install that wants to give them away turns it on.
+   * numbers (`extraNumberCents`, no beta). An install that wants to give them away turns it on.
    */
   regulatedNumberFeeWaived: boolean
 }
@@ -217,8 +217,8 @@ export type SignupRules = {
 /**
  * What the activation step showed next to its button and the owner agreed to (`terms_acceptances.disclosure`): the
  * plan's price before tax and its interval, the trial's length, the first charge's date (null: charged today, no
- * trial) and the days before it that a reminder goes out. No auto-recharge: activation never turns it on (Janik,
- * 2026-11-17); the owner turns it on later with "Keep calls answered" or in Settings › Billing.
+ * trial) and the days before it that a reminder goes out. No auto-recharge: activation never turns it on;
+ * the owner turns it on later with "Keep calls answered" or in Settings › Billing.
  */
 export type ActivationDisclosure = {
   planCents: number
@@ -270,7 +270,7 @@ export type TrialRechargeDisclosure = {
 
 /**
  * What Settings › Billing showed next to the switch when the owner turned auto-recharge on (`terms_acceptances.
- * disclosure`, source `auto_recharge`; Janik, 2026-11-18): the same terms as "Keep calls answered" without its purchase
+ * disclosure`, source `auto_recharge`): the same terms as "Keep calls answered" without its purchase
  * now. `text`: the line itself, in the owner's language (the `key` names it); the amount charged each time, the balance
  * it is charged below, the monthly cap of automatic recharges and whether tax is added where it applies.
  */
@@ -342,7 +342,7 @@ export type ActivationFacts = ActivationDisclosure & {
 export const INCLUDED_NUMBERS_PER_WORKSPACE = 1
 
 /**
- * What the shared plan card shows besides the plan's own price (decision of 2026-11-18; web ui/PlanCard.tsx), the same facts
+ * What the shared plan card shows besides the plan's own price (web ui/PlanCard.tsx), the same facts
  * on the activation step, the partner's Activate step and Settings › Billing: per workspace the included phone numbers,
  * minutes a period and calls at the same time, the Standard price a minute after the minutes, Premium and Ultra a
  * minute (null while the server admin has the level off), all in micros, and an extra phone number a month in cents (0
@@ -373,7 +373,7 @@ export const SIGNUP_DEFAULTS: SignupRules = {
   signupsPerIpHour: 3,
   signupsPerIpDay: 10,
   codesPerInstallHour: 200,
-  // Two weeks to set up and start the trial (Janik, 2026-11-17: the setup comes before the card, so it needs time).
+  // Two weeks to set up and start the trial (the setup comes before the card, so it needs time).
   pendingDays: 14,
   turnstile: true,
   blockedDomains: [],

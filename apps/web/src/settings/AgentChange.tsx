@@ -1,6 +1,6 @@
 // The two ways to finish setting up a workspace from Workspace settings and Assistant settings, on every section
 // (agentChange.ts): with an AI agent or step by step. Until go-live a strip under the context line offers both
-// (AgentSetupStrip, SettingsLayout's `banner`); once a real caller reached the assistant it is gone (Tim, 2026-11-21). The agents' marks as on linedesk.ai's hero. The pages they open: ChangeWithAgent.tsx and the setup flow, step by step (onboarding/StepByStep.tsx).
+// (AgentSetupStrip, SettingsLayout's `banner`); once a real caller reached the assistant it is gone. The agents' marks as on linedesk.ai's hero. The pages they open: ChangeWithAgent.tsx and the setup flow, step by step (onboarding/StepByStep.tsx).
 // Server admin › Providers (admin/Providers.tsx, AgentFirst) uses the same AiButton, in the same order.
 import { useT } from '@linedesk/i18n/react'
 import { CLAUDE, CLAUDE_ORANGE, CURSOR, GEMINI, GEMINI_PURPLE, OPENAI } from '../onboarding/AgentPicker.tsx'

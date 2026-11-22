@@ -116,7 +116,7 @@ const line = (label: string, value?: string) => (value?.trim() ? `${label}: ${va
  * Shown once for an assistant that has no instructions yet, so nothing it knew is lost.
  */
 export function foldProfile(p: BusinessProfile): string {
-  // i18n-ignore: the assistant's About text, which it reads (CLAUDE.md rule 11: wording needs Tim's or Janik's OK)
+  // i18n-ignore: the assistant's About text, which it reads (CLAUDE.md rule 11: wording needs a maintainer's OK)
   return [
     line('About', p.description),
     line('Services', p.services?.filter(s => s.trim()).join(', ')),

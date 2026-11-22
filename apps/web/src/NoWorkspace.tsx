@@ -55,8 +55,8 @@ export const mayCreateWorkspace = (me: Me | null) => !!me && isInstanceAdmin(me)
 
 /**
  * What "New workspace…" in the workspace menu does for this person: a server admin's New workspace dialog (`admin`); a
- * Cloud customer's own sign-up without the email step (`signup`, a new bill of its own, the trial once per account,
- * decision of 2026-11-17), or the sign-up still waiting for Checkout (`finish`: one at a time); null: not offered (also
+ * Cloud customer's own sign-up without the email step (`signup`, a new bill of its own, the trial once per account),
+ * or the sign-up still waiting for Checkout (`finish`: one at a time); null: not offered (also
  * on a partner team, in a partner's client workspace or while signed in as someone else). The server decides who is a
  * Cloud customer (`me.newWorkspace`) and checks it all again.
  */

@@ -141,7 +141,7 @@ export const mailGetAnalysis = defineAction({
 
 // Owner review (LIN-643, step 3 of LIN-615): the owner accepts, edits or drops each topic of a finished analysis. An
 // accepted topic becomes one line in an assistant's About the business: the question and support's answer, as an
-// answered caller question is written (answeredQuestionLine). No facts to ask for (removed, Tim 2026-11-22, LIN-722).
+// answered caller question is written (answeredQuestionLine). No facts to ask for (removed, LIN-722).
 
 /** The line an accepted topic adds to About the business (text the assistant reads). */
 export function mailTopicLine(question: string, answer: string): string {

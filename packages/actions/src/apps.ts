@@ -177,10 +177,10 @@ const OFF_BY_DEFAULT: readonly AppSettingId[] = [
   'verify_order_number',
   'verify_caller_number',
 ]
-/** Per app: a shop owner decides themselves who becomes a Shopify customer (Tim, 2026-11-20). */
+/** Per app: a shop owner decides themselves who becomes a Shopify customer. */
 /**
  * Whether a switch is on for a connection: its own choice, else its default: for Shopify the recommended setup
- * (SHOPIFY_RECOMMENDED, Tim 2026-11-21), for the other apps on, except OFF_BY_DEFAULT.
+ * (SHOPIFY_RECOMMENDED), for the other apps on, except OFF_BY_DEFAULT.
  */
 export const appSettingOn = (
   stored: Readonly<Record<string, boolean>> | null | undefined,

@@ -203,8 +203,8 @@ function Choose({
   }
   function primary() {
     if (sending || nothingToConnect) return
-    // Buying needs no second question here: the note under the choice already says what the number costs (Janik,
-    // 2026-11-22). Settings › Phone numbers keeps its own question.
+    // Buying needs no second question here: the note under the choice already says what the number costs.
+    // Settings › Phone numbers keeps its own question.
     send(buying)
   }
   function pick(next: PhoneOption) {

@@ -1,4 +1,4 @@
-// No open sign-up (decision of 2026-11-15): nobody creates an account on their own. Accounts come only from the first-run
+// No open sign-up: nobody creates an account on their own. Accounts come only from the first-run
 // setup (setup.ts, or INSTANCE_ADMIN_EMAILS on an empty install), a workspace invitation (the account is made and
 // joins the workspace in one step: joinInvitedWorkspaces), or a server admin (user.invite, workspace.create,
 // user:create). Every way Better Auth creates a user (password sign-up, first email-code sign-in, first SSO sign-in)

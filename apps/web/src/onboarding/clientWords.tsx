@@ -1,4 +1,4 @@
-// A partner (owner or partner admin) setting up a CLIENT workspace (Janik, 2026-11-18): the onboarding's step texts
+// A partner (owner or partner admin) setting up a CLIENT workspace: the onboarding's step texts
 // speak about the client ("Client's business", "Client's assistant"), not "your …". The client's own owner still reads
 // "Your …". Who is who: /v1/me's workspace.viaPartner (#1273).
 import { type MessageKey, msg } from '@linedesk/i18n'

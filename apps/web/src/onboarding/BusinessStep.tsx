@@ -239,7 +239,7 @@ function FindBusiness({
       onEnter={phase.kind === 'find' ? () => void search() : phase.kind === 'manual' ? manualContinue : undefined}
       // Naming the business by hand: Continue (or Read my website) is the footer's primary, as on every other step.
       // Searching with a profile saved before: Continue goes on to it, so the step is one chain (search, then the
-      // review) and Back always leaves the step (Janik, 2026-11-22).
+      // review) and Back always leaves the step.
       primary={
         phase.kind === 'manual'
           ? {

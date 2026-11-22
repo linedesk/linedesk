@@ -12,7 +12,7 @@ import { english, type Words } from './words.ts'
 export const SETUP_KEY_PREFIX = 'lds_'
 /**
  * How long a setup key works: long enough for a setup session with carrier and model accounts, short if it leaks. One
- * access level for all of it, email and sign-in included (decision of 2026-11-15; was 24 hours with a 12-hour passkey grant).
+ * access level for all of it, email and sign-in included (was 24 hours with a 12-hour passkey grant).
  */
 export const SETUP_KEY_HOURS = 4
 
@@ -178,7 +178,7 @@ const NAMED_STEPS = [
   ['answering', true],
   ['telephony', true],
   ['call-audio', true],
-  // One row for the person's business (decision of 2026-11-15): its name and time zone together with what the assistant
+  // One row for the person's business: its name and time zone together with what the assistant
   // knows about it, never two rows for what is one thing to them.
   ['business', true],
   ['assistant', true],
@@ -463,7 +463,7 @@ export function startPlan(
       // Claude cannot add a connector by itself. Its install link opens Add custom connector with the name and this
       // address filled in (claudeConnectorLink). The address carries the setup key: it reaches Claude either way (the
       // person would paste it there), the link adds only their own browser history, and the key lasts SETUP_KEY_HOURS
-      // with the setup scope only (Janik, 2026-11-19). The address stays to copy in case the link did not fill it in.
+      // with the setup scope only. The address stays to copy in case the link did not fill it in.
       // The chat link works only once the connector is added, so it stays the last step (no `open`).
       return {
         open: null,

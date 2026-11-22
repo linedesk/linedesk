@@ -109,7 +109,7 @@ async function upcomingBookings(
 /**
  * `canChangeBookings`: from the call's booking context; bookings are listed only when the caller may change them, and
  * only those booked under the contact's name. Whether the assistant gets the history at all is its owner's switch
- * ("Know the caller's previous calls", call.start); there is no name check (decision of 2026-11-15).
+ * ("Know the caller's previous calls", call.start); there is no name check.
  */
 export async function callerHistory(
   tx: Tx,

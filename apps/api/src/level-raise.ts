@@ -1,4 +1,4 @@
-// Who may change an assistant's call quality (decision of 2026-11-18, replacing "only the person who pays"):
+// Who may change an assistant's call quality (replacing "only the person who pays"):
 // - Raising it to Premium or Ultra where levels are billed: a workspace owner or admin, signed in to the app as
 //   themselves (refuseBillingActor: never an API key, a personal key or a setup link). An instance admin's
 //   impersonation of such an owner or admin raises only with edits on (LIN-708: it then works as the user). Who pays

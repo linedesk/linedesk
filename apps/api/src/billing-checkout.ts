@@ -100,7 +100,7 @@ export const TOPUP_LIMITS = { minCents: 500, maxCents: 50_000 } as const
 
 /**
  * What Checkout shows above its button, as Stripe shows it: in the language of the owner who starts it, with the
- * install's product name, trial length and prices (Server admin › Branding and › Billing). Short (decision of 2026-11-18):
+ * install's product name, trial length and prices (Server admin › Branding and › Billing). Short:
  * the trial, the price a month after it (billed yearly or monthly, plus tax where it applies) and the reminder emails,
  * "Your 14-day free trial starts today. Cancel before it ends and you pay nothing. Then $9 a month, billed yearly, plus
  * tax where it applies. We email you 7 days and 1 day before the first charge." Auto-recharge is not mentioned:
@@ -192,7 +192,7 @@ type TrialRefusal = (typeof TRIAL_REFUSALS)[number]
 // ---- One trial per account -----------------------------------------------------------------------------------
 
 /**
- * Whether the account had its free trial already (decision of 2026-11-17): it owns another
+ * Whether the account had its free trial already: it owns another
  * Cloud bill that started a trial or a plan (a confirmed Checkout, a trial end, or a running status). Such an account's
  * next Cloud sign-up gets no trial (`account_used`); the card rule (`card_used`, `prepaid`) applies on top.
  */
@@ -224,7 +224,7 @@ export async function trialRefusalOf(tx: Tx, bill: Bill): Promise<Bill['trial_re
 
 /**
  * Whether a bill waiting for Checkout starts with the free trial: a business's (Cloud) bill unless it was refused one.
- * A partner bill never does: White-label Cloud has no free trial and is paid from its Checkout (decision of 2026-11-18).
+ * A partner bill never does: White-label Cloud has no free trial and is paid from its Checkout.
  */
 export async function trialOffered(tx: Tx, bill: Bill): Promise<boolean> {
   return bill.kind !== 'partner' && !(await trialRefusalOf(tx, bill))
@@ -385,7 +385,7 @@ type StartInput = {
 
 /**
  * The terms in effect, which the bill's owner accepted once, at sign-up (or since, in the app's "We updated our terms"
- * dialog, LIN-420): Checkout and the activation step ask for none (decision of 2026-11-18). A
+ * dialog, LIN-420): Checkout and the activation step ask for none. A
  * start is refused with `terms_changed` while the owner has no acceptance of the version in effect for this bill (the
  * terms changed since sign-up): exactly when `/v1/me` `termsUpdate` asks them (terms-update.ts), so nobody starts
  * paying under terms they never accepted. A business's start records them with what the activation step showed; a
@@ -791,7 +791,7 @@ export async function confirmSession(
   const fingerprint = session.card?.fingerprint
   if (!fingerprint) return refuse(msg('server.api.checkout.noCard'))
 
-  // White-label Cloud has no free trial (decision of 2026-11-18): a partner bill never takes a trial subscription, also one
+  // White-label Cloud has no free trial: a partner bill never takes a trial subscription, also one
   // from a Checkout an older release opened, or one made by hand. It ends at once, nothing charged; the owner's next
   // Checkout is the paid plan (trialOffered).
   if (sub.status === 'trialing' && bill.kind === 'partner') return refuse(msg('server.api.checkout.partnerNoTrial'))

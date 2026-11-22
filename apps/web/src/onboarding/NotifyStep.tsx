@@ -1,6 +1,6 @@
 // Step 4, "Urgent calls": what happens when a caller has an urgent matter: put through to the owner's mobile (a transfer
 // contact of the assistant, assistant.update) or a message with an alert right away. Where call summaries go is not asked
-// here (Janik, 2026-11-22): the defaults hold (email on), the rest is in User settings › Notifications. A first visit starts at the
+// here: the defaults hold (email on), the rest is in User settings › Notifications. A first visit starts at the
 // message (it needs no number), and only "put through" asks for a number. No texts yet. Can be done later; it shows what exists (the
 // contact it saved before, the member's notification settings). Continue never waits for the server: the saves are
 // queued, and a refusal comes back as the onboarding's save error for this step (Onboarding.tsx).

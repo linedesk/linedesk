@@ -5,7 +5,7 @@ import type { AuthMethods, LegalLinks, SsoMethod } from './auth-types.ts'
 type Env = Record<string, string | undefined>
 
 /**
- * There is no open sign-up (decision of 2026-11-15): accounts exist only through the first-run setup, a workspace
+ * There is no open sign-up: accounts exist only through the first-run setup, a workspace
  * invitation, or a server admin (signup-gate.ts). AUTH_SIGNUP_ENABLED is gone; a server that still sets it hears so at
  * start, and nothing changes. Open sign-up for Linedesk Cloud comes with billing.
  */

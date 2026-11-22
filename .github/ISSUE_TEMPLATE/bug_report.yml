@@ -40,7 +40,7 @@ body:
     id: version
     attributes:
       label: Version or commit
-      placeholder: v0.3.0 or a commit hash
+      placeholder: v0.1.5 (the release or image tag you run) or a commit hash
   - type: textarea
     id: env
     attributes:

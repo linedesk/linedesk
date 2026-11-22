@@ -475,7 +475,7 @@ app.get('/v1/signup/config', async c => {
     ? { monthlyCents: rules.workspaceMonthlyCents, yearlyCents: rules.workspaceYearlyCents, trialDays: rules.trialDays }
     : null
   // The partner plan (`?plan=partner`, docs/white-label.md): its base fee, plus a workspace's price per client. No free
-  // trial: it is paid from its Checkout (Janik, 2026-11-18).
+  // trial: it is paid from its Checkout.
   const partnerPlan = rules ? { monthlyCents: rules.partnerMonthlyCents, yearlyCents: rules.partnerYearlyCents } : null
   // Signed in already (a new workspace from the app): whether this account still has its free trial (one per account,
   // account.signUp decides the same), so the page never promises one it won't get. Anyone else: the trial.
@@ -797,7 +797,7 @@ app.get('/v1/me', async c => {
     // A Cloud customer may add a workspace of their own from the workspace menu (signup-handlers.ts).
     workspace ? db.transaction(tx => newWorkspaceOffer(tx, actor, workspace)) : null,
     // Whether this install bills its workspaces (Linedesk Cloud): a workspace on a bill says so already; one without
-    // a bill shows its owners and admins Settings › Billing with "not on a bill" (decision of 2026-11-17).
+    // a bill shows its owners and admins Settings › Billing with "not on a bill".
     workspace && !workspace.billingState
       ? billingState(db).then(
           b => b.inEffect === 'stripe',

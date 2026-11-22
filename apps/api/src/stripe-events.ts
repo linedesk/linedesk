@@ -437,7 +437,7 @@ async function linkSubscription(
   if (!isLinedeskPlan(subscription)) return null
   // A bill whose trial was refused (card used before, prepaid) never links a trial subscription: only the owner's next
   // Checkout, the plan without a trial, may be linked (security review of #961, G4). A partner bill never links one
-  // either: White-label Cloud has no free trial (Janik, 2026-11-18).
+  // either: White-label Cloud has no free trial.
   if ((bill.trial_refused || bill.kind === 'partner') && subscription.status === 'trialing') return null
   const [linked] = await tx
     .update(billing_accounts)
@@ -486,7 +486,7 @@ async function planPaid(tx: Tx, bill: Bill, subscription: BillingSubscription | 
  * took over and the first month opens there at once, so calls never land in a trial that is over and the bill no
  * longer says "Trial ends" on a date still to come. The bill's `trial_ends_at` becomes the real end.
  *
- * Nothing else is charged when the trial ends: the first charge is the plan only (Janik, 2026-11-17). Auto-recharge
+ * Nothing else is charged when the trial ends: the first charge is the plan only. Auto-recharge
  * runs only once the owner turned it on ("Keep calls answered", Settings › Billing).
  */
 async function trialConverted(tx: Tx, bill: Bill, subscription: BillingSubscription, now: string) {

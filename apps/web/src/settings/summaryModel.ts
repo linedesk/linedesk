@@ -86,7 +86,7 @@ export function hoursSummary({ name, on, days, upcoming, closure, today, outside
   const next = on && groups.length ? nextClosedDay(upcoming, today) : null
   if (next) sentences.push(closedDaySentence(next, today))
   if (vacation && !sentences.includes(vacation)) sentences.push(vacation)
-  // No business hours is a choice, not a problem: the assistant answers every call the same way (Janik, 2026-11-18).
+  // No business hours is a choice, not a problem: the assistant answers every call the same way.
   return { sentences, needsYou: null }
 }
 
@@ -144,7 +144,7 @@ const contactName = (c: TransferDraft) => c.name.trim() || i18n().t('settings.tr
 export function transfersSummary({ name, transfers, hoursOn, vacationOn }: TransfersInput): Summary {
   const live = transfers.filter(c => c.enabled && c.number.trim())
   // Switched on without a number: the assistant skips it and takes a message. Said plainly at the end, never as
-  // "Needs you" (Janik, 2026-11-18): calls are still answered; the contact itself says what to do.
+  // "Needs you": calls are still answered; the contact itself says what to do.
   const noNumber = transfers.filter(c => c.enabled && !c.number.trim()).map(contactName)
   const skipped: SummarySentence[] = noNumber.length
     ? [{ k: msg('settings.summary.transfers.noNumber'), values: { name, contacts: noNumber, count: noNumber.length } }]

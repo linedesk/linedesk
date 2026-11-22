@@ -134,7 +134,7 @@ const signUp: Handler = async (ctx, input: SignUpInput) => {
     throw Reject.t('server.api.signup.termsChanged', undefined, TERMS_CHANGED)
   if (input.plan === 'partner') return partnerSignUp(ctx, me, input, terms)
   const billId = crypto.randomUUID()
-  // One free trial per account (decision of 2026-11-17): decided now, so the activation step and Checkout sell the
+  // One free trial per account: decided now, so the activation step and Checkout sell the
   // plan from today and nobody learns it at the card. The card rule (card_used, prepaid) still applies on top.
   const trialUsed = await accountTrialUsed(tx, me.id)
   await tx.insert(billing_accounts).values({
@@ -232,7 +232,7 @@ export type NewWorkspaceOffer = {
 }
 
 /**
- * Whether this person may add a workspace of their own from the app (decision of 2026-11-17): a Cloud customer (owns a
+ * Whether this person may add a workspace of their own from the app: a Cloud customer (owns a
  * Cloud bill that pays for a workspace), signed in as themselves, with a confirmed address, while self-serve sign-up
  * is open. Never someone on a partner team (they make clients in the partner area), never in a partner's client
  * workspace. The same `account.signUp` makes it, so every check there still runs.

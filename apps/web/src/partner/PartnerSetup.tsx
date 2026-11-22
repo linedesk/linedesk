@@ -3,8 +3,8 @@
 // 1) Your brand: the name, logo and color the clients see, with a live preview. 2) Clients: none to
 // UNPAID_PARTNER_CLIENTS drafts, each set up with the agent (the default) or by hand in its own workspace; both lead
 // back here. 3) Activate White-label Cloud, the end of the setup: the drafts (each can be removed), the real total and
-// Stripe Checkout. The agent page's Activate row and the partner area's Activate line open this same step (Janik,
-// 2026-11-18: one Activate screen). Approval never stops anything here: it only gates the brand in emails, said
+// Stripe Checkout. The agent page's Activate row and the partner area's Activate line open this same step (one
+// Activate screen). Approval never stops anything here: it only gates the brand in emails, said
 // quietly on the brand step. The top bar and the footer are the setup pages' own (SetupTopBar, SetupFoot).
 import type { MyPartner, PartnerBrandData, PartnerClient, PartnerData } from '@linedesk/actions'
 import { UNPAID_PARTNER_CLIENTS } from '@linedesk/actions'
@@ -186,7 +186,7 @@ export function PartnerSetup({
       bar={
         <SetupTopBar
           step={{ n: index + 1, m: steps.length, name: label }}
-          // Activate is the end of the setup: no way off to the agent there, only Back (Janik, 2026-11-18).
+          // Activate is the end of the setup: no way off to the agent there, only Back.
           agentPath={step === 'activate' ? undefined : () => backToPartnerAgent(partner.id)}
           exit={{ kind: 'finish-later', onExit: finishLater, title: t('team.partner.setup.finishLaterTitle') }}
           brand="install"

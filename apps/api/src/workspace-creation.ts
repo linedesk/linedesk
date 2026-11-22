@@ -1,4 +1,4 @@
-// Who creates workspaces (decision of 2026-11-15; docs/architecture.md, "Workspace rights"): only server admins. They create
+// Who creates workspaces (docs/architecture.md, "Workspace rights"): only server admins. They create
 // a workspace for a business and pick its owner (Server admin › Workspaces › New workspace, workspace.create in
 // workspace-creation-handlers.ts), or their own through the app or the setup MCP. Everyone else joins by invitation
 // (there is no open sign-up). Self-serve creation for Linedesk Cloud comes with billing (postponed; no setting until then).
@@ -28,7 +28,7 @@ export const ADMIN_CHECK_FIRST =
   'Confirm it is you first: open Server admin and finish the sign-in check there, then create the workspace.'
 
 /**
- * WORKSPACE_LIMIT is retired (decision of 2026-11-15, Q2): only server admins create workspaces, so there is nobody for it to
+ * WORKSPACE_LIMIT is retired (Q2): only server admins create workspaces, so there is nobody for it to
  * stop until self-serve creation comes with billing. A server that still sets it hears so once at start (server.ts),
  * and nothing changes. The setup link's cap below stays.
  */

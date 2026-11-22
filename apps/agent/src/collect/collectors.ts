@@ -1,3 +1,4 @@
+// Parts adapted from LiveKit Agents (Apache-2.0, Copyright LiveKit, Inc.); changed. See NOTICE.
 // What each collection step asks for, how it checks what the caller said and how it reads it back.
 // Ported from LiveKit's Python ready-made tasks (beta/workflows: GetPhoneNumberTask, GetNameTask,
 // GetEmailTask, GetAddressTask): the same prompts and checks, but the

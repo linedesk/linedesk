@@ -2,7 +2,7 @@
 // partner team; raising or removing it is the partner's owner's. The limit is in dollars on the partner bill's ledger.
 // The owner also switches the client to the partner's own AI keys (Partner › AI keys), shown once a key is connected.
 // Whether the client's own owner and admins may change call quality: off by default (only the team changes it, and the
-// client does not see it); the partner's owner turns it on, anyone on the team turns it off (decision of 2026-11-18).
+// client does not see it); the partner's owner turns it on, anyone on the team turns it off.
 import {
   CLIENT_USAGE_LIMIT_MAX_USD,
   CLIENT_USAGE_LIMIT_MIN_USD,

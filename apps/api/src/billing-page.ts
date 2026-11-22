@@ -785,7 +785,7 @@ async function setExtraCalls(
 // ---- Monthly or yearly in the trial ------------------------------------------------------------------------------
 
 /**
- * Whether the bill can switch between monthly and yearly now (Janik, 2026-11-19): a Linedesk Cloud bill in its free
+ * Whether the bill can switch between monthly and yearly now: a Linedesk Cloud bill in its free
  * trial, with its subscription. Only in the trial (nothing was charged yet, so nothing is prorated); a partner bill
  * has no trial and its own plan (base fee and client seats), so never. Kept apart so a paid plan can join later.
  */
@@ -928,7 +928,7 @@ async function setAutoRecharge(
   { partnerId, ...input }: { on: boolean; thresholdCents: number; amountCents: number; partnerId?: string },
 ): Promise<{ rows: Record<string, never>; data: AutoRechargeData }> {
   const bill = await billToChange(tx, actor, partnerId)
-  // Turned on: the consent to the automatic charges is kept like "Keep calls answered"'s (Janik, 2026-11-18): the terms
+  // Turned on: the consent to the automatic charges is kept like "Keep calls answered"'s: the terms
   // in effect, the session's IP and browser, and the line the switch showed. Turned off, or changed while on: none.
   if (input.on && !bill.auto_recharge) await recordAutoRechargeConsent(tx, actor, bill, input, now)
   await tx

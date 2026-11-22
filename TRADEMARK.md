@@ -6,12 +6,14 @@ This policy does not limit the rights the MIT license gives you to the code: you
 
 You may:
 
-- use the name to refer to the project ("built on Linedesk", "compatible with Linedesk"),
-- run and offer unmodified Linedesk under its name.
+- use the name to describe the software ("built on Linedesk", "compatible with Linedesk"),
+- run Linedesk under its name for yourself or your organization,
+- say that a hosted service you offer to others "runs Linedesk".
 
-Please do not:
+Please do not, without our written permission:
 
-- use the name or logo for a modified version or a competing hosted service in a way that suggests it is the official project,
+- use "Linedesk" in the name of your own product or hosted service, or suggest that your service is official or endorsed by us,
+- use the name or logo for a modified version: a fork uses another name and logo,
 - register domains, companies or products whose names could be confused with Linedesk.
 
 If you are unsure, open an issue and ask.

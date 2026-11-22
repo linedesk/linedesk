@@ -481,7 +481,7 @@ export type TestCallerMetadata = {
   persona?: string
   /**
    * The caller speaks with the three stages' voice only, never OpenAI's speech model with the realtime key (load test
-   * over the phone: no OpenAI realtime anywhere in a load or live test, decision of 2026-11-16).
+   * over the phone: no OpenAI realtime anywhere in a load or live test).
    */
   threeStage?: true
 }

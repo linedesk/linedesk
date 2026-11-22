@@ -1,7 +1,7 @@
 // Which speech and language providers the agent uses, and with which keys.
 // Source: the provider settings an admin stored in Linedesk (GET /v1/agent/provider-config),
-// stage by stage; for a stage that is not set up there, the agent's own environment. A provider holds only its key
-// (decision of 2026-11-18): the models come from the call's level (call.start names them on the assistant), else
+// stage by stage; for a stage that is not set up there, the agent's own environment. A provider holds only its key:
+// the models come from the call's level (call.start names them on the assistant), else
 // the provider's defaults here; the voice from the assistant, else the provider's default voice.
 // A call is answered either by the three stages (AgentConfig) or by a realtime model (RealtimeCallConfig, which also
 // holds the stages when both are set up): `CallConfig` is either; configForAssistant picks the assistant's one.
@@ -446,7 +446,7 @@ export const pipelinesOf = (config: CallConfig): PipelinesSetUp => ({
 
 /**
  * The pipeline an assistant's call answers with, by the call quality the API decided for this call (call.start names
- * it on the assistant, decision of 2026-11-17): Ultra a realtime model, Standard and Premium the three stages. No
+ * it on the assistant): Ultra a realtime model, Standard and Premium the three stages. No
  * assistant (or none named): null, the install's default.
  */
 export const pipelineOfAssistant = (assistant: { call_quality?: CallQuality | null } | null | undefined): VoicePipeline | null =>

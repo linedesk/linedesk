@@ -40,8 +40,8 @@ export const DURING_CALL_MAX_PER_CALL = 5
 /** The after-call webhook goes out this long after the call ends, so the recording is saved by then (RECORDING_WAIT_MS in the agent). */
 export const CALL_END_DELAY_SEC = 20
 /**
- * How long the recording link in the after-call webhook opens the audio without signing in (decision of 2026-11-18,
- * LIN-502: 24 hours, was 7 days). After that, the recording is fetched with a workspace API key.
+ * How long the recording link in the after-call webhook opens the audio without signing in (LIN-502:
+ * 24 hours, was 7 days). After that, the recording is fetched with a workspace API key.
  */
 export const RECORDING_LINK_HOURS = 24
 

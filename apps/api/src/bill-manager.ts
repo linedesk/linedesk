@@ -1,4 +1,4 @@
-// Who manages a bill (decision of 2026-11-17, "an admin should also be able to do changes on
+// Who manages a bill ("an admin should also be able to do changes on
 // billing, so not just the owner"):
 //
 // - the bill's owner, always (also a partner bill's owner, the partner's owner);

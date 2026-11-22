@@ -401,7 +401,7 @@ function Actions({
   )
 }
 
-// --- The review: the topics on the left, the chosen one on the right (layout C, chosen by Tim) ---------------------
+// --- The review: the topics on the left, the chosen one on the right (layout C) ------------------------------------
 
 function Split({ analysis, review, assistant }: LayoutProps) {
   const t = useT()

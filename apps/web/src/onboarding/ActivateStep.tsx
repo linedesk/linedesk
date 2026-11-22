@@ -1,7 +1,7 @@
 // The last step before a number: the business set everything up without a card; here it sees
 // what the plan costs a month (a yearly plan's total in a grey note under it, and at its first charge),
 // when the first charge comes and that reminder emails come before it, and goes to Stripe Checkout for the card. No
-// terms here: they were accepted once, at sign-up (A9, decision of 2026-11-18); starting records the consent to the
+// terms here: they were accepted once, at sign-up (A9); starting records the consent to the
 // trial and its charge with what this step showed. Changed since sign-up, the app's "We updated our terms" dialog asks
 // first. Back from Checkout (CheckoutReturn.tsx) the trial runs and the onboarding goes on to the phone number.
 // The owner's agent setup page shows the same plan in its Start your free trial row (SetupRowActions.tsx).
@@ -158,7 +158,7 @@ export function ActivatePlan({ activation: a, trial: s }: { activation: Activati
   const timeline = activationTimeline(a, now)
   return (
     <>
-      {/* Monthly / Yearly before the card, so a yearly plan nobody noticed can still be monthly (Janik, 2026-11-19). */}
+      {/* Monthly / Yearly before the card, so a yearly plan nobody noticed can still be monthly. */}
       {a.planCentsByInterval && (
         <IntervalSwitch
           value={interval}

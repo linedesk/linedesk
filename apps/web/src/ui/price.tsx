@@ -1,4 +1,4 @@
-// How the app shows a plan's price (Janik, 2026-11-18), the same way as linedesk.ai/pricing: the price a month is the
+// How the app shows a plan's price, the same way as linedesk.ai/pricing: the price a month is the
 // number people read; a yearly plan's total sits under it as a small grey note ("$168 billed yearly", "$108 a year
 // each"); a monthly plan has no note. Whole dollars without ".00". Where a screen is about a charge (Checkout's
 // first charge, the next charge, invoices and receipts, a failed payment, a top-up or recharge), it shows the amount

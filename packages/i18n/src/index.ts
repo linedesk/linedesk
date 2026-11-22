@@ -135,7 +135,7 @@ export interface Formatters {
   currency(value: number, currency: string, options?: Intl.NumberFormatOptions): string
   /**
    * A rate, such as a price a minute: an amount in a currency with at least two decimals and up to four for sub-cent
-   * prices ("$0.05", "$0.10", "$0.0085" in en). Never the cent sign (decision of 2026-11-16, 2026-11-18).
+   * prices ("$0.05", "$0.10", "$0.0085" in en). Never the cent sign.
    */
   rate(value: number, currency: string): string
   /** "A, B and C" in the active language. */
