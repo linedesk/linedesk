@@ -163,7 +163,7 @@ describe('setup keys', () => {
     expect(step('business')).toMatchObject({ label: 'Your business', hint: 'name, time zone, services, area, prices' })
     // Named like the app's own places, with the industry term where it helps (setupStepNames).
     expect(step('notify')).toMatchObject({
-      label: 'Call alerts',
+      label: 'Urgent calls',
       hint: expect.stringMatching(/email after every call/),
     })
     expect(step('telephony')).toMatchObject({ label: 'Phone carrier', hint: 'Telnyx or Twilio' })

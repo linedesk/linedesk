@@ -1200,7 +1200,7 @@ const BUSINESS_STEPS = [
   ['business', 'The business: its name, time zone, and what the assistant knows about it'],
   ['assistant', 'The assistant: name, greeting, voice'],
   ['pickup', 'When the assistant picks up'],
-  ['notify', 'Call alerts: an email after every call, urgent calls to a mobile'],
+  ['notify', 'Urgent calls: put through to a phone number, or a message with an alert right away'],
   ['phone', 'Phone number: the number callers reach the assistant on'],
 ] as const
 
