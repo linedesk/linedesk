@@ -47,7 +47,7 @@ import { AssistantReview } from '../review/AssistantReview.tsx'
 import { openGroupCount, questionsLabel, REVIEW_SECTION } from '../review/reviewModel.ts'
 import { useAssistants, useRows, useRun } from '../store.tsx'
 import { appLink } from '../ui/AppLink.tsx'
-import { RadioCard, Select } from '../ui/controls.tsx'
+import { RadioCard } from '../ui/controls.tsx'
 import { onSaveKey, SaveBar } from '../ui/form.tsx'
 import { Button, Icon, Note } from '../ui/kit.tsx'
 import { Loading, LoadProblem, Skeleton, useLoading, useLoadState } from '../ui/LoadStates.tsx'
@@ -686,12 +686,14 @@ export function Languages({
     >
       <div className="as-languages-main">
         <Field id="as-languages-main" label={t('settings.assistant.languages.main')}>
-          <Select
+          {/* Searchable: the list has every language a voice provider speaks, too long to scroll. */}
+          <SearchSelect
             id="as-languages-main"
             label={t('settings.assistant.languages.main')}
             value={main}
             options={languageOptions}
-            onChange={onMainLanguage}
+            listWidth={280}
+            onChange={code => onMainLanguage(code as Language)}
           />
           {country && (
             <FollowsLine

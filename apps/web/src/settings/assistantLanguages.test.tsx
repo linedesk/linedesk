@@ -158,11 +158,11 @@ test('the main language marks the country default, and says so only once it was 
   expect(following).not.toContain('follows-line')
   expect(following).not.toContain('Changes when the country changes.')
   expect(following).not.toContain('Set by hand')
-  expect(following).toMatch(/<span>Deutsch[^<]*\(country default\)<\/span>/)
+  expect(following).toMatch(/<span class="k-ssel-label">Deutsch[^<]*\(country default\)<\/span>/)
   // Set by hand: one click back to the country's language, for those who can change it.
   const byHand = line(false, () => {})
   expect(byHand).toMatch(/Set by hand.*<button type="button" class="k-link">Use country default \(Deutsch/)
-  expect(byHand).toMatch(/<span>Deutsch[^<]*\(country default\)<\/span>/)
+  expect(byHand).toMatch(/<span class="k-ssel-label">Deutsch[^<]*\(country default\)<\/span>/)
   // A member reads what the country would give instead of a button.
   const readOnly = line(false)
   expect(readOnly).toContain('Country default: Deutsch')
