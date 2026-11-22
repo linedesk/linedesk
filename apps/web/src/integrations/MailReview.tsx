@@ -19,8 +19,8 @@ import {
   counts,
   draftOf,
   isPending,
-  type MailReview as Review,
   previewLine,
+  type MailReview as Review,
   type RunStepId,
   runProgress,
   stateOf,
@@ -451,6 +451,19 @@ function Split({ analysis, review, assistant }: LayoutProps) {
         <div className="mr-all-done">
           <Icon name="check" size={18} />
           <b>{t('settings.integrations.mailReview.allDone')}</b>
+          {assistant && (
+            <span className="mr-all-next">
+              <T
+                k="settings.integrations.mailReview.allDoneNext"
+                values={{
+                  name: assistant.name,
+                  link: appLink(`#assistant/${encodeURIComponent(assistant.id)}/business`, {
+                    title: t('settings.integrations.mailReview.aboutTip', { name: assistant.name }),
+                  }),
+                }}
+              />
+            </span>
+          )}
         </div>
       )}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: J/K and ⌘↵ from the list or any field of the topic */}

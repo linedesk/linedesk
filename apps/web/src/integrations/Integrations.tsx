@@ -10,12 +10,13 @@ import { T, useT } from '@linedesk/i18n/react'
 import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { pollWhileVisible, useQuery } from '../cachedQuery.ts'
+import { AgentForm, StepNumber } from '../onboarding/AgentForm.tsx'
+import { kindLabel } from '../settings/businessKind.ts'
 import { useCalendarProviders } from '../settings/calendar-providers.ts'
-import { externalLink } from '../settings/ZapierGuide.tsx'
 import type { ProviderId } from '../settings/calendarModel.ts'
 import { Section } from '../settings/fields.tsx'
-import { kindLabel } from '../settings/businessKind.ts'
 import { useWorkspaceSettings } from '../settings/settings-api.ts'
+import { externalLink } from '../settings/ZapierGuide.tsx'
 import { setPageKeys } from '../shell/keys.ts'
 import { useRows } from '../store.tsx'
 import { AppLink, appLink } from '../ui/AppLink.tsx'
@@ -24,6 +25,7 @@ import { Input } from '../ui/form.tsx'
 import { copyText } from '../ui/HelpTip.tsx'
 import { Badge, Button, Kbd, Note } from '../ui/kit.tsx'
 import { SkeletonText, useLoadState } from '../ui/LoadStates.tsx'
+import { ConnectedApp } from './ConnectedApp.tsx'
 import {
   byCategory,
   CATALOG,
@@ -31,11 +33,11 @@ import {
   CATEGORY_LABEL,
   type CategoryId,
   claudeCodeCommand,
-  claudeInstallLink,
   claudeCodeKeyCommand,
+  claudeInstallLink,
   codexCommand,
-  cursorInstallLink,
   curlExample,
+  cursorInstallLink,
   type DetailId,
   type Facts,
   geminiCommand,
@@ -46,16 +48,14 @@ import {
   mcpAddress,
   mcpJson,
   nameKey,
-  recommendedFor,
   openApiAddress,
   placeOf,
+  recommendedFor,
   type Status,
   searchIntegrations,
   statusOf,
   vscodeInstallLink,
 } from './catalog.ts'
-import { AgentForm, StepNumber } from '../onboarding/AgentForm.tsx'
-import { ConnectedApp } from './ConnectedApp.tsx'
 import {
   API_KEYS,
   ApiKeys,
@@ -65,9 +65,9 @@ import {
   loadKeys,
   ZapierSubscriptions,
 } from './Developers.tsx'
+import { type DirectConnect, useDirectConnect } from './directConnect.tsx'
 import { IntegrationMark } from './IntegrationMark.tsx'
 import { SupportEmailPage } from './SupportEmail.tsx'
-import { type DirectConnect, useDirectConnect } from './directConnect.tsx'
 import './integrations.css'
 
 const SEARCH_ID = 'integrations-search'
@@ -474,6 +474,16 @@ function Detail({ id, canManageKeys, toast }: { id: DetailId; canManageKeys: boo
       {id === 'api-keys' && <ApiKeys canEdit={canManageKeys} toast={toast} />}
       {id === 'rest-api' && <RestApi toast={toast} />}
       {id === 'mcp' && <Mcp toast={toast} />}
+      <div className="ig-detail-foot">
+        <Button
+          variant="primary"
+          shortcut={['esc']}
+          onClick={() => (window.location.hash = HOME)}
+          title={t('settings.integrations.doneTip')}
+        >
+          {t('settings.integrations.done')}
+        </Button>
+      </div>
     </>
   )
 }

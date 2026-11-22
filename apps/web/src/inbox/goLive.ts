@@ -26,6 +26,10 @@ import type { Presence } from '../shell/presence.ts'
 
 export type GoLiveId = GoLiveStep
 
+/** Integrations › Outlook when the connected mailbox is an Outlook one, else › Gmail (the analysis shows on both). */
+const mailPage = (facts: { mailboxProvider?: 'google' | 'microsoft' | null }) =>
+  facts.mailboxProvider === 'microsoft' ? '#integrations/outlook-mail' : '#integrations/gmail'
+
 export type GoLiveItem = {
   id: GoLiveId
   label: string
@@ -68,6 +72,8 @@ export type GoLiveFacts = {
   jobberConnected: boolean
   /** A support mailbox (Gmail or Outlook) is connected (mail_connections). */
   mailboxConnected: boolean
+  /** The provider of the first connected mailbox: its page holds the support mail analysis (Outlook-only too). */
+  mailboxProvider?: 'google' | 'microsoft' | null
   /** The FAQ from the support mail is reviewed (GoLiveChecklistData.faqReviewed). */
   faqReviewed: boolean
 }
@@ -168,14 +174,14 @@ export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[]
       label: t('inbox.goLive.supportEmail.label'),
       hint: t('inbox.goLive.supportEmail.hint'),
       done: facts.mailboxConnected,
-      href: '#integrations/gmail',
+      href: mailPage(facts),
     },
     {
       id: 'faq',
       label: t('inbox.goLive.faq.label'),
       hint: t('inbox.goLive.faq.hint', { assistant }),
       done: facts.faqReviewed,
-      href: '#integrations/gmail',
+      href: mailPage(facts),
     },
   )
   if (facts.pushOn !== null)

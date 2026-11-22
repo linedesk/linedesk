@@ -206,6 +206,7 @@ function useItems(
       shopifyConnected: apps.some(a => a.provider === 'shopify'),
       jobberConnected: apps.some(a => a.provider === 'jobber'),
       mailboxConnected: mailboxes.length > 0,
+      mailboxProvider: mailboxes[0]?.provider ?? null,
       faqReviewed: Boolean(server?.faqReviewed),
     },
     assistant,

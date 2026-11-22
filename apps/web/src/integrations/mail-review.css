@@ -344,3 +344,9 @@
     grid-template-columns: 1fr;
   }
 }
+.mr-all-done {
+  flex-wrap: wrap;
+}
+.mr-all-next {
+  color: var(--ink-muted);
+}

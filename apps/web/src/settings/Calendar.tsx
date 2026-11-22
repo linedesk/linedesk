@@ -13,8 +13,8 @@ import type { AppointmentType, Assistant, AssistantCalendar, CalendarConnection 
 import { T, useFormat, useT } from '@linedesk/i18n/react'
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { useQuery } from '../cachedQuery.ts'
-import { i18n } from '../i18n/index.tsx'
 import { intlLocale } from '../i18n/format.ts'
+import { i18n } from '../i18n/index.tsx'
 import { refreshOnReturn } from '../refreshOnReturn.ts'
 import { useRows, useRun } from '../store.tsx'
 import { LinkButton } from '../ui/AppLink.tsx'
@@ -22,10 +22,10 @@ import { SignInMark } from '../ui/brand-logos.tsx'
 import { Checkbox, RadioCard, Switch } from '../ui/controls.tsx'
 import { Card, Dialog, Input } from '../ui/form.tsx'
 import { Badge, Button, Icon } from '../ui/kit.tsx'
-import { EditButton, List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { Loading, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
-import { bold, boldList, SummaryCard } from '../ui/SummaryCard.tsx'
+import { EditButton, List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
+import { bold, boldList, SummaryCard } from '../ui/SummaryCard.tsx'
 import { AppointmentTypeDialog } from './AppointmentTypeDialog.tsx'
 import { useCalendarConnectWays } from './calendar-providers.ts'
 import {
@@ -39,8 +39,8 @@ import {
   isSchedulingTool,
   type KeyProviderId,
   PROVIDER_LABEL,
-  pickChanges,
   type ProviderId,
+  pickChanges,
   requiredLabel,
   rulesLabel,
   toolTypeRows,
@@ -770,7 +770,10 @@ function CalendarPicker({
     c => c.assistant_id === assistant.id && c.connection_id === connection.id,
   )
   const [picked, setPicked] = useState<Set<string> | null>(null)
-  const shown = picked ?? new Set(current.map(c => c.external_id))
+  // Nothing picked from this account yet: the main calendar is ticked already (the only one, if there is one), so a
+  // fresh connect needs only Save (LIN-734).
+  const suggested = (options ?? []).filter(c => c.canWrite && (c.primary || options?.length === 1)).map(c => c.id)
+  const shown = picked ?? new Set(current.length ? current.map(c => c.external_id) : suggested)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const toggle = (id: string, on: boolean) =>

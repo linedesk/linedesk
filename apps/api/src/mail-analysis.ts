@@ -10,16 +10,17 @@ import {
   type MailAnalysis,
   type MailAnalysisError,
   type MailAnalysisProgress,
+  type MailConnectFinishData,
   type MailTopic,
   mailTopicLine,
 } from '@linedesk/actions'
 import { assistants, mail_analyses, mail_connections, type Tx } from '@linedesk/db'
 import {
   addressOf,
+  MailError,
   type MailMessage,
   type MailMessageRef,
   type MailProvider,
-  MailError,
   namesOf,
   redactPersonal,
   stripQuoted,
@@ -29,7 +30,7 @@ import { z } from 'zod'
 import { db } from './db.ts'
 import { ChatRequestError, type EvaluationModel, evaluationModel } from './evaluations.ts'
 import { type Handler, Reject } from './handler-context.ts'
-import { type MailServices, mailboxFor } from './mail-connections.ts'
+import { type MailServices, mailboxFor, mailConnectionHandlers } from './mail-connections.ts'
 
 /** Messages listed per mailbox at most (newest first): enough for a year of support mail. */
 export const LIST_MAX = 3000
@@ -486,47 +487,94 @@ function workspaceOf(actor: { workspaceId?: string | null }) {
   return actor.workspaceId
 }
 
-export const mailAnalysisHandlers = (queue: QueueAnalysis): Record<string, Handler> => ({
-  'mail.analyze': async ({ tx, actor, now }, input: { months: number }) => {
-    const workspace_id = workspaceOf(actor)
-    const [latest] = await tx
-      .select()
-      .from(mail_analyses)
-      .where(eq(mail_analyses.workspace_id, workspace_id))
-      .orderBy(desc(mail_analyses.created_at))
-      .limit(1)
-    // One at a time: a queued or running one is the answer. One that stopped without an end (a restart) failed.
-    if (latest && (latest.status === 'queued' || latest.status === 'running')) {
-      if (Date.parse(now) - Date.parse(latest.created_at) < ANALYSIS_STALE_MS)
-        return { rows: {}, data: { analysis: toMailAnalysis(latest) } }
-      await tx
-        .update(mail_analyses)
-        .set({ status: 'failed', error: 'failed', finished_at: now })
-        .where(eq(mail_analyses.id, latest.id))
-    }
-    const [mailbox] = await tx
+/**
+ * Queues an analysis of every connected mailbox of the workspace: one at a time (a queued or running one is the answer,
+ * `started: false`), at most MAIL_ANALYSES_PER_DAY a day, only with a connected mailbox.
+ */
+async function queueAnalysis(
+  tx: Tx,
+  queue: QueueAnalysis,
+  {
+    workspace_id,
+    requested_by,
+    now,
+    months,
+  }: { workspace_id: string; requested_by: string; now: string; months: number },
+): Promise<{ analysis: typeof mail_analyses.$inferSelect; started: boolean }> {
+  const [latest] = await tx
+    .select()
+    .from(mail_analyses)
+    .where(eq(mail_analyses.workspace_id, workspace_id))
+    .orderBy(desc(mail_analyses.created_at))
+    .limit(1)
+  // One at a time: a queued or running one is the answer. One that stopped without an end (a restart) failed.
+  if (latest && (latest.status === 'queued' || latest.status === 'running')) {
+    if (Date.parse(now) - Date.parse(latest.created_at) < ANALYSIS_STALE_MS) return { analysis: latest, started: false }
+    await tx
+      .update(mail_analyses)
+      .set({ status: 'failed', error: 'failed', finished_at: now })
+      .where(eq(mail_analyses.id, latest.id))
+  }
+  const [mailbox] = await tx
+    .select({ id: mail_connections.id })
+    .from(mail_connections)
+    .where(and(eq(mail_connections.workspace_id, workspace_id), eq(mail_connections.status, 'connected')))
+    .limit(1)
+  if (!mailbox) throw Reject.t('server.api.mail.noMailbox', undefined, 'no_mailbox')
+  const [today] = await tx
+    .select({ n: count() })
+    .from(mail_analyses)
+    .where(
+      and(
+        eq(mail_analyses.workspace_id, workspace_id),
+        gte(mail_analyses.created_at, new Date(Date.parse(now) - 86_400_000).toISOString()),
+      ),
+    )
+  if ((today?.n ?? 0) >= MAIL_ANALYSES_PER_DAY)
+    throw Reject.t('server.api.mail.analysisLimit', { count: MAIL_ANALYSES_PER_DAY }, 'limit')
+  const [row] = await tx
+    .insert(mail_analyses)
+    .values({ id: newId(), workspace_id, months, requested_by, created_at: now })
+    .returning()
+  await queue(tx, row!.id)
+  return { analysis: row!, started: true }
+}
+
+/**
+ * A mailbox new to the workspace starts the analysis by itself (LIN-734), so the owner does not wait for a click after
+ * Connect: 12 months, unless one is queued or running already or the day's limit is reached (then the page's button
+ * stays). Reconnecting a mailbox that was connected before starts nothing.
+ */
+const connectThenAnalyze =
+  (queue: QueueAnalysis): Handler =>
+  async (ctx, input) => {
+    const workspace_id = workspaceOf(ctx.actor)
+    const before = await ctx.tx
       .select({ id: mail_connections.id })
       .from(mail_connections)
-      .where(and(eq(mail_connections.workspace_id, workspace_id), eq(mail_connections.status, 'connected')))
-      .limit(1)
-    if (!mailbox) throw Reject.t('server.api.mail.noMailbox', undefined, 'no_mailbox')
-    const [today] = await tx
-      .select({ n: count() })
-      .from(mail_analyses)
-      .where(
-        and(
-          eq(mail_analyses.workspace_id, workspace_id),
-          gte(mail_analyses.created_at, new Date(Date.parse(now) - 86_400_000).toISOString()),
-        ),
-      )
-    if ((today?.n ?? 0) >= MAIL_ANALYSES_PER_DAY)
-      throw Reject.t('server.api.mail.analysisLimit', { count: MAIL_ANALYSES_PER_DAY }, 'limit')
-    const [row] = await tx
-      .insert(mail_analyses)
-      .values({ id: newId(), workspace_id, months: input.months, requested_by: actor.actorId, created_at: now })
-      .returning()
-    await queue(tx, row!.id)
-    return { rows: {}, data: { analysis: toMailAnalysis(row!) } }
+      .where(eq(mail_connections.workspace_id, workspace_id))
+    const result = await mailConnectionHandlers['mail.connectFinish']!(ctx, input)
+    const { connectionId } = result.data as MailConnectFinishData
+    if (before.some(m => m.id === connectionId)) return result
+    try {
+      await queueAnalysis(ctx.tx, queue, { workspace_id, requested_by: ctx.actor.actorId, now: ctx.now, months: 12 })
+    } catch (e) {
+      if (!(e instanceof Reject)) throw e
+    }
+    return result
+  }
+
+export const mailAnalysisHandlers = (queue: QueueAnalysis): Record<string, Handler> => ({
+  'mail.connectFinish': connectThenAnalyze(queue),
+
+  'mail.analyze': async ({ tx, actor, now }, input: { months: number }) => {
+    const { analysis } = await queueAnalysis(tx, queue, {
+      workspace_id: workspaceOf(actor),
+      requested_by: actor.actorId,
+      now,
+      months: input.months,
+    })
+    return { rows: {}, data: { analysis: toMailAnalysis(analysis) } }
   },
 
   // The owner's review of one topic of the latest finished analysis (LIN-643). Accept adds one line to the assistant's

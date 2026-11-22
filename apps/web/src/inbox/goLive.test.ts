@@ -2,8 +2,8 @@ import type { GoLiveChecklistData, GoLiveStepState } from '@linedesk/actions'
 import { describe, expect, test } from 'vitest'
 import {
   calendarReady,
-  firstCallHint,
   canSkipGoLiveStep,
+  firstCallHint,
   forwardedCallArrived,
   forwardingFacts,
   type GoLiveFacts,
@@ -328,6 +328,18 @@ describe('steps for the kind of business (LIN-680)', () => {
     expect(ids({ businessKind: 'plumbing_hvac' })).not.toContain('shopify')
     expect(ids({ businessKind: 'law_office' })).toEqual(expect.arrayContaining(['calendar', 'support_email', 'faq']))
     expect(ids({ businessKind: 'restaurant' })).not.toContain('calendar')
+  })
+
+  test('the support mail steps open the page of the mailbox connected (Outlook only: Outlook), else Gmail', () => {
+    const href = (facts: Partial<GoLiveFacts>) =>
+      goLiveItems({ ...none, businessKind: 'online_store', ...facts }, 'Maya')
+        .filter(i => i.id === 'support_email' || i.id === 'faq')
+        .map(i => i.href)
+    expect(href({})).toEqual(['#integrations/gmail', '#integrations/gmail'])
+    expect(href({ mailboxConnected: true, mailboxProvider: 'microsoft' })).toEqual([
+      '#integrations/outlook-mail',
+      '#integrations/outlook-mail',
+    ])
   })
 
   test('each new step ticks itself from its fact and can be marked not needed', () => {

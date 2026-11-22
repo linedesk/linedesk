@@ -16,9 +16,9 @@ import {
   appSettingOn,
   type ConnectableApp,
   isShopifyRecommended,
-  type ShopVerify,
   SHOP_CHANGE_SETTINGS,
   SHOP_VERIFY_SETTINGS,
+  type ShopVerify,
   shopifyRecommendedSettings,
 } from '@linedesk/actions'
 import type { AppConnection } from '@linedesk/db/types'
@@ -32,8 +32,8 @@ import { callAction, readAction, useWriteAction } from '../settings/settings-api
 import { useRows, useRun } from '../store.tsx'
 import { Checkbox } from '../ui/controls.tsx'
 import { Badge, Button, Icon } from '../ui/kit.tsx'
-import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { Loading, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
+import { List, ListEmpty, ListRow } from '../ui/list.tsx'
 import { appConnectErrorKey, appConnectResult, appPushErrorKey, appSettingsWith, nameKey } from './catalog.ts'
 
 type Props = {
@@ -508,13 +508,6 @@ function AppSettings({
       title={t('settings.integrations.app.settings.title')}
       help={t('settings.integrations.app.settings.help', { name })}
     >
-      {app === 'shopify' && (
-        <div className="ig-setup-done">
-          <Button variant="ghost" onClick={() => setEditing(false)}>
-            {t('settings.integrations.app.shopify.setup.done')}
-          </Button>
-        </div>
-      )}
       {groups ? (
         <div className="ig-swgroups">
           {groups.map(g => (
@@ -540,6 +533,17 @@ function AppSettings({
         </div>
       ) : (
         <div className="st-swlist">{APP_SETTINGS[app].map(row)}</div>
+      )}
+      {app === 'shopify' && (
+        <div className="ig-setup-done">
+          <Button
+            icon="check"
+            onClick={() => setEditing(false)}
+            title={t('settings.integrations.app.shopify.setup.doneTip')}
+          >
+            {t('settings.integrations.app.shopify.setup.done')}
+          </Button>
+        </div>
       )}
     </Section>
   )

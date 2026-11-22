@@ -2,7 +2,7 @@
 // refreshed, disconnect with revocation; who may do it and in which workspace. Handlers run with a fake provider
 // inside a transaction that is rolled back; permissions and the callback go through the API.
 import { actions, rolePermissions } from '@linedesk/actions'
-import { mail_connections, mail_credentials, mail_oauth_states, type Tx } from '@linedesk/db'
+import { mail_analyses, mail_connections, mail_credentials, mail_oauth_states, type Tx } from '@linedesk/db'
 import { MailError, type MailOAuth, type MailProvider, type OAuthTokens } from '@linedesk/mail'
 import { eq } from 'drizzle-orm'
 import { beforeAll, describe, expect, test, vi } from 'vitest'
@@ -278,6 +278,18 @@ describe('connecting a mailbox', () => {
       expect(await connect(tx, services)).toBe(id)
       const [row] = await tx.select().from(mail_connections).where(eq(mail_connections.id, id))
       expect(row).toMatchObject({ status: 'connected', last_error: null })
+    })
+  })
+
+  test('a new mailbox starts the support mail analysis by itself (12 months); a reconnect starts nothing', async () => {
+    const { services } = fakeGmail()
+    await inRollback(async tx => {
+      const analyses = () => tx.select().from(mail_analyses).where(eq(mail_analyses.workspace_id, ws.id))
+      const id = await connect(tx, services)
+      expect(await analyses()).toMatchObject([{ status: 'queued', months: 12 }])
+      await tx.update(mail_analyses).set({ status: 'done' }).where(eq(mail_analyses.workspace_id, ws.id))
+      expect(await connect(tx, services)).toBe(id)
+      expect(await analyses()).toHaveLength(1)
     })
   })
 
