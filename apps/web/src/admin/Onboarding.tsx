@@ -1,7 +1,8 @@
-// Onboarding: how new workspaces get to their first real call, read-only: the funnel, the workspaces at risk: added a while ago and no real call has reached
-// their assistant yet. Each shows the setup milestones it reached and when, so we see where it stopped, and the owner to write to. Read-only: hands-on
-// help comes from partners, not from us. The setup reports AI agents sent us are at the end. The setup emails and the
-// founder's email are set under Settings › Sign-up (LIN-693) and live here, next to the funnel they feed.
+// Onboarding's parts (LIN-747: no section of its own any more). The workspaces at risk, a view of Server admin ›
+// Workspaces: added a while ago and no real call has reached their assistant yet. Each shows the setup milestones it
+// reached and when, so we see where it stopped, and the owner to write to. Read-only: hands-on help comes from
+// partners, not from us. The setup emails and the founder's email are set under Billing › Sign-up. The funnel is on the
+// Overview (Funnel.tsx), the setup reports in the Audit log.
 import type { FounderEmailData, SetupEmailsData } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
@@ -12,9 +13,6 @@ import { Card, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { Loading, Skeleton, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type AtRiskWorkspace, loadAtRisk, runAdmin } from './api.ts'
-import { AgentSetupCounts } from './AgentSetupCounts.tsx'
-import { Funnel } from './Funnel.tsx'
-import { SetupReports } from './SettingsCards.tsx'
 import { day, when } from './parts.tsx'
 
 const SETUP_EMAILS = 'admin.setupEmails'
@@ -225,7 +223,7 @@ function emptyText(t: ReturnType<typeof useT>, oldEnough: number, days: string) 
   return t('admin.onboarding.empty', { count: oldEnough, days: Number(days) })
 }
 
-function AtRisk() {
+export function AtRisk() {
   const t = useT()
   const [days, setDays] = useState<(typeof DAYS)[number]>('1')
   const key = `admin.onboarding.${days}`
@@ -313,16 +311,5 @@ function AtRisk() {
         </div>
       )}
     </Card>
-  )
-}
-
-export function Onboarding() {
-  return (
-    <>
-      <Funnel />
-      <AgentSetupCounts />
-      <AtRisk />
-      <SetupReports />
-    </>
   )
 }

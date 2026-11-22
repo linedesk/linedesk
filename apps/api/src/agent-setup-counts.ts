@@ -1,4 +1,4 @@
-// How agent setup goes (LIN-657, Server admin › Onboarding › Agent setup): which AI agent people pick when they make a
+// How agent setup goes (LIN-657, the agent setup counts (no card since LIN-747)): which AI agent people pick when they make a
 // setup link, and whether that agent ever connects. Only counts per day, kind of link and agent (agent_setup_counts):
 // no person, workspace or key, nothing sent anywhere. A link counts as made when agentSetup.create*Key makes it, and as
 // connected once, on its first setup_status call (agent_setup_keys.connected_at), on the day the link was made.

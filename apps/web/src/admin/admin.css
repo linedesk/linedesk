@@ -2140,16 +2140,7 @@
   color: var(--ink-muted);
 }
 
-/* Onboarding › Agent setup (AgentSetupCounts.tsx): two filters side by side, each agent with its mark, a total row. */
-.adm-card-filters {
-  display: flex;
-  gap: 8px;
-}
-.adm-agent-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
+/* Overview › Funnel: a total row. */
 .adm-funnel-table tfoot th,
 .adm-funnel-table tfoot td {
   font-weight: 600;
@@ -2221,4 +2212,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+}
+
+/* Server admin › Workspaces: the views (All, At risk, Usage by month) at the left, New workspace at the right. */
+.adm-views-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }

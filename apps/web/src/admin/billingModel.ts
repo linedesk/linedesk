@@ -7,6 +7,7 @@ import { SIGNUP_RULE_RANGES } from '@linedesk/db/types'
 import { fmt, intlLocale } from '../i18n/format.ts'
 import { i18n } from '../i18n/index.tsx'
 import { formatUsd } from './model.ts'
+import { stripeEventsHref } from './route.ts'
 
 /** The most one money action moves: $100,000 (the actions' 10,000,000 cents). */
 export const MAX_ACTION_CENTS = 10_000_000
@@ -317,9 +318,8 @@ export function eventFilterOfHash(hash: string): BillingEventFilter {
   return (BILLING_EVENT_FILTERS as readonly string[]).includes(filter ?? '') ? (filter as BillingEventFilter) : 'all'
 }
 
-/** The address of the Stripe events, filtered. */
-export const eventsHref = (filter: BillingEventFilter) =>
-  `#admin/billing/events${filter === 'all' ? '' : `?filter=${filter}`}`
+/** The address of the Stripe events, filtered: in the Audit log (LIN-747). */
+export const eventsHref = (filter: BillingEventFilter) => stripeEventsHref(filter)
 
 /**
  * How long ago (or until) a moment, in the page's language: "now", "5 minutes ago", "yesterday", "3 days ago". The

@@ -51,7 +51,7 @@ test('shown once onboarding is over; forwarding comes from the setup number, the
     businessKind: null,
     faqReviewed: false,
   })
-  // The forwarding_verified milestone alone is only for Server admin › Onboarding; the number's check is what counts.
+  // The forwarding_verified milestone alone is only for Server admin › Workspaces › At risk; the number's check is what counts.
   await forwardingVerified(ws.id)
   expect((await checklist(ws.owner)).forwardingVerified).toBe(false)
   await db.update(phone_numbers).set({ verified_at: new Date().toISOString() }).where(eq(phone_numbers.e164, ws.number))

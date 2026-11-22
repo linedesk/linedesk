@@ -348,8 +348,8 @@ function CallAudio({ group, health }: { group: GroupStatus; health: AdminHealth 
   )
 }
 
-/** How to set up LiveKit and its SIP bridge: under call audio's rows here, and on Server admin › Server. */
-export function CallAudioGuide({ open }: { open: boolean }) {
+/** How to set up LiveKit and its SIP bridge: under call audio's rows. */
+function CallAudioGuide({ open }: { open: boolean }) {
   const t = useT()
   return (
     <details className="adm-guide" open={open}>

@@ -1,5 +1,7 @@
-// Workspaces: a searchable list; a click opens the workspace with its facts and actions.
+// Workspaces: a searchable list; a click opens the workspace with its facts and actions. Two more views of the same
+// workspaces (LIN-747, the Onboarding and Usage sections before): the ones at risk, and usage by month.
 import { useT } from '@linedesk/i18n/react'
+import { type MessageKey, msg } from '@linedesk/i18n'
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { fmt } from '../i18n/format.ts'
 import { Card, FormField, Input } from '../ui/form.tsx'
@@ -12,6 +14,7 @@ import { formatMinutes, formatUsd, parseSpendingCap } from './model.ts'
 import { errorText, type Notify } from './notify.ts'
 import { day, EMPTY, when } from './parts.tsx'
 import { formatNumber } from '../onboarding/flow.ts'
+import { WORKSPACE_VIEWS, type WorkspaceView, workspaceViewOfHash, workspacesHref } from './route.ts'
 import { NewWorkspaceDialog } from '../shell/NewWorkspace.tsx'
 
 type Translate = ReturnType<typeof useT>
@@ -65,6 +68,8 @@ type ListProps = {
   reload: () => Promise<void>
   /** The workspaces the signed-in admin is a member of (a delete then counts them out of the other members). */
   viewerWorkspaces: ReadonlySet<string>
+  /** The views of Workspaces, beside New workspace. */
+  views?: React.ReactNode
 }
 
 /** Server admin › Workspaces › New workspace: the app's one dialog, here with the owner by email offered as well. */
@@ -93,13 +98,57 @@ function NewWorkspaceButton({ notify, reload }: { notify: Notify; reload: () => 
   )
 }
 
-export function WorkspacesList({ workspaces, onOpen, keysRef, notify, reload, viewerWorkspaces }: ListProps) {
+const VIEW_LABELS: Record<WorkspaceView, MessageKey> = {
+  all: msg('admin.workspaces.view.all'),
+  'at-risk': msg('admin.workspaces.view.atRisk'),
+  usage: msg('admin.workspaces.view.usage'),
+}
+
+/** The view the address asks for (`#admin/workspaces?view=`); a pick replaces the address, so reload keeps it. */
+export function useWorkspaceView() {
+  const [view, setView] = useState(() => workspaceViewOfHash(window.location.hash))
+  useEffect(() => {
+    const onHash = () => setView(workspaceViewOfHash(window.location.hash))
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  const choose = (next: WorkspaceView) => {
+    setView(next)
+    window.history.replaceState(window.history.state, '', workspacesHref(next))
+  }
+  return [view, choose] as const
+}
+
+/** The views of Workspaces, as the chips of Billing's bills: All, At risk, Usage by month. */
+export function WorkspaceViews({ view, onPick }: { view: WorkspaceView; onPick: (view: WorkspaceView) => void }) {
+  const t = useT()
+  return (
+    <div className="adm-chips" role="group" aria-label={t('admin.workspaces.view.label')}>
+      {WORKSPACE_VIEWS.map(value => (
+        <button
+          key={value}
+          type="button"
+          className="adm-chip"
+          aria-pressed={view === value}
+          onClick={() => onPick(value)}
+        >
+          {t(VIEW_LABELS[value])}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function WorkspacesList({ workspaces, onOpen, keysRef, notify, reload, viewerWorkspaces, views }: ListProps) {
   const runner = useActionRunner(notify)
   const t = useT()
   const columns = useMemo(() => workspaceColumns(t), [t])
   return (
     <>
-      <NewWorkspaceButton notify={notify} reload={reload} />
+      <div className="adm-views-row">
+        {views}
+        <NewWorkspaceButton notify={notify} reload={reload} />
+      </div>
       <AdminList
         rows={workspaces}
         rowId={w => w.id}

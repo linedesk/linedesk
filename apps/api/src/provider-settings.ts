@@ -282,7 +282,7 @@ const entryOf = (provider: ProviderName, config: ProviderConfig, withSecrets = t
 
 /**
  * The languages calls can be answered in on this install: those a voice provider set up speaks with the server's
- * Standard voice model for it (Server admin › Calls › Call quality; spokenLanguages; none set up: Flux's
+ * Standard voice model for it (Server admin › Features › Call quality; spokenLanguages; none set up: Flux's
  * languages). An assistant on another level or with its own voice model is checked against that (assistantVoiceOf).
  * Never throws.
  */

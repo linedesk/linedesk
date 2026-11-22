@@ -118,7 +118,7 @@ const setLevel = (who: Caller, assistantId: string, call_quality: string, more: 
   act(who, 'assistant.update', { assistantId, call_quality, ...more })
 const start = async (number: string) =>
   (await act(agent(), 'call.start', { from: randomNumber(), to: number })).body.data
-/** Server admin › Calls › Call quality, as a fresh server admin. */
+/** Server admin › Features › Call quality, as a fresh server admin. */
 async function adminSet(input: Record<string, unknown>) {
   const operator = await signUp()
   return asServerAdmin(operator, async () => ({ ...(await act(operator, 'callQuality.set', input)), operator }))
@@ -447,7 +447,7 @@ describe('call quality on Cloud: the level decides the price', () => {
   })
 })
 
-describe('Server admin › Calls › Call quality', () => {
+describe('Server admin › Features › Call quality', () => {
   test('read and saved by a server admin only; Ultra needs a realtime model; the default stays a level that is on', async () => {
     const ws = await createWorkspace('Quality Admin Plumbing')
     expect((await act(ws.owner, 'callQuality.get', {})).status).toBe(403)

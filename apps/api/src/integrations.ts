@@ -408,8 +408,7 @@ export async function sampleEvents(
 
 /** Subscriptions are an API key's: a person signed in uses Integrations › Zapier to remove them. */
 function keyOf(actor: Actor) {
-  if (!actor.apiKeyId || !actor.workspaceId)
-    throw Reject.t('server.api.integration.keyOnly')
+  if (!actor.apiKeyId || !actor.workspaceId) throw Reject.t('server.api.integration.keyOnly')
   return { apiKeyId: actor.apiKeyId, workspaceId: actor.workspaceId }
 }
 
@@ -418,7 +417,7 @@ export async function dropKeySubscriptions(tx: Tx, apiKeyId: string) {
   await tx.delete(integration_subscriptions).where(eq(integration_subscriptions.api_key_id, apiKeyId))
 }
 
-/** The link to the Linedesk app on Zapier this install shows (Server admin › Tools); null when it has none. */
+/** The link to the Linedesk app on Zapier this install shows (Server admin › Features); null when it has none. */
 export async function zapierAppUrl(tx: Tx): Promise<string | null> {
   const [row] = await tx.select().from(instance_settings).where(eq(instance_settings.key, ZAPIER_APP_SETTING))
   return row?.value || null

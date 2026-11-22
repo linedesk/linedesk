@@ -1935,81 +1935,6 @@
       "out": "47c4e3b3e3d0eaf68a3fa9e0323b1df5c4b4afb9764180b0c4cc8547717aeb91",
       "src": "b126a480e559a902fdd95bd8b0ea0aebc4890509f153b0c97f7d1f262d137248"
     },
-    "admin.agentSetupCounts.client": {
-      "by": "ai",
-      "out": "074be6e018ce52eab3ef25372dbbffd09d54766f1654816ded11338ac2e46390",
-      "src": "92c7d7f84c3ecbd938435ccfc4081fd21bd4be849059cec8359c3c732b60447a"
-    },
-    "admin.agentSetupCounts.connected": {
-      "by": "ai",
-      "out": "0338189c985eee9c190291f07c97fdd16bff676256302cf45690b80bb6fcbb9a",
-      "src": "22965568d22a14ee17af055d2870b50afcfe9fd94a83eec3196e266932297bb2"
-    },
-    "admin.agentSetupCounts.description": {
-      "by": "ai",
-      "out": "9f5d1e44df19eace86e98a8d955e226cec70582b9da7979d1e43da40f0931c6e",
-      "src": "352409145cce373bcf07933e117e04c52bb2017ae045bd95e558ccbc11d2871e"
-    },
-    "admin.agentSetupCounts.empty": {
-      "by": "ai",
-      "out": "436dbd7910f80b45f7617ded93ab11b9bbd7e526b36f3533fa4f88d79b7b7998",
-      "src": "a2133063663127206ed7ef340b0f059048d07c56f7a174f7ad74c3e953c09c0b"
-    },
-    "admin.agentSetupCounts.help": {
-      "by": "ai",
-      "out": "b0853b62dbadb5736c30cc0d1c7c06d302a557b03e5097c51c1a879adeb5c453",
-      "src": "9480f51ff479408970f98e38bc702e3ebb4171eaa357f7f453162f42a609b882"
-    },
-    "admin.agentSetupCounts.kind.all": {
-      "by": "ai",
-      "out": "3801a35c5182283990f6c7e7cbe137e58d6d7f750f6ab2522b687dcc9aa1d91d",
-      "src": "da2e5dc515b188dcac1afa88c93f859834ad57dfd921581172c9a74ab190e9f1"
-    },
-    "admin.agentSetupCounts.kind.install": {
-      "by": "ai",
-      "out": "39ebd661314d6ca8006357cc1a41575209fa309e67408bad0b9f23a85c48e6df",
-      "src": "a56462f6da3581e5b6d1952e7e8012a062a85fa6bfa62c879982e786bf44d761"
-    },
-    "admin.agentSetupCounts.kind.partner": {
-      "by": "ai",
-      "out": "29035e784f9305c0eb62aa33662b296306f6a77bedaca7c67f2e3432dd43ace2",
-      "src": "5dab502bfba3c3dfc2c9308a9f5cd3cfccf959852af05b2a430ebd9c12b95b90"
-    },
-    "admin.agentSetupCounts.kind.workspace": {
-      "by": "ai",
-      "out": "51146a57e9d5571d752edab5d3663b5936e3cdf1b2e43a33db66a7ab8d1ff3f2",
-      "src": "1e4ef0ed2a5689f33b2754a4dd1bccaeb359447fe9f79920a2a44443a37f92d2"
-    },
-    "admin.agentSetupCounts.kindLabel": {
-      "by": "ai",
-      "out": "fdc07e271328ee66a9ba455ed0987570700a2125e6fb494a004bb2ff8c6b0e74",
-      "src": "c17b94b8c9394d40151ba4078f384f0bfe77936d258bc2029bd8b857685cd3f1"
-    },
-    "admin.agentSetupCounts.made": {
-      "by": "ai",
-      "out": "0050fe7db008508ceaefae9e862caa71973d6a3ea36993abb4ba3135f5b9ee56",
-      "src": "2467c575aff4670ac4edef30f96a9cb02b165adeaa2706c7c4f98c0d9501a807"
-    },
-    "admin.agentSetupCounts.noClient": {
-      "by": "ai",
-      "out": "9fa052124289486c2a1d040df6882ff6d946c85806911fd1763a2711b8d6f8a4",
-      "src": "185492b8c19e522acfb64d3c22ce820d0e7ce4236510303cf239cee49007f452"
-    },
-    "admin.agentSetupCounts.share": {
-      "by": "ai",
-      "out": "67c0d59f45077f0a282af5010c60444e31fbea5b79bde4b7951f81355bf22a5f",
-      "src": "29887a5ff9846ccc23327565a07e17fa6dcaea6211f1898ae825f84ae38f4223"
-    },
-    "admin.agentSetupCounts.title": {
-      "by": "ai",
-      "out": "1b9aa7c5389be4bb8de614becd229dea59255f7fbbae65979b6f5713bbaf4ecf",
-      "src": "56aa1cf4e24f67f36768c71f9de66d7974302d6010a0b71544b24ff9409f9397"
-    },
-    "admin.agentSetupCounts.total": {
-      "by": "ai",
-      "out": "a36bce47fdac8f55279bd87737960c7d605165bd073ae1e68132389d1f7efd7a",
-      "src": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8"
-    },
     "admin.api.confirmPasskey": {
       "by": "ai",
       "out": "fdff972b5c06e45268310b50e7a80675e92d7fadfc0feac9785fb97271357f17",
@@ -6015,26 +5940,6 @@
       "out": "8a2727c044bcb2203acbac251f18ae228c05d9a1ce655585fefe8a64585c1a4b",
       "src": "e78041ab51a818a22e2cfea6c15fe72e9e20092246f496f1670f7be3e42177a6"
     },
-    "admin.groups.activity": {
-      "by": "ai",
-      "out": "46f08d7f93873ff4e7de3bf7d8fb5e3912cdd731e8cc8e1830e02e3cfd5ca1a3",
-      "src": "38da1505ca8373288489495101b14f24ac95078f520ad64df18272aa6054f750"
-    },
-    "admin.groups.assistant": {
-      "by": "ai",
-      "out": "f49464f500c688ce8c13aea743f3057ff5e5ebe249c8c816dfac78f7206641fd",
-      "src": "391e405152779acc6b0f9429f3a4e27baf2af0deab2c37ba792311efa767d676"
-    },
-    "admin.groups.customers": {
-      "by": "ai",
-      "out": "dda414f5565b9d1383ff1ae240c036ad2dc9c41c2a362f40960563945df16f00",
-      "src": "aabe76f1f4ec532b6a9928e5cc4bc8654f1578ca32573768c572b03d153ea33c"
-    },
-    "admin.groups.system": {
-      "by": "ai",
-      "out": "6725e7bbcd28f3a8a586fa34bf191fd72dde8b61756932cd3237c17a6f196f1a",
-      "src": "6725e7bbcd28f3a8a586fa34bf191fd72dde8b61756932cd3237c17a6f196f1a"
-    },
     "admin.health.agent.checkedIn": {
       "by": "ai",
       "out": "73371b8a42891410cdcc4b1391cd9ffb36eeb663c182c048a15128ebe70dc281",
@@ -9500,36 +9405,6 @@
       "out": "fe4ccef81c3bb1b07ceb5c0c5ad40acc638c5d5bbff811755b27654d2ec7a38a",
       "src": "c7402e175df6dae907d7302ca3688ec986fff3bfe737d82000e3374553d58a78"
     },
-    "admin.sections.calls.description": {
-      "by": "ai",
-      "out": "651aff22fbd0f6a50d39f3d2470abe16bf5bc92266aaeab62c0652d55622d076",
-      "src": "f30169a7f82958c351e76d5499dd2c3d6cbd07a32ffd87c2063c2c1e44930a1e"
-    },
-    "admin.sections.calls.label": {
-      "by": "ai",
-      "out": "eeef04136cf67dc8d5205c1eaa7e436c04892e296a326436bb3b1d422e43e7ff",
-      "src": "b73a5e2ca64586655532d524ad200a518150a1d9553cfc4f57fc8a5a863faf43"
-    },
-    "admin.sections.numbers.description": {
-      "by": "ai",
-      "out": "e3e059a7f41f9157b61b56f5192d8259bec40d62279dec664bc1a6d6b61e32d1",
-      "src": "3c6080475e99ac24943e80c946e6dd99ebe55e36ce0e6c10c20b8e2549646d58"
-    },
-    "admin.sections.numbers.label": {
-      "by": "ai",
-      "out": "4202131ff0acebc4a69b857e6a770df2c17846c5d8175d2189c62565e6bd43d3",
-      "src": "ece6e50a3c38c2bd9affe9be9dd46e9d73a8745817a203a95e22baccfc51faf4"
-    },
-    "admin.sections.onboarding.description": {
-      "by": "ai",
-      "out": "32191add0da40a92bd3f7baa009cfdd992f00a6d8b1c7fe1237e79ef7b899766",
-      "src": "853bfdf106134c9c2e498dcfa29dc9275271548e07659c4ec036dc9a7409b3f1"
-    },
-    "admin.sections.onboarding.label": {
-      "by": "ai",
-      "out": "a2198f472ce2fbee82a5546090a5dd896b1da3bb678e8963d19eaa03e08ca092",
-      "src": "a2198f472ce2fbee82a5546090a5dd896b1da3bb678e8963d19eaa03e08ca092"
-    },
     "admin.sections.overview.label": {
       "by": "ai",
       "out": "4d2bb368f919df818ee6c2d6ca5492d040f852b346b251fde3842b398db4d4ed",
@@ -9565,46 +9440,6 @@
       "out": "9080a78b3e99c70f4dc8a04235946860de5fcf6a64e1fc95190a22b7c4e191a4",
       "src": "996c32b35f2182a9c83815395113f92344269ebb4ab3525017c4cafaa3d1a8fd"
     },
-    "admin.sections.server.description": {
-      "by": "ai",
-      "out": "a893a49d030b7f0a3cf18fd646111b030da105623b2375c0577312df470ddfc8",
-      "src": "dd9f4fd77c0a421ff0ca80b10036fa6e136995220be4c261359da21a7f30e201"
-    },
-    "admin.sections.server.label": {
-      "by": "ai",
-      "out": "961ab9d4a783375705b915546395f1f3fd157bec74764219ee17d48ca5d37d75",
-      "src": "344c9097cc03959739b92ef602b3d2709a53668ea83c522d4e9f54f973ec40d7"
-    },
-    "admin.sections.signup.description": {
-      "by": "ai",
-      "out": "46083e813301d674568aa428a671d57d6285149ebbc0cacce279c26d672efed1",
-      "src": "8faf0c9e698c9a12917c0e0d98fd7bd49e25ec64fde35f57642a42c86874db34"
-    },
-    "admin.sections.signup.label": {
-      "by": "ai",
-      "out": "566fe2d04fbbe014a3095adbb57544bb8633141589f17799e78a068f1dbe1aec",
-      "src": "3cc08ebe9d5f9c116e980999ec1e18c4e628afc10e7e2105063097c0c2cdbc29"
-    },
-    "admin.sections.tools.description": {
-      "by": "ai",
-      "out": "819f8ac78ba0ef8bd6c625ae0b81a5b8ae1934aa9a2d957bf5c591456bfa8230",
-      "src": "e541cffbdaea549ceee625c0814ad5f062cffee9c4d3c19a2b01d5783e72ef2a"
-    },
-    "admin.sections.tools.label": {
-      "by": "ai",
-      "out": "ea93d6a262ecb87a9fa4d09edbd7654c046597936a8e235fc3949eb01775ff99",
-      "src": "ea93d6a262ecb87a9fa4d09edbd7654c046597936a8e235fc3949eb01775ff99"
-    },
-    "admin.sections.usage.description": {
-      "by": "ai",
-      "out": "ed3e6b45be66e51bc77c44838bec675026f37bf572a02ae77d8d5b0e8172ad40",
-      "src": "5ea7e1fb0ed8e2cc0222c2818af97ed761d6ead3727317d403b5d1c9907e1e62"
-    },
-    "admin.sections.usage.label": {
-      "by": "ai",
-      "out": "1b4364056584c0b8faf435115b4c3bd3859bad7d88fab9fc0d9779894adccfc5",
-      "src": "8d59829c1e15afe1a7fae93e8e5e32d8511bec5fd598a09f4fea6033b31e8a66"
-    },
     "admin.sections.users.description": {
       "by": "ai",
       "out": "bcdb73fe6a838f8a4bd5eac927f7b8ea3d3d330f1052d7bd5d8127bc5cdef436",
@@ -9624,11 +9459,6 @@
       "by": "ai",
       "out": "1377264ba3b0a7172621971b49ac3e82e33b64b14328d9275d02807e67ea8460",
       "src": "1377264ba3b0a7172621971b49ac3e82e33b64b14328d9275d02807e67ea8460"
-    },
-    "admin.server.callAudioTitle": {
-      "by": "ai",
-      "out": "b9bca512172f63508246ff0492993282743245d699438cb2cc8189402938dec3",
-      "src": "e416d328af90755aeacbe459ff5b25bb4f78f8551244198147afc5a1e90d8eb3"
     },
     "admin.settings.calendarTools.help": {
       "by": "ai",
@@ -9990,16 +9820,6 @@
       "out": "182ffcf58bcbbcf7baee65364761f4441f85f3cbe6f495712120761a63c68f71",
       "src": "81b8f9854b0e4c606f8eac6922ee48194c8a3d340f1fdb2153444cd8be10c82b"
     },
-    "admin.system.checkAgain": {
-      "by": "ai",
-      "out": "7da626487f352e1009d523b1e7b82631d03dd353197e3db42ca9cfceaea2c9db",
-      "src": "fb7099ad8e818d42eceefe0d97c824fd54ddb0eeef54c263ec72c77d39198ac9"
-    },
-    "admin.system.checking": {
-      "by": "ai",
-      "out": "5db5a15d468a05f8a17c3218fe671910ca217e112aaa4eeae0909cf75a9ecfc9",
-      "src": "ec963ffc911b840134fc738b41a8bb0493489c402a4a761efd36c16dea7d984b"
-    },
     "admin.system.cloning": {
       "by": "ai",
       "out": "dc1230dd55267515a84da08a695e8e97021917e9424b10a48f5dcaf6c98d824d",
@@ -10019,11 +9839,6 @@
       "by": "ai",
       "out": "ab6cbdd8bf5886fe40d13e231e3679267a3007520fc813528fc911b2e61e2076",
       "src": "c60654cfaef57a3144a1f3b9c0a0a33a8a4ae295355c6a9c37c99de45931b79b"
-    },
-    "admin.system.couldNotCheck": {
-      "by": "ai",
-      "out": "4e767e97d1541ae8be45fc96d3374e10e110e9a1f58a5c037fcde62210fde480",
-      "src": "5e3b677e9d699f43f5bb2bedc2dc8359f6d1f0510fcfb6a87b28b355b2de5439"
     },
     "admin.system.fromEnv": {
       "by": "ai",
@@ -10215,25 +10030,10 @@
       "out": "dffb64dc70011ecf3ef3ad62cdd271f08f1b86601d7c2bc54f91978a32ca8cf4",
       "src": "dffb64dc70011ecf3ef3ad62cdd271f08f1b86601d7c2bc54f91978a32ca8cf4"
     },
-    "admin.system.notSet": {
-      "by": "ai",
-      "out": "3ac143331dbe166e0afcf6f110efacd24ad6ae7dd1671946a66b3482764395da",
-      "src": "4895f73177ab5d67c30c183a49d2477e014a2ef69b65150762d17e877f4f5b95"
-    },
-    "admin.system.problem": {
-      "by": "ai",
-      "out": "acde93d17a70245286f806fa2893f6b3564fb1d4def6d45250e472073d4fa730",
-      "src": "acde93d17a70245286f806fa2893f6b3564fb1d4def6d45250e472073d4fa730"
-    },
     "admin.system.riskyWarning": {
       "by": "ai",
       "out": "36b0936aa5d084d40af3e7a5552cc501e64ed9f648eb9ca0a8176f10f328729f",
       "src": "2ca07f3c7aad09c89cfe5dc3248e330bae5e854492e7932a514e2dbc46824db5"
-    },
-    "admin.system.server": {
-      "by": "ai",
-      "out": "aef7de28d52977f1b5cd0fecfdc151717610adf41e0aa33b4d9f7522a43337ef",
-      "src": "aef7de28d52977f1b5cd0fecfdc151717610adf41e0aa33b4d9f7522a43337ef"
     },
     "admin.system.setupReports.actions": {
       "by": "ai",
@@ -10445,11 +10245,6 @@
       "out": "27e139ea7f600552a9d467ae5103917a9b471e739a2037903da6967e3add6575",
       "src": "41b40aa641e81ae85f553ab22b733256812bf4567229889770d6dd56d244cd40"
     },
-    "admin.system.sipTrunks": {
-      "by": "ai",
-      "out": "68d891cb7ee0a165d87a7d88c88c4bfe32a29b9c94d411f54e7e47cd9cd7d754",
-      "src": "744475fa8c25b63e100ae79e13b0f94a0de1ecb37a26141395399de5663de778"
-    },
     "admin.system.spendCapsUnconfirmed": {
       "by": "ai",
       "out": "6be3f132a0bc94b5a86397989a25d93710c9e544ededabc46cf9c996f57df731",
@@ -10559,16 +10354,6 @@
       "by": "ai",
       "out": "9c32686f7b058ed5c912899f44fa2d029c1835882eaa7747934f973eecc57c70",
       "src": "f7ac81e779a506eddfcc08ad902a5e7b5e22829eb520595a5c2016f4724e26fc"
-    },
-    "admin.system.url": {
-      "by": "ai",
-      "out": "e7a241debad56609ee660a5d2ef258a1aceb7357ff210ac66d7280b3add02a9a",
-      "src": "e7a241debad56609ee660a5d2ef258a1aceb7357ff210ac66d7280b3add02a9a"
-    },
-    "admin.system.urlWhat": {
-      "by": "ai",
-      "out": "3a4ffb90b20fce503fc74ee06acb7dff07efa53ce3d79d1892b65af30e781b4a",
-      "src": "cf00dd0ab6b5ff6dcfebb15df873436d32ef34736f64a71b550847dc4b1ea8b2"
     },
     "admin.system.zapier": {
       "by": "ai",
@@ -41437,81 +41222,6 @@
       "out": "c0df584a9d301a6e4d1c9e7b8b7577aaf06c6f42d6afeb658cde0495660c9f62",
       "src": "b126a480e559a902fdd95bd8b0ea0aebc4890509f153b0c97f7d1f262d137248"
     },
-    "admin.agentSetupCounts.client": {
-      "by": "ai",
-      "out": "c85ae866ddf10a3c0f73f0fd2debaa261aacbd6520b9f0a835d2f8477ba85f13",
-      "src": "92c7d7f84c3ecbd938435ccfc4081fd21bd4be849059cec8359c3c732b60447a"
-    },
-    "admin.agentSetupCounts.connected": {
-      "by": "ai",
-      "out": "1e1a08258a6989dc8725da02dc471c537f73956292aaa286d380fe42a972928c",
-      "src": "22965568d22a14ee17af055d2870b50afcfe9fd94a83eec3196e266932297bb2"
-    },
-    "admin.agentSetupCounts.description": {
-      "by": "ai",
-      "out": "bd8628f4becfc4b5ac7c20f2fe6698ac372b3f2b8fd75c83be9f63cc576ce716",
-      "src": "352409145cce373bcf07933e117e04c52bb2017ae045bd95e558ccbc11d2871e"
-    },
-    "admin.agentSetupCounts.empty": {
-      "by": "ai",
-      "out": "4caa668c16f1dfc4f849e14ddd008dd9990e449ee5e1a21e99c8b1e47079e46a",
-      "src": "a2133063663127206ed7ef340b0f059048d07c56f7a174f7ad74c3e953c09c0b"
-    },
-    "admin.agentSetupCounts.help": {
-      "by": "ai",
-      "out": "c3282b6c593bdfafeb484261f96c6210d362192aa11d451d4d7c8879e5a5af7b",
-      "src": "9480f51ff479408970f98e38bc702e3ebb4171eaa357f7f453162f42a609b882"
-    },
-    "admin.agentSetupCounts.kind.all": {
-      "by": "ai",
-      "out": "bd02b9a7d71dac67a21b2758f11975bc491cc834c22edd9fa598fed97405aaa9",
-      "src": "da2e5dc515b188dcac1afa88c93f859834ad57dfd921581172c9a74ab190e9f1"
-    },
-    "admin.agentSetupCounts.kind.install": {
-      "by": "ai",
-      "out": "68e1c78431b6bfc533c2ad7b9143d4edd0f41abf3caae033e3a4ccb29d255146",
-      "src": "a56462f6da3581e5b6d1952e7e8012a062a85fa6bfa62c879982e786bf44d761"
-    },
-    "admin.agentSetupCounts.kind.partner": {
-      "by": "ai",
-      "out": "5dab502bfba3c3dfc2c9308a9f5cd3cfccf959852af05b2a430ebd9c12b95b90",
-      "src": "5dab502bfba3c3dfc2c9308a9f5cd3cfccf959852af05b2a430ebd9c12b95b90"
-    },
-    "admin.agentSetupCounts.kind.workspace": {
-      "by": "ai",
-      "out": "d5b7a59a7133a066e894eb8768c29ce5eb9b48592cb06fb2e40f788c82a54731",
-      "src": "1e4ef0ed2a5689f33b2754a4dd1bccaeb359447fe9f79920a2a44443a37f92d2"
-    },
-    "admin.agentSetupCounts.kindLabel": {
-      "by": "ai",
-      "out": "aa952cf4a386fd0b0b2d28db8f4fdc0a826355b369dff9d02af89b999238fd21",
-      "src": "c17b94b8c9394d40151ba4078f384f0bfe77936d258bc2029bd8b857685cd3f1"
-    },
-    "admin.agentSetupCounts.made": {
-      "by": "ai",
-      "out": "696a1546f66950574f6852ae17ce812b408305b06e3607440e870f2225ab644b",
-      "src": "2467c575aff4670ac4edef30f96a9cb02b165adeaa2706c7c4f98c0d9501a807"
-    },
-    "admin.agentSetupCounts.noClient": {
-      "by": "ai",
-      "out": "36f8615ff57b80fc07c4b513f90f123b8b189130b4ce3192e558d05bafca4432",
-      "src": "185492b8c19e522acfb64d3c22ce820d0e7ce4236510303cf239cee49007f452"
-    },
-    "admin.agentSetupCounts.share": {
-      "by": "ai",
-      "out": "2d4c5a6fad9a645636ec8f25f274060b5b085a757d0d5e4da488f176fef3afb7",
-      "src": "29887a5ff9846ccc23327565a07e17fa6dcaea6211f1898ae825f84ae38f4223"
-    },
-    "admin.agentSetupCounts.title": {
-      "by": "ai",
-      "out": "749161b55a84ebf0b5f68716235fc1f2b30d362d9061c256544e51e538430a91",
-      "src": "56aa1cf4e24f67f36768c71f9de66d7974302d6010a0b71544b24ff9409f9397"
-    },
-    "admin.agentSetupCounts.total": {
-      "by": "ai",
-      "out": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8",
-      "src": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8"
-    },
     "admin.api.confirmPasskey": {
       "by": "ai",
       "out": "955d42c2a1a5791e2da51b8ca18f644e4affda05df5a5f0f0f495403b384a929",
@@ -45517,26 +45227,6 @@
       "out": "51656a29fb46a0a1d27a30b04794a8d39929bb469aa135d5bf2431b8bb2450b3",
       "src": "e78041ab51a818a22e2cfea6c15fe72e9e20092246f496f1670f7be3e42177a6"
     },
-    "admin.groups.activity": {
-      "by": "ai",
-      "out": "d134a8ecb32a6e6ebe5ae039bf0080a60807faec159cd42bd2e720be5d3df185",
-      "src": "38da1505ca8373288489495101b14f24ac95078f520ad64df18272aa6054f750"
-    },
-    "admin.groups.assistant": {
-      "by": "ai",
-      "out": "9d55acb6ac4e4dc72a193d4f21ef66e6c21fa3ea3253d5dc3dfc9dfe4b657d85",
-      "src": "391e405152779acc6b0f9429f3a4e27baf2af0deab2c37ba792311efa767d676"
-    },
-    "admin.groups.customers": {
-      "by": "ai",
-      "out": "07e1ce1859da51078a0869590215b97235cd5b168d5d41922bbcdc171a1f23a1",
-      "src": "aabe76f1f4ec532b6a9928e5cc4bc8654f1578ca32573768c572b03d153ea33c"
-    },
-    "admin.groups.system": {
-      "by": "ai",
-      "out": "f150afd3c5994d185052d4165729e1db8eae6914164b9471c3e583edfb1db020",
-      "src": "6725e7bbcd28f3a8a586fa34bf191fd72dde8b61756932cd3237c17a6f196f1a"
-    },
     "admin.health.agent.checkedIn": {
       "by": "ai",
       "out": "6640c9d2410080d66bb3111c35dca42170d6b9b3eec1c5b466899cbf190b1b0f",
@@ -49002,36 +48692,6 @@
       "out": "a5ac752e310212c890757b995f183f9e3c7e724f877ec187b5335ef02d1a3cdc",
       "src": "c7402e175df6dae907d7302ca3688ec986fff3bfe737d82000e3374553d58a78"
     },
-    "admin.sections.calls.description": {
-      "by": "ai",
-      "out": "b1e958347fdc97ca1a277548ee9e55c040c951ed38887aa227363156dd53e2b3",
-      "src": "f30169a7f82958c351e76d5499dd2c3d6cbd07a32ffd87c2063c2c1e44930a1e"
-    },
-    "admin.sections.calls.label": {
-      "by": "ai",
-      "out": "2a5c037473e8d319ca6c856a56eec1fb26d160132077f32d1ab914783bb596e0",
-      "src": "b73a5e2ca64586655532d524ad200a518150a1d9553cfc4f57fc8a5a863faf43"
-    },
-    "admin.sections.numbers.description": {
-      "by": "ai",
-      "out": "0b6ba16ab5dfda663822d4811ef167158dbdbb032782b8ed11eb03565b0399d1",
-      "src": "3c6080475e99ac24943e80c946e6dd99ebe55e36ce0e6c10c20b8e2549646d58"
-    },
-    "admin.sections.numbers.label": {
-      "by": "ai",
-      "out": "7c5f23a3d5fc713c8bd779e6eabc33e52c4f8320b96acbd62797d1663d41bb28",
-      "src": "ece6e50a3c38c2bd9affe9be9dd46e9d73a8745817a203a95e22baccfc51faf4"
-    },
-    "admin.sections.onboarding.description": {
-      "by": "ai",
-      "out": "efc7015ae5c477309c39373bfade3f53b2ce7ff9d9da36c645e42aa32850b17e",
-      "src": "853bfdf106134c9c2e498dcfa29dc9275271548e07659c4ec036dc9a7409b3f1"
-    },
-    "admin.sections.onboarding.label": {
-      "by": "ai",
-      "out": "23ecb737ef3be34ed9b678739f906aa292040314f5aac84cc79772a5ebc26bf9",
-      "src": "a2198f472ce2fbee82a5546090a5dd896b1da3bb678e8963d19eaa03e08ca092"
-    },
     "admin.sections.overview.label": {
       "by": "ai",
       "out": "ed7bdc67c84b3ed6bbef57fc8e22855e9c63e2b248cbec541c015edeb57fccfa",
@@ -49067,46 +48727,6 @@
       "out": "bb1bb5cc7a83b6c0fa1f93e49b6f7c0456ec817ac752f406601e2a041b28c222",
       "src": "996c32b35f2182a9c83815395113f92344269ebb4ab3525017c4cafaa3d1a8fd"
     },
-    "admin.sections.server.description": {
-      "by": "ai",
-      "out": "93e3afffaf4d8dc4bb97991b73bdce766d07e371842d5a8a21786911e6e3fe89",
-      "src": "dd9f4fd77c0a421ff0ca80b10036fa6e136995220be4c261359da21a7f30e201"
-    },
-    "admin.sections.server.label": {
-      "by": "ai",
-      "out": "02681fecd0c3e26604eb5f67fbaf0cd0435de42314d29e72db2eaa7f07a633cc",
-      "src": "344c9097cc03959739b92ef602b3d2709a53668ea83c522d4e9f54f973ec40d7"
-    },
-    "admin.sections.signup.description": {
-      "by": "ai",
-      "out": "8b6be1cefc9343ba25a6344d5b3b7a97b23812b108bc2c4468329582c2715a07",
-      "src": "8faf0c9e698c9a12917c0e0d98fd7bd49e25ec64fde35f57642a42c86874db34"
-    },
-    "admin.sections.signup.label": {
-      "by": "ai",
-      "out": "890086b16b4804070e738d2cd6b4966022becf5cd90d372afa97bc9f70b551c2",
-      "src": "3cc08ebe9d5f9c116e980999ec1e18c4e628afc10e7e2105063097c0c2cdbc29"
-    },
-    "admin.sections.tools.description": {
-      "by": "ai",
-      "out": "3f9302371579a1ca875ad2b44f2688851eaab36c7f6e1b8607f0faf7bddc5584",
-      "src": "e541cffbdaea549ceee625c0814ad5f062cffee9c4d3c19a2b01d5783e72ef2a"
-    },
-    "admin.sections.tools.label": {
-      "by": "ai",
-      "out": "a558a4d8c3e61bcd1670e9b671812404493ccc61278cda5cf80efdc706f4a21a",
-      "src": "ea93d6a262ecb87a9fa4d09edbd7654c046597936a8e235fc3949eb01775ff99"
-    },
-    "admin.sections.usage.description": {
-      "by": "ai",
-      "out": "16228c0f24eb20cb07b3b34a5434def273a4f5d210162aa9c59c418b03e5258a",
-      "src": "5ea7e1fb0ed8e2cc0222c2818af97ed761d6ead3727317d403b5d1c9907e1e62"
-    },
-    "admin.sections.usage.label": {
-      "by": "ai",
-      "out": "da8920821e236009782bce6b477ee19ea42348078adc5884d3604b37f3e61c2d",
-      "src": "8d59829c1e15afe1a7fae93e8e5e32d8511bec5fd598a09f4fea6033b31e8a66"
-    },
     "admin.sections.users.description": {
       "by": "ai",
       "out": "46c848f38b2b7498f33a5f9d3d95ced353b77c6d8589103ce755bb6f0a8aea1f",
@@ -49126,11 +48746,6 @@
       "by": "ai",
       "out": "a9021aef6d3302ed40afe98a6b964a8391f6d111b5aee0f61373b85cb7f4283f",
       "src": "1377264ba3b0a7172621971b49ac3e82e33b64b14328d9275d02807e67ea8460"
-    },
-    "admin.server.callAudioTitle": {
-      "by": "ai",
-      "out": "be01fd858f7025ed59c77dff362f374dc12da7ecf873f3b2e04a353723701fdd",
-      "src": "e416d328af90755aeacbe459ff5b25bb4f78f8551244198147afc5a1e90d8eb3"
     },
     "admin.settings.calendarTools.help": {
       "by": "ai",
@@ -49492,16 +49107,6 @@
       "out": "e8484132cdd52f9d784d0f27583930cac2bb2b1306ecaf93eed7896458af8396",
       "src": "81b8f9854b0e4c606f8eac6922ee48194c8a3d340f1fdb2153444cd8be10c82b"
     },
-    "admin.system.checkAgain": {
-      "by": "ai",
-      "out": "a703a0bd6e25201f451d1907ab4e47e32040ce18acd5495ff70127c182eacb00",
-      "src": "fb7099ad8e818d42eceefe0d97c824fd54ddb0eeef54c263ec72c77d39198ac9"
-    },
-    "admin.system.checking": {
-      "by": "ai",
-      "out": "d2a7094a2bfccb1173e759055b65c37a1410b772b8cdaf39fa2d09101a19845b",
-      "src": "ec963ffc911b840134fc738b41a8bb0493489c402a4a761efd36c16dea7d984b"
-    },
     "admin.system.cloning": {
       "by": "ai",
       "out": "70bcd8ce2988d9017b674ee2f4c7964836364eedd56fa84b3531c366f9e46381",
@@ -49521,11 +49126,6 @@
       "by": "ai",
       "out": "7d32ab544a55a145a989aef41c8270841ea464d85bb9d54c4d3e1679662f0dfb",
       "src": "c60654cfaef57a3144a1f3b9c0a0a33a8a4ae295355c6a9c37c99de45931b79b"
-    },
-    "admin.system.couldNotCheck": {
-      "by": "ai",
-      "out": "84f8949583ea0223c42c6b3663435058b71d0b42ec11170d3f414abb52b23130",
-      "src": "5e3b677e9d699f43f5bb2bedc2dc8359f6d1f0510fcfb6a87b28b355b2de5439"
     },
     "admin.system.fromEnv": {
       "by": "ai",
@@ -49717,25 +49317,10 @@
       "out": "a5d90b084b1d94b84bd9a7efd9271f26727add67c4aeb47476e79f102f3c6fa9",
       "src": "dffb64dc70011ecf3ef3ad62cdd271f08f1b86601d7c2bc54f91978a32ca8cf4"
     },
-    "admin.system.notSet": {
-      "by": "ai",
-      "out": "8cbe82eda079e7137c48bd770ec473fafd23a3c347b6f44c032e81737e3bdb26",
-      "src": "4895f73177ab5d67c30c183a49d2477e014a2ef69b65150762d17e877f4f5b95"
-    },
-    "admin.system.problem": {
-      "by": "ai",
-      "out": "4775c0324cca7a8adb4b6daa408fed7a7c1d69b9fab44f1034b7719ccc67e65a",
-      "src": "acde93d17a70245286f806fa2893f6b3564fb1d4def6d45250e472073d4fa730"
-    },
     "admin.system.riskyWarning": {
       "by": "ai",
       "out": "91ffc2908f85ea6948c605c8280f53b9beecb613f767c322e0accb5af1098b7a",
       "src": "2ca07f3c7aad09c89cfe5dc3248e330bae5e854492e7932a514e2dbc46824db5"
-    },
-    "admin.system.server": {
-      "by": "ai",
-      "out": "05e427a291c27fee42ee968ca48e0a92628821c73ae3c1042cdb31da7efbc66b",
-      "src": "aef7de28d52977f1b5cd0fecfdc151717610adf41e0aa33b4d9f7522a43337ef"
     },
     "admin.system.setupReports.actions": {
       "by": "ai",
@@ -49947,11 +49532,6 @@
       "out": "605f5ae8daecbc9d517f414df82db7890dd71e253bddc347bf93b295891753b6",
       "src": "41b40aa641e81ae85f553ab22b733256812bf4567229889770d6dd56d244cd40"
     },
-    "admin.system.sipTrunks": {
-      "by": "ai",
-      "out": "8fcf9f9c03804f013d6fb5e6ebf247f449f24876ebbbabac5318eec0c74656be",
-      "src": "744475fa8c25b63e100ae79e13b0f94a0de1ecb37a26141395399de5663de778"
-    },
     "admin.system.spendCapsUnconfirmed": {
       "by": "ai",
       "out": "3c80b5655a6ef2f11595ad5d001d34c4553ab8beff5c377e89ff1b62404a7c9e",
@@ -50061,16 +49641,6 @@
       "by": "ai",
       "out": "eb400e09cc69d6d832a65cbded70b3ef4d9f8c84ecef3c41e4a9d0ab89fdf86e",
       "src": "f7ac81e779a506eddfcc08ad902a5e7b5e22829eb520595a5c2016f4724e26fc"
-    },
-    "admin.system.url": {
-      "by": "ai",
-      "out": "e7a241debad56609ee660a5d2ef258a1aceb7357ff210ac66d7280b3add02a9a",
-      "src": "e7a241debad56609ee660a5d2ef258a1aceb7357ff210ac66d7280b3add02a9a"
-    },
-    "admin.system.urlWhat": {
-      "by": "ai",
-      "out": "1d252b9a00ce5ebde8083e3cbab2d9f876568a3439372bf019fa9031e924223a",
-      "src": "cf00dd0ab6b5ff6dcfebb15df873436d32ef34736f64a71b550847dc4b1ea8b2"
     },
     "admin.system.zapier": {
       "by": "ai",
@@ -80939,81 +80509,6 @@
       "out": "16088d5542db07a25576a66429741a0003788ea310b38ad9087703d4b6fd00d2",
       "src": "b126a480e559a902fdd95bd8b0ea0aebc4890509f153b0c97f7d1f262d137248"
     },
-    "admin.agentSetupCounts.client": {
-      "by": "ai",
-      "out": "489ce7038bb08ce194b0718ba28eadf683e4df3c1bee3a51e114e7c037f7d95e",
-      "src": "92c7d7f84c3ecbd938435ccfc4081fd21bd4be849059cec8359c3c732b60447a"
-    },
-    "admin.agentSetupCounts.connected": {
-      "by": "ai",
-      "out": "968cff990fbf11fd97d4fb1f506b2efcfadb86dadd36f39df15c18b9f23adc87",
-      "src": "22965568d22a14ee17af055d2870b50afcfe9fd94a83eec3196e266932297bb2"
-    },
-    "admin.agentSetupCounts.description": {
-      "by": "ai",
-      "out": "90abed9492f67b49d7351b8e23877af2fb843c7d8cb2c1823824dc6a4feaaa87",
-      "src": "352409145cce373bcf07933e117e04c52bb2017ae045bd95e558ccbc11d2871e"
-    },
-    "admin.agentSetupCounts.empty": {
-      "by": "ai",
-      "out": "c0a2441d3b7dde770a93f2e1d62d4e7cf7a048675edf093458e4626a061a6330",
-      "src": "a2133063663127206ed7ef340b0f059048d07c56f7a174f7ad74c3e953c09c0b"
-    },
-    "admin.agentSetupCounts.help": {
-      "by": "ai",
-      "out": "585dc7e493fa10d83208d2f906679f75110f5c62910f15c465a68f5b86a377fa",
-      "src": "9480f51ff479408970f98e38bc702e3ebb4171eaa357f7f453162f42a609b882"
-    },
-    "admin.agentSetupCounts.kind.all": {
-      "by": "ai",
-      "out": "579a8582f8de6a59814523f74fd42fae06dc0c456f482ea84668137cd7711c7a",
-      "src": "da2e5dc515b188dcac1afa88c93f859834ad57dfd921581172c9a74ab190e9f1"
-    },
-    "admin.agentSetupCounts.kind.install": {
-      "by": "ai",
-      "out": "c55155f387a1551ee7bcd9cd394f5465c9f97faf899606aeafe16ebd739b99bb",
-      "src": "a56462f6da3581e5b6d1952e7e8012a062a85fa6bfa62c879982e786bf44d761"
-    },
-    "admin.agentSetupCounts.kind.partner": {
-      "by": "ai",
-      "out": "931e76b8df73793557baa6d5b2a4ca4a5e5a679a269647f411b6ca251cd89be2",
-      "src": "5dab502bfba3c3dfc2c9308a9f5cd3cfccf959852af05b2a430ebd9c12b95b90"
-    },
-    "admin.agentSetupCounts.kind.workspace": {
-      "by": "ai",
-      "out": "53ea4f4f085e0d18ddd9c300070f3271618eb0132f9f9cf65419bfb847bf5c69",
-      "src": "1e4ef0ed2a5689f33b2754a4dd1bccaeb359447fe9f79920a2a44443a37f92d2"
-    },
-    "admin.agentSetupCounts.kindLabel": {
-      "by": "ai",
-      "out": "e770ad5796a180bbf53901dadc690ccbed0520f66cc373b9ebe6db6c7f705752",
-      "src": "c17b94b8c9394d40151ba4078f384f0bfe77936d258bc2029bd8b857685cd3f1"
-    },
-    "admin.agentSetupCounts.made": {
-      "by": "ai",
-      "out": "f32f8bfac2bf2bc7ab481e2772ae9a284bb5f224d4f9867d57932a55a9fb5ffe",
-      "src": "2467c575aff4670ac4edef30f96a9cb02b165adeaa2706c7c4f98c0d9501a807"
-    },
-    "admin.agentSetupCounts.noClient": {
-      "by": "ai",
-      "out": "3491948980e7a5519c25d8f50bf36f1540d934b073759f2b3bf197532fc07134",
-      "src": "185492b8c19e522acfb64d3c22ce820d0e7ce4236510303cf239cee49007f452"
-    },
-    "admin.agentSetupCounts.share": {
-      "by": "ai",
-      "out": "8570a2e1669ff057c9f9f64098c35346c82a82b5492982c6a347a36b1eb39f65",
-      "src": "29887a5ff9846ccc23327565a07e17fa6dcaea6211f1898ae825f84ae38f4223"
-    },
-    "admin.agentSetupCounts.title": {
-      "by": "ai",
-      "out": "410b47ba73c91847ff2f8ebf19a379980a30879fd070a5650dacfb49413f797c",
-      "src": "56aa1cf4e24f67f36768c71f9de66d7974302d6010a0b71544b24ff9409f9397"
-    },
-    "admin.agentSetupCounts.total": {
-      "by": "ai",
-      "out": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8",
-      "src": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8"
-    },
     "admin.api.confirmPasskey": {
       "by": "ai",
       "out": "326e646f36c5694e18d0163bab300d1efcb70cfa693cd02e706218c7001cc92c",
@@ -85019,26 +84514,6 @@
       "out": "0934d42938492db46f5f936e5a2f94e74e314c7f054c6af4bb1c100deca005d6",
       "src": "e78041ab51a818a22e2cfea6c15fe72e9e20092246f496f1670f7be3e42177a6"
     },
-    "admin.groups.activity": {
-      "by": "ai",
-      "out": "6b2b8f1b80e0743cab723ecbb51fb978996f12c6f62c6141e07fbc08a5b851a7",
-      "src": "38da1505ca8373288489495101b14f24ac95078f520ad64df18272aa6054f750"
-    },
-    "admin.groups.assistant": {
-      "by": "ai",
-      "out": "391e405152779acc6b0f9429f3a4e27baf2af0deab2c37ba792311efa767d676",
-      "src": "391e405152779acc6b0f9429f3a4e27baf2af0deab2c37ba792311efa767d676"
-    },
-    "admin.groups.customers": {
-      "by": "ai",
-      "out": "65a7256542c30138e6f979959b13707ef238bbf5aaf8472dde584c05b0c07529",
-      "src": "aabe76f1f4ec532b6a9928e5cc4bc8654f1578ca32573768c572b03d153ea33c"
-    },
-    "admin.groups.system": {
-      "by": "ai",
-      "out": "1abaf88d08a505e4695bfa847093dfb3403c306fd85d861f8b36f08f605f2893",
-      "src": "6725e7bbcd28f3a8a586fa34bf191fd72dde8b61756932cd3237c17a6f196f1a"
-    },
     "admin.health.agent.checkedIn": {
       "by": "ai",
       "out": "98501c81bab382e9a7dc71d95b9ac0a4b8c98a525283aba804f2a653aae3dbb3",
@@ -88504,36 +87979,6 @@
       "out": "5e1fbfc4beed8d472b598087e9506327c3ed5875ebb056dfef82b86daf5e190a",
       "src": "c7402e175df6dae907d7302ca3688ec986fff3bfe737d82000e3374553d58a78"
     },
-    "admin.sections.calls.description": {
-      "by": "ai",
-      "out": "75a1b7d237a970d1e56b00ab32ab3fcf1c487b74bd0b70d22329cc52b0334dca",
-      "src": "f30169a7f82958c351e76d5499dd2c3d6cbd07a32ffd87c2063c2c1e44930a1e"
-    },
-    "admin.sections.calls.label": {
-      "by": "ai",
-      "out": "acf965a6f6a46eda9e16cdecab5be4665b75c49dd64336773193e3108b4323f2",
-      "src": "b73a5e2ca64586655532d524ad200a518150a1d9553cfc4f57fc8a5a863faf43"
-    },
-    "admin.sections.numbers.description": {
-      "by": "ai",
-      "out": "b7183b9b065062b996f2d1c7c4b30b61ab12106d04796a9430c743cf32cbf093",
-      "src": "3c6080475e99ac24943e80c946e6dd99ebe55e36ce0e6c10c20b8e2549646d58"
-    },
-    "admin.sections.numbers.label": {
-      "by": "ai",
-      "out": "bc354d5dbd40dc133a06a942dc39acb532986244cc041442c5e39cd7f13bb979",
-      "src": "ece6e50a3c38c2bd9affe9be9dd46e9d73a8745817a203a95e22baccfc51faf4"
-    },
-    "admin.sections.onboarding.description": {
-      "by": "ai",
-      "out": "930a2467c0cfc21c0bd200cfff73517b4e97de468208cd3f322411cce54a8039",
-      "src": "853bfdf106134c9c2e498dcfa29dc9275271548e07659c4ec036dc9a7409b3f1"
-    },
-    "admin.sections.onboarding.label": {
-      "by": "ai",
-      "out": "ee16227bf00c41456357cfb258d592ead6ae5c4fec5c2328c14e91f134787fab",
-      "src": "a2198f472ce2fbee82a5546090a5dd896b1da3bb678e8963d19eaa03e08ca092"
-    },
     "admin.sections.overview.label": {
       "by": "ai",
       "out": "9217c182b4f4f471b2b40ee7a2f7a2238810bd925cb406d694ce88a75c12ed15",
@@ -88569,46 +88014,6 @@
       "out": "016ec5850618c0e99503938b4abf1b9cf01dc5b82063e8e5618dcc3b9fdd85f3",
       "src": "996c32b35f2182a9c83815395113f92344269ebb4ab3525017c4cafaa3d1a8fd"
     },
-    "admin.sections.server.description": {
-      "by": "ai",
-      "out": "3ac2a30f63f6302dd4c0f9522873a823e407f6cb5eef5564842221a4a39f50c6",
-      "src": "dd9f4fd77c0a421ff0ca80b10036fa6e136995220be4c261359da21a7f30e201"
-    },
-    "admin.sections.server.label": {
-      "by": "ai",
-      "out": "e7eace39f7a2ed5ef9ce410c690e729cdccb4d015e7c37300c24f2cd26f42724",
-      "src": "344c9097cc03959739b92ef602b3d2709a53668ea83c522d4e9f54f973ec40d7"
-    },
-    "admin.sections.signup.description": {
-      "by": "ai",
-      "out": "92d0920690d466384bd46163d97c34f99dbdd024ef1c162785b03006fb65e9f9",
-      "src": "8faf0c9e698c9a12917c0e0d98fd7bd49e25ec64fde35f57642a42c86874db34"
-    },
-    "admin.sections.signup.label": {
-      "by": "ai",
-      "out": "cfb1ac0c807dd883656192a0a22a51713a11c18178ad1d01dc0c953bcb584d6b",
-      "src": "3cc08ebe9d5f9c116e980999ec1e18c4e628afc10e7e2105063097c0c2cdbc29"
-    },
-    "admin.sections.tools.description": {
-      "by": "ai",
-      "out": "7ee5c6de3657dd974bb7e78a20b0f745a2646a7763390bb533e092a24eeda144",
-      "src": "e541cffbdaea549ceee625c0814ad5f062cffee9c4d3c19a2b01d5783e72ef2a"
-    },
-    "admin.sections.tools.label": {
-      "by": "ai",
-      "out": "8c54187d131cad9a3dcc5ced02c19aeaf713ba8fd2329fab8072f33d70802f37",
-      "src": "ea93d6a262ecb87a9fa4d09edbd7654c046597936a8e235fc3949eb01775ff99"
-    },
-    "admin.sections.usage.description": {
-      "by": "ai",
-      "out": "ceed1f953be1cf82a00b57e459f511294e0c73da93e47ffb3cf0b6bdf40302d8",
-      "src": "5ea7e1fb0ed8e2cc0222c2818af97ed761d6ead3727317d403b5d1c9907e1e62"
-    },
-    "admin.sections.usage.label": {
-      "by": "ai",
-      "out": "9af799d8b3449c56850c60a26f06e32c6f19160a05d5a46529285f81a680064e",
-      "src": "8d59829c1e15afe1a7fae93e8e5e32d8511bec5fd598a09f4fea6033b31e8a66"
-    },
     "admin.sections.users.description": {
       "by": "ai",
       "out": "67597049655208f43f67a2efe9b04f142b9fdb41a2c12c6cf147c9904fa3a628",
@@ -88628,11 +88033,6 @@
       "by": "ai",
       "out": "1516c169f64eb5ae5bf6863f067db206329c2c21a52067d2cbd60a27ecdb9e05",
       "src": "1377264ba3b0a7172621971b49ac3e82e33b64b14328d9275d02807e67ea8460"
-    },
-    "admin.server.callAudioTitle": {
-      "by": "ai",
-      "out": "bdcf3bfa7f8954494f904446ca6ad468f8543411cae75ef770d0742647b8ccbb",
-      "src": "e416d328af90755aeacbe459ff5b25bb4f78f8551244198147afc5a1e90d8eb3"
     },
     "admin.settings.calendarTools.help": {
       "by": "ai",
@@ -88994,16 +88394,6 @@
       "out": "71822e8da9ce872c425eeb98d4025d5ae7ddb3060b65d9b397eb8b63fd1a94d7",
       "src": "81b8f9854b0e4c606f8eac6922ee48194c8a3d340f1fdb2153444cd8be10c82b"
     },
-    "admin.system.checkAgain": {
-      "by": "ai",
-      "out": "72912f6f74e9413baac7291beec3bf3dc7d4cd9deabab425817a6ea50a39d620",
-      "src": "fb7099ad8e818d42eceefe0d97c824fd54ddb0eeef54c263ec72c77d39198ac9"
-    },
-    "admin.system.checking": {
-      "by": "ai",
-      "out": "c7984dcce6f3c35b733b4a73b63fd80ca912037678474ee593324edfc18e6fd3",
-      "src": "ec963ffc911b840134fc738b41a8bb0493489c402a4a761efd36c16dea7d984b"
-    },
     "admin.system.cloning": {
       "by": "ai",
       "out": "777bb1d842f70496cfbfadaeeded7c30928bca0343a66771d83b216c33a063ec",
@@ -89023,11 +88413,6 @@
       "by": "ai",
       "out": "17c9ce2f1cd68e0a12ce59118ace350e401f2566e370d407ccc36f159ebd0f0e",
       "src": "c60654cfaef57a3144a1f3b9c0a0a33a8a4ae295355c6a9c37c99de45931b79b"
-    },
-    "admin.system.couldNotCheck": {
-      "by": "ai",
-      "out": "34ee3468638e75aa5ed556556f1dedace5f7a437a895b2d6e6d171cd09a48ced",
-      "src": "5e3b677e9d699f43f5bb2bedc2dc8359f6d1f0510fcfb6a87b28b355b2de5439"
     },
     "admin.system.fromEnv": {
       "by": "ai",
@@ -89219,25 +88604,10 @@
       "out": "fb0ce766ae844a531c1e2a984d5be8e27aa055ccbcc2cf90f9d70d79a8a94aed",
       "src": "dffb64dc70011ecf3ef3ad62cdd271f08f1b86601d7c2bc54f91978a32ca8cf4"
     },
-    "admin.system.notSet": {
-      "by": "ai",
-      "out": "b62741977594855a55b0d243f11bf463d115ce73c838ee85ed1c39f65b7d477c",
-      "src": "4895f73177ab5d67c30c183a49d2477e014a2ef69b65150762d17e877f4f5b95"
-    },
-    "admin.system.problem": {
-      "by": "ai",
-      "out": "325d7ef21677d6a09a4664732f4059ec2b7df84cbab7e815bbb65fb4b18c3569",
-      "src": "acde93d17a70245286f806fa2893f6b3564fb1d4def6d45250e472073d4fa730"
-    },
     "admin.system.riskyWarning": {
       "by": "ai",
       "out": "9404e27d4ea655672afa046ea9ec7e79a27b7051173d0bfa7180832e01a46ca5",
       "src": "2ca07f3c7aad09c89cfe5dc3248e330bae5e854492e7932a514e2dbc46824db5"
-    },
-    "admin.system.server": {
-      "by": "ai",
-      "out": "81128e5e28188d625586f9167778ccdd7ab2755c47a24da2dbb876b3f70af6c9",
-      "src": "aef7de28d52977f1b5cd0fecfdc151717610adf41e0aa33b4d9f7522a43337ef"
     },
     "admin.system.setupReports.actions": {
       "by": "ai",
@@ -89449,11 +88819,6 @@
       "out": "9c0a0bb51254f7b40f886a5fd35b54a92a5c01f36abc598790bc1a055432a399",
       "src": "41b40aa641e81ae85f553ab22b733256812bf4567229889770d6dd56d244cd40"
     },
-    "admin.system.sipTrunks": {
-      "by": "ai",
-      "out": "a0e9d744d7ea8346e134379cc3ca007b9d2990d5f1c8a843a5d1b395d4e9ac87",
-      "src": "744475fa8c25b63e100ae79e13b0f94a0de1ecb37a26141395399de5663de778"
-    },
     "admin.system.spendCapsUnconfirmed": {
       "by": "ai",
       "out": "065e4f3a4e69f684e4b606db2cd4173b68b2d9059e43d0153558dd2016ac67be",
@@ -89563,16 +88928,6 @@
       "by": "ai",
       "out": "fc44f43942b8dec8149edaf89df15248bc1c0b2ab61026d8e17c40ee09ad7ae2",
       "src": "f7ac81e779a506eddfcc08ad902a5e7b5e22829eb520595a5c2016f4724e26fc"
-    },
-    "admin.system.url": {
-      "by": "ai",
-      "out": "e7a241debad56609ee660a5d2ef258a1aceb7357ff210ac66d7280b3add02a9a",
-      "src": "e7a241debad56609ee660a5d2ef258a1aceb7357ff210ac66d7280b3add02a9a"
-    },
-    "admin.system.urlWhat": {
-      "by": "ai",
-      "out": "e154826af8dd62d1ac823c752c9b97288062ee4d130c2e2c7aa2be4fa7b8357a",
-      "src": "cf00dd0ab6b5ff6dcfebb15df873436d32ef34736f64a71b550847dc4b1ea8b2"
     },
     "admin.system.zapier": {
       "by": "ai",
@@ -120441,81 +119796,6 @@
       "out": "407642942d07991960f488922ed34ce6ff5d8d3773ddffa55c255ff8d9b085b8",
       "src": "b126a480e559a902fdd95bd8b0ea0aebc4890509f153b0c97f7d1f262d137248"
     },
-    "admin.agentSetupCounts.client": {
-      "by": "ai",
-      "out": "ba5858157de142a20cbf66ff9ae8c325840a72c8466f631887eb7be25f64023d",
-      "src": "92c7d7f84c3ecbd938435ccfc4081fd21bd4be849059cec8359c3c732b60447a"
-    },
-    "admin.agentSetupCounts.connected": {
-      "by": "ai",
-      "out": "5f22f0bb58682b4a9bdee8646968d2895f6911055599d5f26cd1d931e78d37ba",
-      "src": "22965568d22a14ee17af055d2870b50afcfe9fd94a83eec3196e266932297bb2"
-    },
-    "admin.agentSetupCounts.description": {
-      "by": "ai",
-      "out": "da441ed3d60bf6b3fd299360cdae7cb42d53d1d3eadd9cbeee620ce05d66c317",
-      "src": "352409145cce373bcf07933e117e04c52bb2017ae045bd95e558ccbc11d2871e"
-    },
-    "admin.agentSetupCounts.empty": {
-      "by": "ai",
-      "out": "78c4baaf37ff1f5221bd7b562ea575c5af8c56bba9e8ce8e5601188fe56e6b57",
-      "src": "a2133063663127206ed7ef340b0f059048d07c56f7a174f7ad74c3e953c09c0b"
-    },
-    "admin.agentSetupCounts.help": {
-      "by": "ai",
-      "out": "1bbd89d949361f4b2d5a800ad3dbdd205b4449b7a544c522e74aa6f82e0f69ee",
-      "src": "9480f51ff479408970f98e38bc702e3ebb4171eaa357f7f453162f42a609b882"
-    },
-    "admin.agentSetupCounts.kind.all": {
-      "by": "ai",
-      "out": "f7af6675ec30c90bea20e2a36c3e0202dc39161743d2d6aae1f0281318ec4f42",
-      "src": "da2e5dc515b188dcac1afa88c93f859834ad57dfd921581172c9a74ab190e9f1"
-    },
-    "admin.agentSetupCounts.kind.install": {
-      "by": "ai",
-      "out": "14e79cea0651c158b18f14b2954458873f038b875688029089ba1b157475c486",
-      "src": "a56462f6da3581e5b6d1952e7e8012a062a85fa6bfa62c879982e786bf44d761"
-    },
-    "admin.agentSetupCounts.kind.partner": {
-      "by": "ai",
-      "out": "a4f44df5bc0e22b95ea0c84e091cd3fdf621995611b6e95ab8dbb9225d12d2fc",
-      "src": "5dab502bfba3c3dfc2c9308a9f5cd3cfccf959852af05b2a430ebd9c12b95b90"
-    },
-    "admin.agentSetupCounts.kind.workspace": {
-      "by": "ai",
-      "out": "798ebc43d21b8977de4f5ce1812794c1f9165d5f9130f8741d4b3c9f458f0045",
-      "src": "1e4ef0ed2a5689f33b2754a4dd1bccaeb359447fe9f79920a2a44443a37f92d2"
-    },
-    "admin.agentSetupCounts.kindLabel": {
-      "by": "ai",
-      "out": "b8e1cf9f8949d8a3956aa15f742a3984fd8329284eca4bad6148bd0125d90026",
-      "src": "c17b94b8c9394d40151ba4078f384f0bfe77936d258bc2029bd8b857685cd3f1"
-    },
-    "admin.agentSetupCounts.made": {
-      "by": "ai",
-      "out": "04f5e4efc0f5a04e58b5a0a24b80b05fdd83a77467c325544f88ec298c0f4072",
-      "src": "2467c575aff4670ac4edef30f96a9cb02b165adeaa2706c7c4f98c0d9501a807"
-    },
-    "admin.agentSetupCounts.noClient": {
-      "by": "ai",
-      "out": "a28710cc667137efa51550fa2080f86bf817a30e58310b839806c491e8b1e3c3",
-      "src": "185492b8c19e522acfb64d3c22ce820d0e7ce4236510303cf239cee49007f452"
-    },
-    "admin.agentSetupCounts.share": {
-      "by": "ai",
-      "out": "56a98bd57afdeee9cc35bc559ad842f008eaa074b625e5a741871734f6f63930",
-      "src": "29887a5ff9846ccc23327565a07e17fa6dcaea6211f1898ae825f84ae38f4223"
-    },
-    "admin.agentSetupCounts.title": {
-      "by": "ai",
-      "out": "33c4538b1c833de1ecc9277ce6422f3cfea9f31777372223e1b686769e04e22a",
-      "src": "56aa1cf4e24f67f36768c71f9de66d7974302d6010a0b71544b24ff9409f9397"
-    },
-    "admin.agentSetupCounts.total": {
-      "by": "ai",
-      "out": "01fc1c55333cf931e1833a19812f1821d0a7daaf650e4a04d25707b8976ba2f5",
-      "src": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8"
-    },
     "admin.api.confirmPasskey": {
       "by": "ai",
       "out": "48e583fad272a9f1467bfa209c1fcc665961e53d162dd1ebee135ec928b267a0",
@@ -124521,26 +123801,6 @@
       "out": "f36b4109a9a6c8ef4362c35ce39da19a0c1255c5dee69218716e1a0447fd171f",
       "src": "e78041ab51a818a22e2cfea6c15fe72e9e20092246f496f1670f7be3e42177a6"
     },
-    "admin.groups.activity": {
-      "by": "ai",
-      "out": "1a369e55e5f24376b96b830be97474132d2d86989efca299cf23d889f507187b",
-      "src": "38da1505ca8373288489495101b14f24ac95078f520ad64df18272aa6054f750"
-    },
-    "admin.groups.assistant": {
-      "by": "ai",
-      "out": "5b4bd8fa892cfaf0887a465d56f51e887a29bbc903af7fd2656c7190a72c810d",
-      "src": "391e405152779acc6b0f9429f3a4e27baf2af0deab2c37ba792311efa767d676"
-    },
-    "admin.groups.customers": {
-      "by": "ai",
-      "out": "40b3e4e1be19ea23c21fc734819b8e0152ed529f4b63d3a3c73fbfc8bd15c017",
-      "src": "aabe76f1f4ec532b6a9928e5cc4bc8654f1578ca32573768c572b03d153ea33c"
-    },
-    "admin.groups.system": {
-      "by": "ai",
-      "out": "088462f65b7e8bc00db9fd7d87cf33cea200daceb9094dea9dc851b2a1851090",
-      "src": "6725e7bbcd28f3a8a586fa34bf191fd72dde8b61756932cd3237c17a6f196f1a"
-    },
     "admin.health.agent.checkedIn": {
       "by": "ai",
       "out": "672c80645fa9d77cd6122a748b45090fd4c6b04581fe24382c194906f7d84261",
@@ -128006,36 +127266,6 @@
       "out": "d5488fcc86275b67ce0df8f5262ff68685fd119396021bbc12d61b37d862a458",
       "src": "c7402e175df6dae907d7302ca3688ec986fff3bfe737d82000e3374553d58a78"
     },
-    "admin.sections.calls.description": {
-      "by": "ai",
-      "out": "e0d80359872606404abece2ecf1d5b2328f73985c2caa884d678a8b0e1de8573",
-      "src": "f30169a7f82958c351e76d5499dd2c3d6cbd07a32ffd87c2063c2c1e44930a1e"
-    },
-    "admin.sections.calls.label": {
-      "by": "ai",
-      "out": "5203ca63079eec45f6ca7ca8b563947f3893568d85f827d5fc44531bf801b12f",
-      "src": "b73a5e2ca64586655532d524ad200a518150a1d9553cfc4f57fc8a5a863faf43"
-    },
-    "admin.sections.numbers.description": {
-      "by": "ai",
-      "out": "8aa4a964e1e0e0d2ecb678eb7390ab7ceb6d101bc990cdb7c4c76dcfd0ecc20a",
-      "src": "3c6080475e99ac24943e80c946e6dd99ebe55e36ce0e6c10c20b8e2549646d58"
-    },
-    "admin.sections.numbers.label": {
-      "by": "ai",
-      "out": "ef912605d688bb015964cae42312b202ef27659213f19967b600fd3914d70164",
-      "src": "ece6e50a3c38c2bd9affe9be9dd46e9d73a8745817a203a95e22baccfc51faf4"
-    },
-    "admin.sections.onboarding.description": {
-      "by": "ai",
-      "out": "9847b1d3790cacdad031d4e2d96be1d18733c4dc505573f339094f490115132f",
-      "src": "853bfdf106134c9c2e498dcfa29dc9275271548e07659c4ec036dc9a7409b3f1"
-    },
-    "admin.sections.onboarding.label": {
-      "by": "ai",
-      "out": "6d708e9bc33555b3fde7a6eb5c46cbf28d36c29bfad1d35f2bd1ed75210e9193",
-      "src": "a2198f472ce2fbee82a5546090a5dd896b1da3bb678e8963d19eaa03e08ca092"
-    },
     "admin.sections.overview.label": {
       "by": "ai",
       "out": "aaaf449bd4eac9c5629ab332244ab95c20fab59150ca0428592b44e1ffeba446",
@@ -128071,46 +127301,6 @@
       "out": "a4f0a0c0bb9250a2c206ef9111034b40008f973be6203e6af93aacdfa114484e",
       "src": "996c32b35f2182a9c83815395113f92344269ebb4ab3525017c4cafaa3d1a8fd"
     },
-    "admin.sections.server.description": {
-      "by": "ai",
-      "out": "56d699c84ecf449441ab86295062f0998aa77db392359f59777556596f2b13c4",
-      "src": "dd9f4fd77c0a421ff0ca80b10036fa6e136995220be4c261359da21a7f30e201"
-    },
-    "admin.sections.server.label": {
-      "by": "ai",
-      "out": "ef6c04c0c76bd6fa188ba5dc8bbb1077feb964d33b8eb843657e6899c9afbcc2",
-      "src": "344c9097cc03959739b92ef602b3d2709a53668ea83c522d4e9f54f973ec40d7"
-    },
-    "admin.sections.signup.description": {
-      "by": "ai",
-      "out": "c04dff6b15296c7102e34299586f48094d2a1d0342cccaa6b080d1f7b40b364c",
-      "src": "8faf0c9e698c9a12917c0e0d98fd7bd49e25ec64fde35f57642a42c86874db34"
-    },
-    "admin.sections.signup.label": {
-      "by": "ai",
-      "out": "866b1f9bf828776441982ed6a6e6ce557d7b92d4bef1410b9af2166d6c17b34d",
-      "src": "3cc08ebe9d5f9c116e980999ec1e18c4e628afc10e7e2105063097c0c2cdbc29"
-    },
-    "admin.sections.tools.description": {
-      "by": "ai",
-      "out": "a1369304d180ab4c84bc9484285648e5dca15888addd50acce5cad2a41416eec",
-      "src": "e541cffbdaea549ceee625c0814ad5f062cffee9c4d3c19a2b01d5783e72ef2a"
-    },
-    "admin.sections.tools.label": {
-      "by": "ai",
-      "out": "76389aaa773041a5dc393a13ff8106c6aaf8d668b8865dcad1cc11417b3f4f6f",
-      "src": "ea93d6a262ecb87a9fa4d09edbd7654c046597936a8e235fc3949eb01775ff99"
-    },
-    "admin.sections.usage.description": {
-      "by": "ai",
-      "out": "d028e0a694c201028e98459b2470d9d531787c79ef74ff99512d3fd55907a7c7",
-      "src": "5ea7e1fb0ed8e2cc0222c2818af97ed761d6ead3727317d403b5d1c9907e1e62"
-    },
-    "admin.sections.usage.label": {
-      "by": "ai",
-      "out": "16bf7cda6ffda8cb034f12d2f1f627db3509517968c9e035e9abf9262011630a",
-      "src": "8d59829c1e15afe1a7fae93e8e5e32d8511bec5fd598a09f4fea6033b31e8a66"
-    },
     "admin.sections.users.description": {
       "by": "ai",
       "out": "78534a46e3f30dc9390a20cecf3bb00309a24fa6685289ffe334f0af2f3b0b3e",
@@ -128130,11 +127320,6 @@
       "by": "ai",
       "out": "cae6357e5163161ef80814c43cc35446606f4d56c3b4bfda2efc3f87d94320e9",
       "src": "1377264ba3b0a7172621971b49ac3e82e33b64b14328d9275d02807e67ea8460"
-    },
-    "admin.server.callAudioTitle": {
-      "by": "ai",
-      "out": "bcd4dee94108450a42eda9a5e2cf7ad16d1d3910d174f8b72e31b03eacaefdcc",
-      "src": "e416d328af90755aeacbe459ff5b25bb4f78f8551244198147afc5a1e90d8eb3"
     },
     "admin.settings.calendarTools.help": {
       "by": "ai",
@@ -128496,16 +127681,6 @@
       "out": "b9039982d7a6155a280d0fb2e45450b2fc86383b4bdd361967e4f646f1f44e3a",
       "src": "81b8f9854b0e4c606f8eac6922ee48194c8a3d340f1fdb2153444cd8be10c82b"
     },
-    "admin.system.checkAgain": {
-      "by": "ai",
-      "out": "fff83a1f8c0c9f03ca9cae35ee7f4e8018acc788b7a65000dac835b5d02210a4",
-      "src": "fb7099ad8e818d42eceefe0d97c824fd54ddb0eeef54c263ec72c77d39198ac9"
-    },
-    "admin.system.checking": {
-      "by": "ai",
-      "out": "00643977637cf764deddd952ae0f4bfc82d2240a151212d13cfb6dbafe867686",
-      "src": "ec963ffc911b840134fc738b41a8bb0493489c402a4a761efd36c16dea7d984b"
-    },
     "admin.system.cloning": {
       "by": "ai",
       "out": "8166dadd4504d83c7f57dda0ce2ee842a43ceef4c4cee82be3aeae402cc58eb4",
@@ -128525,11 +127700,6 @@
       "by": "ai",
       "out": "1da160ed8df763e240bd8ffaa9c34e50a710ff01ee0d56b68a0f22aeabb51858",
       "src": "c60654cfaef57a3144a1f3b9c0a0a33a8a4ae295355c6a9c37c99de45931b79b"
-    },
-    "admin.system.couldNotCheck": {
-      "by": "ai",
-      "out": "1b7b7c8da8c793d0a5ceff09be7a9bbce726b518fd425aa18fd91148d6d1364f",
-      "src": "5e3b677e9d699f43f5bb2bedc2dc8359f6d1f0510fcfb6a87b28b355b2de5439"
     },
     "admin.system.fromEnv": {
       "by": "ai",
@@ -128721,25 +127891,10 @@
       "out": "8e7ddbeee310a5a53a0888c8559776357674f5297cf60b1db9debd07af0efb1d",
       "src": "dffb64dc70011ecf3ef3ad62cdd271f08f1b86601d7c2bc54f91978a32ca8cf4"
     },
-    "admin.system.notSet": {
-      "by": "ai",
-      "out": "6213305916949e4cb658c65cce44c82b2db645dce0b3d4a4e8dc6783abc4ba9a",
-      "src": "4895f73177ab5d67c30c183a49d2477e014a2ef69b65150762d17e877f4f5b95"
-    },
-    "admin.system.problem": {
-      "by": "ai",
-      "out": "ab28bcaa9985316e710cc4d2efe106dcb04f944dd2ad32ae2e281971a114d776",
-      "src": "acde93d17a70245286f806fa2893f6b3564fb1d4def6d45250e472073d4fa730"
-    },
     "admin.system.riskyWarning": {
       "by": "ai",
       "out": "e300774a68b6e0e16c4fd28f022787a155d7dd8c0324842cd8cb9bd5849ecfb4",
       "src": "2ca07f3c7aad09c89cfe5dc3248e330bae5e854492e7932a514e2dbc46824db5"
-    },
-    "admin.system.server": {
-      "by": "ai",
-      "out": "e8b52972d98094ada100b776ea489c116f7a168498e8685c8c8a5caf77d2f81d",
-      "src": "aef7de28d52977f1b5cd0fecfdc151717610adf41e0aa33b4d9f7522a43337ef"
     },
     "admin.system.setupReports.actions": {
       "by": "ai",
@@ -128951,11 +128106,6 @@
       "out": "18236fe4ee8475cdbc7339ace16eae683cd346c2a89a4a2edf1b8462f8d1772e",
       "src": "41b40aa641e81ae85f553ab22b733256812bf4567229889770d6dd56d244cd40"
     },
-    "admin.system.sipTrunks": {
-      "by": "ai",
-      "out": "f023760def54df97ffb6cef20c1b0a155600726030166f7d3c8c5ffe8c5350f4",
-      "src": "744475fa8c25b63e100ae79e13b0f94a0de1ecb37a26141395399de5663de778"
-    },
     "admin.system.spendCapsUnconfirmed": {
       "by": "ai",
       "out": "779ba36a32ee68a98615a38b677895d5de4f7785d0e60a80da87f19a376dbaf4",
@@ -129065,16 +128215,6 @@
       "by": "ai",
       "out": "5323a6ad897822b4999d6d22a8a95580b75239db475b6ee68dd69376341d6b6a",
       "src": "f7ac81e779a506eddfcc08ad902a5e7b5e22829eb520595a5c2016f4724e26fc"
-    },
-    "admin.system.url": {
-      "by": "ai",
-      "out": "e7a241debad56609ee660a5d2ef258a1aceb7357ff210ac66d7280b3add02a9a",
-      "src": "e7a241debad56609ee660a5d2ef258a1aceb7357ff210ac66d7280b3add02a9a"
-    },
-    "admin.system.urlWhat": {
-      "by": "ai",
-      "out": "e7a241debad56609ee660a5d2ef258a1aceb7357ff210ac66d7280b3add02a9a",
-      "src": "cf00dd0ab6b5ff6dcfebb15df873436d32ef34736f64a71b550847dc4b1ea8b2"
     },
     "admin.system.zapier": {
       "by": "ai",
@@ -159943,81 +159083,6 @@
       "out": "77da23cbf893654e15ba8978581a51d8e839eb06598e84203ac1a7f18c7b9182",
       "src": "b126a480e559a902fdd95bd8b0ea0aebc4890509f153b0c97f7d1f262d137248"
     },
-    "admin.agentSetupCounts.client": {
-      "by": "ai",
-      "out": "c85ae866ddf10a3c0f73f0fd2debaa261aacbd6520b9f0a835d2f8477ba85f13",
-      "src": "92c7d7f84c3ecbd938435ccfc4081fd21bd4be849059cec8359c3c732b60447a"
-    },
-    "admin.agentSetupCounts.connected": {
-      "by": "ai",
-      "out": "1e1a08258a6989dc8725da02dc471c537f73956292aaa286d380fe42a972928c",
-      "src": "22965568d22a14ee17af055d2870b50afcfe9fd94a83eec3196e266932297bb2"
-    },
-    "admin.agentSetupCounts.description": {
-      "by": "ai",
-      "out": "6108c26ced92be9db4489590fa7f013600f8866bf809123b37aa8093ffdc1e73",
-      "src": "352409145cce373bcf07933e117e04c52bb2017ae045bd95e558ccbc11d2871e"
-    },
-    "admin.agentSetupCounts.empty": {
-      "by": "ai",
-      "out": "3b7d1129b01f01e094322afc22ce6b9afd9795af949fd4ed0336c9e9206636ea",
-      "src": "a2133063663127206ed7ef340b0f059048d07c56f7a174f7ad74c3e953c09c0b"
-    },
-    "admin.agentSetupCounts.help": {
-      "by": "ai",
-      "out": "a99eac22bed827ba2a7568097a86e4bf269d41abfa4a5da20ceda49cb3355060",
-      "src": "9480f51ff479408970f98e38bc702e3ebb4171eaa357f7f453162f42a609b882"
-    },
-    "admin.agentSetupCounts.kind.all": {
-      "by": "ai",
-      "out": "bd02b9a7d71dac67a21b2758f11975bc491cc834c22edd9fa598fed97405aaa9",
-      "src": "da2e5dc515b188dcac1afa88c93f859834ad57dfd921581172c9a74ab190e9f1"
-    },
-    "admin.agentSetupCounts.kind.install": {
-      "by": "ai",
-      "out": "a2886ca1bbdb478bfd7c888c8628caf9c8ecd93a621986cbab091a75df1516d9",
-      "src": "a56462f6da3581e5b6d1952e7e8012a062a85fa6bfa62c879982e786bf44d761"
-    },
-    "admin.agentSetupCounts.kind.partner": {
-      "by": "ai",
-      "out": "da316a45eb5c6fc2ac2860d5a01d498a2d4aa0785d854e916da8fb86900d7a3a",
-      "src": "5dab502bfba3c3dfc2c9308a9f5cd3cfccf959852af05b2a430ebd9c12b95b90"
-    },
-    "admin.agentSetupCounts.kind.workspace": {
-      "by": "ai",
-      "out": "84357cb26b09611c8736c1140ece73b56c50fede4ec2894b7c6e983b1338ee35",
-      "src": "1e4ef0ed2a5689f33b2754a4dd1bccaeb359447fe9f79920a2a44443a37f92d2"
-    },
-    "admin.agentSetupCounts.kindLabel": {
-      "by": "ai",
-      "out": "ea0be612ab4884ca6ee482d4006e9c7eb207bb59a8e894ad12c3e82c9e3a17cb",
-      "src": "c17b94b8c9394d40151ba4078f384f0bfe77936d258bc2029bd8b857685cd3f1"
-    },
-    "admin.agentSetupCounts.made": {
-      "by": "ai",
-      "out": "055a1431a11021b6eeeb436c86964ed74d8ecb90883684f3691d9a31e3238456",
-      "src": "2467c575aff4670ac4edef30f96a9cb02b165adeaa2706c7c4f98c0d9501a807"
-    },
-    "admin.agentSetupCounts.noClient": {
-      "by": "ai",
-      "out": "37c78a29d601960d3d97fe67cc6246aa3045f775da05ec4ee70ada16c3bceb75",
-      "src": "185492b8c19e522acfb64d3c22ce820d0e7ce4236510303cf239cee49007f452"
-    },
-    "admin.agentSetupCounts.share": {
-      "by": "ai",
-      "out": "cd3f44dc434a698098a29d519937ac5e519ca32d20490eea9ff6b96b7bb85ef4",
-      "src": "29887a5ff9846ccc23327565a07e17fa6dcaea6211f1898ae825f84ae38f4223"
-    },
-    "admin.agentSetupCounts.title": {
-      "by": "ai",
-      "out": "5f2bbfa25dacb868aa023e57c97e9440f21fc1a519be90feb8f4223acf0eb5fe",
-      "src": "56aa1cf4e24f67f36768c71f9de66d7974302d6010a0b71544b24ff9409f9397"
-    },
-    "admin.agentSetupCounts.total": {
-      "by": "ai",
-      "out": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8",
-      "src": "c9b3c38247f744e17dd26fda097d6a9ba9332586b6bdaa038bf8f313a863f2b8"
-    },
     "admin.api.confirmPasskey": {
       "by": "ai",
       "out": "d49a1d2d3c5d923edd75f22b14c1ce22fef86346e85f50c049ba228864f638eb",
@@ -164023,26 +163088,6 @@
       "out": "51656a29fb46a0a1d27a30b04794a8d39929bb469aa135d5bf2431b8bb2450b3",
       "src": "e78041ab51a818a22e2cfea6c15fe72e9e20092246f496f1670f7be3e42177a6"
     },
-    "admin.groups.activity": {
-      "by": "ai",
-      "out": "a5121730503f1ea7e1165e86fed5c61e79522c16eee11efc7cfb5485998cfaa1",
-      "src": "38da1505ca8373288489495101b14f24ac95078f520ad64df18272aa6054f750"
-    },
-    "admin.groups.assistant": {
-      "by": "ai",
-      "out": "6b623668e93f15575781b3cf4a3909f5cafa353fec6fb598afa8ac1c2463f1e1",
-      "src": "391e405152779acc6b0f9429f3a4e27baf2af0deab2c37ba792311efa767d676"
-    },
-    "admin.groups.customers": {
-      "by": "ai",
-      "out": "07e1ce1859da51078a0869590215b97235cd5b168d5d41922bbcdc171a1f23a1",
-      "src": "aabe76f1f4ec532b6a9928e5cc4bc8654f1578ca32573768c572b03d153ea33c"
-    },
-    "admin.groups.system": {
-      "by": "ai",
-      "out": "f150afd3c5994d185052d4165729e1db8eae6914164b9471c3e583edfb1db020",
-      "src": "6725e7bbcd28f3a8a586fa34bf191fd72dde8b61756932cd3237c17a6f196f1a"
-    },
     "admin.health.agent.checkedIn": {
       "by": "ai",
       "out": "9305476d54b9a171dd6fc6fa07ffac3a644b98b41ec2cb4c8fc0b122152ef5b6",
@@ -167508,36 +166553,6 @@
       "out": "3781bf8f42d7a61aaab12eacf0cd531be03ca5c53401a61279d9d88de9b459fe",
       "src": "c7402e175df6dae907d7302ca3688ec986fff3bfe737d82000e3374553d58a78"
     },
-    "admin.sections.calls.description": {
-      "by": "ai",
-      "out": "cf452fef4709905341588b667c38e49ac8a1acf0dde2e094ab7760928d16e259",
-      "src": "f30169a7f82958c351e76d5499dd2c3d6cbd07a32ffd87c2063c2c1e44930a1e"
-    },
-    "admin.sections.calls.label": {
-      "by": "ai",
-      "out": "3a05959609c02ce415c885d564b0910a556d3e39aa107acc394f3fdf755d0fea",
-      "src": "b73a5e2ca64586655532d524ad200a518150a1d9553cfc4f57fc8a5a863faf43"
-    },
-    "admin.sections.numbers.description": {
-      "by": "ai",
-      "out": "d109783a1332b16a4aa6656a18a65f1655bbf6a88d9da5f1ddcb85d476d9a50b",
-      "src": "3c6080475e99ac24943e80c946e6dd99ebe55e36ce0e6c10c20b8e2549646d58"
-    },
-    "admin.sections.numbers.label": {
-      "by": "ai",
-      "out": "d543c0fff9dd09fd92e890777bcedc4390a9a0a5617f8801a10e72b3fed17792",
-      "src": "ece6e50a3c38c2bd9affe9be9dd46e9d73a8745817a203a95e22baccfc51faf4"
-    },
-    "admin.sections.onboarding.description": {
-      "by": "ai",
-      "out": "07e2cc36c18c64e034fb20b060c35630773e974eacb76ed39b1d11f71fbd0152",
-      "src": "853bfdf106134c9c2e498dcfa29dc9275271548e07659c4ec036dc9a7409b3f1"
-    },
-    "admin.sections.onboarding.label": {
-      "by": "ai",
-      "out": "a2198f472ce2fbee82a5546090a5dd896b1da3bb678e8963d19eaa03e08ca092",
-      "src": "a2198f472ce2fbee82a5546090a5dd896b1da3bb678e8963d19eaa03e08ca092"
-    },
     "admin.sections.overview.label": {
       "by": "ai",
       "out": "36664e8242af267c65acb43f3b50c111cf135c18b4340720621f69cf4cc927f3",
@@ -167573,46 +166588,6 @@
       "out": "dd6378cf3381f70f297ae4593799209b77623cab6a2541acd2181f99db5e64da",
       "src": "996c32b35f2182a9c83815395113f92344269ebb4ab3525017c4cafaa3d1a8fd"
     },
-    "admin.sections.server.description": {
-      "by": "ai",
-      "out": "c7517bec76f7ff066bc6c071794d23e9b7913d863f02ee7e17aff54504085a63",
-      "src": "dd9f4fd77c0a421ff0ca80b10036fa6e136995220be4c261359da21a7f30e201"
-    },
-    "admin.sections.server.label": {
-      "by": "ai",
-      "out": "8840100afead7cf9124fa38cdb9d42e445ff455f98642457a2415d33b2f33df3",
-      "src": "344c9097cc03959739b92ef602b3d2709a53668ea83c522d4e9f54f973ec40d7"
-    },
-    "admin.sections.signup.description": {
-      "by": "ai",
-      "out": "6ed7b97878d6140d442591fadf00acd29e1e14d8eb7fd8fcd9250310fca3757c",
-      "src": "8faf0c9e698c9a12917c0e0d98fd7bd49e25ec64fde35f57642a42c86874db34"
-    },
-    "admin.sections.signup.label": {
-      "by": "ai",
-      "out": "6ace38b26228e253f91f7dbd0565dec209e239d4edc5b07984823e74a33f42a7",
-      "src": "3cc08ebe9d5f9c116e980999ec1e18c4e628afc10e7e2105063097c0c2cdbc29"
-    },
-    "admin.sections.tools.description": {
-      "by": "ai",
-      "out": "c41258618e80b6ea62693790a8f7438b51295c0ab6891ed2cd797ab686b05096",
-      "src": "e541cffbdaea549ceee625c0814ad5f062cffee9c4d3c19a2b01d5783e72ef2a"
-    },
-    "admin.sections.tools.label": {
-      "by": "ai",
-      "out": "b96a67bfde3ea52a927b4642e9b0c2cf27595b8b6b436015912439da39f17e45",
-      "src": "ea93d6a262ecb87a9fa4d09edbd7654c046597936a8e235fc3949eb01775ff99"
-    },
-    "admin.sections.usage.description": {
-      "by": "ai",
-      "out": "7913b6ae94157b33d48f5600a4b878af16faca017568cfa036f9369979e2b765",
-      "src": "5ea7e1fb0ed8e2cc0222c2818af97ed761d6ead3727317d403b5d1c9907e1e62"
-    },
-    "admin.sections.usage.label": {
-      "by": "ai",
-      "out": "da8920821e236009782bce6b477ee19ea42348078adc5884d3604b37f3e61c2d",
-      "src": "8d59829c1e15afe1a7fae93e8e5e32d8511bec5fd598a09f4fea6033b31e8a66"
-    },
     "admin.sections.users.description": {
       "by": "ai",
       "out": "782bad65cc95d454582f2f13ea059ffa671f1f45c5136ad2e39963477cb56c0a",
@@ -167632,11 +166607,6 @@
       "by": "ai",
       "out": "0efc83e9a5120b75396f643ba3db91d8040db06bba52d60df77c2650b0d26daf",
       "src": "1377264ba3b0a7172621971b49ac3e82e33b64b14328d9275d02807e67ea8460"
-    },
-    "admin.server.callAudioTitle": {
-      "by": "ai",
-      "out": "6c2e1fda03ffe45401a986121a1912340ffb1489f2dcb902a90cac42eae16792",
-      "src": "e416d328af90755aeacbe459ff5b25bb4f78f8551244198147afc5a1e90d8eb3"
     },
     "admin.settings.calendarTools.help": {
       "by": "ai",
@@ -167998,16 +166968,6 @@
       "out": "423199d58b9ceb64fbf273a024a2c9b303378839174d6f5958538a543140f79c",
       "src": "81b8f9854b0e4c606f8eac6922ee48194c8a3d340f1fdb2153444cd8be10c82b"
     },
-    "admin.system.checkAgain": {
-      "by": "ai",
-      "out": "c60993e713f8a67a7d9b1697d008074c524fd647332c422e0f2bdb54000d9490",
-      "src": "fb7099ad8e818d42eceefe0d97c824fd54ddb0eeef54c263ec72c77d39198ac9"
-    },
-    "admin.system.checking": {
-      "by": "ai",
-      "out": "c2f6ff98f6957802f6c785e5815a59678126075a2c567a4cf42ad6001a651588",
-      "src": "ec963ffc911b840134fc738b41a8bb0493489c402a4a761efd36c16dea7d984b"
-    },
     "admin.system.cloning": {
       "by": "ai",
       "out": "4517638917e498b4e3b1d9de00982108f6e050b1aee8da672b71ee95b45c6cec",
@@ -168027,11 +166987,6 @@
       "by": "ai",
       "out": "9cfdf940083cc3cf98561f1f0547bc592c0165e1a12a8f8585e861a9e71e46d8",
       "src": "c60654cfaef57a3144a1f3b9c0a0a33a8a4ae295355c6a9c37c99de45931b79b"
-    },
-    "admin.system.couldNotCheck": {
-      "by": "ai",
-      "out": "74a607fa45647d08caeb10f8faf0de030125767e4e45530319a93429a4ee570b",
-      "src": "5e3b677e9d699f43f5bb2bedc2dc8359f6d1f0510fcfb6a87b28b355b2de5439"
     },
     "admin.system.fromEnv": {
       "by": "ai",
@@ -168223,25 +167178,10 @@
       "out": "fb0ce766ae844a531c1e2a984d5be8e27aa055ccbcc2cf90f9d70d79a8a94aed",
       "src": "dffb64dc70011ecf3ef3ad62cdd271f08f1b86601d7c2bc54f91978a32ca8cf4"
     },
-    "admin.system.notSet": {
-      "by": "ai",
-      "out": "9824c58b6feb83562a63f87bafa233c9e53eec1d3806c460a64be6b683eaefff",
-      "src": "4895f73177ab5d67c30c183a49d2477e014a2ef69b65150762d17e877f4f5b95"
-    },
-    "admin.system.problem": {
-      "by": "ai",
-      "out": "4775c0324cca7a8adb4b6daa408fed7a7c1d69b9fab44f1034b7719ccc67e65a",
-      "src": "acde93d17a70245286f806fa2893f6b3564fb1d4def6d45250e472073d4fa730"
-    },
     "admin.system.riskyWarning": {
       "by": "ai",
       "out": "95aa697e623b2ec6ea12a3cfb4546002027f906da3a8795a70a918b591c1626d",
       "src": "2ca07f3c7aad09c89cfe5dc3248e330bae5e854492e7932a514e2dbc46824db5"
-    },
-    "admin.system.server": {
-      "by": "ai",
-      "out": "05e427a291c27fee42ee968ca48e0a92628821c73ae3c1042cdb31da7efbc66b",
-      "src": "aef7de28d52977f1b5cd0fecfdc151717610adf41e0aa33b4d9f7522a43337ef"
     },
     "admin.system.setupReports.actions": {
       "by": "ai",
@@ -168453,11 +167393,6 @@
       "out": "95071062f11e7fd71851b64e045c57be5af2a682f0b7937a8f4868ce07dd4c5f",
       "src": "41b40aa641e81ae85f553ab22b733256812bf4567229889770d6dd56d244cd40"
     },
-    "admin.system.sipTrunks": {
-      "by": "ai",
-      "out": "bbedb7452d854a32a09b2940e42aba7f32c6c56c72abe209b51ebd6057388858",
-      "src": "744475fa8c25b63e100ae79e13b0f94a0de1ecb37a26141395399de5663de778"
-    },
     "admin.system.spendCapsUnconfirmed": {
       "by": "ai",
       "out": "74c29db1e38d60741b15ede2b38b4bde2eafce4a6608f5dd589b2c713da0682f",
@@ -168567,16 +167502,6 @@
       "by": "ai",
       "out": "af94c722b135e92c05f06fe2f0ad12a8b3b2ac46dd45d12fd1f5ba8c90696462",
       "src": "f7ac81e779a506eddfcc08ad902a5e7b5e22829eb520595a5c2016f4724e26fc"
-    },
-    "admin.system.url": {
-      "by": "ai",
-      "out": "e7a241debad56609ee660a5d2ef258a1aceb7357ff210ac66d7280b3add02a9a",
-      "src": "e7a241debad56609ee660a5d2ef258a1aceb7357ff210ac66d7280b3add02a9a"
-    },
-    "admin.system.urlWhat": {
-      "by": "ai",
-      "out": "a86ba76bdf015a3023b763731bb2a829dc5ddcc1adb24a47ab4fab636d8ca0d3",
-      "src": "cf00dd0ab6b5ff6dcfebb15df873436d32ef34736f64a71b550847dc4b1ea8b2"
     },
     "admin.system.zapier": {
       "by": "ai",

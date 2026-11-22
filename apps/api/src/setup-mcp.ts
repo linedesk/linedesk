@@ -943,7 +943,13 @@ function redirectUris(provider: ProviderName): string[] {
   if (provider === 'github') return [`${app}/api/auth/callback/github`]
   if (provider === 'oidc') return [`${app}/api/auth/oauth2/callback/oidc`]
   if (provider === 'calendly' || provider === 'calcom') return [`${app}/v1/calendar/callback/${provider}`]
-  if (provider === 'hubspot' || provider === 'slack' || provider === 'jobber' || provider === 'shopify' || provider === 'zoho')
+  if (
+    provider === 'hubspot' ||
+    provider === 'slack' ||
+    provider === 'jobber' ||
+    provider === 'shopify' ||
+    provider === 'zoho'
+  )
     return [`${app}/v1/apps/callback/${provider}`]
   return []
 }
@@ -954,7 +960,7 @@ function redirectUris(provider: ProviderName): string[] {
  * their state and how to set them up through these tools, offered once the needed steps are done. Calendars themselves
  * are connected per business by signing in to Google or Microsoft in the browser (Assistant settings › Booking &
  * calendar), the one part an agent cannot do. After-call transcription is turned on by the admin in the app (Server
- * Server admin › Calls › After-call transcription), because recordings leave the server; its key goes through these tools.
+ * Server admin › Features › After-call transcription), because recordings leave the server; its key goes through these tools.
  */
 function optionalSteps(groups: GroupStatus[]) {
   const how: Record<string, string[]> = {

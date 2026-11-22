@@ -141,7 +141,7 @@ async function realCallArrived(tx: Tx, workspaceId: string): Promise<boolean> {
  * Whether forwarding works for the workspace's setup number (setupNumber, the one setup is about): a check verified it
  * (`verified_at`, which a new pick-up mode or a new number starts without), or a real caller (isRealCall: incoming,
  * not the business's own phones, not spam) reached it while it forwards. Not the forwarding_verified milestone: that
- * is once per workspace and stays after the number or its mode changed, so it only feeds Server admin › Onboarding.
+ * is once per workspace and stays after the number or its mode changed, so it only feeds Server admin › Workspaces › At risk.
  */
 export async function forwardingVerifiedFor(tx: Tx, workspaceId: string): Promise<boolean> {
   const numbers = await tx

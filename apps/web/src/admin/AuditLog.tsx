@@ -1,6 +1,7 @@
 // Server admin › Audit log: who did what on this install, newest first. Sign-ins with their method,
 // sign-in methods added or removed, admin actions, team changes, provider keys and impersonation.
-// Kept forever; filters by kind, person, workspace and dates; "Show older" pages back.
+// Kept forever; filters by kind, person, workspace and dates; "Show older" pages back. Two kinds are lists of their own
+// (LIN-747): Stripe's events (Billing's part before, with Process again) and the setup reports AI agents sent.
 import { CALL_QUALITY_LABELS, type CallQuality } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
@@ -11,7 +12,10 @@ import { DateInput, Input } from '../ui/form.tsx'
 import { Badge, Button } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { type AdminWorkspace, type AuditEntry, type AuditFilter, type AuditKind, loadAudit } from './api.ts'
-import { errorText } from './notify.ts'
+import { EventsCard } from './Billing.tsx'
+import { errorText, type Notify } from './notify.ts'
+import { AUDIT_LISTS, type AuditList } from './route.ts'
+import { SetupReports } from './SettingsCards.tsx'
 import { fmt } from '../i18n/format.ts'
 import { i18n } from '../i18n/index.tsx'
 import { EMPTY } from './parts.tsx'
@@ -31,6 +35,58 @@ const kinds: { value: AuditKind | 'all'; label: MessageKey }[] = [
   { value: 'partners', label: msg('admin.audit.kind.partners') },
   { value: 'impersonation', label: msg('admin.audit.kind.impersonation') },
 ]
+
+/** The kinds that are lists of their own, after the entries' kinds. */
+const listKinds: { value: AuditList; label: MessageKey }[] = [
+  { value: 'stripe', label: msg('admin.audit.kind.stripe') },
+  { value: 'setup-reports', label: msg('admin.audit.kind.setupReports') },
+]
+
+const isAuditList = (value: string): value is AuditList => (AUDIT_LISTS as readonly string[]).includes(value)
+
+/** The list the address asks for (`#admin/audit?kind=stripe`), else null: the entries. */
+const listOfHash = (hash: string): AuditList | null => {
+  const kind = new URLSearchParams(hash.split('?')[1] ?? '').get('kind') ?? ''
+  return isAuditList(kind) ? kind : null
+}
+
+type KindValue = AuditKind | 'all' | AuditList
+
+/** The "What" picker: every kind of entry, then the lists. */
+function KindSelect({ value, onChange }: { value: KindValue; onChange: (value: KindValue) => void }) {
+  const t = useT()
+  return (
+    <Select
+      value={value}
+      options={[...kinds, ...listKinds].map(k => ({ value: k.value, label: t(k.label) }))}
+      onChange={onChange}
+      label={t('admin.audit.column.what')}
+    />
+  )
+}
+
+export function AuditLog({ workspaces, notify }: { workspaces: AdminWorkspace[]; notify: Notify }) {
+  const [list, setList] = useState<AuditList | null>(() => listOfHash(window.location.hash))
+  useEffect(() => {
+    const onHash = () => setList(listOfHash(window.location.hash))
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  /** A pick replaces the address (no history entry), so a reload or a shared link keeps it. */
+  const pickList = (next: AuditList | null) => {
+    setList(next)
+    window.history.replaceState(window.history.state, '', `#admin/audit${next ? `?kind=${next}` : ''}`)
+  }
+  if (!list) return <AuditEntries workspaces={workspaces} onPickList={pickList} />
+  return (
+    <>
+      <div className="adm-audit-filters">
+        <KindSelect value={list} onChange={value => pickList(isAuditList(value) ? value : null)} />
+      </div>
+      {list === 'stripe' ? <EventsCard notify={notify} /> : <SetupReports />}
+    </>
+  )
+}
 
 const methods: Record<string, MessageKey> = {
   password: msg('admin.audit.method.password'),
@@ -655,7 +711,13 @@ const today = () => new Date().toISOString().slice(0, 10)
 /** The day after, so "to" includes the whole day picked. */
 const dayAfter = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
 
-export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
+function AuditEntries({
+  workspaces,
+  onPickList,
+}: {
+  workspaces: AdminWorkspace[]
+  onPickList: (list: AuditList) => void
+}) {
   const t = useT()
   const [filter, setFilter] = useState<{
     kind: AuditKind | 'all'
@@ -734,11 +796,9 @@ export function AuditLog({ workspaces }: { workspaces: AdminWorkspace[] }) {
   return (
     <div className="adm-card">
       <div className="adm-audit-filters">
-        <Select
+        <KindSelect
           value={filter.kind}
-          options={kinds.map(k => ({ value: k.value, label: t(k.label) }))}
-          onChange={set('kind')}
-          label={t('admin.audit.column.what')}
+          onChange={value => (isAuditList(value) ? onPickList(value) : set('kind')(value))}
         />
         <Input
           className="adm-audit-who"

@@ -1,4 +1,4 @@
-// Server admin › Onboarding › Funnel (LIN-425): how far the workspaces that signed up each week got, counted from our
+// Server admin › Overview › Funnel (LIN-425): how far the workspaces that signed up each week got, counted from our
 // own tables (no tracker in the app). A workspace counts in the week it signed up (UTC, weeks start on Monday) and in
 // every step it reached since, whenever that was:
 //   signed up   the signup milestone, or the workspace's creation for one older than the milestones;

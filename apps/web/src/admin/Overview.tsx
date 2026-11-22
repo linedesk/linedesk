@@ -111,7 +111,7 @@ function Costs({ overview }: { overview: AdminOverview }) {
   )
 }
 
-type Props = { onOpen: (section: 'workspaces' | 'users' | 'providers' | 'server') => void }
+type Props = { onOpen: (section: 'workspaces' | 'users' | 'providers') => void }
 
 const bold = (chunks: ReactNode[]) => <b>{chunks}</b>
 

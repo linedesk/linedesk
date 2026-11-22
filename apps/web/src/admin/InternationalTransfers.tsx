@@ -1,4 +1,4 @@
-// Server admin › Calls › International transfers: the countries every workspace's transfers (and forwarding checks)
+// Server admin › Features › International transfers: the countries every workspace's transfers (and forwarding checks)
 // may call through this server's carrier account besides the countries of its own numbers (outboundCountries.get/.set,
 // packages/actions/src/outbound.ts). Countries are picked by name with their flag and shown as chips; each add or
 // remove saves at once, like the other System cards. A frequent toll-fraud destination is saved only after a second,

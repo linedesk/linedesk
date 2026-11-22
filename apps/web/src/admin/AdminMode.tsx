@@ -22,7 +22,9 @@ import { CallReviews } from './CallReviews.tsx'
 import { Billing, billingPartTitle, useBillTitle } from './Billing.tsx'
 import { refreshQuery, useQuery } from '../cachedQuery.ts'
 import { errorText, type Notify } from './notify.ts'
-import { Onboarding } from './Onboarding.tsx'
+import { AtRisk } from './Onboarding.tsx'
+import { Funnel } from './Funnel.tsx'
+import { NeedsYou } from './NeedsYou.tsx'
 import { Overview } from './Overview.tsx'
 import { Partners } from './Partners.tsx'
 import { Providers } from './Providers.tsx'
@@ -36,18 +38,15 @@ import {
   placeUp,
   sectionIndexOfKey,
   sectionKey,
-  adminGroups,
   tabSwitchesSection,
   useAdminPlace,
 } from './route.ts'
-import { Server } from './Server.tsx'
-import { CallSettings, SignupSettings, ToolSettings } from './Settings.tsx'
-import { GermanNumbers } from './SettingsCards.tsx'
+import { Features } from './Settings.tsx'
 import { SystemPrompt } from './SystemPrompt.tsx'
 import { BrandingSettings } from './Branding.tsx'
 import { Usage } from './Usage.tsx'
 import { UserDetail, UsersList } from './UsersPage.tsx'
-import { WorkspaceDetail, WorkspacesList } from './WorkspacesPage.tsx'
+import { useWorkspaceView, WorkspaceDetail, WorkspacesList, WorkspaceViews } from './WorkspacesPage.tsx'
 import './admin.css'
 import { useBrand } from '../brand.ts'
 
@@ -137,6 +136,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const { lists, providers, data, listsError, providersError, reload } = useAdminData()
   const { toast, notify, undo } = useAdminToast()
   const listKeys = useRef<ListKeys | null>(null)
+  const [workspaceView, setWorkspaceView] = useWorkspaceView()
   const problems = useHealthProblems()
   // One status for the overview's card and Server admin › Providers: tested once, shown the same on both.
   const status = useProviderStatus(providers)
@@ -205,20 +205,25 @@ export function AdminMode({ currentUserId, onExit }: Props) {
         <>
           <SecondPasskeyNote account={currentUserId} />
           <StatusCard status={status} />
+          <NeedsYou />
           <Overview onOpen={section => go({ section, id: null })} />
+          <Funnel />
         </>
       )
-    if (place.section === 'onboarding') return <Onboarding />
+    // Workspaces at risk load their own rows.
+    if (place.section === 'workspaces' && !place.id && workspaceView === 'at-risk')
+      return (
+        <>
+          <WorkspaceViews view={workspaceView} onPick={setWorkspaceView} />
+          <AtRisk />
+        </>
+      )
     // Billing loads its own rows (the bills, the Stripe events), and says itself when a bill is not found.
     if (place.section === 'billing')
       return <Billing id={place.id} onOpen={open} notify={notify} keysRef={listKeys} data={data} />
     // Pages that load their own data never wait for the lists or the providers.
     if (place.section === 'branding') return <BrandingSettings />
-    if (place.section === 'calls') return <CallSettings data={data} status={status} reload={reload} notify={notify} />
-    if (place.section === 'numbers') return <GermanNumbers />
-    if (place.section === 'signup') return <SignupSettings notify={notify} />
-    if (place.section === 'tools') return <ToolSettings />
-    if (place.section === 'server') return <Server status={status} />
+    if (place.section === 'features') return <Features data={data} status={status} reload={reload} notify={notify} />
     if (place.section === 'prompt') return <SystemPrompt />
     if (place.section === 'partners') return <Partners notify={notify} waiting={place.id === 'waiting'} />
     if (place.section === 'call-reviews') return <CallReviews />
@@ -250,8 +255,14 @@ export function AdminMode({ currentUserId, onExit }: Props) {
             currentUserId={currentUserId}
             {...shared}
           />
+        ) : workspaceView === 'usage' ? (
+          <>
+            <WorkspaceViews view={workspaceView} onPick={setWorkspaceView} />
+            <Usage workspaces={ready.workspaces} usage={ready.usage} months={ready.usageMonths} />
+          </>
         ) : (
           <WorkspacesList
+            views={<WorkspaceViews view={workspaceView} onPick={setWorkspaceView} />}
             workspaces={ready.workspaces}
             onOpen={open}
             keysRef={listKeys}
@@ -272,8 +283,6 @@ export function AdminMode({ currentUserId, onExit }: Props) {
             {...shared}
           />
         )
-      case 'usage':
-        return <Usage workspaces={ready.workspaces} usage={ready.usage} months={ready.usageMonths} />
       case 'providers':
         return data ? (
           <Providers
@@ -286,7 +295,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
           />
         ) : null
       case 'audit':
-        return <AuditLog workspaces={ready.workspaces} />
+        return <AuditLog workspaces={ready.workspaces} notify={notify} />
     }
   }
 
@@ -296,7 +305,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
   const sections = adminSections.map((s, i) => ({
     id: s.id,
     label: t(s.label),
-    group: 'group' in s ? t(adminGroups[s.group]) : undefined,
+    quiet: 'quiet' in s,
     shortcut: sectionKey(i),
     mark:
       s.id === 'overview' && problems.length > 0 ? (

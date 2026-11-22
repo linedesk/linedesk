@@ -279,7 +279,7 @@ const expectedRights: Record<Right, readonly string[]> = {
     'setupEmails.set',
     'founderEmail.get',
     'founderEmail.set',
-    // Setup reports to the Linedesk team (LIN-210): the list in Server admin › Onboarding, and Send again.
+    // Setup reports to the Linedesk team (LIN-210): the list in Server admin › Workspaces › At risk, and Send again.
     'feedback.setupReports',
     'feedback.resend',
     'signupAccess.get',

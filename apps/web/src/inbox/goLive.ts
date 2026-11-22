@@ -2,7 +2,7 @@
 // Owners and admins see it in the inbox after onboarding (the product tour follows once it is done, LIN-85): what is
 // left before the assistant really answers the business's calls, and each row ticks itself once that is true.
 // Which number, what counts as live and the order of the steps come from @linedesk/actions (setup-state.ts), the
-// same definition the setup emails and Server admin › Onboarding use.
+// same definition the setup emails and Server admin › Workspaces › At risk use.
 import {
   type BusinessKind,
   forwardsCalls,

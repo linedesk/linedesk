@@ -1,7 +1,7 @@
 // Setup reports (LIN-210): feedback.send with kind setup from an install setup link's agent. Preview first (nothing
 // stored or sent), then the admin's yes; redacted (every value the install knows, then scrubText); POSTed to
 // SETUP_FEEDBACK_URL (mocked here, never linedesk.ai), kept on anything but 200/201 with ok, refused on a 400, retried,
-// sent again from Server admin › Onboarding. In INSTANCE_WIDE_FILES: it makes instance admins and stores provider keys.
+// sent again from Server admin › Workspaces › At risk. In INSTANCE_WIDE_FILES: it makes instance admins and stores provider keys.
 import { SETUP_MCP_INSTRUCTIONS, SETUP_REPORT_MIN_GAP_SECONDS } from '@linedesk/actions'
 import { agent_setup_keys, assistants, commands, feedback, phone_numbers, provider_settings, user } from '@linedesk/db'
 import { and, desc, eq } from 'drizzle-orm'
@@ -408,7 +408,7 @@ describe('feedback_send on the setup MCP', () => {
     ;[row] = await rowsOf(keyId)
     expect(row).toMatchObject({ status: 'kept', tries: 2 })
 
-    // Server admin › Onboarding: the list, then Send again once the endpoint answers.
+    // Server admin › Workspaces › At risk: the list, then Send again once the endpoint answers.
     const list = await act(admin, 'feedback.setupReports', {})
     expect(list.body.data.reports.find((r: { id: string }) => r.id === row!.id)).toMatchObject({
       status: 'kept',

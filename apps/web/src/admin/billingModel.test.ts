@@ -283,7 +283,8 @@ test('filters live in the address, so a link or a reload keeps them', () => {
   expect(billsHref('all')).toBe('#admin/billing/bills')
   expect(eventFilterOfHash('#admin/billing/events?filter=failed')).toBe('failed')
   expect(eventFilterOfHash('#admin/billing/events?filter=x')).toBe('all')
-  expect(eventsHref('all')).toBe('#admin/billing/events')
+  expect(eventsHref('all')).toBe('#admin/audit?kind=stripe')
+  expect(eventsHref('failed')).toBe('#admin/audit?kind=stripe&filter=failed')
 })
 
 test('times read as how long ago, in the largest unit that fits', () => {

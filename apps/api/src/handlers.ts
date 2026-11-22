@@ -676,7 +676,7 @@ async function openCall(
       usageLevel: forCall?.level ?? null,
       // White-label own keys (S7): the agent reads the partner's keys for this call (GET /v1/agent/call-provider-config).
       keys: call!.partner_keys && !blocked ? ('partner' as const) : null,
-      // The speech recognition model of the level that answers (Server admin › Calls › Call quality).
+      // The speech recognition model of the level that answers (Server admin › Features › Call quality).
       sttModel: forCall?.sttModel ?? null,
       // The instance admin's wording for parts of the system prompt (Server admin › System prompt; LIN-346).
       promptOverrides: blocked ? {} : await promptOverridesForCall(tx),
@@ -2128,7 +2128,7 @@ const handlers: Record<string, Handler> = {
     if (carrier_account === 'install') onCommit?.(() => syncInstallDestinations())
     // LiveKit's inbound trunk takes calls to the number once this commits, before the command answers (inbound-trunk.ts).
     onCommit?.(async () => void (await requestInboundTrunkSync()))
-    // The go-live checklist's first step ("Connect your number"), and where Server admin › Onboarding sees a business stop.
+    // The go-live checklist's first step ("Connect your number"), and where Server admin › Workspaces › At risk sees a business stop.
     await recordSetupEvent(tx, workspace_id, 'number_connected', now)
     // A workspace whose country is worked out from its numbers may be in another country now: what follows it moves.
     await applyCountryDefaults(tx, workspace_id)

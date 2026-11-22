@@ -1,7 +1,7 @@
 // The personal email from a founder: a few hours after the owner of a new workspace signed up, a short plain-text
 // email from the founder's own address (no layout, no button), asking what made them sign up. Replies go to the
 // founder. Off by default (a self-hosted install sends none): an instance admin turns it on with the name and address
-// it comes from (Server admin › Onboarding). Goes out once per workspace (setup_emails, kind founder_hello), only to
+// it comes from (Server admin › Workspaces › At risk). Goes out once per workspace (setup_emails, kind founder_hello), only to
 // owners who did not turn setup emails off, and only for workspaces their owner made themselves: not a white-label
 // partner's client (the partner talks to its clients) and not one a server admin made and handed over.
 // The setup emails job runs it every few minutes (jobs.ts).

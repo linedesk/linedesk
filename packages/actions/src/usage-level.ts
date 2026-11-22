@@ -198,7 +198,7 @@ export function partsFit({ voice, model }: CallParts, level: UsageTier): boolean
 /**
  * A call as it starts: `level` the assistant's call quality (`assistants.call_quality`), `parts` what answers it,
  * `ownKeys` every part runs on the workspace's own provider keys, `levelEnabled` the server admin has the level on
- * (Server admin › Calls › Call quality).
+ * (Server admin › Features › Call quality).
  */
 export type UsageLevelInput = { level: UsageTier; parts: CallParts; ownKeys: boolean; levelEnabled: boolean }
 
@@ -236,7 +236,7 @@ export const raisesLevel = (from: CallQuality, to: CallQuality) =>
 export type LevelDefaults = { llm?: string; voice?: Record<string, string>; stt?: string }
 
 /**
- * The install's call quality settings (instance_settings `call_quality`, Server admin › Calls › Call quality):
+ * The install's call quality settings (instance_settings `call_quality`, Server admin › Features › Call quality):
  * whether Premium and Ultra can be picked (Standard always can), the level new assistants start on, and per level the
  * models an assistant without its own pick uses.
  */
@@ -353,7 +353,7 @@ export const levelVoiceModelsOf = (provider: string, level: CallQuality): ModelC
     .filter(m => partFits(m.level, level))
     .map(m => ({ id: m.model, name: m.name }))
 /**
- * The speech recognition models a server admin can pick per level (Server admin › Calls › Call quality), per
+ * The speech recognition models a server admin can pick per level (Server admin › Features › Call quality), per
  * speech recognition provider; the first is its default. Speech recognition has no price of its own: every model fits
  * every level of the three stages. The agent knows how to stream each (apps/agent/src/pipeline.ts, createStt).
  */

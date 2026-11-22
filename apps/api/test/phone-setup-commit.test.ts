@@ -25,7 +25,8 @@ function emptyAccount() {
   vi.spyOn(devProvider, 'findNumber').mockResolvedValue(null)
   return { buy: vi.spyOn(devProvider, 'buyNumber'), release: vi.spyOn(devProvider, 'releaseNumber') }
 }
-const stored = async (e164: string) => (await db.select().from(phone_numbers).where(eq(phone_numbers.e164, e164))).length
+const stored = async (e164: string) =>
+  (await db.select().from(phone_numbers).where(eq(phone_numbers.e164, e164))).length
 
 test('attach is the default and buys nothing; a number that is not in the account is a rejection', async () => {
   const { buy } = emptyAccount()
@@ -45,7 +46,7 @@ test('with purchase: true the number is bought and stored', async () => {
   expect(res.body.rows.phone_numbers).toMatchObject([{ e164, workspace_id: ws.id, mode: 'new' }])
   expect(buy).toHaveBeenCalledWith(e164)
   expect(release).not.toHaveBeenCalled()
-  // The setup milestone the go-live checklist's first step and Server admin › Onboarding read.
+  // The setup milestone the go-live checklist's first step and Server admin › Workspaces › At risk read.
   const milestone = await db
     .select()
     .from(setup_events)

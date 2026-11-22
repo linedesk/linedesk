@@ -1,4 +1,4 @@
-// Server admin › Calls › Call quality (decision of 2026-11-17): which levels assistants can pick (Standard always,
+// Server admin › Features › Call quality (decision of 2026-11-17): which levels assistants can pick (Standard always,
 // Premium and Ultra by switch; Ultra only with a realtime model), the level new assistants start on, and, collapsed,
 // the default models per level. Turning a level off moves its assistants to Standard at once, with Undo in the toast.
 import {
@@ -70,7 +70,10 @@ export async function changeCallQuality(input: SetInput, offLevel: 'premium' | '
     notify(t('admin.callQuality.off', { level: CALL_QUALITY_LABELS[offLevel], count: moved.length }), async () =>
       setQueryData(
         KEY,
-        await save({ [offLevel]: true, ...(moved.length ? { restore: { level: offLevel, assistantIds: moved } } : {}) }),
+        await save({
+          [offLevel]: true,
+          ...(moved.length ? { restore: { level: offLevel, assistantIds: moved } } : {}),
+        }),
       ),
     )
   } catch (e) {

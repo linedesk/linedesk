@@ -1,4 +1,4 @@
-// Server admin › Onboarding › Funnel (LIN-425): the workspaces that signed up each week and how far they got, from
+// Server admin › Overview › Funnel (LIN-425): the workspaces that signed up each week and how far they got, from
 // our own tables (apps/api/src/admin-funnel.ts). The tiles are the whole range, the table one row per sign-up week.
 import { useFormat, useT } from '@linedesk/i18n/react'
 import { useState } from 'react'

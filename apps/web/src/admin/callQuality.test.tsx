@@ -1,4 +1,4 @@
-// Server admin › Calls › Call quality (CallQuality.tsx): Standard always on, Premium and Ultra by switch (Ultra only
+// Server admin › Features › Call quality (CallQuality.tsx): Standard always on, Premium and Ultra by switch (Ultra only
 // with a realtime model), prices where the install bills, the level new assistants start on (only levels that are on),
 // the default models per level; a level turned off says how many assistants moved, and Undo puts them back.
 import type { CallQualityAdminData, CallQualityAdminLevel } from '@linedesk/actions'

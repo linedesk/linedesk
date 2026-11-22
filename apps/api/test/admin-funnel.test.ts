@@ -1,4 +1,4 @@
-// Server admin › Onboarding › Funnel (admin-funnel.ts): sign-ups per week and how far they got, from our own tables.
+// Server admin › Overview › Funnel (admin-funnel.ts): sign-ups per week and how far they got, from our own tables.
 // Counts across workspaces and makes an instance admin, so this file has a database of its own (INSTANCE_WIDE_FILES).
 import {
   billing_accounts,

@@ -18,8 +18,13 @@ export type PageSection<T extends string = string> = {
   shortcut?: string
   /** Something to flag next to the label (Server admin › Overview: a part of the install needs attention). */
   mark?: ReactNode
-  /** The nav's group this section opens (Server admin: Watch, People, Settings, Connections): a small label above it. */
+  /** The nav's group this section opens: a small label above it. */
   group?: string
+  /**
+   * Set up once, rarely opened (Server admin: Partners, Branding, Audit log): in quieter type at the end, the first one
+   * under a line.
+   */
+  quiet?: boolean
 }
 
 /** The page's part of the hash: `#<page>/<section>`; `page` may have a part of its own (`assistant/<id>`). */
@@ -158,13 +163,14 @@ export function SettingsLayout<T extends string>(props: Props<T>) {
       {banner}
       <div className="sl-body">
         <nav ref={nav} className="sl-nav" data-fade={fade} aria-label={t('common.settingsLayout.sections', { title })}>
-          {sections.map(s => {
+          {sections.map((s, i) => {
             const dirty = unsaved?.has(s.id)
+            const firstQuiet = s.quiet && !sections[i - 1]?.quiet
             const item = (
               <a
                 key={s.id}
                 href={sectionHash(page, s.id)}
-                className="nav-item sl-item"
+                className={s.quiet ? 'nav-item sl-item sl-quiet' : 'nav-item sl-item'}
                 onClick={e => showSectionNow(e, sectionHash(page, s.id))}
                 aria-current={s.id === current ? 'page' : undefined}
                 // A tooltip only when it says more than the label (its key): one repeating the label would cover the
@@ -178,6 +184,7 @@ export function SettingsLayout<T extends string>(props: Props<T>) {
                 {dirty && <span className="sl-dot" role="img" aria-label={t('common.unsaved')} />}
               </a>
             )
+            if (firstQuiet) return [<hr key={`line-${s.id}`} className="sl-line" />, item]
             if (!s.group) return item
             return [
               <span key={`group-${s.id}`} className="sl-group" aria-hidden="true">

@@ -17,7 +17,7 @@
 // Sending: 5 s, no redirects; only 200/201 with `ok: true` counts as sent. A 400 is `refused` (never sent again);
 // anything else (offline, timeout, a 404 or HTML page while the endpoint does not exist, 429, 5xx) is `kept` and tried
 // again every hour for 7 days (the admin's yes covers those tries; jobs.ts). SETUP_FEEDBACK_URL=off sends nothing:
-// reports are only kept, and the hourly retry leaves them alone (Server admin › Onboarding › Setup reports has Send again).
+// reports are only kept, and the hourly retry leaves them alone (Server admin › Audit log › Setup reports has Send again).
 // A self-hosted install makes no outside request it was not asked to (github-stars.ts): each report is the admin's yes.
 import {
   type AgentClient,

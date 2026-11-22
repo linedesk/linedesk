@@ -216,8 +216,10 @@ export function Providers({ data, status, id, onClearId, notify, reload, headAct
     if (group) document.getElementById(groupAnchor(group))?.scrollIntoView({ block: 'start' })
   }, [group])
 
-  const groups = (status.status?.groups ?? []).filter(g => g.id !== 'call-audio')
-  const missing = groups.filter(g => g.needed && g.state === 'missing')
+  // Call audio is here too (LIN-747, Server status before): read-only, set in the server's environment, so it is not
+  // among the groups the setup agent is asked to connect.
+  const groups = status.status?.groups ?? []
+  const missing = groups.filter(g => g.id !== 'call-audio' && g.needed && g.state === 'missing')
 
   // Which provider lists are open: held here, so one button opens or folds them all.
   const [openLists, setOpenLists] = useState<ReadonlySet<string>>(() => new Set())

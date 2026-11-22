@@ -22,8 +22,8 @@ import { PartnerBrands } from './PartnerBrands.tsx'
 import { ProtectedNames } from './ProtectedNames.tsx'
 import { day, EMPTY } from './parts.tsx'
 
-const PARTNERS = 'admin.partners'
-const load = async () => (await runAdmin('partner.adminList', {})) as AdminPartnerList
+export const PARTNERS = 'admin.partners'
+export const loadPartners = async () => (await runAdmin('partner.adminList', {})) as AdminPartnerList
 type AdminPartner = AdminPartnerList['partners'][number]
 
 /** The partner bill's status, in the words of Server admin › Billing. */
@@ -59,7 +59,7 @@ export function PartnerTabs({ waiting, count }: { waiting: boolean; count: numbe
 export function Partners({ notify, waiting = false }: { notify: Notify; waiting?: boolean }) {
   const t = useT()
   const supportAccess = useSupportAccess()
-  const query = useQuery(supportAccess ? null : PARTNERS, load)
+  const query = useQuery(supportAccess ? null : PARTNERS, loadPartners)
   const [name, setName] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
   const [busy, setBusy] = useState<string | null>(null)

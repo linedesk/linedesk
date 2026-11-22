@@ -141,7 +141,7 @@ export async function cloningOn(tx: Tx): Promise<boolean> {
 
 /**
  * The voice model previews speak with (Hear the voice, voice samples): the default voice model of the level new
- * assistants start on (Server admin › Calls › Call quality; Standard's when that is Ultra), else the provider's own.
+ * assistants start on (Server admin › Features › Call quality; Standard's when that is Ultra), else the provider's own.
  */
 export async function previewVoiceModel(tx: Tx, provider: string): Promise<string | undefined> {
   const settings = await callQualitySettings(tx).catch(() => null)
@@ -333,7 +333,8 @@ export const voicePreparers: Record<string, Preparer> = {
    */
   'voice.clone': async ({ actor, onRollback }, input: CloneInput): Promise<Cloned> => {
     if (!actor.workspaceId) throw new Reject('no workspace')
-    if (!(await cloningOn(db))) throw new Reject('voice cloning is turned off for this install (Server admin › Calls)')
+    if (!(await cloningOn(db)))
+      throw new Reject('voice cloning is turned off for this install (Server admin › Features)')
     await assistantIn(db, actor.workspaceId, input.assistantId)
     const provider = await voiceProviderInUse(db)
     if (!provider?.cloneVoice) throw new Reject('the voice provider in use cannot clone voices')
@@ -455,7 +456,7 @@ export const voiceHandlers: Record<string, Handler> = {
   'callQuality.get': async ({ tx }) => ({ rows: {}, data: await callQualityAdminData(tx) }),
 
   /**
-   * Server admin › Calls › Call quality. A level turned off moves every assistant on it to Standard (with a version
+   * Server admin › Features › Call quality. A level turned off moves every assistant on it to Standard (with a version
    * each, by the admin), `restore` moves them back (Undo: within 24 hours, only the assistants that turn-off moved);
    * audited (audit.ts).
    */
@@ -829,7 +830,7 @@ async function checkDefaultModels(
     throw Reject.t('server.api.callQualityModelOutside', { level: CALL_QUALITY_LABELS.ultra })
 }
 
-/** What Server admin › Calls › Call quality shows (callQuality.get). */
+/** What Server admin › Features › Call quality shows (callQuality.get). */
 export async function callQualityAdminData(tx: Tx): Promise<CallQualityAdminData> {
   const billed = await usageLevelsBilled(tx)
   const settings = await callQualitySettings(tx)

@@ -85,6 +85,8 @@ import { day, EMPTY, when } from './parts.tsx'
 import { type BillingTab, billingTab } from './route.ts'
 import { type Row, StatusRow } from './StatusCard.tsx'
 import { Fact } from './WorkspacesPage.tsx'
+import { FounderEmail, SetupEmails } from './Onboarding.tsx'
+import { SignupAccess } from './SignupAccess.tsx'
 
 type Translate = ReturnType<typeof useT>
 
@@ -215,8 +217,8 @@ export function Billing({ id, onOpen, notify, keysRef, data }: Props) {
       return <BillsList onOpen={onOpen} keysRef={keysRef} />
     case 'review':
       return <ReviewCard onOpen={onOpen} notify={notify} />
-    case 'events':
-      return <EventsCard notify={notify} />
+    case 'signup':
+      return <SignupSettings notify={notify} />
     case 'rules':
       return <RulesCard notify={notify} />
     case 'stripe':
@@ -228,7 +230,7 @@ const TAB_LABELS: Record<BillingTab, MessageKey> = {
   overview: msg('admin.bills.tab.overview'),
   bills: msg('admin.bills.tab.bills'),
   review: msg('admin.bills.tab.review'),
-  events: msg('admin.bills.tab.events'),
+  signup: msg('admin.bills.tab.signup'),
   rules: msg('admin.bills.tab.rules'),
   stripe: msg('admin.bills.tab.stripe'),
 }
@@ -242,7 +244,7 @@ export function billingPartTitle(t: Translate, id: string | null): string | null
 // ---- Billing's own page: one row per part ----
 
 /** One part's row: its state in a word, a muted line under it, and the page it opens. */
-type PartRow = Row & { id: BillingTab | 'signup' }
+type PartRow = Row & { id: BillingTab | 'events' }
 
 /** Whether billing through Stripe runs, in which mode, or what stops it. */
 function stripeRow(t: Translate, s: AdminBillingSummary): PartRow {
@@ -283,13 +285,13 @@ function signupRow(t: Translate, s: AdminBillingSummary): PartRow {
   const value = t(open ? 'admin.bills.selfServe.state.open' : 'admin.bills.selfServe.state.closed')
   return {
     id: 'signup',
-    label: t('admin.bills.tab.signup'),
+    label: t(TAB_LABELS.signup),
     state: open ? 'works' : on ? 'failing' : 'off',
     mark: value,
     value,
     problem: closedBecause ? t(CLOSED_BECAUSE[closedBecause]) : t('admin.bills.selfServe.openNow'),
     help: null,
-    href: '#admin/signup',
+    href: '#admin/billing/signup',
   }
 }
 
@@ -335,7 +337,7 @@ function eventsRow(t: Translate, s: AdminBillingSummary): PartRow {
   const value = stuck ? t('admin.bills.summary.eventsStuck', { count: stuck }) : t('admin.bills.summary.eventsOk')
   return {
     id: 'events',
-    label: t(TAB_LABELS.events),
+    label: t('admin.bills.tab.events'),
     state: s.events.failed ? 'failing' : stuck ? 'partly' : 'works',
     mark: value,
     value,
@@ -367,7 +369,8 @@ const partRows = (t: Translate, s: AdminBillingSummary): PartRow[] => [
   stripeRow(t, s),
 ]
 
-const useSummary = () => useQuery(SUMMARY, loadSummary, KEPT)
+/** Billing at a glance (also the Overview's Needs you, NeedsYou.tsx). */
+export const useSummary = () => useQuery(SUMMARY, loadSummary, KEPT)
 
 /** Billing's own page: one card, a row per part with its state, each opening the part's page. */
 function BillingHome() {
@@ -392,6 +395,19 @@ function BillingHome() {
         )}
       </Loading>
     </section>
+  )
+}
+
+/** Billing › Sign-up: self-serve sign-up, who may sign up and from where, its limits, and the emails new workspaces get. */
+function SignupSettings({ notify }: { notify: Notify }) {
+  return (
+    <>
+      <SelfServeCard notify={notify} />
+      <SignupAccess />
+      <SignupRulesCard notify={notify} />
+      <SetupEmails />
+      <FounderEmail />
+    </>
   )
 }
 
@@ -514,7 +530,7 @@ function BillsList({ onOpen, keysRef }: { onOpen: (id: string) => void; keysRef:
       empty={
         filter === 'all' ? (
           <>
-            {t('admin.bills.empty')} <T k="admin.bills.emptyHint" values={{ link: appLink('#admin/signup') }} />
+            {t('admin.bills.empty')} <T k="admin.bills.emptyHint" values={{ link: appLink('#admin/billing/signup') }} />
           </>
         ) : (
           <>
@@ -666,7 +682,8 @@ const FILTERS: Record<BillingEventFilter, MessageKey> = {
   unhandled: msg('admin.bills.events.filter.unhandled'),
 }
 
-function EventsCard({ notify }: { notify: Notify }) {
+/** Stripe's events, in the Audit log (LIN-747: a part of Billing before). */
+export function EventsCard({ notify }: { notify: Notify }) {
   const t = useT()
   const [filter, setFilter] = useHashFilter(eventFilterOfHash, eventsHref)
   const query = useQuery(eventsKey(filter), loadEvents(filter))

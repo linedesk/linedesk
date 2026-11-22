@@ -1,5 +1,5 @@
 // Integrations › Zapier: how to connect this workspace to Zapier, in four steps. One Linedesk app on
-// Zapier serves every install; its link is the install's (Server admin › Tools, zapierApp.set), and an install
+// Zapier serves every install; its link is the install's (Server admin › Features, zapierApp.set), and an install
 // without one says so instead of linking. A Zapier user names this install's address when they connect, so the
 // guide shows the address with Copy, and says so when Zapier can't reach it (http, localhost, a private address).
 import { zapierCanReach } from '@linedesk/actions'

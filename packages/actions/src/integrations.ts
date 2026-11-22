@@ -16,7 +16,7 @@ export type IntegrationEvent = (typeof integrationEvents)[number]
 /**
  * The link to the Linedesk app on Zapier (integrations/zapier): one app for every install, Cloud and self-hosted; a
  * Zapier user names their install's address when they connect. While the app is not in Zapier's directory, this is
- * its invite link; after the listing, the app's page. Set per install in Server admin › Tools (zapierApp.set,
+ * its invite link; after the listing, the app's page. Set per install in Server admin › Features (zapierApp.set,
  * instance_settings `zapier_app_url`); none by default, so an install without one shows no Zapier link.
  */
 export const ZAPIER_APP_SETTING = 'zapier_app_url'

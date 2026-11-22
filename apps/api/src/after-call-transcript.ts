@@ -4,7 +4,7 @@
 // provider an instance admin selected and replaces the caller's lines with what it heard (transcript-align.ts). The
 // assistant's lines stay: they are the text its voice spoke. Workspace members just see the better transcript.
 //
-// Server admin › Calls › After-call transcription (the registry's `transcript` category): OpenAI gpt-transcribe,
+// Server admin › Features › After-call transcription (the registry's `transcript` category): OpenAI gpt-transcribe,
 // Deepgram Nova-3, AssemblyAI Universal or ElevenLabs Scribe. Off until an admin selects one (no first-set-up
 // fallback, no variable picks it). A provider without a key of its own can use, with one click, the key saved for
 // the active provider of the same service (`REUSE_FROM`): a reference to that stored key, as one-key mode does, never

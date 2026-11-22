@@ -122,18 +122,18 @@ export const feedbackSend = defineAction({
 })
 
 /**
- * Sends a kept setup report to the Linedesk team again (Server admin › Onboarding › Setup reports, LIN-210): the admin's
+ * Sends a kept setup report to the Linedesk team again (Server admin › Audit log › Setup reports, LIN-210): the admin's
  * own click, so it does not count against the setup link's limit. Not for a report that was sent or refused.
  */
 export const feedbackResend = defineAction({
   name: 'feedback.resend',
   // i18n-ignore: API docs for developers, not shown in the app
-  description: 'Send a kept setup report to the Linedesk team again (Server admin › Onboarding › Setup reports).',
+  description: 'Send a kept setup report to the Linedesk team again (Server admin › Audit log › Setup reports).',
   input: z.object({ id: z.string().trim().min(1).max(64) }),
   permission: 'instance:admin',
 })
 
-/** One setup report in Server admin › Onboarding › Setup reports (feedback.setupReports). */
+/** One setup report in Server admin › Audit log › Setup reports (feedback.setupReports). */
 export type SetupReportRow = {
   id: string
   createdAt: string
@@ -151,7 +151,7 @@ export type SetupReportRow = {
 }
 export type SetupReportsData = { reports: SetupReportRow[]; sendingOff: boolean }
 
-/** The latest setup reports of this install, newest first (Server admin › Onboarding › Setup reports, LIN-210). */
+/** The latest setup reports of this install, newest first (Server admin › Audit log › Setup reports, LIN-210). */
 export const feedbackSetupReports = defineAction({
   name: 'feedback.setupReports',
   // i18n-ignore: API docs for developers, not shown in the app
