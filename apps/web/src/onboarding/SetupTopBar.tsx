@@ -96,7 +96,7 @@ export function SetupTopBar({
           <AiButton
             className="ob-agent"
             label={t('onboarding.frame.agent')}
-            shortLabel={t('onboarding.frame.agentShort')}
+            spark
             title={t('onboarding.frame.agentTitle')}
             onClick={agentPath}
           />
@@ -111,7 +111,15 @@ export function SetupTopBar({
               t(exit.kind === 'close' ? 'onboarding.frame.closeTitle' : 'onboarding.frame.finishLaterTitle')
             }
           >
-            {t(exit.kind === 'close' ? 'onboarding.frame.close' : 'onboarding.frame.finishLater')}
+            {exit.kind === 'close' ? (
+              t('onboarding.frame.close')
+            ) : (
+              <>
+                <span className="ob-exit-full">{t('onboarding.frame.finishLater')}</span>
+                {/* A phone's top bar: one word, so the AI button keeps its text. */}
+                <span className="ob-exit-short">{t('onboarding.frame.finishLaterShort')}</span>
+              </>
+            )}
           </Button>
         )}
         {/* Sign out or another workspace, on every setup page: there is no other navigation here. */}

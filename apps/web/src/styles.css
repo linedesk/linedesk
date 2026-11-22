@@ -808,6 +808,7 @@ body { font-size: 13px; }
 .ob-top { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 max(20px, env(safe-area-inset-right, 0px)) 0 max(20px, env(safe-area-inset-left, 0px)); flex: none; }
 .ob-top > b { font-size: 14px; font-weight: 600; }
 .ob-top .ws-mark { margin: 0; }
+.ob-top .ob-exit-short { display: none; }
 .ob-count { margin-left: auto; font-size: 12px; color: var(--ink-muted); }
 /* The setup pages' account menu (shell/SetupAccountMenu.tsx): a round button with the person's initials, last in the top bar. On a phone the step count shortens to "1/7", the brand shows its mark only and "Set up with AI" its agents' marks (the words stay its name and tooltip). */
 .ob-count-short { display: none; font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
@@ -863,7 +864,7 @@ body { font-size: 13px; }
 @media not ((hover: hover) and (pointer: fine)) { .ob-foot .k-kbds { display: none; } }
 .ob-foot .k-btn { height: var(--control-h-lg); padding: 0 16px; font-size: 13.5px; }
 /* On a phone the long step count is out of sight only: screen readers still read it (the short one is aria-hidden). */
-@media (max-width: 719px) { .ob h1 { font-size: 23px; line-height: 29px; } .ob-row { grid-template-columns: minmax(0, 1fr) auto; } .ob-s { display: none; } .ob-count { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } .ob-top > b { display: none; } .ob-top .ws-mark { margin-right: auto; } .ob-count-short { display: inline; } .ob-agent .ai-label { display: none; } .ob-agent .ai-label-short { display: inline; } .ob-count.ob-count-label { position: static; width: auto; height: auto; overflow: visible; clip-path: none; display: inline; margin-left: 0; } }
+@media (max-width: 719px) { .ob h1 { font-size: 23px; line-height: 29px; } .ob-row { grid-template-columns: minmax(0, 1fr) auto; } .ob-s { display: none; } .ob-count { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } .ob-top > b { display: none; } .ob-top .ws-mark { margin-right: auto; } .ob-count-short { display: inline; } .ob-top .ob-agent .ai-marks { display: none; } .ob-top .ob-agent .ai-spark { display: inline-block; } .ob-agent { min-width: 0; } .ob-agent .ai-label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ob-top .ob-exit-full { display: none; } .ob-top .ob-exit-short { display: inline-flex; } .ob-count.ob-count-label { position: static; width: auto; height: auto; overflow: visible; clip-path: none; display: inline; margin-left: 0; } }
 
 .sum-grid { grid-template-columns: minmax(0, 1fr); }
 

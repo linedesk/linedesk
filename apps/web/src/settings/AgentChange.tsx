@@ -4,7 +4,7 @@
 // Server admin › Providers (admin/Providers.tsx, AgentFirst) uses the same AiButton, in the same order.
 import { useT } from '@linedesk/i18n/react'
 import { CLAUDE, CLAUDE_ORANGE, CURSOR, GEMINI, GEMINI_PURPLE, OPENAI } from '../onboarding/AgentPicker.tsx'
-import { Button } from '../ui/kit.tsx'
+import { Button, Icon } from '../ui/kit.tsx'
 import './agent-change.css'
 import { type ChangeTarget, changeWithAgentHash, stepByStepHash } from './agentChange.ts'
 
@@ -40,11 +40,11 @@ export function AiButton({
   onClick,
   size = 'sm',
   className,
-  shortLabel,
+  spark,
 }: {
   label: string
-  /** Shown in place of `label` where the button is narrow (the setup top bar on a phone), e.g. "AI". */
-  shortLabel?: string
+  /** A spark that stands in for the agents' marks where the button is narrow (the setup top bar on a phone, styles.css). */
+  spark?: boolean
   title: string
   onClick: () => void
   size?: 'sm' | 'md'
@@ -54,8 +54,8 @@ export function AiButton({
   return (
     <button type="button" className={cls} onClick={onClick} title={title} aria-label={label}>
       <AgentMarks />
+      {spark && <Icon name="spark" size={14} className="ai-spark" />}
       <span className="ai-label">{label}</span>
-      {shortLabel && <span className="ai-label-short">{shortLabel}</span>}
     </button>
   )
 }

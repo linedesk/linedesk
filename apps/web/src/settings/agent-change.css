@@ -74,7 +74,8 @@
   gap: 8px;
 }
 
-/* The short label (the setup top bar on a phone) only where the full one is hidden (styles.css). */
-.ai-label-short {
+/* The spark (the setup top bar on a phone) only where the marks are hidden (styles.css). Two classes: a button's own
+   `.k-btn > …` display rules must not show it. */
+.ai-edit .ai-spark {
   display: none;
 }

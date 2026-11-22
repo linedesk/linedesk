@@ -236,11 +236,7 @@ function FindBusiness({
       )}
       {phase.kind === 'find' && (
         <>
-          <Field
-            id="ob-biz-q"
-            label={t('onboarding.business.find.label')}
-            help={site === 'field' ? t(word('onboarding.business.find.help')) : undefined}
-          >
+          <Field id="ob-biz-q" label={t('onboarding.business.find.label')}>
             <div className="ob-biz-search">
               <TextInput
                 id="ob-biz-q"
@@ -450,7 +446,7 @@ function FindForm({
   primary?: { onClick: () => void; label: string }
   saved: boolean
   readsWebsite: boolean
-  /** Back to the agent setup page, under the form. */
+  /** Back to the agent setup page, in the footer's back slot (when there is no saved profile to go back to). */
   onAgentSetup?: () => void
   children: ReactNode
 }) {
@@ -476,21 +472,17 @@ function FindForm({
         </p>
         {children}
       </div>
-      {onAgentSetup && (
-        <Note
-          tone="info"
-          action={
-            <Button size="sm" variant="secondary" icon="spark" onClick={onAgentSetup}>
-              {t('onboarding.business.agentBack')}
-            </Button>
-          }
-        >
-          {t('onboarding.business.agentBackNote')}
-        </Note>
-      )}
       {/* While searching, the search leads on (the one primary action); the saved profile is one Back away. */}
+      {/* The first step: no step to go back to, so the back slot leads to the AI agent setup (set up by hand after all). */}
       <Foot
-        onBack={phase.kind === 'loading' ? undefined : onBack}
+        onBack={phase.kind === 'loading' ? undefined : (onBack ?? onAgentSetup)}
+        {...(!onBack && onAgentSetup
+          ? {
+              backLabel: t('onboarding.business.agentBack'),
+              backIcon: 'spark' as const,
+              backTitle: t('onboarding.frame.agentTitle'),
+            }
+          : {})}
         onContinue={primary?.onClick}
         canContinue={!!primary}
         label={primary?.label}

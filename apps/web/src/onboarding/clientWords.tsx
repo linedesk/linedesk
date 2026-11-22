@@ -9,7 +9,6 @@ export const CLIENT_WORDS: ReadonlyMap<MessageKey, MessageKey> = new Map([
   [msg('onboarding.steps.business'), msg('onboarding.steps.businessClient')],
   [msg('onboarding.steps.assistant'), msg('onboarding.steps.assistantClient')],
   [msg('onboarding.business.heading'), msg('onboarding.business.headingClient')],
-  [msg('onboarding.business.find.help'), msg('onboarding.business.find.helpClient')],
   [msg('onboarding.business.manual.namePlaceholder'), msg('onboarding.business.manual.namePlaceholderClient')],
   [msg('onboarding.business.review.isThisYours'), msg('onboarding.business.review.isThisYoursClient')],
   [msg('onboarding.business.review.aboutYours'), msg('onboarding.business.review.aboutYoursClient')],
