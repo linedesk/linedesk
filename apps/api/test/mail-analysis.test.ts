@@ -20,9 +20,10 @@ import type { EvaluationModel } from '../src/evaluations.ts'
 import { runHandler } from '../src/handlers.ts'
 import {
   analyzeConversations,
-  BATCH_SYSTEM,
+  batchSystem,
   batches,
-  MERGE_SYSTEM,
+  mailLanguage,
+  mergeSystem,
   clipSentences,
   coveredBy,
   parseMerged,
@@ -66,7 +67,7 @@ function fakeModel(answer?: unknown) {
     complete: async (system, user) => {
       calls.push({ system, user })
       if (answer !== undefined) return JSON.stringify(answer)
-      if (system === MERGE_SYSTEM) {
+      if (system === mergeSystem('English')) {
         const kinds = [...user.matchAll(/<topic key="([^"]+)">(.*?)<\/topic>/g)].map(m => ({
           key: m[1]!,
           ...(JSON.parse(m[2]!) as { title: string; question: string; answer: string }),
@@ -172,12 +173,56 @@ describe('reading the demo mailbox', () => {
 })
 
 describe('asking the model', () => {
+  const said = (text: string) => ({
+    subject: 's',
+    turns: [
+      { support: false, text },
+      { support: true, text: 'ok' },
+    ],
+  })
+
+  test('the language the customers write in is named in both prompts', async () => {
+    expect(
+      mailLanguage([
+        said(
+          'Hallo, wo bleibt meine Bestellung? Ich habe sie vor einer Woche bestellt und sie ist nicht da. Vielen Dank für die Hilfe!',
+        ),
+      ]),
+    ).toBe('de')
+    expect(
+      mailLanguage([
+        said('Hi, where is my order? I placed it a week ago and it has not arrived. Thank you for your help!'),
+      ]),
+    ).toBe('en')
+    expect(
+      mailLanguage([
+        said('Bonjour, je ne trouve pas ma commande. Pouvez-vous vérifier pour moi ? Merci et bonne journée.'),
+      ]),
+    ).toBe('fr')
+    expect(mailLanguage([said('注文した商品がまだ届いていません。確認していただけますか？')])).toBe('ja')
+    expect(mailLanguage([said('???')])).toBe('en')
+    // Support's replies do not count: a German shop that answers in English is still asked in German.
+    expect(
+      mailLanguage([
+        {
+          subject: 's',
+          turns: [
+            { support: false, text: 'Ich möchte bitte die Bestellung zurückgeben, das Fensterbrett passt nicht.' },
+            { support: true, text: 'Thank you for your message, we will send you the return label and the refund.' },
+          ],
+        },
+      ]),
+    ).toBe('de')
+    expect(batchSystem('German')).toContain('Write every field in German (the language the customers write in)')
+    expect(mergeSystem('German')).toContain('Write every field in German; translate kinds in other languages into it.')
+  })
+
   test('one batch: one request, topics most common first; the mail is marked as data', async () => {
     const { conversations } = await supportConversations(createDemoMail(), new Date(0).toISOString())
     const { model, calls } = fakeModel()
     const { topics, covered } = await analyzeConversations(model, conversations)
     expect(calls).toHaveLength(1)
-    expect(calls[0]!.system).toBe(BATCH_SYSTEM)
+    expect(calls[0]!.system).toBe(batchSystem('English'))
     expect(calls[0]!.user.match(/<conversation id="\d+">/g)).toHaveLength(18)
     expect(topics.map(t => [t.title, t.conversations])).toEqual([
       ['Service area', 3],
@@ -195,7 +240,7 @@ describe('asking the model', () => {
     const { topics, covered } = await analyzeConversations(model, big)
     const parts = calls.length - 1
     expect(parts).toBeGreaterThan(1)
-    expect(calls.at(-1)!.system).toBe(MERGE_SYSTEM)
+    expect(calls.at(-1)!.system).toBe(mergeSystem('English'))
     expect(calls.at(-1)!.user).toContain('<topic key="2-1">')
     // The merge reads no conversation ids; the counts are the ids the batches named, united by the code.
     expect(calls.at(-1)!.user).not.toContain('"ids"')
@@ -242,7 +287,7 @@ describe('asking the model', () => {
         inFlight++
         most = Math.max(most, inFlight)
         // Later batches answer first, so the order they finish in is not the order they were sent in.
-        await new Promise(r => setTimeout(r, system === MERGE_SYSTEM ? 0 : 40 - 3 * n++))
+        await new Promise(r => setTimeout(r, system === mergeSystem('English') ? 0 : 40 - 3 * n++))
         inFlight--
         return model.complete(system, user)
       },
