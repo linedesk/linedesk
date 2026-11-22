@@ -161,29 +161,9 @@ test('a yearly plan: the price a month after "14 days free", its total in the gr
   expect(page).toMatch(/First charge \$108\. Cancel any time before/)
 })
 
-test('calls at the same time (LIN-450): picked on the pick-up step; here one quiet line only when more were picked', () => {
+test('calls at the same time are not sold here (asked later in the app, 2026-11-22): no extra line, plan price only', () => {
   const calls = { included: 5, step: 5, maxExtra: 45, extraCallCents: 100 }
-  const stored = new Map<string, string>()
-  vi.stubGlobal('localStorage', {
-    getItem: (k: string) => stored.get(k) ?? null,
-    setItem: (k: string, v: string) => stored.set(k, v),
-    removeItem: (k: string) => stored.delete(k),
-  })
-  try {
-    // None picked: no extra calls line (only "See all details" lists the add-on), and no picker on this step.
-    expect(text({ ...activation, calls })).not.toContain('calls at the same time:')
-    stored.set('linedesk.activation.extraCalls.ws_1', '5')
-    const page = text({ ...activation, calls })
-    expect(page).toContain('10 calls at the same time: $5 a month more.')
-    expect(page).toContain('First charge $16.')
-    expect(page).not.toContain('5 $')
-    // A choice the offer no longer allows is not sold.
-    stored.set('linedesk.activation.extraCalls.ws_1', '7')
-    expect(text({ ...activation, calls })).not.toContain('calls at the same time:')
-    expect(text({ ...activation, calls: { ...calls, maxExtra: 0 } })).not.toContain('calls at the same time:')
-  } finally {
-    vi.unstubAllGlobals()
-  }
+  expect(text({ ...activation, calls })).not.toContain('calls at the same time:')
 })
 
 /** The activation step's plan with its Monthly / Yearly switch, rendered once. */

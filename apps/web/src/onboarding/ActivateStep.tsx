@@ -16,7 +16,6 @@ import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
 import { IntervalSwitch } from '../ui/IntervalSwitch.tsx'
 import { PlanCard, usePlanPrice } from '../ui/PlanCard.tsx'
 import { type BillingInterval, usePrice } from '../ui/price.tsx'
-import { useExtraCalls } from './ExtraCalls.tsx'
 import { activationTimeline, type TimelineEntry } from './flow.ts'
 import { Foot, useStepKeys } from './Frame.tsx'
 import { rememberOwnerByHand } from './setup-choice.ts'
@@ -108,8 +107,6 @@ export function useStartTrial(
     preset && a.planCentsByInterval ? preset : a.interval,
   )
   const [error, setError] = useState<string | null>(null)
-  // Extra calls at the same time (LIN-450), picked on the pick-up step; here only sold with the plan.
-  const [extraCalls] = useExtraCalls(me.workspace!.id, a.calls)
   const trial = a.trialDays !== null
 
   /** The terms changed since sign-up and are not accepted yet: the app's dialog asks first (also after Later). */
@@ -127,7 +124,7 @@ export function useStartTrial(
     if (byHand) rememberOwnerByHand(me.workspace!.id, true)
     try {
       // The bill's interval goes along only when the owner picked another one (an older server takes none).
-      await goToCheckout(null, extraCalls, interval !== a.interval ? interval : undefined)
+      await goToCheckout(null, 0, interval !== a.interval ? interval : undefined)
     } catch (e) {
       setBusy(false)
       // Changed since this page loaded: /v1/me is read again, and its dialog asks for the new terms.
@@ -141,7 +138,6 @@ export function useStartTrial(
     start,
     busy,
     error,
-    extraCalls,
     trial,
     interval,
     setInterval,
@@ -164,10 +160,7 @@ export function ActivatePlan({ activation: a, trial: s }: { activation: Activati
   // Monthly or yearly as picked on the switch (the bill's interval until then): price, note and charge follow it.
   const interval = s.interval
   const planCents = a.planCentsByInterval?.[interval] ?? a.planCents
-  const yearly = interval === 'year'
-  // What the first charge is with the extra calls: they are billed at the plan's interval (a year is 12 months).
-  const extraMonthlyCents = s.extraCalls * (a.calls?.extraCallCents ?? 0)
-  const totalCents = planCents + extraMonthlyCents * (yearly ? 12 : 1)
+  const totalCents = planCents
   const timeline = activationTimeline(a, now)
   return (
     <>
@@ -190,16 +183,7 @@ export function ActivatePlan({ activation: a, trial: s }: { activation: Activati
         note={prices.yearNote(planCents, interval) ?? (a.planCentsByInterval ? t('common.price.billedMonthly') : null)}
         prices={a.prices}
         calls={a.calls}
-      >
-        {s.extraCalls > 0 && (
-          <span className="help">
-            {t('onboarding.activate.extraCalls', {
-              count: (a.calls?.included ?? 0) + s.extraCalls,
-              price: usd(extraMonthlyCents),
-            })}
-          </span>
-        )}
-      </PlanCard>
+      />
       <ol className="ob-timeline" aria-label={t('onboarding.activate.timelineLabel')}>
         {timeline.map(entry => (
           <TimelineRow key={entry.kind} entry={entry} amount={usd(totalCents)} />

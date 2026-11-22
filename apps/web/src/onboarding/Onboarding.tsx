@@ -299,15 +299,6 @@ export function StepScreen(p: StepScreenProps) {
           onNext={p.onNext}
           memory={p.pickupMemory}
           onMemory={p.onPickupMemory}
-          calls={
-            p.me.workspace?.billingState === 'pending_payment' && p.me.workspace.activation?.calls
-              ? {
-                  workspaceId: p.me.workspace.id,
-                  offer: p.me.workspace.activation.calls,
-                  trial: p.me.workspace.activation.trialDays !== null,
-                }
-              : undefined
-          }
         />
       )
     case 'notify':
