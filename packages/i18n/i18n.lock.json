@@ -26215,6 +26215,11 @@
       "out": "4e18aa3905919586a0fe79b6af448ba4f1734150edab19206f83d24c9977fd8f",
       "src": "5a113b5573d804049b4eb22170a50ef0f833081409b66083074e10d9fbd5063b"
     },
+    "settings.assistant.notice.notRecorded": {
+      "by": "ai",
+      "out": "c4c4030d11159d4a23d8e31eab527373f411ebd2f874d707450dcb1942ba8052",
+      "src": "a3d536175209982dc6d1cc6c6cda8754cb1597f63553443f6e73c32635a42618"
+    },
     "settings.assistant.realtimeVoice.body": {
       "by": "ai",
       "out": "05cbe23cddc659a545a46cdc32e4381d0043c0c2a6e93dc5c6cb9cc0330f7002",
@@ -31165,6 +31170,11 @@
       "out": "7af1a34ffd8b02e60150016b83a591dfe1c1d44c1a9c15a285f4ef64c7a23a1f",
       "src": "359144af985e2f7c12ebef93a15dcb6eca40b56eb368cc36f6f1464e9a9943c8"
     },
+    "settings.integrations.mailReview.progress": {
+      "by": "ai",
+      "out": "ee6e3c68fbfb70648be1eebf603df6be54515bbad65965a94c8e772103a77c59",
+      "src": "ade5d145bd2fa11c65373c6f4ebf8a004842e4e73ab1fd958dde7952e086c028"
+    },
     "settings.integrations.mailReview.question": {
       "by": "ai",
       "out": "c3220ad9d7b2cfb63a9d7ee1824c666c9eccd83ff43e22c94318a9517e253f42",
@@ -31200,6 +31210,16 @@
       "out": "d39490b8ff4b9d9d07bcf78e2975fa8011b260b14473d71d6be287ccae8bfcd3",
       "src": "b1972facc3978f5918a3c48dd35ad7810526da54627b6c1834aa1e4db42ea0cd"
     },
+    "settings.integrations.mailReview.soFar": {
+      "by": "ai",
+      "out": "d2d03cc88dfce3cef000982bc0a663dc1419323fca5f76e5b99135fb6d4b37db",
+      "src": "0c637a6ba1d69cfd12ffdd59bde6808ed5898b05752faab8e59a2888d2c7209a"
+    },
+    "settings.integrations.mailReview.soFarNote": {
+      "by": "ai",
+      "out": "3576e87dbe30c14b469875f574a4643ca0cf8880d98d04edf99c300641ae1681",
+      "src": "55e09fb413e2edd5e3713ed56becccf435ae41c0c1e918afe2bd291477557eb1"
+    },
     "settings.integrations.mailReview.start": {
       "by": "ai",
       "out": "f1d5fcbe0ea1115849a26893450739aea89bde837d0daba91c6ddeca1a5cb08b",
@@ -31214,6 +31234,41 @@
       "by": "ai",
       "out": "4cf9e80052d5d076be566f5745d6b76e99771be51b0f026730d7eecaf4bbe923",
       "src": "1a978f56a9a10d54f2f738191e1e5446ea86e97747861a83a4792b5569a61d0d"
+    },
+    "settings.integrations.mailReview.step.analyze": {
+      "by": "ai",
+      "out": "7d873c127aa2b4cbe270c8979ef1531bcfcea03039abcd5267d38b3b075693d1",
+      "src": "d458df61cd300a5365495fcbe3289cdfd9792c3cb41560d316377f2a81887a5a"
+    },
+    "settings.integrations.mailReview.step.analyzeDetail": {
+      "by": "ai",
+      "out": "0cac28d6f24277342aa08b03b984a423e06bbc7178fa3ab247f29ff9cf0b5b28",
+      "src": "51ea2e853932000111df1ee6ec8061d2f59a844fb852d4773172f58a1dbe9324"
+    },
+    "settings.integrations.mailReview.step.list": {
+      "by": "ai",
+      "out": "8cd13fb1058c21854466406d47a12edadfaece8c372c1a9b91481a0348ee0c29",
+      "src": "d8ed3122b893191a17bf6bc14419c7774859745c871d56f769290479fdb5e55d"
+    },
+    "settings.integrations.mailReview.step.listDetail": {
+      "by": "ai",
+      "out": "fd37ec5851cca9dcadce6c810c04f55abd26d72e2d22625cc44864d23d1493a8",
+      "src": "008cc60f00d980c40923fe4ff65ef5245bcd20442869b49dc2c7fa598e9e9de6"
+    },
+    "settings.integrations.mailReview.step.merging": {
+      "by": "ai",
+      "out": "7b12a301aef68c43d6e0cfe5b3438bf00fe20fadf57deadeec9eca8d4577e0d2",
+      "src": "c7f2cd2c35ac9bf9070a39ee25f00fb982da3a366ecdfc4e687ac02d0eb6d6d7"
+    },
+    "settings.integrations.mailReview.step.read": {
+      "by": "ai",
+      "out": "d0c611ba5af8ff5c8c6532ee95d39eb5e4e9994ce1a2076fcb1b43be20cf8784",
+      "src": "ccc926b4c8bd97f32ab86de0213402e74c40ff23646dfc48ad55a4e9e0aae9db"
+    },
+    "settings.integrations.mailReview.step.readDetail": {
+      "by": "ai",
+      "out": "4cc411e481655a3146db369eac8719d6de9186120b9d11df551751537b9c45b6",
+      "src": "dc32c84097c42805fe2231cc96e805eceb9c61668fef4854d798daae23c468cc"
     },
     "settings.integrations.mailReview.summary": {
       "by": "ai",
@@ -64862,6 +64917,11 @@
       "out": "fe5a3d3f8c60356497c393dc6f3a4f866225ee2f9442f38ea7f0036ab35670e6",
       "src": "5a113b5573d804049b4eb22170a50ef0f833081409b66083074e10d9fbd5063b"
     },
+    "settings.assistant.notice.notRecorded": {
+      "by": "ai",
+      "out": "8a366983851492e703b51e9253244f7ced83ccb1bd7901cb318dfba2fa3c3834",
+      "src": "a3d536175209982dc6d1cc6c6cda8754cb1597f63553443f6e73c32635a42618"
+    },
     "settings.assistant.realtimeVoice.body": {
       "by": "ai",
       "out": "16db5346a918c4ec2ec5ab19a1ef3555bf212a4b125148fc468a3a8b21dbe825",
@@ -69812,6 +69872,11 @@
       "out": "7467ffc9fcf1b3bf18d7624da7d82c6e26a2208634105375744bb88699b1c69b",
       "src": "359144af985e2f7c12ebef93a15dcb6eca40b56eb368cc36f6f1464e9a9943c8"
     },
+    "settings.integrations.mailReview.progress": {
+      "by": "ai",
+      "out": "d1da4d6e22ff8da5a23970c01fabf48718c978aaeddd9997525eef1c9a34ed82",
+      "src": "ade5d145bd2fa11c65373c6f4ebf8a004842e4e73ab1fd958dde7952e086c028"
+    },
     "settings.integrations.mailReview.question": {
       "by": "ai",
       "out": "d25ad52ceed826274ca7d9c7070e2cf2333e97b48e2991776a4fda31f149ce67",
@@ -69847,6 +69912,16 @@
       "out": "4592db2518e9dd148afc71b23bb688625dc6004e194d23a08dfc161220fa8871",
       "src": "b1972facc3978f5918a3c48dd35ad7810526da54627b6c1834aa1e4db42ea0cd"
     },
+    "settings.integrations.mailReview.soFar": {
+      "by": "ai",
+      "out": "47b8cf74b3721b6b0d5023422d3478584e7f66332736f15ec4d7824c83b7e03f",
+      "src": "0c637a6ba1d69cfd12ffdd59bde6808ed5898b05752faab8e59a2888d2c7209a"
+    },
+    "settings.integrations.mailReview.soFarNote": {
+      "by": "ai",
+      "out": "7b3b966151a23f799747b52d862323ccbc611fea0b69bf2fd79bff209b8bc09a",
+      "src": "55e09fb413e2edd5e3713ed56becccf435ae41c0c1e918afe2bd291477557eb1"
+    },
     "settings.integrations.mailReview.start": {
       "by": "ai",
       "out": "4ae1f4dda21ea7ea2e28d6277e9c7e37f92598c09a0719b336cb884b4b244be8",
@@ -69861,6 +69936,41 @@
       "by": "ai",
       "out": "48cc4680f8c921b3ffa5448546a6e294495762fdffdf2b46904653258dc7f632",
       "src": "1a978f56a9a10d54f2f738191e1e5446ea86e97747861a83a4792b5569a61d0d"
+    },
+    "settings.integrations.mailReview.step.analyze": {
+      "by": "ai",
+      "out": "9631ba5f50b6afa517df07766f2c87f2acee0c235c591ce78920f056b84a26e6",
+      "src": "d458df61cd300a5365495fcbe3289cdfd9792c3cb41560d316377f2a81887a5a"
+    },
+    "settings.integrations.mailReview.step.analyzeDetail": {
+      "by": "ai",
+      "out": "8088fb94b8fcd401dd14228d176ee84af5abe399ea904748854e4fa3d9e6b792",
+      "src": "51ea2e853932000111df1ee6ec8061d2f59a844fb852d4773172f58a1dbe9324"
+    },
+    "settings.integrations.mailReview.step.list": {
+      "by": "ai",
+      "out": "494a2701fe9f05215a6f806809b6df966b114128cc0c5d0848299d8806f16410",
+      "src": "d8ed3122b893191a17bf6bc14419c7774859745c871d56f769290479fdb5e55d"
+    },
+    "settings.integrations.mailReview.step.listDetail": {
+      "by": "ai",
+      "out": "147486de87f74ccd1e8c31dcfc1a7ee905f5e17eb1b4911a2d2320c05dc4eaa8",
+      "src": "008cc60f00d980c40923fe4ff65ef5245bcd20442869b49dc2c7fa598e9e9de6"
+    },
+    "settings.integrations.mailReview.step.merging": {
+      "by": "ai",
+      "out": "080e839e4308333857a2744250a51038c61b1238d40857618af62f0d4ade47d6",
+      "src": "c7f2cd2c35ac9bf9070a39ee25f00fb982da3a366ecdfc4e687ac02d0eb6d6d7"
+    },
+    "settings.integrations.mailReview.step.read": {
+      "by": "ai",
+      "out": "032623031d5d877e8c327a67af15aa506b4f6179e30ff1016f086c7f8a8cc14c",
+      "src": "ccc926b4c8bd97f32ab86de0213402e74c40ff23646dfc48ad55a4e9e0aae9db"
+    },
+    "settings.integrations.mailReview.step.readDetail": {
+      "by": "ai",
+      "out": "ebd37e21bc5a8f63341bb60a382144a59be8ef4e3aba16b09c59f20ab1285417",
+      "src": "dc32c84097c42805fe2231cc96e805eceb9c61668fef4854d798daae23c468cc"
     },
     "settings.integrations.mailReview.summary": {
       "by": "ai",
@@ -103509,6 +103619,11 @@
       "out": "349dfefb077c42af7acb1c7f1e75278638c6201c9e14b880e7141e1c9b905fd8",
       "src": "5a113b5573d804049b4eb22170a50ef0f833081409b66083074e10d9fbd5063b"
     },
+    "settings.assistant.notice.notRecorded": {
+      "by": "ai",
+      "out": "34fbc1ca3b04c5d8888083f309bc49140443fd683cbf1643f20da65ebf8a19c1",
+      "src": "a3d536175209982dc6d1cc6c6cda8754cb1597f63553443f6e73c32635a42618"
+    },
     "settings.assistant.realtimeVoice.body": {
       "by": "ai",
       "out": "f71298e434966d132962fe167d524e6cd320b37f999f10cdd57030609077aedf",
@@ -108459,6 +108574,11 @@
       "out": "5849e67a5299ec0e060e34424c54784086ed2f2b72d114242b147d9688c3cc29",
       "src": "359144af985e2f7c12ebef93a15dcb6eca40b56eb368cc36f6f1464e9a9943c8"
     },
+    "settings.integrations.mailReview.progress": {
+      "by": "ai",
+      "out": "ea49a57952367f30cbd4741e86ff17cdbe075371b30f518b172634d5e9730e4e",
+      "src": "ade5d145bd2fa11c65373c6f4ebf8a004842e4e73ab1fd958dde7952e086c028"
+    },
     "settings.integrations.mailReview.question": {
       "by": "ai",
       "out": "6c9d36152ccce2766b81f459f10e77a0ee74ba09e7cfa2d7506f9742eaeccd56",
@@ -108494,6 +108614,16 @@
       "out": "e03774c358d41493c3a4c569e19e894cd49b12699e8ce82e622df75e4a8e4e5d",
       "src": "b1972facc3978f5918a3c48dd35ad7810526da54627b6c1834aa1e4db42ea0cd"
     },
+    "settings.integrations.mailReview.soFar": {
+      "by": "ai",
+      "out": "62c0a7349ea8a5db828543b8f13971f85aff7d4b0a2434f0e0ad61beed2b4a9a",
+      "src": "0c637a6ba1d69cfd12ffdd59bde6808ed5898b05752faab8e59a2888d2c7209a"
+    },
+    "settings.integrations.mailReview.soFarNote": {
+      "by": "ai",
+      "out": "259e781fdf4b210e79c285698735f0d20a8c4f7903100b2b1fdc68aa7973f143",
+      "src": "55e09fb413e2edd5e3713ed56becccf435ae41c0c1e918afe2bd291477557eb1"
+    },
     "settings.integrations.mailReview.start": {
       "by": "ai",
       "out": "ebb548036f8a749bf5e92300e96eb7cfde51803e810b3580d05c545dc6782497",
@@ -108508,6 +108638,41 @@
       "by": "ai",
       "out": "a3c834a8eadfb2a8fcd8ea3842f73836aec1620edd6a506af7bb11bfa5be03e8",
       "src": "1a978f56a9a10d54f2f738191e1e5446ea86e97747861a83a4792b5569a61d0d"
+    },
+    "settings.integrations.mailReview.step.analyze": {
+      "by": "ai",
+      "out": "fc928e6e6a28e2ecdfea61de155e0bec9e4c7a2c0ebb2b5e796af7395ef1fb4a",
+      "src": "d458df61cd300a5365495fcbe3289cdfd9792c3cb41560d316377f2a81887a5a"
+    },
+    "settings.integrations.mailReview.step.analyzeDetail": {
+      "by": "ai",
+      "out": "b0d086c42e449fb3acfa66d40b47de4e28b3edfcb474aed1c83747c6855211f2",
+      "src": "51ea2e853932000111df1ee6ec8061d2f59a844fb852d4773172f58a1dbe9324"
+    },
+    "settings.integrations.mailReview.step.list": {
+      "by": "ai",
+      "out": "e7be3941b3b169914594fd2ddea3ffa7ffb06870106772fe89e2f04b6d4bdecc",
+      "src": "d8ed3122b893191a17bf6bc14419c7774859745c871d56f769290479fdb5e55d"
+    },
+    "settings.integrations.mailReview.step.listDetail": {
+      "by": "ai",
+      "out": "e06e065c2030836f4a6de45544e7db3a626665cc466bc59a8c43d9f05676e093",
+      "src": "008cc60f00d980c40923fe4ff65ef5245bcd20442869b49dc2c7fa598e9e9de6"
+    },
+    "settings.integrations.mailReview.step.merging": {
+      "by": "ai",
+      "out": "be3ea9fe6c1847ea229326f10501e39d3096083646e8dd5d4de27cc913bc9536",
+      "src": "c7f2cd2c35ac9bf9070a39ee25f00fb982da3a366ecdfc4e687ac02d0eb6d6d7"
+    },
+    "settings.integrations.mailReview.step.read": {
+      "by": "ai",
+      "out": "d77c42e59046e59c0950f54443327e89ba2f0a4d31c44c13d35da7b0ca14ad39",
+      "src": "ccc926b4c8bd97f32ab86de0213402e74c40ff23646dfc48ad55a4e9e0aae9db"
+    },
+    "settings.integrations.mailReview.step.readDetail": {
+      "by": "ai",
+      "out": "08a940d2bf96c9a6fad036d8f08b08ed01f005f9c18ea580d882952ea0bc76fe",
+      "src": "dc32c84097c42805fe2231cc96e805eceb9c61668fef4854d798daae23c468cc"
     },
     "settings.integrations.mailReview.summary": {
       "by": "ai",
@@ -142156,6 +142321,11 @@
       "out": "40e33378e9da2ae65f29481720cdffa6d9fe2f482f8753456b6ecec3ae7aded0",
       "src": "5a113b5573d804049b4eb22170a50ef0f833081409b66083074e10d9fbd5063b"
     },
+    "settings.assistant.notice.notRecorded": {
+      "by": "ai",
+      "out": "6fd29f2d0515aa197fc43133a480aa455f28dcf740d60ffa16fcb47ec5642bd6",
+      "src": "a3d536175209982dc6d1cc6c6cda8754cb1597f63553443f6e73c32635a42618"
+    },
     "settings.assistant.realtimeVoice.body": {
       "by": "ai",
       "out": "1a27052695105d4f1de4eeb88bb0a0db3b0cbbdfa58203beba623bbdcdab2684",
@@ -147106,6 +147276,11 @@
       "out": "f0a7d2cb553220a51774c88131f1bcd67a568a94bd59e9b68e7268bd114740a9",
       "src": "359144af985e2f7c12ebef93a15dcb6eca40b56eb368cc36f6f1464e9a9943c8"
     },
+    "settings.integrations.mailReview.progress": {
+      "by": "ai",
+      "out": "7da9549747049a4d1735d84d289909535a06baff980a2d4443eae26ead4440fb",
+      "src": "ade5d145bd2fa11c65373c6f4ebf8a004842e4e73ab1fd958dde7952e086c028"
+    },
     "settings.integrations.mailReview.question": {
       "by": "ai",
       "out": "9016d3ac6f66dedc9897357013f243cef46b18f35bade754bff71a0a110f1c48",
@@ -147141,6 +147316,16 @@
       "out": "93840e900c4725266b932d3b4f52a76246c2c27d4f5017be94e26c54923f260c",
       "src": "b1972facc3978f5918a3c48dd35ad7810526da54627b6c1834aa1e4db42ea0cd"
     },
+    "settings.integrations.mailReview.soFar": {
+      "by": "ai",
+      "out": "990f42fb3fecb0af444bc3360193812d492ed7422f578672ffdd40a2b42275e4",
+      "src": "0c637a6ba1d69cfd12ffdd59bde6808ed5898b05752faab8e59a2888d2c7209a"
+    },
+    "settings.integrations.mailReview.soFarNote": {
+      "by": "ai",
+      "out": "735ce4e60c6563584a500ec216695c1bfd716e70d203de305216c05544408060",
+      "src": "55e09fb413e2edd5e3713ed56becccf435ae41c0c1e918afe2bd291477557eb1"
+    },
     "settings.integrations.mailReview.start": {
       "by": "ai",
       "out": "68c373509e15b791bfda536a2d8704c507438fb4f36b74c61840be6a92101488",
@@ -147155,6 +147340,41 @@
       "by": "ai",
       "out": "e9b39eb080a4fb2323eda104f49eebd0254388ed10ce8b322230fb7f2f022d44",
       "src": "1a978f56a9a10d54f2f738191e1e5446ea86e97747861a83a4792b5569a61d0d"
+    },
+    "settings.integrations.mailReview.step.analyze": {
+      "by": "ai",
+      "out": "1a2d0aced51418abeb98318b14031c07b82d07c46c188b0a6e4d708fcd8da116",
+      "src": "d458df61cd300a5365495fcbe3289cdfd9792c3cb41560d316377f2a81887a5a"
+    },
+    "settings.integrations.mailReview.step.analyzeDetail": {
+      "by": "ai",
+      "out": "e9773d391efb79a8aa7699748624711fbe7ba6c3a4ec8025b44c6d6e2adf48f2",
+      "src": "51ea2e853932000111df1ee6ec8061d2f59a844fb852d4773172f58a1dbe9324"
+    },
+    "settings.integrations.mailReview.step.list": {
+      "by": "ai",
+      "out": "650d19989aeade79827ba2e2991f4190ee1511c4cc223d83d63bdf85e027f3d8",
+      "src": "d8ed3122b893191a17bf6bc14419c7774859745c871d56f769290479fdb5e55d"
+    },
+    "settings.integrations.mailReview.step.listDetail": {
+      "by": "ai",
+      "out": "e294cbcaf1192cd74cde8e91d5f2b3b09f2eb6872c369f9cfdfed0bc0de0bb2b",
+      "src": "008cc60f00d980c40923fe4ff65ef5245bcd20442869b49dc2c7fa598e9e9de6"
+    },
+    "settings.integrations.mailReview.step.merging": {
+      "by": "ai",
+      "out": "20126d855687f885e4c1d463e4af572780a7a206da095a5661a22d87343ab13e",
+      "src": "c7f2cd2c35ac9bf9070a39ee25f00fb982da3a366ecdfc4e687ac02d0eb6d6d7"
+    },
+    "settings.integrations.mailReview.step.read": {
+      "by": "ai",
+      "out": "042545dc05835f148de687d20709ac07b04ce10df8497b54eb9cfbdc6fbebe9b",
+      "src": "ccc926b4c8bd97f32ab86de0213402e74c40ff23646dfc48ad55a4e9e0aae9db"
+    },
+    "settings.integrations.mailReview.step.readDetail": {
+      "by": "ai",
+      "out": "00bec27c3067ebf3b605da74757d911284f9b653b448c48ab2bc2c12ab2eae62",
+      "src": "dc32c84097c42805fe2231cc96e805eceb9c61668fef4854d798daae23c468cc"
     },
     "settings.integrations.mailReview.summary": {
       "by": "ai",
@@ -180803,6 +181023,11 @@
       "out": "a5c20278defb2a37340fd8b08c13921a8c1204757925176b77d60876d76c56c6",
       "src": "5a113b5573d804049b4eb22170a50ef0f833081409b66083074e10d9fbd5063b"
     },
+    "settings.assistant.notice.notRecorded": {
+      "by": "ai",
+      "out": "b97c66c0947bc4cf46568cf2f554d9673ec088098823540a7b5595c59df02cc1",
+      "src": "a3d536175209982dc6d1cc6c6cda8754cb1597f63553443f6e73c32635a42618"
+    },
     "settings.assistant.realtimeVoice.body": {
       "by": "ai",
       "out": "1c02c0e1c57ec5bfd3e1c48935833fd5685ac4fadd56f4adbe4225575b66c960",
@@ -185753,6 +185978,11 @@
       "out": "bc15a21aef3dd3574eb4c2d81714fb0bae73e7bfc53184f733e6a3cfb06d4bed",
       "src": "359144af985e2f7c12ebef93a15dcb6eca40b56eb368cc36f6f1464e9a9943c8"
     },
+    "settings.integrations.mailReview.progress": {
+      "by": "ai",
+      "out": "2e4e533115c2eecfd58c4adc6f9c9988ef905c66df9f6eac5d0dcc903a787caf",
+      "src": "ade5d145bd2fa11c65373c6f4ebf8a004842e4e73ab1fd958dde7952e086c028"
+    },
     "settings.integrations.mailReview.question": {
       "by": "ai",
       "out": "c8e09ec7ac1c28e039d75752afc67d67cea76cecaa0d5d52402102f8e9d335fb",
@@ -185788,6 +186018,16 @@
       "out": "2d0d55ff1e9631eed92d52a9713ae1e77ea79f0b1d7238519d63cb057d0b6da6",
       "src": "b1972facc3978f5918a3c48dd35ad7810526da54627b6c1834aa1e4db42ea0cd"
     },
+    "settings.integrations.mailReview.soFar": {
+      "by": "ai",
+      "out": "05712c03b8681dda017f9840bae0cbaf6fb32819cc95d682d7a75aa3b5dbb874",
+      "src": "0c637a6ba1d69cfd12ffdd59bde6808ed5898b05752faab8e59a2888d2c7209a"
+    },
+    "settings.integrations.mailReview.soFarNote": {
+      "by": "ai",
+      "out": "0c1e910e0e41aa911083864c28d5bc1a7c0653dc078a73e90636bffe5d2db9ec",
+      "src": "55e09fb413e2edd5e3713ed56becccf435ae41c0c1e918afe2bd291477557eb1"
+    },
     "settings.integrations.mailReview.start": {
       "by": "ai",
       "out": "a1640ce8dc4c5348d7961d1440ad059a1b18f9dbd8bf2baa6d891afba9cb0684",
@@ -185802,6 +186042,41 @@
       "by": "ai",
       "out": "acadf72baf0e322544cc8bce7a51d9460758f8a015e6ee7808fef66ada39dd39",
       "src": "1a978f56a9a10d54f2f738191e1e5446ea86e97747861a83a4792b5569a61d0d"
+    },
+    "settings.integrations.mailReview.step.analyze": {
+      "by": "ai",
+      "out": "9da5a937805724ae531478beb5fe9c27eb47306f5120998762b9a1cfddf17ac2",
+      "src": "d458df61cd300a5365495fcbe3289cdfd9792c3cb41560d316377f2a81887a5a"
+    },
+    "settings.integrations.mailReview.step.analyzeDetail": {
+      "by": "ai",
+      "out": "8088fb94b8fcd401dd14228d176ee84af5abe399ea904748854e4fa3d9e6b792",
+      "src": "51ea2e853932000111df1ee6ec8061d2f59a844fb852d4773172f58a1dbe9324"
+    },
+    "settings.integrations.mailReview.step.list": {
+      "by": "ai",
+      "out": "e826b5367a51be05c5a2ed61921c94a2d179bc2733b80b2bfb8fbddc1c43e458",
+      "src": "d8ed3122b893191a17bf6bc14419c7774859745c871d56f769290479fdb5e55d"
+    },
+    "settings.integrations.mailReview.step.listDetail": {
+      "by": "ai",
+      "out": "ef19a3749144d59cc47a258a76faf166dc36c14213477c287a21bf32e83e60de",
+      "src": "008cc60f00d980c40923fe4ff65ef5245bcd20442869b49dc2c7fa598e9e9de6"
+    },
+    "settings.integrations.mailReview.step.merging": {
+      "by": "ai",
+      "out": "87d080381e92ad29e0cb899198a2fa89ca732b4e266d481e380412ea9e8eb846",
+      "src": "c7f2cd2c35ac9bf9070a39ee25f00fb982da3a366ecdfc4e687ac02d0eb6d6d7"
+    },
+    "settings.integrations.mailReview.step.read": {
+      "by": "ai",
+      "out": "b76f00afced854a76e3ecff84e932d4548ae251e4759d392313acfbf6bb4ac21",
+      "src": "ccc926b4c8bd97f32ab86de0213402e74c40ff23646dfc48ad55a4e9e0aae9db"
+    },
+    "settings.integrations.mailReview.step.readDetail": {
+      "by": "ai",
+      "out": "d5ef3a31387dde2350004b2baf226b0c0f9466d04bf374d95cd3ff9455aea686",
+      "src": "dc32c84097c42805fe2231cc96e805eceb9c61668fef4854d798daae23c468cc"
     },
     "settings.integrations.mailReview.summary": {
       "by": "ai",
