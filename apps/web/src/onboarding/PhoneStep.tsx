@@ -3,7 +3,7 @@
 import type { PhoneNumber } from '@linedesk/db/types'
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink } from '../ui/AppLink.tsx'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { PhoneSetupStatus } from '../auth.ts'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { AreaCodeInput } from '../settings/AreaCodeInput.tsx'
@@ -24,7 +24,6 @@ import {
   areaCodeOf,
   beingSetUpText,
   buyOffersOf,
-  buyQuestion,
   buyingCountry,
   buyUnavailableText,
   carrierName,
@@ -33,7 +32,6 @@ import {
   formatNumber,
   forwardingOffer,
   isNoneFreeText,
-  numberCharge,
   numbersBeingSetUp,
   type PhoneOption,
   phoneOptionSetup,
@@ -66,9 +64,6 @@ type Props = {
   onBack: () => void
   onNext: () => void
 }
-
-/** How long the purchase question shows before Enter buys (a held or double-pressed Enter only asks). */
-const CONFIRM_ENTER_MS = 800
 
 /** A number is never skipped, only connected later: it stays in the go-live checklist. */
 function useLater() {
@@ -174,9 +169,6 @@ function Choose({
   const [picked, setAreaCode] = useState(firstAreaCode)
   // Only a code of the workspace's country (its list): a prefilled one of another country is dropped.
   const areaCode = areaCodeIn(picked, country, offers) ? picked : (offer?.areaCodes?.[0] ?? '')
-  const [confirming, setConfirming] = useState(false)
-  // When the purchase question appeared: Enter buys only once it has been on screen a moment, never a repeated key.
-  const askedAt = useRef(0)
   const [sending, setSending] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const carrier = carrierName(status.provider)
@@ -192,7 +184,6 @@ function Choose({
   useEffect(() => {
     if (setupError) {
       setSending(false)
-      setConfirming(false)
     }
   }, [setupError])
 
@@ -210,36 +201,18 @@ function Choose({
   }
   function primary() {
     if (sending || nothingToConnect) return
-    if (!buying) return send(false)
-    // Buying is a second, deliberate step: the first press asks the question above the footer, whose primary button
-    // then buys (a click, or Enter once the question has been read for a moment).
-    if (!confirming) {
-      const check = phoneOptionSetup(
-        option,
-        { number: typed, areaCode, confirmed: true, noAreaCode, offered: offer?.areaCodes },
-        forwarding,
-      )
-      if ('problem' in check) return setProblem(check.problem)
-      setProblem(null)
-      ask()
-      return
-    }
-    send(true)
+    // Buying needs no second question here: the note under the choice already says what the number costs (Janik,
+    // 2026-11-22). Settings › Phone numbers keeps its own question.
+    send(buying)
   }
-  function ask() {
-    askedAt.current = Date.now()
-    setConfirming(true)
-  }
-  const enterBuys = () => Date.now() - askedAt.current >= CONFIRM_ENTER_MS
   function pick(next: PhoneOption) {
     setOption(next)
-    setConfirming(false)
     setProblem(null)
   }
   const toChoices = () => pick(phoneOptions[0]!)
   useStepKeys({
-    onEnter: () => (nothingToConnect ? onNext() : confirming && !enterBuys() ? undefined : primary()),
-    onEscape: () => (confirming ? setConfirming(false) : option === 'existing' && buyable ? toChoices() : onBack()),
+    onEnter: () => (nothingToConnect ? onNext() : primary()),
+    onEscape: () => (option === 'existing' && buyable ? toChoices() : onBack()),
   })
 
   const error = problem ?? setupError
@@ -341,29 +314,17 @@ function Choose({
                   value={areaCode}
                   onChange={v => {
                     setAreaCode(v)
-                    setConfirming(false)
                     setProblem(null)
                     clearError()
                   }}
                 />
               </Field>
             )}
-            {/* While the question shows, it says the cost itself: the note would say it twice. */}
-            {!partnerManaged && !confirming && (
+            {!partnerManaged && (
               <p className="ob2-note">
                 {/* The same note as Settings › Phone numbers: on a bill the first number is in the plan. */}
                 {billedNumberNote(extraNumberCents, status.provider, boughtNumbers) ??
                   priceNote(status.provider, priceCountry(areaCode, country))}
-              </p>
-            )}
-            {/* The question right above the footer, whose primary button does it; Back (Esc) cancels. */}
-            {confirming && (
-              <p className="ob-confirm" role="alert">
-                {buyQuestion(
-                  status.provider,
-                  noAreaCode ? '' : areaCodeShown(areaCode, country),
-                  partnerManaged ? null : numberCharge(extraNumberCents, status.provider, boughtNumbers),
-                )}
               </p>
             )}
           </>
@@ -376,8 +337,6 @@ function Choose({
               setAreaCode(code)
               setProblem(null)
               clearError()
-              // The next step is the purchase question for that code, as after the primary button.
-              ask()
             }}
           />
         ) : (
@@ -389,21 +348,13 @@ function Choose({
         <Foot onBack={onBack} onContinue={onNext} label={later.laterLabel} />
       ) : (
         <Foot
-          onBack={confirming && !sending ? () => setConfirming(false) : onBack}
+          onBack={onBack}
           onContinue={primary}
-          onSkipStep={confirming ? undefined : onNext}
+          onSkipStep={onNext}
           {...later}
           busy={sending}
           label={
-            confirming
-              ? dev
-                ? t('onboarding.phone.choose.addTestNumber')
-                : t('onboarding.phone.choose.buyNumber')
-              : buying
-                ? dev
-                  ? t('onboarding.phone.choose.addATestNumber')
-                  : t('onboarding.phone.choose.getNumber')
-                : t('onboarding.phone.choose.connectNumber')
+buying ? t('onboarding.action.continue') : t('onboarding.phone.choose.connectNumber')
           }
         />
       )}

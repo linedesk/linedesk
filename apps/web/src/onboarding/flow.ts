@@ -482,8 +482,8 @@ export function phoneOptionText(
   const { t } = i18n()
   if (option === 'forward')
     return {
-      title: t(word(msg('onboarding.flow.option.forward.title'))),
-      description: t(word(msg('onboarding.flow.option.forward.description')), { name }),
+      title: t(word(msg('onboarding.flow.option.forward.title')), { brand: brandName() }),
+      description: t(word(msg('onboarding.flow.option.forward.description')), { name, brand: brandName() }),
     }
   if (option === 'existing')
     return {
@@ -493,7 +493,7 @@ export function phoneOptionText(
       description: t(word(msg('onboarding.flow.option.existing.description')), { name }),
     }
   return {
-    title: t('onboarding.flow.option.new.title'),
+    title: t(word(msg('onboarding.flow.option.new.title')), { brand: brandName() }),
     description: t(word(msg('onboarding.flow.option.new.description')), { name }),
   }
 }

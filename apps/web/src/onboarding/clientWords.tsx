@@ -32,6 +32,7 @@ export const CLIENT_WORDS: ReadonlyMap<MessageKey, MessageKey> = new Map([
   [msg('onboarding.notify.mobile.label'), msg('onboarding.notify.mobile.labelClient')],
   [msg('onboarding.flow.option.forward.title'), msg('onboarding.flow.option.forward.titleClient')],
   [msg('onboarding.flow.option.forward.description'), msg('onboarding.flow.option.forward.descriptionClient')],
+  [msg('onboarding.flow.option.new.title'), msg('onboarding.flow.option.new.titleClient')],
   [msg('onboarding.flow.option.new.description'), msg('onboarding.flow.option.new.descriptionClient')],
   [msg('onboarding.flow.option.existing.description'), msg('onboarding.flow.option.existing.descriptionClient')],
   [msg('onboarding.phone.connected.keepAll'), msg('onboarding.phone.connected.keepAllClient')],

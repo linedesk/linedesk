@@ -23,7 +23,6 @@ import { explicitCountryPatch } from '../settings/workspaceLocaleModel.ts'
 import { preloadVoiceCatalog } from '../settings/VoiceSettings.tsx'
 import { CountrySelect } from '../settings/CountrySelect.tsx'
 import { TimeZoneSelect } from '../settings/BusinessHours.tsx'
-import { timeZoneLabel } from '../settings/timeZones.ts'
 import { kindOptions } from '../settings/businessKind.ts'
 import { useAssistantOf, useRun } from '../store.tsx'
 import { Checkbox, Select } from '../ui/controls.tsx'
@@ -546,7 +545,8 @@ function ReviewProfile({
   // the owner picks one (Change) or picks another country (the zone then follows it, zoneForCountry).
   const savedZone = settings?.timeZone ?? null
   const [pickedZone, setPickedZone] = useState<string | null>(null)
-  const [changingZone, setChangingZone] = useState(false)
+  // The website given before (typed by hand or from the listing) shows as set, like the country; Change edits it.
+  const [changingWebsite, setChangingWebsite] = useState(false)
   const zone = shownTimeZone(pickedZone, draft, savedZone)
   function pickCountry(next: string) {
     setPickedCountry(next)
@@ -686,13 +686,30 @@ function ReviewProfile({
             />
           </Field>
           <Field id="ob-biz-web" label={t('onboarding.business.field.website')} error={problems.website}>
-            <TextInput
-              id="ob-biz-web"
-              value={draft.website}
-              onChange={v => set({ website: v })}
-              invalid={!!problems.website}
-              placeholder={t('onboarding.business.field.websitePlaceholder')}
-            />
+            {changingWebsite || !draft.website.trim() || problems.website ? (
+              <TextInput
+                id="ob-biz-web"
+                value={draft.website}
+                onChange={v => {
+                  setChangingWebsite(true)
+                  set({ website: v })
+                }}
+                invalid={!!problems.website}
+                placeholder={t('onboarding.business.field.websitePlaceholder')}
+              />
+            ) : (
+              <span className="ob-biz-country">
+                <span id="ob-biz-web">{draft.website.trim()}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  title={t('onboarding.business.field.websiteChangeTip')}
+                  onClick={() => setChangingWebsite(true)}
+                >
+                  {t('onboarding.business.field.countryChange')}
+                </Button>
+              </span>
+            )}
           </Field>
           <Field
             id="ob-biz-country"
@@ -723,21 +740,8 @@ function ReviewProfile({
               label={t('settings.general.timeZone.label')}
               tip={t('settings.general.timeZone.tip')}
             >
-              {changingZone ? (
-                <TimeZoneSelect id="ob-biz-zone" value={zone} onChange={setPickedZone} />
-              ) : (
-                <span className="ob-biz-country">
-                  <span id="ob-biz-zone">{timeZoneLabel(zone)}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    title={t('onboarding.business.field.timeZoneChangeTip')}
-                    onClick={() => setChangingZone(true)}
-                  >
-                    {t('onboarding.business.field.timeZoneChange')}
-                  </Button>
-                </span>
-              )}
+              {/* Not asked before, so a plain field: the owner checks it here (the country above was given already). */}
+              <TimeZoneSelect id="ob-biz-zone" value={zone} onChange={setPickedZone} />
             </Field>
           )}
         </div>

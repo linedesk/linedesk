@@ -20940,16 +20940,6 @@
       "out": "cbc864617a528b114e30cf92155c38f83b8a947106fb49e5e93bb71683f9db3c",
       "src": "b7161ccb9a394d8dcaea29b54ef33de4345aec2a010f8db30cf8d29e0e01b5cf"
     },
-    "onboarding.business.field.timeZoneChange": {
-      "by": "ai",
-      "out": "ea5e3417aabcc0970dbfb9dfecd93ffd8b5807f83f66db2995198b417ff55e69",
-      "src": "c0bf75bd78bf9572596720d596bd5a20a5b9145cde0fe50dec1e783cb184d69b"
-    },
-    "onboarding.business.field.timeZoneChangeTip": {
-      "by": "ai",
-      "out": "1375d7eb0e3395d7e67868f6d54777f32c47251e01e0c011e12318fbed2cd09e",
-      "src": "e7252181a1b4cf63081dcb6e08aee3c4a035bb3eece795bbcd273ac52a181165"
-    },
     "onboarding.business.field.website": {
       "by": "ai",
       "out": "b5a229ac8becc6035511f432ca6018f581f0627233eada6ae8e12b505d44af7f",
@@ -21459,41 +21449,6 @@
       "by": "ai",
       "out": "d865d750ddd2e7aaef39525f252053f7d9c33e83576c53bf5fa2e7f4954df3e7",
       "src": "4939113a0b8e9cab6650826e48943316219e286cba2d4157dbb7124d5c6252e3"
-    },
-    "onboarding.flow.option.forward.description": {
-      "by": "ai",
-      "out": "0f382182c3b6856b039992102cefc5ad085ae744d50fb542a22144f1b5cb03a4",
-      "src": "c9820ad43828c540ac291360a6816fab640cfb1b14171264634f09ce8eeb2dde"
-    },
-    "onboarding.flow.option.forward.descriptionClient": {
-      "by": "ai",
-      "out": "a36cb7e2ecfaad6a3330a8ad796d97badf10c6ac3c7ad26659b370fce1f328bc",
-      "src": "80313048321060395dbeb0b1a62262494e986f20562273023d017badeda5fd25"
-    },
-    "onboarding.flow.option.forward.title": {
-      "by": "ai",
-      "out": "ef4b098554fbf975baefb264986f6eca6b017426ae6bdb655297c4b5a0690710",
-      "src": "a55ffd0812a4cebae0b65671c62ac3f649f7bab814d5defa812d1f0a5db04dfb"
-    },
-    "onboarding.flow.option.forward.titleClient": {
-      "by": "ai",
-      "out": "5f64e39ce3c0639811fd89b62d4ddf3e1c768df0f45b99770c367827f8a70bf5",
-      "src": "ee228bfe6bc467f1873fa03b892a21847ecab57ae060a639e43a49205ae34ff4"
-    },
-    "onboarding.flow.option.new.description": {
-      "by": "ai",
-      "out": "59de98543af099cd09bfcfb4c2fde62406899f9088cc868fc5ece1999d9714b3",
-      "src": "bafd13ff1f39a4a85c329831cf9fff5941b6f6df77a76f6c9b89d5d185666f8d"
-    },
-    "onboarding.flow.option.new.descriptionClient": {
-      "by": "ai",
-      "out": "79689804057d8cc6dfd387e7074c62ad4662159c4ecaa2462d60c8fb488bcdd5",
-      "src": "53780d8c7d94b97e0b3598406826f000e21374668cc8e9c36bc237085336ec20"
-    },
-    "onboarding.flow.option.new.title": {
-      "by": "ai",
-      "out": "c2c9291411d3101c1e706c0c7c15988f3db4df9beea0ef1cd7aece1538c32253",
-      "src": "464b96dc3b142460b0c7da5f592b1da0110e7c5fb2dbc915d417c00d39c352ef"
     },
     "onboarding.flow.phoneCarrier": {
       "by": "ai",
@@ -22465,16 +22420,6 @@
       "out": "95c3c2f92a5dfa9976606a29e7a1e0d7ebed9734080ca3df31ad28df66c1e9cf",
       "src": "e02840856edf86e2fe0119cfbdbfc66575f6ee3e87fb3cbb8ba88490eb319cb3"
     },
-    "onboarding.phone.choose.addATestNumber": {
-      "by": "ai",
-      "out": "e6a031b1ef9ac166d091e7c6b7994837d08003841287698901db90b6ff1afa8b",
-      "src": "7943d9db5a4b822c3eea9d71a639d7ad770192bec9ac46999fe0c5bf6cd669b2"
-    },
-    "onboarding.phone.choose.addTestNumber": {
-      "by": "ai",
-      "out": "d5f1760bd1fd72506cee4f24fdad2db6008d6272b7f7c927b0893578ae172c51",
-      "src": "d16be14b279507a7de2fd231b2b9bc0cb2c304ac41a23cbb1c42c10d027fd7a7"
-    },
     "onboarding.phone.choose.areaCode": {
       "by": "ai",
       "out": "fd4bbb6a3261ccb82001ddd93713447af507004c1176796a1255b473601bdb5d",
@@ -22495,11 +22440,6 @@
       "out": "eefdbde07e6bf8af3c72269b1d696eda37a6dee8eddd09eb8dcd497b4bc3e339",
       "src": "bf1fc3766450106dc9bdf8faa7edcb5ff8155ada6b40c345b203864e8ebbb2d0"
     },
-    "onboarding.phone.choose.buyNumber": {
-      "by": "ai",
-      "out": "08294aa6b49211d76fc1e2b6bf496dc8f2d512908495713e9c50afd029e781b1",
-      "src": "95cdf792e2c21b04f8f80b77c7f8eda200dbde77a4a0953f7fcaded7b3bfe3e3"
-    },
     "onboarding.phone.choose.connectNumber": {
       "by": "ai",
       "out": "dc6f3729cc94798c59ded5fe181b6de3d740065ea649cf30486f72ab134f8672",
@@ -22509,11 +22449,6 @@
       "by": "ai",
       "out": "0385b02680f5a356841de2f8a71dbe0068774e8137ea6f3f57220cbe2667f4b3",
       "src": "499ba97615e3e68f0abfb9346f44972a4e5af8aa2a93085b2a17ea375e6348b2"
-    },
-    "onboarding.phone.choose.getNumber": {
-      "by": "ai",
-      "out": "f4cb460765dfb1cd372094cba0b2680c370192ead33e1701707e224adb83d5fc",
-      "src": "4f89a0116e33020244732a3ed21e570462382db3657ab67ceb6e6e002e0c5be7"
     },
     "onboarding.phone.choose.label": {
       "by": "ai",
@@ -59632,16 +59567,6 @@
       "out": "d9b688aa3f9112849dc707754a28524515abdbbe5ed1fe363c5c3998db05c382",
       "src": "b7161ccb9a394d8dcaea29b54ef33de4345aec2a010f8db30cf8d29e0e01b5cf"
     },
-    "onboarding.business.field.timeZoneChange": {
-      "by": "ai",
-      "out": "b322167924121f7b81492c4ceced19d2f683a6eb789354345431dc0225437f28",
-      "src": "c0bf75bd78bf9572596720d596bd5a20a5b9145cde0fe50dec1e783cb184d69b"
-    },
-    "onboarding.business.field.timeZoneChangeTip": {
-      "by": "ai",
-      "out": "266e881165ef0be24538e28ced393d31405496098d5ff9650f7a883c14f1ed63",
-      "src": "e7252181a1b4cf63081dcb6e08aee3c4a035bb3eece795bbcd273ac52a181165"
-    },
     "onboarding.business.field.website": {
       "by": "ai",
       "out": "bd25cbf8710efabbfd3e40ab7ab520dddcf76d4ea54f90e5c03d3ac39ccc85ba",
@@ -60151,41 +60076,6 @@
       "by": "ai",
       "out": "641bd74c0dec58b09d4bad332e2c4d3134b6d4f25e2945456110d9f6adc9e5a1",
       "src": "4939113a0b8e9cab6650826e48943316219e286cba2d4157dbb7124d5c6252e3"
-    },
-    "onboarding.flow.option.forward.description": {
-      "by": "ai",
-      "out": "4b3ca3f68de920e73b4c0fc16cfdeaf651ad9956fc1c08985c269c4f3bff394c",
-      "src": "c9820ad43828c540ac291360a6816fab640cfb1b14171264634f09ce8eeb2dde"
-    },
-    "onboarding.flow.option.forward.descriptionClient": {
-      "by": "ai",
-      "out": "95535f5f8ce5b33f8391b56c714199dfab2b476eeacf51dcf040cec81c3c484c",
-      "src": "80313048321060395dbeb0b1a62262494e986f20562273023d017badeda5fd25"
-    },
-    "onboarding.flow.option.forward.title": {
-      "by": "ai",
-      "out": "4459cb6a9788b9fdeaaaee35209a3c2418872ed930d56b5a1ef3cd6bcb47c613",
-      "src": "a55ffd0812a4cebae0b65671c62ac3f649f7bab814d5defa812d1f0a5db04dfb"
-    },
-    "onboarding.flow.option.forward.titleClient": {
-      "by": "ai",
-      "out": "0f07a22abdc9ac0c3150418cde5d92cacf8661c54819dd8ed41fea4c9cdce99b",
-      "src": "ee228bfe6bc467f1873fa03b892a21847ecab57ae060a639e43a49205ae34ff4"
-    },
-    "onboarding.flow.option.new.description": {
-      "by": "ai",
-      "out": "5eff797bc215ed22d745057ae92b6e953696b403e667815ee0c1832edd818369",
-      "src": "bafd13ff1f39a4a85c329831cf9fff5941b6f6df77a76f6c9b89d5d185666f8d"
-    },
-    "onboarding.flow.option.new.descriptionClient": {
-      "by": "ai",
-      "out": "09a456b3a4402697b82fe258b8f5fa476e6bdc6b47fb69218970bdb39d223917",
-      "src": "53780d8c7d94b97e0b3598406826f000e21374668cc8e9c36bc237085336ec20"
-    },
-    "onboarding.flow.option.new.title": {
-      "by": "ai",
-      "out": "bf769e48767059e2af8137954de59911fd0e49bb95628a941db8429abe31c28a",
-      "src": "464b96dc3b142460b0c7da5f592b1da0110e7c5fb2dbc915d417c00d39c352ef"
     },
     "onboarding.flow.phoneCarrier": {
       "by": "ai",
@@ -61157,16 +61047,6 @@
       "out": "a079bcaa9b317f03a813ed0d4effdf13c77ea1301f6b175c8c997f43bdf2ff29",
       "src": "e02840856edf86e2fe0119cfbdbfc66575f6ee3e87fb3cbb8ba88490eb319cb3"
     },
-    "onboarding.phone.choose.addATestNumber": {
-      "by": "ai",
-      "out": "4031c9e216653919325683142f28a3c036a64624f7462df64de7605f39fb329c",
-      "src": "7943d9db5a4b822c3eea9d71a639d7ad770192bec9ac46999fe0c5bf6cd669b2"
-    },
-    "onboarding.phone.choose.addTestNumber": {
-      "by": "ai",
-      "out": "a36c38702f252a5b3067a9646542eb119e12ce0de8168a2032178d1047a9544e",
-      "src": "d16be14b279507a7de2fd231b2b9bc0cb2c304ac41a23cbb1c42c10d027fd7a7"
-    },
     "onboarding.phone.choose.areaCode": {
       "by": "ai",
       "out": "d986aaf51afc3176270ad5bf4e1cd316677eea9b8760769689f04abe3ef18107",
@@ -61187,11 +61067,6 @@
       "out": "453632ae961d31e692f4db991c0160825b65744c384e610bdbfe8078cd482265",
       "src": "bf1fc3766450106dc9bdf8faa7edcb5ff8155ada6b40c345b203864e8ebbb2d0"
     },
-    "onboarding.phone.choose.buyNumber": {
-      "by": "ai",
-      "out": "6341fb3ee023044154753397801608f2d928754a191dfdbdb5db10c4c090764c",
-      "src": "95cdf792e2c21b04f8f80b77c7f8eda200dbde77a4a0953f7fcaded7b3bfe3e3"
-    },
     "onboarding.phone.choose.connectNumber": {
       "by": "ai",
       "out": "3dca006ea2c4307de8101d36589badbb4494e2c8e79c6845e5c9d43230604ecd",
@@ -61201,11 +61076,6 @@
       "by": "ai",
       "out": "c713c7c8a1a74ed8e3f72c5b78dd4d1a5fbc086d65dd4608e8bb9c71ad4e00b8",
       "src": "499ba97615e3e68f0abfb9346f44972a4e5af8aa2a93085b2a17ea375e6348b2"
-    },
-    "onboarding.phone.choose.getNumber": {
-      "by": "ai",
-      "out": "afd921ace7ddd43e7e0abb6e7e727d14d6b8fa9fc42fda547fcf8a17fae09f68",
-      "src": "4f89a0116e33020244732a3ed21e570462382db3657ab67ceb6e6e002e0c5be7"
     },
     "onboarding.phone.choose.label": {
       "by": "ai",
@@ -98324,16 +98194,6 @@
       "out": "aa974b9bbec717362f4b03adae00139f5f38affe66b1ffb4c28cb469cb500983",
       "src": "b7161ccb9a394d8dcaea29b54ef33de4345aec2a010f8db30cf8d29e0e01b5cf"
     },
-    "onboarding.business.field.timeZoneChange": {
-      "by": "ai",
-      "out": "42e37604b638b62790fde6210fe9af90567961220206ec36e2739e075c85a7ae",
-      "src": "c0bf75bd78bf9572596720d596bd5a20a5b9145cde0fe50dec1e783cb184d69b"
-    },
-    "onboarding.business.field.timeZoneChangeTip": {
-      "by": "ai",
-      "out": "115c0ac5fe44d087704d125eec976a18d0b17ace37011fd3d6fdb331a6589d1d",
-      "src": "e7252181a1b4cf63081dcb6e08aee3c4a035bb3eece795bbcd273ac52a181165"
-    },
     "onboarding.business.field.website": {
       "by": "ai",
       "out": "eca85827a8d517ac385a88b10f8983e3671c918ac93721a17d5582de657caab9",
@@ -98843,41 +98703,6 @@
       "by": "ai",
       "out": "36ac595f534256fb57254f8e0e65d8701c3e9eec3fd2c10872bd37077e348975",
       "src": "4939113a0b8e9cab6650826e48943316219e286cba2d4157dbb7124d5c6252e3"
-    },
-    "onboarding.flow.option.forward.description": {
-      "by": "ai",
-      "out": "413fd337d368791db149b1702c5b406a24763d1533e34a353888b00a9fc00a6b",
-      "src": "c9820ad43828c540ac291360a6816fab640cfb1b14171264634f09ce8eeb2dde"
-    },
-    "onboarding.flow.option.forward.descriptionClient": {
-      "by": "ai",
-      "out": "b84e57a40c90b9a6e00826c573e0712e3b305d8b8b722586d664d5cb956004eb",
-      "src": "80313048321060395dbeb0b1a62262494e986f20562273023d017badeda5fd25"
-    },
-    "onboarding.flow.option.forward.title": {
-      "by": "ai",
-      "out": "5afe761c291721126e5c4772f9b6698b9767be4967ad3bed8cb8a23a3336e34c",
-      "src": "a55ffd0812a4cebae0b65671c62ac3f649f7bab814d5defa812d1f0a5db04dfb"
-    },
-    "onboarding.flow.option.forward.titleClient": {
-      "by": "ai",
-      "out": "02224e8df2b50e6a8d4e431c0b9280c92c7b3a406cf4442dd85316b5a31a4232",
-      "src": "ee228bfe6bc467f1873fa03b892a21847ecab57ae060a639e43a49205ae34ff4"
-    },
-    "onboarding.flow.option.new.description": {
-      "by": "ai",
-      "out": "8e5223a39893f1820de6bde5b61112b14f7da2f77efe56f19d6190b82d88dc6b",
-      "src": "bafd13ff1f39a4a85c329831cf9fff5941b6f6df77a76f6c9b89d5d185666f8d"
-    },
-    "onboarding.flow.option.new.descriptionClient": {
-      "by": "ai",
-      "out": "047c47df19f514af1e4eff5f72257427aeeecb8eeadda5522cd6b38317a33889",
-      "src": "53780d8c7d94b97e0b3598406826f000e21374668cc8e9c36bc237085336ec20"
-    },
-    "onboarding.flow.option.new.title": {
-      "by": "ai",
-      "out": "d9c75884b5a59be204a5e9160e192cea1062cb448d1a64cd8d921957b4a916b3",
-      "src": "464b96dc3b142460b0c7da5f592b1da0110e7c5fb2dbc915d417c00d39c352ef"
     },
     "onboarding.flow.phoneCarrier": {
       "by": "ai",
@@ -99849,16 +99674,6 @@
       "out": "5731a4e7502d0a5dba57f05a623f7ebc2fbd5dafa61242bb82269b0449893970",
       "src": "e02840856edf86e2fe0119cfbdbfc66575f6ee3e87fb3cbb8ba88490eb319cb3"
     },
-    "onboarding.phone.choose.addATestNumber": {
-      "by": "ai",
-      "out": "c2e671e7283ff83fdd890973b182e02b701dba3eacb3e659dae40178ba030ffc",
-      "src": "7943d9db5a4b822c3eea9d71a639d7ad770192bec9ac46999fe0c5bf6cd669b2"
-    },
-    "onboarding.phone.choose.addTestNumber": {
-      "by": "ai",
-      "out": "ca71e75a46a26d0144d9a78b2559e48d6e5232e1192a12142703c7843e7387b1",
-      "src": "d16be14b279507a7de2fd231b2b9bc0cb2c304ac41a23cbb1c42c10d027fd7a7"
-    },
     "onboarding.phone.choose.areaCode": {
       "by": "ai",
       "out": "eaefc74be4772cac8ce4b2cd72477914a3210bde0516f2b583eba6dc40c2d4a5",
@@ -99879,11 +99694,6 @@
       "out": "97b2f6b9a43bd72a75d6ee70222e7550da00a8b26035a105178da04cc96626e9",
       "src": "bf1fc3766450106dc9bdf8faa7edcb5ff8155ada6b40c345b203864e8ebbb2d0"
     },
-    "onboarding.phone.choose.buyNumber": {
-      "by": "ai",
-      "out": "79ac999b6c001a2a2ae9506ab95e6b5aad25832d6edc584a7e0520969058d4ec",
-      "src": "95cdf792e2c21b04f8f80b77c7f8eda200dbde77a4a0953f7fcaded7b3bfe3e3"
-    },
     "onboarding.phone.choose.connectNumber": {
       "by": "ai",
       "out": "e47d12bb3aef97577d9781206a8e62a3c71df7efdb9be4e3aa9ff3224a588427",
@@ -99893,11 +99703,6 @@
       "by": "ai",
       "out": "a38cdd72d6d3658789ffe78f0fbb3e56f24a642d99832344a17e0b1a01cac325",
       "src": "499ba97615e3e68f0abfb9346f44972a4e5af8aa2a93085b2a17ea375e6348b2"
-    },
-    "onboarding.phone.choose.getNumber": {
-      "by": "ai",
-      "out": "aee7e9bc3862d0f11b7393263221ec584f6960923e80c655e8aeeedb15239cce",
-      "src": "4f89a0116e33020244732a3ed21e570462382db3657ab67ceb6e6e002e0c5be7"
     },
     "onboarding.phone.choose.label": {
       "by": "ai",
@@ -137016,16 +136821,6 @@
       "out": "57913d7d54c94e74c4beb51e125bf1d1fb8096c52eb051b8cc0d7030ce7a7577",
       "src": "b7161ccb9a394d8dcaea29b54ef33de4345aec2a010f8db30cf8d29e0e01b5cf"
     },
-    "onboarding.business.field.timeZoneChange": {
-      "by": "ai",
-      "out": "856252cfcbd314e0b86e47283f2d72c102e401a8528e940697e9611cf72f28d2",
-      "src": "c0bf75bd78bf9572596720d596bd5a20a5b9145cde0fe50dec1e783cb184d69b"
-    },
-    "onboarding.business.field.timeZoneChangeTip": {
-      "by": "ai",
-      "out": "6bf8cb8c63f0056fc8a45ab62a7d0f246e6358176cafb4086aaa917de0c3a552",
-      "src": "e7252181a1b4cf63081dcb6e08aee3c4a035bb3eece795bbcd273ac52a181165"
-    },
     "onboarding.business.field.website": {
       "by": "ai",
       "out": "ff740c5cd5549ccdb1c5ee1356c55f9ee2ef32a39b4d7c5c81d3dff0ab707f26",
@@ -137535,41 +137330,6 @@
       "by": "ai",
       "out": "114a9353e32dbfdc58b26f77d75d025e7644198bc0c868806755887cc6b67b40",
       "src": "4939113a0b8e9cab6650826e48943316219e286cba2d4157dbb7124d5c6252e3"
-    },
-    "onboarding.flow.option.forward.description": {
-      "by": "ai",
-      "out": "b9491ed7f68306cb26196b9c0df6b144b7764f022fa92d3a858537f84ff3b8a9",
-      "src": "c9820ad43828c540ac291360a6816fab640cfb1b14171264634f09ce8eeb2dde"
-    },
-    "onboarding.flow.option.forward.descriptionClient": {
-      "by": "ai",
-      "out": "464e5b2a495d3c0dde0df583f9c9eda12d981089f13753458d8c8f8ba4076999",
-      "src": "80313048321060395dbeb0b1a62262494e986f20562273023d017badeda5fd25"
-    },
-    "onboarding.flow.option.forward.title": {
-      "by": "ai",
-      "out": "f73c49789c329b0e9c6f42fa210c61ae39e8945aca9159a6901043671ef82606",
-      "src": "a55ffd0812a4cebae0b65671c62ac3f649f7bab814d5defa812d1f0a5db04dfb"
-    },
-    "onboarding.flow.option.forward.titleClient": {
-      "by": "ai",
-      "out": "f73c49789c329b0e9c6f42fa210c61ae39e8945aca9159a6901043671ef82606",
-      "src": "ee228bfe6bc467f1873fa03b892a21847ecab57ae060a639e43a49205ae34ff4"
-    },
-    "onboarding.flow.option.new.description": {
-      "by": "ai",
-      "out": "cb6e8d73973837feebc3d25c49719e884a539ee7aa9bb4005d4fac04c553de9f",
-      "src": "bafd13ff1f39a4a85c329831cf9fff5941b6f6df77a76f6c9b89d5d185666f8d"
-    },
-    "onboarding.flow.option.new.descriptionClient": {
-      "by": "ai",
-      "out": "b2c219e4850366e16a8f1d54a8bddd876c943f283f97f09706d2a19b8b5910a3",
-      "src": "53780d8c7d94b97e0b3598406826f000e21374668cc8e9c36bc237085336ec20"
-    },
-    "onboarding.flow.option.new.title": {
-      "by": "ai",
-      "out": "bf9377088f4604777f6f20d57b2613efb751c47cbf0e9f9892e553c5d324d50c",
-      "src": "464b96dc3b142460b0c7da5f592b1da0110e7c5fb2dbc915d417c00d39c352ef"
     },
     "onboarding.flow.phoneCarrier": {
       "by": "ai",
@@ -138541,16 +138301,6 @@
       "out": "1c7f6fb88f81c334a5b0c53ea6f2fbc69c4caa589027d9fa731bb1f69af07648",
       "src": "e02840856edf86e2fe0119cfbdbfc66575f6ee3e87fb3cbb8ba88490eb319cb3"
     },
-    "onboarding.phone.choose.addATestNumber": {
-      "by": "ai",
-      "out": "ca18e0e7ae3cf520e99a70ace2f90c71abcdec462752f4d07e2f5b4e082b42e2",
-      "src": "7943d9db5a4b822c3eea9d71a639d7ad770192bec9ac46999fe0c5bf6cd669b2"
-    },
-    "onboarding.phone.choose.addTestNumber": {
-      "by": "ai",
-      "out": "ca18e0e7ae3cf520e99a70ace2f90c71abcdec462752f4d07e2f5b4e082b42e2",
-      "src": "d16be14b279507a7de2fd231b2b9bc0cb2c304ac41a23cbb1c42c10d027fd7a7"
-    },
     "onboarding.phone.choose.areaCode": {
       "by": "ai",
       "out": "40d02fdd90aa0054eb77a2dc29a5072e2f8588504a1d7d597be5f0a738fe077c",
@@ -138571,11 +138321,6 @@
       "out": "b4e8d4fb78d7d4d7151233de6a7a7c01e32ae417cd2733862121e03d48f2400e",
       "src": "bf1fc3766450106dc9bdf8faa7edcb5ff8155ada6b40c345b203864e8ebbb2d0"
     },
-    "onboarding.phone.choose.buyNumber": {
-      "by": "ai",
-      "out": "7f4ac6b95b463dd8201bd0f48a841aa77f881b7a9f0c633beb2c89acc595b2a7",
-      "src": "95cdf792e2c21b04f8f80b77c7f8eda200dbde77a4a0953f7fcaded7b3bfe3e3"
-    },
     "onboarding.phone.choose.connectNumber": {
       "by": "ai",
       "out": "db334a847d39b560ea2ef90a7aa4c4226cfc3589f2333d78507ac5786e01ce4a",
@@ -138585,11 +138330,6 @@
       "by": "ai",
       "out": "432fc07da277d98443b098e075d095c58bc781f43e5126e3058001e37eb2c16c",
       "src": "499ba97615e3e68f0abfb9346f44972a4e5af8aa2a93085b2a17ea375e6348b2"
-    },
-    "onboarding.phone.choose.getNumber": {
-      "by": "ai",
-      "out": "0ed38344a1796a6dcbe19b74c5082fcd069210fea17494d834f6612bc1763c70",
-      "src": "4f89a0116e33020244732a3ed21e570462382db3657ab67ceb6e6e002e0c5be7"
     },
     "onboarding.phone.choose.label": {
       "by": "ai",
@@ -175708,16 +175448,6 @@
       "out": "4bc4f45d4983780bfe3855034d80cbae9639225af30d7510bd496c9d898a09ad",
       "src": "b7161ccb9a394d8dcaea29b54ef33de4345aec2a010f8db30cf8d29e0e01b5cf"
     },
-    "onboarding.business.field.timeZoneChange": {
-      "by": "ai",
-      "out": "ded212a14c2c867dd59b0eea4d459e36ea20b46b65e5eba2b301bd1a6a3c99dc",
-      "src": "c0bf75bd78bf9572596720d596bd5a20a5b9145cde0fe50dec1e783cb184d69b"
-    },
-    "onboarding.business.field.timeZoneChangeTip": {
-      "by": "ai",
-      "out": "1605b4326cb00e9d5b5087080bda7419e3c198ac7690545fc346012ec8179742",
-      "src": "e7252181a1b4cf63081dcb6e08aee3c4a035bb3eece795bbcd273ac52a181165"
-    },
     "onboarding.business.field.website": {
       "by": "ai",
       "out": "fa7955814e32aed3a240ee46fcd053dd48f320d4e6e18d2b2774e491c5f75834",
@@ -176227,41 +175957,6 @@
       "by": "ai",
       "out": "93d10d7caa288ee8ee24fbf348ba131206ace56e8bccfa9b41430d5723516b8b",
       "src": "4939113a0b8e9cab6650826e48943316219e286cba2d4157dbb7124d5c6252e3"
-    },
-    "onboarding.flow.option.forward.description": {
-      "by": "ai",
-      "out": "aab9b6e0cb1f5fb12fe38aca8154d5ea20a4cb25432bf90caf49c76f87ffaba7",
-      "src": "c9820ad43828c540ac291360a6816fab640cfb1b14171264634f09ce8eeb2dde"
-    },
-    "onboarding.flow.option.forward.descriptionClient": {
-      "by": "ai",
-      "out": "3713d972e2c1a70587ed4d2a4379dc6e6784e6a9829d17ce8b82da768dddd862",
-      "src": "80313048321060395dbeb0b1a62262494e986f20562273023d017badeda5fd25"
-    },
-    "onboarding.flow.option.forward.title": {
-      "by": "ai",
-      "out": "0b478cf7f12792556a03337fb0105cabdc77ef3adf00767a01aaa82a59f30701",
-      "src": "a55ffd0812a4cebae0b65671c62ac3f649f7bab814d5defa812d1f0a5db04dfb"
-    },
-    "onboarding.flow.option.forward.titleClient": {
-      "by": "ai",
-      "out": "5eb4ab1a490806ca66f6bf3dfa3fbe7307d65edd6ed3bd1a52b2d8b0bdb044d3",
-      "src": "ee228bfe6bc467f1873fa03b892a21847ecab57ae060a639e43a49205ae34ff4"
-    },
-    "onboarding.flow.option.new.description": {
-      "by": "ai",
-      "out": "1b5367c1b959d7094d4febcde595712dc365a95b2947b6d806da7791e4fc1c2d",
-      "src": "bafd13ff1f39a4a85c329831cf9fff5941b6f6df77a76f6c9b89d5d185666f8d"
-    },
-    "onboarding.flow.option.new.descriptionClient": {
-      "by": "ai",
-      "out": "65ad8ae1a68efd852567ed569bf095f462f2fee8844d969d3645b1d1ee275ba2",
-      "src": "53780d8c7d94b97e0b3598406826f000e21374668cc8e9c36bc237085336ec20"
-    },
-    "onboarding.flow.option.new.title": {
-      "by": "ai",
-      "out": "4e3610c91f26e4f2c5e857fd4570d5968cfc6f455dd22a668ec721422472d2e0",
-      "src": "464b96dc3b142460b0c7da5f592b1da0110e7c5fb2dbc915d417c00d39c352ef"
     },
     "onboarding.flow.phoneCarrier": {
       "by": "ai",
@@ -177233,16 +176928,6 @@
       "out": "a079bcaa9b317f03a813ed0d4effdf13c77ea1301f6b175c8c997f43bdf2ff29",
       "src": "e02840856edf86e2fe0119cfbdbfc66575f6ee3e87fb3cbb8ba88490eb319cb3"
     },
-    "onboarding.phone.choose.addATestNumber": {
-      "by": "ai",
-      "out": "2a94bafaa9a352aab18f9bae7eec7713965e55ac424fb4023800b636feec3ff9",
-      "src": "7943d9db5a4b822c3eea9d71a639d7ad770192bec9ac46999fe0c5bf6cd669b2"
-    },
-    "onboarding.phone.choose.addTestNumber": {
-      "by": "ai",
-      "out": "280b16358713ebfb2259bbf53bb560fadde1cbf108ea9f51eec152da9477f8c9",
-      "src": "d16be14b279507a7de2fd231b2b9bc0cb2c304ac41a23cbb1c42c10d027fd7a7"
-    },
     "onboarding.phone.choose.areaCode": {
       "by": "ai",
       "out": "d986aaf51afc3176270ad5bf4e1cd316677eea9b8760769689f04abe3ef18107",
@@ -177263,11 +176948,6 @@
       "out": "ff022a53e2219ef0cd9238f9708f6dbb6f760dce698c13997074933d7f4f6e0d",
       "src": "bf1fc3766450106dc9bdf8faa7edcb5ff8155ada6b40c345b203864e8ebbb2d0"
     },
-    "onboarding.phone.choose.buyNumber": {
-      "by": "ai",
-      "out": "6341fb3ee023044154753397801608f2d928754a191dfdbdb5db10c4c090764c",
-      "src": "95cdf792e2c21b04f8f80b77c7f8eda200dbde77a4a0953f7fcaded7b3bfe3e3"
-    },
     "onboarding.phone.choose.connectNumber": {
       "by": "ai",
       "out": "3dca006ea2c4307de8101d36589badbb4494e2c8e79c6845e5c9d43230604ecd",
@@ -177277,11 +176957,6 @@
       "by": "ai",
       "out": "bbdb961d823f7822c40ba289b1d4a587fade37df63639a3edd92b857a4537378",
       "src": "499ba97615e3e68f0abfb9346f44972a4e5af8aa2a93085b2a17ea375e6348b2"
-    },
-    "onboarding.phone.choose.getNumber": {
-      "by": "ai",
-      "out": "749018774ae7d3a2179ca2e613bfb80f46ad0f962eb16b0952280601c68f3193",
-      "src": "4f89a0116e33020244732a3ed21e570462382db3657ab67ceb6e6e002e0c5be7"
     },
     "onboarding.phone.choose.label": {
       "by": "ai",

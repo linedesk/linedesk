@@ -15,7 +15,6 @@ import {
   rejectionStep,
   urgentCasesFrom,
   billedExtraNumberCents,
-  buyQuestion,
   buyingCountry,
   buyUnavailableText,
   carrierName,
@@ -305,30 +304,11 @@ test('renaming the assistant keeps the greeting in step', () => {
   expect(renameInGreeting('Hello', 'Maya', 'Maya')).toBe('Hello')
 })
 
-test('the buy question does not speak of a bill in development mode', () => {
-  expect(buyQuestion('telnyx', '503')).toMatch(/billed every month/)
-  expect(buyQuestion('dev', '503')).not.toMatch(/billed every month/)
-})
-
-test('the buy question agrees with the price note: an included first number has no monthly charge (LIN-645)', () => {
-  // On a bill, the first number: included, said once, and no "billed every month" after it.
+test('the price note says what an included first number and an extra one cost (LIN-645)', () => {
   expect(numberCharge(300, 'telnyx', 0)).toBe('included')
   expect(billedNumberNote(300, 'telnyx', 0)).toBe('Your first number is included in your plan.')
-  expect(buyQuestion('telnyx', '503', numberCharge(300, 'telnyx', 0))).toBe(
-    'Buy a number in area code 503? It is included in your plan.',
-  )
-  expect(buyQuestion('telnyx', '', 'included')).toBe('Buy a new number? It is included in your plan.')
-  // An extra number: the bill's price, from the balance.
   expect(numberCharge(300, 'telnyx', 1)).toBe('$3')
-  expect(buyQuestion('telnyx', '06221', numberCharge(300, 'telnyx', 1))).toBe(
-    'Buy a number in area code 06221? It costs $3 a month from your balance until you release it.',
-  )
-  expect(buyQuestion('telnyx', '', '$3')).toBe(
-    'Buy a new number? It costs $3 a month from your balance until you release it.',
-  )
-  // No bill, a comped bill, the workspace's own carrier account: the carrier bills it, as before.
   expect(numberCharge(null, 'telnyx', 0)).toBeNull()
-  expect(buyQuestion('telnyx', '503', null)).toMatch(/billed every month/)
   expect(numberCharge(300, 'dev', 0)).toBeNull()
 })
 
@@ -562,18 +542,20 @@ test("a partner's team reads the client's words on the last step and in the phon
     left: [{ label: "Connect the client's number" }],
   })
   expect(phoneOptionText('forward', 'Maya', null, forClient)).toEqual({
-    title: 'Keep their number',
+    title: 'Keep their number, forward calls to Linedesk',
     description:
-      'We get Maya a number, and the client dials a short code once on their business phone to forward to it.',
+      "The client's customers keep calling the number they know. Linedesk gets Maya its own number, and the client forwards their calls to it once with a short code.",
   })
-  expect(phoneOptionText('new', 'Maya', null, forClient).description).toBe(
-    "Only calls to the new number reach Maya. The client's current number rings as it does today.",
-  )
+  expect(phoneOptionText('new', 'Maya', null, forClient)).toEqual({
+    title: "Get a new number from Linedesk for the client's customers",
+    description:
+      'The client gives this number to their customers, and Maya answers it. Their current number rings as it does today.',
+  })
 })
 
 test('the phone options read the same in onboarding and Settings › Phone numbers', () => {
-  expect(phoneOptionText('forward', 'Maya', 'Telnyx').title).toBe('Keep my number')
-  expect(phoneOptionText('new', 'Maya', null).title).toBe('Give callers a new number')
+  expect(phoneOptionText('forward', 'Maya', 'Telnyx').title).toBe('Keep my number, forward calls to Linedesk')
+  expect(phoneOptionText('new', 'Maya', null).title).toBe('Get a new number from Linedesk for my customers')
   expect(phoneOptionText('existing', 'Maya', 'Twilio').title).toBe('Use a number you have in Twilio')
   expect(existingLinkText(null)).toBe('Already have a number? Use it')
 })

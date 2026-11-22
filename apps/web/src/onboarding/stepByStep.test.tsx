@@ -180,7 +180,8 @@ describe('the workspace’s steps, from Workspace settings', () => {
   test('the business details as saved, to look over and change', () => {
     const html = render()
     expect(html).toMatch(/id="ob-biz-name"[^>]*value="Brightwater Plumbing &amp; Heating"/)
-    expect(html).toMatch(/id="ob-biz-web"[^>]*value="brightwater-plumbing.example"/)
+    // The website given before shows as set, like the country, with Change to edit it.
+    expect(html).toMatch(/<span id="ob-biz-web">brightwater-plumbing.example<\/span>/)
     expect(html).toContain('Plumbing and heating in Portland')
     // One primary button: Continue.
     expect(html.match(/k-btn-primary/g)).toHaveLength(1)
