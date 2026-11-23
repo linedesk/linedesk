@@ -13,6 +13,7 @@ import type { Tx } from '@linedesk/db'
 import { sql } from 'drizzle-orm'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
+import { type InstallType, installType } from './install-type.ts'
 import { livekitStatus, type ServiceStatus } from './livekit-status.ts'
 import { listProviderFailures } from './provider-failures.ts'
 import { activeProvider, realtimeInUse } from './provider-settings.ts'
@@ -278,6 +279,8 @@ export type AdminHealth = {
   sip: ServiceStatus
   agent: ServiceStatus
   email: ServiceStatus
+  /** How this server is installed: what to run when the voice agent is not running (docker compose, pnpm). */
+  installType: InstallType
 }
 
 /**
@@ -304,5 +307,6 @@ export async function adminHealth(words: Words = english): Promise<AdminHealth> 
     sip: livekit.sip,
     agent: agentStatus(undefined, undefined, undefined, words),
     email,
+    installType: installType(),
   }
 }

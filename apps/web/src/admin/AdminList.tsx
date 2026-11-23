@@ -38,6 +38,8 @@ type Props<T> = {
   rowActions?: (row: T) => ReactNode
   /** Controls under the search, such as a filter (Users: "No workspace"). */
   tools?: ReactNode
+  /** A class on the list, for its column widths (Workspaces: the number in full). */
+  className?: string
 }
 
 export function AdminList<T>({
@@ -53,6 +55,7 @@ export function AdminList<T>({
   empty,
   rowActions,
   tools,
+  className,
 }: Props<T>) {
   const t = useT()
   const [query, setQuery] = useState('')
@@ -120,7 +123,7 @@ export function AdminList<T>({
         </label>
         {tools}
         <div
-          className={cx('adm-list', rowActions && 'adm-list-acts')}
+          className={cx('adm-list', rowActions && 'adm-list-acts', className)}
           role="table"
           aria-label={label ?? searchLabel}
           ref={list}

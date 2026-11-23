@@ -125,6 +125,17 @@ describe('providerLine', () => {
     expect(providerLine({ ...fresh, keysAt: at(2) }, [failure]).state).toBe('failing')
   })
 
+  test("why it fails: the recorded reason, the test's own, or read from its text (the overview picks the fix by it)", () => {
+    const failure = { provider: 'elevenlabs' as const, reason: 'quota' as const, message: 'Used up', last_at: at(5) }
+    expect(providerLine(works('elevenlabs', 1), [failure]).reason).toBe('quota')
+    const test = (t: object) =>
+      providerLine({ ...works('openrouter'), test: { ok: false, at: at(1), message: '', ...t } })
+    expect(test({ reason: 'permission', message: 'x' }).reason).toBe('permission')
+    expect(test({ message: 'OpenRouter rejected the key (HTTP 401).' }).reason).toBe('auth')
+    expect(test({ message: 'Something odd' }).reason).toBe('unknown')
+    expect(providerLine(works('openrouter')).reason).toBeUndefined()
+  })
+
   test('the OpenAI key check says what it proves', () => {
     expect(providerLine(works('openai_realtime')).message).toBe('Key accepted')
   })
@@ -230,6 +241,9 @@ describe('statusGroups', () => {
       headline: 'Calls are not answered',
       reason: 'Phone carrier: Failing: Key rejected',
     })
+    // The group it is about, for a screen that names the provider (Server admin's status card).
+    expect(readiness(carrierFails.groups).group).toMatchObject({ id: 'telephony', state: 'failing' })
+    expect(readiness(ready.groups).group).toBeNull()
   })
 
   test('sign-in lists only the sign-in apps: a failing Cal.com or Calendly turns the calendar group red, not sign-in', () => {

@@ -58,6 +58,7 @@ import { db } from './db.ts'
 import { Reject } from './handler-context.ts'
 import { configOf, storedProviderValues } from './provider-settings.ts'
 import { GROUP_STATE, setupChecklist } from './setup-checklist.ts'
+import { type InstallType, installType } from './install-type.ts'
 
 export const SETUP_FEEDBACK_SCHEMA = 'linedesk.setup-feedback/1'
 export const DEFAULT_SETUP_FEEDBACK_URL = 'https://linedesk.ai/api/setup-feedback'
@@ -101,19 +102,7 @@ export function serverVersion(env: Record<string, string | undefined> = process.
   return version.slice(0, 40)
 }
 
-/** Linedesk Cloud's address. */
-const CLOUD_HOST = 'app.linedesk.ai'
-export type InstallType = 'docker' | 'dev' | 'cloud' | 'unknown'
-
-/** How this server is installed: Linedesk Cloud, the Docker image (docker/api-entrypoint.sh says so), or pnpm dev. */
-export function installType(env: Record<string, string | undefined> = process.env): InstallType {
-  try {
-    if (new URL(env.PUBLIC_URL ?? '').host === CLOUD_HOST) return 'cloud'
-  } catch {}
-  if (env.LINEDESK_INSTALL_TYPE === 'docker') return 'docker'
-  if (env.NODE_ENV !== 'production') return 'dev'
-  return 'unknown'
-}
+export { type InstallType, installType }
 
 /** The setup page's agent names (agentClients) as the contract has them; the others are `other`. */
 const CONTRACT_CLIENTS: Record<string, string> = {

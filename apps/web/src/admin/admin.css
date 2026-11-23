@@ -293,8 +293,9 @@
   font-weight: 500;
   color: var(--ink-muted);
 }
+/* --adm-col2-min: a second column that must never be cut (Workspaces: the number, in full). */
 .adm-row:has(> :nth-child(4):not(.adm-cell-acts)) {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(var(--adm-col2-min, 0px), 1fr) minmax(0, 0.9fr) minmax(0, 1fr);
 }
 .adm-cell {
   min-width: 0;
@@ -539,7 +540,13 @@
   grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr) minmax(0, 1fr) var(--adm-acts-w);
 }
 .adm-list-acts > .adm-row:has(> :nth-child(4):not(.adm-cell-acts)) {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1fr) var(--adm-acts-w);
+  grid-template-columns: minmax(0, 2fr) minmax(var(--adm-col2-min, 0px), 1fr) minmax(0, 0.9fr) minmax(0, 1fr) var(
+      --adm-acts-w
+    );
+}
+/* Server admin › Workspaces: a full E.164 number, never "+1 503 555 01…". */
+.adm-ws-list {
+  --adm-col2-min: max-content;
 }
 .adm-cell.adm-cell-acts {
   display: flex;
@@ -1035,6 +1042,56 @@
   }
   .adm-status-row .k-row-main {
     flex-basis: 110px;
+  }
+}
+/* A command or a docs link in a problem: above the row's stretched link, so they copy and open instead. */
+.adm-status-problem .adm-cmd,
+.adm-status-problem .k-link {
+  position: relative;
+  z-index: 1;
+}
+/* A command in a status row's text (the voice agent's start): code with a small Copy button, kept on one line. */
+.adm-cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.adm-cmd code {
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-hover);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.adm-cmd-copy {
+  color: var(--ink-muted);
+}
+/* Replace key, opened in the row: the key field under the part's words, Cancel and Save at its right. */
+.adm-replace-key {
+  display: grid;
+  gap: 8px;
+  padding: 4px 12px 12px 36px;
+}
+.adm-replace-key-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* "How to get a key" at the left of Cancel and Save; its steps open below it at the row's width. */
+.adm-replace-key-actions .adm-guide {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+@media (max-width: 559px) {
+  .adm-replace-key {
+    padding-left: 12px;
   }
 }
 .adm-status-value {

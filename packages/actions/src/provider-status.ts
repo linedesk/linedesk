@@ -5,7 +5,12 @@
 // data plus the tests it runs right now.
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { type ProviderCategory, type ProviderName, providerSpec, providersIn } from './admin.ts'
-import { type ProviderFailure, providerFailureReasonKeys } from './provider-health.ts'
+import {
+  type ProviderFailure,
+  type ProviderFailureReason,
+  providerFailureReasonKeys,
+  providerFailureReasonOfText,
+} from './provider-health.ts'
 import { pipelineFor, type VoicePipeline } from './settings.ts'
 import { english, type Words } from './words.ts'
 
@@ -222,8 +227,8 @@ export function statusText(s: { state: StatusState; detail: string | null }, wor
     : word
 }
 
-/** A stored test of the keys in effect (provider_tests). */
-export type StoredTest = { ok: boolean; message: string; at: string }
+/** A stored test of the keys in effect (provider_tests); `reason`: why it failed, when the test said so. */
+export type StoredTest = { ok: boolean; message: string; at: string; reason?: ProviderFailureReason }
 export type ProviderFact = {
   provider: ProviderName
   /** Every field it needs has a value, in the app or on the server. */
@@ -266,6 +271,8 @@ export type ProviderLine = {
   testedAt: string | null
   /** When the failure it shows happened (the recorded failure's latest, or the failing test's time). */
   failedAt?: string | null
+  /** Why it fails (key rejected, quota used up, …): what the overview says and which fix it offers. */
+  reason?: ProviderFailureReason
 }
 export type GroupStatus = {
   id: ProviderGroupId
@@ -332,10 +339,20 @@ export function providerLine(
       message: failure.message,
       testedAt,
       failedAt: failure.last_at,
+      reason: failure.reason,
     }
   if (!test)
     return { ...base, state: 'untested', detail: null, message: words.t('admin.provider.keysNotTested'), testedAt }
-  if (!test.ok) return { ...base, state: 'failing', detail: null, message: test.message, testedAt, failedAt: test.at }
+  if (!test.ok)
+    return {
+      ...base,
+      state: 'failing',
+      detail: null,
+      message: test.message,
+      testedAt,
+      failedAt: test.at,
+      reason: test.reason ?? providerFailureReasonOfText(test.message),
+    }
   return { ...base, state: 'works', detail: null, message: testMessage(fact.provider, test.message, words), testedAt }
 }
 
@@ -562,19 +579,27 @@ export function readiness(
   state: 'ready' | 'blocked' | 'failing' | 'missing' | 'checking'
   headline: string
   reason: string | null
+  /** The group that fails (the one `reason` is about), for a screen that says it in its own words. */
+  group: GroupStatus | null
 } {
   const needed = groups.filter(g => g.needed)
   const failingCall = needed.find(g => CALL_GROUPS.includes(g.id) && g.state === 'failing')
   const reasonOf = (g: GroupStatus) =>
     words.t('admin.provider.reason', { group: g.label, status: statusText(g, words) })
   if (failingCall)
-    return { state: 'blocked', headline: words.t('admin.provider.readiness.blocked'), reason: reasonOf(failingCall) }
+    return {
+      state: 'blocked',
+      headline: words.t('admin.provider.readiness.blocked'),
+      reason: reasonOf(failingCall),
+      group: failingCall,
+    }
   const failing = groups.find(g => g.state === 'failing')
   if (failing)
     return {
       state: 'failing',
       headline: words.t('admin.provider.readiness.failing', { group: failing.label }),
       reason: reasonOf(failing),
+      group: failing,
     }
   const missing = needed.filter(g => g.state === 'missing' || g.state === 'partly')
   if (missing.length)
@@ -588,10 +613,11 @@ export function readiness(
           words,
         ),
       }),
+      group: null,
     }
   if (needed.every(g => g.state === 'works'))
-    return { state: 'ready', headline: words.t('admin.provider.readiness.ready'), reason: null }
-  return { state: 'checking', headline: words.t('admin.provider.statusWord.checking'), reason: null }
+    return { state: 'ready', headline: words.t('admin.provider.readiness.ready'), reason: null, group: null }
+  return { state: 'checking', headline: words.t('admin.provider.statusWord.checking'), reason: null, group: null }
 }
 
 /** The call audio guide in the reader's words (ProviderGuide); English for the setup MCP and the CLI. */

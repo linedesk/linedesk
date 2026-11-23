@@ -12,6 +12,8 @@ import {
   isMultiCategory,
   oauthClientRejectedBy,
   type ProviderFact,
+  type ProviderFailureReason,
+  type ProviderGroupId,
   type ProviderLine,
   type ProviderName,
   type ProviderTestData,
@@ -196,6 +198,45 @@ export function groupProblem(group: GroupStatus): { line: string; detail: string
   return { line, detail: line === group.message.trim() ? null : group.message }
 }
 
+/** The provider behind a failing group, and why it fails: what the overview says in its own words, and its fix. */
+export type GroupTrouble = { provider: ProviderName; label: string; reason: ProviderFailureReason }
+
+export function groupTrouble(group: GroupStatus): GroupTrouble | null {
+  if (group.state !== 'failing') return null
+  const failing = group.parts.filter(p => p.state === 'failing' && p.label)
+  // Answering calls lists every provider behind it; the one whose error the group shows is the one to name.
+  const part = failing.find(p => p.message === group.message) ?? failing[0]
+  return part ? { provider: part.provider, label: part.label, reason: part.reason ?? 'unknown' } : null
+}
+
+/** What stops working when a group fails, as the `effect` of admin.status.fix.line; the rest say the group's name. */
+const EFFECTS: Partial<Record<ProviderGroupId, string>> = {
+  answering: 'answering',
+  email: 'email',
+  telephony: 'telephony',
+  'sign-in': 'signIn',
+  calendar: 'calendar',
+  recording: 'recording',
+  transcript: 'transcript',
+  billing: 'billing',
+}
+
+/** The row's line: the provider, what is wrong and what that stops ("OpenRouter rejects its API key, so calls can't be answered."). */
+export const troubleLine = (group: Pick<GroupStatus, 'id' | 'label'>, trouble: GroupTrouble) =>
+  i18n().t('admin.status.fix.line', {
+    reason: trouble.reason,
+    provider: trouble.label,
+    effect: EFFECTS[group.id] ?? 'other',
+    group: group.label,
+  })
+
+/** The card's top line: the provider and what is wrong ("OpenRouter's API key was rejected."). */
+export const troubleHeadline = (trouble: GroupTrouble) =>
+  i18n().t('admin.status.fix.headline', { reason: trouble.reason, provider: trouble.label })
+
+/** The fix the row offers in place: a new key, while the provider rejects the one it has. */
+export const replacesKey = (trouble: GroupTrouble | null) => trouble?.reason === 'auth'
+
 /** The short line of a provider's error: a known reason in the reader's language, else providerErrorSummary. */
 export function providerErrorLine(message: string): string {
   const rejectedBy = oauthClientRejectedBy(message)
@@ -241,7 +282,7 @@ export function useProviderStatus(data: StatusData | null) {
         ok: false,
         message: errorText(err),
       }))
-      put(p, { ok: result.ok, message: result.message, at: new Date().toISOString() })
+      put(p, { ok: result.ok, message: result.message, at: new Date().toISOString(), reason: result.reason })
       return result
     },
     [put],
@@ -281,7 +322,7 @@ export function useProviderStatus(data: StatusData | null) {
     record: (name: ProviderName, result: ProviderTestData, { stored = false }: { stored?: boolean } = {}) => {
       const p = find(name)
       if (!p) return
-      const test = { ok: result.ok, message: result.message, at: new Date().toISOString() }
+      const test = { ok: result.ok, message: result.message, at: new Date().toISOString(), reason: result.reason }
       if (stored) awaiting.current.set(name, { before: storedSignature(p), test })
       else put(p, test)
     },

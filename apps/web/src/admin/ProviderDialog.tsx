@@ -6,6 +6,7 @@
 // secret inputs start empty and show "•••• 1234".
 import {
   type ProviderLine,
+  type ProviderName,
   type ProviderPreset,
   type ProviderTestData,
   providerCategoryLabel,
@@ -86,6 +87,23 @@ type Props = {
 
 type Phase = 'idle' | 'saving' | 'testing' | 'confirm-disconnect' | 'disconnecting'
 
+/**
+ * Save and recheck, the one way every editor of a provider's keys does it (this dialog, Replace key on the overview):
+ * stores what changed (provider.setKeys), then runs the free key check. A check that cannot run comes back as failed.
+ */
+export async function storeAndTest(
+  name: ProviderName,
+  changes: Record<string, string>,
+  onPhase: (phase: 'saving' | 'testing') => void = () => {},
+): Promise<ProviderTestData> {
+  if (Object.keys(changes).length) {
+    onPhase('saving')
+    await runAdmin('provider.setKeys', { provider: name, values: changes })
+  }
+  onPhase('testing')
+  return testProvider(name, { free: true }).catch(err => ({ ok: false, message: errorText(err) }))
+}
+
 const helpOf = (provider: ProviderStatus) => providerHelp(provider.provider, i18n())
 
 const presetsOf = (provider: ProviderStatus) =>
@@ -131,16 +149,10 @@ export function ProviderDialog(props: Props) {
     setResult(null)
     setConnecting(!configured)
     try {
-      if (dirty) {
-        setPhase('saving')
-        await runAdmin('provider.setKeys', { provider: provider.provider, values: changes })
-        setSavedNow(true)
-      }
-      setPhase('testing')
-      const tested = await testProvider(provider.provider, { free: true }).catch(err => ({
-        ok: false,
-        message: errorText(err),
-      }))
+      const tested = await storeAndTest(provider.provider, changes, next => {
+        if (next === 'testing' && dirty) setSavedNow(true)
+        setPhase(next)
+      })
       await finish(tested, dirty)
     } catch (err) {
       setResult({ ok: false, message: stepUpRefusalText(err) ?? errorText(err) })
@@ -414,7 +426,7 @@ export function ProviderDialog(props: Props) {
 }
 
 /** How to get a key for this provider: the registry's steps, the page, what it costs. Open until it works. */
-function KeyGuide({ provider, open }: { provider: ProviderStatus; open: boolean }) {
+export function KeyGuide({ provider, open }: { provider: ProviderStatus; open: boolean }) {
   const t = useT()
   const { label } = providerSpec(provider.provider)
   const guide = providerGuide(provider.provider, i18n())
@@ -461,17 +473,24 @@ type FormProps = {
   onManual: () => void
   onPreset: (preset: ProviderPreset) => void
   onChange: (field: string, value: string) => void
+  /**
+   * Only the fields, for a new value (Replace key on the overview, where the row says what is wrong): no help line
+   * above them, and a secret field open for typing instead of "•••• 1234" with its own Replace.
+   */
+  compact?: boolean
 }
 
 /** The provider's keys: its help, the service presets, OpenRouter's sign-in, the fields and the redirect URIs. */
 export function ProviderForm(props: FormProps) {
   const { provider, values, errors, canStore, busy, configured, manual, oauthDone, preset, keysUrl, keyField } = props
-  const { redirects, fieldId, onManual, onPreset, onChange } = props
+  const { redirects, fieldId, onManual, onPreset, onChange, compact } = props
   const t = useT()
   const presets = presetsOf(provider)
   return (
     <>
-      {helpOf(provider) && provider.category !== 'recording' && <p className="k-field-desc">{helpOf(provider)}</p>}
+      {!compact && helpOf(provider) && provider.category !== 'recording' && (
+        <p className="k-field-desc">{helpOf(provider)}</p>
+      )}
       {presets.length > 0 && (
         <FormField label={t('admin.providerDialog.service')} description={preset?.help}>
           <div className="adm-presets" role="radiogroup" aria-label={t('admin.providerDialog.service')}>
@@ -519,6 +538,7 @@ export function ProviderForm(props: FormProps) {
             disabled={!canStore || busy}
             autoFocus={i === 0 && !configured}
             keysUrl={field.field === keyField ? keysUrl : undefined}
+            fresh={compact}
             keysLabel={
               provider.category === 'sign_in' || provider.category === 'apps'
                 ? t('admin.providerDialog.createApp')
@@ -546,12 +566,14 @@ type InputProps = {
   /** Where the provider hands out this key: a "Get a key" link next to the label. */
   keysUrl?: string
   keysLabel?: string
+  /** A new value: a secret field opens for typing, without the stored one's "•••• 1234". */
+  fresh?: boolean
   onChange: (value: string) => void
 }
 
 function ProviderInput(props: InputProps) {
   const t = useT()
-  const { id, provider, field, value, error, disabled, autoFocus, keysUrl, onChange } = props
+  const { id, provider, field, value, error, disabled, autoFocus, keysUrl, fresh, onChange } = props
   const keysLabel = props.keysLabel ?? t('admin.providerDialog.getKey')
   const label = providerFieldLabel(provider.provider, field.field, i18n())
   const fromServer = field.source === 'env' && <ServerSet />
@@ -590,7 +612,7 @@ function ProviderInput(props: InputProps) {
           id={id}
           value={value}
           onChange={onChange}
-          storedLast4={field.source === 'app' ? (field.last4 ?? '••••') : null}
+          storedLast4={field.source === 'app' && !fresh ? (field.last4 ?? '••••') : null}
           placeholder={field.source === 'env' ? t('admin.providerDialog.setOnServer') : undefined}
           autoFocus={autoFocus}
           invalid={!!error}

@@ -204,7 +204,7 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       return (
         <>
           <SecondPasskeyNote account={currentUserId} />
-          <StatusCard status={status} />
+          <StatusCard status={status} keys={{ providers, record: status.record, reload, notify }} />
           <NeedsYou />
           <Overview onOpen={section => go({ section, id: null })} />
           <Funnel />

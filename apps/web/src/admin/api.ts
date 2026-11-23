@@ -164,6 +164,8 @@ export type HealthPart = 'api' | 'readSync' | 'livekit' | 'sip' | 'agent' | 'ema
 export type AdminHealth = Record<HealthPart, ServiceStatus> & {
   /** LiveKit is set in .env at all (absent from an older API: assumed set). */
   livekitConfigured?: boolean
+  /** How the server is installed (apps/api/src/install-type.ts): what to run when the voice agent is not running. */
+  installType?: 'docker' | 'dev' | 'cloud' | 'unknown'
 }
 export type LivekitStatus = { url: string | null; server: ServiceStatus; sip: ServiceStatus }
 

@@ -34,7 +34,6 @@ const workspaceColumns = (t: Translate): Column<AdminWorkspace>[] => [
   {
     key: 'numbers',
     label: t('admin.workspaces.column.number'),
-    wide: true,
     render: w => (
       <span className="adm-mono">
         {w.phone_numbers[0] ? formatNumber(w.phone_numbers[0]) : EMPTY}
@@ -154,6 +153,7 @@ export function WorkspacesList({ workspaces, onOpen, keysRef, notify, reload, vi
         rowId={w => w.id}
         columns={columns}
         initialSort={{ key: 'name', dir: 'asc' }}
+        className="adm-ws-list"
         searchText={w => `${w.name} ${w.phone_numbers.join(' ')}`}
         searchLabel={t('admin.workspaces.search')}
         label={t('admin.sections.workspaces.label')}
