@@ -1,7 +1,7 @@
 // Server admin › Partners › Brands (docs/white-label.md, S4; security review of #1111, M-2): every white-label partner's
 // brand, the change it waits to have reviewed next to the version its clients see now. An instance admin approves a
 // change (clients and their emails get it from then on) or removes the brand (clients see this server's again), each
-// with a reason for the audit log.
+// with a reason for the audit log. On the "Waiting for approval" tab only the brands that wait for a review.
 import {
   PARTNER_BRAND_REVIEW_CODES,
   type PartnerBrand,
@@ -20,11 +20,12 @@ import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { runAdmin } from './api.ts'
 import { reasonProblem } from './billingModel.ts'
 import { errorText, type Notify } from './notify.ts'
+import { waitingBrands } from './partnersModel.ts'
 import { day, EMPTY } from './parts.tsx'
 import './partner-brands.css'
 
-const QUERY = 'admin.partners.brands'
-const load = async () => (await runAdmin('partnerBrand.reviews', {})) as PartnerBrandReviewList
+export const BRAND_REVIEWS = 'admin.partners.brands'
+export const loadBrandReviews = async () => (await runAdmin('partnerBrand.reviews', {})) as PartnerBrandReviewList
 
 // i18n-dynamic: admin.partners.brands.error.*
 /** A refusal's own text (the partner changed its brand meanwhile, the brand is gone), else the server's. */
@@ -35,17 +36,24 @@ function reviewErrorText(err: unknown, t: ReturnType<typeof useT>) {
   return errorText(err)
 }
 
-export function PartnerBrands({ notify }: { notify: Notify }) {
+/** `waiting`: only the brands that wait for a review (the "Waiting for approval" tab); gone when none waits. */
+export function PartnerBrands({ notify, waiting = false }: { notify: Notify; waiting?: boolean }) {
   const t = useT()
   const supportAccess = useSupportAccess()
-  const query = useQuery(supportAccess ? null : QUERY, load)
+  const query = useQuery(supportAccess ? null : BRAND_REVIEWS, loadBrandReviews)
   const [asking, setAsking] = useState<{ brand: PartnerBrandReview; action: 'approve' | 'reset' } | null>(null)
-  const brands = query.data?.brands ?? []
+  const all = query.data?.brands ?? []
+  const brands = waiting ? waitingBrands(all) : all
+  if (waiting && (!query.data || brands.length === 0) && !asking) return null
+  const title = waiting ? t('admin.partners.brands.waitingTitle') : t('admin.partners.brands.title')
 
   return (
-    <Card title={t('admin.partners.brands.title')} description={t('admin.partners.brands.description')}>
+    <Card
+      title={title}
+      description={waiting ? t('admin.partners.brands.waitingDescription') : t('admin.partners.brands.description')}
+    >
       <Loading
-        what={t('admin.partners.brands.title')}
+        what={title}
         loading={!query.data && !supportAccess}
         error={query.error}
         onRetry={() => void query.reload()}

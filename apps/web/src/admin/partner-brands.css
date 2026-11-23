@@ -54,6 +54,8 @@
 .apb-facts dd {
   margin: 0;
   min-width: 0;
+  /* A long support email or link wraps inside its box, with its "Changed" tag, never past the box's edge. */
+  overflow-wrap: anywhere;
 }
 .apb-name {
   display: flex;

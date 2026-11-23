@@ -322,6 +322,13 @@ describe('calls on the partner keys', () => {
       (x: { id: string }) => x.id === p.id,
     )
     expect(adminRow.ownKeysDisabled).toMatchObject({ reason: 'checking it' })
+    // Server admin › Partners offers Turn off AI keys only to a partner with keys: it counts them.
+    expect(adminRow.ownKeys).toBeGreaterThanOrEqual(3)
+    const bare = await makePartner('No Keys Partners')
+    const bareRow = (await asServerAdmin(admin, () => act(admin, 'partner.adminList', {}))).body.data.partners.find(
+      (x: { id: string }) => x.id === bare.id,
+    )
+    expect(bareRow.ownKeys).toBe(0)
     await asServerAdmin(admin, () => act(admin, 'partnerKeys.adminEnable', { partnerId: p.id }))
     expect(await run()).toBe(true)
     // A partner workspace of someone else's, or none: never.

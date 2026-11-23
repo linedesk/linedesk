@@ -18,8 +18,9 @@ import { Badge, Button } from '../ui/kit.tsx'
 import { Loading, SkeletonRows } from '../ui/LoadStates.tsx'
 import { runAdmin } from './api.ts'
 import { errorText, type Notify } from './notify.ts'
-import { PartnerBrands } from './PartnerBrands.tsx'
+import { BRAND_REVIEWS, loadBrandReviews, PartnerBrands } from './PartnerBrands.tsx'
 import { ProtectedNames } from './ProtectedNames.tsx'
+import { offersKeysSwitch, waitingCount, waitingPartners } from './partnersModel.ts'
 import { day, EMPTY } from './parts.tsx'
 
 export const PARTNERS = 'admin.partners'
@@ -35,6 +36,17 @@ const BILL_STATUS: Record<NonNullable<AdminPartner['billStatus']>, MessageKey> =
   suspended: msg('admin.bills.status.suspended'),
   canceled: msg('admin.bills.status.canceled'),
   comped: msg('admin.bills.status.comped'),
+}
+
+/**
+ * What waits for an instance admin here: partners to approve plus brands to review (the tab's number and Overview ›
+ * Needs you). Null until both have loaded.
+ */
+export function usePartnersWaiting(): number | null {
+  const supportAccess = useSupportAccess()
+  const partners = useQuery(supportAccess ? null : PARTNERS, loadPartners).data
+  const brands = useQuery(supportAccess ? null : BRAND_REVIEWS, loadBrandReviews).data
+  return partners && brands ? waitingCount(partners.partners, brands.brands) : null
 }
 
 /** The page's two views, as links: each has its own address, so Back, reload and the email's link land on it. */
@@ -68,8 +80,11 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
   const [limitProblem, setLimitProblem] = useState<string | null>(null)
   const shownLimit = limit || String(query.data?.clientLimit ?? '')
   const all = query.data?.partners ?? []
-  const pending = all.filter(p => p.status === 'pending')
+  const pending = waitingPartners(all)
   const shown = waiting ? pending : all
+  const waitingNow = usePartnersWaiting()
+  // On the waiting tab the partner list is there while partners wait, or as the one "nothing waits" line.
+  const showList = !waiting || !query.data || pending.length > 0 || waitingNow === 0
 
   async function create(e: FormEvent) {
     e.preventDefault()
@@ -143,205 +158,213 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
 
   return (
     <>
-      <PartnerTabs waiting={waiting} count={pending.length} />
-      <Card>
-        <Loading
-          what={t('admin.sections.partners.label')}
-          loading={!query.data && !supportAccess}
-          error={query.error}
-          onRetry={() => void query.reload()}
-          skeleton={<SkeletonRows rows={3} columns={5} className="adm-sk-rows" />}
-        >
-          {query.data && shown.length === 0 ? (
-            <p className="adm-notice">{waiting ? t('admin.partners.noneWaiting') : t('admin.partners.empty')}</p>
-          ) : (
-            <div className="adm-scroll">
-              <table className="adm-table adm-stack">
-                <thead>
-                  <tr>
-                    <th scope="col">{t('admin.partners.name')}</th>
-                    <th scope="col">{t('admin.partners.owner')}</th>
-                    <th scope="col">{t('admin.partners.bill')}</th>
-                    <th scope="col">{t('admin.partners.clients')}</th>
-                    <th scope="col" aria-label={t('admin.partners.actions')} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {shown.map(p => (
-                    <tr key={p.id}>
-                      <th scope="row">
-                        <span className="adm-partner-name">
-                          {p.name}
-                          {p.status === 'approved' ? (
-                            <Badge tone="ok">{t('admin.partners.statusApproved')}</Badge>
-                          ) : p.status === 'suspended' ? (
-                            <Badge tone="danger">{t('admin.partners.statusSuspended')}</Badge>
-                          ) : (
-                            <Badge tone="outline">{t('admin.partners.statusPending')}</Badge>
-                          )}
-                          {p.ownKeysDisabled && (
-                            <Badge tone="danger" title={p.ownKeysDisabled.reason}>
-                              {t('admin.partners.keysOff')}
-                            </Badge>
-                          )}
-                        </span>
-                        <span className="adm-sub">
-                          {t('admin.partners.since', { day: day(p.createdAt), count: p.members })}
-                        </span>
-                        {p.domain && (
-                          <span className="adm-sub adm-sub-action">
-                            <span>
-                              {p.domain.hostname} ·{' '}
-                              {p.domain.status === 'active'
-                                ? t('admin.partners.domainLive')
-                                : p.domain.status === 'failed'
-                                  ? t('admin.partners.domainFailed')
-                                  : t('admin.partners.domainPending')}
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={supportAccess || !!busy}
-                              title={t('admin.partners.domainRemoveTip', { partner: p.name })}
-                              onClick={() => setDomainOff(p)}
-                            >
-                              {t('admin.partners.domainRemove')}
-                            </Button>
-                          </span>
-                        )}
-                        {p.sender && (
-                          <span className="adm-sub adm-sub-action" title={p.sender.address}>
-                            <span>
-                              {p.sender.status === 'verified'
-                                ? t('admin.partners.senderBadge')
-                                : t('admin.partners.senderPending')}
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={supportAccess || !!busy}
-                              title={t('admin.partners.senderRemoveTip', { partner: p.name })}
-                              onClick={() => setSenderOff(p)}
-                            >
-                              {t('admin.partners.senderRemove')}
-                            </Button>
-                          </span>
-                        )}
-                      </th>
-                      <td data-label={t('admin.partners.owner')}>
-                        {p.owner ? (
-                          <>
-                            {p.owner.name || p.owner.email}
-                            <span className="adm-sub">{p.owner.email}</span>
-                          </>
-                        ) : p.ownerInvitation ? (
-                          <>
-                            {p.ownerInvitation.email}
-                            <span className="adm-sub">{t('admin.partners.ownerInvited')}</span>
-                          </>
-                        ) : (
-                          EMPTY
-                        )}
-                      </td>
-                      <td data-label={t('admin.partners.bill')}>
-                        {p.billStatus ? t(BILL_STATUS[p.billStatus]) : t('admin.partners.noBill')}
-                      </td>
-                      <td data-label={t('admin.partners.clients')}>{p.clients}</td>
-                      <td className="adm-num">
-                        {p.billingAccountId && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            busy={busy === `keys:${p.id}`}
-                            disabled={supportAccess || !!busy}
-                            title={
-                              p.ownKeysDisabled
-                                ? t('admin.partners.keysOnTip', { name: p.name })
-                                : t('admin.partners.keysOffTip', { name: p.name })
-                            }
-                            onClick={() => (p.ownKeysDisabled ? void keysOn(p) : setKeysOff(p))}
-                          >
-                            {p.ownKeysDisabled ? t('admin.partners.keysOn') : t('admin.partners.keysOffButton')}
-                          </Button>
-                        )}
-                        {p.status === 'approved' ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            busy={busy === p.id}
-                            disabled={supportAccess || !!busy}
-                            title={t('admin.partners.suspendTip', { name: p.name })}
-                            onClick={() => void change(p, 'partner.suspend')}
-                          >
-                            {t('admin.partners.suspend')}
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            busy={busy === p.id}
-                            disabled={supportAccess || !!busy}
-                            title={t('admin.partners.approveTip', { name: p.name })}
-                            onClick={() => void change(p, 'partner.approve')}
-                          >
-                            {p.status === 'suspended' ? t('admin.partners.reinstate') : t('admin.partners.approve')}
-                          </Button>
-                        )}
-                      </td>
+      <PartnerTabs waiting={waiting} count={waitingNow ?? pending.length} />
+      {showList && (
+        <Card>
+          <Loading
+            what={t('admin.sections.partners.label')}
+            loading={!query.data && !supportAccess}
+            error={query.error}
+            onRetry={() => void query.reload()}
+            skeleton={<SkeletonRows rows={3} columns={5} className="adm-sk-rows" />}
+          >
+            {query.data && shown.length === 0 ? (
+              <p className="adm-notice">{waiting ? t('admin.partners.noneWaiting') : t('admin.partners.empty')}</p>
+            ) : (
+              <div className="adm-scroll">
+                <table className="adm-table adm-stack">
+                  <thead>
+                    <tr>
+                      <th scope="col">{t('admin.partners.name')}</th>
+                      <th scope="col">{t('admin.partners.owner')}</th>
+                      <th scope="col">{t('admin.partners.bill')}</th>
+                      <th scope="col">{t('admin.partners.clients')}</th>
+                      <th scope="col" aria-label={t('admin.partners.actions')} />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Loading>
-      </Card>
-      <Card title={t('admin.partners.newTitle')} description={t('admin.partners.newDescription')}>
-        <form className="adm-form" onSubmit={e => void create(e)}>
-          <FormField id="adm-partner-name" label={t('admin.partners.name')}>
-            <Input id="adm-partner-name" value={name} maxLength={80} onChange={e => setName(e.target.value)} />
-          </FormField>
-          <FormField id="adm-partner-owner" label={t('admin.partners.ownerEmail')} error={problem}>
-            <Input
-              id="adm-partner-owner"
-              type="email"
-              autoComplete="off"
-              value={ownerEmail}
-              onChange={e => setOwnerEmail(e.target.value)}
-            />
-          </FormField>
-          <Button
-            type="submit"
-            variant="primary"
-            busy={busy === 'create'}
-            disabled={supportAccess || !name.trim() || !ownerEmail.trim()}
-          >
-            {t('admin.partners.create')}
-          </Button>
-        </form>
-      </Card>
-      <Card title={t('admin.partners.limitTitle')} description={t('admin.partners.limitDescription')}>
-        <form className="adm-form" onSubmit={e => void saveLimit(e)}>
-          <FormField id="adm-partner-limit" label={t('admin.partners.limit')} error={limitProblem}>
-            <Input
-              id="adm-partner-limit"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={PARTNER_CLIENT_LIMIT_MAX}
-              value={shownLimit}
-              onChange={e => setLimit(e.target.value)}
-            />
-          </FormField>
-          <Button
-            type="submit"
-            busy={busy === 'limit'}
-            disabled={supportAccess || !query.data || !limit || Number(limit) === query.data.clientLimit}
-          >
-            {t('admin.partners.limitSave')}
-          </Button>
-        </form>
-      </Card>
+                  </thead>
+                  <tbody>
+                    {shown.map(p => (
+                      <tr key={p.id}>
+                        <th scope="row">
+                          <span className="adm-partner-name">
+                            {p.name}
+                            {p.status === 'approved' ? (
+                              <Badge tone="ok">{t('admin.partners.statusApproved')}</Badge>
+                            ) : p.status === 'suspended' ? (
+                              <Badge tone="danger">{t('admin.partners.statusSuspended')}</Badge>
+                            ) : (
+                              <Badge tone="outline">{t('admin.partners.statusPending')}</Badge>
+                            )}
+                            {p.ownKeysDisabled && (
+                              <Badge tone="danger" title={p.ownKeysDisabled.reason}>
+                                {t('admin.partners.keysOff')}
+                              </Badge>
+                            )}
+                          </span>
+                          <span className="adm-sub">
+                            {t('admin.partners.since', { day: day(p.createdAt), count: p.members })}
+                          </span>
+                          {p.domain && (
+                            <span className="adm-sub adm-sub-action">
+                              <span>
+                                {p.domain.hostname} ·{' '}
+                                {p.domain.status === 'active'
+                                  ? t('admin.partners.domainLive')
+                                  : p.domain.status === 'failed'
+                                    ? t('admin.partners.domainFailed')
+                                    : t('admin.partners.domainPending')}
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={supportAccess || !!busy}
+                                title={t('admin.partners.domainRemoveTip', { partner: p.name })}
+                                onClick={() => setDomainOff(p)}
+                              >
+                                {t('admin.partners.domainRemove')}
+                              </Button>
+                            </span>
+                          )}
+                          {p.sender && (
+                            <span className="adm-sub adm-sub-action" title={p.sender.address}>
+                              <span>
+                                {p.sender.status === 'verified'
+                                  ? t('admin.partners.senderBadge')
+                                  : t('admin.partners.senderPending')}
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={supportAccess || !!busy}
+                                title={t('admin.partners.senderRemoveTip', { partner: p.name })}
+                                onClick={() => setSenderOff(p)}
+                              >
+                                {t('admin.partners.senderRemove')}
+                              </Button>
+                            </span>
+                          )}
+                        </th>
+                        <td data-label={t('admin.partners.owner')}>
+                          {p.owner ? (
+                            <>
+                              {p.owner.name || p.owner.email}
+                              <span className="adm-sub">{p.owner.email}</span>
+                            </>
+                          ) : p.ownerInvitation ? (
+                            <>
+                              {p.ownerInvitation.email}
+                              <span className="adm-sub">{t('admin.partners.ownerInvited')}</span>
+                            </>
+                          ) : (
+                            EMPTY
+                          )}
+                        </td>
+                        <td data-label={t('admin.partners.bill')}>
+                          {p.billStatus ? t(BILL_STATUS[p.billStatus]) : t('admin.partners.noBill')}
+                        </td>
+                        <td data-label={t('admin.partners.clients')}>{p.clients}</td>
+                        <td className="adm-num">
+                          <div className="adm-row-actions">
+                            {offersKeysSwitch(p) && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                busy={busy === `keys:${p.id}`}
+                                disabled={supportAccess || !!busy}
+                                title={
+                                  p.ownKeysDisabled
+                                    ? t('admin.partners.keysOnTip', { name: p.name })
+                                    : t('admin.partners.keysOffTip', { name: p.name })
+                                }
+                                onClick={() => (p.ownKeysDisabled ? void keysOn(p) : setKeysOff(p))}
+                              >
+                                {p.ownKeysDisabled ? t('admin.partners.keysOn') : t('admin.partners.keysOffButton')}
+                              </Button>
+                            )}
+                            {p.status === 'approved' ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                busy={busy === p.id}
+                                disabled={supportAccess || !!busy}
+                                title={t('admin.partners.suspendTip', { name: p.name })}
+                                onClick={() => void change(p, 'partner.suspend')}
+                              >
+                                {t('admin.partners.suspend')}
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                busy={busy === p.id}
+                                disabled={supportAccess || !!busy}
+                                title={t('admin.partners.approveTip', { name: p.name })}
+                                onClick={() => void change(p, 'partner.approve')}
+                              >
+                                {p.status === 'suspended' ? t('admin.partners.reinstate') : t('admin.partners.approve')}
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Loading>
+        </Card>
+      )}
+      {!waiting && (
+        <Card title={t('admin.partners.newTitle')} description={t('admin.partners.newDescription')}>
+          <form className="adm-form" onSubmit={e => void create(e)}>
+            <FormField id="adm-partner-name" label={t('admin.partners.name')}>
+              <Input id="adm-partner-name" value={name} maxLength={80} onChange={e => setName(e.target.value)} />
+            </FormField>
+            <FormField id="adm-partner-owner" label={t('admin.partners.ownerEmail')} error={problem}>
+              <Input
+                id="adm-partner-owner"
+                type="email"
+                autoComplete="off"
+                value={ownerEmail}
+                onChange={e => setOwnerEmail(e.target.value)}
+              />
+            </FormField>
+            <Button
+              type="submit"
+              variant="primary"
+              busy={busy === 'create'}
+              disabled={supportAccess || !name.trim() || !ownerEmail.trim()}
+            >
+              {t('admin.partners.create')}
+            </Button>
+          </form>
+        </Card>
+      )}
+      {!waiting && (
+        <Card title={t('admin.partners.limitTitle')} description={t('admin.partners.limitDescription')}>
+          <form className="adm-form" onSubmit={e => void saveLimit(e)}>
+            <FormField id="adm-partner-limit" label={t('admin.partners.limit')} error={limitProblem}>
+              <Input
+                id="adm-partner-limit"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={PARTNER_CLIENT_LIMIT_MAX}
+                value={shownLimit}
+                onChange={e => setLimit(e.target.value)}
+              />
+            </FormField>
+            <Button
+              type="submit"
+              busy={busy === 'limit'}
+              disabled={supportAccess || !query.data || !limit || Number(limit) === query.data.clientLimit}
+            >
+              {t('admin.partners.limitSave')}
+            </Button>
+          </form>
+        </Card>
+      )}
       {senderOff?.sender && (
         <DangerConfirmDialog
           confirm={{
@@ -390,8 +413,8 @@ export function Partners({ notify, waiting = false }: { notify: Notify; waiting?
           }}
         />
       )}
-      <PartnerBrands notify={notify} />
-      <ProtectedNames notify={notify} />
+      <PartnerBrands notify={notify} waiting={waiting} />
+      {!waiting && <ProtectedNames notify={notify} />}
     </>
   )
 }

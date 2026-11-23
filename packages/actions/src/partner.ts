@@ -424,6 +424,8 @@ export type AdminPartner = {
   billingAccountId: string | null
   /** The partner bill's status (Server admin › Partners shows it); null without a bill. */
   billStatus: PartnerBillSummary['status'] | null
+  /** How many of its own AI keys (S7) the partner has stored: "Turn off AI keys" is offered only when there are some. */
+  ownKeys: number
   /** An instance admin turned the partner's own provider keys off (partnerKeys.adminDisable). */
   ownKeysDisabled: { reason: string; at: string } | null
   /** The partner's own sender address (S6) and its state; null without one. */

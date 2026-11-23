@@ -11,18 +11,18 @@ import {
   type AdminPartner,
   CLIENT_PROBLEMS,
   type ClientProblem,
+  type MyPartner,
   PARTNER_CLIENT_LIMIT_DEFAULT,
   PARTNER_CLIENT_LIMIT_MAX,
-  type MyPartner,
   type PartnerBillSummary,
   type PartnerClient,
   type PartnerClientList,
   type PartnerClientMember,
   type PartnerClientRow,
-  type PartnerInvitedMember,
   type PartnerData,
   type PartnerInvitationPreview,
   type PartnerInvitationView,
+  type PartnerInvitedMember,
   type PartnerRole,
   type PartnerStatus,
 } from '@linedesk/actions'
@@ -36,9 +36,10 @@ import {
   member,
   organization,
   PARTNER_INVITATION_DAYS,
+  partner_domains,
   partner_invitations,
   partner_members,
-  partner_domains,
+  partner_providers,
   partner_sender_domains,
   partners,
   phone_numbers,
@@ -49,19 +50,22 @@ import {
 } from '@linedesk/db'
 import { getT } from '@linedesk/i18n/server'
 import { and, asc, desc, eq, gt, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { planPrices } from './billing-checkout.ts'
+import { billingRules } from './billing-rules.ts'
+import { refuseMoneyChange } from './billing-settings.ts'
+import { DEFAULT_TIME_ZONE } from './bookings.ts'
 import type { Actor } from './context.ts'
 import { db } from './db.ts'
 import { emailSender } from './email.ts'
 import { localeForUserId } from './email-locale.ts'
 import { emailSafeName, partnerInvitationEmail } from './emails/templates.ts'
-import { Forbidden, type Handler, type HandlerCtx } from './handler-context.ts'
 import { lockExtraCalls } from './extra-calls.ts'
-import { lockBalance, periodAt } from './ledger.ts'
+import { Forbidden, type Handler, type HandlerCtx } from './handler-context.ts'
 import { queueWorkspaceDeletedEmails } from './jobs.ts'
+import { lockBalance, periodAt } from './ledger.ts'
 import { forgetMember, inviteToWorkspace } from './memberships.ts'
 import { billForNewClient, mirroredState, seatsFollow, seatsFollowDelete } from './partner-billing.ts'
 import { emailBrandOf } from './partner-brand.ts'
-import { endSuspendedSenders } from './partner-sender.ts'
 import { invitedByPartnerTeam } from './partner-invited.ts'
 import {
   LIMIT_OWNER_ONLY,
@@ -70,14 +74,11 @@ import {
   PARTNER_SUSPENDED,
   refusePartner,
 } from './partner-refusals.ts'
+import { endSuspendedSenders } from './partner-sender.ts'
 import { createRateLimiter } from './rate-limit.ts'
 import { reloadHosts } from './request-host.ts'
-import { DEFAULT_TIME_ZONE } from './bookings.ts'
-import { cancelSentInvitations, lockActiveSender, lockedOwner } from './team.ts'
-import { planPrices } from './billing-checkout.ts'
-import { billingRules } from './billing-rules.ts'
-import { refuseMoneyChange } from './billing-settings.ts'
 import { isPendingPayment } from './self-serve.ts'
+import { cancelSentInvitations, lockActiveSender, lockedOwner } from './team.ts'
 import { clientPeriodUsage, limitPercent, queueUsageLimitAlerts, resetUsageLimitAlerts } from './usage-limit.ts'
 import { insertWorkspace } from './workspace-creation-handlers.ts'
 import { deleteWorkspace } from './workspace-delete.ts'
@@ -1357,6 +1358,10 @@ export const partnerHandlers: Record<string, Handler> = {
           .from(billing_accounts)
           .where(inArray(billing_accounts.id, billIds))
       : []
+    const keys = await tx
+      .select({ partnerId: partner_providers.partner_id, count: sql<number>`count(*)::int` })
+      .from(partner_providers)
+      .groupBy(partner_providers.partner_id)
     const senders = await tx.select().from(partner_sender_domains).where(ne(partner_sender_domains.status, 'removed'))
     const domains = await tx
       .select({
@@ -1383,6 +1388,7 @@ export const partnerHandlers: Record<string, Handler> = {
         clients: clients.find(c => c.partnerId === p.id)?.count ?? 0,
         billingAccountId: p.billing_account_id,
         billStatus: bills.find(b => b.id === p.billing_account_id)?.status ?? null,
+        ownKeys: keys.find(k => k.partnerId === p.id)?.count ?? 0,
         ownKeysDisabled: p.own_keys_disabled_at
           ? { reason: p.own_keys_disabled_reason ?? '', at: p.own_keys_disabled_at }
           : null,

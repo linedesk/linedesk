@@ -138,6 +138,15 @@
 }
 /* A sub line with its button (Partners: the address, the sender): the button goes under the text instead of widening
    the column, so the row's last column stays in the card. */
+/* A row's actions (Server admin › Partners): they wrap under each other in a narrow column instead of pushing the last
+   one past the card's edge. */
+.adm-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px 8px;
+}
 .adm-sub-action {
   display: flex;
   flex-wrap: wrap;
