@@ -23,7 +23,7 @@ export function EmailedAfterCall({ call }: { call: Call }) {
   const route = call.email_route
   const assignee = useMember(route?.assigned_user_id ?? null)
   if (!route) return null
-  const names = route.to.map(r => (r.kind === 'member' ? r.name : r.email))
+  const names = route.to.map(r => r.name)
   const topics = route.mode === 'routed' ? (route.rules ?? []) : []
   const parts = [
     t('call.emailed.to', { names: format.list(names) }),

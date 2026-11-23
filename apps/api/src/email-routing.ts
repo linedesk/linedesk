@@ -5,15 +5,16 @@
 // their own switch says) and the assignee (the first fitting rule's, in list order). Rules are on only with a language
 // model; without one routing works as if there were none. call-notifications.ts stores the result in calls.email_route
 // before it sends. When the request fails, nobody can tell which rules fit, so every rule's members get it too.
-import { EMAIL_RULE_WHEN_MAX, workspaceLanguageName } from '@linedesk/actions'
-import { call_events, calls, email_recipients, member, type Tx, user } from '@linedesk/db'
+import { EMAIL_RULE_WHEN_MAX, type EmailRoutingData, workspaceLanguageName } from '@linedesk/actions'
+import { call_events, calls, member, type Tx, user } from '@linedesk/db'
 import type { EmailRoute, EmailRouteRecipient, EmailRules } from '@linedesk/db/types'
 import type { UiLocale } from '@linedesk/i18n'
 import { localeForUser } from '@linedesk/i18n/server'
-import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { callLanguage } from './email-locale.ts'
-import type { EvaluationModel } from './evaluations.ts'
+import { type EvaluationModel, evaluationModel } from './evaluations.ts'
+import { type Handler, Reject } from './handler-context.ts'
 import { createFailureLimiter } from './rate-limit.ts'
 
 /**
@@ -57,26 +58,6 @@ export async function membersById(tx: Tx, workspaceId: string, userIds: string[]
     .innerJoin(user, eq(user.id, member.userId))
     .where(and(eq(member.organizationId, workspaceId), inArray(member.userId, userIds), isNull(user.disabledAt)))
   return rows.map(r => ({ userId: r.userId, name: r.name, email: r.email, locale: localeForUser(r) }))
-}
-
-/**
- * Confirmed, not stopped, not removed: the only outside addresses that ever get a call email (a call routed before
- * LIN-470 by an instruction that named one; rules name members only).
- */
-export async function sendableOutside(tx: Tx, workspaceId: string, emails: string[]) {
-  if (!emails.length) return []
-  return tx
-    .select({ id: email_recipients.id, email: email_recipients.email })
-    .from(email_recipients)
-    .where(
-      and(
-        eq(email_recipients.workspace_id, workspaceId),
-        inArray(email_recipients.email, emails),
-        isNotNull(email_recipients.confirmed_at),
-        isNull(email_recipients.stopped_at),
-        isNull(email_recipients.removed_at),
-      ),
-    )
 }
 
 /** What the request needs to know about the call. */
@@ -230,7 +211,7 @@ export function routeFor(
   const named = (rules: EmailRules['rules']) =>
     rules.flatMap(r => r.to).flatMap(id => members.find(m => m.userId === id) ?? [])
   const withEveryone = (more: readonly MentionedMember[]) => {
-    const to = new Map(everyone.map(r => [r.kind === 'member' ? r.user_id : r.email, r]))
+    const to = new Map(everyone.map(r => [r.user_id, r]))
     for (const m of more) if (!to.has(m.userId)) to.set(m.userId, asRecipient(m))
     return [...to.values()]
   }
@@ -246,7 +227,7 @@ export function routeFor(
   const fit = decision?.ok ? decision.rules.flatMap(i => emailRules.rules[i] ?? []) : []
   const to = withEveryone(named(fit))
   const assignee =
-    fit.find(r => r.assign && to.some(m => m.kind === 'member' && m.user_id === r.assign))?.assign ?? null
+    fit.find(r => r.assign && to.some(m => m.user_id === r.assign))?.assign ?? null
   return {
     mode: 'routed',
     to,
@@ -313,4 +294,38 @@ export async function assignByRouting(tx: Tx, call: { id: string; workspace_id: 
     created_at: now,
   })
   return true
+}
+
+/** Lets tests hand in a language model (emailRouting.get and callEmails.get say whether one is set up). */
+export const previewDeps: {
+  model: (tx: Tx) => Promise<EvaluationModel | null>
+} = {
+  model: tx => evaluationModel(tx),
+}
+
+export const emailRoutingHandlers: Record<string, Handler> = {
+  // The rules' read for owners and admins: the members a rule can name and whether rules are on (a language model).
+  'emailRouting.get': async ({ tx, actor }) => {
+    // i18n-ignore: API error body for logs and API clients
+    if (!actor.workspaceId) throw new Reject('no workspace', 'no_workspace')
+    const ids = await tx
+      .select({ userId: member.userId })
+      .from(member)
+      .where(eq(member.organizationId, actor.workspaceId))
+    const [members, model] = await Promise.all([
+      membersById(
+        tx,
+        actor.workspaceId,
+        ids.map(m => m.userId),
+      ),
+      previewDeps.model(tx).catch(() => null),
+    ])
+    const data: EmailRoutingData = {
+      members: members
+        .map(m => ({ userId: m.userId, name: m.name, email: m.email }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+      llm: !!model,
+    }
+    return { rows: {}, data }
+  },
 }

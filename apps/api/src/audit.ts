@@ -487,9 +487,8 @@ export function transferChanges(before: TransferContact[], after: TransferContac
  * A change of an assistant's call email rules (assistant.update, `email_rules`): which members now get emails by them
  * and which no longer do, never the rules' text. Audited like transfer contacts (kind
  * `integrations`): it decides where call summaries and transcripts are emailed. Null when the rules did not change.
- * Entries from before LIN-470 may name an outside address (the instruction could).
  */
-export type AuditedMention = { kind: 'member'; id: string; name: string | null } | { kind: 'outside'; email: string }
+export type AuditedMention = { kind: 'member'; id: string; name: string | null }
 export type EmailRoutingChanges = { added: AuditedMention[]; removed: AuditedMention[] }
 
 /** The members the rules email: each rule's, each once. */
@@ -530,10 +529,10 @@ export async function emailRoutingChangesIn(
   return emailRoutingChanges(before, after, new Map(rows.map(r => [r.id, r.name])))
 }
 
-/** What the admin page gets of an instruction change: member names and addresses. */
+/** What the admin page gets of a rules change: member names. */
 export type EmailRoutingChangeNames = { added: string[]; removed: string[] }
 const mentionNames = (changes: EmailRoutingChanges): EmailRoutingChangeNames => {
-  const name = (m: AuditedMention) => (m.kind === 'member' ? (m.name ?? m.id) : m.email)
+  const name = (m: AuditedMention) => m.name ?? m.id
   return { added: changes.added.map(name), removed: changes.removed.map(name) }
 }
 

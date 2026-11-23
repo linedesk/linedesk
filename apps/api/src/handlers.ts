@@ -164,7 +164,7 @@ import {
   purchaseCountry,
 } from './number-purchases.ts'
 import { teamHandlers } from './team.ts'
-import { emailRecipientHandlers } from './email-recipients.ts'
+import { emailRoutingHandlers } from './email-routing.ts'
 import { workspaceCreationHandlers } from './workspace-creation-handlers.ts'
 import { teamMemberEditHandlers } from './team-member-edit.ts'
 import { transferHandlers } from './transfers.ts'
@@ -1274,7 +1274,7 @@ const handlers: Record<string, Handler> = {
   ...assistantVersionHandlers,
   ...impersonationHandlers,
   ...teamHandlers,
-  ...emailRecipientHandlers,
+  ...emailRoutingHandlers,
   ...workspaceCreationHandlers,
   ...teamMemberEditHandlers,
   ...membershipHandlers,

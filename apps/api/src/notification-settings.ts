@@ -11,7 +11,7 @@ import {
 import { member, member_notification_settings, type Tx, user, workspace_settings } from '@linedesk/db'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { emailDelivery } from './auth-methods.ts'
-import { previewDeps } from './email-recipients.ts'
+import { previewDeps } from './email-routing.ts'
 import type { Actor } from './context.ts'
 import { type Handler, Reject } from './handler-context.ts'
 import { pushSettings } from './push.ts'

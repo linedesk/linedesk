@@ -22,12 +22,9 @@ import {
 import type { EmailRoute, EmailRouteRecipient } from '@linedesk/db/types'
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import type { EmailSender } from './email.ts'
-import { callerLocale } from './email-locale.ts'
-import { assignByRouting, membersById, routeCall, sendableOutside } from './email-routing.ts'
+import { assignByRouting, membersById, routeCall } from './email-routing.ts'
 import { type CallEmail, callEmail, emailSafeName, firstCallEmail, slotInZone } from './emails/templates.ts'
 import { type EvaluationModel, evaluationModel } from './evaluations.ts'
-import { outsideStopUrl } from './email-recipients.ts'
-import { unsubscribeHeaders } from './setup-unsubscribe.ts'
 import { claimFirstCallEmail, releaseFirstCallEmail, setupRecipients } from './setup-emails.ts'
 import type { UiLocale } from '@linedesk/i18n'
 import { getT, localeForUser } from '@linedesk/i18n/server'
@@ -78,17 +75,16 @@ export const asMemberRoute = (r: MemberRecipient): EmailRouteRecipient => ({
 })
 
 /**
- * Who a stored decision sends to now: its members who are still in the workspace and not disabled, and its outside
- * addresses only while they are confirmed and not stopped. A retry sends to the same people as the first try.
+ * Who a stored decision sends to now: its members who are still in the workspace and not disabled. A retry sends to
+ * the same people as the first try.
  */
-async function recipientsOf(tx: Tx, workspaceId: string, route: EmailRoute) {
-  const memberIds = route.to.flatMap(r => (r.kind === 'member' ? [r.user_id] : []))
-  const emails = route.to.flatMap(r => (r.kind === 'outside' ? [r.email] : []))
-  const [members, outside] = await Promise.all([
-    membersById(tx, workspaceId, memberIds),
-    sendableOutside(tx, workspaceId, emails),
-  ])
-  return { members: members.map(m => ({ userId: m.userId, email: m.email, name: m.name, locale: m.locale })), outside }
+async function recipientsOf(tx: Tx, workspaceId: string, route: EmailRoute): Promise<MemberRecipient[]> {
+  const members = await membersById(
+    tx,
+    workspaceId,
+    route.to.map(r => r.user_id),
+  )
+  return members.map(m => ({ userId: m.userId, email: m.email, name: m.name, locale: m.locale }))
 }
 
 export type NotifyResult = { sent: number; failed: number; skipped?: 'missing' | 'test' | 'spam' | 'unfinished' }
@@ -214,9 +210,7 @@ async function sendCallEmails(tx: Tx, sender: EmailSender, callId: string, deps:
       route = again?.email_route ?? decided
     }
   }
-  const { members: recipients, outside } = route
-    ? await recipientsOf(tx, call.workspace_id, route)
-    : { members: everyone, outside: [] }
+  const recipients = route ? await recipientsOf(tx, call.workspace_id, route) : everyone
   // The workspace's first real call is a moment of its own (setup-emails.ts), for those of them who get setup
   // emails (owners who did not turn them off: the same rule as the other setup emails); marked sent only when one
   // of them gets an email at all, and only when email really goes out (not only to the log).
@@ -241,26 +235,6 @@ async function sendCallEmails(tx: Tx, sender: EmailSender, callId: string, deps:
     } catch (e) {
       result.failed++
       console.warn(`call email to a member of ${call.workspace_id} failed: ${e instanceof Error ? e.message : e}`)
-    }
-  }
-  // Outside the team (confirmed, not stopped): the call's language like the summary it carries (callerLocale), no link
-  // into the app, a link to stop them.
-  if (outside.length) {
-    const locale = await callerLocale(tx, call.workspace_id, call.id)
-    for (const recipient of outside) {
-      const stopUrl = outsideStopUrl(recipient.id)
-      // Without SECRETS_KEY there is no stop link, and an outside address never gets an email it cannot stop.
-      if (!stopUrl) continue
-      try {
-        const email = callEmail(contentIn(locale), undefined, locale, { stopUrl })
-        await sender.send({ to: recipient.email, ...email, headers: unsubscribeHeaders(stopUrl) })
-        result.sent++
-      } catch (e) {
-        result.failed++
-        console.warn(
-          `call email to an outside address of ${call.workspace_id} failed: ${e instanceof Error ? e.message : e}`,
-        )
-      }
     }
   }
   // Nothing went out (the job tries again): the first-call email is still to come.

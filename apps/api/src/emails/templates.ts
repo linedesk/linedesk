@@ -789,19 +789,9 @@ function transcriptLines(call: CallEmail, callerName: string | null, locale: Ema
   return { lines, cut: false }
 }
 
-/**
- * A call email to an address outside the team (email routing, email_recipients): no link into the app, which it
- * cannot open, and a footer that says why it gets the email, with its one-click link to stop them.
- */
-export type OutsideCallEmail = { stopUrl: string }
-
 /** One finished call: what it was about, who called, the summary, next steps, the booking and a link. */
-export const callEmail = (
-  call: CallEmail,
-  origin = emailOrigin(),
-  locale?: EmailLocale,
-  outside?: OutsideCallEmail,
-): RenderedEmail => renderEmail(callContent(call, origin, locale, outside))
+export const callEmail = (call: CallEmail, origin = emailOrigin(), locale?: EmailLocale): RenderedEmail =>
+  renderEmail(callContent(call, origin, locale))
 
 /** The caller and number rows every call email starts with. */
 const callerFacts = (callerName: string | null, number: string, locale: EmailLocale): Block => {
@@ -815,7 +805,7 @@ const callerFacts = (callerName: string | null, number: string, locale: EmailLoc
   }
 }
 
-function callContent(call: CallEmail, origin: string, locale: EmailLocale, outside?: OutsideCallEmail): EmailContent {
+function callContent(call: CallEmail, origin: string, locale: EmailLocale): EmailContent {
   const { t, format, locale: lang } = getT(locale)
   const number = formatNumber(call.fromNumber)
   const callerName = call.callerName ? defuseLinks(call.callerName) : null
@@ -856,28 +846,26 @@ function callContent(call: CallEmail, origin: string, locale: EmailLocale, outsi
       ],
     })
   }
-  // The button before the transcript: a long call would push it far down. Outside the team: no app to open.
-  if (!outside)
-    blocks.push({
-      kind: 'button',
-      label: t('email.call.open'),
-      url: callLink(origin, call.workspaceId, call.callId),
-      // No caller ID ("anonymous"): nothing to dial.
-      call: isE164(call.fromNumber) ? { label: t('email.call.callBack'), number: call.fromNumber } : undefined,
-    })
+  // The button before the transcript: a long call would push it far down.
+  blocks.push({
+    kind: 'button',
+    label: t('email.call.open'),
+    url: callLink(origin, call.workspaceId, call.callId),
+    // No caller ID ("anonymous"): nothing to dial.
+    call: isE164(call.fromNumber) ? { label: t('email.call.callBack'), number: call.fromNumber } : undefined,
+  })
   const transcript = transcriptLines(call, callerName, locale)
   if (transcript.lines.length) {
     blocks.push({ kind: 'transcript', title: t('email.call.transcript'), lines: transcript.lines })
     if (transcript.cut) blocks.push({ kind: 'text', tone: 'muted', text: t('email.call.transcriptCut') })
   }
-  if (!outside)
-    blocks.push({
-      kind: 'text',
-      tone: 'muted',
-      text: transcript.lines.length
-        ? t('email.call.recordingOnly', { brand: emailBrandName() })
-        : t('email.call.recording', { brand: emailBrandName() }),
-    })
+  blocks.push({
+    kind: 'text',
+    tone: 'muted',
+    text: transcript.lines.length
+      ? t('email.call.recordingOnly', { brand: emailBrandName() })
+      : t('email.call.recording', { brand: emailBrandName() }),
+  })
   const from = callerName ?? number
   return {
     locale: lang,
@@ -889,14 +877,10 @@ function callContent(call: CallEmail, origin: string, locale: EmailLocale, outsi
     urgent: call.urgent ? t('email.call.urgent') : undefined,
     heading: topic,
     blocks,
-    reason: outside
-      ? t('email.call.outsideReason', { workspace: call.workspace })
-      : call.byRule
-        ? t('email.call.reasonRule', { workspace: call.workspace })
-        : t('email.call.reason', { workspace: call.workspace }),
-    settings: outside
-      ? { label: t('email.call.outsideStop'), url: outside.stopUrl }
-      : { label: t('email.call.whoHears'), url: whoHearsLink(origin, call.workspaceId) },
+    reason: call.byRule
+      ? t('email.call.reasonRule', { workspace: call.workspace })
+      : t('email.call.reason', { workspace: call.workspace }),
+    settings: { label: t('email.call.whoHears'), url: whoHearsLink(origin, call.workspaceId) },
     origin,
   }
 }

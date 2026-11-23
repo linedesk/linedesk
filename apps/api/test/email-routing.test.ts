@@ -2,9 +2,9 @@
 // rules add people for some calls. The language model is a fake (no provider keys): it answers with the numbers of the
 // rules the test names. Covers the recipients (the every-call members and the members of every rule that fits), the
 // assignee (the first fitting rule's), nothing fitting, the fallbacks, the footer (every call or a rule), callEmails.get,
-// one decision per call (a retry reuses it), the request's format, and the outside addresses still in stored routes
-// (their stop link; LIN-769 removed adding them).
-import { assistants, call_events, calls, email_recipients, member as members, user } from '@linedesk/db'
+// one decision per call (a retry reuses it), the request's format, and that rules name members only (LIN-769, LIN-772
+// removed outside addresses).
+import { assistants, call_events, calls, member as members, user } from '@linedesk/db'
 import type { EmailRule, EmailRules } from '@linedesk/db/types'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, test, vi } from 'vitest'
@@ -13,12 +13,13 @@ import { db } from '../src/db.ts'
 import { type Email, type EmailSender, emailSender } from '../src/email.ts'
 import { actions, EMAIL_RULE_WHEN_MAX } from '@linedesk/actions'
 import {
-  OUTSIDE_PAGE_REQUESTS_PER_MINUTE,
-  OUTSIDE_STOP_PATH,
-  outsideStopToken,
+  EMAIL_ROUTING_SYSTEM,
   previewDeps,
-} from '../src/email-recipients.ts'
-import { EMAIL_ROUTING_SYSTEM, promptName, readDecision, routeFor, routingUserMessage } from '../src/email-routing.ts'
+  promptName,
+  readDecision,
+  routeFor,
+  routingUserMessage,
+} from '../src/email-routing.ts'
 import { mayRunWhileImpersonating } from '../src/impersonation-guard.ts'
 import type { EvaluationModel } from '../src/evaluations.ts'
 import {
@@ -27,8 +28,6 @@ import {
   agent,
   appRequest,
   createWorkspace,
-  FROM,
-  randomIp,
   getCall,
   randomNumber,
   type User,
@@ -349,22 +348,8 @@ describe('routing a call email', () => {
   })
 })
 
-async function outside(ws: Workspace, email: string, state: 'confirmed' | 'waiting' | 'stopped') {
-  const now = new Date().toISOString()
-  const id = `erc_${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`
-  await db.insert(email_recipients).values({
-    id,
-    workspace_id: ws.id,
-    email,
-    added_by: ws.owner.userId,
-    confirmed_at: state === 'waiting' ? null : now,
-    stopped_at: state === 'stopped' ? now : null,
-  })
-  return id
-}
-
-describe('outside addresses', () => {
-  test('nobody adds one any more; emailRouting.get lists members only, for owners and admins (LIN-769)', async () => {
+describe('outside addresses are gone', () => {
+  test('nobody adds one; emailRouting.get lists members only, for owners and admins; no stop link (LIN-769, LIN-772)', async () => {
     const ws = await createWorkspace('Outside Read Plumbing')
     const member = await addMember(ws.id, 'member')
     for (const name of [
@@ -379,76 +364,7 @@ describe('outside addresses', () => {
     expect(read.status).toBe(200)
     expect(read.body.data).not.toHaveProperty('recipients')
     expect(read.body.data.members.map((m: { userId: string }) => m.userId)).toContain(member.userId)
-  })
-
-  test('the stop link: GET shows a page, POST (or the one-click) stops, a tampered token stops nothing', async () => {
-    const ws = await createWorkspace('Outside Stop Plumbing')
-    const id = await outside(ws, `rosa-${crypto.randomUUID().slice(0, 8)}@lakeside-books.example`, 'confirmed')
-    const stoppedAt = async () =>
-      (await db.select().from(email_recipients).where(eq(email_recipients.id, id)))[0]!.stopped_at
-    const stop = `${OUTSIDE_STOP_PATH}?t=${outsideStopToken(id)}`
-    expect((await appRequest(`${stop.slice(0, -2)}00`, { method: 'POST' })).status).toBe(400)
-    expect((await appRequest(stop)).status).toBe(200)
-    expect(await stoppedAt()).toBeNull()
-    const oneClick = await appRequest(stop, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: 'List-Unsubscribe=One-Click',
-    })
-    expect(oneClick.status).toBe(200)
-    const first = await stoppedAt()
-    expect(first).not.toBeNull()
-    // Again: nothing changes.
-    expect((await appRequest(stop, { method: 'POST' })).status).toBe(200)
-    expect(await stoppedAt()).toBe(first)
-  })
-
-  test('the stop page is limited per client address', async () => {
-    const ip = randomIp()
-    const get = (from = ip) => appRequest(`${OUTSIDE_STOP_PATH}?t=${'x'.repeat(30)}`, { headers: { [FROM]: from } })
-    for (let i = 0; i < OUTSIDE_PAGE_REQUESTS_PER_MINUTE; i++) expect((await get()).status).toBe(400)
-    const busy = await get()
-    expect(busy.status).toBe(429)
-    expect(await busy.text()).toContain('Too many requests')
-    expect((await appRequest(`${OUTSIDE_STOP_PATH}?t=x`, { method: 'POST', headers: { [FROM]: ip } })).status).toBe(429)
-    // Another address is not affected.
-    expect((await get(randomIp())).status).toBe(400)
-  })
-})
-
-describe('outside addresses in calls routed before LIN-470', () => {
-  test('a stored route still sends: only while confirmed, without the app link, with a stop link', async () => {
-    const ws = await createWorkspace('Outside Plumbing')
-    const confirmed = `rosa-${crypto.randomUUID().slice(0, 8)}@lakeside-books.example`
-    const confirmedId = await outside(ws, confirmed, 'confirmed')
-    const call = await finishedCall(ws)
-    await db
-      .update(calls)
-      .set({
-        email_route: {
-          mode: 'routed',
-          to: [{ kind: 'outside', email: confirmed }],
-          reason: null,
-          assigned_user_id: null,
-          at: new Date().toISOString(),
-        },
-      })
-      .where(eq(calls.id, call.id))
-    const { sender, sent } = fakeSender()
-    await notifyCallFinished(db, sender, call.id, { model: async () => null })
-    expect(sent.map(e => e.to)).toEqual([confirmed])
-    const email = sent[0]!
-    expect(email.text).not.toContain('Open the call')
-    const stopUrl = `${OUTSIDE_STOP_PATH}?t=${outsideStopToken(confirmedId)}`
-    expect(email.text).toContain(stopUrl)
-    expect(email.headers?.['List-Unsubscribe']).toContain(stopUrl)
-    await db
-      .update(email_recipients)
-      .set({ stopped_at: new Date().toISOString() })
-      .where(eq(email_recipients.id, confirmedId))
-    const retry = fakeSender()
-    await notifyCallFinished(db, retry.sender, call.id, { model: async () => null })
-    expect(retry.sent).toEqual([])
+    expect((await appRequest('/api/email-recipients/stop?t=x', { method: 'POST' })).status).toBe(404)
   })
 })
 

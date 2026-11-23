@@ -123,8 +123,8 @@ export type EmailRule = { id: string; when: string; to: string[]; assign: string
  * (member_notification_settings.email; LIN-768), not the assistant's.
  */
 export type EmailRules = { rules: EmailRule[] }
-/** One recipient of a call email (EmailRoute.to): a workspace member, or a confirmed outside address. */
-export type EmailRouteRecipient = { kind: 'member'; user_id: string; name: string } | { kind: 'outside'; email: string }
+/** One recipient of a call email (EmailRoute.to): a workspace member. */
+export type EmailRouteRecipient = { kind: 'member'; user_id: string; name: string }
 /**
  * Who got the email about a finished call and why (call-notifications.ts, email routing). `routed`: the members with
  * "Email for every call" on and the members of the rules that fit (`rules`: their topics (`when`) as they were then;

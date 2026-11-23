@@ -16025,16 +16025,6 @@
       "out": "1632c49e07f126249c11e5a06a1e38880333a2155cc52dbb2affd5bb1202ad13",
       "src": "019f964c6b832abb2fc606a090fdf3a14e64b98f1c0eb2e8fa25916b75e4a5e1"
     },
-    "email.call.outsideReason": {
-      "by": "ai",
-      "out": "2f79e656adf75647c05b482678fd0d6eb4d93c2cb40c8b6ee03e0e0363714eb0",
-      "src": "85379a91b4440e49fbacd1a34878e8e580feff39d26609e4c2469e5adb69caa5"
-    },
-    "email.call.outsideStop": {
-      "by": "ai",
-      "out": "4c87eaaca460236c63defaccb4980503a2234e716c1598cf7747dc5b2a16812d",
-      "src": "a7bcbbf26c0f31fb9a65c71e64b686c05c992776157b45863b35fe202c2550d3"
-    },
     "email.call.preheader": {
       "by": "ai",
       "out": "b71c4b9d636f5637fb041bc1c3ba6b8229428ecb8302233ffacb611f06279ece",
@@ -16614,46 +16604,6 @@
       "by": "ai",
       "out": "a8aef377a7c5b36cdabda6e86ca16601c7a1924340713ccd8acd442cecfbbfa1",
       "src": "f687d18152a5b541e172a5468106160deb5dd30fdee78ecb4596cdc835a4c013"
-    },
-    "email.outsidePage.busyText": {
-      "by": "ai",
-      "out": "c4081b83fd55988ac9c8f69ce8a2ea1764cacf062ead63bd9c602658f472541a",
-      "src": "dfb5f7f9595a9cf8e58862e0073c69321961bd9626d3fc82f6b658fab396e7c9"
-    },
-    "email.outsidePage.busyTitle": {
-      "by": "ai",
-      "out": "81fb442ffb75d54eaa27641ad260d14bfc49a272f8a7a60c724f14358fcfee0a",
-      "src": "802600d124464157037a2519acb3cff90b97670fd04809ea902fbb95497a12ca"
-    },
-    "email.outsidePage.stopButton": {
-      "by": "ai",
-      "out": "4c87eaaca460236c63defaccb4980503a2234e716c1598cf7747dc5b2a16812d",
-      "src": "a7bcbbf26c0f31fb9a65c71e64b686c05c992776157b45863b35fe202c2550d3"
-    },
-    "email.outsidePage.stopDoneText": {
-      "by": "ai",
-      "out": "1b5bce06617a18fea8ae5ff4c955aebdaeb5cb3b450bd119b9d9f4a7bcfa8f67",
-      "src": "adb9900f1e376a8b20942a975a3b1a2bae12646f7844032d13ad6152a9b026b9"
-    },
-    "email.outsidePage.stopDoneTitle": {
-      "by": "ai",
-      "out": "56b437b59663e8cec7f0252b5ff620656b05ab717f598806200d91a6084f4998",
-      "src": "1851c5ef7078ba0fd6c363cda235e32dce0e4e5cd038ec525179a7e8d5bc1798"
-    },
-    "email.outsidePage.stopInvalidText": {
-      "by": "ai",
-      "out": "88d62168f542606924457791dca5fd35dd0d5e6649d55a2014056f77f39946d6",
-      "src": "d0b66226ae55b764ce88fb659f4f8068a67e4ef630406959160279188ecfcdd3"
-    },
-    "email.outsidePage.stopText": {
-      "by": "ai",
-      "out": "1b5bce06617a18fea8ae5ff4c955aebdaeb5cb3b450bd119b9d9f4a7bcfa8f67",
-      "src": "adb9900f1e376a8b20942a975a3b1a2bae12646f7844032d13ad6152a9b026b9"
-    },
-    "email.outsidePage.stopTitle": {
-      "by": "ai",
-      "out": "8b8dc0fce68135cf885a024a79c510d1a8e39ab9a308a1caa4d7286197cb984c",
-      "src": "4e8369ff6ba4d1c1d5df17675a5dc03fce709dc2f0dc33f67a004aefbd18c339"
     },
     "email.partnerDomain.button": {
       "by": "ai",
@@ -55357,16 +55307,6 @@
       "out": "e06c2f94fc5606730792d5d23146cf8f3a73d66274a3c0fa87fa42ff51bedd94",
       "src": "019f964c6b832abb2fc606a090fdf3a14e64b98f1c0eb2e8fa25916b75e4a5e1"
     },
-    "email.call.outsideReason": {
-      "by": "ai",
-      "out": "577b2267051f182058c4fb3cbf50c50379e67321d5a4cff4c952443518e6ac0a",
-      "src": "85379a91b4440e49fbacd1a34878e8e580feff39d26609e4c2469e5adb69caa5"
-    },
-    "email.call.outsideStop": {
-      "by": "ai",
-      "out": "7a1eb7863d08de98683de64270fd7690c74051414f5f9f0580bfb86ad3d12067",
-      "src": "a7bcbbf26c0f31fb9a65c71e64b686c05c992776157b45863b35fe202c2550d3"
-    },
     "email.call.preheader": {
       "by": "ai",
       "out": "a654fb1279fa1bd19ad0c2b7998bfc49c0f18605614d75ef7f527610597cdd68",
@@ -55946,46 +55886,6 @@
       "by": "ai",
       "out": "d8d0eae74f73ef5c2eea8e42bf26f2102922cb330907f97c153f4d641f9a943d",
       "src": "f687d18152a5b541e172a5468106160deb5dd30fdee78ecb4596cdc835a4c013"
-    },
-    "email.outsidePage.busyText": {
-      "by": "ai",
-      "out": "967d170ac01069d65a5ee0219c979665ab4c26e5ee091bfb95a072a4ffa3e449",
-      "src": "dfb5f7f9595a9cf8e58862e0073c69321961bd9626d3fc82f6b658fab396e7c9"
-    },
-    "email.outsidePage.busyTitle": {
-      "by": "ai",
-      "out": "7f786dbf46eca9fb8e59be4e597d6f2a09d45fbdf4e54d3aafb40ebda969bc9f",
-      "src": "802600d124464157037a2519acb3cff90b97670fd04809ea902fbb95497a12ca"
-    },
-    "email.outsidePage.stopButton": {
-      "by": "ai",
-      "out": "7a1eb7863d08de98683de64270fd7690c74051414f5f9f0580bfb86ad3d12067",
-      "src": "a7bcbbf26c0f31fb9a65c71e64b686c05c992776157b45863b35fe202c2550d3"
-    },
-    "email.outsidePage.stopDoneText": {
-      "by": "ai",
-      "out": "20a7fe3a8d94061bba5510e1589dae981a00c26e3f24fcaf7758f2be41e0afcb",
-      "src": "adb9900f1e376a8b20942a975a3b1a2bae12646f7844032d13ad6152a9b026b9"
-    },
-    "email.outsidePage.stopDoneTitle": {
-      "by": "ai",
-      "out": "0d0ec3839568ef27e18be9f9a154d5aa7994c3d2f5fef6407708eb50ff28de5f",
-      "src": "1851c5ef7078ba0fd6c363cda235e32dce0e4e5cd038ec525179a7e8d5bc1798"
-    },
-    "email.outsidePage.stopInvalidText": {
-      "by": "ai",
-      "out": "dc87a2c412f3915220b1f9d031b855f32cd4f201acc1969a0d7e62a37233e4dc",
-      "src": "d0b66226ae55b764ce88fb659f4f8068a67e4ef630406959160279188ecfcdd3"
-    },
-    "email.outsidePage.stopText": {
-      "by": "ai",
-      "out": "20a7fe3a8d94061bba5510e1589dae981a00c26e3f24fcaf7758f2be41e0afcb",
-      "src": "adb9900f1e376a8b20942a975a3b1a2bae12646f7844032d13ad6152a9b026b9"
-    },
-    "email.outsidePage.stopTitle": {
-      "by": "ai",
-      "out": "b9936c59527c0d830c9a4d1b172fdea882dd680fc33cdc0f39f33073b115ef13",
-      "src": "4e8369ff6ba4d1c1d5df17675a5dc03fce709dc2f0dc33f67a004aefbd18c339"
     },
     "email.partnerDomain.button": {
       "by": "ai",
@@ -94689,16 +94589,6 @@
       "out": "165b24da643e2bc01c8721c558d3e7f066dd5ed1d6db0fc78fdf50bdb2891804",
       "src": "019f964c6b832abb2fc606a090fdf3a14e64b98f1c0eb2e8fa25916b75e4a5e1"
     },
-    "email.call.outsideReason": {
-      "by": "ai",
-      "out": "084140ba3241ba1e4d924423e968726edc6638348ca0f6a3fbbdb86240a94821",
-      "src": "85379a91b4440e49fbacd1a34878e8e580feff39d26609e4c2469e5adb69caa5"
-    },
-    "email.call.outsideStop": {
-      "by": "ai",
-      "out": "1230b20b4ee437972e6c236be01e2e612e77d047f157d32febbf6e1a76675f51",
-      "src": "a7bcbbf26c0f31fb9a65c71e64b686c05c992776157b45863b35fe202c2550d3"
-    },
     "email.call.preheader": {
       "by": "ai",
       "out": "a55c2b6bed130a4d2dd47ccb95812e29116f3416fa36ed3167cf11da48f58a29",
@@ -95278,46 +95168,6 @@
       "by": "ai",
       "out": "edc786f353951fa5ae9f5c86ad60348fa7676c7d085240883e33c7dee4fa4bca",
       "src": "f687d18152a5b541e172a5468106160deb5dd30fdee78ecb4596cdc835a4c013"
-    },
-    "email.outsidePage.busyText": {
-      "by": "ai",
-      "out": "1fbee24d212f82976613a8d4c4b42742007d964c3038da57ab4182f07caa2e13",
-      "src": "dfb5f7f9595a9cf8e58862e0073c69321961bd9626d3fc82f6b658fab396e7c9"
-    },
-    "email.outsidePage.busyTitle": {
-      "by": "ai",
-      "out": "8ddeb65bf4bbd26da0213f88faee5ab8b73610bb65a3f567cba95a43107f7105",
-      "src": "802600d124464157037a2519acb3cff90b97670fd04809ea902fbb95497a12ca"
-    },
-    "email.outsidePage.stopButton": {
-      "by": "ai",
-      "out": "1230b20b4ee437972e6c236be01e2e612e77d047f157d32febbf6e1a76675f51",
-      "src": "a7bcbbf26c0f31fb9a65c71e64b686c05c992776157b45863b35fe202c2550d3"
-    },
-    "email.outsidePage.stopDoneText": {
-      "by": "ai",
-      "out": "8916d886e8992159450bc14bef695fbd8cfbfa20559d1d2a38fd61d89bb63fe6",
-      "src": "adb9900f1e376a8b20942a975a3b1a2bae12646f7844032d13ad6152a9b026b9"
-    },
-    "email.outsidePage.stopDoneTitle": {
-      "by": "ai",
-      "out": "bc0008f96170fec06f79600e0b96cff89eea9a9b2e4f06b1b16e79875c58e668",
-      "src": "1851c5ef7078ba0fd6c363cda235e32dce0e4e5cd038ec525179a7e8d5bc1798"
-    },
-    "email.outsidePage.stopInvalidText": {
-      "by": "ai",
-      "out": "1d09ffc6961c431f4b02474c1c1aafdcab91c8ed9361df89cca36333c3713ed4",
-      "src": "d0b66226ae55b764ce88fb659f4f8068a67e4ef630406959160279188ecfcdd3"
-    },
-    "email.outsidePage.stopText": {
-      "by": "ai",
-      "out": "8916d886e8992159450bc14bef695fbd8cfbfa20559d1d2a38fd61d89bb63fe6",
-      "src": "adb9900f1e376a8b20942a975a3b1a2bae12646f7844032d13ad6152a9b026b9"
-    },
-    "email.outsidePage.stopTitle": {
-      "by": "ai",
-      "out": "0adc9dcad39b820def937f5f42648f4a5680e0c660a5deafbe752dc1fa1870a6",
-      "src": "4e8369ff6ba4d1c1d5df17675a5dc03fce709dc2f0dc33f67a004aefbd18c339"
     },
     "email.partnerDomain.button": {
       "by": "ai",
@@ -134021,16 +133871,6 @@
       "out": "27ba1e13d587e0f5d1917a388bebae01cfb7691f3d0915d3cd4b151ae954a09e",
       "src": "019f964c6b832abb2fc606a090fdf3a14e64b98f1c0eb2e8fa25916b75e4a5e1"
     },
-    "email.call.outsideReason": {
-      "by": "ai",
-      "out": "9e5243f273f467c8bb97337d1a12b55ed572cbf1262e0f4ac1c8c08269f0f96d",
-      "src": "85379a91b4440e49fbacd1a34878e8e580feff39d26609e4c2469e5adb69caa5"
-    },
-    "email.call.outsideStop": {
-      "by": "ai",
-      "out": "42c3b63ac37c17d7a51f3cc713676bc015f77a3d01d7a8397ed7d9f76e790ced",
-      "src": "a7bcbbf26c0f31fb9a65c71e64b686c05c992776157b45863b35fe202c2550d3"
-    },
     "email.call.preheader": {
       "by": "ai",
       "out": "9cc700344a76add2be11d629a57574083a0b64c6eaafbfb0a9891a6c28a51bd5",
@@ -134610,46 +134450,6 @@
       "by": "ai",
       "out": "6d1c1dd2afe3c853643ddf516d1f58aed8109aedb126e07049f82524d5fc19db",
       "src": "f687d18152a5b541e172a5468106160deb5dd30fdee78ecb4596cdc835a4c013"
-    },
-    "email.outsidePage.busyText": {
-      "by": "ai",
-      "out": "257eada2af496db885a7ac75e3510daa24a2afb0f8a563484e63a55e1c8a6f11",
-      "src": "dfb5f7f9595a9cf8e58862e0073c69321961bd9626d3fc82f6b658fab396e7c9"
-    },
-    "email.outsidePage.busyTitle": {
-      "by": "ai",
-      "out": "35281b1510cd77908651d9b01beabd848a0f02560c5c531dfb5fee1a8df27bab",
-      "src": "802600d124464157037a2519acb3cff90b97670fd04809ea902fbb95497a12ca"
-    },
-    "email.outsidePage.stopButton": {
-      "by": "ai",
-      "out": "42c3b63ac37c17d7a51f3cc713676bc015f77a3d01d7a8397ed7d9f76e790ced",
-      "src": "a7bcbbf26c0f31fb9a65c71e64b686c05c992776157b45863b35fe202c2550d3"
-    },
-    "email.outsidePage.stopDoneText": {
-      "by": "ai",
-      "out": "9dc40ef52f1605f3fb8c497bd406d320f441d03c6cc80b3a9f371df8ce726843",
-      "src": "adb9900f1e376a8b20942a975a3b1a2bae12646f7844032d13ad6152a9b026b9"
-    },
-    "email.outsidePage.stopDoneTitle": {
-      "by": "ai",
-      "out": "0b217ff58aaf8ed56852c73135fb8efb933bb410149da027997be091da93ffa6",
-      "src": "1851c5ef7078ba0fd6c363cda235e32dce0e4e5cd038ec525179a7e8d5bc1798"
-    },
-    "email.outsidePage.stopInvalidText": {
-      "by": "ai",
-      "out": "fd2c7b147683261df1572d81d4a9a9a6799cd2da4b9c4cba189e636da4629525",
-      "src": "d0b66226ae55b764ce88fb659f4f8068a67e4ef630406959160279188ecfcdd3"
-    },
-    "email.outsidePage.stopText": {
-      "by": "ai",
-      "out": "9dc40ef52f1605f3fb8c497bd406d320f441d03c6cc80b3a9f371df8ce726843",
-      "src": "adb9900f1e376a8b20942a975a3b1a2bae12646f7844032d13ad6152a9b026b9"
-    },
-    "email.outsidePage.stopTitle": {
-      "by": "ai",
-      "out": "e837c0d047a160346e63786916596d607ef8de9261ba6cdba91ad0056a31b0e3",
-      "src": "4e8369ff6ba4d1c1d5df17675a5dc03fce709dc2f0dc33f67a004aefbd18c339"
     },
     "email.partnerDomain.button": {
       "by": "ai",
@@ -173353,16 +173153,6 @@
       "out": "b3b7ab997c6292b903cf6d25773cc0484d109985444ebc67ccf425ce439b547a",
       "src": "019f964c6b832abb2fc606a090fdf3a14e64b98f1c0eb2e8fa25916b75e4a5e1"
     },
-    "email.call.outsideReason": {
-      "by": "ai",
-      "out": "dbaa4d151802250338f20f0439fe00b8723b411949dae44a5d9fa8016435a57f",
-      "src": "85379a91b4440e49fbacd1a34878e8e580feff39d26609e4c2469e5adb69caa5"
-    },
-    "email.call.outsideStop": {
-      "by": "ai",
-      "out": "d0660ef320f96be9af05fc4cdb342e39292bae411fba3be0fad813a181133e21",
-      "src": "a7bcbbf26c0f31fb9a65c71e64b686c05c992776157b45863b35fe202c2550d3"
-    },
     "email.call.preheader": {
       "by": "ai",
       "out": "dd72edcf791068507cdbfd5c03cef37137f71dff8a1c5f221adcd2bab20a7fb6",
@@ -173942,46 +173732,6 @@
       "by": "ai",
       "out": "d8d0eae74f73ef5c2eea8e42bf26f2102922cb330907f97c153f4d641f9a943d",
       "src": "f687d18152a5b541e172a5468106160deb5dd30fdee78ecb4596cdc835a4c013"
-    },
-    "email.outsidePage.busyText": {
-      "by": "ai",
-      "out": "df17da12c27eccf49f21a6c9d2258fab909548356f7e128f1c1de3034776dc7c",
-      "src": "dfb5f7f9595a9cf8e58862e0073c69321961bd9626d3fc82f6b658fab396e7c9"
-    },
-    "email.outsidePage.busyTitle": {
-      "by": "ai",
-      "out": "6e57a86fad91b5836325b6effb659098f705bcafeb611ec8d8de67555a15884e",
-      "src": "802600d124464157037a2519acb3cff90b97670fd04809ea902fbb95497a12ca"
-    },
-    "email.outsidePage.stopButton": {
-      "by": "ai",
-      "out": "d0660ef320f96be9af05fc4cdb342e39292bae411fba3be0fad813a181133e21",
-      "src": "a7bcbbf26c0f31fb9a65c71e64b686c05c992776157b45863b35fe202c2550d3"
-    },
-    "email.outsidePage.stopDoneText": {
-      "by": "ai",
-      "out": "2af0e7bd0cc2e1db09d29d40ec9a54d3066a1ef67cf5c21a20fc85e3b753aedd",
-      "src": "adb9900f1e376a8b20942a975a3b1a2bae12646f7844032d13ad6152a9b026b9"
-    },
-    "email.outsidePage.stopDoneTitle": {
-      "by": "ai",
-      "out": "305bcf8b3f9e4e4c1e16b1339a9f399dfbeabb7150aa3a761f4e1167cea498e6",
-      "src": "1851c5ef7078ba0fd6c363cda235e32dce0e4e5cd038ec525179a7e8d5bc1798"
-    },
-    "email.outsidePage.stopInvalidText": {
-      "by": "ai",
-      "out": "9cdec4065344d96394b4de35313ccaa867de7209f82a8c69e03ea66e5cbb5497",
-      "src": "d0b66226ae55b764ce88fb659f4f8068a67e4ef630406959160279188ecfcdd3"
-    },
-    "email.outsidePage.stopText": {
-      "by": "ai",
-      "out": "2af0e7bd0cc2e1db09d29d40ec9a54d3066a1ef67cf5c21a20fc85e3b753aedd",
-      "src": "adb9900f1e376a8b20942a975a3b1a2bae12646f7844032d13ad6152a9b026b9"
-    },
-    "email.outsidePage.stopTitle": {
-      "by": "ai",
-      "out": "6bfb578d61d099994132288e2a6016ad7ec7b93b4a44b7a7b1d3b40188cc74b3",
-      "src": "4e8369ff6ba4d1c1d5df17675a5dc03fce709dc2f0dc33f67a004aefbd18c339"
     },
     "email.partnerDomain.button": {
       "by": "ai",

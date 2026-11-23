@@ -1879,38 +1879,6 @@ export const syncedTables = {
   mail_connections,
 } as const
 
-/**
- * Email addresses outside the team that an assistant's earlier call email instruction could name (`<@email:ADDRESS>`).
- * None are added any more (LIN-769 removed the actions that added and confirmed them); a confirmed address a stored
- * route names gets call emails until it stops them (the link in every call email, or List-Unsubscribe). Not synced.
- */
-export const email_recipients = pgTable(
-  'email_recipients',
-  {
-    id: id(),
-    workspace_id: workspaceId(),
-    /** Lowercased. */
-    email: text('email').notNull(),
-    label: text('label'),
-    confirmed_at: ts('confirmed_at'),
-    stopped_at: ts('stopped_at'),
-    /** sha256 of the confirmation link's token (never the token); null once confirmed. */
-    confirm_token_hash: text('confirm_token_hash'),
-    confirm_expires_at: ts('confirm_expires_at'),
-    confirm_sent_at: ts('confirm_sent_at'),
-    /** Removed rows never get a call email. */
-    removed_at: ts('removed_at'),
-    added_by: text('added_by').notNull(),
-    created_at: createdAt(),
-    version: version(),
-  },
-  t => [
-    index('email_recipients_ws').on(t.workspace_id),
-    unique('email_recipients_ws_email').on(t.workspace_id, t.email),
-    uniqueIndex('email_recipients_token').on(t.confirm_token_hash),
-  ],
-)
-
 // A member's answer to the GitHub star prompt (apps/api/src/star-prompt.ts): once answered, it is
 // never shown to them again, in any browser. Not synced; one row per user, not per workspace.
 export const star_prompts = pgTable('star_prompts', {

@@ -38,7 +38,6 @@ import { oauthKeyMayRequest, personalKeyMayRequest } from './key-reads.ts'
 import { registerAdminRoutes } from './admin-routes.ts'
 import { publicHealth } from './admin-overview.ts'
 import { registerSetupUnsubscribeRoutes } from './setup-unsubscribe.ts'
-import { registerEmailRecipientRoutes } from './email-recipients.ts'
 import { registerStripeWebhookRoute } from './stripe-webhook.ts'
 import { registerTestLookupRoute } from './test-lookup.ts'
 import { addressBucket, clientIpHeaders, clientIpOf, withClientIp } from './client-ip.ts'
@@ -213,8 +212,6 @@ app.on(['GET', 'POST'], '/api/auth/*', c => {
 })
 // Public: one-click unsubscribe from setup emails, by a signed token instead of a session (setup-unsubscribe.ts).
 registerSetupUnsubscribeRoutes(app)
-// Public: confirming and stopping call emails to an address outside the team, by token (email-recipients.ts).
-registerEmailRecipientRoutes(app)
 
 // Before every /v1 route: a write signed in by the cookie only from the web app, as JSON (csrf.ts).
 app.use(

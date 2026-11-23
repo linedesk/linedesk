@@ -1282,6 +1282,13 @@
       "when": 1795399127779,
       "tag": "0183_drop_email_routing_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 183,
+      "version": "7",
+      "when": 1795459774375,
+      "tag": "0184_drop_email_recipients",
+      "breakpoints": true
     }
   ]
 }
