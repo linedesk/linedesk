@@ -145,10 +145,6 @@ export const NEEDS_CONFIRMED_EMAIL: ReadonlySet<string> = new Set([
   'shopify.linkInstall',
   // Every call of a range in one answer.
   'call.export',
-  // Call emails to an address outside the team (email routing): the confirmation email goes out to it.
-  'emailRecipient.add',
-  'emailRecipient.resend',
-  'emailRecipient.restore',
   'calendar.connectWithPassword',
   // Deletes the workspace and the accounts of members who have no other one.
   'workspace.deleteOwn',

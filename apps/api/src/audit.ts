@@ -314,11 +314,6 @@ export const AUDITED_ACTIONS: Record<string, AuditKind> = {
   'apiKey.create': 'integrations',
   'apiKey.revoke': 'integrations',
   'webhook.create': 'integrations',
-  // Outside addresses that call emails may go to (email routing, LIN-369): where call data is sent.
-  'emailRecipient.add': 'integrations',
-  'emailRecipient.resend': 'integrations',
-  'emailRecipient.remove': 'integrations',
-  'emailRecipient.restore': 'integrations',
   'webhook.update': 'integrations',
   'webhook.delete': 'integrations',
   'webhook.test': 'integrations',

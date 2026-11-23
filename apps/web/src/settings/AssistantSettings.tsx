@@ -976,6 +976,7 @@ function Advanced({ draft, set }: SectionProps) {
             }}
           />
         </p>
+        <p className="help as-sentence-note">{t('settings.assistant.silence.notWhileTransferred')}</p>
         {errorsOf('gap', 'reminder', 'times')}
       </Section>
       <Section

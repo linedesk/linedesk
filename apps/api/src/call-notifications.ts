@@ -226,10 +226,12 @@ async function sendCallEmails(tx: Tx, sender: EmailSender, callId: string, deps:
     sender.kind === 'smtp' &&
     recipients.some(getsFirst) &&
     (await claimFirstCallEmail(tx, call, new Date().toISOString()))
+  // Members a rule adds (not an email for every call): the footer says why they get it.
+  const everyCall = new Set(everyone.map(r => r.userId))
   const result: NotifyResult = { sent: 0, failed: 0 }
   for (const recipient of recipients) {
     try {
-      const content = contentIn(recipient.locale)
+      const content = { ...contentIn(recipient.locale), byRule: !everyCall.has(recipient.userId) }
       const email =
         first && getsFirst(recipient)
           ? firstCallEmail(content, undefined, recipient.locale)

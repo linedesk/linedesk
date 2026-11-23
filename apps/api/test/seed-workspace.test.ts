@@ -23,7 +23,8 @@ describe('seed for one account (db:seed --user)', { timeout: 20_000 }, () => {
     expect(result.counts.calls).toBeGreaterThan(15)
     expect(result.counts).toMatchObject({ bookings: 3, appointment_types: 4, teammates: 2, invitations: 1 })
     const [settings] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, ws.id))
-    expect(settings).toMatchObject({ onboarding_step: 'done', business_hours_on: true })
+    // A plumbing business, so Integrations suggests a trade's apps (LIN-769).
+    expect(settings).toMatchObject({ onboarding_step: 'done', business_hours_on: true, business_kind: 'plumbing_hvac' })
     const [org] = await db.select().from(organization).where(eq(organization.id, ws.id))
     expect(org!.name).toBe('Brightwater Plumbing & Heating')
     const seeded = (await callsIn(ws.id)).filter(c => c.id.includes(seedTag(ws.id)))
@@ -57,6 +58,17 @@ describe('seed for one account (db:seed --user)', { timeout: 20_000 }, () => {
       .from(calls)
       .where(and(eq(calls.workspace_id, ws.id), eq(calls.id, ws.call.id)))
     expect(own).toHaveLength(1)
+  })
+
+  test('keeps a kind of business the member picked', async () => {
+    const ws = await createWorkspace('Seed Own Kind')
+    await db
+      .insert(workspace_settings)
+      .values({ workspace_id: ws.id, timezone: 'America/Los_Angeles', business_kind: 'dental' })
+      .onConflictDoUpdate({ target: workspace_settings.workspace_id, set: { business_kind: 'dental' } })
+    await seedUserWorkspace({ email: await emailOf(ws.owner.userId) })
+    const [settings] = await db.select().from(workspace_settings).where(eq(workspace_settings.workspace_id, ws.id))
+    expect(settings!.business_kind).toBe('dental')
   })
 
   test('refuses an unknown account', async () => {

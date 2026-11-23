@@ -77,10 +77,6 @@ const expectedRights: Record<Right, readonly string[]> = {
     'assistant.update',
     // Call email routing (LIN-369): who gets which call, and the outside addresses it may name.
     'emailRouting.get',
-    'emailRecipient.add',
-    'emailRecipient.resend',
-    'emailRecipient.remove',
-    'emailRecipient.restore',
     'assistant.create',
     'assistant.delete',
     'assistant.versions',

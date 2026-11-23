@@ -243,44 +243,6 @@ export function partnerInvitationEmail(
   })
 }
 
-export type OutsideConfirmEmail = {
-  /** Email-safe (emailSafeName). */
-  inviter: string
-  workspace: string
-  email: string
-  url: string
-  days: number
-  /** The address's stop link ("Don't email me again"); null without SECRETS_KEY. */
-  stopUrl: string | null
-}
-
-/**
- * An owner or admin named an address outside the team for call emails (emailRecipient.add): it gets call emails
- * only after it confirms with this link. Says what it would get (the summary and the full transcript), and has the
- * stop link, so the person can say no for good.
- */
-export function outsideConfirmEmail(
-  { inviter, workspace, email, url, days, stopUrl }: OutsideConfirmEmail,
-  origin = emailOrigin(),
-  locale?: EmailLocale,
-): RenderedEmail {
-  const { t, locale: lang } = getT(locale)
-  return renderEmail({
-    locale: lang,
-    subject: t('email.outsideConfirm.subject', { workspace }),
-    preheader: t('email.outsideConfirm.preheader', { inviter, workspace }),
-    heading: t('email.outsideConfirm.subject', { workspace }),
-    blocks: [
-      { kind: 'text', text: t('email.outsideConfirm.text', { inviter, workspace }) },
-      { kind: 'button', label: t('email.outsideConfirm.button'), url },
-      { kind: 'text', tone: 'muted', text: t('email.outsideConfirm.note', { days }) },
-    ],
-    reason: t('email.outsideConfirm.reason', { workspace, email }),
-    ...(stopUrl ? { settings: { label: t('email.outsideConfirm.stop'), url: stopUrl } } : {}),
-    origin,
-  })
-}
-
 /** "the owner", "an admin", "a member", in a sentence. */
 const roleInSentence = (role: string, locale: EmailLocale) =>
   getT(locale).t('email.role.inSentence', { role: role === 'owner' || role === 'admin' ? role : 'member' })
@@ -794,6 +756,11 @@ export type CallEmail = {
   transcript: { speaker: 'caller' | 'agent' | 'human'; text: string }[]
   /** Email-safe (emailSafeName). */
   workspace: string
+  /**
+   * The member gets this call only through a rule that names them, not because they get an email for every call
+   * (Who hears about calls): the footer says so (LIN-769).
+   */
+  byRule?: boolean
 }
 
 /**
@@ -924,7 +891,9 @@ function callContent(call: CallEmail, origin: string, locale: EmailLocale, outsi
     blocks,
     reason: outside
       ? t('email.call.outsideReason', { workspace: call.workspace })
-      : t('email.call.reason', { workspace: call.workspace }),
+      : call.byRule
+        ? t('email.call.reasonRule', { workspace: call.workspace })
+        : t('email.call.reason', { workspace: call.workspace }),
     settings: outside
       ? { label: t('email.call.outsideStop'), url: outside.stopUrl }
       : { label: t('email.call.whoHears'), url: whoHearsLink(origin, call.workspaceId) },
@@ -1172,7 +1141,8 @@ export function firstCallEmail(call: CallEmail, origin = emailOrigin(), locale?:
       },
       ...content.blocks,
     ],
-    reason: t('email.firstCall.reason', { workspace: call.workspace }),
+    // Through a rule only: the call email's own footer (not "from now on one email per call").
+    reason: call.byRule ? content.reason : t('email.firstCall.reason', { workspace: call.workspace }),
   })
 }
 

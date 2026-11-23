@@ -1275,6 +1275,13 @@
       "when": 1795396702269,
       "tag": "0182_email_rules_drop_always",
       "breakpoints": true
+    },
+    {
+      "idx": 182,
+      "version": "7",
+      "when": 1795399127779,
+      "tag": "0183_drop_email_routing_columns",
+      "breakpoints": true
     }
   ]
 }

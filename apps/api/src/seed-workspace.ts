@@ -20,7 +20,7 @@ import {
   workspace_settings,
 } from '@linedesk/db'
 import { DEFAULT_AI_DISCLOSURE, RING_SECONDS_DEFAULT } from '@linedesk/actions'
-import { and, asc, eq, inArray, like } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, like } from 'drizzle-orm'
 import { db } from './db.ts'
 import { DEMO_ASSISTANT, GREETING, type SeedCall, seedCalls } from './demo-calls.ts'
 import { renamed } from './sample-calls.ts'
@@ -381,6 +381,12 @@ async function seedSettings(workspaceId: string, tag: string, business: string) 
     .update(workspace_settings)
     .set({ timezone: 'America/Los_Angeles', onboarding_step: 'done', business_hours_on: true })
     .where(eq(workspace_settings.workspace_id, workspaceId))
+  // A plumbing business like the main demo (seed.ts), so Integrations suggests a trade's apps (LIN-769); a kind the
+  // member picked stays.
+  await db
+    .update(workspace_settings)
+    .set({ business_kind: 'plumbing_hvac' })
+    .where(and(eq(workspace_settings.workspace_id, workspaceId), isNull(workspace_settings.business_kind)))
   // Hours the member set themselves stay; the seed only fills a workspace without any.
   const [hasHours] = await db
     .select({ id: availability_rules.id })

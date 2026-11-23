@@ -197,17 +197,7 @@ export const assistants = pgTable(
      */
     realtime_model: text('realtime_model'),
     /**
-     * No longer read (LIN-470: email_rules). Was: who gets the email about each finished call, in plain language, with
-     * mentions stored as `<@user:USER_ID>` and `<@email:ADDRESS>`. Kept until a later release drops it.
-     */
-    email_routing: text('email_routing'),
-    /**
-     * No longer read (LIN-470: email_rules). Was: members a routed call is also assigned to. Kept until a later
-     * release drops it.
-     */
-    email_assign: jsonb('email_assign').$type<string[]>().notNull().default([]),
-    /**
-     * Which calls go to more people (LIN-470, replaces email_routing and email_assign, which are no longer read): each
+     * Which calls go to more people (LIN-470; the old email_routing and email_assign were dropped in LIN-769): each
      * rule names the calls it is about, its members and whom it assigns. A language model matches the rules after the
      * call (apps/api/src/email-routing.ts). Members with "Email for every call" on get every call email anyway
      * (member_notification_settings.email; LIN-768 dropped the assistant's own `always` list).
@@ -1890,9 +1880,9 @@ export const syncedTables = {
 } as const
 
 /**
- * Email addresses outside the team that an assistant's call email instruction may name (`<@email:ADDRESS>`). An
- * address gets call emails only after it confirmed (the link in the confirmation email) and until it stops them
- * (the link in every call email, or List-Unsubscribe). Not synced: read through emailRouting.get (owners and admins).
+ * Email addresses outside the team that an assistant's earlier call email instruction could name (`<@email:ADDRESS>`).
+ * None are added any more (LIN-769 removed the actions that added and confirmed them); a confirmed address a stored
+ * route names gets call emails until it stops them (the link in every call email, or List-Unsubscribe). Not synced.
  */
 export const email_recipients = pgTable(
   'email_recipients',
@@ -1908,7 +1898,7 @@ export const email_recipients = pgTable(
     confirm_token_hash: text('confirm_token_hash'),
     confirm_expires_at: ts('confirm_expires_at'),
     confirm_sent_at: ts('confirm_sent_at'),
-    /** emailRecipient.remove; emailRecipient.restore undoes it. Removed rows never get a call email. */
+    /** Removed rows never get a call email. */
     removed_at: ts('removed_at'),
     added_by: text('added_by').notNull(),
     created_at: createdAt(),

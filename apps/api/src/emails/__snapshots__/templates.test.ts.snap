@@ -535,25 +535,6 @@ Linedesk · desk.example.com
 ",
   ],
   [
-    "outside-confirm",
-    "Brightwater Plumbing & Heating wants to email you about calls",
-    "Brightwater Plumbing & Heating wants to email you about calls
-
-Mike Brennan from Brightwater Plumbing & Heating wants to email you about some of the phone calls their assistant answers. Each email has a summary and the full transcript of the call. Confirm to start getting them.
-
-Confirm:
-https://desk.example.com/email-recipient/confirm?t=preview
-
-The link works for 7 days. If you do not want these emails, ignore this one: nothing is sent until you confirm. Every call email has a link to stop them.
-
---
-
-Someone at Brightwater Plumbing & Heating entered office@example.com. Don't email me again: https://desk.example.com/email-recipient/stop?t=preview
-
-Linedesk · desk.example.com
-",
-  ],
-  [
     "added-notice",
     "You were added to Brightwater Plumbing & Heating on desk.example.com",
     "You were added to Brightwater Plumbing & Heating
@@ -1860,25 +1841,6 @@ El enlace funciona durante 7 días. Ingresa esta dirección en la página de ini
 --
 
 Recibes este correo porque un administrador del servidor de desk.example.com agregó esta dirección. Si no lo esperabas, puedes ignorarlo.
-
-Linedesk · desk.example.com
-",
-  ],
-  [
-    "outside-confirm",
-    "Brightwater Plumbing & Heating quiere enviarte correos sobre llamadas",
-    "Brightwater Plumbing & Heating quiere enviarte correos sobre llamadas
-
-Mike Brennan de Brightwater Plumbing & Heating quiere enviarte correos sobre algunas de las llamadas telefónicas que contesta su asistente. Cada correo incluye un resumen y la transcripción completa de la llamada. Confirma para empezar a recibirlos.
-
-Confirmar:
-https://desk.example.com/email-recipient/confirm?t=preview
-
-El enlace funciona durante 7 días. Si no quieres estos correos, ignora este: no se envía nada hasta que confirmes. Cada correo de llamada tiene un enlace para dejar de recibirlos.
-
---
-
-Alguien de Brightwater Plumbing & Heating ingresó office@example.com. No me envíen más correos: https://desk.example.com/email-recipient/stop?t=preview
 
 Linedesk · desk.example.com
 ",

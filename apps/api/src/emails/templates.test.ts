@@ -239,6 +239,21 @@ describe('call summary', () => {
     expect(email.text).not.toContain('Key facts')
   })
 
+  it('the footer says why: an email for every call, or a rule that names the member (LIN-769)', () => {
+    const everyCall = callEmail(call, ORIGIN)
+    expect(everyCall.text).toContain('You get one email per call to Brightwater Plumbing & Heating.')
+    const byRule = callEmail({ ...call, byRule: true }, ORIGIN)
+    expect(byRule.text).toContain(
+      'You get emails for some calls to Brightwater Plumbing & Heating, because a call email rule names you.',
+    )
+    expect(byRule.text).not.toContain('one email per call')
+    expect(byRule.text).toContain('Change who hears about calls')
+    expect(firstCallEmail({ ...call, byRule: true }, ORIGIN).text).not.toContain('one email per call')
+    expect(firstCallEmail(call, ORIGIN).text).toContain(
+      'From now on you get one email per call to Brightwater Plumbing & Heating.',
+    )
+  })
+
   it('without a transcript says it is in the app', () => {
     const email = callEmail({ ...call, transcript: [] }, ORIGIN)
     expect(email.text).not.toContain('Transcript\n')

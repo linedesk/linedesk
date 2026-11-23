@@ -1195,6 +1195,10 @@ a.as-chip:hover {
   min-width: 0;
   width: 100%;
 }
+/* A quiet line under a sentence that adds when it does not apply ("Never while a call is transferred."). */
+.as-sentence-note {
+  margin: -4px 0 0;
+}
 .as-inline-num {
   width: 48px;
 }
