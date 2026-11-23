@@ -696,6 +696,13 @@ a.auth-switch {
   text-decoration: underline;
 }
 /* The same quiet line at the foot of Account settings (settings/account), under the open section's card. */
+/* Preferences: the member's notifications below Language, set off by a line (settings/Notifications.tsx). */
+.ac-notify {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
 .ac-legal {
   padding: 4px 2px 0;
 }

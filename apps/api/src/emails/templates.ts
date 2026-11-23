@@ -59,7 +59,7 @@ export function appLink(origin: string, workspaceId: string, path: string): stri
 
 const callLink = (origin: string, workspaceId: string, callId: string) =>
   appLink(origin, workspaceId, `call/${encodeURIComponent(callId)}`)
-const notificationsLink = (origin: string, workspaceId: string) => appLink(origin, workspaceId, 'account/notifications')
+const notificationsLink = (origin: string, workspaceId: string) => appLink(origin, workspaceId, 'account/preferences')
 /** Where call emails are set for the whole team: Assistant › Who hears about calls (LIN-768). */
 const whoHearsLink = (origin: string, workspaceId: string) => appLink(origin, workspaceId, 'assistant/emails')
 

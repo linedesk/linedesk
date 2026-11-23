@@ -409,7 +409,7 @@ export function commandGroups(c: CommandContext): CommandGroup<Command>[] {
           keywords: 'email push device alerts',
           icon: 'bell',
           searchOnly: true,
-          run: () => c.goPage('account', 'notifications'),
+          run: () => c.goPage('account', 'preferences'),
         },
         ...(c.isOwner
           ? []

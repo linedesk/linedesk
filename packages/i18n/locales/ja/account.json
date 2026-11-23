@@ -123,7 +123,6 @@
   "mainHost.title": "通常のサインインページで行います",
   "nav.apiKeys.description": "コマンドライン、AIツール、スクリプト用のキー",
   "nav.apiKeys.label": "個人用APIキー",
-  "nav.notifications.description": "新しい通話をメールとこの端末で通知",
   "nav.notifications.label": "通知",
   "nav.preferences.description": "言語",
   "nav.preferences.label": "環境設定",

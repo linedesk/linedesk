@@ -121,7 +121,7 @@ export async function sendFounderEmailFor(
           {
             firstName: firstNameOf(names.get(userId)),
             founder,
-            unsubscribeUrl: oneClick ?? appLink(origin, workspaceId, 'account/notifications'),
+            unsubscribeUrl: oneClick ?? appLink(origin, workspaceId, 'account/preferences'),
           },
           locales.get(userId) ?? 'en',
         ),

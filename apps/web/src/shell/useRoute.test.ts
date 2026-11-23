@@ -136,9 +136,12 @@ describe('the workspace a link is for', () => {
 describe('old links (LIN-165)', () => {
   const redirects: [string, string][] = [
     ['#settings', '#workspace'],
-    ['#settings/notifications', '#account/notifications'],
-    ['#assistant/notifications', '#account/notifications'],
-    ['#assistant/as_123abc/notifications', '#account/notifications'],
+    ['#settings/notifications', '#account/preferences'],
+    ['#assistant/notifications', '#account/preferences'],
+    ['#assistant/as_123abc/notifications', '#account/preferences'],
+    // Your notifications became a part of Preferences.
+    ['#account/notifications', '#account/preferences'],
+    ['#account/notifications?ws=ws_1', '#account/preferences?ws=ws_1'],
     ['#settings/phone', '#workspace/phone'],
     ['#settings/phone/pn_1', '#workspace/phone/pn_1'],
     ['#settings/export', '#workspace/export'],
@@ -165,10 +168,10 @@ describe('old links (LIN-165)', () => {
   })
 
   it('keeps the query: the workspace a link is for and a search', () => {
-    expect(movedHash('#settings/notifications?ws=ws_1')).toBe('#account/notifications?ws=ws_1')
+    expect(movedHash('#settings/notifications?ws=ws_1')).toBe('#account/preferences?ws=ws_1')
     expect(movedHash('#settings/phone/pn_1?ws=ws_1')).toBe('#workspace/phone/pn_1?ws=ws_1')
     expect(movedHash('#team?ws=ws_1&q=leak')).toBe('#workspace/team?ws=ws_1&q=leak')
-    expect(movedHash('#assistant/as_1/notifications?ws=a%20b')).toBe('#account/notifications?ws=a%20b')
+    expect(movedHash('#assistant/as_1/notifications?ws=a%20b')).toBe('#account/preferences?ws=a%20b')
     expect(movedHash('#settings?')).toBe('#workspace')
     expect(movedHash('#calls/review?ws=ws_1')).toBe('#assistant/review?ws=ws_1')
     expect(linkWorkspace(movedHash('#settings/phone?ws=ws_1')!)).toBe('ws_1')
@@ -180,7 +183,7 @@ describe('old links (LIN-165)', () => {
       '#workspace',
       '#workspace/team',
       '#workspace/phone/pn_1',
-      '#account/notifications',
+      '#account/preferences',
       '#assistant',
       '#assistant/hours',
       '#assistant/as_1/hours',

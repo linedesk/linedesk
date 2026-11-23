@@ -1,6 +1,7 @@
 /**
- * Account › Preferences › Language (docs/translations.md, "Levels"): the member's own UI language, Automatic by
- * default. When the browser's first language is one Linedesk doesn't have, a note offers to ask for it.
+ * Account › Preferences: Language (docs/translations.md, "Levels"), the member's own UI language, Automatic by
+ * default; when the browser's first language is one Linedesk doesn't have, a note offers to ask for it. Below it, in a
+ * workspace, the member's own notifications there (settings/Notifications.tsx). `#account/notifications` opens here.
  */
 import { PSEUDO_LOCALE } from '@linedesk/i18n'
 import { useT } from '@linedesk/i18n/react'
@@ -12,6 +13,7 @@ import { browserLanguages, missingBrowserLanguage } from '../../i18n/locale.ts'
 import { chooseLocale } from '../../i18n/user.ts'
 import { Button, Note } from '../../ui/kit.tsx'
 import { Field, Section } from '../fields.tsx'
+import { Notifications } from '../Notifications.tsx'
 
 const DISMISSED_KEY = 'linedesk.languageNoteDismissed'
 /** Where people ask for a new language: the issue form, with the language filled in. */
@@ -68,8 +70,19 @@ function MissingLanguageNote() {
   )
 }
 
-/** `saved`: reloads the account, so the choice shows when the section opens again. */
-export function Preferences({ locale, saved }: { locale: string | null | undefined; saved: () => void }) {
+/**
+ * `saved`: reloads the account, so the choice shows when the section opens again. `hasWorkspace`: false on the screen
+ * without a workspace (NoWorkspace.tsx), which has no notifications to set.
+ */
+export function Preferences({
+  locale,
+  saved,
+  hasWorkspace,
+}: {
+  locale: string | null | undefined
+  saved: () => void
+  hasWorkspace: boolean
+}) {
   const t = useT()
   const [choice, setChoice] = useState<LanguageChoice>(() => choiceOf(locale))
   const [busy, setBusy] = useState(false)
@@ -108,6 +121,7 @@ export function Preferences({ locale, saved }: { locale: string | null | undefin
         />
       </Field>
       {error && <Note tone="danger">{error}</Note>}
+      {hasWorkspace && <Notifications />}
     </Section>
   )
 }

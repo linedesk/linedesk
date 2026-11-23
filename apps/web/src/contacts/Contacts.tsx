@@ -28,11 +28,13 @@ type Props = {
 function Row({
   row,
   isCursor,
+  withCompany,
   onOpen,
   onHover,
 }: {
   row: ContactRow
   isCursor: boolean
+  withCompany: boolean
   onOpen: () => void
   onHover: () => void
 }) {
@@ -51,7 +53,7 @@ function Row({
       <span className="r-name c-name">
         <span>{contactLabel(contact)}</span>
       </span>
-      <span className="c-cell c-company">{contact.company}</span>
+      {withCompany && <span className="c-cell c-company">{contact.company}</span>}
       <span className="c-cell c-sum">
         {lastCall && <span className="c-sum-t">{callTitle(lastCall)}</span>}
         {nextStep && <span className="c-next"> · {nextStep}</span>}
@@ -69,6 +71,8 @@ const CONTACT_COLUMNS = [
   msg('contacts.column.lastCall'),
   msg('contacts.column.calls'),
 ] as const
+/** Without any company in the workspace the Company column is left out, its heading too (`no-company` on the list). */
+const COLUMNS_WITHOUT_COMPANY = CONTACT_COLUMNS.filter(key => key !== 'contacts.column.company')
 
 function Hints({ open }: { open: boolean }) {
   const t = useT()
@@ -88,17 +92,14 @@ function Hints({ open }: { open: boolean }) {
 export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
   const t = useT()
   const remove = (contactId: string) =>
-    runUndoable(
-      [['contact.delete', { contactId }]],
-      [['contact.restore', { contactId }]],
-      t('contacts.deleted'),
-      '#',
-    )
+    runUndoable([['contact.delete', { contactId }]], [['contact.restore', { contactId }]], t('contacts.deleted'), '#')
   const page = useContactsPage({ remove })
   const loadState = useLoadState('contacts')
   const listView = useLoading(loadState === 'loading')
   const waiting = loadState !== 'ready' || listView.phase !== 'content'
   const numbers = useMemo(() => new Set(page.all.map(r => r.contact.phone)), [page.all])
+  // The Company column shows once any contact has a company; until then it would be an empty column.
+  const withCompany = useMemo(() => page.all.some(r => r.contact.company?.trim()), [page.all])
   const { rows, cursor, opened, query } = page
   const empty = !waiting && rows.length === 0
   const [importing, setImporting] = useState(false)
@@ -173,19 +174,29 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
             </div>
           )}
           <div
-            className={cx('ib-list', 'ct-list', empty && 'is-zero', listView.fadeIn && 'ld-rows-in')}
+            className={cx(
+              'ib-list',
+              'ct-list',
+              !withCompany && 'no-company',
+              empty && 'is-zero',
+              listView.fadeIn && 'ld-rows-in',
+            )}
             ref={listRef}
             role="list"
             aria-label={t('contacts.title')}
           >
             {/* The headings stand over the skeleton, the rows and the empty state alike (as in the inbox). */}
-            <ColumnHeads className="ct-cols" labels={CONTACT_COLUMNS.map(key => t(key))} />
+            <ColumnHeads
+              className="ct-cols"
+              labels={(withCompany ? CONTACT_COLUMNS : COLUMNS_WITHOUT_COMPANY).map(key => t(key))}
+            />
             {!waiting &&
               rows.map(row => (
                 <Row
                   key={row.contact.id}
                   row={row}
                   isCursor={cursor === row}
+                  withCompany={withCompany}
                   onOpen={() => page.open(row.contact.id)}
                   onHover={() => page.hover(row.contact.id)}
                 />
@@ -195,7 +206,7 @@ export function Contacts({ menu, toast, openCall, runUndoable }: Props) {
                 what={t('contacts.title')}
                 loading
                 error={loadState === 'slow'}
-                skeleton={<SkeletonRows rows={8} columns={5} />}
+                skeleton={<SkeletonRows rows={8} columns={withCompany ? 5 : 4} />}
               />
             ) : (
               empty && <ZeroState {...contactsEmptyCopy(query)} />

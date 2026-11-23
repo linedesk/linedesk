@@ -113,7 +113,6 @@
   "assistant.name.fallback": "Der Assistent",
   "assistant.name.inSentence": "dein Assistent",
   "assistant.name.label": "Name des Assistenten",
-  "assistant.notice.notRecorded": "Anrufe werden nicht aufgezeichnet",
   "assistant.realtimeVoice.body": "Die Standardstimme legt ein Server-Admin unter <link>Server-Admin › Anbieter</link> fest.",
   "assistant.realtimeVoice.title": "Stimme",
   "assistant.rules.changed": "Geändert",

@@ -113,7 +113,6 @@
   "assistant.name.fallback": "アシスタント",
   "assistant.name.inSentence": "アシスタント",
   "assistant.name.label": "アシスタントの名前",
-  "assistant.notice.notRecorded": "通話は録音されません",
   "assistant.realtimeVoice.body": "既定の音声は、サーバー管理者が<link>「サーバー管理 › プロバイダー」</link>で設定します。",
   "assistant.realtimeVoice.title": "音声",
   "assistant.rules.changed": "変更あり",

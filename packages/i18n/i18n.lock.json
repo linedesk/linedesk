@@ -620,11 +620,6 @@
       "out": "71305216d9874fc67d786b016b5f9cbf0fc79c44c85363b57a1275ca9a32ba9a",
       "src": "98e5132a5a598e7820efd66547a55eb1097d277bf174231365c79753d56f00f9"
     },
-    "account.nav.notifications.description": {
-      "by": "ai",
-      "out": "6ad04ceb472b38939f510aefe7edde471260d1b0e8f32b4dc6962f015393dd35",
-      "src": "1ffee871dbeaef63ac6f44f0d7e13b2300289a07c83af7c12c7a2943da05bd76"
-    },
     "account.nav.notifications.label": {
       "by": "ai",
       "out": "f7205df4f1e2d6bc2514c684348db63c717deef6640866da3585fdcacbba7d1f",
@@ -26375,11 +26370,6 @@
       "out": "4e18aa3905919586a0fe79b6af448ba4f1734150edab19206f83d24c9977fd8f",
       "src": "5a113b5573d804049b4eb22170a50ef0f833081409b66083074e10d9fbd5063b"
     },
-    "settings.assistant.notice.notRecorded": {
-      "by": "ai",
-      "out": "c4c4030d11159d4a23d8e31eab527373f411ebd2f874d707450dcb1942ba8052",
-      "src": "a3d536175209982dc6d1cc6c6cda8754cb1597f63553443f6e73c32635a42618"
-    },
     "settings.assistant.realtimeVoice.body": {
       "by": "ai",
       "out": "05cbe23cddc659a545a46cdc32e4381d0043c0c2a6e93dc5c6cb9cc0330f7002",
@@ -39961,11 +39951,6 @@
       "by": "ai",
       "out": "82031101e0434f804eb444e646ea78ec8366ce936909c09caf5430a2c7c0751d",
       "src": "98e5132a5a598e7820efd66547a55eb1097d277bf174231365c79753d56f00f9"
-    },
-    "account.nav.notifications.description": {
-      "by": "ai",
-      "out": "70cb0f69edc4745e84dd0cf1c466b7e6294163c0ac081c2cdc7d93e4ee4e6784",
-      "src": "1ffee871dbeaef63ac6f44f0d7e13b2300289a07c83af7c12c7a2943da05bd76"
     },
     "account.nav.notifications.label": {
       "by": "ai",
@@ -65717,11 +65702,6 @@
       "out": "fe5a3d3f8c60356497c393dc6f3a4f866225ee2f9442f38ea7f0036ab35670e6",
       "src": "5a113b5573d804049b4eb22170a50ef0f833081409b66083074e10d9fbd5063b"
     },
-    "settings.assistant.notice.notRecorded": {
-      "by": "ai",
-      "out": "8a366983851492e703b51e9253244f7ced83ccb1bd7901cb318dfba2fa3c3834",
-      "src": "a3d536175209982dc6d1cc6c6cda8754cb1597f63553443f6e73c32635a42618"
-    },
     "settings.assistant.realtimeVoice.body": {
       "by": "ai",
       "out": "16db5346a918c4ec2ec5ab19a1ef3555bf212a4b125148fc468a3a8b21dbe825",
@@ -79303,11 +79283,6 @@
       "by": "ai",
       "out": "08e55e069490d7eef8d09becceb749ff54465d9e4819d9ba94b99b0be0e1a033",
       "src": "98e5132a5a598e7820efd66547a55eb1097d277bf174231365c79753d56f00f9"
-    },
-    "account.nav.notifications.description": {
-      "by": "ai",
-      "out": "58bb49dcdc07bd7ac3883189d567ef31090cee7055cf76b387f23b2acd262b28",
-      "src": "1ffee871dbeaef63ac6f44f0d7e13b2300289a07c83af7c12c7a2943da05bd76"
     },
     "account.nav.notifications.label": {
       "by": "ai",
@@ -105059,11 +105034,6 @@
       "out": "349dfefb077c42af7acb1c7f1e75278638c6201c9e14b880e7141e1c9b905fd8",
       "src": "5a113b5573d804049b4eb22170a50ef0f833081409b66083074e10d9fbd5063b"
     },
-    "settings.assistant.notice.notRecorded": {
-      "by": "ai",
-      "out": "34fbc1ca3b04c5d8888083f309bc49140443fd683cbf1643f20da65ebf8a19c1",
-      "src": "a3d536175209982dc6d1cc6c6cda8754cb1597f63553443f6e73c32635a42618"
-    },
     "settings.assistant.realtimeVoice.body": {
       "by": "ai",
       "out": "f71298e434966d132962fe167d524e6cd320b37f999f10cdd57030609077aedf",
@@ -118645,11 +118615,6 @@
       "by": "ai",
       "out": "4d47324392b52c096b93caf15acfcd5633b9be3b4d756a8a57decb67c3e0c167",
       "src": "98e5132a5a598e7820efd66547a55eb1097d277bf174231365c79753d56f00f9"
-    },
-    "account.nav.notifications.description": {
-      "by": "ai",
-      "out": "2f5554b6e6d7e87c19676b8368648a312a07df6283d7701553bc5719fd8ba12c",
-      "src": "1ffee871dbeaef63ac6f44f0d7e13b2300289a07c83af7c12c7a2943da05bd76"
     },
     "account.nav.notifications.label": {
       "by": "ai",
@@ -144401,11 +144366,6 @@
       "out": "40e33378e9da2ae65f29481720cdffa6d9fe2f482f8753456b6ecec3ae7aded0",
       "src": "5a113b5573d804049b4eb22170a50ef0f833081409b66083074e10d9fbd5063b"
     },
-    "settings.assistant.notice.notRecorded": {
-      "by": "ai",
-      "out": "6fd29f2d0515aa197fc43133a480aa455f28dcf740d60ffa16fcb47ec5642bd6",
-      "src": "a3d536175209982dc6d1cc6c6cda8754cb1597f63553443f6e73c32635a42618"
-    },
     "settings.assistant.realtimeVoice.body": {
       "by": "ai",
       "out": "1a27052695105d4f1de4eeb88bb0a0db3b0cbbdfa58203beba623bbdcdab2684",
@@ -157987,11 +157947,6 @@
       "by": "ai",
       "out": "89b315d55adc33d6fd15cc3da2732dcc9a7863a497ee9edbf729cb041efcac74",
       "src": "98e5132a5a598e7820efd66547a55eb1097d277bf174231365c79753d56f00f9"
-    },
-    "account.nav.notifications.description": {
-      "by": "ai",
-      "out": "5d62eb7912c237add090068cd2a243eade65e3f8acab60bde787047b5d0d3e2a",
-      "src": "1ffee871dbeaef63ac6f44f0d7e13b2300289a07c83af7c12c7a2943da05bd76"
     },
     "account.nav.notifications.label": {
       "by": "ai",
@@ -183742,11 +183697,6 @@
       "by": "ai",
       "out": "a5c20278defb2a37340fd8b08c13921a8c1204757925176b77d60876d76c56c6",
       "src": "5a113b5573d804049b4eb22170a50ef0f833081409b66083074e10d9fbd5063b"
-    },
-    "settings.assistant.notice.notRecorded": {
-      "by": "ai",
-      "out": "b97c66c0947bc4cf46568cf2f554d9673ec088098823540a7b5595c59df02cc1",
-      "src": "a3d536175209982dc6d1cc6c6cda8754cb1597f63553443f6e73c32635a42618"
     },
     "settings.assistant.realtimeVoice.body": {
       "by": "ai",

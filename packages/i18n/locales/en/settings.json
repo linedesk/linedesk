@@ -130,7 +130,7 @@
   "assistant.name.fallback": "The assistant",
   "assistant.name.inSentence": "your assistant",
   "assistant.name.label": "Assistant name",
-  "assistant.notice.notRecorded": "Calls are not recorded",
+  "assistant.notice.notRecordedLine": "Calls are not recorded, so {name} doesn't mention recording. <link>Recordings</link>",
   "assistant.realtimeVoice.body": "The default voice is set by an instance admin under <link>Server admin › Providers</link>.",
   "assistant.realtimeVoice.title": "Voice",
   "assistant.rules.changed": "Changed",

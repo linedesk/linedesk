@@ -1292,6 +1292,12 @@ a.as-chip:hover {
 .as-notice-error {
   color: var(--danger);
 }
+/* Calls are not recorded: one quiet line in the notice row's place, under the same divider as the rows above. */
+.as-checklist > .as-not-recorded {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
 
 /* Greeting and Rules: "Callers hear: …", the whole opening as a call says it */
 .as-heard {

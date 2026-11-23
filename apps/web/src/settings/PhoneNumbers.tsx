@@ -51,6 +51,7 @@ import {
 } from '@linedesk/actions'
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { providerAudience } from '../providerAudience.ts'
+import { notAnsweringWhy } from '../inbox/goLive.ts'
 import { usePresence } from '../shell/presence.ts'
 import { useAssistantName, useAssistants, useClaimedRejection, useRows, useRun } from '../store.tsx'
 import { RadioCard, Select } from '../ui/controls.tsx'
@@ -218,6 +219,13 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
           <ListEmpty>{canEdit ? t('settings.phone.empty') : t('settings.phone.emptyMember')}</ListEmpty>
         )}
       </Loading>
+      {numbersLoad === 'ready' && (
+        <NotAnsweringNote
+          number={numbers.find(n => !answering && !forwardingUnverified(n, calls))}
+          assistants={assistants}
+          canFix={isInstanceAdmin}
+        />
+      )}
       {adding && (
         <Dialog title={t('settings.phone.addTitle')} size="md" onClose={() => setAdding(false)}>
           <ConnectNumber
@@ -239,6 +247,44 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
         />
       )}
     </Section>
+  )
+}
+
+/**
+ * Why a number shows "Not answering", and the fix: the inbox header's reasons (notAnsweringWhy), as a warning under
+ * the list. Every number shares the reason (the voice service is the server's), so one note, named after the first
+ * number that is not answering. The fix links to Server admin only for instance admins; everyone else reads what
+ * happens without them.
+ */
+function NotAnsweringNote({
+  number,
+  assistants,
+  canFix,
+}: {
+  number: PhoneNumber | undefined
+  assistants: Assistant[]
+  canFix: boolean
+}) {
+  const t = useT()
+  const presence = usePresence()
+  if (!number) return null
+  const assistant = answeredBy(number, assistants)?.name ?? t('settings.phone.row.theAssistant')
+  const reason = notAnsweringWhy(presence, assistant, canFix)
+  if (!reason) return null
+  return (
+    <Note
+      tone={reason.reason === 'offline' ? 'neutral' : 'warning'}
+      title={reason.title}
+      action={
+        reason.fix && (
+          <a className="k-btn k-btn-secondary k-btn-sm" href={reason.fix.href}>
+            {reason.fix.label}
+          </a>
+        )
+      }
+    >
+      {reason.why}
+    </Note>
   )
 }
 

@@ -466,7 +466,7 @@ function HeardGreeting({ greeting, unless }: { greeting: string; unless?: string
 /**
  * The recording notice, the last row of the checklist: a switch, and under it the sentence said right after the
  * greeting. Said only while the assistant's calls are recorded (the server records, the workspace keeps recordings, the
- * assistant records its calls); otherwise the row is greyed out and says why. Off while calls are recorded: a
+ * assistant records its calls); otherwise one help line in its place says why, with a link to Recordings. Off while calls are recorded: a
  * warning (legal review 2026-11-17, A4).
  */
 function RecordingNoticeRow({ draft, set, recordCalls }: SectionProps & { recordCalls: boolean }) {
@@ -474,12 +474,21 @@ function RecordingNoticeRow({ draft, set, recordCalls }: SectionProps & { record
   const settings = useWorkspaceSettings().data
   const recorded = useCallsRecorded(recordCalls)
   const problem = recordingNoticeProblem(draft)
+  // Nothing to say while calls are not recorded: one quiet line says so, with the place that turns recording on. The
+  // stored switch and sentence stay as they are and apply again once calls are recorded.
+  if (!recorded)
+    return (
+      <p className="help as-not-recorded">
+        <T
+          k="settings.assistant.notice.notRecordedLine"
+          values={{ name: nameInSentence(draft, t), link: appLink(sectionHash('workspace', 'recordings')) }}
+        />
+      </p>
+    )
   return (
     <>
       <SwitchRow
         title={t('settings.recordings.noticeSwitch')}
-        aside={recorded ? undefined : t('settings.assistant.notice.notRecorded')}
-        dimmed={!recorded}
         on={draft.recording_notice_on}
         onChange={on => set('recording_notice_on', on)}
       />
@@ -496,7 +505,7 @@ function RecordingNoticeRow({ draft, set, recordCalls }: SectionProps & { record
           {problem && <span className="help as-notice-error">{problem}</span>}
         </div>
       )}
-      {!draft.recording_notice_on && recorded && (
+      {!draft.recording_notice_on && (
         <Note tone="warning">
           {inEeaOrUk(settings?.resolvedCountry)
             ? t('settings.recordings.noticeOffWarningEu')

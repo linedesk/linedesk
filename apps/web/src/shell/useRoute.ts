@@ -137,7 +137,7 @@ export function linkNotice(target: LinkTarget): string | null {
 
 /**
  * Old links, exact paths first. Settings became Workspace settings (Team is a section of it), your notifications
- * are in Account, Business hours and the webhook (Advanced) in the assistant's settings, Call details became Export calls, Needs
+ * are in Account › Preferences, Business hours and the webhook (Advanced) in the assistant's settings, Call details became Export calls, Needs
  * review became How <assistant> did.
  */
 const MOVED: Record<string, string> = {
@@ -146,8 +146,10 @@ const MOVED: Record<string, string> = {
   'settings/hours': 'assistant/hours',
   'settings/webhooks': 'assistant/advanced/webhook',
   'settings/fields': 'workspace/export',
-  'settings/notifications': 'account/notifications',
-  'assistant/notifications': 'account/notifications',
+  'settings/notifications': 'account/preferences',
+  'assistant/notifications': 'account/preferences',
+  // Your notifications became a part of Preferences.
+  'account/notifications': 'account/preferences',
   team: 'workspace/team',
   // API keys and Zapier left Workspace settings for their own page (LIN-340).
   'settings/developers': 'integrations/api-keys',
@@ -164,7 +166,7 @@ function movedPath(path: string): string | null {
   const [head, ...rest] = path.split('/')
   if (head === 'team') return 'workspace/team'
   // The assistant's notifications (`#assistant/<id>/notifications`) were always your own.
-  if (head === 'assistant' && rest.length === 2 && rest[1] === 'notifications') return 'account/notifications'
+  if (head === 'assistant' && rest.length === 2 && rest[1] === 'notifications') return 'account/preferences'
   // Phone numbers (also one number), recordings, export and unknown sections: the same place in
   // Workspace settings; an unknown one then shows General (knownSectionHash).
   if (head === 'settings' && rest.length > 0) return `workspace/${rest.join('/')}`

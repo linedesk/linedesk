@@ -1,5 +1,5 @@
 // Notifications for finished calls from the open page (Notification API, no push service), when the
-// device switch in Settings › Notifications is on: this browser subscribed for push (the page's
+// device switch in User settings › Preferences is on: this browser subscribed for push (the page's
 // notification and the push share a tag, so one shows), or, where push cannot work, the member's
 // `browser` setting. Only when the tab is in the background, only for calls that finished after the app
 // opened, never for test calls or spam. Clicking one opens the call.

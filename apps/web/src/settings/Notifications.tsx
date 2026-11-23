@@ -1,7 +1,7 @@
-// Account settings › Notifications: your own notifications in this workspace: one switch for notifications on this
-// device (push where the browser and server can, else while Linedesk is open; it asks for the browser's permission
-// itself), assigned-call and setup emails. Call emails are set in one place for the whole team, Assistant › Who hears
-// about calls (CallEmails.tsx, LIN-768); the page's lede links there.
+// User settings › Preferences, under Language: your own notifications in this workspace: one switch for notifications
+// on this device (push where the browser and server can, else while Linedesk is open; it asks for the browser's
+// permission itself), assigned-call and setup emails. Call emails are set in one place for the whole team, Assistant ›
+// Who hears about calls (CallEmails.tsx); the line under the switches links there.
 import type { NotificationSettingsData } from '@linedesk/actions'
 import { type ReactNode, useEffect, useState } from 'react'
 import { brandName } from '../brand.ts'
@@ -16,7 +16,7 @@ import { useCanAssign } from '../team/members.ts'
 import { changedByLabel } from '../team/team-model.ts'
 import { useWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
 import { Loading } from '../ui/LoadStates.tsx'
-import { Section, SkeletonSwitchRows, SwitchRow } from './fields.tsx'
+import { SkeletonSwitchRows, SwitchRow } from './fields.tsx'
 import { permissionText, useNotificationPermission } from './notificationPermission.ts'
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink } from '../ui/AppLink.tsx'
@@ -151,16 +151,18 @@ export function useDeviceNotifications(settings: NotificationSettingsData) {
   return { on, disabled: unavailable, note, set, pushOn: viaPush && on, id: device.id }
 }
 
-/** Each workspace has its own notifications; the page names none (the perWorkspace line says so to who is in several). */
+/**
+ * Each workspace has its own notifications; the page names none (the perWorkspace line says so to who is in several).
+ * A part of Preferences (settings/account/Preferences.tsx), below Language, set off by a line.
+ */
 export function Notifications() {
   const t = useT()
   const query = useNotificationQuery()
   const settings = query.data ?? null
   const error = settings ? null : query.error
-  const description = <WhoHearsLine />
-  if (settings) return <OwnNotifications settings={settings} description={description} />
+  if (settings) return <OwnNotifications settings={settings} />
   return (
-    <Section id="st-notify" title={t('account.nav.notifications.label')} description={description}>
+    <div className="ac-notify">
       <Loading
         what={t('account.notify.what')}
         loading
@@ -170,7 +172,10 @@ export function Notifications() {
       >
         {null}
       </Loading>
-    </Section>
+      <p className="help">
+        <WhoHearsLine />
+      </p>
+    </div>
   )
 }
 
@@ -193,7 +198,7 @@ export function withChange(settings: NotificationSettingsData, change: Notificat
 }
 
 /**
- * The switches of a member's notifications in one workspace: their own page (Account settings › Notifications) and an
+ * The switches of a member's notifications in one workspace: their own (User settings › Preferences) and an
  * owner's or admin's Edit dialog (Workspace settings › Team) show the same ones. `device`: the switch for this
  * device, only on the member's own page (it needs this browser's permission). `pushOn`: pushes reach the member
  * somewhere, so the one-line summary applies. `them`: the wording for someone else's settings.
@@ -250,7 +255,7 @@ export function NotificationSwitches({
   )
 }
 
-function OwnNotifications({ settings, description }: { settings: NotificationSettingsData; description: ReactNode }) {
+function OwnNotifications({ settings }: { settings: NotificationSettingsData }) {
   const t = useT()
   const run = useRun()
   const canAssign = useCanAssign()
@@ -265,28 +270,29 @@ function OwnNotifications({ settings, description }: { settings: NotificationSet
   }
 
   return (
-    <>
+    <div className="ac-notify">
       {/* No sentence above the switches repeating what they say (UI cleanup S8): the switches are the summary. */}
-      <Section id="st-notify" title={t('account.nav.notifications.label')} description={description}>
-        <NotificationSwitches
-          settings={settings}
-          canAssign={canAssign}
-          pushOn={device.pushOn}
-          onChange={change}
-          device={
-            <SwitchRow
-              title={t('account.notify.thisDevice')}
-              description={device.note}
-              on={device.on}
-              onChange={on => void device.set(on)}
-              disabled={device.disabled}
-              dimmed={device.disabled}
-            />
-          }
-        />
-        {settings.changedBy && <p className="help">{changedByLabel(settings.changedBy)}</p>}
-        {several && <p className="help">{t('account.notify.perWorkspace')}</p>}
-      </Section>
-    </>
+      <NotificationSwitches
+        settings={settings}
+        canAssign={canAssign}
+        pushOn={device.pushOn}
+        onChange={change}
+        device={
+          <SwitchRow
+            title={t('account.notify.thisDevice')}
+            description={device.note}
+            on={device.on}
+            onChange={on => void device.set(on)}
+            disabled={device.disabled}
+            dimmed={device.disabled}
+          />
+        }
+      />
+      {settings.changedBy && <p className="help">{changedByLabel(settings.changedBy)}</p>}
+      {several && <p className="help">{t('account.notify.perWorkspace')}</p>}
+      <p className="help">
+        <WhoHearsLine />
+      </p>
+    </div>
   )
 }

@@ -113,7 +113,6 @@
   "assistant.name.fallback": "L'assistant",
   "assistant.name.inSentence": "votre assistant",
   "assistant.name.label": "Nom de l'assistant",
-  "assistant.notice.notRecorded": "Les appels ne sont pas enregistrés",
   "assistant.realtimeVoice.body": "La voix par défaut est définie par un administrateur du serveur dans <link>Administration du serveur › Fournisseurs</link>.",
   "assistant.realtimeVoice.title": "Voix",
   "assistant.rules.changed": "Modifié",

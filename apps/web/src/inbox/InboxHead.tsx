@@ -15,7 +15,7 @@ import { SearchButton, SearchField } from '../ui/listPage.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { type BulkActions, BulkBar } from './BulkBar.tsx'
 import { useGoLiveStepsVisible } from './GoLiveChecklist.tsx'
-import { presenceSaidByChecklist, voiceFailing, voiceFix, voiceNotSetUp } from './goLive.ts'
+import { notAnsweringWhy, presenceSaidByChecklist, voiceFailing, voiceFix, voiceNotSetUp } from './goLive.ts'
 
 export type InboxHeadProps = {
   tab: InboxTab
@@ -189,20 +189,22 @@ function Presence({ liveCall, onOpen, canFixVoice }: Pick<InboxHeadProps, 'liveC
         <span className="ib-maya-t">{t('inbox.presence.cannotAnswerYet', { assistant })}</span>
       </span>
     )
-  // The voice service: the same sentence as the go-live checklist's first step.
-  const fix = canFixVoice ? '#admin/providers/answering' : null
-  const failing = presence.reason === 'failing'
-  const why = failing ? voiceFailing(assistant, Boolean(fix)) : `${voiceNotSetUp(assistant)} ${voiceFix(Boolean(fix))}`
+  // The voice service: the same sentence as the go-live checklist's first step; the words and the fix from
+  // notAnsweringWhy, which Settings › Phone numbers shows too.
+  const reason = notAnsweringWhy(presence, assistant, Boolean(canFixVoice))
+  if (!reason) return null
+  const failing = reason.reason === 'failing'
+  const why = failing
+    ? voiceFailing(assistant, Boolean(reason.fix))
+    : `${voiceNotSetUp(assistant)} ${voiceFix(Boolean(reason.fix))}`
   return (
     <span className="ib-maya is-off" title={why}>
       {/* Whether calls are answered is a status: the mark, never a bare grey dot (design-principles.md, Messages). */}
       <StatusMark state={failing ? 'failing' : 'missing'} label={why} />
-      <span className="ib-maya-t">
-        {failing ? t('inbox.presence.cannotAnswer', { assistant }) : t('inbox.presence.cannotAnswerYet', { assistant })}
-      </span>
-      {fix && (
-        <a className="ib-maya-fix" href={fix}>
-          {failing ? t('inbox.presence.fix') : t('inbox.presence.setUp')}
+      <span className="ib-maya-t">{reason.title}</span>
+      {reason.fix && (
+        <a className="ib-maya-fix" href={reason.fix.href}>
+          {reason.fix.label}
         </a>
       )}
     </span>

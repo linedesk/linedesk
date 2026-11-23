@@ -21,7 +21,6 @@ import { HelpTip } from '../../ui/HelpTip.tsx'
 import { Loading, Skeleton, SkeletonText } from '../../ui/LoadStates.tsx'
 import { type PageSection, SettingsLayout, useSection } from '../../ui/SettingsLayout.tsx'
 import { Field, Section, TextInput } from '../fields.tsx'
-import { Notifications } from '../Notifications.tsx'
 import { AvatarField } from './AvatarField.tsx'
 import {
   ACCOUNT,
@@ -1067,26 +1066,30 @@ function Sessions() {
   )
 }
 
-type SectionId = 'profile' | 'preferences' | 'notifications' | 'security' | 'sessions' | 'apiKeys'
-const SECTION_IDS: readonly SectionId[] = ['profile', 'preferences', 'notifications', 'security', 'sessions', 'apiKeys']
+// Notifications are a part of Preferences (`#account/notifications` opens it, useRoute.ts MOVED).
+type SectionId = 'profile' | 'preferences' | 'security' | 'sessions' | 'apiKeys'
+const SECTION_IDS: readonly SectionId[] = ['profile', 'preferences', 'security', 'sessions', 'apiKeys']
 
-/** The page's sections in the active language; without a workspace there are no notifications to set. */
+/** The page's sections in the active language; without a workspace Preferences is the language alone. */
 function useSections(hasWorkspace: boolean): readonly PageSection<SectionId>[] {
   const t = useT()
   return useMemo(
     () =>
-      SECTION_IDS.filter(id => hasWorkspace || id !== 'notifications').map(id => ({
+      SECTION_IDS.map(id => ({
         id,
         // i18n-dynamic: account.nav.*
         label: t(`account.nav.${id}.label` as MessageKey),
-        description: t(`account.nav.${id}.description` as MessageKey),
+        description:
+          id === 'preferences' && hasWorkspace
+            ? t('account.nav.preferences.descriptionNotify')
+            : t(`account.nav.${id}.description` as MessageKey),
       })),
     [t, hasWorkspace],
   )
 }
 
 type Props = {
-  /** False on the screen without a workspace (NoWorkspace.tsx): no Notifications section. */
+  /** False on the screen without a workspace (NoWorkspace.tsx): no notifications under Preferences. */
   hasWorkspace: boolean
 }
 
@@ -1222,8 +1225,9 @@ function OwnAccount({ hasWorkspace }: Props) {
           />
         )}
         {props && current === 'profile' && <Profile {...props} hasWorkspace={hasWorkspace} />}
-        {current === 'preferences' && <Preferences locale={account?.user.locale} saved={() => void query.reload()} />}
-        {hasWorkspace && current === 'notifications' && <Notifications />}
+        {current === 'preferences' && (
+          <Preferences locale={account?.user.locale} saved={() => void query.reload()} hasWorkspace={hasWorkspace} />
+        )}
         {mainOrigin && (current === 'security' || current === 'sessions' || current === 'apiKeys') ? (
           <MainHostOnly section={current} origin={mainOrigin} />
         ) : (

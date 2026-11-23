@@ -23,5 +23,5 @@ test('links that are already right stay as they are', () => {
 
 test('old section ids and notifications', () => {
   expect(canonicalAssistantHash('#assistant/as_1/calendar', ids)).toBe('#assistant/as_1/booking')
-  expect(canonicalAssistantHash('#assistant/as_1/notifications', ids)).toBe('#account/notifications')
+  expect(canonicalAssistantHash('#assistant/as_1/notifications', ids)).toBe('#account/preferences')
 })

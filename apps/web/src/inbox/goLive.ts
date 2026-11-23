@@ -93,6 +93,56 @@ export const voiceFailing = (assistant: string, canFix: boolean) =>
     fix: canFix ? i18n().t('inbox.voice.fixInAdmin') : i18n().t('inbox.voice.nothingToDoFailing'),
   })
 
+/** Where an instance admin sets up or fixes the voice service. */
+export const VOICE_FIX_HASH = '#admin/providers/answering'
+
+/**
+ * Why the assistant is not answering calls, and the fix: one answer for the inbox header ("Maya can't answer calls
+ * yet · Set up") and Settings › Phone numbers (the note under a number that is not answering). `title`: the
+ * consequence; `why`: the reason, with what the viewer can do about it when there is no link; `fix`: the place that
+ * fixes it, only for who can open it (the voice service: instance admins). null while the assistant answers or it is
+ * not known yet.
+ */
+export type NotAnsweringWhy = {
+  reason: 'number' | 'voice' | 'failing' | 'offline'
+  title: string
+  why: string
+  fix: { href: string; label: string } | null
+}
+
+export function notAnsweringWhy(presence: Presence, assistant: string, canFix: boolean): NotAnsweringWhy | null {
+  const { t } = i18n()
+  if (presence.kind === 'offline')
+    return { reason: 'offline', title: t('inbox.presence.offline'), why: t('inbox.presence.offlineTitle'), fix: null }
+  if (presence.kind !== 'notAnswering') return null
+  if (presence.reason === 'number')
+    return {
+      reason: 'number',
+      title: t('inbox.presence.cannotAnswerYet', { assistant }),
+      why: t('inbox.presence.noNumberTitle', { assistant }),
+      fix: { href: CONNECT_NUMBER, label: t('inbox.presence.setUp') },
+    }
+  const failing = presence.reason === 'failing'
+  const fix = canFix
+    ? { href: VOICE_FIX_HASH, label: failing ? t('inbox.presence.fix') : t('inbox.presence.setUp') }
+    : null
+  return failing
+    ? {
+        reason: 'failing',
+        title: t('inbox.presence.cannotAnswer', { assistant }),
+        why: fix
+          ? t('inbox.voice.failingWhy')
+          : `${t('inbox.voice.failingWhy')} ${t('inbox.voice.nothingToDoFailing')}`,
+        fix,
+      }
+    : {
+        reason: 'voice',
+        title: t('inbox.presence.cannotAnswerYet', { assistant }),
+        why: fix ? t('inbox.voice.notSetUpWhy') : `${t('inbox.voice.notSetUpWhy')} ${voiceFix(false)}`,
+        fix,
+      }
+}
+
 /**
  * The inbox header's "can't answer calls yet" line is left out while the checklist's steps are on screen: its open
  * steps (Maya can answer calls, Connect your number) say the same, with the way to fix it. A live call, "answering"
@@ -144,7 +194,7 @@ export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[]
         ? voiceFailing(assistant, facts.voice.canFix)
         : `${voiceNotSetUp(assistant)} ${voiceFix(facts.voice.canFix)}`,
       done: facts.voice.ready && !facts.voice.failing,
-      href: facts.voice.canFix ? '#admin/providers/answering' : null,
+      href: facts.voice.canFix ? VOICE_FIX_HASH : null,
     })
   if (facts.calendarConnected !== null)
     items.push({
@@ -190,7 +240,7 @@ export function goLiveItems(facts: GoLiveFacts, assistant: string): GoLiveItem[]
       label: t('inbox.goLive.push.label'),
       hint: t('inbox.goLive.push.hint', { brand: brandName() }),
       done: facts.pushOn,
-      href: '#account/notifications',
+      href: '#account/preferences',
     })
   items.push({
     id: 'team',

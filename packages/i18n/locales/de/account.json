@@ -123,7 +123,6 @@
   "mainHost.title": "Auf der normalen Anmeldeseite",
   "nav.apiKeys.description": "Schlüssel für Kommandozeile, KI-Tools und Skripte",
   "nav.apiKeys.label": "Persönliche API-Schlüssel",
-  "nav.notifications.description": "Neue Anrufe per E-Mail und auf diesem Gerät",
   "nav.notifications.label": "Benachrichtigungen",
   "nav.preferences.description": "Sprache",
   "nav.preferences.label": "Präferenzen",

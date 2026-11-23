@@ -123,7 +123,6 @@
   "mainHost.title": "Feito na página de login padrão",
   "nav.apiKeys.description": "Chaves para a linha de comando, ferramentas de IA e scripts",
   "nav.apiKeys.label": "Chaves de API pessoais",
-  "nav.notifications.description": "Novas chamadas por e-mail e neste dispositivo",
   "nav.notifications.label": "Notificações",
   "nav.preferences.description": "Idioma",
   "nav.preferences.label": "Preferências",

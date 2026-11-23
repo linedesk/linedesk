@@ -1,6 +1,7 @@
 import type { GoLiveChecklistData, GoLiveStepState } from '@linedesk/actions'
 import { describe, expect, test } from 'vitest'
 import {
+  notAnsweringWhy,
   calendarReady,
   canSkipGoLiveStep,
   firstCallHint,
@@ -73,7 +74,7 @@ describe('go-live checklist', () => {
       '#workspace/phone',
       null,
       '#assistant/booking',
-      '#account/notifications',
+      '#account/preferences',
       '#workspace/team',
     ])
     expect(items[0]!.hint).toContain('Maya')
@@ -354,5 +355,33 @@ describe('steps for the kind of business (LIN-680)', () => {
     expect(goLiveSettled(server({ ...live, businessKind: 'online_store', faqReviewed: false }))).toBe(false)
     expect(goLiveSettled(server({ ...live, businessKind: 'online_store', faqReviewed: true }))).toBe(true)
     expect(goLiveSettled(server({ ...live, businessKind: 'plumbing_hvac', faqReviewed: false }))).toBe(true)
+  })
+})
+
+describe('why the assistant is not answering (the inbox header and Phone numbers)', () => {
+  test('nothing while it answers or before it is known', () => {
+    expect(notAnsweringWhy({ kind: 'answering' }, 'Maya', true)).toBeNull()
+    expect(notAnsweringWhy({ kind: 'unknown' }, 'Maya', true)).toBeNull()
+  })
+
+  test('the voice service: the fix in Server admin only for instance admins, the others read that it fixes itself', () => {
+    const admin = notAnsweringWhy({ kind: 'notAnswering', reason: 'voice' }, 'Maya', true)!
+    expect(admin.title).toBe("Maya can't answer calls yet")
+    expect(admin.why).toBe("The voice service isn't set up on this server.")
+    expect(admin.fix).toEqual({ href: '#admin/providers/answering', label: 'Set up' })
+    const member = notAnsweringWhy({ kind: 'notAnswering', reason: 'voice' }, 'Maya', false)!
+    expect(member.fix).toBeNull()
+    expect(member.why).toContain('Nothing for you to do')
+  })
+
+  test('a failing provider, no number, offline', () => {
+    const failing = notAnsweringWhy({ kind: 'notAnswering', reason: 'failing' }, 'Maya', true)!
+    expect(failing.title).toBe("Maya can't answer calls")
+    expect(failing.fix?.label).toBe('Fix')
+    expect(notAnsweringWhy({ kind: 'notAnswering', reason: 'failing' }, 'Maya', false)!.why).toContain('once it')
+    expect(notAnsweringWhy({ kind: 'notAnswering', reason: 'number' }, 'Maya', false)!.fix?.href).toBe(
+      '#workspace/phone',
+    )
+    expect(notAnsweringWhy({ kind: 'offline' }, 'Maya', true)).toMatchObject({ reason: 'offline', fix: null })
   })
 })

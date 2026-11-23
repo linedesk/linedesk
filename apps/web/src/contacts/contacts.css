@@ -6,6 +6,10 @@
 .ib-list.ct-list {
   --ct-columns: 128px minmax(110px, 220px) minmax(90px, 160px) minmax(0, 1fr) 84px;
 }
+/* No contact has a company: the column and its heading are left out (Contacts.tsx). */
+.ib-list.ct-list.no-company {
+  --ct-columns: 128px minmax(110px, 220px) minmax(0, 1fr) 84px;
+}
 .row.cust-row.ct-row,
 .ib-list .ib-cols.ct-cols {
   grid-template-columns: var(--ct-columns);

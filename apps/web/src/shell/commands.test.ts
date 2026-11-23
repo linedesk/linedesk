@@ -73,7 +73,7 @@ describe('⌘K places (LIN-165)', () => {
       ['Rename workspace', 'workspace', 'general'],
       ['Time zone', 'workspace', 'general'],
       ['Appointment value', 'workspace', 'general'],
-      ['Notifications', 'account', 'notifications'],
+      ['Notifications', 'account', 'preferences'],
       ['Leave workspace…', 'workspace', 'danger'],
     ]
     for (const [label, ...to] of places) {

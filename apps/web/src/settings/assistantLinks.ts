@@ -20,7 +20,7 @@ export const OLD_SECTIONS: Record<string, string> = {
 /**
  * Where an old or short link belongs, or null when it is already right: `#assistant/<section>` (no assistant) goes
  * to the first assistant, a section id from before the regrouping to its new one, the old Webhook section to the
- * webhook in Advanced, and the assistant's notifications to Account settings › Notifications.
+ * webhook in Advanced, and the assistant's notifications to Account settings › Preferences.
  */
 export function canonicalAssistantHash(hash: string, assistantIds: readonly string[]): string | null {
   const [path = '', query] = hash.replace(/^#/, '').split('?')
@@ -31,8 +31,8 @@ export function canonicalAssistantHash(hash: string, assistantIds: readonly stri
   const section = isAssistant ? parts[1] : parts[0]
   if (!id || !section) return null
   const tail = query ? `?${query}` : ''
-  // Notifications are your own settings now (Account settings › Notifications), not the assistant's.
-  if (section === 'notifications') return `#account/notifications${tail}`
+  // Notifications are your own settings now (Account settings › Preferences), not the assistant's.
+  if (section === 'notifications') return `#account/preferences${tail}`
   const next = OLD_SECTIONS[section] ?? section
   if (isAssistant && next === section) return null
   const below = section === 'webhooks' ? [WEBHOOK_ITEM] : parts.slice(isAssistant ? 2 : 1)

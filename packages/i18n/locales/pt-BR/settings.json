@@ -113,7 +113,6 @@
   "assistant.name.fallback": "O assistente",
   "assistant.name.inSentence": "seu assistente",
   "assistant.name.label": "Nome do assistente",
-  "assistant.notice.notRecorded": "As chamadas não são gravadas",
   "assistant.realtimeVoice.body": "A voz padrão é definida por um administrador do servidor em <link>Administração do servidor › Provedores</link>.",
   "assistant.realtimeVoice.title": "Voz",
   "assistant.rules.changed": "Alterado",
