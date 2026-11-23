@@ -5,7 +5,10 @@ import en from '@linedesk/i18n/locales/en/settings.json'
 import { describe, expect, it, test } from 'vitest'
 import {
   appConnectErrorKey,
-  recommendedFor,
+  catalogView,
+  SUGGESTED_FOR_TRAIT,
+  SUGGESTED_MAX,
+  suggestedFor,
   appConnectResult,
   appPushErrorKey,
   appSettingsWith,
@@ -27,6 +30,7 @@ import {
   nameKey,
   placeOf,
   searchIntegrations,
+  type Status,
   statusOf,
   mailConnectResult,
 } from './catalog.ts'
@@ -417,16 +421,97 @@ describe('What Linedesk does (app switches, LIN-367)', () => {
   })
 })
 
-describe('recommended for the kind of business (LIN-687)', () => {
-  const ids = (kind: Parameters<typeof recommendedFor>[0]) => recommendedFor(kind).map(i => i.id)
-  test('an online store: Shopify and the support mailboxes', () => {
-    expect(ids('online_store')).toEqual(['shopify', 'gmail', 'outlook-mail'])
+describe('suggested for the kind of business (LIN-767)', () => {
+  type Kinds = Partial<Record<string, Status['kind']>>
+  /** Every integration not connected and offered, unless `kinds` says otherwise. */
+  const statusFrom =
+    (kinds: Kinds = {}) =>
+    (id: string): Status['kind'] =>
+      kinds[id] ?? (id === 'servicetitan' ? 'inProgress' : 'notConnected')
+  const ids = (kind: Parameters<typeof suggestedFor>[0], kinds?: Kinds) =>
+    suggestedFor(kind, statusFrom(kinds)).map(i => i.id)
+
+  test('every integration a trait names is in the catalog', () => {
+    for (const id of Object.values(SUGGESTED_FOR_TRAIT).flat()) expect(CATALOG.map(i => i.id)).toContain(id)
   })
-  test('a plumber: calendars and Jobber, never one that is coming soon', () => {
-    expect(ids('plumbing_hvac')).toEqual(expect.arrayContaining(['google', 'microsoft', 'jobber']))
-    expect(ids('plumbing_hvac')).not.toContain('servicetitan')
+  test('a plumber: Jobber, Google Calendar, HubSpot', () => {
+    expect(ids('plumbing_hvac')).toEqual(['jobber', 'google', 'hubspot'])
   })
-  test('no kind: nothing recommended', () => {
+  test('an online store: Shopify, Gmail, HubSpot', () => {
+    expect(ids('online_store')).toEqual(['shopify', 'gmail', 'hubspot'])
+  })
+  test('a law office: a calendar and a mailbox, HubSpot fills up', () => {
+    expect(ids('law_office')).toEqual(['google', 'gmail', 'hubspot'])
+  })
+  test('never more than three', () => {
+    for (const kind of ['plumbing_hvac', 'online_store', 'dental', 'law_office', 'other'] as const)
+      expect(ids(kind).length).toBeLessThanOrEqual(SUGGESTED_MAX)
+  })
+  test('no kind: nothing suggested', () => {
     expect(ids(null)).toEqual([])
+    expect(ids(undefined)).toEqual([])
+  })
+  test('a trait already set up is done: no other calendar instead', () => {
+    expect(ids('plumbing_hvac', { microsoft: 'connected' })).toEqual(['jobber', 'hubspot'])
+    expect(ids('plumbing_hvac', { jobber: 'needsAttention' })).toEqual(['google', 'hubspot'])
+    expect(ids('plumbing_hvac', { hubspot: 'connected' })).toEqual(['jobber', 'google'])
+  })
+  test('one this server offers comes before the preferred one it does not', () => {
+    expect(ids('law_office', { google: 'unavailable', microsoft: 'unavailable', calcom: 'unavailable' })).toEqual([
+      'calendly',
+      'gmail',
+      'hubspot',
+    ])
+  })
+  test('none offered: the preferred one, which then says to ask the server admin', () => {
+    const none = {
+      google: 'unavailable',
+      microsoft: 'unavailable',
+      calcom: 'unavailable',
+      calendly: 'unavailable',
+      caldav: 'unavailable',
+    } as const
+    expect(ids('plumbing_hvac', none)).toEqual(['jobber', 'google', 'hubspot'])
+  })
+  test('never one that is coming soon', () => {
+    expect(ids('plumbing_hvac', { jobber: 'connected' })).not.toContain('servicetitan')
+  })
+})
+
+describe('the catalog list (LIN-767)', () => {
+  const calendarsOff = (id: string): Status['kind'] =>
+    ['google', 'microsoft', 'caldav', 'calcom', 'calendly'].includes(id)
+      ? 'unavailable'
+      : id === 'servicetitan'
+        ? 'inProgress'
+        : 'notConnected'
+  const view = (opts: Partial<Parameters<typeof catalogView>[1]> = {}, found = CATALOG) =>
+    catalogView(found, { only: null, searching: false, kind: 'plumbing_hvac', status: calendarsOff, ...opts })
+
+  test('ones this server does not offer leave their category and fold into one list, in catalog order', () => {
+    const v = view()
+    expect(v.folded.map(i => i.id)).toEqual(['google', 'microsoft', 'caldav', 'calcom', 'calendly'])
+    expect(v.groups.flatMap(g => g.items).some(i => calendarsOff(i.id) === 'unavailable')).toBe(false)
+  })
+  test('a category with nothing offered disappears, and so does its chip', () => {
+    const v = view()
+    expect(v.groups.map(g => g.category)).not.toContain('calendars')
+    expect(v.chips).not.toContain('calendars')
+    expect(v.chips).toContain('crm')
+  })
+  test('everything offered: nothing folded, every chip', () => {
+    const v = view({ status: () => 'notConnected' })
+    expect(v.folded).toEqual([])
+    expect(v.chips).toEqual([...CATEGORIES])
+  })
+  test('suggested on top only for All, not in a category or while searching', () => {
+    expect(view().suggested.map(i => i.id)).toEqual(['jobber', 'google', 'hubspot'])
+    expect(view({ only: 'crm' }).suggested).toEqual([])
+    expect(view({ searching: true }).suggested).toEqual([])
+    expect(view({ kind: null }).suggested).toEqual([])
+  })
+  test('a category filter folds only its own', () => {
+    expect(view({ only: 'crm' }).folded).toEqual([])
+    expect(view({ only: 'calendars' }).folded.length).toBe(5)
   })
 })

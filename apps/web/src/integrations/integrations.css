@@ -60,15 +60,33 @@
   display: grid;
   gap: 8px;
 }
-.ig-group-line {
-  margin: -4px 0 8px;
-  font-size: 12px;
-  color: var(--ink-muted);
-}
 .ig-group h2 {
   margin: 4px 0 0;
   font-size: 12px;
   font-weight: 600;
+  color: var(--ink-muted);
+}
+/* The suggested group's way to change the kind of business: quiet, after its heading. */
+.ig-group-change {
+  margin-left: 8px;
+  font-weight: 400;
+}
+/* The ones this server does not offer: one quiet line at the end, Show lists them. */
+.ig-folded {
+  margin-top: 4px;
+}
+.ig-folded-line {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+/* In the suggested group, in place of the badge and the button: whom to ask. */
+.ig-row-ask {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
   color: var(--ink-muted);
 }
 /* One raised card per category, a line per integration: mark and name, its line, state and button. */
@@ -140,6 +158,13 @@
   }
   .ig-row-end {
     grid-template-columns: auto auto;
+  }
+  /* Whom to ask goes under the description: next to the name it would squeeze it. */
+  .ig-row-asks .ig-row-end {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-items: start;
+    padding-left: 44px;
   }
 }
 

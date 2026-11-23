@@ -1205,8 +1205,6 @@
   "integrations.mcp.withKeyHelp": "OAuthでサインインできないエージェント向けです。APIキーをAuthorization headerで送信します。",
   "integrations.missing.text": "<link>すべての連携</link>を見る。",
   "integrations.missing.title": "「{section}」の連携はありません",
-  "integrations.recommended.line": "あなたの業種：{kind}。<link>変更</link>",
-  "integrations.recommended.title": "あなたのビジネスへのおすすめ",
   "integrations.rest.base": "サーバーのアドレス",
   "integrations.rest.first": "最初のリクエスト：キーが属するワークスペース",
   "integrations.rest.help": "各リクエストはAuthorizationヘッダーでキーを送信します。OpenAPIファイルには、すべての操作とその入力が記載されています。",

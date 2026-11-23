@@ -283,45 +283,88 @@ export function searchIntegrations(
   })
 }
 
-/** The cards by category, in catalog order; `only` keeps one category; empty categories are left out. */
 /**
- * Which businesses each integration is for (LIN-687): the traits of business-kind.ts it serves, [] for every business
- * alike (automation, chat, developer tools). Required for every integration, so a new one says it once; the page shows
- * the ones for the workspace's kind of business on top ("Recommended for your business").
+ * What each trait of a business (business-kind.ts) is served by, the one to suggest first first (LIN-767): the one place
+ * that ties integrations to kinds of business. A calendar when callers book, field-service software when the business
+ * goes out to them, the shop system when it sells online, a support mailbox when customers also write in.
  */
-export const INTEGRATION_TRAITS: Record<IntegrationId, readonly BusinessTrait[]> = {
-  zapier: [],
-  make: [],
-  n8n: [],
-  webhooks: [],
-  google: ['appointments'],
-  microsoft: ['appointments'],
-  caldav: ['appointments'],
-  calcom: ['appointments'],
-  calendly: ['appointments'],
-  hubspot: [],
-  zoho: [],
-  jobber: ['site_visits'],
-  servicetitan: ['site_visits'],
-  shopify: ['online_orders'],
-  slack: [],
-  gmail: ['email_support'],
-  'outlook-mail': ['email_support'],
-  'api-keys': [],
-  'rest-api': [],
-  mcp: [],
+export const SUGGESTED_FOR_TRAIT: Record<BusinessTrait, readonly IntegrationId[]> = {
+  site_visits: ['jobber', 'servicetitan'],
+  online_orders: ['shopify'],
+  appointments: ['google', 'microsoft', 'calcom', 'calendly', 'caldav'],
+  email_support: ['gmail', 'outlook-mail'],
 }
+/** The order traits are suggested in: what sets a kind apart (field service, a shop) before what most have (a calendar). */
+const TRAIT_ORDER: readonly BusinessTrait[] = ['site_visits', 'online_orders', 'appointments', 'email_support']
+/** For every business, when its traits give fewer than SUGGESTED_MAX: a general CRM. */
+const SUGGESTED_FOR_ALL: readonly IntegrationId[] = ['hubspot']
+export const SUGGESTED_MAX = 3
+
+/** Set up already (a connected one that needs fixing too): its trait is done, nothing to suggest for it. */
+const isSetUp = (kind: Status['kind']) => kind === 'connected' || kind === 'needsAttention'
 
 /**
- * The integrations recommended for a kind of business, in catalog order: those for one of its traits that open
- * something (not "Coming soon"). None without a kind: then the page has no such section.
+ * The integrations suggested for a kind of business, at most SUGGESTED_MAX: one per trait it has, in TRAIT_ORDER, the
+ * first of SUGGESTED_FOR_TRAIT this server offers (else the first at all, which then says to ask the server admin);
+ * none for a trait already set up, none that is coming soon; then SUGGESTED_FOR_ALL. None without a kind.
  */
-export function recommendedFor(kind: BusinessKind | null | undefined, list: readonly Integration[] = CATALOG) {
+export function suggestedFor(
+  kind: BusinessKind | null | undefined,
+  status: (id: IntegrationId) => Status['kind'],
+  list: readonly Integration[] = CATALOG,
+): Integration[] {
   if (!kind) return []
   const traits = traitsOf(kind)
-  return list.filter(i => i.opens !== null && INTEGRATION_TRAITS[i.id].some(t => traits.has(t)))
+  const open = (id: IntegrationId) => {
+    const s = status(id)
+    return s !== 'inProgress' && !isSetUp(s) && list.some(i => i.id === id && i.opens !== null)
+  }
+  const ids: IntegrationId[] = []
+  for (const trait of TRAIT_ORDER) {
+    if (!traits.has(trait)) continue
+    const serving = SUGGESTED_FOR_TRAIT[trait]
+    if (serving.some(id => isSetUp(status(id)))) continue
+    const candidates = serving.filter(open)
+    const pick = candidates.find(id => status(id) !== 'unavailable') ?? candidates[0]
+    if (pick) ids.push(pick)
+  }
+  for (const id of SUGGESTED_FOR_ALL)
+    if (ids.length < SUGGESTED_MAX && !ids.includes(id) && open(id) && status(id) !== 'unavailable') ids.push(id)
+  return ids.slice(0, SUGGESTED_MAX).map(id => list.find(i => i.id === id)!)
 }
 
+/**
+ * What the catalog shows (LIN-767): the suggested ones on top (only for All, not while searching), the categories with
+ * what this server offers, and the ones it does not offer folded into one line at the end (in catalog order). `chips`:
+ * the categories that have something this server offers; a category with nothing else is no chip.
+ */
+export function catalogView(
+  found: readonly Integration[],
+  {
+    only,
+    searching,
+    kind,
+    status,
+  }: {
+    only: CategoryId | null
+    searching: boolean
+    kind: BusinessKind | null | undefined
+    status: (id: IntegrationId) => Status['kind']
+  },
+) {
+  const offered = (i: Integration) => status(i.id) !== 'unavailable'
+  return {
+    suggested: searching || only ? [] : suggestedFor(kind, status),
+    groups: byCategory(found.filter(offered), only),
+    folded: byCategory(
+      found.filter(i => !offered(i)),
+      only,
+    ).flatMap(g => g.items),
+    chips: CATEGORIES.filter(c => CATALOG.some(i => i.category === c && offered(i))),
+  }
+}
+
+/** The cards by category, in catalog order; `only` keeps one category; empty categories are left out. */
 export function byCategory(
   list: readonly Integration[],
   only: CategoryId | null = null,

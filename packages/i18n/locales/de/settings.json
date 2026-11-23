@@ -1205,8 +1205,6 @@
   "integrations.mcp.withKeyHelp": "Für einen Agenten, der sich nicht mit OAuth anmelden kann: Er sendet einen API-Schlüssel im Authorization-Header.",
   "integrations.missing.text": "Sieh dir <link>alle Integrationen</link> an.",
   "integrations.missing.title": "Keine Integration unter „{section}“",
-  "integrations.recommended.line": "Art deines Unternehmens: {kind}. <link>Ändern</link>",
-  "integrations.recommended.title": "Empfohlen für dein Unternehmen",
   "integrations.rest.base": "Serveradresse",
   "integrations.rest.first": "Erste Anfrage: zu welchem Workspace der Schlüssel gehört",
   "integrations.rest.help": "Jede Anfrage sendet den Schlüssel im Authorization-Header. Die OpenAPI-Datei listet jede Aktion mit ihren Eingaben auf.",

@@ -7,7 +7,7 @@
 import type { AgentClient } from '@linedesk/actions'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { T, useT } from '@linedesk/i18n/react'
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { brandName } from '../brand.ts'
 import { pollWhileVisible, useQuery } from '../cachedQuery.ts'
 import { AgentSteps } from '../onboarding/AgentForm.tsx'
@@ -19,15 +19,16 @@ import { Section } from '../settings/fields.tsx'
 import { useWorkspaceSettings } from '../settings/settings-api.ts'
 import { setPageKeys } from '../shell/keys.ts'
 import { useRows } from '../store.tsx'
-import { AppLink, appLink } from '../ui/AppLink.tsx'
+import { AppLink, adminLink, appLink, LinkButton } from '../ui/AppLink.tsx'
+import { providerAudience } from '../providerAudience.ts'
 import { Input } from '../ui/form.tsx'
 import { copyText } from '../ui/HelpTip.tsx'
 import { Badge, Button, Kbd, Note } from '../ui/kit.tsx'
 import { SkeletonText, useLoadState } from '../ui/LoadStates.tsx'
 import { ConnectedApp } from './ConnectedApp.tsx'
 import {
-  byCategory,
   CATALOG,
+  catalogView,
   CATEGORIES,
   CATEGORY_LABEL,
   type CategoryId,
@@ -44,7 +45,6 @@ import {
   nameKey,
   openApiAddress,
   placeOf,
-  recommendedFor,
   type Status,
   searchIntegrations,
   statusOf,
@@ -205,14 +205,20 @@ function Catalog({ canManageKeys, toast }: Props) {
   const connect = useDirectConnect(canManageKeys, toast)
   const [query, setQuery] = useState('')
   const [only, setOnly] = useState<CategoryId | null>(null)
+  const [showFolded, setShowFolded] = useState(false)
   const facts = useFacts(canManageKeys)
-  const groups = byCategory(
-    searchIntegrations(CATALOG, query, k => t(k)),
-    only,
-  )
-  // On top, the ones for this kind of business (LIN-687); not while searching or filtering by category.
+  // On top, the ones suggested for this kind of business (LIN-767); not while searching or filtering by category.
   const kind = useWorkspaceSettings().data?.businessKind ?? null
-  const recommended = query || only ? [] : recommendedFor(kind)
+  const statusById = (id: Integration['id']) => statusOf(id, facts)
+  const { suggested, groups, folded, chips } = catalogView(
+    searchIntegrations(CATALOG, query, k => t(k)),
+    {
+      only,
+      searching: query.trim() !== '',
+      kind,
+      status: id => statusById(id).kind,
+    },
+  )
 
   const keys = useRef<(key: string) => boolean>(() => false)
   keys.current = key => {
@@ -225,7 +231,7 @@ function Catalog({ canManageKeys, toast }: Props) {
       return true
     }
     const i = CATEGORIES.findIndex((_, n) => categoryKey(n) === key)
-    if (i >= 0) {
+    if (i >= 0 && chips.includes(CATEGORIES[i]!)) {
       setOnly(c => (c === CATEGORIES[i] ? null : CATEGORIES[i]!))
       return true
     }
@@ -268,34 +274,37 @@ function Catalog({ canManageKeys, toast }: Props) {
             on={only === null}
             onClick={() => setOnly(null)}
           />
-          {CATEGORIES.map((c, i) => (
-            <Chip
-              key={c}
-              label={t(CATEGORY_LABEL[c])}
-              shortcut={categoryKey(i)}
-              on={only === c}
-              onClick={() => setOnly(only === c ? null : c)}
-            />
-          ))}
+          {CATEGORIES.map((c, i) =>
+            chips.includes(c) ? (
+              <Chip
+                key={c}
+                label={t(CATEGORY_LABEL[c])}
+                shortcut={categoryKey(i)}
+                on={only === c}
+                onClick={() => setOnly(only === c ? null : c)}
+              />
+            ) : null,
+          )}
         </div>
       </div>
-      {kind && recommended.length > 0 && (
-        <section className="ig-group ig-recommended" aria-labelledby="ig-cat-recommended">
-          <h2 id="ig-cat-recommended">{t('settings.integrations.recommended.title')}</h2>
-          <p className="ig-group-line">
-            <T
-              k="settings.integrations.recommended.line"
-              values={{ kind: kindLabel(kind), link: appLink('#workspace/general') }}
-            />
-          </p>
+      {kind && suggested.length > 0 && (
+        <section className="ig-group ig-suggested" aria-labelledby="ig-cat-suggested">
+          <h2 id="ig-cat-suggested">
+            {t('settings.integrations.suggested.title', { kind: kindLabel(kind) })}
+            <span className="ig-group-change">
+              <AppLink to="#workspace/general" title={t('settings.integrations.suggested.changeTip')}>
+                {t('settings.integrations.suggested.change')}
+              </AppLink>
+            </span>
+          </h2>
           <div className="k-card ig-list">
-            {recommended.map(i => (
-              <Row key={i.id} integration={i} status={statusOf(i.id, facts)} connect={connect} />
+            {suggested.map(i => (
+              <Row key={i.id} integration={i} status={statusById(i.id)} connect={connect} suggested />
             ))}
           </div>
         </section>
       )}
-      {groups.length === 0 ? (
+      {groups.length === 0 && folded.length === 0 ? (
         <p className="ig-empty">{t('settings.integrations.search.none', { query })}</p>
       ) : (
         groups.map(g => (
@@ -303,14 +312,69 @@ function Catalog({ canManageKeys, toast }: Props) {
             <h2 id={`ig-cat-${g.category}`}>{t(CATEGORY_LABEL[g.category])}</h2>
             <div className="k-card ig-list">
               {g.items.map(i => (
-                <Row key={i.id} integration={i} status={statusOf(i.id, facts)} connect={connect} />
+                <Row key={i.id} integration={i} status={statusById(i.id)} connect={connect} />
               ))}
             </div>
           </section>
         ))
       )}
+      {folded.length > 0 && (
+        <Folded
+          count={folded.length}
+          open={showFolded || groups.length === 0}
+          // A search that finds only these lists them at once, with nothing to toggle.
+          onToggle={groups.length === 0 ? undefined : () => setShowFolded(v => !v)}
+        >
+          {folded.map(i => (
+            <Row key={i.id} integration={i} status={statusById(i.id)} connect={connect} />
+          ))}
+        </Folded>
+      )}
       {connect.dialog}
     </>
+  )
+}
+
+/**
+ * The integrations this server does not offer, as one quiet line at the end (LIN-767): how many, who can switch them on
+ * (an instance admin gets the link to Server admin › Providers), and Show, which lists them with their badge.
+ */
+function Folded({
+  count,
+  open,
+  onToggle,
+  children,
+}: {
+  count: number
+  open: boolean
+  /** Show and Hide; none when the list is always open. */
+  onToggle?: (() => void) | undefined
+  children: ReactNode
+}) {
+  const t = useT()
+  const admin = providerAudience() === 'admin'
+  return (
+    <section className="ig-group ig-folded" aria-label={t('settings.integrations.folded.label')}>
+      <p className="ig-folded-line">
+        {admin ? (
+          <T k="settings.integrations.folded.admin" values={{ count, link: adminLink('#admin/providers', true) }} />
+        ) : (
+          t('settings.integrations.folded.member', { count })
+        )}
+        {onToggle && (
+          <>
+            <span aria-hidden="true"> · </span>
+            <LinkButton
+              onClick={onToggle}
+              title={t(open ? 'settings.integrations.folded.hideTip' : 'settings.integrations.folded.showTip')}
+            >
+              {t(open ? 'settings.integrations.folded.hide' : 'settings.integrations.folded.show')}
+            </LinkButton>
+          </>
+        )}
+      </p>
+      {open && <div className="k-card ig-list">{children}</div>}
+    </section>
   )
 }
 
@@ -327,16 +391,29 @@ function Chip({ label, shortcut, on, onClick }: { label: string; shortcut: strin
  * right. Only the button acts: Connect opens the provider's sign-in at once where it can (directConnect.tsx), else the
  * place where it is set up; Manage, Fix and Open go to its page.
  */
-function Row({ integration, status, connect }: { integration: Integration; status: Status; connect: DirectConnect }) {
+function Row({
+  integration,
+  status,
+  connect,
+  suggested,
+}: {
+  integration: Integration
+  status: Status
+  connect: DirectConnect
+  /** In the suggested group: one this server does not offer says whom to ask instead of its badge. */
+  suggested?: boolean
+}) {
   const t = useT()
   const name = t(nameKey(integration.id))
   const line = t(lineKey(integration.id))
   const action = integration.opens ? ACTION[status.kind] : undefined
   const direct = status.kind === 'notConnected' && connect.can(integration.id)
   const opening = connect.opening === integration.id
-  const className = `k-btn ${status.kind === 'notConnected' ? 'k-btn-primary' : 'k-btn-secondary'} k-btn-sm ig-row-action`
+  const asks = suggested && status.kind === 'unavailable'
+  // Secondary everywhere: a list of black Connect buttons has no focal point (LIN-767).
+  const className = 'k-btn k-btn-secondary k-btn-sm ig-row-action'
   return (
-    <article className="ig-row">
+    <article className={asks ? 'ig-row ig-row-asks' : 'ig-row'}>
       <div className="ig-row-name">
         <IntegrationMark mark={integration.mark} />
         <h3>{name}</h3>
@@ -345,7 +422,7 @@ function Row({ integration, status, connect }: { integration: Integration; statu
         {line}
       </p>
       <div className="ig-row-end">
-        <StatusBadge id={integration.id} status={status} />
+        {asks ? <AskAdmin /> : <StatusBadge id={integration.id} status={status} />}
         {direct ? (
           <button
             type="button"
@@ -372,6 +449,20 @@ function Row({ integration, status, connect }: { integration: Integration; statu
         )}
       </div>
     </article>
+  )
+}
+
+/** In place of "Not on this server" in the suggested group: who switches it on, as quiet words. */
+function AskAdmin() {
+  const t = useT()
+  return (
+    <p className="ig-row-ask">
+      {providerAudience() === 'admin' ? (
+        <T k="settings.integrations.suggested.askAdmin" values={{ link: adminLink('#admin/providers', true) }} />
+      ) : (
+        t('settings.integrations.suggested.ask')
+      )}
+    </p>
   )
 }
 
@@ -414,7 +505,7 @@ function StatusBadge({ id, status }: { id: Integration['id']; status: Status }) 
       )
     }
     case 'notConnected':
-      // The black Connect button says it; no badge beside it.
+      // The Connect button says it; no badge beside it.
       return null
     case 'unavailable':
       return (

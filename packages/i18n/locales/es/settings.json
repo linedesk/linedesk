@@ -1205,8 +1205,6 @@
   "integrations.mcp.withKeyHelp": "Para un agente que no puede iniciar sesión con OAuth: envía una clave de API en el encabezado Authorization.",
   "integrations.missing.text": "Consulta <link>todas las integraciones</link>.",
   "integrations.missing.title": "No hay integraciones en “{section}”",
-  "integrations.recommended.line": "Tu tipo de negocio: {kind}. <link>Cambiar</link>",
-  "integrations.recommended.title": "Recomendado para tu negocio",
   "integrations.rest.base": "Dirección del servidor",
   "integrations.rest.first": "Primera solicitud: a qué espacio de trabajo pertenece la clave",
   "integrations.rest.help": "Cada solicitud envía la clave en el encabezado Authorization. El archivo OpenAPI lista todas las acciones, con sus datos de entrada.",

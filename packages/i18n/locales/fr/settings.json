@@ -1205,8 +1205,6 @@
   "integrations.mcp.withKeyHelp": "Pour un agent qui ne peut pas se connecter avec OAuth : il envoie une clé d'API dans l'en-tête Authorization.",
   "integrations.missing.text": "Voir <link>toutes les intégrations</link>.",
   "integrations.missing.title": "Aucune intégration dans « {section} »",
-  "integrations.recommended.line": "Votre type d'entreprise : {kind}. <link>Modifier</link>",
-  "integrations.recommended.title": "Recommandé pour votre entreprise",
   "integrations.rest.base": "Adresse du serveur",
   "integrations.rest.first": "Première requête : à quel espace de travail appartient la clé",
   "integrations.rest.help": "Chaque requête envoie la clé dans l'en-tête Authorization. Le fichier OpenAPI liste toutes les actions, avec leurs entrées.",
