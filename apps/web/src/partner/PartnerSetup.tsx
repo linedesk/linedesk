@@ -32,7 +32,7 @@ import { switchToWorkspace } from '../shell/invitations.ts'
 import { FormField, FormMessage, Input } from '../ui/form.tsx'
 import { Button } from '../ui/kit.tsx'
 import { Loading, SkeletonFields } from '../ui/LoadStates.tsx'
-import { List, ListRow } from '../ui/list.tsx'
+import { List, ListRow, MenuButton } from '../ui/list.tsx'
 import { PlanCard, usePlanPrice } from '../ui/PlanCard.tsx'
 import { usePrice } from '../ui/price.tsx'
 import { InviteOwnerDialog, NewClientDialog, roomForClient, unpaidPartner } from './PartnerArea.tsx'
@@ -375,23 +375,21 @@ export function ClientsStep({
   useSetupKeys(adding || inviting ? {} : { onEnter: empty ? () => setAdding(true) : onNext, onEscape: onBack })
 
   const actionsFor = (c: PartnerClient) => {
-    const button = (way: 'agent' | 'hand' | 'number', variant: 'ghost' | 'secondary', label: string) => (
-      <Button
-        size="sm"
-        variant={variant}
-        busy={opening === `${way}:${c.id}`}
-        disabled={!!opening}
-        onClick={() => void open(c, way)}
-      >
-        {label}
-      </Button>
-    )
+    // A draft: the partner area's one "Set up ▾" menu (ClientTable), the agent first.
     if (unpaid)
       return (
-        <>
-          {button('hand', 'ghost', t('team.partner.setup.clients.byHand'))}
-          {button('agent', 'secondary', t('team.partner.setup.clients.withAgent'))}
-        </>
+        <MenuButton
+          label={t('team.partner.clients.setUp')}
+          chevron
+          variant="secondary"
+          align="end"
+          disabled={!!opening}
+          title={t('team.partner.clients.setUpTip', { name: c.name })}
+          items={[
+            { id: 'agent', label: t('team.partner.setup.clients.withAgent'), onSelect: () => void open(c, 'agent') },
+            { id: 'hand', label: t('team.partner.setup.clients.byHand'), onSelect: () => void open(c, 'hand') },
+          ]}
+        />
       )
     const row = rows.data?.clients.find(r => r.id === c.id)
     return (
@@ -401,7 +399,17 @@ export function ClientsStep({
             {t('team.partner.clients.inviteOwner')}
           </Button>
         )}
-        {row && !row.number && button('number', 'secondary', t('team.partner.setup.clients.addNumber'))}
+        {row && !row.number && (
+          <Button
+            size="sm"
+            variant="secondary"
+            busy={opening === `number:${c.id}`}
+            disabled={!!opening}
+            onClick={() => void open(c, 'number')}
+          >
+            {t('team.partner.setup.clients.addNumber')}
+          </Button>
+        )}
       </>
     )
   }

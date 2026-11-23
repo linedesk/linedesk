@@ -357,7 +357,7 @@ export function InviteSignIn({
                 onClick={() =>
                   attempt(m.id, async () => {
                     // Counted as a sign-in only once it comes back with a session (loadAccount).
-                    startRedirectSignIn(m.id)
+                    startRedirectSignIn(m.id, m.label)
                     fail(await auth.signIn.social({ provider: m.id, ...back }))
                   })
                 }

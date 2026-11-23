@@ -167,7 +167,7 @@ export function Login({ onDone, reauth }: { onDone: () => Promise<void>; reauth?
 
   function continueWith(method: SsoMethod) {
     void attempt(method.id, async () => {
-      rememberSignInMethod(method.id)
+      rememberSignInMethod(method.id, method.label)
       fail(await startSso(method))
       return true
     })
@@ -621,7 +621,7 @@ export function CodeWait({ waitS, providerNote }: { waitS: number; providerNote?
         <ProviderButton key={m.id} method={m.id} label={m.label} lastUsed={false} busy={opening === m.id} disabled={opening !== null}
           onClick={() => {
             setOpening(m.id)
-            rememberSignInMethod(m.id)
+            rememberSignInMethod(m.id, m.label)
             void startSso(m).then(res => { if (res.error) setOpening(null) }, () => setOpening(null))
           }} />
       ))}

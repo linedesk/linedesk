@@ -5,6 +5,7 @@ import { markSignedIn } from './passkey-ask.ts'
 export type SignInMethodId = 'email' | 'password' | string
 
 const LAST_USED_KEY = 'linedesk.lastSignInMethod'
+const LAST_PROVIDER_KEY = 'linedesk.lastSignInProvider'
 
 export function readLastUsedMethod(): SignInMethodId | null {
   try {
@@ -14,13 +15,28 @@ export function readLastUsedMethod(): SignInMethodId | null {
   }
 }
 
-/** A sign-in with `method` on this device: remembered, and without a passkey the "Add a passkey" page is due (passkey-ask.ts). */
-export function rememberSignInMethod(method: SignInMethodId) {
+/**
+ * A sign-in with `method` on this device: remembered, and without a passkey the "Add a passkey" page is due (passkey-ask.ts).
+ * `provider`: the provider's name (Google, Microsoft, GitHub, an SSO's label) when it was one, so that page can say
+ * what a passkey saves them ("without Google") instead of the email code they never used.
+ */
+export function rememberSignInMethod(method: SignInMethodId, provider?: string) {
   markSignedIn(method)
   try {
     localStorage.setItem(LAST_USED_KEY, method)
+    if (provider) localStorage.setItem(LAST_PROVIDER_KEY, provider)
+    else localStorage.removeItem(LAST_PROVIDER_KEY)
   } catch {
     // Without storage the badge just does not show.
+  }
+}
+
+/** The provider's name when this device last signed in with one (Google, Microsoft, GitHub, an SSO), else null. */
+export function lastSignInProvider(): string | null {
+  try {
+    return localStorage.getItem(LAST_PROVIDER_KEY) || null
+  } catch {
+    return null
   }
 }
 
@@ -60,9 +76,9 @@ const REDIRECT_KEY = 'linedesk.signInRedirect'
  * A provider sign-in that leaves the page (the invitation page): which method, remembered only for this tab until it
  * comes back. `takeRedirectSignIn` then remembers it as a sign-in once there is a session, never before.
  */
-export function startRedirectSignIn(method: SignInMethodId) {
+export function startRedirectSignIn(method: SignInMethodId, provider?: string) {
   try {
-    sessionStorage.setItem(REDIRECT_KEY, method)
+    sessionStorage.setItem(REDIRECT_KEY, JSON.stringify({ method, provider }))
   } catch {
     // Without storage the page after signing in does not know the method; nothing else depends on it.
   }
@@ -70,12 +86,29 @@ export function startRedirectSignIn(method: SignInMethodId) {
 
 /** Back with a session: the provider sign-in started here counts as this device's sign-in (once). */
 export function takeRedirectSignIn(signedIn: boolean) {
-  let method: string | null = null
+  let saved: string | null = null
   try {
-    method = sessionStorage.getItem(REDIRECT_KEY)
+    saved = sessionStorage.getItem(REDIRECT_KEY)
     sessionStorage.removeItem(REDIRECT_KEY)
   } catch {
     return
   }
-  if (method && signedIn) rememberSignInMethod(method)
+  if (!saved || !signedIn) return
+  const { method, provider } = parseRedirect(saved)
+  if (method) rememberSignInMethod(method, provider)
+}
+
+/** `{ method, provider }` as startRedirectSignIn saves it; a bare method id from a tab opened before that. */
+function parseRedirect(saved: string): { method: string | null; provider?: string } {
+  try {
+    const value: unknown = JSON.parse(saved)
+    if (value && typeof value === 'object' && 'method' in value && typeof value.method === 'string')
+      return {
+        method: value.method,
+        provider: 'provider' in value && typeof value.provider === 'string' ? value.provider : undefined,
+      }
+  } catch {
+    // Not JSON: the bare method id.
+  }
+  return { method: saved }
 }

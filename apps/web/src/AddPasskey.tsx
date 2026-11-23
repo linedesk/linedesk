@@ -6,13 +6,22 @@ import { useT } from '@linedesk/i18n/react'
 import { useState } from 'react'
 import { signInAgain } from './localData.ts'
 import { PAUSE_DAYS, pause } from './passkey-ask.ts'
+import { lastSignInProvider } from './sign-in-methods.ts'
 import { addPasskeyForThisDevice, SignInAgain } from './settings/account/account-api.ts'
 import { AuthError } from './ui/AuthError.tsx'
 import { HelpTip } from './ui/form.tsx'
 import { Button, cx, Note, Spinner } from './ui/kit.tsx'
 import { SignedInAuthPage } from './shell/SignedInAuthPage.tsx'
 
-/** The one line why (auth.addPasskey.why) and the longer explanation behind the "?" (auth.addPasskey.help). */
+/**
+ * The one line why, by how this device signed in: after a provider (Google, Microsoft, GitHub, an SSO) what a passkey
+ * saves is that provider's page, else the email code. The longer explanation sits behind the "?" (auth.addPasskey.help).
+ */
+function useWhy(): string {
+  const t = useT()
+  const provider = lastSignInProvider()
+  return provider ? t('auth.addPasskey.whyProvider', { provider }) : t('auth.addPasskey.why')
+}
 
 type Step = 'ask' | 'adding' | 'added'
 
@@ -50,6 +59,7 @@ type PageProps = {
 /** Right after signing in without a passkey: one calm question before the app. */
 export function AddPasskeyPage({ account, onAdded, onDone }: PageProps) {
   const t = useT()
+  const why = useWhy()
   const request = useAddPasskey(() => {})
   if (request.step === 'added') {
     return (
@@ -77,7 +87,7 @@ export function AddPasskeyPage({ account, onAdded, onDone }: PageProps) {
       <div className="auth-card">
         <h1>{t('auth.addPasskey.title')}</h1>
         <p className="auth-why">
-          {t('auth.addPasskey.why')} <HelpTip text={t('auth.addPasskey.help')} />
+          {why} <HelpTip text={t('auth.addPasskey.help')} />
         </p>
         {request.error && <AuthError message={request.error} />}
         {request.needsSignIn ? (
@@ -125,6 +135,7 @@ type CardProps = {
 /** In the app, for members without a passkey: a small card at the bottom right, like the star prompt. */
 export function PasskeyCard({ account, needsEnrolmentCode, onAdded, onClose }: CardProps) {
   const t = useT()
+  const why = useWhy()
   const request = useAddPasskey(onAdded)
   const adding = request.step === 'adding'
   const notNow = () => {
@@ -136,7 +147,7 @@ export function PasskeyCard({ account, needsEnrolmentCode, onAdded, onClose }: C
       <h2>
         {t('auth.addPasskey.title')} <HelpTip text={t('auth.addPasskey.help')} />
       </h2>
-      <p>{t('auth.addPasskey.why')}</p>
+      <p>{why}</p>
       {request.error && <Note tone="danger">{request.error}</Note>}
       <div className="tour-foot">
         <span className="tour-count" />

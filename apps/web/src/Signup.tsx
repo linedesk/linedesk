@@ -332,7 +332,7 @@ export function EmailStep({
       setOpening(null)
       return refused(answer)
     }
-    rememberSignInMethod(method.id)
+    rememberSignInMethod(method.id, method.label)
     const res = await startSso(method).catch(() => ({ error: true }))
     if (res.error) {
       setOpening(null)

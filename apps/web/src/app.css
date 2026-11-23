@@ -335,6 +335,16 @@ a.auth-switch {
   padding: 0 3px;
   font-size: 10px;
 }
+/* The row's actions float over the duration and the status column's end (right: 14px). With Call back shown, the
+   status column ends 6px before them, so the pill and its key stay whole and the next step gives way (ellipsis):
+   actions (24px each, 2px apart, 8px lead) + 14px + 6px, less the duration column, its gap and the gutter. */
+.ib-list .row:not(.cust-row) .r-status:has(.r-callback) {
+  --r-acts-w: calc(3 * 24px + 2 * 2px + 8px);
+  padding-right: calc(var(--r-acts-w) + 14px + 6px - 56px - 14px - var(--gutter));
+}
+.ib-list .row:not(.cust-row):has(.r-act-assign) .r-status:has(.r-callback) {
+  --r-acts-w: calc(4 * 24px + 3 * 2px + 8px);
+}
 /* Phones: a tap opens the call (its Call button) and the row's ⋯ lists Call back, so the row stays two short lines. */
 @media (max-width: 719px) {
   .r-callback {

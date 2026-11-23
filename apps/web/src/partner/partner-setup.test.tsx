@@ -159,10 +159,10 @@ const clientsStepHtml = (clients: number, bill?: Bill['status']) =>
   )
 const LEDE = 'Each client gets its own workspace, assistant and number.'
 
-test('Clients: each draft set up with the agent (the default) or by hand; Add client up to the cap; none is fine', () => {
+test('Clients: each draft gets the one Set up menu of the partner area; Add client up to the cap; none is fine', () => {
   const none = clientsStepHtml(0)
   expect(none).toContain('Add client')
-  expect(none).not.toContain('With an AI agent')
+  expect(none).not.toContain('aria-haspopup="menu"')
   // None yet: Add client is the step's one primary, "Later" the quiet way on (never the main button), no Continue.
   expect(none).toMatch(/k-btn-primary[^>]*>(<[^>]+>)*Add client/)
   expect(none).toMatch(/k-btn-ghost[^>]*>(<[^>]+>)*Later/)
@@ -170,9 +170,10 @@ test('Clients: each draft set up with the agent (the default) or by hand; Add cl
   expect(none.match(/k-btn-primary/g)?.length).toBe(1)
   const one = clientsStepHtml(1)
   expect(one).toContain('Client 0')
-  // With the agent is the filled button, by hand the quiet one.
-  expect(one).toMatch(/k-btn-secondary[^>]*>(<[^>]+>)*With an AI agent/)
-  expect(one).toMatch(/k-btn-ghost[^>]*>(<[^>]+>)*By hand/)
+  // One "Set up ▾" menu (with the agent, by hand), as in the partner area's client list; never two buttons.
+  expect(one).toMatch(/aria-haspopup="menu"[^>]*>(<[^>]+>)*Set up/)
+  expect(one).not.toContain('By hand')
+  expect(one).not.toContain('With an AI agent')
   expect(one).not.toMatch(/<span>Later<\/span>/)
   expect(one).toMatch(/k-btn-primary[^>]*>(<[^>]+>)*Continue/)
   expect(one).not.toContain('disabled=""')
@@ -183,7 +184,7 @@ test('Clients: each draft set up with the agent (the default) or by hand; Add cl
     `<p class="ps-fine">Add up to ${UNPAID_PARTNER_CLIENTS} clients now. You can add more after you activate.</p>`,
   )
   const full = clientsStepHtml(UNPAID_PARTNER_CLIENTS)
-  expect(full.match(/With an AI agent/g)?.length).toBe(UNPAID_PARTNER_CLIENTS)
+  expect(full.match(/aria-haspopup="menu"/g)?.length).toBe(UNPAID_PARTNER_CLIENTS)
   expect(full.match(/You can add more after you activate/g)?.length).toBe(2)
   expect(full).toMatch(/disabled=""[^>]*>(<[^>]+>)*Add client|title="Add up to[^"]*"[^>]*disabled=""/)
 })
@@ -194,7 +195,7 @@ test('once White-label Cloud runs, a client row says who owns it and offers what
   expect(paid).not.toContain('You can add more after you activate')
   expect(paid.match(/No owner yet/g)?.length).toBe(2)
   expect(paid.match(/>Invite owner</g)?.length).toBe(2)
-  expect(paid).not.toContain('With an AI agent')
+  expect(paid).not.toContain('aria-haspopup="menu"')
   // The last step now: Done ends the setup.
   expect(paid).toMatch(/k-btn-primary[^>]*>(<[^>]+>)*Done/)
 })

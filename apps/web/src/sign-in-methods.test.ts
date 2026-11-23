@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { signedInJustNow } from './passkey-ask.ts'
 import {
+  lastSignInProvider,
   passkeyRequestClosed,
   readLastUsedMethod,
   rememberSignInMethod,
@@ -23,6 +24,20 @@ describe('last used sign-in method', () => {
     expect(readLastUsedMethod()).toBe('google')
   })
 
+  it('remembers the name of the provider for the passkey page; a sign-in without one forgets it', () => {
+    const memory = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => memory.get(k) ?? null,
+      setItem: (k: string, v: string) => memory.set(k, v),
+      removeItem: (k: string) => memory.delete(k),
+    })
+    expect(lastSignInProvider()).toBeNull()
+    rememberSignInMethod('microsoft', 'Microsoft')
+    expect(lastSignInProvider()).toBe('Microsoft')
+    rememberSignInMethod('email')
+    expect(lastSignInProvider()).toBeNull()
+  })
+
   it('shows no badge and does not fail when storage is blocked', () => {
     const blocked = () => {
       throw new DOMException('denied', 'SecurityError')
@@ -30,6 +45,7 @@ describe('last used sign-in method', () => {
     vi.stubGlobal('localStorage', { getItem: blocked, setItem: blocked })
     expect(() => rememberSignInMethod('email')).not.toThrow()
     expect(readLastUsedMethod()).toBeNull()
+    expect(lastSignInProvider()).toBeNull()
   })
 })
 
@@ -89,6 +105,19 @@ describe('a provider sign-in that leaves the page', () => {
     takeRedirectSignIn(true)
     expect(readLastUsedMethod()).toBe('google')
     expect(signedInJustNow()).toBe(true)
+    expect(lastSignInProvider()).toBeNull()
+  })
+
+  it('keeps the name of the provider across the redirect; a bare method id from an older tab still counts', () => {
+    stubStorage()
+    startRedirectSignIn('github', 'GitHub')
+    takeRedirectSignIn(true)
+    expect(readLastUsedMethod()).toBe('github')
+    expect(lastSignInProvider()).toBe('GitHub')
+    sessionStorage.setItem('linedesk.signInRedirect', 'google')
+    takeRedirectSignIn(true)
+    expect(readLastUsedMethod()).toBe('google')
+    expect(lastSignInProvider()).toBeNull()
   })
 
   it('comes back without a session (refused, cancelled): nothing is remembered, also not later', () => {
