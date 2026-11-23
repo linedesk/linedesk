@@ -4,7 +4,8 @@ import { expect, test } from 'vitest'
 import { TurnstileBox } from './Signup.tsx'
 
 // The sign-up page's bot check (Cloudflare Turnstile): the widget has its own fixed width, so its box centers it in
-// the column like the field and the button around it; an invisible widget gives its room back once it passed.
+// the column like the field and the button around it. It shows only when Cloudflare needs the person
+// (interaction-only), so no room is kept for it, and its box gives back the column's gap while nothing shows.
 const css = readFileSync(new URL('./app.css', import.meta.url), 'utf8')
 /** The declarations of the first rule with exactly this selector. */
 const rule = (selector: string) => {
@@ -24,15 +25,16 @@ test('both sign-up steps render the bot check through the one centered box', () 
   )
 })
 
-test('the widget is centered at its own height, with its room kept until an invisible one passed', () => {
+test('the widget is centered at its own height, with no room kept while nothing shows', () => {
   const box = rule('.auth-turnstile')
   expect(box).toMatch(/display: flex;/)
   expect(box).toMatch(/justify-content: center;/)
   // Not stretched to the kept height: an invisible widget measures 0 tall.
   expect(box).toMatch(/align-items: flex-start;/)
-  expect(box).toMatch(/min-height: 65px;/)
+  expect(box).not.toMatch(/min-height/)
   const collapsed = rule('.auth-turnstile.is-collapsed')
-  expect(collapsed).toMatch(/min-height: 0;/)
+  const page = readFileSync(new URL('./Signup.tsx', import.meta.url), 'utf8')
+  expect(page).toMatch(/appearance: 'interaction-only'/)
   // Gives back the column's gap, so the button sits where it would without a bot check.
   const gap = /gap: (\d+)px;/.exec(rule('.auth-form'))?.[1]
   expect(gap).toBe('12')

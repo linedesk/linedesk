@@ -68,6 +68,7 @@ export const BROWSER_ONLY_ROUTES: ReadonlyMap<string, string> = new Map([
   ['/v1/branding/logo.png', 'public, before sign-in'],
   ['/v1/signup/config', 'public, the sign-up page before sign-in'],
   ['/v1/signup/code', 'public, the sign-up page asks for an email code'],
+  ['/v1/signup/provider', 'public, the sign-up page before a sign-in provider'],
   ['/v1/signup', 'the sign-up page, signed in with an email code'],
 ])
 

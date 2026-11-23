@@ -2,9 +2,11 @@
 // actions, the details as a form whose fields save themselves (contact.update), and their calls.
 import type { Call, Contact } from '@linedesk/db/types'
 import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
-import { CallLink, ConfirmCallerName, nameFromCaller } from '../call/ContactSide.tsx'
+import { CallLink, ConfirmCallerName, FoldedFields, KeepFromCall, nameFromCaller } from '../call/ContactSide.tsx'
+import { callsFactSuggestions, foldedFields } from '../call/factSuggestions.ts'
 import { useInlineEdit } from '../call/EditableFact.tsx'
 import { formatPhone } from '../inbox-model.ts'
+import { monthDay, parseTs } from '../time.ts'
 import type { Step } from '../inbox/changes.ts'
 import { useAssistants, useRun } from '../store.tsx'
 import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
@@ -28,14 +30,16 @@ type RunUndoable = (steps: Step[], inverse: Step[], label: string, key: string) 
 
 type Editable = 'name' | ContactDetailField
 
-/** The contact page shows the phone right after the company. */
-const [company, ...afterPhone] = CONTACT_DETAIL_FIELDS
+/** The fields that fold into "+ Company, email" while empty and no call suggests a value; the note always shows. */
+const FOLDABLE = ['company', 'email', 'address'] as const
 
 type FieldProps = {
   id: string
   label: string
   placeholder: string
   multiline?: boolean
+  /** Lines of the note box (3 unless given). */
+  rows?: number
   /** A line under the field on what the value is used for. */
   hint?: ReactNode
   autoFocus?: boolean
@@ -48,12 +52,12 @@ type FieldProps = {
 }
 
 /** One field of a contact, as the contact page and New contact show it: a line, or a box for the note. */
-export function ContactField({ id, label, multiline, hint, ...control }: FieldProps) {
+export function ContactField({ id, label, multiline, rows = 3, hint, ...control }: FieldProps) {
   const hintId = hint ? `${id}-hint` : undefined
   return (
     <FormField id={id} label={label} className={multiline ? 'ct-wide' : undefined}>
       {multiline ? (
-        <Textarea id={id} rows={3} aria-describedby={hintId} {...control} />
+        <Textarea id={id} rows={rows} aria-describedby={hintId} {...control} />
       ) : (
         <Input id={id} {...NO_PASSWORD_MANAGER} aria-describedby={hintId} {...control} />
       )}
@@ -70,6 +74,7 @@ export function ContactField({ id, label, multiline, hint, ...control }: FieldPr
 function DetailField({
   contact,
   field,
+  suggestion,
   ...rest
 }: {
   contact: Contact
@@ -77,11 +82,14 @@ function DetailField({
   label: string
   placeholder: string
   multiline?: boolean
+  rows?: number
   hint?: ReactNode
+  /** A value from one of the contact's calls, shown while the contact has none (the hint then offers Keep). */
+  suggestion?: string
 }) {
   const run = useRun()
   const edit = useInlineEdit({
-    value: contact[field],
+    value: contact[field] ?? suggestion ?? null,
     onSave: value => void run('contact.update', { contactId: contact.id, [field]: value }),
     multiline: rest.multiline,
   })
@@ -172,10 +180,71 @@ function MoreMenu({ label, onDelete, onMerge }: { label: string; onDelete: () =>
   )
 }
 
+/**
+ * Name, phone, the fields with a value and the note; a field the contact has empty shows the newest of their calls'
+ * key facts for it with "From the call on <date> · Keep"; the other empty fields fold into "+ Company, email". The
+ * same rules as the call view's side panel (call/factSuggestions.ts).
+ */
+function DetailFields({ contact, calls }: { contact: Contact; calls: Call[] }) {
+  const t = useT()
+  const run = useRun()
+  const assistantNames = useAssistants().map(a => a.name)
+  const [unfolded, setUnfolded] = useState(false)
+  const suggested = callsFactSuggestions(calls, contact)
+  const folded = unfolded ? [] : foldedFields(FOLDABLE, contact, suggested)
+  const phone = formatPhone(contact.phone)
+  const field = (f: (typeof CONTACT_DETAIL_FIELDS)[number]) => {
+    if (f.field !== 'note' && folded.includes(f.field)) return null
+    const suggestion = f.field !== 'note' && !contact[f.field]?.trim() ? suggested[f.field] : undefined
+    const keep = suggestion && (
+      <KeepFromCall
+        date={monthDay(parseTs(suggestion.call.started_at))}
+        onKeep={() => void run('contact.update', { contactId: contact.id, [f.field]: suggestion.value })}
+      />
+    )
+    return (
+      <DetailField
+        key={f.field}
+        contact={contact}
+        field={f.field}
+        label={t(f.label)}
+        placeholder={t(f.placeholder)}
+        multiline={'multiline' in f}
+        rows={'multiline' in f ? 2 : undefined}
+        suggestion={suggestion?.value}
+        hint={f.field === 'note' ? noteHint(assistantNames) : keep || undefined}
+      />
+    )
+  }
+  const [company, email, address, note] = CONTACT_DETAIL_FIELDS
+  return (
+    <div className="ct-grid">
+      <DetailField
+        contact={contact}
+        field="name"
+        label={t('contacts.field.name')}
+        placeholder={t('contacts.field.namePlaceholder')}
+        hint={nameFromCaller(contact) ? <ConfirmCallerName contact={contact} /> : undefined}
+      />
+      {field(company)}
+      <FormField id="ct-phone" label={t('contacts.field.phone')}>
+        <Input id="ct-phone" value={phone} readOnly className="ct-readonly" />
+      </FormField>
+      {field(email)}
+      {field(address)}
+      {folded.length > 0 && (
+        <div className="ct-wide ct-fold">
+          <FoldedFields folded={folded} inputOf={f => `#ct-${f}`} onUnfold={() => setUnfolded(true)} />
+        </div>
+      )}
+      {field(note)}
+    </div>
+  )
+}
+
 export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge, runUndoable }: Props) {
   const t = useT()
   const { contact, calls } = row
-  const assistantNames = useAssistants().map(a => a.name)
   const label = contactLabel(contact)
   const phone = formatPhone(contact.phone)
   return (
@@ -202,35 +271,7 @@ export function ContactDetail({ row, onOpenCall, onClose, onDelete, onMerge, run
           </div>
         </header>
         <Card title={t('contacts.detail.details')} className="ct-card">
-          <div className="ct-grid" key={contact.id}>
-            <DetailField
-              contact={contact}
-              field="name"
-              label={t('contacts.field.name')}
-              placeholder={t('contacts.field.namePlaceholder')}
-              hint={nameFromCaller(contact) ? <ConfirmCallerName contact={contact} /> : undefined}
-            />
-            <DetailField
-              contact={contact}
-              field={company.field}
-              label={t(company.label)}
-              placeholder={t(company.placeholder)}
-            />
-            <FormField id="ct-phone" label={t('contacts.field.phone')}>
-              <Input id="ct-phone" value={phone} readOnly className="ct-readonly" />
-            </FormField>
-            {afterPhone.map(f => (
-              <DetailField
-                key={f.field}
-                contact={contact}
-                field={f.field}
-                label={t(f.label)}
-                placeholder={t(f.placeholder)}
-                multiline={'multiline' in f}
-                hint={f.field === 'note' ? noteHint(assistantNames) : undefined}
-              />
-            ))}
-          </div>
+          <DetailFields key={contact.id} contact={contact} calls={calls} />
         </Card>
         <Card
           title={calls.length ? t('contacts.detail.callsCount', { count: calls.length }) : t('contacts.column.calls')}

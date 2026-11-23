@@ -7,10 +7,12 @@
 // alerts the instance admins once an hour when hit). Only then is a code attempt recorded and the code sent through
 // Better Auth's sign-in code, which creates the account when the code is entered: `mayCreateUser` (signup-gate.ts)
 // lets an unknown address in only with such a recent attempt, so the normal sign-in page stays closed to new
-// addresses. Signed in, the page runs `account.signUp`, which makes the bill and its one workspace in
+// addresses. Continue with Google (Microsoft, GitHub) on the sign-up page asks POST /v1/signup/provider first: the same
+// checks without an address, and a ticket (a cookie) the provider's callback must bring (`takeProviderSignupTicket`).
+// Signed in, the page runs `account.signUp`, which makes the bill and its one workspace in
 // `pending_payment`; Checkout (PR 8) moves them on. A sign-up that never finishes Checkout is deleted after
 // `pendingDays` by the daily sign-up sweep.
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { codeCooldownLeftMs, RADAR_RISK_LEVELS } from '@linedesk/actions'
 import {
   calls,
@@ -368,18 +370,40 @@ export async function admitSignupCode(
   now = Date.now(),
   verify: typeof verifyTurnstile = verifyTurnstile,
 ): Promise<CodeAnswer> {
+  const email = input.email.trim().toLowerCase()
+  return admitAttempt(database, { ...input, email, hash: emailHash(email) }, now, verify)
+}
+
+/**
+ * admitSignupCode's checks for one attempt: an address's code (`email` set, `hash` its emailHash) or a provider
+ * sign-up's ticket (`email` null, `hash` the ticket's, so the network counts it as one more address).
+ */
+async function admitAttempt(
+  database: Db,
+  input: {
+    email: string | null
+    hash: string
+    ipBucket: string
+    ip: string | null
+    token: string
+    turnstile: TurnstileExpected
+  },
+  now: number,
+  verify: typeof verifyTurnstile,
+): Promise<CodeAnswer> {
   if (!allowCodeRequest(input.ipBucket, now))
     return {
       ok: false,
       reason: 'too_many',
       retryAfter: secondsUntil(allowCodeRequest.freeAt(input.ipBucket, now), now),
     }
-  const email = input.email.trim().toLowerCase()
+  const { email, hash } = input
   const before = await database.transaction(async tx => {
     const state = await selfServeState(tx)
     if (!state.open) return { ok: false as const, reason: 'closed' as const }
-    if (email.length > 254 || !EMAIL.test(email)) return { ok: false as const, reason: 'invalid_email' as const }
-    if (isBlockedDomain(email, state.rules.blockedDomains))
+    if (email !== null && (email.length > 254 || !EMAIL.test(email)))
+      return { ok: false as const, reason: 'invalid_email' as const }
+    if (email !== null && isBlockedDomain(email, state.rules.blockedDomains))
       return { ok: false as const, reason: 'blocked_domain' as const }
     return {
       ok: true as const,
@@ -399,7 +423,6 @@ export async function admitSignupCode(
     if (!state.open) return { ok: false, reason: 'closed' }
     const { rules } = state
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('signup.codes'))`)
-    const hash = emailHash(email)
     const sent = await addressCodeTimes(tx, hash, now)
     const cooldownLeft = codeCooldownLeftMs(sent, now)
     const network = await networkAddresses(tx, input.ipBucket, now)
@@ -452,6 +475,94 @@ export async function admitSignupCode(
     })
     return { ok: true, retryAfter: secondsUntil(now + codeCooldownLeftMs([...sent, now], now), now) }
   })
+}
+
+// --- A provider sign-up (Continue with Google, Microsoft, GitHub on the sign-up page) -----------------------
+
+/**
+ * Where a provider sign-up's ticket is kept in `signup_attempts.email_hash` until the account is made: never an
+ * address's hash (those are hex only), so a ticket can't stand in for an address or the other way round.
+ */
+const TICKET_PREFIX = 'provider:'
+const ticketHash = (ticket: string) => TICKET_PREFIX + createHash('sha256').update(ticket).digest('hex')
+
+/** A provider sign-up was let through: the browser keeps `ticket` (a cookie) for the provider's callback. */
+export type ProviderSignupAnswer =
+  | { ok: true; ticket: string }
+  | { ok: false; reason: CodeRefusal; retryAfter?: number }
+
+/**
+ * Before the sign-up page sends the browser to a sign-in provider: the same checks as a code (open, Turnstile, the
+ * network's and the install's limits, one more address on the network), with no address yet: the provider names it
+ * at its callback, where `takeProviderSignupTicket` checks its domain. Records the attempt under a fresh ticket.
+ */
+export async function admitProviderSignup(
+  database: Db,
+  input: {
+    ipBucket: string
+    ip: string | null
+    token: string
+    turnstile: TurnstileExpected
+    /** The ticket this browser holds already (its cookie): still unused and in time, it is kept, nothing counted again. */
+    held?: string | null
+  },
+  now = Date.now(),
+  verify: typeof verifyTurnstile = verifyTurnstile,
+): Promise<ProviderSignupAnswer> {
+  // Another click (back from the provider's page, a second provider) is not another sign-up of the network.
+  if (input.held && (await database.transaction(tx => ticketUnused(tx, input.held!, now))))
+    return { ok: true, ticket: input.held }
+  const ticket = randomBytes(32).toString('base64url')
+  const answer = await admitAttempt(database, { ...input, email: null, hash: ticketHash(ticket) }, now, verify)
+  return answer.ok ? { ok: true, ticket } : answer
+}
+
+/**
+ * Whether a provider sign-in may make the account for `email` (signup-gate.ts `mayCreateUser`): sign-up is open, the
+ * browser brought a ticket the sign-up page got in the last SIGNUP_CODE_WINDOW_MS, and the address's domain is not
+ * blocked. The ticket is used up here (one account per ticket, also when two callbacks race): its attempt becomes the
+ * address's, so it keeps counting for the network.
+ */
+/** Whether `ticket` was given in the last SIGNUP_CODE_WINDOW_MS, is unused, and sign-up is still open. */
+async function ticketUnused(tx: Tx, ticket: string, now: number): Promise<boolean> {
+  if (!(await selfServeState(tx)).open) return false
+  const [row] = await tx
+    .select({ id: signup_attempts.id })
+    .from(signup_attempts)
+    .where(
+      and(
+        eq(signup_attempts.kind, 'code'),
+        eq(signup_attempts.email_hash, ticketHash(ticket)),
+        gte(signup_attempts.created_at, new Date(now - SIGNUP_CODE_WINDOW_MS).toISOString()),
+      ),
+    )
+    .limit(1)
+  return !!row
+}
+
+export async function takeProviderSignupTicket(
+  tx: Tx,
+  ticket: string,
+  email: string,
+  now = Date.now(),
+): Promise<boolean> {
+  const address = email.trim().toLowerCase()
+  // The same address checks as before a code goes out.
+  if (address.length > 254 || !EMAIL.test(address)) return false
+  const state = await selfServeState(tx)
+  if (!state.open || isBlockedDomain(address, state.rules.blockedDomains)) return false
+  const taken = await tx
+    .update(signup_attempts)
+    .set({ email_hash: emailHash(email) })
+    .where(
+      and(
+        eq(signup_attempts.kind, 'code'),
+        eq(signup_attempts.email_hash, ticketHash(ticket)),
+        gte(signup_attempts.created_at, new Date(now - SIGNUP_CODE_WINDOW_MS).toISOString()),
+      ),
+    )
+    .returning({ id: signup_attempts.id })
+  return taken.length > 0
 }
 
 /** The install's code cap was hit: the instance admins are emailed, at most once an hour. */

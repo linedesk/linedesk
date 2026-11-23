@@ -53,6 +53,34 @@ const ROLES = [
   },
 ] as const
 
+/**
+ * Creates a key and puts it into the cached list at once (then reads the list again, for what only the server knows);
+ * returns the key itself, shown once. API keys' dialog and Zapier's step 1 both use it.
+ */
+export async function createApiKey(name: string, role: Role): Promise<string> {
+  const result = await callAction<ApiKeyCreated>('apiKey.create', { name, role })
+  const summary: ApiKeySummary = {
+    id: result.apiKeyId,
+    name,
+    prefix: result.prefix,
+    role,
+    created_by: '',
+    created_at: new Date().toISOString(),
+    last_used_at: null,
+    revoked_at: null,
+    // Made during support access is for the server to say: the list is read again below.
+    created_during_support: false,
+    created_during_support_by: null,
+  }
+  setQueryData<ApiKeyListData | undefined>(API_KEYS, d => ({ keys: [summary, ...(d?.keys ?? [])] }), {
+    persist: true,
+  })
+  void loadKeys()
+    .then(d => setQueryData<ApiKeyListData | undefined>(API_KEYS, d, { persist: true }))
+    .catch(() => {})
+  return result.key
+}
+
 const day = (iso: string) => fmt().dateTime(new Date(iso), { month: 'short', day: 'numeric', year: 'numeric' })
 
 type Props = { canEdit: boolean; toast: (text: string) => void }
@@ -113,7 +141,16 @@ export function ApiKeys({ canEdit, toast }: Props) {
 export function ZapierSubscriptions({ canEdit, toast }: Props) {
   const t = useT()
   const list = useQuery(canEdit ? INTEGRATIONS : null, loadIntegrations, { persist: true })
-  const [creating, setCreating] = useState(false)
+  const appUrl = list.data?.appUrl ?? null
+  // Without the Zapier link an instance admin sets it in another tab (step 2): read again on coming back here.
+  const missingLink = canEdit && list.data !== undefined && !appUrl
+  const { reload } = list
+  useEffect(() => {
+    if (!missingLink) return
+    const again = () => void reload()
+    window.addEventListener('focus', again)
+    return () => window.removeEventListener('focus', again)
+  }, [missingLink, reload])
   if (!canEdit)
     return (
       <Section id="st-integrations" title={t('settings.integrations.app.title')}>
@@ -126,14 +163,13 @@ export function ZapierSubscriptions({ canEdit, toast }: Props) {
       id="st-integrations"
       title={t('settings.integrations.app.title')}
       help={t('settings.developers.integrations.help')}
-      actions={
-        <Button size="sm" icon="plus" onClick={() => setCreating(true)}>
-          {t('settings.developers.create')}
-        </Button>
-      }
     >
-      <ZapierGuide appUrl={list.data?.appUrl ?? null} toast={toast} />
-      {creating && <CreateKey onClose={() => setCreating(false)} toast={toast} />}
+      <ZapierGuide
+        appUrl={appUrl}
+        connected={subscriptions.length > 0}
+        createKey={() => createApiKey(t('settings.integrations.card.zapier.name'), 'member')}
+        toast={toast}
+      />
       <Loading
         what={t('settings.developers.integrations.title')}
         loading={list.data === undefined}
@@ -313,27 +349,7 @@ function CreateKey({ onClose, toast }: { onClose: () => void; toast: Props['toas
     setSaving(true)
     setError(null)
     try {
-      const result = await callAction<ApiKeyCreated>('apiKey.create', { name: name.trim(), role })
-      const summary: ApiKeySummary = {
-        id: result.apiKeyId,
-        name: name.trim(),
-        prefix: result.prefix,
-        role,
-        created_by: '',
-        created_at: new Date().toISOString(),
-        last_used_at: null,
-        revoked_at: null,
-        // Made during support access is for the server to say: the list is read again below.
-        created_during_support: false,
-        created_during_support_by: null,
-      }
-      setQueryData<ApiKeyListData | undefined>(API_KEYS, d => ({ keys: [summary, ...(d?.keys ?? [])] }), {
-        persist: true,
-      })
-      setCreated(result.key)
-      void loadKeys()
-        .then(d => setQueryData<ApiKeyListData | undefined>(API_KEYS, d, { persist: true }))
-        .catch(() => {})
+      setCreated(await createApiKey(name.trim(), role))
     } catch (err) {
       setError((err as Error).message)
     } finally {

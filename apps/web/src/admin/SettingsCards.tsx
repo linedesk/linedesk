@@ -370,7 +370,7 @@ const loadZapierApp = async () => (await runAdmin('zapierApp.get', {})) as Zapie
  * address. The admin sets the link workspaces open (the app's invite link, or its page in Zapier's directory); without
  * one, workspaces see no Zapier link. The server has to be reachable by Zapier, and reach Zapier.
  */
-export function Zapier() {
+export function Zapier({ focused }: { focused?: boolean }) {
   const t = useT()
   const address = window.location.origin
   const reachable = zapierCanReach(address)
@@ -419,6 +419,8 @@ export function Zapier() {
             >
               <Input
                 id="adm-zapier-app"
+                // Opened at this setting (#admin/features/zapier-app, from Integrations › Zapier): the field has focus.
+                autoFocus={focused}
                 value={typed ?? data.url ?? ''}
                 placeholder={t('admin.system.zapierAppExample')}
                 disabled={busy}

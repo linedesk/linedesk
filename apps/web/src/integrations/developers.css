@@ -37,6 +37,14 @@
   margin-top: 6px;
   max-width: 420px;
 }
-.dev-guide .k-field-msg {
+.dev-guide .k-field-msg,
+.dev-guide .k-field-desc {
   margin: 6px 0 0;
+}
+/* A step with its action on the same line ("Create a key for Zapier. [Create key]"). */
+.dev-guide .dev-step {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
 }

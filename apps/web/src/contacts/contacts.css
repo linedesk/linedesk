@@ -416,3 +416,15 @@
   white-space: nowrap;
   max-width: 160px;
 }
+/* "+ Company, email" between the fields and the note: the empty fields, folded (call/ContactSide.tsx). */
+.ct-fold {
+  display: flex;
+  margin-top: -4px;
+}
+.ct-fold .side-more {
+  margin: 0 0 0 -4px;
+}
+/* The note on the contact page: two lines by default (it grows with its handle), so the calls stay in view. */
+.ct-grid .ta {
+  min-height: 0;
+}

@@ -5,6 +5,8 @@ export const TURNSTILE_SCRIPT = 'https://challenges.cloudflare.com/turnstile/v0/
 type RenderOptions = {
   sitekey: string
   action?: string
+  /** `interaction-only`: the widget shows only when Cloudflare needs the person to act; the check runs either way. */
+  appearance?: 'always' | 'execute' | 'interaction-only'
   callback: (token: string) => void
   'expired-callback'?: () => void
   'error-callback'?: () => void

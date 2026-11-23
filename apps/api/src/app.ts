@@ -41,9 +41,17 @@ import { registerSetupUnsubscribeRoutes } from './setup-unsubscribe.ts'
 import { registerStripeWebhookRoute } from './stripe-webhook.ts'
 import { registerTestLookupRoute } from './test-lookup.ts'
 import { addressBucket, clientIpHeaders, clientIpOf, withClientIp } from './client-ip.ts'
-import { admitSignupCode, selfServeState, TURNSTILE_ACTION, turnstileKeys } from './self-serve.ts'
+import {
+  admitProviderSignup,
+  admitSignupCode,
+  SIGNUP_CODE_WINDOW_MS,
+  selfServeState,
+  TURNSTILE_ACTION,
+  turnstileKeys,
+} from './self-serve.ts'
 import { legalTerms } from './legal-terms.ts'
-import { fromSignupPage, signupLinkPath } from './signup-gate.ts'
+import { getCookie, setCookie } from 'hono/cookie'
+import { fromSignupPage, SIGNUP_TICKET_COOKIE, signupLinkPath } from './signup-gate.ts'
 import { partnersOf, previewPartnerInvitation } from './partners.ts'
 import { MCP_MAX_BODY_BYTES, serveMcp } from './mcp.ts'
 import { serveSetupMcp } from './setup-mcp.ts'
@@ -63,7 +71,7 @@ import { avatarVersionOf, readAvatarFor } from './user-avatar.ts'
 import { wordsOf } from './handler-context.ts'
 import { iconUrlOf, readIconFor } from './workspace-icon.ts'
 import { auth, TRUSTED_ORIGINS, trustedOrigins, WEB_ORIGIN } from './auth.ts'
-import { refuseCrossSite } from './csrf.ts'
+import { crossSiteRefusal, refuseCrossSite } from './csrf.ts'
 import { calendarCallback } from './calendar-callback.ts'
 import { mailCallback } from './mail-callback.ts'
 import { appCallback } from './app-callback.ts'
@@ -542,6 +550,49 @@ app.post('/v1/signup/code', async c => {
   })
   // The cooldown before the next code (the page counts it down on its Resend button).
   return c.json({ ok: true, retryAfter: answer.retryAfter })
+})
+
+// Public: before the sign-up page sends the browser to a sign-in provider (Continue with Google, Microsoft, GitHub). The
+// same checks as a code (open, Turnstile, the network's and the install's limits) without an address; when they pass,
+// a ticket goes into an HttpOnly cookie for Better Auth's callback, where the provider names the address and the
+// account is made (signup-gate.ts `mayCreateUser`). Without the ticket a provider sign-in never makes a new account.
+app.post('/v1/signup/provider', async c => {
+  // Only from the app's own page, as JSON, also without a session: a cookie another site planted would turn this
+  // browser's next provider sign-in into a new account.
+  const refusal = crossSiteRefusal(
+    { method: c.req.method, header: name => (name === 'cookie' ? 'always' : c.req.header(name)) },
+    trustedOrigins(c),
+  )
+  if (refusal) return c.json({ ok: false, error: refusal, code: 'cross_site_refused' }, 403)
+  const body = await c.req.json<{ token?: unknown }>().catch(() => ({ token: undefined }))
+  const ip = clientIpOf(c)
+  const cookie = (await auth.$context).createAuthCookie(SIGNUP_TICKET_COOKIE)
+  const answer = await admitProviderSignup(db, {
+    held: getCookie(c, cookie.name) ?? null,
+    ip,
+    ipBucket: addressBucket(ip),
+    token: typeof body.token === 'string' ? body.token : '',
+    turnstile: { action: TURNSTILE_ACTION, hostnames: SIGNUP_HOSTNAMES },
+  })
+  c.header('cache-control', 'no-store')
+  if (!answer.ok) {
+    const status =
+      answer.reason === 'too_many' || answer.reason === 'busy' ? 429 : answer.reason === 'closed' ? 404 : 422
+    if (answer.retryAfter) c.header('retry-after', String(answer.retryAfter))
+    return c.json(
+      { ok: false, code: answer.reason, ...(answer.retryAfter ? { retryAfter: answer.retryAfter } : {}) },
+      status,
+    )
+  }
+  setCookie(c, cookie.name, answer.ticket, {
+    httpOnly: true,
+    secure: Boolean(cookie.attributes.secure),
+    sameSite: 'lax',
+    // Read by the provider's callback, and here again (another click keeps the ticket), as long as a code counts.
+    path: '/',
+    maxAge: SIGNUP_CODE_WINDOW_MS / 1000,
+  })
+  return c.json({ ok: true })
 })
 
 // account.signUp for the signed-in person (no workspace needed yet): the account's own permission `account`, given

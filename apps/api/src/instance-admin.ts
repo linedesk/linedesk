@@ -11,7 +11,7 @@ import { insertAuthEvent } from './audit.ts'
 import { db } from './db.ts'
 import { keepImpersonationExpiry } from './impersonation-guard.ts'
 import { issuePasskeyEnrolment } from './passkey-enrolment.ts'
-import { NO_ACCOUNT, refuseClosedSignUp } from './signup-gate.ts'
+import { type CreateContext, NO_ACCOUNT, refuseClosedSignUp, signupTicketOf } from './signup-gate.ts'
 
 type Account = { email: string; emailVerified: boolean; instanceAdmin: boolean }
 
@@ -103,10 +103,12 @@ export async function refuseUnverifiedAdminAddress(_tx: Tx, created: { email: st
 export const instanceAdminHooks = {
   user: {
     create: {
-      // The endpoint's path says how the account is being made (signup-gate.ts: self-serve only by the email code).
-      before: async (created: { email: string; emailVerified?: boolean }, ctx?: { path?: string } | null) => {
-        await refuseClosedSignUp(db, created, ctx?.path ?? null)
+      // The endpoint's path says how the account is being made (signup-gate.ts: self-serve only by the email code, or
+      // by a provider's callback with the sign-up page's ticket).
+      before: async (created: { email: string; emailVerified?: boolean }, ctx?: CreateContext) => {
+        // The reserved address first: refuseClosedSignUp may use up a sign-up ticket.
         await refuseUnverifiedAdminAddress(db, created)
+        await refuseClosedSignUp(db, created, ctx?.path ?? null, signupTicketOf(ctx))
       },
       after: async (created: { id: string; email: string; emailVerified?: boolean }) => {
         await grantFirstUser(db, created)

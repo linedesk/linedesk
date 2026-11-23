@@ -7,8 +7,10 @@
 // limits, the countries); this page only asks and says what came back. Only the plan and the interval travel in the
 // address, never personal data.
 import { T, useT } from '@linedesk/i18n/react'
-import { type FormEvent, useEffect, useRef, useState } from 'react'
-import { auth, signInWithCode } from './auth.ts'
+import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { auth, providerSignInElsewhere, type SsoMethod, signInWithCode, startSso, takeRedirectError } from './auth.ts'
+import { rememberSignInMethod } from './sign-in-methods.ts'
+import { ProviderButton } from './ui/brand-logos.tsx'
 import { CardFooter, CodeWait, HaveAccount, useAuthMethods } from './Login.tsx'
 import { browserPlace } from './countryHint.ts'
 import { signOutAndForget } from './localData.ts'
@@ -21,6 +23,7 @@ import {
   resendInText,
 } from './sign-in-code.ts'
 import {
+  askProviderSignup,
   askSignupCode,
   type CodeRefusal,
   loadSignupConfig,
@@ -170,19 +173,33 @@ function refusalText(t: ReturnType<typeof useT>, reason: CodeRefusal) {
 }
 
 /**
- * The Turnstile widget; `token` is null until it passed (or when it expired). `collapsed`: it passed without showing
- * anything (an invisible widget), so its box gives back the room kept for it.
+ * The Turnstile widget; `token` is null until it passed (or when it expired). It shows only when Cloudflare needs the
+ * person to act (`interaction-only`); `collapsed` while nothing shows, so its box takes no room. `ready` waits for the
+ * token (a few seconds at most for a check that needs nobody), for a button pressed before it came.
  */
 function useTurnstile(siteKey: string | null) {
   const box = useRef<HTMLDivElement>(null)
   const [token, setToken] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(true)
   const reset = useRef<() => void>(() => {})
+  const latest = useRef<string | null>(null)
+  const waiting = useRef<((token: string | null) => void)[]>([])
+  const take = useCallback((value: string | null) => {
+    latest.current = value
+    setToken(value)
+    if (value) for (const resolve of waiting.current.splice(0)) resolve(value)
+  }, [])
   useEffect(() => {
-    const widget = box.current?.firstElementChild
-    if (token && widget instanceof HTMLElement && widget.offsetHeight === 0) setCollapsed(true)
-  }, [token])
+    const el = box.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => {
+      const widget = el.firstElementChild
+      setCollapsed(!(widget instanceof HTMLElement) || widget.offsetHeight === 0)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
   useEffect(() => {
     if (!siteKey || !box.current) return
     let removed = false
@@ -193,12 +210,16 @@ function useTurnstile(siteKey: string | null) {
         widget = turnstile.render(box.current, {
           sitekey: siteKey,
           action: 'signup',
-          callback: (value: string) => setToken(value),
-          'expired-callback': () => setToken(null),
-          'error-callback': () => setFailed(true),
+          appearance: 'interaction-only',
+          callback: take,
+          'expired-callback': () => take(null),
+          'error-callback': () => {
+            setFailed(true)
+            for (const resolve of waiting.current.splice(0)) resolve(null)
+          },
         })
         reset.current = () => {
-          setToken(null)
+          take(null)
           turnstile.reset(widget)
         }
       })
@@ -207,8 +228,16 @@ function useTurnstile(siteKey: string | null) {
       removed = true
       if (widget) window.turnstile?.remove(widget)
     }
-  }, [siteKey])
-  return { box, token, failed, collapsed, reset: () => reset.current() }
+  }, [siteKey, take])
+  /** The token, waiting up to `ms` for one still on its way; null when none came (the bot check failed or needs the person). */
+  const ready = (ms = 8000): Promise<string | null> =>
+    latest.current || failed
+      ? Promise.resolve(latest.current)
+      : new Promise(resolve => {
+          waiting.current.push(resolve)
+          setTimeout(() => resolve(latest.current), ms)
+        })
+  return { box, token, failed, collapsed, ready, reset: () => reset.current() }
 }
 
 /** Counts `waitS` down by one a second until 0. */
@@ -242,26 +271,73 @@ export function EmailStep({
   // Refused for now (too many codes for this address or network): when a new code can be asked for, counting down.
   const [waitS, setWaitS] = useState(0)
   const bot = useTurnstile(config.turnstileSiteKey)
-  const links = useAuthMethods()?.links ?? null
+  const methods = useAuthMethods()
+  const links = methods?.links ?? null
+  // The install's sign-in providers, as on the sign-in page; none where they only work at another address.
+  const providers = methods && !providerSignInElsewhere(methods) ? methods.sso : []
+  // A provider sign-up that came back refused (its ticket expired, the address's domain, sign-up closed meanwhile).
+  const [returned, setReturned] = useState<string | null>(null)
+  useEffect(() => {
+    if (takeRedirectError()) setReturned(t('auth.signup.providerRefused'))
+  }, [t])
+  const [opening, setOpening] = useState<string | null>(null)
   useCountdown(waitS, setWaitS)
 
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    if (busy) return
-    const problem = emailError(email)
-    if (problem) return setError(problem)
-    if (config.turnstileSiteKey && !bot.token) return setError(t('auth.signup.refused.botCheck'))
-    setBusy(true)
-    setError(null)
-    const answer = await askSignupCode(email.trim(), bot.token ?? '')
-    setBusy(false)
-    if (answer.ok) return onSent(email.trim(), answer.retryAfter)
+  /** The bot check's token, waiting for one still on its way; null (with the page's words) when there is none. */
+  async function botToken(): Promise<string | null> {
+    if (!config.turnstileSiteKey) return ''
+    const token = await bot.ready()
+    if (!token) setError(t('auth.signup.refused.botCheck'))
+    return token
+  }
+
+  /** A refused attempt in the page's words; a limit counts down until it lets the next one through. */
+  function refused(answer: { reason: CodeRefusal | 'unreachable'; retryAfter: number | null }) {
     if (answer.retryAfter && (answer.reason === 'too_many' || answer.reason === 'busy')) {
       setError(answer.reason === 'busy' ? t('auth.signup.refused.busyFor') : null)
       setWaitS(answer.retryAfter)
     } else setError(answer.reason === 'unreachable' ? t('auth.error.server') : refusalText(t, answer.reason))
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    if (busy || opening) return
+    const problem = emailError(email)
+    if (problem) return setError(problem)
+    setBusy(true)
+    setError(null)
+    const token = await botToken()
+    if (token === null) return setBusy(false)
+    const answer = await askSignupCode(email.trim(), token)
+    setBusy(false)
+    if (answer.ok) return onSent(email.trim(), answer.retryAfter)
+    refused(answer)
     // A Turnstile token is good for one check.
     bot.reset()
+  }
+
+  /**
+   * Continue with a provider: the same checks as a code first (the API keeps a ticket in a cookie), then the
+   * provider's page; it comes back here signed in, and the details step follows, terms and all.
+   */
+  async function continueWith(method: SsoMethod) {
+    if (busy || opening) return
+    setOpening(method.id)
+    setError(null)
+    const token = await botToken()
+    if (token === null) return setOpening(null)
+    const answer = await askProviderSignup(token)
+    bot.reset()
+    if (!answer.ok) {
+      setOpening(null)
+      return refused(answer)
+    }
+    rememberSignInMethod(method.id)
+    const res = await startSso(method).catch(() => ({ error: true }))
+    if (res.error) {
+      setOpening(null)
+      setError(t('auth.error.server'))
+    }
   }
 
   return (
@@ -288,21 +364,37 @@ export function EmailStep({
             }}
             autoComplete="email"
             autoFocus
-            disabled={busy}
+            disabled={busy || opening !== null}
           />
           {config.turnstileSiteKey && <TurnstileBox bot={bot} />}
           {bot.failed && <AuthError message={t('auth.signup.botCheckFailed')} />}
           <button
             type="submit"
             className={cx('k-btn k-btn-primary', busy && 'is-busy')}
-            disabled={busy}
+            disabled={busy || opening !== null}
             aria-busy={busy || undefined}
           >
             {busy && <Spinner />}
             {t('auth.signup.sendCode')}
           </button>
-          {error && <AuthError message={error} />}
+          {(error ?? returned) && <AuthError message={(error ?? returned)!} />}
           {waitS > 0 && <CodeWait waitS={waitS} providerNote={t('auth.signup.waitHaveAccount')} />}
+          {providers.length > 0 && waitS <= 0 && (
+            <>
+              <div className="auth-or">{t('auth.signup.or')}</div>
+              {providers.map(m => (
+                <ProviderButton
+                  key={m.id}
+                  method={m.id}
+                  label={m.label}
+                  lastUsed={false}
+                  busy={opening === m.id}
+                  disabled={busy || opening !== null}
+                  onClick={() => void continueWith(m)}
+                />
+              ))}
+            </>
+          )}
         </div>
         <CardFooter links={links} note={<HaveAccount />} />
       </form>
@@ -354,10 +446,11 @@ function CodeStep({
   }
 
   async function resend() {
-    if (config.turnstileSiteKey && !bot.token) return setError(t('auth.signup.refused.botCheck'))
     setError(null)
+    const token = config.turnstileSiteKey ? await bot.ready() : ''
+    if (token === null) return setError(t('auth.signup.refused.botCheck'))
     setLimited(false)
-    const answer = await askSignupCode(email, bot.token ?? '')
+    const answer = await askSignupCode(email, token)
     bot.reset()
     if (answer.ok) return setWaitS(answer.retryAfter ?? RESEND_AFTER_S)
     if (answer.retryAfter && (answer.reason === 'too_many' || answer.reason === 'busy')) {

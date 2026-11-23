@@ -10,8 +10,8 @@ import { T, useT } from '@linedesk/i18n/react'
 import { LinkButton } from '../ui/AppLink.tsx'
 import { i18n } from '../i18n/index.tsx'
 import { fmt, intlLocale } from '../i18n/format.ts'
-import { useState } from 'react'
-import { factSuggestions } from './factSuggestions.ts'
+import { type ReactNode, useState } from 'react'
+import { factSuggestions, foldedFields } from './factSuggestions.ts'
 
 type Props = {
   call: Call
@@ -55,22 +55,21 @@ export function ConfirmCallerName({ contact }: { contact: Contact }) {
   )
 }
 
-/** "From this call · Keep" under a field that shows a key fact of the call: Keep saves it to the contact. */
-function FromThisCall({ onKeep }: { onKeep: () => void }) {
+/**
+ * "From this call · Keep" (or "From the call on Nov 19 · Keep" with `date`) under a field that shows a key fact of a
+ * call: Keep saves it to the contact. Both contact views use it.
+ */
+export function KeepFromCall({ onKeep, date }: { onKeep: () => void; date?: string }) {
   const t = useT()
-  return (
-    <dd className="fact-hint">
-      <T
-        k="call.contact.fromThisCall"
-        values={{
-          keep: chunks => (
-            <LinkButton title={t('call.contact.keepTitle')} onClick={onKeep}>
-              {chunks}
-            </LinkButton>
-          ),
-        }}
-      />
-    </dd>
+  const keep = (chunks: ReactNode) => (
+    <LinkButton title={t('call.contact.keepTitle')} onClick={onKeep}>
+      {chunks}
+    </LinkButton>
+  )
+  return date ? (
+    <T k="call.contact.fromCallOn" values={{ date, keep }} />
+  ) : (
+    <T k="call.contact.fromThisCall" values={{ keep }} />
   )
 }
 
@@ -81,6 +80,43 @@ const FOLD_NAME = {
   email: msg('call.contact.fold.email'),
   address: msg('call.contact.fold.address'),
   note: msg('call.contact.fold.note'),
+}
+type Foldable = (typeof FOLDABLE)[number]
+
+/**
+ * "+ Company, email": the empty fields folded into one quiet button; a click shows them and focuses the first
+ * (found with the selector `inputOf` gives for it). Both contact views use it.
+ */
+export function FoldedFields({
+  folded,
+  inputOf,
+  onUnfold,
+}: {
+  folded: readonly Foldable[]
+  inputOf: (field: Foldable) => string
+  onUnfold: () => void
+}) {
+  const t = useT()
+  if (!folded.length) return null
+  const label = fmt().list(
+    folded.map(field => t(FOLD_NAME[field])),
+    { type: 'unit' },
+  )
+  return (
+    <button
+      type="button"
+      className="side-more"
+      title={t('call.contact.showFieldsTitle')}
+      onClick={() => {
+        const first = folded[0]
+        onUnfold()
+        setTimeout(() => document.querySelector<HTMLElement>(inputOf(first!))?.focus(), 0)
+      }}
+    >
+      <Icon name="plus" size={12} />
+      <span>{label.charAt(0).toLocaleUpperCase(intlLocale()) + label.slice(1)}</span>
+    </button>
+  )
 }
 
 /**
@@ -95,10 +131,8 @@ export function Facts({ contact, call, toast }: { contact: Contact; call: Call; 
     void run('contact.update', { contactId: contact.id, [field]: value })
   const phone = formatPhone(contact.phone)
   const suggested = factSuggestions(call.fields, contact)
-  const folded = unfolded
-    ? []
-    : FOLDABLE.filter(field => !contact[field]?.trim() && !(field !== 'note' && suggested[field]))
-  const shows = (field: (typeof FOLDABLE)[number]) => !folded.includes(field)
+  const folded = unfolded ? [] : foldedFields(FOLDABLE, contact, suggested)
+  const shows = (field: Foldable) => !folded.includes(field)
   const fact = (field: 'company' | 'email' | 'address', label: string, placeholder: string) => {
     const suggestion = suggested[field]
     return (
@@ -110,12 +144,14 @@ export function Facts({ contact, call, toast }: { contact: Contact; call: Call; 
           placeholder={placeholder}
           onSave={save(field)}
         />
-        {suggestion && !contact[field]?.trim() && <FromThisCall onKeep={() => save(field)(suggestion)} />}
+        {suggestion && !contact[field]?.trim() && (
+          <dd className="fact-hint">
+            <KeepFromCall onKeep={() => save(field)(suggestion)} />
+          </dd>
+        )}
       </>
     )
   }
-  const foldedNames = folded.map(field => t(FOLD_NAME[field]))
-  const foldLabel = foldedNames.length ? fmt().list(foldedNames, { type: 'unit' }) : ''
   return (
     <>
       <dl className="facts side-facts">
@@ -151,21 +187,11 @@ export function Facts({ contact, call, toast }: { contact: Contact; call: Call; 
           />
         )}
       </dl>
-      {foldLabel && (
-        <button
-          type="button"
-          className="side-more"
-          title={t('call.contact.showFieldsTitle')}
-          onClick={() => {
-            const first = folded[0]
-            setUnfolded(true)
-            setTimeout(() => document.querySelector<HTMLElement>(`.side-facts [data-field=${first}]`)?.focus(), 0)
-          }}
-        >
-          <Icon name="plus" size={12} />
-          <span>{foldLabel.charAt(0).toLocaleUpperCase(intlLocale()) + foldLabel.slice(1)}</span>
-        </button>
-      )}
+      <FoldedFields
+        folded={folded}
+        inputOf={field => `.side-facts [data-field=${field}]`}
+        onUnfold={() => setUnfolded(true)}
+      />
     </>
   )
 }

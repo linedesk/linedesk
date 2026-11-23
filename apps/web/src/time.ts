@@ -34,7 +34,7 @@ export function dayLabel(date: Date, now = new Date()): Day {
 }
 
 const clockTime = (date: Date) => formatDate(date, { hour: 'numeric', minute: '2-digit' })
-const monthDay = (date: Date) => formatDate(date, { month: 'short', day: 'numeric' })
+export const monthDay = (date: Date) => formatDate(date, { month: 'short', day: 'numeric' })
 
 export function timeLabel(date: Date, now = new Date()): string {
   const day = dayLabel(date, now)

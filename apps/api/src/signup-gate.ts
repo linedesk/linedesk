@@ -18,13 +18,15 @@ import { envAdminEmails } from './instance-admin.ts'
  * email code or a sign-in provider): a password sign-up does not prove it, so it never creates an account. Or
  * self-serve sign-up is open (billing in effect through Stripe, `signup.selfServe` on) and this address asked for a
  * code on the sign-up page in the last 15 minutes (self-serve.ts `maySignUpWithCode`); a verified address only, and only
- * where `selfServe` says the request may use it: entering the sign-up code, and sending it from the sign-up page.
+ * where `selfServe` says the request may use it: entering the sign-up code, and sending it from the sign-up page. Or a
+ * provider sign-in's callback that brings the ticket the sign-up page got for it (`providerTicket`, self-serve.ts
+ * `takeProviderSignupTicket`: the same checks as a code before the browser left, the address's domain at the callback).
  */
 export async function mayCreateUser(
   tx: Tx,
   email: string,
   verified: boolean,
-  { selfServe }: { selfServe: boolean } = { selfServe: false },
+  { selfServe, providerTicket = null }: { selfServe: boolean; providerTicket?: string | null } = { selfServe: false },
 ): Promise<boolean> {
   if (!verified) return false
   const [anyone] = await tx.select({ id: user.id }).from(user).limit(1)
@@ -49,32 +51,57 @@ export async function mayCreateUser(
   // Loaded here like self-serve.ts: partners.ts reaches workspace creation, which must not load while auth.ts does.
   const { partnerInvitationFor } = await import('./partners.ts')
   if (await partnerInvitationFor(tx, email)) return true
-  if (!selfServe) return false
+  if (!selfServe && !providerTicket) return false
   // Loaded here: self-serve.ts reaches billing and the job queue, which must not load while auth.ts does.
-  const { maySignUpWithCode } = await import('./self-serve.ts')
-  return maySignUpWithCode(tx, email)
+  const { maySignUpWithCode, takeProviderSignupTicket } = await import('./self-serve.ts')
+  if (selfServe) return maySignUpWithCode(tx, email)
+  return takeProviderSignupTicket(tx, providerTicket!, email)
 }
 
 /** What someone without an account and without an invitation is told (sign-in page, provider sign-in). */
 export const NO_ACCOUNT = 'No account for this email. Ask your workspace admin for an invitation.'
 
-/** The Better Auth endpoint that signs in with an email code: the only one that creates a self-serve account. */
+/** The Better Auth endpoint that signs in with an email code: it creates a self-serve account after a sign-up code. */
 export const EMAIL_CODE_SIGN_IN_PATH = '/sign-in/email-otp'
+/**
+ * The Better Auth endpoint a sign-in provider (Google, Microsoft, GitHub) sends the browser back to: it creates a
+ * self-serve account only with the sign-up page's ticket (POST /v1/signup/provider).
+ */
+export const PROVIDER_CALLBACK_PATH = '/callback/:id'
+/** The cookie that carries a provider sign-up's ticket from the sign-up page to the provider's callback. */
+export const SIGNUP_TICKET_COOKIE = 'signup_ticket'
+
+/** What the user.create hook gets of the endpoint (Better Auth's context; absent outside a request). */
+export type CreateContext = {
+  path?: string
+  getCookie?: (name: string) => string | null | undefined
+  context?: { createAuthCookie?: (name: string) => { name: string } }
+} | null
+
+/** The sign-up page's ticket a provider's callback brings (SIGNUP_TICKET_COOKIE); null on any other endpoint. */
+export function signupTicketOf(ctx: CreateContext | undefined): string | null {
+  if (ctx?.path !== PROVIDER_CALLBACK_PATH) return null
+  const name = ctx.context?.createAuthCookie?.(SIGNUP_TICKET_COOKIE).name
+  return (name && ctx.getCookie?.(name)) || null
+}
 
 /**
  * Better Auth `user.create` hook: refuses a new user without an invitation. The code lets a provider sign-in (Google,
  * Microsoft, GitHub, OIDC) send the browser back to the sign-in page with `?error=SIGNUP_CLOSED` instead of answering
- * the callback with a bare 403. A self-serve account is made only by entering the email code (`path`), never by a
- * provider sign-in or another endpoint in the sign-up window (security review F4 of #960).
+ * the callback with a bare 403. A self-serve account is made only by entering the email code (`path`), or by a provider
+ * callback that brings the sign-up page's ticket (`providerTicket`); never by another endpoint in the sign-up window
+ * (security review F4 of #960).
  */
 export async function refuseClosedSignUp(
   tx: Tx,
   created: { email: string; emailVerified?: boolean },
   path: string | null = null,
+  providerTicket: string | null = null,
 ) {
   if (
     !(await mayCreateUser(tx, created.email, created.emailVerified === true, {
       selfServe: path === EMAIL_CODE_SIGN_IN_PATH,
+      providerTicket: path === PROVIDER_CALLBACK_PATH ? providerTicket : null,
     }))
   )
     throw new APIError('FORBIDDEN', { code: 'SIGNUP_CLOSED', message: NO_ACCOUNT })

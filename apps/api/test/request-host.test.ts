@@ -253,6 +253,7 @@ describe('on a partner’s live address', () => {
       ['GET', '/v1/openapi.json'],
       ['GET', '/v1/signup/config'],
       ['POST', '/v1/signup/code'],
+      ['POST', '/v1/signup/provider'],
       ['POST', '/v1/signup'],
       ['POST', '/v1/workspaces'],
       ['GET', '/v1/workspace/agent-setup'],

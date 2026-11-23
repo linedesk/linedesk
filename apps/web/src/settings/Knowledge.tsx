@@ -42,6 +42,8 @@ type Props = {
 type Filter = 'all' | 'mail' | 'answered' | 'check'
 
 const count = (n: number) => fmt().number(n)
+/** The length shows only from this share of the limit on: below it, the number says nothing worth reading. */
+const COUNT_FROM = 0.8
 // i18n-dynamic: settings.knowledge.issue.*
 // i18n-dynamic: settings.knowledge.qa.source.*
 const issuesOf = (issues: AboutIssue[], key: string) => issues.filter(i => i.key === key)
@@ -81,12 +83,14 @@ export function Knowledge(props: Props) {
     >
       <BusinessText parts={all} update={update} name={name} canEdit={canEdit} />
       <Questions {...props} parts={all} update={update} name={name} addDraft={q => setDrafts(d => [...d, q])} />
-      <span className="help kn-total">
-        {t('settings.knowledge.length', {
-          count: count(draft.instructions.trim().length),
-          max: count(INSTRUCTIONS_MAX),
-        })}
-      </span>
+      {draft.instructions.trim().length >= INSTRUCTIONS_MAX * COUNT_FROM && (
+        <span className="help kn-total">
+          {t('settings.knowledge.length', {
+            count: count(draft.instructions.trim().length),
+            max: count(INSTRUCTIONS_MAX),
+          })}
+        </span>
+      )}
       {helping && <WriteWithHelp {...props} onClose={() => setHelping(false)} />}
     </Section>
   )
@@ -109,7 +113,6 @@ function BusinessText(props: { parts: AboutParts; update: (p: AboutParts) => voi
     <div className="kn-block">
       <div className="kn-block-head">
         <b>{t('settings.knowledge.business.title')}</b>
-        <span className="kn-sub">{t('settings.knowledge.business.hint', { name })}</span>
         {parts.profile.trim() && (
           <Button
             size="sm"
@@ -234,7 +237,9 @@ function Questions(props: QuestionsProps) {
     <div className="kn-block kn-qa">
       <div className="kn-block-head">
         <b>{t('settings.knowledge.qa.title')}</b>
-        <span className="kn-sub">{t('settings.knowledge.qa.count', { count: filled.length, name })}</span>
+        {filled.length > 0 && (
+          <span className="kn-sub">{t('settings.knowledge.qa.count', { count: filled.length, name })}</span>
+        )}
         <Button
           size="sm"
           variant="secondary"

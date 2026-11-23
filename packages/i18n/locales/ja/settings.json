@@ -1299,7 +1299,6 @@
   "knowledge.business.done": "完了",
   "knowledge.business.edit": "編集",
   "knowledge.business.editTip": "ビジネスについての説明を編集します",
-  "knowledge.business.hint": "事業内容、対応エリア、住所、{name}がよくある通話にどう対応するか",
   "knowledge.business.title": "ビジネスについて",
   "knowledge.description": "新しく入ったスタッフに説明するつもりで書いてください。",
   "knowledge.emptyDescription": "何から書けばよいかわからない場合は、「サポート付きで作成」がいくつか質問して下書きを作ります。",

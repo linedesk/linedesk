@@ -223,7 +223,8 @@ export function AdminMode({ currentUserId, onExit }: Props) {
       return <Billing id={place.id} onOpen={open} notify={notify} keysRef={listKeys} data={data} />
     // Pages that load their own data never wait for the lists or the providers.
     if (place.section === 'branding') return <BrandingSettings />
-    if (place.section === 'features') return <Features data={data} status={status} reload={reload} notify={notify} />
+    if (place.section === 'features')
+      return <Features data={data} status={status} reload={reload} notify={notify} focus={place.id} />
     if (place.section === 'prompt') return <SystemPrompt />
     if (place.section === 'partners') return <Partners notify={notify} waiting={place.id === 'waiting'} />
     if (place.section === 'call-reviews') return <CallReviews />

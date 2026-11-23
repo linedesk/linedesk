@@ -34,6 +34,7 @@ import { setJobQueue } from '../src/jobs.ts'
 import { setProviderKeys } from '../src/provider-settings.ts'
 import { runAction } from '../src/run-action.ts'
 import {
+  admitProviderSignup,
   emailHash,
   mergeSignupRules,
   PENDING_PAYMENT,
@@ -43,7 +44,14 @@ import {
   setTurnstileFetch,
   TURNSTILE_VERIFY_URL,
 } from '../src/self-serve.ts'
-import { EMAIL_CODE_SIGN_IN_PATH, mayCreateUser, refuseClosedSignUp } from '../src/signup-gate.ts'
+import {
+  EMAIL_CODE_SIGN_IN_PATH,
+  mayCreateUser,
+  PROVIDER_CALLBACK_PATH,
+  refuseClosedSignUp,
+  SIGNUP_TICKET_COOKIE,
+  signupTicketOf,
+} from '../src/signup-gate.ts'
 import { COUNTRY_NOT_SERVED, sweepSignUps, TERMS_CHANGED } from '../src/signup-handlers.ts'
 import {
   act,
@@ -1005,6 +1013,179 @@ describe('Turnstile', () => {
       throw new Error('offline')
     }) as typeof fetch)
     expect((await askCode(address('bot'), randomIp(), 'good-token')).body.code).toBe('bot_check')
+  })
+})
+
+describe('a provider sign-up: Continue with Google on the sign-up page (POST /v1/signup/provider)', () => {
+  const TURNSTILE = { action: 'signup', hostnames: [new URL(WEB_ORIGIN).hostname] }
+  /** POST /v1/signup/provider from `ip`: the answer and the ticket its cookie carries (null when none was set). */
+  async function askTicket(ip = randomIp(), token = '', held?: string | null) {
+    const res = await appRequest('/v1/signup/provider', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...ORIGIN, [FROM]: ip, ...(held ? { cookie: held } : {}) },
+      body: JSON.stringify({ token }),
+    })
+    const cookie = res.headers.getSetCookie().find(c => c.includes(SIGNUP_TICKET_COOKIE)) ?? null
+    const ticket = cookie ? decodeURIComponent(cookie.split(';')[0]!.split('=').slice(1).join('=')) : null
+    return { status: res.status, body: await res.json(), cookie, ticket }
+  }
+  /** The provider's callback making the account for `email` with `ticket` (the user.create hook's check). */
+  const callback = (email: string, ticket: string | null, path = PROVIDER_CALLBACK_PATH) =>
+    refuseClosedSignUp(db, { email, emailVerified: true }, path, ticket)
+
+  test('closed: no ticket, and a provider sign-in makes no account', async () => {
+    await setting(SELF_SERVE_KEY, 'off')
+    expect(await askTicket()).toMatchObject({ status: 404, body: { code: 'closed' }, cookie: null })
+    await expect(callback(address('closed'), 'made-up')).rejects.toMatchObject({ body: { code: 'SIGNUP_CLOSED' } })
+  })
+
+  test('open: a ticket in an HttpOnly cookie for the callback only, one attempt counted for the network', async () => {
+    const ip = randomIp()
+    const answer = await askTicket(ip)
+    expect(answer).toMatchObject({ status: 200, body: { ok: true } })
+    expect(answer.cookie).toMatch(/HttpOnly/i)
+    expect(answer.cookie).toMatch(/Path=\/(;|$)/)
+    expect(answer.cookie).toMatch(/SameSite=Lax/i)
+    const counted = await db
+      .select()
+      .from(signup_attempts)
+      .where(eq(signup_attempts.ip_bucket, addressBucket(ip)))
+    expect(counted).toHaveLength(1)
+    // The ticket's row never holds anything that reads as an address's hash.
+    expect(counted[0]!.email_hash).toMatch(/^provider:/)
+  })
+
+  test('the callback makes one account per ticket, only with the ticket, never on another endpoint', async () => {
+    const { ticket } = await askTicket()
+    expect(ticket).toBeTruthy()
+    const email = address('google')
+    // Without the ticket, or with one on another endpoint: refused as before.
+    await expect(callback(email, null)).rejects.toMatchObject({ body: { code: 'SIGNUP_CLOSED' } })
+    await expect(callback(email, ticket, '/sign-in/social')).rejects.toMatchObject({
+      body: { code: 'SIGNUP_CLOSED' },
+    })
+    await expect(callback(email, 'not-a-ticket')).rejects.toMatchObject({ body: { code: 'SIGNUP_CLOSED' } })
+    // An address the provider did not prove never gets in.
+    expect(await mayCreateUser(db, email, false, { selfServe: false, providerTicket: ticket })).toBe(false)
+    await expect(callback(email, ticket)).resolves.toBeUndefined()
+    // Used up: a second account with the same ticket is refused, also for another address.
+    await expect(callback(address('google'), ticket)).rejects.toMatchObject({ body: { code: 'SIGNUP_CLOSED' } })
+    // The attempt now counts as the address's.
+    expect(
+      await db
+        .select()
+        .from(signup_attempts)
+        .where(eq(signup_attempts.email_hash, emailHash(email))),
+    ).toHaveLength(1)
+  })
+
+  test("the address's domain is checked at the callback; a ticket lasts as long as a sign-up code", async () => {
+    await rules({ turnstile: false, blockedDomains: ['spam.example'] })
+    const { ticket } = await askTicket()
+    await expect(callback(address('own', 'spam.example'), ticket)).rejects.toMatchObject({
+      body: { code: 'SIGNUP_CLOSED' },
+    })
+    await expect(callback(address('throwaway', 'mailinator.com'), ticket)).rejects.toMatchObject({
+      body: { code: 'SIGNUP_CLOSED' },
+    })
+    // A refused address leaves the ticket for a good one.
+    await expect(callback(address('good'), ticket)).resolves.toBeUndefined()
+    const old = await admitProviderSignup(
+      db,
+      { ip: null, ipBucket: randomIp(), token: '', turnstile: TURNSTILE },
+      Date.now() - 16 * 60_000,
+    )
+    expect(old.ok).toBe(true)
+    await expect(callback(address('late'), old.ok ? old.ticket : null)).rejects.toMatchObject({
+      body: { code: 'SIGNUP_CLOSED' },
+    })
+    // Closed after the ticket was given: refused at the callback.
+    const { ticket: later } = await askTicket()
+    await setting(SELF_SERVE_KEY, 'off')
+    await expect(callback(address('closed'), later)).rejects.toMatchObject({ body: { code: 'SIGNUP_CLOSED' } })
+  })
+
+  test('another click from the same browser keeps its ticket and counts nothing again', async () => {
+    await rules({ turnstile: false, signupsPerIpHour: 1 })
+    const ip = randomIp()
+    const first = await askTicket(ip)
+    expect(first.status).toBe(200)
+    const again = await askTicket(ip, '', first.cookie!.split(';')[0])
+    expect(again).toMatchObject({ status: 200, ticket: first.ticket })
+    expect(
+      await db
+        .select()
+        .from(signup_attempts)
+        .where(eq(signup_attempts.ip_bucket, addressBucket(ip))),
+    ).toHaveLength(1)
+    // A used ticket is not kept: a new one, counted (here over the network's limit).
+    await callback(address('used'), first.ticket)
+    expect((await askTicket(ip, '', first.cookie!.split(';')[0])).status).toBe(429)
+  })
+
+  test('only from the app itself, as JSON, also without a session (no ticket planted by another site)', async () => {
+    const refused: Record<string, string>[] = [
+      { 'content-type': 'application/json', origin: 'https://evil.example' },
+      { 'content-type': 'text/plain', ...ORIGIN },
+      { 'content-type': 'application/json' },
+    ]
+    for (const headers of refused) {
+      const res = await appRequest('/v1/signup/provider', {
+        method: 'POST',
+        headers: { ...headers, [FROM]: randomIp() },
+        body: JSON.stringify({ token: '' }),
+      })
+      expect(res.status).toBe(403)
+      expect(res.headers.getSetCookie().some(c => c.includes(SIGNUP_TICKET_COOKIE))).toBe(false)
+    }
+  })
+
+  test("an address that isn't one never uses the ticket", async () => {
+    const { ticket } = await askTicket()
+    await expect(callback('not-an-address', ticket)).rejects.toMatchObject({ body: { code: 'SIGNUP_CLOSED' } })
+    await expect(callback(`${'a'.repeat(250)}@linedesk.test`, ticket)).rejects.toMatchObject({
+      body: { code: 'SIGNUP_CLOSED' },
+    })
+    await expect(callback(address('real'), ticket)).resolves.toBeUndefined()
+  })
+
+  test("the network's limits count tickets like addresses; Turnstile is checked as for a code", async () => {
+    await rules({ turnstile: false, signupsPerIpHour: 1 })
+    const ip = randomIp()
+    expect((await askTicket(ip)).status).toBe(200)
+    const again = await askTicket(ip)
+    expect(again).toMatchObject({ status: 429, body: { code: 'too_many' }, cookie: null })
+    expect(again.body.retryAfter).toBeGreaterThan(0)
+
+    await rules({ turnstile: true })
+    await setProviderKeys(
+      db,
+      'turnstile',
+      { site_key: '0x4AAAAAAAtestsitekey', secret_key: '0x4AAAAAAAtestsecret' },
+      'test',
+      new Date().toISOString(),
+    )
+    let success = false
+    setTurnstileFetch(
+      (async () =>
+        new Response(JSON.stringify({ success, action: 'signup', hostname: new URL(WEB_ORIGIN).hostname }), {
+          status: 200,
+        })) as typeof fetch,
+    )
+    expect(await askTicket(randomIp(), 'bad-token')).toMatchObject({ status: 422, body: { code: 'bot_check' } })
+    success = true
+    expect((await askTicket(randomIp(), 'good-token')).status).toBe(200)
+  })
+
+  test("the user.create hook reads the ticket from Better Auth's cookie on the callback only", () => {
+    const ctx = (path: string) => ({
+      path,
+      context: { createAuthCookie: (name: string) => ({ name: `linedesk.${name}` }) },
+      getCookie: (name: string) => (name === `linedesk.${SIGNUP_TICKET_COOKIE}` ? 'the-ticket' : null),
+    })
+    expect(signupTicketOf(ctx(PROVIDER_CALLBACK_PATH))).toBe('the-ticket')
+    expect(signupTicketOf(ctx(EMAIL_CODE_SIGN_IN_PATH))).toBeNull()
+    expect(signupTicketOf(null)).toBeNull()
   })
 })
 

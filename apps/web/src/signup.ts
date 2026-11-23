@@ -123,6 +123,29 @@ export async function askSignupCode(
   }
 }
 
+/**
+ * Before Continue with Google (Microsoft, GitHub) leaves the sign-up page: the same checks as a code, without an
+ * address. On ok the API set a cookie the provider's callback brings, which lets that sign-in make the new account.
+ */
+export async function askProviderSignup(
+  token: string,
+): Promise<{ ok: true } | { ok: false; reason: CodeRefusal | 'unreachable'; retryAfter: number | null }> {
+  try {
+    const res = await fetch('/v1/signup/provider', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
+    if (res.ok) return { ok: true }
+    const body = (await res.json().catch(() => null)) as { code?: string; retryAfter?: unknown } | null
+    const retryAfter = typeof body?.retryAfter === 'number' && body.retryAfter > 0 ? Math.ceil(body.retryAfter) : null
+    return { ok: false, reason: REFUSALS.find(r => r === body?.code) ?? 'unreachable', retryAfter }
+  } catch {
+    return { ok: false, reason: 'unreachable', retryAfter: null }
+  }
+}
+
 export type SignUpInput = {
   name: string
   /** The partner's company name (plan `partner`); a business is named in the onboarding's Business step. */

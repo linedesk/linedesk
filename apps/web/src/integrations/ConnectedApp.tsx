@@ -47,23 +47,34 @@ type Props = {
 const pushesKey = (app: ConnectableApp) => `app.pushes.${app}`
 
 /** The texts that differ per app: HubSpot is a CRM (contacts), Slack posts to a channel, Jobber has clients, Shopify customers. */
-type AppText = { help: MessageKey; notConnected: MessageKey; disconnectConfirmTip: MessageKey; scope: MessageKey }
+type AppText = {
+  help: MessageKey
+  /** What connecting does, in the card while it is not connected (the page header names only the category). */
+  notConnected: MessageKey
+  /** The one line on trust under it: who approves, what Linedesk may write. */
+  trust?: MessageKey
+  disconnectConfirmTip: MessageKey
+  scope: MessageKey
+}
 const APP_TEXT: Record<ConnectableApp, AppText> = {
   hubspot: {
     help: msg('settings.integrations.app.help'),
     notConnected: msg('settings.integrations.app.notConnected'),
+    trust: msg('settings.integrations.app.trust'),
     disconnectConfirmTip: msg('settings.integrations.app.disconnectConfirmTip'),
     scope: msg('settings.integrations.app.error.scope'),
   },
   slack: {
     help: msg('settings.integrations.app.slack.help'),
     notConnected: msg('settings.integrations.app.slack.notConnected'),
+    trust: msg('settings.integrations.app.slack.trust'),
     disconnectConfirmTip: msg('settings.integrations.app.slack.disconnectConfirmTip'),
     scope: msg('settings.integrations.app.slack.scope'),
   },
   jobber: {
     help: msg('settings.integrations.app.jobber.help'),
     notConnected: msg('settings.integrations.app.jobber.notConnected'),
+    trust: msg('settings.integrations.app.jobber.trust'),
     disconnectConfirmTip: msg('settings.integrations.app.jobber.disconnectConfirmTip'),
     scope: msg('settings.integrations.app.jobber.scope'),
   },
@@ -77,6 +88,7 @@ const APP_TEXT: Record<ConnectableApp, AppText> = {
   zoho: {
     help: msg('settings.integrations.app.help'),
     notConnected: msg('settings.integrations.app.notConnected'),
+    trust: msg('settings.integrations.app.trust'),
     disconnectConfirmTip: msg('settings.integrations.app.disconnectConfirmTip'),
     scope: msg('settings.integrations.app.error.scope'),
   },
@@ -177,9 +189,14 @@ function NotConnected({ app, canEdit, toast, openShop }: Props & { openShop: str
       <ShopifyNotConnected canEdit={canEdit} toast={toast} connect={connect} opening={opening} openShop={openShop} />
     )
   if (!canEdit) return <p className="help">{t('settings.integrations.app.onlyAdmins', { name })}</p>
+  const trust = APP_TEXT[app].trust
   return (
     <div className="ig-app-connect">
-      <p className="help">{t(APP_TEXT[app].notConnected, { name })}</p>
+      <p className="help">
+        {t(APP_TEXT[app].notConnected, { name })}
+        {trust && <br />}
+        {trust && t(trust, { name })}
+      </p>
       <Button
         variant="primary"
         disabled={opening}

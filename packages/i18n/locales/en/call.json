@@ -57,6 +57,7 @@
   "contact.fold.company": "company",
   "contact.fold.email": "email",
   "contact.fold.note": "note",
+  "contact.fromCallOn": "From the call on {date} · <keep>Keep</keep>",
   "contact.fromThisCall": "From this call · <keep>Keep</keep>",
   "contact.inbound": "Inbound",
   "contact.keepTitle": "Save it to the contact",

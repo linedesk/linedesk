@@ -104,6 +104,9 @@ export function parseAdminHash(hash: string): AdminPlace {
   return { section, id: id ? decodeURIComponent(id) : null }
 }
 
+/** The id in `#admin/features/<id>` that opens Features at the Zapier link (Integrations › Zapier links here). */
+export const ZAPIER_SETTING = 'zapier-app'
+
 export const adminHash = ({ section, id }: AdminPlace) => `#admin/${section}${id ? `/${encodeURIComponent(id)}` : ''}`
 
 /**

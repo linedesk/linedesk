@@ -536,10 +536,30 @@ function StatusBadge({ id, status }: { id: Integration['id']; status: Status }) 
   }
 }
 
-/** A detail view: back to the catalog, the integration's header, and what is set up here. */
+/**
+ * Pages whose Connection card says what connecting does (and the one line on trust): their header names only the
+ * category, so nothing is said twice. The other pages keep their line in the header (their card holds steps).
+ */
+const CARD_SAYS_WHAT: ReadonlySet<DetailId> = new Set([
+  'hubspot',
+  'zoho',
+  'slack',
+  'jobber',
+  'shopify',
+  'gmail',
+  'outlook-mail',
+])
+
+/**
+ * A detail view: back to the catalog, the integration's header, and what is set up here. One primary per screen:
+ * while the integration is not set up, its card's Connect is the primary and the header's way out is a quiet Back;
+ * once it is set up (or has nothing to set up), the header's Done is.
+ */
 function Detail({ id, canManageKeys, toast }: { id: DetailId; canManageKeys: boolean; toast: Props['toast'] }) {
   const t = useT()
   const integration = CATALOG.find(i => i.id === id)!
+  const status = statusOf(id, useFacts(canManageKeys)).kind
+  const home = () => (window.location.hash = HOME)
   return (
     <>
       <p className="ig-back">
@@ -551,16 +571,19 @@ function Detail({ id, canManageKeys, toast }: { id: DetailId; canManageKeys: boo
         <IntegrationMark mark={integration.mark} />
         <div className="ig-detail-title">
           <h1>{t(nameKey(id))}</h1>
-          <p>{t(lineKey(id))}</p>
+          <p>{t(CARD_SAYS_WHAT.has(id) ? CATEGORY_LABEL[integration.category] : lineKey(id))}</p>
         </div>
-        <Button
-          variant="primary"
-          shortcut={['esc']}
-          onClick={() => (window.location.hash = HOME)}
-          title={t('settings.integrations.doneTip')}
-        >
-          {t('settings.integrations.done')}
-        </Button>
+        {status === 'loading' ? (
+          <SkeletonText width={72} height={32} />
+        ) : status === 'connected' || status === 'ready' ? (
+          <Button variant="primary" shortcut={['esc']} onClick={home} title={t('settings.integrations.doneTip')}>
+            {t('settings.integrations.done')}
+          </Button>
+        ) : (
+          <Button variant="ghost" onClick={home} title={t('settings.integrations.doneTip')}>
+            {t('settings.integrations.backButton')}
+          </Button>
+        )}
       </div>
       {id === 'zapier' && <ZapierSubscriptions canEdit={canManageKeys} toast={toast} />}
       {id === 'hubspot' && <ConnectedApp app="hubspot" canEdit={canManageKeys} toast={toast} />}

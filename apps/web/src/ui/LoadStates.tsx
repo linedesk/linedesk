@@ -145,11 +145,20 @@ export function Skeleton({ shape = 'block', width, height, className }: Skeleton
  * Words in a header or tab that depend on data still loading (the assistant's name): one text bar of the words' width,
  * inline, invisible for a quick load like every skeleton. The area around it announces nothing: it is part of a label.
  */
-export function SkeletonText({ width, className }: { width: number | string; className?: string }) {
+export function SkeletonText({
+  width,
+  height,
+  className,
+}: {
+  width: number | string
+  /** A button's height, for a button whose kind depends on the data (an integration's Done or Back). */
+  height?: number
+  className?: string
+}) {
   const view = useLoading(true)
   return (
     <span className={cx('ld-busy', view.phase === 'reserve' && 'is-reserved', className)} style={pulseInStep()}>
-      <Skeleton shape="text" width={width} />
+      <Skeleton shape="text" width={width} height={height} />
     </span>
   )
 }

@@ -14,6 +14,7 @@ import { InternationalTransfers } from './InternationalTransfers.tsx'
 import type { Notify } from './notify.ts'
 import { ProviderDialogFor } from './Providers.tsx'
 import type { ProviderStatusState } from './providerStatus.ts'
+import { ZAPIER_SETTING } from './route.ts'
 import { GermanNumbers, VoiceCloning, Zapier } from './SettingsCards.tsx'
 
 type ProvidersProps = {
@@ -66,7 +67,7 @@ function CalendarToolsCard() {
  * Features: what workspaces get on this server, in one page: the call quality levels, after-call transcription,
  * transfers abroad, the German numbers they can buy, voice cloning, the calendar tools they may connect and the Zapier link.
  */
-export function Features(providers: ProvidersProps) {
+export function Features({ focus, ...providers }: ProvidersProps & { focus?: string | null }) {
   return (
     <>
       <CallQualityCard notify={providers.notify} />
@@ -75,7 +76,7 @@ export function Features(providers: ProvidersProps) {
       <GermanNumbers />
       <VoiceCloning />
       <CalendarToolsCard />
-      <Zapier />
+      <Zapier focused={focus === ZAPIER_SETTING} />
     </>
   )
 }
