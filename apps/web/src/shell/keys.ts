@@ -43,6 +43,8 @@ export type KeyContext = {
   toggleSpam: (call: Call) => void
   /** ⇧B blocks the caller's number (and files the call in Spam), or unblocks it. */
   toggleBlock: (call: Call) => void
+  /** C: call the caller back from this device (or say there is no number to call). */
+  callBack: (call: Call) => void
   /** A: pick who the call goes to (only while the workspace has more than one member). */
   openAssign: (call: Call) => void
   canAssign: boolean
@@ -122,6 +124,7 @@ function onCallKey(key: string, call: Call, c: KeyContext): boolean {
     '#': c.remove,
     '!': c.toggleSpam,
     B: c.toggleBlock,
+    c: c.callBack,
     ...(c.canAssign ? { a: c.openAssign } : {}),
   }
   if (!run[key]) return false

@@ -10,7 +10,7 @@ import { useAssistantNameOrNull } from '../store.tsx'
 import { Select } from '../ui/controls.tsx'
 import { DateInput, FormMessage } from '../ui/form.tsx'
 import { AppointmentValue } from '../settings/AppointmentValue.tsx'
-import { useAppointmentsInUse } from '../settings/appointmentsInUse.ts'
+import { useAppointmentsInUse, useBookingSetUp } from '../settings/appointmentsInUse.ts'
 import { cx, Icon } from '../ui/kit.tsx'
 import { Loading, Skeleton, SkeletonText } from '../ui/LoadStates.tsx'
 import {
@@ -24,6 +24,8 @@ import {
   groupingFor,
   hourLabel,
   longDate,
+  type OutcomeId,
+  outcomeRows,
   PERIOD_LABELS,
   spanLabel,
   summarySentence,
@@ -118,7 +120,7 @@ export function Insights({ canEdit, toast }: Props) {
           {data && assistant !== null && (
             <>
               <Summary data={data} assistant={assistant} canEdit={canEdit} toast={toast} />
-              <Numbers data={data} metric={metric} onMetric={setMetric} />
+              <Numbers data={data} metric={metric} onMetric={setMetric} assistant={assistant} canEdit={canEdit} />
               <div className="in-two">
                 <Outcomes data={data} />
                 <BusyTimes data={data} />
@@ -296,26 +298,51 @@ function Numbers({
   data,
   metric,
   onMetric,
+  assistant,
+  canEdit,
 }: {
   data: InsightsData
   metric: ChartMetric
   onMetric: (m: ChartMetric) => void
+  assistant: string
+  canEdit: boolean
 }) {
   const t = useT()
   const c = data.current
   const versus = compareLabel(data)
   const real = c.calls - c.spam
+  // Nothing booked because the assistant can't book yet: say that, not "0 · Same" (LIN-774).
+  const setUp = useBookingSetUp()
+  const notBooking = setUp === false && c.booked === 0 && data.previous.booked === 0
   return (
     <section className="k-card in-numbers" aria-label={t('insights.number.label')}>
       <div className="in-tiles" role="tablist" aria-label={t('insights.number.tabs')}>
         {NUMBERS.map(n => {
+          if (n.key === 'booked' && notBooking)
+            return (
+              <div key={n.key} className="in-tile in-tile-setup">
+                <span className="in-tile-l">{t(n.label)}</span>
+                <span className="in-tile-note">{t('insights.number.notBooking', { assistant })}</span>
+                {canEdit && (
+                  <a
+                    className="k-btn k-btn-secondary k-btn-sm in-tile-btn"
+                    href="#assistant/booking"
+                    title={t('insights.number.letBookTitle')}
+                  >
+                    {t('insights.number.letBook', { assistant })}
+                  </a>
+                )}
+              </div>
+            )
           const value = c[n.key]
           const sub =
-            n.key === 'answered' && real > 0
-              ? t('insights.number.shareOf', { share: c.answered / real, count: real })
-              : n.key === 'booked' && data.jobValueCents !== null && value > 0
-                ? `≈ ${formatMoney(value * data.jobValueCents, data.jobValueCurrency)}`
-                : null
+            n.key === 'booked' && setUp === null
+              ? null
+              : n.key === 'answered' && real > 0
+                ? t('insights.number.shareOf', { share: c.answered / real, count: real })
+                : n.key === 'booked' && data.jobValueCents !== null && value > 0
+                  ? `≈ ${formatMoney(value * data.jobValueCents, data.jobValueCurrency)}`
+                  : null
           const delta = versus
             ? t('insights.number.versus', { change: change(value, data.previous[n.key]), versus })
             : null
@@ -415,35 +442,43 @@ function Chart({ data, metric }: { data: InsightsData; metric: ChartMetric }) {
 function Outcomes({ data }: { data: InsightsData }) {
   const t = useT()
   const c = data.current
-  const rows: { label: string; value: number; tone?: 'soft' | 'danger' }[] = [
-    { label: t('insights.number.booked'), value: c.booked },
-    { label: t('insights.outcomes.message'), value: c.messages },
-    { label: t('insights.outcomes.transferred'), value: c.transferred },
-    { label: t('insights.outcomes.other'), value: c.other, tone: 'soft' },
-    { label: t('insights.outcomes.spam'), value: c.spam, tone: 'soft' },
-    { label: t('insights.number.missed'), value: c.missed, tone: 'danger' },
-  ]
+  const LABEL: Record<OutcomeId, string> = {
+    booked: t('insights.number.booked'),
+    messages: t('insights.outcomes.message'),
+    transferred: t('insights.outcomes.transferred'),
+    other: t('insights.outcomes.other'),
+    spam: t('insights.outcomes.spam'),
+    missed: t('insights.number.missed'),
+  }
+  const TONE: Partial<Record<OutcomeId, 'soft' | 'danger'>> = { other: 'soft', spam: 'soft', missed: 'danger' }
+  // Rows with calls only; the ones without are named in one sentence under the heading (LIN-774).
+  const { rows, none } = outcomeRows(c)
   const total = Math.max(1, c.calls)
   return (
     <section className="k-card in-panel" aria-labelledby="in-out-h">
       <h2 id="in-out-h">{t('insights.outcomes.title')}</h2>
-      <p className="in-desc">{t('insights.outcomes.desc')}</p>
-      <ul className="in-outcomes">
-        {rows.map(r => (
-          <li key={r.label}>
-            <span>{r.label}</span>
-            <span className="in-out-n">
-              <b>{fmt().number(r.value)}</b> · {fmt().number(r.value / total, { style: 'percent' })}
-            </span>
-            <span className="in-track">
-              <span
-                className={cx('in-fill', r.tone && `in-fill-${r.tone}`)}
-                style={{ width: `${(r.value / total) * 100}%` }}
-              />
-            </span>
-          </li>
-        ))}
-      </ul>
+      <p className="in-desc">
+        {t('insights.outcomes.desc')}
+        {none && ` ${none}`}
+      </p>
+      {rows.length > 0 && (
+        <ul className="in-outcomes">
+          {rows.map(r => (
+            <li key={r.id}>
+              <span>{LABEL[r.id]}</span>
+              <span className="in-out-n">
+                <b>{fmt().number(r.value)}</b> · {fmt().number(r.value / total, { style: 'percent' })}
+              </span>
+              <span className="in-track">
+                <span
+                  className={cx('in-fill', TONE[r.id] && `in-fill-${TONE[r.id]}`)}
+                  style={{ width: `${(r.value / total) * 100}%` }}
+                />
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="in-flags">
         <span className={cx('in-flag', c.urgent > 0 && 'in-flag-urgent')}>
           {t('insights.outcomes.urgent', { count: c.urgent })}

@@ -21,7 +21,7 @@ import { LinkButton } from '../ui/AppLink.tsx'
 import { SignInMark } from '../ui/brand-logos.tsx'
 import { Checkbox, RadioCard, Switch } from '../ui/controls.tsx'
 import { Card, Dialog, Input } from '../ui/form.tsx'
-import { Badge, Button, Icon } from '../ui/kit.tsx'
+import { Badge, Button, cx, Icon } from '../ui/kit.tsx'
 import { Loading, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
 import { EditButton, List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
@@ -36,6 +36,8 @@ import {
   connectResult,
   durationLabel,
   isPasswordProvider,
+  openSuggestions,
+  suggestionFields,
   isSchedulingTool,
   type KeyProviderId,
   PROVIDER_LABEL,
@@ -48,7 +50,8 @@ import {
 import { Field } from './fields.tsx'
 import { KeyConnectDialog } from './KeyConnect.tsx'
 import { MissingProviderNote } from './MissingProviderNote.tsx'
-import { callAction, useWriteAction } from './settings-api.ts'
+import { kindLabel } from './businessKind.ts'
+import { callAction, useWorkspaceSettings, useWriteAction } from './settings-api.ts'
 import './calendar.css'
 
 type Props = { assistant: Assistant; canEdit: boolean; toast: (text: string) => void }
@@ -246,7 +249,8 @@ function StepCard({
   children,
 }: {
   id: string
-  step: number
+  /** Its number, only while the page shows both steps: a lone "1" is no step (LIN-774). */
+  step?: number
   title: string
   description: string
   help?: string
@@ -257,14 +261,18 @@ function StepCard({
   return (
     <Card
       id={id}
-      className="st-sec cal-step"
+      className={step === undefined ? 'st-sec' : 'st-sec cal-step'}
       title={
-        <>
-          <span className="cal-step-no" aria-hidden="true">
-            {format.number(step)}
-          </span>
-          {title}
-        </>
+        step === undefined ? (
+          title
+        ) : (
+          <>
+            <span className="cal-step-no" aria-hidden="true">
+              {format.number(step)}
+            </span>
+            {title}
+          </>
+        )
       }
       description={description}
       help={help}
@@ -534,6 +542,45 @@ function ToolTypes({
   )
 }
 
+/**
+ * One click adds a type usual for the workspace's kind of business (LIN-774): its name in the member's language, its
+ * length, on; the rest as a new type starts. Shown while the workspace has no types of its own, else the empty line.
+ */
+function TypeSuggestions({ types, canEdit }: { types: AppointmentType[]; canEdit: boolean }) {
+  const t = useT()
+  const run = useRun()
+  const kind = useWorkspaceSettings().data?.businessKind ?? null
+  const open = canEdit ? openSuggestions(kind, types) : []
+  if (!open.length) return types.length ? null : <ListEmpty>{t('settings.calendar.noType')}</ListEmpty>
+  return (
+    <div className={cx('cal-suggest', types.length > 0 && 'cal-suggest-after')}>
+      <p className="cal-suggest-lead">{t('settings.calendar.suggest.lead', { kind: kindLabel(kind!) })}</p>
+      <div className="cal-suggest-list" role="group" aria-label={t('settings.calendar.suggest.label')}>
+        {open.map(s => (
+          <button
+            key={s.id}
+            type="button"
+            className="cal-suggest-chip"
+            title={t('settings.calendar.suggest.add', { name: s.name, duration: durationLabel(s.durationMin) })}
+            onClick={() =>
+              void run('appointmentType.upsert', {
+                name: s.name,
+                durationMin: s.durationMin,
+                enabled: true,
+                requiredFields: suggestionFields(kind),
+              })
+            }
+          >
+            <Icon name="plus" size={12} />
+            <b>{s.name}</b>
+            <span className="cal-suggest-len">{durationLabel(s.durationMin)}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function StepWhat({
   assistantId,
   name,
@@ -543,6 +590,7 @@ function StepWhat({
   connections,
   tool,
   eventTypes,
+  numbered,
 }: {
   assistantId: string
   name: string
@@ -553,6 +601,8 @@ function StepWhat({
   /** The scheduling tool account the assistant books with: only its event types. None: the own types. */
   tool?: CalendarConnection
   eventTypes: AssistantCalendar[]
+  /** Step 2 is on the page too: the card shows its number. */
+  numbered: boolean
 }) {
   const t = useT()
   const [editing, setEditing] = useState<AppointmentType | 'new' | null>(null)
@@ -562,7 +612,7 @@ function StepWhat({
   return (
     <StepCard
       id="as-cal-types"
-      step={1}
+      step={numbered ? 1 : undefined}
       title={t('settings.calendar.what.title')}
       description={
         tool
@@ -589,14 +639,17 @@ function StepWhat({
             ))}
           </List>
         )
-      ) : types.length ? (
-        <List label={t('settings.calendar.what.title')} className="cal-list">
-          {types.map(type => (
-            <OwnTypeRow key={type.id} type={type} canEdit={canEdit} onEdit={() => setEditing(type)} />
-          ))}
-        </List>
       ) : (
-        <ListEmpty>{t('settings.calendar.noType')}</ListEmpty>
+        <>
+          {types.length > 0 && (
+            <List label={t('settings.calendar.what.title')} className="cal-list">
+              {types.map(type => (
+                <OwnTypeRow key={type.id} type={type} canEdit={canEdit} onEdit={() => setEditing(type)} />
+              ))}
+            </List>
+          )}
+          <TypeSuggestions types={types} canEdit={canEdit} />
+        </>
       )}
       {tool && <p className="cal-step-note">{t('settings.calendar.where.toolNote', { name, tool: toolName })}</p>}
       {editing && (
@@ -1260,6 +1313,7 @@ export function CalendarSettings({ assistant, canEdit, toast }: Props) {
           connections={connections}
           tool={tool}
           eventTypes={eventTypes}
+          numbered={connections.length > 0 && !tool}
         />
         {connections.length > 0 && (
           <>

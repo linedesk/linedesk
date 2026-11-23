@@ -1,6 +1,6 @@
 import type { Call, Contact, TranscriptSegment } from '@linedesk/db/types'
 import { memo, type MouseEvent, type Ref } from 'react'
-import { callerName, callTitle, statusLabel, tabOf, type InboxTab } from '../inbox-model.ts'
+import { callBackNumber, callerName, callTitle, statusLabel, tabOf, type InboxTab } from '../inbox-model.ts'
 import { useAssistantName, useContact } from '../store.tsx'
 import { clock, formatDate, listDuration, listTime, parseTs } from '../time.ts'
 
@@ -9,7 +9,7 @@ const fullTime = (date: Date) =>
 import type { IconName } from '../ui/icons.ts'
 import { Checkbox } from '../ui/controls.tsx'
 import { memberAvatar, memberLabel, useMember } from '../team/members.ts'
-import { Avatar, Badge, cx, Icon } from '../ui/kit.tsx'
+import { Avatar, Badge, cx, Icon, Kbd } from '../ui/kit.tsx'
 import { LiveIndicator } from '../ui/LiveIndicator.tsx'
 import { highlight, searchHit } from './search.tsx'
 import { useT } from '@linedesk/i18n/react'
@@ -29,6 +29,8 @@ export type RowHandlers = {
   onAssign?: (call: Call, anchor: DOMRect) => void
   /** Tick or untick a call; with shift, everything from the last ticked call to this one. */
   onSelect?: (call: Call, range: boolean) => void
+  /** Call the caller back from this device (C); the selected row offers it next to its next step. */
+  onCallBack?: (call: Call) => void
 }
 
 type Props = RowHandlers & {
@@ -166,6 +168,28 @@ function SelectBox({
   )
 }
 
+/**
+ * Call back, next to the next step of the selected or hovered row (LIN-774): what the call view's Call button does,
+ * from the list. Only when the caller's number is known and not spam or blocked (callBackNumber).
+ */
+function CallBackButton({ call, onCallBack }: { call: Call; onCallBack: (call: Call) => void }) {
+  const t = useT()
+  const label = t('inbox.row.callBack')
+  return (
+    <button
+      type="button"
+      className="r-callback"
+      title={t('common.withKey', { label: t('inbox.row.callBackTitle'), key: 'C' })}
+      aria-label={label}
+      onClick={stop(() => onCallBack(call))}
+    >
+      <Icon name="phone-out" size={13} />
+      <span>{label}</span>
+      <Kbd keys={['C']} />
+    </button>
+  )
+}
+
 /** The member a call is assigned to: their picture or initials, the name in the tooltip. */
 function AssigneeMark({ userId }: { userId: string }) {
   const t = useT()
@@ -282,6 +306,9 @@ export const Row = memo(function Row({
       <Summary call={call} search={search} segments={segments} />
       <span className="r-status">
         <Status call={call} tab={tab} markDone={done && search !== null} segments={segments} />
+        {isCursor && on.onCallBack && callBackNumber(call, contact) && (
+          <CallBackButton call={call} onCallBack={on.onCallBack} />
+        )}
       </span>
       <span className="r-dur">{live || !call.duration_sec ? '—' : listDuration(call.duration_sec)}</span>
       <span className="r-acts">

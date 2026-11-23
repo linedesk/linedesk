@@ -189,6 +189,23 @@ export function answeredByLabel(call: Call, segments: TranscriptSegment[], assis
  * the name stored on its contact (testCallContact) or as a person.
  */
 export const isTestCall = (call: Pick<Call, 'source'>) => call.source === 'test'
+
+/**
+ * The number Call back dials (the inbox row's button, C, ⌘K; LIN-774), as the call view's Call button: the caller's
+ * number when it is known (a full international number), never for spam or a blocked number. Null: no Call back.
+ */
+export function callBackNumber(
+  call: Pick<Call, 'from_number' | 'outcome' | 'spam_likely'>,
+  contact?: Pick<Contact, 'blocked_at'>,
+): string | null {
+  if (!call.from_number.startsWith('+') || call.outcome === 'spam' || call.spam_likely) return null
+  return contact?.blocked_at ? null : call.from_number
+}
+
+/** Call the number from this device: a tel: link, which a phone dials and a computer hands to its calling app. */
+export const dial = (number: string) => {
+  window.location.href = `tel:${number}`
+}
 export const testCallLabel = () => i18n().t('inbox.caller.testCall')
 
 /** A deleted contact no longer names the call: the number does. */

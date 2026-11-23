@@ -302,6 +302,45 @@ a.auth-switch {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Call back on the selected row (LIN-774): right after the next step, which gives way (ellipsis) before it does. */
+.r-callback {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  margin-left: 8px;
+  padding: 0 4px 0 8px;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.r-callback:hover {
+  background: var(--surface);
+  border-color: var(--ink);
+}
+.r-callback:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.r-callback .k-kbd {
+  height: 16px;
+  min-width: 16px;
+  padding: 0 3px;
+  font-size: 10px;
+}
+/* Phones: a tap opens the call (its Call button) and the row's ⋯ lists Call back, so the row stays two short lines. */
+@media (max-width: 719px) {
+  .r-callback {
+    display: none;
+  }
+}
 
 /* The backdrop's click target sits behind the panel. */
 .overlay-dismiss {

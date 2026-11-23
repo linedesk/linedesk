@@ -32,6 +32,7 @@ const SHORTCUTS: Group[] = [
       ['help.row.remindMe', ['H']],
       ['help.row.clearReminder', ['⇧', 'H']],
       ['help.row.assignToATeammateOrUnassign', ['A']],
+      ['help.row.callBack', ['C']],
       ['help.row.pickInAMenu', ['1', '–', '9']],
       ['help.row.markReadOrUnread', ['U']],
       ['help.row.spamOrNotSpam', ['!']],

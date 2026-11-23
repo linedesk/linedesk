@@ -19670,26 +19670,6 @@
       "out": "96147cdbfd6955d797f628fb510283afaecc1aa5a8735f3fe209ff22746b6258",
       "src": "663ea1bfffe5038f3f0cf667f14c4257eff52d77ce7f2a218f72e9286616ea39"
     },
-    "insights.summary.answered": {
-      "by": "ai",
-      "out": "1362b77ef77062664e1b8dd47afc5af4447605411a0c679a4024af77c740252a",
-      "src": "6184943a9b1983c9d9fdf7daafdbe303db4c7281fd68429f98c87701856a0772"
-    },
-    "insights.summary.booked": {
-      "by": "ai",
-      "out": "182792be42aa130b9b4543bac27490ff8d840b389bd5e4e55ad5ef8cf83e5521",
-      "src": "96b1bb1dd2c9ce2c2d4326df7130420b57037216e407e1ca2d58d50ea94ceea6"
-    },
-    "insights.summary.caughtAfterHours": {
-      "by": "ai",
-      "out": "60429778971f39fbd70a9fecd037320a178e100048945fd9f8278897c66d419d",
-      "src": "40fb1afb93b7a96ad356523ca5dd772536e67747fb2bd08f80cfada6623acbff"
-    },
-    "insights.summary.flagged": {
-      "by": "ai",
-      "out": "91ed656a525646d13871ce040f9ff88869efcb8498069e63b34179e750b8a7d8",
-      "src": "ab06a9554006a7e2a8e9a10ecbf2949030f0c6a8ffb52134760c3bac3f706d3a"
-    },
     "insights.summary.label": {
       "by": "ai",
       "out": "9d589ca0f3ade5c8a175d1eb024050c16fd466700e44707a5a60c2d388420893",
@@ -19699,11 +19679,6 @@
       "by": "ai",
       "out": "f3871c6aa1142edb646bd2cfecd4ea3c836e61b409972f984c9eda820975a88e",
       "src": "67e573a289afa6a9c6d8e9769bb0abee421851d456df0b17e9f65fe7942e8932"
-    },
-    "insights.summary.sentence": {
-      "by": "ai",
-      "out": "dee87405985655132d92145145b34c6c7b46cc3f22bdf8275ca7634b121eaa47",
-      "src": "77f60f89b882c01b699c2dec09a6a4cc30176d95310c91e20d9d891af21048c4"
     },
     "insights.summary.when": {
       "by": "ai",
@@ -58952,26 +58927,6 @@
       "out": "b513bb817ef5d4ecac3d5f8b4eabfb09d7d101c6382f832d41afc79aecc2a14e",
       "src": "663ea1bfffe5038f3f0cf667f14c4257eff52d77ce7f2a218f72e9286616ea39"
     },
-    "insights.summary.answered": {
-      "by": "ai",
-      "out": "7ab0b750aefcec734cae052fb91577aa1ea631ff7556014f201364cca197e078",
-      "src": "6184943a9b1983c9d9fdf7daafdbe303db4c7281fd68429f98c87701856a0772"
-    },
-    "insights.summary.booked": {
-      "by": "ai",
-      "out": "721d654a698c876f8883699a9fdd7a0e99eee2b8cec94aea0c9053d9091b1e6b",
-      "src": "96b1bb1dd2c9ce2c2d4326df7130420b57037216e407e1ca2d58d50ea94ceea6"
-    },
-    "insights.summary.caughtAfterHours": {
-      "by": "ai",
-      "out": "17b2412729342af400d23684c3a28dff35da42bedf5551e9f700c4638562e71a",
-      "src": "40fb1afb93b7a96ad356523ca5dd772536e67747fb2bd08f80cfada6623acbff"
-    },
-    "insights.summary.flagged": {
-      "by": "ai",
-      "out": "b512457948e35f4259fec6effcd5b8e05502ac0818f9f4ffec9dd405aeb975c0",
-      "src": "ab06a9554006a7e2a8e9a10ecbf2949030f0c6a8ffb52134760c3bac3f706d3a"
-    },
     "insights.summary.label": {
       "by": "ai",
       "out": "ed7bdc67c84b3ed6bbef57fc8e22855e9c63e2b248cbec541c015edeb57fccfa",
@@ -58981,11 +58936,6 @@
       "by": "ai",
       "out": "583a54fbc2a783f9e087fbefbd8f437d6c037e9d6eca6ff478fc82a6035f6a11",
       "src": "67e573a289afa6a9c6d8e9769bb0abee421851d456df0b17e9f65fe7942e8932"
-    },
-    "insights.summary.sentence": {
-      "by": "ai",
-      "out": "1f65a14291b40b6d6cdb315080f41d98045b3e2ad033802ac1f6d639f83dacaf",
-      "src": "77f60f89b882c01b699c2dec09a6a4cc30176d95310c91e20d9d891af21048c4"
     },
     "insights.summary.when": {
       "by": "ai",
@@ -98234,26 +98184,6 @@
       "out": "632cd2fea71dcde005af4e07f14b8bc1f68b63d9c1b373dc6048fb87e90af22b",
       "src": "663ea1bfffe5038f3f0cf667f14c4257eff52d77ce7f2a218f72e9286616ea39"
     },
-    "insights.summary.answered": {
-      "by": "ai",
-      "out": "763292588115b32d5c7dc046702b49d16e9a9b1049ba0675736b84ad6b5c3a27",
-      "src": "6184943a9b1983c9d9fdf7daafdbe303db4c7281fd68429f98c87701856a0772"
-    },
-    "insights.summary.booked": {
-      "by": "ai",
-      "out": "8650c55b196048870d9bdc3b149d7bf80adde10008b93081e7781097f8f649f0",
-      "src": "96b1bb1dd2c9ce2c2d4326df7130420b57037216e407e1ca2d58d50ea94ceea6"
-    },
-    "insights.summary.caughtAfterHours": {
-      "by": "ai",
-      "out": "ab62e92c4405b02bedce90c8097058576a8bbc6cd524dca0e41785b897ea25cc",
-      "src": "40fb1afb93b7a96ad356523ca5dd772536e67747fb2bd08f80cfada6623acbff"
-    },
-    "insights.summary.flagged": {
-      "by": "ai",
-      "out": "86aaf444542a346b7feec0a7da5e189c2be3fc8c8da869bb6a08361b1d48de0c",
-      "src": "ab06a9554006a7e2a8e9a10ecbf2949030f0c6a8ffb52134760c3bac3f706d3a"
-    },
     "insights.summary.label": {
       "by": "ai",
       "out": "9d750fae748681ca14e2c3fe0c1ed0a2b56984cf12747e281cf815833de21c9c",
@@ -98263,11 +98193,6 @@
       "by": "ai",
       "out": "2cc61c85fa804fb7c12a4b2eaf1c151c0578de2e97e54b8f258ff268e3484553",
       "src": "67e573a289afa6a9c6d8e9769bb0abee421851d456df0b17e9f65fe7942e8932"
-    },
-    "insights.summary.sentence": {
-      "by": "ai",
-      "out": "1f65a14291b40b6d6cdb315080f41d98045b3e2ad033802ac1f6d639f83dacaf",
-      "src": "77f60f89b882c01b699c2dec09a6a4cc30176d95310c91e20d9d891af21048c4"
     },
     "insights.summary.when": {
       "by": "ai",
@@ -137516,26 +137441,6 @@
       "out": "861b60d11baa294bd9c004577cb33cf03445162643cb093c6a21ffb84d85725a",
       "src": "663ea1bfffe5038f3f0cf667f14c4257eff52d77ce7f2a218f72e9286616ea39"
     },
-    "insights.summary.answered": {
-      "by": "ai",
-      "out": "71154fc3c35e2621f668c3c34ba1b2fbc4a74150ca399c8294fb9ff50af73de7",
-      "src": "6184943a9b1983c9d9fdf7daafdbe303db4c7281fd68429f98c87701856a0772"
-    },
-    "insights.summary.booked": {
-      "by": "ai",
-      "out": "4c04b0dec96e9e8b3a3c22602a5b0d383c713b5f65f0263a4bd0fa639880aec5",
-      "src": "96b1bb1dd2c9ce2c2d4326df7130420b57037216e407e1ca2d58d50ea94ceea6"
-    },
-    "insights.summary.caughtAfterHours": {
-      "by": "ai",
-      "out": "688a207fbf9b7b54b1a5b2f4870571cf044c8542fd7883d3be9b9f4a83063fd8",
-      "src": "40fb1afb93b7a96ad356523ca5dd772536e67747fb2bd08f80cfada6623acbff"
-    },
-    "insights.summary.flagged": {
-      "by": "ai",
-      "out": "ba3797a5bf43b28e4baeefff414d349451beaee8d18a2ef59c84ac48d1e5eed6",
-      "src": "ab06a9554006a7e2a8e9a10ecbf2949030f0c6a8ffb52134760c3bac3f706d3a"
-    },
     "insights.summary.label": {
       "by": "ai",
       "out": "aaaf449bd4eac9c5629ab332244ab95c20fab59150ca0428592b44e1ffeba446",
@@ -137545,11 +137450,6 @@
       "by": "ai",
       "out": "0abb958bd5b75c2410f1ee1d53c5a85b1be6a985c72a8707bc98e88cac244a8e",
       "src": "67e573a289afa6a9c6d8e9769bb0abee421851d456df0b17e9f65fe7942e8932"
-    },
-    "insights.summary.sentence": {
-      "by": "ai",
-      "out": "1dc036988b1ccbd9ce6e86cd9691947a392f96228f56ed55fd3cae754ace2978",
-      "src": "77f60f89b882c01b699c2dec09a6a4cc30176d95310c91e20d9d891af21048c4"
     },
     "insights.summary.when": {
       "by": "ai",
@@ -176798,26 +176698,6 @@
       "out": "6dd87bda8f552941b3d4edce5b53bdfb88e3372e43ebc0cf434b5238819a30e0",
       "src": "663ea1bfffe5038f3f0cf667f14c4257eff52d77ce7f2a218f72e9286616ea39"
     },
-    "insights.summary.answered": {
-      "by": "ai",
-      "out": "50a539b71048fbdfbacb9bca71c8bdcbcfae1d3956c5dafb6e6731d6310f5747",
-      "src": "6184943a9b1983c9d9fdf7daafdbe303db4c7281fd68429f98c87701856a0772"
-    },
-    "insights.summary.booked": {
-      "by": "ai",
-      "out": "ecfda2ee5102027019f6f1ca5d4f37e93031841b3367018be492a27f6cda17fa",
-      "src": "96b1bb1dd2c9ce2c2d4326df7130420b57037216e407e1ca2d58d50ea94ceea6"
-    },
-    "insights.summary.caughtAfterHours": {
-      "by": "ai",
-      "out": "85a8c71221133317a62ac3d9f677233738a52510257daf5318ba8c6c224cd032",
-      "src": "40fb1afb93b7a96ad356523ca5dd772536e67747fb2bd08f80cfada6623acbff"
-    },
-    "insights.summary.flagged": {
-      "by": "ai",
-      "out": "08ca47199cccd31bc381265f9c47e89cd8828faf04fa6c218a750ea5a0ad24ef",
-      "src": "ab06a9554006a7e2a8e9a10ecbf2949030f0c6a8ffb52134760c3bac3f706d3a"
-    },
     "insights.summary.label": {
       "by": "ai",
       "out": "3c9717bdf2260bc9ef2033566ad1f5d48e398d53fa0a6910c063a5ae9dcdedda",
@@ -176827,11 +176707,6 @@
       "by": "ai",
       "out": "75941ec1e9e09b1186191d8e1a58bf7e017c87133eb01ba789b402ffd394b584",
       "src": "67e573a289afa6a9c6d8e9769bb0abee421851d456df0b17e9f65fe7942e8932"
-    },
-    "insights.summary.sentence": {
-      "by": "ai",
-      "out": "1f65a14291b40b6d6cdb315080f41d98045b3e2ad033802ac1f6d639f83dacaf",
-      "src": "77f60f89b882c01b699c2dec09a6a4cc30176d95310c91e20d9d891af21048c4"
     },
     "insights.summary.when": {
       "by": "ai",

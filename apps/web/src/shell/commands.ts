@@ -37,6 +37,8 @@ export type CommandContext = {
   } | null
   /** Whether the call's number is blocked. */
   isBlocked: (call: Call) => boolean
+  /** Call back (C): what dials the caller, or null when there is no number to call (unknown, spam, blocked). */
+  callBack?: (call: Call) => (() => void) | null
   /** Selecting calls in the list; null when the list is not on screen (a call or another page is open). */
   selection: {
     count: number
@@ -71,6 +73,7 @@ export type CommandContext = {
 function callCommands(call: Call, c: CommandContext): Command[] {
   const { t } = i18n()
   const done = call.inbox_state === 'done'
+  const callBack = c.callBack?.(call)
   return [
     done
       ? {
@@ -86,6 +89,17 @@ function callCommands(call: Call, c: CommandContext): Command[] {
           shortcut: ['E'],
           run: () => c.markDone(call),
         },
+    ...(callBack
+      ? [
+          {
+            label: t('shell.command.callBack'),
+            keywords: 'phone dial ring return call',
+            icon: 'phone-out',
+            shortcut: ['C'],
+            run: callBack,
+          } satisfies Command,
+        ]
+      : []),
     {
       label: t('shell.command.remindMe'),
       icon: 'clock',

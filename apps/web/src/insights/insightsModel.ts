@@ -73,7 +73,11 @@ function periodWords(period: InsightsData['period'], days: number, from?: string
   return { period: period === '7d' || period === '30d' ? 'days' : period, days }
 }
 
-/** "In the last 7 days Maya answered 34 calls, booked 9 appointments and caught 4 urgent calls after hours." */
+/**
+ * The summary: what the four numbers don't say. How many calls the assistant answered, as a share ("answered every
+ * call"), then what the answered calls led to and how many were urgent: "In the last 30 days Maya answered every call.
+ * 6 people left a message and 1 call was urgent."
+ */
 export function summarySentence(
   assistant: string,
   data: Pick<InsightsData, 'period' | 'days'> & Partial<Pick<InsightsData, 'from' | 'to'>>,
@@ -81,12 +85,57 @@ export function summarySentence(
 ): string {
   const words = periodWords(data.period, data.days, data.from, data.to)
   if (c.calls === 0) return t('insights.summary.noCalls', words)
-  const parts = [t('insights.summary.answered', { count: c.answered })]
-  if (c.booked) parts.push(t('insights.summary.booked', { count: c.booked }))
-  if (c.urgentAfterHours) parts.push(t('insights.summary.caughtAfterHours', { count: c.urgentAfterHours }))
-  else if (c.urgent) parts.push(t('insights.summary.flagged', { count: c.urgent }))
   const when = t('insights.summary.when', words)
-  return t('insights.summary.sentence', { when, assistant, actions: fmt().list(parts) })
+  if (c.answered === 0 && c.missed === 0) return t('insights.summary.onlySpam', { when, assistant, count: c.spam })
+  const real = c.answered + c.missed
+  const first =
+    c.answered === 0
+      ? t('insights.summary.noneAnswered', { when, assistant, calls: real })
+      : c.missed === 0
+        ? t('insights.summary.allAnswered', { when, assistant })
+        : t('insights.summary.someAnswered', { when, assistant, answered: c.answered, calls: real })
+  const second = outcomeSentence(c)
+  return second ? t('insights.summary.both', { first, second }) : first
+}
+
+/** "2 people booked an appointment, 6 people left a message and 1 call was urgent."; null when nothing to add. */
+function outcomeSentence(c: InsightCounts): string | null {
+  const parts: string[] = []
+  if (c.booked) parts.push(t('insights.summary.part.booked', { count: c.booked }))
+  if (c.messages) parts.push(t('insights.summary.part.messages', { count: c.messages }))
+  if (c.transferred) parts.push(t('insights.summary.part.transferred', { count: c.transferred }))
+  if (c.urgentAfterHours) parts.push(t('insights.summary.part.urgentAfterHours', { count: c.urgentAfterHours }))
+  else if (c.urgent) parts.push(t('insights.summary.part.urgent', { count: c.urgent }))
+  if (parts.length) return t('insights.summary.outcomes', { parts: fmt().list(parts) })
+  return c.answered > 0 ? t('insights.summary.noFollowUp') : null
+}
+
+// --- How calls ended -----------------------------------------------------------------------------
+
+export type OutcomeId = 'booked' | 'messages' | 'transferred' | 'other' | 'spam' | 'missed'
+export type OutcomeRow = { id: OutcomeId; value: number }
+const OUTCOME_ORDER: OutcomeId[] = ['booked', 'messages', 'transferred', 'other', 'spam', 'missed']
+const NONE_KEY: Record<OutcomeId, MessageKey> = {
+  booked: msg('insights.outcomes.none.booked'),
+  messages: msg('insights.outcomes.none.messages'),
+  transferred: msg('insights.outcomes.none.transferred'),
+  other: msg('insights.outcomes.none.other'),
+  spam: msg('insights.outcomes.none.spam'),
+  missed: msg('insights.outcomes.none.missed'),
+}
+
+/**
+ * How calls ended: the rows with calls, in their fixed order, and one sentence naming the ones without ("No bookings,
+ * transfers, or missed calls."), null when every row has calls. No calls at all: no rows, and the sentence says so.
+ */
+export function outcomeRows(c: InsightCounts): { rows: OutcomeRow[]; none: string | null } {
+  if (c.calls === 0) return { rows: [], none: t('insights.outcomes.noCalls') }
+  const all = OUTCOME_ORDER.map(id => ({ id, value: c[id] }))
+  const empty = all.filter(r => r.value === 0).map(r => t(NONE_KEY[r.id]))
+  return {
+    rows: all.filter(r => r.value > 0),
+    none: empty.length ? t('insights.outcomes.none', { items: fmt().list(empty, { type: 'disjunction' }) }) : null,
+  }
 }
 
 // --- The chart -----------------------------------------------------------------------------------
@@ -282,9 +331,7 @@ export function totalsTable(data: InsightsData): { header: string[]; rows: (stri
     t('insights.export.column.urgent'),
     ...(hours ? [t('insights.export.column.afterHours')] : []),
     t('insights.export.column.minutes'),
-    ...(value !== null
-      ? [t('insights.export.column.bookedValue', { currency: data.jobValueCurrency ?? 'USD' })]
-      : []),
+    ...(value !== null ? [t('insights.export.column.bookedValue', { currency: data.jobValueCurrency ?? 'USD' })] : []),
   ]
   const rows = data.daily.map(d => [
     d.date,

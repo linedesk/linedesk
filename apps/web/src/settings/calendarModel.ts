@@ -1,4 +1,11 @@
 // Settings › Assistant › Calendar without React: what the OAuth callback said, durations, labels.
+import {
+  appointmentSuggestionsFor,
+  type BookingFieldInput,
+  type BusinessKind,
+  type SuggestedAppointmentTypeId,
+  traitsOf,
+} from '@linedesk/actions'
 import type { AppointmentType, AssistantCalendar, CalendarConnection } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'
 import { fmt } from '../i18n/format.ts'
@@ -291,3 +298,93 @@ export function toolTypeRows<T extends { id: string }>(
     ...added.filter(a => !ids.has(a.external_id)).map(a => ({ added: a })),
   ]
 }
+
+// --- Suggested appointment types (LIN-774) -----------------------------------------------------------------------
+
+const SUGGESTION_NAME: Record<SuggestedAppointmentTypeId, MessageKey> = {
+  repair_visit: msg('settings.calendar.suggest.type.repair_visit'),
+  estimate_visit: msg('settings.calendar.suggest.type.estimate_visit'),
+  water_heater_service: msg('settings.calendar.suggest.type.water_heater_service'),
+  heating_cooling_tune_up: msg('settings.calendar.suggest.type.heating_cooling_tune_up'),
+  electrical_inspection: msg('settings.calendar.suggest.type.electrical_inspection'),
+  roof_inspection: msg('settings.calendar.suggest.type.roof_inspection'),
+  walkthrough_quote: msg('settings.calendar.suggest.type.walkthrough_quote'),
+  home_cleaning: msg('settings.calendar.suggest.type.home_cleaning'),
+  deep_cleaning: msg('settings.calendar.suggest.type.deep_cleaning'),
+  lawn_care_visit: msg('settings.calendar.suggest.type.lawn_care_visit'),
+  yard_cleanup: msg('settings.calendar.suggest.type.yard_cleanup'),
+  pest_inspection: msg('settings.calendar.suggest.type.pest_inspection'),
+  pest_treatment: msg('settings.calendar.suggest.type.pest_treatment'),
+  follow_up_visit: msg('settings.calendar.suggest.type.follow_up_visit'),
+  rekey_lock_change: msg('settings.calendar.suggest.type.rekey_lock_change'),
+  lock_installation: msg('settings.calendar.suggest.type.lock_installation'),
+  service_visit: msg('settings.calendar.suggest.type.service_visit'),
+  checkup: msg('settings.calendar.suggest.type.checkup'),
+  teeth_cleaning: msg('settings.calendar.suggest.type.teeth_cleaning'),
+  new_patient_exam: msg('settings.calendar.suggest.type.new_patient_exam'),
+  new_patient_visit: msg('settings.calendar.suggest.type.new_patient_visit'),
+  annual_physical: msg('settings.calendar.suggest.type.annual_physical'),
+  first_session: msg('settings.calendar.suggest.type.first_session'),
+  follow_up_session: msg('settings.calendar.suggest.type.follow_up_session'),
+  wellness_exam: msg('settings.calendar.suggest.type.wellness_exam'),
+  vaccinations: msg('settings.calendar.suggest.type.vaccinations'),
+  sick_visit: msg('settings.calendar.suggest.type.sick_visit'),
+  haircut: msg('settings.calendar.suggest.type.haircut'),
+  hair_color: msg('settings.calendar.suggest.type.hair_color'),
+  manicure: msg('settings.calendar.suggest.type.manicure'),
+  massage: msg('settings.calendar.suggest.type.massage'),
+  intro_session: msg('settings.calendar.suggest.type.intro_session'),
+  personal_training: msg('settings.calendar.suggest.type.personal_training'),
+  studio_tour: msg('settings.calendar.suggest.type.studio_tour'),
+  initial_consultation: msg('settings.calendar.suggest.type.initial_consultation'),
+  case_review: msg('settings.calendar.suggest.type.case_review'),
+  tax_preparation: msg('settings.calendar.suggest.type.tax_preparation'),
+  consultation: msg('settings.calendar.suggest.type.consultation'),
+  bookkeeping_review: msg('settings.calendar.suggest.type.bookkeeping_review'),
+  policy_review: msg('settings.calendar.suggest.type.policy_review'),
+  coverage_quote: msg('settings.calendar.suggest.type.coverage_quote'),
+  claim_help: msg('settings.calendar.suggest.type.claim_help'),
+  property_showing: msg('settings.calendar.suggest.type.property_showing'),
+  listing_consultation: msg('settings.calendar.suggest.type.listing_consultation'),
+  buyer_consultation: msg('settings.calendar.suggest.type.buyer_consultation'),
+  intro_call: msg('settings.calendar.suggest.type.intro_call'),
+  strategy_session: msg('settings.calendar.suggest.type.strategy_session'),
+  oil_change: msg('settings.calendar.suggest.type.oil_change'),
+  diagnostic_check: msg('settings.calendar.suggest.type.diagnostic_check'),
+  tire_service: msg('settings.calendar.suggest.type.tire_service'),
+  trial_lesson: msg('settings.calendar.suggest.type.trial_lesson'),
+  school_tour: msg('settings.calendar.suggest.type.school_tour'),
+  parent_meeting: msg('settings.calendar.suggest.type.parent_meeting'),
+}
+
+/** A suggested type's name in the active language. */
+export const suggestionName = (id: SuggestedAppointmentTypeId) => i18n().t(SUGGESTION_NAME[id])
+
+export type OpenSuggestion = { id: SuggestedAppointmentTypeId; name: string; durationMin: number }
+
+const sameName = (a: string, b: string) => a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase()
+
+/**
+ * The suggestions still offered for the workspace's kind: while it has no types, or only types it added from them
+ * (each one added leaves the list); a type of its own ends them. None without a kind or for a kind that doesn't book.
+ */
+export function openSuggestions(
+  kind: BusinessKind | null | undefined,
+  types: readonly Pick<AppointmentType, 'name'>[],
+  nameOf: (id: SuggestedAppointmentTypeId) => string = suggestionName,
+): OpenSuggestion[] {
+  const all = appointmentSuggestionsFor(kind).map(s => ({
+    id: s.type,
+    name: nameOf(s.type),
+    durationMin: s.durationMin,
+  }))
+  if (types.some(type => !all.some(s => sameName(s.name, type.name)))) return []
+  return all.filter(s => !types.some(type => sameName(s.name, type.name)))
+}
+
+/**
+ * What a type added from a suggestion asks for before booking: the name, and the address where the business goes out
+ * to the caller (as a new type in the dialog starts); everything else is the type's default.
+ */
+export const suggestionFields = (kind: BusinessKind | null | undefined): BookingFieldInput[] =>
+  traitsOf(kind).has('site_visits') ? ['name', 'address'] : ['name']

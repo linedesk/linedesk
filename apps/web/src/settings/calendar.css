@@ -297,3 +297,47 @@
   justify-content: center;
   margin-top: 8px;
 }
+
+/* Suggested appointment types for the kind of business (LIN-774): one click adds one. Dashed: not a type yet. */
+.cal-suggest-after {
+  margin-top: 14px;
+}
+.cal-suggest-lead {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+.cal-suggest-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cal-suggest-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-h);
+  padding: 0 12px;
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.cal-suggest-chip b {
+  font-weight: 600;
+}
+.cal-suggest-chip:hover {
+  border-color: var(--line-control);
+  background: var(--surface-hover);
+}
+.cal-suggest-chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.cal-suggest-len {
+  color: var(--ink-muted);
+}

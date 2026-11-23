@@ -31,6 +31,7 @@ const context = (over: Partial<KeyContext> = {}) =>
     remove: vi.fn(),
     toggleSpam: vi.fn(),
     toggleBlock: vi.fn(),
+    callBack: vi.fn(),
     openAssign: vi.fn(),
     canAssign: true,
     openRemind: vi.fn(),
@@ -78,7 +79,9 @@ describe('inbox keys', () => {
     press('#', c)
     press('!', c, { shiftKey: true })
     press('b', c, { shiftKey: true })
+    press('c', c)
     for (const fn of [
+      c.callBack,
       c.markDone,
       c.markNotDone,
       c.openRemind,

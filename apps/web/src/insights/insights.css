@@ -123,6 +123,24 @@
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
 }
+/* Booked while the assistant can't book yet (LIN-774): a note and the way to set it up, not a number. */
+.in-tile-setup {
+  cursor: default;
+  gap: 8px;
+}
+.in-tile-setup:hover {
+  background: none;
+}
+.in-tile-note {
+  margin-top: 7px;
+  font-size: 13.5px;
+  line-height: 18px;
+  font-weight: 500;
+}
+.in-tile-btn {
+  justify-self: start;
+  max-width: 100%;
+}
 .in-danger {
   color: var(--danger);
 }

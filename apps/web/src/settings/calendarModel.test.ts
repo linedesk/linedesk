@@ -1,9 +1,14 @@
+import { businessKinds, suggestedAppointmentTypes } from '@linedesk/actions'
 import { expect, test } from 'vitest'
 import {
   accountMark,
   calendarsOf,
   connectMark,
   connectResult,
+  DURATIONS,
+  openSuggestions,
+  suggestionFields,
+  suggestionName,
   durationLabel,
   needsCalendar,
   pickChanges,
@@ -110,4 +115,36 @@ test('Booking & calendar needs the person while no calendar account works', () =
   expect(needsCalendar([])).toBe(true)
   expect(needsCalendar([{ status: 'needs_reconnect' }])).toBe(true)
   expect(needsCalendar([{ status: 'needs_reconnect' }, { status: 'connected' }])).toBe(false)
+})
+
+test('suggested types: named, with a length the type dialog offers', () => {
+  for (const list of Object.values(suggestedAppointmentTypes))
+    for (const s of list) {
+      expect(suggestionName(s.type)).not.toBe('')
+      expect(DURATIONS as readonly number[]).toContain(s.durationMin)
+    }
+  for (const kind of businessKinds) openSuggestions(kind, [])
+})
+
+test('suggestions leave one by one as they are added; a type of its own ends them', () => {
+  expect(openSuggestions('plumbing_hvac', []).map(s => [s.name, s.durationMin])).toEqual([
+    ['Repair visit', 60],
+    ['Estimate visit', 30],
+    ['Water heater service', 120],
+    ['Heating or AC tune-up', 60],
+  ])
+  expect(openSuggestions('plumbing_hvac', [{ name: 'repair visit ' }]).map(s => s.name)).toEqual([
+    'Estimate visit',
+    'Water heater service',
+    'Heating or AC tune-up',
+  ])
+  expect(openSuggestions('plumbing_hvac', [{ name: 'Repair visit' }, { name: 'Drain cleaning' }])).toEqual([])
+  expect(openSuggestions(null, [])).toEqual([])
+  expect(openSuggestions('restaurant', [])).toEqual([])
+  expect(openSuggestions('other', [])).toEqual([])
+})
+
+test('a type added from a suggestion asks for the address only where the business goes out', () => {
+  expect(suggestionFields('plumbing_hvac')).toEqual(['name', 'address'])
+  expect(suggestionFields('dental')).toEqual(['name'])
 })

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { whenLabel } from './time.ts'
 import {
   answeredByLabel,
+  callBackNumber,
   visibleSplits,
   callStatus,
   countsFor,
@@ -283,5 +284,17 @@ describe('visibleSplits', () => {
     expect(visibleSplits(none, 'you')).toEqual(['you', 'ai'])
     expect(visibleSplits({ ...none, spam: 1 }, 'you')).toEqual(['you', 'ai', 'spam'])
     expect(visibleSplits(none, 'spam')).toEqual(['you', 'ai', 'spam'])
+  })
+})
+
+describe('call back', () => {
+  it('dials the caller back only when the number is known and not spam or blocked', () => {
+    expect(callBackNumber(call({}))).toBe('+15035550100')
+    expect(callBackNumber(call({ from_number: 'anonymous' }))).toBeNull()
+    expect(callBackNumber(call({ from_number: '' }))).toBeNull()
+    expect(callBackNumber(call({ outcome: 'spam' }))).toBeNull()
+    expect(callBackNumber(call({ spam_likely: true }))).toBeNull()
+    expect(callBackNumber(call({}), { blocked_at: '2026-11-10 10:00:00+00' })).toBeNull()
+    expect(callBackNumber(call({}), { blocked_at: null })).toBe('+15035550100')
   })
 })

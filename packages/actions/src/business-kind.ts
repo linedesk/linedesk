@@ -353,3 +353,106 @@ const kindOfTemplateId: Record<BusinessTemplateId, BusinessKind | null> = {
 }
 export const kindOfTemplate = (template: BusinessTemplateId | null | undefined): BusinessKind | null =>
   template ? kindOfTemplateId[template] : null
+
+/**
+ * The appointment types offered as one-click suggestions while a workspace has none of its own (Settings › Assistant ›
+ * Booking & calendar, LIN-774): the usual ones for its kind, with their length. Only kinds whose callers book
+ * (`appointments`); `other` stands for no kind in particular and gets none. The names are the web app's
+ * (`settings.calendar.suggest.type.<id>`); a suggestion the owner clicks is saved in their language as their own type,
+ * so nothing here reaches the assistant unless the owner chose it.
+ */
+export const suggestedAppointmentTypeIds = [
+  'repair_visit',
+  'estimate_visit',
+  'water_heater_service',
+  'heating_cooling_tune_up',
+  'electrical_inspection',
+  'roof_inspection',
+  'walkthrough_quote',
+  'home_cleaning',
+  'deep_cleaning',
+  'lawn_care_visit',
+  'yard_cleanup',
+  'pest_inspection',
+  'pest_treatment',
+  'follow_up_visit',
+  'rekey_lock_change',
+  'lock_installation',
+  'service_visit',
+  'checkup',
+  'teeth_cleaning',
+  'new_patient_exam',
+  'new_patient_visit',
+  'annual_physical',
+  'first_session',
+  'follow_up_session',
+  'wellness_exam',
+  'vaccinations',
+  'sick_visit',
+  'haircut',
+  'hair_color',
+  'manicure',
+  'massage',
+  'intro_session',
+  'personal_training',
+  'studio_tour',
+  'initial_consultation',
+  'case_review',
+  'tax_preparation',
+  'consultation',
+  'bookkeeping_review',
+  'policy_review',
+  'coverage_quote',
+  'claim_help',
+  'property_showing',
+  'listing_consultation',
+  'buyer_consultation',
+  'intro_call',
+  'strategy_session',
+  'oil_change',
+  'diagnostic_check',
+  'tire_service',
+  'trial_lesson',
+  'school_tour',
+  'parent_meeting',
+] as const
+export type SuggestedAppointmentTypeId = (typeof suggestedAppointmentTypeIds)[number]
+export type SuggestedAppointmentType = { type: SuggestedAppointmentTypeId; durationMin: number }
+
+const suggest = (...list: [SuggestedAppointmentTypeId, number][]): readonly SuggestedAppointmentType[] =>
+  list.map(([type, durationMin]) => ({ type, durationMin }))
+
+export const suggestedAppointmentTypes: Partial<Record<BusinessKind, readonly SuggestedAppointmentType[]>> = {
+  plumbing_hvac: suggest(
+    ['repair_visit', 60],
+    ['estimate_visit', 30],
+    ['water_heater_service', 120],
+    ['heating_cooling_tune_up', 60],
+  ),
+  electrical: suggest(['repair_visit', 60], ['estimate_visit', 30], ['electrical_inspection', 60]),
+  roofing_construction: suggest(['estimate_visit', 60], ['roof_inspection', 60], ['repair_visit', 120]),
+  cleaning: suggest(['walkthrough_quote', 30], ['home_cleaning', 120], ['deep_cleaning', 240]),
+  landscaping: suggest(['estimate_visit', 30], ['lawn_care_visit', 60], ['yard_cleanup', 180]),
+  pest_control: suggest(['pest_inspection', 60], ['pest_treatment', 60], ['follow_up_visit', 30]),
+  locksmith: suggest(['rekey_lock_change', 60], ['lock_installation', 90]),
+  home_services: suggest(['estimate_visit', 30], ['service_visit', 120]),
+  dental: suggest(['checkup', 30], ['teeth_cleaning', 60], ['new_patient_exam', 60]),
+  medical: suggest(['new_patient_visit', 45], ['follow_up_visit', 15], ['annual_physical', 30]),
+  therapy: suggest(['first_session', 60], ['follow_up_session', 45]),
+  veterinary: suggest(['wellness_exam', 30], ['vaccinations', 15], ['sick_visit', 30]),
+  salon_spa: suggest(['haircut', 45], ['hair_color', 120], ['manicure', 45], ['massage', 60]),
+  fitness: suggest(['intro_session', 30], ['personal_training', 60], ['studio_tour', 30]),
+  law_office: suggest(['initial_consultation', 30], ['case_review', 60]),
+  accounting_tax: suggest(['tax_preparation', 60], ['consultation', 30], ['bookkeeping_review', 60]),
+  insurance: suggest(['policy_review', 30], ['coverage_quote', 30], ['claim_help', 30]),
+  real_estate: suggest(['property_showing', 30], ['listing_consultation', 60], ['buyer_consultation', 45]),
+  agency_consulting: suggest(['intro_call', 30], ['strategy_session', 60]),
+  auto_repair: suggest(['oil_change', 30], ['diagnostic_check', 60], ['tire_service', 45]),
+  education: suggest(['trial_lesson', 60], ['school_tour', 45], ['parent_meeting', 30]),
+}
+
+/** The suggestions for a kind: none without a kind or for a kind whose callers don't book. */
+export const appointmentSuggestionsFor = (
+  kind: BusinessKind | null | undefined,
+): readonly SuggestedAppointmentType[] =>
+  kind && traitsOf(kind).has('appointments') ? (suggestedAppointmentTypes[kind] ?? []) : []

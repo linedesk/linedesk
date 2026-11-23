@@ -14,6 +14,7 @@ import {
   compareLabel,
   groupingFor,
   spanLabel,
+  outcomeRows,
   summarySentence,
   totalsTable,
 } from './insightsModel.ts'
@@ -63,10 +64,54 @@ describe('labels', () => {
   test('the sentence follows the period', () => {
     const c = { ...day('2026-11-13', 34), booked: 9, urgent: 2, urgentAfterHours: 0 }
     expect(summarySentence('Maya', { period: '7d', days: 7 }, c)).toBe(
-      'In the last 7 days Maya answered 34 calls, booked 9 appointments, and flagged 2 urgent calls.',
+      'In the last 7 days Maya answered every call. 9 people booked an appointment and 2 calls were urgent.',
     )
     expect(summarySentence('Maya', { period: 'all', days: 400 }, c)).toMatch(/^Since your first call Maya/)
     expect(summarySentence('Maya', { period: 'month', days: 13 }, { ...c, calls: 0 })).toBe('No calls this month.')
+  })
+
+  test('says what the tiles do not: the share answered, what the calls led to, how many were urgent', () => {
+    const words = { period: '30d' as const, days: 30 }
+    const c = { ...day('2026-11-13', 10), messages: 6, other: 4, urgent: 1, urgentAfterHours: 0 }
+    expect(summarySentence('Maya', words, c)).toBe(
+      'In the last 30 days Maya answered every call. 6 people left a message and 1 call was urgent.',
+    )
+    expect(summarySentence('Maya', words, { ...c, missed: 2, calls: 12 })).toBe(
+      'In the last 30 days Maya answered 10 of 12 calls. 6 people left a message and 1 call was urgent.',
+    )
+    expect(summarySentence('Maya', words, { ...day('2026-11-13', 0, 3) })).toBe(
+      'In the last 30 days Maya answered none of 3 calls.',
+    )
+    expect(summarySentence('Maya', words, { ...day('2026-11-13', 2), booked: 1, transferred: 1, other: 0 })).toBe(
+      'In the last 30 days Maya answered every call. 1 person booked an appointment and 1 call went through to you.',
+    )
+    expect(summarySentence('Maya', words, { ...c, urgentAfterHours: 1 })).toMatch(
+      /6 people left a message and 1 urgent call came after hours\.$/,
+    )
+    expect(summarySentence('Maya', words, day('2026-11-13', 3))).toBe(
+      'In the last 30 days Maya answered every call. No one needed a callback.',
+    )
+    expect(summarySentence('Maya', words, { ...day('2026-11-13', 0), calls: 2, spam: 2 })).toBe(
+      'In the last 30 days only spam called: Maya blocked 2 calls.',
+    )
+  })
+})
+
+describe('outcomeRows', () => {
+  test('leaves out the rows without calls and names them in one sentence', () => {
+    const c = { ...day('2026-11-13', 10), messages: 6, other: 4, spam: 1, calls: 11 }
+    const { rows, none } = outcomeRows(c)
+    expect(rows).toEqual([
+      { id: 'messages', value: 6 },
+      { id: 'other', value: 4 },
+      { id: 'spam', value: 1 },
+    ])
+    expect(none).toBe('No bookings, transfers, or missed calls.')
+  })
+  test('every row with calls: no sentence; no calls: no rows', () => {
+    const all = { ...day('2026-11-13', 4, 1), booked: 1, messages: 1, transferred: 1, other: 1, spam: 1, calls: 6 }
+    expect(outcomeRows(all).none).toBeNull()
+    expect(outcomeRows({ ...day('2026-11-13', 0) }).rows).toEqual([])
   })
 })
 
@@ -178,8 +223,12 @@ test('the currency menu shows each code with its symbol, the code alone where th
 })
 
 test('the currency menu shows the common currencies first (C12), then every other one by code under a heading', () => {
-  const top = currencyOptions().filter(o => !o.group).map(o => o.value)
-  const rest = currencyOptions().filter(o => o.group).map(o => o.value)
+  const top = currencyOptions()
+    .filter(o => !o.group)
+    .map(o => o.value)
+  const rest = currencyOptions()
+    .filter(o => o.group)
+    .map(o => o.value)
   expect(top).toEqual(['USD', 'CAD', 'GBP', 'AUD'])
   expect(rest).toEqual([
     'AED',

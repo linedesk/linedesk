@@ -136,6 +136,7 @@ const HANDLERS = [
   'onCommands',
   'onAssign',
   'onSelect',
+  'onCallBack',
 ] as const satisfies readonly (keyof RowHandlers)[]
 
 /**
@@ -194,8 +195,18 @@ export function Inbox({
 }: Props) {
   const t = useT()
   const { tab, search, counts } = rest
-  const { onOpen, onHover, onToggleDone, onToggleUnread, onRemind, onClearReminder, onCommands, onAssign, onSelect } =
-    rest
+  const {
+    onOpen,
+    onHover,
+    onToggleDone,
+    onToggleUnread,
+    onRemind,
+    onClearReminder,
+    onCommands,
+    onAssign,
+    onSelect,
+    onCallBack,
+  } = rest
   const handlers = useStableHandlers({
     onOpen,
     onHover,
@@ -206,6 +217,7 @@ export function Inbox({
     onCommands,
     onAssign,
     onSelect,
+    onCallBack,
   })
   const listRef = useRef<HTMLDivElement>(null)
   const topRef = useRef<HTMLDivElement>(null)

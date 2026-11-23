@@ -22,7 +22,15 @@ import type { ReminderOption } from './inbox/remind.ts'
 import { useSelection } from './inbox/selection.ts'
 import { useCallActions } from './inbox/useCallActions.ts'
 import { useInboxView } from './inbox/useInboxView.ts'
-import { assigneeTabs, callerName, callTitle, type InboxTab, visibleSplits } from './inbox-model.ts'
+import {
+  assigneeTabs,
+  callBackNumber,
+  callerName,
+  callTitle,
+  dial,
+  type InboxTab,
+  visibleSplits,
+} from './inbox-model.ts'
 import { chordTarget } from './shell/chords.ts'
 import { commandGroups, type Command } from './shell/commands.ts'
 import type { Overlay } from './shell/keys.ts'
@@ -336,7 +344,16 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
       ? perRow(actions.markNotDone, actions.many.markNotDone)(call)
       : perRow(actions.markDone, actions.many.markDone)(call)
 
+  /** Call back (C, the selected row's button, ⌘K): dials the caller's number, as the call view's Call button does. */
+  const callBackOf = (call: Call) =>
+    callBackNumber(call, call.contact_id ? view.contacts.get(call.contact_id) : undefined)
+  const callBack = (call: Call) => {
+    const number = callBackOf(call)
+    if (number) dial(number)
+    else toaster.show(t('inbox.row.callBackNone'))
+  }
   const callHandlers = {
+    callBack,
     markDone: each(actions.markDone, actions.many.markDone),
     markNotDone: each(actions.markNotDone, actions.many.markNotDone),
     toggleUnread: each(actions.toggleUnread, actions.many.toggleUnread),
@@ -492,6 +509,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
         }
       : null,
     isBlocked: call => !!(call.contact_id && view.contacts.get(call.contact_id)?.blocked_at),
+    callBack: call => (callBackOf(call) ? () => callBack(call) : null),
     target,
     targetName: bulk
       ? `${selection.count} selected calls`
@@ -720,6 +738,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
             onRemind={openRemind}
             onClearReminder={callHandlers.clearReminder}
             onAssign={canAssign ? openAssign : undefined}
+            onCallBack={callBack}
             memberName={memberName}
             onAssigneeViews={canAssign ? openAssigneeViews : undefined}
             onCommands={c => {
