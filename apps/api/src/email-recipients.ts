@@ -14,7 +14,6 @@
 // OUTSIDE_CONFIRMS_PER_DAY confirmation emails in 24 hours, counted from confirm_sent_at (removed rows too).
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import {
-  type EmailRoutingAvailability,
   type EmailRoutingCode,
   type EmailRoutingData,
   OUTSIDE_CONFIRM_DAYS,
@@ -199,17 +198,12 @@ async function recipientIn(tx: Tx, workspaceId: string, id: string) {
   return row
 }
 
-/** Lets tests hand in a language model (emailRouting.get says whether one is set up). */
+/** Lets tests hand in a language model (emailRouting.get and callEmails.get say whether one is set up). */
 export const previewDeps: { model: (tx: Tx) => Promise<EvaluationModel | null> } = {
   model: tx => evaluationModel(tx),
 }
 
 export const emailRecipientHandlers: Record<string, Handler> = {
-  'emailRouting.available': async ({ tx }) => {
-    const data: EmailRoutingAvailability = { llm: !!(await previewDeps.model(tx).catch(() => null)) }
-    return { rows: {}, data }
-  },
-
   'emailRouting.get': async ({ tx, actor }) => {
     if (!actor.workspaceId) throw refuse('no_workspace')
     const ids = await tx
@@ -231,7 +225,7 @@ export const emailRecipientHandlers: Record<string, Handler> = {
     ])
     const data: EmailRoutingData = {
       members: members
-        .map(m => ({ userId: m.userId, name: m.name, email: m.email, emailOn: m.emailOn }))
+        .map(m => ({ userId: m.userId, name: m.name, email: m.email }))
         .sort((a, b) => a.name.localeCompare(b.name)),
       recipients: rows.map(toOutside),
       llm: !!model,

@@ -6,7 +6,7 @@
 import type { MemberEditData } from '@linedesk/actions'
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { Field, Section, TextInput } from '../settings/fields.tsx'
-import { type NotificationChange, NotificationSwitches, withChange } from '../settings/Notifications.tsx'
+import { type NotificationChange, NotificationSwitches, WhoHearsLine, withChange } from '../settings/Notifications.tsx'
 import { AvatarField } from '../settings/account/AvatarField.tsx'
 import { useWriteAction } from '../settings/settings-api.ts'
 import { Dialog } from '../ui/form.tsx'
@@ -119,9 +119,7 @@ function MemberEditForm({
     }
   }
 
-  const nameHelp = data.inOtherWorkspaces
-    ? t('team.edit.nameEverywhere')
-    : t('team.edit.nameAccount')
+  const nameHelp = data.inOtherWorkspaces ? t('team.edit.nameEverywhere') : t('team.edit.nameAccount')
 
   return (
     <>
@@ -189,6 +187,9 @@ function MemberEditForm({
           onChange={change => void changeNotifications(change)}
         />
         <p className="help">{t('team.edit.devices')}</p>
+        <p className="help">
+          <WhoHearsLine />
+        </p>
       </Section>
     </>
   )

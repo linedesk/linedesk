@@ -13,7 +13,6 @@ import {
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { ReadOnlyNote, Section } from '../settings/fields.tsx'
 import { useSupportAccess } from '../supportAccess.ts'
-import { NotificationDefaults } from '../settings/Notifications.tsx'
 import { Dialog, FormMessage, Input } from '../ui/form.tsx'
 import { NO_PASSWORD_MANAGER } from '../ui/passwordManager.ts'
 import { signInAgain, signOutAndForget } from '../localData.ts'
@@ -526,7 +525,7 @@ export function LeaveWorkspace({ data, isInstanceAdmin }: { data: TeamData; isIn
   )
 }
 
-/** The team section of Workspace settings; the team defaults for notifications at its end (owners and admins). */
+/** The team section of Workspace settings: members and invitations (call emails: Assistant › Who hears about calls). */
 export function TeamSection({ toast }: { toast: (text: string) => void }) {
   const t = useT()
   const team = useTeam()
@@ -578,7 +577,6 @@ export function TeamSection({ toast }: { toast: (text: string) => void }) {
           </List>
         </Section>
       )}
-      <NotificationDefaults toast={toast} />
     </>
   )
 }

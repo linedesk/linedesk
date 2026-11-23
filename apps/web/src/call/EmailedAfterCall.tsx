@@ -1,6 +1,6 @@
 // "Emailed after the call" in the call view's side panel (LIN-369, LIN-470): one quiet line with who got the email
 // about this call (calls.email_route), what the call email rules that fit are about and whom it assigned the call to; a "?" shows the
-// language model's reason. In fallback mode, why it went to everyone with call emails on. Links to the assistant's
+// language model's reason. In fallback mode, why (the rules could not be matched). Links to the assistant's
 // Call emails section to change it. Names are the ones stored with the route, so a former member keeps theirs.
 import type { Call, EmailRoute } from '@linedesk/db/types'
 import { type MessageKey, msg } from '@linedesk/i18n'

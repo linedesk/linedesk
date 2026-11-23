@@ -740,40 +740,10 @@
       "out": "511db96f9a235aefdd3312f3f745816d56b5b712b8551331c2fad7f98021e11c",
       "src": "123edc58bd0361988d8dae517a8a1670d7b23bbbd2a94ae0d690eb7d5d7debd0"
     },
-    "account.notify.defaults": {
-      "by": "ai",
-      "out": "5225d237111582bb58de80cb5ec3f824bb8bb9149dee840da99c162d4a4ab452",
-      "src": "5899e1e6af62ec7d39acd096668a35baede4310ea247c285ecace28237d0c883"
-    },
-    "account.notify.defaultsDescription": {
-      "by": "ai",
-      "out": "6a25e42f36ecb63bf4078ed54adebb06c5cc0a6e8cb85db1fa28255f7f14a585",
-      "src": "159e4d73761e87948ef2aceb24a6a5f0f55ac18651dd3d7b5dda4f06fef08a3d"
-    },
-    "account.notify.defaultsSaved": {
-      "by": "ai",
-      "out": "cf926cff49f4f6822c55ff80396916e0011fb461dd59826f0acf4eed2e5950f1",
-      "src": "1f52afa818996e1faeeddd93124606e7ceadac2f43b8cb1aaffee8a8f03cd394"
-    },
-    "account.notify.description": {
-      "by": "ai",
-      "out": "5f2c02fadb9ffe0cfcce55866b15e54d6c6a2c1737c46dae3a9e6a359402ef95",
-      "src": "ddf0c2ab74f0a3cd54d6a3c23294f7bb68ab2266fd078ddcf7c504c44a1efba9"
-    },
-    "account.notify.emailEveryCall": {
-      "by": "ai",
-      "out": "352340fe15a4aac2b844f64b67ab6e0fc505c366fa8e4e5c674721f3350c96ad",
-      "src": "af215988aeb66cf15cbeec8d61c19645df654bae51bca4dafc208537e027755f"
-    },
     "account.notify.iosInstall": {
       "by": "ai",
       "out": "935beb3ad623e042d74d3bf53f3817b24a4130bec6447c844d62617dd9934126",
       "src": "0007b31eca284e92f05488fbee7c5736d390a88d72f3361c7f982bf01d47470b"
-    },
-    "account.notify.ownLink": {
-      "by": "ai",
-      "out": "5004e021e95a21b6c98c2487ff76f6593f5d4d354985e1ddc1aa7b3de3c99be0",
-      "src": "b83b2ce0c783330f3ad35b7d4068a6fefae9a2250ff2ff656ed45e34c4c0cd26"
     },
     "account.notify.perWorkspace": {
       "by": "ai",
@@ -26180,55 +26150,10 @@
       "out": "1816e472af055eeb28fee314a8da96fad7454a33d764103f969b416653c42b30",
       "src": "66848b5361f4fbc04582d4b7a4202d966847642d4af7129e7ca0af9f800115ae"
     },
-    "settings.assistant.emails.always.help": {
-      "by": "ai",
-      "out": "f1dbacb8ea290512c31c5197ff61bed91ba44da3b0c9e1269e13d34c88919d21",
-      "src": "4e3483498917043140f0d34aa53e8fbcd58db501141eabc6fb964989570340c3"
-    },
-    "settings.assistant.emails.always.label": {
-      "by": "ai",
-      "out": "ddc5857a36764f86400fcc1476249b9f4d57540887197e9d5f5e496a36e6091a",
-      "src": "d7b866f85c2791e3617d012bd403e5c9dd6ea7463e0a1b57b707a9b3212514bb"
-    },
-    "settings.assistant.emails.chip.emailsOff": {
-      "by": "ai",
-      "out": "5d30ea5cd1fe413feddf9f1a6759fe5d6e539fef83a455227d3ffbe57e48172e",
-      "src": "ef8a7bf1cf8a2b8713a311d74d07b7133d4725fc45f1597e1b52bfa770a78d9f"
-    },
-    "settings.assistant.emails.chip.emailsOffTip": {
-      "by": "ai",
-      "out": "f3159c2db9bea529cd299112f3b036b7c62bbefdebf96ce89bceade90b1f4d91",
-      "src": "cdbb92c745508c698f079db90776e570dd2c9afddb8f55354584504d2c13a01e"
-    },
-    "settings.assistant.emails.description": {
-      "by": "ai",
-      "out": "013b0672425b18345156677b34e0d927293a4bc3eecf2000d74530e61a20761a",
-      "src": "1fdf3caeb808a99ef18f03628c4b411cfe8754122e261e08b4a12b826c36fc1b"
-    },
-    "settings.assistant.emails.descriptionAlways": {
-      "by": "ai",
-      "out": "15c545114f55d0f880c2fb695c8e27b29a9cd006b1d5c60c3436de021e36d25c",
-      "src": "4ee8e4a09f15ce6155b7a912aa5c373109b734d4123951dfee912944fbbbbd38"
-    },
-    "settings.assistant.emails.emailsOff": {
-      "by": "ai",
-      "out": "142b8e51c3fe86f954b050241d4eb5b71965146820686bfa864b170d66ce1be1",
-      "src": "07fec056bd952dded045c51e8c71b09eb89097afa6cec11ec9e4cb9e94ad46d6"
-    },
-    "settings.assistant.emails.empty": {
-      "by": "ai",
-      "out": "97e3f97aeb1a3e34d84b9ebb814e3660d2c4fa4cd7c0a1c1b466e8d516e57cb1",
-      "src": "171981f21563f451b954b2ee9b6d3c85e33e1e21dc1598164b27f437f68d964c"
-    },
     "settings.assistant.emails.help": {
       "by": "ai",
       "out": "87c57e7f4e117164cc36222734dc3518a8439867ea179dba4e89f17649c87a3e",
       "src": "bfc726e40cea46abb522e6b515753be25930454a0c55c705315a3664584ce11e"
-    },
-    "settings.assistant.emails.helpAlways": {
-      "by": "ai",
-      "out": "ed1b8dab29cfd412a36f06868d1698f691ed59ef90c1be25fa7d3cf06582cf40",
-      "src": "8544910eb301a8a2c194badc2524d3266e41c1964cb6affe1e5a08f2c99216d2"
     },
     "settings.assistant.emails.load": {
       "by": "ai",
@@ -29390,25 +29315,10 @@
       "out": "b81c1fc5fbd69a873d8b1a8f141701dd95f01b860d56819eee34d72161eff2b8",
       "src": "ea7dce96e96fc0d49e7b2668e48e875b4d16f888165fea2dee4a8299418d43b1"
     },
-    "settings.follows.team": {
-      "by": "ai",
-      "out": "d302265c26a7ccff6aad5a07ba633a36c3bf497a82fdca2dfbad9e9e5e9c1ed1",
-      "src": "75a276acc8e03d018056f7d7fbdd2a0ecabcf5b06816a23214f6ab16b5e9b24e"
-    },
-    "settings.follows.teamDefault": {
-      "by": "ai",
-      "out": "c88814cab3a9c4ab19469eff82c4c648d40d3f62bc7d6e3eaa062b220f0f0675",
-      "src": "d46f223c7404737a6a008de8e3eda505ac92669878f62a1146242d13dd999adc"
-    },
     "settings.follows.useCountry": {
       "by": "ai",
       "out": "f86c962366d917d84c19b526a91b00ab2376a644bf7ffcf39fe85ca5991408dd",
       "src": "0765675505c31b3dbce6b898b7fa8318246629308811b5c281afdc3b35a412a5"
-    },
-    "settings.follows.useTeam": {
-      "by": "ai",
-      "out": "ee3e7ddb6761cea24f5c1223c6a71bb0087ad7e43b444882131af7b0869d244c",
-      "src": "c113868267e451c245f70c01ff06512bf35eaab7f986fc6d89ad7e6f7b41044e"
     },
     "settings.general.country.choose": {
       "by": "ai",
@@ -40242,40 +40152,10 @@
       "out": "26e522f434d00b02eb419f92a1cd59159f0ef56b001bacaf10af8e766b0c7acb",
       "src": "123edc58bd0361988d8dae517a8a1670d7b23bbbd2a94ae0d690eb7d5d7debd0"
     },
-    "account.notify.defaults": {
-      "by": "ai",
-      "out": "5419d67d81db4c197b3cb24a42d5084a12fa0eeaefff2c40e6bd163c52cdeaa7",
-      "src": "5899e1e6af62ec7d39acd096668a35baede4310ea247c285ecace28237d0c883"
-    },
-    "account.notify.defaultsDescription": {
-      "by": "ai",
-      "out": "8e89d85d542099fd148be1c15e895babf6ff3cff0a9886cbdd86fffe6478f4fa",
-      "src": "159e4d73761e87948ef2aceb24a6a5f0f55ac18651dd3d7b5dda4f06fef08a3d"
-    },
-    "account.notify.defaultsSaved": {
-      "by": "ai",
-      "out": "1b4a1c9d8a36f942c616731c8964bf8b5bce9381c27edc858bbb70fc340375aa",
-      "src": "1f52afa818996e1faeeddd93124606e7ceadac2f43b8cb1aaffee8a8f03cd394"
-    },
-    "account.notify.description": {
-      "by": "ai",
-      "out": "f97676bb9a51f3805528ffa9367619671037a88029530509a290ba91e01cf065",
-      "src": "ddf0c2ab74f0a3cd54d6a3c23294f7bb68ab2266fd078ddcf7c504c44a1efba9"
-    },
-    "account.notify.emailEveryCall": {
-      "by": "ai",
-      "out": "0bf774eb3efffb02ab9335de843d51cd98ad6b9b9a9f4b4b88ff38dbe067cfb9",
-      "src": "af215988aeb66cf15cbeec8d61c19645df654bae51bca4dafc208537e027755f"
-    },
     "account.notify.iosInstall": {
       "by": "ai",
       "out": "8adf4940409a1b9294d8705790e86cf9a8aa09db26d11af7c80542c53019b3a3",
       "src": "0007b31eca284e92f05488fbee7c5736d390a88d72f3361c7f982bf01d47470b"
-    },
-    "account.notify.ownLink": {
-      "by": "ai",
-      "out": "af2107d6724510d563cd8233a09fae51491f932cda8929fbc8faacfbaac05b10",
-      "src": "b83b2ce0c783330f3ad35b7d4068a6fefae9a2250ff2ff656ed45e34c4c0cd26"
     },
     "account.notify.perWorkspace": {
       "by": "ai",
@@ -65682,55 +65562,10 @@
       "out": "3caa30e41fba48326eab8bf68d5082960feaba805552dd0b9e7734f21c9b49ce",
       "src": "66848b5361f4fbc04582d4b7a4202d966847642d4af7129e7ca0af9f800115ae"
     },
-    "settings.assistant.emails.always.help": {
-      "by": "ai",
-      "out": "850aa31b7ba7395bf00d9564d195a611a86aacf271c9ca2a45211513491071d1",
-      "src": "4e3483498917043140f0d34aa53e8fbcd58db501141eabc6fb964989570340c3"
-    },
-    "settings.assistant.emails.always.label": {
-      "by": "ai",
-      "out": "48fc0815185537815bce46ec330ef85e6e09c89f5cbccd360c4bf4f586796bdd",
-      "src": "d7b866f85c2791e3617d012bd403e5c9dd6ea7463e0a1b57b707a9b3212514bb"
-    },
-    "settings.assistant.emails.chip.emailsOff": {
-      "by": "ai",
-      "out": "e1f7a8a82c806c1675ea87044c46ba1c6646f36d27409d39c6cdf26c91151596",
-      "src": "ef8a7bf1cf8a2b8713a311d74d07b7133d4725fc45f1597e1b52bfa770a78d9f"
-    },
-    "settings.assistant.emails.chip.emailsOffTip": {
-      "by": "ai",
-      "out": "1a5b015eeb3f11ff0a095e4e7571b84bd90cac3baff94561c2af1eab1bdcab81",
-      "src": "cdbb92c745508c698f079db90776e570dd2c9afddb8f55354584504d2c13a01e"
-    },
-    "settings.assistant.emails.description": {
-      "by": "ai",
-      "out": "5860fc6eb29a0f09f0c1324c06906247043dd61607f055d6ffada7f4bd39270d",
-      "src": "1fdf3caeb808a99ef18f03628c4b411cfe8754122e261e08b4a12b826c36fc1b"
-    },
-    "settings.assistant.emails.descriptionAlways": {
-      "by": "ai",
-      "out": "edbf9bb50ae3e3c6f034872e70170f25adf38939b07ab3433b90aa7121cf78e1",
-      "src": "4ee8e4a09f15ce6155b7a912aa5c373109b734d4123951dfee912944fbbbbd38"
-    },
-    "settings.assistant.emails.emailsOff": {
-      "by": "ai",
-      "out": "5a995c8e520111d481136987ce602b58a6d5bd90be3926f1b516cfcaaa722d40",
-      "src": "07fec056bd952dded045c51e8c71b09eb89097afa6cec11ec9e4cb9e94ad46d6"
-    },
-    "settings.assistant.emails.empty": {
-      "by": "ai",
-      "out": "1ecbb8f09d560b26d5d59f47c58fd516023186442173eba6a9d496feb1a19ff1",
-      "src": "171981f21563f451b954b2ee9b6d3c85e33e1e21dc1598164b27f437f68d964c"
-    },
     "settings.assistant.emails.help": {
       "by": "ai",
       "out": "7c4933972cc5b858095b4909658a4027896cf82847b879a3e56b09d894b30df1",
       "src": "bfc726e40cea46abb522e6b515753be25930454a0c55c705315a3664584ce11e"
-    },
-    "settings.assistant.emails.helpAlways": {
-      "by": "ai",
-      "out": "6381faa36231ca0483ccbae0d27a956beca9b4c0c0c39266ec39b9e9020f3280",
-      "src": "8544910eb301a8a2c194badc2524d3266e41c1964cb6affe1e5a08f2c99216d2"
     },
     "settings.assistant.emails.load": {
       "by": "ai",
@@ -68892,25 +68727,10 @@
       "out": "c1ed69e1bab189dbf503dfd9674eb6fd9b790b1b1e48abe341eefb9cb4a093e3",
       "src": "ea7dce96e96fc0d49e7b2668e48e875b4d16f888165fea2dee4a8299418d43b1"
     },
-    "settings.follows.team": {
-      "by": "ai",
-      "out": "90ebe5e0a7e41061878739bde75f10ce7f9f659fbdfae32a6dafc9a5dd94a896",
-      "src": "75a276acc8e03d018056f7d7fbdd2a0ecabcf5b06816a23214f6ab16b5e9b24e"
-    },
-    "settings.follows.teamDefault": {
-      "by": "ai",
-      "out": "dbcb45504a6e0ff0f1b537cfd89e1be950c3ac86ef7bed27d19843f5f056d230",
-      "src": "d46f223c7404737a6a008de8e3eda505ac92669878f62a1146242d13dd999adc"
-    },
     "settings.follows.useCountry": {
       "by": "ai",
       "out": "b402d973c0586010e7a1c5d3d643b25fde0f30ebf8d5bf38ea62b85207b1858a",
       "src": "0765675505c31b3dbce6b898b7fa8318246629308811b5c281afdc3b35a412a5"
-    },
-    "settings.follows.useTeam": {
-      "by": "ai",
-      "out": "de2256a1628689dcb9c3bd3ed5383223df579799e88c6c15d2c4b9f0c7f9cc7e",
-      "src": "c113868267e451c245f70c01ff06512bf35eaab7f986fc6d89ad7e6f7b41044e"
     },
     "settings.general.country.choose": {
       "by": "ai",
@@ -79744,40 +79564,10 @@
       "out": "23e0bbcb14156703a6d49d3eaeb739b908d4866606c65fbcb6dbcfd6c6ee34f5",
       "src": "123edc58bd0361988d8dae517a8a1670d7b23bbbd2a94ae0d690eb7d5d7debd0"
     },
-    "account.notify.defaults": {
-      "by": "ai",
-      "out": "a0b7807b21ee141c92a167fa517052fda59e9080898ba1bff3a4a6983d760d37",
-      "src": "5899e1e6af62ec7d39acd096668a35baede4310ea247c285ecace28237d0c883"
-    },
-    "account.notify.defaultsDescription": {
-      "by": "ai",
-      "out": "a7f57937c3e44b469ab601de8075801fd079fa1991df927af4bde02fe011824d",
-      "src": "159e4d73761e87948ef2aceb24a6a5f0f55ac18651dd3d7b5dda4f06fef08a3d"
-    },
-    "account.notify.defaultsSaved": {
-      "by": "ai",
-      "out": "966a9131b47da900e06f56cb330aa1527ec6cd786c748d5bc54d6875c5c41f9a",
-      "src": "1f52afa818996e1faeeddd93124606e7ceadac2f43b8cb1aaffee8a8f03cd394"
-    },
-    "account.notify.description": {
-      "by": "ai",
-      "out": "74df136fde5aaec9f89b9f863a238da7c83d816e4979fa31ceb88e7bdb0bf87e",
-      "src": "ddf0c2ab74f0a3cd54d6a3c23294f7bb68ab2266fd078ddcf7c504c44a1efba9"
-    },
-    "account.notify.emailEveryCall": {
-      "by": "ai",
-      "out": "098976878055a27ed54d013bb45a08d3b19bdc73f8dab25104f31536316fe401",
-      "src": "af215988aeb66cf15cbeec8d61c19645df654bae51bca4dafc208537e027755f"
-    },
     "account.notify.iosInstall": {
       "by": "ai",
       "out": "e0b60a766f3134942a25ab6dff7da6609431eb459a6af9161865bcd13ebc53d2",
       "src": "0007b31eca284e92f05488fbee7c5736d390a88d72f3361c7f982bf01d47470b"
-    },
-    "account.notify.ownLink": {
-      "by": "ai",
-      "out": "b5c21c0aebf5422a8c7926d326b30f19edfb56d32a9e76b3523f5c49a4b19cb6",
-      "src": "b83b2ce0c783330f3ad35b7d4068a6fefae9a2250ff2ff656ed45e34c4c0cd26"
     },
     "account.notify.perWorkspace": {
       "by": "ai",
@@ -105184,55 +104974,10 @@
       "out": "5c9250e4430d62431e651cf64e3f649c01794faf706e788166fa6ed57791a38b",
       "src": "66848b5361f4fbc04582d4b7a4202d966847642d4af7129e7ca0af9f800115ae"
     },
-    "settings.assistant.emails.always.help": {
-      "by": "ai",
-      "out": "f0a7d2b5f96e5bb2f7d520c7f7b3b1a9f1bb5810253a686dcf25e983a89ca09f",
-      "src": "4e3483498917043140f0d34aa53e8fbcd58db501141eabc6fb964989570340c3"
-    },
-    "settings.assistant.emails.always.label": {
-      "by": "ai",
-      "out": "8bd61db5db4ce0f17f4a860a55cb8b57a717149b6312ea1f257640a14b52c317",
-      "src": "d7b866f85c2791e3617d012bd403e5c9dd6ea7463e0a1b57b707a9b3212514bb"
-    },
-    "settings.assistant.emails.chip.emailsOff": {
-      "by": "ai",
-      "out": "1a347e794585fa99a56e28a3dfdc87faa5738ff8a59026de73580477041c7953",
-      "src": "ef8a7bf1cf8a2b8713a311d74d07b7133d4725fc45f1597e1b52bfa770a78d9f"
-    },
-    "settings.assistant.emails.chip.emailsOffTip": {
-      "by": "ai",
-      "out": "dd250bcafdad30a1e73f7d004b527b1eaa16a71c1392859cf4b7754525b9f57c",
-      "src": "cdbb92c745508c698f079db90776e570dd2c9afddb8f55354584504d2c13a01e"
-    },
-    "settings.assistant.emails.description": {
-      "by": "ai",
-      "out": "1f8785f61715350282e8749d750f6d6e4c2883dea85ad146898f036cc89852a5",
-      "src": "1fdf3caeb808a99ef18f03628c4b411cfe8754122e261e08b4a12b826c36fc1b"
-    },
-    "settings.assistant.emails.descriptionAlways": {
-      "by": "ai",
-      "out": "4601b4071a642fac7f32dbb5f2b139247b7f56eb8e1f9bae2fe7714cbb677446",
-      "src": "4ee8e4a09f15ce6155b7a912aa5c373109b734d4123951dfee912944fbbbbd38"
-    },
-    "settings.assistant.emails.emailsOff": {
-      "by": "ai",
-      "out": "1e13ca434875f71577bf56683bf44fb1b2ae918e97fcb7992d7e26381f7c8a90",
-      "src": "07fec056bd952dded045c51e8c71b09eb89097afa6cec11ec9e4cb9e94ad46d6"
-    },
-    "settings.assistant.emails.empty": {
-      "by": "ai",
-      "out": "2ff10ab5283c7302b7c7e628a0f46be1c136d3556c8f09b797b242ced337c223",
-      "src": "171981f21563f451b954b2ee9b6d3c85e33e1e21dc1598164b27f437f68d964c"
-    },
     "settings.assistant.emails.help": {
       "by": "ai",
       "out": "3e5129a7dfa37a233ac46d6f6d7f78ef3793f7519ec0bd312c26def5c32b4ba1",
       "src": "bfc726e40cea46abb522e6b515753be25930454a0c55c705315a3664584ce11e"
-    },
-    "settings.assistant.emails.helpAlways": {
-      "by": "ai",
-      "out": "c46e9a7bb837563904b0b62b58435bfdc729402b0deff81657348a38996d38ce",
-      "src": "8544910eb301a8a2c194badc2524d3266e41c1964cb6affe1e5a08f2c99216d2"
     },
     "settings.assistant.emails.load": {
       "by": "ai",
@@ -108394,25 +108139,10 @@
       "out": "57e6df7bee9d708fe38dbe4766f593fa5773b03ec6d6cdf3a66be9b939198502",
       "src": "ea7dce96e96fc0d49e7b2668e48e875b4d16f888165fea2dee4a8299418d43b1"
     },
-    "settings.follows.team": {
-      "by": "ai",
-      "out": "428502a6a54571de9275bb9c1bcf2f1abf4f4111d22f221491e1a17df6623d0e",
-      "src": "75a276acc8e03d018056f7d7fbdd2a0ecabcf5b06816a23214f6ab16b5e9b24e"
-    },
-    "settings.follows.teamDefault": {
-      "by": "ai",
-      "out": "b6f7d0134462942bfafc05a7835647a593f04f08e0f5cbcca9b529b2de58d7e0",
-      "src": "d46f223c7404737a6a008de8e3eda505ac92669878f62a1146242d13dd999adc"
-    },
     "settings.follows.useCountry": {
       "by": "ai",
       "out": "7141a55e89fe66684da264dd982db36927bac8e40de29d5c1beeba138d640350",
       "src": "0765675505c31b3dbce6b898b7fa8318246629308811b5c281afdc3b35a412a5"
-    },
-    "settings.follows.useTeam": {
-      "by": "ai",
-      "out": "bb758260345b27ed4d9fb47586a96ad90faf59bbc6594bdec9c165fe9cd8966e",
-      "src": "c113868267e451c245f70c01ff06512bf35eaab7f986fc6d89ad7e6f7b41044e"
     },
     "settings.general.country.choose": {
       "by": "ai",
@@ -119246,40 +118976,10 @@
       "out": "8ef4eae30baeef82b38af2311ab5cfae94d54cc41f23da34d2e6563de6368db4",
       "src": "123edc58bd0361988d8dae517a8a1670d7b23bbbd2a94ae0d690eb7d5d7debd0"
     },
-    "account.notify.defaults": {
-      "by": "ai",
-      "out": "f4ffa65168bfa758ef383b391a256ac6cb68f2a48cb2b486e59ee7deef9a75f3",
-      "src": "5899e1e6af62ec7d39acd096668a35baede4310ea247c285ecace28237d0c883"
-    },
-    "account.notify.defaultsDescription": {
-      "by": "ai",
-      "out": "b54f00ddced2723fd91f1322886278f8174064aef8afdbe0f4ffe2834c6e59ee",
-      "src": "159e4d73761e87948ef2aceb24a6a5f0f55ac18651dd3d7b5dda4f06fef08a3d"
-    },
-    "account.notify.defaultsSaved": {
-      "by": "ai",
-      "out": "80d27ddc0e7eb6b13597c0ff1bf922f260a03cc0960396b6981fe154534420ad",
-      "src": "1f52afa818996e1faeeddd93124606e7ceadac2f43b8cb1aaffee8a8f03cd394"
-    },
-    "account.notify.description": {
-      "by": "ai",
-      "out": "e1c6d3a9f289ba395c97f3f3d915d663df8cb262ae56e63ec2d3651214ffbf0f",
-      "src": "ddf0c2ab74f0a3cd54d6a3c23294f7bb68ab2266fd078ddcf7c504c44a1efba9"
-    },
-    "account.notify.emailEveryCall": {
-      "by": "ai",
-      "out": "7c4a77cc41cc707fe3871ec90f0b5a5c932609eebd19d3e53c3c87107a7ec67b",
-      "src": "af215988aeb66cf15cbeec8d61c19645df654bae51bca4dafc208537e027755f"
-    },
     "account.notify.iosInstall": {
       "by": "ai",
       "out": "4d39698ffc22ce0003d3d039cb087118c496cc63a463bc4eb48cc215b3d0ecd1",
       "src": "0007b31eca284e92f05488fbee7c5736d390a88d72f3361c7f982bf01d47470b"
-    },
-    "account.notify.ownLink": {
-      "by": "ai",
-      "out": "0d048def14e88743c3ac18b15dfc2a2f0c0eab1338a3ce364ea1de9956e8ce74",
-      "src": "b83b2ce0c783330f3ad35b7d4068a6fefae9a2250ff2ff656ed45e34c4c0cd26"
     },
     "account.notify.perWorkspace": {
       "by": "ai",
@@ -144686,55 +144386,10 @@
       "out": "c66cf5926358c00e041bdb727c143d463f78730c87765884a4c1a0e0728716ef",
       "src": "66848b5361f4fbc04582d4b7a4202d966847642d4af7129e7ca0af9f800115ae"
     },
-    "settings.assistant.emails.always.help": {
-      "by": "ai",
-      "out": "6cf4bbe64af417283d51963c1b572845b9a19d07f80d7a141f28d86eddee4db7",
-      "src": "4e3483498917043140f0d34aa53e8fbcd58db501141eabc6fb964989570340c3"
-    },
-    "settings.assistant.emails.always.label": {
-      "by": "ai",
-      "out": "573168be9a21c5b99be023117b0adc121c6cc57eb5d91ea20c288ccf830a0265",
-      "src": "d7b866f85c2791e3617d012bd403e5c9dd6ea7463e0a1b57b707a9b3212514bb"
-    },
-    "settings.assistant.emails.chip.emailsOff": {
-      "by": "ai",
-      "out": "9c420d209b1822472de3d88600f19624ab5e217917a675305c8054f12ed40773",
-      "src": "ef8a7bf1cf8a2b8713a311d74d07b7133d4725fc45f1597e1b52bfa770a78d9f"
-    },
-    "settings.assistant.emails.chip.emailsOffTip": {
-      "by": "ai",
-      "out": "47e97b20e82de53af4175e0da52a992d12961fa393f124c32a7a9d27ddca4b7d",
-      "src": "cdbb92c745508c698f079db90776e570dd2c9afddb8f55354584504d2c13a01e"
-    },
-    "settings.assistant.emails.description": {
-      "by": "ai",
-      "out": "88a982cf0cd2d08ebd6d5899237c12536189be8164b6d8941750117242b9b302",
-      "src": "1fdf3caeb808a99ef18f03628c4b411cfe8754122e261e08b4a12b826c36fc1b"
-    },
-    "settings.assistant.emails.descriptionAlways": {
-      "by": "ai",
-      "out": "6b75e1e60036d38e65606f3682a2921408bb483601b0d90b6044048541aad5e1",
-      "src": "4ee8e4a09f15ce6155b7a912aa5c373109b734d4123951dfee912944fbbbbd38"
-    },
-    "settings.assistant.emails.emailsOff": {
-      "by": "ai",
-      "out": "69ddc1ccca1a8eec7ad0dcc46c4367a4e92045dc621d90a92cb9b9dd70b3067d",
-      "src": "07fec056bd952dded045c51e8c71b09eb89097afa6cec11ec9e4cb9e94ad46d6"
-    },
-    "settings.assistant.emails.empty": {
-      "by": "ai",
-      "out": "c5e2e3fcf51822be5edd8d437317550151f8164f7391be085027c89493f1d79f",
-      "src": "171981f21563f451b954b2ee9b6d3c85e33e1e21dc1598164b27f437f68d964c"
-    },
     "settings.assistant.emails.help": {
       "by": "ai",
       "out": "7e7fc54d1a40736a9e133ff656031ed8061cbac61074b90d4f113dc5e3aeb345",
       "src": "bfc726e40cea46abb522e6b515753be25930454a0c55c705315a3664584ce11e"
-    },
-    "settings.assistant.emails.helpAlways": {
-      "by": "ai",
-      "out": "d81679080857e88151ddb0ed7090ce1a12e1fc0531a9a62bc041b2d3be0c19be",
-      "src": "8544910eb301a8a2c194badc2524d3266e41c1964cb6affe1e5a08f2c99216d2"
     },
     "settings.assistant.emails.load": {
       "by": "ai",
@@ -147896,25 +147551,10 @@
       "out": "a2ce6f8351e245f06b113cc96a0cc7f96ac3f47cdcc3e33ba96e6d1b95841a80",
       "src": "ea7dce96e96fc0d49e7b2668e48e875b4d16f888165fea2dee4a8299418d43b1"
     },
-    "settings.follows.team": {
-      "by": "ai",
-      "out": "3e293557c90933ecfc18d10747f08a523c22ec5463d68393573a0a4af4f8cecb",
-      "src": "75a276acc8e03d018056f7d7fbdd2a0ecabcf5b06816a23214f6ab16b5e9b24e"
-    },
-    "settings.follows.teamDefault": {
-      "by": "ai",
-      "out": "ce7995855d8996dcc26ba28556bd3a61229625d541c4176bc3e196dc33562b52",
-      "src": "d46f223c7404737a6a008de8e3eda505ac92669878f62a1146242d13dd999adc"
-    },
     "settings.follows.useCountry": {
       "by": "ai",
       "out": "66c050710fd72e39ba4bb18d0adcd9304394f620b25fa543f1a7d6de42b2c535",
       "src": "0765675505c31b3dbce6b898b7fa8318246629308811b5c281afdc3b35a412a5"
-    },
-    "settings.follows.useTeam": {
-      "by": "ai",
-      "out": "c564b50a46450e74c85da2f84f7c9ef30be65fbe64d9a66bb4656d32ca0079ff",
-      "src": "c113868267e451c245f70c01ff06512bf35eaab7f986fc6d89ad7e6f7b41044e"
     },
     "settings.general.country.choose": {
       "by": "ai",
@@ -158748,40 +158388,10 @@
       "out": "ba11dc542a89c6af3c5e4014c0da140d0baba947c01151f40b87e418276af922",
       "src": "123edc58bd0361988d8dae517a8a1670d7b23bbbd2a94ae0d690eb7d5d7debd0"
     },
-    "account.notify.defaults": {
-      "by": "ai",
-      "out": "467adf43095c3e1eef8f818e25bf27fcd5b34e624cd3dfa292dea5af04b25ca5",
-      "src": "5899e1e6af62ec7d39acd096668a35baede4310ea247c285ecace28237d0c883"
-    },
-    "account.notify.defaultsDescription": {
-      "by": "ai",
-      "out": "d1082ad971a4aede7bfe3760ea87909c9eecefc159d208e9c2b5ca70f241b29a",
-      "src": "159e4d73761e87948ef2aceb24a6a5f0f55ac18651dd3d7b5dda4f06fef08a3d"
-    },
-    "account.notify.defaultsSaved": {
-      "by": "ai",
-      "out": "6b726b9a9c246b87aba467d92153560c75284590886a3f67dd54504401347c6d",
-      "src": "1f52afa818996e1faeeddd93124606e7ceadac2f43b8cb1aaffee8a8f03cd394"
-    },
-    "account.notify.description": {
-      "by": "ai",
-      "out": "dd2ae4c83e5609bf72bc2610799e92d2aaf6f04ed1311fdb42c43e3fcdfa7b37",
-      "src": "ddf0c2ab74f0a3cd54d6a3c23294f7bb68ab2266fd078ddcf7c504c44a1efba9"
-    },
-    "account.notify.emailEveryCall": {
-      "by": "ai",
-      "out": "a3b12fe0201ed6f6e4208f86b63cc2ef94e4d412aca373aa43b86e44d54c2ddf",
-      "src": "af215988aeb66cf15cbeec8d61c19645df654bae51bca4dafc208537e027755f"
-    },
     "account.notify.iosInstall": {
       "by": "ai",
       "out": "be5ed0d3590eed9a352298b582dda2c77a781da091b3a04d350c550d01976bbb",
       "src": "0007b31eca284e92f05488fbee7c5736d390a88d72f3361c7f982bf01d47470b"
-    },
-    "account.notify.ownLink": {
-      "by": "ai",
-      "out": "78b34c9d3483b18bba97a8499387b0cf643c797dd60af60d4cfa6355be3358e6",
-      "src": "b83b2ce0c783330f3ad35b7d4068a6fefae9a2250ff2ff656ed45e34c4c0cd26"
     },
     "account.notify.perWorkspace": {
       "by": "ai",
@@ -184188,55 +183798,10 @@
       "out": "e69400852fc6acb2027f3a1f4065e150b801ab87fe69f7fde5ce4d8f5af30bc7",
       "src": "66848b5361f4fbc04582d4b7a4202d966847642d4af7129e7ca0af9f800115ae"
     },
-    "settings.assistant.emails.always.help": {
-      "by": "ai",
-      "out": "a2319d1a90b4b1b210a7b75194e0afcbcbe2d6e15522525735683cb0449599ce",
-      "src": "4e3483498917043140f0d34aa53e8fbcd58db501141eabc6fb964989570340c3"
-    },
-    "settings.assistant.emails.always.label": {
-      "by": "ai",
-      "out": "3f340c37c5759d89840be48ece891360becee5c962a4556831292f52bba111a1",
-      "src": "d7b866f85c2791e3617d012bd403e5c9dd6ea7463e0a1b57b707a9b3212514bb"
-    },
-    "settings.assistant.emails.chip.emailsOff": {
-      "by": "ai",
-      "out": "83807aaf3becbc2c7e43548cfeb3e05c7a7ae184547481ab4c33da96aa4400d9",
-      "src": "ef8a7bf1cf8a2b8713a311d74d07b7133d4725fc45f1597e1b52bfa770a78d9f"
-    },
-    "settings.assistant.emails.chip.emailsOffTip": {
-      "by": "ai",
-      "out": "050c7a664b4605a69ad53cc10d7e086f1532158e077c926de22d8f3d7a51c95d",
-      "src": "cdbb92c745508c698f079db90776e570dd2c9afddb8f55354584504d2c13a01e"
-    },
-    "settings.assistant.emails.description": {
-      "by": "ai",
-      "out": "bf19d44199c406f9f07c2656a984b059f1df6d24eb81833ed00c20dc0c5ef841",
-      "src": "1fdf3caeb808a99ef18f03628c4b411cfe8754122e261e08b4a12b826c36fc1b"
-    },
-    "settings.assistant.emails.descriptionAlways": {
-      "by": "ai",
-      "out": "353a7caaaecaff4fe449efb563934ce85c739198c1a381bbeb7607888ab0fbc4",
-      "src": "4ee8e4a09f15ce6155b7a912aa5c373109b734d4123951dfee912944fbbbbd38"
-    },
-    "settings.assistant.emails.emailsOff": {
-      "by": "ai",
-      "out": "c89ae3cfa79e30233a23ffaede52f6823a67e2a33401deef26ffb74feb8e7b68",
-      "src": "07fec056bd952dded045c51e8c71b09eb89097afa6cec11ec9e4cb9e94ad46d6"
-    },
-    "settings.assistant.emails.empty": {
-      "by": "ai",
-      "out": "ddb9d03e8a447b0ddea15cb681fba703b3abcbedcf63308b53e3829acdc854af",
-      "src": "171981f21563f451b954b2ee9b6d3c85e33e1e21dc1598164b27f437f68d964c"
-    },
     "settings.assistant.emails.help": {
       "by": "ai",
       "out": "32a6d3ff28911a0eb4ccbf8afcdc913c31f18bb503c95aa91c816d5496cedc57",
       "src": "bfc726e40cea46abb522e6b515753be25930454a0c55c705315a3664584ce11e"
-    },
-    "settings.assistant.emails.helpAlways": {
-      "by": "ai",
-      "out": "ab3794c945a2ce6edd6f427f757ab5af181285fb1c93faf250ea094742f38a03",
-      "src": "8544910eb301a8a2c194badc2524d3266e41c1964cb6affe1e5a08f2c99216d2"
     },
     "settings.assistant.emails.load": {
       "by": "ai",
@@ -187398,25 +186963,10 @@
       "out": "bcea3f666752225434c630286fabf98835fc9ecd997d9b32dc091b54b6349621",
       "src": "ea7dce96e96fc0d49e7b2668e48e875b4d16f888165fea2dee4a8299418d43b1"
     },
-    "settings.follows.team": {
-      "by": "ai",
-      "out": "e560f0e825e65d3da8d822cd7a55b46ce9024126efd91013abd0974889c2c8fe",
-      "src": "75a276acc8e03d018056f7d7fbdd2a0ecabcf5b06816a23214f6ab16b5e9b24e"
-    },
-    "settings.follows.teamDefault": {
-      "by": "ai",
-      "out": "8317f12899721ee9146fa9acc497f52dd351fec3acb605bf13ccc2eda7fa7de7",
-      "src": "d46f223c7404737a6a008de8e3eda505ac92669878f62a1146242d13dd999adc"
-    },
     "settings.follows.useCountry": {
       "by": "ai",
       "out": "e90aa1bab67a046417704f4c6b0ae8c6eb439137a4aa8e5b009e63e653e8c76a",
       "src": "0765675505c31b3dbce6b898b7fa8318246629308811b5c281afdc3b35a412a5"
-    },
-    "settings.follows.useTeam": {
-      "by": "ai",
-      "out": "1d2ccc8934bbde618787ac7e561e27b56b707432b1f8f4937927ba4a46f1f0c7",
-      "src": "c113868267e451c245f70c01ff06512bf35eaab7f986fc6d89ad7e6f7b41044e"
     },
     "settings.general.country.choose": {
       "by": "ai",

@@ -118,20 +118,23 @@ export type CallerDetails = Record<string, string | number | boolean>
  * the call assigned, or null). A language model only matches the topics; the code picks recipients and assignee.
  */
 export type EmailRule = { id: string; when: string; to: string[]; assign: string | null }
-/** An assistant's call emails: `always` (member user ids who get every call email) and the rules, in order. */
-export type EmailRules = { always: string[]; rules: EmailRule[] }
+/**
+ * An assistant's call email rules, in order. Who gets every call email is each member's own setting
+ * (member_notification_settings.email; LIN-768), not the assistant's.
+ */
+export type EmailRules = { rules: EmailRule[] }
 /** One recipient of a call email (EmailRoute.to): a workspace member, or a confirmed outside address. */
 export type EmailRouteRecipient = { kind: 'member'; user_id: string; name: string } | { kind: 'outside'; email: string }
 /**
- * Who got the email about a finished call and why (call-notifications.ts, email routing). `routed`: the assistant's
- * call email rules picked `to` (`rules`: the topics (`when`) of the rules that fit, as they were then; older calls: an
- * instruction picked it and there are none); `fallback`: they could not (`problem`), so the members with call emails
- * on got it.
+ * Who got the email about a finished call and why (call-notifications.ts, email routing). `routed`: the members with
+ * "Email for every call" on and the members of the rules that fit (`rules`: their topics (`when`) as they were then;
+ * older calls: an instruction picked it and there are none); `fallback`: the rules could not be matched (`problem`),
+ * so the every-call members and every rule's members got it (`nothing_fit`: only on calls from before LIN-768).
  */
 export type EmailRoute = {
   mode: 'routed' | 'fallback'
   to: EmailRouteRecipient[]
-  /** The topics (`when`) of the rules that fit the call, in list order; [] when none fit and it went to `always` only. */
+  /** The topics (`when`) of the rules that fit the call, in list order; [] when none fit (only the every-call members got it). */
   rules?: string[]
   /** One short sentence in the workspace's language from the language model; null in fallback mode. */
   reason: string | null

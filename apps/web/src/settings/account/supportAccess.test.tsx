@@ -17,7 +17,7 @@ test('nothing of the account loads; a note says it is the person’s own', () =>
   vi.stubGlobal('window', { location: { hash: '#account/profile' }, addEventListener: () => {}, removeEventListener: () => {} })
   const html = renderToStaticMarkup(
     <ImpersonatingContext.Provider value>
-      <AccountSettings hasWorkspace workspaceName="Brightwater Plumbing & Heating" />
+      <AccountSettings hasWorkspace />
     </ImpersonatingContext.Provider>,
   )
   expect(useQuery).not.toHaveBeenCalled()

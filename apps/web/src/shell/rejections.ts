@@ -22,6 +22,7 @@ const verbs: Record<string, string> = {
   'phoneNumber.release': 'errors.couldNot.phoneNumber.release',
   'notifications.update': 'errors.couldNot.notifications.update',
   'notifications.setDefaults': 'errors.couldNot.notifications.setDefaults',
+  'team.updateMemberNotifications': 'errors.couldNot.team.updateMemberNotifications',
   'workspace.updateSettings': 'errors.couldNot.workspace.updateSettings',
   'workspace.rename': 'errors.couldNot.workspace.rename',
   'workspace.setIcon': 'errors.couldNot.workspace.setIcon',

@@ -207,12 +207,12 @@ export const assistants = pgTable(
      */
     email_assign: jsonb('email_assign').$type<string[]>().notNull().default([]),
     /**
-     * Who gets the email about each finished call (LIN-470, replaces email_routing and email_assign, which are no longer
-     * read): `always` members get every one; each rule names the calls it is about, its members and whom it assigns.
-     * A language model matches the rules after the call (apps/api/src/email-routing.ts). No rules and no always:
-     * every member with call emails on.
+     * Which calls go to more people (LIN-470, replaces email_routing and email_assign, which are no longer read): each
+     * rule names the calls it is about, its members and whom it assigns. A language model matches the rules after the
+     * call (apps/api/src/email-routing.ts). Members with "Email for every call" on get every call email anyway
+     * (member_notification_settings.email; LIN-768 dropped the assistant's own `always` list).
      */
-    email_rules: jsonb('email_rules').$type<EmailRules>().notNull().default({ always: [], rules: [] }),
+    email_rules: jsonb('email_rules').$type<EmailRules>().notNull().default({ rules: [] }),
     created_at: createdAt(),
     version: version(),
   },

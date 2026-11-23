@@ -2577,12 +2577,13 @@ describe('impersonation', () => {
       'call.markRead',
       'call.markUnread',
       'call.remind',
+      // Who hears about calls (LIN-768): every member reads it.
+      'callEmails.get',
       // Read-only and instance:admin, like setupEmails.get: an impersonation never has instance:admin.
       'callQuality.get',
       'carrier.get',
       'carrier.transferTrunk',
-      // Call emails (LIN-470): the section's reads.
-      'emailRouting.available',
+      // Call emails (LIN-470): the rules' read (members and addresses).
       'emailRouting.get',
       // The questions of How <assistant> did, a read; marking an evaluation done or open stays refused.
       'evaluation.listQuestions',
@@ -2729,8 +2730,7 @@ describe('impersonation', () => {
 
       // As the user (LIN-708): call emails and the recording notice too.
       expect(
-        (await act(as, 'assistant.update', { assistantId: other.assistant.id, email_rules: { always: [], rules: [] } }))
-          .status,
+        (await act(as, 'assistant.update', { assistantId: other.assistant.id, email_rules: { rules: [] } })).status,
       ).toBe(200)
       expect(
         (

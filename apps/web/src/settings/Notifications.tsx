@@ -1,7 +1,7 @@
-// Account settings › Notifications: your own new-call notifications in this workspace (email per call, and one switch for
-// notifications on this device: push where the browser and server can, else while Linedesk is open). The device
-// switch asks for the browser's permission itself. NotificationDefaults: for owners and admins, the email default for
-// teammates who never changed theirs (at the end of Workspace settings › Team).
+// Account settings › Notifications: your own notifications in this workspace: one switch for notifications on this
+// device (push where the browser and server can, else while Linedesk is open; it asks for the browser's permission
+// itself), assigned-call and setup emails. Call emails are set in one place for the whole team, Assistant › Who hears
+// about calls (CallEmails.tsx, LIN-768); the page's lede links there.
 import type { NotificationSettingsData } from '@linedesk/actions'
 import { type ReactNode, useEffect, useState } from 'react'
 import { brandName } from '../brand.ts'
@@ -16,16 +16,17 @@ import { useCanAssign } from '../team/members.ts'
 import { changedByLabel } from '../team/team-model.ts'
 import { useWorkspaces } from '../shell/WorkspaceSwitcher.tsx'
 import { Loading } from '../ui/LoadStates.tsx'
-import { sectionHash } from '../ui/SettingsLayout.tsx'
-import { FollowsLine, Section, SkeletonSwitchRows, SwitchRow } from './fields.tsx'
+import { Section, SkeletonSwitchRows, SwitchRow } from './fields.tsx'
 import { permissionText, useNotificationPermission } from './notificationPermission.ts'
 import { T, useT } from '@linedesk/i18n/react'
 import { appLink } from '../ui/AppLink.tsx'
 import { i18n } from '../i18n/index.tsx'
-import { useSupportAccess } from '../supportAccess.ts'
 
-/** Your own notifications, linked from the team defaults (Workspace settings › Team). */
-export const OWN_NOTIFICATIONS_HASH = '#account/notifications'
+/** Where call emails are set for the whole team: Assistant › Who hears about calls (the first assistant's). */
+export const WHO_HEARS_HASH = '#assistant/emails'
+
+/** The line that sends to Who hears about calls, the one place for call emails. */
+export const WhoHearsLine = () => <T k="account.notify.oneplace" values={{ link: appLink(WHO_HEARS_HASH) }} />
 
 const blockedText = () => i18n().t('account.notify.blocked')
 
@@ -150,13 +151,13 @@ export function useDeviceNotifications(settings: NotificationSettingsData) {
   return { on, disabled: unavailable, note, set, pushOn: viaPush && on, id: device.id }
 }
 
-/** `workspaceName`: the workspace these settings are for; each workspace has its own. */
-export function Notifications({ workspaceName }: { workspaceName: string }) {
+/** Each workspace has its own notifications; the page names none (the perWorkspace line says so to who is in several). */
+export function Notifications() {
   const t = useT()
   const query = useNotificationQuery()
   const settings = query.data ?? null
   const error = settings ? null : query.error
-  const description = t('account.notify.description', { workspace: workspaceName })
+  const description = <WhoHearsLine />
   if (settings) return <OwnNotifications settings={settings} description={description} />
   return (
     <Section id="st-notify" title={t('account.nav.notifications.label')} description={description}>
@@ -173,10 +174,8 @@ export function Notifications({ workspaceName }: { workspaceName: string }) {
   )
 }
 
-/** The settings a member keeps per workspace that NotificationSwitches changes. */
+/** The settings a member keeps per workspace that NotificationSwitches changes (call emails: Who hears about calls). */
 export type NotificationChange = {
-  /** null: back to the team default. */
-  email?: boolean | null
   assignedEmail?: boolean
   setupEmails?: boolean
   pushSummary?: boolean
@@ -184,15 +183,9 @@ export type NotificationChange = {
 
 /** `settings` with `change` applied, as the page shows it before the server answers. */
 export function withChange(settings: NotificationSettingsData, change: NotificationChange): NotificationSettingsData {
-  const { email, assignedEmail, setupEmails, pushSummary } = change
+  const { assignedEmail, setupEmails, pushSummary } = change
   return {
     ...settings,
-    ...(email === undefined
-      ? {}
-      : {
-          own: { ...settings.own, email },
-          effective: { ...settings.effective, email: email ?? settings.defaults.email },
-        }),
     ...(assignedEmail === undefined ? {} : { assignedEmail }),
     ...(setupEmails === undefined ? {} : { setupEmails }),
     ...(pushSummary === undefined ? {} : { push: { ...settings.push, summary: pushSummary } }),
@@ -212,7 +205,6 @@ export function NotificationSwitches({
   device,
   them,
   pushSummaryOffOnly,
-  teamLink,
   onChange,
 }: {
   settings: NotificationSettingsData
@@ -222,28 +214,22 @@ export function NotificationSwitches({
   them?: boolean
   /** The push summary can only be turned off (someone else's: what a call was about is theirs to put on a lock screen). */
   pushSummaryOffOnly?: boolean
-  /** Where the team default is set, when the viewer can open it there (owners and admins, not inside the Team page). */
-  teamLink?: string | null
   onChange: (change: NotificationChange) => void
 }) {
   const t = useT()
   return (
     <div className="st-swlist">
-      <SwitchRow
-        title={t('account.notify.emailEveryCall')}
-        note={
-          <FollowsLine
-            inline
-            source="team"
-            follows={settings.own.email === null}
-            sourceDefault={settings.defaults.email ? 'on' : 'off'}
-            link={teamLink}
-            onReset={() => onChange({ email: null })}
-          />
-        }
-        on={settings.effective.email}
-        onChange={email => onChange({ email })}
-      />
+      {device}
+      {pushOn && (
+        <SwitchRow
+          nested={!!device}
+          title={them ? t('account.notify.summaryThem') : t('account.notify.summaryMe')}
+          description={them ? t('account.notify.summaryThemDescription') : t('account.notify.summaryMeDescription')}
+          on={settings.push.summary}
+          onChange={pushSummary => onChange({ pushSummary })}
+          disabled={pushSummaryOffOnly && !settings.push.summary}
+        />
+      )}
       {canAssign && (
         <SwitchRow
           title={them ? t('account.notify.assignedThem') : t('account.notify.assignedMe')}
@@ -260,22 +246,11 @@ export function NotificationSwitches({
           onChange={setupEmails => onChange({ setupEmails })}
         />
       )}
-      {device}
-      {pushOn && (
-        <SwitchRow
-          nested={!!device}
-          title={them ? t('account.notify.summaryThem') : t('account.notify.summaryMe')}
-          description={them ? t('account.notify.summaryThemDescription') : t('account.notify.summaryMeDescription')}
-          on={settings.push.summary}
-          onChange={pushSummary => onChange({ pushSummary })}
-          disabled={pushSummaryOffOnly && !settings.push.summary}
-        />
-      )}
     </div>
   )
 }
 
-function OwnNotifications({ settings, description }: { settings: NotificationSettingsData; description: string }) {
+function OwnNotifications({ settings, description }: { settings: NotificationSettingsData; description: ReactNode }) {
   const t = useT()
   const run = useRun()
   const canAssign = useCanAssign()
@@ -295,7 +270,6 @@ function OwnNotifications({ settings, description }: { settings: NotificationSet
       <Section id="st-notify" title={t('account.nav.notifications.label')} description={description}>
         <NotificationSwitches
           settings={settings}
-          teamLink={settings.canEditDefaults ? sectionHash('workspace', 'team') : null}
           canAssign={canAssign}
           pushOn={device.pushOn}
           onChange={change}
@@ -314,42 +288,5 @@ function OwnNotifications({ settings, description }: { settings: NotificationSet
         {several && <p className="help">{t('account.notify.perWorkspace')}</p>}
       </Section>
     </>
-  )
-}
-
-/** Owners and admins: the email default for teammates who never changed theirs. Nothing for everyone else. */
-export function NotificationDefaults({ toast }: { toast: (text: string) => void }) {
-  const t = useT()
-  const run = useRun()
-  const settings = useNotificationQuery().data ?? null
-  // The team's defaults are the workspace's settings: not changed during support access.
-  const supportAccess = useSupportAccess()
-  if (!settings?.canEditDefaults || supportAccess) return null
-
-  function setDefaultEmail(current: NotificationSettingsData, on: boolean) {
-    const defaults = { ...current.defaults, email: on }
-    const effective = { ...current.effective, email: current.own.email ?? on }
-    setNotificationSettings({ ...current, defaults, effective })
-    void run('notifications.setDefaults', { email: on })
-    toast(t('account.notify.defaultsSaved'))
-  }
-
-  return (
-    <Section
-      id="st-notify-defaults"
-      title={t('account.notify.defaults')}
-      description={t('account.notify.defaultsDescription')}
-    >
-      <div className="st-swlist">
-        <SwitchRow
-          title={t('account.notify.emailEveryCall')}
-          on={settings.defaults.email}
-          onChange={on => setDefaultEmail(settings, on)}
-        />
-      </div>
-      <p className="help">
-        <T k="account.notify.ownLink" values={{ link: appLink(OWN_NOTIFICATIONS_HASH) }} />
-      </p>
-    </Section>
   )
 }

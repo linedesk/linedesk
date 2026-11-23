@@ -37,7 +37,7 @@ const { AccountSettings } = await import('./index.tsx')
 // On a partner's own address (mainOrigin) the sign-in sections load nothing of their own: only the page is rendered.
 const render = (hash = '#account/security') => {
   vi.stubGlobal('window', { location: { hash }, addEventListener: () => {}, removeEventListener: () => {} })
-  return renderToStaticMarkup(<AccountSettings hasWorkspace workspaceName="Brightwater Plumbing & Heating" />)
+  return renderToStaticMarkup(<AccountSettings hasWorkspace />)
 }
 beforeEach(() => {
   links = null

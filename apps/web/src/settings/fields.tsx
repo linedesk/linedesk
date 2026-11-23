@@ -1,7 +1,7 @@
 // Settings pages build on the kit's form pieces (ui/form.tsx); these keep the short names they use.
 import { type ReactNode, useCallback, useState } from 'react'
-import { T, useT } from '@linedesk/i18n/react'
-import { appLink, LinkButton, plainTag } from '../ui/AppLink.tsx'
+import { useT } from '@linedesk/i18n/react'
+import { LinkButton } from '../ui/AppLink.tsx'
 import { Select, type SelectOption, Switch } from '../ui/controls.tsx'
 import { Card, FormField, Input, Textarea } from '../ui/form.tsx'
 import { type HelpContent, HelpTip, helpContent } from '../ui/HelpTip.tsx'
@@ -14,7 +14,7 @@ type SectionProps = {
   /** None: a card with only its fields, where the field labels say enough. */
   title?: string
   /** One short line. */
-  description?: string
+  description?: ReactNode
   /** Secondary detail, behind a (?) next to the title. */
   help?: HelpContent
   actions?: ReactNode
@@ -127,6 +127,8 @@ type SwitchRowProps = {
   nested?: boolean
   /** The switch's hover tooltip. */
   tip?: string
+  /** Before the words: a 24px avatar where the row is a person (Who hears about calls). */
+  lead?: ReactNode
 }
 
 export function SwitchRow({
@@ -141,10 +143,14 @@ export function SwitchRow({
   dimmed,
   nested,
   tip,
+  lead,
 }: SwitchRowProps) {
-  const className = ['swrow', dimmed && 'is-dimmed', nested && 'is-nested'].filter(Boolean).join(' ')
+  const className = ['swrow', dimmed && 'is-dimmed', nested && 'is-nested', lead && 'has-lead']
+    .filter(Boolean)
+    .join(' ')
   return (
     <div className={className}>
+      {lead}
       <div>
         <b>
           {title}
@@ -188,13 +194,25 @@ export function SkeletonSelectRow({ title, description = true }: { title: ReactN
   )
 }
 
-/** SwitchRows while they load (ui/LoadStates.tsx): the same rows and gaps, the switch a grey pill. */
-export function SkeletonSwitchRows({ rows = 2, description = true }: { rows?: number; description?: boolean }) {
+/**
+ * SwitchRows while they load (ui/LoadStates.tsx): the same rows and gaps, the switch a grey pill; `lead`: each row
+ * starts with a 24px avatar (SwitchRow's `lead`).
+ */
+export function SkeletonSwitchRows({
+  rows = 2,
+  description = true,
+  lead = false,
+}: {
+  rows?: number
+  description?: boolean
+  lead?: boolean
+}) {
   return (
     <div className="st-swlist" aria-hidden="true">
       {Array.from({ length: rows }, (_, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: placeholder rows never reorder
-        <div key={i} className="swrow">
+        <div key={i} className={lead ? 'swrow has-lead' : 'swrow'}>
+          {lead && <Skeleton width={24} height={24} className="sk-round" />}
           <div>
             <Skeleton shape="text" width={120 + ((i * 37) % 60)} />
             {description && <Skeleton shape="text" width={220 + ((i * 53) % 90)} />}
@@ -284,19 +302,17 @@ export function countryDefaultOptions<T extends string>(
   )
 }
 
-/** What a setting that follows another one follows: the workspace's country, or the team's default. */
-export type FollowsSource = 'country' | 'team'
+/** What a setting that follows another one follows: the workspace's country. */
+export type FollowsSource = 'country'
 
 type FollowsLineProps = {
   source: FollowsSource
   /** The value follows its source now; false: set by hand. */
   follows: boolean
-  /** What the source gives now: the country's ("Eastern Time"), or the team default ('on' or 'off'). */
+  /** What the source gives now: the country's ("Eastern Time"). */
   sourceDefault: string
   /** The line names what follows, for a field of more than one part (the appointment value's currency). */
   what?: 'currency'
-  /** Where the team default is set, when that is another place this viewer can open; else its name is plain words. */
-  link?: string | null
   /** Goes back to following; none: the viewer can't change it, and the line says what the default is instead. */
   onReset?: () => void
   /** In a SwitchRow: a span under its description. */
@@ -309,43 +325,25 @@ type FollowsLineProps = {
  * The one line for every setting whose value comes from another setting until someone sets it by hand
  * (docs/design-principles.md, help text). A value that follows the workspace's country has no line: its option says
  * "(country default)" instead (countryDefaultOptions). Set by hand: "Set by hand · Use country default (Eastern
- * Time)", the reset one click. A value that follows the team default says so ("From the team default. …").
+ * Time)", the reset one click.
  * Under the field, in the muted helper style, never a badge or a colour.
  */
-export function FollowsLine({
-  source,
-  follows,
-  sourceDefault,
-  what,
-  link,
-  onReset,
-  inline,
-  controlId,
-}: FollowsLineProps) {
+export function FollowsLine({ follows, sourceDefault, what, onReset, inline, controlId }: FollowsLineProps) {
   const t = useT()
   const reset = () => {
     onReset?.()
     if (controlId) setTimeout(() => document.getElementById(controlId)?.focus(), 0)
   }
-  const country = source === 'country'
   // Following the country: the picked option already says "(country default)", nothing more to say.
-  if (follows && country) return null
-  const body = follows ? (
-    <T k="settings.follows.team" values={{ link: link ? appLink(link) : plainTag }} />
-  ) : (
+  if (follows) return null
+  const body = (
     <>
       {t('settings.follows.setByHand', { what: what ?? 'value' })}
       <span aria-hidden="true"> · </span>
       {onReset ? (
-        <LinkButton onClick={reset}>
-          {country
-            ? t('settings.follows.useCountry', { value: sourceDefault })
-            : t('settings.follows.useTeam', { value: sourceDefault })}
-        </LinkButton>
-      ) : country ? (
-        t('settings.follows.countryDefault', { value: sourceDefault })
+        <LinkButton onClick={reset}>{t('settings.follows.useCountry', { value: sourceDefault })}</LinkButton>
       ) : (
-        t('settings.follows.teamDefault', { value: sourceDefault })
+        t('settings.follows.countryDefault', { value: sourceDefault })
       )}
     </>
   )

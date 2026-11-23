@@ -1,8 +1,8 @@
-// Emails about finished calls: one per call to every member who wants it (their own setting, else
-// the workspace default). Sent by a pg-boss job after `call.finish` committed (jobs.ts), so a slow
+// Emails about finished calls: one per call to every member with "Email for every call" on (their own setting, else
+// the team default they joined with). Sent by a pg-boss job after `call.finish` committed (jobs.ts), so a slow
 // mail server never holds up the agent. Test calls and spam send nothing.
-// An assistant with call email rules (assistants.email_rules) routes them instead (email-routing.ts): a language model
-// says which rules fit, the code picks the members; the decision is stored in calls.email_route before anything is
+// An assistant with call email rules (assistants.email_rules) also sends them to the members of the rules that fit
+// (email-routing.ts): a language model says which rules fit, the code picks the members; the decision is stored in calls.email_route before anything is
 // sent, so a retry sends to the same people and never asks the model again.
 import { DEFAULT_NOTIFICATIONS, routesEmails } from '@linedesk/actions'
 import {
@@ -78,11 +78,10 @@ export const asMemberRoute = (r: MemberRecipient): EmailRouteRecipient => ({
 })
 
 /**
- * Who a stored decision sends to now: the fallback's members as today; a routed decision's members who are still in
- * the workspace and not disabled, and its outside addresses only while they are confirmed and not stopped.
+ * Who a stored decision sends to now: its members who are still in the workspace and not disabled, and its outside
+ * addresses only while they are confirmed and not stopped. A retry sends to the same people as the first try.
  */
-async function recipientsOf(tx: Tx, workspaceId: string, route: EmailRoute, fallback: MemberRecipient[]) {
-  if (route.mode === 'fallback') return { members: fallback, outside: [] }
+async function recipientsOf(tx: Tx, workspaceId: string, route: EmailRoute) {
   const memberIds = route.to.flatMap(r => (r.kind === 'member' ? [r.user_id] : []))
   const emails = route.to.flatMap(r => (r.kind === 'outside' ? [r.email] : []))
   const [members, outside] = await Promise.all([
@@ -216,7 +215,7 @@ async function sendCallEmails(tx: Tx, sender: EmailSender, callId: string, deps:
     }
   }
   const { members: recipients, outside } = route
-    ? await recipientsOf(tx, call.workspace_id, route, everyone)
+    ? await recipientsOf(tx, call.workspace_id, route)
     : { members: everyone, outside: [] }
   // The workspace's first real call is a moment of its own (setup-emails.ts), for those of them who get setup
   // emails (owners who did not turn them off: the same rule as the other setup emails); marked sent only when one

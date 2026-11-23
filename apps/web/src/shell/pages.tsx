@@ -115,7 +115,7 @@ export const pages = {
       return i18n().t('shell.page.account')
     },
     sections: true,
-    render: p => <AccountSettings hasWorkspace workspaceName={p.workspaceName} />,
+    render: () => <AccountSettings hasWorkspace />,
   },
   // Shown in the navigation and ⌘K to instance admins only; the API refuses everyone else.
   // Instance admins get admin mode instead (Workspace.tsx); anyone else who opens #admin sees this.

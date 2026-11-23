@@ -1,5 +1,21 @@
 /* Settings › Assistant › Call emails (CallEmails.tsx) and the call view's "Emailed after the call" (EmailedAfterCall.tsx). */
 
+/* Who hears about calls: the row for new teammates starts with a plus where the others have an avatar. */
+.ce-lead-new {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--surface-hover);
+  color: var(--ink-muted);
+}
+/* The rules sit under the people, apart from them. */
+.ce-people + .ce-rules {
+  margin-top: 16px;
+}
+
 /* Member chips with a remove button, and the picker to add one. */
 .ce-chips {
   display: flex;
@@ -25,8 +41,7 @@
 .ce-chip:has(.ce-chip-x) {
   padding-right: 2px;
 }
-.ce-chip-email,
-.ce-chip-note {
+.ce-chip-email {
   color: var(--ink-muted);
   font-size: 11.5px;
 }

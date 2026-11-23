@@ -1312,18 +1312,6 @@ function Form({
             />
           </>
         )}
-        {current === 'emails' && (
-          <>
-            <CallEmails
-              name={assistantName(draft, t)}
-              rules={draft.email_rules}
-              onChange={update => setDraft(d => ({ ...d, email_rules: update(d.email_rules) }))}
-              canEdit={canEdit}
-              undoable={undoable}
-              showErrors={emailSaveTried}
-            />
-          </>
-        )}
         {current === 'advanced' && (
           <>
             <TalkingSpeedSection draft={draft} set={set} />
@@ -1331,6 +1319,17 @@ function Form({
           </>
         )}
       </fieldset>
+      {/* Outside the fieldset: every member switches their own call emails here; the rules are read-only for members. */}
+      {current === 'emails' && (
+        <CallEmails
+          name={assistantName(draft, t)}
+          rules={draft.email_rules}
+          onChange={update => setDraft(d => ({ ...d, email_rules: update(d.email_rules) }))}
+          canEdit={canEdit}
+          undoable={undoable}
+          showErrors={emailSaveTried}
+        />
+      )}
       {current === 'booking' && <CalendarSettings assistant={assistant} canEdit={canEdit} toast={toast} />}
       {current === 'booking' && <BackToIntegrations key="booking" />}
       {canEdit && <SaveBar dirty={changed} onCancel={cancel} note={note} />}
@@ -1365,7 +1364,10 @@ function Form({
       unsaved={unsaved}
     >
       {/* Members: why nothing here can change, once on top (the webhook's card in Advanced says it for itself). */}
-      {!canEdit && current !== 'review' && <ReadOnlyNote />}
+      {!canEdit &&
+        current !== 'review' &&
+        // Who hears about calls: every member switches their own row there.
+        (current === 'emails' ? <Note tone="info">{t('settings.assistant.emails.readOnly')}</Note> : <ReadOnlyNote />)}
       {current === 'review' ? (
         <AssistantReview
           assistant={assistant}

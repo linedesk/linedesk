@@ -1088,17 +1088,16 @@ function useSections(hasWorkspace: boolean): readonly PageSection<SectionId>[] {
 type Props = {
   /** False on the screen without a workspace (NoWorkspace.tsx): no Notifications section. */
   hasWorkspace: boolean
-  workspaceName?: string
 }
 
-export function AccountSettings({ hasWorkspace, workspaceName = '' }: Props) {
+export function AccountSettings({ hasWorkspace }: Props) {
   const supportAccess = useImpersonating()
   // The person's profile, sign-in, sessions and own notifications are theirs alone, also with edits allowed: the server refuses them during
   // support access (impersonation-guard.ts), so nothing is loaded and the page says so calmly.
   return supportAccess ? (
     <SupportAccessAccount hasWorkspace={hasWorkspace} />
   ) : (
-    <OwnAccount hasWorkspace={hasWorkspace} workspaceName={workspaceName} />
+    <OwnAccount hasWorkspace={hasWorkspace} />
   )
 }
 
@@ -1183,7 +1182,7 @@ function MainHostOnly({ section, origin }: { section: SectionId; origin: string 
   )
 }
 
-function OwnAccount({ hasWorkspace, workspaceName = '' }: Props) {
+function OwnAccount({ hasWorkspace }: Props) {
   const t = useT()
   const query = useQuery(ACCOUNT, loadAccount, { persist: true })
   const account = query.data
@@ -1224,7 +1223,7 @@ function OwnAccount({ hasWorkspace, workspaceName = '' }: Props) {
         )}
         {props && current === 'profile' && <Profile {...props} hasWorkspace={hasWorkspace} />}
         {current === 'preferences' && <Preferences locale={account?.user.locale} saved={() => void query.reload()} />}
-        {hasWorkspace && current === 'notifications' && <Notifications workspaceName={workspaceName} />}
+        {hasWorkspace && current === 'notifications' && <Notifications />}
         {mainOrigin && (current === 'security' || current === 'sessions' || current === 'apiKeys') ? (
           <MainHostOnly section={current} origin={mainOrigin} />
         ) : (

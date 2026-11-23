@@ -1,34 +1,39 @@
-// Settings › Assistant › Call emails (LIN-369, LIN-470): who gets the email about which call, as a list of rules.
-// "Always send to" members get every call email; each rule has the calls it is for in a few words, the members it
-// sends to and optionally one of them to assign the call to. After a call a language model only says which rules fit;
-// the code picks the recipients and the assignee (apps/api/src/email-routing.ts). Rules are on only when the instance
-// admin has set up a language model; without one the page shows only "Always send to". The rules are part of the
-// assistant's draft and saved with the page. Recipients are members only, shown with their email address.
+// Settings › Assistant › Who hears about calls (LIN-369, LIN-470, LIN-768): the one place for call emails. One row per
+// member with their "Email for every call" switch (their own notification setting in this workspace), a row for new
+// teammates (the team default they start with), then the rules: each rule has the calls it is about in a few words, the
+// members it sends to (also with "every call" off) and optionally one of them to assign the call to. After a call a
+// language model only says which rules fit; the code picks the recipients and the assignee
+// (apps/api/src/email-routing.ts). Rules are on only when the instance admin has set up a language model; without one
+// the page shows only the switches. The switches apply at once (everyone changes their own; owners and admins the
+// others' and the default, an admin never an owner's); the rules are part of the assistant's draft and saved with the
+// page. Recipients are members only, shown with their email address.
 import {
-  EMAIL_ALWAYS_MAX,
+  type CallEmailsData,
   EMAIL_RULE_TO_MAX,
   EMAIL_RULE_WHEN_MAX,
   EMAIL_RULES_MAX,
-  type EmailRoutingAvailability,
   type EmailRoutingData,
 } from '@linedesk/actions'
 import type { EmailRule, EmailRules, WorkspaceMember } from '@linedesk/db/types'
-import { useFormat, useT } from '@linedesk/i18n/react'
-import { useQuery } from '../cachedQuery.ts'
+import { useT } from '@linedesk/i18n/react'
+import { setQueryData, useQuery } from '../cachedQuery.ts'
+import { useRun } from '../store.tsx'
+import { useSupportAccess } from '../supportAccess.ts'
 import { memberAvatar, memberLabel, useMembers } from '../team/members.ts'
 import { Select, type SelectOption } from '../ui/controls.tsx'
 import { Input } from '../ui/form.tsx'
 import { Avatar, Button, Icon } from '../ui/kit.tsx'
-import { Loading, Skeleton, useLoadState } from '../ui/LoadStates.tsx'
+import { Loading, useLoadState } from '../ui/LoadStates.tsx'
 import { type SearchOption, SearchSelect, searchOptions } from '../ui/SearchSelect.tsx'
-import { Field, Section } from './fields.tsx'
+import { Section, SkeletonSwitchRows, SwitchRow } from './fields.tsx'
 import { readAction } from './settings-api.ts'
 import './call-emails.css'
 
 const ROUTING_KEY = 'emailRouting.get'
 const loadRouting = () => readAction<EmailRoutingData>(ROUTING_KEY)
-const AVAILABLE_KEY = 'emailRouting.available'
-const loadAvailable = () => readAction<EmailRoutingAvailability>(AVAILABLE_KEY)
+/** Who hears about calls, for every member (callEmails.get). */
+export const CALL_EMAILS_KEY = 'callEmails.get'
+const loadCallEmails = () => readAction<CallEmailsData>(CALL_EMAILS_KEY)
 
 /** Revert a change from a toast's Undo (Workspace's undo stack, also Z). */
 export type Undoable = (label: string, key: string, revert: () => void) => void
@@ -50,6 +55,7 @@ type Props = {
   rules: EmailRules
   /** Takes a change of the latest rules, so an Undo puts a rule back into the draft as it is then. */
   onChange: (update: (rules: EmailRules) => EmailRules) => void
+  /** Owners and admins: the rules, the teammates' switches and the one for new teammates. */
   canEdit: boolean
   undoable?: Undoable
   /** Save was tried: a rule without a topic shows its error. */
@@ -58,23 +64,19 @@ type Props = {
 
 const newRule = (): EmailRule => ({ id: crypto.randomUUID(), when: '', to: [], assign: null })
 
+/** The switches as the page shows them before the server answers; the server's answer comes with the next read. */
+const patchCallEmails = (change: (data: CallEmailsData) => CallEmailsData) =>
+  setQueryData<CallEmailsData | undefined>(CALL_EMAILS_KEY, data => (data ? change(data) : data))
+
 export function CallEmails({ name, rules, onChange, canEdit, undoable, showErrors }: Props) {
   const t = useT()
-  const format = useFormat()
   const members = useMembers()
   const membersState = useLoadState('workspace_members')
   const routing = useQuery<EmailRoutingData>(canEdit ? ROUTING_KEY : null, loadRouting)
-  const emailOff = (userId: string) => routing.data?.members.find(m => m.userId === userId)?.emailOn === false
   const emailOf = (userId: string) => routing.data?.members.find(m => m.userId === userId)?.email
-  // Members who cannot edit may not read routing.data; they ask only whether rules are on.
-  const available = useQuery<EmailRoutingAvailability>(canEdit ? null : AVAILABLE_KEY, loadAvailable)
-  // Rules need a language model; without one only "Always send to" works, so only it shows, for everyone.
-  const llm = canEdit ? routing : available
-  const llmKnown = llm.data !== undefined || llm.error !== null
-  const showRules = llm.data?.llm === true
-  const named = [...new Set([...rules.always, ...(showRules ? rules.rules.flatMap(r => r.to) : [])])]
-  const off = named.filter(emailOff)
-  const label = (userId: string) => memberLabel(members.find(m => m.user_id === userId))
+  const hears = useQuery<CallEmailsData>(CALL_EMAILS_KEY, loadCallEmails)
+  // Rules need a language model; without one only the switches work, so only they show, for everyone.
+  const showRules = hears.data?.llm === true
 
   const setRule = (id: string, change: (r: EmailRule) => EmailRule) =>
     onChange(rs => ({ ...rs, rules: rs.rules.map(r => (r.id === id ? change(r) : r)) }))
@@ -101,10 +103,9 @@ export function CallEmails({ name, rules, onChange, canEdit, undoable, showError
       id="as-emails"
       title={t('settings.assistant.emails.title')}
       description={t(
-        showRules ? 'settings.assistant.emails.description' : 'settings.assistant.emails.descriptionAlways',
-        { name },
+        showRules ? 'settings.assistant.emails.description' : 'settings.assistant.emails.descriptionNoRules',
       )}
-      help={t(showRules ? 'settings.assistant.emails.help' : 'settings.assistant.emails.helpAlways', { name })}
+      help={t(showRules ? 'settings.assistant.emails.help' : 'settings.assistant.emails.helpNoRules', { name })}
       actions={
         canEdit &&
         showRules && (
@@ -126,27 +127,13 @@ export function CallEmails({ name, rules, onChange, canEdit, undoable, showError
     >
       <Loading
         what={t('settings.assistant.emails.load')}
-        loading={membersState === 'loading' || !llmKnown}
-        error={membersState === 'slow'}
-        skeleton={<Skeleton width="100%" height={112} />}
+        loading={membersState === 'loading' || !hears.data}
+        error={membersState === 'slow' ? true : hears.data ? null : hears.error}
+        onRetry={() => void hears.reload()}
+        skeleton={<SkeletonSwitchRows rows={Math.max(2, members.filter(m => !m.disabled).length + 1)} lead />}
       >
-        <Field
-          id="as-emails-always"
-          label={t('settings.assistant.emails.always.label')}
-          help={t('settings.assistant.emails.always.help')}
-        >
-          <People
-            id="as-emails-always"
-            ids={rules.always}
-            max={EMAIL_ALWAYS_MAX}
-            members={members}
-            emailOff={emailOff}
-            emailOf={emailOf}
-            disabled={!canEdit}
-            onChange={always => onChange(rs => ({ ...rs, always }))}
-          />
-        </Field>
-        {showRules && rules.rules.length > 0 ? (
+        {hears.data && <WhoHears data={hears.data} members={members} canEdit={canEdit} showRules={showRules} />}
+        {showRules && rules.rules.length > 0 && (
           <ol className="ce-rules">
             {rules.rules.map((rule, i) => (
               <RuleCard
@@ -154,7 +141,6 @@ export function CallEmails({ name, rules, onChange, canEdit, undoable, showError
                 rule={rule}
                 index={i}
                 members={members}
-                emailOff={emailOff}
                 emailOf={emailOf}
                 disabled={!canEdit}
                 showErrors={showErrors}
@@ -163,16 +149,104 @@ export function CallEmails({ name, rules, onChange, canEdit, undoable, showError
               />
             ))}
           </ol>
-        ) : (
-          !rules.always.length && <p className="help">{t('settings.assistant.emails.empty')}</p>
-        )}
-        {off.length > 0 && (
-          <p className="help">
-            {t('settings.assistant.emails.emailsOff', { count: off.length, names: format.list(off.map(label)) })}
-          </p>
         )}
       </Loading>
     </Section>
+  )
+}
+
+/**
+ * One row per member (you first, then by name) with their "Email for every call", and the row for new teammates.
+ * Yours is always yours to switch; the others' and the default only for owners and admins, an owner's only for an
+ * owner (team.updateMemberNotifications refuses the rest).
+ */
+function WhoHears({
+  data,
+  members,
+  canEdit,
+  showRules,
+}: {
+  data: CallEmailsData
+  members: WorkspaceMember[]
+  canEdit: boolean
+  showRules: boolean
+}) {
+  const t = useT()
+  const run = useRun()
+  // Support access shows the workspace as its people see it; it changes nobody's settings.
+  const readOnly = !!useSupportAccess()
+  const myRole = members.find(m => m.user_id === data.you)?.role
+  const everyCall = (userId: string) => data.members.find(m => m.userId === userId)?.everyCall ?? false
+  const shown = members
+    .filter(m => !m.disabled && data.members.some(d => d.userId === m.user_id))
+    .sort((a, b) => Number(b.user_id === data.you) - Number(a.user_id === data.you))
+  const mayChange = (m: WorkspaceMember) =>
+    !readOnly && (m.user_id === data.you || (canEdit && (m.role !== 'owner' || myRole === 'owner')))
+  const line = (on: boolean) =>
+    on
+      ? t('settings.assistant.emails.member.everyCall')
+      : showRules
+        ? t('settings.assistant.emails.member.onlyRules')
+        : t('settings.assistant.emails.member.none')
+
+  function setMember(m: WorkspaceMember, on: boolean) {
+    patchCallEmails(d => ({
+      ...d,
+      members: d.members.map(x => (x.userId === m.user_id ? { ...x, everyCall: on } : x)),
+    }))
+    if (m.user_id === data.you) void run('notifications.update', { email: on })
+    else void run('team.updateMemberNotifications', { memberId: m.id, email: on })
+  }
+
+  function setNewTeammates(on: boolean) {
+    patchCallEmails(d => ({ ...d, newTeammates: on }))
+    void run('notifications.setDefaults', { email: on })
+  }
+
+  return (
+    <div className="st-swlist ce-people">
+      {shown.map(m => {
+        const label = memberLabel(m)
+        const editable = mayChange(m)
+        return (
+          <SwitchRow
+            key={m.user_id}
+            lead={<Avatar name={label} size={24} src={memberAvatar(m)} />}
+            title={m.user_id === data.you ? t('settings.assistant.emails.member.you', { name: label }) : label}
+            description={line(everyCall(m.user_id))}
+            on={everyCall(m.user_id)}
+            onChange={on => setMember(m, on)}
+            disabled={!editable}
+            tip={
+              editable || readOnly
+                ? undefined
+                : canEdit
+                  ? t('settings.assistant.emails.member.ownerOnly')
+                  : t('settings.assistant.emails.member.notYours')
+            }
+          />
+        )
+      })}
+      <SwitchRow
+        lead={
+          <span className="ce-lead-new" aria-hidden="true">
+            <Icon name="plus" size={12} />
+          </span>
+        }
+        title={t('settings.assistant.emails.newTeammates.title')}
+        description={
+          data.newTeammates
+            ? t('settings.assistant.emails.newTeammates.everyCall')
+            : showRules
+              ? t('settings.assistant.emails.newTeammates.onlyRules')
+              : t('settings.assistant.emails.newTeammates.none')
+        }
+        on={data.newTeammates}
+        onChange={setNewTeammates}
+        disabled={!canEdit || readOnly}
+        tip={canEdit || readOnly ? undefined : t('settings.assistant.emails.member.notYours')}
+      />
+    </div>
   )
 }
 
@@ -181,7 +255,6 @@ function RuleCard({
   rule,
   index,
   members,
-  emailOff,
   emailOf,
   disabled,
   showErrors,
@@ -191,7 +264,6 @@ function RuleCard({
   rule: EmailRule
   index: number
   members: WorkspaceMember[]
-  emailOff: (userId: string) => boolean
   emailOf: (userId: string) => string | undefined
   disabled: boolean
   showErrors: boolean
@@ -247,7 +319,6 @@ function RuleCard({
           ids={rule.to}
           max={EMAIL_RULE_TO_MAX}
           members={members}
-          emailOff={emailOff}
           emailOf={emailOf}
           disabled={disabled}
           onChange={to => onChange(r => ({ ...r, to, assign: r.assign && to.includes(r.assign) ? r.assign : null }))}
@@ -275,7 +346,6 @@ function People({
   ids,
   max,
   members,
-  emailOff,
   emailOf,
   disabled,
   onChange,
@@ -284,7 +354,6 @@ function People({
   ids: string[]
   max: number
   members: WorkspaceMember[]
-  emailOff: (userId: string) => boolean
   emailOf: (userId: string) => string | undefined
   disabled: boolean
   onChange: (ids: string[]) => void
@@ -304,11 +373,6 @@ function People({
             <Avatar name={label} size={20} src={memberAvatar(member)} />
             {label}
             {email && <span className="ce-chip-email">{email}</span>}
-            {emailOff(userId) && (
-              <span className="ce-chip-note" title={t('settings.assistant.emails.chip.emailsOffTip')}>
-                {t('settings.assistant.emails.chip.emailsOff')}
-              </span>
-            )}
             {!disabled && (
               <button
                 type="button"

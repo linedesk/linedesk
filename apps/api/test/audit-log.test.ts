@@ -197,22 +197,22 @@ describe('call email rules', () => {
     const dave = await addMember(ws.id, 'member')
     const sarah = await addMember(ws.id, 'member')
     const rule = (topic: string, to: string[]) => ({ id: 'r1', when: `Calls about ${topic}`, to, assign: null })
-    const update = (rules: ReturnType<typeof rule>[], always: string[] = []) =>
-      act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, email_rules: { always, rules } })
+    const update = (rules: ReturnType<typeof rule>[]) =>
+      act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, email_rules: { rules } })
     const first = await update([rule('water heaters', [dave.userId])])
     expect(first.status).toBe(200)
     expect(first.body.data.emailRoutingChanges).toMatchObject({
       added: [{ kind: 'member', id: dave.userId }],
       removed: [],
     })
-    expect((await update([rule('books', [])], [sarah.userId])).status).toBe(200)
+    expect((await update([rule('books', [sarah.userId])])).status).toBe(200)
     // The same rules again, or other settings: no change, not listed.
-    expect((await update([rule('books', [])], [sarah.userId])).body.data?.emailRoutingChanges).toBeUndefined()
+    expect((await update([rule('books', [sarah.userId])])).body.data?.emailRoutingChanges).toBeUndefined()
     expect(
       (await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, greeting: 'Hi, this is Maya.' })).status,
     ).toBe(200)
     // Only the wording changed: listed, with nobody added or removed.
-    expect((await update([rule('all books', [])], [sarah.userId])).status).toBe(200)
+    expect((await update([rule('all books', [sarah.userId])])).status).toBe(200)
 
     const { entries } = await listAudit(db, { kind: 'integrations', workspaceId: ws.id, limit: 50 })
     const changes = entries.filter(e => e.what === 'assistant.update')
@@ -230,19 +230,16 @@ describe('call email rules', () => {
     }
   })
 
-  test('emailRoutingChanges: by member, always and rules; the same rules are none; names from the map', () => {
+  test('emailRoutingChanges: by member of the rules; the same rules are none; names from the map', () => {
     const names = new Map([['u1', 'Dave']])
-    const rules = (always: string[], to: string[]) => ({
-      always,
-      rules: [{ id: 'r1', name: 'Leaks', when: '', to, assign: null }],
-    })
-    expect(emailRoutingChanges(rules(['u1'], []), rules(['u1'], []), names)).toBeNull()
-    expect(emailRoutingChanges(null, { always: [], rules: [] }, names)).toBeNull()
-    expect(emailRoutingChanges(rules(['u1'], []), rules([], ['u2', 'u1']), names)).toEqual({
+    const rules = (to: string[]) => ({ rules: [{ id: 'r1', name: 'Leaks', when: '', to, assign: null }] })
+    expect(emailRoutingChanges(rules(['u1']), rules(['u1']), names)).toBeNull()
+    expect(emailRoutingChanges(null, { rules: [] }, names)).toBeNull()
+    expect(emailRoutingChanges(rules(['u1']), rules(['u2', 'u1']), names)).toEqual({
       added: [{ kind: 'member', id: 'u2', name: null }],
       removed: [],
     })
-    expect(emailRoutingChanges(rules(['u1'], []), rules([], ['u2']), names)).toEqual({
+    expect(emailRoutingChanges(rules(['u1']), rules(['u2']), names)).toEqual({
       added: [{ kind: 'member', id: 'u2', name: null }],
       removed: [{ kind: 'member', id: 'u1', name: 'Dave' }],
     })

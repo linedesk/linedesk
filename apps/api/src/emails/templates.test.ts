@@ -159,7 +159,9 @@ describe('call summary', () => {
     expect(email.text).toContain('- Call back before noon')
     expect(email.text).toContain('https://desk.example.com/#call/call_1?ws=ws_1')
     expect(email.html).toContain('href="https://desk.example.com/#call/call_1?ws=ws_1"')
-    expect(email.html).toContain('href="https://desk.example.com/#account/notifications?ws=ws_1"')
+    // Call emails are set in one place for the team (LIN-768).
+    expect(email.html).toContain('href="https://desk.example.com/#assistant/emails?ws=ws_1"')
+    expect(email.text).toContain('Change who hears about calls')
     expect(email.html).not.toContain('class="ld-badge"')
   })
 

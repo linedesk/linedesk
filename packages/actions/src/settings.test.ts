@@ -2,7 +2,7 @@ import type { Contact } from '@linedesk/db/types'
 import { describe, expect, it } from 'vitest'
 import { rolePermissions } from './define.ts'
 import { storedSnapshot } from './assistant-versions.ts'
-import { EMAIL_ALWAYS_MAX, EMAIL_RULE_TO_MAX, EMAIL_RULE_WHEN_MAX, EMAIL_RULES_MAX } from './email-routing.ts'
+import { EMAIL_RULE_TO_MAX, EMAIL_RULE_WHEN_MAX, EMAIL_RULES_MAX } from './email-routing.ts'
 import { applyLocally, type LocalTables } from './index.ts'
 import { english, type Words } from './words.ts'
 import { currencyDigits, fromMinorUnits, jobValueCurrencies, rescaleMinorUnits, toMinorUnits } from './insights.ts'
@@ -46,8 +46,8 @@ describe('assistant.update', () => {
       ...over,
     })
     const parse = (email_rules: unknown) => assistantUpdate.input.parse({ assistantId: 'as1', email_rules }).email_rules
-    expect(parse({ always: ['u3', 'u3'], rules: [rule()] })).toEqual({
-      always: ['u3'],
+    // `always` (members who got every call email) is gone (LIN-768): the member's own switch says that now.
+    expect(parse({ always: ['u3'], rules: [rule()] })).toEqual({
       rules: [
         {
           id: 'r1',
@@ -58,31 +58,28 @@ describe('assistant.update', () => {
       ],
     })
     // An assignee who is not one of the rule's members is dropped, not refused.
-    expect(parse({ always: [], rules: [rule({ assign: 'u9' })] })!.rules[0]!.assign).toBeNull()
-    const assistants = new Map([['as1', { id: 'as1', email_rules: { always: [], rules: [] } }]])
+    expect(parse({ rules: [rule({ assign: 'u9' })] })!.rules[0]!.assign).toBeNull()
+    const assistants = new Map([['as1', { id: 'as1', email_rules: { rules: [] } }]])
     applyLocally(
       { assistants } as unknown as LocalTables,
       assistantUpdate,
-      assistantUpdate.input.parse({ assistantId: 'as1', email_rules: { always: ['u3'], rules: [rule()] } }),
+      assistantUpdate.input.parse({ assistantId: 'as1', email_rules: { rules: [rule()] } }),
       '2026-11-17T00:00:00Z',
     )
     expect(assistants.get('as1')).toMatchObject({
       email_rules: {
-        always: ['u3'],
         rules: [{ when: 'Calls about water heaters or boilers', to: ['u1', 'u2'], assign: 'u2' }],
       },
     })
-    // Limits: `when` (not blank, at most EMAIL_RULE_WHEN_MAX), members per rule, always and the number of rules.
+    // Limits: `when` (not blank, at most EMAIL_RULE_WHEN_MAX), members per rule and the number of rules.
     for (const bad of [
-      { always: [], rules: [rule({ when: '   ' })] },
-      { always: [], rules: [rule({ when: 'x'.repeat(EMAIL_RULE_WHEN_MAX + 1) })] },
+      { rules: [rule({ when: '   ' })] },
+      { rules: [rule({ when: 'x'.repeat(EMAIL_RULE_WHEN_MAX + 1) })] },
       {
-        always: [],
         rules: [rule({ to: Array.from({ length: EMAIL_RULE_TO_MAX + 1 }, (_, i) => `u${i}`), assign: null })],
       },
-      { always: Array.from({ length: EMAIL_ALWAYS_MAX + 1 }, (_, i) => `u${i}`), rules: [] },
-      { always: [], rules: Array.from({ length: EMAIL_RULES_MAX + 1 }, (_, i) => rule({ id: `r${i}` })) },
-      { rules: [] },
+      { rules: Array.from({ length: EMAIL_RULES_MAX + 1 }, (_, i) => rule({ id: `r${i}` })) },
+      {},
     ])
       expect(() => parse(bad)).toThrow()
     expect(assistantUpdate.permission).toBe('settings:write')

@@ -74,15 +74,31 @@ describe('notification settings', () => {
     expect((await act(member, 'notifications.get', {})).body.data.own.email).toBeNull()
   })
 
-  test('only owners and admins change the defaults; members who kept them follow', async () => {
+  test('only owners and admins change the defaults; they are for new teammates, members keep what they get', async () => {
     const ws = await createWorkspace('Defaults Plumbing')
     const member = await addMember(ws.id, 'member')
+    const own = await addMember(ws.id, 'member')
+    await act(own, 'notifications.update', { email: false })
     expect((await act(member, 'notifications.setDefaults', { email: false })).status).toBe(403)
     expect((await act(ws.owner, 'notifications.setDefaults', { email: false })).status).toBe(200)
+    // Followed the default before (LIN-768): keeps every call email, now as their own setting, not as a change by
+    // someone else.
     expect((await act(member, 'notifications.get', {})).body.data).toMatchObject({
-      effective: { email: false },
+      effective: { email: true },
+      own: { email: true },
       defaults: { email: false, browser: true },
+      changedBy: null,
     })
+    expect((await act(own, 'notifications.get', {})).body.data.effective.email).toBe(false)
+    // A teammate who joins now starts with the new default.
+    const newcomer = await addMember(ws.id, 'member')
+    expect((await act(newcomer, 'notifications.get', {})).body.data).toMatchObject({
+      effective: { email: false },
+      own: { email: null },
+    })
+    // The same default again pins nobody.
+    expect((await act(ws.owner, 'notifications.setDefaults', { email: false })).status).toBe(200)
+    expect((await act(newcomer, 'notifications.get', {})).body.data.own.email).toBeNull()
     const other = await createWorkspace('Other Defaults Plumbing')
     expect((await act(other.owner, 'notifications.get', {})).body.data.defaults).toEqual({ email: true, browser: true })
   })
@@ -98,14 +114,18 @@ describe('call emails', () => {
   test('go to members who want them: own choice first, then the workspace default; never to disabled users', async () => {
     const ws = await createWorkspace('Recipients Plumbing')
     const optedOut = await addMember(ws.id, 'member')
+    await act(optedOut, 'notifications.update', { email: false })
+    // The owner followed the default: keeps their call emails when it changes (LIN-768).
+    await act(ws.owner, 'notifications.setDefaults', { email: false })
+    const follows = await addMember(ws.id, 'member')
     const optedIn = await addMember(ws.id, 'member')
     const disabled = await addMember(ws.id, 'admin')
-    await act(optedOut, 'notifications.update', { email: false })
-    await act(ws.owner, 'notifications.setDefaults', { email: false })
     await act(optedIn, 'notifications.update', { email: true })
+    await act(disabled, 'notifications.update', { email: true })
     await db.update(user).set({ disabledAt: new Date() }).where(eq(user.id, disabled.userId))
-    const to = (await emailRecipients(db, ws.id)).map(r => r.email)
-    expect(to).toEqual([await emailOf(optedIn)])
+    const to = (await emailRecipients(db, ws.id)).map(r => r.email).sort()
+    expect(to).toEqual([await emailOf(ws.owner), await emailOf(optedIn)].sort())
+    expect(to).not.toContain(await emailOf(follows))
   })
 
   test('a finished call sends one email per recipient with topic, summary, next steps and a link', async () => {

@@ -332,7 +332,6 @@ export const normalized = (d: Draft): Draft => ({
   greeting_outside: d.greeting_outside.trim(),
   // Trimmed, and a rule's assignee only while they are one of its members (as the server saves it).
   email_rules: normalizeEmailRules({
-    always: d.email_rules.always,
     rules: d.email_rules.rules.map(r => ({ ...r, when: r.when.trim() })),
   }),
   transfers: d.transfers.map(c =>

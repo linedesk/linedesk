@@ -1,21 +1,12 @@
-// Call email routing (docs/architecture.md, Notifications; LIN-470): an assistant's `email_rules` has members who
-// always get the email and a list of rules, each a topic in plain words with its members and whom it assigns. After
-// the call a language model only says which rules fit the call (by number); the code computes the recipients (always
-// and the members of every rule that fits) and the assignee (the first fitting rule's, in list order).
-// Rules are on only with a language model; without one routing works as if there were none. call-notifications.ts stores the result in
-// calls.email_route before it sends, and falls back to every member with call emails on when the request fails, or
-// nothing fits and nobody is set to always get it.
-import { DEFAULT_NOTIFICATIONS, EMAIL_RULE_WHEN_MAX, workspaceLanguageName } from '@linedesk/actions'
-import {
-  call_events,
-  calls,
-  email_recipients,
-  member,
-  member_notification_settings,
-  type Tx,
-  user,
-  workspace_settings,
-} from '@linedesk/db'
+// Call email routing (docs/architecture.md, Notifications; LIN-470, LIN-768): every member with "Email for every call"
+// on gets every call email; an assistant's `email_rules` adds people for some calls: each rule a topic in plain words
+// with its members and whom it assigns. After the call a language model only says which rules fit the call (by
+// number); the code computes the recipients (the every-call members and the members of every rule that fits, whatever
+// their own switch says) and the assignee (the first fitting rule's, in list order). Rules are on only with a language
+// model; without one routing works as if there were none. call-notifications.ts stores the result in calls.email_route
+// before it sends. When the request fails, nobody can tell which rules fit, so every rule's members get it too.
+import { EMAIL_RULE_WHEN_MAX, workspaceLanguageName } from '@linedesk/actions'
+import { call_events, calls, email_recipients, member, type Tx, user } from '@linedesk/db'
 import type { EmailRoute, EmailRouteRecipient, EmailRules } from '@linedesk/db/types'
 import type { UiLocale } from '@linedesk/i18n'
 import { localeForUser } from '@linedesk/i18n/server'
@@ -49,49 +40,23 @@ export const ROUTINGS_PER_HOUR = 120
 const routingBudget = createFailureLimiter({ max: ROUTINGS_PER_HOUR, windowMs: 3600_000 })
 
 /** A member the rules name, as the routing sees them now. */
-export type MentionedMember = {
-  userId: string
-  name: string
-  email: string
-  locale: UiLocale
-  /** Their own call email setting, else the workspace default. */
-  emailOn: boolean
-}
+export type MentionedMember = { userId: string; name: string; email: string; locale: UiLocale }
 
-/** The workspace's members with these ids who are still in it and not disabled, with their call email setting. */
+/** The workspace's members with these ids who are still in it and not disabled. */
 export async function membersById(tx: Tx, workspaceId: string, userIds: string[]): Promise<MentionedMember[]> {
   if (!userIds.length) return []
-  const [settings] = await tx
-    .select({ fallback: workspace_settings.notify_email_default })
-    .from(workspace_settings)
-    .where(eq(workspace_settings.workspace_id, workspaceId))
-  const fallback = settings?.fallback ?? DEFAULT_NOTIFICATIONS.email
   const rows = await tx
     .select({
       userId: user.id,
       name: user.name,
       email: user.email,
-      own: member_notification_settings.email,
       locale: user.locale,
       localeAuto: user.localeAuto,
     })
     .from(member)
     .innerJoin(user, eq(user.id, member.userId))
-    .leftJoin(
-      member_notification_settings,
-      and(
-        eq(member_notification_settings.workspace_id, member.organizationId),
-        eq(member_notification_settings.user_id, member.userId),
-      ),
-    )
     .where(and(eq(member.organizationId, workspaceId), inArray(member.userId, userIds), isNull(user.disabledAt)))
-  return rows.map(r => ({
-    userId: r.userId,
-    name: r.name,
-    email: r.email,
-    locale: localeForUser(r),
-    emailOn: r.own ?? fallback,
-  }))
+  return rows.map(r => ({ userId: r.userId, name: r.name, email: r.email, locale: localeForUser(r) }))
 }
 
 /**
@@ -246,12 +211,14 @@ const asRecipient = (m: MentionedMember): EmailRouteRecipient => ({ kind: 'membe
 
 /**
  * Who gets the email and whom it is assigned to, from the rules and the model's answer (`decision`; null: there are
- * no rules, so nothing was asked). `members`: the members the rules name, as they are now (membersById); only those
- * with call emails on get one. `everyone`: every member with call emails on (the fallback).
- * - Rules that fit: the `always` members and the members of each, assigned to the first of them (list order) whose
- *   assignee gets the email.
- * - None fit, or no rules: the `always` members only; when none of them gets an email, the fallback.
- * - No answer (no model, a failed request, over the budget): the fallback.
+ * no rules, so nothing was asked). `members`: the members the rules name, as they are now (membersById); a rule's
+ * members get its calls whatever their own "Email for every call" says. `everyone`: every member with "Email for every
+ * call" on.
+ * - Rules that fit: `everyone` and the members of each, assigned to the first of them (list order) with an assignee
+ *   who is still a member.
+ * - None fit, or no rules: `everyone` only (nobody, when nobody has every call on).
+ * - No answer (a failed request, over the budget): `everyone` and every rule's members, as nobody can tell which
+ *   rules fit; no assignee. (Without a model routeCall passes no rules: the page offers none then.)
  */
 export function routeFor(
   emailRules: EmailRules,
@@ -260,23 +227,29 @@ export function routeFor(
   everyone: EmailRouteRecipient[],
   at: string,
 ): EmailRoute {
-  const getting = (ids: readonly string[]) => ids.flatMap(id => members.find(m => m.userId === id && m.emailOn) ?? [])
-  const fallback = (problem?: NonNullable<EmailRoute['problem']>): EmailRoute => ({
-    mode: 'fallback',
-    to: everyone,
-    reason: null,
-    assigned_user_id: null,
-    at,
-    ...(problem ? { problem } : {}),
-  })
-  if (decision && !decision.ok) return fallback(decision.problem)
+  const named = (rules: EmailRules['rules']) =>
+    rules.flatMap(r => r.to).flatMap(id => members.find(m => m.userId === id) ?? [])
+  const withEveryone = (more: readonly MentionedMember[]) => {
+    const to = new Map(everyone.map(r => [r.kind === 'member' ? r.user_id : r.email, r]))
+    for (const m of more) if (!to.has(m.userId)) to.set(m.userId, asRecipient(m))
+    return [...to.values()]
+  }
+  if (decision && !decision.ok)
+    return {
+      mode: 'fallback',
+      to: withEveryone(named(emailRules.rules)),
+      reason: null,
+      assigned_user_id: null,
+      at,
+      problem: decision.problem,
+    }
   const fit = decision?.ok ? decision.rules.flatMap(i => emailRules.rules[i] ?? []) : []
-  const to = [...new Map(getting([...emailRules.always, ...fit.flatMap(r => r.to)]).map(m => [m.userId, m])).values()]
-  if (!to.length) return fallback(emailRules.rules.length ? 'nothing_fit' : undefined)
-  const assignee = fit.find(r => r.assign && to.some(m => m.userId === r.assign))?.assign ?? null
+  const to = withEveryone(named(fit))
+  const assignee =
+    fit.find(r => r.assign && to.some(m => m.kind === 'member' && m.user_id === r.assign))?.assign ?? null
   return {
     mode: 'routed',
-    to: to.map(asRecipient),
+    to,
     rules: fit.map(r => r.when),
     reason: decision?.ok ? decision.reason : null,
     assigned_user_id: assignee,
@@ -305,9 +278,9 @@ export async function routeCall(
   everyone: EmailRouteRecipient[],
   at: string,
 ): Promise<EmailRoute> {
-  const ids = [...emailRules.always, ...emailRules.rules.flatMap(r => r.to)]
+  const ids = emailRules.rules.flatMap(r => r.to)
   const members = await membersById(tx, workspaceId, [...new Set(ids)])
-  if (!model) return routeFor({ ...emailRules, rules: [] }, null, members, everyone, at)
+  if (!model) return routeFor({ rules: [] }, null, members, everyone, at)
   let decision: Decision | null = null
   if (emailRules.rules.length) {
     const language = await routingLanguage(tx, workspaceId, call.id ?? null)

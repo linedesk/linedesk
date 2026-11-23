@@ -1,9 +1,9 @@
-// Call email routing (LIN-470): an assistant's rules decide who gets the email about a call. The language model is a
-// fake (no provider keys): it answers with the numbers of the rules the test names. Covers the recipients (always and
-// the members of every rule that fits, only with call emails on), the assignee (the first fitting rule's), nothing
-// fitting with and without always, the fallbacks, one decision per call (a retry reuses it), the request's format,
+// Call email routing (LIN-470, LIN-768): members with "Email for every call" on get every call email, an assistant's
+// rules add people for some calls. The language model is a fake (no provider keys): it answers with the numbers of the
+// rules the test names. Covers the recipients (the every-call members and the members of every rule that fits), the
+// assignee (the first fitting rule's), nothing fitting, the fallbacks, callEmails.get, one decision per call (a retry reuses it), the request's format,
 // and the outside addresses' actions and confirm and stop links (kept in the API, no longer on the page).
-import { assistants, call_events, calls, email_recipients, user } from '@linedesk/db'
+import { assistants, call_events, calls, email_recipients, member as members, user } from '@linedesk/db'
 import type { EmailRule, EmailRules } from '@linedesk/db/types'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, test, vi } from 'vitest'
@@ -83,14 +83,18 @@ async function setRules(ws: Workspace, email_rules: EmailRules) {
 
 afterEach(() => vi.restoreAllMocks())
 
+/** These members turn "Email for every call" off: they get only the calls of their rules. */
+const onlyRules = (...who: User[]) => Promise.all(who.map(u => act(u, 'notifications.update', { email: false })))
+
 describe('routing a call email', () => {
-  test('always and the members of every rule that fits; the request names rules only', async () => {
+  test('every-call members and the members of every rule that fits; the request names rules only', async () => {
     const ws = await createWorkspace('Routing Plumbing')
     const dave = await addMember(ws.id, 'member')
     const sarah = await addMember(ws.id, 'member')
     const mike = await addMember(ws.id, 'member')
+    // Mike gets every call; the others only their rules' calls.
+    await onlyRules(ws.owner, dave, sarah)
     await setRules(ws, {
-      always: [mike.userId],
       rules: [
         rule('Water heaters & boilers', [dave.userId]),
         rule('Billing', [ws.owner.userId]),
@@ -121,23 +125,23 @@ describe('routing a call email', () => {
     })
   })
 
-  test('a member with call emails off gets none, also when a rule names them', async () => {
-    const ws = await createWorkspace('Emails Off Plumbing')
+  test('a member who gets every call and is in a fitting rule gets one email', async () => {
+    const ws = await createWorkspace('Once Plumbing')
     const dave = await addMember(ws.id, 'member')
-    const sarah = await addMember(ws.id, 'member')
-    await act(sarah, 'notifications.update', { email: false })
-    await setRules(ws, { always: [], rules: [rule('Leaks', [sarah.userId, dave.userId])] })
+    await onlyRules(ws.owner)
+    await setRules(ws, { rules: [rule('Leaks', [dave.userId])] })
     const call = await finishedCall(ws)
     const { sender, sent } = fakeSender()
     await notifyCallFinished(db, sender, call.id, { model: async () => fakeModel([1]).model })
     expect(sent.map(e => e.to)).toEqual([await emailOf(dave)])
   })
 
-  test('nothing fits: the always members only, else every member with call emails on', async () => {
+  test('nothing fits: the every-call members only; nobody when nobody gets every call', async () => {
     const ws = await createWorkspace('Nothing Fits Plumbing')
     const dave = await addMember(ws.id, 'member')
     const mike = await addMember(ws.id, 'member')
-    await setRules(ws, { always: [mike.userId], rules: [rule('Leaks', [dave.userId], dave.userId)] })
+    await onlyRules(ws.owner, dave)
+    await setRules(ws, { rules: [rule('Leaks', [dave.userId], dave.userId)] })
     const call = await finishedCall(ws)
     const { sender, sent } = fakeSender()
     await notifyCallFinished(db, sender, call.id, { model: async () => fakeModel([], 'It is a sales call.').model })
@@ -150,32 +154,20 @@ describe('routing a call email', () => {
     })
     expect((await getCall(call.id))!.assignee_id).toBeNull()
 
-    await setRules(ws, { always: [], rules: [rule('Leaks', [dave.userId])] })
+    await onlyRules(mike)
     const second = await finishedCall(ws)
     const again = fakeSender()
-    await notifyCallFinished(db, again.sender, second.id, { model: async () => fakeModel([]).model })
-    expect(again.sent.map(e => e.to).sort()).toEqual(
-      [await emailOf(ws.owner), await emailOf(dave), await emailOf(mike)].sort(),
-    )
-    expect((await getCall(second.id))!.email_route).toMatchObject({ mode: 'fallback', problem: 'nothing_fit' })
+    expect(await notifyCallFinished(db, again.sender, second.id, { model: async () => fakeModel([]).model })).toEqual({
+      sent: 0,
+      failed: 0,
+    })
+    expect((await getCall(second.id))!.email_route).toMatchObject({ mode: 'routed', to: [], rules: [] })
   })
 
-  test('always only (no rules): no request, the always members get it', async () => {
-    const ws = await createWorkspace('Always Plumbing')
-    const mike = await addMember(ws.id, 'member')
-    await setRules(ws, { always: [mike.userId], rules: [] })
-    const call = await finishedCall(ws)
-    const { sender, sent } = fakeSender()
-    const { model, requests } = fakeModel([1])
-    await notifyCallFinished(db, sender, call.id, { model: async () => model })
-    expect(requests).toEqual([])
-    expect(sent.map(e => e.to)).toEqual([await emailOf(mike)])
-    expect((await getCall(call.id))!.email_route).toMatchObject({ mode: 'routed', rules: [], reason: null })
-  })
-
-  test('no rules and nobody always: every member with call emails on, nothing stored', async () => {
+  test('no rules: every member with every call on, nothing asked, nothing stored', async () => {
     const ws = await createWorkspace('Default Plumbing')
     const dave = await addMember(ws.id, 'member')
+    await addMember(ws.id, 'member').then(u => onlyRules(u))
     const call = await finishedCall(ws)
     const { sender, sent } = fakeSender()
     const { model, requests } = fakeModel([1])
@@ -185,37 +177,30 @@ describe('routing a call email', () => {
     expect((await getCall(call.id))!.email_route).toBeNull()
   })
 
-  test('without a language model the rules are not used: always only, else everyone, and nothing is asked', async () => {
+  test('without a language model the rules are not used: the every-call members get it, nothing is asked', async () => {
     const ws = await createWorkspace('No model Plumbing')
     const dave = await addMember(ws.id, 'member')
-    const mike = await addMember(ws.id, 'member')
-    await setRules(ws, { always: [mike.userId], rules: [rule('Leaks', [dave.userId], dave.userId)] })
+    await onlyRules(dave)
+    await setRules(ws, { rules: [rule('Leaks', [dave.userId], dave.userId)] })
     const call = await finishedCall(ws)
     const { sender, sent } = fakeSender()
     await notifyCallFinished(db, sender, call.id, { model: async () => null })
-    expect(sent.map(e => e.to)).toEqual([await emailOf(mike)])
+    expect(sent.map(e => e.to)).toEqual([await emailOf(ws.owner)])
     expect((await getCall(call.id))!.email_route).toMatchObject({ mode: 'routed', rules: [], reason: null })
+    expect((await getCall(call.id))!.email_route).not.toHaveProperty('problem')
     expect((await getCall(call.id))!.assignee_id).toBeNull()
-    await setRules(ws, { always: [], rules: [rule('Leaks', [dave.userId], dave.userId)] })
-    const other = await finishedCall(ws)
-    const second = fakeSender()
-    await notifyCallFinished(db, second.sender, other.id, { model: async () => null })
-    expect(second.sent.map(e => e.to).sort()).toEqual(
-      [await emailOf(ws.owner), await emailOf(dave), await emailOf(mike)].sort(),
-    )
-    expect((await getCall(other.id))!.email_route).toMatchObject({ mode: 'fallback', reason: null })
-    expect((await getCall(other.id))!.email_route).not.toHaveProperty('problem')
   })
 
   test.each([
     ['llm_failed', 'not json'],
     ['llm_failed', 'throw'],
     ['llm_failed', JSON.stringify({ rules: '1' })],
-  ] as const)('falls back to every member with call emails on: %s', async (problem, answer) => {
+  ] as const)("no answer: every-call members and every rule's members get it: %s", async (problem, answer) => {
     const ws = await createWorkspace(`Fallback ${problem}`)
     const dave = await addMember(ws.id, 'member')
     const mike = await addMember(ws.id, 'member')
-    await setRules(ws, { always: [mike.userId], rules: [rule('Leaks', [dave.userId], dave.userId)] })
+    await onlyRules(dave, mike)
+    await setRules(ws, { rules: [rule('Leaks', [dave.userId], dave.userId)] })
     const call = await finishedCall(ws)
     const { sender, sent } = fakeSender()
     const model =
@@ -228,9 +213,7 @@ describe('routing a call email', () => {
           }
         : fakeModel(() => answer).model
     await notifyCallFinished(db, sender, call.id, { model: async () => model })
-    expect(sent.map(e => e.to).sort()).toEqual(
-      [await emailOf(ws.owner), await emailOf(dave), await emailOf(mike)].sort(),
-    )
+    expect(sent.map(e => e.to).sort()).toEqual([await emailOf(ws.owner), await emailOf(dave)].sort())
     expect((await getCall(call.id))!.email_route).toMatchObject({ mode: 'fallback', problem, reason: null })
     expect((await getCall(call.id))!.assignee_id).toBeNull()
   })
@@ -238,23 +221,26 @@ describe('routing a call email', () => {
   test('one decision per call: a retry sends to the same people and never asks again', async () => {
     const ws = await createWorkspace('Retry Plumbing')
     const dave = await addMember(ws.id, 'member')
-    await setRules(ws, { always: [], rules: [rule('Everything', [dave.userId])] })
+    await onlyRules(ws.owner, dave)
+    await setRules(ws, { rules: [rule('Everything', [dave.userId])] })
     const call = await finishedCall(ws)
     const { model, requests } = fakeModel([1])
     const first = fakeSender()
     await notifyCallFinished(db, first.sender, call.id, { model: async () => model })
+    // Turned on after the decision: the retry still sends to the people decided then.
+    await act(ws.owner, 'notifications.update', { email: true })
     const again = fakeSender()
     await notifyCallFinished(db, again.sender, call.id, { model: async () => model })
     expect(requests).toHaveLength(1)
     expect(again.sent.map(e => e.to)).toEqual([await emailOf(dave)])
   })
 
-  test("assigns the first fitting rule's assignee who gets the email, only while nobody has the call", async () => {
+  test("assigns the first fitting rule's assignee, only while nobody has the call", async () => {
     const ws = await createWorkspace('Assign Plumbing')
     const dave = await addMember(ws.id, 'member')
     const sarah = await addMember(ws.id, 'member')
+    await onlyRules(ws.owner, dave, sarah)
     await setRules(ws, {
-      always: [],
       rules: [
         rule('Billing', [ws.owner.userId]),
         rule('Leaks', [sarah.userId], sarah.userId),
@@ -269,11 +255,6 @@ describe('routing a call email', () => {
     expect((await getCall(call.id))!.email_route!.assigned_user_id).toBe(sarah.userId)
     const events = await db.select().from(call_events).where(eq(call_events.call_id, call.id))
     expect(events.map(e => [e.kind, e.assignee_id, e.actor_id])).toEqual([['assigned', sarah.userId, null]])
-    // Sarah has call emails off: she gets no email, so the next fitting rule's assignee gets the call.
-    await act(sarah, 'notifications.update', { email: false })
-    const second = await finishedCall(ws)
-    await notifyCallFinished(db, sender, second.id, { model: async () => fakeModel([2, 3]).model })
-    expect((await getCall(second.id))!.assignee_id).toBe(dave.userId)
     // A rule without an assignee assigns nobody.
     const third = await finishedCall(ws)
     await notifyCallFinished(db, sender, third.id, { model: async () => fakeModel([1]).model })
@@ -285,20 +266,14 @@ describe('routing a call email', () => {
     expect((await getCall(fourth.id))!.assignee_id).toBe(ws.owner.userId)
   })
 
-  test('routeFor: recipients each once, members who left or turned emails off are skipped', () => {
-    const m = (userId: string, emailOn = true) => ({
-      userId,
-      name: userId,
-      email: `${userId}@x.example`,
-      locale: 'en' as const,
-      emailOn,
-    })
+  test('routeFor: recipients each once, members who left are skipped, no answer sends to every rule', () => {
+    const m = (userId: string) => ({ userId, name: userId, email: `${userId}@x.example`, locale: 'en' as const })
     const everyone = [{ kind: 'member' as const, user_id: 'a', name: 'a' }]
     const rules: EmailRules = {
-      always: ['a', 'gone'],
-      rules: [rule('One', ['a', 'b', 'c'], 'c'), rule('Two', ['b'], 'b')],
+      rules: [rule('One', ['a', 'b', 'gone'], 'gone'), rule('Two', ['b'], 'b'), rule('Three', ['c'])],
     }
-    const members = [m('a'), m('b'), m('c', false)]
+    // "gone" left the workspace: membersById did not find them.
+    const members = [m('a'), m('b'), m('c')]
     const at = '2026-11-17T00:00:00Z'
     expect(routeFor(rules, { ok: true, rules: [0, 1], reason: 'x' }, members, everyone, at)).toEqual({
       mode: 'routed',
@@ -308,20 +283,24 @@ describe('routing a call email', () => {
       ],
       rules: ['One', 'Two'],
       reason: 'x',
-      // c has emails off, so rule One assigns nobody; Two assigns b.
+      // The assignee of One left, so Two assigns b.
       assigned_user_id: 'b',
       at,
     })
-    expect(routeFor(rules, { ok: false, problem: 'no_llm' }, members, everyone, at)).toMatchObject({
+    expect(routeFor(rules, { ok: false, problem: 'llm_failed' }, members, everyone, at)).toEqual({
       mode: 'fallback',
-      to: everyone,
-      problem: 'no_llm',
+      to: [
+        { kind: 'member', user_id: 'a', name: 'a' },
+        { kind: 'member', user_id: 'b', name: 'b' },
+        { kind: 'member', user_id: 'c', name: 'c' },
+      ],
+      reason: null,
+      assigned_user_id: null,
+      at,
+      problem: 'llm_failed',
     })
-    // Nobody set to always get it is still reachable: the fallback.
-    expect(routeFor({ always: ['gone'], rules: [] }, null, members, everyone, at)).toMatchObject({
-      mode: 'fallback',
-      to: everyone,
-    })
+    expect(routeFor({ rules: [] }, null, members, everyone, at)).toMatchObject({ mode: 'routed', to: everyone })
+    expect(routeFor({ rules: [] }, null, members, [], at)).toMatchObject({ mode: 'routed', to: [] })
   })
 
   test('what was said cannot close <call> or <rules>, and topics are one line', () => {
@@ -568,48 +547,80 @@ describe('saving the rules', () => {
   test('assistant.update saves them normalized; members may not; emailRouting.get may run while impersonating', async () => {
     const ws = await createWorkspace('Save Rules Plumbing')
     const dave = await addMember(ws.id, 'member')
-    const rules = { always: [ws.owner.userId], rules: [rule('Leaks', [dave.userId, dave.userId], ws.owner.userId)] }
+    const rules = { rules: [rule('Leaks', [dave.userId, dave.userId], ws.owner.userId)] }
     const res = await act(ws.owner, 'assistant.update', { assistantId: ws.assistant.id, email_rules: rules })
     expect(res.status).toBe(200)
     expect(res.body.rows.assistants[0].email_rules).toEqual({
-      always: [ws.owner.userId],
       rules: [{ ...rules.rules[0], to: [dave.userId], assign: null }],
     })
     expect(
-      (await act(dave, 'assistant.update', { assistantId: ws.assistant.id, email_rules: { always: [], rules: [] } }))
-        .status,
+      (await act(dave, 'assistant.update', { assistantId: ws.assistant.id, email_rules: { rules: [] } })).status,
     ).toBe(403)
     const cleared = await act(ws.owner, 'assistant.update', {
       assistantId: ws.assistant.id,
-      email_rules: { always: [], rules: [] },
+      email_rules: { rules: [] },
     })
-    expect(cleared.body.rows.assistants[0].email_rules).toEqual({ always: [], rules: [] })
+    expect(cleared.body.rows.assistants[0].email_rules).toEqual({ rules: [] })
     expect(actions.get('assistant.previewEmailRouting')).toBeUndefined()
     expect(mayRunWhileImpersonating(actions.get('emailRouting.get')!)).toBe(true)
   })
 
-  test('emailRouting.available: every member learns whether rules are on, and nothing else', async () => {
-    const ws = await createWorkspace('Rules On Plumbing')
+  test('callEmails.get: every member reads who gets every call, the default and whether rules are on', async () => {
+    const ws = await createWorkspace('Who Hears Plumbing')
     const dave = await addMember(ws.id, 'member')
+    const sarah = await addMember(ws.id, 'member')
+    await onlyRules(sarah)
+    const gone = await addMember(ws.id, 'member')
+    await db.update(user).set({ disabledAt: new Date() }).where(eq(user.id, gone.userId))
     const model = previewDeps.model
     try {
       previewDeps.model = async () => null
-      const off = await act(dave, 'emailRouting.available', {})
+      const off = await act(dave, 'callEmails.get', {})
       expect(off.status).toBe(200)
-      expect(off.body.data).toEqual({ llm: false })
+      expect(off.body.data.llm).toBe(false)
+      expect(off.body.data.newTeammates).toBe(true)
+      expect(off.body.data.you).toBe(dave.userId)
+      const byUser = (data: { members: { userId: string; everyCall: boolean }[] }) =>
+        Object.fromEntries(data.members.map(m => [m.userId, m.everyCall]))
+      // Only ids and the switch: no names, no addresses; a disabled account is not listed.
+      expect(byUser(off.body.data)).toEqual({ [ws.owner.userId]: true, [dave.userId]: true, [sarah.userId]: false })
+      expect(JSON.stringify(off.body.data)).not.toContain('@')
       previewDeps.model = async () => ({ model: 'test', complete: async () => '{}' }) as EvaluationModel
-      expect((await act(dave, 'emailRouting.available', {})).body.data).toEqual({ llm: true })
+      await act(ws.owner, 'notifications.setDefaults', { email: false })
+      const on = await act(dave, 'callEmails.get', {})
+      expect(on.body.data).toMatchObject({ llm: true, newTeammates: false })
+      // Members already in keep what they got.
+      expect(byUser(on.body.data)[dave.userId]).toBe(true)
     } finally {
       previewDeps.model = model
     }
-    expect(mayRunWhileImpersonating(actions.get('emailRouting.available')!)).toBe(true)
+    expect(mayRunWhileImpersonating(actions.get('callEmails.get')!)).toBe(true)
+  })
+
+  test("owners and admins switch a teammate's every-call email; members only their own", async () => {
+    const ws = await createWorkspace('Switch Others Plumbing')
+    const admin = await addMember(ws.id, 'admin')
+    const dave = await addMember(ws.id, 'member')
+    const memberIdOf = async (who: User) =>
+      (await db.select().from(members).where(eq(members.userId, who.userId)))[0]!.id
+    const daveId = await memberIdOf(dave)
+    const ownerId = await memberIdOf(ws.owner)
+    expect((await act(dave, 'team.updateMemberNotifications', { memberId: ownerId, email: false })).status).toBe(403)
+    expect((await act(dave, 'notifications.setDefaults', { email: false })).status).toBe(403)
+    // An admin changes a member, never the owner.
+    expect((await act(admin, 'team.updateMemberNotifications', { memberId: daveId, email: false })).status).toBe(200)
+    expect((await act(admin, 'team.updateMemberNotifications', { memberId: ownerId, email: false })).status).toBe(403)
+    expect((await act(dave, 'notifications.update', { email: true })).status).toBe(200)
+    const read = await act(dave, 'callEmails.get', {})
+    expect(read.body.data.members.find((m: { userId: string }) => m.userId === dave.userId).everyCall).toBe(true)
+    expect(read.body.data.members.find((m: { userId: string }) => m.userId === ws.owner.userId).everyCall).toBe(true)
   })
 })
 
 test("the reason is asked for in the call's language: a German assistant in a workspace that reads US", async () => {
   const ws = await createWorkspace('Routing Sprache Sanitär')
   const dave = await addMember(ws.id, 'member')
-  await setRules(ws, { always: [], rules: [rule('Warmwasser', [dave.userId])] })
+  await setRules(ws, { rules: [rule('Warmwasser', [dave.userId])] })
   await db
     .update(assistants)
     .set({ languages: { main: 'de', mode: 'english', allowed: [] } })

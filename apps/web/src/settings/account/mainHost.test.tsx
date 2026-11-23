@@ -28,7 +28,7 @@ const { AccountSettings } = await import('./index.tsx')
 
 const render = (hash: string) => {
   vi.stubGlobal('window', { location: { hash }, addEventListener: () => {}, removeEventListener: () => {} })
-  return renderToStaticMarkup(<AccountSettings hasWorkspace workspaceName="Brightwater Plumbing & Heating" />)
+  return renderToStaticMarkup(<AccountSettings hasWorkspace />)
 }
 afterEach(() => vi.unstubAllGlobals())
 

@@ -21,7 +21,7 @@ import {
   teamRunner,
 } from './team-model.ts'
 import { parseHash } from '../shell/useRoute.ts'
-import { OWN_NOTIFICATIONS_HASH } from '../settings/Notifications.tsx'
+import { WHO_HEARS_HASH } from '../settings/Notifications.tsx'
 
 const member = (userId: string, role: TeamMember['role'], email = `${userId}@x.co`): TeamMember =>
   ({ memberId: `m_${userId}`, userId, name: userId, email, role, joinedAt: '2026-11-01T10:00:00Z' })
@@ -77,9 +77,9 @@ describe('team model', () => {
     expect(parseHash(PROFILE_HASH)).toMatchObject({ route: 'account', known: true })
   })
 
-  it('the team defaults link to your own notifications in Account', () => {
-    expect(OWN_NOTIFICATIONS_HASH).toBe('#account/notifications')
-    expect(parseHash(OWN_NOTIFICATIONS_HASH)).toMatchObject({ route: 'account', known: true })
+  it('call emails link to the one place for them, Assistant › Who hears about calls', () => {
+    expect(WHO_HEARS_HASH).toBe('#assistant/emails')
+    expect(parseHash(WHO_HEARS_HASH)).toMatchObject({ route: 'assistant', known: true })
   })
 
   it('knows who is already on the team or invited', () => {

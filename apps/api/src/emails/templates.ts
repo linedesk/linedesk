@@ -60,6 +60,8 @@ export function appLink(origin: string, workspaceId: string, path: string): stri
 const callLink = (origin: string, workspaceId: string, callId: string) =>
   appLink(origin, workspaceId, `call/${encodeURIComponent(callId)}`)
 const notificationsLink = (origin: string, workspaceId: string) => appLink(origin, workspaceId, 'account/notifications')
+/** Where call emails are set for the whole team: Assistant › Who hears about calls (LIN-768). */
+const whoHearsLink = (origin: string, workspaceId: string) => appLink(origin, workspaceId, 'assistant/emails')
 
 // ---------------------------------------------------------------- sign-in and account
 
@@ -925,7 +927,7 @@ function callContent(call: CallEmail, origin: string, locale: EmailLocale, outsi
       : t('email.call.reason', { workspace: call.workspace }),
     settings: outside
       ? { label: t('email.call.outsideStop'), url: outside.stopUrl }
-      : { label: t('email.notificationSettings'), url: notificationsLink(origin, call.workspaceId) },
+      : { label: t('email.call.whoHears'), url: whoHearsLink(origin, call.workspaceId) },
     origin,
   }
 }

@@ -490,20 +490,18 @@ export function transferChanges(before: TransferContact[], after: TransferContac
 
 /**
  * A change of an assistant's call email rules (assistant.update, `email_rules`): which members now get emails by them
- * (always or by a rule) and which no longer do, never the rules' text. Audited like transfer contacts (kind
+ * and which no longer do, never the rules' text. Audited like transfer contacts (kind
  * `integrations`): it decides where call summaries and transcripts are emailed. Null when the rules did not change.
  * Entries from before LIN-470 may name an outside address (the instruction could).
  */
 export type AuditedMention = { kind: 'member'; id: string; name: string | null } | { kind: 'outside'; email: string }
 export type EmailRoutingChanges = { added: AuditedMention[]; removed: AuditedMention[] }
 
-/** The members the rules email: always, then each rule's, each once. */
-const rulesMembers = (r: EmailRules | null | undefined) => [
-  ...new Set([...(r?.always ?? []), ...(r?.rules ?? []).flatMap(rule => rule.to)]),
-]
+/** The members the rules email: each rule's, each once. */
+const rulesMembers = (r: EmailRules | null | undefined) => [...new Set((r?.rules ?? []).flatMap(rule => rule.to))]
 /** The rules in one key order (jsonb stores its keys in its own order). */
 const rulesKey = (r: EmailRules | null | undefined) =>
-  JSON.stringify([r?.always ?? [], (r?.rules ?? []).map(({ id, when, to, assign }) => [id, when, to, assign ?? null])])
+  JSON.stringify((r?.rules ?? []).map(({ id, when, to, assign }) => [id, when, to, assign ?? null]))
 const sameRules = (before: EmailRules | null | undefined, after: EmailRules | null | undefined) =>
   rulesKey(before) === rulesKey(after)
 
