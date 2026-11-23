@@ -2,6 +2,7 @@ import type { Call, TranscriptSegment } from '@linedesk/db/types'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   answeredByLabel,
+  callBackNumber,
   type CallStatus,
   callStatus,
   callTitle,
@@ -36,6 +37,8 @@ export type CallViewActions = {
   onNotDone: (call: Call) => void
   onRemind: (call: Call) => void
   onClearReminder: (call: Call) => void
+  /** Call back (C): dials the caller, as the inbox row's Call back does. The phone's bottom bar offers it. */
+  onCallBack?: (call: Call) => void
   /** ⌘K: the rest of the call's actions (Mark unread, Delete…), as ⋯ does on a row. */
   onCommands?: () => void
   /** Takes a spam call back to Needs you (the only way out of Spam besides Done). */
@@ -178,6 +181,49 @@ function Bar({ call, index, count, menu, ...on }: BarProps) {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * A phone's bottom bar (below 720 px, app.css): the next thing to do with the call within thumb's reach, Call <name>
+ * back (only when the number is known and not spam or blocked, callBackNumber) and Done. The top bar's Done then
+ * hides. Not for a live call or one that is done.
+ */
+function PhoneFoot({
+  call,
+  onCallBack,
+  onDone,
+}: {
+  call: Call
+  onCallBack?: (call: Call) => void
+  onDone: () => void
+}) {
+  const t = useT()
+  const contact = useContact(call.contact_id)
+  const canCall = onCallBack && callBackNumber(call, contact)
+  const name = !isTestCall(call) && !contact?.deleted_at ? contact?.name?.trim().split(/\s+/)[0] : undefined
+  return (
+    <div className="cv-foot" role="toolbar" aria-label={t('call.foot.label')}>
+      {canCall && (
+        <Button
+          variant="primary"
+          icon="phone-out"
+          className="cv-foot-call"
+          title={t('common.withKey', { label: t('inbox.row.callBackTitle'), key: 'C' })}
+          onClick={() => onCallBack(call)}
+        >
+          {name ? t('call.foot.callBackName', { name }) : t('call.foot.callBack')}
+        </Button>
+      )}
+      <Button
+        variant={canCall ? 'secondary' : 'primary'}
+        className="cv-foot-done"
+        title={t('common.withKey', { label: t('shell.command.markDone'), key: 'E' })}
+        onClick={onDone}
+      >
+        {t('inbox.action.done')}
+      </Button>
     </div>
   )
 }
@@ -393,9 +439,10 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
   const pending = useListenedLines(call.id, segments)
   const status = callStatus(call, segments)
   const [transcriptOpen, setTranscriptOpen] = useState(true)
+  const foot = !live && call.inbox_state !== 'done'
 
   return (
-    <div className="cv">
+    <div className={foot ? 'cv has-foot' : 'cv'}>
       <Bar call={call} {...bar} />
       <div className="cv-main" data-side={sideOpen ? 'open' : undefined}>
         <div className="cv-center">
@@ -462,6 +509,7 @@ export function CallView({ call, segments, search, side, repeatCount = 1, canRev
               )}
             </div>
           </div>
+          {foot && <PhoneFoot call={call} onCallBack={bar.onCallBack} onDone={() => bar.onDone(call)} />}
         </div>
         {sideOpen && (
           <button

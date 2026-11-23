@@ -2565,6 +2565,17 @@ button.k-link {
   line-height: 19px;
   color: var(--ink-muted);
 }
+/* The step's keys: one quiet line under the job it teaches. A phone has no keyboard to press them on. */
+.tour p.tour-keys {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-muted);
+}
+@media (max-width: 719px), (hover: none) and (pointer: coarse) {
+  .tour p.tour-keys {
+    display: none;
+  }
+}
 /* The counter never wraps or shrinks; the buttons stay together as one group. When the row is too narrow
    (longer labels in another language) the group drops to its own row, still on the right, rather than
    squeezing the counter. */
@@ -2859,4 +2870,37 @@ button.k-link {
 .nav-keys:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
+}
+
+/* A phone's call view (CallView PhoneFoot): Call <name> back and Done in a bar at the bottom, within thumb's reach.
+   It sits under the scrolling call, never over it, and clears the home indicator. The top bar's Done then hides. */
+.cv-foot {
+  display: none;
+}
+@media (max-width: 719px) {
+  .cv-foot {
+    display: flex;
+    flex: none;
+    gap: 8px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+  }
+  .cv-foot .k-btn {
+    height: var(--control-h-lg);
+    justify-content: center;
+  }
+  .cv-foot .cv-foot-call {
+    flex: 1;
+    min-width: 0;
+  }
+  .cv-foot .cv-foot-done:only-child {
+    flex: 1;
+  }
+  .cv.has-foot .cv-bar .cv-done {
+    display: none;
+  }
+  .app:has(.cv-foot) .toast {
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  }
 }

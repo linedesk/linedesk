@@ -673,6 +673,7 @@ export function Workspace({ me, onSignedOut, onSessionStale, notice = null, onRe
             onNotDone={perRow(actions.markNotDone, actions.many.markNotDone)}
             onRemind={openRemind}
             onClearReminder={callHandlers.clearReminder}
+            onCallBack={callBack}
             onCommands={() => setOverlay('commands')}
             onToggleSpam={callHandlers.toggleSpam}
             onAssign={canAssign ? openAssign : undefined}

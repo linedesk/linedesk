@@ -1,7 +1,7 @@
-// The first-use tour: four steps, each a small card next to what it explains, with an arrow pointing at it
-// and the rest of the screen dimmed around it. With nothing to point at (phones hide some of it) the card
-// is centred. → or Enter next, ← back, Esc closes; every other key still works, so the shortcuts it names
-// can be tried at once. Clicks reach only the card: a click elsewhere (another call, the menu) would leave the
+// The first-use tour: four steps, each a small card next to what it explains (the job first, its keys in one grey
+// line that phones leave out), with an arrow pointing at it and the rest of the screen dimmed around it. With
+// nothing to point at (phones hide some of it) the card is centred. → or Enter next, ← back, Esc closes; every
+// other key still works, so the shortcuts it names can be tried at once. Clicks reach only the card: a click elsewhere (another call, the menu) would leave the
 // tour pointing at what is no longer there. While a dialog is open over it, the tour waits.
 import { arrow, autoUpdate, flip, hide, offset, shift, useFloating } from '@floating-ui/react-dom'
 import { type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -46,6 +46,7 @@ export function Tour({ onClose: close, canAssign }: { onClose: () => void; canAs
       <TourCard step={step} target={target} labelledBy={titleId} describedBy={textId}>
         <h2 id={titleId}>{step.title}</h2>
         <p id={textId}>{step.text}</p>
+        {step.keys && <p className="tour-keys">{step.keys}</p>}
         <div className="tour-foot">
           <span className="tour-count" aria-hidden="true">
             {t('shell.tour.count', { step: at + 1, steps: steps.length })}
@@ -125,6 +126,8 @@ function TourCard({
       style={anchored ? floatingStyles : undefined}
       role="dialog"
       aria-modal="false"
+      // Its buttons teach no "Next time, press →": the tour names its keys itself, and the tip would cover the card.
+      data-no-hint=""
       aria-labelledby={labelledBy}
       aria-describedby={describedBy}
     >

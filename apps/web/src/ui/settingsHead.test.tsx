@@ -1,8 +1,8 @@
 // The one settings head (UI cleanup S1/S2): a context line above the nav at one size and place, actions at its right,
-// and the phone's tab row faded at an edge with more tabs behind it.
+// and on a phone one picker for the sections instead of the nav.
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, test } from 'vitest'
-import { fadeOf, SettingsLayout } from './SettingsLayout.tsx'
+import { SettingsLayout } from './SettingsLayout.tsx'
 
 const sections = [
   { id: 'general', label: 'General' },
@@ -35,9 +35,10 @@ test('no context and no actions: no empty line (Server admin, Partner area)', ()
   expect(render({})).not.toContain('sl-context')
 })
 
-test('the tab row fades only at an edge with more tabs behind it', () => {
-  expect(fadeOf({ scrollWidth: 300, clientWidth: 300, scrollLeft: 0 })).toBeUndefined()
-  expect(fadeOf({ scrollWidth: 600, clientWidth: 300, scrollLeft: 0 })).toBe('end')
-  expect(fadeOf({ scrollWidth: 600, clientWidth: 300, scrollLeft: 150 })).toBe('both')
-  expect(fadeOf({ scrollWidth: 600, clientWidth: 300, scrollLeft: 300 })).toBe('start')
+test('a phone picker names the open section; the nav stays for wider screens', () => {
+  const html = render({})
+  const pick = html.slice(html.indexOf('class="sl-pick"'), html.indexOf('<nav'))
+  expect(pick).toContain('aria-haspopup="listbox"')
+  expect(pick).toContain('General')
+  expect(html).toContain('class="sl-nav"')
 })

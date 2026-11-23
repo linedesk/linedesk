@@ -113,6 +113,8 @@ export type SelectOption<T extends string> = {
   group?: string
   /** Shown but not pickable; `description` says why ("Has an owner"). */
   disabled?: boolean
+  /** A small mark after the label, in the list and on the button (a settings section's count, to-do or unsaved dot). */
+  mark?: ReactNode
 }
 
 /** The options as the list shows them: runs of consecutive options with the same group, each with its first index. */
@@ -170,7 +172,10 @@ export function SelectOptionBody({ option, selected }: { option: SelectOption<st
   return (
     <>
       <span className="k-select-opt-t">
-        <span className="k-select-opt-l">{option.label}</span>
+        <span className="k-select-opt-l">
+          {option.label}
+          {option.mark && <span className="k-select-mark">{option.mark}</span>}
+        </span>
         {option.description && <small>{option.description}</small>}
       </span>
       <OptionCheck selected={selected} />
@@ -293,7 +298,10 @@ export function Select<T extends string>({
         onClick={() => (open ? close() : show())}
         onKeyDown={onButtonKey}
       >
-        <span>{current?.label ?? t('common.select.choose')}</span>
+        <span>
+          {current?.label ?? t('common.select.choose')}
+          {current?.mark && <span className="k-select-mark">{current.mark}</span>}
+        </span>
         <Icon name="down" size={14} />
       </button>
       {open && (

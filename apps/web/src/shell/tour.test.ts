@@ -12,18 +12,31 @@ import {
   tourSteps,
 } from './tour.ts'
 
-test('four short steps: inbox, a call, assign and finish, the rest', () => {
+test('four short steps about the job: calls that need you, a call, handling it, the rest', () => {
   const steps = tourSteps('Ava')
-  expect(steps.map(s => s.title)).toEqual(['Your inbox', 'Open a call', 'Assign and finish', 'Everything else'])
+  expect(steps.map(s => s.title)).toEqual([
+    'Calls that need you',
+    'Open a call',
+    'Handled it? Mark it done',
+    'Everything else',
+  ])
   expect(steps[0]!.text).toContain('Ava')
 })
 
-test('alone in the workspace, the finish step names no A (nobody to assign to)', () => {
+test('the text teaches the job; keys only in their own line', () => {
+  for (const step of tourSteps('Ava')) {
+    expect(step.text).not.toMatch(/\b[JKEHZC]\b|Enter|Esc|⌘K/)
+    expect(step.keys).toMatch(/^Keys: /)
+  }
+  expect(tourSteps('Ava')[2]!.keys).toBe('Keys: C call back · E done · H remind · A assign · Z undo')
+})
+
+test('alone in the workspace, the handle step names no A (nobody to assign to)', () => {
   const alone = tourSteps('Ava', false)[2]!
-  expect(alone.title).toBe('Remind and finish')
-  expect(alone.text).not.toContain('A ')
-  expect(alone.text).toContain('H reminds you later')
-  expect(tourSteps('Ava', true)[2]!.text).toContain('A assigns a call to you')
+  expect(alone.title).toBe('Handled it? Mark it done')
+  expect(alone.keys).not.toContain('A assign')
+  expect(alone.text).not.toContain('assign')
+  expect(tourSteps('Ava', true)[2]!.text).toContain('assign it to someone')
 })
 
 test('→ moves on and closes after the last step, ← goes back, Esc closes, other keys stay with the app', () => {
@@ -69,11 +82,11 @@ test('queued after onboarding, it waits for the first call in the inbox, then st
   vi.unstubAllGlobals()
 })
 
-test('every step but the last points at something on the inbox; the last points at the shortcut hints', () => {
+test('every step but the last points at something on the inbox; the last points at the menu', () => {
   const steps = tourSteps('Ava')
   for (const step of steps) expect(step.targets?.length).toBeGreaterThan(0)
   expect(steps[2]!.targets![0]).toContain('.is-cursor .r-acts') // Done and Remind buttons of the call under the cursor
-  expect(steps.at(-1)!.targets![0]).toContain('.ib-hint')
+  expect(steps.at(-1)!.targets![0]).toBe('.menu-btn')
 })
 
 const box = (left: number, top: number, width: number, height: number) => ({

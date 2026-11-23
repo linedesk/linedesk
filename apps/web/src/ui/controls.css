@@ -346,3 +346,11 @@
   margin-bottom: 8px;
   padding: 0;
 }
+/* An option's mark after its label (a settings section's count, to-do or unsaved dot), in the list and on the button. */
+.k-select-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  vertical-align: middle;
+}

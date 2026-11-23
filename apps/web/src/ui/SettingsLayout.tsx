@@ -3,8 +3,9 @@
 // assistant switcher, the workspace's name, the account's email) at the same size and place on every page; then a
 // narrow nav of the page's sections at the left and one section at a time at the right, its title inside its card.
 // Each section has its own hash (`#assistant/<id>/transfers`), so links, reload and Back work. Below 720 px the nav is
-// a row of tabs that scrolls sideways, faded at an edge with more tabs behind it.
-import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+// one full-width picker that names the open section and lists them all, marks included.
+import { type MouseEvent, type ReactNode, useEffect, useState } from 'react'
+import { Select } from './controls.tsx'
 import './settings-layout.css'
 import { useT } from '@linedesk/i18n/react'
 
@@ -90,6 +91,12 @@ function showSectionNow(event: MouseEvent, hash: string) {
   for (const show of sectionClicks) show(hash)
 }
 
+/** A section picked in the phone's picker: shown now, and the hash says so (links, reload and Back keep working). */
+function openSection(hash: string) {
+  for (const show of sectionClicks) show(hash)
+  window.location.hash = hash
+}
+
 type Props<T extends string> = {
   page: string
   title: string
@@ -109,46 +116,9 @@ type Props<T extends string> = {
   children: ReactNode
 }
 
-/** Which edges of the phone's tab row have more tabs behind them: those fade out. */
-type Fade = 'start' | 'end' | 'both' | undefined
-
-export function fadeOf(nav: Pick<HTMLElement, 'scrollWidth' | 'clientWidth' | 'scrollLeft'>): Fade {
-  const more = nav.scrollWidth - nav.clientWidth
-  if (more <= 1) return undefined
-  const start = nav.scrollLeft > 1
-  const end = nav.scrollLeft < more - 1
-  return start && end ? 'both' : start ? 'start' : end ? 'end' : undefined
-}
-
 export function SettingsLayout<T extends string>(props: Props<T>) {
   const t = useT()
   const { page, title, context, actions, sections, current, unsaved, banner, children } = props
-  const nav = useRef<HTMLElement>(null)
-  const [fade, setFade] = useState<Fade>(undefined)
-  // On a phone the nav is a row that scrolls sideways: the open section is scrolled to the middle (the tabs before it
-  // stay in sight), and an edge with more tabs behind it fades out, so the row reads as one that scrolls.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: runs again whenever another section opens
-  useEffect(() => {
-    const row = nav.current
-    const item = row?.querySelector<HTMLElement>('[aria-current="page"]')
-    if (row && item && row.scrollWidth > row.clientWidth) {
-      const box = row.getBoundingClientRect()
-      const at = item.getBoundingClientRect()
-      row.scrollLeft += at.left - box.left - (box.width - at.width) / 2
-    }
-    if (row) setFade(fadeOf(row))
-  }, [current])
-  useEffect(() => {
-    const row = nav.current
-    if (!row) return
-    const update = () => setFade(fadeOf(row))
-    row.addEventListener('scroll', update, { passive: true })
-    window.addEventListener('resize', update)
-    return () => {
-      row.removeEventListener('scroll', update)
-      window.removeEventListener('resize', update)
-    }
-  }, [])
   return (
     <div className="page-in sl-page">
       <div className="page-head sl-head">
@@ -162,7 +132,22 @@ export function SettingsLayout<T extends string>(props: Props<T>) {
       </div>
       {banner}
       <div className="sl-body">
-        <nav ref={nav} className="sl-nav" data-fade={fade} aria-label={t('common.settingsLayout.sections', { title })}>
+        <div className="sl-pick">
+          <Select
+            value={current}
+            label={t('common.settingsLayout.sections', { title })}
+            options={sections.map(s => ({
+              value: s.id,
+              label: s.label,
+              mark:
+                s.count || s.mark || unsaved?.has(s.id) ? (
+                  <SectionMarks section={s} dirty={!!unsaved?.has(s.id)} />
+                ) : undefined,
+            }))}
+            onChange={id => openSection(sectionHash(page, id))}
+          />
+        </div>
+        <nav className="sl-nav" aria-label={t('common.settingsLayout.sections', { title })}>
           {sections.map((s, i) => {
             const dirty = unsaved?.has(s.id)
             const firstQuiet = s.quiet && !sections[i - 1]?.quiet
@@ -179,9 +164,7 @@ export function SettingsLayout<T extends string>(props: Props<T>) {
                 data-desc={s.description}
               >
                 <span>{s.label}</span>
-                {!!s.count && <span className="nav-n">{s.count}</span>}
-                {s.mark}
-                {dirty && <span className="sl-dot" role="img" aria-label={t('common.unsaved')} />}
+                <SectionMarks section={s} dirty={!!dirty} />
               </a>
             )
             if (firstQuiet) return [<hr key={`line-${s.id}`} className="sl-line" />, item]
@@ -197,5 +180,17 @@ export function SettingsLayout<T extends string>(props: Props<T>) {
         <div className="sl-content">{children}</div>
       </div>
     </div>
+  )
+}
+
+/** What a section's label carries in the nav and the phone's picker: its count, its own mark, the unsaved dot. */
+function SectionMarks({ section, dirty }: { section: PageSection; dirty: boolean }) {
+  const t = useT()
+  return (
+    <>
+      {!!section.count && <span className="nav-n">{section.count}</span>}
+      {section.mark}
+      {dirty && <span className="sl-dot" role="img" aria-label={t('common.unsaved')} />}
+    </>
   )
 }

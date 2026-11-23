@@ -147,7 +147,7 @@ export function installTooltips() {
   document.addEventListener('click', e => {
     if (!e.isTrusted || e.detail === 0) return
     const el = (e.target as Element).closest?.('[data-sc], [title]')
-    if (!el) return
+    if (!el || el.closest('[data-no-hint]')) return
     const info = parseShortcutTitle(el.getAttribute('data-sc') ?? el.getAttribute('title'))
     if (info.keys.length) window.dispatchEvent(new CustomEvent<ShortcutHint>(HINT_EVENT, { detail: info }))
   })

@@ -10,7 +10,10 @@ export type TourPlacement = 'top' | 'bottom' | 'bottom-start' | 'bottom-end'
 
 export type TourStep = {
   title: string
+  /** The job this step teaches, in plain words: what to do, not which key does it. */
   text: string
+  /** The keys for it, one small grey line under the text; left out on touch screens (no keyboard to press them on). */
+  keys?: string
   /**
    * CSS selectors of what the step points at, the first one that is on screen wins. The step's card sits
    * next to it with an arrow and the rest of the screen dims; with none on screen the card is centred.
@@ -24,6 +27,8 @@ const CURSOR_ROW = '.ib-list .row.is-cursor'
 const FIRST_ROW = '.ib-list .row'
 
 /**
+ * Four steps, each about the job (where calls land, what a call holds, handling it, where the rest is); the keys
+ * come second, in one quiet line per step.
  * `canAssign`: the workspace has someone else to assign calls to; alone, A does nothing, so the tour skips it.
  * `samples`: the inbox shows sample calls, which the tour's end removes; its last step says so.
  */
@@ -32,29 +37,33 @@ export function tourSteps(assistant: string, canAssign = true, samples = false):
   return [
     {
       title: t('shell.tour.inbox.title'),
-      text: t('shell.tour.inbox.text', { assistant, down: 'J', up: 'K' }),
+      text: t('shell.tour.inbox.job', { assistant }),
+      keys: t('shell.tour.inbox.keys', { down: 'J', up: 'K' }),
       targets: [FIRST_ROW],
       placement: 'bottom',
     },
     {
       title: t('shell.tour.call.title'),
-      text: t('shell.tour.call.text', { open: 'Enter', back: 'Esc' }),
+      text: t('shell.tour.call.job'),
+      keys: t('shell.tour.call.keys', { open: 'Enter', back: 'Esc' }),
       targets: [CURSOR_ROW, FIRST_ROW],
       placement: 'bottom',
     },
     {
-      title: canAssign ? t('shell.tour.finish.title') : t('shell.tour.finishAlone.title'),
-      text: canAssign
-        ? t('shell.tour.finish.text', { assign: 'A', remind: 'H', done: 'E', undo: 'Z' })
-        : t('shell.tour.finishAlone.text', { remind: 'H', done: 'E', undo: 'Z' }),
+      title: t('shell.tour.handle.title'),
+      text: canAssign ? t('shell.tour.handle.jobAssign') : t('shell.tour.handle.job'),
+      keys: canAssign
+        ? t('shell.tour.handle.keysAssign', { callBack: 'C', done: 'E', remind: 'H', assign: 'A', undo: 'Z' })
+        : t('shell.tour.handle.keys', { callBack: 'C', done: 'E', remind: 'H', undo: 'Z' }),
       targets: [`${CURSOR_ROW} .r-acts`, CURSOR_ROW, FIRST_ROW],
       placement: 'bottom-end',
     },
     {
       title: t('shell.tour.rest.title'),
-      text: t(samples ? 'shell.tour.rest.textSamples' : 'shell.tour.rest.text', { commands: '⌘K', shortcuts: '?' }),
-      targets: ['.ib-hint > span:nth-last-child(2)'], // "⌘K commands", next to "? all shortcuts"
-      placement: 'top',
+      text: t(samples ? 'shell.tour.rest.jobSamples' : 'shell.tour.rest.job'),
+      keys: t('shell.tour.rest.keys', { commands: '⌘K', shortcuts: '?' }),
+      targets: ['.menu-btn'], // the menu: the assistant, contacts, settings
+      placement: 'bottom-start',
     },
   ]
 }
