@@ -1512,6 +1512,8 @@
   "phone.row.details": "Details…",
   "phone.row.manage": "Manage…",
   "phone.row.notAnswering": "Not answering",
+  "phone.row.offline": "Offline",
+  "phone.row.statusWhat": "Answering status",
   "phone.row.sub": "{assistant} · {mode}",
   "phone.row.theAssistant": "The assistant",
   "phone.row.unverified": "Forwarding not verified",

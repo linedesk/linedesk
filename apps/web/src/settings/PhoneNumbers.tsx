@@ -52,7 +52,7 @@ import {
 import { useDefaultPhoneCountry } from '../phoneCountry.ts'
 import { providerAudience } from '../providerAudience.ts'
 import { notAnsweringWhy } from '../inbox/goLive.ts'
-import { usePresence } from '../shell/presence.ts'
+import { type Presence, usePresence } from '../shell/presence.ts'
 import { useAssistantName, useAssistants, useClaimedRejection, useRows, useRun } from '../store.tsx'
 import { RadioCard, Select } from '../ui/controls.tsx'
 import { Dialog } from '../ui/form.tsx'
@@ -61,7 +61,7 @@ import { Badge, Button, Note } from '../ui/kit.tsx'
 import { StatusMark } from '../ui/StatusMark.tsx'
 import { List, ListEmpty, ListRow, MenuButton } from '../ui/list.tsx'
 import { PhoneInput } from '../ui/PhoneInput.tsx'
-import { Loading, SkeletonList, useLoadState } from '../ui/LoadStates.tsx'
+import { Loading, Skeleton, SkeletonList, SkeletonPart, useLoading, useLoadState } from '../ui/LoadStates.tsx'
 import { sectionHash, sectionParts } from '../ui/SettingsLayout.tsx'
 import { CarrierLine, useCarrierStatus } from './Carrier.tsx'
 import { AreaCodeInput } from './AreaCodeInput.tsx'
@@ -109,6 +109,10 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
   const assistants = useAssistants()
   const presence = usePresence()
   const answering = presence.kind === 'answering'
+  // Whether calls are answered is not known yet (the first status check is on its way): a skeleton in the badge's
+  // shape, never a guess (rule 15: none for a quick answer, at least 320 ms once shown). Offline is not "unknown".
+  const statusView = useLoading(presence.kind === 'unknown')
+  const statusWaiting = statusView.phase !== 'content'
   const [adding, setAdding] = useState(false)
   /** The number whose dialog is open, and whether it opens on releasing it. */
   const [managing, setManaging] = useState<{
@@ -151,8 +155,13 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
         error={numbersLoad === 'slow'}
         skeleton={<SkeletonList rows={1} aside action />}
       >
+        {numbers.length > 0 && statusWaiting && (
+          <span className="sr-only" role="status">
+            {t('common.load.loading', { what: t('settings.phone.row.statusWhat') })}
+          </span>
+        )}
         {numbers.length > 0 ? (
-          <List label={t('settings.phone.title')}>
+          <List label={t('settings.phone.title')} busy={statusWaiting}>
             {numbers.map(n => (
               <ListRow
                 key={n.id}
@@ -176,16 +185,12 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
                         {t('settings.phone.row.unverified')}
                       </Badge>
                     </button>
-                  ) : answering ? (
-                    <Badge tone="ok">
-                      <StatusMark state="works" label={t('settings.phone.row.answering')} />
-                      {t('settings.phone.row.answering')}
-                    </Badge>
                   ) : (
-                    <Badge>
-                      <StatusMark state="off" label={t('settings.phone.row.notAnswering')} />
-                      {t('settings.phone.row.notAnswering')}
-                    </Badge>
+                    <AnsweringBadge
+                      presence={presence}
+                      waiting={statusWaiting}
+                      reserved={statusView.phase === 'reserve'}
+                    />
                   )
                 }
                 actions={
@@ -219,7 +224,7 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
           <ListEmpty>{canEdit ? t('settings.phone.empty') : t('settings.phone.emptyMember')}</ListEmpty>
         )}
       </Loading>
-      {numbersLoad === 'ready' && (
+      {numbersLoad === 'ready' && !statusWaiting && (
         <NotAnsweringNote
           number={numbers.find(n => !answering && !forwardingUnverified(n, calls))}
           assistants={assistants}
@@ -251,6 +256,36 @@ export function PhoneNumbers({ canEdit, status: serverStatus, isInstanceAdmin, e
 }
 
 /**
+ * Whether the assistant answers a number's calls (one answer for every number: usePresence). Only a known "not
+ * answering" says so: while the answer is on its way a skeleton holds the badge's place (the list is aria-busy), and
+ * offline a neutral "Offline" (the app-wide offline bar says why), never a false "Not answering" (LIN-771).
+ */
+function AnsweringBadge({ presence, waiting, reserved }: { presence: Presence; waiting: boolean; reserved: boolean }) {
+  const t = useT()
+  if (waiting)
+    return (
+      <SkeletonPart reserved={reserved}>
+        <Skeleton width={104} height={20} className="sk-round" />
+      </SkeletonPart>
+    )
+  if (presence.kind === 'answering')
+    return (
+      <Badge tone="ok">
+        <StatusMark state="works" label={t('settings.phone.row.answering')} />
+        {t('settings.phone.row.answering')}
+      </Badge>
+    )
+  if (presence.kind === 'offline')
+    return <Badge title={t('inbox.presence.offlineTitle')}>{t('settings.phone.row.offline')}</Badge>
+  return (
+    <Badge>
+      <StatusMark state="off" label={t('settings.phone.row.notAnswering')} />
+      {t('settings.phone.row.notAnswering')}
+    </Badge>
+  )
+}
+
+/**
  * Why a number shows "Not answering", and the fix: the inbox header's reasons (notAnsweringWhy), as a warning under
  * the list. Every number shares the reason (the voice service is the server's), so one note, named after the first
  * number that is not answering. The fix links to Server admin only for instance admins; everyone else reads what
@@ -273,7 +308,7 @@ function NotAnsweringNote({
   if (!reason) return null
   return (
     <Note
-      tone={reason.reason === 'offline' ? 'neutral' : 'warning'}
+      tone="warning"
       title={reason.title}
       action={
         reason.fix && (

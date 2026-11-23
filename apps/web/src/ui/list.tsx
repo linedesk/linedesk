@@ -9,9 +9,20 @@ import type { IconName } from './icons.ts'
 import './list.css'
 import { useT } from '@linedesk/i18n/react'
 
-export function List({ label, className, children }: { label?: string; className?: string; children: ReactNode }) {
+export function List({
+  label,
+  busy,
+  className,
+  children,
+}: {
+  label?: string
+  /** Part of every row is still loading (a status skeleton): the one aria-busy area for it. */
+  busy?: boolean
+  className?: string
+  children: ReactNode
+}) {
   return (
-    <ul className={cx('k-list', className)} aria-label={label}>
+    <ul className={cx('k-list', className)} aria-label={label} aria-busy={busy || undefined}>
       {children}
     </ul>
   )

@@ -100,11 +100,12 @@ export const VOICE_FIX_HASH = '#admin/providers/answering'
  * Why the assistant is not answering calls, and the fix: one answer for the inbox header ("Maya can't answer calls
  * yet · Set up") and Settings › Phone numbers (the note under a number that is not answering). `title`: the
  * consequence; `why`: the reason, with what the viewer can do about it when there is no link; `fix`: the place that
- * fixes it, only for who can open it (the voice service: instance admins). null while the assistant answers or it is
- * not known yet.
+ * fixes it, only for who can open it (the voice service: instance admins). null while the assistant answers, while it
+ * is not known yet, and offline: then nothing is known about it, and the app-wide offline bar already says so (never a
+ * false "can't answer calls", LIN-771).
  */
 export type NotAnsweringWhy = {
-  reason: 'number' | 'voice' | 'failing' | 'offline'
+  reason: 'number' | 'voice' | 'failing'
   title: string
   why: string
   fix: { href: string; label: string } | null
@@ -112,8 +113,6 @@ export type NotAnsweringWhy = {
 
 export function notAnsweringWhy(presence: Presence, assistant: string, canFix: boolean): NotAnsweringWhy | null {
   const { t } = i18n()
-  if (presence.kind === 'offline')
-    return { reason: 'offline', title: t('inbox.presence.offline'), why: t('inbox.presence.offlineTitle'), fix: null }
   if (presence.kind !== 'notAnswering') return null
   if (presence.reason === 'number')
     return {

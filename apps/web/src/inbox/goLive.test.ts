@@ -359,9 +359,13 @@ describe('steps for the kind of business (LIN-680)', () => {
 })
 
 describe('why the assistant is not answering (the inbox header and Phone numbers)', () => {
-  test('nothing while it answers or before it is known', () => {
+  test('nothing while it answers, before it is known, or offline: never a false "can\'t answer calls" (LIN-771)', () => {
     expect(notAnsweringWhy({ kind: 'answering' }, 'Maya', true)).toBeNull()
     expect(notAnsweringWhy({ kind: 'unknown' }, 'Maya', true)).toBeNull()
+    expect(notAnsweringWhy({ kind: 'unknown' }, 'Maya', false)).toBeNull()
+    // Offline nothing is known about it; the app-wide offline bar says the app is offline.
+    expect(notAnsweringWhy({ kind: 'offline' }, 'Maya', true)).toBeNull()
+    expect(notAnsweringWhy({ kind: 'offline' }, 'Maya', false)).toBeNull()
   })
 
   test('the voice service: the fix in Server admin only for instance admins, the others read that it fixes itself', () => {
@@ -374,7 +378,7 @@ describe('why the assistant is not answering (the inbox header and Phone numbers
     expect(member.why).toContain('Nothing for you to do')
   })
 
-  test('a failing provider, no number, offline', () => {
+  test('a failing provider, no number', () => {
     const failing = notAnsweringWhy({ kind: 'notAnswering', reason: 'failing' }, 'Maya', true)!
     expect(failing.title).toBe("Maya can't answer calls")
     expect(failing.fix?.label).toBe('Fix')
@@ -382,6 +386,9 @@ describe('why the assistant is not answering (the inbox header and Phone numbers
     expect(notAnsweringWhy({ kind: 'notAnswering', reason: 'number' }, 'Maya', false)!.fix?.href).toBe(
       '#workspace/phone',
     )
-    expect(notAnsweringWhy({ kind: 'offline' }, 'Maya', true)).toMatchObject({ reason: 'offline', fix: null })
+    expect(notAnsweringWhy({ kind: 'notAnswering', reason: 'number' }, 'Maya', true)).toMatchObject({
+      reason: 'number',
+      title: "Maya can't answer calls yet",
+    })
   })
 })
